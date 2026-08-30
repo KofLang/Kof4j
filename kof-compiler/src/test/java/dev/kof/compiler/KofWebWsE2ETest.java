@@ -242,6 +242,13 @@ class KofWebWsE2ETest {
         return frame;
     }
 
+    private static String readTextFrame(java.io.InputStream in) throws IOException {
+        byte[] frame = readServerFrame(in);
+        assertEquals(0x81, frame[0] & 0xFF);
+        assertEquals(0, frame[1] & 0x80);
+        return new String(framePayload(frame), StandardCharsets.UTF_8);
+    }
+
     private static byte[] framePayload(byte[] frame) {
         long len = frame[1] & 0x7F;
         int offset;
@@ -380,6 +387,121 @@ class KofWebWsE2ETest {
             assertEquals("s3pPLMBiTxaQ9kYGzzhZRbK+xOo=",
                     ws.header("Sec-WebSocket-Accept"));
         }
+    }
+
+    @Test
+    void ws_onMessage_echo_text(@TempDir Path tempDir) throws Exception {
+        String app = """
+                main() {
+                    var app = web.app()
+                    app.ws("/ws") {
+                        ws.onMessage { msg -> ws.send(msg) }
+                    }
+                    app.listen(PORT)
+                }
+                """;
+        int port = startServer(tempDir, app);
+        try (WsResponse response = handshake(port, VALID_HEADERS)) {
+            writeMaskedFrame(response.socket.getOutputStream(), 0x1,
+                    "hello".getBytes(StandardCharsets.UTF_8));
+            byte[] frame = readServerFrame(response.socket.getInputStream());
+            assertEquals(0x81, frame[0] & 0xFF);
+            assertEquals(0, frame[1] & 0x80);
+            assertEquals("hello", new String(framePayload(frame), StandardCharsets.UTF_8));
+        }
+    }
+
+    @Test
+    void ws_onMessage_receives_multiple_frames(@TempDir Path tempDir) throws Exception {
+        String app = """
+                main() {
+                    var app = web.app()
+                    app.ws("/ws") {
+                        ws.onMessage { msg -> ws.send("echo: " + msg) }
+                    }
+                    app.listen(PORT)
+                }
+                """;
+        int port = startServer(tempDir, app);
+        try (WsResponse response = handshake(port, VALID_HEADERS)) {
+            java.io.OutputStream out = response.socket.getOutputStream();
+            writeMaskedFrame(out, 0x1, "one".getBytes(StandardCharsets.UTF_8));
+            assertEquals("echo: one", readTextFrame(response.socket.getInputStream()));
+            writeMaskedFrame(out, 0x1, "c".getBytes(StandardCharsets.UTF_8));
+            assertEquals("echo: c", readTextFrame(response.socket.getInputStream()));
+            writeMaskedFrame(out, 0x1, "def".getBytes(StandardCharsets.UTF_8));
+            assertEquals("echo: def", readTextFrame(response.socket.getInputStream()));
+        }
+    }
+
+    @Test
+    void ws_onClose_called_when_client_closes(@TempDir Path tempDir) throws Exception {
+        String app = """
+                main() {
+                    var app = web.app()
+                    app.ws("/ws") {
+                        ws.onClose { code, reason -> ws.send("closed") }
+                    }
+                    app.listen(PORT)
+                }
+                """;
+        int port = startServer(tempDir, app);
+        try (WsResponse response = handshake(port, VALID_HEADERS)) {
+            byte[] close = {0x03, (byte) 0xE8};
+            writeMaskedFrame(response.socket.getOutputStream(), 0x8, close);
+            assertEquals("closed", readTextFrame(response.socket.getInputStream()));
+            byte[] frame = readServerFrame(response.socket.getInputStream());
+            assertEquals(0x88, frame[0] & 0xFF);
+            assertEquals(0, frame[1] & 0x80);
+            assertEquals(1000, closeCode(framePayload(frame)));
+            assertEquals(-1, response.socket.getInputStream().read());
+        }
+    }
+
+    @Test
+    void ws_no_callback_still_does_handshake_and_ping_pong(@TempDir Path tempDir) throws Exception {
+        String app = """
+                main() {
+                    var app = web.app()
+                    app.ws("/ws") {
+                    }
+                    app.listen(PORT)
+                }
+                """;
+        int port = startServer(tempDir, app);
+        try (WsResponse response = handshake(port, VALID_HEADERS)) {
+            assertEquals("HTTP/1.1 101 Switching Protocols", response.status);
+            byte[] payload = "pong-me".getBytes(StandardCharsets.UTF_8);
+            writeMaskedFrame(response.socket.getOutputStream(), 0x9, payload);
+            byte[] frame = readServerFrame(response.socket.getInputStream());
+            assertEquals(0x8A, frame[0] & 0xFF);
+            assertEquals(0, frame[1] & 0x80);
+            assertArrayEquals(payload, framePayload(frame));
+        }
+    }
+
+    @Test
+    void ws_handler_exception_closes_connection_gracefully(@TempDir Path tempDir) throws Exception {
+        String app = """
+                main() {
+                    var app = web.app()
+                    app.ws("/ws") {
+                        ws.onMessage { msg -> throw "boom" }
+                    }
+                    app.listen(PORT)
+                }
+                """;
+        int port = startServer(tempDir, app);
+        try (WsResponse response = handshake(port, VALID_HEADERS)) {
+            writeMaskedFrame(response.socket.getOutputStream(), 0x1,
+                    "hello".getBytes(StandardCharsets.UTF_8));
+            byte[] frame = readServerFrame(response.socket.getInputStream());
+            assertEquals(0x88, frame[0] & 0xFF);
+            assertEquals(0, frame[1] & 0x80);
+            assertEquals(1011, closeCode(framePayload(frame)));
+            assertEquals(-1, response.socket.getInputStream().read());
+        }
+        assertTrue(serverProcess.isAlive());
     }
 
     @Test

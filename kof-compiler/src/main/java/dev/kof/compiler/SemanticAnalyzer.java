@@ -10,6 +10,8 @@ class SemanticAnalyzer {
 
     private static final String SSE_CONNECTION_TYPE =
             "dev.kof.runtime.KofRuntime$SseConnection";
+    private static final String WS_CONNECTION_TYPE =
+            "dev.kof.runtime.KofRuntime$WsConnection";
 
     private SymbolTable currentScope;
     private CompilationUnitNode currentUnit;
@@ -1246,6 +1248,13 @@ class SemanticAnalyzer {
                                     List.of(new FormalParameterNode(le.position(), List.of(),
                                             SSE_CONNECTION_TYPE, "sse")), le.body()));
                         }
+                        if ("ws".equals(mc.methodName()) && mc.arguments().size() == 2
+                                && mc.arguments().get(1) instanceof LambdaExpr le
+                                && le.parameters().isEmpty()) {
+                            mc.arguments().set(1, new LambdaExpr(le.position(),
+                                    List.of(new FormalParameterNode(le.position(), List.of(),
+                                            WS_CONNECTION_TYPE, "ws")), le.body()));
+                        }
                         List<Type> argTypes = new ArrayList<>();
                         for (ExpressionNode arg : mc.arguments()) argTypes.add(inferType(arg, scope));
                         KofWeb.WebCall webCall = KofWeb.instanceMethod(mc.methodName(), argTypes);
@@ -1257,6 +1266,13 @@ class SemanticAnalyzer {
                         for (ExpressionNode arg : mc.arguments()) argTypes.add(inferType(arg, scope));
                         KofWeb.WebCall sseCall = KofWeb.sseConnectionMethod(mc.methodName(), argTypes);
                         if (sseCall != null) yield sseCall.returnType();
+                        yield Type.UnknownType.UNKNOWN;
+                    }
+                    if (KofWeb.isWsConnectionType(recvType)) {
+                        List<Type> argTypes = new ArrayList<>();
+                        for (ExpressionNode arg : mc.arguments()) argTypes.add(inferType(arg, scope));
+                        KofWeb.WebCall wsCall = KofWeb.wsConnectionMethod(mc.methodName(), argTypes);
+                        if (wsCall != null) yield wsCall.returnType();
                         yield Type.UnknownType.UNKNOWN;
                     }
                     if (recvType instanceof Type.FunctionType ft) {

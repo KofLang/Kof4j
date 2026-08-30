@@ -27,6 +27,8 @@ final class KofWeb {
     static final Type APP = new Type.ClassType("kof.web", "App", List.of());
     static final Type SSE_CONNECTION =
             new Type.ClassType("dev.kof.runtime", "KofRuntime$SseConnection", List.of());
+    static final Type WS_CONNECTION =
+            new Type.ClassType("dev.kof.runtime", "KofRuntime$WsConnection", List.of());
 
     private static final Type STR = BuiltinTypes.STRING;
     private static final Type INT = Type.PrimitiveType.INT;
@@ -44,6 +46,10 @@ final class KofWeb {
         return SSE_CONNECTION.equals(t);
     }
 
+    static boolean isWsConnectionType(Type t) {
+        return WS_CONNECTION.equals(t);
+    }
+
     /** Methods available on the synthetic {@code sse} handler parameter. */
     static WebCall sseConnectionMethod(String name, List<Type> argTypes) {
         return switch (name) {
@@ -55,6 +61,23 @@ final class KofWeb {
                     ? new WebCall(name, VOID, List.of()) : null;
             case "isOpen" -> argTypes.isEmpty()
                     ? new WebCall(name, Type.PrimitiveType.BOOL, List.of()) : null;
+            default -> null;
+        };
+    }
+
+    /** Methods available on the synthetic {@code ws} handler parameter. */
+    static WebCall wsConnectionMethod(String name, List<Type> argTypes) {
+        return switch (name) {
+            case "send", "sendText" -> argTypes.size() == 1
+                    ? new WebCall(name, VOID, List.of(STR)) : null;
+            case "sendBinary" -> argTypes.size() == 1
+                    ? new WebCall(name, VOID, List.of(new Type.ArrayType(
+                            Type.PrimitiveType.BYTE))) : null;
+            case "close" -> argTypes.size() == 2
+                    ? new WebCall(name, VOID, List.of(INT, BuiltinTypes.STRING)) : null;
+            case "onMessage", "onClose", "onOpen" -> argTypes.size() == 1
+                    ? new WebCall(name, VOID, List.of(
+                            new Type.ClassType("java.lang", "Object", List.of()))) : null;
             default -> null;
         };
     }

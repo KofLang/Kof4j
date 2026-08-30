@@ -288,17 +288,33 @@ final class JvmWebRuntime {
                     public static final int CLOSE_TOO_BIG = 1009;
                     public static final int CLOSE_PROTOCOL_ERROR = 1002;
                     public static final int CLOSE_UNSUPPORTED = 1003;
+                    public static final int CLOSE_SERVER_ERROR = 1011;
                 }
 
                 public static final class WsConnection {
                     private final java.io.OutputStream out;
                     private final java.util.concurrent.locks.ReentrantLock writeLock =
                             new java.util.concurrent.locks.ReentrantLock();
+                    // Lambdas registradas pelo usuário via `ws.onMessage { ... }`
+                    // etc. Campos públicos para leitura rápida no frame loop.
+                    public Object onOpen;
+                    public Object onMessage;
+                    public Object onClose;
 
                     WsConnection(java.io.OutputStream out) {
                         this.out = out;
                     }
 
+                    public void onOpen(Object handler) { this.onOpen = handler; }
+                    public void onMessage(Object handler) { this.onMessage = handler; }
+                    public void onClose(Object handler) { this.onClose = handler; }
+
+                    public void send(String s) {
+                        sendText(s);
+                    }
+                    public void send(Object value) {
+                        sendText(String.valueOf(value));
+                    }
                     public void sendText(String s) {
                         send(WsFrame.encode(0x1, s.getBytes(java.nio.charset.StandardCharsets.UTF_8), true));
                     }

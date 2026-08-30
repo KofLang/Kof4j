@@ -558,7 +558,7 @@ static boolean hasRuntimeFn(String methodName) {
                             return;
                         }
                         if (result.kind == RouteKind.WS) {
-                            kof_web_ws_handshake(req, client);
+                            kof_web_ws_handshake(req, client, result.route.handler);
                             return;
                         }
                         client.getOutputStream().write(result.response.getBytes(java.nio.charset.StandardCharsets.UTF_8));
@@ -572,7 +572,8 @@ static boolean hasRuntimeFn(String methodName) {
                 // loop with a frame codec and per-connection timeout handling.
                 private static final int KEEPALIVE_IDLE_MS = 300_000;
 
-                private static void kof_web_ws_handshake(WebRequest req, java.net.Socket client)
+                private static void kof_web_ws_handshake(
+                        WebRequest req, java.net.Socket client, Object handler)
                         throws java.io.IOException {
                     String upgradeVal = req.headers.get("upgrade");
                     String connectionVal = req.headers.get("connection");
@@ -604,10 +605,26 @@ static boolean hasRuntimeFn(String methodName) {
                     out.flush();
 
                     // Frame loop (PR4): handles RFC 6455 frame codec.
-                    // PING -> PONG; CLOSE -> ack CLOSE; oversize -> CLOSE 1009.
-                    // TEXT/BINARY frames are discarded for now (PR5 wires the
-                    // Kof handler).
+                    // PING -> PONG; CLOSE -> onClose + ack CLOSE;
+                    // oversize -> CLOSE 1009; TEXT -> onMessage.
                     client.setSoTimeout(KEEPALIVE_IDLE_MS);
+                    WsConnection conn = new WsConnection(client.getOutputStream());
+
+                    // Invoke the Kof handler body once. The body uses
+                    // ws.onMessage { ... } / ws.onClose { ... } to register
+                    // callbacks on `conn`.
+                    try {
+                        KOF_WEB_REQUEST.set(req);
+                        try {
+                            kof_web_invoke(handler, conn);
+                        } finally {
+                            KOF_WEB_REQUEST.remove();
+                        }
+                    } catch (Exception e) {
+                        System.err.println("kof web ws handler error: " + e.getMessage());
+                        return;
+                    }
+
                     try {
                         frameLoop: while (true) {
                             // 1) Read until we have at least 2 bytes for the header
@@ -633,7 +650,6 @@ static boolean hasRuntimeFn(String methodName) {
                                 plen = 0;
                                 for (int i = 0; i < 8; i++) plen = (plen << 8) | (ext[i] & 0xFF);
                             }
-                            WsConnection conn = new WsConnection(client.getOutputStream());
                             if (!fin) {
                                 conn.close(WsFrame.CLOSE_UNSUPPORTED, "fragmented frames not supported");
                                 break frameLoop;
@@ -659,14 +675,61 @@ static boolean hasRuntimeFn(String methodName) {
                             // 5) React
                             if (op == 0x9 /* PING */) { conn.pong(payload); }
                             else if (op == 0xA /* PONG */) { /* ignore */ }
-                            else if (op == 0x8 /* CLOSE */) { conn.close(1000, ""); break frameLoop; }
-                            // TEXT/BINARY/CONT: discard for now (PR5)
+                            else if (op == 0x1 /* TEXT */) {
+                                if (conn.onMessage != null) {
+                                    String text = new String(payload,
+                                            java.nio.charset.StandardCharsets.UTF_8);
+                                    try {
+                                        kof_ws_invoke(conn.onMessage, new Object[]{text});
+                                    } catch (Exception e) {
+                                        System.err.println("kof web ws onMessage error: "
+                                                + e.getMessage());
+                                        conn.close(WsFrame.CLOSE_SERVER_ERROR, "handler error");
+                                        break frameLoop;
+                                    }
+                                }
+                            }
+                            else if (op == 0x2 /* BINARY */) {
+                                // Binary messages are discarded in v1.
+                            }
+                            else if (op == 0x8 /* CLOSE */) {
+                                int code = 1000;
+                                String reason = "";
+                                if (payload.length >= 2) {
+                                    code = ((payload[0] & 0xFF) << 8) | (payload[1] & 0xFF);
+                                }
+                                if (payload.length > 2) {
+                                    reason = new String(payload, 2, payload.length - 2,
+                                            java.nio.charset.StandardCharsets.UTF_8);
+                                }
+                                if (conn.onClose != null) {
+                                    try {
+                                        kof_ws_invoke(conn.onClose, new Object[]{code, reason});
+                                    } catch (Exception e) {
+                                        System.err.println("kof web ws onClose error: "
+                                                + e.getMessage());
+                                    }
+                                }
+                                conn.close(1000, "");
+                                break frameLoop;
+                            }
                         }
                     } catch (java.net.SocketTimeoutException idle) {
                         // graceful close after KEEPALIVE_IDLE_MS
                     } catch (java.io.IOException eof) {
                         // client closed
                     }
+                }
+
+                /** Invoke a LambdaN by arity; used by the WS frame loop. */
+                private static Object kof_ws_invoke(Object handler, Object[] args) throws Exception {
+                    for (java.lang.reflect.Method m : handler.getClass().getMethods()) {
+                        if (!"invoke".equals(m.getName())) continue;
+                        if (m.getParameterCount() != args.length) continue;
+                        if (m.isSynthetic()) continue;
+                        try { return m.invoke(handler, args); } catch (IllegalArgumentException ignored) {}
+                    }
+                    throw new NoSuchMethodException("invoke(" + args.length + ")");
                 }
 
                 private static void readFully(java.io.InputStream in, byte[] buf) throws java.io.IOException {
@@ -778,6 +841,11 @@ static boolean hasRuntimeFn(String methodName) {
                 private static Object kof_web_invoke(Object target, SseConnection sse) throws Exception {
                     return target.getClass().getMethod("invoke", SseConnection.class)
                             .invoke(target, sse);
+                }
+
+                private static Object kof_web_invoke(Object target, WsConnection ws) throws Exception {
+                    return target.getClass().getMethod("invoke", WsConnection.class)
+                            .invoke(target, ws);
                 }
 
                 private static String kof_web_build(int status, String statusText, String body) {
