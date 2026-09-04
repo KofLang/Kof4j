@@ -3,7 +3,7 @@
 Este é o guia **obrigatório** para qualquer agente de IA (ou humano) que
 escreva código Kof neste repositório. Leia antes de gerar qualquer `.kf`.
 
-**Versão:** 0.2.6-beta · Última atualização: 03/09/2026 (casts primitivos, Long[], String.valueOf builtin, **DOING.md**, **Congelamento de comportamento**, **switch-expressão SYN001**)
+**Versão:** 0.3.0-beta · Última atualização: 04/09/2026 (release 0.2.7: Vulkan/fixes-for-kofagent, 500 desempacota ITE, gap mic MEDIA003; linha 0.3.0 aberta na branch `beta-0.3.0`)
 
 ---
 
@@ -168,7 +168,7 @@ target por domínio; sem motor SQL/Arrow/ML próprio.
 
 ---
 
-## Sintaxe real (verificada no compilador — 0.2.6-beta)
+## Sintaxe real (verificada no compilador — 0.3.0-beta)
 
 ### Funções (não existe `fun` nem `func`)
 
