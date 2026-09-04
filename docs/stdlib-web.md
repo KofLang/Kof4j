@@ -1,8 +1,8 @@
 # stdlib web — Stack Web Nativa do Kof
 
-**Última atualização:** 2 de setembro de 2026
-**Versão:** 0.2.6-beta (810 testes; `kof.http` JVM+JS + retry/circuit; WebSocket/SSE JVM)
-**Status:** implementado (Fase 1 do plano de independência do Spring) — `kof serve` + `kof.http` JVM+JS + `app.ws`/`app.sse` JVM
+**Última atualização:** 4 de setembro de 2026
+**Versão:** 0.2.6-beta (`kof.http` JVM+JS + retry/circuit; WebSocket/SSE JVM + hardening)
+**Status:** implementado (Fase 1 do plano de independência do Spring) — `kof serve` + `kof.http` JVM+JS + `app.ws`/`app.sse` JVM + limites/contadores
 
 ---
 
@@ -171,7 +171,8 @@ app.listen(8080)
 O handshake RFC 6455 e o frame codec (com máscara cliente→servidor) são
 implementados dentro do engine HTTP gerado; o handler Kof é chamado por
 mensagem `TEXT`. O runtime também trata `PING`→`PONG`, `CLOSE` (ack) e
-descarta frames acima de 1 MiB (close `1009`).
+descarta frames acima do limite configurável de frame (default 1 MiB, close
+`1009`).
 
 ```kof
 app.ws("/chat") {
@@ -209,6 +210,22 @@ app.sse("/events") {
 gaps documentados em compile-time: WebSocket → `WEB004`, SSE → `WEB003`
 (Native/JS).
 
+### Limites e observabilidade (`app.configure`, `app.stats`)
+
+| Chamada | Descrição |
+|---------|-----------|
+| `app.configure("maxConnections", n)` | Cap de conexões concorrentes (default `1024`); acima disso responde `503` |
+| `app.configure("maxFrameBytes", n)` | Limite de frame WebSocket mutável (default `1 MiB`) |
+| `app.configure("maxMessageBytes", n)` | Limite de mensagem WebSocket mutável (default `8 MiB`) |
+| `app.configure("idleMs", n)` | Idle timeout aplicado a WebSocket e deadline SSE |
+| `stats("SSE_CONNECTIONS_ACTIVE")` | Conexões SSE ativas |
+| `stats("WS_CONNECTIONS_ACTIVE")` | Conexões WebSocket ativas |
+| `stats("SSE_EVENTS_SENT")` | Eventos SSE enviados |
+| `stats("WS_MESSAGES_RECEIVED")` / `stats("WS_MESSAGES_SENT")` | Mensagens WS recebidas/enviadas |
+
+`app.configure` atua no app corrente (por handle); as estatísticas são
+globais por JVM e devolvidas como `String`.
+
 ### Contexto de request (dentro de handlers/middleware)
 
 | Função | Retorna |
@@ -230,7 +247,9 @@ headers) — antes os handlers só produziam 200/404 automáticos.
 ## 4. Concorrência
 
 Cada conexão é tratada em uma virtual thread (JVM). O programador escreve
-handlers síncronos; o runtime decide a estratégia.
+handlers síncronos; o runtime decide a estratégia. Handlers SSE rodam no
+`KOF_SSE_HANDLERS` compartilhado e têm deadline `idleMs * 4`; em timeout o
+stream é fechado e a task cancelada.
 
 ## 5. Limitações atuais (Fase 1, 0.2.6-beta)
 
@@ -238,6 +257,8 @@ handlers síncronos; o runtime decide a estratégia.
 - O target `native` (`x86_64`/`riscv64`/`aarch64`) não possui servidor web ainda (`WEB002` TLS também).
 - `app.ws`/`app.sse` são JVM-only (Native `WEB004`, JS `WEB003`).
 - `app.serveDir` (arquivos estáticos + Range 206/416) é JVM-only (Native/JS `WEB005`).
+- Hardening PR6 (connection cap, limites `maxFrameBytes`/`maxMessageBytes`,
+  `idleMs`, `app.stats`) é JVM; backpressure e fragmentação seguem follow-up.
 - `kof.http` client — ✅ JVM+JS (27/08; `timeout/retry/circuit` em paridade 30/08), Native `HTTP002` pendente.
 - Middleware/rotas de outros métodos HTTP além dos listados: futuramente.
 
@@ -250,7 +271,8 @@ handlers síncronos; o runtime decide a estratégia.
 
 `KofWebE2ETest` 10 + `KofHttpServerTest` 8 + `KofHttpE2ETest` 4 (JVM+JS,
 27/08) + `KofWebTlsTest` 5 + `KofWebSseE2ETest` 7 + `KofWebWsE2ETest` 11 +
-`KofWebStreamE2ETest` 4 + `KofWsFrameTest` 7 + `KofHttpResilienceE2ETest` 3 —
+`KofWebStreamE2ETest` 4 + `KofWsFrameTest` 7 + `KofHttpResilienceE2ETest` 3 +
+`KofWebHardeningTest` 6 —
 cada teste compila um programa Kof, executa o bytecode/JS como subprocesso e
 exercita o servidor/cliente com sockets reais (routing, path params, query,
 headers, body, JSON round-trip, middleware, 404, múltiplas rotas com lambda
@@ -269,7 +291,8 @@ bytecode JVM
    ↓
 dev.kof.runtime.KofRuntime (gerado)  ← engine HTTP embutido no programa
    ├── KOF_WEB_APPS (registro de apps)
-   ├── WebRoute (method, segments, params, handler)
+   ├── WebRoute (method, segments, params, handler, kind)
+   ├── SseConnection / WsConnection / WsFrame
    ├── WebRequest (method, path, query, headers, body)
    └── accept loop (virtual threads) + dispatch
 ```

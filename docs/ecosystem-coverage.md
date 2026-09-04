@@ -54,7 +54,7 @@ JSN00x, WEB001) — nunca divergência silenciosa.
 | `kof.time` | `now()`, `sleep` (JVM/Native/JS), `interval`/`cancel` (JVM) | KofTime.java | KofTimeE2ETest (5) |
 | `kof.json` | `json.encode/decode<T>` | JvmRuntime/NativeRuntime/JsBackend | JsonE2ETest (14) |
 | `kof.security` | `passwords.*`, `crypto.*`, `jwt.*`, `secrets.*`, `security.*`, `auth.*` | KofSecurity.java | KofSecurityTest (22) |
-| `kof.web` | `web.app()`, `app.get/post/.../use/listen/port/close`, `param/query/header/body/method/path`, `status(code, body)`, `headerSet`, `app.ws("/chat") { }` (WebSocket, 30/08), `sse.send/event/close` (SSE, 30/08) | KofWeb.java + JvmWebRuntime.java + KofHttpServer.java | KofWebE2ETest (9), KofHttpServerTest (8), KofWebWsE2ETest (11), KofWsFrameTest (7), KofWebSseE2ETest (7) |
+| `kof.web` | `web.app()`, `app.get/post/.../use/listen/port/close`, `param/query/header/body/method/path`, `status(code, body)`, `headerSet`, `app.ws("/chat") { }` (WebSocket, 30/08), `sse.send/event/close` (SSE, 30/08), `app.configure`/`app.stats` (hardening, 04/09) | KofWeb.java + JvmWebRuntime.java + KofHttpServer.java | KofWebE2ETest (9), KofHttpServerTest (8), KofWebWsE2ETest (11), KofWsFrameTest (7), KofWebSseE2ETest (7), KofWebHardeningTest (6) |
 | `kof.http` (client) | `http.get/post/put/delete/patch/options/status/timeout` (headers, JSON) + `retry`/`circuit` (30/08, janela 30s, fail-fast) — JVM+JS (JS via `Java HttpClient` interop + fetch fallback) | KofHttp.java + JvmWebRuntime.java + KofJsRunner | KofHttpE2ETest (4, JVM+JS), KofHttpResilienceE2ETest (3, JVM+JS) |
 | `kof.cache` | `cache.get/set/set(key,v,ttl)/ttl/delete/clear` (Map + TTL) — JVM/Native/JS (30/08) | JvmCacheRuntime.java / NativeRuntime (asm) | KofCacheE2ETest (5, x3 targets) |
 | `kof.mq` | `mq.publish/subscribe/unsubscribe`, `queue/push/pop/size` (JVM + Native + JS; MQ001 fechado 01/09) | KofMq.java + NativeRuntime (asm) | KofMqE2ETest (4, x3 targets) |
@@ -88,7 +88,8 @@ Documentação: `docs/security.md`; testes: `KofSecurityTest` (22).
   (27/08).
 - **WebSocket** `app.ws("/chat") { }` — handshake RFC 6455 + frame codec com
   máscara (30/08); **SSE** `sse.send/event/close` (30/08) — ambos JVM;
-  `KofRuntime.close` fecha os descritores.
+  **hardening/observabilidade** `app.configure` (`maxConnections`,
+  `maxFrameBytes`, `maxMessageBytes`, `idleMs`) + `app.stats` (04/09) — JVM.
 - Contexto: `param/query/header/body/method/path` (ThreadLocal por request).
 - Path params `:id`; query e headers case-insensitive; Content-Type
   automático (JSON se `{`/`[`); 404/500; middlewares em cadeia.
@@ -170,6 +171,7 @@ Legenda nas colunas de target: `y` = suportado, `~` = parcial, `–` = não.
 | error handling | 404/500 + mensagem | y | – | – | KofWebE2ETest | web |
 | WebSocket | ✅ `app.ws("/chat") { }` (JVM, 30/08 — handshake RFC 6455 + frame codec/máscara) | y | – WEB002 | – WEB001 | KofWebWsE2ETest (11) + KofWsFrameTest (7) | web |
 | SSE | ✅ `sse.send/event/close` (JVM, 30/08) | y | – WEB002 | – WEB001 | KofWebSseE2ETest (7) | web |
+| web limits/observability | ✅ `app.configure`/`app.stats` (JVM, 04/09) | y | – | – | KofWebHardeningTest (6) | web |
 | gRPC / GraphQL / SOAP | `EXTERNAL`/`PLANNED` (interop) | — | — | — | — | roadmap.md |
 | REST documentation (OpenAPI) | `PLANNED` | — | — | — | — | roadmap.md |
 | HATEOAS | `NA` (sem framework pesado) | — | — | — | — | — |
@@ -449,7 +451,7 @@ Princípios mantidos:
 messaging (`kof.concurrent.Queue`, event bus, adapters Kafka/AMQP),
 ~~caching~~ — ✅ `kof.cache` (30/08, 3 targets),
 ~~resilience (retry/timeout/circuit breaker)~~ — ✅ `kof.http` (30/08, JVM+JS; HTTP002 no Native),
-~~WebSocket/SSE~~ — ✅ JVM (30/08; `KofWebWsE2ETest`/`KofWebSseE2ETest`),
+~~WebSocket/SSE~~ — ✅ JVM (30/08; `KofWebWsE2ETest`/`KofWebSseE2ETest`); hardening/limites/observabilidade `app.configure`/`app.stats` (04/09),
 GraphQL/gRPC (interop), HTTP/2.
 
 ## P2
