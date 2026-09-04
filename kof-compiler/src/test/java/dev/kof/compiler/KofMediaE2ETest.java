@@ -427,6 +427,7 @@ class KofMediaE2ETest {
                 """;
         int port = startServer(appDir, kofSource);
         String r = request(port, "GET /mic HTTP/1.1\r\nHost: x\r\n\r\n");
+        System.out.println("[DEBUG-MIC-RESPONSE]\n---BEGIN---\n" + r + "\n---END---");
         // sem hardware de áudio no CI: o erro é claro (handler 500 com
         // "sem microfone"), nunca crash silencioso
         assertTrue(r.contains("sem microfone") || r.startsWith("HTTP/1.1 200"),
