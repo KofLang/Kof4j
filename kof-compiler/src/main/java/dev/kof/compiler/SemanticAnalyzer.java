@@ -34,6 +34,15 @@ class SemanticAnalyzer {
         };
     }
 
+    /** FFI (R3): acha a declaração {@code extern} pelo nome, se existir. */
+    private ExternalFunctionNode findExtern(String name) {
+        if (currentUnit == null) return null;
+        for (AstNode d : currentUnit.declarations()) {
+            if (d instanceof ExternalFunctionNode e && e.name().equals(name)) return e;
+        }
+        return null;
+    }
+
     private boolean isBuiltinTypeName(String name) {
         return switch (name) {
             case "String", "string", "Object", "Int", "int", "Long", "long",
@@ -1653,6 +1662,18 @@ class SemanticAnalyzer {
                                 }
                             }
                             break;
+                        }
+                    }
+                    // FFI (R3): chamada a `extern` declarado resolve pelo contrato
+                    // (tipo de retorno), nunca SEM015 — o binding real é lowering
+                    // por target (TIER 2.1.4+).
+                    ExternalFunctionNode ext = findExtern(mc.methodName());
+                    if (ext != null) {
+                        found = true;
+                        Type extRet = resolveType(ext.returnType(), scope);
+                        if (!Type.isVoid(extRet)) {
+                            expressionTypes.put(mc, extRet);
+                            yield extRet;
                         }
                     }
                     if (!found && diagnostics != null && !knownClasses.containsKey(mc.methodName())) {
