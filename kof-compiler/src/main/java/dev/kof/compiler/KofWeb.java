@@ -68,7 +68,7 @@ final class KofWeb {
             case "param", "query", "header" -> true;
             case "body", "method", "path" -> true;
             case "status", "headerSet", "setHeader" -> true;
-            case "sse", "wsSend", "wsMessage" -> true;
+            case "sse", "wsSend", "wsMessage", "stats" -> true;
             default -> false;
         };
     }
@@ -123,6 +123,10 @@ final class KofWeb {
                     : null;
             case "close" -> argTypes.isEmpty()
                     ? new WebCall("kof_web_close", VOID, List.of(STR))
+                    : null;
+            case "configure" -> argTypes.size() == 2
+                    && isString(argTypes.get(0)) && isInt(argTypes.get(1))
+                    ? new WebCall("kof_web_configure", VOID, List.of(STR, STR, INT))
                     : null;
             default -> null;
         };
@@ -181,7 +185,18 @@ final class KofWeb {
             case "wsMessage" -> argCount == 0
                     ? new WebCall("kof_web_ws_message", STR, List.of())
                     : null;
+            case "stats" -> argCount == 1
+                    ? new WebCall("kof_web_stats", STR, List.of(STR))
+                    : null;
             default -> null;
         };
+    }
+
+    private static boolean isString(Type t) {
+        return t == STR || t.toString().contains("String");
+    }
+
+    private static boolean isInt(Type t) {
+        return t == INT || t.toString().contains("Int");
     }
 }

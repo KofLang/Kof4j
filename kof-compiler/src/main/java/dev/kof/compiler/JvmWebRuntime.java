@@ -23,6 +23,16 @@ final class JvmWebRuntime {
                 private static final ThreadLocal<Integer> KOF_WEB_STATUS = new ThreadLocal<>();
                 private static final ThreadLocal<java.util.Map<String, String>> KOF_WEB_HEADERS =
                         ThreadLocal.withInitial(java.util.HashMap::new);
+                public static final java.util.concurrent.atomic.AtomicLong SSE_CONNECTIONS_ACTIVE =
+                        new java.util.concurrent.atomic.AtomicLong();
+                public static final java.util.concurrent.atomic.AtomicLong WS_CONNECTIONS_ACTIVE =
+                        new java.util.concurrent.atomic.AtomicLong();
+                public static final java.util.concurrent.atomic.AtomicLong SSE_EVENTS_SENT =
+                        new java.util.concurrent.atomic.AtomicLong();
+                public static final java.util.concurrent.atomic.AtomicLong WS_MESSAGES_RECEIVED =
+                        new java.util.concurrent.atomic.AtomicLong();
+                public static final java.util.concurrent.atomic.AtomicLong WS_MESSAGES_SENT =
+                        new java.util.concurrent.atomic.AtomicLong();
 
                 public static String kof_web_status(int code, String body) {
                     KOF_WEB_STATUS.set(code);
@@ -156,11 +166,13 @@ final class JvmWebRuntime {
 
                     public void send(String data) {
                         writeData(data);
+                        SSE_EVENTS_SENT.incrementAndGet();
                     }
 
                     public void event(String name, String data) {
                         writeFrame("event: " + name + "\\n");
                         writeData(data);
+                        SSE_EVENTS_SENT.incrementAndGet();
                     }
 
                     public void close() {
@@ -273,8 +285,8 @@ final class JvmWebRuntime {
                             }
                             idx = 10;
                         }
-                        if (len > MAX_FRAME_BYTES) {
-                            throw new java.io.IOException("frame too large: " + len + " > " + MAX_FRAME_BYTES);
+                        if (len > maxFrameBytes.get()) {
+                            throw new java.io.IOException("frame too large: " + len + " > " + maxFrameBytes.get());
                         }
                         if (buf.length < idx + 4 + len) throw new java.io.IOException("frame truncated (payload)");
                         byte[] mask = new byte[4];
@@ -287,8 +299,10 @@ final class JvmWebRuntime {
                         return new WsFrame(fin, opcode, payload);
                     }
 
-                    public static final long MAX_FRAME_BYTES = 1L << 20;        // 1 MiB
-                    public static final long MAX_MESSAGE_BYTES = 8L << 20;     // 8 MiB
+                    public static final java.util.concurrent.atomic.AtomicLong maxFrameBytes =
+                            new java.util.concurrent.atomic.AtomicLong(1L << 20);        // 1 MiB
+                    public static final java.util.concurrent.atomic.AtomicLong maxMessageBytes =
+                            new java.util.concurrent.atomic.AtomicLong(8L << 20);     // 8 MiB
                     public static final int CLOSE_TOO_BIG = 1009;
                     public static final int CLOSE_PROTOCOL_ERROR = 1002;
                     public static final int CLOSE_UNSUPPORTED = 1003;
@@ -357,6 +371,10 @@ final class JvmWebRuntime {
                     final java.util.List<Object> middlewares = new java.util.ArrayList<>();
                     final java.util.List<StaticDir> staticDirs = new java.util.ArrayList<>();
                     final java.util.List<String> healthPaths = new java.util.ArrayList<>();
+                    final java.util.concurrent.atomic.AtomicInteger activeConnections =
+                            new java.util.concurrent.atomic.AtomicInteger();
+                    public static final int DEFAULT_MAX_CONNECTIONS = 1024;
+                    volatile int maxConnections = DEFAULT_MAX_CONNECTIONS;
                     volatile java.net.ServerSocket serverSocket;
                     volatile boolean running;
 
@@ -387,6 +405,32 @@ final class JvmWebRuntime {
                     WebApp app = KOF_WEB_APPS.get(appId);
                     if (app == null) throw new IllegalArgumentException("unknown web app: " + appId);
                     return app;
+                }
+
+                public static void kof_web_configure(String appId, String key, Object value) {
+                    WebApp app = kof_web_app(appId);
+                    switch (key) {
+                        case "maxConnections" -> app.maxConnections = ((Number) value).intValue();
+                        case "maxFrameBytes" -> WsFrame.maxFrameBytes.set(((Number) value).longValue());
+                        case "maxMessageBytes" -> WsFrame.maxMessageBytes.set(((Number) value).longValue());
+                        case "idleMs" -> KofRuntime.idleMs.set(((Number) value).intValue());
+                        default -> throw new IllegalArgumentException("unknown config key: " + key);
+                    }
+                }
+
+                public static void kof_web_configure(String appId, String key, int value) {
+                    kof_web_configure(appId, key, (Object) value);
+                }
+
+                public static String kof_web_stats(String name) {
+                    return switch (name) {
+                        case "SSE_CONNECTIONS_ACTIVE" -> String.valueOf(SSE_CONNECTIONS_ACTIVE.get());
+                        case "WS_CONNECTIONS_ACTIVE" -> String.valueOf(WS_CONNECTIONS_ACTIVE.get());
+                        case "SSE_EVENTS_SENT" -> String.valueOf(SSE_EVENTS_SENT.get());
+                        case "WS_MESSAGES_RECEIVED" -> String.valueOf(WS_MESSAGES_RECEIVED.get());
+                        case "WS_MESSAGES_SENT" -> String.valueOf(WS_MESSAGES_SENT.get());
+                        default -> throw new IllegalArgumentException("unknown web counter: " + name);
+                    };
                 }
 
                 public static void kof_web_route(String appId, String method, String path, Object handler) {

@@ -60,7 +60,7 @@
 | `kof.security` (passwords/crypto/jwt/secrets + G9) | ✅ | ✅ | ✅ | PBKDF2/SHA512/JWT/AES-GCM (asm no Native, JS puro no KofJS — `SECN002` fechado 01/09) |
 | `kof.db`/`kof.orm` | ✅ | ✅ (SQLite `.so` direto; **`transaction {}` commit/rollback 01/09** (EH asm + BEGIN/COMMIT/ROLLBACK); **MySQL wire protocol** — handshake+scramble+auth-switch+COM_QUERY+resultset 31/08 + **prepared statements binários 03/09**)/ORM001 | DB001/ORM001 | **Query DSL `User.query(db){ where; orderBy; limit }` (nível 3) 01/09** — baixa p/ `db.query` (JVM E2E H2); MySQL native `nativeMysqlWireProtocol` + `nativeMysqlPreparedBinary` (binário q/ binds); `nativeTransaction{Commits,RollsBack}` |
 | `web.app()` + TLS `listenSecure` | ✅ | server HTTP/1.1 (accept/route/lambda/body) — **TLS = WEB002 residual** | ✅ 03/09 (GraalJS `HttpServer` real — `bc577aa`) | `KofWebTlsTest` (JVM) · `KofWebNativeE2ETest` 4/4 |
-| `web.app()` WebSocket `app.ws` + SSE `sse.*` | ✅ 30/08 (RFC 6455 + frame codec/máscara) | **WEB002** (ws/sse não portados p/ Native) | **WEB001 residual** (ws/sse no JS) | `KofWebWsE2ETest` 11/11 · `KofWebSseE2ETest` 7/7 · `KofWsFrameTest` 7/7 |
+| `web.app()` WebSocket `app.ws` + SSE `sse.*` | ✅ 30/08 (RFC 6455 + frame codec/máscara) | **WEB002** (ws/sse não portados p/ Native) | **WEB001 residual** (ws/sse no JS) | `KofWebWsE2ETest` 11/11 · `KofWebSseE2ETest` 7/7 · `KofWsFrameTest` 7/7 · `KofWebHardeningTest` 6/6 |
 | `status(code, body)` / `headerSet` | ✅ 27/08 | ✅ 03/09 (NativeWebRuntime responde status/body) | ✅ 03/09 (JS HttpServer) | `KofWebE2ETest` 9/9 |
 | UI Fase 7 Router (`go/replace/back/forward/param/current/depth`) | no-op | — | ✅ 31/08 | `RouterE2ETest` |
 | `switch` pattern matching `case String s` | ✅ | ✅ | ✅ | 0.2.6-beta |
