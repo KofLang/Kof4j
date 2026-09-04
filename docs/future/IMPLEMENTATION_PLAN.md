@@ -94,8 +94,8 @@ Esta é a versão consolidada do plano de implementação para todos os document
 
 | Task | Source Doc | Difficulty | Dependencies | Status | Definition of Done |
 |------|-----------|------------|--------------|--------|-------------------|
-| Java-Inspect-CLI | TRANSLATOR.md | 🟢 E | Phase 1 | MISSING | `kof inspect --java MyClass.java` imprime AST |
-| Java-AST-Basic | TRANSLATOR.md | 🟡 M | Java-Inspect-CLI | MISSING | Parser class/methods/fields funciona |
+| Java-Inspect-CLI | TRANSLATOR.md | 🟢 E | Phase 1 | ✅ **COMPLETO** | `kof translate <file.java>` emite Kof (lexer+parser recursivo subset) |
+| Java-AST-Basic | TRANSLATOR.md | 🟡 M | Java-Inspect-CLI | ✅ **COMPLETO** | classes/métodos/campos + if/while/for + strings; static main → top-level `main()` |
 
 ---
 
