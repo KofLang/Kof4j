@@ -7,6 +7,14 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `build:`, `tooling:`). A seção de cada release é gerada por
 `scripts/changelog.sh` e inserida pela pipeline neste marcador:
 
+## Unreleased
+
+### Added
+- Upstream rebase — hardening limits and observability: `app.configure`
+  (`maxConnections`, `maxFrameBytes`, `maxMessageBytes`, `idleMs`),
+  `app.stats` com contadores de SSE/WebSocket, conexão com 503 quando o cap é
+  excedido e deadline no handler SSE (`KofWebHardeningTest`).
+
 ## [0.2.6-beta] - 2026-09-02
 
 ### Fix — filosofia idiomática (revisão do corpus)

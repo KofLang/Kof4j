@@ -281,7 +281,7 @@ Bool positivo(Int x) = x > 0         // expression body
 | JSON decode `List<User>` (objetos aninhados) | ✅ | — | ✅ |
 | kof.io (File/Path/Directory, readFile, writeFile) | ✅ | ✅ | ✅ |
 | kof.time (now/sleep/interval) | ✅ | ✅ (now/sleep/**interval** — reusa o scheduler, SCHED001) | ✅ (now/sleep/**interval** — fila cooperativa bombeada por `time.sleep` no GraalJS; `setInterval` no browser/Node, TIME001 fechado 02/09) |
-| kof.web (`web.app()`, rotas, middleware) | ✅ | — | — |
+| kof.web (`web.app()`, rotas, middleware, WebSocket/SSE, `configure`/`stats`) | ✅ | — | — |
 | kof.http (`http.get/post/put/delete/status` + `timeout/retry/circuit`) | ✅ | ✅ **HTTP002 fechado 03/09** (`NativeHttpRuntime` — HTTP/1.1 asm, IPv4; https → throw claro; retry/circuit no-op) | ✅ (27/08 JS via `Java HttpClient` interop; 30/08 retry/circuit paridade) |
 | kof.config (env, arquivos, profiles, typed) | ✅ | ✅ (asm próprio) | ✅ |
 | kof.mq (publish/subscribe/queue) | ✅ | ✅ (01/09, pub/sub + filas in-process, asm) | ✅ |
@@ -361,6 +361,8 @@ main() {
   headers, body, `method()`, `path()`; middleware `app.use { ... }`.
 - Engine HTTP gerado dentro do runtime do programa (sem servlet container,
   sem Spring); cada conexão em virtual thread.
+- `app.configure(...)` / `app.stats(...)` (JVM, 04/09): connection cap,
+  limites configuráveis e contadores SSE/WebSocket.
 - `kof serve <file.kf>` detecta `main()` e executa apps `web.app()`;
   a API legada `handle(...)` continua funcionando.
 - Ver: `docs/stdlib-web.md` e `KofWebE2ETest` (9 testes E2E com sockets reais).
@@ -682,7 +684,7 @@ Docs: `debugger-architecture.md`, `debugging.md`, `debug-adapter.md`,
 **P2 — Web completa (próxima listinha):**
 5. ✅ Resposta rica `status(201, body)`/`headerSet("X","y")` `JVM` `201 Created 202 Accepted` `X-Custom/X-Test` `KofWebE2ETest 9/9` (27/08) **`Native WEB002 parcial` (03/09 — server 200+body, headers customizados ainda são pendência)** `JS stub`
 6. ✅ `kof.cache` `get/set/set(key,v,ttl)/ttl/delete/clear` — ✅ JVM/Native/JS (30/08; fix nativo: clobber de `%rax/%rdi` em `set_ttl/get/ttl` + `println(null)` segfault; `KofCacheE2ETest 5/5 x3 targets`)
-7. ✅ `WebSocket` `app.ws("/chat") { }` + `SSE` `sse.send/event/close` — ✅ JVM (30/08; PRs 14-17: persistent-conn/route-kinds, SSE, handshake RFC 6455, frame codec+máscara; `KofWebSseE2ETest 7/7` `KofWebWsE2ETest 11/11` `KofWsFrameTest 7/7`)
+7. ✅ `WebSocket` `app.ws("/chat") { }` + `SSE` `sse.send/event/close` — ✅ JVM (30/08; PRs 14-17: persistent-conn/route-kinds, SSE, handshake RFC 6455, frame codec+máscara; `KofWebSseE2ETest 7/7` `KofWebWsE2ETest 11/11` `KofWsFrameTest 7/7`; hardening/limites/contadores 04/09 — `KofWebHardeningTest 6/6`)
 8. ✅ `Scheduler` `every(ms) { }`/`at(cron) { }`/`cancel(id)` — ✅ JVM (`ScheduledExecutor`, 27/08) + JS (`setInterval`) + **Native SCHED001** (31/08: thread por job — trampoline `usleep` ms→us + `active` flag com futex — `cancel(id)` cooperativo; `KofConcurrency2Test` `schedulerEveryNative/Jvm`)
 9. ✅ `kof.http` `timeout`/`retry`/`circuit breaker` — ✅ JVM+JS (30/08; retry repete em exceção+HTTP 5xx, circuito abre após N falhas por 30s com fail-fast, `circuit(0)` recupera; `KofHttpResilienceE2ETest 3/3` JVM+JS) — falta `HTTP/2`
 
@@ -707,7 +709,7 @@ Docs: `debugger-architecture.md`, `debugging.md`, `debug-adapter.md`,
 - JVM backend; Native backend (x86_64); JS backend (GraalJS)
 - classes, records, inheritance, interfaces, constructors (sobrecarga), exceptions, generics, collections, string operations, control flow
 - `kof build`, `kof run`, `kof serve`, `kof test`, `kof debug` (MVP JVM, DAP sobre stdio), `kof bench` (37 benchmarks + baselines), `kof fmt` (parser real, idempotente)
-- `kof.web` — rotas e middleware (JVM); WebSocket RFC 6455 + SSE nativo (JVM, 0.2.6-beta); TLS/HTTPS `web.listenSecure` (JVM)
+- `kof.web` — rotas e middleware (JVM); WebSocket RFC 6455 + SSE nativo (JVM, 0.2.6-beta); TLS/HTTPS `web.listenSecure` (JVM); limites/observabilidade `configure`/`stats`
 - `kof.db` — JDBC + SQLite nativo; `kof.orm` — entity, CRUD, migrate, MongoDB (JVM)
 - `kof.log` nativo; `kof.config` (arquivo > env > profile, tipado, `${key}`, 3 targets); `kof.mq` pub/sub (JVM)
 - cliente HTTP (JVM) + JS via `Java HttpClient` interop + **Native 03/09** (`NativeHttpRuntime.java` — HTTP/1.1 asm: parse URL, socket+connect, request parse, status; https throw; DNS↦127.0.0.1 fallback) + retry/circuit (3 targets, 30/08)

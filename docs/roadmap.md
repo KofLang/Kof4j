@@ -56,7 +56,8 @@ Objetivos:
 - backend principal durante a consolidação inicial.
 
 Estado atual: ✅ estável (JVM V21, ASM, virtual threads, 819 testes 02/09;
-web stack nativa com WebSocket/SSE e `kof.http` retry/circuit — 30/08)
+web stack nativa com WebSocket/SSE, limites/contadores e `kof.http`
+retry/circuit — 30/08-04/09)
 
 ### KofNative — Binário Nativo
 
@@ -172,7 +173,7 @@ A visão de longo prazo é permitir construir backends modernos sem Spring.
 Não reimplementar Spring. Em vez disso, transformar capacidades recorrentes em primitivas do Kof Runtime.
 
 Objetivos futuros:
-- HTTP / REST / WebSocket / SSE;
+- HTTP / REST / WebSocket / SSE (WebSocket/SSE + hardening JVM concluídos 04/09; JS/Native follow-up);
 - HTTP client;
 - JSON;
 - RPC;
@@ -198,7 +199,8 @@ api "/users" {
 ```
 
 Estado atual: 🟡 parcial — HTTP/rotas (`kof.web` + TLS `listenSecure` +
-**WebSocket `app.ws`** + **SSE `sse.*`** — 30/08, JVM), JSON (completo nos 3
+**WebSocket `app.ws`** + **SSE `sse.*`** — 30/08, JVM; hardening
+`app.configure`/`app.stats` — 04/09), JSON (completo nos 3
 targets, 31/08), configuração (`kof.config` asm Native), logging (`kof.log`
 asm Native), segurança (`kof.security` + G9), **cache (`kof.cache`, 3
 targets — 30/08)**, **`kof.http` retry/circuit breaker (JVM+JS — 30/08)**,
@@ -626,7 +628,9 @@ contratos estabilizarem.
 - 8 testes E2E in-process (sockets reais) ✅;
 - Documentação (`docs/http.md`) ✅;
 - Path parameters (`:id`), query, headers, middleware `app.use` ✅
-  (stack `web.app()` — Fase 1 do plano Spring independence).
+  (stack `web.app()` — Fase 1 do plano Spring independence);
+- WebSocket/SSE + hardening (`app.configure`/`app.stats`, connection cap,
+  deadlines) ✅ JVM (30/08-04/09); JS/Native follow-up.
 
 ### Fase 4 — Security
 
