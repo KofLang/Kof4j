@@ -964,7 +964,11 @@ static boolean hasRuntimeFn(String methodName) {
                         return new WebDispatchResult(RouteKind.HTTP,
                                 kof_web_build(404, "Not Found", "{\\"error\\": \\"not found\\"}"), null);
                     } catch (Exception e) {
-                        String msg = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+                        // Unwrap reflection wrappers (InvocationTargetException) so
+                        // the upstream exception's message reaches the client.
+                        Throwable real = (e instanceof java.lang.reflect.InvocationTargetException && e.getCause() != null)
+                                ? e.getCause() : e;
+                        String msg = real.getMessage() == null ? real.getClass().getSimpleName() : real.getMessage();
                         KOF_WEB_STATUS.remove();
                         KOF_WEB_HEADERS.get().clear();
                         return new WebDispatchResult(RouteKind.HTTP,
