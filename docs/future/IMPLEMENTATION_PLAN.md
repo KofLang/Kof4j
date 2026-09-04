@@ -169,25 +169,53 @@ Esta é a versão consolidada do plano de implementação para todos os document
 
 ---
 
-## FASE 7 — Platform Universal
+## FASE 7 — TIER 2: Fundações do compilador (quebrado em subtarefas)
 
-### T9-HARD: Type System Expansion
+> Quebra do TIER 2 do `ACTION_PLAN.md` (2.1–2.5) em incrementos menores,
+> cada um compilável e testável isoladamente. Ordem = dependência.
 
-**Objetivo:** Tipos avançados (Map, Set, Option, enum, sealed)  
-**Dificuldade:** 🔴 Alta  
-**Dependências:** Compiler core stable  
+### 2.1 FFI formalizado (R3: assinatura externa em compile-time)
 
-### T10-HARD: Concurrency Primitives
+| # | Subtarefa | Dificuldade | DoD |
+|---|-----------|-------------|-----|
+| 2.1.1 | Sintaxe `extern`: lexer + parser reconhecem declaração top-level de função externa (`extern name(Int): Int`) sem tocar semântica existente | 🟢 E | `extern` parseia; uso ainda não tipado |
+| 2.1.2 | Node de AST (`extern`) + type-check da assinatura (tipos primitivos/refs/arrays validados) | 🟡 M | assinatura inválida → diagnóstico |
+| 2.1.3 | Gap honesto por target: chamada a `extern` emite `FFI001` (diagnóstico), nunca stub silencioso | 🟢 E | call a extern não-bound → FFI001 nos 3 targets |
+| 2.1.4 | Binding JVM-first: FFM (`java.lang.foreign`) para `.so` (padrão já usado em `JvmVkRuntime` M32.1) | 🔴 H | `extern` conecta a `.so` no JVM |
+| 2.1.5 | Binding Native: `dlsym` + marshalling ABI (primitive widths) no `NativeRuntime`/`NativeBackend` | 🔴 H | `extern` conecta a `.so` no Native |
+| 2.1.6 | Marshalling avançado: ponteiros/struct/array (fronteira segura, lifetime pelo GC) | 🔴 H | matriz/struct cruza a fronteira |
+| 2.1.7 | JS: gap honesto `FFI002` (web/edge sem FFI nativo) | 🟢 E | extern no JS → FFI002 documentado |
 
-**Objetivo:** Channels, select!, async/await completo  
-**Dificuldade:** 🔴 Alta  
-**Dependências:** `spawn`/`await` existentes
+**Critical path 2.1:** 2.1.1 → 2.1.2 → 2.1.3 antes de qualquer binding.
 
-### T11-HARD: FFI Formalized
+### 2.2 Codegen de compile-time formalizado (R4)
 
-**Objetivo:** `extern "c"` functions, .so/.dll loading  
-**Dificuldade:** 🔴 Alta  
-**Dependências:** Runtime threading
+| # | Subtarefa | Dificuldade | DoD |
+|---|-----------|-------------|-----|
+| 2.2.1 | Inventário do codegen implícito existente (`KofRuntime`, runner de teste sintetizado, DDL de `entity`) | 🟢 E | lista fechada dos points atuais |
+| 2.2.2 | Hook formal de codegen (fechado, não-macro): interface estável p/ gerar em compile-time | 🟡 M | um provider usa o hook |
+| 2.2.3 | Migrar DDL de `entity` + runner de teste para o hook formal | 🟡 M | comportamento idêntico (same suite) |
+| 2.2.4 | Base de `infra "prod" { }` (sacar sobre records) | 🟡 M | `infra` emite records de recurso |
+
+### 2.3 Compile-time eval leve
+
+| # | Subtarefa | Dificuldade | DoD |
+|---|-----------|-------------|-----|
+| 2.3.1 | Estender constant-folding a constantes de domínio (config, validação de schema) | 🟢 E | const de domínio dobra em compile-time |
+| 2.3.2 | Detecção de ciclos no grafo de `infra` em compile-time | 🟡 M | ciclo → diagnóstico |
+
+### 2.4 Scoped resources (RAII leve, sem ownership)
+
+| # | Subtarefa | Dificuldade | DoD |
+|---|-----------|-------------|-----|
+| 2.4.1 | `auto-closed`/scope leve para handles (arquivo/GPU/conexão/FFI) sobre `try/finally` | 🟡 M | recurso fecha ao sair do escopo |
+| 2.4.2 | Fronteira segura de buffer p/ zona sem GC (handles de FFI) | 🟡 M | handle liberado pelo GC na fronteira |
+
+### 2.5 Variance / sealed (opcional, postergável)
+
+| # | Subtarefa | Dificuldade | DoD |
+|---|-----------|-------------|-----|
+| 2.5.1 | Avaliar necessidade real (coleções científicas, pipelines) antes de abrir | 🔴 R | decisão escrita; não implementar até um domínio exigir |
 
 ---
 
@@ -219,26 +247,25 @@ Os itens que **bloqueiam** outros:
 
 ---
 
-## Status Atual (24h)
+## Status Atual
 
-| Phase | Status | Próximos Passos |
-|-------|--------|-----------------|
-| Phase 1 | ✅ Parcial (JVM_CLASS_FILE parser tem, mas não em CLI) | CLI `kof inspect` |
-| Phase 2 | ❌ Pending | Block para CFG |
-| Phase 3 | ❌ Pending | Parser Java sem |
-| Phase 4 | ❌ Pending | Decompiler sem |
-| Phase 5 | ❌ Pending | Framework sem |
-| Phase 6 | ❌ Pending | Reports sem |
-| Phase 7 | ❌ Pending | Domínio sem infra |
-| Phase 8 | ❌ Pending | Priority only |
-
----
+| Fase | Componente | Status |
+|------|-----------|--------|
+| A/B | JVM inspect + Bytecode IR (`kof inspect`) | ✅ concluído |
+| C | CFG Basic Blocks | ✅ concluído |
+| D | Type Recovery | ✅ concluído |
+| E | Decompiler (`kof decompile`) | ✅ concluído |
+| E | Decompiler-Confidence | ✅ concluído |
+| F | Java Translator (`kof translate`) | ✅ concluído |
+| G | Differential Testing (`kof compare`) | ✅ concluído |
+| H | Migration Reports (`kof migrate`) | ✅ concluído |
+| 2.1–2.5 | TIER 2 (FFI/codegen/ct-eval/RAII/variance) | ⏳ quebrado em subtarefas, não iniciado (gated por TIER 1) |
 
 ## Próxima Ação Recomendada
 
-**Priority #1: `JVM-Class-File-Basic`** — Este é o bloco inicial. Criar `kof inspect` CLI que lê class file e imprime JSON.
-
-**Motivo:** É o **único item sem dependências** e **todos os outros** dependem dele.
+**Tier 2.1.1** — sintaxe `extern` (lexer + parser) como primeiro osso do FFI
+formalizado, desde que o gate TIER 1 esteja resolvido; caso contrário,
+fechar primeiro os gaps do estágio SYSTEMS (R12).
 
 ---
 
