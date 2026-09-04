@@ -1379,7 +1379,9 @@ private Target target = Target.JVM;
     private List<IRLocalVariable> collectCaptures(LambdaExpr le, List<IRLocalVariable> outerLocals) {
         List<IRLocalVariable> captures = new ArrayList<>();
         java.util.Set<String> captured = new java.util.HashSet<>();
-        collectCapturesStmts(le.body(), outerLocals, captures, captured, new java.util.HashSet<>());
+        java.util.Set<String> shadowed = new java.util.HashSet<>();
+        for (FormalParameterNode p : le.parameters()) shadowed.add(p.name());
+        collectCapturesStmts(le.body(), outerLocals, captures, captured, shadowed);
         return captures;
     }
 
@@ -1535,9 +1537,16 @@ private Target target = Target.JVM;
             }
         } else if (expr instanceof NewArrayExpr nae) {
             collectCapturesExpr(nae.size(), outerLocals, captures, captured, shadowed);
+        } else if (expr instanceof LambdaExpr le2) {
+            // lambda retornando lambda: variáveis livres do lambda INTERNO
+            // que pertencem ao escopo do EXTERNO são capturas do externo —
+            // o interno não pode alcançá-las por conta própria (o externo
+            // precisa repassá-las via constructor). Os params/locals do
+            // interno entram no shadowed para não virarem capturas.
+            java.util.Set<String> inner = new java.util.HashSet<>(shadowed);
+            for (FormalParameterNode p : le2.parameters()) inner.add(p.name());
+            collectCapturesStmts(le2.body(), outerLocals, captures, captured, inner);
         }
-        // Nested LambdaExpr bodies capture against the enclosing lambda's own
-        // locals (lowered at their own site); do not descend.
     }
 
     private void collectMutatedCaptures(List<StatementNode> body, List<IRLocalVariable> params) {
