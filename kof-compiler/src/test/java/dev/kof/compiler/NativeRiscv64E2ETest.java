@@ -282,6 +282,23 @@ class NativeRiscv64E2ETest {
     }
 
     @Test
+    void riscv64JsonEncodeDecodeLists(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runRiscv64(tempDir, """
+            main() {
+                println(json.encode(listOf(1, 2, 3)))
+                println(json.encode(listOf("a", "b")))
+                var li = json.decode<List<Int>>("[1, 2, 3]")
+                println(li.size())
+                println(li.get(2))
+                var ls = json.decode<List<String>>("[\\"x\\", \\"y\\"]")
+                println(ls.get(1))
+            }
+            """);
+        assertEquals("[1,2,3]\n[\"a\",\"b\"]\n3\n3\ny", out);
+    }
+
+    @Test
     void riscv64StringMethods(@TempDir Path tempDir) throws IOException {
         assumeToolchain();
         String out = runRiscv64(tempDir, """
