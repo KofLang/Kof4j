@@ -65,8 +65,14 @@ Esta é a versão consolidada do plano de implementação para todos os document
 **Código existe:** `Type` system de Kof  
 **O que falta:** Mapear tipos JVM → Kof types  
 **Implementação mínima:**
-- Análise de instruções `instanceof`, `checkcast`, `new`
-- Tratar `int`, `long`, `float`, `double`, `boolean`
+- `Type.fromJvmDescriptor()` — parser de descriptors JVM → `Type` Kof
+- `Type.describe()` — representação legível de `Type`
+- `MethodInfo.returnTypeName()` / `parameterTypeNames()` — tipos recuperados
+- `MethodInfo.instanceofCount` / `checkcastCount` — contagem por opcode bruto (0xC1/0xC0)
+
+| Task | Source Doc | Difficulty | Dependencies | Status | Definition of Done |
+|------|-----------|------------|--------------|--------|-------------------|
+| Type-Recovery | LEGACY_IR.md | 🟡 M | Phase 2 | ✅ **COMPLETO** | `fromJvmDescriptor` + contagem instanceof/checkcast + `kof inspect` mostra tipos |
 
 ---
 

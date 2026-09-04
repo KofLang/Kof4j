@@ -147,6 +147,22 @@ sealed interface Type {
         return parseJvmDescriptor(desc, 0).type;
     }
 
+    static String describe(Type type) {
+        return switch (type) {
+            case PrimitiveType p -> p.name();
+            case ClassType c -> c.name()
+                    + (c.typeArguments().isEmpty() ? ""
+                        : c.typeArguments().stream().map(Type::describe)
+                            .collect(java.util.stream.Collectors.joining(", ", "<", ">")));
+            case ArrayType a -> describe(a.componentType()) + "[]";
+            case NullableType n -> describe(n.inner()) + "?";
+            case UnknownType u -> "unknown";
+            case TypeVariable v -> v.name();
+            case FunctionType f -> "function";
+            case WildcardType w -> "?";
+        };
+    }
+
     private static ParseResult parseJvmDescriptor(String desc, int pos) {
         if (pos >= desc.length()) return new ParseResult(UnknownType.UNKNOWN, pos);
         
@@ -189,7 +205,7 @@ sealed interface Type {
             for (String arg : argsStr.split(",")) {
                 arg = arg.trim();
                 if (!arg.isEmpty() && !arg.contains(";")) {
-                    args.add(parseJvmDescriptor("L" + arg + ";", 0));
+                    args.add(parseJvmDescriptor("L" + arg + ";", 0).type);
                 } else if (arg.endsWith(";")) {
                     args.add(parseJvmDescriptor(arg, 0).type);
                 }
@@ -201,5 +217,5 @@ sealed interface Type {
         return new ClassType("", simpleName, args);
     }
 
-    private record ParseResult(Type type, int pos) {}
+    record ParseResult(Type type, int pos) {}
 }

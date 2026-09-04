@@ -167,6 +167,10 @@ public final class Inspect {
                 Map<String, Object> row = new LinkedHashMap<>();
                 row.put("name", m.name);
                 row.put("descriptor", m.descriptor);
+                row.put("return_type", m.returnTypeName());
+                row.put("parameter_types", m.parameterTypeNames());
+                row.put("instanceof_count", m.instanceofCount);
+                row.put("checkcast_count", m.checkcastCount);
                 row.put("code_size", m.code != null ? m.code.bytecode.length : 0);
                 methods.add(row);
             }
@@ -188,6 +192,10 @@ public final class Inspect {
                 System.out.println("  Methods (" + ir.methods.size() + "):");
                 for (var m : ir.methods) {
                     System.out.println("    - " + m.name + m.descriptor);
+                    System.out.println("        returnType: " + m.returnTypeName()
+                            + " | params: " + m.parameterTypeNames());
+                    System.out.println("        instanceof: " + m.instanceofCount
+                            + " | checkcast: " + m.checkcastCount);
                     if (m.code != null) {
                         System.out.println("        bytecode: " + m.code.bytecode.length + " bytes");
                     }

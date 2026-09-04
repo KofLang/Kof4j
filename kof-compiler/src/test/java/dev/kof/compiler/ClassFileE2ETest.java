@@ -6,6 +6,7 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -49,6 +50,43 @@ class ClassFileE2ETest {
         assertTrue(ir.methods.stream().anyMatch(m -> m.name.equals("setValue")));
         assertTrue(ir.fields.stream().anyMatch(f -> f.name.equals("x")));
         assertTrue(ir.fields.stream().anyMatch(f -> f.name.equals("name")));
+    }
+
+    @Test
+    void methodTypeRecovery(@TempDir Path tempDir) throws IOException, InterruptedException {
+        Path javaFile = tempDir.resolve("Types.java");
+        Files.writeString(javaFile, """
+                public class Types {
+                    public int add(int a, int b) {
+                        return a + b;
+                    }
+                    public String greet(Object name) {
+                    if (name instanceof String) {
+                        return (String) name;
+                    }
+                    return "";
+                }
+                    public Object cast(Object o) {
+                        return (String) o;
+                    }
+                }
+                """);
+
+        Path classFile = tempDir.resolve("Types.class");
+        runJavac(javaFile, classFile);
+
+        var ir = ClassFileParser.parse(Files.newInputStream(classFile));
+
+        var add = ir.methods.stream().filter(m -> m.name.equals("add")).findFirst().orElseThrow();
+        assertEquals("int", add.returnTypeName());
+        assertEquals(List.of("int", "int"), add.parameterTypeNames());
+
+        var greet = ir.methods.stream().filter(m -> m.name.equals("greet")).findFirst().orElseThrow();
+        assertEquals("String", greet.returnTypeName());
+        assertTrue(greet.instanceofCount >= 1, "greet should contain instanceof");
+
+        var cast = ir.methods.stream().filter(m -> m.name.equals("cast")).findFirst().orElseThrow();
+        assertTrue(cast.checkcastCount >= 1, "cast should contain checkcast");
     }
 
     @Test

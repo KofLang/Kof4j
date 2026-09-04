@@ -63,6 +63,8 @@ public final class ClassFileParser {
         public final List<Instruction> instructions;
         public final Type returnType;
         public final List<Type> parameterTypes;
+        public final int instanceofCount;
+        public final int checkcastCount;
 
         public MethodInfo(int accessFlags, String name, String descriptor,
                           List<String> exceptions, CodeAttribute code) {
@@ -76,15 +78,42 @@ public final class ClassFileParser {
             TypeParseResult types = parseDescriptor(descriptor);
             this.returnType = types.returnType;
             this.parameterTypes = types.parameterTypes;
+            this.instanceofCount = countInstanceofCheckcast(code.bytecode);
+            this.checkcastCount = countCheckcast(code.bytecode);
         }
 
+        public String returnTypeName() {
+            return Type.describe(returnType);
+        }
+
+        public List<String> parameterTypeNames() {
+            return parameterTypes.stream().map(Type::describe).toList();
+        }
+
+        private static int countInstanceofCheckcast(byte[] bytecode) {
+            return countOp(bytecode, 0xC1) + countOp(bytecode, 0xC0);
+        }
+
+        private static int countCheckcast(byte[] bytecode) {
+            return countOp(bytecode, 0xC0);
+        }
+
+        private static int countOp(byte[] bytecode, int opcode) {
+            int count = 0;
+            for (int pc = 0; pc < bytecode.length; pc++) {
+                if ((bytecode[pc] & 0xFF) == opcode) {
+                    count++;
+                }
+            }
+            return count;
+        }
         private static TypeParseResult parseDescriptor(String desc) {
-            if (desc == null || desc.isEmpty()) return new TypeParseResult(UnknownType.UNKNOWN, List.of());
+            if (desc == null || desc.isEmpty()) return new TypeParseResult(Type.UnknownType.UNKNOWN, List.of());
             
-            if (!desc.startsWith("(")) return new TypeParseResult(UnknownType.UNKNOWN, List.of());
+            if (!desc.startsWith("(")) return new TypeParseResult(Type.UnknownType.UNKNOWN, List.of());
             
             int end = desc.indexOf(')');
-            if (end == -1) return new TypeParseResult(UnknownType.UNKNOWN, List.of());
+            if (end == -1) return new TypeParseResult(Type.UnknownType.UNKNOWN, List.of());
             
             String params = desc.substring(1, end);
             String returns = desc.substring(end + 1);
@@ -406,8 +435,9 @@ public final class ClassFileParser {
         
         for (int pc = 0; pc < bytecode.length; pc++) {
             if (isBlockStart(pc, bytecode, branchTargets, handlers)) {
-                BasicBlock block = new BasicBlock(pc, handlers.stream().anyMatch(h -> h.startPc <= pc && pc < h.endPc));
-                blockMap.put(pc, block);
+                final int curr = pc;
+                BasicBlock block = new BasicBlock(curr, handlers.stream().anyMatch(h -> h.startPc <= curr && curr < h.endPc));
+                blockMap.put(curr, block);
                 blocks.add(block);
             }
         }
