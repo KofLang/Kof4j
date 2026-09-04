@@ -986,11 +986,6 @@ static boolean hasRuntimeFn(String methodName) {
                         return new WebDispatchResult(RouteKind.HTTP,
                                 kof_web_build(404, "Not Found", "{\\"error\\": \\"not found\\"}"), null);
                     } catch (Exception e) {
-                        // Unwrap reflection wrappers (InvocationTargetException) so
-                        // the upstream exception's message reaches the client.
-                        Throwable real = (e instanceof java.lang.reflect.InvocationTargetException && e.getCause() != null)
-                                ? e.getCause() : e;
-                        String msg = real.getMessage() == null ? real.getClass().getSimpleName() : real.getMessage();
                         // handler lambda é invocado via reflection: a exceção
                         // real chega embrulhada em InvocationTargetException —
                         // sem desempacotar, o 500 diz só "InvocationTargetException"
