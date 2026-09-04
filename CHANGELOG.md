@@ -7,6 +7,19 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `build:`, `tooling:`). A seção de cada release é gerada por
 `scripts/changelog.sh` e inserida pela pipeline neste marcador:
 
+## [0.3.0-beta] - unreleased (branch `beta-0.3.0`)
+
+Linha de desenvolvimento 0.3.0 aberta em 04/09/2026. Semântica congelada
+(0.2.6) preservada — mudanças aqui são aditivas ou com bump deliberado.
+
+### Em desenvolvimento
+
+  - NATIVE002 paridade avançada riscv64/aarch64: stdlib real no runtime asm
+    (JSON `kof_json_quote`/builder, spawn/await, http, db) — aarch64 herda
+    via `translateRiscvToAarch64`.
+  - GC auto-collect (safe-points + mapa de raízes por frame).
+  - Package manager MVP (`kof init`/`kofdeps`/registry).
+
 ## [0.2.8-beta] - 2026-09-04
 
 ### Documentation

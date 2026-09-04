@@ -290,9 +290,11 @@ class KofConcurrency2Test {
 
     @Test
     void channelBlocksBeforeSendJvm(@TempDir Path tmp) throws Exception {
-        // JVM: receive bloqueia a virtual thread — sleep garante que recv
-        // está aguardando antes do send (sem await no corpo do spawn).
-        runJvm(tmp, """
+        // JVM: receive bloqueia a virtual thread. A única ordem garantida é
+        // recv:42 DEPOIS de pre-send (o receive só retorna após o send).
+        // recv-wait vs pre-send e recv:42 vs post-send são corrida de
+        // agendamento de virtual threads — não pinamos.
+        String out = runJvm(tmp, """
                 main() {
                     val c = channel<Int>()
                     spawn {
@@ -305,7 +307,12 @@ class KofConcurrency2Test {
                     c.send(42)
                     println("post-send")
                 }
-                """, "recv-wait\npre-send\npost-send\nrecv:42");
+                """);
+        for (String line : new String[]{"recv-wait", "pre-send", "post-send", "recv:42"}) {
+            assertTrue(out.contains(line), "faltou '" + line + "' em: " + out);
+        }
+        assertTrue(out.indexOf("pre-send") < out.indexOf("recv:42"),
+                "receive deve bloquear até o send (recv:42 após pre-send): " + out);
     }
 
     @Test
