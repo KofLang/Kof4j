@@ -4083,4 +4083,52 @@ class CompilerDriverTest {
         assertTrue(result.diagnostics().getDiagnostics().toString().contains("SEM021"),
                 "Int → String should be SEM021");
     }
+
+    /**
+     * Regressão (SEM-AUDIT): parâmetro de lambda SEM anotação de tipo não pode
+     * virar `Object` silencioso e aceitar aritmética — o emit faria IADD sobre
+     * referência (bytecode inválido; a JVM rejeita com VerifyError disfarçado de
+     * "JavaFX launcher"). A regra: inferência nunca mascara tipo inaplicável;
+     * diagnóstico SEM explícito, com dica de como corrigir.
+     */
+    @Test
+    void untypedLambdaParamArithmeticIsDiagnosedNotEmitted(@TempDir Path tempDir) throws IOException {
+        // aritmética sobre param sem tipo → SEM001, nunca bytecode quebrado
+        Path bad = tempDir.resolve("untyped.kf");
+        Files.writeString(bad, """
+            main() {
+                val f = (x) -> x + 1
+                println(f(10))
+            }
+            """);
+        CompilationResult result = driver.compile(bad, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(),
+                "Object + Int must not compile (would emit IADD over reference)");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM001"), "must be SEM001, got: " + diags);
+        assertTrue(diags.contains("non-numeric"), "message must name the problem: " + diags);
+
+        // com anotação: o mesmo corpo é válido (a dica do diagnóstico funciona)
+        Path ok = tempDir.resolve("typed.kf");
+        Files.writeString(ok, """
+            main() {
+                val f = (x: Int) -> x + 1
+                println(f(10))
+            }
+            """);
+        assertTrue(driver.compile(ok, tempDir.resolve("out2"), Target.JVM).success(),
+                "(x: Int) -> x + 1 must compile");
+
+        // comparação (== / !=) sobre Object continua válida — só aritmética é
+        // que não tem opcode para referência
+        Path cmp = tempDir.resolve("cmp.kf");
+        Files.writeString(cmp, """
+            main() {
+                val f = (x) -> x == null
+                println(f("a"))
+            }
+            """);
+        assertTrue(driver.compile(cmp, tempDir.resolve("out3"), Target.JVM).success(),
+                "== sobre Object deve continuar válido");
+    }
 }

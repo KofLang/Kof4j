@@ -2108,7 +2108,30 @@ class SemanticAnalyzer {
         if (left instanceof Type.UnknownType || right instanceof Type.UnknownType) {
             return Type.UnknownType.UNKNOWN;
         }
+        // Aritmética sobre tipo referência (ex.: param de lambda sem anotação
+        // → Object) não tem opcode: o emit cairia em IADD sobre referência e a
+        // JVM rejeitaria o bytecode (VerifyError). Diagnóstico explícito, nunca
+        // fallback silencioso (R6). String + já foi tratado acima.
+        if (isArithmeticOp(operator) && (isReferenceType(left) || isReferenceType(right))) {
+            if (diagnostics != null) {
+                diagnostics.error("", 0, 0, 0,
+                        "Cannot apply '" + operator + "' to non-numeric type "
+                                + (isReferenceType(left) ? left : right)
+                                + " (declare o tipo do parâmetro, ex.: (x: Int) -> ...)",
+                        "SEM001");
+            }
+            return Type.UnknownType.UNKNOWN;
+        }
         return left;
+    }
+
+    private static boolean isArithmeticOp(String op) {
+        return "+".equals(op) || "-".equals(op) || "*".equals(op)
+                || "/".equals(op) || "%".equals(op);
+    }
+
+    private static boolean isReferenceType(Type t) {
+        return t instanceof Type.ClassType || t instanceof Type.FunctionType;
     }
 
     private List<Type> inferArgTypes(MethodCallExpr mc, SymbolTable scope) {
