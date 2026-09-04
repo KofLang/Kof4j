@@ -604,6 +604,18 @@ private Target target = Target.JVM;
                 topLevelFunctions.add(lowerFunction(func));
                 topLevelFunctions.addAll(lowerFunctionDefaults(func));
             }
+            else if (decl instanceof ExternalFunctionNode ext) {
+                // FFI (R3): assinatura reconhecida, binding por target ainda não
+                // implementado — gap honesto, nunca stub silencioso (TIER 2.1.3).
+                if (currentDiagnostics != null) {
+                    SourcePosition sp = ext.position();
+                    currentDiagnostics.error(sp != null ? sp.file() : "", sp != null ? sp.line() : 0,
+                            sp != null ? sp.column() : 0, 0,
+                            "extern '" + ext.name() + "': FFI binding not implemented on the "
+                                    + target + " target yet (FFI001)",
+                            "FFI001");
+                }
+            }
         }
         if (!topLevelFunctions.isEmpty()) {
             String mainClassName = moduleName.isEmpty() ? "Main" : moduleName + "/Main";

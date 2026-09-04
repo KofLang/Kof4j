@@ -15,6 +15,7 @@ class Lexer {
         KEYWORDS.put("record", TokenType.RECORD);
         KEYWORDS.put("enum", TokenType.ENUM);
         KEYWORDS.put("entity", TokenType.ENTITY);
+        KEYWORDS.put("extern", TokenType.EXTERN);
         KEYWORDS.put("generated", TokenType.GENERATED);
         KEYWORDS.put("unique", TokenType.UNIQUE);
         KEYWORDS.put("extends", TokenType.EXTENDS);

@@ -57,6 +57,17 @@ record FunctionDeclarationNode(SourcePosition position, List<String> modifiers, 
 }
 
 /**
+ * Declaração FFI {@code extern name(params): ReturnType;} — assinatura de uma
+ * função externa (`.so`/lib nativa) formalizada em compile-time (R3). O corpo
+ * vive fora do Kof; a declaração só assina o contrato. O binding real é
+ * lowering/runtime por target (TIER 2.1.4+); enquanto não existe, o lowering
+ * emite o gap honesto FFI001 em vez de gerar bytecode quebrado.
+ */
+record ExternalFunctionNode(SourcePosition position, String returnType, String name,
+                            List<FormalParameterNode> parameters) implements AstNode {
+}
+
+/**
  * Bloco `test "nome" { ... }` — um caso de teste da suíte estruturada do
  * Kof (G6). O corpo roda isolado; assert falho = teste falho. O compilador
  * conhece os testes em compile-time (nunca reflection).

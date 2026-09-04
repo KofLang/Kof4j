@@ -40,6 +40,8 @@ class Parser {
             } else if (!annos.isEmpty()
                     && (check(TokenType.CLASS, TokenType.INTERFACE, TokenType.RECORD, TokenType.ENTITY))) {
                 declarations.add(parseTypeDeclaration(annos));
+            } else if (check(TokenType.EXTERN)) {
+                declarations.add(parseExternDeclaration());
             } else if (check(TokenType.IDENTIFIER) || check(TokenType.VOID) || isPrimitiveType()) {
                 declarations.add(parseFunctionDeclaration(List.of(), annos));
             } else {
@@ -247,6 +249,32 @@ class Parser {
 
     private FunctionDeclarationNode parseFunctionDeclaration(List<String> mods) {
         return parseFunctionDeclaration(mods, List.of());
+    }
+
+    /**
+     * FFI: {@code extern name(params): ReturnType;} — formaliza a assinatura de
+     * uma função externa em compile-time (R3, TIER 2.1.1/2.1.2). Não há corpo:
+     * o binding é responsabilidade do runtime por target (nunca gerado aqui).
+     */
+    private ExternalFunctionNode parseExternDeclaration() {
+        SourcePosition p = pos();
+        expect(TokenType.EXTERN, "Expected 'extern'", "PARSE090");
+        String name = expectId("Expected extern function name", "PARSE091");
+        if (check(TokenType.LESS)) parseTypeParameters();
+        expect(TokenType.LPAREN, "Expected '('", "PARSE092");
+        List<FormalParameterNode> params = new ArrayList<>();
+        if (!check(TokenType.RPAREN)) {
+            params.add(parseFormalParameter());
+            while (check(TokenType.COMMA)) { advance(); params.add(parseFormalParameter()); }
+        }
+        expect(TokenType.RPAREN, "Expected ')'", "PARSE093");
+        String returnType = "void";
+        if (check(TokenType.COLON)) {
+            advance();
+            returnType = parseTypeRef();
+        }
+        expectSemicolon();
+        return new ExternalFunctionNode(p, returnType, name, params);
     }
 
     private FunctionDeclarationNode parseFunctionDeclaration(List<String> mods, List<AnnotationNode> annos) {

@@ -15,6 +15,38 @@ class CompilerDriverTest {
     private final CompilerDriver driver = new CompilerDriver();
 
     @Test
+    void externProducesHonestGapNotSilentDrop(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("ffi.kf");
+        Files.writeString(source, """
+                extern add(Int a, Int b): Int
+
+                main() {
+                    println("hi")
+                }
+                """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "extern must not silently drop: compilation should fail with gap");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("FFI001"), "expected FFI001 gap, got: " + diags);
+    }
+
+    @Test
+    void externParsesWithoutSyntaxError(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("ffi2.kf");
+        Files.writeString(source, """
+                extern greet(String name): String
+
+                main() {
+                    println("hi")
+                }
+                """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("FFI001"), "extern recognized (gap), not a parse error: " + diags);
+        assertFalse(diags.contains("PARSE"), "extern must not be a parse error: " + diags);
+    }
+
+    @Test
     void compilesRecordToJvm(@TempDir Path tempDir) throws IOException {
         Path source = tempDir.resolve("Point.kf");
         Files.writeString(source, "record Point(int x, int y)");

@@ -21,6 +21,7 @@ enum TokenType {
     RECORD,
     ENUM,
     ENTITY,
+    EXTERN,
     GENERATED,
     UNIQUE,
     EXTENDS,

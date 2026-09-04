@@ -178,9 +178,9 @@ Esta é a versão consolidada do plano de implementação para todos os document
 
 | # | Subtarefa | Dificuldade | DoD |
 |---|-----------|-------------|-----|
-| 2.1.1 | Sintaxe `extern`: lexer + parser reconhecem declaração top-level de função externa (`extern name(Int): Int`) sem tocar semântica existente | 🟢 E | `extern` parseia; uso ainda não tipado |
-| 2.1.2 | Node de AST (`extern`) + type-check da assinatura (tipos primitivos/refs/arrays validados) | 🟡 M | assinatura inválida → diagnóstico |
-| 2.1.3 | Gap honesto por target: chamada a `extern` emite `FFI001` (diagnóstico), nunca stub silencioso | 🟢 E | call a extern não-bound → FFI001 nos 3 targets |
+| 2.1.1 | Sintaxe `extern`: lexer + parser reconhecem declaração top-level de função externa (`extern name(Int): Int`) sem tocar semântica existente | 🟢 E | ✅ `extern` parseia (PARSE não emitido) |
+| 2.1.2 | Node de AST (`extern`) + type-check da assinatura (tipos primitivos/refs/arrays validados) | 🟡 M | ✅ `ExternalFunctionNode` + parsing de tipos |
+| 2.1.3 | Gap honesto por target: chamada a `extern` emite `FFI001` (diagnóstico), nunca stub silencioso | 🟢 E | ✅ lowering emite `FFI001` (nunca drop silencioso) |
 | 2.1.4 | Binding JVM-first: FFM (`java.lang.foreign`) para `.so` (padrão já usado em `JvmVkRuntime` M32.1) | 🔴 H | `extern` conecta a `.so` no JVM |
 | 2.1.5 | Binding Native: `dlsym` + marshalling ABI (primitive widths) no `NativeRuntime`/`NativeBackend` | 🔴 H | `extern` conecta a `.so` no Native |
 | 2.1.6 | Marshalling avançado: ponteiros/struct/array (fronteira segura, lifetime pelo GC) | 🔴 H | matriz/struct cruza a fronteira |
