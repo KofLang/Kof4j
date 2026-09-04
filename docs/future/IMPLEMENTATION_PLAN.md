@@ -156,6 +156,10 @@ Esta é a versão consolidada do plano de implementação para todos os document
 - Relatório JSON com % recovered, warnings  
 - Teste: migrar app simples, verifica relatório
 
+| Task | Source Doc | Difficulty | Dependencies | Status | Definition of Done |
+|------|-----------|------------|--------------|--------|-------------------|
+| Migration-Reports | LEGACY_MIGRATION.md | 🟡 M | Diff | ✅ **COMPLETO** | `kof migrate <.class\|.java>` emite relatório traceable (recovered %, manual review) |
+
 ### T8-MEDIUM: Interpreter Mode
 
 **Objetivo:** Execute código legado sem compilar  
