@@ -141,4 +141,65 @@ sealed interface Type {
         if (type instanceof ArrayType at) return at.componentType();
         return UnknownType.UNKNOWN;
     }
+
+    static Type fromJvmDescriptor(String desc) {
+        if (desc == null || desc.isEmpty()) return UnknownType.UNKNOWN;
+        return parseJvmDescriptor(desc, 0).type;
+    }
+
+    private static ParseResult parseJvmDescriptor(String desc, int pos) {
+        if (pos >= desc.length()) return new ParseResult(UnknownType.UNKNOWN, pos);
+        
+        char c = desc.charAt(pos);
+        
+        return switch (c) {
+            case 'B' -> new ParseResult(PrimitiveType.BYTE, pos + 1);
+            case 'C' -> new ParseResult(PrimitiveType.CHAR, pos + 1);
+            case 'D' -> new ParseResult(PrimitiveType.DOUBLE, pos + 1);
+            case 'F' -> new ParseResult(PrimitiveType.FLOAT, pos + 1);
+            case 'I' -> new ParseResult(PrimitiveType.INT, pos + 1);
+            case 'J' -> new ParseResult(PrimitiveType.LONG, pos + 1);
+            case 'S' -> new ParseResult(PrimitiveType.SHORT, pos + 1);
+            case 'V' -> new ParseResult(PrimitiveType.VOID, pos + 1);
+            case 'Z' -> new ParseResult(PrimitiveType.BOOL, pos + 1);
+            case '[' -> {
+                ParseResult inner = parseJvmDescriptor(desc, pos + 1);
+                yield new ParseResult(new ArrayType(inner.type), inner.pos);
+            }
+            case 'L' -> {
+                int end = desc.indexOf(';', pos);
+                if (end == -1) throw new IllegalArgumentException("Malformed descriptor: " + desc);
+                String className = desc.substring(pos + 1, end);
+                Type type = parseClassName(className);
+                yield new ParseResult(type, end + 1);
+            }
+            default -> new ParseResult(UnknownType.UNKNOWN, pos + 1);
+        };
+    }
+
+    private static Type parseClassName(String name) {
+        if (name.isEmpty()) return UnknownType.UNKNOWN;
+        String[] parts = name.split("/");
+        String simpleName = parts[parts.length - 1];
+        List<Type> args = new java.util.ArrayList<>();
+        if (simpleName.contains("<")) {
+            int lt = simpleName.indexOf('<');
+            String base = simpleName.substring(0, lt);
+            String argsStr = simpleName.substring(lt + 1, simpleName.lastIndexOf('>'));
+            for (String arg : argsStr.split(",")) {
+                arg = arg.trim();
+                if (!arg.isEmpty() && !arg.contains(";")) {
+                    args.add(parseJvmDescriptor("L" + arg + ";", 0));
+                } else if (arg.endsWith(";")) {
+                    args.add(parseJvmDescriptor(arg, 0).type);
+                }
+            }
+        }
+        if (args.isEmpty() && !simpleName.contains("<")) {
+            return new ClassType("", simpleName, List.of());
+        }
+        return new ClassType("", simpleName, args);
+    }
+
+    private record ParseResult(Type type, int pos) {}
 }

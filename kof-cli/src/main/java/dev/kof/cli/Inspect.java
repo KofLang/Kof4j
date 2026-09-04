@@ -21,6 +21,8 @@ import java.util.Map;
  * Compiles the program and reports, per method, the IR operation count
  * before and after optimization (showing what the optimizer eliminated),
  * plus module totals and emitted class sizes.
+ * 
+ * Also supports inspecting compiled .class files (docs/future/LEGACY_IR.md).
  */
 public final class Inspect {
 
@@ -32,7 +34,7 @@ public final class Inspect {
             args = java.util.Arrays.copyOfRange(args, 1, args.length);
         }
         if (args.length == 0) {
-            System.err.println("usage: kof inspect <file.kf> [--json]");
+            System.err.println("usage: kof inspect <file.kf|file.class> [--json]");
             return 1;
         }
         Path file = Path.of(args[0]);
@@ -40,6 +42,11 @@ public final class Inspect {
         if (!Files.isRegularFile(file)) {
             System.err.println("file not found: " + file);
             return 1;
+        }
+
+        // Check if we're inspecting a .class file (legacy IR)
+        if (file.toString().endsWith(".class")) {
+            return inspectClassFile(file, jsonOut);
         }
 
         final IRStatistics[] stats = new IRStatistics[1];
@@ -132,6 +139,65 @@ public final class Inspect {
         } catch (IOException ignored) {
         }
         return total;
+    }
+
+    private static int inspectClassFile(Path classFile, boolean jsonOut) {
+        try {
+            var ir = dev.kof.compiler.ClassFileParser.parse(Files.newInputStream(classFile));
+            
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("file", classFile.getFileName().toString());
+            result.put("magic", "0x" + String.format("%08X", ir.magic));
+            result.put("version", ir.minorVersion + "." + ir.majorVersion);
+            result.put("this_class", ir.thisClass);
+            result.put("super_class", ir.superClass);
+            result.put("interfaces", java.util.Arrays.asList(ir.interfaces));
+            
+            List<Map<String, Object>> fields = new java.util.ArrayList<>();
+            for (var f : ir.fields) {
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("name", f.name);
+                row.put("type", f.descriptor);
+                fields.add(row);
+            }
+            result.put("fields", fields);
+            
+            List<Map<String, Object>> methods = new java.util.ArrayList<>();
+            for (var m : ir.methods) {
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("name", m.name);
+                row.put("descriptor", m.descriptor);
+                row.put("code_size", m.code != null ? m.code.bytecode.length : 0);
+                methods.add(row);
+            }
+            result.put("methods", methods);
+            
+            if (jsonOut) {
+                System.out.println(Json.stringify(result));
+            } else {
+                System.out.println("\nClass file: " + classFile.getFileName());
+                System.out.println("  Magic: 0x" + String.format("%08X", ir.magic));
+                System.out.println("  Version: " + ir.minorVersion + "." + ir.majorVersion);
+                System.out.println("  ThisClass: " + ir.thisClass);
+                System.out.println("  SuperClass: " + ir.superClass);
+                System.out.println("  Interfaces: " + java.util.Arrays.toString(ir.interfaces));
+                System.out.println("  Fields (" + ir.fields.size() + "):");
+                for (var f : ir.fields) {
+                    System.out.println("    - " + f.name + " : " + f.descriptor);
+                }
+                System.out.println("  Methods (" + ir.methods.size() + "):");
+                for (var m : ir.methods) {
+                    System.out.println("    - " + m.name + m.descriptor);
+                    if (m.code != null) {
+                        System.out.println("        bytecode: " + m.code.bytecode.length + " bytes");
+                    }
+                }
+            }
+            return 0;
+        } catch (Exception e) {
+            System.err.println("kof inspect class: " + e.getMessage());
+            return 1;
+        }
     }
 
     private static void cleanup(Path dir) {

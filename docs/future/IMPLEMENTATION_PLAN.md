@@ -30,8 +30,8 @@ Esta é a versão consolidada do plano de implementação para todos os document
 
 | Task | Source Doc | Difficulty | Dependencies | Status | Definition of Done |
 |------|-----------|------------|--------------|--------|-------------------|
-| JVM-Class-File-Basic | LEGACY_IR.md | 🟡 M | Nenhuma | MISSING | Parser lê magic, versão, constant_pool, emite IR JSON |
-| JVM-Inspect-CLI | LEGACY_MIGRATION.md | 🟢 E | JVM-Class-File-Basic | MISSING | `kof inspect <.class>` funciona com --help |
+| JVM-Class-File-Basic | LEGACY_IR.md | 🟡 M | Nenhuma | ✅ **COMPLETO** | Parser lê magic, versão,CP, fields, methods, Code attr |
+| JVM-Inspect-CLI | LEGACY_MIGRATION.md | 🟢 E | JVM-Class-File-Basic | ✅ **COMPLETO** | `kof inspect <.class>` funciona com --json |
 
 ---
 
@@ -49,6 +49,12 @@ Esta é a versão consolidada do plano de implementação para todos os document
 - Identificar `goto`, `if`, `invoke`, `return`
 - Construir nós de bloco básico
 - Teste: código if/while simples
+
+| Task | Source Doc | Difficulty | Dependencies | Status | Definition of Done |
+|------|-----------|------------|--------------|--------|-------------------|
+| CFG-Basic-Blocks | LEGACY_IR.md | 🟡 M | Phase 1 | ✅ **EM CURSO** | BasicBlock identificado, instruções decodificadas |
+
+**Progresso:** `ClassFileParser.expand()` com `Instruction`, `BasicBlock`, `analyze()`, `disassemble()`
 
 ### T3-MEDIUM: Type Recovery
 
