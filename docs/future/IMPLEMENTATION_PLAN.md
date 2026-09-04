@@ -137,8 +137,8 @@ Esta é a versão consolidada do plano de implementação para todos os document
 
 | Task | Source Doc | Difficulty | Dependencies | Status | Definition of Done |
 |------|-----------|------------|--------------|--------|-------------------|
-| Diff-Framework | DIFFERENTIAL_TESTING.md | 🟢 E | Inspect-CLI | MISSING | `kof compare --help` funciona |
-| Diff-Tests-Corpus | DIFFERENTIAL_TESTING.md | 🟡 M | Framework | MISSING | 3 casos testados (add, try, hello) |
+| Diff-Framework | DIFFERENTIAL_TESTING.md | 🟢 E | Inspect-CLI | ✅ **COMPLETO** | `kof compare <legacy.class|jar> <file.kf>` compara stdout/stderr/exit |
+| Diff-Tests-Corpus | DIFFERENTIAL_TESTING.md | 🟡 M | Framework | ✅ **COMPLETO** | 3+ casos (hello, add, divergência, lógica pura) |
 
 ---
 

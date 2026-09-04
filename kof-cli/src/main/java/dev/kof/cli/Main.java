@@ -26,6 +26,7 @@ public final class Main {
             case "inspect" -> System.exit(Inspect.run(args));
             case "decompile" -> System.exit(Decompile.run(args));
             case "translate" -> System.exit(Translate.run(args));
+            case "compare" -> System.exit(Compare.run(args));
             case "debug" -> System.exit(KofDebug.run(args));
             case "info" -> info(args);
             case "lsp" -> lsp();
@@ -510,6 +511,7 @@ private static void build(String[] args) {
         System.out.println("  inspect <file.kf> [--json]   IR statistics: ops before/after optimization");
         System.out.println("  decompile <file.class> [--output <file.kf>]   structural Kof skeleton from a .class");
         System.out.println("  translate <file.java> [--output <file.kf>]    Java subset -> Kof source");
+        System.out.println("  compare <legacy.class|jar> <file.kf> [--stdin <s>] [--arg <v>] [--json]   differential test");
         System.out.println("  config gen <file.kf|dir> [--target jvm|native|js] [--output <arquivo>]");
         System.out.println("                          gera template kof.config a partir das chaves config.* do código");
         System.out.println("  info [--json]                environment and platform report");
