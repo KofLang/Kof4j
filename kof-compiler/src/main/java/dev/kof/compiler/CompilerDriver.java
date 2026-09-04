@@ -605,9 +605,10 @@ private Target target = Target.JVM;
                 topLevelFunctions.addAll(lowerFunctionDefaults(func));
             }
             else if (decl instanceof ExternalFunctionNode ext) {
-                // FFI (R3): assinatura reconhecida, binding por target ainda não
-                // implementado — gap honesto, nunca stub silencioso (TIER 2.1.3).
-                if (currentDiagnostics != null) {
+                externSignatures.put(ext.name(), ext);
+                // FFI (R3): binding suportado (JVM, Int→Int) não é gap; o resto é
+                // gap honesto FFI001, nunca stub silencioso (TIER 2.1.3/2.1.4).
+                if (currentDiagnostics != null && !isExternBound(ext)) {
                     SourcePosition sp = ext.position();
                     String lib = ext.library() != null ? " in " + ext.library() : "";
                     currentDiagnostics.error(sp != null ? sp.file() : "", sp != null ? sp.line() : 0,
@@ -803,6 +804,20 @@ private Target target = Target.JVM;
     }
 
     private final java.util.Map<String, List<EntityFieldNode>> entitySchemas = new java.util.LinkedHashMap<>();
+
+    /** FFI (R3): declarações {@code extern} por nome (preenchido no lowering). */
+    private final java.util.Map<String, ExternalFunctionNode> externSignatures = new java.util.LinkedHashMap<>();
+
+    /** FFI (R3): binding JVM-first implementado só para assinatura Int→Int (2.1.4). */
+    private boolean isExternBound(ExternalFunctionNode ext) {
+        if (target != Target.JVM) return false;
+        if (ext.parameters().size() != 1) return false;
+        return isIntType(ext.parameters().get(0).type()) && isIntType(ext.returnType());
+    }
+
+    private static boolean isIntType(String t) {
+        return "int".equals(t) || "Int".equals(t);
+    }
     private final java.util.IdentityHashMap<LambdaExpr, String> lambdaClassNames = new java.util.IdentityHashMap<>();
     /** Pontes super.metodo() geradas para lambdas: dono interno → método. */
     private final Map<String, List<IRMethod>> pendingSuperBridges = new java.util.LinkedHashMap<>();
@@ -3032,6 +3047,20 @@ private Target target = Target.JVM;
                     ops.add(new KofCall(userCtor.type(), "<init>", ctorParamTypes,
                             Type.PrimitiveType.VOID, KofCallKind.CONSTRUCTOR));
                     yield localIdx;
+                }
+                if (mc.receiver() == null && externSignatures.containsKey(mc.methodName())) {
+                    ExternalFunctionNode ext = externSignatures.get(mc.methodName());
+                    if (isExternBound(ext)) {
+                        // FFI JVM Int→Int: empilha lib, nome e o argumento, chama kof_ffi_i.
+                        ops.add(new KofLoadLiteral(BuiltinTypes.STRING,
+                                ext.library() != null ? ext.library() : ""));
+                        ops.add(new KofLoadLiteral(BuiltinTypes.STRING, ext.name()));
+                        localIdx = emitExpression(mc.arguments().get(0), ops, owner, localIdx, locals);
+                        ops.add(new KofCall(new Type.ClassType("kof", "ffi", List.of()), "kof_ffi_i",
+                                List.of(BuiltinTypes.STRING, BuiltinTypes.STRING, Type.PrimitiveType.INT),
+                                Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+                        yield localIdx;
+                    }
                 }
                 if (mc.receiver() == null && "now".equals(mc.methodName()) && mc.arguments().isEmpty()) {
                     ops.add(new KofCall(new Type.ClassType("kof", "time", List.of()), "kof_now",

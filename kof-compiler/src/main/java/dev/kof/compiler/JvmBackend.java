@@ -167,14 +167,15 @@ class JvmBackend implements Backend {
         for (IRClass clazz : module.classes()) {
             emitClass(clazz, outputDir);
         }
-        if (usesJson || usesVk) {
-            JvmRuntime.ensureCompiled(outputDir, module.classes(), usesVk);
+        if (usesJson || usesVk || usesExtern) {
+            JvmRuntime.ensureCompiled(outputDir, module.classes(), usesVk, usesExtern);
         }
     }
 
     private boolean debugInfoEnabled = true;
     private boolean usesJson = false;
     private boolean usesVk = false;
+    private boolean usesExtern = false;
     private String sourceName;
 
     private void emitClass(IRClass clazz, Path outputDir) throws IOException {
@@ -854,6 +855,9 @@ class JvmBackend implements Backend {
             usesJson = true;
             if (kc.methodName().startsWith("kof_vk_")) {
                 usesVk = true;
+            }
+            if (kc.methodName().startsWith("kof_ffi_")) {
+                usesExtern = true;
             }
             mv.visitMethodInsn(INVOKESTATIC, "dev/kof/runtime/KofRuntime", kc.methodName(),
                     JvmRuntime.callDescriptor(kc.methodName()), false);

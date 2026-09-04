@@ -55,15 +55,20 @@ static boolean hasRuntimeFn(String methodName) {
                 || methodName.equals("kof_process_spawn")
                 || methodName.equals("kof_process_run")
                 || methodName.equals("kof_process_exit")
+                || methodName.equals("kof_ffi_i")
                 || methodName.equals("kof_args_list");
     }
 
     static void ensureCompiled(Path outputDir, List<IRClass> classes, boolean usesVk) throws IOException {
+        ensureCompiled(outputDir, classes, usesVk, false);
+    }
+
+    static void ensureCompiled(Path outputDir, List<IRClass> classes, boolean usesVk, boolean usesExtern) throws IOException {
         Path runtimeDir = outputDir.resolve("dev/kof/runtime");
         if (Files.exists(runtimeDir.resolve("KofRuntime.class"))) return;
         Files.createDirectories(runtimeDir);
         Path sourceFile = outputDir.resolve("KofRuntime.java");
-        Files.writeString(sourceFile, source(classes, usesVk));
+        Files.writeString(sourceFile, source(classes, usesVk, usesExtern));
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         if (compiler == null) {
             throw new IOException("JVM runtime requires a full JDK (javac not available)");
@@ -75,7 +80,7 @@ static boolean hasRuntimeFn(String methodName) {
         // --enable-preview sempre marcaria o classfile 65.65535 e exigiria o
         // flag também em runtime, quebrando todo programa JVM comum.
         List<String> args = new java.util.ArrayList<>(List.of("-d", outputDir.toString()));
-        if (usesVk) {
+        if (usesVk || usesExtern) {
             args.add("--release");
             args.add("21");
             args.add("--enable-preview");
@@ -115,6 +120,7 @@ static boolean hasRuntimeFn(String methodName) {
             case "kof_json_decode_string_array" -> "(Ljava/lang/String;)[Ljava/lang/String;";
             case "kof_json_decode_object_list" -> "(Ljava/lang/String;Ljava/lang/String;)Ljava/util/ArrayList;";
             case "kof_now" -> "()J";
+            case "kof_ffi_i" -> "(Ljava/lang/String;Ljava/lang/String;I)I";
             case "kof_read_line" -> "()Ljava/lang/String;";
             case "kof_read_file" -> "(Ljava/lang/String;)Ljava/lang/String;";
             case "kof_write_file" -> "(Ljava/lang/String;Ljava/lang/String;)I";
@@ -376,6 +382,7 @@ static boolean hasRuntimeFn(String methodName) {
         return switch (methodName) {
             case "kof_json_decode_int", "kof_json_decode_bool" -> "I";
             case "kof_json_decode_long", "kof_now" -> "J";
+            case "kof_ffi_i" -> "I";
             case "kof_json_decode_float" -> "F";
             case "kof_json_decode_double" -> "D";
             case "kof_json_decode_int_list", "kof_json_decode_string_list", "kof_json_decode_list"
@@ -509,7 +516,7 @@ static boolean hasRuntimeFn(String methodName) {
         };
     }
 
-    private static String source(List<IRClass> classes, boolean usesVk) {
+    private static String source(List<IRClass> classes, boolean usesVk, boolean usesExtern) {
         StringBuilder decoders = new StringBuilder();
         for (IRClass clazz : classes) {
             String internal = clazz.name();
@@ -1086,8 +1093,32 @@ static boolean hasRuntimeFn(String methodName) {
                 + JvmOrmRuntime.source()
                 + JvmTimeRuntime.source()
                 + JvmStringRuntime.source()
+                + (usesExtern ? FFI_METHOD : "")
                 + (usesVk ? JvmVkRuntime.source() : "\n            }");
     }
+
+    /** FFI (R3, 2.1.4): downcall JVM-first via FFM — Int→Int (int). */
+    private static final String FFI_METHOD = """
+                public static int kof_ffi_i(String lib, String name, int a) {
+                    try {
+                        java.lang.foreign.Arena arena = java.lang.foreign.Arena.global();
+                        java.lang.foreign.SymbolLookup lookup = lib.isEmpty()
+                                ? java.lang.foreign.SymbolLookup.loaderLookup()
+                                : java.lang.foreign.SymbolLookup.libraryLookup(lib, arena);
+                        java.lang.foreign.Linker linker = java.lang.foreign.Linker.nativeLinker();
+                        java.lang.invoke.MethodHandle handle = linker.downcallHandle(
+                                lookup.find(name).orElseThrow(),
+                                java.lang.foreign.FunctionDescriptor.of(
+                                        java.lang.foreign.ValueLayout.JAVA_INT,
+                                        java.lang.foreign.ValueLayout.JAVA_INT));
+                        return (int) handle.invoke(a);
+                    } catch (Throwable t) {
+                        throw new RuntimeException("kof_ffi_i: " + lib + "::" + name + " failed: "
+                                + t.getMessage(), t);
+                    }
+                }
+
+    """;
 
     private static String sourceCore(String decoders) {
         return """

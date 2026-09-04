@@ -53,13 +53,13 @@ class CompilerDriverTest {
                 extern "libc.so.6" abs(Int x): Int
 
                 main() {
-                    println("hi")
+                    println(abs(1))
                 }
                 """);
         CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
         String diags = result.diagnostics().getDiagnostics().toString();
-        assertTrue(diags.contains("FFI001"), "still honest gap while binding is unimplemented: " + diags);
-        assertTrue(diags.contains("libc.so.6"), "library captured in diagnostic: " + diags);
+        assertTrue(result.success(), "Int→Int extern is bound on JVM, must compile: " + diags);
+        assertFalse(diags.contains("FFI001"), "bound extern must not emit FFI001: " + diags);
         assertFalse(diags.contains("PARSE"), "must not be a parse error: " + diags);
     }
 
