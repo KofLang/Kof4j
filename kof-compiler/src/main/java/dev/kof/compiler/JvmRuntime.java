@@ -91,7 +91,7 @@ static boolean hasRuntimeFn(String methodName) {
             throw new IOException("failed to compile KofRuntime helper (javac exit " + rc + "): "
                     + (detail.isEmpty() ? "unknown error" : detail));
         }
-        Files.deleteIfExists(sourceFile);
+        if (System.getenv("KOF_KEEP_SRC") == null) Files.deleteIfExists(sourceFile);
     }
 
     static String callDescriptor(String methodName) {

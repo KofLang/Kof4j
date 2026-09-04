@@ -75,6 +75,13 @@ final class JvmVkRuntime {
                 private static java.lang.foreign.MemorySegment VK_PL3;
                 private static java.lang.foreign.MemorySegment VK_PL5;
                 private static java.lang.foreign.MemorySegment VK_PL12;
+                // DESCRIPTOR SET LAYOUTS (o vkMakeSet precisa do DSL —
+                // passar o PL era o bug y=0: o set alocado com um
+                // pipeline layout como pSetLayouts e o RADV (sem layer)
+                // nao valida)
+                private static java.lang.foreign.MemorySegment VK_DSL3;
+                private static java.lang.foreign.MemorySegment VK_DSL5;
+                private static java.lang.foreign.MemorySegment VK_DSL12;
                 private static java.lang.foreign.MemorySegment VK_PIPE64;
                 private static java.lang.foreign.MemorySegment VK_PIPE32;
                 private static java.lang.foreign.MemorySegment VK_PIPESPL;
@@ -128,7 +135,13 @@ final class JvmVkRuntime {
                 private static int VK_CURK;
 
                 private static java.lang.foreign.MemorySegment vkAlloc(long bytes) {
-                    return VK_ARENA.allocate(bytes);
+                    // ZERAR: a arena ofAuto reutiliza memoria com lixo —
+                    // structs Vulkan com flags/pNext/pad sujos falham em
+                    // silencio (bug y=0: o pool do vkMakeSet era criado
+                    // com flags aleatorios e o set ficava inutilizavel).
+                    var seg = VK_ARENA.allocate(bytes);
+                    seg.fill((byte) 0);
+                    return seg;
                 }
 
                 private static void putI(java.lang.foreign.MemorySegment s, long off, int v) {
@@ -336,12 +349,12 @@ final class JvmVkRuntime {
                         VK_ERR = "SPIR-V matvec64: " + envSpvErr;
                         return;
                     }
-                    VK_DSET3 = vkMakeSet(3, VK_PL3);
+                    VK_DSET3 = vkMakeSet(3, VK_DSL3);
                     String spvS = envSpvOpt("KOF_GPU_SPV64_SPLIT", "gpu/shaders/matvecsplit.spv");
                     if (spvS != null) {
                         VK_PIPESPL = vkMakePipe(spvS, VK_PL5, 24);
                         if (VK_PIPESPL != null) {
-                            VK_DSET5 = vkMakeSet(5, VK_PL5);
+                            VK_DSET5 = vkMakeSet(5, VK_DSL5);
                         }
                     }
                     String spv32 = envSpvOpt("KOF_GPU_SPV64_W32", "gpu/shaders/matvecw32.spv");
@@ -352,12 +365,11 @@ final class JvmVkRuntime {
                     if (spvMM != null) {
                         VK_PIPEMM = vkMakePipe(spvMM, VK_PL12, 12);
                         if (VK_PIPEMM != null) {
-                            VK_DSET12 = vkMakeSet(3, VK_PL12);
+                            VK_DSET12 = vkMakeSet(3, VK_DSL12);
                         }
                     }
-                    // matmul64: KOF_GPU_SPV64_MM, senão KOF_GPU_SPV64
-                    String spvMM64 = envSpvOpt("KOF_GPU_SPV64_MM",
-                            envSpvOpt("KOF_GPU_SPV64", "gpu/shaders/matmul64.spv"));
+                    // matmul64: KOF_GPU_SPV64_MM, senão o próprio SPV64
+                    String spvMM64 = envSpvOpt("KOF_GPU_SPV64_MM", spv64);
                     if (spvMM64 != null) {
                         VK_PIPEMM64 = vkMakePipe(spvMM64, VK_PL12, 12);
                     }
@@ -419,6 +431,11 @@ final class JvmVkRuntime {
                     vk((int) vkCreateDescriptorSetLayout.invoke(VK_DEV, li, vkNull(), lo),
                             "desc layout");
                     var dsl = vkRes(lo);
+                    // guardar o DSL p/ o vkMakeSet (o set tem de ser
+                    // alocado com o DESCRIPTOR SET LAYOUT, nunca com o PL)
+                    if (nbinds == 3 && pushSize == 24) VK_DSL3 = dsl;
+                    if (nbinds == 5 && pushSize == 24) VK_DSL5 = dsl;
+                    if (nbinds == 3 && pushSize == 12) VK_DSL12 = dsl;
 
                     // VkPushConstantRange (12B): stageFlags@0, offset@4, size@8
                     var pcr = vkAlloc(12);
@@ -461,24 +478,11 @@ final class JvmVkRuntime {
                             "shader module");
                     var sm = vkRes(smOut);
 
-                    // VkPushConstantRange (12B): stageFlags@0, offset@4, size@8
-                    var pcr = vkAlloc(12);
-                    putI(pcr, 0, 0x20);
-                    putI(pcr, 4, 0);
-                    putI(pcr, 8, pushSize);
-                    var setArr = vkAlloc(8);
-                    putP(setArr, 0, layout);
-                    var pli = vkAlloc(48);
-                    putI(pli, 0, 30);
-                    putI(pli, 20, 1);
-                    putP(pli, 24, setArr);
-                    putI(pli, 32, 1);
-                    putP(pli, 40, pcr);
-                    var plo = vkOut();
-                    vk((int) vkCreatePipelineLayout.invoke(VK_DEV, pli, vkNull(), plo),
-                            "pipeline layout");
-                    var pl = vkRes(plo);
-
+                    // O PIPE DEVE USAR O LAYOUT PASSADO — criar um
+                    // segundo PipelineLayout aqui deixava o cmd binding
+                    // com VK_PL* DIFERENTE do layout do pipe =
+                    // comportamento indefinido (o RADV nao valida e o
+                    // GPU lia os SSBOs como zerados: bug y=0).
                     var stage = vkAlloc(48);
                     putI(stage, 0, 18);         // PIPELINE_SHADER_STAGE_CREATE_INFO
                     putI(stage, 20, 0x20);      // VK_SHADER_STAGE_COMPUTE_BIT
@@ -487,7 +491,7 @@ final class JvmVkRuntime {
                     var cpci = vkAlloc(96);
                     putI(cpci, 0, 29);
                     java.lang.foreign.MemorySegment.copy(stage, 0, cpci, 24, 48);
-                    putP(cpci, 72, pl);
+                    putP(cpci, 72, layout);
                     var po = vkOut();
                     // (device, cache, createInfoCount, pCreateInfos, pAlloc, pOut)
                     vk((int) vkCreateComputePipelines.invoke(VK_DEV, vkNull(), 1, cpci,
@@ -605,14 +609,14 @@ final class JvmVkRuntime {
                     }
                 }
 
-                // (re)dimensiona buffer com capacidade: idempotente
-                private static void vkGrow(java.lang.foreign.MemorySegment[] slot, long[] cap,
-                        long bytes) throws Throwable {
-                    if (slot[2] != null && cap[0] >= bytes) return;
-                    vkDrop(slot);
-                    vkHostBuffer(bytes, slot);
-                    cap[0] = bytes;
-                }
+    // (re)dimensiona buffer com capacidade: idempotente
+    private static void vkGrow(java.lang.foreign.MemorySegment[] slot, long[] cap,
+            long bytes) throws Throwable {
+        if (slot[2] != null && cap[0] >= bytes) return;
+        vkDrop(slot);
+        vkHostBuffer(bytes, slot);
+        cap[0] = bytes;
+    }
 
                 // slot W residente por id: aloca se cresceu; devolve o mapped
                 private static java.lang.foreign.MemorySegment vkSlot(
@@ -668,10 +672,31 @@ final class JvmVkRuntime {
                     putI(w, 32, 1);
                     putI(w, 36, 7);
                     putP(w, 48, dbi);
-                    System.err.println("[vkdbg] bind b=" + binding + " buf=" + buf.address()
-                            + " dbi=" + dbi.address() + " wds=" + w.address()
-                            + " dset=" + dset.address());
                     vkUpdateDescriptorSets.invoke(VK_DEV, 1, w, 0, vkNull());
+                }
+
+                // N writes em UMA chamada de vkUpdateDescriptorSets
+                // (o padrao que funciona nos probes; updates separados
+                // por binding mostraram SSBOs invisiveis ao GPU)
+                private static void vkBindBufAll(java.lang.foreign.MemorySegment dset,
+                        java.lang.foreign.MemorySegment[] bufs) throws Throwable {
+                    int n = bufs.length;
+                    var wds = vkAlloc(64L * n);
+                    for (int b = 0; b < n; b++) {
+                        long o = (long) b * 64;
+                        var dbi = vkAlloc(24);
+                        putP(dbi, 0, bufs[b]);
+                        putL(dbi, 8, 0L);
+                        putL(dbi, 16, -1L);
+                        putI(wds, o, 35);
+                        putP(wds, o + 16, dset);
+                        putI(wds, o + 24, b);
+                        putI(wds, o + 28, 0);
+                        putI(wds, o + 32, 1);
+                        putI(wds, o + 36, 7);
+                        putP(wds, o + 48, dbi);
+                    }
+                    vkUpdateDescriptorSets.invoke(VK_DEV, n, wds, 0, vkNull());
                 }
 
                 // dispatch matvec (push 24B {m:k32, k:k32, divId, pad, div:i64},
@@ -681,9 +706,7 @@ final class JvmVkRuntime {
                         java.lang.foreign.MemorySegment[] bufs, int m, int k, long div)
                         throws Throwable {
                     var layout = five ? VK_PL5 : VK_PL3;
-                    for (int b = 0; b < bufs.length; b++) {
-                        vkBindBuf(dset, b, bufs[b]);
-                    }
+                    vkBindBufAll(dset, bufs);
                     vkSubmit(pipe, layout, dset, m, k, div, 24);
                 }
 
@@ -691,9 +714,7 @@ final class JvmVkRuntime {
                 private static void vkRunMM(java.lang.foreign.MemorySegment pipe,
                         java.lang.foreign.MemorySegment dset, int m, int n, int k)
                         throws Throwable {
-                    vkBindBuf(dset, 0, S_A[0]);
-                    vkBindBuf(dset, 1, S_B[0]);
-                    vkBindBuf(dset, 2, S_C[0]);
+                    vkBindBufAll(dset, new java.lang.foreign.MemorySegment[]{S_A[0], S_B[0], S_C[0]});
                     vkSubmitMM(pipe, VK_PL12, dset, m, n, k);
                 }
 
@@ -799,14 +820,10 @@ final class JvmVkRuntime {
                         vkGrow(S_X, C_X, (long) k * 8);
                         vkGrow(S_Y, C_Y, (long) m * 8);
                         putLongs(S_X[2], x, k);
-                        System.err.println("[vkdbg] matvec: x0map=" + S_X[2].getAtIndex(java.lang.foreign.ValueLayout.JAVA_LONG, 0)
-                                + " xbuf=" + S_X[0].address() + " wbuf=" + S_W[0].address()
-                                + " ybuf=" + S_Y[0].address() + " w0map=" + S_W[2].getAtIndex(java.lang.foreign.ValueLayout.JAVA_LONG, 0));
                         vkRunMV(VK_PIPE64, VK_DSET3, false,
                                 new java.lang.foreign.MemorySegment[]{S_W[0], S_X[0], S_Y[0]},
                                 m, k, 0L);
                         getLongs(S_Y[2], y, m);
-                        System.err.println("[vkdbg] matvec: y0map=" + S_Y[2].getAtIndex(java.lang.foreign.ValueLayout.JAVA_LONG, 0));
                         return 0;
                     } catch (Throwable t) {
                         return -1;
@@ -951,9 +968,7 @@ final class JvmVkRuntime {
                         vkGrow(S_C64, C_C64, (long) m * n * 8);
                         putLongs(S_A64[2], a, m * k);
                         putLongs(S_B64[2], b, k * n);
-                        vkBindBuf(VK_DSET12, 0, S_A64[0]);
-                        vkBindBuf(VK_DSET12, 1, S_B64[0]);
-                        vkBindBuf(VK_DSET12, 2, S_C64[0]);
+                        vkBindBufAll(VK_DSET12, new java.lang.foreign.MemorySegment[]{S_A64[0], S_B64[0], S_C64[0]});
                         var bbi = vkAlloc(32);
                         putI(bbi, 0, 42);
                         putI(bbi, 16, 1);
