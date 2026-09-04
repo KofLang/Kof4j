@@ -267,6 +267,21 @@ class NativeRiscv64E2ETest {
     }
 
     @Test
+    void riscv64JsonEncode(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runRiscv64(tempDir, """
+            record Pessoa(String nome, Int idade)
+            main() {
+                var p = Pessoa("Ana", 30)
+                println(json.encode(p))
+                var q = Pessoa("a\\"b", 1)
+                println(json.encode(q))
+            }
+            """);
+        assertEquals("{\"nome\":\"Ana\",\"idade\":30}\n{\"nome\":\"a\\\"b\",\"idade\":1}", out);
+    }
+
+    @Test
     void riscv64StringMethods(@TempDir Path tempDir) throws IOException {
         assumeToolchain();
         String out = runRiscv64(tempDir, """

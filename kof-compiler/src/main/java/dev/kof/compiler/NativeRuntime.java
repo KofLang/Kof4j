@@ -5508,23 +5508,23 @@ final class NativeRuntime {
                 incq %r13
                 jmp .Ljq_next
             .Ljq_e_q:
-                movw $5396, (%r13)          # backslash+aspa (0x22,0x5C)
+                movw $8796, (%r13)          # backslash+aspa: LE -> 5C 22
                 addq $2, %r13
                 jmp .Ljq_next
             .Ljq_e_bs:
-                movw $23644, (%r13)         # 2x backslash (0x5C,0x5C)
+                movw $23644, (%r13)         # 2x backslash: LE -> 5C 5C
                 addq $2, %r13
                 jmp .Ljq_next
             .Ljq_e_nl:
-                movw $28268, (%r13)         # backslash+n (0x6E,0x5C LE -> 5C,6E)
+                movw $28252, (%r13)         # backslash+n: LE -> 5C 6E
                 addq $2, %r13
                 jmp .Ljq_next
             .Ljq_e_cr:
-                movw $29300, (%r13)         # backslash+r
+                movw $29276, (%r13)         # backslash+r: LE -> 5C 72
                 addq $2, %r13
                 jmp .Ljq_next
             .Ljq_e_tb:
-                movw $29796, (%r13)         # backslash+t
+                movw $29788, (%r13)         # backslash+t: LE -> 5C 74
                 addq $2, %r13
                 jmp .Ljq_next
             .Ljq_e_uni:

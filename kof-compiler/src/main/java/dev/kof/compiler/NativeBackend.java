@@ -4775,6 +4775,155 @@ public class NativeBackend implements Backend {
                 li   a0, 1
                 ret
 
+            # ---- JSN002: kof_json_quote(s@a0) -> KofString* -------------
+            # Escapa para JSON: aspas, backslash, \\n \\r \\t, control<32
+            # como \\u00XX, null -> "null". Mesma semântica do x86_64.
+            .globl kof_json_quote
+            kof_json_quote:
+                addi sp, sp, -48
+                sd   ra, 40(sp)
+                sd   s0, 32(sp)
+                sd   s1, 24(sp)
+                sd   s2, 16(sp)
+                sd   s3, 8(sp)
+                sd   s4, 0(sp)
+                li   s0, 0
+                li   s1, 0
+                beqz a0, .Ljq_bound
+                lw   s1, 16(a0)
+                addi s0, a0, 24
+            .Ljq_bound:
+                li   t0, 6
+                mul  a0, s1, t0
+                addi a0, a0, 30
+                call kof_alloc
+                mv   s2, a0
+                li   t0, 1
+                sw   t0, 0(s2)
+                sw   zero, 4(s2)
+                sd   zero, 8(s2)
+                addi s3, s2, 24
+                beqz s0, .Ljq_null
+                li   t0, 34
+                sb   t0, 0(s3)
+                addi s3, s3, 1
+                li   s4, 0
+            .Ljq_loop:
+                bge  s4, s1, .Ljq_close_str
+                add  t1, s0, s4
+                lbu  a0, 0(t1)
+                li   t0, 34
+                beq  a0, t0, .Ljq_e_q
+                li   t0, 92
+                beq  a0, t0, .Ljq_e_bs
+                li   t0, 10
+                beq  a0, t0, .Ljq_e_nl
+                li   t0, 13
+                beq  a0, t0, .Ljq_e_cr
+                li   t0, 9
+                beq  a0, t0, .Ljq_e_tb
+                li   t0, 32
+                bltu a0, t0, .Ljq_e_uni
+                sb   a0, 0(s3)
+                addi s3, s3, 1
+                j    .Ljq_next
+            .Ljq_e_q:
+                li   t0, 92
+                sb   t0, 0(s3)
+                li   t0, 34
+                sb   t0, 1(s3)
+                addi s3, s3, 2
+                j    .Ljq_next
+            .Ljq_e_bs:
+                li   t0, 92
+                sb   t0, 0(s3)
+                sb   t0, 1(s3)
+                addi s3, s3, 2
+                j    .Ljq_next
+            .Ljq_e_nl:
+                li   t0, 92
+                sb   t0, 0(s3)
+                li   t0, 110
+                sb   t0, 1(s3)
+                addi s3, s3, 2
+                j    .Ljq_next
+            .Ljq_e_cr:
+                li   t0, 92
+                sb   t0, 0(s3)
+                li   t0, 114
+                sb   t0, 1(s3)
+                addi s3, s3, 2
+                j    .Ljq_next
+            .Ljq_e_tb:
+                li   t0, 92
+                sb   t0, 0(s3)
+                li   t0, 116
+                sb   t0, 1(s3)
+                addi s3, s3, 2
+                j    .Ljq_next
+            .Ljq_e_uni:
+                li   t0, 92
+                sb   t0, 0(s3)
+                li   t0, 117
+                sb   t0, 1(s3)
+                li   t0, 48
+                sb   t0, 2(s3)
+                sb   t0, 3(s3)
+                srli t1, a0, 4
+                andi t1, t1, 15
+                li   t0, 10
+                bltu t1, t0, .Ljq_uh1
+                addi t1, t1, 39
+                j    .Ljq_uh2
+            .Ljq_uh1:
+                addi t1, t1, 48
+            .Ljq_uh2:
+                sb   t1, 4(s3)
+                andi t1, a0, 15
+                li   t0, 10
+                bltu t1, t0, .Ljq_ul1
+                addi t1, t1, 39
+                j    .Ljq_ul2
+            .Ljq_ul1:
+                addi t1, t1, 48
+            .Ljq_ul2:
+                sb   t1, 5(s3)
+                addi s3, s3, 6
+                j    .Ljq_next
+            .Ljq_next:
+                addi s4, s4, 1
+                j    .Ljq_loop
+            .Ljq_close_str:
+                li   t0, 34
+                sb   t0, 0(s3)
+                addi s3, s3, 1
+                j    .Ljq_close
+            .Ljq_null:
+                li   t0, 110
+                sb   t0, 0(s3)
+                li   t0, 117
+                sb   t0, 1(s3)
+                li   t0, 108
+                sb   t0, 2(s3)
+                sb   t0, 3(s3)
+                addi s3, s3, 4
+            .Ljq_close:
+                sub  a0, s3, s2
+                addi a0, a0, -24
+                sw   a0, 16(s2)
+                add  t1, s2, a0
+                addi t1, t1, 24
+                sb   zero, 0(t1)
+                mv   a0, s2
+                ld   ra, 40(sp)
+                ld   s0, 32(sp)
+                ld   s1, 24(sp)
+                ld   s2, 16(sp)
+                ld   s3, 8(sp)
+                ld   s4, 0(sp)
+                addi sp, sp, 48
+                ret
+
             .section .data
             kof_alloc_ptr: .quad _kof_heap
             .align 16
