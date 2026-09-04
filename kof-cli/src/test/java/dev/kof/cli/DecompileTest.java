@@ -38,6 +38,8 @@ class DecompileTest {
         assertTrue(kof.contains("Int add"), "should emit add method:\n" + kof);
         assertTrue(kof.contains("String greet"), "should emit greet method:\n" + kof);
         assertTrue(kof.contains("throw \"body not recovered\""), "bodies must be honest stubs:\n" + kof);
+        assertTrue(kof.contains("// unknown"), "bodies must be marked UNKNOWN:\n" + kof);
+        assertTrue(kof.contains("// exact"), "fields must be marked EXACT:\n" + kof);
 
         Path out = dir.resolve("Calc.kf");
         Files.writeString(out, kof);

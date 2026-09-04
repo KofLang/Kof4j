@@ -1,6 +1,7 @@
 package dev.kof.cli;
 
 import dev.kof.compiler.ClassFileParser;
+import dev.kof.compiler.Confidence;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -63,7 +64,8 @@ public final class Decompile {
         var ir = ClassFileParser.parse(Files.newInputStream(classFile));
         StringBuilder sb = new StringBuilder();
         sb.append("// decompiled from ").append(classFile.getFileName()).append('\n');
-        sb.append("// structural skeleton — method bodies not recovered yet (Fase E)\n\n");
+        sb.append("// structural skeleton — method bodies not recovered yet (Fase E)\n");
+        sb.append("// confidence: class/fields/signatures = EXACT; method bodies = UNKNOWN\n\n");
 
         String simpleName = simpleName(ir.thisClass);
         sb.append("class ").append(simpleName);
@@ -81,7 +83,7 @@ public final class Decompile {
         for (var f : ir.fields) {
             if ((f.accessFlags & 0x0008) != 0) continue; // skip static
             sb.append("    ").append(fieldKofType(f.descriptor)).append(' ')
-              .append(f.name).append('\n');
+              .append(f.name).append("   // ").append(Confidence.EXACT.label()).append('\n');
         }
 
         for (var m : ir.methods) {
@@ -96,7 +98,7 @@ public final class Decompile {
             sb.append("    ").append(methodKofType(m.returnTypeName())).append(' ')
               .append(m.name)
               .append('(').append(paramList(m.parameterTypeNames())).append(") {\n");
-            sb.append("        throw \"body not recovered\"\n");
+            sb.append("        throw \"body not recovered\"   // ").append(Confidence.UNKNOWN.label()).append('\n');
             sb.append("    }\n");
         }
 
