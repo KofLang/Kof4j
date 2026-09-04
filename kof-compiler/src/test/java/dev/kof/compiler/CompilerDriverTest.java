@@ -47,6 +47,23 @@ class CompilerDriverTest {
     }
 
     @Test
+    void externWithLibraryParses(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("ffi3.kf");
+        Files.writeString(source, """
+                extern "libc.so.6" abs(Int x): Int
+
+                main() {
+                    println("hi")
+                }
+                """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("FFI001"), "still honest gap while binding is unimplemented: " + diags);
+        assertTrue(diags.contains("libc.so.6"), "library captured in diagnostic: " + diags);
+        assertFalse(diags.contains("PARSE"), "must not be a parse error: " + diags);
+    }
+
+    @Test
     void compilesRecordToJvm(@TempDir Path tempDir) throws IOException {
         Path source = tempDir.resolve("Point.kf");
         Files.writeString(source, "record Point(int x, int y)");

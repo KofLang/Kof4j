@@ -609,9 +609,10 @@ private Target target = Target.JVM;
                 // implementado — gap honesto, nunca stub silencioso (TIER 2.1.3).
                 if (currentDiagnostics != null) {
                     SourcePosition sp = ext.position();
+                    String lib = ext.library() != null ? " in " + ext.library() : "";
                     currentDiagnostics.error(sp != null ? sp.file() : "", sp != null ? sp.line() : 0,
                             sp != null ? sp.column() : 0, 0,
-                            "extern '" + ext.name() + "': FFI binding not implemented on the "
+                            "extern '" + ext.name() + "'" + lib + ": FFI binding not implemented on the "
                                     + target + " target yet (FFI001)",
                             "FFI001");
                 }

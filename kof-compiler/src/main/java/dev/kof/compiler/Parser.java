@@ -259,6 +259,10 @@ class Parser {
     private ExternalFunctionNode parseExternDeclaration() {
         SourcePosition p = pos();
         expect(TokenType.EXTERN, "Expected 'extern'", "PARSE090");
+        String library = null;
+        if (check(TokenType.STRING_LITERAL)) {
+            library = advance().value();
+        }
         String name = expectId("Expected extern function name", "PARSE091");
         if (check(TokenType.LESS)) parseTypeParameters();
         expect(TokenType.LPAREN, "Expected '('", "PARSE092");
@@ -274,7 +278,7 @@ class Parser {
             returnType = parseTypeRef();
         }
         expectSemicolon();
-        return new ExternalFunctionNode(p, returnType, name, params);
+        return new ExternalFunctionNode(p, library, returnType, name, params);
     }
 
     private FunctionDeclarationNode parseFunctionDeclaration(List<String> mods, List<AnnotationNode> annos) {
