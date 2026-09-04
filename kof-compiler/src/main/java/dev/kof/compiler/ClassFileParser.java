@@ -123,16 +123,32 @@ public final class ClassFileParser {
             while (pos < params.length()) {
                 Type t = Type.fromJvmDescriptor(params.substring(pos));
                 paramTypes.add(t);
-                pos = skipDescriptorLength(params, pos);
+                pos += descriptorLength(params, pos);
             }
             
             Type retType = Type.fromJvmDescriptor(returns);
             return new TypeParseResult(retType, paramTypes);
         }
         
-        private static int skipDescriptorLength(String desc, int pos) {
-            if (pos >= desc.length()) return pos;
-            return pos + 1;
+        private static int descriptorLength(String desc, int pos) {
+            if (pos >= desc.length()) return desc.length() - pos;
+            char c = desc.charAt(pos);
+            if (c == 'L') {
+                int end = desc.indexOf(';', pos);
+                return (end >= 0 ? end : desc.length() - 1) - pos + 1;
+            }
+            if (c == '[') {
+                int p = pos;
+                while (p < desc.length() && desc.charAt(p) == '[') p++;
+                if (p >= desc.length()) return desc.length() - pos;
+                char e = desc.charAt(p);
+                if (e == 'L') {
+                    int end = desc.indexOf(';', p);
+                    return (end >= 0 ? end : desc.length() - 1) - pos + 1;
+                }
+                return p - pos + 1;
+            }
+            return 1;
         }
 
         private record TypeParseResult(Type returnType, List<Type> parameterTypes) {}
@@ -198,20 +214,32 @@ public final class ClassFileParser {
         for (int i = 1; i < constantPoolCount; i++) {
             int tag = bb.get() & 0xFF;
             switch (tag) {
-                case 1: // UTF8
+                case 1: { // Utf8
                     int len = bb.getShort() & 0xFFFF;
                     byte[] bytes = new byte[len];
                     bb.get(bytes);
                     constPool[i] = new String(bytes, StandardCharsets.UTF_8);
                     break;
+                }
                 case 7: // Class
                     constPool[i] = "#" + (bb.getShort() & 0xFFFF);
                     break;
                 case 8: // String
                     constPool[i] = "#" + (bb.getShort() & 0xFFFF);
                     break;
-                case 3: case 4: case 5: case 6: // Number
+                case 3: // Integer
                     constPool[i] = String.valueOf(bb.getInt());
+                    break;
+                case 4: // Float
+                    constPool[i] = String.valueOf(bb.getFloat());
+                    break;
+                case 5: // Long (8 bytes, occupies TWO cp slots)
+                    constPool[i] = String.valueOf(bb.getLong());
+                    i++;
+                    break;
+                case 6: // Double (8 bytes, occupies TWO cp slots)
+                    constPool[i] = String.valueOf(bb.getDouble());
+                    i++;
                     break;
                 case 9: case 10: case 11: // Fieldref, Methodref, InterfaceMethodref
                     constPool[i] = "#" + (bb.getShort() & 0xFFFF) + "#" + (bb.getShort() & 0xFFFF);
@@ -219,11 +247,22 @@ public final class ClassFileParser {
                 case 12: // NameAndType
                     constPool[i] = "#" + (bb.getShort() & 0xFFFF) + "#" + (bb.getShort() & 0xFFFF);
                     break;
-                case 15: // MethodHandle
+                case 15: // MethodHandle: 1 byte kind + 2 byte reference index
+                    constPool[i] = "#" + (bb.get() & 0xFF) + "#" + (bb.getShort() & 0xFFFF);
+                    break;
+                case 16: // MethodType
                     constPool[i] = "#" + (bb.getShort() & 0xFFFF);
                     break;
-                case 17: // MethodType
-                    constPool[i] = "#" + (bb.getShort() & 0xFFFF);
+                case 17: // Dynamic (4 bytes)
+                    constPool[i] = "#" + (bb.getShort() & 0xFFFF) + "#" + (bb.getShort() & 0xFFFF);
+                    break;
+                case 18: // InvokeDynamic (4 bytes)
+                    constPool[i] = "#" + (bb.getShort() & 0xFFFF) + "#" + (bb.getShort() & 0xFFFF);
+                    break;
+                case 19: // Module
+                case 20: // Package
+                    bb.getShort();
+                    constPool[i] = "tag=" + tag;
                     break;
                 default:
                     constPool[i] = "tag=" + tag;
@@ -248,7 +287,9 @@ public final class ClassFileParser {
             String fieldDesc = constPool[bb.getShort() & 0xFFFF];
             int attrCount = bb.getShort() & 0xFFFF;
             for (int j = 0; j < attrCount; j++) {
-                bb.position(bb.position() + 2 + bb.getInt());
+                bb.getShort(); // attribute_name_index
+                int attrLen = bb.getInt(); // attribute_length
+                bb.position(bb.position() + attrLen);
             }
             fields.add(new FieldInfo(fieldAccess, fieldName, fieldDesc));
         }
@@ -504,10 +545,17 @@ public final class ClassFileParser {
     private static String resolveClass(String[] constPool, int idx) {
         if (idx >= constPool.length) return "INVALID";
         String entry = constPool[idx];
-        if (entry != null && entry.startsWith("#")) {
-            int cpIdx = Integer.parseInt(entry.substring(1));
-            if (cpIdx < constPool.length && constPool[cpIdx] != null) {
-                return constPool[cpIdx];
+        if (entry == null) return "INVALID";
+        if (entry.startsWith("#")) {
+            int hash = entry.indexOf('#', 1);
+            String firstRef = hash >= 0 ? entry.substring(1, hash) : entry.substring(1);
+            try {
+                int cpIdx = Integer.parseInt(firstRef);
+                if (cpIdx < constPool.length && constPool[cpIdx] != null) {
+                    return constPool[cpIdx];
+                }
+            } catch (NumberFormatException ignored) {
+                // fall through
             }
         }
         return entry;

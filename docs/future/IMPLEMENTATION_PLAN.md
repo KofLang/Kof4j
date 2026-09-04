@@ -115,7 +115,7 @@ Esta é a versão consolidada do plano de implementação para todos os document
 
 | Task | Source Doc | Difficulty | Dependencies | Status | Definition of Done |
 |------|-----------|------------|--------------|--------|-------------------|
-| Decompiler-Structural | DECOMPILER.md | 🔴 H | Type Recovery | MISSING | `kof decompile X.class` gera `.kf` compilável |
+| Decompiler-Structural | DECOMPILER.md | 🔴 H | Type Recovery | ✅ **COMPLETO** | `kof decompile X.class` gera esqueleto `.kf` compilável (corpos = throw stub honesto) |
 | Decompiler-Confidence | DECOMPILER.md | 🟡 M | Structural | MISSING | IR marca "inferred" vs "exact" |
 
 ---

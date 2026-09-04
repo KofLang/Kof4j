@@ -24,6 +24,7 @@ public final class Main {
             case "bench" -> System.exit(Bench.run(args));
             case "profile" -> System.exit(Profile.run(args));
             case "inspect" -> System.exit(Inspect.run(args));
+            case "decompile" -> System.exit(Decompile.run(args));
             case "debug" -> System.exit(KofDebug.run(args));
             case "info" -> info(args);
             case "lsp" -> lsp();
@@ -506,6 +507,7 @@ private static void build(String[] args) {
         System.out.println("                          compile, run, validate output, collect metrics, compare baseline");
         System.out.println("  profile <file.kf> [--target jvm|native|js|android] [args...]   run + execution metrics (CPU, RSS, GC)");
         System.out.println("  inspect <file.kf> [--json]   IR statistics: ops before/after optimization");
+        System.out.println("  decompile <file.class> [--output <file.kf>]   structural Kof skeleton from a .class");
         System.out.println("  config gen <file.kf|dir> [--target jvm|native|js] [--output <arquivo>]");
         System.out.println("                          gera template kof.config a partir das chaves config.* do código");
         System.out.println("  info [--json]                environment and platform report");
