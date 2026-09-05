@@ -491,6 +491,25 @@ EXTERNA produz lixo
 
 ---
 
+### 28. FLAKE: `KofWebHardeningTest.ws_connection_counter_increments_and_decrements`
+
+- **Sintoma:** `expected: <1> but was: <0>` no contador de conexões ws.
+  **Intermitente** — passa 6/6 em execução isolada; falhou 1× na suíte
+  completa de 05/09 (927 testes).
+- **Causa provável:** race no contador de conexões — o teste conta
+  conexões ativas num ponto onde a conexão pode ainda não ter sido
+  registrada (timing de socket/async). Não é regressão de feature.
+- **Reprodução:** rodar a suíte completa repetidamente
+  (`mvn test -o -pl kof-compiler,kof-script,kof-c-compiler,kof-cli -am`);
+  falha esporádica. `KofWebHardeningTest` isolado: verde.
+- **O que deveria acontecer:** tornar o contador determinístico (barreira
+  antes da asserção) — é **lane do agent-web**, não do NATIVE002-stdlib.
+- **Arquivos:** `KofWebHardeningTest.java` (asserção ~368), contador ws
+  do runtime web.
+- **Registrado:** 05/09 (suíte do port mq cross — falha fora da lane).
+
+---
+
 ## Comportamentos que PAREcem bugs mas são esperados (não corrigir)
 
 | Cenário | Comportamento | Por quê |

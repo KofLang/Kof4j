@@ -21,12 +21,20 @@ Estados: `ABERTO` · `EM CURSO` · `FEITO` · `BLOQUEADO`.
 
 ## PRÓXIMO PASSO (re-dispacho lê isto)
 
-**Suíte completa do port mq cross rodando** (`suite7.log`) — quando verde:
-commit + push + atualizar `docs/backend-parity.md` (linha mq: cross ✅ port
-completo 05/09) + CHANGELOG. **Depois:** reconciliar NATIVE002-stdlib com o
-REFACTOR-500 (quando o agente terminar as classes >500 — `NativeBackend.java`
-é Fase 3 do agente-idiomatic; não tocar nesse arquivo enquanto estiver
-`EM CURSO` lá).
+**NATIVE002-stdlib residual: AUDITÓRIA R6 PRÓXIMO MÓDULO** — varrer os
+módulos stdlib restantes no runtime riscv64 (observability/config/
+validation/scheduler/time-interval) pelo mesmo padrão que achou cache/
+mq/time/FP: (1) compilar snippets riscv64+aarch64 (harness `KAudit*.java`
+em `/tmp/opencode/`); (2) link quebra → ToolchainMissing já vira erro;
+(3) **segfault/resultado divergente do x86_64** = bug real (clobber de
+t-regs em loops com `call`, opcode inexistente, s-reg sem salvar) —
+reproduzido com qemu, corrigir no `RISCV_RUNTIME_ASM`, teste E2E cross,
+commit. Começar por **observability** (health/counter/histogram — o x86
+tem OBS002 real) e **scheduler.every/interval** (o time.interval riscv é
+stub no runtime — verificar). **Depois:** reconciliar NATIVE002-stdlib
+com o REFACTOR-500 (quando o agente-idiomatic terminar a Fase 3 —
+`NativeBackend.java` é dele; não tocar nesse arquivo com outro agente
+editando).
 
 ---
 
