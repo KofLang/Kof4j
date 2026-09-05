@@ -876,8 +876,8 @@ class JvmBackend implements Backend {
                 usesExtern = true;
             }
             mv.visitMethodInsn(INVOKESTATIC, "dev/kof/runtime/KofRuntime", kc.methodName(),
-                    JvmRuntime.callDescriptor(kc.methodName()), false);
-            if ("Ljava/lang/Object;".equals(JvmRuntime.callReturnDescriptor(kc.methodName()))) {
+                    JvmRuntimeCallDescriptors.callDescriptor(kc.methodName()), false);
+            if ("Ljava/lang/Object;".equals(JvmRuntimeCallDescriptors.callReturnDescriptor(kc.methodName()))) {
                 if (kc.returnType() instanceof Type.ClassType ct && !BuiltinTypes.isString(kc.returnType())
                         // handle de spawn é opaco em runtime (CompletableFuture) — sem cast
                         && !"kof.concurrent".equals(ct.packageName())) {

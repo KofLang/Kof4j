@@ -3223,9 +3223,11 @@ public class NativeBackend implements Backend {
             case EQ -> { sb.append("    sub t2, t1, t0\n"); sb.append("    seqz t1, t2\n"); }
             case NE -> { sb.append("    sub t2, t1, t0\n"); sb.append("    snez t1, t2\n"); }
             case LT -> sb.append("    slt t1, t1, t0\n");
-            case LE -> sb.append("    sle t1, t1, t0\n");
+            // sle/sge NÃO existem na ISA riscv — só slt. a<=b = !(b<a);
+            // a>=b = !(a<b). seqz já é usado por EQ/NE (tradutor conhece).
+            case LE -> { sb.append("    slt t2, t0, t1\n"); sb.append("    seqz t1, t2\n"); }
             case GT -> sb.append("    slt t1, t0, t1\n");
-            case GE -> sb.append("    sle t1, t0, t1\n");
+            case GE -> { sb.append("    slt t2, t1, t0\n"); sb.append("    seqz t1, t2\n"); }
             case AND -> sb.append("    and t1, t1, t0\n");
             case OR -> sb.append("    or t1, t1, t0\n");
             case XOR -> sb.append("    xor t1, t1, t0\n");
@@ -3529,8 +3531,14 @@ public class NativeBackend implements Backend {
             kof_print_string:
                 addi sp, sp, -16
                 sd   ra, 8(sp)
+                bnez a0, .Lps_ok
+                la   a1, .Lstr_null         # null → "null" (bytes crus, paridade x86_64)
+                li   a2, 4
+                j    .Lps_write
+            .Lps_ok:
                 addi a1, a0, 24
                 lw   a2, 16(a0)
+            .Lps_write:
                 li   a0, 1
                 li   a7, 64
                 ecall
@@ -3544,10 +3552,18 @@ public class NativeBackend implements Backend {
                 # atomico, sem interleave entre threads (spawn/await).
                 addi sp, sp, -48
                 sd   ra, 40(sp)
+                bnez a0, .Lpls_ok
+                la   t0, .Lstr_null         # null → "null" (bytes crus)
+                li   t1, 4
+                sd   t0, 0(sp)              # iov[0].base
+                sd   t1, 8(sp)              # iov[0].len
+                j    .Lpls_nl
+            .Lpls_ok:
                 addi t0, a0, 24
                 sd   t0, 0(sp)              # iov[0].base = data
                 lw   t1, 16(a0)
                 sd   t1, 8(sp)              # iov[0].len
+            .Lpls_nl:
                 la   t0, .Lnewline
                 sd   t0, 16(sp)             # iov[1].base
                 li   t1, 1
@@ -5016,6 +5032,46 @@ public class NativeBackend implements Backend {
                 lw   a0, 16(a0)
                 ret
 
+            # kof_list_remove(list, idx) -> item removido (desloca o resto)
+            .globl kof_list_remove
+            kof_list_remove:
+                addi sp, sp, -32
+                sd   ra, 24(sp)
+                sd   s0, 16(sp)      # list
+                sd   s1, 8(sp)       # idx
+                sd   s2, 0(sp)       # item
+                mv   s0, a0
+                mv   s1, a1
+                ld   t0, 24(s0)
+                slli t1, s1, 3
+                add  t0, t0, t1
+                ld   s2, 0(t0)       # item = data[idx]
+                lw   t2, 16(s0)      # size
+                addi t3, s1, 1       # i = idx+1
+            .Llr_loop:
+                bge  t3, t2, .Llr_done
+                ld   t0, 24(s0)
+                slli t4, t3, 3
+                add  t4, t0, t4
+                ld   t5, 0(t4)       # data[i]
+                ld   t0, 24(s0)
+                addi t6, t3, -1
+                slli t6, t6, 3
+                add  t6, t0, t6
+                sd   t5, 0(t6)       # data[i-1] = data[i]
+                addi t3, t3, 1
+                j    .Llr_loop
+            .Llr_done:
+                addi t2, t2, -1
+                sw   t2, 16(s0)      # size--
+                mv   a0, s2
+                ld   s2, 0(sp)
+                ld   s1, 8(sp)
+                ld   s0, 16(sp)
+                ld   ra, 24(sp)
+                addi sp, sp, 32
+                ret
+
             .globl kof_list_get
             kof_list_get:
                 addi sp, sp, -16
@@ -5580,17 +5636,19 @@ public class NativeBackend implements Backend {
                 mv   s0, a0
                 mv   s1, a1
                 la   s2, .Lcache_area
-                li   t2, 0
-                li   t3, 64
+                li   t0, 1536
+                add  t0, s2, t0
+                sd   t0, 8(sp)       # fim (recarregado a cada iteração — t-regs
+                                     # são clobberados pelo kof_string_equals)
             .Lcs_scan:
-                bge  t2, t3, .Lcs_write
+                ld   t5, 8(sp)
+                bgeu s2, t5, .Lcs_write
                 ld   t4, 0(s2)
                 beqz t4, .Lcs_write       # vazio
                 mv   a0, t4
                 mv   a1, s0
                 call kof_string_equals
                 bnez a0, .Lcs_write       # mesma key, overwrite
-                addi t2, t2, 1
                 addi s2, s2, 24
                 j    .Lcs_scan
             .Lcs_write:
@@ -5625,17 +5683,18 @@ public class NativeBackend implements Backend {
                 add  s4, a0, t4
                 # grava
                 la   s3, .Lcache_area
-                li   t2, 0
-                li   t3, 64
+                li   t0, 1536
+                add  t0, s3, t0
+                sd   t0, 8(sp)       # fim (recarregado — t-regs clobberados)
             .Lcst_scan:
-                bge  t2, t3, .Lcst_write
+                ld   t6, 8(sp)
+                bgeu s3, t6, .Lcst_write
                 ld   t5, 0(s3)
                 beqz t5, .Lcst_write
                 mv   a0, t5
                 mv   a1, s0
                 call kof_string_equals
                 bnez a0, .Lcst_write
-                addi t2, t2, 1
                 addi s3, s3, 24
                 j    .Lcst_scan
             .Lcst_write:
@@ -5654,16 +5713,18 @@ public class NativeBackend implements Backend {
             # kof_cache_get(key) -> val* ou 0
             .globl kof_cache_get
             kof_cache_get:
-                addi sp, sp, -32
-                sd   ra, 24(sp)
-                sd   s0, 16(sp)
-                sd   s1, 8(sp)
+                addi sp, sp, -48
+                sd   ra, 40(sp)
+                sd   s0, 32(sp)
+                sd   s1, 24(sp)
                 mv   s0, a0
                 la   s1, .Lcache_area
-                li   t2, 0
-                li   t3, 64
+                li   t0, 1536
+                add  t0, s1, t0
+                sd   t0, 16(sp)      # fim (recarregado — t-regs clobberados)
             .Lcg_scan:
-                bge  t2, t3, .Lcg_miss
+                ld   t5, 16(sp)
+                bgeu s1, t5, .Lcg_miss
                 ld   t4, 0(s1)
                 beqz t4, .Lcg_next
                 mv   a0, t4
@@ -5671,29 +5732,19 @@ public class NativeBackend implements Backend {
                 call kof_string_equals
                 bnez a0, .Lcg_hit
             .Lcg_next:
-                addi t2, t2, 1
                 addi s1, s1, 24
                 j    .Lcg_scan
             .Lcg_hit:
-                # checa expiração
+                # checa expiração: slot = [key@0 val@8 expira@16]
                 ld   t4, 16(s1)
                 beqz t4, .Lcg_hit_val
-                ld   t5, 16(s1)
-                mv   a0, t5
-                mv   t5, t4
-                ld   ra, 24(sp)      # salva ra p/ chamar time
-                addi sp, sp, -16     # abre frame auxiliar
-                sd   ra, 8(sp)
-                sd   s1, 0(sp)
+                sd   s1, 8(sp)
                 sd   t4, 0(sp)
-                mv   s2, s1          # move ponteiro pra s2 — safe under calls
                 call kof_time_now
-                ld   s1, 0(sp)
+                ld   s1, 8(sp)
                 ld   t4, 0(sp)
-                ld   ra, 8(sp)
-                addi sp, sp, 16
                 # se now >= expira → miss
-                bge  a0, t4, .Lcg_miss
+                bgeu a0, t4, .Lcg_miss
                 # devolve val
                 ld   a0, 8(s1)
                 j    .Lcg_ret
@@ -5703,25 +5754,27 @@ public class NativeBackend implements Backend {
             .Lcg_miss:
                 li   a0, 0
             .Lcg_ret:
-                ld   s1, 8(sp)
-                ld   s0, 16(sp)
-                ld   ra, 24(sp)
-                addi sp, sp, 32
+                ld   s1, 24(sp)
+                ld   s0, 32(sp)
+                ld   ra, 40(sp)
+                addi sp, sp, 48
                 ret
 
             # kof_cache_ttl(key) -> segundos restantes, 0 default
             .globl kof_cache_ttl
             kof_cache_ttl:
-                addi sp, sp, -32
-                sd   ra, 24(sp)
-                sd   s0, 16(sp)
-                sd   s1, 8(sp)
+                addi sp, sp, -48
+                sd   ra, 40(sp)
+                sd   s0, 32(sp)
+                sd   s1, 24(sp)
                 mv   s0, a0
                 la   s1, .Lcache_area
-                li   t2, 0
-                li   t3, 64
+                li   t0, 1536
+                add  t0, s1, t0
+                sd   t0, 16(sp)      # fim (recarregado — t-regs clobberados)
             .Lct_scan:
-                bge  t2, t3, .Lct_miss
+                ld   t5, 16(sp)
+                bgeu s1, t5, .Lct_miss
                 ld   t4, 0(s1)
                 beqz t4, .Lct_next
                 mv   a0, t4
@@ -5729,20 +5782,15 @@ public class NativeBackend implements Backend {
                 call kof_string_equals
                 bnez a0, .Lct_found
             .Lct_next:
-                addi t2, t2, 1
                 addi s1, s1, 24
                 j    .Lct_scan
             .Lct_found:
                 ld   t4, 16(s1)
                 beqz t4, .Lct_miss     # sem ttl (expira=0) → 0
-                addi sp, sp, -16
-                sd   ra, 8(sp)
                 sd   t4, 0(sp)
-                mv   s2, s1
+                sd   s1, 8(sp)
                 call kof_time_now
                 ld   t4, 0(sp)         # expira_ms
-                ld   ra, 8(sp)
-                addi sp, sp, 16
                 # resta_ms = expira - now (ms)
                 sub  t4, t4, a0
                 blez t4, .Lct_miss
@@ -5752,25 +5800,27 @@ public class NativeBackend implements Backend {
             .Lct_miss:
                 li   a0, 0
             .Lct_ret:
-                ld   s1, 8(sp)
-                ld   s0, 16(sp)
-                ld   ra, 24(sp)
-                addi sp, sp, 32
+                ld   s1, 24(sp)
+                ld   s0, 32(sp)
+                ld   ra, 40(sp)
+                addi sp, sp, 48
                 ret
 
             # kof_cache_delete(key)
             .globl kof_cache_delete
             kof_cache_delete:
-                addi sp, sp, -32
-                sd   ra, 24(sp)
-                sd   s0, 16(sp)
-                sd   s1, 8(sp)
+                addi sp, sp, -48
+                sd   ra, 40(sp)
+                sd   s0, 32(sp)
+                sd   s1, 24(sp)
                 mv   s0, a0
                 la   s1, .Lcache_area
-                li   t2, 0
-                li   t3, 64
+                li   t0, 1536
+                add  t0, s1, t0
+                sd   t0, 16(sp)      # fim (recarregado — t-regs clobberados)
             .Lcd_scan:
-                bge  t2, t3, .Lcd_done
+                ld   t5, 16(sp)
+                bgeu s1, t5, .Lcd_done
                 ld   t4, 0(s1)
                 beqz t4, .Lcd_next
                 mv   a0, t4
@@ -5778,7 +5828,6 @@ public class NativeBackend implements Backend {
                 call kof_string_equals
                 bnez a0, .Lcd_clear
             .Lcd_next:
-                addi t2, t2, 1
                 addi s1, s1, 24
                 j    .Lcd_scan
             .Lcd_clear:
@@ -5787,10 +5836,10 @@ public class NativeBackend implements Backend {
                 sd   t0, 8(s1)
                 sd   t0, 16(s1)
             .Lcd_done:
-                ld   s1, 8(sp)
-                ld   s0, 16(sp)
-                ld   ra, 24(sp)
-                addi sp, sp, 32
+                ld   s1, 24(sp)
+                ld   s0, 32(sp)
+                ld   ra, 40(sp)
+                addi sp, sp, 48
                 ret
 
             # kof_cache_clear()

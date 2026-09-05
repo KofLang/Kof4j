@@ -415,6 +415,24 @@ class NativeRiscv64E2ETest {
         assertEquals("true", out);
     }
 
+    // NATIVE002-stdlib: cache real (set/get/ttl) + println(null) → "null".
+    // O scan loop usava t2/t3 (caller-saved) através de kof_string_equals →
+    // bounds quebrados → segfault. Agora usa ponteiro-fim salvo no frame.
+    @Test
+    void riscv64Cache(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runRiscv64(tempDir, """
+            main() {
+                cache.set("name", "Mel")
+                println(cache.get("name"))
+                println(cache.get("missing"))
+                cache.set("t", "x", 1)
+                println(cache.ttl("t") >= 0 && cache.ttl("t") <= 1)
+            }
+            """);
+        assertEquals("Mel\nnull\ntrue", out);
+    }
+
     private static int startHttpServer() throws IOException {
         java.net.ServerSocket ss = new java.net.ServerSocket(0);
         int port = ss.getLocalPort();
