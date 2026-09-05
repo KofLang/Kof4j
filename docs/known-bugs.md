@@ -491,6 +491,39 @@ EXTERNA produz lixo
 
 ---
 
+### 28. FLAKY (JVM): contadores de conexão WS/SSE não refletem conexão ativa
+
+- **Sintoma:** `KofWebHardeningTest.ws_connection_counter_increments_and_decrements`
+  falha de forma INTERMITENTE: `assertEquals("1", stats(port))` recebe `0` —
+  o `WS_CONNECTIONS_ACTIVE` ainda é 0 quando o teste consulta `/stats` logo
+  após o handshake 101. O par `sse_connection_counter...` tem a mesma classe de
+  race (timer 1500ms vs. consulta).
+- **Reprodução (determinística o bastante):**
+  ```
+  mvn -o test -pl kof-compiler -am -Dtest='KofWebHardeningTest' -Dsurefire.failIfNoSpecifiedTests=false
+  ```
+  Falhou 2x na suíte completa de 05/09 (baseline limpo do worktree
+  `refactor8-script`, commit `0abb880`, antes de qualquer mudança local) e
+  passou 4x em execução isolada/sequência — confirma flakiness de timing, não
+  regressão.
+- **Causa provável:** race entre o thread de aceitação do servidor WS (que faz
+  `WS_CONNECTIONS_ACTIVE.incrementAndGet()` em
+  `JvmRuntimeWebServer.java:221`) e o `GET /stats` do teste disparado logo após
+  o `handshake(...)` retornar 101 — o increment pode ainda não ter sido
+  executado/visível.
+- **Por que não corrigido aqui:** é **timing de teste em código de web**
+  (`JvmRuntimeWebServer`/`JvmRuntimeWebDispatch`, FASE 5), fora do escopo do
+  REFACTOR-500 fase 8 (que toca apenas `kof-script`/`kof-runtime`). Corrigir o
+  contador de produção para o teste é risco de semântica (observabilidade —
+  PR6 hardening); corrigir o teste para esperar é decisão a ser tomada pelo
+  dono da área web. Registrado, não "consertado".
+- **Arquivos:** `KofWebHardeningTest.java` (teste), `JvmRuntimeWebServer.java`
+  (increment/decrement do contador).
+- **Descoberto:** 05/09 no baseline do worktree `refactor8-script` (gates de
+  REFACTOR-500 fase 8).
+
+---
+
 ## Comportamentos que PAREcem bugs mas são esperados (não corrigir)
 
 | Cenário | Comportamento | Por quê |
