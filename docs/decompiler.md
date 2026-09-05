@@ -121,10 +121,12 @@ Não duplica o frontend do Kof. O ponto de entrada é o **Kof AST**.
 | classes, extends, implements, campos, assinaturas | `throw "body not recovered"` para o que não encaixa |
 | tipos (primitivos/Strings/arrays) | `switches` (tableswitch/lookupswitch) |
 | aritmética `(a+b)` e negação `-x` | exceções (`try/catch/finally`) |
-| comparações (`>`, `==`, …) | get/put field, casts, `new`, instruções com estado |
-| if/else → if-expression | múltiplos catches, invokedynamic |
-| while → `while (cond) { ... }` com locals (`var`/`=`) | — |
+| comparações (`>`, `==`, …) | casts (`checkcast`), operações com estado raro |
+| if/else → if-expression | múltiplos catches, `athrow` |
+| while → `while (cond) { ... }` com locals (`var`/`=`) | `invokedynamic`, `monitor`, `newarray` |
 | chamadas (`this.m(...)`, `Owner.m(...)` — invokestatic/virtual) | stdlib com mapeamento não-trivial |
+| acesso a campo (`this.f`, `Owner.f`) + atribuição (`this.f = v`) | — |
+| criação de objeto (`X(...)` — `new`+`dup`+`<init>`) | — |
 
 Recuperação cobre a **Fase B (bytecode IR)**, **C (CFG com branches/loops)** e
 **D (tipos)** — e a **Fase E** para o subconjunto linear/branch/loop/call.
