@@ -67,7 +67,7 @@ public final class Translate {
         IDENT, INT, FLOAT, STR, CHAR, P, // { } ( ) [ ] ; , . 
         EQ, EQEQ, NE, LT, LE, GT, GE, PLUS, MINUS, STAR, SLASH, PERCENT,
         ANDAND, OROR, NOT, PLUSEQ, MINUSEQ, STAREQ, SLASHEQ, PERCENTEQ,
-        INC, DEC, EOF
+        INC, DEC, ARROW, EOF
     }
 
     private record Tok(T type, String text) {
@@ -168,7 +168,7 @@ public final class Translate {
                 case '<' -> { if (i + 1 < n && s.charAt(i + 1) == '=') { out.add(new Tok(T.LE, "<=")); i += 2; continue; } out.add(new Tok(T.LT, "<")); }
                 case '>' -> { if (i + 1 < n && s.charAt(i + 1) == '=') { out.add(new Tok(T.GE, ">=")); i += 2; continue; } out.add(new Tok(T.GT, ">")); }
                 case '+' -> { if (i + 1 < n && s.charAt(i + 1) == '+') { out.add(new Tok(T.INC, "++")); i += 2; continue; } if (i + 1 < n && s.charAt(i + 1) == '=') { out.add(new Tok(T.PLUSEQ, "+=")); i += 2; continue; } out.add(new Tok(T.PLUS, "+")); }
-                case '-' -> { if (i + 1 < n && s.charAt(i + 1) == '-') { out.add(new Tok(T.DEC, "--")); i += 2; continue; } if (i + 1 < n && s.charAt(i + 1) == '=') { out.add(new Tok(T.MINUSEQ, "-=")); i += 2; continue; } out.add(new Tok(T.MINUS, "-")); }
+                case '-' -> { if (i + 1 < n && s.charAt(i + 1) == '-') { out.add(new Tok(T.DEC, "--")); i += 2; continue; } if (i + 1 < n && s.charAt(i + 1) == '=') { out.add(new Tok(T.MINUSEQ, "-=")); i += 2; continue; } if (i + 1 < n && s.charAt(i + 1) == '>') { out.add(new Tok(T.ARROW, "->")); i += 2; continue; } out.add(new Tok(T.MINUS, "-")); }
                 case '*' -> { if (i + 1 < n && s.charAt(i + 1) == '=') { out.add(new Tok(T.STAREQ, "*=")); i += 2; continue; } out.add(new Tok(T.STAR, "*")); }
                 case '/' -> { if (i + 1 < n && s.charAt(i + 1) == '=') { out.add(new Tok(T.SLASHEQ, "/=")); i += 2; continue; } out.add(new Tok(T.SLASH, "/")); }
                 case '%' -> { if (i + 1 < n && s.charAt(i + 1) == '=') { out.add(new Tok(T.PERCENTEQ, "%=")); i += 2; continue; } out.add(new Tok(T.PERCENT, "%")); }
@@ -221,8 +221,10 @@ public final class Translate {
                 while (!p.at(";")) p.next();
                 p.next();
             }
-            // Parse a type declaration.
-            parseTypeDeclaration();
+            // Parse all top-level type declarations.
+            while (!p.at(T.EOF)) {
+                parseTypeDeclaration();
+            }
             // Static methods were collected as top-level functions; emit them first.
             out.insert(0, topFns);
             return out.toString();
@@ -686,6 +688,9 @@ public final class Translate {
                 };
                 case P -> {
                     if (t.text.equals("(")) {
+                        if (isLambdaAhead()) {
+                            yield parseLambda();
+                        }
                         String e = parseExpr();
                         p.expect(")");
                         yield e;
@@ -694,6 +699,41 @@ public final class Translate {
                 }
                 default -> t.text;
             };
+        }
+
+        private boolean isLambdaAhead() {
+            int depth = 1; // já estamos dentro do '('
+            for (int i = p.pos; i + 1 < p.toks.size(); i++) {
+                String s = p.toks.get(i).text;
+                if (s.equals("(")) depth++;
+                else if (s.equals(")")) {
+                    depth--;
+                    if (depth == 0) return p.toks.get(i + 1).type == T.ARROW;
+                }
+            }
+            return false;
+        }
+
+        private String parseLambda() {
+            List<String> params = new ArrayList<>();  // '(' já consumido pelo parsePrimary
+            if (!p.at(")")) {
+                // (Type name, ...) — tipado; (name) — não-tipado (fallback)
+                boolean typed = isPrimitiveOrType(p.peek().text) && p.peek(1).type == T.IDENT;
+                if (typed) {
+                    String ty = kofType(p.next().text);
+                    String nm = p.next().text;
+                    params.add(nm + ": " + ty);
+                    while (p.at(",")) { p.next(); String t2 = kofType(p.next().text); String n2 = p.next().text; params.add(n2 + ": " + t2); }
+                } else {
+                    String nm = p.next().text;
+                    params.add(nm);
+                    while (p.at(",")) { p.next(); params.add(p.next().text); }
+                }
+            }
+            p.expect(")");
+            p.expect("->");
+            String body = parseExpr();
+            return "(" + String.join(", ", params) + ") -> " + body;
         }
 
         private String parseNew() {

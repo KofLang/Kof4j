@@ -136,6 +136,18 @@ class TranslateTest {
         assertFalse(kof.contains("s.length()"), "não deve manter length():\n" + kof);
     }
 
+    @Test
+    void lambdaTranslates(@TempDir Path dir) throws Exception {
+        String kof = Translate.translateJava("""
+                interface F { int run(int n); }
+                class L {
+                    static int go(int n) { F f = (int x) -> x + 1; return f.run(n); }
+                }
+                """);
+
+        assertTrue(kof.contains("(x: Int) -> x + 1"), "lambda tipada deve traduzir:\n" + kof);
+    }
+
     private void assertCompiles(Path dir, String kof, String expected) throws Exception {
         Path src = dir.resolve("T.kf");
         Files.writeString(src, kof);
