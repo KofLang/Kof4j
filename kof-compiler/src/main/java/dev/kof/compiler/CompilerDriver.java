@@ -811,16 +811,22 @@ private Target target = Target.JVM;
     /** FFI (R3): declarações {@code extern} por nome (preenchido no lowering). */
     private final java.util.Map<String, ExternalFunctionNode> externSignatures = new java.util.LinkedHashMap<>();
 
-    /** FFI (R3): binding implementado para Int→Int (2.1.4/2.1.5). */
+    /** FFI (R3): binding implementado para Int→Int e String→Int (2.1.4/2.1.5/2.1.6). */
     private boolean isExternBound(ExternalFunctionNode ext) {
         // JVM (FFM) e Native x86-64 (dlopen/dlsym) — não JS/RISC-V/ARM ainda.
         if (target != Target.JVM && target != Target.NATIVE) return false;
         if (ext.parameters().size() != 1) return false;
-        return isIntType(ext.parameters().get(0).type()) && isIntType(ext.returnType());
+        String p = ext.parameters().get(0).type();
+        String r = ext.returnType();
+        return isIntType(r) && (isIntType(p) || isStringType(p));
     }
 
     private static boolean isIntType(String t) {
         return "int".equals(t) || "Int".equals(t);
+    }
+
+    private static boolean isStringType(String t) {
+        return "String".equals(t) || "string".equals(t);
     }
     private final java.util.IdentityHashMap<LambdaExpr, String> lambdaClassNames = new java.util.IdentityHashMap<>();
     /** Pontes super.metodo() geradas para lambdas: dono interno → método. */
@@ -3055,13 +3061,16 @@ private Target target = Target.JVM;
                 if (mc.receiver() == null && externSignatures.containsKey(mc.methodName())) {
                     ExternalFunctionNode ext = externSignatures.get(mc.methodName());
                     if (isExternBound(ext)) {
-                        // FFI JVM Int→Int: empilha lib, nome e o argumento, chama kof_ffi_i.
+                        // FFI: empilha lib, nome e o argumento, chama kof_ffi_*.
+                        boolean strArg = isStringType(ext.parameters().get(0).type());
+                        String helper = strArg ? "kof_ffi_si" : "kof_ffi_i";
+                        Type argType = strArg ? BuiltinTypes.STRING : Type.PrimitiveType.INT;
                         ops.add(new KofLoadLiteral(BuiltinTypes.STRING,
                                 ext.library() != null ? ext.library() : ""));
                         ops.add(new KofLoadLiteral(BuiltinTypes.STRING, ext.name()));
                         localIdx = emitExpression(mc.arguments().get(0), ops, owner, localIdx, locals);
-                        ops.add(new KofCall(new Type.ClassType("kof", "ffi", List.of()), "kof_ffi_i",
-                                List.of(BuiltinTypes.STRING, BuiltinTypes.STRING, Type.PrimitiveType.INT),
+                        ops.add(new KofCall(new Type.ClassType("kof", "ffi", List.of()), helper,
+                                List.of(BuiltinTypes.STRING, BuiltinTypes.STRING, argType),
                                 Type.PrimitiveType.INT, KofCallKind.FUNCTION));
                         yield localIdx;
                     }

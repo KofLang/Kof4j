@@ -7770,6 +7770,47 @@ final class NativeRuntime {
                 popq %r12
                 popq %rbx
                 ret
+
+            .globl kof_ffi_si
+            .type kof_ffi_si, @function
+            kof_ffi_si:
+                pushq %rbx
+                pushq %r12
+                pushq %r13
+                pushq %r14
+                subq $8, %rsp
+                addq $24, %rdi
+                addq $24, %rsi
+                addq $24, %rdx
+                movq %rdi, %r12
+                movq %rsi, %r13
+                movq %rdx, %r14
+                movq %r12, %rdi
+                movl $2, %esi
+                call dlopen@PLT
+                testq %rax, %rax
+                jz .Lffi_si_fail
+                movq %rax, %rdi
+                movq %r13, %rsi
+                call dlsym@PLT
+                testq %rax, %rax
+                jz .Lffi_si_fail
+                movq %r14, %rdi
+                call *%rax
+                addq $8, %rsp
+                popq %r14
+                popq %r13
+                popq %r12
+                popq %rbx
+                ret
+            .Lffi_si_fail:
+                movl $0, %eax
+                addq $8, %rsp
+                popq %r14
+                popq %r13
+                popq %r12
+                popq %rbx
+                ret
             """);
     }
 

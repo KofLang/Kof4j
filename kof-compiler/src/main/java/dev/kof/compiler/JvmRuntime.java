@@ -56,6 +56,7 @@ static boolean hasRuntimeFn(String methodName) {
                 || methodName.equals("kof_process_run")
                 || methodName.equals("kof_process_exit")
                 || methodName.equals("kof_ffi_i")
+                || methodName.equals("kof_ffi_si")
                 || methodName.equals("kof_args_list");
     }
 
@@ -121,6 +122,7 @@ static boolean hasRuntimeFn(String methodName) {
             case "kof_json_decode_object_list" -> "(Ljava/lang/String;Ljava/lang/String;)Ljava/util/ArrayList;";
             case "kof_now" -> "()J";
             case "kof_ffi_i" -> "(Ljava/lang/String;Ljava/lang/String;I)I";
+            case "kof_ffi_si" -> "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)I";
             case "kof_read_line" -> "()Ljava/lang/String;";
             case "kof_read_file" -> "(Ljava/lang/String;)Ljava/lang/String;";
             case "kof_write_file" -> "(Ljava/lang/String;Ljava/lang/String;)I";
@@ -382,7 +384,7 @@ static boolean hasRuntimeFn(String methodName) {
         return switch (methodName) {
             case "kof_json_decode_int", "kof_json_decode_bool" -> "I";
             case "kof_json_decode_long", "kof_now" -> "J";
-            case "kof_ffi_i" -> "I";
+            case "kof_ffi_i", "kof_ffi_si" -> "I";
             case "kof_json_decode_float" -> "F";
             case "kof_json_decode_double" -> "D";
             case "kof_json_decode_int_list", "kof_json_decode_string_list", "kof_json_decode_list"
@@ -1114,6 +1116,26 @@ static boolean hasRuntimeFn(String methodName) {
                         return (int) handle.invoke(a);
                     } catch (Throwable t) {
                         throw new RuntimeException("kof_ffi_i: " + lib + "::" + name + " failed: "
+                                + t.getMessage(), t);
+                    }
+                }
+
+                public static int kof_ffi_si(String lib, String name, String a) {
+                    try {
+                        java.lang.foreign.Arena arena = java.lang.foreign.Arena.ofConfined();
+                        java.lang.foreign.SymbolLookup lookup = lib.isEmpty()
+                                ? java.lang.foreign.SymbolLookup.loaderLookup()
+                                : java.lang.foreign.SymbolLookup.libraryLookup(lib, arena);
+                        java.lang.foreign.Linker linker = java.lang.foreign.Linker.nativeLinker();
+                        java.lang.invoke.MethodHandle handle = linker.downcallHandle(
+                                lookup.find(name).orElseThrow(),
+                                java.lang.foreign.FunctionDescriptor.of(
+                                        java.lang.foreign.ValueLayout.JAVA_INT,
+                                        java.lang.foreign.ValueLayout.ADDRESS));
+                        java.lang.foreign.MemorySegment seg = arena.allocateUtf8String(a);
+                        return (int) handle.invoke(seg);
+                    } catch (Throwable t) {
+                        throw new RuntimeException("kof_ffi_si: " + lib + "::" + name + " failed: "
                                 + t.getMessage(), t);
                     }
                 }

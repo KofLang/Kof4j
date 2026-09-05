@@ -62,6 +62,31 @@ class FfiE2ETest {
     }
 
     @Test
+    void libcAtoiStringToIntBothTargets(@TempDir Path dir) throws Exception {
+        String kof = """
+                extern "libc.so.6" atoi(String s): Int
+
+                main() {
+                    println(atoi("42"))
+                }
+                """;
+
+        // JVM
+        Path jvmSrc = dir.resolve("atoi-jvm.kf");
+        Files.writeString(jvmSrc, kof);
+        CompilationResult rj = driver.compile(jvmSrc, dir.resolve("out-jvm"), Target.JVM);
+        assertTrue(rj.success(), "JVM compile: " + rj.diagnostics().getDiagnostics());
+        assertEquals("42", runJava(dir.resolve("out-jvm")));
+
+        // Native
+        Path natSrc = dir.resolve("atoi-native.kf");
+        Files.writeString(natSrc, kof);
+        CompilationResult rn = driver.compile(natSrc, dir.resolve("out-native"), Target.NATIVE);
+        assertTrue(rn.success(), "Native compile: " + rn.diagnostics().getDiagnostics());
+        assertEquals("42", runNative(dir.resolve("out-native")));
+    }
+
+    @Test
     void libcAbsEndToEnd(@TempDir Path dir) throws IOException {
         Path src = dir.resolve("ffi.kf");
         Files.writeString(src, """
@@ -79,6 +104,25 @@ class FfiE2ETest {
 
         String output = runJvm(out);
         assertEquals("5", output, "abs(-5) must return 5 via libc");
+    }
+
+    private String runJava(Path outDir) throws IOException {
+        return runJvm(outDir);
+    }
+
+    private String runNative(Path outDir) throws IOException {
+        ProcessBuilder pb = new ProcessBuilder(outDir.resolve("Default/Main").toString());
+        pb.redirectErrorStream(true);
+        try {
+            Process p = pb.start();
+            String output = new String(p.getInputStream().readAllBytes(),
+                    java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+            assertEquals(0, p.waitFor(), "native exit code, output: " + output);
+            return output;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("interrupted", e);
+        }
     }
 
     private String runJvm(Path outDir) throws IOException {
