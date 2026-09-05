@@ -38,7 +38,7 @@ final class RuntimeObservability2 {
                 xorl %r8d, %r8d
                 call .Lobs_m_append
                 leaq .Lstr_obs_ws_nl_counter(%rip), %rdi
-                movl $10, %esi
+                movl $9, %esi
                 call kof_string_from_literal
                 movq %rax, %rsi
                 movl $1, %r8d
@@ -91,7 +91,7 @@ final class RuntimeObservability2 {
                 xorl %r8d, %r8d
                 call .Lobs_m_append
                 leaq .Lstr_obs_ws_nl_gauge(%rip), %rdi
-                movl $9, %esi
+                movl $7, %esi
                 call kof_string_from_literal
                 movq %rax, %rsi
                 movl $1, %r8d
@@ -151,7 +151,7 @@ final class RuntimeObservability2 {
                 movl $1, %r8d
                 call .Lobs_m_append
                 leaq .Lstr_obs_ws_nl_counter(%rip), %rdi
-                movl $10, %esi
+                movl $9, %esi
                 call kof_string_from_literal
                 movq %rax, %rsi
                 movl $1, %r8d
@@ -201,7 +201,7 @@ final class RuntimeObservability2 {
                 movl $1, %r8d
                 call .Lobs_m_append
                 leaq .Lstr_obs_ws_nl_gauge(%rip), %rdi
-                movl $9, %esi
+                movl $7, %esi
                 call kof_string_from_literal
                 movq %rax, %rsi
                 movl $1, %r8d
