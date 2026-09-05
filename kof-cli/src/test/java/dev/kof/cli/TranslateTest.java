@@ -112,6 +112,18 @@ class TranslateTest {
         assertCompiles(dir, kof, null);
     }
 
+    @Test
+    void ternaryTranslates(@TempDir Path dir) throws Exception {
+        String kof = Translate.translateJava("""
+                public class T {
+                    public static int max(int a, int b) { return a > b ? a : b; }
+                }
+                """);
+
+        assertTrue(kof.contains("if (a > b) a else b"),
+                "ternário deve virar if-expression:\n" + kof);
+    }
+
     private void assertCompiles(Path dir, String kof, String expected) throws Exception {
         Path src = dir.resolve("T.kf");
         Files.writeString(src, kof);

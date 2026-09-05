@@ -161,6 +161,7 @@ public final class Translate {
                 case ';' -> out.add(new Tok(T.P, ";"));
                 case ',' -> out.add(new Tok(T.P, ","));
                 case ':' -> out.add(new Tok(T.P, ":"));
+                case '?' -> out.add(new Tok(T.P, "?"));
                 case '.' -> out.add(new Tok(T.P, "."));
                 case '=' -> { if (i + 1 < n && s.charAt(i + 1) == '=') { out.add(new Tok(T.EQEQ, "==")); i += 2; continue; } out.add(new Tok(T.EQ, "=")); }
                 case '!' -> { if (i + 1 < n && s.charAt(i + 1) == '=') { out.add(new Tok(T.NE, "!=")); i += 2; continue; } out.add(new Tok(T.NOT, "!")); }
@@ -524,7 +525,19 @@ public final class Translate {
         // ── expressions ────────────────────────────────────────────────────
 
         private String parseExpr() {
-            return parseAssignment();
+            return parseTernary();
+        }
+
+        private String parseTernary() {
+            String cond = parseAssignment();
+            if (p.at("?")) {
+                p.next();
+                String a = parseTernary();
+                p.expect(":");
+                String b = parseTernary();
+                return "if (" + cond + ") " + a + " else " + b;
+            }
+            return cond;
         }
 
         private String parseAssignment() {
