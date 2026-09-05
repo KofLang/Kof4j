@@ -1,7 +1,9 @@
 package dev.kof.cli;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
+import java.util.List;
 
 /**
  * Bytecode → Kof expression recovery (decompiler, Fase E — DECOMPILER.md).
@@ -22,6 +24,8 @@ final class BytecodeDecoder {
      * @return a expressão Kof, {@code ""} para corpo vazio (void), ou {@code null} se não recuperável.
      */
     static String recoverExpression(byte[] code, String[] cp, int paramCount, boolean isStatic) {
+        String cmp = recoverComparison(code, paramCount, isStatic);
+        if (cmp != null) return cmp;
         Deque<String> stack = new ArrayDeque<>();
         for (int pc = 0; pc < code.length; ) {
             int op = code[pc] & 0xFF;
@@ -128,6 +132,91 @@ final class BytecodeDecoder {
         if (isStatic) return "arg" + idx;
         if (idx == 0) return "this";
         return "arg" + (idx - 1);
+    }
+
+    /**
+     * Recupera `return a <comparação> b` (ou `a <cmp> 0`) a partir do padrão
+     * emitido pelo javac: [loads][if_cmp→F][iconst_1][goto→E][F: iconst_0][E: ireturn].
+     */
+    private static String recoverComparison(byte[] code, int paramCount, boolean isStatic) {
+        int n = code.length;
+        if (n < 7) return null;
+        if ((code[n - 1] & 0xFF) != 0xac) return null;          // ireturn
+        if ((code[n - 2] & 0xFF) != 0x03) return null;          // iconst_0 (label F)
+        int falseOff = n - 2;
+        if ((code[n - 5] & 0xFF) != 0xa7) return null;          // goto (3 bytes)
+        int endOff = n - 5 + readShort(code, n - 4);
+        if (endOff != n - 1) return null;                       // goto aponta para o ireturn
+        if ((code[n - 6] & 0xFF) != 0x04) return null;          // iconst_1
+
+        // A comparação (3 bytes) começa em n-9 (ireturn 1 + iconst_0 1 + goto 3 + iconst_1 1 + cmp 3):
+        int cmpOpOff = n - 9;
+        int cmpOp = code[cmpOpOff] & 0xFF;
+        String inv = invCond(cmpOp);
+        if (inv == null) return null;
+        int cmpTarget = cmpOpOff + readShort(code, cmpOpOff + 1);
+        if (cmpTarget != falseOff) return null;
+
+        // Reconstruir os operandos antes da comparação (loads ou constantes).
+        List<String> operands = new ArrayList<>();
+        int pc = 0;
+        int limit = cmpOpOff;
+        while (pc < limit && operands.size() < 2) {
+            int op = code[pc] & 0xFF;
+            String val = simpleLoad(op, code, pc, paramCount, isStatic);
+            if (val == null) return null;
+            operands.add(val);
+            pc += (op == 0x15 || op == 0x19 || op == 0x10) ? 2 : (op == 0x11 ? 3 : 1);
+        }
+
+        if (cmpOp >= 0x9f && cmpOp <= 0xa4) {   // if_icmp*: dois operandos
+            if (operands.size() != 2) return null;
+            return operands.get(0) + " " + inv + " " + operands.get(1);
+        }
+        if (operands.size() != 1) return null;   // if*: um operando vs 0
+        return operands.get(0) + " " + inv;
+    }
+
+    private static int readShort(byte[] code, int pc) {
+        return (short) (((code[pc] & 0xFF) << 8) | (code[pc + 1] & 0xFF));
+    }
+
+    /** Condição inversa da branch (a branch pula quando a condição é FALSA). */
+    private static String invCond(int op) {
+        return switch (op) {
+            case 0x9f -> "!=";   // if_icmpeq
+            case 0xa0 -> "==";   // if_icmpne
+            case 0xa1 -> ">=";   // if_icmplt
+            case 0xa2 -> "<";    // if_icmpge
+            case 0xa3 -> "<=";   // if_icmpgt
+            case 0xa4 -> ">";    // if_icmple
+            case 0x99 -> "!= 0"; // ifeq
+            case 0x9a -> "== 0"; // ifne
+            case 0x9b -> ">= 0"; // iflt
+            case 0x9c -> "< 0";  // ifge
+            case 0x9d -> "<= 0"; // ifgt
+            case 0x9e -> "> 0";  // ifle
+            default -> null;
+        };
+    }
+
+    /** Load simples (iload/aload + constantes) que aparece na comparação. */
+    private static String simpleLoad(int op, byte[] code, int pc, int paramCount, boolean isStatic) {
+        switch (op) {
+            case 0x1a, 0x1b, 0x1c, 0x1d -> { return local(op - 0x1a, paramCount, isStatic); }
+            case 0x2a, 0x2b, 0x2c, 0x2d -> { return local(op - 0x2a, paramCount, isStatic); }
+            case 0x15 -> { return local(code[pc + 1] & 0xFF, paramCount, isStatic); }
+            case 0x19 -> { return local(code[pc + 1] & 0xFF, paramCount, isStatic); }
+            case 0x03 -> { return "0"; }
+            case 0x04 -> { return "1"; }
+            case 0x05 -> { return "2"; }
+            case 0x06 -> { return "3"; }
+            case 0x07 -> { return "4"; }
+            case 0x08 -> { return "5"; }
+            case 0x02 -> { return "-1"; }
+            case 0x10 -> { return String.valueOf((byte) code[pc + 1]); }
+            default -> { return null; }
+        }
     }
 
     /** Resolve um operando ldc do constant pool. */

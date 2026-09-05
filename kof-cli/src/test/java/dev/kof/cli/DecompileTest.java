@@ -90,6 +90,30 @@ class DecompileTest {
         assertTrue(result.success(), "decompiled must compile:\n" + kof + "\n" + result.diagnostics().getDiagnostics());
     }
 
+    @Test
+    void recoversComparisonBodies(@TempDir Path dir) throws Exception {
+        Path javaFile = dir.resolve("Cmp.java");
+        Files.writeString(javaFile, """
+                public class Cmp {
+                    public static boolean isPos(int x) { return x > 0; }
+                    public static boolean eq(int a, int b) { return a == b; }
+                }
+                """);
+        runJavac(javaFile, dir);
+
+        String kof = Decompile.decompile(dir.resolve("Cmp.class"));
+
+        assertTrue(kof.contains("isPos(Int arg0) = arg0 > 0"), "isPos deve virar comparação:\n" + kof);
+        assertTrue(kof.contains("eq(Int arg0, Int arg1) = arg0 == arg1"), "eq deve virar comparação:\n" + kof);
+        assertFalse(kof.contains("throw \"body not recovered\""), "não deve haver stub:\n" + kof);
+
+        Path out = dir.resolve("Cmp.kf");
+        Files.writeString(out, kof);
+        CompilerDriver driver = new CompilerDriver();
+        CompilationResult result = driver.compile(out, dir.resolve("out"), Target.JVM);
+        assertTrue(result.success(), "decompiled deve compilar:\n" + kof + "\n" + result.diagnostics().getDiagnostics());
+    }
+
     private void runJavac(Path javaFile, Path dir) throws IOException, InterruptedException {
         String javaHome = System.getProperty("java.home");
         Path javac = Path.of(javaHome, "bin", "javac");
