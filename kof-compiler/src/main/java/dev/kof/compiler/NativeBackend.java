@@ -2032,6 +2032,24 @@ public class NativeBackend implements Backend {
         sb.append("    ecall\n");
         sb.append(RISCV_RUNTIME_ASM);
 
+        // NATIVE002-stdlib: http.get/post/status riscv64 (asm puro, syscalls
+        // asm-generic — mesmos números do aarch64; aarch64 herda via tradutor).
+        boolean usesHttp = false;
+        for (IRClass c : module.classes()) {
+            for (IRMethod m : c.methods()) {
+                for (IRBasicBlock b : m.basicBlocks()) {
+                    for (KofOperation op : b.operations()) {
+                        if (op instanceof KofCall kc && kc.methodName().startsWith("kof_http_")) {
+                            usesHttp = true;
+                        }
+                    }
+                }
+                if (usesHttp) break;
+            }
+            if (usesHttp) break;
+        }
+        if (usesHttp) emitRiscvHttp(sb);
+
         String className = module.classes().isEmpty() ? "Default/Main" : module.classes().getFirst().name();
         Path asmFile = outputDir.resolve(className + ".s");
         Path binFile = outputDir.resolve(className);
@@ -2041,14 +2059,628 @@ public class NativeBackend implements Backend {
 
         try {
             Path objFile = asmFile.resolveSibling("kof.o");
-            runCommand(new String[]{"riscv64-linux-gnu-as", "-o", objFile.toString(), asmFile.toString()}, "riscv64-as");
-            runCommand(new String[]{"riscv64-linux-gnu-ld", "-o", binFile.toString(), objFile.toString()}, "riscv64-ld");
+            // --no-relax (as+ld): sem gp-relaxation. Nosso _start não inicializa
+            // gp (binário estático, sem C runtime); `la` relaxado vira `addi rd,gp,off`
+            // e faulta (gp=0). Forçado PC-relative (auipc+addi) — sempre correto.
+            runCommand(new String[]{"riscv64-linux-gnu-as", "-mno-relax", "-o", objFile.toString(), asmFile.toString()}, "riscv64-as");
+            runCommand(new String[]{"riscv64-linux-gnu-ld", "--no-relax", "-o", binFile.toString(), objFile.toString()}, "riscv64-ld");
             Files.deleteIfExists(objFile);
             if (System.getenv("KOF_KEEP_ASM") == null) Files.deleteIfExists(asmFile);
             binFile.toFile().setExecutable(true);
         } catch (IOException e) {
             System.err.println("NativeBackend: riscv64 toolchain ausente/falhou (NATIVE002), keeping asm: " + e.getMessage());
         }
+    }
+
+    // ---- NATIVE002-stdlib: HTTP client riscv64 (asm puro) -----------------
+    // Port de NativeHttpRuntime (x86_64) para a convenção riscv64: args em
+    // a0..a7, resultado em a0, syscalls asm-generic (socket=198, connect=203,
+    // write=64, read=63, close=57 — MESMA tabela do aarch64). O aarch64 herda
+    // via translateRiscvToAarch64 (por isso a3 é evitado: colide com gp=x3).
+    // HTTP/1.1 + Connection: close + read-ate-EOF; body após \r\n\r\n.
+    static void emitRiscvHttp(StringBuilder sb) {
+        sb.append("""
+            # ---- HTTP riscv64 (NATIVE002-stdlib) ----
+            .section .text
+            # cstrlen: a0=cstr -> a0=len
+            .globl kof_http_cstrlen
+            kof_http_cstrlen:
+                mv   t1, a0
+                li   a0, 0
+            .Lhcl0:
+                lbu  t0, 0(t1)
+                beqz t0, .Lhcl1
+                addi a0, a0, 1
+                addi t1, t1, 1
+                j    .Lhcl0
+            .Lhcl1:
+                ret
+            # append cstr: a0=cursor, a1=cstr -> a0=novo cursor
+            .globl kof_http_append_cstr
+            kof_http_append_cstr:
+            .Lhac0:
+                lbu  t0, 0(a1)
+                beqz t0, .Lhac1
+                sb   t0, 0(a0)
+                addi a0, a0, 1
+                addi a1, a1, 1
+                j    .Lhac0
+            .Lhac1:
+                ret
+            # append n bytes: a0=cursor, a1=src, a2=len -> a0=cursor
+            .globl kof_http_append_n
+            kof_http_append_n:
+            .Lhan0:
+                beqz a2, .Lhan1
+                lbu  t0, 0(a1)
+                sb   t0, 0(a0)
+                addi a0, a0, 1
+                addi a1, a1, 1
+                addi a2, a2, -1
+                j    .Lhan0
+            .Lhan1:
+                ret
+            # append decimal: a0=cursor, a1=int64(>=0) -> a0=cursor
+            .globl kof_http_append_dec
+            kof_http_append_dec:
+                addi sp, sp, -64
+                sd   ra, 56(sp)
+                sd   s0, 48(sp)
+                sd   s1, 40(sp)
+                sd   s2, 32(sp)
+                sd   s3, 24(sp)
+                mv   s0, a0
+                mv   s1, a1
+                addi s2, sp, 0
+                mv   s3, s2
+            .Lhad0:
+                li   t1, 10
+                div  t0, s1, t1
+                rem  a1, s1, t1
+                li   t1, 48
+                add  a1, a1, t1
+                sb   a1, 0(s2)
+                addi s2, s2, 1
+                mv   s1, t0
+                bnez s1, .Lhad0
+            .Lhad1:
+                addi s2, s2, -1
+                bltu s2, s3, .Lhad_end
+                lbu  t0, 0(s2)
+                sb   t0, 0(s0)
+                addi s0, s0, 1
+                j    .Lhad1
+            .Lhad_end:
+                mv   a0, s0
+                ld   s3, 24(sp)
+                ld   s2, 32(sp)
+                ld   s1, 40(sp)
+                ld   s0, 48(sp)
+                ld   ra, 56(sp)
+                addi sp, sp, 64
+                ret
+            # parse URL. a0=KofString (len@16, chars@24)
+            # saida: .Lhttp_hostbuf (cstr), .Lhttp_pathbuf (cstr),
+            #        .Lhttp_portbin (2B BE), .Lhttp_ipbin (4B)
+            .globl kof_http_parse_url
+            kof_http_parse_url:
+                addi sp, sp, -32
+                sd   ra, 24(sp)
+                sd   s0, 16(sp)
+                sd   s1, 8(sp)
+                sd   s2, 0(sp)
+                mv   s0, a0
+                addi s1, a0, 24
+                lbu  a0, 0(s1)
+                li   t0, 104
+                bne  a0, t0, .Lpu_bad
+                lbu  a0, 1(s1)
+                li   t0, 116
+                bne  a0, t0, .Lpu_bad
+                lbu  a0, 2(s1)
+                bne  a0, t0, .Lpu_bad
+                lbu  a0, 3(s1)
+                li   t0, 112
+                bne  a0, t0, .Lpu_bad
+                lbu  a0, 4(s1)
+                li   t0, 115
+                beq  a0, t0, .Lpu_https
+                li   t0, 58
+                bne  a0, t0, .Lpu_bad
+                lbu  a0, 5(s1)
+                li   t0, 47
+                bne  a0, t0, .Lpu_bad
+                lbu  a0, 6(s1)
+                bne  a0, t0, .Lpu_bad
+                addi s1, s1, 7
+                la   s2, .Lhttp_hostbuf
+            .Lpu_h0:
+                lbu  a0, 0(s1)
+                beqz a0, .Lpu_h1
+                li   t0, 58
+                beq  a0, t0, .Lpu_h1
+                li   t0, 47
+                beq  a0, t0, .Lpu_h1
+                sb   a0, 0(s2)
+                addi s2, s2, 1
+                addi s1, s1, 1
+                j    .Lpu_h0
+            .Lpu_h1:
+                li   t0, 0
+                sb   t0, 0(s2)
+                li   t0, 80
+                lbu  a0, 0(s1)
+                li   t1, 58
+                bne  a0, t1, .Lpu_p1
+                addi s1, s1, 1
+                li   t0, 0
+            .Lpu_p0:
+                lbu  a0, 0(s1)
+                li   t1, 47
+                beq  a0, t1, .Lpu_p1
+                beqz a0, .Lpu_p1
+                li   t1, 48
+                sub  a0, a0, t1
+                li   t1, 9
+                bltu t1, a0, .Lpu_p1
+                li   t1, 10
+                mul  t0, t0, t1
+                add  t0, t0, a0
+                addi s1, s1, 1
+                j    .Lpu_p0
+            .Lpu_p1:
+                la   t1, .Lhttp_port_host
+                sd   t0, 0(t1)
+                andi t1, t0, 255
+                slli t1, t1, 8
+                srli t0, t0, 8
+                or   t0, t0, t1
+                la   t1, .Lhttp_portbin
+                sh   t0, 0(t1)
+                la   s2, .Lhttp_pathbuf
+                lbu  a0, 0(s1)
+                li   t0, 47
+                beq  a0, t0, .Lpu_pa0
+                sb   t0, 0(s2)
+                li   t1, 0
+                sb   t1, 1(s2)
+                j    .Lpu_ip
+            .Lpu_pa0:
+                lbu  a0, 0(s1)
+                beqz a0, .Lpu_pa1
+                sb   a0, 0(s2)
+                addi s2, s2, 1
+                addi s1, s1, 1
+                j    .Lpu_pa0
+            .Lpu_pa1:
+                li   t0, 0
+                sb   t0, 0(s2)
+            .Lpu_ip:
+                la   s1, .Lhttp_hostbuf
+                lbu  a0, 0(s1)
+                li   t0, 48
+                bltu a0, t0, .Lpu_fall
+                li   t0, 57
+                bltu t0, a0, .Lpu_fall
+                la   s2, .Lhttp_ipbin
+                li   t1, 0
+                li   t2, 0
+            .Lpu_ip0:
+                lbu  a0, 0(s1)
+                beqz a0, .Lpu_ip3
+                li   t3, 46
+                beq  a0, t3, .Lpu_ip1
+                li   t3, 48
+                sub  a0, a0, t3
+                li   t3, 9
+                bltu t3, a0, .Lpu_fall
+                li   t3, 10
+                mul  t2, t2, t3
+                add  t2, t2, a0
+                addi s1, s1, 1
+                j    .Lpu_ip0
+            .Lpu_ip1:
+                add  t3, s2, t1
+                sb   t2, 0(t3)
+                li   t2, 0
+                addi t1, t1, 1
+                addi s1, s1, 1
+                j    .Lpu_ip0
+            .Lpu_ip3:
+                add  t3, s2, t1
+                sb   t2, 0(t3)
+                j    .Lpu_done
+            .Lpu_fall:
+                la   s2, .Lhttp_ipbin
+                li   t0, 127
+                sb   t0, 0(s2)
+                li   t0, 0
+                sb   t0, 1(s2)
+                sb   t0, 2(s2)
+                li   t0, 1
+                sb   t0, 3(s2)
+            .Lpu_done:
+                ld   s2, 0(sp)
+                ld   s1, 8(sp)
+                ld   s0, 16(sp)
+                ld   ra, 24(sp)
+                addi sp, sp, 32
+                ret
+            .Lpu_https:
+                la   a0, .Lhttps_err
+                call kof_http_cstrlen
+                mv   a1, a0
+                la   a0, .Lhttps_err
+                call kof_string_from_literal
+                call kof_throw_string
+            .Lpu_bad:
+                la   s0, .Lhttp_fallback
+                la   s1, .Lhttp_hostbuf
+                li   s2, 9
+            .Lpu_bc:
+                beqz s2, .Lpu_bc1
+                lbu  t0, 0(s0)
+                sb   t0, 0(s1)
+                addi s0, s0, 1
+                addi s1, s1, 1
+                addi s2, s2, -1
+                j    .Lpu_bc
+            .Lpu_bc1:
+                li   t0, 0
+                sb   t0, 0(s1)
+                la   s1, .Lhttp_pathbuf
+                li   t0, 47
+                sb   t0, 0(s1)
+                sb   t0, 1(s1)
+                li   t0, 20480
+                la   t1, .Lhttp_portbin
+                sh   t0, 0(t1)
+                li   t0, 80
+                la   t1, .Lhttp_port_host
+                sd   t0, 0(t1)
+                j    .Lpu_ip
+
+            # ── request core ────────────────────────────────────────────
+            # a0=url, a1=method cstr, a2=body cstr|0, a4=headers cstr|0
+            # retorna a0=KofString body (status em .Lhttp_last_status)
+            .globl kof_http_core
+            kof_http_core:
+                addi sp, sp, -64
+                sd   ra, 56(sp)
+                sd   s0, 48(sp)
+                sd   s1, 40(sp)
+                sd   s2, 32(sp)
+                sd   s3, 24(sp)
+                sd   s4, 16(sp)
+                sd   s5, 8(sp)
+                sd   s6, 0(sp)
+                mv   s0, a0
+                mv   s1, a1
+                mv   s2, a2
+                mv   s4, a4
+                mv   a0, s0
+                call kof_http_parse_url
+                li   a0, 2
+                li   a1, 1
+                li   a2, 0
+                li   a7, 198
+                ecall
+                bltz a0, .Lhr_fail
+                mv   s5, a0
+                la   t0, .Lhttp_sock
+                li   t1, 2
+                sw   t1, 0(t0)
+                la   t1, .Lhttp_portbin
+                lh   t1, 0(t1)
+                sh   t1, 2(t0)
+                la   t1, .Lhttp_ipbin
+                lw   t1, 0(t1)
+                sw   t1, 4(t0)
+                li   t1, 0
+                sd   t1, 8(t0)
+                la   a1, .Lhttp_sock
+                mv   a0, s5
+                li   a2, 16
+                li   a7, 203
+                ecall
+                bltz a0, .Lhr_fail_cl
+                la   t0, .Lhttp_reqbuf
+                mv   a0, t0
+                mv   a1, s1
+                call kof_http_append_cstr
+                li   t0, 32
+                sb   t0, 0(a0)
+                addi a0, a0, 1
+                la   a1, .Lhttp_pathbuf
+                call kof_http_append_cstr
+                la   a1, .Lhttp_str_ver
+                call kof_http_append_cstr
+                la   a1, .Lhttp_crlfb
+                li   a2, 2
+                call kof_http_append_n
+                la   a1, .Lhttp_str_host
+                call kof_http_append_cstr
+                la   a1, .Lhttp_hostbuf
+                call kof_http_append_cstr
+                la   t0, .Lhttp_port_host
+                ld   t0, 0(t0)
+                li   t1, 80
+                beq  t0, t1, .Lhr_nohostport
+                li   t0, 58
+                sb   t0, 0(a0)
+                addi a0, a0, 1
+                la   t0, .Lhttp_port_host
+                ld   a1, 0(t0)
+                call kof_http_append_dec
+            .Lhr_nohostport:
+                la   a1, .Lhttp_crlfb
+                li   a2, 2
+                call kof_http_append_n
+                beqz s4, .Lhr_body_hdrs
+                lw   t0, 16(s4)
+                addi a1, s4, 24
+                li   t1, 0
+            .Lhr_hl:
+                bltu t0, t1, .Lhr_hl_done
+                lbu  t2, 0(a1)
+                li   t3, 10
+                beq  t2, t3, .Lhr_hc
+                sb   t2, 0(a0)
+                addi a0, a0, 1
+                j    .Lhr_hn
+            .Lhr_hc:
+                li   t2, 13
+                sb   t2, 0(a0)
+                addi a0, a0, 1
+                sb   t3, 0(a0)
+                addi a0, a0, 1
+            .Lhr_hn:
+                addi t1, t1, 1
+                addi a1, a1, 1
+                j    .Lhr_hl
+            .Lhr_hl_done:
+                la   a1, .Lhttp_crlfb
+                li   a2, 2
+                call kof_http_append_n
+            .Lhr_body_hdrs:
+                beqz s2, .Lhr_closing
+                la   a1, .Lhttp_str_clen
+                call kof_http_append_cstr
+                lw   t0, 16(s2)
+                mv   a1, t0
+                call kof_http_append_dec
+                la   a1, .Lhttp_crlfb
+                li   a2, 2
+                call kof_http_append_n
+            .Lhr_closing:
+                la   a1, .Lhttp_str_conn
+                call kof_http_append_cstr
+                la   a1, .Lhttp_crlfb
+                li   a2, 2
+                call kof_http_append_n
+                la   a1, .Lhttp_crlfb
+                li   a2, 2
+                call kof_http_append_n
+                beqz s2, .Lhr_send
+                addi a1, s2, 24
+                lw   a2, 16(s2)
+                call kof_http_append_n
+            .Lhr_send:
+                la   t0, .Lhttp_reqbuf
+                sub  a2, a0, t0
+                mv   a1, t0
+                mv   a0, s5
+                li   a7, 64
+                ecall
+                li   s3, 0
+            .Lhr_rd:
+                la   t0, .Lhttp_respbuf
+                add  a1, t0, s3
+                li   t0, 262144
+                sub  a2, t0, s3
+                mv   a0, s5
+                li   a7, 63
+                ecall
+                bltz a0, .Lhr_rd_done
+                beqz a0, .Lhr_rd_done
+                add  s3, s3, a0
+                li   t0, 262144
+                bltu s3, t0, .Lhr_rd
+            .Lhr_rd_done:
+                la   s1, .Lhttp_respbuf
+                li   t0, 0
+            .Lhr_st_space:
+                lbu  a0, 0(s1)
+                li   t1, 32
+                beq  a0, t1, .Lhr_st_sp_hit
+                addi s1, s1, 1
+                j    .Lhr_st_space
+            .Lhr_st_sp_hit:
+                addi s1, s1, 1
+            .Lhr_st_loop:
+                lbu  a0, 0(s1)
+                li   t1, 48
+                sub  a0, a0, t1
+                li   t2, 9
+                bltu t2, a0, .Lhr_st_ok
+                li   t1, 10
+                mul  t0, t0, t1
+                add  t0, t0, a0
+                addi s1, s1, 1
+                j    .Lhr_st_loop
+            .Lhr_st_ok:
+                la   t1, .Lhttp_last_status
+                sd   t0, 0(t1)
+                la   s1, .Lhttp_respbuf
+                mv   s6, s3
+            .Lhr_bscan:
+                li   t0, 4
+                bltu s6, t0, .Lhr_bnone
+                lbu  a0, 0(s1)
+                li   t1, 13
+                bne  a0, t1, .Lhr_bn
+                lbu  a0, 1(s1)
+                li   t1, 10
+                bne  a0, t1, .Lhr_bn
+                lbu  a0, 2(s1)
+                li   t1, 13
+                bne  a0, t1, .Lhr_bn
+                lbu  a0, 3(s1)
+                li   t1, 10
+                bne  a0, t1, .Lhr_bn
+                addi s1, s1, 4
+                addi s6, s6, -4
+                mv   a0, s1
+                mv   a1, s6
+                call kof_string_from_literal
+                mv   s0, a0
+                mv   a0, s5
+                li   a7, 57
+                ecall
+                mv   a0, s0
+                j    .Lhr_out
+            .Lhr_bn:
+                addi s1, s1, 1
+                addi s6, s6, -1
+                j    .Lhr_bscan
+            .Lhr_bnone:
+                la   a0, .Lhttp_empty
+                li   a1, 0
+                call kof_string_from_literal
+                mv   s0, a0
+                mv   a0, s5
+                li   a7, 57
+                ecall
+                mv   a0, s0
+            .Lhr_fail_cl:
+                mv   a0, s5
+                li   a7, 57
+                ecall
+            .Lhr_fail:
+                la   a0, .Lhttp_err_conn
+                call kof_http_cstrlen
+                mv   a1, a0
+                la   a0, .Lhttp_err_conn
+                call kof_string_from_literal
+                call kof_throw_string
+            .Lhr_out:
+                ld   s6, 0(sp)
+                ld   s5, 8(sp)
+                ld   s4, 16(sp)
+                ld   s3, 24(sp)
+                ld   s2, 32(sp)
+                ld   s1, 40(sp)
+                ld   s0, 48(sp)
+                ld   ra, 56(sp)
+                addi sp, sp, 64
+                ret
+
+            # wrappers: a0=url [a1=body|headers] -> a0=KofString (status em .Lhttp_last_status)
+            .globl kof_http_get
+            kof_http_get:
+                la   a1, .Lhttp_m_get
+                li   a2, 0
+                li   a4, 0
+                j    kof_http_core
+            .globl kof_http_get_headers
+            kof_http_get_headers:
+                mv   a4, a1
+                la   a1, .Lhttp_m_get
+                li   a2, 0
+                j    kof_http_core
+            .globl kof_http_post
+            kof_http_post:
+                mv   a2, a1
+                la   a1, .Lhttp_m_post
+                li   a4, 0
+                j    kof_http_core
+            .globl kof_http_post_headers
+            kof_http_post_headers:
+                mv   a4, a2
+                mv   a2, a1
+                la   a1, .Lhttp_m_post
+                j    kof_http_core
+            .globl kof_http_delete
+            kof_http_delete:
+                la   a1, .Lhttp_m_delete
+                li   a2, 0
+                li   a4, 0
+                j    kof_http_core
+            .globl kof_http_put
+            kof_http_put:
+                mv   a2, a1
+                la   a1, .Lhttp_m_put
+                li   a4, 0
+                j    kof_http_core
+            .globl kof_http_patch
+            kof_http_patch:
+                mv   a2, a1
+                la   a1, .Lhttp_m_patch
+                li   a4, 0
+                j    kof_http_core
+            .globl kof_http_status
+            kof_http_status:
+                addi sp, sp, -16
+                sd   ra, 8(sp)
+                la   a1, .Lhttp_m_get
+                li   a2, 0
+                li   a4, 0
+                call kof_http_core
+                la   a0, .Lhttp_last_status
+                ld   a0, 0(a0)
+                ld   ra, 8(sp)
+                addi sp, sp, 16
+                ret
+
+            .globl kof_http_options
+            kof_http_options:
+                la   a1, .Lhttp_m_options
+                li   a2, 0
+                li   a4, 0
+                j    kof_http_core
+            .globl kof_http_options_headers
+            kof_http_options_headers:
+                mv   a4, a1
+                la   a1, .Lhttp_m_options
+                li   a2, 0
+                j    kof_http_core
+            # configurators (no-op nativo, preservam API; paridade futura)
+            .globl kof_http_timeout_set
+            kof_http_timeout_set:
+                ret
+            .globl kof_http_retry_set
+            kof_http_retry_set:
+                ret
+            .globl kof_http_circuit_set
+            kof_http_circuit_set:
+                ret
+            .section .data
+            .Lhttp_hostbuf:   .space 256
+            .Lhttp_pathbuf:   .space 1024
+            .Lhttp_portbin:   .space 2
+            .Lhttp_port_host: .quad 0
+            .Lhttp_ipbin:     .space 4
+            .Lhttp_reqbuf:    .space 16384
+            .Lhttp_respbuf:   .space 262144
+            .Lhttp_sock:      .space 16
+            .Lhttp_last_status: .quad 0
+            .Lhttps_err:   .asciz "kof.http: https nao suportado no Native (TLS pendente); use http://"
+            .Lhttp_fallback: .asciz "127.0.0.1"
+            .Lhttp_str_host: .asciz "Host: "
+            .Lhttp_str_clen: .asciz "Content-Length: "
+            .Lhttp_str_conn: .asciz "Connection: close"
+            .Lhttp_str_ver:  .asciz " HTTP/1.1"
+            .Lhttp_crlfb:    .byte 13, 10
+            .Lhttp_err_conn: .asciz "kof.http: connect falhou"
+            .Lhttp_empty: .space 1
+            .Lhttp_m_get: .asciz "GET"
+            .Lhttp_m_post: .asciz "POST"
+            .Lhttp_m_put: .asciz "PUT"
+            .Lhttp_m_patch: .asciz "PATCH"
+            .Lhttp_m_delete: .asciz "DELETE"
+            .Lhttp_m_options: .asciz "OPTIONS"
+            .section .text
+            """);
     }
 
     private void emitCrossMethodRiscv(StringBuilder sb, IRClass clazz, IRMethod method) {
@@ -5459,6 +6091,24 @@ public class NativeBackend implements Backend {
         riscvSb.append("    ecall\n");
         riscvSb.append(RISCV_RUNTIME_ASM);
 
+        // NATIVE002-stdlib: http riscv64 → aarch64 (traduzido). Mesma detecção
+        // de uso do emitRiscv; o aarch64 herda linha-a-linha do riscv64.
+        boolean usesHttpA = false;
+        for (IRClass c : module.classes()) {
+            for (IRMethod m : c.methods()) {
+                for (IRBasicBlock b : m.basicBlocks()) {
+                    for (KofOperation op : b.operations()) {
+                        if (op instanceof KofCall kc && kc.methodName().startsWith("kof_http_")) {
+                            usesHttpA = true;
+                        }
+                    }
+                }
+                if (usesHttpA) break;
+            }
+            if (usesHttpA) break;
+        }
+        if (usesHttpA) emitRiscvHttp(riscvSb);
+
         // traduz linha-a-linha
         StringBuilder sb = new StringBuilder();
         for (String line : riscvSb.toString().split("\n", -1)) {
@@ -5532,7 +6182,9 @@ public class NativeBackend implements Backend {
             if (chunk == 0 && !first) continue;
             if (chunk == 0 && first) continue;
             if (first) {
-                out.add("mov " + rd + ", #" + chunk + (i != 0 ? ", lsl #" + (16 * i) : ""));
+                // movz aceita lsl; `mov` (alias) NÃO aceita — ex.: 262144
+                // (0x40000) tem primeiro chunk não-zero em i=1.
+                out.add((i != 0 ? "movz " : "mov ") + rd + ", #" + chunk + (i != 0 ? ", lsl #" + (16 * i) : ""));
                 first = false;
             } else {
                 out.add("movk " + rd + ", #" + chunk + ", lsl #" + (16 * i));

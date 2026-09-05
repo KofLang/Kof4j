@@ -14,9 +14,14 @@ Linha de desenvolvimento 0.3.0 aberta em 04/09/2026. Semântica congelada
 
 ### Em desenvolvimento
 
-  - NATIVE002 paridade avançada riscv64/aarch64: stdlib real no runtime asm
-    (JSON `kof_json_quote`/builder, spawn/await, http, db) — aarch64 herda
-    via `translateRiscvToAarch64`.
+  - NATIVE002 paridade avançada riscv64/aarch64: stdlib real no runtime asm —
+    **JSON** (`kof_json_quote`/builder, encode/decode record+listas) e **HTTP**
+    (`get/post/put/patch/delete/options/status` + headers, asm puro: socket+
+    connect+write/read/close, syscalls asm-generic) fechados (17/17 qemu cada
+    target); aarch64 herda via `translateRiscvToAarch64`. Fix de codegen:
+    `--no-relax` no as/ld riscv64 (gp-relaxation faultava com gp=0 no binário
+    estático); `movz` (não `mov`) no tradutor aarch64 para imediatos com
+    `lsl #16`. Falta: spawn/await, db.
   - GC auto-collect (safe-points + mapa de raízes por frame).
   - Package manager MVP (`kof init`/`kofdeps`/registry).
 

@@ -66,6 +66,64 @@ class NativeAarch64E2ETest {
         return output;
     }
 
+    // NATIVE002-stdlib: http herdado do riscv64 via translateRiscvToAarch64.
+    @Test
+    void aarch64HttpGetPostStatus(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        int port = startHttpServer();
+        String out = runAarch64(tempDir, """
+            main() {
+                println(http.get("http://127.0.0.1:%d/hello"))
+                println(http.status("http://127.0.0.1:%d/hello"))
+                println(http.post("http://127.0.0.1:%d/echo", "abc"))
+            }
+            """.formatted(port, port, port));
+        assertEquals("Hello from Kof\n200\ngot:abc", out);
+    }
+
+    private static int startHttpServer() throws IOException {
+        java.net.ServerSocket ss = new java.net.ServerSocket(0);
+        int port = ss.getLocalPort();
+        Thread t = new Thread(() -> {
+            while (true) {
+                try (java.net.Socket s = ss.accept()) {
+                    java.io.BufferedReader in = new java.io.BufferedReader(
+                            new java.io.InputStreamReader(s.getInputStream(), StandardCharsets.UTF_8));
+                    String line = in.readLine();
+                    if (line == null) continue;
+                    String method = line.split(" ")[0];
+                    int cl = 0;
+                    String h;
+                    while ((h = in.readLine()) != null && !h.isEmpty()) {
+                        if (h.toLowerCase().startsWith("content-length:")) {
+                            cl = Integer.parseInt(h.substring(15).trim());
+                        }
+                    }
+                    String body = "Hello from Kof";
+                    if (method.equals("POST")) {
+                        char[] buf = new char[cl];
+                        int off = 0;
+                        while (off < cl) {
+                            int r = in.read(buf, off, cl - off);
+                            if (r < 0) break;
+                            off += r;
+                        }
+                        body = "got:" + new String(buf, 0, off);
+                    }
+                    String resp = "HTTP/1.1 200 OK\r\nContent-Length: " + body.length()
+                            + "\r\nConnection: close\r\n\r\n" + body;
+                    s.getOutputStream().write(resp.getBytes(StandardCharsets.UTF_8));
+                    s.getOutputStream().flush();
+                } catch (IOException e) {
+                    return;
+                }
+            }
+        });
+        t.setDaemon(true);
+        t.start();
+        return port;
+    }
+
     @Test
     void aarch64HelloWorld(@TempDir Path tempDir) throws IOException {
         assumeToolchain();
