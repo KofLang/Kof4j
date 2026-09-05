@@ -69,6 +69,31 @@ final class JvmFfiRuntime {
                     }
                 }
 
+                public static int kof_ffi_ai(String lib, String name, int[] a) {
+                    try {
+                        java.lang.foreign.Arena arena = java.lang.foreign.Arena.ofConfined();
+                        java.lang.foreign.SymbolLookup lookup = lib.isEmpty()
+                                ? java.lang.foreign.SymbolLookup.loaderLookup()
+                                : java.lang.foreign.SymbolLookup.libraryLookup(lib, arena);
+                        java.lang.foreign.Linker linker = java.lang.foreign.Linker.nativeLinker();
+                        java.lang.invoke.MethodHandle handle = linker.downcallHandle(
+                                lookup.find(name).orElseThrow(),
+                                java.lang.foreign.FunctionDescriptor.of(
+                                        java.lang.foreign.ValueLayout.JAVA_INT,
+                                        java.lang.foreign.ValueLayout.ADDRESS,
+                                        java.lang.foreign.ValueLayout.JAVA_INT));
+                        java.lang.foreign.MemorySegment seg =
+                                arena.allocateArray(java.lang.foreign.ValueLayout.JAVA_INT, a.length);
+                        for (int i = 0; i < a.length; i++) {
+                            seg.setAtIndex(java.lang.foreign.ValueLayout.JAVA_INT, i, a[i]);
+                        }
+                        return (int) handle.invoke(seg, a.length);
+                    } catch (Throwable t) {
+                        throw new RuntimeException("kof_ffi_ai: " + lib + "::" + name + " failed: "
+                                + t.getMessage(), t);
+                    }
+                }
+
     """;
     }
 }

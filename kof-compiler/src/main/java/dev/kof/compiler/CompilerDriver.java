@@ -879,7 +879,7 @@ private Target target = Target.JVM;
         String p = ext.parameters().get(0).type();
         String r = ext.returnType();
         if (target == Target.JVM) {
-            return (isIntType(r) && (isIntType(p) || isStringType(p)))
+            return (isIntType(r) && (isIntType(p) || isStringType(p) || isIntArrayType(p)))
                     || (isDoubleType(r) && isDoubleType(p));
         }
         if (target == Target.NATIVE) {
@@ -894,6 +894,10 @@ private Target target = Target.JVM;
 
     private static boolean isStringType(String t) {
         return "String".equals(t) || "string".equals(t);
+    }
+
+    private static boolean isIntArrayType(String t) {
+        return "Int[]".equals(t) || "int[]".equals(t);
     }
 
     private static boolean isDoubleType(String t) {
@@ -3458,6 +3462,10 @@ private Target target = Target.JVM;
                         } else if (isStringType(p)) {
                             helper = "kof_ffi_si";
                             argType = BuiltinTypes.STRING;
+                            retType = Type.PrimitiveType.INT;
+                        } else if (isIntArrayType(p)) {
+                            helper = "kof_ffi_ai";
+                            argType = new Type.ArrayType(Type.PrimitiveType.INT);
                             retType = Type.PrimitiveType.INT;
                         } else {
                             helper = "kof_ffi_i";

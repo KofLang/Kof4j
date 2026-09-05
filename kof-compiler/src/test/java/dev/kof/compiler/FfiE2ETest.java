@@ -105,6 +105,38 @@ class FfiE2ETest {
     }
 
     @Test
+    void arraySumViaGccSo(@TempDir Path dir) throws Exception {
+        Path c = dir.resolve("arr_sum.c");
+        Files.writeString(c, "int arr_sum(int* a, int n) { int s = 0; for (int i = 0; i < n; i++) s += a[i]; return s; }\n");
+        Path so = dir.resolve("libarr_sum.so");
+        ProcessBuilder gcc = new ProcessBuilder("gcc", "-shared", "-fPIC", "-O2", "-o", so.toString(), c.toString());
+        gcc.redirectErrorStream(true);
+        Process gp = gcc.start();
+        String gccOut = new String(gp.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        assertEquals(0, gp.waitFor(), "gcc: " + gccOut);
+        assertTrue(Files.exists(so), ".so must exist");
+
+        Path kof = dir.resolve("arr.kf");
+        Files.writeString(kof, """
+                extern "%s" arr_sum(Int[] a): Int
+
+                main() {
+                    var a = new Int[3]
+                    a[0] = 10
+                    a[1] = 20
+                    a[2] = 30
+                    println(arr_sum(a))
+                }
+                """.formatted(so.toString()));
+
+        Path out = dir.resolve("out-arr");
+        CompilationResult result = driver.compile(kof, out, Target.JVM);
+        assertTrue(result.success(), "JVM array extern must compile: "
+                + result.diagnostics().getDiagnostics());
+        assertEquals("60", runJava(out));
+    }
+
+    @Test
     void libcAbsEndToEnd(@TempDir Path dir) throws IOException {
         Path src = dir.resolve("ffi.kf");
         Files.writeString(src, """
