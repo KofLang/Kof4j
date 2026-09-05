@@ -1063,7 +1063,7 @@ private Target target = Target.JVM;
         for (ExpressionNode b : binds) {
             Type bt = inferExprType(b, locals);
             localIdx = emitExpression(b, ops, owner, localIdx, locals);
-            if (TypeMetrics.isPrimitiveType(bt)) boxPrimitive(ops, bt);
+            if (TypeMetrics.isPrimitiveType(bt)) TypeEmitter.boxPrimitive(ops, bt);
         }
         // 4) className
         ops.add(new KofLoadLiteral(BuiltinTypes.STRING, classNameFor(entity)));
@@ -3204,14 +3204,14 @@ private Target target = Target.JVM;
                                         be.position())) {
                             yield localIdx;
                         }
-                        if (!Type.isString(accType) && TypeMetrics.isPrimitiveType(accType)) boxPrimitive(ops, accType);
+                        if (!Type.isString(accType) && TypeMetrics.isPrimitiveType(accType)) TypeEmitter.boxPrimitive(ops, accType);
                         ops.add(new KofCall(BuiltinTypes.STRING, "valueOf",
                                 List.of(target.isNative() && !Type.isString(accType)
                                         && !(accType instanceof Type.PrimitiveType)
                                         ? accType : Type.UnknownType.UNKNOWN),
                                 BuiltinTypes.STRING, KofCallKind.STATIC));
                         localIdx = emitExpression(be.right(), ops, owner, localIdx, locals);
-                        if (!Type.isString(rightType) && TypeMetrics.isPrimitiveType(rightType)) boxPrimitive(ops, rightType);
+                        if (!Type.isString(rightType) && TypeMetrics.isPrimitiveType(rightType)) TypeEmitter.boxPrimitive(ops, rightType);
                         ops.add(new KofCall(BuiltinTypes.STRING, "valueOf",
                                 List.of(target.isNative() && !Type.isString(rightType)
                                         && !(rightType instanceof Type.PrimitiveType)
@@ -3898,7 +3898,7 @@ private Target target = Target.JVM;
                                     "valueOf", List.of(nativeArg),
                                     BuiltinTypes.STRING, KofCallKind.STATIC));
                         } else {
-                            boxPrimitive(ops, argType);
+                            TypeEmitter.boxPrimitive(ops, argType);
                             ops.add(new KofCall(
                                     BuiltinTypes.STRING,
                                     "valueOf", List.of(Type.UnknownType.UNKNOWN),
@@ -4146,7 +4146,7 @@ private Target target = Target.JVM;
                         }
                         for (int i = 2; i < mc.arguments().size(); i++) {
                             localIdx = emitExpression(mc.arguments().get(i), ops, owner, localIdx, locals);
-                            boxPrimitive(ops, argTypes.get(i));
+                            TypeEmitter.boxPrimitive(ops, argTypes.get(i));
                         }
                         if (KofDb.isQuery(mc.methodName())) {
                             if (typed && !mc.typeArguments().isEmpty()) {
@@ -4219,7 +4219,7 @@ private Target target = Target.JVM;
                             ExpressionNode arg = mc.arguments().get(ai);
                             localIdx = emitExpression(arg, ops, owner, localIdx, locals);
                             if (ai > 0 && TypeMetrics.isPrimitiveType(inferExprType(arg, locals))) {
-                                boxPrimitive(ops, inferExprType(arg, locals));
+                                TypeEmitter.boxPrimitive(ops, inferExprType(arg, locals));
                             }
                         }
                         // literais do schema (conhecidos em compile-time):
@@ -5286,7 +5286,7 @@ private Target target = Target.JVM;
                         // primitivo.toString(): o primitivo não tem classe —
                         // boxar e converter (String.valueOf) em vez de gerar
                         // um owner vazio no bytecode (ClassFormatError)
-                        boxPrimitive(ops, recvType);
+                        TypeEmitter.boxPrimitive(ops, recvType);
                         ops.add(new KofCall(BuiltinTypes.STRING, "valueOf",
                                 List.of(Type.UnknownType.UNKNOWN), BuiltinTypes.STRING, KofCallKind.STATIC));
                         yield localIdx;
@@ -7271,24 +7271,6 @@ private Target target = Target.JVM;
 
 
 
-    private void boxPrimitive(List<KofOperation> ops, Type type) {
-        if (type instanceof Type.PrimitiveType pt) {
-            String name = Type.canonicalPrimitiveName(pt.name());
-            Type boxed = switch (name) {
-                case "int" -> new Type.ClassType("java.lang", "Integer", List.of());
-                case "long" -> new Type.ClassType("java.lang", "Long", List.of());
-                case "float" -> new Type.ClassType("java.lang", "Float", List.of());
-                case "double" -> new Type.ClassType("java.lang", "Double", List.of());
-                case "bool" -> new Type.ClassType("java.lang", "Boolean", List.of());
-                case "char" -> new Type.ClassType("java.lang", "Integer", List.of());
-                case "byte" -> new Type.ClassType("java.lang", "Byte", List.of());
-                case "short" -> new Type.ClassType("java.lang", "Short", List.of());
-                default -> Type.UnknownType.UNKNOWN;
-            };
-            Type boxParam = "char".equals(name) ? Type.PrimitiveType.INT : type;
-            ops.add(new KofCall(boxed, "valueOf", List.of(boxParam), boxed, KofCallKind.STATIC));
-        }
-    }
 
     private IRLocalVariable findLocalVar(String name, List<IRLocalVariable> locals) {
         for (int i = locals.size() - 1; i >= 0; i--) {
@@ -8532,7 +8514,7 @@ private Target target = Target.JVM;
                     BuiltinTypes.STRING, KofCallKind.FUNCTION));
             ops.add(new KofLoadLocal(ownerType, 0));
             ops.add(new KofLoadField(ownerType, f.name(), f.type()));
-            if (!Type.isString(f.type())) boxPrimitive(ops, f.type());
+            if (!Type.isString(f.type())) TypeEmitter.boxPrimitive(ops, f.type());
             ops.add(new KofCall(BuiltinTypes.STRING, "valueOf",
                     List.of(Type.UnknownType.UNKNOWN), BuiltinTypes.STRING, KofCallKind.STATIC));
             ops.add(new KofCall(BuiltinTypes.STRING, "kof_string_concat",
