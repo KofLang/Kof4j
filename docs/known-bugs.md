@@ -491,36 +491,100 @@ EXTERNA produz lixo
 
 ---
 
-### 28. FLAKY (JVM): contadores de conexão WS/SSE não refletem conexão ativa
+### 28. FLAKE: `KofWebHardeningTest.ws_connection_counter_increments_and_decrements`
 
-- **Sintoma:** `KofWebHardeningTest.ws_connection_counter_increments_and_decrements`
-  falha de forma INTERMITENTE: `assertEquals("1", stats(port))` recebe `0` —
-  o `WS_CONNECTIONS_ACTIVE` ainda é 0 quando o teste consulta `/stats` logo
-  após o handshake 101. O par `sse_connection_counter...` tem a mesma classe de
-  race (timer 1500ms vs. consulta).
-- **Reprodução (determinística o bastante):**
+- **Sintoma:** `expected: <1> but was: <0>` no contador de conexões ws.
+  **Intermitente** — passa 6/6 em execução isolada; falhou 1× na suíte
+  completa de 05/09 (927 testes).
+- **Causa provável:** race no contador de conexões — o teste conta
+  conexões ativas num ponto onde a conexão pode ainda não ter sido
+  registrada (timing de socket/async). Não é regressão de feature.
+- **Reprodução:** rodar a suíte completa repetidamente
+  (`mvn test -o -pl kof-compiler,kof-script,kof-c-compiler,kof-cli -am`);
+  falha esporádica. `KofWebHardeningTest` isolado: verde.
+- **O que deveria acontecer:** tornar o contador determinístico (barreira
+  antes da asserção) — é **lane do agent-web**, não do NATIVE002-stdlib.
+- **Arquivos:** `KofWebHardeningTest.java` (asserção ~368), contador ws
+  do runtime web.
+- **Registrado:** 05/09 (suíte do port mq cross — falha fora da lane).
+
+---
+
+### 29. `var h = spawn { lambda }` (handle de lambda) quebra em todos os targets
+
+- **Sintoma:** o corpo da lambda **nunca roda** ou o processo **segfaulta**:
+  - x86_64 nativo: SIGSEGV (ec=139), nada imprime;
+  - riscv64/aarch64 (qemu): ec=0 **sem output** (silencioso — R6);
+  - `await h` nunca vê o resultado.
+- **Não quebra:** `spawn { ... }` fire-and-forget com captura (funciona,
+  `SpawnE2ETest.spawnLambdaCapturesOuterLocal`) e `var h = spawn fn()`
+  (chamada de função nomeada — funciona nos 3 targets, `two-awaits` ok).
+  Só a combinação **handle + lambda literal** está morta.
+- **Reprodução:**
+  ```kof
+  main() {
+      var n = 21
+      var h = spawn { println(n * 2) }
+      await h
+  }
   ```
-  mvn -o test -pl kof-compiler -am -Dtest='KofWebHardeningTest' -Dsurefire.failIfNoSpecifiedTests=false
-  ```
-  Falhou 2x na suíte completa de 05/09 (baseline limpo do worktree
-  `refactor8-script`, commit `0abb880`, antes de qualquer mudança local) e
-  passou 4x em execução isolada/sequência — confirma flakiness de timing, não
-  regressão.
-- **Causa provável:** race entre o thread de aceitação do servidor WS (que faz
-  `WS_CONNECTIONS_ACTIVE.incrementAndGet()` em
-  `JvmRuntimeWebServer.java:221`) e o `GET /stats` do teste disparado logo após
-  o `handshake(...)` retornar 101 — o increment pode ainda não ter sido
-  executado/visível.
-- **Por que não corrigido aqui:** é **timing de teste em código de web**
-  (`JvmRuntimeWebServer`/`JvmRuntimeWebDispatch`, FASE 5), fora do escopo do
-  REFACTOR-500 fase 8 (que toca apenas `kof-script`/`kof-runtime`). Corrigir o
-  contador de produção para o teste é risco de semântica (observabilidade —
-  PR6 hardening); corrigir o teste para esperar é decisão a ser tomada pelo
-  dono da área web. Registrado, não "consertado".
-- **Arquivos:** `KofWebHardeningTest.java` (teste), `JvmRuntimeWebServer.java`
-  (increment/decrement do contador).
-- **Descoberto:** 05/09 no baseline do worktree `refactor8-script` (gates de
-  REFACTOR-500 fase 8).
+  (x86_64: segfault; riscv64: vazio; esperado: `42`).
+- **Causa provável:** lowering de `SpawnStmt` com `LambdaExpr` **atribuído a
+  handle** — o task object passado a `kof_spawn_result`/`pthread_create` sai
+  errado (capturas/vtable da lambda void). O segfault x86_64 (que é o runtime
+  "de referência") indica o bug no lowering compartilhado, não no asm riscv.
+- **O que deveria acontecer:** `spawn { lambda }` com handle deve rodar a
+  lambda na thread e `await` entregar o resultado (mesmo caminho do
+  fire-and-forget, que já funciona).
+- **Arquivos:** lowering `SpawnStmt` (`CompilerDriver.java`), `emitRiscvSpawn`
+  / trampoline (`NativeBackend.java`), `NativeRuntime`/`RuntimeConcurrency`
+  (x86_64).
+- **Registrado:** 05/09 (sweep spawn do NATIVE002-stdlib residual —
+  pré-existente, não introduzido pelos fixes cross da linha).
+
+---
+
+### 30. Native x86_64: `json.decode<Bool>("false")` dava `true` (corrigido)
+
+- **Sintoma:** `decode<Bool>` invertido no x86_64: `"false"`→`true`,
+  `"  true"`→`false`. O JVM dava o correto (`false`/`true`); o riscv64
+  (port novo) também. Só o x86_64 — o "runtime de referência" — estava
+  errado, e nenhum teste cobria `false`/ws (só `"true"` sem espaço).
+- **Causa:** `kof_json_decode_bool` chamava `kof_json_starts_with` passando
+  o length em `%r8d`, mas a helper lê o length de `%rdx` (= pos, lixo); e a
+  helper comparava a partir do offset 0, ignorando o pos após o skip de
+  whitespace. Resultado: sempre "starts with true" → `false`→true, e com ws
+  o byte 0 é espaço → nunca casa → `"  true"`→false.
+- **Correção:** comparação inline de `"true"` a partir de `%rdx` (pos), sem
+  a helper (usada só aqui). Paridade JVM/riscv64/aarch64.
+- **Reprodução:** `println(json.decode<Bool>("false"))` → esperado `false`.
+- **O que deveria acontecer:** `decode<Bool>` segue o JVM (true/false literais,
+  ws tolerado).
+- **Arquivos:** `RuntimeJsonDecode.java` (`kof_json_decode_bool`).
+- **Descoberto:** 05/09 no sweep json do NATIVE002-stdlib residual (port dos
+  decoders escalares riscv64 expôs a divergência). Regressão:
+  `JsonE2ETest.jvmDecodeBoolFalseAndWhitespace`.
+
+---
+
+### 31. `process.<método-inexistente>()` compila como acesso a campo (segfault)
+
+- **Sintoma:** `process.currentDir()` (e qualquer método não-listado do
+  `KofProcess`) **compila** e no cross **segfaulta** (ec=139); no x86_64
+  retorna um valor lixo (`true`) — fallback silencioso.
+- **Causa:** `KofProcess` só expõe `spawn` + handle methods
+  (`alive/exitCode/kill/readLine/stdout/write`). Um método desconhecido não
+  cai em SEM011 ("método inexistente") — cai no caminho genérico de acesso a
+  campo do receiver (`pop t0; ld t0,16(t0)`), que deref um ponteiro nixo.
+- **Reprodução:** `main() { println(process.currentDir().length > 0) }`
+  (x86_64: `true`; riscv64/aarch64: SIGSEGV).
+- **O que deveria acontecer:** diagnóstico SEM011 em compile-time (método
+  não existe no namespace `process`), nunca compilar + segfault.
+- **Arquivos:** lowering de receiver `process.*` (`CompilerDriver.java`,
+  `KofProcess.staticCall`/`handleMethod`). É a área **F2.8
+  ExpressionLowerer** do REFACTOR-500 (EM CURSO de outro agente) — não tocar
+  sem combinar.
+- **Registrado:** 05/09 (sweep io/process do NATIVE002-stdlib residual).
 
 ---
 

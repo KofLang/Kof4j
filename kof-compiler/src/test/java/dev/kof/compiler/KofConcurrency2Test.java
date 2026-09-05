@@ -607,6 +607,40 @@ class KofConcurrency2Test {
         }
     }
 
+    @Test
+    void schedulerEveryCrossNative(@TempDir Path tmp) throws Exception {
+        // SCHED001 FEITO no cross (05/09): thread por job via clone 220 +
+        // nanosleep 101 + spinlock amoswap.w (mesmo mecanismo do spawn).
+        // Ticks no 1º trecho, silêncio após o cancel, END por último —
+        // contagem frouxa (timer não determinístico sob qemu).
+        Path f = tmp.resolve("M.kf");
+        Files.writeString(f, """
+                main() {
+                    var id = scheduler.every(100) { println("T") }
+                    time.sleep(250)
+                    scheduler.cancel(id)
+                    time.sleep(250)
+                    println("END")
+                }
+                """);
+        String[] q = {null, "qemu-riscv64", "qemu-aarch64"};
+        Target[] ts = {Target.NATIVE, Target.NATIVE_RISCV64, Target.NATIVE_AARCH64};
+        for (int i = 0; i < 3; i++) {
+            CompilationResult r = driver.compile(f, tmp.resolve("out-" + i), ts[i]);
+            assertTrue(r.success(), ts[i] + " deve compilar: " + r.diagnostics().getDiagnostics());
+            Path bin = tmp.resolve("out-" + i).resolve("Default/Main");
+            var pb = new ProcessBuilder(bin.toString()).redirectErrorStream(true);
+            if (q[i] != null) pb.command().add(0, q[i]);
+            Process p = pb.start();
+            String output = new String(p.getInputStream().readAllBytes()).trim();
+            assertEquals(0, p.waitFor(), ts[i] + " exit, output: " + output);
+            assertTrue(output.endsWith("END"), ts[i] + ": END deve ser a última linha: " + output);
+            int ticks = 0;
+            for (String l : output.split("\n")) if (l.equals("T")) ticks++;
+            assertTrue(ticks >= 1 && ticks <= 6, ts[i] + ": esperava 1..6 ticks, veio " + ticks + ": " + output);
+        }
+    }
+
     // ── helpers ──
     private String runJvm(Path tempDir, String source) throws java.io.IOException {
         return runJvm(tempDir, source, null);

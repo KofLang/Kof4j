@@ -177,6 +177,14 @@ final class KofSecurity {
      * diagnostic; never silently different behavior.
      */
     static boolean supportedOn(String function, Target target) {
+        // SECN000: o runtime riscv64/aarch64 (asm puro, sem libc) não tem
+        // NENHUMA primitiva kof_sec_* (sha/hmac/aes/random/jwt/password/
+        // session/api-key). Sem gate, a chamada quebrava no link com
+        // undefined-reference (R6). Diagnóstico limpo em compile-time até o
+        // port (SHA-256/AES são portáveis em asm; random exige getrandom).
+        if (target == Target.NATIVE_RISCV64 || target == Target.NATIVE_AARCH64) {
+            return false;
+        }
         return switch (function) {
             case "kof_sec_aesgcm_encrypt", "kof_sec_aesgcm_decrypt" ->
                     target == Target.JVM || target == Target.JS || target.isNative();

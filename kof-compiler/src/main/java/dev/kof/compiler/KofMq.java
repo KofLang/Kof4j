@@ -54,6 +54,10 @@ final class KofMq {
 
     /** kof.mq: JVM + JS + Native (01/09, pub/sub + filas in-process). */
     static boolean supportedOn(Target target) {
+        // MQ001: pub/sub + queues in-process em asm (riscv64/aarch64 via
+        // tradutor) — port completo 05/09 (scan loops c/ ponteiro-fim, s-regs
+        // salvos, pop via kof_list_remove, queue_size, unsubscribe por
+        // identidade). Paridade de output com x86_64 (KofMqE2ETest cross).
         return true;
     }
 

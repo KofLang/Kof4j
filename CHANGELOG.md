@@ -14,6 +14,40 @@ Linha de desenvolvimento 0.3.0 aberta em 04/09/2026. Semântica congelada
 
 ### Em desenvolvimento
 
+  - **NATIVE002-stdlib residual (05/09)** — auditoria R6 + paridade cross:
+    **fcvt riscv64** (os 10 mnemonics de conversão numérica saíam com
+    rd/rs invertidos — `as Int`/`as Double` quebravam no `as`),
+    **ToolchainMissing** (falha de `as`/`ld` nos cross agora propaga como
+    erro de compilação — antes era "success=true sem binário" silencioso),
+    **FLT001** (`println(double)`/`valueOf(double)` no cross vira
+    diagnóstico em compile-time: runtime asm puro sem libc não tem `%g` —
+    antes segfault silencioso; aritmética/conversão FP funciona),
+    **time.now()** real (`clock_gettime` 113 — era stub `li a0,0` que
+    quebrava o TTL do cache), **cache riscv64/aarch64** (scan loops usavam
+    t2/t3 clobberados pelo `kof_string_equals` → segfault; + `sle/sge`
+    inexistentes na ISA riscv → `<=`/`>=` quebravam; + `println(null)`→"null"),
+    **mq riscv64/aarch64** (port completo: queue por handle, pop via
+    `kof_list_remove`, queue_size, unsubscribe por identidade, invoke dos
+    handlers via vtable — antes infuncional: gate MQ001). Prova:
+    `KofMqE2ETest` 5/5 (incl. cross qemu c/ paridade de output),
+    `riscv64/aarch64Cache`, `riscv64/aarch64TimeNow`.
+    **tail-call em 8 funções riscv** (`call`+`ret` sem salvar `ra` = loop
+    infinito — `observability.health`/ids/`time_interval` hangavam),
+    **gates SCHED001/TIME001/SECN000** (scheduler/time.interval/kof_sec_*
+    ausentes no runtime cross → diagnóstico limpo em vez de undefined-reference
+    no link ou no-op silencioso), **`"42".toInt()`** (deref do VALOR do char
+    como endereço → SIGSEGV), **Map/Set + higher-order** no cross
+    (`RISCV_MAPSET_ASM` linear-scan; closure ABI do mq), **`kof_panic`**
+    imprime C-string (mensagem de bounds-check), **json decoders escalares**
+    (int/long/bool/string), **bug 30** (`decode<Bool>("false")`→true no
+    x86_64: length em registrador errado + offset ignorado), **metrics()
+    `# TYPE`** no cross + **tradutor quote-aware** (`.asciz "# TYPE "` era
+    strippado como comentário → string não-terminada no aarch64). Sweeps de
+    paridade (KSw/KSw2/KJ/KU/KMR3/KCFG/KVAL): **0 divergências** nos 3
+    targets. Bugs registrados fora da lane: #29 (`spawn { lambda }` com
+    handle), #31 (`process.<inexistente>` compila como acesso a campo),
+    #28 (flake ws). Suíte completa 962/0/3-skip.
+
   - NATIVE002 paridade avançada riscv64/aarch64: stdlib real no runtime asm —
     **JSON** (`kof_json_quote`/builder, encode/decode record+listas), **HTTP**
     (`get/post/put/patch/delete/options/status` + headers, asm puro: socket+
