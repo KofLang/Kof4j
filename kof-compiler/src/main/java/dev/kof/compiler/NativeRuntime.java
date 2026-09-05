@@ -20,8 +20,8 @@ final class NativeRuntime {
         sb.append("            kof_heap_root_start:\n");
         sb.append("            .quad 0\n");
         sb.append("            .section .text\n");
-        emitPrint(sb);
-        emitPrintln(sb);
+        RuntimePrint.emitPrint(sb);
+        RuntimePrint.emitPrintln(sb);
         emitPrintInt(sb);
         emitPrintFloat(sb);
         emitPrintDouble(sb);
@@ -117,45 +117,6 @@ final class NativeRuntime {
                 movl %esi, 0(%rdi)
                 movl $0, 4(%rdi)
                 movq %rdx, 8(%rdi)
-                ret
-            """);
-    }
-
-
-    private static void emitPrint(StringBuilder sb) {
-        sb.append("""
-            .globl kof_print
-            .type kof_print, @function
-            kof_print:
-                pushq %rbx
-                movq %rdi, %rbx
-                xorq %rdx, %rdx
-            .Lkof_print_len:
-                cmpb $0, (%rbx,%rdx)
-                je .Lkof_print_do
-                incq %rdx
-                jmp .Lkof_print_len
-            .Lkof_print_do:
-                movq $1, %rax
-                movq $1, %rdi
-                movq %rbx, %rsi
-                syscall
-                popq %rbx
-                ret
-            """);
-    }
-
-
-    private static void emitPrintln(StringBuilder sb) {
-        sb.append("""
-            .globl kof_println
-            .type kof_println, @function
-            kof_println:
-                call kof_print
-                pushq %rbx
-                leaq .Lnewline(%rip), %rdi
-                call kof_print
-                popq %rbx
                 ret
             """);
     }
