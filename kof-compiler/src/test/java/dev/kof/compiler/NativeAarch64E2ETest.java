@@ -176,6 +176,32 @@ class NativeAarch64E2ETest {
         assertEquals("42\n-7\n0", out);
     }
 
+    // NATIVE002-stdlib: Map/Set herdado do riscv64 (port linear-scan).
+    @Test
+    void aarch64MapSet(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runAarch64(tempDir, """
+            main() {
+                var m = mapOf()
+                m.put("a", 1)
+                m.put("b", 2)
+                println(m.get("a"))
+                println(m.size())
+                println(m.contains("b"))
+                println(m.remove("a"))
+                println(m.size())
+                println(m.keys().size())
+                var s = setOf("x", "x", "y")
+                println(s.size())
+                println(s.contains("y"))
+                println(s.contains("z"))
+                println(s.remove("x"))
+                println(s.size())
+            }
+            """);
+        assertEquals("1\n2\ntrue\n1\n1\n1\n2\ntrue\nfalse\ntrue\n1", out);
+    }
+
     private static int startHttpServer() throws IOException {
         java.net.ServerSocket ss = new java.net.ServerSocket(0);
         int port = ss.getLocalPort();
