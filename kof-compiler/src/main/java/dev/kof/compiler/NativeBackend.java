@@ -3290,6 +3290,16 @@ public class NativeBackend implements Backend {
         if (kc.kind() == KofCallKind.STATIC && "valueOf".equals(mn)) {
             if (argType instanceof Type.PrimitiveType pt) {
                 String cn = Type.canonicalPrimitiveName(pt.name());
+                if ("float".equals(cn) || "double".equals(cn)) {
+                    // FLT001: double→string exige %g (snprintf/libc) — ausente
+                    // no runtime riscv64/aarch64 (asm puro estático). Sem guard,
+                    // os bits do double ficavam na pilha e o println seguinte
+                    // tratava-os como ponteiro de string (segfault silencioso).
+                    throw new IllegalStateException("FLT001: " + mn
+                            + "(float/double) não é suportado no runtime riscv64/aarch64"
+                            + " (asm puro, sem libc/snprintf) — use JVM/Native x86_64"
+                            + " ou converta (d as Int)");
+                }
                 if ("int".equals(cn) || "char".equals(cn) || "short".equals(cn) || "byte".equals(cn) || "long".equals(cn)) {
                     sb.append("    pop a0\n    call kof_int_to_string\n");
                     pushRiscv(sb, "a0");
