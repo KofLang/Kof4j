@@ -1,8 +1,8 @@
 package dev.kof.compiler;
 
 /**
-Emissão do ASM do scheduler (kof_scheduler/every/interval) do runtime nativo.
- * Domínio isolado do NativeRuntime — refactor preserva semântica.
+ * Emissão do ASM do scheduler (kof_scheduler/every/interval) do runtime nativo.
+ * Domínio isolado do NativeRuntime -- refactor preserva semântica.
  */
 final class RuntimeScheduler {
 
@@ -14,7 +14,7 @@ final class RuntimeScheduler {
             # Job (48B): 0=next 8=task 16=ms(int) 20=active(int) 24=id(string) 32=pthread_t
             # Thread por job: usleep(ms) + invoke(task) enquanto active.
             # cancel(id): marca active=0 (a thread sai na proxima checagem).
-            # at(cron, fn): MVP igual JVM — ignora o cron, roda a cada 60s.
+            # at(cron, fn): MVP igual JVM -- ignora o cron, roda a cada 60s.
             .section .bss
             .balign 8
             kof_sched_head: .quad 0
@@ -214,7 +214,7 @@ final class RuntimeScheduler {
 
             # TIME001 (01/09): time.interval/cancel no Native. Mesmo mecanismo do
             # scheduler.every/cancel (thread por job, loop com cancel; captura por
-            # referência — mesma lambda). Aliás p/ o símbolo do scheduler.
+            # referência -- mesma lambda). Aliás p/ o símbolo do scheduler.
             # rdi=ms, rsi=task -> id String (igual a kof_scheduler_every).
             .globl kof_time_interval
             .type kof_time_interval, @function

@@ -3,7 +3,7 @@ package dev.kof.compiler;
 /**
  * Emissão do ASM das operações base de String (kof_string_from_literal/
  * length/concat/equals + kof_print_string/println_string + kof_memcpy) do
- * runtime nativo. Domínio isolado do NativeRuntime — refactor preserva semântica.
+ * runtime nativo. Domínio isolado do NativeRuntime -- refactor preserva semântica.
  */
 final class RuntimeStringBase {
 

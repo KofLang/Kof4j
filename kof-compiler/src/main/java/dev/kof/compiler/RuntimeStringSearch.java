@@ -2,7 +2,7 @@ package dev.kof.compiler;
 
 /**
  * Emissão do ASM de busca em String (kof_string_contains/startsWith/endsWith/
- * indexOf/lastIndexOf) do runtime nativo. Domínio isolado do NativeRuntime —
+ * indexOf/lastIndexOf) do runtime nativo. Domínio isolado do NativeRuntime --
  * refactor preserva semântica.
  */
 final class RuntimeStringSearch {

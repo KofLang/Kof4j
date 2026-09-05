@@ -1,8 +1,8 @@
 package dev.kof.compiler;
 
 /**
-Emissão do ASM de rede (kof_net_socket/bind/listen/accept/read/write/close) do
- * runtime nativo. Domínio isolado do NativeRuntime — refactor preserva semântica.
+ * Emissão do ASM de rede (kof_net_socket/bind/listen/accept/read/write/close) do
+ * runtime nativo. Domínio isolado do NativeRuntime -- refactor preserva semântica.
  */
 final class RuntimeNet {
 

@@ -2,7 +2,7 @@ package dev.kof.compiler;
 
 /**
  * Emissão do ASM de operações em String (kof_string_charAt/substring/trim/
- * case/equalsIgnoreCase) do runtime nativo. Domínio isolado do NativeRuntime —
+ * case/equalsIgnoreCase) do runtime nativo. Domínio isolado do NativeRuntime --
  * refactor preserva semântica.
  */
 final class RuntimeStringOps {

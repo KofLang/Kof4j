@@ -2,7 +2,7 @@ package dev.kof.compiler;
 
 /**
  * Emissão do ASM das funções de array (kof_array_alloc/length/get/set) do
- * runtime nativo. Domínio isolado do NativeRuntime — refactor preserva semântica.
+ * runtime nativo. Domínio isolado do NativeRuntime -- refactor preserva semântica.
  */
 final class RuntimeArray {
 

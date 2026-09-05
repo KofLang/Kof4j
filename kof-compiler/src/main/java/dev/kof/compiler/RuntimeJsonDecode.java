@@ -1,8 +1,8 @@
 package dev.kof.compiler;
 
 /**
-Emissão do ASM do decode JSON (kof_json_decode_int/long/double/float/list/bool/
- * string/...) do runtime nativo. Domínio isolado do NativeRuntime — refactor preserva semântica.
+ * Emissão do ASM do decode JSON (kof_json_decode_int/long/double/float/list/bool/
+ * string/...) do runtime nativo. Domínio isolado do NativeRuntime -- refactor preserva semântica.
  */
 final class RuntimeJsonDecode {
 

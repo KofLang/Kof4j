@@ -1,8 +1,8 @@
 package dev.kof.compiler;
 
 /**
-Emissão do ASM do builder JSON (kof_json_builder_new/grow/char/str/result) do runtime
- * nativo. Domínio isolado do NativeRuntime — refactor preserva semântica.
+ * Emissão do ASM do builder JSON (kof_json_builder_new/grow/char/str/result) do runtime
+ * nativo. Domínio isolado do NativeRuntime -- refactor preserva semântica.
  */
 final class RuntimeJsonBuilder {
 

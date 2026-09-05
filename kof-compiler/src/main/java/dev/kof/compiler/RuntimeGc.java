@@ -1,9 +1,9 @@
 package dev.kof.compiler;
 
 /**
-Emissão do ASM do GC e erros de runtime (kof_gc/kof_process_exit/kof_panic/
+ * Emissão do ASM do GC e erros de runtime (kof_gc/kof_process_exit/kof_panic/
  * kof_null_error/kof_bounds_error) do runtime nativo. Domínio isolado do
- * NativeRuntime — refactor preserva semântica.
+ * NativeRuntime -- refactor preserva semântica.
  */
 final class RuntimeGc {
 
@@ -45,7 +45,7 @@ final class RuntimeGc {
                 jmp .Lgc_mark_stack
             .Lgc_mark_stack_done:
                 # raizes estaticas: varre a area de dados do runtime
-                # (.data+.bss) — cache/mq/config/etc. vivem em .data, NAO bss,
+                # (.data+.bss) -- cache/mq/config/etc. vivem em .data, NAO bss,
                 # e "kof_heap_root_start" e emitido como primeiro rotulo do
                 # generateRuntimeAssembly, antes de qualquer .data do runtime.
                 leaq kof_heap_root_start(%rip), %r12
@@ -245,7 +245,7 @@ final class RuntimeGc {
             # list esta esgotada (evita mmap quando ha lixo coletavel).
             # Empilha os callee-saved para que o mark conservador tambem
             # enxergue ponteiros vivos em %rbx/%r12-%r15/%rbp do caller
-            # (o mark so varre a stack — registrador puro era coletado:
+            # (o mark so varre a stack -- registrador puro era coletado:
             # ex.: 2.º alloc do kof_spawn_handle_new perdia o handle em %rbx).
             .globl kof_gc_collect_now
             .type kof_gc_collect_now, @function

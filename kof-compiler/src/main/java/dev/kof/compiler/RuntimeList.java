@@ -2,7 +2,7 @@ package dev.kof.compiler;
 
 /**
  * Emissão do ASM das funções de lista (kof_list_new/grow/add/get/set/size/...
- * map/filter/reduce) do runtime nativo. Domínio isolado do NativeRuntime —
+ * map/filter/reduce) do runtime nativo. Domínio isolado do NativeRuntime --
  * refactor preserva semântica.
  */
 final class RuntimeList {

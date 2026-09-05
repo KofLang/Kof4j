@@ -1,8 +1,8 @@
 package dev.kof.compiler;
 
 /**
-Emissão do ASM de stubs Vulkan (kof_vk_*) do runtime nativo. Domínio isolado
- * do NativeRuntime — refactor preserva semântica.
+ * Emissão do ASM de stubs Vulkan (kof_vk_*) do runtime nativo. Domínio isolado
+ * do NativeRuntime -- refactor preserva semântica.
  */
 final class RuntimeVk {
 
@@ -123,7 +123,7 @@ final class RuntimeVk {
                 popq %rbx
                 ret
             # kof_vk_dispatch(rdi=a, rsi=b, rdx=c, rcx=m, r8d=n, r9d=k)
-            # args Kof: KofArray* (dados INLINE em +24) — o C quer int* → lea +24. Lazy init.
+            # args Kof: KofArray* (dados INLINE em +24) -- o C quer int* → lea +24. Lazy init.
             .globl kof_vk_dispatch
             .type kof_vk_dispatch, @function
             kof_vk_dispatch:
@@ -173,7 +173,7 @@ final class RuntimeVk {
 
             """);
         // M36.5: cadeia Vulkan int64 real (tradução asm do vkchain64.c)
-        // — substitui os stubs kof_mv64_* / kof_vk_dispatch64.
+        // -- substitui os stubs kof_mv64_* / kof_vk_dispatch64.
         sb.append(VkChain64Asm.source());
     }
 

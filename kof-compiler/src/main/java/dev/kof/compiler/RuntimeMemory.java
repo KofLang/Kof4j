@@ -1,8 +1,8 @@
 package dev.kof.compiler;
 
 /**
-Emissão do ASM de alocação/liberação (kof_alloc/kof_free/kof_init_object/kof_memstats)
- * do runtime nativo. Domínio isolado do NativeRuntime — refactor preserva semântica.
+ * Emissão do ASM de alocação/liberação (kof_alloc/kof_free/kof_init_object/kof_memstats)
+ * do runtime nativo. Domínio isolado do NativeRuntime -- refactor preserva semântica.
  */
 final class RuntimeMemory {
 
@@ -121,7 +121,7 @@ final class RuntimeMemory {
                 # GC auto-collect: mark+sweep real existe (kof_gc_collect_now),
                 # mas auto-invogar DENTRO de kof_alloc é inseguro:
                 # kof_alloc tem um ponteiro NAO ainda na stack (o ponteiro do
-                # bloco livre) — a mark conservadora nao o ve, o sweep o
+                # bloco livre) -- a mark conservadora nao o ve, o sweep o
                 # enfileira na free list e o alloc o reusa DUPLO. O hang
                 # documentado em status.md era exatamente isso. Fechar GC
                 # completamente exige safe-points: (a) inserção de collect

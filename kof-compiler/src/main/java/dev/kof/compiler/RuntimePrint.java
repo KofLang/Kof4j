@@ -2,7 +2,7 @@ package dev.kof.compiler;
 
 /**
  * Emissão do ASM de impressão bruta (kof_print / kof_println) do runtime
- * nativo. Domínio isolado do NativeRuntime — a extração NÃO muda o corpo
+ * nativo. Domínio isolado do NativeRuntime -- a extração NÃO muda o corpo
  * (refactor preserva semântica).
  */
 final class RuntimePrint {

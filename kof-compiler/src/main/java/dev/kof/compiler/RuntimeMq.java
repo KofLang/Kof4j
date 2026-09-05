@@ -1,8 +1,8 @@
 package dev.kof.compiler;
 
 /**
-Emissão do ASM de message queue (kof_mq_*) do runtime nativo. Domínio isolado do
- * NativeRuntime — refactor preserva semântica.
+ * Emissão do ASM de message queue (kof_mq_*) do runtime nativo. Domínio isolado do
+ * NativeRuntime -- refactor preserva semântica.
  */
 final class RuntimeMq {
 
@@ -19,7 +19,7 @@ final class RuntimeMq {
             .section .text
 
             # kof_mq_find_topic(rdi=topic) -> rax node | 0
-            # (kf_string_equals clobbra rdi/rsi/rax — usa rbx/r12 callee-saved)
+            # (kf_string_equals clobbra rdi/rsi/rax -- usa rbx/r12 callee-saved)
             kof_mq_find_topic:
                 pushq %rbx
                 pushq %r12

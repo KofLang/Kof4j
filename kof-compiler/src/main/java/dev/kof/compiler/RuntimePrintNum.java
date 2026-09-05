@@ -1,8 +1,8 @@
 package dev.kof.compiler;
 
 /**
-Emissão do ASM de impressão numérica (kof_print_int/float/double) do
- * runtime nativo. Domínio isolado do NativeRuntime — refactor preserva semântica.
+ * Emissão do ASM de impressão numérica (kof_print_int/float/double) do
+ * runtime nativo. Domínio isolado do NativeRuntime -- refactor preserva semântica.
  */
 final class RuntimePrintNum {
 

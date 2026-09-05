@@ -2,7 +2,7 @@ package dev.kof.compiler;
 
 /**
  * Emissão do ASM de conversão String → número (kof_string_to_int/long/double/float)
- * do runtime nativo. Domínio isolado do NativeRuntime — refactor preserva semântica.
+ * do runtime nativo. Domínio isolado do NativeRuntime -- refactor preserva semântica.
  */
 final class RuntimeStringParse {
 
@@ -198,7 +198,7 @@ final class RuntimeStringParse {
                 incl %ecx
                 jmp .Lkof_str_to_dbl_frac_loop
             .Lkof_str_to_dbl_exp:
-                # expoente: 'e'/'E' [+-] digits — aplica por multiplicacao
+                # expoente: 'e'/'E' [+-] digits -- aplica por multiplicacao
                 incl %ecx
                 xorl %r15d, %r15d                  # exp neg?
                 xorq %r13, %r13                    # exp value

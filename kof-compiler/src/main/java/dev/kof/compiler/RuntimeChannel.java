@@ -1,8 +1,8 @@
 package dev.kof.compiler;
 
 /**
-Emissão do ASM de canais (kof_channel_*) do runtime nativo. Domínio isolado do
- * NativeRuntime — refactor preserva semântica.
+ * Emissão do ASM de canais (kof_channel_*) do runtime nativo. Domínio isolado do
+ * NativeRuntime -- refactor preserva semântica.
  */
 final class RuntimeChannel {
 
@@ -14,7 +14,7 @@ final class RuntimeChannel {
             # Struct (56B): 0=head  8=tail  16=count(int)  20=lock(4B)
             # No (16B): 0=value  8=next.  head=frente (de onde recebe),
             # tail=tras (onde envia). lock/unlock inline (tecnica de kof_alloc).
-            # receive vazio: libera o lock e dorme 1ms (usleep) — sem perder wake.
+            # receive vazio: libera o lock e dorme 1ms (usleep) -- sem perder wake.
             .globl kof_channel_new
             .type kof_channel_new, @function
             kof_channel_new:
@@ -129,7 +129,7 @@ final class RuntimeChannel {
                 xorl %edx, %edx
                 xorq %r10, %r10
                 xorq %r9, %r9
-                syscall                          # clobbera rax — resultado depois!
+                syscall                          # clobbera rax -- resultado depois!
                 movq %r12, %rax                  # resultado (apos o syscall)
                 popq %r13
                 popq %r12

@@ -1,8 +1,8 @@
 package dev.kof.compiler;
 
 /**
-Emissão do ASM de concorrência (kof_spawn/kof_spawn_result/kof_await/kof_thread) do
- * runtime nativo. Domínio isolado do NativeRuntime — refactor preserva semântica.
+ * Emissão do ASM de concorrência (kof_spawn/kof_spawn_result/kof_await/kof_thread) do
+ * runtime nativo. Domínio isolado do NativeRuntime -- refactor preserva semântica.
  */
 final class RuntimeConcurrency {
 
@@ -76,7 +76,7 @@ final class RuntimeConcurrency {
                 # GC: o trampolim só é referenciado pelo arg do pthread_create;
                 # quando o worker executa, nada na stack/bss do main aponta pra
                 # ele → o mark-sweep varreria como morto e o free corromperia o
-                # worker. Ancora no handle (24) — handles ficam na lista global
+                # worker. Ancora no handle (24) -- handles ficam na lista global
                 # (bss) até o join, então o bloco continua visível ao GC.
                 movq %rax, 24(%rbx)
                 leaq 8(%rbx), %rdi              # &handle->thread
@@ -86,7 +86,7 @@ final class RuntimeConcurrency {
                 # pthread_create é um C call: a ABI SysV exige rsp ≡ 0 (mod 16)
                 # NO SITE DO CALL. O caller (main) pode chegar desalinhado quando
                 # um println/print precede o spawn (a convenção args-by-stack via
-                # push empilha um slot a mais) — sem alinhar, a glibc segfaulta
+                # push empilha um slot a mais) -- sem alinhar, a glibc segfaulta
                 # em pthread_attr_copy escrevendo no frame. Alinha na hora,
                 # preservando r15 (callee-saved, livre aqui) e o frame de rsp:
                 pushq %r15                      # [A-8]=r15c ; rsp=A-8
@@ -126,7 +126,7 @@ final class RuntimeConcurrency {
             .type kof_spawn, @function
             kof_spawn:
                 # rdi = task (stmt) -> handle REGISTRADO: o fim do main chama
-                # kof_spawn_join_all e aguarda TODAS as tasks — tarefa spawnada
+                # kof_spawn_join_all e aguarda TODAS as tasks -- tarefa spawnada
                 # nunca fica órfã (senão o processo sai antes do worker rodar).
                 movl $1, %esi
                 jmp kof_spawn_result
@@ -298,7 +298,7 @@ final class RuntimeConcurrency {
                 ret
 
             # selectAny(list): valor do primeiro handle pronto; senão
-            # aguarda (polling 1ms) até um terminar — paridade JVM anyOf.
+            # aguarda (polling 1ms) até um terminar -- paridade JVM anyOf.
             # frame: 2 push + subq 16 -> rsp≡8 nos calls.
             .globl kof_select_any
             .type kof_select_any, @function

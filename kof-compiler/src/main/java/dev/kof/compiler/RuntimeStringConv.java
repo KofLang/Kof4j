@@ -4,7 +4,7 @@ package dev.kof.compiler;
  * Emissão do ASM de conversão de tipos → String (kof_int_to_string,
  * kof_char_to_string, kof_long_to_string, kof_bool_to_string,
  * kof_float_to_string, kof_double_to_string) do runtime nativo. Domínio
- * isolado do NativeRuntime — a extração NÃO muda o corpo (refactor preserva
+ * isolado do NativeRuntime -- a extração NÃO muda o corpo (refactor preserva
  * semântica).
  */
 final class RuntimeStringConv {
