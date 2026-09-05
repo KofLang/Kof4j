@@ -136,6 +136,7 @@ exceções/switch/finally, tipos, geração de fonte):
 `invokedynamic`, stdlib com mapeamento não-trivial, múltiplos catches
 aninhados — nunca fabrica comportamento.
 
-Prioridade restante (DECOMPILER §3): mapeamento da **stdlib**
-(`System.out.println` → `println`, `Math.*`, etc.) — um trabalho próprio,
-equivalente ao translator (TRANSLATOR.md), não uma lacuna do controle de fluxo.
+Mapeamento de **stdlib** (parcial — as chamadas mais comuns):
+- `System.out.println(x)` → `println(x)` · `System.out.print(x)` → `print(x)`
+- `String.length()` → `.length` (propriedade) · `String.equals(b)` → `== b`
+- demais (`Math.*`, coleções) caem no fallback honesto — extensão futura.
