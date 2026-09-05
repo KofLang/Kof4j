@@ -618,16 +618,6 @@ private Target target = Target.JVM;
             if (decl instanceof ClassDeclarationNode cls) classes.add(lowerClass(cls, declPkg, nextTypeId++));
             else if (decl instanceof InterfaceDeclarationNode iface) classes.add(lowerInterface(iface, declPkg, nextTypeId++));
             else if (decl instanceof RecordDeclarationNode rec) classes.add(lowerRecord(rec, declPkg, nextTypeId++));
-            else if (decl instanceof EntityDeclarationNode ent) {
-                entitySchemas.put(ent.name(), ent.fields());
-                List<RecordComponentNode> components = new java.util.ArrayList<>();
-                for (EntityFieldNode f : ent.fields()) {
-                    components.add(new RecordComponentNode(f.position(), List.of(), f.type(), f.name(), null));
-                }
-                classes.add(lowerRecord(new RecordDeclarationNode(ent.position(), ent.name(),
-                        ent.modifiers(), null, List.of(), components, List.of()),
-                        declPkg, nextTypeId++));
-            }
             else if (decl instanceof FunctionDeclarationNode func) {
                 topLevelFunctions.add(lowerFunction(func));
                 topLevelFunctions.addAll(lowerFunctionDefaults(func));
@@ -768,12 +758,32 @@ private Target target = Target.JVM;
     }
 
     private CompilationUnitNode runCodegen(CompilationUnitNode unit) {
-        List<CodegenStep> steps = List.of(this::desugarTests, this::desugarApplication);
+        List<CodegenStep> steps = List.of(this::desugarEntity, this::desugarTests, this::desugarApplication);
         CompilationUnitNode cur = unit;
         for (CodegenStep step : steps) {
             cur = step.apply(cur);
         }
         return cur;
+    }
+
+    /** R4: `entity X { ... }` → `record` + schema registrado (codegen, zero reflection). */
+    private CompilationUnitNode desugarEntity(CompilationUnitNode unit) {
+        java.util.List<AstNode> decls = new ArrayList<>();
+        for (AstNode d : unit.declarations()) {
+            if (d instanceof EntityDeclarationNode ent) {
+                entitySchemas.put(ent.name(), ent.fields());
+                List<RecordComponentNode> components = new ArrayList<>();
+                for (EntityFieldNode f : ent.fields()) {
+                    components.add(new RecordComponentNode(f.position(), List.of(), f.type(), f.name(), null));
+                }
+                decls.add(new RecordDeclarationNode(ent.position(), ent.name(), ent.modifiers(),
+                        null, List.of(), components, List.of(), ent.annotations()));
+            } else {
+                decls.add(d);
+            }
+        }
+        return new CompilationUnitNode(unit.position(), unit.packageName(), unit.imports(),
+                java.util.Collections.unmodifiableList(decls));
     }
 
 
