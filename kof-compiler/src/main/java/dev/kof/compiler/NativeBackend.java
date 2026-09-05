@@ -1212,31 +1212,26 @@ public class NativeBackend implements Backend {
                     || "long".equals(pt.name()) || "short".equals(pt.name()) || "byte".equals(pt.name()))) {
                 sb.append("    popq %rdi\n");
                 sb.append("    call kof_print_int\n");
-                sb.append("    pushq $0\n");
                 sb.append("    leaq .Lnewline(%rip), %rdi\n");
                 sb.append("    call kof_print\n");
             } else if (argType instanceof Type.PrimitiveType pt && isFloatType(pt)) {
                 sb.append("    popq %rdi\n");
                 sb.append("    movd %edi, %xmm0\n");
                 sb.append("    call kof_print_float\n");
-                sb.append("    pushq $0\n");
                 sb.append("    leaq .Lnewline(%rip), %rdi\n");
                 sb.append("    call kof_print\n");
             } else if (argType instanceof Type.PrimitiveType pt && isDoubleType(pt)) {
                 sb.append("    popq %rdi\n");
                 sb.append("    movq %rdi, %xmm0\n");
                 sb.append("    call kof_print_double\n");
-                sb.append("    pushq $0\n");
                 sb.append("    leaq .Lnewline(%rip), %rdi\n");
                 sb.append("    call kof_print\n");
             } else if (BuiltinTypes.isString(argType)) {
                 sb.append("    popq %rdi\n");
                 sb.append("    call kof_println_string\n");
-                sb.append("    pushq $0\n");
             } else {
                 sb.append("    popq %rdi\n");
                 sb.append("    call kof_println\n");
-                sb.append("    pushq $0\n");
             }
             return;
         }
@@ -1245,21 +1240,17 @@ public class NativeBackend implements Backend {
             if (BuiltinTypes.isString(argType)) {
                 sb.append("    popq %rdi\n");
                 sb.append("    call kof_print_string\n");
-                sb.append("    pushq $0\n");
             } else if (argType instanceof Type.PrimitiveType pt && isFloatType(pt)) {
                 sb.append("    popq %rdi\n");
                 sb.append("    movd %edi, %xmm0\n");
                 sb.append("    call kof_print_float\n");
-                sb.append("    pushq $0\n");
             } else if (argType instanceof Type.PrimitiveType pt && isDoubleType(pt)) {
                 sb.append("    popq %rdi\n");
                 sb.append("    movq %rdi, %xmm0\n");
                 sb.append("    call kof_print_double\n");
-                sb.append("    pushq $0\n");
             } else {
                 sb.append("    popq %rdi\n");
                 sb.append("    call kof_print\n");
-                sb.append("    pushq $0\n");
             }
             return;
         }
@@ -1527,7 +1518,14 @@ public class NativeBackend implements Backend {
         }
         if (kc.kind() == KofCallKind.STATIC && "valueOf".equals(kc.methodName())) {
             Type argType = kc.parameterTypes().isEmpty() ? Type.UnknownType.UNKNOWN : kc.parameterTypes().get(0);
-            if (argType instanceof Type.PrimitiveType pt && ("int".equals(pt.name()) || "char".equals(pt.name())
+            if (argType instanceof Type.PrimitiveType pt && "char".equals(pt.name())) {
+                // char → string UTF-8 (kof_int_to_string imprimia o
+                // número do codepoint: String.valueOf(0xE9 as Char)
+                // devolvia "233" em vez de "é")
+                sb.append("    popq %rdi\n");
+                sb.append("    call kof_char_to_string\n");
+                sb.append("    pushq %rax\n");
+            } else if (argType instanceof Type.PrimitiveType pt && ("int".equals(pt.name())
                     || "short".equals(pt.name()) || "byte".equals(pt.name()))) {
                 sb.append("    popq %rdi\n");
                 sb.append("    call kof_int_to_string\n");
