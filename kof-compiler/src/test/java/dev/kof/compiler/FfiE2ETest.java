@@ -87,6 +87,24 @@ class FfiE2ETest {
     }
 
     @Test
+    void libcFabsDoubleToDouble(@TempDir Path dir) throws IOException {
+        Path src = dir.resolve("ffi-double.kf");
+        Files.writeString(src, """
+                extern "libm.so.6" sqrt(Double x): Double
+
+                main() {
+                    println(sqrt(9.0))
+                }
+                """);
+
+        Path out = dir.resolve("out-double");
+        CompilationResult result = driver.compile(src, out, Target.JVM);
+        assertTrue(result.success(), "JVM double extern must compile: "
+                + result.diagnostics().getDiagnostics());
+        assertEquals("3.0", runJava(out));
+    }
+
+    @Test
     void libcAbsEndToEnd(@TempDir Path dir) throws IOException {
         Path src = dir.resolve("ffi.kf");
         Files.writeString(src, """

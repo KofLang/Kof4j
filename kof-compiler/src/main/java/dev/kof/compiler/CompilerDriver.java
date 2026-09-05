@@ -830,14 +830,20 @@ private Target target = Target.JVM;
     /** FFI (R3): declarações {@code extern} por nome (preenchido no lowering). */
     private final java.util.Map<String, ExternalFunctionNode> externSignatures = new java.util.LinkedHashMap<>();
 
-    /** FFI (R3): binding implementado para Int→Int e String→Int (2.1.4/2.1.5/2.1.6). */
+    /** FFI (R3): binding suportado — JVM: Int→Int, String→Int, Double→Double;
+     *  Native x86-64: Int→Int, String→Int. */
     private boolean isExternBound(ExternalFunctionNode ext) {
-        // JVM (FFM) e Native x86-64 (dlopen/dlsym) — não JS/RISC-V/ARM ainda.
-        if (target != Target.JVM && target != Target.NATIVE) return false;
         if (ext.parameters().size() != 1) return false;
         String p = ext.parameters().get(0).type();
         String r = ext.returnType();
-        return isIntType(r) && (isIntType(p) || isStringType(p));
+        if (target == Target.JVM) {
+            return (isIntType(r) && (isIntType(p) || isStringType(p)))
+                    || (isDoubleType(r) && isDoubleType(p));
+        }
+        if (target == Target.NATIVE) {
+            return isIntType(r) && (isIntType(p) || isStringType(p));
+        }
+        return false;
     }
 
     private static boolean isIntType(String t) {
@@ -846,6 +852,10 @@ private Target target = Target.JVM;
 
     private static boolean isStringType(String t) {
         return "String".equals(t) || "string".equals(t);
+    }
+
+    private static boolean isDoubleType(String t) {
+        return "double".equals(t) || "Double".equals(t);
     }
     private final java.util.IdentityHashMap<LambdaExpr, String> lambdaClassNames = new java.util.IdentityHashMap<>();
     /** Pontes super.metodo() geradas para lambdas: dono interno → método. */
@@ -3081,16 +3091,30 @@ private Target target = Target.JVM;
                     ExternalFunctionNode ext = externSignatures.get(mc.methodName());
                     if (isExternBound(ext)) {
                         // FFI: empilha lib, nome e o argumento, chama kof_ffi_*.
-                        boolean strArg = isStringType(ext.parameters().get(0).type());
-                        String helper = strArg ? "kof_ffi_si" : "kof_ffi_i";
-                        Type argType = strArg ? BuiltinTypes.STRING : Type.PrimitiveType.INT;
+                        String p = ext.parameters().get(0).type();
+                        String helper;
+                        Type argType;
+                        Type retType;
+                        if (isDoubleType(p)) {
+                            helper = "kof_ffi_dd";
+                            argType = Type.PrimitiveType.DOUBLE;
+                            retType = Type.PrimitiveType.DOUBLE;
+                        } else if (isStringType(p)) {
+                            helper = "kof_ffi_si";
+                            argType = BuiltinTypes.STRING;
+                            retType = Type.PrimitiveType.INT;
+                        } else {
+                            helper = "kof_ffi_i";
+                            argType = Type.PrimitiveType.INT;
+                            retType = Type.PrimitiveType.INT;
+                        }
                         ops.add(new KofLoadLiteral(BuiltinTypes.STRING,
                                 ext.library() != null ? ext.library() : ""));
                         ops.add(new KofLoadLiteral(BuiltinTypes.STRING, ext.name()));
                         localIdx = emitExpression(mc.arguments().get(0), ops, owner, localIdx, locals);
                         ops.add(new KofCall(new Type.ClassType("kof", "ffi", List.of()), helper,
                                 List.of(BuiltinTypes.STRING, BuiltinTypes.STRING, argType),
-                                Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+                                retType, KofCallKind.FUNCTION));
                         yield localIdx;
                     }
                 }
