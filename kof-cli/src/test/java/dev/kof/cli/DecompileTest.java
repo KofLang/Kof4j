@@ -259,6 +259,37 @@ class DecompileTest {
         assertTrue(result.success(), "decompiled deve compilar:\n" + kof + "\n" + result.diagnostics().getDiagnostics());
     }
 
+    @Test
+    void recoversSwitch(@TempDir Path dir) throws Exception {
+        Path javaFile = dir.resolve("Sw.java");
+        Files.writeString(javaFile, """
+                public class Sw {
+                    public static int sign(int n) {
+                        switch (n) {
+                            case 0: return 5;
+                            case 1: return 7;
+                            default: return 9;
+                        }
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+
+        String kof = Decompile.decompile(dir.resolve("Sw.class"));
+
+        assertTrue(kof.contains("switch (arg0)"), "deve ter switch:\n" + kof);
+        assertTrue(kof.contains("case 0: return 5"), "case 0:\n" + kof);
+        assertTrue(kof.contains("case 1: return 7"), "case 1:\n" + kof);
+        assertTrue(kof.contains("default: return 9"), "default:\n" + kof);
+        assertFalse(kof.contains("throw \"body not recovered\""), "não deve ter stub:\n" + kof);
+
+        Path out = dir.resolve("Sw.kf");
+        Files.writeString(out, kof);
+        CompilerDriver driver = new CompilerDriver();
+        CompilationResult result = driver.compile(out, dir.resolve("out"), Target.JVM);
+        assertTrue(result.success(), "decompiled deve compilar:\n" + kof + "\n" + result.diagnostics().getDiagnostics());
+    }
+
     private void runJavac(Path javaFile, Path dir) throws IOException, InterruptedException {
         String javaHome = System.getProperty("java.home");
         Path javac = Path.of(javaHome, "bin", "javac");

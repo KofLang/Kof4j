@@ -352,6 +352,8 @@ final class BytecodeDecoder {
 
     static List<String> recoverStatements(byte[] code, String[] cp, int paramCount, boolean isStatic, int[][] handlers) {
         List<BytecodeReader.Insn> insns = BytecodeReader.decode(code);
+        List<String> sw = recoverSwitch(code, insns, cp, paramCount, isStatic);
+        if (sw != null) return sw;
         if (handlers != null && handlers.length > 0) {
             List<String> tc = tryCatch(insns, cp, paramCount, isStatic, handlers);
             if (tc != null) return tc;
@@ -409,6 +411,96 @@ final class BytecodeDecoder {
             if (in.offset() >= from && in.offset() < to) out.add(in);
         }
         return out;
+    }
+
+    // ── switch (tableswitch/lookupswitch) ─────────────────────────────────
+
+    private record SwitchInfo(int dflt, int[] values, int[] targets) {
+    }
+
+    private static SwitchInfo parseSwitch(byte[] code, int pc) {
+        int op = code[pc] & 0xFF;
+        if (op != 0xaa && op != 0xab) return null;
+        int pad = (4 - ((pc + 1) % 4)) % 4;
+        int p = pc + 1 + pad;
+        if (p + 4 > code.length) return null;
+        int dflt = pc + readInt4(code, p);
+        p += 4;
+        if (op == 0xaa) {
+            int low = readInt4(code, p); p += 4;
+            int high = readInt4(code, p); p += 4;
+            int n = high - low + 1;
+            if (n < 0 || p + n * 4 > code.length) return null;
+            int[] values = new int[n];
+            int[] targets = new int[n];
+            for (int i = 0; i < n; i++) {
+                values[i] = low + i;
+                targets[i] = pc + readInt4(code, p);
+                p += 4;
+            }
+            return new SwitchInfo(dflt, values, targets);
+        }
+        int npairs = readInt4(code, p); p += 4;
+        if (npairs < 0 || p + npairs * 8 > code.length) return null;
+        int[] values = new int[npairs];
+        int[] targets = new int[npairs];
+        for (int i = 0; i < npairs; i++) {
+            values[i] = readInt4(code, p); p += 4;
+            targets[i] = pc + readInt4(code, p);
+            p += 4;
+        }
+        return new SwitchInfo(dflt, values, targets);
+    }
+
+    private static int readInt4(byte[] code, int pc) {
+        return (code[pc] << 24) | ((code[pc + 1] & 0xFF) << 16)
+             | ((code[pc + 2] & 0xFF) << 8) | (code[pc + 3] & 0xFF);
+    }
+
+    private static List<String> recoverSwitch(byte[] code, List<BytecodeReader.Insn> insns,
+                                              String[] cp, int paramCount, boolean isStatic) {
+        // localiza o switch
+        int swOff = -1;
+        int swOp = -1;
+        for (int pc = 0; pc < code.length; ) {
+            int op = code[pc] & 0xFF;
+            if (op == 0xaa || op == 0xab) { swOff = pc; swOp = op; break; }
+            int l = BytecodeReader.length(op);
+            pc += (l == -1) ? 1 : l;
+        }
+        if (swOff < 0) return null;
+        SwitchInfo si = parseSwitch(code, swOff);
+        if (si == null) return null;
+
+        // expressão do switch = topo da pilha antes do switch
+        String expr = linearReturn(range(insns, 0, swOff), cp, paramCount, isStatic);
+        if (expr == null) return null;
+
+        // limites (targets ordenados) p/ reconstruir cada corpo
+        java.util.TreeSet<Integer> bounds = new java.util.TreeSet<>();
+        bounds.add(si.dflt);
+        for (int t : si.targets) bounds.add(t);
+        int maxOff = insns.get(insns.size() - 1).offset() + 1;
+
+        List<String> out = new ArrayList<>();
+        out.add("switch (" + expr + ") {");
+        for (int i = 0; i < si.targets.length; i++) {
+            int bodyEnd = nextBound(bounds, si.targets[i], maxOff);
+            String val = linearReturn(range(insns, si.targets[i], bodyEnd), cp, paramCount, isStatic);
+            if (val == null) return null;
+            out.add("case " + si.values[i] + ": return " + val);
+        }
+        int dfltEnd = nextBound(bounds, si.dflt, maxOff);
+        String dfltVal = linearReturn(range(insns, si.dflt, dfltEnd), cp, paramCount, isStatic);
+        if (dfltVal == null) return null;
+        out.add("default: return " + dfltVal);
+        out.add("}");
+        return out;
+    }
+
+    private static int nextBound(java.util.TreeSet<Integer> bounds, int start, int maxOff) {
+        Integer higher = bounds.higher(start);
+        return higher == null ? maxOff : higher;
     }
 
     private static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
