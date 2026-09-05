@@ -30,7 +30,7 @@ Estados: `ABERTO` · `EM CURSO` · `FEITO` · `BLOQUEADO`.
 
 | Gap/Item | Estado | Dono | Data | Prova |
 |---|---|---|---|---|
-| **Plataforma de migração legado** — Fases A–H (`kof inspect/decompile/translate/compare/migrate` + `Confidence`) | `FEITO` | agente-planning | 05/09 | branch `planning-future`; `ClassFileParser`+`Confidence`+CLIs; suíte **855/0**; commits `34ded81`→`98a4d8b` |
+| **Plataforma de migração legado** — Fases A–H (`kof inspect/decompile/translate/compare/migrate` + `Confidence`) | `FEITO` | agente-planning | 05/09 | branch `planning-future`; `ClassFileParser`+`Confidence`+CLIs; `BytecodeDecoder` recupera corpos simples (aritmética → expression body, else stub UNKNOWN); suíte **938/0**; commits `34ded81`→`0dfd5b8` |
 | **FFI formalizado** — TIER 2.1 (`extern` + gap FFI001/002 + binding real JVM(FFM)+Native(dlopen/dlsym), marshalling Int/String/Double/Int[]) | `FEITO` | agente-planning | 05/09 | `FfiE2ETest` 6/6 (libc `abs`/`atoi`, libm `sqrt`, `.so` gcc `arr_sum`); suíte 935/0 |
 | **Codegen hook + ct-eval + entity** — TIER 2.2/2.3 (`CodegenStep` pipeline: desugarEntity/Tests/Application + string-concat folding) | `FEITO` | agente-planning | 05/09 | `OptimizerTest` 22/22 + `KofOrmE2ETest` 22/0 + suíte 935/0 |
 | **TIER 2.4/2.5** — scoped-resources (design) + variance/sealed (deferir) | `FEITO` | agente-planning | 05/09 | `docs/future/scoped-resources-plan.md` + decisão em `IMPLEMENTATION_PLAN.md` |
