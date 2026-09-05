@@ -114,6 +114,31 @@ class DecompileTest {
         assertTrue(result.success(), "decompiled deve compilar:\n" + kof + "\n" + result.diagnostics().getDiagnostics());
     }
 
+    @Test
+    void recoversIfElseReturn(@TempDir Path dir) throws Exception {
+        Path javaFile = dir.resolve("Max.java");
+        Files.writeString(javaFile, """
+                public class Max {
+                    public static int max(int a, int b) { if (a > b) return a; return b; }
+                    public static int abs(int x) { if (x >= 0) return x; return -x; }
+                }
+                """);
+        runJavac(javaFile, dir);
+
+        String kof = Decompile.decompile(dir.resolve("Max.class"));
+
+        assertTrue(kof.contains("max(Int arg0, Int arg1) = if (arg0 > arg1) arg0 else arg1"),
+                "max deve virar if-expression:\n" + kof);
+        assertTrue(kof.contains("abs(Int arg0) = if (arg0 >= 0) arg0 else -arg0"),
+                "abs deve virar if-expression com negação:\n" + kof);
+
+        Path out = dir.resolve("Max.kf");
+        Files.writeString(out, kof);
+        CompilerDriver driver = new CompilerDriver();
+        CompilationResult result = driver.compile(out, dir.resolve("out"), Target.JVM);
+        assertTrue(result.success(), "decompiled deve compilar:\n" + kof + "\n" + result.diagnostics().getDiagnostics());
+    }
+
     private void runJavac(Path javaFile, Path dir) throws IOException, InterruptedException {
         String javaHome = System.getProperty("java.home");
         Path javac = Path.of(javaHome, "bin", "javac");
