@@ -102,6 +102,7 @@ final class NativeRuntime {
         RuntimeNet.emitNetWrite(sb);
         RuntimeNet.emitNetClose(sb);
         RuntimeMisc.emitInstanceof(sb);
+        RuntimeSecurityData.emit(sb);
         RuntimeSecurity1.emit(sb);
         RuntimeSecurity2.emit(sb);
         RuntimeSecurity3.emit(sb);
