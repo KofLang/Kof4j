@@ -24,6 +24,29 @@ Regra de ouro: **nunca dois agentes no mesmo gap ou no mesmo arquivo gigante**
 (`NativeRuntime.java`, `CompilerDriver.java`) ao mesmo tempo. Se for
 inevitável, combine no chat antes.
 
+### Lição aprendida (04/09) — trabalhe SEMPRE em partes pequenas
+
+> **Nunca tente gravar/produzir um artefato grande de uma vez.** O plano de
+> refactoring `docs/refactoring/PLAN-SOLID-500.md` (120 classes, 8 fases) foi
+> perdido uma vez porque o agente tentou escrever o documento inteiro num único
+> `write`. A lição:
+
+- **Um passo por vez.** Cada ação (write/edit/commit) resolve UMA unidade
+  coesa e pequena. Se a resposta precisa de >1 ação grande, divida em várias
+  respostas com commit entre elas.
+- **Commite cedo e sempre.** Toda unidade concluída vira commit isolado
+  (`git add -A && git commit`), mesmo que "pareça incompleta" — o próximo
+  passo continua de onde parou.
+- **Arquivos grandes são editados em pedaços.** Ler/editar um arquivo de 17k
+  linhas aos poucos (nunca `read` de 2000+ linhas de uma vez se não precisar).
+- **Se a tarefa parece maior que a janela**, crie o esqueleto/documento-enxuto
+  primeiro, commite, e preencha incrementalmente.
+- **A regra ≤500 linhas/classe existe exatamente porque** "fazer tudo de uma
+  vez" vira código impossível de carregar/manter. O agente é parte do sistema:
+  agir pequeno é seguir a própria regra que aplicamos ao código.
+
+Isso vale para código, docs, planos e testes: **pequeno é sustentável.**
+
 ### Status visível — `todowrite` (obrigatório, a cada etapa)
 
 `DOING.md` é a memória **persistente** do repo (sobrevive entre sessões e
