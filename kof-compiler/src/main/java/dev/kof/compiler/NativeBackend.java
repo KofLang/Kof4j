@@ -5308,6 +5308,29 @@ public class NativeBackend implements Backend {
                 ret
             .globl kof_time_sleep
             kof_time_sleep:
+                # a0 = ms. nanosleep (syscall 101 asm-generic) com timespec
+                # {tv_sec=ms/1000, tv_nsec=(ms%1000)*1e6} na stack. Antes era
+                # stub `ret` (time.sleep nao dormia no cross — R6).
+                addi sp, sp, -48
+                sd   ra, 40(sp)
+                sd   s0, 32(sp)
+                sd   s1, 24(sp)
+                mv   s0, a0
+                li   t0, 1000
+                div  s1, s0, t0            # sec
+                rem  t1, s0, t0            # ms%1000
+                li   t2, 1000000
+                mul  t1, t1, t2            # nsec
+                sd   s1, 0(sp)             # timespec.tv_sec
+                sd   t1, 8(sp)             # timespec.tv_nsec
+                mv   a0, sp                # &ts
+                mv   a1, zero              # rem = NULL
+                li   a7, 101
+                ecall
+                ld   s1, 24(sp)
+                ld   s0, 32(sp)
+                ld   ra, 40(sp)
+                addi sp, sp, 48
                 ret
             .globl kof_time_interval
             kof_time_interval:

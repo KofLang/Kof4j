@@ -529,6 +529,21 @@ class NativeRiscv64E2ETest {
         assertEquals("# TYPE req counter\nreq 4\n# TYPE temp gauge\ntemp 42", out);
     }
 
+    // NATIVE002-stdlib: time.sleep real (nanosleep 101) — antes era stub
+    // `ret` (não dormia; R6). Pré-requisito do scheduler.
+    @Test
+    void riscv64TimeSleep(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runRiscv64(tempDir, """
+            main() {
+                var t0 = time.now()
+                time.sleep(300)
+                println(time.now() - t0 >= 280)
+            }
+            """);
+        assertEquals("true", out);
+    }
+
     private static int startHttpServer() throws IOException {
         java.net.ServerSocket ss = new java.net.ServerSocket(0);
         int port = ss.getLocalPort();
