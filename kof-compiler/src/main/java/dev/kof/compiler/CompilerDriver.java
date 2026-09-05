@@ -848,13 +848,13 @@ private Target target = Target.JVM;
         int idx = 1;
         for (Type pt : paramTypes) {
             locals.add(new IRLocalVariable(idx, "arg" + idx, pt));
-            idx += isDoubleWidth(pt) ? 2 : 1;
+            idx += TypeMetrics.isDoubleWidth(pt) ? 2 : 1;
         }
         ops.add(new KofLoadLocal(ownerT, 0));
         int argIdx = 1;
         for (Type pt : paramTypes) {
             ops.add(new KofLoadLocal(pt, argIdx));
-            argIdx += isDoubleWidth(pt) ? 2 : 1;
+            argIdx += TypeMetrics.isDoubleWidth(pt) ? 2 : 1;
         }
         ops.add(new KofCall(superT, methodName, paramTypes, returnType, KofCallKind.SUPER));
         if (Type.isVoid(returnType)) ops.add(new KofReturnVoid());
@@ -1063,7 +1063,7 @@ private Target target = Target.JVM;
         for (ExpressionNode b : binds) {
             Type bt = inferExprType(b, locals);
             localIdx = emitExpression(b, ops, owner, localIdx, locals);
-            if (isPrimitiveType(bt)) boxPrimitive(ops, bt);
+            if (TypeMetrics.isPrimitiveType(bt)) boxPrimitive(ops, bt);
         }
         // 4) className
         ops.add(new KofLoadLiteral(BuiltinTypes.STRING, classNameFor(entity)));
@@ -1304,7 +1304,7 @@ private Target target = Target.JVM;
         int paramSlot = 1;
         for (int i = 0; i < params.size(); i++) {
             paramSlots[i] = paramSlot;
-            paramSlot += isDoubleWidth(paramTypes.get(i)) ? 2 : 1;
+            paramSlot += TypeMetrics.isDoubleWidth(paramTypes.get(i)) ? 2 : 1;
         }
         int captureBase = paramSlot;
         int captureSlot = captureBase;
@@ -1313,7 +1313,7 @@ private Target target = Target.JVM;
             ops.add(new KofLoadField(ownerType, cap.name(), cap.type()));
             ops.add(new KofStoreLocal(cap.type(), captureSlot));
             locals.add(new IRLocalVariable(captureSlot, cap.name(), cap.type()));
-            captureSlot += isDoubleWidth(cap.type()) ? 2 : 1;
+            captureSlot += TypeMetrics.isDoubleWidth(cap.type()) ? 2 : 1;
         }
         localIdx = captureSlot;
         for (int i = 0; i < params.size(); i++) {
@@ -1366,7 +1366,7 @@ private Target target = Target.JVM;
             ctorOps.add(new KofLoadLocal(cap.type(), cidx));
             ctorOps.add(new KofStoreField(ownerType, cap.name(), cap.type()));
             ctorLocals.add(new IRLocalVariable(cidx, cap.name(), cap.type()));
-            cidx += isDoubleWidth(cap.type()) ? 2 : 1;
+            cidx += TypeMetrics.isDoubleWidth(cap.type()) ? 2 : 1;
         }
         ctorOps.add(new KofReturnVoid());
         IRMethod ctor = new IRMethod("<init>", Type.PrimitiveType.VOID, captureTypes,
@@ -2079,7 +2079,7 @@ private Target target = Target.JVM;
             for (FormalParameterNode p : func.parameters()) {
                 Type pt = resolveWithTypeParams(p.type(), func.typeParameters());
                 tmpLocals.add(new IRLocalVariable(tmpIdx, p.name(), pt));
-                tmpIdx += isDoubleWidth(pt) ? 2 : 1;
+                tmpIdx += TypeMetrics.isDoubleWidth(pt) ? 2 : 1;
             }
             for (StatementNode stmt : func.body()) {
                 if (stmt instanceof VarDeclStmt vds && vds.initializer() != null) {
@@ -2087,7 +2087,7 @@ private Target target = Target.JVM;
                             ? toType(vds.type())
                             : inferExprType(vds.initializer(), tmpLocals);
                     tmpLocals.add(new IRLocalVariable(tmpIdx, vds.name(), vt));
-                    tmpIdx += isDoubleWidth(vt) ? 2 : 1;
+                    tmpIdx += TypeMetrics.isDoubleWidth(vt) ? 2 : 1;
                 }
                 if (stmt instanceof ReturnStmt ret && ret.value() != null) {
                     Type inferred = inferExprType(ret.value(), tmpLocals);
@@ -2144,7 +2144,7 @@ private Target target = Target.JVM;
         for (FormalParameterNode p : func.parameters()) {
             Type paramType = resolveWithTypeParams(p.type(), func.typeParameters());
             locals.add(new IRLocalVariable(localIdx, p.name(), paramType));
-            localIdx += isDoubleWidth(paramType) ? 2 : 1;
+            localIdx += TypeMetrics.isDoubleWidth(paramType) ? 2 : 1;
         }
         java.util.Set<String> savedMutated = mutatedCapturedNames;
         mutatedCapturedNames = new java.util.HashSet<>();
@@ -2340,7 +2340,7 @@ private Target target = Target.JVM;
                 // int num slot Object invalidava o bytecode.
                 if (erasesToReference(varType)
                         && vds.initializer() != null
-                        && isPrimitiveType(inferExprType(vds.initializer(), locals))) {
+                        && TypeMetrics.isPrimitiveType(inferExprType(vds.initializer(), locals))) {
                     emitErasureBox(ops, inferExprType(vds.initializer(), locals));
                 }
                 // declaração sem inicializador: default (0 primitivo / null
@@ -2352,7 +2352,7 @@ private Target target = Target.JVM;
                 }
                 ops.add(new KofStoreLocal(varType, localIdx));
                 locals.add(new IRLocalVariable(localIdx, vds.name(), varType));
-                yield localIdx + (isDoubleWidth(varType) ? 2 : 1);
+                yield localIdx + (TypeMetrics.isDoubleWidth(varType) ? 2 : 1);
             }
             case BlockStmt block -> {
                 int idx = localIdx;
@@ -3080,7 +3080,7 @@ private Target target = Target.JVM;
                     }
                     if ("instanceof".equals(bin.operator())) {
                         ops.add(new KofInstanceOf(targetType));
-                    } else if (isPrimitiveType(targetType) && isPrimitiveType(inferExprType(bin.left(), locals))) {
+                    } else if (TypeMetrics.isPrimitiveType(targetType) && TypeMetrics.isPrimitiveType(inferExprType(bin.left(), locals))) {
                         // cast primitivo (x as Char/Int/…): conversão numérica,
                         // NÃO checkcast (que exigiria um objeto na pilha)
                         Type fromT = inferExprType(bin.left(), locals);
@@ -3159,10 +3159,10 @@ private Target target = Target.JVM;
                         case "+", "-", "*", "/", "%" -> true;
                         default -> false;
                     };
-                    boolean isNumericComparison = isComparisonOp(be.operator())
-                            && isNumeric(accType) && isNumeric(rightType);
+                    boolean isNumericComparison = TypeMetrics.isComparisonOp(be.operator())
+                            && TypeMetrics.isNumeric(accType) && TypeMetrics.isNumeric(rightType);
                     if ((isArithmetic || isNumericComparison)
-                            && isNumeric(accType) && isNumeric(rightType)) {
+                            && TypeMetrics.isNumeric(accType) && TypeMetrics.isNumeric(rightType)) {
                         // OBS-009: divisão (ou resto) por zero constante é
                         // detectada em compile-time — o compilador conhece a
                         // intenção; o usuário não vê o ArithmeticException do
@@ -3182,14 +3182,14 @@ private Target target = Target.JVM;
                             }
                             yield localIdx;
                         }
-                        Type commonType = commonNumericType(accType, rightType);
+                        Type commonType = TypeMetrics.commonNumericType(accType, rightType);
                         if (!fpSupportedOnNative(commonType, be.position())) {
                             yield localIdx;
                         }
                         emitWideningIfNeeded(ops, accType, commonType);
                         localIdx = emitExpression(be.right(), ops, owner, localIdx, locals);
                         emitWideningIfNeeded(ops, rightType, commonType);
-                        ops.add(new KofBinary(mapArithmeticOp(be.operator()), commonType));
+                        ops.add(new KofBinary(TypeMetrics.mapArithmeticOp(be.operator()), commonType));
                         accType = commonType;
                     } else if ("+".equals(be.operator())
                             && (Type.isString(accType) || Type.isString(rightType))) {
@@ -3198,20 +3198,20 @@ private Target target = Target.JVM;
                         // SÓ pula quando o target não suporta FP (agora os 3
                         // suportam — FLT001 fechado; o yield incondicional
                         // descartava o operando: "a=" + 1.5 virava só "a=").
-                        if (((Type.isString(accType) && isFloatingPoint(rightType))
-                                || (Type.isString(rightType) && isFloatingPoint(accType)))
-                                && !fpSupportedOnNative(isFloatingPoint(rightType) ? rightType : accType,
+                        if (((Type.isString(accType) && TypeMetrics.isFloatingPoint(rightType))
+                                || (Type.isString(rightType) && TypeMetrics.isFloatingPoint(accType)))
+                                && !fpSupportedOnNative(TypeMetrics.isFloatingPoint(rightType) ? rightType : accType,
                                         be.position())) {
                             yield localIdx;
                         }
-                        if (!Type.isString(accType) && isPrimitiveType(accType)) boxPrimitive(ops, accType);
+                        if (!Type.isString(accType) && TypeMetrics.isPrimitiveType(accType)) boxPrimitive(ops, accType);
                         ops.add(new KofCall(BuiltinTypes.STRING, "valueOf",
                                 List.of(target.isNative() && !Type.isString(accType)
                                         && !(accType instanceof Type.PrimitiveType)
                                         ? accType : Type.UnknownType.UNKNOWN),
                                 BuiltinTypes.STRING, KofCallKind.STATIC));
                         localIdx = emitExpression(be.right(), ops, owner, localIdx, locals);
-                        if (!Type.isString(rightType) && isPrimitiveType(rightType)) boxPrimitive(ops, rightType);
+                        if (!Type.isString(rightType) && TypeMetrics.isPrimitiveType(rightType)) boxPrimitive(ops, rightType);
                         ops.add(new KofCall(BuiltinTypes.STRING, "valueOf",
                                 List.of(target.isNative() && !Type.isString(rightType)
                                         && !(rightType instanceof Type.PrimitiveType)
@@ -3224,10 +3224,10 @@ private Target target = Target.JVM;
                     } else if (("==".equals(be.operator()) || "!=".equals(be.operator()))
                             && ((be.right() instanceof LiteralExpr rl
                                     && rl.kind() == ConcreteLiteralKind.NULL
-                                    && isPrimitiveType(accType))
+                                    && TypeMetrics.isPrimitiveType(accType))
                                 || (be.left() instanceof LiteralExpr ll
                                     && ll.kind() == ConcreteLiteralKind.NULL
-                                    && isPrimitiveType(rightType)))) {
+                                    && TypeMetrics.isPrimitiveType(rightType)))) {
                         // primitivo nunca é null: == → false, != → true
                         // (o lado não-nulo já está na pilha — descarta)
                         ops.add(new KofPop());
@@ -3882,7 +3882,7 @@ private Target target = Target.JVM;
                             "out", new Type.ClassType("java.io", "PrintStream", List.of())));
                     localIdx = emitExpression(mc.arguments().get(0), ops, owner, localIdx, locals);
                     Type argType = inferExprType(mc.arguments().get(0), locals);
-                    if (isPrimitiveType(argType)) {
+                    if (TypeMetrics.isPrimitiveType(argType)) {
                         if (target.isNative()) {
                             // println(char) é NUMÉRICO (congelado: strings.md
                             // "72 (H)" + execStringCharAt). valueOf(char) solto
@@ -3993,7 +3993,7 @@ private Target target = Target.JVM;
                             ops.add(new KofStoreLocal(argType, localIdx));
                             locals.add(new IRLocalVariable(localIdx, "#jsonobj", argType));
                             int objTmp = localIdx;
-                            localIdx += isDoubleWidth(argType) ? 2 : 1;
+                            localIdx += TypeMetrics.isDoubleWidth(argType) ? 2 : 1;
                             // acc = "{"
                             ops.add(new KofLoadLiteral(BuiltinTypes.STRING, "{"));
                             for (int fi = 0; fi < flds.size(); fi++) {
@@ -4218,7 +4218,7 @@ private Target target = Target.JVM;
                         for (int ai = 0; ai < mc.arguments().size(); ai++) {
                             ExpressionNode arg = mc.arguments().get(ai);
                             localIdx = emitExpression(arg, ops, owner, localIdx, locals);
-                            if (ai > 0 && isPrimitiveType(inferExprType(arg, locals))) {
+                            if (ai > 0 && TypeMetrics.isPrimitiveType(inferExprType(arg, locals))) {
                                 boxPrimitive(ops, inferExprType(arg, locals));
                             }
                         }
@@ -5021,8 +5021,8 @@ private Target target = Target.JVM;
                             if (!(arg instanceof LambdaExpr)) {
                                 Type argT = inferExprType(arg, locals);
                                 localIdx = emitExpression(arg, ops, owner, localIdx, locals);
-                                if (isPrimitiveType(argT) && target == Target.JVM) {
-                                    Type boxed = boxedTypeFor(argT);
+                                if (TypeMetrics.isPrimitiveType(argT) && target == Target.JVM) {
+                                    Type boxed = TypeMetrics.boxedTypeFor(argT);
                                     ops.add(new KofCall(boxed, "kof_box", List.of(argT), boxed, KofCallKind.FUNCTION));
                                 }
                             }
@@ -5281,7 +5281,7 @@ private Target target = Target.JVM;
                             methodReturnType = sig.returnType();
                             methodParamTypes = sig.parameterTypes();
                         }
-                    } else if (isPrimitiveType(recvType) && "toString".equals(mc.methodName())
+                    } else if (TypeMetrics.isPrimitiveType(recvType) && "toString".equals(mc.methodName())
                             && mc.arguments().isEmpty()) {
                         // primitivo.toString(): o primitivo não tem classe —
                         // boxar e converter (String.valueOf) em vez de gerar
@@ -5381,7 +5381,7 @@ private Target target = Target.JVM;
                             methodParamTypes, methodReturnType, callKind));
                     if (methodReturnType instanceof Type.TypeVariable) {
                         Type effective = inferExprType(mc, locals);
-                        if (isPrimitiveType(effective)) {
+                        if (TypeMetrics.isPrimitiveType(effective)) {
                             emitErasureUnbox(ops, effective);
                         }
                     }
@@ -5514,7 +5514,7 @@ private Target target = Target.JVM;
                             localIdx = emitArgumentsWithFormalTypes(mc.arguments(), argTypes, ops, owner, localIdx, locals);
                             ops.add(new KofCall(mainClassType(), mc.methodName(), argTypes, returnType, KofCallKind.FUNCTION));
                             Type effective = inferExprType(mc, locals);
-                            if (returnType instanceof Type.TypeVariable && isPrimitiveType(effective)) {
+                            if (returnType instanceof Type.TypeVariable && TypeMetrics.isPrimitiveType(effective)) {
                                 emitErasureUnbox(ops, effective);
                             }
                         }
@@ -5810,7 +5810,7 @@ private Target target = Target.JVM;
                             emitWideningIfNeeded(ops, inferExprType(ae.value(), locals), locals.get(i).type());
                             // bug 15: `Object o; o = 7` — box primitivo p/ referência
                             if (erasesToReference(locals.get(i).type())
-                                    && isPrimitiveType(inferExprType(ae.value(), locals))) {
+                                    && TypeMetrics.isPrimitiveType(inferExprType(ae.value(), locals))) {
                                 emitErasureBox(ops, inferExprType(ae.value(), locals));
                             }
                             ops.add(new KofStoreLocal(locals.get(i).type(), locals.get(i).index()));
@@ -6233,7 +6233,7 @@ private Target target = Target.JVM;
                         }
                         continue;
                     }
-                    if (isComparisonOp(be.operator())) {
+                    if (TypeMetrics.isComparisonOp(be.operator())) {
                         leftType = Type.PrimitiveType.BOOL;
                         continue;
                     }
@@ -6243,8 +6243,8 @@ private Target target = Target.JVM;
                     if (switch (be.operator()) {
                         case "+", "-", "*", "/", "%" -> true;
                         default -> false;
-                    } && isNumeric(leftType) && isNumeric(rType)) {
-                        leftType = commonNumericType(leftType, rType);
+                    } && TypeMetrics.isNumeric(leftType) && TypeMetrics.isNumeric(rType)) {
+                        leftType = TypeMetrics.commonNumericType(leftType, rType);
                         continue;
                     }
                     leftType = leftType;
@@ -6289,7 +6289,7 @@ private Target target = Target.JVM;
                 }
                 if (mc.receiver() != null && "toString".equals(mc.methodName()) && mc.arguments().isEmpty()) {
                     Type rv = inferExprType(mc.receiver(), locals);
-                    if (isPrimitiveType(rv) || rv instanceof Type.ArrayType) yield BuiltinTypes.STRING;
+                    if (TypeMetrics.isPrimitiveType(rv) || rv instanceof Type.ArrayType) yield BuiltinTypes.STRING;
                 }
                 // String.valueOf(x) / Integer.valueOf(x)…: receiver é o NOME
                 // do tipo builtin (estático). Sem tipo aqui o concat após um
@@ -6969,14 +6969,7 @@ private Target target = Target.JVM;
         return internalName.substring(internalName.lastIndexOf('/') + 1);
     }
 
-    private boolean isPrimitiveType(Type type) {
-        return type instanceof Type.PrimitiveType pt && !"void".equals(pt.name());
-    }
 
-    private boolean isCharType(Type type) {
-        return type instanceof Type.PrimitiveType pt
-                && ("char".equals(pt.name()) || "Char".equals(pt.name()));
-    }
 
 
     private boolean needsErasureBoxing() {
@@ -6987,74 +6980,19 @@ private Target target = Target.JVM;
         return target == Target.JVM;
     }
 
-    private KofBinaryOp mapArithmeticOp(String op) {
-        return switch (op) {
-            case "+" -> KofBinaryOp.ADD;
-            case "-" -> KofBinaryOp.SUB;
-            case "*" -> KofBinaryOp.MUL;
-            case "/" -> KofBinaryOp.DIV;
-            case "%" -> KofBinaryOp.MOD;
-            case "==" -> KofBinaryOp.EQ;
-            case "!=" -> KofBinaryOp.NE;
-            case "<" -> KofBinaryOp.LT;
-            case "<=" -> KofBinaryOp.LE;
-            case ">" -> KofBinaryOp.GT;
-            case ">=" -> KofBinaryOp.GE;
-            default -> KofBinaryOp.ADD;
-        };
-    }
 
-    private boolean isNumeric(Type t) {
-        if (!(t instanceof Type.PrimitiveType pt)) return false;
-        String name = Type.canonicalPrimitiveName(pt.name());
-        return switch (name) {
-            case "int", "long", "float", "double", "byte", "short", "char" -> true;
-            default -> false;
-        };
-    }
 
-    private String primitiveName(Type t) {
-        if (t instanceof Type.PrimitiveType pt) {
-            return Type.canonicalPrimitiveName(pt.name());
-        }
-        return "";
-    }
 
-    private Type commonNumericType(Type a, Type b) {
-        String an = primitiveName(a);
-        String bn = primitiveName(b);
-        if (an.equals("double") || an.equals("Double") || bn.equals("double") || bn.equals("Double")) {
-            return Type.PrimitiveType.DOUBLE;
-        }
-        if (an.equals("float") || an.equals("Float") || bn.equals("float") || bn.equals("Float")) {
-            return Type.PrimitiveType.FLOAT;
-        }
-        if (an.equals("long") || an.equals("Long") || bn.equals("long") || bn.equals("Long")) {
-            return Type.PrimitiveType.LONG;
-        }
-        return a instanceof Type.PrimitiveType ? a : Type.PrimitiveType.INT;
-    }
 
     /** Compatibilidade largura para fallback de resolução de construtor:
      *  primitivos por largura, tipos de referência por hierarquia, Unknown aceita tudo. */
-    private int primWidth(Type.PrimitiveType pt) {
-        return switch (pt.name()) {
-            case "bool", "Bool" -> 0;
-            case "char", "Char" -> 1;
-            case "int", "Int", "byte", "short" -> 2;
-            case "long", "Long" -> 3;
-            case "float", "Float" -> 4;
-            case "double", "Double" -> 5;
-            default -> 2;
-        };
-    }
 
     private boolean ctorCompatible(Type formal, Type arg) {
         if (formal == null || arg == null) return true;
         if (Type.isUnknown(formal) || Type.isUnknown(arg)) return true;
         if (formal.equals(arg)) return true;
         if (formal instanceof Type.PrimitiveType fp && arg instanceof Type.PrimitiveType ap) {
-            return primWidth(ap) <= primWidth(fp);
+            return TypeMetrics.primWidth(ap) <= TypeMetrics.primWidth(fp);
         }
         if (formal instanceof Type.ClassType fc && arg instanceof Type.ClassType ac
                 && semanticAnalyzer != null) {
@@ -7079,8 +7017,8 @@ private Target target = Target.JVM;
 
     private void emitWideningIfNeeded(List<KofOperation> ops, Type from, Type to) {
         if (from.equals(to)) return;
-        String fn = primitiveName(from);
-        String tn = primitiveName(to);
+        String fn = TypeMetrics.primitiveName(from);
+        String tn = TypeMetrics.primitiveName(to);
         KofUnaryOp conv = switch (tn) {
             case "long", "Long" -> switch (fn) {
                 case "int", "Int", "char", "Char", "short", "Short", "byte", "Byte" -> KofUnaryOp.I2L;
@@ -7107,8 +7045,8 @@ private Target target = Target.JVM;
 
     private void emitPrimNarrow(List<KofOperation> ops, Type from, Type to) {
         if (from.equals(to)) return;
-        String fn = primitiveName(from);
-        String tn = primitiveName(to);
+        String fn = TypeMetrics.primitiveName(from);
+        String tn = TypeMetrics.primitiveName(to);
         KofUnaryOp conv = switch (tn) {
             case "int", "Int" -> switch (fn) {
                 case "long", "Long" -> KofUnaryOp.L2I;
@@ -7140,25 +7078,10 @@ private Target target = Target.JVM;
         };
     }
 
-    private Type boxedTypeFor(Type primitive) {
-        if (primitive instanceof Type.PrimitiveType pt) {
-            return switch (pt.name()) {
-                case "int", "Int", "char", "Char" -> new Type.ClassType("java.lang", "Integer", List.of());
-                case "long", "Long" -> new Type.ClassType("java.lang", "Long", List.of());
-                case "float", "Float" -> new Type.ClassType("java.lang", "Float", List.of());
-                case "double", "Double" -> new Type.ClassType("java.lang", "Double", List.of());
-                case "boolean", "bool", "Bool" -> new Type.ClassType("java.lang", "Boolean", List.of());
-                case "byte", "Byte" -> new Type.ClassType("java.lang", "Byte", List.of());
-                case "short", "Short" -> new Type.ClassType("java.lang", "Short", List.of());
-                default -> Type.UnknownType.UNKNOWN;
-            };
-        }
-        return Type.UnknownType.UNKNOWN;
-    }
 
     private void emitErasureBox(List<KofOperation> ops, Type primitive) {
         if (!needsErasureBoxing()) return;
-        Type boxed = boxedTypeFor(primitive);
+        Type boxed = TypeMetrics.boxedTypeFor(primitive);
         Type boxParam = primitive instanceof Type.PrimitiveType pt
                 && ("char".equals(pt.name()) || "Char".equals(pt.name())) ? Type.PrimitiveType.INT : primitive;
         ops.add(new KofCall(boxed, "kof_box", List.of(boxParam), boxed, KofCallKind.FUNCTION));
@@ -7166,7 +7089,7 @@ private Target target = Target.JVM;
 
     private void emitErasureUnbox(List<KofOperation> ops, Type primitive) {
         if (!needsErasureBoxing()) return;
-        Type boxed = boxedTypeFor(primitive);
+        Type boxed = TypeMetrics.boxedTypeFor(primitive);
         ops.add(new KofCall(primitive, "kof_unbox", List.of(boxed), primitive, KofCallKind.FUNCTION));
     }
 
@@ -7198,7 +7121,7 @@ private Target target = Target.JVM;
                     && !BuiltinTypes.isString(formal)) {
                 emitWideningIfNeeded(ops, argType, formal);
             }
-            if (formal != null && erasesToReference(formal) && isPrimitiveType(argType)
+            if (formal != null && erasesToReference(formal) && TypeMetrics.isPrimitiveType(argType)
                     && !BuiltinTypes.isString(formal)) {
                 emitErasureBox(ops, argType);
             }
@@ -7303,7 +7226,7 @@ private Target target = Target.JVM;
             ctorOps.add(new KofLoadLocal(cap.type(), cidx));
             ctorOps.add(new KofStoreField(ownerType, cap.name(), cap.type()));
             ctorLocals.add(new IRLocalVariable(cidx, cap.name(), cap.type()));
-            cidx += isDoubleWidth(cap.type()) ? 2 : 1;
+            cidx += TypeMetrics.isDoubleWidth(cap.type()) ? 2 : 1;
         }
         ctorOps.add(new KofReturnVoid());
         IRMethod ctor = new IRMethod("<init>", Type.PrimitiveType.VOID, captureTypes,
@@ -7320,11 +7243,11 @@ private Target target = Target.JVM;
             bodyOps.add(new KofLoadField(ownerType, cap.name(), cap.type()));
             bodyOps.add(new KofStoreLocal(cap.type(), bidx));
             bodyLocals.add(new IRLocalVariable(bidx, cap.name(), cap.type()));
-            bidx += isDoubleWidth(cap.type()) ? 2 : 1;
+            bidx += TypeMetrics.isDoubleWidth(cap.type()) ? 2 : 1;
         }
         for (int i = 0; i < params.size() && i < samParamTypes.size(); i++) {
             bodyLocals.add(new IRLocalVariable(bidx, params.get(i).name(), samParamTypes.get(i)));
-            bidx += isDoubleWidth(samParamTypes.get(i)) ? 2 : 1;
+            bidx += TypeMetrics.isDoubleWidth(samParamTypes.get(i)) ? 2 : 1;
         }
         int localEnd = bidx;
         for (StatementNode stmt : le.body()) {
@@ -7756,9 +7679,6 @@ private Target target = Target.JVM;
         return localIdx;
     }
 
-    private boolean isComparisonOp(String op) {
-        return ">".equals(op) || "<".equals(op) || ">=".equals(op) || "<=".equals(op) || "==".equals(op) || "!=".equals(op);
-    }
 
     /**
      * FLT001: no Native, float/double ainda não têm aritmética SSE nem
@@ -7771,10 +7691,6 @@ private Target target = Target.JVM;
         return true;
     }
 
-    private static boolean isFloatingPoint(Type type) {
-        return type instanceof Type.PrimitiveType pt
-                && ("float".equals(pt.name()) || "double".equals(pt.name()));
-    }
 
     private int jsonListTag(Type elemType) {
         if (BuiltinTypes.isString(elemType)) return 1;
@@ -7959,7 +7875,7 @@ private Target target = Target.JVM;
     }
 
     private boolean isComparisonShortcut(BinaryExpr bin, List<IRLocalVariable> locals) {
-        if (!isComparisonOp(bin.operator())) return false;
+        if (!TypeMetrics.isComparisonOp(bin.operator())) return false;
         if ("==".equals(bin.operator()) || "!=".equals(bin.operator())) {
             Type left = inferExprType(bin.left(), locals);
             Type right = inferExprType(bin.right(), locals);
@@ -7969,7 +7885,7 @@ private Target target = Target.JVM;
             // primitivo vs null → constante (caminho da cadeia binária)
             boolean leftNull = bin.left() instanceof LiteralExpr ll2 && ll2.kind() == ConcreteLiteralKind.NULL;
             boolean rightNull = bin.right() instanceof LiteralExpr rl2 && rl2.kind() == ConcreteLiteralKind.NULL;
-            if ((leftNull && isPrimitiveType(right)) || (rightNull && isPrimitiveType(left))) return false;
+            if ((leftNull && TypeMetrics.isPrimitiveType(right)) || (rightNull && TypeMetrics.isPrimitiveType(left))) return false;
         }
         return true;
     }
@@ -7982,8 +7898,8 @@ private Target target = Target.JVM;
     private Type comparisonOperandType(BinaryExpr bin, List<IRLocalVariable> locals) {
         Type left = inferExprType(bin.left(), locals);
         Type right = inferExprType(bin.right(), locals);
-        if (isNumeric(left) && isNumeric(right)) {
-            return commonNumericType(left, right);
+        if (TypeMetrics.isNumeric(left) && TypeMetrics.isNumeric(right)) {
+            return TypeMetrics.commonNumericType(left, right);
         }
         // comparação contra literal null é sempre referência (if_acmp*);
         // quando o outro lado é Unknown (get de Map, etc.) marca como Object
@@ -8450,7 +8366,7 @@ private Target target = Target.JVM;
             for (FormalParameterNode param : method.parameters()) {
                 Type paramType = resolveWithTypeParams(param.type(), typeParams);
                 localVars.add(new IRLocalVariable(localIdx, param.name(), paramType));
-                localIdx += isDoubleWidth(paramType) ? 2 : 1;
+                localIdx += TypeMetrics.isDoubleWidth(paramType) ? 2 : 1;
             }
             java.util.Set<String> savedMutated = mutatedCapturedNames;
             mutatedCapturedNames = new java.util.HashSet<>();
@@ -8592,7 +8508,7 @@ private Target target = Target.JVM;
         for (FormalParameterNode param : ctor.parameters()) {
             Type paramType = resolveWithTypeParams(param.type(), typeParams);
             localVars.add(new IRLocalVariable(localIdx, param.name(), paramType));
-            localIdx += isDoubleWidth(paramType) ? 2 : 1;
+            localIdx += TypeMetrics.isDoubleWidth(paramType) ? 2 : 1;
         }
         for (var entry : fieldInits.entrySet()) {
             if (delegatesToThis) break;
@@ -8778,7 +8694,7 @@ private Target target = Target.JVM;
             ops.add(new KofLoadLocal(ownerType, 0));
             ops.add(new KofLoadLocal(compType, localIdx));
             ops.add(new KofStoreField(ownerType, comp.name(), compType));
-            localIdx += isDoubleWidth(compType) ? 2 : 1;
+            localIdx += TypeMetrics.isDoubleWidth(compType) ? 2 : 1;
         }
         ops.add(new KofReturnVoid());
         return new IRMethod("<init>", Type.PrimitiveType.VOID, compTypes, AccessFlags.PUBLIC, List.of(),
@@ -8811,7 +8727,7 @@ private Target target = Target.JVM;
                 paramTypes.add(t);
                 locals.add(new IRLocalVariable(localIdx, rec.components().get(i).name(), t));
                 ops.add(new KofLoadLocal(t, localIdx));
-                localIdx += isDoubleWidth(t) ? 2 : 1;
+                localIdx += TypeMetrics.isDoubleWidth(t) ? 2 : 1;
             }
             for (int i = paramCount; i < n; i++) {
                 ExpressionNode init = rec.components().get(i).initializer();
@@ -8882,11 +8798,4 @@ private Target target = Target.JVM;
         return value;
     }
 
-    private boolean isDoubleWidth(Type type) {
-        if (type instanceof Type.PrimitiveType pt) {
-            return "long".equals(pt.name()) || "Long".equals(pt.name()) ||
-                   "double".equals(pt.name()) || "Double".equals(pt.name());
-        }
-        return false;
-    }
 }
