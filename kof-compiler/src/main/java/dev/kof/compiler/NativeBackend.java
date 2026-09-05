@@ -5032,6 +5032,46 @@ public class NativeBackend implements Backend {
                 lw   a0, 16(a0)
                 ret
 
+            # kof_list_remove(list, idx) -> item removido (desloca o resto)
+            .globl kof_list_remove
+            kof_list_remove:
+                addi sp, sp, -32
+                sd   ra, 24(sp)
+                sd   s0, 16(sp)      # list
+                sd   s1, 8(sp)       # idx
+                sd   s2, 0(sp)       # item
+                mv   s0, a0
+                mv   s1, a1
+                ld   t0, 24(s0)
+                slli t1, s1, 3
+                add  t0, t0, t1
+                ld   s2, 0(t0)       # item = data[idx]
+                lw   t2, 16(s0)      # size
+                addi t3, s1, 1       # i = idx+1
+            .Llr_loop:
+                bge  t3, t2, .Llr_done
+                ld   t0, 24(s0)
+                slli t4, t3, 3
+                add  t4, t0, t4
+                ld   t5, 0(t4)       # data[i]
+                ld   t0, 24(s0)
+                addi t6, t3, -1
+                slli t6, t6, 3
+                add  t6, t0, t6
+                sd   t5, 0(t6)       # data[i-1] = data[i]
+                addi t3, t3, 1
+                j    .Llr_loop
+            .Llr_done:
+                addi t2, t2, -1
+                sw   t2, 16(s0)      # size--
+                mv   a0, s2
+                ld   s2, 0(sp)
+                ld   s1, 8(sp)
+                ld   s0, 16(sp)
+                ld   ra, 24(sp)
+                addi sp, sp, 32
+                ret
+
             .globl kof_list_get
             kof_list_get:
                 addi sp, sp, -16

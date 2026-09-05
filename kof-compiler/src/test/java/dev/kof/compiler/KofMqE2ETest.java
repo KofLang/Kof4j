@@ -151,4 +151,25 @@ class KofMqE2ETest {
                     .findFirst().orElseThrow(() -> new IOException("no .mjs in " + dir));
         }
     }
+
+    @Test
+    void crossNativeReportsMq001(@TempDir Path tempDir) throws IOException {
+        // R6: o runtime riscv64/aarch64 tem mq em asm mas com bugs (queue com
+        // assinatura errada, pop não remove, queue_size ausente) e nenhum teste
+        // cross — gate MQ001 em compile-time até o port completo (padrão DB001),
+        // nunca segfault/undefined-reference silencioso.
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+            main() {
+                var q = mq.queue()
+                mq.push(q, "job-1")
+            }
+            """);
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            CompilationResult r = new CompilerDriver().compile(source, tempDir.resolve("cross-" + t), t);
+            assertFalse(r.success(), t + " should report MQ001");
+            assertTrue(r.diagnostics().getDiagnostics().toString().contains("MQ001"),
+                    t + ": " + r.diagnostics().getDiagnostics());
+        }
+    }
 }
