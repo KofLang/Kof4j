@@ -2057,6 +2057,7 @@ final class VkChain64Asm {
                 subq $40, %rsp
                 movl %edx, %ebx                    # m
                 movl %ecx, %r12d                   # k
+                movq %rsi, 32(%rsp)                # y (rsi clobberado)
                 cmpl $0, vk64_inited(%rip)
                 jne .Lvk64_mv1
                 movl $-1, %eax
@@ -2102,6 +2103,14 @@ final class VkChain64Asm {
                 leaq 5296+vk64_scratch(%rip), %rcx
                 movl %ebx, %r8d
                 call vk64_submit
+                // readback y ← ymap
+                movl %ebx, %eax
+                movslq %eax, %rax
+                shlq $3, %rax
+                movq %rax, %rdx
+                movq vk64_ymap(%rip), %rsi
+                movq 32(%rsp), %rdi
+                call memcpy@PLT
             .Lvk64_mv_ret:
                 addq $40, %rsp
                 popq %r12
