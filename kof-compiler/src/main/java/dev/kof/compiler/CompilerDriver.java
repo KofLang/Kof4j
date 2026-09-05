@@ -2960,7 +2960,7 @@ private Target target = Target.JVM;
                         }
                     }
                     if (cs != null) {
-                        SymbolTable.Symbol fieldSym = resolveFieldInHierarchy(cs.name(), ie.name());
+                        SymbolTable.Symbol fieldSym = HierarchyResolver.resolveFieldInHierarchy(cs.name(), ie.name(), semanticAnalyzer);
                         if (fieldSym instanceof SymbolTable.FieldSymbol fs) {
                             ops.add(new KofLoadLocal(cs.type(), 0));
                             ops.add(new KofLoadField(cs.type(), ie.name(), fs.type()));
@@ -4735,7 +4735,7 @@ private Target target = Target.JVM;
                             }
                             effectiveOwner = enc;
                         }
-                        String superInternal = findSuperClass(effectiveOwner);
+                        String superInternal = HierarchyResolver.findSuperClass(effectiveOwner, semanticAnalyzer);
                         if (superInternal == null) superInternal = "java/lang/Object";
                         // nomes declarados com pontos (android.view.View)
                         // viram nome interno JVM para resolução e emissão
@@ -4756,14 +4756,14 @@ private Target target = Target.JVM;
                                     mc.arguments().size());
                         }
                         if (superMethod == null && osig == null && extSig == null
-                                && hierarchyFullyKnown(superInternal) && currentDiagnostics != null) {
+                                && HierarchyResolver.hierarchyFullyKnown(superInternal, semanticAnalyzer) && currentDiagnostics != null) {
                             // hierarquia inteiramente conhecida e o método não
                             // existe — erro em compile-time, não NoSuchMethodError
                             SourcePosition p = mc.position();
                             currentDiagnostics.error(p != null ? p.file() : "",
                                     p != null ? p.line() : 0, p != null ? p.column() : 0, 0,
                                     "method '" + mc.methodName() + "' does not exist in superclass '"
-                                            + superSimpleName(superInternal) + "'",
+                                            + HierarchyResolver.superSimpleName(superInternal) + "'",
                                     "SEM016");
                             yield localIdx;
                         }
@@ -5315,7 +5315,7 @@ private Target target = Target.JVM;
                         if (delegation) {
                             targetInternal = owner;
                         } else {
-                            targetInternal = findSuperClass(owner);
+                            targetInternal = HierarchyResolver.findSuperClass(owner, semanticAnalyzer);
                             if (targetInternal == null) targetInternal = "java/lang/Object";
                             targetInternal = targetInternal.replace('.', '/');
                         }
@@ -5449,7 +5449,7 @@ private Target target = Target.JVM;
                     if (!isLocal) {
                         String className = owner.substring(owner.lastIndexOf('/') + 1);
                         SymbolTable.Symbol fieldSym = semanticAnalyzer != null
-                                ? resolveFieldInHierarchy(className, ie.name()) : null;
+                                ? HierarchyResolver.resolveFieldInHierarchy(className, ie.name(), semanticAnalyzer) : null;
                         if (fieldSym != null
                                 && (fieldSym instanceof SymbolTable.FieldSymbol
                                 || (fieldSym instanceof SymbolTable.MethodSymbol ms
@@ -5489,7 +5489,7 @@ private Target target = Target.JVM;
                             && semanticAnalyzer.getClass(rid.name()) != null) {
                         // Static field store: Class.field = value.
                         SymbolTable.ClassSymbol cs = semanticAnalyzer.getClass(rid.name());
-                        SymbolTable.Symbol fs = resolveFieldInHierarchy(cs.name(), fa.fieldName());
+                        SymbolTable.Symbol fs = HierarchyResolver.resolveFieldInHierarchy(cs.name(), fa.fieldName(), semanticAnalyzer);
                         if (fs instanceof SymbolTable.FieldSymbol fld) {
                             localIdx = emitExpression(ae.value(), ops, owner, localIdx, locals);
                             ops.add(new KofPutStatic(cs.type(), fa.fieldName(), fld.type()));
@@ -5582,7 +5582,7 @@ private Target target = Target.JVM;
                     localIdx = emitExpression(ae.value(), ops, owner, localIdx, locals);
                     Type fieldType = Type.UnknownType.UNKNOWN;
                     if (recvType instanceof Type.ClassType ct) {
-                        SymbolTable.Symbol fs = resolveFieldInHierarchy(ct.name(), fa.fieldName());
+                        SymbolTable.Symbol fs = HierarchyResolver.resolveFieldInHierarchy(ct.name(), fa.fieldName(), semanticAnalyzer);
                         if (fs != null) fieldType = fs.type();
                         else if (!ct.packageName().isEmpty() && externalClasspath != null
                                 && externalClasspath.knows(ct.internalName())) {
@@ -5848,7 +5848,7 @@ private Target target = Target.JVM;
                 if (fa.receiver() instanceof IdentifierExpr sid2 && "super".equals(sid2.name())
                         && !owner.isEmpty() && semanticAnalyzer != null) {
                     // super.campo: GETFIELD com owner na superclasse
-                    String superInternal = findSuperClass(owner);
+                    String superInternal = HierarchyResolver.findSuperClass(owner, semanticAnalyzer);
                     if (superInternal == null) superInternal = "java/lang/Object";
                     superInternal = superInternal.replace('.', '/');
                     Type superType = CompilerTypes.ownerTypeFromInternal(superInternal, semanticAnalyzer);
@@ -5986,7 +5986,7 @@ private Target target = Target.JVM;
                     yield localIdx;
                 }
                 if (recvType instanceof Type.ClassType ct && semanticAnalyzer != null) {
-                    SymbolTable.Symbol staticSym = resolveFieldInHierarchy(ct.name(), fa.fieldName());
+                    SymbolTable.Symbol staticSym = HierarchyResolver.resolveFieldInHierarchy(ct.name(), fa.fieldName(), semanticAnalyzer);
                     if (staticSym instanceof SymbolTable.FieldSymbol fs
                             && (fs.accessFlags() & AccessFlags.STATIC) != 0) {
                         ops.add(new KofGetStatic(recvType, fa.fieldName(), fs.type()));
@@ -6002,7 +6002,7 @@ private Target target = Target.JVM;
                     Type fieldType = Type.UnknownType.UNKNOWN;
                     SymbolTable.Symbol accessor = null;
                     if (recvType instanceof Type.ClassType ct && semanticAnalyzer != null) {
-                        accessor = resolveFieldInHierarchy(ct.name(), fa.fieldName());
+                        accessor = HierarchyResolver.resolveFieldInHierarchy(ct.name(), fa.fieldName(), semanticAnalyzer);
                         if (accessor != null) fieldType = accessor.type();
                     }
                     if (accessor instanceof SymbolTable.MethodSymbol ms && ms.parameterTypes().isEmpty()) {
@@ -6108,7 +6108,7 @@ private Target target = Target.JVM;
                                     && ms.parameterTypes().isEmpty()) yield ms.returnType();
                         }
                     }
-                    SymbolTable.Symbol sym = resolveFromSemantic(ie.name());
+                    SymbolTable.Symbol sym = HierarchyResolver.resolveFromSemantic(ie.name(), semanticAnalyzer);
                     if (sym != null) yield sym.type();
                     SymbolTable.ClassSymbol cls = semanticAnalyzer.getClass(ie.name());
                     if (cls != null) yield cls.type();
@@ -6829,63 +6829,15 @@ private Target target = Target.JVM;
         };
     }
 
-    private SymbolTable.Symbol resolveFromSemantic(String name) {
-        if (semanticAnalyzer == null) return null;
-        for (var entry : semanticAnalyzer.allClasses().entrySet()) {
-            SymbolTable.ClassSymbol cs = entry.getValue();
-            SymbolTable.Symbol s = cs.members().resolve(name);
-            if (s != null) return s;
-        }
-        return null;
-    }
 
-    private SymbolTable.Symbol resolveFieldInHierarchy(String className, String fieldName) {
-        if (semanticAnalyzer == null) return null;
-        return semanticAnalyzer.resolveInHierarchy(className, fieldName);
-    }
 
-    private String findSuperClass(String internalName) {
-        if (semanticAnalyzer == null) return null;
-        String simpleName = internalName.substring(internalName.lastIndexOf('/') + 1);
-        SymbolTable.ClassSymbol cs = semanticAnalyzer.getClass(simpleName);
-        if (cs == null) return null;
-        String superName = cs.superClass();
-        if (superName == null || superName.isEmpty() || "Object".equals(superName)) return null;
-        if (!superName.contains("/")) {
-            SymbolTable.ClassSymbol superCs = semanticAnalyzer.getClass(superName);
-            if (superCs != null) return superCs.internalName();
-        }
-        return superName;
-    }
 
     /**
      * True quando a cadeia de superclasses a partir de internalName é
      * inteiramente conhecida pelo SemanticAnalyzer (nenhuma classe externa
      * no caminho). Só nesse caso "método não resolvido" prova inexistência.
      */
-    private boolean hierarchyFullyKnown(String internalName) {
-        if (semanticAnalyzer == null) return false;
-        String cur = internalName;
-        int hops = 0;
-        while (cur != null && !"java/lang/Object".equals(cur) && hops++ < 32) {
-            String simple = cur.substring(cur.lastIndexOf('/') + 1);
-            SymbolTable.ClassSymbol cs = semanticAnalyzer.getClass(simple);
-            if (cs == null) return false;
-            String sup = cs.superClass();
-            if (sup == null || sup.isEmpty() || "Object".equals(sup)) return true;
-            if (sup.contains(".")) {
-                cur = sup.replace('.', '/');
-            } else {
-                SymbolTable.ClassSymbol supCs = semanticAnalyzer.getClass(sup);
-                cur = supCs != null ? supCs.internalName() : sup;
-            }
-        }
-        return true;
-    }
 
-    private String superSimpleName(String internalName) {
-        return internalName.substring(internalName.lastIndexOf('/') + 1);
-    }
 
 
 
@@ -7254,7 +7206,7 @@ private Target target = Target.JVM;
             }
             if (!owner.isEmpty() && semanticAnalyzer != null) {
                 String className = owner.substring(owner.lastIndexOf('/') + 1);
-                SymbolTable.Symbol fieldSym = resolveFieldInHierarchy(className, ie.name());
+                SymbolTable.Symbol fieldSym = HierarchyResolver.resolveFieldInHierarchy(className, ie.name(), semanticAnalyzer);
                 if (fieldSym instanceof SymbolTable.FieldSymbol fs) {
                     Type ownerType = CompilerTypes.ownerTypeFromInternal(owner, semanticAnalyzer);
                     ops.add(new KofLoadLocal(ownerType, 0));
@@ -7269,7 +7221,7 @@ private Target target = Target.JVM;
             Type recvType = inferExprType(fa.receiver(), locals);
             Type fieldType = Type.UnknownType.UNKNOWN;
             if (recvType instanceof Type.ClassType ct) {
-                SymbolTable.Symbol fs = resolveFieldInHierarchy(ct.name(), fa.fieldName());
+                SymbolTable.Symbol fs = HierarchyResolver.resolveFieldInHierarchy(ct.name(), fa.fieldName(), semanticAnalyzer);
                 if (fs != null) fieldType = fs.type();
             }
             localIdx = emitFieldIncrement(recvType, fa.fieldName(), fieldType, prefix, op,
