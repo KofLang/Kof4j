@@ -51,13 +51,21 @@ escreva código Kof neste repositório. Leia antes de gerar qualquer `.kf`.
 5. **Re-dispacho é do humano ou de cron** (o agente não acorda a si mesmo).
    Por isso o item 2b é contrato: quem volta — humano ou outra instância —
    deve conseguir retomar em ≤1 leitura do `DOING.md`, sem perguntar.
+6. **Re-dispacho NÃO é conversa.** Quando o humano manda "continue", "vai",
+   "e agora?" ou qualquer re-disparo: **não responda com reconhecimento ou
+   status** ("Entendido", "ok", "pushed", "vou continuar..."). A PRIMEIRA
+   ação do turno é a tool call que lê o `PRÓXIMO PASSO` e executa. Um turno
+   que termina em frase de confirmação sem tool call é a MESMA falha de um
+   turno que termina em resumo — o loop parou e o humano teve que empurrar
+   de novo.
 
-**Falha real que motivou esta regra (05/09):** o agente fez 5 commits
-corretos (fixes riscv64) e terminou o turno com um "resumo da sessão" em
-vez de continuar o loop; `DOING.md` ficou sem atualização desde o início do
-trabalho. O resultado: o humano teve que cobrar a definição de modo
-autônomo que deveria ter sido autoevidente. Autonomia que termina no fim do
-turno não é autonomia — é polidez.
+**Falhas reais que motivaram estas regras (05/09, duas ocorrências):**
+(a) o agente fez 5 commits corretos (fixes riscv64) e terminou o turno com
+um "resumo da sessão" em vez de continuar o loop; `DOING.md` ficou sem
+atualização desde o início do trabalho. (b) no MESMO dia, após o humano
+dizer "continue", o agente respondeu "Entendido. Vou prosseguir." — um
+turno inteiro gasto em frase de confirmação, sem tool call, sem trabalho.
+Autonomia que termina em resumo OU em "ok" não é autonomia — é polidez.
 
 **O que fazer em vez de perguntar:**
 
