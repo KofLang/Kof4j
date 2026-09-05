@@ -883,7 +883,7 @@ private Target target = Target.JVM;
                     || (isDoubleType(r) && isDoubleType(p));
         }
         if (target == Target.NATIVE) {
-            return isIntType(r) && (isIntType(p) || isStringType(p));
+            return isIntType(r) && (isIntType(p) || isStringType(p) || isIntArrayType(p));
         }
         return false;
     }

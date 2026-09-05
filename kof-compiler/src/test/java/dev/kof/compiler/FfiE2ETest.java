@@ -134,6 +134,12 @@ class FfiE2ETest {
         assertTrue(result.success(), "JVM array extern must compile: "
                 + result.diagnostics().getDiagnostics());
         assertEquals("60", runJava(out));
+
+        Path outNat = dir.resolve("out-arr-native");
+        CompilationResult rn = driver.compile(kof, outNat, Target.NATIVE);
+        assertTrue(rn.success(), "Native array extern must compile: "
+                + rn.diagnostics().getDiagnostics());
+        assertEquals("60", runNative(outNat));
     }
 
     @Test
