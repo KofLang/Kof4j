@@ -607,6 +607,26 @@ class KofConcurrency2Test {
         }
     }
 
+    @Test
+    void schedulerEveryCrossReportsSched001(@TempDir Path tmp) throws Exception {
+        // R6: o runtime riscv64/aarch64 (asm puro) não tem kof_scheduler_* —
+        // o link quebrava com undefined-reference. Gate SCHED001 em
+        // compile-time (padrão DB001/MQ001), nunca falha silenciosa.
+        Path f = tmp.resolve("M.kf");
+        Files.writeString(f, """
+                main() {
+                    var id = scheduler.every(100) { println("T") }
+                    scheduler.cancel(id)
+                }
+                """);
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            CompilationResult r = driver.compile(f, tmp.resolve("cross-" + t), t);
+            assertFalse(r.success(), t + " deve reportar SCHED001");
+            assertTrue(r.diagnostics().getDiagnostics().toString().contains("SCHED001"),
+                    t + ": " + r.diagnostics().getDiagnostics());
+        }
+    }
+
     // ── helpers ──
     private String runJvm(Path tempDir, String source) throws java.io.IOException {
         return runJvm(tempDir, source, null);

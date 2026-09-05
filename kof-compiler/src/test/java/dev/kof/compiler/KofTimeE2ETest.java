@@ -182,4 +182,35 @@ class KofTimeE2ETest {
                     .findFirst().orElseThrow(() -> new IOException("no .mjs in " + dir));
         }
     }
+
+    @Test
+    void crossNativeReportsTime001ForInterval(@TempDir Path tempDir) throws IOException {
+        // R6: time.interval/cancel no riscv64/aarch64 são stubs que nunca
+        // disparam o callback (no-op silencioso). Gate TIME001 em compile-time.
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+            main() {
+                var id = time.interval(50, () -> println("tick"))
+                time.cancel(id)
+            }
+            """);
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            CompilationResult r = new CompilerDriver().compile(source, tempDir.resolve("cross-" + t), t);
+            assertFalse(r.success(), t + " should report TIME001");
+            assertTrue(r.diagnostics().getDiagnostics().toString().contains("TIME001"),
+                    t + ": " + r.diagnostics().getDiagnostics());
+        }
+        // now/sleep continuam ok no cross (sem gate)
+        Path ok = tempDir.resolve("Ok.kf");
+        Files.writeString(ok, """
+            main() {
+                var t = time.now()
+                println(t > 1000000000000)
+            }
+            """);
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            CompilationResult r = new CompilerDriver().compile(ok, tempDir.resolve("ok-" + t), t);
+            assertTrue(r.success(), t + " time.now should compile: " + r.diagnostics().getDiagnostics());
+        }
+    }
 }
