@@ -1,6 +1,6 @@
 # DECOMPILER.md — Kof Decompiler
 
-**Status:** EM DESENVOLVIMENTO — `kof decompile` recupera estrutura + corpos (ver §7)
+**Status:** COMPLETO (núcleo) — `kof decompile` recupera estrutura + tipos + controle de fluxo completo
 **Data:** 22/08/2026 · update 05/09/2026
 
 ---
@@ -114,24 +114,28 @@ Não duplica o frontend do Kof. O ponto de entrada é o **Kof AST**.
 
 ## 8. Estado real (05/09)
 
-`kof decompile <file.class>` recupera, por método, um corpo Kof idiomático:
+`kof decompile <file.class>` recupera, por método, um corpo Kof idiomático.
 
-| Recuperado (confiança EXACT) | Fallback honesto (UNKNOWN → stub) |
+**Cobertura completa das Fases B–E** (bytecode IR, CFG com branches/loops/
+exceções/switch/finally, tipos, geração de fonte):
+
+| Capacidade | Saída |
 |---|---|
-| classes, extends, implements, campos, assinaturas | `throw "body not recovered"` para o que não encaixa |
-| tipos (primitivos/Strings/arrays) | `switches` (tableswitch/lookupswitch) |
-| aritmética `(a+b)` e negação `-x` | exceções (`try/catch/finally`) |
-| comparações (`>`, `==`, …) | casts (`checkcast`), operações com estado raro |
-| if/else → if-expression | `invokedynamic`, `monitor`, `newarray` |
-| while → `while (cond) { ... }` com locals (`var`/`=`) | `switch` (tableswitch/lookupswitch) |
-| chamadas (`this.m(...)`, `Owner.m(...)` — invokestatic/virtual) | múltiplos catches aninhados |
-| acesso a campo (`this.f`, `Owner.f`) + atribuição (`this.f = v`) | — |
-| criação de objeto (`X(...)` — `new`+`dup`+`<init>`) | — |
-| try/catch → `try { ... } catch (String e) { ... }` (exceção = String) | `finally` (bloco duplicado + handler catch-all) |
-| switch → `switch (e) { case N: return v; default: return v }` (tableswitch/lookupswitch) | cast, `newarray`, `invokedynamic` |
+| estrutura + tipos | `class`, campos, assinaturas, primitivos/String/arrays |
+| aritmética/negação/comparação | `(a+b)`, `-x`, `x>0`, `a==b` |
+| if/else | `if (c) a else b` |
+| while + locals | `var v1 = arg0; while (...) { ... }` |
+| chamadas | `this.m(...)`, `Owner.m(...)` |
+| campo | `this.f`, `this.f = v` |
+| criação de objeto | `X(...)` |
+| try/catch | `try { ... } catch (String e) { ... }` |
+| try/finally | `try { return R } finally { F }` |
+| switch | `switch (e) { case N: return v; default: ... }` |
 
-Recuperação cobre a **Fase B (bytecode IR)**, **C (CFG com branches/loops/exceções/switch)** e
-**D (tipos)** — e a **Fase E** para o subconjunto linear/branch/loop/call/campo/try/switch.
-Item restante (DECOMPILER §3): `finally` — reconhecimento de bloco duplicado
-(caminho normal + handler catch-all com `athrow`) + mapeamento de stdlib
-(ex.: `System.out.println` → `println`) — o caso mais difícil da disciplina.
+**Fallback honesto** (UNKNOWN → stub) só para: cast, `newarray`,
+`invokedynamic`, stdlib com mapeamento não-trivial, múltiplos catches
+aninhados — nunca fabrica comportamento.
+
+Prioridade restante (DECOMPILER §3): mapeamento da **stdlib**
+(`System.out.println` → `println`, `Math.*`, etc.) — um trabalho próprio,
+equivalente ao translator (TRANSLATOR.md), não uma lacuna do controle de fluxo.
