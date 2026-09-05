@@ -2,11 +2,14 @@ package dev.kof.compiler;
 
 import java.util.List;
 
-
+/**
+ * Orquestrador do runtime nativo x86-64 (gera o ASM de todo o runtime em
+ * string). Cada domínio vive numa classe própria ({@code Runtime*}) — esta
+ * classe só ordena as emissões e as constantes de layout compartilhadas.
+ */
 final class NativeRuntime {
 
     private NativeRuntime() {}
-
 
     static String generateRuntimeAssembly() {
         StringBuilder sb = new StringBuilder();
@@ -22,9 +25,9 @@ final class NativeRuntime {
         sb.append("            .section .text\n");
         RuntimePrint.emitPrint(sb);
         RuntimePrint.emitPrintln(sb);
-RuntimePrintNum.emitPrintInt(sb);
-RuntimePrintNum.emitPrintFloat(sb);
-RuntimePrintNum.emitPrintDouble(sb);
+        RuntimePrintNum.emitPrintInt(sb);
+        RuntimePrintNum.emitPrintFloat(sb);
+        RuntimePrintNum.emitPrintDouble(sb);
         RuntimeStringConv.emitFloatToString(sb);
         RuntimeStringConv.emitDoubleToString(sb);
         RuntimeStringConv.emitIntToString(sb);
@@ -37,8 +40,8 @@ RuntimePrintNum.emitPrintDouble(sb);
         RuntimeJsonDecode.emitJsonDecode(sb);
         RuntimeJsonArrayDecode1.emit(sb);
         RuntimeJsonArrayDecode2.emit(sb);
-RuntimeJsonUtils.emitJsonQuote(sb);
-RuntimeJsonUtils.emitJsonFindValue(sb);
+        RuntimeJsonUtils.emitJsonQuote(sb);
+        RuntimeJsonUtils.emitJsonFindValue(sb);
         RuntimeMemory.emitAlloc(sb);
         RuntimeMemory.emitFree(sb);
         RuntimeGc.emitGc(sb);
@@ -78,10 +81,10 @@ RuntimeJsonUtils.emitJsonFindValue(sb);
         RuntimeArray.emitArrayGet(sb);
         RuntimeArray.emitArraySet(sb);
         RuntimeMemory.emitMemstats(sb);
-RuntimeTime.emitIoTimeFunctions(sb);
-RuntimeTime.emitKofTimeFunctions(sb);
-RuntimeCache.emitCacheFunctions(sb);
-RuntimeVk.emitVkStubs(sb);
+        RuntimeTime.emitIoTimeFunctions(sb);
+        RuntimeTime.emitKofTimeFunctions(sb);
+        RuntimeCache.emitCacheFunctions(sb);
+        RuntimeVk.emitVkStubs(sb);
         RuntimeLog1.emit(sb);
         RuntimeLog2.emit(sb);
         RuntimeConfig1.emit(sb);
@@ -89,16 +92,16 @@ RuntimeVk.emitVkStubs(sb);
         RuntimeIo1.emit(sb);
         RuntimeIo2.emit(sb);
         RuntimeIo3.emit(sb);
-RuntimeUi.emitUiColorFunctions(sb);
-RuntimeUi.emitUiWindowFunctions(sb);
-RuntimeNet.emitNetSocket(sb);
-RuntimeNet.emitNetBind(sb);
-RuntimeNet.emitNetListen(sb);
-RuntimeNet.emitNetAccept(sb);
-RuntimeNet.emitNetRead(sb);
-RuntimeNet.emitNetWrite(sb);
-RuntimeNet.emitNetClose(sb);
-RuntimeMisc.emitInstanceof(sb);
+        RuntimeUi.emitUiColorFunctions(sb);
+        RuntimeUi.emitUiWindowFunctions(sb);
+        RuntimeNet.emitNetSocket(sb);
+        RuntimeNet.emitNetBind(sb);
+        RuntimeNet.emitNetListen(sb);
+        RuntimeNet.emitNetAccept(sb);
+        RuntimeNet.emitNetRead(sb);
+        RuntimeNet.emitNetWrite(sb);
+        RuntimeNet.emitNetClose(sb);
+        RuntimeMisc.emitInstanceof(sb);
         RuntimeSecurity1.emit(sb);
         RuntimeSecurity2.emit(sb);
         RuntimeSecurity3.emit(sb);
@@ -120,7 +123,6 @@ RuntimeMisc.emitInstanceof(sb);
         return sb.toString();
     }
 
-
     static void generateMethodTable(StringBuilder sb, String className, List<String> methodNames) {
         sb.append(".balign 8\n");
         sb.append(".globl ").append(className).append("_vtable\n");
@@ -132,136 +134,9 @@ RuntimeMisc.emitInstanceof(sb);
         sb.append("    .quad 0\n");
     }
 
-
-
-
-
-
-
-
-
-
-
-    /**
-     * CONC001: spawn/await no Native via pthread.
-     * Handle (32 bytes): 0=tag(2), 4=done, 8=pthread_t, 16=result.
-     * Bloco do trampolim (16 bytes): 0=task, 8=handle.
-     * kof_spawn_track adiciona o handle na lista global; o fim do main
-     * chama kof_spawn_join_all (join implicito, sem tarefa orfa).
-     */
-
-
-
-    /**
-     * MQ001 (01/09): kof.mq no Native — pub/sub + filas in-process.
-     * Estruturas (alocadas via kof_alloc, nunca liberadas — processo único):
-     *   topic node (40B): [next, topic KofString*, subs KofList*, _, _]
-     *   queue  node (40B): [next, name KofString*, items KofList*, _, _]
-     * invoke-com-arg = padrão do kof_list_map (rdi=fn, rsi=arg).
-     */
-
-
-
-
-    /** process.exit(code): syscall exit — termina o processo na hora. */
-
-
-
-
-
-
-
-
-
     static final int KOF_STRING_TYPE_ID = 1;
     static final int KOF_STRING_HEADER_SIZE = 24;
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    /** lastIndexOf: varre do fim para o início; retorna -1 se não achar. */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     static final int KOF_ARRAY_TYPE_ID = 2;
     static final int KOF_ARRAY_HEADER_SIZE = 24;
-
-
-
-
-
-
-
-
-
-
-
-
-    /**
-     * kof.log no Native — mesmo contrato do JVM testado por KofLogE2ETest:
-     * "yyyy-MM-dd HH:mm:ss.SSS LEVEL msg"; KOF_LOG_LEVEL filtra
-     * (debug&lt;info&lt;warn&lt;error&lt;off, default info); warn/error vão
-     * para stderr. Data civil via clock_gettime + conversão de dias da
-     * época (algoritmo de Hinnant) em aritmética inteira pura, sem libc.
-     * Delta documentado: horário é UTC (JVM usa fuso local) e KOF_LOG_JSON
-     * ainda não tem efeito no Native.
-     */
-
-
-
-
-
-
-
-
-
-
 }
