@@ -35,7 +35,7 @@
 | Lambdas `(x: Int) -> expr` | ✅ | ✅ | ✅ | com capturas (box `BoxN`) |
 | Exceptions (throw "msg", try/catch/finally) | ✅ | ✅ | ✅ | Native: unwinding próprio |
 | `assert(cond[, msg])` | ✅ | ✅ | ✅ | |
-| `spawn` stmt / `spawn f()` / `await` / `poll` / `done` / `cancel`+`cancelled` / `selectAny` / `awaitTimeout` / `channel<T>` send/receive / `scheduler.every`+`at`+`cancel` (Handle<T>, unbox, exceção limpa) | ✅ (virtual threads; canal = LinkedBlockingQueue; scheduler = ScheduledExecutor) | ✅ 31/08 (pthread_create + trampoline + pthread_join, allocator futex — CONC001; awaitTimeout = polling 1ms; canal = FIFO futex; **scheduler SCHED001** = thread por job + `usleep` ms→us + flag `active`) | ✅ 03/09 (CONC003 fechado — async/await/Promise reais; canal = fila de resolvers pendentes; `cancelled()` sempre `0`, limitação conhecida; scheduler = setInterval) | `KofAwaitTest` 8/8 · `KofConcurrency2Test` 25/25 · `SpawnE2ETest` 8/8 |
+| `spawn` stmt / `spawn f()` / `await` / `poll` / `done` / `cancel`+`cancelled` / `selectAny` / `awaitTimeout` / `channel<T>` send/receive / `scheduler.every`+`at`+`cancel` (Handle<T>, unbox, exceção limpa) | ✅ (virtual threads; canal = LinkedBlockingQueue; scheduler = ScheduledExecutor) | ✅ 31/08 (pthread_create + trampoline + pthread_join, allocator futex — CONC001; awaitTimeout = polling 1ms; canal = FIFO futex; **scheduler SCHED001** = thread por job + `usleep` ms→us + flag `active`; **cross riscv64/aarch64 05/09** = clone 220 + nanosleep 101 + spinlock `amoswap.w`) | ✅ 03/09 (CONC003 fechado — async/await/Promise reais; canal = fila de resolvers pendentes; `cancelled()` sempre `0`, limitação conhecida; scheduler = setInterval) | `KofAwaitTest` 8/8 · `KofConcurrency2Test` 25/25 · `SpawnE2ETest` 8/8 |
 | Strings (`+`, `==`, length, charAt, substring, contains, startsWith, endsWith, indexOf, trim, case, replace, split) | ✅ | ✅ | ✅ | `length` diverge: **`STR001`** — Native conta bytes UTF-8; JVM conta unidades UTF-16 (`"Olá".length` = 4 vs 3). Gap explícito, não silencioso. |
 
 | Arrays (`new Int[n]`, `arr[i]`, `.length`) | ✅ | ✅ | ✅ | |
@@ -48,7 +48,7 @@
 | `kof.io` (File, Path, Directory) | ✅ | ✅ | ✅ | `readText`/`readFile` → `String?` (`null` p/ ausência, 02/09); `size()` lança em vez de `-1` |
 | `readLine` (stdin) | ✅ | ✅ | ✅ | `String?` — `null` no EOF (02/09; Native antes devolvia `""`) |
 | kof.io `readText`/`size` | ✅ | ✅ | ✅ | `STR002` histórico fechado 02/09: Native `readText` devolve `null` (antes encerrava); `size()` sem sentinela `-1` |
-| kof.time (`now()`, `sleep`, `interval`) | ✅ | ✅ | ✅ | `interval`/`every` JVM (ScheduledExecutor) + **Native (01/09, `time.interval` reusa o scheduler — SCHED001; mutação por referência validada)** + **JS (TIME001 fechado 02/09)** — fila cooperativa bombeada por `time.sleep` no GraalJS, `setInterval` nativo em browser/Node |
+| kof.time (`now()`, `sleep`, `interval`) | ✅ | ✅ | ✅ | `interval`/`every` JVM (ScheduledExecutor) + **Native (01/09, `time.interval` reusa o scheduler — SCHED001; mutação por referência validada; **cross 05/09** — alias `j kof_scheduler_every`/`cancel` no runtime riscv64/aarch64)** + **JS (TIME001 fechado 02/09)** — fila cooperativa bombeada por `time.sleep` no GraalJS, `setInterval` nativo em browser/Node |
 | `readLine`, `readFile`, `writeFile` | ✅ | ✅ | ✅ | |
 | `kof.validation` (13 preds) | ✅ | ✅ | ✅ | `KofValidationTest` |
 | `kof.observability` (health/metrics/requestId) | ✅ | ✅ | ✅ | `KofObservabilityTest` |

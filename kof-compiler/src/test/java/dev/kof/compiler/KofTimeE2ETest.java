@@ -184,21 +184,33 @@ class KofTimeE2ETest {
     }
 
     @Test
-    void crossNativeReportsTime001ForInterval(@TempDir Path tempDir) throws IOException {
-        // R6: time.interval/cancel no riscv64/aarch64 são stubs que nunca
-        // disparam o callback (no-op silencioso). Gate TIME001 em compile-time.
+    void crossNativeTimeIntervalRuns(@TempDir Path tempDir) throws Exception {
+        // TIME001 FEITO no cross (05/09): time.interval/cancel são alias do
+        // scheduler (thread por job via clone+nanosleep). O callback dispara
+        // e o cancel silencia; END por último.
         Path source = tempDir.resolve("Main.kf");
         Files.writeString(source, """
             main() {
-                var id = time.interval(50, () -> println("tick"))
+                var id = time.interval(100, () -> println("tick"))
+                time.sleep(250)
                 time.cancel(id)
+                time.sleep(250)
+                println("END")
             }
             """);
-        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
-            CompilationResult r = new CompilerDriver().compile(source, tempDir.resolve("cross-" + t), t);
-            assertFalse(r.success(), t + " should report TIME001");
-            assertTrue(r.diagnostics().getDiagnostics().toString().contains("TIME001"),
-                    t + ": " + r.diagnostics().getDiagnostics());
+        String[] q = {"qemu-riscv64", "qemu-aarch64"};
+        Target[] ts = {Target.NATIVE_RISCV64, Target.NATIVE_AARCH64};
+        for (int i = 0; i < 2; i++) {
+            CompilationResult r = new CompilerDriver().compile(source, tempDir.resolve("cross-" + i), ts[i]);
+            assertTrue(r.success(), ts[i] + " deve compilar: " + r.diagnostics().getDiagnostics());
+            Path bin = tempDir.resolve("cross-" + i).resolve("Default/Main");
+            var p = new ProcessBuilder("timeout", "10", q[i], bin.toString()).redirectErrorStream(true).start();
+            String output = new String(p.getInputStream().readAllBytes()).trim();
+            assertEquals(0, p.waitFor(), ts[i] + " exit, output: " + output);
+            assertTrue(output.endsWith("END"), ts[i] + ": END por último: " + output);
+            int ticks = 0;
+            for (String l : output.split("\n")) if (l.equals("tick")) ticks++;
+            assertTrue(ticks >= 1 && ticks <= 8, ts[i] + ": esperava 1..8 ticks, veio " + ticks + ": " + output);
         }
         // now/sleep continuam ok no cross (sem gate)
         Path ok = tempDir.resolve("Ok.kf");

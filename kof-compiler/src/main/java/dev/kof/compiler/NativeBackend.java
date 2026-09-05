@@ -2024,15 +2024,17 @@ public class NativeBackend implements Backend {
             }
         }
 
-        // Ponto de entrada: chama <mainClass>_main e sai via exit_group(93).
-        // O runtime é asm puro — binário estático.
+        // Ponto de entrada: chama <mainClass>_main e sai via exit_group(94).
+        // O runtime é asm puro — binário estático. exit_group (não exit/93)
+        // mata as threads do scheduler que não foram canceladas (daemon-like)
+        // — senão o processo fica pendurado esperando a thread do timer.
         String mainEntry = mainClass != null ? sanitizeName(mainClass.name()) + "_main" : "kof_main";
         sb.append("\n.globl _start\n");
         sb.append("_start:\n");
         sb.append("    andi sp, sp, -16\n");
         sb.append("    call ").append(mainEntry).append("\n");
         sb.append("    li a0, 0\n");
-        sb.append("    li a7, 93\n");
+        sb.append("    li a7, 94\n");
         sb.append("    ecall\n");
         sb.append(RISCV_RUNTIME_ASM).append(RISCV_STRN002_ASM).append(RISCV_RUNTIME_ASM_B).append(RISCV_MAPSET_ASM);
 
@@ -5334,13 +5336,12 @@ public class NativeBackend implements Backend {
                 ret
             .globl kof_time_interval
             kof_time_interval:
-                la   a0, .Lstr_empty_interval
-                li   a1, 10
-                # tail-call (j): preserva o ra do chamador — call+ret dava loop
-                j    kof_string_from_literal
+                # TIME001 fechado no cross: mesmo mecanismo do scheduler.every
+                # (thread por job, loop com cancel). Aliás (a0=ms, a1=task).
+                j    kof_scheduler_every
             .globl kof_time_cancel
             kof_time_cancel:
-                ret
+                j    kof_scheduler_cancel
 
             # ---- kof.observability (real, minimal para passar KofObservabilityTest) ----
             .globl kof_observability_health
@@ -7192,6 +7193,7 @@ public class NativeBackend implements Backend {
             .Lstr_bounds_err: .asciz "Runtime error: array index out of bounds"
             .Lstr_empty: .asciz ""
             .Lstr_empty_interval: .asciz "interval-0"
+            .Lstr_job_prefix: .asciz "job-"
             .Lstr_health: .asciz "UP"
             .Lstr_empty_json: .asciz "{}"
             .Lstr_open_json: .asciz "["
@@ -7990,6 +7992,209 @@ public class NativeBackend implements Backend {
                 ld   ra, 40(sp)
                 addi sp, sp, 48
                 ret
+
+            # ---- scheduler/time.interval riscv64 (SCHED001/TIME001) ----
+            # thread por job (clone 220, mesmo mecanismo do spawn): loop
+            # lock→read active→unlock→nanosleep(ms)→re-check→invoke(task).
+            # cancel(id) marca active=0; a thread sai sozinha no próximo tick.
+            # job 48B: next@0 task@8 ms@16(i32) active@20(i32) id@24 stack@40
+            # lock: spinlock amoswap.w (amoswap.w t0, t1, (s2): t0=old).
+            .section .data
+            .align 3
+            kof_sched_head: .quad 0
+            kof_sched_seq:  .quad 0
+            kof_sched_lock: .word 0
+            .section .text
+
+            # kof_scheduler_every(ms@a0, task@a1) -> id String@a0
+            .globl kof_scheduler_every
+            kof_scheduler_every:
+                addi sp, sp, -64
+                sd   ra, 56(sp)
+                sd   s0, 48(sp)          # ms
+                sd   s1, 40(sp)          # task
+                sd   s2, 32(sp)          # seq
+                sd   s3, 24(sp)          # id
+                sd   s4, 16(sp)          # job
+                sd   s5, 8(sp)           # stack top
+                mv   s0, a0
+                mv   s1, a1
+                # seq++ sob lock
+                la   s2, kof_sched_lock
+            .Lse_lk1:
+                li   t1, 1
+                amoswap.w t0, t1, (s2)
+                bnez t0, .Lse_lk1
+                la   t0, kof_sched_seq
+                ld   t1, 0(t0)
+                addi t1, t1, 1
+                sd   t1, 0(t0)
+                sw   zero, 0(s2)
+                # id = "job-" + int_to_string(seq)
+                la   a0, .Lstr_job_prefix
+                li   a1, 4
+                call kof_string_from_literal
+                mv   s3, a0
+                mv   a0, t1
+                call kof_int_to_string
+                mv   a1, a0
+                mv   a0, s3
+                call kof_string_concat
+                mv   s3, a0
+                # job = alloc(48)
+                li   a0, 48
+                call kof_alloc
+                mv   s4, a0
+                sd   zero, 0(s4)         # next
+                sd   s1, 8(s4)           # task
+                sw   s0, 16(s4)          # ms
+                li   t0, 1
+                sw   t0, 20(s4)          # active
+                sd   s3, 24(s4)          # id
+                # stack dedicada 1MB (mmap 222)
+                li   a0, 0
+                li   a1, 1048576
+                li   a2, 3
+                li   a3, 0x22
+                li   a4, -1
+                li   a5, 0
+                li   a7, 222
+                ecall
+                li   t1, 1048576
+                add  s5, a0, t1          # stack TOP
+                sd   s5, 40(s4)
+                # clone(flags, stack_top, ...) — filho herda s0-s5
+                li   a0, 0x3D0F00
+                mv   a1, s5
+                li   a2, 0
+                li   a3, 0
+                li   a4, 0
+                li   a7, 220
+                ecall
+                bltz a0, .Lse_fail
+                bnez a0, .Lse_reg
+                # ---- filho: sp dedicado, roda o loop do job ----
+                mv   sp, s5
+                mv   a0, s4              # job (trampoline espera a0=job)
+                call kof_sched_trampoline
+                li   a0, 0
+                li   a7, 93              # exit (só a thread)
+                ecall
+            .Lse_fail:
+                # clone falhou: sem thread — job nunca dispara (degradação
+                # segura; sem scheduler não há como rodar o loop inline sem
+                # travar o main). Retorna o id mesmo assim.
+                j    .Lse_ret
+            .Lse_reg:
+                # push na lista sob lock
+                la   s2, kof_sched_lock
+            .Lse_lk2:
+                li   t1, 1
+                amoswap.w t0, t1, (s2)
+                bnez t0, .Lse_lk2
+                la   t0, kof_sched_head
+                ld   t1, 0(t0)
+                sd   t1, 0(s4)
+                sd   s4, 0(t0)
+                sw   zero, 0(s2)
+            .Lse_ret:
+                mv   a0, s3
+                ld   s5, 8(sp)
+                ld   s4, 16(sp)
+                ld   s3, 24(sp)
+                ld   s2, 32(sp)
+                ld   s1, 40(sp)
+                ld   s0, 48(sp)
+                ld   ra, 56(sp)
+                addi sp, sp, 64
+                ret
+
+            # kof_sched_trampoline(job@a0): loop sleep→invoke até active=0
+            kof_sched_trampoline:
+                addi sp, sp, -48
+                sd   ra, 40(sp)
+                sd   s0, 32(sp)          # job
+                sd   s1, 24(sp)          # task
+                sd   s2, 16(sp)          # &lock
+                mv   s0, a0
+                ld   s1, 8(s0)           # task
+                la   s2, kof_sched_lock
+            .Lst_loop:
+                # lock; active/ms; unlock
+            .Lst_lk1:
+                li   t1, 1
+                amoswap.w t0, t1, (s2)
+                bnez t0, .Lst_lk1
+                lw   t0, 20(s0)          # active
+                lw   t1, 16(s0)          # ms
+                sw   zero, 0(s2)
+                beqz t0, .Lst_done
+                mv   a0, t1
+                call kof_time_sleep      # nanosleep (preserva s-regs)
+                # re-check active (cancel pode ter chegado durante o sono)
+            .Lst_lk2:
+                li   t1, 1
+                amoswap.w t0, t1, (s2)
+                bnez t0, .Lst_lk2
+                lw   t0, 20(s0)
+                sw   zero, 0(s2)
+                beqz t0, .Lst_done
+                # invoke task (vtable[0], a0=task — closure ABI do mq)
+                ld   t0, 8(s1)
+                ld   t0, 0(t0)
+                mv   a0, s1
+                jalr t0
+                j    .Lst_loop
+            .Lst_done:
+                ld   s2, 16(sp)
+                ld   s1, 24(sp)
+                ld   s0, 32(sp)
+                ld   ra, 40(sp)
+                addi sp, sp, 48
+                ret
+
+            # kof_scheduler_at(cron@a0, task@a1) -> id (MVP: roda a cada 60s)
+            .globl kof_scheduler_at
+            kof_scheduler_at:
+                mv   t0, a1
+                li   a0, 60000
+                mv   a1, t0
+                j    kof_scheduler_every
+
+            # kof_scheduler_cancel(id@a0): acha o job e marca active=0
+            .globl kof_scheduler_cancel
+            kof_scheduler_cancel:
+                addi sp, sp, -48
+                sd   ra, 40(sp)
+                sd   s0, 32(sp)          # id
+                sd   s1, 24(sp)          # walk
+                sd   s2, 16(sp)          # &lock
+                mv   s0, a0
+                la   s2, kof_sched_lock
+            .Lsc_lk:
+                li   t1, 1
+                amoswap.w t0, t1, (s2)
+                bnez t0, .Lsc_lk
+                la   t0, kof_sched_head
+                ld   s1, 0(t0)
+            .Lsc_walk:
+                beqz s1, .Lsc_unlock
+                mv   a0, s0
+                ld   a1, 24(s1)          # job->id
+                call kof_string_equals   # a0=1 se igual (s0/s1/s2 preservados)
+                bnez a0, .Lsc_found
+                ld   s1, 0(s1)
+                j    .Lsc_walk
+            .Lsc_found:
+                sw   zero, 20(s1)        # active = 0
+            .Lsc_unlock:
+                sw   zero, 0(s2)
+                ld   s2, 16(sp)
+                ld   s1, 24(sp)
+                ld   s0, 32(sp)
+                ld   ra, 40(sp)
+                addi sp, sp, 48
+                ret
             """;
 
     private void emitAarch64(IRModule module, Path outputDir) throws IOException {
@@ -8456,6 +8661,14 @@ public class NativeBackend implements Backend {
             String rs2 = R.apply(args[1].trim());
             String base = args[2].trim().replaceAll("[()]", "");
             return List.of(indent + "ldadd " + rs2 + ", " + rd + ", [" + R.apply(base) + "]");
+        }
+        if (mn.equals("amoswap.w")) {
+            // amoswap.w rd, rs2, (rs1)  ->  swpal rs2, rd, [rs1] (spinlock)
+            String[] args = rest.split(",");
+            String rd = R.apply(args[0].trim());
+            String rs2 = R.apply(args[1].trim());
+            String base = args[2].trim().replaceAll("[()]", "");
+            return List.of(indent + "swpal " + rs2 + ", " + rd + ", [" + R.apply(base) + "]");
         }
         if (mn.equals("seqz")) {
             String[] args = rest.split(",");

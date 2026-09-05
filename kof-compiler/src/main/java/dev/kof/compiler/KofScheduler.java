@@ -19,13 +19,9 @@ final class KofScheduler {
     }
     record SchedulerCall(String function, Type returnType, List<Type> parameterTypes) {}
     static boolean supportedOn(Target target) {
-        // SCHED001: scheduler exige thread de timer. O runtime riscv64/
-        // aarch64 (asm puro) não tem kof_scheduler_* — o link quebrava com
-        // undefined-reference (R6). Gate honesto até o port com clone+futex
-        // (mesmo mecanismo do spawn).
-        if (target == Target.NATIVE_RISCV64 || target == Target.NATIVE_AARCH64) {
-            return false;
-        }
+        // SCHED001 FEITO no cross (05/09): kof_scheduler_every/cancel/at no
+        // runtime riscv64/aarch64 (thread por job via clone 220 + nanosleep
+        // 101 + spinlock amoswap.w — mesmo mecanismo do spawn).
         return target == Target.JVM || target == Target.ANDROID
                 || target == Target.JS || target.isNative();
     }

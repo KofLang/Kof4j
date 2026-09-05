@@ -53,13 +53,9 @@ final class KofTime {
     }
 
     static boolean supportedOn(String method, Target target) {
-        // TIME001: interval/cancel exigem thread de timer. O runtime riscv64/
-        // aarch64 (asm puro) tem kof_time_interval/cancel como STUB que retorna
-        // string vazia — o callback NUNCA dispara (no-op silencioso, R6).
-        // Gate honesto até o port com clone+futex (padrão do spawn).
-        if (method.equals("interval") || method.equals("cancel")) {
-            return target != Target.NATIVE_RISCV64 && target != Target.NATIVE_AARCH64;
-        }
+        // TIME001 FEITO no cross (05/09): kof_time_interval/cancel são alias
+        // de kof_scheduler_every/cancel no runtime riscv64/aarch64 (thread por
+        // job via clone+nanosleep — mesmo mecanismo do spawn).
         return true;
     }
 

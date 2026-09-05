@@ -30,26 +30,29 @@ DB001/SECN000/SCHED001/TIME001/FLT001. Bugs registrados (não-lane):
 #29 spawn{lambda}-handle, #31 process.<inexistente> (lane F2.8), #28
 flake ws.
 
-**PRÓXIMA TAREA (maior valor na lane)**: port **scheduler/time.interval
-riscv64** com thread de timer via clone+futex (mesmo mecanismo do spawn
-que já funciona) — remove os gates SCHED001/TIME001. Arquivo:
-`NativeBackend.java` (`RISCV_MAPSET_ASM` ou nova constante), padrão do
-`emitRiscvSpawn`/`kof_spawn_trampoline`. **Prova esperada:**
-`riscv64Scheduler`/`aarch64Scheduler` (ticks≥1 + silêncio pós-cancel,
-paridade com `KofConcurrency2Test.schedulerEveryNative`) + remover os
-2 gates + testes `schedulerEveryCrossReportsSched001`/
-`crossNativeReportsTime001ForInterval`. **Depois:** SHA-256 em asm
-(portável, sem libc) para destravar `crypto.sha256` (SECN000 parcial).
-⚠️ `NativeBackend.java` é Fase 3 do REFACTOR-500 (agente-idiomatic) —
-checar `git log` antes de tocar; se ele começar a Fase 3, coordenar.
+**PRÓXIMA TAREA (maior valor na lane)**: **scheduler/time.interval cross
+FEITO** (05/09): thread por job via clone 220 + nanosleep 101 + spinlock
+`amoswap.w` (tradutor: `swpal`); `_start`→exit_group 94 (mata threads daemon
+no fim do main); gates SCHED001/TIME001 REMOVIDOS; testes convertidos p/ E2E
+real (`schedulerEveryCrossNative` 3 targets, `crossNativeTimeIntervalRuns`).
+Suíte 964/0/3-skip.
 
+**BUG EM INVESTIGAÇÃO (denúncia humana 05/09)**: resolução de tipos genéricos
+com import — `List<NodeUI>` com `import com.dev.NodeUI` gera cast/descritor
+`NodeUI` **sem package** (raiz: `Type.of` cria `ClassType("","NodeUI")` para
+type-arguments; `qualifyViaImports` dá bail em nomes com `<`;
+`qualifiedType`/`toType` não recursam nos args). Correção = qualificação
+recursiva profunda de type-arguments (imports + dotted + mesma-package),
+NUNCA workaround por nome. **Prova esperada:** reprodução multi-arquivo
+(`package com.dev` + `import`) com cast correto no bytecode + paridade
+List/Set/Map/nested; suíte completa verde.
 ---
 
 ## Em curso agora
 
 | Gap/Item | Estado | Dono | Branch | Arquivos principais | Notas |
 |---|---|---|---|---|---|
-| **NATIVE002-stdlib (residual R6)** — auditoria de falha silenciosa cross | `EM CURSO` | melissa (agente) | `beta-0.3.0` | `NativeBackend.java` (riscv asm), `KofScheduler.java`, `KofTime.java`, `KofMq.java`, `KofSecurity.java`, `RuntimeJsonDecode.java`, `RuntimeObservability2.java` | 05/09: **fcvt** (`1a2f044`); **ToolchainMissing** (as/ld → erro de compilação); **FLT001** (`2a7e89f`); **time.now()** (`a67a8de`); **cache**+`println(null)`+`sle/sge` (`0e6d0f9`); **MQ001 cross FEITO** (`05d0d1d`); **tail-call 8 funções** (`fc34bc7`: call+ret sem ra = loop infinito); **gates SCHED001+TIME001** (`0c4e4c5`); **toInt SIGSEGV** (`696c6c9`: deref do valor do char); **Map/Set cross** (`93fec3f`+`858718e`) + **kof_panic** C-string; **higher-order cross** (`7b81871`); **gate SECN000** (`d8aed13`: kof_sec_* ausente no cross); **json decoders escalares cross** (`d118f69`+`21954e1`: int/long/bool/string) + **bug 30 decode<Bool> x86_64 invertido** (length em %r8d + offset 0); **metrics() # TYPE cross** (`2cc3ff8`) + **tradutor quote-aware** (`#` em `.asciz "# TYPE "` era strippado como comentário → string não-terminada no aarch64); **bug 29** spawn{lambda}-com-handle registrado (pré-existente, todos os targets). Sweeps KSw/KSw2/KJ/KU/KMR3/KCFG/KVAL: **0 divergências** nos 3 targets. **time.sleep real** (`ce81639`: nanosleep 101 — era stub `ret`, R6; pré-requisito do scheduler). |
+| **NATIVE002-stdlib (residual R6)** — auditoria de falha silenciosa cross | `EM CURSO` | melissa (agente) | `beta-0.3.0` | `NativeBackend.java` (riscv asm), `KofScheduler.java`, `KofTime.java`, `KofMq.java`, `KofSecurity.java`, `RuntimeJsonDecode.java`, `RuntimeObservability2.java` | 05/09: **fcvt** (`1a2f044`); **ToolchainMissing** (as/ld → erro de compilação); **FLT001** (`2a7e89f`); **time.now()** (`a67a8de`); **cache**+`println(null)`+`sle/sge` (`0e6d0f9`); **MQ001 cross FEITO** (`05d0d1d`); **tail-call 8 funções** (`fc34bc7`: call+ret sem ra = loop infinito); **gates SCHED001+TIME001** (`0c4e4c5`); **toInt SIGSEGV** (`696c6c9`: deref do valor do char); **Map/Set cross** (`93fec3f`+`858718e`) + **kof_panic** C-string; **higher-order cross** (`7b81871`); **gate SECN000** (`d8aed13`: kof_sec_* ausente no cross); **json decoders escalares cross** (`d118f69`+`21954e1`: int/long/bool/string) + **bug 30 decode<Bool> x86_64 invertido** (length em %r8d + offset 0); **metrics() # TYPE cross** (`2cc3ff8`) + **tradutor quote-aware** (`#` em `.asciz "# TYPE "` era strippado como comentário → string não-terminada no aarch64); **bug 29** spawn{lambda}-com-handle registrado (pré-existente, todos os targets). Sweeps KSw/KSw2/KJ/KU/KMR3/KCFG/KVAL: **0 divergências** nos 3 targets. **time.sleep real** (`ce81639`: nanosleep 101 — era stub `ret`, R6); **scheduler/time.interval cross FEITO** (thread por job via clone 220 + nanosleep 101 + spinlock `amoswap.w`; gates SCHED001/TIME001 removidos; `_start`→exit_group 94 p/ matar threads; `amoswap.w`→`swpal` no tradutor). |
 | **REFACTOR-500** — dividir as 20 classes >500 linhas (regra ≤500) | `EM CURSO` | divisão multi-agente | `beta-0.3.0` | plano `docs/refactoring/PLAN-SOLID-500.md` | **Divisão**: agente-idiomatic faz **Fases 1–3 + 9** (`NativeRuntime`, `CompilerDriver`, `NativeBackend`, varredura); **fixes-for-kofagent faz Fases 4–8** (`JsBackend`, `JvmRuntime`, `SemanticAnalyzer`, `Parser`, classes 500–1400) (`JvmRuntime`, `SemanticAnalyzer`, `Parser`, classes 500–1400); agente-idiomatic fecha com Fase 9 (varredura final). **Contrato DRY**: `TypeMapper`/`NativeNameMangler`/`TypeMetrics` são criados por agente-idiomatic e consumidos (nunca recriados) por fixes-for-kofagent. Cada fase = commit isolado + suíte completa verde como gate. ⚠️ Nunca dois agentes no mesmo arquivo gigante. **Progresso agente-idiomatic 05/09: FASE 1 COMPLETA** — NativeRuntime 17726→142 linhas (só orquestrador); ~60 classes Runtime* ≤500. Suíte compilador 922 testes, 0 falhas. **fixes-for-kofagent**: fix println(char) (`94aca7a`), iniciando JvmRuntime. **PRÓXIMO PASSO (agente-idiomatic)**: Fase 2 CompilerDriver — F2.1-F2.4 FEITOS (TypeMetrics `f80211d`, StringMethodRegistry `497fe3a`, TypeEmitter `02ed40f`, CompilerTypes `6114cd8`; CompilerDriver 8870→8642). **PRÓXIMO**: F2.5-F2.7 FEITOS (BoxClassFactory, HierarchyResolver, JsonDispatch). F2.8 ModuleRoots FEITO (CompilerDriver ~8500). PRÓXIMO: CompilerDesugar (desugarTests/desugarApplication — precisam de um record DesugarCtx com discoveredTests/testHarnessMode/currentSourceName), depois emitStatementInner e emitExpression com LoweringContext. Depois F2.6 LambdaLowerer+LambdaState, F2.7 SuperBridgeBuilder/QueryDslLowerer/UiEmitter/ArgumentsEmitter, F2.8 StatementLowerer/ExpressionLowerer com LoweringContext (o mais arriscado). Suíte completa (927 testes) verde como gate.
 | **SYN001** — `SwitchExpr`: switch como expressão (pattern matching via `case ... ->`) | `FEITO` | agente-switch-expr | main | `Parser.java`, `SemanticAnalyzer.java`, `CompilerDriver.java`, `JsBackend.java`, `AstNodes.java`, `KofFormatter.java` | 03/09 `1d1343f` — plano `docs/planning-switch-expr.md`. **Aditivo**: statement (`:`) intocado (KofPatternMatchingTest 10 + KofEnumSwitchTest 4 = gate). Lowering KIR em cadeia de if-expr (JVM+Native+JS ternários). Prova: `KofSwitchExprE2ETest` 23/23 (valor/string/pattern/destructuring/return/aninhado/enum-exaustivo/SEM032) + riscv64/aarch64 14/14 qemu. Suíte 910/0/3-skip. Bônus: fix PKG005 (`f6f1714`) — re-import transitivo não é colisão |
 | **NATIVE002** — paridade stdlib riscv64/aarch64 (log/config/time/cache/mq stubs→real) | `FEITO` | agente-nativo-val | main | `NativeBackend.java` (`RISCV_RUNTIME_ASM` + `translateRiscvToAarch64`) | qemu riscv64+aarch64 OK; suíte 842/0. Detalhe: log `[LEVEL] msg` + stderr; config env real (`/proc/self/environ` syscall); cache TTL via `kof_time_now`, mq pub/sub c/ list (libera NATIVE002 residual) |
