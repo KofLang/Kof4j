@@ -644,6 +644,10 @@ public final class Translate {
                 String arg = parseSingleArg();
                 return receiver + " == " + arg;
             }
+            if (method.equals("length")) {
+                p.expect("("); p.expect(")");
+                return receiver + ".length";
+            }
             String args = parseCallArgs();
             return receiver + "." + method + "(" + args + ")";
         }

@@ -124,6 +124,18 @@ class TranslateTest {
                 "ternário deve virar if-expression:\n" + kof);
     }
 
+    @Test
+    void stringLengthProperty(@TempDir Path dir) throws Exception {
+        String kof = Translate.translateJava("""
+                public class S {
+                    public static int size(String s) { return s.length(); }
+                }
+                """);
+
+        assertTrue(kof.contains("s.length"), "length() vira propriedade .length:\n" + kof);
+        assertFalse(kof.contains("s.length()"), "não deve manter length():\n" + kof);
+    }
+
     private void assertCompiles(Path dir, String kof, String expected) throws Exception {
         Path src = dir.resolve("T.kf");
         Files.writeString(src, kof);
