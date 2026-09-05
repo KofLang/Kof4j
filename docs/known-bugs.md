@@ -567,6 +567,27 @@ EXTERNA produz lixo
 
 ---
 
+### 31. `process.<método-inexistente>()` compila como acesso a campo (segfault)
+
+- **Sintoma:** `process.currentDir()` (e qualquer método não-listado do
+  `KofProcess`) **compila** e no cross **segfaulta** (ec=139); no x86_64
+  retorna um valor lixo (`true`) — fallback silencioso.
+- **Causa:** `KofProcess` só expõe `spawn` + handle methods
+  (`alive/exitCode/kill/readLine/stdout/write`). Um método desconhecido não
+  cai em SEM011 ("método inexistente") — cai no caminho genérico de acesso a
+  campo do receiver (`pop t0; ld t0,16(t0)`), que deref um ponteiro nixo.
+- **Reprodução:** `main() { println(process.currentDir().length > 0) }`
+  (x86_64: `true`; riscv64/aarch64: SIGSEGV).
+- **O que deveria acontecer:** diagnóstico SEM011 em compile-time (método
+  não existe no namespace `process`), nunca compilar + segfault.
+- **Arquivos:** lowering de receiver `process.*` (`CompilerDriver.java`,
+  `KofProcess.staticCall`/`handleMethod`). É a área **F2.8
+  ExpressionLowerer** do REFACTOR-500 (EM CURSO de outro agente) — não tocar
+  sem combinar.
+- **Registrado:** 05/09 (sweep io/process do NATIVE002-stdlib residual).
+
+---
+
 ## Comportamentos que PAREcem bugs mas são esperados (não corrigir)
 
 | Cenário | Comportamento | Por quê |
