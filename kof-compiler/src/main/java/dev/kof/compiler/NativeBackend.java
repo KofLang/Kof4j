@@ -5284,8 +5284,8 @@ public class NativeBackend implements Backend {
             kof_time_interval:
                 la   a0, .Lstr_empty_interval
                 li   a1, 10
-                call kof_string_from_literal
-                ret
+                # tail-call (j): preserva o ra do chamador — call+ret dava loop
+                j    kof_string_from_literal
             .globl kof_time_cancel
             kof_time_cancel:
                 ret
@@ -5295,8 +5295,9 @@ public class NativeBackend implements Backend {
             kof_observability_health:
                 la   a0, .Lstr_health
                 li   a1, 2
-                call kof_string_from_literal
-                ret
+                # tail-call (j): o `call`+`ret` sobrescrevia ra com o ret da
+                # própria função → loop infinito. `j` preserva o ra do chamador.
+                j    kof_string_from_literal
             .globl kof_observability_readiness
             kof_observability_readiness:
                 li   a0, 1
@@ -5591,38 +5592,38 @@ public class NativeBackend implements Backend {
             kof_observability_request_id:
                 la   a0, .Lstr_trace
                 li   a1, 16
-                call kof_string_from_literal
-                ret
+                # tail-call (j): preserva o ra do chamador — call+ret dava loop
+                j    kof_string_from_literal
             .globl kof_observability_correlation_id
             kof_observability_correlation_id:
                 la   a0, .Lstr_span
                 li   a1, 16
-                call kof_string_from_literal
-                ret
+                # tail-call (j): preserva o ra do chamador — call+ret dava loop
+                j    kof_string_from_literal
             .globl kof_observability_trace_id
             kof_observability_trace_id:
                 la   a0, .Lstr_trace
                 li   a1, 32
-                call kof_string_from_literal
-                ret
+                # tail-call (j): preserva o ra do chamador — call+ret dava loop
+                j    kof_string_from_literal
             .globl kof_observability_span_id
             kof_observability_span_id:
                 la   a0, .Lstr_span
                 li   a1, 16
-                call kof_string_from_literal
-                ret
+                # tail-call (j): preserva o ra do chamador — call+ret dava loop
+                j    kof_string_from_literal
             .globl kof_observability_span_start
             kof_observability_span_start:
                 la   a0, .Lstr_span_handle
                 li   a1, 48
-                call kof_string_from_literal
-                ret
+                # tail-call (j): preserva o ra do chamador — call+ret dava loop
+                j    kof_string_from_literal
             .globl kof_observability_span_end
             kof_observability_span_end:
                 la   a0, .Lstr_empty_json
                 li   a1, 2
-                call kof_string_from_literal
-                ret
+                # tail-call (j): preserva o ra do chamador — call+ret dava loop
+                j    kof_string_from_literal
 
             # ---- kof.cache riscv64/aarch64: 64 slots de 24B em .bss ([key*][val*][expira_ms]) ----
             # set(key, val): grava; get(key): lê; set_ttl(key,val,ttl): guarda com expiração real
