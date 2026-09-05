@@ -72,4 +72,86 @@ final class CompilerTypes {
         }
         return new Type.ClassType("", mod, List.of());
     }
+
+    static java.util.List<String> enumConstantsOf(String name, CompilationUnitNode currentUnit) {
+        if (name == null || currentUnit == null) return List.of();
+        for (AstNode d : currentUnit.declarations()) {
+            if (d instanceof EnumDeclarationNode en && en.name().equals(name)) {
+                return en.constants();
+            }
+        }
+        return List.of();
+    }
+
+    static boolean isEnumType(Type t, CompilationUnitNode currentUnit) {
+        if (!(t instanceof Type.ClassType ct) || !ct.packageName().isEmpty() || !ct.typeArguments().isEmpty()) return false;
+        return !enumConstantsOf(ct.name(), currentUnit).isEmpty();
+    }
+
+    static boolean isRecordType(Type t, CompilationUnitNode currentUnit, SemanticAnalyzer semanticAnalyzer) {
+        if (!(t instanceof Type.ClassType ct) || ct.typeArguments() != null && !ct.typeArguments().isEmpty()) return false;
+        if (currentUnit != null) {
+            for (AstNode d : currentUnit.declarations()) {
+                if (d instanceof RecordDeclarationNode r && r.name().equals(ct.name())) return true;
+            }
+        }
+        if (semanticAnalyzer != null) {
+            SymbolTable.ClassSymbol cs = semanticAnalyzer.getClass(ct.name());
+            if (cs != null && cs.superClass() != null
+                    && (cs.superClass().equals("Record") || cs.superClass().endsWith("Record"))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static boolean containsLambdaFunctionType(Type t) {
+        if (t instanceof Type.FunctionType ft) {
+            return ft.className() == null;
+        }
+        if (t instanceof Type.ClassType ct && ct.typeArguments() != null) {
+            for (Type arg : ct.typeArguments()) {
+                if (containsLambdaFunctionType(arg)) return true;
+            }
+        }
+        if (t instanceof Type.ArrayType at) {
+            return containsLambdaFunctionType(at.componentType());
+        }
+        return false;
+    }
+
+    static String enumConstantOfExpr(ExpressionNode e, CompilationUnitNode currentUnit) {
+        if (e instanceof FieldAccessExpr fa && fa.receiver() instanceof IdentifierExpr rid
+                && isEnumName(rid.name(), currentUnit)) {
+            return enumConstantsOf(rid.name(), currentUnit).contains(fa.fieldName()) ? fa.fieldName() : null;
+        }
+        if (e instanceof LiteralExpr l && l.kind() == ConcreteLiteralKind.STRING) {
+            return l.value();
+        }
+        if (e instanceof IdentifierExpr ie) {
+            // não-qualificado: procura em todos os enums declarados
+            if (currentUnit != null) {
+                for (AstNode d : currentUnit.declarations()) {
+                    if (d instanceof EnumDeclarationNode en && en.constants().contains(ie.name())) {
+                        return ie.name();
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    static boolean isEnumName(String name, CompilationUnitNode currentUnit) {
+        return currentUnit != null && currentUnit.declarations().stream()
+                .anyMatch(d -> d instanceof EnumDeclarationNode en && en.name().equals(name));
+    }
+
+    static String typeToString(Type type) {
+        if (type instanceof Type.PrimitiveType pt) {
+            return Type.canonicalPrimitiveName(pt.name());
+        }
+        if (type instanceof Type.ClassType ct) return ct.name();
+        if (type instanceof Type.ArrayType at) return typeToString(at.componentType()) + "[]";
+        return "Object";
+    }
 }
