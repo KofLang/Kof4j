@@ -1614,12 +1614,11 @@ final class VkChain64Asm {
                 movq g_vk64_vkCmdBindDescriptorSets(%rip), %rax
                 movq vk64_cmd(%rip), %rdi
                 movl $1, %esi                      # COMPUTE bind point
-                movq vk64_dsl(%rip), %rdx          # TESTE: layout = dsl
-                movl $1, %ecx                      # 1 set
-                movq %r13, 8(%rsp)                 # slot p/ &dset
-                leaq vk64_dset(%rip), %r8          # pSets = &global (mais robusto)
-                xorl %r9d, %r9d                    # dynamicOffsetCount=0
-                pushq $0                           # pDynamicOffsets (7º arg)
+                movq %r12, %rdx                    # layout (pl)
+                xorl %ecx, %ecx                    # firstSet = 0
+                movl $1, %r8d                      # descriptorSetCount = 1
+                leaq vk64_dset(%rip), %r9          # pDescriptorSets = &global
+                pushq $0                           # pDynamicOffsets (8º arg)
                 pushq $0
                 call *%rax
                 addq $16, %rsp
