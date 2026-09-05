@@ -475,6 +475,24 @@ class NativeRiscv64E2ETest {
         assertEquals("1\n2\ntrue\n1\n1\n1\n2\ntrue\nfalse\ntrue\n1", out);
     }
 
+    // NATIVE002-stdlib: higher-order (map/filter/reduce) no cross — closure
+    // ABI igual mq (a0=fn, a1..=args, invoke via vtable[0]).
+    @Test
+    void riscv64HigherOrder(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runRiscv64(tempDir, """
+            main() {
+                var l = listOf(1, 2, 3)
+                var d = l.map((x: Int) -> x * 2)
+                println(d.get(2))
+                var f = l.filter((x: Int) -> x > 1)
+                println(f.size)
+                println(l.reduce((a: Int, b: Int) -> a + b, 0))
+            }
+            """);
+        assertEquals("6\n2\n6", out);
+    }
+
     private static int startHttpServer() throws IOException {
         java.net.ServerSocket ss = new java.net.ServerSocket(0);
         int port = ss.getLocalPort();

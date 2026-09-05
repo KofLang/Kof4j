@@ -7577,6 +7577,132 @@ public class NativeBackend implements Backend {
             .globl kof_set_clear
             kof_set_clear:
                 j    kof_list_clear
+
+            # ---- higher-order (map/filter/reduce) — closure ABI igual mq ----
+            # invoke: a0=fn, a1..=args → ld t0,8(a0) ld t0,0(t0) jalr t0
+            # kof_list_map(list, fn) -> List (fn(item))
+            .globl kof_list_map
+            kof_list_map:
+                addi sp, sp, -48
+                sd   ra, 40(sp)
+                sd   s0, 32(sp)          # src list
+                sd   s1, 24(sp)          # fn
+                sd   s2, 16(sp)          # dst list
+                sd   s3, 8(sp)           # i
+                mv   s0, a0
+                mv   s1, a1
+                call kof_list_new
+                mv   s2, a0
+                li   s3, 0
+            .Llmap_loop:
+                lw   t0, 16(s0)
+                bge  s3, t0, .Llmap_done
+                ld   t1, 24(s0)
+                slli t2, s3, 3
+                add  t1, t1, t2
+                ld   a1, 0(t1)           # item
+                mv   a0, s1              # fn
+                ld   t3, 8(a0)
+                ld   t3, 0(t3)
+                jalr t3                  # a0 = fn(item)
+                mv   a1, a0
+                mv   a0, s2
+                call kof_list_add
+                addi s3, s3, 1
+                j    .Llmap_loop
+            .Llmap_done:
+                mv   a0, s2
+                ld   s3, 8(sp)
+                ld   s2, 16(sp)
+                ld   s1, 24(sp)
+                ld   s0, 32(sp)
+                ld   ra, 40(sp)
+                addi sp, sp, 48
+                ret
+
+            # kof_list_filter(list, fn) -> List (mantém onde fn(item) é true)
+            .globl kof_list_filter
+            kof_list_filter:
+                addi sp, sp, -48
+                sd   ra, 40(sp)
+                sd   s0, 32(sp)
+                sd   s1, 24(sp)
+                sd   s2, 16(sp)
+                sd   s3, 8(sp)
+                mv   s0, a0
+                mv   s1, a1
+                call kof_list_new
+                mv   s2, a0
+                li   s3, 0
+            .Llfilt_loop:
+                lw   t0, 16(s0)
+                bge  s3, t0, .Llfilt_done
+                ld   t1, 24(s0)
+                slli t2, s3, 3
+                add  t1, t1, t2
+                ld   a1, 0(t1)           # item
+                mv   a0, s1
+                ld   t3, 8(a0)
+                ld   t3, 0(t3)
+                jalr t3                  # a0 = fn(item)
+                beqz a0, .Llfilt_next
+                # recarrega item (a1 pode ter sido clobberado pelo callee)
+                ld   t1, 24(s0)
+                slli t2, s3, 3
+                add  t1, t1, t2
+                ld   a1, 0(t1)
+                mv   a0, s2
+                call kof_list_add
+            .Llfilt_next:
+                addi s3, s3, 1
+                j    .Llfilt_loop
+            .Llfilt_done:
+                mv   a0, s2
+                ld   s3, 8(sp)
+                ld   s2, 16(sp)
+                ld   s1, 24(sp)
+                ld   s0, 32(sp)
+                ld   ra, 40(sp)
+                addi sp, sp, 48
+                ret
+
+            # kof_list_reduce(list, init, fn) -> acc (fn(acc, item))
+            .globl kof_list_reduce
+            kof_list_reduce:
+                addi sp, sp, -48
+                sd   ra, 40(sp)
+                sd   s0, 32(sp)          # list
+                sd   s1, 24(sp)          # fn
+                sd   s2, 16(sp)          # acc
+                sd   s3, 8(sp)           # i
+                mv   s0, a0
+                mv   s2, a1              # init = acc
+                mv   s1, a2              # fn
+                li   s3, 0
+            .Llred_loop:
+                lw   t0, 16(s0)
+                bge  s3, t0, .Llred_done
+                ld   t1, 24(s0)
+                slli t2, s3, 3
+                add  t1, t1, t2
+                ld   a2, 0(t1)           # item
+                mv   a0, s1              # fn
+                mv   a1, s2              # acc
+                ld   t3, 8(a0)
+                ld   t3, 0(t3)
+                jalr t3                  # a0 = fn(acc, item)
+                mv   s2, a0
+                addi s3, s3, 1
+                j    .Llred_loop
+            .Llred_done:
+                mv   a0, s2
+                ld   s3, 8(sp)
+                ld   s2, 16(sp)
+                ld   s1, 24(sp)
+                ld   s0, 32(sp)
+                ld   ra, 40(sp)
+                addi sp, sp, 48
+                ret
             """;
 
     private void emitAarch64(IRModule module, Path outputDir) throws IOException {
