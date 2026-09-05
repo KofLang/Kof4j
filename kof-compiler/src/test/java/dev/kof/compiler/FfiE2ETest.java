@@ -18,6 +18,33 @@ class FfiE2ETest {
     private final CompilerDriver driver = new CompilerDriver();
 
     @Test
+    void libcAbsEndToEndNative(@TempDir Path dir) throws IOException, InterruptedException {
+        Path src = dir.resolve("ffi-native.kf");
+        Files.writeString(src, """
+                extern "libc.so.6" abs(Int x): Int
+
+                main() {
+                    println(abs(-5))
+                }
+                """);
+
+        Path out = dir.resolve("out-native");
+        CompilationResult result = driver.compile(src, out, Target.NATIVE);
+        assertTrue(result.success(), "native compile must succeed (extern bound): "
+                + result.diagnostics().getDiagnostics());
+
+        Path bin = out.resolve("Default/Main");
+        assertTrue(Files.exists(bin), "native binary must exist");
+        ProcessBuilder pb = new ProcessBuilder(bin.toString());
+        pb.redirectErrorStream(true);
+        Process p = pb.start();
+        String output = new String(p.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, p.waitFor(), "native exit code, output: " + output);
+        assertEquals("5", output, "abs(-5) must return 5 via libc (native dlsym)");
+    }
+
+    @Test
     void jsExternEmitsFfi002(@TempDir Path dir) throws IOException {
         Path src = dir.resolve("ffi-js.kf");
         Files.writeString(src, """

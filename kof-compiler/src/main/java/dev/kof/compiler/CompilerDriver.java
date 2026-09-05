@@ -811,9 +811,10 @@ private Target target = Target.JVM;
     /** FFI (R3): declarações {@code extern} por nome (preenchido no lowering). */
     private final java.util.Map<String, ExternalFunctionNode> externSignatures = new java.util.LinkedHashMap<>();
 
-    /** FFI (R3): binding JVM-first implementado só para assinatura Int→Int (2.1.4). */
+    /** FFI (R3): binding implementado para Int→Int (2.1.4/2.1.5). */
     private boolean isExternBound(ExternalFunctionNode ext) {
-        if (target != Target.JVM) return false;
+        // JVM (FFM) e Native x86-64 (dlopen/dlsym) — não JS/RISC-V/ARM ainda.
+        if (target != Target.JVM && target != Target.NATIVE) return false;
         if (ext.parameters().size() != 1) return false;
         return isIntType(ext.parameters().get(0).type()) && isIntType(ext.returnType());
     }

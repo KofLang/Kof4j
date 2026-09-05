@@ -78,6 +78,7 @@ final class NativeRuntime {
         emitKofTimeFunctions(sb);
         emitCacheFunctions(sb);
         emitVkStubs(sb);
+        emitFfiStub(sb);
         emitLogFunctions(sb);
         emitConfigFunctions(sb);
         emitIoFileFunctions(sb);
@@ -7720,6 +7721,51 @@ final class NativeRuntime {
                 addq $32, %rsp
                 popq %r15
                 popq %r14
+                popq %r13
+                popq %r12
+                popq %rbx
+                ret
+            """);
+    }
+
+    // FFI (R3, TIER 2.1.5): downcall nativo via dlopen+dlsym — Int→Int.
+    // Kof String é objeto com os bytes C (null-terminado) em offset 24.
+    private static void emitFfiStub(StringBuilder sb) {
+        sb.append("""
+            .section .text
+            .globl kof_ffi_i
+            .type kof_ffi_i, @function
+            kof_ffi_i:
+                pushq %rbx
+                pushq %r12
+                pushq %r13
+                # rdi = Kof String lib, rsi = Kof String name, edx = int arg
+                addq $24, %rdi
+                addq $24, %rsi
+                movq %rdi, %r12
+                movq %rsi, %r13
+                movl %edx, %ebx
+                # dlopen(lib, RTLD_NOW=2)
+                movq %r12, %rdi
+                movl $2, %esi
+                call dlopen@PLT
+                testq %rax, %rax
+                jz .Lffi_fail
+                # dlsym(handle, name)
+                movq %rax, %rdi
+                movq %r13, %rsi
+                call dlsym@PLT
+                testq %rax, %rax
+                jz .Lffi_fail
+                # call *(fn)(int a); int em %eax
+                movl %ebx, %edi
+                call *%rax
+                popq %r13
+                popq %r12
+                popq %rbx
+                ret
+            .Lffi_fail:
+                movl $0, %eax
                 popq %r13
                 popq %r12
                 popq %rbx
