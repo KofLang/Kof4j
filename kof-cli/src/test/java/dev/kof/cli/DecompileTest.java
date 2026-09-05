@@ -186,6 +186,30 @@ class DecompileTest {
         assertTrue(result.success(), "decompiled deve compilar:\n" + kof + "\n" + result.diagnostics().getDiagnostics());
     }
 
+    @Test
+    void recoversFieldAccess(@TempDir Path dir) throws Exception {
+        Path javaFile = dir.resolve("Box.java");
+        Files.writeString(javaFile, """
+                public class Box {
+                    int value;
+                    public int getValue() { return value; }
+                    public void setValue(int v) { value = v; }
+                }
+                """);
+        runJavac(javaFile, dir);
+
+        String kof = Decompile.decompile(dir.resolve("Box.class"));
+
+        assertTrue(kof.contains("getValue() = this.value"), "getfield deve virar this.value:\n" + kof);
+        assertTrue(kof.contains("this.value = arg0"), "putfield deve virar this.value = arg0:\n" + kof);
+
+        Path out = dir.resolve("Box.kf");
+        Files.writeString(out, kof);
+        CompilerDriver driver = new CompilerDriver();
+        CompilationResult result = driver.compile(out, dir.resolve("out"), Target.JVM);
+        assertTrue(result.success(), "decompiled deve compilar:\n" + kof + "\n" + result.diagnostics().getDiagnostics());
+    }
+
     private void runJavac(Path javaFile, Path dir) throws IOException, InterruptedException {
         String javaHome = System.getProperty("java.home");
         Path javac = Path.of(javaHome, "bin", "javac");

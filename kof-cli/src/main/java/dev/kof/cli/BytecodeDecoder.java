@@ -79,6 +79,17 @@ final class BytecodeDecoder {
                     String recv = stack.pop();
                     stack.push(recv + "." + m[1] + "(" + a + ")");
                 }
+                case 0xb4 -> { // getfield
+                    String[] f = resolveMethodRef(cp, in.operands()[0]);
+                    if (f == null || stack.isEmpty()) return null;
+                    String obj = stack.pop();
+                    stack.push(obj + "." + f[1]);
+                }
+                case 0xb2 -> { // getstatic
+                    String[] f = resolveMethodRef(cp, in.operands()[0]);
+                    if (f == null) return null;
+                    stack.push(simpleOwner(f[0]) + "." + f[1]);
+                }
                 case 0xac, 0xb0 -> {
                     return stack.isEmpty() ? null : stack.pop();
                 }
@@ -417,6 +428,46 @@ final class BytecodeDecoder {
                 case 0x6c -> { if (!bin(stack, "/")) return null; }
                 case 0x70 -> { if (!bin(stack, "%")) return null; }
                 case 0x74 -> { if (stack.isEmpty()) return null; stack.push("-" + stack.pop()); }
+                case 0xb8 -> { // invokestatic
+                    String[] m = resolveMethodRef(cp, in.operands()[0]);
+                    if (m == null) return null;
+                    String a = callArgs(stack, argCount(m[2]));
+                    if (a == null) return null;
+                    stack.push(simpleOwner(m[0]) + "." + m[1] + "(" + a + ")");
+                }
+                case 0xb6 -> { // invokevirtual
+                    String[] m = resolveMethodRef(cp, in.operands()[0]);
+                    if (m == null) return null;
+                    String a = callArgs(stack, argCount(m[2]));
+                    if (a == null || stack.isEmpty()) return null;
+                    String recv = stack.pop();
+                    stack.push(recv + "." + m[1] + "(" + a + ")");
+                }
+                case 0xb4 -> { // getfield
+                    String[] f = resolveMethodRef(cp, in.operands()[0]);
+                    if (f == null || stack.isEmpty()) return null;
+                    String obj = stack.pop();
+                    stack.push(obj + "." + f[1]);
+                }
+                case 0xb2 -> { // getstatic
+                    String[] f = resolveMethodRef(cp, in.operands()[0]);
+                    if (f == null) return null;
+                    stack.push(simpleOwner(f[0]) + "." + f[1]);
+                }
+                case 0xb5 -> { // putfield
+                    String[] f = resolveMethodRef(cp, in.operands()[0]);
+                    if (f == null || stack.isEmpty()) return null;
+                    String val = stack.pop();
+                    if (stack.isEmpty()) return null;
+                    String obj = stack.pop();
+                    stmts.add(obj + "." + f[1] + " = " + val);
+                }
+                case 0xb3 -> { // putstatic
+                    String[] f = resolveMethodRef(cp, in.operands()[0]);
+                    if (f == null || stack.isEmpty()) return null;
+                    String val = stack.pop();
+                    stmts.add(simpleOwner(f[0]) + "." + f[1] + " = " + val);
+                }
                 case 0xac -> { if (stack.isEmpty()) return null; stmts.add("return " + stack.pop()); return stmts; }
                 case 0xb0 -> { if (stack.isEmpty()) return null; stmts.add("return " + stack.pop()); return stmts; }
                 case 0xb1 -> { stmts.add("return"); return stmts; }
