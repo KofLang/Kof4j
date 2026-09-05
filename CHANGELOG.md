@@ -14,6 +14,24 @@ Linha de desenvolvimento 0.3.0 aberta em 04/09/2026. Semântica congelada
 
 ### Em desenvolvimento
 
+  - **NATIVE002-stdlib residual (05/09)** — auditoria R6 + paridade cross:
+    **fcvt riscv64** (os 10 mnemonics de conversão numérica saíam com
+    rd/rs invertidos — `as Int`/`as Double` quebravam no `as`),
+    **ToolchainMissing** (falha de `as`/`ld` nos cross agora propaga como
+    erro de compilação — antes era "success=true sem binário" silencioso),
+    **FLT001** (`println(double)`/`valueOf(double)` no cross vira
+    diagnóstico em compile-time: runtime asm puro sem libc não tem `%g` —
+    antes segfault silencioso; aritmética/conversão FP funciona),
+    **time.now()** real (`clock_gettime` 113 — era stub `li a0,0` que
+    quebrava o TTL do cache), **cache riscv64/aarch64** (scan loops usavam
+    t2/t3 clobberados pelo `kof_string_equals` → segfault; + `sle/sge`
+    inexistentes na ISA riscv → `<=`/`>=` quebravam; + `println(null)`→"null"),
+    **mq riscv64/aarch64** (port completo: queue por handle, pop via
+    `kof_list_remove`, queue_size, unsubscribe por identidade, invoke dos
+    handlers via vtable — antes infuncional: gate MQ001). Prova:
+    `KofMqE2ETest` 5/5 (incl. cross qemu c/ paridade de output),
+    `riscv64/aarch64Cache`, `riscv64/aarch64TimeNow`, suíte nativa 101/101.
+
   - NATIVE002 paridade avançada riscv64/aarch64: stdlib real no runtime asm —
     **JSON** (`kof_json_quote`/builder, encode/decode record+listas), **HTTP**
     (`get/post/put/patch/delete/options/status` + headers, asm puro: socket+

@@ -54,7 +54,7 @@
 | `kof.observability` (health/metrics/requestId) | ✅ | ✅ | ✅ | `KofObservabilityTest` |
 | `kof.http` client | ✅ | Native HTTP/1.1 asm (socket/recv/send parse; https→throw; DNS não-IP→127.0.0.1; retry knob no-op) | ✅ (GraalJS via `Java HttpClient` interop + fetch fallback) | `KofHttpE2ETest` 6/6 (JVM+JS+Native real resp); retry/circuit paridade 30/08 |
 | `kof.cache` (get/set/ttl/delete/clear) | ✅ | ✅ 30/08 (fix clobber `%rax`/`%rdi`) | ✅ | `KofCacheE2ETest` 5/5 x3 targets |
-| `kof.mq` (pub/sub + queue) | ✅ | ✅ (01/09, pub/sub + filas in-process, asm) | ✅ | `KofMqE2ETest` 4/4 (JVM+Native+JS) |
+| `kof.mq` (pub/sub + queue) | ✅ | ✅ (01/09, pub/sub + filas in-process, asm; **05/09 port completo riscv64/aarch64** — queue por handle, pop via `kof_list_remove`, queue_size, unsubscribe por identidade, scan loops sem clobber) | ✅ | `KofMqE2ETest` 5/5 (JVM+Native+JS + **cross riscv64/aarch64 qemu** c/ paridade de output) |
 | `kof.config` (typed) | ✅ | ✅ (asm próprio) | CONF001 | precedência total Native (`KOF_CONFIG` > env > profile > `kof.config`); `NativeConfigE2ETest` 8 |
 | `kof.log` | ✅ (JSON + correlation ID) | ✅ (asm; UTC, sem JSON) | ✅ 01/09 (console.* + nível) | `KofLogE2ETest` 11 (incl. JS) + `NativeLogE2ETest` 7 |
 | `kof.security` (passwords/crypto/jwt/secrets + G9) | ✅ | ✅ | ✅ | PBKDF2/SHA512/JWT/AES-GCM (asm no Native, JS puro no KofJS — `SECN002` fechado 01/09) |

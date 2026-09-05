@@ -153,23 +153,77 @@ class KofMqE2ETest {
     }
 
     @Test
-    void crossNativeReportsMq001(@TempDir Path tempDir) throws IOException {
-        // R6: o runtime riscv64/aarch64 tem mq em asm mas com bugs (queue com
-        // assinatura errada, pop não remove, queue_size ausente) e nenhum teste
-        // cross — gate MQ001 em compile-time até o port completo (padrão DB001),
-        // nunca segfault/undefined-reference silencioso.
-        Path source = tempDir.resolve("Main.kf");
-        Files.writeString(source, """
+    void crossNativeMqQueueAndPubsub(@TempDir Path tempDir) throws Exception {
+        // MQ001 no riscv64/aarch64 (port completo 05/09 — antes era gate
+        // temporário porque o asm cross estava infuncional). Paridade de
+        // output com o x86_64.
+        String queueSrc = """
             main() {
                 var q = mq.queue()
                 mq.push(q, "job-1")
+                mq.push(q, "job-2")
+                println(mq.queueSize(q))
+                println(mq.pop(q))
+                println(mq.pop(q))
+                println(mq.pop(q))
             }
-            """);
+            """;
+        String pubSrc = """
+            main() {
+                mq.subscribe("order.created", (msg) -> {
+                    println("pedido: " + msg)
+                })
+                mq.publish("order.created", "12345")
+                mq.publish("order.created", "67890")
+            }
+            """;
+        String unSrc = """
+            main() {
+                val h = (msg) -> {
+                    println("got:" + msg)
+                }
+                mq.subscribe("topic", h)
+                mq.publish("topic", "one")
+                mq.unsubscribe("topic", h)
+                mq.publish("topic", "two")
+            }
+            """;
+        boolean hasRiscv = hasCmd("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64");
+        boolean hasAarch = hasCmd("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64");
+        org.junit.jupiter.api.Assumptions.assumeTrue(hasRiscv && hasAarch,
+                "cross toolchain riscv64/aarch64 + qemu ausente — pulando (NATIVE002)");
         for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
-            CompilationResult r = new CompilerDriver().compile(source, tempDir.resolve("cross-" + t), t);
-            assertFalse(r.success(), t + " should report MQ001");
-            assertTrue(r.diagnostics().getDiagnostics().toString().contains("MQ001"),
-                    t + ": " + r.diagnostics().getDiagnostics());
+            assertCross(tempDir, queueSrc, "2\njob-1\njob-2\nnull", t);
+            assertCross(tempDir, pubSrc, "pedido: 12345\npedido: 67890", t);
+            assertCross(tempDir, unSrc, "got:one", t);
         }
+    }
+
+    private static boolean hasCmd(String... cmds) {
+        for (String c : cmds) {
+            try {
+                Process p = new ProcessBuilder("sh", "-c", "command -v " + c).redirectErrorStream(true).start();
+                String out = new String(p.getInputStream().readAllBytes()).trim();
+                if (p.waitFor() != 0 || out.isEmpty()) return false;
+            } catch (Exception e) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void assertCross(Path tempDir, String src, String expected, Target t) throws Exception {
+        Path source = tempDir.resolve("Main-" + t + "-" + java.util.UUID.randomUUID() + ".kf");
+        Files.writeString(source, src);
+        Path out = tempDir.resolve("cross-" + t + "-" + java.util.UUID.randomUUID());
+        CompilationResult r = new CompilerDriver().compile(source, out, t);
+        assertTrue(r.success(), t + ": " + r.diagnostics().getDiagnostics());
+        String bin = out.resolve("Default/Main").toString();
+        String arch = t == Target.NATIVE_RISCV64 ? "qemu-riscv64" : "qemu-aarch64";
+        Process p = new ProcessBuilder(arch, bin).redirectErrorStream(true).start();
+        String outStr = new String(p.getInputStream().readAllBytes()).trim();
+        int ec = p.waitFor();
+        assertEquals(0, ec, t + ": " + outStr);
+        assertEquals(expected, outStr, t + " output divergiu do x86_64");
     }
 }

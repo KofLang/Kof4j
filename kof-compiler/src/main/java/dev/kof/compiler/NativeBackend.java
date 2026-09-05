@@ -5859,188 +5859,318 @@ public class NativeBackend implements Backend {
                 j    .Lclr_loop
             .Lclr_done:
                 ret
-            # ---- kof.mq riscv64/aarch64: pub/sub + filas em .bss (64 slots cada) ----
+            # ---- kof.mq riscv64/aarch64: pub/sub + filas em .bss (64 slots de 16B) ----
+            # Reescrita 05/09 (port completo): entry = [topic@0, list@8].
+            # (1) scan loops usam PONTEIRO-FIM salvo no frame (recarregado a
+            #     cada iteração) — t2/t3/t4 são caller-saved e o
+            #     kof_string_equals os clobber (segfault nos loops antigos);
+            # (2) todos os s-regs usados são salvos no frame (os antigos
+            #     usavam s2/s3/s4 sem salvar — clobber sob kof_string_equals,
+            #     kof_list_* e o jalr dos handlers);
+            # (3) invoke de handler: a0=fn a1=msg → ld t0,8(a0) ld t0,0(t0)
+            #     jalr t0 (mesmo padrão do codegen de dispatch virtual);
+            # (4) pop/remove/queue_size por handle — kof_list_remove (novo).
+            # Paridade de output com o x86_64 (MQ001).
             .globl kof_mq_subscribe
             kof_mq_subscribe:
-                addi sp, sp, -32
-                sd   ra, 24(sp)
-                sd   s0, 16(sp)
-                sd   s1, 8(sp)
-                mv   s0, a0           # topic
-                mv   s1, a1           # fn
-                la   s2, .Lmq_subs
-                li   t2, 0            # i
-                li   t3, 64
-            .Lmss_find:
-                bge  t2, t3, .Lmss_new
-                ld   t4, 0(s2)
-                beqz t4, .Lmss_new
-                mv   a0, t4
-                mv   a1, s0
-                call kof_string_equals
-                bnez a0, .Lmss_addfn
-                addi t2, t2, 1
-                addi s2, s2, 16
-                j    .Lmss_find
-            .Lmss_new:
-                # grava topic + nova lista c/ fn
-                sd   s0, 0(s2)
-                addi sp, sp, -16
-                sd   ra, 8(sp)
-                mv   a0, zero
-                call kof_list_new
-                ld   ra, 8(sp)
-                addi sp, sp, 16
-                sd   a0, 8(s2)
-                mv   a1, s1
-                call kof_list_add
-                j    .Lmss_done
-            .Lmss_addfn:
-                ld   t4, 8(s2)
-                mv   a0, t4
-                mv   a1, s1
-                call kof_list_add
-            .Lmss_done:
-                ld   s1, 8(sp)
-                ld   s0, 16(sp)
-                ld   ra, 24(sp)
-                addi sp, sp, 32
-                ret
-
-            .globl kof_mq_unsubscribe
-            kof_mq_unsubscribe:
-                ret
-
-            .globl kof_mq_publish
-            kof_mq_publish:
-                addi sp, sp, -32
-                sd   ra, 24(sp)
-                sd   s0, 16(sp)       # topic
-                sd   s1, 8(sp)        # msg
+                addi sp, sp, -64
+                sd   ra, 56(sp)
+                sd   s0, 48(sp)      # topic
+                sd   s1, 40(sp)      # fn
+                sd   s2, 32(sp)      # slot ptr
+                sd   s3, 24(sp)      # end ptr
                 mv   s0, a0
                 mv   s1, a1
                 la   s2, .Lmq_subs
-                li   t2, 0
-                li   t3, 64
-            .Lmp_find:
-                bge  t2, t3, .Lmp_done
+                li   t0, 1024
+                add  s3, s2, t0
+            .Lmq_sub_find:
+                bgeu s2, s3, .Lmq_sub_new
                 ld   t4, 0(s2)
-                beqz t4, .Lmp_done
+                beqz t4, .Lmq_sub_new
                 mv   a0, t4
                 mv   a1, s0
                 call kof_string_equals
-                bnez a0, .Lmp_dispatch
-                addi t2, t2, 1
+                bnez a0, .Lmq_sub_addfn
                 addi s2, s2, 16
-                j    .Lmp_find
-            .Lmp_dispatch:
-                ld   s3, 8(s2)       # lista de fn
-                li   s4, 0
-            .Lmp_iter:
-                mv   a0, s3
-                call kof_list_size
-                bge  s4, a0, .Lmp_done
-                mv   a0, s3
-                mv   a1, s4
-                call kof_list_get
-                mv   t5, a0          # fn
-                mv   a0, s1          # msg
-                jalr t5
-                addi s4, s4, 1
-                j    .Lmp_iter
-            .Lmp_done:
-                ld   s1, 8(sp)
-                ld   s0, 16(sp)
-                ld   ra, 24(sp)
-                addi sp, sp, 32
+                j    .Lmq_sub_find
+            .Lmq_sub_new:
+                sd   s0, 0(s2)
+                mv   a0, zero
+                call kof_list_new
+                sd   a0, 8(s2)
+            .Lmq_sub_addfn:
+                ld   a0, 8(s2)
+                mv   a1, s1
+                call kof_list_add
+            .Lmq_sub_done:
+                ld   s3, 24(sp)
+                ld   s2, 32(sp)
+                ld   s1, 40(sp)
+                ld   s0, 48(sp)
+                ld   ra, 56(sp)
+                addi sp, sp, 64
                 ret
 
+            # kof_mq_unsubscribe(topic, fn) — remove por identidade do objeto fn
+            .globl kof_mq_unsubscribe
+            kof_mq_unsubscribe:
+                addi sp, sp, -80
+                sd   ra, 72(sp)
+                sd   s0, 64(sp)      # topic
+                sd   s1, 56(sp)      # fn
+                sd   s2, 48(sp)      # slot ptr
+                sd   s3, 40(sp)      # end ptr
+                sd   s4, 32(sp)      # list
+                sd   s5, 24(sp)      # idx
+                mv   s0, a0
+                mv   s1, a1
+                la   s2, .Lmq_subs
+                li   t0, 1024
+                add  s3, s2, t0
+            .Lmq_unsub_find:
+                bgeu s2, s3, .Lmq_unsub_done
+                ld   t4, 0(s2)
+                beqz t4, .Lmq_unsub_done
+                mv   a0, t4
+                mv   a1, s0
+                call kof_string_equals
+                beqz a0, .Lmq_unsub_next
+                ld   s4, 8(s2)
+                li   s5, 0
+            .Lmq_unsub_loop:
+                mv   a0, s4
+                call kof_list_size
+                bge  s5, a0, .Lmq_unsub_done
+                mv   a0, s4
+                mv   a1, s5
+                call kof_list_get
+                beq  a0, s1, .Lmq_unsub_rm
+                addi s5, s5, 1
+                j    .Lmq_unsub_loop
+            .Lmq_unsub_rm:
+                mv   a0, s4
+                mv   a1, s5
+                call kof_list_remove
+                j    .Lmq_unsub_done
+            .Lmq_unsub_next:
+                addi s2, s2, 16
+                j    .Lmq_unsub_find
+            .Lmq_unsub_done:
+                ld   s5, 24(sp)
+                ld   s4, 32(sp)
+                ld   s3, 40(sp)
+                ld   s2, 48(sp)
+                ld   s1, 56(sp)
+                ld   s0, 64(sp)
+                ld   ra, 72(sp)
+                addi sp, sp, 80
+                ret
+
+            # kof_mq_publish(topic, msg) — dispara cada fn com a0=fn a1=msg
+            .globl kof_mq_publish
+            kof_mq_publish:
+                addi sp, sp, -80
+                sd   ra, 72(sp)
+                sd   s0, 64(sp)      # topic
+                sd   s1, 56(sp)      # msg
+                sd   s2, 48(sp)      # slot ptr
+                sd   s3, 40(sp)      # end ptr
+                sd   s4, 32(sp)      # list
+                sd   s5, 24(sp)      # idx
+                mv   s0, a0
+                mv   s1, a1
+                la   s2, .Lmq_subs
+                li   t0, 1024
+                add  s3, s2, t0
+            .Lmq_pub_find:
+                bgeu s2, s3, .Lmq_pub_done
+                ld   t4, 0(s2)
+                beqz t4, .Lmq_pub_done
+                mv   a0, t4
+                mv   a1, s0
+                call kof_string_equals
+                beqz a0, .Lmq_pub_next
+                ld   s4, 8(s2)
+                li   s5, 0
+            .Lmq_pub_iter:
+                mv   a0, s4
+                call kof_list_size
+                bge  s5, a0, .Lmq_pub_done
+                mv   a0, s4
+                mv   a1, s5
+                call kof_list_get
+                mv   t5, a0          # fn
+                mv   a0, t5          # invoke: a0=fn a1=msg
+                # (t5 é caller-saved, mas a1 já foi movido antes de clobber)
+                mv   a1, s1
+                ld   t0, 8(a0)       # fn->vtable
+                ld   t0, 0(t0)       # vtable[0] = invoke
+                jalr t0
+                addi s5, s5, 1
+                j    .Lmq_pub_iter
+            .Lmq_pub_next:
+                addi s2, s2, 16
+                j    .Lmq_pub_find
+            .Lmq_pub_done:
+                ld   s5, 24(sp)
+                ld   s4, 32(sp)
+                ld   s3, 40(sp)
+                ld   s2, 48(sp)
+                ld   s1, 56(sp)
+                ld   s0, 64(sp)
+                ld   ra, 72(sp)
+                addi sp, sp, 80
+                ret
+
+            # kof_mq_queue() -> String "mq-<n>" (handle único por queue)
             .globl kof_mq_queue
             kof_mq_queue:
                 addi sp, sp, -32
                 sd   ra, 24(sp)
                 sd   s0, 16(sp)
                 sd   s1, 8(sp)
-                mv   s0, a0
-                mv   s1, a1
-                la   s2, .Lmq_queues
-                li   t2, 0
-                li   t3, 64
-            .Lmq_find2:
-                bge  t2, t3, .Lmq_new2
-                ld   t4, 0(s2)
-                beqz t4, .Lmq_new2
-                mv   a0, t4
-                mv   a1, s0
-                call kof_string_equals
-                bnez a0, .Lmq_add2
-                addi t2, t2, 1
-                addi s2, s2, 16
-                j    .Lmq_find2
-            .Lmq_new2:
-                sd   s0, 0(s2)
-                call kof_list_new
-                sd   a0, 8(s2)
-                mv   s2, a0
-                mv   a1, s1
-                mv   a0, s2
-                call kof_list_add
-                mv   a0, s0
-                j    .Lmq_ret2
-            .Lmq_add2:
-                mv   a1, s1
-                ld   a0, 8(s2)
-                call kof_list_add
-                mv   a0, s0
-            .Lmq_ret2:
+                la   s0, .Lmq_seq
+                lw   t0, 0(s0)
+                addi t0, t0, 1
+                sw   t0, 0(s0)
+                la   a0, .Lstr_mq_prefix
+                li   a1, 3
+                call kof_string_from_literal
+                sd   a0, 0(sp)
+                mv   a0, t0
+                call kof_int_to_string
+                ld   a1, 0(sp)
+                call kof_string_concat
                 ld   s1, 8(sp)
                 ld   s0, 16(sp)
                 ld   ra, 24(sp)
                 addi sp, sp, 32
                 ret
 
-            # kof_mq_push(name, item) — add na lista da fila
+            # kof_mq_push(handle, item) — add na fila do handle
             .globl kof_mq_push
             kof_mq_push:
-                j    kof_mq_queue    # mesma ação nosso modelo: topic/controle igual
-
-            # kof_mq_pop(name) -> KofString* ou 0 — lê primeiro suspeito
-            .globl kof_mq_pop
-            kof_mq_pop:
-                addi sp, sp, -32
-                sd   ra, 24(sp)
-                sd   s0, 16(sp)
+                addi sp, sp, -48
+                sd   ra, 40(sp)
+                sd   s0, 32(sp)      # handle
+                sd   s1, 24(sp)      # item
+                sd   s2, 16(sp)      # slot ptr
+                sd   s3, 8(sp)       # end ptr
                 mv   s0, a0
-                la   s1, .Lmq_queues
-                li   t2, 0
-                li   t3, 64
-            .Lmpf_find2:
-                bge  t2, t3, .Lmpf_null
-                ld   t4, 0(s1)
-                beqz t4, .Lmpf_null
+                mv   s1, a1
+                la   s2, .Lmq_queues
+                li   t0, 1024
+                add  s3, s2, t0
+            .Lmq_push_find:
+                bgeu s2, s3, .Lmq_push_new
+                ld   t4, 0(s2)
+                beqz t4, .Lmq_push_new
                 mv   a0, t4
                 mv   a1, s0
                 call kof_string_equals
-                bnez a0, .Lmpf_found
-                addi t2, t2, 1
-                addi s1, s1, 16
-                j    .Lmpf_find2
-            .Lmpf_found:
-                ld   s2, 8(s1)       # lista
-                mv   a0, s2
+                beqz a0, .Lmq_push_next
+                ld   a0, 8(s2)
+                mv   a1, s1
+                call kof_list_add
+                j    .Lmq_push_done
+            .Lmq_push_next:
+                addi s2, s2, 16
+                j    .Lmq_push_find
+            .Lmq_push_new:
+                sd   s0, 0(s2)
+                mv   a0, zero
+                call kof_list_new
+                sd   a0, 8(s2)
+                mv   a1, s1
+                call kof_list_add      # a0 = list (ainda em a0)
+            .Lmq_push_done:
+                ld   s3, 8(sp)
+                ld   s2, 16(sp)
+                ld   s1, 24(sp)
+                ld   s0, 32(sp)
+                ld   ra, 40(sp)
+                addi sp, sp, 48
+                ret
+
+            # kof_mq_pop(name) -> KofString* ou 0 — lê primeiro suspeito
+                        # kof_mq_pop(handle) -> item ou 0 — remove o primeiro (FIFO)
+            .globl kof_mq_pop
+            kof_mq_pop:
+                addi sp, sp, -48
+                sd   ra, 40(sp)
+                sd   s0, 32(sp)      # handle
+                sd   s1, 24(sp)      # slot ptr
+                sd   s2, 16(sp)      # end ptr
+                sd   s3, 8(sp)       # list
+                mv   s0, a0
+                la   s1, .Lmq_queues
+                li   t0, 1024
+                add  s2, s1, t0
+            .Lmq_pop_find:
+                bgeu s1, s2, .Lmq_pop_null
+                ld   t4, 0(s1)
+                beqz t4, .Lmq_pop_null
+                mv   a0, t4
+                mv   a1, s0
+                call kof_string_equals
+                beqz a0, .Lmq_pop_next
+                ld   s3, 8(s1)
+                mv   a0, s3
                 call kof_list_size
-                beqz a0, .Lmpf_null
-                # kof.mq pop: primeiro item, depois segue (lista em ordem)
-                mv   a0, s2
+                beqz a0, .Lmq_pop_null
+                mv   a0, s3
                 li   a1, 0
-                call kof_list_get
-                j    .Lmpf_ret
-            .Lmpf_null:
+                call kof_list_remove
+                j    .Lmq_pop_ret
+            .Lmq_pop_next:
+                addi s1, s1, 16
+                j    .Lmq_pop_find
+            .Lmq_pop_null:
                 li   a0, 0
-            .Lmpf_ret:
-                ld   s0, 16(sp)
-                ld   ra, 24(sp)
-                addi sp, sp, 32
+            .Lmq_pop_ret:
+                ld   s3, 8(sp)
+                ld   s2, 16(sp)
+                ld   s1, 24(sp)
+                ld   s0, 32(sp)
+                ld   ra, 40(sp)
+                addi sp, sp, 48
+                ret
+
+            # kof_mq_queue_size(handle) -> Int
+            .globl kof_mq_queue_size
+            kof_mq_queue_size:
+                addi sp, sp, -48
+                sd   ra, 40(sp)
+                sd   s0, 32(sp)      # handle
+                sd   s1, 24(sp)      # slot ptr
+                sd   s2, 16(sp)      # end ptr
+                mv   s0, a0
+                la   s1, .Lmq_queues
+                li   t0, 1024
+                add  s2, s1, t0
+            .Lmq_qs_find:
+                bgeu s1, s2, .Lmq_qs_zero
+                ld   t4, 0(s1)
+                beqz t4, .Lmq_qs_zero
+                mv   a0, t4
+                mv   a1, s0
+                call kof_string_equals
+                beqz a0, .Lmq_qs_next
+                ld   a0, 8(s1)
+                call kof_list_size
+                j    .Lmq_qs_ret
+            .Lmq_qs_next:
+                addi s1, s1, 16
+                j    .Lmq_qs_find
+            .Lmq_qs_zero:
+                li   a0, 0
+            .Lmq_qs_ret:
+                ld   s2, 16(sp)
+                ld   s1, 24(sp)
+                ld   s0, 32(sp)
+                ld   ra, 40(sp)
+                addi sp, sp, 48
                 ret
 
             # ---- kof.validation (13 predicados) ----
@@ -6887,6 +7017,7 @@ public class NativeBackend implements Backend {
             _kof_heap: .space 262144
             .Lmq_subs:    .space 1024
             .Lmq_queues:  .space 1024
+            .Lmq_seq:     .space 8
             .Lcache_area: .space 1536
             kof_obs_counter_name: .quad 0
             kof_obs_counter_val: .word 0
@@ -6917,6 +7048,7 @@ public class NativeBackend implements Backend {
             .Lstr_span: .asciz "0000000000000000"
             .Lstr_span_handle: .asciz "000000000000000000000000000000000000000000000000"
             .Lstr_mq: .asciz "mq-0"
+            .Lstr_mq_prefix: .asciz "mq-"
             .Lstr_space: .asciz " "
             .Lstr_nl: .asciz "\\n"
             .Lstr_count: .asciz "_count"
