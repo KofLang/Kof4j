@@ -1042,9 +1042,7 @@ private Target target = Target.JVM;
     private java.util.Set<String> mutatedCapturedNames = new java.util.HashSet<>();
     private final java.util.Set<String> lambdaCapturedNames = new java.util.HashSet<>();
     /** Nomes das classes BoxN sintéticas (captura mutável) — acesso via campo `value`. */
-    private final java.util.Set<String> boxClassNames = new java.util.HashSet<>();
-    private final java.util.Map<String, Type> boxValueTypes = new java.util.HashMap<>();
-    private int boxCounter = 0;
+    private final BoxClassFactory boxFactory = new BoxClassFactory();
 
     private final java.util.IdentityHashMap<LambdaExpr, List<IRLocalVariable>> lambdaEffectiveCaptures =
             new java.util.IdentityHashMap<>();
@@ -1871,29 +1869,6 @@ private Target target = Target.JVM;
         }
     }
 
-    private boolean isBoxType(Type type) {
-        return type instanceof Type.ClassType ct && boxClassNames.contains(ct.name());
-    }
-
-    private String createBoxClass(Type valueType) {
-        String boxName = "Box" + (boxCounter++);
-        boxClassNames.add(boxName);
-        boxValueTypes.put(boxName, valueType);
-        Type boxType = new Type.ClassType("", boxName, List.of());
-        List<IRField> fields = List.of(new IRField("value", valueType, AccessFlags.PUBLIC, null));
-        List<KofOperation> ctorOps = new ArrayList<>();
-        ctorOps.add(new KofReturnVoid());
-        List<IRLocalVariable> ctorLocals = List.of(new IRLocalVariable(0, "this", boxType));
-        IRMethod ctor = new IRMethod("<init>", Type.PrimitiveType.VOID, List.of(),
-                AccessFlags.PUBLIC, List.of(),
-                List.of(new IRBasicBlock(0, ctorOps)), ctorLocals);
-        IRClass cls = new IRClass(boxName, "java/lang/Object", List.of(),
-                AccessFlags.PUBLIC | AccessFlags.SUPER, fields,
-                List.of(ctor), List.of(), null, 300 + lambdaCounter);
-        syntheticClasses.add(cls);
-        return boxName;
-    }
-
     /** Constantes por enum declarado na unidade atual (nome → [A, B, ...]). */
     private java.util.List<String> enumConstantsOf(String name) {
         if (name == null || currentUnit == null) return List.of();
@@ -2215,7 +2190,7 @@ private Target target = Target.JVM;
                 if (mutatedCapturedNames.contains(vds.name())) {
                     Type initType = vds.initializer() == null ? Type.PrimitiveType.INT
                             : inferExprType(vds.initializer(), locals);
-                    String boxName = createBoxClass(initType);
+                    String boxName = boxFactory.createBoxClass(initType, syntheticClasses, lambdaCounter);
                     Type boxType = new Type.ClassType("", boxName, List.of());
                     ops.add(new KofNewObject(boxType, List.of()));
                     ops.add(new KofDup());
@@ -2966,10 +2941,10 @@ private Target target = Target.JVM;
                 for (int i = locals.size() - 1; i >= 0; i--) {
                     if (locals.get(i).name().equals(ie.name())) {
                         IRLocalVariable lv = locals.get(i);
-                        if (isBoxType(lv.type())) {
+                        if (boxFactory.isBoxType(lv.type())) {
                             ops.add(new KofLoadLocal(lv.type(), lv.index()));
                             ops.add(new KofLoadField(lv.type(), "value",
-                                    boxValueTypes.get(((Type.ClassType) lv.type()).name())));
+                                    boxFactory.boxValueType(lv.type())));
                         } else {
                             ops.add(new KofLoadLocal(lv.type(), lv.index()));
                         }
@@ -5651,10 +5626,10 @@ private Target target = Target.JVM;
                 }
                 if (ae.target() instanceof IdentifierExpr ieBox) {
                     for (int i = locals.size() - 1; i >= 0; i--) {
-                        if (locals.get(i).name().equals(ieBox.name()) && isBoxType(locals.get(i).type())) {
+                        if (locals.get(i).name().equals(ieBox.name()) && boxFactory.isBoxType(locals.get(i).type())) {
                             IRLocalVariable boxLv = locals.get(i);
                             String op = ae.operator();
-                            Type valType = boxValueTypes.get(((Type.ClassType) boxLv.type()).name());
+                            Type valType = boxFactory.boxValueType(boxLv.type());
                             if ("+=".equals(op) && BuiltinTypes.isString(valType)) {
                                 ops.add(new KofLoadLocal(boxLv.type(), boxLv.index()));
                                 ops.add(new KofLoadField(boxLv.type(), "value", valType));
@@ -6113,8 +6088,8 @@ private Target target = Target.JVM;
                 for (int i = locals.size() - 1; i >= 0; i--) {
                     if (locals.get(i).name().equals(ie.name())) {
                         IRLocalVariable lv = locals.get(i);
-                        if (isBoxType(lv.type())) {
-                            yield boxValueTypes.get(((Type.ClassType) lv.type()).name());
+                        if (boxFactory.isBoxType(lv.type())) {
+                            yield boxFactory.boxValueType(lv.type());
                         }
                         yield lv.type();
                     }
