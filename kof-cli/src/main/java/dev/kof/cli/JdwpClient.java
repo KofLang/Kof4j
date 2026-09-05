@@ -28,7 +28,7 @@ final class JdwpClient {
     private int idSeq = 1;
     private int refSize = 8;
     private final Object lock = new Object();
-    private final java.util.Map<Integer, Packet> replies = new java.util.HashMap<>();
+    private final java.util.Map<Integer, JdwpPacket> replies = new java.util.HashMap<>();
     private boolean eventLoopStarted = false;
 
     JdwpClient(String host, int port) {
@@ -66,10 +66,10 @@ final class JdwpClient {
         if (!"JDWP-Handshake".equals(new String(reply, StandardCharsets.US_ASCII))) {
             throw new IOException("JDWP handshake failed");
         }
-        int idsId = sendRaw(1, 7, new Packet());
-        Packet ids = null;
+        int idsId = sendRaw(1, 7, new JdwpPacket());
+        JdwpPacket ids = null;
         while (ids == null) {
-            Packet pkt = readPacketLocked();
+            JdwpPacket pkt = readPacketLocked();
             if (pkt.id == idsId && !pkt.eventData) {
                 ids = pkt;
             }
@@ -83,13 +83,13 @@ final class JdwpClient {
 
     /** VM.Resume */
     void resume() throws IOException {
-        sendCommand(1, 9, new Packet());
+        sendCommand(1, 9, new JdwpPacket());
     }
 
     /** VM.Dispose */
     void dispose() throws IOException {
         try {
-            sendCommand(1, 6, new Packet());
+            sendCommand(1, 6, new JdwpPacket());
         } catch (IOException ignored) {
         }
     }
@@ -99,14 +99,14 @@ final class JdwpClient {
      * Returns the request id. Starts the event loop.
      */
     long setClassPrepareRequest(String className, EventHandler handler) throws IOException {
-        Packet req = new Packet();
+        JdwpPacket req = new JdwpPacket();
         req.writeByte(8);   // event kind: ClassPrepare (JDK 25)
         req.writeByte(2);   // suspend policy: ALL
         req.writeInt(1);    // modifier count
         req.writeByte(5);   // ClassMatch
         req.writeString(className);
         sendRaw(15, 1, req);
-        Packet reply = readPacketLocked();
+        JdwpPacket reply = readPacketLocked();
         if (reply.errorCode != 0) {
             throw new IOException("EventRequest.Set error " + reply.errorCode);
         }
@@ -139,7 +139,7 @@ final class JdwpClient {
         if (codeIndex < 0) {
             codeIndex = lines[0];
         }
-        Packet req = new Packet();
+        JdwpPacket req = new JdwpPacket();
         req.writeByte(2);   // event kind: Breakpoint
         req.writeByte(2);   // suspend policy: ALL
         req.writeInt(1);    // modifier count
@@ -153,9 +153,9 @@ final class JdwpClient {
 
     /** ReferenceType.Methods (2,5): map method names to ids. */
     private long methodWithLine(long typeId, int line) throws IOException {
-        Packet req = new Packet();
+        JdwpPacket req = new JdwpPacket();
         req.writeReference(typeId);
-        Packet reply = sendCommand(2, 5, req);
+        JdwpPacket reply = sendCommand(2, 5, req);
         int count = reply.readInt();
         for (int i = 0; i < count; i++) {
             reply.readReference();
@@ -171,9 +171,9 @@ final class JdwpClient {
     }
 
     private long findMethodWithLine(long typeId, int line) throws IOException {
-        Packet req = new Packet();
+        JdwpPacket req = new JdwpPacket();
         req.writeReference(typeId);
-        Packet reply = sendCommand(2, 5, req);
+        JdwpPacket reply = sendCommand(2, 5, req);
         int count = reply.readInt();
         List<long[]> methods = new ArrayList<>();
         for (int i = 0; i < count; i++) {
@@ -198,10 +198,10 @@ final class JdwpClient {
 
     /** Method.LineTable (6,1): returns flattened [line, codeIndex, ...]. */
     private long[] lineTable(long typeId, long methodId) throws IOException {
-        Packet req = new Packet();
+        JdwpPacket req = new JdwpPacket();
         req.writeReference(typeId);
         req.writeReference(methodId);
-        Packet reply = sendCommand(6, 1, req);
+        JdwpPacket reply = sendCommand(6, 1, req);
         reply.readLong(); // start
         reply.readLong(); // end
         int count = reply.readInt();
@@ -214,9 +214,9 @@ final class JdwpClient {
     }
 
     private long typeIdOfClass(String className) throws IOException {
-        Packet req = new Packet();
+        JdwpPacket req = new JdwpPacket();
         req.writeString(className);
-        Packet reply = sendCommand(1, 2, req); // VM.ClassesBySignature
+        JdwpPacket reply = sendCommand(1, 2, req); // VM.ClassesBySignature
         int count = reply.readInt();
         for (int i = 0; i < count; i++) {
             reply.readByte(); // refTypeTag
@@ -231,7 +231,7 @@ final class JdwpClient {
 
     /** VM.AllThreads (1,4). */
     List<Long> allThreads() throws IOException {
-        Packet reply = sendCommand(1, 4, new Packet());
+        JdwpPacket reply = sendCommand(1, 4, new JdwpPacket());
         int count = reply.readInt();
         List<Long> threads = new ArrayList<>();
         for (int i = 0; i < count; i++) {
@@ -242,11 +242,11 @@ final class JdwpClient {
 
     /** ThreadReference.Frames (10,6): stack frames of a thread. */
     List<FrameInfo> frames(long threadId, int depth) throws IOException {
-        Packet req = new Packet();
+        JdwpPacket req = new JdwpPacket();
         req.writeReference(threadId);
         req.writeInt(0);   // startFrame
         req.writeInt(depth > 0 ? Math.min(depth, 1) : 1);
-        Packet reply = sendCommand(11, 6, req); // ThreadReference.Frames
+        JdwpPacket reply = sendCommand(11, 6, req); // ThreadReference.Frames
         int count = reply.readInt();
         List<FrameInfo> frames = new ArrayList<>();
         for (int i = 0; i < count; i++) {
@@ -263,14 +263,14 @@ final class JdwpClient {
     }
 
     private String methodName(long typeId, long methodId) throws IOException {
-        Packet req = new Packet();
+        JdwpPacket req = new JdwpPacket();
         req.writeReference(typeId);
         req.writeReference(methodId);
-        Packet reply = sendCommand(6, 2, req); // Method.VariableTable
+        JdwpPacket reply = sendCommand(6, 2, req); // Method.VariableTable
         reply.skipRemaining();
-        Packet req2 = new Packet();
+        JdwpPacket req2 = new JdwpPacket();
         req2.writeReference(typeId);
-        Packet methods = sendCommand(2, 5, req2);
+        JdwpPacket methods = sendCommand(2, 5, req2);
         int count = methods.readInt();
         String name = "?";
         for (int i = 0; i < count; i++) {
@@ -300,7 +300,7 @@ final class JdwpClient {
     private void eventLoop(EventHandler handler) {
         try {
             while (true) {
-                Packet evt = readPacketLocked();
+                JdwpPacket evt = readPacketLocked();
                 if (evt.id >= 0 && !evt.eventData) {
                     synchronized (lock) {
                         replies.put(evt.id, evt);
@@ -353,7 +353,7 @@ final class JdwpClient {
         }
     }
 
-    private Packet sendCommand(int cmdSet, int cmd, Packet data) throws IOException {
+    private JdwpPacket sendCommand(int cmdSet, int cmd, JdwpPacket data) throws IOException {
         int myId = sendRaw(cmdSet, cmd, data);
         synchronized (lock) {
             long deadline = System.currentTimeMillis() + 15000;
@@ -369,7 +369,7 @@ final class JdwpClient {
                     throw new IOException("interrupted", e);
                 }
             }
-            Packet reply = replies.remove(myId);
+            JdwpPacket reply = replies.remove(myId);
             if (reply.errorCode != 0) {
                 throw new IOException("JDWP error " + reply.errorCode);
             }
@@ -377,7 +377,7 @@ final class JdwpClient {
         }
     }
 
-    private int sendRaw(int cmdSet, int cmd, Packet data) throws IOException {
+    private int sendRaw(int cmdSet, int cmd, JdwpPacket data) throws IOException {
         synchronized (lock) {
             byte[] payload = data.toByteArray();
             int length = 11 + payload.length;
@@ -392,7 +392,7 @@ final class JdwpClient {
         }
     }
 
-    private Packet readPacketLocked() throws IOException {
+    private JdwpPacket readPacketLocked() throws IOException {
         int length = in.readInt();
         int id = in.readInt();
         int flags = in.readByte();
@@ -400,7 +400,7 @@ final class JdwpClient {
             int error = in.readShort();
             byte[] payload = new byte[length - 11];
             in.readFully(payload);
-            Packet rp = new Packet(id, error, payload);
+            JdwpPacket rp = new JdwpPacket(id, error, payload);
             rp.eventData = false;
             return rp;
         }
@@ -408,97 +408,9 @@ final class JdwpClient {
         in.readByte(); // cmd
         byte[] payload = new byte[length - 11];
         in.readFully(payload);
-        Packet ep = new Packet(id, 0, payload);
+        JdwpPacket ep = new JdwpPacket(id, 0, payload);
         ep.eventData = true;
         return ep;
     }
 
-    private static final class Packet {
-        int id;
-        int errorCode;
-        private final List<Byte> bytes = new ArrayList<>();
-        private byte[] data;
-        private int pos;
-
-        Packet() {
-        }
-
-        Packet(int id, int errorCode, byte[] data) {
-            this.id = id;
-            this.errorCode = errorCode;
-            this.data = data;
-            this.pos = 0;
-        }
-
-        boolean eventData;
-
-        byte[] toByteArray() {
-            byte[] arr = new byte[bytes.size()];
-            for (int i = 0; i < arr.length; i++) {
-                arr[i] = bytes.get(i);
-            }
-            return arr;
-        }
-
-        void writeByte(int b) {
-            bytes.add((byte) b);
-        }
-
-        void writeInt(int v) {
-            writeByte(v >>> 24);
-            writeByte(v >>> 16);
-            writeByte(v >>> 8);
-            writeByte(v);
-        }
-
-        void writeLong(long v) {
-            writeInt((int) (v >>> 32));
-            writeInt((int) v);
-        }
-
-        void writeString(String s) {
-            byte[] b = s.getBytes(StandardCharsets.UTF_8);
-            writeInt(b.length);
-            for (byte x : b) {
-                bytes.add(x);
-            }
-        }
-
-        void writeReference(long ref) {
-            writeLong(ref);
-        }
-
-        int readByte() {
-            return data[pos++] & 0xFF;
-        }
-
-        int readShort() {
-            return (readByte() << 8) | readByte();
-        }
-
-        int readInt() {
-            return (readByte() << 24) | (readByte() << 16) | (readByte() << 8) | readByte();
-        }
-
-        long readLong() {
-            return ((long) readInt() << 32) | (readInt() & 0xFFFFFFFFL);
-        }
-
-        long readReference() {
-            return readLong();
-        }
-
-        String readString() {
-            int len = readInt();
-            StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < len; i++) {
-                sb.append((char) readByte());
-            }
-            return sb.toString();
-        }
-
-        void skipRemaining() {
-            pos = data.length;
-        }
-    }
 }
