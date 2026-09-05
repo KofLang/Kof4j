@@ -412,8 +412,7 @@ private Target target = Target.JVM;
         for (AstNode d : unit.declarations()) {
             if (d instanceof EnumDeclarationNode en) BuiltinTypes.registerEnum(en.name());
         }
-            unit = desugarTests(unit);
-            unit = desugarApplication(unit);
+            unit = runCodegen(unit);
             discoveredConfigKeys.clear();
             if (target == Target.ANDROID) {
                 unit = appendAndroidHostIfNeeded(unit);
@@ -723,6 +722,26 @@ private Target target = Target.JVM;
         }
         return new CompilationUnitNode(unit.position(), unit.packageName(), unit.imports(),
                 java.util.Collections.unmodifiableList(wrapped));
+    }
+
+    /**
+     * Codegen de compile-time (R4): hook fechado (não-macro). Cada step é um
+     * desugar AST deterministic que consome a unit e devolve a unit reduzida.
+     * A ordem é estável e aditiva — novos steps (DDL de `infra`, stubs gRPC)
+     * plugam aqui sem reabrir a semântica existente.
+     */
+    @FunctionalInterface
+    private interface CodegenStep {
+        CompilationUnitNode apply(CompilationUnitNode unit);
+    }
+
+    private CompilationUnitNode runCodegen(CompilationUnitNode unit) {
+        List<CodegenStep> steps = List.of(this::desugarTests, this::desugarApplication);
+        CompilationUnitNode cur = unit;
+        for (CodegenStep step : steps) {
+            cur = step.apply(cur);
+        }
+        return cur;
     }
 
 

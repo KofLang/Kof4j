@@ -192,8 +192,8 @@ Esta é a versão consolidada do plano de implementação para todos os document
 
 | # | Subtarefa | Dificuldade | DoD |
 |---|-----------|-------------|-----|
-| 2.2.1 | Inventário do codegen implícito existente (`KofRuntime`, runner de teste sintetizado, DDL de `entity`) | 🟢 E | lista fechada dos points atuais |
-| 2.2.2 | Hook formal de codegen (fechado, não-macro): interface estável p/ gerar em compile-time | 🟡 M | um provider usa o hook |
+| 2.2.1 | Inventário do codegen implícito existente (`KofRuntime`, runner de teste sintetizado, DDL de `entity`) | 🟢 E | ✅ lista fechada: 4 pontos (runtime source, desugarTests, desugarApplication, entity→record+schema) |
+| 2.2.2 | Hook formal de codegen (fechado, não-macro): interface estável p/ gerar em compile-time | 🟡 M | ✅ `CodegenStep` (FunctionalInterface) + pipeline `runCodegen` ordenado |
 | 2.2.3 | Migrar DDL de `entity` + runner de teste para o hook formal | 🟡 M | comportamento idêntico (same suite) |
 | 2.2.4 | Base de `infra "prod" { }` (sacar sobre records) | 🟡 M | `infra` emite records de recurso |
 
