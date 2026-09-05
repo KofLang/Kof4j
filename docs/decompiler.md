@@ -127,9 +127,11 @@ Não duplica o frontend do Kof. O ponto de entrada é o **Kof AST**.
 | chamadas (`this.m(...)`, `Owner.m(...)` — invokestatic/virtual) | múltiplos catches aninhados |
 | acesso a campo (`this.f`, `Owner.f`) + atribuição (`this.f = v`) | — |
 | criação de objeto (`X(...)` — `new`+`dup`+`<init>`) | — |
-| try/catch → `try { ... } catch (String e) { ... }` (exceção = String) | `finally` |
+| try/catch → `try { ... } catch (String e) { ... }` (exceção = String) | `finally` (bloco duplicado + handler catch-all) |
+| switch → `switch (e) { case N: return v; default: return v }` (tableswitch/lookupswitch) | cast, `newarray`, `invokedynamic` |
 
-Recuperação cobre a **Fase B (bytecode IR)**, **C (CFG com branches/loops/exceções)** e
-**D (tipos)** — e a **Fase E** para o subconjunto linear/branch/loop/call/campo/try.
-Prioridade restante (DECOMPILER §3): `switch` (tableswitch/lookupswitch) e
-`finally` — cada um um incremento com teste próprio.
+Recuperação cobre a **Fase B (bytecode IR)**, **C (CFG com branches/loops/exceções/switch)** e
+**D (tipos)** — e a **Fase E** para o subconjunto linear/branch/loop/call/campo/try/switch.
+Item restante (DECOMPILER §3): `finally` — reconhecimento de bloco duplicado
+(caminho normal + handler catch-all com `athrow`) + mapeamento de stdlib
+(ex.: `System.out.println` → `println`) — o caso mais difícil da disciplina.
