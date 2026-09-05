@@ -544,6 +544,29 @@ EXTERNA produz lixo
 
 ---
 
+### 30. Native x86_64: `json.decode<Bool>("false")` dava `true` (corrigido)
+
+- **Sintoma:** `decode<Bool>` invertido no x86_64: `"false"`→`true`,
+  `"  true"`→`false`. O JVM dava o correto (`false`/`true`); o riscv64
+  (port novo) também. Só o x86_64 — o "runtime de referência" — estava
+  errado, e nenhum teste cobria `false`/ws (só `"true"` sem espaço).
+- **Causa:** `kof_json_decode_bool` chamava `kof_json_starts_with` passando
+  o length em `%r8d`, mas a helper lê o length de `%rdx` (= pos, lixo); e a
+  helper comparava a partir do offset 0, ignorando o pos após o skip de
+  whitespace. Resultado: sempre "starts with true" → `false`→true, e com ws
+  o byte 0 é espaço → nunca casa → `"  true"`→false.
+- **Correção:** comparação inline de `"true"` a partir de `%rdx` (pos), sem
+  a helper (usada só aqui). Paridade JVM/riscv64/aarch64.
+- **Reprodução:** `println(json.decode<Bool>("false"))` → esperado `false`.
+- **O que deveria acontecer:** `decode<Bool>` segue o JVM (true/false literais,
+  ws tolerado).
+- **Arquivos:** `RuntimeJsonDecode.java` (`kof_json_decode_bool`).
+- **Descoberto:** 05/09 no sweep json do NATIVE002-stdlib residual (port dos
+  decoders escalares riscv64 expôs a divergência). Regressão:
+  `JsonE2ETest.jvmDecodeBoolFalseAndWhitespace`.
+
+---
+
 ## Comportamentos que PAREcem bugs mas são esperados (não corrigir)
 
 | Cenário | Comportamento | Por quê |

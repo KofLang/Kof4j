@@ -115,6 +115,24 @@ class JsonE2ETest {
     }
 
     @Test
+    void jvmDecodeBoolFalseAndWhitespace(@TempDir Path tempDir) throws IOException {
+        // REGRESSÃO (bug 30): decode<Bool>("false") dava true e "  true"
+        // dava false no Native — o caller passava o length em %r8d (a helper
+        // lê %rdx) e comparava do offset 0 (ignorava o pos após ws).
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+            main() {
+                println(json.decode<Bool>("false"))
+                println(json.decode<Bool>("true"))
+                println(json.decode<Bool>("  true"))
+                println(json.decode<Bool>("  false"))
+            }
+            """);
+        runJvm(source, tempDir.resolve("out"), "false\ntrue\ntrue\nfalse");
+        runNative(source, tempDir.resolve("out-native"), "false\ntrue\ntrue\nfalse");
+    }
+
+    @Test
     void jvmEncodeDecodeObject(@TempDir Path tempDir) throws IOException {
         Path source = tempDir.resolve("Main.kf");
         Files.writeString(source, """

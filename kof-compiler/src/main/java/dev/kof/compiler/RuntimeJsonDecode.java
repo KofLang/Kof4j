@@ -219,11 +219,28 @@ final class RuntimeJsonDecode {
                 incq %rdx
                 jmp .Lkof_json_db_skip
             .Lkof_json_db_check:
+                # compara "true" (4 bytes) a partir de %rdx (pos após ws).
+                # Antes chamava kof_json_starts_with passando o length em
+                # %r8d (a helper lê %rdx = pos) e comparando do offset 0
+                # (ignorava o pos) → decode<Bool>("false") dava true e
+                # "  true" dava false. Paridade com JVM/riscv64.
+                leaq 4(%rdx), %r12
+                cmpq %rcx, %r12
+                jg .Lkof_json_db_false
+                leaq 24(%rbx), %rax
+                addq %rdx, %rax
                 leaq .Lkof_json_true(%rip), %rsi
-                movl $4, %r8d
-                call kof_json_starts_with
-                testl %eax, %eax
-                jz .Lkof_json_db_false
+                xorl %r8d, %r8d
+            .Lkof_json_db_cmp:
+                cmpq $4, %r8
+                jge .Lkof_json_db_true
+                movzbl (%rax,%r8), %r9d
+                movzbl (%rsi,%r8), %r10d
+                cmpl %r10d, %r9d
+                jne .Lkof_json_db_false
+                incq %r8
+                jmp .Lkof_json_db_cmp
+            .Lkof_json_db_true:
                 movl $1, %eax
                 popq %r12
                 popq %rbx

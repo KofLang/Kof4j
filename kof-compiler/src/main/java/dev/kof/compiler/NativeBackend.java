@@ -7578,6 +7578,103 @@ public class NativeBackend implements Backend {
             kof_set_clear:
                 j    kof_list_clear
 
+            # kof_json_decode_long = alias de int (paridade x86_64: jmp)
+            .globl kof_json_decode_long
+            kof_json_decode_long:
+                j    kof_json_decode_int
+
+            # kof_json_decode_bool(json) -> Bool (skip ws; "true"→1, else 0)
+            .globl kof_json_decode_bool
+            kof_json_decode_bool:
+                addi sp, sp, -32
+                sd   ra, 24(sp)
+                sd   s0, 16(sp)          # json
+                sd   s1, 8(sp)           # len
+                mv   s0, a0
+                lw   s1, 16(s0)
+                li   t0, 0               # pos
+            .Lkdb_skip:
+                bge  t0, s1, .Lkdb_false
+                addi t1, s0, 24
+                add  t1, t1, t0
+                lbu  t2, 0(t1)
+                li   t3, 32
+                beq  t2, t3, .Lkdb_skipinc
+                li   t3, 10
+                beq  t2, t3, .Lkdb_skipinc
+                li   t3, 13
+                beq  t2, t3, .Lkdb_skipinc
+                li   t3, 9
+                beq  t2, t3, .Lkdb_skipinc
+                li   t3, 116             # 't' de "true"
+                beq  t2, t3, .Lkdb_true
+                j    .Lkdb_false
+            .Lkdb_skipinc:
+                addi t0, t0, 1
+                j    .Lkdb_skip
+            .Lkdb_true:
+                li   a0, 1
+                j    .Lkdb_ret
+            .Lkdb_false:
+                li   a0, 0
+            .Lkdb_ret:
+                ld   s1, 8(sp)
+                ld   s0, 16(sp)
+                ld   ra, 24(sp)
+                addi sp, sp, 32
+                ret
+
+            # kof_json_decode_string(json) -> String (extrai conteúdo entre
+            # aspas, sem processar escapes — paridade com o x86_64 p/ casos
+            # simples; escapes ficam p/ degrau com builder).
+            .globl kof_json_decode_string
+            kof_json_decode_string:
+                addi sp, sp, -48
+                sd   ra, 40(sp)
+                sd   s0, 32(sp)          # json
+                sd   s1, 24(sp)          # len
+                sd   s2, 16(sp)          # pos
+                sd   s3, 8(sp)           # start
+                mv   s0, a0
+                lw   s1, 16(s0)
+                li   s2, 0
+            .Lkds_open:
+                bge  s2, s1, .Lkds_empty
+                addi t0, s0, 24
+                add  t0, t0, s2
+                lbu  t1, 0(t0)
+                li   t2, 34              # '"'
+                beq  t1, t2, .Lkds_found
+                addi s2, s2, 1
+                j    .Lkds_open
+            .Lkds_found:
+                addi s3, s2, 1           # start = após a aspa
+                mv   t3, s2              # pos da aspa de abertura
+            .Lkds_close:
+                addi t3, t3, 1
+                bge  t3, s1, .Lkds_empty
+                addi t0, s0, 24
+                add  t0, t0, t3
+                lbu  t1, 0(t0)
+                li   t2, 34
+                bne  t1, t2, .Lkds_close
+                # substring [s3, t3)
+                mv   a0, s0
+                mv   a1, s3
+                mv   a2, t3
+                call kof_string_substring
+                j    .Lkds_ret
+            .Lkds_empty:
+                li   a0, 0
+            .Lkds_ret:
+                ld   s3, 8(sp)
+                ld   s2, 16(sp)
+                ld   s1, 24(sp)
+                ld   s0, 32(sp)
+                ld   ra, 40(sp)
+                addi sp, sp, 48
+                ret
+
             # ---- higher-order (map/filter/reduce) — closure ABI igual mq ----
             # kof_json_decode_int(json) -> Int (escalar; port do x86_64
             # RuntimeJsonDecode: skip ws, sinal, dígitos). Autocontido (sem

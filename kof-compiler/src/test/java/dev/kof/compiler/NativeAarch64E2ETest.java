@@ -228,9 +228,13 @@ class NativeAarch64E2ETest {
                 println(json.decode<Int>("42"))
                 println(json.decode<Int>("-7"))
                 println(json.decode<Int>("  99  "))
+                println(json.decode<Bool>("false"))
+                println(json.decode<Bool>("  true"))
+                println(json.decode<String>("\\"oi\\""))
+                println(json.decode<Long>("-123"))
             }
             """);
-        assertEquals("42\n-7\n99", out);
+        assertEquals("42\n-7\n99\nfalse\ntrue\noi\n-123", out);
     }
 
     private static int startHttpServer() throws IOException {
