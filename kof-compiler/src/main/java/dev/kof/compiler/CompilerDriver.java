@@ -10,20 +10,20 @@ import java.util.Map;
 public class CompilerDriver {
 
     private IRModule currentModule;
-    private CompilationUnitNode currentUnit;
-    private SemanticAnalyzer semanticAnalyzer;
-private Target target = Target.JVM;
+    CompilationUnitNode currentUnit;
+    SemanticAnalyzer semanticAnalyzer;
+Target target = Target.JVM;
     private boolean optimizeEnabled = true;
     private boolean debugInfoEnabled = true;
     private java.util.function.BiConsumer<IRModule, IRModule> irObserver;
     private IRObserver irStatsObserver;
-    private DiagnosticCollector currentDiagnostics;
+    DiagnosticCollector currentDiagnostics;
     private String currentSourceName;
     private final java.util.IdentityHashMap<KofOperation, SourcePosition> currentDebugPositions =
             new java.util.IdentityHashMap<>();
-    private final java.util.Deque<LabelId> breakLabels = new java.util.ArrayDeque<>();
-    private final java.util.Deque<LabelId> continueLabels = new java.util.ArrayDeque<>();
-    private boolean loweringMain;
+    final java.util.Deque<LabelId> breakLabels = new java.util.ArrayDeque<>();
+    final java.util.Deque<LabelId> continueLabels = new java.util.ArrayDeque<>();
+    boolean loweringMain;
     private boolean mainArgsListField;
 
     public CompilationResult compile(Path sourceFile, Path outputDir) {
@@ -428,7 +428,7 @@ private Target target = Target.JVM;
         return new IRModule(moduleName, classes, imports, currentSourceName);
     }
 
-    private final List<IRClass> syntheticClasses = new ArrayList<>();
+    final List<IRClass> syntheticClasses = new ArrayList<>();
 
     /** Cache de interfaces sintéticas de função (uma por assinatura). */
     private final java.util.Map<String, Type.ClassType> functionInterfaces = new java.util.HashMap<>();
@@ -745,12 +745,12 @@ private Target target = Target.JVM;
     /** Dono real da lambda (classe onde o corpo foi escrito) por classe sintética. */
     private final java.util.Map<String, String> lambdaEnclosingOwner = new java.util.LinkedHashMap<>();
     /** Variáveis externas ESCRITAS dentro de lambdas do método sendo lowered → box mutável. */
-    private java.util.Set<String> mutatedCapturedNames = new java.util.HashSet<>();
+    java.util.Set<String> mutatedCapturedNames = new java.util.HashSet<>();
     private final java.util.Set<String> lambdaCapturedNames = new java.util.HashSet<>();
     /** Nomes das classes BoxN sintéticas (captura mutável) — acesso via campo `value`. */
-    private final BoxClassFactory boxFactory = new BoxClassFactory();
+    final BoxClassFactory boxFactory = new BoxClassFactory();
 
-    private final java.util.IdentityHashMap<LambdaExpr, List<IRLocalVariable>> lambdaEffectiveCaptures =
+    final java.util.IdentityHashMap<LambdaExpr, List<IRLocalVariable>> lambdaEffectiveCaptures =
             new java.util.IdentityHashMap<>();
 
     /** Lambda que usa super.metodo() precisa capturar o this externo ($outer). */
@@ -758,7 +758,7 @@ private Target target = Target.JVM;
             new java.util.IdentityHashMap<>();
 
     /** Dono do método sendo lowered agora (para capturar this de lambda). */
-    private String currentLoweringOwner;
+    String currentLoweringOwner;
 
     /** Detecta uso de super.metodo() no corpo da lambda. */
     private static boolean lambdaUsesSuper(Object node) {
@@ -796,7 +796,7 @@ private Target target = Target.JVM;
     }
     private final java.util.List<TestInfo> discoveredTests = new java.util.ArrayList<>();
     private boolean testHarnessMode = false;
-    private int lambdaCounter = 0;
+    int lambdaCounter = 0;
 
     /** Uma chave de config descoberta em compile-time (kof config gen). */
     public record ConfigKeyInfo(String method, String key, String defaultLiteral,
@@ -902,7 +902,7 @@ private Target target = Target.JVM;
     }
 
     /** @param isTask true for spawn bodies ({@code LambdaTask*}), not for map/filter/UI handlers */
-    private String lambdaClass(LambdaExpr le, Type.FunctionType ft, List<IRLocalVariable> captures,
+    String lambdaClass(LambdaExpr le, Type.FunctionType ft, List<IRLocalVariable> captures,
                                boolean isTask) {
         String existing = lambdaClassNames.get(le);
         if (existing != null) return existing;
@@ -1069,7 +1069,7 @@ private Target target = Target.JVM;
      * order. Identifiers shadowed by locals declared inside the lambda are
      * not captured.
      */
-    private List<IRLocalVariable> collectCaptures(LambdaExpr le, List<IRLocalVariable> outerLocals) {
+    List<IRLocalVariable> collectCaptures(LambdaExpr le, List<IRLocalVariable> outerLocals) {
         List<IRLocalVariable> captures = new ArrayList<>();
         java.util.Set<String> captured = new java.util.HashSet<>();
         java.util.Set<String> shadowed = new java.util.HashSet<>();
@@ -1768,10 +1768,10 @@ private Target target = Target.JVM;
         return wrappers;
     }
 
-    private int emitStatement(StatementNode stmt, List<KofOperation> ops, String owner, int localIdx,
+    int emitStatement(StatementNode stmt, List<KofOperation> ops, String owner, int localIdx,
                               List<IRLocalVariable> locals, Type returnType) {
         int before = ops.size();
-        int result = emitStatementInner(stmt, ops, owner, localIdx, locals, returnType);
+        int result = StatementLowerer.emitStatementInner(this, stmt, ops, owner, localIdx, locals, returnType);
         if (stmt.position() != null) {
             for (int i = before; i < ops.size(); i++) {
                 currentDebugPositions.put(ops.get(i), stmt.position());
@@ -1780,754 +1780,7 @@ private Target target = Target.JVM;
         return result;
     }
 
-    private int emitStatementInner(StatementNode stmt, List<KofOperation> ops, String owner, int localIdx,
-                                   List<IRLocalVariable> locals, Type returnType) {
-        return switch (stmt) {
-            case ReturnStmt ret -> {
-                if (ret.value() != null) {
-                    localIdx = emitExpression(ret.value(), ops, owner, localIdx, locals);
-                    emitWideningIfNeeded(ops, inferExprType(ret.value(), locals), returnType);
-                    ops.add(new KofReturn(returnType));
-                } else if (Type.isVoid(returnType)) {
-                    ops.add(new KofReturnVoid());
-                } else {
-                    ops.add(CompilerTypes.defaultValueOp(returnType));
-                    ops.add(new KofReturn(returnType));
-                }
-                yield localIdx;
-            }
-            case BreakStmt ignored -> {
-                if (!breakLabels.isEmpty()) ops.add(new KofJump(breakLabels.peek()));
-                yield localIdx;
-            }
-            case ContinueStmt ignored -> {
-                if (!continueLabels.isEmpty()) ops.add(new KofJump(continueLabels.peek()));
-                yield localIdx;
-            }
-            case ExpressionStmt es -> {
-                if (es.expression() != null) {
-                    localIdx = emitExpression(es.expression(), ops, owner, localIdx, locals);
-                    if (hasReturnValue(es.expression(), locals)) ops.add(new KofPop());
-                }
-                yield localIdx;
-            }
-            case VarDeclStmt vds -> {
-                Type varType = CompilerTypes.toType(vds.type(), currentUnit);
-                // nullable é constraint de compile-time: o storage é o inner
-                // (a referência já pode ser null na JVM/Native/JS)
-                if (varType instanceof Type.NullableType nt) {
-                    varType = nt.inner();
-                }
-                if (mutatedCapturedNames.contains(vds.name())) {
-                    Type initType = vds.initializer() == null ? Type.PrimitiveType.INT
-                            : inferExprType(vds.initializer(), locals);
-                    String boxName = boxFactory.createBoxClass(initType, syntheticClasses, lambdaCounter);
-                    Type boxType = new Type.ClassType("", boxName, List.of());
-                    ops.add(new KofNewObject(boxType, List.of()));
-                    ops.add(new KofDup());
-                    ops.add(new KofCall(boxType, "<init>", List.of(),
-                            Type.PrimitiveType.VOID, KofCallKind.CONSTRUCTOR));
-                    ops.add(new KofDup());
-                    if (vds.initializer() != null) {
-                        localIdx = emitExpression(vds.initializer(), ops, owner, localIdx, locals);
-                    } else {
-                        ops.add(new KofLoadLiteral(initType, 0));
-                    }
-                    ops.add(new KofStoreField(boxType, "value", initType));
-                    ops.add(new KofStoreLocal(boxType, localIdx));
-                    locals.add(new IRLocalVariable(localIdx, vds.name(), boxType));
-                    yield localIdx + 1;
-                }
-                if (vds.initializer() != null) {
-                    Type initType = inferExprType(vds.initializer(), locals);
-                    if (Type.isVoid(initType)) {
-                        if (currentDiagnostics != null) {
-                            currentDiagnostics.error(vds.position() != null ? vds.position().file() : "",
-                                    vds.position() != null ? vds.position().line() : 0,
-                                    vds.position() != null ? vds.position().column() : 0, 0,
-                                    "a atribuição a '" + vds.name() + "' recebeu um valor void — a"
-                                            + " chamada não retorna valor",
-                                    "SEM033");
-                        }
-                        yield localIdx;
-                    }
-                    localIdx = emitExpression(vds.initializer(), ops, owner, localIdx, locals);
-                    if ("var".equals(vds.type()) || "val".equals(vds.type())) {
-                        varType = inferExprType(vds.initializer(), locals);
-                        // spawn-expr: pina Handle<T> com T do corpo (a inferência
-                        // genérica pode ter perdido o typeArgument)
-                        if (vds.initializer() instanceof MethodCallExpr sm
-                                && "__kof_spawn_expr".equals(sm.methodName())
-                                && varType instanceof Type.ClassType hct
-                                && "kof.concurrent".equals(hct.packageName())
-                                && (hct.typeArguments().isEmpty()
-                                    || hct.typeArguments().get(0) instanceof Type.UnknownType)) {
-                            varType = new Type.ClassType("kof.concurrent", "Handle",
-                                    List.of(inferExprType(sm.arguments().get(0), locals)));
-                        }
-                    } else {
-                        Type initT = inferExprType(vds.initializer(), locals);
-                        // bug 8: `var s: (Int) -> Int = (x: Int) -> x * 2` — o
-                        // tipo declarado é FunctionType sem className, mas o
-                        // valor real é a classe sintética da lambda. Preservar
-                        // o className do initializer para o call site invocar
-                        // via invokevirtual (owner = classe da lambda) em vez
-                        // de SEM032 (dispatch por interface ainda não existe).
-                        if (varType instanceof Type.FunctionType dft
-                                && initT instanceof Type.FunctionType ift
-                                && ift.className() != null
-                                && dft.parameterTypes().equals(ift.parameterTypes())
-                                && dft.returnType().equals(ift.returnType())) {
-                            varType = ift;
-                        } else {
-                            emitWideningIfNeeded(ops, initT, varType);
-                        }
-                    }
-                }
-                // bug 15: `Object n = 42` — primitivo atribuído a referência:
-                // boxa no JVM (JS/Native já são untyped). Sem isso o store de
-                // int num slot Object invalidava o bytecode.
-                if (erasesToReference(varType)
-                        && vds.initializer() != null
-                        && TypeMetrics.isPrimitiveType(inferExprType(vds.initializer(), locals))) {
-                    emitErasureBox(ops, inferExprType(vds.initializer(), locals));
-                }
-                // declaração sem inicializador: default (0 primitivo / null
-                // referência) — antes o store saía de pilha vazia (frame crash)
-                if (vds.initializer() == null) {
-                    ops.add(erasesToReference(varType)
-                            ? new KofLoadLiteral(varType, null)
-                            : new KofLoadLiteral(varType, 0));
-                }
-                ops.add(new KofStoreLocal(varType, localIdx));
-                locals.add(new IRLocalVariable(localIdx, vds.name(), varType));
-                yield localIdx + (TypeMetrics.isDoubleWidth(varType) ? 2 : 1);
-            }
-            case BlockStmt block -> {
-                int idx = localIdx;
-                for (StatementNode s : block.statements()) {
-                    idx = emitStatement(s, ops, owner, idx, locals, returnType);
-                }
-                yield idx;
-            }
-            case IfStmt ifStmt -> {
-                LabelId elseLabel = LabelId.create();
-                LabelId endLabel = LabelId.create();
-                LabelId thenLabel = LabelId.create();
-                if (ifStmt.condition() instanceof BinaryExpr bin && isComparisonShortcut(bin, locals)) {
-                    localIdx = emitComparisonShortcut(bin, ops, owner, localIdx, locals);
-                    ops.add(new KofConditionalJump(mapComparison(bin.operator()), comparisonOperandType(bin, locals), thenLabel, elseLabel));
-                } else {
-                    localIdx = emitExpression(ifStmt.condition(), ops, owner, localIdx, locals);
-                    ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
-                    ops.add(new KofConditionalJump(KofComparison.NE, thenLabel, elseLabel));
-                }
-                ops.add(new KofLabel(thenLabel));
-                localIdx = emitStatement(ifStmt.thenBranch(), ops, owner, localIdx, locals, returnType);
-                ops.add(new KofJump(endLabel));
-                ops.add(new KofLabel(elseLabel));
-                if (ifStmt.elseBranch() != null) {
-                    localIdx = emitStatement(ifStmt.elseBranch(), ops, owner, localIdx, locals, returnType);
-                }
-                ops.add(new KofLabel(endLabel));
-                yield localIdx;
-            }
-            case WhileStmt ws -> {
-                LabelId startLabel = LabelId.create();
-                LabelId endLabel = LabelId.create();
-                LabelId bodyLabel = LabelId.create();
-                ops.add(new KofLabel(startLabel));
-                if (ws.condition() instanceof BinaryExpr bin && isComparisonShortcut(bin, locals)) {
-                    localIdx = emitComparisonShortcut(bin, ops, owner, localIdx, locals);
-                    ops.add(new KofConditionalJump(mapComparison(bin.operator()), comparisonOperandType(bin, locals), bodyLabel, endLabel));
-                } else {
-                    localIdx = emitExpression(ws.condition(), ops, owner, localIdx, locals);
-                    ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
-                    ops.add(new KofConditionalJump(KofComparison.NE, bodyLabel, endLabel));
-                }
-                ops.add(new KofLabel(bodyLabel));
-                breakLabels.push(endLabel);
-                continueLabels.push(startLabel);
-                localIdx = emitStatement(ws.body(), ops, owner, localIdx, locals, returnType);
-                breakLabels.pop();
-                continueLabels.pop();
-                ops.add(new KofJump(startLabel));
-                ops.add(new KofLabel(endLabel));
-                yield localIdx;
-            }
-            case DoWhileStmt dws -> {
-                LabelId startLabel = LabelId.create();
-                LabelId endLabel = LabelId.create();
-                ops.add(new KofLabel(startLabel));
-                breakLabels.push(endLabel);
-                continueLabels.push(startLabel);
-                localIdx = emitStatement(dws.body(), ops, owner, localIdx, locals, returnType);
-                breakLabels.pop();
-                continueLabels.pop();
-                if (dws.condition() instanceof BinaryExpr bin && isComparisonShortcut(bin, locals)) {
-                    localIdx = emitComparisonShortcut(bin, ops, owner, localIdx, locals);
-                    ops.add(new KofConditionalJump(mapComparison(bin.operator()), comparisonOperandType(bin, locals), startLabel, endLabel));
-                } else {
-                    localIdx = emitExpression(dws.condition(), ops, owner, localIdx, locals);
-                    ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
-                    ops.add(new KofConditionalJump(KofComparison.NE, startLabel, endLabel));
-                }
-                ops.add(new KofLabel(endLabel));
-                yield localIdx;
-            }
-            case ForStmt fs -> {
-                LabelId startLabel = LabelId.create();
-                LabelId endLabel = LabelId.create();
-                LabelId continueLabel = LabelId.create();
-                LabelId bodyLabel = LabelId.create();
-                if (fs.init() != null) localIdx = emitStatement(fs.init(), ops, owner, localIdx, locals, returnType);
-                ops.add(new KofLabel(startLabel));
-                if (fs.condition() != null) {
-                    if (fs.condition() instanceof BinaryExpr bin && isComparisonShortcut(bin, locals)) {
-                        localIdx = emitComparisonShortcut(bin, ops, owner, localIdx, locals);
-                        ops.add(new KofConditionalJump(mapComparison(bin.operator()), comparisonOperandType(bin, locals), bodyLabel, endLabel));
-                    } else {
-                        localIdx = emitExpression(fs.condition(), ops, owner, localIdx, locals);
-                        ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
-                        ops.add(new KofConditionalJump(KofComparison.NE, bodyLabel, endLabel));
-                    }
-                }
-                ops.add(new KofLabel(bodyLabel));
-                breakLabels.push(endLabel);
-                continueLabels.push(continueLabel);
-                localIdx = emitStatement(fs.body(), ops, owner, localIdx, locals, returnType);
-                breakLabels.pop();
-                continueLabels.pop();
-                ops.add(new KofLabel(continueLabel));
-                if (fs.update() != null) {
-                    if (fs.update() instanceof UnaryExpr ue && "++".equals(ue.operator()) && ue.operand() instanceof IdentifierExpr id) {
-                        IRLocalVariable var = findLocalVar(id.name(), locals);
-                        if (var != null) {
-                            ops.add(new KofLoadLocal(var.type(), var.index()));
-                            ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 1));
-                            ops.add(new KofBinary(KofBinaryOp.ADD, var.type()));
-                            ops.add(new KofStoreLocal(var.type(), var.index()));
-                        }
-                    } else if (fs.update() instanceof UnaryExpr ue2 && "--".equals(ue2.operator()) && ue2.operand() instanceof IdentifierExpr id2) {
-                        IRLocalVariable var2 = findLocalVar(id2.name(), locals);
-                        if (var2 != null) {
-                            ops.add(new KofLoadLocal(var2.type(), var2.index()));
-                            ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 1));
-                            ops.add(new KofBinary(KofBinaryOp.SUB, var2.type()));
-                            ops.add(new KofStoreLocal(var2.type(), var2.index()));
-                        }
-                    } else {
-                        localIdx = emitExpression(fs.update(), ops, owner, localIdx, locals);
-                        if (hasReturnValue(fs.update(), locals)) ops.add(new KofPop());
-                    }
-                }
-                ops.add(new KofJump(startLabel));
-                ops.add(new KofLabel(endLabel));
-                yield localIdx;
-            }
-            case ForInStmt fis -> {
-                LabelId startLabel = LabelId.create();
-                LabelId bodyLabel = LabelId.create();
-                LabelId endLabel = LabelId.create();
-                LabelId continueLabel = LabelId.create();
-                Type collType = inferExprType(fis.collection(), locals);
-                Type elemType = Type.UnknownType.UNKNOWN;
-                boolean isList = BuiltinTypes.isList(collType);
-                if (isList) elemType = listElementType(collType);
-                else if (collType instanceof Type.ArrayType at) elemType = at.componentType();
-                int collIdx = localIdx++;
-                int idxIdx = localIdx++;
-                int varIdx = localIdx++;
-                locals.add(new IRLocalVariable(collIdx, "#coll", collType));
-                locals.add(new IRLocalVariable(idxIdx, "#idx", Type.PrimitiveType.INT));
-                locals.add(new IRLocalVariable(varIdx, fis.varName(), elemType));
-                localIdx = emitExpression(fis.collection(), ops, owner, localIdx, locals);
-                ops.add(new KofStoreLocal(collType, collIdx));
-                ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
-                ops.add(new KofStoreLocal(Type.PrimitiveType.INT, idxIdx));
-                ops.add(new KofLabel(startLabel));
-                ops.add(new KofLoadLocal(Type.PrimitiveType.INT, idxIdx));
-                ops.add(new KofLoadLocal(collType, collIdx));
-                if (isList) {
-                    ops.add(new KofCall(collType, "kof_list_size", List.of(), Type.PrimitiveType.INT, KofCallKind.INSTANCE));
-                } else {
-                    ops.add(new KofArrayLength());
-                }
-                ops.add(new KofConditionalJump(KofComparison.LT, bodyLabel, endLabel));
-                ops.add(new KofLabel(bodyLabel));
-                ops.add(new KofLoadLocal(collType, collIdx));
-                ops.add(new KofLoadLocal(Type.PrimitiveType.INT, idxIdx));
-                if (isList) {
-                    ops.add(new KofCall(collType, "kof_list_get", List.of(Type.PrimitiveType.INT), elemType, KofCallKind.INSTANCE));
-                } else {
-                    ops.add(new KofArrayLoad(elemType));
-                }
-                ops.add(new KofStoreLocal(elemType, varIdx));
-                breakLabels.push(endLabel);
-                continueLabels.push(continueLabel);
-                localIdx = emitStatement(fis.body(), ops, owner, localIdx, locals, returnType);
-                breakLabels.pop();
-                continueLabels.pop();
-                ops.add(new KofLabel(continueLabel));
-                ops.add(new KofLoadLocal(Type.PrimitiveType.INT, idxIdx));
-                ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 1));
-                ops.add(new KofBinary(KofBinaryOp.ADD, Type.PrimitiveType.INT));
-                ops.add(new KofStoreLocal(Type.PrimitiveType.INT, idxIdx));
-                ops.add(new KofJump(startLabel));
-                ops.add(new KofLabel(endLabel));
-                yield localIdx;
-            }
-            case ThrowStmt ts -> {
-                localIdx = emitExpression(ts.expression(), ops, owner, localIdx, locals);
-                Type excType = inferExprType(ts.expression(), locals);
-                if (BuiltinTypes.isString(excType) && target == Target.JVM) {
-                    int tmp = localIdx++;
-                    locals.add(new IRLocalVariable(tmp, "#exc", BuiltinTypes.STRING));
-                    ops.add(new KofStoreLocal(BuiltinTypes.STRING, tmp));
-                    Type runtimeExc = new Type.ClassType("java.lang", "RuntimeException", List.of());
-                    ops.add(new KofNewObject(runtimeExc, List.of(BuiltinTypes.STRING)));
-                    ops.add(new KofDup());
-                    ops.add(new KofLoadLocal(BuiltinTypes.STRING, tmp));
-                    ops.add(new KofCall(runtimeExc, "<init>", List.of(BuiltinTypes.STRING),
-                            Type.PrimitiveType.VOID, KofCallKind.CONSTRUCTOR));
-                }
-                ops.add(new KofThrow());
-                yield localIdx;
-            }
-            case AssertStmt asrt -> {
-                localIdx = emitExpression(asrt.condition(), ops, owner, localIdx, locals);
-                LabelId okLabel = LabelId.create();
-                LabelId failLabel = LabelId.create();
-                ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
-                ops.add(new KofConditionalJump(KofComparison.EQ, failLabel, okLabel));
-                ops.add(new KofLabel(failLabel));
-                String message = asrt.message() != null ? asrt.message() : "assertion failed";
-                if (target == Target.JVM) {
-                    int tmp = localIdx++;
-                    locals.add(new IRLocalVariable(tmp, "#exc", BuiltinTypes.STRING));
-                    ops.add(new KofLoadLiteral(BuiltinTypes.STRING, message));
-                    ops.add(new KofStoreLocal(BuiltinTypes.STRING, tmp));
-                    Type runtimeExc = new Type.ClassType("java.lang", "RuntimeException", List.of());
-                    ops.add(new KofNewObject(runtimeExc, List.of(BuiltinTypes.STRING)));
-                    ops.add(new KofDup());
-                    ops.add(new KofLoadLocal(BuiltinTypes.STRING, tmp));
-                    ops.add(new KofCall(runtimeExc, "<init>", List.of(BuiltinTypes.STRING),
-                            Type.PrimitiveType.VOID, KofCallKind.CONSTRUCTOR));
-                } else {
-                    ops.add(new KofLoadLiteral(BuiltinTypes.STRING, message));
-                }
-                ops.add(new KofThrow());
-                ops.add(new KofLabel(okLabel));
-                yield localIdx;
-            }
-            case SpawnStmt ss -> {
-                if (target.isNative()) {
-                    // CONC001 fechado: pthread_create no runtime nativo
-                    LambdaExpr leN = ss.expression() instanceof LambdaExpr l1 ? l1
-                            : new LambdaExpr(ss.position(), List.of(),
-                                    List.of(new ExpressionStmt(ss.position(), ss.expression())));
-                    Type.FunctionType ftN = new Type.FunctionType(List.of(), Type.PrimitiveType.VOID, null);
-                    List<IRLocalVariable> capN = collectCaptures(leN, locals);
-                    List<IRLocalVariable> effN = lambdaEffectiveCaptures.get(leN);
-                    if (effN != null) capN = effN;
-                    String lambdaClassN = lambdaClass(leN, ftN, capN, true);
-                    Type taskTypeN = new Type.ClassType("", lambdaClassN, List.of());
-                    List<Type> capTypesN = new ArrayList<>();
-                    for (IRLocalVariable cap : capN) capTypesN.add(cap.type());
-                    ops.add(new KofNewObject(taskTypeN, capTypesN));
-                    ops.add(new KofDup());
-                    for (IRLocalVariable cap : capN) {
-                        ops.add(new KofLoadLocal(cap.type(), cap.index()));
-                    }
-                    ops.add(new KofCall(taskTypeN, "<init>", capTypesN,
-                            Type.PrimitiveType.VOID, KofCallKind.CONSTRUCTOR));
-                    ops.add(new KofCall(new Type.ClassType("dev.kof.runtime", "KofRuntime", List.of()),
-                            "kof_spawn", List.of(taskTypeN), Type.PrimitiveType.VOID, KofCallKind.FUNCTION));
-                    yield localIdx;
-                }
-                LambdaExpr le;
-                if (ss.expression() instanceof LambdaExpr le0) {
-                    le = le0;
-                } else {
-                    le = new LambdaExpr(ss.position(), List.of(),
-                            List.of(new ExpressionStmt(ss.position(), ss.expression())));
-                }
-                Type.FunctionType ft = new Type.FunctionType(List.of(), Type.PrimitiveType.VOID, null);
-                // capturas: spawn { println(x + 1) } deve empilhar x no construtor
-                // (antes: List.of() → x resolvia para `this` → VerifyError)
-                List<IRLocalVariable> captures = collectCaptures(le, locals);
-                List<IRLocalVariable> effective = lambdaEffectiveCaptures.get(le);
-                if (effective != null) captures = effective;
-                String lambdaClass = lambdaClass(le, ft, captures, true);
-                Type taskType = new Type.ClassType("", lambdaClass, List.of());
-                List<Type> captureTypes = new ArrayList<>();
-                for (IRLocalVariable cap : captures) captureTypes.add(cap.type());
-                ops.add(new KofNewObject(taskType, captureTypes));
-                ops.add(new KofDup());
-                for (IRLocalVariable cap : captures) {
-                    ops.add(new KofLoadLocal(cap.type(), cap.index()));
-                }
-                ops.add(new KofCall(taskType, "<init>", captureTypes,
-                        Type.PrimitiveType.VOID, KofCallKind.CONSTRUCTOR));
-                ops.add(new KofCall(new Type.ClassType("dev.kof.runtime", "KofRuntime", List.of()),
-                        "kof_spawn", List.of(taskType), Type.PrimitiveType.VOID, KofCallKind.FUNCTION));
-                yield localIdx;
-            }
-            case TryStmt ts -> {
-                LabelId tryStart = LabelId.create();
-                LabelId tryEnd = LabelId.create();
-                LabelId doneLabel = LabelId.create();
-                boolean hasFinally = !ts.finallyBody().isEmpty();
-                LabelId finallyLabel = LabelId.create();
-                LabelId rethrowLabel = hasFinally ? LabelId.create() : doneLabel;
-                LabelId catchAllLabel = LabelId.create();
-                LabelId primaryHandler = LabelId.create();
-                boolean hasCatch = !ts.catchClauses().isEmpty();
-                String primaryExcType = hasCatch ? ts.catchClauses().getFirst().exceptionType() : "Throwable";
-                int primaryExcLocal = localIdx++;
-                if (hasCatch) {
-                    locals.add(new IRLocalVariable(primaryExcLocal, ts.catchClauses().getFirst().exceptionName(),
-                            CompilerTypes.toType(primaryExcType, currentUnit)));
-                } else if (hasFinally) {
-                    locals.add(new IRLocalVariable(primaryExcLocal, "#excTmp",
-                            new Type.ClassType("java.lang", "Throwable", List.of())));
-                }
-                ops.add(new KofTryStart(tryStart, tryEnd,
-                        hasCatch ? primaryHandler : catchAllLabel, primaryExcType, primaryExcLocal));
-                for (StatementNode s : ts.tryBody()) {
-                    localIdx = emitStatement(s, ops, owner, localIdx, locals, returnType);
-                }
-                ops.add(new KofJump(finallyLabel));
-                ops.add(new KofLabel(tryEnd));
-                for (int ci = 0; ci < ts.catchClauses().size(); ci++) {
-                    CatchClause cc = ts.catchClauses().get(ci);
-                    LabelId handlerLabel = ci == 0 ? primaryHandler : LabelId.create();
-                    int excIdx = ci == 0 ? primaryExcLocal : localIdx++;
-                    if (ci > 0) {
-                        locals.add(new IRLocalVariable(excIdx, cc.exceptionName(), CompilerTypes.toType(cc.exceptionType(), currentUnit)));
-                    }
-                    ops.add(new KofCatchStart(handlerLabel, cc.exceptionType(), excIdx));
-                    localIdx = emitStatement(new BlockStmt(cc.position(), cc.body()), ops, owner, localIdx, locals, returnType);
-                    ops.add(new KofJump(finallyLabel));
-                }
-                if (hasFinally) {
-                    int excTmp = hasCatch ? localIdx++ : primaryExcLocal;
-                    if (hasCatch) {
-                        locals.add(new IRLocalVariable(excTmp, "#excTmp",
-                                new Type.ClassType("java.lang", "Throwable", List.of())));
-                    }
-                    ops.add(new KofCatchStart(catchAllLabel, "Throwable", excTmp));
-                    ops.add(new KofJump(rethrowLabel));
-                    ops.add(new KofTryEnd());
-                    ops.add(new KofLabel(finallyLabel));
-                    for (StatementNode s : ts.finallyBody()) {
-                        localIdx = emitStatement(s, ops, owner, localIdx, locals, returnType);
-                    }
-                    ops.add(new KofJump(doneLabel));
-                    ops.add(new KofLabel(rethrowLabel));
-                    for (StatementNode s : ts.finallyBody()) {
-                        localIdx = emitStatement(s, ops, owner, localIdx, locals, returnType);
-                    }
-                    ops.add(new KofLoadLocal(new Type.ClassType("java.lang", "Throwable", List.of()), excTmp));
-                    ops.add(new KofThrow());
-                } else {
-                    ops.add(new KofTryEnd());
-                    ops.add(new KofLabel(finallyLabel));
-                }
-                ops.add(new KofLabel(doneLabel));
-                yield localIdx;
-            }
-            case SwitchStmt ss -> {
-                LabelId endLabel = LabelId.create();
-                LabelId defaultLabel = LabelId.create();
-                Type switchType = inferExprType(ss.expression(), locals);
-                // ── exaustividade: switch sobre enum precisa cobrir todas as
-                // constantes ou ter default (nunca cair silenciosamente)
-                boolean enumSwitch = false;
-                java.util.List<String> missing = java.util.List.of();
-                if (switchType instanceof Type.ClassType sct && sct.packageName().isEmpty()
-                        && !CompilerTypes.enumConstantsOf(sct.name(), currentUnit).isEmpty()) {
-                    enumSwitch = true;
-                    java.util.Set<String> covered = new java.util.HashSet<>();
-                    for (SwitchCase sc : ss.cases()) {
-                        String cn = CompilerTypes.enumConstantOfExpr(sc.value(), currentUnit);
-                        if (cn != null) covered.add(cn);
-                    }
-                    missing = CompilerTypes.enumConstantsOf(sct.name(), currentUnit).stream()
-                            .filter(c -> !covered.contains(c)).toList();
-                    if (!missing.isEmpty() && ss.defaultBody().isEmpty()
-                            && currentDiagnostics != null) {
-                        currentDiagnostics.error(ss.position() != null ? ss.position().file() : "",
-                                ss.position() != null ? ss.position().line() : 0,
-                                ss.position() != null ? ss.position().column() : 0, 0,
-                                "switch sobre '" + sct.name() + "' não cobre: "
-                                        + String.join(", ", missing)
-                                        + " (adicione default ou os casos faltantes)",
-                                "SEM031");
-                    }
-                }
-                int switchTmp = localIdx++;
-                localIdx = emitExpression(ss.expression(), ops, owner, localIdx, locals);
-                ops.add(new KofStoreLocal(switchType, switchTmp));
-                locals.add(new IRLocalVariable(switchTmp, "#switch", switchType));
-                boolean hasPattern = ss.cases().stream().anyMatch(sc -> sc.value() instanceof PatternExpr);
-                if (hasPattern) {
-                    // Pattern switch lowered as if-else chain (no switch subject needed beyond #switch)
-                    List<LabelId> bodyLabels = new ArrayList<>();
-                    List<LabelId> nextTestLabels = new ArrayList<>();
-                    for (int i = 0; i < ss.cases().size(); i++) {
-                        bodyLabels.add(LabelId.create());
-                        nextTestLabels.add(LabelId.create());
-                    }
-                    LabelId endLabelPat = LabelId.create();
-                    LabelId defaultLabelPat = ss.defaultBody().isEmpty() ? endLabelPat : LabelId.create();
-                    for (int i = 0; i < ss.cases().size(); i++) {
-                        if (i > 0) ops.add(new KofLabel(nextTestLabels.get(i)));
-                        SwitchCase sc = ss.cases().get(i);
-                        LabelId nextTest = i + 1 < ss.cases().size() ? nextTestLabels.get(i + 1) : defaultLabelPat;
-                        if (sc.value() instanceof PatternExpr pe) {
-                            Type patType = CompilerTypes.toType(pe.typeName(), currentUnit);
-                            if (patType instanceof Type.UnknownType) patType = BuiltinTypes.STRING;
-                            ops.add(new KofLoadLocal(switchType, switchTmp));
-                            ops.add(new KofInstanceOf(patType));
-                            ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
-                            ops.add(new KofConditionalJump(KofComparison.EQ, nextTest, bodyLabels.get(i)));
-                        } else {
-                            ops.add(new KofLoadLocal(switchType, switchTmp));
-                            localIdx = emitExpression(sc.value(), ops, owner, localIdx, locals);
-                            ops.add(new KofBinary(KofBinaryOp.EQ, switchType));
-                            ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
-                            ops.add(new KofConditionalJump(KofComparison.EQ, nextTest, bodyLabels.get(i)));
-                        }
-                    }
-                    ops.add(new KofLabel(defaultLabelPat));
-                    if (!ss.defaultBody().isEmpty()) {
-                        localIdx = emitStatement(new BlockStmt(ss.defaultBody().get(0).position(), ss.defaultBody()), ops, owner, localIdx, locals, returnType);
-                    }
-                    ops.add(new KofJump(endLabelPat));
-                    for (int i = 0; i < ss.cases().size(); i++) {
-                        SwitchCase sc = ss.cases().get(i);
-                        ops.add(new KofLabel(bodyLabels.get(i)));
-                        if (sc.value() instanceof PatternExpr pe) {
-                            Type patType = CompilerTypes.toType(pe.typeName(), currentUnit);
-                            if (patType instanceof Type.UnknownType) patType = BuiltinTypes.STRING;
-                            ops.add(new KofLoadLocal(switchType, switchTmp));
-                            ops.add(new KofCheckCast(patType));
-                            if (pe.varName() != null) {
-                                int varIdx = localIdx++;
-                                locals.add(new IRLocalVariable(varIdx, pe.varName(), patType));
-                                ops.add(new KofStoreLocal(patType, varIdx));
-                            } else if (!pe.fieldVars().isEmpty()) {
-                                int castTmp = localIdx++;
-                                locals.add(new IRLocalVariable(castTmp, "#patCast", patType));
-                                ops.add(new KofStoreLocal(patType, castTmp));
-                                java.util.List<String> fieldNames = pe.fieldVars();
-                                for (int fi = 0; fi < fieldNames.size(); fi++) {
-                                    String fieldVar = fieldNames.get(fi);
-                                    Type fieldType = Type.UnknownType.UNKNOWN;
-                                    for (AstNode d : currentUnit.declarations()) {
-                                        if (d instanceof RecordDeclarationNode rec && rec.name().equals(pe.typeName())) {
-                                            if (fi < rec.components().size()) {
-                                                fieldType = CompilerTypes.toType(rec.components().get(fi).type(), currentUnit);
-                                            }
-                                            break;
-                                        }
-                                    }
-                                    if (fieldType instanceof Type.UnknownType) fieldType = BuiltinTypes.STRING;
-                                    ops.add(new KofLoadLocal(patType, castTmp));
-                                    Type fieldOwner = patType;
-                                    String fieldName = null;
-                                    for (AstNode d : currentUnit.declarations()) {
-                                        if (d instanceof RecordDeclarationNode rec && rec.name().equals(pe.typeName())) {
-                                            if (fi < rec.components().size()) fieldName = rec.components().get(fi).name();
-                                            break;
-                                        }
-                                    }
-                                    if (fieldName == null) fieldName = fieldVar;
-                                    ops.add(new KofLoadField(fieldOwner, fieldName, fieldType));
-                                    int varIdx = localIdx++;
-                                    locals.add(new IRLocalVariable(varIdx, fieldVar, fieldType));
-                                    ops.add(new KofStoreLocal(fieldType, varIdx));
-                                }
-                            }
-                        }
-                        localIdx = emitStatement(new BlockStmt(sc.position(), sc.body()), ops, owner, localIdx, locals, returnType);
-                        ops.add(new KofJump(endLabelPat));
-                    }
-                    ops.add(new KofLabel(endLabelPat));
-                    yield localIdx;
-                }
-                List<LabelId> testLabels = new ArrayList<>();
-                List<LabelId> bodyLabels = new ArrayList<>();
-                for (int i = 0; i < ss.cases().size(); i++) {
-                    testLabels.add(LabelId.create());
-                    bodyLabels.add(LabelId.create());
-                }
-                for (int i = 0; i < ss.cases().size(); i++) {
-                    if (i > 0) ops.add(new KofLabel(testLabels.get(i)));
-                    SwitchCase sc = ss.cases().get(i);
-                    ops.add(new KofLoadLocal(switchType, switchTmp));
-                    localIdx = emitExpression(sc.value(), ops, owner, localIdx, locals);
-                    if (enumSwitch) {
-                        // comparação por conteúdo (o valor do enum é o nome)
-                        ops.add(new KofCall(BuiltinTypes.STRING, "kof_string_equals",
-                                List.of(BuiltinTypes.STRING, BuiltinTypes.STRING),
-                                Type.PrimitiveType.BOOL, KofCallKind.FUNCTION));
-                        ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
-                        ops.add(new KofConditionalJump(KofComparison.NE, bodyLabels.get(i),
-                                i + 1 < ss.cases().size() ? testLabels.get(i + 1) : defaultLabel));
-                    } else if (Type.isString(switchType)) {
-                        // bug 4: switch de String usava SUB (switchValue - case)
-                        // → String - String gerava bytecode inválido no JVM.
-                        // Igualdade de String é por conteúdo (kof_string_equals).
-                        ops.add(new KofCall(BuiltinTypes.STRING, "kof_string_equals",
-                                List.of(BuiltinTypes.STRING, BuiltinTypes.STRING),
-                                Type.PrimitiveType.BOOL, KofCallKind.FUNCTION));
-                        ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
-                        ops.add(new KofConditionalJump(KofComparison.NE, bodyLabels.get(i),
-                                i + 1 < ss.cases().size() ? testLabels.get(i + 1) : defaultLabel));
-                    } else {
-                        ops.add(new KofBinary(KofBinaryOp.SUB, switchType));
-                        ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
-                        ops.add(new KofConditionalJump(KofComparison.EQ, bodyLabels.get(i),
-                                i + 1 < ss.cases().size() ? testLabels.get(i + 1) : defaultLabel));
-                    }
-                }
-                for (int i = 0; i < ss.cases().size(); i++) {
-                    SwitchCase sc = ss.cases().get(i);
-                    ops.add(new KofLabel(bodyLabels.get(i)));
-                    localIdx = emitStatement(new BlockStmt(sc.position(), sc.body()), ops, owner, localIdx, locals, returnType);
-                    ops.add(new KofJump(endLabel));
-                }
-                ops.add(new KofLabel(defaultLabel));
-                if (!ss.defaultBody().isEmpty()) {
-                    localIdx = emitStatement(new BlockStmt(ss.defaultBody().get(0).position(), ss.defaultBody()), ops, owner, localIdx, locals, returnType);
-                }
-                ops.add(new KofLabel(endLabel));
-                yield localIdx;
-            }
-            default -> localIdx;
-        };
-    }
-
-    /**
-     * Switch como expressão (SYN001). Baixa como cadeia de if-expressões no
-     * formato exato do {@code IfExpr} — cada nível é
-     * {@code <test>; load 0; CJump(NE, body, else); Label(body); [binding];
-     * <expr>; Jump(end); Label(else); <else-chain>; Label(end)}, que o backend
-     * JS reconhece via {@code tryParseIfExpr} e renderiza como ternários
-     * aninhados. Cada braço deixa EXATAMENTE 1 valor na pilha (o switch é o
-     * valor — sem KofPop).
-     */
-    private int emitSwitchExpr(SwitchExpr se, List<KofOperation> ops, String owner,
-                               int localIdx, List<IRLocalVariable> locals) {
-        Type switchType = inferExprType(se.expression(), locals);
-        int switchTmp = localIdx++;
-        localIdx = emitExpression(se.expression(), ops, owner, localIdx, locals);
-        ops.add(new KofStoreLocal(switchType, switchTmp));
-        locals.add(new IRLocalVariable(switchTmp, "#switchExpr", switchType));
-        return emitSwitchChain(se.cases(), 0, se.defaultValue(), switchType, switchTmp,
-                ops, owner, localIdx, locals);
-    }
-
-    private int emitSwitchChain(List<SwitchExprCase> cases, int i, ExpressionNode defaultValue,
-                                Type switchType, int switchTmp, List<KofOperation> ops, String owner,
-                                int localIdx, List<IRLocalVariable> locals) {
-        if (i >= cases.size()) {
-            if (defaultValue != null) {
-                return emitExpression(defaultValue, ops, owner, localIdx, locals);
-            }
-            ops.add(CompilerTypes.defaultValueOp(switchType));
-            return localIdx;
-        }
-        SwitchExprCase sc = cases.get(i);
-        LabelId bodyLabel = LabelId.create();
-        LabelId elseLabel = LabelId.create();
-        LabelId endLabel = LabelId.create();
-        if (sc.value() instanceof PatternExpr pe) {
-            Type patType = CompilerTypes.toType(pe.typeName(), currentUnit);
-            if (patType instanceof Type.UnknownType) patType = BuiltinTypes.STRING;
-            ops.add(new KofLoadLocal(switchType, switchTmp));
-            ops.add(new KofInstanceOf(patType));
-            ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
-            ops.add(new KofConditionalJump(KofComparison.NE, bodyLabel, elseLabel));
-            ops.add(new KofLabel(bodyLabel));
-            localIdx = emitPatternBinding(pe, patType, switchType, switchTmp, ops, localIdx, locals);
-        } else {
-            ops.add(new KofLoadLocal(switchType, switchTmp));
-            localIdx = emitExpression(sc.value(), ops, owner, localIdx, locals);
-            Type caseType = inferExprType(sc.value(), locals);
-            if (Type.isString(switchType) || CompilerTypes.isEnumType(switchType, currentUnit) || CompilerTypes.isEnumType(caseType, currentUnit)) {
-                // igualdade de String/enum é por conteúdo (bug 4 do statement)
-                ops.add(new KofCall(BuiltinTypes.STRING, "kof_string_equals",
-                        List.of(BuiltinTypes.STRING, BuiltinTypes.STRING),
-                        Type.PrimitiveType.BOOL, KofCallKind.FUNCTION));
-            } else {
-                ops.add(new KofBinary(KofBinaryOp.EQ, switchType));
-            }
-            ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
-            ops.add(new KofConditionalJump(KofComparison.NE, bodyLabel, elseLabel));
-            ops.add(new KofLabel(bodyLabel));
-        }
-        localIdx = emitExpression(sc.body(), ops, owner, localIdx, locals);
-        ops.add(new KofJump(endLabel));
-        ops.add(new KofLabel(elseLabel));
-        localIdx = emitSwitchChain(cases, i + 1, defaultValue, switchType, switchTmp,
-                ops, owner, localIdx, locals);
-        ops.add(new KofLabel(endLabel));
-        return localIdx;
-    }
-
-    /**
-     * Prologue de binding de um case pattern de switch-expressão:
-     * {@code case T v ->} → {@code v = (T)#switchExpr};
-     * {@code case T(var x, var y) ->} → cast p/ {@code #patCast} + um
-     * {@code getfield} por componente. No JS os slots são pré-declarados no
-     * topo da função, então o {@code store} vira atribuição na sequência do
-     * braço (ver parseExpressionFragment).
-     */
-    private int emitPatternBinding(PatternExpr pe, Type patType, Type switchType, int switchTmp,
-                                   List<KofOperation> ops, int localIdx, List<IRLocalVariable> locals) {
-        if (pe.varName() != null) {
-            ops.add(new KofLoadLocal(switchType, switchTmp));
-            ops.add(new KofCheckCast(patType));
-            int varIdx = localIdx++;
-            locals.add(new IRLocalVariable(varIdx, pe.varName(), patType));
-            ops.add(new KofStoreLocal(patType, varIdx));
-            return localIdx;
-        }
-        int castTmp = localIdx++;
-        locals.add(new IRLocalVariable(castTmp, "#patCast", patType));
-        ops.add(new KofLoadLocal(switchType, switchTmp));
-        ops.add(new KofCheckCast(patType));
-        ops.add(new KofStoreLocal(patType, castTmp));
-        String simple = patType instanceof Type.ClassType ct ? ct.name() : pe.typeName();
-        for (int fi = 0; fi < pe.fieldVars().size(); fi++) {
-            String fieldVar = pe.fieldVars().get(fi);
-            Type fieldType = Type.UnknownType.UNKNOWN;
-            String fieldName = fieldVar;
-            if (currentUnit != null) {
-                for (AstNode d : currentUnit.declarations()) {
-                    if (d instanceof RecordDeclarationNode rec && rec.name().equals(simple)) {
-                        if (fi < rec.components().size()) {
-                            fieldType = CompilerTypes.toType(rec.components().get(fi).type(), currentUnit);
-                            fieldName = rec.components().get(fi).name();
-                        }
-                        break;
-                    }
-                }
-            }
-            if (fieldType instanceof Type.UnknownType) fieldType = BuiltinTypes.STRING;
-            ops.add(new KofLoadLocal(patType, castTmp));
-            ops.add(new KofLoadField(patType, fieldName, fieldType));
-            int varIdx = localIdx++;
-            locals.add(new IRLocalVariable(varIdx, fieldVar, fieldType));
-            ops.add(new KofStoreLocal(fieldType, varIdx));
-        }
-        return localIdx;
-    }
-
-    private int emitExpression(ExpressionNode expr, List<KofOperation> ops, String owner, int localIdx,
+    int emitExpression(ExpressionNode expr, List<KofOperation> ops, String owner, int localIdx,
                                List<IRLocalVariable> locals) {
         return switch (expr) {
             case LiteralExpr lit -> {
@@ -5665,7 +4918,7 @@ private Target target = Target.JVM;
                 yield localIdx;
             }
             case SwitchExpr se -> {
-                localIdx = emitSwitchExpr(se, ops, owner, localIdx, locals);
+                localIdx = SwitchExprLowerer.emitSwitchExpr(this, se, ops, owner, localIdx, locals);
                 yield localIdx;
             }
             case LambdaExpr le -> {
@@ -5696,7 +4949,7 @@ private Target target = Target.JVM;
         };
     }
 
-    private Type inferExprType(ExpressionNode expr, List<IRLocalVariable> locals) {
+    Type inferExprType(ExpressionNode expr, List<IRLocalVariable> locals) {
         return switch (expr) {
             case LiteralExpr lit -> switch (lit.kind()) {
                 case ConcreteLiteralKind.INT -> Type.PrimitiveType.INT;
@@ -6488,7 +5741,7 @@ private Target target = Target.JVM;
     /** Compatibilidade largura para fallback de resolução de construtor:
      *  primitivos por largura, tipos de referência por hierarquia, Unknown aceita tudo. */
 
-    private boolean ctorCompatible(Type formal, Type arg) {
+    boolean ctorCompatible(Type formal, Type arg) {
         if (formal == null || arg == null) return true;
         if (Type.isUnknown(formal) || Type.isUnknown(arg)) return true;
         if (formal.equals(arg)) return true;
@@ -6516,7 +5769,7 @@ private Target target = Target.JVM;
         return true;
     }
 
-    private void emitWideningIfNeeded(List<KofOperation> ops, Type from, Type to) {
+    void emitWideningIfNeeded(List<KofOperation> ops, Type from, Type to) {
         if (from.equals(to)) return;
         String fn = TypeMetrics.primitiveName(from);
         String tn = TypeMetrics.primitiveName(to);
@@ -6544,7 +5797,7 @@ private Target target = Target.JVM;
         }
     }
 
-    private void emitPrimNarrow(List<KofOperation> ops, Type from, Type to) {
+    void emitPrimNarrow(List<KofOperation> ops, Type from, Type to) {
         if (from.equals(to)) return;
         String fn = TypeMetrics.primitiveName(from);
         String tn = TypeMetrics.primitiveName(to);
@@ -6567,7 +5820,7 @@ private Target target = Target.JVM;
         }
     }
 
-    private static boolean isZeroLiteral(LiteralExpr lit) {
+    static boolean isZeroLiteral(LiteralExpr lit) {
         if (lit.value() == null) return false;
         String v = lit.value().trim();
         boolean zero = "0".equals(v) || "-0".equals(v)
@@ -6580,7 +5833,7 @@ private Target target = Target.JVM;
     }
 
 
-    private void emitErasureBox(List<KofOperation> ops, Type primitive) {
+    void emitErasureBox(List<KofOperation> ops, Type primitive) {
         if (!needsErasureBoxing()) return;
         Type boxed = TypeMetrics.boxedTypeFor(primitive);
         Type boxParam = primitive instanceof Type.PrimitiveType pt
@@ -6588,18 +5841,18 @@ private Target target = Target.JVM;
         ops.add(new KofCall(boxed, "kof_box", List.of(boxParam), boxed, KofCallKind.FUNCTION));
     }
 
-    private void emitErasureUnbox(List<KofOperation> ops, Type primitive) {
+    void emitErasureUnbox(List<KofOperation> ops, Type primitive) {
         if (!needsErasureBoxing()) return;
         Type boxed = TypeMetrics.boxedTypeFor(primitive);
         ops.add(new KofCall(primitive, "kof_unbox", List.of(boxed), primitive, KofCallKind.FUNCTION));
     }
 
-    private boolean erasesToReference(Type t) {
+    boolean erasesToReference(Type t) {
         return t instanceof Type.TypeVariable || t instanceof Type.ClassType
                 || t instanceof Type.ArrayType || t instanceof Type.UnknownType;
     }
 
-    private int emitArgumentsWithFormalTypes(List<ExpressionNode> args, List<Type> formalTypes,
+    int emitArgumentsWithFormalTypes(List<ExpressionNode> args, List<Type> formalTypes,
                                              List<KofOperation> ops, String owner, int localIdx,
                                              List<IRLocalVariable> locals) {
         for (int i = 0; i < args.size(); i++) {
@@ -6639,7 +5892,7 @@ private Target target = Target.JVM;
      * capturas viram campos finais + construtor — o mesmo modelo das
      * lambdas nativas. Emite NEW+DUP+capturas+&lt;init&gt; na pilha.
      */
-    private int emitSamAdapter(LambdaExpr le, Type.ClassType iface, ExternalClasspath.Sam sam,
+    int emitSamAdapter(LambdaExpr le, Type.ClassType iface, ExternalClasspath.Sam sam,
                                List<KofOperation> ops, String owner, int localIdx,
                                List<IRLocalVariable> locals) {
         List<IRLocalVariable> captures = collectCaptures(le, locals);
@@ -6690,7 +5943,7 @@ private Target target = Target.JVM;
         return localIdx;
     }
 
-    private boolean syntheticExists(String name) {
+    boolean syntheticExists(String name) {
         for (IRClass c : syntheticClasses) {
             if (c.name().equals(name)) return true;
         }
@@ -6773,7 +6026,7 @@ private Target target = Target.JVM;
 
 
 
-    private IRLocalVariable findLocalVar(String name, List<IRLocalVariable> locals) {
+    IRLocalVariable findLocalVar(String name, List<IRLocalVariable> locals) {
         for (int i = locals.size() - 1; i >= 0; i--) {
             if (locals.get(i).name().equals(name)) return locals.get(i);
         }
@@ -6784,12 +6037,12 @@ private Target target = Target.JVM;
      * Namespace da stdlib (web/db/log/...) sombreado por variável local:
      * "var web = ..." torna "web.foo()" chamada de instância, não de namespace.
      */
-    private boolean isLocalVarName(String name, List<IRLocalVariable> locals) {
+    boolean isLocalVarName(String name, List<IRLocalVariable> locals) {
         return findLocalVar(name, locals) != null;
     }
 
     /** Nome de tipo builtin usado como receiver estático (String.valueOf etc.) */
-    private static boolean isBuiltinStaticReceiver(String name, List<IRLocalVariable> locals) {
+    static boolean isBuiltinStaticReceiver(String name, List<IRLocalVariable> locals) {
         if (findLocalVarStatic(locals, name) != null) return false;
         return switch (name) {
             case "String", "Int", "Integer", "Long", "Float", "Double",
@@ -6818,7 +6071,7 @@ private Target target = Target.JVM;
      * correct prefix/postfix semantics: the result value stays on the stack
      * and the target is stored back.
      */
-    private int emitIncrement(UnaryExpr ue, Type operandType, List<KofOperation> ops,
+    int emitIncrement(UnaryExpr ue, Type operandType, List<KofOperation> ops,
                               String owner, int localIdx, List<IRLocalVariable> locals) {
         boolean prefix = ue.prefix();
         KofBinaryOp op = "++".equals(ue.operator()) ? KofBinaryOp.ADD : KofBinaryOp.SUB;
@@ -7085,14 +6338,14 @@ private Target target = Target.JVM;
      * ponto flutuante viram diagnóstico em compile-time — nunca resultado
      * silenciosamente errado. JSON já tem o próprio código (JSN001).
      */
-    private boolean fpSupportedOnNative(Type type, SourcePosition pos) {
+    boolean fpSupportedOnNative(Type type, SourcePosition pos) {
         // Native float/double now supported via XMM (was FLT001) — KofJS always was
         return true;
     }
 
 
 
-    private boolean jsonSupported(Type type, boolean isDecode) {
+    boolean jsonSupported(Type type, boolean isDecode) {
         Type check = BuiltinTypes.isList(type) ? listElementType(type) : type;
         if (check instanceof Type.PrimitiveType pt && ("float".equals(pt.name()) || "double".equals(pt.name()))) {
             // JSN001 fechado: encode/decode float/double no Native
@@ -7180,7 +6433,7 @@ private Target target = Target.JVM;
 
 
 
-    private Type listElementType(Type listType) {
+    Type listElementType(Type listType) {
         if (listType instanceof Type.ClassType ct && !ct.typeArguments().isEmpty()) {
             return ct.typeArguments().get(0);
         }
@@ -7189,7 +6442,7 @@ private Target target = Target.JVM;
 
 
 
-    private boolean isComparisonShortcut(BinaryExpr bin, List<IRLocalVariable> locals) {
+    boolean isComparisonShortcut(BinaryExpr bin, List<IRLocalVariable> locals) {
         if (!TypeMetrics.isComparisonOp(bin.operator())) return false;
         if ("==".equals(bin.operator()) || "!=".equals(bin.operator())) {
             Type left = inferExprType(bin.left(), locals);
@@ -7210,7 +6463,7 @@ private Target target = Target.JVM;
      * two operands (int, long, float or double). The IR carries it so the
      * JVM backend can emit the correct compare instruction.
      */
-    private Type comparisonOperandType(BinaryExpr bin, List<IRLocalVariable> locals) {
+    Type comparisonOperandType(BinaryExpr bin, List<IRLocalVariable> locals) {
         Type left = inferExprType(bin.left(), locals);
         Type right = inferExprType(bin.right(), locals);
         if (TypeMetrics.isNumeric(left) && TypeMetrics.isNumeric(right)) {
@@ -7248,7 +6501,7 @@ private Target target = Target.JVM;
      * to the common numeric type (e.g. `longExpr < 2000` must widen the
      * literal before the compare).
      */
-    private int emitComparisonShortcut(BinaryExpr bin, List<KofOperation> ops, String owner,
+    int emitComparisonShortcut(BinaryExpr bin, List<KofOperation> ops, String owner,
                                        int localIdx, List<IRLocalVariable> locals) {
         Type common = comparisonOperandType(bin, locals);
         if (!fpSupportedOnNative(common, bin.position())) {
@@ -7261,7 +6514,7 @@ private Target target = Target.JVM;
         return localIdx;
     }
 
-    private KofComparison mapComparison(String op) {
+    KofComparison mapComparison(String op) {
         return switch (op) {
             case ">" -> KofComparison.GT;
             case "<" -> KofComparison.LT;
@@ -7300,7 +6553,7 @@ private Target target = Target.JVM;
         }
     }
 
-    private boolean hasReturnValue(ExpressionNode expr, List<IRLocalVariable> locals) {
+    boolean hasReturnValue(ExpressionNode expr, List<IRLocalVariable> locals) {
         return hasReturnValueInner(expr, locals);
     }
 
@@ -8062,7 +7315,7 @@ private Target target = Target.JVM;
         return packageName.replace('.', '/') + "/" + simpleName;
     }
 
-    private int computeAccess(List<String> modifiers) {
+    int computeAccess(List<String> modifiers) {
         int access = 0;
         boolean hasVisibility = false;
         for (String mod : modifiers) {
@@ -8092,7 +7345,7 @@ private Target target = Target.JVM;
      * values may exceed Integer.MAX_VALUE; they wrap to the signed 32-bit
      * representation, which the Kof color semantics use (shifts + mask).
      */
-    private int parseIntLiteral(String value) {
+    int parseIntLiteral(String value) {
         if (value.startsWith("0x") || value.startsWith("0X")) {
             // no suffix stripping: hex digits may end in a..f
             return (int) Long.parseLong(value.substring(2), 16);
@@ -8100,7 +7353,7 @@ private Target target = Target.JVM;
         return Integer.parseInt(stripSuffix(value));
     }
 
-    private String stripSuffix(String value) {
+    String stripSuffix(String value) {
         if (value.endsWith("l") || value.endsWith("L") ||
             value.endsWith("f") || value.endsWith("F") ||
             value.endsWith("d") || value.endsWith("D")) {
