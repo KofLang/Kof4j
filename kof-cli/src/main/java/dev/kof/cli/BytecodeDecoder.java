@@ -90,6 +90,27 @@ final class BytecodeDecoder {
                     if (f == null) return null;
                     stack.push(simpleOwner(f[0]) + "." + f[1]);
                 }
+                case 0xbb -> { // new
+                    String cn = resolveClassName(cp, in.operands()[0]);
+                    if (cn == null) return null;
+                    stack.push("⟦new⟧" + cn);
+                }
+                case 0x59 -> { // dup (só no padrão new)
+                    if (stack.isEmpty()) return null;
+                    String t = stack.peek();
+                    if (!t.startsWith("⟦new⟧")) return null;
+                    stack.push(t);
+                }
+                case 0xb7 -> { // invokespecial (<init>)
+                    String[] m = resolveMethodRef(cp, in.operands()[0]);
+                    if (m == null || !"<init>".equals(m[1])) return null;
+                    String a = callArgs(stack, argCount(m[2]));
+                    if (a == null || stack.size() < 2) return null;
+                    stack.pop();                       // receiver (cópia do dup)
+                    String result = stack.pop();       // marcador do new
+                    if (!result.startsWith("⟦new⟧")) return null;
+                    stack.push(result.substring("⟦new⟧".length()) + "(" + a + ")");
+                }
                 case 0xac, 0xb0 -> {
                     return stack.isEmpty() ? null : stack.pop();
                 }
@@ -314,6 +335,16 @@ final class BytecodeDecoder {
     private static String simpleOwner(String internal) {
         int s = internal.lastIndexOf('/');
         return s >= 0 ? internal.substring(s + 1) : internal;
+    }
+
+    /** Resolve um nome de classe (Class CP entry) → nome simples. */
+    private static String resolveClassName(String[] cp, int idx) {
+        if (idx <= 0 || idx >= cp.length || cp[idx] == null) return null;
+        String e = cp[idx];
+        if (!e.startsWith("#")) return null;
+        Integer nameIdx = parseCp(e.substring(1));
+        if (nameIdx == null || nameIdx >= cp.length || cp[nameIdx] == null) return null;
+        return simpleOwner(cp[nameIdx]);
     }
 
     // ── statement-based body (loops / stores / multi-statement) ──────────

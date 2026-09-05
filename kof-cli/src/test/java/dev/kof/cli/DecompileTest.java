@@ -210,6 +210,27 @@ class DecompileTest {
         assertTrue(result.success(), "decompiled deve compilar:\n" + kof + "\n" + result.diagnostics().getDiagnostics());
     }
 
+    @Test
+    void recoversObjectCreation(@TempDir Path dir) throws Exception {
+        Path javaFile = dir.resolve("Node.java");
+        Files.writeString(javaFile, """
+                public class Node {
+                    public Node make() { return new Node(); }
+                }
+                """);
+        runJavac(javaFile, dir);
+
+        String kof = Decompile.decompile(dir.resolve("Node.class"));
+
+        assertTrue(kof.contains("make() = Node()"), "new deve virar Node():\n" + kof);
+
+        Path out = dir.resolve("Node.kf");
+        Files.writeString(out, kof);
+        CompilerDriver driver = new CompilerDriver();
+        CompilationResult result = driver.compile(out, dir.resolve("out"), Target.JVM);
+        assertTrue(result.success(), "decompiled deve compilar:\n" + kof + "\n" + result.diagnostics().getDiagnostics());
+    }
+
     private void runJavac(Path javaFile, Path dir) throws IOException, InterruptedException {
         String javaHome = System.getProperty("java.home");
         Path javac = Path.of(javaHome, "bin", "javac");
