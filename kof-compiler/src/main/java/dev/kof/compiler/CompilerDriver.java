@@ -6973,6 +6973,11 @@ private Target target = Target.JVM;
         return type instanceof Type.PrimitiveType pt && !"void".equals(pt.name());
     }
 
+    private boolean isCharType(Type type) {
+        return type instanceof Type.PrimitiveType pt
+                && ("char".equals(pt.name()) || "Char".equals(pt.name()));
+    }
+
 
     private boolean needsErasureBoxing() {
         return target == Target.JVM;
