@@ -201,7 +201,7 @@ Esta é a versão consolidada do plano de implementação para todos os document
 
 | # | Subtarefa | Dificuldade | DoD |
 |---|-----------|-------------|-----|
-| 2.3.1 | Estender constant-folding a constantes de domínio (config, validação de schema) | 🟢 E | const de domínio dobra em compile-time |
+| 2.3.1 | Estender constant-folding a constantes de domínio (config, validação de schema) | 🟢 E | ✅ string-concat folding (`"a" + "b"` → `"ab"` em compile-time) |
 | 2.3.2 | Detecção de ciclos no grafo de `infra` em compile-time | 🟡 M | ciclo → diagnóstico |
 
 ### 2.4 Scoped resources (RAII leve, sem ownership)

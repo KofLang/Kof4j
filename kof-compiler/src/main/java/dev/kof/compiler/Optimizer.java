@@ -140,6 +140,22 @@ public final class Optimizer {
                     continue;
                 }
             }
+            if (op instanceof KofCall kc && "kof_string_concat".equals(kc.methodName())
+                    && i >= 2
+                    && ops.get(i - 2) instanceof KofLoadLiteral sa && sa.value() instanceof String
+                    && ops.get(i - 1) instanceof KofLoadLiteral sb && sb.value() instanceof String) {
+                // constant-fold de Strings concatenadas em compile-time (TIER 2.3):
+                // "a" + "b" → "ab" — constante de domínio, sem custo runtime.
+                KofLoadLiteral folded = KofLoadLiteral.ofString(
+                        (String) sa.value() + (String) sb.value());
+                SourcePosition p = positions.remove(sa);
+                positions.remove(sb);
+                positions.remove(op);
+                if (p != null) positions.put(folded, p);
+                out.set(out.size() - 2, folded);
+                out.remove(out.size() - 1);
+                continue;
+            }
             out.add(op);
         }
         return out;

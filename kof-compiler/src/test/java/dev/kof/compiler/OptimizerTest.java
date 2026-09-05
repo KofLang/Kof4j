@@ -22,6 +22,18 @@ class OptimizerTest {
     }
 
     @Test
+    void foldsConstantStringConcat() {
+        List<KofOperation> out = optimize(List.of(
+                KofLoadLiteral.ofString("hello "), KofLoadLiteral.ofString("world"),
+                new KofCall(BuiltinTypes.STRING, "kof_string_concat",
+                        List.of(BuiltinTypes.STRING, BuiltinTypes.STRING),
+                        BuiltinTypes.STRING, KofCallKind.FUNCTION)));
+        assertEquals(1, out.size());
+        KofLoadLiteral lit = (KofLoadLiteral) out.get(0);
+        assertEquals("hello world", lit.value());
+    }
+
+    @Test
     void foldsConstantArithmetic() {
         List<KofOperation> out = optimize(List.of(
                 KofLoadLiteral.ofInt(2), KofLoadLiteral.ofInt(3),
