@@ -35,6 +35,9 @@ conceitual nem decide arquitetura/rumo. Consequências práticas para o agente:
 5. **Blindagem contra poluição.** Nunca misturar a linguagem Kof com termos
    alheios ao domínio (jogos, etc.) em docs/código. Disclaimers e nomenclatura
    são lei; violou, reverte.
+6. **Toda PR vem acompanhada de uma issue relacionada.** PR "solta" não entra.
+   Toda mudança proposta referencia uma issue aberta que a justifica —
+   rastreabilidade é lei, não preferência.
 
 > Em resumo: a IA roda **sob as regras estritas da computação de verdade** —
 > documentação cirúrgica, zero alucinação, sem o hype do mercado.
