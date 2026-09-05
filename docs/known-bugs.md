@@ -510,6 +510,40 @@ EXTERNA produz lixo
 
 ---
 
+### 29. `var h = spawn { lambda }` (handle de lambda) quebra em todos os targets
+
+- **Sintoma:** o corpo da lambda **nunca roda** ou o processo **segfaulta**:
+  - x86_64 nativo: SIGSEGV (ec=139), nada imprime;
+  - riscv64/aarch64 (qemu): ec=0 **sem output** (silencioso — R6);
+  - `await h` nunca vê o resultado.
+- **Não quebra:** `spawn { ... }` fire-and-forget com captura (funciona,
+  `SpawnE2ETest.spawnLambdaCapturesOuterLocal`) e `var h = spawn fn()`
+  (chamada de função nomeada — funciona nos 3 targets, `two-awaits` ok).
+  Só a combinação **handle + lambda literal** está morta.
+- **Reprodução:**
+  ```kof
+  main() {
+      var n = 21
+      var h = spawn { println(n * 2) }
+      await h
+  }
+  ```
+  (x86_64: segfault; riscv64: vazio; esperado: `42`).
+- **Causa provável:** lowering de `SpawnStmt` com `LambdaExpr` **atribuído a
+  handle** — o task object passado a `kof_spawn_result`/`pthread_create` sai
+  errado (capturas/vtable da lambda void). O segfault x86_64 (que é o runtime
+  "de referência") indica o bug no lowering compartilhado, não no asm riscv.
+- **O que deveria acontecer:** `spawn { lambda }` com handle deve rodar a
+  lambda na thread e `await` entregar o resultado (mesmo caminho do
+  fire-and-forget, que já funciona).
+- **Arquivos:** lowering `SpawnStmt` (`CompilerDriver.java`), `emitRiscvSpawn`
+  / trampoline (`NativeBackend.java`), `NativeRuntime`/`RuntimeConcurrency`
+  (x86_64).
+- **Registrado:** 05/09 (sweep spawn do NATIVE002-stdlib residual —
+  pré-existente, não introduzido pelos fixes cross da linha).
+
+---
+
 ## Comportamentos que PAREcem bugs mas são esperados (não corrigir)
 
 | Cenário | Comportamento | Por quê |
