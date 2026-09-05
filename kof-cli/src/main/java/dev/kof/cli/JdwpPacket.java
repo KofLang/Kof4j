@@ -9,17 +9,16 @@ import java.util.List;
  * Extraído de JdwpClient (REFACTOR-500 Fase 8) — SRP: só codec de pacote.
  */
 final class JdwpPacket {
-private static final class Packet {
     int id;
     int errorCode;
     private final List<Byte> bytes = new ArrayList<>();
     private byte[] data;
     private int pos;
 
-    Packet() {
+    JdwpPacket() {
     }
 
-    Packet(int id, int errorCode, byte[] data) {
+    JdwpPacket(int id, int errorCode, byte[] data) {
         this.id = id;
         this.errorCode = errorCode;
         this.data = data;
@@ -96,5 +95,4 @@ private static final class Packet {
     void skipRemaining() {
         pos = data.length;
     }
-}
 }
