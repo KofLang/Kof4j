@@ -495,7 +495,10 @@ EXTERNA produz lixo
 
 - **Sintoma:** `expected: <1> but was: <0>` no contador de conexões ws.
   **Intermitente** — passa 6/6 em execução isolada; falhou 1× na suíte
-  completa de 05/09 (927 testes).
+  completa de 05/09 (927 testes). **05/09 (suíte 969, pós bug-32):** falhou
+  1× na suíte e 1× isolado (depois 3/3 verde) — assinatura idêntica
+  (`expected: <1> but was: <0>`); confirmada flake, não regressão (a mudança
+  do bug 32 é resolução de tipos JVM, ortogonal à contagem de conexões ws).
 - **Causa provável:** race no contador de conexões — o teste conta
   conexões ativas num ponto onde a conexão pode ainda não ter sido
   registrada (timing de socket/async). Não é regressão de feature.
