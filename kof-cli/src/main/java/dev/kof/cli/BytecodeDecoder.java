@@ -64,6 +64,21 @@ final class BytecodeDecoder {
                     if (stack.isEmpty()) return null;
                     stack.push("-" + stack.pop());
                 }
+                case 0xb8 -> { // invokestatic
+                    String[] m = resolveMethodRef(cp, in.operands()[0]);
+                    if (m == null) return null;
+                    String a = callArgs(stack, argCount(m[2]));
+                    if (a == null) return null;
+                    stack.push(simpleOwner(m[0]) + "." + m[1] + "(" + a + ")");
+                }
+                case 0xb6 -> { // invokevirtual
+                    String[] m = resolveMethodRef(cp, in.operands()[0]);
+                    if (m == null) return null;
+                    String a = callArgs(stack, argCount(m[2]));
+                    if (a == null || stack.isEmpty()) return null;
+                    String recv = stack.pop();
+                    stack.push(recv + "." + m[1] + "(" + a + ")");
+                }
                 case 0xac, 0xb0 -> {
                     return stack.isEmpty() ? null : stack.pop();
                 }
@@ -199,6 +214,16 @@ final class BytecodeDecoder {
         return true;
     }
 
+    /** Pop n argumentos da pilha e devolve a lista "a, b, ..." (ou null). */
+    private static String callArgs(Deque<String> stack, int n) {
+        List<String> args = new ArrayList<>();
+        for (int i = 0; i < n; i++) {
+            if (stack.isEmpty()) return null;
+            args.add(0, stack.pop());
+        }
+        return String.join(", ", args);
+    }
+
     private static String invCond(int op) {
         return switch (op) {
             case 0x9f -> "!="; case 0xa0 -> "=="; case 0xa1 -> ">="; case 0xa2 -> "<";
@@ -221,6 +246,63 @@ final class BytecodeDecoder {
             }
         }
         return e;
+    }
+
+    // ── chamadas de método ───────────────────────────────────────────────
+
+    /** Resolve um Methodref/InterfaceMethodref do CP → {ownerInternal, name, desc}. */
+    private static String[] resolveMethodRef(String[] cp, int idx) {
+        if (idx <= 0 || idx >= cp.length || cp[idx] == null) return null;
+        String e = cp[idx];
+        if (!e.startsWith("#") || e.indexOf('#', 1) < 0) return null;
+        int split = e.indexOf('#', 1);
+        Integer classIdx = parseCp(e.substring(1, split));
+        Integer natIdx = parseCp(e.substring(split + 1));
+        if (classIdx == null || natIdx == null || classIdx >= cp.length || natIdx >= cp.length) return null;
+        String classE = cp[classIdx];
+        if (classE == null || !classE.startsWith("#")) return null;
+        Integer nameIdx = parseCp(classE.substring(1));
+        if (nameIdx == null || nameIdx >= cp.length || cp[nameIdx] == null) return null;
+        String owner = cp[nameIdx];
+        String nat = cp[natIdx];
+        if (nat == null || !nat.startsWith("#") || nat.indexOf('#', 1) < 0) return null;
+        int split2 = nat.indexOf('#', 1);
+        Integer mNameIdx = parseCp(nat.substring(1, split2));
+        Integer mDescIdx = parseCp(nat.substring(split2 + 1));
+        if (mNameIdx == null || mDescIdx == null || mNameIdx >= cp.length || mDescIdx >= cp.length) return null;
+        if (cp[mNameIdx] == null || cp[mDescIdx] == null) return null;
+        return new String[]{owner, cp[mNameIdx], cp[mDescIdx]};
+    }
+
+    private static Integer parseCp(String s) {
+        try {
+            return Integer.parseInt(s);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /** Nº de argumentos do descriptor de método. */
+    private static int argCount(String desc) {
+        int end = desc.indexOf(')');
+        int count = 0;
+        int i = 1;
+        while (i < end) {
+            char c = desc.charAt(i);
+            if (c == 'L') { i = desc.indexOf(';', i) + 1; }
+            else if (c == '[') {
+                while (i < end && desc.charAt(i) == '[') i++;
+                if (i < end && desc.charAt(i) == 'L') i = desc.indexOf(';', i) + 1;
+                else i++;
+            } else { i++; }
+            count++;
+        }
+        return count;
+    }
+
+    private static String simpleOwner(String internal) {
+        int s = internal.lastIndexOf('/');
+        return s >= 0 ? internal.substring(s + 1) : internal;
     }
 
     // ── statement-based body (loops / stores / multi-statement) ──────────

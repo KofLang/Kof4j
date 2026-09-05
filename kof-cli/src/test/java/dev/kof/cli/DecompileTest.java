@@ -163,6 +163,29 @@ class DecompileTest {
         assertTrue(result.success(), "decompiled deve compilar:\n" + kof + "\n" + result.diagnostics().getDiagnostics());
     }
 
+    @Test
+    void recoversMethodCall(@TempDir Path dir) throws Exception {
+        Path javaFile = dir.resolve("Call.java");
+        Files.writeString(javaFile, """
+                public class Call {
+                    public int add(int a, int b) { return a + b; }
+                    public int add4(int x) { return add(x, x); }
+                }
+                """);
+        runJavac(javaFile, dir);
+
+        String kof = Decompile.decompile(dir.resolve("Call.class"));
+
+        assertTrue(kof.contains("add4(Int arg0) = this.add(arg0, arg0)"),
+                "add4 deve virar chamada de método:\n" + kof);
+
+        Path out = dir.resolve("Call.kf");
+        Files.writeString(out, kof);
+        CompilerDriver driver = new CompilerDriver();
+        CompilationResult result = driver.compile(out, dir.resolve("out"), Target.JVM);
+        assertTrue(result.success(), "decompiled deve compilar:\n" + kof + "\n" + result.diagnostics().getDiagnostics());
+    }
+
     private void runJavac(Path javaFile, Path dir) throws IOException, InterruptedException {
         String javaHome = System.getProperty("java.home");
         Path javac = Path.of(javaHome, "bin", "javac");
