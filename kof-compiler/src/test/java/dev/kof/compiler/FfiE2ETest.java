@@ -18,6 +18,23 @@ class FfiE2ETest {
     private final CompilerDriver driver = new CompilerDriver();
 
     @Test
+    void jsExternEmitsFfi002(@TempDir Path dir) throws IOException {
+        Path src = dir.resolve("ffi-js.kf");
+        Files.writeString(src, """
+                extern "libc.so.6" abs(Int x): Int
+
+                main() {
+                    println("hi")
+                }
+                """);
+
+        CompilationResult result = driver.compile(src, dir.resolve("out-js"), Target.JS);
+        assertFalse(result.success(), "JS target must not silently drop extern");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("FFI002"), "expected FFI002 on JS, got: " + diags);
+    }
+
+    @Test
     void libcAbsEndToEnd(@TempDir Path dir) throws IOException {
         Path src = dir.resolve("ffi.kf");
         Files.writeString(src, """

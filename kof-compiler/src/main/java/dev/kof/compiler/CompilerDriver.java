@@ -607,15 +607,18 @@ private Target target = Target.JVM;
             else if (decl instanceof ExternalFunctionNode ext) {
                 externSignatures.put(ext.name(), ext);
                 // FFI (R3): binding suportado (JVM, Int→Int) não é gap; o resto é
-                // gap honesto FFI001, nunca stub silencioso (TIER 2.1.3/2.1.4).
+                // gap honesto por target: FFI002 no JS (web/edge sem FFI nativo),
+                // FFI001 nos demais — nunca stub silencioso (TIER 2.1.3/2.1.7).
                 if (currentDiagnostics != null && !isExternBound(ext)) {
                     SourcePosition sp = ext.position();
                     String lib = ext.library() != null ? " in " + ext.library() : "";
+                    String code = target == Target.JS ? "FFI002" : "FFI001";
+                    String msg = target == Target.JS
+                            ? "extern '" + ext.name() + "'" + lib + ": FFI not available on the JS target (FFI002)"
+                            : "extern '" + ext.name() + "'" + lib + ": FFI binding not implemented on the "
+                                    + target + " target yet (FFI001)";
                     currentDiagnostics.error(sp != null ? sp.file() : "", sp != null ? sp.line() : 0,
-                            sp != null ? sp.column() : 0, 0,
-                            "extern '" + ext.name() + "'" + lib + ": FFI binding not implemented on the "
-                                    + target + " target yet (FFI001)",
-                            "FFI001");
+                            sp != null ? sp.column() : 0, 0, msg, code);
                 }
             }
         }
