@@ -98,14 +98,23 @@ public final class Decompile {
             String ret = methodKofType(m.returnTypeName());
             String params = paramList(m.parameterTypeNames());
             String body = null;
+            List<String> stmts = null;
             if (m.code != null) {
-                body = BytecodeDecoder.recoverExpression(m.code.bytecode, ir.constantPool,
-                        m.parameterTypeNames().size(), (m.accessFlags & 0x0008) != 0);
+                boolean isStatic = (m.accessFlags & 0x0008) != 0;
+                int pcount = m.parameterTypeNames().size();
+                body = BytecodeDecoder.recoverExpression(m.code.bytecode, ir.constantPool, pcount, isStatic);
+                if (body == null) {
+                    stmts = BytecodeDecoder.recoverStatements(m.code.bytecode, ir.constantPool, pcount, isStatic);
+                }
             }
-            if (body == null) {
+            if (body == null && stmts == null) {
                 sb.append("    ").append(ret).append(' ').append(m.name)
                   .append('(').append(params).append(") {\n");
                 sb.append("        throw \"body not recovered\"   // ").append(Confidence.UNKNOWN.label()).append('\n');
+                sb.append("    }\n");
+            } else if (stmts != null) {
+                sb.append("    ").append(ret).append(' ').append(m.name).append('(').append(params).append(") {\n");
+                for (String s : stmts) sb.append("        ").append(s).append('\n');
                 sb.append("    }\n");
             } else if (body.isEmpty()) {
                 sb.append("    ").append(ret).append(' ').append(m.name).append('(').append(params).append(") {\n    }\n");

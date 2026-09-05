@@ -139,6 +139,30 @@ class DecompileTest {
         assertTrue(result.success(), "decompiled deve compilar:\n" + kof + "\n" + result.diagnostics().getDiagnostics());
     }
 
+    @Test
+    void recoversWhileLoop(@TempDir Path dir) throws Exception {
+        Path javaFile = dir.resolve("Loop.java");
+        Files.writeString(javaFile, """
+                public class Loop {
+                    public static int downto(int n) { int i = n; while (i > 0) { i = i - 1; } return i; }
+                }
+                """);
+        runJavac(javaFile, dir);
+
+        String kof = Decompile.decompile(dir.resolve("Loop.class"));
+
+        assertTrue(kof.contains("while (v1 > 0)"), "deve ter while:\n" + kof);
+        assertTrue(kof.contains("var v1 = arg0"), "deve ter var inicial:\n" + kof);
+        assertTrue(kof.contains("return v1"), "deve retornar v1:\n" + kof);
+        assertFalse(kof.contains("throw \"body not recovered\""), "não deve ter stub:\n" + kof);
+
+        Path out = dir.resolve("Loop.kf");
+        Files.writeString(out, kof);
+        CompilerDriver driver = new CompilerDriver();
+        CompilationResult result = driver.compile(out, dir.resolve("out"), Target.JVM);
+        assertTrue(result.success(), "decompiled deve compilar:\n" + kof + "\n" + result.diagnostics().getDiagnostics());
+    }
+
     private void runJavac(Path javaFile, Path dir) throws IOException, InterruptedException {
         String javaHome = System.getProperty("java.home");
         Path javac = Path.of(javaHome, "bin", "javac");
