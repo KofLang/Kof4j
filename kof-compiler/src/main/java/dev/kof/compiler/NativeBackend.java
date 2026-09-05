@@ -287,7 +287,12 @@ public class NativeBackend implements Backend {
             }
         }
         if (usesDb) {
-            NativeRuntime.emitDbSqlite(sb);
+            RuntimeDb1.emit(sb);
+            RuntimeDb2.emit(sb);
+            RuntimeDb3.emit(sb);
+            RuntimeDb4.emit(sb);
+            RuntimeDb5.emit(sb);
+            RuntimeDb6.emit(sb);
             NativeDbPrepared.emitMysqlPrepared(sb);
         }
         if (usesHttp) {
