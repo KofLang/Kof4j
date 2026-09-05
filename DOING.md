@@ -21,20 +21,27 @@ Estados: `ABERTO` · `EM CURSO` · `FEITO` · `BLOQUEADO`.
 
 ## PRÓXIMO PASSO (re-dispacho lê isto)
 
-**Sweep R6 de paridade cross — PRÓXIMAS ÁREAS** (o padrão cache/mq/time/FP/
-collections achou 10+ bugs silenciosos; continuar varrendo): (1) **crypto/
-security** (`kof.security` — hash/AES: o x86_64 usa FFI/libc? cross tem?),
-(2) **process/spawn edge** (`spawn` com captura + `await` aninhado no cross),
-(3) **json edge** (nested objects, unicode escapes, arrays de records no
-cross), (4) **string edge** (UTF-8 multibyte: `charAt`/`substring` com
-acentos — gap STR001 documentado, verificar se o cross diverge do x86_64).
-Método: harness em `/tmp/opencode/KSw*.java` (compila snippet nos 3 targets,
-roda qemu, compara output) → bug real (segfault/hang/resultado errado) =
-corrigir no `RISCV_RUNTIME_ASM`/`RISCV_MAPSET_ASM` + teste E2E cross +
-commit; link error = já é honesto (ToolchainMissing), avaliar gate limpo.
-**Depois:** reconciliar com REFACTOR-500 (Fase 3 = `NativeBackend.java` é do
-agente-idiomatic — checar `git log` antes de tocar; F2 em andamento no
-`CompilerDriver.java`).
+**SWEEP R6 COMPLETO** (05/09): todas as áreas stdlib varridas com 0
+divergências nos 3 targets (cache/mq/time/FP/collections/json/string/
+validation/config/log/web). Bugs achados+corrigidos: toInt SIGSEGV,
+Map/Set/higher-order ausentes, kof_panic NUL, decode<Bool> invertido
+(bug 30), metrics # TYPE, tradutor quote-aware. Gates honestos:
+DB001/SECN000/SCHED001/TIME001/FLT001. Bugs registrados (não-lane):
+#29 spawn{lambda}-handle, #31 process.<inexistente> (lane F2.8), #28
+flake ws.
+
+**PRÓXIMA TAREA (maior valor na lane)**: port **scheduler/time.interval
+riscv64** com thread de timer via clone+futex (mesmo mecanismo do spawn
+que já funciona) — remove os gates SCHED001/TIME001. Arquivo:
+`NativeBackend.java` (`RISCV_MAPSET_ASM` ou nova constante), padrão do
+`emitRiscvSpawn`/`kof_spawn_trampoline`. **Prova esperada:**
+`riscv64Scheduler`/`aarch64Scheduler` (ticks≥1 + silêncio pós-cancel,
+paridade com `KofConcurrency2Test.schedulerEveryNative`) + remover os
+2 gates + testes `schedulerEveryCrossReportsSched001`/
+`crossNativeReportsTime001ForInterval`. **Depois:** SHA-256 em asm
+(portável, sem libc) para destravar `crypto.sha256` (SECN000 parcial).
+⚠️ `NativeBackend.java` é Fase 3 do REFACTOR-500 (agente-idiomatic) —
+checar `git log` antes de tocar; se ele começar a Fase 3, coordenar.
 
 ---
 
