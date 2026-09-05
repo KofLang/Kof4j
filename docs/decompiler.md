@@ -1,7 +1,7 @@
 # DECOMPILER.md — Kof Decompiler
 
-**Status:** EM DESENVOLVIMENTO — implementado estruturalmente (`kof decompile`)
-**Data:** 22 de agosto de 2026
+**Status:** EM DESENVOLVIMENTO — `kof decompile` recupera estrutura + corpos (ver §7)
+**Data:** 22/08/2026 · update 05/09/2026
 
 ---
 
@@ -111,3 +111,22 @@ Kof Compiler (frontend existente)
 ```
 
 Não duplica o frontend do Kof. O ponto de entrada é o **Kof AST**.
+
+## 8. Estado real (05/09)
+
+`kof decompile <file.class>` recupera, por método, um corpo Kof idiomático:
+
+| Recuperado (confiança EXACT) | Fallback honesto (UNKNOWN → stub) |
+|---|---|
+| classes, extends, implements, campos, assinaturas | `throw "body not recovered"` para o que não encaixa |
+| tipos (primitivos/Strings/arrays) | `switches` (tableswitch/lookupswitch) |
+| aritmética `(a+b)` e negação `-x` | exceções (`try/catch/finally`) |
+| comparações (`>`, `==`, …) | get/put field, casts, `new`, instruções com estado |
+| if/else → if-expression | múltiplos catches, invokedynamic |
+| while → `while (cond) { ... }` com locals (`var`/`=`) | — |
+| chamadas (`this.m(...)`, `Owner.m(...)` — invokestatic/virtual) | stdlib com mapeamento não-trivial |
+
+Recuperação cobre a **Fase B (bytecode IR)**, **C (CFG com branches/loops)** e
+**D (tipos)** — e a **Fase E** para o subconjunto linear/branch/loop/call.
+Prioridades restantes (DECOMPILER §3): `switch`, `try/catch`, `getfield`,
+`new` e mapeamento da stdlib — cada um um incremento com teste próprio.
