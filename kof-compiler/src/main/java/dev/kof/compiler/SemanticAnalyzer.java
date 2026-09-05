@@ -344,7 +344,11 @@ class SemanticAnalyzer {
         if (sym instanceof SymbolTable.TypeParameterSymbol) return sym.type();
         Type viaImports = qualifyViaImports(name);
         if (viaImports != null) return viaImports;
-        return qualifiedType(Type.of(name));
+        // qualifyDeep: recursa nos type-arguments — `List<NodeUI>` com
+        // `import com.dev.NodeUI` precisa do pacote no ARG (senão o receiver
+        // do `.get()` fica ClassType("","NodeUI") e o checkcast sai sem pacote
+        // → NoClassDefFoundError). Idempotente; não toca builtin/enum/nome local.
+        return CompilerTypes.qualifyDeep(qualifiedType(Type.of(name)), currentUnit, this);
     }
 
     /**

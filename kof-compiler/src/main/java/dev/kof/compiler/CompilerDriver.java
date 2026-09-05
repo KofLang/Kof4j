@@ -1619,14 +1619,14 @@ private Target target = Target.JVM;
     }
 
     private IRMethod lowerFunctionInner(FunctionDeclarationNode func) {
-        Type returnType = CompilerTypes.resolveWithTypeParams(func.returnType(), func.typeParameters(), currentUnit);
+        Type returnType = CompilerTypes.resolveWithTypeParams(func.returnType(), func.typeParameters(), currentUnit, semanticAnalyzer);
         if (Type.isVoid(returnType)) {
             // inferência de retorno: percorre o corpo acumulando locais
             // (params + var decls) até achar um ReturnStmt com valor
             List<IRLocalVariable> tmpLocals = new ArrayList<>();
             int tmpIdx = 0;
             for (FormalParameterNode p : func.parameters()) {
-                Type pt = CompilerTypes.resolveWithTypeParams(p.type(), func.typeParameters(), currentUnit);
+                Type pt = CompilerTypes.resolveWithTypeParams(p.type(), func.typeParameters(), currentUnit, semanticAnalyzer);
                 tmpLocals.add(new IRLocalVariable(tmpIdx, p.name(), pt));
                 tmpIdx += TypeMetrics.isDoubleWidth(pt) ? 2 : 1;
             }
@@ -1651,7 +1651,7 @@ private Target target = Target.JVM;
             }
         }
         List<Type> paramTypes = func.parameters().stream()
-                .map(p -> CompilerTypes.resolveWithTypeParams(p.type(), func.typeParameters(), currentUnit)).toList();
+                .map(p -> CompilerTypes.resolveWithTypeParams(p.type(), func.typeParameters(), currentUnit, semanticAnalyzer)).toList();
         boolean mainArgsList = "main".equals(func.name()) && func.parameters().size() == 1
                 && "args".equals(func.parameters().get(0).name())
                 && BuiltinTypes.isList(paramTypes.get(0));
@@ -1691,7 +1691,7 @@ private Target target = Target.JVM;
             localIdx = 1;
         }
         for (FormalParameterNode p : func.parameters()) {
-            Type paramType = CompilerTypes.resolveWithTypeParams(p.type(), func.typeParameters(), currentUnit);
+            Type paramType = CompilerTypes.resolveWithTypeParams(p.type(), func.typeParameters(), currentUnit, semanticAnalyzer);
             locals.add(new IRLocalVariable(localIdx, p.name(), paramType));
             localIdx += TypeMetrics.isDoubleWidth(paramType) ? 2 : 1;
         }
@@ -1741,8 +1741,8 @@ private Target target = Target.JVM;
         }
         if (firstDefault == n) return wrappers;
         List<Type> canonicalTypes = params.stream()
-                .map(p -> CompilerTypes.resolveWithTypeParams(p.type(), func.typeParameters(), currentUnit)).toList();
-        Type returnType = CompilerTypes.resolveWithTypeParams(func.returnType(), func.typeParameters(), currentUnit);
+                .map(p -> CompilerTypes.resolveWithTypeParams(p.type(), func.typeParameters(), currentUnit, semanticAnalyzer)).toList();
+        Type returnType = CompilerTypes.resolveWithTypeParams(func.returnType(), func.typeParameters(), currentUnit, semanticAnalyzer);
         for (int drop = 1; drop <= n - firstDefault; drop++) {
             int paramCount = n - drop;
             List<Type> paramTypes = canonicalTypes.subList(0, paramCount);
@@ -5046,9 +5046,9 @@ private Target target = Target.JVM;
                             if (currentUnit != null) {
                                 for (AstNode d : currentUnit.declarations()) {
                                     if (d instanceof FunctionDeclarationNode fn && fn.name().equals(mc.methodName())) {
-                                        returnType = CompilerTypes.resolveWithTypeParams(fn.returnType(), fn.typeParameters(), currentUnit);
+                                        returnType = CompilerTypes.resolveWithTypeParams(fn.returnType(), fn.typeParameters(), currentUnit, semanticAnalyzer);
                                         List<Type> fnTypes = fn.parameters().stream()
-                                                .map(p -> CompilerTypes.resolveWithTypeParams(p.type(), fn.typeParameters(), currentUnit)).toList();
+                                                .map(p -> CompilerTypes.resolveWithTypeParams(p.type(), fn.typeParameters(), currentUnit, semanticAnalyzer)).toList();
                                         boolean hasDefaults = fn.parameters().stream()
                                                 .anyMatch(p -> p.defaultExpression() != null);
                                         if (hasDefaults && mc.arguments().size() < fnTypes.size()) {
@@ -7473,7 +7473,7 @@ private Target target = Target.JVM;
         List<IRMethod> methods = new ArrayList<>();
         List<String> typeParams = rec.typeParameters() == null ? List.of() : rec.typeParameters();
         for (RecordComponentNode comp : rec.components()) {
-            fields.add(new IRField(comp.name(), CompilerTypes.resolveWithTypeParams(comp.type(), typeParams, currentUnit),
+            fields.add(new IRField(comp.name(), CompilerTypes.resolveWithTypeParams(comp.type(), typeParams, currentUnit, semanticAnalyzer),
                     AccessFlags.PRIVATE | AccessFlags.FINAL,
                     null, lowerAnnotations(comp.annotations())));
         }
@@ -7481,7 +7481,7 @@ private Target target = Target.JVM;
         methods.addAll(generateRecordDefaultOverloads(rec, internalName));
         Type ownerType = CompilerTypes.ownerTypeFromInternal(internalName, semanticAnalyzer);
         for (RecordComponentNode comp : rec.components()) {
-            Type compType = CompilerTypes.resolveWithTypeParams(comp.type(), typeParams, currentUnit);
+            Type compType = CompilerTypes.resolveWithTypeParams(comp.type(), typeParams, currentUnit, semanticAnalyzer);
             List<KofOperation> body = new ArrayList<>();
             body.add(new KofLoadLocal(ownerType, 0));
             body.add(new KofLoadField(ownerType, comp.name(), compType));
@@ -7512,7 +7512,7 @@ private Target target = Target.JVM;
 
 
     private IRField lowerField(FieldDeclarationNode field, List<String> typeParams) {
-        Type fieldType = CompilerTypes.resolveWithTypeParams(field.type(), typeParams, currentUnit);
+        Type fieldType = CompilerTypes.resolveWithTypeParams(field.type(), typeParams, currentUnit, semanticAnalyzer);
         Object initVal = null;
         if (field.initializer() instanceof LiteralExpr lit) {
             initVal = switch (lit.kind()) {
@@ -7638,15 +7638,15 @@ private Target target = Target.JVM;
     }
 
     private IRMethod lowerMethodInner(MethodDeclarationNode method, String owner, boolean isInterface, List<String> typeParams) {
-        Type returnType = CompilerTypes.resolveWithTypeParams(method.returnType(), typeParams, currentUnit);
+        Type returnType = CompilerTypes.resolveWithTypeParams(method.returnType(), typeParams, currentUnit, semanticAnalyzer);
         List<Type> paramTypes = method.parameters().stream()
-                .map(p -> CompilerTypes.resolveWithTypeParams(p.type(), typeParams, currentUnit)).toList();
+                .map(p -> CompilerTypes.resolveWithTypeParams(p.type(), typeParams, currentUnit, semanticAnalyzer)).toList();
         if (Type.isVoid(returnType) && method.body() != null && !method.body().isEmpty()
                 && method.body().getLast() instanceof ReturnStmt ret && ret.value() != null) {
             List<IRLocalVariable> tmpLocals = new ArrayList<>();
             int tmpIdx = 1;
             for (FormalParameterNode p : method.parameters()) {
-                tmpLocals.add(new IRLocalVariable(tmpIdx, p.name(), CompilerTypes.resolveWithTypeParams(p.type(), typeParams, currentUnit)));
+                tmpLocals.add(new IRLocalVariable(tmpIdx, p.name(), CompilerTypes.resolveWithTypeParams(p.type(), typeParams, currentUnit, semanticAnalyzer)));
                 tmpIdx++;
             }
             Type inferred = inferExprType(ret.value(), tmpLocals);
@@ -7675,7 +7675,7 @@ private Target target = Target.JVM;
             }
             int localIdx = isStaticMethod ? 0 : 1;
             for (FormalParameterNode param : method.parameters()) {
-                Type paramType = CompilerTypes.resolveWithTypeParams(param.type(), typeParams, currentUnit);
+                Type paramType = CompilerTypes.resolveWithTypeParams(param.type(), typeParams, currentUnit, semanticAnalyzer);
                 localVars.add(new IRLocalVariable(localIdx, param.name(), paramType));
                 localIdx += TypeMetrics.isDoubleWidth(paramType) ? 2 : 1;
             }
@@ -7744,7 +7744,7 @@ private Target target = Target.JVM;
         }
         if (firstDefault == n) return wrappers;
         List<Type> canonicalTypes = new ArrayList<>();
-        for (FormalParameterNode p : params) canonicalTypes.add(CompilerTypes.resolveWithTypeParams(p.type(), typeParams, currentUnit));
+        for (FormalParameterNode p : params) canonicalTypes.add(CompilerTypes.resolveWithTypeParams(p.type(), typeParams, currentUnit, semanticAnalyzer));
         Type ownerType = CompilerTypes.ownerTypeFromInternal(owner, semanticAnalyzer);
         Type superType = CompilerTypes.ownerTypeFromInternal(superName, semanticAnalyzer);
         for (int drop = 1; drop <= n - firstDefault; drop++) {
@@ -7792,7 +7792,7 @@ private Target target = Target.JVM;
                                       List<String> typeParams, List<IRField> fields,
                                       java.util.Map<String, ExpressionNode> fieldInits) {
         List<Type> paramTypes = ctor.parameters().stream()
-                .map(p -> CompilerTypes.resolveWithTypeParams(p.type(), typeParams, currentUnit)).toList();
+                .map(p -> CompilerTypes.resolveWithTypeParams(p.type(), typeParams, currentUnit, semanticAnalyzer)).toList();
         int access = computeAccess(ctor.modifiers());
         List<KofOperation> ops = new ArrayList<>();
         List<IRLocalVariable> localVars = new ArrayList<>();
@@ -7817,7 +7817,7 @@ private Target target = Target.JVM;
         }
         int localIdx = 1;
         for (FormalParameterNode param : ctor.parameters()) {
-            Type paramType = CompilerTypes.resolveWithTypeParams(param.type(), typeParams, currentUnit);
+            Type paramType = CompilerTypes.resolveWithTypeParams(param.type(), typeParams, currentUnit, semanticAnalyzer);
             localVars.add(new IRLocalVariable(localIdx, param.name(), paramType));
             localIdx += TypeMetrics.isDoubleWidth(paramType) ? 2 : 1;
         }
@@ -7986,7 +7986,7 @@ private Target target = Target.JVM;
 
     private IRMethod generateRecordConstructor(RecordDeclarationNode rec, String owner) {
         List<String> typeParams = rec.typeParameters() == null ? List.of() : rec.typeParameters();
-        List<Type> compTypes = rec.components().stream().map(c -> CompilerTypes.resolveWithTypeParams(c.type(), typeParams, currentUnit)).toList();
+        List<Type> compTypes = rec.components().stream().map(c -> CompilerTypes.resolveWithTypeParams(c.type(), typeParams, currentUnit, semanticAnalyzer)).toList();
         List<KofOperation> ops = new ArrayList<>();
         List<IRLocalVariable> locals = new ArrayList<>();
         Type ownerType = CompilerTypes.ownerTypeFromInternal(owner, semanticAnalyzer);
@@ -8000,7 +8000,7 @@ private Target target = Target.JVM;
         }
         int localIdx = 1;
         for (RecordComponentNode comp : rec.components()) {
-            Type compType = CompilerTypes.resolveWithTypeParams(comp.type(), typeParams, currentUnit);
+            Type compType = CompilerTypes.resolveWithTypeParams(comp.type(), typeParams, currentUnit, semanticAnalyzer);
             locals.add(new IRLocalVariable(localIdx, comp.name(), compType));
             ops.add(new KofLoadLocal(ownerType, 0));
             ops.add(new KofLoadLocal(compType, localIdx));
