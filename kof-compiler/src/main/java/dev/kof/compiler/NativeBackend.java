@@ -7579,6 +7579,70 @@ public class NativeBackend implements Backend {
                 j    kof_list_clear
 
             # ---- higher-order (map/filter/reduce) — closure ABI igual mq ----
+            # kof_json_decode_int(json) -> Int (escalar; port do x86_64
+            # RuntimeJsonDecode: skip ws, sinal, dígitos). Autocontido (sem
+            # helpers). bool/string/long exigem kof_json_starts_with/builder.
+            .globl kof_json_decode_int
+            kof_json_decode_int:
+                addi sp, sp, -48
+                sd   ra, 40(sp)
+                sd   s0, 32(sp)          # json str
+                sd   s1, 24(sp)          # len
+                sd   s2, 16(sp)          # pos
+                sd   s3, 8(sp)           # sign
+                mv   s0, a0
+                lw   s1, 16(s0)
+                li   s2, 0
+                li   s3, 1
+            .Lkdi_skip:
+                bge  s2, s1, .Lkdi_done
+                addi t0, s0, 24
+                add  t0, t0, s2
+                lbu  t1, 0(t0)
+                li   t2, 32
+                beq  t1, t2, .Lkdi_skipinc
+                li   t2, 10
+                beq  t1, t2, .Lkdi_skipinc
+                li   t2, 13
+                beq  t1, t2, .Lkdi_skipinc
+                li   t2, 9
+                beq  t1, t2, .Lkdi_skipinc
+                j    .Lkdi_sign
+            .Lkdi_skipinc:
+                addi s2, s2, 1
+                j    .Lkdi_skip
+            .Lkdi_sign:
+                li   t2, 45              # '-'
+                bne  t1, t2, .Lkdi_digits
+                li   s3, -1
+                addi s2, s2, 1
+            .Lkdi_digits:
+                li   a0, 0               # acc
+            .Lkdi_loop:
+                bge  s2, s1, .Lkdi_done
+                addi t0, s0, 24
+                add  t0, t0, s2
+                lbu  t1, 0(t0)
+                li   t2, 48              # '0'
+                blt  t1, t2, .Lkdi_done
+                li   t2, 57              # '9'
+                bgt  t1, t2, .Lkdi_done
+                li   t3, 10
+                mul  a0, a0, t3
+                addi t1, t1, -48
+                add  a0, a0, t1
+                addi s2, s2, 1
+                j    .Lkdi_loop
+            .Lkdi_done:
+                mul  a0, a0, s3
+                ld   s3, 8(sp)
+                ld   s2, 16(sp)
+                ld   s1, 24(sp)
+                ld   s0, 32(sp)
+                ld   ra, 40(sp)
+                addi sp, sp, 48
+                ret
+
             # invoke: a0=fn, a1..=args → ld t0,8(a0) ld t0,0(t0) jalr t0
             # kof_list_map(list, fn) -> List (fn(item))
             .globl kof_list_map

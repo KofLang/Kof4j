@@ -493,6 +493,21 @@ class NativeRiscv64E2ETest {
         assertEquals("6\n2\n6", out);
     }
 
+    // NATIVE002-stdlib: json.decode<Int> escalar no cross (antes: undefined
+    // reference a kof_json_decode_int — só o _int_list existia).
+    @Test
+    void riscv64JsonDecodeInt(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runRiscv64(tempDir, """
+            main() {
+                println(json.decode<Int>("42"))
+                println(json.decode<Int>("-7"))
+                println(json.decode<Int>("  99  "))
+            }
+            """);
+        assertEquals("42\n-7\n99", out);
+    }
+
     private static int startHttpServer() throws IOException {
         java.net.ServerSocket ss = new java.net.ServerSocket(0);
         int port = ss.getLocalPort();
