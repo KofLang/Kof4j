@@ -637,6 +637,9 @@ private Target target = Target.JVM;
 
     private final List<IRClass> syntheticClasses = new ArrayList<>();
 
+    /** Cache de interfaces sintéticas de função (uma por assinatura). */
+    private final java.util.Map<String, Type.ClassType> functionInterfaces = new java.util.HashMap<>();
+
     /**
      * G6: desugar `test "nome" { }` para função void `kof_test_N` logo
      * após o parse — semântica, resolução e lowering tratam os testes como
@@ -1362,12 +1365,47 @@ private Target target = Target.JVM;
                 AccessFlags.PUBLIC, List.of(),
                 List.of(new IRBasicBlock(0, ctorOps)), ctorLocals);
 
-        IRClass cls = new IRClass(name, "java/lang/Object", List.of(),
+        IRClass cls = new IRClass(name, "java/lang/Object",
+                List.of(lambdaInterfaceType(ft).internalName()),
                 AccessFlags.PUBLIC | AccessFlags.SUPER, fields,
                 List.of(invoke, ctor), List.of(), null, 200 + lambdaCounter);
         syntheticClasses.add(cls);
         lambdaClassNames.put(le, name);
         return name;
+    }
+
+    /**
+     * Interface sintética por assinatura de função — o dispatch por interface
+     * (bug 8) para valores de tipo de função DECLARADO (`f(x)` com
+     * `f: (Int) -> Int`): o tipo não carrega className, então o call site
+     * invoca via interface que TODAS as lambdas da assinatura implementam.
+     */
+    private Type.ClassType lambdaInterfaceType(Type.FunctionType ft) {
+        StringBuilder key = new StringBuilder("Function").append(ft.parameterTypes().size());
+        for (Type p : ft.parameterTypes()) key.append('_').append(mangleTypeForIface(p));
+        key.append('_').append(mangleTypeForIface(ft.returnType()));
+        String name = "kof/" + key;
+        Type.ClassType cached = functionInterfaces.get(name);
+        if (cached != null) return cached;
+        Type.ClassType iface = new Type.ClassType("kof", key.toString().replace('/', '_'), List.of());
+        // método SAM abstract: invoke(params): ret
+        IRMethod invoke = new IRMethod("invoke", ft.returnType(), ft.parameterTypes(),
+                AccessFlags.PUBLIC | AccessFlags.ABSTRACT, List.of(),
+                List.of(), List.of(new IRLocalVariable(0, "this", iface)));
+        IRClass cls = new IRClass(name, "java/lang/Object", List.of(),
+                AccessFlags.PUBLIC | AccessFlags.INTERFACE | AccessFlags.ABSTRACT,
+                List.of(), List.of(invoke), List.of(), null, 400 + lambdaCounter);
+        syntheticClasses.add(cls);
+        functionInterfaces.put(name, iface);
+        return iface;
+    }
+
+    private String mangleTypeForIface(Type t) {
+        if (t instanceof Type.PrimitiveType pt) return Type.canonicalPrimitiveName(pt.name());
+        if (t instanceof Type.ClassType ct) return "C" + ct.name().replace('.', '_');
+        if (t instanceof Type.ArrayType at) return "A" + mangleTypeForIface(at.componentType());
+        if (t instanceof Type.NullableType nt) return "N" + mangleTypeForIface(nt.inner());
+        return "O";
     }
 
 
@@ -2244,6 +2282,18 @@ private Target target = Target.JVM;
                     yield localIdx + 1;
                 }
                 if (vds.initializer() != null) {
+                    Type initType = inferExprType(vds.initializer(), locals);
+                    if (Type.isVoid(initType)) {
+                        if (currentDiagnostics != null) {
+                            currentDiagnostics.error(vds.position() != null ? vds.position().file() : "",
+                                    vds.position() != null ? vds.position().line() : 0,
+                                    vds.position() != null ? vds.position().column() : 0, 0,
+                                    "a atribuição a '" + vds.name() + "' recebeu um valor void — a"
+                                            + " chamada não retorna valor",
+                                    "SEM033");
+                        }
+                        yield localIdx;
+                    }
                     localIdx = emitExpression(vds.initializer(), ops, owner, localIdx, locals);
                     if ("var".equals(vds.type()) || "val".equals(vds.type())) {
                         varType = inferExprType(vds.initializer(), locals);
@@ -2259,7 +2309,22 @@ private Target target = Target.JVM;
                                     List.of(inferExprType(sm.arguments().get(0), locals)));
                         }
                     } else {
-                        emitWideningIfNeeded(ops, inferExprType(vds.initializer(), locals), varType);
+                        Type initT = inferExprType(vds.initializer(), locals);
+                        // bug 8: `var s: (Int) -> Int = (x: Int) -> x * 2` — o
+                        // tipo declarado é FunctionType sem className, mas o
+                        // valor real é a classe sintética da lambda. Preservar
+                        // o className do initializer para o call site invocar
+                        // via invokevirtual (owner = classe da lambda) em vez
+                        // de SEM032 (dispatch por interface ainda não existe).
+                        if (varType instanceof Type.FunctionType dft
+                                && initT instanceof Type.FunctionType ift
+                                && ift.className() != null
+                                && dft.parameterTypes().equals(ift.parameterTypes())
+                                && dft.returnType().equals(ift.returnType())) {
+                            varType = ift;
+                        } else {
+                            emitWideningIfNeeded(ops, initT, varType);
+                        }
                     }
                 }
                 // bug 15: `Object n = 42` — primitivo atribuído a referência:
@@ -3787,6 +3852,20 @@ private Target target = Target.JVM;
                 }
                 if (("print".equals(mc.methodName()) || "println".equals(mc.methodName())) && mc.arguments().size() == 1) {
                     Type printedType = inferExprType(mc.arguments().get(0), locals);
+                    if (Type.isVoid(printedType)) {
+                        // void não é um valor: println(f()) com f void empilhava
+                        // nada e o backend dava pop de lixo (segfault Native /
+                        // VerifyError JVM). Diagnóstico limpo em vez disso.
+                        if (currentDiagnostics != null) {
+                            currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
+                                    mc.position() != null ? mc.position().line() : 0,
+                                    mc.position() != null ? mc.position().column() : 0, 0,
+                                    mc.methodName() + "(...) recebeu um valor void — a chamada não"
+                                            + " retorna valor (adicione 'return' ou não a use como argumento)",
+                                    "SEM033");
+                        }
+                        yield localIdx;
+                    }
                     if (!fpSupportedOnNative(printedType, mc.position())) {
                         yield localIdx;
                     }
@@ -4891,18 +4970,16 @@ private Target target = Target.JVM;
                     if (recvType instanceof Type.FunctionType ft) {
                         if (ft.className() == null) {
                             // bug 8: valor de TIPO DE FUNÇÃO DECLARADO (param
-                            // (s: (Int) -> Int), sem classe sintética) não pode
-                            // ser invocado ainda — precisa de dispatch por
-                            // interface. Diagnóstico limpo em vez de bytecode
-                            // quebrado (owner "").
-                            if (currentDiagnostics != null) {
-                                currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
-                                        mc.position() != null ? mc.position().line() : 0,
-                                        mc.position() != null ? mc.position().column() : 0, 0,
-                                        "não é possível invocar valor de tipo de função declarado"
-                                                + " (requer dispatch por interface — ainda não implementado)",
-                                        "SEM032");
+                            // (s: (Int) -> Int), sem classe sintética). Todas as
+                            // lambdas da assinatura implementam a interface
+                            // sintética — invoca via INVOKEINTERFACE.
+                            List<Type> argTypes = new ArrayList<>();
+                            for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
+                            for (ExpressionNode arg : mc.arguments()) {
+                                localIdx = emitExpression(arg, ops, owner, localIdx, locals);
                             }
+                            Type iface = lambdaInterfaceType(ft);
+                            ops.add(new KofCall(iface, "invoke", argTypes, ft.returnType(), KofCallKind.INTERFACE));
                             yield localIdx;
                         }
                         List<Type> argTypes = new ArrayList<>();
@@ -5155,6 +5232,21 @@ private Target target = Target.JVM;
                                         + " use um loop com new T[n] para materializar um array",
                                 "SEM029");
                     }
+                    // bug 16 (cauda): `sublist()`/`subSet()` retornam COLEÇÃO —
+                    // o backend não sabe materializar o retorno de coleção e
+                    // emitia bytecode inválido (JVM) / undefined reference
+                    // (Native). Mesmo tratamento do toArray: diagnóstico limpo.
+                    if (("sublist".equals(mc.methodName()) || "subSet".equals(mc.methodName()))
+                            && (BuiltinTypes.isList(recvType) || BuiltinTypes.isSet(recvType))
+                            && currentDiagnostics != null) {
+                        currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
+                                mc.position() != null ? mc.position().line() : 0,
+                                mc.position() != null ? mc.position().column() : 0, 0,
+                                "método '" + mc.methodName() + "' não é suportado em coleções"
+                                        + " (retorno de coleção não é materializável);"
+                                        + " copie os elementos com um loop",
+                                "SEM034");
+                    }
                     Type methodReturnType = Type.UnknownType.UNKNOWN;
                     List<Type> methodParamTypes = new ArrayList<>();
                     for (ExpressionNode arg : mc.arguments()) {
@@ -5359,14 +5451,19 @@ private Target target = Target.JVM;
                         IRLocalVariable lambdaVar = findLocalVar(mc.methodName(), locals);
                         if (lambdaVar != null && lambdaVar.type() instanceof Type.FunctionType lft) {
                             if (lft.className() == null) {
-                                if (currentDiagnostics != null) {
-                                    currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
-                                            mc.position() != null ? mc.position().line() : 0,
-                                            mc.position() != null ? mc.position().column() : 0, 0,
-                                            "não é possível invocar valor de tipo de função declarado"
-                                                    + " (requer dispatch por interface — ainda não implementado)",
-                                            "SEM032");
-                                }
+                                // bug 8: valor de TIPO DE FUNÇÃO DECLARADO (param
+                                // (s: (Int) -> Int), sem classe sintética). Todas
+                                // as lambdas da assinatura implementam a interface
+                                // sintética — invoca via INVOKEINTERFACE.
+                                localIdx = emitExpression(new IdentifierExpr(mc.position(), mc.methodName()),
+                                        ops, owner, localIdx, locals);
+                                List<Type> argTypes = new ArrayList<>();
+                                for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
+                                localIdx = emitArgumentsWithFormalTypes(mc.arguments(), lft.parameterTypes(),
+                                        ops, owner, localIdx, locals);
+                                Type iface = lambdaInterfaceType(lft);
+                                ops.add(new KofCall(iface, "invoke", argTypes, lft.returnType(),
+                                        KofCallKind.INTERFACE));
                             } else {
                             localIdx = emitExpression(new IdentifierExpr(mc.position(), mc.methodName()),
                                     ops, owner, localIdx, locals);

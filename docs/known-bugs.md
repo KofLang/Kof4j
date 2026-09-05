@@ -374,17 +374,14 @@ EXTERNA produz lixo
 
 - **Sintoma:** `var make = (x: Int) -> ((y: Int) -> x + y); make(5)(3)` falha:
   JVM `ClassFormatError: Illegal class name ""`; Native `undefined reference`.
-- **Reprodução:**
-  ```kof
-  main() {
-      var make = (x: Int) -> ((y: Int) -> x + y)
-      var add5 = make(5)
-      println(add5(3))   // JVM ClassFormatError
-  }
-  ```
-- **Causa provável:** o lambda interno (retornado) vira uma classe sintética
-  com tipo retorno de função; o backend não emite o invocable corretamente.
-- **Arquivos:** `CompilerDriver.java` (synthesizeLambda), `JvmBackend.java`.
+
+- **Corrigido 04/09** (`6dad633`): `collectCaptures` agora desce em lambdas
+  aninhados — variáveis livres do lambda INTERNO que pertencem ao escopo do
+  EXTERNO passam a ser capturadas pelo externo e repassadas via constructor.
+  Antes o externo não capturava `a` e o lambda mais interno somava o ponteiro
+  `this` no lugar da captura (lixo em Native, `VerifyError` em JVM). Prova:
+  `LambdaE2ETest.tripleNested*` (3 níveis, `make(5)(3)(10)` = 18 nos 3 targets).
+- **Arquivos:** `CompilerDriver.java` (`collectCaptures`), `LambdaE2ETest.java`.
 
 ---
 
@@ -450,6 +447,22 @@ EXTERNA produz lixo
   gera falha silenciosa sem aviso ao usuário. Ao menos um warning "superclasse
   X não encontrada no classpath" deveria ser emitido.
 - **Arquivos:** `ExternalClasspath.java` (resolveMethod/superclassOf).
+
+---
+
+### 26. Valor VOID usado como valor (println(f()) / `var x = f()`) → segfault/VerifyError
+
+- **Sintoma:** `println(f(5))` onde `f` é void (função `void` ou lambda com
+  corpo de bloco sem `return`) compila mas quebra: Native segfault (pop de
+  lixo), JVM `VerifyError`. O lambda `(a: Int) -> { var x = a + 1 }` é void
+  (corpo de bloco com múltiplos statements exige `return` explícito em Kof).
+- **Corrigido 04/09**: o emit diagnostica `SEM033` ("a chamada não retorna
+  valor") quando uma expressão void é usada como argumento de println/print ou
+  como initializer de var. A chamada void como STATEMENT (`f(1)` sozinho)
+  segue funcionando. Prova:
+  `CompilerDriverTest.voidCallAsValueGivesCleanDiagnostic` +
+  `voidLambdaAsValueGivesCleanDiagnostic`.
+- **Arquivos:** `CompilerDriver.java` (emit de println/print e VarDeclStmt).
 
 ---
 
@@ -556,8 +569,9 @@ EXTERNA produz lixo
   inválido. Agora `SEM029` limpo ("use um loop com new T[n]"). Interop Java
   (`stream()`) segue funcionando. Prova:
   `CompilerDriverTest.toArrayOnCollectionGivesCleanDiagnostic`. Relacionado:
-  `sublist()` (retorno de coleção) também gera bytecode inválido — mesmo
-  tratamento pendente.
+  `sublist()`/`subSet()` (retorno de coleção) também geravam bytecode inválido —
+  **corrigido 04/09** com `SEM034` limpo (prova:
+  `CompilerDriverTest.sublistOnCollectionGivesCleanDiagnostic`).
 - **Bug 11** (`==` em records usa igualdade de REFERÊNCIA) — **corrigido
   03/09 (JVM+JS+Native)**: `==`/`!=`/`equals` em records despacham para o
   `equals` gerado (comparação de conteúdo). JVM já gerava equals; JS gera
@@ -582,13 +596,16 @@ EXTERNA produz lixo
 - **Bug 19** (lambda retornando lambda) — **investigado no Native**: o caso simples `make(5)(3)` funciona após a preservação do FunctionType e className (commit recente). Testes complexos (triple-nested ou retorna Fun1) produzem lixo no Native — precisa de mais verificação. JVM/JS funciona conforme teste `lambdaReturningLambda`. Prova:
   `CoreRegressionE2ETest.lambdaReturningLambda` (JVM+JS).
 - **Bug 8** (tipo de função `(Int) -> Int` não parseava como tipo) —
-  **parcialmente corrigido 03/09**: `Parser.parseTypeRef` agora aceita
-  `(params) -> ret`; `Type.of` converte para `FunctionType`; `looksLikeLambdaParams`
-  reconhece `(s: (Int) -> Int) -> ...`. `listOf<(Int) -> Int>()` funciona.
-  **Pendência**: invocar um valor de tipo de função DECLARADO (`s(1)` com
-  `s: (Int) -> Int`) requer dispatch por interface (classes sintéticas de
-  lambda são separadas) — hoje dá SEM032 limpo (não mais bytecode quebrado).
-  Prova: `CompilerDriverTest.functionTypeSyntax`.
+  **corrigido 03/09 (parse) + 04/09 (invocação)**: `Parser.parseTypeRef` agora
+  aceita `(params) -> ret`; `Type.of` converte para `FunctionType`;
+  `looksLikeLambdaParams` reconhece `(s: (Int) -> Int) -> ...`.
+  `listOf<(Int) -> Int>()` funciona. **Invocar valor de tipo de função
+  DECLARADO** (`s(1)` com `s: (Int) -> Int`, inclusive params de função) —
+  **corrigido 04/09**: toda lambda implementa uma interface sintética por
+  assinatura (`kof/FunctionN_<types>`) e o call site despacha via
+  INVOKEINTERFACE (antes SEM032). Prova:
+  `CompilerDriverTest.functionTypeSyntax` +
+  `LambdaE2ETest.declaredFunctionType*` (var e param, JVM+Native).
 - **Bug 9** (captura mutável no Native → lixo) — **corrigido 03/09**: o
   prologue nativo iterava os locals na ORDEM DE INSERÇÃO [this, capture, param]
   e consumia rsi/rdx para a CAPTURA (que na verdade é carregada dos campos do

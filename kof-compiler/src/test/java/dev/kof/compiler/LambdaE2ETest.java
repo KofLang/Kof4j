@@ -227,4 +227,50 @@ class LambdaE2ETest {
         Files.writeString(source, TRIPLE_NESTED_INLINE);
         runNative(source, tempDir.resolve("out"), "18");
     }
+
+    // bug 8: invocar valor de TIPO DE FUNÇÃO DECLARADO. As lambdas da
+    // assinatura implementam a interface sintética; o call site invoca via
+    // dispatch por interface (antes: SEM032).
+    private static final String DECLARED_FN_TYPE_VAR = """
+            main() {
+                var s: (Int) -> Int = (x: Int) -> x * 2
+                println(s(5))
+            }
+            """;
+
+    @Test
+    void declaredFunctionTypeVarJvm(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, DECLARED_FN_TYPE_VAR);
+        runJvm(source, tempDir.resolve("out"), "10");
+    }
+
+    @Test
+    void declaredFunctionTypeVarNative(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, DECLARED_FN_TYPE_VAR);
+        runNative(source, tempDir.resolve("out"), "10");
+    }
+
+    private static final String DECLARED_FN_TYPE_PARAM = """
+            Int apply(Int x, (Int) -> Int f) { return f(x) }
+            main() {
+                var dbl = (x: Int) -> x * 2
+                println(apply(5, dbl))
+            }
+            """;
+
+    @Test
+    void declaredFunctionTypeParamJvm(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, DECLARED_FN_TYPE_PARAM);
+        runJvm(source, tempDir.resolve("out"), "10");
+    }
+
+    @Test
+    void declaredFunctionTypeParamNative(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, DECLARED_FN_TYPE_PARAM);
+        runNative(source, tempDir.resolve("out"), "10");
+    }
 }

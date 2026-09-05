@@ -100,7 +100,7 @@ Se o gate falha, o commit não existe.
 
 | Frente | Estado | Dono | Branch | Arquivos | Notas |
 |---|---|---|---|---|---|
-| **Bug-hunt + `known-bugs.md`** | `EM CURSO` | agente-idiomatic | idiomatic-fixes | `docs/known-bugs.md`, `docs/status.md` | **25/27 bugs corrigidos** (1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25 com teste de regressão). Restantes: PKG005 é comportamento de design. |
+| **Bug-hunt + `known-bugs.md`** | `EM CURSO` | agente-idiomatic | beta-0.3.0 | `docs/known-bugs.md`, `docs/status.md` | **26 bugs corrigidos com teste de regressão** (1–26 exceto nenhum; 04/09 fechou 19, 26, 16-sublist e 8-invocação). Suíte completa 913 testes verde. |
 | **Auditoria idiomática de docs/training** | `EM CURSO` | agente-idiomatic | idiomatic-fixes | `learn/`, `training/`, `docs/` | Revisar corpus contra o compilador (fake idioms, casos obsoletos). |
 
 ### Notas WEB002_NATIVE — fechado (historial pregado)

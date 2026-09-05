@@ -174,6 +174,39 @@ class CompilerDriverTest {
         assertTrue(diags.contains("SEM027"), "Should be a clean diagnostic, was: " + diags);
     }
 
+    // known-bugs #26 — a void call used as a VALUE (println(f()) where f is
+    // void, or `var x = voidCall()`) left the value stack empty → segfault on
+    // Native / VerifyError on JVM. Now a clean SEM033.
+    @Test
+    void voidCallAsValueGivesCleanDiagnostic(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Bad.kf");
+        Files.writeString(source, """
+            void fazAlgo(Int a) { var x = a + 1 }
+            main() {
+                println(fazAlgo(5))
+            }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "void call as println arg should fail to compile");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM033"), "Should be a clean diagnostic, was: " + diags);
+    }
+
+    @Test
+    void voidLambdaAsValueGivesCleanDiagnostic(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Bad.kf");
+        Files.writeString(source, """
+            main() {
+                var f = (a: Int) -> { var x = a + 1 }
+                println(f(5))
+            }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "void lambda as println arg should fail to compile");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM033"), "Should be a clean diagnostic, was: " + diags);
+    }
+
     // known-bugs #16 — List.toArray() (unsupported/undocumented) produced
     // invalid bytecode on JVM and undefined references on Native. Now a clean
     // SEM029; Java interop methods like stream() must keep working.
@@ -190,6 +223,24 @@ class CompilerDriverTest {
         assertFalse(result.success(), "toArray should fail to compile");
         String diags = result.diagnostics().getDiagnostics().toString();
         assertTrue(diags.contains("SEM029"), "Should be a clean diagnostic, was: " + diags);
+    }
+
+    // known-bugs #16 (cauda) — sublist()/subSet() return a collection, which
+    // the backends cannot materialize → invalid bytecode. Now a clean SEM034.
+    @Test
+    void sublistOnCollectionGivesCleanDiagnostic(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Bad.kf");
+        Files.writeString(source, """
+            main() {
+                var l = listOf(1, 2, 3, 4)
+                var sub = l.sublist(1, 3)
+                println(sub.size)
+            }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "sublist should fail to compile");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM034"), "Should be a clean diagnostic, was: " + diags);
     }
 
     @Test
@@ -4020,8 +4071,9 @@ class CompilerDriverTest {
 
     // known-bugs #8 — function types `(Int) -> Int` now PARSE as type
     // annotations, generic arguments and lambda parameter types. Invoking a
-    // value of a DECLARED function type (no synthetic lambda class) requires
-    // interface dispatch (not implemented) → clean SEM032, not broken bytecode.
+    // bug 8: a value of a DECLARED function type (no synthetic lambda class)
+    // is invoked via the synthetic interface that all lambdas of the
+    // signature implement (added 04/09) — no longer SEM032.
     @Test
     void functionTypeSyntax(@TempDir Path tempDir) throws IOException {
         Path ok = tempDir.resolve("ft.kf");
@@ -4034,17 +4086,16 @@ class CompilerDriverTest {
         assertTrue(driver.compile(ok, tempDir.resolve("out"), Target.JVM).success(),
                 "Function type as generic argument should parse");
 
-        Path bad = tempDir.resolve("bad.kf");
-        Files.writeString(bad, """
+        Path now = tempDir.resolve("invoke.kf");
+        Files.writeString(now, """
             main() {
                 val f = (s: (Int) -> Int) -> s(1)
                 println(f((x: Int) -> x * 10))
             }
             """);
-        CompilationResult result = driver.compile(bad, tempDir.resolve("out2"), Target.JVM);
-        assertFalse(result.success(), "Invoking a declared function type needs interface dispatch");
-        assertTrue(result.diagnostics().getDiagnostics().toString().contains("SEM032"),
-                "Should be a clean SEM032, got: " + result.diagnostics().getDiagnostics());
+        CompilationResult result = driver.compile(now, tempDir.resolve("out2"), Target.JVM);
+        assertTrue(result.success(), "Invoking a declared function type must work via interface dispatch: "
+                + result.diagnostics().getDiagnostics());
     }
 
     // known-bugs #15 — primitive assigned to Object must box (JVM); String
