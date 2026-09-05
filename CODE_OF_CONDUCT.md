@@ -1,3 +1,41 @@
+# Código de Conduta e Filosofia de Colaboração do Kof
+
+> **Fonte da verdade:** Mel Santos ([@aminadojava](https://pt.linkedin.com/in/aminadojava))
+> — mantenedora oficial do ecossistema Kof (Koflang, Kof4J, Kof Native, Kof Editor).
+
+## Filosofia de desenvolvimento
+
+O Kof é **open source (GPLv3)** e seu desenvolvimento é ativamente conduzido
+com **agentes autônomos de IA documentados publicamente** dentro do próprio
+repositório. Mas — e isto é essencial — **o Kof não foi feito por IA**.
+
+A inteligência artificial não tira a linguagem "do nada" e não substitui a
+engenharia conceitual. A IA é uma **ferramenta** sob as rédeas da mantenedora:
+acelera e otimiza a construção, mas a arquitetura, a semântica e o rumo do
+projeto são decisão da **engenharia humana** (a mantenedora).
+
+Por isso, a colaboração no Kof segue regras claras:
+
+1. **Ceticismo técnico, não hype.** Automação sem critérios mascara falta de
+   qualidade e imediatismo. Vale a "programação raiz": rigor na compilação,
+   vivência prática e código robusto — nunca entrega apressada.
+2. **Sem alucinação.** Quem "acha" que algo compila sem testar, deve parar e
+   compilar antes de entregar. Sintaxe alucinada é pior que sintaxe verbosa.
+3. **Documentação cirúrgica de erros.** O repositório mantém um **arquivo de
+   regressão** dedicado: para cada bug, a **causa raiz** e o **menor pedaço de
+   código que reproduz** — inclusive regressões que a própria mantenedora
+   introduziu. Nada de esconder o que está quebrado (ver `docs/known-bugs.md`).
+4. **Blindagem contra poluição.** Disclaimers e regras de nomenclatura explícitas
+   existem para impedir que IAs e ferramentas generativas misturem a linguagem
+   com termos alheios ao domínio e poluam o histórico do projeto.
+5. **Contribuição por discussão técnica.** A contribuição não entra por PRs
+   abertos e desordenados; entra por **debates técnicos profundos** sobre os
+   problemas reais de engenharia (ex.: estouros de ponto flutuante na
+   pre-beta-0.3.0), em que desenvolvedores experientes debatem **soluções
+   conceituais** antes de qualquer linha de código.
+
+---
+
 # Contributor Covenant Code of Conduct
 
 ## Our Pledge
@@ -58,9 +96,10 @@ representative at an online or offline event.
 
 ## Enforcement
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be
-reported to the community leaders responsible for enforcement at
-.
+Instances of abusive, harassing, or otherwise unacceptable behavior — or any
+dúvida de conduta técnica/centralização — may be reported to the official
+maintainer and single source of truth, Mel Santos
+([@aminadojava](https://pt.linkedin.com/in/aminadojava)).
 All complaints will be reviewed and investigated promptly and fairly.
 
 All community leaders are obligated to respect the privacy and security of the

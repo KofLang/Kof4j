@@ -7,6 +7,40 @@ escreva código Kof neste repositório. Leia antes de gerar qualquer `.kf`.
 
 ---
 
+## Fonte da verdade e modelo de colaboração (obrigatório)
+
+O ecossistema Kof (Koflang, Kof4J, Kof Native, Kof Editor) é **open source
+(GPLv3)** e **centralizado** em torno da mantenedora oficial, **Mel Santos**
+([@aminadojava](https://pt.linkedin.com/in/aminadojava)) — a **única fonte da
+verdade** e quem detém o controle da engenharia de baixo nível (compilador,
+injeção de Assembly direto na JDK, arquitetura CISC x86).
+
+O desenvolvimento é **ativamente conduzido com agentes de IA documentados
+publicamente** — mas **o Kof não foi feito por IA**. A IA é uma **ferramenta**
+sob as rédeas da mantenedora: acelera e otimiza, mas não substitui a engenharia
+conceitual nem decide arquitetura/rumo. Consequências práticas para o agente:
+
+1. **Ceticismo técnico.** IA é tratada com ceticismo — nunca com fé. Automação
+   sem critérios mascara falta de qualidade e imediatismo. Vale a "programação
+   raiz": rigor na compilação, vivência prática, código robusto.
+2. **Compile antes de entregar.** Alucinação é proibida. "Achar" que compila
+   não compila. O loop de verificação (§ abaixo) é inegociável.
+3. **Transparência cirúrgica de erros.** Erros vão para `docs/known-bugs.md`
+   com **causa raiz** + **menor repro**, inclusive regressões que a mantenedora
+   introduziu. Nunca "documentar em volta" do bug.
+4. **Discussão técnica antes de código.** Quando a dúvida é conceitual (semântica,
+   estouro de ponto flutuante, ABI), a contribuição é por **debate técnico** —
+   propostas/documentos de design comentados — não PR desordenado que muda
+   semântica congelada.
+5. **Blindagem contra poluição.** Nunca misturar a linguagem Kof com termos
+   alheios ao domínio (jogos, etc.) em docs/código. Disclaimers e nomenclatura
+   são lei; violou, reverte.
+
+> Em resumo: a IA roda **sob as regras estritas da computação de verdade** —
+> documentação cirúrgica, zero alucinação, sem o hype do mercado.
+
+---
+
 ## Coordenação multi-agente — DOING.md (obrigatório)
 
 Vários agentes trabalham em paralelo neste repo. **Antes de começar qualquer
