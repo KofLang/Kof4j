@@ -11,8 +11,28 @@
 >    marque o gap no docs (`status.md`/`backend-parity.md`).
 > 6. Itens abertos ficam em `EM CURSO` por no máx. uma sessão; ao abandonar,
 >    volte para `ABERTO` com nota do que já funciona e o que falta.
+> 7. **Modo autônomo:** se o turno vai acabar, a ÚLTIMA coisa escrita aqui é
+>    a linha **"PRÓXIMO PASSO"** abaixo (tarefa exata + arquivo + prova).
+>    Quem voltar (humano/cron/outra instância) retoma em ≤1 leitura.
 
 Estados: `ABERTO` · `EM CURSO` · `FEITO` · `BLOQUEADO`.
+
+---
+
+## PRÓXIMO PASSO (re-dispacho lê isto)
+
+**Portar `kof.mq` riscv64/aarch64** — reescrever o bloco mq em `NativeBackend.java`
+(`RISCV_RUNTIME_ASM`, ~5862): (1) `kof_mq_queue()` = handle único (`"mq-" + seq`),
+(2) `kof_mq_push(name, item)` encontra/cria a queue e `kof_list_add`,
+(3) `kof_mq_pop(name)` = `kof_list_remove(list, 0)` (novo, já adicionado),
+(4) `kof_mq_queue_size(name)` = `kof_list_size`, (5) `subscribe`/`publish`/
+`unsubscribe` com loops de scan corrigidos (ponteiro-fim no frame, nunca
+`t2/t3` através de `call`). **Prova esperada:** `KofMqE2ETest` com variante
+cross (riscv64+aarch64 via qemu) passando `2\njob-1\njob-2\nnull` + pub/sub
+`pedido: 12345\npedido: 67890`; remover o gate MQ001 de `KofMq.supportedOn`
+e o teste `crossNativeReportsMq001`; suíte completa verde. **Depois:**
+reconciliar NATIVE002-stdlib com o REFACTOR-500 (quando outro agente
+terminar as classes >500).
 
 ---
 
@@ -20,6 +40,7 @@ Estados: `ABERTO` · `EM CURSO` · `FEITO` · `BLOQUEADO`.
 
 | Gap/Item | Estado | Dono | Branch | Arquivos principais | Notas |
 |---|---|---|---|---|---|
+| **NATIVE002-stdlib (residual R6)** — auditoria de falha silenciosa cross | `EM CURSO` | melissa (agente) | `beta-0.3.0` | `NativeBackend.java`, `CompilerDriver.java`, `KofMq.java` | 05/09: **fcvt riscv64** corrigido (`1a2f044` — mnemonics com direção invertida; `d as Int`, roundtrips I2D/D2F/I2F ok no qemu); **ToolchainMissing** — falha de as/ld agora propaga como erro de compilação (R6 na fonte, `1a2f044`); **FLT001** — `println(double)`/`valueOf(double)` no cross vira diagnóstico em compile-time (sem libc → sem `%g`), não segfault (`2a7e89f`); **time.now()** real via clock_gettime=113 (`a67a8de`, era stub `li a0,0` que quebrava TTL); **cache** riscv64/aarch64 funcional — scan loop usava t2/t3 (clobber pelo `kof_string_equals`) → segfault; reescrito c/ ponteiro-fim no frame (`0e6d0f9`, +`sle/sge` invalidos na ISA, +`println(null)`→"null"); **MQ001** — mq cross gateado em compile-time (asm infuncional: queue c/ assinatura errada, pop não remove, queue_size ausente, unsubscribe stub) — próximo passo é o port completo (ver PRÓXIMO PASSO). Prova: `riscv64/aarch64Cache`+`riscv64/aarch64TimeNow`+`KofMqE2ETest.crossNativeReportsMq001`; suíte nativa 101/101; merge `865e0f2` (println(char) do remoto + FLT001). |
 | **REFACTOR-500** — dividir as 20 classes >500 linhas (regra ≤500) | `EM CURSO` | divisão multi-agente | `beta-0.3.0` | plano `docs/refactoring/PLAN-SOLID-500.md` | **Divisão (confirmada pelo humano 05/09)**: agente-idiomatic faz **Fases 1–3 + 9** (`NativeRuntime`, `CompilerDriver`, `NativeBackend`, varredura); **fixes-for-kofagent faz Fases 4–8** (`JsBackend`, `JvmRuntime`, `SemanticAnalyzer`, `Parser`, classes 500–1400). **Contrato DRY**: `TypeMapper`/`NativeNameMangler`/`TypeMetrics` são criados por agente-idiomatic e consumidos (nunca recriados) por fixes-for-kofagent. Cada fase = commit isolado + suíte completa verde como gate. ⚠️ Nunca dois agentes no mesmo arquivo gigante. **fixes-for-kofagent progresso**: linha reivindicada 05/09; fix da regressão `println(char)` do merge M36 (`94aca7a`, gap 27 aberto em known-bugs); iniciando Fase 5 (JvmRuntime). |
 | **SYN001** — `SwitchExpr`: switch como expressão (pattern matching via `case ... ->`) | `FEITO` | agente-switch-expr | main | `Parser.java`, `SemanticAnalyzer.java`, `CompilerDriver.java`, `JsBackend.java`, `AstNodes.java`, `KofFormatter.java` | 03/09 `1d1343f` — plano `docs/planning-switch-expr.md`. **Aditivo**: statement (`:`) intocado (KofPatternMatchingTest 10 + KofEnumSwitchTest 4 = gate). Lowering KIR em cadeia de if-expr (JVM+Native+JS ternários). Prova: `KofSwitchExprE2ETest` 23/23 (valor/string/pattern/destructuring/return/aninhado/enum-exaustivo/SEM032) + riscv64/aarch64 14/14 qemu. Suíte 910/0/3-skip. Bônus: fix PKG005 (`f6f1714`) — re-import transitivo não é colisão |
 | **NATIVE002** — paridade stdlib riscv64/aarch64 (log/config/time/cache/mq stubs→real) | `FEITO` | agente-nativo-val | main | `NativeBackend.java` (`RISCV_RUNTIME_ASM` + `translateRiscvToAarch64`) | qemu riscv64+aarch64 OK; suíte 842/0. Detalhe: log `[LEVEL] msg` + stderr; config env real (`/proc/self/environ` syscall); cache TTL via `kof_time_now`, mq pub/sub c/ list (libera NATIVE002 residual) |

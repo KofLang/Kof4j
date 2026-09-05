@@ -26,6 +26,39 @@ escreva código Kof neste repositório. Leia antes de gerar qualquer `.kf`.
 6. VOLTE ao passo 1. Não anuncie "fim"; só pare por condição de parada.
 ```
 
+**O loop dentro de UM turno (regra que impede o "parar e resumir"):**
+
+> **O agente não se re-dispara sozinho.** Quando um turno termina, a execução
+> para. Então: **terminar um turno com resumo é a única falha de autonomia
+> imperdoável** — é o que transformou "dias a fio" em "um turno".
+
+1. **Encadeie tool calls dentro do turno** até: (a) uma condição de parada,
+   (b) o contexto quase esgotar, ou (c) o turno ficar sem trabalho novo
+   (suíte verde + DOING.md sem item sem dono na sua lane).
+2. **Proibido terminar o turno com resumo/status para o humano**
+   ("pushed", "resumo da sessão", "o que falta agora é..."). Se o turno
+   vai acabar, a ÚLTIMA coisa escrita no turno é:
+   - commit final do estado atual,
+   - `DOING.md` atualizado com a linha **"PRÓXIMO PASSO: <tarefa exata +
+     arquivo + prova esperada>"** (o re-dispacho lê isso e continua),
+   - `todowrite` espelhando isso.
+   Depois disso, silêncio — ou a próxima tool call.
+3. **Todo commit do turno exige atualização da linha no `DOING.md` no MESMO
+   commit** (regra da seção multi-agente vale dobrado aqui: sem DOING.md
+   atualizado, o próximo agente/sessão não sabe o que já existe).
+4. **`todowrite` a cada mudança de etapa** — exatamente um `in_progress`;
+   item só vai para `completed` com prova (teste verde/suíte).
+5. **Re-dispacho é do humano ou de cron** (o agente não acorda a si mesmo).
+   Por isso o item 2b é contrato: quem volta — humano ou outra instância —
+   deve conseguir retomar em ≤1 leitura do `DOING.md`, sem perguntar.
+
+**Falha real que motivou esta regra (05/09):** o agente fez 5 commits
+corretos (fixes riscv64) e terminou o turno com um "resumo da sessão" em
+vez de continuar o loop; `DOING.md` ficou sem atualização desde o início do
+trabalho. O resultado: o humano teve que cobrar a definição de modo
+autônomo que deveria ter sido autoevidente. Autonomia que termina no fim do
+turno não é autonomia — é polidez.
+
 **O que fazer em vez de perguntar:**
 
 | Dúvida | Fonte de resposta (nesta ordem) |
