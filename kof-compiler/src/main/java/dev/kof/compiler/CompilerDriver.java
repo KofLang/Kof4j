@@ -4831,7 +4831,7 @@ private Target target = Target.JVM;
                         }
                         List<Type> paramTypes;
                         Type returnType;
-                        ObjectMethodSig osig = objectMethodSignature(mc.methodName(), mc.arguments().size());
+                        StringMethodRegistry.Sig osig = StringMethodRegistry.objectMethodSignature(mc.methodName(), mc.arguments().size());
                         ExternalClasspath.MethodSignature extSig = null;
                         if (superMethod == null && osig == null && externalClasspath != null) {
                             extSig = externalClasspath.resolveMethod(superInternal, mc.methodName(),
@@ -5275,7 +5275,7 @@ private Target target = Target.JVM;
                         methodReturnType = resolvedMethod.returnType();
                         methodParamTypes = new ArrayList<>(resolvedMethod.parameterTypes());
                     } else if (BuiltinTypes.isString(recvType)) {
-                        StringMethodSig sig = stringMethodSignature(mc.methodName(), mc.arguments().size(),
+                        StringMethodRegistry.Sig sig = StringMethodRegistry.stringMethodSignature(mc.methodName(), mc.arguments().size(),
                                 methodParamTypes);
                         if (sig != null) {
                             methodReturnType = sig.returnType();
@@ -5291,7 +5291,7 @@ private Target target = Target.JVM;
                                 List.of(Type.UnknownType.UNKNOWN), BuiltinTypes.STRING, KofCallKind.STATIC));
                         yield localIdx;
                     } else {
-                        ObjectMethodSig osig = objectMethodSignature(mc.methodName(), mc.arguments().size());
+                        StringMethodRegistry.Sig osig = StringMethodRegistry.objectMethodSignature(mc.methodName(), mc.arguments().size());
                         if (osig != null) {
                             methodReturnType = osig.returnType();
                             methodParamTypes = osig.parameterTypes();
@@ -5320,7 +5320,7 @@ private Target target = Target.JVM;
                         }
                     }
                     String runtimeMethod = BuiltinTypes.isString(recvType)
-                            ? stringRuntimeMethod(mc.methodName()) : null;
+                            ? StringMethodRegistry.stringRuntimeMethod(mc.methodName()) : null;
                     // receiver de classe EXTERNA sem símbolo resolvido: última
                     // linha de defesa — assinatura vem do classpath, senão o
                     // descritor sairia errado (owner vazio / retorno Object)
@@ -6777,7 +6777,7 @@ private Target target = Target.JVM;
                         }
                     }
                     if (recvT instanceof Type.ClassType) {
-                        ObjectMethodSig osig = objectMethodSignature(mc.methodName(), mc.arguments().size());
+                        StringMethodRegistry.Sig osig = StringMethodRegistry.objectMethodSignature(mc.methodName(), mc.arguments().size());
                         if (osig != null) yield osig.returnType();
                     }
                 }
@@ -7269,91 +7269,7 @@ private Target target = Target.JVM;
         syntheticClasses.add(cls);
     }
 
-    private record StringMethodSig(Type returnType, List<Type> parameterTypes) {}
 
-    private record ObjectMethodSig(Type returnType, List<Type> parameterTypes) {}
-
-    private ObjectMethodSig objectMethodSignature(String name, int argCount) {
-        Type INT = Type.PrimitiveType.INT;
-        Type BOOL = Type.PrimitiveType.BOOL;
-        Type object = new Type.ClassType("java.lang", "Object", List.of());
-        return switch (name) {
-            case "hashCode" -> argCount == 0 ? new ObjectMethodSig(INT, List.of()) : null;
-            case "toString" -> argCount == 0 ? new ObjectMethodSig(BuiltinTypes.STRING, List.of()) : null;
-            case "equals" -> argCount == 1 ? new ObjectMethodSig(BOOL, List.of(object)) : null;
-            case "getClass" -> argCount == 0 ? new ObjectMethodSig(
-                    new Type.ClassType("java.lang", "Class", List.of()), List.of()) : null;
-            default -> null;
-        };
-    }
-
-    private StringMethodSig stringMethodSignature(String name, int argCount) {
-        return stringMethodSignature(name, argCount, List.of());
-    }
-
-    private StringMethodSig stringMethodSignature(String name, int argCount, List<Type> argTypes) {
-        Type str = BuiltinTypes.STRING;
-        Type INT = Type.PrimitiveType.INT;
-        Type BOOL = Type.PrimitiveType.BOOL;
-        Type CHAR = Type.PrimitiveType.CHAR;
-        Type charSeq = new Type.ClassType("java.lang", "CharSequence", List.of());
-        Type object = new Type.ClassType("java.lang", "Object", List.of());
-        Type strArray = new Type.ArrayType(BuiltinTypes.STRING);
-        return switch (name) {
-            case "length" -> argCount == 0 ? new StringMethodSig(INT, List.of()) : null;
-            case "charAt" -> argCount == 1 ? new StringMethodSig(CHAR, List.of(INT)) : null;
-            case "substring" -> argCount == 1 ? new StringMethodSig(str, List.of(INT))
-                    : argCount == 2 ? new StringMethodSig(str, List.of(INT, INT)) : null;
-            case "contains" -> argCount == 1 ? new StringMethodSig(BOOL, List.of(charSeq)) : null;
-            case "startsWith" -> argCount == 1 ? new StringMethodSig(BOOL, List.of(str))
-                    : argCount == 2 ? new StringMethodSig(BOOL, List.of(str, INT)) : null;
-            case "endsWith" -> argCount == 1 ? new StringMethodSig(BOOL, List.of(str)) : null;
-            case "equals" -> argCount == 1 ? new StringMethodSig(BOOL, List.of(object)) : null;
-            case "equalsIgnoreCase" -> argCount == 1 ? new StringMethodSig(BOOL, List.of(str)) : null;
-            case "indexOf" -> argCount == 1 ? new StringMethodSig(INT, List.of(str))
-                    : argCount == 2 ? new StringMethodSig(INT, List.of(str, INT)) : null;
-            case "lastIndexOf" -> argCount == 1 ? new StringMethodSig(INT, List.of(str))
-                    : argCount == 2 ? new StringMethodSig(INT, List.of(str, INT)) : null;
-            case "concat" -> argCount == 1 ? new StringMethodSig(str, List.of(str)) : null;
-            case "trim" -> argCount == 0 ? new StringMethodSig(str, List.of()) : null;
-            case "toInt" -> argCount == 0 ? new StringMethodSig(INT, List.of()) : null;
-            case "toLong" -> argCount == 0 ? new StringMethodSig(Type.PrimitiveType.LONG, List.of()) : null;
-            case "toDouble" -> argCount == 0 ? new StringMethodSig(Type.PrimitiveType.DOUBLE, List.of()) : null;
-            case "toFloat" -> argCount == 0 ? new StringMethodSig(Type.PrimitiveType.FLOAT, List.of()) : null;
-            case "toUpperCase", "toLowerCase" -> argCount == 0 ? new StringMethodSig(str, List.of()) : null;
-            case "replace" -> argCount == 2 ? replaceSignature(argTypes, str, CHAR, charSeq) : null;
-            case "split" -> argCount == 1 ? new StringMethodSig(strArray, List.of(str))
-                    : argCount == 2 ? new StringMethodSig(strArray, List.of(str, INT)) : null;
-            default -> null;
-        };
-    }
-
-    /**
-     * String.replace(a, b): with two String arguments the call must target
-     * Java's replace(CharSequence, CharSequence); with two characters (Kof
-     * Ints) it targets replace(char, char). The overload is resolved by the
-     * argument types — a previous version always picked (char, char), which
-     * pushed Strings onto a (C, C) descriptor (VerifyError on the JVM).
-     */
-    /** Métodos do String implementados pelo runtime Kof (não existem no
-     *  java.lang.String): as conversões numéricas. */
-    private static String stringRuntimeMethod(String name) {
-        return switch (name) {
-            case "toInt" -> "kof_string_to_int";
-            case "toLong" -> "kof_string_to_long";
-            case "toDouble" -> "kof_string_to_double";
-            case "toFloat" -> "kof_string_to_float";
-            default -> null;
-        };
-    }
-
-    private StringMethodSig replaceSignature(List<Type> argTypes, Type str, Type CHAR, Type charSeq) {
-        boolean stringArgs = argTypes.size() == 2
-                && BuiltinTypes.isString(argTypes.get(0)) && BuiltinTypes.isString(argTypes.get(1));
-        return stringArgs
-                ? new StringMethodSig(str, List.of(charSeq, charSeq))
-                : new StringMethodSig(str, List.of(CHAR, CHAR));
-    }
 
     private void boxPrimitive(List<KofOperation> ops, Type type) {
         if (type instanceof Type.PrimitiveType pt) {
