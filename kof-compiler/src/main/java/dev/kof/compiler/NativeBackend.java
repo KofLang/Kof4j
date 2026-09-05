@@ -259,7 +259,7 @@ public class NativeBackend implements Backend {
         }
         sb.append("\n.section .text\n");
         sb.append(NativeRuntime.generateRuntimeAssembly());
-        NativeRuntime.emitInitObject(sb);
+        RuntimeMemory.emitInitObject(sb);
         // kof.db on the native target: link the DB client library directly
         // (no JDBC driver) — the same direct-.so pattern as kof-webview.
         for (IRClass clazz : module.classes()) {
