@@ -21,18 +21,20 @@ Estados: `ABERTO` · `EM CURSO` · `FEITO` · `BLOQUEADO`.
 
 ## PRÓXIMO PASSO (re-dispacho lê isto)
 
-**Paridade `observability.metrics()` no riscv64/aarch64** — o cross omite as
-linhas `# TYPE <name> counter|gauge` que JVM/JS/x86_64 emitem (Prometheus
-formato canônico; o teste é `contains`-based e passa, mas é divergência de
-output entre targets = regra 5). Arquivo: `NativeBackend.java`, função
-`kof_observability_metrics` no `RISCV_RUNTIME_ASM` (~5424) — adicionar as
-strings `# TYPE ` / ` counter\n` / ` gauge\n` no `.rodata` e os concat no
-builder (padrão das linhas existentes). **Prova esperada:** sweep KObs
-(`/tmp/opencode/KObs.java`) mostra `# TYPE` idêntico nos 3 targets +
-`KofObservabilityTest` 7/7 + teste cross novo assertando `contains("# TYPE")`.
-**Depois:** continuar o sweep R6 nos módulos restantes (validation/config/
-json-edge) e reconciliar com REFACTOR-500 Fase 3 (`NativeBackend.java` é do
-agente-idiomatic — checar `git log` antes de tocar).
+**Sweep R6 de paridade cross — PRÓXIMAS ÁREAS** (o padrão cache/mq/time/FP/
+collections achou 10+ bugs silenciosos; continuar varrendo): (1) **crypto/
+security** (`kof.security` — hash/AES: o x86_64 usa FFI/libc? cross tem?),
+(2) **process/spawn edge** (`spawn` com captura + `await` aninhado no cross),
+(3) **json edge** (nested objects, unicode escapes, arrays de records no
+cross), (4) **string edge** (UTF-8 multibyte: `charAt`/`substring` com
+acentos — gap STR001 documentado, verificar se o cross diverge do x86_64).
+Método: harness em `/tmp/opencode/KSw*.java` (compila snippet nos 3 targets,
+roda qemu, compara output) → bug real (segfault/hang/resultado errado) =
+corrigir no `RISCV_RUNTIME_ASM`/`RISCV_MAPSET_ASM` + teste E2E cross +
+commit; link error = já é honesto (ToolchainMissing), avaliar gate limpo.
+**Depois:** reconciliar com REFACTOR-500 (Fase 3 = `NativeBackend.java` é do
+agente-idiomatic — checar `git log` antes de tocar; F2 em andamento no
+`CompilerDriver.java`).
 
 ---
 
