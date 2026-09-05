@@ -22,9 +22,9 @@ final class NativeRuntime {
         sb.append("            .section .text\n");
         RuntimePrint.emitPrint(sb);
         RuntimePrint.emitPrintln(sb);
-        emitPrintInt(sb);
-        emitPrintFloat(sb);
-        emitPrintDouble(sb);
+RuntimePrintNum.emitPrintInt(sb);
+RuntimePrintNum.emitPrintFloat(sb);
+RuntimePrintNum.emitPrintDouble(sb);
         RuntimeStringConv.emitFloatToString(sb);
         RuntimeStringConv.emitDoubleToString(sb);
         RuntimeStringConv.emitIntToString(sb);
@@ -80,20 +80,20 @@ final class NativeRuntime {
         emitIoTimeFunctions(sb);
         emitKofTimeFunctions(sb);
         emitCacheFunctions(sb);
-        emitVkStubs(sb);
+RuntimeVk.emitVkStubs(sb);
         emitLogFunctions(sb);
         emitConfigFunctions(sb);
         emitIoFileFunctions(sb);
         emitUiColorFunctions(sb);
         emitUiWindowFunctions(sb);
-        emitNetSocket(sb);
-        emitNetBind(sb);
-        emitNetListen(sb);
-        emitNetAccept(sb);
-        emitNetRead(sb);
-        emitNetWrite(sb);
-        emitNetClose(sb);
-        emitInstanceof(sb);
+RuntimeNet.emitNetSocket(sb);
+RuntimeNet.emitNetBind(sb);
+RuntimeNet.emitNetListen(sb);
+RuntimeNet.emitNetAccept(sb);
+RuntimeNet.emitNetRead(sb);
+RuntimeNet.emitNetWrite(sb);
+RuntimeNet.emitNetClose(sb);
+RuntimeMisc.emitInstanceof(sb);
         emitSecurityFunctions(sb);
         return sb.toString();
     }
@@ -113,104 +113,9 @@ final class NativeRuntime {
 
 
 
-    private static void emitPrintInt(StringBuilder sb) {
-        sb.append("""
-            .globl kof_print_int
-            .type kof_print_int, @function
-            kof_print_int:
-                pushq %rbx
-                pushq %r12
-                pushq %r13
-                movl %edi, %eax
-                movq $0, %r12
-                testl %eax, %eax
-                jns .Lkof_print_int_pos
-                movq $1, %r12
-                negl %eax
-            .Lkof_print_int_pos:
-                movl %eax, %r13d
-                movq $0, %rbx
-                movl $10, %ecx
-            .Lkof_print_int_count:
-                xorl %edx, %edx
-                divl %ecx
-                incq %rbx
-                testl %eax, %eax
-                jnz .Lkof_print_int_count
-                testq %r12, %r12
-                jz .Lkof_print_int_count_done
-                incq %rbx
-            .Lkof_print_int_count_done:
-                leaq -48(%rsp), %rsi
-                addq %rbx, %rsi
-                movl %r13d, %eax
-                movq $0, %r13
-                movl $10, %ecx
-            .Lkof_print_int_loop:
-                xorl %edx, %edx
-                divl %ecx
-                addb $48, %dl
-                movb %dl, (%rsi)
-                decq %rsi
-                incq %r13
-                testl %eax, %eax
-                jnz .Lkof_print_int_loop
-                testq %r12, %r12
-                jz .Lkof_print_int_negdone
-                movb $45, (%rsi)
-                incq %r13
-            .Lkof_print_int_negdone:
-                testq %r12, %r12
-                jnz .Lkof_print_int_ready
-                incq %rsi
-            .Lkof_print_int_ready:
-                movq %r13, %rdx
-                movq $1, %rax
-                movq $1, %rdi
-                syscall
-                popq %r13
-                popq %r12
-                popq %rbx
-                ret
-            """);
-    }
 
 
-    private static void emitPrintFloat(StringBuilder sb) {
-        sb.append("""
-            .section .data
-            .Lfmt_float: .asciz "%g"
-            .Lfmt_double: .asciz "%g"
-            .section .text
-            .globl kof_print_float
-            .type kof_print_float, @function
-            kof_print_float:
-                pushq %rbp
-                movq %rsp, %rbp
-                subq $32, %rsp
-                cvtss2sd %xmm0, %xmm0
-                leaq .Lfmt_float(%rip), %rdi
-                movl $1, %eax
-                call printf
-                leave
-                ret
-            .globl kof_print_double
-            .type kof_print_double, @function
-            kof_print_double:
-                pushq %rbp
-                movq %rsp, %rbp
-                subq $32, %rsp
-                leaq .Lfmt_double(%rip), %rdi
-                movl $1, %eax
-                call printf
-                leave
-                ret
-            """);
-    }
 
-    private static void emitPrintDouble(StringBuilder sb) {
-        // emitted together with emitPrintFloat (keep for symmetry)
-    }
 
 
 
@@ -3038,174 +2943,6 @@ final class NativeRuntime {
     // libvkchain.so — aqui só dlopen+dlsym de 3 símbolos. Se a lib não existe
     // ou o init falha (sem ICD, sem spv), degrada: available=0 → HAL usa os
     // goldens CPU. O programa nunca cai.
-    private static void emitVkStubs(StringBuilder sb) {
-        sb.append("""
-            .section .rodata
-            .Lvklib1:  .asciz "libvkchain.so"
-            .Lvklib2:  .asciz "./libvkchain.so"
-            .Lvksinit: .asciz "vkchain_init"
-            .Lvksdisp: .asciz "vkchain_dispatch"
-            .Lvksr:    .asciz "vkchain_fail_reason"
-            .Lvkspv:   .asciz "KOF_GPU_SPV"
-            .Lvkspvd:  .asciz "gpu/shaders/matmul.spv"
-            .Lvkna:    .asciz "libvkchain.so nao encontrada (GPU002)"
-            .Lvksym:   .asciz "libvkchain: simbolo faltando (GPU003)"
-            .Lvkif:    .asciz "libvkchain: init falhou (GPU004)"
-            .Lvkok:    .asciz "libvkchain carregada"
-
-            .section .bss
-            .lcomm g_vk_lib, 8
-            .lcomm g_vk_finit, 8
-            .lcomm g_vk_fdisp, 8
-            .lcomm g_vk_fr, 8
-            .lcomm g_vk_ok, 4
-            .lcomm g_vk_err, 8
-
-            .section .text
-            .globl kof_vk_available
-            .type kof_vk_available, @function
-            kof_vk_available:
-                cmpl $0, g_vk_ok(%rip)
-                jne 9f
-                # lazy init: dlopen(RTLD_NOW) nos 2 nomes + dlsym*3 + vkchain_init(spv)
-                pushq %rbx
-                leaq .Lvklib1(%rip), %rdi
-                movl $2, %esi
-                call dlopen@PLT
-                testq %rax, %rax
-                jnz 1f
-                leaq .Lvklib2(%rip), %rdi
-                movl $2, %esi
-                call dlopen@PLT
-                testq %rax, %rax
-                jnz 1f
-                leaq .Lvkna(%rip), %rax
-                jmp .Lvkf
-            1:  movq %rax, g_vk_lib(%rip)
-                leaq .Lvksinit(%rip), %rsi
-                movq %rax, %rdi
-                call dlsym@PLT
-                testq %rax, %rax
-                jz .Lvkf1
-                movq %rax, g_vk_finit(%rip)
-            .Lvkf1:
-                leaq .Lvksdisp(%rip), %rsi
-                movq g_vk_lib(%rip), %rdi
-                call dlsym@PLT
-                testq %rax, %rax
-                jz .Lvkfsym
-                movq %rax, g_vk_fdisp(%rip)
-            .Lvkf1b:
-                leaq .Lvksr(%rip), %rsi
-                movq g_vk_lib(%rip), %rdi
-                call dlsym@PLT
-                testq %rax, %rax
-                jz .Lvkfsym
-                movq %rax, g_vk_fr(%rip)
-            .Lvkf2b:
-                cmpq $0, g_vk_finit(%rip)
-                je .Lvkfsym
-                cmpq $0, g_vk_fdisp(%rip)
-                je .Lvkfsym
-                cmpq $0, g_vk_fr(%rip)
-                je .Lvkfsym
-                leaq .Lvkspv(%rip), %rdi
-                call getenv@PLT
-                testq %rax, %rax
-                jnz 2f
-                leaq .Lvkspvd(%rip), %rax
-            2:  movq %rax, %rdi
-                call *g_vk_finit(%rip)
-                testl %eax, %eax
-                jnz .Lvkf2
-                movl $1, g_vk_ok(%rip)
-                leaq .Lvkok(%rip), %rax
-                jmp .Lvkf
-            .Lvkfsym:
-                leaq .Lvksym(%rip), %rax
-                jmp .Lvkf
-            .Lvkf2:
-                leaq .Lvkif(%rip), %rax
-            .Lvkf:
-                movq %rax, g_vk_err(%rip)
-                movl g_vk_ok(%rip), %eax
-                popq %rbx
-                ret
-            9:  movl g_vk_ok(%rip), %eax
-                ret
-            .globl kof_vk_fail_reason
-            .type kof_vk_fail_reason, @function
-            # retorna KofString* (converte o char* da lib via kof_io_make_string)
-            kof_vk_fail_reason:
-                pushq %rbx
-                pushq %r12
-                movq g_vk_err(%rip), %rax
-                testq %rax, %rax
-                jnz 1f
-                leaq .Lvkok(%rip), %rax
-            1:  movq %rax, %rdi
-                movq %rax, %rbx
-                call strlen@PLT
-                movq %rbx, %rdi
-                movq %rax, %rsi
-                call kof_io_make_string
-                popq %r12
-                popq %rbx
-                ret
-            # kof_vk_dispatch(rdi=a, rsi=b, rdx=c, rcx=m, r8d=n, r9d=k)
-            # args Kof: KofArray* (dados INLINE em +24) — o C quer int* → lea +24. Lazy init.
-            .globl kof_vk_dispatch
-            .type kof_vk_dispatch, @function
-            kof_vk_dispatch:
-                pushq %rbx
-                pushq %r12
-                pushq %r13
-                pushq %r14
-                pushq %r15
-                subq $32, %rsp
-                movq %rdi, %rbx
-                movq %rsi, %r12
-                movq %rdx, %r13
-                movl %ecx, %r14d
-                movl %r8d, %r15d
-                movl %r9d, 0(%rsp)
-            .Lvk_d_lazy:
-                cmpl $0, g_vk_ok(%rip)
-                jne 1f
-                movq %rdi, 8(%rsp)
-                call kof_vk_available
-                movq 8(%rsp), %rdi
-                testl %eax, %eax
-                jz .Lvk_d_fb
-            1:  leaq 24(%rbx), %rdi
-                leaq 24(%r12), %rsi
-                leaq 24(%r13), %rdx
-                movl %r14d, %ecx
-                movl %r15d, %r8d
-                movl 0(%rsp), %r9d
-                call *g_vk_fdisp(%rip)
-                addq $32, %rsp
-                popq %r15
-                popq %r14
-                popq %r13
-                popq %r12
-                popq %rbx
-                ret
-            .Lvk_d_fb:
-                movl $-1, %eax
-                addq $32, %rsp
-                popq %r15
-                popq %r14
-                popq %r13
-                popq %r12
-                popq %rbx
-                ret
-
-            """);
-        // M36.5: cadeia Vulkan int64 real (tradução asm do vkchain64.c)
-        // — substitui os stubs kof_mv64_* / kof_vk_dispatch64.
-        sb.append(VkChain64Asm.source());
-    }
 
     private static void emitIoFileFunctions(StringBuilder sb) {
         sb.append("""
@@ -6905,157 +6642,21 @@ final class NativeRuntime {
             """);
     }
 
-    private static void emitNetSocket(StringBuilder sb) {
-        sb.append("""
-            .globl kof_net_socket
-            .type kof_net_socket, @function
-            kof_net_socket:
-                movq $41, %rax
-                syscall
-                ret
-            """);
-    }
-
-
-    private static void emitNetBind(StringBuilder sb) {
-        sb.append("""
-            .globl kof_net_bind
-            .type kof_net_bind, @function
-            kof_net_bind:
-                pushq %rbx
-                pushq %r12
-                pushq %r13
-                movl %edi, %ebx
-                movl %esi, %r12d
-                movq %rdx, %r13
-                subq $16, %rsp
-                movw $2, (%rsp)
-                movl %r12d, %eax
-                xchgb %al, %ah
-                movw %ax, 2(%rsp)
-                movl $0, 4(%rsp)
-                movq %r13, %rdx
-                testq %rdx, %rdx
-                jnz .Lkof_net_bind_custom
-                leaq 4(%rsp), %rdx
-            .Lkof_net_bind_custom:
-                movl %ebx, %edi
-                movq %rdx, %rsi
-                movq $16, %rdx
-                movq $49, %rax
-                syscall
-                addq $16, %rsp
-                popq %r13
-                popq %r12
-                popq %rbx
-                ret
-            """);
-    }
-
-
-    private static void emitNetListen(StringBuilder sb) {
-        sb.append("""
-            .globl kof_net_listen
-            .type kof_net_listen, @function
-            kof_net_listen:
-                movq $50, %rax
-                syscall
-                ret
-            """);
-    }
-
-
-    private static void emitNetAccept(StringBuilder sb) {
-        sb.append("""
-            .globl kof_net_accept
-            .type kof_net_accept, @function
-            kof_net_accept:
-                subq $16, %rsp
-                movq $0, (%rsp)
-                movq $0, 8(%rsp)
-                movq %rsp, %rsi
-                leaq 8(%rsp), %rdx
-                movq $43, %rax
-                syscall
-                addq $16, %rsp
-                ret
-            """);
-    }
-
-
-    private static void emitNetRead(StringBuilder sb) {
-        sb.append("""
-            .globl kof_net_read
-            .type kof_net_read, @function
-            kof_net_read:
-                movq $0, %rax
-                syscall
-                ret
-            """);
-    }
-
-
-    private static void emitNetWrite(StringBuilder sb) {
-        sb.append("""
-            .globl kof_net_write
-            .type kof_net_write, @function
-            kof_net_write:
-                movq $44, %rax
-                movq $0x4000, %r10
-                xorq %r8, %r8
-                xorq %r9, %r9
-                syscall
-                ret
-            """);
-    }
-
-
-    private static void emitNetClose(StringBuilder sb) {
-        sb.append("""
-            .globl kof_net_close
-            .type kof_net_close, @function
-            kof_net_close:
-                movq $3, %rax
-                syscall
-                ret
-            """);
-    }
 
 
 
-    private static void emitInstanceof(StringBuilder sb) {
-        sb.append("""
-            .globl kof_instanceof
-            .type kof_instanceof, @function
-            kof_instanceof:
-                testq %rdi, %rdi
-                jz .Lkof_instanceof_null
-                movl (%rdi), %eax
-            .Lkof_instanceof_loop:
-                cmpl %esi, %eax
-                je .Lkof_instanceof_found
-                testl %eax, %eax
-                jz .Lkof_instanceof_null
-                leaq kof_super_table(%rip), %rcx
-            .Lkof_instanceof_search:
-                movl (%rcx), %edx
-                testl %edx, %edx
-                jz .Lkof_instanceof_null
-                cmpl %edx, %eax
-                je .Lkof_instanceof_got_super
-                addq $8, %rcx
-                jmp .Lkof_instanceof_search
-            .Lkof_instanceof_got_super:
-                movl 4(%rcx), %eax
-                jmp .Lkof_instanceof_loop
-            .Lkof_instanceof_found:
-                movl $1, %eax
-                ret
-            .Lkof_instanceof_null:
-                xorl %eax, %eax
-                ret
-            """);
-    }
+
+
+
+
+
+
+
+
+
+
+
+
 
     /**
      * kof.security for the Native target (docs/security.md §5).
