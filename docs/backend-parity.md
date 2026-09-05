@@ -86,6 +86,7 @@
 | kof.http no Native | ✅ HTTP/1.1 asm (`NativeHttpRuntime.java`, 03/09) | https + DNS real + retry ficam como gaps (`HTTP003`) |
 | kof.db/orm no JS | `DB001` / `ORM001` | planned |
 | JSON Float/Double | ✅ 31/08 (JSN001 fechado — XMM + parser fração/expoente) | |
+| FP→string no riscv64/aarch64 | `FLT001` (cross) | runtime asm puro sem libc (`%g`/`snprintf` ausentes) — `println(3.14)`/`json.encode(double)`/`"x".toDouble()` reportam FLT001 em compile-time (R6: nunca segfault silencioso); aritmética/conversão FP (`d as Int`, `fadd`/`fdiv`/`feq`) funciona. x86_64/JVM/JS impecáveis |
 | JSON objetos/records no Native | ✅ 31/08 (JSN002 fechado — composição em compile-time) | |
 | GC mark-sweep no Native | ✅ | `kof_gc_sweep` real (flag bit1) + **auto-collect desligado** por exigir safe-points (`status.md` #1) — `KofGcE2ETest` 3/3 |
 | MySQL nativo completo | ✅ | **wire protocol** + **prepared statements binário (03/09)** — `NativeDbPrepared.java`, `KofDbE2ETest` 12/12 |

@@ -259,6 +259,14 @@ private Target target = Target.JVM;
                         e.getMessage(), "CONC003-JS-01");
                 return new CompilationResult(false, diagnostics, outputDir);
             }
+            if (e.getMessage() != null && e.getMessage().startsWith("FLT001")) {
+                // FLT001: print/println de float/double no runtime riscv64/
+                // aarch64 (asm puro, sem libc) — diagnóstico honesto, nunca
+                // segfault silencioso (R6).
+                diagnostics.error(sources.get(0).toString(), 0, 0, 0,
+                        e.getMessage(), "FLT001");
+                return new CompilationResult(false, diagnostics, outputDir);
+            }
             e.printStackTrace();
             diagnostics.error(sources.get(0).toString(), 0, 0, 0,
                     "Internal compiler error: " + e.getMessage(), "COMP002");
@@ -3974,9 +3982,18 @@ private Target target = Target.JVM;
                     Type argType = inferExprType(mc.arguments().get(0), locals);
                     if (isPrimitiveType(argType)) {
                         if (target.isNative()) {
+                            // println(char) é NUMÉRICO (congelado: strings.md
+                            // "72 (H)" + execStringCharAt). valueOf(char) solto
+                            // é o caractere UTF-8 (common-mistakes.md "h").
+                            // O dispatch nativo do valueOf decide pelo tipo do
+                            // parâmetro — aqui mapeia char→Int para imprimir o
+                            // codepoint sem quebrar String.valueOf(char).
+                            Type nativeArg = (argType instanceof Type.PrimitiveType p
+                                    && "char".equals(p.name()))
+                                    ? Type.PrimitiveType.INT : argType;
                             ops.add(new KofCall(
                                     BuiltinTypes.STRING,
-                                    "valueOf", List.of(argType),
+                                    "valueOf", List.of(nativeArg),
                                     BuiltinTypes.STRING, KofCallKind.STATIC));
                         } else {
                             boxPrimitive(ops, argType);

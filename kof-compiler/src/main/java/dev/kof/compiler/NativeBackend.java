@@ -2067,9 +2067,12 @@ public class NativeBackend implements Backend {
             Files.deleteIfExists(objFile);
             if (System.getenv("KOF_KEEP_ASM") == null) Files.deleteIfExists(asmFile);
             binFile.toFile().setExecutable(true);
-        } catch (IOException e) {
-            System.err.println("NativeBackend: riscv64 toolchain ausente/falhou (NATIVE002), keeping asm: " + e.getMessage());
+        } catch (ToolchainMissing e) {
+            // toolchain ausente: gracioso (assumeToolchain pula o teste)
+            System.err.println("NativeBackend: riscv64 toolchain ausente (NATIVE002), keeping asm: " + e.getMessage());
         }
+        // as/ld FALHOU (ex.: undefined reference) → propaga como erro de
+        // compilação (R6: nunca success=true sem binário).
     }
 
     // ---- NATIVE002-stdlib: HTTP client riscv64 (asm puro) -----------------
@@ -2740,6 +2743,7 @@ public class NativeBackend implements Backend {
                 sd   a0, 16(s1)             # stack base (p/ debug/free)
                 li   t1, 1048576
                 add  s2, a0, t1             # stack TOP
+                sd   s2, 24(s1)             # stack top no handle (filho lê)
                 # clone(flags, stack_top, ptid, tls, ctid) — filho herda s0,s1
                 li   a0, 0x3D0F00
                 mv   a1, s2
@@ -2751,6 +2755,11 @@ public class NativeBackend implements Backend {
                 bltz a0, .Lsp_inline
                 bnez a0, .Lsp_reg           # pai: registra handle p/ join
                 # ---- filho: a0=0, s0=task, s1=handle ----
+                # TROCA sp p/ a stack dedicada ANTES do call: o sp herdado aponta
+                # p/ o frame ativo do kof_spawn_result do pai; o call empilharia
+                # ra lá e corromperia os slots salvos do pai (race real — só
+                # aparece no fire-and-forget, onde o pai continua sem bloquear).
+                ld   sp, 24(s1)
                 call kof_spawn_trampoline
                 li   a0, 0
                 li   a7, 93
@@ -3117,15 +3126,15 @@ public class NativeBackend implements Backend {
             case I2L -> sb.append("    sext.w t0, t0\n");
             case I2C -> sb.append("    sext.w t0, t0\n");
             case L2I -> sb.append("    sext.w t0, t0\n");
-            case I2F -> sb.append("    fcvt.w.s f0, t0, rtz\n    fmv.x.w t0, f0\n");
-            case I2D -> sb.append("    fcvt.w.d f0, t0, rtz\n    fmv.x.d t0, f0\n");
-            case L2F -> sb.append("    fcvt.l.s f0, t0, rtz\n    fmv.x.w t0, f0\n");
-            case L2D -> sb.append("    fcvt.l.d f0, t0, rtz\n    fmv.x.d t0, f0\n");
-            case F2D -> sb.append("    fmv.w.x f0, t0\n    fcvt.s.d f0, f0\n    fmv.x.d t0, f0\n");
-            case D2F -> sb.append("    fmv.d.x f0, t0\n    fcvt.d.s f0, f0\n    fmv.x.w t0, f0\n");
-            case D2I -> sb.append("    fmv.d.x f0, t0\n    fcvt.w.d f0, f0, rtz\n    fmv.x.w t0, f0\n");
-            case F2I -> sb.append("    fmv.w.x f0, t0\n    fcvt.w.s f0, f0, rtz\n    fmv.x.w t0, f0\n");
-            case D2L -> sb.append("    fmv.d.x f0, t0\n    fcvt.l.d f0, f0, rtz\n    fmv.x.d t0, f0\n");
+            case I2F -> sb.append("    fcvt.s.w f0, t0\n    fmv.x.w t0, f0\n");
+            case I2D -> sb.append("    fcvt.d.w f0, t0\n    fmv.x.d t0, f0\n");
+            case L2F -> sb.append("    fcvt.s.l f0, t0\n    fmv.x.w t0, f0\n");
+            case L2D -> sb.append("    fcvt.d.l f0, t0\n    fmv.x.d t0, f0\n");
+            case F2D -> sb.append("    fmv.w.x f0, t0\n    fcvt.d.s f0, f0\n    fmv.x.d t0, f0\n");
+            case D2F -> sb.append("    fmv.d.x f0, t0\n    fcvt.s.d f0, f0\n    fmv.x.w t0, f0\n");
+            case D2I -> sb.append("    fmv.d.x f0, t0\n    fcvt.w.d t0, f0, rtz\n    sext.w t0, t0\n");
+            case F2I -> sb.append("    fmv.w.x f0, t0\n    fcvt.w.s t0, f0, rtz\n    sext.w t0, t0\n");
+            case D2L -> sb.append("    fmv.d.x f0, t0\n    fcvt.l.d t0, f0, rtz\n");
             case F2L -> sb.append("    fmv.w.x f0, t0\n    fcvt.l.s f0, f0, rtz\n    fmv.x.d t0, f0\n");
         }
         pushRiscv(sb, "t0");
@@ -3281,6 +3290,16 @@ public class NativeBackend implements Backend {
         if (kc.kind() == KofCallKind.STATIC && "valueOf".equals(mn)) {
             if (argType instanceof Type.PrimitiveType pt) {
                 String cn = Type.canonicalPrimitiveName(pt.name());
+                if ("float".equals(cn) || "double".equals(cn)) {
+                    // FLT001: double→string exige %g (snprintf/libc) — ausente
+                    // no runtime riscv64/aarch64 (asm puro estático). Sem guard,
+                    // os bits do double ficavam na pilha e o println seguinte
+                    // tratava-os como ponteiro de string (segfault silencioso).
+                    throw new IllegalStateException("FLT001: " + mn
+                            + "(float/double) não é suportado no runtime riscv64/aarch64"
+                            + " (asm puro, sem libc/snprintf) — use JVM/Native x86_64"
+                            + " ou converta (d as Int)");
+                }
                 if ("int".equals(cn) || "char".equals(cn) || "short".equals(cn) || "byte".equals(cn) || "long".equals(cn)) {
                     sb.append("    pop a0\n    call kof_int_to_string\n");
                     pushRiscv(sb, "a0");
@@ -3521,20 +3540,26 @@ public class NativeBackend implements Backend {
 
             .globl kof_println_string
             kof_println_string:
-                addi sp, sp, -16
-                sd   ra, 8(sp)
-                sd   a0, 0(sp)
-                call kof_print_string
+                # writev(1, iov[2], 2) — string + newline num ÚNICO syscall:
+                # atomico, sem interleave entre threads (spawn/await).
+                addi sp, sp, -48
+                sd   ra, 40(sp)
+                addi t0, a0, 24
+                sd   t0, 0(sp)              # iov[0].base = data
+                lw   t1, 16(a0)
+                sd   t1, 8(sp)              # iov[0].len
+                la   t0, .Lnewline
+                sd   t0, 16(sp)             # iov[1].base
+                li   t1, 1
+                sd   t1, 24(sp)             # iov[1].len
                 li   a0, 1
-                la   a1, .Lnewline
-                li   a2, 1
-                li   a7, 64
+                addi a1, sp, 0
+                li   a2, 2
+                li   a7, 66
                 ecall
-                ld   ra, 8(sp)
-                ld   a0, 0(sp)
-                addi sp, sp, 16
+                ld   ra, 40(sp)
+                addi sp, sp, 48
                 ret
-
             # kof_int_to_string(n) -> KofStr*
             .globl kof_int_to_string
             kof_int_to_string:
@@ -4758,23 +4783,23 @@ public class NativeBackend implements Backend {
                 lw   s2, 16(s0)
                 lw   t0, 16(s1)
                 li   s3, 0
-                beqz t0, .Lsp_count
+                beqz t0, .Lsk_count
                 addi s3, s1, 24
                 lbu  s3, 0(s3)
-            .Lsp_count:
+            .Lsk_count:
                 li   s4, 1
                 li   s5, 0
-            .Lsp_cloop:
-                bge  s5, s2, .Lsp_alloc
+            .Lsk_cloop:
+                bge  s5, s2, .Lsk_alloc
                 addi t1, s0, 24
                 add  t1, t1, s5
                 lbu  t1, 0(t1)
-                bne  t1, s3, .Lsp_cnext
+                bne  t1, s3, .Lsk_cnext
                 addi s4, s4, 1
-            .Lsp_cnext:
+            .Lsk_cnext:
                 addi s5, s5, 1
-                j    .Lsp_cloop
-            .Lsp_alloc:
+                j    .Lsk_cloop
+            .Lsk_alloc:
                 mv   a0, s4
                 li   a1, 8
                 call kof_array_alloc
@@ -4782,27 +4807,27 @@ public class NativeBackend implements Backend {
                 li   s7, 0
                 li   s5, 0
                 li   s4, 0
-            .Lsp_outer:
-                bge  s5, s2, .Lsp_last
+            .Lsk_outer:
+                bge  s5, s2, .Lsk_last
                 addi t1, s0, 24
                 add  t1, t1, s5
                 lbu  t1, 0(t1)
-                bne  t1, s3, .Lsp_onext
-                call .Lsp_emit
+                bne  t1, s3, .Lsk_onext
+                call .Lsk_emit
                 addi s4, s5, 1
                 addi s5, s5, 1
-                j    .Lsp_outer
-            .Lsp_onext:
+                j    .Lsk_outer
+            .Lsk_onext:
                 addi s5, s5, 1
-                j    .Lsp_outer
-            .Lsp_last:
-                bge  s4, s2, .Lsp_done
+                j    .Lsk_outer
+            .Lsk_last:
+                bge  s4, s2, .Lsk_done
                 mv   s5, s2
-                call .Lsp_emit
-            .Lsp_done:
+                call .Lsk_emit
+            .Lsk_done:
                 mv   a0, s6
-                j    .Lsp_ret
-            .Lsp_emit:
+                j    .Lsk_ret
+            .Lsk_emit:
                 addi sp, sp, -32
                 sd   ra, 24(sp)
                 sub  t0, s5, s4
@@ -4838,7 +4863,7 @@ public class NativeBackend implements Backend {
                 ld   ra, 24(sp)
                 addi sp, sp, 32
                 ret
-            .Lsp_ret:
+            .Lsk_ret:
                 ld   s7, 8(sp)
                 ld   s6, 16(sp)
                 ld   s5, 24(sp)
@@ -5173,10 +5198,28 @@ public class NativeBackend implements Backend {
                 beqz a0, kof_null_error
                 ret
 
-            # ---- kof.time (minimal) ----
+            # ---- kof.time ----
+            # kof_time_now() -> epoch-ms (CLOCK_REALTIME). clock_gettime=113
+            # (asm-generic, mesma tabela aarch64); paridade com o x86_64 (que
+            # usava syscall 96). Antes era stub `li a0,0` → TTL do cache e
+            # time.now() quebravam silenciosamente (R6).
             .globl kof_time_now
             kof_time_now:
-                li   a0, 0
+                addi sp, sp, -32
+                sd   ra, 24(sp)
+                addi a1, sp, 0              # &timespec {sec@0, nsec@8}
+                li   a0, 0                  # CLOCK_REALTIME
+                li   a7, 113
+                ecall
+                ld   t0, 0(sp)              # tv_sec
+                ld   t1, 8(sp)              # tv_nsec
+                li   t2, 1000
+                mul  a0, t0, t2             # sec * 1000
+                li   t3, 1000000
+                div  t1, t1, t3             # nsec / 1_000_000
+                add  a0, a0, t1             # epoch-ms
+                ld   ra, 24(sp)
+                addi sp, sp, 32
                 ret
             .globl kof_time_sleep
             kof_time_sleep:
@@ -6955,9 +6998,10 @@ public class NativeBackend implements Backend {
             Files.deleteIfExists(objFile);
             if (System.getenv("KOF_KEEP_ASM") == null) Files.deleteIfExists(asmFile);
             binFile.toFile().setExecutable(true);
-        } catch (IOException e) {
-            System.err.println("NativeBackend: aarch64 toolchain ausente/falhou (NATIVE002), keeping asm: " + e.getMessage());
+        } catch (ToolchainMissing e) {
+            System.err.println("NativeBackend: aarch64 toolchain ausente (NATIVE002), keeping asm: " + e.getMessage());
         }
+        // as/ld FALHOU → propaga como erro de compilação (R6).
     }
 
     // ---- tradutor riscv -> aarch64 (mesmo usado no probe Python) ----
@@ -7427,11 +7471,22 @@ public class NativeBackend implements Backend {
         return List.of(line);
     }
 
+    /** Toolchain ausente (binário não encontrado) — gracioso: mantém asm,
+     *  assumeToolchain() pula o teste. NÃO confundir com falha de as/ld. */
+    static final class ToolchainMissing extends IOException {
+        ToolchainMissing(String m) { super(m); }
+    }
+
     private void runCommand(String[] cmd, String name) throws IOException {
+        Process p;
         try {
             ProcessBuilder pb = new ProcessBuilder(cmd);
             pb.redirectErrorStream(true);
-            Process p = pb.start();
+            p = pb.start();
+        } catch (IOException e) {
+            throw new ToolchainMissing(name + " not available: " + e.getMessage());
+        }
+        try {
             String output = new String(p.getInputStream().readAllBytes());
             p.waitFor();
             if (p.exitValue() != 0) {

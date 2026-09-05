@@ -3,7 +3,65 @@
 Este é o guia **obrigatório** para qualquer agente de IA (ou humano) que
 escreva código Kof neste repositório. Leia antes de gerar qualquer `.kf`.
 
-**Versão:** 0.3.0-beta · Última atualização: 04/09/2026 (release 0.2.7: Vulkan/fixes-for-kofagent, 500 desempacota ITE, gap mic MEDIA003; linha 0.3.0 aberta na branch `beta-0.3.0`)
+**Versão:** 0.3.0-beta · Última atualização: 05/09/2026 (modo autônomo definido; linha 0.3.0 + REFACTOR-500 em curso)
+
+---
+
+## Modo autônomo (definição — o padrão de operação desta sessão)
+
+> **Entrar em modo autônomo = trabalhar sem interromper o humano, por dias a
+> fio, até a próxima interferência humana.** O humano não está disponível para
+> perguntas; o repo é a única fonte de verdade. Tudo de que você precisa já
+> está nos documentos — se não está, é porque precisa ser escrito (e você
+> escreve).
+
+**O loop (nunca pare no meio):**
+
+```
+1. LEIA o estado (DOING.md, docs/status.md, git log, suíte) — nunca pergunte.
+2. ESCOLHA a próxima tarefa: maior valor, sem dono `EM CURSO`, na sua lane.
+3. REIVINDIQUE no DOING.md (mesmo commit do primeiro passo).
+4. QUEBRE em escopos realizáveis numa sessão (ver "partes pequenas" abaixo).
+5. EXECUTE um escopo → teste → commit → atualize DOING.md + todowrite.
+6. VOLTE ao passo 1. Não anuncie "fim"; só pare por condição de parada.
+```
+
+**O que fazer em vez de perguntar:**
+
+| Dúvida | Fonte de resposta (nesta ordem) |
+|---|---|
+| "Existe dono nisso?" | `DOING.md` |
+| "Qual a sintaxe/idiom real?" | `training/`, `learn/`, **compile e confirme** |
+| "O que já funciona?" | suíte + E2E rodando (a prova, não a memória) |
+| "Qual a próxima prioridade?" | `docs/status.md`, `docs/backend-parity.md`, `planning-*` |
+| "Isso é decisão de design?" | **NÃO é sua** — registre gap/plano e siga (regra 6) |
+
+**Escopo realizável numa sessão** = uma unidade coesa com prova ao fim
+(teste verde, qemu rodando, suíte passando). Se a tarefa inteira não cabe,
+faça o primeiro degrau, commite, e o próximo agente/sessão continua. Nunca
+deixe trabalho grande não-commitado — é assim que se perde uma sessão.
+
+**Condições de parada (as ÚNICAS que justificam parar e chamar o humano):**
+
+1. **Semântica congelada em jogo** — mudança de contrato/operador/ordem de
+   avaliação (regra 6): vira gap/plano em `planning-*`, nunca edição.
+2. **Colisão de lane inevitável** — o único caminho toca um arquivo `EM CURSO`
+   de outro agente e não dá para adiar: pare, registre no DOING.md, aguarde.
+3. **Gate quebrado sem causa na sua mudança** — suíte vermelha que você não
+   introduziu e não consegue diagnosticar: registre em `docs/known-bugs.md`
+   com reproduções, não "conserte" o teste para passar.
+4. **Requisito genuinamente ausente do corpus** — nem `training/`, nem
+   `learn/`, nem o compilador respondem: escreva a pergunta no DOING.md na
+   linha do item e siga para outra tarefa (não trave o loop).
+
+**O que o modo autônomo NÃO relaxa (nada):** todas as regras deste arquivo
+continuam valendo — zero regressão, retrocompatibilidade aditiva, ≤500
+linhas, R6 (nunca silencioso), suíte como gate de merge, commit por unidade.
+Autonomia muda **quem decide a ordem**, nunca **o que é aceitável**.
+
+**Sinal para o humano:** `todowrite` é a janela desta conversa (atualize a
+cada etapa); `DOING.md` é a memória entre sessões. Se o humano voltar e ler
+esses dois, ele sabe exatamente onde você está e por quê.
 
 ---
 
@@ -60,6 +118,29 @@ feature/gap, leia `DOING.md`:**
 Regra de ouro: **nunca dois agentes no mesmo gap ou no mesmo arquivo gigante**
 (`NativeRuntime.java`, `CompilerDriver.java`) ao mesmo tempo. Se for
 inevitável, combine no chat antes.
+
+### Lição aprendida (04/09) — trabalhe SEMPRE em partes pequenas
+
+> **Nunca tente gravar/produzir um artefato grande de uma vez.** O plano de
+> refactoring `docs/refactoring/PLAN-SOLID-500.md` (120 classes, 8 fases) foi
+> perdido uma vez porque o agente tentou escrever o documento inteiro num único
+> `write`. A lição:
+
+- **Um passo por vez.** Cada ação (write/edit/commit) resolve UMA unidade
+  coesa e pequena. Se a resposta precisa de >1 ação grande, divida em várias
+  respostas com commit entre elas.
+- **Commite cedo e sempre.** Toda unidade concluída vira commit isolado
+  (`git add -A && git commit`), mesmo que "pareça incompleta" — o próximo
+  passo continua de onde parou.
+- **Arquivos grandes são editados em pedaços.** Ler/editar um arquivo de 17k
+  linhas aos poucos (nunca `read` de 2000+ linhas de uma vez se não precisar).
+- **Se a tarefa parece maior que a janela**, crie o esqueleto/documento-enxuto
+  primeiro, commite, e preencha incrementalmente.
+- **A regra ≤500 linhas/classe existe exatamente porque** "fazer tudo de uma
+  vez" vira código impossível de carregar/manter. O agente é parte do sistema:
+  agir pequeno é seguir a própria regra que aplicamos ao código.
+
+Isso vale para código, docs, planos e testes: **pequeno é sustentável.**
 
 ### Status visível — `todowrite` (obrigatório, a cada etapa)
 

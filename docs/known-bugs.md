@@ -466,6 +466,31 @@ EXTERNA produz lixo
 
 ---
 
+### 27. Paridade: `String.valueOf(char)` diverge entre JS e JVM/Native
+
+- **Sintoma:** `String.valueOf(104 as Char)` devolve `"h"` no JVM e no Native,
+  mas `"104"` no JS. `println(char)` é numérico (`72`) nos 3 targets (congelado
+  — `training/language/strings.md`), mas o `valueOf(char)` **solto** não tem
+  paridade.
+- **Reprodução:**
+  ```kof
+  main() { println(String.valueOf(104 as Char)) }
+  // JVM: h   Native: h   JS: 104
+  ```
+- **Causa provável:** o backend JS não trata `valueOf` de `char` como conversão
+  para caractere (deixa o número passar); JVM usa `String.valueOf(char)` do JDK
+  (caractere) e Native usa `kof_char_to_string` (UTF-8).
+- **O que deveria acontecer:** os 3 targets iguais. A decisão de qual é o certo
+  (`"h"` ou `"104"`) é **de design** (semântica congelada — regra 6): o corpus
+  (`common-mistakes.md`) favorece `"h"`, mas isso precisa de bump + discussão,
+  não de correção silenciosa. Registrado como gap até lá.
+- **Arquivos:** `JsBackend.java` (dispatch de `valueOf`), `CompilerDriver.java`
+  (lowering nativo char→Int para println).
+- **Descoberto:** 05/09 ao corrigir a regressão de `println(char)` (commit
+  `94aca7a`).
+
+---
+
 ## Comportamentos que PAREcem bugs mas são esperados (não corrigir)
 
 | Cenário | Comportamento | Por quê |
