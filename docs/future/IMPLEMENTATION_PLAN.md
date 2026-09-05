@@ -215,7 +215,13 @@ Esta é a versão consolidada do plano de implementação para todos os document
 
 | # | Subtarefa | Dificuldade | DoD |
 |---|-----------|-------------|-----|
-| 2.5.1 | Avaliar necessidade real (coleções científicas, pipelines) antes de abrir | 🔴 R | decisão escrita; não implementar até um domínio exigir |
+| 2.5.1 | Avaliar necessidade real (coleções científicas, pipelines) antes de abrir | 🔴 R | ✅ **DEFERIR** — `enum` já cobre "closed alternatives"; variance só quando um domínio científico exigir |
+
+**Decisão (2.5):** variance (covariância/contravariância) e `sealed` (keywords
+reservadas, não implementadas) ficam **postergados**. `enum` (alternativas
+fechadas) + `record`/`interface` cobrem o caso imediato. Variance avançada só
+abre quando uma pipeline científica/coleções exigir type-safety covariante —
+mesmo gate R12. Evitar type-classes (non-goal permanente).
 
 ---
 
