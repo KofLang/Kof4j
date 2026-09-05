@@ -3893,7 +3893,7 @@ private Target target = Target.JVM;
                         localIdx = emitExpression(mc.arguments().get(0), ops, owner, localIdx, locals);
                         List<Type> paramTypes = List.of(argType);
                         if (BuiltinTypes.isList(argType)) {
-                            int tag = jsonListTag(listElementType(argType));
+                            int tag = JsonDispatch.listTag(listElementType(argType));
                             ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, tag));
                             paramTypes = List.of(argType, Type.PrimitiveType.INT);
                         } else if (target.isNative()
@@ -3973,7 +3973,7 @@ private Target target = Target.JVM;
                                     BuiltinTypes.STRING, KofCallKind.FUNCTION));
                             yield localIdx;
                         }
-                        ops.add(new KofCall(argType, jsonEncodeFunction(argType), paramTypes,
+                        ops.add(new KofCall(argType, JsonDispatch.encodeFunction(argType), paramTypes,
                                 BuiltinTypes.STRING, KofCallKind.FUNCTION));
                     } else if ("decode".equals(mc.methodName()) && mc.arguments().size() == 1
                             && !mc.typeArguments().isEmpty()) {
@@ -3982,7 +3982,7 @@ private Target target = Target.JVM;
                             yield localIdx;
                         }
                         localIdx = emitExpression(mc.arguments().get(0), ops, owner, localIdx, locals);
-                        String decodeFn = jsonDecodeFunction(targetType);
+                        String decodeFn = JsonDispatch.decodeFunction(targetType, listElementType(targetType));
                         List<Type> decodeParams = List.of(BuiltinTypes.STRING);
                         if (BuiltinTypes.isList(targetType)
                                 && listElementType(targetType) instanceof Type.ClassType ect
@@ -7460,11 +7460,6 @@ private Target target = Target.JVM;
     }
 
 
-    private int jsonListTag(Type elemType) {
-        if (BuiltinTypes.isString(elemType)) return 1;
-        if (elemType instanceof Type.PrimitiveType pt && "bool".equals(pt.name())) return 2;
-        return 0;
-    }
 
     private boolean jsonSupported(Type type, boolean isDecode) {
         Type check = BuiltinTypes.isList(type) ? listElementType(type) : type;
@@ -7551,61 +7546,8 @@ private Target target = Target.JVM;
         return false;
     }
 
-    private String jsonEncodeFunction(Type type) {
-        if (type instanceof Type.PrimitiveType pt) {
-            return switch (pt.name()) {
-                case "int", "char", "byte", "short" -> "kof_json_encode_int";
-                case "long" -> "kof_json_encode_long";
-                case "bool" -> "kof_json_encode_bool";
-                case "float" -> "kof_json_encode_float";
-                case "double" -> "kof_json_encode_double";
-                default -> "kof_json_encode_int";
-            };
-        }
-        if (BuiltinTypes.isString(type)) return "kof_json_encode_string";
-        if (BuiltinTypes.isList(type)) return "kof_json_encode_list";
-        if (type instanceof Type.ArrayType) return "kof_json_encode_array";
-        return "kof_json_encode";
-    }
 
-    private String jsonDecodeFunction(Type type) {
-        if (type instanceof Type.PrimitiveType pt) {
-            return switch (pt.name()) {
-                case "int", "char", "byte", "short" -> "kof_json_decode_int";
-                case "long" -> "kof_json_decode_long";
-                case "bool" -> "kof_json_decode_bool";
-                case "float" -> "kof_json_decode_float";
-                case "double" -> "kof_json_decode_double";
-                default -> "kof_json_decode_int";
-            };
-        }
-        if (type instanceof Type.ArrayType at) {
-            if (at.componentType() instanceof Type.PrimitiveType ap) {
-                return switch (ap.name()) {
-                    case "int", "char", "byte", "short" -> "kof_json_decode_int_array";
-                    case "bool" -> "kof_json_decode_bool_array";
-                    case "long" -> "kof_json_decode_long_array";
-                    case "double", "float" -> "kof_json_decode_double_array";
-                    default -> "kof_json_decode_int_array";
-                };
-            }
-            if (BuiltinTypes.isString(at.componentType())) return "kof_json_decode_string_array";
-            return "kof_json_decode_string_array";
-        }
-        if (BuiltinTypes.isString(type)) return "kof_json_decode_string";
-        if (BuiltinTypes.isList(type)) {
-            Type elem = listElementType(type);
-            if (elem instanceof Type.PrimitiveType ep && "int".equals(ep.name())) return "kof_json_decode_int_list";
-            if (BuiltinTypes.isString(elem)) return "kof_json_decode_string_list";
-            return "kof_json_decode_list";
-        }
-        if (type instanceof Type.ClassType ct) return "kof_json_decode_" + sanitize(ct.name());
-        return "kof_json_decode_string";
-    }
 
-    private String sanitize(String name) {
-        return name.replace(".", "_").replace("/", "_").replace("-", "_");
-    }
 
     private Type listElementType(Type listType) {
         if (listType instanceof Type.ClassType ct && !ct.typeArguments().isEmpty()) {
