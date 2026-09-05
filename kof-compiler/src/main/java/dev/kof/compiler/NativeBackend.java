@@ -2067,9 +2067,12 @@ public class NativeBackend implements Backend {
             Files.deleteIfExists(objFile);
             if (System.getenv("KOF_KEEP_ASM") == null) Files.deleteIfExists(asmFile);
             binFile.toFile().setExecutable(true);
-        } catch (IOException e) {
-            System.err.println("NativeBackend: riscv64 toolchain ausente/falhou (NATIVE002), keeping asm: " + e.getMessage());
+        } catch (ToolchainMissing e) {
+            // toolchain ausente: gracioso (assumeToolchain pula o teste)
+            System.err.println("NativeBackend: riscv64 toolchain ausente (NATIVE002), keeping asm: " + e.getMessage());
         }
+        // as/ld FALHOU (ex.: undefined reference) → propaga como erro de
+        // compilação (R6: nunca success=true sem binário).
     }
 
     // ---- NATIVE002-stdlib: HTTP client riscv64 (asm puro) -----------------
@@ -3123,15 +3126,15 @@ public class NativeBackend implements Backend {
             case I2L -> sb.append("    sext.w t0, t0\n");
             case I2C -> sb.append("    sext.w t0, t0\n");
             case L2I -> sb.append("    sext.w t0, t0\n");
-            case I2F -> sb.append("    fcvt.w.s f0, t0, rtz\n    fmv.x.w t0, f0\n");
-            case I2D -> sb.append("    fcvt.w.d f0, t0, rtz\n    fmv.x.d t0, f0\n");
-            case L2F -> sb.append("    fcvt.l.s f0, t0, rtz\n    fmv.x.w t0, f0\n");
-            case L2D -> sb.append("    fcvt.l.d f0, t0, rtz\n    fmv.x.d t0, f0\n");
-            case F2D -> sb.append("    fmv.w.x f0, t0\n    fcvt.s.d f0, f0\n    fmv.x.d t0, f0\n");
-            case D2F -> sb.append("    fmv.d.x f0, t0\n    fcvt.d.s f0, f0\n    fmv.x.w t0, f0\n");
-            case D2I -> sb.append("    fmv.d.x f0, t0\n    fcvt.w.d f0, f0, rtz\n    fmv.x.w t0, f0\n");
-            case F2I -> sb.append("    fmv.w.x f0, t0\n    fcvt.w.s f0, f0, rtz\n    fmv.x.w t0, f0\n");
-            case D2L -> sb.append("    fmv.d.x f0, t0\n    fcvt.l.d f0, f0, rtz\n    fmv.x.d t0, f0\n");
+            case I2F -> sb.append("    fcvt.s.w f0, t0\n    fmv.x.w t0, f0\n");
+            case I2D -> sb.append("    fcvt.d.w f0, t0\n    fmv.x.d t0, f0\n");
+            case L2F -> sb.append("    fcvt.s.l f0, t0\n    fmv.x.w t0, f0\n");
+            case L2D -> sb.append("    fcvt.d.l f0, t0\n    fmv.x.d t0, f0\n");
+            case F2D -> sb.append("    fmv.w.x f0, t0\n    fcvt.d.s f0, f0\n    fmv.x.d t0, f0\n");
+            case D2F -> sb.append("    fmv.d.x f0, t0\n    fcvt.s.d f0, f0\n    fmv.x.w t0, f0\n");
+            case D2I -> sb.append("    fmv.d.x f0, t0\n    fcvt.w.d t0, f0, rtz\n    sext.w t0, t0\n");
+            case F2I -> sb.append("    fmv.w.x f0, t0\n    fcvt.w.s t0, f0, rtz\n    sext.w t0, t0\n");
+            case D2L -> sb.append("    fmv.d.x f0, t0\n    fcvt.l.d t0, f0, rtz\n");
             case F2L -> sb.append("    fmv.w.x f0, t0\n    fcvt.l.s f0, f0, rtz\n    fmv.x.d t0, f0\n");
         }
         pushRiscv(sb, "t0");
@@ -6967,9 +6970,10 @@ public class NativeBackend implements Backend {
             Files.deleteIfExists(objFile);
             if (System.getenv("KOF_KEEP_ASM") == null) Files.deleteIfExists(asmFile);
             binFile.toFile().setExecutable(true);
-        } catch (IOException e) {
-            System.err.println("NativeBackend: aarch64 toolchain ausente/falhou (NATIVE002), keeping asm: " + e.getMessage());
+        } catch (ToolchainMissing e) {
+            System.err.println("NativeBackend: aarch64 toolchain ausente (NATIVE002), keeping asm: " + e.getMessage());
         }
+        // as/ld FALHOU → propaga como erro de compilação (R6).
     }
 
     // ---- tradutor riscv -> aarch64 (mesmo usado no probe Python) ----
@@ -7439,11 +7443,22 @@ public class NativeBackend implements Backend {
         return List.of(line);
     }
 
+    /** Toolchain ausente (binário não encontrado) — gracioso: mantém asm,
+     *  assumeToolchain() pula o teste. NÃO confundir com falha de as/ld. */
+    static final class ToolchainMissing extends IOException {
+        ToolchainMissing(String m) { super(m); }
+    }
+
     private void runCommand(String[] cmd, String name) throws IOException {
+        Process p;
         try {
             ProcessBuilder pb = new ProcessBuilder(cmd);
             pb.redirectErrorStream(true);
-            Process p = pb.start();
+            p = pb.start();
+        } catch (IOException e) {
+            throw new ToolchainMissing(name + " not available: " + e.getMessage());
+        }
+        try {
             String output = new String(p.getInputStream().readAllBytes());
             p.waitFor();
             if (p.exitValue() != 0) {
