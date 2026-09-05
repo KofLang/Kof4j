@@ -154,4 +154,35 @@ final class CompilerTypes {
         if (type instanceof Type.ArrayType at) return typeToString(at.componentType()) + "[]";
         return "Object";
     }
+
+    static Type substituteTypeVariable(String tvName, Type recvType, CompilationUnitNode currentUnit) {
+        if (!(recvType instanceof Type.ClassType ct) || ct.typeArguments().isEmpty()) return null;
+        if (currentUnit != null) {
+            for (AstNode d : currentUnit.declarations()) {
+                if (d instanceof ClassDeclarationNode cls && cls.name().equals(ct.name())) {
+                    for (int i = 0; i < cls.typeParameters().size(); i++) {
+                        if (i < ct.typeArguments().size() && cls.typeParameters().get(i).equals(tvName)) {
+                            return ct.typeArguments().get(i);
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+    }
+    static Type resolveWithTypeParams(String typeName, List<String> typeParams, CompilationUnitNode currentUnit) {
+        if (typeParams.contains(typeName)) return new Type.TypeVariable(typeName);
+        return CompilerTypes.toType(typeName, currentUnit);
+    }
+    static KofLoadLiteral defaultValueOp(Type type) {
+        if (type instanceof Type.PrimitiveType pt) {
+            return switch (Type.canonicalPrimitiveName(pt.name())) {
+                case "long" -> new KofLoadLiteral(Type.PrimitiveType.LONG, 0L);
+                case "float" -> new KofLoadLiteral(Type.PrimitiveType.FLOAT, 0.0f);
+                case "double" -> new KofLoadLiteral(Type.PrimitiveType.DOUBLE, 0.0d);
+                default -> new KofLoadLiteral(Type.PrimitiveType.INT, 0);
+            };
+        }
+        return new KofLoadLiteral(type, null);
+    }
 }
