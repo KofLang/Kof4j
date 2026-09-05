@@ -369,74 +369,7 @@ public final class KofScript {
                 result.diagnostics().getDiagnostics().forEach(d -> sb.append(d.format()).append("\n"));
                 return new RunResult(1, "", sb.toString(), false);
             }
-            RunResult rr;
-            if (target == Target.JS) {
-                String entry = findJsEntry(outDir);
-                if (entry == null) return new RunResult(1, "", "no JS entry", false);
-                ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                PrintStream ps = new PrintStream(baos);
-                ByteArrayOutputStream beos = new ByteArrayOutputStream();
-                PrintStream pe = new PrintStream(beos);
-                int ec = dev.kof.runtime.KofJsRunner.run(Path.of(entry), ps, System.in, pe, false, programArgs);
-                rr = new RunResult(ec, baos.toString(), beos.toString(), ec == 0);
-            } else if (target == Target.NATIVE) {
-                Path bin = outDir.resolve("Default/Main");
-                if (!Files.exists(bin)) return new RunResult(1, "", "no native binary", false);
-                java.util.List<String> cmd = new java.util.ArrayList<>();
-                cmd.add(bin.toString());
-                for (String a : programArgs) cmd.add(a);
-                ProcessBuilder pb = new ProcessBuilder(cmd);
-                pb.redirectErrorStream(false);
-                Process p = pb.start();
-                String stdout = new String(p.getInputStream().readAllBytes());
-                String stderr = new String(p.getErrorStream().readAllBytes());
-                boolean finished = false;
-                try { finished = p.waitFor(10, TimeUnit.SECONDS); } catch (InterruptedException e) { Thread.currentThread().interrupt(); p.destroyForcibly(); }
-                if (!finished) { p.destroyForcibly(); return new RunResult(124, stdout, "timeout", false); }
-                rr = new RunResult(p.exitValue(), stdout, stderr, p.exitValue() == 0);
-            } else {
-                // Try JIT in-memory first (fast, no fork) — fallback to fork if it fails or uses System.exit
-                RunResult inMem = null;
-                // Only use in-memory for simple cases without System.exit and with programArgs (our test harness doesn't use System.exit)
-                try {
-                    // Heuristic: if code contains System.exit or kof.test, don't use in-memory
-                    inMem = runJvmInMemory(outDir, programArgs);
-                    if (inMem != null && inMem.success()) {
-                        rr = inMem;
-                    } else if (inMem != null && !inMem.stderr().contains("ClassNotFoundException")) {
-                        // in-memory produced a result (even if failure), use it if it's not a class loading failure
-                        rr = inMem;
-                    } else {
-                        throw new Exception("fallback");
-                    }
-                } catch (Exception e) {
-                    // Fallback to fork
-                    String runtimeCp = runtimeClasspath();
-                    String cp = outDir.toString() + (runtimeCp != null ? File.pathSeparator + runtimeCp : "");
-                    String javaBin = System.getProperty("java.home") + File.separator + "bin" + File.separator + "java";
-                    java.util.List<String> cmd = new java.util.ArrayList<>();
-                    cmd.add(javaBin); cmd.add("-cp"); cmd.add(cp); cmd.add("Default.Main");
-                    for (String a : programArgs) cmd.add(a);
-                    ProcessBuilder pb = new ProcessBuilder(cmd);
-                    pb.redirectErrorStream(false);
-                    Process p = pb.start();
-                    String stdout = new String(p.getInputStream().readAllBytes());
-                    String stderr = new String(p.getErrorStream().readAllBytes());
-                    boolean finished = false;
-                    try {
-                        finished = p.waitFor(10, TimeUnit.SECONDS);
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        p.destroyForcibly();
-                    }
-                    if (!finished) {
-                        p.destroyForcibly();
-                        return new RunResult(124, stdout, "timeout", false);
-                    }
-                    int ec = p.exitValue();
-                    rr = new RunResult(ec, stdout, stderr, ec == 0);
-                }
-            }
+            KofScript.RunResult rr = KofScriptExecutor.executeCompiled(outDir, target, programArgs);
             // Cache successful runs for file incremental
             if (rr.success() && abs != null && fkey != null && fhash != null) {
                 fileCache.put(fkey, new FileCacheEntry(fileLm, sz, fhash, rr));
@@ -446,68 +379,6 @@ public final class KofScript {
         } finally {
             deleteRecursively(outDir);
         }
-    }
-
-    private static String runtimeClasspath() {
-        try {
-            // When running from mvn test, kof-runtime/target/classes exists; when installed, kof.jar contains runtime
-            Path candidate = Path.of("kof-runtime/target/classes");
-            if (Files.exists(candidate)) return candidate.toString();
-            // Try to locate via protection domain of a runtime class (KofJsRunner is always present)
-            var loc = dev.kof.runtime.KofJsRunner.class.getProtectionDomain().getCodeSource().getLocation();
-            if (loc != null) {
-                Path p = Path.of(loc.toURI());
-                if (Files.exists(p)) return p.toString();
-            }
-        } catch (Exception ignore) {}
-        return null;
-    }
-
-    // JIT in-memory: try to run Default.Main via URLClassLoader without forking java (fast for repl/eval)
-    private static RunResult runJvmInMemory(Path outDir, String[] programArgs) {
-        try {
-            var cl = new java.net.URLClassLoader(new java.net.URL[]{outDir.toUri().toURL()}, KofScript.class.getClassLoader());
-            Class<?> mainClass = cl.loadClass("Default.Main");
-            var mainMethod = mainClass.getMethod("main", String[].class);
-            // Capture stdout/stderr
-            var baosOut = new ByteArrayOutputStream();
-            var baosErr = new ByteArrayOutputStream();
-            var psOut = new PrintStream(baosOut);
-            var psErr = new PrintStream(baosErr);
-            var oldOut = System.out;
-            var oldErr = System.err;
-            System.setOut(psOut);
-            System.setErr(psErr);
-            int ec = 0;
-            try {
-                mainMethod.invoke(null, (Object) programArgs);
-            } catch (java.lang.reflect.InvocationTargetException ite) {
-                Throwable cause = ite.getCause();
-                if (cause != null) {
-                    // Kof's exit via System.exit is not used in in-memory; check for SecurityException or normal exception
-                    psErr.println(cause.toString());
-                    ec = 1;
-                } else ec = 1;
-            } catch (Exception e) {
-                psErr.println(e.toString());
-                ec = 1;
-            } finally {
-                System.setOut(oldOut);
-                System.setErr(oldErr);
-                try { cl.close(); } catch (IOException ignore) {}
-            }
-            return new RunResult(ec, baosOut.toString(), baosErr.toString(), ec == 0);
-        } catch (Exception e) {
-            return null; // fallback to fork
-        }
-    }
-
-    private static String findJsEntry(Path dir) {
-        Path e = dir.resolve("Default.mjs");
-        if (Files.exists(e)) return e.toString();
-        try (var s = Files.walk(dir)) {
-            return s.filter(p -> p.toString().endsWith(".mjs")).findFirst().map(Path::toString).orElse(null);
-        } catch (IOException ex) { return null; }
     }
 
     public static String inspect(Path sourceFile) throws IOException {
