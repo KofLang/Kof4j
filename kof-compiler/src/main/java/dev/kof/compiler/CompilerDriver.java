@@ -543,70 +543,13 @@ private Target target = Target.JVM;
         return backend;
     }
 
-    private Type toType(String typeName) {
-        if ("List".equals(typeName) || "ArrayList".equals(typeName)) return BuiltinTypes.LIST;
-        if ("Channel".equals(typeName)) return BuiltinTypes.CHANNEL;
-        // tipos simples declarados em import ("import android.webkit.WebView")
-        Type viaImports = qualifyViaImports(typeName);
-        if (viaImports != null) return viaImports;
-        // tipos qualificados (android.os.Bundle): pacote vai no packageName
-        // para o descritor JVM sair com barras (Landroid/os/Bundle;)
-        int lastDot = typeName.lastIndexOf('.');
-        if (lastDot > 0 && !typeName.contains("<") && !typeName.contains("/")) {
-            return new Type.ClassType(typeName.substring(0, lastDot),
-                    typeName.substring(lastDot + 1), List.of());
-        }
-        return Type.of(typeName);
-    }
 
     /** Espelho driver-side do qualifyViaImports do SemanticAnalyzer. */
-    private Type qualifyViaImports(String name) {
-        if (name.contains(".") || name.contains("<") || name.endsWith("[]")) return null;
-        if (currentUnit == null) return null;
-        if (System.getProperty("kof.trace") != null && name.equals("WebView")) {
-            System.err.println("QVI WebView imports=" + currentUnit.imports());
-        }
-        for (String imp : currentUnit.imports()) {
-            if (!imp.endsWith("*") && imp.endsWith("." + name)) {
-                String pkg = imp.substring(0, imp.lastIndexOf('.'));
-                return new Type.ClassType(pkg, name, List.of());
-            }
-        }
-        return null;
-    }
 
     /** Nome JVM da entidade: as classes top-level do programa ficam sem
      *  pacote (User.class); o Main é Default/Main. */
-    private String classNameFor(String simpleName) {
-        return simpleName;
-    }
 
-    private Type ownerTypeFromInternal(String internalName) {
-        if (semanticAnalyzer != null) {
-            String simpleName = internalName.substring(internalName.lastIndexOf('/') + 1);
-            SymbolTable.ClassSymbol cs = semanticAnalyzer.getClass(simpleName);
-            if (cs != null) return cs.type();
-        }
-        String pkg = "";
-        String name = internalName;
-        int slashIdx = internalName.lastIndexOf('/');
-        if (slashIdx >= 0) {
-            pkg = internalName.substring(0, slashIdx).replace('/', '.');
-            name = internalName.substring(slashIdx + 1);
-        }
-        return new Type.ClassType(pkg, name, List.of());
-    }
 
-    private Type mainClassType() {
-        String mod = currentModule != null && !currentModule.name().isEmpty()
-                ? currentModule.name() : "Default";
-        if (!mod.contains("/")) mod = mod + "/Main";
-        int slashIdx = mod.lastIndexOf('/');
-        if (slashIdx >= 0) {
-            return new Type.ClassType(mod.substring(0, slashIdx).replace('/', '.'), mod.substring(slashIdx + 1), List.of());
-        }
-        return new Type.ClassType("", mod, List.of());
-    }
 
     private IRModule lowerToIR(CompilationUnitNode unit, DiagnosticCollector diagnostics) {
         List<String> imports = new ArrayList<>(unit.imports());
@@ -840,8 +783,8 @@ private Target target = Target.JVM;
         for (IRMethod b : bridges) {
             if (b.name().equals(bridgeName)) return bridgeName;
         }
-        Type ownerT = ownerTypeFromInternal(ownerInternal);
-        Type superT = ownerTypeFromInternal(superInternal);
+        Type ownerT = CompilerTypes.ownerTypeFromInternal(ownerInternal, semanticAnalyzer);
+        Type superT = CompilerTypes.ownerTypeFromInternal(superInternal, semanticAnalyzer);
         List<KofOperation> ops = new ArrayList<>();
         List<IRLocalVariable> locals = new ArrayList<>();
         locals.add(new IRLocalVariable(0, "this", ownerT));
@@ -1066,14 +1009,14 @@ private Target target = Target.JVM;
             if (TypeMetrics.isPrimitiveType(bt)) TypeEmitter.boxPrimitive(ops, bt);
         }
         // 4) className
-        ops.add(new KofLoadLiteral(BuiltinTypes.STRING, classNameFor(entity)));
+        ops.add(new KofLoadLiteral(BuiltinTypes.STRING, CompilerTypes.classNameFor(entity)));
         // 5) a chamada
         List<Type> params = new ArrayList<>();
         params.add(BuiltinTypes.STRING); // id
         params.add(BuiltinTypes.STRING); // sql
         for (int i = 0; i < nBinds; i++) params.add(Type.UnknownType.UNKNOWN);
         params.add(BuiltinTypes.STRING); // className
-        Type retType = new Type.ClassType("kof", "List", List.of(toType(entity)));
+        Type retType = new Type.ClassType("kof", "List", List.of(CompilerTypes.toType(entity, currentUnit)));
         ops.add(new KofCall(new Type.ClassType("kof.db", "Db", List.of()),
                 fn, params, retType, KofCallKind.FUNCTION));
         return localIdx;
@@ -1266,7 +1209,7 @@ private Target target = Target.JVM;
         if (needsOuter) {
             lambdaNeedsOuter.put(le, true);
             lambdaEnclosingOwner.put(name, currentLoweringOwner);
-            Type outerType = ownerTypeFromInternal(currentLoweringOwner);
+            Type outerType = CompilerTypes.ownerTypeFromInternal(currentLoweringOwner, semanticAnalyzer);
             List<IRLocalVariable> eff = new ArrayList<>();
             eff.add(new IRLocalVariable(0, "$outer", outerType));
             eff.addAll(captures);
@@ -1278,10 +1221,10 @@ private Target target = Target.JVM;
         // será preenchido após a emissão do corpo.
         Type returnType = ft.returnType() instanceof Type.FunctionType
                 ? ft.returnType()
-                : toType(typeToString(ft.returnType()));
+                : CompilerTypes.toType(typeToString(ft.returnType()), currentUnit);
         List<FormalParameterNode> params = le.parameters();
         List<Type> paramTypes = new ArrayList<>();
-        for (FormalParameterNode p : params) paramTypes.add(toType(p.type()));
+        for (FormalParameterNode p : params) paramTypes.add(CompilerTypes.toType(p.type(), currentUnit));
 
         List<IRField> fields = new ArrayList<>();
         List<Type> captureTypes = new ArrayList<>();
@@ -2041,7 +1984,7 @@ private Target target = Target.JVM;
             return inferExprType(mc.arguments().get(0), locals);
         }
         if (!mc.typeArguments().isEmpty()) {
-            return toType(mc.typeArguments().get(0));
+            return CompilerTypes.toType(mc.typeArguments().get(0), currentUnit);
         }
         return Type.UnknownType.UNKNOWN;
     }
@@ -2084,7 +2027,7 @@ private Target target = Target.JVM;
             for (StatementNode stmt : func.body()) {
                 if (stmt instanceof VarDeclStmt vds && vds.initializer() != null) {
                     Type vt = vds.type() != null && !"var".equals(vds.type())
-                            ? toType(vds.type())
+                            ? CompilerTypes.toType(vds.type(), currentUnit)
                             : inferExprType(vds.initializer(), tmpLocals);
                     tmpLocals.add(new IRLocalVariable(tmpIdx, vds.name(), vt));
                     tmpIdx += TypeMetrics.isDoubleWidth(vt) ? 2 : 1;
@@ -2209,7 +2152,7 @@ private Target target = Target.JVM;
                 localIdx = emitExpression(params.get(i).defaultExpression(), ops, "",
                         localIdx, locals);
             }
-            ops.add(new KofCall(mainClassType(), func.name(), canonicalTypes,
+            ops.add(new KofCall(CompilerTypes.mainClassType(currentModule), func.name(), canonicalTypes,
                     returnType, KofCallKind.FUNCTION));
             ops.add(new KofReturn(returnType));
             wrappers.add(new IRMethod(func.name(), returnType, paramTypes,
@@ -2263,7 +2206,7 @@ private Target target = Target.JVM;
                 yield localIdx;
             }
             case VarDeclStmt vds -> {
-                Type varType = toType(vds.type());
+                Type varType = CompilerTypes.toType(vds.type(), currentUnit);
                 // nullable é constraint de compile-time: o storage é o inner
                 // (a referência já pode ser null na JVM/Native/JS)
                 if (varType instanceof Type.NullableType nt) {
@@ -2638,7 +2581,7 @@ private Target target = Target.JVM;
                 int primaryExcLocal = localIdx++;
                 if (hasCatch) {
                     locals.add(new IRLocalVariable(primaryExcLocal, ts.catchClauses().getFirst().exceptionName(),
-                            toType(primaryExcType)));
+                            CompilerTypes.toType(primaryExcType, currentUnit)));
                 } else if (hasFinally) {
                     locals.add(new IRLocalVariable(primaryExcLocal, "#excTmp",
                             new Type.ClassType("java.lang", "Throwable", List.of())));
@@ -2655,7 +2598,7 @@ private Target target = Target.JVM;
                     LabelId handlerLabel = ci == 0 ? primaryHandler : LabelId.create();
                     int excIdx = ci == 0 ? primaryExcLocal : localIdx++;
                     if (ci > 0) {
-                        locals.add(new IRLocalVariable(excIdx, cc.exceptionName(), toType(cc.exceptionType())));
+                        locals.add(new IRLocalVariable(excIdx, cc.exceptionName(), CompilerTypes.toType(cc.exceptionType(), currentUnit)));
                     }
                     ops.add(new KofCatchStart(handlerLabel, cc.exceptionType(), excIdx));
                     localIdx = emitStatement(new BlockStmt(cc.position(), cc.body()), ops, owner, localIdx, locals, returnType);
@@ -2737,7 +2680,7 @@ private Target target = Target.JVM;
                         SwitchCase sc = ss.cases().get(i);
                         LabelId nextTest = i + 1 < ss.cases().size() ? nextTestLabels.get(i + 1) : defaultLabelPat;
                         if (sc.value() instanceof PatternExpr pe) {
-                            Type patType = toType(pe.typeName());
+                            Type patType = CompilerTypes.toType(pe.typeName(), currentUnit);
                             if (patType instanceof Type.UnknownType) patType = BuiltinTypes.STRING;
                             ops.add(new KofLoadLocal(switchType, switchTmp));
                             ops.add(new KofInstanceOf(patType));
@@ -2760,7 +2703,7 @@ private Target target = Target.JVM;
                         SwitchCase sc = ss.cases().get(i);
                         ops.add(new KofLabel(bodyLabels.get(i)));
                         if (sc.value() instanceof PatternExpr pe) {
-                            Type patType = toType(pe.typeName());
+                            Type patType = CompilerTypes.toType(pe.typeName(), currentUnit);
                             if (patType instanceof Type.UnknownType) patType = BuiltinTypes.STRING;
                             ops.add(new KofLoadLocal(switchType, switchTmp));
                             ops.add(new KofCheckCast(patType));
@@ -2779,7 +2722,7 @@ private Target target = Target.JVM;
                                     for (AstNode d : currentUnit.declarations()) {
                                         if (d instanceof RecordDeclarationNode rec && rec.name().equals(pe.typeName())) {
                                             if (fi < rec.components().size()) {
-                                                fieldType = toType(rec.components().get(fi).type());
+                                                fieldType = CompilerTypes.toType(rec.components().get(fi).type(), currentUnit);
                                             }
                                             break;
                                         }
@@ -2896,7 +2839,7 @@ private Target target = Target.JVM;
         LabelId elseLabel = LabelId.create();
         LabelId endLabel = LabelId.create();
         if (sc.value() instanceof PatternExpr pe) {
-            Type patType = toType(pe.typeName());
+            Type patType = CompilerTypes.toType(pe.typeName(), currentUnit);
             if (patType instanceof Type.UnknownType) patType = BuiltinTypes.STRING;
             ops.add(new KofLoadLocal(switchType, switchTmp));
             ops.add(new KofInstanceOf(patType));
@@ -2961,7 +2904,7 @@ private Target target = Target.JVM;
                 for (AstNode d : currentUnit.declarations()) {
                     if (d instanceof RecordDeclarationNode rec && rec.name().equals(simple)) {
                         if (fi < rec.components().size()) {
-                            fieldType = toType(rec.components().get(fi).type());
+                            fieldType = CompilerTypes.toType(rec.components().get(fi).type(), currentUnit);
                             fieldName = rec.components().get(fi).name();
                         }
                         break;
@@ -3076,7 +3019,7 @@ private Target target = Target.JVM;
                     Type targetType = Type.UnknownType.UNKNOWN;
                     if (bin.right() instanceof IdentifierExpr ie) {
                         // toType resolve imports ("View" + import → android.view.View)
-                        targetType = toType(ie.name());
+                        targetType = CompilerTypes.toType(ie.name(), currentUnit);
                     }
                     if ("instanceof".equals(bin.operator())) {
                         ops.add(new KofInstanceOf(targetType));
@@ -3726,7 +3669,7 @@ private Target target = Target.JVM;
                     // FIFO thread-safe; c.send(v) enfileira, c.receive() retira.
                     Type elemT = mc.typeArguments().isEmpty()
                             ? Type.UnknownType.UNKNOWN
-                            : toType(mc.typeArguments().get(0));
+                            : CompilerTypes.toType(mc.typeArguments().get(0), currentUnit);
                     Type chanT = new Type.ClassType("kof.concurrent", "Channel", List.of(elemT));
                     ops.add(new KofCall(chanT, "kof_channel_new", List.of(),
                             chanT, KofCallKind.FUNCTION));
@@ -3941,7 +3884,7 @@ private Target target = Target.JVM;
                     }
                     yield localIdx;
 } else if (mc.receiver() instanceof IdentifierExpr rid && !isLocalVarName(rid.name(), locals)
-                        && qualifyViaImports(rid.name()) instanceof Type.ClassType extQ
+                        && CompilerTypes.qualifyViaImports(rid.name(), currentUnit) instanceof Type.ClassType extQ
                         && !extQ.packageName().isEmpty()
                         && externalClasspath != null
                         && externalClasspath.knows(extQ.internalName())
@@ -3998,7 +3941,7 @@ private Target target = Target.JVM;
                             ops.add(new KofLoadLiteral(BuiltinTypes.STRING, "{"));
                             for (int fi = 0; fi < flds.size(); fi++) {
                                 String fname = flds.get(fi)[0];
-                                Type ftype = toType(flds.get(fi)[1]);
+                                Type ftype = CompilerTypes.toType(flds.get(fi)[1], currentUnit);
                                 if (fi > 0) {
                                     ops.add(new KofLoadLiteral(BuiltinTypes.STRING, ","));
                                     ops.add(new KofCall(BuiltinTypes.STRING, "kof_string_concat",
@@ -4059,7 +4002,7 @@ private Target target = Target.JVM;
                                 BuiltinTypes.STRING, KofCallKind.FUNCTION));
                     } else if ("decode".equals(mc.methodName()) && mc.arguments().size() == 1
                             && !mc.typeArguments().isEmpty()) {
-                        Type targetType = toType(mc.typeArguments().get(0));
+                        Type targetType = CompilerTypes.toType(mc.typeArguments().get(0), currentUnit);
                         if (!jsonSupported(targetType, true)) {
                             yield localIdx;
                         }
@@ -4094,10 +4037,10 @@ private Target target = Target.JVM;
                             localIdx += 1;
                             List<Type> ctorTypes = new ArrayList<>();
                             ops.add(new KofNewObject(targetType,
-                                    flds.stream().map(f -> toType(f[1])).toList()));
+                                    flds.stream().map(f -> CompilerTypes.toType(f[1], currentUnit)).toList()));
                             ops.add(new KofDup());
                             for (String[] f : flds) {
-                                Type ft = toType(f[1]);
+                                Type ft = CompilerTypes.toType(f[1], currentUnit);
                                 ctorTypes.add(ft);
                                 ops.add(new KofLoadLocal(BuiltinTypes.STRING, jTmp));
                                 ops.add(new KofLoadLiteral(BuiltinTypes.STRING, f[0]));
@@ -4164,7 +4107,7 @@ private Target target = Target.JVM;
                             params.add(BuiltinTypes.STRING);
                             if (typed) {
                                 retType = new Type.ClassType("kof", "List",
-                                        List.of(toType(mc.typeArguments().get(0))));
+                                        List.of(CompilerTypes.toType(mc.typeArguments().get(0), currentUnit)));
                             }
                         }
                         ops.add(new KofCall(new Type.ClassType("kof.db", "Db", List.of()),
@@ -4239,7 +4182,7 @@ private Target target = Target.JVM;
                             params.add(BuiltinTypes.STRING); // schema
                         }
                         if (needsClassName) {
-                            ops.add(new KofLoadLiteral(BuiltinTypes.STRING, classNameFor(entityName)));
+                            ops.add(new KofLoadLiteral(BuiltinTypes.STRING, CompilerTypes.classNameFor(entityName)));
                             params.add(BuiltinTypes.STRING); // className
                         }
                         Type retType = ormCall.returnType();
@@ -4249,9 +4192,9 @@ private Target target = Target.JVM;
                             if ("all".equals(mc.methodName()) || "page".equals(mc.methodName())
                                     || "where".equals(mc.methodName())) {
                                 retType = new Type.ClassType("kof", "List",
-                                        List.of(toType(mc.typeArguments().get(0))));
+                                        List.of(CompilerTypes.toType(mc.typeArguments().get(0), currentUnit)));
                             } else if ("find".equals(mc.methodName())) {
-                                retType = toType(mc.typeArguments().get(0));
+                                retType = CompilerTypes.toType(mc.typeArguments().get(0), currentUnit);
                             }
                         }
                         ops.add(new KofCall(new Type.ClassType("kof.orm", "Orm", List.of()),
@@ -4822,7 +4765,7 @@ private Target target = Target.JVM;
                         // nomes declarados com pontos (android.view.View)
                         // viram nome interno JVM para resolução e emissão
                         superInternal = superInternal.replace('.', '/');
-                        Type superType = ownerTypeFromInternal(superInternal);
+                        Type superType = CompilerTypes.ownerTypeFromInternal(superInternal, semanticAnalyzer);
                         SymbolTable.MethodSymbol superMethod = null;
                         if (semanticAnalyzer != null) {
                             String superSimple = superInternal.substring(superInternal.lastIndexOf('/') + 1);
@@ -4879,11 +4822,11 @@ private Target target = Target.JVM;
                                     mc.methodName(), paramTypes, returnType);
                             localIdx = emitArgumentsWithFormalTypes(mc.arguments(), paramTypes,
                                     ops, effectiveOwner, localIdx, locals);
-                            ops.add(new KofCall(ownerTypeFromInternal(effectiveOwner), bridgeName,
+                            ops.add(new KofCall(CompilerTypes.ownerTypeFromInternal(effectiveOwner, semanticAnalyzer), bridgeName,
                                     paramTypes, returnType, KofCallKind.INSTANCE));
                             yield localIdx;
                         } else {
-                            ops.add(new KofLoadLocal(ownerTypeFromInternal(effectiveOwner), 0));
+                            ops.add(new KofLoadLocal(CompilerTypes.ownerTypeFromInternal(effectiveOwner, semanticAnalyzer), 0));
                             localIdx = emitArgumentsWithFormalTypes(mc.arguments(), paramTypes, ops, owner, localIdx, locals);
                             ops.add(new KofCall(superType, mc.methodName(), paramTypes, returnType, KofCallKind.SUPER));
                             yield localIdx;
@@ -5271,7 +5214,7 @@ private Target target = Target.JVM;
                     }
                     SymbolTable.MethodSymbol resolvedMethod = semanticAnalyzer.getResolvedMethod(mc);
                     if (resolvedMethod != null) {
-                        recvType = ownerTypeFromInternal(resolvedMethod.ownerClass());
+                        recvType = CompilerTypes.ownerTypeFromInternal(resolvedMethod.ownerClass(), semanticAnalyzer);
                         methodReturnType = resolvedMethod.returnType();
                         methodParamTypes = new ArrayList<>(resolvedMethod.parameterTypes());
                     } else if (BuiltinTypes.isString(recvType)) {
@@ -5401,7 +5344,7 @@ private Target target = Target.JVM;
                             if (targetInternal == null) targetInternal = "java/lang/Object";
                             targetInternal = targetInternal.replace('.', '/');
                         }
-                        Type targetType = ownerTypeFromInternal(targetInternal);
+                        Type targetType = CompilerTypes.ownerTypeFromInternal(targetInternal, semanticAnalyzer);
                         SymbolTable.ClassSymbol targetCs = semanticAnalyzer.getClass(
                                 targetInternal.substring(targetInternal.lastIndexOf('/') + 1));
                         SymbolTable.ConstructorSymbol ctor = null;
@@ -5414,7 +5357,7 @@ private Target target = Target.JVM;
                         }
                         List<Type> argTypes = new ArrayList<>();
                         for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
-                        ops.add(new KofLoadLocal(ownerTypeFromInternal(owner), 0));
+                        ops.add(new KofLoadLocal(CompilerTypes.ownerTypeFromInternal(owner, semanticAnalyzer), 0));
                         List<Type> ctorParamTypes;
                         if (ctor != null && ctor.parameterTypes().size() == mc.arguments().size()) {
                             ctorParamTypes = ctor.parameterTypes();
@@ -5442,7 +5385,7 @@ private Target target = Target.JVM;
                     if (selfMethod != null && !owner.isEmpty()
                             && !"<init>".equals(selfMethod.name())
                             && selfMethod.ownerClass() != null) {
-                        Type ownerType = ownerTypeFromInternal(selfMethod.ownerClass());
+                        Type ownerType = CompilerTypes.ownerTypeFromInternal(selfMethod.ownerClass(), semanticAnalyzer);
                         ops.add(new KofLoadLocal(ownerType, 0));
                         localIdx = emitArgumentsWithFormalTypes(mc.arguments(), selfMethod.parameterTypes(),
                                 ops, owner, localIdx, locals);
@@ -5512,7 +5455,7 @@ private Target target = Target.JVM;
                                 }
                             }
                             localIdx = emitArgumentsWithFormalTypes(mc.arguments(), argTypes, ops, owner, localIdx, locals);
-                            ops.add(new KofCall(mainClassType(), mc.methodName(), argTypes, returnType, KofCallKind.FUNCTION));
+                            ops.add(new KofCall(CompilerTypes.mainClassType(currentModule), mc.methodName(), argTypes, returnType, KofCallKind.FUNCTION));
                             Type effective = inferExprType(mc, locals);
                             if (returnType instanceof Type.TypeVariable && TypeMetrics.isPrimitiveType(effective)) {
                                 emitErasureUnbox(ops, effective);
@@ -5536,7 +5479,7 @@ private Target target = Target.JVM;
                                 && (fieldSym instanceof SymbolTable.FieldSymbol
                                 || (fieldSym instanceof SymbolTable.MethodSymbol ms
                                         && ms.parameterTypes().isEmpty()))) {
-                            Type ownerType = ownerTypeFromInternal(owner);
+                            Type ownerType = CompilerTypes.ownerTypeFromInternal(owner, semanticAnalyzer);
                             ops.add(new KofLoadLocal(ownerType, 0));
                             String op = ae.operator();
                             if ("+=".equals(op) || "-=".equals(op) || "*=".equals(op)
@@ -5822,13 +5765,13 @@ private Target target = Target.JVM;
                 yield localIdx;
             }
             case NewExpr ne -> {
-                Type type = toType(ne.typeName());
+                Type type = CompilerTypes.toType(ne.typeName(), currentUnit);
                 if ("List".equals(ne.typeName()) || "ArrayList".equals(ne.typeName())) {
                     type = BuiltinTypes.LIST;
                 }
                 if (!ne.typeArguments().isEmpty() && type instanceof Type.ClassType cts) {
                     type = new Type.ClassType(cts.packageName(), cts.name(),
-                            ne.typeArguments().stream().map(this::toType).toList());
+                            ne.typeArguments().stream().map(n -> CompilerTypes.toType(n, currentUnit)).toList());
                 }
                 if (BuiltinTypes.isList(type)) {
                     List<Type> argTypes = new ArrayList<>();
@@ -5906,7 +5849,7 @@ private Target target = Target.JVM;
                 yield localIdx;
             }
             case NewArrayExpr na -> {
-                Type elemType = toType(na.elementType());
+                Type elemType = CompilerTypes.toType(na.elementType(), currentUnit);
                 localIdx = emitExpression(na.size(), ops, owner, localIdx, locals);
                 ops.add(new KofNewArray(elemType));
                 yield localIdx;
@@ -5933,11 +5876,11 @@ private Target target = Target.JVM;
                     String superInternal = findSuperClass(owner);
                     if (superInternal == null) superInternal = "java/lang/Object";
                     superInternal = superInternal.replace('.', '/');
-                    Type superType = ownerTypeFromInternal(superInternal);
+                    Type superType = CompilerTypes.ownerTypeFromInternal(superInternal, semanticAnalyzer);
                     String superSimple = superInternal.substring(superInternal.lastIndexOf('/') + 1);
                     SymbolTable.Symbol fieldSym = semanticAnalyzer.resolveInHierarchy(superSimple, fa.fieldName());
                     Type fieldType = fieldSym != null ? fieldSym.type() : inferExprType(fa, locals);
-                    ops.add(new KofLoadLocal(ownerTypeFromInternal(owner), 0));
+                    ops.add(new KofLoadLocal(CompilerTypes.ownerTypeFromInternal(owner, semanticAnalyzer), 0));
                     ops.add(new KofLoadField(superType, fa.fieldName(), fieldType));
                     yield localIdx;
                 }
@@ -6159,7 +6102,7 @@ private Target target = Target.JVM;
                 case ConcreteLiteralKind.CHAR -> Type.PrimitiveType.CHAR;
                 case ConcreteLiteralKind.NULL -> Type.UnknownType.UNKNOWN;
             };
-            case QueryDslExpr q -> new Type.ClassType("kof", "List", List.of(toType(q.entityType())));
+            case QueryDslExpr q -> new Type.ClassType("kof", "List", List.of(CompilerTypes.toType(q.entityType(), currentUnit)));
             case IdentifierExpr ie -> {
                 if (loweringMain && "args".equals(ie.name())) {
                     if (mainArgsListField) {
@@ -6225,7 +6168,7 @@ private Target target = Target.JVM;
                         // "x as Tipo": o tipo alvo passa pelo toType (imports)
                         if (be.right() instanceof IdentifierExpr rie
                                 && rightType instanceof Type.UnknownType) {
-                            Type q = toType(rie.name());
+                            Type q = CompilerTypes.toType(rie.name(), currentUnit);
                             if (!(q instanceof Type.UnknownType)) leftType = q;
                             else leftType = rightType;
                         } else {
@@ -6473,7 +6416,7 @@ private Target target = Target.JVM;
                 if (mc.receiver() instanceof IdentifierExpr rid && "json".equals(rid.name())) {
                     if ("encode".equals(mc.methodName())) yield BuiltinTypes.STRING;
                     if ("decode".equals(mc.methodName()) && !mc.typeArguments().isEmpty()) {
-                        yield toType(mc.typeArguments().get(0));
+                        yield CompilerTypes.toType(mc.typeArguments().get(0), currentUnit);
                     }
                     yield Type.UnknownType.UNKNOWN;
                 }
@@ -6491,7 +6434,7 @@ private Target target = Target.JVM;
                     if (dbCall != null) {
                         if (typed && !mc.typeArguments().isEmpty()) {
                             yield new Type.ClassType("kof", "List",
-                                    List.of(toType(mc.typeArguments().get(0))));
+                                    List.of(CompilerTypes.toType(mc.typeArguments().get(0), currentUnit)));
                         }
                         yield dbCall.returnType();
                     }
@@ -6553,10 +6496,10 @@ private Target target = Target.JVM;
                             if ("all".equals(mc.methodName()) || "where".equals(mc.methodName())
                                     || "page".equals(mc.methodName())) {
                                 yield new Type.ClassType("kof", "List",
-                                        List.of(toType(mc.typeArguments().get(0))));
+                                        List.of(CompilerTypes.toType(mc.typeArguments().get(0), currentUnit)));
                             }
                             if ("find".equals(mc.methodName())) {
-                                yield toType(mc.typeArguments().get(0));
+                                yield CompilerTypes.toType(mc.typeArguments().get(0), currentUnit);
                             }
                         }
                         yield ormCall.returnType();
@@ -6737,7 +6680,7 @@ private Target target = Target.JVM;
                     }
                     for (AstNode d : currentUnit.declarations()) {
                         if (d instanceof FunctionDeclarationNode fn && fn.name().equals(mc.methodName())) {
-                            Type returnType = toType(fn.returnType());
+                            Type returnType = CompilerTypes.toType(fn.returnType(), currentUnit);
                             if (fn.typeParameters().contains(fn.returnType())) {
                                 returnType = new Type.TypeVariable(fn.returnType());
                             }
@@ -6786,17 +6729,17 @@ private Target target = Target.JVM;
                 yield Type.UnknownType.UNKNOWN;
             }
             case NewArrayExpr na -> {
-                Type elemType = toType(na.elementType());
+                Type elemType = CompilerTypes.toType(na.elementType(), currentUnit);
                 yield new Type.ArrayType(elemType);
             }
             case NewExpr ne -> {
-                Type t = toType(ne.typeName());
+                Type t = CompilerTypes.toType(ne.typeName(), currentUnit);
                 if ("List".equals(ne.typeName()) || "ArrayList".equals(ne.typeName())) {
                     t = BuiltinTypes.LIST;
                 }
                 if (!ne.typeArguments().isEmpty() && t instanceof Type.ClassType cts) {
                     t = new Type.ClassType(cts.packageName(), cts.name(),
-                            ne.typeArguments().stream().map(this::toType).toList());
+                            ne.typeArguments().stream().map(n -> CompilerTypes.toType(n, currentUnit)).toList());
                 }
                 yield t;
             }
@@ -6875,7 +6818,7 @@ private Target target = Target.JVM;
                 List<IRLocalVariable> extended = new ArrayList<>(locals);
                 int pidx = 0;
                 for (FormalParameterNode p : le.parameters()) {
-                    Type pt = toType(p.type());
+                    Type pt = CompilerTypes.toType(p.type(), currentUnit);
                     paramTypes.add(pt);
                     extended.add(new IRLocalVariable(pidx++, p.name(), pt));
                 }
@@ -7143,7 +7086,7 @@ private Target target = Target.JVM;
                                List<IRLocalVariable> locals) {
         List<IRLocalVariable> captures = collectCaptures(le, locals);
         if (lambdaUsesSuper(le) && currentLoweringOwner != null) {
-            Type outerType = ownerTypeFromInternal(currentLoweringOwner);
+            Type outerType = CompilerTypes.ownerTypeFromInternal(currentLoweringOwner, semanticAnalyzer);
             List<IRLocalVariable> eff = new ArrayList<>();
             eff.add(new IRLocalVariable(0, "$outer", outerType));
             eff.addAll(captures);
@@ -7338,7 +7281,7 @@ private Target target = Target.JVM;
                 String className = owner.substring(owner.lastIndexOf('/') + 1);
                 SymbolTable.Symbol fieldSym = resolveFieldInHierarchy(className, ie.name());
                 if (fieldSym instanceof SymbolTable.FieldSymbol fs) {
-                    Type ownerType = ownerTypeFromInternal(owner);
+                    Type ownerType = CompilerTypes.ownerTypeFromInternal(owner, semanticAnalyzer);
                     ops.add(new KofLoadLocal(ownerType, 0));
                     localIdx = emitFieldIncrement(ownerType, ie.name(), fs.type(), prefix, op,
                             ops, localIdx, locals);
@@ -7668,7 +7611,7 @@ private Target target = Target.JVM;
 
     // v1 flat: objetos aninhados ainda nao sao suportados pelo walker
     private boolean fieldOk(String typeName, String className, java.util.Set<String> visiting) {
-        Type t = toType(typeName);
+        Type t = CompilerTypes.toType(typeName, currentUnit);
         if (t instanceof Type.PrimitiveType) return true;
         if (BuiltinTypes.isString(t)) return true;
         if (currentDiagnostics != null) {
@@ -8062,7 +8005,7 @@ private Target target = Target.JVM;
         }
         methods.add(0, generateRecordConstructor(rec, internalName));
         methods.addAll(generateRecordDefaultOverloads(rec, internalName));
-        Type ownerType = ownerTypeFromInternal(internalName);
+        Type ownerType = CompilerTypes.ownerTypeFromInternal(internalName, semanticAnalyzer);
         for (RecordComponentNode comp : rec.components()) {
             Type compType = resolveWithTypeParams(comp.type(), typeParams);
             List<KofOperation> body = new ArrayList<>();
@@ -8095,7 +8038,7 @@ private Target target = Target.JVM;
 
     private Type resolveWithTypeParams(String typeName, List<String> typeParams) {
         if (typeParams.contains(typeName)) return new Type.TypeVariable(typeName);
-        return toType(typeName);
+        return CompilerTypes.toType(typeName, currentUnit);
     }
 
     private IRField lowerField(FieldDeclarationNode field, List<String> typeParams) {
@@ -8143,7 +8086,7 @@ private Target target = Target.JVM;
      * ("import android.view.OnClickListener") qualifica; senão, classe local.
      */
     private String externalOrLocalInternalName(String name) {
-        Type q = qualifyViaImports(name);
+        Type q = CompilerTypes.qualifyViaImports(name, currentUnit);
         if (q instanceof Type.ClassType qt && !qt.packageName().isEmpty()) {
             return qt.internalName();
         }
@@ -8254,7 +8197,7 @@ private Target target = Target.JVM;
         if (method.body() != null && !method.body().isEmpty() && !isAbstractMethod(method)) {
             List<KofOperation> ops = new ArrayList<>();
             List<IRLocalVariable> localVars = new ArrayList<>();
-            Type ownerType = ownerTypeFromInternal(owner);
+            Type ownerType = CompilerTypes.ownerTypeFromInternal(owner, semanticAnalyzer);
             // método ESTÁTICO: sem this, params começam no slot 0
             boolean isStaticMethod = (access & AccessFlags.STATIC) != 0;
             if (!isStaticMethod) {
@@ -8332,8 +8275,8 @@ private Target target = Target.JVM;
         if (firstDefault == n) return wrappers;
         List<Type> canonicalTypes = new ArrayList<>();
         for (FormalParameterNode p : params) canonicalTypes.add(resolveWithTypeParams(p.type(), typeParams));
-        Type ownerType = ownerTypeFromInternal(owner);
-        Type superType = ownerTypeFromInternal(superName);
+        Type ownerType = CompilerTypes.ownerTypeFromInternal(owner, semanticAnalyzer);
+        Type superType = CompilerTypes.ownerTypeFromInternal(superName, semanticAnalyzer);
         for (int drop = 1; drop <= n - firstDefault; drop++) {
             int paramCount = n - drop;
             List<Type> paramTypes = canonicalTypes.subList(0, paramCount);
@@ -8383,8 +8326,8 @@ private Target target = Target.JVM;
         int access = computeAccess(ctor.modifiers());
         List<KofOperation> ops = new ArrayList<>();
         List<IRLocalVariable> localVars = new ArrayList<>();
-        Type ownerType = ownerTypeFromInternal(owner);
-        Type superType = ownerTypeFromInternal(superName);
+        Type ownerType = CompilerTypes.ownerTypeFromInternal(owner, semanticAnalyzer);
+        Type superType = CompilerTypes.ownerTypeFromInternal(superName, semanticAnalyzer);
         localVars.add(new IRLocalVariable(0, "this", ownerType));
         boolean delegatesToThis = !ctor.body().isEmpty() &&
                 ctor.body().getFirst() instanceof ExpressionStmt es &&
@@ -8425,8 +8368,8 @@ private Target target = Target.JVM;
 
     private IRMethod generateDefaultConstructor(String owner, String superName, List<IRField> fields,
                                                  java.util.Map<String, ExpressionNode> fieldInits) {
-        Type ownerType = ownerTypeFromInternal(owner);
-        Type superType = ownerTypeFromInternal(superName);
+        Type ownerType = CompilerTypes.ownerTypeFromInternal(owner, semanticAnalyzer);
+        Type superType = CompilerTypes.ownerTypeFromInternal(superName, semanticAnalyzer);
         List<KofOperation> ops = new ArrayList<>();
         List<IRLocalVariable> locals = new ArrayList<>();
         locals.add(new IRLocalVariable(0, "this", ownerType));
@@ -8494,7 +8437,7 @@ private Target target = Target.JVM;
      */
     private IRMethod buildRecordToStringMethod(String internalName, RecordDeclarationNode rec,
                                                List<IRField> fields, List<String> typeParams) {
-        Type ownerType = ownerTypeFromInternal(internalName);
+        Type ownerType = CompilerTypes.ownerTypeFromInternal(internalName, semanticAnalyzer);
         String simpleName = internalName.contains("/")
                 ? internalName.substring(internalName.lastIndexOf('/') + 1) : internalName;
         List<KofOperation> ops = new ArrayList<>();
@@ -8545,7 +8488,7 @@ private Target target = Target.JVM;
      */
     private IRMethod buildRecordEqualsMethod(String internalName, List<IRField> fields,
                                              List<String> typeParams) {
-        Type ownerType = ownerTypeFromInternal(internalName);
+        Type ownerType = CompilerTypes.ownerTypeFromInternal(internalName, semanticAnalyzer);
         List<KofOperation> ops = new ArrayList<>();
         List<IRLocalVariable> locals = new ArrayList<>();
         locals.add(new IRLocalVariable(0, "this", ownerType));
@@ -8576,7 +8519,7 @@ private Target target = Target.JVM;
         List<Type> compTypes = rec.components().stream().map(c -> resolveWithTypeParams(c.type(), typeParams)).toList();
         List<KofOperation> ops = new ArrayList<>();
         List<IRLocalVariable> locals = new ArrayList<>();
-        Type ownerType = ownerTypeFromInternal(owner);
+        Type ownerType = CompilerTypes.ownerTypeFromInternal(owner, semanticAnalyzer);
         Type superType = new Type.ClassType("java.lang", "Record", List.of());
         locals.add(new IRLocalVariable(0, "this", ownerType));
         if (isJvmTarget()) {
@@ -8610,8 +8553,8 @@ private Target target = Target.JVM;
             }
         }
         if (firstDefault == n) return overloads;
-        Type ownerType = ownerTypeFromInternal(owner);
-        List<Type> canonicalTypes = rec.components().stream().map(c -> toType(c.type())).toList();
+        Type ownerType = CompilerTypes.ownerTypeFromInternal(owner, semanticAnalyzer);
+        List<Type> canonicalTypes = rec.components().stream().map(c -> CompilerTypes.toType(c.type(), currentUnit)).toList();
         for (int drop = 1; drop <= n - firstDefault; drop++) {
             int paramCount = n - drop;
             List<Type> paramTypes = new ArrayList<>();
@@ -8621,7 +8564,7 @@ private Target target = Target.JVM;
             ops.add(new KofLoadLocal(ownerType, 0));
             int localIdx = 1;
             for (int i = 0; i < paramCount; i++) {
-                Type t = toType(rec.components().get(i).type());
+                Type t = CompilerTypes.toType(rec.components().get(i).type(), currentUnit);
                 paramTypes.add(t);
                 locals.add(new IRLocalVariable(localIdx, rec.components().get(i).name(), t));
                 ops.add(new KofLoadLocal(t, localIdx));
