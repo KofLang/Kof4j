@@ -133,6 +133,19 @@ class NativeAarch64E2ETest {
         assertEquals("2\nABC\nabc\na-b-c\nheLLo\n4\ntrue\n3\nb", out);
     }
 
+    // NATIVE002-stdlib: time.now() herdado do riscv64 (clock_gettime=113).
+    @Test
+    void aarch64TimeNow(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runAarch64(tempDir, """
+            main() {
+                var t = time.now()
+                println(t > 1000000000000)
+            }
+            """);
+        assertEquals("true", out);
+    }
+
     private static int startHttpServer() throws IOException {
         java.net.ServerSocket ss = new java.net.ServerSocket(0);
         int port = ss.getLocalPort();

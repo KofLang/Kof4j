@@ -401,6 +401,20 @@ class NativeRiscv64E2ETest {
         assertEquals("2\nABC\nabc\na-b-c\nheLLo\n4\ntrue\n3\nb", out);
     }
 
+    // NATIVE002-stdlib: time.now() real (clock_gettime=113) — antes era stub
+    // `li a0,0` que quebrava o TTL do cache e time.now() silenciosamente (R6).
+    @Test
+    void riscv64TimeNow(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runRiscv64(tempDir, """
+            main() {
+                var t = time.now()
+                println(t > 1000000000000)
+            }
+            """);
+        assertEquals("true", out);
+    }
+
     private static int startHttpServer() throws IOException {
         java.net.ServerSocket ss = new java.net.ServerSocket(0);
         int port = ss.getLocalPort();

@@ -5198,10 +5198,28 @@ public class NativeBackend implements Backend {
                 beqz a0, kof_null_error
                 ret
 
-            # ---- kof.time (minimal) ----
+            # ---- kof.time ----
+            # kof_time_now() -> epoch-ms (CLOCK_REALTIME). clock_gettime=113
+            # (asm-generic, mesma tabela aarch64); paridade com o x86_64 (que
+            # usava syscall 96). Antes era stub `li a0,0` → TTL do cache e
+            # time.now() quebravam silenciosamente (R6).
             .globl kof_time_now
             kof_time_now:
-                li   a0, 0
+                addi sp, sp, -32
+                sd   ra, 24(sp)
+                addi a1, sp, 0              # &timespec {sec@0, nsec@8}
+                li   a0, 0                  # CLOCK_REALTIME
+                li   a7, 113
+                ecall
+                ld   t0, 0(sp)              # tv_sec
+                ld   t1, 8(sp)              # tv_nsec
+                li   t2, 1000
+                mul  a0, t0, t2             # sec * 1000
+                li   t3, 1000000
+                div  t1, t1, t3             # nsec / 1_000_000
+                add  a0, a0, t1             # epoch-ms
+                ld   ra, 24(sp)
+                addi sp, sp, 32
                 ret
             .globl kof_time_sleep
             kof_time_sleep:
