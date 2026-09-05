@@ -138,7 +138,7 @@ private Target target = Target.JVM;
      * EXTERNAS (JVM/Android via ExternalClasspath).
      */
     public CompilationResult compileSources(java.util.List<Path> sources, Path outputDir, Target target) {
-        return compileSources(sources, outputDir, target, moduleRootFor(sources));
+        return compileSources(sources, outputDir, target, ModuleRoots.moduleRootFor(sources));
     }
 
     /**
@@ -147,27 +147,7 @@ private Target target = Target.JVM;
      * multi-diretório (P1-4). Fontes no mesmo diretório mantêm o diretório
      * como raiz (comportamento anterior, convenção Go-like).
      */
-    private static Path moduleRootFor(java.util.List<Path> sources) {
-        if (sources.isEmpty()) return null;
-        java.util.List<Path> parents = new java.util.ArrayList<>();
-        for (Path s : sources) {
-            Path p = s.toAbsolutePath().normalize().getParent();
-            if (p != null) parents.add(p);
-        }
-        if (parents.isEmpty()) return null;
-        Path lca = parents.get(0);
-        for (int i = 1; i < parents.size(); i++) lca = commonAncestor(lca, parents.get(i));
-        return lca;
-    }
 
-    private static Path commonAncestor(Path a, Path b) {
-        int n = Math.min(a.getNameCount(), b.getNameCount());
-        int i = 0;
-        while (i < n && a.getName(i).toString().equals(b.getName(i).toString())) i++;
-        if (i == 0) return a.getRoot() != null ? a.getRoot() : Path.of(".");
-        Path sub = a.subpath(0, i);
-        return a.getRoot() != null ? a.getRoot().resolve(sub) : sub;
-    }
 
     public CompilationResult compileSources(java.util.List<Path> sources, Path outputDir, Target target,
                                             Path moduleRoot) {
@@ -201,7 +181,7 @@ private Target target = Target.JVM;
             java.util.List<String> unitPkgs = new ArrayList<>();
             for (int i = 0; i < parsedUnits.size(); i++) {
                 String declared = parsedUnits.get(i).packageName();
-                String derivedPkg = derivedPackageOf(sources.get(i), rootAbs);
+                String derivedPkg = ModuleRoots.derivedPackageOf(sources.get(i), rootAbs);
                 if (!declared.isEmpty() && !declared.equals(derivedPkg)) {
                     diagnostics.error(sources.get(i).toString(), 0, 0, 0,
                             "package '" + declared
@@ -838,13 +818,6 @@ private Target target = Target.JVM;
 
 
     /** Pacote derivado do DIRETÓRIO do arquivo relativo à raiz do módulo. */
-    private static String derivedPackageOf(Path src, Path rootAbs) {
-        Path abs = src.toAbsolutePath().normalize();
-        if (rootAbs == null || !abs.startsWith(rootAbs)) return "";
-        Path parent = rootAbs.relativize(abs).getParent();
-        if (parent == null || parent.toString().isEmpty()) return "";
-        return parent.toString().replace(java.io.File.separatorChar, '.');
-    }
 
     /**
      * P3-10: em {@code orm.where<T>(db, "col", v)}, {@code orm.where_op<T>(db,
