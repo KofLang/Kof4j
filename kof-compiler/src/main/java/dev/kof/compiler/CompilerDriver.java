@@ -4918,7 +4918,7 @@ Target target = Target.JVM;
                 yield localIdx;
             }
             case SwitchExpr se -> {
-                localIdx = StatementLowerer.emitSwitchExpr(this, se, ops, owner, localIdx, locals);
+                localIdx = SwitchExprLowerer.emitSwitchExpr(this, se, ops, owner, localIdx, locals);
                 yield localIdx;
             }
             case LambdaExpr le -> {
