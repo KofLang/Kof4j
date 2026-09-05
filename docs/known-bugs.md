@@ -466,6 +466,28 @@ EXTERNA produz lixo
 
 ---
 
+### 27. `println(char)` diverge entre targets (JVM codepoint vs x86_64 caractere)
+
+- **Sintoma:** `NativeE2ETest.execStringCharAt` falha no x86_64: esperado
+  `72\n111` (codepoints, como o JVM — `JvmE2ETest.execStringMethods` espera
+  `101`), obtido `H\no` (caracteres). Introduzido em 05/09 pelo commit
+  `c0f23c9..15f87b4` (M36/Vulkan) que mudou `valueOf(char)` no x86_64 para
+  `kof_char_to_string` (motivo legítimo: `String.valueOf(0xE9 as Char)`
+  devolvia `"233"` em vez de `"é"`) sem atualizar o teste nem alinhar os
+  outros targets.
+- **Estado:** falha **pré-existente no `origin/beta-0.3.0`** (reproduzida no
+  remoto puro, sem merges). NÃO é regressão do merge de NATIVE002-stdlib.
+- **Decisão pendente (regra 6 — semântica congelada):** `println(char)` é
+  codepoint (JVM atual) ou caractere (x86_64 novo)? É mudança de contrato
+  cross-target → precisa de decisão explícita + alinhamento dos 4 targets
+  (JVM/x86_64/riscv64/aarch64/JS) + bump. riscv64/aarch64 herdam o codegen
+  x86_64? Não — têm `kof_println_int` próprio (codepoint). Enquanto a
+  decisão não vier, o teste fica vermelho no x86_64.
+- **Arquivos:** `NativeBackend.java` (x86_64 `valueOf(char)` ~1546),
+  `NativeE2ETest.execStringCharAt`, `JvmE2ETest.execStringMethods`.
+
+---
+
 ## Comportamentos que PAREcem bugs mas são esperados (não corrigir)
 
 | Cenário | Comportamento | Por quê |
