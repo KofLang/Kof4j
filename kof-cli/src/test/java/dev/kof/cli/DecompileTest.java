@@ -65,6 +65,31 @@ class DecompileTest {
         assertTrue(kof.contains("String label"), "instance field should be kept:\n" + kof);
     }
 
+    @Test
+    void recoversSimpleArithmeticBody(@TempDir Path dir) throws Exception {
+        Path javaFile = dir.resolve("Arith.java");
+        Files.writeString(javaFile, """
+                public class Arith {
+                    public static int add(int a, int b) { return a + b; }
+                    public int twice(int x) { return x * 2; }
+                }
+                """);
+        runJavac(javaFile, dir);
+
+        String kof = Decompile.decompile(dir.resolve("Arith.class"));
+
+        assertTrue(kof.contains("add(Int arg0, Int arg1) = ("), "add must be recovered as expression body:\n" + kof);
+        assertTrue(kof.contains("+"), "must contain arithmetic:\n" + kof);
+        assertTrue(kof.contains("twice(Int arg0) = ("), "twice must be recovered (instance, arg shifted by this):\n" + kof);
+        assertFalse(kof.contains("throw \"body not recovered\""), "no stub expected for recovered bodies:\n" + kof);
+
+        Path out = dir.resolve("Arith.kf");
+        Files.writeString(out, kof);
+        CompilerDriver driver = new CompilerDriver();
+        CompilationResult result = driver.compile(out, dir.resolve("out"), Target.JVM);
+        assertTrue(result.success(), "decompiled must compile:\n" + kof + "\n" + result.diagnostics().getDiagnostics());
+    }
+
     private void runJavac(Path javaFile, Path dir) throws IOException, InterruptedException {
         String javaHome = System.getProperty("java.home");
         Path javac = Path.of(javaHome, "bin", "javac");

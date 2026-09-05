@@ -64,8 +64,8 @@ public final class Decompile {
         var ir = ClassFileParser.parse(Files.newInputStream(classFile));
         StringBuilder sb = new StringBuilder();
         sb.append("// decompiled from ").append(classFile.getFileName()).append('\n');
-        sb.append("// structural skeleton — method bodies not recovered yet (Fase E)\n");
-        sb.append("// confidence: class/fields/signatures = EXACT; method bodies = UNKNOWN\n\n");
+        sb.append("// structural skeleton — simple method bodies recovered; others stubbed (Fase E)\n");
+        sb.append("// confidence: class/fields/signatures = EXACT; recovered bodies = EXACT; stubs = UNKNOWN\n\n");
 
         String simpleName = simpleName(ir.thisClass);
         sb.append("class ").append(simpleName);
@@ -95,11 +95,24 @@ public final class Decompile {
                   .append(") {\n    }\n");
                 continue;
             }
-            sb.append("    ").append(methodKofType(m.returnTypeName())).append(' ')
-              .append(m.name)
-              .append('(').append(paramList(m.parameterTypeNames())).append(") {\n");
-            sb.append("        throw \"body not recovered\"   // ").append(Confidence.UNKNOWN.label()).append('\n');
-            sb.append("    }\n");
+            String ret = methodKofType(m.returnTypeName());
+            String params = paramList(m.parameterTypeNames());
+            String body = null;
+            if (m.code != null) {
+                body = BytecodeDecoder.recoverExpression(m.code.bytecode, ir.constantPool,
+                        m.parameterTypeNames().size(), (m.accessFlags & 0x0008) != 0);
+            }
+            if (body == null) {
+                sb.append("    ").append(ret).append(' ').append(m.name)
+                  .append('(').append(params).append(") {\n");
+                sb.append("        throw \"body not recovered\"   // ").append(Confidence.UNKNOWN.label()).append('\n');
+                sb.append("    }\n");
+            } else if (body.isEmpty()) {
+                sb.append("    ").append(ret).append(' ').append(m.name).append('(').append(params).append(") {\n    }\n");
+            } else {
+                sb.append("    ").append(ret).append(' ').append(m.name).append('(').append(params)
+                  .append(") = ").append(body).append('\n');
+            }
         }
 
         sb.append("}\n");
