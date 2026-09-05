@@ -77,7 +77,8 @@ final class BytecodeDecoder {
                     String a = callArgs(stack, argCount(m[2]));
                     if (a == null || stack.isEmpty()) return null;
                     String recv = stack.pop();
-                    stack.push(recv + "." + m[1] + "(" + a + ")");
+                    String mapped = mapStdlib(recv, m[0], m[1], a);
+                    stack.push(mapped != null ? mapped : recv + "." + m[1] + "(" + a + ")");
                 }
                 case 0xb4 -> { // getfield
                     String[] f = resolveMethodRef(cp, in.operands()[0]);
@@ -115,7 +116,7 @@ final class BytecodeDecoder {
                     return stack.isEmpty() ? null : stack.pop();
                 }
                 case 0xb1 -> {
-                    return "";
+                    return stack.isEmpty() ? "" : null;
                 }
                 default -> { return null; }
             }
@@ -336,6 +337,26 @@ final class BytecodeDecoder {
     private static String simpleOwner(String internal) {
         int s = internal.lastIndexOf('/');
         return s >= 0 ? internal.substring(s + 1) : internal;
+    }
+
+    private static boolean isVoidDesc(String desc) {
+        int idx = desc.indexOf(')');
+        return idx >= 0 && idx + 1 < desc.length() && desc.charAt(idx + 1) == 'V';
+    }
+
+    /** Mapeia chamada de stdlib Java → idiom Kof (decompiler, TRANSLATOR-equivalente). */
+    private static String mapStdlib(String receiver, String ownerInternal, String name, String args) {
+        if ("java/io/PrintStream".equals(ownerInternal) && "System.out".equals(receiver)
+                && ("println".equals(name) || "print".equals(name))) {
+            return (name.equals("println") ? "println" : "print") + "(" + args + ")";
+        }
+        if ("java/lang/String".equals(ownerInternal) && "length".equals(name)) {
+            return receiver + ".length";
+        }
+        if ("java/lang/String".equals(ownerInternal) && "equals".equals(name)) {
+            return receiver + " == " + args;
+        }
+        return null;
     }
 
     /** Resolve um nome de classe (Class CP entry) → nome simples. */
@@ -660,7 +681,8 @@ final class BytecodeDecoder {
                     if (m == null) return null;
                     String a = callArgs(stack, argCount(m[2]));
                     if (a == null) return null;
-                    stack.push(simpleOwner(m[0]) + "." + m[1] + "(" + a + ")");
+                    String call = simpleOwner(m[0]) + "." + m[1] + "(" + a + ")";
+                    if (isVoidDesc(m[2])) { stmts.add(call); } else { stack.push(call); }
                 }
                 case 0xb6 -> { // invokevirtual
                     String[] m = resolveMethodRef(cp, in.operands()[0]);
@@ -668,7 +690,9 @@ final class BytecodeDecoder {
                     String a = callArgs(stack, argCount(m[2]));
                     if (a == null || stack.isEmpty()) return null;
                     String recv = stack.pop();
-                    stack.push(recv + "." + m[1] + "(" + a + ")");
+                    String mapped = mapStdlib(recv, m[0], m[1], a);
+                    String call = mapped != null ? mapped : recv + "." + m[1] + "(" + a + ")";
+                    if (isVoidDesc(m[2])) { stmts.add(call); } else { stack.push(call); }
                 }
                 case 0xb4 -> { // getfield
                     String[] f = resolveMethodRef(cp, in.operands()[0]);

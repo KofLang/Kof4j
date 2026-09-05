@@ -319,6 +319,32 @@ class DecompileTest {
         assertTrue(result.success(), "decompiled deve compilar:\n" + kof + "\n" + result.diagnostics().getDiagnostics());
     }
 
+    @Test
+    void mapsStdlib(@TempDir Path dir) throws Exception {
+        Path javaFile = dir.resolve("Std.java");
+        Files.writeString(javaFile, """
+                public class Std {
+                    public static void hello() { System.out.println("hi"); }
+                    public static int size(String s) { return s.length(); }
+                    public static boolean same(String a, String b) { return a.equals(b); }
+                }
+                """);
+        runJavac(javaFile, dir);
+
+        String kof = Decompile.decompile(dir.resolve("Std.class"));
+
+        assertTrue(kof.contains("println(\"hi\")"), "System.out.println deve virar println:\n" + kof);
+        assertFalse(kof.contains("System.out"), "não deve manter System.out:\n" + kof);
+        assertTrue(kof.contains("arg0.length"), "String.length() deve virar .length:\n" + kof);
+        assertTrue(kof.contains("arg0 == arg1"), "equals deve virar ==:\n" + kof);
+
+        Path out = dir.resolve("Std.kf");
+        Files.writeString(out, kof);
+        CompilerDriver driver = new CompilerDriver();
+        CompilationResult result = driver.compile(out, dir.resolve("out"), Target.JVM);
+        assertTrue(result.success(), "decompiled deve compilar:\n" + kof + "\n" + result.diagnostics().getDiagnostics());
+    }
+
     private void runJavac(Path javaFile, Path dir) throws IOException, InterruptedException {
         String javaHome = System.getProperty("java.home");
         Path javac = Path.of(javaHome, "bin", "javac");
