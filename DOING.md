@@ -26,6 +26,10 @@ Estados: `ABERTO` · `EM CURSO` · `FEITO` · `BLOQUEADO`.
 
 | Gap/Item | Estado | Dono | Data | Prova |
 |---|---|---|---|---|
+| **Plataforma de migração legado** — Fases A–H (`kof inspect/decompile/translate/compare/migrate` + `Confidence`) | `FEITO` | agente-planning | 05/09 | branch `planning-future`; `ClassFileParser`+`Confidence`+CLIs; suíte **855/0**; commits `34ded81`→`98a4d8b` |
+| **FFI formalizado** — TIER 2.1 (`extern` + gap FFI001/002 + binding real JVM(FFM)+Native(dlopen/dlsym)) | `FEITO` | agente-planning | 05/09 | `FfiE2ETest` 5/5 (libc `abs`/`atoi`, libm `sqrt`); suíte 855/0 |
+| **Codegen hook + ct-eval** — TIER 2.2/2.3 (`CodegenStep` + string-concat folding) | `FEITO` | agente-planning | 05/09 | `OptimizerTest` 22/22 + `StructuredTestE2ETest` 32/0 |
+| **TIER 2.4/2.5** — scoped-resources (design) + variance/sealed (deferir) | `FEITO` | agente-planning | 05/09 | `docs/future/scoped-resources-plan.md` + decisão em `IMPLEMENTATION_PLAN.md` |
 | **GC mark-sweep** Native | `FEITO` | agente-planning | 03/09 | `461ec3b` — sweep real funciona; auto-collect fica desligado (safe-points fora do escopo) |
 | **HTTP002** — `kof.http` no Native | `FEITO` | agente-planning | 03/09 | `71d27f2` — `NativeHttpRuntime.java` (novo, ≤500): parse URL, IPv4, socket/connect, request/read body/status; `KofHttpE2ETest` 6/6 (get/post/status com server Kof real) |
 | **MySQL Native prepared + query binário** | `FEITO` | agente-nativo-val | 03/09 | `4ce1f25` + `02b9ddb` — `NativeDbPrepared.java` (≤500): PREPARE/EXECUTE binário completo (); `KofDbE2ETest` 12/12 com `nativeMysqlPreparedBinary` (aspas+injection intactos) |

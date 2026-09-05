@@ -1,6 +1,6 @@
 # Scoped Resources — RAII leve (plano de design · TIER 2.4)
 
-**Status:** Plano (design) — implementação gated por bump de versão (semântica congelada)
+**Status:** Plano (design) — implementação gated por bump de versão (semântica congelada 0.2.6-beta)
 **Fonte:** `PLAN-UNIVERSAL-PLATFORM.md` §7 · `ACTION_PLAN.md` TIER 2.4
 
 ## 1. Objetivo
@@ -85,9 +85,11 @@ unit → desugarUsing → desugarTests → desugarApplication → lowering
 |------|--------|
 | Mecanismo (`try/finally` + GC) | ✅ já existe |
 | Hook de desugar (`CodegenStep`) | ✅ TIER 2.2.2 |
-| Sintaxe `using` | ⏳ **gated por R12** (SYSTEMS) + bump 0.3.0 (semântica congelada) |
+| Sintaxe `using` | ⏳ **gated por semântica congelada** (bump 0.3.0) |
 | Convenção `close()` + diagnóstico | ⏳ mesmo gate |
 
+> O estágio SYSTEMS (Tier 1) já fechou (03/09 — DOING.md), então o TIER 2 é
+> aberto. O gate real aqui não é R12: é a **semântica congelada** (0.2.6-beta).
 > Implementar a sintaxe agora violaria "semântica congelada" (AGENTS.md) —
 > mudança de linguagem exige **bump de versão + discussão**, nunca adição
-> silenciosa.
+> silenciosa. Entrega-se o design + o desugar pronto para ativar no 0.3.0.
