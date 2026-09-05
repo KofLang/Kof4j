@@ -4911,6 +4911,7 @@ public class NativeBackend implements Backend {
                 mv   s0, a0
                 li   s1, 0
                 li   s2, 0
+                li   a0, 0
                 lw   s3, 16(s0)
                 beqz s3, .Lsti_done
                 lbu  t0, 24(s0)
@@ -4919,7 +4920,7 @@ public class NativeBackend implements Backend {
                 li   s2, 1
             .Lsti_loop:
                 bge  s1, s3, .Lsti_sign
-                lbu  t0, 24(s0)
+                addi t0, s0, 24
                 add  t0, t0, s1
                 lbu  t0, 0(t0)
                 addi t0, t0, -48

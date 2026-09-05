@@ -162,6 +162,20 @@ class NativeAarch64E2ETest {
         assertEquals("Mel\nnull\ntrue", out);
     }
 
+    // NATIVE002-stdlib: "42".toInt() herdado do riscv64 (deref do valor → SIGSEGV).
+    @Test
+    void aarch64StringToInt(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runAarch64(tempDir, """
+            main() {
+                println("42".toInt())
+                println("-7".toInt())
+                println("0".toInt())
+            }
+            """);
+        assertEquals("42\n-7\n0", out);
+    }
+
     private static int startHttpServer() throws IOException {
         java.net.ServerSocket ss = new java.net.ServerSocket(0);
         int port = ss.getLocalPort();
