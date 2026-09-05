@@ -42,6 +42,62 @@ Linha de desenvolvimento 0.3.0 aberta em 04/09/2026. Semântica congelada
 
   - seção 0.2.7-beta movida para o topo
 
+## [0.3.0-beta] - 2026-09-05
+
+### Features
+
+  - String methods riscv64/aarch64 + 2 fixes de race no spawn
+  - spawn/await riscv64+aarch64 (NATIVE002-stdlib)
+  - http.get/post/status riscv64+aarch64 (NATIVE002-stdlib)
+  - add support for nested lambdas capturing outer variables
+  - JSON completo no riscv64/aarch64 (encode+decode de listas)
+  - kof_json_quote no riscv64/aarch64 + corrige escape x86_64
+  - PR6 hardening limits and observability (upstream rebase)
+
+### Bugfixes
+
+  - time.now() riscv64/aarch64 real (clock_gettime=113, paridade x86)
+  - println(char) numérico (72) preservado; String.valueOf(char) → caractere UTF-8 (h)
+  - FLT001 — println/valueOf(double) no cross vira diagnóstico, não segfault
+  - fcvt riscv64 com direção invertida (FP conversions quebradas)
+  - kof_mv64_matvec preserva rc do vk64_submit no readback de y (memcpy clobbera %eax)
+  - update stack handling and syscall for string printing
+  - readback y <- ymap apos submit em mv1 (rsi clobberado pelo submit)
+  - void-as-value SEM033, sublist SEM034, interface dispatch para tipo de função declarado
+  - cross riscv64/aarch64 reporta DB001 em compile-time (R6)
+  - aritmética sobre param de lambda sem anotação → SEM001, não bytecode quebrado
+  - base 1000x1e6 + recomposicao exata por divId
+  - vkMakeSet recebia PipelineLayout em vez do DSL
+  - unwrap InvocationTargetException in handler error catch
+  - map AudioSystem.isLineSupported throw to MEDIA003 message
+
+### Documentation
+
+  - FLT001-cross na matriz de gaps + Bug 27 (println(char) diverge — pré-existente remoto)
+  - REFACTOR-500 — divisão confirmada (fixes-for-kofagent faz Fases 4-8)
+  - gap 27 — paridade String.valueOf(char) JS vs JVM/Native (R6)
+  - reconcile note for planning-future <-> beta-0.3.0 (merge state, pre-existing charAt failure, normalization checklist)
+  - update AGENTS.md with autonomous mode guidelines and conditions for stopping
+  - add REFACTOR-500 entry for class division guidelines
+  - lição aprendida 04/09 — trabalhe sempre em partes pequenas
+  - add PLAN-SOLID-500 for class restructuring guidelines
+  - known-bugs.md — Bug 19 atualizado (triple-nested resolvido 04/09)
+  - NATIVE002-stdlib FEITO (JSON+http+spawn riscv64/aarch64; db→DB001)
+  - regra todowrite obrigatório (status visível a cada etapa)
+  - break TIER 2 into measurable subtasks (2.1.1–2.5.1)
+
+### Refactoring
+
+  - optimize descriptor set binding logic in assembly
+
+### Tests
+
+  - channelBlocksBeforeSendJvm não pinifica corrida de agendamento
+
+### Build
+
+  - abre linha 0.3.0-beta na branch beta-0.3.0
+
 <!-- NEXT-RELEASE -->
 
 ## [0.2.7-beta] - 2026-09-04
