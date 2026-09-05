@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -79,6 +80,36 @@ class NativeAarch64E2ETest {
             }
             """.formatted(port, port, port));
         assertEquals("Hello from Kof\n200\ngot:abc", out);
+    }
+
+    // NATIVE002-stdlib: spawn/await herdado do riscv64 (clone+futex).
+    @Test
+    void aarch64SpawnAwait(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runAarch64(tempDir, """
+            Int work(Int n) { return n * 2 }
+            main() {
+                val r = spawn work(21)
+                println(await r)
+            }
+            """);
+        assertEquals("42", out);
+    }
+
+    @Test
+    void aarch64SpawnFireAndForgetJoins(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runAarch64(tempDir, """
+            main() {
+                println("inicio")
+                spawn { println("bg") }
+                println("fim")
+            }
+            """);
+        var lines = List.of(out.split("\n"));
+        assertTrue(lines.contains("inicio"), "inicio primeiro: " + lines);
+        assertTrue(lines.contains("bg"), "join implícito espera o worker: " + lines);
+        assertTrue(lines.contains("fim"), "main não bloqueia no spawn: " + lines);
     }
 
     private static int startHttpServer() throws IOException {

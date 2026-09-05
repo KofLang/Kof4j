@@ -2012,11 +2012,12 @@ public class NativeBackend implements Backend {
         sb.append("    ld \\r, 0(sp)\n");
         sb.append("    addi sp, sp, 8\n");
         sb.append(".endm\n");
+        boolean usesSpawn = usesSpawn(module);
         for (IRClass c : module.classes()) {
             currentClass = c;
             for (IRMethod m : c.methods()) {
                 if ("<clinit>".equals(m.name())) continue;
-                emitCrossMethodRiscv(sb, c, m);
+                emitCrossMethodRiscv(sb, c, m, usesSpawn && "main".equals(m.name()));
             }
         }
 
@@ -2049,6 +2050,7 @@ public class NativeBackend implements Backend {
             if (usesHttp) break;
         }
         if (usesHttp) emitRiscvHttp(sb);
+        if (usesSpawn) emitRiscvSpawn(sb);
 
         String className = module.classes().isEmpty() ? "Default/Main" : module.classes().getFirst().name();
         Path asmFile = outputDir.resolve(className + ".s");
@@ -2683,7 +2685,198 @@ public class NativeBackend implements Backend {
             """);
     }
 
-    private void emitCrossMethodRiscv(StringBuilder sb, IRClass clazz, IRMethod method) {
+    // ---- NATIVE002-stdlib: spawn/await riscv64 (clone+futex, asm puro) ----
+    // qemu-riscv64 8.2.2 NÃO implementa clone3 (ENOSYS) — usa clone(220) com o
+    // flag-set da glibc (0x3D0F00 = VM|FS|FILES|SIGHAND|THREAD|SYSVSEM|SETTLS|
+    // PARENT_SETTID|CHILD_CLEARTID), que é aceito. O filho herda os registradores
+    // do pai no ecall (a0=0, s0=handle) e roda o trampoline; await espera via
+    // futex em handle->done (sem pthread_join). exit(93) mata só a thread.
+    static boolean usesSpawn(IRModule module) {
+        for (IRClass c : module.classes()) {
+            for (IRMethod m : c.methods()) {
+                for (IRBasicBlock b : m.basicBlocks()) {
+                    for (KofOperation op : b.operations()) {
+                        if (op instanceof KofCall kc
+                                && (kc.methodName().equals("kof_spawn")
+                                    || kc.methodName().equals("kof_spawn_result")
+                                    || kc.methodName().equals("kof_await"))) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    static void emitRiscvSpawn(StringBuilder sb) {
+        sb.append("""
+            # ---- spawn/await riscv64 (NATIVE002-stdlib) ----
+            .section .text
+            # handle: [typeId@0(i32) done@4(i32) result@8 stack@16] (32B)
+            # kof_spawn_result(task@a0) -> handle@a0
+            .globl kof_spawn_result
+            kof_spawn_result:
+                addi sp, sp, -32
+                sd   ra, 24(sp)
+                sd   s0, 16(sp)
+                sd   s1, 8(sp)
+                sd   s2, 0(sp)
+                mv   s0, a0                 # task
+                li   a0, 32
+                call kof_alloc
+                mv   s1, a0                 # handle
+                li   t0, 2
+                sw   t0, 0(s1)              # typeId=2 (handle)
+                sw   zero, 4(s1)            # done=0
+                sd   zero, 8(s1)            # result=0
+                # stack do worker: mmap(NULL, 1MB, RW, PRIVATE|ANON, -1, 0)
+                li   a0, 0
+                li   a1, 1048576
+                li   a2, 3
+                li   a3, 0x22
+                li   a4, -1
+                li   a5, 0
+                li   a7, 222
+                ecall
+                sd   a0, 16(s1)             # stack base (p/ debug/free)
+                li   t1, 1048576
+                add  s2, a0, t1             # stack TOP
+                # clone(flags, stack_top, ptid, tls, ctid) — filho herda s0,s1
+                li   a0, 0x3D0F00
+                mv   a1, s2
+                li   a2, 0
+                li   a3, 0
+                li   a4, 0
+                li   a7, 220
+                ecall
+                bltz a0, .Lsp_inline
+                bnez a0, .Lsp_reg           # pai: registra handle p/ join
+                # ---- filho: a0=0, s0=task, s1=handle ----
+                call kof_spawn_trampoline
+                li   a0, 0
+                li   a7, 93
+                ecall
+            .Lsp_inline:
+                # clone falhou: roda inline (degradação segura, sem thread)
+                call kof_spawn_trampoline
+                j    .Lsp_ret
+            .Lsp_reg:
+                # handle na lista global (máx 64) p/ join implícito
+                la   t0, kof_spawn_count
+                ld   t1, 0(t0)
+                li   t2, 64
+                bge  t1, t2, .Lsp_ret
+                slli t2, t1, 3
+                la   t3, kof_spawn_handles
+                add  t3, t3, t2
+                sd   s1, 0(t3)
+                addi t1, t1, 1
+                sd   t1, 0(t0)
+            .Lsp_ret:
+                mv   a0, s1
+                ld   s2, 0(sp)
+                ld   s1, 8(sp)
+                ld   s0, 16(sp)
+                ld   ra, 24(sp)
+                addi sp, sp, 32
+                ret
+            # kof_spawn(task@a0) -> handle registrado (join implícito no fim do main)
+            .globl kof_spawn
+            kof_spawn:
+                j    kof_spawn_result
+            # trampoline: s0=task, s1=handle -> roda task.invoke(), marca done, wake
+            kof_spawn_trampoline:
+                addi sp, sp, -32
+                sd   ra, 24(sp)
+                sd   s0, 16(sp)
+                sd   s1, 8(sp)
+                ld   t0, 8(s0)              # task vtable
+                ld   t0, 0(t0)              # vtable[0] = invoke
+                mv   a0, s0
+                jalr t0                     # a0 = resultado
+                ld   s0, 16(sp)             # invoke pode clobberar s-regs? não
+                ld   s1, 8(sp)              # (callee-saved), mas protege s0/s1
+                sd   a0, 8(s1)              # handle->result
+                fence rw, rw                # ordena result antes de done (RVO)
+                li   t0, 1
+                sw   t0, 4(s1)              # handle->done = 1
+                addi a0, s1, 4              # &done (futex word)
+                li   a1, 129                # FUTEX_WAKE_PRIVATE
+                li   a2, 1
+                li   a7, 98
+                ecall
+                ld   ra, 24(sp)
+                addi sp, sp, 32
+                ret
+            # kof_await(handle@a0) -> result@a0 (futex wait em done)
+            .globl kof_await
+            kof_await:
+                beqz a0, .Lkw_null
+                lw   t0, 4(a0)              # done?
+                bnez t0, .Lkw_val
+                addi sp, sp, -16
+                sd   s0, 8(sp)
+                sd   ra, 0(sp)
+                mv   s0, a0
+            .Lkw_wait:
+                addi a0, s0, 4              # &done
+                li   a1, 128                # FUTEX_WAIT_PRIVATE
+                li   a2, 0                  # esperado done==0
+                li   a3, 0
+                li   a7, 98
+                ecall
+                lw   t0, 4(s0)
+                beqz t0, .Lkw_wait
+                mv   a0, s0
+                ld   s0, 8(sp)
+                ld   ra, 0(sp)
+                addi sp, sp, 16
+            .Lkw_val:
+                ld   a0, 8(a0)
+                ret
+            .Lkw_null:
+                li   a0, 0
+                ret
+            # join implícito: aguarda todos os handles registrados (lista .bss).
+            .globl kof_spawn_join_all
+            kof_spawn_join_all:
+                addi sp, sp, -32
+                sd   ra, 24(sp)
+                sd   s0, 16(sp)
+                sd   s1, 8(sp)
+                sd   s2, 0(sp)
+                la   s0, kof_spawn_handles
+                la   s1, kof_spawn_count
+                ld   s1, 0(s1)
+                li   s2, 0
+            .Lkj_loop:
+                bge  s2, s1, .Lkj_done
+                slli t0, s2, 3
+                add  t0, s0, t0
+                ld   a0, 0(t0)
+                beqz a0, .Lkj_next
+                call kof_await
+            .Lkj_next:
+                addi s2, s2, 1
+                j    .Lkj_loop
+            .Lkj_done:
+                ld   ra, 24(sp)
+                ld   s0, 16(sp)
+                ld   s1, 8(sp)
+                ld   s2, 0(sp)
+                addi sp, sp, 32
+                ret
+
+            .section .data
+            .align 3
+            kof_spawn_handles: .space 512
+            kof_spawn_count:   .quad 0
+            .section .text
+            """);
+    }
+
+    private void emitCrossMethodRiscv(StringBuilder sb, IRClass clazz, IRMethod method, boolean joinMain) {
         // Mangle idêntico ao x86_64 (vtables referenciam esses símbolos).
         String mangled = sanitizeName(clazz.name()) + "_" + sanitizeName(method.name());
         if ("<init>".equals(method.name())) mangled += "_" + method.parameterTypes().size();
@@ -2720,10 +2913,11 @@ public class NativeBackend implements Backend {
         for (IRBasicBlock block : method.basicBlocks()) {
             for (KofOperation op : block.operations()) {
                 if (op instanceof KofReturn || op instanceof KofReturnVoid) endsWithReturn = true;
-                emitCrossOpRiscv(sb, op, frameSize);
+                emitCrossOpRiscv(sb, op, frameSize, joinMain);
             }
         }
         if (!endsWithReturn) {
+            if (joinMain) sb.append("    call kof_spawn_join_all\n");
             sb.append("    mv sp, s11\n");
             sb.append("    addi sp, sp, -16\n");
             sb.append("    ld ra, 8(sp)\n");
@@ -2748,7 +2942,7 @@ public class NativeBackend implements Backend {
         sb.append("    .quad 0\n");
     }
 
-    private void emitCrossOpRiscv(StringBuilder sb, KofOperation op, int frameSize) {
+    private void emitCrossOpRiscv(StringBuilder sb, KofOperation op, int frameSize, boolean joinMain) {
         switch (op) {
             case KofGetStatic gs -> { }
             case KofPutStatic ps -> sb.append("    addi sp, sp, 8\n");
@@ -2863,6 +3057,7 @@ public class NativeBackend implements Backend {
             }
             case KofReturn kr -> {
                 sb.append("    pop a0\n");
+                if (joinMain) sb.append("    call kof_spawn_join_all\n");
                 sb.append("    mv sp, s11\n");
                 sb.append("    addi sp, sp, -16\n");
                 sb.append("    ld ra, 8(sp)\n");
@@ -2872,6 +3067,7 @@ public class NativeBackend implements Backend {
             }
             case KofReturnVoid rv -> {
                 sb.append("    li a0, 0\n");
+                if (joinMain) sb.append("    call kof_spawn_join_all\n");
                 sb.append("    mv sp, s11\n");
                 sb.append("    addi sp, sp, -16\n");
                 sb.append("    ld ra, 8(sp)\n");
@@ -3225,17 +3421,14 @@ public class NativeBackend implements Backend {
             .option arch, rv64g
             .section .text
 
-            # kof_alloc(size) -> ptr (bump allocator em .bss)
+            # kof_alloc(size) -> ptr (bump atômico em .bss — amoadd.d: main e
+            # workers do spawn compartilham o heap; ldadd no aarch64 via tradutor)
             .globl kof_alloc
             kof_alloc:
-                la   t0, kof_alloc_ptr
-                ld   t0, 0(t0)
                 addi t1, a0, 15
                 andi t1, t1, -16
-                add  t2, t0, t1
-                la   t3, kof_alloc_ptr
-                sd   t2, 0(t3)
-                mv   a0, t0
+                la   t0, kof_alloc_ptr
+                amoadd.d a0, t1, (t0)
                 ret
 
             # kof_memcpy(dst, src, len)
@@ -6074,11 +6267,12 @@ public class NativeBackend implements Backend {
         riscvSb.append("    ld \\r, 0(sp)\n");
         riscvSb.append("    addi sp, sp, 8\n");
         riscvSb.append(".endm\n");
+        boolean usesSpawnA = usesSpawn(module);
         for (IRClass c : module.classes()) {
             currentClass = c;
             for (IRMethod m : c.methods()) {
                 if ("<clinit>".equals(m.name())) continue;
-                emitCrossMethodRiscv(riscvSb, c, m);
+                emitCrossMethodRiscv(riscvSb, c, m, usesSpawnA && "main".equals(m.name()));
             }
         }
         String mainEntry = mainClass != null ? sanitizeName(mainClass.name()) + "_main" : "kof_main";
@@ -6108,6 +6302,7 @@ public class NativeBackend implements Backend {
             if (usesHttpA) break;
         }
         if (usesHttpA) emitRiscvHttp(riscvSb);
+        if (usesSpawnA) emitRiscvSpawn(riscvSb);
 
         // traduz linha-a-linha
         StringBuilder sb = new StringBuilder();
@@ -6134,6 +6329,12 @@ public class NativeBackend implements Backend {
     }
 
     // ---- tradutor riscv -> aarch64 (mesmo usado no probe Python) ----
+    private static long parseImm(String s) {
+        s = s.trim();
+        if (s.startsWith("0x") || s.startsWith("0X")) return Long.parseUnsignedLong(s.substring(2), 16);
+        return Long.parseLong(s);
+    }
+
     private static String aarch64Reg(String r) {
         return switch (r) {
             case "zero" -> "xzr";
@@ -6233,7 +6434,7 @@ public class NativeBackend implements Backend {
         }
         if (s.startsWith(".")) {
             if (s.startsWith(".align")) return List.of(line);
-            if (s.startsWith(".option")) return List.of(indent + ".arch armv8-a");
+            if (s.startsWith(".option")) return List.of(indent + ".arch armv8.1-a");
             return List.of(line);
         }
         // split mnemonic e resto
@@ -6378,7 +6579,7 @@ public class NativeBackend implements Backend {
         if (mn.equals("li")) {
             String[] args = rest.split(",");
             String rdRaw = args[0].trim();
-            long imm = Long.parseLong(args[1].trim());
+            long imm = parseImm(args[1].trim());
             if (rdRaw.equals("a7")) {
                 return List.of(indent + "mov x8, #" + imm);
             }
@@ -6398,7 +6599,7 @@ public class NativeBackend implements Backend {
         if (mn.equals("addi")) {
             String[] args = rest.split(",");
             String rd = R.apply(args[0].trim()), rs = R.apply(args[1].trim());
-            long imm = Long.parseLong(args[2].trim());
+            long imm = parseImm(args[2].trim());
             // _start alignment: andi é o problema, mas addi com sp já é ok; andi sp,sp,-16 é o único andi com sp
             return aarch64AddSubImm("add", rd, rs, imm, indent);
         }
@@ -6409,7 +6610,7 @@ public class NativeBackend implements Backend {
             String op = mn.equals("andi") ? "and" : "orr";
             String[] args = rest.split(",");
             String rd = R.apply(args[0].trim()), rs = R.apply(args[1].trim());
-            long imm = Long.parseLong(args[2].trim());
+            long imm = parseImm(args[2].trim());
             // sempre expande via temp x17 para garantir encodabilidade
             String tmp = "x17";
             List<String> out = new ArrayList<>();
@@ -6450,6 +6651,14 @@ public class NativeBackend implements Backend {
         if (mn.equals("neg")) {
             String[] args = rest.split(",");
             return List.of(indent + "neg " + R.apply(args[0].trim()) + ", " + R.apply(args[1].trim()));
+        }
+        if (mn.equals("amoadd.d")) {
+            // amoadd.d rd, rs2, (rs1)  ->  ldadd rs2, rd, [rs1]
+            String[] args = rest.split(",");
+            String rd = R.apply(args[0].trim());
+            String rs2 = R.apply(args[1].trim());
+            String base = args[2].trim().replaceAll("[()]", "");
+            return List.of(indent + "ldadd " + rs2 + ", " + rd + ", [" + R.apply(base) + "]");
         }
         if (mn.equals("seqz")) {
             String[] args = rest.split(",");
@@ -6580,6 +6789,7 @@ public class NativeBackend implements Backend {
         if (mn.equals("ret")) return List.of(indent + "ret");
         if (mn.equals("ecall")) return List.of(indent + "svc #0");
         if (mn.equals("nop")) return List.of(indent + "nop");
+        if (mn.equals("fence")) return List.of(indent + "dmb ish");
         // Fallback: linhas desconhecidas (ex: data com aspas) — manter como está para não quebrar o pipeline
         System.err.println("WARN translateRiscvToAarch64 UNHANDLED: " + mn + " | " + line);
         return List.of(line);

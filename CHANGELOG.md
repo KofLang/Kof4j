@@ -15,13 +15,16 @@ Linha de desenvolvimento 0.3.0 aberta em 04/09/2026. Semântica congelada
 ### Em desenvolvimento
 
   - NATIVE002 paridade avançada riscv64/aarch64: stdlib real no runtime asm —
-    **JSON** (`kof_json_quote`/builder, encode/decode record+listas) e **HTTP**
+    **JSON** (`kof_json_quote`/builder, encode/decode record+listas), **HTTP**
     (`get/post/put/patch/delete/options/status` + headers, asm puro: socket+
-    connect+write/read/close, syscalls asm-generic) fechados (17/17 qemu cada
-    target); aarch64 herda via `translateRiscvToAarch64`. Fix de codegen:
-    `--no-relax` no as/ld riscv64 (gp-relaxation faultava com gp=0 no binário
-    estático); `movz` (não `mov`) no tradutor aarch64 para imediatos com
-    `lsl #16`. Falta: spawn/await, db.
+    connect+write/read/close, syscalls asm-generic) e **spawn/await** (`clone`
+    + `futex` — qemu-riscv64 8.2.2 não implementa clone3; heap compartilhado
+    entre main e workers → `kof_alloc` virou bump atômico `amoadd.d`) fechados
+    (19/19 qemu cada target); aarch64 herda via `translateRiscvToAarch64`.
+    Fix de codegen: `--no-relax` no as/ld riscv64 (gp-relaxation faultava com
+    gp=0 no binário estático). Fixes do tradutor aarch64: `movz` (não `mov`)
+    para imediatos com `lsl #16`; imediatos hex no `li`/`addi`/`andi`;
+    `amoadd.d`→`ldadd` + `.arch armv8.1-a`; `fence`→`dmb ish`. Falta: db.
   - GC auto-collect (safe-points + mapa de raízes por frame).
   - Package manager MVP (`kof init`/`kofdeps`/registry).
 
