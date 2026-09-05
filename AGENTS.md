@@ -24,6 +24,26 @@ Regra de ouro: **nunca dois agentes no mesmo gap ou no mesmo arquivo gigante**
 (`NativeRuntime.java`, `CompilerDriver.java`) ao mesmo tempo. Se for
 inevitável, combine no chat antes.
 
+### Status visível — `todowrite` (obrigatório, a cada etapa)
+
+`DOING.md` é a memória **persistente** do repo (sobrevive entre sessões e
+agentes). O **`todowrite`** é o status **visível ao humano nesta sessão** —
+uma lista de tarefas que a CLI renderiza em tempo real. Os dois são
+**complementares**, nunca substitutos:
+
+- **A cada etapa de pensamento entre implementações**, atualize o `todowrite`:
+  marque `completed` o que terminou, `in_progress` exatamente **um** item
+  (o que você está atacando agora), `pending` o que falta.
+- Não espere o fim do turno nem o commit: a pessoa acompanhando precisa ver
+  o progresso **enquanto** você trabalha (ex.: ao trocar de módulo — JSON →
+  http → spawn — mova o item anterior para `completed` e abra o próximo).
+- Um item só vai para `completed` quando a prova existe (teste verde, qemu
+  rodando, suíte passando) — nunca por intenção.
+- Se uma etapa destrava trabalho novo que não estava previsto, **adicione**
+  ao `todowrite` na hora.
+- Ao fim da sessão, o `DOING.md` continua sendo a fonte da verdade para o
+  **próximo** agente; o `todowrite` é só a janela desta conversa.
+
 ---
 
 ## Diretriz primária
