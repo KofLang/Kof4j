@@ -345,6 +345,23 @@ class DecompileTest {
         assertTrue(result.success(), "decompiled deve compilar:\n" + kof + "\n" + result.diagnostics().getDiagnostics());
     }
 
+    @Test
+    void mapsCollectionSize(@TempDir Path dir) throws Exception {
+        Path javaFile = dir.resolve("Col.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Col {
+                    public static int count(List<String> xs) { return xs.size(); }
+                }
+                """);
+        runJavac(javaFile, dir);
+
+        String kof = Decompile.decompile(dir.resolve("Col.class"));
+
+        assertTrue(kof.contains("arg0.size"), "size() vira propriedade .size:\n" + kof);
+        assertFalse(kof.contains("arg0.size()"), "não deve manter size():\n" + kof);
+    }
+
     private void runJavac(Path javaFile, Path dir) throws IOException, InterruptedException {
         String javaHome = System.getProperty("java.home");
         Path javac = Path.of(javaHome, "bin", "javac");

@@ -66,6 +66,8 @@ final class BytecodeReader {
                 }
             } else if (len == 5 && (op == 0xc8 || op == 0xc9)) {
                 target = pc + readInt(code, pc + 1);
+            } else if (len == 5 && op == 0xb9) { // invokeinterface: índice CP nos 2 bytes
+                operands = new int[]{((code[pc + 1] & 0xFF) << 8) | (code[pc + 2] & 0xFF)};
             }
             out.add(new Insn(pc, op, operands, target));
             pc += len;

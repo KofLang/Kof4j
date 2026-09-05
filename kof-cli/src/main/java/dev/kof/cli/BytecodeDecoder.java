@@ -71,7 +71,7 @@ final class BytecodeDecoder {
                     if (a == null) return null;
                     stack.push(simpleOwner(m[0]) + "." + m[1] + "(" + a + ")");
                 }
-                case 0xb6 -> { // invokevirtual
+                case 0xb6, 0xb9 -> { // invokevirtual / invokeinterface
                     String[] m = resolveMethodRef(cp, in.operands()[0]);
                     if (m == null) return null;
                     String a = callArgs(stack, argCount(m[2]));
@@ -350,11 +350,12 @@ final class BytecodeDecoder {
                 && ("println".equals(name) || "print".equals(name))) {
             return (name.equals("println") ? "println" : "print") + "(" + args + ")";
         }
-        if ("java/lang/String".equals(ownerInternal) && "length".equals(name)) {
-            return receiver + ".length";
-        }
         if ("java/lang/String".equals(ownerInternal) && "equals".equals(name)) {
             return receiver + " == " + args;
+        }
+        // métodos sem-argumento que em Kof são PROPRIEDADES (não métodos)
+        if (args.isEmpty() && ("length".equals(name) || "size".equals(name) || "isEmpty".equals(name))) {
+            return receiver + "." + name;
         }
         return null;
     }
@@ -684,7 +685,7 @@ final class BytecodeDecoder {
                     String call = simpleOwner(m[0]) + "." + m[1] + "(" + a + ")";
                     if (isVoidDesc(m[2])) { stmts.add(call); } else { stack.push(call); }
                 }
-                case 0xb6 -> { // invokevirtual
+                case 0xb6, 0xb9 -> { // invokevirtual / invokeinterface
                     String[] m = resolveMethodRef(cp, in.operands()[0]);
                     if (m == null) return null;
                     String a = callArgs(stack, argCount(m[2]));
