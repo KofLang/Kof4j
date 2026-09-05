@@ -24,7 +24,10 @@ Linha de desenvolvimento 0.3.0 aberta em 04/09/2026. Semântica congelada
     Fix de codegen: `--no-relax` no as/ld riscv64 (gp-relaxation faultava com
     gp=0 no binário estático). Fixes do tradutor aarch64: `movz` (não `mov`)
     para imediatos com `lsl #16`; imediatos hex no `li`/`addi`/`andi`;
-    `amoadd.d`→`ldadd` + `.arch armv8.1-a`; `fence`→`dmb ish`. Falta: db.
+    `amoadd.d`→`ldadd` + `.arch armv8.1-a`; `fence`→`dmb ish`. **db**: o link
+    dinâmico de libsqlite3 exige libc — inviável no asm puro estático; os cross
+    agora reportam **DB001 em compile-time** (R6: nunca undefined-reference no
+    ld), travado por `crossNativeReportsDb001`.
   - GC auto-collect (safe-points + mapa de raízes por frame).
   - Package manager MVP (`kof init`/`kofdeps`/registry).
 
