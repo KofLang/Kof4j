@@ -378,6 +378,29 @@ class NativeRiscv64E2ETest {
         assertTrue(lines.contains("fim"), "main não bloqueia no spawn: " + lines);
     }
 
+    // NATIVE002-stdlib: métodos String riscv64 (trim/toUpper/toLowerCase/
+    // replace char+String/lastIndexOf/equalsIgnoreCase/split) — antes
+    // quebriam no link com undefined reference (R6: nunca silencioso).
+    @Test
+    void riscv64StringTrimCaseReplaceSplit(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runRiscv64(tempDir, """
+            main() {
+                println("  hi  ".trim().length)
+                println("abc".toUpperCase())
+                println("ABC".toLowerCase())
+                println("a_b_c".replace('_', '-'))
+                println("hello".replace("l", "L"))
+                println("banana".lastIndexOf("na"))
+                println("Hello".equalsIgnoreCase("hELLO"))
+                var parts = "a,b,c".split(",")
+                println(parts.length)
+                println(parts[1])
+            }
+            """);
+        assertEquals("2\nABC\nabc\na-b-c\nheLLo\n4\ntrue\n3\nb", out);
+    }
+
     private static int startHttpServer() throws IOException {
         java.net.ServerSocket ss = new java.net.ServerSocket(0);
         int port = ss.getLocalPort();

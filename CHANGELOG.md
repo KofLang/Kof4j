@@ -27,7 +27,12 @@ Linha de desenvolvimento 0.3.0 aberta em 04/09/2026. Semântica congelada
     `amoadd.d`→`ldadd` + `.arch armv8.1-a`; `fence`→`dmb ish`. **db**: o link
     dinâmico de libsqlite3 exige libc — inviável no asm puro estático; os cross
     agora reportam **DB001 em compile-time** (R6: nunca undefined-reference no
-    ld), travado por `crossNativeReportsDb001`.
+    ld), travado por `crossNativeReportsDb001`. **String methods riscv64/aarch64**
+    (`trim`/`toUpperCase`/`toLowerCase`/`replace` char+String/`lastIndexOf`/
+    `equalsIgnoreCase`/`split`) implementados em asm puro — antes quebravam no
+    link com undefined reference silencioso (R6); `RISCV_RUNTIME_ASM` dividido
+    em 3 constantes (limite de 64KB do javac). Prova: `riscv64/aarch64StringTrimCaseReplaceSplit`
+    + suíte 913+8+5+8.
   - GC auto-collect (safe-points + mapa de raízes por frame).
   - Package manager MVP (`kof init`/`kofdeps`/registry).
 
