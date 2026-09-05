@@ -85,6 +85,33 @@ class TranslateTest {
         assertCompiles(dir, kof, "match\n3");
     }
 
+    @Test
+    void recordTranslates(@TempDir Path dir) throws Exception {
+        String kof = Translate.translateJava("""
+                public record Point(int x, int y) {
+                }
+                """);
+
+        assertTrue(kof.contains("record Point(Int x, Int y)"), "record Java vira record Kof:\n" + kof);
+        assertFalse(kof.contains("class Point"), "não deve virar class:\n" + kof);
+
+        assertCompiles(dir, kof, null);
+    }
+
+    @Test
+    void enumTranslates(@TempDir Path dir) throws Exception {
+        String kof = Translate.translateJava("""
+                public enum Color { RED, GREEN, BLUE }
+                """);
+
+        assertTrue(kof.contains("enum Color"), "enum Java vira enum Kof:\n" + kof);
+        assertTrue(kof.contains("RED"), "constante RED:\n" + kof);
+        assertTrue(kof.contains("GREEN"), "constante GREEN:\n" + kof);
+        assertTrue(kof.contains("BLUE"), "constante BLUE:\n" + kof);
+
+        assertCompiles(dir, kof, null);
+    }
+
     private void assertCompiles(Path dir, String kof, String expected) throws Exception {
         Path src = dir.resolve("T.kf");
         Files.writeString(src, kof);

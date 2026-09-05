@@ -234,9 +234,50 @@ public final class Translate {
                 parseClass();
             } else if (p.at("interface")) {
                 parseInterface();
+            } else if (p.at("record")) {
+                parseRecord();
+            } else if (p.at("enum")) {
+                parseEnum();
             } else {
-                throw new TranslateException("expected class/interface, found '" + p.peek().text + "'");
+                throw new TranslateException("expected class/interface/record/enum, found '" + p.peek().text + "'");
             }
+        }
+
+        private void parseEnum() {
+            p.expect("enum");
+            String name = p.next().text;
+            List<String> constants = new ArrayList<>();
+            p.expect("{");
+            while (!p.at("}") && !p.at(";")) {
+                constants.add(p.next().text);
+                if (p.at("(")) { p.next(); while (!p.at(")")) p.next(); p.next(); }  // args ignorados (MVP)
+                if (p.at("{")) skipBlock();                                          // corpo de constante ignorado
+                if (p.at(",")) p.next();
+            }
+            if (p.at(";")) { p.next(); while (!p.at("}")) skipBlock(); }             // métodos/campos ignorados
+            p.expect("}");
+            out.append("enum ").append(name).append(" { ")
+               .append(String.join(", ", constants)).append(" }\n");
+        }
+
+        private void parseRecord() {
+            p.expect("record");
+            String name = p.next().text;
+            List<String> components = new ArrayList<>();
+            if (p.at("(")) {
+                p.next();
+                while (!p.at(")")) {
+                    String type = kofType(p.next().text);
+                    String cname = p.next().text;
+                    components.add(type + " " + cname);
+                    if (p.at(",")) p.next();
+                }
+                p.expect(")");
+            }
+            if (p.at("{")) skipBlock();
+            else p.expect(";");
+            out.append("record ").append(name).append('(')
+               .append(String.join(", ", components)).append(")\n");
         }
 
         private void parseClass() {
