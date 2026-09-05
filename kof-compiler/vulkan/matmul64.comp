@@ -1,0 +1,44 @@
+// matmul64.comp — M36 FASE A recriado (o SPV original com buffers ivec2
+// hi/lo não estava no repo; o RADV POLARIS12 suporta i64 nativo — o novo
+// usa int64 direto): C[M,N] = A[M,K] × B[K,N], acumulador i64 SEM divisão
+// (o caller divide). 1 workgroup por elemento C.
+// Push 12B: {m, n, k}.
+// Bindings: 0=a i64 (m*k), 1=b i64 (k*n), 2=c i64 (m*n).
+
+#version 450
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+
+layout(std430, binding = 0) readonly buffer ABuf { int64_t a[]; };
+layout(std430, binding = 1) readonly buffer BBuf { int64_t b[]; };
+layout(std430, binding = 2) writeonly buffer CBuf { int64_t c[]; };
+
+layout(push_constant) uniform Push {
+    int m;
+    int n;
+    int k;
+} pcs;
+
+shared int64_t part[64];
+
+void main() {
+    uint id = gl_WorkGroupID.x;
+    uint lane = gl_LocalInvocationID.x;
+    int i = int(id / uint(max(pcs.n, 1)));
+    int j = int(id % uint(max(pcs.n, 1)));
+    int64_t acc = int64_t(0);
+    for (int t = int(lane); t < pcs.k; t += 64) {
+        acc += a[i * pcs.k + t] * b[t * pcs.n + j];
+    }
+    part[lane] = acc;
+    barrier();
+    for (uint s = 32u; s > 0u; s >>= 1u) {
+        if (lane < s) {
+            part[lane] += part[lane + s];
+        }
+        barrier();
+    }
+    if (lane == 0u) {
+        c[i * pcs.n + j] = part[0];
+    }
+}

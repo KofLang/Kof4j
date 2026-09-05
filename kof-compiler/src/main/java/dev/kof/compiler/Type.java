@@ -46,6 +46,18 @@ sealed interface Type {
     }
 
     static Type of(String name) {
+        if (name == null) return UnknownType.UNKNOWN;
+        // tipo de função: "(Int) -> Int" (bug 8)
+        if (name.startsWith("(") && name.contains(" -> ")) {
+            int rp = name.indexOf(')');
+            int arrow = name.indexOf(" -> ");
+            String paramsStr = rp > 1 ? name.substring(1, rp) : "";
+            String retStr = name.substring(arrow + 4);
+            List<Type> params = paramsStr.isEmpty() ? List.of()
+                    : java.util.Arrays.stream(paramsStr.split(","))
+                            .map(String::trim).map(Type::of).toList();
+            return new FunctionType(params, Type.of(retStr));
+        }
         if (name.endsWith("?")) {
             Type inner = of(name.substring(0, name.length() - 1));
             return new NullableType(inner);

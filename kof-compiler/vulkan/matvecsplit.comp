@@ -1,0 +1,98 @@
+// matvecsplit.comp — M36.3: W pré-split (wh/wl i32) + x pré-split (xh/xl
+// i32) → y i64 bit-exato com o CPU.
+// w = wh*1e3 + wl (split do koflama: wh=w/1000, wl=w%1000);
+// x = xh*1e6 + xl (host: xh=x/1e6, xl=x%1e6).
+// W×x = (wh·xh)*1e9 + (wh·xl)*1e3 + (wl·xh)*1e6 + (wl·xl) — 4 acumuladores
+// i64; a recomposição final é a EXATA do CPU (por divId, com os restos),
+// NÃO (A*1e9 + B*1e3 + C*1e6 + D)/div.
+// Push 24B {m,k,divId,pad,div:i64}; div > 1 → trunc zero.
+// Bindings: 0=wh 1=wl 2=xh 3=xl 4=y.
+
+#version 450
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+
+layout(std430, binding = 0) readonly buffer WHBuf { int wh[]; };
+layout(std430, binding = 1) readonly buffer WLBuf { int wl[]; };
+layout(std430, binding = 2) readonly buffer XHBuf { int xh[]; };
+layout(std430, binding = 3) readonly buffer XLBuf { int xl[]; };
+layout(std430, binding = 4) writeonly buffer YBuf { int64_t y[]; };
+
+layout(push_constant) uniform Push {
+    int m;
+    int k;
+    int divId;
+    int pad;
+    int64_t div;
+} pcs;
+
+shared int64_t pT[64];  // Σ wh·xh (peso 1e9)
+shared int64_t pM[64];  // Σ wh·xl (peso 1e3)
+shared int64_t pU[64];  // Σ wl·xh (peso 1e6)
+shared int64_t pV[64];  // Σ wl·xl (peso 1)
+
+// % no GLSL pode virar floor-mod no driver; o Java/Kof usa trunc.
+// tmod replica o SRem (sinal do dividendo).
+int64_t tmod(int64_t a, int64_t b) {
+    return a - (a / b) * b;
+}
+
+void main() {
+    uint row = gl_WorkGroupID.x;
+    uint lane = gl_LocalInvocationID.x;
+    int k = pcs.k;
+    int64_t aT = int64_t(0);
+    int64_t aB = int64_t(0);
+    int64_t aC = int64_t(0);
+    int64_t aU = int64_t(0);
+    for (int j = int(lane); j < k; j += 64) {
+        int idx = int(row) * k + j;
+        int64_t whj = int64_t(wh[idx]);
+        int64_t wlj = int64_t(wl[idx]);
+        int64_t xhj = int64_t(xh[j]);
+        int64_t xlj = int64_t(xl[j]);
+        aT += whj * xhj;
+        aB += whj * xlj;
+        aC += wlj * xhj;
+        aU += wlj * xlj;
+    }
+    pT[lane] = aT;
+    pM[lane] = aB;
+    pU[lane] = aC;
+    pV[lane] = aU;
+    barrier();
+    for (uint s = 32u; s > 0u; s >>= 1u) {
+        if (lane < s) {
+            pT[lane] += pT[lane + s];
+            pM[lane] += pM[lane + s];
+            pU[lane] += pU[lane + s];
+            pV[lane] += pV[lane + s];
+        }
+        barrier();
+    }
+    if (lane == 0u) {
+        // recomposicao EXATA do CPU (4 accs + restos), por divId — o
+        // total/div simples diverge do trunc por partes do Kof.
+        int64_t A = pT[0], B = pM[0], C = pU[0], D = pV[0];
+        int64_t total;
+        if (pcs.divId == 0) {
+            int64_t remT = tmod(B, int64_t(1000000)) * int64_t(1000)
+                         + tmod(C, int64_t(1000)) * int64_t(1000000)
+                         + D;
+            total = A + B / int64_t(1000000) + C / int64_t(1000)
+                  + remT / int64_t(1000000000);
+        } else if (pcs.divId == 1) {
+            int64_t remT = tmod(B, int64_t(1000)) * int64_t(1000000) + D;
+            total = A * int64_t(1000) + B / int64_t(1000) + C
+                  + remT / int64_t(1000000);
+        } else {
+            int64_t remT = tmod(A, int64_t(1000)) * int64_t(1000000000)
+                         + tmod(B, int64_t(1000000000)) * int64_t(1000)
+                         + tmod(C, int64_t(1000000)) * int64_t(1000000)
+                         + D;
+            total = A / int64_t(1000) + B / int64_t(1000000000)
+                  + C / int64_t(1000000) + remT / int64_t(1000000000000L);
+        }
+        y[int(row)] = total;
+    }
+}

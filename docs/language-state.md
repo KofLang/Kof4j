@@ -52,7 +52,8 @@
   comparação por conteúdo e mapeamento String nos descritores
 - **Map<K,V> / Set<T>** completos nos 3 targets (Native em asm próprio)
 - **spawn/await** com handle tipado `Handle<T>` e unboxing de primitivos;
-  gaps CONC001/CONC003/AND001 explícitos; lambda não-void de expressão
+  concorrência real nos 3 targets (CONC001 Native + CONC003 JS fechados);
+  gap `AND001` (Android) explícito; lambda não-void de expressão
   única vira return (fix de VerifyError)
 
 - **Interop Android/JVM**: `super.metodo()` com INVOKESPECIAL (owner é a
@@ -371,7 +372,6 @@ Fields:
 - Database nível 3 (query DSL tipada `User.query { where ... }`) — `kof.db` nível 0 e `kof.orm` nível 2/4 já DONE; MySQL wire protocol WIP (scramble SHA-1 + parse `user:pass@`, 31/08)
 - Native riscv64/aarch64 codegen completo (toolchain + qemu prontos; codegen ainda x86_64 placeholder)
 - GC mark-sweep completo (free-list `kof_free_head` done; auto-GC desativado após hang; memória devolvida só no `munmap` fallback)
-- `spawn` async real no JS (CONC003 — statement/expressão cobrem)
 - Scheduler no Native (SCHED001); `kof.http` no Native (HTTP002); web no Native/JS (WEB002/WEB001)
 
 ## O que existe desde 0.0.5 → 0.2.6-beta
@@ -384,7 +384,7 @@ Fields:
 - JSON encode/decode completo (JVM + Native + JS; objetos/records + arrays `Int/Long/Bool/String/Double` nos 3 targets — 31/08)
 - Exceptions reais (JVM table + Native unwinding)
 - `assert` + `kof test` estruturado (`test "nome" {}`) + `process.exit`
-- `spawn` (concorrência — JVM virtual threads, Native pthread 31/08, JS sequencial CONC003)
+- `spawn` (concorrência real nos 3 targets — JVM virtual threads, Native pthread 31/08, JS async/await/Promise 03/09)
 - kof.io (File/Path/Directory, readFile/writeFile), kof.time (`now()`, `sleep`; `interval`/`every` JVM+JS)
 - HTTP (`kof serve` — web stack nativa com WebSocket/SSE JVM 30/08), `kof.http` client (JVM+JS via `Java HttpClient`, retry/circuit 30/08), `kof.cache` (3 targets, 30/08), `kof.mq`
 - `kof.validation`, `kof.observability` (health/metrics), `kof.security` (PBKDF2/SHA/JWT/AES-GCM + G9 rateLimit/session/apiKey em 3 targets), `kof.db` (JVM + SQLite nativo `.so` + MySQL WIP) / `kof.orm` + `kof.config`/`kof.log` (asm Native)

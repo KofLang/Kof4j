@@ -56,7 +56,8 @@ Objetivos:
 - backend principal durante a consolidação inicial.
 
 Estado atual: ✅ estável (JVM V21, ASM, virtual threads, 819 testes 02/09;
-web stack nativa com WebSocket/SSE e `kof.http` retry/circuit — 30/08)
+web stack nativa com WebSocket/SSE, limites/contadores e `kof.http`
+retry/circuit — 30/08-04/09)
 
 ### KofNative — Binário Nativo
 
@@ -111,7 +112,7 @@ A intenção é semelhante à filosofia do Flutter:
 Estado atual: 🟡 alpha — pipeline `.kf → Kof IR → KofJS → .mjs` funcional com
 execução na engine JS embarcada do próprio Kof (sem Node.js). Classes,
 herança, List `map/filter/reduce`, String API, JSON, exceções, pattern matching
-`case String s` + `Point(x,y)`, `String?` básica, `kof.time`/`kof.io`/`kof.http` (via `Java HttpClient` interop + fetch fallback; retry/circuit em paridade com o JVM — 30/08; scheduler via `setInterval` — 27/08; `spawn` sequencial, async real = CONC003) e `kof run
+`case String s` + `Point(x,y)`, `String?` básica, `kof.time`/`kof.io`/`kof.http` (via `Java HttpClient` interop + fetch fallback; retry/circuit em paridade com o JVM — 30/08; scheduler via `setInterval` — 27/08; `spawn`/`await`/`channel<T>()` com concorrência real via async/await/Promise — CONC003 fechado 03/09) e `kof run
 --target=js` funcionam. A plataforma web (HTML/CSS/JS, browser) é a próxima
 fase. Ver: `docs/targets/KOFJS.md`.
 
@@ -172,7 +173,7 @@ A visão de longo prazo é permitir construir backends modernos sem Spring.
 Não reimplementar Spring. Em vez disso, transformar capacidades recorrentes em primitivas do Kof Runtime.
 
 Objetivos futuros:
-- HTTP / REST / WebSocket / SSE;
+- HTTP / REST / WebSocket / SSE (WebSocket/SSE + hardening JVM concluídos 04/09; JS/Native follow-up);
 - HTTP client;
 - JSON;
 - RPC;
@@ -198,7 +199,8 @@ api "/users" {
 ```
 
 Estado atual: 🟡 parcial — HTTP/rotas (`kof.web` + TLS `listenSecure` +
-**WebSocket `app.ws`** + **SSE `sse.*`** — 30/08, JVM), JSON (completo nos 3
+**WebSocket `app.ws`** + **SSE `sse.*`** — 30/08, JVM; hardening
+`app.configure`/`app.stats` — 04/09), JSON (completo nos 3
 targets, 31/08), configuração (`kof.config` asm Native), logging (`kof.log`
 asm Native), segurança (`kof.security` + G9), **cache (`kof.cache`, 3
 targets — 30/08)**, **`kof.http` retry/circuit breaker (JVM+JS — 30/08)**,
@@ -223,8 +225,8 @@ Kof; parity JVM primeiro, Native/JS depois.
 Estado 0.2.6-beta: concorrência real **JVM** (virtual threads) + **Native**
 (pthread, CONC001 fechado 31/08: spawn/await + `done`/`poll`/`cancel`/
 `cancelled`/`selectAny` — cancel cooperativo por TID, selectAny por polling
-1ms) + **JS** sequencial (stmt/expr/cancel/selectAny; o `CONC003` restante é
-async event-loop real). ⚠️ Bug pré-existente separado: `spawn→await→spawn`
+1ms) + **JS** ✅ 03/09 (CONC003 fechado — stmt/expr/cancel/selectAny com
+async/await/Promise reais). ⚠️ Bug pré-existente separado: `spawn→await→spawn`
 corrompe a pilha da main (SIGSEGV no próximo `pthread_create`); reproduz sem
 o feature de cancel/select (suspeito: `pthread_join` no `kof_await`).
 
@@ -236,9 +238,9 @@ o feature de cancel/select (suspeito: `pthread_join` no `kof_await`).
 | ~~Espera múltipla~~ | ✅ 31/08 — `selectAny(h1, h2, ...)` → primeiro handle pronto (JVM + Native + JS) | — |
 | ~~`done`/`poll`~~ | ✅ 31/08 — não-bloqueantes sobre o handle (JVM + Native) | — |
 | ~~Port Native~~ | ✅ 31/08 — `pthread_create` + trampoline + `pthread_join` + allocator thread-safe (futex); join implícito (CONC001 fechado) | — |
-| Port JS | spawn sobre Promises/event-loop; await nativo via microtask (CONC003) | P2 |
+| ~~Port JS~~ | ✅ 03/09 — spawn sobre Promise, await nativo via microtask (CONC003 fechado) | — |
 | ~~Scheduler/cron~~ | ✅ 31/08 — `every`/`at` JVM (`ScheduledExecutor`) + JS (`setInterval`) + **Native SCHED001** (thread por job, `usleep` ms→us + flag `active`, `cancel(id)` cooperativo) | — |
-| ~~Canais tipados~~ | ✅ 31/08 — `channel<Int>()` com `send`/`receive` (JVM `LinkedBlockingQueue` bloqueante + Native FIFO futex + JS array sequencial) | — |
+| ~~Canais tipados~~ | ✅ 31/08, bloqueio real no JS 03/09 — `channel<Int>()` com `send`/`receive` (JVM `LinkedBlockingQueue` bloqueante + Native FIFO futex + JS fila de resolvers pendentes) | — |
 
 Critério de "100%": os três targets executando os mesmos programas
 concorrentes com golden diff vazio (mesmo padrão da métrica 1 do plano).
@@ -626,7 +628,9 @@ contratos estabilizarem.
 - 8 testes E2E in-process (sockets reais) ✅;
 - Documentação (`docs/http.md`) ✅;
 - Path parameters (`:id`), query, headers, middleware `app.use` ✅
-  (stack `web.app()` — Fase 1 do plano Spring independence).
+  (stack `web.app()` — Fase 1 do plano Spring independence);
+- WebSocket/SSE + hardening (`app.configure`/`app.stats`, connection cap,
+  deadlines) ✅ JVM (30/08-04/09); JS/Native follow-up.
 
 ### Fase 4 — Security
 

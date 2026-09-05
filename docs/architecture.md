@@ -240,7 +240,7 @@ Runtime functions (x86-64, `NativeRuntime.java:1`):
 
 - Generates ES Modules, executed by embedded GraalJS (`KofJsRunner`) — no Node.js required
 - Supports pattern matching (`case String s` + `Point(x,y)` via `typeof` + destructuring), `String?` basic, `kof.http` via `Java HttpClient` interop (+ fetch fallback; retry/circuit em paridade com o JVM, 30/08), `List map/filter/reduce`, `Box<T>` via `substituteTypeVariable`
-- Scheduler `kof.time` via `setInterval` (27/08); `spawn` sequencial (statement/expressão; async real = CONC003)
+- Scheduler `kof.time` via `setInterval` (27/08); `spawn`/`await` com async/await/Promise reais (statement/expressão; CONC003 fechado 03/09)
 - Status alpha (0.2.6-beta)
 
 ## KofCcompiler

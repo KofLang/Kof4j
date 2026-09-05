@@ -26,7 +26,7 @@
           repository root. The release pipeline reads it and updates this property
           (scripts/bump-version.sh). Do not edit this by hand.
         -->
-        <revision>0.2.6-beta</revision>
+        <revision>0.3.0-beta</revision>
         <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <asm.version>9.8</asm.version>

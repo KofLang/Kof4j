@@ -294,6 +294,26 @@ record IfExpr(SourcePosition position, ExpressionNode condition,
               ExpressionNode thenExpr, ExpressionNode elseExpr) implements ExpressionNode {
 }
 
+/**
+ * Um caso de {@link SwitchExpr}: {@code case <value> -> <body>}. O {@code value}
+ * é o literal/constante a casar ou um {@link PatternExpr} (pattern matching).
+ * O {@code body} é UMA expressão (o valor produzido pelo caso) — não há
+ * fall-through nem {@code break} (o switch é uma expressão).
+ */
+record SwitchExprCase(SourcePosition position, ExpressionNode value,
+                      ExpressionNode body) implements AstNode {
+}
+
+/**
+ * Switch como expressão (SYN001): {@code switch (expr) { case A -> b; case T v -> c;
+ * default -> d }}. Usável em qualquer posição de expressão ({@code var x = ...},
+ * {@code return ...}, aninhado). Forma aditiva — o {@code SwitchStmt} (forma
+ * statement com {@code :}) continua válido.
+ */
+record SwitchExpr(SourcePosition position, ExpressionNode expression,
+                  List<SwitchExprCase> cases, ExpressionNode defaultValue) implements ExpressionNode {
+}
+
 record LambdaExpr(SourcePosition position, List<FormalParameterNode> parameters,
                   List<StatementNode> body) implements ExpressionNode {
 }

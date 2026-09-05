@@ -1,0 +1,53 @@
+// matvec64.comp — matvec residente (M36 FASE C): W row-major i64 + x i64 →
+// y i64. 1 workgroup por linha (64 threads, soma reduzida em shared).
+// Push 24B: {m, k, divId, pad, div:i64} — div > 1 aplica y = (w·x)/div com
+// trunc para zero (semântica Kof); div <= 1 mantém o produto cheio.
+// Binding 0 = w (m*k i64), 1 = x (k i64), 2 = y (m i64).
+// y[i] = sum_j w[i*k+j] * x[j]
+
+#version 450
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+
+layout(std430, binding = 0) readonly buffer WBuf { int64_t w[]; };
+layout(std430, binding = 1) readonly buffer XBuf { int64_t x[]; };
+layout(std430, binding = 2) writeonly buffer YBuf { int64_t y[]; };
+
+layout(push_constant) uniform Push {
+    int m;
+    int k;
+    int divId;
+    int pad;
+    int64_t div;
+} pcs;
+
+shared int64_t part[64];
+
+void main() {
+    uint row = gl_WorkGroupID.x;
+    uint lane = gl_LocalInvocationID.x;
+    int k = pcs.k;
+    int64_t acc = int64_t(0);
+    // stride 64: cada thread soma as colunas j ≡ lane (mod 64)
+    for (int j = int(lane); j < k; j += 64) {
+        acc += w[int(row) * k + j] * x[j];
+    }
+    part[lane] = acc;
+    barrier();
+    // redução em árvore
+    for (uint s = 32u; s > 0u; s >>= 1u) {
+        if (lane < s) {
+            part[lane] += part[lane + s];
+        }
+        barrier();
+    }
+    if (lane == 0u) {
+        int64_t total = part[0];
+        int64_t d = pcs.div;
+        if (d > int64_t(1)) {
+            // trunc para zero (C/Kof): idiv de GLSL trunca para zero
+            total = total / d;
+        }
+        y[int(row)] = total;
+    }
+}

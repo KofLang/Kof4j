@@ -383,4 +383,23 @@ class KofDbE2ETest {
         assertTrue(jsResult.diagnostics().getDiagnostics().toString().contains("DB001"),
                 jsResult.diagnostics().getDiagnostics().toString());
     }
+
+    @Test
+    void crossNativeReportsDb001(@TempDir Path tempDir) throws IOException {
+        // R6: db exige link dinâmico de libsqlite3 (libc) — os cross estáticos
+        // (asm puro, sem C) reportam DB001 em compile-time, nunca undefined-
+        // reference silencioso no ld.
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+            main() {
+                var db = db.connect("sqlite:/tmp/x.db")
+            }
+            """);
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            CompilationResult r = new CompilerDriver().compile(source, tempDir.resolve("cross-" + t), t);
+            assertFalse(r.success(), t + " should report DB001");
+            assertTrue(r.diagnostics().getDiagnostics().toString().contains("DB001"),
+                    t + ": " + r.diagnostics().getDiagnostics());
+        }
+    }
 }

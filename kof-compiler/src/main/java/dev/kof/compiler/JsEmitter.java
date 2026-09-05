@@ -78,9 +78,12 @@ final class JsEmitter {
         }
         StringBuilder header = new StringBuilder();
         if (fn.isTopLevel()) {
+            if (fn.isAsync() && !fn.isConstructor()) header.append("async ");
             header.append("function ");
+        } else if (!fn.isConstructor()) {
+            if (fn.isStatic()) header.append("static ");
+            if (fn.isAsync()) header.append("async ");
         }
-        if (fn.isStatic()) header.append("static ");
         if (fn.isConstructor()) {
             header.append("constructor(").append(String.join(", ", fn.parameters())).append(")");
         } else {
@@ -286,6 +289,7 @@ final class JsEmitter {
         if (e instanceof JsIr.JsArrow ar) {
             return "(" + String.join(", ", ar.parameters()) + ") => " + expr(ar.body());
         }
+        if (e instanceof JsIr.JsAwait aw) return "(await " + expr(aw.operand()) + ")";
         throw new IllegalStateException("unknown JS expression: " + e);
     }
 

@@ -36,10 +36,10 @@ final class JsIr {
 
     record JsFunction(String name, List<String> parameters, List<JsStatement> body,
                       boolean isStatic, boolean isConstructor, boolean isTopLevel,
-                      Integer kofLine) {
+                      boolean isAsync, Integer kofLine) {
         JsFunction(String name, List<String> parameters, List<JsStatement> body,
                    boolean isStatic, boolean isConstructor, boolean isTopLevel) {
-            this(name, parameters, body, isStatic, isConstructor, isTopLevel, null);
+            this(name, parameters, body, isStatic, isConstructor, isTopLevel, false, null);
         }
     }
 
@@ -163,5 +163,8 @@ final class JsIr {
     }
 
     record JsArrow(List<String> parameters, JsExpression body) implements JsExpression {
+    }
+
+    record JsAwait(JsExpression operand) implements JsExpression {
     }
 }

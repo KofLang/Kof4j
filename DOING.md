@@ -20,7 +20,10 @@ Estados: `ABERTO` · `EM CURSO` · `FEITO` · `BLOQUEADO`.
 
 | Gap/Item | Estado | Dono | Branch | Arquivos principais | Notas |
 |---|---|---|---|---|---|
-| **NATIVE002** — paridade stdlib riscv64/aarch64 (log/config/time/cache/mq stubs→real) | `EM CURSO` | agente-nativo-val | main | `NativeBackend.java` (`RISCV_RUNTIME_ASM` + `translateRiscvToAarch64`), `NativeRiscv64E2ETest.java`, `NativeAarch64E2ETest.java` | validação 13/13 + observability real (b20aa49); preparando stubs p/ implementação real (mqtt/sse/interval/cron via `translateRiscvToAarch64`) |
+| **SYN001** — `SwitchExpr`: switch como expressão (pattern matching via `case ... ->`) | `FEITO` | agente-switch-expr | main | `Parser.java`, `SemanticAnalyzer.java`, `CompilerDriver.java`, `JsBackend.java`, `AstNodes.java`, `KofFormatter.java` | 03/09 `1d1343f` — plano `docs/planning-switch-expr.md`. **Aditivo**: statement (`:`) intocado (KofPatternMatchingTest 10 + KofEnumSwitchTest 4 = gate). Lowering KIR em cadeia de if-expr (JVM+Native+JS ternários). Prova: `KofSwitchExprE2ETest` 23/23 (valor/string/pattern/destructuring/return/aninhado/enum-exaustivo/SEM032) + riscv64/aarch64 14/14 qemu. Suíte 910/0/3-skip. Bônus: fix PKG005 (`f6f1714`) — re-import transitivo não é colisão |
+| **NATIVE002** — paridade stdlib riscv64/aarch64 (log/config/time/cache/mq stubs→real) | `FEITO` | agente-nativo-val | main | `NativeBackend.java` (`RISCV_RUNTIME_ASM` + `translateRiscvToAarch64`) | qemu riscv64+aarch64 OK; suíte 842/0. Detalhe: log `[LEVEL] msg` + stderr; config env real (`/proc/self/environ` syscall); cache TTL via `kof_time_now`, mq pub/sub c/ list (libera NATIVE002 residual) |
+ | **NATIVE002-stdlib** — JSON/http/spawn/db no runtime riscv64 (aarch64 herda via tradutor) | `FEITO` | agente-planning | `beta-0.3.0` | `NativeBackend.java` (`RISCV_RUNTIME_ASM`, `emitRiscvHttp`, `emitRiscvSpawn`), `NativeRuntime.java` (x86_64) | 04/09 `c23dcc8`+`a660adc`+`fba2731` — **JSON** ✅ + **http** ✅ (get/post/put/patch/delete/options/status + headers) + **spawn/await** ✅ (`clone(220)`+`futex` — qemu-riscv64 8.2.2 **não** implementa clone3 (ENOSYS), usa o flag-set da glibc 0x3D0F00; heap compartilhado → `kof_alloc` virou bump **atômico** `amoadd.d`/`ldadd` (tradutor: `.arch armv8.1-a`); riscv64+aarch64 **19/19 qemu** cada). **Root cause de "http não funciona"**: bug de **gp-relaxation** — `la` virava `addi rd,gp,off` com gp=0 (binário estático, sem C runtime) → fault; JSON passava por sorte de layout. Fix: `-mno-relax` no as + `--no-relax` no ld. **Fix tradutor aarch64**: `movz` (não `mov`) quando `lsl #16`; `parseImm` aceita hex; `amoadd.d`→`ldadd`; `fence`→`dmb ish`. **db**: link dinâmico de libsqlite3 exige libc → inviável no asm puro estático; cross agora reporta **DB001 em compile-time** (R6: nunca undefined-reference no ld) — `KofDb.supportedOn` exclui riscv64/aarch64, teste `crossNativeReportsDb001`. **String methods** (`trim`/`toUpperCase`/`toLowerCase`/`replace` char+String/`lastIndexOf`/`equalsIgnoreCase`/`split`) em asm puro — antes undefined-reference no link (R6); `RISCV_RUNTIME_ASM` dividido em 3 constantes (limite 64KB javac). Prova: `riscv64/aarch64StringTrimCaseReplaceSplit` + suíte 913+8+5+8, 0 falhas. ⚠️ **RECONCILIAÇÃO PENDENTE**: outro agente refatorando as classes gigantes (`NativeBackend.java`/`NativeRuntime.java`, regra ≤500 linhas) — ao terminar, **normalizar** (reaplicar os ports http/spawn/String sobre a nova estrutura modular) e **retestar tudo** (suíte + E2E riscv64/aarch64). |
+| **SEM-AUDIT** — inferência nunca cria símbolo não declarado | `FEITO (parcial)` | agente-planning | `beta-0.3.0` | `SemanticAnalyzer.java`, `CompilerDriverTest.java` | 04/09 auditoria: **regra central SEGURA** — `println(ghost)`/`foo(ghost)`/`(x:Int)->y+1` dão SEM011 em qualquer posição (13 casos em `undeclaredIdentifiersNeverInferredIntoVariables`+`lambdaParametersBoundInOwnScope`, sem fallback Any/Object/dynamic). **Bug irmão corrigido**: param de lambda SEM anotação (`(x) -> x + 1`) caía no default silencioso `Object` e o emit fazia IADD sobre referência → bytecode inválido (VerifyError disfarçado de "JavaFX launcher"). Agora SEM001 explícito com dica `(x: Int)`; `==` sobre Object continua válido; teste `untypedLambdaParamArithmeticIsDiagnosedNotEmitted`. **Y-combinator**: `=>` é token morto no parser (só `->`); lambdas curried com tipos anotados param mas invoke de FunctionType = SEM032 (interface dispatch não implementado — gap real, não bug). |
 
 ## Concluídos recentemente
 
@@ -30,25 +33,26 @@ Estados: `ABERTO` · `EM CURSO` · `FEITO` · `BLOQUEADO`.
 | **FFI formalizado** — TIER 2.1 (`extern` + gap FFI001/002 + binding real JVM(FFM)+Native(dlopen/dlsym)) | `FEITO` | agente-planning | 05/09 | `FfiE2ETest` 5/5 (libc `abs`/`atoi`, libm `sqrt`); suíte 855/0 |
 | **Codegen hook + ct-eval** — TIER 2.2/2.3 (`CodegenStep` + string-concat folding) | `FEITO` | agente-planning | 05/09 | `OptimizerTest` 22/22 + `StructuredTestE2ETest` 32/0 |
 | **TIER 2.4/2.5** — scoped-resources (design) + variance/sealed (deferir) | `FEITO` | agente-planning | 05/09 | `docs/future/scoped-resources-plan.md` + decisão em `IMPLEMENTATION_PLAN.md` |
+| **CONC003** — JS async real (`async`/`await`/`Promise` do GraalJS) | `FEITO` | agente-conc003 | 03/09 | branch `conc003-js-async`, 6 commits (`bba9d6d`..`663bb2d`): fase 0 coloração async, fase 1+2 codegen+shim+`KofJsRunner`, fase 3+4 testes reescritos + 7 novos provando concorrência real, checklist adversarial manual (5/5: exceção não-esperada, captura mutada, `list.map` com await vira erro `CONC003-JS-01`, fire-and-forget espera antes de sair, `cancel()` cooperativo), docs atualizados em todo o repo. `KofAwaitTest`/`KofConcurrency2Test`/`SpawnE2ETest`/`KofJsE2ETest`: zero regressão fora de Native/x86_64 (ambiental, pré-existente). Falta: fork + PR (pendente confirmação) |
 | **GC mark-sweep** Native | `FEITO` | agente-planning | 03/09 | `461ec3b` — sweep real funciona; auto-collect fica desligado (safe-points fora do escopo) |
 | **HTTP002** — `kof.http` no Native | `FEITO` | agente-planning | 03/09 | `71d27f2` — `NativeHttpRuntime.java` (novo, ≤500): parse URL, IPv4, socket/connect, request/read body/status; `KofHttpE2ETest` 6/6 (get/post/status com server Kof real) |
 | **MySQL Native prepared + query binário** | `FEITO` | agente-nativo-val | 03/09 | `4ce1f25` + `02b9ddb` — `NativeDbPrepared.java` (≤500): PREPARE/EXECUTE binário completo (); `KofDbE2ETest` 12/12 com `nativeMysqlPreparedBinary` (aspas+injection intactos) |
 | **NATIVE002 core** — riscv64 + aarch64 13/13 | `FEITO` | outro agente | 02–03/09 | `3fbc29a`, `ac6c598` — asm puro via `translateRiscvToAarch64` |
 | **TIME001** — time.interval/cancel no JS | `FEITO` | agente-planning | 03/09 | `c1db297` — fila cooperativa `kofTimeJobs` bombeada por `kofTimeSleep`; `KofTimeE2ETest` 5/5 |
 | **LOG001** — kof.log no JS | `FEITO` | agente-planning | 01/09 | `console.*` + `KOF_LOG_LEVEL` |
-| Spans W3C / lifecycle `application{}` / `kof deps` | `FEITO` | agente-planning | 01/09 | `97109c1`, `eb108ec`, `dfce911` |
+| Spans W3C / lifecycle `application{}` / `kof deps` | `FEITO` | agente-planning | 01/09 |
+| PKG005 (nomes iguais em pacotes diferentes) | `FEITO` | agente-idiomatic | 03/09 | Em Java, nomes com o mesmo simples em pacotes diferentes são válidos. Compilador agora usa nomes FQ internamente. | `97109c1`, `eb108ec`, `dfce911` |
 
 ## Abertos (livres pra pegar)
 
 | Gap/Item | Prioridade | Escopo | Notas |
 |---|---|---|---|
-| **~~GC mark-sweep~~ Native** | ✅ fechado 03/09 | `kof_gc_sweep` real; auto-collect desligado (requer safe-points) | ver Concluídos |
-| **HTTP002 restante** | média | `delete/put/patch/options` + `timeout/retry/circuit` reais no Native | `get/post/status` feitos |
-| **WEB002** — kof.web no Native | ✅ fechado 03/09 | servidor HTTP/1.1 asm: accept+parse+match+lambda-dispatch+body context; 4/4 no KofWebNativeE2ETest; pendências honestas: path params {id}, headers/param/query, SSE/WS (WEB003/4), keepalive (sempre Connection: close) | agente-planning (T1..T4: 89ac0d9 → 2ead1df) |
-| **CONC003** — JS async real | média | event-loop real sobre Promises no GraalJS | design pendente |
-| **MEDIA001/2/3** | baixa | paridade media Native/JS | gaps documentados |
+| **HTTP003** — kof.http Native cauda | média | `https` + DNS real + `timeout/retry/circuit` (knobs reais) no Native | HTTP/1.1 get/post/status ✅ 03/09 (`NativeHttpRuntime.java`); delete/put/patch/options compilados; cauda = TLS/DNS/retry |
+| **WEB002 residual** — kof.web Native avançado | média | TLS `listenSecure`, ws/sse, path params, keepalive no `NativeWebRuntime` | server base ✅ 03/09 (accept/route/lambda/body — `KofWebNativeE2ETest` 4/4); resto é cauda |
+| **WEB001 residual** — kof.web JS avançado | média | ws/sse + TLS no JS | GraalJS HttpServer real ✅ 03/09 (`bc577aa`); ws/sse pendentes |
+| **MEDIA001/2/3** | baixa | paridade media Native/JS | gap documentado |
 | **SECPQ** | baixa | PQC via liboqs FFI | Tier 9 (futuro) |
-| **MySQL query binário** (resultset EXECUTE) | ~~média~~ | `kof_db_mysql_prep_query` | ✅ FEITO 03/09 (`02b9ddb`) |
+| **~~MySQL query binário~~** | ~~baixo~~ | ~~`kof_db_mysql_prep_query`~~ | |
 | **Portar stdlib riscv64/aarch64** | média | `translateRiscvToAarch64` existe | agente-nativo-val |
 | Debugger DWARF variáveis/expressões + VS Code ext | baixa | `kof.debug` | |
 | OpenTelemetry export | baixa | spans feitos; falta OTLP export | |
@@ -73,13 +77,34 @@ Tier 1 ⇒ fechado ⇒ Tiers 2–12 (plataforma universal) abrem.
 
 - **≤500 linhas por classe** (refactor futuro de NativeRuntime: módulo novo por área, ex: `NativeHttpRuntime.java`).
 - Nunca duas frentes no mesmo arquivo gigante ao mesmo tempo — se for inevitável, combine no chat antes.
-- **Congelamento de comportamento** (AGENTS.md, obrigatório): zero regressão (suíte **840** é gate de merge), features novas **aditivas** (retrocompatibilidade), refactor de 500 linhas preserva semântica (mesma suíte + golden E2E; output mudou = bug do refactor), bugs em `docs/known-bugs.md` são corrigidos **no código** para atingir o comportamento previsto (nunca "documentar em volta"), paridade JVM/Native/JS é regra.
+- **Congelamento de comportamento** (AGENTS.md, obrigatório): zero regressão (suíte **910** é gate de merge), features novas **aditivas** (retrocompatibilidade), refactor de 500 linhas preserva semântica (mesma suíte + golden E2E; output mudou = bug do refactor), bugs em `docs/known-bugs.md` são corrigidos **no código** para atingir o comportamento previsto (nunca "documentar em volta"), paridade JVM/Native/JS é regra.
+
+## Incidentes de processo (bronca registrada — 03/09, agente-switch-expr)
+
+Três violações encontradas ao auditar as branches antes do merge. **Não se repita:**
+
+1. **`fixes-for-kofagent` (`cf5a4cb`) quebrou o build da branch.** `JvmVkRuntime.java`
+   foi reescrito (return → campo `VK_SOURCE`) mas o `;` do text block foi apagado e
+   um `}` sobrou — `mvn compile` falhava em TODA a branch. Commite com
+   `mvn -o -pl kof-compiler -am compile -q` ANTES de pushar. Fix: `3777eea`.
+2. **`idiomatic-fixes` (`2729f32`) mudou semântica sem rodar a suíte completa.**
+   O fix PKG005 passou a flaggar "mesmo nome no MESMO pacote" e quebrou 3 testes de
+   `PackagesE2ETest` (falso-positivo: re-import transitivo de fonte explícita).
+   O commit diz "871/872" — a suíte inteira é gate de merge, não um subset.
+   Fix: `f6f1714` (dedup por arquivo de origem) + testes atualizados.
+3. **Dois agentes no mesmo arquivo gigante sem combinar.** `SYN001` (reivindicado
+   em `1d1343f`) toca `CompilerDriver.java`/`JsBackend.java`; `2729f32` e `bc577aa`
+   avançaram nos mesmos arquivos na mesma janela. A regra de ouro do AGENTS.md é
+   "combine no chat antes" — o merge só não foi pior porque os hunks não colidiram.
+
+**Padrão correto:** reivindicar → trabalhar → `mvn test` COMPLETO → commit → push.
+Se o gate falha, o commit não existe.
 
 ## Frentes de validação/docs (não são gaps de feature — avisar antes de mexer)
 
 | Frente | Estado | Dono | Branch | Arquivos | Notas |
 |---|---|---|---|---|---|
-| **Bug-hunt + `known-bugs.md`** | `EM CURSO` | agente-idiomatic | idiomatic-fixes | `docs/known-bugs.md`, `docs/status.md` | **13/25 bugs corrigidos 03/09** (1,2,3,4,5,6,7,10,13,14,22,24,25 — todos com teste de regressão). Restantes: 8,9,11,12,15,16,17,18,19,20,21,23. Corrigir bug = reivindicar aqui e fix no código, não no corpus. |
+| **Bug-hunt + `known-bugs.md`** | `EM CURSO` | agente-idiomatic | beta-0.3.0 | `docs/known-bugs.md`, `docs/status.md` | **26 bugs corrigidos com teste de regressão** (1–26 exceto nenhum; 04/09 fechou 19, 26, 16-sublist e 8-invocação). Suíte completa 913 testes verde. |
 | **Auditoria idiomática de docs/training** | `EM CURSO` | agente-idiomatic | idiomatic-fixes | `learn/`, `training/`, `docs/` | Revisar corpus contra o compilador (fake idioms, casos obsoletos). |
 
 ### Notas WEB002_NATIVE — fechado (historial pregado)

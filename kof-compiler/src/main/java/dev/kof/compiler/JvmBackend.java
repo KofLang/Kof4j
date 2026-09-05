@@ -527,6 +527,21 @@ class JvmBackend implements Backend {
         try {
             mv.visitMaxs(maxStack, maxLocals);
         } catch (RuntimeException e) {
+            // re-emit num ClassWriter COMPUTE_MAXS + TraceClassVisitor: mostra
+            // o bytecode exato que quebrou o COMPUTE_FRAMES
+            if (Boolean.getBoolean("kof.trace.asm")) {
+                try {
+                    java.io.StringWriter sw = new java.io.StringWriter();
+                    org.objectweb.asm.util.Printer pr = new org.objectweb.asm.util.Textifier();
+                    org.objectweb.asm.MethodVisitor dump = new org.objectweb.asm.util.TraceMethodVisitor(pr);
+                    for (KofOperation op : ops) emitOperation(dump, className, op);
+                    pr.print(new java.io.PrintWriter(sw, true));
+                    System.err.println("=== bytecode de " + className + "." + method.name() + " ===");
+                    System.err.println(sw);
+                } catch (Throwable t2) {
+                    System.err.println("trace.asm falhou: " + t2);
+                }
+            }
             if (Boolean.getBoolean("kof.trace.ir")) {
                 System.err.println("=== IR ops de " + className + "." + method.name() + " ===");
                 for (IRBasicBlock block : method.basicBlocks()) {
@@ -853,7 +868,8 @@ class JvmBackend implements Backend {
             }
         } else if (op instanceof KofCall kc && JvmRuntime.hasRuntimeFn(kc.methodName())) {
             usesJson = true;
-            if (kc.methodName().startsWith("kof_vk_")) {
+            if (kc.methodName().startsWith("kof_vk_")
+                    || kc.methodName().startsWith("kof_mv64_")) {
                 usesVk = true;
             }
             if (kc.methodName().startsWith("kof_ffi_")) {
@@ -923,6 +939,11 @@ class JvmBackend implements Backend {
                             mv.visitTypeInsn(CHECKCAST, JvmTypeMapper.toDescriptor(at));
                         } else if (elemType instanceof Type.ClassType ct) {
                             mv.visitTypeInsn(CHECKCAST, JvmTypeMapper.toInternalName(ct.packageName(), ct.name()));
+                        } else if (elemType instanceof Type.FunctionType ft && ft.className() != null) {
+                            // elemento é lambda (bug 20): cast para a classe
+                            // sintética, senão o invokevirtual seguinte falha no
+                            // verifier (Object onde Lambda0 é esperado)
+                            mv.visitTypeInsn(CHECKCAST, ft.className());
                         }
                         // Unknown/other: sem cast — a lista guarda Object
                     }

@@ -118,7 +118,9 @@ class PackagesE2ETest {
     }
 
     @Test
-    void duplicateTypeAcrossPackagesIsDiagnostic(@TempDir Path tempDir) throws IOException {
+    void duplicateTypeAcrossPackagesIsAllowed(@TempDir Path tempDir) throws IOException {
+        // PKG005 (03/09): nomes simples iguais em pacotes DIFERENTES são
+        // válidos (como em Java) — resolução por FQ name. Não é mais erro.
         Files.createDirectories(tempDir.resolve("a"));
         Files.createDirectories(tempDir.resolve("b"));
         Files.writeString(tempDir.resolve("a/Nome.kf"), """
@@ -134,7 +136,29 @@ class PackagesE2ETest {
                 tempDir.resolve("b/Nome.kf"));
         CompilationResult r = driver.compileSources(sources,
                 tempDir.resolve("out"), Target.JVM, tempDir);
-        assertFalse(r.success(), "mesmo nome simples em dois pacotes deve falhar");
+        assertTrue(r.success(),
+                "mesmo nome simples em pacotes diferentes deve compilar (PKG005): "
+                        + r.diagnostics().getDiagnostics());
+    }
+
+    @Test
+    void duplicateTypeInSamePackageIsDiagnostic(@TempDir Path tempDir) throws IOException {
+        // Colisão REAL: mesmo nome, mesmo pacote, arquivos diferentes.
+        Files.createDirectories(tempDir.resolve("a"));
+        Files.writeString(tempDir.resolve("a/Nome.kf"), """
+            package a
+            class Nome {}
+            """);
+        Files.writeString(tempDir.resolve("a/Outro.kf"), """
+            package a
+            class Nome {}
+            """);
+        List<Path> sources = List.of(
+                tempDir.resolve("a/Nome.kf"),
+                tempDir.resolve("a/Outro.kf"));
+        CompilationResult r = driver.compileSources(sources,
+                tempDir.resolve("out"), Target.JVM, tempDir);
+        assertFalse(r.success(), "mesmo nome no MESMO pacote deve falhar");
         assertTrue(r.diagnostics().getDiagnostics().stream()
                         .anyMatch(d -> "PKG005".equals(d.code())),
                 "gap PKG005 esperado: " + r.diagnostics().getDiagnostics());

@@ -223,6 +223,75 @@ class CompilerDriverTest {
         assertTrue(diags.contains("SEM027"), "Should be a clean diagnostic, was: " + diags);
     }
 
+    // known-bugs #26 — a void call used as a VALUE (println(f()) where f is
+    // void, or `var x = voidCall()`) left the value stack empty → segfault on
+    // Native / VerifyError on JVM. Now a clean SEM033.
+    @Test
+    void voidCallAsValueGivesCleanDiagnostic(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Bad.kf");
+        Files.writeString(source, """
+            void fazAlgo(Int a) { var x = a + 1 }
+            main() {
+                println(fazAlgo(5))
+            }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "void call as println arg should fail to compile");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM033"), "Should be a clean diagnostic, was: " + diags);
+    }
+
+    @Test
+    void voidLambdaAsValueGivesCleanDiagnostic(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Bad.kf");
+        Files.writeString(source, """
+            main() {
+                var f = (a: Int) -> { var x = a + 1 }
+                println(f(5))
+            }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "void lambda as println arg should fail to compile");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM033"), "Should be a clean diagnostic, was: " + diags);
+    }
+
+    // known-bugs #16 — List.toArray() (unsupported/undocumented) produced
+    // invalid bytecode on JVM and undefined references on Native. Now a clean
+    // SEM029; Java interop methods like stream() must keep working.
+    @Test
+    void toArrayOnCollectionGivesCleanDiagnostic(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Bad.kf");
+        Files.writeString(source, """
+            main() {
+                var arr = listOf(1, 2, 3).toArray()
+                println(arr.length)
+            }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "toArray should fail to compile");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM029"), "Should be a clean diagnostic, was: " + diags);
+    }
+
+    // known-bugs #16 (cauda) — sublist()/subSet() return a collection, which
+    // the backends cannot materialize → invalid bytecode. Now a clean SEM034.
+    @Test
+    void sublistOnCollectionGivesCleanDiagnostic(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Bad.kf");
+        Files.writeString(source, """
+            main() {
+                var l = listOf(1, 2, 3, 4)
+                var sub = l.sublist(1, 3)
+                println(sub.size)
+            }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "sublist should fail to compile");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM034"), "Should be a clean diagnostic, was: " + diags);
+    }
+
     @Test
     void failsOnTypeMismatchAssignment(@TempDir Path tempDir) throws IOException {
         Path source = tempDir.resolve("Bad.kf");
@@ -3946,5 +4015,220 @@ class CompilerDriverTest {
             """);
         CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.NATIVE);
         assertTrue(result.success(), "Nested switch should compile to native");
+    }
+
+    /**
+     * Regressão crítica de correção semântica: NENHUM identificador não
+     * declarado pode ser aceito porque o compilador "inferiu um tipo" para ele.
+     * Não há fallback silencioso para Unknown/Object/Any — todo identificador
+     * não resolvido deve emitir SEM011 em QUALQUER posição.
+     */
+    private void assertUndeclaredRejected(String source, Path tempDir, String name) throws IOException {
+        Path src = tempDir.resolve(name + ".kf");
+        Files.writeString(src, source);
+        CompilationResult result = driver.compile(src, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "Undeclared identifier must fail to compile: " + name);
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM011"),
+                "Must report SEM011 (no silent fallback), got: " + diags);
+    }
+
+    @Test
+    void undeclaredIdentifiersNeverInferredIntoVariables(@TempDir Path tempDir) throws IOException {
+        // declaração + uso: válido
+        Path ok = tempDir.resolve("ok.kf");
+        Files.writeString(ok, """
+            main() {
+                val x = 10
+                println(x)
+            }
+            """);
+        assertTrue(driver.compile(ok, tempDir.resolve("okout"), Target.JVM).success(),
+                "Declared variable must work");
+
+        // uso sem declaração: SEM011 em cada posição
+        assertUndeclaredRejected("""
+            main() { println(ghost) }
+            """, tempDir, "u1");
+        assertUndeclaredRejected("""
+            main() { foo(ghost) }
+            """, tempDir, "u2");
+        assertUndeclaredRejected("""
+            main() { var r = ghost + 1; println(r) }
+            """, tempDir, "u3");
+        assertUndeclaredRejected("""
+            main() { ghost = 5 }
+            """, tempDir, "u4");
+        assertUndeclaredRejected("""
+            main() { var s = "v:" + ghost; println(s) }
+            """, tempDir, "u5");
+        assertUndeclaredRejected("""
+            Int f() { return ghost }
+            main() { println(f()) }
+            """, tempDir, "u6");
+        assertUndeclaredRejected("""
+            main() { val a = ghost; println(a) }
+            """, tempDir, "u7");
+        assertUndeclaredRejected("""
+            class C { Int campo = ghost }
+            main() { var c = C(); println("ok") }
+            """, tempDir, "u8");
+        assertUndeclaredRejected("""
+            main() { for (var item in ghost) { println(item) } }
+            """, tempDir, "u9");
+        // dentro de lambda (body analisado)
+        assertUndeclaredRejected("""
+            main() { val f = (x: Int) -> x + ghost; println(f(1)) }
+            """, tempDir, "u10");
+        assertUndeclaredRejected("""
+            main() { var r = listOf(1, 2).map((x: Int) -> ghost + x); println(r.size) }
+            """, tempDir, "u11");
+        // lambda aninhada: corpo do lambda interno também é analisado
+        assertUndeclaredRejected("""
+            main() { val f = (a: Int) -> ((b: Int) -> ghost + b); println("ok") }
+            """, tempDir, "u12");
+    }
+
+    @Test
+    void lambdaParametersBoundInOwnScope(@TempDir Path tempDir) throws IOException {
+        // parâmetros de lambda são registrados no escopo próprio
+        Path ok = tempDir.resolve("lambdascope.kf");
+        Files.writeString(ok, """
+            main() {
+                val f = (x: Int) -> x + 1
+                println(f(10))
+            }
+            """);
+        assertTrue(driver.compile(ok, tempDir.resolve("out"), Target.JVM).success(),
+                "Lambda param in own scope must work");
+        // shadowing: param sombreia variável externa
+        Path sh = tempDir.resolve("shadow.kf");
+        Files.writeString(sh, """
+            main() {
+                val y = 100
+                val f = (y: Int) -> y + 1
+                println(f(10))
+            }
+            """);
+        assertTrue(driver.compile(sh, tempDir.resolve("out2"), Target.JVM).success(),
+                "Lambda param shadowing must work");
+        // identificador desconhecido no corpo do lambda: SEM011
+        assertUndeclaredRejected("""
+            main() { val f = (x: Int) -> y + 1; println(f(10)) }
+            """, tempDir, "u13");
+    }
+
+    // known-bugs #8 — function types `(Int) -> Int` now PARSE as type
+    // annotations, generic arguments and lambda parameter types. Invoking a
+    // bug 8: a value of a DECLARED function type (no synthetic lambda class)
+    // is invoked via the synthetic interface that all lambdas of the
+    // signature implement (added 04/09) — no longer SEM032.
+    @Test
+    void functionTypeSyntax(@TempDir Path tempDir) throws IOException {
+        Path ok = tempDir.resolve("ft.kf");
+        Files.writeString(ok, """
+            main() {
+                var fs = listOf<(Int) -> Int>()
+                println(fs.size)
+            }
+            """);
+        assertTrue(driver.compile(ok, tempDir.resolve("out"), Target.JVM).success(),
+                "Function type as generic argument should parse");
+
+        Path now = tempDir.resolve("invoke.kf");
+        Files.writeString(now, """
+            main() {
+                val f = (s: (Int) -> Int) -> s(1)
+                println(f((x: Int) -> x * 10))
+            }
+            """);
+        CompilationResult result = driver.compile(now, tempDir.resolve("out2"), Target.JVM);
+        assertTrue(result.success(), "Invoking a declared function type must work via interface dispatch: "
+                + result.diagnostics().getDiagnostics());
+    }
+
+    // known-bugs #15 — primitive assigned to Object must box (JVM); String
+    // must still reject Int. Also: no-initializer declarations get a default
+    // (0 primitive / null reference) — they used to crash the frame.
+    @Test
+    void primitiveAssignableToObject(@TempDir Path tempDir) throws IOException {
+        Path ok = tempDir.resolve("obj.kf");
+        Files.writeString(ok, """
+            main() {
+                Object n = 42
+                Object d = 3.14
+                Object b = true
+                Object o
+                o = 7
+                println("ok")
+                Int x
+                println(x)
+            }
+            """);
+        Path outJvm = tempDir.resolve("outjvm");
+        Path outNat = tempDir.resolve("outnat");
+        assertTrue(driver.compile(ok, outJvm, Target.JVM).success(),
+                "primitive → Object should compile on JVM");
+        assertTrue(driver.compile(ok, outNat, Target.NATIVE).success(),
+                "primitive → Object should compile on Native");
+
+        Path bad = tempDir.resolve("bad.kf");
+        Files.writeString(bad, """
+            main() {
+                String s = 42
+            }
+            """);
+        CompilationResult result = driver.compile(bad, tempDir.resolve("out2"), Target.JVM);
+        assertFalse(result.success(), "Int → String must still be rejected");
+        assertTrue(result.diagnostics().getDiagnostics().toString().contains("SEM021"),
+                "Int → String should be SEM021");
+    }
+
+    /**
+     * Regressão (SEM-AUDIT): parâmetro de lambda SEM anotação de tipo não pode
+     * virar `Object` silencioso e aceitar aritmética — o emit faria IADD sobre
+     * referência (bytecode inválido; a JVM rejeita com VerifyError disfarçado de
+     * "JavaFX launcher"). A regra: inferência nunca mascara tipo inaplicável;
+     * diagnóstico SEM explícito, com dica de como corrigir.
+     */
+    @Test
+    void untypedLambdaParamArithmeticIsDiagnosedNotEmitted(@TempDir Path tempDir) throws IOException {
+        // aritmética sobre param sem tipo → SEM001, nunca bytecode quebrado
+        Path bad = tempDir.resolve("untyped.kf");
+        Files.writeString(bad, """
+            main() {
+                val f = (x) -> x + 1
+                println(f(10))
+            }
+            """);
+        CompilationResult result = driver.compile(bad, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(),
+                "Object + Int must not compile (would emit IADD over reference)");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM001"), "must be SEM001, got: " + diags);
+        assertTrue(diags.contains("non-numeric"), "message must name the problem: " + diags);
+
+        // com anotação: o mesmo corpo é válido (a dica do diagnóstico funciona)
+        Path ok = tempDir.resolve("typed.kf");
+        Files.writeString(ok, """
+            main() {
+                val f = (x: Int) -> x + 1
+                println(f(10))
+            }
+            """);
+        assertTrue(driver.compile(ok, tempDir.resolve("out2"), Target.JVM).success(),
+                "(x: Int) -> x + 1 must compile");
+
+        // comparação (== / !=) sobre Object continua válida — só aritmética é
+        // que não tem opcode para referência
+        Path cmp = tempDir.resolve("cmp.kf");
+        Files.writeString(cmp, """
+            main() {
+                val f = (x) -> x == null
+                println(f("a"))
+            }
+            """);
+        assertTrue(driver.compile(cmp, tempDir.resolve("out3"), Target.JVM).success(),
+                "== sobre Object deve continuar válido");
     }
 }

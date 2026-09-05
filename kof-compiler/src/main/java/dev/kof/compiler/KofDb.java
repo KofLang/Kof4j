@@ -41,11 +41,13 @@ final class KofDb {
         return "db".equals(name);
     }
 
-    /** kof.db: JVM via JDBC; NATIVE via link direto de client libs (sem
-     *  driver) — SQLite primeiro (libsqlite3.so.0), depois mysql/oracle.
-     *  JS reporta DB001. */
+    /** kof.db: JVM via JDBC; NATIVE (x86_64) via link direto de client libs
+     *  (sem driver) — SQLite primeiro (libsqlite3.so.0), depois mysql/oracle.
+     *  O link dinâmico de libsqlite3 exige libc — os cross estáticos
+     *  (riscv64/aarch64, asm puro sem C) reportam DB001 em compile-time (R6:
+     *  nunca undefined-reference silencioso no ld). JS reporta DB001. */
     static boolean supportedOn(Target target) {
-        return target == Target.JVM || target.isNative();
+        return target == Target.JVM || target == Target.NATIVE;
     }
 
     static String gapCode() {

@@ -28,6 +28,7 @@ final class NativeRuntime {
         emitFloatToString(sb);
         emitDoubleToString(sb);
         emitIntToString(sb);
+        emitCharToString(sb);
         emitLongToString(sb);
         emitBoolToString(sb);
         emitListFunctions(sb);
@@ -219,6 +220,80 @@ final class NativeRuntime {
                 movl %ebx, 16(%r13)
                 movl $0, 20(%r13)
                 movq %r13, %rax
+                popq %r13
+                popq %r12
+                popq %rbx
+                ret
+             """);
+    }
+
+    // kof_char_to_string: %edi = codepoint (Char 16-bit nativo) → String
+    // UTF-8 no layout do kof: +0 refcount, +16 len (bytes), +24 bytes.
+    // 0..0x7F → 1 byte; 0x80..0x7FF → 2; 0x800..0xFFFF → 3.
+    private static void emitCharToString(StringBuilder sb) {
+        sb.append("""
+            .globl kof_char_to_string
+            .type kof_char_to_string, @function
+            kof_char_to_string:
+                pushq %rbx
+                pushq %r12
+                pushq %r13
+                movl %edi, %r13d        # salva o codepoint (kof_alloc suja os regs caller-saved)
+                movl $0, %r12d          # r12 = nº de bytes utf8
+                cmpl $128, %r13d
+                jge .Lkof_char_2
+                movl $1, %r12d
+                jmp .Lkof_char_alloc
+            .Lkof_char_2:
+                cmpl $2048, %r13d
+                jge .Lkof_char_3
+                movl $2, %r12d
+                jmp .Lkof_char_alloc
+            .Lkof_char_3:
+                movl $3, %r12d
+            .Lkof_char_alloc:
+                leaq 25(, %r12, 1), %rdi
+                call kof_alloc
+                pushq %rax
+                leaq 24(%rax), %rsi     # base dos bytes
+                cmpl $128, %r13d
+                jge .Lkof_char_enc2
+                movl %r13d, %ecx
+                movb %cl, (%rsi)
+                jmp .Lkof_char_done
+            .Lkof_char_enc2:
+                cmpl $2048, %r13d
+                jge .Lkof_char_enc3
+                movl %r13d, %ecx
+                shrl $6, %ecx
+                orl $0xC0, %ecx
+                movb %cl, (%rsi)
+                movl %r13d, %ecx
+                andl $0x3F, %ecx
+                orl $0x80, %ecx
+                movb %cl, 1(%rsi)
+                jmp .Lkof_char_done
+            .Lkof_char_enc3:
+                movl %r13d, %ecx
+                shrl $12, %ecx
+                orl $0xE0, %ecx
+                movb %cl, (%rsi)
+                movl %r13d, %ecx
+                shrl $6, %ecx
+                andl $0x3F, %ecx
+                orl $0x80, %ecx
+                movb %cl, 1(%rsi)
+                movl %r13d, %ecx
+                andl $0x3F, %ecx
+                orl $0x80, %ecx
+                movb %cl, 2(%rsi)
+            .Lkof_char_done:
+                popq %rax
+                movl $1, 0(%rax)        # refcount
+                movl $0, 4(%rax)
+                movq $0, 8(%rax)
+                movl %r12d, 16(%rax)    # len
+                movl $0, 20(%rax)
                 popq %r13
                 popq %r12
                 popq %rbx
@@ -5509,23 +5584,23 @@ final class NativeRuntime {
                 incq %r13
                 jmp .Ljq_next
             .Ljq_e_q:
-                movw $5396, (%r13)          # backslash+aspa (0x22,0x5C)
+                movw $8796, (%r13)          # backslash+aspa: LE -> 5C 22
                 addq $2, %r13
                 jmp .Ljq_next
             .Ljq_e_bs:
-                movw $23644, (%r13)         # 2x backslash (0x5C,0x5C)
+                movw $23644, (%r13)         # 2x backslash: LE -> 5C 5C
                 addq $2, %r13
                 jmp .Ljq_next
             .Ljq_e_nl:
-                movw $28268, (%r13)         # backslash+n (0x6E,0x5C LE -> 5C,6E)
+                movw $28252, (%r13)         # backslash+n: LE -> 5C 6E
                 addq $2, %r13
                 jmp .Ljq_next
             .Ljq_e_cr:
-                movw $29300, (%r13)         # backslash+r
+                movw $29276, (%r13)         # backslash+r: LE -> 5C 72
                 addq $2, %r13
                 jmp .Ljq_next
             .Ljq_e_tb:
-                movw $29796, (%r13)         # backslash+t
+                movw $29788, (%r13)         # backslash+t: LE -> 5C 74
                 addq $2, %r13
                 jmp .Ljq_next
             .Ljq_e_uni:
@@ -7725,7 +7800,11 @@ final class NativeRuntime {
                 popq %r12
                 popq %rbx
                 ret
+
             """);
+        // M36.5: cadeia Vulkan int64 real (tradução asm do vkchain64.c)
+        // — substitui os stubs kof_mv64_* / kof_vk_dispatch64.
+        sb.append(VkChain64Asm.source());
     }
 
     private static void emitIoFileFunctions(StringBuilder sb) {

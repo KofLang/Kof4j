@@ -374,17 +374,14 @@ EXTERNA produz lixo
 
 - **Sintoma:** `var make = (x: Int) -> ((y: Int) -> x + y); make(5)(3)` falha:
   JVM `ClassFormatError: Illegal class name ""`; Native `undefined reference`.
-- **Reprodução:**
-  ```kof
-  main() {
-      var make = (x: Int) -> ((y: Int) -> x + y)
-      var add5 = make(5)
-      println(add5(3))   // JVM ClassFormatError
-  }
-  ```
-- **Causa provável:** o lambda interno (retornado) vira uma classe sintética
-  com tipo retorno de função; o backend não emite o invocable corretamente.
-- **Arquivos:** `CompilerDriver.java` (synthesizeLambda), `JvmBackend.java`.
+
+- **Corrigido 04/09** (`6dad633`): `collectCaptures` agora desce em lambdas
+  aninhados — variáveis livres do lambda INTERNO que pertencem ao escopo do
+  EXTERNO passam a ser capturadas pelo externo e repassadas via constructor.
+  Antes o externo não capturava `a` e o lambda mais interno somava o ponteiro
+  `this` no lugar da captura (lixo em Native, `VerifyError` em JVM). Prova:
+  `LambdaE2ETest.tripleNested*` (3 níveis, `make(5)(3)(10)` = 18 nos 3 targets).
+- **Arquivos:** `CompilerDriver.java` (`collectCaptures`), `LambdaE2ETest.java`.
 
 ---
 
@@ -413,14 +410,12 @@ EXTERNA produz lixo
 - **Sintoma:** `package pkgA; class Data` + `package pkgB; class Data` →
   `duplicate type name 'Data' in packages 'pkgA' and 'pkgB' [PKG005]`. Em
   Java/JVM isso é perfeitamente legal (nomes fully-qualified distintos).
-- **Reprodução:** dois arquivos `pkgA/Data.kf` e `pkgB/Data.kf` (cada um com
-  seu `package`) compilados juntos.
-- **Causa provável:** `CompilerDriver.java:378-391` faz colisão por **nome
-  simples** (`declarationName`) em vez de fully-qualified.
-- **Impacto:** "arquivos com mesmo nome em pastas diferentes dão erro" —
-  exatamente o relato de usuário. Fix exige nomes FQ internos (IR já guarda
-  package no IRClass).
-- **Arquivos:** `CompilerDriver.java` (PKG005).
+
+- **Corrigido 03/09**: o compilador agora aceita nomes com o mesmo nome
+  simples em pacotes diferentes. Só rejeita nomes duplicados no MESMO
+  pacote. O nome interno (FQ) é usado para todas as referências.
+  
+- **Arquivos:** `CompilerDriver.java` (PKG005) --- REMOVIDO.
 
 ---
 
@@ -452,6 +447,22 @@ EXTERNA produz lixo
   gera falha silenciosa sem aviso ao usuário. Ao menos um warning "superclasse
   X não encontrada no classpath" deveria ser emitido.
 - **Arquivos:** `ExternalClasspath.java` (resolveMethod/superclassOf).
+
+---
+
+### 26. Valor VOID usado como valor (println(f()) / `var x = f()`) → segfault/VerifyError
+
+- **Sintoma:** `println(f(5))` onde `f` é void (função `void` ou lambda com
+  corpo de bloco sem `return`) compila mas quebra: Native segfault (pop de
+  lixo), JVM `VerifyError`. O lambda `(a: Int) -> { var x = a + 1 }` é void
+  (corpo de bloco com múltiplos statements exige `return` explícito em Kof).
+- **Corrigido 04/09**: o emit diagnostica `SEM033` ("a chamada não retorna
+  valor") quando uma expressão void é usada como argumento de println/print ou
+  como initializer de var. A chamada void como STATEMENT (`f(1)` sozinho)
+  segue funcionando. Prova:
+  `CompilerDriverTest.voidCallAsValueGivesCleanDiagnostic` +
+  `voidLambdaAsValueGivesCleanDiagnostic`.
+- **Arquivos:** `CompilerDriver.java` (emit de println/print e VarDeclStmt).
 
 ---
 
@@ -553,3 +564,61 @@ EXTERNA produz lixo
   ("atribuição é um statement, não uma expressão"). Statements (`a = b`,
   `i = i + 1` no for) seguem passando com o check de assignability intacto
   (SEM012). Prova: `CompilerDriverTest.chainedAssignmentRejectedAsExpression`.
+- **Bug 16** (`List.toArray()` quebrava JVM/Native) — **corrigido 03/09**:
+  `toArray` não é suportado/documentado e caía no caminho genérico → bytecode
+  inválido. Agora `SEM029` limpo ("use um loop com new T[n]"). Interop Java
+  (`stream()`) segue funcionando. Prova:
+  `CompilerDriverTest.toArrayOnCollectionGivesCleanDiagnostic`. Relacionado:
+  `sublist()`/`subSet()` (retorno de coleção) também geravam bytecode inválido —
+  **corrigido 04/09** com `SEM034` limpo (prova:
+  `CompilerDriverTest.sublistOnCollectionGivesCleanDiagnostic`).
+- **Bug 11** (`==` em records usa igualdade de REFERÊNCIA) — **corrigido
+  03/09 (JVM+JS+Native)**: `==`/`!=`/`equals` em records despacham para o
+  `equals` gerado (comparação de conteúdo). JVM já gerava equals; JS gera
+  `equals()` por componente (retorna Kof bool 0/1); Native agora gera e
+  dispatcha `equals` via vtable. O `println(record)` também funciona em
+  Native (usa o toString gerado). Prova:
+  `CoreRegressionE2ETest.recordEqualityByContent` (JVM+JS+Native).
+- **Bug 23** (ExternalClasspath: superclasse fora dos entries perdia
+  referência SILENCIOSAMENTE) — **corrigido 03/09**: `resolveMethod`/
+  `resolveFieldType` emitem warning quando a cadeia de superclasses encontra
+  uma classe ausente do classpath ("may not resolve"). Prova:
+  `AndroidInteropE2ETest.missingSuperclassOnClasspathWarns`.
+- **Bug 20** (lambda em coleção invocado: `ops.get(0)(4)`/`f(4)` de elemento de
+  lista) — **corrigido 03/09 (3 targets)**: três causas encadeadas —
+  (1) a inferência de métodos de List/Map/Set no SemanticAnalyzer devolvia
+  Unknown (a lista de lambdas perdia o tipo do elemento); (2) o tipo cacheado
+  da análise semântica tinha a FunctionType SEM className (a síntese da lambda
+  é pós-análise) → agora `containsLambdaFunctionType` força re-inferência;
+  (3) o JVM `kof_list_get` não fazia CHECKCAST para a classe sintética da
+  lambda (verifier: Object onde Lambda0). Prova:
+  `CoreRegressionE2ETest.lambdaStoredInCollectionAndInvoked`.
+- **Bug 19** (lambda retornando lambda) — **corrigido 04/09**: `collectCaptures`
+  desce em lambdas aninhados (o externo captura e repassa variáveis livres do
+  interno) — triple-nested `make(5)(3)(10)` funciona nos 3 targets. Prova:
+  `LambdaE2ETest.tripleNested*` (JVM+Native).
+- **Bug 8** (tipo de função `(Int) -> Int` não parseava como tipo) —
+  **corrigido 03/09 (parse) + 04/09 (invocação)**: `Parser.parseTypeRef` agora
+  aceita `(params) -> ret`; `Type.of` converte para `FunctionType`;
+  `looksLikeLambdaParams` reconhece `(s: (Int) -> Int) -> ...`.
+  `listOf<(Int) -> Int>()` funciona. **Invocar valor de tipo de função
+  DECLARADO** (`s(1)` com `s: (Int) -> Int`, inclusive params de função) —
+  **corrigido 04/09**: toda lambda implementa uma interface sintética por
+  assinatura (`kof/FunctionN_<types>`) e o call site despacha via
+  INVOKEINTERFACE (antes SEM032). Prova:
+  `CompilerDriverTest.functionTypeSyntax` +
+  `LambdaE2ETest.declaredFunctionType*` (var e param, JVM+Native).
+- **Bug 9** (captura mutável no Native → lixo) — **corrigido 03/09**: o
+  prologue nativo iterava os locals na ORDEM DE INSERÇÃO [this, capture, param]
+  e consumia rsi/rdx para a CAPTURA (que na verdade é carregada dos campos do
+  objeto via ops). O param real ficava com rdx (lixo). Agora o prologue salva
+  registros apenas nos slots de PARAMS (1..soma das larguras), ordenando os
+  locals por índice; capturas (slots acima) são preenchidas pelas ops. Prova:
+  `NativeE2ETest.nativeLambdaMutableCapture`.
+- **Bug 15** (primitivo não atribuível a Object — sem auto-boxing) —
+  **corrigido 03/09**: `isAssignable` aceita primitivo→`java.lang.Object` e o
+  emit boxa (`emitErasureBox` no JVM; JS/Native já são untyped) no var-decl e
+  na atribuição. De quebra, declaração SEM inicializador (`Int x`, `Object o`)
+  agora recebe default (0/null) — antes crashava o frame. `Int → String`
+  continua rejeitado (SEM021). Prova:
+  `CompilerDriverTest.primitiveAssignableToObject`.

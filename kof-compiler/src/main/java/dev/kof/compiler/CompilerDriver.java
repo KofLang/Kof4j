@@ -250,6 +250,19 @@ private Target target = Target.JVM;
             diagnostics.error(sources.get(0).toString(), 0, 0, 0,
                     "Error reading source file: " + e.getMessage(), "COMP001");
             return new CompilationResult(false, diagnostics, outputDir);
+        } catch (IllegalStateException e) {
+            if (e.getMessage() != null && e.getMessage().startsWith("CONC003-JS-01")) {
+                // Erro de usuário esperado (lambda comum precisaria virar
+                // async), não um bug do compilador — sem stack trace, sem o
+                // wrapper genérico de COMP002.
+                diagnostics.error(sources.get(0).toString(), 0, 0, 0,
+                        e.getMessage(), "CONC003-JS-01");
+                return new CompilationResult(false, diagnostics, outputDir);
+            }
+            e.printStackTrace();
+            diagnostics.error(sources.get(0).toString(), 0, 0, 0,
+                    "Internal compiler error: " + e.getMessage(), "COMP002");
+            return new CompilationResult(false, diagnostics, outputDir);
         } catch (Exception e) {
             e.printStackTrace();
             diagnostics.error(sources.get(0).toString(), 0, 0, 0,
@@ -375,19 +388,27 @@ private Target target = Target.JVM;
             // import externo (android.* etc.) — ignora
             continue;
         }
-        // colisão de nomes entre pacotes → diagnóstico honesto
         java.util.Map<String, String> seen = new java.util.HashMap<>();
+        java.util.Map<String, String> seenFile = new java.util.HashMap<>();
         for (AstNode d : decls) {
             String n = declarationName(d);
             if (n == null) continue;
             String pkg = declarationPackages.getOrDefault(d, unit.packageName());
             String prev = seen.get(n);
-            if (prev != null && !prev.equals(pkg) && currentDiagnostics != null) {
-                currentDiagnostics.error("", 0, 0, 0,
-                        "duplicate type name '" + n + "' in packages '" + prev + "' and '"
-                                + pkg + "'", "PKG005");
+            String file = d.position() != null ? d.position().file() : "";
+            if (prev != null && prev.equals(pkg)
+                    && !java.util.Objects.equals(seenFile.get(n), file)) {
+                // Mesmo nome simples no MESMO pacote vindo de ARQUIVOS
+                // diferentes é colisão real. A mesma declaração re-adicionada
+                // via import transitivo (fonte explícita + import) não é.
+                if (currentDiagnostics != null) {
+                    currentDiagnostics.error("", 0, 0, 0,
+                            "duplicate type name '" + n + "' in package '" + pkg + "'",
+                            "PKG005");
+                }
             }
             seen.putIfAbsent(n, pkg);
+            seenFile.putIfAbsent(n, file);
         }
         return new CompilationUnitNode(unit.position(), unit.packageName(),
                 imports, decls);
@@ -631,6 +652,9 @@ private Target target = Target.JVM;
     }
 
     private final List<IRClass> syntheticClasses = new ArrayList<>();
+
+    /** Cache de interfaces sintéticas de função (uma por assinatura). */
+    private final java.util.Map<String, Type.ClassType> functionInterfaces = new java.util.HashMap<>();
 
     /**
      * G6: desugar `test "nome" { }` para função void `kof_test_N` logo
@@ -1286,9 +1310,15 @@ private Target target = Target.JVM;
      * entry, so the body lowers unchanged (captures are read-only snapshots).
      */
     private String lambdaClass(LambdaExpr le, Type.FunctionType ft, List<IRLocalVariable> captures) {
+        return lambdaClass(le, ft, captures, false);
+    }
+
+    /** @param isTask true for spawn bodies ({@code LambdaTask*}), not for map/filter/UI handlers */
+    private String lambdaClass(LambdaExpr le, Type.FunctionType ft, List<IRLocalVariable> captures,
+                               boolean isTask) {
         String existing = lambdaClassNames.get(le);
         if (existing != null) return existing;
-        String name = "Lambda" + (lambdaCounter++);
+        String name = (isTask ? "LambdaTask" : "Lambda") + (lambdaCounter++);
         Type ownerType = new Type.ClassType("", name, List.of());
         // super.metodo() dentro da lambda: captura o this EXTERNO como $outer
         boolean needsOuter = lambdaUsesSuper(le) && currentLoweringOwner != null;
@@ -1302,7 +1332,12 @@ private Target target = Target.JVM;
             captures = eff;
             lambdaEffectiveCaptures.put(le, eff);
         }
-        Type returnType = toType(typeToString(ft.returnType()));
+        // lambda retornando lambda (bug 19): preservar a FunctionType (o
+        // round-trip por string a destruía) — o className do lambda interno
+        // será preenchido após a emissão do corpo.
+        Type returnType = ft.returnType() instanceof Type.FunctionType
+                ? ft.returnType()
+                : toType(typeToString(ft.returnType()));
         List<FormalParameterNode> params = le.parameters();
         List<Type> paramTypes = new ArrayList<>();
         for (FormalParameterNode p : params) paramTypes.add(toType(p.type()));
@@ -1357,6 +1392,21 @@ private Target target = Target.JVM;
             localIdx = emitStatement(stmt, ops, name, localIdx, locals, returnType);
         }
         mutatedCapturedNames = savedMutated;
+        // bug 19: lambda que RETORNA outra lambda — o lambda interno é
+        // sintetizado durante a emissão do corpo acima; o className dele só
+        // agora está disponível. Atualiza o returnType para o descriptor do
+        // invoke casar com o call site (senão NoSuchMethodError).
+        if (returnType instanceof Type.FunctionType rtFt && rtFt.className() == null) {
+            for (StatementNode stmt : bodyStmts) {
+                if (stmt instanceof ReturnStmt rs && rs.value() instanceof LambdaExpr retLam) {
+                    String cn = lambdaClassNames.get(retLam);
+                    if (cn != null) {
+                        returnType = new Type.FunctionType(rtFt.parameterTypes(), rtFt.returnType(), cn);
+                        break;
+                    }
+                }
+            }
+        }
         KofOperation last = ops.isEmpty() ? null : ops.get(ops.size() - 1);
         if (last == null || !(last instanceof KofReturn || last instanceof KofReturnVoid)) {
             if (Type.isVoid(returnType)) ops.add(new KofReturnVoid());
@@ -1382,12 +1432,47 @@ private Target target = Target.JVM;
                 AccessFlags.PUBLIC, List.of(),
                 List.of(new IRBasicBlock(0, ctorOps)), ctorLocals);
 
-        IRClass cls = new IRClass(name, "java/lang/Object", List.of(),
+        IRClass cls = new IRClass(name, "java/lang/Object",
+                List.of(lambdaInterfaceType(ft).internalName()),
                 AccessFlags.PUBLIC | AccessFlags.SUPER, fields,
                 List.of(invoke, ctor), List.of(), null, 200 + lambdaCounter);
         syntheticClasses.add(cls);
         lambdaClassNames.put(le, name);
         return name;
+    }
+
+    /**
+     * Interface sintética por assinatura de função — o dispatch por interface
+     * (bug 8) para valores de tipo de função DECLARADO (`f(x)` com
+     * `f: (Int) -> Int`): o tipo não carrega className, então o call site
+     * invoca via interface que TODAS as lambdas da assinatura implementam.
+     */
+    private Type.ClassType lambdaInterfaceType(Type.FunctionType ft) {
+        StringBuilder key = new StringBuilder("Function").append(ft.parameterTypes().size());
+        for (Type p : ft.parameterTypes()) key.append('_').append(mangleTypeForIface(p));
+        key.append('_').append(mangleTypeForIface(ft.returnType()));
+        String name = "kof/" + key;
+        Type.ClassType cached = functionInterfaces.get(name);
+        if (cached != null) return cached;
+        Type.ClassType iface = new Type.ClassType("kof", key.toString().replace('/', '_'), List.of());
+        // método SAM abstract: invoke(params): ret
+        IRMethod invoke = new IRMethod("invoke", ft.returnType(), ft.parameterTypes(),
+                AccessFlags.PUBLIC | AccessFlags.ABSTRACT, List.of(),
+                List.of(), List.of(new IRLocalVariable(0, "this", iface)));
+        IRClass cls = new IRClass(name, "java/lang/Object", List.of(),
+                AccessFlags.PUBLIC | AccessFlags.INTERFACE | AccessFlags.ABSTRACT,
+                List.of(), List.of(invoke), List.of(), null, 400 + lambdaCounter);
+        syntheticClasses.add(cls);
+        functionInterfaces.put(name, iface);
+        return iface;
+    }
+
+    private String mangleTypeForIface(Type t) {
+        if (t instanceof Type.PrimitiveType pt) return Type.canonicalPrimitiveName(pt.name());
+        if (t instanceof Type.ClassType ct) return "C" + ct.name().replace('.', '_');
+        if (t instanceof Type.ArrayType at) return "A" + mangleTypeForIface(at.componentType());
+        if (t instanceof Type.NullableType nt) return "N" + mangleTypeForIface(nt.inner());
+        return "O";
     }
 
 
@@ -1399,7 +1484,9 @@ private Target target = Target.JVM;
     private List<IRLocalVariable> collectCaptures(LambdaExpr le, List<IRLocalVariable> outerLocals) {
         List<IRLocalVariable> captures = new ArrayList<>();
         java.util.Set<String> captured = new java.util.HashSet<>();
-        collectCapturesStmts(le.body(), outerLocals, captures, captured, new java.util.HashSet<>());
+        java.util.Set<String> shadowed = new java.util.HashSet<>();
+        for (FormalParameterNode p : le.parameters()) shadowed.add(p.name());
+        collectCapturesStmts(le.body(), outerLocals, captures, captured, shadowed);
         return captures;
     }
 
@@ -1536,15 +1623,35 @@ private Target target = Target.JVM;
             collectCapturesExpr(iex.condition(), outerLocals, captures, captured, shadowed);
             collectCapturesExpr(iex.thenExpr(), outerLocals, captures, captured, shadowed);
             collectCapturesExpr(iex.elseExpr(), outerLocals, captures, captured, shadowed);
+        } else if (expr instanceof SwitchExpr sex) {
+            collectCapturesExpr(sex.expression(), outerLocals, captures, captured, shadowed);
+            for (SwitchExprCase sc : sex.cases()) {
+                java.util.Set<String> inner = new java.util.HashSet<>(shadowed);
+                if (sc.value() instanceof PatternExpr pe) {
+                    if (pe.varName() != null) inner.add(pe.varName());
+                    inner.addAll(pe.fieldVars());
+                }
+                collectCapturesExpr(sc.body(), outerLocals, captures, captured, inner);
+            }
+            if (sex.defaultValue() != null) {
+                collectCapturesExpr(sex.defaultValue(), outerLocals, captures, captured, shadowed);
+            }
         } else if (expr instanceof NewExpr ne) {
             for (ExpressionNode arg : ne.arguments()) {
                 collectCapturesExpr(arg, outerLocals, captures, captured, shadowed);
             }
         } else if (expr instanceof NewArrayExpr nae) {
             collectCapturesExpr(nae.size(), outerLocals, captures, captured, shadowed);
+        } else if (expr instanceof LambdaExpr le2) {
+            // lambda retornando lambda: variáveis livres do lambda INTERNO
+            // que pertencem ao escopo do EXTERNO são capturas do externo —
+            // o interno não pode alcançá-las por conta própria (o externo
+            // precisa repassá-las via constructor). Os params/locals do
+            // interno entram no shadowed para não virarem capturas.
+            java.util.Set<String> inner = new java.util.HashSet<>(shadowed);
+            for (FormalParameterNode p : le2.parameters()) inner.add(p.name());
+            collectCapturesStmts(le2.body(), outerLocals, captures, captured, inner);
         }
-        // Nested LambdaExpr bodies capture against the enclosing lambda's own
-        // locals (lowered at their own site); do not descend.
     }
 
     private void collectMutatedCaptures(List<StatementNode> body, List<IRLocalVariable> params) {
@@ -1656,6 +1763,10 @@ private Target target = Target.JVM;
             collectDeclaredVarNamesExpr(iex.condition());
             collectDeclaredVarNamesExpr(iex.thenExpr());
             collectDeclaredVarNamesExpr(iex.elseExpr());
+        } else if (expr instanceof SwitchExpr sex) {
+            collectDeclaredVarNamesExpr(sex.expression());
+            for (SwitchExprCase sc : sex.cases()) collectDeclaredVarNamesExpr(sc.body());
+            if (sex.defaultValue() != null) collectDeclaredVarNamesExpr(sex.defaultValue());
         } else if (expr instanceof ArrayAccessExpr aa) {
             collectDeclaredVarNamesExpr(aa.receiver());
             collectDeclaredVarNamesExpr(aa.index());
@@ -1746,6 +1857,10 @@ private Target target = Target.JVM;
             collectLambdasExpr(iex.condition(), out);
             collectLambdasExpr(iex.thenExpr(), out);
             collectLambdasExpr(iex.elseExpr(), out);
+        } else if (expr instanceof SwitchExpr sex) {
+            collectLambdasExpr(sex.expression(), out);
+            for (SwitchExprCase sc : sex.cases()) collectLambdasExpr(sc.body(), out);
+            if (sex.defaultValue() != null) collectLambdasExpr(sex.defaultValue(), out);
         } else if (expr instanceof ArrayAccessExpr aa) {
             collectLambdasExpr(aa.receiver(), out);
             collectLambdasExpr(aa.index(), out);
@@ -1852,6 +1967,19 @@ private Target target = Target.JVM;
             collectMutatedCapturesExpr(iex.condition(), shadowed, inLambda);
             collectMutatedCapturesExpr(iex.thenExpr(), shadowed, inLambda);
             collectMutatedCapturesExpr(iex.elseExpr(), shadowed, inLambda);
+        } else if (expr instanceof SwitchExpr sex) {
+            collectMutatedCapturesExpr(sex.expression(), shadowed, inLambda);
+            for (SwitchExprCase sc : sex.cases()) {
+                java.util.Set<String> inner = new java.util.HashSet<>(shadowed);
+                if (sc.value() instanceof PatternExpr pe) {
+                    if (pe.varName() != null) inner.add(pe.varName());
+                    inner.addAll(pe.fieldVars());
+                }
+                collectMutatedCapturesExpr(sc.body(), inner, inLambda);
+            }
+            if (sex.defaultValue() != null) {
+                collectMutatedCapturesExpr(sex.defaultValue(), shadowed, inLambda);
+            }
         } else if (expr instanceof NewExpr ne) {
             for (ExpressionNode arg : ne.arguments()) collectMutatedCapturesExpr(arg, shadowed, inLambda);
         } else if (expr instanceof NewArrayExpr nae) {
@@ -1896,6 +2024,48 @@ private Target target = Target.JVM;
     private boolean isEnumType(Type t) {
         if (!(t instanceof Type.ClassType ct) || !ct.packageName().isEmpty() || !ct.typeArguments().isEmpty()) return false;
         return !enumConstantsOf(ct.name()).isEmpty();
+    }
+
+    /**
+     * O tipo é um RECORD (dados imutáveis com equals/hashCode gerados)? Usado
+     * no lowering de `==`/`!=` (bug 11) para despachar para equals (conteúdo)
+     * em vez de igualdade de referência.
+     */
+    private boolean isRecordType(Type t) {
+        if (!(t instanceof Type.ClassType ct) || ct.typeArguments() != null && !ct.typeArguments().isEmpty()) return false;
+        if (currentUnit != null) {
+            for (AstNode d : currentUnit.declarations()) {
+                if (d instanceof RecordDeclarationNode r && r.name().equals(ct.name())) return true;
+            }
+        }
+        if (semanticAnalyzer != null) {
+            SymbolTable.ClassSymbol cs = semanticAnalyzer.getClass(ct.name());
+            if (cs != null && cs.superClass() != null
+                    && (cs.superClass().equals("Record") || cs.superClass().endsWith("Record"))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * O tipo (ou seus type arguments) contém uma FunctionType com className
+     * null? Isso indica um tipo de lambda vindo da análise semântica (que roda
+     * antes da síntese) — obsoleto para o emit do invoke (bug 20).
+     */
+    private boolean containsLambdaFunctionType(Type t) {
+        if (t instanceof Type.FunctionType ft) {
+            return ft.className() == null;
+        }
+        if (t instanceof Type.ClassType ct && ct.typeArguments() != null) {
+            for (Type arg : ct.typeArguments()) {
+                if (containsLambdaFunctionType(arg)) return true;
+            }
+        }
+        if (t instanceof Type.ArrayType at) {
+            return containsLambdaFunctionType(at.componentType());
+        }
+        return false;
     }
 
     /** Nome da constante de enum representada por um rótulo de case. */
@@ -2179,6 +2349,18 @@ private Target target = Target.JVM;
                     yield localIdx + 1;
                 }
                 if (vds.initializer() != null) {
+                    Type initType = inferExprType(vds.initializer(), locals);
+                    if (Type.isVoid(initType)) {
+                        if (currentDiagnostics != null) {
+                            currentDiagnostics.error(vds.position() != null ? vds.position().file() : "",
+                                    vds.position() != null ? vds.position().line() : 0,
+                                    vds.position() != null ? vds.position().column() : 0, 0,
+                                    "a atribuição a '" + vds.name() + "' recebeu um valor void — a"
+                                            + " chamada não retorna valor",
+                                    "SEM033");
+                        }
+                        yield localIdx;
+                    }
                     localIdx = emitExpression(vds.initializer(), ops, owner, localIdx, locals);
                     if ("var".equals(vds.type()) || "val".equals(vds.type())) {
                         varType = inferExprType(vds.initializer(), locals);
@@ -2194,8 +2376,38 @@ private Target target = Target.JVM;
                                     List.of(inferExprType(sm.arguments().get(0), locals)));
                         }
                     } else {
-                        emitWideningIfNeeded(ops, inferExprType(vds.initializer(), locals), varType);
+                        Type initT = inferExprType(vds.initializer(), locals);
+                        // bug 8: `var s: (Int) -> Int = (x: Int) -> x * 2` — o
+                        // tipo declarado é FunctionType sem className, mas o
+                        // valor real é a classe sintética da lambda. Preservar
+                        // o className do initializer para o call site invocar
+                        // via invokevirtual (owner = classe da lambda) em vez
+                        // de SEM032 (dispatch por interface ainda não existe).
+                        if (varType instanceof Type.FunctionType dft
+                                && initT instanceof Type.FunctionType ift
+                                && ift.className() != null
+                                && dft.parameterTypes().equals(ift.parameterTypes())
+                                && dft.returnType().equals(ift.returnType())) {
+                            varType = ift;
+                        } else {
+                            emitWideningIfNeeded(ops, initT, varType);
+                        }
                     }
+                }
+                // bug 15: `Object n = 42` — primitivo atribuído a referência:
+                // boxa no JVM (JS/Native já são untyped). Sem isso o store de
+                // int num slot Object invalidava o bytecode.
+                if (erasesToReference(varType)
+                        && vds.initializer() != null
+                        && isPrimitiveType(inferExprType(vds.initializer(), locals))) {
+                    emitErasureBox(ops, inferExprType(vds.initializer(), locals));
+                }
+                // declaração sem inicializador: default (0 primitivo / null
+                // referência) — antes o store saía de pilha vazia (frame crash)
+                if (vds.initializer() == null) {
+                    ops.add(erasesToReference(varType)
+                            ? new KofLoadLiteral(varType, null)
+                            : new KofLoadLiteral(varType, 0));
                 }
                 ops.add(new KofStoreLocal(varType, localIdx));
                 locals.add(new IRLocalVariable(localIdx, vds.name(), varType));
@@ -2419,18 +2631,6 @@ private Target target = Target.JVM;
                 yield localIdx;
             }
             case SpawnStmt ss -> {
-                if (target == Target.JS) {
-                    // JS é single-threaded: fire-and-forget degenera em execução
-                    // imediata do corpo (ordem de output preservada)
-                    LambdaExpr jsLe = ss.expression() instanceof LambdaExpr l0 ? l0
-                            : new LambdaExpr(ss.position(), List.of(),
-                                    List.of(new ExpressionStmt(ss.position(), ss.expression())));
-                    for (StatementNode st : jsLe.body()) {
-                        localIdx = emitStatement(st, ops, owner, localIdx, locals,
-                                Type.PrimitiveType.VOID);
-                    }
-                    yield localIdx;
-                }
                 if (target.isNative()) {
                     // CONC001 fechado: pthread_create no runtime nativo
                     LambdaExpr leN = ss.expression() instanceof LambdaExpr l1 ? l1
@@ -2440,7 +2640,7 @@ private Target target = Target.JVM;
                     List<IRLocalVariable> capN = collectCaptures(leN, locals);
                     List<IRLocalVariable> effN = lambdaEffectiveCaptures.get(leN);
                     if (effN != null) capN = effN;
-                    String lambdaClassN = lambdaClass(leN, ftN, capN);
+                    String lambdaClassN = lambdaClass(leN, ftN, capN, true);
                     Type taskTypeN = new Type.ClassType("", lambdaClassN, List.of());
                     List<Type> capTypesN = new ArrayList<>();
                     for (IRLocalVariable cap : capN) capTypesN.add(cap.type());
@@ -2468,7 +2668,7 @@ private Target target = Target.JVM;
                 List<IRLocalVariable> captures = collectCaptures(le, locals);
                 List<IRLocalVariable> effective = lambdaEffectiveCaptures.get(le);
                 if (effective != null) captures = effective;
-                String lambdaClass = lambdaClass(le, ft, captures);
+                String lambdaClass = lambdaClass(le, ft, captures, true);
                 Type taskType = new Type.ClassType("", lambdaClass, List.of());
                 List<Type> captureTypes = new ArrayList<>();
                 for (IRLocalVariable cap : captures) captureTypes.add(cap.type());
@@ -2720,6 +2920,123 @@ private Target target = Target.JVM;
         };
     }
 
+    /**
+     * Switch como expressão (SYN001). Baixa como cadeia de if-expressões no
+     * formato exato do {@code IfExpr} — cada nível é
+     * {@code <test>; load 0; CJump(NE, body, else); Label(body); [binding];
+     * <expr>; Jump(end); Label(else); <else-chain>; Label(end)}, que o backend
+     * JS reconhece via {@code tryParseIfExpr} e renderiza como ternários
+     * aninhados. Cada braço deixa EXATAMENTE 1 valor na pilha (o switch é o
+     * valor — sem KofPop).
+     */
+    private int emitSwitchExpr(SwitchExpr se, List<KofOperation> ops, String owner,
+                               int localIdx, List<IRLocalVariable> locals) {
+        Type switchType = inferExprType(se.expression(), locals);
+        int switchTmp = localIdx++;
+        localIdx = emitExpression(se.expression(), ops, owner, localIdx, locals);
+        ops.add(new KofStoreLocal(switchType, switchTmp));
+        locals.add(new IRLocalVariable(switchTmp, "#switchExpr", switchType));
+        return emitSwitchChain(se.cases(), 0, se.defaultValue(), switchType, switchTmp,
+                ops, owner, localIdx, locals);
+    }
+
+    private int emitSwitchChain(List<SwitchExprCase> cases, int i, ExpressionNode defaultValue,
+                                Type switchType, int switchTmp, List<KofOperation> ops, String owner,
+                                int localIdx, List<IRLocalVariable> locals) {
+        if (i >= cases.size()) {
+            if (defaultValue != null) {
+                return emitExpression(defaultValue, ops, owner, localIdx, locals);
+            }
+            ops.add(defaultValueOp(switchType));
+            return localIdx;
+        }
+        SwitchExprCase sc = cases.get(i);
+        LabelId bodyLabel = LabelId.create();
+        LabelId elseLabel = LabelId.create();
+        LabelId endLabel = LabelId.create();
+        if (sc.value() instanceof PatternExpr pe) {
+            Type patType = toType(pe.typeName());
+            if (patType instanceof Type.UnknownType) patType = BuiltinTypes.STRING;
+            ops.add(new KofLoadLocal(switchType, switchTmp));
+            ops.add(new KofInstanceOf(patType));
+            ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
+            ops.add(new KofConditionalJump(KofComparison.NE, bodyLabel, elseLabel));
+            ops.add(new KofLabel(bodyLabel));
+            localIdx = emitPatternBinding(pe, patType, switchType, switchTmp, ops, localIdx, locals);
+        } else {
+            ops.add(new KofLoadLocal(switchType, switchTmp));
+            localIdx = emitExpression(sc.value(), ops, owner, localIdx, locals);
+            Type caseType = inferExprType(sc.value(), locals);
+            if (Type.isString(switchType) || isEnumType(switchType) || isEnumType(caseType)) {
+                // igualdade de String/enum é por conteúdo (bug 4 do statement)
+                ops.add(new KofCall(BuiltinTypes.STRING, "kof_string_equals",
+                        List.of(BuiltinTypes.STRING, BuiltinTypes.STRING),
+                        Type.PrimitiveType.BOOL, KofCallKind.FUNCTION));
+            } else {
+                ops.add(new KofBinary(KofBinaryOp.EQ, switchType));
+            }
+            ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
+            ops.add(new KofConditionalJump(KofComparison.NE, bodyLabel, elseLabel));
+            ops.add(new KofLabel(bodyLabel));
+        }
+        localIdx = emitExpression(sc.body(), ops, owner, localIdx, locals);
+        ops.add(new KofJump(endLabel));
+        ops.add(new KofLabel(elseLabel));
+        localIdx = emitSwitchChain(cases, i + 1, defaultValue, switchType, switchTmp,
+                ops, owner, localIdx, locals);
+        ops.add(new KofLabel(endLabel));
+        return localIdx;
+    }
+
+    /**
+     * Prologue de binding de um case pattern de switch-expressão:
+     * {@code case T v ->} → {@code v = (T)#switchExpr};
+     * {@code case T(var x, var y) ->} → cast p/ {@code #patCast} + um
+     * {@code getfield} por componente. No JS os slots são pré-declarados no
+     * topo da função, então o {@code store} vira atribuição na sequência do
+     * braço (ver parseExpressionFragment).
+     */
+    private int emitPatternBinding(PatternExpr pe, Type patType, Type switchType, int switchTmp,
+                                   List<KofOperation> ops, int localIdx, List<IRLocalVariable> locals) {
+        if (pe.varName() != null) {
+            ops.add(new KofLoadLocal(switchType, switchTmp));
+            ops.add(new KofCheckCast(patType));
+            int varIdx = localIdx++;
+            locals.add(new IRLocalVariable(varIdx, pe.varName(), patType));
+            ops.add(new KofStoreLocal(patType, varIdx));
+            return localIdx;
+        }
+        int castTmp = localIdx++;
+        locals.add(new IRLocalVariable(castTmp, "#patCast", patType));
+        ops.add(new KofLoadLocal(switchType, switchTmp));
+        ops.add(new KofCheckCast(patType));
+        ops.add(new KofStoreLocal(patType, castTmp));
+        String simple = patType instanceof Type.ClassType ct ? ct.name() : pe.typeName();
+        for (int fi = 0; fi < pe.fieldVars().size(); fi++) {
+            String fieldVar = pe.fieldVars().get(fi);
+            Type fieldType = Type.UnknownType.UNKNOWN;
+            String fieldName = fieldVar;
+            if (currentUnit != null) {
+                for (AstNode d : currentUnit.declarations()) {
+                    if (d instanceof RecordDeclarationNode rec && rec.name().equals(simple)) {
+                        if (fi < rec.components().size()) {
+                            fieldType = toType(rec.components().get(fi).type());
+                            fieldName = rec.components().get(fi).name();
+                        }
+                        break;
+                    }
+                }
+            }
+            if (fieldType instanceof Type.UnknownType) fieldType = BuiltinTypes.STRING;
+            ops.add(new KofLoadLocal(patType, castTmp));
+            ops.add(new KofLoadField(patType, fieldName, fieldType));
+            int varIdx = localIdx++;
+            locals.add(new IRLocalVariable(varIdx, fieldVar, fieldType));
+            ops.add(new KofStoreLocal(fieldType, varIdx));
+        }
+        return localIdx;
+    }
+
     private int emitExpression(ExpressionNode expr, List<KofOperation> ops, String owner, int localIdx,
                                List<IRLocalVariable> locals) {
         return switch (expr) {
@@ -2948,11 +3265,17 @@ private Target target = Target.JVM;
                         }
                         if (!Type.isString(accType) && isPrimitiveType(accType)) boxPrimitive(ops, accType);
                         ops.add(new KofCall(BuiltinTypes.STRING, "valueOf",
-                                List.of(Type.UnknownType.UNKNOWN), BuiltinTypes.STRING, KofCallKind.STATIC));
+                                List.of(target.isNative() && !Type.isString(accType)
+                                        && !(accType instanceof Type.PrimitiveType)
+                                        ? accType : Type.UnknownType.UNKNOWN),
+                                BuiltinTypes.STRING, KofCallKind.STATIC));
                         localIdx = emitExpression(be.right(), ops, owner, localIdx, locals);
                         if (!Type.isString(rightType) && isPrimitiveType(rightType)) boxPrimitive(ops, rightType);
                         ops.add(new KofCall(BuiltinTypes.STRING, "valueOf",
-                                List.of(Type.UnknownType.UNKNOWN), BuiltinTypes.STRING, KofCallKind.STATIC));
+                                List.of(target.isNative() && !Type.isString(rightType)
+                                        && !(rightType instanceof Type.PrimitiveType)
+                                        ? rightType : Type.UnknownType.UNKNOWN),
+                                BuiltinTypes.STRING, KofCallKind.STATIC));
                         ops.add(new KofCall(BuiltinTypes.STRING, "kof_string_concat",
                                 List.of(BuiltinTypes.STRING, BuiltinTypes.STRING),
                                 BuiltinTypes.STRING, KofCallKind.FUNCTION));
@@ -2969,6 +3292,21 @@ private Target target = Target.JVM;
                         ops.add(new KofPop());
                         boolean eq = "==".equals(be.operator());
                         ops.add(new KofLoadLiteral(Type.PrimitiveType.BOOL, eq ? 0 : 1));
+                        accType = Type.PrimitiveType.BOOL;
+                    } else if (("==".equals(be.operator()) || "!=".equals(be.operator()))
+                            && (isRecordType(accType) || isRecordType(rightType))) {
+                        // bug 11: `==` em records é igualdade de CONTEÚDO →
+                        // left.equals(right) (o record gera equals no JVM e no
+                        // JS). Antes emitia referência (if_acmpeq) → false.
+                        localIdx = emitExpression(be.right(), ops, owner, localIdx, locals);
+                        Type recordType = isRecordType(accType) ? accType : rightType;
+                        Type objT = new Type.ClassType("java.lang", "Object", List.of());
+                        ops.add(new KofCall(recordType, "equals", List.of(objT),
+                                Type.PrimitiveType.BOOL, KofCallKind.INSTANCE));
+                        if ("!=".equals(be.operator())) {
+                            ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
+                            ops.add(new KofBinary(KofBinaryOp.EQ, Type.PrimitiveType.INT));
+                        }
                         accType = Type.PrimitiveType.BOOL;
                     } else if (("==".equals(be.operator()) || "!=".equals(be.operator()))
                             && (Type.isString(accType) || Type.isString(rightType)
@@ -3485,18 +3823,6 @@ private Target target = Target.JVM;
                     yield localIdx;
                 }
                 if (mc.receiver() == null && "__kof_spawn_expr".equals(mc.methodName())) {
-                    if (target == Target.JS) {
-                        // sequencial: o corpo roda agora; o handle só memoiza
-                        ExpressionNode jsBody = mc.arguments().get(0);
-                        Type jsT = inferExprType(jsBody, locals);
-                        localIdx = emitExpression(jsBody, ops, owner, localIdx, locals);
-                        ops.add(new KofCall(
-                                new Type.ClassType("kof.concurrent", "Handle", List.of(jsT)),
-                                "kof_spawn_result", List.of(jsT),
-                                new Type.ClassType("kof.concurrent", "Handle", List.of(jsT)),
-                                KofCallKind.FUNCTION));
-                        yield localIdx;
-                    }
                     if (target.isNative()) {
                         // CONC001: spawn-expr com handle real (pthread)
                         ExpressionNode bodyN = mc.arguments().get(0);
@@ -3507,7 +3833,7 @@ private Target target = Target.JVM;
                                         List.of(), List.of(new ExpressionStmt(
                                                 bodyN.position() != null ? bodyN.position() : mc.position(), bodyN)));
                         Type.FunctionType ftN2 = new Type.FunctionType(List.of(), resultTN, null);
-                        String lambdaClassN2 = lambdaClass(leN2, ftN2, List.of());
+                        String lambdaClassN2 = lambdaClass(leN2, ftN2, List.of(), true);
                         Type taskTypeN2 = new Type.ClassType("", lambdaClassN2, List.of());
                         ops.add(new KofNewObject(taskTypeN2, List.of()));
                         ops.add(new KofDup());
@@ -3525,7 +3851,7 @@ private Target target = Target.JVM;
                                     List.of(), List.of(new ExpressionStmt(
                                             body.position() != null ? body.position() : mc.position(), body)));
                     Type.FunctionType ft = new Type.FunctionType(List.of(), resultT, null);
-                    String lambdaClass = lambdaClass(le, ft, List.of());
+                    String lambdaClass = lambdaClass(le, ft, List.of(), true);
                     Type taskType = new Type.ClassType("", lambdaClass, List.of());
                     ops.add(new KofNewObject(taskType, List.of()));
                     ops.add(new KofDup());
@@ -3624,6 +3950,20 @@ private Target target = Target.JVM;
                 }
                 if (("print".equals(mc.methodName()) || "println".equals(mc.methodName())) && mc.arguments().size() == 1) {
                     Type printedType = inferExprType(mc.arguments().get(0), locals);
+                    if (Type.isVoid(printedType)) {
+                        // void não é um valor: println(f()) com f void empilhava
+                        // nada e o backend dava pop de lixo (segfault Native /
+                        // VerifyError JVM). Diagnóstico limpo em vez disso.
+                        if (currentDiagnostics != null) {
+                            currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
+                                    mc.position() != null ? mc.position().line() : 0,
+                                    mc.position() != null ? mc.position().column() : 0, 0,
+                                    mc.methodName() + "(...) recebeu um valor void — a chamada não"
+                                            + " retorna valor (adicione 'return' ou não a use como argumento)",
+                                    "SEM033");
+                        }
+                        yield localIdx;
+                    }
                     if (!fpSupportedOnNative(printedType, mc.position())) {
                         yield localIdx;
                     }
@@ -3646,9 +3986,15 @@ private Target target = Target.JVM;
                                     BuiltinTypes.STRING, KofCallKind.STATIC));
                         }
                     } else {
+                        // o tipo REAL do arg só vai para o valueOf NATIVO (para
+                        // despachar toString de records). JVM/JS usam Object
+                        // (String.valueOf(Object) chama toString; valueOf de um
+                        // ClassType específico não existe no JVM).
                         ops.add(new KofCall(
                                 BuiltinTypes.STRING,
-                                "valueOf", List.of(Type.UnknownType.UNKNOWN),
+                                "valueOf", List.of(target.isNative()
+                                        && !Type.isString(argType) ? argType
+                                        : Type.UnknownType.UNKNOWN),
                                 BuiltinTypes.STRING, KofCallKind.STATIC));
                     }
                     ops.add(new KofCall(
@@ -4281,6 +4627,28 @@ private Target target = Target.JVM;
                             && KofGpu.isGpuNamespace(rid.name())) {
                     List<Type> argTypes = new ArrayList<>();
                     for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
+                    if (System.getProperty("kof.trace") != null) {
+                        System.err.println("GPU call " + mc.methodName() + " argTypes=" + argTypes);
+                    }
+                    // Unknown (var sem tipo inferido no lowering) casa com
+                    // qualquer array: o staticCall exige tipos concretos, mas
+                    // o `var a = new Long[4]` pode chegar como Unknown quando
+                    // o local foi registrado antes do NewArray. Substitui
+                    // Unknown por Long[]/Int[] conforme o nome do método.
+                    List<Type> candidate = new ArrayList<>();
+                    boolean hasUnknown = false;
+                    for (Type t : argTypes) {
+                        if (t instanceof Type.UnknownType) { hasUnknown = true; break; }
+                    }
+                    if (hasUnknown) {
+                        Type arrType = "dispatchMatmul64".equals(mc.methodName())
+                                ? new Type.ArrayType(Type.PrimitiveType.LONG)
+                                : new Type.ArrayType(Type.PrimitiveType.INT);
+                        for (Type t : argTypes) {
+                            candidate.add(t instanceof Type.UnknownType ? arrType : t);
+                        }
+                        argTypes = candidate;
+                    }
                     KofGpu.GpuCall gpuCall = KofGpu.staticCall(mc.methodName(), argTypes);
                     if (gpuCall != null) {
                         if (!KofGpu.supportedOn(target)) {
@@ -4698,6 +5066,20 @@ private Target target = Target.JVM;
                         }
                     }
                     if (recvType instanceof Type.FunctionType ft) {
+                        if (ft.className() == null) {
+                            // bug 8: valor de TIPO DE FUNÇÃO DECLARADO (param
+                            // (s: (Int) -> Int), sem classe sintética). Todas as
+                            // lambdas da assinatura implementam a interface
+                            // sintética — invoca via INVOKEINTERFACE.
+                            List<Type> argTypes = new ArrayList<>();
+                            for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
+                            for (ExpressionNode arg : mc.arguments()) {
+                                localIdx = emitExpression(arg, ops, owner, localIdx, locals);
+                            }
+                            Type iface = lambdaInterfaceType(ft);
+                            ops.add(new KofCall(iface, "invoke", argTypes, ft.returnType(), KofCallKind.INTERFACE));
+                            yield localIdx;
+                        }
                         List<Type> argTypes = new ArrayList<>();
                         for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
                         for (ExpressionNode arg : mc.arguments()) {
@@ -4705,8 +5087,7 @@ private Target target = Target.JVM;
                         }
                         // f.invoke(): o owner precisa ser a classe sintética
                         // da lambda — FunctionType não tem nome JVM
-                        Type invokeOwner = ft.className() != null
-                                ? new Type.ClassType("", ft.className(), List.of()) : ft;
+                        Type invokeOwner = new Type.ClassType("", ft.className(), List.of());
                         ops.add(new KofCall(invokeOwner, "invoke", argTypes, ft.returnType(), KofCallKind.INSTANCE));
                         yield localIdx;
                     }
@@ -4935,6 +5316,35 @@ private Target target = Target.JVM;
                             yield localIdx;
                         }
                     }
+                    // bug 16: `toArray()` não é suportado (nem documentado) e
+                    // caía no caminho genérico → bytecode inválido (JVM) /
+                    // undefined reference (Native). Diagnóstico limpo em vez de
+                    // saída quebrada.
+                    if ("toArray".equals(mc.methodName())
+                            && (BuiltinTypes.isList(recvType) || BuiltinTypes.isSet(recvType))
+                            && currentDiagnostics != null) {
+                        currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
+                                mc.position() != null ? mc.position().line() : 0,
+                                mc.position() != null ? mc.position().column() : 0, 0,
+                                "método '" + mc.methodName() + "' não é suportado em coleções;"
+                                        + " use um loop com new T[n] para materializar um array",
+                                "SEM029");
+                    }
+                    // bug 16 (cauda): `sublist()`/`subSet()` retornam COLEÇÃO —
+                    // o backend não sabe materializar o retorno de coleção e
+                    // emitia bytecode inválido (JVM) / undefined reference
+                    // (Native). Mesmo tratamento do toArray: diagnóstico limpo.
+                    if (("sublist".equals(mc.methodName()) || "subSet".equals(mc.methodName()))
+                            && (BuiltinTypes.isList(recvType) || BuiltinTypes.isSet(recvType))
+                            && currentDiagnostics != null) {
+                        currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
+                                mc.position() != null ? mc.position().line() : 0,
+                                mc.position() != null ? mc.position().column() : 0, 0,
+                                "método '" + mc.methodName() + "' não é suportado em coleções"
+                                        + " (retorno de coleção não é materializável);"
+                                        + " copie os elementos com um loop",
+                                "SEM034");
+                    }
                     Type methodReturnType = Type.UnknownType.UNKNOWN;
                     List<Type> methodParamTypes = new ArrayList<>();
                     for (ExpressionNode arg : mc.arguments()) {
@@ -5138,14 +5548,29 @@ private Target target = Target.JVM;
                     } else {
                         IRLocalVariable lambdaVar = findLocalVar(mc.methodName(), locals);
                         if (lambdaVar != null && lambdaVar.type() instanceof Type.FunctionType lft) {
+                            if (lft.className() == null) {
+                                // bug 8: valor de TIPO DE FUNÇÃO DECLARADO (param
+                                // (s: (Int) -> Int), sem classe sintética). Todas
+                                // as lambdas da assinatura implementam a interface
+                                // sintética — invoca via INVOKEINTERFACE.
+                                localIdx = emitExpression(new IdentifierExpr(mc.position(), mc.methodName()),
+                                        ops, owner, localIdx, locals);
+                                List<Type> argTypes = new ArrayList<>();
+                                for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
+                                localIdx = emitArgumentsWithFormalTypes(mc.arguments(), lft.parameterTypes(),
+                                        ops, owner, localIdx, locals);
+                                Type iface = lambdaInterfaceType(lft);
+                                ops.add(new KofCall(iface, "invoke", argTypes, lft.returnType(),
+                                        KofCallKind.INTERFACE));
+                            } else {
                             localIdx = emitExpression(new IdentifierExpr(mc.position(), mc.methodName()),
                                     ops, owner, localIdx, locals);
                             List<Type> argTypes = new ArrayList<>();
                             for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
                             localIdx = emitArgumentsWithFormalTypes(mc.arguments(), lft.parameterTypes(), ops, owner, localIdx, locals);
-                            Type invokeOwner = lft.className() != null
-                                    ? new Type.ClassType("", lft.className(), List.of()) : lft;
+                            Type invokeOwner = new Type.ClassType("", lft.className(), List.of());
                             ops.add(new KofCall(invokeOwner, "invoke", argTypes, lft.returnType(), KofCallKind.INSTANCE));
+                            }
                         } else {
                             List<Type> argTypes = new ArrayList<>();
                             for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
@@ -5464,6 +5889,11 @@ private Target target = Target.JVM;
                     for (int i = locals.size() - 1; i >= 0; i--) {
                         if (locals.get(i).name().equals(sie.name())) {
                             emitWideningIfNeeded(ops, inferExprType(ae.value(), locals), locals.get(i).type());
+                            // bug 15: `Object o; o = 7` — box primitivo p/ referência
+                            if (erasesToReference(locals.get(i).type())
+                                    && isPrimitiveType(inferExprType(ae.value(), locals))) {
+                                emitErasureBox(ops, inferExprType(ae.value(), locals));
+                            }
                             ops.add(new KofStoreLocal(locals.get(i).type(), locals.get(i).index()));
                             yield localIdx;
                         }
@@ -5766,6 +6196,10 @@ private Target target = Target.JVM;
                 ops.add(new KofLabel(endLabel));
                 yield localIdx;
             }
+            case SwitchExpr se -> {
+                localIdx = emitSwitchExpr(se, ops, owner, localIdx, locals);
+                yield localIdx;
+            }
             case LambdaExpr le -> {
                 Type.FunctionType ft = (Type.FunctionType) inferExprType(le, locals);
                 List<IRLocalVariable> captures = collectCaptures(le, locals);
@@ -5916,7 +6350,12 @@ private Target target = Target.JVM;
                 // fonte secundária para os demais casos
                 if (semanticAnalyzer != null) {
                     Type semantic = semanticAnalyzer.getExpressionType(mc);
-                    if (!(semantic instanceof Type.UnknownType)) {
+                    // tipos com FunctionType de className null vêm da análise
+                    // semântica, que roda ANTES da síntese das lambdas — são
+                    // obsoletos para o emit (o invoke de lambda precisaria do
+                    // className → owner "" → ClassFormatError, bug 20). Re-inferir.
+                    if (!(semantic instanceof Type.UnknownType)
+                            && !containsLambdaFunctionType(semantic)) {
                         if (semantic instanceof Type.TypeVariable tv && mc.receiver() != null) {
                             Type recvT = inferExprType(mc.receiver(), locals);
                             Type subst = substituteTypeVariable(tv.name(), recvT);
@@ -6541,6 +6980,13 @@ private Target target = Target.JVM;
                 Type thenType = inferExprType(ie.thenExpr(), locals);
                 Type elseType = inferExprType(ie.elseExpr(), locals);
                 yield thenType;
+            }
+            case SwitchExpr se -> {
+                if (!se.cases().isEmpty()) {
+                    yield inferExprType(se.cases().get(0).body(), locals);
+                }
+                yield se.defaultValue() != null ? inferExprType(se.defaultValue(), locals)
+                        : Type.UnknownType.UNKNOWN;
             }
             default -> Type.UnknownType.UNKNOWN;
         };
@@ -7897,6 +8343,14 @@ private Target target = Target.JVM;
                         typeParams, fields, java.util.Map.of()));
             }
         }
+        // Native: records não geram toString/equals nos backends (JVM/JS
+        // geram nos seus emitters). Sintetiza no IR para paridade — bug 11
+        // (native `==` dava undefined reference) e toString imprimia o handle.
+        if (target == Target.NATIVE || target == Target.NATIVE_RISCV64
+                || target == Target.NATIVE_AARCH64) {
+            methods.add(buildRecordToStringMethod(internalName, rec, fields, typeParams));
+            methods.add(buildRecordEqualsMethod(internalName, fields, typeParams));
+        }
         return new IRClass(internalName, superName, ifaces, access, fields, methods, List.of(), null,
                 typeId, lowerAnnotations(rec.annotations()));
     }
@@ -8294,6 +8748,89 @@ private Target target = Target.JVM;
             }
             ops.add(new KofStoreField(ownerType, field.name(), field.type()));
         }
+    }
+
+    /**
+     * toString() nativo de record: "Nome[campo=valor, ...]" — sintetizado no
+     * IR (padrão de concat: valueOf + kof_string_concat).
+     */
+    private IRMethod buildRecordToStringMethod(String internalName, RecordDeclarationNode rec,
+                                               List<IRField> fields, List<String> typeParams) {
+        Type ownerType = ownerTypeFromInternal(internalName);
+        String simpleName = internalName.contains("/")
+                ? internalName.substring(internalName.lastIndexOf('/') + 1) : internalName;
+        List<KofOperation> ops = new ArrayList<>();
+        List<IRLocalVariable> locals = new ArrayList<>();
+        locals.add(new IRLocalVariable(0, "this", ownerType));
+        // "Nome[x=valor, y=valor]" — concat: literal, campo, separador...
+        ops.add(new KofLoadLiteral(BuiltinTypes.STRING, simpleName + "["));
+        ops.add(new KofCall(BuiltinTypes.STRING, "valueOf",
+                List.of(Type.UnknownType.UNKNOWN), BuiltinTypes.STRING, KofCallKind.STATIC));
+        for (int i = 0; i < fields.size(); i++) {
+            IRField f = fields.get(i);
+            ops.add(new KofLoadLiteral(BuiltinTypes.STRING, f.name() + "="));
+            ops.add(new KofCall(BuiltinTypes.STRING, "valueOf",
+                    List.of(Type.UnknownType.UNKNOWN), BuiltinTypes.STRING, KofCallKind.STATIC));
+            ops.add(new KofCall(BuiltinTypes.STRING, "kof_string_concat",
+                    List.of(BuiltinTypes.STRING, BuiltinTypes.STRING),
+                    BuiltinTypes.STRING, KofCallKind.FUNCTION));
+            ops.add(new KofLoadLocal(ownerType, 0));
+            ops.add(new KofLoadField(ownerType, f.name(), f.type()));
+            if (!Type.isString(f.type())) boxPrimitive(ops, f.type());
+            ops.add(new KofCall(BuiltinTypes.STRING, "valueOf",
+                    List.of(Type.UnknownType.UNKNOWN), BuiltinTypes.STRING, KofCallKind.STATIC));
+            ops.add(new KofCall(BuiltinTypes.STRING, "kof_string_concat",
+                    List.of(BuiltinTypes.STRING, BuiltinTypes.STRING),
+                    BuiltinTypes.STRING, KofCallKind.FUNCTION));
+            if (i + 1 < fields.size()) {
+                ops.add(new KofLoadLiteral(BuiltinTypes.STRING, ", "));
+                ops.add(new KofCall(BuiltinTypes.STRING, "valueOf",
+                        List.of(Type.UnknownType.UNKNOWN), BuiltinTypes.STRING, KofCallKind.STATIC));
+                ops.add(new KofCall(BuiltinTypes.STRING, "kof_string_concat",
+                        List.of(BuiltinTypes.STRING, BuiltinTypes.STRING),
+                        BuiltinTypes.STRING, KofCallKind.FUNCTION));
+            }
+        }
+        ops.add(new KofLoadLiteral(BuiltinTypes.STRING, "]"));
+        ops.add(new KofCall(BuiltinTypes.STRING, "valueOf",
+                List.of(Type.UnknownType.UNKNOWN), BuiltinTypes.STRING, KofCallKind.STATIC));
+        ops.add(new KofCall(BuiltinTypes.STRING, "kof_string_concat",
+                List.of(BuiltinTypes.STRING, BuiltinTypes.STRING),
+                BuiltinTypes.STRING, KofCallKind.FUNCTION));
+        ops.add(new KofReturn(BuiltinTypes.STRING));
+        return new IRMethod("toString", BuiltinTypes.STRING, List.of(), AccessFlags.PUBLIC, List.of(),
+                List.of(new IRBasicBlock(0, ops)), locals);
+    }
+
+    /**
+     * equals() nativo de record: compara todos os componentes (bug 11 native).
+     */
+    private IRMethod buildRecordEqualsMethod(String internalName, List<IRField> fields,
+                                             List<String> typeParams) {
+        Type ownerType = ownerTypeFromInternal(internalName);
+        List<KofOperation> ops = new ArrayList<>();
+        List<IRLocalVariable> locals = new ArrayList<>();
+        locals.add(new IRLocalVariable(0, "this", ownerType));
+        locals.add(new IRLocalVariable(1, "other", ownerType));
+        for (int i = 0; i < fields.size(); i++) {
+            IRField f = fields.get(i);
+            ops.add(new KofLoadLocal(ownerType, 0));
+            ops.add(new KofLoadField(ownerType, f.name(), f.type()));
+            ops.add(new KofLoadLocal(ownerType, 1));
+            ops.add(new KofLoadField(ownerType, f.name(), f.type()));
+            ops.add(new KofBinary(KofBinaryOp.EQ, f.type()));
+            // AND acumula a partir do 2º campo: [bool0] → (bool0 AND bool1)
+            // O AND só após a 2ª comparação ter empilhado o 2º bool.
+            if (i > 0) {
+                ops.add(new KofBinary(KofBinaryOp.AND, Type.PrimitiveType.BOOL));
+            }
+        }
+        if (fields.isEmpty()) {
+            ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 1));
+        }
+        ops.add(new KofReturn(Type.PrimitiveType.BOOL));
+        return new IRMethod("equals", Type.PrimitiveType.BOOL, List.of(ownerType), AccessFlags.PUBLIC,
+                List.of(), List.of(new IRBasicBlock(0, ops)), locals);
     }
 
     private IRMethod generateRecordConstructor(RecordDeclarationNode rec, String owner) {

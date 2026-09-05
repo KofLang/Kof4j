@@ -185,8 +185,7 @@ class KofConcurrency2Test {
 
     @Test
     void awaitTimeoutJs(@TempDir Path tmp) throws Exception {
-        // JS sequencial: a task sempre está pronta (roda em ordem), então o timeout
-        // nunca estoura — awaitTimeout é equivalente ao await (paridade de API).
+        // JS CONC003: task instantânea — awaitTimeout conclui no prazo.
         runJs(tmp, """
                 Int t() { return 9 }
                 main() {
@@ -195,6 +194,167 @@ class KofConcurrency2Test {
                     println(v)
                 }
                 """, "9");
+    }
+
+    @Test
+    void awaitTimeoutSlowTaskJvm(@TempDir Path tmp) throws Exception {
+        runJvm(tmp, """
+                Int lenta() { time.sleep(200); return 9 }
+                main() {
+                    val r = spawn lenta()
+                    try {
+                        awaitTimeout(r, 20)
+                        println("in")
+                    } catch (String e) {
+                        println("err")
+                    }
+                }
+                """, "err");
+    }
+
+    @Test
+    void awaitTimeoutSlowTaskJs(@TempDir Path tmp) throws Exception {
+        // CONC003: task com vários yields assíncronos — estouro real (time.sleep
+        // bloqueia o event loop no JS e não serve aqui).
+        runJs(tmp, """
+                Int step() { return 1 }
+                Int lenta() {
+                    var i = 0
+                    while (i < 80) {
+                        await spawn step()
+                        i++
+                    }
+                    return 9
+                }
+                main() {
+                    val r = spawn lenta()
+                    try {
+                        awaitTimeout(r, 5)
+                        println("in")
+                    } catch (String e) {
+                        println("err")
+                    }
+                }
+                """, "err");
+    }
+
+    @Test
+    void spawnInterleavingJvm(@TempDir Path tmp) throws Exception {
+        String out = runJvm(tmp, """
+                Int tick() { return 1 }
+
+                Int slow() {
+                    await spawn tick()
+                    await spawn tick()
+                    await spawn tick()
+                    println("A:done")
+                    return 1
+                }
+
+                main() {
+                    spawn slow()
+                    spawn { println("B") }
+                }
+                """);
+        int b = out.indexOf("B");
+        int a = out.indexOf("A:done");
+        assertTrue(b >= 0 && a >= 0, "saída: " + out);
+        assertTrue(b < a, "B deve aparecer antes de A:done (não-bloqueante): " + out);
+    }
+
+    @Test
+    void spawnInterleavingJs(@TempDir Path tmp) throws Exception {
+        // Impossível sob fake sequencial: slow() terminaria (incl. A:done)
+        // antes de B ser despachado.
+        String out = runJs(tmp, """
+                Int tick() { return 1 }
+
+                Int slow() {
+                    await spawn tick()
+                    await spawn tick()
+                    await spawn tick()
+                    println("A:done")
+                    return 1
+                }
+
+                main() {
+                    spawn slow()
+                    spawn { println("B") }
+                }
+                """);
+        int b = out.indexOf("B");
+        int a = out.indexOf("A:done");
+        assertTrue(b >= 0 && a >= 0, "saída: " + out);
+        assertTrue(b < a, "B deve aparecer antes de A:done (microtasks reais): " + out);
+    }
+
+    @Test
+    void channelBlocksBeforeSendJvm(@TempDir Path tmp) throws Exception {
+        // JVM: receive bloqueia a virtual thread. A única ordem garantida é
+        // recv:42 DEPOIS de pre-send (o receive só retorna após o send).
+        // recv-wait vs pre-send e recv:42 vs post-send são corrida de
+        // agendamento de virtual threads — não pinamos.
+        String out = runJvm(tmp, """
+                main() {
+                    val c = channel<Int>()
+                    spawn {
+                        println("recv-wait")
+                        val v = c.receive()
+                        println("recv:" + v)
+                    }
+                    time.sleep(20)
+                    println("pre-send")
+                    c.send(42)
+                    println("post-send")
+                }
+                """);
+        for (String line : new String[]{"recv-wait", "pre-send", "post-send", "recv:42"}) {
+            assertTrue(out.contains(line), "faltou '" + line + "' em: " + out);
+        }
+        assertTrue(out.indexOf("pre-send") < out.indexOf("recv:42"),
+                "receive deve bloquear até o send (recv:42 após pre-send): " + out);
+    }
+
+    @Test
+    void channelBlocksBeforeSendJs(@TempDir Path tmp) throws Exception {
+        runJs(tmp, """
+                Int tick() { return 0 }
+
+                main() {
+                    val c = channel<Int>()
+                    spawn {
+                        println("recv-wait")
+                        val v = await c.receive()
+                        println("recv:" + v)
+                    }
+                    await spawn tick()
+                    println("pre-send")
+                    c.send(42)
+                    println("post-send")
+                }
+                """, "recv-wait\npre-send\npost-send\nrecv:42");
+    }
+
+    @Test
+    void selectAnyJs(@TempDir Path tmp) throws Exception {
+        runJs(tmp, """
+                Int tick() { return 0 }
+
+                Int lenta() {
+                    await spawn tick()
+                    await spawn tick()
+                    await spawn tick()
+                    return 1
+                }
+
+                Int rapida() { return 2 }
+
+                main() {
+                    val a = spawn lenta()
+                    val b = spawn rapida()
+                    println(selectAny(a, b))
+                }
+                """, "2");
     }
 
     @Test
@@ -448,6 +608,10 @@ class KofConcurrency2Test {
     }
 
     // ── helpers ──
+    private String runJvm(Path tempDir, String source) throws java.io.IOException {
+        return runJvm(tempDir, source, null);
+    }
+
     private String runJvm(Path tempDir, String source, String expected) throws java.io.IOException {
         Path file = tempDir.resolve("Main-" + System.nanoTime() + ".kf");
         Files.writeString(file, source);
@@ -461,11 +625,17 @@ class KofConcurrency2Test {
                 .replace("\r\n", "\n").trim();
             int ec = p.waitFor();
             assertEquals(0, ec, "JVM exit code, output: " + output);
-            assertEquals(expected, output, "JVM output");
+            if (expected != null) {
+                assertEquals(expected, output, "JVM output");
+            }
             return output;
         } catch (InterruptedException e) {
             throw new java.io.IOException("interrupted", e);
         }
+    }
+
+    private String runJs(Path tempDir, String source) throws java.io.IOException {
+        return runJs(tempDir, source, null);
     }
 
     private String runJs(Path tempDir, String source, String expected) throws java.io.IOException {
@@ -479,7 +649,9 @@ class KofConcurrency2Test {
                     java.io.InputStream.nullInputStream(), new java.io.ByteArrayOutputStream());
             String output = buf.toString(java.nio.charset.StandardCharsets.UTF_8).trim();
             assertEquals(0, ec, "JS exit code, output: " + output);
-            assertEquals(expected, output, "JS output");
+            if (expected != null) {
+                assertEquals(expected, output, "JS output");
+            }
             return output;
         }
     }

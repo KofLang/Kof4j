@@ -151,4 +151,126 @@ class LambdaE2ETest {
         Files.writeString(source, MUTABLE_LAMBDA_WRITES);
         runNative(source, tempDir.resolve("out"), "2");
     }
+
+    // Lambda retornando lambda que captura variável do lambda EXTERNO:
+    // (a) -> (b) -> a + b. O lambda interno só alcança `a` se o externo o
+    // capturar e repassar via constructor.
+    private static final String LAMBDA_RETURNS_LAMBDA_CAPTURE = """
+            main() {
+                var make = (a: Int) -> (b: Int) -> a + b
+                println(make(5)(3))
+            }
+            """;
+
+    @Test
+    void lambdaReturnsLambdaCaptureJvm(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, LAMBDA_RETURNS_LAMBDA_CAPTURE);
+        runJvm(source, tempDir.resolve("out"), "8");
+    }
+
+    @Test
+    void lambdaReturnsLambdaCaptureNative(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, LAMBDA_RETURNS_LAMBDA_CAPTURE);
+        runNative(source, tempDir.resolve("out"), "8");
+    }
+
+    // Lambda retornando lambda retornando lambda: (a) -> (b) -> (c) -> a+b+c.
+    // `a` precisa ser capturado pelo externo e repassado pelos dois níveis
+    // intermediários — regressão do bug em que collectCaptures não descia em
+    // lambdas aninhados (o lambda intermediário perdia a captura `a` e o
+    // lambda mais interno somava o ponteiro `this` no lugar).
+    private static final String TRIPLE_NESTED = """
+            main() {
+                var make = (a: Int) -> (b: Int) -> (c: Int) -> a + b + c
+                var r1 = make(5)
+                var r2 = r1(3)
+                var r3 = r2(10)
+                println(r3)
+            }
+            """;
+
+    @Test
+    void tripleNestedJvm(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, TRIPLE_NESTED);
+        runJvm(source, tempDir.resolve("out"), "18");
+    }
+
+    @Test
+    void tripleNestedNative(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, TRIPLE_NESTED);
+        runNative(source, tempDir.resolve("out"), "18");
+    }
+
+    // Inline triple-nested (make(5)(3)(10) sem variáveis intermediárias):
+    // o receiver do invoke é a própria chamada que retorna a lambda.
+    private static final String TRIPLE_NESTED_INLINE = """
+            main() {
+                var make = (a: Int) -> (b: Int) -> (c: Int) -> a + b + c
+                println(make(5)(3)(10))
+            }
+            """;
+
+    @Test
+    void tripleNestedInlineJvm(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, TRIPLE_NESTED_INLINE);
+        runJvm(source, tempDir.resolve("out"), "18");
+    }
+
+    @Test
+    void tripleNestedInlineNative(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, TRIPLE_NESTED_INLINE);
+        runNative(source, tempDir.resolve("out"), "18");
+    }
+
+    // bug 8: invocar valor de TIPO DE FUNÇÃO DECLARADO. As lambdas da
+    // assinatura implementam a interface sintética; o call site invoca via
+    // dispatch por interface (antes: SEM032).
+    private static final String DECLARED_FN_TYPE_VAR = """
+            main() {
+                var s: (Int) -> Int = (x: Int) -> x * 2
+                println(s(5))
+            }
+            """;
+
+    @Test
+    void declaredFunctionTypeVarJvm(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, DECLARED_FN_TYPE_VAR);
+        runJvm(source, tempDir.resolve("out"), "10");
+    }
+
+    @Test
+    void declaredFunctionTypeVarNative(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, DECLARED_FN_TYPE_VAR);
+        runNative(source, tempDir.resolve("out"), "10");
+    }
+
+    private static final String DECLARED_FN_TYPE_PARAM = """
+            Int apply(Int x, (Int) -> Int f) { return f(x) }
+            main() {
+                var dbl = (x: Int) -> x * 2
+                println(apply(5, dbl))
+            }
+            """;
+
+    @Test
+    void declaredFunctionTypeParamJvm(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, DECLARED_FN_TYPE_PARAM);
+        runJvm(source, tempDir.resolve("out"), "10");
+    }
+
+    @Test
+    void declaredFunctionTypeParamNative(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, DECLARED_FN_TYPE_PARAM);
+        runNative(source, tempDir.resolve("out"), "10");
+    }
 }

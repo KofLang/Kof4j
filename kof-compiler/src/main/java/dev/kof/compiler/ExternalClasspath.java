@@ -133,6 +133,15 @@ final class ExternalClasspath {
         String sup = superclassOf(ownerInternalName);
         int hops = 0;
         while (sup != null && !sup.equals("java/lang/Object") && hops++ < 32) {
+            if (!classBytes.containsKey(sup)) {
+                // bug 23: superclasse intermediária fora dos entries → a cadeia
+                // é truncada silenciosamente e membros herdados não resolvem.
+                // Avisa em vez de falhar mudo.
+                loadWarnings.add("superclass '" + sup + "' of '" + ownerInternalName
+                        + "' is not on the external classpath — inherited member '"
+                        + methodName + "' may not resolve");
+                return null;
+            }
             MethodSignature inherited = findDeclared(sup, methodName, argumentCount, 0);
             if (inherited != null) return inherited;
             sup = superclassOf(sup);
@@ -292,6 +301,12 @@ final class ExternalClasspath {
         String sup = superclassOf(ownerInternalName);
         int hops = 0;
         while (sup != null && !sup.equals("java/lang/Object") && hops++ < 32) {
+            if (!classBytes.containsKey(sup)) {
+                loadWarnings.add("superclass '" + sup + "' of '" + ownerInternalName
+                        + "' is not on the external classpath — inherited field '"
+                        + fieldName + "' may not resolve");
+                return null;
+            }
             String inherited = findFieldDeclared(sup, fieldName, 0);
             if (inherited != null) return inherited;
             sup = superclassOf(sup);

@@ -4,8 +4,9 @@
 >
 > Kof não expõe `Thread`, `Runnable` nem `CompletableFuture`: a intenção é
 > `spawn` (rode em paralelo) e `await` (espere o resultado). JVM usa virtual
-> threads; Native roda em pthread (CONC001 fechado em 31/08); JS executa
-> sequencialmente (async de event-loop real ainda é o gap CONC003). Os gaps
+> threads; Native roda em pthread (CONC001 fechado em 31/08); JS roda sobre
+> `async`/`await`/`Promise` reais do GraalJS (CONC003 fechado em 03/09,
+> `spawn`/`await` deferem de verdade via microtask). Os gaps
 > restantes são documentados, nunca silenciosos. Chain:
 > `intention->Kof->frontend->IR->backend->runtime`.
 
@@ -160,8 +161,10 @@ Bloqueia até **qualquer** handle completar e devolve o valor dele. No JS
 trampoline + `pthread_join` + allocator thread-safe via futex); os
 construtos auxiliares (`poll`/`done`/`cancel`/`cancelled`/`selectAny`)
 ainda reportam `CONC001` em compile-time no Native. No JS o modelo é
-single-threaded/event-loop: `spawn`/`await` cobrem o programa de forma
-sequencial e o async real de event-loop é o gap `CONC003`.
+single-threaded, mas concorrente de verdade sobre o event-loop: `spawn`
+enfileira a task como microtask (não roda na hora) e `await` de fato
+suspende até ela resolver — o programa espera todas as tasks spawnadas
+antes de sair, igual JVM/Native (`CONC003` fechado).
 
 ## Target separation (0.2.0)
 

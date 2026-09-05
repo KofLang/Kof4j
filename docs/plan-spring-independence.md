@@ -173,7 +173,7 @@ customizados (`status(201, body)`/`headerSet`), **WebSocket** `app.ws("/chat") {
       trampoline + `pthread_join` + allocator thread-safe (futex), join
       implícito.
 - [x] `await`/handles tipados `Handle<T>` com unboxing (JVM, 0.1.0); JS
-      sequencial (stmt/expr; async real = CONC003).
+      com async/await/Promise reais (stmt/expr; CONC003 fechado 03/09).
 - [ ] Filas (`kof.concurrent.Queue`), canais, cancellation, timeouts.
 - [ ] Structured concurrency e supervision sem expor Thread/Executor.
 - [ ] Testes + docs `docs/stdlib-concurrency.md`.

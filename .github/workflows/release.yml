@@ -46,11 +46,29 @@ jobs:
         id: bump
         run: |
           CURRENT=$(cat VERSION)
-          BASE="${CURRENT%%-*}"          # 0.0.4
-          PATCH="${BASE##*.}"            # 4
-          NEXT_PATCH=$((PATCH + 1))
-          NEXT="${BASE%.*}.${NEXT_PATCH}-beta"    # 0.1.2-beta
-          echo "current=$CURRENT next=$NEXT"
+          # Última release publicada (ex.: 0.2.7-beta). Se o VERSION do repo já
+          # é MAIOR que ela, alguém abriu uma linha nova manualmente (ex.:
+          # 0.3.0-beta na branch beta-0.3.0) — publica como está, sem bump.
+          # Caso contrário (== última), incrementa patch (0.2.7 -> 0.2.8).
+          LAST_TAG=$(git tag -l 'kof-*-linux-x86_64' --sort=-v:refname | head -1)
+          LAST="${LAST_TAG#kof-}"; LAST="${LAST%-linux-x86_64}"
+          LAST="${LAST:--none}"
+          if [ "$LAST" = "-none" ]; then
+            LAST="0.0.0"
+          fi
+          HIGHER=$(printf '%s\n%s\n' "$LAST" "$CURRENT" | sort -V | tail -1)
+          if [ "$CURRENT" != "$HIGHER" ]; then
+            # CURRENT < LAST: não deve acontecer; bumpa por segurança.
+            BASE="${CURRENT%%-*}"; PATCH="${BASE##*.}"
+            NEXT="${BASE%.*}.$((PATCH + 1))-beta"
+          elif [ "$CURRENT" = "$LAST" ]; then
+            BASE="${CURRENT%%-*}"; PATCH="${BASE##*.}"
+            NEXT="${BASE%.*}.$((PATCH + 1))-beta"
+          else
+            # CURRENT > LAST: linha nova aberta manualmente — respeita.
+            NEXT="$CURRENT"
+          fi
+          echo "current=$CURRENT last=$LAST next=$NEXT"
           scripts/bump-version.sh "$NEXT"
           echo "version=$NEXT" >> "$GITHUB_OUTPUT"
 

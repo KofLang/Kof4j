@@ -61,7 +61,7 @@ Backend **alpha**. KofJS gera ES Modules rodados na GraalJS embutida do Kof
 |------|--------|
 | Linguagem completa (classes, herança, generics, exceptions, List, JSON) | ✅ |
 | Lambdas com capturas | ✅ (3 alvos) |
-| `spawn` (concorrência) | ✅ sequencial (spawn statement/expr; async real = CONC003 parcial) |
+| `spawn`/`await`/`channel<T>()` (concorrência) | ✅ real (async/await/Promise, CONC003 fechado 03/09) |
 | `kof http` client (get/post/put/delete/patch/options + timeout/retry/circuit) | ✅ (interop Java HttpClient) |
 | `kof.ui`: cores, temas, widgets, layout, estilo, eventos | ✅ (JS render) |
 | Router (`Router.route/go/replace/back/forward/...`) | ✅ (JS real; 31/08) |

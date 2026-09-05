@@ -173,7 +173,19 @@ kof.time/kof.io.
 - kof.time (now/sleep; scheduler via `setInterval` — 27/08), kof.io (via `kof_platform`), `kof run --target=js`
 - **kof.http** via interop `Java HttpClient` no `KofJsRunner` (+ fetch
   fallback); **retry/circuit breaker em paridade com o JVM** (30/08)
-- `spawn` sequencial (statement/expressão; async real = CONC003)
+- `spawn`/`await`/`channel<T>()` com concorrência real via `async`/`await`/
+  `Promise` do GraalJS (`CONC003` fechado, 03/09) — `KofJsRunner` drena a
+  fila de microtasks (`kofActiveTasks`) até todas as tasks spawnadas
+  terminarem, mesmo fire-and-forget nunca esperado; canal com `receive()`
+  bloqueante de verdade em canal vazio; `selectAny` via `Promise.race`;
+  `awaitTimeout` dispara de verdade contra task mais lenta (polling
+  cooperativo, sem timer real disponível no GraalJS embutido). Restrição:
+  só lambdas criadas direto num site de `spawn` podem virar `async`
+  (`CONC003-JS-01` — lambda comum passada a `list.map`/`filter`/`reduce`
+  não pode usar `await`, vira erro de compilação em vez de corromper dado
+  silenciosamente via `Array<Promise<T>>`). `cancelled()` sempre `0`
+  (limitação conhecida — sem thread-local pra contexto "task atual" em
+  async functions intercaladas). Ver `docs/concurrency.md` seção 4.
 - **kof.ui**: widgets, layout, estilo, eventos — renderização em webview
   nativo (WebKitGTK) e browser (`index.html` estático); **Fase 7 Router**
   (`go/replace/back/forward/param/current/depth` — 31/08)
@@ -181,8 +193,8 @@ kof.time/kof.io.
 **Em andamento / futuro:**
 - UI declarativa (components) e layout avançado
 - WebKit embutido multiplataforma (Windows WebView2 / macOS WKWebView)
-- `async/await` real no event-loop (CONC003 — spawn sequencial cobre
-  statement/expressão)
+- `cancelled()` real no JS (precisaria de contexto por-task, sem
+  equivalente nativo em async functions intercaladas no GraalJS embutido)
 - Interoperabilidade (`js.import(...)` — sintaxe futura)
 - Source maps precisos (posições na IR) — debugging JS (Fase 6)
 

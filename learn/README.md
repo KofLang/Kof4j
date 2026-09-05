@@ -160,7 +160,7 @@ Native (x86-64 free-list), Native.risc, Native.arm, KofJS e KofC (0.2.6-beta, 81
 
 
 **O que está planejado / gaps reais:**
-- Gaps de target: HTTP002 (HTTP client Native), CONC003 (async real no JS), SCHED001 (scheduler Native), PROC001 (process.spawn Native), DB001 (db no JS), ORM001 (ORM nativo/JS), WEB002 (web server nativo), AND00x (Android Fase 2+)
+- Gaps de target: HTTP002 (HTTP client Native), SCHED001 (scheduler Native), PROC001 (process.spawn Native), DB001 (db no JS), ORM001 (ORM nativo/JS), WEB002 (web server nativo), AND00x (Android Fase 2+) — ~~CONC003 (async real no JS)~~ ✅ 03/09
 - GC mark-sweep completo no Native (hoje free-list)
 - MySQL/MariaDB nativo completo (wire protocol: auth scramble SHA-1 feito; falta handshake, query e prepared statements)
 - `when` guards em pattern matching, flow analysis profundo para `String?`

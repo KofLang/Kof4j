@@ -27,6 +27,7 @@ porque existem em outras linguagens. Código assim **não compila** ou
 | `String?` / `Int?` null safety + `if (x != null)` narrowing | ✅ Implemented (0.2.6-beta, NullableType + isAssignable) |
 | Pattern matching `switch (x) { case String s: ... }` + `instanceof`/`as` | ✅ Implemented |
 | Pattern record destructuring `case Point(x, y):` | ✅ Implemented (Parser PatternExpr fieldVars, 0.2.6-beta) |
+| Switch como expressão `var r = switch (x) { case A -> b; default -> c }` | ✅ Implemented (SYN001, 03/09 — 3 targets + riscv64/aarch64; `default` obrigatório ou exaustividade de enum, senão `SEM032`) |
 | `spawn` / `await` com `Handle<T>` e unboxing | ✅ 3 targets (JVM virtual threads; Native pthread — CONC001 fechado 31/08; JS sequencial — CONC003 parcial) |
 | Primary constructor `class X(...)` / `record` | ✅ Implemented (record-style desde 0.0.5) |
 | `Thread` / `Executor` (APIs de plataforma) | ❌ Unavailable — nunca use (`spawn` é a intenção) |
@@ -81,6 +82,12 @@ switch (obj) {
         break
     default:
         println("outro")
+}
+// ...ou como EXPRESSÃO (SYN001) quando o switch produz valor:
+var desc = switch (obj) {
+    case String s -> "str:" + s
+    case Point(var x, var y) -> x + "," + y
+    default -> "outro"
 }
 if (p instanceof Point) {
     var q = p as Point

@@ -874,4 +874,27 @@ class NativeE2ETest {
             throw new IOException("Interrupted", e);
         }
     }
+
+    // known-bugs #9 — native lambda capture of a MUTABLE variable returned
+    // garbage: the prologue treated the capture as an incoming register arg
+    // (consuming rsi), so the real param got rdx (uninitialized). The prologue
+    // now only assigns registers to PARAM slots; captures load from fields.
+    @Test
+    void nativeLambdaMutableCapture(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+            main() {
+                var offset = 10
+                var f = (x: Int) -> x + offset
+                println(f(5))
+                offset = 20
+                println(f(5))
+                var a = 1
+                var b = 2
+                var g = (y: Int) -> y + a + b
+                println(g(0))
+            }
+            """);
+        runNative(source, tempDir.resolve("out"), "15\n25\n3");
+    }
 }

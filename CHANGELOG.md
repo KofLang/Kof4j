@@ -7,7 +7,253 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `build:`, `tooling:`). A seção de cada release é gerada por
 `scripts/changelog.sh` e inserida pela pipeline neste marcador:
 
+## [0.3.0-beta] - unreleased (branch `beta-0.3.0`)
+
+Linha de desenvolvimento 0.3.0 aberta em 04/09/2026. Semântica congelada
+(0.2.6) preservada — mudanças aqui são aditivas ou com bump deliberado.
+
+### Em desenvolvimento
+
+  - NATIVE002 paridade avançada riscv64/aarch64: stdlib real no runtime asm —
+    **JSON** (`kof_json_quote`/builder, encode/decode record+listas), **HTTP**
+    (`get/post/put/patch/delete/options/status` + headers, asm puro: socket+
+    connect+write/read/close, syscalls asm-generic) e **spawn/await** (`clone`
+    + `futex` — qemu-riscv64 8.2.2 não implementa clone3; heap compartilhado
+    entre main e workers → `kof_alloc` virou bump atômico `amoadd.d`) fechados
+    (19/19 qemu cada target); aarch64 herda via `translateRiscvToAarch64`.
+    Fix de codegen: `--no-relax` no as/ld riscv64 (gp-relaxation faultava com
+    gp=0 no binário estático). Fixes do tradutor aarch64: `movz` (não `mov`)
+    para imediatos com `lsl #16`; imediatos hex no `li`/`addi`/`andi`;
+    `amoadd.d`→`ldadd` + `.arch armv8.1-a`; `fence`→`dmb ish`. **db**: o link
+    dinâmico de libsqlite3 exige libc — inviável no asm puro estático; os cross
+    agora reportam **DB001 em compile-time** (R6: nunca undefined-reference no
+    ld), travado por `crossNativeReportsDb001`. **String methods riscv64/aarch64**
+    (`trim`/`toUpperCase`/`toLowerCase`/`replace` char+String/`lastIndexOf`/
+    `equalsIgnoreCase`/`split`) implementados em asm puro — antes quebravam no
+    link com undefined reference silencioso (R6); `RISCV_RUNTIME_ASM` dividido
+    em 3 constantes (limite de 64KB do javac). Prova: `riscv64/aarch64StringTrimCaseReplaceSplit`
+    + suíte 913+8+5+8.
+  - GC auto-collect (safe-points + mapa de raízes por frame).
+  - Package manager MVP (`kof init`/`kofdeps`/registry).
+
+## [0.2.8-beta] - 2026-09-04
+
+### Documentation
+
+  - seção 0.2.7-beta movida para o topo
+
+<!-- NEXT-RELEASE -->
+
+## [0.2.7-beta] - 2026-09-04
+
+### Features
+
+  - log níveis + cache real + mq push/pop real — suíte 842/0
+  - WEB002 T1 — accept loop HTTP/1.1 no Native (kof_web_listen+handle_client; respondendo 200/hello fixo a qualquer request — valida listen→accept→read→write→close; routing+dispatch é T2/T3). Módulo novo NativeWebRuntime.java (≤500 linhas); CompilerDriver libera web.app/listen para NATIVE_*. Suíte 840/0
+  - prepared statements com QUERY binário — parse de binary-rows (COM_STMT_EXECUTE)
+  - GC mark-sweep real (sweep funcional, auto-collect desligado)
+  - close HTTP002 — kof.http no Native (asm HTTP/1.1)
+  - COM_STMT_PREPARE/EXECUTE binário — kof_db_mysql_prepare + kof_db_mysql_exec (NativeDbPrepared.java, novo módulo ≤500 linhas)
+  - validation 13/13 + observability real (counter/gauge/histogram/metrics) em asm puro
+  - stubs NATIVE002.1 — kof.log/config/time/observability/cache/mq em asm puro
+  - add roadmap gap report for NATIVE002 core completion
+  - CORE COMPLETO em asm puro via tradução riscv→aarch64 (NATIVE002) — 13/13 E2E qemu
+  - close TIME001 — time.interval/cancel no KofJS via fila cooperativa
+  - CORE COMPLETO em asm puro (NATIVE002 parcial) — 13/13 E2E qemu
+  - package manager MVP — kof deps (kofdeps, Maven Central, --deps)
+  - application { onStart/onShutdown } — construcao de intencao
+  - spans W3C com timing (spanStart/spanEnd) nos 3 targets
+  - close LOG001 (kof.log on JS) + runtime fixes
+  - add platform invariants and gap conventions to AGENTS.md and backend-parity.md; introduce ACTION_PLAN.md for future implementation roadmap
+  - riscv64 real (NATIVE002 parcial) — kof_main em asm + runtime C via gcc cruzado + qemu (NativeRiscv64E2ETest 4/4)
+  - captura mutável de lambda — mutação fora da lambda refletida
+  - DWARF line table real no ELF x86-64 (.file/.loc GAS — Fase 5 parcial do debugger)
+  - source map V3 real (mappings VLQ em nível de linha — função gerada → linha Kof)
+  - Enhance array creation handling in JvmBackend for reference types
+  - Query DSL tipada nível 3 — User.query(db){ where; orderBy; limit } (ORM001)
+  - MQ001 — kof.mq no Native (pub/sub + filas in-process em asm, paridade JVM/JS)
+  - readLine → String? (null no EOF) + docs exemplos desatualizados
+  - transaction {} — commit/rollback real (BEGIN/COMMIT/ROLLBACK + EH)
+  - TIME001 — time.interval/time.cancel no Native (reusa o scheduler)
+  - OBS002 — histogram/metrics no Native (store asm + export Prometheus)
+  - add primitive widening and narrowing for array store operations to prevent verifier errors
+  - enhance AES-GCM support for JS target and add cross-target parity tests
+  - add support for Channel type in various components and tests
+  - add maven-surefire-plugin configuration to include specific test files
+  - add tracing for 'add' method calls to enhance debugging
+  - add tracing for return value of 'add' method calls to aid debugging
+  - add tracing for resolved owner class in KofPop to aid debugging
+  - add L2I unary operation support and enhance type casting for primitives
+  - implement local HTTP server for serving appDir and open in system browser
+  - add support for I2C conversion in constant folding
+  - add support for I2C unary operation and enhance type casting for primitives
+  - enhance handling of built-in types as static receivers to prevent frame crashes
+  - enhance method call handling for built-in types to prevent ClassFormatError
+  - update kof_io_read_range and kof_io_read_range_path to use long for length parameter; enhance file reading with offset support
+  - File.readRange(offset, len) e File.readRangePath(path, offset, len) — leitura com offset p/ arquivos grandes (GGUF de LLM) sem carregar o inteiro; JVM via RandomAccessFile (kof_io_read_range/_path)
+  - add traceId and spanId functions; enhance LSP server capabilities
+  - add built-in health check endpoint and update related tests
+  - implement implicit join for main function tasks to prevent orphaned threads
+  - add video handling support with metadata extraction and streaming capabilities
+  - build.sh da libvkchain (compila + instala)
+  - M32.3 — dispatch Vulkan compute REAL nos 2 backends
+  - implement non-blocking done/poll methods and cooperative cancellation in native backend
+  - String.lastIndexOf — kof_string_last_index_of (varredura reversa do fim p/ inicio, needle vazia retorna length, nao-achado -1) + handler INSTANCE lastIndexOf no emitCall; fecha N11 (repro regressions/N11 rc=0 no kof-agent)
+  - CONC001 fechado — spawn/await no Native via pthread
+  - JSN001 fechado — Float/Double no Native (encode, decode, arrays)
+  - Fase 7 Router — go/replace com param, unmount de rotas não-registradas
+  - kof config gen — template de deploy a partir do código (P3)
+  - FFI Vulkan compute (FFM) — JvmVkRuntime com cadeia instance→device→pipeline validada (RADV+lvp rc=0), stage inline no ComputePipelineCreateInfo, structs validados (DeviceCreate 72B, WriteDesc 64B, SubmitInfo 72B, MemoryAlloc 32B); degradação silenciosa p/ CPU (bug RADV/lvp 25.2.8 no dispatch — reproduzido em C puro dlsym)
+  - interpolação ${key} no kof.config — P2 nos 3 targets
+  - FFI Vulkan compute (FFM) — JvmVkRuntime com cadeia instance→device→pipeline validada (RADV+lvp rc=0), stage inline no ComputePipelineCreateInfo, structs validados (DeviceCreate 72B, WriteDesc 64B, SubmitInfo 72B, MemoryAlloc 32B); degradação silenciosa p/ CPU (bug RADV/lvp 25.2.8 no dispatch — reproduzido em C puro dlsym)
+  - add configuration interpolation and HTTP circuit breaker functionality
+
+### Bugfixes
+
+  - 500 desempacota InvocationTargetException do handler lambda
+  - envolve TODO o mic record no gap MEDIA003
+  - mic captura qualquer exceção de hardware ausente como MEDIA003
+  - dedup por arquivo de origem — re-import transitivo não é colisão
+  - JvmVkRuntime.java — restaura ';' e remove '}' extra (build quebrado no merge fixes-for-kofagent)
+  - PKG005 permite nomes iguais em pacotes diferentes (como em Java)
+  - bug 11 native — record ==/equals/!/toString/concat (já testado), concat valueOf fix, digest valueOf Object->toString
+  - remove duplicate WS/SSE runtime definitions
+  - bug 15 — primitivo → Object (auto-boxing) + default em var sem init
+  - bug 9 — captura mutável no Native (prologue de lambda)
+  - bug 8 — tipo de função (Int) -> Int parseia como tipo
+  - bugs 19/20 (lambda em coleção/retornando lambda) + validação símbolos
+  - --enable-preview só no JDK 21 — FFM é final no 22+ (JDK 25 quebrava COMP001)
+  - bug 23 — warning quando superclasse externa está fora do classpath
+  - bug 11 — == em records por conteúdo (JVM+JS)
+  - bug 16 — List.toArray() rejeitado com SEM029
+  - bug 12 — assignment como valor rejeitado (SEM027)
+  - bug 18 — kof-ui widget id monotônico (sem reuso após remove)
+  - bug 17 — array .get()/.set() rejeitados com SEM028
+  - bug 13 — cast em aritmética crasha o compilador
+  - bug 4 — switch de String no JVM
+  - bug 22 — Native: construtor de classe importada (undefined reference)
+  - bug 7 — listOf<String?>() agora parseia
+  - bug 1 — throw não-String vira SEM026; try/catch agora é analisado
+  - bug 14 — Map/Set .size como propriedade
+  - bug 6 — sufixos numéricos maiúsculos (42L/1.5F/2.0D)
+  - bugs 5, 24, 25 — conversões numéricas + literal fora de faixa
+  - bugs 2, 3, 10 — compound assignment + NOT lógico
+  - concat 'str' + double/float descartava o operando FP
+  - Set<T>/Map<K,V> como campo/retorno de classe (mapper HashSet/HashMap + parse de método c/ retorno genérico)
+  - idiomatic-philosophy — kof.Set JVM, Map.get V?, readText String?, size() sem sentinela
+  - alinhar stack no call pthread_create (println antes de spawn desalinhava → segfault glibc)
+  - surefire include pega NativeDebugTest2-5; docs/status atualiza 01/09 + regressão dc849f6
+  - clarify test summary in project status documentation
+  - update last updated date in project status
+  - prevent stack underflow by avoiding unnecessary KofPop for collection methods
+  - 'fn' keyword de declaração — o parser tratava 'fn main()' como retorno 'fn' e o JvmBackend emitia main([String;)Lfn; → JVM rejeita e tenta o launcher JavaFX ('componentes de runtime do JavaFX não encontrados'). kof run --target jvm volta a funcionar (validado: pure.kf + date + llama smoke)
+  - remove unsupported JS spawn error handling; add sequential execution test
+  - dedupe helloRoute in KofWebE2ETest; docs for app.health + observability (760 tests)
+  - N12 — ordem dos stack args >=6 invertida nos call sites (SysV: arg6 deve ficar no topo → 16(%rbp)); INSTANCE/INTERFACE vtable salvavam stack args em r10 único (quebra com >1 stack arg) — agora slots de frame; repro N12 (9 campos, x.i=9) verde, J4/N10 re-validados
+  - N23 — constructor com >=6 args: cleanup dos stack args apos call (callee caller-clean); pop do consumidor volta a desempilhar o push duplicado do receptor (rip=0x1 via vtable corrompida); repro R3-R7 + N23 verdes, 16/16 suites
+  - COMP002 travava lambda WS com if/String — descritores ws faltavam
+  - fechamento da classe KofRuntime no runtime concatenado (COMP001)
+  - fechamento da classe KofRuntime após concatenação do JvmVkRuntime (COMP001 compact source file)
+  - cache.delete statement sem Pop extra — KofIo.instanceMethod(Unknown,'delete') interceptava hasReturnValue antes do caso cache (frame merge NegativeArraySize) — fecha KofCacheE2ETest (661 testes verdes); trace IR via -Dkof.trace.ir
+  - inferência de aritmética promove int→long, corpo vazio em classe concreta emite return (ClassFormatError), tipo de retorno de função top-level registrado (NoSuchMethodError em receiver); fix(native/io): kof_io_dir_delete recursivo no JVM + retorna 0 (não -1) em falha — fecha suítes ws do kof-agent (16/16) e IoE2ETest.directoryDelete
+  - fechamento da classe KofRuntime no runtime concatenado (COMP001)
+  - fechamento da classe KofRuntime após concatenação do JvmVkRuntime (COMP001 compact source file)
+  - update future release codename in documentation; modify test to accept closed URL as argument
+  - correct spelling of "Diplomat" to "Diplomata" in release notes; add end-to-end tests for HTTP resilience and circuit breaker functionality
+  - restaura descritores JVM + no-ops UI/Store perdidos no rebase
+  - cache.delete statement sem Pop extra — KofIo.instanceMethod(Unknown,'delete') interceptava hasReturnValue antes do caso cache (frame merge NegativeArraySize) — fecha KofCacheE2ETest (661 testes verdes); trace IR via -Dkof.trace.ir
+  - remove unnecessary stack adjustment in method call
+  - inferência de aritmética promove int→long, corpo vazio em classe concreta emite return (ClassFormatError), tipo de retorno de função top-level registrado (NoSuchMethodError em receiver); fix(native/io): kof_io_dir_delete recursivo no JVM + retorna 0 (não -1) em falha — fecha suítes ws do kof-agent (16/16) e IoE2ETest.directoryDelete
+
+### Documentation
+
+  - WEB001/WEB002/HTTP002 atualizados ao estado real (03/09)
+  - SYN001 23/23 (enum exaustivo) + suíte 910
+  - bronca formal — 3 incidentes de processo (03/09)
+  - corpus do switch-expressão + status 906 testes
+  - atualiza known-bugs.md e DOING.md com status 03/09
+  - NATIVE002 paridade stubs→real FEITO — log config cache mq interval scheduler com cli via kof_time; aquitetura confirmada
+  - CONC003 fechado - async real no JS documentado em todo o repo
+  - trilha universal — Tier 0 fechado; Tier 1 (SYSTEMS) pendências mapeadas; WEB002 reivindicado por agente-planning
+  - MySQL prepared binário FEITO (02b9ddb) — status/parity/DOING atualizados
+  - limpa duplicatas; umico Em curso + Abertos
+  - WEB002 devolvido a ABERTO (escopo muito grande pra sessao; proximo passo: server bloqueante com accept+request-line+match de rota literal) — NAO pega outro enquanto GC fechado
+  - marca GC sweep+flag FEITO (dono agente-planning); reivindico WEB002 (NativeWebRuntime.java novo; handler com trampolim)
+  - ajustes de escopo apos HTTP002/GC — WEB002 e maior (closure trampolines); GC sweep fechado, auto-collect pendente safe-points
+  - status 854 + CHANGELOG noite 03/09 — 14 bugs corrigidos
+  - DOING.md — 13/25 bugs corrigidos no known-bugs (03/09)
+  - DOING.md — MySQL prepared FEITO (4ce1f25), NATIVE002 valid/observability FEITO (b20aa49), aberto: query binaria + GC
+  - update AGENTS.md and DOING.md with behavior freezing guidelines; revise test counts in status and stdlib-logging documentation
+  - DOING.md — coordenacao multi-agente (dono por gap, estado, arquivos)
+  - rodada 3 (usuários) — 6 bugs novos (total 23)
+  - bateria pós-merge — bugs 16-17 + contagens reais 819 (merge riscv64)
+  - update known bugs and status with new test results and bug descriptions
+  - resolve conflitos do merge de main (riscv64 13/13, counts reais)
+  - rodada agressiva — 6 bugs novos em known-bugs.md (total 15)
+  - bug-hunt 02/09 — 9 bugs documentados em known-bugs.md p/ próximo agente
+  - esclarece class X(...) = record em TODOS os md; reduce padronizado
+  - learn/19 esclarece java.util.* (interop, não idiomático para coleções)
+  - auditoria final — switch break opcional, learn/04 arrays, learn/12 notas, contagens 810
+  - merge backend-parity deltas (LOG001 JS + Vulkan conditional + main fixes)
+  - regra de arquitetura — máximo 500 linhas por classe (refactor futuro)
+  - captura mutável, concat FP, riscv64 — registros 02/09
+  - riscv64 real (02/09) no corpus — targets.md, overview, roadmap, actual-state
+  - learn/21 honesto — interop Java parcial verificada; contagem 810
+  - riscv64 runtime em asm puro (sem C) — status/parity alinhados
+  - honestidade verificada — exceptions String-only, class X(...) = record
+  - gotchas do koflama — ANEWARRAY ref types, Map descriptor jar, unboxing NPE, Int overflow em acumuladores micro, UTF-8 vs latin-1
+  - recalibra contagem de testes para 805 (788+8+5+4) pós-merge
+  - disclaimer da marca no README + NATIVE002 — toolchain cruzada + runtime C via gcc validado (02/09)
+  - consistência geral — versão 0.2.6-beta, contagem de testes 788, datas 02/09
+  - SECN002 fechado (AES-256-GCM no KofJS) + contagem 780 (763+8+5+4)
+  - deltas 01/09 (spawn captura, short-circuit JS, Channel param, pthread_create alinhamento, KofJS browser) + contagem 778 + MySQL wire protocol
+  - contagem 778 + bug #2 spawn→await→spawn resolvido (mesmo fix de alinhamento pthread_create)
+  - chained-OR membership caveat — Set<T> declarado quebra no JVM; só setOf local nos 3 targets
+  - casts primitivos as Char/as Int, Long[], String.valueOf builtin + fixes 01/09 (frame List.add, I2C, L2I)
+  - future/ fica só com planos; risc/arm (em desenvolvimento) -> docs/native-multiarch.md com estado real + como finalizar
+  - §4.8.1 Kof Security — evolução estratégica (auditoria + PQC híbrido ML-KEM/ML-DSA + SecureChannel + threat model + roadmap por maturidade)
+  - status 769 tests (752 kof-compiler +8 script +5 c-compiler +4 cli); integrate upstream io/fn-parser fixes
+  - status 768 tests; LSP references/rename, W3C traceId/spanId, P1-4 LCA moduleRoot, P3-10 ORM003 typed column
+  - update project status and test counts; add multimedia handling details for Kof
+  - alinha contagem de testes (736 = 723+8+5) e pipeline de release
+  - sweep profundo — todos os MDs sincronizados com o estado 0.2.6-beta
+  - guias de instalação por SO (sem versão hardcoded) + sweep 0.2.6-beta
+  - gap COMP002 do config fechado — causa era descritor ws faltando no JVM
+  - CONC001 fechado — spawn/await nos 3 targets (parity de concorrência)
+  - sync
+  - CONC003 no JS já cobre spawn stmt + spawn-expr — gap restante é async real
+  - JSN001/FLT001 fechados — parity JSON Float/Double no Native; CONC003 parcial
+  - Fase 7 Router marcada como implementada com detalhes
+
+### Refactoring
+
+  - remove observability metrics implementation
+  - runtime em assembly PURO (sem C) — Kof é Kof
+  - streamline return value handling and remove debug tracing for 'add' method
+  - update variable declaration examples for clarity and consistency
+  - simplify argument handling in KofIo method calls to prevent frame bugs
+
+### Tests
+
+  - mic gap aceita as duas formulações do MEDIA003
+
 ## [0.2.6-beta] - 2026-09-02
+
+### Feature — switch como expressão (SYN001)
+
+- **`case ... ->` produzindo valor** (`feat`): `var r = switch (x) { case 1 ->
+  "um"; default -> "outro" }` — pattern matching via expressão, no espírito do
+  switch expression do Java 14. Cada caso é uma única expressão (sem `break`,
+  sem escopo de bloco, sem fallthrough); `default` obrigatório ou exaustividade
+  de enum (senão `SEM032`). Funciona nos 3 targets + riscv64/aarch64 (JS
+  renderiza como ternários aninhados). **Aditivo**: a forma statement
+  (`case X:`) está intocada. Prova: `KofSwitchExprE2ETest` 19/19 +
+  `NativeRiscv64E2ETest`/`NativeAarch64E2ETest` 14/14. Plano em
+  `docs/planning-switch-expr.md`.
+- **PKG005: re-import transitivo não é colisão** (`fix`): `compileSources` com
+  fonte explícita + `import` da mesma declaração disparava falso-positivo de
+  "duplicate type name"; agora só colide quando os **arquivos** diferem
+  (`PackagesE2ETest` 7/7).
 
 ### Fix — filosofia idiomática (revisão do corpus)
 
@@ -1741,8 +1987,6 @@ Primeira release estável da plataforma base — P0 (ecossistema) e P1
   - RFC 6455 WebSocket handshake
   - JVM native SSE + trailing-block sugar
   - persistent connection + route kinds + diagnostics (WEB003/WEB004)
-
-<!-- NEXT-RELEASE -->
 
 ## Versionamento
 

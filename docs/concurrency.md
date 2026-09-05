@@ -1,8 +1,8 @@
 # CONCURRENCY.md — Modelo de Concorrência Kof
 
-**Status:** Implementado nos 3 targets (JVM + JS sequencial + Native pthread) — 0.2.6-beta 31/08
+**Status:** Implementado nos 3 targets, concorrência real nos 3 (JVM virtual threads + JS async/await/Promise + Native pthread) — 0.2.6-beta 03/09
 **Versão:** 0.2.6-beta
-**Data:** 2 de setembro de 2026
+**Data:** 3 de setembro de 2026 (CONC003 fechado — JS deixa de ser sequencial)
 
 ---
 
@@ -33,11 +33,11 @@ Semântica implementada:
 
 ### Implementado 0.1.0 → 0.2.6-beta
 
-- `spawn` statement + `val r = spawn f()` + `await r` com `Handle<T>` tipado e unboxing (`KofAwaitTest` 7/7, `KofConcurrency2Test` 10/10) — JVM; JS sequencial completo (`CONC003` restante = async event-loop real); Native pthread completo (CONC001 fechado)
-- `done(h)`/`poll(h)` não-bloqueantes, `cancel(h)`/`cancelled()` (cancel cooperativo por TID) e `selectAny(h1, h2, …)` (polling 1ms) — JVM + Native (`KofConcurrency2Test`); Android segue `AND001`
-- `awaitTimeout(r, ms)` — valor se a task terminar no prazo; senão lança exceção (capturável via `try/catch`) — JVM (`Future.get(ms)`) + Native (polling 1ms com deadline); JS sequencial é paridade (a task sempre está pronta) — `KofConcurrency2Test`
-- `channel<T>()` — FIFO thread-safe com `c.send(v)`/`c.receive()` — JVM (`LinkedBlockingQueue`, `put`/`take` bloqueantes) + Native (lista ligada + mutex futex + polling 1ms) + JS (array sequencial) — `KofConcurrency2Test`
-- Lambdas com captura via `BoxN` já suportam `spawn { println(x) }`
+- `spawn` statement + `val r = spawn f()` + `await r` com `Handle<T>` tipado e unboxing (`KofAwaitTest` 7/7, `KofConcurrency2Test` 10/10) — JVM; JS **async real** via `async`/`await`/`Promise` do GraalJS, fechado 03/09 (`CONC003`, ver seção 4); Native pthread completo (CONC001 fechado)
+- `done(h)`/`poll(h)` não-bloqueantes, `cancel(h)`/`cancelled()` (cancel cooperativo) e `selectAny(h1, h2, …)` — JVM + Native (polling 1ms, `KofConcurrency2Test`); JS via handle `{done,value,error,promise}` + `Promise.race` (`cancelled()` sempre `0` no JS — sem thread-local, ver seção 4); Android segue `AND001`
+- `awaitTimeout(r, ms)` — valor se a task terminar no prazo; senão lança exceção (capturável via `try/catch`) — JVM (`Future.get(ms)`) + Native (polling 1ms com deadline) + JS (polling cooperativo via `await Promise.resolve()`, dispara de verdade contra task mais lenta — `KofConcurrency2Test.awaitTimeoutSlowTaskJs`)
+- `channel<T>()` — FIFO thread-safe com `c.send(v)`/`c.receive()` — JVM (`LinkedBlockingQueue`, `put`/`take` bloqueantes) + Native (lista ligada + mutex futex + polling 1ms) + JS (fila de resolvers pendentes — `receive()` em canal vazio bloqueia de verdade até um `send()` posterior, `KofConcurrency2Test.channelBlocksBeforeSendJs`)
+- Lambdas com captura via `BoxN` já suportam `spawn { println(x) }` — inclusive captura de variável mutada de escopo externo, nos 3 targets
 - `kof.mq` publish/subscribe/queue — **3 targets** (JVM in-memory; Native asm 01/09, MQ001 fechado; JS in-process); `kof.time interval/cancel` — JVM+Native
 
 ### Não exposto
@@ -47,9 +47,11 @@ Nenhuma API de plataforma (Thread/Runnable/Executor) é visível na linguagem.
 
 ### Próximas iterações (P2)
 
-- ~~filas produtor/consumidor tipadas (`kof.concurrent.Queue`)~~ — ✅ 31/08: `channel<T>()` com `send`/`receive` (JVM `LinkedBlockingQueue` bloqueante + Native FIFO futex + JS array sequencial);
+- ~~filas produtor/consumidor tipadas (`kof.concurrent.Queue`)~~ — ✅ 31/08, canal com bloqueio real 03/09: `channel<T>()` com `send`/`receive` (JVM `LinkedBlockingQueue` bloqueante + Native FIFO futex + JS fila de resolvers pendentes);
+- ~~`CONC003` — async real no target JS~~ — ✅ 03/09: `async`/`await`/`Promise` do GraalJS, `KofJsRunner` drena a fila de microtasks (`kofActiveTasks`), ver seção 4;
 - scheduler nativo (threads no target Native — depende de futex/clone);
-- `select` múltiplo com timeout (`selectAny` já ✅ sem timeout; a combinação com deadline é o próximo passo).
+- `select` múltiplo com timeout (`selectAny` já ✅ sem timeout; a combinação com deadline é o próximo passo);
+- `cancelled()` real no JS — hoje sempre `0` (limitação conhecida: sem thread-local para contexto "task atual" em async functions intercaladas no GraalJS embutido, ver seção 4).
 
 Concorrência é uma capacidade da **linguagem/stdlib**, não uma coleção de
 APIs da plataforma.
@@ -123,7 +125,7 @@ Troca de valores entre tarefas através de:
 
 ## 3. Sintaxe (escolhida: `spawn` — 0.2.6-beta)
 
-**Implementada (JVM + JS sequencial):**
+**Implementada nos 3 targets, concorrência real em todos:**
 
 ```kof
 spawn task()
@@ -132,7 +134,16 @@ val handle = spawn tarefa()   // Handle<T> tipado — 0.1.0
 val result = await handle      // unboxing + exceção limpa — 0.1.0
 ```
 
-`spawn`/`await` funcionam em JVM (virtual threads), JS (sequencial) e Native (OS threads via `pthread_create`, 31/08).
+`spawn`/`await` funcionam em JVM (virtual threads), JS (`async`/`await`/`Promise` do GraalJS, 03/09) e Native (OS threads via `pthread_create`, 31/08).
+
+**Restrição só-JS (`CONC003-JS-01`):** uma lambda comum passada para
+`list.map`/`filter`/`reduce` (ou handler de UI/timer/mq) não pode usar
+`await`/`spawn expr`/`channel.receive()` — só o corpo de um `spawn { ... }`
+pode. É erro de compilação, não um comportamento silenciosamente errado:
+o motivo é que `Array.prototype.map/filter/reduce` do JS é síncrono e não
+sabe lidar com um callback que devolve `Promise` — sem essa restrição, o
+resultado viraria `Array<Promise<T>>` mascarado de `List<T>`, corrompendo
+dado sem erro nenhum. JVM/Native não têm essa restrição.
 
 Rejeitadas: `async { }` (confunde com async/await).
 
@@ -154,12 +165,17 @@ A mesma semântica Kof utiliza implementações diferentes:
 | JVM 21+ | Virtual Threads (scheduler da JVM) | ✅ `await`/`Handle<T>` + `kof.mq` |
 | Native x86_64 | OS threads: `pthread_create` + trampoline + `await`/`pthread_join` + `done`/`poll`/`cancel`/`cancelled`/`selectAny` + allocator thread-safe (futex) | ✅ 31/08 (`CONC001` fechado) |
 | Native riscv64/aarch64 | OS threads futuro (target ainda placeholder) | `CONC001` (placeholder) |
-| JS (GraalJS) | Event loop (sequencial hoje; Promises futuro) | ✅ sequencial (`spawn`/`await` sequencial) |
+| JS (GraalJS) | `async`/`await`/`Promise` nativos — coloração async por fixpoint no compilador (`JsBackend.computeAsyncColoring`), handle `{done,value,error,promise}`, canais com fila de resolvers pendentes, `KofJsRunner` drena a fila de microtasks (`kofActiveTasks`) | ✅ 03/09 (`CONC003` fechado) |
 | KofScript | JVM via KofScriptGlobals | ✅ |
 
 O código Kof não muda entre targets; no x86_64 não há mais gap de
-`spawn`/`await` (`CONC001` fechado) — o restante do `CONC001` se aplica aos
-targets riscv64/aarch64 (placeholder) e `CONC003` ao JS (async real).
+`spawn`/`await` (`CONC001` fechado) nem no JS (`CONC003` fechado) — o
+restante do `CONC001` se aplica só aos targets riscv64/aarch64 (placeholder).
+No JS especificamente: só lambdas criadas direto num site de `spawn`
+("task-lambdas") podem virar `async function`; ver restrição
+`CONC003-JS-01` na seção 3. `cancelled()` no JS sempre retorna `0`
+(limitação conhecida, sem thread-local equivalente para "task atual" em
+async functions intercaladas no GraalJS embutido).
 
 ---
 
@@ -198,10 +214,10 @@ Essa decisão pertence ao target/runtime.
 ## 7. Fases de Implementação
 
 1. Semântica validada (este documento);
-2. Primitive `spawn`/`async` no JVM (virtual threads quando disponíveis);
-3. Scheduler Native;
-4. Filas/pub-sub na stdlib;
-5. KofJS depois.
+2. Primitive `spawn`/`async` no JVM (virtual threads quando disponíveis) — ✅;
+3. Scheduler Native — ✅ (pthread, `CONC001` fechado);
+4. Filas/pub-sub na stdlib — ✅ (`channel<T>()`, `kof.mq`);
+5. KofJS — ✅ 03/09 (`CONC003` fechado, ver seção 4).
 
 ## 8. Não-Fazer
 

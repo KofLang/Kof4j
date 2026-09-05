@@ -26,8 +26,9 @@ class KofAwaitTest {
 
     @Test
     void awaitJs(@TempDir Path tmp) throws Exception {
-        // JS single-threaded: execução sequencial inline, handle memoiza o valor.
-        // Paralelismo real é JVM-only — semântica de VALOR idêntica nos testes.
+        // JS CONC003: spawn fire-and-forget enfileira microtask — o código
+        // síncrono depois do spawn roda antes do corpo despachado (paridade
+        // de intenção com JVM/Native: spawn não bloqueia quem chama).
         runJs(tmp, """
                 String calc() {
                     return "js-ok"
@@ -45,7 +46,7 @@ class KofAwaitTest {
                     spawn { println("fire") }
                     println("done")
                 }
-                """, "js-ok\ntrue\nfire\ndone");
+                """, "js-ok\ntrue\ndone\nfire");
     }
 
     @Test
@@ -176,16 +177,38 @@ class KofAwaitTest {
 
     @Test
     void pollDoneJs(@TempDir Path tmp) throws Exception {
+        // CONC003: poll/done síncronos logo após spawn veem task ainda não
+        // iniciada; após await o valor fica disponível.
         runJs(tmp, """
                 Int trabalho() { return 7 }
 
                 main() {
                     val r = spawn trabalho()
-                    println(poll(r))
                     println(done(r))
-                    println("done")
+                    println(poll(r))
+                    await r
+                    println(done(r))
+                    println(poll(r))
+                    println("ok")
                 }
-                """, "7\ntrue\ndone");
+                """, "false\n0\ntrue\n7\nok");
+    }
+
+    @Test
+    void pollDoneAsyncSemanticsJvm(@TempDir Path tmp) throws Exception {
+        runJvm(tmp, """
+                Int lenta() { time.sleep(50); return 7 }
+
+                main() {
+                    val r = spawn lenta()
+                    println(done(r))
+                    println(poll(r))
+                    await r
+                    println(done(r))
+                    println(poll(r))
+                    println("ok")
+                }
+                """, "false\n0\ntrue\n7\nok");
     }
 
 }

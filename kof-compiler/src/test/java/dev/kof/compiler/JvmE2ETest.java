@@ -555,6 +555,8 @@ class JvmE2ETest {
                 println(p.hashCode() == q.hashCode())
             }
             """);
-        runJvm(source, tempDir.resolve("out"), "Ponto[x=3, y=7]\ntrue\nfalse\ntrue\ntrue");
+        // p == q é igualdade de CONTEÚDO (record gera equals) — corrigido
+        // 03/09 (known-bugs #11); antes era referência (false).
+        runJvm(source, tempDir.resolve("out"), "Ponto[x=3, y=7]\ntrue\ntrue\ntrue\ntrue");
     }
 }

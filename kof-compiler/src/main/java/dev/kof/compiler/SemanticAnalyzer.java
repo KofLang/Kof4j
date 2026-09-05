@@ -1299,6 +1299,56 @@ class SemanticAnalyzer {
                         yield Type.UnknownType.UNKNOWN;
                     }
                     Type recvType = inferType(mc.receiver(), scope);
+                    // coleções: infere o retorno dos métodos (get → elemento,
+                    // size → Int, ...). Sem isso `var f = l.get(0)` de uma
+                    // List<FunctionType> inferia Unknown → `f(4)` dava SEM015
+                    // (bug 20). Espelha o inferExprType do CompilerDriver.
+                    if (BuiltinTypes.isList(recvType)) {
+                        Type elemType = Type.UnknownType.UNKNOWN;
+                        if (recvType instanceof Type.ClassType ct && !ct.typeArguments().isEmpty())
+                            elemType = ct.typeArguments().get(0);
+                        String mn = mc.methodName();
+                        if ("get".equals(mn)) yield elemType;
+                        if ("remove".equals(mn)) yield elemType;
+                        if ("size".equals(mn) || "length".equals(mn) || "count".equals(mn))
+                            yield Type.PrimitiveType.INT;
+                        if ("contains".equals(mn) || "isEmpty".equals(mn))
+                            yield Type.PrimitiveType.BOOL;
+                        if ("add".equals(mn) || "push".equals(mn) || "append".equals(mn)
+                                || "set".equals(mn) || "clear".equals(mn))
+                            yield Type.PrimitiveType.VOID;
+                    }
+                    if (BuiltinTypes.isMap(recvType)) {
+                        Type valueType = Type.UnknownType.UNKNOWN;
+                        Type keyType = Type.UnknownType.UNKNOWN;
+                        if (recvType instanceof Type.ClassType ct && ct.typeArguments().size() == 2) {
+                            valueType = ct.typeArguments().get(1);
+                            keyType = ct.typeArguments().get(0);
+                        }
+                        String mn = mc.methodName();
+                        if ("get".equals(mn)) yield valueType;
+                        if ("remove".equals(mn)) yield valueType;
+                        if ("put".equals(mn)) yield valueType;
+                        if ("size".equals(mn) || "length".equals(mn) || "count".equals(mn))
+                            yield Type.PrimitiveType.INT;
+                        if ("containsKey".equals(mn) || "contains".equals(mn) || "isEmpty".equals(mn))
+                            yield Type.PrimitiveType.BOOL;
+                        if ("clear".equals(mn)) yield Type.PrimitiveType.VOID;
+                        if ("keys".equals(mn)) yield new Type.ClassType("kof", "List", List.of(keyType));
+                        if ("values".equals(mn)) yield new Type.ClassType("kof", "List", List.of(valueType));
+                    }
+                    if (BuiltinTypes.isSet(recvType)) {
+                        Type elemType = Type.UnknownType.UNKNOWN;
+                        if (recvType instanceof Type.ClassType ct && !ct.typeArguments().isEmpty())
+                            elemType = ct.typeArguments().get(0);
+                        String mn = mc.methodName();
+                        if ("size".equals(mn) || "length".equals(mn) || "count".equals(mn))
+                            yield Type.PrimitiveType.INT;
+                        if ("contains".equals(mn) || "isEmpty".equals(mn))
+                            yield Type.PrimitiveType.BOOL;
+                        if ("add".equals(mn) || "remove".equals(mn)) yield Type.PrimitiveType.BOOL;
+                        if ("clear".equals(mn)) yield Type.PrimitiveType.VOID;
+                    }
                     if (mc.receiver() instanceof IdentifierExpr rid && !isLocalName(rid.name(), scope) && KofDb.isDbNamespace(rid.name())) {
                         List<Type> argTypes = new ArrayList<>();
                         for (ExpressionNode arg : mc.arguments()) argTypes.add(inferType(arg, scope));
@@ -1530,6 +1580,23 @@ class SemanticAnalyzer {
                         for (ExpressionNode arg : mc.arguments()) argTypes.add(inferType(arg, scope));
                         checkArgTypes(mc.methodName(), argTypes, lft.parameterTypes());
                         yield lft.returnType();
+                    }
+                    if (localSym instanceof SymbolTable.LocalVariableSymbol
+                            || localSym instanceof SymbolTable.ParameterSymbol) {
+                        // variável DECLARADA sendo chamada como função, mas não é
+                        // uma FunctionType. Distingue de "função inexistente"
+                        // (SEM015) — ex.: `(s) -> s(1)` com param sem tipo.
+                        if (diagnostics != null) {
+                            String extra = (localSym.type() instanceof Type.UnknownType)
+                                    ? " (sem tipo — declare o tipo do parâmetro da lambda)"
+                                    : "";
+                            diagnostics.error("", 0, 0, 0,
+                                    "variable '" + mc.methodName() + "' is not a function"
+                                            + " and cannot be called" + extra,
+                                    "SEM015");
+                        }
+                        for (ExpressionNode arg : mc.arguments()) inferType(arg, scope);
+                        yield Type.UnknownType.UNKNOWN;
                     }
                     if (currentClassName != null && !currentClassName.isEmpty()) {
                         SymbolTable.Symbol m = resolveInHierarchy(currentClassName, mc.methodName());
@@ -1851,8 +1918,137 @@ class SemanticAnalyzer {
                 }
                 yield thenType;
             }
+            case SwitchExpr se -> {
+                Type subjectType = inferType(se.expression(), scope);
+                Type result = Type.UnknownType.UNKNOWN;
+                int armCount = 0;
+                for (SwitchExprCase sc : se.cases()) {
+                    SymbolTable caseScope = scope.enterScope();
+                    if (sc.value() instanceof PatternExpr pe) {
+                        bindPatternVars(pe, caseScope);
+                    } else {
+                        inferType(sc.value(), scope);
+                    }
+                    Type t = inferType(sc.body(), caseScope);
+                    if (armCount == 0) result = t;
+                    armCount++;
+                }
+                if (se.defaultValue() != null) {
+                    SymbolTable defaultScope = scope.enterScope();
+                    inferType(se.defaultValue(), defaultScope);
+                } else {
+                    // exaustividade: sem default, switch sobre enum precisa cobrir
+                    // todas as constantes (mesma regra do statement, SEM031).
+                    if (subjectType instanceof Type.ClassType sct && sct.packageName().isEmpty()
+                            && currentUnit != null) {
+                        java.util.Set<String> covered = new java.util.HashSet<>();
+                        for (SwitchExprCase sc : se.cases()) {
+                            String cn = enumConstantOfExpr(sc.value());
+                            if (cn != null) covered.add(cn);
+                        }
+                        List<String> constants = enumConstantsOf(sct.name());
+                        List<String> missing = constants.stream().filter(c -> !covered.contains(c)).toList();
+                        if (!missing.isEmpty()) {
+                            reportError(se, "switch expressão sobre '" + sct.name()
+                                    + "' não cobre: " + String.join(", ", missing)
+                                    + " (adicione default ou os casos faltantes)", "SEM032");
+                        }
+                    } else {
+                        reportError(se, "switch expressão exige 'default' (ou exaustividade de enum)", "SEM032");
+                    }
+                }
+                yield result;
+            }
             default -> Type.UnknownType.UNKNOWN;
         };
+    }
+
+    /** Reporta erro de análise sem posição precisa (estilo dos demais SEM*xx). */
+    private void reportError(AstNode n, String message, String code) {
+        if (diagnostics == null) return;
+        SourcePosition p = n.position();
+        String file = p != null ? p.file() : "";
+        int line = p != null ? p.line() : 0;
+        int col = p != null ? p.column() : 0;
+        int len = p != null ? p.length() : 0;
+        diagnostics.error(file, line, col, len, message, code);
+    }
+
+    /**
+     * Define no escopo do case as variáveis de um pattern:
+     * {@code case T v} → {@code v:T}; {@code case T(var x, var y)} → campos por
+     * índice (record) ou por nome. Espelha a lógica do {@code SwitchStmt}.
+     */
+    private void bindPatternVars(PatternExpr pe, SymbolTable scope) {
+        Type patType = resolveType(pe.typeName(), scope);
+        if (patType == null) patType = Type.UnknownType.UNKNOWN;
+        if (pe.varName() != null) {
+            scope.define(new SymbolTable.LocalVariableSymbol(pe.varName(), patType, 0));
+            return;
+        }
+        if (pe.fieldVars().isEmpty()) return;
+        String simple = patType instanceof Type.ClassType ct ? ct.name() : pe.typeName();
+        SymbolTable.ClassSymbol cls = getClass(simple);
+        java.util.List<String> fieldNames = pe.fieldVars();
+        for (int i = 0; i < fieldNames.size(); i++) {
+            String fv = fieldNames.get(i);
+            Type fieldType = Type.UnknownType.UNKNOWN;
+            if (cls != null) {
+                var members = cls.members();
+                java.util.List<SymbolTable.Symbol> fields = new java.util.ArrayList<>();
+                for (var e : members.localSymbols().values()) {
+                    if (e instanceof SymbolTable.FieldSymbol) fields.add(e);
+                }
+                if (fields.size() == fieldNames.size() && i < fields.size()) {
+                    fieldType = fields.get(i).type();
+                } else {
+                    SymbolTable.Symbol sym = members.resolve(fv);
+                    if (sym != null) fieldType = sym.type();
+                    else {
+                        for (AstNode d : currentUnit.declarations()) {
+                            if (d instanceof RecordDeclarationNode rec && rec.name().equals(simple)) {
+                                if (i < rec.components().size()) {
+                                    fieldType = resolveType(rec.components().get(i).type(), scope);
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            scope.define(new SymbolTable.LocalVariableSymbol(fv, fieldType, 0));
+        }
+    }
+
+    private java.util.List<String> enumConstantsOf(String name) {
+        if (name == null || currentUnit == null) return List.of();
+        for (AstNode d : currentUnit.declarations()) {
+            if (d instanceof EnumDeclarationNode en && en.name().equals(name)) {
+                return en.constants();
+            }
+        }
+        return List.of();
+    }
+
+    private String enumConstantOfExpr(ExpressionNode e) {
+        if (e instanceof FieldAccessExpr fa && fa.receiver() instanceof IdentifierExpr rid) {
+            return enumConstantsOf(rid.name()).contains(fa.fieldName()) ? fa.fieldName() : null;
+        }
+        if (e instanceof LiteralExpr l && l.kind() == ConcreteLiteralKind.STRING) {
+            return l.value();
+        }
+        if (e instanceof IdentifierExpr ie) {
+            // não-qualificado: Red quando algum enum declara Red
+            if (currentUnit != null) {
+                for (AstNode d : currentUnit.declarations()) {
+                    if (d instanceof EnumDeclarationNode en && en.constants().contains(ie.name())) {
+                        return ie.name();
+                    }
+                }
+            }
+            return null;
+        }
+        return null;
     }
 
     private Type inferLiteralType(LiteralExpr lit) {
@@ -1933,7 +2129,30 @@ class SemanticAnalyzer {
         if (left instanceof Type.UnknownType || right instanceof Type.UnknownType) {
             return Type.UnknownType.UNKNOWN;
         }
+        // Aritmética sobre tipo referência (ex.: param de lambda sem anotação
+        // → Object) não tem opcode: o emit cairia em IADD sobre referência e a
+        // JVM rejeitaria o bytecode (VerifyError). Diagnóstico explícito, nunca
+        // fallback silencioso (R6). String + já foi tratado acima.
+        if (isArithmeticOp(operator) && (isReferenceType(left) || isReferenceType(right))) {
+            if (diagnostics != null) {
+                diagnostics.error("", 0, 0, 0,
+                        "Cannot apply '" + operator + "' to non-numeric type "
+                                + (isReferenceType(left) ? left : right)
+                                + " (declare o tipo do parâmetro, ex.: (x: Int) -> ...)",
+                        "SEM001");
+            }
+            return Type.UnknownType.UNKNOWN;
+        }
         return left;
+    }
+
+    private static boolean isArithmeticOp(String op) {
+        return "+".equals(op) || "-".equals(op) || "*".equals(op)
+                || "/".equals(op) || "%".equals(op);
+    }
+
+    private static boolean isReferenceType(Type t) {
+        return t instanceof Type.ClassType || t instanceof Type.FunctionType;
     }
 
     private List<Type> inferArgTypes(MethodCallExpr mc, SymbolTable scope) {
@@ -1985,6 +2204,11 @@ class SemanticAnalyzer {
         if (from instanceof Type.FunctionType && to instanceof Type.ClassType) {
             // lambda → interface funcional externa (SAM conversion): a
             // compatibilidade real (aridade/tipos) é validada na emissão
+            return true;
+        }
+        if (from instanceof Type.PrimitiveType && to instanceof Type.ClassType ct
+                && "Object".equals(ct.name()) && "java.lang".equals(ct.packageName())) {
+            // bug 15: primitivo → Object (auto-boxing no emit) — `Object n = 42`
             return true;
         }
         if (from instanceof Type.PrimitiveType fp

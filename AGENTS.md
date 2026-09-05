@@ -3,7 +3,7 @@
 Este é o guia **obrigatório** para qualquer agente de IA (ou humano) que
 escreva código Kof neste repositório. Leia antes de gerar qualquer `.kf`.
 
-**Versão:** 0.2.6-beta · Última atualização: 03/09/2026 (casts primitivos, Long[], String.valueOf builtin, **DOING.md**, **Congelamento de comportamento**)
+**Versão:** 0.3.0-beta · Última atualização: 04/09/2026 (release 0.2.7: Vulkan/fixes-for-kofagent, 500 desempacota ITE, gap mic MEDIA003; linha 0.3.0 aberta na branch `beta-0.3.0`)
 
 ---
 
@@ -23,6 +23,26 @@ feature/gap, leia `DOING.md`:**
 Regra de ouro: **nunca dois agentes no mesmo gap ou no mesmo arquivo gigante**
 (`NativeRuntime.java`, `CompilerDriver.java`) ao mesmo tempo. Se for
 inevitável, combine no chat antes.
+
+### Status visível — `todowrite` (obrigatório, a cada etapa)
+
+`DOING.md` é a memória **persistente** do repo (sobrevive entre sessões e
+agentes). O **`todowrite`** é o status **visível ao humano nesta sessão** —
+uma lista de tarefas que a CLI renderiza em tempo real. Os dois são
+**complementares**, nunca substitutos:
+
+- **A cada etapa de pensamento entre implementações**, atualize o `todowrite`:
+  marque `completed` o que terminou, `in_progress` exatamente **um** item
+  (o que você está atacando agora), `pending` o que falta.
+- Não espere o fim do turno nem o commit: a pessoa acompanhando precisa ver
+  o progresso **enquanto** você trabalha (ex.: ao trocar de módulo — JSON →
+  http → spawn — mova o item anterior para `completed` e abra o próximo).
+- Um item só vai para `completed` quando a prova existe (teste verde, qemu
+  rodando, suíte passando) — nunca por intenção.
+- Se uma etapa destrava trabalho novo que não estava previsto, **adicione**
+  ao `todowrite` na hora.
+- Ao fim da sessão, o `DOING.md` continua sendo a fonte da verdade para o
+  **próximo** agente; o `todowrite` é só a janela desta conversa.
 
 ---
 
@@ -168,7 +188,7 @@ target por domínio; sem motor SQL/Arrow/ML próprio.
 
 ---
 
-## Sintaxe real (verificada no compilador — 0.2.6-beta)
+## Sintaxe real (verificada no compilador — 0.3.0-beta)
 
 ### Funções (não existe `fun` nem `func`)
 
@@ -233,6 +253,12 @@ switch (obj) {
     case String s:            println(s); break
     case Point(var x, var y): println(x + "," + y); break
     default:                  println("outro")
+}
+// switch-EXPRESSION (SYN001) — quando o switch produz valor:
+var desc = switch (obj) {
+    case String s -> "str:" + s
+    case Point(var x, var y) -> x + "," + y
+    default -> "outro"
 }
 ```
 
@@ -443,7 +469,7 @@ Kof = intenção + simplicidade.
 - Null:    String?  +  if (x != null)
 - Cast:    x as Char / big as Int  (conversões numéricas reais)
 - Concorr: spawn / await   (sem Thread)
-- Loops:   for (var x in coll)  /  if-expr
+- Loops:   for (var x in coll)  /  if-expr  /  switch-expr (case ->)
 - Top-level: SÓ class e função (sem val/var/let)
 
 Se parece Java, está errado. Compile antes de entregar.

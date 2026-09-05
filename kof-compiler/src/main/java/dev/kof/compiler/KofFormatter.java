@@ -355,6 +355,17 @@ public final class KofFormatter {
         if (expr instanceof ArrayAccessExpr aae) return formatExpr(aae.receiver()) + "[" + formatExpr(aae.index()) + "]";
         if (expr instanceof FieldAccessExpr fae) return formatExpr(fae.receiver()) + "." + fae.fieldName();
         if (expr instanceof IfExpr ie) return "if (" + formatExpr(ie.condition()) + ") " + formatExpr(ie.thenExpr()) + " else " + formatExpr(ie.elseExpr());
+        if (expr instanceof SwitchExpr se) {
+            StringBuilder sb = new StringBuilder("switch (").append(formatExpr(se.expression())).append(") { ");
+            for (SwitchExprCase sc : se.cases()) {
+                sb.append("case ").append(formatExpr(sc.value())).append(" -> ").append(formatExpr(sc.body())).append("; ");
+            }
+            if (se.defaultValue() != null) {
+                sb.append("default -> ").append(formatExpr(se.defaultValue())).append("; ");
+            }
+            sb.append("}");
+            return sb.toString();
+        }
         if (expr instanceof LambdaExpr le) {
             StringBuilder sb = new StringBuilder("(");
             for (int i = 0; i < le.parameters().size(); i++) {

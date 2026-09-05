@@ -486,13 +486,34 @@ final class JvmMediaRuntime {
 
                 /** Captura `seconds` do microfone padrão → Audio (PCM 16k mono). */
                 public static int kof_media_mic_record(int seconds) {
+                    // Qualquer falha de hardware de áudio (linha não suportada,
+                    // LineUnavailable, IllegalArgumentException/IllegalState do
+                    // ALSA dummy, UnsatisfiedLinkError sem lib nativa) é o gap
+                    // honesto MEDIA003 — nunca um 500 sem marcador.
+                    try {
+                        return kof_media_mic_record_impl(seconds);
+                    } catch (RuntimeException e) {
+                        if (e.getMessage() != null && e.getMessage().contains("MEDIA003")) throw e;
+                        throw new RuntimeException("microfone indisponível (MEDIA003): " + e.getMessage(), e);
+                    } catch (Throwable e) {
+                        throw new RuntimeException("microfone indisponível (MEDIA003): " + e, e);
+                    }
+                }
+
+                private static int kof_media_mic_record_impl(int seconds) {
                     javax.sound.sampled.AudioFormat fmt = kof_media_mic_format();
                     javax.sound.sampled.DataLine.Info info =
                             new javax.sound.sampled.TargetDataLine.Info(
                                     javax.sound.sampled.TargetDataLine.class, fmt);
-                    if (!javax.sound.sampled.AudioSystem.isLineSupported(info)) {
+                    try {
+                        if (!javax.sound.sampled.AudioSystem.isLineSupported(info)) {
+                            throw new RuntimeException(
+                                    "sem microfone disponível neste ambiente (MEDIA003)");
+                        }
+                    } catch (RuntimeException e) {
+                        if (e.getMessage() != null && e.getMessage().contains("sem microfone")) throw e;
                         throw new RuntimeException(
-                                "sem microfone disponível neste ambiente (MEDIA003)");
+                                "sem microfone disponível neste ambiente (MEDIA003)", e);
                     }
                     int total = 16000 * Math.max(1, seconds) * 2;
                     byte[] buf = new byte[total];

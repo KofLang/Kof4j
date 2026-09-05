@@ -56,7 +56,13 @@ main() {
 }
 ```
 
-> Sintaxe Kof para switch: `case Tipo var:` (com `:` e bloco `{ }`), não `case Tipo var ->`. O `->` dos exemplos antigos era placeholder Java-like.
+> **Duas formas (0.2.6-beta):**
+> - **Statement** — `case Tipo var:` com corpo de statements (efeitos colaterais).
+> - **Expressão (SYN001, 03/09)** — `case Tipo var ->` produzindo **valor**:
+>   `var desc = switch (forma) { case Circulo c -> "raio " + c.raio(); default -> "?" }`.
+>   Cada caso é uma única expressão; `default` é obrigatório (ou exaustividade de
+>   enum, senão `SEM032`); sem `break`, sem escopo de bloco. Funciona nos 3
+>   targets (JVM/Native/JS) + riscv64/aarch64.
 
 ## Record destructuring — `Point(x, y)`
 

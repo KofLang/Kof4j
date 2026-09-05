@@ -69,8 +69,11 @@ switch (dia) {
 > compilador salta para o fim do `switch` ao concluir o corpo), então `break`
 > **não é necessário** dentro de `switch`. Use `break`/`continue` apenas em
 > loops. If-expr é a forma preferida para valores condicionais:
-> `var x = if (c) a else b`. Switch com padrões (type pattern /
-> destructuring) ver capítulo 15.
+> `var x = if (c) a else b`. Quando o `switch` produz valor, use a forma
+> **expressão** (SYN001, 0.2.6-beta): `var r = switch (dia) { case 1 -> "seg";
+> default -> "outro" }` — sem `break`, sem escopo de bloco, `default`
+> obrigatório. Switch com padrões (type pattern / destructuring) ver capítulo
+> 15.
 
 ## break e continue
 

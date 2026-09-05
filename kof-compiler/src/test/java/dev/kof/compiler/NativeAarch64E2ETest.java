@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -64,6 +65,115 @@ class NativeAarch64E2ETest {
         }
         assertEquals(0, ec, "Exit code should be 0, output: '" + output + "'");
         return output;
+    }
+
+    // NATIVE002-stdlib: http herdado do riscv64 via translateRiscvToAarch64.
+    @Test
+    void aarch64HttpGetPostStatus(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        int port = startHttpServer();
+        String out = runAarch64(tempDir, """
+            main() {
+                println(http.get("http://127.0.0.1:%d/hello"))
+                println(http.status("http://127.0.0.1:%d/hello"))
+                println(http.post("http://127.0.0.1:%d/echo", "abc"))
+            }
+            """.formatted(port, port, port));
+        assertEquals("Hello from Kof\n200\ngot:abc", out);
+    }
+
+    // NATIVE002-stdlib: spawn/await herdado do riscv64 (clone+futex).
+    @Test
+    void aarch64SpawnAwait(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runAarch64(tempDir, """
+            Int work(Int n) { return n * 2 }
+            main() {
+                val r = spawn work(21)
+                println(await r)
+            }
+            """);
+        assertEquals("42", out);
+    }
+
+    @Test
+    void aarch64SpawnFireAndForgetJoins(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runAarch64(tempDir, """
+            main() {
+                println("inicio")
+                spawn { println("bg") }
+                println("fim")
+            }
+            """);
+        var lines = List.of(out.split("\n"));
+        assertTrue(lines.contains("inicio"), "inicio primeiro: " + lines);
+        assertTrue(lines.contains("bg"), "join implícito espera o worker: " + lines);
+        assertTrue(lines.contains("fim"), "main não bloqueia no spawn: " + lines);
+    }
+
+    // NATIVE002-stdlib: métodos String aarch64 (herdado via translateRiscvToAarch64).
+    @Test
+    void aarch64StringTrimCaseReplaceSplit(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runAarch64(tempDir, """
+            main() {
+                println("  hi  ".trim().length)
+                println("abc".toUpperCase())
+                println("ABC".toLowerCase())
+                println("a_b_c".replace('_', '-'))
+                println("hello".replace("l", "L"))
+                println("banana".lastIndexOf("na"))
+                println("Hello".equalsIgnoreCase("hELLO"))
+                var parts = "a,b,c".split(",")
+                println(parts.length)
+                println(parts[1])
+            }
+            """);
+        assertEquals("2\nABC\nabc\na-b-c\nheLLo\n4\ntrue\n3\nb", out);
+    }
+
+    private static int startHttpServer() throws IOException {
+        java.net.ServerSocket ss = new java.net.ServerSocket(0);
+        int port = ss.getLocalPort();
+        Thread t = new Thread(() -> {
+            while (true) {
+                try (java.net.Socket s = ss.accept()) {
+                    java.io.BufferedReader in = new java.io.BufferedReader(
+                            new java.io.InputStreamReader(s.getInputStream(), StandardCharsets.UTF_8));
+                    String line = in.readLine();
+                    if (line == null) continue;
+                    String method = line.split(" ")[0];
+                    int cl = 0;
+                    String h;
+                    while ((h = in.readLine()) != null && !h.isEmpty()) {
+                        if (h.toLowerCase().startsWith("content-length:")) {
+                            cl = Integer.parseInt(h.substring(15).trim());
+                        }
+                    }
+                    String body = "Hello from Kof";
+                    if (method.equals("POST")) {
+                        char[] buf = new char[cl];
+                        int off = 0;
+                        while (off < cl) {
+                            int r = in.read(buf, off, cl - off);
+                            if (r < 0) break;
+                            off += r;
+                        }
+                        body = "got:" + new String(buf, 0, off);
+                    }
+                    String resp = "HTTP/1.1 200 OK\r\nContent-Length: " + body.length()
+                            + "\r\nConnection: close\r\n\r\n" + body;
+                    s.getOutputStream().write(resp.getBytes(StandardCharsets.UTF_8));
+                    s.getOutputStream().flush();
+                } catch (IOException e) {
+                    return;
+                }
+            }
+        });
+        t.setDaemon(true);
+        t.start();
+        return port;
     }
 
     @Test
@@ -240,6 +350,62 @@ class NativeAarch64E2ETest {
             }
             """);
         assertEquals("str:hello\nis string\ntest", out);
+    }
+
+    @Test
+    void aarch64SwitchExpression(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runAarch64(tempDir, """
+            record Point(Int x, Int y)
+            main() {
+                var op = "GET"
+                var r = switch (op) {
+                    case "GET" -> "buscar"
+                    case "POST" -> "criar"
+                    default -> "x"
+                }
+                println(r)
+                var p = Point(3, 4)
+                var s = switch (p) {
+                    case Point(var x, var y) -> "pt:" + x + "," + y
+                    default -> "other"
+                }
+                println(s)
+            }
+            """);
+        assertEquals("buscar\npt:3,4", out);
+    }
+
+    @Test
+    void aarch64JsonEncode(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runAarch64(tempDir, """
+            record Pessoa(String nome, Int idade)
+            main() {
+                var p = Pessoa("Ana", 30)
+                println(json.encode(p))
+                var q = Pessoa("a\\"b", 1)
+                println(json.encode(q))
+            }
+            """);
+        assertEquals("{\"nome\":\"Ana\",\"idade\":30}\n{\"nome\":\"a\\\"b\",\"idade\":1}", out);
+    }
+
+    @Test
+    void aarch64JsonEncodeDecodeLists(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runAarch64(tempDir, """
+            main() {
+                println(json.encode(listOf(1, 2, 3)))
+                println(json.encode(listOf("a", "b")))
+                var li = json.decode<List<Int>>("[1, 2, 3]")
+                println(li.size())
+                println(li.get(2))
+                var ls = json.decode<List<String>>("[\\"x\\", \\"y\\"]")
+                println(ls.get(1))
+            }
+            """);
+        assertEquals("[1,2,3]\n[\"a\",\"b\"]\n3\n3\ny", out);
     }
 
     @Test

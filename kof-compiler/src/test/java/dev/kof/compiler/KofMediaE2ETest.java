@@ -427,10 +427,10 @@ class KofMediaE2ETest {
                 """;
         int port = startServer(appDir, kofSource);
         String r = request(port, "GET /mic HTTP/1.1\r\nHost: x\r\n\r\n");
-        // sem hardware de áudio no CI: o erro é claro (handler 500 com
-        // "sem microfone"), nunca crash silencioso
-        assertTrue(r.contains("sem microfone") || r.startsWith("HTTP/1.1 200"),
-                "gap honesto (MEDIA003) ou sucesso se houver hardware: "
-                        + r.split("\r\n", 2)[0]);
+        // sem hardware de áudio no CI: o erro é claro (handler 500 com o
+        // marcador do gap), nunca crash silencioso. As duas formulações do
+        // gap (linha não suportada / LineUnavailable) carregam MEDIA003.
+        assertTrue(r.contains("MEDIA003") || r.startsWith("HTTP/1.1 200"),
+                "gap honesto (MEDIA003) ou sucesso se houver hardware: " + r);
     }
 }

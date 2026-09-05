@@ -139,6 +139,52 @@ switch (x) {
 > obrigatório — verificado no compilador que é **opcional** (auto-termina).
 > `break`/`continue` continuam obrigatórios em loops (para sair/pular).
 
+## switch como expressão (0.2.6-beta: SYN001 — `case ... ->`)
+
+Quando o `switch` **produz um valor**, use a forma expressão (`->`), não a
+statement (`:`). Cada caso é uma única expressão; não há `break`, não há
+escopo de bloco, e o `default` é obrigatório (ou exaustividade de enum —
+senão `SEM032`). É o mesmo dispositivo do `if`-expressão, elevado a N casos.
+
+```kof
+// ❌ BAD — switch statement + temporário + branches atribuindo
+var label = ""
+switch (op) {
+    case "GET":  label = "buscar"
+    case "POST": label = "criar"
+    default:     label = "desconhecido"
+}
+
+// ✅ GOOD — switch expressão: o valor É o switch
+var label = switch (op) {
+    case "GET"  -> "buscar"
+    case "POST" -> "criar"
+    default    -> "desconhecido"
+}
+
+// pattern matching + destructuring como expressão
+var desc = switch (obj) {
+    case String s            -> "str:" + s
+    case Point(var x, var y) -> x + "," + y
+    default                  -> "outro"
+}
+
+// aninhado / em return — funciona em qualquer posição de expressão
+String nome(Int n) = switch (n) {
+    case 0 -> "zero"
+    case 1 -> "um"
+    default -> "muitos"
+}
+```
+
+**Quando usar qual:** o `switch`-expressão (`->`) quando o resultado é um
+valor; o `switch`-statement (`:`) quando cada caso executa efeitos colaterais
+(println, chamadas). Os dois coexistem — a escolha é por token (`->` vs `:`).
+
+> **Verificado 03/09 (SYN001):** JVM, Native (x86_64/riscv64/aarch64) e JS.
+> No JS é renderizado como ternários aninhados; em String/enum a igualdade é
+> por conteúdo (nunca referência).
+
 ## Anti-patterns relacionados
 
 - `premature-optimization.md` — loops manuais sem necessidade

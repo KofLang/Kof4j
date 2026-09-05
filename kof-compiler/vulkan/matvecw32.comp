@@ -1,0 +1,49 @@
+// matvecw32.comp — M36.1 (T2.1): W residente i32 (metade do PCIe), x/y i64.
+// 1 workgroup por linha (64 threads); push 24B {m,k,divId,pad,div:i64}.
+// y[i] = (sum_j w32[i*k+j] * x[j]) / div (trunc zero se div > 1).
+// Binding 0 = w i32 (m*k), 1 = x i64 (k), 2 = y i64 (m).
+
+#version 450
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+
+layout(std430, binding = 0) readonly buffer WBuf { int w[]; };
+layout(std430, binding = 1) readonly buffer XBuf { int64_t x[]; };
+layout(std430, binding = 2) writeonly buffer YBuf { int64_t y[]; };
+
+layout(push_constant) uniform Push {
+    int m;
+    int k;
+    int divId;
+    int pad;
+    int64_t div;
+} pcs;
+
+shared int64_t part[64];
+
+void main() {
+    uint row = gl_WorkGroupID.x;
+    uint lane = gl_LocalInvocationID.x;
+    int k = pcs.k;
+    int64_t acc = int64_t(0);
+    for (int j = int(lane); j < k; j += 64) {
+        // w i32 estendido p/ i64 (W cabe em i32 por construção — |w| < 2^31)
+        acc += int64_t(w[int(row) * k + j]) * x[j];
+    }
+    part[lane] = acc;
+    barrier();
+    for (uint s = 32u; s > 0u; s >>= 1u) {
+        if (lane < s) {
+            part[lane] += part[lane + s];
+        }
+        barrier();
+    }
+    if (lane == 0u) {
+        int64_t total = part[0];
+        int64_t d = pcs.div;
+        if (d > int64_t(1)) {
+            total = total / d;
+        }
+        y[int(row)] = total;
+    }
+}

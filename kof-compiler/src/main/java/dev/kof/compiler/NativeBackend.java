@@ -519,19 +519,33 @@ public class NativeBackend implements Backend {
         }
 
         int intArgIdx = 0;
-        for (IRLocalVariable lv : method.localVariables()) {
+        // bug 9: capturas de lambda NÃO são args de entrada (são carregadas
+        // dos campos do objeto via ops). O prologue antigo iterava os locals
+        // na ordem de inserção [this, capture, param] e consumia rsi/rdx para
+        // a captura — o param real ficava com registro errado (lixo).
+        // Params ocupam os slots 1..(soma das larguras) — só eles recebem
+        // registros; capturas (slots acima) são preenchidas pelas ops.
+        int paramSlotMax = 1;
+        for (Type pt : method.parameterTypes()) paramSlotMax += isDoubleWidthSlot(pt) ? 2 : 1;
+        String[] intRegs = {"%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"};
+        java.util.List<IRLocalVariable> sortedLocals = new java.util.ArrayList<>(method.localVariables());
+        sortedLocals.sort(java.util.Comparator.comparingInt(lv -> lv.index()));
+        for (IRLocalVariable lv : sortedLocals) {
             if (lv.name().equals("this")) {
                 sb.append("    movq %rdi, -").append((lv.index() + 1) * 8).append("(%rbp)\n");
                 intArgIdx++;
                 continue;
             }
-            String[] intRegs = {"%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"};
+            if (lv.index() >= paramSlotMax) {
+                // captura de lambda: preenchida pelas ops (KofLoadField) —
+                // NÃO consome registro de entrada
+                continue;
+            }
             if (intArgIdx < 6) {
                 sb.append("    movq ").append(intRegs[intArgIdx]).append(", -").append((lv.index() + 1) * 8).append("(%rbp)\n");
             } else {
                 // Args beyond register capacity are on the stack.
                 // After push %rbp, stack layout is: [saved_rbp][ret_addr][arg7][arg8]...
-                // Stack arg index: 7th arg = 16(%rbp), 8th = 24(%rbp), etc.
                 int stackOffset = 16 + (intArgIdx - 6) * 8;
                 sb.append("    movq ").append(stackOffset).append("(%rbp), %rax\n");
                 sb.append("    movq %rax, -").append((lv.index() + 1) * 8).append("(%rbp)\n");
@@ -806,6 +820,16 @@ public class NativeBackend implements Backend {
     }
     private static boolean isDoubleType(Type t) {
         return t instanceof Type.PrimitiveType pt && "double".equals(Type.canonicalPrimitiveName(pt.name()));
+    }
+
+    /** Slots de frame que um tipo de PARAM ocupa (espelha isDoubleWidth do
+     * CompilerDriver — os índices locais do IR usam essa convenção). */
+    private static boolean isDoubleWidthSlot(Type t) {
+        if (t instanceof Type.PrimitiveType pt) {
+            String n = Type.canonicalPrimitiveName(pt.name());
+            return "long".equals(n) || "double".equals(n);
+        }
+        return false;
     }
     private static boolean isInt32Type(Type t) {
         return t instanceof Type.PrimitiveType pt && "int".equals(Type.canonicalPrimitiveName(pt.name()));
@@ -1213,31 +1237,26 @@ public class NativeBackend implements Backend {
                     || "long".equals(pt.name()) || "short".equals(pt.name()) || "byte".equals(pt.name()))) {
                 sb.append("    popq %rdi\n");
                 sb.append("    call kof_print_int\n");
-                sb.append("    pushq $0\n");
                 sb.append("    leaq .Lnewline(%rip), %rdi\n");
                 sb.append("    call kof_print\n");
             } else if (argType instanceof Type.PrimitiveType pt && isFloatType(pt)) {
                 sb.append("    popq %rdi\n");
                 sb.append("    movd %edi, %xmm0\n");
                 sb.append("    call kof_print_float\n");
-                sb.append("    pushq $0\n");
                 sb.append("    leaq .Lnewline(%rip), %rdi\n");
                 sb.append("    call kof_print\n");
             } else if (argType instanceof Type.PrimitiveType pt && isDoubleType(pt)) {
                 sb.append("    popq %rdi\n");
                 sb.append("    movq %rdi, %xmm0\n");
                 sb.append("    call kof_print_double\n");
-                sb.append("    pushq $0\n");
                 sb.append("    leaq .Lnewline(%rip), %rdi\n");
                 sb.append("    call kof_print\n");
             } else if (BuiltinTypes.isString(argType)) {
                 sb.append("    popq %rdi\n");
                 sb.append("    call kof_println_string\n");
-                sb.append("    pushq $0\n");
             } else {
                 sb.append("    popq %rdi\n");
                 sb.append("    call kof_println\n");
-                sb.append("    pushq $0\n");
             }
             return;
         }
@@ -1246,21 +1265,17 @@ public class NativeBackend implements Backend {
             if (BuiltinTypes.isString(argType)) {
                 sb.append("    popq %rdi\n");
                 sb.append("    call kof_print_string\n");
-                sb.append("    pushq $0\n");
             } else if (argType instanceof Type.PrimitiveType pt && isFloatType(pt)) {
                 sb.append("    popq %rdi\n");
                 sb.append("    movd %edi, %xmm0\n");
                 sb.append("    call kof_print_float\n");
-                sb.append("    pushq $0\n");
             } else if (argType instanceof Type.PrimitiveType pt && isDoubleType(pt)) {
                 sb.append("    popq %rdi\n");
                 sb.append("    movq %rdi, %xmm0\n");
                 sb.append("    call kof_print_double\n");
-                sb.append("    pushq $0\n");
             } else {
                 sb.append("    popq %rdi\n");
                 sb.append("    call kof_print\n");
-                sb.append("    pushq $0\n");
             }
             return;
         }
@@ -1528,7 +1543,14 @@ public class NativeBackend implements Backend {
         }
         if (kc.kind() == KofCallKind.STATIC && "valueOf".equals(kc.methodName())) {
             Type argType = kc.parameterTypes().isEmpty() ? Type.UnknownType.UNKNOWN : kc.parameterTypes().get(0);
-            if (argType instanceof Type.PrimitiveType pt && ("int".equals(pt.name()) || "char".equals(pt.name())
+            if (argType instanceof Type.PrimitiveType pt && "char".equals(pt.name())) {
+                // char → string UTF-8 (kof_int_to_string imprimia o
+                // número do codepoint: String.valueOf(0xE9 as Char)
+                // devolvia "233" em vez de "é")
+                sb.append("    popq %rdi\n");
+                sb.append("    call kof_char_to_string\n");
+                sb.append("    pushq %rax\n");
+            } else if (argType instanceof Type.PrimitiveType pt && ("int".equals(pt.name())
                     || "short".equals(pt.name()) || "byte".equals(pt.name()))) {
                 sb.append("    popq %rdi\n");
                 sb.append("    call kof_int_to_string\n");
@@ -1551,6 +1573,20 @@ public class NativeBackend implements Backend {
                 sb.append("    movq %rdi, %xmm0\n");
                 sb.append("    call kof_double_to_string\n");
                 sb.append("    pushq %rax\n");
+            } else if (argType instanceof Type.ClassType ct && !BuiltinTypes.isString(argType)) {
+                // valueOf(objeto) → obj.toString() via vtable (records têm
+                // toString no IR; String é identity). Paridade com o JVM.
+                int tosIdx = findVirtualMethodIndex(ct.name(), "toString");
+                if (tosIdx >= 0) {
+                    sb.append("    popq %rax\n");
+                    sb.append("    pushq %rax\n");
+                    sb.append("    movq 8(%rax), %rbx\n");
+                    sb.append("    addq $").append(tosIdx * 8).append(", %rbx\n");
+                    sb.append("    movq (%rbx), %rbx\n");
+                    sb.append("    popq %rdi\n");
+                    sb.append("    call *%rbx\n");
+                    sb.append("    pushq %rax\n");
+                }
             }
             return;
         }
@@ -1974,11 +2010,12 @@ public class NativeBackend implements Backend {
         sb.append("    ld \\r, 0(sp)\n");
         sb.append("    addi sp, sp, 8\n");
         sb.append(".endm\n");
+        boolean usesSpawn = usesSpawn(module);
         for (IRClass c : module.classes()) {
             currentClass = c;
             for (IRMethod m : c.methods()) {
                 if ("<clinit>".equals(m.name())) continue;
-                emitCrossMethodRiscv(sb, c, m);
+                emitCrossMethodRiscv(sb, c, m, usesSpawn && "main".equals(m.name()));
             }
         }
 
@@ -1992,7 +2029,26 @@ public class NativeBackend implements Backend {
         sb.append("    li a0, 0\n");
         sb.append("    li a7, 93\n");
         sb.append("    ecall\n");
-        sb.append(RISCV_RUNTIME_ASM);
+        sb.append(RISCV_RUNTIME_ASM).append(RISCV_STRN002_ASM).append(RISCV_RUNTIME_ASM_B);
+
+        // NATIVE002-stdlib: http.get/post/status riscv64 (asm puro, syscalls
+        // asm-generic — mesmos números do aarch64; aarch64 herda via tradutor).
+        boolean usesHttp = false;
+        for (IRClass c : module.classes()) {
+            for (IRMethod m : c.methods()) {
+                for (IRBasicBlock b : m.basicBlocks()) {
+                    for (KofOperation op : b.operations()) {
+                        if (op instanceof KofCall kc && kc.methodName().startsWith("kof_http_")) {
+                            usesHttp = true;
+                        }
+                    }
+                }
+                if (usesHttp) break;
+            }
+            if (usesHttp) break;
+        }
+        if (usesHttp) emitRiscvHttp(sb);
+        if (usesSpawn) emitRiscvSpawn(sb);
 
         String className = module.classes().isEmpty() ? "Default/Main" : module.classes().getFirst().name();
         Path asmFile = outputDir.resolve(className + ".s");
@@ -2003,8 +2059,11 @@ public class NativeBackend implements Backend {
 
         try {
             Path objFile = asmFile.resolveSibling("kof.o");
-            runCommand(new String[]{"riscv64-linux-gnu-as", "-o", objFile.toString(), asmFile.toString()}, "riscv64-as");
-            runCommand(new String[]{"riscv64-linux-gnu-ld", "-o", binFile.toString(), objFile.toString()}, "riscv64-ld");
+            // --no-relax (as+ld): sem gp-relaxation. Nosso _start não inicializa
+            // gp (binário estático, sem C runtime); `la` relaxado vira `addi rd,gp,off`
+            // e faulta (gp=0). Forçado PC-relative (auipc+addi) — sempre correto.
+            runCommand(new String[]{"riscv64-linux-gnu-as", "-mno-relax", "-o", objFile.toString(), asmFile.toString()}, "riscv64-as");
+            runCommand(new String[]{"riscv64-linux-gnu-ld", "--no-relax", "-o", binFile.toString(), objFile.toString()}, "riscv64-ld");
             Files.deleteIfExists(objFile);
             if (System.getenv("KOF_KEEP_ASM") == null) Files.deleteIfExists(asmFile);
             binFile.toFile().setExecutable(true);
@@ -2013,7 +2072,809 @@ public class NativeBackend implements Backend {
         }
     }
 
-    private void emitCrossMethodRiscv(StringBuilder sb, IRClass clazz, IRMethod method) {
+    // ---- NATIVE002-stdlib: HTTP client riscv64 (asm puro) -----------------
+    // Port de NativeHttpRuntime (x86_64) para a convenção riscv64: args em
+    // a0..a7, resultado em a0, syscalls asm-generic (socket=198, connect=203,
+    // write=64, read=63, close=57 — MESMA tabela do aarch64). O aarch64 herda
+    // via translateRiscvToAarch64 (por isso a3 é evitado: colide com gp=x3).
+    // HTTP/1.1 + Connection: close + read-ate-EOF; body após \r\n\r\n.
+    static void emitRiscvHttp(StringBuilder sb) {
+        sb.append("""
+            # ---- HTTP riscv64 (NATIVE002-stdlib) ----
+            .section .text
+            # cstrlen: a0=cstr -> a0=len
+            .globl kof_http_cstrlen
+            kof_http_cstrlen:
+                mv   t1, a0
+                li   a0, 0
+            .Lhcl0:
+                lbu  t0, 0(t1)
+                beqz t0, .Lhcl1
+                addi a0, a0, 1
+                addi t1, t1, 1
+                j    .Lhcl0
+            .Lhcl1:
+                ret
+            # append cstr: a0=cursor, a1=cstr -> a0=novo cursor
+            .globl kof_http_append_cstr
+            kof_http_append_cstr:
+            .Lhac0:
+                lbu  t0, 0(a1)
+                beqz t0, .Lhac1
+                sb   t0, 0(a0)
+                addi a0, a0, 1
+                addi a1, a1, 1
+                j    .Lhac0
+            .Lhac1:
+                ret
+            # append n bytes: a0=cursor, a1=src, a2=len -> a0=cursor
+            .globl kof_http_append_n
+            kof_http_append_n:
+            .Lhan0:
+                beqz a2, .Lhan1
+                lbu  t0, 0(a1)
+                sb   t0, 0(a0)
+                addi a0, a0, 1
+                addi a1, a1, 1
+                addi a2, a2, -1
+                j    .Lhan0
+            .Lhan1:
+                ret
+            # append decimal: a0=cursor, a1=int64(>=0) -> a0=cursor
+            .globl kof_http_append_dec
+            kof_http_append_dec:
+                addi sp, sp, -64
+                sd   ra, 56(sp)
+                sd   s0, 48(sp)
+                sd   s1, 40(sp)
+                sd   s2, 32(sp)
+                sd   s3, 24(sp)
+                mv   s0, a0
+                mv   s1, a1
+                addi s2, sp, 0
+                mv   s3, s2
+            .Lhad0:
+                li   t1, 10
+                div  t0, s1, t1
+                rem  a1, s1, t1
+                li   t1, 48
+                add  a1, a1, t1
+                sb   a1, 0(s2)
+                addi s2, s2, 1
+                mv   s1, t0
+                bnez s1, .Lhad0
+            .Lhad1:
+                addi s2, s2, -1
+                bltu s2, s3, .Lhad_end
+                lbu  t0, 0(s2)
+                sb   t0, 0(s0)
+                addi s0, s0, 1
+                j    .Lhad1
+            .Lhad_end:
+                mv   a0, s0
+                ld   s3, 24(sp)
+                ld   s2, 32(sp)
+                ld   s1, 40(sp)
+                ld   s0, 48(sp)
+                ld   ra, 56(sp)
+                addi sp, sp, 64
+                ret
+            # parse URL. a0=KofString (len@16, chars@24)
+            # saida: .Lhttp_hostbuf (cstr), .Lhttp_pathbuf (cstr),
+            #        .Lhttp_portbin (2B BE), .Lhttp_ipbin (4B)
+            .globl kof_http_parse_url
+            kof_http_parse_url:
+                addi sp, sp, -32
+                sd   ra, 24(sp)
+                sd   s0, 16(sp)
+                sd   s1, 8(sp)
+                sd   s2, 0(sp)
+                mv   s0, a0
+                addi s1, a0, 24
+                lbu  a0, 0(s1)
+                li   t0, 104
+                bne  a0, t0, .Lpu_bad
+                lbu  a0, 1(s1)
+                li   t0, 116
+                bne  a0, t0, .Lpu_bad
+                lbu  a0, 2(s1)
+                bne  a0, t0, .Lpu_bad
+                lbu  a0, 3(s1)
+                li   t0, 112
+                bne  a0, t0, .Lpu_bad
+                lbu  a0, 4(s1)
+                li   t0, 115
+                beq  a0, t0, .Lpu_https
+                li   t0, 58
+                bne  a0, t0, .Lpu_bad
+                lbu  a0, 5(s1)
+                li   t0, 47
+                bne  a0, t0, .Lpu_bad
+                lbu  a0, 6(s1)
+                bne  a0, t0, .Lpu_bad
+                addi s1, s1, 7
+                la   s2, .Lhttp_hostbuf
+            .Lpu_h0:
+                lbu  a0, 0(s1)
+                beqz a0, .Lpu_h1
+                li   t0, 58
+                beq  a0, t0, .Lpu_h1
+                li   t0, 47
+                beq  a0, t0, .Lpu_h1
+                sb   a0, 0(s2)
+                addi s2, s2, 1
+                addi s1, s1, 1
+                j    .Lpu_h0
+            .Lpu_h1:
+                li   t0, 0
+                sb   t0, 0(s2)
+                li   t0, 80
+                lbu  a0, 0(s1)
+                li   t1, 58
+                bne  a0, t1, .Lpu_p1
+                addi s1, s1, 1
+                li   t0, 0
+            .Lpu_p0:
+                lbu  a0, 0(s1)
+                li   t1, 47
+                beq  a0, t1, .Lpu_p1
+                beqz a0, .Lpu_p1
+                li   t1, 48
+                sub  a0, a0, t1
+                li   t1, 9
+                bltu t1, a0, .Lpu_p1
+                li   t1, 10
+                mul  t0, t0, t1
+                add  t0, t0, a0
+                addi s1, s1, 1
+                j    .Lpu_p0
+            .Lpu_p1:
+                la   t1, .Lhttp_port_host
+                sd   t0, 0(t1)
+                andi t1, t0, 255
+                slli t1, t1, 8
+                srli t0, t0, 8
+                or   t0, t0, t1
+                la   t1, .Lhttp_portbin
+                sh   t0, 0(t1)
+                la   s2, .Lhttp_pathbuf
+                lbu  a0, 0(s1)
+                li   t0, 47
+                beq  a0, t0, .Lpu_pa0
+                sb   t0, 0(s2)
+                li   t1, 0
+                sb   t1, 1(s2)
+                j    .Lpu_ip
+            .Lpu_pa0:
+                lbu  a0, 0(s1)
+                beqz a0, .Lpu_pa1
+                sb   a0, 0(s2)
+                addi s2, s2, 1
+                addi s1, s1, 1
+                j    .Lpu_pa0
+            .Lpu_pa1:
+                li   t0, 0
+                sb   t0, 0(s2)
+            .Lpu_ip:
+                la   s1, .Lhttp_hostbuf
+                lbu  a0, 0(s1)
+                li   t0, 48
+                bltu a0, t0, .Lpu_fall
+                li   t0, 57
+                bltu t0, a0, .Lpu_fall
+                la   s2, .Lhttp_ipbin
+                li   t1, 0
+                li   t2, 0
+            .Lpu_ip0:
+                lbu  a0, 0(s1)
+                beqz a0, .Lpu_ip3
+                li   t3, 46
+                beq  a0, t3, .Lpu_ip1
+                li   t3, 48
+                sub  a0, a0, t3
+                li   t3, 9
+                bltu t3, a0, .Lpu_fall
+                li   t3, 10
+                mul  t2, t2, t3
+                add  t2, t2, a0
+                addi s1, s1, 1
+                j    .Lpu_ip0
+            .Lpu_ip1:
+                add  t3, s2, t1
+                sb   t2, 0(t3)
+                li   t2, 0
+                addi t1, t1, 1
+                addi s1, s1, 1
+                j    .Lpu_ip0
+            .Lpu_ip3:
+                add  t3, s2, t1
+                sb   t2, 0(t3)
+                j    .Lpu_done
+            .Lpu_fall:
+                la   s2, .Lhttp_ipbin
+                li   t0, 127
+                sb   t0, 0(s2)
+                li   t0, 0
+                sb   t0, 1(s2)
+                sb   t0, 2(s2)
+                li   t0, 1
+                sb   t0, 3(s2)
+            .Lpu_done:
+                ld   s2, 0(sp)
+                ld   s1, 8(sp)
+                ld   s0, 16(sp)
+                ld   ra, 24(sp)
+                addi sp, sp, 32
+                ret
+            .Lpu_https:
+                la   a0, .Lhttps_err
+                call kof_http_cstrlen
+                mv   a1, a0
+                la   a0, .Lhttps_err
+                call kof_string_from_literal
+                call kof_throw_string
+            .Lpu_bad:
+                la   s0, .Lhttp_fallback
+                la   s1, .Lhttp_hostbuf
+                li   s2, 9
+            .Lpu_bc:
+                beqz s2, .Lpu_bc1
+                lbu  t0, 0(s0)
+                sb   t0, 0(s1)
+                addi s0, s0, 1
+                addi s1, s1, 1
+                addi s2, s2, -1
+                j    .Lpu_bc
+            .Lpu_bc1:
+                li   t0, 0
+                sb   t0, 0(s1)
+                la   s1, .Lhttp_pathbuf
+                li   t0, 47
+                sb   t0, 0(s1)
+                sb   t0, 1(s1)
+                li   t0, 20480
+                la   t1, .Lhttp_portbin
+                sh   t0, 0(t1)
+                li   t0, 80
+                la   t1, .Lhttp_port_host
+                sd   t0, 0(t1)
+                j    .Lpu_ip
+
+            # ── request core ────────────────────────────────────────────
+            # a0=url, a1=method cstr, a2=body cstr|0, a4=headers cstr|0
+            # retorna a0=KofString body (status em .Lhttp_last_status)
+            .globl kof_http_core
+            kof_http_core:
+                addi sp, sp, -64
+                sd   ra, 56(sp)
+                sd   s0, 48(sp)
+                sd   s1, 40(sp)
+                sd   s2, 32(sp)
+                sd   s3, 24(sp)
+                sd   s4, 16(sp)
+                sd   s5, 8(sp)
+                sd   s6, 0(sp)
+                mv   s0, a0
+                mv   s1, a1
+                mv   s2, a2
+                mv   s4, a4
+                mv   a0, s0
+                call kof_http_parse_url
+                li   a0, 2
+                li   a1, 1
+                li   a2, 0
+                li   a7, 198
+                ecall
+                bltz a0, .Lhr_fail
+                mv   s5, a0
+                la   t0, .Lhttp_sock
+                li   t1, 2
+                sw   t1, 0(t0)
+                la   t1, .Lhttp_portbin
+                lh   t1, 0(t1)
+                sh   t1, 2(t0)
+                la   t1, .Lhttp_ipbin
+                lw   t1, 0(t1)
+                sw   t1, 4(t0)
+                li   t1, 0
+                sd   t1, 8(t0)
+                la   a1, .Lhttp_sock
+                mv   a0, s5
+                li   a2, 16
+                li   a7, 203
+                ecall
+                bltz a0, .Lhr_fail_cl
+                la   t0, .Lhttp_reqbuf
+                mv   a0, t0
+                mv   a1, s1
+                call kof_http_append_cstr
+                li   t0, 32
+                sb   t0, 0(a0)
+                addi a0, a0, 1
+                la   a1, .Lhttp_pathbuf
+                call kof_http_append_cstr
+                la   a1, .Lhttp_str_ver
+                call kof_http_append_cstr
+                la   a1, .Lhttp_crlfb
+                li   a2, 2
+                call kof_http_append_n
+                la   a1, .Lhttp_str_host
+                call kof_http_append_cstr
+                la   a1, .Lhttp_hostbuf
+                call kof_http_append_cstr
+                la   t0, .Lhttp_port_host
+                ld   t0, 0(t0)
+                li   t1, 80
+                beq  t0, t1, .Lhr_nohostport
+                li   t0, 58
+                sb   t0, 0(a0)
+                addi a0, a0, 1
+                la   t0, .Lhttp_port_host
+                ld   a1, 0(t0)
+                call kof_http_append_dec
+            .Lhr_nohostport:
+                la   a1, .Lhttp_crlfb
+                li   a2, 2
+                call kof_http_append_n
+                beqz s4, .Lhr_body_hdrs
+                lw   t0, 16(s4)
+                addi a1, s4, 24
+                li   t1, 0
+            .Lhr_hl:
+                bltu t0, t1, .Lhr_hl_done
+                lbu  t2, 0(a1)
+                li   t3, 10
+                beq  t2, t3, .Lhr_hc
+                sb   t2, 0(a0)
+                addi a0, a0, 1
+                j    .Lhr_hn
+            .Lhr_hc:
+                li   t2, 13
+                sb   t2, 0(a0)
+                addi a0, a0, 1
+                sb   t3, 0(a0)
+                addi a0, a0, 1
+            .Lhr_hn:
+                addi t1, t1, 1
+                addi a1, a1, 1
+                j    .Lhr_hl
+            .Lhr_hl_done:
+                la   a1, .Lhttp_crlfb
+                li   a2, 2
+                call kof_http_append_n
+            .Lhr_body_hdrs:
+                beqz s2, .Lhr_closing
+                la   a1, .Lhttp_str_clen
+                call kof_http_append_cstr
+                lw   t0, 16(s2)
+                mv   a1, t0
+                call kof_http_append_dec
+                la   a1, .Lhttp_crlfb
+                li   a2, 2
+                call kof_http_append_n
+            .Lhr_closing:
+                la   a1, .Lhttp_str_conn
+                call kof_http_append_cstr
+                la   a1, .Lhttp_crlfb
+                li   a2, 2
+                call kof_http_append_n
+                la   a1, .Lhttp_crlfb
+                li   a2, 2
+                call kof_http_append_n
+                beqz s2, .Lhr_send
+                addi a1, s2, 24
+                lw   a2, 16(s2)
+                call kof_http_append_n
+            .Lhr_send:
+                la   t0, .Lhttp_reqbuf
+                sub  a2, a0, t0
+                mv   a1, t0
+                mv   a0, s5
+                li   a7, 64
+                ecall
+                li   s3, 0
+            .Lhr_rd:
+                la   t0, .Lhttp_respbuf
+                add  a1, t0, s3
+                li   t0, 262144
+                sub  a2, t0, s3
+                mv   a0, s5
+                li   a7, 63
+                ecall
+                bltz a0, .Lhr_rd_done
+                beqz a0, .Lhr_rd_done
+                add  s3, s3, a0
+                li   t0, 262144
+                bltu s3, t0, .Lhr_rd
+            .Lhr_rd_done:
+                la   s1, .Lhttp_respbuf
+                li   t0, 0
+            .Lhr_st_space:
+                lbu  a0, 0(s1)
+                li   t1, 32
+                beq  a0, t1, .Lhr_st_sp_hit
+                addi s1, s1, 1
+                j    .Lhr_st_space
+            .Lhr_st_sp_hit:
+                addi s1, s1, 1
+            .Lhr_st_loop:
+                lbu  a0, 0(s1)
+                li   t1, 48
+                sub  a0, a0, t1
+                li   t2, 9
+                bltu t2, a0, .Lhr_st_ok
+                li   t1, 10
+                mul  t0, t0, t1
+                add  t0, t0, a0
+                addi s1, s1, 1
+                j    .Lhr_st_loop
+            .Lhr_st_ok:
+                la   t1, .Lhttp_last_status
+                sd   t0, 0(t1)
+                la   s1, .Lhttp_respbuf
+                mv   s6, s3
+            .Lhr_bscan:
+                li   t0, 4
+                bltu s6, t0, .Lhr_bnone
+                lbu  a0, 0(s1)
+                li   t1, 13
+                bne  a0, t1, .Lhr_bn
+                lbu  a0, 1(s1)
+                li   t1, 10
+                bne  a0, t1, .Lhr_bn
+                lbu  a0, 2(s1)
+                li   t1, 13
+                bne  a0, t1, .Lhr_bn
+                lbu  a0, 3(s1)
+                li   t1, 10
+                bne  a0, t1, .Lhr_bn
+                addi s1, s1, 4
+                addi s6, s6, -4
+                mv   a0, s1
+                mv   a1, s6
+                call kof_string_from_literal
+                mv   s0, a0
+                mv   a0, s5
+                li   a7, 57
+                ecall
+                mv   a0, s0
+                j    .Lhr_out
+            .Lhr_bn:
+                addi s1, s1, 1
+                addi s6, s6, -1
+                j    .Lhr_bscan
+            .Lhr_bnone:
+                la   a0, .Lhttp_empty
+                li   a1, 0
+                call kof_string_from_literal
+                mv   s0, a0
+                mv   a0, s5
+                li   a7, 57
+                ecall
+                mv   a0, s0
+            .Lhr_fail_cl:
+                mv   a0, s5
+                li   a7, 57
+                ecall
+            .Lhr_fail:
+                la   a0, .Lhttp_err_conn
+                call kof_http_cstrlen
+                mv   a1, a0
+                la   a0, .Lhttp_err_conn
+                call kof_string_from_literal
+                call kof_throw_string
+            .Lhr_out:
+                ld   s6, 0(sp)
+                ld   s5, 8(sp)
+                ld   s4, 16(sp)
+                ld   s3, 24(sp)
+                ld   s2, 32(sp)
+                ld   s1, 40(sp)
+                ld   s0, 48(sp)
+                ld   ra, 56(sp)
+                addi sp, sp, 64
+                ret
+
+            # wrappers: a0=url [a1=body|headers] -> a0=KofString (status em .Lhttp_last_status)
+            .globl kof_http_get
+            kof_http_get:
+                la   a1, .Lhttp_m_get
+                li   a2, 0
+                li   a4, 0
+                j    kof_http_core
+            .globl kof_http_get_headers
+            kof_http_get_headers:
+                mv   a4, a1
+                la   a1, .Lhttp_m_get
+                li   a2, 0
+                j    kof_http_core
+            .globl kof_http_post
+            kof_http_post:
+                mv   a2, a1
+                la   a1, .Lhttp_m_post
+                li   a4, 0
+                j    kof_http_core
+            .globl kof_http_post_headers
+            kof_http_post_headers:
+                mv   a4, a2
+                mv   a2, a1
+                la   a1, .Lhttp_m_post
+                j    kof_http_core
+            .globl kof_http_delete
+            kof_http_delete:
+                la   a1, .Lhttp_m_delete
+                li   a2, 0
+                li   a4, 0
+                j    kof_http_core
+            .globl kof_http_put
+            kof_http_put:
+                mv   a2, a1
+                la   a1, .Lhttp_m_put
+                li   a4, 0
+                j    kof_http_core
+            .globl kof_http_patch
+            kof_http_patch:
+                mv   a2, a1
+                la   a1, .Lhttp_m_patch
+                li   a4, 0
+                j    kof_http_core
+            .globl kof_http_status
+            kof_http_status:
+                addi sp, sp, -16
+                sd   ra, 8(sp)
+                la   a1, .Lhttp_m_get
+                li   a2, 0
+                li   a4, 0
+                call kof_http_core
+                la   a0, .Lhttp_last_status
+                ld   a0, 0(a0)
+                ld   ra, 8(sp)
+                addi sp, sp, 16
+                ret
+
+            .globl kof_http_options
+            kof_http_options:
+                la   a1, .Lhttp_m_options
+                li   a2, 0
+                li   a4, 0
+                j    kof_http_core
+            .globl kof_http_options_headers
+            kof_http_options_headers:
+                mv   a4, a1
+                la   a1, .Lhttp_m_options
+                li   a2, 0
+                j    kof_http_core
+            # configurators (no-op nativo, preservam API; paridade futura)
+            .globl kof_http_timeout_set
+            kof_http_timeout_set:
+                ret
+            .globl kof_http_retry_set
+            kof_http_retry_set:
+                ret
+            .globl kof_http_circuit_set
+            kof_http_circuit_set:
+                ret
+            .section .data
+            .Lhttp_hostbuf:   .space 256
+            .Lhttp_pathbuf:   .space 1024
+            .Lhttp_portbin:   .space 2
+            .Lhttp_port_host: .quad 0
+            .Lhttp_ipbin:     .space 4
+            .Lhttp_reqbuf:    .space 16384
+            .Lhttp_respbuf:   .space 262144
+            .Lhttp_sock:      .space 16
+            .Lhttp_last_status: .quad 0
+            .Lhttps_err:   .asciz "kof.http: https nao suportado no Native (TLS pendente); use http://"
+            .Lhttp_fallback: .asciz "127.0.0.1"
+            .Lhttp_str_host: .asciz "Host: "
+            .Lhttp_str_clen: .asciz "Content-Length: "
+            .Lhttp_str_conn: .asciz "Connection: close"
+            .Lhttp_str_ver:  .asciz " HTTP/1.1"
+            .Lhttp_crlfb:    .byte 13, 10
+            .Lhttp_err_conn: .asciz "kof.http: connect falhou"
+            .Lhttp_empty: .space 1
+            .Lhttp_m_get: .asciz "GET"
+            .Lhttp_m_post: .asciz "POST"
+            .Lhttp_m_put: .asciz "PUT"
+            .Lhttp_m_patch: .asciz "PATCH"
+            .Lhttp_m_delete: .asciz "DELETE"
+            .Lhttp_m_options: .asciz "OPTIONS"
+            .section .text
+            """);
+    }
+
+    // ---- NATIVE002-stdlib: spawn/await riscv64 (clone+futex, asm puro) ----
+    // qemu-riscv64 8.2.2 NÃO implementa clone3 (ENOSYS) — usa clone(220) com o
+    // flag-set da glibc (0x3D0F00 = VM|FS|FILES|SIGHAND|THREAD|SYSVSEM|SETTLS|
+    // PARENT_SETTID|CHILD_CLEARTID), que é aceito. O filho herda os registradores
+    // do pai no ecall (a0=0, s0=handle) e roda o trampoline; await espera via
+    // futex em handle->done (sem pthread_join). exit(93) mata só a thread.
+    static boolean usesSpawn(IRModule module) {
+        for (IRClass c : module.classes()) {
+            for (IRMethod m : c.methods()) {
+                for (IRBasicBlock b : m.basicBlocks()) {
+                    for (KofOperation op : b.operations()) {
+                        if (op instanceof KofCall kc
+                                && (kc.methodName().equals("kof_spawn")
+                                    || kc.methodName().equals("kof_spawn_result")
+                                    || kc.methodName().equals("kof_await"))) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    static void emitRiscvSpawn(StringBuilder sb) {
+        sb.append("""
+            # ---- spawn/await riscv64 (NATIVE002-stdlib) ----
+            .section .text
+            # handle: [typeId@0(i32) done@4(i32) result@8 stack@16] (32B)
+            # kof_spawn_result(task@a0) -> handle@a0
+            .globl kof_spawn_result
+            kof_spawn_result:
+                addi sp, sp, -32
+                sd   ra, 24(sp)
+                sd   s0, 16(sp)
+                sd   s1, 8(sp)
+                sd   s2, 0(sp)
+                mv   s0, a0                 # task
+                li   a0, 32
+                call kof_alloc
+                mv   s1, a0                 # handle
+                li   t0, 2
+                sw   t0, 0(s1)              # typeId=2 (handle)
+                sw   zero, 4(s1)            # done=0
+                sd   zero, 8(s1)            # result=0
+                # stack do worker: mmap(NULL, 1MB, RW, PRIVATE|ANON, -1, 0)
+                li   a0, 0
+                li   a1, 1048576
+                li   a2, 3
+                li   a3, 0x22
+                li   a4, -1
+                li   a5, 0
+                li   a7, 222
+                ecall
+                sd   a0, 16(s1)             # stack base (p/ debug/free)
+                li   t1, 1048576
+                add  s2, a0, t1             # stack TOP
+                # clone(flags, stack_top, ptid, tls, ctid) — filho herda s0,s1
+                li   a0, 0x3D0F00
+                mv   a1, s2
+                li   a2, 0
+                li   a3, 0
+                li   a4, 0
+                li   a7, 220
+                ecall
+                bltz a0, .Lsp_inline
+                bnez a0, .Lsp_reg           # pai: registra handle p/ join
+                # ---- filho: a0=0, s0=task, s1=handle ----
+                call kof_spawn_trampoline
+                li   a0, 0
+                li   a7, 93
+                ecall
+            .Lsp_inline:
+                # clone falhou: roda inline (degradação segura, sem thread)
+                call kof_spawn_trampoline
+                j    .Lsp_ret
+            .Lsp_reg:
+                # handle na lista global (máx 64) p/ join implícito
+                la   t0, kof_spawn_count
+                ld   t1, 0(t0)
+                li   t2, 64
+                bge  t1, t2, .Lsp_ret
+                slli t2, t1, 3
+                la   t3, kof_spawn_handles
+                add  t3, t3, t2
+                sd   s1, 0(t3)
+                addi t1, t1, 1
+                sd   t1, 0(t0)
+            .Lsp_ret:
+                mv   a0, s1
+                ld   s2, 0(sp)
+                ld   s1, 8(sp)
+                ld   s0, 16(sp)
+                ld   ra, 24(sp)
+                addi sp, sp, 32
+                ret
+            # kof_spawn(task@a0) -> handle registrado (join implícito no fim do main)
+            .globl kof_spawn
+            kof_spawn:
+                j    kof_spawn_result
+            # trampoline: s0=task, s1=handle -> roda task.invoke(), marca done, wake
+            kof_spawn_trampoline:
+                addi sp, sp, -32
+                sd   ra, 24(sp)
+                sd   s0, 16(sp)
+                sd   s1, 8(sp)
+                ld   t0, 8(s0)              # task vtable
+                ld   t0, 0(t0)              # vtable[0] = invoke
+                mv   a0, s0
+                jalr t0                     # a0 = resultado
+                ld   s0, 16(sp)             # invoke pode clobberar s-regs? não
+                ld   s1, 8(sp)              # (callee-saved), mas protege s0/s1
+                sd   a0, 8(s1)              # handle->result
+                fence rw, rw                # ordena result antes de done (RVO)
+                li   t0, 1
+                sw   t0, 4(s1)              # handle->done = 1
+                addi a0, s1, 4              # &done (futex word)
+                li   a1, 129                # FUTEX_WAKE_PRIVATE
+                li   a2, 1
+                li   a7, 98
+                ecall
+                ld   ra, 24(sp)
+                addi sp, sp, 32
+                ret
+            # kof_await(handle@a0) -> result@a0 (futex wait em done)
+            .globl kof_await
+            kof_await:
+                beqz a0, .Lkw_null
+                lw   t0, 4(a0)              # done?
+                bnez t0, .Lkw_val
+                addi sp, sp, -16
+                sd   s0, 8(sp)
+                sd   ra, 0(sp)
+                mv   s0, a0
+            .Lkw_wait:
+                addi a0, s0, 4              # &done
+                li   a1, 128                # FUTEX_WAIT_PRIVATE
+                li   a2, 0                  # esperado done==0
+                li   a3, 0
+                li   a7, 98
+                ecall
+                lw   t0, 4(s0)
+                beqz t0, .Lkw_wait
+                mv   a0, s0
+                ld   s0, 8(sp)
+                ld   ra, 0(sp)
+                addi sp, sp, 16
+            .Lkw_val:
+                ld   a0, 8(a0)
+                ret
+            .Lkw_null:
+                li   a0, 0
+                ret
+            # join implícito: aguarda todos os handles registrados (lista .bss).
+            .globl kof_spawn_join_all
+            kof_spawn_join_all:
+                addi sp, sp, -32
+                sd   ra, 24(sp)
+                sd   s0, 16(sp)
+                sd   s1, 8(sp)
+                sd   s2, 0(sp)
+                la   s0, kof_spawn_handles
+                la   s1, kof_spawn_count
+                ld   s1, 0(s1)
+                li   s2, 0
+            .Lkj_loop:
+                bge  s2, s1, .Lkj_done
+                slli t0, s2, 3
+                add  t0, s0, t0
+                ld   a0, 0(t0)
+                beqz a0, .Lkj_next
+                call kof_await
+            .Lkj_next:
+                addi s2, s2, 1
+                j    .Lkj_loop
+            .Lkj_done:
+                ld   ra, 24(sp)
+                ld   s0, 16(sp)
+                ld   s1, 8(sp)
+                ld   s2, 0(sp)
+                addi sp, sp, 32
+                ret
+
+            .section .data
+            .align 3
+            kof_spawn_handles: .space 512
+            kof_spawn_count:   .quad 0
+            .section .text
+            """);
+    }
+
+    private void emitCrossMethodRiscv(StringBuilder sb, IRClass clazz, IRMethod method, boolean joinMain) {
         // Mangle idêntico ao x86_64 (vtables referenciam esses símbolos).
         String mangled = sanitizeName(clazz.name()) + "_" + sanitizeName(method.name());
         if ("<init>".equals(method.name())) mangled += "_" + method.parameterTypes().size();
@@ -2050,10 +2911,11 @@ public class NativeBackend implements Backend {
         for (IRBasicBlock block : method.basicBlocks()) {
             for (KofOperation op : block.operations()) {
                 if (op instanceof KofReturn || op instanceof KofReturnVoid) endsWithReturn = true;
-                emitCrossOpRiscv(sb, op, frameSize);
+                emitCrossOpRiscv(sb, op, frameSize, joinMain);
             }
         }
         if (!endsWithReturn) {
+            if (joinMain) sb.append("    call kof_spawn_join_all\n");
             sb.append("    mv sp, s11\n");
             sb.append("    addi sp, sp, -16\n");
             sb.append("    ld ra, 8(sp)\n");
@@ -2078,7 +2940,7 @@ public class NativeBackend implements Backend {
         sb.append("    .quad 0\n");
     }
 
-    private void emitCrossOpRiscv(StringBuilder sb, KofOperation op, int frameSize) {
+    private void emitCrossOpRiscv(StringBuilder sb, KofOperation op, int frameSize, boolean joinMain) {
         switch (op) {
             case KofGetStatic gs -> { }
             case KofPutStatic ps -> sb.append("    addi sp, sp, 8\n");
@@ -2193,6 +3055,7 @@ public class NativeBackend implements Backend {
             }
             case KofReturn kr -> {
                 sb.append("    pop a0\n");
+                if (joinMain) sb.append("    call kof_spawn_join_all\n");
                 sb.append("    mv sp, s11\n");
                 sb.append("    addi sp, sp, -16\n");
                 sb.append("    ld ra, 8(sp)\n");
@@ -2202,6 +3065,7 @@ public class NativeBackend implements Backend {
             }
             case KofReturnVoid rv -> {
                 sb.append("    li a0, 0\n");
+                if (joinMain) sb.append("    call kof_spawn_join_all\n");
                 sb.append("    mv sp, s11\n");
                 sb.append("    addi sp, sp, -16\n");
                 sb.append("    ld ra, 8(sp)\n");
@@ -2446,6 +3310,11 @@ public class NativeBackend implements Backend {
                 case "indexOf" -> "kof_string_index_of";
                 case "concat" -> "kof_string_concat";
                 case "toInt" -> "kof_string_to_int";
+                case "trim" -> "kof_string_trim";
+                case "toUpperCase" -> "kof_string_to_upper";
+                case "toLowerCase" -> "kof_string_to_lower";
+                case "lastIndexOf" -> "kof_string_last_index_of";
+                case "equalsIgnoreCase" -> "kof_string_equals_ignore_case";
                 default -> null;
             };
             if (fn != null) {
@@ -2460,6 +3329,23 @@ public class NativeBackend implements Backend {
                 sb.append("    pop a0\n");
                 sb.append("    call ").append(fn).append("\n");
                 if (!Type.isVoid(kc.returnType())) pushRiscv(sb, "a0");
+                return;
+            }
+            // replace(char,char) vs replace(String,String): dispatch por tipo
+            if ("replace".equals(mn) && kc.parameterTypes().size() == 2) {
+                Type first = kc.parameterTypes().get(0);
+                boolean charArgs = first instanceof Type.PrimitiveType pt
+                        && "char".equals(Type.canonicalPrimitiveName(pt.name()));
+                sb.append("    pop a2\n    pop a1\n    pop a0\n");
+                sb.append("    call ").append(charArgs ? "kof_string_replace_char" : "kof_string_replace").append("\n");
+                pushRiscv(sb, "a0");
+                return;
+            }
+            // split(sep) -> String[] (array de KofString)
+            if ("split".equals(mn) && kc.parameterTypes().size() == 1) {
+                sb.append("    pop a1\n    pop a0\n");
+                sb.append("    call kof_string_split\n");
+                pushRiscv(sb, "a0");
                 return;
             }
         }
@@ -2555,17 +3441,14 @@ public class NativeBackend implements Backend {
             .option arch, rv64g
             .section .text
 
-            # kof_alloc(size) -> ptr (bump allocator em .bss)
+            # kof_alloc(size) -> ptr (bump atômico em .bss — amoadd.d: main e
+            # workers do spawn compartilham o heap; ldadd no aarch64 via tradutor)
             .globl kof_alloc
             kof_alloc:
-                la   t0, kof_alloc_ptr
-                ld   t0, 0(t0)
                 addi t1, a0, 15
                 andi t1, t1, -16
-                add  t2, t0, t1
-                la   t3, kof_alloc_ptr
-                sd   t2, 0(t3)
-                mv   a0, t0
+                la   t0, kof_alloc_ptr
+                amoadd.d a0, t1, (t0)
                 ret
 
             # kof_memcpy(dst, src, len)
@@ -3357,7 +4240,619 @@ public class NativeBackend implements Backend {
                 ld   ra, 40(sp)
                 addi sp, sp, 48
                 ret
+            """;
 
+    static final String RISCV_STRN002_ASM = """
+            # ---- STRN002: String methods riscv64 (char-loops, sem FP) ----
+            # kof_string_trim(str@a0) -> str
+            .globl kof_string_trim
+            kof_string_trim:
+                addi sp, sp, -64
+                sd   ra, 56(sp)
+                sd   s0, 48(sp)
+                sd   s1, 40(sp)
+                sd   s2, 32(sp)
+                sd   s3, 24(sp)
+                sd   s4, 16(sp)
+                sd   s5, 8(sp)
+                mv   s0, a0
+                lw   s1, 16(s0)
+                li   s2, 0
+            .Ltr_lead:
+                bge  s2, s1, .Ltr_trail
+                addi t0, s0, 24
+                add  t0, t0, s2
+                lbu  t0, 0(t0)
+                li   t1, 32
+                beq  t0, t1, .Ltr_lskip
+                li   t1, 9
+                beq  t0, t1, .Ltr_lskip
+                li   t1, 10
+                beq  t0, t1, .Ltr_lskip
+                li   t1, 13
+                beq  t0, t1, .Ltr_lskip
+                j    .Ltr_trail
+            .Ltr_lskip:
+                addi s2, s2, 1
+                j    .Ltr_lead
+            .Ltr_trail:
+                mv   s3, s1
+            .Ltr_tloop:
+                ble  s3, s2, .Ltr_build
+                addi t0, s3, -1
+                addi t1, s0, 24
+                add  t1, t1, t0
+                lbu  t1, 0(t1)
+                li   t2, 32
+                beq  t1, t2, .Ltr_tskip
+                li   t2, 9
+                beq  t1, t2, .Ltr_tskip
+                li   t2, 10
+                beq  t1, t2, .Ltr_tskip
+                li   t2, 13
+                beq  t1, t2, .Ltr_tskip
+                j    .Ltr_build
+            .Ltr_tskip:
+                mv   s3, t0
+                j    .Ltr_tloop
+            .Ltr_build:
+                sub  s4, s3, s2
+                addi a0, s4, 25
+                addi a0, a0, 15
+                andi a0, a0, -16
+                call kof_alloc
+                mv   s5, a0
+                li   t0, 1
+                sw   t0, 0(s5)
+                sw   zero, 4(s5)
+                sd   zero, 8(s5)
+                sw   s4, 16(s5)
+                sw   zero, 20(s5)
+                addi a0, s5, 24
+                addi a1, s0, 24
+                add  a1, a1, s2
+                mv   a2, s4
+                call kof_memcpy
+                li   t0, 0
+                addi t1, s5, 24
+                add  t1, t1, s4
+                sb   t0, 0(t1)
+                mv   a0, s5
+                ld   s5, 8(sp)
+                ld   s4, 16(sp)
+                ld   s3, 24(sp)
+                ld   s2, 32(sp)
+                ld   s1, 40(sp)
+                ld   s0, 48(sp)
+                ld   ra, 56(sp)
+                addi sp, sp, 64
+                ret
+
+            # kof_string_to_upper(str@a0) -> str
+            .globl kof_string_to_upper
+            kof_string_to_upper:
+                addi sp, sp, -48
+                sd   ra, 40(sp)
+                sd   s0, 32(sp)
+                sd   s1, 24(sp)
+                sd   s2, 16(sp)
+                sd   s3, 8(sp)
+                mv   s0, a0
+                lw   s1, 16(s0)
+                addi a0, s1, 25
+                addi a0, a0, 15
+                andi a0, a0, -16
+                call kof_alloc
+                mv   s2, a0
+                li   t0, 1
+                sw   t0, 0(s2)
+                sw   zero, 4(s2)
+                sd   zero, 8(s2)
+                sw   s1, 16(s2)
+                sw   zero, 20(s2)
+                li   s3, 0
+            .Ltu_loop:
+                bge  s3, s1, .Ltu_done
+                addi t0, s0, 24
+                add  t0, t0, s3
+                lbu  t0, 0(t0)
+                li   t1, 97
+                blt  t0, t1, .Ltu_store
+                li   t1, 122
+                bgt  t0, t1, .Ltu_store
+                addi t0, t0, -32
+            .Ltu_store:
+                addi t1, s2, 24
+                add  t1, t1, s3
+                sb   t0, 0(t1)
+                addi s3, s3, 1
+                j    .Ltu_loop
+            .Ltu_done:
+                li   t0, 0
+                addi t1, s2, 24
+                add  t1, t1, s1
+                sb   t0, 0(t1)
+                mv   a0, s2
+                ld   s3, 8(sp)
+                ld   s2, 16(sp)
+                ld   s1, 24(sp)
+                ld   s0, 32(sp)
+                ld   ra, 40(sp)
+                addi sp, sp, 48
+                ret
+
+            # kof_string_to_lower(str@a0) -> str
+            .globl kof_string_to_lower
+            kof_string_to_lower:
+                addi sp, sp, -48
+                sd   ra, 40(sp)
+                sd   s0, 32(sp)
+                sd   s1, 24(sp)
+                sd   s2, 16(sp)
+                sd   s3, 8(sp)
+                mv   s0, a0
+                lw   s1, 16(s0)
+                addi a0, s1, 25
+                addi a0, a0, 15
+                andi a0, a0, -16
+                call kof_alloc
+                mv   s2, a0
+                li   t0, 1
+                sw   t0, 0(s2)
+                sw   zero, 4(s2)
+                sd   zero, 8(s2)
+                sw   s1, 16(s2)
+                sw   zero, 20(s2)
+                li   s3, 0
+            .Ltl_loop:
+                bge  s3, s1, .Ltl_done
+                addi t0, s0, 24
+                add  t0, t0, s3
+                lbu  t0, 0(t0)
+                li   t1, 65
+                blt  t0, t1, .Ltl_store
+                li   t1, 90
+                bgt  t0, t1, .Ltl_store
+                addi t0, t0, 32
+            .Ltl_store:
+                addi t1, s2, 24
+                add  t1, t1, s3
+                sb   t0, 0(t1)
+                addi s3, s3, 1
+                j    .Ltl_loop
+            .Ltl_done:
+                li   t0, 0
+                addi t1, s2, 24
+                add  t1, t1, s1
+                sb   t0, 0(t1)
+                mv   a0, s2
+                ld   s3, 8(sp)
+                ld   s2, 16(sp)
+                ld   s1, 24(sp)
+                ld   s0, 32(sp)
+                ld   ra, 40(sp)
+                addi sp, sp, 48
+                ret
+
+            # kof_string_replace_char(str@a0, from@a1, to@a2) -> str
+            .globl kof_string_replace_char
+            kof_string_replace_char:
+                addi sp, sp, -56
+                sd   ra, 48(sp)
+                sd   s0, 40(sp)
+                sd   s1, 32(sp)
+                sd   s2, 24(sp)
+                sd   s3, 16(sp)
+                sd   s4, 8(sp)
+                mv   s0, a0
+                mv   s1, a1
+                mv   s2, a2
+                lw   s3, 16(s0)
+                addi a0, s3, 25
+                addi a0, a0, 15
+                andi a0, a0, -16
+                call kof_alloc
+                mv   s4, a0
+                li   t0, 1
+                sw   t0, 0(s4)
+                sw   zero, 4(s4)
+                sd   zero, 8(s4)
+                sw   s3, 16(s4)
+                sw   zero, 20(s4)
+                li   t1, 0
+            .Lrc_loop:
+                bge  t1, s3, .Lrc_done
+                addi t2, s0, 24
+                add  t2, t2, t1
+                lbu  t2, 0(t2)
+                bne  t2, s1, .Lrc_store
+                mv   t2, s2
+            .Lrc_store:
+                addi t3, s4, 24
+                add  t3, t3, t1
+                sb   t2, 0(t3)
+                addi t1, t1, 1
+                j    .Lrc_loop
+            .Lrc_done:
+                li   t0, 0
+                addi t1, s4, 24
+                add  t1, t1, s3
+                sb   t0, 0(t1)
+                mv   a0, s4
+                ld   s4, 8(sp)
+                ld   s3, 16(sp)
+                ld   s2, 24(sp)
+                ld   s1, 32(sp)
+                ld   s0, 40(sp)
+                ld   ra, 48(sp)
+                addi sp, sp, 56
+                ret
+
+            # kof_string_replace(str@a0, from@a1, to@a2) -> str
+            .globl kof_string_replace
+            kof_string_replace:
+                addi sp, sp, -96
+                sd   ra, 88(sp)
+                sd   s0, 80(sp)
+                sd   s1, 72(sp)
+                sd   s2, 64(sp)
+                sd   s3, 56(sp)
+                sd   s4, 48(sp)
+                sd   s5, 40(sp)
+                sd   s6, 32(sp)
+                sd   s7, 24(sp)
+                sd   s8, 16(sp)
+                mv   s0, a0
+                mv   s1, a1
+                mv   s2, a2
+                lw   s3, 16(s0)
+                lw   s4, 16(s1)
+                lw   s5, 16(s2)
+                beqz s4, .Lrp_copy
+                li   s6, 0
+                li   s7, 0
+            .Lrp_scan:
+                bge  s7, s3, .Lrp_alloc
+                li   s8, 0
+            .Lrp_cmp:
+                bge  s8, s4, .Lrp_match
+                addi t0, s0, 24
+                add  t1, s7, s8
+                add  t0, t0, t1
+                lbu  t0, 0(t0)
+                addi t1, s1, 24
+                add  t1, t1, s8
+                lbu  t1, 0(t1)
+                bne  t0, t1, .Lrp_nomatch
+                addi s8, s8, 1
+                j    .Lrp_cmp
+            .Lrp_match:
+                addi s6, s6, 1
+                add  s7, s7, s4
+                j    .Lrp_scan
+            .Lrp_nomatch:
+                addi s7, s7, 1
+                j    .Lrp_scan
+            .Lrp_alloc:
+                sub  t0, s5, s4
+                mul  t0, t0, s6
+                add  t0, t0, s3
+                mv   s7, t0
+                addi a0, t0, 25
+                addi a0, a0, 15
+                andi a0, a0, -16
+                call kof_alloc
+                mv   s8, a0
+                li   t0, 1
+                sw   t0, 0(s8)
+                sw   zero, 4(s8)
+                sd   zero, 8(s8)
+                sw   s7, 16(s8)
+                sw   zero, 20(s8)
+                li   s6, 0
+                li   s5, 0
+            .Lrp_build:
+                bge  s6, s3, .Lrp_done
+                li   t3, 0
+            .Lrp_bcmp:
+                bge  t3, s4, .Lrp_bmatch
+                addi t0, s0, 24
+                add  t1, s6, t3
+                add  t0, t0, t1
+                lbu  t0, 0(t0)
+                addi t1, s1, 24
+                add  t1, t1, t3
+                lbu  t1, 0(t1)
+                bne  t0, t1, .Lrp_bcopy
+                addi t3, t3, 1
+                j    .Lrp_bcmp
+            .Lrp_bmatch:
+                lw   t4, 16(s2)
+                li   t3, 0
+            .Lrp_bto:
+                bge  t3, t4, .Lrp_bskip
+                addi t0, s2, 24
+                add  t0, t0, t3
+                lbu  t0, 0(t0)
+                addi t1, s8, 24
+                add  t1, t1, s5
+                sb   t0, 0(t1)
+                addi s5, s5, 1
+                addi t3, t3, 1
+                j    .Lrp_bto
+            .Lrp_bskip:
+                add  s6, s6, s4
+                j    .Lrp_build
+            .Lrp_bcopy:
+                addi t0, s0, 24
+                add  t0, t0, s6
+                lbu  t0, 0(t0)
+                addi t1, s8, 24
+                add  t1, t1, s5
+                sb   t0, 0(t1)
+                addi s5, s5, 1
+                addi s6, s6, 1
+                j    .Lrp_build
+            .Lrp_done:
+                li   t0, 0
+                addi t1, s8, 24
+                add  t1, t1, s7
+                sb   t0, 0(t1)
+                mv   a0, s8
+                j    .Lrp_ret
+            .Lrp_copy:
+                addi a0, s3, 25
+                addi a0, a0, 15
+                andi a0, a0, -16
+                call kof_alloc
+                mv   s8, a0
+                li   t0, 1
+                sw   t0, 0(s8)
+                sw   zero, 4(s8)
+                sd   zero, 8(s8)
+                sw   s3, 16(s8)
+                sw   zero, 20(s8)
+                addi a0, s8, 24
+                addi a1, s0, 24
+                mv   a2, s3
+                call kof_memcpy
+                li   t0, 0
+                addi t1, s8, 24
+                add  t1, t1, s3
+                sb   t0, 0(t1)
+                mv   a0, s8
+            .Lrp_ret:
+                ld   s8, 16(sp)
+                ld   s7, 24(sp)
+                ld   s6, 32(sp)
+                ld   s5, 40(sp)
+                ld   s4, 48(sp)
+                ld   s3, 56(sp)
+                ld   s2, 64(sp)
+                ld   s1, 72(sp)
+                ld   s0, 80(sp)
+                ld   ra, 88(sp)
+                addi sp, sp, 96
+                ret
+
+            # kof_string_last_index_of(str@a0, sub@a1) -> Int
+            .globl kof_string_last_index_of
+            kof_string_last_index_of:
+                addi sp, sp, -48
+                sd   ra, 40(sp)
+                sd   s0, 32(sp)
+                sd   s1, 24(sp)
+                sd   s2, 16(sp)
+                sd   s3, 8(sp)
+                sd   s4, 0(sp)
+                mv   s0, a0
+                mv   s1, a1
+                lw   s2, 16(s0)
+                lw   s3, 16(s1)
+                beqz s3, .Lli_end
+                bgt  s3, s2, .Lli_no
+                sub  s4, s2, s3
+            .Lli_outer:
+                bltz s4, .Lli_no
+                li   t0, 0
+            .Lli_inner:
+                bge  t0, s3, .Lli_found
+                addi t1, s0, 24
+                add  t2, s4, t0
+                add  t1, t1, t2
+                lbu  t1, 0(t1)
+                addi t2, s1, 24
+                add  t2, t2, t0
+                lbu  t2, 0(t2)
+                bne  t1, t2, .Lli_next
+                addi t0, t0, 1
+                j    .Lli_inner
+            .Lli_next:
+                addi s4, s4, -1
+                j    .Lli_outer
+            .Lli_found:
+                mv   a0, s4
+                j    .Lli_ret
+            .Lli_end:
+                mv   a0, s2
+                j    .Lli_ret
+            .Lli_no:
+                li   a0, -1
+            .Lli_ret:
+                ld   s4, 0(sp)
+                ld   s3, 8(sp)
+                ld   s2, 16(sp)
+                ld   s1, 24(sp)
+                ld   s0, 32(sp)
+                ld   ra, 40(sp)
+                addi sp, sp, 48
+                ret
+
+            # kof_string_equals_ignore_case(a@a0, b@a1) -> Bool
+            .globl kof_string_equals_ignore_case
+            kof_string_equals_ignore_case:
+                addi sp, sp, -40
+                sd   ra, 32(sp)
+                sd   s0, 24(sp)
+                sd   s1, 16(sp)
+                sd   s2, 8(sp)
+                sd   s3, 0(sp)
+                mv   s0, a0
+                mv   s1, a1
+                lw   s2, 16(s0)
+                lw   s3, 16(s1)
+                bne  s2, s3, .Lec_no
+                li   t0, 0
+            .Lec_loop:
+                bge  t0, s2, .Lec_yes
+                addi t1, s0, 24
+                add  t1, t1, t0
+                lbu  t1, 0(t1)
+                addi t2, s1, 24
+                add  t2, t2, t0
+                lbu  t2, 0(t2)
+                li   t3, 65
+                blt  t1, t3, .Lec_f2
+                li   t3, 90
+                bgt  t1, t3, .Lec_f2
+                addi t1, t1, 32
+            .Lec_f2:
+                li   t3, 65
+                blt  t2, t3, .Lec_cmp
+                li   t3, 90
+                bgt  t2, t3, .Lec_cmp
+                addi t2, t2, 32
+            .Lec_cmp:
+                bne  t1, t2, .Lec_no
+                addi t0, t0, 1
+                j    .Lec_loop
+            .Lec_yes:
+                li   a0, 1
+                j    .Lec_ret
+            .Lec_no:
+                li   a0, 0
+            .Lec_ret:
+                ld   s3, 0(sp)
+                ld   s2, 8(sp)
+                ld   s1, 16(sp)
+                ld   s0, 24(sp)
+                ld   ra, 32(sp)
+                addi sp, sp, 40
+                ret
+
+            # kof_string_split(str@a0, sep@a1) -> String[] (array de KofString)
+            .globl kof_string_split
+            kof_string_split:
+                addi sp, sp, -80
+                sd   ra, 72(sp)
+                sd   s0, 64(sp)
+                sd   s1, 56(sp)
+                sd   s2, 48(sp)
+                sd   s3, 40(sp)
+                sd   s4, 32(sp)
+                sd   s5, 24(sp)
+                sd   s6, 16(sp)
+                sd   s7, 8(sp)
+                mv   s0, a0
+                mv   s1, a1
+                lw   s2, 16(s0)
+                lw   t0, 16(s1)
+                li   s3, 0
+                beqz t0, .Lsp_count
+                addi s3, s1, 24
+                lbu  s3, 0(s3)
+            .Lsp_count:
+                li   s4, 1
+                li   s5, 0
+            .Lsp_cloop:
+                bge  s5, s2, .Lsp_alloc
+                addi t1, s0, 24
+                add  t1, t1, s5
+                lbu  t1, 0(t1)
+                bne  t1, s3, .Lsp_cnext
+                addi s4, s4, 1
+            .Lsp_cnext:
+                addi s5, s5, 1
+                j    .Lsp_cloop
+            .Lsp_alloc:
+                mv   a0, s4
+                li   a1, 8
+                call kof_array_alloc
+                mv   s6, a0
+                li   s7, 0
+                li   s5, 0
+                li   s4, 0
+            .Lsp_outer:
+                bge  s5, s2, .Lsp_last
+                addi t1, s0, 24
+                add  t1, t1, s5
+                lbu  t1, 0(t1)
+                bne  t1, s3, .Lsp_onext
+                call .Lsp_emit
+                addi s4, s5, 1
+                addi s5, s5, 1
+                j    .Lsp_outer
+            .Lsp_onext:
+                addi s5, s5, 1
+                j    .Lsp_outer
+            .Lsp_last:
+                bge  s4, s2, .Lsp_done
+                mv   s5, s2
+                call .Lsp_emit
+            .Lsp_done:
+                mv   a0, s6
+                j    .Lsp_ret
+            .Lsp_emit:
+                addi sp, sp, -32
+                sd   ra, 24(sp)
+                sub  t0, s5, s4
+                sd   t0, 8(sp)              # len (sobrevive ao memcpy)
+                addi a0, t0, 25
+                addi a0, a0, 15
+                andi a0, a0, -16
+                call kof_alloc
+                sd   a0, 0(sp)              # str nova
+                ld   t0, 8(sp)              # recarrega len (alloc clobbera t0)
+                li   t2, 1
+                sw   t2, 0(a0)
+                sw   zero, 4(a0)
+                sd   zero, 8(a0)
+                sw   t0, 16(a0)
+                sw   zero, 20(a0)
+                addi a0, a0, 24
+                addi a1, s0, 24
+                add  a1, a1, s4
+                mv   a2, t0
+                call kof_memcpy
+                ld   t1, 0(sp)
+                ld   t0, 8(sp)
+                li   t2, 0
+                addi t3, t1, 24
+                add  t3, t3, t0
+                sb   t2, 0(t3)
+                addi t2, s6, 24             # array: dados inline em 24+i*8
+                slli t3, s7, 3
+                add  t2, t2, t3
+                sd   t1, 0(t2)
+                addi s7, s7, 1
+                ld   ra, 24(sp)
+                addi sp, sp, 32
+                ret
+            .Lsp_ret:
+                ld   s7, 8(sp)
+                ld   s6, 16(sp)
+                ld   s5, 24(sp)
+                ld   s4, 32(sp)
+                ld   s3, 40(sp)
+                ld   s2, 48(sp)
+                ld   s1, 56(sp)
+                ld   s0, 64(sp)
+                ld   ra, 72(sp)
+                addi sp, sp, 80
+                ret
+            """;
+
+    static final String RISCV_RUNTIME_ASM_B = """
             # kof_string_to_int(str) -> Int
             .globl kof_string_to_int
             kof_string_to_int:
@@ -3573,24 +5068,76 @@ public class NativeBackend implements Backend {
                 sw   t0, 16(a0)
                 ret
 
-            # ---- kof.log (minimal, sem threshold/timestamp — apenas println) ----
+            # ---- kof.log: label [LEVEL] + msg + newline; stderr para warn/error, stdout para info/debug ----
             .globl kof_log_debug
             kof_log_debug:
-                j kof_log_info
+                li   a1, 0
+                j    kof_log_write_lvl
             .globl kof_log_info
             kof_log_info:
-                addi sp, sp, -16
-                sd   ra, 8(sp)
-                call kof_println_string
-                ld   ra, 8(sp)
-                addi sp, sp, 16
-                ret
+                li   a1, 1
+                j    kof_log_write_lvl
             .globl kof_log_warn
             kof_log_warn:
-                j kof_log_info
+                li   a1, 2
+                j    kof_log_write_lvl
             .globl kof_log_error
             kof_log_error:
-                j kof_log_info
+                li   a1, 3
+                j    kof_log_write_lvl
+            # helper: a0=msg*, a1=level (0..3)
+            kof_log_write_lvl:
+                addi sp, sp, -32
+                sd   ra, 24(sp)
+                sd   s0, 16(sp)      # msg
+                sd   s1, 8(sp)       # level
+                mv   s0, a0
+                mv   s1, a1
+                # fd = level >= 2 ? 2(stderr) : 1(stdout)
+                li   t0, 2
+                bge  s1, t0, .Llw_stderr
+                li   s2, 1
+                j    .Llw_write
+            .Llw_stderr:
+                li   s2, 2
+            .Llw_write:
+                # escolhe label
+                la   t0, .Llog_lbl_debug
+                li   t1, 0
+                beq  s1, t1, .Llw_have_lbl
+                la   t0, .Llog_lbl_info
+                li   t1, 1
+                beq  s1, t1, .Llw_have_lbl
+                la   t0, .Llog_lbl_warn
+                li   t1, 2
+                beq  s1, t1, .Llw_have_lbl
+                la   t0, .Llog_lbl_error
+            .Llw_have_lbl:
+                # write(fd, label, 8)
+                mv   a0, s2
+                mv   a1, t0
+                li   a2, 8
+                li   a7, 64
+                ecall
+                # write(fd, msg.data, msg.len)
+                beqz s0, .Llw_skip_msg
+                lw   a2, 16(s0)
+                addi a1, s0, 24
+                mv   a0, s2
+                li   a7, 64
+                ecall
+            .Llw_skip_msg:
+                # newline (usar .Lnewline)
+                mv   a0, s2
+                la   a1, .Lnewline
+                li   a2, 1
+                li   a7, 64
+                ecall
+                ld   s1, 8(sp)
+                ld   s0, 16(sp)
+                ld   ra, 24(sp)
+                addi sp, sp, 32
+                ret
 
             # ---- kof.config (minimal — retorna default / 0 / false) ----
             .globl kof_config_get
@@ -3978,50 +5525,430 @@ public class NativeBackend implements Backend {
                 call kof_string_from_literal
                 ret
 
-            # ---- kof.cache (minimal stubs) ----
-            .globl kof_cache_get
-            kof_cache_get:
-                li   a0, 0
-                ret
+            # ---- kof.cache riscv64/aarch64: 64 slots de 24B em .bss ([key*][val*][expira_ms]) ----
+            # set(key, val): grava; get(key): lê; set_ttl(key,val,ttl): guarda com expiração real
             .globl kof_cache_set
             kof_cache_set:
-                ret
-            .globl kof_cache_set_ttl
-            kof_cache_set_ttl:
-                ret
-            .globl kof_cache_ttl
-            kof_cache_ttl:
-                li   a0, 0
-                ret
-            .globl kof_cache_delete
-            kof_cache_delete:
-                ret
-            .globl kof_cache_clear
-            kof_cache_clear:
+                addi sp, sp, -48
+                sd   ra, 40(sp)
+                sd   s0, 32(sp)      # key
+                sd   s1, 24(sp)      # val
+                sd   s2, 16(sp)      # ponteiro slot
+                mv   s0, a0
+                mv   s1, a1
+                la   s2, .Lcache_area
+                li   t2, 0
+                li   t3, 64
+            .Lcs_scan:
+                bge  t2, t3, .Lcs_write
+                ld   t4, 0(s2)
+                beqz t4, .Lcs_write       # vazio
+                mv   a0, t4
+                mv   a1, s0
+                call kof_string_equals
+                bnez a0, .Lcs_write       # mesma key, overwrite
+                addi t2, t2, 1
+                addi s2, s2, 24
+                j    .Lcs_scan
+            .Lcs_write:
+                sd   s0, 0(s2)
+                sd   s1, 8(s2)
+                li   t4, 0
+                sd   t4, 16(s2)           # sem ttl
+                ld   s2, 16(sp)
+                ld   s1, 24(sp)
+                ld   s0, 32(sp)
+                ld   ra, 40(sp)
+                addi sp, sp, 48
                 ret
 
-            # ---- kof.mq (minimal stubs — já tem core mas faltam alguns) ----
+            # kof_cache_set_ttl(key, val, ttl_seconds)
+            .globl kof_cache_set_ttl
+            kof_cache_set_ttl:
+                addi sp, sp, -64
+                sd   ra, 56(sp)
+                sd   s0, 48(sp)      # key
+                sd   s1, 40(sp)      # val
+                sd   s2, 32(sp)      # ttl seconds
+                sd   s3, 24(sp)      # slot ptr
+                sd   s4, 16(sp)      # expira em ms
+                mv   s0, a0
+                mv   s1, a1
+                mv   s2, a2
+                # expira = now + ttl*1000
+                call kof_time_now
+                li   t4, 1000
+                mul  t4, s2, t4
+                add  s4, a0, t4
+                # grava
+                la   s3, .Lcache_area
+                li   t2, 0
+                li   t3, 64
+            .Lcst_scan:
+                bge  t2, t3, .Lcst_write
+                ld   t5, 0(s3)
+                beqz t5, .Lcst_write
+                mv   a0, t5
+                mv   a1, s0
+                call kof_string_equals
+                bnez a0, .Lcst_write
+                addi t2, t2, 1
+                addi s3, s3, 24
+                j    .Lcst_scan
+            .Lcst_write:
+                sd   s0, 0(s3)
+                sd   s1, 8(s3)
+                sd   s4, 16(s3)
+                ld   s4, 16(sp)
+                ld   s3, 24(sp)
+                ld   s2, 32(sp)
+                ld   s1, 40(sp)
+                ld   s0, 48(sp)
+                ld   ra, 56(sp)
+                addi sp, sp, 64
+                ret
+
+            # kof_cache_get(key) -> val* ou 0
+            .globl kof_cache_get
+            kof_cache_get:
+                addi sp, sp, -32
+                sd   ra, 24(sp)
+                sd   s0, 16(sp)
+                sd   s1, 8(sp)
+                mv   s0, a0
+                la   s1, .Lcache_area
+                li   t2, 0
+                li   t3, 64
+            .Lcg_scan:
+                bge  t2, t3, .Lcg_miss
+                ld   t4, 0(s1)
+                beqz t4, .Lcg_next
+                mv   a0, t4
+                mv   a1, s0
+                call kof_string_equals
+                bnez a0, .Lcg_hit
+            .Lcg_next:
+                addi t2, t2, 1
+                addi s1, s1, 24
+                j    .Lcg_scan
+            .Lcg_hit:
+                # checa expiração
+                ld   t4, 16(s1)
+                beqz t4, .Lcg_hit_val
+                ld   t5, 16(s1)
+                mv   a0, t5
+                mv   t5, t4
+                ld   ra, 24(sp)      # salva ra p/ chamar time
+                addi sp, sp, -16     # abre frame auxiliar
+                sd   ra, 8(sp)
+                sd   s1, 0(sp)
+                sd   t4, 0(sp)
+                mv   s2, s1          # move ponteiro pra s2 — safe under calls
+                call kof_time_now
+                ld   s1, 0(sp)
+                ld   t4, 0(sp)
+                ld   ra, 8(sp)
+                addi sp, sp, 16
+                # se now >= expira → miss
+                bge  a0, t4, .Lcg_miss
+                # devolve val
+                ld   a0, 8(s1)
+                j    .Lcg_ret
+            .Lcg_hit_val:
+                ld   a0, 8(s1)
+                j    .Lcg_ret
+            .Lcg_miss:
+                li   a0, 0
+            .Lcg_ret:
+                ld   s1, 8(sp)
+                ld   s0, 16(sp)
+                ld   ra, 24(sp)
+                addi sp, sp, 32
+                ret
+
+            # kof_cache_ttl(key) -> segundos restantes, 0 default
+            .globl kof_cache_ttl
+            kof_cache_ttl:
+                addi sp, sp, -32
+                sd   ra, 24(sp)
+                sd   s0, 16(sp)
+                sd   s1, 8(sp)
+                mv   s0, a0
+                la   s1, .Lcache_area
+                li   t2, 0
+                li   t3, 64
+            .Lct_scan:
+                bge  t2, t3, .Lct_miss
+                ld   t4, 0(s1)
+                beqz t4, .Lct_next
+                mv   a0, t4
+                mv   a1, s0
+                call kof_string_equals
+                bnez a0, .Lct_found
+            .Lct_next:
+                addi t2, t2, 1
+                addi s1, s1, 24
+                j    .Lct_scan
+            .Lct_found:
+                ld   t4, 16(s1)
+                beqz t4, .Lct_miss     # sem ttl (expira=0) → 0
+                addi sp, sp, -16
+                sd   ra, 8(sp)
+                sd   t4, 0(sp)
+                mv   s2, s1
+                call kof_time_now
+                ld   t4, 0(sp)         # expira_ms
+                ld   ra, 8(sp)
+                addi sp, sp, 16
+                # resta_ms = expira - now (ms)
+                sub  t4, t4, a0
+                blez t4, .Lct_miss
+                li   t5, 1000
+                div  a0, t4, t5
+                j    .Lct_ret
+            .Lct_miss:
+                li   a0, 0
+            .Lct_ret:
+                ld   s1, 8(sp)
+                ld   s0, 16(sp)
+                ld   ra, 24(sp)
+                addi sp, sp, 32
+                ret
+
+            # kof_cache_delete(key)
+            .globl kof_cache_delete
+            kof_cache_delete:
+                addi sp, sp, -32
+                sd   ra, 24(sp)
+                sd   s0, 16(sp)
+                sd   s1, 8(sp)
+                mv   s0, a0
+                la   s1, .Lcache_area
+                li   t2, 0
+                li   t3, 64
+            .Lcd_scan:
+                bge  t2, t3, .Lcd_done
+                ld   t4, 0(s1)
+                beqz t4, .Lcd_next
+                mv   a0, t4
+                mv   a1, s0
+                call kof_string_equals
+                bnez a0, .Lcd_clear
+            .Lcd_next:
+                addi t2, t2, 1
+                addi s1, s1, 24
+                j    .Lcd_scan
+            .Lcd_clear:
+                li   t0, 0
+                sd   t0, 0(s1)
+                sd   t0, 8(s1)
+                sd   t0, 16(s1)
+            .Lcd_done:
+                ld   s1, 8(sp)
+                ld   s0, 16(sp)
+                ld   ra, 24(sp)
+                addi sp, sp, 32
+                ret
+
+            # kof_cache_clear()
+            .globl kof_cache_clear
+            kof_cache_clear:
+                la   t0, .Lcache_area
+                li   t1, 0
+                li   t2, 64
+            .Lclr_loop:
+                bge  t1, t2, .Lclr_done
+                li   t3, 0
+                sd   t3, 0(t0)
+                sd   t3, 8(t0)
+                sd   t3, 16(t0)
+                addi t1, t1, 1
+                addi t0, t0, 24
+                j    .Lclr_loop
+            .Lclr_done:
+                ret
+            # ---- kof.mq riscv64/aarch64: pub/sub + filas em .bss (64 slots cada) ----
             .globl kof_mq_subscribe
             kof_mq_subscribe:
+                addi sp, sp, -32
+                sd   ra, 24(sp)
+                sd   s0, 16(sp)
+                sd   s1, 8(sp)
+                mv   s0, a0           # topic
+                mv   s1, a1           # fn
+                la   s2, .Lmq_subs
+                li   t2, 0            # i
+                li   t3, 64
+            .Lmss_find:
+                bge  t2, t3, .Lmss_new
+                ld   t4, 0(s2)
+                beqz t4, .Lmss_new
+                mv   a0, t4
+                mv   a1, s0
+                call kof_string_equals
+                bnez a0, .Lmss_addfn
+                addi t2, t2, 1
+                addi s2, s2, 16
+                j    .Lmss_find
+            .Lmss_new:
+                # grava topic + nova lista c/ fn
+                sd   s0, 0(s2)
+                addi sp, sp, -16
+                sd   ra, 8(sp)
+                mv   a0, zero
+                call kof_list_new
+                ld   ra, 8(sp)
+                addi sp, sp, 16
+                sd   a0, 8(s2)
+                mv   a1, s1
+                call kof_list_add
+                j    .Lmss_done
+            .Lmss_addfn:
+                ld   t4, 8(s2)
+                mv   a0, t4
+                mv   a1, s1
+                call kof_list_add
+            .Lmss_done:
+                ld   s1, 8(sp)
+                ld   s0, 16(sp)
+                ld   ra, 24(sp)
+                addi sp, sp, 32
                 ret
+
             .globl kof_mq_unsubscribe
             kof_mq_unsubscribe:
                 ret
+
             .globl kof_mq_publish
             kof_mq_publish:
+                addi sp, sp, -32
+                sd   ra, 24(sp)
+                sd   s0, 16(sp)       # topic
+                sd   s1, 8(sp)        # msg
+                mv   s0, a0
+                mv   s1, a1
+                la   s2, .Lmq_subs
+                li   t2, 0
+                li   t3, 64
+            .Lmp_find:
+                bge  t2, t3, .Lmp_done
+                ld   t4, 0(s2)
+                beqz t4, .Lmp_done
+                mv   a0, t4
+                mv   a1, s0
+                call kof_string_equals
+                bnez a0, .Lmp_dispatch
+                addi t2, t2, 1
+                addi s2, s2, 16
+                j    .Lmp_find
+            .Lmp_dispatch:
+                ld   s3, 8(s2)       # lista de fn
+                li   s4, 0
+            .Lmp_iter:
+                mv   a0, s3
+                call kof_list_size
+                bge  s4, a0, .Lmp_done
+                mv   a0, s3
+                mv   a1, s4
+                call kof_list_get
+                mv   t5, a0          # fn
+                mv   a0, s1          # msg
+                jalr t5
+                addi s4, s4, 1
+                j    .Lmp_iter
+            .Lmp_done:
+                ld   s1, 8(sp)
+                ld   s0, 16(sp)
+                ld   ra, 24(sp)
+                addi sp, sp, 32
                 ret
+
             .globl kof_mq_queue
             kof_mq_queue:
-                la   a0, .Lstr_mq
-                li   a1, 4
-                call kof_string_from_literal
+                addi sp, sp, -32
+                sd   ra, 24(sp)
+                sd   s0, 16(sp)
+                sd   s1, 8(sp)
+                mv   s0, a0
+                mv   s1, a1
+                la   s2, .Lmq_queues
+                li   t2, 0
+                li   t3, 64
+            .Lmq_find2:
+                bge  t2, t3, .Lmq_new2
+                ld   t4, 0(s2)
+                beqz t4, .Lmq_new2
+                mv   a0, t4
+                mv   a1, s0
+                call kof_string_equals
+                bnez a0, .Lmq_add2
+                addi t2, t2, 1
+                addi s2, s2, 16
+                j    .Lmq_find2
+            .Lmq_new2:
+                sd   s0, 0(s2)
+                call kof_list_new
+                sd   a0, 8(s2)
+                mv   s2, a0
+                mv   a1, s1
+                mv   a0, s2
+                call kof_list_add
+                mv   a0, s0
+                j    .Lmq_ret2
+            .Lmq_add2:
+                mv   a1, s1
+                ld   a0, 8(s2)
+                call kof_list_add
+                mv   a0, s0
+            .Lmq_ret2:
+                ld   s1, 8(sp)
+                ld   s0, 16(sp)
+                ld   ra, 24(sp)
+                addi sp, sp, 32
                 ret
+
+            # kof_mq_push(name, item) — add na lista da fila
             .globl kof_mq_push
             kof_mq_push:
-                ret
+                j    kof_mq_queue    # mesma ação nosso modelo: topic/controle igual
+
+            # kof_mq_pop(name) -> KofString* ou 0 — lê primeiro suspeito
             .globl kof_mq_pop
             kof_mq_pop:
+                addi sp, sp, -32
+                sd   ra, 24(sp)
+                sd   s0, 16(sp)
+                mv   s0, a0
+                la   s1, .Lmq_queues
+                li   t2, 0
+                li   t3, 64
+            .Lmpf_find2:
+                bge  t2, t3, .Lmpf_null
+                ld   t4, 0(s1)
+                beqz t4, .Lmpf_null
+                mv   a0, t4
+                mv   a1, s0
+                call kof_string_equals
+                bnez a0, .Lmpf_found
+                addi t2, t2, 1
+                addi s1, s1, 16
+                j    .Lmpf_find2
+            .Lmpf_found:
+                ld   s2, 8(s1)       # lista
+                mv   a0, s2
+                call kof_list_size
+                beqz a0, .Lmpf_null
+                # kof.mq pop: primeiro item, depois segue (lista em ordem)
+                mv   a0, s2
+                li   a1, 0
+                call kof_list_get
+                j    .Lmpf_ret
+            .Lmpf_null:
                 li   a0, 0
+            .Lmpf_ret:
+                ld   s0, 16(sp)
+                ld   ra, 24(sp)
+                addi sp, sp, 32
                 ret
 
             # ---- kof.validation (13 predicados) ----
@@ -4305,12 +6232,570 @@ public class NativeBackend implements Backend {
                 li   a0, 1
                 ret
 
+            # ---- JSN002: kof_json_quote(s@a0) -> KofString* -------------
+            # Escapa para JSON: aspas, backslash, \\n \\r \\t, control<32
+            # como \\u00XX, null -> "null". Mesma semântica do x86_64.
+            .globl kof_json_quote
+            kof_json_quote:
+                addi sp, sp, -48
+                sd   ra, 40(sp)
+                sd   s0, 32(sp)
+                sd   s1, 24(sp)
+                sd   s2, 16(sp)
+                sd   s3, 8(sp)
+                sd   s4, 0(sp)
+                li   s0, 0
+                li   s1, 0
+                beqz a0, .Ljq_bound
+                lw   s1, 16(a0)
+                addi s0, a0, 24
+            .Ljq_bound:
+                li   t0, 6
+                mul  a0, s1, t0
+                addi a0, a0, 30
+                call kof_alloc
+                mv   s2, a0
+                li   t0, 1
+                sw   t0, 0(s2)
+                sw   zero, 4(s2)
+                sd   zero, 8(s2)
+                addi s3, s2, 24
+                beqz s0, .Ljq_null
+                li   t0, 34
+                sb   t0, 0(s3)
+                addi s3, s3, 1
+                li   s4, 0
+            .Ljq_loop:
+                bge  s4, s1, .Ljq_close_str
+                add  t1, s0, s4
+                lbu  a0, 0(t1)
+                li   t0, 34
+                beq  a0, t0, .Ljq_e_q
+                li   t0, 92
+                beq  a0, t0, .Ljq_e_bs
+                li   t0, 10
+                beq  a0, t0, .Ljq_e_nl
+                li   t0, 13
+                beq  a0, t0, .Ljq_e_cr
+                li   t0, 9
+                beq  a0, t0, .Ljq_e_tb
+                li   t0, 32
+                bltu a0, t0, .Ljq_e_uni
+                sb   a0, 0(s3)
+                addi s3, s3, 1
+                j    .Ljq_next
+            .Ljq_e_q:
+                li   t0, 92
+                sb   t0, 0(s3)
+                li   t0, 34
+                sb   t0, 1(s3)
+                addi s3, s3, 2
+                j    .Ljq_next
+            .Ljq_e_bs:
+                li   t0, 92
+                sb   t0, 0(s3)
+                sb   t0, 1(s3)
+                addi s3, s3, 2
+                j    .Ljq_next
+            .Ljq_e_nl:
+                li   t0, 92
+                sb   t0, 0(s3)
+                li   t0, 110
+                sb   t0, 1(s3)
+                addi s3, s3, 2
+                j    .Ljq_next
+            .Ljq_e_cr:
+                li   t0, 92
+                sb   t0, 0(s3)
+                li   t0, 114
+                sb   t0, 1(s3)
+                addi s3, s3, 2
+                j    .Ljq_next
+            .Ljq_e_tb:
+                li   t0, 92
+                sb   t0, 0(s3)
+                li   t0, 116
+                sb   t0, 1(s3)
+                addi s3, s3, 2
+                j    .Ljq_next
+            .Ljq_e_uni:
+                li   t0, 92
+                sb   t0, 0(s3)
+                li   t0, 117
+                sb   t0, 1(s3)
+                li   t0, 48
+                sb   t0, 2(s3)
+                sb   t0, 3(s3)
+                srli t1, a0, 4
+                andi t1, t1, 15
+                li   t0, 10
+                bltu t1, t0, .Ljq_uh1
+                addi t1, t1, 39
+                j    .Ljq_uh2
+            .Ljq_uh1:
+                addi t1, t1, 48
+            .Ljq_uh2:
+                sb   t1, 4(s3)
+                andi t1, a0, 15
+                li   t0, 10
+                bltu t1, t0, .Ljq_ul1
+                addi t1, t1, 39
+                j    .Ljq_ul2
+            .Ljq_ul1:
+                addi t1, t1, 48
+            .Ljq_ul2:
+                sb   t1, 5(s3)
+                addi s3, s3, 6
+                j    .Ljq_next
+            .Ljq_next:
+                addi s4, s4, 1
+                j    .Ljq_loop
+            .Ljq_close_str:
+                li   t0, 34
+                sb   t0, 0(s3)
+                addi s3, s3, 1
+                j    .Ljq_close
+            .Ljq_null:
+                li   t0, 110
+                sb   t0, 0(s3)
+                li   t0, 117
+                sb   t0, 1(s3)
+                li   t0, 108
+                sb   t0, 2(s3)
+                sb   t0, 3(s3)
+                addi s3, s3, 4
+            .Ljq_close:
+                sub  a0, s3, s2
+                addi a0, a0, -24
+                sw   a0, 16(s2)
+                add  t1, s2, a0
+                addi t1, t1, 24
+                sb   zero, 0(t1)
+                mv   a0, s2
+                ld   ra, 40(sp)
+                ld   s0, 32(sp)
+                ld   s1, 24(sp)
+                ld   s2, 16(sp)
+                ld   s3, 8(sp)
+                ld   s4, 0(sp)
+                addi sp, sp, 48
+                ret
+
+            # ---- JSN002: encode de listas/primitivas --------------------
+            # kof_json_encode_int/bool: alias das conversões existentes.
+            .globl kof_json_encode_int
+            kof_json_encode_int:
+                j    kof_int_to_string
+            .globl kof_json_encode_bool
+            kof_json_encode_bool:
+                j    kof_bool_to_string
+            # kof_json_encode_string: aspas + escape = quote (já portado).
+            .globl kof_json_encode_string
+            kof_json_encode_string:
+                j    kof_json_quote
+
+            # Helper: a0 = elemento (ptr), a1 = tag (0 int / 1 str / 2 bool)
+            # -> a0 = json do elemento. (salva ra: dispatch chama funcoes
+            # que sobrescrevem o return address)
+            kof_json_enc_elem:
+                addi sp, sp, -16
+                sd   ra, 8(sp)
+                li   t0, 1
+                beq  a1, t0, .Lenc_el_str
+                li   t0, 2
+                beq  a1, t0, .Lenc_el_bool
+                call kof_json_encode_int
+                j    .Lenc_el_done
+            .Lenc_el_str:
+                call kof_json_encode_string
+                j    .Lenc_el_done
+            .Lenc_el_bool:
+                call kof_json_encode_bool
+            .Lenc_el_done:
+                ld   ra, 8(sp)
+                addi sp, sp, 16
+                ret
+
+            # kof_json_encode_list(list@a0, tag@a1) -> KofString*
+            .globl kof_json_encode_list
+            kof_json_encode_list:
+                addi sp, sp, -48
+                sd   ra, 40(sp)
+                sd   s0, 32(sp)
+                sd   s1, 24(sp)
+                sd   s2, 16(sp)
+                sd   s3, 8(sp)
+                sd   s4, 0(sp)
+                mv   s0, a0
+                mv   s1, a1
+                la   a0, .Lstr_open_json
+                li   a1, 1
+                call kof_string_from_literal
+                mv   s2, a0            # acc = "["
+                li   s3, 0
+            .Lenc_list_loop:
+                lw   t0, 16(s0)
+                bge  s3, t0, .Lenc_list_close
+                slli t0, s3, 3
+                ld   t1, 24(s0)
+                add  a0, t1, t0
+                ld   a0, 0(a0)
+                mv   a1, s1
+                call kof_json_enc_elem
+                mv   s4, a0            # elem encodado
+                bnez s3, .Lenc_list_comma
+                j    .Lenc_list_append
+            .Lenc_list_comma:
+                la   a0, .Lstr_comma_json
+                li   a1, 1
+                call kof_string_from_literal
+                mv   a1, a0            # b = ","
+                mv   a0, s2
+                call kof_string_concat
+                mv   s2, a0
+            .Lenc_list_append:
+                mv   a0, s2
+                mv   a1, s4
+                call kof_string_concat
+                mv   s2, a0
+                addi s3, s3, 1
+                j    .Lenc_list_loop
+            .Lenc_list_close:
+                la   a0, .Lstr_close_json
+                li   a1, 1
+                call kof_string_from_literal
+                mv   a1, a0            # b = "]"
+                mv   a0, s2
+                call kof_string_concat
+                mv   a0, a0
+                ld   ra, 40(sp)
+                ld   s0, 32(sp)
+                ld   s1, 24(sp)
+                ld   s2, 16(sp)
+                ld   s3, 8(sp)
+                ld   s4, 0(sp)
+                addi sp, sp, 48
+                ret
+
+            # ---- JSN002: decode de listas --------------------------------
+            # Helper: a0 = json, a1 = cursor -> a0 = int, a2 = novo cursor.
+            kof_json_dec_int:
+                addi sp, sp, -24
+                sd   ra, 16(sp)
+                sd   s0, 8(sp)
+                sd   s1, 0(sp)
+                mv   s0, a0
+                mv   s1, a1
+                lw   t2, 16(s0)          # t2 = len
+            .Ldj_skip:
+                bge  s1, t2, .Ldj_err
+                add  t0, s0, s1
+                lbu  a0, 24(t0)
+                li   t1, 32
+                beq  a0, t1, .Ldj_skip_inc
+                li   t1, 10
+                beq  a0, t1, .Ldj_skip_inc
+                li   t1, 13
+                beq  a0, t1, .Ldj_skip_inc
+                li   t1, 9
+                beq  a0, t1, .Ldj_skip_inc
+                j    .Ldj_sign
+            .Ldj_skip_inc:
+                addi s1, s1, 1
+                j    .Ldj_skip
+            .Ldj_sign:
+                li   t3, 1
+                li   t1, 45
+                bne  a0, t1, .Ldj_digits
+                li   t3, -1
+                addi s1, s1, 1
+            .Ldj_digits:
+                li   t4, 0
+            .Ldj_loop:
+                bge  s1, t2, .Ldj_done
+                add  t0, s0, s1
+                lbu  a0, 24(t0)
+                li   t1, 48
+                blt  a0, t1, .Ldj_done
+                li   t1, 57
+                bgt  a0, t1, .Ldj_done
+                li   t5, 10
+                mul  t4, t4, t5
+                addi t5, a0, -48
+                add  t4, t4, t5
+                addi s1, s1, 1
+                j    .Ldj_loop
+            .Ldj_done:
+                mul  t4, t4, t3
+                mv   a0, t4
+                mv   a2, s1
+                ld   ra, 16(sp)
+                ld   s0, 8(sp)
+                ld   s1, 0(sp)
+                addi sp, sp, 24
+                ret
+            .Ldj_err:
+                li   a0, 0
+                mv   a2, s1
+                ld   ra, 16(sp)
+                ld   s0, 8(sp)
+                ld   s1, 0(sp)
+                addi sp, sp, 24
+                ret
+
+            # Helper: a0 = json, a1 = cursor -> a0 = KofString, a2 = novo
+            # cursor (após a aspa de fechamento). Backslash: proximo byte,
+            # exceto n->10 e t->9.
+            kof_json_dec_str:
+                addi sp, sp, -48
+                sd   ra, 40(sp)
+                sd   s0, 32(sp)
+                sd   s1, 24(sp)
+                sd   s2, 16(sp)
+                sd   s3, 8(sp)
+                sd   s4, 0(sp)
+                mv   s0, a0
+                mv   s1, a1
+                lw   s2, 16(s0)
+            .Lds_skip:
+                bge  s1, s2, .Lds_empty
+                add  t0, s0, s1
+                lbu  a0, 24(t0)
+                li   t1, 32
+                beq  a0, t1, .Lds_skip_inc
+                li   t1, 10
+                beq  a0, t1, .Lds_skip_inc
+                li   t1, 13
+                beq  a0, t1, .Lds_skip_inc
+                li   t1, 9
+                beq  a0, t1, .Lds_skip_inc
+                j    .Lds_open
+            .Lds_skip_inc:
+                addi s1, s1, 1
+                j    .Lds_skip
+            .Lds_open:
+                li   t1, 34
+                bne  a0, t1, .Lds_empty
+                addi s1, s1, 1
+                li   t0, 16
+                mul  t0, s2, t0
+                addi t0, t0, 32
+                call kof_alloc
+                mv   s4, a0
+                li   t0, 1
+                sw   t0, 0(s4)
+                sw   zero, 4(s4)
+                sd   zero, 8(s4)
+                sw   zero, 16(s4)
+                sw   zero, 20(s4)
+                addi s3, s4, 24
+            .Lds_loop:
+                bge  s1, s2, .Lds_fin
+                add  t0, s0, s1
+                lbu  a0, 24(t0)
+                li   t1, 34
+                beq  a0, t1, .Lds_close
+                li   t1, 92
+                bne  a0, t1, .Lds_plain
+                addi s1, s1, 1
+                bge  s1, s2, .Lds_fin
+                add  t0, s0, s1
+                lbu  a0, 24(t0)
+                li   t1, 110
+                beq  a0, t1, .Lds_nl
+                li   t1, 116
+                beq  a0, t1, .Lds_tab
+                j    .Lds_plain
+            .Lds_nl:
+                li   a0, 10
+                j    .Lds_plain
+            .Lds_tab:
+                li   a0, 9
+            .Lds_plain:
+                sb   a0, 0(s3)
+                addi s3, s3, 1
+                addi s1, s1, 1
+                j    .Lds_loop
+            .Lds_close:
+                addi s1, s1, 1
+            .Lds_fin:
+                sub  t0, s3, s4
+                addi t0, t0, -24
+                sw   t0, 16(s4)
+                add  t1, s4, t0
+                addi t1, t1, 24
+                sb   zero, 0(t1)
+                mv   a0, s4
+                mv   a2, s1
+                ld   ra, 40(sp)
+                ld   s0, 32(sp)
+                ld   s1, 24(sp)
+                ld   s2, 16(sp)
+                ld   s3, 8(sp)
+                ld   s4, 0(sp)
+                addi sp, sp, 48
+                ret
+            .Lds_empty:
+                la   a0, .Lstr_empty
+                li   a1, 0
+                call kof_string_from_literal
+                mv   a2, s1
+                ld   ra, 40(sp)
+                ld   s0, 32(sp)
+                ld   s1, 24(sp)
+                ld   s2, 16(sp)
+                ld   s3, 8(sp)
+                ld   s4, 0(sp)
+                addi sp, sp, 48
+                ret
+
+            # kof_json_decode_int_list(json@a0) -> List<Int>
+            .globl kof_json_decode_int_list
+            kof_json_decode_int_list:
+                addi sp, sp, -48
+                sd   ra, 40(sp)
+                sd   s0, 32(sp)
+                sd   s1, 24(sp)
+                sd   s4, 16(sp)
+                sd   s5, 8(sp)
+                mv   s0, a0            # json (antes de list_new sobrescrever a0)
+                call kof_list_new
+                mv   s4, a0
+                lw   s5, 16(s0)
+                li   s1, 0
+            .Ldil_skip:
+                bge  s1, s5, .Ldil_done
+                add  t0, s0, s1
+                lbu  a0, 24(t0)
+                li   t1, 32
+                beq  a0, t1, .Ldil_skip_inc
+                li   t1, 10
+                beq  a0, t1, .Ldil_skip_inc
+                li   t1, 13
+                beq  a0, t1, .Ldil_skip_inc
+                li   t1, 9
+                beq  a0, t1, .Ldil_skip_inc
+                j    .Ldil_open
+            .Ldil_skip_inc:
+                addi s1, s1, 1
+                j    .Ldil_skip
+            .Ldil_open:
+                li   t1, 91
+                bne  a0, t1, .Ldil_done
+                addi s1, s1, 1
+            .Ldil_loop:
+                bge  s1, s5, .Ldil_done
+                add  t0, s0, s1
+                lbu  a0, 24(t0)
+                li   t1, 93
+                beq  a0, t1, .Ldil_done
+                li   t1, 44
+                beq  a0, t1, .Ldil_comma
+                li   t1, 32
+                beq  a0, t1, .Ldil_comma
+                li   t1, 10
+                beq  a0, t1, .Ldil_comma
+                li   t1, 9
+                beq  a0, t1, .Ldil_comma
+                mv   a0, s0
+                mv   a1, s1
+                call kof_json_dec_int
+                mv   s1, a2
+                mv   a1, a0            # a1 = valor int
+                mv   a0, s4            # a0 = lista
+                call kof_list_add
+                j    .Ldil_loop
+            .Ldil_comma:
+                addi s1, s1, 1
+                j    .Ldil_loop
+            .Ldil_done:
+                mv   a0, s4
+                ld   ra, 40(sp)
+                ld   s0, 32(sp)
+                ld   s1, 24(sp)
+                ld   s4, 16(sp)
+                ld   s5, 8(sp)
+                addi sp, sp, 48
+                ret
+
+            # kof_json_decode_string_list(json@a0) -> List<String>
+            .globl kof_json_decode_string_list
+            kof_json_decode_string_list:
+                addi sp, sp, -48
+                sd   ra, 40(sp)
+                sd   s0, 32(sp)
+                sd   s1, 24(sp)
+                sd   s4, 16(sp)
+                sd   s5, 8(sp)
+                mv   s0, a0            # json (antes de list_new sobrescrever a0)
+                call kof_list_new
+                mv   s4, a0
+                lw   s5, 16(s0)
+                li   s1, 0
+            .Ldsl_skip:
+                bge  s1, s5, .Ldsl_done
+                add  t0, s0, s1
+                lbu  a0, 24(t0)
+                li   t1, 32
+                beq  a0, t1, .Ldsl_skip_inc
+                li   t1, 10
+                beq  a0, t1, .Ldsl_skip_inc
+                li   t1, 13
+                beq  a0, t1, .Ldsl_skip_inc
+                li   t1, 9
+                beq  a0, t1, .Ldsl_skip_inc
+                j    .Ldsl_open
+            .Ldsl_skip_inc:
+                addi s1, s1, 1
+                j    .Ldsl_skip
+            .Ldsl_open:
+                li   t1, 91
+                bne  a0, t1, .Ldsl_done
+                addi s1, s1, 1
+            .Ldsl_loop:
+                bge  s1, s5, .Ldsl_done
+                add  t0, s0, s1
+                lbu  a0, 24(t0)
+                li   t1, 93
+                beq  a0, t1, .Ldsl_done
+                li   t1, 44
+                beq  a0, t1, .Ldsl_comma
+                li   t1, 32
+                beq  a0, t1, .Ldsl_comma
+                li   t1, 10
+                beq  a0, t1, .Ldsl_comma
+                li   t1, 9
+                beq  a0, t1, .Ldsl_comma
+                mv   a0, s0
+                mv   a1, s1
+                call kof_json_dec_str
+                mv   s1, a2
+                mv   a1, a0            # a1 = KofString decodificada
+                mv   a0, s4            # a0 = lista
+                call kof_list_add
+                j    .Ldsl_loop
+            .Ldsl_comma:
+                addi s1, s1, 1
+                j    .Ldsl_loop
+            .Ldsl_done:
+                mv   a0, s4
+                ld   ra, 40(sp)
+                ld   s0, 32(sp)
+                ld   s1, 24(sp)
+                ld   s4, 16(sp)
+                ld   s5, 8(sp)
+                addi sp, sp, 48
+                ret
+
             .section .data
             kof_alloc_ptr: .quad _kof_heap
             .align 16
             kof_exc_chain: .quad 0
             .section .bss
             _kof_heap: .space 262144
+            .Lmq_subs:    .space 1024
+            .Lmq_queues:  .space 1024
+            .Lcache_area: .space 1536
             kof_obs_counter_name: .quad 0
             kof_obs_counter_val: .word 0
             .align 3
@@ -4333,14 +6818,21 @@ public class NativeBackend implements Backend {
             .Lstr_empty_interval: .asciz "interval-0"
             .Lstr_health: .asciz "UP"
             .Lstr_empty_json: .asciz "{}"
+            .Lstr_open_json: .asciz "["
+            .Lstr_close_json: .asciz "]"
+            .Lstr_comma_json: .asciz ","
             .Lstr_trace: .asciz "00000000000000000000000000000000"
             .Lstr_span: .asciz "0000000000000000"
             .Lstr_span_handle: .asciz "000000000000000000000000000000000000000000000000"
             .Lstr_mq: .asciz "mq-0"
             .Lstr_space: .asciz " "
-            .Lstr_nl: .asciz "\n"
+            .Lstr_nl: .asciz "\\n"
             .Lstr_count: .asciz "_count"
             .Lstr_sum: .asciz "_sum"
+            .Llog_lbl_debug: .ascii "[DEBUG] "
+            .Llog_lbl_info:  .ascii "[INFO ] "
+            .Llog_lbl_warn:  .ascii "[WARN ] "
+            .Llog_lbl_error: .ascii "[ERROR] "
             """;
 
     private void emitAarch64(IRModule module, Path outputDir) throws IOException {
@@ -4407,11 +6899,12 @@ public class NativeBackend implements Backend {
         riscvSb.append("    ld \\r, 0(sp)\n");
         riscvSb.append("    addi sp, sp, 8\n");
         riscvSb.append(".endm\n");
+        boolean usesSpawnA = usesSpawn(module);
         for (IRClass c : module.classes()) {
             currentClass = c;
             for (IRMethod m : c.methods()) {
                 if ("<clinit>".equals(m.name())) continue;
-                emitCrossMethodRiscv(riscvSb, c, m);
+                emitCrossMethodRiscv(riscvSb, c, m, usesSpawnA && "main".equals(m.name()));
             }
         }
         String mainEntry = mainClass != null ? sanitizeName(mainClass.name()) + "_main" : "kof_main";
@@ -4422,7 +6915,26 @@ public class NativeBackend implements Backend {
         riscvSb.append("    li a0, 0\n");
         riscvSb.append("    li a7, 93\n");
         riscvSb.append("    ecall\n");
-        riscvSb.append(RISCV_RUNTIME_ASM);
+        riscvSb.append(RISCV_RUNTIME_ASM).append(RISCV_STRN002_ASM).append(RISCV_RUNTIME_ASM_B);
+
+        // NATIVE002-stdlib: http riscv64 → aarch64 (traduzido). Mesma detecção
+        // de uso do emitRiscv; o aarch64 herda linha-a-linha do riscv64.
+        boolean usesHttpA = false;
+        for (IRClass c : module.classes()) {
+            for (IRMethod m : c.methods()) {
+                for (IRBasicBlock b : m.basicBlocks()) {
+                    for (KofOperation op : b.operations()) {
+                        if (op instanceof KofCall kc && kc.methodName().startsWith("kof_http_")) {
+                            usesHttpA = true;
+                        }
+                    }
+                }
+                if (usesHttpA) break;
+            }
+            if (usesHttpA) break;
+        }
+        if (usesHttpA) emitRiscvHttp(riscvSb);
+        if (usesSpawnA) emitRiscvSpawn(riscvSb);
 
         // traduz linha-a-linha
         StringBuilder sb = new StringBuilder();
@@ -4449,6 +6961,12 @@ public class NativeBackend implements Backend {
     }
 
     // ---- tradutor riscv -> aarch64 (mesmo usado no probe Python) ----
+    private static long parseImm(String s) {
+        s = s.trim();
+        if (s.startsWith("0x") || s.startsWith("0X")) return Long.parseUnsignedLong(s.substring(2), 16);
+        return Long.parseLong(s);
+    }
+
     private static String aarch64Reg(String r) {
         return switch (r) {
             case "zero" -> "xzr";
@@ -4497,7 +7015,9 @@ public class NativeBackend implements Backend {
             if (chunk == 0 && !first) continue;
             if (chunk == 0 && first) continue;
             if (first) {
-                out.add("mov " + rd + ", #" + chunk + (i != 0 ? ", lsl #" + (16 * i) : ""));
+                // movz aceita lsl; `mov` (alias) NÃO aceita — ex.: 262144
+                // (0x40000) tem primeiro chunk não-zero em i=1.
+                out.add((i != 0 ? "movz " : "mov ") + rd + ", #" + chunk + (i != 0 ? ", lsl #" + (16 * i) : ""));
                 first = false;
             } else {
                 out.add("movk " + rd + ", #" + chunk + ", lsl #" + (16 * i));
@@ -4528,10 +7048,15 @@ public class NativeBackend implements Backend {
 
     private static List<String> translateRiscvToAarch64(String line) {
         String indent = line.substring(0, line.length() - line.stripLeading().length());
+        // strip trailing comment rest-stripped before anything else
         String s = line.strip();
         if (s.isEmpty()) return List.of(line);
         if (s.startsWith("#")) return List.of(indent + "//" + s.substring(1));
+        // remove qualquer comentário inline (riscv ` # ...` → nada)
+        int ci = s.indexOf('#');
+        if (ci > 0) s = s.substring(0, ci).stripTrailing();
         if (s.endsWith(":") && !s.contains(" ")) return List.of(line);
+        if (s.isEmpty()) return List.of(line);
         // label com diretiva (ex: "kof_alloc_ptr: .quad ...")
         if (s.matches("^\\S+:\\s+\\.\\w+.*")) {
             int colon = s.indexOf(':');
@@ -4541,7 +7066,7 @@ public class NativeBackend implements Backend {
         }
         if (s.startsWith(".")) {
             if (s.startsWith(".align")) return List.of(line);
-            if (s.startsWith(".option")) return List.of(indent + ".arch armv8-a");
+            if (s.startsWith(".option")) return List.of(indent + ".arch armv8.1-a");
             return List.of(line);
         }
         // split mnemonic e resto
@@ -4686,7 +7211,7 @@ public class NativeBackend implements Backend {
         if (mn.equals("li")) {
             String[] args = rest.split(",");
             String rdRaw = args[0].trim();
-            long imm = Long.parseLong(args[1].trim());
+            long imm = parseImm(args[1].trim());
             if (rdRaw.equals("a7")) {
                 return List.of(indent + "mov x8, #" + imm);
             }
@@ -4706,7 +7231,7 @@ public class NativeBackend implements Backend {
         if (mn.equals("addi")) {
             String[] args = rest.split(",");
             String rd = R.apply(args[0].trim()), rs = R.apply(args[1].trim());
-            long imm = Long.parseLong(args[2].trim());
+            long imm = parseImm(args[2].trim());
             // _start alignment: andi é o problema, mas addi com sp já é ok; andi sp,sp,-16 é o único andi com sp
             return aarch64AddSubImm("add", rd, rs, imm, indent);
         }
@@ -4717,7 +7242,7 @@ public class NativeBackend implements Backend {
             String op = mn.equals("andi") ? "and" : "orr";
             String[] args = rest.split(",");
             String rd = R.apply(args[0].trim()), rs = R.apply(args[1].trim());
-            long imm = Long.parseLong(args[2].trim());
+            long imm = parseImm(args[2].trim());
             // sempre expande via temp x17 para garantir encodabilidade
             String tmp = "x17";
             List<String> out = new ArrayList<>();
@@ -4758,6 +7283,14 @@ public class NativeBackend implements Backend {
         if (mn.equals("neg")) {
             String[] args = rest.split(",");
             return List.of(indent + "neg " + R.apply(args[0].trim()) + ", " + R.apply(args[1].trim()));
+        }
+        if (mn.equals("amoadd.d")) {
+            // amoadd.d rd, rs2, (rs1)  ->  ldadd rs2, rd, [rs1]
+            String[] args = rest.split(",");
+            String rd = R.apply(args[0].trim());
+            String rs2 = R.apply(args[1].trim());
+            String base = args[2].trim().replaceAll("[()]", "");
+            return List.of(indent + "ldadd " + rs2 + ", " + rd + ", [" + R.apply(base) + "]");
         }
         if (mn.equals("seqz")) {
             String[] args = rest.split(",");
@@ -4888,6 +7421,7 @@ public class NativeBackend implements Backend {
         if (mn.equals("ret")) return List.of(indent + "ret");
         if (mn.equals("ecall")) return List.of(indent + "svc #0");
         if (mn.equals("nop")) return List.of(indent + "nop");
+        if (mn.equals("fence")) return List.of(indent + "dmb ish");
         // Fallback: linhas desconhecidas (ex: data com aspas) — manter como está para não quebrar o pipeline
         System.err.println("WARN translateRiscvToAarch64 UNHANDLED: " + mn + " | " + line);
         return List.of(line);

@@ -609,4 +609,47 @@ class AndroidInteropE2ETest {
         }, 0);
         return value[0];
     }
+
+    // known-bugs #23 — when a superclass of an external class is NOT on the
+    // classpath, inherited member resolution used to fail silently (chain
+    // truncated). Now a warning is emitted instead.
+    @Test
+    void missingSuperclassOnClasspathWarns(@TempDir Path tempDir) throws IOException, InterruptedException {
+        Path classes = tempDir.resolve("cls");
+        Path baseDir = classes.resolve("com/x");
+        Files.createDirectories(baseDir);
+        // Base NOT included on the classpath on purpose
+        Files.writeString(baseDir.resolve("Base.java"), """
+            package com.x;
+            public class Base {
+                public String inherited() { return "x"; }
+            }
+            """);
+        Files.writeString(baseDir.resolve("Sub.java"), """
+            package com.x;
+            public class Sub extends Base {
+            }
+            """);
+        ProcessBuilder pb = new ProcessBuilder("javac", "--release", "21", "-d", classes.toString(),
+                baseDir.resolve("Base.java").toString(), baseDir.resolve("Sub.java").toString());
+        pb.redirectErrorStream(true);
+        Process p = pb.start();
+        String out = new String(p.getInputStream().readAllBytes());
+        assertEquals(0, p.waitFor(), "javac falhou: " + out);
+
+        // classpath só com Sub (Base excluída)
+        Path subOnly = tempDir.resolve("subonly");
+        Files.createDirectories(subOnly.resolve("com/x"));
+        Files.copy(classes.resolve("com/x/Sub.class"), subOnly.resolve("com/x/Sub.class"));
+
+        ExternalClasspath cp = new ExternalClasspath();
+        cp.setEntries(java.util.List.of(subOnly));
+        assertEquals(0, cp.loadWarnings().size(), "no warning expected before resolve");
+
+        assertNull(cp.resolveMethod("com/x/Sub", "inherited", 0),
+                "inherited member cannot resolve without Base");
+        assertTrue(cp.loadWarnings().stream()
+                        .anyMatch(w -> w.contains("com/x/Base") && w.contains("inherited")),
+                "should warn about the missing superclass, got: " + cp.loadWarnings());
+    }
 }

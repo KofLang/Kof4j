@@ -1,0 +1,45 @@
+// matmul.comp — M32.3 recriado (a fonte original do SPV não estava no
+// repo): C[M,N] = (A[M,K] × B[K,N]) / 1000 com trunc para zero (ponto
+// fixo de milésimos). Todos i32. 1 workgroup por elemento C (M*N WGs,
+// 64 threads dividem o K e reduzem em shared).
+// Push 12B: {m, n, k}.
+// Bindings: 0=a i32 (m*k), 1=b i32 (k*n), 2=c i32 (m*n).
+// c[i*n+j] = (sum_t a[i*k+t] * b[t*n+j]) / 1000
+
+#version 450
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+
+layout(std430, binding = 0) readonly buffer ABuf { int a[]; };
+layout(std430, binding = 1) readonly buffer BBuf { int b[]; };
+layout(std430, binding = 2) writeonly buffer CBuf { int c[]; };
+
+layout(push_constant) uniform Push {
+    int m;
+    int n;
+    int k;
+} pcs;
+
+shared int part[64];
+
+void main() {
+    uint id = gl_WorkGroupID.x;
+    uint lane = gl_LocalInvocationID.x;
+    int i = int(id / uint(max(pcs.n, 1)));
+    int j = int(id % uint(max(pcs.n, 1)));
+    int acc = 0;
+    for (int t = int(lane); t < pcs.k; t += 64) {
+        acc += a[i * pcs.k + t] * b[t * pcs.n + j];
+    }
+    part[lane] = acc;
+    barrier();
+    for (uint s = 32u; s > 0u; s >>= 1u) {
+        if (lane < s) {
+            part[lane] += part[lane + s];
+        }
+        barrier();
+    }
+    if (lane == 0u) {
+        // trunc para zero (C/Kof)
+        c[i * pcs.n + j] = part[0] / 1000;
+    }
+}

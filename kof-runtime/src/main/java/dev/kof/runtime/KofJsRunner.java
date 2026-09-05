@@ -75,6 +75,7 @@ public final class KofJsRunner {
                     .mimeType("application/javascript+module")
                     .build();
             context.eval(source);
+            drainActiveTasks(context);
             if (openWindow) {
                 Value uiRoot = context.getBindings("js").getMember("kof__uiRootHtml");
                 if (uiRoot != null && uiRoot.isString()) {
@@ -291,10 +292,24 @@ public final class KofJsRunner {
                     .mimeType("application/javascript+module")
                     .build();
             context.eval(source);
+            drainActiveTasks(context);
             Value html = context.getBindings("js").getMember("kof__uiRootHtml");
             return html.isString() && !html.asString().isEmpty() ? html.asString() : null;
         } catch (Exception e) {
             return null;
+        }
+    }
+
+    /**
+     * Bombeia microtasks até não haver spawn tasks ativas (kofActiveTasks).
+     * GraalJS pode não drenar a fila após um único eval; sem isso spawn/async
+     * terminam antes do programa sair.
+     */
+    private static void drainActiveTasks(Context context) {
+        Value active = context.getBindings("js").getMember("kofActiveTasks");
+        while (active != null && active.isNumber() && active.asInt() > 0) {
+            context.eval(Source.newBuilder("js", "void 0;", "kof-pump.js").buildLiteral());
+            active = context.getBindings("js").getMember("kofActiveTasks");
         }
     }
 
