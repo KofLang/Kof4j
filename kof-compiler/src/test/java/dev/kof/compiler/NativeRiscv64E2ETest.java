@@ -512,6 +512,23 @@ class NativeRiscv64E2ETest {
         assertEquals("42\n-7\n99\nfalse\ntrue\noi\n-123", out);
     }
 
+    // NATIVE002-stdlib: metrics() com linhas "# TYPE" no cross (paridade
+    // exata com JVM/x86_64 — antes o riscv omitia o TYPE e o tradutor
+    // quebrava .asciz "# TYPE " ao stripar '#' como comentário).
+    @Test
+    void riscv64MetricsParity(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runRiscv64(tempDir, """
+            main() {
+                observability.counter("req")
+                observability.increment("req", 3)
+                observability.gauge("temp", 42)
+                println(observability.metrics())
+            }
+            """);
+        assertEquals("# TYPE req counter\nreq 4\n# TYPE temp gauge\ntemp 42", out);
+    }
+
     private static int startHttpServer() throws IOException {
         java.net.ServerSocket ss = new java.net.ServerSocket(0);
         int port = ss.getLocalPort();

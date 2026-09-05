@@ -5471,13 +5471,35 @@ public class NativeBackend implements Backend {
                 lw   t1, 0(t0)
                 # counter string: name + space + val + newline
                 mv   a0, s0
-                mv   a1, t1
+                la   t0, kof_obs_gauge_name
+                ld   a1, 0(t0)
                 # we need to convert counter name + space + val
                 # s0 = s0 + counter_name
                 mv   s1, s0
                 mv   a0, s1
-                mv   a1, t1
+                la   t0, kof_obs_gauge_name
+                ld   a1, 0(t0)
                 # actually we will build step by step via kof_string_concat and kof_int_to_string
+                # "# TYPE " + name + " counter" (paridade JVM/x86_64)
+                la   a0, .Lstr_obs_type
+                li   a1, 7
+                call kof_string_from_literal
+                mv   a1, a0
+                mv   a0, s0
+                call kof_string_concat
+                mv   s0, a0
+                la   t2, kof_obs_counter_name
+                ld   a1, 0(t2)
+                mv   a0, s0
+                call kof_string_concat
+                mv   s0, a0
+                la   a0, .Lstr_obs_counter_nl
+                li   a1, 9
+                call kof_string_from_literal
+                mv   a1, a0
+                mv   a0, s0
+                call kof_string_concat
+                mv   s0, a0
                 la   t2, kof_obs_counter_name
                 ld   a1, 0(t2)
                 mv   a0, s0
@@ -5510,8 +5532,29 @@ public class NativeBackend implements Backend {
                 beqz t1, .Loc_met_hist
                 la   t0, kof_obs_gauge_val
                 lw   t2, 0(t0)
+                # "# TYPE " + name + " gauge"
+                la   a0, .Lstr_obs_type
+                li   a1, 7
+                call kof_string_from_literal
+                mv   a1, a0
                 mv   a0, s0
-                mv   a1, t1
+                call kof_string_concat
+                mv   s0, a0
+                la   t0, kof_obs_gauge_name
+                ld   a1, 0(t0)
+                mv   a0, s0
+                call kof_string_concat
+                mv   s0, a0
+                la   a0, .Lstr_obs_gauge_nl
+                li   a1, 7
+                call kof_string_from_literal
+                mv   a1, a0
+                mv   a0, s0
+                call kof_string_concat
+                mv   s0, a0
+                mv   a0, s0
+                la   t0, kof_obs_gauge_name
+                ld   a1, 0(t0)
                 call kof_string_concat
                 mv   s0, a0
                 la   a0, .Lstr_space
@@ -5539,9 +5582,37 @@ public class NativeBackend implements Backend {
                 la   t0, kof_obs_hist_name
                 ld   t1, 0(t0)
                 beqz t1, .Loc_met_done
+                # "# TYPE " + name + _count + " counter"
+                la   a0, .Lstr_obs_type
+                li   a1, 7
+                call kof_string_from_literal
+                mv   a1, a0
+                mv   a0, s0
+                call kof_string_concat
+                mv   s0, a0
+                mv   a0, s0
+                la   t0, kof_obs_hist_name
+                ld   a1, 0(t0)
+                call kof_string_concat
+                mv   s0, a0
+                la   a0, .Lstr_count
+                li   a1, 6
+                call kof_string_from_literal
+                mv   a1, a0
+                mv   a0, s0
+                call kof_string_concat
+                mv   s0, a0
+                la   a0, .Lstr_obs_counter_nl
+                li   a1, 9
+                call kof_string_from_literal
+                mv   a1, a0
+                mv   a0, s0
+                call kof_string_concat
+                mv   s0, a0
                 # hist_count line: name + _count + space + count + newline
                 mv   a0, s0
-                mv   a1, t1
+                la   t0, kof_obs_hist_name
+                ld   a1, 0(t0)
                 call kof_string_concat
                 mv   s0, a0
                 la   a0, .Lstr_count
@@ -5572,11 +5643,40 @@ public class NativeBackend implements Backend {
                 mv   a0, s0
                 call kof_string_concat
                 mv   s0, a0
-                # hist_sum line: name + _sum + space + sum + newline
+                # "# TYPE " + name + _sum + " gauge" + hist_sum line
+                la   t0, kof_obs_hist_name
+                ld   t1, 0(t0)
+                la   a0, .Lstr_obs_type
+                li   a1, 7
+                call kof_string_from_literal
+                mv   a1, a0
+                mv   a0, s0
+                call kof_string_concat
+                mv   s0, a0
+                mv   a0, s0
+                la   t0, kof_obs_hist_name
+                ld   a1, 0(t0)
+                call kof_string_concat
+                mv   s0, a0
+                la   a0, .Lstr_sum
+                li   a1, 4
+                call kof_string_from_literal
+                mv   a1, a0
+                mv   a0, s0
+                call kof_string_concat
+                mv   s0, a0
+                la   a0, .Lstr_obs_gauge_nl
+                li   a1, 7
+                call kof_string_from_literal
+                mv   a1, a0
+                mv   a0, s0
+                call kof_string_concat
+                mv   s0, a0
                 la   t0, kof_obs_hist_name
                 ld   t1, 0(t0)
                 mv   a0, s0
-                mv   a1, t1
+                la   t0, kof_obs_hist_name
+                ld   a1, 0(t0)
                 call kof_string_concat
                 mv   s0, a0
                 la   a0, .Lstr_sum
@@ -7079,6 +7179,9 @@ public class NativeBackend implements Backend {
             .Lstr_span_handle: .asciz "000000000000000000000000000000000000000000000000"
             .Lstr_mq: .asciz "mq-0"
             .Lstr_mq_prefix: .asciz "mq-"
+            .Lstr_obs_type: .asciz "# TYPE "
+            .Lstr_obs_counter_nl: .asciz " counter\\n"
+            .Lstr_obs_gauge_nl: .asciz " gauge\\n"
             .Lstr_space: .asciz " "
             .Lstr_nl: .asciz "\\n"
             .Lstr_count: .asciz "_count"
@@ -8084,8 +8187,15 @@ public class NativeBackend implements Backend {
         String s = line.strip();
         if (s.isEmpty()) return List.of(line);
         if (s.startsWith("#")) return List.of(indent + "//" + s.substring(1));
-        // remove qualquer comentário inline (riscv ` # ...` → nada)
-        int ci = s.indexOf('#');
+        // remove qualquer comentário inline (riscv ` # ...` → nada) — mas só
+        // fora de aspas: `.asciz "# TYPE "` tem '#' dentro da string.
+        int ci = -1;
+        boolean inStr = false;
+        for (int i = 0; i < s.length(); i++) {
+            char ch = s.charAt(i);
+            if (ch == '"') inStr = !inStr;
+            else if (ch == '#' && !inStr) { ci = i; break; }
+        }
         if (ci > 0) s = s.substring(0, ci).stripTrailing();
         if (s.endsWith(":") && !s.contains(" ")) return List.of(line);
         if (s.isEmpty()) return List.of(line);
