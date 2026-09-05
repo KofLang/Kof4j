@@ -122,13 +122,14 @@ Não duplica o frontend do Kof. O ponto de entrada é o **Kof AST**.
 | tipos (primitivos/Strings/arrays) | `switches` (tableswitch/lookupswitch) |
 | aritmética `(a+b)` e negação `-x` | exceções (`try/catch/finally`) |
 | comparações (`>`, `==`, …) | casts (`checkcast`), operações com estado raro |
-| if/else → if-expression | múltiplos catches, `athrow` |
-| while → `while (cond) { ... }` com locals (`var`/`=`) | `invokedynamic`, `monitor`, `newarray` |
-| chamadas (`this.m(...)`, `Owner.m(...)` — invokestatic/virtual) | stdlib com mapeamento não-trivial |
+| if/else → if-expression | `invokedynamic`, `monitor`, `newarray` |
+| while → `while (cond) { ... }` com locals (`var`/`=`) | `switch` (tableswitch/lookupswitch) |
+| chamadas (`this.m(...)`, `Owner.m(...)` — invokestatic/virtual) | múltiplos catches aninhados |
 | acesso a campo (`this.f`, `Owner.f`) + atribuição (`this.f = v`) | — |
 | criação de objeto (`X(...)` — `new`+`dup`+`<init>`) | — |
+| try/catch → `try { ... } catch (String e) { ... }` (exceção = String) | `finally` |
 
-Recuperação cobre a **Fase B (bytecode IR)**, **C (CFG com branches/loops)** e
-**D (tipos)** — e a **Fase E** para o subconjunto linear/branch/loop/call.
-Prioridades restantes (DECOMPILER §3): `switch`, `try/catch`, `getfield`,
-`new` e mapeamento da stdlib — cada um um incremento com teste próprio.
+Recuperação cobre a **Fase B (bytecode IR)**, **C (CFG com branches/loops/exceções)** e
+**D (tipos)** — e a **Fase E** para o subconjunto linear/branch/loop/call/campo/try.
+Prioridade restante (DECOMPILER §3): `switch` (tableswitch/lookupswitch) e
+`finally` — cada um um incremento com teste próprio.
