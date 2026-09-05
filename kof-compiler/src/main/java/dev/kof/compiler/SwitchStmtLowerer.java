@@ -14,7 +14,7 @@ final class SwitchStmtLowerer {
                                  String owner, int localIdx, List<IRLocalVariable> locals, Type returnType) {
 LabelId endLabel = LabelId.create();
 LabelId defaultLabel = LabelId.create();
-Type switchType = driver.inferExprType(ss.expression(), locals);
+Type switchType = ExpressionTyper.inferExprType(driver, ss.expression(), locals);
 // ── exaustividade: switch sobre enum precisa cobrir todas as
 // constantes ou ter default (nunca cair silenciosamente)
 boolean enumSwitch = false;

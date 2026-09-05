@@ -13,7 +13,7 @@ public class CompilerDriver {
     CompilationUnitNode currentUnit;
     SemanticAnalyzer semanticAnalyzer;
 Target target = Target.JVM;
-    private boolean optimizeEnabled = true;
+    boolean optimizeEnabled = true;
     private boolean debugInfoEnabled = true;
     private java.util.function.BiConsumer<IRModule, IRModule> irObserver;
     private IRObserver irStatsObserver;
@@ -24,7 +24,7 @@ Target target = Target.JVM;
     final java.util.Deque<LabelId> breakLabels = new java.util.ArrayDeque<>();
     final java.util.Deque<LabelId> continueLabels = new java.util.ArrayDeque<>();
     boolean loweringMain;
-    private boolean mainArgsListField;
+    boolean mainArgsListField;
 
     public CompilationResult compile(Path sourceFile, Path outputDir) {
         return compile(sourceFile, outputDir, Target.JVM);
@@ -478,7 +478,7 @@ Target target = Target.JVM;
 
 
     private final java.util.Map<String, List<EntityFieldNode>> entitySchemas = new java.util.LinkedHashMap<>();
-    private final java.util.IdentityHashMap<LambdaExpr, String> lambdaClassNames = new java.util.IdentityHashMap<>();
+    final java.util.IdentityHashMap<LambdaExpr, String> lambdaClassNames = new java.util.IdentityHashMap<>();
     /** Pontes super.metodo() geradas para lambdas: dono interno → método. */
     private final Map<String, List<IRMethod>> pendingSuperBridges = new java.util.LinkedHashMap<>();
 
@@ -710,7 +710,7 @@ Target target = Target.JVM;
         ops.add(new KofLoadLiteral(BuiltinTypes.STRING, sql.toString()));
         // 3) binds (primitivos boxed — o runtime espera Object)
         for (ExpressionNode b : binds) {
-            Type bt = inferExprType(b, locals);
+            Type bt = ExpressionTyper.inferExprType(this, b, locals);
             localIdx = emitExpression(b, ops, owner, localIdx, locals);
             if (TypeMetrics.isPrimitiveType(bt)) TypeEmitter.boxPrimitive(ops, bt);
         }
@@ -795,7 +795,7 @@ Target target = Target.JVM;
         return false;
     }
     private final java.util.List<TestInfo> discoveredTests = new java.util.ArrayList<>();
-    private boolean testHarnessMode = false;
+    boolean testHarnessMode = false;
     int lambdaCounter = 0;
 
     /** Uma chave de config descoberta em compile-time (kof config gen). */
@@ -1593,9 +1593,9 @@ Target target = Target.JVM;
     /** Nome da constante de enum representada por um rótulo de case. */
 
 
-    private Type listOfElementType(MethodCallExpr mc, List<IRLocalVariable> locals) {
+    Type listOfElementType(MethodCallExpr mc, List<IRLocalVariable> locals) {
         if (!mc.arguments().isEmpty()) {
-            return inferExprType(mc.arguments().get(0), locals);
+            return ExpressionTyper.inferExprType(this, mc.arguments().get(0), locals);
         }
         if (!mc.typeArguments().isEmpty()) {
             return CompilerTypes.toType(mc.typeArguments().get(0), currentUnit);
@@ -1634,12 +1634,12 @@ Target target = Target.JVM;
                 if (stmt instanceof VarDeclStmt vds && vds.initializer() != null) {
                     Type vt = vds.type() != null && !"var".equals(vds.type())
                             ? CompilerTypes.toType(vds.type(), currentUnit)
-                            : inferExprType(vds.initializer(), tmpLocals);
+                            : ExpressionTyper.inferExprType(this, vds.initializer(), tmpLocals);
                     tmpLocals.add(new IRLocalVariable(tmpIdx, vds.name(), vt));
                     tmpIdx += TypeMetrics.isDoubleWidth(vt) ? 2 : 1;
                 }
                 if (stmt instanceof ReturnStmt ret && ret.value() != null) {
-                    Type inferred = inferExprType(ret.value(), tmpLocals);
+                    Type inferred = ExpressionTyper.inferExprType(this, ret.value(), tmpLocals);
                     if (!(inferred instanceof Type.UnknownType) && !Type.isVoid(inferred)) {
                         returnType = inferred;
                     }
@@ -1882,10 +1882,10 @@ Target target = Target.JVM;
                     }
                     if ("instanceof".equals(bin.operator())) {
                         ops.add(new KofInstanceOf(targetType));
-                    } else if (TypeMetrics.isPrimitiveType(targetType) && TypeMetrics.isPrimitiveType(inferExprType(bin.left(), locals))) {
+                    } else if (TypeMetrics.isPrimitiveType(targetType) && TypeMetrics.isPrimitiveType(ExpressionTyper.inferExprType(this, bin.left(), locals))) {
                         // cast primitivo (x as Char/Int/…): conversão numérica,
                         // NÃO checkcast (que exigiria um objeto na pilha)
-                        Type fromT = inferExprType(bin.left(), locals);
+                        Type fromT = ExpressionTyper.inferExprType(this, bin.left(), locals);
                         emitWideningIfNeeded(ops, fromT, targetType);
                         if (targetType instanceof Type.PrimitiveType tp2
                                 && ("char".equals(tp2.name()) || "Char".equals(tp2.name()))) {
@@ -1953,10 +1953,10 @@ Target target = Target.JVM;
                     cursor = be.left();
                 }
                 localIdx = emitExpression(cursor, ops, owner, localIdx, locals);
-                Type accType = inferExprType(cursor, locals);
+                Type accType = ExpressionTyper.inferExprType(this, cursor, locals);
                 for (int ci = chain.size() - 1; ci >= 0; ci--) {
                     BinaryExpr be = chain.get(ci);
-                    Type rightType = inferExprType(be.right(), locals);
+                    Type rightType = ExpressionTyper.inferExprType(this, be.right(), locals);
                     boolean isArithmetic = switch (be.operator()) {
                         case "+", "-", "*", "/", "%" -> true;
                         default -> false;
@@ -2106,7 +2106,7 @@ Target target = Target.JVM;
                 yield localIdx;
             }
             case UnaryExpr ue -> {
-                Type operandType = inferExprType(ue.operand(), locals);
+                Type operandType = ExpressionTyper.inferExprType(this, ue.operand(), locals);
                 if ("++".equals(ue.operator()) || "--".equals(ue.operator())) {
                     localIdx = emitIncrement(ue, operandType, ops, owner, localIdx, locals);
                     yield localIdx;
@@ -2126,7 +2126,7 @@ Target target = Target.JVM;
                         ? semanticAnalyzer.getClass(mc.methodName()) : null;
                 if (mc.receiver() == null && userCtor != null) {
                     List<Type> argTypes = new ArrayList<>();
-                    for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
+                    for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(this, arg, locals));
                     SymbolTable.ConstructorSymbol ctor = null;
                     SymbolTable.Symbol ctorSym = userCtor.members().resolve("<init>");
                     if (ctorSym instanceof SymbolTable.ConstructorSymbol ctorSingle) ctor = ctorSingle;
@@ -2431,7 +2431,7 @@ Target target = Target.JVM;
                         ops.add(new KofDup());
                         localIdx = emitExpression(arg, ops, owner, localIdx, locals);
                         ops.add(new KofCall(listType, "kof_list_add",
-                                List.of(inferExprType(arg, locals)), Type.PrimitiveType.VOID, KofCallKind.INSTANCE));
+                                List.of(ExpressionTyper.inferExprType(this, arg, locals)), Type.PrimitiveType.VOID, KofCallKind.INSTANCE));
                     }
                     yield localIdx;
                 }
@@ -2446,7 +2446,7 @@ Target target = Target.JVM;
                     // Android: reusa o caminho JVM (CompletableFuture + platform
                     // threads no ART) — AND001 fechado 31/08.
                     if ("selectAny".equals(mc.methodName())) {
-                        Type firstH = inferExprType(mc.arguments().get(0), locals);
+                        Type firstH = ExpressionTyper.inferExprType(this, mc.arguments().get(0), locals);
                         Type elemT = new Type.ClassType("kof.concurrent", "Handle",
                                 firstH instanceof Type.ClassType fh
                                         && !fh.typeArguments().isEmpty()
@@ -2460,7 +2460,7 @@ Target target = Target.JVM;
                             ops.add(new KofCall(listT, "kof_list_add", List.of(elemT),
                                     Type.PrimitiveType.VOID, KofCallKind.INSTANCE));
                         }
-                        Type resT = inferExprType(mc, locals);
+                        Type resT = ExpressionTyper.inferExprType(this, mc, locals);
                         ops.add(new KofCall(
                                 new Type.ClassType("dev.kof.runtime", "KofRuntime", List.of()),
                                 "kof_select_any", List.of(listT), resT, KofCallKind.FUNCTION));
@@ -2474,7 +2474,7 @@ Target target = Target.JVM;
                                 fn, List.of(), ret, KofCallKind.FUNCTION));
                     } else {
                         localIdx = emitExpression(mc.arguments().get(0), ops, owner, localIdx, locals);
-                        Type h = inferExprType(mc.arguments().get(0), locals);
+                        Type h = ExpressionTyper.inferExprType(this, mc.arguments().get(0), locals);
                         ops.add(new KofCall(
                                 new Type.ClassType("dev.kof.runtime", "KofRuntime", List.of()),
                                 fn, List.of(h), ret, KofCallKind.FUNCTION));
@@ -2488,7 +2488,7 @@ Target target = Target.JVM;
                     // handle (pthread já existe via spawn) — CONC001 fechado p/ estes.
                     // Android: reusa o caminho JVM (Future.isDone/getNow).
                     localIdx = emitExpression(mc.arguments().get(0), ops, owner, localIdx, locals);
-                    Type hE = inferExprType(mc.arguments().get(0), locals);
+                    Type hE = ExpressionTyper.inferExprType(this, mc.arguments().get(0), locals);
                     Type rE = Type.UnknownType.UNKNOWN;
                     if (hE instanceof Type.ClassType ct && !ct.typeArguments().isEmpty()
                             && "poll".equals(mc.methodName())) {
@@ -2508,7 +2508,7 @@ Target target = Target.JVM;
                     // senão lança exceção (capturável via try/catch). G8/CONC residual.
                     // Android: Future.get(timeout) existe no ART — AND001 fechado.
                     localIdx = emitExpression(mc.arguments().get(0), ops, owner, localIdx, locals);
-                    Type hT = inferExprType(mc.arguments().get(0), locals);
+                    Type hT = ExpressionTyper.inferExprType(this, mc.arguments().get(0), locals);
                     Type resT = Type.UnknownType.UNKNOWN;
                     if (hT instanceof Type.ClassType ct && "kof.concurrent".equals(ct.packageName())
                             && !ct.typeArguments().isEmpty()) {
@@ -2538,7 +2538,7 @@ Target target = Target.JVM;
                     if (target.isNative()) {
                         // CONC001: spawn-expr com handle real (pthread)
                         ExpressionNode bodyN = mc.arguments().get(0);
-                        Type resultTN = inferExprType(bodyN, locals);
+                        Type resultTN = ExpressionTyper.inferExprType(this, bodyN, locals);
                         Type handleTN = new Type.ClassType("kof.concurrent", "Handle", List.of(resultTN));
                         LambdaExpr leN2 = bodyN instanceof LambdaExpr l2 ? l2
                                 : new LambdaExpr(bodyN.position() != null ? bodyN.position() : mc.position(),
@@ -2556,7 +2556,7 @@ Target target = Target.JVM;
                         yield localIdx;
                     }
                     ExpressionNode body = mc.arguments().get(0);
-                    Type resultT = inferExprType(body, locals);
+                    Type resultT = ExpressionTyper.inferExprType(this, body, locals);
                     Type handleT = new Type.ClassType("kof.concurrent", "Handle", List.of(resultT));
                     LambdaExpr le = body instanceof LambdaExpr l0 ? l0
                             : new LambdaExpr(body.position() != null ? body.position() : mc.position(),
@@ -2575,7 +2575,7 @@ Target target = Target.JVM;
                 }
                 if (mc.receiver() == null && "__kof_await".equals(mc.methodName())) {
                     localIdx = emitExpression(mc.arguments().get(0), ops, owner, localIdx, locals);
-                    Type hT = inferExprType(mc.arguments().get(0), locals);
+                    Type hT = ExpressionTyper.inferExprType(this, mc.arguments().get(0), locals);
                     Type resT = Type.UnknownType.UNKNOWN;
                     if (hT instanceof Type.ClassType ct
                             && !ct.typeArguments().isEmpty()) resT = ct.typeArguments().get(0);
@@ -2625,9 +2625,9 @@ Target target = Target.JVM;
                     Type valueType = Type.UnknownType.UNKNOWN;
                     if (!mc.arguments().isEmpty()) {
                         // mapOf(k1, v1, k2, v2, ...): pinning do tipo no primeiro par
-                        keyType = inferExprType(mc.arguments().get(0), locals);
+                        keyType = ExpressionTyper.inferExprType(this, mc.arguments().get(0), locals);
                         if (mc.arguments().size() > 1) {
-                            valueType = inferExprType(mc.arguments().get(1), locals);
+                            valueType = ExpressionTyper.inferExprType(this, mc.arguments().get(1), locals);
                         }
                     }
                     Type mapType = new Type.ClassType("kof", "Map", List.of(keyType, valueType));
@@ -2635,8 +2635,8 @@ Target target = Target.JVM;
                     // pares: (k0,v0), (k1,v1), ...
                     for (int ai = 0; ai + 1 < mc.arguments().size(); ai += 2) {
                         ops.add(new KofDup());
-                        Type kType = inferExprType(mc.arguments().get(ai), locals);
-                        Type vType = inferExprType(mc.arguments().get(ai + 1), locals);
+                        Type kType = ExpressionTyper.inferExprType(this, mc.arguments().get(ai), locals);
+                        Type vType = ExpressionTyper.inferExprType(this, mc.arguments().get(ai + 1), locals);
                         localIdx = emitExpression(mc.arguments().get(ai), ops, owner, localIdx, locals);
                         localIdx = emitExpression(mc.arguments().get(ai + 1), ops, owner, localIdx, locals);
                         // VOID no put: o map duplicado continua na pilha para o próximo par
@@ -2647,7 +2647,7 @@ Target target = Target.JVM;
                 }
                 if ("setOf".equals(mc.methodName()) && mc.receiver() == null) {
                     Type elemType = Type.UnknownType.UNKNOWN;
-                    if (!mc.arguments().isEmpty()) elemType = inferExprType(mc.arguments().get(0), locals);
+                    if (!mc.arguments().isEmpty()) elemType = ExpressionTyper.inferExprType(this, mc.arguments().get(0), locals);
                     Type setType = new Type.ClassType("kof", "Set", List.of(elemType));
                     ops.add(new KofCall(setType, "kof_set_new", List.of(), setType, KofCallKind.FUNCTION));
                     for (ExpressionNode arg : mc.arguments()) {
@@ -2656,12 +2656,12 @@ Target target = Target.JVM;
                         // VOID na construção: o backend descarta o bool e o set
                         // duplicado continua na pilha para o próximo append
                         ops.add(new KofCall(setType, "kof_set_add",
-                                List.of(inferExprType(arg, locals)), Type.PrimitiveType.VOID, KofCallKind.INSTANCE));
+                                List.of(ExpressionTyper.inferExprType(this, arg, locals)), Type.PrimitiveType.VOID, KofCallKind.INSTANCE));
                     }
                     yield localIdx;
                 }
                 if (("print".equals(mc.methodName()) || "println".equals(mc.methodName())) && mc.arguments().size() == 1) {
-                    Type printedType = inferExprType(mc.arguments().get(0), locals);
+                    Type printedType = ExpressionTyper.inferExprType(this, mc.arguments().get(0), locals);
                     if (Type.isVoid(printedType)) {
                         // void não é um valor: println(f()) com f void empilhava
                         // nada e o backend dava pop de lixo (segfault Native /
@@ -2683,7 +2683,7 @@ Target target = Target.JVM;
                             new Type.ClassType("java.lang", "System", List.of()),
                             "out", new Type.ClassType("java.io", "PrintStream", List.of())));
                     localIdx = emitExpression(mc.arguments().get(0), ops, owner, localIdx, locals);
-                    Type argType = inferExprType(mc.arguments().get(0), locals);
+                    Type argType = ExpressionTyper.inferExprType(this, mc.arguments().get(0), locals);
                     if (TypeMetrics.isPrimitiveType(argType)) {
                         if (target.isNative()) {
                             // println(char) é NUMÉRICO (congelado: strings.md
@@ -2770,7 +2770,7 @@ Target target = Target.JVM;
                 } else if (mc.receiver() instanceof IdentifierExpr rid && !isLocalVarName(rid.name(), locals)
                             && "json".equals(rid.name())) {
                     if ("encode".equals(mc.methodName()) && mc.arguments().size() == 1) {
-                        Type argType = inferExprType(mc.arguments().get(0), locals);
+                        Type argType = ExpressionTyper.inferExprType(this, mc.arguments().get(0), locals);
                         if (!jsonSupported(argType, false)) {
                             yield localIdx;
                         }
@@ -2926,7 +2926,7 @@ Target target = Target.JVM;
                     yield localIdx;
 } else if (mc.receiver() instanceof IdentifierExpr rid && KofDb.isDbNamespace(rid.name())) {
                     List<Type> argTypes = new ArrayList<>();
-                    for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
+                    for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(this, arg, locals));
                     boolean typed = KofDb.isQuery(mc.methodName()) && !mc.typeArguments().isEmpty();
                     KofDb.DbCall dbCall = KofDb.staticCall(mc.methodName(), argTypes, typed);
                     if (dbCall != null) {
@@ -2976,7 +2976,7 @@ Target target = Target.JVM;
                 } else if (mc.receiver() instanceof IdentifierExpr rid && !isLocalVarName(rid.name(), locals)
                             && KofOrm.isOrmNamespace(rid.name())) {
                     List<Type> argTypes = new ArrayList<>();
-                    for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
+                    for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(this, arg, locals));
                     boolean typed = !mc.typeArguments().isEmpty();
                     String entityName = typed ? mc.typeArguments().get(0) : null;
                     if (entityName == null && "save".equals(mc.methodName()) && !argTypes.isEmpty()) {
@@ -3020,8 +3020,8 @@ Target target = Target.JVM;
                         for (int ai = 0; ai < mc.arguments().size(); ai++) {
                             ExpressionNode arg = mc.arguments().get(ai);
                             localIdx = emitExpression(arg, ops, owner, localIdx, locals);
-                            if (ai > 0 && TypeMetrics.isPrimitiveType(inferExprType(arg, locals))) {
-                                TypeEmitter.boxPrimitive(ops, inferExprType(arg, locals));
+                            if (ai > 0 && TypeMetrics.isPrimitiveType(ExpressionTyper.inferExprType(this, arg, locals))) {
+                                TypeEmitter.boxPrimitive(ops, ExpressionTyper.inferExprType(this, arg, locals));
                             }
                         }
                         // literais do schema (conhecidos em compile-time):
@@ -3063,7 +3063,7 @@ Target target = Target.JVM;
                 } else if (mc.receiver() instanceof IdentifierExpr rid && !isLocalVarName(rid.name(), locals)
                             && KofLog.isLogNamespace(rid.name())) {
                     List<Type> argTypes = new ArrayList<>();
-                    for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
+                    for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(this, arg, locals));
                     KofLog.LogCall logCall = KofLog.staticCall(mc.methodName(), argTypes);
                     if (logCall != null) {
                         if (!KofLog.supportedOn(target)) {
@@ -3090,7 +3090,7 @@ Target target = Target.JVM;
                 } else if (mc.receiver() instanceof IdentifierExpr rid && "process".equals(rid.name())
                         && findLocalVar(rid.name(), locals) == null) {
                     List<Type> argTypes = new ArrayList<>();
-                    for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
+                    for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(this, arg, locals));
                     KofProcess.ProcessCall procCall = KofProcess.entryCall(mc.methodName(), argTypes);
                     if (procCall != null && "kof_process_spawn".equals(procCall.function())) {
                         if (target.isNative()) {
@@ -3164,7 +3164,7 @@ Target target = Target.JVM;
                 } else if (mc.receiver() instanceof IdentifierExpr rid && !isLocalVarName(rid.name(), locals)
                             && KofHttp.isHttpNamespace(rid.name())) {
                     List<Type> argTypes = new ArrayList<>();
-                    for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
+                    for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(this, arg, locals));
                     KofHttp.HttpCall httpCall = KofHttp.staticCall(mc.methodName(), argTypes);
                     if (httpCall != null) {
                         if (!KofHttp.supportedOn(target)) {
@@ -3190,7 +3190,7 @@ Target target = Target.JVM;
                 } else if (mc.receiver() instanceof IdentifierExpr rid && !isLocalVarName(rid.name(), locals)
                             && KofTime.isTimeNamespace(rid.name())) {
                     List<Type> argTypes = new ArrayList<>();
-                    for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
+                    for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(this, arg, locals));
                     KofTime.TimeCall timeCall = KofTime.staticCall(mc.methodName(), argTypes);
                     if (timeCall != null) {
                         if (!KofTime.supportedOn(mc.methodName(), target)) {
@@ -3216,7 +3216,7 @@ Target target = Target.JVM;
                 } else if (mc.receiver() instanceof IdentifierExpr rid && !isLocalVarName(rid.name(), locals)
                             && KofScheduler.isSchedulerNamespace(rid.name())) {
                     List<Type> argTypes = new ArrayList<>();
-                    for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
+                    for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(this, arg, locals));
                     KofScheduler.SchedulerCall schedCall = KofScheduler.staticCall(mc.methodName(), argTypes);
                     if (schedCall != null) {
                         if (!KofScheduler.supportedOn(target)) {
@@ -3241,7 +3241,7 @@ Target target = Target.JVM;
                     yield localIdx;
                 } else if (mc.receiver() == null && KofScheduler.isSchedulerMethod(mc.methodName())) {
                     List<Type> argTypes = new ArrayList<>();
-                    for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
+                    for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(this, arg, locals));
                     KofScheduler.SchedulerCall schedCall = KofScheduler.staticCall(mc.methodName(), argTypes);
                     if (schedCall != null) {
                         if (!KofScheduler.supportedOn(target)) {
@@ -3268,7 +3268,7 @@ Target target = Target.JVM;
                 } else if (mc.receiver() instanceof IdentifierExpr rid && !isLocalVarName(rid.name(), locals)
                             && KofMq.isMqNamespace(rid.name())) {
                     List<Type> argTypes = new ArrayList<>();
-                    for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
+                    for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(this, arg, locals));
                     KofMq.MqCall mqCall = KofMq.staticCall(mc.methodName(), argTypes);
                     if (mqCall != null) {
                         if (!KofMq.supportedOn(target)) {
@@ -3294,7 +3294,7 @@ Target target = Target.JVM;
                 } else if (mc.receiver() instanceof IdentifierExpr rid && !isLocalVarName(rid.name(), locals)
                             && KofConfig.isConfigNamespace(rid.name())) {
                     List<Type> argTypes = new ArrayList<>();
-                    for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
+                    for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(this, arg, locals));
                     KofConfig.ConfigCall cfgCall = KofConfig.staticCall(mc.methodName(), argTypes);
                     if (cfgCall != null) {
                         if (!KofConfig.supportedOn(target)) {
@@ -3321,7 +3321,7 @@ Target target = Target.JVM;
                 } else if (mc.receiver() instanceof IdentifierExpr rid && !isLocalVarName(rid.name(), locals)
                             && KofCache.isCacheNamespace(rid.name())) {
                     List<Type> argTypes = new ArrayList<>();
-                    for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
+                    for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(this, arg, locals));
                     KofCache.CacheCall cacheCall = KofCache.staticCall(mc.methodName(), argTypes);
                     if (cacheCall != null) {
                         if (!KofCache.supportedOn(target)) {
@@ -3347,7 +3347,7 @@ Target target = Target.JVM;
                 } else if (mc.receiver() instanceof IdentifierExpr rid && !isLocalVarName(rid.name(), locals)
                             && KofGpu.isGpuNamespace(rid.name())) {
                     List<Type> argTypes = new ArrayList<>();
-                    for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
+                    for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(this, arg, locals));
                     if (System.getProperty("kof.trace") != null) {
                         System.err.println("GPU call " + mc.methodName() + " argTypes=" + argTypes);
                     }
@@ -3395,7 +3395,7 @@ Target target = Target.JVM;
                 } else if (mc.receiver() instanceof IdentifierExpr rid && !isLocalVarName(rid.name(), locals)
                             && KofSecurity.isSecurityNamespace(rid.name())) {
                     List<Type> argTypes = new ArrayList<>();
-                    for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
+                    for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(this, arg, locals));
                     KofSecurity.SecCall secCall = KofSecurity.staticMethod(rid.name(), mc.methodName(), argTypes);
                     if (secCall != null) {
                         if (!KofSecurity.supportedOn(secCall.function(), target)) {
@@ -3422,7 +3422,7 @@ Target target = Target.JVM;
                 } else if (mc.receiver() instanceof IdentifierExpr rid && !isLocalVarName(rid.name(), locals)
                             && KofValidation.isValidationNamespace(rid.name())) {
                     List<Type> argTypes = new ArrayList<>();
-                    for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
+                    for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(this, arg, locals));
                     KofValidation.ValidationCall vCall = KofValidation.staticMethod(rid.name(), mc.methodName(), argTypes);
                     if (vCall != null) {
                         if (!KofValidation.supportedOn(vCall.function(), target)) {
@@ -3449,7 +3449,7 @@ Target target = Target.JVM;
                 } else if (mc.receiver() instanceof IdentifierExpr rid && !isLocalVarName(rid.name(), locals)
                             && KofObservability.isObservabilityNamespace(rid.name())) {
                     List<Type> argTypes = new ArrayList<>();
-                    for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
+                    for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(this, arg, locals));
                     KofObservability.ObservabilityCall oCall = KofObservability.staticMethod(rid.name(), mc.methodName(), argTypes);
                     if (oCall != null) {
                         if (!KofObservability.supportedOn(oCall.function(), target)) {
@@ -3669,8 +3669,8 @@ Target target = Target.JVM;
                             returnType = ExternalClasspath.typeFromDescriptor(extSig.returnDescriptor());
                         } else {
                             paramTypes = new ArrayList<>();
-                            for (ExpressionNode arg : mc.arguments()) paramTypes.add(inferExprType(arg, locals));
-                            returnType = inferExprType(mc, locals);
+                            for (ExpressionNode arg : mc.arguments()) paramTypes.add(ExpressionTyper.inferExprType(this, arg, locals));
+                            returnType = ExpressionTyper.inferExprType(this, mc, locals);
                         }
                         // receiver: dentro de lambda sintética é o $outer e a
                         // chamada vira uma PONTE kof_super$metodo na classe dona
@@ -3692,7 +3692,7 @@ Target target = Target.JVM;
                         }
                     }
                     localIdx = emitExpression(mc.receiver(), ops, owner, localIdx, locals);
-                    Type recvType = inferExprType(mc.receiver(), locals);
+                    Type recvType = ExpressionTyper.inferExprType(this, mc.receiver(), locals);
                     // narrowing de null-safety (`if (x != null) { x.substring(...) }`):
                     // dispatch pelo inner — antes emitia `"".substring` (owner "" inválido)
                     if (recvType instanceof Type.NullableType nt) recvType = nt.inner();
@@ -3706,7 +3706,7 @@ Target target = Target.JVM;
                     }
                     if (KofWeb.isAppType(recvType)) {
                         List<Type> webArgTypes = new ArrayList<>();
-                        for (ExpressionNode arg : mc.arguments()) webArgTypes.add(inferExprType(arg, locals));
+                        for (ExpressionNode arg : mc.arguments()) webArgTypes.add(ExpressionTyper.inferExprType(this, arg, locals));
                         KofWeb.WebCall webCall = KofWeb.instanceMethod(mc.methodName(), webArgTypes);
                         if (webCall != null) {
                             boolean nativeWebT1 = (target == Target.NATIVE
@@ -3741,7 +3741,7 @@ Target target = Target.JVM;
                                 webParams.add(BuiltinTypes.STRING);
                             }
                             for (ExpressionNode arg : mc.arguments()) {
-                                webParams.add(inferExprType(arg, locals));
+                                webParams.add(ExpressionTyper.inferExprType(this, arg, locals));
                                 localIdx = emitExpression(arg, ops, owner, localIdx, locals);
                             }
                             ops.add(new KofCall(KofWeb.APP, webCall.function(), webParams,
@@ -3756,7 +3756,7 @@ Target target = Target.JVM;
                             List<Type> mediaParams = new ArrayList<>();
                             mediaParams.add(Type.PrimitiveType.INT);      // handle (receiver)
                             for (ExpressionNode arg : mc.arguments()) {
-                                mediaParams.add(inferExprType(arg, locals));
+                                mediaParams.add(ExpressionTyper.inferExprType(this, arg, locals));
                                 localIdx = emitExpression(arg, ops, owner, localIdx, locals);
                             }
                             ops.add(new KofCall(new Type.ClassType("dev.kof.runtime", "KofRuntime", List.of()),
@@ -3793,7 +3793,7 @@ Target target = Target.JVM;
                             // lambdas da assinatura implementam a interface
                             // sintética — invoca via INVOKEINTERFACE.
                             List<Type> argTypes = new ArrayList<>();
-                            for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
+                            for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(this, arg, locals));
                             for (ExpressionNode arg : mc.arguments()) {
                                 localIdx = emitExpression(arg, ops, owner, localIdx, locals);
                             }
@@ -3802,7 +3802,7 @@ Target target = Target.JVM;
                             yield localIdx;
                         }
                         List<Type> argTypes = new ArrayList<>();
-                        for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
+                        for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(this, arg, locals));
                         for (ExpressionNode arg : mc.arguments()) {
                             localIdx = emitExpression(arg, ops, owner, localIdx, locals);
                         }
@@ -3821,7 +3821,7 @@ Target target = Target.JVM;
                         // reduce: init antes; lambda por último
                         for (ExpressionNode arg : mc.arguments()) {
                             if (!(arg instanceof LambdaExpr)) {
-                                Type argT = inferExprType(arg, locals);
+                                Type argT = ExpressionTyper.inferExprType(this, arg, locals);
                                 localIdx = emitExpression(arg, ops, owner, localIdx, locals);
                                 if (TypeMetrics.isPrimitiveType(argT) && target == Target.JVM) {
                                     Type boxed = TypeMetrics.boxedTypeFor(argT);
@@ -3831,7 +3831,7 @@ Target target = Target.JVM;
                         }
                         for (ExpressionNode arg : mc.arguments()) {
                             if (arg instanceof LambdaExpr lam) {
-                                lambdaT = inferExprType(lam, locals);
+                                lambdaT = ExpressionTyper.inferExprType(this, lam, locals);
                                 localIdx = emitExpression(lam, ops, owner, localIdx, locals);
                             }
                         }
@@ -3855,7 +3855,7 @@ Target target = Target.JVM;
                         // F10: h.write/readLine/exitCode/kill/alive — o handle
                         // empilhado entra como 1º parâmetro do call estático
                         KofProcess.ProcessCall hm = KofProcess.handleMethod(mc.methodName(),
-                                mc.arguments().stream().map(a -> inferExprType(a, locals)).toList());
+                                mc.arguments().stream().map(a -> ExpressionTyper.inferExprType(this, a, locals)).toList());
                         if (hm != null) {
                             List<Type> params = new ArrayList<>();
                             params.add(KofProcess.HANDLE);
@@ -3901,7 +3901,7 @@ Target target = Target.JVM;
                         };
                         if (listFn != null) {
                             List<Type> argTypes = new ArrayList<>();
-                            for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
+                            for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(this, arg, locals));
                             Type elemType = listElementType(recvType);
                             // listOf() with no type argument produces
                             // List<Unknown>; the first add() pins the element
@@ -3955,7 +3955,7 @@ Target target = Target.JVM;
                         };
                         if (mapFn != null) {
                             List<Type> argTypes = new ArrayList<>();
-                            for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
+                            for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(this, arg, locals));
                             Type keyType = Type.UnknownType.UNKNOWN;
                             Type valueType = Type.UnknownType.UNKNOWN;
                             if (recvType instanceof Type.ClassType ct && ct.typeArguments().size() == 2) {
@@ -4013,7 +4013,7 @@ Target target = Target.JVM;
                         };
                         if (setFn != null) {
                             List<Type> argTypes = new ArrayList<>();
-                            for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
+                            for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(this, arg, locals));
                             Type elemType = Type.UnknownType.UNKNOWN;
                             if (recvType instanceof Type.ClassType ct && !ct.typeArguments().isEmpty()) elemType = ct.typeArguments().get(0);
                             Type retType = switch (setFn) {
@@ -4069,7 +4069,7 @@ Target target = Target.JVM;
                     Type methodReturnType = Type.UnknownType.UNKNOWN;
                     List<Type> methodParamTypes = new ArrayList<>();
                     for (ExpressionNode arg : mc.arguments()) {
-                        methodParamTypes.add(inferExprType(arg, locals));
+                        methodParamTypes.add(ExpressionTyper.inferExprType(this, arg, locals));
                     }
                     SymbolTable.MethodSymbol resolvedMethod = semanticAnalyzer.getResolvedMethod(mc);
                     if (resolvedMethod != null) {
@@ -4102,7 +4102,7 @@ Target target = Target.JVM;
                     if (methodReturnType instanceof Type.UnknownType) {
                         // fall back to the lowering's own inference (list-get
                         // chains, user classes resolved through hierarchy)
-                        Type inferred = inferExprType(mc, locals);
+                        Type inferred = ExpressionTyper.inferExprType(this, mc, locals);
                         if (!(inferred instanceof Type.UnknownType)) {
                             methodReturnType = inferred;
                         }
@@ -4132,7 +4132,7 @@ Target target = Target.JVM;
                                 ? semanticAnalyzer.getExpressionType(mc.receiver())
                                 : Type.UnknownType.UNKNOWN;
                         if (!(rt2 instanceof Type.ClassType)) {
-                            rt2 = inferExprType(mc.receiver(), locals);
+                            rt2 = ExpressionTyper.inferExprType(this, mc.receiver(), locals);
                         }
                         if (rt2 instanceof Type.ClassType ct2 && !ct2.packageName().isEmpty()
                                 && externalClasspath != null
@@ -4182,7 +4182,7 @@ Target target = Target.JVM;
                             runtimeMethod != null ? runtimeMethod : mc.methodName(),
                             methodParamTypes, methodReturnType, callKind));
                     if (methodReturnType instanceof Type.TypeVariable) {
-                        Type effective = inferExprType(mc, locals);
+                        Type effective = ExpressionTyper.inferExprType(this, mc, locals);
                         if (TypeMetrics.isPrimitiveType(effective)) {
                             emitErasureUnbox(ops, effective);
                         }
@@ -4215,7 +4215,7 @@ Target target = Target.JVM;
                             }
                         }
                         List<Type> argTypes = new ArrayList<>();
-                        for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
+                        for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(this, arg, locals));
                         ops.add(new KofLoadLocal(CompilerTypes.ownerTypeFromInternal(owner, semanticAnalyzer), 0));
                         List<Type> ctorParamTypes;
                         if (ctor != null && ctor.parameterTypes().size() == mc.arguments().size()) {
@@ -4255,7 +4255,7 @@ Target target = Target.JVM;
                     SymbolTable.ClassSymbol cs = semanticAnalyzer != null ? semanticAnalyzer.getClass(mc.methodName()) : null;
                     if (cs != null) {
                         List<Type> argTypes = new ArrayList<>();
-                        for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
+                        for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(this, arg, locals));
                         SymbolTable.ConstructorSymbol ctor = null;
                         SymbolTable.Symbol ctorSym = cs.members().resolve("<init>");
                         if (ctorSym instanceof SymbolTable.ConstructorSymbol ctorSingle) ctor = ctorSingle;
@@ -4277,7 +4277,7 @@ Target target = Target.JVM;
                                 localIdx = emitExpression(new IdentifierExpr(mc.position(), mc.methodName()),
                                         ops, owner, localIdx, locals);
                                 List<Type> argTypes = new ArrayList<>();
-                                for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
+                                for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(this, arg, locals));
                                 localIdx = emitArgumentsWithFormalTypes(mc.arguments(), lft.parameterTypes(),
                                         ops, owner, localIdx, locals);
                                 Type iface = lambdaInterfaceType(lft);
@@ -4287,14 +4287,14 @@ Target target = Target.JVM;
                             localIdx = emitExpression(new IdentifierExpr(mc.position(), mc.methodName()),
                                     ops, owner, localIdx, locals);
                             List<Type> argTypes = new ArrayList<>();
-                            for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
+                            for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(this, arg, locals));
                             localIdx = emitArgumentsWithFormalTypes(mc.arguments(), lft.parameterTypes(), ops, owner, localIdx, locals);
                             Type invokeOwner = new Type.ClassType("", lft.className(), List.of());
                             ops.add(new KofCall(invokeOwner, "invoke", argTypes, lft.returnType(), KofCallKind.INSTANCE));
                             }
                         } else {
                             List<Type> argTypes = new ArrayList<>();
-                            for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
+                            for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(this, arg, locals));
                             Type returnType = Type.UnknownType.UNKNOWN;
                             if (currentUnit != null) {
                                 for (AstNode d : currentUnit.declarations()) {
@@ -4315,7 +4315,7 @@ Target target = Target.JVM;
                             }
                             localIdx = emitArgumentsWithFormalTypes(mc.arguments(), argTypes, ops, owner, localIdx, locals);
                             ops.add(new KofCall(CompilerTypes.mainClassType(currentModule), mc.methodName(), argTypes, returnType, KofCallKind.FUNCTION));
-                            Type effective = inferExprType(mc, locals);
+                            Type effective = ExpressionTyper.inferExprType(this, mc, locals);
                             if (returnType instanceof Type.TypeVariable && TypeMetrics.isPrimitiveType(effective)) {
                                 emitErasureUnbox(ops, effective);
                             }
@@ -4380,7 +4380,7 @@ Target target = Target.JVM;
                             yield localIdx;
                         }
                     }
-                    Type faRecvType = inferExprType(fa.receiver(), locals);
+                    Type faRecvType = ExpressionTyper.inferExprType(this, fa.receiver(), locals);
                     if (KofUi.isWindow(faRecvType) && "title".equals(fa.fieldName())) {
                         localIdx = emitExpression(fa.receiver(), ops, owner, localIdx, locals);
                         localIdx = emitExpression(ae.value(), ops, owner, localIdx, locals);
@@ -4454,13 +4454,13 @@ Target target = Target.JVM;
                         yield localIdx;
                     }
                     localIdx = emitExpression(fa.receiver(), ops, owner, localIdx, locals);
-                    Type recvType = inferExprType(fa.receiver(), locals);
+                    Type recvType = ExpressionTyper.inferExprType(this, fa.receiver(), locals);
                     String faOp = ae.operator();
                     if ("+=".equals(faOp) || "-=".equals(faOp) || "*=".equals(faOp)
                             || "/=".equals(faOp) || "%=".equals(faOp)
                             || "&=".equals(faOp) || "|=".equals(faOp) || "^=".equals(faOp)) {
                         ops.add(new KofDup());
-                        ops.add(new KofLoadField(inferExprType(fa.receiver(), locals), fa.fieldName(),
+                        ops.add(new KofLoadField(ExpressionTyper.inferExprType(this, fa.receiver(), locals), fa.fieldName(),
                                 Type.UnknownType.UNKNOWN));
                     }
                     localIdx = emitExpression(ae.value(), ops, owner, localIdx, locals);
@@ -4498,7 +4498,7 @@ Target target = Target.JVM;
                     localIdx = emitExpression(aa.receiver(), ops, owner, localIdx, locals);
                     localIdx = emitExpression(aa.index(), ops, owner, localIdx, locals);
                     localIdx = emitExpression(ae.value(), ops, owner, localIdx, locals);
-                    Type recvType = inferExprType(aa.receiver(), locals);
+                    Type recvType = ExpressionTyper.inferExprType(this, aa.receiver(), locals);
                     Type elemType = Type.arrayElementType(recvType);
                     // valor com primitivo ≠ slot (ex.: Int em Long[]) →
                     // converter no IR (I2L/L2I), senão o emit gera aastore/
@@ -4531,7 +4531,7 @@ Target target = Target.JVM;
                                 ops.add(new KofLoadLocal(boxLv.type(), boxLv.index()));
                                 ops.add(new KofLoadField(boxLv.type(), "value", valType));
                                 localIdx = emitExpression(ae.value(), ops, owner, localIdx, locals);
-                                emitWideningIfNeeded(ops, inferExprType(ae.value(), locals), valType);
+                                emitWideningIfNeeded(ops, ExpressionTyper.inferExprType(this, ae.value(), locals), valType);
                                 KofBinaryOp binOp = switch (op) {
                                     case "+=" -> KofBinaryOp.ADD;
                                     case "-=" -> KofBinaryOp.SUB;
@@ -4549,7 +4549,7 @@ Target target = Target.JVM;
                             } else {
                                 ops.add(new KofLoadLocal(boxLv.type(), boxLv.index()));
                                 localIdx = emitExpression(ae.value(), ops, owner, localIdx, locals);
-                                emitWideningIfNeeded(ops, inferExprType(ae.value(), locals), valType);
+                                emitWideningIfNeeded(ops, ExpressionTyper.inferExprType(this, ae.value(), locals), valType);
                                 ops.add(new KofStoreField(boxLv.type(), "value", valType));
                             }
                             yield localIdx;
@@ -4598,7 +4598,7 @@ Target target = Target.JVM;
                                 default -> KofBinaryOp.ADD;
                             };
                             ops.add(new KofBinary(binOp, targetLocal.type()));
-                            emitWideningIfNeeded(ops, inferExprType(ae.value(), locals), targetLocal.type());
+                            emitWideningIfNeeded(ops, ExpressionTyper.inferExprType(this, ae.value(), locals), targetLocal.type());
                             ops.add(new KofStoreLocal(targetLocal.type(), targetLocal.index()));
                             yield localIdx;
                         }
@@ -4609,11 +4609,11 @@ Target target = Target.JVM;
                 if (ae.target() instanceof IdentifierExpr sie) {
                     for (int i = locals.size() - 1; i >= 0; i--) {
                         if (locals.get(i).name().equals(sie.name())) {
-                            emitWideningIfNeeded(ops, inferExprType(ae.value(), locals), locals.get(i).type());
+                            emitWideningIfNeeded(ops, ExpressionTyper.inferExprType(this, ae.value(), locals), locals.get(i).type());
                             // bug 15: `Object o; o = 7` — box primitivo p/ referência
                             if (erasesToReference(locals.get(i).type())
-                                    && TypeMetrics.isPrimitiveType(inferExprType(ae.value(), locals))) {
-                                emitErasureBox(ops, inferExprType(ae.value(), locals));
+                                    && TypeMetrics.isPrimitiveType(ExpressionTyper.inferExprType(this, ae.value(), locals))) {
+                                emitErasureBox(ops, ExpressionTyper.inferExprType(this, ae.value(), locals));
                             }
                             ops.add(new KofStoreLocal(locals.get(i).type(), locals.get(i).index()));
                             yield localIdx;
@@ -4634,12 +4634,12 @@ Target target = Target.JVM;
                 }
                 if (BuiltinTypes.isList(type)) {
                     List<Type> argTypes = new ArrayList<>();
-                    for (ExpressionNode arg : ne.arguments()) argTypes.add(inferExprType(arg, locals));
+                    for (ExpressionNode arg : ne.arguments()) argTypes.add(ExpressionTyper.inferExprType(this, arg, locals));
                     ops.add(new KofCall(BuiltinTypes.LIST, "kof_list_new", argTypes, BuiltinTypes.LIST, KofCallKind.FUNCTION));
                     yield localIdx;
                 }
                 List<Type> argTypes = new ArrayList<>();
-                for (ExpressionNode arg : ne.arguments()) argTypes.add(inferExprType(arg, locals));
+                for (ExpressionNode arg : ne.arguments()) argTypes.add(ExpressionTyper.inferExprType(this, arg, locals));
                 SymbolTable.ConstructorSymbol resolvedCtor = semanticAnalyzer.getResolvedConstructor(ne);
                 if (resolvedCtor == null && type instanceof Type.ClassType ct
                         && semanticAnalyzer != null) {
@@ -4716,7 +4716,7 @@ Target target = Target.JVM;
             case ArrayAccessExpr aa -> {
                 localIdx = emitExpression(aa.receiver(), ops, owner, localIdx, locals);
                 localIdx = emitExpression(aa.index(), ops, owner, localIdx, locals);
-                Type recvType = inferExprType(aa.receiver(), locals);
+                Type recvType = ExpressionTyper.inferExprType(this, aa.receiver(), locals);
                 Type elemType = Type.arrayElementType(recvType);
                 ops.add(new KofArrayLoad(elemType));
                 yield localIdx;
@@ -4738,14 +4738,14 @@ Target target = Target.JVM;
                     Type superType = CompilerTypes.ownerTypeFromInternal(superInternal, semanticAnalyzer);
                     String superSimple = superInternal.substring(superInternal.lastIndexOf('/') + 1);
                     SymbolTable.Symbol fieldSym = semanticAnalyzer.resolveInHierarchy(superSimple, fa.fieldName());
-                    Type fieldType = fieldSym != null ? fieldSym.type() : inferExprType(fa, locals);
+                    Type fieldType = fieldSym != null ? fieldSym.type() : ExpressionTyper.inferExprType(this, fa, locals);
                     ops.add(new KofLoadLocal(CompilerTypes.ownerTypeFromInternal(owner, semanticAnalyzer), 0));
                     ops.add(new KofLoadField(superType, fa.fieldName(), fieldType));
                     yield localIdx;
                 }
                 {
                     // campo de classe EXTERNA: owner e tipo vêm do classpath
-                    Type extRecv = inferExprType(fa.receiver(), locals);
+                    Type extRecv = ExpressionTyper.inferExprType(this, fa.receiver(), locals);
                     if (extRecv instanceof Type.ClassType ect && !ect.packageName().isEmpty()
                             && externalClasspath != null
                             && externalClasspath.knows(ect.internalName())) {
@@ -4758,7 +4758,7 @@ Target target = Target.JVM;
                         }
                     }
                 }
-                Type faType = inferExprType(fa.receiver(), locals);
+                Type faType = ExpressionTyper.inferExprType(this, fa.receiver(), locals);
                 if (KofProcess.isResult(faType) && KofProcess.isField(fa.fieldName())) {
                     localIdx = emitExpression(fa.receiver(), ops, owner, localIdx, locals);
                     ops.add(new KofLoadField(KofProcess.RESULT, fa.fieldName(),
@@ -4821,7 +4821,7 @@ Target target = Target.JVM;
                             Type.PrimitiveType.INT, KofCallKind.FUNCTION));
                     yield localIdx;
                 }
-                Type recvType = inferExprType(fa.receiver(), locals);
+                Type recvType = ExpressionTyper.inferExprType(this, fa.receiver(), locals);
                 // narrowing de null-safety (`if (x != null) { x.length }`): o tipo do
                 // receptor é o inner — antes emitia `getfield "?".length` para String?
                 // (owner "?" inválido → erro de launcher/verificação no JVM).
@@ -4922,7 +4922,7 @@ Target target = Target.JVM;
                 yield localIdx;
             }
             case LambdaExpr le -> {
-                Type.FunctionType ft = (Type.FunctionType) inferExprType(le, locals);
+                Type.FunctionType ft = (Type.FunctionType) ExpressionTyper.inferExprType(this, le, locals);
                 List<IRLocalVariable> captures = collectCaptures(le, locals);
                 String lambdaClass = lambdaClass(le, ft, captures);
                 List<IRLocalVariable> effective = lambdaEffectiveCaptures.get(le);
@@ -4948,783 +4948,6 @@ Target target = Target.JVM;
             default -> localIdx;
         };
     }
-
-    Type inferExprType(ExpressionNode expr, List<IRLocalVariable> locals) {
-        return switch (expr) {
-            case LiteralExpr lit -> switch (lit.kind()) {
-                case ConcreteLiteralKind.INT -> Type.PrimitiveType.INT;
-                case ConcreteLiteralKind.LONG -> Type.PrimitiveType.LONG;
-                case ConcreteLiteralKind.FLOAT -> Type.PrimitiveType.FLOAT;
-                case ConcreteLiteralKind.DOUBLE -> Type.PrimitiveType.DOUBLE;
-                case ConcreteLiteralKind.STRING -> BuiltinTypes.STRING;
-                case ConcreteLiteralKind.BOOLEAN -> Type.PrimitiveType.BOOL;
-                case ConcreteLiteralKind.CHAR -> Type.PrimitiveType.CHAR;
-                case ConcreteLiteralKind.NULL -> Type.UnknownType.UNKNOWN;
-            };
-            case QueryDslExpr q -> new Type.ClassType("kof", "List", List.of(CompilerTypes.toType(q.entityType(), currentUnit)));
-            case IdentifierExpr ie -> {
-                if (loweringMain && "args".equals(ie.name())) {
-                    if (mainArgsListField) {
-                        yield KofProcess.STRING_LIST;
-                    }
-                    yield new Type.ArrayType(BuiltinTypes.STRING);
-                }
-                for (int i = locals.size() - 1; i >= 0; i--) {
-                    if (locals.get(i).name().equals(ie.name())) {
-                        IRLocalVariable lv = locals.get(i);
-                        if (boxFactory.isBoxType(lv.type())) {
-                            yield boxFactory.boxValueType(lv.type());
-                        }
-                        yield lv.type();
-                    }
-                }
-                if (semanticAnalyzer != null) {
-                    // Resolve field within the current class first (via 'this'
-                    // at index 0) to avoid picking a same-named field from an
-                    // unrelated class — e.g. Config.entries vs MemoryLayer.entries.
-                    if (!locals.isEmpty() && locals.get(0).type() instanceof Type.ClassType thisType
-                            && !thisType.name().equals("Object")) {
-                        SymbolTable.Symbol thisField = semanticAnalyzer.resolveInHierarchy(
-                                thisType.name(), ie.name());
-                        if (thisField != null) {
-                            if (thisField instanceof SymbolTable.FieldSymbol fs) yield fs.type();
-                            if (thisField instanceof SymbolTable.MethodSymbol ms
-                                    && ms.parameterTypes().isEmpty()) yield ms.returnType();
-                        }
-                    }
-                    SymbolTable.Symbol sym = HierarchyResolver.resolveFromSemantic(ie.name(), semanticAnalyzer);
-                    if (sym != null) yield sym.type();
-                    SymbolTable.ClassSymbol cls = semanticAnalyzer.getClass(ie.name());
-                    if (cls != null) yield cls.type();
-                }
-                yield Type.UnknownType.UNKNOWN;
-            }
-            case UnaryExpr ue -> inferExprType(ue.operand(), locals);
-            case BinaryExpr bin -> {
-                // Left-associative chains (huge string concatenations in
-                // generated UIs, editors) are iterated instead of recursed:
-                // deep chains would overflow the compiler's own stack.
-                java.util.List<BinaryExpr> chain = new ArrayList<>();
-                ExpressionNode cursor = bin;
-                while (cursor instanceof BinaryExpr be) {
-                    chain.add(be);
-                    cursor = be.left();
-                }
-                Type leftType = inferExprType(cursor, locals);
-                for (int ci = chain.size() - 1; ci >= 0; ci--) {
-                    BinaryExpr be = chain.get(ci);
-                    Type rightType = inferExprType(be.right(), locals);
-                    if ("+".equals(be.operator())
-                            && (Type.isString(leftType) || Type.isString(rightType))) {
-                        leftType = BuiltinTypes.STRING;
-                        continue;
-                    }
-                    if ("instanceof".equals(be.operator())) {
-                        leftType = Type.PrimitiveType.BOOL;
-                        continue;
-                    }
-                    if ("as".equals(be.operator())) {
-                        // "x as Tipo": o tipo alvo passa pelo toType (imports)
-                        if (be.right() instanceof IdentifierExpr rie
-                                && rightType instanceof Type.UnknownType) {
-                            Type q = CompilerTypes.toType(rie.name(), currentUnit);
-                            if (!(q instanceof Type.UnknownType)) leftType = q;
-                            else leftType = rightType;
-                        } else {
-                            leftType = rightType;
-                        }
-                        continue;
-                    }
-                    if (TypeMetrics.isComparisonOp(be.operator())) {
-                        leftType = Type.PrimitiveType.BOOL;
-                        continue;
-                    }
-                    // aritmética promove: int/long → long etc. (o lowering
-                    // usa commonNumericType; a inferência precisa casar)
-                    Type rType = inferExprType(be.right(), locals);
-                    if (switch (be.operator()) {
-                        case "+", "-", "*", "/", "%" -> true;
-                        default -> false;
-                    } && TypeMetrics.isNumeric(leftType) && TypeMetrics.isNumeric(rType)) {
-                        leftType = TypeMetrics.commonNumericType(leftType, rType);
-                        continue;
-                    }
-                    leftType = leftType;
-                }
-                yield leftType;
-            }
-            case MethodCallExpr mc -> {
-                // super.metodo(): resolvido AQUI (o cache do analyzer é
-                // limpo a cada classe/passe — não dá para confiar nele)
-                if (mc.receiver() instanceof IdentifierExpr srid && "super".equals(srid.name())
-                        && semanticAnalyzer != null && currentLoweringOwner != null) {
-                    String simple = currentLoweringOwner.substring(currentLoweringOwner.lastIndexOf('/') + 1);
-                    SymbolTable.ClassSymbol self = semanticAnalyzer.getClass(simple);
-                    String sup = self != null && self.superClass() != null ? self.superClass() : "Object";
-                    sup = sup.replace('.', '/');
-                    SymbolTable.Symbol m2 = semanticAnalyzer.resolveInHierarchy(
-                            sup.substring(sup.lastIndexOf('/') + 1), mc.methodName());
-                    if (m2 instanceof SymbolTable.MethodSymbol ms2) yield ms2.returnType();
-                    yield Type.UnknownType.UNKNOWN;
-                }
-                // o analyzer já tipou esta expressão durante a análise:
-                // fonte secundária para os demais casos
-                if (semanticAnalyzer != null) {
-                    Type semantic = semanticAnalyzer.getExpressionType(mc);
-                    // tipos com FunctionType de className null vêm da análise
-                    // semântica, que roda ANTES da síntese das lambdas — são
-                    // obsoletos para o emit (o invoke de lambda precisaria do
-                    // className → owner "" → ClassFormatError, bug 20). Re-inferir.
-                    if (!(semantic instanceof Type.UnknownType)
-                            && !CompilerTypes.containsLambdaFunctionType(semantic)) {
-                        if (semantic instanceof Type.TypeVariable tv && mc.receiver() != null) {
-                            Type recvT = inferExprType(mc.receiver(), locals);
-                            Type subst = CompilerTypes.substituteTypeVariable(tv.name(), recvT, currentUnit);
-                            if (subst != null) yield subst;
-                        }
-                        yield semantic;
-                    }
-                }
-                if (mc.receiver() == null && semanticAnalyzer != null
-                        && semanticAnalyzer.getClass(mc.methodName()) != null) {
-                    yield semanticAnalyzer.getClass(mc.methodName()).type();
-                }
-                if (mc.receiver() != null && "toString".equals(mc.methodName()) && mc.arguments().isEmpty()) {
-                    Type rv = inferExprType(mc.receiver(), locals);
-                    if (TypeMetrics.isPrimitiveType(rv) || rv instanceof Type.ArrayType) yield BuiltinTypes.STRING;
-                }
-                // String.valueOf(x) / Integer.valueOf(x)…: receiver é o NOME
-                // do tipo builtin (estático). Sem tipo aqui o concat após um
-                // "s = s + String.valueOf(x)" aplicava box+valueOf duplicado
-                // no resultado (frame crash — 3 valueOf na pilha)
-                if (mc.receiver() instanceof IdentifierExpr srid && mc.arguments().size() == 1
-                        && findLocalVar(srid.name(), locals) == null
-                        && switch (srid.name()) {
-                            case "String", "Int", "Integer", "Long", "Float",
-                                    "Double", "Bool", "Boolean" -> true;
-                            default -> false;
-                        }) {
-                    yield BuiltinTypes.STRING;
-                }
-                if ("println".equals(mc.methodName()) || "print".equals(mc.methodName())) yield Type.PrimitiveType.VOID;
-                if ("now".equals(mc.methodName()) && mc.receiver() == null && mc.arguments().isEmpty()) {
-                    yield Type.PrimitiveType.LONG;
-                }
-                if ("uiNodesLive".equals(mc.methodName()) && mc.receiver() == null && mc.arguments().isEmpty()) {
-                    yield Type.PrimitiveType.INT;
-                }
-                if ("emit".equals(mc.methodName()) && mc.receiver() == null && mc.arguments().size() == 2) {
-                    yield Type.PrimitiveType.VOID;
-                }
-                if ("storesLive".equals(mc.methodName()) && mc.receiver() == null && mc.arguments().isEmpty()) {
-                    yield Type.PrimitiveType.INT;
-                }
-                if (mc.receiver() == null && "transaction".equals(mc.methodName()) && mc.arguments().size() == 1) {
-                    yield Type.PrimitiveType.VOID;
-                }
-                if ("readLine".equals(mc.methodName()) && mc.receiver() == null) {
-                    yield new Type.NullableType(BuiltinTypes.STRING);
-                }
-                if ("readFile".equals(mc.methodName()) && mc.receiver() == null) {
-                    yield new Type.NullableType(BuiltinTypes.STRING);
-                }
-                if (mc.receiver() == null && KofWeb.isContextFunction(mc.methodName())
-                        && KofWeb.contextCall(mc.methodName(), mc.arguments().size()) != null) {
-                    yield BuiltinTypes.STRING;
-                }
-                if ("writeFile".equals(mc.methodName()) && mc.receiver() == null) {
-                    yield Type.PrimitiveType.INT;
-                }
-                if (mc.receiver() == null && KofIo.isConstructor(mc.methodName()) && mc.arguments().size() == 1) {
-                    yield KofIo.constructorType(mc.methodName());
-                }
-                if (mc.receiver() == null && "Color".equals(mc.methodName())
-                        && (mc.arguments().size() == 1 || mc.arguments().size() == 3)) {
-                    yield KofUi.COLOR;
-                }
-                if (mc.receiver() == null && "Window".equals(mc.methodName()) && mc.arguments().size() == 1) {
-                    yield KofUi.WINDOW;
-                }
-                if (mc.receiver() == null && "Label".equals(mc.methodName()) && mc.arguments().size() == 1) {
-                    yield KofUi.LABEL;
-                }
-                if (mc.receiver() == null && "Button".equals(mc.methodName())
-                        && (mc.arguments().size() == 1 || mc.arguments().size() == 2)) {
-                    yield KofUi.BUTTON;
-                }
-                if (mc.receiver() == null && "Input".equals(mc.methodName()) && mc.arguments().size() == 1) {
-                    yield KofUi.INPUT;
-                }
-                if (mc.receiver() == null && ("Column".equals(mc.methodName()) || "Row".equals(mc.methodName()))
-                        && mc.arguments().size() == 1) {
-                    yield "Column".equals(mc.methodName()) ? KofUi.COLUMN : KofUi.ROW;
-                }
-                if (mc.receiver() == null && "View".equals(mc.methodName()) && mc.arguments().size() == 1) {
-                    yield KofUi.VIEW;
-                }
-                if (mc.receiver() == null && KofUi.isConstructor(mc.methodName())
-                        && (mc.arguments().size() == 1 || mc.arguments().size() == 2
-                                || mc.arguments().size() == 3)) {
-                    Type ct = KofUi.constructorType(mc.methodName());
-                    if (KofUi.isLayoutType(ct) || KofUi.isStore(ct)) {
-                        yield ct;
-                    }
-                }
-                if (mc.receiver() == null && "Style".equals(mc.methodName()) && mc.arguments().size() == 4) {
-                    yield KofUi.STYLE;
-                }
-                if (mc.receiver() instanceof IdentifierExpr rid3 && KofUi.isConstructor(rid3.name())) {
-                    KofUi.UiCall uiCall = KofUi.staticMethod(rid3.name(), mc.methodName(), mc.arguments().size());
-                    if (uiCall != null) yield uiCall.returnType();
-                }
-                if (mc.receiver() instanceof IdentifierExpr ridR && KofUi.isRouterNamespace(ridR.name())) {
-                    KofUi.UiCall routerCall = KofUi.staticMethod("Router", mc.methodName(), mc.arguments().size());
-                    if (routerCall != null) {
-                        for (ExpressionNode arg : mc.arguments()) inferExprType(arg, locals);
-                        yield routerCall.returnType();
-                    }
-                }
-                if ("listOf".equals(mc.methodName()) && mc.receiver() == null) {
-                    yield new Type.ClassType("kof", "List", List.of(listOfElementType(mc, locals)));
-                }
-                if ("mapOf".equals(mc.methodName()) && mc.receiver() == null) {
-                    // pinning do tipo no primeiro par — espelha o emit (mapOf(k1,v1,...))
-                    Type keyType = mc.arguments().isEmpty() ? Type.UnknownType.UNKNOWN
-                            : inferExprType(mc.arguments().get(0), locals);
-                    Type valueType = mc.arguments().size() < 2 ? Type.UnknownType.UNKNOWN
-                            : inferExprType(mc.arguments().get(1), locals);
-                    yield new Type.ClassType("kof", "Map", List.of(keyType, valueType));
-                }
-                if ("setOf".equals(mc.methodName()) && mc.receiver() == null) {
-                    Type elemType = mc.arguments().isEmpty() ? Type.UnknownType.UNKNOWN : inferExprType(mc.arguments().get(0), locals);
-                    yield new Type.ClassType("kof", "Set", List.of(elemType));
-                }
-                if (mc.receiver() == null && "__kof_spawn_expr".equals(mc.methodName())) {
-                    Type t = inferExprType(mc.arguments().get(0), locals);
-                    yield new Type.ClassType("kof.concurrent", "Handle", List.of(t));
-                }
-                                if (mc.receiver() == null && "cancel".equals(mc.methodName())
-                        && mc.arguments().size() == 1
-                        && findLocalVar("cancel", locals) == null) {
-                    yield Type.PrimitiveType.BOOL;
-                }
-                if (mc.receiver() == null && "cancelled".equals(mc.methodName())
-                        && mc.arguments().isEmpty()
-                        && findLocalVar("cancelled", locals) == null) {
-                    yield Type.PrimitiveType.BOOL;
-                }
-                if (mc.receiver() == null && "selectAny".equals(mc.methodName())
-                        && !mc.arguments().isEmpty()
-                        && findLocalVar("selectAny", locals) == null) {
-                    Type first = inferExprType(mc.arguments().get(0), locals);
-                    if (first instanceof Type.ClassType ct
-                            && "kof.concurrent".equals(ct.packageName())
-                            && !ct.typeArguments().isEmpty()) {
-                        yield ct.typeArguments().get(0);
-                    }
-                    yield Type.UnknownType.UNKNOWN;
-                }
-                if (mc.receiver() == null && "poll".equals(mc.methodName())
-                        && mc.arguments().size() == 1 && findLocalVar("poll", locals) == null) {
-                    Type h = inferExprType(mc.arguments().get(0), locals);
-                    if (h instanceof Type.ClassType ct && !ct.typeArguments().isEmpty()) {
-                        yield ct.typeArguments().get(0);
-                    }
-                    yield Type.UnknownType.UNKNOWN;
-                }
-                if (mc.receiver() == null && "done".equals(mc.methodName())
-                        && mc.arguments().size() == 1 && findLocalVar("done", locals) == null) {
-                    yield Type.PrimitiveType.BOOL;
-                }
-                if (mc.receiver() == null && "__kof_await".equals(mc.methodName())) {
-                    Type t = inferExprType(mc.arguments().get(0), locals);
-                    if (t instanceof Type.ClassType ct
-                            && "kof.concurrent".equals(ct.packageName())
-                            && !ct.typeArguments().isEmpty()) {
-                        yield ct.typeArguments().get(0);
-                    }
-                    yield Type.UnknownType.UNKNOWN;
-                }
-                if (mc.receiver() == null && "awaitTimeout".equals(mc.methodName())
-                        && mc.arguments().size() == 2
-                        && findLocalVar("awaitTimeout", locals) == null) {
-                    Type t = inferExprType(mc.arguments().get(0), locals);
-                    if (t instanceof Type.ClassType ct
-                            && "kof.concurrent".equals(ct.packageName())
-                            && !ct.typeArguments().isEmpty()) {
-                        yield ct.typeArguments().get(0);
-                    }
-                    yield Type.UnknownType.UNKNOWN;
-                }
-                if (mc.receiver() instanceof IdentifierExpr rid && CompilerTypes.isEnumName(rid.name(), currentUnit)
-                        && findLocalVar(rid.name(), locals) == null) {
-                    java.util.List<String> consts = CompilerTypes.enumConstantsOf(rid.name(), currentUnit);
-                    Type enumT = new Type.ClassType("", rid.name(), List.of());
-                    // MVP: elementos tipados como String (runtime do enum é o nome);
-                    // comparação com constantes funciona via string-equals
-                    if ("values".equals(mc.methodName()) && mc.arguments().isEmpty()) {
-                        yield new Type.ClassType("kof", "List", List.of(BuiltinTypes.STRING));
-                    }
-                    if ("valueOf".equals(mc.methodName()) && mc.arguments().size() == 1) {
-                        yield enumT;
-                    }
-                    // constante via sintaxe de método? Color.Red() — não suportado
-                    if (consts.contains(mc.methodName())) yield enumT;
-                    yield Type.UnknownType.UNKNOWN;
-                }
-                if (mc.receiver() instanceof IdentifierExpr rid && "json".equals(rid.name())) {
-                    if ("encode".equals(mc.methodName())) yield BuiltinTypes.STRING;
-                    if ("decode".equals(mc.methodName()) && !mc.typeArguments().isEmpty()) {
-                        yield CompilerTypes.toType(mc.typeArguments().get(0), currentUnit);
-                    }
-                    yield Type.UnknownType.UNKNOWN;
-                }
-                if (mc.receiver() instanceof IdentifierExpr rid && KofWeb.isWebNamespace(rid.name())) {
-                    if ("app".equals(mc.methodName()) && mc.arguments().isEmpty()) {
-                        yield KofWeb.APP;
-                    }
-                    yield Type.UnknownType.UNKNOWN;
-                }
-                if (mc.receiver() instanceof IdentifierExpr rid && KofDb.isDbNamespace(rid.name())) {
-                    List<Type> argTypes = new ArrayList<>();
-                    for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
-                    boolean typed = KofDb.isQuery(mc.methodName()) && !mc.typeArguments().isEmpty();
-                    KofDb.DbCall dbCall = KofDb.staticCall(mc.methodName(), argTypes, typed);
-                    if (dbCall != null) {
-                        if (typed && !mc.typeArguments().isEmpty()) {
-                            yield new Type.ClassType("kof", "List",
-                                    List.of(CompilerTypes.toType(mc.typeArguments().get(0), currentUnit)));
-                        }
-                        yield dbCall.returnType();
-                    }
-                    yield Type.UnknownType.UNKNOWN;
-                }
-                if (mc.receiver() instanceof IdentifierExpr rid && KofHttp.isHttpNamespace(rid.name())) {
-                    List<Type> argTypes = new ArrayList<>();
-                    for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
-                    KofHttp.HttpCall httpCall = KofHttp.staticCall(mc.methodName(), argTypes);
-                    if (httpCall != null) yield httpCall.returnType();
-                    yield Type.UnknownType.UNKNOWN;
-                }
-                if (mc.receiver() instanceof IdentifierExpr rid && KofMq.isMqNamespace(rid.name())) {
-                    List<Type> argTypes = new ArrayList<>();
-                    for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
-                    KofMq.MqCall mqCall = KofMq.staticCall(mc.methodName(), argTypes);
-                    if (mqCall != null) yield mqCall.returnType();
-                    yield Type.UnknownType.UNKNOWN;
-                }
-                if (mc.receiver() instanceof IdentifierExpr rid && KofTime.isTimeNamespace(rid.name())) {
-                    List<Type> argTypes = new ArrayList<>();
-                    for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
-                    KofTime.TimeCall timeCall = KofTime.staticCall(mc.methodName(), argTypes);
-                    if (timeCall != null) yield timeCall.returnType();
-                    yield Type.UnknownType.UNKNOWN;
-                }
-                if (mc.receiver() instanceof IdentifierExpr rid && KofScheduler.isSchedulerNamespace(rid.name())) {
-                    List<Type> argTypes = new ArrayList<>();
-                    for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
-                    KofScheduler.SchedulerCall sc = KofScheduler.staticCall(mc.methodName(), argTypes);
-                    if (sc != null) yield sc.returnType();
-                    yield Type.UnknownType.UNKNOWN;
-                }
-                if (mc.receiver() == null && KofScheduler.isSchedulerMethod(mc.methodName())) {
-                    List<Type> argTypes = new ArrayList<>();
-                    for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
-                    KofScheduler.SchedulerCall sc = KofScheduler.staticCall(mc.methodName(), argTypes);
-                    if (sc != null) yield sc.returnType();
-                    // fall through
-                }
-                if (mc.receiver() instanceof IdentifierExpr rid && KofLog.isLogNamespace(rid.name())) {
-                    List<Type> argTypes = new ArrayList<>();
-                    for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
-                    KofLog.LogCall logCall = KofLog.staticCall(mc.methodName(), argTypes);
-                    if (logCall != null) yield logCall.returnType();
-                    yield Type.UnknownType.UNKNOWN;
-                }
-                if (mc.receiver() instanceof IdentifierExpr rid && KofOrm.isOrmNamespace(rid.name())) {
-                    List<Type> argTypes = new ArrayList<>();
-                    for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
-                    boolean typed = !mc.typeArguments().isEmpty();
-                    String entityName = typed ? mc.typeArguments().get(0) : null;
-                    KofOrm.OrmCall ormCall = KofOrm.staticCall(mc.methodName(), argTypes, typed, entityName);
-                    if (ormCall != null) {
-                        if ("save".equals(mc.methodName()) && !argTypes.isEmpty()) {
-                            yield argTypes.get(argTypes.size() - 1);
-                        }
-                        if (typed && !mc.typeArguments().isEmpty()) {
-                            if ("all".equals(mc.methodName()) || "where".equals(mc.methodName())
-                                    || "page".equals(mc.methodName())) {
-                                yield new Type.ClassType("kof", "List",
-                                        List.of(CompilerTypes.toType(mc.typeArguments().get(0), currentUnit)));
-                            }
-                            if ("find".equals(mc.methodName())) {
-                                yield CompilerTypes.toType(mc.typeArguments().get(0), currentUnit);
-                            }
-                        }
-                        yield ormCall.returnType();
-                    }
-                    yield Type.UnknownType.UNKNOWN;
-                }
-                if (mc.receiver() instanceof IdentifierExpr rid && "process".equals(rid.name())
-                        && findLocalVar(rid.name(), locals) == null) {
-                    List<Type> argTypes = new ArrayList<>();
-                    for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
-                    KofProcess.ProcessCall procCall = KofProcess.entryCall(mc.methodName(), argTypes);
-                    if (procCall != null) yield procCall.returnType();
-                    yield Type.UnknownType.UNKNOWN;
-                }
-                if (mc.receiver() instanceof IdentifierExpr rid && KofConfig.isConfigNamespace(rid.name())) {
-                    List<Type> argTypes = new ArrayList<>();
-                    for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
-                    KofConfig.ConfigCall cfgCall = KofConfig.staticCall(mc.methodName(), argTypes);
-                    if (cfgCall != null) yield cfgCall.returnType();
-                    yield Type.UnknownType.UNKNOWN;
-                }
-                if (mc.receiver() instanceof IdentifierExpr rid && KofTetris.isTetrisNamespace(rid.name())) {
-                    KofTetris.TetrisCall tetrisCall = KofTetris.staticMethod(rid.name(), mc.methodName(),
-                            mc.arguments().size());
-                    if (tetrisCall != null) yield tetrisCall.returnType();
-                    yield Type.UnknownType.UNKNOWN;
-                }
-                if (mc.receiver() instanceof IdentifierExpr rid2 && KofIo.isConstructor(rid2.name())) {
-                    KofIo.IoCall ioCall = KofIo.staticMethod(rid2.name(), mc.methodName(), mc.arguments().size());
-                    if (ioCall != null) yield ioCall.returnType();
-                }
-                if (mc.receiver() != null) {
-                    Type recvType = inferExprType(mc.receiver(), locals);
-                    // narrowing de null-safety: `if (x != null) { x.metodo() }`
-                    if (recvType instanceof Type.NullableType nt) recvType = nt.inner();
-                    if (KofProcess.isHandle(recvType)) {
-                        List<Type> hArgs = new ArrayList<>();
-                        for (ExpressionNode arg : mc.arguments()) hArgs.add(inferExprType(arg, locals));
-                        KofProcess.ProcessCall hm = KofProcess.handleMethod(mc.methodName(), hArgs);
-                        if (hm != null) yield hm.returnType();
-                    }
-                    if (mc.receiver() instanceof IdentifierExpr rid && KofSecurity.isSecurityNamespace(rid.name())) {
-                        List<Type> argTypes = new ArrayList<>();
-                        for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
-                        KofSecurity.SecCall secCall = KofSecurity.staticMethod(rid.name(), mc.methodName(), argTypes);
-                        if (secCall != null) yield secCall.returnType();
-                        yield Type.UnknownType.UNKNOWN;
-                    }
-                    if (mc.receiver() instanceof IdentifierExpr rid && KofValidation.isValidationNamespace(rid.name())) {
-                        List<Type> argTypes = new ArrayList<>();
-                        for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
-                        KofValidation.ValidationCall vCall = KofValidation.staticMethod(rid.name(), mc.methodName(), argTypes);
-                        if (vCall != null) yield vCall.returnType();
-                        yield Type.UnknownType.UNKNOWN;
-                    }
-                    if (mc.receiver() instanceof IdentifierExpr rid && KofObservability.isObservabilityNamespace(rid.name())) {
-                        List<Type> argTypes = new ArrayList<>();
-                        for (ExpressionNode arg : mc.arguments()) argTypes.add(inferExprType(arg, locals));
-                        KofObservability.ObservabilityCall oCall = KofObservability.staticMethod(rid.name(), mc.methodName(), argTypes);
-                        if (oCall != null) yield oCall.returnType();
-                        yield Type.UnknownType.UNKNOWN;
-                    }
-                    if (KofUi.isUiType(recvType)) {
-                        KofUi.UiCall uiCall = KofUi.instanceMethod(recvType, mc.methodName(), mc.arguments().size());
-                        if (uiCall != null) yield uiCall.returnType();
-                    }
-                    if (KofWeb.isAppType(recvType)) {
-                        List<Type> webArgTypes = new ArrayList<>();
-                        for (ExpressionNode arg : mc.arguments()) webArgTypes.add(inferExprType(arg, locals));
-                        KofWeb.WebCall webCall = KofWeb.instanceMethod(mc.methodName(), webArgTypes);
-                        if (webCall != null) yield webCall.returnType();
-                        yield Type.UnknownType.UNKNOWN;
-                    }
-                    if (KofMedia.isHandleType(recvType)) {
-                        KofMedia.MediaCall mediaCall =
-                                KofMedia.handleMethod(recvType, mc.methodName(), mc.arguments().size());
-                        if (mediaCall != null) yield mediaCall.returnType();
-                    }
-                    if (KofIo.isIoType(recvType)) {
-                        KofIo.IoCall ioCall = KofIo.instanceMethod(recvType, mc.methodName(), mc.arguments().size());
-                        if (ioCall != null) yield ioCall.returnType();
-                        if (KofIo.isIdentityMethod(mc.methodName())) yield recvType;
-                    }
-                    if (recvType instanceof Type.FunctionType ft) {
-                        yield ft.returnType();
-                    }
-                    if (CompilerTypes.isEnumType(recvType, currentUnit) && "name".equals(mc.methodName()) && mc.arguments().isEmpty()) {
-                        yield BuiltinTypes.STRING;
-                    }
-                    if (BuiltinTypes.isList(recvType)) {
-                        String mn = mc.methodName();
-                        if (("map".equals(mn) || "filter".equals(mn) || "reduce".equals(mn))
-                                && mc.arguments().stream().anyMatch(a -> a instanceof LambdaExpr)) {
-                            Type lambdaT = null;
-                            for (ExpressionNode arg : mc.arguments()) {
-                                if (arg instanceof LambdaExpr lam) {
-                                    lambdaT = inferExprType(lam, locals);
-                                    break;
-                                }
-                            }
-                            if (lambdaT instanceof Type.FunctionType ft
-                                    && !(ft.returnType() instanceof Type.UnknownType)) {
-                                if ("map".equals(mn)) {
-                                    yield new Type.ClassType("kof", "List",
-                                            List.of(ft.returnType()));
-                                }
-                                if ("filter".equals(mn)) yield recvType;
-                                if ("reduce".equals(mn)) yield ft.returnType();
-                            }
-                            yield Type.UnknownType.UNKNOWN;
-                        }
-                        if ("get".equals(mn) || "remove".equals(mn)) yield listElementType(recvType);
-                        if ("size".equals(mn) || "length".equals(mn) || "count".equals(mn)) yield Type.PrimitiveType.INT;
-                        if ("contains".equals(mn) || "isEmpty".equals(mn)) yield Type.PrimitiveType.BOOL;
-                        if ("add".equals(mn) || "push".equals(mn) || "append".equals(mn)
-                                || "set".equals(mn) || "clear".equals(mn)) {
-                            yield Type.PrimitiveType.VOID;
-                        }
-                    }
-                    if (BuiltinTypes.isMap(recvType)) {
-                        String mn = mc.methodName();
-                        Type valueType = Type.UnknownType.UNKNOWN;
-                        if (recvType instanceof Type.ClassType ct && ct.typeArguments().size() == 2) valueType = ct.typeArguments().get(1);
-                        Type keyType = Type.UnknownType.UNKNOWN;
-                        if (recvType instanceof Type.ClassType ct && ct.typeArguments().size() == 2) keyType = ct.typeArguments().get(0);
-                        if ("get".equals(mn)) {
-                            // mesmo contrato do emit: valores de referência devolvem V?
-                            yield valueType instanceof Type.ClassType ct
-                                    && !KofUi.isUiType(ct) && !KofMedia.isHandleType(ct)
-                                    ? new Type.NullableType(valueType) : valueType;
-                        }
-                        if ("remove".equals(mn)) yield valueType;
-                        if ("put".equals(mn)) yield valueType;
-                        if ("size".equals(mn) || "length".equals(mn) || "count".equals(mn)) yield Type.PrimitiveType.INT;
-                        if ("containsKey".equals(mn) || "contains".equals(mn) || "isEmpty".equals(mn)) yield Type.PrimitiveType.BOOL;
-                        if ("clear".equals(mn)) yield Type.PrimitiveType.VOID;
-                        if ("keys".equals(mn)) yield new Type.ClassType("kof", "List", List.of(keyType));
-                        if ("values".equals(mn)) yield new Type.ClassType("kof", "List", List.of(valueType));
-                    }
-                    if (BuiltinTypes.isSet(recvType)) {
-                        String mn = mc.methodName();
-                        Type elemType = Type.UnknownType.UNKNOWN;
-                        if (recvType instanceof Type.ClassType ct && !ct.typeArguments().isEmpty()) elemType = ct.typeArguments().get(0);
-                        if ("size".equals(mn) || "length".equals(mn) || "count".equals(mn)) yield Type.PrimitiveType.INT;
-                        if ("contains".equals(mn) || "isEmpty".equals(mn)) yield Type.PrimitiveType.BOOL;
-                        if ("add".equals(mn) || "remove".equals(mn)) yield Type.PrimitiveType.BOOL;
-                        if ("clear".equals(mn)) yield Type.PrimitiveType.VOID;
-                    }
-                    if (Type.isString(recvType)) {
-                        String mn = mc.methodName();
-                        if ("charAt".equals(mn)) yield Type.PrimitiveType.CHAR;
-                        if ("toInt".equals(mn)) yield Type.PrimitiveType.INT;
-                        if ("toLong".equals(mn)) yield Type.PrimitiveType.LONG;
-                        if ("toDouble".equals(mn)) yield Type.PrimitiveType.DOUBLE;
-                        if ("toFloat".equals(mn)) yield Type.PrimitiveType.FLOAT;
-                        if ("length".equals(mn) || "indexOf".equals(mn) || "lastIndexOf".equals(mn)
-                                || "compareTo".equals(mn) || "compareToIgnoreCase".equals(mn)
-                                || "hashCode".equals(mn) || "size".equals(mn) || "count".equals(mn)) {
-                            yield Type.PrimitiveType.INT;
-                        }
-                        if ("contains".equals(mn) || "startsWith".equals(mn) || "endsWith".equals(mn)
-                                || "equals".equals(mn) || "equalsIgnoreCase".equals(mn)) {
-                            yield Type.PrimitiveType.BOOL;
-                        }
-                        if ("substring".equals(mn) || "concat".equals(mn) || "trim".equals(mn)
-                                || "toUpperCase".equals(mn) || "toLowerCase".equals(mn)
-                                || "replace".equals(mn) || "valueOf".equals(mn)) {
-                            yield BuiltinTypes.STRING;
-                        }
-                        if ("split".equals(mn)) {
-                            yield new Type.ArrayType(BuiltinTypes.STRING);
-                        }
-                    }
-                } else if (currentUnit != null) {
-                    IRLocalVariable lambdaVar = findLocalVar(mc.methodName(), locals);
-                    if (lambdaVar != null && lambdaVar.type() instanceof Type.FunctionType lft) {
-                        yield lft.returnType();
-                    }
-                    for (AstNode d : currentUnit.declarations()) {
-                        if (d instanceof FunctionDeclarationNode fn && fn.name().equals(mc.methodName())) {
-                            Type returnType = CompilerTypes.toType(fn.returnType(), currentUnit);
-                            if (fn.typeParameters().contains(fn.returnType())) {
-                                returnType = new Type.TypeVariable(fn.returnType());
-                            }
-                            if (returnType instanceof Type.TypeVariable tv) {
-                                for (int pi = 0; pi < fn.parameters().size(); pi++) {
-                                    if (pi < mc.arguments().size() && tv.name().equals(fn.parameters().get(pi).type())) {
-                                        yield inferExprType(mc.arguments().get(pi), locals);
-                                    }
-                                }
-                                yield Type.UnknownType.UNKNOWN;
-                            }
-                            yield returnType;
-                        }
-                    }
-                }
-                SymbolTable.MethodSymbol resolvedMethod = semanticAnalyzer.getResolvedMethod(mc);
-                if (resolvedMethod != null) {
-                    Type rt = resolvedMethod.returnType();
-                    if (rt instanceof Type.TypeVariable tv && mc.receiver() != null) {
-                        Type recvT = inferExprType(mc.receiver(), locals);
-                        Type subst = CompilerTypes.substituteTypeVariable(tv.name(), recvT, currentUnit);
-                        if (subst != null) yield subst;
-                    }
-                    yield rt;
-                }
-                if (mc.receiver() != null) {
-                    Type recvT = inferExprType(mc.receiver(), locals);
-                    if (recvT instanceof Type.ClassType ct && semanticAnalyzer != null) {
-                        SymbolTable.Symbol m = semanticAnalyzer.resolveInHierarchy(ct.name(), mc.methodName());
-                        if (m instanceof SymbolTable.MethodSymbol ms) {
-                            Type rt = ms.returnType();
-                            if (rt instanceof Type.TypeVariable tv) {
-                                Type subst = CompilerTypes.substituteTypeVariable(tv.name(), recvT, currentUnit);
-                                if (subst != null) yield subst;
-                            }
-                            yield rt;
-                        }
-                    }
-                    if (recvT instanceof Type.ClassType) {
-                        StringMethodRegistry.Sig osig = StringMethodRegistry.objectMethodSignature(mc.methodName(), mc.arguments().size());
-                        if (osig != null) yield osig.returnType();
-                    }
-                }
-                SymbolTable.ClassSymbol cs = semanticAnalyzer != null ? semanticAnalyzer.getClass(mc.methodName()) : null;
-                if (cs != null) yield cs.type();
-                yield Type.UnknownType.UNKNOWN;
-            }
-            case NewArrayExpr na -> {
-                Type elemType = CompilerTypes.toType(na.elementType(), currentUnit);
-                yield new Type.ArrayType(elemType);
-            }
-            case NewExpr ne -> {
-                Type t = CompilerTypes.toType(ne.typeName(), currentUnit);
-                if ("List".equals(ne.typeName()) || "ArrayList".equals(ne.typeName())) {
-                    t = BuiltinTypes.LIST;
-                }
-                if (!ne.typeArguments().isEmpty() && t instanceof Type.ClassType cts) {
-                    t = new Type.ClassType(cts.packageName(), cts.name(),
-                            ne.typeArguments().stream().map(n -> CompilerTypes.toType(n, currentUnit)).toList());
-                }
-                yield t;
-            }
-            case ArrayAccessExpr aa -> {
-                Type recvType = inferExprType(aa.receiver(), locals);
-                if (recvType instanceof Type.ArrayType at) yield at.componentType();
-                yield Type.UnknownType.UNKNOWN;
-            }
-            case FieldAccessExpr fa -> {
-                Type recvType = inferExprType(fa.receiver(), locals);
-                // narrowing de null-safety: `if (x != null) { x.length }` — inner type
-                if (recvType instanceof Type.NullableType nt) recvType = nt.inner();
-                if (KofProcess.isResult(recvType) && KofProcess.isField(fa.fieldName())) {
-                    yield KofProcess.fieldType(fa.fieldName());
-                }
-                if (KofUi.isComponent(recvType) && "state".equals(fa.fieldName())) {
-                    yield Type.PrimitiveType.INT;
-                }
-                if (KofUi.isWindow(recvType) && "title".equals(fa.fieldName())) {
-                    yield BuiltinTypes.STRING;
-                }
-                if (KofUi.isLabel(recvType) && "text".equals(fa.fieldName())) {
-                    yield BuiltinTypes.STRING;
-                }
-                if (KofUi.isLabel(recvType) && "fontSize".equals(fa.fieldName())) {
-                    yield Type.PrimitiveType.INT;
-                }
-                if (KofUi.isLabel(recvType) && "bold".equals(fa.fieldName())) {
-                    yield Type.PrimitiveType.BOOL;
-                }
-                if (KofUi.isLabel(recvType) && "color".equals(fa.fieldName())) {
-                    yield KofUi.COLOR;
-                }
-                if (fa.receiver() instanceof IdentifierExpr pId && KofUi.isPalette(pId.name())
-                        && KofUi.paletteColor(fa.fieldName()) != null) {
-                    yield KofUi.COLOR;
-                }
-                if (BuiltinTypes.isList(recvType) && ("size".equals(fa.fieldName()) || "length".equals(fa.fieldName()))) {
-                    yield Type.PrimitiveType.INT;
-                }
-                if (BuiltinTypes.isMap(recvType) && ("size".equals(fa.fieldName()) || "length".equals(fa.fieldName()))) {
-                    yield Type.PrimitiveType.INT;
-                }
-                if (BuiltinTypes.isSet(recvType) && ("size".equals(fa.fieldName()) || "length".equals(fa.fieldName()))) {
-                    yield Type.PrimitiveType.INT;
-                }
-                if (recvType instanceof Type.ArrayType at && "length".equals(fa.fieldName())) {
-                    yield Type.PrimitiveType.INT;
-                }
-                if (Type.isString(recvType) && "length".equals(fa.fieldName())) {
-                    yield Type.PrimitiveType.INT;
-                }
-                if (Type.isString(recvType) && ("name".equals(fa.fieldName()) || "path".equals(fa.fieldName()))) {
-                    yield BuiltinTypes.STRING;
-                }
-                if (recvType instanceof Type.ClassType ct && ct.packageName().isEmpty()
-                        && CompilerTypes.isEnumName(ct.name(), currentUnit)) {
-                    if (!CompilerTypes.enumConstantsOf(ct.name(), currentUnit).contains(fa.fieldName()) && currentDiagnostics != null) {
-                        currentDiagnostics.error("", 0, 0, 0,
-                                "enum '" + ct.name() + "' não tem constante '" + fa.fieldName() + "'",
-                                "SEM030");
-                    }
-                    yield recvType;
-                }
-                if (recvType instanceof Type.ClassType ct && semanticAnalyzer != null) {
-                    SymbolTable.Symbol s = semanticAnalyzer.resolveInHierarchy(ct.name(), fa.fieldName());
-                    if (s instanceof SymbolTable.FieldSymbol fs) yield fs.type();
-                    if (s instanceof SymbolTable.MethodSymbol ms && ms.parameterTypes().isEmpty()) {
-                        yield ms.returnType();
-                    }
-                }
-                yield Type.UnknownType.UNKNOWN;
-            }
-            case LambdaExpr le -> {
-                List<Type> paramTypes = new ArrayList<>();
-                List<IRLocalVariable> extended = new ArrayList<>(locals);
-                int pidx = 0;
-                for (FormalParameterNode p : le.parameters()) {
-                    Type pt = CompilerTypes.toType(p.type(), currentUnit);
-                    paramTypes.add(pt);
-                    extended.add(new IRLocalVariable(pidx++, p.name(), pt));
-                }
-                Type returnType = Type.UnknownType.UNKNOWN;
-                for (StatementNode s : le.body()) {
-                    if (s instanceof ReturnStmt rs && rs.value() != null) {
-                        returnType = inferExprType(rs.value(), extended);
-                        break;
-                    }
-                }
-                if (Type.UnknownType.UNKNOWN.equals(returnType)) {
-                    // A lambda whose body has no return statement is void.
-                    // Without this, the synthetic invoke method is lowered with
-                    // an Object return and the backends misparse the bare
-                    // KofReturn (empty value stack).
-                    returnType = Type.PrimitiveType.VOID;
-                }
-                yield new Type.FunctionType(paramTypes, returnType, lambdaClassNames.get(le));
-            }
-            case IfExpr ie -> {
-                Type thenType = inferExprType(ie.thenExpr(), locals);
-                Type elseType = inferExprType(ie.elseExpr(), locals);
-                yield thenType;
-            }
-            case SwitchExpr se -> {
-                if (!se.cases().isEmpty()) {
-                    yield inferExprType(se.cases().get(0).body(), locals);
-                }
-                yield se.defaultValue() != null ? inferExprType(se.defaultValue(), locals)
-                        : Type.UnknownType.UNKNOWN;
-            }
-            default -> Type.UnknownType.UNKNOWN;
-        };
-    }
-
-
-
-
-    /**
-     * True quando a cadeia de superclasses a partir de internalName é
-     * inteiramente conhecida pelo SemanticAnalyzer (nenhuma classe externa
-     * no caminho). Só nesse caso "método não resolvido" prova inexistência.
-     */
-
-
-
-
 
     private boolean needsErasureBoxing() {
         return target == Target.JVM;
@@ -5869,7 +5092,7 @@ Target target = Target.JVM;
                 }
             }
             localIdx = emitExpression(args.get(i), ops, owner, localIdx, locals);
-            Type argType = inferExprType(args.get(i), locals);
+            Type argType = ExpressionTyper.inferExprType(this, args.get(i), locals);
             if (formal != null && formal instanceof Type.PrimitiveType fpt
                     && argType instanceof Type.PrimitiveType apt
                     && !BuiltinTypes.isString(formal)) {
@@ -6102,7 +5325,7 @@ Target target = Target.JVM;
         }
         if (target instanceof FieldAccessExpr fa) {
             localIdx = emitExpression(fa.receiver(), ops, owner, localIdx, locals);
-            Type recvType = inferExprType(fa.receiver(), locals);
+            Type recvType = ExpressionTyper.inferExprType(this, fa.receiver(), locals);
             Type fieldType = Type.UnknownType.UNKNOWN;
             if (recvType instanceof Type.ClassType ct) {
                 SymbolTable.Symbol fs = HierarchyResolver.resolveFieldInHierarchy(ct.name(), fa.fieldName(), semanticAnalyzer);
@@ -6114,7 +5337,7 @@ Target target = Target.JVM;
         }
         if (target instanceof ArrayAccessExpr aa) {
             localIdx = emitExpression(aa.receiver(), ops, owner, localIdx, locals);
-            Type recvType = inferExprType(aa.receiver(), locals);
+            Type recvType = ExpressionTyper.inferExprType(this, aa.receiver(), locals);
             Type elemType = Type.arrayElementType(recvType);
             int arrTmp = localIdx++;
             int idxTmp = localIdx++;
@@ -6445,8 +5668,8 @@ Target target = Target.JVM;
     boolean isComparisonShortcut(BinaryExpr bin, List<IRLocalVariable> locals) {
         if (!TypeMetrics.isComparisonOp(bin.operator())) return false;
         if ("==".equals(bin.operator()) || "!=".equals(bin.operator())) {
-            Type left = inferExprType(bin.left(), locals);
-            Type right = inferExprType(bin.right(), locals);
+            Type left = ExpressionTyper.inferExprType(this, bin.left(), locals);
+            Type right = ExpressionTyper.inferExprType(this, bin.right(), locals);
             if (Type.isString(left) || Type.isString(right)) return false;
             // enum == enum compara conteúdo (string) — nunca identidade
             if (CompilerTypes.isEnumType(left, currentUnit) || CompilerTypes.isEnumType(right, currentUnit)) return false;
@@ -6464,8 +5687,8 @@ Target target = Target.JVM;
      * JVM backend can emit the correct compare instruction.
      */
     Type comparisonOperandType(BinaryExpr bin, List<IRLocalVariable> locals) {
-        Type left = inferExprType(bin.left(), locals);
-        Type right = inferExprType(bin.right(), locals);
+        Type left = ExpressionTyper.inferExprType(this, bin.left(), locals);
+        Type right = ExpressionTyper.inferExprType(this, bin.right(), locals);
         if (TypeMetrics.isNumeric(left) && TypeMetrics.isNumeric(right)) {
             return TypeMetrics.commonNumericType(left, right);
         }
@@ -6508,9 +5731,9 @@ Target target = Target.JVM;
             return localIdx;
         }
         localIdx = emitExpression(bin.left(), ops, owner, localIdx, locals);
-        emitWideningIfNeeded(ops, inferExprType(bin.left(), locals), common);
+        emitWideningIfNeeded(ops, ExpressionTyper.inferExprType(this, bin.left(), locals), common);
         localIdx = emitExpression(bin.right(), ops, owner, localIdx, locals);
-        emitWideningIfNeeded(ops, inferExprType(bin.right(), locals), common);
+        emitWideningIfNeeded(ops, ExpressionTyper.inferExprType(this, bin.right(), locals), common);
         return localIdx;
     }
 
@@ -6543,7 +5766,7 @@ Target target = Target.JVM;
     // verifier rejeita (frame crash / VerifyError "JavaFX").
     private void emitPrimWidenNarrow(List<KofOperation> ops, ExpressionNode value,
                                      Type elemType, List<IRLocalVariable> locals) {
-        Type vt = inferExprType(value, locals);
+        Type vt = ExpressionTyper.inferExprType(this, value, locals);
         if (elemType instanceof Type.PrimitiveType et && vt instanceof Type.PrimitiveType st) {
             if ("long".equals(et.name()) && "int".equals(st.name())) {
                 ops.add(new KofUnary(KofUnaryOp.I2L, Type.PrimitiveType.INT));
@@ -6570,7 +5793,7 @@ Target target = Target.JVM;
             if (mc.receiver() instanceof IdentifierExpr rid && !isLocalVarName(rid.name(), locals)
                     && KofCache.isCacheNamespace(rid.name())) {
                 List<Type> cacheArgTypes = new ArrayList<>();
-                for (ExpressionNode arg : mc.arguments()) cacheArgTypes.add(inferExprType(arg, locals));
+                for (ExpressionNode arg : mc.arguments()) cacheArgTypes.add(ExpressionTyper.inferExprType(this, arg, locals));
                 KofCache.CacheCall cc = KofCache.staticCall(mc.methodName(), cacheArgTypes);
                 if (cc == null) return true;
                 return !(cc.returnType() instanceof Type.PrimitiveType pt && "void".equals(pt.name()));
@@ -6586,21 +5809,21 @@ Target target = Target.JVM;
             // List methods that leave a value on the stack (get, remove,
             // size, contains, isEmpty) must be popped at statement level;
             // add/set/clear are already popped by the JVM backend.
-            if (mc.receiver() != null && BuiltinTypes.isList(inferExprType(mc.receiver(), locals))) {
+            if (mc.receiver() != null && BuiltinTypes.isList(ExpressionTyper.inferExprType(this, mc.receiver(), locals))) {
                 return switch (mc.methodName()) {
                     case "get", "remove", "size", "length", "count",
                             "contains", "isEmpty" -> true;
                     default -> false;
                 };
             }
-            if (mc.receiver() != null && BuiltinTypes.isMap(inferExprType(mc.receiver(), locals))) {
+            if (mc.receiver() != null && BuiltinTypes.isMap(ExpressionTyper.inferExprType(this, mc.receiver(), locals))) {
                 return switch (mc.methodName()) {
                     case "get", "remove", "put", "size", "length", "count",
                             "contains", "containsKey", "isEmpty", "keys", "values" -> true;
                     default -> false;
                 };
             }
-            if (mc.receiver() != null && BuiltinTypes.isSet(inferExprType(mc.receiver(), locals))) {
+            if (mc.receiver() != null && BuiltinTypes.isSet(ExpressionTyper.inferExprType(this, mc.receiver(), locals))) {
                 return switch (mc.methodName()) {
                     case "contains", "isEmpty", "size", "length", "count",
                             "add", "remove" -> true;
@@ -6614,7 +5837,7 @@ Target target = Target.JVM;
             }
             if (mc.receiver() != null) {
                 List<Type> webArgTypes = new ArrayList<>();
-                for (ExpressionNode arg : mc.arguments()) webArgTypes.add(inferExprType(arg, List.of()));
+                for (ExpressionNode arg : mc.arguments()) webArgTypes.add(ExpressionTyper.inferExprType(this, arg, List.of()));
                 KofWeb.WebCall webCall = KofWeb.instanceMethod(mc.methodName(), webArgTypes);
                 if (webCall != null) {
                     return !(webCall.returnType() instanceof Type.PrimitiveType pt && "void".equals(pt.name()));
@@ -6644,7 +5867,7 @@ Target target = Target.JVM;
                     return !(resolvedType instanceof Type.UnknownType);
                 }
             }
-            Type t = inferExprType(mc, locals);
+            Type t = ExpressionTyper.inferExprType(this, mc, locals);
             if (t instanceof Type.UnknownType || Type.isVoid(t)) return false;
             // add/push/append/set/clear/put de coleção: o emit do backend
             // já descarta o valor (POP no kof_list_add/kof_map_put) — sem
@@ -6902,7 +6125,7 @@ Target target = Target.JVM;
                 tmpLocals.add(new IRLocalVariable(tmpIdx, p.name(), CompilerTypes.resolveWithTypeParams(p.type(), typeParams, currentUnit, semanticAnalyzer)));
                 tmpIdx++;
             }
-            Type inferred = inferExprType(ret.value(), tmpLocals);
+            Type inferred = ExpressionTyper.inferExprType(this, ret.value(), tmpLocals);
             if (inferred instanceof Type.UnknownType && semanticAnalyzer != null) {
                 Type semanticRt = semanticAnalyzer.resolvedMethodReturnType(method);
                 if (semanticRt != null && !(semanticRt instanceof Type.UnknownType) && !Type.isVoid(semanticRt)) {

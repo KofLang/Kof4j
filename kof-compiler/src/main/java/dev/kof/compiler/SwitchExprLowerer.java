@@ -11,7 +11,7 @@ final class SwitchExprLowerer {
 
     static int emitSwitchExpr(CompilerDriver driver, SwitchExpr se, List<KofOperation> ops, String owner,
                                int localIdx, List<IRLocalVariable> locals) {
-        Type switchType = driver.inferExprType(se.expression(), locals);
+        Type switchType = ExpressionTyper.inferExprType(driver, se.expression(), locals);
         int switchTmp = localIdx++;
         localIdx = driver.emitExpression(se.expression(), ops, owner, localIdx, locals);
         ops.add(new KofStoreLocal(switchType, switchTmp));
@@ -46,7 +46,7 @@ final class SwitchExprLowerer {
         } else {
             ops.add(new KofLoadLocal(switchType, switchTmp));
             localIdx = driver.emitExpression(sc.value(), ops, owner, localIdx, locals);
-            Type caseType = driver.inferExprType(sc.value(), locals);
+            Type caseType = ExpressionTyper.inferExprType(driver, sc.value(), locals);
             if (Type.isString(switchType) || CompilerTypes.isEnumType(switchType, driver.currentUnit) || CompilerTypes.isEnumType(caseType, driver.currentUnit)) {
                 // igualdade de String/enum é por conteúdo (bug 4 do statement)
                 ops.add(new KofCall(BuiltinTypes.STRING, "kof_string_equals",

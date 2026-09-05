@@ -17,7 +17,7 @@ final class StatementLowerer {
             case ReturnStmt ret -> {
                 if (ret.value() != null) {
                     localIdx = driver.emitExpression(ret.value(), ops, owner, localIdx, locals);
-                    driver.emitWideningIfNeeded(ops, driver.inferExprType(ret.value(), locals), returnType);
+                    driver.emitWideningIfNeeded(ops, ExpressionTyper.inferExprType(driver, ret.value(), locals), returnType);
                     ops.add(new KofReturn(returnType));
                 } else if (Type.isVoid(returnType)) {
                     ops.add(new KofReturnVoid());
@@ -51,7 +51,7 @@ final class StatementLowerer {
                 }
                 if (driver.mutatedCapturedNames.contains(vds.name())) {
                     Type initType = vds.initializer() == null ? Type.PrimitiveType.INT
-                            : driver.inferExprType(vds.initializer(), locals);
+                            : ExpressionTyper.inferExprType(driver, vds.initializer(), locals);
                     String boxName = driver.boxFactory.createBoxClass(initType, driver.syntheticClasses, driver.lambdaCounter);
                     Type boxType = new Type.ClassType("", boxName, List.of());
                     ops.add(new KofNewObject(boxType, List.of()));
@@ -70,7 +70,7 @@ final class StatementLowerer {
                     yield localIdx + 1;
                 }
                 if (vds.initializer() != null) {
-                    Type initType = driver.inferExprType(vds.initializer(), locals);
+                    Type initType = ExpressionTyper.inferExprType(driver, vds.initializer(), locals);
                     if (Type.isVoid(initType)) {
                         if (driver.currentDiagnostics != null) {
                             driver.currentDiagnostics.error(vds.position() != null ? vds.position().file() : "",
@@ -84,7 +84,7 @@ final class StatementLowerer {
                     }
                     localIdx = driver.emitExpression(vds.initializer(), ops, owner, localIdx, locals);
                     if ("var".equals(vds.type()) || "val".equals(vds.type())) {
-                        varType = driver.inferExprType(vds.initializer(), locals);
+                        varType = ExpressionTyper.inferExprType(driver, vds.initializer(), locals);
                         // spawn-expr: pina Handle<T> com T do corpo (a inferência
                         // genérica pode ter perdido o typeArgument)
                         if (vds.initializer() instanceof MethodCallExpr sm
@@ -94,10 +94,10 @@ final class StatementLowerer {
                                 && (hct.typeArguments().isEmpty()
                                     || hct.typeArguments().get(0) instanceof Type.UnknownType)) {
                             varType = new Type.ClassType("kof.concurrent", "Handle",
-                                    List.of(driver.inferExprType(sm.arguments().get(0), locals)));
+                                    List.of(ExpressionTyper.inferExprType(driver, sm.arguments().get(0), locals)));
                         }
                     } else {
-                        Type initT = driver.inferExprType(vds.initializer(), locals);
+                        Type initT = ExpressionTyper.inferExprType(driver, vds.initializer(), locals);
                         // bug 8: `var s: (Int) -> Int = (x: Int) -> x * 2` — o
                         // tipo declarado é FunctionType sem className, mas o
                         // valor real é a classe sintética da lambda. Preservar
@@ -120,8 +120,8 @@ final class StatementLowerer {
                 // int num slot Object invalidava o bytecode.
                 if (driver.erasesToReference(varType)
                         && vds.initializer() != null
-                        && TypeMetrics.isPrimitiveType(driver.inferExprType(vds.initializer(), locals))) {
-                    driver.emitErasureBox(ops, driver.inferExprType(vds.initializer(), locals));
+                        && TypeMetrics.isPrimitiveType(ExpressionTyper.inferExprType(driver, vds.initializer(), locals))) {
+                    driver.emitErasureBox(ops, ExpressionTyper.inferExprType(driver, vds.initializer(), locals));
                 }
                 // declaração sem inicializador: default (0 primitivo / null
                 // referência) — antes o store saía de pilha vazia (frame crash)
@@ -261,7 +261,7 @@ final class StatementLowerer {
                 LabelId bodyLabel = LabelId.create();
                 LabelId endLabel = LabelId.create();
                 LabelId continueLabel = LabelId.create();
-                Type collType = driver.inferExprType(fis.collection(), locals);
+                Type collType = ExpressionTyper.inferExprType(driver, fis.collection(), locals);
                 Type elemType = Type.UnknownType.UNKNOWN;
                 boolean isList = BuiltinTypes.isList(collType);
                 if (isList) elemType = driver.listElementType(collType);
@@ -310,7 +310,7 @@ final class StatementLowerer {
             }
             case ThrowStmt ts -> {
                 localIdx = driver.emitExpression(ts.expression(), ops, owner, localIdx, locals);
-                Type excType = driver.inferExprType(ts.expression(), locals);
+                Type excType = ExpressionTyper.inferExprType(driver, ts.expression(), locals);
                 if (BuiltinTypes.isString(excType) && driver.target == Target.JVM) {
                     int tmp = localIdx++;
                     locals.add(new IRLocalVariable(tmp, "#exc", BuiltinTypes.STRING));
