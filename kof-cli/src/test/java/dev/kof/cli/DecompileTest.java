@@ -362,6 +362,23 @@ class DecompileTest {
         assertFalse(kof.contains("arg0.size()"), "não deve manter size():\n" + kof);
     }
 
+    @Test
+    void mapsParseAndClock(@TempDir Path dir) throws Exception {
+        Path javaFile = dir.resolve("Parse.java");
+        Files.writeString(javaFile, """
+                public class Parse {
+                    public static int toN(String s) { return Integer.parseInt(s); }
+                    public static long when() { return System.currentTimeMillis(); }
+                }
+                """);
+        runJavac(javaFile, dir);
+
+        String kof = Decompile.decompile(dir.resolve("Parse.class"));
+
+        assertTrue(kof.contains("arg0.toInt()"), "Integer.parseInt vira .toInt():\\n" + kof);
+        assertTrue(kof.contains("now()"), "currentTimeMillis vira now():\\n" + kof);
+    }
+
     private void runJavac(Path javaFile, Path dir) throws IOException, InterruptedException {
         String javaHome = System.getProperty("java.home");
         Path javac = Path.of(javaHome, "bin", "javac");

@@ -69,7 +69,8 @@ final class BytecodeDecoder {
                     if (m == null) return null;
                     String a = callArgs(stack, argCount(m[2]));
                     if (a == null) return null;
-                    stack.push(simpleOwner(m[0]) + "." + m[1] + "(" + a + ")");
+                    String mapped = mapStaticCall(m[0], m[1], a);
+                    stack.push(mapped != null ? mapped : simpleOwner(m[0]) + "." + m[1] + "(" + a + ")");
                 }
                 case 0xb6, 0xb9 -> { // invokevirtual / invokeinterface
                     String[] m = resolveMethodRef(cp, in.operands()[0]);
@@ -112,7 +113,7 @@ final class BytecodeDecoder {
                     if (!result.startsWith("⟦new⟧")) return null;
                     stack.push(result.substring("⟦new⟧".length()) + "(" + a + ")");
                 }
-                case 0xac, 0xb0 -> {
+                case 0xac, 0xad, 0xae, 0xaf, 0xb0 -> {
                     return stack.isEmpty() ? null : stack.pop();
                 }
                 case 0xb1 -> {
@@ -356,6 +357,26 @@ final class BytecodeDecoder {
         // métodos sem-argumento que em Kof são PROPRIEDADES (não métodos)
         if (args.isEmpty() && ("length".equals(name) || "size".equals(name) || "isEmpty".equals(name))) {
             return receiver + "." + name;
+        }
+        return null;
+    }
+
+    /** Mapeia chamada ESTÁTICA de stdlib → idiom Kof (ex.: Integer.parseInt -> .toInt). */
+    private static String mapStaticCall(String ownerInternal, String name, String args) {
+        if ("java/lang/Integer".equals(ownerInternal) && ("parseInt".equals(name) || "valueOf".equals(name))) {
+            return args + ".toInt()";
+        }
+        if ("java/lang/Long".equals(ownerInternal) && ("parseLong".equals(name) || "valueOf".equals(name))) {
+            return args + ".toLong()";
+        }
+        if ("java/lang/Double".equals(ownerInternal) && ("parseDouble".equals(name) || "valueOf".equals(name))) {
+            return args + ".toDouble()";
+        }
+        if ("java/lang/Float".equals(ownerInternal) && ("parseFloat".equals(name) || "valueOf".equals(name))) {
+            return args + ".toFloat()";
+        }
+        if ("java/lang/System".equals(ownerInternal) && "currentTimeMillis".equals(name)) {
+            return "now()";
         }
         return null;
     }
@@ -682,7 +703,8 @@ final class BytecodeDecoder {
                     if (m == null) return null;
                     String a = callArgs(stack, argCount(m[2]));
                     if (a == null) return null;
-                    String call = simpleOwner(m[0]) + "." + m[1] + "(" + a + ")";
+                    String mapped = mapStaticCall(m[0], m[1], a);
+                    String call = mapped != null ? mapped : simpleOwner(m[0]) + "." + m[1] + "(" + a + ")";
                     if (isVoidDesc(m[2])) { stmts.add(call); } else { stack.push(call); }
                 }
                 case 0xb6, 0xb9 -> { // invokevirtual / invokeinterface
@@ -720,7 +742,7 @@ final class BytecodeDecoder {
                     String val = stack.pop();
                     stmts.add(simpleOwner(f[0]) + "." + f[1] + " = " + val);
                 }
-                case 0xac -> { if (stack.isEmpty()) return null; stmts.add("return " + stack.pop()); return stmts; }
+                case 0xac, 0xad, 0xae, 0xaf -> { if (stack.isEmpty()) return null; stmts.add("return " + stack.pop()); return stmts; }
                 case 0xb0 -> { if (stack.isEmpty()) return null; stmts.add("return " + stack.pop()); return stmts; }
                 case 0xb1 -> { stmts.add("return"); return stmts; }
                 // terminadores de bloco: branch/goto — paramos sem emitir
