@@ -16,6 +16,27 @@ MAJOR.MINOR.PATCH-<estágio>
 - **Estágio** — a **fase** (Alpha, Beta, RC, Stable) é sufixo; o **codinome** da
   release vem da lista abaixo (futuro: `1.0.0-chevette`).
 
+## Modelo de branches e salvaguardas de release
+
+```text
+main        → linha de release ESTÁVEL. Cada push dispara release.yml.
+beta-X.Y    → linha de release EM DESENVOLVIMENTO (bump aqui, não na main).
+feature/*   → branches de trabalho dos agentes (nunca carregam VERSION).
+```
+
+**Regras (não-negociáveis — ver `AGENTS.md` → "Salva-guardas"):**
+
+1. Só a mantenedora (ou o `release.yml`) mexe em `VERSION` e na `main`.
+2. Agentes **nunca** mergeiam `main`/`beta-*` para dentro da própria branch
+   (isso puxa o `VERSION` e contamina o merge). Sincronizar = `git cherry-pick`
+   dos commits de código, nunca um merge de branch de release.
+3. `guard-version.yml` falha qualquer PR que mude `VERSION`.
+
+> **Incidente 05/09:** um agente mergeou `beta-0.3.0 → planning-future` e,
+> depois, `planning-future → main`. O `VERSION` 0.3.0-beta vazou para `main`
+> e o `release.yml` publicou a minor em desenvolvimento antes da hora
+> (irreversível). Estas regras existem para impedir a repetição.
+
 ## Estágios
 
 | Estágio | Significado | Status |

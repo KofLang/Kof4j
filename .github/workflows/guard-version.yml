@@ -1,0 +1,37 @@
+name: Guard VERSION
+
+# Proteção de release: nenhum PR pode alterar o `VERSION`.
+#
+# O bump de versão é exclusivo do processo de release (release.yml, que roda
+# a cada push em `main`) e da mantenedora. Se uma branch de trabalho (ex.:
+# uma feature que mergeou `beta-*` para "sincronizar") trouxer um `VERSION`
+# alterado, este guard falha o PR — impedindo que um bump indevido vaze para
+# a linha de release (o que já causou um release acidental e irreversível).
+
+on:
+  pull_request:
+    branches: [main, 'beta-*']
+
+permissions: {}
+
+jobs:
+  forbid-version-change:
+    name: PR não pode mudar VERSION
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: VERSION intocado
+        run: |
+          BASE="${{ github.base_ref }}"
+          if git diff --name-only "origin/$BASE"...HEAD | grep -q '^VERSION$'; then
+            echo "::error::ERRO: este PR altera o arquivo VERSION."
+            echo "O bump de versão é exclusivo do release (release.yml na main) e da mantenedora."
+            echo "Se você mergeou uma branch de release (main/beta-*) na sua branch, desfaça o VERSION:"
+            echo "  git checkout '$BASE' -- VERSION"
+            exit 1
+          fi
+          echo "VERSION inalterado — ok."

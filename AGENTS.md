@@ -65,6 +65,32 @@ esses dois, ele sabe exatamente onde você está e por quê.
 
 ---
 
+## Salva-guardas — proteção de release (não-negociável)
+
+> Estas regras existem porque **um push errado na `main` dispara um release**
+> (`release.yml` roda a cada push em `main`). Aconteceu uma vez (05/09) e é
+> **irreversível**: o bump de versão de uma branch de release vazou para `main`
+> e publicou uma versão que ainda estava em desenvolvimento. Nunca mais.
+
+1. **Nunca editar `VERSION`.** O bump é exclusivo do processo de release
+   (`release.yml`) e da mantenedora. Agente que altera `VERSION` = revertido.
+2. **Nunca commitar nem mergear na `main`.** `main` é a linha de release.
+   Agente trabalha na própria branch e entrega via PR; só a mantenedora
+   (ou o release.yml) toca a `main`.
+3. **Nunca mergear branch de release (`main`, `beta-*`) PARA DENTRO da sua
+   branch de trabalho.** Branch de release carrega `VERSION` + metadata de
+   build + tags. Para sincronizar código, use `git cherry-pick` dos commits
+   específicos — nunca um merge inteiro.
+4. **Antes de qualquer push: conferir `git diff main..HEAD -- VERSION`.**
+   Se `VERSION` mudou na sua branch, o merge está contaminado — pare e
+   desfaça (`git checkout main -- VERSION`), nunca empurre.
+5. **Confiar, mas verificar merges "inocentes".** `git merge origin/beta-*`
+   numa branch de feature parece sync, mas puxa o bump. Se a tarefa foi
+   "sincronizar com a beta", o delivery correto é **código + testes**, nunca o
+   `VERSION` da release.
+
+---
+
 ## Fonte da verdade e modelo de colaboração (obrigatório)
 
 O ecossistema Kof (Koflang, Kof4J, Kof Native, Kof Editor) é **open source
