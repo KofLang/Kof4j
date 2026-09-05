@@ -217,7 +217,7 @@ private Target target = Target.JVM;
             CompilationUnitNode unit = new CompilationUnitNode(
                     parsedUnits.get(0).position(), "",
                     mergedImports, mergedDecls);
-            unit = expandKofImports(unit);
+            unit = CompilerImports.expandKofImports(unit, moduleRoot, currentDiagnostics, declarationPackages);
             if (diagnostics.hasErrors()) {
                 return new CompilationResult(false, diagnostics, outputDir);
             }
@@ -268,145 +268,7 @@ private Target target = Target.JVM;
      * TRANSITIVA (imports dos imports), sem ciclos. Tipos ficam visíveis
      * pelo nome simples — a IR é única e global ao build.
      */
-    private CompilationUnitNode expandKofImports(CompilationUnitNode unit) {
-        java.util.Set<String> visitedDirs = new java.util.HashSet<>();
-        List<AstNode> decls = new ArrayList<>(unit.declarations());
-        List<String> imports = new ArrayList<>(unit.imports());
-        java.util.ArrayDeque<String> queue = new java.util.ArrayDeque<>(imports);
-        int rounds = 0;
-        while (!queue.isEmpty() && rounds++ < 256) {
-            String imp = queue.poll();
-            if (imp.endsWith(".*")) {
-                imp = imp.substring(0, imp.length() - 2);
-            }
-            Path pkgDir = moduleRoot != null
-                    ? moduleRoot.resolve(imp.replace('.', '/'))
-                    : Path.of(imp.replace('.', '/'));
-            // Try directory import first (import a.b -> whole package a/b)
-            if (Files.isDirectory(pkgDir)) {
-                String dirKey = pkgDir.toAbsolutePath().normalize().toString();
-                if (!visitedDirs.add(dirKey)) continue;
-                try (var stream = Files.walk(pkgDir, 1)) {
-                    for (Path kf : stream.filter(p -> p.toString().endsWith(".kf"))
-                            .sorted(java.util.Comparator.comparing(p -> p.getFileName().toString()))
-                            .toList()) {
-                        String code = Files.readString(kf);
-                        String fileName = kf.getFileName().toString();
-                        DiagnosticCollector silent = new DiagnosticCollector();
-                        Parser parser = new Parser(new Lexer(code, fileName, silent).tokenize(),
-                                silent, fileName);
-                        CompilationUnitNode libUnit = parser.parse();
-                        if (silent.hasErrors()) {
-                            for (Diagnostic d : silent.getDiagnostics()) currentDiagnostics.report(d);
-                            continue;
-                        }
-                        String expectedPkg = dirKey.equals(moduleRoot.toAbsolutePath().normalize().toString())
-                                ? "" : imp;
-                        if (!libUnit.packageName().isEmpty()
-                                && !libUnit.packageName().equals(expectedPkg)
-                                && currentDiagnostics != null) {
-                            SourcePosition p0 = libUnit.position();
-                            currentDiagnostics.error(kf.toString(), 0, 0, 0,
-                                    "package '" + libUnit.packageName()
-                                            + "' não corresponde ao diretório do import ('"
-                                            + expectedPkg + "')",
-                                    "PKG004");
-                            continue;
-                        }
-                        for (String libImp : libUnit.imports()) {
-                            if (!imports.contains(libImp)) { imports.add(libImp); queue.add(libImp); }
-                        }
-                        for (AstNode d : libUnit.declarations()) {
-                            declarationPackages.put(d, libUnit.packageName());
-                            decls.add(d);
-                        }
-                    }
-                } catch (IOException e) {
-                    if (currentDiagnostics != null) {
-                        currentDiagnostics.error("", 0, 0, 0,
-                                "import '" + imp + "' could not be read: " + e.getMessage(), "PKG003");
-                    }
-                }
-                continue;
-            }
-            // File import (import a.b.C -> single file a/b/C.kf)
-            int lastDot = imp.lastIndexOf('.');
-            if (lastDot > 0) {
-                String pkgPart = imp.substring(0, lastDot);
-                String filePart = imp.substring(lastDot + 1);
-                Path pkgPath = moduleRoot != null ? moduleRoot.resolve(pkgPart.replace('.', '/')) : Path.of(pkgPart.replace('.', '/'));
-                Path kfFile = pkgPath.resolve(filePart + ".kf");
-                if (Files.isRegularFile(kfFile)) {
-                    String pkgKey = kfFile.toAbsolutePath().normalize().toString();
-                    if (!visitedDirs.add(pkgKey)) continue;
-                    try {
-                        String code = Files.readString(kfFile);
-                        String fileName = kfFile.getFileName().toString();
-                        DiagnosticCollector silent = new DiagnosticCollector();
-                        Parser parser = new Parser(new Lexer(code, fileName, silent).tokenize(), silent, fileName);
-                        CompilationUnitNode libUnit = parser.parse();
-                        if (silent.hasErrors()) {
-                            for (Diagnostic d : silent.getDiagnostics()) currentDiagnostics.report(d);
-                            continue;
-                        }
-                        if (!libUnit.packageName().isEmpty()
-                                && !libUnit.packageName().equals(pkgPart)
-                                && currentDiagnostics != null) {
-                            currentDiagnostics.error(kfFile.toString(), 0, 0, 0,
-                                    "package '" + libUnit.packageName() + "' não corresponde ao diretório do import ('" + pkgPart + "')",
-                                    "PKG004");
-                            continue;
-                        }
-                        for (String libImp : libUnit.imports()) {
-                            if (!imports.contains(libImp)) { imports.add(libImp); queue.add(libImp); }
-                        }
-                        for (AstNode d : libUnit.declarations()) {
-                            declarationPackages.put(d, libUnit.packageName());
-                            decls.add(d);
-                        }
-                    } catch (IOException e) {
-                        if (currentDiagnostics != null) {
-                            currentDiagnostics.error("", 0, 0, 0,
-                                    "import '" + imp + "' could not be read: " + e.getMessage(), "PKG003");
-                        }
-                    }
-                    continue;
-                }
-            }
-            // import externo (android.* etc.) — ignora
-            continue;
-        }
-        java.util.Map<String, String> seen = new java.util.HashMap<>();
-        java.util.Map<String, String> seenFile = new java.util.HashMap<>();
-        for (AstNode d : decls) {
-            String n = declarationName(d);
-            if (n == null) continue;
-            String pkg = declarationPackages.getOrDefault(d, unit.packageName());
-            String prev = seen.get(n);
-            String file = d.position() != null ? d.position().file() : "";
-            if (prev != null && prev.equals(pkg)
-                    && !java.util.Objects.equals(seenFile.get(n), file)) {
-                // Mesmo nome simples no MESMO pacote vindo de ARQUIVOS
-                // diferentes é colisão real. A mesma declaração re-adicionada
-                // via import transitivo (fonte explícita + import) não é.
-                if (currentDiagnostics != null) {
-                    currentDiagnostics.error("", 0, 0, 0,
-                            "duplicate type name '" + n + "' in package '" + pkg + "'",
-                            "PKG005");
-                }
-            }
-            seen.putIfAbsent(n, pkg);
-            seenFile.putIfAbsent(n, file);
-        }
-        return new CompilationUnitNode(unit.position(), unit.packageName(),
-                imports, decls);
-    }
 
-    private static String declarationName(AstNode d) {
-        if (d instanceof TypeDeclarationNode t) return t.name();
-        if (d instanceof FunctionDeclarationNode f) return f.name();
-        return null;
-    }
 
     private void lowerAndEmit(CompilationUnitNode unit, DiagnosticCollector diagnostics,
                               Path outputDir, Target target) throws IOException {
@@ -421,8 +283,8 @@ private Target target = Target.JVM;
         for (AstNode d : unit.declarations()) {
             if (d instanceof EnumDeclarationNode en) BuiltinTypes.registerEnum(en.name());
         }
-            unit = desugarTests(unit);
-            unit = desugarApplication(unit);
+            unit = CompilerDesugar.desugarTests(unit, discoveredTests, testHarnessMode, currentSourceName);
+            unit = CompilerDesugar.desugarApplication(unit);
             discoveredConfigKeys.clear();
             if (target == Target.ANDROID) {
                 unit = appendAndroidHostIfNeeded(unit);
@@ -579,34 +441,6 @@ private Target target = Target.JVM;
      * (nunca reflection): cada teste roda isolado por try/catch, PASS/FAIL
      * por nome e exit code != 0 quando há falha.
      */
-    private CompilationUnitNode desugarTests(CompilationUnitNode unit) {
-        discoveredTests.clear();
-        java.util.List<AstNode> decls = new ArrayList<>();
-        int ti = 0;
-        for (AstNode d : unit.declarations()) {
-            if (d instanceof TestDeclarationNode t) {
-                String fn = "kof_test_" + ti++;
-                discoveredTests.add(new TestInfo(t.name(), fn));
-                decls.add(new FunctionDeclarationNode(t.position(), List.of(), "void", fn,
-                        List.of(), List.of(), List.of(), t.body()));
-            } else {
-                decls.add(d);
-            }
-        }
-        if (testHarnessMode && !discoveredTests.isEmpty()) {
-            java.util.List<AstNode> withHarness = new ArrayList<>();
-            for (AstNode d : decls) {
-                if (d instanceof FunctionDeclarationNode f && "main".equals(f.name())) {
-                    continue; // kof test roda só os testes (como cargo test)
-                }
-                withHarness.add(d);
-            }
-            withHarness.add(buildTestHarnessMain());
-            decls = withHarness;
-        }
-        return new CompilationUnitNode(unit.position(), unit.packageName(), unit.imports(),
-                java.util.Collections.unmodifiableList(decls));
-    }
 
 
     /**
@@ -615,53 +449,6 @@ private Target target = Target.JVM;
      * (onStart) e no epílogo (onShutdown). Zero container, zero reflection —
      * mesmo padrão do `test "nome" {}`.
      */
-    private CompilationUnitNode desugarApplication(CompilationUnitNode unit) {
-        java.util.List<AstNode> decls = new ArrayList<>();
-        boolean hasOnStart = false;
-        boolean hasOnShutdown = false;
-        for (AstNode d : unit.declarations()) {
-            if (d instanceof ApplicationDeclarationNode app) {
-                if (!app.onStart().isEmpty()) {
-                    decls.add(new FunctionDeclarationNode(app.position(), List.of(), "void",
-                            "kof_app_on_start", List.of(), List.of(), List.of(), app.onStart()));
-                    hasOnStart = true;
-                }
-                if (!app.onShutdown().isEmpty()) {
-                    decls.add(new FunctionDeclarationNode(app.position(), List.of(), "void",
-                            "kof_app_on_shutdown", List.of(), List.of(), List.of(), app.onShutdown()));
-                    hasOnShutdown = true;
-                }
-            } else {
-                decls.add(d);
-            }
-        }
-        if (!hasOnStart && !hasOnShutdown) {
-            return unit;
-        }
-        // Embrulha o main do usuário (se existir) com as chamadas de lifecycle.
-        java.util.List<AstNode> wrapped = new ArrayList<>();
-        for (AstNode d : decls) {
-            if (d instanceof FunctionDeclarationNode f && "main".equals(f.name())) {
-                java.util.List<StatementNode> body = new ArrayList<>();
-                if (hasOnStart) {
-                    body.add(new ExpressionStmt(f.position(),
-                            new MethodCallExpr(f.position(), null, "kof_app_on_start", List.of(), List.of())));
-                }
-                body.addAll(f.body());
-                if (hasOnShutdown) {
-                    body.add(new ExpressionStmt(f.position(),
-                            new MethodCallExpr(f.position(), null, "kof_app_on_shutdown", List.of(), List.of())));
-                }
-                wrapped.add(new FunctionDeclarationNode(f.position(), f.modifiers(), f.returnType(),
-                        f.name(), f.parameters(), f.thrownExceptions(), f.typeParameters(), body,
-                        f.annotations()));
-            } else {
-                wrapped.add(d);
-            }
-        }
-        return new CompilationUnitNode(unit.position(), unit.packageName(), unit.imports(),
-                java.util.Collections.unmodifiableList(wrapped));
-    }
 
 
     /**
@@ -687,62 +474,8 @@ private Target target = Target.JVM;
      * O throw final vira exit code != 0 em todos os targets (JVM: exceção
      * não capturada; Native: kof_panic; JS: runner reporta 1).
      */
-    private FunctionDeclarationNode buildTestHarnessMain() {
-        SourcePosition p = new SourcePosition(currentSourceName != null ? currentSourceName : "", 0, 0, 0, 0);
-        List<StatementNode> body = new ArrayList<>();
-        ExpressionNode failedVar = new IdentifierExpr(p, "__kof_failed");
-        body.add(new VarDeclStmt(p, "Int", "__kof_failed",
-                new LiteralExpr(p, ConcreteLiteralKind.INT, "0")));
-        for (int i = 0; i < discoveredTests.size(); i++) {
-            TestInfo test = discoveredTests.get(i);
-            ExpressionNode nameLit = new LiteralExpr(p, ConcreteLiteralKind.STRING, test.name());
-            List<StatementNode> tryBody = new ArrayList<>();
-            tryBody.add(new ExpressionStmt(p, new MethodCallExpr(p, null,
-                    test.functionName(), List.of(), List.of())));
-            tryBody.add(new ExpressionStmt(p, callPrintln(p, concat(p,
-                    new LiteralExpr(p, ConcreteLiteralKind.STRING, "PASS "), nameLit))));
-            ExpressionNode failMsg = concat(p,
-                    new LiteralExpr(p, ConcreteLiteralKind.STRING, "FAIL "), nameLit,
-                    new LiteralExpr(p, ConcreteLiteralKind.STRING, ": "),
-                    new IdentifierExpr(p, "e"));
-            List<StatementNode> catchBody = new ArrayList<>();
-            catchBody.add(new ExpressionStmt(p, callPrintln(p, failMsg)));
-            catchBody.add(new ExpressionStmt(p, new AssignmentExpr(p, failedVar, "=",
-                    new BinaryExpr(p, "+", failedVar,
-                            new LiteralExpr(p, ConcreteLiteralKind.INT, "1")))));
-            body.add(new TryStmt(p, tryBody,
-                    List.of(new CatchClause(p, "String", "e", catchBody)), List.of()));
-        }
-        body.add(new ExpressionStmt(p, callPrintln(p,
-                new LiteralExpr(p, ConcreteLiteralKind.STRING, "────────"))));
-        ExpressionNode summary = concat(p,
-                failedVar,
-                new LiteralExpr(p, ConcreteLiteralKind.STRING, " failed of "
-                        + discoveredTests.size() + " tests"));
-        body.add(new ExpressionStmt(p, callPrintln(p, summary)));
-        // falha = exit code != 0 em todos os targets, sem stack trace:
-        // JVM System.exit / Native syscall exit / JS sentinel no runner
-        body.add(new IfStmt(p,
-                new BinaryExpr(p, ">", failedVar, new LiteralExpr(p, ConcreteLiteralKind.INT, "0")),
-                new BlockStmt(p, List.of(new ExpressionStmt(p, new MethodCallExpr(p,
-                        new IdentifierExpr(p, "process"), "exit", List.of(),
-                        List.of(new LiteralExpr(p, ConcreteLiteralKind.INT, "1")))))),
-                null));
-        return new FunctionDeclarationNode(p, List.of(), "void", "main",
-                List.of(), List.of(), List.of(), List.copyOf(body));
-    }
 
-    private static ExpressionNode concat(SourcePosition p, ExpressionNode... parts) {
-        ExpressionNode acc = parts[0];
-        for (int i = 1; i < parts.length; i++) {
-            acc = new BinaryExpr(p, "+", acc, parts[i]);
-        }
-        return acc;
-    }
 
-    private static ExpressionNode callPrintln(SourcePosition p, ExpressionNode arg) {
-        return new MethodCallExpr(p, null, "println", List.of(), List.of(arg));
-    }
 
     private final java.util.Map<String, List<EntityFieldNode>> entitySchemas = new java.util.LinkedHashMap<>();
     private final java.util.IdentityHashMap<LambdaExpr, String> lambdaClassNames = new java.util.IdentityHashMap<>();
@@ -1192,7 +925,7 @@ private Target target = Target.JVM;
         // será preenchido após a emissão do corpo.
         Type returnType = ft.returnType() instanceof Type.FunctionType
                 ? ft.returnType()
-                : CompilerTypes.toType(typeToString(ft.returnType()), currentUnit);
+                : CompilerTypes.toType(CompilerTypes.typeToString(ft.returnType()), currentUnit);
         List<FormalParameterNode> params = le.parameters();
         List<Type> paramTypes = new ArrayList<>();
         for (FormalParameterNode p : params) paramTypes.add(CompilerTypes.toType(p.type(), currentUnit));
@@ -1843,89 +1576,22 @@ private Target target = Target.JVM;
     }
 
     /** Constantes por enum declarado na unidade atual (nome → [A, B, ...]). */
-    private java.util.List<String> enumConstantsOf(String name) {
-        if (name == null || currentUnit == null) return List.of();
-        for (AstNode d : currentUnit.declarations()) {
-            if (d instanceof EnumDeclarationNode en && en.name().equals(name)) {
-                return en.constants();
-            }
-        }
-        return List.of();
-    }
 
-    private boolean isEnumType(Type t) {
-        if (!(t instanceof Type.ClassType ct) || !ct.packageName().isEmpty() || !ct.typeArguments().isEmpty()) return false;
-        return !enumConstantsOf(ct.name()).isEmpty();
-    }
 
     /**
      * O tipo é um RECORD (dados imutáveis com equals/hashCode gerados)? Usado
      * no lowering de `==`/`!=` (bug 11) para despachar para equals (conteúdo)
      * em vez de igualdade de referência.
      */
-    private boolean isRecordType(Type t) {
-        if (!(t instanceof Type.ClassType ct) || ct.typeArguments() != null && !ct.typeArguments().isEmpty()) return false;
-        if (currentUnit != null) {
-            for (AstNode d : currentUnit.declarations()) {
-                if (d instanceof RecordDeclarationNode r && r.name().equals(ct.name())) return true;
-            }
-        }
-        if (semanticAnalyzer != null) {
-            SymbolTable.ClassSymbol cs = semanticAnalyzer.getClass(ct.name());
-            if (cs != null && cs.superClass() != null
-                    && (cs.superClass().equals("Record") || cs.superClass().endsWith("Record"))) {
-                return true;
-            }
-        }
-        return false;
-    }
 
     /**
      * O tipo (ou seus type arguments) contém uma FunctionType com className
      * null? Isso indica um tipo de lambda vindo da análise semântica (que roda
      * antes da síntese) — obsoleto para o emit do invoke (bug 20).
      */
-    private boolean containsLambdaFunctionType(Type t) {
-        if (t instanceof Type.FunctionType ft) {
-            return ft.className() == null;
-        }
-        if (t instanceof Type.ClassType ct && ct.typeArguments() != null) {
-            for (Type arg : ct.typeArguments()) {
-                if (containsLambdaFunctionType(arg)) return true;
-            }
-        }
-        if (t instanceof Type.ArrayType at) {
-            return containsLambdaFunctionType(at.componentType());
-        }
-        return false;
-    }
 
     /** Nome da constante de enum representada por um rótulo de case. */
-    private String enumConstantOfExpr(ExpressionNode e) {
-        if (e instanceof FieldAccessExpr fa && fa.receiver() instanceof IdentifierExpr rid
-                && isEnumName(rid.name())) {
-            return enumConstantsOf(rid.name()).contains(fa.fieldName()) ? fa.fieldName() : null;
-        }
-        if (e instanceof LiteralExpr l && l.kind() == ConcreteLiteralKind.STRING) {
-            return l.value();
-        }
-        if (e instanceof IdentifierExpr ie) {
-            // não-qualificado: procura em todos os enums declarados
-            if (currentUnit != null) {
-                for (AstNode d : currentUnit.declarations()) {
-                    if (d instanceof EnumDeclarationNode en && en.constants().contains(ie.name())) {
-                        return ie.name();
-                    }
-                }
-            }
-        }
-        return null;
-    }
 
-    private boolean isEnumName(String name) {
-        return currentUnit != null && currentUnit.declarations().stream()
-                .anyMatch(d -> d instanceof EnumDeclarationNode en && en.name().equals(name));
-    }
 
     private Type listOfElementType(MethodCallExpr mc, List<IRLocalVariable> locals) {
         if (!mc.arguments().isEmpty()) {
@@ -1937,14 +1603,6 @@ private Target target = Target.JVM;
         return Type.UnknownType.UNKNOWN;
     }
 
-    private String typeToString(Type type) {
-        if (type instanceof Type.PrimitiveType pt) {
-            return Type.canonicalPrimitiveName(pt.name());
-        }
-        if (type instanceof Type.ClassType ct) return ct.name();
-        if (type instanceof Type.ArrayType at) return typeToString(at.componentType()) + "[]";
-        return "Object";
-    }
 
     private IRMethod lowerFunction(FunctionDeclarationNode func) {
         String prevOwner = currentLoweringOwner;
@@ -2588,14 +2246,14 @@ private Target target = Target.JVM;
                 boolean enumSwitch = false;
                 java.util.List<String> missing = java.util.List.of();
                 if (switchType instanceof Type.ClassType sct && sct.packageName().isEmpty()
-                        && !enumConstantsOf(sct.name()).isEmpty()) {
+                        && !CompilerTypes.enumConstantsOf(sct.name(), currentUnit).isEmpty()) {
                     enumSwitch = true;
                     java.util.Set<String> covered = new java.util.HashSet<>();
                     for (SwitchCase sc : ss.cases()) {
-                        String cn = enumConstantOfExpr(sc.value());
+                        String cn = CompilerTypes.enumConstantOfExpr(sc.value(), currentUnit);
                         if (cn != null) covered.add(cn);
                     }
-                    missing = enumConstantsOf(sct.name()).stream()
+                    missing = CompilerTypes.enumConstantsOf(sct.name(), currentUnit).stream()
                             .filter(c -> !covered.contains(c)).toList();
                     if (!missing.isEmpty() && ss.defaultBody().isEmpty()
                             && currentDiagnostics != null) {
@@ -2799,7 +2457,7 @@ private Target target = Target.JVM;
             ops.add(new KofLoadLocal(switchType, switchTmp));
             localIdx = emitExpression(sc.value(), ops, owner, localIdx, locals);
             Type caseType = inferExprType(sc.value(), locals);
-            if (Type.isString(switchType) || isEnumType(switchType) || isEnumType(caseType)) {
+            if (Type.isString(switchType) || CompilerTypes.isEnumType(switchType, currentUnit) || CompilerTypes.isEnumType(caseType, currentUnit)) {
                 // igualdade de String/enum é por conteúdo (bug 4 do statement)
                 ops.add(new KofCall(BuiltinTypes.STRING, "kof_string_equals",
                         List.of(BuiltinTypes.STRING, BuiltinTypes.STRING),
@@ -3126,12 +2784,12 @@ private Target target = Target.JVM;
                         ops.add(new KofLoadLiteral(Type.PrimitiveType.BOOL, eq ? 0 : 1));
                         accType = Type.PrimitiveType.BOOL;
                     } else if (("==".equals(be.operator()) || "!=".equals(be.operator()))
-                            && (isRecordType(accType) || isRecordType(rightType))) {
+                            && (CompilerTypes.isRecordType(accType, currentUnit, semanticAnalyzer) || CompilerTypes.isRecordType(rightType, currentUnit, semanticAnalyzer))) {
                         // bug 11: `==` em records é igualdade de CONTEÚDO →
                         // left.equals(right) (o record gera equals no JVM e no
                         // JS). Antes emitia referência (if_acmpeq) → false.
                         localIdx = emitExpression(be.right(), ops, owner, localIdx, locals);
-                        Type recordType = isRecordType(accType) ? accType : rightType;
+                        Type recordType = CompilerTypes.isRecordType(accType, currentUnit, semanticAnalyzer) ? accType : rightType;
                         Type objT = new Type.ClassType("java.lang", "Object", List.of());
                         ops.add(new KofCall(recordType, "equals", List.of(objT),
                                 Type.PrimitiveType.BOOL, KofCallKind.INSTANCE));
@@ -3142,7 +2800,7 @@ private Target target = Target.JVM;
                         accType = Type.PrimitiveType.BOOL;
                     } else if (("==".equals(be.operator()) || "!=".equals(be.operator()))
                             && (Type.isString(accType) || Type.isString(rightType)
-                                || isEnumType(accType) || isEnumType(rightType))) {
+                                || CompilerTypes.isEnumType(accType, currentUnit) || CompilerTypes.isEnumType(rightType, currentUnit))) {
                         localIdx = emitExpression(be.right(), ops, owner, localIdx, locals);
                         ops.add(new KofCall(BuiltinTypes.STRING, "kof_string_equals",
                                 List.of(BuiltinTypes.STRING, BuiltinTypes.STRING),
@@ -3672,7 +3330,7 @@ private Target target = Target.JVM;
                             "kof_await", List.of(hT), resT, KofCallKind.FUNCTION));
                     yield localIdx;
                 }
-                if (mc.receiver() instanceof IdentifierExpr rid && isEnumName(rid.name())
+                if (mc.receiver() instanceof IdentifierExpr rid && CompilerTypes.isEnumName(rid.name(), currentUnit)
                         && !isLocalVarName(rid.name(), locals)) {
                     Type enumT = new Type.ClassType("", rid.name(), List.of());
                     // lista interna com elemento STRING (runtime do enum é o nome);
@@ -3682,7 +3340,7 @@ private Target target = Target.JVM;
                         ops.add(new KofCall(stringListT,
                                 "kof_list_new", List.of(), stringListT,
                                 KofCallKind.FUNCTION));
-                        for (String c : enumConstantsOf(rid.name())) {
+                        for (String c : CompilerTypes.enumConstantsOf(rid.name(), currentUnit)) {
                             ops.add(new KofDup());
                             ops.add(new KofLoadLiteral(BuiltinTypes.STRING, c));
                             ops.add(new KofCall(stringListT,
@@ -3695,7 +3353,7 @@ private Target target = Target.JVM;
                         Type listT = stringListT;
                         ops.add(new KofCall(listT, "kof_list_new", List.of(), listT,
                                 KofCallKind.FUNCTION));
-                        for (String c : enumConstantsOf(rid.name())) {
+                        for (String c : CompilerTypes.enumConstantsOf(rid.name(), currentUnit)) {
                             ops.add(new KofDup());
                             ops.add(new KofLoadLiteral(BuiltinTypes.STRING, c));
                             ops.add(new KofCall(listT, "kof_list_add", List.of(enumT),
@@ -4789,7 +4447,7 @@ private Target target = Target.JVM;
                         localIdx = emitUiInstance(recvType, mc, ops, owner, localIdx, locals);
                         yield localIdx;
                     }
-                    if (isEnumType(recvType) && "name".equals(mc.methodName()) && mc.arguments().isEmpty()) {
+                    if (CompilerTypes.isEnumType(recvType, currentUnit) && "name".equals(mc.methodName()) && mc.arguments().isEmpty()) {
                         // o valor do enum JÁ é o nome (String em runtime): identidade
                         yield localIdx;
                     }
@@ -5938,8 +5596,8 @@ private Target target = Target.JVM;
                 }
                 // enum constant access: Color.Red — literal String tipado como Color
                 if (recvType instanceof Type.ClassType ct && ct.packageName().isEmpty()
-                        && isEnumName(ct.name())) {
-                    if (!enumConstantsOf(ct.name()).contains(fa.fieldName())) {
+                        && CompilerTypes.isEnumName(ct.name(), currentUnit)) {
+                    if (!CompilerTypes.enumConstantsOf(ct.name(), currentUnit).contains(fa.fieldName())) {
                         if (currentDiagnostics != null) {
                             currentDiagnostics.error(fa.position() != null ? fa.position().file() : "",
                                     fa.position() != null ? fa.position().line() : 0,
@@ -5954,7 +5612,7 @@ private Target target = Target.JVM;
                 }
                 // static field access: Class.field — no receiver on the stack
                 if (recvType instanceof Type.ClassType ct && ct.packageName().isEmpty()
-                        && isEnumName(ct.name()) && enumConstantsOf(ct.name()).contains(fa.fieldName())) {
+                        && CompilerTypes.isEnumName(ct.name(), currentUnit) && CompilerTypes.enumConstantsOf(ct.name(), currentUnit).contains(fa.fieldName())) {
                     ops.add(new KofLoadLiteral(BuiltinTypes.STRING, fa.fieldName()));
                     yield localIdx;
                 }
@@ -6165,7 +5823,7 @@ private Target target = Target.JVM;
                     // obsoletos para o emit (o invoke de lambda precisaria do
                     // className → owner "" → ClassFormatError, bug 20). Re-inferir.
                     if (!(semantic instanceof Type.UnknownType)
-                            && !containsLambdaFunctionType(semantic)) {
+                            && !CompilerTypes.containsLambdaFunctionType(semantic)) {
                         if (semantic instanceof Type.TypeVariable tv && mc.receiver() != null) {
                             Type recvT = inferExprType(mc.receiver(), locals);
                             Type subst = substituteTypeVariable(tv.name(), recvT);
@@ -6345,9 +6003,9 @@ private Target target = Target.JVM;
                     }
                     yield Type.UnknownType.UNKNOWN;
                 }
-                if (mc.receiver() instanceof IdentifierExpr rid && isEnumName(rid.name())
+                if (mc.receiver() instanceof IdentifierExpr rid && CompilerTypes.isEnumName(rid.name(), currentUnit)
                         && findLocalVar(rid.name(), locals) == null) {
-                    java.util.List<String> consts = enumConstantsOf(rid.name());
+                    java.util.List<String> consts = CompilerTypes.enumConstantsOf(rid.name(), currentUnit);
                     Type enumT = new Type.ClassType("", rid.name(), List.of());
                     // MVP: elementos tipados como String (runtime do enum é o nome);
                     // comparação com constantes funciona via string-equals
@@ -6534,7 +6192,7 @@ private Target target = Target.JVM;
                     if (recvType instanceof Type.FunctionType ft) {
                         yield ft.returnType();
                     }
-                    if (isEnumType(recvType) && "name".equals(mc.methodName()) && mc.arguments().isEmpty()) {
+                    if (CompilerTypes.isEnumType(recvType, currentUnit) && "name".equals(mc.methodName()) && mc.arguments().isEmpty()) {
                         yield BuiltinTypes.STRING;
                     }
                     if (BuiltinTypes.isList(recvType)) {
@@ -6744,8 +6402,8 @@ private Target target = Target.JVM;
                     yield BuiltinTypes.STRING;
                 }
                 if (recvType instanceof Type.ClassType ct && ct.packageName().isEmpty()
-                        && isEnumName(ct.name())) {
-                    if (!enumConstantsOf(ct.name()).contains(fa.fieldName()) && currentDiagnostics != null) {
+                        && CompilerTypes.isEnumName(ct.name(), currentUnit)) {
+                    if (!CompilerTypes.enumConstantsOf(ct.name(), currentUnit).contains(fa.fieldName()) && currentDiagnostics != null) {
                         currentDiagnostics.error("", 0, 0, 0,
                                 "enum '" + ct.name() + "' não tem constante '" + fa.fieldName() + "'",
                                 "SEM030");
@@ -7564,7 +7222,7 @@ private Target target = Target.JVM;
             Type right = inferExprType(bin.right(), locals);
             if (Type.isString(left) || Type.isString(right)) return false;
             // enum == enum compara conteúdo (string) — nunca identidade
-            if (isEnumType(left) || isEnumType(right)) return false;
+            if (CompilerTypes.isEnumType(left, currentUnit) || CompilerTypes.isEnumType(right, currentUnit)) return false;
             // primitivo vs null → constante (caminho da cadeia binária)
             boolean leftNull = bin.left() instanceof LiteralExpr ll2 && ll2.kind() == ConcreteLiteralKind.NULL;
             boolean rightNull = bin.right() instanceof LiteralExpr rl2 && rl2.kind() == ConcreteLiteralKind.NULL;
