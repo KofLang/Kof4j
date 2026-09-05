@@ -110,7 +110,8 @@ public final class Decompile {
                     int[][] handlers = new int[m.code.exceptionHandlers.size()][];
                     for (int i = 0; i < handlers.length; i++) {
                         var h = m.code.exceptionHandlers.get(i);
-                        handlers[i] = new int[]{h.startPc, h.endPc, h.handlerPc};
+                        boolean isFinally = h.catchType == null || "INVALID".equals(h.catchType);
+                        handlers[i] = new int[]{h.startPc, h.endPc, h.handlerPc, isFinally ? 1 : 0};
                     }
                     stmts = BytecodeDecoder.recoverStatements(m.code.bytecode, ir.constantPool, pcount, isStatic, handlers);
                 }

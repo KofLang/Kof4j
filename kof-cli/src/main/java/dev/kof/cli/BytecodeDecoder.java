@@ -355,6 +355,8 @@ final class BytecodeDecoder {
         List<String> sw = recoverSwitch(code, insns, cp, paramCount, isStatic);
         if (sw != null) return sw;
         if (handlers != null && handlers.length > 0) {
+            List<String> fin = recoverFinally(insns, cp, paramCount, isStatic, handlers);
+            if (fin != null) return fin;
             List<String> tc = tryCatch(insns, cp, paramCount, isStatic, handlers);
             if (tc != null) return tc;
         }
@@ -411,6 +413,61 @@ final class BytecodeDecoder {
             if (in.offset() >= from && in.offset() < to) out.add(in);
         }
         return out;
+    }
+
+    // ── try/finally (bloco duplicado + handler catch-all) ────────────────
+
+    private static List<String> recoverFinally(List<BytecodeReader.Insn> insns, String[] cp,
+                                               int paramCount, boolean isStatic, int[][] handlers) {
+        if (handlers.length != 1 || handlers[0].length < 4 || handlers[0][3] != 1) return null;
+        int start = handlers[0][0];
+        int to = handlers[0][1];
+        List<BytecodeReader.Insn> tryInsns = range(insns, start, to);
+        // último store da região try guarda o resultado num temp
+        int lastStoreIdx = -1;
+        int tempSlot = -1;
+        for (int i = tryInsns.size() - 1; i >= 0; i--) {
+            BytecodeReader.Insn in = tryInsns.get(i);
+            if (isStore(in.opcode())) { lastStoreIdx = i; tempSlot = storeSlot(in); break; }
+        }
+        if (lastStoreIdx <= 0) return null;
+        String tryResult = linearReturn(tryInsns.subList(0, lastStoreIdx), cp, paramCount, isStatic);
+        if (tryResult == null) return null;
+
+        // retOff = load do temp (após o finally), delimita o corpo do finally
+        int retOff = -1;
+        for (BytecodeReader.Insn in : insns) {
+            if (in.offset() < to) continue;
+            int op = in.opcode();
+            if ((op == 0x15 || op == 0x19) && in.operands()[0] == tempSlot) { retOff = in.offset(); break; }
+            if (op >= 0x1a && op <= 0x1d && (op - 0x1a) == tempSlot) { retOff = in.offset(); break; }
+            if (op >= 0x2a && op <= 0x2d && (op - 0x2a) == tempSlot) { retOff = in.offset(); break; }
+        }
+        if (retOff < 0) return null;
+        List<String> finStmts = emitLinear(range(insns, to, retOff), cp, paramCount, isStatic, new HashSet<>());
+        if (finStmts == null) return null;
+
+        List<String> out = new ArrayList<>();
+        out.add("try {");
+        out.add("return " + tryResult);
+        out.add("} finally {");
+        out.addAll(finStmts);
+        out.add("}");
+        return out;
+    }
+
+    private static boolean isStore(int op) {
+        return (op >= 0x36 && op <= 0x3a) || (op >= 0x3b && op <= 0x4e);
+    }
+
+    private static int storeSlot(BytecodeReader.Insn in) {
+        int op = in.opcode();
+        if (op >= 0x36 && op <= 0x3a) return in.operands()[0];
+        if (op >= 0x3b && op <= 0x3e) return op - 0x3b;  // istore_0..3
+        if (op >= 0x3f && op <= 0x42) return op - 0x3f;  // lstore_0..3
+        if (op >= 0x43 && op <= 0x46) return op - 0x43;  // fstore_0..3
+        if (op >= 0x47 && op <= 0x4a) return op - 0x47;  // dstore_0..3
+        return op - 0x4b;                                // astore_0..3
     }
 
     // ── switch (tableswitch/lookupswitch) ─────────────────────────────────
