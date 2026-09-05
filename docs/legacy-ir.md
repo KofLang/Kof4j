@@ -1,6 +1,6 @@
-# LEGACY_IR.md — Legacy Semantic IR (plano futuro)
+# LEGACY_IR.md — Legacy Semantic IR
 
-**Status:** Plano futuro — NÃO implementado
+**Status:** EM DESENVOLVIMENTO — Fases B/C/D implementadas (ClassFileParser, CFG/analyze, Type Recovery, Confidence)
 **Data:** 22 de agosto de 2026
 
 ---

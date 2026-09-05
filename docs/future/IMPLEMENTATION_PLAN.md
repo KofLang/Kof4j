@@ -183,7 +183,7 @@ Esta é a versão consolidada do plano de implementação para todos os document
 | 2.1.3 | Gap honesto por target: chamada a `extern` emite `FFI001` (diagnóstico), nunca stub silencioso | 🟢 E | ✅ lowering emite `FFI001` (nunca drop silencioso) |
 | 2.1.4 | Binding JVM-first: FFM (`java.lang.foreign`) para `.so` (padrão já usado em `JvmVkRuntime` M32.1) | 🔴 H | ✅ JVM Int→Int real (`extern "libc.so.6" abs` → 5) |
 | 2.1.5 | Binding Native: `dlsym` + marshalling ABI (primitive widths) no `NativeRuntime`/`NativeBackend` | 🔴 H | ✅ Native x86-64 Int→Int real (`extern "libc.so.6" abs` → 5 via dlopen/dlsym) |
-| 2.1.6 | Marshalling avançado: ponteiros/struct/array (fronteira segura, lifetime pelo GC) | 🔴 H | 🟡 parciais: String→Int e Double→Double (JVM) prontos; struct/array completo pendente |
+| 2.1.6 | Marshalling avançado: ponteiros/struct/array (fronteira segura, lifetime pelo GC) | 🔴 H | ✅ String→Int, Double→Double, Int[]→Int (JVM+Native) via libc/libm/.so gcc; struct completo pendente |
 | 2.1.7 | JS: gap honesto `FFI002` (web/edge sem FFI nativo) | 🟢 E | ✅ extern no JS → FFI002 |
 
 **Critical path 2.1:** 2.1.1 → 2.1.2 → 2.1.3 antes de qualquer binding.
@@ -194,8 +194,8 @@ Esta é a versão consolidada do plano de implementação para todos os document
 |---|-----------|-------------|-----|
 | 2.2.1 | Inventário do codegen implícito existente (`KofRuntime`, runner de teste sintetizado, DDL de `entity`) | 🟢 E | ✅ lista fechada: 4 pontos (runtime source, desugarTests, desugarApplication, entity→record+schema) |
 | 2.2.2 | Hook formal de codegen (fechado, não-macro): interface estável p/ gerar em compile-time | 🟡 M | ✅ `CodegenStep` (FunctionalInterface) + pipeline `runCodegen` ordenado |
-| 2.2.3 | Migrar DDL de `entity` + runner de teste para o hook formal | 🟡 M | comportamento idêntico (same suite) |
-| 2.2.4 | Base de `infra "prod" { }` (sacar sobre records) | 🟡 M | `infra` emite records de recurso |
+| 2.2.3 | Migrar DDL de `entity` + runner de teste para o hook formal | 🟡 M | ✅ `desugarEntity` no pipeline (`entity → record + schema`); runner já era `desugarTests` |
+| 2.2.4 | Base de `infra "prod" { }` (sacar sobre records) | 🟡 M | ⏳ move para o TIER 7 (infra-as-code, dependente de FFI + package manager) |
 
 ### 2.3 Compile-time eval leve
 

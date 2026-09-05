@@ -16,16 +16,28 @@ documento de arquitetura/visão **sem código implementado** (ou com código que
   dispatch, cross-as/ld) já está no código, então o item é **em desenvolvimento**
   e passou a ser documentado com estado real + plano de finalização.
 
+## Movidos para `docs/` (05/09 — implementação existe)
+
+A plataforma de migração legado saiu de "plano" para "em desenvolvimento" e
+foi movida para `docs/`:
+
+| Doc (agora em `docs/`) | Implementação |
+|-----|------|
+| `DECOMPILER.md` → `docs/decompiler.md` | `kof decompile` (estrutural + `Confidence`) |
+| `DIFFERENTIAL_TESTING.md` → `docs/differential-testing.md` | `kof compare` |
+| `LEGACY_IR.md` → `docs/legacy-ir.md` | Fases B/C/D (`ClassFileParser`, CFG, Type Recovery) |
+| `LEGACY_MIGRATION.md` → `docs/legacy-migration.md` | Fases A–H (`inspect/decompile/translate/compare/migrate`) |
+| `TRANSLATOR.md` → `docs/translator.md` | `kof translate` (subset Java) |
+
 ## O que fica aqui (só plano, sem código)
 
 | Doc | Tema | Por que fica em `future/` |
 |-----|------|---------------------------|
 | `PLAN-UNIVERSAL-PLATFORM.md` | visão de longo prazo (Kof como plataforma universal) | 100% visão/estratégia — não é ordem de implementação |
-| `DECOMPILER.md` | Kof Decompiler (bytecode/asm → Kof) | não há código de decompiler |
-| `DIFFERENTIAL_TESTING.md` | teste diferencial de migrações | não há código |
-| `LEGACY_IR.md` | Legacy Semantic IR | não há código (o "legacy" no `CompilerDriver` é genérico, não este) |
-| `LEGACY_MIGRATION.md` | plataforma de migração de software legado | fora do escopo 0.0.x, sem código |
-| `TRANSLATOR.md` | Kof Translator (Kof → outra linguagem) | não há código |
+| `ACTION_PLAN.md` | ordem de implementação dos tiers | plano de ordens (mistura feito/pendente) |
+| `IMPLEMENTATION_PLAN.md` | roadmap consolidado com status | rastreia o progresso (vivo) |
+| `scoped-resources-plan.md` | RAII leve (`using`) | design pronto; gated por semântica congelada |
+| `planning-future-reconcile.md` | notas de reconciliação planning↔beta | memória de trabalho |
 
 ## Quando mover de `future/` para `docs/`
 

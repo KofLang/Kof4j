@@ -1,6 +1,6 @@
-# DIFFERENTIAL_TESTING.md — Teste Diferencial de Migrações (plano futuro)
+# DIFFERENTIAL_TESTING.md — Teste Diferencial de Migrações
 
-**Status:** Plano futuro — NÃO implementado
+**Status:** EM DESENVOLVIMENTO — implementado (`kof compare`)
 **Data:** 22 de agosto de 2026
 
 ---

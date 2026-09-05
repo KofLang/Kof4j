@@ -1,6 +1,6 @@
-# DECOMPILER.md — Kof Decompiler (plano futuro)
+# DECOMPILER.md — Kof Decompiler
 
-**Status:** Plano futuro — NÃO implementado
+**Status:** EM DESENVOLVIMENTO — implementado estruturalmente (`kof decompile`)
 **Data:** 22 de agosto de 2026
 
 ---

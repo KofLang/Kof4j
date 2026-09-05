@@ -1,6 +1,6 @@
-# TRANSLATOR.md — Kof Translator (plano futuro)
+# TRANSLATOR.md — Kof Translator
 
-**Status:** Plano futuro — NÃO implementado
+**Status:** EM DESENVOLVIMENTO — implementado (subset Java → Kof, `kof translate`)
 **Data:** 22 de agosto de 2026
 
 ---

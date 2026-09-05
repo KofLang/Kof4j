@@ -1,6 +1,6 @@
 # LEGACY_MIGRATION.md — Plataforma de Migração de Software Legado
 
-**Status:** Plano futuro — NÃO implementado
+**Status:** EM DESENVOLVIMENTO — Fases A–H implementadas (`kof inspect/decompile/translate/compare/migrate`)
 **Escopo:** Fora do Kof 0.0.x
 **Data:** 22 de agosto de 2026
 
