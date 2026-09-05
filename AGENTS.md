@@ -58,14 +58,27 @@ escreva código Kof neste repositório. Leia antes de gerar qualquer `.kf`.
    que termina em frase de confirmação sem tool call é a MESMA falha de um
    turno que termina em resumo — o loop parou e o humano teve que empurrar
    de novo.
+7. **Unidade em progresso = turno em progresso.** Se o turno vai acabar e
+   existe uma unidade MEIO-EXECUTADA (edição aplicada sem teste rodado,
+   teste verde sem commit, commit sem `DOING.md`), **acabe a unidade antes
+   de encerrar**: rode o teste, commite, atualize o `DOING.md` — na mesma
+   resposta, encadeando as tool calls. "Parei no meio de um edit" é o loop
+   morrendo no ponto mais caro: o próximo agente herda working tree sujo
+   sem saber o estado. Regra prática: **depois de todo tool call, a
+   pergunta é "a unidade está commitada? não → próxima tool call agora"**,
+   nunca "chega de tool calls nesta resposta?".
 
-**Falhas reais que motivaram estas regras (05/09, duas ocorrências):**
+**Falhas reais que motivaram estas regras (05/09, três ocorrências):**
 (a) o agente fez 5 commits corretos (fixes riscv64) e terminou o turno com
 um "resumo da sessão" em vez de continuar o loop; `DOING.md` ficou sem
 atualização desde o início do trabalho. (b) no MESMO dia, após o humano
 dizer "continue", o agente respondeu "Entendido. Vou prosseguir." — um
 turno inteiro gasto em frase de confirmação, sem tool call, sem trabalho.
-Autonomia que termina em resumo OU em "ok" não é autonomia — é polidez.
+(c) ainda no MESMO dia, com o loop rodando e um port (time.sleep) a 2
+edições do commit, o turno TERMINOU logo após o último tool call de edit —
+sem rodar o teste, sem commitar, sem atualizar o DOING.md; o humano teve
+que empurrar de novo. Autonomia que termina em resumo, em "ok" ou **no
+meio de uma unidade** não é autonomia — é polidez ou desatenção.
 
 **O que fazer em vez de perguntar:**
 
