@@ -102,9 +102,17 @@ public final class Decompile {
             if (m.code != null) {
                 boolean isStatic = (m.accessFlags & 0x0008) != 0;
                 int pcount = m.parameterTypeNames().size();
-                body = BytecodeDecoder.recoverExpression(m.code.bytecode, ir.constantPool, pcount, isStatic);
+                boolean hasHandlers = m.code.exceptionHandlers != null && !m.code.exceptionHandlers.isEmpty();
+                if (!hasHandlers) {
+                    body = BytecodeDecoder.recoverExpression(m.code.bytecode, ir.constantPool, pcount, isStatic);
+                }
                 if (body == null) {
-                    stmts = BytecodeDecoder.recoverStatements(m.code.bytecode, ir.constantPool, pcount, isStatic);
+                    int[][] handlers = new int[m.code.exceptionHandlers.size()][];
+                    for (int i = 0; i < handlers.length; i++) {
+                        var h = m.code.exceptionHandlers.get(i);
+                        handlers[i] = new int[]{h.startPc, h.endPc, h.handlerPc};
+                    }
+                    stmts = BytecodeDecoder.recoverStatements(m.code.bytecode, ir.constantPool, pcount, isStatic, handlers);
                 }
             }
             if (body == null && stmts == null) {

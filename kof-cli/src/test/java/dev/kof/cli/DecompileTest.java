@@ -231,6 +231,34 @@ class DecompileTest {
         assertTrue(result.success(), "decompiled deve compilar:\n" + kof + "\n" + result.diagnostics().getDiagnostics());
     }
 
+    @Test
+    void recoversTryCatch(@TempDir Path dir) throws Exception {
+        Path javaFile = dir.resolve("Safe.java");
+        Files.writeString(javaFile, """
+                public class Safe {
+                    public static int div(int a, int b) {
+                        try { return a / b; }
+                        catch (ArithmeticException e) { return 0; }
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+
+        String kof = Decompile.decompile(dir.resolve("Safe.class"));
+
+        assertTrue(kof.contains("try {"), "deve ter try:\n" + kof);
+        assertTrue(kof.contains("return (arg0 / arg1)"), "try deve retornar divisão:\n" + kof);
+        assertTrue(kof.contains("} catch (String e) {"), "deve ter catch String:\n" + kof);
+        assertTrue(kof.contains("return 0"), "catch deve retornar 0:\n" + kof);
+        assertFalse(kof.contains("throw \"body not recovered\""), "não deve ter stub:\n" + kof);
+
+        Path out = dir.resolve("Safe.kf");
+        Files.writeString(out, kof);
+        CompilerDriver driver = new CompilerDriver();
+        CompilationResult result = driver.compile(out, dir.resolve("out"), Target.JVM);
+        assertTrue(result.success(), "decompiled deve compilar:\n" + kof + "\n" + result.diagnostics().getDiagnostics());
+    }
+
     private void runJavac(Path javaFile, Path dir) throws IOException, InterruptedException {
         String javaHome = System.getProperty("java.home");
         Path javac = Path.of(javaHome, "bin", "javac");
