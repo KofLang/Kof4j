@@ -2,11 +2,26 @@ package dev.kof.compiler;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.Assumptions;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class KofConcurrency2Test {
     private final CompilerDriver driver = new CompilerDriver();
+
+    private static boolean has(String... cmds) {
+        for (String c : cmds) {
+            try {
+                Process p = new ProcessBuilder("sh", "-c", "command -v " + c).redirectErrorStream(true).start();
+                String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+                if (p.waitFor() != 0 || out.isEmpty()) return false;
+            } catch (Exception e) {
+                return false;
+            }
+        }
+        return true;
+    }
 
     @Test
     void cancelCooperativeJvm(@TempDir Path tmp) throws Exception {
@@ -625,6 +640,9 @@ class KofConcurrency2Test {
                 """);
         String[] q = {null, "qemu-riscv64", "qemu-aarch64"};
         Target[] ts = {Target.NATIVE, Target.NATIVE_RISCV64, Target.NATIVE_AARCH64};
+        Assumptions.assumeTrue(has("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64")
+                        && has("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"),
+                "cross toolchain riscv64/aarch64 + qemu ausente — pulando (NATIVE002)");
         for (int i = 0; i < 3; i++) {
             CompilationResult r = driver.compile(f, tmp.resolve("out-" + i), ts[i]);
             assertTrue(r.success(), ts[i] + " deve compilar: " + r.diagnostics().getDiagnostics());
