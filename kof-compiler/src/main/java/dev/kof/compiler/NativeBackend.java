@@ -2742,6 +2742,7 @@ public class NativeBackend implements Backend {
                 sd   a0, 16(s1)             # stack base (p/ debug/free)
                 li   t1, 1048576
                 add  s2, a0, t1             # stack TOP
+                sd   s2, 24(s1)             # stack top no handle (filho lê)
                 # clone(flags, stack_top, ptid, tls, ctid) — filho herda s0,s1
                 li   a0, 0x3D0F00
                 mv   a1, s2
@@ -2753,6 +2754,11 @@ public class NativeBackend implements Backend {
                 bltz a0, .Lsp_inline
                 bnez a0, .Lsp_reg           # pai: registra handle p/ join
                 # ---- filho: a0=0, s0=task, s1=handle ----
+                # TROCA sp p/ a stack dedicada ANTES do call: o sp herdado aponta
+                # p/ o frame ativo do kof_spawn_result do pai; o call empilharia
+                # ra lá e corromperia os slots salvos do pai (race real — só
+                # aparece no fire-and-forget, onde o pai continua sem bloquear).
+                ld   sp, 24(s1)
                 call kof_spawn_trampoline
                 li   a0, 0
                 li   a7, 93
@@ -3523,20 +3529,26 @@ public class NativeBackend implements Backend {
 
             .globl kof_println_string
             kof_println_string:
-                addi sp, sp, -16
-                sd   ra, 8(sp)
-                sd   a0, 0(sp)
-                call kof_print_string
+                # writev(1, iov[2], 2) — string + newline num ÚNICO syscall:
+                # atomico, sem interleave entre threads (spawn/await).
+                addi sp, sp, -48
+                sd   ra, 40(sp)
+                addi t0, a0, 24
+                sd   t0, 0(sp)              # iov[0].base = data
+                lw   t1, 16(a0)
+                sd   t1, 8(sp)              # iov[0].len
+                la   t0, .Lnewline
+                sd   t0, 16(sp)             # iov[1].base
+                li   t1, 1
+                sd   t1, 24(sp)             # iov[1].len
                 li   a0, 1
-                la   a1, .Lnewline
-                li   a2, 1
-                li   a7, 64
+                addi a1, sp, 0
+                li   a2, 2
+                li   a7, 66
                 ecall
-                ld   ra, 8(sp)
-                ld   a0, 0(sp)
-                addi sp, sp, 16
+                ld   ra, 40(sp)
+                addi sp, sp, 48
                 ret
-
             # kof_int_to_string(n) -> KofStr*
             .globl kof_int_to_string
             kof_int_to_string:
@@ -4760,23 +4772,23 @@ public class NativeBackend implements Backend {
                 lw   s2, 16(s0)
                 lw   t0, 16(s1)
                 li   s3, 0
-                beqz t0, .Lsp_count
+                beqz t0, .Lsk_count
                 addi s3, s1, 24
                 lbu  s3, 0(s3)
-            .Lsp_count:
+            .Lsk_count:
                 li   s4, 1
                 li   s5, 0
-            .Lsp_cloop:
-                bge  s5, s2, .Lsp_alloc
+            .Lsk_cloop:
+                bge  s5, s2, .Lsk_alloc
                 addi t1, s0, 24
                 add  t1, t1, s5
                 lbu  t1, 0(t1)
-                bne  t1, s3, .Lsp_cnext
+                bne  t1, s3, .Lsk_cnext
                 addi s4, s4, 1
-            .Lsp_cnext:
+            .Lsk_cnext:
                 addi s5, s5, 1
-                j    .Lsp_cloop
-            .Lsp_alloc:
+                j    .Lsk_cloop
+            .Lsk_alloc:
                 mv   a0, s4
                 li   a1, 8
                 call kof_array_alloc
@@ -4784,27 +4796,27 @@ public class NativeBackend implements Backend {
                 li   s7, 0
                 li   s5, 0
                 li   s4, 0
-            .Lsp_outer:
-                bge  s5, s2, .Lsp_last
+            .Lsk_outer:
+                bge  s5, s2, .Lsk_last
                 addi t1, s0, 24
                 add  t1, t1, s5
                 lbu  t1, 0(t1)
-                bne  t1, s3, .Lsp_onext
-                call .Lsp_emit
+                bne  t1, s3, .Lsk_onext
+                call .Lsk_emit
                 addi s4, s5, 1
                 addi s5, s5, 1
-                j    .Lsp_outer
-            .Lsp_onext:
+                j    .Lsk_outer
+            .Lsk_onext:
                 addi s5, s5, 1
-                j    .Lsp_outer
-            .Lsp_last:
-                bge  s4, s2, .Lsp_done
+                j    .Lsk_outer
+            .Lsk_last:
+                bge  s4, s2, .Lsk_done
                 mv   s5, s2
-                call .Lsp_emit
-            .Lsp_done:
+                call .Lsk_emit
+            .Lsk_done:
                 mv   a0, s6
-                j    .Lsp_ret
-            .Lsp_emit:
+                j    .Lsk_ret
+            .Lsk_emit:
                 addi sp, sp, -32
                 sd   ra, 24(sp)
                 sub  t0, s5, s4
@@ -4840,7 +4852,7 @@ public class NativeBackend implements Backend {
                 ld   ra, 24(sp)
                 addi sp, sp, 32
                 ret
-            .Lsp_ret:
+            .Lsk_ret:
                 ld   s7, 8(sp)
                 ld   s6, 16(sp)
                 ld   s5, 24(sp)
