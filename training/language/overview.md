@@ -1,39 +1,39 @@
-# Kof Overview
+# Visão Geral do Kof
 
-Kof is a compiled, statically-typed, object-oriented programming language targeting JVM, Native (x86_64, riscv64, aarch64) and KofJS (ES Modules), plus Android (Fase 1, APK via backend JVM), KofScript and KofC.
+Kof é uma linguagem compilada, estaticamente tipada e orientada a objetos, com alvos JVM, Native (x86_64, riscv64, aarch64) e KofJS (ES Modules), além de Android (Fase 1, APK via backend JVM), KofScript e KofC.
 
-**Version:** 0.2.6-beta (02 Sep 2026) — 810 tests (793 kof-compiler + 8 kof-script + 5 kof-c-compiler + 4 kof-cli, 0 failures).
+**Versão:** 0.2.6-beta (02 set 2026) — 810 testes (793 kof-compiler + 8 kof-script + 5 kof-c-compiler + 4 kof-cli, 0 falhas).
 
-## Key Characteristics
+## Características Principais
 
-- **Compiled** — the compiler emits JVM bytecode (via ASM), a native ELF binary (x86_64/riscv64/aarch64), or ES Modules; there is no interpreter
-- **Statically typed** — type errors caught at compile time; null safety `String?` + narrowing `if (x != null)` since 0.2.6-beta
-- **Multi-target** — same code runs on JVM, Native, JS, Native.risc, Native.arm, plus KofScript (JIT in-memory) and KofC (C subset → native)
-- **Intent-oriented** — not a formal paradigm, but object orientation taken to
-  its extreme: code expresses *what* should happen; the platform (language +
-  compiler + runtime + stdlib) decides *how*, per target. The chain is
-  `intent → Kof → compiler → backend`. Mechanisms never leak into user code:
-  `spawn f()` (not Thread), `app.get(...)` (not a servlet container),
-  `Window`/`Button("+1", () -> ...)` (not WebView), `json.decode<User>(body)`
-  (not a manual parser),   `Palette.red` (not hex). Gaps are reported at
-  compile time with codes (`HTTP002`, `DB001`, `SCHED001`) — never silently.
-  See `docs/philosophy.md`.
-- **Minimal boilerplate** — intent over ceremony (records, primary constructors, top-level functions)
-- **Memory managed** — free-list (thread-safe, futex) + `kof_gc_collect` mark-sweep conservador (Native, 27/08); auto-GC desligado — GC mark-sweep automático pendente
-- **No `fun` keyword** — functions are declared by name (`main()`, `String f()`, `f(): String`)
+- **Compilada** — o compilador emite bytecode JVM (via ASM), um binário ELF nativo (x86_64/riscv64/aarch64) ou ES Modules; não há interpretador
+- **Estaticamente tipada** — erros de tipo detectados em compile-time; null safety `String?` + narrowing `if (x != null)` desde 0.2.6-beta
+- **Multi-target** — o mesmo código roda em JVM, Native, JS, Native.risc, Native.arm, além de KofScript (JIT em memória) e KofC (subconjunto C → nativo)
+- **Orientada a intenção** — não é um paradigma formal, mas a orientação a objetos
+  levada ao extremo: o código expressa *o que* deve acontecer; a plataforma
+  (linguagem + compilador + runtime + stdlib) decide *como*, por target. A cadeia
+  é `intenção → Kof → compilador → backend`. Mecanismos nunca vazam para o código
+  do usuário: `spawn f()` (não Thread), `app.get(...)` (não um container servlet),
+  `Window`/`Button("+1", () -> ...)` (não WebView), `json.decode<User>(body)`
+  (não um parser manual), `Palette.red` (não hex). Gaps são reportados em
+  compile-time com códigos (`HTTP002`, `DB001`, `SCHED001`) — nunca silenciosamente.
+  Ver `docs/philosophy.md`.
+- **Boilerplate mínimo** — intenção sobre cerimônia (records, construtores primários, funções top-level)
+- **Memória gerenciada** — free-list (thread-safe, futex) + `kof_gc_collect` mark-sweep conservador (Native, 27/08); auto-GC desligado — GC mark-sweep automático pendente
+- **Sem palavra-chave `fun`** — funções são declaradas pelo nome (`main()`, `String f()`, `f(): String`)
 
-## Compilation Pipeline
+## Pipeline de Compilação
 
 ```
-Source (.kf / .ks / .c)
+Fonte (.kf / .ks / .c)
     ↓
 Lexer → Tokens
     ↓
 Parser → AST (PatternExpr, NullableType)
     ↓
-Semantic Analysis → Typed AST (isAssignable com Nullable, record destructuring)
+Análise Semântica → AST tipado (isAssignable com Nullable, destructuring de record)
     ↓
-Kof IR (backend-agnostic, KofOperation)
+Kof IR (agnóstico de backend, KofOperation)
     ↓
 ┌─────────┬──────────┬──────┬─────────┬────────┐
 │  JVM    │ Native   │ JS   │ KofScript│ KofC  │
@@ -44,16 +44,16 @@ Kof IR (backend-agnostic, KofOperation)
  * riscv64 real (02/09, asm puro, qemu); aarch64 placeholder
 ```
 
-## Current Features (0.2.6-beta)
+## Funcionalidades Atuais (0.2.6-beta)
 
-| Feature | JVM | Native | JS | Notes |
+| Funcionalidade | JVM | Native | JS | Notas |
 |---------|-----|--------|----|-------|
-| Classes, records, interfaces, inheritance, virtual dispatch | ✅ | ✅ | ✅ | super = SUP001 no Native |
-| Constructors (`constructor(...)`, primary `class X(...)`) | ✅ | ✅ | ✅ | desde 0.0.5 |
-| Functions (all forms, no `fun`, expression body) | ✅ | ✅ | ✅ | |
-| Enums (`enum Color { Red }` + values/valueOf/name + exhaustive switch SEM031) | ✅ | ✅ | ✅ | 3 targets |
+| Classes, records, interfaces, herança, dispatch virtual | ✅ | ✅ | ✅ | super = SUP001 no Native |
+| Construtores (`constructor(...)`, primário `class X(...)`) | ✅ | ✅ | ✅ | desde 0.0.5 |
+| Funções (todas as formas, sem `fun`, corpo de expressão) | ✅ | ✅ | ✅ | |
+| Enums (`enum Color { Red }` + values/valueOf/name + switch exaustivo SEM031) | ✅ | ✅ | ✅ | 3 targets |
 | Lambdas com captura mutável (Box0) | ✅ | ✅ | ✅ | 0.2.6-beta |
-| If-expressions `var x = if (c) a else b` | ✅ | ✅ | ✅ | |
+| If-expressões `var x = if (c) a else b` | ✅ | ✅ | ✅ | |
 | `List<T>` + `listOf` + `map/filter/reduce` | ✅ | ✅ | ✅ | higher-order 27/08 |
 | `Map<K,V>` + `mapOf` (put/get/remove/contains/size/keys/values/clear/isEmpty) | ✅ | ✅ | ✅ | desde 0.1.0 |
 | `Set<T>` + `setOf` (add/contains/remove/size/clear/isEmpty) | ✅ | ✅ | ✅ | desde 0.1.0 |
@@ -64,7 +64,7 @@ Kof IR (backend-agnostic, KofOperation)
 | Concorrência: `spawn` / `Handle<T>` / `await` | ✅ | ✅ (pthread, 31/08) | ✅ (sequencial) | CONC001 fechado; JS CONC003 parcial |
 | Strings (`+`, `==`, indexOf, trim, split, ...) | ✅ | ✅ | ✅ | |
 | Arrays (`new Int[n]`, `arr[i]`, `.length`) | ✅ | ✅ | ✅ | |
-| Exceptions `throw "msg"` / try/catch/finally | ✅ | ✅ | ✅ | Native unwinding |
+| Exceções `throw "msg"` / try/catch/finally | ✅ | ✅ | ✅ | unwinding Native |
 | Generics (erasure) | ✅ | ✅ | ✅ | |
 | JSON `json.encode` / `json.decode<T>` (objetos/records/arrays, FP) | ✅ | ✅ | ✅ | JSN001/002/003 fechados 31/08 |
 | kof.io: `readFile`, `writeFile`, `readLine`, `File/Path/Directory` | ✅ | ✅ | ✅ | |
@@ -72,32 +72,32 @@ Kof IR (backend-agnostic, KofOperation)
 | kof.http: `http.get/post/put/delete/patch/options/status` + `timeout/retry/circuit` | ✅ | HTTP002 | ✅ | JS via Java HttpClient 27/08; retry/circuit 30/08 |
 | kof.cache: `cache.get/set/set_ttl/ttl/delete/clear` | ✅ | ✅ | ✅ | ConcurrentHashMap/Js Map |
 | switch, instanceof, `as` | ✅ | ✅ | ✅ | |
-| Web server (`web.app()` rotas/middleware/`status`/`headerSet` + `listenSecure` TLS + `app.ws` + `app.sse`) | ✅ | WEB001 | — | ws/sse 30/08 |
+| Servidor web (`web.app()` rotas/middleware/`status`/`headerSet` + `listenSecure` TLS + `app.ws` + `app.sse`) | ✅ | WEB001 | — | ws/sse 30/08 |
 | kof.validation (13 predicados) | ✅ | ✅ | ✅ | |
 | kof.security (passwords/crypto/jwt/secrets/auth + rateLimit/sessions/apiKeys) | ✅ | ✅ | ✅ | |
 | kof.observability (health/readiness/liveness/counter/increment/gauge/requestId) | ✅ | ✅ | ✅ | |
-| kof.db + SQLite nativo + MySQL handshake | ✅ | ✅ (MySQL auth scramble SHA-1 done) | DB001 | |
+| kof.db + SQLite nativo + handshake MySQL | ✅ | ✅ (auth scramble SHA-1 do MySQL feito) | DB001 | |
 | KofScript `let` top-level + repl --watch --inspect | ✅ | ✅ | ✅ | KofScriptGlobals |
-| KofC C subset → ELF x86_64 | — | ✅ | — | nativo-only |
+| KofC subconjunto C → ELF x86_64 | — | ✅ | — | nativo-only |
 
-## Planned / Unavailable (0.2.6-beta)
+## Planejado / Indisponível (0.2.6-beta)
 
-| Feature | Status |
+| Funcionalidade | Status |
 |---------|--------|
-| `Option<T>` genérico | Planned — use `String?` |
-| `Array literals {1, 2, 3}` | Unavailable — use `new Int[n]` / `listOf` |
-| MySQL query/prepared completo no Native | In progress (handshake done 27/08) |
-| RISC-V/ARM codegen real | Placeholder (target separation done, as/ld+qemu) |
+| `Option<T>` genérico | Planejado — use `String?` |
+| `Array literals {1, 2, 3}` | Indisponível — use `new Int[n]` / `listOf` |
+| MySQL query/prepared completo no Native | Em andamento (handshake feito 27/08) |
+| RISC-V/ARM codegen real | Placeholder (separação de target feita, as/ld+qemu) |
 | Scheduler `every`/`at` no Native | SCHED001 (JVM/JS ✅) |
 | GC mark-sweep automático no Native | Pendente (free-list + `kof_gc_collect` manuais; auto-GC desligado) |
-| HTTP/2 no `kof.http` | Planned (HTTP002 no Native) |
+| HTTP/2 no `kof.http` | Planejado (HTTP002 no Native) |
 | Web stack no Native/JS (`web.app`) | WEB001 (JVM ✅) |
 
-## What Kof Is NOT
+## O que o Kof NÃO é
 
-- Java with different syntax
-- A transpiler to Java
-- A Spring clone
-- A framework
-- An interpreter
-- A VM
+- Java com outra sintaxe
+- Um transpilador para Java
+- Um clone do Spring
+- Um framework
+- Um interpretador
+- Uma VM

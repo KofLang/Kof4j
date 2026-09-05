@@ -1,23 +1,23 @@
-# Kof String Reference
+# Referência de Strings em Kof
 
-**Version:** 0.2.6-beta
+**Versão:** 0.2.6-beta
 
-## Creation
+## Criação
 
 ```kof
 var s = "Hello"           // string literal
-var s = ""                // empty string
+var s = ""                // string vazia
 ```
 
-## Operations
+## Operações
 
-### Length
+### Tamanho (Length)
 ```kof
 var s = "Hello"
 println(s.length)  // 5
 ```
 
-### Character Access
+### Acesso a caracteres
 ```kof
 var s = "Hello"
 println(s.charAt(0))  // 72 (H)
@@ -29,37 +29,37 @@ var s = "Hello"
 println(s.substring(1, 4))  // "ell"
 ```
 
-### Concatenation
+### Concatenação
 ```kof
 var a = "Hello"
 var b = " World"
 println(a + b)  // "Hello World"
 ```
 
-### Contains
+### Contém (contains)
 ```kof
 var s = "Hello World"
 println(s.contains("World"))  // true
 println(s.contains("xyz"))    // false
 ```
 
-### Starts With / Ends With
+### Começa com / Termina com (startsWith / endsWith)
 ```kof
 var s = "Hello"
 println(s.startsWith("He"))  // true
 println(s.endsWith("llo"))    // true
 ```
 
-### Equality
+### Igualdade
 ```kof
 var a = "Hello"
 var b = "Hello"
-println(a == b)  // true (byte-level comparison)
+println(a == b)  // true (comparação de conteúdo, byte a byte)
 ```
 
-## Immutability
+## Imutabilidade
 
-Strings are immutable. Operations like `concat` create new strings.
+Strings são imutáveis. Operações como `concat` criam novas strings.
 
 ## Null safety (0.2.6-beta)
 
@@ -70,14 +70,14 @@ if (s != null) {
 }
 ```
 
-## Encoding and length — per target
+## Codificação e tamanho — por target
 
-- **Native**: strings are UTF-8; `length` returns the **byte count**.
-- **JVM**: strings are UTF-16 (`java.lang.String`); `length` returns code units.
+- **Native**: strings são UTF-8; `length` retorna a **contagem de bytes**.
+- **JVM**: strings são UTF-16 (`java.lang.String`); `length` retorna unidades de código.
 
 ```kof
-println("Olá".length)  // Native: 4 (UTF-8 bytes); JVM: 3 (UTF-16 units)
+println("Olá".length)  // Native: 4 (bytes UTF-8); JVM: 3 (unidades UTF-16)
 ```
 
-Do not assume a specific character count when the string contains non-ASCII
-characters and the target matters.
+Não assuma uma contagem específica de caracteres quando a string contém
+caracteres não-ASCII e o target importa.

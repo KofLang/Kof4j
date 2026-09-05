@@ -1,13 +1,13 @@
-# Architecture Decision Record
+# Registro de Decisão de Arquitetura
 
-## Project: Kof
+## Projeto: Kof
 
-## Status: Accepted
+## Status: Aceito
 
 **Última atualização:** 2 de setembro de 2026
 **Versão:** 0.2.6-beta
 
-## Context
+## Contexto
 
 Kof é uma linguagem de programação fortemente tipada, estaticamente tipada e orientada a objetos. O compilador deve gerar código para múltiplos targets a partir de uma única IR.
 
@@ -64,9 +64,9 @@ Source (.kf)
        ↓ Interactive
 ```
 
-## Decision: Multiplatform via Shared Frontend + Pluggable Backends
+## Decisão: Multiplataforma via Frontend Compartilhado + Backends Plugáveis
 
-### Rationale
+### Justificativa
 
 1. **One language, multiple targets.** The same Kof source compiles to JVM, native, script, or web.
 2. **Shared frontend.** Lexer, parser, AST, type system, and semantic analysis are shared across all backends.
@@ -74,7 +74,7 @@ Source (.kf)
 4. **No transpilation.** Kof generates bytecode directly for JVM, assembly for native.
 5. **No Java intermediate.** Kof does not generate Java source code.
 
-### Backend Interface
+### Interface de Backend
 
 ```java
 public interface Backend {
@@ -88,7 +88,7 @@ Implementations:
 - `JsBackend` - generates ES Modules (ECMAScript 2022+), executed by the embedded GraalJS engine (`KofJsRunner`)
 - `KofCcompiler` - C subset (`kof c`) → ELF x86_64 native-only (`kof-compiler/src/main/java/dev/kof/compiler/KofCcompiler.java:1`)
 
-### Target Enum
+### Enum de Target
 
 ```java
 public enum Target {
@@ -103,7 +103,7 @@ public enum Target {
 
 CLI: `kof build/run --target jvm|native|native.risc|native.arm|js` (aliases `native.riscv64`/`native.aarch64`; `android` em Fase 1) (`CompilerDriver.java:1`, `Target.java:1`). `kof run`/`kof build --target js` executa JS sem Node.js (runtime embarcado). `kof c` usa `KofCcompiler` apenas para `native`.
 
-## Type System
+## Sistema de Tipos
 
 The type system supports (0.2.6-beta, 27/08/2026):
 
@@ -118,7 +118,7 @@ The type system supports (0.2.6-beta, 27/08/2026):
 - Void type
 - Function types: `FunctionType` (lambdas with captures via `BoxN`, implemented)
 
-### Type Representation
+### Representação de Tipos
 
 ```text
 Type
@@ -146,7 +146,7 @@ IRModule
   └── imports
 ```
 
-### KofOperation types
+### Tipos de KofOperation
 
 - **Literals**: KofLoadLiteral (int, long, float, double, string, bool, null)
 - **Variables**: KofLoadLocal, KofStoreLocal
@@ -263,7 +263,7 @@ Implementation:
 - Executes via `java -cp` with `KofScript` harness
 - Cleans up temp files; `--watch` re-executes on change; SIGPIPE handled on Windows
 
-## Standard Library (compile-time dispatch)
+## Biblioteca Padrão (dispatch em compile-time)
 
 A Standard Library do Kof é implementada como **tabelas de dispatch
 compile-time** (docs/stdlib.md): cada módulo é um descriptor no compilador
@@ -285,7 +285,7 @@ CONC001, JSN00x, DB001, CONF001, LOG001) — nunca comportamento silenciosamente
 
 Módulos (0.2.6-beta, 31/08/2026): `kof.core`, `kof.collections` (`List map/filter/reduce`, `Map/Set`, `Box<T>`), `kof.io`, `kof.time` (scheduler `every` JVM+JS via `setInterval`), `kof.json` (objetos/records + arrays nos 3 targets, 31/08), `kof.http` (JVM+JS via HttpClient; retry/circuit breaker 30/08), `kof.web` (rotas/middleware + WebSocket/SSE JVM, 30/08), `kof.cache` (3 targets, 30/08), `kof.security`, `kof.concurrent` (`spawn` — JVM virtual threads, Native pthread 31/08, JS sequencial), `kof.test`, `kof.cli` (18 comandos: `build/run/serve/check/test/script/repl/c/fmt/config/bench/profile/inspect/debug/info/lsp/install/version`), `kof.db`/`kof.orm` (SQLite nativo `.so` + MySQL wire protocol WIP), `kof.config`/`kof.log`. Estado completo em docs/stdlib.md e docs/status.md:12-26 (810 testes, 16/16 golden, 9/9 integration).
 
-## Diagnostics
+## Diagnósticos
 
 All errors point to the original source location.
 
@@ -297,7 +297,7 @@ error: type mismatch
    |     ^^^^ expected String, found Int
 ```
 
-## Java Interoperability
+## Interoperabilidade com Java
 
 The JVM backend must generate bytecode that is fully compatible with Java:
 
@@ -307,7 +307,7 @@ The JVM backend must generate bytecode that is fully compatible with Java:
 - Standard class loading
 - Standard reflection
 
-## Risks
+## Riscos
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|

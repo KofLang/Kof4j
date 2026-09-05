@@ -1,6 +1,6 @@
-# Kof Exceptions Reference
+# Referência de Exceções em Kof
 
-**Exceptions são Strings** — `throw "mensagem"` / `catch (String e)`. Não há
+**Exceções são Strings** — `throw "mensagem"` / `catch (String e)`. Não há
 objeto de exceção nem `throw 42`/`catch (Int e)` (geram bytecode inválido no
 JVM — verificado 02/09). Para ausência como valor, use `String?` (não erro).
 
@@ -53,28 +53,29 @@ String? find(String key) { if (found) return value; return null }
 String findOrThrow(String key) { if (found) return value; throw "not found: " + key }
 ```
 
-## Runtime Errors
+## Erros de Runtime
 
-| Error | Trigger | Message |
+| Erro | Gatilho | Mensagem |
 |-------|---------|---------|
-| Null pointer | Access null object | "Runtime error: null pointer access" |
-| Array bounds | Index out of range | "Runtime error: array index out of bounds" |
-| Panic | `kof_panic()` | Custom message |
+| Null pointer | Acessar objeto null | "Runtime error: null pointer access" |
+| Array bounds | Índice fora do intervalo | "Runtime error: array index out of bounds" |
+| Panic | `kof_panic()` | Mensagem customizada |
 
-## Behavior
+## Comportamento
 
-- **JVM**: Exceptions propagate via the JVM exception table; the thrown String
-  is wrapped in a `RuntimeException` and unwrapped back in the catch.
-- **Native**: real unwinding via an exception frame chain (`kof_throw_string`):
-  frames restore `rsp`/`rbp` and jump to the handler; `finally` runs and the
-  exception is rethrown; propagation across function frames works.
-- **try/catch**: works on both targets. In Native, the FIRST catch of a try
-  captures (no type dispatch between multiple catches).
-- **finally**: always executed (normal path, caught path, propagation).
+- **JVM**: exceções propagam pela exception table da JVM; a String lançada é
+  embrulhada em um `RuntimeException` e desembrulhada de volta no catch.
+- **Native**: unwinding real via uma cadeia de frames de exceção
+  (`kof_throw_string`): os frames restauram `rsp`/`rbp` e saltam para o handler;
+  o `finally` executa e a exceção é relançada; a propagação entre frames de
+  função funciona.
+- **try/catch**: funciona nos dois targets. No Native, o PRIMEIRO catch de um try
+  captura (sem dispatch de tipo entre múltiplos catches).
+- **finally**: sempre executado (caminho normal, caminho capturado, propagação).
 
-## Limitations (0.2.6-beta)
+## Limitações (0.2.6-beta)
 
-- No stack traces in Native
-- Exceptions are **Strings** — `throw 42`/`catch (Int e)` geram bytecode
-  inválido no JVM (02/09); use `String?` para ausência como valor
-- Native exceptions propagate via unwinding (not fatal); `finally` always runs
+- Sem stack traces no Native
+- Exceções são **Strings** — `throw 42`/`catch (Int e)` geram bytecode inválido
+  no JVM (02/09); use `String?` para ausência como valor
+- Exceções no Native propagam via unwinding (não fatal); o `finally` sempre roda
