@@ -593,8 +593,10 @@ EXTERNA produz lixo
   (3) o JVM `kof_list_get` não fazia CHECKCAST para a classe sintética da
   lambda (verifier: Object onde Lambda0). Prova:
   `CoreRegressionE2ETest.lambdaStoredInCollectionAndInvoked`.
-- **Bug 19** (lambda retornando lambda) — **investigado no Native**: o caso simples `make(5)(3)` funciona após a preservação do FunctionType e className (commit recente). Testes complexos (triple-nested ou retorna Fun1) produzem lixo no Native — precisa de mais verificação. JVM/JS funciona conforme teste `lambdaReturningLambda`. Prova:
-  `CoreRegressionE2ETest.lambdaReturningLambda` (JVM+JS).
+- **Bug 19** (lambda retornando lambda) — **corrigido 04/09**: `collectCaptures`
+  desce em lambdas aninhados (o externo captura e repassa variáveis livres do
+  interno) — triple-nested `make(5)(3)(10)` funciona nos 3 targets. Prova:
+  `LambdaE2ETest.tripleNested*` (JVM+Native).
 - **Bug 8** (tipo de função `(Int) -> Int` não parseava como tipo) —
   **corrigido 03/09 (parse) + 04/09 (invocação)**: `Parser.parseTypeRef` agora
   aceita `(params) -> ret`; `Type.of` converte para `FunctionType`;
