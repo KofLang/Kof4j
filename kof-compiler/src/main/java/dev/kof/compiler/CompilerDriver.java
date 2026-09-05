@@ -3884,9 +3884,18 @@ private Target target = Target.JVM;
                     Type argType = inferExprType(mc.arguments().get(0), locals);
                     if (isPrimitiveType(argType)) {
                         if (target.isNative()) {
+                            // println(char) é NUMÉRICO (congelado: strings.md
+                            // "72 (H)" + execStringCharAt). valueOf(char) solto
+                            // é o caractere UTF-8 (common-mistakes.md "h").
+                            // O dispatch nativo do valueOf decide pelo tipo do
+                            // parâmetro — aqui mapeia char→Int para imprimir o
+                            // codepoint sem quebrar String.valueOf(char).
+                            Type nativeArg = (argType instanceof Type.PrimitiveType p
+                                    && "char".equals(p.name()))
+                                    ? Type.PrimitiveType.INT : argType;
                             ops.add(new KofCall(
                                     BuiltinTypes.STRING,
-                                    "valueOf", List.of(argType),
+                                    "valueOf", List.of(nativeArg),
                                     BuiltinTypes.STRING, KofCallKind.STATIC));
                         } else {
                             boxPrimitive(ops, argType);
