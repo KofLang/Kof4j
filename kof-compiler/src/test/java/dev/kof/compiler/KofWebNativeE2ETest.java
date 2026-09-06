@@ -322,4 +322,41 @@ class KofWebNativeE2ETest {
             assertTrue(r.endsWith("7-99"), "two params should be extracted, got: " + r);
         }
     }
+
+    private static final String SERVER_T8 = """
+            main() {
+                var app = web.app()
+                app.get("/created") {
+                    headerSet("X-Kind", "demo")
+                    return status(201, "made")
+                }
+                app.listen(PORT)
+            }
+            """;
+
+    @Test
+    void nativeServerSetsStatusAndResponseHeader(@TempDir Path tempDir) throws Exception {
+        int port = freePort();
+        Path src = tempDir.resolve("App.kf");
+        Files.writeString(src, SERVER_T8.replace("PORT", String.valueOf(port)));
+        CompilerDriver driver = new CompilerDriver();
+        CompilationResult result = driver.compile(src, tempDir.resolve("classes"), Target.NATIVE);
+        assertTrue(result.success(), "compile: " + result.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(tempDir.resolve("classes/Default/Main").toString());
+        pb.redirectErrorStream(true);
+        serverProcess = pb.start();
+        long deadline = System.currentTimeMillis() + 5000;
+        boolean up = false;
+        while (System.currentTimeMillis() < deadline && !up) {
+            try (Socket probe = new Socket()) {
+                probe.connect(new java.net.InetSocketAddress("127.0.0.1", port), 100);
+                up = true;
+            } catch (IOException e) { Thread.sleep(50); }
+        }
+        assertTrue(up);
+        String r = httpGet(port, "/created");
+        assertTrue(r.contains("HTTP/1.1 201 Created"), "status line should be 201 Created, got: " + r);
+        assertTrue(r.contains("X-Kind: demo"), "response header should be set, got: " + r);
+        assertTrue(r.endsWith("made"), "body should be returned, got: " + r);
+    }
 }

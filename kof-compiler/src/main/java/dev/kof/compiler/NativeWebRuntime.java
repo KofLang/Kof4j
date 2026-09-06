@@ -34,6 +34,21 @@ final class NativeWebRuntime {
             .Lweb_hnl: .asciz "Content-Length: "
             .Lweb_body_ok: .asciz "route-match"
             .Lweb_crlfx2: .asciz "\\r\\n\\r\\n"
+            .Lweb_st_ok: .asciz "OK"
+            .Lweb_st_created: .asciz "Created"
+            .Lweb_st_accepted: .asciz "Accepted"
+            .Lweb_st_nocontent: .asciz "No Content"
+            .Lweb_st_moved: .asciz "Moved Permanently"
+            .Lweb_st_found: .asciz "Found"
+            .Lweb_st_notmodified: .asciz "Not Modified"
+            .Lweb_st_badreq: .asciz "Bad Request"
+            .Lweb_st_unauth: .asciz "Unauthorized"
+            .Lweb_st_forbidden: .asciz "Forbidden"
+            .Lweb_st_notfound: .asciz "Not Found"
+            .Lweb_st_conflict: .asciz "Conflict"
+            .Lweb_st_iserr: .asciz "Internal Server Error"
+            .Lweb_st_badgw: .asciz "Bad Gateway"
+            .Lweb_st_unavail: .asciz "Service Unavailable"
 
             .section .bss
             .Lweb_reqbuf:     .space 16384
@@ -53,6 +68,9 @@ final class NativeWebRuntime {
             .Lweb_reqlen:     .quad 0
             .Lweb_params:     .space 512    # 16 slots * 32B {name_ptr,name_len,value_ptr,value_len}
             .Lweb_nparams:    .quad 0
+            .Lweb_status:     .quad 0     # status da resposta (reset p/ 200 a cada request)
+            .Lweb_resp_hdrs:  .space 64    # 4 slots * 16B {name_ptr,value_ptr}
+            .Lweb_nresphdr:   .quad 0
             .Lweb_empty:      .byte 0
 
             .section .text
@@ -662,6 +680,92 @@ final class NativeWebRuntime {
                 ret
 
             # ------------------------------------------------------------------
+            # kof_web_status(rdi=code Int, rsi=body String) -> String (o body)
+            # Define o status da resposta; o writer usa .Lweb_status.
+            # ------------------------------------------------------------------
+            .globl kof_web_status
+            .type kof_web_status, @function
+            kof_web_status:
+                movl %edi, .Lweb_status(%rip)
+                movq %rsi, %rax
+                ret
+
+            # ------------------------------------------------------------------
+            # kof_web_header_set(rdi=name String, rsi=value String) -> String
+            # Adiciona um header de resposta; reusado pelo writer.
+            # ------------------------------------------------------------------
+            .globl kof_web_header_set
+            .type kof_web_header_set, @function
+            kof_web_header_set:
+                movq .Lweb_nresphdr(%rip), %rax
+                cmpq $4, %rax
+                jae .Lkhs_done
+                imulq $16, %rax, %rax
+                leaq .Lweb_resp_hdrs(%rip), %rcx
+                addq %rax, %rcx
+                movq %rdi, 0(%rcx)
+                movq %rsi, 8(%rcx)
+                movq .Lweb_nresphdr(%rip), %rax
+                incq %rax
+                movq %rax, .Lweb_nresphdr(%rip)
+            .Lkhs_done:
+                movq %rsi, %rax
+                ret
+
+            # ------------------------------------------------------------------
+            # kof_web_status_text(rdi=code Int) -> cstr (texto de status, NUL)
+            # ------------------------------------------------------------------
+            kof_web_status_text:
+                movl %edi, %eax
+                cmpl $200, %eax
+                je .Lst_ok
+                cmpl $201, %eax
+                je .Lst_created
+                cmpl $202, %eax
+                je .Lst_accepted
+                cmpl $204, %eax
+                je .Lst_nocontent
+                cmpl $301, %eax
+                je .Lst_moved
+                cmpl $302, %eax
+                je .Lst_found
+                cmpl $304, %eax
+                je .Lst_notmodified
+                cmpl $400, %eax
+                je .Lst_badreq
+                cmpl $401, %eax
+                je .Lst_unauth
+                cmpl $403, %eax
+                je .Lst_forbidden
+                cmpl $404, %eax
+                je .Lst_notfound
+                cmpl $409, %eax
+                je .Lst_conflict
+                cmpl $500, %eax
+                je .Lst_iserr
+                cmpl $502, %eax
+                je .Lst_badgw
+                cmpl $503, %eax
+                je .Lst_unavail
+                leaq .Lweb_st_ok(%rip), %rax
+                ret
+            .Lst_ok:         leaq .Lweb_st_ok(%rip), %rax; ret
+            .Lst_created:    leaq .Lweb_st_created(%rip), %rax; ret
+            .Lst_accepted:   leaq .Lweb_st_accepted(%rip), %rax; ret
+            .Lst_nocontent:  leaq .Lweb_st_nocontent(%rip), %rax; ret
+            .Lst_moved:      leaq .Lweb_st_moved(%rip), %rax; ret
+            .Lst_found:      leaq .Lweb_st_found(%rip), %rax; ret
+            .Lst_notmodified: leaq .Lweb_st_notmodified(%rip), %rax; ret
+            .Lst_badreq:     leaq .Lweb_st_badreq(%rip), %rax; ret
+            .Lst_unauth:     leaq .Lweb_st_unauth(%rip), %rax; ret
+            .Lst_forbidden:  leaq .Lweb_st_forbidden(%rip), %rax; ret
+            .Lst_notfound:   leaq .Lweb_st_notfound(%rip), %rax; ret
+            .Lst_conflict:   leaq .Lweb_st_conflict(%rip), %rax; ret
+            .Lst_iserr:      leaq .Lweb_st_iserr(%rip), %rax; ret
+            .Lst_badgw:      leaq .Lweb_st_badgw(%rip), %rax; ret
+            .Lst_unavail:    leaq .Lweb_st_unavail(%rip), %rax; ret
+
+            # ------------------------------------------------------------------
             # route(app_ign rdi, method_string rsi, path_string rdx, handler rcx)
             # Registra 1 slot
             # ------------------------------------------------------------------
@@ -780,6 +884,8 @@ final class NativeWebRuntime {
                 jle .Lwh_404
                 movq %rax, %r15                  # len total
                 movq %rax, .Lweb_reqlen(%rip)
+                movq $200, .Lweb_status(%rip)    # reset resposta da request anterior
+                movq $0, .Lweb_nresphdr(%rip)
 
                 # ------- T4: detecta body (apos CRLF CRLF) -------
                 leaq .Lweb_reqbuf(%rip), %r8     # cursor
@@ -942,15 +1048,67 @@ final class NativeWebRuntime {
                 movq %rdi, %rbx                  # fd
                 movq %rsi, %r12                  # body String
                 leaq .Lweb_skb(%rip), %r13
-                # cabecalho 200 OK (sem literais CRLF aqui no asm-comment)
+                # status line: HTTP/1.1 <code> <text> + CRLF
                 leaq .Lweb_h1(%rip), %rsi
                 movq %r13, %rdi
                 call kof_web_append_cstr
                 movq %rax, %r13
-                leaq .Lweb_ok(%rip), %rsi
+                movl .Lweb_status(%rip), %edi    # code
+                call kof_int_to_string
+                movl 16(%rax), %edx
+                leaq 24(%rax), %rsi
+            .Lwb_status_code:
+                movb (%rsi), %cl
+                movb %cl, (%r13)
+                incq %r13
+                incq %rsi
+                decl %edx
+                jnz .Lwb_status_code
+                movb $' ', (%r13); incq %r13
+                movl .Lweb_status(%rip), %edi
+                call kof_web_status_text          # rax = cstr
+                movq %rax, %rsi
                 movq %r13, %rdi
                 call kof_web_append_cstr
                 movq %rax, %r13
+                movb $13, (%r13); incq %r13
+                movb $10, (%r13); incq %r13
+                # custom response headers (name: value)
+                movq $0, %r14                    # idx (sem calls nas cópias)
+            .Lwb_hdr_loop:
+                cmpq .Lweb_nresphdr(%rip), %r14
+                jae .Lwb_hdr_done
+                movq %r14, %rax
+                imulq $16, %rax, %rax
+                leaq .Lweb_resp_hdrs(%rip), %r8
+                addq %rax, %r8                  # slot
+                movq 0(%r8), %rsi               # name String
+                movl 16(%rsi), %edx
+                leaq 24(%rsi), %rsi
+            .Lwb_hdr_name:
+                movb (%rsi), %cl
+                movb %cl, (%r13)
+                incq %r13
+                incq %rsi
+                decl %edx
+                jnz .Lwb_hdr_name
+                movb $':', (%r13); incq %r13
+                movb $' ', (%r13); incq %r13
+                movq 8(%r8), %rsi               # value String
+                movl 16(%rsi), %edx
+                leaq 24(%rsi), %rsi
+            .Lwb_hdr_val:
+                movb (%rsi), %cl
+                movb %cl, (%r13)
+                incq %r13
+                incq %rsi
+                decl %edx
+                jnz .Lwb_hdr_val
+                movb $13, (%r13); incq %r13
+                movb $10, (%r13); incq %r13
+                incq %r14
+                jmp .Lwb_hdr_loop
+            .Lwb_hdr_done:
                 leaq .Lweb_hct(%rip), %rsi
                 movq %r13, %rdi
                 call kof_web_append_cstr
