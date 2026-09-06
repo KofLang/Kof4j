@@ -59,122 +59,17 @@ class SemanticAnalyzer {
         this.currentScope = new SymbolTable();
         this.currentUnit = unit;
         for (AstNode decl : unit.declarations()) {
-            preDeclareType(decl);
+            SymbolTableBuilder.preDeclareType(this, decl);
         }
         // N16: fwd-ref — membros de TODAS as classes antes de analisar corpos,
         // independente da ordem dos arquivos/PARTS
         for (AstNode decl : unit.declarations()) {
-            defineMembers(decl);
+            SymbolTableBuilder.defineMembers(this, decl);
         }
         for (AstNode decl : unit.declarations()) {
             analyzeDeclaration(decl);
         }
         resolveMethodCalls(unit);
-    }
-
-    private void defineMembers(AstNode decl) {
-        switch (decl) {
-            case ClassDeclarationNode cls -> defineClassMembers(cls);
-            case RecordDeclarationNode rec -> defineRecordMembers(rec);
-            case EntityDeclarationNode ent -> defineEntityMembers(ent);
-            case InterfaceDeclarationNode iface -> defineInterfaceMembers(iface);
-            case EnumDeclarationNode en -> { }
-            default -> {}
-        }
-    }
-
-    private void defineClassMembers(ClassDeclarationNode cls) {
-        if (classMemberScopes.containsKey(cls.name())) return;
-        SymbolTable.ClassSymbol classSym = knownClasses.get(cls.name());
-        SymbolTable classScope = classSym.members().enterScope();
-        classMemberScopes.put(cls.name(), classScope);
-        for (String tp : cls.typeParameters()) {
-            classScope.define(new SymbolTable.TypeParameterSymbol(tp));
-        }
-        for (AstNode member : cls.members()) {
-            if (member instanceof FieldDeclarationNode field) {
-                Type fieldType = resolveType(field.type(), classScope);
-                int flags = field.modifiers().contains("static") ? AccessFlags.STATIC : 0;
-                SymbolTable.FieldSymbol fs = new SymbolTable.FieldSymbol(field.name(), fieldType, flags, cls.name());
-                classSym.members().define(fs);
-                classScope.define(fs);
-            }
-        }
-        boolean hasCtor = false;
-        for (AstNode member : cls.members()) {
-            if (member instanceof ConstructorDeclarationNode ctor) {
-                defineConstructorSymbol(ctor, cls.name(), classScope);
-                hasCtor = true;
-            } else if (member instanceof MethodDeclarationNode method) {
-                defineMethodSymbol(method, cls.name(), classScope);
-            }
-        }
-        if (!hasCtor) {
-            classScope.define(new SymbolTable.ConstructorSymbol(cls.name(), List.of(), 1));
-        }
-    }
-
-    private void defineRecordMembers(RecordDeclarationNode rec) {
-        if (classMemberScopes.containsKey(rec.name())) return;
-        SymbolTable.ClassSymbol classSym = knownClasses.get(rec.name());
-        SymbolTable classScope = classSym.members().enterScope();
-        classMemberScopes.put(rec.name(), classScope);
-        List<String> typeParams = rec.typeParameters() == null ? List.of() : rec.typeParameters();
-        for (String tp : typeParams) {
-            classScope.define(new SymbolTable.TypeParameterSymbol(tp));
-        }
-        List<Type> compTypes = new ArrayList<>();
-        for (RecordComponentNode comp : rec.components()) {
-            Type compType = resolveType(comp.type(), classScope);
-            compTypes.add(compType);
-            SymbolTable.FieldSymbol fs = new SymbolTable.FieldSymbol(comp.name(), compType, 0, rec.name());
-            classSym.members().define(fs);
-            classScope.define(fs);
-        }
-        SymbolTable.ConstructorSymbol ctorSym = new SymbolTable.ConstructorSymbol(rec.name(), compTypes, 1);
-        classSym.members().define(ctorSym);
-        classScope.define(ctorSym);
-        for (RecordComponentNode comp : rec.components()) {
-            Type compType = resolveType(comp.type(), classScope);
-            SymbolTable.MethodSymbol ms = new SymbolTable.MethodSymbol(comp.name(), rec.name(),
-                    compType, List.of(), 1, SymbolTable.DispatchKind.INSTANCE);
-            classSym.members().define(ms);
-            classScope.define(ms);
-        }
-        for (AstNode member : rec.members()) {
-            if (member instanceof MethodDeclarationNode method) {
-                defineMethodSymbol(method, rec.name(), classScope);
-            }
-        }
-    }
-
-    private void defineEntityMembers(EntityDeclarationNode ent) {
-        List<RecordComponentNode> components = new ArrayList<>();
-        for (EntityFieldNode f : ent.fields()) {
-            components.add(new RecordComponentNode(f.position(), List.of(), f.type(), f.name(), null));
-        }
-        RecordDeclarationNode synthetic = new RecordDeclarationNode(ent.position(), ent.name(), ent.modifiers(),
-                null, List.of(), components, List.of());
-        // preDeclare já criou classSym para ent; reutiliza
-        defineRecordMembers(synthetic);
-    }
-
-    private void defineInterfaceMembers(InterfaceDeclarationNode iface) {
-        if (classMemberScopes.containsKey(iface.name())) return;
-        SymbolTable.ClassSymbol classSym = knownClasses.get(iface.name());
-        SymbolTable classScope = classSym.members().enterScope();
-        classMemberScopes.put(iface.name(), classScope);
-        for (AstNode member : iface.members()) {
-            if (member instanceof MethodDeclarationNode method) {
-                Type returnType = resolveType(method.returnType(), classScope);
-                List<Type> paramTypes = new ArrayList<>();
-                for (FormalParameterNode p : method.parameters()) paramTypes.add(Type.of(p.type()));
-                SymbolTable.MethodSymbol ms = new SymbolTable.MethodSymbol(method.name(), iface.name(),
-                        returnType, paramTypes, 0, SymbolTable.DispatchKind.INSTANCE);
-                classScope.define(ms);
-                classSym.members().define(ms);
-            }
-        }
     }
 
     Type getExpressionType(ExpressionNode expr) {
@@ -212,63 +107,6 @@ class SemanticAnalyzer {
         return MemberResolver.resolveInHierarchy(this, className, memberName);
     }
 
-    private void preDeclareType(AstNode decl) {
-        if (decl instanceof ClassDeclarationNode cls) {
-            SymbolTable members = new SymbolTable();
-            // superclasse qualificada pelos imports: "extends Activity" com
-            // "import android.app.Activity" vira "android.app.Activity" —
-            // sem isso a resolução externa (classpath) nunca encontra a classe
-            String superQualified = cls.superClass();
-            if (superQualified != null && !"Object".equals(superQualified)) {
-                Type viaImports = MemberResolver.qualifyViaImports(currentUnit, superQualified);
-                if (viaImports instanceof Type.ClassType qt) {
-                    superQualified = qt.packageName() + "." + qt.name();
-                }
-            }
-            String declPkg = packageOf(cls);
-            SymbolTable.ClassSymbol sym = new SymbolTable.ClassSymbol(cls.name(), declPkg,
-                    cls.superClass() != null ? superQualified : "Object",
-                    cls.interfaces(), members);
-            knownClasses.put(cls.name(), sym);
-            currentScope.define(sym);
-        } else if (decl instanceof RecordDeclarationNode rec) {
-            SymbolTable members = new SymbolTable();
-            SymbolTable.ClassSymbol sym = new SymbolTable.ClassSymbol(rec.name(), packageOf(rec),
-                    "Record", rec.interfaces(), members);
-            knownClasses.put(rec.name(), sym);
-            currentScope.define(sym);
-        } else if (decl instanceof EntityDeclarationNode ent) {
-            SymbolTable members = new SymbolTable();
-            SymbolTable.ClassSymbol sym = new SymbolTable.ClassSymbol(ent.name(), packageOf(ent),
-                    "Record", List.of(), members);
-            knownClasses.put(ent.name(), sym);
-            currentScope.define(sym);
-        } else if (decl instanceof EnumDeclarationNode en) {
-            SymbolTable members = new SymbolTable();
-            Type self = new Type.ClassType("", en.name(), List.of());
-            members.define(new SymbolTable.MethodSymbol("values", en.name(),
-                    new Type.ClassType("kof", "List", List.of(BuiltinTypes.STRING)), List.of(),
-                    AccessFlags.STATIC, SymbolTable.DispatchKind.STATIC));
-            members.define(new SymbolTable.MethodSymbol("valueOf", en.name(),
-                    self, List.of(BuiltinTypes.STRING),
-                    AccessFlags.STATIC, SymbolTable.DispatchKind.STATIC));
-            members.define(new SymbolTable.MethodSymbol("name", en.name(),
-                    BuiltinTypes.STRING, List.of(),
-                    0, SymbolTable.DispatchKind.INSTANCE));
-            SymbolTable.ClassSymbol sym = new SymbolTable.ClassSymbol(en.name(), packageOf(en),
-                    "Object", List.of(), members);
-            knownClasses.put(en.name(), sym);
-            currentScope.define(sym);
-        } else if (decl instanceof InterfaceDeclarationNode iface) {
-            SymbolTable members = new SymbolTable();
-            SymbolTable.ClassSymbol sym = new SymbolTable.ClassSymbol(iface.name(), packageOf(iface),
-                    "Object", iface.interfaces(), members);
-            knownClasses.put(iface.name(), sym);
-            interfaceNames.add(iface.name());
-            currentScope.define(sym);
-        }
-    }
-
     private void analyzeDeclaration(AstNode decl) {
         switch (decl) {
             case ClassDeclarationNode cls -> analyzeClass(cls);
@@ -300,7 +138,7 @@ class SemanticAnalyzer {
         currentClassName = cls.name();
         SymbolTable classScope = classMemberScopes.get(cls.name());
         if (classScope == null) {
-            defineClassMembers(cls);
+            SymbolTableBuilder.defineClassMembers(this, cls);
             classScope = classMemberScopes.get(cls.name());
         }
         SymbolTable prevScope = currentScope;
@@ -354,47 +192,6 @@ class SemanticAnalyzer {
     java.util.IdentityHashMap<MethodDeclarationNode, SymbolTable> methodScopes() { return methodScopes; }
     java.util.IdentityHashMap<MethodDeclarationNode, SymbolTable.MethodSymbol> methodSymbols() { return methodSymbols; }
 
-    private void defineConstructorSymbol(ConstructorDeclarationNode ctor, String className, SymbolTable classScope) {
-        List<Type> paramTypes = new ArrayList<>();
-        SymbolTable ctorScope = classScope.enterScope();
-        ctorScope.define(new SymbolTable.ParameterSymbol("this",
-                new Type.ClassType(currentPackage, className, List.of()), 0));
-        int idx = 1;
-        for (FormalParameterNode param : ctor.parameters()) {
-            Type paramType = resolveType(param.type(), ctorScope);
-            paramTypes.add(paramType);
-            ctorScope.define(new SymbolTable.ParameterSymbol(param.name(), paramType, idx));
-            idx++;
-        }
-        SymbolTable.ConstructorSymbol ctorSym = new SymbolTable.ConstructorSymbol(className, paramTypes, 1);
-        classScope.define(ctorSym);
-        SymbolTable.ClassSymbol cs = knownClasses.get(className);
-        if (cs != null) cs.members().define(ctorSym);
-        ctorScopes.put(ctor, ctorScope);
-    }
-
-    private void defineMethodSymbol(MethodDeclarationNode method, String className, SymbolTable classScope) {
-        SymbolTable methodScope = classScope.enterScope();
-        methodScope.define(new SymbolTable.ParameterSymbol("this",
-                new Type.ClassType(currentPackage, className, List.of()), 0));
-        Type returnType = resolveType(method.returnType(), methodScope);
-        List<Type> paramTypes = new ArrayList<>();
-        int idx = 1;
-        for (FormalParameterNode param : method.parameters()) {
-            Type paramType = resolveType(param.type(), methodScope);
-            paramTypes.add(paramType);
-            methodScope.define(new SymbolTable.ParameterSymbol(param.name(), paramType, idx));
-            idx++;
-        }
-        SymbolTable.MethodSymbol methodSym = new SymbolTable.MethodSymbol(method.name(), className,
-                returnType, paramTypes, 1, SymbolTable.DispatchKind.INSTANCE);
-        classScope.define(methodSym);
-        SymbolTable.ClassSymbol cs = knownClasses.get(className);
-        if (cs != null) cs.members().define(methodSym);
-        methodScopes.put(method, methodScope);
-        methodSymbols.put(method, methodSym);
-    }
-
     private void analyzeConstructorBody(ConstructorDeclarationNode ctor) {
         SymbolTable ctorScope = ctorScopes.get(ctor);
         if (ctorScope == null || ctor.body() == null || ctor.body().isEmpty()) return;
@@ -436,7 +233,7 @@ class SemanticAnalyzer {
         currentClassName = rec.name();
         SymbolTable classScope = classMemberScopes.get(rec.name());
         if (classScope == null) {
-            defineRecordMembers(rec);
+            SymbolTableBuilder.defineRecordMembers(this, rec);
             classScope = classMemberScopes.get(rec.name());
         }
         SymbolTable prevScope = currentScope;
@@ -471,7 +268,7 @@ class SemanticAnalyzer {
         currentClassName = iface.name();
         SymbolTable classScope = classMemberScopes.get(iface.name());
         if (classScope == null) {
-            defineInterfaceMembers(iface);
+            SymbolTableBuilder.defineInterfaceMembers(this, iface);
             classScope = classMemberScopes.get(iface.name());
         }
         SymbolTable prevScope = currentScope;
