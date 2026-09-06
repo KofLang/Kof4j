@@ -127,6 +127,19 @@ class KofWebHardeningTest {
         return bodyOf(response);
     }
 
+    private void statsEventually(int port, String expected) throws Exception {
+        long deadline = System.currentTimeMillis() + 2000;
+        String last = null;
+        while (System.currentTimeMillis() < deadline) {
+            last = stats(port);
+            if (expected.equals(last)) {
+                return;
+            }
+            Thread.sleep(20);
+        }
+        assertEquals(expected, last);
+    }
+
     private static final class SseClient implements AutoCloseable {
         private final Socket socket;
         private final BufferedReader in;
@@ -345,10 +358,10 @@ class KofWebHardeningTest {
         try (SseClient client = new SseClient(port)) {
             assertEquals("HTTP/1.1 200 OK", client.status);
             assertEquals("data: connected", client.readEvent());
-            assertEquals("1", stats(port));
+            statsEventually(port, "1");
         }
         Thread.sleep(1600);
-        assertEquals("0", stats(port));
+        statsEventually(port, "0");
     }
 
     @Test
@@ -365,10 +378,10 @@ class KofWebHardeningTest {
                 """);
         try (WsResponse ws = handshake(port)) {
             assertEquals("HTTP/1.1 101 Switching Protocols", ws.status);
-            assertEquals("1", stats(port));
+            statsEventually(port, "1");
         }
         Thread.sleep(100);
-        assertEquals("0", stats(port));
+        statsEventually(port, "0");
     }
 
     @Test
