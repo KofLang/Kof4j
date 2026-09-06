@@ -87,6 +87,17 @@ public class CompilerDriver extends CompilerDriverState {
                                             Path moduleRoot) {
         return CompilerPipeline.compileSources(this, sources, outputDir, target, moduleRoot);
     }
+
+    /**
+     * INTERPRETA um módulo Kof sem emitir bytecode nem fork de JVM — o
+     * target KofScript. Roda o mesmo frontend do compileSources e executa a
+     * IR otimizada no KofInterpreter (paridade por construção). Falhas do
+     * frontend viram {@link KofInterpretException} com os diagnósticos.
+     */
+    public KofInterpreter.Result interpret(java.util.List<Path> sources, Path moduleRoot,
+                                           String[] args) {
+        return CompilerPipeline.interpret(this, sources, moduleRoot, args);
+    }
 Target target = Target.JVM;
 
 
