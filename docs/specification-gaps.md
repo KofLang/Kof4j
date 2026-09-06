@@ -22,13 +22,17 @@ recomendações futuras (regra 14 da tarefa: não alterar comportamento).
   `training/anti-patterns/fake-idioms.md` (lista `fun`/`func`/`let` como fake).
 - **Problema (antes)**: a regra "não existe" era falsa para o compilador real —
   um agente que escrevesse `fun` não recebia erro.
-- **Resolução (06/09)**: o parser Kof agora **rejeita** `fn`/`fun`/`func` como
-  prefixo de declaração com `PARSE085` (diagnóstico claro, nunca silencioso —
-  R6). Alinhado ao corpus (regra 4: bug = alinhar ao previsto). `fn`/`fun`/
-  `func` continuam válidos como *nome* de função (identificadores). KofScript
+- **Resolução (06/09, 2º passo)**: `fun`/`fn`/`func` viraram **palavras
+  reservadas** no lexer (tokens `FUN`/`FN`/`FUNC`, mesmo mecanismo de
+  `sealed`/`permits`) — **não existem** no Kof em nenhuma posição: nem como
+  keyword de declaração, nem como nome de função, variável, parâmetro ou
+  campo. Em posição de declaração o parser dá `PARSE085` (diagnóstico claro —
+  R6); em outra posição, o `expectId` de cada parser já falha (`PARSE037`
+  variável, `PARSE023` parâmetro, …). Alinhado ao corpus (regra 4). KofScript
   (`.ks`) mantém `fn` como sintaxe própria e traduz na fronteira
-  (`KofScript.toKofSyntax`). Testes: `FunctionSyntaxTest` (5 novos: fun/fn/func
-  rejeitados, `fn calc(): Int` rejeitado, `fn()` como nome ainda funciona).
+  (`KofScript.toKofSyntax`). Testes: `FunctionSyntaxTest` (12: fun/fn/func
+  rejeitados como prefixo, `fn calc(): Int` rejeitado, `fn()`/`var fun`/
+  `param fn` rejeitados, membro de classe, `Int calc():Int` idiomático).
   `let` continua inexistente em `.kf` (só `.ks`).
 
 ### SG-002 — Tokens e keywords que a gramática não usa

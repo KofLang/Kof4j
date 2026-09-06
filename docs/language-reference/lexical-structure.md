@@ -44,22 +44,28 @@ bool  byte  short  int  long  float  double  char  string
 true  false  null
 `
 
-**Palavras que NÃO são keywords** (são `IDENTIFIER`): `fn`, `fun`, `func`,
-`let`, `in`, `type`, `trait`, `macro`, `where`, `query`, `test`, `application`,
-`onStart`, `onShutdown`, `desc`, `asc`. Todas têm significado contextual no
-parser (ver [grammar.md](grammar.md)) ou nenhum.
+**Palavras que NÃO são keywords** (são `IDENTIFIER`): `let`, `in`, `type`,
+`trait`, `macro`, `where`, `query`, `test`, `application`, `onStart`,
+`onShutdown`, `desc`, `asc`. Têm significado contextual no parser (ver
+[grammar.md](grammar.md)) ou nenhum.
+
+**Palavras RESERVADAS** (tokens próprios, `IDENTIFIER` **nunca**): `fun`,
+`fn`, `func` (SG-001, 06/09) — mesmas da `sealed`/`permits` (tokens dedicados
+que o parser não aceita como identificador em **nenhuma** posição).
 
 > **Divergência documentada (SG-002):** `sealed` e `permits` são keywords do
 > lexer mas **não são aceitas em lugar nenhum do parser** — `sealed class X {}`
 > falha com `PARSE007`. São tokens mortos. Ver
 > [../specification-gaps.md](../specification-gaps.md).
 
-> **SG-001 RESOLVIDO (06/09):** `fn`/`fun`/`func` como prefixo de declaração de
-> função são agora **rejeitados** com `PARSE085` (alinhar código ao corpus —
-> regra 4). `fn`/`fun`/`func` continuam sendo `IDENTIFIER` válidos como *nome*
-> de função (`fn() { }` declara uma função chamada `fn`). KofScript (`.ks`)
-> mantém `fn` como sintaxe própria e traduz na fronteira
-> (`KofScript.toKofSyntax`).
+> **SG-001 RESOLVIDO (06/09):** `fun`/`fn`/`func` são **palavras reservadas**
+> (tokens `FUN`/`FN`/`FUNC` no lexer) — **não existem** no Kof, nem como
+> keyword de declaração nem como identificador em nenhuma posição (nome de
+> função, variável, parâmetro, campo). Em posição de declaração o parser dá
+> `PARSE085`; em outra posição, o `expectId` de cada parser já falha com
+> diagnóstico (`PARSE037` variável, `PARSE023` parâmetro, …). Alinhado ao
+> corpus (regra 4: bug = alinhar ao previsto). KofScript (`.ks`) mantém `fn`
+> como sintaxe própria e traduz na fronteira (`KofScript.toKofSyntax`).
 
 ### 1.2 Literais de palavra-chave
 
