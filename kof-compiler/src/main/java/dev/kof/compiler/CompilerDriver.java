@@ -8,6 +8,34 @@ import java.util.List;
 import java.util.Map;
 
 public class CompilerDriver extends CompilerDriverState {
+    /** Uma chave de config descoberta em compile-time (kof config gen). */
+    public record ConfigKeyInfo(String method, String key, String defaultLiteral,
+                                String file, int line) {
+        /** Tipo declarado do valor, para o template gerado. */
+        public String typeHint() {
+            return switch (method) {
+                case "int" -> "Int";
+                case "long" -> "Long";
+                case "bool" -> "Bool";
+                case "str", "required", "get" -> "String";
+                default -> "String";
+            };
+        }
+
+        public boolean hasDefault() {
+            return defaultLiteral != null;
+        }
+
+        public ConfigKeyInfo {
+            // "..." no source vira conteúdo sem aspas aqui (vem da AST);
+            // null = sem default (required/get)
+            defaultLiteral = normalizeDefault(defaultLiteral);
+        }
+        private static String normalizeDefault(String d) {
+            if (d == null) return null;
+            return d.replaceFirst("^\"", "").replaceFirst("\"$", "");
+        }
+    }
     String ensureSuperBridge(String ownerInternal, String superInternal,
                            String methodName, List<Type> paramTypes, Type returnType) {
         return CompilerEmission2.ensureSuperBridge(this, ownerInternal, superInternal, methodName, paramTypes, returnType);
@@ -57,47 +85,6 @@ Target target = Target.JVM;
 
     /** Variante multi-arquivo do harness de testes (um diretório = um módulo). */
 
-    /** Enable or disable IR optimization passes (enabled by default). */
-    public CompilerDriver setOptimizationEnabled(boolean enabled) {
-        this.optimizeEnabled = enabled;
-        return this;
-    }
-
-    /** Enable or disable debug metadata emission (line tables, source names). */
-    public CompilerDriver setDebugInfoEnabled(boolean enabled) {
-        this.debugInfoEnabled = enabled;
-        return this;
-    }
-
-    /**
-     * Observes the IR before and after optimization (identical modules when
-     * optimization is disabled). Used by tooling (kof inspect).
-     */
-    public CompilerDriver setIRObserver(java.util.function.BiConsumer<IRModule, IRModule> observer) {
-        this.irObserver = observer;
-        return this;
-    }
-
-    /** Observes IR statistics (public API for tooling; no IR types exposed). */
-    public CompilerDriver setIRObserver(IRObserver observer) {
-        this.irStatsObserver = observer;
-        return this;
-    }
-
-    public CompilerDriver setExternalClasspath(java.util.List<Path> entries) {
-        try {
-            externalClasspath.setEntries(entries);
-        } catch (java.io.IOException e) {
-            if (currentDiagnostics != null) {
-                currentDiagnostics.error("", 0, 0, 0,
-                        "external classpath could not be read: " + e.getMessage(), "CP001");
-            } else {
-                pendingClasspathWarnings.add("external classpath could not be read: " + e.getMessage());
-            }
-        }
-        pendingClasspathWarnings.addAll(externalClasspath.loadWarnings());
-        return this;
-    }
 
     /** Emite warnings acumulados do classpath externo quando houver coletor. */
 
@@ -232,34 +219,6 @@ Target target = Target.JVM;
     }
 
 
-    /** Uma chave de config descoberta em compile-time (kof config gen). */
-    public record ConfigKeyInfo(String method, String key, String defaultLiteral,
-                                String file, int line) {
-        /** Tipo declarado do valor, para o template gerado. */
-        public String typeHint() {
-            return switch (method) {
-                case "int" -> "Int";
-                case "long" -> "Long";
-                case "bool" -> "Bool";
-                case "str", "required", "get" -> "String";
-                default -> "String";
-            };
-        }
-
-        public boolean hasDefault() {
-            return defaultLiteral != null;
-        }
-
-        public ConfigKeyInfo {
-            // "..." no source vira conteúdo sem aspas aqui (vem da AST);
-            // null = sem default (required/get)
-            defaultLiteral = normalizeDefault(defaultLiteral);
-        }
-        private static String normalizeDefault(String d) {
-            if (d == null) return null;
-            return d.replaceFirst("^\"", "").replaceFirst("\"$", "");
-        }
-    }
 
     /** Chaves de config descobertas na última compilação (ordem de uso). */
 
@@ -477,45 +436,6 @@ Target target = Target.JVM;
 
 
 
-    IRLocalVariable findLocalVar(String name, List<IRLocalVariable> locals) {
-        for (int i = locals.size() - 1; i >= 0; i--) {
-            if (locals.get(i).name().equals(name)) return locals.get(i);
-        }
-        return null;
-    }
-
-    /**
-     * Namespace da stdlib (web/db/log/...) sombreado por variável local:
-     * "var web = ..." torna "web.foo()" chamada de instância, não de namespace.
-     */
-    boolean isLocalVarName(String name, List<IRLocalVariable> locals) {
-        return findLocalVar(name, locals) != null;
-    }
-
-    /** Nome de tipo builtin usado como receiver estático (String.valueOf etc.) */
-    static boolean isBuiltinStaticReceiver(String name, List<IRLocalVariable> locals) {
-        if (findLocalVarStatic(locals, name) != null) return false;
-        return switch (name) {
-            case "String", "Int", "Integer", "Long", "Float", "Double",
-                    "Bool", "Boolean", "Byte", "Short", "Char", "Character",
-                    "Object", "Math", "System" -> true;
-            default -> false;
-        };
-    }
-
-    private static IRLocalVariable findLocalVarStatic(List<IRLocalVariable> locals, String name) {
-        for (IRLocalVariable lv : locals) {
-            if (lv.name().equals(name)) return lv;
-        }
-        return null;
-    }
-
-    int findLocalIndex(String name, List<IRLocalVariable> locals) {
-        for (int i = locals.size() - 1; i >= 0; i--) {
-            if (locals.get(i).name().equals(name)) return locals.get(i).index();
-        }
-        return 0;
-    }
 
     /**
      * Emits ++/-- on assignable targets (locals, fields, array elements) with
@@ -784,9 +704,6 @@ Target target = Target.JVM;
      */
 
 
-    boolean isAbstractMethod(MethodDeclarationNode method) {
-        return method.body() == null;
-    }
 
     /**
      * Parses an integer literal, including hexadecimal (0xFF...). ARGB color
