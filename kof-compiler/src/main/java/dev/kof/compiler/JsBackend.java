@@ -30,12 +30,6 @@ import java.util.Set;
  */
 class JsBackend implements Backend {
 
-    private static final Set<String> RESERVED = Set.of(
-            "class", "function", "var", "let", "const", "return", "if", "else", "while", "do",
-            "for", "switch", "case", "default", "break", "continue", "new", "delete", "typeof",
-            "instanceof", "in", "try", "catch", "finally", "throw", "this", "super", "null",
-            "true", "false", "void", "static", "extends", "import", "export", "yield", "await",
-            "async", "of", "arguments", "eval");
 
     private final List<String> runtimeImports = new ArrayList<>();
     private final List<String> ioRuntimeImports = new ArrayList<>();
@@ -156,7 +150,7 @@ class JsBackend implements Backend {
         }
         for (IRClass clazz : module.classes()) {
             if (skipClass(clazz) || isMainClass(clazz)) continue;
-            if (decodeHelpers.contains(jsClassName(clazz.name()))) {
+            if (decodeHelpers.contains(JsTypeMapper.jsClassName(clazz.name()))) {
                 functions.add(lowerDecodeHelper(clazz));
             }
         }
@@ -263,7 +257,7 @@ class JsBackend implements Backend {
 
     private String calleeKeyFromCall(KofCall kc) {
         int arity = kc.parameterTypes().size();
-        String owner = ownerInternalName(kc.ownerType());
+        String owner = JsTypeMapper.ownerInternalName(kc.ownerType());
         if (owner.isEmpty() || isMainInternalName(owner)) return "#" + kc.methodName() + "/" + arity;
         return owner + "#" + kc.methodName() + "/" + arity;
     }
@@ -286,20 +280,20 @@ class JsBackend implements Backend {
     }
 
     private JsIr.JsClass lowerClass(IRClass clazz) {
-        String jsName = jsClassName(clazz.name());
+        String jsName = JsTypeMapper.jsClassName(clazz.name());
         String jsSuper = null;
         if (clazz.superName() != null && !clazz.superName().isEmpty()
                 && !"java/lang/Object".equals(clazz.superName())
                 && !"java/lang/Record".equals(clazz.superName())) {
-            jsSuper = jsClassName(clazz.superName());
+            jsSuper = JsTypeMapper.jsClassName(clazz.superName());
         }
         boolean isRecord = "java/lang/Record".equals(clazz.superName());
         List<JsIr.JsField> fields = new ArrayList<>();
         for (IRField field : clazz.fields()) {
             boolean isStatic = (field.accessFlags() & AccessFlags.STATIC) != 0;
-            String fieldName = isRecord ? "_" + sanitizeName(field.name()) : sanitizeName(field.name());
+            String fieldName = isRecord ? "_" + JsTypeMapper.sanitizeName(field.name()) : JsTypeMapper.sanitizeName(field.name());
             fields.add(new JsIr.JsField(fieldName,
-                    field.initialValue() != null ? literalText(field.initialValue()) : null, isStatic));
+                    field.initialValue() != null ? JsTypeMapper.literalText(field.initialValue()) : null, isStatic));
         }
         List<JsIr.JsFunction> methods = new ArrayList<>();
         IRMethod canonicalCtor = null;
@@ -338,9 +332,9 @@ class JsBackend implements Backend {
      */
     private String jsFieldName(IRClass clazz, String name) {
         if ("java/lang/Record".equals(clazz.superName())) {
-            return "_" + sanitizeName(name);
+            return "_" + JsTypeMapper.sanitizeName(name);
         }
-        return sanitizeName(name);
+        return JsTypeMapper.sanitizeName(name);
     }
 
     /**
@@ -356,7 +350,7 @@ class JsBackend implements Backend {
             if (i > 0) parts.add(new JsIr.JsString(", "));
             parts.add(new JsIr.JsString(clazz.fields().get(i).name() + "="));
             parts.add(new JsIr.JsMember(new JsIr.JsThis(),
-                    "_" + sanitizeName(clazz.fields().get(i).name())));
+                    "_" + JsTypeMapper.sanitizeName(clazz.fields().get(i).name())));
         }
         parts.add(new JsIr.JsString("]"));
         JsIr.JsExpression joined = parts.get(0);
@@ -375,7 +369,7 @@ class JsBackend implements Backend {
     private JsIr.JsFunction lowerRecordEquals(IRClass clazz) {
         List<JsIr.JsExpression> conds = new ArrayList<>();
         for (IRField field : clazz.fields()) {
-            String backing = "_" + sanitizeName(field.name());
+            String backing = "_" + JsTypeMapper.sanitizeName(field.name());
             conds.add(new JsIr.JsBinary(
                     new JsIr.JsMember(new JsIr.JsThis(), backing),
                     "===",
@@ -403,7 +397,7 @@ class JsBackend implements Backend {
         List<JsIr.JsObjectEntry> entries = new ArrayList<>();
         for (IRField field : clazz.fields()) {
             entries.add(new JsIr.JsObjectEntry(field.name(),
-                    new JsIr.JsMember(new JsIr.JsThis(), "_" + sanitizeName(field.name()))));
+                    new JsIr.JsMember(new JsIr.JsThis(), "_" + JsTypeMapper.sanitizeName(field.name()))));
         }
         return new JsIr.JsFunction("toJSON", List.of(),
                 List.of(new JsIr.JsReturn(new JsIr.JsObjectLiteral(entries))), false, false, false);
@@ -415,7 +409,7 @@ class JsBackend implements Backend {
      * with fields assigned by name (mirroring the JVM reflection binding).
      */
     private JsIr.JsFunction lowerDecodeHelper(IRClass clazz) {
-        String jsName = jsClassName(clazz.name());
+        String jsName = JsTypeMapper.jsClassName(clazz.name());
         boolean isRecord = "java/lang/Record".equals(clazz.superName());
         // Accept both a JSON string and an already-parsed object (list decode
         // maps parsed elements through this helper).
@@ -429,7 +423,7 @@ class JsBackend implements Backend {
         body.add(new JsIr.JsVarDecl("p", parsed, true));
         List<JsIr.JsExpression> ctorArgs = new ArrayList<>();
         for (IRField field : clazz.fields()) {
-            ctorArgs.add(new JsIr.JsMember(new JsIr.JsIdentifier("p"), sanitizeName(field.name())));
+            ctorArgs.add(new JsIr.JsMember(new JsIr.JsIdentifier("p"), JsTypeMapper.sanitizeName(field.name())));
         }
         JsIr.JsExpression instance = new JsIr.JsNew(new JsIr.JsIdentifier(jsName), ctorArgs);
         if (isRecord) {
@@ -438,8 +432,8 @@ class JsBackend implements Backend {
             body.add(new JsIr.JsVarDecl("o", new JsIr.JsNew(new JsIr.JsIdentifier(jsName), List.of()), true));
             for (IRField field : clazz.fields()) {
                 body.add(new JsIr.JsExprStmt(new JsIr.JsBinary(
-                        new JsIr.JsMember(new JsIr.JsIdentifier("o"), sanitizeName(field.name())), "=",
-                        new JsIr.JsMember(new JsIr.JsIdentifier("p"), sanitizeName(field.name())))));
+                        new JsIr.JsMember(new JsIr.JsIdentifier("o"), JsTypeMapper.sanitizeName(field.name())), "=",
+                        new JsIr.JsMember(new JsIr.JsIdentifier("p"), JsTypeMapper.sanitizeName(field.name())))));
             }
         }
         body.add(new JsIr.JsReturn(new JsIr.JsIdentifier("o")));
@@ -591,7 +585,7 @@ class JsBackend implements Backend {
                     // <init>() receives the captures AS its parameters.
                     captureSlots.add(lv.index());
                 }
-                localNames.put(lv.index(), uniqueName(sanitizeName(lv.name())));
+                localNames.put(lv.index(), uniqueName(JsTypeMapper.sanitizeName(lv.name())));
             }
         }
 
@@ -1272,10 +1266,10 @@ class JsBackend implements Backend {
                 } else if ("bool".equals(cn) || "boolean".equals(cn)) {
                     cond = new JsIr.JsBinary(new JsIr.JsUnary("typeof", new JsIr.JsIdentifier(subjectName)), "===", new JsIr.JsString("boolean"));
                 } else {
-                    cond = new JsIr.JsInstanceOf(new JsIr.JsIdentifier(subjectName), jsClassName(ownerInternalName(io.type())));
+                    cond = new JsIr.JsInstanceOf(new JsIr.JsIdentifier(subjectName), JsTypeMapper.jsClassName(JsTypeMapper.ownerInternalName(io.type())));
                 }
             } else {
-                cond = new JsIr.JsInstanceOf(new JsIr.JsIdentifier(subjectName), jsClassName(ownerInternalName(io.type())));
+                cond = new JsIr.JsInstanceOf(new JsIr.JsIdentifier(subjectName), JsTypeMapper.jsClassName(JsTypeMapper.ownerInternalName(io.type())));
             }
             conditions.add(cond);
             pos[0]++; // consume instanceof
@@ -1452,7 +1446,7 @@ class JsBackend implements Backend {
                 JsIr.JsExpression receiver = pop(stack);
                 JsIr.JsStatement stmt = new JsIr.JsExprStmt(new JsIr.JsBinary(
                         new JsIr.JsMember(receiver,
-                                ctx.recordClass ? "_" + sanitizeName(sf.name()) : sanitizeName(sf.name())), "=", value));
+                                ctx.recordClass ? "_" + JsTypeMapper.sanitizeName(sf.name()) : JsTypeMapper.sanitizeName(sf.name())), "=", value));
                 if (stack.isEmpty()) {
                     return finishExpressionStatement(preamble, preambleExprs, stmt);
                 }
@@ -1462,9 +1456,9 @@ class JsBackend implements Backend {
             if (op instanceof KofPutStatic ps) {
                 pos[0]++;
                 JsIr.JsExpression value = pop(stack);
-                String owner = jsClassName(ownerInternalName(ps.ownerType()));
+                String owner = JsTypeMapper.jsClassName(JsTypeMapper.ownerInternalName(ps.ownerType()));
                 return finishExpressionStatement(preamble, new JsIr.JsExprStmt(new JsIr.JsBinary(
-                        new JsIr.JsMember(new JsIr.JsIdentifier(owner), sanitizeName(ps.name())), "=", value)));
+                        new JsIr.JsMember(new JsIr.JsIdentifier(owner), JsTypeMapper.sanitizeName(ps.name())), "=", value)));
             }
             if (op instanceof KofArrayStore as) {
                 if (stack.isEmpty()) {
@@ -1683,14 +1677,14 @@ class JsBackend implements Backend {
                     isRecordField = true;
                 }
             }
-            stack.add(new JsIr.JsMember(receiver, isRecordField ? "_" + sanitizeName(lf.name()) : sanitizeName(lf.name())));
+            stack.add(new JsIr.JsMember(receiver, isRecordField ? "_" + JsTypeMapper.sanitizeName(lf.name()) : JsTypeMapper.sanitizeName(lf.name())));
         } else if (op instanceof KofGetStatic gs) {
-            if ("java.lang".equals(classPackage(gs.ownerType())) && "System".equals(className(gs.ownerType()))
+            if ("java.lang".equals(JsTypeMapper.classPackage(gs.ownerType())) && "System".equals(JsTypeMapper.className(gs.ownerType()))
                     && "out".equals(gs.name())) {
                 stack.add(new JsIr.JsIdentifier("$kofOut"));
             } else {
-                String owner = jsClassName(ownerInternalName(gs.ownerType()));
-                stack.add(new JsIr.JsMember(new JsIr.JsIdentifier(owner), sanitizeName(gs.name())));
+                String owner = JsTypeMapper.jsClassName(JsTypeMapper.ownerInternalName(gs.ownerType()));
+                stack.add(new JsIr.JsMember(new JsIr.JsIdentifier(owner), JsTypeMapper.sanitizeName(gs.name())));
             }
         } else if (op instanceof KofBinary kb) {
             JsIr.JsExpression right = pop(stack);
@@ -1700,7 +1694,7 @@ class JsBackend implements Backend {
             JsIr.JsExpression operand = pop(stack);
             stack.add(unaryExpr(ku, operand));
         } else if (op instanceof KofNewObject no) {
-            stack.add(new NewPending(jsClassName(ownerInternalName(no.type()))));
+            stack.add(new NewPending(JsTypeMapper.jsClassName(JsTypeMapper.ownerInternalName(no.type()))));
         } else if (op instanceof KofDup) {
             if (!stack.isEmpty() && stack.get(stack.size() - 1) instanceof NewPending) {
                 stack.add(new DupMarker());
@@ -1754,7 +1748,7 @@ class JsBackend implements Backend {
             stack.add(new JsIr.JsIdentifier(temp));
         } else if (op instanceof KofNewArray na) {
             JsIr.JsExpression size = pop(stack);
-            stack.add(new JsIr.JsArray(size, arrayFill(na.elementType())));
+            stack.add(new JsIr.JsArray(size, JsTypeMapper.arrayFill(na.elementType())));
         } else if (op instanceof KofArrayLoad al) {
             JsIr.JsExpression index = pop(stack);
             JsIr.JsExpression array = pop(stack);
@@ -1783,12 +1777,12 @@ class JsBackend implements Backend {
                             new JsIr.JsNumber("1"), new JsIr.JsNumber("0")));
                 } else {
                     stack.add(new JsIr.JsConditional(
-                            new JsIr.JsInstanceOf(operand, jsClassName(ownerInternalName(io.type()))),
+                            new JsIr.JsInstanceOf(operand, JsTypeMapper.jsClassName(JsTypeMapper.ownerInternalName(io.type()))),
                             new JsIr.JsNumber("1"), new JsIr.JsNumber("0")));
                 }
             } else {
                 stack.add(new JsIr.JsConditional(
-                        new JsIr.JsInstanceOf(operand, jsClassName(ownerInternalName(io.type()))),
+                        new JsIr.JsInstanceOf(operand, JsTypeMapper.jsClassName(JsTypeMapper.ownerInternalName(io.type()))),
                         new JsIr.JsNumber("1"), new JsIr.JsNumber("0")));
             }
         } else if (op instanceof KofConditionalJump cj) {
@@ -1949,17 +1943,17 @@ class JsBackend implements Backend {
             // methods; the receiver on the stack is this and is discarded.
             pop(stack);
             finishCall(stack, kc, new JsIr.JsCall(
-                    new JsIr.JsMember(new JsIr.JsIdentifier("super"), sanitizeName(kc.methodName())), args));
+                    new JsIr.JsMember(new JsIr.JsIdentifier("super"), JsTypeMapper.sanitizeName(kc.methodName())), args));
             return;
         }
         if (kc.kind() == KofCallKind.STATIC) {
-            String owner = jsClassName(ownerInternalName(kc.ownerType()));
+            String owner = JsTypeMapper.jsClassName(JsTypeMapper.ownerInternalName(kc.ownerType()));
             finishCall(stack, kc, new JsIr.JsCall(
-                    new JsIr.JsMember(new JsIr.JsIdentifier(owner), sanitizeName(kc.methodName())), args));
+                    new JsIr.JsMember(new JsIr.JsIdentifier(owner), JsTypeMapper.sanitizeName(kc.methodName())), args));
             return;
         }
         // INSTANCE / INTERFACE — structural dispatch
-        String owner = ownerInternalName(kc.ownerType());
+        String owner = JsTypeMapper.ownerInternalName(kc.ownerType());
         if ("equals".equals(kc.methodName()) && owner != null
                 && !ctx.hasClassMethod(owner, "equals")) {
             // Object.equals — reference equality (JVM semantics)
@@ -1967,7 +1961,7 @@ class JsBackend implements Backend {
             return;
         }
         finishCall(stack, kc, new JsIr.JsCall(
-                new JsIr.JsMember(receiver, sanitizeName(kc.methodName())), args));
+                new JsIr.JsMember(receiver, JsTypeMapper.sanitizeName(kc.methodName())), args));
     }
 
     private JsIr.JsExpression maybeAwait(KofCall kc, JsIr.JsExpression call) {
@@ -2015,28 +2009,7 @@ class JsBackend implements Backend {
         throw new StatementEnd(new JsIr.JsCall(new JsIr.JsIdentifier("super"), args));
     }
 
-    private Type listElementType(Type listType) {
-        if (listType instanceof Type.ClassType ct && !ct.typeArguments().isEmpty()) {
-            return ct.typeArguments().get(0);
-        }
-        return Type.UnknownType.UNKNOWN;
-    }
 
-    private String capitalizeUiFn(String name) {
-        String rest = name.startsWith("kof_") ? name.substring(4) : name;
-        StringBuilder sb = new StringBuilder("kof");
-        boolean cap = true;
-        for (int i = 0; i < rest.length(); i++) {
-            char c = rest.charAt(i);
-            if (c == '_') {
-                cap = true;
-                continue;
-            }
-            sb.append(cap ? Character.toUpperCase(c) : c);
-            cap = false;
-        }
-        return sb.toString();
-    }
 
     private boolean isPrintCall(KofCall kc) {
         if (!(kc.ownerType() instanceof Type.ClassType ct)) return false;
@@ -2046,28 +2019,8 @@ class JsBackend implements Backend {
 
     // ── Operator lowering ───────────────────────────────────────────
 
-    private boolean isIntFamily(Type type) {
-        if (!(type instanceof Type.PrimitiveType pt)) return false;
-        return switch (Type.canonicalPrimitiveName(pt.name())) {
-            case "int", "byte", "short", "char" -> true;
-            default -> false;
-        };
-    }
 
-    // && / || booleanos → && / || JS (que short-circuitam nativamente);
-    // & / | bitwise → & / | (avalia os dois lados). O operador lógico e o
-    // bitwise caem no MESMO KofBinaryOp.AND/OR — o operandType (bool vs int)
-    // é o que os distingue. Antes: && virava & (bitwise) no JS → sem
-    // short-circuit (efeitos colaterais do lado de não deviam ser avaliados).
-    private boolean isBoolOperand(Type type) {
-        return type instanceof Type.PrimitiveType pt
-                && "bool".equals(Type.canonicalPrimitiveName(pt.name()));
-    }
 
-    private boolean isLongType(Type type) {
-        if (!(type instanceof Type.PrimitiveType pt)) return false;
-        return "long".equals(Type.canonicalPrimitiveName(pt.name()));
-    }
 
     private JsIr.JsExpression binaryExpr(KofBinary kb, JsIr.JsExpression left, JsIr.JsExpression right) {
         return switch (kb.op()) {
@@ -2075,10 +2028,10 @@ class JsBackend implements Backend {
             case SUB -> intWrap(kb.operandType(), new JsIr.JsBinary(left, "-", right));
             case MUL -> intWrap(kb.operandType(), new JsIr.JsBinary(left, "*", right));
             case DIV -> {
-                if (isIntFamily(kb.operandType())) {
+                if (JsTypeMapper.isIntFamily(kb.operandType())) {
                     yield intWrap(kb.operandType(), new JsIr.JsBinary(left, "/", right));
                 }
-                if (isLongType(kb.operandType())) {
+                if (JsTypeMapper.isLongType(kb.operandType())) {
                     // JS / yields doubles; truncate toward zero like JVM LIDIV
                     yield new JsIr.JsCall(new JsIr.JsMember(new JsIr.JsIdentifier("Math"), "trunc"),
                             List.of(new JsIr.JsBinary(left, "/", right)));
@@ -2092,10 +2045,10 @@ class JsBackend implements Backend {
             case LE -> new JsIr.JsBinary(left, "<=", right);
             case GT -> new JsIr.JsBinary(left, ">", right);
             case GE -> new JsIr.JsBinary(left, ">=", right);
-            case AND -> isBoolOperand(kb.operandType())
+            case AND -> JsTypeMapper.isBoolOperand(kb.operandType())
                     ? new JsIr.JsBinary(left, "&&", right)
                     : new JsIr.JsBinary(left, "&", right);
-            case OR -> isBoolOperand(kb.operandType())
+            case OR -> JsTypeMapper.isBoolOperand(kb.operandType())
                     ? new JsIr.JsBinary(left, "||", right)
                     : new JsIr.JsBinary(left, "|", right);
             case XOR -> new JsIr.JsBinary(left, "^", right);
@@ -2110,7 +2063,7 @@ class JsBackend implements Backend {
      * int arithmetic with ToInt32 (| 0) to preserve Kof/JVM 32-bit semantics.
      */
     private JsIr.JsExpression intWrap(Type operandType, JsIr.JsExpression inner) {
-        if (isIntFamily(operandType)) {
+        if (JsTypeMapper.isIntFamily(operandType)) {
             return new JsIr.JsBinary(inner, "|", new JsIr.JsNumber("0"));
         }
         return inner;
@@ -2140,41 +2093,8 @@ class JsBackend implements Backend {
         return new JsIr.JsNull();
     }
 
-    private String literalText(Object value) {
-        if (value instanceof Float f) return Float.toString(f);
-        if (value instanceof Double d) return Double.toString(d);
-        if (value instanceof Boolean b) return b ? "1" : "0";
-        if (value instanceof String s) return jsStringLiteral(s);
-        return String.valueOf(value);
-    }
 
-    private String jsStringLiteral(String s) {
-        StringBuilder sb = new StringBuilder("\"");
-        for (int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
-            switch (c) {
-                case '"' -> sb.append("\\\"");
-                case '\\' -> sb.append("\\\\");
-                case '\n' -> sb.append("\\n");
-                case '\r' -> sb.append("\\r");
-                case '\t' -> sb.append("\\t");
-                default -> {
-                    if (c < 0x20) {
-                        sb.append(String.format("\\u%04x", (int) c));
-                    } else {
-                        sb.append(c);
-                    }
-                }
-            }
-        }
-        sb.append('"');
-        return sb.toString();
-    }
 
-    private String arrayFill(Type elementType) {
-        if (elementType instanceof Type.PrimitiveType) return "0";
-        return "null";
-    }
 
     // ── List / String / runtime lowering ────────────────────────────
 
@@ -2406,7 +2326,7 @@ class JsBackend implements Backend {
                 // startsWith, endsWith, concat, split — direct JS mapping.
                 JsIr.JsExpression method = "contains".equals(kc.methodName())
                         ? new JsIr.JsMember(receiver, "includes")
-                        : new JsIr.JsMember(receiver, sanitizeName(kc.methodName()));
+                        : new JsIr.JsMember(receiver, JsTypeMapper.sanitizeName(kc.methodName()));
                 stack.add(new JsIr.JsCall(method, args));
             }
         }
@@ -2460,7 +2380,7 @@ class JsBackend implements Backend {
                         && !lct.typeArguments().isEmpty() ? lct.typeArguments().get(0) : Type.UnknownType.UNKNOWN;
                 if (elem instanceof Type.ClassType ect
                         && classMethodNames.containsKey(ect.internalName())) {
-                    String jsName = jsClassName(ect.internalName());
+                    String jsName = JsTypeMapper.jsClassName(ect.internalName());
                     decodeHelpers.add(jsName);
                     JsIr.JsExpression parsed = new JsIr.JsCall(
                             new JsIr.JsIdentifier("JSON.parse"), List.of(value));
@@ -2474,9 +2394,9 @@ class JsBackend implements Backend {
                     stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("JSON.parse"), List.of(value)));
                 }
             } else if (name.startsWith("kof_json_decode_")
-                    && classMethodNames.containsKey(ownerInternalName(kc.ownerType()))) {
+                    && classMethodNames.containsKey(JsTypeMapper.ownerInternalName(kc.ownerType()))) {
                 // decode<Class> — bind the parsed object to the Kof class
-                String jsName = jsClassName(ownerInternalName(kc.ownerType()));
+                String jsName = JsTypeMapper.jsClassName(JsTypeMapper.ownerInternalName(kc.ownerType()));
                 decodeHelpers.add(jsName);
                 stack.add(new JsIr.JsCall(
                         new JsIr.JsIdentifier("__kof_decode_" + jsName), List.of(value)));
@@ -2553,13 +2473,13 @@ class JsBackend implements Backend {
                 || name.equals("kof_ui_router_replace2") || name.equals("kof_ui_router_back")
                 || name.equals("kof_ui_router_forward") || name.equals("kof_ui_router_param")
                 || name.equals("kof_ui_router_current") || name.equals("kof_ui_router_depth")) {
-            registerRuntime(capitalizeUiFn(name));
+            registerRuntime(JsTypeMapper.capitalizeUiFn(name));
             List<JsIr.JsExpression> callArgs = new ArrayList<>(args);
             if (kc.kind() == KofCallKind.INSTANCE && receiver != null) {
                 callArgs.add(0, receiver);
             }
             JsIr.JsExpression call = new JsIr.JsCall(
-                    new JsIr.JsIdentifier(capitalizeUiFn(name)), callArgs);
+                    new JsIr.JsIdentifier(JsTypeMapper.capitalizeUiFn(name)), callArgs);
             if (Type.isVoid(kc.returnType())) {
                 throw new StatementEnd(call);
             }
@@ -2667,17 +2587,17 @@ class JsBackend implements Backend {
             return;
         }
         if (name.startsWith("kof_sec_")) {
-            registerRuntime(runtimeJsName(name));
+            registerRuntime(JsTypeMapper.runtimeJsName(name));
             List<JsIr.JsExpression> callArgs = new ArrayList<>(args);
             JsIr.JsExpression call = new JsIr.JsCall(
-                    new JsIr.JsIdentifier(runtimeJsName(name)), callArgs);
+                    new JsIr.JsIdentifier(JsTypeMapper.runtimeJsName(name)), callArgs);
             if (Type.isVoid(kc.returnType())) {
                 throw new StatementEnd(call);
             }
             stack.add(call);
             return;
         }
-        String fn = runtimeJsName(name);
+        String fn = JsTypeMapper.runtimeJsName(name);
         if (name.startsWith("kof_io_") || name.equals("kof_read_line")
                 || name.equals("kof_read_file") || name.equals("kof_write_file")) {
             registerIoRuntime(fn);
@@ -2697,7 +2617,7 @@ class JsBackend implements Backend {
         if (name.equals("kof_poll") && kc.returnType() instanceof Type.PrimitiveType) {
             // poll não-pronto devolve default do primitivo (0/false), não null —
             // paridade JVM/Native e evita await acidental em função síncrona.
-            call = new JsIr.JsBinary(call, "??", defaultForType(kc.returnType()));
+            call = new JsIr.JsBinary(call, "??", JsTypeMapper.defaultForType(kc.returnType()));
         }
         if (Type.isVoid(kc.returnType())) {
             throw new StatementEnd(call);
@@ -2705,20 +2625,6 @@ class JsBackend implements Backend {
         stack.add(call);
     }
 
-    private String runtimeJsName(String kofName) {
-        StringBuilder sb = new StringBuilder("kof");
-        boolean upper = false;
-        for (int i = 3; i < kofName.length(); i++) {
-            char c = kofName.charAt(i);
-            if (c == '_') {
-                upper = true;
-            } else {
-                sb.append(upper ? Character.toUpperCase(c) : c);
-                upper = false;
-            }
-        }
-        return sb.toString();
-    }
 
     // ── Plumbing ────────────────────────────────────────────────────
 
@@ -2763,44 +2669,10 @@ class JsBackend implements Backend {
                 || expr instanceof JsIr.JsNumber || expr instanceof JsIr.JsString;
     }
 
-    private String ownerInternalName(Type type) {
-        if (type instanceof Type.ClassType ct) return ct.internalName();
-        return "";
-    }
 
-    private String classPackage(Type type) {
-        if (type instanceof Type.ClassType ct) return ct.packageName();
-        return "";
-    }
 
-    private String className(Type type) {
-        if (type instanceof Type.ClassType ct) return ct.name();
-        return "";
-    }
 
-    private static String jsClassName(String internalName) {
-        if (internalName == null || internalName.isEmpty()) return "Object";
-        return sanitizeName(internalName.replace('/', '_'));
-    }
 
-    private static String sanitizeName(String name) {
-        StringBuilder sb = new StringBuilder();
-        for (char c : name.toCharArray()) {
-            if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '$') {
-                sb.append(c);
-            } else {
-                sb.append('_');
-            }
-        }
-        String result = sb.toString();
-        if (result.isEmpty() || Character.isDigit(result.charAt(0))) {
-            result = "_" + result;
-        }
-        if (RESERVED.contains(result)) {
-            result = "_" + result;
-        }
-        return result;
-    }
 
     private List<String> parameterNames(MethodCtx ctx) {
         if ("main".equals(ctx.methodName) && ctx.paramCount == 1) {
@@ -2843,7 +2715,7 @@ class JsBackend implements Backend {
             if ((field.accessFlags() & AccessFlags.STATIC) != 0) continue;
             JsIr.JsExpression value = field.initialValue() != null
                     ? literalExpr(new KofLoadLiteral(field.type(), field.initialValue()))
-                    : defaultForType(field.type());
+                    : JsTypeMapper.defaultForType(field.type());
             defaults.add(new JsIr.JsExprStmt(new JsIr.JsBinary(
                     new JsIr.JsMember(new JsIr.JsThis(), jsFieldName(clazz, field.name())), "=", value)));
         }
@@ -2860,13 +2732,4 @@ class JsBackend implements Backend {
         body.addAll(insertAt, defaults);
     }
 
-    private JsIr.JsExpression defaultForType(Type type) {
-        if (type instanceof Type.PrimitiveType pt) {
-            return switch (Type.canonicalPrimitiveName(pt.name())) {
-                case "bool" -> new JsIr.JsNumber("0");
-                default -> new JsIr.JsNumber("0");
-            };
-        }
-        return new JsIr.JsNull();
-    }
 }
