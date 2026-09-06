@@ -126,11 +126,11 @@ entity-field       = identifier , ":" , type-ref , { "generated" | "unique" } ;
 ## 3. Funções e métodos
 
 ```ebnf
-function-declaration = annotation-list , modifiers , [ "fn" ] ,
+function-declaration = annotation-list , modifiers ,
                        [ type-ref ] , identifier , [ type-parameters ] ,
                        "(" , [ parameter-list ] , ")" ,
                        [ ":" , type-ref ] ,                          (* retorno sufixado *)
-                       function-body ;                               (* Parser.java:252 *)
+                       function-body ;                               (* Parser.java *)
 
 function-body = block | "=" , expression , [ ";" ] | ";" ;          (* corpo: bloco, expressão, ou abstrato *)
 
@@ -155,10 +155,11 @@ b(): String { … }     // tipo depois dos parênteses (forma anotada)
 c() { … }             // sem tipo → void (default)
 ```
 
-`fn` é **prefixo opcional aceito** (`Parser.java:257-259`); `fun`/`func`
-compilam por serem lidos como tipo de retorno implícito (SG-001). Parâmetros
-aceitam **default values** (`parameter = expression`), que geram overloads
-sintéticos por aridade no lowering.
+**Não existe keyword de declaração de função** (SG-001 resolvido 06/09):
+`fn`/`fun`/`func` como prefixo são rejeitados com `PARSE085`. Como *nome* de
+função continuam identificadores válidos. Parâmetros aceitam **default values**
+(`parameter = expression`), que geram overloads sintéticos por aridade no
+lowering.
 
 ---
 

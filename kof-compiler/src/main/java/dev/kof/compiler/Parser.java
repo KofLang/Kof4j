@@ -106,10 +106,17 @@ class Parser {
 
     static FunctionDeclarationNode parseFunctionDeclaration(ParseContext ctx, List<String> mods, List<AnnotationNode> annos) {
         SourcePosition p = ctx.pos();
-        // "fn" é o keyword de declaração da linguagem (fn main()); sem isso o
-        // parser tratava "fn" como tipo de retorno e o JvmBackend gerava o
-        // método main([String;)Lfn; → a JVM rejeita (JavaFX launcher error).
-        if (ctx.check(TokenType.IDENTIFIER) && "fn".equals(ctx.peek().value())) {
+        // Kof NÃO tem keyword de declaração de função (regra do corpus:
+        // training/anti-patterns/fake-idioms.md). `fn`/`fun`/`func` eram
+        // aceitos silenciosamente (fn consumido como prefixo; fun/func lidos
+        // como tipo de retorno implícito) — agora são rejeitados com
+        // diagnóstico claro (SG-001). KofScript (.ks) mantém `fn` como
+        // sintaxe própria e traduz para a forma idiomática antes de chegar
+        // aqui (KofScript.toKofSyntax).
+        if (ctx.check(TokenType.IDENTIFIER) && isFunctionKeyword(ctx.peek().value())
+                && ctx.checkNext(TokenType.IDENTIFIER)) {
+            ctx.error("Kof não usa '" + ctx.peek().value() + "'; declare como "
+                    + "'Tipo nome(...) { }' ou 'nome(...): Tipo { }'", "PARSE085");
             ctx.advance();
         }
         String returnType = "void";
@@ -162,6 +169,10 @@ class Parser {
             ctx.expectSemicolon();
         }
         return new FunctionDeclarationNode(p, mods, returnType, name, params, thrown, typeParams, body, annos);
+    }
+
+    static boolean isFunctionKeyword(String v) {
+        return "fn".equals(v) || "fun".equals(v) || "func".equals(v);
     }
 
     /**

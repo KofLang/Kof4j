@@ -107,7 +107,7 @@ final class CmdScript {
             String kfName = src.getFileName().toString().replaceFirst("\\.ks$", ".kf");
             if (!kfName.endsWith(".kf")) kfName = "Script.kf";
             Path kf = tmp.resolve(kfName);
-            Files.writeString(kf, program.toString());
+            Files.writeString(kf, dev.kof.script.KofScript.toKofSyntax(program.toString()));
             var r = dev.kof.script.KofScript.runFile(kf, target, progArgs.toArray(new String[0]));
             // Propaga diagnostics com file:line (KofScript já usa d.format())
             if (!r.success()) {

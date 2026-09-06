@@ -130,4 +130,42 @@ class FunctionSyntaxTest {
         Files.writeString(source, CLASS_METHOD_FORMS);
         runNative(source, tempDir.resolve("out"), "10\ntrue\ncalc\n20");
     }
+
+    private void assertParse085(Path tempDir, String code) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, code);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "não deve compilar: " + code);
+        assertTrue(result.diagnostics().getDiagnostics().stream()
+                .anyMatch(d -> "PARSE085".equals(d.code())),
+                "esperava PARSE085, veio: " + result.diagnostics().getDiagnostics());
+    }
+
+    @Test
+    void funKeywordIsRejected(@TempDir Path tempDir) throws IOException {
+        assertParse085(tempDir, "fun main() {\n    println(\"x\")\n}\n");
+    }
+
+    @Test
+    void fnKeywordIsRejected(@TempDir Path tempDir) throws IOException {
+        assertParse085(tempDir, "fn main() {\n    println(\"x\")\n}\n");
+    }
+
+    @Test
+    void funcKeywordIsRejected(@TempDir Path tempDir) throws IOException {
+        assertParse085(tempDir, "func main() {\n    println(\"x\")\n}\n");
+    }
+
+    @Test
+    void fnWithReturnTypeIsRejected(@TempDir Path tempDir) throws IOException {
+        assertParse085(tempDir, "fn calc(): Int {\n    return 1\n}\nmain() {\n    println(calc())\n}\n");
+    }
+
+    @Test
+    void fnAsFunctionNameStillWorks(@TempDir Path tempDir) throws IOException {
+        // `fn` como NOME de função (não prefixo) continua válido — é identificador.
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, "fn() {\n    println(\"nome fn\")\n}\nmain() {\n    fn()\n}\n");
+        runJvm(source, tempDir.resolve("out"), "nome fn");
+    }
 }

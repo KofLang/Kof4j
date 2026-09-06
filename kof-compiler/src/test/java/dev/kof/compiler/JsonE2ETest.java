@@ -220,7 +220,7 @@ class JsonE2ETest {
     void nativeDecodeScalars(@TempDir Path tempDir) throws IOException {
         Path source = tempDir.resolve("Main.kf");
         Files.writeString(source, """
-            fun main() {
+            main() {
                 println(json.decode<Int>("77"))
                 println(json.decode<Bool>("true"))
                 println(json.decode<String>("\\"hello\\""))

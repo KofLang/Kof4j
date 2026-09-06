@@ -54,11 +54,12 @@ parser (ver [grammar.md](grammar.md)) ou nenhum.
 > falha com `PARSE007`. São tokens mortos. Ver
 > [../specification-gaps.md](../specification-gaps.md).
 
-> **Divergência documentada (SG-001):** `fun`/`fn` **compilam** como prefixo de
-> declaração de função (`Parser.java:257-259` aceita `fn`; `fun` é lido como
-> tipo de retorno implícito `void`), mas o corpus (`AGENTS.md`,
-> `training/anti-patterns/fake-idioms.md`) declara que **não existem**. Ver
-> gaps.
+> **SG-001 RESOLVIDO (06/09):** `fn`/`fun`/`func` como prefixo de declaração de
+> função são agora **rejeitados** com `PARSE085` (alinhar código ao corpus —
+> regra 4). `fn`/`fun`/`func` continuam sendo `IDENTIFIER` válidos como *nome*
+> de função (`fn() { }` declara uma função chamada `fn`). KofScript (`.ks`)
+> mantém `fn` como sintaxe própria e traduz na fronteira
+> (`KofScript.toKofSyntax`).
 
 ### 1.2 Literais de palavra-chave
 

@@ -19,7 +19,7 @@ Target-specific · Unspecified · Planned**.
 | Semicolon opcional | Stable | probes + suíte |
 | Keywords (lista) | Stable | `Lexer.java:13-74` |
 | `sealed`/`permits` | **Unspecified** (tokens mortos) | nenhum (SG-002) |
-| `fn`/`fun` prefixo | **Implementation-defined** (compila, não documentado) | `JsonE2ETest:223` usa `fun` (SG-001) |
+| `fn`/`fun`/`func` prefixo | **Stable** (rejeitado com `PARSE085`, SG-001 resolvido 06/09) | `FunctionSyntaxTest` (5 casos) |
 
 ### Sistema de tipos
 | Feature | Status | Teste-evidência |
@@ -165,7 +165,7 @@ significado) **não pode ser rigorosa** enquanto existirem:
   collections).
 - **Experimental**: stdlib de domínio (http/web/db/orm/ui/media/…).
 - **Implementation-defined**: `bool→numérico`, `val`, layout de frames,
-  mecanismo de spawn, `fn`/`fun`.
+  mecanismo de spawn.
 - **Target-specific**: GC, FP extremo, exceção (representação), short-circuit
   JS, interop (só JVM), ordem de Map.
 - **Unspecified**: ~20 pontos (SG-002 a SG-020).

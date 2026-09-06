@@ -48,7 +48,7 @@ public final class KofScript {
         Path tmp = Files.createTempDirectory("kofscript");
         try {
             Path src = tmp.resolve("Main.kf");
-            Files.writeString(src, wrappedForEval);
+            Files.writeString(src, toKofSyntax(wrappedForEval));
             RunResult r = runFile(src, target);
             if (r.success()) evalCache.put(key, r);
             // LRU bound 64
@@ -145,6 +145,16 @@ public final class KofScript {
     private static String normalizeVoidFns(String decls0) {
         // fn foo() { -> fn foo(): Void {
         return decls0.replaceAll("fn\\s+(\\w+)\\s*\\(([^)]*)\\)\\s*\\{", "fn $1($2): Void {");
+    }
+
+    /**
+     * Fronteira .ks → .kf: KofScript mantém `fn` como sintaxe própria, mas o
+     * parser Kof rejeita `fn`/`fun`/`func` (PARSE085 — SG-001). A tradução é
+     * feita aqui, no último passo antes de materializar o .kf: `fn foo(...)`
+     * → `foo(...)` (a forma anotada `foo(...): T` já é idiomática em Kof).
+     */
+    public static String toKofSyntax(String ks) {
+        return ks.replaceAll("(?m)^(\\s*)fn\\s+(\\w+\\s*\\()", "$1$2");
     }
 
     private static String inferKofType(String init) {
@@ -286,7 +296,7 @@ public final class KofScript {
                     String kfName = single.getFileName().toString().replaceFirst("\\.ks$", ".kf");
                     if (!kfName.endsWith(".kf")) kfName = "Main.kf";
                     Path kf = tmpKsDir.resolve(kfName);
-                    Files.writeString(kf, prog.toString());
+                    Files.writeString(kf, toKofSyntax(prog.toString()));
                     result = driver.compile(kf, outDir, target);
                     deleteRecursively(tmpKsDir);
                 } else {
@@ -351,7 +361,7 @@ public final class KofScript {
                         prog.append(decls);
                         if (!stmts.isEmpty()) prog.append("main() {\n").append(stmts).append("\n}\n");
                         Path kf = tmpKsDir.resolve(p.getFileName().toString().replace(".ks", ".kf"));
-                        Files.writeString(kf, prog.toString());
+                        Files.writeString(kf, toKofSyntax(prog.toString()));
                         kfSources.add(kf);
                     } else {
                         kfSources.add(p);
@@ -400,7 +410,7 @@ public final class KofScript {
                     String pre = preprocess(content);
                     // Simplified wrap for inspect: just preprocess
                     Path kf = tmpKsDir.resolve(p.getFileName().toString().replace(".ks", ".kf"));
-                    Files.writeString(kf, pre.contains("main()") ? pre : "main() {\n" + pre + "\n}");
+                    Files.writeString(kf, toKofSyntax(pre.contains("main()") ? pre : "main() {\n" + pre + "\n}"));
                     kfSources.add(kf);
                 } else kfSources.add(p);
             }

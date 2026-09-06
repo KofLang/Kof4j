@@ -12,21 +12,24 @@ recomendações futuras (regra 14 da tarefa: não alterar comportamento).
 
 ## Categoria A — Documentação contradiz código
 
-### SG-001 — `fun`/`fn`/`let` existem no compilador mas o corpus diz que não
+### SG-001 — `fun`/`fn`/`func` existiam no compilador mas o corpus diz que não ✅ RESOLVIDO (06/09)
 
-- **Implementação**: `fn` é prefixo opcional aceito (`Parser.java:257-259`).
-  `fun`/`func` compilam porque o parser lê a palavra como *tipo de retorno* e
-  o nome da função vem depois (`fun main()` → função `main`, retorno implícito
-  `void`). `JsonE2ETest.java:223` **usa `fun main()`** e passa.
+- **Implementação (antes)**: `fn` era prefixo opcional aceito. `fun`/`func`
+  compilavam porque o parser lia a palavra como *tipo de retorno* e o nome da
+  função vinha depois (`fun main()` → função `main`, retorno implícito `void`).
+  `JsonE2ETest.java:223` usava `fun main()` e passava.
 - **Documentação**: `AGENTS.md` ("não existe `fun` nem `func`"),
   `training/anti-patterns/fake-idioms.md` (lista `fun`/`func`/`let` como fake).
-- **Problema**: a regra "não existe" é falsa para o compilador real — é uma
-  regra de **estilo** (não use), não de **validade** (não compila). Um agente
-  que escreva `fun` não recebe erro. `let` **realmente não existe** em `.kf`
-  (só em `.ks`/KofScript — `training/language/syntax.md:91`).
-- **Recomendação**: reclassificar no corpus como *"não-idiomático, aceito por
-  compatibilidade"* em vez de *"não existe"*, OU rejeitar `fun`/`fn` no parser
-  (breaking change — exige bump). Decidir qual.
+- **Problema (antes)**: a regra "não existe" era falsa para o compilador real —
+  um agente que escrevesse `fun` não recebia erro.
+- **Resolução (06/09)**: o parser Kof agora **rejeita** `fn`/`fun`/`func` como
+  prefixo de declaração com `PARSE085` (diagnóstico claro, nunca silencioso —
+  R6). Alinhado ao corpus (regra 4: bug = alinhar ao previsto). `fn`/`fun`/
+  `func` continuam válidos como *nome* de função (identificadores). KofScript
+  (`.ks`) mantém `fn` como sintaxe própria e traduz na fronteira
+  (`KofScript.toKofSyntax`). Testes: `FunctionSyntaxTest` (5 novos: fun/fn/func
+  rejeitados, `fn calc(): Int` rejeitado, `fn()` como nome ainda funciona).
+  `let` continua inexistente em `.kf` (só `.ks`).
 
 ### SG-002 — Tokens e keywords que a gramática não usa
 

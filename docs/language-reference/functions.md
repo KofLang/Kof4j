@@ -7,7 +7,7 @@
 ## 1. Declaração
 
 ```ebnf
-function-declaration = [ "fn" ] , [ type-ref ] , identifier , [ type-parameters ] ,
+function-declaration = [ type-ref ] , identifier , [ type-parameters ] ,
                        "(" , [ parameter-list ] , ")" , [ ":" , type-ref ] , function-body
 ```
 
@@ -23,11 +23,12 @@ Bool positivo(Int x) = x > 0                 // expression body
 ```
 
 - **Corpo**: bloco `{ … }`, ou `= expressão` (expression body — vira
-  `return expressão`, `Parser.java:301-305`), ou `;` (abstrato).
-- **`fn` é prefixo opcional aceito** (`Parser.java:257-259`). **`fun`/`func`
-  compilam** por serem lidos como tipo de retorno implícito `void`
-  (`fun main()` → função `main` com retorno `void`; *probe*). O corpus
-  (`AGENTS.md`) declara que **não existem** — divergência SG-001.
+  `return expressão`), ou `;` (abstrato).
+- **Não existe keyword de declaração** (SG-001 resolvido 06/09): `fn`/`fun`/
+  `func` como prefixo são **rejeitados** com `PARSE085`. Como *nome* de função
+  são identificadores válidos (`fn() { }` declara a função `fn`). KofScript
+  (`.ks`) mantém `fn` como sintaxe própria e traduz na fronteira
+  (`KofScript.toKofSyntax`).
 - **Não há** `fun` como keyword, nem `def`, nem `lambda` keyword.
 
 ---
