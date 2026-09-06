@@ -136,58 +136,6 @@ Target target = Target.JVM;
 
 
 
-    void lowerAndEmit(CompilationUnitNode unit, DiagnosticCollector diagnostics,
-                              Path outputDir, Target target) throws IOException {
-        if (System.getProperty("kof.trace") != null) {
-            System.err.println("LOWER-AND-EMIT decls=" + unit.declarations().size() + " out=" + outputDir);
-        }
-        this.target = target;
-        this.currentDiagnostics = diagnostics;
-        CompilerPipeline.flushClasspathWarnings(this);
-        this.entitySchemas.clear();
-        BuiltinTypes.resetEnums();
-        for (AstNode d : unit.declarations()) {
-            if (d instanceof EnumDeclarationNode en) BuiltinTypes.registerEnum(en.name());
-        }
-            unit = CompilerDesugar.desugarTests(unit, discoveredTests, testHarnessMode, currentSourceName);
-            unit = CompilerDesugar.desugarApplication(unit);
-            discoveredConfigKeys.clear();
-            if (target == Target.ANDROID) {
-                unit = CompilerPipeline.appendAndroidHostIfNeeded(this, unit);
-            }
-            semanticAnalyzer = new SemanticAnalyzer();
-            semanticAnalyzer.setExternalTypes(externalClasspath);
-            semanticAnalyzer.setDeclarationPackageLookup(d -> declarationPackages.get(d));
-            semanticAnalyzer.analyze(unit, diagnostics);
-            if (diagnostics.hasErrors()) {
-                return;
-            }
-            LabelId.reset();
-            currentModule = new IRModule("", List.of(), List.of());
-            currentUnit = unit;
-            IRModule irModule = applySuperBridges(CompilerPipeline.lowerToIR(this, unit, diagnostics));
-            if (diagnostics.hasErrors()) {
-                return;
-            }
-            currentModule = irModule;
-            IRModule unoptimized = irModule;
-            if (optimizeEnabled) {
-                irModule = Optimizer.optimize(irModule);
-                currentModule = irModule;
-            }
-            if (irObserver != null) {
-                irObserver.accept(unoptimized, irModule);
-            }
-            if (irStatsObserver != null) {
-                irStatsObserver.observed(IRStatistics.of(unoptimized, irModule));
-            }
-            Files.createDirectories(outputDir);
-            Backend backend = CompilerPipeline.selectBackend(this, target);
-            backend.emit(irModule, outputDir, debugInfoEnabled);
-            if (target == Target.ANDROID) {
-                new AndroidProjectWriter().write(outputDir, irModule);
-            }
-    }
 
     /** Cache de interfaces sintéticas de função (uma por assinatura). */
     final java.util.Map<String, Type.ClassType> functionInterfaces = new java.util.HashMap<>();

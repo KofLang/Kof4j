@@ -97,7 +97,7 @@ final class CompilerPipeline {
             if (diagnostics.hasErrors()) {
                 return new CompilationResult(false, diagnostics, outputDir);
             }
-            driver.lowerAndEmit(unit, diagnostics, outputDir, driver.target);
+            CompilerPipeline.lowerAndEmit(driver, unit, diagnostics, outputDir, driver.target);
             if (diagnostics.hasErrors()) {
                 return new CompilationResult(false, diagnostics, outputDir);
             }
@@ -258,4 +258,59 @@ final class CompilerPipeline {
         classes.addAll(driver.syntheticClasses);
         return new IRModule(moduleName, classes, imports, driver.currentSourceName);
     }
+
+
+    static void lowerAndEmit(CompilerDriver driver, CompilationUnitNode unit, DiagnosticCollector diagnostics,
+                              Path outputDir, Target target) throws IOException {
+        if (System.getProperty("kof.trace") != null) {
+            System.err.println("LOWER-AND-EMIT decls=" + unit.declarations().size() + " out=" + outputDir);
+        }
+        driver.target = target;
+        driver.currentDiagnostics = diagnostics;
+        CompilerPipeline.flushClasspathWarnings(driver);
+        driver.entitySchemas.clear();
+        BuiltinTypes.resetEnums();
+        for (AstNode d : unit.declarations()) {
+            if (d instanceof EnumDeclarationNode en) BuiltinTypes.registerEnum(en.name());
+        }
+        unit = CompilerDesugar.desugarTests(unit, driver.discoveredTests, driver.testHarnessMode, driver.currentSourceName);
+        unit = CompilerDesugar.desugarApplication(unit);
+        driver.discoveredConfigKeys.clear();
+        if (target == Target.ANDROID) {
+            unit = CompilerPipeline.appendAndroidHostIfNeeded(driver, unit);
+        }
+        driver.semanticAnalyzer = new SemanticAnalyzer();
+        driver.semanticAnalyzer.setExternalTypes(driver.externalClasspath);
+        driver.semanticAnalyzer.setDeclarationPackageLookup(d -> driver.declarationPackages.get(d));
+        driver.semanticAnalyzer.analyze(unit, diagnostics);
+        if (diagnostics.hasErrors()) {
+            return;
+        }
+        LabelId.reset();
+        driver.currentModule = new IRModule("", List.of(), List.of());
+        driver.currentUnit = unit;
+        IRModule irModule = driver.applySuperBridges(CompilerPipeline.lowerToIR(driver, unit, diagnostics));
+        if (diagnostics.hasErrors()) {
+            return;
+        }
+        driver.currentModule = irModule;
+        IRModule unoptimized = irModule;
+        if (driver.optimizeEnabled) {
+            irModule = Optimizer.optimize(irModule);
+            driver.currentModule = irModule;
+        }
+        if (driver.irObserver != null) {
+            driver.irObserver.accept(unoptimized, irModule);
+        }
+        if (driver.irStatsObserver != null) {
+            driver.irStatsObserver.observed(IRStatistics.of(unoptimized, irModule));
+        }
+        Files.createDirectories(outputDir);
+        Backend backend = CompilerPipeline.selectBackend(driver, target);
+        backend.emit(irModule, outputDir, driver.debugInfoEnabled);
+        if (target == Target.ANDROID) {
+            new AndroidProjectWriter().write(outputDir, irModule);
+        }
+    }
+
 }
