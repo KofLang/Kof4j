@@ -254,8 +254,8 @@ main() {
 |--------|---------|----------|--------|
 | `jvm` | `JvmBackend` (ASM) | bytecode V21, exception table, virtual threads | estável |
 | `native` | `NativeBackend` (x86_64) | ELF x86_64, syscalls, free-list alloc, GC mark pending | estável |
-| `native.risc` | `NativeBackend` (riscv64) | ELF riscv64 via `riscv64-linux-gnu-as/ld` + qemu (core completo 02/09, 13/13 — ver `docs/native-multiarch.md`) | estável (core) |
-| `native.arm` | `NativeBackend` (aarch64) | ELF aarch64 via `aarch64-linux-gnu-as/ld` + qemu (core completo 03/09, 13/13 via tradução — ver `docs/native-multiarch.md`) | estável (core) |
+| `native.risc` | `NativeBackend` (riscv64) | ELF riscv64 via `riscv64-linux-gnu-as/ld` + qemu (core+stdlib 02-05/09, 26/26 — ver `docs/native-multiarch.md`) | estável (core) |
+| `native.arm` | `NativeBackend` (aarch64) | ELF aarch64 via `aarch64-linux-gnu-as/ld` + qemu (core+stdlib 03-05/09, 26/26 via tradução — ver `docs/native-multiarch.md`) | estável (core) |
 | `js` | `JsBackend` + `KofJsRunner` | ES Modules via GraalJS, `kof.http` via `Java HttpClient` interop | alpha |
 | `kofc` | `KofCcompiler` | C subset (`int` globals, `void` funcs, `if`/`while`/`*(int*)`/`&`) → nativo x86_64 | nativo-only |
 
@@ -515,7 +515,7 @@ main() { /* ignorado pelo kof test */ }
 
 ---
 
-## Testes (854 = 837 kof-compiler + 8 kof-script + 5 kof-c-compiler + 4 kof-cli — medição real 03/09 pós-merge HTTP002/MySQL/riscv; suíte completa verde, só KofMediaE2ETest falha por hardware de mic ausente)
+## Testes (962 = 941 kof-compiler + 8 kof-script + 5 kof-c-compiler + 8 kof-cli — medição real 05/09 pós-sweep NATIVE002-stdlib; suíte completa verde, 3 skips condicionais de toolchain/hardware)
 
 | Suíte | Quantidade | Cobertura |
 |-------|-----------|-----------|
@@ -593,8 +593,8 @@ main() { /* ignorado pelo kof test */ }
 | NativeDebugTest5 | 1 | harnesses de debug nativo (5) |
  | NativeDwarfLineInfoTest | 1 | **DWARF nativo**: `.debug_line` real no binário (`objdump --dwarf=decodedline` → arquivo Kof + linha por instrução) |
 | NullSafetyE2ETest | 7 | `String?` narrowing JVM + readLine EOF null (02/09) |
- | NativeRiscv64E2ETest | 13 | **riscv64 real (qemu)**: runtime em **asm puro** (raw syscalls, sem C; `as`+`ld` estático) — println(String/Int), var, if/else, aritmética/comparações, **classes (virtual dispatch/fields/métodos), arrays, List, switch, try/catch/throw, pattern matching (switch String s/instanceof/as), String methods, recursão** (NATIVE002 core 02/09) |
- | NativeAarch64E2ETest | 13 | **aarch64 real (qemu)**: runtime em **asm puro** via tradução riscv→aarch64 (`translateRiscvToAarch64`), raw syscalls — mesmo core do riscv64; 13/13 (NATIVE002 core 03/09) |
+  | NativeRiscv64E2ETest | 26 | **riscv64 real (qemu)**: runtime em **asm puro** (raw syscalls, sem C; `as`+`ld` estático) — core (println, var, if/else, aritmética, classes, arrays, List, switch, try/catch, pattern matching, String methods, recursão) + **stdlib 05/09**: JSON (encode/decode incl. escalares int/long/bool/string), HTTP, spawn/await, cache, time.now, mq (queue/pub-sub), Map/Set, higher-order (map/filter/reduce), String.toInt, metrics `# TYPE`, FP (conversões; `println(double)`→FLT001), gates honestos DB001/SECN000/SCHED001/TIME001 |
+  | NativeAarch64E2ETest | 26 | **aarch64 real (qemu)**: runtime em **asm puro** via tradução riscv→aarch64 (`translateRiscvToAarch64`), raw syscalls — mesmo core + stdlib do riscv64 (tradutor quote-aware p/ strings com `#`) |
  | **Total kof-compiler** | **823** | |
  | kof-script | 8 | KofScriptGlobals / repl / --watch |
  | kof-c-compiler | 5 | KofC C subset → ELF |
@@ -687,7 +687,7 @@ Docs: `debugger-architecture.md`, `debugging.md`, `debug-adapter.md`,
 19. ~~`kof_sec_secret_get` no Native~~ — ✅ resolvido: reescrito no padrão linear dos demais; segfault e fragmentos errados eliminados.
 20. ~~Ponto flutuante no Native~~ — ✅ FLT001 fechado: FP é XMM real (`vcvtsi2sd`, `mulsd`); dtoa via snprintf alinhado; `kof_string_to_double` parse completo (fração+expoente).
 21. ~~idem~~
-22. riscv64/aarch64 **core completo** — ✅ **02/09 riscv64 + 03/09 aarch64 reais**: `Target.NATIVE_RISCV64`/`NATIVE_AARCH64` + CLI `native.risc`/`native.arm` + dispatch + **lowering real** (stack machine: riscv64 `sp`/`s11`/`ra`, aarch64 `sp`/`x29`/`x30` via tradução linha-a-linha) + **runtime em asm puro** (raw syscalls `write` 64 / `exit` 93, bump allocator, sem C — binários estáticos via `as`+`ld`; Kof é Kof) + qemu; `NativeRiscv64E2ETest 13/13` + `NativeAarch64E2ETest 13/13` (core: println String/Int, var, if/else, aritmética, classes virtual/fields, arrays, List, switch, try/catch/throw, pattern matching, String methods, recursão). **Restante do NATIVE002**: paridade total x86 (JSON/DB/HTTP/concorrência/UI/net) nos dois. **Estado real + como finalizar: `docs/native-multiarch.md`** (gap `NATIVE002`)
+22. riscv64/aarch64 **core completo** — ✅ **02/09 riscv64 + 03/09 aarch64 reais**: `Target.NATIVE_RISCV64`/`NATIVE_AARCH64` + CLI `native.risc`/`native.arm` + dispatch + **lowering real** (stack machine: riscv64 `sp`/`s11`/`ra`, aarch64 `sp`/`x29`/`x30` via tradução linha-a-linha) + **runtime em asm puro** (raw syscalls `write` 64 / `exit` 93, bump allocator, sem C — binários estáticos via `as`+`ld`; Kof é Kof) + qemu; `NativeRiscv64E2ETest 26/26` + `NativeAarch64E2ETest 26/26` (core: println String/Int, var, if/else, aritmética, classes virtual/fields, arrays, List, switch, try/catch/throw, pattern matching, String methods, recursão). **Paridade stdlib 05/09**: JSON (encode/decode escalares+listas), HTTP, spawn/await (clone+futex), cache, time.now, mq, Map/Set, higher-order, String.toInt, metrics `# TYPE`, FP-conversões — sweeps de paridade com **0 divergências** nos 3 targets. **Restante do NATIVE002**: DB (libsqlite3 exige libc → gate DB001), security (SHA/AES/JWT em asm → gate SECN000; R11: cripto caseira é non-goal), scheduler/time.interval (thread de timer em asm → gates SCHED001/TIME001), UI/net. **Estado real + como finalizar: `docs/native-multiarch.md`** (gap `NATIVE002`)
 23. ~~`kof.cache` nativo: segfault em `set_ttl` (index `%rax` clobberado) + `get/ttl` (exp em `%rdi` clobberado) + `println(null)` segfault~~ — ✅ 30/08: registradores preservados (`%r14/%r13/%r15`), branch `jle` de expiração corrigido, `kof_print_string` guarda null, `find_slot` sobrescreve chave existente; `KofCacheE2ETest 5/5 x3 targets`
 24. ~~`spawn`-statement (fire-and-forget) no Native não era juntado~~ — ✅ 01/09: o `kof_spawn` (stmt) criava a thread mas **não registrava** o handle na lista que `kof_spawn_join_all` percorre; e `join_all` só era emitido no bloco `!endsWithReturn`, que nunca roda para o main (o driver sempre fecha o main com `KofReturnVoid` → `endsWithReturn`). Resultado: o processo saía antes do worker imprimir. Fix: `kof_spawn` agora delega a `kof_spawn_result` (registra o handle) e `join_all` é emitido no **epílogo do return** de main (idempotente — limpa a lista). `SpawnE2ETest 4/4`
 25. **`throw <não-String>` / `catch <não-String>` gera bytecode inválido no JVM** (documentado 02/09) — `throw 42` compila mas o `.class` falha no load (`ClassFormatError`, disfarçado de "JavaFX launcher error"). Exceções são Strings; o compilador deveria **rejeitar** `throw <não-String>` em compile-time. Reprodução + arquivos prováveis em **`docs/known-bugs.md` #1**.
@@ -756,7 +756,7 @@ Docs: `debugger-architecture.md`, `debugging.md`, `debug-adapter.md`,
 - ~~KofAndroid Fase 2~~ — ✅ 31/08 (`--apk` standalone + `--keystore` release signing + label/permissões derivados do programa)
 - ~~`kof.media` residual (31/08)~~ — ✅ 31/08: **video** (`Video.open` + metadados do container + streaming) e **Range requests** (206/416) fechados; restam câmera (MEDIA002 — sem lib externa no JVM) e paridade Native/JS (MEDIA001 — ART sem javax.imageio; app Android roda no WebView KofJS)
 - MySQL/MariaDB nativo — **wire protocol ✅ 31/08** (handshake + scramble SHA-1 + auth-switch + COM_QUERY + resultset; binds `?` via substituição client-side; `nativeMysqlWireProtocol`) + **prepared statements binários ✅ 03/09** (COM_STMT_PREPARE/EXECUTE + binary-rows, `NativeDbPrepared` — ver "Bugs Restantes" #18)
-- `native.risc` (riscv64) + `native.arm` (aarch64) **core completo (02-03/09)** — plumbing + codegen/runtimes em asm puro + qemu, `NativeRiscv64E2ETest 13/13` + `NativeAarch64E2ETest 13/13` (core: classes/arrays/List/strings/instanceof/switch/try-catch/FP/recursão); paridade avançada (JSON/DB/HTTP/concorrência/UI/net) pendente — **detalhe + como finalizar: `docs/native-multiarch.md`** (gap `NATIVE002`)
+- `native.risc` (riscv64) + `native.arm` (aarch64) **core completo (02-03/09)** — plumbing + codegen/runtimes em asm puro + qemu, `NativeRiscv64E2ETest 26/26` + `NativeAarch64E2ETest 26/26` (core + stdlib 05/09: JSON/HTTP/spawn/cache/time/mq/Map/Set/higher-order/toInt/metrics; gates DB001/SECN000/SCHED001/TIME001) — **detalhe + como finalizar: `docs/native-multiarch.md`** (gap `NATIVE002`)
 - Debugger — MVP JVM (DAP sobre stdio) + **JS source maps V3 em nível de linha (01/09)**; Native DWARF pendente
 - KofJS — plataforma web no browser (ES Modules via GraalJS já em alpha)
 

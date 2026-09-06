@@ -54,11 +54,11 @@ final class KofMq {
 
     /** kof.mq: JVM + JS + Native (01/09, pub/sub + filas in-process). */
     static boolean supportedOn(Target target) {
-        // MQ001: o runtime riscv64/aarch64 tem pub/sub/queue em asm mas com
-        // bugs (queue com assinatura errada, pop não remove, queue_size
-        // ausente, unsubscribe stub) e nenhum teste cross. Gate honesto até o
-        // port completo (mesmo padrão de DB001) — nunca segfault silencioso.
-        return target != Target.NATIVE_RISCV64 && target != Target.NATIVE_AARCH64;
+        // MQ001: pub/sub + queues in-process em asm (riscv64/aarch64 via
+        // tradutor) — port completo 05/09 (scan loops c/ ponteiro-fim, s-regs
+        // salvos, pop via kof_list_remove, queue_size, unsubscribe por
+        // identidade). Paridade de output com x86_64 (KofMqE2ETest cross).
+        return true;
     }
 
     static String gapCode() {

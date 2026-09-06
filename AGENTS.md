@@ -26,6 +26,60 @@ escreva código Kof neste repositório. Leia antes de gerar qualquer `.kf`.
 6. VOLTE ao passo 1. Não anuncie "fim"; só pare por condição de parada.
 ```
 
+**O loop dentro de UM turno (regra que impede o "parar e resumir"):**
+
+> **O agente não se re-dispara sozinho.** Quando um turno termina, a execução
+> para. Então: **terminar um turno com resumo é a única falha de autonomia
+> imperdoável** — é o que transformou "dias a fio" em "um turno".
+
+1. **Encadeie tool calls dentro do turno** até: (a) uma condição de parada,
+   (b) o contexto quase esgotar, ou (c) o turno ficar sem trabalho novo
+   (suíte verde + DOING.md sem item sem dono na sua lane).
+2. **Proibido terminar o turno com resumo/status para o humano**
+   ("pushed", "resumo da sessão", "o que falta agora é..."). Se o turno
+   vai acabar, a ÚLTIMA coisa escrita no turno é:
+   - commit final do estado atual,
+   - `DOING.md` atualizado com a linha **"PRÓXIMO PASSO: <tarefa exata +
+     arquivo + prova esperada>"** (o re-dispacho lê isso e continua),
+   - `todowrite` espelhando isso.
+   Depois disso, silêncio — ou a próxima tool call.
+3. **Todo commit do turno exige atualização da linha no `DOING.md` no MESMO
+   commit** (regra da seção multi-agente vale dobrado aqui: sem DOING.md
+   atualizado, o próximo agente/sessão não sabe o que já existe).
+4. **`todowrite` a cada mudança de etapa** — exatamente um `in_progress`;
+   item só vai para `completed` com prova (teste verde/suíte).
+5. **Re-dispacho é do humano ou de cron** (o agente não acorda a si mesmo).
+   Por isso o item 2b é contrato: quem volta — humano ou outra instância —
+   deve conseguir retomar em ≤1 leitura do `DOING.md`, sem perguntar.
+6. **Re-dispacho NÃO é conversa.** Quando o humano manda "continue", "vai",
+   "e agora?" ou qualquer re-disparo: **não responda com reconhecimento ou
+   status** ("Entendido", "ok", "pushed", "vou continuar..."). A PRIMEIRA
+   ação do turno é a tool call que lê o `PRÓXIMO PASSO` e executa. Um turno
+   que termina em frase de confirmação sem tool call é a MESMA falha de um
+   turno que termina em resumo — o loop parou e o humano teve que empurrar
+   de novo.
+7. **Unidade em progresso = turno em progresso.** Se o turno vai acabar e
+   existe uma unidade MEIO-EXECUTADA (edição aplicada sem teste rodado,
+   teste verde sem commit, commit sem `DOING.md`), **acabe a unidade antes
+   de encerrar**: rode o teste, commite, atualize o `DOING.md` — na mesma
+   resposta, encadeando as tool calls. "Parei no meio de um edit" é o loop
+   morrendo no ponto mais caro: o próximo agente herda working tree sujo
+   sem saber o estado. Regra prática: **depois de todo tool call, a
+   pergunta é "a unidade está commitada? não → próxima tool call agora"**,
+   nunca "chega de tool calls nesta resposta?".
+
+**Falhas reais que motivaram estas regras (05/09, três ocorrências):**
+(a) o agente fez 5 commits corretos (fixes riscv64) e terminou o turno com
+um "resumo da sessão" em vez de continuar o loop; `DOING.md` ficou sem
+atualização desde o início do trabalho. (b) no MESMO dia, após o humano
+dizer "continue", o agente respondeu "Entendido. Vou prosseguir." — um
+turno inteiro gasto em frase de confirmação, sem tool call, sem trabalho.
+(c) ainda no MESMO dia, com o loop rodando e um port (time.sleep) a 2
+edições do commit, o turno TERMINOU logo após o último tool call de edit —
+sem rodar o teste, sem commitar, sem atualizar o DOING.md; o humano teve
+que empurrar de novo. Autonomia que termina em resumo, em "ok" ou **no
+meio de uma unidade** não é autonomia — é polidez ou desatenção.
+
 **O que fazer em vez de perguntar:**
 
 | Dúvida | Fonte de resposta (nesta ordem) |

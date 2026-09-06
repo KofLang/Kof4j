@@ -35,6 +35,7 @@ porque existem em outras linguagens. Código assim **não compila** ou
 | `for user in users` (sem var) | ❌ Unavailable |
 | Array literals `{1, 2, 3}` / `[1,2,3]` | ❌ Unavailable — use `new Int[n]` + `listOf` |
 | `async`/`await` (JS-style) | ❌ Unavailable — use `spawn`/`await` |
+| `fn` / `fun` / `func` como keyword de função | ❌ Unavailable — rejeitado com `PARSE085` (06/09, SG-001); declare `Tipo nome(...) { }` ou `nome(...): Tipo { }`. (KofScript `.ks` mantém `fn` como sintaxe própria e traduz na fronteira) |
 | `x as Char` (cast primitivo p/ char) | ✅ Implemented (I2C real, 01/09) |
 | `longVal as Int` (narrowing Long→Int) | ✅ Implemented (L2I real, 01/09) |
 | `new Long[n]` (array de 64 bits) | ✅ Implemented (01/09) |

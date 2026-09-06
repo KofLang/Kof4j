@@ -33,6 +33,7 @@ foi movida para `docs/`:
 
 | Doc | Tema | Por que fica em `future/` |
 |-----|------|---------------------------|
+| `APPLICATION_MODEL.md` | Kof Application Model (monólito ↔ distribuído, `kof.toml`, packaging, System) | RFC auditada — implementa nos incrementos I1–I4 (§23); move para `docs/` no I1 |
 | `PLAN-UNIVERSAL-PLATFORM.md` | visão de longo prazo (Kof como plataforma universal) | 100% visão/estratégia — não é ordem de implementação |
 | `ACTION_PLAN.md` | ordem de implementação dos tiers | plano de ordens (mistura feito/pendente) |
 | `IMPLEMENTATION_PLAN.md` | roadmap consolidado com status | rastreia o progresso (vivo) |

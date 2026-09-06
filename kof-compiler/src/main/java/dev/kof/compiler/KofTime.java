@@ -53,6 +53,9 @@ final class KofTime {
     }
 
     static boolean supportedOn(String method, Target target) {
+        // TIME001 FEITO no cross (05/09): kof_time_interval/cancel são alias
+        // de kof_scheduler_every/cancel no runtime riscv64/aarch64 (thread por
+        // job via clone+nanosleep — mesmo mecanismo do spawn).
         return true;
     }
 

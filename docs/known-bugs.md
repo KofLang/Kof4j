@@ -491,6 +491,171 @@ EXTERNA produz lixo
 
 ---
 
+### 28. FLAKE: `KofWebHardeningTest.ws_connection_counter_increments_and_decrements`
+
+- **Sintoma:** `expected: <1> but was: <0>` no contador de conexões ws.
+  **Intermitente** — passa 6/6 em execução isolada; falhou 1× na suíte
+  completa de 05/09 (927 testes). **05/09 (suíte 969, pós bug-32):** falhou
+  1× na suíte e 1× isolado (depois 3/3 verde) — assinatura idêntica
+  (`expected: <1> but was: <0>`); confirmada flake, não regressão (a mudança
+  do bug 32 é resolução de tipos JVM, ortogonal à contagem de conexões ws).
+- **Causa provável:** race no contador de conexões — o teste conta
+  conexões ativas num ponto onde a conexão pode ainda não ter sido
+  registrada (timing de socket/async). Não é regressão de feature.
+- **Reprodução:** rodar a suíte completa repetidamente
+  (`mvn test -o -pl kof-compiler,kof-script,kof-c-compiler,kof-cli -am`);
+  falha esporádica. `KofWebHardeningTest` isolado: verde.
+- **O que deveria acontecer:** tornar o contador determinístico (barreira
+  antes da asserção) — é **lane do agent-web**, não do NATIVE002-stdlib.
+- **Arquivos:** `KofWebHardeningTest.java` (asserção ~368), contador ws
+  do runtime web.
+- **Registrado:** 05/09 (suíte do port mq cross — falha fora da lane).
+
+---
+
+### 29. `var h = spawn { lambda }` (handle de lambda) quebra em todos os targets
+
+- **Sintoma:** o corpo da lambda **nunca roda** ou o processo **segfaulta**:
+  - x86_64 nativo: SIGSEGV (ec=139), nada imprime;
+  - riscv64/aarch64 (qemu): ec=0 **sem output** (silencioso — R6);
+  - `await h` nunca vê o resultado.
+- **Não quebra:** `spawn { ... }` fire-and-forget com captura (funciona,
+  `SpawnE2ETest.spawnLambdaCapturesOuterLocal`) e `var h = spawn fn()`
+  (chamada de função nomeada — funciona nos 3 targets, `two-awaits` ok).
+  Só a combinação **handle + lambda literal** está morta.
+- **Reprodução:**
+  ```kof
+  main() {
+      var n = 21
+      var h = spawn { println(n * 2) }
+      await h
+  }
+  ```
+  (x86_64: segfault; riscv64: vazio; esperado: `42`).
+- **Causa provável:** lowering de `SpawnStmt` com `LambdaExpr` **atribuído a
+  handle** — o task object passado a `kof_spawn_result`/`pthread_create` sai
+  errado (capturas/vtable da lambda void). O segfault x86_64 (que é o runtime
+  "de referência") indica o bug no lowering compartilhado, não no asm riscv.
+- **O que deveria acontecer:** `spawn { lambda }` com handle deve rodar a
+  lambda na thread e `await` entregar o resultado (mesmo caminho do
+  fire-and-forget, que já funciona).
+- **Arquivos:** lowering `SpawnStmt` (`CompilerDriver.java`), `emitRiscvSpawn`
+  / trampoline (`NativeBackend.java`), `NativeRuntime`/`RuntimeConcurrency`
+  (x86_64).
+- **Registrado:** 05/09 (sweep spawn do NATIVE002-stdlib residual —
+  pré-existente, não introduzido pelos fixes cross da linha).
+
+---
+
+### 30. Native x86_64: `json.decode<Bool>("false")` dava `true` (corrigido)
+
+- **Sintoma:** `decode<Bool>` invertido no x86_64: `"false"`→`true`,
+  `"  true"`→`false`. O JVM dava o correto (`false`/`true`); o riscv64
+  (port novo) também. Só o x86_64 — o "runtime de referência" — estava
+  errado, e nenhum teste cobria `false`/ws (só `"true"` sem espaço).
+- **Causa:** `kof_json_decode_bool` chamava `kof_json_starts_with` passando
+  o length em `%r8d`, mas a helper lê o length de `%rdx` (= pos, lixo); e a
+  helper comparava a partir do offset 0, ignorando o pos após o skip de
+  whitespace. Resultado: sempre "starts with true" → `false`→true, e com ws
+  o byte 0 é espaço → nunca casa → `"  true"`→false.
+- **Correção:** comparação inline de `"true"` a partir de `%rdx` (pos), sem
+  a helper (usada só aqui). Paridade JVM/riscv64/aarch64.
+- **Reprodução:** `println(json.decode<Bool>("false"))` → esperado `false`.
+- **O que deveria acontecer:** `decode<Bool>` segue o JVM (true/false literais,
+  ws tolerado).
+- **Arquivos:** `RuntimeJsonDecode.java` (`kof_json_decode_bool`).
+- **Descoberto:** 05/09 no sweep json do NATIVE002-stdlib residual (port dos
+  decoders escalares riscv64 expôs a divergência). Regressão:
+  `JsonE2ETest.jvmDecodeBoolFalseAndWhitespace`.
+
+---
+
+### 31. `process.<método-inexistente>()` compila como acesso a campo (segfault)
+
+- **Sintoma:** `process.currentDir()` (e qualquer método não-listado do
+  `KofProcess`) **compila** e no cross **segfaulta** (ec=139); no x86_64
+  retorna um valor lixo (`true`) — fallback silencioso.
+- **Causa:** `KofProcess` só expõe `spawn` + handle methods
+  (`alive/exitCode/kill/readLine/stdout/write`). Um método desconhecido não
+  cai em SEM011 ("método inexistente") — cai no caminho genérico de acesso a
+  campo do receiver (`pop t0; ld t0,16(t0)`), que deref um ponteiro nixo.
+- **Reprodução:** `main() { println(process.currentDir().length > 0) }`
+  (x86_64: `true`; riscv64/aarch64: SIGSEGV).
+- **O que deveria acontecer:** diagnóstico SEM011 em compile-time (método
+  não existe no namespace `process`), nunca compilar + segfault.
+- **Arquivos:** lowering de receiver `process.*` (`CompilerDriver.java`,
+  `KofProcess.staticCall`/`handleMethod`). É a área **F2.8
+  ExpressionLowerer** do REFACTOR-500 (EM CURSO de outro agente) — não tocar
+  sem combinar.
+- **Registrado:** 05/09 (sweep io/process do NATIVE002-stdlib residual).
+
+---
+
+### 32. Type-argument de import sem package → cast/descritor quebrado (CORRIGIDO 05/09)
+
+- **Sintoma:** `List<NodeUI>` com `import com.dev.NodeUI` gerava
+  `checkcast // class NodeUI` **sem pacote** → `NoClassDefFoundError: NodeUI`.
+  E o caminho qualificado `List<com.dev.NodeUI>` (que "devia" funcionar)
+  quebrava de outro jeito: `ClassFormatError: ... illegal character in
+  descriptor` (descritor `Lcom.dev.NodeUI;` com pontos).
+- **Causa raiz:** a qualificação de tipo resolvia só o nível **externo**.
+  `Type.of("List<NodeUI>")` recursa nos type-arguments mas cria
+  `ClassType("", "NodeUI")` (package vazio); `qualifyViaImports`/
+  `qualifiedType` dão bail em nome com `<` (só tratam o base). Assim o ARG
+  nunca recebia o pacote do import. O receiver do `.get()` (analyzer) e o
+  descritor do campo (driver) herdam esse arg sem pacote.
+- **Correção:** qualificação **recursiva profunda**
+  (`CompilerTypes.qualifyDeep` + `simpleNamePackage`): separa nome pontuado no
+  campo `name`, resolve nome simples via imports (ambíguo→null, sem chute) e
+  classes declaradas no módulo (SymbolTable — mesmo pacote/outro arquivo),
+  recursando em type-arguments/arrays/nullable/function. Aplicada nos dois
+  pontos de saída: `resolveType` (analyzer → receiver/checkcast) e
+  `resolveWithTypeParams` 4-arg (driver → descritor de campo/param/retorno).
+  Não altera builtin (kof.List), enum (vira String), nem nome já com pacote.
+  Sem concatenação de pacote no codegen (o codegen recebe tipo já resolvido).
+- **Prova:** `PackagesE2ETest` 12/12 — `genericArgViaImportResolvesPackage`
+  (List import), `genericArgFullyQualifiedStillWorks` (List<com.dev.NodeUI>),
+  `nestedGenericArgViaImport` (List<List<NodeUI>>), `genericArgSamePackageNoImport`,
+  `genericArgCastHasPackageInBytecode` (checkcast com `com/dev/NodeUI`).
+  Suíte completa 969/0.
+- **Limitação (bug 33, separado):** `Map<_,Classe>`/`Set<Classe>` ainda
+  quebram no emit (pré-existente, falha no baseline sem esta correção).
+
+---
+
+### 33. `Map<_, Classe>` / `Set<Classe>` (type-arg de classe) quebra no emit (pré-existente)
+
+- **Sintoma:** `Map<String, NodeUI>` → `VerifyError: Bad return type` no
+  `.get()` (falta checkcast do value); `Set<NodeUI>` →
+  `ClassFormatError: Illegal class name ""` (descritor de método `L;` vazio
+  no emit de `first()`). Quebra **mesmo sem import, no mesmo pacote** — ou
+  seja, é bug de **emissão**, não de resolução de import (bug 32).
+- **Causa provável:** o emit de Map/Set no JVM não emite checkcast para o
+  value/elemento nem o tipo do parâmetro/retorno quando o type-arg é uma
+  classe — o `KofCall` nasce com `valueType`/`elemType` `Unknown` (mapOf/
+  setOf constroem runtime) e o emit não re-qualifica. Diferente de List, que
+  tem caminho dedicado (`listElementType` + checkcast).
+- **Reprodução:**
+  ```kof
+  class Thing { String n; public constructor(String n){this.n=n}; String show(){return n} }
+  class Holder {
+      Map<String, Thing> m; Set<Thing> s
+      public constructor(){ this.m=mapOf("a",Thing("x")); this.s=setOf(Thing("y")) }
+      String all(){ return m.get("a").show() + s.first().show() }
+  }
+  ```
+- **Confirmação de baseline:** reproduz com e sem a correção do bug 32
+  (git stash) — falha idêntica; não é regressão.
+- **O que deveria acontecer:** `map.get(k)`/`set.first()`/iteração devolvem o
+  type-arg de classe com checkcast (igual a `List<T>.get`), e o tipo de
+  parâmetro/retorno do emit usa o type-arg (não `Object`/vazio).
+- **Arquivos:** `JvmBackend.java` (emissão `kof_map_get`/`kof_set_*`),
+  `CompilerDriver.java` (retType/argType do map/set no lowering).
+- **Registrado:** 05/09 (investigação do bug 32 — surge ao estender a
+  reprodução para Map/Set; separado do fix de import).
+
+---
+
 ## Comportamentos que PAREcem bugs mas são esperados (não corrigir)
 
 | Cenário | Comportamento | Por quê |
