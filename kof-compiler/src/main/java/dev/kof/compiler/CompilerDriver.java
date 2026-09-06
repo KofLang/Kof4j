@@ -8,6 +8,36 @@ import java.util.List;
 import java.util.Map;
 
 public class CompilerDriver {
+    public CompilationResult compile(Path sourceFile, Path outputDir) {
+        return CompilerPipeline.compile(this, sourceFile, outputDir);
+    }
+
+    public java.util.List<TestInfo> discoveredTests() {
+        return CompilerPipeline.discoveredTests(this);
+    }
+
+    public CompilationResult compileForTests(Path sourceFile, Path outputDir, Target target) {
+        return CompilerPipeline.compileForTests(this, sourceFile, outputDir, target);
+    }
+
+    public CompilationResult compileForTestsSources(java.util.List<Path> sources, Path outputDir,
+                                                    Target target, Path moduleRoot) {
+        return CompilerPipeline.compileForTestsSources(this, sources, outputDir, target, moduleRoot);
+    }
+
+    public CompilationResult compile(Path sourceFile, Path outputDir, Target target) {
+        return CompilerPipeline.compile(this, sourceFile, outputDir, target);
+    }
+
+    public CompilationResult compileSources(java.util.List<Path> sources, Path outputDir, Target target) {
+        return CompilerPipeline.compileSources(this, sources, outputDir, target);
+    }
+
+    public CompilationResult compileSources(java.util.List<Path> sources, Path outputDir, Target target,
+                                            Path moduleRoot) {
+        return CompilerPipeline.compileSources(this, sources, outputDir, target, moduleRoot);
+    }
+
 
     IRModule currentModule;
     CompilationUnitNode currentUnit;
@@ -18,7 +48,7 @@ Target target = Target.JVM;
     private java.util.function.BiConsumer<IRModule, IRModule> irObserver;
     private IRObserver irStatsObserver;
     DiagnosticCollector currentDiagnostics;
-    private String currentSourceName;
+    String currentSourceName;
     final java.util.IdentityHashMap<KofOperation, SourcePosition> currentDebugPositions =
             new java.util.IdentityHashMap<>();
     final java.util.Deque<LabelId> breakLabels = new java.util.ArrayDeque<>();
@@ -26,18 +56,12 @@ Target target = Target.JVM;
     boolean loweringMain;
     boolean mainArgsListField;
 
-    public CompilationResult compile(Path sourceFile, Path outputDir) {
-        return compile(sourceFile, outputDir, Target.JVM);
-    }
 
     /** Um caso `test "nome" { }` descoberto em compile-time. */
     public record TestInfo(String name, String functionName) {
     }
 
     /** Testes descobertos na última compilação (ordem de declaração). */
-    public java.util.List<TestInfo> discoveredTests() {
-        return List.copyOf(discoveredTests);
-    }
 
     /**
      * Compila em modo harness de testes: cada `test "nome" { }` vira uma
@@ -46,25 +70,8 @@ Target target = Target.JVM;
      * imprime PASS/FAIL por nome e sai com código != 0 quando há falha.
      * O main original é ignorado (como cargo test).
      */
-    public CompilationResult compileForTests(Path sourceFile, Path outputDir, Target target) {
-        this.testHarnessMode = true;
-        try {
-            return compile(sourceFile, outputDir, target);
-        } finally {
-            this.testHarnessMode = false;
-        }
-    }
 
     /** Variante multi-arquivo do harness de testes (um diretório = um módulo). */
-    public CompilationResult compileForTestsSources(java.util.List<Path> sources,
-                                                    Path outputDir, Target target, Path moduleRoot) {
-        this.testHarnessMode = true;
-        try {
-            return compileSources(sources, outputDir, target, moduleRoot);
-        } finally {
-            this.testHarnessMode = false;
-        }
-    }
 
     /** Enable or disable IR optimization passes (enabled by default). */
     public CompilerDriver setOptimizationEnabled(boolean enabled) {
@@ -100,7 +107,7 @@ Target target = Target.JVM;
      * descritor exato declarado na classe externa.
      */
     final ExternalClasspath externalClasspath = new ExternalClasspath();
-    private final List<String> pendingClasspathWarnings = new ArrayList<>();
+    final List<String> pendingClasspathWarnings = new ArrayList<>();
 
     public CompilerDriver setExternalClasspath(java.util.List<Path> entries) {
         try {
@@ -118,18 +125,7 @@ Target target = Target.JVM;
     }
 
     /** Emite warnings acumulados do classpath externo quando houver coletor. */
-    private void flushClasspathWarnings() {
-        if (currentDiagnostics != null && !pendingClasspathWarnings.isEmpty()) {
-            for (String w : pendingClasspathWarnings) {
-                currentDiagnostics.warning("", 0, 0, 0, w, "CP002");
-            }
-            pendingClasspathWarnings.clear();
-        }
-    }
 
-    public CompilationResult compile(Path sourceFile, Path outputDir, Target target) {
-        return compileSources(java.util.List.of(sourceFile), outputDir, target);
-    }
 
     /**
      * Compilação MULTI-ARQUIVO: todos os .kf do diretório formam UM módulo
@@ -137,9 +133,6 @@ Target target = Target.JVM;
      * são visíveis aos demais sem import — o import fica para classes
      * EXTERNAS (JVM/Android via ExternalClasspath).
      */
-    public CompilationResult compileSources(java.util.List<Path> sources, Path outputDir, Target target) {
-        return compileSources(sources, outputDir, target, ModuleRoots.moduleRootFor(sources));
-    }
 
     /**
      * Deriva o moduleRoot do menor ancestral comum dos diretórios-pai de todas
@@ -149,115 +142,6 @@ Target target = Target.JVM;
      */
 
 
-    public CompilationResult compileSources(java.util.List<Path> sources, Path outputDir, Target target,
-                                            Path moduleRoot) {
-        this.moduleRoot = moduleRoot;
-        DiagnosticCollector diagnostics = new DiagnosticCollector();
-        this.target = target;
-        this.currentDiagnostics = diagnostics;
-        flushClasspathWarnings();
-        this.currentSourceName = sources.get(0).getFileName() != null
-                ? sources.get(0).getFileName().toString() : null;
-        this.entitySchemas.clear();
-        try {
-            java.util.List<CompilationUnitNode> parsedUnits = new ArrayList<>();
-            Path rootAbs = moduleRoot != null ? moduleRoot.toAbsolutePath().normalize() : null;
-            for (Path src : sources) {
-                String code = Files.readString(src);
-                String fileName = src.getFileName().toString();
-                Lexer lexer = new Lexer(code, fileName, diagnostics);
-                List<Token> tokens = lexer.tokenize();
-                if (diagnostics.hasErrors()) {
-                    return new CompilationResult(false, diagnostics, outputDir);
-                }
-                Parser parser = new Parser(tokens, diagnostics, fileName);
-                CompilationUnitNode unit = parser.parse();
-                if (diagnostics.hasErrors()) {
-                    return new CompilationResult(false, diagnostics, outputDir);
-                }
-                parsedUnits.add(unit);
-            }
-            // pacote por unidade: declarado, senão derivado do diretório
-            java.util.List<String> unitPkgs = new ArrayList<>();
-            for (int i = 0; i < parsedUnits.size(); i++) {
-                String declared = parsedUnits.get(i).packageName();
-                String derivedPkg = ModuleRoots.derivedPackageOf(sources.get(i), rootAbs);
-                if (!declared.isEmpty() && !declared.equals(derivedPkg)) {
-                    diagnostics.error(sources.get(i).toString(), 0, 0, 0,
-                            "package '" + declared
-                                    + "' não corresponde ao diretório ('" + derivedPkg
-                                    + "') — um diretório é um pacote",
-                            "PKG004");
-                    return new CompilationResult(false, diagnostics, outputDir);
-                }
-                unitPkgs.add(derivedPkg);
-            }
-            // MERGE: imports unidos, declarações de TODAS as unidades
-            List<String> mergedImports = new ArrayList<>();
-            List<AstNode> mergedDecls = new ArrayList<>();
-            int mainCount = 0;
-            for (int i = 0; i < parsedUnits.size(); i++) {
-                CompilationUnitNode u = parsedUnits.get(i);
-                for (String imp : u.imports()) {
-                    if (!mergedImports.contains(imp)) mergedImports.add(imp);
-                }
-                String pkgU = unitPkgs.get(i);
-                for (AstNode d : u.declarations()) {
-                    declarationPackages.put(d, pkgU);
-                    if (d instanceof FunctionDeclarationNode fd && "main".equals(fd.name())) mainCount++;
-                    mergedDecls.add(d);
-                }
-            }
-            if (mainCount > 1) {
-                diagnostics.error("", 0, 0, 0,
-                        "module has " + mainCount + " main() functions; expected exactly one",
-                        "PKG002");
-                return new CompilationResult(false, diagnostics, outputDir);
-            }
-            CompilationUnitNode unit = new CompilationUnitNode(
-                    parsedUnits.get(0).position(), "",
-                    mergedImports, mergedDecls);
-            unit = CompilerImports.expandKofImports(unit, moduleRoot, currentDiagnostics, declarationPackages);
-            if (diagnostics.hasErrors()) {
-                return new CompilationResult(false, diagnostics, outputDir);
-            }
-            lowerAndEmit(unit, diagnostics, outputDir, target);
-            if (diagnostics.hasErrors()) {
-                return new CompilationResult(false, diagnostics, outputDir);
-            }
-            return new CompilationResult(true, diagnostics, outputDir);
-        } catch (IOException e) {
-            diagnostics.error(sources.get(0).toString(), 0, 0, 0,
-                    "Error reading source file: " + e.getMessage(), "COMP001");
-            return new CompilationResult(false, diagnostics, outputDir);
-        } catch (IllegalStateException e) {
-            if (e.getMessage() != null && e.getMessage().startsWith("CONC003-JS-01")) {
-                // Erro de usuário esperado (lambda comum precisaria virar
-                // async), não um bug do compilador — sem stack trace, sem o
-                // wrapper genérico de COMP002.
-                diagnostics.error(sources.get(0).toString(), 0, 0, 0,
-                        e.getMessage(), "CONC003-JS-01");
-                return new CompilationResult(false, diagnostics, outputDir);
-            }
-            if (e.getMessage() != null && e.getMessage().startsWith("FLT001")) {
-                // FLT001: print/println de float/double no runtime riscv64/
-                // aarch64 (asm puro, sem libc) — diagnóstico honesto, nunca
-                // segfault silencioso (R6).
-                diagnostics.error(sources.get(0).toString(), 0, 0, 0,
-                        e.getMessage(), "FLT001");
-                return new CompilationResult(false, diagnostics, outputDir);
-            }
-            e.printStackTrace();
-            diagnostics.error(sources.get(0).toString(), 0, 0, 0,
-                    "Internal compiler error: " + e.getMessage(), "COMP002");
-            return new CompilationResult(false, diagnostics, outputDir);
-        } catch (Exception e) {
-            e.printStackTrace();
-            diagnostics.error(sources.get(0).toString(), 0, 0, 0,
-                    "Internal compiler error: " + e.getMessage(), "COMP002");
-            return new CompilationResult(false, diagnostics, outputDir);
-        }
-    }
 
     /**
      * Imports de PACOTES KOF (código Kof em outras pastas):
@@ -270,14 +154,14 @@ Target target = Target.JVM;
      */
 
 
-    private void lowerAndEmit(CompilationUnitNode unit, DiagnosticCollector diagnostics,
+    void lowerAndEmit(CompilationUnitNode unit, DiagnosticCollector diagnostics,
                               Path outputDir, Target target) throws IOException {
         if (System.getProperty("kof.trace") != null) {
             System.err.println("LOWER-AND-EMIT decls=" + unit.declarations().size() + " out=" + outputDir);
         }
         this.target = target;
         this.currentDiagnostics = diagnostics;
-        flushClasspathWarnings();
+        CompilerPipeline.flushClasspathWarnings(this);
         this.entitySchemas.clear();
         BuiltinTypes.resetEnums();
         for (AstNode d : unit.declarations()) {
@@ -287,7 +171,7 @@ Target target = Target.JVM;
             unit = CompilerDesugar.desugarApplication(unit);
             discoveredConfigKeys.clear();
             if (target == Target.ANDROID) {
-                unit = appendAndroidHostIfNeeded(unit);
+                unit = CompilerPipeline.appendAndroidHostIfNeeded(this, unit);
             }
             semanticAnalyzer = new SemanticAnalyzer();
             semanticAnalyzer.setExternalTypes(externalClasspath);
@@ -299,7 +183,7 @@ Target target = Target.JVM;
             LabelId.reset();
             currentModule = new IRModule("", List.of(), List.of());
             currentUnit = unit;
-            IRModule irModule = applySuperBridges(lowerToIR(unit, diagnostics));
+            IRModule irModule = applySuperBridges(CompilerPipeline.lowerToIR(this, unit, diagnostics));
             if (diagnostics.hasErrors()) {
                 return;
             }
@@ -316,7 +200,7 @@ Target target = Target.JVM;
                 irStatsObserver.observed(IRStatistics.of(unoptimized, irModule));
             }
             Files.createDirectories(outputDir);
-            Backend backend = selectBackend(target);
+            Backend backend = CompilerPipeline.selectBackend(this, target);
             backend.emit(irModule, outputDir, debugInfoEnabled);
             if (target == Target.ANDROID) {
                 new AndroidProjectWriter().write(outputDir, irModule);
@@ -328,62 +212,8 @@ Target target = Target.JVM;
      * (em Kof), injeta o host WebView embutido — escrito EM KOF, compilado
      * pelo mesmo frontend. Nenhum arquivo Java é gerado.
      */
-    private CompilationUnitNode appendAndroidHostIfNeeded(CompilationUnitNode unit) {
-        boolean userHasHost = unit.declarations().stream()
-                .anyMatch(d -> d instanceof TypeDeclarationNode t && "MainActivity".equals(t.name()));
-        if (userHasHost) return unit;
-        // sem android.jar no ExternalClasspath o host não resolve — avisar
-        // (AND004) e seguir com o programa puro em vez de SEM015 confuso
-        if (externalClasspath == null || !externalClasspath.knows("android/app/Activity")) {
-            if (currentDiagnostics != null) {
-                currentDiagnostics.warning("", 0, 0, 0,
-                        "target android sem android.jar no ExternalClasspath: "
-                                + "a host Activity não foi incluída no jar",
-                        "AND004");
-            }
-            return unit;
-        }
-        try (var in = CompilerDriver.class.getResourceAsStream("/dev/kof/android-host.kf")) {
-            String hostSource = in != null
-                    ? new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)
-                    : Files.readString(Path.of("src/main/resources/dev/kof/android-host.kf"));
-            DiagnosticCollector silent = new DiagnosticCollector();
-            Lexer lexer = new Lexer(hostSource, "android-host.kf", silent);
-            Parser parser = new Parser(lexer.tokenize(), silent, "android-host.kf");
-            CompilationUnitNode hostUnit = parser.parse();
-            List<String> imports = new ArrayList<>(unit.imports());
-            for (String imp : hostUnit.imports()) {
-                if (!imports.contains(imp)) imports.add(imp);
-            }
-            List<AstNode> decls = new ArrayList<>(unit.declarations());
-            decls.addAll(hostUnit.declarations());
-            return new CompilationUnitNode(unit.position(), unit.packageName(), imports, decls);
-        } catch (IOException e) {
-            if (currentDiagnostics != null) {
-                currentDiagnostics.error("", 0, 0, 0,
-                        "android host could not be loaded: " + e.getMessage(), "AND004");
-            }
-            return unit;
-        }
-    }
 
-    private Backend selectBackend(Target target) {
-        return switch (target) {
-            case JVM -> backendWithClasspath(new JvmBackend());
-            case NATIVE -> new NativeBackend(Target.NATIVE);
-            case NATIVE_RISCV64 -> new NativeBackend(Target.NATIVE_RISCV64);
-            case NATIVE_AARCH64 -> new NativeBackend(Target.NATIVE_AARCH64);
-            case JS -> new JsBackend();
-            // Android: ART executa bytecode dex'd — a emissão é a mesma do
-            // backend JVM; o alvo vive nas validações AND* e no empacotamento
-            case ANDROID -> backendWithClasspath(new JvmBackend());
-        };
-    }
 
-    private Backend backendWithClasspath(JvmBackend backend) {
-        backend.setExternalTypes(externalClasspath);
-        return backend;
-    }
 
 
     /** Espelho driver-side do qualifyViaImports do SemanticAnalyzer. */
@@ -393,40 +223,6 @@ Target target = Target.JVM;
 
 
 
-    private IRModule lowerToIR(CompilationUnitNode unit, DiagnosticCollector diagnostics) {
-        List<String> imports = new ArrayList<>(unit.imports());
-        List<IRClass> classes = new ArrayList<>();
-        List<IRMethod> topLevelFunctions = new ArrayList<>();
-        String moduleName = unit.packageName().isEmpty() ? "Default" : unit.packageName().replace('.', '/');
-        int nextTypeId = 10;
-        for (AstNode decl : unit.declarations()) {
-            String declPkg = declPackage(decl, unit.packageName());
-            if (decl instanceof ClassDeclarationNode cls) classes.add(CompilerClassLowering.lowerClass(this, cls, declPkg, nextTypeId++));
-            else if (decl instanceof InterfaceDeclarationNode iface) classes.add(CompilerClassLowering.lowerInterface(this, iface, declPkg, nextTypeId++));
-            else if (decl instanceof RecordDeclarationNode rec) classes.add(CompilerClassLowering.lowerRecord(this, rec, declPkg, nextTypeId++));
-            else if (decl instanceof EntityDeclarationNode ent) {
-                entitySchemas.put(ent.name(), ent.fields());
-                List<RecordComponentNode> components = new java.util.ArrayList<>();
-                for (EntityFieldNode f : ent.fields()) {
-                    components.add(new RecordComponentNode(f.position(), List.of(), f.type(), f.name(), null));
-                }
-                classes.add(CompilerClassLowering.lowerRecord(this, new RecordDeclarationNode(ent.position(), ent.name(),
-                        ent.modifiers(), null, List.of(), components, List.of()),
-                        declPkg, nextTypeId++));
-            }
-            else if (decl instanceof FunctionDeclarationNode func) {
-                topLevelFunctions.add(CompilerFunctionLowering.lowerFunction(this, func));
-                topLevelFunctions.addAll(CompilerFunctionLowering.lowerFunctionDefaults(this, func));
-            }
-        }
-        if (!topLevelFunctions.isEmpty()) {
-            String mainClassName = moduleName.isEmpty() ? "Main" : moduleName + "/Main";
-            classes.add(0, new IRClass(mainClassName, "java/lang/Object", List.of(),
-                    AccessFlags.PUBLIC | AccessFlags.SUPER, List.of(), topLevelFunctions, List.of(), null, 0));
-        }
-        classes.addAll(syntheticClasses);
-        return new IRModule(moduleName, classes, imports, currentSourceName);
-    }
 
     final List<IRClass> syntheticClasses = new ArrayList<>();
 
@@ -581,7 +377,7 @@ Target target = Target.JVM;
         return CompilerLambdaClass.lambdaInterfaceType(this, ft);
     }
 
-    private final java.util.List<TestInfo> discoveredTests = new java.util.ArrayList<>();
+    final java.util.List<TestInfo> discoveredTests = new java.util.ArrayList<>();
     boolean testHarnessMode = false;
     int lambdaCounter = 0;
 
