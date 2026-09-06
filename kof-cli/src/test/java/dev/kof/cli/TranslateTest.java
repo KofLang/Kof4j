@@ -148,6 +148,21 @@ class TranslateTest {
         assertTrue(kof.contains("(x: Int) -> x + 1"), "lambda tipada deve traduzir:\n" + kof);
     }
 
+    @Test
+    void boxedTypesMapToPrimitives(@TempDir Path dir) throws Exception {
+        String kof = Translate.translateJava("""
+                import java.util.List;
+                public class G {
+                    List<Integer> integers;
+                    public Integer get(List<Boolean> flags) { return integers.get(0); }
+                }
+                """);
+
+        assertTrue(kof.contains("List<Int> integers"), "Integer vira Int:\n" + kof);
+        assertTrue(kof.contains("Int get"), "Integer retorno vira Int:\n" + kof);
+        assertTrue(kof.contains("List<Bool>"), "Boolean vira Bool:\n" + kof);
+    }
+
     private void assertCompiles(Path dir, String kof, String expected) throws Exception {
         Path src = dir.resolve("T.kf");
         Files.writeString(src, kof);

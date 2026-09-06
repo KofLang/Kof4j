@@ -812,14 +812,14 @@ public final class Translate {
 
         private static String kofType(String javaType) {
             return switch (javaType) {
-                case "int" -> "Int";
-                case "long" -> "Long";
-                case "float" -> "Float";
-                case "double" -> "Double";
-                case "boolean" -> "Bool";
-                case "char" -> "Char";
-                case "byte" -> "Byte";
-                case "short" -> "Short";
+                case "int", "Integer" -> "Int";
+                case "long", "Long" -> "Long";
+                case "float", "Float" -> "Float";
+                case "double", "Double" -> "Double";
+                case "boolean", "Boolean" -> "Bool";
+                case "char", "Character" -> "Char";
+                case "byte", "Byte" -> "Byte";
+                case "short", "Short" -> "Short";
                 case "void" -> "void";
                 default -> javaType;
             };
