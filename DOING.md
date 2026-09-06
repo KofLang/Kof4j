@@ -52,10 +52,11 @@ aplicado nos 2 pontos de saída: `resolveType` (analyzer→checkcast) e
 spec extraída do código + probes de execução, zero mudança de comportamento
 (suíte16 969/0/3-skip). **Candidatos a teste de conformidade** (regra 13 —
 regras da spec SEM teste dedicado, descobertas por probe): SG-008 `Int?==null`
-(NPE runtime), SG-010 `val` reatribuível, SG-009 subtipagem não checada,
-SG-001 `fun`/`fn` aceitos. NÃO corrigir (decisão de design, regra 6) — só
-testar o comportamento atual se virarem regra. Ver
-`docs/specification-gaps.md`.
+(NPE runtime), SG-010 `val` reatribuível, SG-009 subtipagem não checada.
+**SG-001 RESOLVIDO** (06/09, decisão humana "fun e fn não deviam existir"):
+parser agora rejeita `fn`/`fun`/`func` como prefixo com `PARSE085`; KofScript
+traduz `fn` na fronteira `.ks`→`.kf` (`toKofSyntax`); FunctionSyntaxTest +5;
+suíte18 953+8+5+8, 0 falhas (`a0c71b6`). Ver `docs/specification-gaps.md`.
 
 **PRÓXIMA TAREA (maior valor)**: **bug 33** — `Map<_,Classe>`/`Set<Classe>`
 (type-arg de classe) quebra no EMIT (pré-existente, bug 33 em known-bugs.md):
