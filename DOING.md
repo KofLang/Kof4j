@@ -51,7 +51,7 @@ Estados: `ABERTO` · `EM CURSO` · `FEITO` · `BLOQUEADO`.
 
 | Gap/Item | Prioridade | Escopo | Notas |
 |---|---|---|---|
-| **HTTP003** — kof.http Native cauda | média | `https` + DNS real + `timeout/retry/circuit` (knobs reais) no Native | HTTP/1.1 get/post/status ✅ 03/09 (`NativeHttpRuntime.java`); delete/put/patch/options compilados; cauda = TLS/DNS/retry |
+| **HTTP003** — kof.http Native cauda | baixa | `https` + DNS real + `timeout/retry/circuit` (knobs reais) no Native | 05/09: **timeout ✅** (`8b66f7a`, SO_RCVTIMEO + throw em EAGAIN). Restante: `retry`/`circuit` (loop + timestamps via `kof_time_now`), `https`/DNS (bloqueado: sem libtls/libc no asm puro) |
 | **WEB002 residual** — kof.web Native avançado | média | TLS `listenSecure`, ws/sse, path params, keepalive no `NativeWebRuntime` | server base ✅ 03/09 (accept/route/lambda/body — `KofWebNativeE2ETest` 4/4); resto é cauda |
 | **WEB001 residual** — kof.web JS avançado | média | ws/sse + TLS no JS | GraalJS HttpServer real ✅ 03/09 (`bc577aa`); ws/sse pendentes |
 | **MEDIA001/2/3** | baixa | paridade media Native/JS | gap documentado |
