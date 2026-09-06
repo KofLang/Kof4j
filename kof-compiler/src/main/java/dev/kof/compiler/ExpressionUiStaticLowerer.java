@@ -81,6 +81,15 @@ if (mc.receiver() == null && "Store".equals(mc.methodName())
             Type.PrimitiveType.INT, KofCallKind.FUNCTION));
     return localIdx;
 }
+if (mc.receiver() == null && "Canvas".equals(mc.methodName()) && mc.arguments().size() == 2) {
+    for (ExpressionNode arg : mc.arguments()) {
+        localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
+    }
+    ops.add(new KofCall(new Type.ClassType("kof.ui", "Ui", List.of()),
+            "kof_ui_canvas_new", List.of(Type.PrimitiveType.INT, Type.PrimitiveType.INT),
+            Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+    return localIdx;
+}
         return -1;
     }
 }
