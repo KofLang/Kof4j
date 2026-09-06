@@ -82,8 +82,8 @@ final class CompilerClassLowering {
                     AccessFlags.PRIVATE | AccessFlags.FINAL,
                     null, CompilerAnnotations.lowerAnnotations(driver, comp.annotations())));
         }
-        methods.add(0, driver.generateRecordConstructor(rec, internalName));
-        methods.addAll(driver.generateRecordDefaultOverloads(rec, internalName));
+        methods.add(0, CompilerRecordSupport.generateRecordConstructor(driver, rec, internalName));
+        methods.addAll(CompilerRecordSupport.generateRecordDefaultOverloads(driver, rec, internalName));
         Type ownerType = CompilerTypes.ownerTypeFromInternal(internalName, driver.semanticAnalyzer);
         for (RecordComponentNode comp : rec.components()) {
             Type compType = CompilerTypes.resolveWithTypeParams(comp.type(), typeParams, driver.currentUnit, driver.semanticAnalyzer);
@@ -108,8 +108,8 @@ final class CompilerClassLowering {
         // (native `==` dava undefined reference) e toString imprimia o handle.
         if (driver.target == Target.NATIVE || driver.target == Target.NATIVE_RISCV64
                 || driver.target == Target.NATIVE_AARCH64) {
-            methods.add(driver.buildRecordToStringMethod(internalName, rec, fields, typeParams));
-            methods.add(driver.buildRecordEqualsMethod(internalName, fields, typeParams));
+            methods.add(CompilerRecordSupport.buildRecordToStringMethod(driver, internalName, rec, fields, typeParams));
+            methods.add(CompilerRecordSupport.buildRecordEqualsMethod(driver, internalName, fields, typeParams));
         }
         return new IRClass(internalName, superName, ifaces, access, fields, methods, List.of(), null,
                 typeId, CompilerAnnotations.lowerAnnotations(driver, rec.annotations()));
