@@ -320,6 +320,27 @@ final class RuntimeUi {
                 xorl %eax, %eax
                 ret
             .Lkrtr_empty: .asciz ""
+            // ── Canvas 2D (no-ops — UI é KofJS) ──
+            kof_ui_canvas_new:
+                movl $1, %eax
+                ret
+            kof_ui_canvas_begin_path:
+            kof_ui_canvas_close_path:
+            kof_ui_canvas_fill:
+            kof_ui_canvas_stroke:
+            kof_ui_canvas_remove:
+                ret
+            kof_ui_canvas_move_to:
+            kof_ui_canvas_line_to:
+            kof_ui_canvas_set_line_width:
+                ret
+            kof_ui_canvas_arc:
+                ret
+            kof_ui_canvas_set_fill:
+            kof_ui_canvas_set_stroke:
+                ret
+            kof_ui_canvas_clear_rect:
+                ret
             """);
     }
 

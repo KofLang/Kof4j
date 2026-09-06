@@ -572,9 +572,9 @@ Se você está prestes a escrever algo desta lista, **pare**:
 
 | ❌ Não existe | ✅ Use |
 |---|---|
-| `fun` / `func` | `String nome(...) { }` |
+| `fun` / `func` / `fn` | `String nome(...) { }` (palavras reservadas — não existem) |
 | `val x = ...` / `var x = ...` no **top-level** | dentro de função; ou campo de `class` |
-| `let x = ...` (Kof; só existe em KofScript `.ks`) | `var`/`val` em função |
+| `let x = ...` / `const x = ...` / `async fn` | `var`/`val` em função; `spawn`/`await` (KofScript **não** é JavaScript — roda Kof puro) |
 | `x in [...]` (operador de expressão) | `setOf(...).contains(x)` |
 | `{"a", "b"}` (literal de conjunto) | `setOf("a", "b")` |
 | `[1, 2, 3]` (literal de array) | `listOf(1, 2, 3)` ou `new Int[n]` |

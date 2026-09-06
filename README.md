@@ -84,8 +84,11 @@ Kof possui seu próprio compilador, lexer, parser, sistema de tipos, análise se
 ```
 
 **A linguagem não muda. O target muda.** JVM, Native e JS são *targets de
-compilação* da mesma Kof — não dialetos semanticamente diferentes. (KofScript
-e KofC são **linguagens/ferramentas separadas**, não targets da IR Kof — ver
+compilação* da mesma Kof — não dialetos semanticamente diferentes. **KofScript**
+(`.ks`, REPL) é um *target de execução direta*: Kof puro consumindo o MESMO
+frontend e executado pelo interpretador da IR, sem compilar e sem fork de JVM —
+**não é JavaScript** (`let`/`const`/`async`/`fn` não existem). KofC é uma
+ferramenta separada (subconjunto C → ELF), não consome a IR Kof — ver
 [docs/compiler-architecture.md](docs/compiler-architecture.md) §7.)
 
 ---
@@ -128,8 +131,10 @@ O compilador possui frontend próprio, type system, Kof IR e **três backends
 sobre a IR**, que produzem **seis targets**: JVM (V21 via ASM), Native x86_64
 (ELF, sem libc), `native.risc`/`native.arm` (riscv64 real + aarch64 via
 tradutor ISA), KofJS (ES Modules) e Android (variante do JVM + empacotamento
-APK). **KofScript** (`.ks`, REPL) e **KofC** (subconjunto C → nativo) são
-**linguagens/ferramentas separadas**, não targets da IR Kof — ver
+APK). **KofScript** (`.ks`, REPL) é um **target de execução direta**: Kof puro
+no MESMO frontend, executado pelo interpretador da IR (`KofInterpreter`) sem
+emitir bytecode nem fork de JVM. **KofC** (subconjunto C → nativo) é uma
+ferramenta separada, não consome a IR Kof — ver
 [docs/compiler-architecture.md](docs/compiler-architecture.md) §7.
 
 | Feature | JVM | Native | KofJS |
@@ -463,7 +468,7 @@ Detalhes: [docs/philosophy.md](docs/philosophy.md) · idiomas:
 * Julia para JVM.
 * Um transpiler.
 * Um gerador de Java.
-* Um interpretador fantasiado de compilador.
+* Um interpretador fantasiado de compilador (o compilador é real: bytecode/ELF/ESM; o `KofInterpreter` é um target adicional de execução direta, não um disfarce).
 
 Kof é uma linguagem. Um compilador. Uma IR. Vários backends.
 

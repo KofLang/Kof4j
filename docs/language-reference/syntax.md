@@ -194,8 +194,8 @@ main() { println("rodando") }
 ## Anti-formas (NÃO compila — ver gaps)
 
 `kof
-fun f() {}          // ⚠ compila (SG-001) mas é NÃO-IDIOMÁTICO — use f() {}
-let x = 1           // ❌ só em .ks (KofScript)
+fun f() {}          // ❌ `fun`/`fn`/`func` são palavras reservadas (SG-001) — não existem; use `f() { }`
+let x = 1           // ❌ não existe — nem em .ks (KofScript é Kof puro)
 var x = [1,2]       // ❌ literal de array não existe — use listOf(1,2)
 var s = {"a","b"}   // ❌ literal de set não existe — use setOf("a","b")
 if (x in lista) {}  // ❌ sem operador in — use lista.contains(x)

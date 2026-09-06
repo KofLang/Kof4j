@@ -218,17 +218,22 @@ Perda de contexto (por que o código é assim)
 5. Fase 6 + Fase 7 (SemanticAnalyzer + Parser).
 6. Fase 2 passo 5 (emitExpression/emitStatement — o último, mais arriscado).
 7. Fase 9 (varredura final + script de gate).
-8. Status de execução
-Fase
-1
-2
-3
-4
-5
-6
-7
-8
-9
-</parameter>
-</invoke>
-▣  B
+
+## 8. Status de execução (reconstruído 06/09 — a tabela original foi perdida
+##    na escrita do documento; ver AGENTS.md "lição: partes pequenas")
+
+| Fase | Classe-alvo | Status | Prova |
+|---|---|---|---|
+| 1 | NativeRuntime 17726 | ✅ FEITA | 142 + ~60 classes Runtime* ≤500 (agente-idiomatic) |
+| 2 | CompilerDriver 8870 | 🟡 EM CURSO | 1545 (F2.33–F2.44 feitos; grupo de orquestração pendente — agente-idiomatic) |
+| 3 | NativeBackend 6813 | 🟡 EM CURSO | lane agente-idiomatic |
+| 4 | JsBackend 6064 | ✅ FEITA | 334 + 22 classes, JS byte-idêntico (`226994c`) |
+| 5 | JvmRuntime 2526 | ✅ FEITA | 132 + 7 classes, source byte-idêntico (`01af2d5`) |
+| 6 | SemanticAnalyzer 2293 | ✅ FEITA | 396 + 8 classes (`6e2ff77`) |
+| 7 | Parser 1975 | ✅ FEITA | 456 + 7 classes (`7433c8e`) |
+| 8 | 13 classes 500–1400 | ✅ FEITA | todas ≤500, geradores byte-idênticos (+ VkChain64Asm 3568→57+15, resíduo fora do inventário) |
+| 9 | Varredura final | ✅ FEITA 06/09 | `scripts/check_500.sh` (gate); wildcard imports expandidos (13 arquivos); CallAbi compartilhado NÃO extraído — backends consomem a mesma IR, ganho não compensa (anti-over-engineering do próprio plano) |
+
+Gate permanente: `scripts/check_500.sh` falha se qualquer classe de produção
+ultrapassar 500 linhas. Exceções documentadas: `static Opcodes.*` (convenção
+ASM). O plano está completo quando Fases 2 e 3 fecharem (lane agente-idiomatic).

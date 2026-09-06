@@ -25,10 +25,11 @@ Bool positivo(Int x) = x > 0                 // expression body
 - **Corpo**: bloco `{ … }`, ou `= expressão` (expression body — vira
   `return expressão`), ou `;` (abstrato).
 - **Não existe keyword de declaração** (SG-001 resolvido 06/09): `fn`/`fun`/
-  `func` como prefixo são **rejeitados** com `PARSE085`. Como *nome* de função
-  são identificadores válidos (`fn() { }` declara a função `fn`). KofScript
-  (`.ks`) mantém `fn` como sintaxe própria e traduz na fronteira
-  (`KofScript.toKofSyntax`).
+  `func` são **palavras reservadas** (tokens `FUN`/`FN`/`FUNC` no lexer) e
+  **não existem** no Kof — nem como prefixo de declaração (`PARSE085`), nem
+  como nome de função, variável, parâmetro ou campo. KofScript (`.ks`) mantém
+  KofScript (`.ks`) **não** tem `fn` próprio — é Kof puro; `fn` lá também dá
+  `PARSE085`.
 - **Não há** `fun` como keyword, nem `def`, nem `lambda` keyword.
 
 ---

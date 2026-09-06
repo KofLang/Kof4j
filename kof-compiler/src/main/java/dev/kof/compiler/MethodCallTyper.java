@@ -123,7 +123,10 @@ if (mc.receiver() == null && KofUi.isConstructor(mc.methodName())
         && (mc.arguments().size() == 1 || mc.arguments().size() == 2
                 || mc.arguments().size() == 3)) {
     Type ct = KofUi.constructorType(mc.methodName());
-    if (KofUi.isLayoutType(ct) || KofUi.isStore(ct)) {
+    // cobre layout/store E os widgets sem branch explícito acima
+    // (Canvas/Image/Icon/Link/Font/Component) — sem isso o local é
+    // inferido UNKNOWN e o emit produz owner "" (ClassFormatError).
+    if (KofUi.isUiType(ct)) {
         return ct;
     }
 }
@@ -471,6 +474,12 @@ if (resolvedMethod != null) {
 }
 if (mc.receiver() != null) {
     Type recvT = ExpressionTyper.inferExprType(driver, mc.receiver(), locals);
+    // receiver nullable inferido (ex.: `var v = m.get(k)` → V?):
+    // desempacota para a hierarquia — sem isso `instanceof ClassType`
+    // falhava e o retorno do método saía `Object` (bug 33: o Map/Set era
+    // só o caminho que produz o local nullable; W1 `var v = maybe()`
+    // reproduz sem coleção). Espelha o unwrap da linha do handle acima.
+    if (recvT instanceof Type.NullableType nt) recvT = nt.inner();
     if (recvT instanceof Type.ClassType ct && driver.semanticAnalyzer != null) {
         SymbolTable.Symbol m = driver.semanticAnalyzer.resolveInHierarchy(ct.name(), mc.methodName());
         if (m instanceof SymbolTable.MethodSymbol ms) {

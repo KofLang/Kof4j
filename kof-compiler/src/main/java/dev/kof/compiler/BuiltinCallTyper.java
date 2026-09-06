@@ -192,6 +192,10 @@ final class BuiltinCallTyper {
             SemExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
             return KofUi.IMAGE;
         }
+        if (mc.receiver() == null && "Canvas".equals(mc.methodName()) && mc.arguments().size() == 2) {
+            for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
+            return KofUi.CANVAS;
+        }
         if (mc.receiver() == null && "Icon".equals(mc.methodName())
                 && (mc.arguments().size() == 1 || mc.arguments().size() == 2)) {
             for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);

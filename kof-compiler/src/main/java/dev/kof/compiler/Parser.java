@@ -38,6 +38,10 @@ class Parser {
         List<AstNode> declarations = new ArrayList<>();
         while (!ctx.atEnd()) {
             List<AnnotationNode> annos = AnnotationParser.parseAnnotations(ctx);
+            if (ctx.check(TokenType.FUN, TokenType.FN, TokenType.FUNC)) {
+                rejectFunctionKeyword(ctx);
+                continue;
+            }
             if (ctx.check(TokenType.IDENTIFIER) && "test".equals(ctx.peek().value()) && ctx.checkNext(TokenType.STRING_LITERAL)) {
                 declarations.add(parseTestDeclaration(ctx));
             } else if (ctx.check(TokenType.IDENTIFIER) && "application".equals(ctx.peek().value())
@@ -110,20 +114,11 @@ class Parser {
 
     static FunctionDeclarationNode parseFunctionDeclaration(ParseContext ctx, List<String> mods, List<AnnotationNode> annos) {
         SourcePosition p = ctx.pos();
-        // Kof NÃO tem keyword de declaração de função (regra do corpus:
-        // training/anti-patterns/fake-idioms.md). `fn`/`fun`/`func` eram
-        // aceitos silenciosamente (fn consumido como prefixo; fun/func lidos
-        // como tipo de retorno implícito) — agora são rejeitados com
-        // diagnóstico claro (SG-001). KofScript (.ks) mantém `fn` como
-        // sintaxe própria e traduz para a forma idiomática antes de chegar
-        // aqui (KofScript.toKofSyntax).
-        if (ctx.check(TokenType.IDENTIFIER) && isFunctionKeyword(ctx.peek().value())
-                && ctx.checkNext(TokenType.IDENTIFIER)) {
-            ctx.error("Kof não usa '" + ctx.peek().value() + "'; declare como "
-                    + "'Tipo nome(...) { }' ou 'nome(...): Tipo { }'", "PARSE085");
-            ctx.advance();
 
-        }
+        // Kof NÃO tem keyword de declaração de função. `fun`/`fn`/`func` são
+        // RESERVADOS no lexer (tokens FUN/FN/FUNC, SG-001 06/09) — nunca chegam
+        // aqui como IDENTIFIER; o dispatch top-level os rejeita (PARSE085).
+
         String returnType = "void";
         String name;
         if ((ctx.check(TokenType.IDENTIFIER) || ctx.check(TokenType.VOID) || TypeParser.isPrimitiveType(ctx))
@@ -176,8 +171,17 @@ class Parser {
         return new FunctionDeclarationNode(p, mods, returnType, name, params, thrown, typeParams, body, annos);
     }
 
-    static boolean isFunctionKeyword(String v) {
-        return "fn".equals(v) || "fun".equals(v) || "func".equals(v);
+    /**
+     * `fun`/`fn`/`func` são palavras RESERVADAS (SG-001, 06/09) — o lexer as
+     * mapeia para tokens FUN/FN/FUNC, então NUNCA são identificador (nem nome
+     * de função, variável, parâmetro, campo). Em posição de declaração o
+     * parser dá PARSE085 com a forma correta; em outra posição, o
+     * `expectId`/`check(IDENTIFIER)` de cada parser já falha com diagnóstico.
+     */
+    static void rejectFunctionKeyword(ParseContext ctx) {
+        String w = ctx.advance().value();
+        ctx.error("'" + w + "' é palavra reservada (Kof não tem keyword de "
+                + "função); declare como 'Tipo nome(...) { }' ou 'nome(...): Tipo { }'", "PARSE085");
     }
 
     /**

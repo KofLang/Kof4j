@@ -22,6 +22,14 @@ class Lexer {
         KEYWORDS.put("implements", TokenType.IMPLEMENTS);
         KEYWORDS.put("sealed", TokenType.SEALED);
         KEYWORDS.put("permits", TokenType.PERMITS);
+        // Palavras RESERVADAS (SG-001, 06/09): nunca foram keyword de função
+        // do Kof (o corpus diz "não existe fun/fn/func") — viraram reserved
+        // words para que NÃO voltem nem como identificador (fun() como nome,
+        // var fun = 1, param). Mesmo mecanismo de sealed/permits (token
+        // dedicado, parser não aceita → erro, nunca silencioso).
+        KEYWORDS.put("fun", TokenType.FUN);
+        KEYWORDS.put("fn", TokenType.FN);
+        KEYWORDS.put("func", TokenType.FUNC);
         KEYWORDS.put("package", TokenType.PACKAGE);
         KEYWORDS.put("import", TokenType.IMPORT);
         KEYWORDS.put("public", TokenType.PUBLIC);

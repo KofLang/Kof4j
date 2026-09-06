@@ -14,22 +14,49 @@ Linha de desenvolvimento 0.3.0 aberta em 04/09/2026. Semântica congelada
 
 ### Em desenvolvimento
 
-  - **`fn`/`fun`/`func` rejeitados no parser Kof (06/09, SG-001)** — a
-    documentação sempre disse que "não existe `fun` nem `func`" (AGENTS.md,
+  - **KofScript virou target de execução direta com interpretador da IR
+    (06/09)** — `KofInterpreter` executa a MESMA IR otimizada que o backend
+    JVM consome (mesmo frontend: parse → merge → imports → desugar → análise
+    → lowering → otimização), sem emitir bytecode e sem fork de JVM.
+    Paridade por construção, provada em teste (saída byte-idêntica ao JVM
+    compilado: funções, strings, records com `==` de conteúdo + toString,
+    coleções com higher-order, classes mutáveis, while/for-in,
+    try/catch/finally com throw-as-String, spawn/await). `CompilerDriver`
+    ganhou `interpret(...)` (fachada pública) e os passos extraídos
+    `parseAndMerge`/`analyzeAndLower` (refactor puro, zero-regressão).
+    JS/Native continuam no caminho compilado; `runFileCompiled` mantido como
+    fallback e prova de paridade. Docs corrigidas: KofScript NÃO é linguagem
+    separada nem JavaScript — é Kof puro no mesmo frontend.
+  - **`fn`/`fun`/`func` viraram palavras reservadas no Kof (06/09, SG-001)** —
+    a documentação sempre disse que "não existe `fun` nem `func`" (AGENTS.md,
     fake-idioms.md), mas o compilador aceitava `fn` como prefixo e `fun`/`func`
-    como tipo de retorno implícito. Agora a declaração `fn nome(...)`/
-    `fun nome(...)`/`func nome(...)` é rejeitada com **`PARSE085`** e
-    diagnóstico claro ("declare como `Tipo nome(...) { }` ou `nome(...): Tipo
-    { }`"). Alinhamento código↔corpus (regra 4: bug = alinhar ao previsto).
-    `fn`/`fun`/`func` continuam válidos como *nome* de função (identificadores).
-    O mesmo furo existia em **membros de classe** (`fun foo()` dentro de
-    `class`/`interface`/`enum` virava método com tipo de retorno `"fun"`) —
-    também rejeitado com `PARSE085`.
-    **KofScript (`.ks`) mantém `fn` como sintaxe própria** — traduzido na
-    fronteira `.ks`→`.kf` (`KofScript.toKofSyntax`), sem mudança para usuários
-    de `.ks`. Breaking change deliberado e documentado: código `.kf` que usava
-    `fun`/`fn` como prefixo agora precisa da forma idiomática. Prova:
-    `FunctionSyntaxTest` (5 casos novos) + KofScriptTest 8/8 + suíte completa.
+    como tipo de retorno implícito. Agora as três são **palavras reservadas no
+    lexer** (tokens `FUN`/`FN`/`FUNC`, mesmo mecanismo de `sealed`/`permits`):
+    **não existem** no Kof em nenhuma posição — nem como keyword de declaração,
+    nem como nome de função/variável/parâmetro/campo. Em posição de declaração
+    dá **`PARSE085`** (diagnóstico claro: "declare como `Tipo nome(...) { }` ou
+    `nome(...): Tipo { }`"); em outra posição o `expectId` de cada parser já
+    falha (`PARSE037` variável, `PARSE023` parâmetro). Alinhamento
+    código↔corpus (regra 4). **KofScript (`.ks`) não é exceção** — é Kof puro
+    (ver entrada KofScript abaixo); `fn`/`fun`/`func` lá também dão
+    `PARSE085`. Breaking change deliberado e
+    documentado: código `.kf` que usava `fun`/`fn`/`func` (mesmo como
+    identificador) agora precisa renomear. Prova: `FunctionSyntaxTest` (12
+    casos) + KofScriptTest 8/8 + suíte completa 957/0.
+
+  - **KofScript é Kof puro — sugar JavaScript removido (06/09, correção de
+    design do maintainer)** — o pipeline carregava açúcar de outra língua:
+    `let`→`var`, `const`→`val`, `async fn`→`fn`, e um `fn` "próprio" traduzido
+    na fronteira `.ks`→`.kf`. **KofScript não é JavaScript**: é o target onde
+    o código Kof roda direto, sem compilação separada. Removido `preprocess`,
+    `normalizeVoidFns`, `toKofSyntax` e as 3 cópias da lógica de wrap
+    (KofScript/CmdScript/LspServer) — substituídas por um único `wrapPureKof`
+    que só faz o **modelo de execução de script**: statements de topo viram
+    `main()`, `var`/`val` de topo viram `KofScriptGlobals`. `let`/`const`/
+    `async`/`fn` agora dão o diagnóstico normal do parser Kof em `.ks` também
+    (R6: nunca silencioso). Breaking change deliberado: `.ks` que usava sugar
+    precisa da forma Kof. Prova: `KofScriptTest` 9/9 (inclui `jsSugarIsRejected`
+    — `fn`/`let` em `.ks` → `PARSE085`) + suíte completa.
 
   - **NATIVE002-stdlib residual (05/09)** — auditoria R6 + paridade cross:
     **fcvt riscv64** (os 10 mnemonics de conversão numérica saíam com

@@ -17,9 +17,11 @@ class KofScriptTest {
     }
 
     @Test
-    void evalWithLetAndFn() throws Exception {
+    void evalWithTopLevelFnAndVar() throws Exception {
+        // KofScript = Kof puro: função de topo com forma idiomática + var de
+        // topo (vira global via KofScriptGlobals). Sem sugar de outra língua.
         var r = KofScript.eval("""
-                fn add(a: Int, b: Int): Int = a + b
+                add(a: Int, b: Int): Int = a + b
                 main() {
                     var x = add(2, 3)
                     println(x)
@@ -99,16 +101,171 @@ class KofScriptTest {
     }
 
     @Test
-    void evalLetAndAsyncSugar() throws Exception {
+    void evalPureKofWithTopLevelVarAndSpawn() throws Exception {
+        // KofScript = Kof puro: modo script (sem main) — var de topo vira
+        // global; concorrência é spawn/await (não `async`). Sem sugar.
         var r = KofScript.eval("""
-                async fn foo(a: Int): Int = a + 1
+                var counter = 0
+                bump(): Int {
+                    counter = counter + 1
+                    return counter
+                }
+                println(bump())
+                """);
+        assertTrue(r.success(), r.stderr());
+        assertEquals("1", r.stdout().trim());
+    }
+
+    @Test
+    void jsSugarIsRejected() throws Exception {
+        // let/const/async/fn NÃO existem no KofScript (não é JavaScript):
+        // falham com o diagnóstico normal do parser Kof (R6: nunca silencioso).
+        var r = KofScript.eval("""
+                fn foo(a: Int): Int = a + 1
                 main() {
                     let x = 5
-                    var y = foo(x)
-                    println(y)
+                    println(foo(x))
+                }
+                """);
+        assertFalse(r.success(), "fn/let não devem compilar em KofScript");
+        assertTrue(r.stderr().contains("PARSE085"), "esperava PARSE085, veio: " + r.stderr());
+    }
+
+    @Test
+    void interpreterRunsCollectionsAndRecords() throws Exception {
+        // KofScript roda pelo interpretador da IR (sem fork de JVM): coleções,
+        // records (== de conteúdo + toString), higher-order.
+        var r = KofScript.eval("""
+                record Point(Int x, Int y)
+                main() {
+                    var l = listOf(1, 2, 3)
+                    println(l.map((v: Int) -> v * 2).reduce((a: Int, b: Int) -> a + b, 0))
+                    var m = mapOf("k", 9)
+                    println(m.get("k"))
+                    var p1 = Point(1, 2)
+                    var p2 = Point(1, 2)
+                    println(p1 == p2)
+                    println(p1)
                 }
                 """);
         assertTrue(r.success(), r.stderr());
-        assertEquals("6", r.stdout().trim());
+        assertEquals("12\n9\ntrue\nPoint[x=1, y=2]", r.stdout().trim().replace("\r\n", "\n"));
+    }
+
+    @Test
+    void interpreterRunsSpawnAwaitAndTryFinally() throws Exception {
+        // spawn/await + try/catch/finally com exceção-as-String pelo
+        // interpretador — mesma semântica do caminho compilado.
+        var r = KofScript.eval("""
+                work(): Int { return 21 }
+                main() {
+                    val h = spawn work()
+                    println(await h * 2)
+                    try {
+                        throw "boom"
+                    } catch (String e) {
+                        println("caught:" + e)
+                    } finally {
+                        println("fin")
+                    }
+                }
+                """);
+        assertTrue(r.success(), r.stderr());
+        assertEquals("42\ncaught:boom\nfin", r.stdout().trim().replace("\r\n", "\n"));
+    }
+
+    @Test
+    void interpreterMatchesCompiledJvmOutput(@TempDir Path tmp) throws Exception {
+        // Paridade por construção: o MESMO programa, interpretado vs compilado
+        // + fork de JVM, produz saída idêntica.
+        Path f = tmp.resolve("Main.kf");
+        Files.writeString(f, """
+                record Point(Int x, Int y)
+                add(a: Int, b: Int): Int { return a + b }
+                main() {
+                    println(add(2, 3))
+                    println("a" + "b")
+                    println(Point(1, 2) == Point(1, 2))
+                    println(listOf(1, 2, 3).size())
+                    var i = 0
+                    while (i < 3) { println(i); i = i + 1 }
+                    for (var it in listOf("x", "y")) { println(it) }
+                }
+                """);
+        var interp = KofScript.runFile(f, dev.kof.compiler.Target.JVM);
+        assertTrue(interp.success(), interp.stderr());
+        // caminho compilado (bytecode + JVM real) para comparação
+        var compiled = KofScript.runFileCompiled(f, dev.kof.compiler.Target.JVM, new String[0]);
+        assertTrue(compiled.success(), compiled.stderr());
+        assertEquals(compiled.stdout(), interp.stdout(), "interpretado deve casar o JVM compilado");
+    }
+
+    @Test
+    void interpreterNullSafetyMatchesJvm(@TempDir Path tmp) throws Exception {
+        // Regressão do null na pilha (função que retorna null): o interpretador
+        // precisa empilhar null (LinkedList, não ArrayDeque) — paridade com JVM.
+        Path f = tmp.resolve("Main.kf");
+        Files.writeString(f, """
+                find(k: String): String? {
+                    if (k == "ok") { return "achou" }
+                    return null
+                }
+                main() {
+                    var v = find("ok")
+                    if (v != null) { println(v) }
+                    var w = find("no")
+                    if (w == null) { println("nada") }
+                }
+                """);
+        var interp = KofScript.runFile(f, dev.kof.compiler.Target.JVM);
+        assertTrue(interp.success(), interp.stderr());
+        assertEquals("achou\nnada", interp.stdout().trim().replace("\r\n", "\n"));
+        var compiled = KofScript.runFileCompiled(f, dev.kof.compiler.Target.JVM, new String[0]);
+        assertEquals(compiled.stdout(), interp.stdout(), "null-safety: interpretado == JVM");
+    }
+
+    @Test
+    void interpreterClosureCaptureMatchesJvm(@TempDir Path tmp) throws Exception {
+        // Closure capturando variável mutável — mesma semântica de referência.
+        Path f = tmp.resolve("Main.kf");
+        Files.writeString(f, """
+                main() {
+                    var base = 10
+                    var addN = (x: Int) -> x + base
+                    println(addN(5))
+                    base = 20
+                    println(addN(5))
+                }
+                """);
+        var interp = KofScript.runFile(f, dev.kof.compiler.Target.JVM);
+        assertTrue(interp.success(), interp.stderr());
+        var compiled = KofScript.runFileCompiled(f, dev.kof.compiler.Target.JVM, new String[0]);
+        assertEquals(compiled.stdout(), interp.stdout(), "closure capture: interpretado == JVM");
+    }
+
+    @Test
+    void interpreterChannelMatchesJvm(@TempDir Path tmp) throws Exception {
+        // channel<T>() com spawn de closure capturando o canal — receive
+        // bloqueia até send, mesma ordem no interpretador e no JVM.
+        Path f = tmp.resolve("Main.kf");
+        Files.writeString(f, """
+                import kof.time
+                main() {
+                    val c = channel<Int>()
+                    spawn {
+                        println("recv-wait")
+                        val v = c.receive()
+                        println("recv:" + v)
+                    }
+                    time.sleep(30)
+                    println("pre-send")
+                    c.send(42)
+                    println("post-send")
+                }
+                """);
+        var interp = KofScript.runFile(f, dev.kof.compiler.Target.JVM);
+        assertTrue(interp.success(), interp.stderr());
+        assertEquals("recv-wait\npre-send\npost-send\nrecv:42",
+                interp.stdout().trim().replace("\r\n", "\n"));
     }
 }

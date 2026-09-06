@@ -66,48 +66,16 @@ final class CmdScript {
                 if (!r.stderr().isBlank()) System.err.print(r.stderr());
                 return r.exitCode();
             }
-            // .ks handling
-            List<String> lines = Files.readAllLines(src);
-            StringBuilder decls = new StringBuilder();
-            StringBuilder stmts = new StringBuilder();
-            StringBuilder cur = new StringBuilder();
-            boolean curIsDecl = false;
-            for (String raw : lines) {
-                String t = raw.strip();
-                // KofScript sugar: let/const -> var/val, async fn -> fn
-                String tNorm = t.replaceFirst("^async\\s+", "");
-                if (t.isEmpty() || t.startsWith("//")) continue;
-                cur.append(raw).append('\n');
-                boolean declStart = tNorm.startsWith("fn ") || tNorm.startsWith("enum ")
-                        || tNorm.startsWith("class ") || tNorm.startsWith("record ")
-                        || DECL_TYPE.matcher(tNorm).find();
-                if (cur.length() == raw.length() + 1) curIsDecl = declStart;
-                if (balance(cur.toString()) > 0) continue;
-                String block = cur.toString().strip();
-                // Normalize block for decls (so async fn becomes fn for the compiler)
-                String blockNorm = block.replaceFirst("(?m)^async\\s+fn\\b", "fn");
-                blockNorm = blockNorm.replaceAll("\\blet\\b", "var").replaceAll("\\bconst\\b", "val");
-                if (curIsDecl) decls.append(blockNorm).append('\n');
-                else {
-                    String stmtNorm = block.replaceAll("\\blet\\b", "var").replaceAll("\\bconst\\b", "val");
-                    // keep async inside stmt? async fn already handled
-                    stmts.append(stmtNorm).append('\n');
-                }
-                cur.setLength(0);
-            }
-            if (!cur.isEmpty()) {
-                if (curIsDecl) decls.append(cur); else stmts.append(cur);
-            }
-            if (stmts.isEmpty() && decls.isEmpty()) return 0;
+            // .ks: KofScript = Kof puro — único serviço é o wrapper de script
+            // (statements -> main(), var/val de topo -> globals). Sem sugar.
+            String content = Files.readString(src);
+            String wrapped = content.contains("main()") ? content : dev.kof.script.KofScript.wrapPureKof(content);
             Path tmp = Files.createTempDirectory("kof-script-");
-            StringBuilder program = new StringBuilder();
-            program.append(decls);
-            program.append("main() {\n").append(stmts).append("\n}\n");
             // Preserve original file name for diagnostics (bad.ks -> bad.kf)
             String kfName = src.getFileName().toString().replaceFirst("\\.ks$", ".kf");
             if (!kfName.endsWith(".kf")) kfName = "Script.kf";
             Path kf = tmp.resolve(kfName);
-            Files.writeString(kf, dev.kof.script.KofScript.toKofSyntax(program.toString()));
+            Files.writeString(kf, wrapped);
             var r = dev.kof.script.KofScript.runFile(kf, target, progArgs.toArray(new String[0]));
             // Propaga diagnostics com file:line (KofScript já usa d.format())
             if (!r.success()) {
@@ -172,23 +140,5 @@ final class CmdScript {
             return 1;
         }
         return 0;
-    }
-
-    /** fn/enum/class/record ou retorno tipado ("Int nome(", "String nome("...) */
-    private static final java.util.regex.Pattern DECL_TYPE =
-            java.util.regex.Pattern.compile("^(Int|Long|Bool|String|Float|Double|List<[^>]+>|Map<[^>]+>)\\s+\\w+\\s*\\(");
-
-    /** Saldo de { } para agrupar blocos multilinha no KofScript. */
-    private static int balance(String text) {
-        int depth = 0;
-        boolean inStr = false;
-        for (int i = 0; i < text.length(); i++) {
-            char c = text.charAt(i);
-            if (inStr) { if (c == '"') inStr = false; continue; }
-            if (c == '"') inStr = true;
-            else if (c == '{') depth++;
-            else if (c == '}') depth--;
-        }
-        return Math.max(depth, 0);
     }
 }

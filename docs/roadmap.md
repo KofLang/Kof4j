@@ -146,7 +146,7 @@ kof run arquivo.kf
 
 A implementação interna poderá evoluir para interpretação, compilação incremental, JIT ou execução híbrida, mas a decisão será tomada posteriormente com base em benchmarks.
 
-Estado atual: ✅ implementado (0.2.6-beta): `kof script app.kf [--watch]` + `kof repl` (top-level `let` → `KofScriptGlobals`; Windows SIGPIPE fix). `KofCcompiler` (`kof c`) compila C subset → ELF x86_64 nativo (`int` globals, `void` funcs, `if`/`while`/`*(int*)`/`&`).
+Estado atual: ✅ implementado (0.2.6-beta): `kof script app.kf [--watch]` + `kof repl` (statements de topo → `main()`, `var`/`val` de topo → `KofScriptGlobals`; Windows SIGPIPE fix). **0.3.0-beta: execução direta por interpretação** — `KofInterpreter` roda a MESMA IR otimizada do frontend (sem emitir bytecode, sem fork de JVM; paridade por construção com o backend JVM, provada em teste). `KofCcompiler` (`kof c`) compila C subset → ELF x86_64 nativo (`int` globals, `void` funcs, `if`/`while`/`*(int*)`/`&`).
 
 ---
 

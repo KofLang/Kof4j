@@ -47,7 +47,7 @@ Kof Compiler  (kof-compiler, Java 21 + ASM 9.8)
 | `kof-compiler` | O compilador (frontend + middle-end + backends) |
 | `kof-runtime` | Classes Java auxiliares (KofRuntime, KofHttp, KofDb, …) — **não** é usado pelo backend JVM (ver §5.1) |
 | `kof-cli` | CLI `kof` (build/run/test/fmt/script/serve/debug/lsp) |
-| `kof-script` | KofScript (`.ks`, REPL, `let` top-level) — **linguagem separada** |
+| `kof-script` | KofScript (`.ks`, REPL) — **target de execução direta**: Kof puro no MESMO frontend, executado pelo `KofInterpreter` (IR) sem compilar |
 | `kof-c-compiler` | Compilador de subconjunto C → Native — **não** consome a IR Kof |
 
 ---
@@ -346,7 +346,7 @@ Aliases CLI (`KofCliSupport.parseTarget`): `jvm`, `native`,
 | **KofJS** | o backend JavaScript | uma linguagem separada |
 | **Kof IR** | máquina de pilha linear tipada, 30 ops | uma segunda AST |
 | **AST** | 50 nós sealed, tipos como String | typed AST |
-| **KofScript** (`.ks`) | linguagem de script separada (top-level `let`) | Kof com `let` |
+| **KofScript** (`.ks`) | target de execução direta (Kof puro → `KofInterpreter` na IR) | linguagem separada / Kof com `let` |
 | **KofC** (`kof-c-compiler`) | compilador de subconjunto C → Native | backend da IR Kof |
 
 **"A IR possui uma AST própria?"** — **Não.** A IR é uma **lista linear de
