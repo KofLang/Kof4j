@@ -123,7 +123,10 @@ if (mc.receiver() == null && KofUi.isConstructor(mc.methodName())
         && (mc.arguments().size() == 1 || mc.arguments().size() == 2
                 || mc.arguments().size() == 3)) {
     Type ct = KofUi.constructorType(mc.methodName());
-    if (KofUi.isLayoutType(ct) || KofUi.isStore(ct)) {
+    // cobre layout/store E os widgets sem branch explícito acima
+    // (Canvas/Image/Icon/Link/Font/Component) — sem isso o local é
+    // inferido UNKNOWN e o emit produz owner "" (ClassFormatError).
+    if (KofUi.isUiType(ct)) {
         return ct;
     }
 }

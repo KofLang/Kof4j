@@ -815,9 +815,9 @@ EXTERNA produz lixo
 
 ## Aberto (gap Canvas — 06/09)
 
-### CANVAS001 — ClassFormatError com arc() (Double params)
+### CANVAS001 — ClassFormatError com arc() (Double params) — JVM CORRIGIDO 06/09
 
-- **Sintoma:** `Canvas(400,300)` + `c.arc(200,150,100,0.0,3.14)` compila, mas
+- **Sintoma (original):** `Canvas(400,300)` + `c.arc(200,150,100,0.0,3.14)` compila, mas
   o JVM lança `ClassFormatError: Illegal class name "" in class file`.
 - **Reprodução:**
   ```kof
@@ -826,14 +826,34 @@ EXTERNA produz lixo
       c.arc(200, 150, 100, 0.0, 3.14)
   }
   ```
-- **Causa provável:** `JvmRuntimeCallDescriptors` tem `(IIIIDD)V` para
-  `kof_ui_canvas_arc`, mas o receiver INT (canvas handle) precisa ser incluído:
-  o descriptor deveria ser `(IIIIIDD)V`. Outra possibilidade: o backend JVM não
-  está mapeando corretamente os parâmetros Double (2 slots cada) no numbering
-  de locals do KofCall.
-- **O que funciona:** Canvas com `setFill`, `beginPath`, `fill`, `remove` (só
-  Int params) compila e roda OK nos 3 targets.
-- **O que falta:** corrigir o descriptor JVM para `arc()` com Double, ou
-  ajustar o `emitUiInstance` para mapear corretamente Double→2 slots.
-- **Arquivos:** `JvmRuntimeCallDescriptors.java`, possivelmente
-  `CompilerDriver.java:emitUiInstance` (line ~2281).
+- **Causa raiz (verificada 06/09 — diferente da hipótese original):** o
+  construtor `Canvas` não era tipado no `MethodCallTyper` (lado driver) nem no
+  `BuiltinCallTyper` (lado semântico) — o ramo genérico de construtores UI só
+  cobria `isLayoutType || isStore`. `var c = Canvas(...)` era inferido UNKNOWN,
+  o receiver não era reconhecido como UI-type no `ExpressionInstanceCallLowerer`,
+  e a chamada caía no dispatch genérico de instância → owner `""` no
+  Methodref → `ClassFormatError`. O `arc` só expunha o bug porque os widgets
+  Int-only sem receiver tipado falhavam igual (qualquer método Canvas).
+- **Correção JVM (06/09):**
+  1. `MethodCallTyper`: ramo genérico de construtores UI passa a aceitar todo
+     `KofUi.isUiType(ct)` (cobre Canvas/Image/Icon/Link/Font/Component sem
+     branch explícito).
+  2. `BuiltinCallTyper`: branch explícito `Canvas(Int,Int) → KofUi.CANVAS`
+     (paridade com o lado driver).
+  3. `JvmRuntimeCallDescriptors`: `kof_ui_canvas_set_line_width` estava
+     agrupado com `move_to/line_to` como `(III)V` mas recebe
+     `(canvas,width)` = `(II)V` → stack underflow → `COMP002 frame crash`
+     quando `setLineWidth` era seguido de outro call.
+  O descriptor de `arc` `(IIIIDD)V` já estava correto (receiver INT é
+  prepended pelo caminho UI-call). Prova: `Main.class` agora emite
+  `invokestatic KofRuntime.kof_ui_canvas_arc:(IIIIDD)V`; programa completo do
+  `UiE2ETest.canvasCreation` roda limpo no JVM e no Native.
+- **O que falta (metade JS do teste):** `canvasCreation` ainda falha em
+  `assertNotNull(html)` — o canvas nunca é anexado ao `kof-root` nem dispara
+  `kofUiSerializeHtml` (só `Window.show()` serializa; o plano
+  `docs/future/PLAN-CANVAS-WIDGET.md` desenha Canvas montado dentro de uma
+  `Window`, mas o teste não usa Window). Timing de serialização para widgets
+  sem janela é decisão de design do autor do recurso (lane Canvas).
+- **Arquivos:** `MethodCallTyper.java`, `BuiltinCallTyper.java`,
+  `JvmRuntimeCallDescriptors.java` (corrigidos); `JsRuntimeUiWidgets.java`,
+  `UiE2ETest.java` (pendentes, lane Canvas).

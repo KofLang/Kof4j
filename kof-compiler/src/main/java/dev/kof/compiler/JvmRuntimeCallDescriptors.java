@@ -130,8 +130,8 @@ final class JvmRuntimeCallDescriptors {
             case "kof_ui_canvas_begin_path", "kof_ui_canvas_close_path",
                     "kof_ui_canvas_fill", "kof_ui_canvas_stroke",
                     "kof_ui_canvas_remove" -> "(I)V";
-            case "kof_ui_canvas_move_to", "kof_ui_canvas_line_to",
-                    "kof_ui_canvas_set_line_width" -> "(III)V";
+            case "kof_ui_canvas_move_to", "kof_ui_canvas_line_to" -> "(III)V";
+            case "kof_ui_canvas_set_line_width" -> "(II)V";
             case "kof_ui_canvas_arc" -> "(IIIIDD)V";
             case "kof_ui_canvas_set_fill", "kof_ui_canvas_set_stroke" -> "(II)V";
             case "kof_ui_canvas_clear_rect" -> "(IIIII)V";
