@@ -63,7 +63,6 @@ class JvmBackend implements Backend {
         return new Type.ClassType("", internalName, List.of());
     }
 
-    /** Valor default do primitivo (0/false/0.0) na pilha, com width correto. */
     @Override
     public void emit(IRModule module, Path outputDir) throws IOException {
         emit(module, outputDir, true);
@@ -303,12 +302,5 @@ class JvmBackend implements Backend {
 
     private void emitOperation(MethodVisitor mv, String className, KofOperation op) {
         JvmOpEmitter.emit(this, new JvmOpEmitter.OpContext(mv, className, currentModule, currentClass), op);
-    }
-
-    private Type listElementType(Type listType) {
-        if (listType instanceof Type.ClassType ct && !ct.typeArguments().isEmpty()) {
-            return ct.typeArguments().get(0);
-        }
-        return Type.UnknownType.UNKNOWN;
     }
 }
