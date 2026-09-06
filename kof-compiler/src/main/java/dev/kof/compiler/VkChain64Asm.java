@@ -36,7 +36,7 @@ final class VkChain64Asm {
         StringBuilder sb = new StringBuilder(64 * 1024);
         VkChain64Data.source(sb);
         VkChain64Loader.source(sb);
-        emitHelpers(sb);
+        VkChain64Helpers.source(sb);
         VkChain64Init.source(sb);
         VkChain64Alloc.source(sb);
         emitSubmitHelper(sb);
@@ -57,69 +57,6 @@ final class VkChain64Asm {
 
 
 
-    // ───────────────────────── helpers ───────────────────────────────
-    private static void emitHelpers(StringBuilder sb) {
-        sb.append("""
-            // vk64_read_file(rdi=path) → rax=ptr malloc, rdx=size, 0/0 falha
-            .type vk64_read_file, @function
-            vk64_read_file:
-                pushq %rbx
-                pushq %r12
-                pushq %r13
-                movq %rdi, %rbx
-                leaq .Lvkv_rb(%rip), %rsi
-                call fopen@PLT
-                testq %rax, %rax
-                jz .Lvk64_rf0
-                movq %rax, %r12
-                movq %r12, %rdi
-                xorl %esi, %esi                    # offset 0
-                movl $2, %edx                      # SEEK_END
-                call fseek@PLT
-                movq %r12, %rdi
-                call ftell@PLT
-                movq %rax, %r13                    # size
-                movq %r12, %rdi
-                xorl %esi, %esi                    # offset 0
-                xorl %edx, %edx                    # SEEK_SET
-                call fseek@PLT
-                testq %r13, %r13
-                jz .Lvk64_rf_close
-                movq %r13, %rdi
-                call malloc@PLT
-                testq %rax, %rax
-                jz .Lvk64_rf_close
-                movq %rax, %rbx                    # buf
-                movq %rbx, %rdi
-                movq $1, %rsi
-                movq %r13, %rdx
-                movq %r12, %rcx
-                call fread@PLT
-                cmpq %r13, %rax
-                jne .Lvk64_rf_free
-                movq %r12, %rdi
-                call fclose@PLT
-                movq %rbx, %rax
-                movq %r13, %rdx
-                popq %r13
-                popq %r12
-                popq %rbx
-                ret
-            .Lvk64_rf_free:
-                movq %rbx, %rdi
-                call free@PLT
-            .Lvk64_rf_close:
-                movq %r12, %rdi
-                call fclose@PLT
-            .Lvk64_rf0:
-                xorl %eax, %eax
-                xorl %edx, %edx
-                popq %r13
-                popq %r12
-                popq %rbx
-                ret
-            """);
-    }
 
 
 
