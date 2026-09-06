@@ -9,7 +9,7 @@
 
 Kof é uma linguagem compilada para múltiplos targets (JVM, Native, Web, Script).
 
-O projeto possui um **frontend completo** (lexer + parser + AST + symbol table + semantic + type checking), uma **IR backend-agnóstica** e **sete targets**: JVM (bytecode via ASM), Native (ELF x86-64, syscalls, sem libc obrigatória), Native riscv64/aarch64 (toolchain + qemu), KofJS (ES Modules na engine GraalJS embarcada), KofScript (REPL), KofC (C subset → ELF) e Android (Fase 1).
+O projeto possui um **frontend completo** (lexer + parser + AST + symbol table + semantic + type checking), uma **IR backend-agnóstica** e **sete targets**: JVM (bytecode via ASM), Native (ELF x86-64, syscalls, sem libc obrigatória), Native riscv64/aarch64 (toolchain + qemu), KofJS (ES Modules na engine GraalJS embarcada), KofScript (execução direta pela IR — `KofInterpreter`), KofC (C subset → ELF) e Android (Fase 1).
 
 **Fases C, D, E CONCLUÍDAS**: Type System, IR generalizada, NativeBackend ELF.
 
@@ -42,7 +42,7 @@ O projeto possui um **frontend completo** (lexer + parser + AST + symbol table +
 | `kof lsp` | ✅ PASSA (hover/completion + diagnostics reais) |
 | `kof install` | ✅ PASSA |
 | `kof c` | ✅ PASSA (KofCcompiler native-only C subset → ELF x86_64 via `kof_c`) |
-| `kof script` | ✅ PASSA (top-level `let` → `KofScriptGlobals`, repl, --watch; Windows SIGPIPE fix) |
+| `kof script` | ✅ PASSA (Kof puro: statements de topo → `main()`, `var`/`val` → `KofScriptGlobals`; execução direta pelo `KofInterpreter` na IR — sem fork; repl, --watch; Windows SIGPIPE fix) |
 | `tests/run-golden.sh` | ✅ 16/16 (8 casos × jvm+native) |
 | `tests/run-integration.sh` | ✅ 9/9 (CLI + serve + kof test) |
 | `scripts/package.sh` | ✅ PASSA (layout dist + tar.gz/zip + SHA256SUMS + jars) |
@@ -312,7 +312,7 @@ handles no-ops.
 
 ### Backends
 - KofJS — alpha (GraalJS embarcado): `while(true)`, `try/finally`, `switch` pattern, `listOf map/filter/reduce`, `kof.http` via `Java HttpClient` (+ retry/circuit paridade JVM, 30/08), decode de objetos — parity JVM/Native/JS; UI via webview nativo; `spawn`/`await`/`channel<T>()` com concorrência real (async/await/Promise, CONC003 fechado 03/09)
-- KofScript — ✅ `KofScript` top-level `let` → `KofScriptGlobals` + REPL + `--watch` (Windows SIGPIPE fix 27/08)
+- KofScript — ✅ Kof puro + REPL + `--watch`; **0.3.0: execução direta pelo `KofInterpreter` (IR, sem fork)**; paridade com JVM provada em teste
 - KofC — ✅ `KofCcompiler` C subset native-only (`kof c`) → ELF x86_64 (while/if/deref `&`/`*(int*)`)
 - Native riscv64 — **codegen real (02/09)** — stack machine riscv64 + runtime em asm puro (raw syscalls, sem C), `NativeRiscv64E2ETest 4/4` via qemu (`NATIVE002` parcial); aarch64 placeholder (target separation done)
 
@@ -357,7 +357,7 @@ Source (.kf)
   ├── Native aarch64 (native.arm — toolchain + placeholder x86_64 via qemu)
   ├── JS Backend (GraalJS, kof.http via HttpClient, retry/circuit)
   ├── KofC Backend (C subset → native)
-  ├── KofScript (let → KofScriptGlobals)
+  ├── KofScript (Kof puro → KofInterpreter na IR)
   └── Android (bytecode JVM → projeto Maven + APK; host Activity em Kof, Fase 1)
 ```
 

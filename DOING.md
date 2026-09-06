@@ -58,9 +58,28 @@ regras da spec SEM teste dedicado, descobertas por probe): SG-008 `Int?==null`
 reservadas no lexer** (tokens FUN/FN/FUNC, mecanismo sealed/permits) — não
 existem no Kof em NENHUMA posição: nem prefixo de declaração (PARSE085,
 top-level + `ClassMemberParser`), nem nome de função/variável/parâmetro/campo
-(expectId → PARSE037/023/…). KofScript traduz `fn` na fronteira `.ks`→`.kf`
-(`toKofSyntax`). FunctionSyntaxTest 12; suíte21 957+8+5+8, 0 falhas
+(expectId → PARSE037/023/…). KofScript NÃO traduz mais nada (`toKofSyntax`
+removido — `fn`/`let` em `.ks` dão o diagnóstico normal do parser).
+FunctionSyntaxTest 12; suíte21 957+8+5+8, 0 falhas
 (`bf84a86`).
+
+**KOFSCRIPT = TARGET DE EXECUÇÃO DIRETA FEITO** (06/09, decisão humana
+"KOFSCRIPT NÃO É JAVASCRIPT ... É UM TARGET ONDE VOCE PASSA SEU CODIGO
+DIRETAMENTE PELO INTERPRETADOR KOF SEM COMPILAR", `0aac7e6`):
+`KofInterpreter` (dev.kof.compiler) executa a MESMA IR otimizada do frontend
+(stack machine sobre valores reais do JDK; `KofObj` para classes Kof com
+dispatch virtual + `<clinit>` + statics; try/catch espelhando a exception
+table JVM; builtins sem lambda por reflexão ao `KofRuntime` GERADO — mesmo
+source do caminho compilado). `CompilerDriver`: `parseAndMerge` +
+`analyzeAndLower` extraídos (refactor puro) + fachada pública `interpret(...)`.
+`KofScript.runFile` JVM → interpretador (sem bytecode, sem fork); JS/NATIVE →
+caminho compilado (aditivo); `runFileCompiled` mantido (fallback + prova).
+**Prova: paridade byte-idêntica interpretado vs JVM compilado** (funções,
+strings, records `==` conteúdo + toString, coleções higher-order, classes,
+while/for-in, try/catch/finally throw-as-String, spawn/await) —
+KofScriptTest 12/12. Docs corrigidas (architecture, compiler-architecture,
+README, actual-state, roadmap, philosophy, learn/00, CHANGELOG): KofScript
+não é "linguagem separada" nem JavaScript.
 
 **PRÓXIMA TAREA (maior valor)**: **bug 33 CORRIGIDO** (`df2ffdd`, 06/09) —
 diagnóstico original ERRADO: não era Map/Set. Era **member call em receiver de

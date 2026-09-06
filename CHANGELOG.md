@@ -14,6 +14,19 @@ Linha de desenvolvimento 0.3.0 aberta em 04/09/2026. Semântica congelada
 
 ### Em desenvolvimento
 
+  - **KofScript virou target de execução direta com interpretador da IR
+    (06/09)** — `KofInterpreter` executa a MESMA IR otimizada que o backend
+    JVM consome (mesmo frontend: parse → merge → imports → desugar → análise
+    → lowering → otimização), sem emitir bytecode e sem fork de JVM.
+    Paridade por construção, provada em teste (saída byte-idêntica ao JVM
+    compilado: funções, strings, records com `==` de conteúdo + toString,
+    coleções com higher-order, classes mutáveis, while/for-in,
+    try/catch/finally com throw-as-String, spawn/await). `CompilerDriver`
+    ganhou `interpret(...)` (fachada pública) e os passos extraídos
+    `parseAndMerge`/`analyzeAndLower` (refactor puro, zero-regressão).
+    JS/Native continuam no caminho compilado; `runFileCompiled` mantido como
+    fallback e prova de paridade. Docs corrigidas: KofScript NÃO é linguagem
+    separada nem JavaScript — é Kof puro no mesmo frontend.
   - **`fn`/`fun`/`func` viraram palavras reservadas no Kof (06/09, SG-001)** —
     a documentação sempre disse que "não existe `fun` nem `func`" (AGENTS.md,
     fake-idioms.md), mas o compilador aceitava `fn` como prefixo e `fun`/`func`
