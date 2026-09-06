@@ -26,41 +26,8 @@ class SemanticAnalyzer {
                 && externalTypes.knows(ct.internalName());
     }
 
-    private boolean isObjectMethod(String name, int argCount) {
-        return switch (name) {
-            case "hashCode", "toString", "getClass" -> argCount == 0;
-            case "equals" -> argCount == 1;
-            default -> false;
-        };
-    }
 
-    private boolean isBuiltinTypeName(String name) {
-        return switch (name) {
-            case "String", "string", "Object", "Int", "int", "Long", "long",
-                    "Bool", "bool", "boolean", "Boolean", "Char", "char",
-                    "Byte", "byte", "Short", "short", "Float", "float",
-                    "Double", "double", "void", "Void" -> true;
-            default -> false;
-        };
-    }
 
-    /**
-     * Nome simples declarado em import vira tipo qualificado
-     * ("import android.webkit.WebView" → ClassType("android.webkit","WebView")).
-     * Sem isso, tipos de classes externas saem sem pacote e o descritor
-     * JVM quebra.
-     */
-    private Type qualifyViaImports(String name) {
-        if (name.contains(".") || name.contains("<") || name.endsWith("[]")) return null;
-        if (currentUnit == null) return null;
-        for (String imp : currentUnit.imports()) {
-            if (!imp.endsWith("*") && imp.endsWith("." + name)) {
-                String pkg = imp.substring(0, imp.lastIndexOf('.'));
-                return new Type.ClassType(pkg, name, List.of());
-            }
-        }
-        return null;
-    }
     private final Map<String, SymbolTable.ClassSymbol> knownClasses = new HashMap<>();
     private final java.util.Set<String> interfaceNames = new java.util.HashSet<>();
     private final Map<ExpressionNode, Type> expressionTypes = new IdentityHashMap<>();
@@ -240,29 +207,9 @@ class SemanticAnalyzer {
         return interfaceNames.contains(name);
     }
 
+
     SymbolTable.Symbol resolveInHierarchy(String className, String memberName) {
-        java.util.Set<String> visited = new java.util.HashSet<>();
-        java.util.Queue<String> queue = new java.util.LinkedList<>();
-        queue.add(className);
-        visited.add(className);
-        while (!queue.isEmpty()) {
-            String current = queue.poll();
-            SymbolTable.ClassSymbol cs = knownClasses.get(current);
-            if (cs == null) continue;
-            SymbolTable.Symbol s = cs.members().resolve(memberName);
-            if (s != null) return s;
-            if (cs.superClass() != null && !"Object".equals(cs.superClass()) && !visited.contains(cs.superClass())) {
-                visited.add(cs.superClass());
-                queue.add(cs.superClass());
-            }
-            for (String iface : cs.interfaces()) {
-                if (!visited.contains(iface)) {
-                    visited.add(iface);
-                    queue.add(iface);
-                }
-            }
-        }
-        return null;
+        return MemberResolver.resolveInHierarchy(this, className, memberName);
     }
 
     private void preDeclareType(AstNode decl) {
@@ -273,7 +220,7 @@ class SemanticAnalyzer {
             // sem isso a resolução externa (classpath) nunca encontra a classe
             String superQualified = cls.superClass();
             if (superQualified != null && !"Object".equals(superQualified)) {
-                Type viaImports = qualifyViaImports(superQualified);
+                Type viaImports = MemberResolver.qualifyViaImports(currentUnit, superQualified);
                 if (viaImports instanceof Type.ClassType qt) {
                     superQualified = qt.packageName() + "." + qt.name();
                 }
@@ -342,27 +289,11 @@ class SemanticAnalyzer {
     private Type resolveType(String name, SymbolTable scope) {
         SymbolTable.Symbol sym = scope != null ? scope.resolve(name) : null;
         if (sym instanceof SymbolTable.TypeParameterSymbol) return sym.type();
-        Type viaImports = qualifyViaImports(name);
+        Type viaImports = MemberResolver.qualifyViaImports(currentUnit, name);
         if (viaImports != null) return viaImports;
-        return qualifiedType(Type.of(name));
+        return MemberResolver.qualifiedType(Type.of(name));
     }
 
-    /**
-     * Nomes qualificados ("android.os.Bundle") precisam do pacote separado
-     * do nome simples — senão o descritor JVM sai com pontos
-     * (Landroid.os.Bundle;) e a classe não carrega.
-     */
-    static Type qualifiedType(Type type) {
-        if (type instanceof Type.ClassType ct && !ct.name().contains("<")
-                && ct.packageName().isEmpty()) {
-            int lastDot = ct.name().lastIndexOf('.');
-            if (lastDot > 0) {
-                return new Type.ClassType(ct.name().substring(0, lastDot),
-                        ct.name().substring(lastDot + 1), ct.typeArguments());
-            }
-        }
-        return type;
-    }
 
     private void analyzeClass(ClassDeclarationNode cls) {
         String prevClass = currentClassName;
@@ -632,7 +563,7 @@ class SemanticAnalyzer {
             case VarDeclStmt vds -> {
                 Type varType;
                 if (vds.type() != null && !vds.type().isEmpty() && !"var".equals(vds.type())) {
-                    Type viaImports = qualifyViaImports(vds.type());
+                    Type viaImports = MemberResolver.qualifyViaImports(currentUnit, vds.type());
                     varType = viaImports != null ? viaImports : Type.of(vds.type());
                 } else if (vds.initializer() != null) {
                     varType = inferType(vds.initializer(), scope);
@@ -916,7 +847,7 @@ class SemanticAnalyzer {
                         && !KofUi.isPalette(ie.name()) && !KofUi.isConstructor(ie.name())
                         && !KofUi.isRouterNamespace(ie.name())
                         && !"Theme".equals(ie.name())
-                        && !isBuiltinTypeName(ie.name())
+                        && !MemberResolver.isBuiltinTypeName(ie.name())
                         && !knownClasses.containsKey(ie.name())) {
                     diagnostics.error("", 0, 0, 0,
                             "Undefined variable or type: '" + ie.name() + "'", "SEM011");
@@ -1266,9 +1197,9 @@ class SemanticAnalyzer {
                     // — resolve pelo classpath antes dos namespaces builtin
                     // (Button também é widget do kof.ui; o import decide)
                     if (mc.receiver() instanceof IdentifierExpr rid) {
-                        Type q = qualifyViaImports(rid.name());
+                        Type q = MemberResolver.qualifyViaImports(currentUnit, rid.name());
                         if (q == null && rid.name().contains(".")) {
-                            q = qualifiedType(Type.of(rid.name()));
+                            q = MemberResolver.qualifiedType(Type.of(rid.name()));
                         }
                         if (q instanceof Type.ClassType qt && isExternal(qt)) {
                             ExternalClasspath.MethodSignature sig = externalTypes.resolveMethod(
@@ -1568,7 +1499,7 @@ class SemanticAnalyzer {
                         // falso-positivo para esses tipos. Object methods (hashCode etc.)
                         // são válidos para qualquer classe.
                         if (diagnostics != null && !BuiltinTypes.isList(ct)
-                                && !isObjectMethod(mc.methodName(), mc.arguments().size())) {
+                                && !MemberResolver.isObjectMethod(mc.methodName(), mc.arguments().size())) {
                             boolean isKnownReceiver = knownClasses.containsKey(ct.name())
                                     || isExternal(ct);
                             if (isKnownReceiver) {
@@ -1808,7 +1739,7 @@ class SemanticAnalyzer {
                 // perde o tipo
                 String qname = ne.typeName();
                 if (!qname.contains(".")) {
-                    Type viaImport = qualifyViaImports(qname);
+                    Type viaImport = MemberResolver.qualifyViaImports(currentUnit, qname);
                     if (viaImport != null) qname = viaImport instanceof Type.ClassType qt
                             ? qt.packageName() + "." + qt.name() : qname;
                 }
@@ -1940,10 +1871,10 @@ class SemanticAnalyzer {
                             && currentUnit != null) {
                         java.util.Set<String> covered = new java.util.HashSet<>();
                         for (SwitchExprCase sc : se.cases()) {
-                            String cn = enumConstantOfExpr(sc.value());
+                            String cn = MemberResolver.enumConstantOfExpr(currentUnit, sc.value());
                             if (cn != null) covered.add(cn);
                         }
-                        List<String> constants = enumConstantsOf(sct.name());
+                        List<String> constants = MemberResolver.enumConstantsOf(currentUnit, sct.name());
                         List<String> missing = constants.stream().filter(c -> !covered.contains(c)).toList();
                         if (!missing.isEmpty()) {
                             reportError(se, "switch expressão sobre '" + sct.name()
@@ -2017,36 +1948,7 @@ class SemanticAnalyzer {
         }
     }
 
-    private java.util.List<String> enumConstantsOf(String name) {
-        if (name == null || currentUnit == null) return List.of();
-        for (AstNode d : currentUnit.declarations()) {
-            if (d instanceof EnumDeclarationNode en && en.name().equals(name)) {
-                return en.constants();
-            }
-        }
-        return List.of();
-    }
 
-    private String enumConstantOfExpr(ExpressionNode e) {
-        if (e instanceof FieldAccessExpr fa && fa.receiver() instanceof IdentifierExpr rid) {
-            return enumConstantsOf(rid.name()).contains(fa.fieldName()) ? fa.fieldName() : null;
-        }
-        if (e instanceof LiteralExpr l && l.kind() == ConcreteLiteralKind.STRING) {
-            return l.value();
-        }
-        if (e instanceof IdentifierExpr ie) {
-            // não-qualificado: Red quando algum enum declara Red
-            if (currentUnit != null) {
-                for (AstNode d : currentUnit.declarations()) {
-                    if (d instanceof EnumDeclarationNode en && en.constants().contains(ie.name())) {
-                        return ie.name();
-                    }
-                }
-            }
-            return null;
-        }
-        return null;
-    }
 
     private Type inferLiteralType(LiteralExpr lit) {
         return switch (lit.kind()) {
