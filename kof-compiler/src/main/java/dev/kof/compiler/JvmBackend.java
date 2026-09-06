@@ -235,12 +235,12 @@ class JvmBackend implements Backend {
         if (sourceName != null && debugInfoEnabled) {
             cw.visitSource(sourceName, null);
         }
-        emitAnnotations(cw::visitAnnotation, clazz.annotations());
+        JvmAnnotations.emitAnnotations(cw::visitAnnotation, clazz.annotations());
 
         for (IRField field : clazz.fields()) {
             String desc = JvmTypeMapper.toDescriptor(field.type());
             var fv = cw.visitField(field.accessFlags(), field.name(), desc, null, field.initialValue());
-            emitAnnotations(fv::visitAnnotation, field.annotations());
+            JvmAnnotations.emitAnnotations(fv::visitAnnotation, field.annotations());
             fv.visitEnd();
         }
 
@@ -442,11 +442,11 @@ class JvmBackend implements Backend {
         String desc = JvmTypeMapper.toMethodDescriptor(method.returnType(), method.parameterTypes());
         MethodVisitor mv = cw.visitMethod(method.accessFlags(), method.name(), desc,
                 null, method.thrownExceptions().toArray(new String[0]));
-        emitAnnotations(mv::visitAnnotation, method.annotations());
+        JvmAnnotations.emitAnnotations(mv::visitAnnotation, method.annotations());
         if (!method.parameterAnnotations().isEmpty()) {
             for (int i = 0; i < method.parameterAnnotations().size(); i++) {
                 int paramIndex = i;
-                emitAnnotations((v, visible) -> mv.visitParameterAnnotation(paramIndex, v, visible),
+                JvmAnnotations.emitAnnotations((v, visible) -> mv.visitParameterAnnotation(paramIndex, v, visible),
                         method.parameterAnnotations().get(i));
             }
         }
@@ -557,88 +557,6 @@ class JvmBackend implements Backend {
     private String exceptionJvmType(String kofType) {
         if ("String".equals(kofType)) return "java/lang/RuntimeException";
         return "java/lang/" + kofType;
-    }
-
-    // ── Annotations ─────────────────────────────────────────────────
-
-    /**
-     * Pacotes com retenção CLASS/SOURCE (não visíveis em runtime).
-     * Tudo que não estiver aqui é emitido como RuntimeVisible — a escolha
-     * conservadora para interop (frameworks Android/JUnit leem em runtime).
-     */
-    private static final List<String> INVISIBLE_PREFIXES = List.of(
-            "java/lang/Override",
-            "java/lang/SuppressWarnings",
-            "androidx/annotation/",
-            "javax/annotation/",
-            "org/jetbrains/annotations/",
-            "edu/umd/cs/findbugs/annotations/"
-    );
-
-    private static boolean retentionIsVisible(String internalName) {
-        if (internalName == null) return true;
-        for (String prefix : INVISIBLE_PREFIXES) {
-            if (internalName.equals(prefix) || internalName.startsWith(prefix)) return false;
-        }
-        return true;
-    }
-
-    private interface AnnotationVisitorFactory {
-        org.objectweb.asm.AnnotationVisitor create(String descriptor, boolean visible);
-    }
-
-    private void emitAnnotations(AnnotationVisitorFactory factory, List<IRAnnotation> annotations) {
-        if (annotations == null) return;
-        for (IRAnnotation anno : annotations) {
-            String desc = "L" + anno.name() + ";";
-            var av = factory.create(desc, retentionIsVisible(anno.name()));
-            if (av != null) {
-                for (var e : anno.values().entrySet()) {
-                    // forma curta @Name("x"): chave null → elemento "value"
-                    String key = e.getKey() != null ? e.getKey() : "value";
-                    emitAnnotationValues(av, key, e.getValue());
-                }
-                av.visitEnd();
-            }
-        }
-    }
-
-    /**
-     * Emite um valor de annotation: constante simples ou array {v1, v2}.
-     */
-    private void emitAnnotationValues(org.objectweb.asm.AnnotationVisitor av,
-                                      String key, Object value) {
-        if (value instanceof List<?> items) {
-            var arr = av.visitArray(key);
-            for (Object item : items) {
-                if (item instanceof IRClassConstant cc) {
-                    arr.visit(null, org.objectweb.asm.Type.getType("L" + cc.internalName() + ";"));
-                } else if (item instanceof IREnumConstant ec) {
-                    arr.visitEnum(null, "L" + ec.internalName() + ";", ec.constant());
-                } else {
-                    arr.visit(null, asmValue(item));
-                }
-            }
-            arr.visitEnd();
-            return;
-        }
-        if (value instanceof IRClassConstant cc) {
-            av.visit(key, org.objectweb.asm.Type.getType("L" + cc.internalName() + ";"));
-            return;
-        }
-        if (value instanceof IREnumConstant ec) {
-            av.visitEnum(key, "L" + ec.internalName() + ";", ec.constant());
-            return;
-        }
-        av.visit(key, asmValue(value));
-    }
-
-    private Object asmValue(Object value) {
-        if (value == null || value instanceof String || value instanceof Boolean) return value;
-        if (value instanceof Integer || value instanceof Long
-                || value instanceof Float || value instanceof Double
-                || value instanceof Character) return value;
-        return String.valueOf(value);
     }
 
     private void emitOperation(MethodVisitor mv, String className, KofOperation op) {
