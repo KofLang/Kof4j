@@ -6,6 +6,21 @@
 > **bloqueia**, o **estado/dono** e um **plano de execução** para destravar.
 > Quando um bloqueador cair, o agente retoma pela ordem abaixo.
 
+## Estado atual — migração legado (Fases A–H + TIER 2) CONCLUÍDA e CONGELADA
+
+A plataforma de migração legado e as fundações estão **implementadas e testadas**
+(suíte verde) — e **congeladas** até o REFACTOR-500 fechar (não tocar nas classes
+gigantes em refactor):
+
+- ✅ `kof inspect` / `decompile` (12 capacidades + stdlib map) / `translate`
+  (record/enum/ternário/lambda/boxed) / `compare` (stdout/stderr/exit/**files**)
+  / `migrate` (relatório traceable).
+- ✅ FFI (`Int`/`String`/`Double`/`Int[]` em JVM+Native), codegen hook
+  (`CodegenStep` + `desugarEntity`), ct-eval (string-concat fold).
+- ✅ Confidence Model (`exact`/`unknown`), salvaguardas de release.
+
+**Retomada:** assim que o REFACTOR-500 fechar, seguir a ordem abaixo (#1 → #2 → …).
+
 ---
 
 ## 1. REFACTOR-500 (regra ≤500 linhas)
