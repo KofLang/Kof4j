@@ -241,4 +241,46 @@ class KofHttpE2ETest {
         String out = baos.toString().replace("\r\n", "\n").trim();
         assertEquals("Hello from Kof", out);
     }
+
+    @Test
+    void nativeHttpGetTimesOut(@TempDir Path tempDir) throws Exception {
+        // HTTP003 cauda (timeout): servidor aceita mas nunca responde; o SO_RCVTIMEO
+        // (via http.timeout(1)) deve lançar "kof.http: timeout" em ~1s.
+        try (java.net.ServerSocket ss = new java.net.ServerSocket(0)) {
+            int port = ss.getLocalPort();
+            Thread holder = new Thread(() -> {
+                try (Socket s = ss.accept()) {
+                    Thread.sleep(8000); // segura a conexão sem responder
+                } catch (Exception ignored) { }
+            });
+            holder.setDaemon(true);
+            holder.start();
+
+            Path source = tempDir.resolve("NatTimeout.kf");
+            Files.writeString(source, """
+                    main() {
+                        http.timeout(1)
+                        try {
+                            println("body=" + http.get("http://127.0.0.1:%d/"))
+                        } catch (String e) {
+                            println("caught: " + e)
+                        }
+                    }
+                    """.formatted(port));
+            Path outDir = tempDir.resolve("nat-timeout");
+            CompilationResult result = new CompilerDriver().compile(source, outDir, Target.NATIVE);
+            assertTrue(result.success(), "compile: " + result.diagnostics().getDiagnostics());
+            Path bin = outDir.resolve("Default").resolve("Main");
+            long start = System.currentTimeMillis();
+            Process p = new ProcessBuilder(bin.toString()).redirectErrorStream(true).start();
+            String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
+                    .replace("\r\n", "\n").trim();
+            int ec = p.waitFor();
+            long elapsed = System.currentTimeMillis() - start;
+            assertEquals(0, ec, "exit, out=" + out);
+            assertTrue(out.contains("caught: kof.http: timeout"), "should time out, got: " + out);
+            assertTrue(elapsed < 7000, "should time out in ~1s, took " + elapsed + "ms");
+            holder.interrupt();
+        }
+    }
 }

@@ -312,6 +312,22 @@ final class NativeHttpRuntime {
                 addq $16, %rsp
                 testq %rax, %rax
                 js .Lhr_fail_cl
+                # SO_RCVTIMEO quando http.timeout(n) foi chamado
+                movq .Lhttp_timeout(%rip), %rax
+                testq %rax, %rax
+                jz .Lhr_no_timeout
+                subq $16, %rsp
+                movq %rax, 0(%rsp)            # tv_sec
+                movq $0, 8(%rsp)              # tv_usec
+                movl %r15d, %edi              # fd
+                movl $1, %esi                 # SOL_SOCKET
+                movl $20, %edx                # SO_RCVTIMEO
+                movq %rsp, %r10               # optval
+                movl $16, %r8d                # optlen
+                movl $54, %eax                # SYS_setsockopt
+                syscall
+                addq $16, %rsp
+            .Lhr_no_timeout:
                 # build: METHOD SP path SP HTTP/1.1 CRLF Host: host CRLF
                 leaq .Lhttp_reqbuf(%rip), %rbx
                 movq %rbx, %rdi
@@ -436,6 +452,8 @@ final class NativeHttpRuntime {
                 movq $262144, %rdx
                 subq %r12, %rdx
                 call kof_net_read
+                cmpq $-11, %rax               # EAGAIN => timeout
+                je .Lhr_timeout
                 testq %rax, %rax
                 jle .Lhr_rd_done
                 addq %rax, %r12
@@ -508,6 +526,16 @@ final class NativeHttpRuntime {
             .Lhr_fail_cl:
                 movl %r15d, %edi
                 call kof_net_close
+            .Lhr_timeout:
+                movl %r15d, %edi
+                call kof_net_close
+                leaq .Lhttp_err_timeout(%rip), %rdi
+                call kof_http_cstrlen
+                movl %eax, %esi
+                leaq .Lhttp_err_timeout(%rip), %rdi
+                call kof_string_from_literal
+                movq %rax, %rdi
+                call kof_throw_string
             .Lhr_fail:
                 leaq .Lhttp_err_conn(%rip), %rdi
                 call kof_http_cstrlen
@@ -526,6 +554,8 @@ final class NativeHttpRuntime {
 
             .section .data
             .Lhttp_err_conn: .asciz "kof.http: connect falhou"
+            .Lhttp_err_timeout: .asciz "kof.http: timeout"
+            .Lhttp_timeout: .quad 0
             .Lhttp_empty: .space 1
             .section .text
 
@@ -629,6 +659,8 @@ final class NativeHttpRuntime {
             .globl kof_http_timeout_set
             .type kof_http_timeout_set, @function
             kof_http_timeout_set:
+                movslq %edi, %rax
+                movq %rax, .Lhttp_timeout(%rip)
                 ret
             .globl kof_http_retry_set
             .type kof_http_retry_set, @function
