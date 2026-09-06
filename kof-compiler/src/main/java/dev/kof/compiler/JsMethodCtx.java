@@ -8,16 +8,11 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Contexto e marcadores do lowering de UM método (REFACTOR-500 FASE 4).
- * Types package-private do pacote dev.kof.compiler: o estado por método
- * vive em {@link MethodCtx}, o estado por módulo em {@link JsLoweringContext}.
+ * Arquivo de apoio do lowering de UM método (REFACTOR-500 FASE 4).
+ * O estado por método vive em {@link MethodCtx}, o estado por módulo em
+ * {@link JsLoweringContext}; os marcadores de pilha (NewPending/DupMarker)
+ * e a exceção de controle (StatementEnd) acompanham.
  */
-final class JsMethodCtx {
-
-    private JsMethodCtx() {
-    }
-}
-
 /** Região de um loop em lowering: início, continue e fim. */
 final class LoopCtx {
     final LabelId start;
