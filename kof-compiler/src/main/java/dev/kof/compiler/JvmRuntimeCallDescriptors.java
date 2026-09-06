@@ -193,6 +193,7 @@ final class JvmRuntimeCallDescriptors {
             case "kof_workflow_job" -> "(Ljava/lang/String;Ljava/lang/Object;)Ljava/lang/String;";
             case "kof_workflow_run" -> "(Ljava/lang/String;)Ljava/lang/String;";
             case "kof_workflow_pipeline" -> "(Ljava/lang/String;Ljava/lang/Object;)Ljava/lang/String;";
+            case "kof_shell_run" -> "(Ljava/lang/String;)Ljava/lang/String;";
             case "kof_config_str" -> "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;";
             case "kof_config_has" -> "(Ljava/lang/String;)I";
             case "kof_config_int", "kof_config_bool" -> "(Ljava/lang/String;I)I";
@@ -343,7 +344,8 @@ final class JvmRuntimeCallDescriptors {
                     "kof_web_body", "kof_web_method", "kof_web_path",
                     "kof_web_status", "kof_web_header_set",
                     "kof_scheduler_every", "kof_scheduler_at",
-                    "kof_workflow_job", "kof_workflow_run", "kof_workflow_pipeline" -> "Ljava/lang/String;";
+                    "kof_workflow_job", "kof_workflow_run", "kof_workflow_pipeline",
+                    "kof_shell_run" -> "Ljava/lang/String;";
             case "kof_config_get", "kof_config_env", "kof_config_str", "kof_config_required" -> "Ljava/lang/String;";
             case "kof_cache_get" -> "Ljava/lang/String;";
             case "kof_cache_set", "kof_cache_set_ttl", "kof_cache_delete", "kof_cache_clear" -> "V";

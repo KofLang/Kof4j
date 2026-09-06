@@ -305,6 +305,20 @@ if (mc.receiver() == null && KofWorkflow.isWorkflowMethod(mc.methodName())) {
     if (wc != null) return wc.returnType();
     // fall through
 }
+if (mc.receiver() instanceof IdentifierExpr rid && KofShell.isShellNamespace(rid.name())) {
+    List<Type> argTypes = new ArrayList<>();
+    for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
+    KofShell.ShellCall sc = KofShell.staticCall(mc.methodName(), argTypes);
+    if (sc != null) return sc.returnType();
+    return Type.UnknownType.UNKNOWN;
+}
+if (mc.receiver() == null && KofShell.isShellMethod(mc.methodName())) {
+    List<Type> argTypes = new ArrayList<>();
+    for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
+    KofShell.ShellCall sc = KofShell.staticCall(mc.methodName(), argTypes);
+    if (sc != null) return sc.returnType();
+    // fall through
+}
 if (mc.receiver() instanceof IdentifierExpr rid && KofLog.isLogNamespace(rid.name())) {
     List<Type> argTypes = new ArrayList<>();
     for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
