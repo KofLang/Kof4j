@@ -389,6 +389,49 @@ final class JvmRuntimeUi {
                     return "rgba(" + r + ", " + g + ", " + b + ", " + a + ")";
                 }
 
+                // ── Canvas 2D (no-ops — renderização é KofJS) ──
+                public static int kof_ui_canvas_new(int width, int height) {
+                    return 1;
+                }
+
+                public static void kof_ui_canvas_begin_path(int canvas) {
+                }
+
+                public static void kof_ui_canvas_close_path(int canvas) {
+                }
+
+                public static void kof_ui_canvas_move_to(int canvas, int x, int y) {
+                }
+
+                public static void kof_ui_canvas_line_to(int canvas, int x, int y) {
+                }
+
+                public static void kof_ui_canvas_arc(int canvas, int x, int y, int r,
+                        double startAngle, double endAngle) {
+                }
+
+                public static void kof_ui_canvas_fill(int canvas) {
+                }
+
+                public static void kof_ui_canvas_stroke(int canvas) {
+                }
+
+                public static void kof_ui_canvas_set_fill(int canvas, int color) {
+                }
+
+                public static void kof_ui_canvas_set_stroke(int canvas, int color) {
+                }
+
+                public static void kof_ui_canvas_set_line_width(int canvas, int width) {
+                }
+
+                public static void kof_ui_canvas_clear_rect(int canvas, int x, int y,
+                        int w, int h) {
+                }
+
+                public static void kof_ui_canvas_remove(int canvas) {
+                }
+
 """;
     }
 }

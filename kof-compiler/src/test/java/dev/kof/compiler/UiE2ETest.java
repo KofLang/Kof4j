@@ -412,4 +412,38 @@ class UiE2ETest {
         assertTrue(html.contains(">a<"), "first window label rendered");
         assertTrue(html.contains(">b<"), "second window label rendered");
     }
+
+    @Test
+    void canvasCreation(@TempDir Path tempDir) throws IOException {
+        String program = """
+            main() {
+                var c = Canvas(400, 300)
+                c.setFill(Palette.blue)
+                c.setStroke(Palette.red)
+                c.setLineWidth(2)
+                c.beginPath()
+                c.moveTo(200, 150)
+                c.arc(200, 150, 100, 0.0, 3.14159)
+                c.closePath()
+                c.fill()
+                c.stroke()
+                c.clearRect(0, 0, 400, 300)
+                c.remove()
+            }
+            """;
+        Path src = tempDir.resolve("canvas.kf");
+        Files.writeString(src, program);
+        runJvm(src, tempDir.resolve("jvm"), "");
+        runNative(src, tempDir.resolve("native"), "");
+
+        Path srcJs = tempDir.resolve("canvas-js.kf");
+        Files.writeString(srcJs, program);
+        CompilationResult js = driver.compile(srcJs, tempDir.resolve("js"), Target.JS);
+        assertTrue(js.success(), "JS compilation should succeed: " + js.diagnostics().getDiagnostics());
+        String html = dev.kof.runtime.KofJsRunner.runCaptureHtml(
+                tempDir.resolve("js").resolve("Default.mjs"), new java.io.ByteArrayOutputStream(),
+                new java.io.ByteArrayInputStream(new byte[0]), new java.io.ByteArrayOutputStream());
+        assertNotNull(html, "canvas HTML should be captured");
+        assertTrue(html.contains("kof-canvas"), "canvas element rendered");
+    }
 }

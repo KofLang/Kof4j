@@ -125,6 +125,16 @@ final class JvmRuntimeCallDescriptors {
                     -> "(I)Ljava/lang/String;";
             case "kof_ui_icon_size" -> "(I)I";
             case "kof_ui_icon_set_size" -> "(II)V";
+            // ── Canvas 2D ──
+            case "kof_ui_canvas_new" -> "(II)I";
+            case "kof_ui_canvas_begin_path", "kof_ui_canvas_close_path",
+                    "kof_ui_canvas_fill", "kof_ui_canvas_stroke",
+                    "kof_ui_canvas_remove" -> "(I)V";
+            case "kof_ui_canvas_move_to", "kof_ui_canvas_line_to",
+                    "kof_ui_canvas_set_line_width" -> "(III)V";
+            case "kof_ui_canvas_arc" -> "(IIIIDD)V";
+            case "kof_ui_canvas_set_fill", "kof_ui_canvas_set_stroke" -> "(II)V";
+            case "kof_ui_canvas_clear_rect" -> "(IIIII)V";
             case "kof_io_dir_list" -> "(Ljava/lang/String;)Ljava/util/ArrayList;";
             case "kof_web_app_new" -> "()Ljava/lang/String;";
             case "kof_web_route" -> "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Object;)V";

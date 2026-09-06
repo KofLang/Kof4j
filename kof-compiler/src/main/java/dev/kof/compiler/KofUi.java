@@ -42,6 +42,7 @@ final class KofUi {
     static final Type CENTER = new Type.ClassType("kof.ui", "Center", List.of());
     static final Type ALIGN = new Type.ClassType("kof.ui", "Align", List.of());
     static final Type STORE = new Type.ClassType("kof.ui", "Store", List.of());
+    static final Type CANVAS = new Type.ClassType("kof.ui", "Canvas", List.of());
 
     /** Fase 7: Router é namespace (Router.go(...)), não tipo. */
     static boolean isRouterNamespace(String name) { return "Router".equals(name); }
@@ -70,6 +71,7 @@ final class KofUi {
     static boolean isCenter(Type t) { return CENTER.equals(t); }
     static boolean isAlign(Type t) { return ALIGN.equals(t); }
     static boolean isStore(Type t) { return STORE.equals(t); }
+    static boolean isCanvas(Type t) { return CANVAS.equals(t); }
 
     /** Primitivas de layout da Fase 4 (docs/ui/architecture.md §2.8). */
     static boolean isLayoutType(Type t) {
@@ -86,7 +88,7 @@ final class KofUi {
                 || isColumn(t) || isRow(t) || isView(t) || isStyle(t) || isWindow(t)
                 || isLink(t) || isImage(t) || isIcon(t) || isFont(t)
                 || isComponent(t) || isEvent(t)
-                || isLayoutType(t) || isStore(t);
+                || isLayoutType(t) || isStore(t) || isCanvas(t);
     }
 
     static boolean isConstructor(String name) {
@@ -99,7 +101,8 @@ final class KofUi {
                 || "Component".equals(name)
                 || "Box".equals(name) || "Stack".equals(name) || "Spacer".equals(name)
                 || "Wrap".equals(name) || "Grid".equals(name) || "Center".equals(name)
-                || "Align".equals(name) || "Store".equals(name);
+                || "Align".equals(name) || "Store".equals(name)
+                || "Canvas".equals(name);
     }
 
     static Type constructorType(String name) {
@@ -117,6 +120,7 @@ final class KofUi {
         if ("Center".equals(name)) return CENTER;
         if ("Align".equals(name)) return ALIGN;
         if ("Store".equals(name)) return STORE;
+        if ("Canvas".equals(name)) return CANVAS;
         return Type.UnknownType.UNKNOWN;
     }
 
@@ -310,6 +314,23 @@ final class KofUi {
                 case "set" -> argCount == 1 ? new UiCall("kof_ui_store_set", Type.PrimitiveType.VOID, List.of(INT)) : null;
                 case "subscribe" -> argCount == 1 ? new UiCall("kof_ui_store_subscribe", Type.PrimitiveType.VOID, List.of(Type.UnknownType.UNKNOWN)) : null;
                 case "unsubscribe" -> argCount == 1 ? new UiCall("kof_ui_store_unsubscribe", Type.PrimitiveType.VOID, List.of(Type.UnknownType.UNKNOWN)) : null;
+                default -> null;
+            };
+        }
+        if (isCanvas(receiver)) {
+            return switch (name) {
+                case "beginPath" -> argCount == 0 ? new UiCall("kof_ui_canvas_begin_path", Type.PrimitiveType.VOID, List.of()) : null;
+                case "closePath" -> argCount == 0 ? new UiCall("kof_ui_canvas_close_path", Type.PrimitiveType.VOID, List.of()) : null;
+                case "moveTo" -> argCount == 2 ? new UiCall("kof_ui_canvas_move_to", Type.PrimitiveType.VOID, List.of(INT, INT)) : null;
+                case "lineTo" -> argCount == 2 ? new UiCall("kof_ui_canvas_line_to", Type.PrimitiveType.VOID, List.of(INT, INT)) : null;
+                case "arc" -> argCount == 5 ? new UiCall("kof_ui_canvas_arc", Type.PrimitiveType.VOID, List.of(INT, INT, INT, Type.PrimitiveType.DOUBLE, Type.PrimitiveType.DOUBLE)) : null;
+                case "fill" -> argCount == 0 ? new UiCall("kof_ui_canvas_fill", Type.PrimitiveType.VOID, List.of()) : null;
+                case "stroke" -> argCount == 0 ? new UiCall("kof_ui_canvas_stroke", Type.PrimitiveType.VOID, List.of()) : null;
+                case "setFill" -> argCount == 1 ? new UiCall("kof_ui_canvas_set_fill", Type.PrimitiveType.VOID, List.of(COLOR)) : null;
+                case "setStroke" -> argCount == 1 ? new UiCall("kof_ui_canvas_set_stroke", Type.PrimitiveType.VOID, List.of(COLOR)) : null;
+                case "setLineWidth" -> argCount == 1 ? new UiCall("kof_ui_canvas_set_line_width", Type.PrimitiveType.VOID, List.of(INT)) : null;
+                case "clearRect" -> argCount == 4 ? new UiCall("kof_ui_canvas_clear_rect", Type.PrimitiveType.VOID, List.of(INT, INT, INT, INT)) : null;
+                case "remove" -> argCount == 0 ? new UiCall("kof_ui_canvas_remove", Type.PrimitiveType.VOID, List.of()) : null;
                 default -> null;
             };
         }
