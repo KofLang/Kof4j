@@ -284,10 +284,33 @@ final class NativeHttpRuntime {
                 pushq %r13
                 pushq %r14
                 pushq %r15
-                movq %rsi, %r12            # method
+                movq %rsi, .Lhttp_method_ptr(%rip)  # method
                 movq %rdx, %r13            # body
                 movq %rcx, %r14            # headers
                 call kof_http_parse_url    # rdi ja' tem url
+                jmp .Lhr_retry_start
+            .Lhr_retry_start:
+                # circuit aberto? (check só no início — paridade JVM)
+                movq .Lhttp_circuit_open_until(%rip), %rax
+                testq %rax, %rax
+                jz .Lhr_attempt_setup
+                call kof_time_now
+                cmpq %rax, .Lhttp_circuit_open_until(%rip)
+                jle .Lhr_circuit_expired
+                # ainda aberto -> fail fast
+                leaq .Lhttp_err_circuit(%rip), %rdi
+                call kof_http_cstrlen
+                movl %eax, %esi
+                leaq .Lhttp_err_circuit(%rip), %rdi
+                call kof_string_from_literal
+                movq %rax, %rdi
+                call kof_throw_string
+            .Lhr_circuit_expired:
+                movq $0, .Lhttp_circuit_open_until(%rip)
+            .Lhr_attempt_setup:
+                movq .Lhttp_retries(%rip), %rax
+                movq %rax, .Lhttp_retries_left(%rip)
+            .Lhr_attempt:
                 # socket
                 movl $2, %edi
                 movl $1, %esi
@@ -331,7 +354,7 @@ final class NativeHttpRuntime {
                 # build: METHOD SP path SP HTTP/1.1 CRLF Host: host CRLF
                 leaq .Lhttp_reqbuf(%rip), %rbx
                 movq %rbx, %rdi
-                movq %r12, %rsi
+                movq .Lhttp_method_ptr(%rip), %rsi
                 call kof_http_append_cstr
                 movq %rax, %rdi
                 movb $' ', (%rdi)
@@ -481,6 +504,11 @@ final class NativeHttpRuntime {
                 jmp .Lhr_st_loop
             .Lhr_st_ok:
                 movq %rax, .Lhttp_last_status(%rip)
+                cmpq $499, %rax
+                jg .Lhr_5xx
+                # sucesso: zera falhas do circuit breaker
+                movq $0, .Lhttp_circuit_failures(%rip)
+                movq $0, .Lhttp_circuit_open_until(%rip)
                 # body = depois de \r\n\r\n
                 leaq .Lhttp_respbuf(%rip), %rsi
                 movq %r12, %r9             # total
@@ -523,24 +551,48 @@ final class NativeHttpRuntime {
                 call kof_net_close
                 popq %rax
                 jmp .Lhr_out
+            .Lhr_5xx:
+                movl %r15d, %edi
+                call kof_net_close
+                leaq .Lhttp_err_failed(%rip), %rbx
+                jmp .Lhr_record_retry
             .Lhr_fail_cl:
                 movl %r15d, %edi
                 call kof_net_close
+                leaq .Lhttp_err_conn(%rip), %rbx
+                jmp .Lhr_record_retry
             .Lhr_timeout:
                 movl %r15d, %edi
                 call kof_net_close
-                leaq .Lhttp_err_timeout(%rip), %rdi
-                call kof_http_cstrlen
-                movl %eax, %esi
-                leaq .Lhttp_err_timeout(%rip), %rdi
-                call kof_string_from_literal
-                movq %rax, %rdi
-                call kof_throw_string
+                leaq .Lhttp_err_timeout(%rip), %rbx
+                jmp .Lhr_record_retry
             .Lhr_fail:
-                leaq .Lhttp_err_conn(%rip), %rdi
+                leaq .Lhttp_err_conn(%rip), %rbx
+            .Lhr_record_retry:
+                # rbx = cstr do erro. Registra falha no circuit; retry ou throw.
+                movq .Lhttp_circuit_trips(%rip), %rax
+                testq %rax, %rax
+                jz .Lhr_rr_nocirc
+                movq .Lhttp_circuit_failures(%rip), %rcx
+                incq %rcx
+                movq %rcx, .Lhttp_circuit_failures(%rip)
+                cmpq %rax, %rcx
+                jl .Lhr_rr_nocirc
+                call kof_time_now
+                addq $30000, %rax
+                movq %rax, .Lhttp_circuit_open_until(%rip)
+            .Lhr_rr_nocirc:
+                movq .Lhttp_retries_left(%rip), %rax
+                testq %rax, %rax
+                jz .Lhr_rr_throw
+                decq %rax
+                movq %rax, .Lhttp_retries_left(%rip)
+                jmp .Lhr_attempt
+            .Lhr_rr_throw:
+                movq %rbx, %rdi
                 call kof_http_cstrlen
                 movl %eax, %esi
-                leaq .Lhttp_err_conn(%rip), %rdi
+                movq %rbx, %rdi
                 call kof_string_from_literal
                 movq %rax, %rdi
                 call kof_throw_string
@@ -555,7 +607,15 @@ final class NativeHttpRuntime {
             .section .data
             .Lhttp_err_conn: .asciz "kof.http: connect falhou"
             .Lhttp_err_timeout: .asciz "kof.http: timeout"
+            .Lhttp_err_circuit: .asciz "kof.http circuit open"
+            .Lhttp_err_failed: .asciz "request failed"
             .Lhttp_timeout: .quad 0
+            .Lhttp_retries: .quad 0
+            .Lhttp_retries_left: .quad 0
+            .Lhttp_circuit_trips: .quad 0
+            .Lhttp_circuit_failures: .quad 0
+            .Lhttp_circuit_open_until: .quad 0
+            .Lhttp_method_ptr: .quad 0
             .Lhttp_empty: .space 1
             .section .text
 
@@ -655,7 +715,7 @@ final class NativeHttpRuntime {
                 call kof_http_core
                 movq .Lhttp_last_status(%rip), %rax
                 ret
-            # configurators (no-op nativo, preservam API; paridade futura)
+            # configurators (paridade com o JVM; timeout/retry/circuit reais)
             .globl kof_http_timeout_set
             .type kof_http_timeout_set, @function
             kof_http_timeout_set:
@@ -665,10 +725,24 @@ final class NativeHttpRuntime {
             .globl kof_http_retry_set
             .type kof_http_retry_set, @function
             kof_http_retry_set:
+                movslq %edi, %rax
+                testq %rax, %rax
+                js .Lhrs_done            # negativo -> 0 (clamp)
+                movq %rax, .Lhttp_retries(%rip)
+            .Lhrs_done:
                 ret
             .globl kof_http_circuit_set
             .type kof_http_circuit_set, @function
             kof_http_circuit_set:
+                movslq %edi, %rax
+                testq %rax, %rax
+                jle .Lhcs_reset           # <= 0 -> desliga+reset
+                movq %rax, .Lhttp_circuit_trips(%rip)
+                ret
+            .Lhcs_reset:
+                movq $0, .Lhttp_circuit_trips(%rip)
+                movq $0, .Lhttp_circuit_failures(%rip)
+                movq $0, .Lhttp_circuit_open_until(%rip)
                 ret
 
             .section .data

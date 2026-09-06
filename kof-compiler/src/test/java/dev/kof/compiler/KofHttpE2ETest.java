@@ -283,4 +283,60 @@ class KofHttpE2ETest {
             holder.interrupt();
         }
     }
+
+    @Test
+    void nativeHttpRetryAndCircuit(@TempDir Path tempDir) throws Exception {
+        // HTTP003 cauda (retry + circuit): retry numa servidor flaky (500 x2 -> 200)
+        // e circuit breaker falha rápido num porta fechada.
+        java.util.concurrent.atomic.AtomicInteger count = new java.util.concurrent.atomic.AtomicInteger();
+        java.net.ServerSocket flaky = new java.net.ServerSocket(0);
+        int flakyPort = flaky.getLocalPort();
+        Thread server = new Thread(() -> {
+            try {
+                while (true) {
+                    try (Socket c = flaky.accept()) {
+                        c.setSoTimeout(2000);
+                        int n = count.getAndIncrement();
+                        String body = n < 2 ? "err" : "ok-" + (n + 1);
+                        String status = n < 2 ? "500 Internal Server Error" : "200 OK";
+                        String resp = "HTTP/1.1 " + status + "\r\nContent-Length: "
+                                + body.length() + "\r\nConnection: close\r\n\r\n" + body;
+                        c.getOutputStream().write(resp.getBytes(StandardCharsets.UTF_8));
+                        c.getOutputStream().flush();
+                    } catch (Exception ignored) { }
+                }
+            } catch (Exception ignored) { }
+        });
+        server.setDaemon(true);
+        server.start();
+
+        int closedPort;
+        try (java.net.ServerSocket cs = new java.net.ServerSocket(0)) {
+            closedPort = cs.getLocalPort();
+        }
+
+        Path source = tempDir.resolve("NatResilience.kf");
+        Files.writeString(source, """
+                main() {
+                    http.retry(2)
+                    println("retry=" + http.get("http://127.0.0.1:%d/"))
+                    http.circuit(2)
+                    try { println(http.get("http://127.0.0.1:%d/")) } catch (String e) { println("fail1") }
+                    try { println(http.get("http://127.0.0.1:%d/")) } catch (String e) { println("fail2") }
+                    try { println(http.get("http://127.0.0.1:%d/")) } catch (String e) { println("open=" + e) }
+                    http.circuit(0)
+                    try { println(http.get("http://127.0.0.1:%d/")) } catch (String e) { println("reset") }
+                }
+                """.formatted(flakyPort, closedPort, closedPort, closedPort, closedPort));
+        Path outDir = tempDir.resolve("nat-resilience");
+        CompilationResult result = new CompilerDriver().compile(source, outDir, Target.NATIVE);
+        assertTrue(result.success(), "compile: " + result.diagnostics().getDiagnostics());
+        Path bin = outDir.resolve("Default").resolve("Main");
+        Process p = new ProcessBuilder(bin.toString()).redirectErrorStream(true).start();
+        String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
+                .replace("\r\n", "\n").trim();
+        int ec = p.waitFor();
+        assertEquals(0, ec, "exit, out=" + out);
+        assertEquals("retry=ok-3\nfail1\nfail2\nopen=kof.http circuit open\nreset", out);
+    }
 }
