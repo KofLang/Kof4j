@@ -41,6 +41,14 @@ final class NativeWebRuntime {
             .Lweb_last_body:  .space 8192     # body extraído da última request
             .Lweb_last_blen:  .quad 0
             .Lweb_last_path:  .space 512
+            # contexto de request (method/path/query) p/ method()/path()/query()
+            .Lweb_method_ptr: .quad 0
+            .Lweb_method_len: .quad 0
+            .Lweb_path_ptr:   .quad 0
+            .Lweb_path_len:   .quad 0
+            .Lweb_query_ptr:  .quad 0
+            .Lweb_query_len:  .quad 0
+            .Lweb_empty:      .byte 0
 
             .section .text
 
@@ -134,6 +142,176 @@ final class NativeWebRuntime {
                 jmp .Lsbc_cp
             .Lsbc_done:
                 movb $0, (%rdx,%rcx)
+                ret
+
+            # ------------------------------------------------------------------
+            # kof_web_store_ctx(rdi=method_start, rsi=method_end, rdx=path_start,
+            #                   rcx=path_end)
+            # Guarda os ponteiros/len de method/path/query direto no reqbuf.
+            # Leaf: usa só rax/r8/r9 (caller-scratch), não toca r9-r12 do caller.
+            # ------------------------------------------------------------------
+            kof_web_store_ctx:
+                movq %rdi, .Lweb_method_ptr(%rip)
+                movq %rsi, %rax
+                subq %rdi, %rax
+                movq %rax, .Lweb_method_len(%rip)
+                movq %rdx, .Lweb_path_ptr(%rip)
+                # procura '?' em [rdx, rcx)
+                movq %rdx, %r8
+            .Lctx_q:
+                cmpq %rcx, %r8
+                jae .Lctx_none
+                cmpb $'?', (%r8)
+                je .Lctx_found
+                incq %r8
+                jmp .Lctx_q
+            .Lctx_found:
+                # path = [rdx, r8); query = [r8+1, rcx)
+                movq %r8, %rax
+                subq %rdx, %rax
+                movq %rax, .Lweb_path_len(%rip)
+                leaq 1(%r8), %rax
+                movq %rax, .Lweb_query_ptr(%rip)
+                movq %rcx, %rax
+                subq %r8, %rax
+                decq %rax
+                movq %rax, .Lweb_query_len(%rip)
+                ret
+            .Lctx_none:
+                movq %rcx, %rax
+                subq %rdx, %rax
+                movq %rax, .Lweb_path_len(%rip)
+                movq %rdx, .Lweb_query_ptr(%rip)
+                movq $0, .Lweb_query_len(%rip)
+                ret
+
+            # ------------------------------------------------------------------
+            # kof_web_method() -> KofString (método HTTP da última request)
+            # ------------------------------------------------------------------
+            .globl kof_web_method
+            .type kof_web_method, @function
+            kof_web_method:
+                movq .Lweb_method_ptr(%rip), %rdi
+                movq .Lweb_method_len(%rip), %rsi
+                call kof_string_from_literal
+                ret
+
+            # ------------------------------------------------------------------
+            # kof_web_path() -> KofString (path da última request, sem query)
+            # ------------------------------------------------------------------
+            .globl kof_web_path
+            .type kof_web_path, @function
+            kof_web_path:
+                movq .Lweb_path_ptr(%rip), %rdi
+                movq .Lweb_path_len(%rip), %rsi
+                call kof_string_from_literal
+                ret
+
+            # ------------------------------------------------------------------
+            # kof_web_query(name KofString*) -> KofString (valor do par?name=v)
+            # Retorna "" se o par não existir.
+            # ------------------------------------------------------------------
+            .globl kof_web_query
+            .type kof_web_query, @function
+            kof_web_query:
+                pushq %rbx
+                pushq %r12
+                pushq %r13
+                pushq %r14
+                pushq %r15
+                movl 16(%rdi), %r12d         # name_len
+                leaq 24(%rdi), %r13          # name_chars
+                movq .Lweb_query_ptr(%rip), %rbx   # cur
+                movq .Lweb_query_len(%rip), %r14
+                addq %rbx, %r14              # end
+            .Lq_loop:
+                cmpq %r14, %rbx
+                jae .Lq_miss
+                movq %rbx, %r8               # scan pos
+                movq $0, %r9                 # eq = 0 (não achado)
+            .Lq_scan:
+                cmpq %r14, %r8
+                jae .Lq_part
+                movb (%r8), %al
+                cmpb $'&', %al
+                je .Lq_part
+                cmpb $'=', %al
+                jne .Lq_scan_next
+                cmpq $0, %r9
+                jne .Lq_scan_next
+                movq %r8, %r9                 # eq = r8 (primeiro '=')
+            .Lq_scan_next:
+                incq %r8
+                jmp .Lq_scan
+            .Lq_part:
+                movq %r8, %r15                # pair_end
+                cmpq $0, %r9
+                je .Lq_noeq
+                # com '=': key=[rbx,r9), value=[r9+1,r15)
+                movq %r9, %rax
+                subq %rbx, %rax               # key_len
+                cmpl %eax, %r12d
+                jne .Lq_advance
+                xorq %r10, %r10
+            .Lq_cmp_eq:
+                cmpl %r10d, %r12d
+                jae .Lq_eq_match
+                movb (%r13,%r10), %al
+                cmpb (%rbx,%r10), %al
+                jne .Lq_advance
+                incq %r10
+                jmp .Lq_cmp_eq
+            .Lq_eq_match:
+                leaq 1(%r9), %rdi             # value_start
+                movq %r15, %rax
+                subq %rdi, %rax               # value_len
+                movq %rax, %rsi
+                call kof_string_from_literal
+                popq %r15
+                popq %r14
+                popq %r13
+                popq %r12
+                popq %rbx
+                ret
+            .Lq_noeq:
+                # sem '=': key=[rbx,r15), value vazio
+                movq %r15, %rax
+                subq %rbx, %rax               # key_len
+                cmpl %eax, %r12d
+                jne .Lq_advance
+                xorq %r10, %r10
+            .Lq_cmp_noeq:
+                cmpl %r10d, %r12d
+                jae .Lq_empty_match
+                movb (%r13,%r10), %al
+                cmpb (%rbx,%r10), %al
+                jne .Lq_advance
+                incq %r10
+                jmp .Lq_cmp_noeq
+            .Lq_empty_match:
+                leaq .Lweb_empty(%rip), %rdi
+                xorq %rsi, %rsi
+                call kof_string_from_literal
+                popq %r15
+                popq %r14
+                popq %r13
+                popq %r12
+                popq %rbx
+                ret
+            .Lq_advance:
+                cmpq %r14, %r15
+                jae .Lq_miss
+                leaq 1(%r15), %rbx            # passa o '&'
+                jmp .Lq_loop
+            .Lq_miss:
+                leaq .Lweb_empty(%rip), %rdi
+                xorq %rsi, %rsi
+                call kof_string_from_literal
+                popq %r15
+                popq %r14
+                popq %r13
+                popq %r12
+                popq %rbx
                 ret
 
             # ------------------------------------------------------------------
@@ -316,6 +494,13 @@ final class NativeWebRuntime {
 
                 # r9=method_start r10=method_end r11=path_start r12=path_end
 
+                # guarda method/path/query p/ method()/path()/query()
+                movq %r9, %rdi
+                movq %r10, %rsi
+                movq %r11, %rdx
+                movq %r12, %rcx
+                call kof_web_store_ctx
+
                 # ------- lookup -------
                 movq .Lweb_nroutes(%rip), %r13   # count
                 leaq .Lweb_routes(%rip), %r14    # base
@@ -356,12 +541,11 @@ final class NativeWebRuntime {
                 leaq (%r14,%rax), %r8
                 movq 8(%r8), %rdi                # path ptr
                 movl 16(%rdi), %eax              # kof path len
-                movq %r12, %rdx                  # path_end
-                subq %r11, %rdx                  # path_req_len
+                movq .Lweb_path_len(%rip), %rdx  # req path len (sem query)
                 cmpl %eax, %edx
                 jne .Lwh_next
                 leaq 24(%rdi), %rsi
-                movq %r11, %rdi                  # req path start
+                movq .Lweb_path_ptr(%rip), %rdi  # req path start (sem query)
                 xorl %eax, %eax
             .Lwh_cp:
                 cmpl %edx, %eax
