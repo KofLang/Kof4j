@@ -8,9 +8,9 @@ import java.util.List;
  * (REFACTOR-500 fase 6). Mantém a ordem exata dos branches do switch
  * original (diagnósticos SEM0xx na mesma sequência).
  */
-final class MethodCallTyper {
+final class SemMethodCallTyper {
 
-    private MethodCallTyper() {}
+    private SemMethodCallTyper() {}
 
     static final String SSE_CONNECTION_TYPE =
             "dev.kof.runtime.KofRuntime$SseConnection";
@@ -18,7 +18,7 @@ final class MethodCallTyper {
     static Type infer(SemanticAnalyzer sa, MethodCallExpr mc, SymbolTable scope) {
         // F10: métodos de instância do handle de process.spawn
         if (mc.receiver() != null) {
-            Type recv = ExpressionTyper.inferType(sa, mc.receiver(), scope);
+            Type recv = SemExpressionTyper.inferType(sa, mc.receiver(), scope);
             // bug 17: array não tem método get()/set() — a API é o
             // operador arr[i]. Antes o compilador aceitava e emitia
             // bytecode inválido (ClassFormatError no JVM, undefined
@@ -31,20 +31,20 @@ final class MethodCallTyper {
             }
             if (KofProcess.isHandle(recv)) {
                 List<Type> argTypes = new ArrayList<>();
-                for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferType(sa, arg, scope));
+                for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
                 KofProcess.ProcessCall hm = KofProcess.handleMethod(mc.methodName(), argTypes);
                 if (hm != null) return hm.returnType();
             }
             // Canais tipados: c.send(v) / c.receive() -> T
             if (BuiltinTypes.isChannel(recv)) {
-                for (ExpressionNode arg : mc.arguments()) ExpressionTyper.inferType(sa, arg, scope);
+                for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
                 if ("send".equals(mc.methodName())) return Type.PrimitiveType.VOID;
                 if ("receive".equals(mc.methodName())) return BuiltinTypes.channelElement(recv);
             }
             // Map<K,V>: get() devolve V? para valores de referência (ausência = null,
             // narrowing via if (x != null)); primitivos/UI não representam ausência
             if (BuiltinTypes.isMap(recv)) {
-                for (ExpressionNode arg : mc.arguments()) ExpressionTyper.inferType(sa, arg, scope);
+                for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
                 Type valueType = BuiltinTypes.mapValue(recv);
                 if ("get".equals(mc.methodName())) {
                     return valueType instanceof Type.ClassType ct

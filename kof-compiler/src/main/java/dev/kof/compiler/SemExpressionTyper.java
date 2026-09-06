@@ -8,9 +8,9 @@ import java.util.List;
  * (REFACTOR-500 fase 6). Sem estado próprio — recebe o analyzer (estado
  * compartilhado) por parâmetro.
  */
-final class ExpressionTyper {
+final class SemExpressionTyper {
 
-    private ExpressionTyper() {}
+    private SemExpressionTyper() {}
 
     static Type inferType(SemanticAnalyzer sa, ExpressionNode expr, SymbolTable scope) {
         Type cached = sa.expressionTypes().get(expr);
@@ -218,7 +218,7 @@ final class ExpressionTyper {
                 if ("!".equals(ue.operator())) yield Type.PrimitiveType.BOOL;
                 yield operandType;
             }
-            case MethodCallExpr mc -> MethodCallTyper.infer(sa, mc, scope);
+            case MethodCallExpr mc -> SemMethodCallTyper.infer(sa, mc, scope);
             case NewExpr ne -> {
                 SymbolTable.ClassSymbol cs = sa.getClass(ne.typeName());
                 if (cs != null) {

@@ -22,7 +22,7 @@ final class StatementAnalyzer {
      * (que é reservado para assignment usado como VALOR — bug 12).
      */
     static Type analyzeAssignmentStatement(SemanticAnalyzer sa, AssignmentExpr ae, SymbolTable scope) {
-        Type valueType = ExpressionTyper.inferType(sa, ae.value(), scope);
+        Type valueType = SemExpressionTyper.inferType(sa, ae.value(), scope);
         Type targetType = Type.UnknownType.UNKNOWN;
         if (ae.target() instanceof IdentifierExpr ie) {
             SymbolTable.Symbol sym = scope.resolve(ie.name());
@@ -36,10 +36,10 @@ final class StatementAnalyzer {
                             "SEM012");
                 }
             } else {
-                targetType = ExpressionTyper.inferType(sa, ae.target(), scope);
+                targetType = SemExpressionTyper.inferType(sa, ae.target(), scope);
             }
         } else if (ae.target() != null) {
-            targetType = ExpressionTyper.inferType(sa, ae.target(), scope);
+            targetType = SemExpressionTyper.inferType(sa, ae.target(), scope);
         }
         return targetType;
     }
@@ -76,7 +76,7 @@ final class StatementAnalyzer {
                     Type viaImports = MemberResolver.qualifyViaImports(sa.unit(), vds.type());
                     varType = viaImports != null ? viaImports : Type.of(vds.type());
                 } else if (vds.initializer() != null) {
-                    varType = ExpressionTyper.inferType(sa, vds.initializer(), scope);
+                    varType = SemExpressionTyper.inferType(sa, vds.initializer(), scope);
                 } else {
                     varType = Type.UnknownType.UNKNOWN;
                 }
@@ -86,11 +86,11 @@ final class StatementAnalyzer {
                             "variable '" + vds.name() + "' is already defined in this scope",
                             "SEM024");
                 }
-                if (vds.initializer() != null) ExpressionTyper.inferType(sa, vds.initializer(), scope);
+                if (vds.initializer() != null) SemExpressionTyper.inferType(sa, vds.initializer(), scope);
                 // SC2: tipo explícito ≠ tipo do inicializador
                 if (sa.diagnostics() != null && vds.initializer() != null
                         && !varType.equals(Type.UnknownType.UNKNOWN)) {
-                    Type initType = ExpressionTyper.inferType(sa, vds.initializer(), scope);
+                    Type initType = SemExpressionTyper.inferType(sa, vds.initializer(), scope);
                     if (!initType.equals(Type.UnknownType.UNKNOWN)
                             && !TypeChecker.isAssignable(initType, varType)
                             && !(initType instanceof Type.FunctionType)
@@ -105,7 +105,7 @@ final class StatementAnalyzer {
             }
             case ReturnStmt ret -> {
                 if (ret.value() != null) {
-                    Type valueType = ExpressionTyper.inferType(sa, ret.value(), scope);
+                    Type valueType = SemExpressionTyper.inferType(sa, ret.value(), scope);
                     sa.expressionTypes().put(ret.value(), valueType);
                     if (sa.diagnostics() != null && !Type.isUnknown(returnType) && !Type.isVoid(returnType)
                             && !Type.isUnknown(valueType) && !TypeChecker.isAssignable(valueType, returnType)) {
@@ -117,7 +117,7 @@ final class StatementAnalyzer {
             case BreakStmt ignored -> {}
             case ContinueStmt ignored -> {}
             case IfStmt ifStmt -> {
-                Type condType = ExpressionTyper.inferType(sa, ifStmt.condition(), scope);
+                Type condType = SemExpressionTyper.inferType(sa, ifStmt.condition(), scope);
                 // Nullability narrowing: if (x != null) { x: T } where x: T?
                 SymbolTable ifScope = scope.enterScope();
                 if (ifStmt.condition() instanceof BinaryExpr be && "!=".equals(be.operator())
@@ -139,33 +139,33 @@ final class StatementAnalyzer {
                 if (ifStmt.elseBranch() != null) analyzeStatement(sa, ifStmt.elseBranch(), scope, returnType);
             }
             case WhileStmt ws -> {
-                ExpressionTyper.inferType(sa, ws.condition(), scope);
+                SemExpressionTyper.inferType(sa, ws.condition(), scope);
                 SymbolTable whileScope = scope.enterScope();
                 analyzeStatement(sa, ws.body(), whileScope, returnType);
             }
             case DoWhileStmt dws -> {
                 SymbolTable doScope = scope.enterScope();
                 analyzeStatement(sa, dws.body(), doScope, returnType);
-                ExpressionTyper.inferType(sa, dws.condition(), doScope);
+                SemExpressionTyper.inferType(sa, dws.condition(), doScope);
             }
             case ForStmt fs -> {
                 SymbolTable forScope = scope.enterScope();
                 if (fs.init() != null) analyzeStatement(sa, fs.init(), forScope, returnType);
-                if (fs.condition() != null) ExpressionTyper.inferType(sa, fs.condition(), forScope);
+                if (fs.condition() != null) SemExpressionTyper.inferType(sa, fs.condition(), forScope);
                 analyzeStatement(sa, fs.body(), forScope, returnType);
                 if (fs.update() != null) {
                     // `i = i + 1` no update é statement, não valor
                     if (fs.update() instanceof AssignmentExpr ae) {
-                        ExpressionTyper.inferType(sa, ae.value(), forScope);
-                        if (ae.target() != null) ExpressionTyper.inferType(sa, ae.target(), forScope);
+                        SemExpressionTyper.inferType(sa, ae.value(), forScope);
+                        if (ae.target() != null) SemExpressionTyper.inferType(sa, ae.target(), forScope);
                     } else {
-                        ExpressionTyper.inferType(sa, fs.update(), forScope);
+                        SemExpressionTyper.inferType(sa, fs.update(), forScope);
                     }
                 }
             }
             case ForInStmt fis -> {
                 SymbolTable forScope = scope.enterScope();
-                Type collType = ExpressionTyper.inferType(sa, fis.collection(), forScope);
+                Type collType = SemExpressionTyper.inferType(sa, fis.collection(), forScope);
                 Type elemType = Type.UnknownType.UNKNOWN;
                 if (collType instanceof Type.ClassType ct && "List".equals(ct.name()) && !ct.typeArguments().isEmpty()) {
                     elemType = ct.typeArguments().get(0);
@@ -176,7 +176,7 @@ final class StatementAnalyzer {
                 analyzeStatement(sa, fis.body(), forScope, returnType);
             }
             case SwitchStmt ss -> {
-                ExpressionTyper.inferType(sa, ss.expression(), scope);
+                SemExpressionTyper.inferType(sa, ss.expression(), scope);
                 SymbolTable switchScope = scope.enterScope();
                 for (SwitchCase sc : ss.cases()) {
                     if (sc.value() instanceof PatternExpr pe) {
@@ -230,7 +230,7 @@ final class StatementAnalyzer {
                         }
                         analyzeBody(sa, sc.body(), caseScope, returnType);
                     } else {
-                        ExpressionTyper.inferType(sa, sc.value(), scope);
+                        SemExpressionTyper.inferType(sa, sc.value(), scope);
                         SymbolTable caseScope = switchScope.enterScope();
                         analyzeBody(sa, sc.body(), caseScope, returnType);
                     }
@@ -249,14 +249,14 @@ final class StatementAnalyzer {
                         sa.expressionTypes().put(es.expression(),
                                 analyzeAssignmentStatement(sa, ae, scope));
                     } else {
-                        Type exprType = ExpressionTyper.inferType(sa, es.expression(), scope);
+                        Type exprType = SemExpressionTyper.inferType(sa, es.expression(), scope);
                         sa.expressionTypes().put(es.expression(), exprType);
                     }
                 }
             }
             case ThrowStmt ts -> {
                 if (ts.expression() != null) {
-                    Type t = ExpressionTyper.inferType(sa, ts.expression(), scope);
+                    Type t = SemExpressionTyper.inferType(sa, ts.expression(), scope);
                     // bug 1: `throw <não-String>` gerava bytecode inválido no
                     // JVM (wrap em RuntimeException assumindo String). Exceções
                     // são Strings em Kof — rejeita com diagnóstico limpo.
@@ -271,10 +271,10 @@ final class StatementAnalyzer {
                 }
             }
             case SpawnStmt ss -> {
-                if (ss.expression() != null) ExpressionTyper.inferType(sa, ss.expression(), scope);
+                if (ss.expression() != null) SemExpressionTyper.inferType(sa, ss.expression(), scope);
             }
             case AssertStmt asrt -> {
-                if (asrt.condition() != null) ExpressionTyper.inferType(sa, asrt.condition(), scope);
+                if (asrt.condition() != null) SemExpressionTyper.inferType(sa, asrt.condition(), scope);
             }
             default -> {}
         }

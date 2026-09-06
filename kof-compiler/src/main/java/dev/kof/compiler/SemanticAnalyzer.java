@@ -301,7 +301,7 @@ class SemanticAnalyzer {
      */
 
     Type inferType(ExpressionNode expr, SymbolTable scope) {
-        return ExpressionTyper.inferType(this, expr, scope);
+        return SemExpressionTyper.inferType(this, expr, scope);
     }
 
     /** Reporta erro de análise sem posição precisa (estilo dos demais SEM*xx). */

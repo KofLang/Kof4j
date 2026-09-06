@@ -29,26 +29,26 @@ final class BuiltinCallTyper {
             if (!mc.typeArguments().isEmpty()) {
                 elemType = MemberResolver.resolveType(sa, mc.typeArguments().get(0), scope);
             } else if (!mc.arguments().isEmpty()) {
-                elemType = ExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
+                elemType = SemExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
             }
-            for (ExpressionNode arg : mc.arguments()) ExpressionTyper.inferType(sa, arg, scope);
+            for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
             return new Type.ClassType("kof", "List", List.of(elemType));
         }
         if (mc.receiver() == null && "mapOf".equals(mc.methodName())) {
-            for (ExpressionNode arg : mc.arguments()) ExpressionTyper.inferType(sa, arg, scope);
+            for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
             // pinning no primeiro par (k1, v1, ...) — espelha o emit e o
             // CompilerDriver.inferExprType; sem isso Map<Unknown,Unknown>
             // vazava para var x = mapOf(...) e get() devolvia Unknown
             Type keyType = mc.arguments().isEmpty() ? Type.UnknownType.UNKNOWN
-                    : ExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
+                    : SemExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
             Type valueType = mc.arguments().size() < 2 ? Type.UnknownType.UNKNOWN
-                    : ExpressionTyper.inferType(sa, mc.arguments().get(1), scope);
+                    : SemExpressionTyper.inferType(sa, mc.arguments().get(1), scope);
             return new Type.ClassType("kof", "Map", List.of(keyType, valueType));
         }
         if (mc.receiver() == null && "setOf".equals(mc.methodName())) {
             Type elemType = Type.UnknownType.UNKNOWN;
-            if (!mc.arguments().isEmpty()) elemType = ExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
-            for (ExpressionNode arg : mc.arguments()) ExpressionTyper.inferType(sa, arg, scope);
+            if (!mc.arguments().isEmpty()) elemType = SemExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
+            for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
             return new Type.ClassType("kof", "Set", List.of(elemType));
         }
         if (mc.receiver() == null && sa.allClasses().containsKey(mc.methodName())) {
@@ -56,7 +56,7 @@ final class BuiltinCallTyper {
             // User classes take precedence over builtin helpers with
             // the same name (e.g. KofUi's Color).
             SymbolTable.ClassSymbol ctorClass = sa.allClasses().get(mc.methodName());
-            for (ExpressionNode arg : mc.arguments()) ExpressionTyper.inferType(sa, arg, scope);
+            for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
             SymbolTable.ConstructorSymbol ctor = SymbolTable.constructorFor(
                     ctorClass.members(), mc.arguments().size());
             if (ctor != null) {
@@ -66,7 +66,7 @@ final class BuiltinCallTyper {
             return new Type.ClassType(ctorClass.packageName(), ctorClass.name(), List.of());
         }
         if ("println".equals(mc.methodName()) || "print".equals(mc.methodName())) {
-            for (ExpressionNode arg : mc.arguments()) ExpressionTyper.inferType(sa, arg, scope);
+            for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
             return Type.PrimitiveType.VOID;
         }
         if (mc.receiver() == null && "now".equals(mc.methodName()) && mc.arguments().isEmpty()) {
@@ -77,18 +77,18 @@ final class BuiltinCallTyper {
         }
         if (mc.receiver() == null && KofWeb.isContextFunction(mc.methodName())
                 && KofWeb.contextCall(mc.methodName(), mc.arguments().size()) != null) {
-            for (ExpressionNode arg : mc.arguments()) ExpressionTyper.inferType(sa, arg, scope);
+            for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
             return KofWeb.contextCall(mc.methodName(), mc.arguments().size()).returnType();
         }
         if ((mc.receiver() == null && KofScheduler.isSchedulerMethod(mc.methodName()))
                 || (mc.receiver() instanceof IdentifierExpr rid2 && KofScheduler.isSchedulerNamespace(rid2.name())
                         && KofScheduler.isSchedulerMethod(mc.methodName()))) {
-            for (ExpressionNode arg : mc.arguments()) ExpressionTyper.inferType(sa, arg, scope);
+            for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
             if ("cancel".equals(mc.methodName())) {
                 // cancel(Handle<T>) é o cancel de concorrência (retorna Bool);
                 // cancel(String taskId) é o do scheduler (VOID). Distingue pelo
                 // tipo do argumento para o + string converter o Bool certo.
-                Type a0 = ExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
+                Type a0 = SemExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
                 if (TypeChecker.isConcurrentHandle(a0)) {
                     return Type.PrimitiveType.BOOL;
                 }
@@ -98,7 +98,7 @@ final class BuiltinCallTyper {
         }
         if (mc.receiver() == null && "transaction".equals(mc.methodName())
                 && mc.arguments().size() == 1) {
-            for (ExpressionNode arg : mc.arguments()) ExpressionTyper.inferType(sa, arg, scope);
+            for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
             return Type.PrimitiveType.VOID;
         }
         if (mc.receiver() == null && "uiNodesLive".equals(mc.methodName())
@@ -109,7 +109,7 @@ final class BuiltinCallTyper {
         if (mc.receiver() == null && "emit".equals(mc.methodName())
                 && mc.arguments().size() == 2) {
             // Fase 5: dispara evento (bubbling) — args inferidos.
-            for (ExpressionNode arg : mc.arguments()) ExpressionTyper.inferType(sa, arg, scope);
+            for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
             return Type.PrimitiveType.VOID;
         }
         if (mc.receiver() == null && "storesLive".equals(mc.methodName())
@@ -118,81 +118,81 @@ final class BuiltinCallTyper {
             return Type.PrimitiveType.INT;
         }
         if (mc.receiver() == null && "readFile".equals(mc.methodName()) && mc.arguments().size() == 1) {
-            ExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
+            SemExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
             return BuiltinTypes.STRING;
         }
         if (mc.receiver() == null && "writeFile".equals(mc.methodName()) && mc.arguments().size() == 2) {
-            for (ExpressionNode arg : mc.arguments()) ExpressionTyper.inferType(sa, arg, scope);
+            for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
             return Type.PrimitiveType.INT;
         }
         if (mc.receiver() == null && KofIo.isConstructor(mc.methodName()) && mc.arguments().size() == 1) {
-            ExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
+            SemExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
             return KofIo.constructorType(mc.methodName());
         }
         if (mc.receiver() == null && "Color".equals(mc.methodName())
                 && (mc.arguments().size() == 1 || mc.arguments().size() == 3)) {
-            for (ExpressionNode arg : mc.arguments()) ExpressionTyper.inferType(sa, arg, scope);
+            for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
             return KofUi.COLOR;
         }
         if (mc.receiver() == null && "Window".equals(mc.methodName()) && mc.arguments().size() == 1) {
-            ExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
+            SemExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
             return KofUi.WINDOW;
         }
         if (mc.receiver() == null && "Label".equals(mc.methodName()) && mc.arguments().size() == 1) {
-            ExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
+            SemExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
             return KofUi.LABEL;
         }
         if (mc.receiver() == null && "Button".equals(mc.methodName())
                 && (mc.arguments().size() == 1 || mc.arguments().size() == 2)) {
-            for (ExpressionNode arg : mc.arguments()) ExpressionTyper.inferType(sa, arg, scope);
+            for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
             return KofUi.BUTTON;
         }
         if (mc.receiver() == null && "Input".equals(mc.methodName()) && mc.arguments().size() == 1) {
-            ExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
+            SemExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
             return KofUi.INPUT;
         }
         if (mc.receiver() == null && ("Column".equals(mc.methodName()) || "Row".equals(mc.methodName()))
                 && mc.arguments().size() == 1) {
-            ExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
+            SemExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
             return "Column".equals(mc.methodName()) ? KofUi.COLUMN : KofUi.ROW;
         }
         if (mc.receiver() == null && "View".equals(mc.methodName()) && mc.arguments().size() == 1) {
-            ExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
+            SemExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
             return KofUi.VIEW;
         }
         if (mc.receiver() == null && KofUi.isConstructor(mc.methodName())
                 && !mc.arguments().isEmpty() && mc.arguments().size() <= 3) {
             Type ct = KofUi.constructorType(mc.methodName());
             if (KofUi.isLayoutType(ct) || KofUi.isStore(ct)) {
-                for (ExpressionNode arg : mc.arguments()) ExpressionTyper.inferType(sa, arg, scope);
+                for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
                 return ct;
             }
         }
         if (mc.receiver() == null && "Style".equals(mc.methodName()) && mc.arguments().size() == 4) {
-            for (ExpressionNode arg : mc.arguments()) ExpressionTyper.inferType(sa, arg, scope);
+            for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
             return KofUi.STYLE;
         }
         if (mc.receiver() == null && "Link".equals(mc.methodName()) && mc.arguments().size() == 2) {
-            for (ExpressionNode arg : mc.arguments()) ExpressionTyper.inferType(sa, arg, scope);
+            for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
             return KofUi.LINK;
         }
         if (mc.receiver() == null && "Image".equals(mc.methodName()) && mc.arguments().size() == 1) {
-            ExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
+            SemExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
             return KofUi.IMAGE;
         }
         if (mc.receiver() == null && "Icon".equals(mc.methodName())
                 && (mc.arguments().size() == 1 || mc.arguments().size() == 2)) {
-            for (ExpressionNode arg : mc.arguments()) ExpressionTyper.inferType(sa, arg, scope);
+            for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
             return KofUi.ICON;
         }
         if (mc.receiver() == null && "Font".equals(mc.methodName())
                 && (mc.arguments().size() == 2 || mc.arguments().size() == 3)) {
-            for (ExpressionNode arg : mc.arguments()) ExpressionTyper.inferType(sa, arg, scope);
+            for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
             return KofUi.FONT;
         }
         if (mc.receiver() == null && "Component".equals(mc.methodName())
                 && mc.arguments().size() == 1) {
-            ExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
+            SemExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
             return KofUi.COMPONENT;
         }
         return null;
@@ -210,7 +210,7 @@ final class BuiltinCallTyper {
             SymbolTable.Symbol localSym = scope != null ? scope.resolve(mc.methodName()) : null;
             if (localSym != null && localSym.type() instanceof Type.FunctionType lft) {
                 List<Type> argTypes = new ArrayList<>();
-                for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferType(sa, arg, scope));
+                for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
                 TypeChecker.checkArgTypes(sa.diagnostics(), mc.methodName(), argTypes, lft.parameterTypes());
                 return lft.returnType();
             }
@@ -228,14 +228,14 @@ final class BuiltinCallTyper {
                                     + " and cannot be called" + extra,
                             "SEM015");
                 }
-                for (ExpressionNode arg : mc.arguments()) ExpressionTyper.inferType(sa, arg, scope);
+                for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
                 return Type.UnknownType.UNKNOWN;
             }
             if (sa.currentClassName() != null && !sa.currentClassName().isEmpty()) {
                 SymbolTable.Symbol m = MemberResolver.resolveInHierarchy(sa, sa.currentClassName(), mc.methodName());
                 if (m instanceof SymbolTable.MethodSymbol ms) {
                     List<Type> argTypes = new ArrayList<>();
-                    for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferType(sa, arg, scope));
+                    for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
                     TypeChecker.checkArgTypes(sa.diagnostics(), mc.methodName(), argTypes, ms.parameterTypes());
                     sa.resolvedMethods().put(mc, ms);
                     return ms.returnType();
@@ -267,16 +267,16 @@ final class BuiltinCallTyper {
                 && ("super".equals(mc.methodName()) || "this".equals(mc.methodName()))) {
             // super(args) / this(args): chamadas de construtor —
             // válidas apenas dentro do corpo de um construtor
-            for (ExpressionNode arg : mc.arguments()) ExpressionTyper.inferType(sa, arg, scope);
+            for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
             return Type.PrimitiveType.VOID;
         }
         if (mc.receiver() == null && "__kof_spawn_expr".equals(mc.methodName())) {
-            Type t = ExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
+            Type t = SemExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
             return new Type.ClassType("kof.concurrent", "Handle", List.of(t));
         }
         if (mc.receiver() == null && "cancel".equals(mc.methodName())
                 && mc.arguments().size() == 1) {
-            ExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
+            SemExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
             return Type.PrimitiveType.BOOL;
         }
         if (mc.receiver() == null && "cancelled".equals(mc.methodName())
@@ -286,7 +286,7 @@ final class BuiltinCallTyper {
         if (mc.receiver() == null && "selectAny".equals(mc.methodName())
                 && !mc.arguments().isEmpty()) {
             Type t0 = Type.UnknownType.UNKNOWN;
-            for (ExpressionNode arg : mc.arguments()) t0 = ExpressionTyper.inferType(sa, arg, scope);
+            for (ExpressionNode arg : mc.arguments()) t0 = SemExpressionTyper.inferType(sa, arg, scope);
             if (t0 instanceof Type.ClassType ct
                     && "kof.concurrent".equals(ct.packageName())
                     && !ct.typeArguments().isEmpty()) {
@@ -296,8 +296,8 @@ final class BuiltinCallTyper {
         }
         if (mc.receiver() == null && "awaitTimeout".equals(mc.methodName())
                 && mc.arguments().size() == 2) {
-            Type t0 = ExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
-            ExpressionTyper.inferType(sa, mc.arguments().get(1), scope);
+            Type t0 = SemExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
+            SemExpressionTyper.inferType(sa, mc.arguments().get(1), scope);
             if (t0 instanceof Type.ClassType ct
                     && "kof.concurrent".equals(ct.packageName())
                     && !ct.typeArguments().isEmpty()) {
@@ -307,7 +307,7 @@ final class BuiltinCallTyper {
         }
         if (mc.receiver() == null && ("poll".equals(mc.methodName())
                 || "done".equals(mc.methodName()))) {
-            Type t0 = ExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
+            Type t0 = SemExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
             if ("done".equals(mc.methodName())) return Type.PrimitiveType.BOOL;
             if (t0 instanceof Type.ClassType ct
                     && "kof.concurrent".equals(ct.packageName())
@@ -317,7 +317,7 @@ final class BuiltinCallTyper {
             return Type.UnknownType.UNKNOWN;
         }
         if (mc.receiver() == null && "__kof_await".equals(mc.methodName())) {
-            Type t = ExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
+            Type t = SemExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
             if (t instanceof Type.ClassType ct
                     && "kof.concurrent".equals(ct.packageName())
                     && !ct.typeArguments().isEmpty()) {
@@ -340,7 +340,7 @@ final class BuiltinCallTyper {
                 && !"emit".equals(mc.methodName())
                 && !"storesLive".equals(mc.methodName())) {
             List<Type> argTypes = new ArrayList<>();
-            for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferType(sa, arg, scope));
+            for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
             boolean found = false;
             for (AstNode d : sa.unit().declarations()) {
                 if (d instanceof FunctionDeclarationNode fn && fn.name().equals(mc.methodName())) {
@@ -371,7 +371,7 @@ final class BuiltinCallTyper {
         }
         SymbolTable.ClassSymbol ctorClass = sa.allClasses().get(mc.methodName());
         if (ctorClass != null) {
-            for (ExpressionNode arg : mc.arguments()) ExpressionTyper.inferType(sa, arg, scope);
+            for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
             SymbolTable.ConstructorSymbol ctor = SymbolTable.constructorFor(
                     ctorClass.members(), mc.arguments().size());
             if (ctor != null) {
@@ -380,12 +380,12 @@ final class BuiltinCallTyper {
             }
             return new Type.ClassType(ctorClass.packageName(), ctorClass.name(), List.of());
         }
-        for (ExpressionNode arg : mc.arguments()) ExpressionTyper.inferType(sa, arg, scope);
+        for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
         // String API: métodos que devolvem Int (indexOf, lastIndexOf,
         // length, compareTo...) — sem isso o var local infere Unknown
         // e o backend emite aload+if_icmp* (VerifyError)
         if (mc.receiver() != null) {
-            Type recv = ExpressionTyper.inferType(sa, mc.receiver(), scope);
+            Type recv = SemExpressionTyper.inferType(sa, mc.receiver(), scope);
             if (Type.isString(recv) || recv instanceof Type.NullableType nt && Type.isString(nt.inner())) {
                 return switch (mc.methodName()) {
                     case "indexOf", "lastIndexOf", "length", "size", "count",
