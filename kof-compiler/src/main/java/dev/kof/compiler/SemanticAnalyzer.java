@@ -21,7 +21,7 @@ class SemanticAnalyzer {
         this.externalTypes = cp;
     }
 
-    private boolean isExternal(Type.ClassType ct) {
+    boolean isExternal(Type.ClassType ct) {
         return externalTypes != null && !ct.packageName().isEmpty()
                 && externalTypes.knows(ct.internalName());
     }
@@ -75,7 +75,7 @@ class SemanticAnalyzer {
         this.declarationPackageLookup = lookup;
     }
 
-    private String packageOf(AstNode decl) {
+    String packageOf(AstNode decl) {
         if (declarationPackageLookup != null) {
             String pkg = declarationPackageLookup.apply(decl);
             if (pkg != null) return pkg;
@@ -404,6 +404,24 @@ class SemanticAnalyzer {
     private final java.util.IdentityHashMap<ConstructorDeclarationNode, SymbolTable> ctorScopes = new java.util.IdentityHashMap<>();
     private final java.util.IdentityHashMap<MethodDeclarationNode, SymbolTable> methodScopes = new java.util.IdentityHashMap<>();
     private final java.util.IdentityHashMap<MethodDeclarationNode, SymbolTable.MethodSymbol> methodSymbols = new java.util.IdentityHashMap<>();
+
+    // Acesso ao estado compartilhado para as classes extraídas (REFACTOR-500
+    // fase 6). Não há duplicação de estado: apenas leitura/direção.
+    SymbolTable currentScope() { return currentScope; }
+    CompilationUnitNode unit() { return currentUnit; }
+    ExternalClasspath externalTypes() { return externalTypes; }
+    String currentClassName() { return currentClassName; }
+    String currentFunctionName() { return currentFunctionName; }
+    String currentPackage() { return currentPackage; }
+    DiagnosticCollector diagnostics() { return diagnostics; }
+    java.util.Set<String> interfaceNames() { return interfaceNames; }
+    Map<ExpressionNode, Type> expressionTypes() { return expressionTypes; }
+    Map<MethodCallExpr, SymbolTable.MethodSymbol> resolvedMethods() { return resolvedMethods; }
+    Map<NewExpr, SymbolTable.ConstructorSymbol> resolvedConstructors() { return resolvedConstructors; }
+    Map<String, SymbolTable> classMemberScopes() { return classMemberScopes; }
+    java.util.IdentityHashMap<ConstructorDeclarationNode, SymbolTable> ctorScopes() { return ctorScopes; }
+    java.util.IdentityHashMap<MethodDeclarationNode, SymbolTable> methodScopes() { return methodScopes; }
+    java.util.IdentityHashMap<MethodDeclarationNode, SymbolTable.MethodSymbol> methodSymbols() { return methodSymbols; }
 
     private void defineConstructorSymbol(ConstructorDeclarationNode ctor, String className, SymbolTable classScope) {
         List<Type> paramTypes = new ArrayList<>();
@@ -1943,7 +1961,7 @@ class SemanticAnalyzer {
     }
 
     /** Reporta erro de análise sem posição precisa (estilo dos demais SEM*xx). */
-    private void reportError(AstNode n, String message, String code) {
+    void reportError(AstNode n, String message, String code) {
         if (diagnostics == null) return;
         SourcePosition p = n.position();
         String file = p != null ? p.file() : "";
