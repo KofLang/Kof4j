@@ -30,34 +30,7 @@ import java.util.Set;
  */
 class JsBackend implements Backend {
 
-
-    private final List<String> runtimeImports = new ArrayList<>();
-    private final List<String> ioRuntimeImports = new ArrayList<>();
-    private final Set<String> decodeHelpers = new HashSet<>();
-    private final Set<String> recordClassNames = new HashSet<>();
-    private Map<String, Set<String>> classMethodNames = Map.of();
-    private Map<String, Map<Integer, String>> fnArityNames = Map.of();
-    private Map<String, Boolean> asyncMethods = Map.of();
-    private Set<String> asyncMethodNamesAnywhere = Set.of();
-
-    // kof_spawn_result/kof_spawn NÃO entram aqui de propósito: spawnar uma
-    // task não bloqueia quem chama, só await/receive/selectAny bloqueiam.
-    // kofSpawnResult() é uma função JS comum (não-async) que devolve um
-    // handle na hora — não exige que quem a chama seja async. O caso de uma
-    // task esquecida (handle nunca esperado) já é coberto independentemente
-    // pelo pump de kofActiveTasks em KofJsRunner, não pela coloração.
-    private static final Set<String> ASYNC_RUNTIME_OPS = Set.of(
-            "kof_await", "kof_await_timeout", "kof_channel_receive", "kof_select_any");
-
-    /** JS name for a top-level function call resolved by (name, arity). */
-    private String jsFunctionName(String name, int arity) {
-        Map<Integer, String> byArity = fnArityNames.get(name);
-        if (byArity != null) {
-            String resolved = byArity.get(arity);
-            if (resolved != null) return resolved;
-        }
-        return name;
-    }
+    private final JsLoweringContext lc = new JsLoweringContext();
 
     @Override
     public void emit(IRModule module, Path outputDir) throws IOException {
@@ -67,8 +40,8 @@ class JsBackend implements Backend {
     @Override
     public void emit(IRModule module, Path outputDir, boolean debugInfo) throws IOException {
         Files.createDirectories(outputDir);
-        runtimeImports.clear();
-        ioRuntimeImports.clear();
+        lc.runtimeImports.clear();
+        lc.ioRuntimeImports.clear();
         JsIr.JsModule jsModule = lowerModule(module);
         JsEmitter emitter = new JsEmitter();
         String code = emitter.emit(jsModule);
@@ -101,21 +74,21 @@ class JsBackend implements Backend {
                 }
             }
         }
-        this.classMethodNames = methodNames;
-        recordClassNames.clear();
+        this.lc.classMethodNames = methodNames;
+        lc.recordClassNames.clear();
         for (IRClass clazz : module.classes()) {
             if ("java/lang/Record".equals(clazz.superName())) {
-                recordClassNames.add(clazz.name());
-                recordClassNames.add(clazz.name().replace('/', '.'));
+                lc.recordClassNames.add(clazz.name());
+                lc.recordClassNames.add(clazz.name().replace('/', '.'));
                 // also add simple name
                 String simple = clazz.name().substring(clazz.name().lastIndexOf('/') + 1);
-                recordClassNames.add(simple);
+                lc.recordClassNames.add(simple);
             }
         }
         // Default-parameter wrappers share the canonical name; JS has no
         // overloading, so wrappers are mangled by dropped-arity and calls
         // are routed by (name, arity).
-        this.fnArityNames = new HashMap<>();
+        this.lc.fnArityNames = new HashMap<>();
         for (IRClass clazz : module.classes()) {
             if (skipClass(clazz) || !isMainClass(clazz)) continue;
             Map<String, Integer> maxArity = new HashMap<>();
@@ -130,7 +103,7 @@ class JsBackend implements Backend {
                 String jsName = arity == max
                         ? method.name()
                         : method.name() + "$d" + (max - arity);
-                fnArityNames.computeIfAbsent(method.name(), k -> new HashMap<>())
+                lc.fnArityNames.computeIfAbsent(method.name(), k -> new HashMap<>())
                         .put(arity, jsName);
             }
         }
@@ -150,7 +123,7 @@ class JsBackend implements Backend {
         }
         for (IRClass clazz : module.classes()) {
             if (skipClass(clazz) || isMainClass(clazz)) continue;
-            if (decodeHelpers.contains(JsTypeMapper.jsClassName(clazz.name()))) {
+            if (lc.decodeHelpers.contains(JsTypeMapper.jsClassName(clazz.name()))) {
                 functions.add(lowerDecodeHelper(clazz));
             }
         }
@@ -167,8 +140,8 @@ class JsBackend implements Backend {
             }
         }
         return new JsIr.JsModule(module.name(), classes, functions,
-                new ArrayList<>(new LinkedHashSet<>(runtimeImports)),
-                new ArrayList<>(new LinkedHashSet<>(ioRuntimeImports)), moduleStatements);
+                new ArrayList<>(new LinkedHashSet<>(lc.runtimeImports)),
+                new ArrayList<>(new LinkedHashSet<>(lc.ioRuntimeImports)), moduleStatements);
     }
 
     private void computeAsyncColoring(IRModule module) {
@@ -201,7 +174,7 @@ class JsBackend implements Backend {
                     boolean markAsync = false;
                     for (KofOperation op : ops) {
                         if (!(op instanceof KofCall kc)) continue;
-                        if (ASYNC_RUNTIME_OPS.contains(kc.methodName())) {
+                        if (lc.ASYNC_RUNTIME_OPS.contains(kc.methodName())) {
                             markAsync = true;
                             break;
                         }
@@ -238,8 +211,8 @@ class JsBackend implements Backend {
             if (!e.getValue()) continue;
             finalAsyncNames.add(methodNameFromAsyncKey(e.getKey()));
         }
-        this.asyncMethods = async;
-        this.asyncMethodNamesAnywhere = finalAsyncNames;
+        this.lc.asyncMethods = async;
+        this.lc.asyncMethodNamesAnywhere = finalAsyncNames;
     }
 
     private static String methodNameFromAsyncKey(String key) {
@@ -458,7 +431,7 @@ class JsBackend implements Backend {
         String name = method.name();
         if ("<init>".equals(name)) name = "constructor";
         if (isTopLevel) {
-            name = jsFunctionName(name, method.parameterTypes().size());
+            name = lc.jsFunctionName(name, method.parameterTypes().size());
         }
         return new JsIr.JsFunction(name, parameterNames(ctx), parseMethodBody(ctx), isStatic, false, isTopLevel,
                 ctx.isAsync, firstKofLine(method));
@@ -481,7 +454,7 @@ class JsBackend implements Backend {
     }
 
     private List<JsIr.JsStatement> parseMethodBody(MethodCtx ctx) {
-        currentCtxOpsDump = ctx.ops;
+        lc.currentCtxOpsDump = ctx.ops;
         int[] pos = {0};
         List<JsIr.JsStatement> body = parseStatements(ctx, pos, Set.of(), new ArrayList<>());
         if (pos[0] < ctx.ops.size()) {
@@ -559,7 +532,7 @@ class JsBackend implements Backend {
             String asyncKey = clazz == null
                     ? "#" + method.name() + "/" + method.parameterTypes().size()
                     : asyncMethodKey(clazz, method);
-            this.isAsync = asyncMethods.getOrDefault(asyncKey, false);
+            this.isAsync = lc.asyncMethods.getOrDefault(asyncKey, false);
             // lambda synthetic classes hold captured locals as private final
             // fields at the first slots; the real parameters come after them.
             Set<String> captureFields = new HashSet<>();
@@ -625,7 +598,7 @@ class JsBackend implements Backend {
         }
 
         boolean hasClassMethod(String kofClassName, String method) {
-            Set<String> names = classMethodNames.get(kofClassName);
+            Set<String> names = lc.classMethodNames.get(kofClassName);
             return names != null && names.contains(method);
         }
     }
@@ -1672,8 +1645,8 @@ class JsBackend implements Backend {
             if (lf.ownerType() instanceof Type.ClassType ct) {
                 String ownerInternal = JvmTypeMapper.toInternalName(ct.packageName(), ct.name());
                 String ownerSimple = ct.name();
-                if (recordClassNames.contains(ownerInternal) || recordClassNames.contains(ct.name())
-                        || recordClassNames.contains(ownerSimple) || ctx.recordClass) {
+                if (lc.recordClassNames.contains(ownerInternal) || lc.recordClassNames.contains(ct.name())
+                        || lc.recordClassNames.contains(ownerSimple) || ctx.recordClass) {
                     isRecordField = true;
                 }
             }
@@ -1884,9 +1857,9 @@ class JsBackend implements Backend {
             JsIr.JsExpression value = args.get(0);
             String fn = "println".equals(kc.methodName()) ? "kofPrintln" : "kofPrint";
             if ("kofPrint".equals(fn)) {
-                registerIoRuntime(fn);
+                lc.registerIoRuntime(fn);
             } else {
-                registerRuntime(fn);
+                lc.registerRuntime(fn);
             }
             throw new StatementEnd(new JsIr.JsCall(new JsIr.JsIdentifier(fn), List.of(value)));
         }
@@ -1934,7 +1907,7 @@ class JsBackend implements Backend {
         if (kc.kind() == KofCallKind.FUNCTION) {
             // top-level function call (arity routes default-parameter wrappers)
             finishCall(stack, kc, new JsIr.JsCall(
-                    new JsIr.JsIdentifier(jsFunctionName(kc.methodName(), kc.parameterTypes().size())),
+                    new JsIr.JsIdentifier(lc.jsFunctionName(kc.methodName(), kc.parameterTypes().size())),
                     args));
             return;
         }
@@ -1968,9 +1941,9 @@ class JsBackend implements Backend {
         KofCallKind kind = kc.kind();
         boolean needsAwait = false;
         if (kind == KofCallKind.STATIC || kind == KofCallKind.FUNCTION || kind == KofCallKind.SUPER) {
-            needsAwait = asyncMethods.getOrDefault(calleeKeyFromCall(kc), false);
+            needsAwait = lc.asyncMethods.getOrDefault(calleeKeyFromCall(kc), false);
         } else if (kind == KofCallKind.INSTANCE || kind == KofCallKind.INTERFACE) {
-            needsAwait = asyncMethodNamesAnywhere.contains(kc.methodName());
+            needsAwait = lc.asyncMethodNamesAnywhere.contains(kc.methodName());
         }
         return needsAwait ? new JsIr.JsAwait(call) : call;
     }
@@ -2124,7 +2097,7 @@ class JsBackend implements Backend {
             case "kof_channel_receive" -> "kofChannelReceive";
             default -> throw new IllegalStateException("KofJS: unknown channel op " + kc.methodName());
         };
-        registerRuntime(fn);
+        lc.registerRuntime(fn);
         if ("kof_channel_new".equals(kc.methodName())) {
             stack.add(new JsIr.JsCall(new JsIr.JsIdentifier(fn), List.of()));
             return;
@@ -2157,7 +2130,7 @@ class JsBackend implements Backend {
             case "kof_list_clear" -> "kofListClear";
             default -> throw new IllegalStateException("KofJS: unknown list op " + kc.methodName());
         };
-        registerRuntime(fn);
+        lc.registerRuntime(fn);
         if ("kof_list_new".equals(kc.methodName())) {
             stack.add(new JsIr.JsCall(new JsIr.JsIdentifier(fn), List.of()));
             return;
@@ -2205,7 +2178,7 @@ class JsBackend implements Backend {
             case "kof_map_values" -> "kofMapValues";
             default -> throw new IllegalStateException("KofJS: unknown map op " + kc.methodName());
         };
-        registerRuntime(fn);
+        lc.registerRuntime(fn);
         if ("kof_map_new".equals(kc.methodName())) {
             stack.add(new JsIr.JsCall(new JsIr.JsIdentifier(fn), List.of()));
             return;
@@ -2248,7 +2221,7 @@ class JsBackend implements Backend {
             case "kof_set_is_empty" -> "kofSetIsEmpty";
             default -> throw new IllegalStateException("KofJS: unknown set op " + kc.methodName());
         };
-        registerRuntime(fn);
+        lc.registerRuntime(fn);
         if ("kof_set_new".equals(kc.methodName())) {
             stack.add(new JsIr.JsCall(new JsIr.JsIdentifier(fn), List.of()));
             return;
@@ -2379,9 +2352,9 @@ class JsBackend implements Backend {
                 Type elem = kc.ownerType() instanceof Type.ClassType lct
                         && !lct.typeArguments().isEmpty() ? lct.typeArguments().get(0) : Type.UnknownType.UNKNOWN;
                 if (elem instanceof Type.ClassType ect
-                        && classMethodNames.containsKey(ect.internalName())) {
+                        && lc.classMethodNames.containsKey(ect.internalName())) {
                     String jsName = JsTypeMapper.jsClassName(ect.internalName());
-                    decodeHelpers.add(jsName);
+                    lc.decodeHelpers.add(jsName);
                     JsIr.JsExpression parsed = new JsIr.JsCall(
                             new JsIr.JsIdentifier("JSON.parse"), List.of(value));
                     JsIr.JsExpression mapper = new JsIr.JsCall(
@@ -2394,10 +2367,10 @@ class JsBackend implements Backend {
                     stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("JSON.parse"), List.of(value)));
                 }
             } else if (name.startsWith("kof_json_decode_")
-                    && classMethodNames.containsKey(JsTypeMapper.ownerInternalName(kc.ownerType()))) {
+                    && lc.classMethodNames.containsKey(JsTypeMapper.ownerInternalName(kc.ownerType()))) {
                 // decode<Class> — bind the parsed object to the Kof class
                 String jsName = JsTypeMapper.jsClassName(JsTypeMapper.ownerInternalName(kc.ownerType()));
-                decodeHelpers.add(jsName);
+                lc.decodeHelpers.add(jsName);
                 stack.add(new JsIr.JsCall(
                         new JsIr.JsIdentifier("__kof_decode_" + jsName), List.of(value)));
             } else {
@@ -2411,24 +2384,24 @@ class JsBackend implements Backend {
             return;
         }
         if (name.equals("kof_args")) {
-            registerIoRuntime("kofArgs");
+            lc.registerIoRuntime("kofArgs");
             stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofArgs"), List.of()));
             return;
         }
         if (name.equals("kof_process_run")) {
-            registerIoRuntime("kofProcessRun");
+            lc.registerIoRuntime("kofProcessRun");
             stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofProcessRun"), args));
             return;
         }
         if (name.equals("kof_process_exit")) {
             // sentinel capturado pelo KofJsRunner — nunca use System.exit
             // dentro da engine (mataria o processo hospedeiro)
-            registerIoRuntime("kofProcessExit");
+            lc.registerIoRuntime("kofProcessExit");
             stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofProcessExit"), args));
             return;
         }
         if (name.equals("kof_ui_color_to_css")) {
-            registerRuntime("kofUiColorToCss");
+            lc.registerRuntime("kofUiColorToCss");
             stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofUiColorToCss"), List.of(args.get(0))));
             return;
         }
@@ -2473,7 +2446,7 @@ class JsBackend implements Backend {
                 || name.equals("kof_ui_router_replace2") || name.equals("kof_ui_router_back")
                 || name.equals("kof_ui_router_forward") || name.equals("kof_ui_router_param")
                 || name.equals("kof_ui_router_current") || name.equals("kof_ui_router_depth")) {
-            registerRuntime(JsTypeMapper.capitalizeUiFn(name));
+            lc.registerRuntime(JsTypeMapper.capitalizeUiFn(name));
             List<JsIr.JsExpression> callArgs = new ArrayList<>(args);
             if (kc.kind() == KofCallKind.INSTANCE && receiver != null) {
                 callArgs.add(0, receiver);
@@ -2487,21 +2460,21 @@ class JsBackend implements Backend {
             return;
         }
         if (name.equals("kof_scheduler_every")) {
-            registerRuntime("kofSchedulerEvery");
+            lc.registerRuntime("kofSchedulerEvery");
             JsIr.JsExpression call = new JsIr.JsCall(new JsIr.JsIdentifier("kofSchedulerEvery"), args);
             if (Type.isVoid(kc.returnType())) throw new StatementEnd(call);
             stack.add(call);
             return;
         }
         if (name.equals("kof_scheduler_at")) {
-            registerRuntime("kofSchedulerAt");
+            lc.registerRuntime("kofSchedulerAt");
             JsIr.JsExpression call = new JsIr.JsCall(new JsIr.JsIdentifier("kofSchedulerAt"), args);
             if (Type.isVoid(kc.returnType())) throw new StatementEnd(call);
             stack.add(call);
             return;
         }
         if (name.equals("kof_scheduler_cancel")) {
-            registerRuntime("kofSchedulerCancel");
+            lc.registerRuntime("kofSchedulerCancel");
             JsIr.JsExpression call = new JsIr.JsCall(new JsIr.JsIdentifier("kofSchedulerCancel"), args);
             throw new StatementEnd(call);
         }
@@ -2526,7 +2499,7 @@ class JsBackend implements Backend {
                 case "kof_http_circuit_set" -> "kofHttpCircuitSet";
                 default -> "kofWebStub";
             };
-            registerRuntime(jsFn);
+            lc.registerRuntime(jsFn);
             JsIr.JsExpression call = new JsIr.JsCall(new JsIr.JsIdentifier(jsFn), args);
             if (Type.isVoid(kc.returnType())) {
                 throw new StatementEnd(call);
@@ -2552,12 +2525,12 @@ class JsBackend implements Backend {
                 return;
             }
             if (name.equals("kof_web_route")) {
-                registerRuntime("kofWebRoute");
+                lc.registerRuntime("kofWebRoute");
                 JsIr.JsExpression call = new JsIr.JsCall(new JsIr.JsIdentifier("kofWebRoute"), args);
                 throw new StatementEnd(call);
             }
             if (name.equals("kof_web_listen")) {
-                registerRuntime("kofWebListen");
+                lc.registerRuntime("kofWebListen");
                 JsIr.JsExpression call = new JsIr.JsCall(new JsIr.JsIdentifier("kofWebListen"), args);
                 if (Type.isVoid(kc.returnType())) {
                     throw new StatementEnd(call);
@@ -2574,7 +2547,7 @@ class JsBackend implements Backend {
                 return;
             }
             // fallback: stub for unimplemented web functions
-            registerRuntime("kofWebStub");
+            lc.registerRuntime("kofWebStub");
             JsIr.JsExpression call = new JsIr.JsCall(new JsIr.JsIdentifier("kofWebStub"), args);
             if (Type.isVoid(kc.returnType())) {
                 throw new StatementEnd(call);
@@ -2587,7 +2560,7 @@ class JsBackend implements Backend {
             return;
         }
         if (name.startsWith("kof_sec_")) {
-            registerRuntime(JsTypeMapper.runtimeJsName(name));
+            lc.registerRuntime(JsTypeMapper.runtimeJsName(name));
             List<JsIr.JsExpression> callArgs = new ArrayList<>(args);
             JsIr.JsExpression call = new JsIr.JsCall(
                     new JsIr.JsIdentifier(JsTypeMapper.runtimeJsName(name)), callArgs);
@@ -2600,9 +2573,9 @@ class JsBackend implements Backend {
         String fn = JsTypeMapper.runtimeJsName(name);
         if (name.startsWith("kof_io_") || name.equals("kof_read_line")
                 || name.equals("kof_read_file") || name.equals("kof_write_file")) {
-            registerIoRuntime(fn);
+            lc.registerIoRuntime(fn);
         } else {
-            registerRuntime(fn);
+            lc.registerRuntime(fn);
         }
         List<JsIr.JsExpression> callArgs = new ArrayList<>();
         if (name.startsWith("kof_io_") && receiver != null) {
@@ -2628,13 +2601,6 @@ class JsBackend implements Backend {
 
     // ── Plumbing ────────────────────────────────────────────────────
 
-    private void registerRuntime(String fn) {
-        if (!runtimeImports.contains(fn)) runtimeImports.add(fn);
-    }
-
-    private void registerIoRuntime(String fn) {
-        if (!ioRuntimeImports.contains(fn)) ioRuntimeImports.add(fn);
-    }
 
     private JsIr.JsExpression pop(List<Object> stack) {
         Object top = popRaw(stack);
@@ -2656,12 +2622,11 @@ class JsBackend implements Backend {
     private Object popRaw(List<Object> stack) {
         if (stack.isEmpty()) {
             throw new IllegalStateException("KofJS: expression stack underflow\nops="
-                    + currentCtxOpsDump);
+                    + lc.currentCtxOpsDump);
         }
         return stack.remove(stack.size() - 1);
     }
 
-    private List<KofOperation> currentCtxOpsDump = List.of();
 
     private boolean isPureDuplicate(JsIr.JsExpression expr) {
         return expr instanceof JsIr.JsIdentifier || expr instanceof JsIr.JsThis
