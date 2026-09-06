@@ -347,6 +347,11 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
 } else if (mc.receiver() == null && KofScheduler.isSchedulerMethod(mc.methodName())) {
     return ExpressionSchedulerCallLowerer.lower(driver, mc, ops, owner, localIdx, locals);
 } else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
+            && KofWorkflow.isWorkflowNamespace(rid.name())) {
+    return ExpressionWorkflowCallLowerer.lower(driver, mc, ops, owner, localIdx, locals);
+} else if (mc.receiver() == null && KofWorkflow.isWorkflowMethod(mc.methodName())) {
+    return ExpressionWorkflowCallLowerer.lower(driver, mc, ops, owner, localIdx, locals);
+} else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
             && KofMq.isMqNamespace(rid.name())) {
     return ExpressionMqCallLowerer.lower(driver, mc, ops, owner, localIdx, locals);
 } else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)

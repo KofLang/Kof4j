@@ -129,6 +129,7 @@ final class SemExpressionTyper {
                         && !KofMq.isMqNamespace(ie.name())
                         && !KofTime.isTimeNamespace(ie.name())
                         && !KofScheduler.isSchedulerNamespace(ie.name())
+                        && !KofWorkflow.isWorkflowNamespace(ie.name())
                         && !KofTetris.isTetrisNamespace(ie.name())
                         && !KofMedia.isStaticNamespace(ie.name())
                         && !KofUi.isPalette(ie.name()) && !KofUi.isConstructor(ie.name())

@@ -47,6 +47,7 @@ static boolean hasRuntimeFn(String methodName) {
                 || methodName.startsWith("kof_vk_")
                 || methodName.startsWith("kof_mv64_")
                 || methodName.startsWith("kof_scheduler_")
+                || methodName.startsWith("kof_workflow_")
                 || methodName.equals("kof_now")
                 || methodName.equals("kof_read_line")
                 || methodName.equals("kof_read_file")
@@ -127,6 +128,7 @@ static boolean hasRuntimeFn(String methodName) {
                 + JvmOrmRuntime.source()
                 + JvmTimeRuntime.source()
                 + JvmStringRuntime.source()
+                + JvmWorkflowRuntime.source()
                 + (usesExtern ? JvmFfiRuntime.source() : "")
                 + (usesVk ? JvmVkRuntime.source() : "\n            }");
     }

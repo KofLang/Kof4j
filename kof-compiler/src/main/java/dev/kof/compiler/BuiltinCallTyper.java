@@ -96,6 +96,12 @@ final class BuiltinCallTyper {
             }
             else return BuiltinTypes.STRING;
         }
+        if ((mc.receiver() == null && KofWorkflow.isWorkflowMethod(mc.methodName()))
+                || (mc.receiver() instanceof IdentifierExpr rid3 && KofWorkflow.isWorkflowNamespace(rid3.name())
+                        && KofWorkflow.isWorkflowMethod(mc.methodName()))) {
+            for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
+            return BuiltinTypes.STRING;
+        }
         if (mc.receiver() == null && "transaction".equals(mc.methodName())
                 && mc.arguments().size() == 1) {
             for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
@@ -335,6 +341,7 @@ final class BuiltinCallTyper {
                 && !KofUi.isConstructor(mc.methodName())
                 && !KofWeb.isContextFunction(mc.methodName())
                 && !KofScheduler.isSchedulerMethod(mc.methodName())
+                && !KofWorkflow.isWorkflowMethod(mc.methodName())
                 && !"transaction".equals(mc.methodName())
                 && !"uiNodesLive".equals(mc.methodName())
                 && !"emit".equals(mc.methodName())
