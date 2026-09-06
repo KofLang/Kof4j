@@ -19,6 +19,7 @@ final class NativeWebRuntime {
         sb.append(NativeWebCore.source());
         sb.append(NativeWebListen.source());
         sb.append(NativeWebRequestContext.source());
+        sb.append(NativeWebParamMatch.source());
         sb.append(NativeWebResponseContext.source());
         sb.append(NativeWebResponses.source());
     }
