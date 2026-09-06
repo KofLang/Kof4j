@@ -274,4 +274,52 @@ class KofWebNativeE2ETest {
             assertTrue(r.endsWith("secret"), "header(X-Token) should be exposed, got: " + r);
         }
     }
+
+    private static final String SERVER_T7 = """
+            main() {
+                var app = web.app()
+                app.get("/users/:id") {
+                    return "user " + param("id")
+                }
+                app.post("/users/:id/posts/:pid") {
+                    return param("id") + "-" + param("pid")
+                }
+                app.listen(PORT)
+            }
+            """;
+
+    @Test
+    void nativeServerExtractsPathParams(@TempDir Path tempDir) throws Exception {
+        int port = freePort();
+        Path src = tempDir.resolve("App.kf");
+        Files.writeString(src, SERVER_T7.replace("PORT", String.valueOf(port)));
+        CompilerDriver driver = new CompilerDriver();
+        CompilationResult result = driver.compile(src, tempDir.resolve("classes"), Target.NATIVE);
+        assertTrue(result.success(), "compile: " + result.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(tempDir.resolve("classes/Default/Main").toString());
+        pb.redirectErrorStream(true);
+        serverProcess = pb.start();
+        long deadline = System.currentTimeMillis() + 5000;
+        boolean up = false;
+        while (System.currentTimeMillis() < deadline && !up) {
+            try (Socket probe = new Socket()) {
+                probe.connect(new java.net.InetSocketAddress("127.0.0.1", port), 100);
+                up = true;
+            } catch (IOException e) { Thread.sleep(50); }
+        }
+        assertTrue(up);
+        String single = httpGet(port, "/users/42");
+        assertTrue(single.contains("200"), "status: " + single);
+        assertTrue(single.endsWith("user 42"), "param(id) should be extracted, got: " + single);
+
+        try (Socket s = new Socket("127.0.0.1", port)) {
+            s.getOutputStream().write(
+                    "POST /users/7/posts/99 HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n"
+                            .getBytes(StandardCharsets.UTF_8));
+            s.getOutputStream().flush();
+            String r = new String(s.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            assertTrue(r.contains("200"), "status: " + r);
+            assertTrue(r.endsWith("7-99"), "two params should be extracted, got: " + r);
+        }
+    }
 }
