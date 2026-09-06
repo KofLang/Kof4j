@@ -53,22 +53,30 @@ spec extraída do código + probes de execução, zero mudança de comportamento
 (suíte16 969/0/3-skip). **Candidatos a teste de conformidade** (regra 13 —
 regras da spec SEM teste dedicado, descobertas por probe): SG-008 `Int?==null`
 (NPE runtime), SG-010 `val` reatribuível, SG-009 subtipagem não checada.
-**SG-001 RESOLVIDO** (06/09, decisão humana "fun e fn não deviam existir"):
-parser agora rejeita `fn`/`fun`/`func` como prefixo com `PARSE085` — **top-level
-E membros de classe/interface/enum** (`ClassMemberParser`, `7e6f9e3`); KofScript
-traduz `fn` na fronteira `.ks`→`.kf` (`toKofSyntax`); FunctionSyntaxTest +6;
-suíte19 954+8+5+8, 0 falhas. Ver `docs/specification-gaps.md`.
+**SG-001 RESOLVIDO** (06/09, decisão humana "fun e fn não deviam existir",
+**2× — reservadas em TODA posição**): `fun`/`fn`/`func` são **palavras
+reservadas no lexer** (tokens FUN/FN/FUNC, mecanismo sealed/permits) — não
+existem no Kof em NENHUMA posição: nem prefixo de declaração (PARSE085,
+top-level + `ClassMemberParser`), nem nome de função/variável/parâmetro/campo
+(expectId → PARSE037/023/…). KofScript traduz `fn` na fronteira `.ks`→`.kf`
+(`toKofSyntax`). FunctionSyntaxTest 12; suíte21 957+8+5+8, 0 falhas
+(`bf84a86`).
 
-**PRÓXIMA TAREA (maior valor)**: **bug 33** — `Map<_,Classe>`/`Set<Classe>`
-(type-arg de classe) quebra no EMIT (pré-existente, bug 33 em known-bugs.md):
-`Map.get()` checkcast funciona c/ o fix 32, MAS o **retorno do método** da
-classe importada resolve como `Object` quando chamado via receiver de Map/Set
-(`render():()Ljava/lang/Object;` → VerifyError) — e `Set.first()` gera
-descritor `L;` vazio (ClassFormatError). Quebra MESMO sem import, mesmo
-pacote → é bug de resolução de retorno de método no receiver de Map/Set,
-separado do import. **Prova esperada:** Map/Set c/ type-arg de classe roda
-+ teste E2E; suíte verde. Arquivos: `JvmBackend.java` (emissão map/set),
-`CompilerDriver.java` (retType do call em receiver map/set).
+**PRÓXIMA TAREA (maior valor)**: **bug 33 CORRIGIDO** (`df2ffdd`, 06/09) —
+diagnóstico original ERRADO: não era Map/Set. Era **member call em receiver de
+tipo nullable INFERIDO** (`var v = m.get(k)` → V?, ou `var v = maybe()`):
+`MethodCallTyper` no lowering tinha `instanceof ClassType` que falhava no
+`NullableType` → retorno do método saía `Object` → NoSuchMethodError. Fix:
+unwrap NullableType→inner() (espelha ramo do handle). KofMapSetTest
++memberCallOnNullableInferredFromMapJVM; suíte20 954/0. **BUG NOVO
+(descoberto no 33, R6 — registrar em known-bugs.md + investigar):**
+`Set.first()` — `first` NÃO é método de Set no Kof (corpus não documenta) —
+mas método desconhecido em **tipo de coleção** vira *no-op silencioso* no
+lowerer (diferente de `C.ghost()` → SEM025) e o emit gera descritor vazio
+(`"".render` → ClassFormatError). Nunca silencioso (R6): ou `first` vira
+método de Set (decisão de design, regra 6) ou o lowerer de coleção dá erro
+para método inexistente. Prova esperada: `vs.first()` compila com `first`
+implementado OU dá diagnóstico; suíte verde.
 ---
 
 ## Em curso agora
