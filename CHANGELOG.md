@@ -14,22 +14,22 @@ Linha de desenvolvimento 0.3.0 aberta em 04/09/2026. Semântica congelada
 
 ### Em desenvolvimento
 
-  - **`fn`/`fun`/`func` rejeitados no parser Kof (06/09, SG-001)** — a
-    documentação sempre disse que "não existe `fun` nem `func`" (AGENTS.md,
+  - **`fn`/`fun`/`func` viraram palavras reservadas no Kof (06/09, SG-001)** —
+    a documentação sempre disse que "não existe `fun` nem `func`" (AGENTS.md,
     fake-idioms.md), mas o compilador aceitava `fn` como prefixo e `fun`/`func`
-    como tipo de retorno implícito. Agora a declaração `fn nome(...)`/
-    `fun nome(...)`/`func nome(...)` é rejeitada com **`PARSE085`** e
-    diagnóstico claro ("declare como `Tipo nome(...) { }` ou `nome(...): Tipo
-    { }`"). Alinhamento código↔corpus (regra 4: bug = alinhar ao previsto).
-    `fn`/`fun`/`func` continuam válidos como *nome* de função (identificadores).
-    O mesmo furo existia em **membros de classe** (`fun foo()` dentro de
-    `class`/`interface`/`enum` virava método com tipo de retorno `"fun"`) —
-    também rejeitado com `PARSE085`.
-    **KofScript (`.ks`) mantém `fn` como sintaxe própria** — traduzido na
-    fronteira `.ks`→`.kf` (`KofScript.toKofSyntax`), sem mudança para usuários
-    de `.ks`. Breaking change deliberado e documentado: código `.kf` que usava
-    `fun`/`fn` como prefixo agora precisa da forma idiomática. Prova:
-    `FunctionSyntaxTest` (5 casos novos) + KofScriptTest 8/8 + suíte completa.
+    como tipo de retorno implícito. Agora as três são **palavras reservadas no
+    lexer** (tokens `FUN`/`FN`/`FUNC`, mesmo mecanismo de `sealed`/`permits`):
+    **não existem** no Kof em nenhuma posição — nem como keyword de declaração,
+    nem como nome de função/variável/parâmetro/campo. Em posição de declaração
+    dá **`PARSE085`** (diagnóstico claro: "declare como `Tipo nome(...) { }` ou
+    `nome(...): Tipo { }`"); em outra posição o `expectId` de cada parser já
+    falha (`PARSE037` variável, `PARSE023` parâmetro). Alinhamento
+    código↔corpus (regra 4). **KofScript (`.ks`) mantém `fn` como sintaxe
+    própria** — traduzido na fronteira `.ks`→`.kf` (`KofScript.toKofSyntax`),
+    sem mudança para usuários de `.ks`. Breaking change deliberado e
+    documentado: código `.kf` que usava `fun`/`fn`/`func` (mesmo como
+    identificador) agora precisa renomear. Prova: `FunctionSyntaxTest` (12
+    casos) + KofScriptTest 8/8 + suíte completa 957/0.
 
   - **NATIVE002-stdlib residual (05/09)** — auditoria R6 + paridade cross:
     **fcvt riscv64** (os 10 mnemonics de conversão numérica saíam com

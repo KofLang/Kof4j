@@ -18,14 +18,12 @@ class ClassMemberParser {
             return new ConstructorDeclarationNode(ctor.position(), ctor.modifiers(), ctor.name(),
                     ctor.parameters(), ctor.thrownExceptions(), ctor.body(), annos);
         }
-        if (ctx.check(TokenType.IDENTIFIER) && Parser.isFunctionKeyword(ctx.peek().value())
-                && ctx.peekAt(1).type() == TokenType.IDENTIFIER
-                && ctx.peekAt(2).type() == TokenType.LPAREN) {
-            // Mesmo furo do top-level (SG-001): `fun foo()`/`fn bar()` dentro de
-            // classe era lido como método com tipo de retorno "fun". Rejeitado.
-            ctx.error("Kof não usa '" + ctx.peek().value() + "'; declare como "
-                    + "'Tipo nome(...) { }' ou 'nome(...): Tipo { }'", "PARSE085");
-            ctx.advance();
+        if (ctx.check(TokenType.FUN, TokenType.FN, TokenType.FUNC)) {
+            // SG-001 (06/09): `fun`/`fn`/`func` são palavras reservadas —
+            // antes, dentro de classe, `fun foo()` era lido como método com
+            // tipo de retorno "fun". Agora rejeitado (PARSE085).
+            Parser.rejectFunctionKeyword(ctx);
+            return new FieldDeclarationNode(ctx.pos(), List.of(), "Object", "error", null, annos);
         }
         if ((ctx.check(TokenType.IDENTIFIER) || ctx.check(TokenType.AWAIT) || ctx.check(TokenType.SPAWN)) && ctx.checkNext(TokenType.LPAREN)) {
             String name = ctx.advance().value();
