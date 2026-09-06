@@ -784,7 +784,7 @@ public class NativeBackend implements Backend {
         x86Calls().emitCall(sb, kc);
     }
 
-    private String resolveCalleeName(KofCall kc) {
+    String resolveCalleeName(KofCall kc) {
         // builtins de coleção são símbolos globais do runtime — nunca
         // mangle com o dono (Map_kof_map_put etc.)
         String mn = kc.methodName();
