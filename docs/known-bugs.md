@@ -491,25 +491,26 @@ EXTERNA produz lixo
 
 ---
 
-### 28. FLAKE: `KofWebHardeningTest.ws_connection_counter_increments_and_decrements`
+### 28. FLAKE: `KofWebHardeningTest.ws_connection_counter_increments_and_decrements` — CORRIGIDO 05/09
 
-- **Sintoma:** `expected: <1> but was: <0>` no contador de conexões ws.
-  **Intermitente** — passa 6/6 em execução isolada; falhou 1× na suíte
-  completa de 05/09 (927 testes). **05/09 (suíte 969, pós bug-32):** falhou
-  1× na suíte e 1× isolado (depois 3/3 verde) — assinatura idêntica
-  (`expected: <1> but was: <0>`); confirmada flake, não regressão (a mudança
-  do bug 32 é resolução de tipos JVM, ortogonal à contagem de conexões ws).
-- **Causa provável:** race no contador de conexões — o teste conta
-  conexões ativas num ponto onde a conexão pode ainda não ter sido
-  registrada (timing de socket/async). Não é regressão de feature.
-- **Reprodução:** rodar a suíte completa repetidamente
-  (`mvn test -o -pl kof-compiler,kof-script,kof-c-compiler,kof-cli -am`);
-  falha esporádica. `KofWebHardeningTest` isolado: verde.
-- **O que deveria acontecer:** tornar o contador determinístico (barreira
-  antes da asserção) — é **lane do agent-web**, não do NATIVE002-stdlib.
-- **Arquivos:** `KofWebHardeningTest.java` (asserção ~368), contador ws
-  do runtime web.
-- **Registrado:** 05/09 (suíte do port mq cross — falha fora da lane).
+- **Sintoma (histórico):** `expected: <1> but was: <0>` no contador de conexões ws.
+  **Intermitente** — passava em execução isolada; falhava esporadicamente na
+  suíte completa (05/09: 1× em várias rodadas; mesma assinatura em
+  `ws_messages_counters_track_calls` — `2:2` vs `2:1`).
+- **Causa real:** race de publicação na produção — o servidor flushava o
+  `101 Switching Protocols` **antes** de `WS_CONNECTIONS_ACTIVE.incrementAndGet()`
+  (`JvmRuntimeWebServer`), e `wsSend` incrementava `WS_MESSAGES_SENT` **depois**
+  do `sendText` (`JvmRuntimeWebDispatch`). O cliente via o handshake/eco
+  completo e consultava `/stats` antes do increment — a janela não é do teste,
+  é do runtime.
+- **Correção (05/09, fixes-for-kofagent):** increment do contador de conexões
+  movido para **antes** do flush do 101 (com try/finally abrangendo handshake +
+  frame loop, decrement no mesmo finally); increment de `WS_MESSAGES_SENT`
+  movido para **antes** do `sendText`. O contador nunca mais fica atrás do
+  estado observável pelo cliente. Prova: `KofWebHardeningTest` 6/6 + suíte
+  completa 957/0.
+- **Arquivos:** `JvmRuntimeWebServer.java`, `JvmRuntimeWebDispatch.java`.
+- **Registrado:** 05/09 (suíte do port mq cross). **Corrigido:** 05/09.
 
 ---
 

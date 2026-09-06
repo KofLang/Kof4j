@@ -206,20 +206,23 @@ final class JvmRuntimeWebServer {
 
                     String accept = wsAccept(key);
                     java.io.OutputStream out = client.getOutputStream();
-                    out.write(("HTTP/1.1 101 Switching Protocols\\r\\n"
-                            + "Upgrade: websocket\\r\\n"
-                            + "Connection: Upgrade\\r\\n"
-                            + "Sec-WebSocket-Accept: " + accept + "\\r\\n"
-                            + "\\r\\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));
-                    out.flush();
-
-                    // Frame loop (PR4): handles RFC 6455 frame codec.
-                    // PING -> PONG; CLOSE -> ack CLOSE; oversize -> CLOSE 1009.
-                    // TEXT -> invokes the Kof handler once per message.
-                    client.setSoTimeout(idleMs.get());
-                    WsConnection conn = new WsConnection(client.getOutputStream());
+                    // O contador é incrementado ANTES do 101 chegar ao cliente:
+                    // senão há race entre o handshake visível e o /stats do
+                    // observador (bug 28 — flake ws_connection_counter).
                     WS_CONNECTIONS_ACTIVE.incrementAndGet();
                     try {
+                        out.write(("HTTP/1.1 101 Switching Protocols\\r\\n"
+                                + "Upgrade: websocket\\r\\n"
+                                + "Connection: Upgrade\\r\\n"
+                                + "Sec-WebSocket-Accept: " + accept + "\\r\\n"
+                                + "\\r\\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                        out.flush();
+
+                        // Frame loop (PR4): handles RFC 6455 frame codec.
+                        // PING -> PONG; CLOSE -> ack CLOSE; oversize -> CLOSE 1009.
+                        // TEXT -> invokes the Kof handler once per message.
+                        client.setSoTimeout(idleMs.get());
+                        WsConnection conn = new WsConnection(client.getOutputStream());
                         frameLoop: while (true) {
                             // 1) Read until we have at least 2 bytes for the header
                             int headerBytes = 0;

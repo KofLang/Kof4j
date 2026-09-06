@@ -211,8 +211,11 @@ final class JvmRuntimeWebDispatch {
                 public static void kof_web_ws_send(String text) {
                     Object conn = KOF_WS_CONNECTION.get();
                     if (conn instanceof WsSender ws) {
-                        ws.sendText(text);
+                        // incrementa ANTES do send: o cliente pode ler o eco e
+                        // consultar /stats antes desta thread voltar do write
+                        // (bug 28 — flake ws_messages_counters).
                         WS_MESSAGES_SENT.incrementAndGet();
+                        ws.sendText(text);
                     }
                 }
 
