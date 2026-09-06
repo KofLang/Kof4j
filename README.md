@@ -53,18 +53,25 @@ Bem-vinda à **Kof**.
 
 # O que é Kof?
 
-Kof é uma linguagem de programação **geral, fortemente tipada e estaticamente tipada**, construída com uma ideia central:
+Kof é uma linguagem de programação **geral e estaticamente tipada**, construída com uma ideia central:
 
 > **Uma única linguagem não deveria obrigar você a escolher um único mundo.**
+
+> 📖 **A especificação formal da linguagem** (gramática, sistema de tipos,
+> semântica, status de cada feature) está em
+> [`docs/language-reference/`](docs/language-reference/). A arquitetura do
+> compilador (implementação) está em
+> [`docs/compiler-architecture.md`](docs/compiler-architecture.md). A
+> distinção **linguagem ≠ compilador ≠ target** é o eixo desses documentos.
 
 Kof possui seu próprio compilador, lexer, parser, sistema de tipos, análise semântica e representação intermediária (Kof IR). A partir dessa IR, diferentes backends transformam o mesmo programa em diferentes formas de execução:
 
 ```text
-                         KOF
+            Linguagem Kof  (definida pela especificação)
                           │
-                    Kof Compiler
+                    Kof Compiler  (uma implementação)
                           │
-                       Kof IR
+                       Kof IR  (máquina de pilha linear, 30 ops)
                           │
           ┌───────────────┼────────────────┐
           │               │                │
@@ -72,12 +79,14 @@ Kof possui seu próprio compilador, lexer, parser, sistema de tipos, análise se
           │               │                │
           ▼               ▼                ▼
         JVM          Native Binary      ES Modules
-       (.class)      (ELF x86_64,       (GraalJS /
-                      riscv64/aarch64,    browser)
-                      KofC, KofScript)
+       (.class)      (ELF x86_64,       (Node /
+                      riscv64/aarch64)    browser)
 ```
 
-**A linguagem não muda. O target muda.**
+**A linguagem não muda. O target muda.** JVM, Native e JS são *targets de
+compilação* da mesma Kof — não dialetos semanticamente diferentes. (KofScript
+e KofC são **linguagens/ferramentas separadas**, não targets da IR Kof — ver
+[docs/compiler-architecture.md](docs/compiler-architecture.md) §7.)
 
 ---
 
@@ -113,12 +122,15 @@ Kof não depende de Java como linguagem intermediária.
 
 # Estado Atual
 
-Kof está em desenvolvimento ativo — **0.2.6-beta** (02/09/2026).
+Kof está em desenvolvimento ativo — **0.3.0-beta**.
 
-O compilador possui frontend próprio, type system, Kof IR e **sete targets**:
-JVM (V21 via ASM), Native x86_64 (ELF, sem libc), `native.risc`/`native.arm`
-(toolchain + qemu), KofJS (ES Modules no GraalJS), KofScript (REPL) e KofC
-(subset C → nativo).
+O compilador possui frontend próprio, type system, Kof IR e **três backends
+sobre a IR**, que produzem **seis targets**: JVM (V21 via ASM), Native x86_64
+(ELF, sem libc), `native.risc`/`native.arm` (riscv64 real + aarch64 via
+tradutor ISA), KofJS (ES Modules) e Android (variante do JVM + empacotamento
+APK). **KofScript** (`.ks`, REPL) e **KofC** (subconjunto C → nativo) são
+**linguagens/ferramentas separadas**, não targets da IR Kof — ver
+[docs/compiler-architecture.md](docs/compiler-architecture.md) §7.
 
 | Feature | JVM | Native | KofJS |
 |---------|-----|--------|-------|

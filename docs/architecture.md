@@ -4,12 +4,27 @@
 
 ## Status: Accepted
 
-**Última atualização:** 2 de setembro de 2026
-**Versão:** 0.2.6-beta
+**Última atualização:** 6 de setembro de 2026
+**Versão:** 0.3.0-beta
+
+> **Este ADR registra a decisão arquitetural (multi-target via frontend
+> compartilhado + backends plugáveis).** A descrição **completa e atual** da
+> implementação do compilador (pipeline real, IR, lowering, otimizações,
+> backends, targets, terminologia) está em
+> [`compiler-architecture.md`](compiler-architecture.md). A **especificação da
+> linguagem** (independente desta implementação) está em
+> [`language-reference/`](language-reference/).
+>
+> **Correções 06/09 (auditoria):** (a) riscv64 e aarch64 **não** são mais
+> "placeholder x86_64" — riscv64 tem lowering real (`NativeBackend.emitRiscv`)
+> e aarch64 é traduzido do riscv64 (`translateRiscvToAarch64`); (b) **KofC e
+> KofScript não são backends da IR Kof** — são linguagens/ferramentas
+> separadas; (c) a IR é uma **máquina de pilha linear** (30 ops), não uma
+> "árvore". Ver SG-E1/SG-E3 em [`specification-gaps.md`](specification-gaps.md).
 
 ## Context
 
-Kof é uma linguagem de programação fortemente tipada, estaticamente tipada e orientada a objetos. O compilador deve gerar código para múltiplos targets a partir de uma única IR.
+Kof é uma linguagem de programação estaticamente tipada e orientada a objetos. O compilador deve gerar código para múltiplos targets a partir de uma única IR.
 
 Uma linguagem. Um compilador. Múltiplos targets.
 
@@ -17,15 +32,19 @@ Uma linguagem. Um compilador. Múltiplos targets.
 
 ```text
 Source (.kf)
-  ↓ Lexer
+  ↓ Lexer (hand-written, maximal munch, LEX00x)
   ↓ Token stream
-  ↓ Parser
-  ↓ AST
-  ↓ Symbol resolution
-  ↓ Type checking
-  ↓ Semantic analysis
-  ↓ Kof IR (backend-agnostic, com KofDebugInfo)
-  ↓ Optimizer (constant folding, DCE, branch simplification, etc.)
+  ↓ Parser (recursive descent + precedence climbing, PARSE0xx)
+  ↓ AST crua (39 nós sealed, tipos como String)
+  ↓ Desugar (test/application) + expand imports
+  ↓ Semantic analysis (SemanticAnalyzer — name resolution e type checking
+  │   ENTRELACEADOS em inferType, NÃO fases separadas; 4 fases, fixpoint ≤4;
+  │   SEM0xx; NÃO há typed AST — tipos em IdentityHashMap laterais)
+  ↓ [aborta se houver erro]
+  ↓ Lowering AST→IR (StatementLowerer/ExpressionLowerer/lambdaClass)
+  ↓ Kof IR (máquina de pilha linear, 30 ops, tipada, backend-agnostic,
+  │   com KofDebugInfo; basic blocks nominais)
+  ↓ Optimizer (constant folding, dead effects, reachability, jump-to-next)
   ↓
   ├── Kof4J Backend (ASM, bytecode V21)
   │   ↓ .class files
@@ -38,30 +57,23 @@ Source (.kf)
   │   ↓ OS
   │
    ├── KofNative riscv64 (native.risc)
+   │   ↓ lowering riscv64 REAL (emitRiscv) — asm puro, raw syscalls, ELF estático
    │   ↓ toolchain riscv64-linux-gnu-as/ld + qemu
-   │   ↓ codegen ainda x86_64 (placeholder; `.option arch,rv64g` na toolchain)
-   │
+   
    ├── KofNative aarch64 (native.arm)
+   │   ↓ asm riscv64 traduzido linha-a-linha (translateRiscvToAarch64)
    │   ↓ toolchain aarch64-linux-gnu-as/ld + qemu
-   │   ↓ codegen ainda x86_64 (placeholder)
-   │
-  ├── KofJS Backend (GraalJS)
+   
+  ├── KofJS Backend (ESM ES2022+)
   │   ↓ ES Modules (ECMAScript 2022+)
   │   ↓ kof-runtime.mjs + KofJsRunner (embedded GraalJS)
   │   ↓ Node/Browser via kof_platform
-  │
-   ├── KofC Backend (KofCcompiler)
-   │   ↓ C subset → Native x86_64 via kof_c (while/if/deref &/*(int*))
-   │   ↓ ELF x86_64
-   │
    ├── KofAndroid (Target.ANDROID)
    │   ↓ bytecode JVM + host Activity em Kof (android-host.kf)
    │   ↓ projeto Maven (d8/aapt2/apksigner) + APK (Fase 1)
-   │
-   └── KofScript Runtime
-       ↓ top-level let → KofScriptGlobals (REPL, --watch)
-       ↓ JVM execution (compila para bytecode em temp dir)
-       ↓ Interactive
+   └── (fora da IR Kof) KofScript e KofC são linguagens/ferramentas
+       separadas — KofScript (.ks, top-level let, REPL) e kof-c-compiler
+       (subconjunto C → ELF x86_64) NÃO consomem a IR do Kof.
 ```
 
 ## Decision: Multiplatform via Shared Frontend + Pluggable Backends
