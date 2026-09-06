@@ -365,8 +365,26 @@ final class BuiltinCallTyper {
                 }
             }
             if (!found && sa.diagnostics() != null && !sa.allClasses().containsKey(mc.methodName())) {
-                sa.diagnostics().error("", 0, 0, 0,
-                        "Undefined function: '" + mc.methodName() + "'", "SEM015");
+                // FFI (R3): chamada a `extern` declarado resolve pelo contrato
+                // (tipo de retorno), nunca SEM015 — o binding real é lowering
+                // por target (TIER 2.1.4+).
+                ExternalFunctionNode ext = null;
+                for (AstNode d : sa.unit().declarations()) {
+                    if (d instanceof ExternalFunctionNode e && e.name().equals(mc.methodName())) {
+                        ext = e;
+                        break;
+                    }
+                }
+                if (ext != null) {
+                    Type extRet = MemberResolver.resolveType(sa, ext.returnType(), scope);
+                    if (!Type.isVoid(extRet)) {
+                        sa.expressionTypes().put(mc, extRet);
+                        return extRet;
+                    }
+                } else {
+                    sa.diagnostics().error("", 0, 0, 0,
+                            "Undefined function: '" + mc.methodName() + "'", "SEM015");
+                }
             }
         }
         SymbolTable.ClassSymbol ctorClass = sa.allClasses().get(mc.methodName());

@@ -2,7 +2,6 @@ package dev.kof.compiler;
 
 /**
  * kof.web — contexto da request (method/path/query/header/param) + match por segmentos
- * Extraído do NativeWebRuntime (merge planning-future \u2190 beta-0.3.0, WEB002 residual).
  */
 final class NativeWebRequestContext {
 
@@ -539,7 +538,6 @@ final class NativeWebRequestContext {
                 call kof_string_from_literal
                 ret
 
-            # ------------------------------------------------------------------
             """;
     }
 }

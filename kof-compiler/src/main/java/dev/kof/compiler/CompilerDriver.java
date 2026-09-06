@@ -511,11 +511,11 @@ Target target = Target.JVM;
     final java.util.Map<String, List<EntityFieldNode>> entitySchemas = new java.util.LinkedHashMap<>();
     final java.util.IdentityHashMap<LambdaExpr, String> lambdaClassNames = new java.util.IdentityHashMap<>();
 
-    private final java.util.Map<String, ExternalFunctionNode> externSignatures = new java.util.LinkedHashMap<>();
+    final java.util.Map<String, ExternalFunctionNode> externSignatures = new java.util.LinkedHashMap<>();
 
     /** FFI (R3): binding suportado — JVM: Int→Int, String→Int, Double→Double,
      *  Int[]→Int; Native x86-64: Int→Int, String→Int, Int[]→Int. */
-    private boolean isExternBound(ExternalFunctionNode ext) {
+    boolean isExternBound(ExternalFunctionNode ext) {
         if (ext.parameters().size() != 1) return false;
         String p = ext.parameters().get(0).type();
         String r = ext.returnType();
@@ -529,19 +529,19 @@ Target target = Target.JVM;
         return false;
     }
 
-    private static boolean isIntType(String t) {
+    static boolean isIntType(String t) {
         return "int".equals(t) || "Int".equals(t);
     }
 
-    private static boolean isStringType(String t) {
+    static boolean isStringType(String t) {
         return "String".equals(t) || "string".equals(t);
     }
 
-    private static boolean isIntArrayType(String t) {
+    static boolean isIntArrayType(String t) {
         return "Int[]".equals(t) || "int[]".equals(t);
     }
 
-    private static boolean isDoubleType(String t) {
+    static boolean isDoubleType(String t) {
         return "double".equals(t) || "Double".equals(t);
     }
 

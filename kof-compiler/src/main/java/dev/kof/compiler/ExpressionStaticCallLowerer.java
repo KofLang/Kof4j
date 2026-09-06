@@ -60,6 +60,42 @@ if (mc.receiver() == null && userCtor != null) {
             Type.PrimitiveType.VOID, KofCallKind.CONSTRUCTOR));
     return localIdx;
 }
+if (mc.receiver() == null && driver.externSignatures.containsKey(mc.methodName())
+        && mc.arguments().size() == 1) {
+    ExternalFunctionNode ext = driver.externSignatures.get(mc.methodName());
+    if (driver.isExternBound(ext)) {
+        // FFI: empilha lib, nome e o argumento, chama kof_ffi_*.
+        String p = ext.parameters().get(0).type();
+        String helper;
+        Type argType;
+        Type retType;
+        if (CompilerDriver.isDoubleType(p)) {
+            helper = "kof_ffi_dd";
+            argType = Type.PrimitiveType.DOUBLE;
+            retType = Type.PrimitiveType.DOUBLE;
+        } else if (CompilerDriver.isStringType(p)) {
+            helper = "kof_ffi_si";
+            argType = BuiltinTypes.STRING;
+            retType = Type.PrimitiveType.INT;
+        } else if (CompilerDriver.isIntArrayType(p)) {
+            helper = "kof_ffi_ai";
+            argType = new Type.ArrayType(Type.PrimitiveType.INT);
+            retType = Type.PrimitiveType.INT;
+        } else {
+            helper = "kof_ffi_i";
+            argType = Type.PrimitiveType.INT;
+            retType = Type.PrimitiveType.INT;
+        }
+        ops.add(new KofLoadLiteral(BuiltinTypes.STRING,
+                ext.library() != null ? ext.library() : ""));
+        ops.add(new KofLoadLiteral(BuiltinTypes.STRING, ext.name()));
+        localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(0), ops, owner, localIdx, locals);
+        ops.add(new KofCall(new Type.ClassType("kof", "ffi", List.of()), helper,
+                List.of(BuiltinTypes.STRING, BuiltinTypes.STRING, argType),
+                retType, KofCallKind.FUNCTION));
+        return localIdx;
+    }
+}
 if (mc.receiver() == null && "now".equals(mc.methodName()) && mc.arguments().isEmpty()) {
     ops.add(new KofCall(new Type.ClassType("kof", "time", List.of()), "kof_now",
             List.of(), Type.PrimitiveType.LONG, KofCallKind.FUNCTION));

@@ -1,8 +1,7 @@
 package dev.kof.compiler;
 
 /**
- * kof.web — resposta customizÃ¡vel (status/headerSet) + status text
- * Extraído do NativeWebRuntime (merge planning-future \u2190 beta-0.3.0, WEB002 residual).
+ * kof.web — resposta customizável (status/headerSet) + status text
  */
 final class NativeWebResponseContext {
 
@@ -11,6 +10,7 @@ final class NativeWebResponseContext {
     static String source() {
         return """
             .section .data
+            .Lweb_st_ok: .asciz "OK"
             .Lweb_st_created: .asciz "Created"
             .Lweb_st_accepted: .asciz "Accepted"
             .Lweb_st_nocontent: .asciz "No Content"
@@ -27,14 +27,12 @@ final class NativeWebResponseContext {
             .Lweb_st_unavail: .asciz "Service Unavailable"
 
             .section .bss
-            .Lweb_reqbuf:     .space 16384
-
-            .section .bss
             .Lweb_status:     .quad 0     # status da resposta (reset p/ 200 a cada request)
             .Lweb_resp_hdrs:  .space 64    # 4 slots * 16B {name_ptr,value_ptr}
             .Lweb_nresphdr:   .quad 0
 
             .section .text
+            # ------------------------------------------------------------------
             # kof_web_status(rdi=code Int, rsi=body String) -> String (o body)
             # Define o status da resposta; o writer usa .Lweb_status.
             # ------------------------------------------------------------------
@@ -120,6 +118,7 @@ final class NativeWebResponseContext {
             .Lst_badgw:      leaq .Lweb_st_badgw(%rip), %rax; ret
             .Lst_unavail:    leaq .Lweb_st_unavail(%rip), %rax; ret
 
+            # ------------------------------------------------------------------
             """;
     }
 }
