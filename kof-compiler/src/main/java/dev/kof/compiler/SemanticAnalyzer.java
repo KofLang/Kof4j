@@ -8,9 +8,6 @@ import java.util.Map;
 
 class SemanticAnalyzer {
 
-    private static final String SSE_CONNECTION_TYPE =
-            "dev.kof.runtime.KofRuntime$SseConnection";
-
     private SymbolTable currentScope;
     private CompilationUnitNode currentUnit;
 
