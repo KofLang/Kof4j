@@ -13,7 +13,7 @@ final class SwitchExprLowerer {
                                int localIdx, List<IRLocalVariable> locals) {
         Type switchType = ExpressionTyper.inferExprType(driver, se.expression(), locals);
         int switchTmp = localIdx++;
-        localIdx = driver.emitExpression(se.expression(), ops, owner, localIdx, locals);
+        localIdx = ExpressionLowerer.emitExpression(driver, se.expression(), ops, owner, localIdx, locals);
         ops.add(new KofStoreLocal(switchType, switchTmp));
         locals.add(new IRLocalVariable(switchTmp, "#switchExpr", switchType));
         return emitSwitchChain(driver, se.cases(), 0, se.defaultValue(), switchType, switchTmp,
@@ -25,7 +25,7 @@ final class SwitchExprLowerer {
                                 int localIdx, List<IRLocalVariable> locals) {
         if (i >= cases.size()) {
             if (defaultValue != null) {
-                return driver.emitExpression(defaultValue, ops, owner, localIdx, locals);
+                return ExpressionLowerer.emitExpression(driver, defaultValue, ops, owner, localIdx, locals);
             }
             ops.add(CompilerTypes.defaultValueOp(switchType));
             return localIdx;
@@ -45,7 +45,7 @@ final class SwitchExprLowerer {
             localIdx = emitPatternBinding(driver, pe, patType, switchType, switchTmp, ops, localIdx, locals);
         } else {
             ops.add(new KofLoadLocal(switchType, switchTmp));
-            localIdx = driver.emitExpression(sc.value(), ops, owner, localIdx, locals);
+            localIdx = ExpressionLowerer.emitExpression(driver, sc.value(), ops, owner, localIdx, locals);
             Type caseType = ExpressionTyper.inferExprType(driver, sc.value(), locals);
             if (Type.isString(switchType) || CompilerTypes.isEnumType(switchType, driver.currentUnit) || CompilerTypes.isEnumType(caseType, driver.currentUnit)) {
                 // igualdade de String/enum é por conteúdo (bug 4 do statement)
@@ -59,7 +59,7 @@ final class SwitchExprLowerer {
             ops.add(new KofConditionalJump(KofComparison.NE, bodyLabel, elseLabel));
             ops.add(new KofLabel(bodyLabel));
         }
-        localIdx = driver.emitExpression(sc.body(), ops, owner, localIdx, locals);
+        localIdx = ExpressionLowerer.emitExpression(driver, sc.body(), ops, owner, localIdx, locals);
         ops.add(new KofJump(endLabel));
         ops.add(new KofLabel(elseLabel));
         localIdx = emitSwitchChain(driver, cases, i + 1, defaultValue, switchType, switchTmp,

@@ -41,7 +41,7 @@ if (switchType instanceof Type.ClassType sct && sct.packageName().isEmpty()
     }
 }
 int switchTmp = localIdx++;
-localIdx = driver.emitExpression(ss.expression(), ops, owner, localIdx, locals);
+localIdx = ExpressionLowerer.emitExpression(driver, ss.expression(), ops, owner, localIdx, locals);
 ops.add(new KofStoreLocal(switchType, switchTmp));
 locals.add(new IRLocalVariable(switchTmp, "#switch", switchType));
 boolean hasPattern = ss.cases().stream().anyMatch(sc -> sc.value() instanceof PatternExpr);
@@ -68,7 +68,7 @@ if (hasPattern) {
             ops.add(new KofConditionalJump(KofComparison.EQ, nextTest, bodyLabels.get(i)));
         } else {
             ops.add(new KofLoadLocal(switchType, switchTmp));
-            localIdx = driver.emitExpression(sc.value(), ops, owner, localIdx, locals);
+            localIdx = ExpressionLowerer.emitExpression(driver, sc.value(), ops, owner, localIdx, locals);
             ops.add(new KofBinary(KofBinaryOp.EQ, switchType));
             ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
             ops.add(new KofConditionalJump(KofComparison.EQ, nextTest, bodyLabels.get(i)));
@@ -141,7 +141,7 @@ for (int i = 0; i < ss.cases().size(); i++) {
     if (i > 0) ops.add(new KofLabel(testLabels.get(i)));
     SwitchCase sc = ss.cases().get(i);
     ops.add(new KofLoadLocal(switchType, switchTmp));
-    localIdx = driver.emitExpression(sc.value(), ops, owner, localIdx, locals);
+    localIdx = ExpressionLowerer.emitExpression(driver, sc.value(), ops, owner, localIdx, locals);
     if (enumSwitch) {
         // comparação por conteúdo (o valor do enum é o nome)
         ops.add(new KofCall(BuiltinTypes.STRING, "kof_string_equals",

@@ -16,7 +16,7 @@ final class StatementLowerer {
         return switch (stmt) {
             case ReturnStmt ret -> {
                 if (ret.value() != null) {
-                    localIdx = driver.emitExpression(ret.value(), ops, owner, localIdx, locals);
+                    localIdx = ExpressionLowerer.emitExpression(driver, ret.value(), ops, owner, localIdx, locals);
                     driver.emitWideningIfNeeded(ops, ExpressionTyper.inferExprType(driver, ret.value(), locals), returnType);
                     ops.add(new KofReturn(returnType));
                 } else if (Type.isVoid(returnType)) {
@@ -37,7 +37,7 @@ final class StatementLowerer {
             }
             case ExpressionStmt es -> {
                 if (es.expression() != null) {
-                    localIdx = driver.emitExpression(es.expression(), ops, owner, localIdx, locals);
+                    localIdx = ExpressionLowerer.emitExpression(driver, es.expression(), ops, owner, localIdx, locals);
                     if (driver.hasReturnValue(es.expression(), locals)) ops.add(new KofPop());
                 }
                 yield localIdx;
@@ -60,7 +60,7 @@ final class StatementLowerer {
                             Type.PrimitiveType.VOID, KofCallKind.CONSTRUCTOR));
                     ops.add(new KofDup());
                     if (vds.initializer() != null) {
-                        localIdx = driver.emitExpression(vds.initializer(), ops, owner, localIdx, locals);
+                        localIdx = ExpressionLowerer.emitExpression(driver, vds.initializer(), ops, owner, localIdx, locals);
                     } else {
                         ops.add(new KofLoadLiteral(initType, 0));
                     }
@@ -82,7 +82,7 @@ final class StatementLowerer {
                         }
                         yield localIdx;
                     }
-                    localIdx = driver.emitExpression(vds.initializer(), ops, owner, localIdx, locals);
+                    localIdx = ExpressionLowerer.emitExpression(driver, vds.initializer(), ops, owner, localIdx, locals);
                     if ("var".equals(vds.type()) || "val".equals(vds.type())) {
                         varType = ExpressionTyper.inferExprType(driver, vds.initializer(), locals);
                         // spawn-expr: pina Handle<T> com T do corpo (a inferência
@@ -149,7 +149,7 @@ final class StatementLowerer {
                     localIdx = driver.emitComparisonShortcut(bin, ops, owner, localIdx, locals);
                     ops.add(new KofConditionalJump(driver.mapComparison(bin.operator()), driver.comparisonOperandType(bin, locals), thenLabel, elseLabel));
                 } else {
-                    localIdx = driver.emitExpression(ifStmt.condition(), ops, owner, localIdx, locals);
+                    localIdx = ExpressionLowerer.emitExpression(driver, ifStmt.condition(), ops, owner, localIdx, locals);
                     ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
                     ops.add(new KofConditionalJump(KofComparison.NE, thenLabel, elseLabel));
                 }
@@ -172,7 +172,7 @@ final class StatementLowerer {
                     localIdx = driver.emitComparisonShortcut(bin, ops, owner, localIdx, locals);
                     ops.add(new KofConditionalJump(driver.mapComparison(bin.operator()), driver.comparisonOperandType(bin, locals), bodyLabel, endLabel));
                 } else {
-                    localIdx = driver.emitExpression(ws.condition(), ops, owner, localIdx, locals);
+                    localIdx = ExpressionLowerer.emitExpression(driver, ws.condition(), ops, owner, localIdx, locals);
                     ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
                     ops.add(new KofConditionalJump(KofComparison.NE, bodyLabel, endLabel));
                 }
@@ -199,7 +199,7 @@ final class StatementLowerer {
                     localIdx = driver.emitComparisonShortcut(bin, ops, owner, localIdx, locals);
                     ops.add(new KofConditionalJump(driver.mapComparison(bin.operator()), driver.comparisonOperandType(bin, locals), startLabel, endLabel));
                 } else {
-                    localIdx = driver.emitExpression(dws.condition(), ops, owner, localIdx, locals);
+                    localIdx = ExpressionLowerer.emitExpression(driver, dws.condition(), ops, owner, localIdx, locals);
                     ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
                     ops.add(new KofConditionalJump(KofComparison.NE, startLabel, endLabel));
                 }
@@ -218,7 +218,7 @@ final class StatementLowerer {
                         localIdx = driver.emitComparisonShortcut(bin, ops, owner, localIdx, locals);
                         ops.add(new KofConditionalJump(driver.mapComparison(bin.operator()), driver.comparisonOperandType(bin, locals), bodyLabel, endLabel));
                     } else {
-                        localIdx = driver.emitExpression(fs.condition(), ops, owner, localIdx, locals);
+                        localIdx = ExpressionLowerer.emitExpression(driver, fs.condition(), ops, owner, localIdx, locals);
                         ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
                         ops.add(new KofConditionalJump(KofComparison.NE, bodyLabel, endLabel));
                     }
@@ -248,7 +248,7 @@ final class StatementLowerer {
                             ops.add(new KofStoreLocal(var2.type(), var2.index()));
                         }
                     } else {
-                        localIdx = driver.emitExpression(fs.update(), ops, owner, localIdx, locals);
+                        localIdx = ExpressionLowerer.emitExpression(driver, fs.update(), ops, owner, localIdx, locals);
                         if (driver.hasReturnValue(fs.update(), locals)) ops.add(new KofPop());
                     }
                 }
@@ -272,7 +272,7 @@ final class StatementLowerer {
                 locals.add(new IRLocalVariable(collIdx, "#coll", collType));
                 locals.add(new IRLocalVariable(idxIdx, "#idx", Type.PrimitiveType.INT));
                 locals.add(new IRLocalVariable(varIdx, fis.varName(), elemType));
-                localIdx = driver.emitExpression(fis.collection(), ops, owner, localIdx, locals);
+                localIdx = ExpressionLowerer.emitExpression(driver, fis.collection(), ops, owner, localIdx, locals);
                 ops.add(new KofStoreLocal(collType, collIdx));
                 ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
                 ops.add(new KofStoreLocal(Type.PrimitiveType.INT, idxIdx));
@@ -309,7 +309,7 @@ final class StatementLowerer {
                 yield localIdx;
             }
             case ThrowStmt ts -> {
-                localIdx = driver.emitExpression(ts.expression(), ops, owner, localIdx, locals);
+                localIdx = ExpressionLowerer.emitExpression(driver, ts.expression(), ops, owner, localIdx, locals);
                 Type excType = ExpressionTyper.inferExprType(driver, ts.expression(), locals);
                 if (BuiltinTypes.isString(excType) && driver.target == Target.JVM) {
                     int tmp = localIdx++;
@@ -326,7 +326,7 @@ final class StatementLowerer {
                 yield localIdx;
             }
             case AssertStmt asrt -> {
-                localIdx = driver.emitExpression(asrt.condition(), ops, owner, localIdx, locals);
+                localIdx = ExpressionLowerer.emitExpression(driver, asrt.condition(), ops, owner, localIdx, locals);
                 LabelId okLabel = LabelId.create();
                 LabelId failLabel = LabelId.create();
                 ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
