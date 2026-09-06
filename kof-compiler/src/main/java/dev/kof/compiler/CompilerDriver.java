@@ -1214,7 +1214,7 @@ Target target = Target.JVM;
         mainArgsListField = prevMainArgsList;
         return new IRMethod(func.name(), returnType, paramTypes, access, func.thrownExceptions(),
                 List.of(new IRBasicBlock(0, body)), locals, debugInfo,
-                lowerAnnotations(func.annotations()), lowerParameterAnnotations(func.parameters()));
+                CompilerAnnotations.lowerAnnotations(this, func.annotations()), CompilerAnnotations.lowerParameterAnnotations(this, func.parameters()));
     }
 
     /**
@@ -2230,7 +2230,7 @@ Target target = Target.JVM;
             superName = cls.superClass() != null ? toInternalName("", cls.superClass())
                     : "java/lang/Object";
         }
-        List<String> ifaces = cls.interfaces().stream().map(this::externalOrLocalInternalName).toList();
+        List<String> ifaces = cls.interfaces().stream().map(n -> CompilerAnnotations.externalOrLocalInternalName(this, n)).toList();
         int access = computeAccess(cls.modifiers());
         List<IRField> fields = new ArrayList<>();
         List<IRMethod> methods = new ArrayList<>();
@@ -2254,12 +2254,12 @@ Target target = Target.JVM;
             methods.add(0, generateDefaultConstructor(internalName, superName, fields, fieldInits));
         }
         return new IRClass(internalName, superName, ifaces, access, fields, methods, List.of(), null,
-                typeId, lowerAnnotations(cls.annotations()));
+                typeId, CompilerAnnotations.lowerAnnotations(this, cls.annotations()));
     }
 
     private IRClass lowerInterface(InterfaceDeclarationNode iface, String packageName, int typeId) {
         String internalName = toInternalName(packageName, iface.name());
-        List<String> ifaces = iface.interfaces().stream().map(this::externalOrLocalInternalName).toList();
+        List<String> ifaces = iface.interfaces().stream().map(n -> CompilerAnnotations.externalOrLocalInternalName(this, n)).toList();
         int access = computeAccess(iface.modifiers()) | AccessFlags.ABSTRACT | AccessFlags.INTERFACE;
         List<IRMethod> methods = new ArrayList<>();
         List<IRField> fields = new ArrayList<>();
@@ -2268,13 +2268,13 @@ Target target = Target.JVM;
             else if (member instanceof FieldDeclarationNode field) fields.add(lowerField(field, List.of()));
         }
         return new IRClass(internalName, "java/lang/Object", ifaces, access, fields, methods, List.of(), null,
-                typeId, lowerAnnotations(iface.annotations()));
+                typeId, CompilerAnnotations.lowerAnnotations(this, iface.annotations()));
     }
 
     private IRClass lowerRecord(RecordDeclarationNode rec, String packageName, int typeId) {
         String internalName = toInternalName(packageName, rec.name());
         String superName = "java/lang/Record";
-        List<String> ifaces = rec.interfaces().stream().map(this::externalOrLocalInternalName).toList();
+        List<String> ifaces = rec.interfaces().stream().map(n -> CompilerAnnotations.externalOrLocalInternalName(this, n)).toList();
         int access = computeAccess(rec.modifiers()) | AccessFlags.FINAL | AccessFlags.PUBLIC;
         List<IRField> fields = new ArrayList<>();
         List<IRMethod> methods = new ArrayList<>();
@@ -2282,7 +2282,7 @@ Target target = Target.JVM;
         for (RecordComponentNode comp : rec.components()) {
             fields.add(new IRField(comp.name(), CompilerTypes.resolveWithTypeParams(comp.type(), typeParams, currentUnit, semanticAnalyzer),
                     AccessFlags.PRIVATE | AccessFlags.FINAL,
-                    null, lowerAnnotations(comp.annotations())));
+                    null, CompilerAnnotations.lowerAnnotations(this, comp.annotations())));
         }
         methods.add(0, generateRecordConstructor(rec, internalName));
         methods.addAll(generateRecordDefaultOverloads(rec, internalName));
@@ -2314,7 +2314,7 @@ Target target = Target.JVM;
             methods.add(buildRecordEqualsMethod(internalName, fields, typeParams));
         }
         return new IRClass(internalName, superName, ifaces, access, fields, methods, List.of(), null,
-                typeId, lowerAnnotations(rec.annotations()));
+                typeId, CompilerAnnotations.lowerAnnotations(this, rec.annotations()));
     }
 
 
@@ -2333,106 +2333,29 @@ Target target = Target.JVM;
             };
         }
         return new IRField(field.name(), fieldType, computeAccess(field.modifiers()), initVal,
-                lowerAnnotations(field.annotations()));
+                CompilerAnnotations.lowerAnnotations(this, field.annotations()));
     }
 
     /**
      * Converte annotations do AST para a IR: nome resolvido para o formato
      * interno JVM e valores já constantes (o parser só aceita literais).
      */
-    private List<IRAnnotation> lowerAnnotations(List<AnnotationNode> annos) {
-        if (annos == null || annos.isEmpty()) return List.of();
-        List<IRAnnotation> out = new ArrayList<>();
-        for (AnnotationNode anno : annos) {
-            java.util.Map<String, Object> values = new java.util.LinkedHashMap<>();
-            for (AnnotationPair pair : anno.pairs()) {
-                String key = pair.key() != null ? pair.key()
-                        : (anno.pairs().size() == 1 ? "value" : null);
-                if (key != null) {
-                    Object folded = foldAnnotationValue(pair.value());
-                    if (!(folded instanceof ParseSentinel)) values.put(key, folded);
-                }
-            }
-            out.add(new IRAnnotation(resolveAnnotationInternalName(anno.name()), values));
-        }
-        return out;
-    }
 
     /**
      * Nome interno JVM de uma interface declarada: simples vinda de import
      * ("import android.view.OnClickListener") qualifica; senão, classe local.
      */
-    private String externalOrLocalInternalName(String name) {
-        Type q = CompilerTypes.qualifyViaImports(name, currentUnit);
-        if (q instanceof Type.ClassType qt && !qt.packageName().isEmpty()) {
-            return qt.internalName();
-        }
-        return toInternalName("", name);
-    }
 
     /**
      * Dobra valores de annotation: refs de Classe.class e Enum.CONST viram
      * constantes resolvidas; enum só passa se o classpath provar a classe.
      */
-    private Object foldAnnotationValue(Object value) {
-        if (value instanceof AnnotationClassRef ref) {
-            return new IRClassConstant(resolveAnnotationInternalName(ref.typeName()));
-        }
-        if (value instanceof AnnotationEnumRef ref) {
-            int lastDot = ref.qualifiedConstant().lastIndexOf('.');
-            if (lastDot > 0 && externalClasspath != null) {
-                String internal = resolveAnnotationInternalName(
-                        ref.qualifiedConstant().substring(0, lastDot));
-                String constant = ref.qualifiedConstant().substring(lastDot + 1);
-                if (externalClasspath.knows(internal)
-                        && externalClasspath.isEnum(internal)
-                        && externalClasspath.hasEnumConstant(internal, constant)) {
-                    return new IREnumConstant(internal, constant);
-                }
-            }
-            if (currentDiagnostics != null) {
-                currentDiagnostics.error("", 0, 0, 0,
-                        "enum constant '" + ref.qualifiedConstant()
-                                + "' could not be resolved from the external classpath",
-                        "ANNOT001");
-            }
-            return ParseSentinel.INSTANCE;
-        }
-        if (value instanceof List<?> items) {
-            List<Object> folded = new ArrayList<>();
-            for (Object item : items) folded.add(foldAnnotationValue(item));
-            return folded;
-        }
-        return value;
-    }
-
-    private static final class ParseSentinel {
-        static final ParseSentinel INSTANCE = new ParseSentinel();
-    }
 
     /**
      * Resolve o nome da annotation para o formato interno JVM. Nomes
      * qualificados vão direto; simples usam imports do arquivo; os de
      * java.lang são embutidos; senão assume-se a própria classe local.
      */
-    private String resolveAnnotationInternalName(String name) {
-        if (name.contains(".")) return name.replace('.', '/');
-        switch (name) {
-            case "Override": return "java/lang/Override";
-            case "Deprecated": return "java/lang/Deprecated";
-            case "FunctionalInterface": return "java/lang/FunctionalInterface";
-            case "SafeVarargs": return "java/lang/SafeVarargs";
-            case "SuppressWarnings": return "java/lang/SuppressWarnings";
-        }
-        if (currentUnit != null) {
-            for (String imp : currentUnit.imports()) {
-                if (!"*.kof".equals(imp) && imp.endsWith("." + name)) {
-                    return imp.replace('.', '/');
-                }
-            }
-        }
-        return name;
-    }
 
     private IRMethod lowerMethod(MethodDeclarationNode method, String owner, boolean isInterface, List<String> typeParams) {
         String prevOwner = currentLoweringOwner;
@@ -2511,20 +2434,10 @@ Target target = Target.JVM;
         currentDebugPositions.clear();
         return new IRMethod(method.name(), returnType, paramTypes, access, method.thrownExceptions(),
                 body, locals, debugInfo,
-                lowerAnnotations(method.annotations()), lowerParameterAnnotations(method.parameters()));
+                CompilerAnnotations.lowerAnnotations(this, method.annotations()), CompilerAnnotations.lowerParameterAnnotations(this, method.parameters()));
     }
 
     /** Annotations por parâmetro, alinhadas à ordem de parameterTypes. */
-    private List<List<IRAnnotation>> lowerParameterAnnotations(List<FormalParameterNode> params) {
-        List<List<IRAnnotation>> out = new ArrayList<>();
-        boolean any = false;
-        for (FormalParameterNode p : params) {
-            List<IRAnnotation> annos = lowerAnnotations(p.annotations());
-            if (!annos.isEmpty()) any = true;
-            out.add(annos);
-        }
-        return any ? out : List.of();
-    }
 
     /**
      * Default parameter values on constructors: for each trailing default, a
@@ -2640,7 +2553,7 @@ Target target = Target.JVM;
         ops.add(new KofReturnVoid());
         return new IRMethod("<init>", Type.PrimitiveType.VOID, paramTypes, access, ctor.thrownExceptions(),
                 List.of(new IRBasicBlock(0, ops)), localVars, KofDebugInfo.EMPTY,
-                lowerAnnotations(ctor.annotations()), lowerParameterAnnotations(ctor.parameters()));
+                CompilerAnnotations.lowerAnnotations(this, ctor.annotations()), CompilerAnnotations.lowerParameterAnnotations(this, ctor.parameters()));
     }
 
     private IRMethod generateDefaultConstructor(String owner, String superName, List<IRField> fields,
@@ -2862,7 +2775,7 @@ Target target = Target.JVM;
         return overloads;
     }
 
-    private String toInternalName(String packageName, String simpleName) {
+    String toInternalName(String packageName, String simpleName) {
         if (simpleName.contains("/")) return simpleName;
         if (simpleName.contains(".")) return simpleName.replace('.', '/');
         if (packageName.isEmpty()) return simpleName;
