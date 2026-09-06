@@ -809,3 +809,30 @@ EXTERNA produz lixo
   agora recebe default (0/null) — antes crashava o frame. `Int → String`
   continua rejeitado (SEM021). Prova:
   `CompilerDriverTest.primitiveAssignableToObject`.
+
+---
+
+## Aberto (gap Canvas — 06/09)
+
+### CANVAS001 — ClassFormatError com arc() (Double params)
+
+- **Sintoma:** `Canvas(400,300)` + `c.arc(200,150,100,0.0,3.14)` compila, mas
+  o JVM lança `ClassFormatError: Illegal class name "" in class file`.
+- **Reprodução:**
+  ```kof
+  main() {
+      var c = Canvas(400, 300)
+      c.arc(200, 150, 100, 0.0, 3.14)
+  }
+  ```
+- **Causa provável:** `JvmRuntimeCallDescriptors` tem `(IIIIDD)V` para
+  `kof_ui_canvas_arc`, mas o receiver INT (canvas handle) precisa ser incluído:
+  o descriptor deveria ser `(IIIIIDD)V`. Outra possibilidade: o backend JVM não
+  está mapeando corretamente os parâmetros Double (2 slots cada) no numbering
+  de locals do KofCall.
+- **O que funciona:** Canvas com `setFill`, `beginPath`, `fill`, `remove` (só
+  Int params) compila e roda OK nos 3 targets.
+- **O que falta:** corrigir o descriptor JVM para `arc()` com Double, ou
+  ajustar o `emitUiInstance` para mapear corretamente Double→2 slots.
+- **Arquivos:** `JvmRuntimeCallDescriptors.java`, possivelmente
+  `CompilerDriver.java:emitUiInstance` (line ~2281).

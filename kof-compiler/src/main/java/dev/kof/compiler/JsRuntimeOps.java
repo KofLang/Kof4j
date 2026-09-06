@@ -143,6 +143,7 @@ void handleRuntimeOp(MethodCtx ctx, List<Object> stack,
                 || name.startsWith("kof_ui_link_") || name.startsWith("kof_ui_image_")
                 || name.startsWith("kof_ui_icon_") || name.startsWith("kof_ui_widget_")
                 || name.startsWith("kof_ui_font_")
+                || name.startsWith("kof_ui_canvas_")
                 || name.equals("kof_ui_component_new") || name.equals("kof_ui_component_state_get")
                 || name.equals("kof_ui_component_state_set") || name.equals("kof_ui_component_view")
                 || name.equals("kof_ui_component_on_mount") || name.equals("kof_ui_component_on_dispose")

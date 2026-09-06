@@ -110,6 +110,7 @@ implementado OU dá diagnóstico; suíte verde.
 
 | Gap/Item | Prioridade | Escopo | Notas |
 |---|---|---|---|
+| **CANVAS001** — Canvas arc() ClassFormatError com Double params | alta | Corrigir `JvmRuntimeCallDescriptors` para `arc()` (descritor `(IIIIDD)V` precisa ser `(IIIIIDD)V` com receiver INT) ou ajustar `emitUiInstance` para mapear Double→2 slots. Canvas sem Double (setFill/beginPath/fill/remove) já funciona nos 3 targets. | `docs/known-bugs.md` CANVAS001; widget implementado em `KofUi`, `JsRuntimeUiWidgets`, `JvmRuntimeUi`, `RuntimeUi`; teste `UiE2ETest.canvasCreation` falha no JVM |
 | **HTTP003** — kof.http Native cauda | média | `https` + DNS real + `timeout/retry/circuit` (knobs reais) no Native | HTTP/1.1 get/post/status ✅ 03/09 (`NativeHttpRuntime.java`); delete/put/patch/options compilados; cauda = TLS/DNS/retry |
 | **WEB002 residual** — kof.web Native avançado | média | TLS `listenSecure`, ws/sse, path params, keepalive no `NativeWebRuntime` | server base ✅ 03/09 (accept/route/lambda/body — `KofWebNativeE2ETest` 4/4); resto é cauda |
 | **WEB001 residual** — kof.web JS avançado | média | ws/sse + TLS no JS | GraalJS HttpServer real ✅ 03/09 (`bc577aa`); ws/sse pendentes |

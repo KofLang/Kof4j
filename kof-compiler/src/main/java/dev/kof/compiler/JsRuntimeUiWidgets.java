@@ -305,6 +305,75 @@ final class JsRuntimeUiWidgets {
                 }
             }
 
+            // ── Canvas 2D ──────────────────────────────────────
+            export function kofUiCanvasNew(w, h) {
+                if (typeof document === "undefined") return -1;
+                const canvas = document.createElement("canvas");
+                canvas.width = w;
+                canvas.height = h;
+                canvas.className = "kof-canvas";
+                canvas.style.display = "block";
+                const ctx = canvas.getContext("2d");
+                if (typeof window.__kofNodes === "undefined") window.__kofNodes = {};
+                const id = ++kofNodeSeq;
+                window.__kofNodes[id] = canvas;
+                window.__kofCanvasCtx = window.__kofCanvasCtx || {};
+                window.__kofCanvasCtx[id] = ctx;
+                return id;
+            }
+            export function kofUiCanvasBeginPath(id) {
+                const ctx = window.__kofCanvasCtx && window.__kofCanvasCtx[id];
+                if (ctx) ctx.beginPath();
+            }
+            export function kofUiCanvasClosePath(id) {
+                const ctx = window.__kofCanvasCtx && window.__kofCanvasCtx[id];
+                if (ctx) ctx.closePath();
+            }
+            export function kofUiCanvasMoveTo(id, x, y) {
+                const ctx = window.__kofCanvasCtx && window.__kofCanvasCtx[id];
+                if (ctx) ctx.moveTo(x, y);
+            }
+            export function kofUiCanvasLineTo(id, x, y) {
+                const ctx = window.__kofCanvasCtx && window.__kofCanvasCtx[id];
+                if (ctx) ctx.lineTo(x, y);
+            }
+            export function kofUiCanvasArc(id, x, y, r, startAngle, endAngle) {
+                const ctx = window.__kofCanvasCtx && window.__kofCanvasCtx[id];
+                if (ctx) ctx.arc(x, y, r, startAngle, endAngle);
+            }
+            export function kofUiCanvasFill(id) {
+                const ctx = window.__kofCanvasCtx && window.__kofCanvasCtx[id];
+                if (ctx) ctx.fill();
+            }
+            export function kofUiCanvasStroke(id) {
+                const ctx = window.__kofCanvasCtx && window.__kofCanvasCtx[id];
+                if (ctx) ctx.stroke();
+            }
+            export function kofUiCanvasSetFill(id, color) {
+                const ctx = window.__kofCanvasCtx && window.__kofCanvasCtx[id];
+                if (ctx) ctx.fillStyle = kofUiColorToCss(color);
+            }
+            export function kofUiCanvasSetStroke(id, color) {
+                const ctx = window.__kofCanvasCtx && window.__kofCanvasCtx[id];
+                if (ctx) ctx.strokeStyle = kofUiColorToCss(color);
+            }
+            export function kofUiCanvasSetLineWidth(id, w) {
+                const ctx = window.__kofCanvasCtx && window.__kofCanvasCtx[id];
+                if (ctx) ctx.lineWidth = w;
+            }
+            export function kofUiCanvasClearRect(id, x, y, w, h) {
+                const ctx = window.__kofCanvasCtx && window.__kofCanvasCtx[id];
+                if (ctx) ctx.clearRect(x, y, w, h);
+            }
+            export function kofUiCanvasRemove(id) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[id]) {
+                    const node = window.__kofNodes[id];
+                    if (node.parentNode) node.parentNode.removeChild(node);
+                    delete window.__kofNodes[id];
+                    if (window.__kofCanvasCtx) delete window.__kofCanvasCtx[id];
+                }
+            }
+
             """;
 
 }

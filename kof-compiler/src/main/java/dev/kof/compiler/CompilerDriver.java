@@ -2280,7 +2280,8 @@ Target target = Target.JVM;
         }
         if (KofUi.isWindow(recvType) || KofUi.isLabel(recvType) || KofUi.isButton(recvType)
                 || KofUi.isInput(recvType) || KofUi.isView(recvType)
-                || KofUi.isLink(recvType) || KofUi.isImage(recvType) || KofUi.isIcon(recvType)) {
+                || KofUi.isLink(recvType) || KofUi.isImage(recvType) || KofUi.isIcon(recvType)
+                || KofUi.isCanvas(recvType)) {
             KofUi.UiCall uiCall = KofUi.instanceMethod(recvType, mc.methodName(), mc.arguments().size());
             if (uiCall != null) {
                 for (ExpressionNode arg : mc.arguments()) {
