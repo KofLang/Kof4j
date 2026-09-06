@@ -29,6 +29,9 @@ final class KofInterpreterBuiltins {
     private final KofInterpreter interp;
     private final List<Thread> tasks = new java.util.concurrent.CopyOnWriteArrayList<>();
     private final Map<Object, Thread> taskThreads = new java.util.concurrent.ConcurrentHashMap<>();
+    private final Map<String, Thread> timeJobs = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final java.util.concurrent.atomic.AtomicInteger timeSeq =
+            new java.util.concurrent.atomic.AtomicInteger();
 
     KofInterpreterBuiltins(KofInterpreter interp) {
         this.interp = interp;
@@ -697,26 +700,37 @@ final class KofInterpreterBuiltins {
             }
             case "kof_time_interval":
             case "kof_scheduler_every": {
+                // mesma semântica do runtime gerado: job id "job-N", thread
+                // daemon, cancel remove o job (o loop vê e para), ms<=0 erro.
                 int ms = KofInterpreter.unboxInt(args[0]);
+                if (ms <= 0) throw new IllegalArgumentException("interval must be positive: " + ms);
+                String id = "job-" + timeSeq.incrementAndGet();
                 Thread t = new Thread(() -> {
-                    while (!Thread.currentThread().isInterrupted()) {
-                        try {
+                    try {
+                        while (timeJobs.containsKey(id)) {
                             Thread.sleep(ms);
+                            if (!timeJobs.containsKey(id)) break;
                             interp.invokeLambda(args[1], new Object[0]);
-                        } catch (InterruptedException e) {
-                            return;
-                        } catch (Throwable e) {
-                            return;
                         }
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    } catch (Throwable e) {
+                        // o runtime gerado propaga; no daemon thread vira stderr
+                        interp.err().println("interval task failed: "
+                                + KofInterpreter.kofErrorMessage(e));
                     }
-                }, "kof-interval");
+                }, "kof-time-" + id);
                 t.setDaemon(true);
+                timeJobs.put(id, t);
                 t.start();
-                return "kof-interval-" + t.threadId();
+                return id;
             }
             case "kof_time_cancel":
-            case "kof_scheduler_cancel":
+            case "kof_scheduler_cancel": {
+                Thread t = timeJobs.remove(String.valueOf(args[0]));
+                if (t != null) t.interrupt();
                 return null;
+            }
             default:
                 return NOT_HANDLED;
         }
