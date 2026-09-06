@@ -1,5 +1,7 @@
 package dev.kof.compiler;
 
+import java.util.List;
+
 /**
  *  * Emissão cross riscv64 (parte 1): método, vtable, dispatch de ops,
  * Extraído verbatim de NativeBackend (FASE 3, REFACTOR-500); estado do
@@ -11,7 +13,7 @@ final class NativeRiscvCrossEmit {
 
     private final NativeRiscvCrossOps other;
 
-    NativeRiscvCrossEmit(NativeBackend nb) { this.nb = nb; this.other = new NativeRiscvCrossOps(nb); }
+    NativeRiscvCrossEmit(NativeBackend nb) { this.nb = nb; this.other = new NativeRiscvCrossOps(nb, this); }
 
     void emitCrossMethodRiscv(StringBuilder sb, IRClass clazz, IRMethod method, boolean joinMain) {
         // Mangle idêntico ao x86_64 (vtables referenciam esses símbolos).

@@ -141,7 +141,7 @@ final class NativeAarch64Translator {
         if (cut == -1) { mn = s; }
         else { mn = s.substring(0, cut); rest = s.substring(cut).strip(); }
         // helpers
-        java.util.function.Function<String,String> R = NativeBackend::aarch64Reg;
+        java.util.function.Function<String,String> R = NativeAarch64Translator::aarch64Reg;
         // casos especiais FP antes dos genéricos
         // fcvt.w.s / fcvt.w.d / fcvt.l.s / fcvt.l.d
         if (mn.startsWith("fcvt.")) {
@@ -494,3 +494,4 @@ final class NativeAarch64Translator {
         System.err.println("WARN translateRiscvToAarch64 UNHANDLED: " + mn + " | " + line);
         return List.of(line);
     }
+}

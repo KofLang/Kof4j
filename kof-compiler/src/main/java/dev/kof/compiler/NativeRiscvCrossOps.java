@@ -1,5 +1,7 @@
 package dev.kof.compiler;
 
+import java.util.List;
+
 /**
  *  * Emissão cross riscv64 (parte 2): binary, cond-jump, call, ABI de regs,
  * Extraído verbatim de NativeBackend (FASE 3, REFACTOR-500); estado do
@@ -11,13 +13,13 @@ final class NativeRiscvCrossOps {
 
     private final NativeRiscvCrossEmit other;
 
-    NativeRiscvCrossOps(NativeBackend nb) { this.nb = nb; this.other = new NativeRiscvCrossEmit(nb); }
+    NativeRiscvCrossOps(NativeBackend nb, NativeRiscvCrossEmit other) { this.nb = nb; this.other = other; }
 
     void emitCrossBinaryRiscv(StringBuilder sb, KofBinary kb) {
         // b = topo, a = abaixo; resultado = a OP b
         Type opTy = kb.operandType();
-        boolean isFloat = nb.isFloatType(opTy);
-        boolean isDouble = nb.isDoubleType(opTy);
+        boolean isFloat = NativeTypeKinds.isFloatType(opTy);
+        boolean isDouble = NativeTypeKinds.isDoubleType(opTy);
         if (isFloat || isDouble) {
             String s = isFloat ? "s" : "d";
             sb.append("    pop t0\n    fmv.").append(s).append(".x f1, t0\n");
@@ -48,7 +50,7 @@ final class NativeRiscvCrossOps {
         }
         sb.append("    pop t0\n");   // b
         sb.append("    pop t1\n");   // a
-        boolean int32 = nb.isInt32Type(opTy);
+        boolean int32 = NativeTypeKinds.isInt32Type(opTy);
         switch (kb.op()) {
             case ADD -> sb.append("    add t1, t1, t0\n");
             case SUB -> sb.append("    sub t1, t1, t0\n");

@@ -22,13 +22,19 @@ public class NativeBackend implements Backend {
     private boolean usesHttp = false;
     private boolean usesMysql = false;
     private boolean usesConcurrency = false;
-    private final Map<String, String> functionMangleMap = new HashMap<>();
+    final Map<String, String> functionMangleMap = new HashMap<>();
     private final Map<String, ClassLayout> layoutCache = new HashMap<>();
-    private Map<String, IRClass> allClassesMap = new HashMap<>();
+    Map<String, IRClass> allClassesMap = new HashMap<>();
     /** Debug info nativa (DWARF .debug_line via .file/.loc). */
     private boolean debugInfo = false;
     private String sourceFile = "";
     private NativeRiscvCrossEmit crossEmitInst;
+    private NativeJsonSchema jsonSchemaInst;
+
+    private NativeJsonSchema jsonSchema() {
+        if (jsonSchemaInst == null) jsonSchemaInst = new NativeJsonSchema(this);
+        return jsonSchemaInst;
+    }
 
     private NativeRiscvCrossEmit crossEmit() {
         if (crossEmitInst == null) crossEmitInst = new NativeRiscvCrossEmit(this);
@@ -38,158 +44,18 @@ public class NativeBackend implements Backend {
     public NativeBackend() { this(Target.NATIVE); }
     public NativeBackend(Target target) { this.target = target; }
 
-    private String resolveLabel(LabelId id) {
+    String resolveLabel(LabelId id) {
         return labelMap.computeIfAbsent(id, k -> ".Lkof_" + (labelCounter++));
     }
 
-    private String sanitizeName(String name) {
+    String sanitizeName(String name) {
         return name.replace("/", "_").replace(".", "_").replace("-", "_")
                 .replace("<", "").replace(">", "");
     }
 
 
-    /**
-     * JSN002: coleta as tabelas de schema JSON por classe (nome+offset+
-     * tipo de cada campo, inclusive herdados via ClassLayout). Campos de
-     * tipos nao suportados (FP, List, Map) sao omitidos — o gate no
-     * CompilerDriver diagnostica essas classes antes delas chegarem aqui.
-     * Os nomes dos campos sao internados AQUI (antes de emitStringData).
-     */
-    private record JsonSchemaEntry(String tokenCstr, long offset, long typeCode, String className,
-                                    String auxCstr) {}
-    private record JsonSchemaTable(String tableLabel, String classCstr, long totalSize,
-                                   java.util.List<JsonSchemaEntry> entries) {}
 
-    private final java.util.List<JsonSchemaTable> jsonSchemas = new java.util.ArrayList<>();
-
-    private Long jsonFieldTypeCode(Type t) {
-        if (t instanceof Type.PrimitiveType pt) {
-            return switch (Type.canonicalPrimitiveName(pt.name())) {
-                case "int", "char", "byte", "short" -> 1L;
-                case "long" -> 2L;
-                case "bool" -> 3L;
-                default -> null; // float/double: gap FP (JSN001)
-            };
-        }
-        if (BuiltinTypes.isString(t)) return 4L;
-        if (t instanceof Type.ClassType ct) {
-            String simple = ct.name();
-            for (IRClass c : allClassesMap.values()) {
-                if (c.name().equals(simple) || c.name().endsWith("/" + simple)) return 5L;
-            }
-        }
-        return null;
-    }
-
-    private void collectJsonSchemas() {
-        jsonSchemas.clear();
-        for (IRClass clazz : allClassesMap.values()) {
-            if (clazz.fields().isEmpty()) continue;
-            ClassLayout layout = getLayout(clazz);
-            java.util.List<JsonSchemaEntry> entries = new java.util.ArrayList<>();
-            boolean any = false;
-            boolean allSupported = true;
-            for (FieldLayout f : layout.fields()) {
-                Long code = jsonFieldTypeCode(f.type());
-                if (code == null) { allSupported = false; continue; }
-                if (f.type() instanceof Type.ClassType ct) {
-                    // campo aninhado: so se a classe alvo tambem tiver tabela
-                    boolean has = false;
-                    for (IRClass c : allClassesMap.values()) {
-                        if (c.name().equals(ct.name()) || c.name().endsWith("/" + ct.name())) {
-                            has = !getLayout(c).fields().isEmpty();
-                            break;
-                        }
-                    }
-                    if (!has) { allSupported = false; continue; }
-                }
-                // token '"nome":' serve encode (parte literal) e decode (busca)
-                String tokLabel = internString("\"" + f.name() + "\":");
-                String auxCstr = null;
-                if (code == 5L && f.type() instanceof Type.ClassType ct) {
-                    String cn = ct.packageName().isEmpty() ? ct.name()
-                            : ct.packageName() + "." + ct.name();
-                    auxCstr = internString(cn);
-                }
-                entries.add(new JsonSchemaEntry(tokLabel, f.offset(), code, f.name(), auxCstr));
-                any = true;
-            }
-            if (!any || !allSupported) continue;
-            String tableLabel = ".Lsch_" + sanitizeName(clazz.name());
-            String classCstr = internString(clazz.name());
-            jsonSchemas.add(new JsonSchemaTable(tableLabel, classCstr,
-                    layout.totalSize(), java.util.List.copyOf(entries)));
-        }
-    }
-
-    /** Emite as tabelas de schema + registro + finder (apos emitStringData). */
-    private void emitJsonSchemaData(StringBuilder sb) {
-        if (jsonSchemas.isEmpty()) return;
-        sb.append(".section .data\n");
-        for (JsonSchemaTable t : jsonSchemas) {
-            sb.append(t.tableLabel()).append(":\n");
-            sb.append("    .quad ").append(t.totalSize()).append("\n");
-            sb.append("    .quad ").append(t.entries().size()).append("\n");
-            for (JsonSchemaEntry e : t.entries()) {
-                sb.append("    .quad ").append(e.tokenCstr()).append("\n");
-                sb.append("    .quad ").append(e.offset()).append("\n");
-                sb.append("    .quad ").append(e.typeCode()).append("\n");
-                sb.append("    .quad ").append(e.auxCstr() == null ? 0 : e.auxCstr()).append("\n");
-            }
-        }
-        sb.append(".Lsch_registry:\n");
-        for (JsonSchemaTable t : jsonSchemas) {
-            sb.append("    .quad ").append(t.classCstr()).append("\n");
-            sb.append("    .quad ").append(t.tableLabel()).append("\n");
-        }
-        sb.append("    .quad 0\n");
-        sb.append("""
-            .section .text
-            .globl kof_json_schema_find
-            .type kof_json_schema_find, @function
-            kof_json_schema_find:
-                pushq %rbx
-                pushq %r12
-                movq %rdi, %rbx             # nome C-string
-                leaq .Lsch_registry(%rip), %r9
-            .Lschf_loop:
-                movq (%r9), %rax            # name cstr da entrada
-                testq %rax, %rax
-                jz .Lschf_notfound
-                xorq %rcx, %rcx
-            .Lschf_cmp:
-                movzbl (%rbx,%rcx), %edx
-                movzbl (%rax,%rcx), %esi
-                cmpl %esi, %edx
-                jne .Lschf_next
-                testl %edx, %edx
-                jz .Lschf_found
-                incq %rcx
-                jmp .Lschf_cmp
-            .Lschf_next:
-                addq $16, %r9
-                jmp .Lschf_loop
-            .Lschf_found:
-                movq 8(%r9), %rax           # table ptr
-                jmp .Lschf_exit
-            .Lschf_notfound:
-                xorl %eax, %eax
-            .Lschf_exit:
-                popq %r12
-                popq %rbx
-                ret
-            """);
-    }
-
-    /** Tabela de schema para uma classe (ou null se ausente), pelo nome. */
-    private String schemaLabelFor(String className) {
-        for (JsonSchemaTable t : jsonSchemas) {
-            if (t.classCstr().equals(className)) return t.tableLabel();
-        }
-        return null;
-    }
-
-    private String internString(String value) {
+    String internString(String value) {
         for (String[] entry : stringLiterals) {
             if (entry[0].equals(value)) return entry[1];
         }
@@ -198,7 +64,7 @@ public class NativeBackend implements Backend {
         return label;
     }
 
-    private ClassLayout getLayout(IRClass clazz) {
+    ClassLayout getLayout(IRClass clazz) {
         return layoutCache.computeIfAbsent(clazz.name(), k ->
             ClassLayout.buildWithSuper(clazz, name -> allClassesMap.get(name)));
     }
@@ -256,9 +122,9 @@ public class NativeBackend implements Backend {
             getLayout(clazz);
             collectStrings(clazz);
         }
-        collectJsonSchemas();
+        jsonSchema().collectJsonSchemas();
         emitStringData(sb);
-        emitJsonSchemaData(sb);
+        jsonSchema().emitJsonSchemaData(sb);
         for (IRClass clazz : module.classes()) {
             currentClass = clazz;
             emitMethodTable(sb, clazz);
@@ -360,7 +226,7 @@ public class NativeBackend implements Backend {
         }
     }
 
-    private List<String> collectVirtualMethods(IRClass clazz) {
+    List<String> collectVirtualMethods(IRClass clazz) {
         List<String> methods = new ArrayList<>();
         List<String> methodNames = new ArrayList<>();
         java.util.Queue<String> queue = new java.util.LinkedList<>();
@@ -432,7 +298,7 @@ public class NativeBackend implements Backend {
         NativeRuntime.generateMethodTable(sb, sanitizeName(clazz.name()), methods);
     }
 
-    private int findVirtualMethodIndex(String ownerTypeName, String methodName) {
+    int findVirtualMethodIndex(String ownerTypeName, String methodName) {
         for (IRClass clazz : allClassesMap.values()) {
             if (clazz.name().equals(ownerTypeName) || clazz.name().endsWith("/" + ownerTypeName)
                     || ownerTypeName.endsWith("/" + clazz.name()) || ownerTypeName.equals(sanitizeName(clazz.name()))) {
@@ -760,7 +626,7 @@ public class NativeBackend implements Backend {
         sb.append("    pushq %rax\n");
     }
 
-    private int elementTypeSize(Type elemType) {
+    int elementTypeSize(Type elemType) {
         return switch (elemType) {
             case Type.PrimitiveType pt -> switch (pt.name()) {
                 case "byte", "Byte", "bool", "Bool", "boolean" -> 1;
@@ -1285,7 +1151,7 @@ public class NativeBackend implements Backend {
         return sanitizeName(internal);
     }
 
-    private int resolveFieldOffset(Type ownerType, String fieldName) {
+    int resolveFieldOffset(Type ownerType, String fieldName) {
         ClassLayout layout = getLayoutForType(ownerType);
         if (layout != null) {
             int offset = layout.fieldOffset(fieldName);
@@ -1566,7 +1432,7 @@ public class NativeBackend implements Backend {
     }
 
     static void emitRiscvSpawn(StringBuilder sb) {
-        NativeRiscvSpawn.emit(sb);
+        NativeRiscvSpawn.emitRiscvSpawn(sb);
     }
 
 
