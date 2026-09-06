@@ -20,6 +20,7 @@ documento de arquitetura/visão **sem código implementado** (ou com código que
 
 | Doc | Tema | Por que fica em `future/` |
 |-----|------|---------------------------|
+| `APPLICATION_MODEL.md` | Kof Application Model (monólito ↔ distribuído, `kof.toml`, packaging, System) | RFC auditada — implementa nos incrementos I1–I4 (§23); move para `docs/` no I1 |
 | `PLAN-UNIVERSAL-PLATFORM.md` | visão de longo prazo (Kof como plataforma universal) | 100% visão/estratégia — não é ordem de implementação |
 | `DECOMPILER.md` | Kof Decompiler (bytecode/asm → Kof) | não há código de decompiler |
 | `DIFFERENTIAL_TESTING.md` | teste diferencial de migrações | não há código |
