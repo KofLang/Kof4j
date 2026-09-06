@@ -62,7 +62,7 @@ class JsBackend implements Backend {
         List<JsIr.JsFunction> functions = new ArrayList<>();
         Map<String, Set<String>> methodNames = new HashMap<>();
         for (IRClass clazz : module.classes()) {
-            if (!skipClass(clazz)) {
+            if (!JsLoweringContext.skipClass(clazz)) {
                 methodNames.put(clazz.name(), new HashSet<>());
                 for (IRMethod m : clazz.methods()) {
                     methodNames.get(clazz.name()).add(m.name());
@@ -90,7 +90,7 @@ class JsBackend implements Backend {
         // are routed by (name, arity).
         this.lc.fnArityNames = new HashMap<>();
         for (IRClass clazz : module.classes()) {
-            if (skipClass(clazz) || !isMainClass(clazz)) continue;
+            if (JsLoweringContext.skipClass(clazz) || !JsLoweringContext.isMainClass(clazz)) continue;
             Map<String, Integer> maxArity = new HashMap<>();
             for (IRMethod method : clazz.methods()) {
                 if ("<init>".equals(method.name())) continue;
@@ -109,8 +109,8 @@ class JsBackend implements Backend {
         }
         computeAsyncColoring(module);
         for (IRClass clazz : module.classes()) {
-            if (skipClass(clazz)) continue;
-            if (isMainClass(clazz)) {
+            if (JsLoweringContext.skipClass(clazz)) continue;
+            if (JsLoweringContext.isMainClass(clazz)) {
                 for (IRMethod method : clazz.methods()) {
                     if ("<init>".equals(method.name())) continue;
                     functions.add(lowerFunction(method, null, false, true));
@@ -118,11 +118,11 @@ class JsBackend implements Backend {
             }
         }
         for (IRClass clazz : module.classes()) {
-            if (skipClass(clazz) || isMainClass(clazz)) continue;
+            if (JsLoweringContext.skipClass(clazz) || JsLoweringContext.isMainClass(clazz)) continue;
             classes.add(lowerClass(clazz));
         }
         for (IRClass clazz : module.classes()) {
-            if (skipClass(clazz) || isMainClass(clazz)) continue;
+            if (JsLoweringContext.skipClass(clazz) || JsLoweringContext.isMainClass(clazz)) continue;
             if (lc.decodeHelpers.contains(JsTypeMapper.jsClassName(clazz.name()))) {
                 functions.add(lowerDecodeHelper(clazz));
             }
@@ -147,9 +147,9 @@ class JsBackend implements Backend {
     private void computeAsyncColoring(IRModule module) {
         Map<String, Boolean> async = new HashMap<>();
         for (IRClass clazz : module.classes()) {
-            if (skipClass(clazz)) continue;
+            if (JsLoweringContext.skipClass(clazz)) continue;
             for (IRMethod method : clazz.methods()) {
-                String key = asyncMethodKey(clazz, method);
+                String key = JsLoweringContext.asyncMethodKey(clazz, method);
                 async.put(key, false);
             }
         }
@@ -159,15 +159,15 @@ class JsBackend implements Backend {
             Set<String> asyncNamesAnywhere = new HashSet<>();
             for (Map.Entry<String, Boolean> e : async.entrySet()) {
                 if (!e.getValue()) continue;
-                asyncNamesAnywhere.add(methodNameFromAsyncKey(e.getKey()));
+                asyncNamesAnywhere.add(JsLoweringContext.methodNameFromAsyncKey(e.getKey()));
             }
             for (IRClass clazz : module.classes()) {
-                if (skipClass(clazz)) continue;
+                if (JsLoweringContext.skipClass(clazz)) continue;
                 boolean isTaskLambda = clazz.name() != null && clazz.name().startsWith("LambdaTask");
                 boolean isRegularLambda = clazz.name() != null && clazz.name().startsWith("Lambda")
                         && !isTaskLambda;
                 for (IRMethod method : clazz.methods()) {
-                    String key = asyncMethodKey(clazz, method);
+                    String key = JsLoweringContext.asyncMethodKey(clazz, method);
                     if (async.get(key)) continue;
                     List<KofOperation> ops = method.basicBlocks().stream()
                             .flatMap(b -> b.operations().stream()).toList();
@@ -182,7 +182,7 @@ class JsBackend implements Backend {
                         if (kind == KofCallKind.STATIC
                                 || kind == KofCallKind.FUNCTION
                                 || kind == KofCallKind.SUPER) {
-                            if (async.getOrDefault(calleeKeyFromCall(kc), false)) {
+                            if (async.getOrDefault(JsLoweringContext.calleeKeyFromCall(kc), false)) {
                                 markAsync = true;
                                 break;
                             }
@@ -209,48 +209,17 @@ class JsBackend implements Backend {
         Set<String> finalAsyncNames = new HashSet<>();
         for (Map.Entry<String, Boolean> e : async.entrySet()) {
             if (!e.getValue()) continue;
-            finalAsyncNames.add(methodNameFromAsyncKey(e.getKey()));
+            finalAsyncNames.add(JsLoweringContext.methodNameFromAsyncKey(e.getKey()));
         }
         this.lc.asyncMethods = async;
         this.lc.asyncMethodNamesAnywhere = finalAsyncNames;
     }
 
-    private static String methodNameFromAsyncKey(String key) {
-        int hash = key.lastIndexOf('#');
-        String rest = hash >= 0 ? key.substring(hash + 1) : key;
-        int slash = rest.lastIndexOf('/');
-        return slash >= 0 ? rest.substring(0, slash) : rest;
-    }
 
-    private static String asyncMethodKey(IRClass clazz, IRMethod method) {
-        int arity = method.parameterTypes().size();
-        if (isMainClass(clazz)) return "#" + method.name() + "/" + arity;
-        return clazz.name() + "#" + method.name() + "/" + arity;
-    }
 
-    private String calleeKeyFromCall(KofCall kc) {
-        int arity = kc.parameterTypes().size();
-        String owner = JsTypeMapper.ownerInternalName(kc.ownerType());
-        if (owner.isEmpty() || isMainInternalName(owner)) return "#" + kc.methodName() + "/" + arity;
-        return owner + "#" + kc.methodName() + "/" + arity;
-    }
 
-    private static boolean isMainInternalName(String internalName) {
-        return "Main".equals(internalName) || internalName.endsWith("/Main");
-    }
 
-    private static boolean skipClass(IRClass clazz) {
-        if (clazz.name() == null || clazz.name().isBlank()) return true;
-        if ("java/lang/Object".equals(clazz.name()) || "java/lang/Record".equals(clazz.name())) return true;
-        // Interfaces are type-level only in Kof; JavaScript has no runtime
-        // interface. Calls through interfaces lower to structural method
-        // calls (receiver.method(...)), so no JS entity is required.
-        return (clazz.accessFlags() & AccessFlags.INTERFACE) != 0;
-    }
 
-    private static boolean isMainClass(IRClass clazz) {
-        return "Main".equals(clazz.name()) || clazz.name().endsWith("/Main");
-    }
 
     private JsIr.JsClass lowerClass(IRClass clazz) {
         String jsName = JsTypeMapper.jsClassName(clazz.name());
@@ -414,7 +383,7 @@ class JsBackend implements Backend {
     }
 
     private JsIr.JsFunction lowerConstructor(IRClass clazz, IRMethod method) {
-        MethodCtx ctx = new MethodCtx(method, clazz);
+        MethodCtx ctx = new MethodCtx(lc, method, clazz);
         List<JsIr.JsStatement> body = parseMethodBody(ctx);
         insertFieldDefaults(clazz, body);
         insertSuperCall(clazz, body);
@@ -427,7 +396,7 @@ class JsBackend implements Backend {
     }
 
     private JsIr.JsFunction lowerFunction(IRMethod method, IRClass clazz, boolean isStatic, boolean isTopLevel) {
-        MethodCtx ctx = new MethodCtx(method, clazz);
+        MethodCtx ctx = new MethodCtx(lc, method, clazz);
         String name = method.name();
         if ("<init>".equals(name)) name = "constructor";
         if (isTopLevel) {
@@ -489,119 +458,9 @@ class JsBackend implements Backend {
 
     // ── Per-method context ──────────────────────────────────────────
 
-    private record LoopCtx(LabelId start, LabelId continueLabel, LabelId end) {
-    }
 
-    /**
-     * A pending `new T` awaiting its <init> call: [NewPending, args...] or
-     * [NewPending, DupMarker, args...] — lowered to `new T(args)`.
-     */
-    private record NewPending(String typeName) {
-    }
 
-    private static final class DupMarker {
-    }
 
-    private final class MethodCtx {
-        final List<KofOperation> ops;
-        final Map<Integer, String> localNames = new HashMap<>();
-        final Map<Integer, String> rawLocalNames = new HashMap<>();
-        final Set<Integer> declared = new HashSet<>();
-        final Set<String> usedNames = new HashSet<>();
-        final List<String> tempDecls = new ArrayList<>();
-        final List<LoopCtx> loops = new ArrayList<>();
-        final boolean instanceMethod;
-        final String kofClassName;
-        final String methodName;
-        final int paramCount;
-        final boolean recordClass;
-        final boolean isAsync;
-        /** slots of lambda capture fields (come before the real parameters) */
-        final Set<Integer> captureSlots = new HashSet<>();
-        int tempCounter = 0;
-
-        MethodCtx(IRMethod method, IRClass clazz) {
-            this.ops = new ArrayList<>(method.basicBlocks().stream()
-                    .flatMap(b -> b.operations().stream()).toList());
-            this.instanceMethod = clazz != null && !isMainClass(clazz)
-                    && (method.accessFlags() & AccessFlags.STATIC) == 0;
-            this.kofClassName = clazz == null ? null : clazz.name();
-            this.methodName = method.name();
-            this.paramCount = method.parameterTypes().size();
-            this.recordClass = clazz != null && "java/lang/Record".equals(clazz.superName());
-            String asyncKey = clazz == null
-                    ? "#" + method.name() + "/" + method.parameterTypes().size()
-                    : asyncMethodKey(clazz, method);
-            this.isAsync = lc.asyncMethods.getOrDefault(asyncKey, false);
-            // lambda synthetic classes hold captured locals as private final
-            // fields at the first slots; the real parameters come after them.
-            Set<String> captureFields = new HashSet<>();
-            if (clazz != null && clazz.name() != null
-                    && (clazz.name().startsWith("Lambda") || clazz.name().startsWith("LambdaTask"))) {
-                for (IRField f : clazz.fields()) {
-                    if ((f.accessFlags() & AccessFlags.PRIVATE) != 0
-                            && (f.accessFlags() & AccessFlags.FINAL) != 0) {
-                        captureFields.add(f.name());
-                    }
-                }
-            }
-            for (IRLocalVariable lv : method.localVariables()) {
-                rawLocalNames.put(lv.index(), lv.name());
-                if (instanceMethod && lv.index() == 0) {
-                    localNames.put(lv.index(), "this");
-                    continue;
-                }
-                if (captureFields.contains(lv.name()) && lv.index() < 1 + captureFields.size()
-                        && !"<init>".equals(method.name())) {
-                    // invoke(): the captures are fields copied to locals before
-                    // the real params — they are NOT the method's parameters.
-                    // <init>() receives the captures AS its parameters.
-                    captureSlots.add(lv.index());
-                }
-                localNames.put(lv.index(), uniqueName(JsTypeMapper.sanitizeName(lv.name())));
-            }
-        }
-
-        String uniqueName(String base) {
-            String name = base;
-            int n = 1;
-            while (!usedNames.add(name)) {
-                name = base + "_" + (n++);
-            }
-            return name;
-        }
-
-        String freshTemp() {
-            String name = uniqueName("__kof_t" + (tempCounter++));
-            tempDecls.add(name);
-            return name;
-        }
-
-        LoopCtx currentLoop() {
-            return loops.isEmpty() ? null : loops.get(loops.size() - 1);
-        }
-
-        boolean isLoopLabel(LabelId label) {
-            for (LoopCtx lc : loops) {
-                if (label.equals(lc.start) || label.equals(lc.continueLabel) || label.equals(lc.end)) {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        boolean isLoopEnd(LabelId label) {
-            for (LoopCtx lc : loops) {
-                if (label.equals(lc.end)) return true;
-            }
-            return false;
-        }
-
-        boolean hasClassMethod(String kofClassName, String method) {
-            Set<String> names = lc.classMethodNames.get(kofClassName);
-            return names != null && names.contains(method);
-        }
-    }
 
     // ── Statement parser ────────────────────────────────────────────
 
@@ -1379,17 +1238,6 @@ class JsBackend implements Backend {
 
     // ── Expression statements ───────────────────────────────────────
 
-    /**
-     * Thrown when a void call (or a constructor super call) completes the
-     * current statement.
-     */
-    private static final class StatementEnd extends RuntimeException {
-        final JsIr.JsExpression call;
-
-        StatementEnd(JsIr.JsExpression call) {
-            this.call = call;
-        }
-    }
 
     private List<JsIr.JsStatement> parseExpressionStatement(MethodCtx ctx, int[] pos) {
         List<Object> stack = new ArrayList<>();
@@ -1941,7 +1789,7 @@ class JsBackend implements Backend {
         KofCallKind kind = kc.kind();
         boolean needsAwait = false;
         if (kind == KofCallKind.STATIC || kind == KofCallKind.FUNCTION || kind == KofCallKind.SUPER) {
-            needsAwait = lc.asyncMethods.getOrDefault(calleeKeyFromCall(kc), false);
+            needsAwait = lc.asyncMethods.getOrDefault(JsLoweringContext.calleeKeyFromCall(kc), false);
         } else if (kind == KofCallKind.INSTANCE || kind == KofCallKind.INTERFACE) {
             needsAwait = lc.asyncMethodNamesAnywhere.contains(kc.methodName());
         }

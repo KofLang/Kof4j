@@ -51,4 +51,41 @@ class JsLoweringContext {
     void registerIoRuntime(String fn) {
         if (!ioRuntimeImports.contains(fn)) ioRuntimeImports.add(fn);
     }
+
+    static String methodNameFromAsyncKey(String key) {
+        int hash = key.lastIndexOf('#');
+        String rest = hash >= 0 ? key.substring(hash + 1) : key;
+        int slash = rest.lastIndexOf('/');
+        return slash >= 0 ? rest.substring(0, slash) : rest;
+    }
+
+    static String asyncMethodKey(IRClass clazz, IRMethod method) {
+        int arity = method.parameterTypes().size();
+        if (isMainClass(clazz)) return "#" + method.name() + "/" + arity;
+        return clazz.name() + "#" + method.name() + "/" + arity;
+    }
+
+    static String calleeKeyFromCall(KofCall kc) {
+        int arity = kc.parameterTypes().size();
+        String owner = JsTypeMapper.ownerInternalName(kc.ownerType());
+        if (owner.isEmpty() || isMainInternalName(owner)) return "#" + kc.methodName() + "/" + arity;
+        return owner + "#" + kc.methodName() + "/" + arity;
+    }
+
+    static boolean isMainInternalName(String internalName) {
+        return "Main".equals(internalName) || internalName.endsWith("/Main");
+    }
+
+    static boolean skipClass(IRClass clazz) {
+        if (clazz.name() == null || clazz.name().isBlank()) return true;
+        if ("java/lang/Object".equals(clazz.name()) || "java/lang/Record".equals(clazz.name())) return true;
+        // Interfaces are type-level only in Kof; JavaScript has no runtime
+        // interface. Calls through interfaces lower to structural method
+        // calls (receiver.method(...)), so no JS entity is required.
+        return (clazz.accessFlags() & AccessFlags.INTERFACE) != 0;
+    }
+
+    static boolean isMainClass(IRClass clazz) {
+        return "Main".equals(clazz.name()) || clazz.name().endsWith("/Main");
+    }
 }
