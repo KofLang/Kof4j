@@ -54,27 +54,4 @@ final class VkChain64Asm {
         VkChain64Dispatch.source(sb);
         return sb.toString();
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 }
