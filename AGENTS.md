@@ -59,6 +59,14 @@ continuam valendo — zero regressão, retrocompatibilidade aditiva, ≤500
 linhas, R6 (nunca silencioso), suíte como gate de merge, commit por unidade.
 Autonomia muda **quem decide a ordem**, nunca **o que é aceitável**.
 
+**Nada fica para trás:** se algo **te impele de continuar** (colisão de lane,
+refactor em curso por outro agente, semântica congelada, dependência não
+fechada, gate vermelho sem causa na sua mudança, requisito ausente do corpus),
+registre o bloqueio em `docs/future/blockers/` com: **o bloqueador**, **o que
+bloqueia**, **estado/dono** e um **plano de execução** para retomar. Nunca
+abandone silenciosamente um item — o blocker documentado é a memória de que
+ele existe e de como destravar.
+
 **Sinal para o humano:** `todowrite` é a janela desta conversa (atualize a
 cada etapa); `DOING.md` é a memória entre sessões. Se o humano voltar e ler
 esses dois, ele sabe exatamente onde você está e por quê.
