@@ -314,56 +314,10 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
     return ExpressionProcessCallLowerer.lower(driver, mc, ops, owner, localIdx, locals);
 } else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
             && KofHttp.isHttpNamespace(rid.name())) {
-    List<Type> argTypes = new ArrayList<>();
-    for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
-    KofHttp.HttpCall httpCall = KofHttp.staticCall(mc.methodName(), argTypes);
-    if (httpCall != null) {
-        if (!KofHttp.supportedOn(driver.target)) {
-            if (driver.currentDiagnostics != null) {
-                driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
-                        mc.position() != null ? mc.position().line() : 0,
-                        mc.position() != null ? mc.position().column() : 0,
-                        0,
-                        rid.name() + "." + mc.methodName()
-                                + ": not available on the " + driver.target
-                                + " driver.target yet (HTTP002)",
-                        "HTTP002");
-            }
-            return localIdx;
-        }
-        for (ExpressionNode arg : mc.arguments()) {
-            localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
-        }
-        ops.add(new KofCall(KofHttp.HTTP, httpCall.function(), httpCall.parameterTypes(),
-                httpCall.returnType(), KofCallKind.FUNCTION));
-    }
-    return localIdx;
+    return ExpressionHttpCallLowerer.lower(driver, mc, ops, owner, localIdx, locals);
 } else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
             && KofTime.isTimeNamespace(rid.name())) {
-    List<Type> argTypes = new ArrayList<>();
-    for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
-    KofTime.TimeCall timeCall = KofTime.staticCall(mc.methodName(), argTypes);
-    if (timeCall != null) {
-        if (!KofTime.supportedOn(mc.methodName(), driver.target)) {
-            if (driver.currentDiagnostics != null) {
-                driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
-                        mc.position() != null ? mc.position().line() : 0,
-                        mc.position() != null ? mc.position().column() : 0,
-                        0,
-                        rid.name() + "." + mc.methodName()
-                                + ": not available on the " + driver.target
-                                + " driver.target yet (TIME001)",
-                        "TIME001");
-            }
-            return localIdx;
-        }
-        for (ExpressionNode arg : mc.arguments()) {
-            localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
-        }
-        ops.add(new KofCall(KofTime.TIME, timeCall.function(), timeCall.parameterTypes(),
-                timeCall.returnType(), KofCallKind.FUNCTION));
-    }
-    return localIdx;
+    return ExpressionTimeCallLowerer.lower(driver, mc, ops, owner, localIdx, locals);
 } else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
             && KofScheduler.isSchedulerNamespace(rid.name())) {
     List<Type> argTypes = new ArrayList<>();
@@ -394,83 +348,13 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
     return ExpressionSchedulerCallLowerer.lower(driver, mc, ops, owner, localIdx, locals);
 } else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
             && KofMq.isMqNamespace(rid.name())) {
-    List<Type> argTypes = new ArrayList<>();
-    for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
-    KofMq.MqCall mqCall = KofMq.staticCall(mc.methodName(), argTypes);
-    if (mqCall != null) {
-        if (!KofMq.supportedOn(driver.target)) {
-            if (driver.currentDiagnostics != null) {
-                driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
-                        mc.position() != null ? mc.position().line() : 0,
-                        mc.position() != null ? mc.position().column() : 0,
-                        0,
-                        rid.name() + "." + mc.methodName()
-                                + ": not available on the " + driver.target
-                                + " driver.target yet (MQ001)",
-                        "MQ001");
-            }
-            return localIdx;
-        }
-        for (ExpressionNode arg : mc.arguments()) {
-            localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
-        }
-        ops.add(new KofCall(KofMq.MQ, mqCall.function(), mqCall.parameterTypes(),
-                mqCall.returnType(), KofCallKind.FUNCTION));
-    }
-    return localIdx;
+    return ExpressionMqCallLowerer.lower(driver, mc, ops, owner, localIdx, locals);
 } else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
             && KofConfig.isConfigNamespace(rid.name())) {
-    List<Type> argTypes = new ArrayList<>();
-    for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
-    KofConfig.ConfigCall cfgCall = KofConfig.staticCall(mc.methodName(), argTypes);
-    if (cfgCall != null) {
-        if (!KofConfig.supportedOn(driver.target)) {
-            if (driver.currentDiagnostics != null) {
-                driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
-                        mc.position() != null ? mc.position().line() : 0,
-                        mc.position() != null ? mc.position().column() : 0,
-                        0,
-                        rid.name() + "." + mc.methodName()
-                                + ": not available on the " + driver.target
-                                + " driver.target yet (CONF001)",
-                        "CONF001");
-            }
-            return localIdx;
-        }
-        for (ExpressionNode arg : mc.arguments()) {
-            localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
-        }
-        driver.recordConfigKey(mc);
-        ops.add(new KofCall(KofConfig.CONFIG, cfgCall.function(), cfgCall.parameterTypes(),
-                cfgCall.returnType(), KofCallKind.FUNCTION));
-    }
-    return localIdx;
+    return ExpressionConfigCallLowerer.lower(driver, mc, ops, owner, localIdx, locals);
 } else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
             && KofCache.isCacheNamespace(rid.name())) {
-    List<Type> argTypes = new ArrayList<>();
-    for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
-    KofCache.CacheCall cacheCall = KofCache.staticCall(mc.methodName(), argTypes);
-    if (cacheCall != null) {
-        if (!KofCache.supportedOn(driver.target)) {
-            if (driver.currentDiagnostics != null) {
-                driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
-                        mc.position() != null ? mc.position().line() : 0,
-                        mc.position() != null ? mc.position().column() : 0,
-                        0,
-                        rid.name() + "." + mc.methodName()
-                                + ": not available on the " + driver.target
-                                + " driver.target yet (CACHE001)",
-                        "CACHE001");
-            }
-            return localIdx;
-        }
-        for (ExpressionNode arg : mc.arguments()) {
-            localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
-        }
-        ops.add(new KofCall(KofCache.CACHE, cacheCall.function(), cacheCall.parameterTypes(),
-                cacheCall.returnType(), KofCallKind.FUNCTION));
-    }
-    return localIdx;
+    return ExpressionCacheCallLowerer.lower(driver, mc, ops, owner, localIdx, locals);
 } else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
             && KofGpu.isGpuNamespace(rid.name())) {
     List<Type> argTypes = new ArrayList<>();
