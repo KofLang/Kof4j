@@ -491,25 +491,26 @@ EXTERNA produz lixo
 
 ---
 
-### 28. FLAKE: `KofWebHardeningTest.ws_connection_counter_increments_and_decrements`
+### 28. FLAKE: `KofWebHardeningTest.ws_connection_counter_increments_and_decrements` — CORRIGIDO 05/09
 
-- **Sintoma:** `expected: <1> but was: <0>` no contador de conexões ws.
-  **Intermitente** — passa 6/6 em execução isolada; falhou 1× na suíte
-  completa de 05/09 (927 testes). **05/09 (suíte 969, pós bug-32):** falhou
-  1× na suíte e 1× isolado (depois 3/3 verde) — assinatura idêntica
-  (`expected: <1> but was: <0>`); confirmada flake, não regressão (a mudança
-  do bug 32 é resolução de tipos JVM, ortogonal à contagem de conexões ws).
-- **Causa provável:** race no contador de conexões — o teste conta
-  conexões ativas num ponto onde a conexão pode ainda não ter sido
-  registrada (timing de socket/async). Não é regressão de feature.
-- **Reprodução:** rodar a suíte completa repetidamente
-  (`mvn test -o -pl kof-compiler,kof-script,kof-c-compiler,kof-cli -am`);
-  falha esporádica. `KofWebHardeningTest` isolado: verde.
-- **O que deveria acontecer:** tornar o contador determinístico (barreira
-  antes da asserção) — é **lane do agent-web**, não do NATIVE002-stdlib.
-- **Arquivos:** `KofWebHardeningTest.java` (asserção ~368), contador ws
-  do runtime web.
-- **Registrado:** 05/09 (suíte do port mq cross — falha fora da lane).
+- **Sintoma (histórico):** `expected: <1> but was: <0>` no contador de conexões ws.
+  **Intermitente** — passava em execução isolada; falhava esporadicamente na
+  suíte completa (05/09: 1× em várias rodadas; mesma assinatura em
+  `ws_messages_counters_track_calls` — `2:2` vs `2:1`).
+- **Causa real:** race de publicação na produção — o servidor flushava o
+  `101 Switching Protocols` **antes** de `WS_CONNECTIONS_ACTIVE.incrementAndGet()`
+  (`JvmRuntimeWebServer`), e `wsSend` incrementava `WS_MESSAGES_SENT` **depois**
+  do `sendText` (`JvmRuntimeWebDispatch`). O cliente via o handshake/eco
+  completo e consultava `/stats` antes do increment — a janela não é do teste,
+  é do runtime.
+- **Correção (05/09, fixes-for-kofagent):** increment do contador de conexões
+  movido para **antes** do flush do 101 (com try/finally abrangendo handshake +
+  frame loop, decrement no mesmo finally); increment de `WS_MESSAGES_SENT`
+  movido para **antes** do `sendText`. O contador nunca mais fica atrás do
+  estado observável pelo cliente. Prova: `KofWebHardeningTest` 6/6 + suíte
+  completa 957/0.
+- **Arquivos:** `JvmRuntimeWebServer.java`, `JvmRuntimeWebDispatch.java`.
+- **Registrado:** 05/09 (suíte do port mq cross). **Corrigido:** 05/09.
 
 ---
 
@@ -814,9 +815,9 @@ EXTERNA produz lixo
 
 ## Aberto (gap Canvas — 06/09)
 
-### CANVAS001 — ClassFormatError com arc() (Double params)
+### CANVAS001 — ClassFormatError com arc() (Double params) — JVM CORRIGIDO 06/09
 
-- **Sintoma:** `Canvas(400,300)` + `c.arc(200,150,100,0.0,3.14)` compila, mas
+- **Sintoma (original):** `Canvas(400,300)` + `c.arc(200,150,100,0.0,3.14)` compila, mas
   o JVM lança `ClassFormatError: Illegal class name "" in class file`.
 - **Reprodução:**
   ```kof
@@ -825,14 +826,34 @@ EXTERNA produz lixo
       c.arc(200, 150, 100, 0.0, 3.14)
   }
   ```
-- **Causa provável:** `JvmRuntimeCallDescriptors` tem `(IIIIDD)V` para
-  `kof_ui_canvas_arc`, mas o receiver INT (canvas handle) precisa ser incluído:
-  o descriptor deveria ser `(IIIIIDD)V`. Outra possibilidade: o backend JVM não
-  está mapeando corretamente os parâmetros Double (2 slots cada) no numbering
-  de locals do KofCall.
-- **O que funciona:** Canvas com `setFill`, `beginPath`, `fill`, `remove` (só
-  Int params) compila e roda OK nos 3 targets.
-- **O que falta:** corrigir o descriptor JVM para `arc()` com Double, ou
-  ajustar o `emitUiInstance` para mapear corretamente Double→2 slots.
-- **Arquivos:** `JvmRuntimeCallDescriptors.java`, possivelmente
-  `CompilerDriver.java:emitUiInstance` (line ~2281).
+- **Causa raiz (verificada 06/09 — diferente da hipótese original):** o
+  construtor `Canvas` não era tipado no `MethodCallTyper` (lado driver) nem no
+  `BuiltinCallTyper` (lado semântico) — o ramo genérico de construtores UI só
+  cobria `isLayoutType || isStore`. `var c = Canvas(...)` era inferido UNKNOWN,
+  o receiver não era reconhecido como UI-type no `ExpressionInstanceCallLowerer`,
+  e a chamada caía no dispatch genérico de instância → owner `""` no
+  Methodref → `ClassFormatError`. O `arc` só expunha o bug porque os widgets
+  Int-only sem receiver tipado falhavam igual (qualquer método Canvas).
+- **Correção JVM (06/09):**
+  1. `MethodCallTyper`: ramo genérico de construtores UI passa a aceitar todo
+     `KofUi.isUiType(ct)` (cobre Canvas/Image/Icon/Link/Font/Component sem
+     branch explícito).
+  2. `BuiltinCallTyper`: branch explícito `Canvas(Int,Int) → KofUi.CANVAS`
+     (paridade com o lado driver).
+  3. `JvmRuntimeCallDescriptors`: `kof_ui_canvas_set_line_width` estava
+     agrupado com `move_to/line_to` como `(III)V` mas recebe
+     `(canvas,width)` = `(II)V` → stack underflow → `COMP002 frame crash`
+     quando `setLineWidth` era seguido de outro call.
+  O descriptor de `arc` `(IIIIDD)V` já estava correto (receiver INT é
+  prepended pelo caminho UI-call). Prova: `Main.class` agora emite
+  `invokestatic KofRuntime.kof_ui_canvas_arc:(IIIIDD)V`; programa completo do
+  `UiE2ETest.canvasCreation` roda limpo no JVM e no Native.
+- **O que falta (metade JS do teste):** `canvasCreation` ainda falha em
+  `assertNotNull(html)` — o canvas nunca é anexado ao `kof-root` nem dispara
+  `kofUiSerializeHtml` (só `Window.show()` serializa; o plano
+  `docs/future/PLAN-CANVAS-WIDGET.md` desenha Canvas montado dentro de uma
+  `Window`, mas o teste não usa Window). Timing de serialização para widgets
+  sem janela é decisão de design do autor do recurso (lane Canvas).
+- **Arquivos:** `MethodCallTyper.java`, `BuiltinCallTyper.java`,
+  `JvmRuntimeCallDescriptors.java` (corrigidos); `JsRuntimeUiWidgets.java`,
+  `UiE2ETest.java` (pendentes, lane Canvas).

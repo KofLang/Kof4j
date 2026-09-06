@@ -319,6 +319,10 @@ final class JsRuntimeUiWidgets {
                 window.__kofNodes[id] = canvas;
                 window.__kofCanvasCtx = window.__kofCanvasCtx || {};
                 window.__kofCanvasCtx[id] = ctx;
+                // renderiza standalone: anexa ao root (w.bind(c) re-parenteia
+                // para a janela — appendChild remove do pai anterior)
+                const root = document.getElementById("kof-root");
+                if (root) root.appendChild(canvas);
                 return id;
             }
             export function kofUiCanvasBeginPath(id) {
@@ -344,10 +348,12 @@ final class JsRuntimeUiWidgets {
             export function kofUiCanvasFill(id) {
                 const ctx = window.__kofCanvasCtx && window.__kofCanvasCtx[id];
                 if (ctx) ctx.fill();
+                kofUiSerializeHtml();
             }
             export function kofUiCanvasStroke(id) {
                 const ctx = window.__kofCanvasCtx && window.__kofCanvasCtx[id];
                 if (ctx) ctx.stroke();
+                kofUiSerializeHtml();
             }
             export function kofUiCanvasSetFill(id, color) {
                 const ctx = window.__kofCanvasCtx && window.__kofCanvasCtx[id];
