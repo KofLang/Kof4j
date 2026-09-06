@@ -30,7 +30,7 @@ Source ─▶ Lexer ─▶ Tokens ─▶ Parser ─▶ AST(crua)
        ─▶ [aborta se houver erro] ─▶ Lowering AST→IR ─▶ Optimizer ─▶ Backend
 ```
 
-`CompilerDriver.java:286-320`. **Type checking e resolução de nomes NÃO são
+`CompilerDriver.java`, método `lowerAndEmit`. **Type checking e resolução de nomes NÃO são
 fases separadas**: acontecem entrelaçados dentro de `inferType`
 (`SemanticAnalyzer.java:834-1947`), que resolve o nome e checa o tipo no mesmo
 ponto, emitindo diagnóstico inline.
@@ -56,7 +56,7 @@ pass/classe — `MethodCallTyper.java:27-34`). **Implementation-defined.**
 ### 2.3 Quando erros são reportados
 
 Durante a análise, imediatamente (`diagnostics.error`), e o driver **aborta
-antes do lowering** se houver erro (`CompilerDriver.java:292-299`). Exceção:
+antes do lowering** se houver erro (`CompilerDriver.java`, guarda `diagnostics.hasErrors()` pós-`analyze`). Exceção:
 alguns códigos `SEM0xx` são **deferidos** para lowering/emit (SEM016/017/029/
 030/031/033/034, ARITH001) — só disparam se a análise passou.
 

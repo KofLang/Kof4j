@@ -62,7 +62,7 @@ import kof.json                // módulo stdlib
    resolve para `List<com.dev.NodeUI>` (bug 32). Nome simples do arg resolvido
    por imports → classes do módulo.
 3. **Expansão de diretório** (`CompilerImports.expandKofImports`,
-   `CompilerDriver.java:220`): `import a.b` onde `a/b/` é diretório no module
+   chamada em `CompilerDriver.java`, método `compileSources`): `import a.b` onde `a/b/` é diretório no module
    root **puxa todos os `.kf` daquele diretório** para a unidade (fixpoint ≤256
    rodadas). É como arquivos separados do mesmo pacote se enxergam.
 

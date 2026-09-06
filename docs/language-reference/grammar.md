@@ -58,7 +58,7 @@ no topo → `PARSE007` (*probe*). Não há `let` (SG-001).
 
 > **Resolução da pergunta "o parser produz diretamente a AST?":** **não.** O
 > parser produz uma AST *crua*; o driver aplica **desugaring** sobre ela antes
-> da análise (`CompilerDriver.java:286-287`): `desugarTests` (blocos `test` →
+> da análise (`CompilerDriver.java`, chamadas a `CompilerDesugar.desugarTests`/`desugarApplication`): `desugarTests` (blocos `test` →
 > harness) e `desugarApplication` (blocos `application { onStart/onShutdown }`
 > → funções sintetizadas que envolvem o `main`). Ver
 > [../compiler-architecture.md](../compiler-architecture.md).
@@ -384,6 +384,9 @@ AstNode (sealed) { SourcePosition position() }
 (`SourcePosition.java`). Literais carregam `LiteralKind` (`ConcreteLiteralKind`:
 `INT LONG FLOAT DOUBLE STRING CHAR BOOLEAN NULL`) e valor como `String`.
 
-**Total: 39 nós de AST** (contando `AnnotationPair`/`AnnotationClassRef`/
-`AnnotationEnumRef`/`SwitchExprCase`/`SwitchCase`/`CatchClause`/`RecordComponent
-Node`/`EntityFieldNode`/`FormalParameterNode` como nós auxiliares).
+**Total: 50 nós de AST** (53 records em `AstNodes.java`; 3 não implementam
+`AstNode` e são auxiliares de valor: `AnnotationPair`, `AnnotationClassRef`,
+`AnnotationEnumRef`). Os demais — incluindo `SwitchExprCase`, `SwitchCase`,
+`CatchClause`, `RecordComponentNode`, `EntityFieldNode`, `FormalParameterNode`
+— implementam `AstNode` (direta ou via `ExpressionNode`/`StatementNode`/
+`MemberNode`/`TypeDeclarationNode`).

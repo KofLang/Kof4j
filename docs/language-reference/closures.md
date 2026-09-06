@@ -1,6 +1,6 @@
 # Closures e Lambdas
 
-**Status:** Stable (exceto onde etiquetado) · **Evidência:** `Parser.java:1517-1667`, `CompilerDriver.java:900-1243`, `BoxClassFactory.java`
+**Status:** Stable (exceto onde etiquetado) · **Evidência:** `Parser.java:1517-1667`, `CompilerDriver.java` (`lambdaClass`/`collectCaptures`), `BoxClassFactory.java`
 
 ---
 
@@ -75,7 +75,7 @@ main() {
 ```
 
 - Capturas são **campos `private final`** da classe sintética `Lambda<N>`
-  (`lambdaClass`, `CompilerDriver.java:933-939`), copiadas no call site.
+  (`lambdaClass`, `CompilerDriver.java`), copiadas no call site.
 - A captura é um **snapshot do valor no momento da criação da lambda**
   (comentário `:897-898`).
 - `collectCaptures` (`:1072-1209`) varre o corpo; params e declarações internas

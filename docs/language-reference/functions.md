@@ -1,6 +1,6 @@
 # Funções
 
-**Status:** Stable (exceto onde etiquetado) · **Evidência:** `Parser.java:248-333`, `SemanticAnalyzer.java:538-556`, `CompilerDriver.java:1607-1769`
+**Status:** Stable (exceto onde etiquetado) · **Evidência:** `Parser.java:248-333`, `SemanticAnalyzer.java:538-556`, `CompilerDriver.java` (`lowerFunction`/`lowerFunctionDefaults`)
 
 ---
 
@@ -47,7 +47,7 @@ f(x: Int, s: String) { }    // anotado (idiomático p/ main)
 
 - **Default values**: `f(Int x = 10)` — geram **overloads sintéticos por
   aridade decrescente** no lowering (`lowerFunctionDefaults`,
-  `CompilerDriver.java:1730-1770`). A chamada com aridade reduzida é aceita.
+  `CompilerDriver.java`, método `lowerFunctionDefaults`). A chamada com aridade reduzida é aceita.
 - **Parâmetros são passados por valor** (referências: o valor é a referência).
 - **Não há** parâmetros por referência (`ref`/`out`), nem varargs (`T...`),
   nem spread (`f(*args)`).
@@ -81,7 +81,7 @@ main(args: String[]) { }         // args como array
 ```
 
 - `main` é **reconhecido por nome** (`"main".equals(func.name())` + aridade 0
-  ou 1-arg-`args`, `CompilerDriver.java:1655-1660`). Não é keyword.
+  ou 1-arg-`args`, `CompilerDriver.java`, método `lowerFunctionInner` (`isMain`)). Não é keyword.
 - O compilador **reescreve a assinatura** para `main(String[])` no emit
   (injeta `String[]`); `List<String>` é convertido no prólogo (JVM) ou vira
   lista vazia (Native/JS).
@@ -126,7 +126,7 @@ main() { println(idf<Int>(7)) }     // → 7 (probe)
 ## 7. Visibilidade e modificadores
 
 - `public` (default se nenhum), `private`, `protected` — aplicados como flags
-  JVM (`accessFlagsFor`, `CompilerDriver.java:3375-3391`).
+  JVM (`computeAccess`, `CompilerDriver.java`).
 - `static` — função top-level é sempre `PUBLIC|STATIC` no emit; `static` em
   método a torna chamada por nome de classe.
 - `abstract` — método sem corpo (`isAbstractMethod` = `body == null`,
@@ -140,7 +140,7 @@ main() { println(idf<Int>(7)) }     // → 7 (probe)
 ## 8. Onde funções vivem
 
 - **Top-level**: compiladas para a classe `Main` (ou `<pkg>/Main`) como métodos
-  `static` (`CompilerDriver.java:422-426`).
+  `static` (`CompilerDriver.java`, método `lowerToIR`).
 - **Membros de classe**: métodos normais.
 - **Não há** funções aninhadas (função dentro de função) — `main() { f() {} }`
   não é parseado como declaração de função aninhada. **Unspecified** (SG-011).

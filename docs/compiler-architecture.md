@@ -21,7 +21,7 @@ Kof Compiler  (kof-compiler, Java 21 + ASM 9.8)
         ├── Frontend
         │    ├── Lexer            (Lexer.java, 477L)
         │    ├── Parser           (Parser.java, 1975L)
-        │    ├── AST              (AstNodes.java, 39 nós sealed)
+        │    ├── AST              (AstNodes.java, 50 nós sealed)
         │    ├── Desugar          (CompilerDesugar.java)
         │    ├── Imports          (CompilerImports.java)
         │    └── Semantic Analysis (SemanticAnalyzer.java, 2293L)
@@ -106,7 +106,7 @@ conversão para AST "final" (desugared) acontece no passo 5–6 do pipeline.
 
 ### 3.3 AST (`AstNodes.java`)
 
-`sealed interface AstNode { SourcePosition position(); }` com 39 records.
+`sealed interface AstNode { SourcePosition position(); }` com 50 nós (53 records).
 **Não há typed AST**: os nós não carregam tipo resolvido. Os tipos vivem em
 `IdentityHashMap` laterais do analisador.
 
@@ -202,7 +202,7 @@ por método — a posição é registrada **antes** do backend, nunca sintetizad
 - **Chamadas de método** → `ExpressionMethodCallLowerer.lower`.
 - **Switch statement** → `SwitchStmtLowerer`; **switch expression** →
   `SwitchExprLowerer`.
-- **Lambdas** → `lambdaClass` (`CompilerDriver.java:904-1030`): classe
+- **Lambdas** → `lambdaClass` (`CompilerDriver.java`, método `lambdaClass`): classe
   sintética `Lambda<N>` (ou `LambdaTask<N>` para spawn) implementando interface
   sintética `kof/Function<N>_<mangled>`; capturas viram campos `private final`;
   capturas **mutadas** usam `Box<N>` (`BoxClassFactory`).
@@ -345,7 +345,7 @@ Aliases CLI (`KofCliSupport.parseTarget`): `jvm`, `native`,
 | **KofNative** | o backend nativo (asm) | uma linguagem separada |
 | **KofJS** | o backend JavaScript | uma linguagem separada |
 | **Kof IR** | máquina de pilha linear tipada, 30 ops | uma segunda AST |
-| **AST** | 39 records sealed, tipos como String | typed AST |
+| **AST** | 50 nós sealed, tipos como String | typed AST |
 | **KofScript** (`.ks`) | linguagem de script separada (top-level `let`) | Kof com `let` |
 | **KofC** (`kof-c-compiler`) | compilador de subconjunto C → Native | backend da IR Kof |
 
