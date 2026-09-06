@@ -284,6 +284,7 @@ Target target = Target.JVM;
             if (d instanceof EnumDeclarationNode en) BuiltinTypes.registerEnum(en.name());
         }
 
+            unit = desugarEntity(unit);
             unit = CompilerDesugar.desugarTests(unit, discoveredTests, testHarnessMode, currentSourceName);
             unit = CompilerDesugar.desugarApplication(unit);
 
@@ -459,26 +460,6 @@ Target target = Target.JVM;
      * mesmo padrão do `test "nome" {}`.
      */
 
-    /**
-     * Codegen de compile-time (R4): hook fechado (não-macro). Cada step é um
-     * desugar AST deterministic que consome a unit e devolve a unit reduzida.
-     * A ordem é estável e aditiva — novos steps (DDL de `infra`, stubs gRPC)
-     * plugam aqui sem reabrir a semântica existente.
-     */
-    @FunctionalInterface
-    private interface CodegenStep {
-        CompilationUnitNode apply(CompilationUnitNode unit);
-    }
-
-    private CompilationUnitNode runCodegen(CompilationUnitNode unit) {
-        List<CodegenStep> steps = List.of(this::desugarEntity, this::desugarTests, this::desugarApplication);
-        CompilationUnitNode cur = unit;
-        for (CodegenStep step : steps) {
-            cur = step.apply(cur);
-        }
-        return cur;
-    }
-
     /** R4: `entity X { ... }` → `record` + schema registrado (codegen, zero reflection). */
     private CompilationUnitNode desugarEntity(CompilationUnitNode unit) {
         java.util.List<AstNode> decls = new ArrayList<>();
@@ -529,6 +510,40 @@ Target target = Target.JVM;
 
     final java.util.Map<String, List<EntityFieldNode>> entitySchemas = new java.util.LinkedHashMap<>();
     final java.util.IdentityHashMap<LambdaExpr, String> lambdaClassNames = new java.util.IdentityHashMap<>();
+
+    private final java.util.Map<String, ExternalFunctionNode> externSignatures = new java.util.LinkedHashMap<>();
+
+    /** FFI (R3): binding suportado — JVM: Int→Int, String→Int, Double→Double,
+     *  Int[]→Int; Native x86-64: Int→Int, String→Int, Int[]→Int. */
+    private boolean isExternBound(ExternalFunctionNode ext) {
+        if (ext.parameters().size() != 1) return false;
+        String p = ext.parameters().get(0).type();
+        String r = ext.returnType();
+        if (target == Target.JVM) {
+            return (isIntType(r) && (isIntType(p) || isStringType(p) || isIntArrayType(p)))
+                    || (isDoubleType(r) && isDoubleType(p));
+        }
+        if (target == Target.NATIVE) {
+            return isIntType(r) && (isIntType(p) || isStringType(p) || isIntArrayType(p));
+        }
+        return false;
+    }
+
+    private static boolean isIntType(String t) {
+        return "int".equals(t) || "Int".equals(t);
+    }
+
+    private static boolean isStringType(String t) {
+        return "String".equals(t) || "string".equals(t);
+    }
+
+    private static boolean isIntArrayType(String t) {
+        return "Int[]".equals(t) || "int[]".equals(t);
+    }
+
+    private static boolean isDoubleType(String t) {
+        return "double".equals(t) || "Double".equals(t);
+    }
 
     /** Pontes super.metodo() geradas para lambdas: dono interno → método. */
     private final Map<String, List<IRMethod>> pendingSuperBridges = new java.util.LinkedHashMap<>();
