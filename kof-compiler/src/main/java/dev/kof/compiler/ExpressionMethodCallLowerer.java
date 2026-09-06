@@ -533,68 +533,13 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
                 appCall.returnType(), KofCallKind.FUNCTION));
     }
     return localIdx;
-} else if (mc.receiver() instanceof IdentifierExpr rid && KofIo.isConstructor(rid.name())) {
-    KofIo.IoCall ioCall = KofIo.staticMethod(rid.name(), mc.methodName(), mc.arguments().size());
-    if (ioCall != null) {
-        for (ExpressionNode arg : mc.arguments()) {
-            localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
-        }
-        ops.add(new KofCall(new Type.ClassType("kof.io", "Io", List.of()),
-                ioCall.function(), ioCall.parameterTypes(), ioCall.returnType(), KofCallKind.FUNCTION));
-    }
-    return localIdx;
-} else if (mc.receiver() instanceof IdentifierExpr rid && KofMedia.isStaticNamespace(rid.name())) {
-    KofMedia.MediaCall mediaCall = KofMedia.staticCall(rid.name(), mc.methodName(), mc.arguments().size());
-    if (mediaCall != null) {
-        if (driver.target != Target.JVM && driver.target != Target.ANDROID) {
-            String code = KofMedia.gapCode(mediaCall.function());
-            if (driver.currentDiagnostics != null) {
-                driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
-                        mc.position() != null ? mc.position().line() : 0,
-                        mc.position() != null ? mc.position().column() : 0,
-                        0,
-                        rid.name() + "." + mc.methodName() + ": not available on the "
-                                + driver.target + " driver.target yet (" + code + ")",
-                        code);
-            }
-            return localIdx;
-        }
-        for (ExpressionNode arg : mc.arguments()) {
-            localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
-        }
-        ops.add(new KofCall(new Type.ClassType("dev.kof.runtime", "KofRuntime", List.of()),
-                mediaCall.function(), mediaCall.parameterTypes(),
-                mediaCall.returnType(), KofCallKind.FUNCTION));
-    }
-    return localIdx;
-} else if (mc.receiver() instanceof IdentifierExpr rid2 && KofUi.isPalette(rid2.name())) {
-    return localIdx;
-} else if (mc.receiver() instanceof IdentifierExpr rid3 && KofUi.isConstructor(rid3.name())) {
-    KofUi.UiCall uiCall = KofUi.staticMethod(rid3.name(), mc.methodName(), mc.arguments().size());
-    if (uiCall != null && "kof_ui_color_rgba".equals(uiCall.function())) {
-        localIdx = driver.emitPackedColor(mc.arguments(), ops, owner, localIdx, locals);
-        return localIdx;
-    }
-    if (uiCall != null && "kof_ui_theme_light".equals(uiCall.function())) {
-        ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
-        return localIdx;
-    }
-    if (uiCall != null && "kof_ui_theme_dark".equals(uiCall.function())) {
-        ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 1));
-        return localIdx;
-    }
-    return localIdx;
-} else if (mc.receiver() instanceof IdentifierExpr ridRt && KofUi.isRouterNamespace(ridRt.name())) {
-    // Fase 7 (docs/ui/architecture.md §2.9): Router.*
-    KofUi.UiCall routerCall = KofUi.staticMethod("Router", mc.methodName(), mc.arguments().size());
-    if (routerCall != null) {
-        for (ExpressionNode arg : mc.arguments()) {
-            localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
-        }
-        ops.add(new KofCall(KofUi.COMPONENT, routerCall.function(), routerCall.parameterTypes(),
-                routerCall.returnType(), KofCallKind.FUNCTION));
-    }
-    return localIdx;
+} else if (mc.receiver() instanceof IdentifierExpr uimrid
+        && (KofIo.isConstructor(uimrid.name())
+            || KofMedia.isStaticNamespace(uimrid.name())
+            || KofUi.isPalette(uimrid.name())
+            || KofUi.isConstructor(uimrid.name())
+            || KofUi.isRouterNamespace(uimrid.name()))) {
+    return ExpressionUiMediaCallLowerer.lower(driver, mc, ops, owner, localIdx, locals);
 } else if (mc.receiver() != null) {
     if (mc.receiver() instanceof IdentifierExpr sid && "super".equals(sid.name())
             && !owner.isEmpty()) {
