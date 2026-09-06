@@ -194,6 +194,46 @@ Target target = Target.JVM;
         return CompilerTypeSupport.stripSuffix(value);
     }
 
+    boolean needsErasureBoxing() {
+        return CompilerEmissionHelpers.needsErasureBoxing(this);
+    }
+
+    boolean isJvmTarget() {
+        return CompilerEmissionHelpers.isJvmTarget(this);
+    }
+
+    void emitWideningIfNeeded(List<KofOperation> ops, Type from, Type to) {
+        CompilerEmissionHelpers.emitWideningIfNeeded(this, ops, from, to);
+    }
+
+    void emitPrimNarrow(List<KofOperation> ops, Type from, Type to) {
+        CompilerEmissionHelpers.emitPrimNarrow(this, ops, from, to);
+    }
+
+    static boolean isZeroLiteral(LiteralExpr lit) {
+        return CompilerEmissionHelpers.isZeroLiteral(lit);
+    }
+
+    void emitErasureBox(List<KofOperation> ops, Type primitive) {
+        CompilerEmissionHelpers.emitErasureBox(this, ops, primitive);
+    }
+
+    void emitErasureUnbox(List<KofOperation> ops, Type primitive) {
+        CompilerEmissionHelpers.emitErasureUnbox(this, ops, primitive);
+    }
+
+    public java.util.List<ConfigKeyInfo> discoveredConfigKeys() {
+        return CompilerConfigSupport.discoveredConfigKeys(this);
+    }
+
+    void recordConfigKey(MethodCallExpr mc) {
+        CompilerConfigSupport.recordConfigKey(this, mc);
+    }
+
+    public String generateConfigTemplate() {
+        return CompilerConfigSupport.generateConfigTemplate(this);
+    }
+
     void lowerAndEmit(CompilationUnitNode unit, DiagnosticCollector diagnostics,
                               Path outputDir, Target target) throws IOException {
         if (System.getProperty("kof.trace") != null) {
@@ -450,46 +490,16 @@ Target target = Target.JVM;
         }
     }
 
-    private final java.util.List<ConfigKeyInfo> discoveredConfigKeys = new java.util.ArrayList<>();
-    private final java.util.Set<String> discoveredConfigKeySet = new java.util.LinkedHashSet<>();
+    final java.util.List<ConfigKeyInfo> discoveredConfigKeys = new java.util.ArrayList<>();
+    final java.util.Set<String> discoveredConfigKeySet = new java.util.LinkedHashSet<>();
 
     /** Chaves de config descobertas na última compilação (ordem de uso). */
-    public java.util.List<ConfigKeyInfo> discoveredConfigKeys() {
-        return List.copyOf(discoveredConfigKeys);
-    }
 
     /**
      * Registra `config.method("chave"[, default])` em compile-time (P3 —
      * kof config gen). Só aceita chave como literal de string; chave
      * computada não aparece no template (nada é inferido em runtime).
      */
-    void recordConfigKey(MethodCallExpr mc) {
-        List<ExpressionNode> args = mc.arguments();
-        if (args.isEmpty()) return;
-        if (!(args.get(0) instanceof LiteralExpr le)
-                || le.kind() != ConcreteLiteralKind.STRING) {
-            return;
-        }
-        String key = le.value();
-        String def = null;
-        if (args.size() >= 2 && args.get(1) instanceof LiteralExpr dl) {
-            def = switch (dl.kind()) {
-                case ConcreteLiteralKind.STRING -> "\"" + dl.value() + "\"";
-                case ConcreteLiteralKind.INT, ConcreteLiteralKind.LONG,
-                        ConcreteLiteralKind.BOOLEAN, ConcreteLiteralKind.FLOAT,
-                        ConcreteLiteralKind.DOUBLE -> dl.value();
-                default -> null;
-            };
-        }
-        String method = "required".equals(mc.methodName()) || "get".equals(mc.methodName())
-                ? "required" : mc.methodName();
-        String dedupe = method + "|" + key + "|" + def;
-        if (discoveredConfigKeySet.add(dedupe)) {
-            SourcePosition pos = mc.position();
-            discoveredConfigKeys.add(new ConfigKeyInfo(method, key, def,
-                    pos != null ? pos.file() : "", pos != null ? pos.line() : 0));
-        }
-    }
 
     /**
      * Gera um template `kof.config` a partir das chaves descobertas na
@@ -497,23 +507,6 @@ Target target = Target.JVM;
      * Chaves com default viram comentário (o programa já tem valor);
      * required/get sem default viram linha ativa.
      */
-    public String generateConfigTemplate() {
-        StringBuilder sb = new StringBuilder();
-        sb.append("# kof.config — gerado por kof config gen\n");
-        sb.append("# Chaves usadas pelo programa (em ordem de primeiro uso).\n");
-        sb.append("# Chaves com default estão comentadas — descomente para sobrescrever.\n\n");
-        for (ConfigKeyInfo k : discoveredConfigKeys) {
-            if (k.hasDefault()) {
-                sb.append("# ").append(k.key()).append(" = ")
-                  .append(k.defaultLiteral().isEmpty() ? "" : k.defaultLiteral())
-                  .append("\n");
-            } else {
-                sb.append("# REQUIRED (sem default no código):\n")
-                  .append(k.key()).append(" = \n");
-            }
-        }
-        return sb.toString();
-    }
 
     /**
      * Synthetic lambda class. Captured outer locals become private final
@@ -564,13 +557,7 @@ Target target = Target.JVM;
         return result;
     }
 
-    private boolean needsErasureBoxing() {
-        return target == Target.JVM;
-    }
 
-    boolean isJvmTarget() {
-        return target == Target.JVM;
-    }
 
 
 
@@ -580,83 +567,11 @@ Target target = Target.JVM;
      *  primitivos por largura, tipos de referência por hierarquia, Unknown aceita tudo. */
 
 
-    void emitWideningIfNeeded(List<KofOperation> ops, Type from, Type to) {
-        if (from.equals(to)) return;
-        String fn = TypeMetrics.primitiveName(from);
-        String tn = TypeMetrics.primitiveName(to);
-        KofUnaryOp conv = switch (tn) {
-            case "long", "Long" -> switch (fn) {
-                case "int", "Int", "char", "Char", "short", "Short", "byte", "Byte" -> KofUnaryOp.I2L;
-                default -> null;
-            };
-            case "float", "Float" -> switch (fn) {
-                case "int", "Int", "char", "Char", "short", "Short", "byte", "Byte" -> KofUnaryOp.I2F;
-                case "long", "Long" -> KofUnaryOp.L2F;
-                case "double", "Double" -> KofUnaryOp.D2F;
-                default -> null;
-            };
-            case "double", "Double" -> switch (fn) {
-                case "int", "Int", "char", "Char", "short", "Short", "byte", "Byte" -> KofUnaryOp.I2D;
-                case "long", "Long" -> KofUnaryOp.L2D;
-                case "float", "Float" -> KofUnaryOp.F2D;
-                default -> null;
-            };
-            default -> null;
-        };
-        if (conv != null) {
-            ops.add(new KofUnary(conv, from));
-        }
-    }
-
-    void emitPrimNarrow(List<KofOperation> ops, Type from, Type to) {
-        if (from.equals(to)) return;
-        String fn = TypeMetrics.primitiveName(from);
-        String tn = TypeMetrics.primitiveName(to);
-        KofUnaryOp conv = switch (tn) {
-            case "int", "Int" -> switch (fn) {
-                case "long", "Long" -> KofUnaryOp.L2I;
-                case "float", "Float" -> KofUnaryOp.F2I;
-                case "double", "Double" -> KofUnaryOp.D2I;
-                default -> null;
-            };
-            case "long", "Long" -> switch (fn) {
-                case "float", "Float" -> KofUnaryOp.F2L;
-                case "double", "Double" -> KofUnaryOp.D2L;
-                default -> null;
-            };
-            default -> null;
-        };
-        if (conv != null) {
-            ops.add(new KofUnary(conv, from));
-        }
-    }
-
-    static boolean isZeroLiteral(LiteralExpr lit) {
-        if (lit.value() == null) return false;
-        String v = lit.value().trim();
-        boolean zero = "0".equals(v) || "-0".equals(v)
-                || "0.0".equals(v) || "-0.0".equals(v) || "0.00".equals(v);
-        return switch (lit.kind()) {
-            case ConcreteLiteralKind.INT, ConcreteLiteralKind.LONG -> zero;
-            case ConcreteLiteralKind.FLOAT, ConcreteLiteralKind.DOUBLE -> zero;
-            default -> false;
-        };
-    }
 
 
-    void emitErasureBox(List<KofOperation> ops, Type primitive) {
-        if (!needsErasureBoxing()) return;
-        Type boxed = TypeMetrics.boxedTypeFor(primitive);
-        Type boxParam = primitive instanceof Type.PrimitiveType pt
-                && ("char".equals(pt.name()) || "Char".equals(pt.name())) ? Type.PrimitiveType.INT : primitive;
-        ops.add(new KofCall(boxed, "kof_box", List.of(boxParam), boxed, KofCallKind.FUNCTION));
-    }
 
-    void emitErasureUnbox(List<KofOperation> ops, Type primitive) {
-        if (!needsErasureBoxing()) return;
-        Type boxed = TypeMetrics.boxedTypeFor(primitive);
-        ops.add(new KofCall(primitive, "kof_unbox", List.of(boxed), primitive, KofCallKind.FUNCTION));
-    }
+
+
 
     void emitPrimWidenNarrow(List<KofOperation> ops, ExpressionNode value,
                              Type elemType, List<IRLocalVariable> locals) {
