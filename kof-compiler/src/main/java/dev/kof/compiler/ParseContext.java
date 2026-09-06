@@ -39,6 +39,10 @@ class ParseContext {
         return next < tokens.size() && tokens.get(next).type() == type;
     }
 
+    Token peekAt(int n) {
+        return tokens.get(Math.min(pos + n, tokens.size() - 1));
+    }
+
     boolean atEnd() {
         return pos >= tokens.size() || peek().type() == TokenType.EOF;
     }

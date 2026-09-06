@@ -115,7 +115,7 @@ recomendações futuras (regra 14 da tarefa: não alterar comportamento).
 ### SG-009 — Subtipagem não é checada pelo type checker
 
 - **Implementação**: `isAssignable` retorna `true` para **qualquer** par
-  `ClassType→ClassType` (`SemanticAnalyzer.java:2205-2207`). A segurança vem
+  `ClassType→ClassType` (`TypeChecker.isAssignable`). A segurança vem
   do `checkcast` do lowering/runtime.
 - **Problema**: `A a = <objeto de classe não-relacionada>` passa na checagem de
   tipos; falha só em runtime. `implements` sem cobrir métodos compila (SG-015).

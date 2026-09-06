@@ -29,7 +29,7 @@ erros com código `LEX00x`.
 
 ### 1.1 Keywords (lista exaustiva — `Lexer.java:13-74`)
 
-```text
+`text
 class  interface  record  enum  entity  generated  unique
 extends  implements  sealed  permits
 package  import
@@ -42,7 +42,7 @@ spawn  await  assert  instanceof
 var  val  as
 bool  byte  short  int  long  float  double  char  string
 true  false  null
-```
+`
 
 **Palavras que NÃO são keywords** (são `IDENTIFIER`): `fn`, `fun`, `func`,
 `let`, `in`, `type`, `trait`, `macro`, `where`, `query`, `test`, `application`,
@@ -66,7 +66,7 @@ parser (ver [grammar.md](grammar.md)) ou nenhum.
 `true`/`false` → `BOOLEAN_LITERAL`; `null` → `NULL_LITERAL`
 (`Lexer.java:72-74`). Os nomes de tipos primitivos (`int`, `bool`, …) são
 keywords próprias (`*_TYPE`), não identificadores — mas **podem** aparecer
-como nome de campo/método após `.` (`Parser.java:1388-1391`, `config.int`).
+como nome de campo/método após `.` (ExpressionParser.parsePostfix, `config.int`).
 
 ---
 
@@ -84,7 +84,7 @@ Bloco não terminado → `LEX001`. Comentários **não** são preservados na AST
 
 ## 3. Literais numéricos (`Lexer.java:265-331`)
 
-```ebnf
+`ebnf
 hexadecimal-literal   = "0" ( "x" | "X" ) hex-digit { hex-digit } ;
 decimal-literal       = digit { digit } ;
 float-literal         = decimal-literal , "." , digit { digit }
@@ -96,7 +96,7 @@ exponent              = ( "e" | "E" ) [ "+" | "-" ] digit { digit } ;
 float-suffix          = "f" | "F" ;
 double-suffix         = "d" | "D" ;
 long-suffix           = "l" | "L" ;
-```
+`
 
 Regras observáveis:
 
@@ -118,9 +118,9 @@ Regras observáveis:
 
 ### 4.1 String (`Lexer.java:174-201`)
 
-```ebnf
+`ebnf
 string-literal = '"' { string-char | escape-sequence } '"' ;
-```
+`
 
 - **Escapes suportados** (`Lexer.java:233-243`): `\n \t \r \\ \' \" \0`
   e `\uXXXX` (4 hex dígitos obrigatórios; `LEX006`/`LEX007` se inválido).
@@ -137,9 +137,9 @@ string-literal = '"' { string-char | escape-sequence } '"' ;
 
 ### 4.2 Char (`Lexer.java:203-227`)
 
-```ebnf
+`ebnf
 char-literal = "'" ( char | escape-sequence ) "'" ;
-```
+`
 
 Um único caractere (ou escape). Vazio → `LEX003`; não terminado → `LEX004`.
 O valor é armazenado como `String` de 1 caractere no token.
@@ -204,7 +204,7 @@ Caractere inesperado → `LEX005`.
 ## 6. Semicolons e quebras de linha
 
 **O ponto-e-vírgulo é opcional em toda posição de fim de statement.** O parser
-consome `;` apenas *se presente* (`expectSemicolon`, `Parser.java:1937-1941`).
+consome `;` apenas *se presente* (`expectSemicolon`, ParseContext.expectSemicolon).
 Quebras de linha **não** são tokens e **não** têm significado sintático
 (inserção automática de semicolon não existe). Consequência: `var a = 1 var b =
 2` na mesma linha é parseado como duas declarações.

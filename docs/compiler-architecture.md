@@ -11,7 +11,7 @@ arquitetura mudar (refatoração, novo backend), a **linguagem não muda**.
 
 ## 1. Visão geral
 
-```text
+`text
 Kof Language Specification  (docs/language-reference/)
         │
         │ implemented by
@@ -38,7 +38,7 @@ Kof Compiler  (kof-compiler, Java 21 + ASM 9.8)
              ├── JvmBackend       (ASM → .class)
              ├── NativeBackend    (asm x86_64/riscv64/aarch64 → ELF)
              └── JsBackend        (ESM → .mjs)
-```
+`
 
 **Módulos Maven relacionados:**
 
@@ -56,7 +56,7 @@ Kof Compiler  (kof-compiler, Java 21 + ASM 9.8)
 
 `CompilerDriver.compileSources` (`:141-323`):
 
-```text
+`text
 1. Lexer.tokenize()                    → List<Token>
 2. Parser.parse()                      → CompilationUnitNode (AST crua)
 3. CompilerImports.expandKofImports()  → AST (imports de diretório resolvidos)
@@ -77,7 +77,7 @@ Kof Compiler  (kof-compiler, Java 21 + ASM 9.8)
 14. selectBackend(target)              → Backend
 15. backend.emit(irModule, outputDir, debugInfo)
 16. [ANDROID] AndroidProjectWriter.write()
-```
+`
 
 **Nenhum passo é "type checking" separado** — a checagem de tipos está
 entrelaçada com a resolução de nomes dentro de `inferType` (passo 8). Ver
@@ -158,7 +158,7 @@ order."*
 
 **Hierarquia**:
 
-```text
+`text
 IRModule(name, classes, imports, sourceName)
  └─ IRClass(name, superName, interfaces, accessFlags, fields, methods,
             innerClasses, signature, typeId, annotations)
@@ -168,7 +168,7 @@ IRModule(name, classes, imports, sourceName)
                  annotations, parameterAnnotations)
          └─ IRBasicBlock(index, operations)
              └─ KofOperation (sealed, 30 records)
-```
+`
 
 **⚠️ Basic blocks são nominais**: o lowering sempre emite **exatamente um**
 bloco por método (`new IRBasicBlock(0, ops)`); o otimizador achata e
@@ -246,14 +246,14 @@ Interface (`Backend.java:6-12`): `void emit(IRModule, Path, boolean debugInfo)`.
 
 Seleção (`CompilerDriver.selectBackend`, `:370-381`):
 
-```java
+`java
 case JVM            -> backendWithClasspath(new JvmBackend());
 case NATIVE         -> new NativeBackend(Target.NATIVE);
 case NATIVE_RISCV64 -> new NativeBackend(Target.NATIVE_RISCV64);
 case NATIVE_AARCH64 -> new NativeBackend(Target.NATIVE_AARCH64);
 case JS             -> new JsBackend();
 case ANDROID        -> backendWithClasspath(new JvmBackend());
-```
+`
 
 ### 5.1 JVM (`JvmBackend.java`)
 
@@ -363,7 +363,7 @@ backend (`JsIr` — uma AST **do JS**, não do Kof).
 Problemas arquiteturais reais encontrados na auditoria — **documentados, não
 corrigidos** (regra 14):
 
-1. **`resolveMethodCalls` é no-op** (`SemanticAnalyzer.java:2223-2296`) —
+1. **`resolveMethodCalls` é no-op** (`SemanticAnalyzer.resolveMethodCalls`) —
    percorre a AST sem fazer nada. Remover ou implementar.
 2. **`FunctionSymbol` nunca é instanciada** (`SymbolTable.java:195`) — funções
    top-level são resolvidas por varredura da AST. Unificar com `MethodSymbol`.

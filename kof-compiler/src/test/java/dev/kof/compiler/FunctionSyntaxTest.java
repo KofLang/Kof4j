@@ -168,4 +168,9 @@ class FunctionSyntaxTest {
         Files.writeString(source, "fn() {\n    println(\"nome fn\")\n}\nmain() {\n    fn()\n}\n");
         runJvm(source, tempDir.resolve("out"), "nome fn");
     }
+
+    @Test
+    void funKeywordRejectedInsideClassMember(@TempDir Path tempDir) throws IOException {
+        assertParse085(tempDir, "class C {\n    fun foo() {\n        println(\"x\")\n    }\n}\nmain() {\n    C().foo()\n}\n");
+    }
 }

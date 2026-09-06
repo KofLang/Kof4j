@@ -1,6 +1,6 @@
 # Statements
 
-**Status:** Stable (exceto onde etiquetado) · **Evidência:** `Parser.java:863-1201`, `StatementLowerer.java`
+**Status:** Stable (exceto onde etiquetado) · **Evidência:** StatementParser, `StatementLowerer.java`
 
 Um statement executa um efeito e **não produz valor**. Semicolons são
 **opcionais** em toda posição de fim de statement (ver
@@ -10,9 +10,9 @@ Um statement executa um efeito e **não produz valor**. Semicolons são
 
 ## 1. Bloco
 
-```ebnf
+`ebnf
 block = "{" , { statement } , "}"
-```
+`
 
 Introduz um novo escopo (`StatementLowerer`/`SemanticAnalyzer` fazem
 `enterScope`). Declarações dentro do bloco não vazam para fora.
@@ -21,19 +21,19 @@ Introduz um novo escopo (`StatementLowerer`/`SemanticAnalyzer` fazem
 
 ## 2. Declaração de variável: `var` / `val` / tipo explícito
 
-```ebnf
+`ebnf
 var-decl = ( "var" | "val" | type-ref ) , identifier , [ ":" , type-ref ] , [ "=" , expression ]
-```
+`
 
 Quatro formas válidas:
 
-```kof
+`kof
 var x = 10              // inferido, mutável
 val y = 20              // inferido, "imutável" (ver abaixo)
 String nome = "Mel"     // tipo explícito (type-first)
 var idade: Int? = null  // tipo anotado (anotado)
 String? nome2 = null    // type-first nullable
-```
+`
 
 - **`var` sem inicializador** → tipo `UnknownType` (`:625`).
 - **Tipo explícito ≠ tipo do inicializador** → `SEM021`.
@@ -48,9 +48,9 @@ String? nome2 = null    // type-first nullable
 
 ## 3. `return`
 
-```ebnf
+`ebnf
 return-stmt = "return" , [ expression ]
-```
+`
 
 - `return;` / `return` (bare) em função `void` → ok.
 - `return` com valor incompatível com o retorno declarado → `SEM010`.
@@ -64,14 +64,14 @@ return-stmt = "return" , [ expression ]
 
 ## 4. `if` / `else` (statement)
 
-```ebnf
+`ebnf
 if-stmt = "if" , "(" , expression , ")" , statement , [ "else" , statement ]
-```
+`
 
 - A condição deve ser `bool` (ou primitivo inteiro — tratado como não-zero).
 - O `else` é **opcional** na forma statement (só a forma expressão exige).
 - **Narrowing de nullability**: `if (x != null) { … }` estreita `x` para `T`
-  **apenas no then-branch** (`SemanticAnalyzer.java:666-684`). Ver
+  **apenas no then-branch** (`StatementAnalyzer`, narrowing de `IfStmt`). Ver
   [type-system.md](type-system.md) §5.
 - Cada ramo é um statement (bloco ou statement único): `if (true) println("y")`
   funciona sem chaves (*probe*).
@@ -82,35 +82,35 @@ if-stmt = "if" , "(" , expression , ")" , statement , [ "else" , statement ]
 
 ### 5.1 `while`
 
-```ebnf
+`ebnf
 while-stmt = "while" , "(" , expression , ")" , statement
-```
+`
 
 Condição avaliada **antes** de cada iteração.
 
 ### 5.2 `do … while`
 
-```ebnf
+`ebnf
 do-while = "do" , statement , "while" , "(" , expression , ")"
-```
+`
 
 Corpo executa **pelo menos uma vez**.
 
 ### 5.3 `for` clássico
 
-```ebnf
+`ebnf
 for-stmt = "for" , "(" , [ init ] , ";" , [ cond ] , ";" , [ update ] , ")" , statement
 init     = var-decl | expr-stmt
-```
+`
 
 `for (var i = 0; i < 3; i++) { … }` (*probe*: imprime 0,1,2). As três partes
 são opcionais.
 
 ### 5.4 `for-in`
 
-```ebnf
+`ebnf
 for-in = "for" , "(" , ( "var" | "val" ) , identifier , "in" , expression , ")" , statement
-```
+`
 
 - Itera sobre `List<T>` (índice interno `#coll`/`#idx`) ou array
   (`StatementLowerer.java:259-310`). **Sem iterator customizado.**
@@ -130,10 +130,10 @@ for-in = "for" , "(" , ( "var" | "val" ) , identifier , "in" , expression , ")" 
 
 ## 6. `switch` (statement)
 
-```ebnf
+`ebnf
 switch-stmt = "switch" , "(" , expression , ")" , "{" , { case-stmt } , [ default-stmt ] , "}"
 case-stmt   = "case" , ( pattern | expression ) , ":" , { statement }
-```
+`
 
 - Cases usam `:` (a forma expressão usa `->` — ver
   [expressions.md](expressions.md) §12).
@@ -150,9 +150,9 @@ case-stmt   = "case" , ( pattern | expression ) , ":" , { statement }
 
 ## 7. `throw`
 
-```ebnf
+`ebnf
 throw-stmt = "throw" , expression
-```
+`
 
 - **A expressão deve ser `string`** — exceções em Kof são Strings.
   `throw 5` → `SEM026` (*probe*: "throw exige uma String").
@@ -166,10 +166,10 @@ throw-stmt = "throw" , expression
 
 ## 8. `try` / `catch` / `finally`
 
-```ebnf
+`ebnf
 try-stmt = "try" , block , { catch-clause } , [ "finally" , block ]
 catch-clause = "catch" , "(" , type-ref , identifier , ")" , block
-```
+`
 
 - `catch (String e)` captura exceções-Kof (strings). O tipo do catch é
   resolvido como `String` no JVM (porque `throw` virou `RuntimeException`).
@@ -183,9 +183,9 @@ catch-clause = "catch" , "(" , type-ref , identifier , ")" , block
 
 ## 9. `assert`
 
-```ebnf
+`ebnf
 assert-stmt = "assert" , "(" , expression , [ "," , string-literal ] , ")"
-```
+`
 
 - Se a condição é falsa: lança `"assertion failed"` (ou a mensagem dada).
 - A mensagem deve ser **literal de string** (não expressão) — `:901`.
@@ -195,9 +195,9 @@ assert-stmt = "assert" , "(" , expression , [ "," , string-literal ] , ")"
 
 ## 10. `spawn` (statement)
 
-```ebnf
+`ebnf
 spawn-stmt = "spawn" , expression
-```
+`
 
 - Executa a expressão (chamada ou bloco) como **tarefa concorrente**.
 - Fire-and-forget: o programa **aguarda as tarefas spawned antes de sair**
@@ -209,9 +209,9 @@ spawn-stmt = "spawn" , expression
 
 ## 11. Expression statement
 
-```ebnf
+`ebnf
 expr-stmt = expression
-```
+`
 
 Qualquer expressão usada por efeito (chamada, atribuição, incremento).
 `println(x)` é um expression statement (chamada de função).

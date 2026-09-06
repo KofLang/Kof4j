@@ -1,18 +1,18 @@
 # Classes, Records, Enums, Interfaces, Entities
 
-**Status:** Stable (exceto onde etiquetado) · **Evidência:** `Parser.java:475-861`, `SemanticAnalyzer.java:108-335`, `SymbolTable.java`
+**Status:** Stable (exceto onde etiquetado) · **Evidência:** Parser.parseTypeDeclaration, `SymbolTableBuilder`/`SemanticAnalyzer` (defineMembers), `SymbolTable.java`
 
 ---
 
 ## 1. Classes (estado mutável)
 
-```ebnf
+`ebnf
 class-declaration = modifiers , "class" , identifier , [ type-parameters ] ,
                     [ "extends" , type-ref ] , [ implements-clause ] , class-body
 class-body = "{" , { field | method | constructor | nested-type } , "}"
-```
+`
 
-```kof
+`kof
 class User {
     String name
     Int age
@@ -24,7 +24,7 @@ class User {
 }
 var u = User("Mel", 26)     // sem `new` (new também é aceito)
 u.age = 27                  // campo direto — mutável
-```
+`
 
 - **Campos são públicos por default** (sem `private`); escrita direta.
 - **Construtor**: `constructor(...)` ou bloco `{ ... }` (`parseConstructor`).
@@ -40,7 +40,7 @@ u.age = 27                  // campo direto — mutável
 ### 1.1 `class X(...)` é record, não classe
 
 `class User(String name, Int age) { }` **não** é classe com primary
-constructor — o parser roteia para `parseRecordBody` (`Parser.java:538-539`) e
+constructor — o parser roteia para `parseRecordBody` (Parser.parseRecordBody) e
 produz um **record** (imutável, accessors `u.name()`). Escrita `u.name = "x"`
 **não** funciona. Para dados imutáveis, a forma canônica é `record`.
 **Stable** (documentado em `AGENTS.md`, verificado).
@@ -49,9 +49,9 @@ produz um **record** (imutável, accessors `u.name()`). Escrita `u.name = "x"`
 
 ## 2. Herança
 
-```ebnf
+`ebnf
 implements-clause = "implements" , type-ref , { "," , type-ref }
-```
+`
 
 - `extends` = **classe única** (sem múltipla herança de classe).
 - `implements` = lista de interfaces.
@@ -88,21 +88,21 @@ implements-clause = "implements" , type-ref , { "," , type-ref }
 
 ## 4. Records (dados imutáveis)
 
-```ebnf
+`ebnf
 record-declaration = modifiers , "record" , identifier , [ type-parameters ] ,
                      [ "extends" , type-ref ] , [ implements-clause ] ,
                      record-header , [ record-body ]
 record-header = "(" , [ record-component , { "," , record-component } ] , ")"
 record-component = [ modifiers ] , type-ref , identifier , [ "=" , expression ]
-```
+`
 
-```kof
+`kof
 record Point(Int x, Int y)
 var p = Point(10, 20)
 println(p.x())          // accessor por método (probe)
 println(p.x)            // leitura direta também funciona (probe)
 println(p)              // JVM: Point[x=10, y=20]
-```
+`
 
 - Cada componente gera: **field privado**, **accessor `name()`** (método
   0-arg), e o **construtor canônico** (`defineRecordMembers:150-182`).
@@ -119,17 +119,17 @@ println(p)              // JVM: Point[x=10, y=20]
 
 ## 5. Enums
 
-```ebnf
+`ebnf
 enum-declaration = modifiers , "enum" , identifier ,
                    "{" , [ identifier , { "," , identifier } ] , "}"
-```
+`
 
-```kof
+`kof
 enum Color { Red, Blue }
 println(Color.Red)        // "Red" (probe)
 var c = Color.Red
 println(c.name())         // "Red" (probe)
-```
+`
 
 - **Só constantes** — sem métodos, campos, construtores, corpo (`enum E { A
   String f(){…} }` → `PARSE032`, *probe*).
@@ -145,22 +145,22 @@ println(c.name())         // "Red" (probe)
 
 ## 6. Pattern matching (em switch)
 
-```ebnf
+`ebnf
 pattern = type-name , identifier                          (* binding *)
         | type-name , "(" , { ( "var" | "val" )? , identifier } , ")"   (* destructuring *)
-```
+`
 
-```kof
+`kof
 switch (obj) {
     case String s: println(s); break
     case Point(var x, var y): println(x + "," + y); break
     default: println("outro")
 }
-```
+`
 
 - **Binding**: `case Type var` — testa `instanceof` e vincula `var`.
 - **Destructuring**: `case Point(var x, var y)` — testa tipo + extrai campos
-  (records). `var`/`val` nos sub-bindings são opcionais (`Parser.java:1146`).
+  (records). `var`/`val` nos sub-bindings são opcionais (ExpressionParser (pattern)).
 - Implementado por `KofInstanceOf` + `KofCheckCast` + `KofLoadField` por
   componente (`SwitchStmtLowerer.java:48-133`).
 - **Funciona nos 3 targets** (JVM/Native/JS — testado em
@@ -172,16 +172,16 @@ switch (obj) {
 
 ## 7. Interfaces
 
-```ebnf
+`ebnf
 interface-declaration = modifiers , "interface" , identifier ,
                         [ "extends" , type-ref , { "," , type-ref } ] ,
                         "{" , { method } , "}"
-```
+`
 
-```kof
+`kof
 interface I { Int f() }
 class C implements I { Int f() { return 1 } }
-```
+`
 
 - Métodos sem corpo → **abstratos** (`isAbstractMethod` = body null).
 - **`default Int f() { … }`** → método com corpo em interface funciona
@@ -196,20 +196,20 @@ class C implements I { Int f() { return 1 } }
 
 ## 8. Entities (ORM)
 
-```ebnf
+`ebnf
 entity-declaration = modifiers , "entity" , identifier ,
                      "{" , { entity-field } , "}"
 entity-field = identifier , ":" , type-ref , { "generated" | "unique" }
-```
+`
 
-```kof
+`kof
 entity User {
     id: Long generated
     name: String
     email: String unique
     age: Int
 }
-```
+`
 
 - **É um record gerado + schema para `kof.orm`** (`AstNodes.java:147-158`).
 - Constraints `generated`/`unique` são metadados de schema (compile-time, sem

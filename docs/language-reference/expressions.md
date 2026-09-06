@@ -1,6 +1,6 @@
 # Expressões
 
-**Status:** Stable (exceto onde etiquetado) · **Evidência:** `Parser.java:1277-1667`, `ExpressionLowerer.java`, `SemanticAnalyzer.java:2050-2130`
+**Status:** Stable (exceto onde etiquetado) · **Evidência:** ExpressionParser, `ExpressionLowerer.java`, `TypeChecker.inferBinaryResultType`
 
 Uma expressão produz um valor. A precedência e associatividade completas estão
 em [grammar.md](grammar.md) §5. Aqui está a **semântica** de cada forma.
@@ -93,7 +93,7 @@ atribuição.
 
 ## 8. Incremento/decremento: `++ --`
 
-- Prefixo (`++x`) e sufixo (`x++`) ambos válidos (`Parser.java:1361-1371`,
+- Prefixo (`++x`) e sufixo (`x++`) ambos válidos (ExpressionParser.parseUnary (inc/dec),
   `1457-1466`).
 - Aplicável a local, campo, elemento de array.
 - `i++` como statement incrementa; como expressão produz o valor antigo
@@ -122,9 +122,9 @@ atribuição.
 
 ## 11. `if` como expressão
 
-```kof
+`kof
 var status = if (ativo) "online" else "offline"
-```
+`
 
 - **`else` é obrigatório** na forma expressão: `if (c) x` sem `else` em
   posição de expressão → `PARSE044` (*probe*).
@@ -135,13 +135,13 @@ var status = if (ativo) "online" else "offline"
 
 ## 12. `switch` como expressão
 
-```kof
+`kof
 var desc = switch (o) {
     case String s -> "str:" + s
     case Point(var x, var y) -> x + "," + y
     default -> "outro"
 }
-```
+`
 
 - Cada case usa `->` e produz **uma expressão** (o valor).
 - **`default` obrigatório** (ou enum exaustivo) → senão `SEM032`.
@@ -153,12 +153,12 @@ var desc = switch (o) {
 
 ## 13. Lambdas (expressão)
 
-```kof
+`kof
 (x: Int) -> x * 2
 (a: Int, b: Int) -> { return a + b }
 () -> println("oi")
 { println("bloco") }
-```
+`
 
 - Parâmetros **exigem anotação de tipo** para uso aritmético: `(x) -> x + 1` →
   `SEM001` com dica "declare o tipo do parâmetro" (*probe*).
@@ -179,12 +179,12 @@ var desc = switch (o) {
 
 ## 15. Query DSL (expressão)
 
-```kof
+`kof
 User.query(db) { where age > 18; orderBy name desc; limit 10 }
-```
+`
 
 - Sintaxe especial reconhecida quando o receiver é uma `entity` declarada e o
-  método é `query` com 1 argumento (`Parser.java:1431-1434`).
+  método é `query` com 1 argumento (ExpressionParser.parsePostfix (call)).
 - Baixa para `db.query<Entity>(…)` com SQL montado em compile-time e valores
   como binds (sem concat de entrada). ORM001.
 - **Experimental** (domínio ORM).

@@ -19,7 +19,7 @@ compilador atual o implementa.
 Estes são três níveis distintos, frequentemente confundidos na documentação
 antiga do projeto. A separação é o propósito central desta referência:
 
-```text
+`text
 Kof Language Specification  (este diretório)
         │
         │ define (o que é um programa válido e o que ele significa)
@@ -37,7 +37,7 @@ Kof Language Specification  (este diretório)
         │ produz
         ▼
    Targets                  (JVM, Native x86_64/riscv64/aarch64, JS, Android)
-```
+`
 
 - **Kof** é a *linguagem de programação*. Existe como conjunto de regras.
 - **Kof Compiler** é *uma implementação* da linguagem (o `kof-compiler` deste
@@ -48,11 +48,11 @@ Kof Language Specification  (este diretório)
 
 A intenção conceitual é:
 
-```text
+`text
 mesma linguagem Kof ──┬── JVM
                       ├── Native
                       └── JS
-```
+`
 
 e **não** `Kof JVM` / `Kof Native` / `Kof JS` como linguagens semanticamente
 diferentes. Quando há divergência real entre targets, ela é registrada como
@@ -115,7 +115,7 @@ de lacunas (SG-00x) e divergências entre documentação, código e testes.
 Toda afirmação normativa aponta para uma **evidência**:
 
 - **Código** — `arquivo.java:linha` no `kof-compiler` (ex.: precedência em
-  `Parser.java:1309`).
+  ExpressionParser (precedence)).
 - **Teste** — um teste na suíte que demonstra a regra (ex.:
   `PackagesE2ETest`, `KofSwitchExprE2ETest`).
 - **Execução** — comportamento observado rodando um programa (usado para

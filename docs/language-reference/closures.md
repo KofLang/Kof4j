@@ -1,27 +1,27 @@
 # Closures e Lambdas
 
-**Status:** Stable (exceto onde etiquetado) · **Evidência:** `Parser.java:1517-1667`, `CompilerDriver.java` (`lambdaClass`/`collectCaptures`), `BoxClassFactory.java`
+**Status:** Stable (exceto onde etiquetado) · **Evidência:** LambdaParser, `CompilerDriver.java` (`lambdaClass`/`collectCaptures`), `BoxClassFactory.java`
 
 ---
 
 ## 1. Formas de lambda
 
-```ebnf
+`ebnf
 lambda = "(" , [ lambda-param , { "," , lambda-param } ] , ")" , "->" , lambda-body
        | "{" , lambda-body , "}" ;
 lambda-param = identifier , [ ":" , type-ref ] ;
 lambda-body  = block | expression ;
-```
+`
 
 Exemplos válidos:
 
-```kof
+`kof
 (x: Int) -> x * 2                  // params tipados, corpo-expressão
 (a: Int, b: Int) -> { return a + b }  // corpo-bloco
 () -> println("oi")                // sem params
 { println("bloco") }               // bloco-lambda (0 params)
 (x: Int) -> (y: Int) -> x + y      // currying (lambda retornando lambda)
-```
+`
 
 - **Corpo-expressão** tem retorno implícito (`parseLambdaBody:1660-1667` vira
   `ReturnStmt`).
@@ -46,15 +46,15 @@ Exemplos válidos:
 Uma lambda tem tipo `FunctionType(parameterTypes, returnType, className)`
 (`Type.java:29`). Function types são **valores de primeira classe**:
 
-```kof
+`kof
 var f: (Int) -> Int = (x: Int) -> x * 2
 println(f(5))                       // chamada de valor-função
 var g = listOf(1,2).map((x: Int) -> x + 1)   // passada como argumento
-```
+`
 
 - Sintaxe do tipo: `(Int, String) -> Bool` (`parseFunctionTypeRef`).
 - Chamar uma variável com `FunctionType` → `ft.returnType()` + checagem de
-  args (`SemanticAnalyzer.java:1517-1522`).
+  args (`SemExpressionTyper`, caso `FunctionType`).
 - Chamar variável **sem** FunctionType → `SEM015`.
 - **Não há** `fun`-type com nome, nem type alias de função.
 
@@ -66,13 +66,13 @@ Uma lambda captura variáveis do escopo externo.
 
 ### 4.1 Captura read-only (snapshot)
 
-```kof
+`kof
 main() {
     var n = 10
     var f = () -> n + 1
     println(f())        // 11 (probe)
 }
-```
+`
 
 - Capturas são **campos `private final`** da classe sintética `Lambda<N>`
   (`lambdaClass`, `CompilerDriver.java`), copiadas no call site.
@@ -83,14 +83,14 @@ main() {
 
 ### 4.2 Captura mutável (Box)
 
-```kof
+`kof
 main() {
     var n = 0
     var inc = () -> { n = n + 1 }
     inc(); inc()
     println(n)          // 2 (probe)
 }
-```
+`
 
 - Se uma variável capturada é **atribuída dentro da lambda**, o lowering a
   converte em **box mutável**: classe sintética `Box<N>` com campo `value`
@@ -116,17 +116,17 @@ closures de outra forma, desde que preserve a semântica de captura (§4).
 
 ## 6. Trailing lambda
 
-```ebnf
+`ebnf
 call-args , trailing-lambda = "(" , [ args ] , ")" , block
-```
+`
 
-```kof
+`kof
 transaction { println("dentro") }
 list.forEach((x: Int) -> println(x))
 map.map { s: String -> s.length }        // trailing com params tipados
-```
+`
 
-- `f { … }`: o bloco é o **último argumento** (`Parser.java:1436`).
+- `f { … }`: o bloco é o **último argumento** (ExpressionParser.parsePostfix (trailing lambda)).
 - `f { x: Int -> … }`: trailing lambda com parâmetros (`looksLikeLambdaBlockParams`,
   heurística de lookahead ≤8 tokens — **Implementation-defined**).
 - `f { … }` sem `->` é uma **lambda de 0 params** cujo corpo é o bloco.
@@ -140,6 +140,7 @@ map.map { s: String -> s.length }        // trailing com params tipados
 - **Lambda não pode ter `return` de tipo incompatível** com o corpo (SEM010).
 - **Não há** SAM-conversion implícita de lambda para interface do usuário de
   forma garantida: `FunctionType → ClassType` passa em `isAssignable` sempre
-  (:2187), mas a compatibilidade real é validada na emissão. **Unspecified.**
+  (caso SAM de `TypeChecker.isAssignable`), mas a compatibilidade real é
+  validada na emissão. **Unspecified.**
 - **Não há** `it`/`$0` como parâmetro implícito (Kotlin-style). Use
   `(x: T) -> …`.

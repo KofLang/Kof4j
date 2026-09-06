@@ -18,6 +18,15 @@ class ClassMemberParser {
             return new ConstructorDeclarationNode(ctor.position(), ctor.modifiers(), ctor.name(),
                     ctor.parameters(), ctor.thrownExceptions(), ctor.body(), annos);
         }
+        if (ctx.check(TokenType.IDENTIFIER) && Parser.isFunctionKeyword(ctx.peek().value())
+                && ctx.peekAt(1).type() == TokenType.IDENTIFIER
+                && ctx.peekAt(2).type() == TokenType.LPAREN) {
+            // Mesmo furo do top-level (SG-001): `fun foo()`/`fn bar()` dentro de
+            // classe era lido como método com tipo de retorno "fun". Rejeitado.
+            ctx.error("Kof não usa '" + ctx.peek().value() + "'; declare como "
+                    + "'Tipo nome(...) { }' ou 'nome(...): Tipo { }'", "PARSE085");
+            ctx.advance();
+        }
         if ((ctx.check(TokenType.IDENTIFIER) || ctx.check(TokenType.AWAIT) || ctx.check(TokenType.SPAWN)) && ctx.checkNext(TokenType.LPAREN)) {
             String name = ctx.advance().value();
             ctx.expect(TokenType.LPAREN, "Expected '('", "PARSE011");

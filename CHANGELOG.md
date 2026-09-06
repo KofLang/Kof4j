@@ -22,6 +22,9 @@ Linha de desenvolvimento 0.3.0 aberta em 04/09/2026. Semântica congelada
     diagnóstico claro ("declare como `Tipo nome(...) { }` ou `nome(...): Tipo
     { }`"). Alinhamento código↔corpus (regra 4: bug = alinhar ao previsto).
     `fn`/`fun`/`func` continuam válidos como *nome* de função (identificadores).
+    O mesmo furo existia em **membros de classe** (`fun foo()` dentro de
+    `class`/`interface`/`enum` virava método com tipo de retorno `"fun"`) —
+    também rejeitado com `PARSE085`.
     **KofScript (`.ks`) mantém `fn` como sintaxe própria** — traduzido na
     fronteira `.ks`→`.kf` (`KofScript.toKofSyntax`), sem mudança para usuários
     de `.ks`. Breaking change deliberado e documentado: código `.kf` que usava

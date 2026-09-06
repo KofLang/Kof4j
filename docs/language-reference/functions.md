@@ -1,26 +1,26 @@
 # Funções
 
-**Status:** Stable (exceto onde etiquetado) · **Evidência:** `Parser.java:248-333`, `SemanticAnalyzer.java:538-556`, `CompilerDriver.java` (`lowerFunction`/`lowerFunctionDefaults`)
+**Status:** Stable (exceto onde etiquetado) · **Evidência:** Parser.parseFunctionDeclaration, `SemanticAnalyzer.analyzeFunction`, `CompilerDriver.java` (`lowerFunction`/`lowerFunctionDefaults`)
 
 ---
 
 ## 1. Declaração
 
-```ebnf
+`ebnf
 function-declaration = [ type-ref ] , identifier , [ type-parameters ] ,
                        "(" , [ parameter-list ] , ")" , [ ":" , type-ref ] , function-body
-```
+`
 
 As formas canônicas (todas válidas e equivalentes):
 
-```kof
+`kof
 main() { println("entry point") }            // sem tipo → void
 String saudacao() { return "oi" }            // tipo antes do nome
 despedida(): String { return "tchau" }       // tipo depois dos parênteses
 void fazIsso() { println("x") }              // void explícito
 Int dobro(Int x) { return x * 2 }
 Bool positivo(Int x) = x > 0                 // expression body
-```
+`
 
 - **Corpo**: bloco `{ … }`, ou `= expressão` (expression body — vira
   `return expressão`), ou `;` (abstrato).
@@ -35,16 +35,16 @@ Bool positivo(Int x) = x > 0                 // expression body
 
 ## 2. Parâmetros
 
-```ebnf
+`ebnf
 parameter = ( type-ref , identifier | identifier , ":" , type-ref ) , [ "=" , expression ]
-```
+`
 
 Duas ordens válidas:
 
-```kof
+`kof
 f(Int x, String s) { }      // type-first
 f(x: Int, s: String) { }    // anotado (idiomático p/ main)
-```
+`
 
 - **Default values**: `f(Int x = 10)` — geram **overloads sintéticos por
   aridade decrescente** no lowering (`lowerFunctionDefaults`,
@@ -73,13 +73,13 @@ f(x: Int, s: String) { }    // anotado (idiomático p/ main)
 Um programa Kof precisa de **exatamente um** `main` (PKG002 se 0 ou >1).
 Formas aceitas (*probe*, todas compilam):
 
-```kof
+`kof
 main() { }                       // sem args, sem tipo
 void main() { }                  // void explícito
 Int main() { return 0 }          // retorna Int (o valor NÃO vira exit code automaticamente — Unspecified)
 main(args: List<String>) { }     // args como List
 main(args: String[]) { }         // args como array
-```
+`
 
 - `main` é **reconhecido por nome** (`"main".equals(func.name())` + aridade 0
   ou 1-arg-`args`, `CompilerDriver.java`, método `lowerFunctionInner` (`isMain`)). Não é keyword.
@@ -105,15 +105,15 @@ main(args: String[]) { }         // args como array
 
 ## 6. Funções genéricas
 
-```ebnf
+`ebnf
 function-declaration = … , identifier , type-parameters , …
 type-parameters = "<" , identifier , { "," , identifier } , ">"
-```
+`
 
-```kof
+`kof
 T idf<T>(T x) { return x }
 main() { println(idf<Int>(7)) }     // → 7 (probe)
-```
+`
 
 - Type-params de **função** são declarados antes dos parênteses.
 - **Não há inferência de type-args de função**: `idf(7)` sem `<Int>` —

@@ -1,6 +1,6 @@
 # Módulos, Pacotes e Imports
 
-**Status:** Stable (exceto onde etiquetado) · **Evidência:** `Parser.java:419-473`, `CompilerImports.java`, `SemanticAnalyzer.java:53-63`, `CompilerTypes.java:48-138`
+**Status:** Stable (exceto onde etiquetado) · **Evidência:** `Parser.parsePackage`/`parseImports`, `CompilerImports.java`, `MemberResolver.qualifyViaImports`, `CompilerTypes.java:48-138`
 
 ---
 
@@ -20,13 +20,13 @@ parser produz um `CompilationUnitNode(packageName, imports, declarations)`.
 
 ## 2. Pacotes
 
-```ebnf
+`ebnf
 package-declaration = "package" , identifier , { "." , identifier } , [ ";" ]
-```
+`
 
-```kof
+`kof
 package com.dev.app
-```
+`
 
 - Nome pontuado, semântica de namespace (mapeia para pacote JVM).
 - **Não há** diretivas de visibilidade de pacote além de `public`/`private`/
@@ -36,22 +36,22 @@ package com.dev.app
 
 ## 3. Imports
 
-```ebnf
+`ebnf
 import-declaration = "import" , ( "*" | import-path ) , [ ";" ]
 import-path = identifier , { "." , identifier } , [ ".*" ]
-```
+`
 
-```kof
+`kof
 import com.dev.NodeUI          // classe específica
 import com.dev.*               // wildcard de pacote
 import kof.json                // módulo stdlib
-```
+`
 
 ### 3.1 O que um import faz
 
 1. **Qualificação de nome simples**: `qualifyViaImports` resolve um nome simples
    (sem `.`/`<`/`[]`) pelo **primeiro** import não-wildcard que termina em
-   `.<nome>` (`SemanticAnalyzer.java:53-63`).
+   `.<nome>` (`MemberResolver.qualifyViaImports`).
    - **Wildcards `import a.b.*` NÃO qualificam nomes simples** (:57) — só
      trazem as declarações para o escopo (item 3.2).
    - Import **ambíguo** (dois imports com o mesmo nome simples) → **não chuta**:
@@ -79,7 +79,7 @@ import kof.json                // módulo stdlib
 
 Para um identificador `x` (ver [type-system.md](type-system.md) §6):
 
-```text
+`text
 escopo local (cadeia de pais)
   → args em main
   → constante de enum não-qualificada
@@ -88,7 +88,7 @@ escopo local (cadeia de pais)
   → imports (qualifyViaImports)
   → namespaces builtin (json, process, KofWeb, …)
   → senão SEM011
-```
+`
 
 - **Não há** `import static`, nem renomeação (`import a.b as C`), nem
   `export`/re-export.
@@ -100,13 +100,13 @@ escopo local (cadeia de pais)
 
 A stdlib é um conjunto de **namespaces** acessíveis por `import kof.<área>` e
 usados via objeto global (`json.encode`, `http.get`, …). Os namespaces
-reconhecidos pelo analisador (`SemanticAnalyzer.java:884-906`):
+reconhecidos pelo analisador (`SemExpressionTyper`/`MemberResolver`, lista de namespaces builtin):
 
-```text
+`text
 json  process  KofWeb  KofConfig  KofCache  KofGpu  KofDb  KofOrm
 KofLog  KofSecurity  KofValidation  KofObservability  KofHttp  KofMq
 KofTime  KofScheduler  KofTetris  KofMedia  KofUi  Theme
-```
+`
 
 Cada área tem documento próprio em `docs/stdlib*.md` (não duplicados aqui). A
 **linguagem** define que esses nomes existem e como resolvem; a **biblioteca**

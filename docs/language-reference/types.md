@@ -1,6 +1,6 @@
 # Tipos — Catálogo e Sintaxe
 
-**Status:** Stable (exceto onde etiquetado) · **Evidência:** `Type.java`, `BuiltinTypes.java`, `Parser.java:1816-1903`
+**Status:** Stable (exceto onde etiquetado) · **Evidência:** `Type.java`, `BuiltinTypes.java`, TypeParser
 
 Este documento lista **quais tipos existem** e **como se escrevem**. As regras
 de *validade* (o que pode ser atribuído a quê, quando há erro) estão em
@@ -67,13 +67,13 @@ pelo nome, com pacote quando qualificado (`com.dev.NodeUI`).
 
 `Handle<T>` — o tipo do valor retornado por `spawn` em posição de expressão
 (`kof.concurrent.Handle`). Reconhecido por predicado, não por constante em
-`BuiltinTypes` (`SemanticAnalyzer.java:828-832`).
+`BuiltinTypes` (`TypeChecker.isConcurrentHandle`).
 
 ### 2.4 `Object`
 
 `ClassType("java.lang","Object")` (`Type.java:83`). Todo tipo de referência é
 atribuível a `Object`; primitivos são auto-boxados para `Object`
-(`isAssignable`, `SemanticAnalyzer.java:2192-2196`).
+(`TypeChecker.isAssignable`, caso primitivo→`Object`).
 
 ---
 
@@ -81,9 +81,9 @@ atribuível a `Object`; primitivos são auto-boxados para `Object`
 
 ### 3.1 Array
 
-```ebnf
+`ebnf
 array-type = type-ref , "[]" ;        (* Int[], String[][], List<Int>[] *)
-```
+`
 
 `ArrayType(componentType)` (`Type.java:35`). **Unidimensional por sufixo**;
 multidimensional é array-de-array (`Int[][]`). Não há tamanho no tipo.
@@ -91,18 +91,18 @@ Alocação: `new Int[n]`. Acesso: `a[i]` (método `.get()` em array → `SEM028`
 
 ### 3.2 Nullable
 
-```ebnf
+`ebnf
 nullable-type = type-ref , "?" ;      (* String?, Int?, List<Int>? *)
-```
+`
 
 `NullableType(inner)` — **wrapper**, não sufixo atômico (`Type.java:45`).
 `T?` significa "T ou null". Ver regras em [type-system.md](type-system.md) §5.
 
 ### 3.3 Function type
 
-```ebnf
+`ebnf
 function-type = "(" , [ type-ref , { "," , type-ref } ] , ")" , "->" , type-ref ;
-```
+`
 
 `(Int) -> Int`, `(Int, String) -> Bool`, `() -> void`
 (`FunctionType(parameterTypes, returnType, className)`, `Type.java:29`).
@@ -111,9 +111,9 @@ no lowering — **Implementation-defined**, não observável na linguagem.
 
 ### 3.4 Generic
 
-```ebnf
+`ebnf
 generic-type = qualified-name , "<" , type-ref , { "," , type-ref } , ">" ;
-```
+`
 
 `List<List<Int>>`, `Map<String, List<Int>>`. Aninhamento por contagem de
 profundidade com split de `>>`/`>>>`. **Não há** wildcard `? extends T` /
