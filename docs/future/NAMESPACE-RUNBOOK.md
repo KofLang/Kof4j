@@ -1,10 +1,11 @@
 # Runbook — adicionar um namespace stdlib (`kof.<ns>`)
 
-> Padrão verificado contra o código atual (05/09) e usado por `kof.mq`,
-> `kof.http`, FFI, `kof.scheduler` etc. Serve para implementar TIER 6–12 de
-> forma mecânica assim que o REFACTOR-500 fechar. **Todo namespace novo exige
-> tocar os gigantes** (`CompilerDriver`/`SemanticAnalyzer`/`JvmRuntime`/
-> `NativeRuntime`) — por isso os tiers estão bloqueados até o refactor.
+> Padrão verificado contra o código (05/09 → **atualizado 06/09 pós-merge** do
+> REFACTOR-500). Serve para implementar TIER 6–12 de forma mecânica. Após o
+> merge beta-0.3.0, as camadas semântica (`SemanticAnalyzer`/`Parser`) e de
+> runtime (`JvmRuntime`/`NativeRuntime`) **já estão ≤500** (módulos). Os pontos
+> de toque reais mudaram: resolver/baixar uma chamada acontece nos *lowerers* e
+> *typers* modulares, não mais direto no gigante.
 
 ## Os 8 passos (na ordem)
 
@@ -15,30 +16,41 @@
    - `static boolean supportedOn(Target target)` — paridade honesta (R7): gate de compile-time.
    - (exemplo real: `KofMq.MqCall`, `KofProcess`.)
 
-2. **`SemanticAnalyzer.java`** — adicionar `&& !Kof<Ns>.is<Ns>Namespace(ie.name())`
-   a **todas** as cadeias de exceção do `SEM011`/`SEM022` (são várias; hoje em
-   `resolveExpr` de `IdentifierExpr` ~linha 890 e `AssignmentExpr` ~linha 938 —
-   grepar `KofMq.isMqNamespace` acha todas).
+2. **Tipar a chamada** (pós-merge, camada modular):
+   - Chamada **top-level** (`service()`) → `BuiltinCallTyper.java` (resolve função
+     top-level; é aqui que `extern` vira contrato, nunca `SEM015`).
+   - Chamada com **receiver de namespace** (`kof.<ns>.x()`) → `SemExpressionTyper` /
+     `MemberCallTyper` resolve o tipo do receiver; exceção de namespace na cadeia
+     `SEM011` nas declarações de `IdentifierExpr` é feita via `Kof<Ns>.is<Ns>Namespace`.
 
-3. **`CompilerDriver.java`** — baixar a chamada `mc` para `KofCall`:
-   - no lowering de member-call (`if (mc.receiver() instanceof IdentifierExpr rid
-     && Kof<Ns>.is<Ns>Namespace(rid.name()))` — padrão das linhas 4583 e 6623 do `KofMq`);
+3. **Baixar para `KofCall`** (lowering, camada modular):
+   - Chamada **estática/builtin** → `ExpressionStaticCallLowerer.java` (o padrão do
+     bloco `kof_now`/`kof_ui_emit`; `ExternCallLowerer.java` é o pedaço FFI).
+   - Chamada de **instância** (`app.x()`) → `ExpressionMethodCallLowerer.java` /
+     `ExpressionInstanceDispatchLowerer.java` (dispatch do receiver).
    - resolve via `Kof<Ns>.staticCall(...)`, checa `supportedOn(target)` → gap `XXX00x`,
    - emite `ops.add(new KofCall(Kof<Ns>.NS, nsCall.function(), …))`.
 
-4. **`JvmRuntime.java`** — concatenar o runtime novo na `source()` (linhas 121–131):
-   `+ Jvm<Ns>Runtime.source()` (e `uses<Ns>` se for gate por capability, como FFI/Vulkan).
+4. **`JvmRuntime.java`** (orquestrador, 132 linhas) — concatenar `Jvm<Ns>Runtime.source()`
+   na `source()` (e `uses<Ns>` se for gate por capability, como FFI/Vulkan).
 
 5. **`JvmRuntimeCallDescriptors.java`** — casos `kof_<ns>_*` (descritor JVM +
-   tipo de retorno em ambos os `switch` — padrão das linhas 35–37 e 181–185).
+   tipo de retorno em ambos os `switch`).
 
 6. **`Jvm<Ns>Runtime.java`** (classe nova, ≤500) — o corpo do runtime como source string
    (padrão `JvmFfiRuntime`/`JvmMediaRuntime`).
 
-7. **`NativeRuntime.java` / `Native<Ns>Runtime.java`** — asm x86_64 + dispatch
-   (padrão `NativeHttpRuntime`/`NativeDbPrepared`, ≤500 por módulo).
+7. **`NativeRuntime.java`** (orquestrador, 142 linhas) → `Native<Ns>Runtime.java` novo,
+   concatenado + asm x86_64 (padrão `NativeHttpRuntime`/`NativeDbPrepared`, ≤500/módulo).
+   ⚠️ A emissão nativa ainda passa pelo `NativeBackend.java` (Fase 3 do refactor
+   EM CURSO por agente-idiomatic) — não tocar até a lane fechar.
 
 8. **`JsBackend.java`** — emit JS real ou gap honesto (`XXX00x`, nunca stub silencioso).
+
+> Status dos gigantes (pós-merge 06/09): `NativeBackend` 8834 (F3), `CompilerDriver`
+> 3487 (F2), `JvmBackend` 1405 (Fase 4) — todos com dono em `beta-0.3.0`. Os passos
+> 2/3/7 que tocam esses arquivos só fecham quando a lane deles fechar; o resto
+> (typers/lowerers modulares, runtime JVM/descritores) já é destravável hoje.
 
 ## Regra de negócio por passo
 
