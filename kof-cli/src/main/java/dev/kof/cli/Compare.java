@@ -28,22 +28,26 @@ public final class Compare {
     private Compare() {
     }
 
-    record RunResult(int exitCode, String stdout, String stderr) {
+    record RunResult(int exitCode, String stdout, String stderr, Map<String, String> files) {
         boolean sameStdout(RunResult o) { return stdout.equals(o.stdout); }
         boolean sameStderr(RunResult o) { return stderr.equals(o.stderr); }
         boolean sameExit(RunResult o) { return exitCode == o.exitCode; }
+        boolean sameFiles(RunResult o) { return files.equals(o.files); }
     }
 
     enum Channel { EQUIVALENT, DIVERGENT }
 
-    record Verdict(Channel stdout, Channel stderr, Channel exit) {
-        boolean equivalent() { return stdout == Channel.EQUIVALENT && exit == Channel.EQUIVALENT; }
+    record Verdict(Channel stdout, Channel stderr, Channel exit, Channel files) {
+        boolean equivalent() {
+            return stdout == Channel.EQUIVALENT && exit == Channel.EQUIVALENT && files == Channel.EQUIVALENT;
+        }
 
         Map<String, Object> toMap() {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("stdout", stdout == Channel.EQUIVALENT ? "equivalent" : "divergent");
             m.put("stderr", stderr == Channel.EQUIVALENT ? "equivalent" : "divergent");
             m.put("exit", exit == Channel.EQUIVALENT ? "equivalent" : "divergent");
+            m.put("files", files == Channel.EQUIVALENT ? "equivalent" : "divergent");
             m.put("overall", equivalent() ? "equivalent" : "divergent");
             return m;
         }
@@ -90,7 +94,8 @@ public final class Compare {
                 System.out.println("legacy exit=" + legacyRes.exitCode + " stdout=" + abbrev(legacyRes.stdout));
                 System.out.println("kof    exit=" + kofRes.exitCode + " stdout=" + abbrev(kofRes.stdout));
                 System.out.println("verdict: " + (verdict.equivalent() ? "EQUIVALENT" : "DIVERGENT")
-                        + "  (stdout=" + verdict.stdout + ", stderr=" + verdict.stderr + ", exit=" + verdict.exit + ")");
+                        + "  (stdout=" + verdict.stdout + ", stderr=" + verdict.stderr
+                        + ", exit=" + verdict.exit + ", files=" + verdict.files + ")");
             }
             return verdict.equivalent() ? 0 : 1;
         } catch (Exception e) {
@@ -103,40 +108,49 @@ public final class Compare {
         return new Verdict(
                 legacy.sameStdout(kof) ? Channel.EQUIVALENT : Channel.DIVERGENT,
                 legacy.sameStderr(kof) ? Channel.EQUIVALENT : Channel.DIVERGENT,
-                legacy.sameExit(kof) ? Channel.EQUIVALENT : Channel.DIVERGENT);
+                legacy.sameExit(kof) ? Channel.EQUIVALENT : Channel.DIVERGENT,
+                legacy.sameFiles(kof) ? Channel.EQUIVALENT : Channel.DIVERGENT);
     }
 
     static RunResult runLegacy(Path legacy, List<String> args, String stdin) throws IOException {
         String file = legacy.getFileName().toString();
-        if (file.endsWith(".jar")) {
-            return exec(List.of(Paths.java(), "-jar", legacy.toString()), args, stdin, legacy.getParent());
+        Path sandbox = Files.createTempDirectory("kof-compare-legacy-");
+        try {
+            if (file.endsWith(".jar")) {
+                return exec(List.of(Paths.java(), "-jar", legacy.toString()), args, stdin, sandbox);
+            }
+            if (file.endsWith(".class")) {
+                String className = file.substring(0, file.length() - ".class".length());
+                List<String> cmd = List.of(Paths.java(), "-cp", legacy.getParent().toString(), className);
+                return exec(cmd, args, stdin, sandbox);
+            }
+            throw new IOException("legacy must be a .class or .jar file");
+        } finally {
+            cleanup(sandbox);
         }
-        if (file.endsWith(".class")) {
-            String className = file.substring(0, file.length() - ".class".length());
-            return exec(List.of(Paths.java(), "-cp", legacy.getParent().toString(), className), args, stdin, legacy.getParent());
-        }
-        throw new IOException("legacy must be a .class or .jar file");
     }
 
     static RunResult runKof(Path kofFile, List<String> args, String stdin) throws IOException {
         Path outDir = Files.createTempDirectory("kof-compare-");
+        Path sandbox = Files.createTempDirectory("kof-compare-kof-");
         CompilerDriver driver = new CompilerDriver();
         CompilationResult result = driver.compile(kofFile, outDir, Target.JVM);
         if (!result.success()) {
             throw new IOException("Kof compile failed: " + result.diagnostics().getDiagnostics());
         }
         try {
-            return exec(List.of(Paths.java(), "-cp", outDir.toString(), "Default.Main"), args, stdin, outDir);
+            return exec(List.of(Paths.java(), "-cp", outDir.toString(), "Default.Main"), args, stdin, sandbox);
         } finally {
             cleanup(outDir);
+            cleanup(sandbox);
         }
     }
 
-    private static RunResult exec(List<String> cmd, List<String> args, String stdin, Path workDir) throws IOException {
+    private static RunResult exec(List<String> cmd, List<String> args, String stdin, Path sandbox) throws IOException {
         List<String> full = new ArrayList<>(cmd);
         full.addAll(args);
         ProcessBuilder pb = new ProcessBuilder(full);
-        pb.directory(workDir.toFile());
+        pb.directory(sandbox.toFile());
         pb.redirectErrorStream(false);
         Process p = pb.start();
         if (stdin != null) {
@@ -151,7 +165,31 @@ public final class Compare {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-        return new RunResult(p.exitValue(), out.trim(), err.trim());
+        Map<String, String> files = captureFiles(sandbox);
+        return new RunResult(p.exitValue(), out.trim(), err.trim(), files);
+    }
+
+    /** Snapshot dos arquivos criados no sandbox: caminho relativo → hash SHA-256. */
+    private static Map<String, String> captureFiles(Path dir) throws IOException {
+        Map<String, String> files = new java.util.TreeMap<>();
+        try (var s = Files.walk(dir)) {
+            for (Path p : s.filter(Files::isRegularFile).toList()) {
+                String rel = dir.relativize(p).toString().replace('\\', '/');
+                files.put(rel, sha256(Files.readAllBytes(p)));
+            }
+        }
+        return files;
+    }
+
+    private static String sha256(byte[] data) {
+        try {
+            byte[] h = java.security.MessageDigest.getInstance("SHA-256").digest(data);
+            StringBuilder sb = new StringBuilder();
+            for (byte b : h) sb.append(String.format("%02x", b));
+            return sb.toString();
+        } catch (java.security.NoSuchAlgorithmException e) {
+            return Integer.toHexString(java.util.Arrays.hashCode(data));
+        }
     }
 
     private static Map<String, Object> runToMap(RunResult r) {
@@ -159,6 +197,7 @@ public final class Compare {
         m.put("exit", r.exitCode);
         m.put("stdout", r.stdout);
         m.put("stderr", r.stderr);
+        m.put("files", r.files);
         return m;
     }
 

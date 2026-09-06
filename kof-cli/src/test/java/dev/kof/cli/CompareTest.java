@@ -2,6 +2,7 @@ package dev.kof.cli;
 
 import org.junit.jupiter.api.Test;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
@@ -23,12 +24,12 @@ class CompareTest {
 
     @Test
     void pureComparisonLogic() {
-        Compare.RunResult a = new Compare.RunResult(0, "hello\n", "");
-        Compare.RunResult b = new Compare.RunResult(0, "hello\n", "");
+        Compare.RunResult a = new Compare.RunResult(0, "hello\n", "", Map.of());
+        Compare.RunResult b = new Compare.RunResult(0, "hello\n", "", Map.of());
         Compare.Verdict v = Compare.compare(a, b);
         assertTrue(v.equivalent());
 
-        Compare.Verdict diverged = Compare.compare(a, new Compare.RunResult(0, "world\n", ""));
+        Compare.Verdict diverged = Compare.compare(a, new Compare.RunResult(0, "world\n", "", Map.of()));
         assertFalse(diverged.equivalent());
         assertEquals(Compare.Channel.DIVERGENT, diverged.stdout());
         assertEquals(Compare.Channel.EQUIVALENT, diverged.exit());
@@ -105,6 +106,41 @@ class CompareTest {
         Compare.RunResult legacy = Compare.runLegacy(dir.resolve("Diff.class"), List.of(), null);
         Compare.RunResult kof = Compare.runKof(kofFile, List.of(), null);
         Verify.difference(Compare.compare(legacy, kof));
+    }
+
+    @Test
+    void fileSideEffectsCompared(@TempDir Path dir) throws Exception {
+        Path javaFile = dir.resolve("Write.java");
+        Files.writeString(javaFile, """
+                import java.nio.file.*;
+                public class Write {
+                    public static void main(String[] args) throws Exception {
+                        Files.writeString(Path.of("out.txt"), "kof");
+                    }
+                }
+                """);
+        javac(javaFile, dir);
+
+        // Kof equivalente escreve o MESMO arquivo
+        Path kofSame = dir.resolve("same.kf");
+        Files.writeString(kofSame, """
+                main() {
+                    writeFile("out.txt", "kof")
+                }
+                """);
+        Compare.RunResult legacy = Compare.runLegacy(dir.resolve("Write.class"), List.of(), null);
+        Compare.RunResult kof = Compare.runKof(kofSame, List.of(), null);
+        assertTrue(Compare.compare(legacy, kof).equivalent(), "files iguais devem ser equivalentes");
+
+        // Kof escreve conteúdo DIFERENTE
+        Path kofDiff = dir.resolve("diff.kf");
+        Files.writeString(kofDiff, """
+                main() {
+                    writeFile("out.txt", "outro")
+                }
+                """);
+        Compare.RunResult kofD = Compare.runKof(kofDiff, List.of(), null);
+        assertFalse(Compare.compare(legacy, kofD).equivalent(), "conteúdo diferente deve divergir");
     }
 
     private void javac(Path javaFile, Path dir) throws Exception {
