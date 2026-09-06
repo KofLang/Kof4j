@@ -82,7 +82,7 @@
 |-----|-----------|--------|
 | spawn/await no Native | ✅ 31/08 (CONC001 fechado — pthread_create + trampoline + pthread_join + allocator thread-safe futex; join implícito) | |
 | spawn/await no JS | ✅ 03/09 (CONC003 fechado — async/await/Promise real; stmt + spawn-expr + await/poll/cancel/selectAny/channel bloqueante) | `cancelled()` sempre `0` (sem thread-local pra task atual); só task-lambdas podem ficar async (`CONC003-JS-01`) |
-| web no Native/JS (server, TLS, ws/sse) | ✅ server base (03/09): Native accept/route/lambda/body (`NativeWebRuntime.java`) + JS GraalJS HttpServer (`bc577aa`). Residual: TLS/ws/sse/path params/keepalive nos dois | `WEB002`/`WEB001` (residual) |
+| web no Native/JS (server, TLS, ws/sse) | ✅ server base (03/09): Native accept/route/lambda/body (`NativeWebRuntime.java`) + JS GraalJS HttpServer (`bc577aa`). **05/09 (WEB002 residual)**: Native ganhou contexto completo — `method()`/`path()`/`query(name)`/`header(name)`/`param(name)` (`:id` match por segmentos) + resposta customizável `status(code,body)`/`headerSet(name,value)` (status line dinâmica + headers). Residual: TLS/ws/sse/keepalive nos dois | `WEB002`/`WEB001` (residual) |
 | kof.http no Native | ✅ HTTP/1.1 asm (`NativeHttpRuntime.java`, 03/09) | https + DNS real + retry ficam como gaps (`HTTP003`) |
 | kof.db/orm no JS | `DB001` / `ORM001` | planned |
 | JSON Float/Double | ✅ 31/08 (JSN001 fechado — XMM + parser fração/expoente) | |
