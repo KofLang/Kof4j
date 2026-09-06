@@ -1,7 +1,25 @@
 # Kof — Roadmap de Longo Prazo
 
-**Última atualização:** 2 de setembro de 2026
-**Versão:** 0.2.6-beta
+**Última atualização:** 5 de setembro de 2026
+**Versão:** 0.3.0-beta (em desenvolvimento)
+
+---
+
+## Migração legado (concluída e congelada — 05/09)
+
+A plataforma de migração de código legado (Java→Kof) foi construída de ponta a ponta
+na branch `planning-future`:
+
+- `kof inspect` / `kof decompile` — bytecode Java → Kof (IR própria + `BytecodeDecoder`).
+- `kof translate` — código Java → Kof idiomático (tipos boxed→primitivos, static→top-level).
+- `kof compare` — differential testing (stdout/stderr/exit + side effects via SHA-256).
+- `kof migrate` — orquestra a migração com `Confidence`.
+- FFI `extern` (TIER 2.1) + `CodegenStep` (TIER 2.2) + ct-eval (TIER 2.3).
+
+**Congelado** até o REFACTOR-500 (≤500 linhas/classe) terminar; retomada e blockers em
+`docs/future/blockers/BLOCKERS.md`. Para os demais tiers da plataforma universal
+(AUTOMATION/INFRA/DATA/SECURITY-exp/SCIENTIFIC/BIO/UNIVERSAL), a ordem e o plano estão
+no mesmo arquivo.
 
 ---
 

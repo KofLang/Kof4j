@@ -1,7 +1,29 @@
 # Status do Projeto Kof
 
-**Última atualização:** 3 de setembro de 2026
-**Versão:** 0.3.0-beta
+**Última atualização:** 5 de setembro de 2026
+**Versão:** 0.3.0-beta (em desenvolvimento; linha futura na branch `planning-future`)
+
+---
+
+## 04–05/09 — Plataforma de migração legado + fechamento do `docs/future`
+
+Concluída na branch `planning-future` (bloqueada a merge até o REFACTOR-500 fechar —
+ver `docs/future/blockers/BLOCKERS.md`). Estado por fase:
+
+| Fase | Entrega | Prova |
+|---|---|---|
+| A/B/C | `ClassFileParser` + IR própria (bases `docs/legacy-ir.md`) | suíte 938/0 |
+| D/E | **Decompiler** `kof decompile` — 12 capacidades (estrutura, tipos, aritmética, if/else, while, calls, fields, `new`, try/catch/finally, switch) + stdlib map (`println`/`==`/`.length`/`parseInt→toInt`/`now`); `invokeinterface` `0xb9` | `BytecodeDecoder` recupera corpos simples; resto = stub honesto `throw` (`Confidence UNKNOWN`) |
+| F | **Translator** `kof translate` — class/interface/record/enum, fields/methods/ctors, static→top-level, if/while/for/ternário, lambda, tipos boxed→primitivos | `Translate.java` |
+| G | **Differential testing** `kof compare` — stdout/stderr/exit + **arquivos (side effects)** via sandbox + SHA-256 | `Compare.java` |
+| H | `kof migrate` + `Confidence` | `Migrate.java` |
+| TIER 2.1 | **FFI formalizado** — sintaxe `extern` + gaps FFI001/002 + binding real JVM(FFM)/Native(dlopen+dlsym): `Int→Int`, `String→Int`, `Double→Double`, `Int[]→Int` | `FfiE2ETest` 6/6 (libc/libm/.so gcc) |
+| TIER 2.2/2.3 | **Codegen hook** `CodegenStep` (desugarEntity/Tests/Application) + ct-eval (fold concat strings) | `OptimizerTest` + `KofOrmE2ETest` 22/0 |
+| TIER 2.4/2.5 | Scoped-resources (design) + variance/sealed (deferir) | `docs/future/scoped-resources-plan.md` |
+| TIER 6-12 | **Blocker explícito** — todos os tiers mapeados com bloqueador + plano (`REFACTOR-500` → FFI struct → infra → automation → …) | `BLOCKERS.md` |
+
+Estado do `docs/future` fechado em definitivo: decompiler/translator **congelados** até o
+REFACTOR-500 terminar; retomada pela ordem registrada em `docs/future/blockers/BLOCKERS.md`.
 
 ---
 
