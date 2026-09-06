@@ -21,6 +21,24 @@ Estados: `ABERTO` · `EM CURSO` · `FEITO` · `BLOQUEADO`.
 
 ## PRÓXIMO PASSO (re-dispacho lê isto)
 
+**PRÓXIMO PASSO (fixes-for-kofagent, 06/09)**: lane REFACTOR-500 FASES 4–8
+**FECHADA** (Parser 456 / SemanticAnalyzer 396 / JsBackend 334 / JvmRuntime 132
+/ 13 classes 500–1400 + VkChain64Asm; resíduo 502-linha `ExpressionStaticCallLowerer`
+→ 493 em `9c2002b`). **CANVAS001 metade JVM CORRIGIDA** (`6665a2d`): causa raiz
+era o construtor `Canvas` sem typer no `MethodCallTyper` (ramo genérico só cobria
+layout/store) → `var c = Canvas(...)` = UNKNOWN → Methodref owner `""` →
+`ClassFormatError`; + descritor `set_line_width` `(III)V`→`(II)V` (stack underflow
+→ COMP002). Prova: `UiE2ETest.canvasCreation` JVM+Native ✅. **O que falta na
+suíte (único fail, 958/1)**: metade JS do mesmo teste — `kofUiCanvasNew` não
+anexa o `<canvas>` ao `kof-root` nem dispara `kofUiSerializeHtml` (só
+`Window.show()` serializa; o teste não usa Window). **Isso é decisão de design
+da lane Canvas** (timing de serialização p/ widget sem janela) — NÃO é da minha
+lane; registrado em `docs/known-bugs.md` CANVAS001. Sem item pendente na lane
+4–8: re-dispacho deve (a) pegar item ABERTO novo, ou (b) ajudar FASE 2/3 do
+agente-idiomatic se destravado, ou (c) fechar CANVAS001 JS **apenas** com
+aprovação de design (anexar ao root + serializar no fim do main quando há
+widget órfão).
+
 **SWEEP R6 COMPLETO** (05/09): todas as áreas stdlib varridas com 0
 divergências nos 3 targets (cache/mq/time/FP/collections/json/string/
 validation/config/log/web). Bugs achados+corrigidos: toInt SIGSEGV,
