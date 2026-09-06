@@ -1,6 +1,10 @@
 package dev.kof.cli;
 
-import dev.kof.compiler.*;
+import dev.kof.compiler.CompilationResult;
+import dev.kof.compiler.CompilerDriver;
+import dev.kof.compiler.KofHttpServer;
+import dev.kof.compiler.ReflectiveHandler;
+import dev.kof.compiler.Target;
 
 import java.io.IOException;
 import java.net.URLClassLoader;
