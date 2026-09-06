@@ -81,23 +81,38 @@ removido — `fn`/`let` em `.ks` dão o diagnóstico normal do parser).
 FunctionSyntaxTest 12; suíte21 957+8+5+8, 0 falhas
 (`bf84a86`).
 
-**KOFSCRIPT = TARGET DE EXECUÇÃO DIRETA FEITO** (06/09, decisão humana
-"KOFSCRIPT NÃO É JAVASCRIPT ... É UM TARGET ONDE VOCE PASSA SEU CODIGO
-DIRETAMENTE PELO INTERPRETADOR KOF SEM COMPILAR", `0aac7e6`):
-`KofInterpreter` (dev.kof.compiler) executa a MESMA IR otimizada do frontend
-(stack machine sobre valores reais do JDK; `KofObj` para classes Kof com
-dispatch virtual + `<clinit>` + statics; try/catch espelhando a exception
-table JVM; builtins sem lambda por reflexão ao `KofRuntime` GERADO — mesmo
-source do caminho compilado). `CompilerDriver`: `parseAndMerge` +
-`analyzeAndLower` extraídos (refactor puro) + fachada pública `interpret(...)`.
-`KofScript.runFile` JVM → interpretador (sem bytecode, sem fork); JS/NATIVE →
-caminho compilado (aditivo); `runFileCompiled` mantido (fallback + prova).
-**Prova: paridade byte-idêntica interpretado vs JVM compilado** (funções,
-strings, records `==` conteúdo + toString, coleções higher-order, classes,
-while/for-in, try/catch/finally throw-as-String, spawn/await) —
-KofScriptTest 12/12. Docs corrigidas (architecture, compiler-architecture,
-README, actual-state, roadmap, philosophy, learn/00, CHANGELOG): KofScript
-não é "linguagem separada" nem JavaScript.
+ **KOFSCRIPT = TARGET DE EXECUÇÃO DIRETA FEITO** (06/09, decisão humana
+ "KOFSCRIPT NÃO É JAVASCRIPT ... É UM TARGET ONDE VOCE PASSA SEU CODIGO
+ DIRETAMENTE PELO INTERPRETADOR KOF SEM COMPILAR", `0aac7e6`+`c593a3d`+`f0d6ce7`):
+ `KofInterpreter` (dev.kof.compiler) executa a MESMA IR otimizada do frontend
+ (stack machine sobre valores reais do JDK; `KofObj` para classes Kof com
+ dispatch virtual + `<clinit>` + statics; try/catch espelhando a exception
+ table JVM; builtins sem lambda por reflexão ao `KofRuntime` GERADO — mesmo
+ source do caminho compilado). `CompilerPipeline`: `parseAndMerge` +
+ `analyzeAndLower` + `prepareForInterpretation` + `interpret` (refactor puro
+ sobre a F2.52 do outro agente) + fachada pública `CompilerDriver.interpret(...)`.
+ `KofScript.runFile` JVM → interpretador (sem bytecode, sem fork); JS/NATIVE →
+ caminho compilado (aditivo); `runFileCompiled` mantido (fallback + prova).
+ **Prova: paridade byte-idêntica interpretado vs JVM compilado** (funções,
+ strings, records `==` conteúdo + toString, coleções higher-order, classes,
+ while/for-in, try/catch/finally throw-as-String, spawn/await, null-safety,
+ closure capture, channel, time.interval/cancel) — KofScriptTest 15/15.
+ Bugs achados na varredura de paridade e CORRIGIDOS: pilha não aceitava null
+ (ArrayDeque→LinkedList, `c593a3d`); time.interval sem jobs canceláveis
+ (`f0d6ce7`). Docs corrigidas (architecture, compiler-architecture, README,
+ actual-state, roadmap, philosophy, learn/00, CHANGELOG): KofScript não é
+ "linguagem separada" nem JavaScript. **Merge com origin feito** (F2.52
+ CompilerPipeline + FASE 3.x native); suíte pós-merge 957+15+5+8, 0 falhas,
+ 3-skip (só `UiE2ETest.canvasCreation` JS = CANVAS001, lane do outro agente).
+ **PRÓXIMO PASSO (minha lane)**: (a) `spawn func(arg)` com captura de
+ argumento (bug #29 — VerifyError no JVM compilado também, NÃO é do
+ interpretador; precisa de decisão de lowering, regra 6 → gap/plano);
+ (b) bug 34 (método inexistente em tipo de coleção → no-op silencioso, R6 —
+ precisa allow-list por tipo, risco de falso SEM025); (c) varredura de
+ paridade interpretado vs JVM nos 3 targets (JS/Native ainda no caminho
+ compilado — confirmar que runFileCompiled cobre). Provas: testes E2E por
+ item + suíte verde.
+
 
 **PRÓXIMA TAREA (maior valor)**: **bug 33 CORRIGIDO** (`df2ffdd`, 06/09) —
 diagnóstico original ERRADO: não era Map/Set. Era **member call em receiver de
