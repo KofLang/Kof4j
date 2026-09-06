@@ -1215,6 +1215,11 @@ Target target = Target.JVM;
         ops.add(new KofCall(primitive, "kof_unbox", List.of(boxed), primitive, KofCallKind.FUNCTION));
     }
 
+    void emitPrimWidenNarrow(List<KofOperation> ops, ExpressionNode value,
+                             Type elemType, List<IRLocalVariable> locals) {
+        CompilerComparisons.emitPrimWidenNarrow(this, ops, value, elemType, locals);
+    }
+
     boolean erasesToReference(Type t) {
         return t instanceof Type.TypeVariable || t instanceof Type.ClassType
                 || t instanceof Type.ArrayType || t instanceof Type.UnknownType;
@@ -1812,222 +1817,28 @@ Target target = Target.JVM;
 
 
     boolean isComparisonShortcut(BinaryExpr bin, List<IRLocalVariable> locals) {
-        if (!TypeMetrics.isComparisonOp(bin.operator())) return false;
-        if ("==".equals(bin.operator()) || "!=".equals(bin.operator())) {
-            Type left = ExpressionTyper.inferExprType(this, bin.left(), locals);
-            Type right = ExpressionTyper.inferExprType(this, bin.right(), locals);
-            if (Type.isString(left) || Type.isString(right)) return false;
-            // enum == enum compara conteúdo (string) — nunca identidade
-            if (CompilerTypes.isEnumType(left, currentUnit) || CompilerTypes.isEnumType(right, currentUnit)) return false;
-            // primitivo vs null → constante (caminho da cadeia binária)
-            boolean leftNull = bin.left() instanceof LiteralExpr ll2 && ll2.kind() == ConcreteLiteralKind.NULL;
-            boolean rightNull = bin.right() instanceof LiteralExpr rl2 && rl2.kind() == ConcreteLiteralKind.NULL;
-            if ((leftNull && TypeMetrics.isPrimitiveType(right)) || (rightNull && TypeMetrics.isPrimitiveType(left))) return false;
-        }
-        return true;
+        return CompilerComparisons.isComparisonShortcut(this, bin, locals);
     }
 
-    /**
-     * Operand type of a comparison shortcut: the common numeric type of the
-     * two operands (int, long, float or double). The IR carries it so the
-     * JVM backend can emit the correct compare instruction.
-     */
     Type comparisonOperandType(BinaryExpr bin, List<IRLocalVariable> locals) {
-        Type left = ExpressionTyper.inferExprType(this, bin.left(), locals);
-        Type right = ExpressionTyper.inferExprType(this, bin.right(), locals);
-        if (TypeMetrics.isNumeric(left) && TypeMetrics.isNumeric(right)) {
-            return TypeMetrics.commonNumericType(left, right);
-        }
-        // comparação contra literal null é sempre referência (if_acmp*);
-        // quando o outro lado é Unknown (get de Map, etc.) marca como Object
-        if (isNullLiteral(bin.left()) || isNullLiteral(bin.right())) {
-            Type other = isNullLiteral(bin.left()) ? right : left;
-            if (other instanceof Type.ClassType || other instanceof Type.ArrayType
-                    || other instanceof Type.TypeVariable || other instanceof Type.NullableType) {
-                return other;
-            }
-            return new Type.ClassType("java.lang", "Object", List.of());
-        }
-        // referências conhecidas (String vs String, record vs record):
-        // preserva o tipo para o backend emitir if_acmp*
-        if (left instanceof Type.ClassType || left instanceof Type.ArrayType
-                || left instanceof Type.TypeVariable || left instanceof Type.NullableType) {
-            return left;
-        }
-        if (right instanceof Type.ClassType || right instanceof Type.ArrayType
-                || right instanceof Type.TypeVariable || right instanceof Type.NullableType) {
-            return right;
-        }
-        return Type.PrimitiveType.INT;
+        return CompilerComparisons.comparisonOperandType(this, bin, locals);
     }
 
     boolean isNullLiteral(ExpressionNode e) {
-        return e instanceof LiteralExpr le && le.kind() == ConcreteLiteralKind.NULL;
+        return CompilerComparisons.isNullLiteral(e);
     }
 
-    /**
-     * Emits both operands of a comparison-shortcut condition, widening each
-     * to the common numeric type (e.g. `longExpr < 2000` must widen the
-     * literal before the compare).
-     */
     int emitComparisonShortcut(BinaryExpr bin, List<KofOperation> ops, String owner,
-                                       int localIdx, List<IRLocalVariable> locals) {
-        Type common = comparisonOperandType(bin, locals);
-        if (!fpSupportedOnNative(common, bin.position())) {
-            return localIdx;
-        }
-        localIdx = ExpressionLowerer.emitExpression(this, bin.left(), ops, owner, localIdx, locals);
-        emitWideningIfNeeded(ops, ExpressionTyper.inferExprType(this, bin.left(), locals), common);
-        localIdx = ExpressionLowerer.emitExpression(this, bin.right(), ops, owner, localIdx, locals);
-        emitWideningIfNeeded(ops, ExpressionTyper.inferExprType(this, bin.right(), locals), common);
-        return localIdx;
+                               int localIdx, List<IRLocalVariable> locals) {
+        return CompilerComparisons.emitComparisonShortcut(this, bin, ops, owner, localIdx, locals);
     }
 
     KofComparison mapComparison(String op) {
-        return switch (op) {
-            case ">" -> KofComparison.GT;
-            case "<" -> KofComparison.LT;
-            case ">=" -> KofComparison.GE;
-            case "<=" -> KofComparison.LE;
-            case "==" -> KofComparison.EQ;
-            case "!=" -> KofComparison.NE;
-            default -> KofComparison.NE;
-        };
-    }
-
-    private KofComparison invertComparison(String op) {
-        return switch (op) {
-            case ">" -> KofComparison.LE;
-            case "<" -> KofComparison.GE;
-            case ">=" -> KofComparison.LT;
-            case "<=" -> KofComparison.GT;
-            case "==" -> KofComparison.NE;
-            case "!=" -> KofComparison.EQ;
-            default -> KofComparison.NE;
-        };
-    }
-
-    // Int → Long[] slot (I2L) ou Long → Int[] slot (L2I): sem isso o emit
-    // do array store usa o opcode do slot com um valor do outro tipo e o
-    // verifier rejeita (frame crash / VerifyError "JavaFX").
-    void emitPrimWidenNarrow(List<KofOperation> ops, ExpressionNode value,
-                                     Type elemType, List<IRLocalVariable> locals) {
-        Type vt = ExpressionTyper.inferExprType(this, value, locals);
-        if (elemType instanceof Type.PrimitiveType et && vt instanceof Type.PrimitiveType st) {
-            if ("long".equals(et.name()) && "int".equals(st.name())) {
-                ops.add(new KofUnary(KofUnaryOp.I2L, Type.PrimitiveType.INT));
-            } else if ("int".equals(et.name()) && "long".equals(st.name())) {
-                ops.add(new KofUnary(KofUnaryOp.L2I, Type.PrimitiveType.LONG));
-            }
-        }
+        return CompilerComparisons.mapComparison(op);
     }
 
     boolean hasReturnValue(ExpressionNode expr, List<IRLocalVariable> locals) {
-        return hasReturnValueInner(expr, locals);
-    }
-
-    private boolean hasReturnValueInner(ExpressionNode expr, List<IRLocalVariable> locals) {
-        if (expr instanceof AssignmentExpr) return false;
-        if (expr instanceof MethodCallExpr mc) {
-            if ("print".equals(mc.methodName()) || "println".equals(mc.methodName())) return false;
-            // cache.* primeiro: cache.delete é void e o nome colide com o
-            // File.delete do Io (que o check genérico abaixo não sabe tipar
-            // com receiver Unknown) — sem isto o Pop extra diverge o frame
-            // idem emit: `cache` pode ser VARIÁVEL LOCAL List (kof_list_add) —
-            // só é namespace builtin se não for local/param (frame COMP002:
-            // pop duplo em cache.add(...) com local chamado "cache")
-            if (mc.receiver() instanceof IdentifierExpr rid && !isLocalVarName(rid.name(), locals)
-                    && KofCache.isCacheNamespace(rid.name())) {
-                List<Type> cacheArgTypes = new ArrayList<>();
-                for (ExpressionNode arg : mc.arguments()) cacheArgTypes.add(ExpressionTyper.inferExprType(this, arg, locals));
-                KofCache.CacheCall cc = KofCache.staticCall(mc.methodName(), cacheArgTypes);
-                if (cc == null) return true;
-                return !(cc.returnType() instanceof Type.PrimitiveType pt && "void".equals(pt.name()));
-            }
-            // gpu.*: todas as funções retornam valor (bool/str/int)
-            if (mc.receiver() instanceof IdentifierExpr rid && KofGpu.isGpuNamespace(rid.name())) {
-                return true;
-            }
-            if (mc.receiver() != null && KofIo.instanceMethod(Type.UnknownType.UNKNOWN,
-                    mc.methodName(), mc.arguments().size()) != null) {
-                return true;
-            }
-            // List methods that leave a value on the stack (get, remove,
-            // size, contains, isEmpty) must be popped at statement level;
-            // add/set/clear are already popped by the JVM backend.
-            if (mc.receiver() != null && BuiltinTypes.isList(ExpressionTyper.inferExprType(this, mc.receiver(), locals))) {
-                return switch (mc.methodName()) {
-                    case "get", "remove", "size", "length", "count",
-                            "contains", "isEmpty" -> true;
-                    default -> false;
-                };
-            }
-            if (mc.receiver() != null && BuiltinTypes.isMap(ExpressionTyper.inferExprType(this, mc.receiver(), locals))) {
-                return switch (mc.methodName()) {
-                    case "get", "remove", "put", "size", "length", "count",
-                            "contains", "containsKey", "isEmpty", "keys", "values" -> true;
-                    default -> false;
-                };
-            }
-            if (mc.receiver() != null && BuiltinTypes.isSet(ExpressionTyper.inferExprType(this, mc.receiver(), locals))) {
-                return switch (mc.methodName()) {
-                    case "contains", "isEmpty", "size", "length", "count",
-                            "add", "remove" -> true;
-                    default -> false;
-                };
-            }
-            if (mc.receiver() instanceof IdentifierExpr rid && KofOrm.isOrmNamespace(rid.name())) {
-                // todos os orm.* retornam valor (Bool/Object/List/Long) — antes
-                // dos checks genéricos (o "delete" também é rota do web)
-                return true;
-            }
-            if (mc.receiver() != null) {
-                List<Type> webArgTypes = new ArrayList<>();
-                for (ExpressionNode arg : mc.arguments()) webArgTypes.add(ExpressionTyper.inferExprType(this, arg, List.of()));
-                KofWeb.WebCall webCall = KofWeb.instanceMethod(mc.methodName(), webArgTypes);
-                if (webCall != null) {
-                    return !(webCall.returnType() instanceof Type.PrimitiveType pt && "void".equals(pt.name()));
-                }
-            }
-            if (mc.receiver() instanceof IdentifierExpr rid && KofIo.isConstructor(rid.name())
-                    && KofIo.staticMethod(rid.name(), mc.methodName(), mc.arguments().size()) != null) {
-                return true;
-            }
-            if (semanticAnalyzer != null) {
-                SymbolTable.MethodSymbol resolved = semanticAnalyzer.getResolvedMethod(mc);
-                if (resolved != null) {
-                    // add/set/clear de coleção builtin: o JVM backend já
-                    // descarta o valor no emit (POP) — um KofPop extra aqui
-                    // vira stack underflow no merge de frames (COMP002)
-                    String oc = resolved.ownerClass();
-                    if (("List".equals(oc) || "ArrayList".equals(oc) || "java/util/List".equals(oc)
-                            || "Map".equals(oc) || "HashMap".equals(oc)
-                            || "Set".equals(oc) || "HashSet".equals(oc))
-                            && ("add".equals(mc.methodName()) || "push".equals(mc.methodName())
-                                || "append".equals(mc.methodName()) || "set".equals(mc.methodName())
-                                || "clear".equals(mc.methodName()) || "put".equals(mc.methodName()))) {
-                        return false;
-                    }
-                    Type resolvedType = resolved.returnType();
-                    if (Type.isVoid(resolvedType)) return false;
-                    return !(resolvedType instanceof Type.UnknownType);
-                }
-            }
-            Type t = ExpressionTyper.inferExprType(this, mc, locals);
-            if (t instanceof Type.UnknownType || Type.isVoid(t)) return false;
-            // add/push/append/set/clear/put de coleção: o emit do backend
-            // já descarta o valor (POP no kof_list_add/kof_map_put) — sem
-            // KofPop aqui (underflow no merge de frames, COMP002).
-            if (mc.receiver() instanceof IdentifierExpr) {
-                String mn = mc.methodName();
-                if ("add".equals(mn) || "push".equals(mn) || "append".equals(mn)
-                        || "set".equals(mn) || "clear".equals(mn) || "put".equals(mn)) {
-                    return false;
-                }
-            }
-            return true;
-        }
-        return true;
+        return CompilerComparisons.hasReturnValue(this, expr, locals);
     }
 
     private IRClass lowerClass(ClassDeclarationNode cls, String packageName, int typeId) {
