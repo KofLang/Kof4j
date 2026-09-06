@@ -520,7 +520,7 @@ class SemanticAnalyzer {
                 targetType = sym.type();
                 if (diagnostics != null && !Type.isUnknown(targetType)
                         && !Type.isUnknown(valueType)
-                        && !isAssignable(valueType, targetType)) {
+                        && !TypeChecker.isAssignable(valueType, targetType)) {
                     diagnostics.error("", 0, 0, 0,
                             "Type mismatch: cannot assign " + valueType + " to " + targetType,
                             "SEM012");
@@ -582,7 +582,7 @@ class SemanticAnalyzer {
                         && !varType.equals(Type.UnknownType.UNKNOWN)) {
                     Type initType = inferType(vds.initializer(), scope);
                     if (!initType.equals(Type.UnknownType.UNKNOWN)
-                            && !isAssignable(initType, varType)
+                            && !TypeChecker.isAssignable(initType, varType)
                             && !(initType instanceof Type.FunctionType)
                             && !(varType instanceof Type.FunctionType)) {
                         diagnostics.error("", 0, 0, 0,
@@ -598,7 +598,7 @@ class SemanticAnalyzer {
                     Type valueType = inferType(ret.value(), scope);
                     expressionTypes.put(ret.value(), valueType);
                     if (diagnostics != null && !Type.isUnknown(returnType) && !Type.isVoid(returnType)
-                            && !Type.isUnknown(valueType) && !isAssignable(valueType, returnType)) {
+                            && !Type.isUnknown(valueType) && !TypeChecker.isAssignable(valueType, returnType)) {
                         diagnostics.error("", 0, 0, 0,
                                 "Return type mismatch: expected " + returnType + " but got " + valueType, "SEM010");
                     }
@@ -770,12 +770,6 @@ class SemanticAnalyzer {
         }
     }
 
-    private static boolean isConcurrentHandle(Type t) {
-        return t instanceof Type.ClassType ct
-                && "kof.concurrent".equals(ct.packageName())
-                && "Handle".equals(ct.name());
-    }
-
     Type inferType(ExpressionNode expr, SymbolTable scope) {
         Type cached = expressionTypes.get(expr);
         if (cached != null && !Type.isUnknown(cached)) return cached;
@@ -802,7 +796,7 @@ class SemanticAnalyzer {
                 yield new Type.ClassType("kof", "List",
                         List.of(elem != null ? elem : Type.UnknownType.UNKNOWN));
             }
-            case LiteralExpr lit -> inferLiteralType(lit);
+            case LiteralExpr lit -> TypeChecker.inferLiteralType(lit);
             case IdentifierExpr ie -> {
                 SymbolTable.Symbol sym = scope.resolve(ie.name());
                 if (sym != null) yield sym.type();
@@ -898,7 +892,7 @@ class SemanticAnalyzer {
                     if (sym != null) {
                         targetType = sym.type();
                         if (diagnostics != null && !Type.isUnknown(targetType) && !Type.isUnknown(valueType)
-                                && !isAssignable(valueType, targetType)) {
+                                && !TypeChecker.isAssignable(valueType, targetType)) {
                             diagnostics.error("", 0, 0, 0,
                                     "Type mismatch: cannot assign " + valueType + " to " + targetType, "SEM012");
                         }
@@ -922,7 +916,7 @@ class SemanticAnalyzer {
                 for (int ci = chain.size() - 1; ci >= 0; ci--) {
                     BinaryExpr be = chain.get(ci);
                     Type rightType = inferType(be.right(), scope);
-                    accType = inferBinaryResultType(be.operator(), accType, rightType);
+                    accType = TypeChecker.inferBinaryResultType(diagnostics, be.operator(), accType, rightType);
                 }
                 yield accType;
             }
@@ -1054,7 +1048,7 @@ class SemanticAnalyzer {
                         // cancel(String taskId) é o do scheduler (VOID). Distingue pelo
                         // tipo do argumento para o + string converter o Bool certo.
                         Type a0 = inferType(mc.arguments().get(0), scope);
-                        if (isConcurrentHandle(a0)) {
+                        if (TypeChecker.isConcurrentHandle(a0)) {
                             yield Type.PrimitiveType.BOOL;
                         }
                         yield Type.PrimitiveType.VOID;
@@ -1189,7 +1183,7 @@ class SemanticAnalyzer {
                                     kms.parameterTypes(), kms.accessFlags(),
                                     SymbolTable.DispatchKind.STATIC));
                             for (ExpressionNode arg : mc.arguments()) inferType(arg, scope);
-                            checkArgTypes(mc.methodName(), inferArgTypes(mc, scope), kms.parameterTypes());
+                            TypeChecker.checkArgTypes(diagnostics, mc.methodName(), inferArgTypes(mc, scope), kms.parameterTypes());
                             yield kms.returnType();
                         }
                     }
@@ -1233,7 +1227,7 @@ class SemanticAnalyzer {
                         for (ExpressionNode arg : mc.arguments()) argTypes.add(inferType(arg, scope));
                         SymbolTable.Symbol m = resolveInHierarchy(superName, mc.methodName());
                         if (m instanceof SymbolTable.MethodSymbol ms) {
-                            checkArgTypes(mc.methodName(), argTypes, ms.parameterTypes());
+                            TypeChecker.checkArgTypes(diagnostics, mc.methodName(), argTypes, ms.parameterTypes());
                             yield ms.returnType();
                         }
                         yield Type.UnknownType.UNKNOWN;
@@ -1462,7 +1456,7 @@ class SemanticAnalyzer {
                     if (recvType instanceof Type.FunctionType ft) {
                         List<Type> argTypes = new ArrayList<>();
                         for (ExpressionNode arg : mc.arguments()) argTypes.add(inferType(arg, scope));
-                        checkArgTypes("function call", argTypes, ft.parameterTypes());
+                        TypeChecker.checkArgTypes(diagnostics, "function call", argTypes, ft.parameterTypes());
                         yield ft.returnType();
                     }
                     if (recvType instanceof Type.ClassType ct) {
@@ -1471,7 +1465,7 @@ class SemanticAnalyzer {
                             resolvedMethods.put(mc, ms);
                             List<Type> argTypes = new ArrayList<>();
                             for (ExpressionNode arg : mc.arguments()) argTypes.add(inferType(arg, scope));
-                            checkArgTypes(mc.methodName(), argTypes, ms.parameterTypes());
+                            TypeChecker.checkArgTypes(diagnostics, mc.methodName(), argTypes, ms.parameterTypes());
                             yield ms.returnType();
                         }
                         // receiver de classe EXTERNA (android.* etc.): assinatura
@@ -1518,7 +1512,7 @@ class SemanticAnalyzer {
                     if (localSym != null && localSym.type() instanceof Type.FunctionType lft) {
                         List<Type> argTypes = new ArrayList<>();
                         for (ExpressionNode arg : mc.arguments()) argTypes.add(inferType(arg, scope));
-                        checkArgTypes(mc.methodName(), argTypes, lft.parameterTypes());
+                        TypeChecker.checkArgTypes(diagnostics, mc.methodName(), argTypes, lft.parameterTypes());
                         yield lft.returnType();
                     }
                     if (localSym instanceof SymbolTable.LocalVariableSymbol
@@ -1543,7 +1537,7 @@ class SemanticAnalyzer {
                         if (m instanceof SymbolTable.MethodSymbol ms) {
                             List<Type> argTypes = new ArrayList<>();
                             for (ExpressionNode arg : mc.arguments()) argTypes.add(inferType(arg, scope));
-                            checkArgTypes(mc.methodName(), argTypes, ms.parameterTypes());
+                            TypeChecker.checkArgTypes(diagnostics, mc.methodName(), argTypes, ms.parameterTypes());
                             resolvedMethods.put(mc, ms);
                             yield ms.returnType();
                         }
@@ -1658,7 +1652,7 @@ class SemanticAnalyzer {
                                     || mc.arguments().size() >= fn.parameters().size())) {
                                 List<Type> paramTypes = new ArrayList<>();
                                 for (FormalParameterNode p : fn.parameters()) paramTypes.add(resolveType(p.type(), scope));
-                                checkArgTypes(mc.methodName(), argTypes, paramTypes);
+                                TypeChecker.checkArgTypes(diagnostics, mc.methodName(), argTypes, paramTypes);
                                 // registra o tipo de retorno da função top-level
                                 // para o var local inferir (evita Unknown que
                                 // quebra a resolução de métodos do receiver)
@@ -1950,190 +1944,10 @@ class SemanticAnalyzer {
 
 
 
-    private Type inferLiteralType(LiteralExpr lit) {
-        return switch (lit.kind()) {
-            case ConcreteLiteralKind.INT -> Type.PrimitiveType.INT;
-            case ConcreteLiteralKind.LONG -> Type.PrimitiveType.LONG;
-            case ConcreteLiteralKind.FLOAT -> Type.PrimitiveType.FLOAT;
-            case ConcreteLiteralKind.DOUBLE -> Type.PrimitiveType.DOUBLE;
-            case ConcreteLiteralKind.STRING -> BuiltinTypes.STRING;
-            case ConcreteLiteralKind.BOOLEAN -> Type.PrimitiveType.BOOL;
-            case ConcreteLiteralKind.CHAR -> Type.PrimitiveType.CHAR;
-            case ConcreteLiteralKind.NULL -> Type.UnknownType.UNKNOWN;
-        };
-    }
-
-    private Type inferBinaryResultType(String operator, Type left, Type right) {
-        if ("==".equals(operator) || "!=".equals(operator) || "<".equals(operator) ||
-                ">".equals(operator) || "<=".equals(operator) || ">=".equals(operator)) {
-            return Type.PrimitiveType.BOOL;
-        }
-
-        if ("&&".equals(operator) || "||".equals(operator)) {
-            return Type.PrimitiveType.BOOL;
-        }
-        if ("instanceof".equals(operator)) {
-            return Type.PrimitiveType.BOOL;
-        }
-        if ("as".equals(operator)) {
-            return right;
-        }
-        if ("!".equals(operator)) {
-            return Type.PrimitiveType.BOOL;
-        }
-        if (Type.isString(left) || Type.isString(right)) {
-            if ("+".equals(operator)) {
-                return BuiltinTypes.STRING;
-            }
-            if (diagnostics != null) {
-                diagnostics.error("", 0, 0, 0,
-                        "Cannot apply '" + operator + "' to String and " + right, "SEM001");
-            }
-            return Type.UnknownType.UNKNOWN;
-        }
-        if (left instanceof Type.PrimitiveType lp && right instanceof Type.PrimitiveType rp) {
-            if ("int".equals(lp.name())) {
-                if ("long".equals(rp.name()) || "Long".equals(rp.name())) return Type.PrimitiveType.LONG;
-                if ("float".equals(rp.name()) || "Float".equals(rp.name())) return Type.PrimitiveType.FLOAT;
-                if ("double".equals(rp.name()) || "Double".equals(rp.name())) return Type.PrimitiveType.DOUBLE;
-                return Type.PrimitiveType.INT;
-            }
-            if ("long".equals(lp.name()) || "Long".equals(lp.name())) {
-                if ("float".equals(rp.name()) || "Float".equals(rp.name())) return Type.PrimitiveType.FLOAT;
-                if ("double".equals(rp.name()) || "Double".equals(rp.name())) return Type.PrimitiveType.DOUBLE;
-                return Type.PrimitiveType.LONG;
-            }
-            if ("float".equals(lp.name()) || "Float".equals(lp.name())) {
-                if ("double".equals(rp.name()) || "Double".equals(rp.name())) return Type.PrimitiveType.DOUBLE;
-                return Type.PrimitiveType.FLOAT;
-            }
-            if ("double".equals(lp.name()) || "Double".equals(lp.name())) {
-                return Type.PrimitiveType.DOUBLE;
-            }
-                if ("bool".equals(lp.name()) || "bool".equals(rp.name())) {
-                    if ("+".equals(operator) || "-".equals(operator) || "*".equals(operator) ||
-                            "/".equals(operator) || "%".equals(operator)) {
-                        if (diagnostics != null) {
-                            diagnostics.error("", 0, 0, 0,
-                                    "Cannot apply '" + operator + "' to boolean types. Use == or != for comparison.", "SEM002");
-                        }
-                        return Type.UnknownType.UNKNOWN;
-                    }
-                }
-            return left;
-        }
-        if (left instanceof Type.ArrayType || right instanceof Type.ArrayType) {
-            return Type.UnknownType.UNKNOWN;
-        }
-        if (left instanceof Type.UnknownType || right instanceof Type.UnknownType) {
-            return Type.UnknownType.UNKNOWN;
-        }
-        // Aritmética sobre tipo referência (ex.: param de lambda sem anotação
-        // → Object) não tem opcode: o emit cairia em IADD sobre referência e a
-        // JVM rejeitaria o bytecode (VerifyError). Diagnóstico explícito, nunca
-        // fallback silencioso (R6). String + já foi tratado acima.
-        if (isArithmeticOp(operator) && (isReferenceType(left) || isReferenceType(right))) {
-            if (diagnostics != null) {
-                diagnostics.error("", 0, 0, 0,
-                        "Cannot apply '" + operator + "' to non-numeric type "
-                                + (isReferenceType(left) ? left : right)
-                                + " (declare o tipo do parâmetro, ex.: (x: Int) -> ...)",
-                        "SEM001");
-            }
-            return Type.UnknownType.UNKNOWN;
-        }
-        return left;
-    }
-
-    private static boolean isArithmeticOp(String op) {
-        return "+".equals(op) || "-".equals(op) || "*".equals(op)
-                || "/".equals(op) || "%".equals(op);
-    }
-
-    private static boolean isReferenceType(Type t) {
-        return t instanceof Type.ClassType || t instanceof Type.FunctionType;
-    }
-
     private List<Type> inferArgTypes(MethodCallExpr mc, SymbolTable scope) {
         List<Type> argTypes = new ArrayList<>();
         for (ExpressionNode arg : mc.arguments()) argTypes.add(inferType(arg, scope));
         return argTypes;
-    }
-
-    private void checkArgTypes(String methodName, List<Type> argTypes, List<Type> paramTypes) {
-        if (diagnostics == null || paramTypes.isEmpty() && !argTypes.isEmpty()) return;
-        if (argTypes.size() != paramTypes.size()) {
-            diagnostics.error("", 0, 0, 0,
-                    "Wrong number of arguments for '" + methodName + "': expected "
-                            + paramTypes.size() + " but got " + argTypes.size(), "SEM013");
-            return;
-        }
-        for (int i = 0; i < argTypes.size(); i++) {
-            if (!Type.isUnknown(argTypes.get(i)) && !Type.isUnknown(paramTypes.get(i))
-                    && !isAssignable(argTypes.get(i), paramTypes.get(i))) {
-                diagnostics.error("", 0, 0, 0,
-                        "Argument " + (i + 1) + " of '" + methodName + "': expected "
-                                + paramTypes.get(i) + " but got " + argTypes.get(i), "SEM014");
-                return;
-            }
-        }
-    }
-
-    private boolean isAssignable(Type from, Type to) {
-        if (from == null || to == null) return true;
-        if (Type.isUnknown(from) || Type.isUnknown(to)) return true;
-        if (from instanceof Type.TypeVariable || to instanceof Type.TypeVariable) return true;
-        if (from instanceof Type.NullableType fn) {
-            if (to instanceof Type.NullableType tn) return isAssignable(fn.inner(), tn.inner());
-            return false;
-        }
-        if (to instanceof Type.NullableType tn) {
-            if (from instanceof Type.NullableType) return isAssignable(((Type.NullableType)from).inner(), tn.inner());
-            return isAssignable(from, tn.inner());
-        }
-        if (from.equals(to)) return true;
-        if (from instanceof Type.PrimitiveType fp && to instanceof Type.PrimitiveType tp) {
-            // double → float: o lowering emite D2F; sem isso literais
-            // decimais (1000.0) não atribuem a campos Float
-            if ("double".equals(fp.name()) && "float".equals(tp.name())) return true;
-            int fw = primitiveWidth(fp);
-            int tw = primitiveWidth(tp);
-            return fw <= tw;
-        }
-        if (from instanceof Type.FunctionType && to instanceof Type.ClassType) {
-            // lambda → interface funcional externa (SAM conversion): a
-            // compatibilidade real (aridade/tipos) é validada na emissão
-            return true;
-        }
-        if (from instanceof Type.PrimitiveType && to instanceof Type.ClassType ct
-                && "Object".equals(ct.name()) && "java.lang".equals(ct.packageName())) {
-            // bug 15: primitivo → Object (auto-boxing no emit) — `Object n = 42`
-            return true;
-        }
-        if (from instanceof Type.PrimitiveType fp
-                && "double".equals(fp.name())
-                && to instanceof Type.PrimitiveType tp
-                && "float".equals(tp.name())) {
-            // double → float: o lowering emite D2F; sem isso literais
-            // decimais (1000.0) não atribuem a campos Float
-            return true;
-        }
-        if (to instanceof Type.ClassType) {
-            return from instanceof Type.ClassType;
-        }
-        return false;
-    }
-
-    private int primitiveWidth(Type.PrimitiveType pt) {
-        return switch (pt.name()) {
-            case "bool", "Bool" -> 0;
-            case "char", "Char" -> 1;
-            case "int", "Int", "byte", "short" -> 2;
-            case "long", "Long" -> 3;
-            case "float", "Float" -> 4;
-            case "double", "Double" -> 5;
-            default -> 2;
-        };
     }
 
     private void resolveMethodCalls(CompilationUnitNode unit) {
