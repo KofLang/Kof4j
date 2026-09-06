@@ -24,30 +24,15 @@ public class CompilerDriver extends CompilerDriverState {
         return CompilerEmission2.emitIncrement(this, ue, operandType, ops, owner, localIdx, locals);
     }
 
-    public CompilationResult compile(Path sourceFile, Path outputDir) {
-        return CompilerPipeline.compile(this, sourceFile, outputDir);
-    }
 
-    public java.util.List<TestInfo> discoveredTests() {
-        return CompilerPipeline.discoveredTests(this);
-    }
 
-    public CompilationResult compileForTests(Path sourceFile, Path outputDir, Target target) {
-        return CompilerPipeline.compileForTests(this, sourceFile, outputDir, target);
-    }
 
     public CompilationResult compileForTestsSources(java.util.List<Path> sources, Path outputDir,
                                                     Target target, Path moduleRoot) {
         return CompilerPipeline.compileForTestsSources(this, sources, outputDir, target, moduleRoot);
     }
 
-    public CompilationResult compile(Path sourceFile, Path outputDir, Target target) {
-        return CompilerPipeline.compile(this, sourceFile, outputDir, target);
-    }
 
-    public CompilationResult compileSources(java.util.List<Path> sources, Path outputDir, Target target) {
-        return CompilerPipeline.compileSources(this, sources, outputDir, target);
-    }
 
     public CompilationResult compileSources(java.util.List<Path> sources, Path outputDir, Target target,
                                             Path moduleRoot) {
@@ -144,85 +129,25 @@ Target target = Target.JVM;
      */
 
 
-    Type listOfElementType(MethodCallExpr mc, List<IRLocalVariable> locals) {
-        return CompilerTypeSupport.listOfElementType(this, mc, locals);
-    }
 
-    boolean ctorCompatible(Type formal, Type arg) {
-        return CompilerTypeSupport.ctorCompatible(this, formal, arg);
-    }
 
-    boolean erasesToReference(Type t) {
-        return CompilerTypeSupport.erasesToReference(t);
-    }
 
-    boolean jsonSupported(Type type, boolean isDecode) {
-        return CompilerTypeSupport.jsonSupported(this, type, isDecode);
-    }
 
-    boolean fpSupportedOnNative(Type type, SourcePosition pos) {
-        return CompilerTypeSupport.fpSupportedOnNative(this, type, pos);
-    }
 
-    Type listElementType(Type listType) {
-        return CompilerTypeSupport.listElementType(this, listType);
-    }
 
-    String toInternalName(String packageName, String simpleName) {
-        return CompilerTypeSupport.toInternalName(packageName, simpleName);
-    }
 
-    int computeAccess(List<String> modifiers) {
-        return CompilerTypeSupport.computeAccess(modifiers);
-    }
 
-    int parseIntLiteral(String value) {
-        return CompilerTypeSupport.parseIntLiteral(value);
-    }
 
-    String stripSuffix(String value) {
-        return CompilerTypeSupport.stripSuffix(value);
-    }
 
-    boolean needsErasureBoxing() {
-        return CompilerEmissionHelpers.needsErasureBoxing(this);
-    }
 
-    boolean isJvmTarget() {
-        return CompilerEmissionHelpers.isJvmTarget(this);
-    }
 
-    void emitWideningIfNeeded(List<KofOperation> ops, Type from, Type to) {
-        CompilerEmissionHelpers.emitWideningIfNeeded(this, ops, from, to);
-    }
 
-    void emitPrimNarrow(List<KofOperation> ops, Type from, Type to) {
-        CompilerEmissionHelpers.emitPrimNarrow(this, ops, from, to);
-    }
 
-    static boolean isZeroLiteral(LiteralExpr lit) {
-        return CompilerEmissionHelpers.isZeroLiteral(lit);
-    }
 
-    void emitErasureBox(List<KofOperation> ops, Type primitive) {
-        CompilerEmissionHelpers.emitErasureBox(this, ops, primitive);
-    }
 
-    void emitErasureUnbox(List<KofOperation> ops, Type primitive) {
-        CompilerEmissionHelpers.emitErasureUnbox(this, ops, primitive);
-    }
 
-    public java.util.List<ConfigKeyInfo> discoveredConfigKeys() {
-        return CompilerConfigSupport.discoveredConfigKeys(this);
-    }
 
-    void recordConfigKey(MethodCallExpr mc) {
-        CompilerConfigSupport.recordConfigKey(this, mc);
-    }
 
-    public String generateConfigTemplate() {
-        return CompilerConfigSupport.generateConfigTemplate(this);
-    }
 
     void lowerAndEmit(CompilationUnitNode unit, DiagnosticCollector diagnostics,
                               Path outputDir, Target target) throws IOException {
@@ -288,10 +213,6 @@ Target target = Target.JVM;
      * rejeita INVOKESPECIAL direto quando a classe corrente não é subclasse.
      */
 
-    /** Aplica as pontes pendentes às classes do módulo (após lowering). */
-    IRModule applySuperBridges(IRModule module) {
-        return CompilerOrmSupport.applySuperBridges(this, module);
-    }
 
     void validateOrmField(MethodCallExpr mc, String entityName,
                           List<EntityFieldNode> fields) {
@@ -303,23 +224,13 @@ Target target = Target.JVM;
         return CompilerOrmSupport.lowerQueryDsl(this, q, ops, owner, localIdx, locals);
     }
 
-    String declPackage(AstNode decl, String fallback) {
-        return CompilerOrmSupport.declPackage(this, decl, fallback);
-    }
 
-    /** Detecta uso de super.metodo() no corpo da lambda. */
-    String lambdaClass(LambdaExpr le, Type.FunctionType ft, List<IRLocalVariable> captures) {
-        return CompilerLambdaClass.lambdaClass(this, le, ft, captures);
-    }
 
     String lambdaClass(LambdaExpr le, Type.FunctionType ft, List<IRLocalVariable> captures,
                        boolean isTask) {
         return CompilerLambdaClass.lambdaClass(this, le, ft, captures, isTask);
     }
 
-    Type.ClassType lambdaInterfaceType(Type.FunctionType ft) {
-        return CompilerLambdaClass.lambdaInterfaceType(this, ft);
-    }
 
     /** Uma chave de config descoberta em compile-time (kof config gen). */
     public record ConfigKeyInfo(String method, String key, String defaultLiteral,
@@ -372,14 +283,6 @@ Target target = Target.JVM;
      */
 
 
-    /**
-     * Captured outer locals referenced by the lambda body, in first-reference
-     * order. Identifiers shadowed by locals declared inside the lambda are
-     * not captured.
-     */
-    List<IRLocalVariable> collectCaptures(LambdaExpr le, List<IRLocalVariable> outerLocals) {
-        return CompilerCaptures.collectCaptures(this, le, outerLocals);
-    }
 
 
     /** Constantes por enum declarado na unidade atual (nome → [A, B, ...]). */
@@ -865,30 +768,15 @@ Target target = Target.JVM;
 
 
 
-    boolean isComparisonShortcut(BinaryExpr bin, List<IRLocalVariable> locals) {
-        return CompilerComparisons.isComparisonShortcut(this, bin, locals);
-    }
 
-    Type comparisonOperandType(BinaryExpr bin, List<IRLocalVariable> locals) {
-        return CompilerComparisons.comparisonOperandType(this, bin, locals);
-    }
 
-    boolean isNullLiteral(ExpressionNode e) {
-        return CompilerComparisons.isNullLiteral(e);
-    }
 
     int emitComparisonShortcut(BinaryExpr bin, List<KofOperation> ops, String owner,
                                int localIdx, List<IRLocalVariable> locals) {
         return CompilerComparisons.emitComparisonShortcut(this, bin, ops, owner, localIdx, locals);
     }
 
-    KofComparison mapComparison(String op) {
-        return CompilerComparisons.mapComparison(op);
-    }
 
-    boolean hasReturnValue(ExpressionNode expr, List<IRLocalVariable> locals) {
-        return CompilerComparisons.hasReturnValue(this, expr, locals);
-    }
 
     /**
      * toString() nativo de record: "Nome[campo=valor, ...]" — sintetizado no
