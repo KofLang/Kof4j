@@ -415,31 +415,7 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
     }
     return localIdx;
 } else if (mc.receiver() == null && KofScheduler.isSchedulerMethod(mc.methodName())) {
-    List<Type> argTypes = new ArrayList<>();
-    for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
-    KofScheduler.SchedulerCall schedCall = KofScheduler.staticCall(mc.methodName(), argTypes);
-    if (schedCall != null) {
-        if (!KofScheduler.supportedOn(driver.target)) {
-            if (driver.currentDiagnostics != null) {
-                driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
-                        mc.position() != null ? mc.position().line() : 0,
-                        mc.position() != null ? mc.position().column() : 0,
-                        0,
-                        mc.methodName()
-                                + ": not available on the " + driver.target
-                                + " driver.target yet (SCHED001)",
-                        "SCHED001");
-            }
-            return localIdx;
-        }
-        for (ExpressionNode arg : mc.arguments()) {
-            localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
-        }
-        ops.add(new KofCall(KofScheduler.SCHEDULER, schedCall.function(), schedCall.parameterTypes(),
-                schedCall.returnType(), KofCallKind.FUNCTION));
-        return localIdx;
-    }
-    // fall through to normal handling if not matched
+    return ExpressionSchedulerCallLowerer.lower(driver, mc, ops, owner, localIdx, locals);
 } else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
             && KofMq.isMqNamespace(rid.name())) {
     List<Type> argTypes = new ArrayList<>();
