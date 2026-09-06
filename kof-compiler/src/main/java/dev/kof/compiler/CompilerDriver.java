@@ -154,6 +154,46 @@ Target target = Target.JVM;
      */
 
 
+    Type listOfElementType(MethodCallExpr mc, List<IRLocalVariable> locals) {
+        return CompilerTypeSupport.listOfElementType(this, mc, locals);
+    }
+
+    boolean ctorCompatible(Type formal, Type arg) {
+        return CompilerTypeSupport.ctorCompatible(this, formal, arg);
+    }
+
+    boolean erasesToReference(Type t) {
+        return CompilerTypeSupport.erasesToReference(t);
+    }
+
+    boolean jsonSupported(Type type, boolean isDecode) {
+        return CompilerTypeSupport.jsonSupported(this, type, isDecode);
+    }
+
+    boolean fpSupportedOnNative(Type type, SourcePosition pos) {
+        return CompilerTypeSupport.fpSupportedOnNative(this, type, pos);
+    }
+
+    Type listElementType(Type listType) {
+        return CompilerTypeSupport.listElementType(this, listType);
+    }
+
+    String toInternalName(String packageName, String simpleName) {
+        return CompilerTypeSupport.toInternalName(packageName, simpleName);
+    }
+
+    int computeAccess(List<String> modifiers) {
+        return CompilerTypeSupport.computeAccess(modifiers);
+    }
+
+    int parseIntLiteral(String value) {
+        return CompilerTypeSupport.parseIntLiteral(value);
+    }
+
+    String stripSuffix(String value) {
+        return CompilerTypeSupport.stripSuffix(value);
+    }
+
     void lowerAndEmit(CompilationUnitNode unit, DiagnosticCollector diagnostics,
                               Path outputDir, Target target) throws IOException {
         if (System.getProperty("kof.trace") != null) {
@@ -510,15 +550,6 @@ Target target = Target.JVM;
     /** Nome da constante de enum representada por um rótulo de case. */
 
 
-    Type listOfElementType(MethodCallExpr mc, List<IRLocalVariable> locals) {
-        if (!mc.arguments().isEmpty()) {
-            return ExpressionTyper.inferExprType(this, mc.arguments().get(0), locals);
-        }
-        if (!mc.typeArguments().isEmpty()) {
-            return CompilerTypes.toType(mc.typeArguments().get(0), currentUnit);
-        }
-        return Type.UnknownType.UNKNOWN;
-    }
 
 
     int emitStatement(StatementNode stmt, List<KofOperation> ops, String owner, int localIdx,
@@ -548,33 +579,6 @@ Target target = Target.JVM;
     /** Compatibilidade largura para fallback de resolução de construtor:
      *  primitivos por largura, tipos de referência por hierarquia, Unknown aceita tudo. */
 
-    boolean ctorCompatible(Type formal, Type arg) {
-        if (formal == null || arg == null) return true;
-        if (Type.isUnknown(formal) || Type.isUnknown(arg)) return true;
-        if (formal.equals(arg)) return true;
-        if (formal instanceof Type.PrimitiveType fp && arg instanceof Type.PrimitiveType ap) {
-            return TypeMetrics.primWidth(ap) <= TypeMetrics.primWidth(fp);
-        }
-        if (formal instanceof Type.ClassType fc && arg instanceof Type.ClassType ac
-                && semanticAnalyzer != null) {
-            java.util.Set<String> visited = new java.util.HashSet<>();
-            java.util.Queue<String> queue = new java.util.LinkedList<>();
-            queue.add(ac.name());
-            visited.add(ac.name());
-            while (!queue.isEmpty()) {
-                String current = queue.poll();
-                if (current.equals(fc.name())) return true;
-                SymbolTable.ClassSymbol cur = semanticAnalyzer.getClass(current);
-                if (cur == null) continue;
-                if (cur.superClass() != null && !cur.superClass().equals("java/lang/Object")
-                        && visited.add(cur.superClass())) queue.add(cur.superClass());
-                for (String i : cur.interfaces()) {
-                    if (visited.add(i)) queue.add(i);
-                }
-            }
-        }
-        return true;
-    }
 
     void emitWideningIfNeeded(List<KofOperation> ops, Type from, Type to) {
         if (from.equals(to)) return;
@@ -659,10 +663,6 @@ Target target = Target.JVM;
         CompilerComparisons.emitPrimWidenNarrow(this, ops, value, elemType, locals);
     }
 
-    boolean erasesToReference(Type t) {
-        return t instanceof Type.TypeVariable || t instanceof Type.ClassType
-                || t instanceof Type.ArrayType || t instanceof Type.UnknownType;
-    }
 
     int emitArgumentsWithFormalTypes(List<ExpressionNode> args, List<Type> formalTypes,
                                              List<KofOperation> ops, String owner, int localIdx,
@@ -737,7 +737,7 @@ Target target = Target.JVM;
                     "SAM001");
         }
 
-        if (!samAdapterNames.containsValue(className) || !syntheticExists(className)) {
+        if (!samAdapterNames.containsValue(className) || !CompilerTypeSupport.syntheticExists(this, className)) {
             buildSyntheticAdapter(className, iface.internalName(), sam.methodName(),
                     samParamTypes, samReturn, le, captures);
         }
@@ -755,12 +755,6 @@ Target target = Target.JVM;
         return localIdx;
     }
 
-    boolean syntheticExists(String name) {
-        for (IRClass c : syntheticClasses) {
-            if (c.name().equals(name)) return true;
-        }
-        return false;
-    }
 
     /**
      * Corpo do adapter: mesmo esqueleto de lambdaClass, mas implementa a
@@ -1151,39 +1145,9 @@ Target target = Target.JVM;
      * ponto flutuante viram diagnóstico em compile-time — nunca resultado
      * silenciosamente errado. JSON já tem o próprio código (JSN001).
      */
-    boolean fpSupportedOnNative(Type type, SourcePosition pos) {
-        // Native float/double now supported via XMM (was FLT001) — KofJS always was
-        return true;
-    }
 
 
 
-    boolean jsonSupported(Type type, boolean isDecode) {
-        Type check = BuiltinTypes.isList(type) ? listElementType(type) : type;
-        if (check instanceof Type.PrimitiveType pt && ("float".equals(pt.name()) || "double".equals(pt.name()))) {
-            // JSN001 fechado: encode/decode float/double no Native
-            // (kof_json_encode_double + kof_string_to_double, FP XMM).
-            return true;
-        }
-        if (isDecode && type instanceof Type.ArrayType at) {
-            // JSN003 fechado: int/long/bool/string[] tem decoders nativos.
-            // JSN001: float/double[] também decodifica no Native.
-            return true;
-        }
-        if (check instanceof Type.ClassType && target.isNative() && !BuiltinTypes.isList(type)
-                && !BuiltinTypes.isString(type)) {
-            // JSN002 fechado para classes cujos campos sao todos suportados
-            // pelo walker nativo (primitivos, string e objetos aninhados).
-            String cn = check instanceof Type.ClassType ct
-                    ? (ct.packageName().isEmpty() ? ct.name()
-                      : ct.packageName() + "." + ct.name())
-                    : "";
-            if (!nativeObjJsonFieldsOk(cn, new java.util.HashSet<>(), null)) {
-                return false;
-            }
-        }
-        return true;
-    }
 
     /**
      * JSN002: valida recursivamente que toda instancia tem layout
@@ -1223,35 +1187,16 @@ Target target = Target.JVM;
         visiting.add(className);
         boolean ok = true;
         for (String[] f : classFieldsOrdered(className)) {
-            if (!fieldOk(f[1], className, visiting)) ok = false;
+            if (!CompilerTypeSupport.fieldOk(this, f[1], className, visiting)) ok = false;
         }
         return ok;
     }
 
     // v1 flat: objetos aninhados ainda nao sao suportados pelo walker
-    boolean fieldOk(String typeName, String className, java.util.Set<String> visiting) {
-        Type t = CompilerTypes.toType(typeName, currentUnit);
-        if (t instanceof Type.PrimitiveType) return true;
-        if (BuiltinTypes.isString(t)) return true;
-        if (currentDiagnostics != null) {
-            currentDiagnostics.error("", 0, 0, 0,
-                    "json: class " + className + " has field of type " + typeName
-                            + " not supported by the Native JSON encoder yet"
-                            + " (use int, long, bool or string fields; nested objects coming soon)",
-                    "JSN002");
-        }
-        return false;
-    }
 
 
 
 
-    Type listElementType(Type listType) {
-        if (listType instanceof Type.ClassType ct && !ct.typeArguments().isEmpty()) {
-            return ct.typeArguments().get(0);
-        }
-        return Type.UnknownType.UNKNOWN;
-    }
 
 
 
@@ -1284,33 +1229,7 @@ Target target = Target.JVM;
      * toString() nativo de record: "Nome[campo=valor, ...]" — sintetizado no
      * IR (padrão de concat: valueOf + kof_string_concat).
      */
-    String toInternalName(String packageName, String simpleName) {
-        if (simpleName.contains("/")) return simpleName;
-        if (simpleName.contains(".")) return simpleName.replace('.', '/');
-        if (packageName.isEmpty()) return simpleName;
-        return packageName.replace('.', '/') + "/" + simpleName;
-    }
 
-    int computeAccess(List<String> modifiers) {
-        int access = 0;
-        boolean hasVisibility = false;
-        for (String mod : modifiers) {
-            access |= switch (mod) {
-                case "public" -> AccessFlags.PUBLIC;
-                case "private" -> AccessFlags.PRIVATE;
-                case "protected" -> AccessFlags.PROTECTED;
-                case "static" -> AccessFlags.STATIC;
-                case "final" -> AccessFlags.FINAL;
-                case "abstract" -> AccessFlags.ABSTRACT;
-                default -> 0;
-            };
-            if ("public".equals(mod) || "private".equals(mod) || "protected".equals(mod)) {
-                hasVisibility = true;
-            }
-        }
-        if (!hasVisibility) access |= AccessFlags.PUBLIC;
-        return access;
-    }
 
     boolean isAbstractMethod(MethodDeclarationNode method) {
         return method.body() == null;
@@ -1321,21 +1240,6 @@ Target target = Target.JVM;
      * values may exceed Integer.MAX_VALUE; they wrap to the signed 32-bit
      * representation, which the Kof color semantics use (shifts + mask).
      */
-    int parseIntLiteral(String value) {
-        if (value.startsWith("0x") || value.startsWith("0X")) {
-            // no suffix stripping: hex digits may end in a..f
-            return (int) Long.parseLong(value.substring(2), 16);
-        }
-        return Integer.parseInt(stripSuffix(value));
-    }
 
-    String stripSuffix(String value) {
-        if (value.endsWith("l") || value.endsWith("L") ||
-            value.endsWith("f") || value.endsWith("F") ||
-            value.endsWith("d") || value.endsWith("D")) {
-            return value.substring(0, value.length() - 1);
-        }
-        return value;
-    }
 
 }
