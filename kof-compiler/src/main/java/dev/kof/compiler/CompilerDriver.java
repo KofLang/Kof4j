@@ -156,69 +156,11 @@ Target target = Target.JVM;
         this.target = target;
         this.currentDiagnostics = diagnostics;
         flushClasspathWarnings();
-        this.currentSourceName = sources.get(0).getFileName() != null
-                ? sources.get(0).getFileName().toString() : null;
         this.entitySchemas.clear();
         try {
-            java.util.List<CompilationUnitNode> parsedUnits = new ArrayList<>();
             Path rootAbs = moduleRoot != null ? moduleRoot.toAbsolutePath().normalize() : null;
-            for (Path src : sources) {
-                String code = Files.readString(src);
-                String fileName = src.getFileName().toString();
-                Lexer lexer = new Lexer(code, fileName, diagnostics);
-                List<Token> tokens = lexer.tokenize();
-                if (diagnostics.hasErrors()) {
-                    return new CompilationResult(false, diagnostics, outputDir);
-                }
-                Parser parser = new Parser(tokens, diagnostics, fileName);
-                CompilationUnitNode unit = parser.parse();
-                if (diagnostics.hasErrors()) {
-                    return new CompilationResult(false, diagnostics, outputDir);
-                }
-                parsedUnits.add(unit);
-            }
-            // pacote por unidade: declarado, senão derivado do diretório
-            java.util.List<String> unitPkgs = new ArrayList<>();
-            for (int i = 0; i < parsedUnits.size(); i++) {
-                String declared = parsedUnits.get(i).packageName();
-                String derivedPkg = ModuleRoots.derivedPackageOf(sources.get(i), rootAbs);
-                if (!declared.isEmpty() && !declared.equals(derivedPkg)) {
-                    diagnostics.error(sources.get(i).toString(), 0, 0, 0,
-                            "package '" + declared
-                                    + "' não corresponde ao diretório ('" + derivedPkg
-                                    + "') — um diretório é um pacote",
-                            "PKG004");
-                    return new CompilationResult(false, diagnostics, outputDir);
-                }
-                unitPkgs.add(derivedPkg);
-            }
-            // MERGE: imports unidos, declarações de TODAS as unidades
-            List<String> mergedImports = new ArrayList<>();
-            List<AstNode> mergedDecls = new ArrayList<>();
-            int mainCount = 0;
-            for (int i = 0; i < parsedUnits.size(); i++) {
-                CompilationUnitNode u = parsedUnits.get(i);
-                for (String imp : u.imports()) {
-                    if (!mergedImports.contains(imp)) mergedImports.add(imp);
-                }
-                String pkgU = unitPkgs.get(i);
-                for (AstNode d : u.declarations()) {
-                    declarationPackages.put(d, pkgU);
-                    if (d instanceof FunctionDeclarationNode fd && "main".equals(fd.name())) mainCount++;
-                    mergedDecls.add(d);
-                }
-            }
-            if (mainCount > 1) {
-                diagnostics.error("", 0, 0, 0,
-                        "module has " + mainCount + " main() functions; expected exactly one",
-                        "PKG002");
-                return new CompilationResult(false, diagnostics, outputDir);
-            }
-            CompilationUnitNode unit = new CompilationUnitNode(
-                    parsedUnits.get(0).position(), "",
-                    mergedImports, mergedDecls);
-            unit = CompilerImports.expandKofImports(unit, moduleRoot, currentDiagnostics, declarationPackages);
-            if (diagnostics.hasErrors()) {
+            CompilationUnitNode unit = parseAndMerge(sources, rootAbs, diagnostics);
+            if (unit == null) {
                 return new CompilationResult(false, diagnostics, outputDir);
             }
             lowerAndEmit(unit, diagnostics, outputDir, target);
@@ -279,48 +221,167 @@ Target target = Target.JVM;
         this.currentDiagnostics = diagnostics;
         flushClasspathWarnings();
         this.entitySchemas.clear();
-        BuiltinTypes.resetEnums();
-        for (AstNode d : unit.declarations()) {
-            if (d instanceof EnumDeclarationNode en) BuiltinTypes.registerEnum(en.name());
+        IRModule irModule = analyzeAndLower(unit, diagnostics);
+        if (irModule == null) {
+            return;
         }
-            unit = CompilerDesugar.desugarTests(unit, discoveredTests, testHarnessMode, currentSourceName);
-            unit = CompilerDesugar.desugarApplication(unit);
-            discoveredConfigKeys.clear();
-            if (target == Target.ANDROID) {
-                unit = appendAndroidHostIfNeeded(unit);
-            }
-            semanticAnalyzer = new SemanticAnalyzer();
-            semanticAnalyzer.setExternalTypes(externalClasspath);
-            semanticAnalyzer.setDeclarationPackageLookup(d -> declarationPackages.get(d));
-            semanticAnalyzer.analyze(unit, diagnostics);
-            if (diagnostics.hasErrors()) {
-                return;
-            }
-            LabelId.reset();
-            currentModule = new IRModule("", List.of(), List.of());
-            currentUnit = unit;
-            IRModule irModule = applySuperBridges(lowerToIR(unit, diagnostics));
-            if (diagnostics.hasErrors()) {
-                return;
-            }
-            currentModule = irModule;
-            IRModule unoptimized = irModule;
-            if (optimizeEnabled) {
-                irModule = Optimizer.optimize(irModule);
-                currentModule = irModule;
-            }
-            if (irObserver != null) {
-                irObserver.accept(unoptimized, irModule);
-            }
-            if (irStatsObserver != null) {
-                irStatsObserver.observed(IRStatistics.of(unoptimized, irModule));
-            }
-            Files.createDirectories(outputDir);
+        Files.createDirectories(outputDir);
             Backend backend = selectBackend(target);
             backend.emit(irModule, outputDir, debugInfoEnabled);
             if (target == Target.ANDROID) {
                 new AndroidProjectWriter().write(outputDir, irModule);
             }
+    }
+
+    /**
+     * Frontend completo até a IR otimizada: desugar → analisar → lower →
+     * otimizar. Retorna null se houver diagnósticos de erro. Compartilhado
+     * pelo caminho de emissão (lowerAndEmit) e pelo interpretador
+     * (KofInterpreter) — paridade por construção: mesmo parser, mesma
+     * semântica, mesmo lowering, mesma otimização.
+     */
+    IRModule analyzeAndLower(CompilationUnitNode unit, DiagnosticCollector diagnostics) {
+        BuiltinTypes.resetEnums();
+        for (AstNode d : unit.declarations()) {
+            if (d instanceof EnumDeclarationNode en) BuiltinTypes.registerEnum(en.name());
+        }
+        unit = CompilerDesugar.desugarTests(unit, discoveredTests, testHarnessMode, currentSourceName);
+        unit = CompilerDesugar.desugarApplication(unit);
+        discoveredConfigKeys.clear();
+        if (target == Target.ANDROID) {
+            unit = appendAndroidHostIfNeeded(unit);
+        }
+        semanticAnalyzer = new SemanticAnalyzer();
+        semanticAnalyzer.setExternalTypes(externalClasspath);
+        semanticAnalyzer.setDeclarationPackageLookup(d -> declarationPackages.get(d));
+        semanticAnalyzer.analyze(unit, diagnostics);
+        if (diagnostics.hasErrors()) {
+            return null;
+        }
+        LabelId.reset();
+        currentModule = new IRModule("", List.of(), List.of());
+        currentUnit = unit;
+        IRModule irModule = applySuperBridges(lowerToIR(unit, diagnostics));
+        if (diagnostics.hasErrors()) {
+            return null;
+        }
+        currentModule = irModule;
+        IRModule unoptimized = irModule;
+        if (optimizeEnabled) {
+            irModule = Optimizer.optimize(irModule);
+            currentModule = irModule;
+        }
+        if (irObserver != null) {
+            irObserver.accept(unoptimized, irModule);
+        }
+        if (irStatsObserver != null) {
+            irStatsObserver.observed(IRStatistics.of(unoptimized, irModule));
+        }
+        return irModule;
+    }
+
+    /**
+     * PREPARE PARA INTERPRETAÇÃO (sem emitir bytecode): roda o frontend
+     * completo (parse → merge → imports → desugar → análise → lowering →
+     * otimização) e entrega a IR pronta para o KofInterpreter executar.
+     * Mesma pipeline do compile() — paridade por construção.
+     */
+    IRModule prepareForInterpretation(java.util.List<Path> sources, Path moduleRoot) {
+        DiagnosticCollector diagnostics = new DiagnosticCollector();
+        this.moduleRoot = moduleRoot;
+        this.target = Target.JVM;
+        this.currentDiagnostics = diagnostics;
+        flushClasspathWarnings();
+        this.entitySchemas.clear();
+        try {
+            Path rootAbs = moduleRoot != null ? moduleRoot.toAbsolutePath().normalize() : null;
+            CompilationUnitNode unit = parseAndMerge(sources, rootAbs, diagnostics);
+            if (unit == null) {
+                throw new KofInterpretException(diagnostics);
+            }
+            IRModule ir = analyzeAndLower(unit, diagnostics);
+            if (ir == null) {
+                throw new KofInterpretException(diagnostics);
+            }
+            return ir;
+        } catch (IOException e) {
+            diagnostics.error(sources.get(0).toString(), 0, 0, 0,
+                    "Error reading source file: " + e.getMessage(), "COMP001");
+            throw new KofInterpretException(diagnostics);
+        }
+    }
+
+    /**
+     * INTERPRETA um módulo Kof sem emitir bytecode nem fork de JVM — o
+     * target KofScript. Roda o mesmo frontend do compile() e executa a IR
+     * otimizada no KofInterpreter (paridade por construção). Captura
+     * stdout/stderr e retorna exit code. Falhas do frontend viram
+     * {@link KofInterpretException} com os diagnósticos.
+     */
+    public KofInterpreter.Result interpret(java.util.List<Path> sources, Path moduleRoot,
+                                           String[] args) {
+        IRModule ir = prepareForInterpretation(sources, moduleRoot);
+        return KofInterpreter.run(ir, args);
+    }
+
+    /** Parse + merge multi-arquivo + expansão de imports (extraído de compileSources). */
+    private CompilationUnitNode parseAndMerge(java.util.List<Path> sources, Path rootAbs,
+                                              DiagnosticCollector diagnostics) throws IOException {
+        this.currentSourceName = sources.get(0).getFileName() != null
+                ? sources.get(0).getFileName().toString() : null;
+        java.util.List<CompilationUnitNode> parsedUnits = new ArrayList<>();
+        for (Path src : sources) {
+            String code = Files.readString(src);
+            String fileName = src.getFileName().toString();
+            Lexer lexer = new Lexer(code, fileName, diagnostics);
+            List<Token> tokens = lexer.tokenize();
+            if (diagnostics.hasErrors()) return null;
+            Parser parser = new Parser(tokens, diagnostics, fileName);
+            CompilationUnitNode unit = parser.parse();
+            if (diagnostics.hasErrors()) return null;
+            parsedUnits.add(unit);
+        }
+        java.util.List<String> unitPkgs = new ArrayList<>();
+        for (int i = 0; i < parsedUnits.size(); i++) {
+            String declared = parsedUnits.get(i).packageName();
+            String derivedPkg = ModuleRoots.derivedPackageOf(sources.get(i), rootAbs);
+            if (!declared.isEmpty() && !declared.equals(derivedPkg)) {
+                diagnostics.error(sources.get(i).toString(), 0, 0, 0,
+                        "package '" + declared
+                                + "' não corresponde ao diretório ('" + derivedPkg
+                                + "') — um diretório é um pacote",
+                        "PKG004");
+                return null;
+            }
+            unitPkgs.add(derivedPkg);
+        }
+        List<String> mergedImports = new ArrayList<>();
+        List<AstNode> mergedDecls = new ArrayList<>();
+        int mainCount = 0;
+        for (int i = 0; i < parsedUnits.size(); i++) {
+            CompilationUnitNode u = parsedUnits.get(i);
+            for (String imp : u.imports()) {
+                if (!mergedImports.contains(imp)) mergedImports.add(imp);
+            }
+            String pkgU = unitPkgs.get(i);
+            for (AstNode d : u.declarations()) {
+                declarationPackages.put(d, pkgU);
+                if (d instanceof FunctionDeclarationNode fd && "main".equals(fd.name())) mainCount++;
+                mergedDecls.add(d);
+            }
+        }
+        if (mainCount > 1) {
+            diagnostics.error("", 0, 0, 0,
+                    "module has " + mainCount + " main() functions; expected exactly one",
+                    "PKG002");
+            return null;
+        }
+        CompilationUnitNode merged = new CompilationUnitNode(
+                parsedUnits.get(0).position(), "",
+                mergedImports, mergedDecls);
+        merged = CompilerImports.expandKofImports(merged, moduleRoot, diagnostics, declarationPackages);
+        if (diagnostics.hasErrors()) return null;
+        return merged;
     }
 
     /**

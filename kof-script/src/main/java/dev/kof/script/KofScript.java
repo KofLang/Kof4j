@@ -2,6 +2,8 @@ package dev.kof.script;
 
 import dev.kof.compiler.CompilerDriver;
 import dev.kof.compiler.CompilationResult;
+import dev.kof.compiler.KofInterpretException;
+import dev.kof.compiler.KofInterpreter;
 import dev.kof.compiler.Target;
 
 import java.io.*;
@@ -218,62 +220,105 @@ public final class KofScript {
         Path outDir = Files.createTempDirectory("kofscript-out");
         try {
             CompilerDriver driver = new CompilerDriver();
-            CompilationResult result;
-            if (sources.size() == 1) {
-                Path single = sources.get(0);
-                if (single.toString().endsWith(".ks")) {
-                    // KofScript = Kof puro: único serviço é o wrapper de script
-                    // (statements -> main(), var/val de topo -> globals). Sem sugar.
-                    String content = Files.readString(single);
-                    String wrapped = content.contains("main()") ? content : wrapPureKof(content);
-                    Path tmpKsDir = Files.createTempDirectory("kofscript-ks-single");
-                    String kfName = single.getFileName().toString().replaceFirst("\\.ks$", ".kf");
-                    if (!kfName.endsWith(".kf")) kfName = "Main.kf";
-                    Path kf = tmpKsDir.resolve(kfName);
-                    Files.writeString(kf, wrapped);
-                    result = driver.compile(kf, outDir, target);
-                    deleteRecursively(tmpKsDir);
-                } else {
-                    result = driver.compile(single, outDir, target);
-                }
-            } else {
-                // KofScript = Kof puro: materializa .ks como .kf com o wrapper
-                // de script (sem sugar de outra linguagem).
-                java.util.List<Path> kfSources = new java.util.ArrayList<>();
-                Path tmpKsDir = null;
-                for (Path p : sources) {
-                    if (p.toString().endsWith(".ks")) {
-                        if (tmpKsDir == null) tmpKsDir = Files.createTempDirectory("kofscript-ks");
-                        String content = Files.readString(p);
-                        String wrapped = content.contains("main()") ? content : wrapPureKof(content);
-                        Path kf = tmpKsDir.resolve(p.getFileName().toString().replace(".ks", ".kf"));
-                        Files.writeString(kf, wrapped);
-                        kfSources.add(kf);
-                    } else {
-                        kfSources.add(p);
+            // Materializa .ks como .kf (Kof puro: statements -> main(), var/val
+            // de topo -> globals). Sem sugar de outra linguagem.
+            Materialized mat = materialize(sources, sourceFile);
+            try {
+                if (target == Target.JVM) {
+                    // KofScript = target de execução direta: interpreta a IR no
+                    // mesmo frontend do compilador, sem emitir bytecode e sem
+                    // fork de JVM (paridade por construção).
+                    try {
+                        KofInterpreter.Result ir = driver.interpret(mat.sources, mat.root, programArgs);
+                        RunResult rr = new RunResult(ir.exitCode(), ir.stdout(), ir.stderr(),
+                                ir.exitCode() == 0);
+                        cacheFile(rr, abs, fkey, fhash, fileLm, sz);
+                        return rr;
+                    } catch (KofInterpretException e) {
+                        StringBuilder sb = new StringBuilder();
+                        e.diagnostics().getDiagnostics().forEach(d -> sb.append(d.format()).append("\n"));
+                        return new RunResult(1, "", sb.toString(), false);
                     }
                 }
-                Path root = sourceFile.toAbsolutePath().normalize().getParent();
-                if (root == null) root = Path.of(".").toAbsolutePath();
-                // If source is dir, root is the dir itself
-                if (Files.isDirectory(sourceFile)) root = sourceFile.toAbsolutePath().normalize();
-                result = driver.compileSources(kfSources, outDir, target, root);
-                if (tmpKsDir != null) deleteRecursively(tmpKsDir);
+                CompilationResult result = mat.sources.size() == 1
+                        ? driver.compile(mat.sources.get(0), outDir, target)
+                        : driver.compileSources(mat.sources, outDir, target, mat.root);
+                if (!result.success()) {
+                    StringBuilder sb = new StringBuilder();
+                    result.diagnostics().getDiagnostics().forEach(d -> sb.append(d.format()).append("\n"));
+                    return new RunResult(1, "", sb.toString(), false);
+                }
+                KofScript.RunResult rr = KofScriptExecutor.executeCompiled(outDir, target, programArgs);
+                cacheFile(rr, abs, fkey, fhash, fileLm, sz);
+                return rr;
+            } finally {
+                if (mat.tmpDir != null) deleteRecursively(mat.tmpDir);
             }
-            if (!result.success()) {
-                StringBuilder sb = new StringBuilder();
-                result.diagnostics().getDiagnostics().forEach(d -> sb.append(d.format()).append("\n"));
-                return new RunResult(1, "", sb.toString(), false);
-            }
-            KofScript.RunResult rr = KofScriptExecutor.executeCompiled(outDir, target, programArgs);
-            // Cache successful runs for file incremental
-            if (rr.success() && abs != null && fkey != null && fhash != null) {
-                fileCache.put(fkey, new FileCacheEntry(fileLm, sz, fhash, rr));
-                if (fileCache.size() > 64) fileCache.clear();
-            }
-            return rr;
         } finally {
             deleteRecursively(outDir);
+        }
+    }
+
+    private record Materialized(java.util.List<Path> sources, Path root, Path tmpDir) {}
+
+    /**
+     * Caminho COMPILADO (fallback): emite bytecode e executa (in-memory ou
+     * fork). Mantido vivo para paridade e para targets não-JVM; o teste de
+     * paridade compara runFile (interpretado) vs runFileCompiled (JVM real).
+     */
+    public static RunResult runFileCompiled(Path sourceFile, Target target, String[] programArgs)
+            throws IOException {
+        java.util.List<Path> sources = collectSources(sourceFile);
+        Path outDir = Files.createTempDirectory("kofscript-compiled");
+        try {
+            CompilerDriver driver = new CompilerDriver();
+            Materialized mat = materialize(sources, sourceFile);
+            try {
+                CompilationResult result = mat.sources.size() == 1
+                        ? driver.compile(mat.sources.get(0), outDir, target)
+                        : driver.compileSources(mat.sources, outDir, target, mat.root);
+                if (!result.success()) {
+                    StringBuilder sb = new StringBuilder();
+                    result.diagnostics().getDiagnostics().forEach(d -> sb.append(d.format()).append("\n"));
+                    return new RunResult(1, "", sb.toString(), false);
+                }
+                return KofScriptExecutor.executeCompiled(outDir, target, programArgs);
+            } finally {
+                if (mat.tmpDir != null) deleteRecursively(mat.tmpDir);
+            }
+        } finally {
+            deleteRecursively(outDir);
+        }
+    }
+
+    /** Reescreve cada `.ks` como `.kf` (wrapPureKof) num diretório temporário. */
+    private static Materialized materialize(java.util.List<Path> sources, Path sourceFile)
+            throws IOException {
+        java.util.List<Path> kfSources = new java.util.ArrayList<>();
+        Path tmpKsDir = null;
+        for (Path p : sources) {
+            if (p.toString().endsWith(".ks")) {
+                if (tmpKsDir == null) tmpKsDir = Files.createTempDirectory("kofscript-ks");
+                String content = Files.readString(p);
+                String wrapped = content.contains("main()") ? content : wrapPureKof(content);
+                Path kf = tmpKsDir.resolve(p.getFileName().toString().replace(".ks", ".kf"));
+                Files.writeString(kf, wrapped);
+                kfSources.add(kf);
+            } else {
+                kfSources.add(p);
+            }
+        }
+        Path root = sourceFile.toAbsolutePath().normalize().getParent();
+        if (root == null) root = Path.of(".").toAbsolutePath();
+        if (Files.isDirectory(sourceFile)) root = sourceFile.toAbsolutePath().normalize();
+        return new Materialized(kfSources, root, tmpKsDir);
+    }
+
+    private static void cacheFile(RunResult rr, Path abs, String fkey, String fhash,
+                                  long fileLm, long sz) {
+        if (rr.success() && abs != null && fkey != null && fhash != null) {
+            fileCache.put(fkey, new FileCacheEntry(fileLm, sz, fhash, rr));
+            if (fileCache.size() > 64) fileCache.clear();
         }
     }
 
