@@ -71,32 +71,28 @@ gigantes em refactor):
 
 ## 5. Tiers 6–12 (universal platform)
 
-> Bloqueio estrutural: R12 (frentes novas após SYSTEMS — já fechado, então
-> aberto) + dependência de **FFI formalizado** (#2) + **package manager** +
-> **scoped resources**. Além disso, quase tudo exige **novos namespaces stdlib**
-> (novo dispatch no `CompilerDriver` + runtime em `JvmRuntime`/`NativeRuntime`) —
-> que estão em **REFACTOR-500**. Por isso TIER 6–12 é 100% bloqueado até o
-> refactor fechar. Cada tier abaixo tem o **bloqueador exato** e o **plano**.
+> Atualizado 06/09 pós-merge do REFACTOR-500: a camada semântica/runtime JVM
+> está modular (typers/lowerers/`Runtime*` ≤500), então os namespaces **JVM-first**
+> são destraváveis hoje. O que bloqueia é o **lado Native/JS** (passa por
+> `NativeBackend`/`JsBackend`, F2/F3 em curso) e **FFI pesado** (#2).
 
 ### TIER 6 — AUTOMATION (`kof.workflow` / `kof.batch` / `kof.shell` / `kof.ssh` / cron)
 
-- **Já existe:** `kof.process` (`process.run`/`spawn`), `kof.scheduler`/`time.interval`
-  (SCHED001/TIME001 fechados).
-- **Bloqueador:** `kof.workflow`/`kof.batch` (jobs, pipelines, retry, checkpoint,
-  dead-letter) e `kof.shell` (wrapper sobre `process`) são **novos namespaces** →
-  novo dispatch no `CompilerDriver` + runtime. `kof.ssh` é **FFI** (#2).
-- **Plano:** 1) após REFACTOR, criar os namespaces sobre `spawn`/`process`/`scheduler`
-  existentes; 2) `kof.ssh` como FFI-first (libssh2), nunca reimplementar SSH; 3) CLI
-  `kof workflow run` sobre as funções. *Regra: jobs como código, nunca YAML.*
+- **FEITO (JVM-first, 06/09):** `kof.workflow` (`job(name){}/run/pipeline`, gap
+  WF001) + `kof.shell` (`run(cmd)` via `sh -c` sobre `kof.process`, gap SHL001) +
+  **cron maduro** no `scheduler.at` (parse 5 campos + próxima ocorrência, resolução
+  de minutos). Padrão: `KofXxx` + `ExpressionXxxCallLowerer` + `JvmXxxRuntime` +
+  `BuiltinCallTyper`/`MethodCallTyper`/`SemExpressionTyper` + `JvmRuntimeCallDescriptors`.
+- **Resta:** lados Native/JS (F2/F3) e `kof.ssh` (**FFI** libssh2, #2). `kof.batch`
+  (checkpoint/dead-letter) é marginal — reavaliar após workflow amadurecer.
 
 ### TIER 7 — INFRA (`kof.infra` / `infra "prod" {}`)
 
-- **Bloqueador:** codegen de compile-time (`CodegenStep`, #1 REFACTOR) + providers
-  FFI/REST/CLI (#2 FFI). Deps: package manager (FEITO `kof deps` MVP) + FFI (#2).
+- **Bloqueador:** `infra "prod" {}` é código novo de parser+semanântica (desugar
+  via `CompilerDesugar`/`desugarEntity` — destravado) + providers FFI/REST/CLI (#2).
 - **Plano:** 1) `infra "prod" {}` como records de recurso + grafo + diff via
-  `CodegenStep` (mesmo mecanismo de `entity`/`test`/`application`); 2)
-  reconciliation loop com `spawn`/`scheduler`; 3) state em `kof.db`; 4) CLI
-  `kof infra plan/apply/destroy`. *Uso tipado, nunca HCL.*
+  desugar; 2) reconciliation loop com `spawn`/`scheduler`; 3) state em `kof.db`;
+  4) CLI `kof infra plan/apply/destroy`. *Uso tipado, nunca HCL.*
 
 ### TIER 8 — DATA (`dataframe` / Arrow / `kof.ml`)
 
