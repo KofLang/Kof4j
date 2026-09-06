@@ -15,7 +15,7 @@ A CLI é a ferramenta central da plataforma Kof.
 | `kof build <dir> --target=js` | Compila para ES Modules |
 | `kof build <dir> --target=android` | Gera projeto Maven + APK (Fase 1: host Activity em Kof; `mvn verify` / `--apk` com o SDK) |
 | `kof run <file.kf> [--target jvm|native|native.risc|native.arm|js]` | Compila e executa |
-| `kof script <file.ks|kf> [--watch] [--target ...]` | KofScript direto (`let`→`KofScriptGlobals`) + diagnostics com file:line |
+| `kof script <file.ks|kf> [--watch] [--target ...]` | KofScript direto (Kof puro; `var`/`val` de topo → `KofScriptGlobals`) + diagnostics com file:line |
 | `kof repl` | REPL incremental KofScript (type `exit` to quit) |
 | `kof c <file.c> [--run] [--output <bin>]` | KofC C subset → ELF x86-64 nativo-only |
 | `kof serve <file.kf>` | Web server HTTP (`web.app()` nativo + API legada `handle()`) |
@@ -68,14 +68,14 @@ todos os erros, sem emitir código. É a mesma checagem que o LSP publica.
 ## `kof script` e `kof c` (0.2.0)
 
 ```bash
-kof script demo.ks                 # let/const no topo → KofScriptGlobals
+kof script demo.ks                 # var/val no topo → KofScriptGlobals
 kof script demo.ks --watch         # re-executa ao salvar
 kof script --repl                  # REPL incremental (exit para sair)
 kof c hello.c --run                # C subset nativo-only (GAS+LD)
 kof c hello.c --output ./bin
 ```
 
-`KofScript` reaproveita o frontend real (`lexer→parser→AST→IR`) e o backend escolhido; `let x=5; fn foo(){println(x)}` vira `class KofScriptGlobals { static Int x=5 }` + `main(){foo()}`.
+`KofScript` reaproveita o frontend real (`lexer→parser→AST→IR`) e o backend escolhido. **KofScript é Kof puro executado direto — não é JavaScript**: não há `let`/`const`/`async`/`fn`. O único serviço do wrapper é o modelo de script: `var x=5` no topo vira `class KofScriptGlobals { static Int x=5 }` e statements soltos viram `main(){…}`.
 
 ## `kof fmt` e `kof config gen` (31/08)
 

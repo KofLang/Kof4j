@@ -28,7 +28,8 @@ Bool positivo(Int x) = x > 0                 // expression body
   `func` são **palavras reservadas** (tokens `FUN`/`FN`/`FUNC` no lexer) e
   **não existem** no Kof — nem como prefixo de declaração (`PARSE085`), nem
   como nome de função, variável, parâmetro ou campo. KofScript (`.ks`) mantém
-  `fn` como sintaxe própria e traduz na fronteira (`KofScript.toKofSyntax`).
+  KofScript (`.ks`) **não** tem `fn` próprio — é Kof puro; `fn` lá também dá
+  `PARSE085`.
 - **Não há** `fun` como keyword, nem `def`, nem `lambda` keyword.
 
 ---

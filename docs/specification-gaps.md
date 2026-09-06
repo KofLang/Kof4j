@@ -30,10 +30,12 @@ recomendações futuras (regra 14 da tarefa: não alterar comportamento).
   R6); em outra posição, o `expectId` de cada parser já falha (`PARSE037`
   variável, `PARSE023` parâmetro, …). Alinhado ao corpus (regra 4). KofScript
   (`.ks`) mantém `fn` como sintaxe própria e traduz na fronteira
-  (`KofScript.toKofSyntax`). Testes: `FunctionSyntaxTest` (12: fun/fn/func
+  KofScript (`.ks`) **não** é exceção: é Kof puro (sem `fn`/`let`/`async`).
+  Testes: `FunctionSyntaxTest` (12: fun/fn/func
   rejeitados como prefixo, `fn calc(): Int` rejeitado, `fn()`/`var fun`/
   `param fn` rejeitados, membro de classe, `Int calc():Int` idiomático).
-  `let` continua inexistente em `.kf` (só `.ks`).
+  `let`/`const`/`async` são inexistentes em `.kf` **e** `.ks` (KofScript não
+  é JavaScript — sugar removido 06/09).
 
 ### SG-002 — Tokens e keywords que a gramática não usa
 

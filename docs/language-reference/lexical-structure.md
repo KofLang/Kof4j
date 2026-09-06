@@ -64,8 +64,9 @@ que o parser não aceita como identificador em **nenhuma** posição).
 > função, variável, parâmetro, campo). Em posição de declaração o parser dá
 > `PARSE085`; em outra posição, o `expectId` de cada parser já falha com
 > diagnóstico (`PARSE037` variável, `PARSE023` parâmetro, …). Alinhado ao
-> corpus (regra 4: bug = alinhar ao previsto). KofScript (`.ks`) mantém `fn`
-> como sintaxe própria e traduz na fronteira (`KofScript.toKofSyntax`).
+> corpus (regra 4: bug = alinhar ao previsto). KofScript (`.ks`) **não** é
+> exceção — é Kof puro executado direto; `fn`/`fun`/`func` lá também dão
+> `PARSE085` (não há tradução de dialeto).
 
 ### 1.2 Literais de palavra-chave
 

@@ -128,6 +128,7 @@ define as assinaturas. **Experimental** como superfície (muda entre versões).
 ## 7. Arquivos e extensão
 
 - **`.kf`** — Kof (compilável para todos os targets).
-- **`.ks`** — KofScript (dialeto de script com `let` top-level; **linguagem
-  separada**, não parte desta especificação — ver [../…](#) / `kof-script`).
+- **`.ks`** — KofScript: **Kof puro executado direto** (sem `let`/`const`/
+  `async`/`fn` — não é JavaScript). O wrapper só adiciona o modelo de script
+  (`var`/`val` de topo → `KofScriptGlobals`; statements → `main()`).
 - **Não há** header/source separado, nem `.kfi`, nem pré-processador.

@@ -17,9 +17,11 @@ class KofScriptTest {
     }
 
     @Test
-    void evalWithLetAndFn() throws Exception {
+    void evalWithTopLevelFnAndVar() throws Exception {
+        // KofScript = Kof puro: função de topo com forma idiomática + var de
+        // topo (vira global via KofScriptGlobals). Sem sugar de outra língua.
         var r = KofScript.eval("""
-                fn add(a: Int, b: Int): Int = a + b
+                add(a: Int, b: Int): Int = a + b
                 main() {
                     var x = add(2, 3)
                     println(x)
@@ -99,16 +101,33 @@ class KofScriptTest {
     }
 
     @Test
-    void evalLetAndAsyncSugar() throws Exception {
+    void evalPureKofWithTopLevelVarAndSpawn() throws Exception {
+        // KofScript = Kof puro: modo script (sem main) — var de topo vira
+        // global; concorrência é spawn/await (não `async`). Sem sugar.
         var r = KofScript.eval("""
-                async fn foo(a: Int): Int = a + 1
-                main() {
-                    let x = 5
-                    var y = foo(x)
-                    println(y)
+                var counter = 0
+                bump(): Int {
+                    counter = counter + 1
+                    return counter
                 }
+                println(bump())
                 """);
         assertTrue(r.success(), r.stderr());
-        assertEquals("6", r.stdout().trim());
+        assertEquals("1", r.stdout().trim());
+    }
+
+    @Test
+    void jsSugarIsRejected() throws Exception {
+        // let/const/async/fn NÃO existem no KofScript (não é JavaScript):
+        // falham com o diagnóstico normal do parser Kof (R6: nunca silencioso).
+        var r = KofScript.eval("""
+                fn foo(a: Int): Int = a + 1
+                main() {
+                    let x = 5
+                    println(foo(x))
+                }
+                """);
+        assertFalse(r.success(), "fn/let não devem compilar em KofScript");
+        assertTrue(r.stderr().contains("PARSE085"), "esperava PARSE085, veio: " + r.stderr());
     }
 }
