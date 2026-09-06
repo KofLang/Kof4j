@@ -71,29 +71,84 @@ gigantes em refactor):
 
 ## 5. Tiers 6–12 (universal platform)
 
-- **Bloqueador:** R12 (frentes novas só após SYSTEMS fechar) + dependência das
-  fundações (#2 FFI, scoped resources, package manager).
-- **Escopo (postergado, não esquecido):** AUTOMATION (`kof.workflow`), INFRA (#4),
-  DATA (Arrow/Parquet FFI), SECURITY expansion (PQC), SCIENTIFIC (BLAS/GPU),
-  BIO (`kof-bio`), UNIVERSAL (integração).
-- **Plano de execução:** seguir `docs/future/ACTION_PLAN.md` Tiers 6–12 na ordem,
-  cada um com FFI/interop primeiro (nunca reimplementar Arrow/BLAS/CUDA/ML).
+> Bloqueio estrutural: R12 (frentes novas após SYSTEMS — já fechado, então
+> aberto) + dependência de **FFI formalizado** (#2) + **package manager** +
+> **scoped resources**. Além disso, quase tudo exige **novos namespaces stdlib**
+> (novo dispatch no `CompilerDriver` + runtime em `JvmRuntime`/`NativeRuntime`) —
+> que estão em **REFACTOR-500**. Por isso TIER 6–12 é 100% bloqueado até o
+> refactor fechar. Cada tier abaixo tem o **bloqueador exato** e o **plano**.
 
-## 6. Decompiler — sem equivalente Kof (permanente)
+### TIER 6 — AUTOMATION (`kof.workflow` / `kof.batch` / `kof.shell` / `kof.ssh` / cron)
 
-- **Bloqueador:** não há `kof.math`, nem `StringBuilder` (concatenação usa `+`).
-- **Comportamento:** `Math.*`, `Integer.parseInt` (já mapeado), `StringBuilder.*`
-  caem no **stub honesto** `throw "body not recovered"` (`Confidence UNKNOWN`).
-- **Plano de execução (opcional):** se um dia houver `kof.math`/conversões,
-  estender `mapStaticCall`/`mapStdlib` em `BytecodeDecoder` — sem isso, o stub
-  honesto é o correto (nunca inventar).
+- **Já existe:** `kof.process` (`process.run`/`spawn`), `kof.scheduler`/`time.interval`
+  (SCHED001/TIME001 fechados).
+- **Bloqueador:** `kof.workflow`/`kof.batch` (jobs, pipelines, retry, checkpoint,
+  dead-letter) e `kof.shell` (wrapper sobre `process`) são **novos namespaces** →
+  novo dispatch no `CompilerDriver` + runtime. `kof.ssh` é **FFI** (#2).
+- **Plano:** 1) após REFACTOR, criar os namespaces sobre `spawn`/`process`/`scheduler`
+  existentes; 2) `kof.ssh` como FFI-first (libssh2), nunca reimplementar SSH; 3) CLI
+  `kof workflow run` sobre as funções. *Regra: jobs como código, nunca YAML.*
+
+### TIER 7 — INFRA (`kof.infra` / `infra "prod" {}`)
+
+- **Bloqueador:** codegen de compile-time (`CodegenStep`, #1 REFACTOR) + providers
+  FFI/REST/CLI (#2 FFI). Deps: package manager (FEITO `kof deps` MVP) + FFI (#2).
+- **Plano:** 1) `infra "prod" {}` como records de recurso + grafo + diff via
+  `CodegenStep` (mesmo mecanismo de `entity`/`test`/`application`); 2)
+  reconciliation loop com `spawn`/`scheduler`; 3) state em `kof.db`; 4) CLI
+  `kof infra plan/apply/destroy`. *Uso tipado, nunca HCL.*
+
+### TIER 8 — DATA (`dataframe` / Arrow / `kof.ml`)
+
+- **Bloqueador:** FFI formalizado (#2) + package manager (carregamento de
+  dependências pesadas). NOVO conceito: `dataframe` (lazy, colunar).
+- **Plano:** 1) Arrow/Parquet por **FFI** (bindings JVM `Apache Arrow`, nunca
+  reimplementar); 2) wrapper tipado (records + `df.select/filter/groupBy`);
+  3) `kof.ml` como inferência via FFI (ONNX Runtime / libtorch) — treinamento
+  orquestrado por fora. Deps: #2.
+
+### TIER 9 — SECURITY expansion
+
+- **Já feito:** `kof.security` (password/hash/jwt/aesGcm/rateLimit) — `SECN002`
+  (AES-GCM JS) fechado; `OBS002`, paridade crypto JVM/Native/JS.
+- **Bloqueador:** `Secret`/`KeyHandle` é **tipo novo** (precisa semântica/parser
+  = #3 semântica congelada); `keys.*` (generate/derive-HKDF/rotate) e **PQC**
+  (ML-KEM-768/ML-DSA-65) são **FFI** a `liboqs` (#2).
+- **Plano:** 1) S1/S2: tipo `Secret` + redaction forçada (nova semântica → bump);
+  2) S3 `keys.*` sobre FFI (liboqs/JCA auditada); 3) S5 PQC via `liboqs` FFI
+  (vetores NIST); 4) S6 híbrido KEM+HKDF+AES-256-GCM. *Nunca cripto caseira.*
+
+### TIER 10 — SCIENTIFIC
+
+- **Bloqueador:** FFI formalizado (#2) + scoped resources (#3, para handles GPU)
+  + GC safe-points (1.2, fora do escopo atual).
+- **Plano:** 1) BLAS/LAPACK por FFI (wrapper, nunca reimplementar); 2) GPU:
+  generalizar FFM Vulkan (já há `kof.vk`) + CUDA/OpenCL por FFI; 3) distributed
+  via MPI FFI. *Kof fornece a fronteira; o motor fica por fora.*
+
+### TIER 11 — BIO (`kof-bio`)
+
+- **Bloqueador:** depende de TIER 6 (workflow) + 8 (data) + 10 (sci) — todos
+  bloqueados por #2.
+- **Plano:** 1) `kof-bio` como **pacote oficial** (não stdlib): FASTA/FASTQ/VCF/BAM
+  como records; 2) alinhamento/variantes via FFI/CLI (BLAST/htslib), nunca
+  reimplementar; 3) pipelines genômicos via TIER 6 (workflow+checkpoint). Deps 6/8/10.
+
+### TIER 12 — UNIVERSAL
+
+- **Bloqueador:** depende de tudo (Tiers 6–11).
+- **Plano:** 1) package manager maduro + capability/link-por-uso generalizado;
+  2) LSP/debug/profiler por domínio (mesmo frontend — R8); 3) deploy multi-alvo;
+  4) corpus `training/` por domínio. *Teste final: o core cresceu quase nada.*
 
 ---
 
 ## Ordem de retomada (quando um bloqueador cair)
 
 ```
-#1 REFACTOR-500 → #2 FFI struct → #4 infra → #5 Tiers 6–12 → (#3 quando bump) (#6 opcional)
+#1 REFACTOR-500 → #2 FFI struct → #4 infra (TIER 7) → TIER 6 automation
+  → TIER 8 data → TIER 9 security-exp → TIER 10 sci → TIER 11 bio → TIER 12 universal
+  (#3 scoped/Secret no bump) (#6 Math. opcional)
 ```
 
 Referências cruzadas: `docs/future/IMPLEMENTATION_PLAN.md` (status por subtarefa),
