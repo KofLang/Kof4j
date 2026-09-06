@@ -443,6 +443,12 @@ if (resolvedMethod != null) {
 }
 if (mc.receiver() != null) {
     Type recvT = ExpressionTyper.inferExprType(driver, mc.receiver(), locals);
+    // receiver nullable inferido (ex.: `var v = m.get(k)` → V?):
+    // desempacota para a hierarquia — sem isso `instanceof ClassType`
+    // falhava e o retorno do método saía `Object` (bug 33: o Map/Set era
+    // só o caminho que produz o local nullable; W1 `var v = maybe()`
+    // reproduz sem coleção). Espelha o unwrap da linha do handle acima.
+    if (recvT instanceof Type.NullableType nt) recvT = nt.inner();
     if (recvT instanceof Type.ClassType ct && driver.semanticAnalyzer != null) {
         SymbolTable.Symbol m = driver.semanticAnalyzer.resolveInHierarchy(ct.name(), mc.methodName());
         if (m instanceof SymbolTable.MethodSymbol ms) {

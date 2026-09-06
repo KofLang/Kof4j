@@ -623,36 +623,33 @@ EXTERNA produz lixo
 
 ---
 
-### 33. `Map<_, Classe>` / `Set<Classe>` (type-arg de classe) quebra no emit (pré-existente)
+### 33. Receiver de tipo nullable **inferido** quebra o retorno de método no emit ✅ CORRIGIDO (06/09)
 
-- **Sintoma:** `Map<String, NodeUI>` → `VerifyError: Bad return type` no
-  `.get()` (falta checkcast do value); `Set<NodeUI>` →
-  `ClassFormatError: Illegal class name ""` (descritor de método `L;` vazio
-  no emit de `first()`). Quebra **mesmo sem import, no mesmo pacote** — ou
-  seja, é bug de **emissão**, não de resolução de import (bug 32).
-- **Causa provável:** o emit de Map/Set no JVM não emite checkcast para o
-  value/elemento nem o tipo do parâmetro/retorno quando o type-arg é uma
-  classe — o `KofCall` nasce com `valueType`/`elemType` `Unknown` (mapOf/
-  setOf constroem runtime) e o emit não re-qualifica. Diferente de List, que
-  tem caminho dedicado (`listElementType` + checkcast).
-- **Reprodução:**
-  ```kof
-  class Thing { String n; public constructor(String n){this.n=n}; String show(){return n} }
-  class Holder {
-      Map<String, Thing> m; Set<Thing> s
-      public constructor(){ this.m=mapOf("a",Thing("x")); this.s=setOf(Thing("y")) }
-      String all(){ return m.get("a").show() + s.first().show() }
-  }
-  ```
-- **Confirmação de baseline:** reproduz com e sem a correção do bug 32
-  (git stash) — falha idêntica; não é regressão.
-- **O que deveria acontecer:** `map.get(k)`/`set.first()`/iteração devolvem o
-  type-arg de classe com checkcast (igual a `List<T>.get`), e o tipo de
-  parâmetro/retorno do emit usa o type-arg (não `Object`/vazio).
-- **Arquivos:** `JvmBackend.java` (emissão `kof_map_get`/`kof_set_*`),
-  `CompilerDriver.java` (retType/argType do map/set no lowering).
-- **Registrado:** 05/09 (investigação do bug 32 — surge ao estender a
-  reprodução para Map/Set; separado do fix de import).
+- **Sintoma (original, mal diagnosticado):** reportado como "Map/Set com
+  type-arg de classe quebra no emit". Reprodução real:
+  `var v = m.get(k)` (ou `var v = maybe()` onde `maybe(): View?`) e depois
+  `v.render()` → compila, mas em runtime
+  `NoSuchMethodError: 'java.lang.Object View.render()'`.
+- **Causa raiz (corrigida 06/09):** NÃO é bug de Map/Set — é **member call em
+  receiver de tipo nullable *inferido***. O lowering re-inferencia o tipo do
+  receiver (`MethodCallTyper`); no caminho genérico de classe
+  (`instanceof Type.ClassType`) o `NullableType` **não** casava → retorno do
+  método saía `Unknown`/`Object`. Um local **anotado** (`var v: View?`) não
+  reproduz porque o lowering descarta a nullability do local; só o **inferido**
+  (`var v = m.get(k)`) preserva `NullableType` no IR. Map/Set era só *um*
+  caminho que produz o local nullable (`get` retorna `V?`) — `var v = maybe()`
+  reproduz **sem coleção**.
+- **Fix:** `MethodCallTyper` — desempacotar `NullableType` → `inner()` antes
+  do `instanceof ClassType` (espelha o unwrap já feito no ramo de handle).
+- **Prova:** `KofMapSetTest.memberCallOnNullableInferredFromMapJVM` (var via
+  `maybe():View?` + via `map.get`) → `v:a\nv:x`; suíte 954/0/3-skip.
+- **⚠️ Sintoma separado (bug NOVO, não é este):** `Set.first()` →
+  `ClassFormatError: Illegal class name ""`. `first()` **não é** método de Set
+  no Kof (corpus não documenta); método desconhecido em **tipo de coleção**
+  vira *no-op silencioso* no lowerer (diferente de `C.ghost()` → `SEM025`) e
+  o emit gera `"".render` (descritor vazio). Violação R6 (nunca silencioso).
+  Registrar como bug próprio; **não** confundir com 33.
+- **Registrado:** 05/09 · **Corrigido:** 06/09.
 
 ---
 
