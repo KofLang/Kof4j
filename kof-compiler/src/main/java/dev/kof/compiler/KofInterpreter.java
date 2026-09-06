@@ -88,6 +88,7 @@ public final class KofInterpreter {
         } catch (Throwable t) {
             code = 1;
             pe.println(kofErrorMessage(t));
+            if (System.getProperty("kof.interp.trace") != null) t.printStackTrace(pe);
         } finally {
             po.flush();
             pe.flush();
@@ -165,7 +166,9 @@ public final class KofInterpreter {
     private static final class Frame {
         final List<KofOperation> ops;
         final Map<LabelId, Integer> labels = new HashMap<>();
-        final Deque<Object> stack = new java.util.ArrayDeque<>();
+        // LinkedList (não ArrayDeque): a pilha JVM guarda referências null
+        // (ex.: função que retorna null) — ArrayDeque rejeita null.
+        final Deque<Object> stack = new java.util.LinkedList<>();
         final Deque<TryRegion> tryStack = new java.util.ArrayDeque<>();
         Object[] locals;
         int pc;

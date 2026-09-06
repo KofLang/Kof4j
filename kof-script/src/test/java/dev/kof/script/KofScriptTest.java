@@ -199,4 +199,73 @@ class KofScriptTest {
         assertTrue(compiled.success(), compiled.stderr());
         assertEquals(compiled.stdout(), interp.stdout(), "interpretado deve casar o JVM compilado");
     }
+
+    @Test
+    void interpreterNullSafetyMatchesJvm(@TempDir Path tmp) throws Exception {
+        // Regressão do null na pilha (função que retorna null): o interpretador
+        // precisa empilhar null (LinkedList, não ArrayDeque) — paridade com JVM.
+        Path f = tmp.resolve("Main.kf");
+        Files.writeString(f, """
+                find(k: String): String? {
+                    if (k == "ok") { return "achou" }
+                    return null
+                }
+                main() {
+                    var v = find("ok")
+                    if (v != null) { println(v) }
+                    var w = find("no")
+                    if (w == null) { println("nada") }
+                }
+                """);
+        var interp = KofScript.runFile(f, dev.kof.compiler.Target.JVM);
+        assertTrue(interp.success(), interp.stderr());
+        assertEquals("achou\nnada", interp.stdout().trim().replace("\r\n", "\n"));
+        var compiled = KofScript.runFileCompiled(f, dev.kof.compiler.Target.JVM, new String[0]);
+        assertEquals(compiled.stdout(), interp.stdout(), "null-safety: interpretado == JVM");
+    }
+
+    @Test
+    void interpreterClosureCaptureMatchesJvm(@TempDir Path tmp) throws Exception {
+        // Closure capturando variável mutável — mesma semântica de referência.
+        Path f = tmp.resolve("Main.kf");
+        Files.writeString(f, """
+                main() {
+                    var base = 10
+                    var addN = (x: Int) -> x + base
+                    println(addN(5))
+                    base = 20
+                    println(addN(5))
+                }
+                """);
+        var interp = KofScript.runFile(f, dev.kof.compiler.Target.JVM);
+        assertTrue(interp.success(), interp.stderr());
+        var compiled = KofScript.runFileCompiled(f, dev.kof.compiler.Target.JVM, new String[0]);
+        assertEquals(compiled.stdout(), interp.stdout(), "closure capture: interpretado == JVM");
+    }
+
+    @Test
+    void interpreterChannelMatchesJvm(@TempDir Path tmp) throws Exception {
+        // channel<T>() com spawn de closure capturando o canal — receive
+        // bloqueia até send, mesma ordem no interpretador e no JVM.
+        Path f = tmp.resolve("Main.kf");
+        Files.writeString(f, """
+                import kof.time
+                main() {
+                    val c = channel<Int>()
+                    spawn {
+                        println("recv-wait")
+                        val v = c.receive()
+                        println("recv:" + v)
+                    }
+                    time.sleep(30)
+                    println("pre-send")
+                    c.send(42)
+                    println("post-send")
+                }
+                """);
+        var interp = KofScript.runFile(f, dev.kof.compiler.Target.JVM);
+        assertTrue(interp.success(), interp.stderr());
+        assertEquals("recv-wait\npre-send\npost-send\nrecv:42",
+                interp.stdout().trim().replace("\r\n", "\n"));
+    }
 }
