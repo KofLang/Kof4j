@@ -33,6 +33,14 @@ final class JsRuntimeCore {
                             return child;
                         },
                         remove() { if (this.parentNode) this.parentNode.removeChild(this); },
+                        getContext(type) {
+                            if (type !== "2d") return null;
+                            return {
+                                fillStyle: "#000", strokeStyle: "#000", lineWidth: 1,
+                                beginPath() {}, closePath() {}, moveTo() {}, lineTo() {},
+                                arc() {}, fill() {}, stroke() {}, clearRect() {}
+                            };
+                        },
                         addEventListener(type, fn) { this._handlers = this._handlers || {}; (this._handlers[type] = this._handlers[type] || []).push(fn); }
                     };
                 }
