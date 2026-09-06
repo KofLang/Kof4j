@@ -218,54 +218,7 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
     }
     return localIdx;
 } else if (mc.receiver() instanceof IdentifierExpr rid && KofDb.isDbNamespace(rid.name())) {
-    List<Type> argTypes = new ArrayList<>();
-    for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
-    boolean typed = KofDb.isQuery(mc.methodName()) && !mc.typeArguments().isEmpty();
-    KofDb.DbCall dbCall = KofDb.staticCall(mc.methodName(), argTypes, typed);
-    if (dbCall != null) {
-        if (!KofDb.supportedOn(driver.target)) {
-            if (driver.currentDiagnostics != null) {
-                driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
-                        mc.position() != null ? mc.position().line() : 0,
-                        mc.position() != null ? mc.position().column() : 0,
-                        0,
-                        rid.name() + "." + mc.methodName()
-                                + ": not available on the " + driver.target
-                                + " driver.target yet (" + KofDb.gapCode() + ")",
-                        KofDb.gapCode());
-            }
-            return localIdx;
-        }
-        for (int i = 0; i < mc.arguments().size() && i < 2; i++) {
-            localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(i), ops, owner, localIdx, locals);
-        }
-        for (int i = 2; i < mc.arguments().size(); i++) {
-            localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(i), ops, owner, localIdx, locals);
-            TypeEmitter.boxPrimitive(ops, argTypes.get(i));
-        }
-        if (KofDb.isQuery(mc.methodName())) {
-            if (typed && !mc.typeArguments().isEmpty()) {
-                ops.add(new KofLoadLiteral(BuiltinTypes.STRING, mc.typeArguments().get(0)));
-            } else {
-                ops.add(new KofLoadLiteral(Type.UnknownType.UNKNOWN, null));
-            }
-        }
-        List<Type> params = new ArrayList<>(dbCall.parameterTypes());
-        Type retType = dbCall.returnType();
-        if (KofDb.isQuery(mc.methodName())) {
-            // o className (ou null) é sempre empurrado; o
-            // param precisa estar na lista para o native
-            // popar na ordem certa
-            params.add(BuiltinTypes.STRING);
-            if (typed) {
-                retType = new Type.ClassType("kof", "List",
-                        List.of(CompilerTypes.toType(mc.typeArguments().get(0), driver.currentUnit)));
-            }
-        }
-        ops.add(new KofCall(new Type.ClassType("kof.db", "Db", List.of()),
-                dbCall.function(), params, retType, KofCallKind.FUNCTION));
-    }
-    return localIdx;
+    return ExpressionDbCallLowerer.lower(driver, mc, ops, owner, localIdx, locals);
 } else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
             && KofOrm.isOrmNamespace(rid.name())) {
     List<Type> argTypes = new ArrayList<>();
@@ -355,105 +308,10 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
     return localIdx;
 } else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
             && KofLog.isLogNamespace(rid.name())) {
-    List<Type> argTypes = new ArrayList<>();
-    for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
-    KofLog.LogCall logCall = KofLog.staticCall(mc.methodName(), argTypes);
-    if (logCall != null) {
-        if (!KofLog.supportedOn(driver.target)) {
-            if (driver.currentDiagnostics != null) {
-                driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
-                        mc.position() != null ? mc.position().line() : 0,
-                        mc.position() != null ? mc.position().column() : 0,
-                        0,
-                        rid.name() + "." + mc.methodName()
-                                + ": not available on the " + driver.target
-                                + " driver.target yet (" + KofLog.gapCode() + ")",
-                        KofLog.gapCode());
-            }
-            return localIdx;
-        }
-        for (ExpressionNode arg : mc.arguments()) {
-            localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
-        }
-        ops.add(new KofCall(new Type.ClassType("kof.log", "Log", List.of()),
-                logCall.function(), logCall.parameterTypes(), logCall.returnType(),
-                KofCallKind.FUNCTION));
-    }
-    return localIdx;
+    return ExpressionLogCallLowerer.lower(driver, mc, ops, owner, localIdx, locals);
 } else if (mc.receiver() instanceof IdentifierExpr rid && "process".equals(rid.name())
         && driver.findLocalVar(rid.name(), locals) == null) {
-    List<Type> argTypes = new ArrayList<>();
-    for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
-    KofProcess.ProcessCall procCall = KofProcess.entryCall(mc.methodName(), argTypes);
-    if (procCall != null && "kof_process_spawn".equals(procCall.function())) {
-        if (driver.target.isNative()) {
-            // F10: pipes vivos no native exigem fork/exec com
-            // descriptors no runtime asm — gap explícito por ora
-            if (driver.currentDiagnostics != null) {
-                driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
-                        mc.position() != null ? mc.position().line() : 0,
-                        mc.position() != null ? mc.position().column() : 0,
-                        0,
-                        "process.spawn: interactive stdin/stdout not supported on the Native driver.target yet (JVM/JS support it)",
-                        "PROC001");
-            }
-            return localIdx;
-        }
-        // F10: process.spawn(program, args...) → monta List<String>
-        // e chama kof_process_spawn (stdin/stdout vivos)
-        localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(0), ops, owner, localIdx, locals);
-        Type listType = KofProcess.STRING_LIST;
-        ops.add(new KofCall(listType, "kof_list_new", List.of(), listType, KofCallKind.FUNCTION));
-        for (int i = 1; i < mc.arguments().size(); i++) {
-            ops.add(new KofDup());
-            localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(i), ops, owner, localIdx, locals);
-            ops.add(new KofCall(listType, "kof_list_add",
-                    List.of(BuiltinTypes.STRING), Type.PrimitiveType.VOID,
-                    KofCallKind.INSTANCE));
-        }
-        ops.add(new KofCall(KofProcess.HANDLE, "kof_process_spawn",
-                List.of(BuiltinTypes.STRING, KofProcess.STRING_LIST),
-                KofProcess.HANDLE, KofCallKind.FUNCTION));
-        return localIdx;
-    }
-    if (procCall != null) {
-        if (driver.target.isNative()) {
-            if (driver.currentDiagnostics != null) {
-                driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
-                        mc.position() != null ? mc.position().line() : 0,
-                        mc.position() != null ? mc.position().column() : 0,
-                        0,
-                        "process.run: not supported on the Native driver.target yet (JVM supports it)",
-                        "PROC001");
-            }
-            return localIdx;
-        }
-        // process.run(program, args...) →
-        // kof_process_run(program, List<String>)
-        localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(0), ops, owner, localIdx, locals);
-        Type listType = KofProcess.STRING_LIST;
-        ops.add(new KofCall(listType, "kof_list_new", List.of(), listType, KofCallKind.FUNCTION));
-        for (int i = 1; i < mc.arguments().size(); i++) {
-            ops.add(new KofDup());
-            localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(i), ops, owner, localIdx, locals);
-            ops.add(new KofCall(listType, "kof_list_add",
-                    List.of(BuiltinTypes.STRING), Type.PrimitiveType.VOID,
-                    KofCallKind.INSTANCE));
-        }
-        ops.add(new KofCall(KofProcess.RESULT, "kof_process_run",
-                List.of(BuiltinTypes.STRING, KofProcess.STRING_LIST),
-                KofProcess.RESULT, KofCallKind.FUNCTION));
-    } else {
-        // process.exit(code) — todos os targets
-        KofProcess.ProcessCall exitCall = KofProcess.exitCall(argTypes);
-        if (exitCall != null) {
-            localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(0), ops, owner, localIdx, locals);
-            ops.add(new KofCall(new Type.ClassType("kof.process", "Process", List.of()),
-                    exitCall.function(), exitCall.parameterTypes(), exitCall.returnType(),
-                    KofCallKind.FUNCTION));
-        }
-    }
-    return localIdx;
+    return ExpressionProcessCallLowerer.lower(driver, mc, ops, owner, localIdx, locals);
 } else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
             && KofHttp.isHttpNamespace(rid.name())) {
     List<Type> argTypes = new ArrayList<>();
@@ -533,31 +391,7 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
     }
     return localIdx;
 } else if (mc.receiver() == null && KofScheduler.isSchedulerMethod(mc.methodName())) {
-    List<Type> argTypes = new ArrayList<>();
-    for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
-    KofScheduler.SchedulerCall schedCall = KofScheduler.staticCall(mc.methodName(), argTypes);
-    if (schedCall != null) {
-        if (!KofScheduler.supportedOn(driver.target)) {
-            if (driver.currentDiagnostics != null) {
-                driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
-                        mc.position() != null ? mc.position().line() : 0,
-                        mc.position() != null ? mc.position().column() : 0,
-                        0,
-                        mc.methodName()
-                                + ": not available on the " + driver.target
-                                + " driver.target yet (SCHED001)",
-                        "SCHED001");
-            }
-            return localIdx;
-        }
-        for (ExpressionNode arg : mc.arguments()) {
-            localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
-        }
-        ops.add(new KofCall(KofScheduler.SCHEDULER, schedCall.function(), schedCall.parameterTypes(),
-                schedCall.returnType(), KofCallKind.FUNCTION));
-        return localIdx;
-    }
-    // fall through to normal handling if not matched
+    return ExpressionSchedulerCallLowerer.lower(driver, mc, ops, owner, localIdx, locals);
 } else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
             && KofMq.isMqNamespace(rid.name())) {
     List<Type> argTypes = new ArrayList<>();
