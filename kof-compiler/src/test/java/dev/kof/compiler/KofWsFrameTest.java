@@ -1,5 +1,6 @@
 package dev.kof.compiler;
 
+import dev.kof.compiler.jvm.JvmRuntime;
 import org.junit.jupiter.api.Test;
 
 import dev.kof.compiler.jvm.JvmRuntime;

@@ -1,5 +1,6 @@
 package dev.kof.compiler;
 
+import dev.kof.compiler.backend.Optimizer;
 import org.junit.jupiter.api.Test;
 
 import dev.kof.compiler.backend.Optimizer;

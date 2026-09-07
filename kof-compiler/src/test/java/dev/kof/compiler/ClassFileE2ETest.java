@@ -1,5 +1,6 @@
 package dev.kof.compiler;
 
+import dev.kof.compiler.parser.ClassFileParser;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
