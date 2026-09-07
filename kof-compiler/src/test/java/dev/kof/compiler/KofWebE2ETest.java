@@ -227,6 +227,25 @@ class KofWebE2ETest {
     }
 
     @Test
+    void deleteRouteCompilesAndResponds(@TempDir Path tempDir) throws IOException {
+        // bug 54 (GitHub #29): app.delete colidia com File.delete no Io →
+        // KofPop extra sobre kof_web_route (void) → frame crash no JVM.
+        String app = """
+                main() {
+                    var app = web.app()
+                    app.delete("/item/:id") {
+                        return "deleted:" + param("id")
+                    }
+                    app.listen(PORT)
+                }
+                """;
+        int port = startServer(tempDir, app);
+        String r = request(port, "DELETE /item/7 HTTP/1.1\r\nHost: x\r\n\r\n");
+        assertTrue(r.startsWith("HTTP/1.1 200 OK"), r);
+        assertTrue(bodyOf(r).equals("deleted:7"), r);
+    }
+
+    @Test
     void middlewareShortCircuits(@TempDir Path tempDir) throws IOException {
         int port = startServer(tempDir);
         String r = request(port, "GET /hello HTTP/1.1\r\nHost: x\r\n\r\n");
