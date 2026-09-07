@@ -396,6 +396,28 @@ class CoreRegressionE2ETest {
                 """, "h\nH", tempDir, "string-valueof-char");
     }
 
+    // known-bugs #40 — compound assignment on instance FIELD: `n += 1` in a
+    // method pushed `this` once, getfield consumed it, putfield underflowed.
+    @Test
+    void compoundOnInstanceField(@TempDir Path tempDir) throws IOException {
+        runBoth("""
+                class Box {
+                    Int n
+                    Int inc() {
+                        n += 1
+                        return n
+                    }
+                }
+                main() {
+                    var b = Box()
+                    b.n = 10
+                    println(b.inc())
+                    b.n -= 2
+                    println(b.n)
+                }
+                """, "11\n9", tempDir, "compound-instance-field");
+    }
+
     // known-bugs #5/#24 — FP→Int/Long casts and Double→Float narrowing were
     // missing conversion ops → invalid bytecode (ClassFormatError). Now D2I/
     // F2I/D2L/F2L (truncate toward zero) and D2F are emitted.

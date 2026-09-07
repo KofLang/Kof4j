@@ -60,6 +60,10 @@ if (ae.target() instanceof IdentifierExpr ie && !owner.isEmpty()) {
             if ("+=".equals(op) || "-=".equals(op) || "*=".equals(op)
                     || "/=".equals(op) || "%=".equals(op)
                     || "&=".equals(op) || "|=".equals(op) || "^=".equals(op)) {
+                // compound em CAMPO de instância: o getfield consome o `this`
+                // e o putfield precisa dele de novo — duplica antes (bug 40:
+                // stack underflow no putfield, `n += 1` em método de instância).
+                ops.add(new KofDup());
                 ops.add(new KofLoadField(ownerType, ie.name(), fieldSym.type()));
             }
             localIdx = ExpressionLowerer.emitExpression(driver, ae.value(), ops, owner, localIdx, locals);
@@ -171,15 +175,6 @@ if (ae.target() instanceof FieldAccessExpr fa) {
     }
     localIdx = ExpressionLowerer.emitExpression(driver, fa.receiver(), ops, owner, localIdx, locals);
     Type recvType = ExpressionTyper.inferExprType(driver, fa.receiver(), locals);
-    String faOp = ae.operator();
-    if ("+=".equals(faOp) || "-=".equals(faOp) || "*=".equals(faOp)
-            || "/=".equals(faOp) || "%=".equals(faOp)
-            || "&=".equals(faOp) || "|=".equals(faOp) || "^=".equals(faOp)) {
-        ops.add(new KofDup());
-        ops.add(new KofLoadField(ExpressionTyper.inferExprType(driver, fa.receiver(), locals), fa.fieldName(),
-                Type.UnknownType.UNKNOWN));
-    }
-    localIdx = ExpressionLowerer.emitExpression(driver, ae.value(), ops, owner, localIdx, locals);
     Type fieldType = Type.UnknownType.UNKNOWN;
     if (recvType instanceof Type.ClassType ct) {
         SymbolTable.Symbol fs = HierarchyResolver.resolveFieldInHierarchy(ct.name(), fa.fieldName(), driver.semanticAnalyzer);
@@ -191,6 +186,18 @@ if (ae.target() instanceof FieldAccessExpr fa) {
             if (desc != null) fieldType = ExternalClasspath.typeFromDescriptor(desc);
         }
     }
+    String faOp = ae.operator();
+    if ("+=".equals(faOp) || "-=".equals(faOp) || "*=".equals(faOp)
+            || "/=".equals(faOp) || "%=".equals(faOp)
+            || "&=".equals(faOp) || "|=".equals(faOp) || "^=".equals(faOp)) {
+        // compound em CAMPO (via variável, ex.: b.n -= 2): o getfield
+        // consome o receiver e o putfield precisa dele de novo — duplica
+        // (bug 40: putfield com stack underflow). O tipo do campo REAL
+        // (não Unknown) evita getfield de Object + aritmética inválida.
+        ops.add(new KofDup());
+        ops.add(new KofLoadField(recvType, fa.fieldName(), fieldType));
+    }
+    localIdx = ExpressionLowerer.emitExpression(driver, ae.value(), ops, owner, localIdx, locals);
     if ("+=".equals(faOp) || "-=".equals(faOp) || "*=".equals(faOp)
             || "/=".equals(faOp) || "%=".equals(faOp)
             || "&=".equals(faOp) || "|=".equals(faOp) || "^=".equals(faOp)) {

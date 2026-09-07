@@ -774,7 +774,7 @@ EXTERNA produz lixo
   genérico de coleção) resolve para o ramo primitivo.
 - **Prova/repro:** caso `map-null-val` (sweep manual 06/09).
 
-### 40. `n += 1` em campo de instância → crash nos 2 caminhos — ABERTO
+### 40. `n += 1` em campo de instância → crash nos 2 caminhos — ✅ CORRIGIDO 07/09
 
 - **Sintoma:** `class Box { Int n; Int inc() { n += 1; return n } }` →
   interpretador: `NoSuchElementException` (pilha vazia); compilado:
@@ -785,6 +785,7 @@ EXTERNA produz lixo
   padrão do bug 35-38 (this/local desalinhado em método com `owner` mas
   lowering de `this` inconsistente).
 - **Prova/repro:** probe manual 06/09 (caso `inst`).
+- **Corrigido 07/09:** (1) compound via `this.n` — `KofDup` antes do getfield (o putfield precisa do receiver de novo); (2) compound via variável `b.n -= 2` — `KofLoadField` agora usa o `fieldType` REAL (era `UnknownType` → getfield de Object + aritmética inválida → VerifyError/JavaFX). Prova: `CoreRegressionE2ETest.compoundOnInstanceField` (3 targets).
 
 ### 41. Campo ESTÁTICO no Native → lixo (R6 silencioso) — ABERTO (lane Native)
 
