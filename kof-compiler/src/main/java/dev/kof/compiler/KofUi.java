@@ -85,6 +85,13 @@ public final class KofUi {
         return isLabel(t) || isButton(t) || isInput(t) || isView(t) || isLink(t);
     }
 
+    /** UI005: widgets DOM que aceitam setId/setClass/setDisabled (família
+     *  compartilhada kof_ui_widget_*, como font). */
+    static boolean isDomWidget(Type t) {
+        return isLabel(t) || isButton(t) || isInput(t) || isView(t) || isLink(t)
+                || isImage(t) || isIcon(t) || isForm(t) || isColumn(t) || isRow(t);
+    }
+
     static public boolean isUiType(Type t) {
         return isColor(t) || isTheme(t) || isLabel(t) || isButton(t) || isInput(t)
                 || isColumn(t) || isRow(t) || isForm(t) || isView(t) || isStyle(t) || isWindow(t)
@@ -180,6 +187,26 @@ public final class KofUi {
     }
 
     static UiCall instanceMethod(Type receiver, String name, int argCount) {
+        // UI005: métodos compartilhados de widget DOM (família kof_ui_widget_*).
+        // Verificados ANTES dos blocos por-tipo (que retornam null no default e
+        // nunca cairiam aqui — aceitaFont era código morto p/ Label/Button/...).
+        if (isDomWidget(receiver)) {
+            UiCall shared = switch (name) {
+                case "setId" -> argCount == 1 ? new UiCall("kof_ui_widget_set_id", Type.PrimitiveType.VOID, List.of(STR)) : null;
+                case "setClass" -> argCount == 1 ? new UiCall("kof_ui_widget_set_class", Type.PrimitiveType.VOID, List.of(STR)) : null;
+                case "setDisabled" -> argCount == 1 ? new UiCall("kof_ui_widget_set_disabled", Type.PrimitiveType.VOID, List.of(BOOL)) : null;
+                default -> null;
+            };
+            if (shared != null) return shared;
+            if (acceptsFont(receiver)) {
+                UiCall f = switch (name) {
+                    case "font" -> argCount == 0 ? new UiCall("kof_ui_widget_font", FONT, List.of()) : null;
+                    case "setFont" -> argCount == 1 ? new UiCall("kof_ui_widget_set_font", Type.PrimitiveType.VOID, List.of(INT)) : null;
+                    default -> null;
+                };
+                if (f != null) return f;
+            }
+        }
         if (isWindow(receiver)) {
             return switch (name) {
                 case "title" -> argCount == 0 ? new UiCall("kof_ui_window_title", STR, List.of()) : null;
@@ -283,13 +310,6 @@ public final class KofUi {
                 case "size" -> argCount == 0 ? new UiCall("kof_ui_icon_size", INT, List.of()) : null;
                 case "setSize" -> argCount == 1 ? new UiCall("kof_ui_icon_set_size", Type.PrimitiveType.VOID, List.of(INT)) : null;
                 case "remove" -> argCount == 0 ? new UiCall("kof_ui_icon_remove", Type.PrimitiveType.VOID, List.of()) : null;
-                default -> null;
-            };
-        }
-        if (acceptsFont(receiver)) {
-            return switch (name) {
-                case "font" -> argCount == 0 ? new UiCall("kof_ui_widget_font", FONT, List.of()) : null;
-                case "setFont" -> argCount == 1 ? new UiCall("kof_ui_widget_set_font", Type.PrimitiveType.VOID, List.of(INT)) : null;
                 default -> null;
             };
         }

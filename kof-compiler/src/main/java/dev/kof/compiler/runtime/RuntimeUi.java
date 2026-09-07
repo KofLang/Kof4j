@@ -270,6 +270,12 @@ public final class RuntimeUi {
                 ret
             kof_ui_widget_set_font:
                 ret
+            kof_ui_widget_set_id:
+                ret
+            kof_ui_widget_set_class:
+                ret
+            kof_ui_widget_set_disabled:
+                ret
             kof_ui_column_new:
                 movl $1, %eax
                 ret

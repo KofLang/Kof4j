@@ -35,6 +35,19 @@ public final class JsRuntimeUiWidgets {
                 return n && n.dataset.kofFont ? parseInt(n.dataset.kofFont, 10) : -1;
             }
 
+            export function kofUiWidgetSetId(widget, id) {
+                const n = window.__kofNodes && window.__kofNodes[widget];
+                if (n) n.id = id;
+            }
+            export function kofUiWidgetSetClass(widget, cls) {
+                const n = window.__kofNodes && window.__kofNodes[widget];
+                if (n) n.classList.add(cls);
+            }
+            export function kofUiWidgetSetDisabled(widget, disabled) {
+                const n = window.__kofNodes && window.__kofNodes[widget];
+                if (n) n.disabled = disabled ? true : false;
+            }
+
             export function kofUiLabelNew(text) {
                 if (typeof document === "undefined") {
                     return -1;

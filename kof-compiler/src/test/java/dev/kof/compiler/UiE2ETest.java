@@ -120,18 +120,18 @@ class UiE2ETest {
     }
 
     @Test
-    void imageAttributesLinkOnAllTargets(@TempDir Path tempDir) throws IOException {
-        // UI003/5: Image.setAlt/setWidth/setHeight — aditivo; no-op em
-        // JVM/Native, DOM real em KofJS (KofJsBrowserE2ETest).
-        both(tempDir, "imgattrs", """
+    void widgetAttributesLinkOnAllTargets(@TempDir Path tempDir) throws IOException {
+        // UI005: setId/setClass/setDisabled — aditivo; no-op JVM/Native,
+        // DOM real em KofJS (KofJsBrowserE2ETest).
+        both(tempDir, "widgetattrs", """
             main() {
-                var logo = Image("logo.png")
-                logo.setAlt("logotipo")
-                logo.setWidth(120)
-                logo.setHeight(60)
-                println(logo.src())
+                var campo = Input("")
+                campo.setId("nome")
+                campo.setClass("destaque")
+                campo.setDisabled(true)
+                println("ok")
             }
-            """, "");
+            """, "ok");
     }
 
     @Test

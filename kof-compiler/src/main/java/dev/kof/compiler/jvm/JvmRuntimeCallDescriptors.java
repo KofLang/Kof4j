@@ -118,7 +118,9 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_ui_icon_new_size" -> "(Ljava/lang/String;I)I";
             case "kof_ui_font_new" -> "(Ljava/lang/String;I)I";
             case "kof_ui_font_new_bold" -> "(Ljava/lang/String;IZ)I";
-            case "kof_ui_widget_set_font" -> "(II)V";
+             case "kof_ui_widget_set_font" -> "(II)V";
+             case "kof_ui_widget_set_id", "kof_ui_widget_set_class" -> "(ILjava/lang/String;)V";
+             case "kof_ui_widget_set_disabled" -> "(II)V";
             case "kof_ui_widget_font" -> "(I)I";
              case "kof_ui_link_set_text", "kof_ui_link_set_url", "kof_ui_image_set_src",
                      "kof_ui_icon_set_name" -> "(ILjava/lang/String;)V";

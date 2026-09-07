@@ -186,11 +186,22 @@ reuso). **Prova E2E Cenário A (I2)**: app real `web.app()` + `serveDir` →
    `<form>` com `preventDefault` no submit + appendChild dos filhos.
    Prova: `UiE2ETest.formContainerLinksOnAllTargets` (JVM+Native) +
    `KofJsBrowserE2ETest.formContainerRendersInRealBrowserDom` (DOM
-   `<form>` + kof-form + input do form); suíte 1097/0/64-skip.
-   **PRÓXIMO PASSO (Fase 4, minha lane)**: `Form.onSubmit`/submit handler
-   (UI004 — handler que roda no submit; padrão `Button(text, action)`
-   SAM via `kofUiSetAction`); depois UI005 id/class/disabled + UI007
-   style declarativo. Seguir 6 pontos + 2 suítes. **NÃO quebrar**:
+    `<form>` + kof-form + input do form); suíte 1097/0/64-skip.
+    **UI005 `setId`/`setClass`/`setDisabled` FEITO (este commit)**: família
+    compartilhada `kof_ui_widget_*` em widgets DOM (Label/Button/Input/View/
+    Link/Image/Icon/Form/Column/Row). **BUG LATENTE CORRIGIDO**: o bloco
+    `acceptsFont` era código MORTO — os blocos por-tipo (isLabel/isInput/...)
+    retornam null no default ANTES de alcançá-lo; `Label.setFont` nunca
+    funcionou. Fix: checagem compartilhada no TOPO de `instanceMethod` com
+    fall-through (revive setFont + habilita os 3 novos). 6 pontos + 2
+    suítes: `UiE2ETest.widgetAttributesLinkOnAllTargets` (JVM+Native) +
+    `KofJsBrowserE2ETest.widgetAttributesRenderInRealBrowserDom` (DOM
+    id/class/disabled); suíte 1100/0/64-skip.
+    **PRÓXIMO PASSO (Fase 4, minha lane)**: `Form.onSubmit`/submit handler
+    (UI004 — handler que roda no submit; padrão `Button(text, action)`
+    SAM via `kofUiSetAction`; prova: browser com dispatchEvent — o teste
+    atual só prova compila/link); depois UI007 style declarativo. Seguir
+    6 pontos + 2 suítes. **NÃO quebrar**:
   microsserviços (kof.http/kof.web/CmdServe), PKG002/4/5 (congelados), lanes
   `NativeBackend.java`/`KofInterpreter*`.
 

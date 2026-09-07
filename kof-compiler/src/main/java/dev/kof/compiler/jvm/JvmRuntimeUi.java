@@ -122,6 +122,15 @@ public final class JvmRuntimeUi {
                 public static void kof_ui_widget_set_font(int widget, int font) {
                 }
 
+                public static void kof_ui_widget_set_id(int widget, String id) {
+                }
+
+                public static void kof_ui_widget_set_class(int widget, String cls) {
+                }
+
+                public static void kof_ui_widget_set_disabled(int widget, int disabled) {
+                }
+
                 // ── Component Core (docs/ui/architecture.md) ──
                 // JVM/Native: kof.ui é KofJS — os handles de componente são
                 // no-ops (a renderização/lifecycle/estado rodam no alvo JS).

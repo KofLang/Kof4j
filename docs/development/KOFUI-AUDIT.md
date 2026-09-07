@@ -64,7 +64,7 @@ Grid, Center, Align, Store, Canvas + namespace `Router`.
 | **UI002** | `kof.ui` no Script = no-op silencioso (interprete executa sem efeito) | Script | **P0 (R6)** |
 | **UI003** | Elementos faltantes no KofJS: table/tr/td, textarea, checkbox, select/option, fieldset, iframe, video/audio, hr, ul/ol/li | KofJS | P1 |
 | **UI004** | Forms: `<form>` ✅ FEITO 07/09 (`Form(children)`); submit handler (onSubmit) pendente; fieldset pendente. `Input` tipos ✅ (`setType`); checkbox/radio estado ✅ (`setChecked`/`checked`); select pendente | KofJS | P1 |
-| **UI005** | Atributos faltantes: id, class custom, **placeholder ✅ (FEITO 07/09 — `Input.setPlaceholder`, `KofJsBrowserE2ETest`)**, disabled, checked, alt, width/height (img), readonly, name | KofJS | P1 |
+| **UI005** | Atributos: id ✅ class ✅ disabled ✅ (FEITO 07/09 — `setId`/`setClass`/`setDisabled` em widgets DOM, família `kof_ui_widget_*`); placeholder ✅ (`Input.setPlaceholder`); checked ✅; alt/width/height ✅ (`Image.*`); readonly/name pendentes | KofJS | P1 |
 | **UI006** | Eventos: `Event` expõe só type/stopPropagation (sem target, x/y, key, value, relatedTarget) | KofJS | P2 |
 | **UI007** | `style` declarativo (CSS idiomático) — novo, com parse próprio (item do plano Fase 4) | KofJS | P1 |
 | **UI008** | Window: size/position só no-op JVM; KofJS só title (browser não controla window — ok por plataforma) | JVM/KofJS | P3 |

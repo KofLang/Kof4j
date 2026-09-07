@@ -167,3 +167,25 @@ var f = Form(listOf(nome, enviar))
 **Por quê:** `Form` renderiza `<form>` (renderiza no DOM do KofJS) e
 agrupa os campos — fronteira semântica de formulário. Campos soltos
 perdem a semântica de submissão/acessibilidade (R1: intenção).
+
+## Widgets: id, class e disabled
+
+**BAD — criar wrappers só para dar id/classe a um widget:**
+```kof
+// ❌ NÃO — View envolvendo o input só para "carregar" um id
+var wrapper = View(campo)
+```
+
+**GOOD — `setId`/`setClass`/`setDisabled` no próprio widget:**
+```kof
+// ✅ IDIOMÁTICO — atributos são do widget (família compartilhada)
+var campo = Input("")
+campo.setId("nome")
+campo.setClass("destaque")
+campo.setDisabled(true)
+```
+
+**Por quê:** id/class/disabled são atributos do elemento DOM; a família
+`widget_*` do kof.ui os expõe em qualquer widget (Label/Button/Input/View/
+Link/Image/Icon/Form/Column/Row). Envelopar para contornar é mecanismo,
+não intenção (R1).
