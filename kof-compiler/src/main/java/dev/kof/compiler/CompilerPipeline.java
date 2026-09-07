@@ -176,6 +176,9 @@ final class CompilerPipeline {
             // Android: ART executa bytecode dex'd — a emissão é a mesma do
             // backend JVM; o alvo vive nas validações AND* e no empacotamento
             case ANDROID -> CompilerPipeline.backendWithClasspath(driver, new JvmBackend());
+            // SCRIPT não emite artefato — é interpretado (interpret()). O
+            // chamador (lowerAndEmit) bloqueia antes; isto é defensivo.
+            case SCRIPT -> throw new IllegalStateException("SCRIPT has no backend");
         };
     }
 
@@ -222,6 +225,15 @@ final class CompilerPipeline {
 
     static void lowerAndEmit(CompilerDriver driver, CompilationUnitNode unit, DiagnosticCollector diagnostics,
                               Path outputDir, Target target) throws IOException {
+        if (target.isScript()) {
+            // KofScript não compila — interpreta (interpret()). Emitir com
+            // este target seria fallback silencioso (R6): diagnóstico claro.
+            diagnostics.error(driver.currentSourceName, 0, 0, 0,
+                    "target 'script' não emite artefatos; use kof run --target script"
+                            + " (interpretação direta da IR) ou outro target",
+                    "COMP003");
+            return;
+        }
         if (System.getProperty("kof.trace") != null) {
             System.err.println("LOWER-AND-EMIT decls=" + unit.declarations().size() + " out=" + outputDir);
         }

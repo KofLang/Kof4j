@@ -51,8 +51,9 @@ final class KofCliSupport {
             case "native" -> Target.NATIVE;
             case "native.risc", "native.riscv64", "native.riscv" -> Target.NATIVE_RISCV64;
             case "native.arm", "native.aarch64", "native.aarch" -> Target.NATIVE_AARCH64;
-            case "js" -> Target.JS;
+            case "js", "kofjs" -> Target.JS;
             case "android" -> Target.ANDROID;
+            case "script", "kofscript" -> Target.SCRIPT;
             default -> {
                 System.err.println("unknown target: " + value);
                 System.exit(1);

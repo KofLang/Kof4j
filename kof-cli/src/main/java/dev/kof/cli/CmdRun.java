@@ -78,6 +78,10 @@ final class CmdRun {
             }
         }
         Path runRoot = siblingDir != null ? siblingDir : file.toAbsolutePath().getParent();
+        // Fase 1/2 (plataforma): se o arquivo vive num projeto com kof.toml,
+        // a raiz do projeto manda (imports cross-directory resolvem).
+        Path discovered = driver.resolveModuleRoot(sources);
+        if (discovered != null) runRoot = discovered;
         if (useDeps) {
             try {
                 String depsCp = Deps.classpath();
@@ -95,6 +99,27 @@ final class CmdRun {
                 System.exit(1);
                 return;
             }
+        }
+        // KofScript: coringa de execução — interpreta a IR no mesmo frontend,
+        // sem emitir .class/.native/.js/.wasm/.apk (fase 2 do plano de plataforma).
+        if (target == Target.SCRIPT) {
+            String[] programArgs = new String[Math.max(0, args.length - argStart)];
+            for (int i = argStart; i < args.length; i++) {
+                programArgs[i - argStart] = args[i];
+            }
+            try {
+                dev.kof.compiler.KofInterpreter.Result ir =
+                        driver.interpret(sources, runRoot, programArgs);
+                if (!ir.stdout().isEmpty()) System.out.print(ir.stdout());
+                if (!ir.stderr().isEmpty()) System.err.print(ir.stderr());
+                KofCliSupport.cleanup(tempDir);
+                System.exit(ir.exitCode());
+            } catch (dev.kof.compiler.KofInterpretException e) {
+                for (Diagnostic d : e.diagnostics().getDiagnostics()) System.err.println(d.format());
+                KofCliSupport.cleanup(tempDir);
+                System.exit(1);
+            }
+            return;
         }
         CompilationResult result = driver.compileSources(sources, tempDir, target, runRoot);
         for (Diagnostic d : result.diagnostics().getDiagnostics()) System.err.println(d.format());

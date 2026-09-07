@@ -98,6 +98,15 @@ public class CompilerDriver extends CompilerDriverState {
                                            String[] args) {
         return CompilerPipeline.interpret(this, sources, moduleRoot, args);
     }
+
+    /**
+     * Fase 1/2 (plataforma): module root para {@code sources} — raiz do
+     * projeto (kof.toml) quando existe, senão LCA (comportamento atual).
+     * Única fonte da regra; CLI (run/serve) deve passar ESTE root.
+     */
+    public Path resolveModuleRoot(java.util.List<Path> sources) {
+        return CompilerPipeline.rootFor(sources);
+    }
 Target target = Target.JVM;
 
 
