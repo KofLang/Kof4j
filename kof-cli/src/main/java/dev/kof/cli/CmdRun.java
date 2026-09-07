@@ -30,8 +30,10 @@ final class CmdRun {
         // vir antes ou depois dele.
         int fileIdx = 1;
         while (fileIdx < args.length && args[fileIdx].startsWith("-")) {
-            if (args[fileIdx].equals("--target") && fileIdx + 1 < args.length) fileIdx += 2;
-            else if (args[fileIdx].startsWith("--target=")) fileIdx += 1;
+            if ((args[fileIdx].equals("--target") || args[fileIdx].equals("--backend")
+                    || args[fileIdx].equals("--frontend")) && fileIdx + 1 < args.length) fileIdx += 2;
+            else if (args[fileIdx].startsWith("--target=") || args[fileIdx].startsWith("--backend=")
+                    || args[fileIdx].startsWith("--frontend=")) fileIdx += 1;
             else fileIdx += 1;
         }
         if (fileIdx >= args.length) { System.err.println("usage: kof run <file.kf> [--target ...]"); return; }
@@ -39,16 +41,35 @@ final class CmdRun {
         if (!Files.exists(file)) { System.err.println("file not found: " + file); System.exit(1); return; }
 
         Target target = Target.JVM;
+        boolean targetFlagged = false;
         boolean release = false;
         boolean useDeps = false;
+        String backendFlag = null;
+        String frontendFlag = null;
         int argStart = fileIdx + 1;
         for (int i = 1; i < args.length; i++) {
             if (i == fileIdx) continue;
             if (args[i].startsWith("--target=")) {
                 target = KofCliSupport.parseTarget(args[i].substring("--target=".length()));
+                targetFlagged = true;
                 argStart = i + 1;
             } else if (args[i].equals("--target") && i + 1 < args.length) {
                 target = KofCliSupport.parseTarget(args[i + 1]);
+                targetFlagged = true;
+                argStart = i + 2;
+                i++;
+            } else if (args[i].startsWith("--backend=")) {
+                backendFlag = args[i].substring("--backend=".length());
+                argStart = i + 1;
+            } else if (args[i].equals("--backend") && i + 1 < args.length) {
+                backendFlag = args[i + 1];
+                argStart = i + 2;
+                i++;
+            } else if (args[i].startsWith("--frontend=")) {
+                frontendFlag = args[i].substring("--frontend=".length());
+                argStart = i + 1;
+            } else if (args[i].equals("--frontend") && i + 1 < args.length) {
+                frontendFlag = args[i + 1];
                 argStart = i + 2;
                 i++;
             } else if (args[i].equals("--release")) {
@@ -82,6 +103,21 @@ final class CmdRun {
         // a raiz do projeto manda (imports cross-directory resolvem).
         Path discovered = driver.resolveModuleRoot(sources);
         if (discovered != null) runRoot = discovered;
+        // F2-parte-4 (plataforma): --backend/--frontend sobrepõem o kof.toml.
+        // --target (contrato legado, congelado) tem precedência; sem ele, o
+        // backend da flag/kof.toml dirige a execução. Combinação validada pela
+        // TargetMatrix ANTES de compilar (R6: erro honesto).
+        if (!targetFlagged && (backendFlag != null || frontendFlag != null)) {
+            try {
+                KofCliSupport.Targets sel = KofCliSupport.selectTargets(backendFlag, frontendFlag, runRoot);
+                if (sel.backend() != null) target = sel.backend();
+            } catch (IllegalArgumentException e) {
+                System.err.println("run: " + e.getMessage());
+                KofCliSupport.cleanup(tempDir);
+                System.exit(1);
+                return;
+            }
+        }
         if (useDeps) {
             try {
                 String depsCp = Deps.classpath();

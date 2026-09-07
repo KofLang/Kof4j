@@ -6,6 +6,7 @@ import dev.kof.compiler.CompilerDriver;
 import dev.kof.compiler.KofHttpServer;
 import dev.kof.compiler.ReflectiveHandler;
 import dev.kof.compiler.Target;
+import dev.kof.compiler.TargetMatrix;
 
 import java.io.IOException;
 import java.net.URLClassLoader;
@@ -36,6 +37,8 @@ final class CmdServe {
 
         int port = 8080;
         String host = "0.0.0.0";
+        String backendFlag = null;
+        String frontendFlag = null;
         for (int i = 2; i < args.length; i++) {
             if (args[i].equals("--port") && i + 1 < args.length) {
                 port = Integer.parseInt(args[i + 1]);
@@ -43,6 +46,14 @@ final class CmdServe {
             } else if (args[i].equals("--host") && i + 1 < args.length) {
                 host = args[i + 1];
                 i++;
+            } else if (args[i].startsWith("--backend=")) {
+                backendFlag = args[i].substring("--backend=".length());
+            } else if (args[i].equals("--backend") && i + 1 < args.length) {
+                backendFlag = args[++i];
+            } else if (args[i].startsWith("--frontend=")) {
+                frontendFlag = args[i].substring("--frontend=".length());
+            } else if (args[i].equals("--frontend") && i + 1 < args.length) {
+                frontendFlag = args[++i];
             }
         }
 
@@ -61,7 +72,32 @@ final class CmdServe {
                 if (!abs.equals(serveSources.get(0)) && !serveSources.contains(abs)) serveSources.add(abs);
             }
         }
-        CompilationResult result = driver.compileSources(serveSources, tempDir, Target.JVM);
+        // F2-parte-4 (plataforma): --backend/--frontend sobrepõem o kof.toml.
+        // serve hoje só executa backend JVM (in-process KofHttpServer); backend
+        // não-JVM resolvido vira erro honesto (R6), nunca fallback silencioso.
+        Target serveTarget = Target.JVM;
+        if (backendFlag != null || frontendFlag != null) {
+            Path serveRoot = driver.resolveModuleRoot(serveSources);
+            if (serveRoot == null) serveRoot = serveDir;
+            try {
+                KofCliSupport.Targets sel = KofCliSupport.selectTargets(backendFlag, frontendFlag, serveRoot);
+                if (sel.backend() != null && sel.backend() != Target.JVM) {
+                    System.err.println("serve: backend '" + TargetMatrix.name(sel.backend())
+                            + "' ainda não é executável via kof serve (só jvm); "
+                            + "use 'kof run --target " + TargetMatrix.name(sel.backend()) + "'");
+                    KofCliSupport.cleanup(tempDir);
+                    System.exit(1);
+                    return;
+                }
+                serveTarget = sel.backend() != null ? sel.backend() : Target.JVM;
+            } catch (IllegalArgumentException e) {
+                System.err.println("serve: " + e.getMessage());
+                KofCliSupport.cleanup(tempDir);
+                System.exit(1);
+                return;
+            }
+        }
+        CompilationResult result = driver.compileSources(serveSources, tempDir, serveTarget);
         for (Diagnostic d : result.diagnostics().getDiagnostics()) System.err.println(d.format());
         if (!result.success()) { KofCliSupport.cleanup(tempDir); System.exit(1); return; }
 

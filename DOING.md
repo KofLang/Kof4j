@@ -49,23 +49,28 @@ os 3 testes reparados + suíte 1046/0/3-skip. **PRÓXIMO (h)**: bug #29
 bug `wrapPureKof` (`qualifyGlobals` scanner, `3fbf12d`) + `Target.SCRIPT`
 routing (`51754fd`) + heartbeat `--attach` (`cfd5a4d`).
 
-**PRÓXIMO PASSO (fixes-for-kofagent, 07/09 — PLATAFORMA F2)**: **PARTES
-1–3 FEITAS E COMMITADAS**: (1) `Target.SCRIPT` no enum + `run --target
+**PRÓXIMO PASSO (fixes-for-kofagent, 07/09 — PLATAFORMA F2)**: **FASE 2
+COMPLETA (4/4) E COMMITADA**. (1) `Target.SCRIPT` no enum + `run --target
 script` → interpretador + COMP003 honesto (`303f196`/`51754fd`); (2)
-`KofProjectConfig` — parser mínimo de kof.toml (`09058d7`, 5 testes);
-(3) `TargetMatrix` — validação backend×frontend centralizada (commitado
-com `396b55e`, 8 testes; gates R6 nos Kof*.java permanecem a fonte de
-supportedOn/gapCode). **BÔNUS (este commit `6bbe7d6`)**: watchdog do
-`auto-loop.sh` — run pendurado (lock stale >120min) é matado pelo tick
-e re-injetado; falha real 07/09: zumbi de 4h (sem --attach, pré-fix
-`cfd5a4d`) travou todos os ticks. **F2-parte-4 É O PRÓXIMO**: CLI
-`--backend=X --frontend=Y` com override do kof.toml em build/run/serve,
-validando via `TargetMatrix.validate` ANTES de compilar (R6: erro
-honesto, nunca fallback silencioso). `KofProjectConfig.load(root)` já
-dá `backendTarget()`/`frontendTarget()`; `TargetMatrix.parse` já dá o
-Target + gap WASM001. Arquivos: `CmdBuild.java`, `CmdRun.java`,
-`CmdServe.java`, `KofCliSupport.java` (helper de resolução flag>toml).
-Prova esperada: testes de parse/validação/override + suíte completa verde.
+`KofProjectConfig` — parser mínimo de kof.toml (`09058d7`); (3)
+`TargetMatrix` — validação backend×frontend centralizada (8 testes);
+(4) CLI `--backend/--frontend` com override do kof.toml em build/run/serve
+(este commit): `KofCliSupport.selectTargets(flag,flag,root)` — prioridade
+flag > kof.toml > default(null), validação via `TargetMatrix.validate`
+ANTES de compilar (R6). `--target` (contrato legado congelado) mantém
+precedência. `serve` com backend não-JVM → erro honesto (só jvm in-process
+hoje). Bônus: fix do refactor SOLID remoto que quebrou test-compile do
+kof-compiler (`ClassFileParser`→parser, `JvmRuntime`→jvm, `Optimizer`→
+backend nos testes ClassFileE2ETest/KofWsFrameTest/OptimizerTest — imports
+faltantes após o move). Provas: `SelectTargetsTest` 8/8 + E2E manual 8
+cenas (build/run × flag/manifesto/override/erro-honesto/coringa-script:
+`build --backend jvm`→roda `hello 42`; manifesto `backend=script`→COMP003;
+`--backend jvm` sobrepõe toml; `--backend js`→"não pode ser backend";
+`run --backend script`→42 via interpretador). Suíte completa 1054/0/64-skip
+verde (inclui os 3 testes SOLID desbloqueados). **FASE 3 (Full-stack) É O
+PRÓXIMO**: `kof build` compila backend+frontend no mesmo projeto (artefatos
+`build/backend`+`build/frontend`); `kof run --backend --frontend` roda
+backend + serve frontend. Ver `docs/development/future/PLATFORM-PLAN.md`.
 **NÃO quebrar**: microsserviços (kof.http/kof.web/CmdServe existentes),
 PKG002/4/5 (congelados), lanes `NativeBackend.java` e `KofInterpreter*`.
 

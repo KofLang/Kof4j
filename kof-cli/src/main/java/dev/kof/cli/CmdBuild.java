@@ -22,13 +22,16 @@ final class CmdBuild {
     }
 
     static void run(String[] args) {
-        if (args.length < 2) { System.err.println("usage: kof build <source-dir> [--target jvm|native|js|android] [--output <dir>] [--release] [--apk] [--classpath <jars>] [--keystore <ks> [--storepass <p>] [--keypass <p>] [--alias <a>]]");
+        if (args.length < 2) { System.err.println("usage: kof build <source-dir> [--target jvm|native|js|android] [--backend <t>] [--frontend <t>] [--output <dir>] [--release] [--apk] [--classpath <jars>] [--keystore <ks> [--storepass <p>] [--keypass <p>] [--alias <a>]]");
         if ("--help".equals(args[1]) || "-h".equals(args[1]) || "--version".equals(args[1])) {
-            System.out.println("usage: kof build <source-dir> [--target jvm|native|js|android] [--output <dir>] [--release] [--apk] [--classpath <jars>] [--keystore <ks> [--storepass <p>] [--keypass <p>] [--alias <a>]]");
+            System.out.println("usage: kof build <source-dir> [--target jvm|native|js|android] [--backend <t>] [--frontend <t>] [--output <dir>] [--release] [--apk] [--classpath <jars>] [--keystore <ks> [--storepass <p>] [--keypass <p>] [--alias <a>]]");
             return;
         } return; }
         Path src = Path.of(args[1]);
         Target target = Target.JVM;
+        boolean targetFlagged = false;
+        String backendFlag = null;
+        String frontendFlag = null;
         Path out = Path.of("build/classes");
         boolean release = false;
         boolean apk = false;
@@ -42,11 +45,21 @@ final class CmdBuild {
             String arg = args[i];
             if (arg.startsWith("--target=")) {
                 target = KofCliSupport.parseTarget(arg.substring("--target=".length()));
+                targetFlagged = true;
             } else if (arg.startsWith("--output=")) {
                 out = Path.of(arg.substring("--output=".length()));
             } else if (arg.equals("--target") && i + 1 < args.length) {
                 target = KofCliSupport.parseTarget(args[i + 1]);
+                targetFlagged = true;
                 i++;
+            } else if (arg.startsWith("--backend=")) {
+                backendFlag = arg.substring("--backend=".length());
+            } else if (arg.equals("--backend") && i + 1 < args.length) {
+                backendFlag = args[++i];
+            } else if (arg.startsWith("--frontend=")) {
+                frontendFlag = arg.substring("--frontend=".length());
+            } else if (arg.equals("--frontend") && i + 1 < args.length) {
+                frontendFlag = args[++i];
             } else if (arg.equals("--output") && i + 1 < args.length) {
                 out = Path.of(args[i + 1]);
                 i++;
@@ -76,6 +89,21 @@ final class CmdBuild {
                 keyalias = arg.substring("--alias=".length());
             } else if (arg.equals("--alias") && i + 1 < args.length) {
                 keyalias = args[++i];
+            }
+        }
+        // F2-parte-4 (plataforma): --backend/--frontend sobrepõem o kof.toml.
+        // --target (contrato legado, congelado) tem precedência; sem ele, o
+        // backend da flag/kof.toml dirige a compilação. A combinação backend×
+        // frontend é validada pela TargetMatrix ANTES de compilar (R6: erro
+        // honesto, nunca fallback silencioso).
+        if (!targetFlagged) {
+            try {
+                KofCliSupport.Targets sel = KofCliSupport.selectTargets(backendFlag, frontendFlag, src);
+                if (sel.backend() != null) target = sel.backend();
+            } catch (IllegalArgumentException e) {
+                System.err.println("build: " + e.getMessage());
+                System.exit(1);
+                return;
             }
         }
         CompilerDriver driver = new CompilerDriver();

@@ -1,6 +1,8 @@
 package dev.kof.cli;
 
+import dev.kof.compiler.KofProjectConfig;
 import dev.kof.compiler.Target;
+import dev.kof.compiler.TargetMatrix;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -70,6 +72,33 @@ final class KofCliSupport {
         } catch (IOException e) { System.err.println("error: " + e.getMessage()); }
         files.sort(java.util.Comparator.comparing(Path::toString));
         return files;
+    }
+
+    /**
+     * F2-parte-4 (plataforma): seleciona backend×frontend para build/run/serve.
+     * Prioridade: flag {@code --backend/--frontend} > {@code [backend]/[frontend]}
+     * do kof.toml > default (null). Valida a combinação via
+     * {@link TargetMatrix#validate} ANTES de compilar (R6: erro honesto).
+     * Retorna um record ou lança {@link IllegalArgumentException} com a mensagem
+     * legível — o caller imprime e sai com 1.
+     */
+    public static record Targets(Target backend, Target frontend) {}
+
+    public static Targets selectTargets(String backendFlag, String frontendFlag, Path projectRoot) {
+        KofProjectConfig cfg = projectRoot != null ? KofProjectConfig.load(projectRoot) : KofProjectConfig.empty();
+        List<String> errors = new ArrayList<>();
+        for (String w : cfg.warnings()) System.err.println("kof.toml: " + w);
+        String backendRaw = backendFlag != null ? backendFlag : cfg.backendTarget();
+        String frontendRaw = frontendFlag != null ? frontendFlag : cfg.frontendTarget();
+        Target backend = TargetMatrix.parse(backendRaw, errors);
+        Target frontend = TargetMatrix.parse(frontendRaw, errors);
+        if (!errors.isEmpty()) {
+            for (String e : errors) System.err.println("error: " + e);
+            throw new IllegalArgumentException(String.join("; ", errors));
+        }
+        String invalid = TargetMatrix.validate(backend, frontend);
+        if (invalid != null) throw new IllegalArgumentException(invalid);
+        return new Targets(backend, frontend);
     }
 
     static List<Path> collect(Path dir) {
