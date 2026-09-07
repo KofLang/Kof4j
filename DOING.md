@@ -82,7 +82,7 @@ cenas (build/run × flag/manifesto/override/erro-honesto/coringa-script:
 verde (inclui os 3 testes SOLID desbloqueados).
 
 **PRÓXIMO PASSO (fixes-for-kofagent, 07/09 — PLATAFORMA F3)**: FASE 3
-(Full-stack) **DEGRAU 1 FEITO (este commit)**: `kof build` full-stack —
+(Full-stack) **DEGRAU 1 FEITO**: `kof build` full-stack —
 `KofCliSupport.detectLayout` (APPLICATION_MODEL P6: raiz com `src/` =
 backend, `src/web/` = frontend KofJS, `src/static/` = estáticos; **aditivo**:
 sem `web/` com .kf → `backendDir` = próprio dir, monólito inalterado) +
@@ -90,15 +90,20 @@ sem `web/` com .kf → `backendDir` = próprio dir, monólito inalterado) +
 bundle KofJS, estáticos→`build/static`; `--output` respeitado). Provas:
 `LayoutTest` 5/5 + E2E manual (build da RAIZ full-stack: dist/backend roda
 `backend 42` + dist/frontend com index.html/.mjs + dist/static/style.css;
-regressão monólito `build/classes`+`--output` idêntico a hoje; `run
---backend jvm` em projeto full-stack ok). Suíte 1062/0/64-skip verde.
-**DEGRAU 2 É O PRÓXIMO**: `kof run --backend --frontend` roda backend +
-**serve os estáticos/frontend** (hoje run só executa o backend). Depois:
-`kof serve --backend --frontend` (matriz, hoje JVM-only) + testes full-stack
-dos 4 cenários (JVM+KofJS, Native+KofJS, Script+KofJS, Script+Script —
-F3.5 do plano). Ver `docs/development/future/PLATFORM-PLAN.md` §Fase 3.
-**NÃO quebrar**: microsserviços (kof.http/kof.web/CmdServe existentes),
-PKG002/4/5 (congelados), lanes `NativeBackend.java` e `KofInterpreter*`.
+regressão monólito `build/classes`+`--output` idêntico a hoje).
+**DEGRAU 2a FEITO (este commit)**: `KofCliSupport.serveStatic(webRoot,host,port)`
+— servidor de estáticos p/ `run`/`serve` full-stack (JDK `httpserver`, já
+usado em JsRuntimeUiWeb — zero dep nova). `port=0`→efêmera; `/`→index.html;
+content-type por extensão; **R6: path traversal (`../`) → 404**, nunca serve
+fora do webRoot. Prova: `ServeStaticTest` 3/3 (root/estáticos/content-type +
+traversal bloqueado + subdir index). **DEGRAU 2b É O PRÓXIMO**: ligar
+`serveStatic` no `kof run --backend --frontend` (roda backend + serve o
+bundle/estáticos concorrentemente) e no `kof serve` full-stack — ver
+APPLICATION_MODEL §7 (backend `web.app` já serve via `app.serveDir` JVM; o
+`serveStatic` cobre o caso CLI-side/non-web.app e o dev-loop). Depois F3.5:
+testes full-stack dos 4 cenários (JVM+KofJS, Native+KofJS, Script+KofJS,
+Script+Script). **NÃO quebrar**: microsserviços (kof.http/kof.web/CmdServe),
+PKG002/4/5 (congelados), lanes `NativeBackend.java`/`KofInterpreter*`.
 
 **Estado anterior (06/09 — ROADMAP AUDIT)**: plano do maintainer entregue:
 auditoria completa → matriz em `docs/roadmap-audit.md` (`2970447`) →

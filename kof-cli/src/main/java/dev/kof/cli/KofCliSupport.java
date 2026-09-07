@@ -103,6 +103,66 @@ final class KofCliSupport {
         return files.size();
     }
 
+    /**
+     * F3 (plataforma): servidor de arquivos estáticos (frontend bundle +
+     * estáticos) para {@code run} e {@code serve} full-stack. Usa o
+     * {@code com.sun.net.httpserver} do JDK (já usado em JsRuntimeUiWeb —
+     * sem dependência nova). {@code port=0} → porta efêmera (testes). R6:
+     * caminho que escapa do webRoot (path traversal) → 404, nunca o arquivo
+     * de fora. Devolve o server (o caller {@code stop()}/lê a porta real).
+     */
+    static com.sun.net.httpserver.HttpServer serveStatic(Path webRoot, String host, int port)
+            throws IOException {
+        com.sun.net.httpserver.HttpServer server =
+                com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress(host, port), 64);
+        server.createContext("/", exchange -> {
+            try {
+                String uri = exchange.getRequestURI().getPath();
+                if (uri.equals("/")) uri = "/index.html";
+                Path root = webRoot.toAbsolutePath().normalize();
+                Path target = root.resolve(uri.substring(1)).normalize();
+                if (!target.startsWith(root)) {
+                    // path traversal (../) — nunca serve fora do webRoot (R6)
+                    exchange.sendResponseHeaders(404, -1);
+                    exchange.close();
+                    return;
+                }
+                if (Files.isDirectory(target)) target = target.resolve("index.html");
+                if (!Files.isRegularFile(target)) {
+                    exchange.sendResponseHeaders(404, -1);
+                    exchange.close();
+                    return;
+                }
+                byte[] body = Files.readAllBytes(target);
+                exchange.getResponseHeaders().set("Content-Type", contentType(target.getFileName().toString()));
+                exchange.sendResponseHeaders(200, body.length);
+                exchange.getResponseBody().write(body);
+                exchange.close();
+            } catch (IOException e) {
+                exchange.sendResponseHeaders(500, -1);
+                exchange.close();
+            }
+        });
+        server.setExecutor(java.util.concurrent.Executors.newFixedThreadPool(4));
+        server.start();
+        return server;
+    }
+
+    static String contentType(String name) {
+        String n = name.toLowerCase();
+        if (n.endsWith(".html") || n.endsWith(".htm")) return "text/html; charset=utf-8";
+        if (n.endsWith(".css")) return "text/css; charset=utf-8";
+        if (n.endsWith(".js") || n.endsWith(".mjs")) return "text/javascript; charset=utf-8";
+        if (n.endsWith(".json")) return "application/json; charset=utf-8";
+        if (n.endsWith(".map")) return "application/json; charset=utf-8";
+        if (n.endsWith(".png")) return "image/png";
+        if (n.endsWith(".jpg") || n.endsWith(".jpeg")) return "image/jpeg";
+        if (n.endsWith(".svg")) return "image/svg+xml";
+        if (n.endsWith(".ico")) return "image/x-icon";
+        if (n.endsWith(".txt") || n.endsWith(".md")) return "text/plain; charset=utf-8";
+        return "application/octet-stream";
+    }
+
     /** Irmãos .kf do MESMO diretório (não-recursivo) — inclusão no módulo do run. */
     static List<Path> collectShallow(Path dir) {
         List<Path> files = new ArrayList<>();
