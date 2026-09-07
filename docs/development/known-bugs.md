@@ -773,6 +773,12 @@ EXTERNA produz lixo
   `valueOf(int)` para um null). Esperado: imprimir `null`.
 - **Causa raiz:** seleção de overload de `println` sobre `V?` (nullable de
   genérico de coleção) resolve para o ramo primitivo.
+- **Análise 07/09 (correção testada e REVERTIDA):** fazer `Map.get` devolver `V?`
+  sempre corrige o println(null), MAS quebra retrocompat: `assert(m.get("a") == 1)`
+  (get nullable `Int?` vs primitivo `1`) gera `if_acmpeq` sobre ref vs int →
+  VerifyError. A nullability de primitivos (congelada, AGENTS.md R6) exige
+  decidir o narrowing do `==` (e dos demais consumidores) antes — requer bump
+  de versão + discussão, não correção silenciosa.
 - **Prova/repro:** caso `map-null-val` (sweep manual 06/09).
 
 ### 40. `n += 1` em campo de instância → crash nos 2 caminhos — ✅ CORRIGIDO 07/09
