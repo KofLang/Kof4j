@@ -1,4 +1,6 @@
 package dev.kof.compiler;
+import dev.kof.compiler.parser.Lexer;
+import dev.kof.compiler.parser.Parser;
 
 import java.io.IOException;
 import java.nio.file.Files;

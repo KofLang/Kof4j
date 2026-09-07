@@ -1,4 +1,25 @@
-package dev.kof.compiler;
+package dev.kof.compiler.parser;
+import dev.kof.compiler.AnnotationNode;
+import dev.kof.compiler.ApplicationDeclarationNode;
+import dev.kof.compiler.AstNode;
+import dev.kof.compiler.ClassDeclarationNode;
+import dev.kof.compiler.CompilationUnitNode;
+import dev.kof.compiler.DiagnosticCollector;
+import dev.kof.compiler.EntityDeclarationNode;
+import dev.kof.compiler.EntityFieldNode;
+import dev.kof.compiler.EnumDeclarationNode;
+import dev.kof.compiler.ExpressionNode;
+import dev.kof.compiler.FormalParameterNode;
+import dev.kof.compiler.FunctionDeclarationNode;
+import dev.kof.compiler.InterfaceDeclarationNode;
+import dev.kof.compiler.RecordComponentNode;
+import dev.kof.compiler.RecordDeclarationNode;
+import dev.kof.compiler.ReturnStmt;
+import dev.kof.compiler.SourcePosition;
+import dev.kof.compiler.StatementNode;
+import dev.kof.compiler.TestDeclarationNode;
+import dev.kof.compiler.Token;
+import dev.kof.compiler.TokenType;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,11 +48,11 @@ public class Parser {
 
     private final ParseContext ctx;
 
-    Parser(List<Token> tokens, DiagnosticCollector diagnostics, String file) {
+    public Parser(List<Token> tokens, DiagnosticCollector diagnostics, String file) {
         this.ctx = new ParseContext(tokens, diagnostics, file);
     }
 
-    CompilationUnitNode parse() {
+    public CompilationUnitNode parse() {
         SourcePosition pos0 = ctx.pos();
         String packageName = parsePackage(ctx);
         List<String> imports = parseImports(ctx);

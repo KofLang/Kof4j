@@ -1,4 +1,6 @@
 package dev.kof.compiler;
+import dev.kof.compiler.parser.Lexer;
+import dev.kof.compiler.parser.Parser;
 import dev.kof.compiler.backend.AndroidProjectWriter;
 import dev.kof.compiler.backend.Backend;
 import dev.kof.compiler.backend.Optimizer;

@@ -1,4 +1,8 @@
-package dev.kof.compiler;
+package dev.kof.compiler.parser;
+import dev.kof.compiler.DiagnosticCollector;
+import dev.kof.compiler.SourcePosition;
+import dev.kof.compiler.Token;
+import dev.kof.compiler.TokenType;
 
 import java.util.HashSet;
 import java.util.List;
@@ -25,7 +29,7 @@ public class ParseContext {
         this.file = file;
     }
 
-    boolean check(TokenType... types) {
+    public boolean check(TokenType... types) {
         if (atEnd()) return false;
         TokenType cur = peek().type();
         for (TokenType t : types) {
@@ -34,7 +38,7 @@ public class ParseContext {
         return false;
     }
 
-    boolean checkNext(TokenType type) {
+    public boolean checkNext(TokenType type) {
         int next = pos + 1;
         return next < tokens.size() && tokens.get(next).type() == type;
     }
@@ -43,16 +47,16 @@ public class ParseContext {
         return pos >= tokens.size() || peek().type() == TokenType.EOF;
     }
 
-    Token peek() {
+    public Token peek() {
         return tokens.get(Math.min(pos, tokens.size() - 1));
     }
 
-    Token advance() {
+    public Token advance() {
         if (!atEnd()) pos++;
         return tokens.get(pos - 1);
     }
 
-    Token expect(TokenType type, String message, String code) {
+    public Token expect(TokenType type, String message, String code) {
         if (check(type)) return advance();
         diagnostics.error(file, peek().line(), peek().column(), peek().length(), message, code);
         return peek();
@@ -64,7 +68,7 @@ public class ParseContext {
         }
     }
 
-    String expectId(String message, String code) {
+    public String expectId(String message, String code) {
         if (check(TokenType.IDENTIFIER)) return advance().value();
         diagnostics.error(file, peek().line(), peek().column(), peek().length(), message, code);
         return "error";
@@ -77,7 +81,7 @@ public class ParseContext {
                 TokenType.RECORD);
     }
 
-    boolean isTypeKeywordAtNext() {
+    public boolean isTypeKeywordAtNext() {
         if (pos + 1 >= tokens.size()) return false;
         return switch (tokens.get(pos + 1).type()) {
             case INT_TYPE, LONG_TYPE, FLOAT_TYPE, DOUBLE_TYPE, BOOL_TYPE,
@@ -86,12 +90,12 @@ public class ParseContext {
         };
     }
 
-    SourcePosition pos() {
+    public SourcePosition pos() {
         Token t = peek();
         return new SourcePosition(file, t.line(), t.column(), t.offset(), t.length());
     }
 
-    void error(String message, String code) {
+    public void error(String message, String code) {
         diagnostics.error(file, peek().line(), peek().column(), peek().length(), message, code);
     }
 }

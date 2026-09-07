@@ -1,4 +1,11 @@
-package dev.kof.compiler;
+package dev.kof.compiler.parser;
+import dev.kof.compiler.ExpressionNode;
+import dev.kof.compiler.FormalParameterNode;
+import dev.kof.compiler.ReturnStmt;
+import dev.kof.compiler.SourcePosition;
+import dev.kof.compiler.StatementNode;
+import dev.kof.compiler.TokenType;
+import dev.kof.compiler.Type;
 
 import java.util.ArrayList;
 import java.util.List;

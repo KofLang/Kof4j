@@ -1,4 +1,4 @@
-package dev.kof.compiler;
+package dev.kof.compiler.parser;
 
 import java.io.IOException;
 import java.io.InputStream;

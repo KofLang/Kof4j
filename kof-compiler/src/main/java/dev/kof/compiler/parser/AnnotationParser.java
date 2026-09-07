@@ -1,4 +1,11 @@
-package dev.kof.compiler;
+package dev.kof.compiler.parser;
+import dev.kof.compiler.AnnotationClassRef;
+import dev.kof.compiler.AnnotationEnumRef;
+import dev.kof.compiler.AnnotationNode;
+import dev.kof.compiler.AnnotationPair;
+import dev.kof.compiler.SourcePosition;
+import dev.kof.compiler.Token;
+import dev.kof.compiler.TokenType;
 
 import java.util.ArrayList;
 import java.util.List;

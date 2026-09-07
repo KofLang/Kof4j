@@ -1,4 +1,7 @@
-package dev.kof.compiler;
+package dev.kof.compiler.parser;
+import dev.kof.compiler.DiagnosticCollector;
+import dev.kof.compiler.Token;
+import dev.kof.compiler.TokenType;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -90,13 +93,13 @@ public class Lexer {
     private int line = 1;
     private int column = 1;
 
-    Lexer(String source, String file, DiagnosticCollector diagnostics) {
+    public Lexer(String source, String file, DiagnosticCollector diagnostics) {
         this.source = source;
         this.file = file;
         this.diagnostics = diagnostics;
     }
 
-    List<Token> tokenize() {
+    public List<Token> tokenize() {
         // OBS-008: tolerar um UTF-8 BOM inicial (EF BB BF) — editores do
         // Windows gravam o BOM por padrão; um BOM no começo do arquivo não
         // é um caractere de código Kof.
