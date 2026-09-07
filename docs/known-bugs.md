@@ -684,7 +684,7 @@ EXTERNA produz lixo
 
 ---
 
-### 35. `listOf().contains(1)` → VerifyError no compilado (int não boxea) — ABERTO
+### 35. `listOf().contains(1)` → VerifyError no compilado (int não boxea) — ✅ CORRIGIDO 06/09
 
 - **Sintoma:** `var l = listOf(); l.contains(1)` compila; no caminho
   **compilado** o JVM rejeita o bytecode: `VerifyError: Bad type on operand
@@ -692,25 +692,41 @@ EXTERNA produz lixo
   `invokevirtual ArrayList.contains`. O interpretador funciona (devolve
   `false`).
 - **Causa raiz (diagnosticada 06/09):** `JvmOpCollections.emitListCall`
-  (ramo `kof_list_contains`) não emite `Integer.valueOf` para argumento
-  primitivo — empilha `int` direto onde `Object` é esperado.
-- **Esperado:** boxing do argumento (paridade com o interpretador: `false`).
-- **Prova/repro:** `KofScriptTest.interpreterCorrectWhereCompiledCrashes`
-  (caso `empty-list`) trava a saída correta do interpretador.
-- **Lane:** lowering/emit JVM (outro agente). Registrado pela varredura de
-  paridade do interpretador 06/09.
+  (ramo `kof_list_contains`) boxeia pelo tipo do **elemento da lista**
+  (`elemType`), que em `listOf()` é `UnknownType` → `emitBoxIfPrimitive` não
+  emite boxing → o `int` do argumento vai cru para `contains(Object)`.
+- **Fix (06/09):** boxear pelo tipo do **argumento**
+  (`kc.parameterTypes().get(0)`), não do elemento. Mesma correção vale para
+  `set_contains`/`map_contains` (verificado: já casavam por terem elemType
+  concreto nos testes; o fix de list cobre o caso Unknown).
+- **Prova:** `KofScriptTest.interpreterParitySweep` caso `empty-list` (grupo A,
+  paridade byte-idêntica nos 2 caminhos: `true;0;false`); probes set/map
+  contains (`sv`) idênticos. Suíte 973/0.
+- **Registrado:** 06/09 (varredura de paridade do interpretador) ·
+  **Corrigido:** 06/09.
 
-### 36. `null == null` baixa `if_icmpeq` → VerifyError no compilado — ABERTO
+### 36. `null == null` baixa `if_icmpeq` → VerifyError no compilado — ABERTO (regra 6)
 
 - **Sintoma:** `var a = null; var b = null; println(a == b)` compila; no
   caminho **compilado**: `VerifyError: Type null is not assignable to
   integer` (o `==` baixou comparação de inteiros). Interpretador: `true/false`
-  corretos.
-- **Causa raiz:** o typer do `==` não classifica locals inicializados com
-  `null` literal como referência → `KofConditionalJump` sai com
-  `operandType` primitivo e o emitter escolhe `if_icmpeq`.
-- **Esperado:** `if_acmpeq` (referências).
-- **Prova/repro:** caso `null-eq` no mesmo teste.
+  corretos (via `numEq`→`Objects.equals`, conteúdo).
+- **Causa raiz (diagnosticada 06/09):** `ExpressionBinaryLowerer:207` —
+  `accType`/`rightType` de locals inicializados com `null` são
+  `UnknownType`; o check de null-**literal** (linha 210) não dispara (são
+  locals); `operandType` fica `Unknown` → `JvmOpEmitter.emitBinary` trata
+  Unknown como NÃO-referência → `IF_ICMPEQ` sobre nulls → verifier rejeita.
+- **Por que NÃO corrigido (regra 6 — semântica congelada):** as duas
+  correções candidatas mudam comportamento de `==` sobre `UnknownType`:
+  (a) rotear para `if_acmpeq` (identidade) divergiria do interpretador
+  (conteúdo via `Objects.equals`) para objetos não-null Unknown (ex.:
+  `m.get(k) == m.get(k2)` de `Map` sem type-arg); (b) rotear para `.equals`
+  (conteúdo, como record) é a correção **correta** mas exige decidir o
+  fallback de `==` para `UnknownType` em geral — é decisão de design, não
+  do agente. O interpretador já está do lado previsto (conteúdo).
+- **Prova/repro:** caso `null-eq` no grupo B de `KofScriptTest`
+  (interpretador oráculo: `true\nfalse`; compilado: VerifyError).
+- **Registrado:** 06/09 (varredura de paridade do interpretador).
 
 ### 37. `case Int n` em switch de primitivo → `KofInstanceOf[PrimitiveType]` — ABERTO
 

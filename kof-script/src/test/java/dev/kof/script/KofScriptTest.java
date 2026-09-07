@@ -299,6 +299,7 @@ class KofScriptTest {
             {"unicode-str", "main() {\n var s = \"café\"\n println(s.length)\n println(s.charAt(3))\n println(s + \"!\")\n}"},
             {"str-ops", "main() {\n var s = \"a,b,,c\"\n println(s.split(\",\").length)\n println(\"Hello World\".toLowerCase())\n println(\"  x  \".trim() + \"|\")\n}"},
             {"map-null-val", "main() {\n var m = mapOf(\"a\", 1)\n m.put(\"b\", 2)\n println(m.get(\"a\"))\n println(m.size)\n}"},
+            {"empty-list", "main() {\n var l = listOf()\n println(l.isEmpty())\n println(l.size)\n println(l.contains(1))\n}"},
             {"set-dedup", "main() {\n var s = setOf(1, 2, 2, 3, 3, 3)\n println(s.size)\n println(s.contains(2))\n println(s.contains(9))\n}"},
             {"nested-if-expr", "main() {\n var x = 5\n var r = if (x > 0) if (x > 10) \"big\" else \"small\" else \"neg\"\n println(r)\n}"},
             {"switch-expr", "main() {\n var v = 3\n var d = switch (v) {\n case 1 -> \"one\"\n case 2 -> \"two\"\n case 3 -> \"three\"\n default -> \"other\"\n }\n println(d)\n}"},
@@ -340,18 +341,18 @@ class KofScriptTest {
     }
 
     /**
-     * Grupo B: o caminho compilado tem VerifyError PRÉ-EXISTENTE (bugs
-     * registrados em docs/known-bugs.md — lowering/emitter, não do
-     * interpretador). O interpretador é o oráculo: trava a saída correta
-     * e documenta qual bug do compilado cada caso expõe.
+     * Grupo B: o caminho COMPILADO tem bug pré-existente (VerifyError do
+     * emitter/lowering, docs/known-bugs.md) e o interpretador é o oráculo —
+     * trava a saída correta e documenta qual bug do compilado cada caso
+     * expõe. (empty-list/bug 35 foi CORRIGIDO 06/09 e promovido ao grupo A.)
      */
     @Test
     void interpreterCorrectWhereCompiledCrashes(@TempDir Path tmp) throws Exception {
         String[][] cases = {
-            // known-bugs 35: contains(int) num List<Object> não boxea → VerifyError
-            {"empty-list", "main() {\n var l = listOf()\n println(l.isEmpty())\n println(l.size)\n println(l.contains(1))\n}",
-                    "true\n0\nfalse"},
-            // known-bugs 36: null == null baixa if_icmpeq (tipo errado) → VerifyError
+            // known-bugs 36: null == null baixa if_icmpeq (UnknownType tratado
+            // como primitivo) → VerifyError no compilado. Corrigir exige
+            // decidir a semântica de `==` sobre UnknownType (identidade vs
+            // conteúdo) — regra 6, decisão de design, NÃO do agente.
             {"null-eq", "main() {\n var a = null\n var b = null\n println(a == b)\n println(a != b)\n}",
                     "true\nfalse"},
         };

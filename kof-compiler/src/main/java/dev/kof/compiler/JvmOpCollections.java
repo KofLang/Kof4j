@@ -107,7 +107,12 @@ final class JvmOpCollections {
                 if (kc.parameterTypes().size() > 1) {
                     mv.visitInsn(POP);
                 }
-                emitBoxIfPrimitive(mv, elemType);
+                // boxeia pelo tipo do ARGUMENTO (contains(Object) espera
+                // Object): elemType de `listOf()` é Unknown e não boxeia o
+                // int do argumento → VerifyError (bug 35).
+                Type argT = kc.parameterTypes().isEmpty() ? elemType
+                        : kc.parameterTypes().get(0);
+                emitBoxIfPrimitive(mv, argT);
                 mv.visitMethodInsn(INVOKEVIRTUAL, "java/util/ArrayList", "contains", "(Ljava/lang/Object;)Z", false);
             }
             case "kof_list_is_empty" -> mv.visitMethodInsn(INVOKEVIRTUAL, "java/util/ArrayList", "isEmpty", "()Z", false);
