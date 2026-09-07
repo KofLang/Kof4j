@@ -106,9 +106,12 @@ cmd_tick() {
     mkdir -p "$STATE_DIR"
     exec 9>"$LOCK"
     if ! flock -n 9; then
-        # WATCHDOG: lock presa há mais de AUTOLOOP_MAX_MIN (padrão 120) = run
-        # pendurado (falha real 07/09: zumbi de 4h sem --attach travou todos
-        # os ticks). Mata o holder e tenta de novo; senão, pula o tick.
+        # WATCHDOG: lock presa há mais de AUTOLOOP_MAX_MIN (padrão 240) = run
+        # pendurado. O zumbi real de 07/09 viveu 4h sem produzir nada; um
+        # turno ativo legítimo (suíte longa + vários commits) pode passar de
+        # ~2h, então o teto é 4h — mata o zumbi sem matar trabalho de verdade.
+        # Só conta a partir do lock.held (marcador escrito ao adquirir); run
+        # sem marcador (antecede a feature) tem age=0 e nunca é tocado.
         local age_min max holder held_since
         age_min=0
         if [ -f "$LOCK.held" ]; then
@@ -116,7 +119,7 @@ cmd_tick() {
             case "$held_since" in (*[!0-9]*|'') held_since=0;; esac
             age_min=$(( ( $(date +%s) - held_since ) / 60 ))
         fi
-        max="${AUTOLOOP_MAX_MIN:-120}"
+        max="${AUTOLOOP_MAX_MIN:-240}"
         if [ "$age_min" -ge "$max" ]; then
             holder=$(fuser "$LOCK" 2>/dev/null | tr -s ' \t' '\n' | grep -E '^[0-9]+$' | grep -vx "$$" | tr '\n' ' ' || true)
             echo "$(date -Is) lock STALE (${age_min}min >= ${max}min) — matando holder(s): ${holder:-nenhum}" >> "$LOG"
