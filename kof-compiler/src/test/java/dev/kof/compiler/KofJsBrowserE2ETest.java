@@ -332,6 +332,42 @@ class KofJsBrowserE2ETest {
         }
     }
 
+    @Test
+    void textareaRendersInRealBrowserDom(@TempDir Path tempDir) throws IOException {
+        Path chrome = findChrome();
+        assumeTrue(chrome != null, "Chrome/Chromium não instalado — pulando E2E de browser");
+
+        String program = """
+            main() {
+                var obs = Textarea("inicial")
+                obs.setPlaceholder("descreva")
+                var col = Column(listOf(obs))
+                var w = Window("TextareaTest")
+                w.bind(col)
+                w.show()
+            }
+            """;
+        Path source = tempDir.resolve("App.kf");
+        Files.writeString(source, program);
+
+        Path outDir = tempDir.resolve("out");
+        CompilationResult result = driver.compile(source, outDir, Target.JS);
+        assertTrue(result.success(), "compilação JS deve passar: " + result.diagnostics().getDiagnostics());
+
+        HttpServer server = serve(outDir);
+        int port = server.getAddress().getPort();
+        try {
+            String dom = dumpDom(chrome, "http://127.0.0.1:" + port + "/index.html");
+            assertTrue(dom.contains("<textarea"), "elemento <textarea> ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("kof-textarea"), "classe kof-textarea ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("inicial"), "texto inicial ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("placeholder=\"descreva\""),
+                    "placeholder ausente no DOM: " + excerpt(dom));
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private static HttpServer serve(Path dir) throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/", exchange -> {

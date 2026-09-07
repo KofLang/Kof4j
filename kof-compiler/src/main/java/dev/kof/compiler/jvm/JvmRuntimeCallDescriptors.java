@@ -63,6 +63,10 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_ui_color_to_css" -> "(I)Ljava/lang/String;";
             case "kof_ui_window_new", "kof_ui_label_new", "kof_ui_button_new", "kof_ui_input_new"
                     -> "(Ljava/lang/String;)I";
+            case "kof_ui_textarea_new" -> "(Ljava/lang/String;)I";
+            case "kof_ui_textarea_set_text", "kof_ui_textarea_set_placeholder" -> "(ILjava/lang/String;)V";
+            case "kof_ui_textarea_text" -> "(I)Ljava/lang/String;";
+            case "kof_ui_textarea_remove" -> "(I)V";
             case "kof_ui_button_new_action" -> "(Ljava/lang/String;Ljava/lang/Object;)I";
             case "kof_ui_window_set_title", "kof_ui_label_set_text", "kof_ui_button_set_text",
                     "kof_ui_input_set_text" -> "(ILjava/lang/String;)V";

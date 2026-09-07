@@ -205,10 +205,21 @@ reuso). **Prova E2E Cenário A (I2)**: app real `web.app()` + `serveDir` →
     `KofJsBrowserE2ETest.formSubmitHandlerRunsInRealBrowser` — handler muta
     placeholder "antes"→"depois", DOM do Chrome confirma; +
     `UiE2ETest.formSubmitLinksOnAllTargets` (JVM+Native no-op). Suíte
-    1102/0/64-skip. **PRÓXIMO PASSO (Fase 4, minha lane)**: UI007 `style`
-    declarativo (CSS idiomático, parse próprio — o item maior da Fase 4;
-    ver docs/ui/architecture.md §2.8/Style) ou UI003 elementos restantes
-    (textarea/select/table). Seguir 6 pontos + 2 suítes. **NÃO quebrar**:
+    1102/0/64-skip.
+    **`Textarea` FEITO (este commit) — UI003**: novo tipo de widget de
+    primeira classe (espelha Input): `Textarea(text)` + text/setText/
+    setPlaceholder/remove + setId/setClass/setDisabled (via isDomWidget).
+    6 pontos (registry, typer, lowerer, whitelist JS, impl JS
+    `JsRuntimeUiWidgets`, stub JVM + descriptor + stub Native). Detalhe:
+    textarea serializa conteúdo via `textContent` (não `.value` — default
+    value entre as tags). Prova: `UiE2ETest.textareaLinksOnAllTargets`
+    (JVM+Native) + `KofJsBrowserE2ETest.textareaRendersInRealBrowserDom`
+    (DOM `<textarea>` + kof-textarea + texto + placeholder); suíte
+    1105/0/64-skip (flaky `KofScriptTest.concurrentAwait` não se
+    reproduziu — isolado 3/3 verde; lane interpretador, pré-existente).
+    **PRÓXIMO PASSO (Fase 4, minha lane)**: UI003 select/table/ul, ou
+    UI007 style declarativo (decisão de design — forma da API). Seguir 6
+    pontos + 2 suítes. **NÃO quebrar**:
   microsserviços (kof.http/kof.web/CmdServe), PKG002/4/5 (congelados), lanes
   `NativeBackend.java`/`KofInterpreter*`.
 

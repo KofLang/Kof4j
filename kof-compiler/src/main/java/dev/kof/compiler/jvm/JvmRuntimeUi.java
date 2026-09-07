@@ -380,6 +380,23 @@ public final class JvmRuntimeUi {
                     return 0;
                 }
 
+                public static int kof_ui_textarea_new(String text) {
+                    return 1;
+                }
+
+                public static void kof_ui_textarea_set_text(int ta, String text) {
+                }
+
+                public static String kof_ui_textarea_text(int ta) {
+                    return "";
+                }
+
+                public static void kof_ui_textarea_set_placeholder(int ta, String placeholder) {
+                }
+
+                public static void kof_ui_textarea_remove(int ta) {
+                }
+
                 public static String kof_ui_input_text(int input) {
                     return "";
                 }

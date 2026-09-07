@@ -270,6 +270,49 @@ public final class JsRuntimeUiWidgets {
                 }
             }
 
+            export function kofUiTextareaNew(text) {
+                const id = kofUiCreateNode("textarea", "kof-textarea");
+                if (id < 0) {
+                    return -1;
+                }
+                // textarea serializa o conteúdo como texto entre as tags
+                // (o "default value") — .value programático não aparece no
+                // outerHTML; define-se via textContent.
+                const node = window.__kofNodes[id];
+                node.value = text;
+                node.textContent = text;
+                return id;
+            }
+
+            export function kofUiTextareaSetText(ta, text) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[ta]) {
+                    window.__kofNodes[ta].value = text;
+                }
+            }
+
+            export function kofUiTextareaText(ta) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[ta]) {
+                    return window.__kofNodes[ta].value;
+                }
+                return "";
+            }
+
+            export function kofUiTextareaSetPlaceholder(ta, placeholder) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[ta]) {
+                    window.__kofNodes[ta].placeholder = placeholder;
+                }
+            }
+
+            export function kofUiTextareaRemove(ta) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[ta]) {
+                    const node = window.__kofNodes[ta];
+                    if (node.parentNode) {
+                        node.parentNode.removeChild(node);
+                    }
+                    delete window.__kofNodes[ta];
+                }
+            }
+
             export function kofUiColumnNew(ids) {
                 const id = kofUiCreateNode("div", "kof-column");
                 if (id < 0) {

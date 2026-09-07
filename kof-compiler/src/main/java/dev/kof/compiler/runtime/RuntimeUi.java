@@ -204,6 +204,19 @@ public final class RuntimeUi {
                 jmp kof_io_make_string
             kof_ui_input_remove:
                 ret
+            kof_ui_textarea_new:
+                movl $1, %eax
+                ret
+            kof_ui_textarea_set_text:
+                ret
+            kof_ui_textarea_text:
+                leaq .Lui_empty(%rip), %rdi
+                xorq %rsi, %rsi
+                jmp kof_io_make_string
+            kof_ui_textarea_set_placeholder:
+                ret
+            kof_ui_textarea_remove:
+                ret
             # Font / Icon / Image / Link / widget-font — no-op (paridade com
             # JVM; antes: undefined reference [COMP001] no link, R6/UI001).
             kof_ui_font_new:

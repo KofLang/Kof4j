@@ -120,6 +120,20 @@ class UiE2ETest {
     }
 
     @Test
+    void textareaLinksOnAllTargets(@TempDir Path tempDir) throws IOException {
+        // UI003: Textarea — widget de primeira classe; no-op JVM/Native,
+        // DOM real em KofJS (KofJsBrowserE2ETest).
+        both(tempDir, "textarea", """
+            main() {
+                var obs = Textarea("linha1")
+                obs.setText("linha1\\nlinha2")
+                obs.setPlaceholder("descreva")
+                println("ok")
+            }
+            """, "ok");
+    }
+
+    @Test
     void formSubmitLinksOnAllTargets(@TempDir Path tempDir) throws IOException {
         // UI004: Form.onSubmit/submit — no-op em JVM/Native, DOM real em
         // KofJS (KofJsBrowserE2ETest.formSubmitHandlerRunsInRealBrowser).

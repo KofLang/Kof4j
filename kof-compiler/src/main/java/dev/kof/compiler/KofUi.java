@@ -23,6 +23,7 @@ public final class KofUi {
     static final Type LABEL = new Type.ClassType("kof.ui", "Label", List.of());
     static final Type BUTTON = new Type.ClassType("kof.ui", "Button", List.of());
     static final Type INPUT = new Type.ClassType("kof.ui", "Input", List.of());
+    static final Type TEXTAREA = new Type.ClassType("kof.ui", "Textarea", List.of());
     static final Type COLUMN = new Type.ClassType("kof.ui", "Column", List.of());
     static final Type ROW = new Type.ClassType("kof.ui", "Row", List.of());
     static final Type FORM = new Type.ClassType("kof.ui", "Form", List.of());
@@ -53,6 +54,7 @@ public final class KofUi {
     static boolean isLabel(Type t) { return LABEL.equals(t); }
     static boolean isButton(Type t) { return BUTTON.equals(t); }
     static boolean isInput(Type t) { return INPUT.equals(t); }
+    static boolean isTextarea(Type t) { return TEXTAREA.equals(t); }
     static boolean isColumn(Type t) { return COLUMN.equals(t); }
     static boolean isRow(Type t) { return ROW.equals(t); }
     static boolean isForm(Type t) { return FORM.equals(t); }
@@ -88,12 +90,13 @@ public final class KofUi {
     /** UI005: widgets DOM que aceitam setId/setClass/setDisabled (família
      *  compartilhada kof_ui_widget_*, como font). */
     static boolean isDomWidget(Type t) {
-        return isLabel(t) || isButton(t) || isInput(t) || isView(t) || isLink(t)
+        return isLabel(t) || isButton(t) || isInput(t) || isTextarea(t) || isView(t) || isLink(t)
                 || isImage(t) || isIcon(t) || isForm(t) || isColumn(t) || isRow(t);
     }
 
     static public boolean isUiType(Type t) {
         return isColor(t) || isTheme(t) || isLabel(t) || isButton(t) || isInput(t)
+                || isTextarea(t)
                 || isColumn(t) || isRow(t) || isForm(t) || isView(t) || isStyle(t) || isWindow(t)
                 || isLink(t) || isImage(t) || isIcon(t) || isFont(t)
                 || isComponent(t) || isEvent(t)
@@ -103,6 +106,7 @@ public final class KofUi {
     static boolean isConstructor(String name) {
         return "Color".equals(name) || "Theme".equals(name)
                 || "Label".equals(name) || "Button".equals(name) || "Input".equals(name)
+                || "Textarea".equals(name)
                 || "Column".equals(name) || "Row".equals(name) || "Form".equals(name) || "View".equals(name)
                 || "Style".equals(name) || "Window".equals(name)
                 || "Link".equals(name) || "Image".equals(name)
@@ -260,6 +264,15 @@ public final class KofUi {
                 case "setChecked" -> argCount == 1 ? new UiCall("kof_ui_input_set_checked", Type.PrimitiveType.VOID, List.of(BOOL)) : null;
                 case "checked" -> argCount == 0 ? new UiCall("kof_ui_input_checked", BOOL, List.of()) : null;
                 case "remove" -> argCount == 0 ? new UiCall("kof_ui_input_remove", Type.PrimitiveType.VOID, List.of()) : null;
+                default -> null;
+            };
+        }
+        if (isTextarea(receiver)) {
+            return switch (name) {
+                case "text" -> argCount == 0 ? new UiCall("kof_ui_textarea_text", STR, List.of()) : null;
+                case "setText" -> argCount == 1 ? new UiCall("kof_ui_textarea_set_text", Type.PrimitiveType.VOID, List.of(STR)) : null;
+                case "setPlaceholder" -> argCount == 1 ? new UiCall("kof_ui_textarea_set_placeholder", Type.PrimitiveType.VOID, List.of(STR)) : null;
+                case "remove" -> argCount == 0 ? new UiCall("kof_ui_textarea_remove", Type.PrimitiveType.VOID, List.of()) : null;
                 default -> null;
             };
         }

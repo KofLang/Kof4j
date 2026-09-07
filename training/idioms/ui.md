@@ -209,3 +209,22 @@ f.submit()   // ou o usuário aperta Enter no browser
 **Por quê:** `onSubmit` registra o handler no `<form>` (roda no evento
 submit, com `preventDefault` — sem recarregar a página); `submit()`
 submete programaticamente. A semântica de formulário fica no form (R1).
+
+## Forms: texto multilinha (Textarea)
+
+**BAD — Input com type=text para texto longo (sem quebras de linha):**
+```kof
+// ❌ NÃO — input de linha única para descrição multilinha
+var obs = Input("")
+```
+
+**GOOD — `Textarea(text)`:**
+```kof
+// ✅ IDIOMÁTICO — widget de primeira classe para texto multilinha
+var obs = Textarea("descreva aqui")
+obs.setPlaceholder("máx. 500 caracteres")
+println(obs.text())
+```
+
+**Por quê:** `Textarea` renderiza `<textarea>` (multilinha, redimensionável);
+`Input` é linha única. Usar o widget certo é intenção, não mecanismo (R1).
