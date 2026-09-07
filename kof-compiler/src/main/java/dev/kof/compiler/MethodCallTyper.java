@@ -11,6 +11,16 @@ public final class MethodCallTyper {
     private MethodCallTyper() {}
 
     static Type inferType(CompilerDriver driver, MethodCallExpr mc, List<IRLocalVariable> locals) {
+// array: `.get(i)` → elemento, `.size/.length/.count` → int (o lowering
+// emite arrayload/arraylength — sem isto o tipo Unknown vazava p/ o emit
+// e o unbox de String.valueOf(Object) virava VerifyError, GitHub #30).
+if (mc.receiver() != null
+        && ExpressionTyper.inferExprType(driver, mc.receiver(), locals) instanceof Type.ArrayType at) {
+    if ("get".equals(mc.methodName()) && mc.arguments().size() == 1) return at.componentType();
+    if (("size".equals(mc.methodName()) || "length".equals(mc.methodName())
+            || "count".equals(mc.methodName())) && mc.arguments().isEmpty()) return Type.PrimitiveType.INT;
+    return Type.UnknownType.UNKNOWN;
+}
 // super.metodo(): resolvido AQUI (o cache do analyzer é
 // limpo a cada classe/passe — não dá para confiar nele)
 if (mc.receiver() instanceof IdentifierExpr srid && "super".equals(srid.name())

@@ -390,7 +390,12 @@ public final class ExpressionLowerer {
                     }
                 }
                 localIdx = ExpressionLowerer.emitExpression(driver, fa.receiver(), ops, owner, localIdx, locals);
-                if (recvType instanceof Type.ArrayType && "length".equals(fa.fieldName())) {
+                if (recvType instanceof Type.ArrayType && ("length".equals(fa.fieldName())
+                        || "size".equals(fa.fieldName()) || "count".equals(fa.fieldName()))) {
+                    // array.size/.length/.count → arraylength (property, sem
+                    // parênteses); sem isto vira getfield com owner "" no
+                    // constant pool → ClassFormatError (GitHub #30, mesma
+                    // causa do .get(i) no ExpressionInstanceCallLowerer).
                     ops.add(new KofArrayLength());
                 } else if (Type.isString(recvType) && "length".equals(fa.fieldName())) {
                     ops.add(new KofLoadField(recvType, fa.fieldName(), Type.PrimitiveType.INT));

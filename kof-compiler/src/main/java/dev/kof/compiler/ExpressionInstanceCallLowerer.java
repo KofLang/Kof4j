@@ -14,6 +14,46 @@ public final class ExpressionInstanceCallLowerer {
 
     static int lower(CompilerDriver driver, MethodCallExpr mc, List<KofOperation> ops,
                     String owner, int localIdx, List<IRLocalVariable> locals) {
+    if (recvType0(driver, mc, locals) instanceof Type.ArrayType arr) {
+        // array não é coleção Kof: `.get(i)` → array index (AALOAD),
+        // `.size`/`.length`/`.count` → arraylength. Sem isto o fallback
+        // emitia KofCall com owner ArrayType → JvmTypeMapper produzia
+        // internalName "" → Methodref "" no constant pool →
+        // ClassFormatError: Illegal class name "" (GitHub #30).
+        localIdx = ExpressionLowerer.emitExpression(driver, mc.receiver(), ops, owner, localIdx, locals);
+        if ("get".equals(mc.methodName()) && mc.arguments().size() == 1) {
+            localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(0), ops, owner, localIdx, locals);
+            ops.add(new KofArrayLoad(arr.componentType()));
+        } else if (("size".equals(mc.methodName()) || "length".equals(mc.methodName())
+                || "count".equals(mc.methodName())) && mc.arguments().isEmpty()) {
+            ops.add(new KofArrayLength());
+        } else if (mc.arguments().isEmpty()) {
+            // .isEmpty()/.clear() não fazem sentido p/ array: diagnóstico
+            // em vez de bytecode inválido (R6)
+            if (driver.currentDiagnostics != null) {
+                SourcePosition p = mc.position();
+                driver.currentDiagnostics.error(p != null ? p.file() : "",
+                        p != null ? p.line() : 0, p != null ? p.column() : 0, 0,
+                        "array does not have method '" + mc.methodName() + "' (use .length for size)",
+                        "SEM025");
+            }
+            ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
+        } else {
+            if (driver.currentDiagnostics != null) {
+                SourcePosition p = mc.position();
+                driver.currentDiagnostics.error(p != null ? p.file() : "",
+                        p != null ? p.line() : 0, p != null ? p.column() : 0, 0,
+                        "array does not have method '" + mc.methodName() + "'",
+                        "SEM025");
+            }
+            for (ExpressionNode arg : mc.arguments()) {
+                localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
+                ops.add(new KofPop());
+            }
+            ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
+        }
+        return localIdx;
+    }
     if (mc.receiver() instanceof IdentifierExpr sid && "super".equals(sid.name())
             && !owner.isEmpty()) {
         // super.method(args): non-virtual call to the
@@ -368,5 +408,10 @@ public final class ExpressionInstanceCallLowerer {
         }
     }
         return localIdx;
+    }
+
+    private static Type recvType0(CompilerDriver driver, MethodCallExpr mc, List<IRLocalVariable> locals) {
+        if (mc.receiver() == null) return Type.UnknownType.UNKNOWN;
+        return ExpressionTyper.inferExprType(driver, mc.receiver(), locals);
     }
 }

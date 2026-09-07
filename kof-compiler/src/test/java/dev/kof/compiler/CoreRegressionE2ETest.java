@@ -56,6 +56,22 @@ class CoreRegressionE2ETest {
         assertEquals(expected, runJs(outJs), name + " JS output mismatch");
     }
 
+    // GitHub #30 — String.split + acesso ao array: .get(i) era baixado como
+    // KofCall com owner ArrayType → JvmTypeMapper produzia internalName ""
+    // → Methodref "" no constant pool → ClassFormatError: Illegal class name "".
+    // Fix: .get(i) → arrayload, .size/.length → arraylength (typer + lowering).
+    @Test
+    void stringSplitArrayAccess(@TempDir Path tempDir) throws IOException {
+        runBoth("""
+                main() {
+                    var parts = "a,b,c".split(",")
+                    println(parts.size)
+                    println(parts.get(0))
+                    println(parts.length)
+                }
+                """, "3\na\n3", tempDir, "splitArr");
+    }
+
     // B10 — primary constructor fields accessible inside methods (all targets)
     @Test
     void primaryConstructorFieldsInMethods(@TempDir Path tempDir) throws IOException {
