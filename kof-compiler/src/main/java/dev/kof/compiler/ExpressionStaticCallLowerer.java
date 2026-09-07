@@ -361,26 +361,6 @@ if (mc.receiver() == null && "channel".equals(mc.methodName())
     return localIdx;
 }
 if (mc.receiver() == null && "__kof_spawn_expr".equals(mc.methodName())) {
-    if (driver.target.isNative()) {
-        // CONC001: spawn-expr com handle real (pthread)
-        ExpressionNode bodyN = mc.arguments().get(0);
-        Type resultTN = ExpressionTyper.inferExprType(driver, bodyN, locals);
-        Type handleTN = new Type.ClassType("kof.concurrent", "Handle", List.of(resultTN));
-        LambdaExpr leN2 = bodyN instanceof LambdaExpr l2 ? l2
-                : new LambdaExpr(bodyN.position() != null ? bodyN.position() : mc.position(),
-                        List.of(), List.of(new ExpressionStmt(
-                                bodyN.position() != null ? bodyN.position() : mc.position(), bodyN)));
-        Type.FunctionType ftN2 = new Type.FunctionType(List.of(), resultTN, null);
-        String lambdaClassN2 = driver.lambdaClass(leN2, ftN2, List.of(), true);
-        Type taskTypeN2 = new Type.ClassType("", lambdaClassN2, List.of());
-        ops.add(new KofNewObject(taskTypeN2, List.of()));
-        ops.add(new KofDup());
-        ops.add(new KofCall(taskTypeN2, "<init>", List.of(),
-                Type.PrimitiveType.VOID, KofCallKind.CONSTRUCTOR));
-        ops.add(new KofCall(new Type.ClassType("dev.kof.runtime", "KofRuntime", List.of()),
-                "kof_spawn_result", List.of(taskTypeN2), handleTN, KofCallKind.FUNCTION));
-        return localIdx;
-    }
     ExpressionNode body = mc.arguments().get(0);
     Type resultT = ExpressionTyper.inferExprType(driver, body, locals);
     Type handleT = new Type.ClassType("kof.concurrent", "Handle", List.of(resultT));
@@ -389,14 +369,19 @@ if (mc.receiver() == null && "__kof_spawn_expr".equals(mc.methodName())) {
                     List.of(), List.of(new ExpressionStmt(
                             body.position() != null ? body.position() : mc.position(), body)));
     Type.FunctionType ft = new Type.FunctionType(List.of(), resultT, null);
-    String lambdaClass = driver.lambdaClass(le, ft, List.of(), true);
-    Type taskType = new Type.ClassType("", lambdaClass, List.of());
-    ops.add(new KofNewObject(taskType, List.of()));
+    List<IRLocalVariable> caps = driver.collectCaptures(le, locals);
+    List<IRLocalVariable> eff = driver.lambdaEffectiveCaptures.get(le);
+    if (eff != null) caps = eff;
+    String lc = driver.lambdaClass(le, ft, caps, true);
+    Type tt = new Type.ClassType("", lc, List.of());
+    List<Type> cts = new ArrayList<>();
+    for (IRLocalVariable c : caps) cts.add(c.type());
+    ops.add(new KofNewObject(tt, cts));
     ops.add(new KofDup());
-    ops.add(new KofCall(taskType, "<init>", List.of(),
-            Type.PrimitiveType.VOID, KofCallKind.CONSTRUCTOR));
+    for (IRLocalVariable c : caps) ops.add(new KofLoadLocal(c.type(), c.index()));
+    ops.add(new KofCall(tt, "<init>", cts, Type.PrimitiveType.VOID, KofCallKind.CONSTRUCTOR));
     ops.add(new KofCall(new Type.ClassType("dev.kof.runtime", "KofRuntime", List.of()),
-            "kof_spawn_result", List.of(taskType), handleT, KofCallKind.FUNCTION));
+            "kof_spawn_result", List.of(tt), handleT, KofCallKind.FUNCTION));
     return localIdx;
 }
 if (mc.receiver() == null && "__kof_await".equals(mc.methodName())) {

@@ -81,6 +81,12 @@ final class ExpressionProcessCallLowerer {
             ops.add(new KofCall(new Type.ClassType("kof.process", "Process", List.of()),
                     exitCall.function(), exitCall.parameterTypes(), exitCall.returnType(),
                     KofCallKind.FUNCTION));
+        } else if (driver.currentDiagnostics != null) {
+            driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
+                    mc.position() != null ? mc.position().line() : 0,
+                    mc.position() != null ? mc.position().column() : 0, 0,
+                    "Cannot resolve method '" + mc.methodName() + "' on 'process' (valid: run, spawn, exit)",
+                    "SEM025");
         }
     }
         return localIdx;
