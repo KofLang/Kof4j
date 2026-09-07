@@ -165,8 +165,12 @@ FunctionSyntaxTest 12; suíte21 957+8+5+8, 0 falhas
   35~~ CORRIGIDO (`2c57a64`); (c) ~~bug 36~~ CORRIGIDO (`3c7641f`); (d) bugs
   37–40 registrados — correção é decisão de lowering/semântica (regra 6),
   NÃO minha; (e) `spawn func(arg)` com captura (bug #29, regra 6 → gap/plano);
-  (f) varredura de paridade nos targets JS/Native (ainda caminho compilado —
-  confirmar runFileCompiled cobre). Provas: testes E2E por item + suíte verde.
+  (f) ~~varredura JS/Native~~ — **KofScript.runFile aceita Target.SCRIPT**
+  (`51754fd`, fase 2 plataforma: SCRIPT==JVM no interpretador, teste
+  `scriptTargetRunsDirectly`); (g) paridade interpretado vs JS/Native
+  compilados (regra 5) — sweep dos 25 casos do grupo A nos targets JS e
+  NATIVE (x86_64; riscv/aarch via qemu) travando divergências cross-target
+  como bugs. Provas: testes E2E por item + suíte verde.
 
 
 **PRÓXIMA TAREA (maior valor)**: **bug 33 CORRIGIDO** (`df2ffdd`, 06/09) —
