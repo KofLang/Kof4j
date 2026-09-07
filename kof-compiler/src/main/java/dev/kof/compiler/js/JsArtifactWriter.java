@@ -32,6 +32,8 @@ public class JsArtifactWriter {
                     java.nio.file.StandardOpenOption.APPEND);
             Files.writeString(core, JsRuntimeUiWidgets.UI_WIDGET_RUNTIME,
                     java.nio.file.StandardOpenOption.APPEND);
+            Files.writeString(core, JsRuntimeUiForms.UI_FORMS_RUNTIME,
+                    java.nio.file.StandardOpenOption.APPEND);
             Files.writeString(core, JsRuntimeUiLayout.UI_LAYOUT_RUNTIME,
                     java.nio.file.StandardOpenOption.APPEND);
             Files.writeString(core, JsRuntimeUiWeb.UI_WEB_RUNTIME,

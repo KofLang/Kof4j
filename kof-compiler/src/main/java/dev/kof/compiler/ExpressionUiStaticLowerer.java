@@ -90,6 +90,122 @@ if (mc.receiver() == null && "Canvas".equals(mc.methodName()) && mc.arguments().
             Type.PrimitiveType.INT, KofCallKind.FUNCTION));
     return localIdx;
 }
+if (mc.receiver() == null && ("Window".equals(mc.methodName()) || "Label".equals(mc.methodName()))
+        && mc.arguments().size() == 1) {
+    localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(0), ops, owner, localIdx, locals);
+    String fn = "Window".equals(mc.methodName()) ? "kof_ui_window_new" : "kof_ui_label_new";
+    ops.add(new KofCall(new Type.ClassType("kof.ui", "Ui", List.of()),
+            fn, List.of(BuiltinTypes.STRING), Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+    return localIdx;
+}
+if (mc.receiver() == null && "Input".equals(mc.methodName()) && mc.arguments().size() == 1) {
+    localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(0), ops, owner, localIdx, locals);
+    ops.add(new KofCall(new Type.ClassType("kof.ui", "Ui", List.of()),
+            "kof_ui_input_new", List.of(BuiltinTypes.STRING),
+            Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+    return localIdx;
+}
+if (mc.receiver() == null && "Textarea".equals(mc.methodName()) && mc.arguments().size() == 1) {
+    localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(0), ops, owner, localIdx, locals);
+    ops.add(new KofCall(new Type.ClassType("kof.ui", "Ui", List.of()),
+            "kof_ui_textarea_new", List.of(BuiltinTypes.STRING),
+            Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+    return localIdx;
+}
+if (mc.receiver() == null && "Select".equals(mc.methodName()) && mc.arguments().size() == 1) {
+    localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(0), ops, owner, localIdx, locals);
+    ops.add(new KofCall(new Type.ClassType("kof.ui", "Ui", List.of()),
+            "kof_ui_select_new", List.of(new Type.ClassType("kof", "List", List.of(BuiltinTypes.STRING))),
+            Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+    return localIdx;
+}
+if (mc.receiver() == null && ("Column".equals(mc.methodName()) || "Row".equals(mc.methodName())
+        || "Form".equals(mc.methodName()))
+        && mc.arguments().size() == 1) {
+    localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(0), ops, owner, localIdx, locals);
+    String fn = "Column".equals(mc.methodName()) ? "kof_ui_column_new"
+            : "Form".equals(mc.methodName()) ? "kof_ui_form_new" : "kof_ui_row_new";
+    ops.add(new KofCall(new Type.ClassType("kof.ui", "Ui", List.of()),
+            fn, List.of(new Type.ClassType("kof", "List", List.of(Type.PrimitiveType.INT))),
+            Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+    return localIdx;
+}
+if (mc.receiver() == null && "View".equals(mc.methodName()) && mc.arguments().size() == 1) {
+    localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(0), ops, owner, localIdx, locals);
+    ops.add(new KofCall(new Type.ClassType("kof.ui", "Ui", List.of()),
+            "kof_ui_view_new", List.of(Type.PrimitiveType.INT),
+            Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+    return localIdx;
+}
+// ── Fase 4: primitivas de layout (docs/ui/architecture.md §2.8)
+if (mc.receiver() == null && ("Box".equals(mc.methodName())
+        || "Stack".equals(mc.methodName()) || "Wrap".equals(mc.methodName())
+        || "Center".equals(mc.methodName()))
+        && mc.arguments().size() == 1) {
+    localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(0), ops, owner, localIdx, locals);
+    String fn = switch (mc.methodName()) {
+        case "Box" -> "kof_ui_box_new";
+        case "Stack" -> "kof_ui_stack_new";
+        case "Wrap" -> "kof_ui_wrap_new";
+        default -> "kof_ui_center_new";
+    };
+    ops.add(new KofCall(new Type.ClassType("kof.ui", "Ui", List.of()),
+            fn, List.of(new Type.ClassType("kof", "List", List.of(Type.PrimitiveType.INT))),
+            Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+    return localIdx;
+}
+if (mc.receiver() == null && "Grid".equals(mc.methodName()) && mc.arguments().size() == 2) {
+    localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(0), ops, owner, localIdx, locals);
+    localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(1), ops, owner, localIdx, locals);
+    ops.add(new KofCall(new Type.ClassType("kof.ui", "Ui", List.of()),
+            "kof_ui_grid_new", List.of(Type.PrimitiveType.INT,
+            new Type.ClassType("kof", "List", List.of(Type.PrimitiveType.INT))),
+            Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+    return localIdx;
+}
+if (mc.receiver() == null && "Spacer".equals(mc.methodName()) && mc.arguments().size() == 1) {
+    localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(0), ops, owner, localIdx, locals);
+    ops.add(new KofCall(new Type.ClassType("kof.ui", "Ui", List.of()),
+            "kof_ui_spacer_new", List.of(Type.PrimitiveType.INT),
+            Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+    return localIdx;
+}
+if (mc.receiver() == null && "Align".equals(mc.methodName()) && mc.arguments().size() == 3) {
+    for (ExpressionNode arg : mc.arguments()) {
+        localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
+    }
+    ops.add(new KofCall(new Type.ClassType("kof.ui", "Ui", List.of()),
+            "kof_ui_align_new", List.of(Type.PrimitiveType.INT, Type.PrimitiveType.INT,
+            new Type.ClassType("kof", "List", List.of(Type.PrimitiveType.INT))),
+            Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+    return localIdx;
+}
+if (mc.receiver() == null && "Style".equals(mc.methodName()) && mc.arguments().size() == 4) {
+    for (ExpressionNode arg : mc.arguments()) {
+        localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
+    }
+    ops.add(new KofCall(new Type.ClassType("kof.ui", "Ui", List.of()),
+            "kof_ui_style_new", List.of(Type.PrimitiveType.INT, Type.PrimitiveType.INT,
+            Type.PrimitiveType.INT, Type.PrimitiveType.INT),
+            Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+    return localIdx;
+}
+if (mc.receiver() == null && "Link".equals(mc.methodName()) && mc.arguments().size() == 2) {
+    for (ExpressionNode arg : mc.arguments()) {
+        localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
+    }
+    ops.add(new KofCall(new Type.ClassType("kof.ui", "Ui", List.of()),
+            "kof_ui_link_new", List.of(BuiltinTypes.STRING, BuiltinTypes.STRING),
+            Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+    return localIdx;
+}
+if (mc.receiver() == null && "Image".equals(mc.methodName()) && mc.arguments().size() == 1) {
+    localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(0), ops, owner, localIdx, locals);
+    ops.add(new KofCall(new Type.ClassType("kof.ui", "Ui", List.of()),
+            "kof_ui_image_new", List.of(BuiltinTypes.STRING),
+            Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+    return localIdx;
+}
         return -1;
     }
 }

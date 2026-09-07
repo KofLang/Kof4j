@@ -127,6 +127,7 @@ public static boolean hasRuntimeFn(String methodName) {
     private static String sourceCore(String decoders) {
         return JvmRuntimeJson.source(decoders)
                 + JvmRuntimeUi.source()
+                + JvmRuntimeUiForms.source()
                 + JvmRuntimeCore.source()
                 + JvmRuntimeIo.source();
     }
