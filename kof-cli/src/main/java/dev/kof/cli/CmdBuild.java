@@ -146,6 +146,8 @@ final class CmdBuild {
         // (detectLayout devolve a própria src → comportamento inalterado).
         KofCliSupport.Layout layout = KofCliSupport.detectLayout(src);
         Path backendDir = layout.backendDir();
+        String app001 = KofCliSupport.app001(target, layout.fullStack());
+        if (app001 != null) { System.err.println("build: " + app001); System.exit(1); return; }
         List<Path> files = KofCliSupport.collect(backendDir);
         if (files.isEmpty()) { System.out.println("no .kf files found"); return; }
         files.sort(java.util.Comparator.comparing(p -> p.getFileName().toString()));

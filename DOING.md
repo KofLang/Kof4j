@@ -123,12 +123,22 @@ reuso). **Prova E2E Cenário A (I2)**: app real `web.app()` + `serveDir` →
   full-stack (GET /, /index.html, /Default.mjs, /kof-runtime.mjs = 200;
   traversal /../Main.kf = 404) + `KofMediaE2ETest` 14/14 (2 novos:
   `servesRootPrefixFiles_notJustIndex`, `rootPrefix_stillBlocksTraversal`).
-  **DEGRAU 2d
- (fecho de F3)**: rebuild do frontend sob demanda se mudou (I2.4, hash) +
- F3.5: `examples/fullstack/` + testes dos 4 cenários (JVM+KofJS,
- Native+KofJS→APP001, Script+KofJS, Script+Script). **NÃO quebrar**:
- microsserviços (kof.http/kof.web/CmdServe), PKG002/4/5 (congelados), lanes
- `NativeBackend.java`/`KofInterpreter*`.
+  **DEGRAU 2d FEITO (este commit)**: gate **APP001** (I2.6, R6):
+  `KofCliSupport.app001(backend, fullStack)` — backend não-JVM com web/ →
+  erro claro no build/run (antes: silenciar o frontend = fallback
+  silencioso); serve já rejeitava non-JVM. **`examples/fullstack/`**
+  (Cenário A canônico: kof.toml + src/Main.kf web.app+serveDir(KOF_WEB_OUT)
+  + src/web/ + src/static/) + **`FullStackE2ETest`** 4/4 na suíte (CLI real
+  subprocesso: build full-stack → dist/backend+frontend+static; build
+  --backend native → APP001; serve → GET /api/ping=JSON, GET /=bundle,
+  GET /static/app.css=css, traversal=404; monólito inalterado). Suíte
+  1085/0/64-skip verde. **FASE 3 COMPLETA** (build/run/serve full-stack +
+  exemplo + E2E). **PRÓXIMO (F3 opcional / F4)**: I2.4 rebuild do frontend
+  sob demanda (hash) é dev-loop (serve não é residente no modelo atual —
+  baixa prioridade); FASE 4 (KofUI: auditoria de cobertura HTML/CSS/DOM →
+  matriz de gaps) é a próxima fase do plano. **NÃO quebrar**:
+  microsserviços (kof.http/kof.web/CmdServe), PKG002/4/5 (congelados), lanes
+  `NativeBackend.java`/`KofInterpreter*`.
 
 **Estado anterior (06/09 — ROADMAP AUDIT)**: plano do maintainer entregue:
 auditoria completa → matriz em `docs/roadmap-audit.md` (`2970447`) →

@@ -1,0 +1,15 @@
+main() {
+    var app = web.app()
+    app.get("/api/ping") {
+        return "{\"pong\": true}"
+    }
+    var webOut = config.env("KOF_WEB_OUT")
+    if (webOut != null) {
+        app.serveDir("/", webOut)
+    }
+    var staticOut = config.env("KOF_STATIC_OUT")
+    if (staticOut != null) {
+        app.serveDir("/static", staticOut)
+    }
+    app.listen(config.int("server.port", 8080))
+}

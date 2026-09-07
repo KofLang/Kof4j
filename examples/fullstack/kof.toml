@@ -1,0 +1,8 @@
+[project]
+name = "fullstack"
+
+[backend]
+target = "jvm"
+
+[frontend]
+target = "kofjs"

@@ -105,6 +105,19 @@ final class KofCliSupport {
     }
 
     /**
+     * F3 (plataforma, APPLICATION_MODEL I2.6): full-stack com backend não-JVM
+     * → APP001 honesto (R6: nunca silenciar o frontend). O bundle é montado
+     * pelo backend via app.serveDir — só JVM hoje (Native/JS = WEB005 gap).
+     * Retorna null se ok; mensagem legível com o código senão.
+     */
+    public static String app001(Target backend, boolean fullStack) {
+        if (!fullStack || backend == null || backend == Target.JVM) return null;
+        return "backend '" + TargetMatrix.name(backend) + "' com [frontend]/web/ ainda não"
+                + " roda full-stack (o bundle é montado pelo backend JVM via app.serveDir;"
+                + " Native/JS = WEB005) [APP001]";
+    }
+
+    /**
      * F3 (plataforma): compila o componente frontend (web/) para o bundle
      * estático e copia os estáticos (static/) ao lado. Frontend KofJS gera
      * .mjs + index.html em {@code buildRoot/frontend}; estáticos em

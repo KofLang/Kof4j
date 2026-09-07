@@ -170,6 +170,16 @@ final class CmdRun {
         // (KOF_WEB_OUT/KOF_STATIC_OUT), que o backend consome com
         // config.env(...) + app.serveDir. Aditivo: sem web/ = run de hoje.
         Map<String, String> appEnv = Map.of();
+        if (siblingDir != null) {
+            KofCliSupport.Layout layout = KofCliSupport.detectLayout(siblingDir);
+            String app001 = KofCliSupport.app001(target, layout.fullStack());
+            if (app001 != null) {
+                System.err.println("run: " + app001);
+                KofCliSupport.cleanup(tempDir);
+                System.exit(1);
+                return;
+            }
+        }
         if (target == Target.JVM && siblingDir != null) {
             KofCliSupport.Layout layout = KofCliSupport.detectLayout(siblingDir);
             if (layout.fullStack()) {
