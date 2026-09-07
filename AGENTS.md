@@ -129,10 +129,20 @@ scripts/auto-loop.sh start            # última sessão, re-disparo a cada 30 mi
 scripts/auto-loop.sh status           # confirmar que está ativo
 ```
 
-- O cron chama `opencode run --session <id> --dir <repo> --auto "<prompt>"`
-  a cada intervalo (padrão 30 min), com o prompt de re-disparo:
-  *"analize os documentos, verifique os gaps, identifique o que falta em
-  nossos planos, trace um todo de implementação e continue o desenvolvimento"*.
+- O cron chama `opencode run --session <id> --dir <repo> --attach <server>
+  --auto "<prompt>"` a cada intervalo (padrão 30 min), com o prompt de
+  re-disparo: *"analize os documentos, verifique os gaps, identifique o que
+  falta em nossos planos, trace um todo de implementação e continue o
+  desenvolvimento"*.
+- **`--attach` é OBRIGATÓRIO — o heartbeat injeta na SESSÃO ABERTA, nunca
+  spawna agente concorrente.** Sem `--attach`, `opencode run --session` cria
+  um **processo headless novo** que só compartilha o histórico: você vê "outra
+  sessão" rodando em paralelo, dois agentes competindo pela mesma sessão (o
+  tick das 00:00 de 06/09 deixou um `run` vivo 20 min disputando com o TUI).
+  O servidor TUI da sessão aberta escuta em **`http://127.0.0.1:9092`**
+  (porta fixa do modo autônomo; sobres com `OPENCODE_SERVER_URL`). O `tick`
+  faz health-check na porta antes de disparar: servidor fora do ar → tick
+  pulado e logado (não adianta injetar numa sessão que não existe).
 - `flock` no `tick` impede run sobreposto: se o turno anterior ainda está
   ativo, o tick é pulado e logado (`~/.local/state/kof-auto-loop/loop.log`).
 - **Ao sair do modo autônomo** (humano retorna, condição de parada, ou
@@ -142,6 +152,7 @@ scripts/auto-loop.sh status           # confirmar que está ativo
   continuada do heartbeat.
 - O re-disparo chega como turno normal: vale a regra 6 (responder com tool
   call, não com "ok") e o contrato do `PRÓXIMO PASSO` no `DOING.md`.
+
 
 ---
 

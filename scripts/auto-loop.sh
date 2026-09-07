@@ -2,8 +2,10 @@
 # auto-loop.sh — heartbeat de cron para o modo autônomo do opencode (AGENTS.md).
 #
 # "Re-dispacho é do humano ou de cron": enquanto o loop autônomo está ativo,
-# um cronjob manda o PROMPT de re-disparo para a sessão do opencode a cada
-# N minutos (padrão 30), o que re-dispara o agente sem intervenção humana.
+# um cronjob manda o PROMPT de re-disparo para a SESSÃO ABERTA (o servidor
+# TUI vivo) a cada N minutos (padrão 30), o que re-dispara o agente sem
+# intervenção humana. Usa `opencode run --attach` — INJETAR na sessão viva,
+# nunca spawnar um agente headless concorrente (isso criava "outra sessão").
 #
 # Uso:
 #   scripts/auto-loop.sh start [sessionID] [intervalo-min]  # ativa (padrão: última sessão, 30 min)
@@ -19,6 +21,9 @@ STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/$MARKER"
 STATE="$STATE_DIR/state"
 LOG="$STATE_DIR/loop.log"
 LOCK="$STATE_DIR/lock"
+
+# Servidor TUI vivo da sessão aberta (porta fixa do modo autônomo).
+SERVER="${OPENCODE_SERVER_URL:-http://127.0.0.1:9092}"
 
 OPENCODE="${OPENCODE_BIN:-}"
 if [ -z "$OPENCODE" ]; then
@@ -86,9 +91,16 @@ cmd_tick() {
     [ -f "$STATE" ] || exit 0
     # shellcheck disable=SC1090
     . "$STATE"
-    local args=(run --session "$session" --dir "$repo" --auto "${prompt:-$DEFAULT_PROMPT}")
+    # INJETAR na sessão aberta via servidor TUI vivo (--attach) — nunca
+    # spawnar agente headless concorrente (isso criava "outra sessão").
+    local args=(run --session "$session" --dir "$repo" --attach "$SERVER" --auto "${prompt:-$DEFAULT_PROMPT}")
     if [ "${1:-}" = "--dry-run" ]; then
         echo "[dry-run] $OPENCODE ${args[*]}"
+        return 0
+    fi
+    # servidor TUI fora do ar → não dispara (sessão aberta não existe).
+    if ! curl -s -o /dev/null -m 5 "$SERVER/global/health"; then
+        echo "$(date -Is) tick pulado: servidor $SERVER fora do ar" >> "$LOG"
         return 0
     fi
     mkdir -p "$STATE_DIR"
@@ -97,7 +109,7 @@ cmd_tick() {
         echo "$(date -Is) tick pulado: run anterior ainda ativo" >> "$LOG"
         return 0
     fi
-    echo "$(date -Is) tick -> $session" >> "$LOG"
+    echo "$(date -Is) tick -> $session (attach $SERVER)" >> "$LOG"
     "$OPENCODE" "${args[@]}" >> "$LOG" 2>&1 || echo "$(date -Is) tick FALHOU (rc=$?)" >> "$LOG"
 }
 
