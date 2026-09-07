@@ -20,6 +20,9 @@ final class CompilerImports {
                                             DiagnosticCollector currentDiagnostics,
                                             java.util.Map<AstNode, String> declarationPackages) {
         java.util.Set<String> visitedDirs = new java.util.HashSet<>();
+        // Fase 1 (PKG007): grafo import → imports do arquivo (fechado após
+        // a expansão; ciclos detectados globalmente ao fim do loop).
+        java.util.Map<String, java.util.Set<String>> graph = new java.util.HashMap<>();
         List<AstNode> decls = new ArrayList<>(unit.declarations());
         List<String> imports = new ArrayList<>(unit.imports());
         java.util.ArrayDeque<String> queue = new java.util.ArrayDeque<>(imports);
@@ -35,7 +38,10 @@ final class CompilerImports {
             // Try directory import first (import a.b -> whole package a/b)
             if (Files.isDirectory(pkgDir)) {
                 String dirKey = pkgDir.toAbsolutePath().normalize().toString();
-                if (!visitedDirs.add(dirKey)) continue;
+                if (!visitedDirs.add(dirKey)) {
+                    continue;
+                }
+                graph.computeIfAbsent(imp, k -> new java.util.HashSet<>());
                 try (var stream = Files.walk(pkgDir, 1)) {
                     for (Path kf : stream.filter(p -> p.toString().endsWith(".kf"))
                             .sorted(java.util.Comparator.comparing(p -> p.getFileName().toString()))
@@ -64,6 +70,9 @@ final class CompilerImports {
                             continue;
                         }
                         for (String libImp : libUnit.imports()) {
+                            String impKey = libImp.endsWith(".*")
+                                    ? libImp.substring(0, libImp.length() - 2) : libImp;
+                            graph.computeIfAbsent(imp, k -> new java.util.HashSet<>()).add(impKey);
                             if (!imports.contains(libImp)) { imports.add(libImp); queue.add(libImp); }
                         }
                         for (AstNode d : libUnit.declarations()) {
@@ -88,7 +97,9 @@ final class CompilerImports {
                 Path kfFile = pkgPath.resolve(filePart + ".kf");
                 if (Files.isRegularFile(kfFile)) {
                     String pkgKey = kfFile.toAbsolutePath().normalize().toString();
-                    if (!visitedDirs.add(pkgKey)) continue;
+                    if (!visitedDirs.add(pkgKey)) {
+                        continue;
+                    }
                     try {
                         String code = Files.readString(kfFile);
                         String fileName = kfFile.getFileName().toString();
@@ -108,6 +119,9 @@ final class CompilerImports {
                             continue;
                         }
                         for (String libImp : libUnit.imports()) {
+                            String impKey = libImp.endsWith(".*")
+                                    ? libImp.substring(0, libImp.length() - 2) : libImp;
+                            graph.computeIfAbsent(imp, k -> new java.util.HashSet<>()).add(impKey);
                             if (!imports.contains(libImp)) { imports.add(libImp); queue.add(libImp); }
                         }
                         for (AstNode d : libUnit.declarations()) {
@@ -123,8 +137,33 @@ final class CompilerImports {
                     continue;
                 }
             }
+            // Fase 1 (plataforma): import que não é externo (std/interop)
+            // e não resolveu nem em diretório nem em arquivo → PKG006
+            // (antes era silencioso e o erro só aparecia como SEM011).
+            if (!isExternalImport(imp) && currentDiagnostics != null) {
+                currentDiagnostics.error("", 0, 0, 0,
+                        "import '" + imp + "' não encontrado no módulo"
+                                + " (esperado " + imp.replace('.', '/') + "/ ou "
+                                + imp.replace('.', '/') + ".kf sob a raiz)",
+                        "PKG006");
+            }
             // import externo (android.* etc.) — ignora
             continue;
+        }
+        // Fase 1 (PKG007): AUTO-IMPORT direto é diagnóstico (arquivo que
+        // importa a si mesmo). IMPORT MÚTUO entre pacotes (a.X ↔ b.Y) é
+        // LEGÍTIMO no modelo de unidade mergeada — provado por
+        // PackagesE2ETest.moduleRootDerivedFromCommonAncestor (congelado);
+        // ciclos gerais NÃO são erro aqui.
+        if (currentDiagnostics != null) {
+            for (var e : graph.entrySet()) {
+                if (e.getValue().contains(e.getKey())) {
+                    currentDiagnostics.error("", 0, 0, 0,
+                            "import auto-referente: '" + e.getKey()
+                                    + "' importa a si mesmo",
+                            "PKG007");
+                }
+            }
         }
         java.util.Map<String, String> seen = new java.util.HashMap<>();
         java.util.Map<String, String> seenFile = new java.util.HashMap<>();
@@ -156,5 +195,43 @@ final class CompilerImports {
         if (d instanceof TypeDeclarationNode t) return t.name();
         if (d instanceof FunctionDeclarationNode f) return f.name();
         return null;
+    }
+
+    /**
+     * Fase 1 (PKG007): true se {@code from} alcança {@code to} no grafo de
+     * imports (DFS com limite). Usado para detectar A→B→A quando um import
+     * já visitado volta à fila.
+     */
+    static boolean reaches(java.util.Map<String, java.util.Set<String>> graph,
+                           String from, String to) {
+        return reachesDfs(graph, from, to, new java.util.HashSet<>(), 0);
+    }
+
+    private static boolean reachesDfs(java.util.Map<String, java.util.Set<String>> graph,
+                                      String current, String to,
+                                      java.util.Set<String> seen, int depth) {
+        if (depth > 256 || seen.contains(current)) return false;
+        seen.add(current);
+        java.util.Set<String> next = graph.get(current);
+        if (next == null) return false;
+        if (next.contains(to)) return true;
+        for (String n : next) {
+            if (reachesDfs(graph, n, to, seen, depth + 1)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Fase 1 (PKG006): namespaces que NÃO se resolvem no filesystem e são
+     * legítimos — stdlib (kof.*), interop (android.*, java.*, jakarta.*,
+     * androidx.*), wildcard de pacote externo (java.awt.*). Qualquer outra
+     * coisa que não resolva em arquivo/dir sob a raiz é erro de import.
+     */
+    static boolean isExternalImport(String imp) {
+        if (imp.startsWith("kof.")) return true;
+        return imp.startsWith("android.") || imp.startsWith("androidx.")
+                || imp.startsWith("java.") || imp.startsWith("jakarta.")
+                || imp.startsWith("javax.") || imp.startsWith("kotlin.")
+                || imp.startsWith("scala.");
     }
 }

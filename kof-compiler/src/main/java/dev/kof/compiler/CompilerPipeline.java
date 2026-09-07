@@ -22,7 +22,25 @@ final class CompilerPipeline {
     }
 
     static CompilationResult compileSources(CompilerDriver driver, java.util.List<Path> sources, Path outputDir, Target target) {
-        return CompilerPipeline.compileSources(driver, sources, outputDir, target, ModuleRoots.moduleRootFor(sources));
+        return CompilerPipeline.compileSources(driver, sources, outputDir, target, rootFor(sources));
+    }
+
+    /**
+     * Fase 1 (plataforma): se alguma fonte vive sob um projeto com
+     * kof.toml, a raiz do projeto vira module root — imports como
+     * `import shared.Validation` resolvem a partir da raiz. Sem
+     * manifesto, mantém o LCA atual (retrocompatível).
+     */
+    static Path rootFor(java.util.List<Path> sources) {
+        // Fase 1: a descoberta de projeto sobe a partir de cada FONTE
+        // (não do LCA). Fonte única em src/Main.kf com kof.toml em tmp/:
+        // o LCA seria src/, mas o projeto é tmp/ — imports como
+        // `import shared.Validation` só resolvem a partir de tmp/.
+        for (Path s : sources) {
+            Path project = ProjectLocator.locate(s);
+            if (project != null) return project;
+        }
+        return ModuleRoots.moduleRootFor(sources);
     }
 
     static CompilationResult compileSources(CompilerDriver driver, java.util.List<Path> sources, Path outputDir, Target target,

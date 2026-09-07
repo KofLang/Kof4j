@@ -35,7 +35,12 @@ final class ModuleRoots {
     static String derivedPackageOf(Path src, Path rootAbs) {
         Path abs = src.toAbsolutePath().normalize();
         if (rootAbs == null || !abs.startsWith(rootAbs)) return "";
-        Path parent = rootAbs.relativize(abs).getParent();
+        Path rel = rootAbs.relativize(abs);
+        // Fase 1: kof run src/Main.kf em projeto com kof.toml — a fonte
+        // entrada fica na RAIZ e o pacote dela é "" (o main da aplicação).
+        // Subdiretórios (src/controllers/...) continuam pacote = caminho.
+        if (rel.getNameCount() <= 1) return "";
+        Path parent = rel.getParent();
         if (parent == null || parent.toString().isEmpty()) return "";
         return parent.toString().replace(java.io.File.separatorChar, '.');
     }
