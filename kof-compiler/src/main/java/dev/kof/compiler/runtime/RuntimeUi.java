@@ -193,6 +193,11 @@ public final class RuntimeUi {
                 ret
             kof_ui_input_set_type:
                 ret
+            kof_ui_input_set_checked:
+                ret
+            kof_ui_input_checked:
+                xorl %eax, %eax
+                ret
             kof_ui_input_text:
                 leaq .Lui_empty(%rip), %rdi
                 xorq %rsi, %rsi

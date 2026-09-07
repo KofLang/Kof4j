@@ -100,3 +100,27 @@ senha.setType("password")
 **Por quê:** `setType` define o atributo `type` do `<input>` (mascara senha,
 teclado numérico no mobile, validação de email). Usar text para tudo é
 reimplementar uma feature da plataforma (R2).
+
+## Forms: checkbox/radio (setChecked + checked)
+
+**BAD — simular estado de checkbox com variável à parte (o estado é do
+widget, não da aplicação):**
+```kof
+// ❌ NÃO — estado duplicado fora do DOM
+var aceite = false
+var caixa = Input("")
+caixa.setType("checkbox")
+```
+
+**GOOD — `setChecked`/`checked` no widget:**
+```kof
+// ✅ IDIOMÁTICO — estado do checkbox mora no widget
+var caixa = Input("")
+caixa.setType("checkbox")
+caixa.setChecked(true)
+if (caixa.checked()) { println("aceito") }
+```
+
+**Por quê:** `setChecked`/`checked` leem/escrevem o estado real do
+`<input>` (property + atributo `checked`). Duplicar o estado em variável
+à parte diverge do DOM (R1: intenção, não mecanismo).

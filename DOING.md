@@ -153,10 +153,16 @@ reuso). **Prova E2E Cenário A (I2)**: app real `web.app()` + `serveDir` →
   **`Input.setType` FEITO (este commit)**: aditivo 5 pontos (registry,
   whitelist, `JsRuntimeUiWidgets.kofUiInputSetType`, stubs JVM/Native).
   Prova: `KofJsBrowserE2ETest.inputTypeRendersInRealBrowserDom` (DOM
-  contém `type="password"`); suíte 1089/0/64-skip. **PRÓXIMO PASSO (Fase
-  4, minha lane)**: continuar UI003/4/5 forms — `<form>`/submit,
-  atributos id/class/alt/checked/disabled (mesmo padrão de 5 pontos +
-  teste browser); depois UI007 style declarativo. **NÃO quebrar**:
+  contém `type="password"`); suíte 1089/0/64-skip. **`Input.setChecked`
+  + `Input.checked()` FEITO (este commit)**: aditivo 5 pontos (registry,
+  whitelist, `JsRuntimeUiWidgets` — property `checked` + atributo
+  `setAttribute("checked","")` p/ serializar no DOM, stubs JVM/Native
+  [Bool=int 0/1]). Prova: `KofJsBrowserE2ETest
+  .inputCheckboxCheckedRendersInRealBrowserDom` (DOM contém
+  type="checkbox" + checked); suíte 1091/0/64-skip. **PRÓXIMO PASSO
+  (Fase 4, minha lane)**: continuar UI003/4/5 forms — `<form>`/submit,
+  atributos id/class/alt/disabled (mesmo padrão de 5 pontos + teste
+  browser); depois UI007 style declarativo. **NÃO quebrar**:
   microsserviços (kof.http/kof.web/CmdServe), PKG002/4/5 (congelados), lanes
   `NativeBackend.java`/`KofInterpreter*`.
 

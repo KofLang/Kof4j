@@ -228,6 +228,8 @@ public final class KofUi {
                 case "setText" -> argCount == 1 ? new UiCall("kof_ui_input_set_text", Type.PrimitiveType.VOID, List.of(STR)) : null;
                 case "setPlaceholder" -> argCount == 1 ? new UiCall("kof_ui_input_set_placeholder", Type.PrimitiveType.VOID, List.of(STR)) : null;
                 case "setType" -> argCount == 1 ? new UiCall("kof_ui_input_set_type", Type.PrimitiveType.VOID, List.of(STR)) : null;
+                case "setChecked" -> argCount == 1 ? new UiCall("kof_ui_input_set_checked", Type.PrimitiveType.VOID, List.of(BOOL)) : null;
+                case "checked" -> argCount == 0 ? new UiCall("kof_ui_input_checked", BOOL, List.of()) : null;
                 case "remove" -> argCount == 0 ? new UiCall("kof_ui_input_remove", Type.PrimitiveType.VOID, List.of()) : null;
                 default -> null;
             };

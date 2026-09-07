@@ -147,6 +147,42 @@ class KofJsBrowserE2ETest {
         }
     }
 
+    @Test
+    void inputCheckboxCheckedRendersInRealBrowserDom(@TempDir Path tempDir) throws IOException {
+        Path chrome = findChrome();
+        assumeTrue(chrome != null, "Chrome/Chromium não instalado — pulando E2E de browser");
+
+        String program = """
+            main() {
+                var aceitar = Input("")
+                aceitar.setType("checkbox")
+                aceitar.setChecked(true)
+                var col = Column(listOf(aceitar))
+                var w = Window("CheckboxTest")
+                w.bind(col)
+                w.show()
+            }
+            """;
+        Path source = tempDir.resolve("App.kf");
+        Files.writeString(source, program);
+
+        Path outDir = tempDir.resolve("out");
+        CompilationResult result = driver.compile(source, outDir, Target.JS);
+        assertTrue(result.success(), "compilação JS deve passar: " + result.diagnostics().getDiagnostics());
+
+        HttpServer server = serve(outDir);
+        int port = server.getAddress().getPort();
+        try {
+            String dom = dumpDom(chrome, "http://127.0.0.1:" + port + "/index.html");
+            assertTrue(dom.contains("type=\"checkbox\""),
+                    "type=checkbox ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("checked"),
+                    "checked ausente no DOM: " + excerpt(dom));
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private static HttpServer serve(Path dir) throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/", exchange -> {

@@ -355,6 +355,13 @@ public final class JvmRuntimeUi {
                 public static void kof_ui_input_set_type(int input, String type) {
                 }
 
+                public static void kof_ui_input_set_checked(int input, int checked) {
+                }
+
+                public static int kof_ui_input_checked(int input) {
+                    return 0;
+                }
+
                 public static String kof_ui_input_text(int input) {
                     return "";
                 }

@@ -223,6 +223,23 @@ public final class JsRuntimeUiWidgets {
                 }
             }
 
+            export function kofUiInputSetChecked(input, checked) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[input]) {
+                    const node = window.__kofNodes[input];
+                    node.checked = checked ? true : false;
+                    // reflete no atributo (defaultChecked) para o DOM serializado
+                    if (checked) node.setAttribute("checked", "");
+                    else node.removeAttribute("checked");
+                }
+            }
+
+            export function kofUiInputChecked(input) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[input]) {
+                    return window.__kofNodes[input].checked ? 1 : 0;
+                }
+                return 0;
+            }
+
             export function kofUiInputText(input) {
                 if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[input]) {
                     return window.__kofNodes[input].value;
