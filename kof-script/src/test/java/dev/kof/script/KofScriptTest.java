@@ -275,4 +275,68 @@ class KofScriptTest {
         assertTrue(out.indexOf("pre-send") < out.indexOf("recv:42"),
                 "receive deve bloquear até o send: " + out);
     }
+
+    /**
+     * Varredura de paridade interpretado vs JVM compilado sobre uma bateria
+     * de edge-cases determinísticos (sem tempo/concorrência/I/O externo).
+     * Cada caso roda nos dois caminhos e exige stdout+exitCode idênticos —
+     * é a prova de que o refactor ≤500 e o interpretador preservam a
+     * semântica do bytecode em superfícies além dos 16 casos do gate.
+     */
+    @Test
+    void interpreterParitySweep(@TempDir Path tmp) throws Exception {
+        String[][] cases = {
+            {"div-zero", "main() { try { println(10 / 0) } catch (String e) { println(\"caught\") } }"},
+            {"int-overflow", "main() { var a = 2147483647; println(a + 1) }"},
+            {"mod-neg", "main() { println(-7 % 3); println(7 % -3) }"},
+            {"long-div", "main() { var a = 10000000000L; println(a / 3L); println(a % 7L) }"},
+            {"cast-chain", "main() { var d = 9.9; println(d as Int); var l = 70000L; println(l as Int); println(66 as Char) }"},
+            {"float-print", "main() { println(1.0 / 3.0); println(2.5 * 2.0); println(7.0 / 2.0) }"},
+            {"unicode-str", "main() { var s = \"café\"; println(s.length); println(s.charAt(3)); println(s + \"!\") }"},
+            {"str-ops", "main() { var s = \"a,b,,c\"; println(s.split(\",\").length); println(\"Hello World\".toLowerCase()); println(\"  x  \".trim() + \"|\") }"},
+            {"empty-list", "main() { var l = listOf(); println(l.isEmpty()); println(l.size); println(l.contains(1)) }"},
+            {"map-null-val", "main() { var m = mapOf(\"a\", 1); m.put(\"b\", 2); println(m.get(\"a\")); println(m.get(\"zz\")); println(m.size) }"},
+            {"set-dedup", "main() { var s = setOf(1, 2, 2, 3, 3, 3); println(s.size); println(s.contains(2)); println(s.contains(9)) }"},
+            {"nested-if-expr", "main() { var x = 5; var r = if (x > 0) if (x > 10) \"big\" else \"small\" else \"neg\"; println(r) }"},
+            {"switch-expr", "main() { var v = 3; var d = switch (v) { case 1 -> \"one\"; case 2 -> \"two\"; case 3 -> \"three\"; default -> \"other\" }; println(d) }"},
+            {"break-continue", "main() { var sum = 0; for (var i in listOf(1,2,3,4,5)) { if (i == 2) { continue }; if (i == 4) { break }; sum = sum + i }; println(sum) }"},
+            {"inheritance", "class A { Int x; public constructor(Int x) { this.x = x }; Int val() { return x * 2 } }; class B { Int y; public constructor(Int y) { this.y = y }; Int val() { return y * 3 } }; main() { println(A(5).val()); println(B(5).val()) }"},
+            {"record-eq-hash", "record P(Int x, Int y); main() { var a = P(1,2); var b = P(1,2); println(a == b); println(a); println(a.x()); println(a.hashCode() == b.hashCode()) }"},
+            {"pattern-match", "main() { var o = 42; var r = switch (o) { case Int n -> \"int:\" + n; case String s -> \"str\"; default -> \"other\" }; println(r) }"},
+            {"null-eq", "main() { var a = null; var b = null; println(a == b); println(a != b) }"},
+            {"nested-try", "main() { try { try { throw \"inner\" } catch (String e) { println(e); throw \"outer\" } } catch (String e) { println(e) } }"},
+            {"finally-return", "Int f() { try { return 1 } finally { println(\"fin\") } }; main() { println(f()) }"},
+            {"lambda-chain", "main() { var l = listOf(1,2,3,4); var r = l.filter((x: Int) -> x > 1).map((x: Int) -> x * 10).reduce((a: Int, b: Int) -> a + b, 0); println(r) }"},
+            {"lambda-capture-mut", "main() { var n = 0; var inc = () -> n = n + 1; inc(); inc(); inc(); println(n) }"},
+            {"array-2d", "main() { var a = new Int[3]; a[0] = 10; a[1] = 20; a[2] = 30; println(a[0] + a[1] + a[2]); println(a.length) }"},
+            {"static-field", "Counter { static var count = 0; static Int bump() { count = count + 1; return count } }; main() { println(Counter.bump()); println(Counter.bump()); println(Counter.count) }"},
+            {"string-num-concat", "main() { println(\"n=\" + 42); println(1 + 2 + \"x\"); println(\"x\" + 1 + 2) }"},
+            {"bool-logic", "main() { println(true && false); println(true || false); println(!true); println((1 < 2) == (3 > 2)) }"},
+            {"bitwise", "main() { println(6 & 3); println(6 | 3); println(6 ^ 3); println(1 << 4); println(256 >> 2) }"},
+            {"deep-recursion", "Int fact(Int n) { if (n <= 1) { return 1 }; return n * fact(n - 1) }; main() { println(fact(10)) }"},
+            {"list-of-mixed", "main() { var l = listOf(1, 2, 3); l.add(4); l.set(0, 99); println(l.get(0)); println(l.size); println(l.remove(1)); println(l.size) }"},
+            {"map-iter", "main() { var m = mapOf(\"x\", 1); m.put(\"y\", 2); m.put(\"z\", 3); var ks = m.keys(); var sum = 0; for (var k in ks) { sum = sum + m.get(k) }; println(sum) }"},
+        };
+        var divergentes = new StringBuilder();
+        for (String[] c : cases) {
+            Path f = tmp.resolve(c[0] + ".kf");
+            Files.writeString(f, c[1]);
+            var interp = KofScript.runFile(f, dev.kof.compiler.Target.JVM);
+            var comp = KofScript.runFileCompiled(f, dev.kof.compiler.Target.JVM, new String[0]);
+            if (interp.exitCode() != comp.exitCode()
+                    || !norm(interp.stdout()).equals(norm(comp.stdout()))) {
+                divergentes.append("\n[").append(c[0]).append("] interp(exit=")
+                        .append(interp.exitCode()).append(")=<").append(norm(interp.stdout()))
+                        .append("|").append(norm(interp.stderr())).append("> comp(exit=")
+                        .append(comp.exitCode()).append(")=<").append(norm(comp.stdout()))
+                        .append("|").append(norm(comp.stderr())).append(">");
+            }
+        }
+        assertEquals("", divergentes.toString().trim(),
+                "varredura de paridade interpretado vs JVM compilado:");
+    }
+
+    private static String norm(String s) {
+        return s == null ? "" : s.replace("\r\n", "\n").trim();
+    }
 }

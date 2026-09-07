@@ -28,11 +28,11 @@ package dev.kof.compiler.vk;
  * KOF_GPU_SPV64_W32 e KOF_GPU_SPV64_SPLIT (opcionais; pipeline
  * ausente → wrun32/wrunsp retornam rc != 0 e o caller usa CPU).
  */
-final class VkChain64Asm {
+public final class VkChain64Asm {
     private VkChain64Asm() {}
 
     /** Injeta o .s no runtime nativo (substitui os stubs kof_mv64_*). */
-    static String source() {
+    public static String source() {
         StringBuilder sb = new StringBuilder(64 * 1024);
         VkChain64Data.source(sb);
         VkChain64Loader.source(sb);
