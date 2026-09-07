@@ -282,6 +282,10 @@ public final class RuntimeUi {
             kof_ui_form_new:
                 movl $1, %eax
                 ret
+            kof_ui_form_on_submit:
+                ret
+            kof_ui_form_submit:
+                ret
             kof_ui_row_new:
                 movl $1, %eax
                 ret

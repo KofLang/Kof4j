@@ -295,6 +295,43 @@ class KofJsBrowserE2ETest {
         }
     }
 
+    @Test
+    void formSubmitHandlerRunsInRealBrowser(@TempDir Path tempDir) throws IOException {
+        Path chrome = findChrome();
+        assumeTrue(chrome != null, "Chrome/Chromium não instalado — pulando E2E de browser");
+
+        // o handler do onSubmit muta o placeholder do input — se o DOM final
+        // traz "depois", o handler RODOU de verdade no browser.
+        String program = """
+            main() {
+                var campo = Input("")
+                campo.setPlaceholder("antes")
+                var f = Form(listOf(campo))
+                f.onSubmit(() -> campo.setPlaceholder("depois"))
+                var w = Window("SubmitTest")
+                w.bind(f)
+                w.show()
+                f.submit()
+            }
+            """;
+        Path source = tempDir.resolve("App.kf");
+        Files.writeString(source, program);
+
+        Path outDir = tempDir.resolve("out");
+        CompilationResult result = driver.compile(source, outDir, Target.JS);
+        assertTrue(result.success(), "compilação JS deve passar: " + result.diagnostics().getDiagnostics());
+
+        HttpServer server = serve(outDir);
+        int port = server.getAddress().getPort();
+        try {
+            String dom = dumpDom(chrome, "http://127.0.0.1:" + port + "/index.html");
+            assertTrue(dom.contains("placeholder=\"depois\""),
+                    "handler do onSubmit NÃO rodou (placeholder ainda 'antes'): " + excerpt(dom));
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private static HttpServer serve(Path dir) throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/", exchange -> {

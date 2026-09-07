@@ -197,11 +197,18 @@ reuso). **Prova E2E Cenário A (I2)**: app real `web.app()` + `serveDir` →
     suítes: `UiE2ETest.widgetAttributesLinkOnAllTargets` (JVM+Native) +
     `KofJsBrowserE2ETest.widgetAttributesRenderInRealBrowserDom` (DOM
     id/class/disabled); suíte 1100/0/64-skip.
-    **PRÓXIMO PASSO (Fase 4, minha lane)**: `Form.onSubmit`/submit handler
-    (UI004 — handler que roda no submit; padrão `Button(text, action)`
-    SAM via `kofUiSetAction`; prova: browser com dispatchEvent — o teste
-    atual só prova compila/link); depois UI007 style declarativo. Seguir
-    6 pontos + 2 suítes. **NÃO quebrar**:
+    **`Form.onSubmit` + `Form.submit()` FEITO (este commit) — UI004
+    headline**: handler SAM no `<form>` (padrão `kofUiSetAction` do Button;
+    `window.__kofFormSubmits` + listener com `preventDefault`) e submissão
+    programática (`requestSubmit`/`dispatchEvent`). 6 pontos cada. **Prova
+    forte** (handler RODA, não só compila):
+    `KofJsBrowserE2ETest.formSubmitHandlerRunsInRealBrowser` — handler muta
+    placeholder "antes"→"depois", DOM do Chrome confirma; +
+    `UiE2ETest.formSubmitLinksOnAllTargets` (JVM+Native no-op). Suíte
+    1102/0/64-skip. **PRÓXIMO PASSO (Fase 4, minha lane)**: UI007 `style`
+    declarativo (CSS idiomático, parse próprio — o item maior da Fase 4;
+    ver docs/ui/architecture.md §2.8/Style) ou UI003 elementos restantes
+    (textarea/select/table). Seguir 6 pontos + 2 suítes. **NÃO quebrar**:
   microsserviços (kof.http/kof.web/CmdServe), PKG002/4/5 (congelados), lanes
   `NativeBackend.java`/`KofInterpreter*`.
 

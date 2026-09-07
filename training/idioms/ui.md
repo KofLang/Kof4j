@@ -189,3 +189,23 @@ campo.setDisabled(true)
 `widget_*` do kof.ui os expõe em qualquer widget (Label/Button/Input/View/
 Link/Image/Icon/Form/Column/Row). Envelopar para contornar é mecanismo,
 não intenção (R1).
+
+## Forms: onSubmit (handler de submissão)
+
+**BAD — botão avulso que chama a lógica (o form não tem dono da submissão):**
+```kof
+// ❌ NÃO — submit solto num Button, sem Form
+var enviar = Button("enviar", () -> salvar())
+```
+
+**GOOD — `Form.onSubmit` + `submit()`:**
+```kof
+// ✅ IDIOMÁTICO — o form é dono da submissão
+var f = Form(listOf(nome, email))
+f.onSubmit(() -> salvar())
+f.submit()   // ou o usuário aperta Enter no browser
+```
+
+**Por quê:** `onSubmit` registra o handler no `<form>` (roda no evento
+submit, com `preventDefault` — sem recarregar a página); `submit()`
+submete programaticamente. A semântica de formulário fica no form (R1).

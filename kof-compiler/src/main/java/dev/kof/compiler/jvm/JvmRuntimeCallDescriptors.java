@@ -70,6 +70,8 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_ui_window_set_size" -> "(III)V";
             case "kof_ui_column_new", "kof_ui_row_new" -> "(Ljava/util/ArrayList;)I";
             case "kof_ui_form_new" -> "(Ljava/util/ArrayList;)I";
+            case "kof_ui_form_on_submit" -> "(ILjava/lang/Object;)V";
+            case "kof_ui_form_submit" -> "(I)V";
             case "kof_ui_view_new" -> "(I)I";
             case "kof_ui_style_new" -> "(IIII)I";
             case "kof_ui_window_set_theme", "kof_ui_label_set_font_size", "kof_ui_label_set_bold",

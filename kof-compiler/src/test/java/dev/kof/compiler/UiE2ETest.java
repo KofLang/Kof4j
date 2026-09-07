@@ -120,6 +120,21 @@ class UiE2ETest {
     }
 
     @Test
+    void formSubmitLinksOnAllTargets(@TempDir Path tempDir) throws IOException {
+        // UI004: Form.onSubmit/submit — no-op em JVM/Native, DOM real em
+        // KofJS (KofJsBrowserE2ETest.formSubmitHandlerRunsInRealBrowser).
+        both(tempDir, "formsubmit", """
+            main() {
+                var campo = Input("")
+                var f = Form(listOf(campo))
+                f.onSubmit(() -> println("enviado"))
+                f.submit()
+                println("ok")
+            }
+            """, "ok");
+    }
+
+    @Test
     void widgetAttributesLinkOnAllTargets(@TempDir Path tempDir) throws IOException {
         // UI005: setId/setClass/setDisabled — aditivo; no-op JVM/Native,
         // DOM real em KofJS (KofJsBrowserE2ETest).

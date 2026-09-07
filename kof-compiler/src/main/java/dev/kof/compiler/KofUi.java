@@ -313,6 +313,13 @@ public final class KofUi {
                 default -> null;
             };
         }
+        if (isForm(receiver)) {
+            return switch (name) {
+                case "onSubmit" -> argCount == 1 ? new UiCall("kof_ui_form_on_submit", Type.PrimitiveType.VOID, List.of(Type.UnknownType.UNKNOWN)) : null;
+                case "submit" -> argCount == 0 ? new UiCall("kof_ui_form_submit", Type.PrimitiveType.VOID, List.of()) : null;
+                default -> null;
+            };
+        }
         if (isComponent(receiver)) {
             // Component Core (docs/ui/architecture.md): estado reativo +
             // invalidação + render + lifecycle + effects + events.

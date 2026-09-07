@@ -295,6 +295,8 @@ public final class JsRuntimeUiWidgets {
                 const node = window.__kofNodes[id];
                 node.addEventListener("submit", function (ev) {
                     if (ev && typeof ev.preventDefault === "function") ev.preventDefault();
+                    const h = window.__kofFormSubmits && window.__kofFormSubmits[id];
+                    if (h && typeof h.invoke === "function") h.invoke();
                 });
                 if (ids) {
                     for (const childId of ids) {
@@ -305,6 +307,18 @@ public final class JsRuntimeUiWidgets {
                     }
                 }
                 return id;
+            }
+
+            export function kofUiFormOnSubmit(form, handler) {
+                window.__kofFormSubmits = window.__kofFormSubmits || {};
+                window.__kofFormSubmits[form] = handler;
+            }
+
+            export function kofUiFormSubmit(form) {
+                const node = window.__kofNodes && window.__kofNodes[form];
+                if (!node) return;
+                if (typeof node.requestSubmit === "function") node.requestSubmit();
+                else node.dispatchEvent(new Event("submit", { cancelable: true }));
             }
 
             export function kofUiRowNew(ids) {
