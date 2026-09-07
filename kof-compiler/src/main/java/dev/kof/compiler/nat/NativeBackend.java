@@ -66,13 +66,14 @@ import java.util.Map;
 
 
 public class NativeBackend implements Backend {
+    private NativeArchEmitter nativeArch;
     private NativeMethodEmitter nativeMethods;
 
     final Target target;
     final Map<LabelId, String> labelMap = new HashMap<>();
     int labelCounter = 0;
     final List<String[]> stringLiterals = new ArrayList<>();
-    private int stringCounter = 0;
+    int stringCounter = 0;
     Type lastPushedType = Type.UnknownType.UNKNOWN;
     IRClass currentClass = null;
     boolean usesDb = false;
@@ -99,13 +100,13 @@ public class NativeBackend implements Backend {
         return jsonSchemaInst;
     }
 
-    private NativeRiscvCrossEmit crossEmit() {
+    NativeRiscvCrossEmit crossEmit() {
         if (crossEmitInst == null) crossEmitInst = new NativeRiscvCrossEmit(this);
         return crossEmitInst;
     }
 
     public NativeBackend() { this(Target.NATIVE); }
-    public NativeBackend(Target target) { this.target = target; nativeMethods = new NativeMethodEmitter(this); }
+    public NativeBackend(Target target) { this.target = target; nativeMethods = new NativeMethodEmitter(this); nativeArch = new NativeArchEmitter(this); }
 
     String resolveLabel(LabelId id) {
         return labelMap.computeIfAbsent(id, k -> ".Lkof_" + (labelCounter++));
@@ -277,7 +278,7 @@ public class NativeBackend implements Backend {
         assemble(asmFile, binFile);
     }
 
-    private void collectStrings(IRClass clazz) {
+    void collectStrings(IRClass clazz) {
         for (IRMethod method : clazz.methods()) {
             for (IRBasicBlock block : method.basicBlocks()) {
                 for (KofOperation op : block.operations()) {
@@ -669,11 +670,11 @@ public class NativeBackend implements Backend {
         return true;
     }
 
-    private void runCommand(String[] cmd, String name) throws IOException {
+    void runCommand(String[] cmd, String name) throws IOException {
         NativeAssembler.runCommand(cmd, name);
     }
 
-    private void assemble(Path asmFile, Path binFile) throws IOException {
+    void assemble(Path asmFile, Path binFile) throws IOException {
         NativeAssembler.assemble(asmFile, binFile, usesDb, usesMysql, usesConcurrency);
     }
 
@@ -695,143 +696,6 @@ public class NativeBackend implements Backend {
     // (nunca binário mudo).
     // ---------------------------------------------------------------------
 
-    private void emitRiscv(IRModule module, Path outputDir) throws IOException {
-        labelCounter = 0;
-        labelMap.clear();
-        stringLiterals.clear();
-        stringCounter = 0;
-        allClassesMap.clear();
-        for (IRClass c : module.classes()) allClassesMap.put(c.name(), c);
-
-        IRClass mainClass = null;
-        for (IRClass c : module.classes()) {
-            for (IRMethod m : c.methods()) {
-                if ("main".equals(m.name())) { mainClass = c; break; }
-            }
-            if (mainClass != null) break;
-        }
-        // pré-registro do mangle de TODOS os métodos (forward reference de
-        // função top-level — idem x86_64; sem isso `fib` cai no fallback
-        // não-mangled e o ld falha).
-        functionMangleMap.clear();
-        for (IRClass c : module.classes()) {
-            for (IRMethod m : c.methods()) {
-                if ("<clinit>".equals(m.name())) continue;
-                String mg = sanitizeName(c.name()) + "_" + sanitizeName(m.name());
-                if ("<init>".equals(m.name())) mg += "_" + m.parameterTypes().size();
-                functionMangleMap.putIfAbsent(m.name(), mg);
-            }
-        }
-
-        StringBuilder sb = new StringBuilder();
-        sb.append(".option arch, rv64g\n");
-        sb.append(".section .data\n");
-        for (IRClass c : module.classes()) {
-            currentClass = c;
-            collectStrings(c);
-        }
-        for (String[] e : stringLiterals) {
-            String esc = e[0].replace("\\", "\\\\").replace("\"", "\\\"")
-                    .replace("\n", "\\n").replace("\t", "\\t");
-            sb.append(e[1]).append(": .asciz \"").append(esc).append("\"\n");
-        }
-        // kof_super_table: pares (typeId, superTypeId) terminados por (0,0) —
-        // usado por kof_instanceof (mesmo layout do x86_64).
-        sb.append(".align 4\n");
-        sb.append("kof_super_table:\n");
-        for (IRClass c : module.classes()) {
-            if (c.typeId() == 0) continue;
-            int superTypeId = 0;
-            if (c.superName() != null && !c.superName().isEmpty()) {
-                String superSimple = c.superName().substring(c.superName().lastIndexOf('/') + 1);
-                for (IRClass other : module.classes()) {
-                    if (other.name().equals(c.superName()) || other.name().endsWith("/" + superSimple)
-                            || superSimple.equals(sanitizeName(other.name()))) {
-                        superTypeId = other.typeId();
-                        break;
-                    }
-                }
-            }
-            sb.append("    .word ").append(c.typeId()).append(", ").append(superTypeId).append("\n");
-        }
-        sb.append("    .word 0, 0\n");
-        // vtables por classe (offset 8 do header aponta para elas)
-        for (IRClass c : module.classes()) {
-            currentClass = c;
-            crossEmit().emitMethodTableRiscv(sb, c);
-        }
-        sb.append(".section .text\n");
-        // pop <reg>: desempilha o topo da pilha de operandos (sp) em <reg>
-        sb.append(".macro pop r\n");
-        sb.append("    ld \\r, 0(sp)\n");
-        sb.append("    addi sp, sp, 8\n");
-        sb.append(".endm\n");
-        boolean usesSpawn = usesSpawn(module);
-        for (IRClass c : module.classes()) {
-            currentClass = c;
-            for (IRMethod m : c.methods()) {
-                if ("<clinit>".equals(m.name())) continue;
-                crossEmit().emitCrossMethodRiscv(sb, c, m, usesSpawn && "main".equals(m.name()));
-            }
-        }
-
-        // Ponto de entrada: chama <mainClass>_main e sai via exit_group(94).
-        // O runtime é asm puro — binário estático. exit_group (não exit/93)
-        // mata as threads do scheduler que não foram canceladas (daemon-like)
-        // — senão o processo fica pendurado esperando a thread do timer.
-        String mainEntry = mainClass != null ? sanitizeName(mainClass.name()) + "_main" : "kof_main";
-        sb.append("\n.globl _start\n");
-        sb.append("_start:\n");
-        sb.append("    andi sp, sp, -16\n");
-        sb.append("    call ").append(mainEntry).append("\n");
-        sb.append("    li a0, 0\n");
-        sb.append("    li a7, 94\n");
-        sb.append("    ecall\n");
-        sb.append(NativeRiscvAsm.RISCV_RUNTIME_ASM).append(NativeRiscvAsm.RISCV_STRN002_ASM).append(NativeRiscvAsm.RISCV_RUNTIME_ASM_B).append(NativeRiscvAsm.RISCV_MAPSET_ASM);
-
-        // NATIVE002-stdlib: http.get/post/status riscv64 (asm puro, syscalls
-        // asm-generic — mesmos números do aarch64; aarch64 herda via tradutor).
-        boolean usesHttp = false;
-        for (IRClass c : module.classes()) {
-            for (IRMethod m : c.methods()) {
-                for (IRBasicBlock b : m.basicBlocks()) {
-                    for (KofOperation op : b.operations()) {
-                        if (op instanceof KofCall kc && kc.methodName().startsWith("kof_http_")) {
-                            usesHttp = true;
-                        }
-                    }
-                }
-                if (usesHttp) break;
-            }
-            if (usesHttp) break;
-        }
-        if (usesHttp) emitRiscvHttp(sb);
-        if (usesSpawn) emitRiscvSpawn(sb);
-
-        String className = module.classes().isEmpty() ? "Default/Main" : module.classes().getFirst().name();
-        Path asmFile = outputDir.resolve(className + ".s");
-        Path binFile = outputDir.resolve(className);
-        Files.createDirectories(asmFile.getParent());
-        Files.writeString(asmFile, sb.toString());
-        System.err.println("NativeBackend: generated riscv64 " + asmFile);
-
-        try {
-            Path objFile = asmFile.resolveSibling("kof.o");
-            // --no-relax (as+ld): sem gp-relaxation. Nosso _start não inicializa
-            // gp (binário estático, sem C runtime); `la` relaxado vira `addi rd,gp,off`
-            // e faulta (gp=0). Forçado PC-relative (auipc+addi) — sempre correto.
-            runCommand(new String[]{"riscv64-linux-gnu-as", "-mno-relax", "-o", objFile.toString(), asmFile.toString()}, "riscv64-as");
-            runCommand(new String[]{"riscv64-linux-gnu-ld", "--no-relax", "-o", binFile.toString(), objFile.toString()}, "riscv64-ld");
-            Files.deleteIfExists(objFile);
-            if (System.getenv("KOF_KEEP_ASM") == null) Files.deleteIfExists(asmFile);
-            binFile.toFile().setExecutable(true);
-        } catch (NativeAssembler.ToolchainMissing e) {
-            // toolchain ausente: gracioso (assumeToolchain pula o teste)
-            System.err.println("NativeBackend: riscv64 toolchain ausente (NATIVE002), keeping asm: " + e.getMessage());
-        }
-        // as/ld FALHOU (ex.: undefined reference) → propaga como erro de
-        // compilação (R6: nunca success=true sem binário).
-    }
 
     // ---- NATIVE002-stdlib: HTTP client riscv64 (asm puro) -----------------
     // Port de NativeHttpRuntime (x86_64) para a convenção riscv64: args em
@@ -875,131 +739,6 @@ public class NativeBackend implements Backend {
     // (1=string → equals; 0 → pointer, igual x86_64). Convenção riscv:
     // a0=receiver, a1..=args, resultado em a0.
 
-    private void emitAarch64(IRModule module, Path outputDir) throws IOException {
-        // AArch64 = tradução linha-a-linha do riscv64 (mesmo modelo de pilha/layout).
-        // Gera o asm riscv64 em memória via lowering já validado e traduz p/ ARMv8-A.
-        labelCounter = 0;
-        labelMap.clear();
-        stringLiterals.clear();
-        stringCounter = 0;
-        allClassesMap.clear();
-        for (IRClass c : module.classes()) allClassesMap.put(c.name(), c);
-        IRClass mainClass = null;
-        for (IRClass c : module.classes()) {
-            for (IRMethod m : c.methods()) {
-                if ("main".equals(m.name())) { mainClass = c; break; }
-            }
-            if (mainClass != null) break;
-        }
-        functionMangleMap.clear();
-        for (IRClass c : module.classes()) {
-            for (IRMethod m : c.methods()) {
-                if ("<clinit>".equals(m.name())) continue;
-                String mg = sanitizeName(c.name()) + "_" + sanitizeName(m.name());
-                if ("<init>".equals(m.name())) mg += "_" + m.parameterTypes().size();
-                functionMangleMap.putIfAbsent(m.name(), mg);
-            }
-        }
-        StringBuilder riscvSb = new StringBuilder();
-        riscvSb.append(".option arch, rv64g\n");
-        riscvSb.append(".section .data\n");
-        for (IRClass c : module.classes()) {
-            currentClass = c;
-            collectStrings(c);
-        }
-        for (String[] e : stringLiterals) {
-            String esc = e[0].replace("\\", "\\\\").replace("\"", "\\\"")
-                    .replace("\n", "\\n").replace("\t", "\\t");
-            riscvSb.append(e[1]).append(": .asciz \"").append(esc).append("\"\n");
-        }
-        riscvSb.append(".align 4\n");
-        riscvSb.append("kof_super_table:\n");
-        for (IRClass c : module.classes()) {
-            if (c.typeId() == 0) continue;
-            int superTypeId = 0;
-            if (c.superName() != null && !c.superName().isEmpty()) {
-                String superSimple = c.superName().substring(c.superName().lastIndexOf('/') + 1);
-                for (IRClass other : module.classes()) {
-                    if (other.name().equals(c.superName()) || other.name().endsWith("/" + superSimple)
-                            || superSimple.equals(sanitizeName(other.name()))) {
-                        superTypeId = other.typeId();
-                        break;
-                    }
-                }
-            }
-            riscvSb.append("    .word ").append(c.typeId()).append(", ").append(superTypeId).append("\n");
-        }
-        riscvSb.append("    .word 0, 0\n");
-        for (IRClass c : module.classes()) {
-            currentClass = c;
-            crossEmit().emitMethodTableRiscv(riscvSb, c);
-        }
-        riscvSb.append(".section .text\n");
-        riscvSb.append(".macro pop r\n");
-        riscvSb.append("    ld \\r, 0(sp)\n");
-        riscvSb.append("    addi sp, sp, 8\n");
-        riscvSb.append(".endm\n");
-        boolean usesSpawnA = usesSpawn(module);
-        for (IRClass c : module.classes()) {
-            currentClass = c;
-            for (IRMethod m : c.methods()) {
-                if ("<clinit>".equals(m.name())) continue;
-                crossEmit().emitCrossMethodRiscv(riscvSb, c, m, usesSpawnA && "main".equals(m.name()));
-            }
-        }
-        String mainEntry = mainClass != null ? sanitizeName(mainClass.name()) + "_main" : "kof_main";
-        riscvSb.append("\n.globl _start\n");
-        riscvSb.append("_start:\n");
-        riscvSb.append("    andi sp, sp, -16\n");
-        riscvSb.append("    call ").append(mainEntry).append("\n");
-        riscvSb.append("    li a0, 0\n");
-        riscvSb.append("    li a7, 93\n");
-        riscvSb.append("    ecall\n");
-        riscvSb.append(NativeRiscvAsm.RISCV_RUNTIME_ASM).append(NativeRiscvAsm.RISCV_STRN002_ASM).append(NativeRiscvAsm.RISCV_RUNTIME_ASM_B).append(NativeRiscvAsm.RISCV_MAPSET_ASM);
-
-        // NATIVE002-stdlib: http riscv64 → aarch64 (traduzido). Mesma detecção
-        // de uso do emitRiscv; o aarch64 herda linha-a-linha do riscv64.
-        boolean usesHttpA = false;
-        for (IRClass c : module.classes()) {
-            for (IRMethod m : c.methods()) {
-                for (IRBasicBlock b : m.basicBlocks()) {
-                    for (KofOperation op : b.operations()) {
-                        if (op instanceof KofCall kc && kc.methodName().startsWith("kof_http_")) {
-                            usesHttpA = true;
-                        }
-                    }
-                }
-                if (usesHttpA) break;
-            }
-            if (usesHttpA) break;
-        }
-        if (usesHttpA) emitRiscvHttp(riscvSb);
-        if (usesSpawnA) emitRiscvSpawn(riscvSb);
-
-        // traduz linha-a-linha
-        StringBuilder sb = new StringBuilder();
-        for (String line : riscvSb.toString().split("\n", -1)) {
-            List<String> tr = NativeAarch64Translator.translateRiscvToAarch64(line);
-            for (String t : tr) sb.append(t).append("\n");
-        }
-        String className = module.classes().isEmpty() ? "Default/Main" : module.classes().getFirst().name();
-        Path asmFile = outputDir.resolve(className + ".s");
-        Path binFile = outputDir.resolve(className);
-        Files.createDirectories(asmFile.getParent());
-        Files.writeString(asmFile, sb.toString());
-        System.err.println("NativeBackend: generated aarch64 " + asmFile);
-        try {
-            Path objFile = asmFile.resolveSibling("kof.o");
-            runCommand(new String[]{"aarch64-linux-gnu-as", "-o", objFile.toString(), asmFile.toString()}, "aarch64-as");
-            runCommand(new String[]{"aarch64-linux-gnu-ld", "-o", binFile.toString(), objFile.toString()}, "aarch64-ld");
-            Files.deleteIfExists(objFile);
-            if (System.getenv("KOF_KEEP_ASM") == null) Files.deleteIfExists(asmFile);
-            binFile.toFile().setExecutable(true);
-        } catch (NativeAssembler.ToolchainMissing e) {
-            System.err.println("NativeBackend: aarch64 toolchain ausente (NATIVE002), keeping asm: " + e.getMessage());
-        }
-        // as/ld FALHOU → propaga como erro de compilação (R6).
-    }
 
 
     /** Toolchain ausente (binário não encontrado) — gracioso: mantém asm,
@@ -1012,6 +751,13 @@ public class NativeBackend implements Backend {
     }
     private void emitStart(StringBuilder sb, IRClass clazz) {
         nativeMethods.emitStart(sb, clazz);
+    }
+
+    private void emitRiscv(IRModule module, Path outputDir) throws IOException {
+        nativeArch.emitRiscv(module, outputDir);
+    }
+    private void emitAarch64(IRModule module, Path outputDir) throws IOException {
+        nativeArch.emitAarch64(module, outputDir);
     }
 
 }
