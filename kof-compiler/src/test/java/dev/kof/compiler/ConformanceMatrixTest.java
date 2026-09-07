@@ -36,9 +36,11 @@ class ConformanceMatrixTest {
         return s == null ? "" : s.replace("\r\n", "\n").trim();
     }
 
-    // Driver fresco por compilação: o CLI usa 1 driver por processo; reutilizar
-    // um driver (c/ spawn → sem spawn) vaza classes sintéticas LambdaTask e
-    // quebra o link Native (bug 51 — CompilerDriverState não reseta).
+    // Driver fresco por compilação: isolamento defensivo (cada caso é um
+    // processo independente no CLI real). O vazamento de estado entre
+    // compilações (bug 51) foi corrigido em CompilerDriverState
+    // .resetForCompilation, mas manter um driver por caso continua sendo a
+    // prática correta para testes de paridade.
     private CompilerDriver freshDriver() {
         return new CompilerDriver();
     }
