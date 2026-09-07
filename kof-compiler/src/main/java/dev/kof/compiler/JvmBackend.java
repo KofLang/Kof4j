@@ -88,6 +88,7 @@ class JvmBackend implements Backend {
 
     boolean usesJson = false;
     boolean usesVk = false;
+    boolean usesExtern = false;
 
     private String sourceName;
 

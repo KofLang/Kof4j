@@ -191,6 +191,22 @@ final class CompilerPipeline {
                 topLevelFunctions.add(CompilerFunctionLowering.lowerFunction(driver, func));
                 topLevelFunctions.addAll(CompilerFunctionLowering.lowerFunctionDefaults(driver, func));
             }
+            else if (decl instanceof ExternalFunctionNode ext) {
+                driver.externSignatures.put(ext.name(), ext);
+                // FFI (R3): binding suportado não é gap; o resto é gap honesto por
+                // target — FFI002 no JS, FFI001 nos demais — nunca stub silencioso.
+                if (driver.currentDiagnostics != null && !driver.isExternBound(ext)) {
+                    SourcePosition sp = ext.position();
+                    String lib = ext.library() != null ? " in " + ext.library() : "";
+                    String code = driver.target == Target.JS ? "FFI002" : "FFI001";
+                    String msg = driver.target == Target.JS
+                            ? "extern '" + ext.name() + "'" + lib + ": FFI not available on the JS target (FFI002)"
+                            : "extern '" + ext.name() + "'" + lib + ": FFI binding not implemented on the "
+                                    + driver.target + " target yet (FFI001)";
+                    driver.currentDiagnostics.error(sp != null ? sp.file() : "",
+                            sp != null ? sp.line() : 0, sp != null ? sp.column() : 0, 0, msg, code);
+                }
+            }
         }
         if (!topLevelFunctions.isEmpty()) {
             String mainClassName = moduleName.isEmpty() ? "Main" : moduleName + "/Main";

@@ -109,6 +109,9 @@ IRModule currentModule;
 
     final java.util.Map<String, List<EntityFieldNode>> entitySchemas = new java.util.LinkedHashMap<>();
 
+    /** FFI (R3): declarações `extern` registradas por nome (bind lowering). */
+    final java.util.Map<String, ExternalFunctionNode> externSignatures = new java.util.LinkedHashMap<>();
+
     /** Pontes super.metodo() geradas para lambdas: dono interno → método. */
     final Map<String, List<IRMethod>> pendingSuperBridges = new java.util.LinkedHashMap<>();
 
