@@ -395,6 +395,36 @@ class KofScriptTest {
                 "SCRIPT e JVM rodam o mesmo interpretador");
     }
 
+    /**
+     * Regressão (gap "regex multiline-fragil" do roadmap-audit): wrapPureKof
+     * qualificava globais com replaceAll(\b), que reescrevia o nome DENTRO de
+     * string literal — `println("my name is here")` virava
+     * `"my KofScriptGlobals.name is here"`. Agora o scanner respeita strings,
+     * chars e comentários.
+     */
+    @Test
+    void globalQualificationSkipsStringLiterals() throws Exception {
+        var script = KofScript.eval("""
+                var name = "mel"
+                println(name)
+                println("my name is here")
+                """);
+        assertTrue(script.success(), script.stderr());
+        assertEquals("mel\nmy name is here", norm(script.stdout()));
+    }
+
+    @Test
+    void qualifyGlobalsLeavesMembersAndComments() {
+        String w = KofScript.qualifyGlobals(
+                "total = total + p.total // total aqui nao\nprintln(\"total\")",
+                java.util.List.of("total"));
+        assertTrue(w.contains("KofScriptGlobals.total = KofScriptGlobals.total"),
+                "uso real qualificado: " + w);
+        assertTrue(w.contains("p.total"), "membro nao qualificado: " + w);
+        assertTrue(w.contains("// total aqui nao"), "comentario intacto: " + w);
+        assertTrue(w.contains("println(\"total\")"), "string intacta: " + w);
+    }
+
     private static String norm(String s) {
         return s == null ? "" : s.replace("\r\n", "\n").trim();
     }

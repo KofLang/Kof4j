@@ -127,11 +127,8 @@ public final class KofScript {
                 prog.append("  static ").append(ty != null ? ty : inferKofType(init)).append(" ").append(n).append(" = ").append(init).append("\n");
             }
             prog.append("}\n");
-            String ds = decls.toString(), ss = stmts.toString();
-            for (String n : initMap.keySet()) {
-                ds = ds.replaceAll("\\b" + java.util.regex.Pattern.quote(n) + "\\b", "KofScriptGlobals." + n);
-                ss = ss.replaceAll("\\b" + java.util.regex.Pattern.quote(n) + "\\b", "KofScriptGlobals." + n);
-            }
+            String ds = qualifyGlobals(decls.toString(), initMap.keySet());
+            String ss = qualifyGlobals(stmts.toString(), initMap.keySet());
             decls = new StringBuilder(ds); stmts = new StringBuilder(ss);
         }
         prog.append(decls);
@@ -139,6 +136,59 @@ public final class KofScript {
         else if (decls.length() == 0) prog.append("main() {\nprintln(KofScriptGlobals.").append(gNames.get(gNames.size()-1)).append(")\n}\n");
         else prog.append("main() {}\n");
         return prog.toString();
+    }
+
+    /**
+     * Qualifica referências a globais de topo (`name` → `KofScriptGlobals.name`)
+     * varrendo o texto como código: tokens dentro de strings ("..."), chars
+     * ('...') e comentários (//, /*) NÃO são reescritos — o replaceAll \\b que
+     * existia aqui corrompia literais (gap "regex multiline-fragil" do
+     * roadmap-audit: `println(\"my name is here\")` virava
+     * `\"my KofScriptGlobals.name is here\"`).
+     */
+    static String qualifyGlobals(String text, java.util.Collection<String> names) {
+        if (names.isEmpty()) return text;
+        StringBuilder out = new StringBuilder(text.length() + 32);
+        int i = 0, n = text.length();
+        while (i < n) {
+            char c = text.charAt(i);
+            if (c == '/' && i + 1 < n && text.charAt(i + 1) == '/') {
+                int e = text.indexOf('\n', i);
+                if (e < 0) e = n;
+                out.append(text, i, e); i = e; continue;
+            }
+            if (c == '/' && i + 1 < n && text.charAt(i + 1) == '*') {
+                int e = text.indexOf("*/", i + 2);
+                e = e < 0 ? n : e + 2;
+                out.append(text, i, e); i = e; continue;
+            }
+            if (c == '"' || c == '\'') {
+                int j = i + 1;
+                while (j < n) {
+                    char d = text.charAt(j);
+                    if (d == '\\') { j += 2; continue; }
+                    if (d == c) { j++; break; }
+                    if (d == '\n' && c == '\'') break;
+                    j++;
+                }
+                out.append(text, i, Math.min(j, n)); i = Math.min(j, n); continue;
+            }
+            if (Character.isJavaIdentifierStart(c)) {
+                int j = i;
+                while (j < n && Character.isJavaIdentifierPart(text.charAt(j))) j++;
+                String tok = text.substring(i, j);
+                // `x.y` não é referência à global x (é acesso a membro)
+                boolean isMember = out.length() > 0 && out.charAt(out.length() - 1) == '.';
+                // `new X` / declarador de tipo: não qualifica (nomes de tipo
+                // não colidem com globais na prática, mas preserva o antigo
+                // comportamento de só reescrever onde o replaceAll reescrevia)
+                if (!isMember && names.contains(tok)) out.append("KofScriptGlobals.").append(tok);
+                else out.append(tok);
+                i = j; continue;
+            }
+            out.append(c); i++;
+        }
+        return out.toString();
     }
 
     private static final java.util.regex.Pattern TOP_TYPE_KW = java.util.regex.Pattern.compile(
