@@ -204,6 +204,66 @@ public final class RuntimeUi {
                 jmp kof_io_make_string
             kof_ui_input_remove:
                 ret
+            # Font / Icon / Image / Link / widget-font — no-op (paridade com
+            # JVM; antes: undefined reference [COMP001] no link, R6/UI001).
+            kof_ui_font_new:
+                movl $1, %eax
+                ret
+            kof_ui_font_new_bold:
+                movl $1, %eax
+                ret
+            kof_ui_icon_new:
+                movl $1, %eax
+                ret
+            kof_ui_icon_new_size:
+                movl $1, %eax
+                ret
+            kof_ui_icon_size:
+                movl $24, %eax
+                ret
+            kof_ui_icon_name:
+                leaq .Lui_empty(%rip), %rdi
+                xorq %rsi, %rsi
+                jmp kof_io_make_string
+            kof_ui_icon_remove:
+                ret
+            kof_ui_icon_set_name:
+                ret
+            kof_ui_icon_set_size:
+                ret
+            kof_ui_image_new:
+                movl $1, %eax
+                ret
+            kof_ui_image_src:
+                leaq .Lui_empty(%rip), %rdi
+                xorq %rsi, %rsi
+                jmp kof_io_make_string
+            kof_ui_image_remove:
+                ret
+            kof_ui_image_set_src:
+                ret
+            kof_ui_link_new:
+                movl $1, %eax
+                ret
+            kof_ui_link_text:
+                leaq .Lui_empty(%rip), %rdi
+                xorq %rsi, %rsi
+                jmp kof_io_make_string
+            kof_ui_link_url:
+                leaq .Lui_empty(%rip), %rdi
+                xorq %rsi, %rsi
+                jmp kof_io_make_string
+            kof_ui_link_remove:
+                ret
+            kof_ui_link_set_text:
+                ret
+            kof_ui_link_set_url:
+                ret
+            kof_ui_widget_font:
+                movl $-1, %eax
+                ret
+            kof_ui_widget_set_font:
+                ret
             kof_ui_column_new:
                 movl $1, %eax
                 ret

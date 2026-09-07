@@ -120,6 +120,22 @@ class UiE2ETest {
     }
 
     @Test
+    void mediaWidgetsLinkOnAllTargets(@TempDir Path tempDir) throws IOException {
+        // UI001 (R6): Image/Link/Icon/Font não podiam linkar no Native
+        // (undefined reference [COMP001] — 21 stubs ausentes em RuntimeUi).
+        // Agora compilam + linkam + rodam (no-op, paridade com JVM).
+        both(tempDir, "media", """
+            main() {
+                var i = Image("x.png")
+                var l = Link("aqui", "https://k.dev")
+                var ic = Icon("star")
+                var f = Font("sans", 14)
+                println("ok")
+            }
+            """, "ok");
+    }
+
+    @Test
     void themes(@TempDir Path tempDir) throws IOException {
         both(tempDir, "themes", """
             main() {

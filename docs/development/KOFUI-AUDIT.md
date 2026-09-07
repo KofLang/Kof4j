@@ -33,7 +33,7 @@ Grid, Center, Align, Store, Canvas + namespace `Router`.
 |---|---|---|---|
 | **KofJS (browser)** | DOM real | `JsRuntimeUi*.java` + `JsRuntimeOps` — createElement + `window.__kofNodes`; router real (31/08) | `KofJsBrowserE2ETest` (Chrome headless; pula se ausente), `KofUi*Test` |
 | **JVM** | no-op (por design) | `JvmRuntimeUi.java` — todos `kof_ui_*` vazios (compila, "roda", não renderiza) | `docs/backend-parity.md` ("JVM no-op"); `RouterE2ETest` |
-| **Native** | **no-op SILENCIOSO** | nenhum `kof_ui_*` em `nat/`; binário compila+roda sem diagnóstico (R6 ❌) | E2E manual 07/09: `Window/Label/w.show()` → binário x86 roda "feito" rc=0, zero diagnóstico |
+| **Native** | **no-op SILENCIOSO** | `RuntimeUi.java` emite stubs no-op em asm (113); **07/09: 21 stubs ausentes (Image/Link/Icon/Font) causavam link-error `undefined reference [COMP001]` — CORRIGIDO** (paridade com JVM). Sem diagnóstico p/ o no-op (R6 residual) | E2E manual 07/09 + `UiE2ETest.mediaWidgetsLinkOnAllTargets` (JVM+Native) |
 | **Script (interprete)** | **no-op SILENCIOSO** | `kof-script/` não conhece `kof.ui`; interpreta e executa sem efeito (R6 ❌) | E2E manual 07/09: `run --target script` → "feito" rc=0 |
 | **Android** | via WebView (KofJS) | `AndroidProjectWriter.java` — sai KofJS p/ `assets/kof/`, renderiza em WebView | docs `backend-parity.md` Fase 7 |
 
@@ -60,7 +60,7 @@ Grid, Center, Align, Store, Canvas + namespace `Router`.
 
 | Gap | Descrição | Target | Prioridade |
 |---|---|---|---|
-| **UI001** | `kof.ui` no Native = no-op silencioso (binário roda sem diagnóstico) | Native | **P0 (R6)** |
+| **UI001** | `kof.ui` no Native = no-op silencioso (binário roda sem diagnóstico). **PARCIALMENTE CORRIGIDO 07/09**: `Image/Link/Icon/Font` **não linkavam** (`undefined reference [COMP001]` — 21 stubs ausentes em `RuntimeUi`); adicionados (paridade no-op com JVM). Resta: diagnóstico p/ o no-op silencioso dos demais = decisão de design (regra 6) | Native | **P0 (R6)** → P2 (residual) |
 | **UI002** | `kof.ui` no Script = no-op silencioso (interprete executa sem efeito) | Script | **P0 (R6)** |
 | **UI003** | Elementos faltantes no KofJS: table/tr/td, textarea, checkbox, select/option, fieldset, iframe, video/audio, hr, ul/ol/li | KofJS | P1 |
 | **UI004** | Forms: sem `<form>`/submit/fieldset; `Input` só text (number/checkbox/email/password/date ✅ FEITO 07/09 via `setType`; checkbox/radio estado ✅ `setChecked`/`checked`; select pendente) | KofJS | P1 |

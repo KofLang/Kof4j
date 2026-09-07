@@ -159,10 +159,19 @@ reuso). **Prova E2E Cenário A (I2)**: app real `web.app()` + `serveDir` →
   `setAttribute("checked","")` p/ serializar no DOM, stubs JVM/Native
   [Bool=int 0/1]). Prova: `KofJsBrowserE2ETest
   .inputCheckboxCheckedRendersInRealBrowserDom` (DOM contém
-  type="checkbox" + checked); suíte 1091/0/64-skip. **PRÓXIMO PASSO
-  (Fase 4, minha lane)**: continuar UI003/4/5 forms — `<form>`/submit,
-  atributos id/class/alt/disabled (mesmo padrão de 5 pontos + teste
-  browser); depois UI007 style declarativo. **NÃO quebrar**:
+  type="checkbox" + checked); suíte 1091/0/64-skip. **UI001-NATIVE CORRIGIDO
+  (este commit, R6 P0)**: `Image/Link/Icon/Font` **não linkavam no Native**
+  (`undefined reference to kof_ui_image_new [COMP001]` — 21 stubs ausentes
+  em `runtime/RuntimeUi.java`; JVM tem 112, Native tinha 92). Adicionados os
+  21 stubs no-op (paridade com o design JVM no-op; valores espelham
+  defaults: new→1, icon_size→24, widget_font→-1, getters String→"").
+  Antes: link-error duro; depois: compila+linka+roda no-op. **Prova**:
+  `UiE2ETest.mediaWidgetsLinkOnAllTargets` (JVM+Native, `both()`); suíte
+  1092/0/64-skip. ⚠️ O RESTO do UI001 (window/label/... no-op SILENCIOSO)
+  segue sendo decisão de design (regra 6) — só o link-error era bug.
+  **PRÓXIMO PASSO (Fase 4, minha lane)**: continuar UI003/4/5 forms —
+  `<form>`/submit, atributos id/class/alt/disabled (mesmo padrão de 5
+  pontos + teste browser); depois UI007 style declarativo. **NÃO quebrar**:
   microsserviços (kof.http/kof.web/CmdServe), PKG002/4/5 (congelados), lanes
   `NativeBackend.java`/`KofInterpreter*`.
 
