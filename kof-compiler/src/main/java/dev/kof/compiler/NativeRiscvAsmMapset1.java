@@ -1,4 +1,5 @@
 package dev.kof.compiler;
+import dev.kof.compiler.runtime.RuntimeJsonDecode;
 
 // FASE 3 (REFACTOR-500): fatia 1 de RISCV_MAPSET_ASM — runtime assembly riscv64.
 // Concatenada em ordem por NativeRiscvAsm; corpo verbatim (fechamento na

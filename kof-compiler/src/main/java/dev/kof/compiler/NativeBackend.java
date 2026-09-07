@@ -1,4 +1,13 @@
 package dev.kof.compiler;
+import dev.kof.compiler.runtime.RuntimeDb1;
+import dev.kof.compiler.runtime.RuntimeDb2;
+import dev.kof.compiler.runtime.RuntimeDb3;
+import dev.kof.compiler.runtime.RuntimeDb4;
+import dev.kof.compiler.runtime.RuntimeDb5;
+import dev.kof.compiler.runtime.RuntimeDb6;
+import dev.kof.compiler.runtime.RuntimeMap;
+import dev.kof.compiler.runtime.RuntimeMemory;
+import dev.kof.compiler.runtime.RuntimeSet;
 
 import java.io.IOException;
 import java.nio.file.Files;
