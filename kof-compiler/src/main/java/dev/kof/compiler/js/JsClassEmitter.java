@@ -63,6 +63,7 @@ public final class JsClassEmitter {
             methods.add(lowerRecordToString(clazz));
             methods.add(lowerRecordToJson(clazz));
             methods.add(lowerRecordEquals(clazz));
+            methods.add(lowerRecordHashCode(clazz));
         }
         return new JsIr.JsClass(jsName, jsSuper, fields, methods);
     }
@@ -117,6 +118,33 @@ public final class JsClassEmitter {
                 body, new JsIr.JsNumber("1"), new JsIr.JsNumber("0"));
         return new JsIr.JsFunction("equals", List.of("other"),
                 List.of(new JsIr.JsReturn(kofBool)), false, false, false);
+    }
+
+    /**
+     * Records: hashCode() no JS (bug 42) espelhando o JvmRecordEmitter
+     * (result = 31*result + contrib, wrap int32 via | 0). O contrib usa
+     * kofHashCode (runtime) que trata number/String/record — campos
+     * numéricos dão o valor, refs delegam ao runtime.
+     */
+    JsIr.JsFunction lowerRecordHashCode(IRClass clazz) {
+        p.lc.registerRuntime("kofHashCode");
+        List<JsIr.JsStatement> body = new ArrayList<>();
+        body.add(new JsIr.JsVarDecl("__h", new JsIr.JsNumber("1"), false));
+        for (IRField field : clazz.fields()) {
+            String backing = "_" + JsTypeMapper.sanitizeName(field.name());
+            JsIr.JsExpression contrib = new JsIr.JsCall(
+                    new JsIr.JsIdentifier("kofHashCode"),
+                    List.of(new JsIr.JsMember(new JsIr.JsThis(), backing)));
+            JsIr.JsExpression next = new JsIr.JsBinary(
+                    new JsIr.JsBinary(
+                            new JsIr.JsBinary(new JsIr.JsNumber("31"), "*",
+                                    new JsIr.JsIdentifier("__h")),
+                            "+", contrib),
+                    "|", new JsIr.JsNumber("0"));
+            body.add(new JsIr.JsAssign("__h", next));
+        }
+        body.add(new JsIr.JsReturn(new JsIr.JsIdentifier("__h")));
+        return new JsIr.JsFunction("hashCode", List.of(), body, false, false, false);
     }
 
     /**

@@ -488,6 +488,21 @@ class CoreRegressionE2ETest {
         assertTrue(Files.exists(bin2), "Binary should exist");
     }
 
+    // known-bugs #42 — record hashCode() ausente no JS (TypeError). O JVM
+    // gera hashCode sintético no JvmRecordEmitter; o JS agora também.
+    @Test
+    void recordHashCodeJs(@TempDir Path tempDir) throws IOException {
+        runBoth("""
+                record P(Int x, Int y)
+                main() {
+                    var a = P(1, 2)
+                    var b = P(1, 2)
+                    println(a.hashCode() == b.hashCode())
+                    println(P(1, 2).hashCode() == P(1, 2).hashCode())
+                }
+                """, "true\ntrue", tempDir, "rec-hash");
+    }
+
     // known-bugs #5/#24 — FP→Int/Long casts and Double→Float narrowing were
     // missing conversion ops → invalid bytecode (ClassFormatError). Now D2I/
     // F2I/D2L/F2L (truncate toward zero) and D2F are emitted.

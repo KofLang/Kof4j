@@ -80,6 +80,7 @@ public class JsBackend implements Backend {
                     // record gera equals() no JS (bug 11) — registra para o
                     // dispatch de .equals()/== não cair em referência (===)
                     methodNames.get(clazz.name()).add("equals");
+                    methodNames.get(clazz.name()).add("hashCode");
                 }
             }
         }

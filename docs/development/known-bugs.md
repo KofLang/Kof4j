@@ -803,7 +803,7 @@ EXTERNA produz lixo
 - **Prova/repro:** sweep cross-target 07/09 (casos `static-field` / `static-field-plus-eq`), Native x86_64.
 - **Correção (lane Native, regra 6):** emitir `KofGetStatic`/`KofPutStatic` em `nat/NativeBackend` + `nat/NativeRiscvCrossEmit` (86-87) com offset real de campo estático (residir em segmento de dados, não em stack) — e remover os stubs silenciosos (R6).
 
-### 42. `hashCode()` de record ausente no JS e no Native — ABERTO (lane JS+Native)
+### 42. `hashCode()` de record ausente no JS e no Native — ✅ CORRIGIDO 07/09 (metade JS; metade Native segue ABERTA)
 
 - **Sintoma:** `record P(Int x, Int y)` + `a.hashCode() == b.hashCode()`: JVM/interpretador → `true`; **JS** → `TypeError: a.hashCode is not a function` (exit 1); **Native** → `ld: undefined reference to 'P_hashCode'` (fail de link, exit 1).
 - **Causa raiz:** o runtime de record no JS/Native não emite o método `hashCode` (o JVM gera `hashCode` no `KofRuntime`). `equals`/`toString` existem nos 3; `hashCode` não.

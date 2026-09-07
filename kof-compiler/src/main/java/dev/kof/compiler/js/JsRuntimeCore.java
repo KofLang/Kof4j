@@ -92,6 +92,23 @@ public final class JsRuntimeCore {
                 console.log(x);
             }
 
+            // hashCode de valor Kof: espelha o Objects.hashCode/record JVM.
+            // primitivos numéricos → int32 (wrap), String → algoritmo Java,
+            // record → hashCode() sintético, senão → hash de String(valor).
+            export function kofHashCode(v) {
+                if (v === null || v === undefined) return 0;
+                const t = typeof v;
+                if (t === "number") return v | 0;
+                if (t === "string") {
+                    let h = 0;
+                    for (let i = 0; i < v.length; i++) h = (31 * h + v.charCodeAt(i)) | 0;
+                    return h;
+                }
+                if (t === "boolean") return v ? 1 : 0;
+                if (typeof v.hashCode === "function") return v.hashCode();
+                return kofHashCode(String(v));
+            }
+
             let kofLogLevel = 1; // default "info": 0 debug, 1 info, 2 warn, 3 error, 4 off
             try {
                 const lv = (process.env.KOF_LOG_LEVEL || "info").trim().toLowerCase();
