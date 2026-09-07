@@ -108,11 +108,20 @@ a beta). O lote 3 final é duplicata da beta com um caso flaky que viola
 decisão documentada — não portar.
 
 **Reconciliação (fila, na ordem):**
-1. **R1** — portar a plataforma de migração para a beta: restaurar
-   `Confidence.java`, backportar os membros do `ClassFileParser`
-   (returnTypeName/parameterTypeNames/instanceofCount/checkcastCount/code/
-   constantPool) para `parser.ClassFileParser`, ajustar imports, rodar os
-   4 testes (33) na beta.
+1. **R1** ✅ **FEITO 07/09** — portar a plataforma de migração para a
+   beta (`7c7a19b` R1.1 + `02faca0` R1.2): `Confidence.java` restaurado,
+   `parser.ClassFileParser` enriquecido (CodeAttribute/bytecode/
+   exceptionHandlers/returnTypeName/parameterTypeNames/instanceofCount/
+   checkcastCount/constantPool; código morto disassemble/analyze/
+   BasicBlock/OPCODES não portado — 514→316 linhas, gate ≤500 OK),
+   `Type.describe/fromJvmDescriptor` (34ded81), CLI (Inspect/Decompile/
+   Translate/Compare/Migrate/BytecodeReader/BytecodeDecoder + 4 testes =
+   33) + dispatch no Main. **3 bugs do parser da branch corrigidos no
+   porte** (nunca rodou na branch): Long/Double (tags 5/6) 8 bytes/2
+   slots; MethodHandle (tag 15) 1 byte ref_kind + 1 short; tags 16/18/
+   19/20 (Dynamic/InvokeDynamic/Module/Package) ausentes. Suíte
+   1142/0/64-skip verde. **Resto de R1:** dividir `Translate.java` (834)
+   + `BytecodeDecoder.java` (763) p/ gate ≤500.
 2. **R2** — reconciliar kof.toml: `AppManifest` (branch) × `KofProjectConfig`
    (beta) — um parser só (provável: AppManifest consome KofProjectConfig,
    ou vice-versa; decisão de design se fundir semânticas).
