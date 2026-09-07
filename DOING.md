@@ -21,16 +21,29 @@ Estados: `ABERTO` · `EM CURSO` · `FEITO` · `BLOQUEADO`.
 
 ## PRÓXIMO PASSO (re-dispacho lê isto)
 
-**PRÓXIMO PASSO (fixes-for-kofagent, 06/09 — ROADMAP AUDIT)**: plano do
-maintainer entregue: auditoria completa do compilador/runtime/stdlib/tooling/
-platforms → matriz de implementação → concluir pendentes do roadmap
-(StdLib/GC/PackageManager/Async/Concurrency-G8/KofAndroid/Debugger/KofJS/LSP/
-KofScript/Spec/Conformance/WebPlatform). **FASE 1 (auditoria) EM CURSO** —
-estados ANTES de qualquer código, matriz em `docs/roadmap-audit.md`. Regras:
-não assumir pendente pelo roadmap; não reimplementar; inferência NUNCA cria
-declaração implícita (bug semântico crítico se criar). Bugs 29/31/34 +
-SG-007 já corrigidos em `7ec8b9d` (lane bug-fix paralela). Cron heartbeat
-ATIVO (auto-loop.sh, 30min).
+**PRÓXIMO PASSO (fixes-for-kofagent, 07/09 — PLATAFORMA F2)**: Fase 1 do
+plano de plataforma **FEITA e COMMITADA** (`6caf84d`): module resolution
+cross-directory via kof.toml (`ProjectLocator` + `CompilerPipeline.rootFor`),
+PKG006 (import não resolvido), PKG007 (auto-import; import mútuo segue
+legítimo — comportamento congelado P1-4). Suíte completa verde (BUILD
+SUCCESS, 90 classes). P0 semântico do roadmap-audit também fechado
+(`c4ddcf6`): SEM025 para namespaces builtin/super/campos conhecidos.
+Plano: `docs/future/PLATFORM-PLAN.md` (F0 audit `537d078`).
+**FASE 2 (Target Architecture) É O PRÓXIMO**: (1) `Target.SCRIPT` no enum
+(`Target.java:3-9`) + parsing em `KofCliSupport.parseTarget:48-62`;
+(2) `KofProjectConfig` — parser mínimo de kof.toml ([project]/[backend]/
+[frontend]/[server], sem dependência nova); (3) `TargetMatrix` — validação
+backend×frontend centralizada (NÃO espalhar if-target; gates R6 nos
+Kof*.java permanecem a fonte de supportedOn/gapCode); (4) CLI
+`--backend/--frontend` com override do kof.toml em build/run/serve.
+Prova esperada: testes de parse/validação + suíte completa verde.
+**NÃO quebrar**: microsserviços (kof.http/kof.web/CmdServe existentes),
+PKG002/4/5 (congelados), lanes `NativeBackend.java` e `KofInterpreter*`.
+
+**Estado anterior (06/09 — ROADMAP AUDIT)**: plano do maintainer entregue:
+auditoria completa → matriz em `docs/roadmap-audit.md` (`2970447`) →
+concluir pendentes P0–P5. Bugs 29/31/34 + SG-007 em `7ec8b9d`; P0
+silent-UNKNOWN em `c4ddcf6`. Cron heartbeat ATIVO (auto-loop.sh, 30min).
 
 **Estado anterior (lane 4–8 fechada)**: lane REFACTOR-500 FASES 4–8
 **FECHADA** (Parser 456 / SemanticAnalyzer 396 / JsBackend 334 / JvmRuntime 132
