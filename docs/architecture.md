@@ -103,7 +103,7 @@ public interface Backend {
 ```
 
 Implementations:
-- `JvmBackend` - generates `.class` files via ASM (`kof-compiler/src/main/java/dev/kof/compiler/JvmBackend.java:1`)
+- `JvmBackend` - generates `.class` files via ASM (`kof-compiler/src/main/java/dev/kof/compiler/jvm/JvmBackend.java:1`)
 - `NativeBackend` - generates ELF via assembly + `as` + `ld` (x86_64 stable, riscv64/aarch64 via cross toolchain)
 - `JsBackend` - generates ES Modules (ECMAScript 2022+), executed by the embedded GraalJS engine (`KofJsRunner`)
 - `KofCcompiler` - C subset (`kof c`) → ELF x86_64 native-only (`kof-compiler/src/main/java/dev/kof/compiler/KofCcompiler.java:1`)

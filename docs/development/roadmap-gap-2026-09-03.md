@@ -1,6 +1,6 @@
 # Roadmap 01 — Gap Report (03/09/2026, 0.2.6-beta)
 
-> Gerado ao final do todo NATIVE002 core (riscv64 02/09 + aarch64 03/09, 13/13 cada). Base: `docs/status.md:1`, `docs/native-multiarch.md:1`, `docs/backend-parity.md:1`, `kof-compiler/src/main/java/dev/kof/compiler/NativeBackend.java:1851`, `NativeRiscv64E2ETest.java:1`, `NativeAarch64E2ETest.java:1`.
+> Gerado ao final do todo NATIVE002 core (riscv64 02/09 + aarch64 03/09, 13/13 cada). Base: `docs/status.md:1`, `docs/native-multiarch.md:1`, `docs/backend-parity.md:1`, `kof-compiler/src/main/java/dev/kof/compiler/nat/NativeBackend.java:1851`, `NativeRiscv64E2ETest.java:1`, `NativeAarch64E2ETest.java:1`.
 
 ## Sumário executivo
 - **Testes:** `814` (797 kof-compiler +8 kof-script +5 kof-c-compiler +4 kof-cli) — `docs/status.md:11`
