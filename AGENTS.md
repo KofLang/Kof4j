@@ -89,7 +89,7 @@ meio de uma unidade** não é autonomia — é polidez ou desatenção.
 | "Existe dono nisso?" | `DOING.md` |
 | "Qual a sintaxe/idiom real?" | `training/`, `learn/`, **compile e confirme** |
 | "O que já funciona?" | suíte + E2E rodando (a prova, não a memória) |
-| "Qual a próxima prioridade?" | `docs/status.md`, `docs/backend-parity.md`, `planning-*` |
+| "Qual a próxima prioridade?" | `docs/status.md`, `docs/backend-parity.md`, `development/` (fila P0→P5: `roadmap-audit.md`/`roadmap.md`/`specification-gaps.md` + `known-bugs.md`), `planning-*` |
 | "Isso é decisão de design?" | **NÃO é sua** — registre gap/plano e siga (regra 6) |
 
 **Escopo realizável numa sessão** = uma unidade coesa com prova ao fim
@@ -168,10 +168,32 @@ feature/gap, leia `DOING.md`:**
 - Ao concluir, marque `FEITO` com data + SHA + teste que prova, e feche o gap
   em `docs/status.md`/`docs/backend-parity.md`.
 - Abandonou? Volte para `ABERTO` com nota do que funciona e o que falta.
+- **Dono sumiu = tarefa morta; reatribua.** Se um item está `EM CURSO` com dono
+  mas **não há commit novo na lane dele** (a linha não se move desde a
+  reivindicação, o dono não aparece no `git log`, ou o branch/arquivo citado não
+  existe), assuma que o agente **morreu no meio do turno** (crash, contexto
+  esgotado, sessão fechada sem fechar a unidade). O item não tem dono real:
+  qualquer agente pode **reivindicá-lo de novo** (troca o dono no `DOING.md`, no
+  mesmo commit do primeiro passo), reaproveitando o que o morto deixou (working
+  tree/branch) e seguindo. Antes de tocar, **verifique o estado real no código**
+  (o que compila, o que a suíte prova — nunca a memória do `DOING.md`) e note na
+  reivindicação o que o dono anterior deixou. Não espere o fantasma voltar nem
+  peça permissão — `EM CURSO` órfão é `ABERTO` disfarçado, e gap órfão é
+  trabalho perdido.
 
 Regra de ouro: **nunca dois agentes no mesmo gap ou no mesmo arquivo gigante**
 (`NativeRuntime.java`, `CompilerDriver.java`) ao mesmo tempo. Se for
 inevitável, combine no chat antes.
+
+**Sincronização obrigatória (pull antes, push depois):** antes de **todo
+commit** — `git fetch` + `git pull --rebase` (com working tree sujo, use
+`git stash push` antes e `git stash pop` depois, ou `--autostash`) e
+**verifique se há conflito** (rebase parado / `<<<<<<<`): conflito é resolvido
+na hora, nunca commitado por cima. Depois do commit, **`git push`** — o DOING.md
+só coordena quem *vê* o remoto; commit local não reivindicado é tarefa fantasma
+para os outros agentes. Depois do pull, **releia o DOING.md**: o que era seu
+"próximo passo" pode ter sido feito ou reivindicado por outro agente no
+intervalo.
 
 ### Lição aprendida (04/09) — trabalhe SEMPRE em partes pequenas
 
@@ -311,7 +333,7 @@ Bool isQuery(String op) {
 
 ---
 
-## Invariantes da plataforma (visão universal — `docs/future/PLAN-UNIVERSAL-PLATFORM.md`)
+## Invariantes da plataforma (visão universal — `development/future/PLAN-UNIVERSAL-PLATFORM.md`)
 
 Estas regras **sempre** se aplicam, mesmo quando não há código de domínio novo
 em jogo. São o mecanismo anti-"god language":
@@ -604,9 +626,15 @@ use o harness do projeto ou crie um teste E2E mínimo no pacote da área.
 | `training/anti-patterns/chained-or-membership.md` | Cadeia de `\|\|` → `setOf().contains()` |
 | `training/anti-patterns/java-like-code.md` | Java traduzido → Kof |
 | `learn/` | Tutorials passo a passo (00-introduction → 37-kofjs) |
-| `docs/security-plan.md`, `docs/native-multiarch.md` etc. | Domínios específicos |
-| `docs/future/` (plans) | Planos futuros: migração legado (decompiler/translator/IR/differential) + plataforma universal |
-| `docs/future/ACTION_PLAN.md` | Ordem de implementação de `docs/future` (Tiers 0–12) |
+| `docs/architecture.md`, `docs/compiler-architecture.md` etc. | Domínios específicos (estáveis) |
+| `development/` | **Backlog vivo — tudo que NÃO está concluído** (planos, roadmaps, audits, gaps, refactors). Ver `development/README.md` para índice completo. |
+| `development/future/` (plans) | Planos futuros: migração legado (decompiler/translator/IR/differential) + plataforma universal (era `docs/future/`) |
+| `development/roadmap.md`, `development/roadmap-audit.md`, `development/ecosystem-coverage.md` | Roadmaps & auditoria de cobertura (fila P0→P5) |
+| `development/specification-gaps.md`, `development/known-bugs.md` | Gaps de spec (20 SG-00x) + bugs abertos (37–40, CANVAS001) |
+| `development/native-multiarch.md`, `development/DATABASE_VISION.md`, `development/complexity-audit.md` | Native multiarch (NATIVE002) + DB vision + audit ≤500 |
+| `development/security-plan.md` | Plano de segurança (18 camadas, B/C/D pendentes) |
+| `development/plan-platform-completion.md`, `development/plan-spring-independence.md` | Plans de plataforma & Spring independence (P3–P5) |
+| `development/future/ACTION_PLAN.md` | Ordem de implementação de `development/future` (Tiers 0–12) |
 
 ---
 
