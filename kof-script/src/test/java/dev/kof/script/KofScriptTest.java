@@ -265,7 +265,14 @@ class KofScriptTest {
                 """);
         var interp = KofScript.runFile(f, dev.kof.compiler.Target.JVM);
         assertTrue(interp.success(), interp.stderr());
-        assertEquals("recv-wait\npre-send\npost-send\nrecv:42",
-                interp.stdout().trim().replace("\r\n", "\n"));
+        String out = interp.stdout().replace("\r\n", "\n");
+        // receive bloqueia até send: pre-send ANTES de recv:42 é garantido;
+        // recv:42 vs post-send é corrida (o thread acorda no send e imprime
+        // concorrente com o main) — não se pode exigir ordem entre eles.
+        for (String line : new String[]{"recv-wait", "pre-send", "post-send", "recv:42"}) {
+            assertTrue(out.contains(line), "faltou '" + line + "' em: " + out);
+        }
+        assertTrue(out.indexOf("pre-send") < out.indexOf("recv:42"),
+                "receive deve bloquear até o send: " + out);
     }
 }

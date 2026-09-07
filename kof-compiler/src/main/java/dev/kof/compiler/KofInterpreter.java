@@ -3,7 +3,6 @@ package dev.kof.compiler;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.lang.reflect.Array;
-import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.net.URLClassLoader;
 import java.nio.file.Path;
@@ -13,13 +12,12 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Interpretador da IR Kof (KofScript = target de execução direta).
  *
  * Executa a MESMA IR que o backend JVM emite (mesmo parse, análise,
- * lowering e otimização via {@link CompilerDriver#prepareForInterpretation})
+ * lowering e otimização via {@link CompilerPipeline#prepareForInterpretation})
  * — paridade por construção, não por reimplementação. A pilha carrega
  * valores reais do JDK (String, Integer, ArrayList, HashMap...); objetos
  * de classes Kof são {@link KofObj}. Builtins sem lambda Kof são
@@ -29,6 +27,10 @@ import java.util.Objects;
  * Representação de primitivos na pilha (igual ao bytecode JVM):
  * int/char/bool/byte/short → Integer; long → Long; float → Float;
  * double → Double; void → nada.
+ *
+ * Colaboradores: {@link KofInterpreterBuiltins} (fachada de builtins),
+ * {@link KofInterpreterMembers} (classes/fields/statics) e
+ * {@link KofInterpreterFrame} (frames + exception table).
  */
 public final class KofInterpreter {
 
@@ -50,24 +52,21 @@ public final class KofInterpreter {
         PendingNew(Type type) { this.type = type; }
     }
 
-    private record TryRegion(int startPc, int endPc, int handlerPc,
-                             String exceptionType, int localIndex, int stackDepth) {}
-
     private final IRModule module;
-    private final Map<String, IRClass> kofClasses = new HashMap<>();
-    private final Map<String, Map<String, Object>> staticFields = new HashMap<>();
-    private final Map<String, Boolean> initialized = new HashMap<>();
     private final PrintStream out;
     private final PrintStream err;
     private Class<?> runtimeClass;
     final KofInterpreterBuiltins builtins;
+    private final KofInterpreterMembers members;
+    private final KofInterpreterFrame frames;
     private Object lastReturned;
 
-    private KofInterpreter(IRModule module, PrintStream out, PrintStream err) {
+    KofInterpreter(IRModule module, PrintStream out, PrintStream err) {
         this.module = module;
         this.out = out;
         this.err = err;
-        for (IRClass c : module.classes()) kofClasses.put(c.name(), c);
+        this.members = new KofInterpreterMembers(this, module.classes());
+        this.frames = new KofInterpreterFrame(this);
         this.builtins = new KofInterpreterBuiltins(this);
     }
 
@@ -161,20 +160,6 @@ public final class KofInterpreter {
         builtins.awaitAllTasks();
     }
 
-    // ── frames ──────────────────────────────────────────────────────
-
-    private static final class Frame {
-        final List<KofOperation> ops;
-        final Map<LabelId, Integer> labels = new HashMap<>();
-        // LinkedList (não ArrayDeque): a pilha JVM guarda referências null
-        // (ex.: função que retorna null) — ArrayDeque rejeita null.
-        final Deque<Object> stack = new java.util.LinkedList<>();
-        final Deque<TryRegion> tryStack = new java.util.ArrayDeque<>();
-        Object[] locals;
-        int pc;
-        Frame(List<KofOperation> ops) { this.ops = ops; }
-    }
-
     /**
      * Executa um método Kof. `hasThis` decide o mapeamento de locais:
      * INSTANCE/CONSTRUCTOR/SUPER deslocam params em 1 (this no índice 0);
@@ -183,15 +168,7 @@ public final class KofInterpreter {
     void invokeKof(IRClass clazz, IRMethod m, Object[] args, boolean hasThis) throws Throwable {
         List<KofOperation> ops = new ArrayList<>();
         for (IRBasicBlock bb : m.basicBlocks()) ops.addAll(bb.operations());
-        Frame f = new Frame(ops);
-        for (int i = 0; i < ops.size(); i++) {
-            KofOperation op = ops.get(i);
-            if (op instanceof KofLabel kl) f.labels.putIfAbsent(kl.label(), i);
-            // KofTryStart/KofCatchStart materializam seus labels na própria
-            // posição (igual ao visitLabel do emitter JVM) — não há KofLabel.
-            else if (op instanceof KofTryStart ts) f.labels.putIfAbsent(ts.startLabel(), i);
-            else if (op instanceof KofCatchStart cs) f.labels.putIfAbsent(cs.handlerLabel(), i);
-        }
+        KofInterpreterFrame.Frame f = frames.newFrame(ops);
         int size = args.length + (hasThis ? 1 : 0);
         for (KofOperation op : ops) {
             if (op instanceof KofLoadLocal ll && ll.index() + 1 > size) size = ll.index() + 1;
@@ -199,8 +176,7 @@ public final class KofInterpreter {
             if (op instanceof KofCatchStart cs && cs.localIndex() + 1 > size) size = cs.localIndex() + 1;
         }
         f.locals = new Object[size];
-        if (hasThis) System.arraycopy(args, 0, f.locals, 0, args.length);
-        else System.arraycopy(args, 0, f.locals, 0, args.length);
+        System.arraycopy(args, 0, f.locals, 0, args.length);
         runFrame(f);
     }
 
@@ -209,7 +185,7 @@ public final class KofInterpreter {
         return lastReturned;
     }
 
-    private void runFrame(Frame f) throws Throwable {
+    private void runFrame(KofInterpreterFrame.Frame f) throws Throwable {
         Deque<Object> st = f.stack;
         while (f.pc < f.ops.size()) {
             KofOperation op = f.ops.get(f.pc++);
@@ -221,15 +197,15 @@ public final class KofInterpreter {
                 } else if (op instanceof KofStoreLocal sl) {
                     f.locals[sl.index()] = st.pop();
                 } else if (op instanceof KofLoadField lf) {
-                    st.push(loadField(lf, st.pop()));
+                    st.push(members.loadField(lf, st.pop()));
                 } else if (op instanceof KofStoreField sf) {
                     Object v = st.pop();
                     Object recv = st.pop();
-                    storeField(sf, recv, v);
+                    members.storeField(sf, recv, v);
                 } else if (op instanceof KofGetStatic gs) {
-                    st.push(getStatic(gs));
+                    st.push(members.getStatic(gs));
                 } else if (op instanceof KofPutStatic ps) {
-                    putStatic(ps, st.pop());
+                    members.putStatic(ps, st.pop());
                 } else if (op instanceof KofBinary kb) {
                     Object b = st.pop();
                     Object a = st.pop();
@@ -248,7 +224,7 @@ public final class KofInterpreter {
                 } else if (op instanceof KofCall kc) {
                     call(f, kc);
                 } else if (op instanceof KofNewObject no) {
-                    IRClass k = kofClassOrNull(no.type());
+                    IRClass k = members.kofClassOrNull(no.type());
                     st.push(k != null ? new KofObj(k) : new PendingNew(no.type()));
                 } else if (op instanceof KofReturn kr) {
                     lastReturned = Type.isVoid(kr.returnType()) ? null : st.pop();
@@ -293,79 +269,21 @@ public final class KofInterpreter {
                 } else if (op instanceof KofArrayLength) {
                     st.push(Array.getLength(st.pop()));
                 } else if (op instanceof KofThrow) {
-                    throw asThrowable(st.pop());
+                    throw KofInterpreterFrame.asThrowable(st.pop());
                 } else if (op instanceof KofTryStart ts) {
-                    f.tryStack.push(new TryRegion(f.labels.get(ts.startLabel()),
-                            f.labels.get(ts.endLabel()), f.labels.get(ts.handlerLabel()),
-                            ts.exceptionType(), ts.excLocalIndex(), st.size()));
+                    f.tryStack.push(frames.newTryRegion(f, ts, st.size()));
                 } else if (op instanceof KofTryEnd) {
                     if (!f.tryStack.isEmpty()) f.tryStack.pop();
                 } else if (op instanceof KofCatchStart cs) {
                     f.locals[cs.localIndex()] = st.pop();
                 }
             } catch (Throwable t) {
-                if (!handleException(f, t)) throw t;
+                if (!frames.handleException(f, t)) throw t;
             }
         }
     }
 
-    /** Espelha a exception table JVM: pc na região + tipo do catch. */
-    private boolean handleException(Frame f, Throwable t) {
-        int at = f.pc - 1;
-        for (TryRegion r : f.tryStack) {
-            if (at < r.startPc() || at > r.endPc()) continue;
-            Object exc = t;
-            if (!catchMatches(r.exceptionType(), exc)) continue;
-            while (f.stack.size() > r.stackDepth()) f.stack.pop();
-            while (!f.tryStack.isEmpty() && f.tryStack.peek() != r) f.tryStack.pop();
-            if (!f.tryStack.isEmpty()) f.tryStack.pop();
-            if ("String".equals(r.exceptionType()) && exc instanceof RuntimeException re) {
-                exc = re.getMessage();
-            }
-            f.stack.push(exc);
-            f.pc = r.handlerPc();
-            return true;
-        }
-        return false;
-    }
-
-    private boolean catchMatches(String kofType, Object exc) {
-        if (kofType == null || kofType.isEmpty() || "Throwable".equals(kofType)
-                || "Exception".equals(kofType) || "RuntimeException".equals(kofType)) {
-            return exc instanceof Throwable;
-        }
-        if ("String".equals(kofType)) return exc instanceof RuntimeException;
-        if (exc instanceof KofObj ko) {
-            IRClass c = kofClasses.get(ko.internalName());
-            while (c != null) {
-                if (c.name().endsWith("/" + kofType) || c.name().equals(kofType)) return true;
-                c = kofClasses.get(c.superName());
-            }
-            return false;
-        }
-        try {
-            return Class.forName(kofType).isInstance(exc);
-        } catch (Throwable ignored) {
-            return false;
-        }
-    }
-
-    static Throwable asThrowable(Object v) {
-        if (v instanceof Throwable t) return t;
-        if (v instanceof String s) return new RuntimeException(s);
-        if (v instanceof KofObj ko) {
-            Object msg = ko.fields.get("message");
-            String simple = ko.internalName();
-            int sl = simple.lastIndexOf('/');
-            return new RuntimeException((sl >= 0 ? simple.substring(sl + 1) : simple)
-                    + (msg != null ? ": " + msg : ""));
-        }
-        return new RuntimeException(String.valueOf(v));
-    }
-
-    // ── calls ───────────────────────────────────────────────────────
-
-    private void call(Frame f, KofCall kc) throws Throwable {
+    private void call(KofInterpreterFrame.Frame f, KofCall kc) throws Throwable {
         int n = kc.parameterTypes().size();
         Object[] args = new Object[n];
         for (int i = n - 1; i >= 0; i--) args[i] = f.stack.pop();
@@ -397,8 +315,8 @@ public final class KofInterpreter {
             return args.length > 0 ? args[0] : recv;
         }
         // receiver Kof → dispatch VIRTUAL pela classe real (polimorfismo)
-        IRClass owner = recv instanceof KofObj ko ? kofClasses.get(ko.internalName())
-                : kofClassOrNull(kc.ownerType());
+        IRClass owner = recv instanceof KofObj ko ? members.classByInternal(ko.internalName())
+                : members.kofClassOrNull(kc.ownerType());
         // métodos sintéticos de objeto Kof (record equals/hashCode/toString)
         if (recv instanceof KofObj && owner != null && findKofMethod(owner, name, args.length) == null) {
             Object synth = builtins.kofObjectMethod(name, recv, args, owner);
@@ -428,7 +346,7 @@ public final class KofInterpreter {
             IRMethod m = findKofMethod(owner, name, args.length);
             if (m == null && "<init>".equals(name)) return null; // construtor padrão
             if (m == null) throw new NoSuchMethodError(owner.name() + "." + name);
-            ensureInit(owner);
+            members.ensureInit(owner);
             boolean hasThis = kc.kind() == KofCallKind.INSTANCE || kc.kind() == KofCallKind.INTERFACE
                     || kc.kind() == KofCallKind.SUPER || kc.kind() == KofCallKind.CONSTRUCTOR;
             Object[] full = hasThis ? prepend(recv, args) : args;
@@ -457,144 +375,15 @@ public final class KofInterpreter {
         for (IRMethod m : c.methods()) {
             if (m.name().equals(name) && m.parameterTypes().size() == argc) return m;
         }
-        IRClass sup = c.superName() == null ? null : kofClasses.get(c.superName());
+        IRClass sup = c.superName() == null ? null : members.classByInternal(c.superName());
         return sup == null ? null : findKofMethod(sup, name, argc);
     }
 
-    private void ensureInit(IRClass c) throws Throwable {
-        if (initialized.putIfAbsent(c.name(), true) != null) return;
-        if (c.superName() != null) {
-            IRClass sup = kofClasses.get(c.superName());
-            if (sup != null) ensureInit(sup);
-        }
-        // campos estáticos com valor inicial (constante do campo no bytecode
-        // JVM): semear o mapa de statics — o interpretador não tem o
-        // "ConstantValue" do class file, então aplica aqui.
-        Map<String, Object> st = kofStatics(c.name());
-        for (IRField fl : c.fields()) {
-            if ((fl.accessFlags() & 8) != 0 && fl.initialValue() != null) {
-                st.put(fl.name(), fl.initialValue());
-            }
-        }
-        for (IRMethod m : c.methods()) {
-            if ("<clinit>".equals(m.name())) {
-                invokeKof(c, m, new Object[0], false);
-                return;
-            }
-        }
-    }
+    IRClass kofClassOf(Type t) { return members.kofClassOf(t); }
+    IRClass kofClassOrNull(Type t) { return members.kofClassOrNull(t); }
+    IRClass classByInternal(String internal) { return members.classByInternal(internal); }
 
-    IRClass kofClassOf(Type t) {
-        IRClass c = kofClassOrNull(t);
-        if (c == null) throw new IllegalStateException("unknown class: " + t);
-        return c;
-    }
-
-    IRClass kofClassOrNull(Type t) {
-        if (!(t instanceof Type.ClassType ct)) return null;
-        return kofClasses.get(ct.internalName());
-    }
-
-    IRClass classByInternal(String internal) {
-        return internal == null ? null : kofClasses.get(internal);
-    }
-
-    // ── fields / statics ────────────────────────────────────────────
-
-    Object loadField(KofLoadField lf, Object recv) {
-        if (BuiltinTypes.isString(lf.ownerType()) && "length".equals(lf.name())) {
-            return ((String) recv).length();
-        }
-        if (recv instanceof KofObj ko) {
-            Object v = ko.fields.get(lf.name());
-            return v != null ? v : defaultValue(lf.fieldType());
-        }
-        try {
-            Field fl = findField(recv.getClass(), lf.name());
-            if (fl != null) {
-                fl.setAccessible(true);
-                return fl.get(recv);
-            }
-        } catch (IllegalAccessException e) {
-            throw new NoSuchFieldError(lf.ownerType() + "." + lf.name());
-        }
-        throw new NoSuchFieldError(lf.ownerType() + "." + lf.name());
-    }
-
-    private Field findField(Class<?> c, String name) {
-        while (c != null) {
-            try {
-                return c.getDeclaredField(name);
-            } catch (NoSuchFieldException e) {
-                c = c.getSuperclass();
-            }
-        }
-        return null;
-    }
-
-    void storeField(KofStoreField sf, Object recv, Object v) {
-        if (recv instanceof KofObj ko) {
-            ko.fields.put(sf.name(), v);
-            return;
-        }
-        try {
-            Field fl = findField(recv.getClass(), sf.name());
-            if (fl != null) {
-                fl.setAccessible(true);
-                fl.set(recv, v);
-                return;
-            }
-        } catch (IllegalAccessException ignored) {
-        }
-        throw new NoSuchFieldError(sf.ownerType() + "." + sf.name());
-    }
-
-    Object getStatic(KofGetStatic gs) throws Throwable {
-        if (gs.ownerType() instanceof Type.ClassType ct) {
-            if ("java.lang".equals(ct.packageName()) && "System".equals(ct.name())) {
-                if ("out".equals(gs.name())) return out;
-                if ("err".equals(gs.name())) return err;
-                if ("in".equals(gs.name())) return System.in;
-            }
-            IRClass c = kofClasses.get(ct.internalName());
-            if (c != null) {
-                ensureInit(c);
-                return kofStatics(c.name()).getOrDefault(gs.name(), defaultValue(gs.fieldType()));
-            }
-            Class<?> ext = builtins.classForType(ct);
-            Field fl = ext.getDeclaredField(gs.name());
-            fl.setAccessible(true);
-            return fl.get(null);
-        }
-        throw new NoSuchFieldError("static " + gs.ownerType() + "." + gs.name());
-    }
-
-    void putStatic(KofPutStatic ps, Object v) {
-        if (ps.ownerType() instanceof Type.ClassType ct) {
-            IRClass c = kofClasses.get(ct.internalName());
-            if (c != null) {
-                kofStatics(c.name()).put(ps.name(), v);
-                return;
-            }
-        }
-        throw new NoSuchFieldError("static " + ps.ownerType() + "." + ps.name());
-    }
-
-    static Object defaultValue(Type t) {
-        if (JvmOpCollections.isPrimitiveType(t)) {
-            String n = Type.canonicalPrimitiveName(
-                    t instanceof Type.PrimitiveType pt ? pt.name() : "");
-            return switch (n) {
-                case "long" -> 0L;
-                case "float" -> 0f;
-                case "double" -> 0d;
-                default -> 0;
-            };
-        }
-        return null;
-    }
-
-    // ── helpers compartilhadas com builtins ─────────────────────────
+    static Object defaultValue(Type t) { return KofInterpreterMembers.defaultValue(t); }
 
     static int unboxInt(Object v) {
         if (v instanceof Number num) return num.intValue();
@@ -615,14 +404,12 @@ public final class KofInterpreter {
         setRuntimeClass(Class.forName("dev.kof.runtime.KofRuntime", true, cl));
     }
 
-    Map<String, Object> kofStatics(String internal) {
-        return staticFields.computeIfAbsent(internal, k -> new HashMap<>());
-    }
+    Map<String, Object> kofStatics(String internal) { return members.kofStatics(internal); }
 
     /** Invoca método de lambda/Runnable/Callable Kof com args reais. */
     Object invokeLambda(Object lambda, Object[] args) throws Throwable {
         if (lambda instanceof KofObj ko) {
-            IRClass c = kofClasses.get(ko.internalName());
+            IRClass c = members.classByInternal(ko.internalName());
             IRMethod m = findKofMethod(c, "invoke", args.length);
             if (m == null) m = findKofMethod(c, "run", args.length);
             if (m == null) m = findKofMethod(c, "call", args.length);
