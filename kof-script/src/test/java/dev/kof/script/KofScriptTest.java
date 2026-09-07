@@ -521,4 +521,30 @@ class KofScriptTest {
             assertEquals("ok", r.stdout().trim(), "run " + i + ": " + r.stdout());
         }
     }
+
+    /**
+     * Regressão (07/09): json.decode&lt;List&lt;Record&gt;&gt; no interpretador
+     * dava exit 1 + stderr só "P" (R6) — kof_json_decode_object_list faz
+     * Class.forName + kof_json_bind, mas no interpretador a classe Kof é
+     * KofObj. Corrigido em KofInterpreterRuntime (mapeia cada item para
+     * KofObj). bug 48 (a metade Native — não compila — segue ABERTA, outra
+     * lane). Paridade com JVM/JS que já funcionavam.
+     */
+    @Test
+    void jsonDecodeListOfRecordRunsOnInterpreter(@TempDir Path tmp) throws Exception {
+        Path dir = Files.createDirectories(tmp.resolve("main"));
+        Path f = dir.resolve("Main.kf");
+        Files.writeString(f, """
+                record P(Int x, Int y)
+                main() {
+                    var l = json.decode<List<P>>("[{\\"x\\":1,\\"y\\":10},{\\"x\\":2,\\"y\\":20}]")
+                    println(l.size())
+                    println(l.get(1).x() + "/" + l.get(1).y())
+                }
+                """);
+        var interp = KofScript.runFile(f, dev.kof.compiler.Target.JVM);
+        assertTrue(interp.success(), interp.stderr());
+        assertEquals("2\n2/20", norm(interp.stdout()),
+                "interpretador deve dar a saída correta (decode<List<Record>>): " + interp.stderr());
+    }
 }

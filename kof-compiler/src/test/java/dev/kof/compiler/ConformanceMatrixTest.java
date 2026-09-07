@@ -535,8 +535,10 @@ class ConformanceMatrixTest {
                     println(p.y())
                 }
                 """, "1\n2", Set.of(), tempDir);
-        // PARTIAL: bug 48 — decode<List<Record>> (interpretador exit 1 R6;
-        // Native não compila). JVM e JS já dão 2/2.
+        // PARTIAL: bug 48 (metade Native) — Native não compila
+        // (JsonDispatch sem ramo lista-de-classe). JVM/Script/JS dão 2/2;
+        // a metade Script foi corrigida em KofInterpreterRuntime
+        // (kof_json_decode_object_list → mapeia itens p/ KofObj).
         matrix("jsondec-recordlist", """
                 record P(Int x)
                 main() {
@@ -544,7 +546,7 @@ class ConformanceMatrixTest {
                     println(l.size())
                     println(l.get(1).x)
                 }
-                """, "2\n2", Set.of("script", "native"), tempDir);
+                """, "2\n2", Set.of("native"), tempDir);
     }
 
     // ===== Lote 3 — concorrência DETERMINÍSTICA (ordem garantida por await/

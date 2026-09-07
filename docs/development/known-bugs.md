@@ -853,12 +853,12 @@ EXTERNA produz lixo
 - **Prova/repro:** `KofScriptTest.evalCacheKeyDoesNotCollide` (trava a pré-condição de colisão hash+length e que cada programa dá sua soma).
 - **Descoberto:** 07/09 (probe `Collide3`) durante a varredura da lane KOFSCRIPT pós-paridade cross-target.
 
-### 48. `json.decode<List<Record>>` → interpretador exit 1 (R6) + Native não compila — PARCIAL (interpretador ✅ 07/09; Native pendente)
+### 48. `json.decode<List<Record>>` → interpretador ✅ CORRIGIDO 07/09 + Native não compila (pendente) — ABERTO (lane Native)
 
-- **Sintoma:** `record P(Int x); var l = json.decode<List<P>>("[{\"x\":1},{\"x\":2}]")`: JVM → `2`/`2` ✅; KofJS → `2`/`2` ✅; **interpretador (Script) → exit 1, stderr só `P`** (R6 silencioso — `ClassNotFoundException: P` embutido no `KofRuntime.kof_json_decode_P`); **Native → COMPILE-FAIL** (`decodeFunction` não gera caminho para lista de classe Kof — `JsonDispatch.decodeFunction` só trata `ClassType` no topo, não `List<ClassType>`).
+- **Sintoma:** `record P(Int x); var l = json.decode<List<P>>("[{\"x\":1},{\"x\":2}]")`: JVM → `2`/`2` ✅; KofJS → `2`/`2` ✅; **interpretador (Script) → ✅ CORRIGIDO 07/09** (`KofInterpreterRuntime` intercepta `kof_json_decode_object_list` e mapeia cada item para `KofObj`, espelhando o fix de `decode<Record>`; prova `KofScriptTest.jsonDecodeListOfRecordRunsOnInterpreter`); **Native → COMPILE-FAIL** (`decodeFunction` não gera caminho para lista de classe Kof — `JsonDispatch.decodeFunction` só trata `ClassType` no topo, não `List<ClassType>`).
 - **Diferente do fix de 07/09 (bug `decode<Record>`):** `json.decode<P>` (record no topo) foi corrigido no interpretador (`KofInterpreterRuntime.decodeKofValue` espelhando `encodeKof` — o método gerado faz `Class.forName` que não existe no interpretador). A variante **lista de record** tem duas falhas independentes: (a) interpretador — o dispatch de `List` usa `kof_json_decode_list`/`_object_list` com `Class.forName`; (b) Native — `JsonDispatch.decodeFunction` não tem ramo `isList` + elemento `ClassType`.
 - **Prova/repro:** probe `L2i`/`Decode` (07/09).
-- **Correção:** (a) lane interpreter: interceptar `kof_json_decode_object_list`/`decodeList<KofClass>` e mapear cada item para `KofObj` (mesmo padrão do fix `decode<Record>`); (b) lane Native: `JsonDispatch.decodeFunction` + runtime riscv para lista de record.
+- **Correção:** (a) ✅ lane interpreter FEITA 07/09 — `KofInterpreterRuntime` intercepta `kof_json_decode_object_list` (e `kof_json_decode_<X>` para o record no topo) e mapeia cada item para `KofObj` (mesmo padrão do `decodeKofValue`/`encodeKof`); (b) lane Native: `JsonDispatch.decodeFunction` + runtime riscv para lista de record.
 - **Descoberto:** 07/09 (lote 2 da conformance matrix).
 - **Interpretador CORRIGIDO 07/09:** `kof_json_decode_object_list` (2 args) agora é tratado no interpretador (decodifica cada item da lista para KofObj da classe via className). Prova: `KofInterpreterParityTest.jsonDecodeListOfRecord`. ⚠️ Native AINDA pendente (`kof_json_decode_object_list` não existe no runtime riscv; decode inline de lista de records a implementar).
 

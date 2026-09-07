@@ -66,7 +66,7 @@
 | json.decode int/string/bool | `7` / `oi` / `true` | DONE | DONE | DONE | DONE | `jsondec-int` |
 | json.decode lista de primitivo | `3` / `2` | DONE | DONE | DONE | DONE | `jsondec-list` |
 | json.decode record | `1` / `2` | DONE | DONE | DONE (fix 07/09) | DONE | `jsondec-record` |
-| json.decode lista de record | `2` / `2` | DONE | PARTIAL (bug 48: não compila) | PARTIAL (bug 48: exit 1 R6) | DONE | `jsondec-recordlist` |
+| json.decode lista de record | `2` / `2` | DONE | PARTIAL (bug 48: não compila) | DONE (fix 07/09) | DONE | `jsondec-recordlist` |
 
 > **Fix 07/09 (lane interpreter):** `json.decode<Record>` no interpretador
 > dava exit 1 + stderr só `Point` (R6) — o método gerado `kof_json_decode_Point`
