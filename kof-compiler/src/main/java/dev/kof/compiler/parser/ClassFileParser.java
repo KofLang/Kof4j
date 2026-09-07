@@ -197,8 +197,12 @@ public final class ClassFileParser {
                 case 8: // String
                     constPool[i] = "#" + (bb.getShort() & 0xFFFF);
                     break;
-                case 3: case 4: case 5: case 6: // Number
+                case 3: case 4: // Integer, Float
                     constPool[i] = String.valueOf(bb.getInt());
+                    break;
+                case 5: case 6: // Long, Double — 8 bytes, ocupam 2 slots
+                    constPool[i] = String.valueOf(bb.getLong());
+                    i++;
                     break;
                 case 9: case 10: case 11: // Fieldref, Methodref, InterfaceMethodref
                     constPool[i] = "#" + (bb.getShort() & 0xFFFF) + "#" + (bb.getShort() & 0xFFFF);
@@ -206,10 +210,23 @@ public final class ClassFileParser {
                 case 12: // NameAndType
                     constPool[i] = "#" + (bb.getShort() & 0xFFFF) + "#" + (bb.getShort() & 0xFFFF);
                     break;
-                case 15: // MethodHandle
+                case 15: // MethodHandle — 1 byte (ref_kind) + 1 short (reference_index)
+                    bb.get();
                     constPool[i] = "#" + (bb.getShort() & 0xFFFF);
                     break;
+                case 16: // Dynamic
+                    constPool[i] = "#" + (bb.getShort() & 0xFFFF) + "#" + (bb.getShort() & 0xFFFF);
+                    break;
                 case 17: // MethodType
+                    constPool[i] = "#" + (bb.getShort() & 0xFFFF);
+                    break;
+                case 18: // InvokeDynamic
+                    constPool[i] = "#" + (bb.getShort() & 0xFFFF) + "#" + (bb.getShort() & 0xFFFF);
+                    break;
+                case 19: // Module
+                    constPool[i] = "#" + (bb.getShort() & 0xFFFF);
+                    break;
+                case 20: // Package
                     constPool[i] = "#" + (bb.getShort() & 0xFFFF);
                     break;
                 default:
@@ -235,7 +252,9 @@ public final class ClassFileParser {
             String fieldDesc = constPool[bb.getShort() & 0xFFFF];
             int attrCount = bb.getShort() & 0xFFFF;
             for (int j = 0; j < attrCount; j++) {
-                bb.position(bb.position() + 2 + bb.getInt());
+                bb.getShort(); // attr_name_index
+                int attrLen = bb.getInt();
+                bb.position(bb.position() + attrLen);
             }
             fields.add(new FieldInfo(fieldAccess, fieldName, fieldDesc));
         }

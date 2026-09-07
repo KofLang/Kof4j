@@ -230,9 +230,19 @@ reuso). **Prova E2E Cenário A (I2)**: app real `web.app()` + `serveDir` →
     `Confidence.java` (7e6fbe8), backportar os membros do ClassFileParser
     p/ `parser.ClassFileParser`, ajustar imports, rodar os 33 testes na
     beta. Depois R2 (reconciliar kof.toml AppManifest×KofProjectConfig),
-    R3 (re-portar FFI), R4 (Fase D). **NÃO quebrar**:
-  microsserviços (kof.http/kof.web/CmdServe), PKG002/4/5 (congelados), lanes
-  `NativeBackend.java`/`KofInterpreter*`.
+    R3 (re-portar FFI), R4 (Fase D). **✅ R1 FEITO 07/09 (R1.1 `7c7a19b` +
+    R1.2 este commit)**: fundação do compilador (Confidence +
+    Type.describe/fromJvmDescriptor + parser enriquecido SEM código morto —
+    316 linhas, gate ≤500 OK) + CLI (Inspect/Decompile/Translate/Compare/
+    Migrate/BytecodeReader/BytecodeDecoder + 4 testes = 33) + dispatch no
+    Main. **3 bugs do parser da branch FIXADOS no porte** (nunca rodou na
+    branch — HEAD quebrado): Long/Double (tags 5/6) 8 bytes/2 slots;
+    MethodHandle (tag 15) 1 byte ref_kind + 1 short; tags 16/18/19/20
+    (Dynamic/InvokeDynamic/Module/Package) ausentes. Suíte 1142/0/64-skip.
+    **RESTA**: R1.2b (dividir `Translate.java` 834 + `BytecodeDecoder.
+    java` 763 — violam gate ≤500), R2, R3, R4 (Fase D — Type Recovery).
+    **NÃO quebrar**: microsserviços (kof.http/kof.web/CmdServe),
+    PKG002/4/5 (congelados), lanes `NativeBackend.java`/`KofInterpreter*`.
 
 **Estado anterior (06/09 — ROADMAP AUDIT)**: plano do maintainer entregue:
 auditoria completa → matriz em `docs/roadmap-audit.md` (`2970447`) →

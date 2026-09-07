@@ -23,6 +23,10 @@ public final class Main {
             case "bench" -> System.exit(Bench.run(args));
             case "profile" -> System.exit(Profile.run(args));
             case "inspect" -> System.exit(Inspect.run(args));
+            case "decompile" -> System.exit(Decompile.run(args));
+            case "translate" -> System.exit(Translate.run(args));
+            case "compare" -> System.exit(Compare.run(args));
+            case "migrate" -> System.exit(Migrate.run(args));
             case "debug" -> System.exit(KofDebug.run(args));
             case "info" -> info(args);
             case "lsp" -> lsp();
