@@ -134,6 +134,21 @@ class UiE2ETest {
     }
 
     @Test
+    void selectLinksOnAllTargets(@TempDir Path tempDir) throws IOException {
+        // UI003/4: Select — widget de primeira classe (lista de opções);
+        // no-op JVM/Native, DOM real em KofJS (KofJsBrowserE2ETest).
+        both(tempDir, "select", """
+            main() {
+                var sel = Select(listOf("uma", "duas", "tres"))
+                sel.setSelected(1)
+                sel.setOptions(listOf("a", "b"))
+                println("idx=" + sel.selected())
+                println("ok")
+            }
+            """, "idx=0\nok");
+    }
+
+    @Test
     void formSubmitLinksOnAllTargets(@TempDir Path tempDir) throws IOException {
         // UI004: Form.onSubmit/submit — no-op em JVM/Native, DOM real em
         // KofJS (KofJsBrowserE2ETest.formSubmitHandlerRunsInRealBrowser).

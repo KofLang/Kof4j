@@ -217,6 +217,18 @@ public final class RuntimeUi {
                 ret
             kof_ui_textarea_remove:
                 ret
+            kof_ui_select_new:
+                movl $1, %eax
+                ret
+            kof_ui_select_set_options:
+                ret
+            kof_ui_select_set_selected:
+                ret
+            kof_ui_select_selected:
+                xorl %eax, %eax
+                ret
+            kof_ui_select_remove:
+                ret
             # Font / Icon / Image / Link / widget-font — no-op (paridade com
             # JVM; antes: undefined reference [COMP001] no link, R6/UI001).
             kof_ui_font_new:

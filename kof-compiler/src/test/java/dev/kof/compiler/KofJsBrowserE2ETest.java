@@ -368,6 +368,43 @@ class KofJsBrowserE2ETest {
         }
     }
 
+    @Test
+    void selectRendersInRealBrowserDom(@TempDir Path tempDir) throws IOException {
+        Path chrome = findChrome();
+        assumeTrue(chrome != null, "Chrome/Chromium não instalado — pulando E2E de browser");
+
+        String program = """
+            main() {
+                var sel = Select(listOf("uma", "duas", "tres"))
+                sel.setSelected(1)
+                var col = Column(listOf(sel))
+                var w = Window("SelectTest")
+                w.bind(col)
+                w.show()
+            }
+            """;
+        Path source = tempDir.resolve("App.kf");
+        Files.writeString(source, program);
+
+        Path outDir = tempDir.resolve("out");
+        CompilationResult result = driver.compile(source, outDir, Target.JS);
+        assertTrue(result.success(), "compilação JS deve passar: " + result.diagnostics().getDiagnostics());
+
+        HttpServer server = serve(outDir);
+        int port = server.getAddress().getPort();
+        try {
+            String dom = dumpDom(chrome, "http://127.0.0.1:" + port + "/index.html");
+            assertTrue(dom.contains("<select"), "elemento <select> ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("kof-select"), "classe kof-select ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("<option value=\"uma\""), "opção 'uma' ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("<option value=\"duas\""), "opção 'duas' ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("<option value=\"tres\""), "opção 'tres' ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("selected"), "opção selecionada (índice 1) ausente no DOM: " + excerpt(dom));
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private static HttpServer serve(Path dir) throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/", exchange -> {

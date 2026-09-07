@@ -167,6 +167,13 @@ if (mc.receiver() == null && "Textarea".equals(mc.methodName()) && mc.arguments(
             Type.PrimitiveType.INT, KofCallKind.FUNCTION));
     return localIdx;
 }
+if (mc.receiver() == null && "Select".equals(mc.methodName()) && mc.arguments().size() == 1) {
+    localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(0), ops, owner, localIdx, locals);
+    ops.add(new KofCall(new Type.ClassType("kof.ui", "Ui", List.of()),
+            "kof_ui_select_new", List.of(new Type.ClassType("kof", "List", List.of(BuiltinTypes.STRING))),
+            Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+    return localIdx;
+}
 if (mc.receiver() == null && ("Column".equals(mc.methodName()) || "Row".equals(mc.methodName())
         || "Form".equals(mc.methodName()))
         && mc.arguments().size() == 1) {

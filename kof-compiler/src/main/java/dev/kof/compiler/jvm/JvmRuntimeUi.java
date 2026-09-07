@@ -397,6 +397,23 @@ public final class JvmRuntimeUi {
                 public static void kof_ui_textarea_remove(int ta) {
                 }
 
+                public static int kof_ui_select_new(java.util.ArrayList<String> options) {
+                    return 1;
+                }
+
+                public static void kof_ui_select_set_options(int sel, java.util.ArrayList<String> options) {
+                }
+
+                public static void kof_ui_select_set_selected(int sel, int index) {
+                }
+
+                public static int kof_ui_select_selected(int sel) {
+                    return 0;
+                }
+
+                public static void kof_ui_select_remove(int sel) {
+                }
+
                 public static String kof_ui_input_text(int input) {
                     return "";
                 }

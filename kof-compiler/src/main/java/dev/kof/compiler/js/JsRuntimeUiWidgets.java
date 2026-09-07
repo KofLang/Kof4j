@@ -313,6 +313,72 @@ public final class JsRuntimeUiWidgets {
                 }
             }
 
+            export function kofUiSelectNew(options) {
+                const id = kofUiCreateNode("select", "kof-select");
+                if (id < 0) {
+                    return -1;
+                }
+                const node = window.__kofNodes[id];
+                if (options) {
+                    for (const label of options) {
+                        const opt = document.createElement("option");
+                        opt.value = String(label);
+                        opt.textContent = String(label);
+                        node.appendChild(opt);
+                    }
+                }
+                return id;
+            }
+
+            export function kofUiSelectSetOptions(sel, options) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[sel]) {
+                    const node = window.__kofNodes[sel];
+                    node.innerHTML = "";
+                    if (options) {
+                        for (const label of options) {
+                            const opt = document.createElement("option");
+                            opt.value = String(label);
+                            opt.textContent = String(label);
+                            node.appendChild(opt);
+                        }
+                    }
+                }
+            }
+
+            export function kofUiSelectSetSelected(sel, index) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[sel]) {
+                    const node = window.__kofNodes[sel];
+                    node.selectedIndex = index;
+                    // reflete no atributo `selected` das <option> — outerHTML
+                    // (dump-dom) serializa atributos de conteúdo, não a
+                    // propriedade IDL selectedIndex.
+                    for (let i = 0; i < node.options.length; i++) {
+                        if (i === index) {
+                            node.options[i].setAttribute("selected", "");
+                        } else {
+                            node.options[i].removeAttribute("selected");
+                        }
+                    }
+                }
+            }
+
+            export function kofUiSelectSelected(sel) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[sel]) {
+                    return window.__kofNodes[sel].selectedIndex;
+                }
+                return 0;
+            }
+
+            export function kofUiSelectRemove(sel) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[sel]) {
+                    const node = window.__kofNodes[sel];
+                    if (node.parentNode) {
+                        node.parentNode.removeChild(node);
+                    }
+                    delete window.__kofNodes[sel];
+                }
+            }
+
             export function kofUiColumnNew(ids) {
                 const id = kofUiCreateNode("div", "kof-column");
                 if (id < 0) {

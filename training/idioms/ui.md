@@ -228,3 +228,25 @@ println(obs.text())
 
 **Por quê:** `Textarea` renderiza `<textarea>` (multilinha, redimensionável);
 `Input` é linha única. Usar o widget certo é intenção, não mecanismo (R1).
+
+## Forms: escolha de opção (Select)
+
+**BAD — encadear Inputs/checkboxes para uma escolha única:**
+```kof
+// ❌ NÃO — 3 checkboxes para escolher 1 cor
+var c1 = Input(""); c1.setType("checkbox")
+var c2 = Input(""); c2.setType("checkbox")
+```
+
+**GOOD — `Select(opções)`:**
+```kof
+// ✅ IDIOMÁTICO — a lista É o widget
+var cor = Select(listOf("vermelho", "verde", "azul"))
+cor.setSelected(1)
+println(cor.selected())   // índice da opção ativa
+```
+
+**Por quê:** `Select` renderiza `<select>`/`<option>` (escolha única de N);
+`setOptions` troca a lista, `selected`/`setSelected` leem/escrevem o índice.
+Representar o domínio (conjunto de opções) com a coleção da linguagem, não
+N widgets manuais (R3).
