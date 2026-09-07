@@ -1,4 +1,13 @@
 package dev.kof.compiler.nat;
+import dev.kof.compiler.ClassLayout;
+import dev.kof.compiler.IRClass;
+import dev.kof.compiler.KofCall;
+import dev.kof.compiler.KofCallKind;
+import dev.kof.compiler.KofComparison;
+import dev.kof.compiler.KofConditionalJump;
+import dev.kof.compiler.KofLoadLiteral;
+import dev.kof.compiler.KofNewObject;
+import dev.kof.compiler.Type;
 
 import dev.kof.compiler.*;
 import java.util.List;

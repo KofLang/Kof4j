@@ -290,66 +290,6 @@ public class NativeBackend implements Backend {
         }
     }
 
-    List<String> collectVirtualMethods(IRClass clazz) {
-        List<String> methods = new ArrayList<>();
-        List<String> methodNames = new ArrayList<>();
-        java.util.Queue<String> queue = new java.util.LinkedList<>();
-        java.util.Set<String> visited = new java.util.HashSet<>();
-        String current = clazz.superName();
-        while (current != null && !current.isEmpty() && !"java/lang/Object".equals(current)) {
-            IRClass superClazz = allClassesMap.get(current);
-            if (superClazz == null) break;
-            for (IRMethod m : superClazz.methods()) {
-                if (!"<init>".equals(m.name()) && !"<clinit>".equals(m.name())
-                        && !m.name().startsWith("kof_")) {
-                    if (!methodNames.contains(m.name())) {
-                        methodNames.add(m.name());
-                        methods.add(sanitizeName(superClazz.name()) + "_" + sanitizeName(m.name()));
-                    }
-                }
-            }
-            for (String iface : superClazz.interfaces()) {
-                if (!visited.contains(iface)) {
-                    visited.add(iface);
-                    queue.add(iface);
-                }
-            }
-            current = superClazz.superName();
-        }
-        while (!queue.isEmpty()) {
-            String ifaceName = queue.poll();
-            IRClass ifaceClazz = allClassesMap.get(ifaceName);
-            if (ifaceClazz == null) continue;
-            for (IRMethod m : ifaceClazz.methods()) {
-                if (!"<init>".equals(m.name()) && !"<clinit>".equals(m.name())
-                        && !m.name().startsWith("kof_")) {
-                    if (!methodNames.contains(m.name())) {
-                        methodNames.add(m.name());
-                        methods.add(sanitizeName(ifaceClazz.name()) + "_" + sanitizeName(m.name()));
-                    }
-                }
-            }
-            for (String iface : ifaceClazz.interfaces()) {
-                if (!visited.contains(iface)) {
-                    visited.add(iface);
-                    queue.add(iface);
-                }
-            }
-        }
-        for (IRMethod m : clazz.methods()) {
-            if (!"<init>".equals(m.name()) && !"<clinit>".equals(m.name())
-                    && !m.name().startsWith("kof_")) {
-                int idx = methodNames.indexOf(m.name());
-                if (idx >= 0) {
-                    methods.set(idx, sanitizeName(clazz.name()) + "_" + sanitizeName(m.name()));
-                } else {
-                    methodNames.add(m.name());
-                    methods.add(sanitizeName(clazz.name()) + "_" + sanitizeName(m.name()));
-                }
-            }
-        }
-        return methods;
-    }
 
     private void emitMethodTable(StringBuilder sb, IRClass clazz) {
         List<String> methods = collectVirtualMethods(clazz);
@@ -362,65 +302,7 @@ public class NativeBackend implements Backend {
         NativeRuntime.generateMethodTable(sb, sanitizeName(clazz.name()), methods);
     }
 
-    int findVirtualMethodIndex(String ownerTypeName, String methodName) {
-        for (IRClass clazz : allClassesMap.values()) {
-            if (clazz.name().equals(ownerTypeName) || clazz.name().endsWith("/" + ownerTypeName)
-                    || ownerTypeName.endsWith("/" + clazz.name()) || ownerTypeName.equals(sanitizeName(clazz.name()))) {
-                List<String> methods = collectVirtualMethods(clazz);
-                String mangled = sanitizeName(clazz.name()) + "_" + sanitizeName(methodName);
-                for (int i = 0; i < methods.size(); i++) {
-                    if (methods.get(i).equals(mangled)) {
-                        return i;
-                    }
-                }
-                for (IRMethod m : clazz.methods()) {
-                    if (m.name().equals(methodName) && !"<init>".equals(m.name()) && !"<clinit>".equals(m.name())) {
-                        String m2 = sanitizeName(clazz.name()) + "_" + sanitizeName(m.name());
-                        for (int i = 0; i < methods.size(); i++) {
-                            if (methods.get(i).equals(m2)) {
-                                return i;
-                            }
-                        }
-                    }
-                }
-                break;
-            }
-        }
-        return -1;
-    }
 
-    void emitStringData(StringBuilder sb) {
-        for (String[] entry : stringLiterals) {
-            String value = entry[0];
-            String label = entry[1];
-            String escaped = value.replace("\\", "\\\\")
-                    .replace("\"", "\\\"")
-                    .replace("\n", "\\n")
-                    .replace("\t", "\\t");
-            sb.append(label).append(": .asciz \"").append(escaped).append("\"\n");
-        }
-        sb.append(".Lnewline: .asciz \"\\n\"\n");
-        sb.append(".Lkof_str_true: .asciz \"true\"\n");
-        sb.append(".Lkof_str_false: .asciz \"false\"\n");
-        sb.append(".balign 8\n");
-        sb.append("kof_super_table:\n");
-        for (IRClass clazz : allClassesMap.values()) {
-            if (clazz.typeId() == 0) continue;
-            int superTypeId = 0;
-            if (clazz.superName() != null && !clazz.superName().isEmpty()) {
-                String superSimple = clazz.superName().substring(clazz.superName().lastIndexOf('/') + 1);
-                for (IRClass other : allClassesMap.values()) {
-                    if (other.name().equals(clazz.superName()) || other.name().endsWith("/" + superSimple)
-                            || superSimple.equals(sanitizeName(other.name()))) {
-                        superTypeId = other.typeId();
-                        break;
-                    }
-                }
-            }
-            sb.append("    .long ").append(clazz.typeId()).append(", ").append(superTypeId).append("\n");
-        }
-        sb.append("    .long 0, 0\n");
-    }
 
 
 
@@ -588,5 +470,9 @@ public class NativeBackend implements Backend {
     void emitConditionalJump(StringBuilder sb, KofConditionalJump kc) { NativeOpHelpers.emitConditionalJump(this, sb, kc); }
     String resolveCalleeName(KofCall kc) { return NativeOpHelpers.resolveCalleeName(this, kc); }
     int resolveFieldOffset(Type ownerType, String fieldName) { return NativeOpHelpers.resolveFieldOffset(this, ownerType, fieldName); }
+
+    List<String> collectVirtualMethods(IRClass clazz) { return NativeClassMeta.collectVirtualMethods(this, clazz); }
+    int findVirtualMethodIndex(String ownerTypeName, String methodName) { return NativeClassMeta.findVirtualMethodIndex(this, ownerTypeName, methodName); }
+    void emitStringData(StringBuilder sb) { NativeClassMeta.emitStringData(this, sb); }
 
 }
