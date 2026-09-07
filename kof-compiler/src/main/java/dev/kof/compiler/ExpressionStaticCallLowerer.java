@@ -362,7 +362,17 @@ if (mc.receiver() == null && "channel".equals(mc.methodName())
 }
 if (mc.receiver() == null && "__kof_spawn_expr".equals(mc.methodName())) {
     ExpressionNode body = mc.arguments().get(0);
-    Type resultT = ExpressionTyper.inferExprType(driver, body, locals);
+    // bug 29: o corpo é uma LAMBDA — o tipo do Handle é o RETURN da lambda,
+    // não o tipo dela em si. inferExprType(lambda) dá FunctionType([],
+    // void); usar isso como returnType da task gerava FunctionType([],
+    // FunctionType) → invoke():Object com corpo void → areturn em stack
+    // vazia (VerifyError JVM) e segfault no nativo.
+    Type resultT;
+    if (body instanceof LambdaExpr le0) {
+        resultT = ExpressionTyper.inferLambdaBodyType(driver, le0, locals);
+    } else {
+        resultT = ExpressionTyper.inferExprType(driver, body, locals);
+    }
     Type handleT = new Type.ClassType("kof.concurrent", "Handle", List.of(resultT));
     LambdaExpr le = body instanceof LambdaExpr l0 ? l0
             : new LambdaExpr(body.position() != null ? body.position() : mc.position(),

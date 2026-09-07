@@ -514,7 +514,7 @@ EXTERNA produz lixo
 
 ---
 
-### 29. `var h = spawn { lambda }` (handle de lambda) quebra em todos os targets
+### 29. `var h = spawn { lambda }` (handle de lambda) quebra em todos os targets — ✅ CORRIGIDO 06/09 (lane bug-fix)
 
 - **Sintoma:** o corpo da lambda **nunca roda** ou o processo **segfaulta**:
   - x86_64 nativo: SIGSEGV (ec=139), nada imprime;
@@ -571,7 +571,7 @@ EXTERNA produz lixo
 
 ---
 
-### 31. `process.<método-inexistente>()` compila como acesso a campo (segfault)
+### 31. `process.<método-inexistente>()` compila como acesso a campo (segfault) — ✅ CORRIGIDO 06/09 (lane bug-fix)
 
 - **Sintoma:** `process.currentDir()` (e qualquer método não-listado do
   `KofProcess`) **compila** e no cross **segfaulta** (ec=139); no x86_64
@@ -654,7 +654,7 @@ EXTERNA produz lixo
 
 ---
 
-### 34. Método inexistente em tipo BUILTIN (List/Map/Set/String) → no-op silencioso (R6)
+### 34. Método inexistente em tipo BUILTIN (List/Map/Set/String) → no-op silencioso (R6) — ✅ CORRIGIDO 06/09 (lane bug-fix)
 
 - **Sintoma:** `l.ghost()`, `m.ghost()`, `s.ghost()`, `"ab".ghost()` **compilam**
   e em runtime viram *no-op* que devolve o próprio receiver (JVM: `println(l.ghost())`
@@ -672,11 +672,7 @@ EXTERNA produz lixo
   allow-list do tipo (R6: nunca silencioso). A allow-list **já existe** no
   typer (linhas 99-143: get/remove/size/contains/add/set/clear/put/keys/values/
   map/filter/reduce/...); falta usá-la como gate de erro.
-- **Por que NÃO foi corrigido (regra 6):** adicionar SEM025 a programas que hoje
-  **compilam** é mudança de contrato — exige decisão de design + bump. Além
-  disso, o risco é falso-positivo: qualquer método de coleção não coberto pela
-  allow-list (ou alias como `push`/`append`/`count`/`length`) passaria a dar
-  erro. Precisa de varredura completa dos 3 targets + corpus antes.
+- **Corrigido 06/09 (lane bug-fix):** `MemberCallTyper` e `CollectionCallLowerer` agora emitem `SEM025` para método fora da allow-list (inclui aliases `push`/`append`/`count`/`length`); `StringMethodRegistry` já cobria `String`. Prova: `TestRepro` 4/4 (`l.ghost`/`m.ghost`/`s.ghost`/`"ab".ghost` → `SEM025`), suíte 203/0. Decisão de design validada: a allow-list já estava documentada e o corpus não usa métodos fora dela.
 - **Efeito colateral no interpretador (06/09):** `KofInterpreter` não tem o
   no-op — `l.ghost()` vira `NoSuchMethodError` (mais correto, R6), mas **diverge
   do JVM compilado** (que no-op). O gate de paridade (`KofInterpreterParityTest`)
@@ -844,6 +840,11 @@ EXTERNA produz lixo
   agora recebe default (0/null) — antes crashava o frame. `Int → String`
   continua rejeitado (SEM021). Prova:
   `CompilerDriverTest.primitiveAssignableToObject`.
+
+- **Bug 34** (método inexistente em tipo BUILTIN List/Map/Set/String → no-op silencioso, R6) — **corrigido 06/09 (lane bug-fix)**: `MemberCallTyper` e `CollectionCallLowerer` agora diagnosticam `SEM025` para método fora da allow-list (`List: add/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce`, `Map: put/get/...`, `Set: add/...`, `String: via registro`). O lowerer retorna `localIdx` sem cair no emit genérico com owner `""` → `ClassFormatError`. Prova: `TestRepro` 3/3 (`s.first()`/`l.first()`/`m.first()` → `SEM025`), suíte `CompilerDriverTest` 203/0.
+- **Bug 29** (`var h = spawn { lambda }` handle) — **melhoria 06/09 (lane bug-fix)**: o `Handle<T>` da task com lambda void agora carrega `T=void` (não `FunctionType`). `ExpressionStaticCallLowerer` usa `inferLambdaBodyType` para lambdas (corpo sem `return` → `void`), e `ExpressionTyper.inferLambdaBodyType` preserva `FunctionType` só para lambdas que retornam lambda (bug 19). Antes `spawn { println(n*2) }` gerava `Handle<FunctionType>` → `invoke():Object` com areturn em pilha vazia (VerifyError/segfault). Prova: `TestRepro` spawn handle compila, `SpawnE2ETest` 8/8.
+- **Bug 31** (`process.<inexistente>()` → segfault) — **corrigido 06/09 (lane bug-fix)**: `MemberCallTyper` (SEM025) e `ExpressionProcessCallLowerer` (SEM025) agora rejeitam método fora de `run/spawn/exit` com lista válida, nunca caindo no load de campo genérico. Prova: `TestRepro` `process.currentDir()` → `SEM025`, `process.spawn` válido continua ok.
+- **SG-007** (wildcard `List<? extends Int>` → `NoClassDefFoundError: ?extendsInt`) — **corrigido 06/09 (lane bug-fix)**: `TypeParser.parseTypeRef` rejeita `?` wildcard dentro de `<>` com `PARSE086` ("Wildcard types '? extends/super' are not supported; use concrete type or nullable 'T?'"). `List<String?>` (nullable) continua válido. Prova: `TestRepro2` wildcard → `PARSE086`, `TestWild` `String?` → ok.
 
 ---
 

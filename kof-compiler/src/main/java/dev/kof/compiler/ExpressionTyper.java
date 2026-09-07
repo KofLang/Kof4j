@@ -244,6 +244,28 @@ final class ExpressionTyper {
         };
     }
 
+    /**
+     * Tipo de RETORNO de uma lambda (bug 29): {@code spawn { println(x) }}
+     * é void — o Handle<T> da task deve carregar T=void, não o
+     * FunctionType da própria lambda. Lambda sem return é void (mesma
+     * regra do caso LambdaExpr acima); lambda que retorna lambda preserva
+     * a FunctionType (bug 19).
+     */
+    static Type inferLambdaBodyType(CompilerDriver driver, LambdaExpr le,
+                                    List<IRLocalVariable> locals) {
+        List<IRLocalVariable> extended = new ArrayList<>(locals);
+        int pidx = 0;
+        for (FormalParameterNode p : le.parameters()) {
+            Type pt = CompilerTypes.toType(p.type(), driver.currentUnit);
+            extended.add(new IRLocalVariable(pidx++, p.name(), pt));
+        }
+        for (StatementNode s : le.body()) {
+            if (s instanceof ReturnStmt rs && rs.value() != null) {
+                return inferExprType(driver, rs.value(), extended);
+            }
+        }
+        return Type.PrimitiveType.VOID;
+    }
 
 
 
