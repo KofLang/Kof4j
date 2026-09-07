@@ -495,7 +495,7 @@ class CompilerDriverTest {
 
     @Test
     void nativeBackendHasNoJvmTypeMapperDependency() throws Exception {
-        Path nb = Path.of("src/main/java/dev/kof/compiler/NativeBackend.java");
+        Path nb = Path.of("src/main/java/dev/kof/compiler/nat/NativeBackend.java");
         String content = Files.readString(nb);
         assertFalse(content.contains("JvmTypeMapper"), "NativeBackend must not use JvmTypeMapper");
     }

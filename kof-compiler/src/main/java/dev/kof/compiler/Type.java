@@ -5,15 +5,15 @@ import java.util.Map;
 
 public sealed interface Type {
     record PrimitiveType(String name, int sort) implements Type {
-        static final PrimitiveType BOOL = new PrimitiveType("bool", 1);
-        static final PrimitiveType BYTE = new PrimitiveType("byte", 5);
-        static final PrimitiveType SHORT = new PrimitiveType("short", 9);
-        static final PrimitiveType INT = new PrimitiveType("int", 10);
-        static final PrimitiveType LONG = new PrimitiveType("long", 11);
-        static final PrimitiveType FLOAT = new PrimitiveType("float", 6);
-        static final PrimitiveType DOUBLE = new PrimitiveType("double", 7);
-        static final PrimitiveType CHAR = new PrimitiveType("char", 2);
-        static final PrimitiveType VOID = new PrimitiveType("void", 0);
+        public static final PrimitiveType BOOL = new PrimitiveType("bool", 1);
+        public static final PrimitiveType BYTE = new PrimitiveType("byte", 5);
+        public static final PrimitiveType SHORT = new PrimitiveType("short", 9);
+        public static final PrimitiveType INT = new PrimitiveType("int", 10);
+        public static final PrimitiveType LONG = new PrimitiveType("long", 11);
+        public static final PrimitiveType FLOAT = new PrimitiveType("float", 6);
+        public static final PrimitiveType DOUBLE = new PrimitiveType("double", 7);
+        public static final PrimitiveType CHAR = new PrimitiveType("char", 2);
+        public static final PrimitiveType VOID = new PrimitiveType("void", 0);
     }
 
     record ClassType(String packageName, String name, List<Type> typeArguments) implements Type {

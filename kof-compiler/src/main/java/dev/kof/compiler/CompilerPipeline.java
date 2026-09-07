@@ -1,4 +1,5 @@
 package dev.kof.compiler;
+import dev.kof.compiler.nat.NativeBackend;
 import dev.kof.compiler.js.JsBackend;
 
 import java.io.IOException;

@@ -64,7 +64,7 @@ public final class NativeRuntime {
 
     private NativeRuntime() {}
 
-    static String generateRuntimeAssembly() {
+    static public String generateRuntimeAssembly() {
         StringBuilder sb = new StringBuilder();
         // marcador de início da área de raízes estáticas: o GC mark conservador
         // precisa varrer .data (cache/config/mq além de .bss). As emissões de
@@ -177,7 +177,7 @@ public final class NativeRuntime {
         return sb.toString();
     }
 
-    static void generateMethodTable(StringBuilder sb, String className, List<String> methodNames) {
+    static public void generateMethodTable(StringBuilder sb, String className, List<String> methodNames) {
         sb.append(".balign 8\n");
         sb.append(".globl ").append(className).append("_vtable\n");
         sb.append(".type ").append(className).append("_vtable, @object\n");
@@ -188,7 +188,7 @@ public final class NativeRuntime {
         sb.append("    .quad 0\n");
     }
 
-    static final int KOF_STRING_TYPE_ID = 1;
+    static public final int KOF_STRING_TYPE_ID = 1;
     static final int KOF_STRING_HEADER_SIZE = 24;
 
     static final int KOF_ARRAY_TYPE_ID = 2;

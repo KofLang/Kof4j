@@ -1,6 +1,6 @@
 package dev.kof.compiler.runtime;
+import dev.kof.compiler.nat.NativeBackend;
 import dev.kof.compiler.KofTryStart;
-import dev.kof.compiler.NativeBackend;
 import dev.kof.compiler.NativeRuntime;
 
 /**
