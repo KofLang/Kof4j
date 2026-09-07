@@ -30,6 +30,12 @@ public class NativeBackend implements Backend {
     private String sourceFile = "";
     private NativeRiscvCrossEmit crossEmitInst;
     private NativeJsonSchema jsonSchemaInst;
+    private NativeX86Calls x86CallsInst;
+
+    private NativeX86Calls x86Calls() {
+        if (x86CallsInst == null) x86CallsInst = new NativeX86Calls(this);
+        return x86CallsInst;
+    }
 
     private NativeJsonSchema jsonSchema() {
         if (jsonSchemaInst == null) jsonSchemaInst = new NativeJsonSchema(this);
@@ -775,347 +781,10 @@ public class NativeBackend implements Backend {
     }
 
     private void emitCall(StringBuilder sb, KofCall kc) {
-        if ("kof_box".equals(kc.methodName()) || "kof_unbox".equals(kc.methodName())) {
-
-            return;
-        }
-        if (kc.kind() == KofCallKind.INSTANCE && "println".equals(kc.methodName())) {
-            Type argType = kc.parameterTypes().isEmpty() ? Type.UnknownType.UNKNOWN : kc.parameterTypes().get(0);
-            if (argType instanceof Type.PrimitiveType pt && ("int".equals(pt.name()) || "char".equals(pt.name())
-                    || "long".equals(pt.name()) || "short".equals(pt.name()) || "byte".equals(pt.name()))) {
-                sb.append("    popq %rdi\n");
-                sb.append("    call kof_print_int\n");
-                sb.append("    leaq .Lnewline(%rip), %rdi\n");
-                sb.append("    call kof_print\n");
-            } else if (argType instanceof Type.PrimitiveType pt && NativeTypeKinds.isFloatType(pt)) {
-                sb.append("    popq %rdi\n");
-                sb.append("    movd %edi, %xmm0\n");
-                sb.append("    call kof_print_float\n");
-                sb.append("    leaq .Lnewline(%rip), %rdi\n");
-                sb.append("    call kof_print\n");
-            } else if (argType instanceof Type.PrimitiveType pt && NativeTypeKinds.isDoubleType(pt)) {
-                sb.append("    popq %rdi\n");
-                sb.append("    movq %rdi, %xmm0\n");
-                sb.append("    call kof_print_double\n");
-                sb.append("    leaq .Lnewline(%rip), %rdi\n");
-                sb.append("    call kof_print\n");
-            } else if (BuiltinTypes.isString(argType)) {
-                sb.append("    popq %rdi\n");
-                sb.append("    call kof_println_string\n");
-            } else {
-                sb.append("    popq %rdi\n");
-                sb.append("    call kof_println\n");
-            }
-            return;
-        }
-        if (kc.kind() == KofCallKind.INSTANCE && "print".equals(kc.methodName())) {
-            Type argType = kc.parameterTypes().isEmpty() ? Type.UnknownType.UNKNOWN : kc.parameterTypes().get(0);
-            if (BuiltinTypes.isString(argType)) {
-                sb.append("    popq %rdi\n");
-                sb.append("    call kof_print_string\n");
-            } else if (argType instanceof Type.PrimitiveType pt && NativeTypeKinds.isFloatType(pt)) {
-                sb.append("    popq %rdi\n");
-                sb.append("    movd %edi, %xmm0\n");
-                sb.append("    call kof_print_float\n");
-            } else if (argType instanceof Type.PrimitiveType pt && NativeTypeKinds.isDoubleType(pt)) {
-                sb.append("    popq %rdi\n");
-                sb.append("    movq %rdi, %xmm0\n");
-                sb.append("    call kof_print_double\n");
-            } else {
-                sb.append("    popq %rdi\n");
-                sb.append("    call kof_print\n");
-            }
-            return;
-        }
-        if (NativeX86StringCalls.emit(sb, kc)) return;
-        // CONC001: spawn/await no Native
-        if ("kof_spawn".equals(kc.methodName()) || "kof_spawn_result".equals(kc.methodName())) {
-            sb.append("    popq %rdi\n");
-            sb.append("    call ").append(kc.methodName()).append("\n");
-            if ("kof_spawn_result".equals(kc.methodName())) sb.append("    pushq %rax\n");
-            return;
-        }
-        if ("kof_await".equals(kc.methodName())) {
-            sb.append("    popq %rdi\n");
-            sb.append("    call kof_await\n");
-            sb.append("    pushq %rax\n");
-            return;
-        }
-        // CONC001 (residual): done/poll não-bloqueantes — 1 arg (handle), valor em rax
-        if ("kof_done".equals(kc.methodName()) || "kof_poll".equals(kc.methodName())) {
-            sb.append("    popq %rdi\n");
-            sb.append("    call ").append(kc.methodName()).append("\n");
-            sb.append("    pushq %rax\n");
-            return;
-        }
-        // cancel(handle) -> bool; selectAny(list) -> valor pronto
-        if ("kof_cancel".equals(kc.methodName()) || "kof_select_any".equals(kc.methodName())) {
-            sb.append("    popq %rdi\n");
-            sb.append("    call ").append(kc.methodName()).append("\n");
-            sb.append("    pushq %rax\n");
-            return;
-        }
-        if ("kof_cancelled".equals(kc.methodName())) {
-            sb.append("    call kof_cancelled\n");
-            sb.append("    pushq %rax\n");
-            return;
-        }
-        // awaitTimeout(handle, ms): 2 args (handle em rdi, ms em esi); valor em rax
-        if ("kof_await_timeout".equals(kc.methodName())) {
-            sb.append("    popq %r12\n");
-            sb.append("    popq %rdi\n");
-            sb.append("    movl %r12d, %esi\n");
-            sb.append("    call kof_await_timeout\n");
-            sb.append("    pushq %rax\n");
-            return;
-        }
-        if ("kof_spawn_join_all".equals(kc.methodName())) {
-            sb.append("    call kof_spawn_join_all\n");
-            return;
-        }
-        if (kc.kind() == KofCallKind.STATIC && "valueOf".equals(kc.methodName())) {
-            Type argType = kc.parameterTypes().isEmpty() ? Type.UnknownType.UNKNOWN : kc.parameterTypes().get(0);
-            if (argType instanceof Type.PrimitiveType pt && "char".equals(pt.name())) {
-                // char → string UTF-8 (kof_int_to_string imprimia o
-                // número do codepoint: String.valueOf(0xE9 as Char)
-                // devolvia "233" em vez de "é")
-                sb.append("    popq %rdi\n");
-                sb.append("    call kof_char_to_string\n");
-                sb.append("    pushq %rax\n");
-            } else if (argType instanceof Type.PrimitiveType pt && ("int".equals(pt.name())
-                    || "short".equals(pt.name()) || "byte".equals(pt.name()))) {
-                sb.append("    popq %rdi\n");
-                sb.append("    call kof_int_to_string\n");
-                sb.append("    pushq %rax\n");
-            } else if (argType instanceof Type.PrimitiveType pt && "long".equals(pt.name())) {
-                sb.append("    popq %rdi\n");
-                sb.append("    call kof_long_to_string\n");
-                sb.append("    pushq %rax\n");
-            } else if (argType instanceof Type.PrimitiveType pt && "bool".equals(pt.name())) {
-                sb.append("    popq %rdi\n");
-                sb.append("    call kof_bool_to_string\n");
-                sb.append("    pushq %rax\n");
-            } else if (argType instanceof Type.PrimitiveType pt && NativeTypeKinds.isFloatType(pt)) {
-                sb.append("    popq %rdi\n");
-                sb.append("    movd %edi, %xmm0\n");
-                sb.append("    call kof_float_to_string\n");
-                sb.append("    pushq %rax\n");
-            } else if (argType instanceof Type.PrimitiveType pt && NativeTypeKinds.isDoubleType(pt)) {
-                sb.append("    popq %rdi\n");
-                sb.append("    movq %rdi, %xmm0\n");
-                sb.append("    call kof_double_to_string\n");
-                sb.append("    pushq %rax\n");
-            } else if (argType instanceof Type.ClassType ct && !BuiltinTypes.isString(argType)) {
-                // valueOf(objeto) → obj.toString() via vtable (records têm
-                // toString no IR; String é identity). Paridade com o JVM.
-                int tosIdx = findVirtualMethodIndex(ct.name(), "toString");
-                if (tosIdx >= 0) {
-                    sb.append("    popq %rax\n");
-                    sb.append("    pushq %rax\n");
-                    sb.append("    movq 8(%rax), %rbx\n");
-                    sb.append("    addq $").append(tosIdx * 8).append(", %rbx\n");
-                    sb.append("    movq (%rbx), %rbx\n");
-                    sb.append("    popq %rdi\n");
-                    sb.append("    call *%rbx\n");
-                    sb.append("    pushq %rax\n");
-                }
-            }
-            return;
-        }
-        if (kc.kind() == KofCallKind.CONSTRUCTOR && "<init>".equals(kc.methodName())) {
-            int argCount = kc.parameterTypes().size();
-            String[] intRegs = {"%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"};
-            int stackArgs = Math.max(0, argCount - 5);
-            if (stackArgs > 0) {
-                // Save stack args to local frame (high offsets to avoid collision)
-                for (int s = stackArgs - 1; s >= 0; s--) {
-                    int off = 256 + s * 8;
-                    sb.append("    popq %rax\n");
-                    sb.append("    movq %rax, -").append(off).append("(%rbp)\n");
-                }
-                // Pop 5 register args
-                for (int i = 4; i >= 0; i--) {
-                    sb.append("    popq ").append(intRegs[i + 1]).append("\n");
-                }
-                // Pop this
-                sb.append("    popq %rax\n");
-                sb.append("    movq %rax, %rdi\n");
-                // Push stack args back (arg6 por último → fica no topo da
-                // stack → 16(%rbp) no callee; SysV exige essa ordem)
-                for (int s = stackArgs - 1; s >= 0; s--) {
-                    int off = 256 + s * 8;
-                    sb.append("    pushq -").append(off).append("(%rbp)\n");
-                }
-            } else {
-                for (int i = argCount - 1; i >= 0; i--) {
-                    sb.append("    popq ").append(intRegs[i + 1]).append("\n");
-                }
-                sb.append("    popq %rax\n");
-                sb.append("    movq %rax, %rdi\n");
-            }
-            String ctorLabel = resolveCalleeName(kc);
-            sb.append("    call ").append(ctorLabel).append("\n");
-            if (stackArgs > 0) {
-                // callee é caller-clean: remove os stack args empilhados de
-                // volta. O pop subsequente do consumidor desempilha o push
-                // duplicado do receptor (mesmo contrato do caminho <=5 args).
-                sb.append("    addq $").append(stackArgs * 8).append(", %rsp\n");
-            }
-            return;
-        }
-
-        if (kc.kind() == KofCallKind.INSTANCE
-                && (BuiltinTypes.isMap(kc.ownerType()) || BuiltinTypes.isSet(kc.ownerType()))) {
-            String collFn = (kc.methodName().startsWith("kof_map_") || kc.methodName().startsWith("kof_set_"))
-                    ? kc.methodName() : null;
-            if (collFn != null) {
-                int argCount = kc.parameterTypes().size();
-                String[] intRegs = {"%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"};
-                for (int i = argCount - 1; i >= 0; i--) {
-                    sb.append("    popq ").append(intRegs[i + 1]).append("\n");
-                }
-                sb.append("    popq %rax\n");
-                sb.append("    movq %rax, %rdi\n");
-                sb.append("    call ").append(collFn).append("\n");
-                if (!Type.isVoid(kc.returnType())) {
-                    sb.append("    pushq %rax\n");
-                }
-                return;
-            }
-        }
-        if (kc.kind() == KofCallKind.INSTANCE && BuiltinTypes.isChannel(kc.ownerType())) {
-            // Canais: receiver (Channel) + args na pilha; asm: chan=rdi, value=rsi.
-            String chFn = kc.methodName().startsWith("kof_channel_") ? kc.methodName() : null;
-            if (chFn != null) {
-                int argCount = kc.parameterTypes().size();
-                String[] intRegs = {"%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"};
-                for (int i = argCount - 1; i >= 0; i--) {
-                    sb.append("    popq ").append(intRegs[i + 1]).append("\n");
-                }
-                sb.append("    popq %rax\n");
-                sb.append("    movq %rax, %rdi\n");
-                sb.append("    call ").append(chFn).append("\n");
-                if (!Type.isVoid(kc.returnType())) {
-                    sb.append("    pushq %rax\n");
-                }
-                return;
-            }
-        }
-        if (kc.kind() == KofCallKind.INSTANCE && BuiltinTypes.isList(kc.ownerType())) {
-            String listFn = kc.methodName().startsWith("kof_list_") ? kc.methodName() : null;
-            if (listFn != null) {
-                int argCount = kc.parameterTypes().size();
-                String[] intRegs = {"%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"};
-                for (int i = argCount - 1; i >= 0; i--) {
-                    sb.append("    popq ").append(intRegs[i + 1]).append("\n");
-                }
-                sb.append("    popq %rax\n");
-                sb.append("    movq %rax, %rdi\n");
-                sb.append("    call ").append(listFn).append("\n");
-                if (!Type.isVoid(kc.returnType())) {
-                    sb.append("    pushq %rax\n");
-                }
-                return;
-            }
-        }
-        if (kc.kind() == KofCallKind.INSTANCE && kc.ownerType() instanceof Type.ClassType ct) {
-            int vtableIdx = findVirtualMethodIndex(ct.name(), kc.methodName());
-            if (vtableIdx >= 0) {
-                int argCount = kc.parameterTypes().size();
-                String[] intRegs = {"%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"};
-                int stackArgs = Math.max(0, argCount - 5);
-                if (stackArgs > 0) {
-                    // salva stack args em slots do frame (ordem: argN no slot alto)
-                    for (int s = stackArgs - 1; s >= 0; s--) {
-                        int off = 256 + s * 8;
-                        sb.append("    popq %r10\n");
-                        sb.append("    movq %r10, -").append(off).append("(%rbp)\n");
-                    }
-                }
-                for (int i = Math.min(argCount, 5) - 1; i >= 0; i--) {
-                    sb.append("    popq ").append(intRegs[i + 1]).append("\n");
-                }
-                sb.append("    popq %rax\n");
-                sb.append("    movq %rax, %rdi\n");
-                if (stackArgs > 0) {
-                    // arg6 por último → topo → 16(%rbp) no callee
-                    for (int s = stackArgs - 1; s >= 0; s--) {
-                        int off = 256 + s * 8;
-                        sb.append("    pushq -").append(off).append("(%rbp)\n");
-                    }
-                }
-                sb.append("    movq 8(%rax), %rbx\n");
-                sb.append("    addq $").append(vtableIdx * 8).append(", %rbx\n");
-                sb.append("    movq (%rbx), %rbx\n");
-                sb.append("    call *%rbx\n");
-                if (stackArgs > 0) {
-                    sb.append("    addq $").append(stackArgs * 8).append(", %rsp\n");
-                }
-                if (!Type.isVoid(kc.returnType())) {
-                    sb.append("    pushq %rax\n");
-                }
-                return;
-            }
-        }
-        if (kc.kind() == KofCallKind.INTERFACE && kc.ownerType() instanceof Type.ClassType ct) {
-            int vtableIdx = findVirtualMethodIndex(ct.name(), kc.methodName());
-            if (vtableIdx >= 0) {
-                int argCount = kc.parameterTypes().size();
-                String[] intRegs = {"%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"};
-                int stackArgs = Math.max(0, argCount - 5);
-                if (stackArgs > 0) {
-                    // salva stack args em slots do frame (ordem: argN no slot alto)
-                    for (int s = stackArgs - 1; s >= 0; s--) {
-                        int off = 256 + s * 8;
-                        sb.append("    popq %r10\n");
-                        sb.append("    movq %r10, -").append(off).append("(%rbp)\n");
-                    }
-                }
-                for (int i = Math.min(argCount, 5) - 1; i >= 0; i--) {
-                    sb.append("    popq ").append(intRegs[i + 1]).append("\n");
-                }
-                sb.append("    popq %rax\n");
-                sb.append("    movq %rax, %rdi\n");
-                if (stackArgs > 0) {
-                    // arg6 por último → topo → 16(%rbp) no callee
-                    for (int s = stackArgs - 1; s >= 0; s--) {
-                        int off = 256 + s * 8;
-                        sb.append("    pushq -").append(off).append("(%rbp)\n");
-                    }
-                }
-                sb.append("    movq 8(%rax), %rbx\n");
-                sb.append("    addq $").append(vtableIdx * 8).append(", %rbx\n");
-                sb.append("    movq (%rbx), %rbx\n");
-                sb.append("    call *%rbx\n");
-                if (stackArgs > 0) {
-                    sb.append("    addq $").append(stackArgs * 8).append(", %rsp\n");
-                }
-                if (!Type.isVoid(kc.returnType())) {
-                    sb.append("    pushq %rax\n");
-                }
-                return;
-            }
-        }
-
-        int argCount = kc.parameterTypes().size();
-        String[] intRegs = {"%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"};
-        int stackArgs = Math.max(0, argCount - 6);
-        if (stackArgs > 0) {
-            sb.append("    addq $").append(stackArgs * 8).append(", %rsp\n");
-        }
-        for (int i = 5; i >= 0; i--) {
-            if (i < argCount) {
-                sb.append("    popq ").append(intRegs[i]).append("\n");
-            }
-        }
-        String callee = resolveCalleeName(kc);
-        sb.append("    call ").append(callee).append("\n");
-        if (!Type.isVoid(kc.returnType())) {
-            sb.append("    pushq %rax\n");
-        }
+        x86Calls().emitCall(sb, kc);
     }
 
-    private String resolveCalleeName(KofCall kc) {
+    String resolveCalleeName(KofCall kc) {
         // builtins de coleção são símbolos globais do runtime — nunca
         // mangle com o dono (Map_kof_map_put etc.)
         String mn = kc.methodName();
@@ -1206,51 +875,12 @@ public class NativeBackend implements Backend {
         return true;
     }
 
+    private void runCommand(String[] cmd, String name) throws IOException {
+        NativeAssembler.runCommand(cmd, name);
+    }
+
     private void assemble(Path asmFile, Path binFile) throws IOException {
-        Path objFile = asmFile.resolveSibling(asmFile.getFileName() + ".o");
-        System.err.println("NativeBackend: assembling " + asmFile);
-        try {
-            runCommand(new String[]{"as", "-o", objFile.toString(), asmFile.toString()}, "as");
-        } catch (IOException e) {
-            System.err.println("NativeBackend: as failed: " + e.getMessage());
-            throw e;
-        }
-        // Native always needs dynamic linker + libc now (printf for float, db optionally)
-        // to keep single codegen path; plain integer programs still work via ld+ld.so.
-        boolean needsDynamic = true;
-        String os = System.getProperty("os.name", "").toLowerCase();
-        if (needsDynamic && os.contains("linux")) {
-            java.util.List<String> cmdL = new java.util.ArrayList<>(java.util.Arrays.asList(
-                    "ld", "-o", binFile.toString(), objFile.toString(),
-                    "-dynamic-linker", "/lib64/ld-linux-x86-64.so.2", "-lc"));
-            if (usesDb) {
-                cmdL.add(usesMysql ? "-l:libsqlite3.so.0" : "-l:libsqlite3.so.0");
-                if (usesMysql) cmdL.add("-l:libmariadb.so.3");
-            }
-            if (usesConcurrency) cmdL.add("-l:libpthread.so.0");
-            runCommand(cmdL.toArray(new String[0]), "ld");
-        } else {
-            if (usesDb) {
-                String os2 = System.getProperty("os.name", "").toLowerCase();
-                if (os2.contains("linux")) {
-                    String[] extra = usesMysql
-                            ? new String[]{"-l:libsqlite3.so.0", "-l:libmariadb.so.3"}
-                            : new String[]{"-l:libsqlite3.so.0"};
-                    String[] cmd = new String[7 + extra.length];
-                    cmd[0] = "ld"; cmd[1] = "-o"; cmd[2] = binFile.toString(); cmd[3] = objFile.toString();
-                    cmd[4] = "-dynamic-linker"; cmd[5] = "/lib64/ld-linux-x86-64.so.2"; cmd[6] = "-lc";
-                    System.arraycopy(extra, 0, cmd, 7, extra.length);
-                    runCommand(cmd, "ld");
-                } else {
-                    runCommand(new String[]{"ld", "-o", binFile.toString(), objFile.toString()}, "ld");
-                }
-            } else {
-                runCommand(new String[]{"ld", "-o", binFile.toString(), objFile.toString()}, "ld");
-            }
-        }
-        Files.deleteIfExists(objFile);
-        if (System.getenv("KOF_KEEP_ASM") == null) Files.deleteIfExists(asmFile);
-        binFile.toFile().setExecutable(true);
+        NativeAssembler.assemble(asmFile, binFile, usesDb, usesMysql, usesConcurrency);
     }
 
     // ---------------------------------------------------------------------
@@ -1401,7 +1031,7 @@ public class NativeBackend implements Backend {
             Files.deleteIfExists(objFile);
             if (System.getenv("KOF_KEEP_ASM") == null) Files.deleteIfExists(asmFile);
             binFile.toFile().setExecutable(true);
-        } catch (ToolchainMissing e) {
+        } catch (NativeAssembler.ToolchainMissing e) {
             // toolchain ausente: gracioso (assumeToolchain pula o teste)
             System.err.println("NativeBackend: riscv64 toolchain ausente (NATIVE002), keeping asm: " + e.getMessage());
         }
@@ -1571,7 +1201,7 @@ public class NativeBackend implements Backend {
             Files.deleteIfExists(objFile);
             if (System.getenv("KOF_KEEP_ASM") == null) Files.deleteIfExists(asmFile);
             binFile.toFile().setExecutable(true);
-        } catch (ToolchainMissing e) {
+        } catch (NativeAssembler.ToolchainMissing e) {
             System.err.println("NativeBackend: aarch64 toolchain ausente (NATIVE002), keeping asm: " + e.getMessage());
         }
         // as/ld FALHOU → propaga como erro de compilação (R6).
@@ -1580,28 +1210,4 @@ public class NativeBackend implements Backend {
 
     /** Toolchain ausente (binário não encontrado) — gracioso: mantém asm,
      *  assumeToolchain() pula o teste. NÃO confundir com falha de as/ld. */
-    static final class ToolchainMissing extends IOException {
-        ToolchainMissing(String m) { super(m); }
-    }
-
-    private void runCommand(String[] cmd, String name) throws IOException {
-        Process p;
-        try {
-            ProcessBuilder pb = new ProcessBuilder(cmd);
-            pb.redirectErrorStream(true);
-            p = pb.start();
-        } catch (IOException e) {
-            throw new ToolchainMissing(name + " not available: " + e.getMessage());
-        }
-        try {
-            String output = new String(p.getInputStream().readAllBytes());
-            p.waitFor();
-            if (p.exitValue() != 0) {
-                throw new IOException(name + " failed (exit " + p.exitValue() + "): " + output);
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IOException(name + " interrupted");
-        }
-    }
 }

@@ -99,15 +99,14 @@ recomendações futuras (regra 14 da tarefa: não alterar comportamento).
   [expressions.md](language-reference/expressions.md) §5) **e** abrir gap de
   paridade para corrigir o JS.
 
-### SG-007 — Wildcard de genérico (`? extends T`) compila mas quebra
+### SG-007 — Wildcard de genérico (`? extends T`) compila mas quebra — ✅ CORRIGIDO 06/09 (PARSE086)
 
-- **Implementação**: `List<? extends Int>` é parseado (o `?` vira sufixo
+- **Implementação (antes)**: `List<? extends Int>` é parseado (o `?` vira sufixo
   nullable, `extends Int` entra no nome) e **roda com
   `NoClassDefFoundError: ?extendsInt`** (*probe*).
-- **Problema**: sintaxe aceita sem significado — pior que erro claro (viola R6
+- **Correção (06/09, lane bug-fix)**: `TypeParser.parseTypeRef` rejeita `?` wildcard dentro de `<>` com `PARSE086` ("Wildcard types '? extends/super' are not supported; use concrete type or nullable 'T?'"). `List<String?>` (nullable) continua válido. Prova: `TestRepro2` wildcard → `PARSE086`, `TestWild` `String?` → ok.
+- **Problema (antes)**: sintaxe aceita sem significado — pior que erro claro (viola R6
   "nunca silencioso").
-- **Recomendação**: rejeitar `?` dentro de type-args com diagnóstico (PARSE ou
-  SEM). Não é feature da linguagem.
 
 ### SG-008 — Comparação de nullable de primitivo com `null`
 

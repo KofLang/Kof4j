@@ -87,6 +87,14 @@ final class CollectionCallLowerer {
                     elemT, KofCallKind.INSTANCE));
             return localIdx;
         }
+        if (driver.currentDiagnostics != null) {
+            driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
+                    mc.position() != null ? mc.position().line() : 0,
+                    mc.position() != null ? mc.position().column() : 0, 0,
+                    "Cannot resolve method '" + mc.methodName() + "' on type 'Channel' (valid: send, receive)",
+                    "SEM025");
+            return localIdx;
+        }
     }
     if (BuiltinTypes.isList(recvType)) {
         String listFn = switch (mc.methodName()) {
@@ -100,6 +108,19 @@ final class CollectionCallLowerer {
             case "clear" -> "kof_list_clear";
             default -> null;
         };
+        // R6: método desconhecido em List não pode ser silencioso (bug Set.first)
+        if (listFn == null && driver.currentDiagnostics != null
+                && !"toArray".equals(mc.methodName()) && !"sublist".equals(mc.methodName())
+                && !"subSet".equals(mc.methodName()) && !"map".equals(mc.methodName())
+                && !"filter".equals(mc.methodName()) && !"reduce".equals(mc.methodName())) {
+            String m = mc.methodName();
+            driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
+                    mc.position() != null ? mc.position().line() : 0,
+                    mc.position() != null ? mc.position().column() : 0, 0,
+                    "Cannot resolve method '" + m + "' on type 'List' (valid: add/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce)",
+                    "SEM025");
+            return localIdx;
+        }
         if (listFn != null) {
             List<Type> argTypes = new ArrayList<>();
             for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
@@ -154,6 +175,14 @@ final class CollectionCallLowerer {
             case "values" -> "kof_map_values";
             default -> null;
         };
+        if (mapFn == null && driver.currentDiagnostics != null) {
+            driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
+                    mc.position() != null ? mc.position().line() : 0,
+                    mc.position() != null ? mc.position().column() : 0, 0,
+                    "Cannot resolve method '" + mc.methodName() + "' on type 'Map' (valid: put/get/remove/containsKey/contains/size/clear/isEmpty/keys/values)",
+                    "SEM025");
+            return localIdx;
+        }
         if (mapFn != null) {
             List<Type> argTypes = new ArrayList<>();
             for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
@@ -212,6 +241,15 @@ final class CollectionCallLowerer {
             case "isEmpty" -> "kof_set_is_empty";
             default -> null;
         };
+        if (setFn == null && driver.currentDiagnostics != null
+                && !"toArray".equals(mc.methodName()) && !"subSet".equals(mc.methodName()) && !"sublist".equals(mc.methodName())) {
+            driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
+                    mc.position() != null ? mc.position().line() : 0,
+                    mc.position() != null ? mc.position().column() : 0, 0,
+                    "Cannot resolve method '" + mc.methodName() + "' on type 'Set' (valid: add/contains/remove/size/clear/isEmpty)",
+                    "SEM025");
+            return localIdx;
+        }
         if (setFn != null) {
             List<Type> argTypes = new ArrayList<>();
             for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));

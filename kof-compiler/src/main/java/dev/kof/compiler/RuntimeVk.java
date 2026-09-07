@@ -1,4 +1,5 @@
 package dev.kof.compiler;
+import dev.kof.compiler.vk.VkChain64Asm;
 
 /**
  * Emissão do ASM de stubs Vulkan (kof_vk_*) do runtime nativo. Domínio isolado

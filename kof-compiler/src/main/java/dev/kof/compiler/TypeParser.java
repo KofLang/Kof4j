@@ -146,6 +146,15 @@ class TypeParser {
                 ctx.advance();
             } while (depth > 0 && !ctx.atEnd());
             args.append(">");
+            // SG-007: wildcard `? extends/super` não é suportado em Kof — deve ser
+            // rejeitado com diagnóstico claro, não gerar NoClassDefFoundError
+            String argsStr = args.toString();
+            String inner = argsStr.length() >= 2 ? argsStr.substring(1, argsStr.length() - 1).trim() : "";
+            boolean isWildcard = inner.startsWith("?") || inner.contains(",?") || inner.contains(", ?")
+                    || argsStr.contains("?extends") || argsStr.contains("? extends");
+            if (isWildcard) {
+                ctx.error("Wildcard types '? extends/super' are not supported in Kof; use a concrete type or nullable 'T?'", "PARSE086");
+            }
             type.append(args);
         }
         while (ctx.check(TokenType.LBRACKET)) {

@@ -101,6 +101,8 @@ final class MemberCallTyper {
             if (recvType instanceof Type.ClassType ct && !ct.typeArguments().isEmpty())
                 elemType = ct.typeArguments().get(0);
             String mn = mc.methodName();
+            // inferir args para detectar identificadores não declarados (ghost) nos argumentos/lambdas
+            for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
             if ("get".equals(mn)) return elemType;
             if ("remove".equals(mn)) return elemType;
             if ("size".equals(mn) || "length".equals(mn) || "count".equals(mn))
@@ -110,6 +112,15 @@ final class MemberCallTyper {
             if ("add".equals(mn) || "push".equals(mn) || "append".equals(mn)
                     || "set".equals(mn) || "clear".equals(mn))
                 return Type.PrimitiveType.VOID;
+            if ("map".equals(mn) || "filter".equals(mn)) return recvType;
+            if ("reduce".equals(mn)) return elemType;
+            if (!"toArray".equals(mn) && !"sublist".equals(mn) && !"subSet".equals(mn)) {
+                if (sa.diagnostics() != null) {
+                    sa.diagnostics().error("", 0, 0, 0,
+                            "Cannot resolve method '" + mn + "' on type 'List' (valid: add/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce)",
+                            "SEM025");
+                }
+            }
         }
         if (BuiltinTypes.isMap(recvType)) {
             Type valueType = Type.UnknownType.UNKNOWN;
@@ -119,6 +130,7 @@ final class MemberCallTyper {
                 keyType = ct.typeArguments().get(0);
             }
             String mn = mc.methodName();
+            for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
             if ("get".equals(mn)) return valueType;
             if ("remove".equals(mn)) return valueType;
             if ("put".equals(mn)) return valueType;
@@ -129,18 +141,29 @@ final class MemberCallTyper {
             if ("clear".equals(mn)) return Type.PrimitiveType.VOID;
             if ("keys".equals(mn)) return new Type.ClassType("kof", "List", List.of(keyType));
             if ("values".equals(mn)) return new Type.ClassType("kof", "List", List.of(valueType));
+            if (sa.diagnostics() != null) {
+                sa.diagnostics().error("", 0, 0, 0,
+                        "Cannot resolve method '" + mn + "' on type 'Map' (valid: put/get/remove/containsKey/contains/size/clear/isEmpty/keys/values)",
+                        "SEM025");
+            }
         }
         if (BuiltinTypes.isSet(recvType)) {
             Type elemType = Type.UnknownType.UNKNOWN;
             if (recvType instanceof Type.ClassType ct && !ct.typeArguments().isEmpty())
                 elemType = ct.typeArguments().get(0);
             String mn = mc.methodName();
+            for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
             if ("size".equals(mn) || "length".equals(mn) || "count".equals(mn))
                 return Type.PrimitiveType.INT;
             if ("contains".equals(mn) || "isEmpty".equals(mn))
                 return Type.PrimitiveType.BOOL;
             if ("add".equals(mn) || "remove".equals(mn)) return Type.PrimitiveType.BOOL;
             if ("clear".equals(mn)) return Type.PrimitiveType.VOID;
+            if (sa.diagnostics() != null && !"toArray".equals(mn) && !"subSet".equals(mn) && !"sublist".equals(mn)) {
+                sa.diagnostics().error("", 0, 0, 0,
+                        "Cannot resolve method '" + mn + "' on type 'Set' (valid: add/contains/remove/size/clear/isEmpty)",
+                        "SEM025");
+            }
         }
         if (mc.receiver() instanceof IdentifierExpr rid && !SemExpressionTyper.isLocalName(scope, rid.name()) && KofDb.isDbNamespace(rid.name())) {
             List<Type> argTypes = new ArrayList<>();
@@ -195,6 +218,11 @@ final class MemberCallTyper {
             if (procCall != null) return procCall.returnType();
             KofProcess.ProcessCall exitCall = KofProcess.exitCall(argTypes);
             if (exitCall != null) return exitCall.returnType();
+            if (sa.diagnostics() != null) {
+                sa.diagnostics().error("", 0, 0, 0,
+                        "Cannot resolve method '" + mc.methodName() + "' on 'process' (valid: run, spawn, exit)",
+                        "SEM025");
+            }
             return Type.UnknownType.UNKNOWN;
         }
         if (mc.receiver() instanceof IdentifierExpr rid && !SemExpressionTyper.isLocalName(scope, rid.name()) && KofConfig.isConfigNamespace(rid.name())) {
