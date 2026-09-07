@@ -4,12 +4,14 @@ import dev.kof.compiler.CompilationResult;
 import dev.kof.compiler.Diagnostic;
 import dev.kof.compiler.CompilerDriver;
 import dev.kof.compiler.Target;
+import dev.kof.compiler.TargetMatrix;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * kof run — compila o módulo do arquivo (irmãos .kf inclusos) e executa
@@ -41,6 +43,7 @@ final class CmdRun {
         if (!Files.exists(file)) { System.err.println("file not found: " + file); System.exit(1); return; }
 
         Target target = Target.JVM;
+        Target frontendTarget = null;
         boolean targetFlagged = false;
         boolean release = false;
         boolean useDeps = false;
@@ -111,6 +114,7 @@ final class CmdRun {
             try {
                 KofCliSupport.Targets sel = KofCliSupport.selectTargets(backendFlag, frontendFlag, runRoot);
                 if (sel.backend() != null) target = sel.backend();
+                frontendTarget = sel.frontend();
             } catch (IllegalArgumentException e) {
                 System.err.println("run: " + e.getMessage());
                 KofCliSupport.cleanup(tempDir);
@@ -160,6 +164,31 @@ final class CmdRun {
         CompilationResult result = driver.compileSources(sources, tempDir, target, runRoot);
         for (Diagnostic d : result.diagnostics().getDiagnostics()) System.err.println(d.format());
         if (!result.success()) { KofCliSupport.cleanup(tempDir); System.exit(1); return; }
+
+        // F3 (plataforma, APPLICATION_MODEL I2/P2): full-stack run — backend
+        // JVM + web/ → compila o bundle e passa os caminhos ao app via env
+        // (KOF_WEB_OUT/KOF_STATIC_OUT), que o backend consome com
+        // config.env(...) + app.serveDir. Aditivo: sem web/ = run de hoje.
+        Map<String, String> appEnv = Map.of();
+        if (target == Target.JVM && siblingDir != null) {
+            KofCliSupport.Layout layout = KofCliSupport.detectLayout(siblingDir);
+            if (layout.fullStack()) {
+                Target feTarget = frontendTarget != null ? frontendTarget : Target.JS;
+                if (feTarget != Target.JS) {
+                    System.err.println("run: frontend '" + TargetMatrix.name(feTarget)
+                            + "' ainda não roda em 'kof run' (só kofjs; script-SSR = Fase 8)");
+                    KofCliSupport.cleanup(tempDir);
+                    System.exit(1);
+                    return;
+                }
+                KofCliSupport.buildFrontend(driver, layout, feTarget, tempDir);
+                appEnv = new java.util.HashMap<>();
+                appEnv.put("KOF_WEB_OUT", tempDir.resolve("frontend").toString());
+                if (layout.staticDir() != null) {
+                    appEnv.put("KOF_STATIC_OUT", tempDir.resolve("static").toString());
+                }
+            }
+        }
 
         if (target == Target.JS) {
             String entry = KofCliSupport.findJsEntry(tempDir);
@@ -244,6 +273,6 @@ final class CmdRun {
         javaArgs.add(jvmCp);
         javaArgs.add(className);
         for (int i = argStart; i < args.length; i++) javaArgs.add(args[i]);
-        KofCliSupport.executeProcess(javaArgs, tempDir);
+        KofCliSupport.executeProcess(javaArgs, tempDir, appEnv);
     }
 }

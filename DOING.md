@@ -105,16 +105,21 @@ passa os caminhos ao backend via **env `KOF_WEB_OUT`/`KOF_STATIC_OUT`**
 `config.env("KOF_WEB_OUT")` + `app.serveDir("/", ...)` (JVM; Native/JS =
 WEB005, gap). `buildFrontend` movido p/ `KofCliSupport` (DRY — build+serve
 reuso). **Prova E2E Cenário A (I2)**: app real `web.app()` + `serveDir` →
-`GET /api/ping`={"pong":true} (JSON backend), `GET /`=bundle 200 text/html
-(via KOF_WEB_OUT), `GET /static/app.css` 200 text/css (KOF_STATIC_OUT),
-`GET /../Main.kf`=404 (traversal). **Regressão**: serve monólito sem web/
-invisível (0 linha frontend no log, rota ok, 404 sem rota). Suíte
-1067/0/64-skip verde. **DEGRAU 2c (restante de F3)**: `kof run
---backend --frontend` (mesmo env-pass, processo filho) + rebuild do
-frontend sob demanda se mudou (I2.4, hash) + F3.5: `examples/fullstack/` +
-testes dos 4 cenários (JVM+KofJS, Native+KofJS→APP001, Script+KofJS,
-Script+Script). **NÃO quebrar**: microsserviços (kof.http/kof.web/CmdServe),
-PKG002/4/5 (congelados), lanes `NativeBackend.java`/`KofInterpreter*`.
+ `GET /api/ping`={"pong":true} (JSON backend), `GET /`=bundle 200 text/html
+ (via KOF_WEB_OUT), `GET /static/app.css` 200 text/css (KOF_STATIC_OUT),
+ `GET /../Main.kf`=404 (traversal). **Regressão**: serve monólito sem web/
+ invisível (0 linha frontend no log, rota ok, 404 sem rota). **DEGRAU 2c
+ FEITO (este commit)**: `kof run --backend --frontend` full-stack — mesmo
+ padrão I2 (backend JVM + web/ → buildFrontend no tempDir + env
+ KOF_WEB_OUT/KOF_STATIC_OUT no processo filho; `--frontend script` = Fase 8
+ SSR → erro honesto, não compila JS silencioso). Provas: E2E (env chega ao
+ processo filho do backend: WEB_OUT/STATIC_OUT impressas; regressão monólito
+ `mono-run 42` inalterado; R6 `--frontend script` rejeitado). **DEGRAU 2d
+ (fecho de F3)**: rebuild do frontend sob demanda se mudou (I2.4, hash) +
+ F3.5: `examples/fullstack/` + testes dos 4 cenários (JVM+KofJS,
+ Native+KofJS→APP001, Script+KofJS, Script+Script). **NÃO quebrar**:
+ microsserviços (kof.http/kof.web/CmdServe), PKG002/4/5 (congelados), lanes
+ `NativeBackend.java`/`KofInterpreter*`.
 
 **Estado anterior (06/09 — ROADMAP AUDIT)**: plano do maintainer entregue:
 auditoria completa → matriz em `docs/roadmap-audit.md` (`2970447`) →
