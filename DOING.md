@@ -103,15 +103,22 @@ FunctionSyntaxTest 12; suíte21 957+8+5+8, 0 falhas
  actual-state, roadmap, philosophy, learn/00, CHANGELOG): KofScript não é
  "linguagem separada" nem JavaScript. **Merge com origin feito** (F2.52
  CompilerPipeline + FASE 3.x native); suíte pós-merge 957+15+5+8, 0 falhas,
- 3-skip (só `UiE2ETest.canvasCreation` JS = CANVAS001, lane do outro agente).
- **PRÓXIMO PASSO (minha lane)**: (a) `spawn func(arg)` com captura de
- argumento (bug #29 — VerifyError no JVM compilado também, NÃO é do
- interpretador; precisa de decisão de lowering, regra 6 → gap/plano);
- (b) bug 34 (método inexistente em tipo de coleção → no-op silencioso, R6 —
- precisa allow-list por tipo, risco de falso SEM025); (c) varredura de
- paridade interpretado vs JVM nos 3 targets (JS/Native ainda no caminho
- compilado — confirmar que runFileCompiled cobre). Provas: testes E2E por
- item + suíte verde.
+  3-skip (só `UiE2ETest.canvasCreation` JS = CANVAS001, lane do outro agente).
+  **REFACTOR ≤500 da lane (06/09)**: `KofInterpreter` 643→430 e
+  `KofInterpreterBuiltins` 977→129 (fachada) divididos em 8 colaboradores
+  coesos ≤500 (`KofInterpreterValues`/`Ops`/`Collections`/`Concurrency`/
+  `Runtime`/`Objects`/`Members`/`Frame`) — refactor PRESERVA SEMÂNTICA, prova:
+  `KofInterpreterParityTest` 16/16 + `KofScriptTest` 15/15 + suíte 973/0/3-skip.
+  Fix de flake no MEU teste de channel (ordem `recv:42` vs `post-send` é
+  corrida genuína; só `pre-send` < `recv:42` é garantido).
+  **PRÓXIMO PASSO (minha lane)**: (a) `spawn func(arg)` com captura de
+  argumento (bug #29 — VerifyError no JVM compilado também, NÃO é do
+  interpretador; precisa de decisão de lowering, regra 6 → gap/plano);
+  (b) ~~bug 34~~ **FEITO pelo outro agente** (`ccaf7a6`: SEM025 p/ método
+  desconhecido em List/Map/Set — nunca chega ao interpretador); (c) varredura
+  de paridade interpretado vs JVM nos 3 targets (JS/Native ainda no caminho
+  compilado — confirmar que runFileCompiled cobre). Provas: testes E2E por
+  item + suíte verde.
 
 
 **PRÓXIMA TAREA (maior valor)**: **bug 33 CORRIGIDO** (`df2ffdd`, 06/09) —
