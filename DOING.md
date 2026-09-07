@@ -181,11 +181,16 @@ reuso). **Prova E2E Cenário A (I2)**: app real `web.app()` + `serveDir` →
    suítes** (`UiE2ETest` JVM+Native E `KofJsBrowserE2ETest` Chrome).
    Prova: `UiE2ETest.imageAttributesLinkOnAllTargets` (JVM+Native) +
    `KofJsBrowserE2ETest.imageAltSizeRendersInRealBrowserDom` (DOM
-   alt/width/height); suíte 1094/0/64-skip. **PRÓXIMO PASSO (Fase 4,
-   minha lane)**: `<form>`/`onSubmit` (UI004 headline — novo tipo + ctor
-   c/ lambda, padrão `Button(text, action)`); depois UI005 id/class/
-   disabled + UI007 style declarativo. Seguir 6 pontos + 2 suítes.
-   **NÃO quebrar**:
+   alt/width/height); suíte 1094/0/64-skip.    **`Form(children)` FEITO (este commit) — UI004**: novo tipo `FORM` +
+   ctor espelhando `Column` 1:1 (6 pontos + registry/typer/lowerer):
+   `<form>` com `preventDefault` no submit + appendChild dos filhos.
+   Prova: `UiE2ETest.formContainerLinksOnAllTargets` (JVM+Native) +
+   `KofJsBrowserE2ETest.formContainerRendersInRealBrowserDom` (DOM
+   `<form>` + kof-form + input do form); suíte 1097/0/64-skip.
+   **PRÓXIMO PASSO (Fase 4, minha lane)**: `Form.onSubmit`/submit handler
+   (UI004 — handler que roda no submit; padrão `Button(text, action)`
+   SAM via `kofUiSetAction`); depois UI005 id/class/disabled + UI007
+   style declarativo. Seguir 6 pontos + 2 suítes. **NÃO quebrar**:
   microsserviços (kof.http/kof.web/CmdServe), PKG002/4/5 (congelados), lanes
   `NativeBackend.java`/`KofInterpreter*`.
 

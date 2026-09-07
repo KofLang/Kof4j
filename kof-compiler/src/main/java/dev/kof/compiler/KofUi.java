@@ -25,6 +25,7 @@ public final class KofUi {
     static final Type INPUT = new Type.ClassType("kof.ui", "Input", List.of());
     static final Type COLUMN = new Type.ClassType("kof.ui", "Column", List.of());
     static final Type ROW = new Type.ClassType("kof.ui", "Row", List.of());
+    static final Type FORM = new Type.ClassType("kof.ui", "Form", List.of());
     static final Type VIEW = new Type.ClassType("kof.ui", "View", List.of());
     static final Type STYLE = new Type.ClassType("kof.ui", "Style", List.of());
     static final Type WINDOW = new Type.ClassType("kof.ui", "Window", List.of());
@@ -54,6 +55,7 @@ public final class KofUi {
     static boolean isInput(Type t) { return INPUT.equals(t); }
     static boolean isColumn(Type t) { return COLUMN.equals(t); }
     static boolean isRow(Type t) { return ROW.equals(t); }
+    static boolean isForm(Type t) { return FORM.equals(t); }
     static boolean isView(Type t) { return VIEW.equals(t); }
     static boolean isStyle(Type t) { return STYLE.equals(t); }
     static boolean isWindow(Type t) { return WINDOW.equals(t); }
@@ -85,7 +87,7 @@ public final class KofUi {
 
     static public boolean isUiType(Type t) {
         return isColor(t) || isTheme(t) || isLabel(t) || isButton(t) || isInput(t)
-                || isColumn(t) || isRow(t) || isView(t) || isStyle(t) || isWindow(t)
+                || isColumn(t) || isRow(t) || isForm(t) || isView(t) || isStyle(t) || isWindow(t)
                 || isLink(t) || isImage(t) || isIcon(t) || isFont(t)
                 || isComponent(t) || isEvent(t)
                 || isLayoutType(t) || isStore(t) || isCanvas(t);
@@ -94,7 +96,7 @@ public final class KofUi {
     static boolean isConstructor(String name) {
         return "Color".equals(name) || "Theme".equals(name)
                 || "Label".equals(name) || "Button".equals(name) || "Input".equals(name)
-                || "Column".equals(name) || "Row".equals(name) || "View".equals(name)
+                || "Column".equals(name) || "Row".equals(name) || "Form".equals(name) || "View".equals(name)
                 || "Style".equals(name) || "Window".equals(name)
                 || "Link".equals(name) || "Image".equals(name)
                 || "Icon".equals(name) || "Font".equals(name)

@@ -145,3 +145,25 @@ logo.setHeight(60)
 **Por quê:** `alt` é acessibilidade (screen readers); `width`/`height`
 evitam layout-shift. São atributos do widget (renderizam no DOM do
 KofJS), não da aplicação (R2).
+
+## Forms: agrupar campos em <form>
+
+**BAD — campos soltos sem agrupamento (sem fronteira de formulário):**
+```kof
+// ❌ NÃO — inputs e botão fora de um <form>
+var nome = Input("")
+var enviar = Button("enviar")
+var col = Column(listOf(nome, enviar))
+```
+
+**GOOD — `Form(children)`:**
+```kof
+// ✅ IDIOMÁTICO — campos agrupados em <form>
+var nome = Input("")
+var enviar = Button("enviar")
+var f = Form(listOf(nome, enviar))
+```
+
+**Por quê:** `Form` renderiza `<form>` (renderiza no DOM do KofJS) e
+agrupa os campos — fronteira semântica de formulário. Campos soltos
+perdem a semântica de submissão/acessibilidade (R1: intenção).

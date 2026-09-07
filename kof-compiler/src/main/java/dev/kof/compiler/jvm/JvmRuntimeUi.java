@@ -382,6 +382,10 @@ public final class JvmRuntimeUi {
                     return 1;
                 }
 
+                public static int kof_ui_form_new(java.util.ArrayList ids) {
+                    return 1;
+                }
+
                 public static int kof_ui_row_new(java.util.ArrayList ids) {
                     return 1;
                 }

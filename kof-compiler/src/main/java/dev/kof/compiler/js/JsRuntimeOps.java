@@ -126,6 +126,7 @@ void handleRuntimeOp(MethodCtx ctx, List<Object> stack,
         if (name.equals("kof_ui_window_new") || name.equals("kof_ui_label_new")
                 || name.equals("kof_ui_button_new") || name.equals("kof_ui_button_new_action")
                 || name.equals("kof_ui_input_new") || name.equals("kof_ui_column_new")
+                || name.equals("kof_ui_form_new")
                 || name.equals("kof_ui_row_new") || name.equals("kof_ui_view_new")
                 || name.equals("kof_ui_box_new") || name.equals("kof_ui_stack_new")
                 || name.equals("kof_ui_wrap_new") || name.equals("kof_ui_grid_new")

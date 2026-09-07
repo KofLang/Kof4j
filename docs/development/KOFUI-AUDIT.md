@@ -63,7 +63,7 @@ Grid, Center, Align, Store, Canvas + namespace `Router`.
 | **UI001** | `kof.ui` no Native = no-op silencioso (binário roda sem diagnóstico). **PARCIALMENTE CORRIGIDO 07/09**: `Image/Link/Icon/Font` **não linkavam** (`undefined reference [COMP001]` — 21 stubs ausentes em `RuntimeUi`); adicionados (paridade no-op com JVM). Resta: diagnóstico p/ o no-op silencioso dos demais = decisão de design (regra 6) | Native | **P0 (R6)** → P2 (residual) |
 | **UI002** | `kof.ui` no Script = no-op silencioso (interprete executa sem efeito) | Script | **P0 (R6)** |
 | **UI003** | Elementos faltantes no KofJS: table/tr/td, textarea, checkbox, select/option, fieldset, iframe, video/audio, hr, ul/ol/li | KofJS | P1 |
-| **UI004** | Forms: sem `<form>`/submit/fieldset; `Input` só text (number/checkbox/email/password/date ✅ FEITO 07/09 via `setType`; checkbox/radio estado ✅ `setChecked`/`checked`; select pendente) | KofJS | P1 |
+| **UI004** | Forms: `<form>` ✅ FEITO 07/09 (`Form(children)`); submit handler (onSubmit) pendente; fieldset pendente. `Input` tipos ✅ (`setType`); checkbox/radio estado ✅ (`setChecked`/`checked`); select pendente | KofJS | P1 |
 | **UI005** | Atributos faltantes: id, class custom, **placeholder ✅ (FEITO 07/09 — `Input.setPlaceholder`, `KofJsBrowserE2ETest`)**, disabled, checked, alt, width/height (img), readonly, name | KofJS | P1 |
 | **UI006** | Eventos: `Event` expõe só type/stopPropagation (sem target, x/y, key, value, relatedTarget) | KofJS | P2 |
 | **UI007** | `style` declarativo (CSS idiomático) — novo, com parse próprio (item do plano Fase 4) | KofJS | P1 |

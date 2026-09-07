@@ -274,6 +274,26 @@ public final class JsRuntimeUiWidgets {
                 return id;
             }
 
+            export function kofUiFormNew(ids) {
+                const id = kofUiCreateNode("form", "kof-form");
+                if (id < 0) {
+                    return -1;
+                }
+                const node = window.__kofNodes[id];
+                node.addEventListener("submit", function (ev) {
+                    if (ev && typeof ev.preventDefault === "function") ev.preventDefault();
+                });
+                if (ids) {
+                    for (const childId of ids) {
+                        const child = window.__kofNodes[childId];
+                        if (child) {
+                            node.appendChild(child);
+                        }
+                    }
+                }
+                return id;
+            }
+
             export function kofUiRowNew(ids) {
                 const id = kofUiCreateNode("div", "kof-row");
                 if (id < 0) {

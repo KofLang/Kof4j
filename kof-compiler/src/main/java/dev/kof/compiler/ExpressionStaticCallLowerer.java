@@ -160,10 +160,12 @@ if (mc.receiver() == null && "Input".equals(mc.methodName()) && mc.arguments().s
             Type.PrimitiveType.INT, KofCallKind.FUNCTION));
     return localIdx;
 }
-if (mc.receiver() == null && ("Column".equals(mc.methodName()) || "Row".equals(mc.methodName()))
+if (mc.receiver() == null && ("Column".equals(mc.methodName()) || "Row".equals(mc.methodName())
+        || "Form".equals(mc.methodName()))
         && mc.arguments().size() == 1) {
     localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(0), ops, owner, localIdx, locals);
-    String fn = "Column".equals(mc.methodName()) ? "kof_ui_column_new" : "kof_ui_row_new";
+    String fn = "Column".equals(mc.methodName()) ? "kof_ui_column_new"
+            : "Form".equals(mc.methodName()) ? "kof_ui_form_new" : "kof_ui_row_new";
     ops.add(new KofCall(new Type.ClassType("kof.ui", "Ui", List.of()),
             fn, List.of(new Type.ClassType("kof", "List", List.of(Type.PrimitiveType.INT))),
             Type.PrimitiveType.INT, KofCallKind.FUNCTION));

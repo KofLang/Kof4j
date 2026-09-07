@@ -135,6 +135,20 @@ class UiE2ETest {
     }
 
     @Test
+    void formContainerLinksOnAllTargets(@TempDir Path tempDir) throws IOException {
+        // UI004: Form(children) — container <form>; no-op em JVM/Native,
+        // DOM real em KofJS (KofJsBrowserE2ETest).
+        both(tempDir, "form", """
+            main() {
+                var campo = Input("")
+                var b = Button("enviar")
+                var f = Form(listOf(campo, b))
+                println("ok")
+            }
+            """, "ok");
+    }
+
+    @Test
     void mediaWidgetsLinkOnAllTargets(@TempDir Path tempDir) throws IOException {
         // UI001 (R6): Image/Link/Icon/Font não podiam linkar no Native
         // (undefined reference [COMP001] — 21 stubs ausentes em RuntimeUi).

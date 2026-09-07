@@ -112,8 +112,10 @@ if (mc.receiver() == null && "Button".equals(mc.methodName())
 if (mc.receiver() == null && "Input".equals(mc.methodName()) && mc.arguments().size() == 1) {
     return KofUi.INPUT;
 }
-if (mc.receiver() == null && ("Column".equals(mc.methodName()) || "Row".equals(mc.methodName()))
+if (mc.receiver() == null && ("Column".equals(mc.methodName()) || "Row".equals(mc.methodName())
+        || "Form".equals(mc.methodName()))
         && mc.arguments().size() == 1) {
+    if ("Form".equals(mc.methodName())) return KofUi.FORM;
     return "Column".equals(mc.methodName()) ? KofUi.COLUMN : KofUi.ROW;
 }
 if (mc.receiver() == null && "View".equals(mc.methodName()) && mc.arguments().size() == 1) {
