@@ -76,6 +76,7 @@ public sealed interface Type {
             if ("Map".equals(base) || "HashMap".equals(base)) return new ClassType("kof", "Map", args);
             if ("Set".equals(base) || "HashSet".equals(base)) return new ClassType("kof", "Set", args);
             if ("Channel".equals(base)) return new ClassType("kof.concurrent", "Channel", args);
+            if ("Handle".equals(base)) return new ClassType("kof.concurrent", "Handle", args);
             return new ClassType("", base, args);
         }
         return switch (name) {

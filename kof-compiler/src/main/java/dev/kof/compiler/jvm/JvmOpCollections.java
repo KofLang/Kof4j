@@ -29,9 +29,10 @@ public final class JvmOpCollections {
         mv.visitMethodInsn(INVOKESTATIC, "dev/kof/runtime/KofRuntime", kc.methodName(),
                 JvmRuntimeCallDescriptors.callDescriptor(kc.methodName()), false);
         if ("Ljava/lang/Object;".equals(JvmRuntimeCallDescriptors.callReturnDescriptor(kc.methodName()))) {
-            if (kc.returnType() instanceof Type.ClassType ct && !BuiltinTypes.isString(kc.returnType())
-                    // handle de spawn é opaco em runtime (CompletableFuture) — sem cast
-                    && !"kof.concurrent".equals(ct.packageName())) {
+            if (kc.returnType() instanceof Type.ClassType ct && !BuiltinTypes.isString(kc.returnType())) {
+                // handle de spawn: o runtime devolve Object (o objeto real é
+                // CompletableFuture) — com Handle<T> mapeado p/ CompletableFuture
+                // (GitHub #31), o checkcast é necessário e válido.
                 mv.visitTypeInsn(CHECKCAST, JvmTypeMapper.toInternalName(ct.packageName(), ct.name()));
             } else if ("kof_poll".equals(kc.methodName()) && isPrimitiveType(kc.returnType())) {
                 // poll pode devolver null (não pronto): unbox com guard

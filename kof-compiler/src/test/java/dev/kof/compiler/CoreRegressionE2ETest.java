@@ -72,6 +72,45 @@ class CoreRegressionE2ETest {
                 """, "3\na\n3", tempDir, "splitArr");
     }
 
+    // GitHub #31 — `await` sobre um handle que perdeu o Handle<T> ao passar
+    // por um parâmetro/campo Object (ou declarado Handle<Int>): o kof_await
+    // devolve Object boxed e o return fazia ireturn sobre referência →
+    // VerifyError. Fix: Handle<T> apaga p/ CompletableFuture (Type.of +
+    // JvmTypeMapper) + checkcast no emit + unbox no widening do return.
+    @Test
+    void awaitOnHandleThroughObjectParam(@TempDir Path tempDir) throws IOException {
+        Path src = tempDir.resolve("handleObj.kf");
+        Files.writeString(src, """
+                Int calc(Int x) { return x * 2 }
+                Int take(Object h) { return await h }
+                main() {
+                    val h = spawn calc(21)
+                    println(take(h))
+                }
+                """);
+        Path out = tempDir.resolve("handleObj-jvm");
+        CompilationResult r = driver.compile(src, out, Target.JVM);
+        assertTrue(r.success(), "JVM compile failed: " + r.diagnostics().getDiagnostics());
+        assertEquals("42", runJvm(out));
+    }
+
+    @Test
+    void awaitOnTypedHandleParam(@TempDir Path tempDir) throws IOException {
+        Path src = tempDir.resolve("handleTyped.kf");
+        Files.writeString(src, """
+                Int calc(Int x) { return x * 2 }
+                Int take(Handle<Int> h) { return await h }
+                main() {
+                    val h = spawn calc(21)
+                    println(take(h))
+                }
+                """);
+        Path out = tempDir.resolve("handleTyped-jvm");
+        CompilationResult r = driver.compile(src, out, Target.JVM);
+        assertTrue(r.success(), "JVM compile failed: " + r.diagnostics().getDiagnostics());
+        assertEquals("42", runJvm(out));
+    }
+
     // B10 — primary constructor fields accessible inside methods (all targets)
     @Test
     void primaryConstructorFieldsInMethods(@TempDir Path tempDir) throws IOException {

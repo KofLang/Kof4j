@@ -21,6 +21,19 @@ public final class CompilerEmissionHelpers {
         if (from.equals(to)) return;
         String fn = TypeMetrics.primitiveName(from);
         String tn = TypeMetrics.primitiveName(to);
+        // slot declarado primitivo + valor de tipo APAGADO (Unknown/Object/
+        // TypeVariable): o valor real chega boxed (ex.: `await` sobre um
+        // handle que perdeu o Handle<Int> ao passar por um parâmetro Object —
+        // kof_await devolve Object). Sem o unbox aqui, o return emitia
+        // ireturn sobre referência → VerifyError (GitHub #31).
+        if (!tn.isEmpty() && !TypeMetrics.isPrimitiveType(from)
+                && (from instanceof Type.UnknownType
+                    || from instanceof Type.TypeVariable
+                    || (from instanceof Type.ClassType ct && "java.lang".equals(ct.packageName())
+                        && "Object".equals(ct.name())))) {
+            emitErasureUnbox(driver, ops, to);
+            return;
+        }
         KofUnaryOp conv = switch (tn) {
             case "long", "Long" -> switch (fn) {
                 case "int", "Int", "char", "Char", "short", "Short", "byte", "Byte" -> KofUnaryOp.I2L;

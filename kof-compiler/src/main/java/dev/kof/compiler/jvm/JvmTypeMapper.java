@@ -60,6 +60,13 @@ public final class JvmTypeMapper {
         if ("kof.concurrent".equals(c.packageName()) && "Channel".equals(c.name())) {
             return "Ljava/util/concurrent/LinkedBlockingQueue;";
         }
+        // Handle<T> apaga para CompletableFuture (o runtime de spawn é
+        // exatamente um) — sem isto, `Handle<Int>` como parâmetro de método
+        // gerava descriptor LHandle; (classe inexistente) → ClassNotFoundException
+        // / VerifyError (GitHub #31).
+        if ("kof.concurrent".equals(c.packageName()) && "Handle".equals(c.name())) {
+            return "Ljava/util/concurrent/CompletableFuture;";
+        }
         // enum: o valor em runtime é o nome (String)
         if (c.packageName().isEmpty() && BuiltinTypes.isEnumName(c.name())) {
             return "Ljava/lang/String;";
@@ -88,6 +95,7 @@ public final class JvmTypeMapper {
         if ("kof".equals(packageName) && "Set".equals(simpleName)) return "java/util/HashSet";
         if ("kof".equals(packageName) && "Map".equals(simpleName)) return "java/util/HashMap";
         if ("kof.concurrent".equals(packageName) && "Channel".equals(simpleName)) return "java/util/concurrent/LinkedBlockingQueue";
+        if ("kof.concurrent".equals(packageName) && "Handle".equals(simpleName)) return "java/util/concurrent/CompletableFuture";
         if (packageName.isEmpty() && BuiltinTypes.isEnumName(simpleName)) return "java/lang/String";
         if (packageName.isEmpty()) return simpleName;
         return packageName.replace('.', '/') + "/" + simpleName;
