@@ -251,8 +251,11 @@ reuso). **Prova E2E Cenário A (I2)**: app real `web.app()` + `serveDir` →
     branch — HEAD quebrado): Long/Double (tags 5/6) 8 bytes/2 slots;
     MethodHandle (tag 15) 1 byte ref_kind + 1 short; tags 16/18/19/20
     (Dynamic/InvokeDynamic/Module/Package) ausentes. Suíte 1142/0/64-skip.
-    **RESTA**: R1.2b (dividir `Translate.java` 834 + `BytecodeDecoder.
-    java` 763 — violam gate ≤500), R2, R3, R4 (Fase D — Type Recovery).
+    **R1.2b FEITO (`84c4804`)**: Translate 834→390 (+TranslateLexer/
+    TranslateExpr) + BytecodeDecoder 763→395 (+BytecodeStatements) —
+    movimento verbatim, 33/33 migração verde, suíte 1149/0/64-skip.
+    **R1 FECHADO.** RESTA: R2 (kof.toml — decisão de design + colide
+    APP-MODEL), R3 (FFI — decisão), R4 (Fase D Type Recovery — gap real).
     **NÃO quebrar**: microsserviços (kof.http/kof.web/CmdServe),
     PKG002/4/5 (congelados), lanes `NativeBackend.java`/`KofInterpreter*`.
 

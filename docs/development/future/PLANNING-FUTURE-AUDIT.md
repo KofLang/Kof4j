@@ -120,8 +120,10 @@ decisão documentada — não portar.
    porte** (nunca rodou na branch): Long/Double (tags 5/6) 8 bytes/2
    slots; MethodHandle (tag 15) 1 byte ref_kind + 1 short; tags 16/18/
    19/20 (Dynamic/InvokeDynamic/Module/Package) ausentes. Suíte
-   1142/0/64-skip verde. **Resto de R1:** dividir `Translate.java` (834)
-   + `BytecodeDecoder.java` (763) p/ gate ≤500.
+   1142/0/64-skip verde. **Resto de R1:** ✅ dividido 07/09 (`84c4804` — Translate 834→390 +
+   TranslateLexer/TranslateExpr; BytecodeDecoder 763→395 +
+   BytecodeStatements; 33/33 migração verde, suíte 1149/0/64-skip).
+   **R1 FECHADO (1.1+1.2+1.2b).**
 2. **R2** — reconciliar kof.toml: `AppManifest` (branch) × `KofProjectConfig`
    (beta) — um parser só (provável: AppManifest consome KofProjectConfig,
    ou vice-versa; decisão de design se fundir semânticas).
