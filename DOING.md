@@ -21,7 +21,18 @@ Estados: `ABERTO` · `EM CURSO` · `FEITO` · `BLOQUEADO`.
 
 ## PRÓXIMO PASSO (re-dispacho lê isto)
 
-**PRÓXIMO PASSO (fixes-for-kofagent, 06/09)**: lane REFACTOR-500 FASES 4–8
+**PRÓXIMO PASSO (fixes-for-kofagent, 06/09 — ROADMAP AUDIT)**: plano do
+maintainer entregue: auditoria completa do compilador/runtime/stdlib/tooling/
+platforms → matriz de implementação → concluir pendentes do roadmap
+(StdLib/GC/PackageManager/Async/Concurrency-G8/KofAndroid/Debugger/KofJS/LSP/
+KofScript/Spec/Conformance/WebPlatform). **FASE 1 (auditoria) EM CURSO** —
+estados ANTES de qualquer código, matriz em `docs/roadmap-audit.md`. Regras:
+não assumir pendente pelo roadmap; não reimplementar; inferência NUNCA cria
+declaração implícita (bug semântico crítico se criar). Bugs 29/31/34 +
+SG-007 já corrigidos em `7ec8b9d` (lane bug-fix paralela). Cron heartbeat
+ATIVO (auto-loop.sh, 30min).
+
+**Estado anterior (lane 4–8 fechada)**: lane REFACTOR-500 FASES 4–8
 **FECHADA** (Parser 456 / SemanticAnalyzer 396 / JsBackend 334 / JvmRuntime 132
 / 13 classes 500–1400 + VkChain64Asm; resíduo 502-linha `ExpressionStaticCallLowerer`
 → 493 em `9c2002b`). **CANVAS001 metade JVM CORRIGIDA** (`6665a2d`): causa raiz
