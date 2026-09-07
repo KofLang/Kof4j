@@ -132,11 +132,20 @@ reuso). **Prova E2E Cenário A (I2)**: app real `web.app()` + `serveDir` →
   subprocesso: build full-stack → dist/backend+frontend+static; build
   --backend native → APP001; serve → GET /api/ping=JSON, GET /=bundle,
   GET /static/app.css=css, traversal=404; monólito inalterado). Suíte
-  1085/0/64-skip verde. **FASE 3 COMPLETA** (build/run/serve full-stack +
-  exemplo + E2E). **PRÓXIMO (F3 opcional / F4)**: I2.4 rebuild do frontend
-  sob demanda (hash) é dev-loop (serve não é residente no modelo atual —
-  baixa prioridade); FASE 4 (KofUI: auditoria de cobertura HTML/CSS/DOM →
-  matriz de gaps) é a próxima fase do plano. **NÃO quebrar**:
+  1085/0/64-skip verde.   **FASE 3 COMPLETA** (build/run/serve full-stack +
+  exemplo + E2E). **FASE 4 (KofUI) REIVINDICADA — AUDITORIA FEITA (este
+  commit)**: `docs/development/KOFUI-AUDIT.md` — matriz de gaps `UI00x`
+  (fonte: código, não memória). **Descoberta-chave (R6)**: `kof.ui` em
+  **Native e Script roda como no-op SILENCIOSO** (E2E manual 07/09: binário
+  x86 roda "feito" rc=0 sem diagnóstico; interprete idem) → **UI001/UI002
+  (P0)**. KofJS (browser) = target real de DOM (widgets/router/canvas/store
+  ok); faltam elementos (table/textarea/form), atributos (id/placeholder/
+  disabled), style declarativo → UI003-7 (P1/P2). JVM no-op é design
+  documentado (não bug). **PRÓXIMO PASSO (Fase 4, minha lane)**:
+  **UI001+UI002 (P0, R6)** — diagnóstico claro quando `kof.ui` é usado em
+  Native/Script (gate no backend: "kof.ui não renderiza em <target>; use
+  kofjs/android [UI00x]"); teste por target (snippet kof.ui em native+script
+  → exigir diagnóstico, nunca no-op silencioso). **NÃO quebrar**:
   microsserviços (kof.http/kof.web/CmdServe), PKG002/4/5 (congelados), lanes
   `NativeBackend.java`/`KofInterpreter*`.
 
