@@ -49,8 +49,10 @@ escreva código Kof neste repositório. Leia antes de gerar qualquer `.kf`.
 4. **`todowrite` a cada mudança de etapa** — exatamente um `in_progress`;
    item só vai para `completed` com prova (teste verde/suíte).
 5. **Re-dispacho é do humano ou de cron** (o agente não acorda a si mesmo).
-   Por isso o item 2b é contrato: quem volta — humano ou outra instância —
-   deve conseguir retomar em ≤1 leitura do `DOING.md`, sem perguntar.
+    Ao entrar em modo autônomo, o agente **lança o cron** (ver "Heartbeat
+    de cron" abaixo). Por isso o item 2b é contrato: quem volta — humano ou
+    outra instância — deve conseguir retomar em ≤1 leitura do `DOING.md`,
+    sem perguntar.
 6. **Re-dispacho NÃO é conversa.** Quando o humano manda "continue", "vai",
    "e agora?" ou qualquer re-disparo: **não responda com reconhecimento ou
    status** ("Entendido", "ok", "pushed", "vou continuar..."). A PRIMEIRA
@@ -116,6 +118,30 @@ Autonomia muda **quem decide a ordem**, nunca **o que é aceitável**.
 **Sinal para o humano:** `todowrite` é a janela desta conversa (atualize a
 cada etapa); `DOING.md` é a memória entre sessões. Se o humano voltar e ler
 esses dois, ele sabe exatamente onde você está e por quê.
+
+### Heartbeat de cron (obrigatório ao entrar no modo autônomo)
+
+> O agente **não acorda a si mesmo**. Para o loop sobreviver ao fim de cada
+> turno, ao **entrar em modo autônomo** o agente lança o cron da sessão:
+
+```bash
+scripts/auto-loop.sh start            # última sessão, re-disparo a cada 30 min
+scripts/auto-loop.sh status           # confirmar que está ativo
+```
+
+- O cron chama `opencode run --session <id> --dir <repo> --auto "<prompt>"`
+  a cada intervalo (padrão 30 min), com o prompt de re-disparo:
+  *"analize os documentos, verifique os gaps, identifique o que falta em
+  nossos planos, trace um todo de implementação e continue o desenvolvimento"*.
+- `flock` no `tick` impede run sobreposto: se o turno anterior ainda está
+  ativo, o tick é pulado e logado (`~/.local/state/kof-auto-loop/loop.log`).
+- **Ao sair do modo autônomo** (humano retorna, condição de parada, ou
+  trabalho concluído): `scripts/auto-loop.sh stop`. Deixar o cron rodando
+  depois do fim é ruído — o heartbeat existe só enquanto o loop vive.
+- Se o cron já está ATIVO (`status`), não lance outro — a sessão atual é a
+  continuada do heartbeat.
+- O re-disparo chega como turno normal: vale a regra 6 (responder com tool
+  call, não com "ok") e o contrato do `PRÓXIMO PASSO` no `DOING.md`.
 
 ---
 
