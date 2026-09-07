@@ -217,9 +217,20 @@ reuso). **Prova E2E Cenário A (I2)**: app real `web.app()` + `serveDir` →
     (DOM `<textarea>` + kof-textarea + texto + placeholder); suíte
     1105/0/64-skip (flaky `KofScriptTest.concurrentAwait` não se
     reproduziu — isolado 3/3 verde; lane interpretador, pré-existente).
-    **PRÓXIMO PASSO (Fase 4, minha lane)**: UI003 select/table/ul, ou
-    UI007 style declarativo (decisão de design — forma da API). Seguir 6
-    pontos + 2 suítes. **NÃO quebrar**:
+    **AUDITORIA planning-future FEITA (este commit)**:
+    `docs/development/future/PLANNING-FUTURE-AUDIT.md`. Veredito: a branch
+    entregou a plataforma de migração legado (Fases A/B/C-parcial/E/F/G/H,
+    33 testes: Decompile 15/Translate 9/Compare 6/Migrate 3) + AppManifest/
+    `kof new`, MAS: Fase D (Type Recovery) = zero; FFI/Codegen (TIER 2.1/
+    2.2) foram DESCARTADOS no merge `c9fcd41` ("favor beta") — só no
+    histórico; `Confidence.java` perdido; e o **HEAD NÃO COMPILA contra a
+    beta** (imports stale `ClassFileParser`→`parser.` + API divergiu:
+    returnTypeName/instanceofCount/checkcastCount/code/constantPool).
+    **PRÓXIMO PASSO (R1, lane nova — portar migração p/ beta)**: restaurar
+    `Confidence.java` (7e6fbe8), backportar os membros do ClassFileParser
+    p/ `parser.ClassFileParser`, ajustar imports, rodar os 33 testes na
+    beta. Depois R2 (reconciliar kof.toml AppManifest×KofProjectConfig),
+    R3 (re-portar FFI), R4 (Fase D). **NÃO quebrar**:
   microsserviços (kof.http/kof.web/CmdServe), PKG002/4/5 (congelados), lanes
   `NativeBackend.java`/`KofInterpreter*`.
 
