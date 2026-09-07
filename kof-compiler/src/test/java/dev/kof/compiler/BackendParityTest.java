@@ -274,4 +274,57 @@ class BackendParityTest {
                 }
                 """, "4\n10\ntwo", tempDir, "array");
     }
+
+    // ── paridade cross-target dos bugs corrigidos na varredura do
+    //    interpretador (06/09, regra 5): os mesmos casos que o
+    //    KofScriptTest.interpreterParitySweep trava JVM×interpretado
+    //    agora travam JVM×JS.
+
+    @Test
+    void parityStaticFieldSimpleName(@TempDir Path tempDir) throws IOException {
+        // bug (lowering): campo estático por nome simples em método estático
+        // baixava this inexistente (VerifyError no JVM compilado).
+        runParity("""
+                class Counter {
+                    static Int count = 0
+                    static Int bump() {
+                        count = count + 1
+                        return count
+                    }
+                }
+                main() {
+                    println(Counter.bump())
+                    println(Counter.bump())
+                    println(Counter.count)
+                }
+                """, "1\n2\n2", tempDir, "staticfield");
+    }
+
+    @Test
+    void parityListContainsUnknownElement(@TempDir Path tempDir) throws IOException {
+        // bug 35: contains(int) em List de elemento Unknown não boxeava o
+        // argumento → VerifyError no JVM compilado.
+        runParity("""
+                main() {
+                    var l = listOf()
+                    println(l.isEmpty())
+                    println(l.size)
+                    println(l.contains(1))
+                }
+                """, "true\n0\nfalse", tempDir, "contains");
+    }
+
+    @Test
+    void parityNullEquality(@TempDir Path tempDir) throws IOException {
+        // bug 36: null == null baixava if_icmpeq (UnknownType→primitivo) →
+        // VerifyError no JVM compilado.
+        runParity("""
+                main() {
+                    var a = null
+                    var b = null
+                    println(a == b)
+                    println(a != b)
+                }
+                """, "true\nfalse", tempDir, "nulleq");
+    }
 }
