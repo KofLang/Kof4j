@@ -23,6 +23,7 @@ final class ExpressionLowerer {
                     case ConcreteLiteralKind.BOOLEAN -> ops.add(KofLoadLiteral.ofBool(Boolean.parseBoolean(lit.value())));
                     case ConcreteLiteralKind.CHAR -> ops.add(KofLoadLiteral.ofInt(lit.value().charAt(0)));
                     case ConcreteLiteralKind.NULL -> ops.add(KofLoadLiteral.ofNull());
+                    default -> throw new IllegalStateException("literal kind: " + lit.kind());
                 }
                 yield localIdx;
             }

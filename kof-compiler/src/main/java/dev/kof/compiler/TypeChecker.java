@@ -21,6 +21,7 @@ final class TypeChecker {
             case ConcreteLiteralKind.BOOLEAN -> Type.PrimitiveType.BOOL;
             case ConcreteLiteralKind.CHAR -> Type.PrimitiveType.CHAR;
             case ConcreteLiteralKind.NULL -> Type.UnknownType.UNKNOWN;
+            default -> Type.UnknownType.UNKNOWN;
         };
     }
 

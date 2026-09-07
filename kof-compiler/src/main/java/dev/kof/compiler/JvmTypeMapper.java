@@ -20,6 +20,7 @@ final class JvmTypeMapper {
                     ? "L" + ft.className() + ";" : "Ljava/lang/Object;";
             case Type.UnknownType ut -> "Ljava/lang/Object;";
             case Type.NullableType n -> toDescriptor(n.inner());
+            default -> "Ljava/lang/Object;";
         };
     }
 

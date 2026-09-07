@@ -22,6 +22,7 @@ final class ExpressionTyper {
                 case ConcreteLiteralKind.BOOLEAN -> Type.PrimitiveType.BOOL;
                 case ConcreteLiteralKind.CHAR -> Type.PrimitiveType.CHAR;
                 case ConcreteLiteralKind.NULL -> Type.UnknownType.UNKNOWN;
+                default -> Type.UnknownType.UNKNOWN;
             };
             case QueryDslExpr q -> new Type.ClassType("kof", "List", List.of(CompilerTypes.toType(q.entityType(), driver.currentUnit)));
             case IdentifierExpr ie -> {
