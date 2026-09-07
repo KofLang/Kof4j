@@ -113,7 +113,7 @@ public final class Decompile {
                         boolean isFinally = h.catchType == null || "INVALID".equals(h.catchType);
                         handlers[i] = new int[]{h.startPc, h.endPc, h.handlerPc, isFinally ? 1 : 0};
                     }
-                    stmts = BytecodeDecoder.recoverStatements(m.code.bytecode, ir.constantPool, pcount, isStatic, handlers);
+                    stmts = BytecodeStatements.recoverStatements(m.code.bytecode, ir.constantPool, pcount, isStatic, handlers);
                 }
             }
             if (body == null && stmts == null) {
