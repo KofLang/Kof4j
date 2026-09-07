@@ -60,7 +60,6 @@ public final class KofInterpreter {
     final KofInterpreterBuiltins builtins;
     private final KofInterpreterMembers members;
     private final KofInterpreterFrame frames;
-    private Object lastReturned;
 
     KofInterpreter(IRModule module, PrintStream out, PrintStream err) {
         this.module = module;
@@ -166,7 +165,7 @@ public final class KofInterpreter {
      * INSTANCE/CONSTRUCTOR/SUPER deslocam params em 1 (this no índice 0);
      * STATIC/FUNCTION começam no 0 — igual ao bytecode JVM.
      */
-    void invokeKof(IRClass clazz, IRMethod m, Object[] args, boolean hasThis) throws Throwable {
+    Object invokeKof(IRClass clazz, IRMethod m, Object[] args, boolean hasThis) throws Throwable {
         List<KofOperation> ops = new ArrayList<>();
         for (IRBasicBlock bb : m.basicBlocks()) ops.addAll(bb.operations());
         KofInterpreterFrame.Frame f = frames.newFrame(ops);
@@ -179,11 +178,11 @@ public final class KofInterpreter {
         f.locals = new Object[size];
         System.arraycopy(args, 0, f.locals, 0, args.length);
         runFrame(f);
+        return f.returnValue;
     }
 
     Object evalKof(IRClass clazz, IRMethod m, Object[] args, boolean hasThis) throws Throwable {
-        invokeKof(clazz, m, args, hasThis);
-        return lastReturned;
+        return invokeKof(clazz, m, args, hasThis);
     }
 
     private void runFrame(KofInterpreterFrame.Frame f) throws Throwable {
@@ -228,10 +227,10 @@ public final class KofInterpreter {
                     IRClass k = members.kofClassOrNull(no.type());
                     st.push(k != null ? new KofObj(k) : new PendingNew(no.type()));
                 } else if (op instanceof KofReturn kr) {
-                    lastReturned = Type.isVoid(kr.returnType()) ? null : st.pop();
+                    f.returnValue = Type.isVoid(kr.returnType()) ? null : st.pop();
                     return;
                 } else if (op instanceof KofReturnVoid) {
-                    lastReturned = null;
+                    f.returnValue = null;
                     return;
                 } else if (op instanceof KofDup) {
                     st.push(st.peek());

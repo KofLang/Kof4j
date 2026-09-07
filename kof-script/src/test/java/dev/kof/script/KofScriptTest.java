@@ -482,4 +482,43 @@ class KofScriptTest {
     private static String norm(String s) {
         return s == null ? "" : s.replace("\r\n", "\n").trim();
     }
+
+    /**
+     * Regressão (07/09): race no interpretador — `KofInterpreter.lastReturned`
+     * era um ÚNICO campo de instância sobrescrito por cada `KofReturn`; com 2
+     * `spawn` concorrentes (virtual threads) o `await` do handle 2 podia ler o
+     * retorno do handle 1 (reproduzido 3/120: `11|11`/`2|2` em vez de
+     * `2|11`). Correção: o retorno vive na `Frame` (per-invocação/per-thread)
+     * — `KofInterpreterFrame.Frame.returnValue`. Com 25 tasks concorrentes,
+     * antes do fix a probabilidade de colisão por run era alta; depois do fix
+     * cada await devolve SEMPRE o valor da sua task (determinístico).
+     */
+    @Test
+    void concurrentAwaitReturnsOwnTaskResult(@TempDir Path tmp) throws Exception {
+        for (int i = 0; i < 8; i++) {
+            Path dir = Files.createDirectories(tmp.resolve("run" + i));
+            StringBuilder tasks = new StringBuilder();
+            StringBuilder awaits = new StringBuilder();
+            for (int t = 0; t < 25; t++) {
+                tasks.append("    var h").append(t).append(" = spawn calc(").append(t).append(")\n");
+                awaits.append("    if (await h").append(t).append(" != ").append(t * 100 + 7)
+                        .append(") { throw \"race: h").append(t).append(" != ").append(t * 100 + 7)
+                        .append("\" }\n");
+            }
+            Path f = dir.resolve("Main.kf");
+            Files.writeString(f, """
+                    Int calc(Int x) {
+                        return x * 100 + 7
+                    }
+                    main() {
+                    %s
+                    %s
+                        println("ok")
+                    }
+                    """.formatted(tasks, awaits));
+            var r = KofScript.runFile(f, dev.kof.compiler.Target.JVM);
+            assertTrue(r.success(), "run " + i + " falhou (await devolveu valor da task errada?): " + r.stderr());
+            assertEquals("ok", r.stdout().trim(), "run " + i + ": " + r.stdout());
+        }
+    }
 }

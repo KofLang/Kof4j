@@ -30,16 +30,21 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class ConformanceMatrixTest {
 
-    private final CompilerDriver driver = new CompilerDriver();
-
     private record TargetResult(int exit, String out) {}
 
     private static String norm(String s) {
         return s == null ? "" : s.replace("\r\n", "\n").trim();
     }
 
+    // Driver fresco por compilação: o CLI usa 1 driver por processo; reutilizar
+    // um driver (c/ spawn → sem spawn) vaza classes sintéticas LambdaTask e
+    // quebra o link Native (bug 51 — CompilerDriverState não reseta).
+    private CompilerDriver freshDriver() {
+        return new CompilerDriver();
+    }
+
     private TargetResult runJvm(Path source, Path outDir) throws IOException {
-        CompilationResult r = driver.compile(source, outDir, Target.JVM);
+        CompilationResult r = freshDriver().compile(source, outDir, Target.JVM);
         assertTrue(r.success(), "JVM compile: " + r.diagnostics().getDiagnostics());
         try {
             ProcessBuilder pb = new ProcessBuilder("java", "-cp", outDir.toString(), "Default.Main");
@@ -55,7 +60,7 @@ class ConformanceMatrixTest {
 
     private TargetResult runScript(Path source, Path dir) {
         try {
-            KofInterpreter.Result r = driver.interpret(List.of(source), dir, new String[0]);
+            KofInterpreter.Result r = freshDriver().interpret(List.of(source), dir, new String[0]);
             return new TargetResult(r.exitCode(), norm(r.stdout()));
         } catch (KofInterpretException e) {
             return new TargetResult(-1, "FRONTEND-ERR");
@@ -63,7 +68,7 @@ class ConformanceMatrixTest {
     }
 
     private TargetResult runNative(Path source, Path outDir) throws IOException {
-        CompilationResult r = driver.compile(source, outDir, Target.NATIVE);
+        CompilationResult r = freshDriver().compile(source, outDir, Target.NATIVE);
         assertTrue(r.success(), "Native compile: " + r.diagnostics().getDiagnostics());
         Path bin = outDir.resolve("Default/Main");
         assertTrue(Files.exists(bin), "binário deve existir");
@@ -80,7 +85,7 @@ class ConformanceMatrixTest {
     }
 
     private TargetResult runJs(Path source, Path outDir) throws IOException {
-        CompilationResult r = driver.compile(source, outDir, Target.JS);
+        CompilationResult r = freshDriver().compile(source, outDir, Target.JS);
         assertTrue(r.success(), "JS compile: " + r.diagnostics().getDiagnostics());
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         int ec = dev.kof.runtime.KofJsRunner.run(outDir.resolve("Default.mjs"), out,
@@ -540,5 +545,79 @@ class ConformanceMatrixTest {
                     println(l.get(1).x)
                 }
                 """, "2\n2", Set.of("script", "native"), tempDir);
+    }
+
+    // ===== Lote 3 — concorrência DETERMINÍSTICA (ordem garantida por await/
+    // FIFO; o order de fire-and-forget é NÃO-determinístico por design e fica
+    // em KofConcurrency2Test com asserções frouxas) =====
+
+    @Test
+    void conformanceConcurrencyDeterministic(@TempDir Path tempDir) throws IOException {
+        // ordem garantida: await bloqueia main até a task terminar.
+        matrix("spawnawait-fn", """
+                Int calc(Int x) {
+                    return x * 2
+                }
+                main() {
+                    var h = spawn calc(21)
+                    var v = await h
+                    println(v)
+                }
+                """, "42", Set.of(), tempDir);
+        // dois handles: cada await devolve o SEU resultado (ordem dos awaits).
+        matrix("spawnawait-two", """
+                Int calc(Int x) {
+                    return x + 1
+                }
+                main() {
+                    var h1 = spawn calc(1)
+                    var h2 = spawn calc(10)
+                    println(await h1)
+                    println(await h2)
+                }
+                """, "2\n11", Set.of(), tempDir);
+        // canal na MESMA thread: FIFO, ordem garantida, sem spawn.
+        matrix("channel-samethread", """
+                main() {
+                    val c = channel<Int>()
+                    c.send(5)
+                    c.send(6)
+                    var s = 0
+                    var i = 0
+                    while (i < 2) {
+                        s = s + c.receive()
+                        i++
+                    }
+                    println("s=" + s)
+                    val cs = channel<String>()
+                    cs.send("a")
+                    cs.send("b")
+                    println(cs.receive() + cs.receive())
+                }
+                """, "s=11\nab", Set.of(), tempDir);
+        // canal + spawn (send na task): JVM/Script/JS dão 42.
+        // PARTIAL: bug 50 (Native SIGSEGV — futex do canal fora da thread
+        // principal; isolado: canal sem spawn OK, spawn sem canal OK).
+        matrix("channel-spawn", """
+                main() {
+                    val c = channel<Int>()
+                    spawn {
+                        c.send(42)
+                    }
+                    val v = c.receive()
+                    println(v)
+                }
+                """, "42", Set.of("native"), tempDir);
+        matrix("channel-spawn-two", """
+                main() {
+                    val c = channel<Int>()
+                    spawn {
+                        c.send(1)
+                        c.send(2)
+                    }
+                    println(c.receive())
+                    println(c.receive())
+                }
+                """, "1\n2", Set.of("native"), tempDir);
     }
 }

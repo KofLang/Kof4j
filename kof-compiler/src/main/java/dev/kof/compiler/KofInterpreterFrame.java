@@ -29,6 +29,10 @@ public final class KofInterpreterFrame {
         final Deque<TryRegion> tryStack = new ArrayDeque<>();
         Object[] locals;
         int pc;
+        // valor de retorno desta invocação — per-frame (NÃO campo do
+        // interpretador: duas threads de spawn concorrentes sobrescreveriam
+        // um lastReturned compartilhado e await devolvia o resultado do outro)
+        Object returnValue;
         Frame(List<KofOperation> ops) { this.ops = ops; }
     }
 

@@ -12,9 +12,12 @@
 >
 > Targets: **JVM** (bytecode compilado), **Native** (x86_64 ELF; riscv64/
 > aarch64 via qemu = follow-up), **Script** (interpretador de IR — o alvo
-> de execução direta), **KofJS** (GraalJS). Casos determinísticos apenas
-> (sem tempo real/concorrência — esses têm testes próprios: SpawnE2ETest,
-> KofTimeE2ETest, KofMqE2ETest).
+> de execução direta), **KofJS** (GraalJS). Casos determinísticos apenas:
+> (a) linguagem sem efeito colateral; (b) concorrência com ordem garantida
+> por `await`/FIFO (lote 3). O que tem ordem NÃO-garantida (fire-and-forget
+> sem `await`) e o que depende de tempo real (sleep/interval) ficam em
+> `KofConcurrency2Test`/`KofTimeE2ETest`/`KofMqE2ETest` com asserções
+> frouxas — não entram na matriz.
 
 ## Matriz (lote 1 — linguagem core)
 
@@ -70,6 +73,31 @@
 > faz `Class.forName`, mas no interpretador a classe Kof é `KofObj`. Corrigido
 > em `KofInterpreterRuntime.decodeKofValue` (espelha `encodeKof`). O caso
 > `jsondec-record` passou de PARTIAL(Script) → DONE.
+
+## Matriz (lote 3 — concorrência DETERMINÍSTICA)
+
+> Casos de `spawn`/`await`/`channel` onde a ordem é garantida (await
+> bloqueia; FIFO na mesma thread). O **fire-and-forget** sem `await` é
+> NÃO-determinístico por design (ordem de agendamento) e fica em
+> `KofConcurrency2Test` com asserções frouxas — não entra na matriz.
+
+| Feature | Saída esperada | JVM | Native | Script | KofJS | Caso |
+|---|---|---|---|---|---|---|
+| `spawn fn` + `await` (resultado) | `42` | DONE | DONE | DONE | DONE | `spawnawait-fn` |
+| 2 handles: cada `await` devolve o SEU | `2` / `11` | DONE | DONE | DONE (fix race 07/09) | DONE | `spawnawait-two` |
+| channel mesma-thread (FIFO Int+String) | `s=11` / `ab` | DONE | DONE | DONE | DONE | `channel-samethread` |
+| channel send-em-spawn + receive | `42` | DONE | PARTIAL (bug 50: SIGSEGV) | DONE | DONE | `channel-spawn` |
+| channel 2 sends em spawn + 2 receives | `1` / `2` | DONE | PARTIAL (bug 50) | DONE | DONE | `channel-spawn-two` |
+
+> **Fix race 07/09 (lane interpreter):** `KofInterpreter.lastReturned` era um
+> ÚNICO campo de instância sobrescrito por cada `KofReturn`; com 2 `spawn`
+> concorrentes (virtual threads) o `await` do handle 2 podia ler o retorno do
+> handle 1 (reproduzido 3/120: `11|11`/`2|2`). Correção: retorno vive na
+> `KofInterpreterFrame.Frame.returnValue` (per-invocação/per-thread). Prova
+> `KofScriptTest.concurrentAwaitReturnsOwnTaskResult` (25 tasks × 8 runs).
+> **Bug 51** (vazamento de estado de `CompilerDriver` reutilizado → link
+> Native quebrado) descoberto durante o lote 3: o teste usa driver fresco por
+> caso (como o CLI — 1 processo/compilação).
 
 ## Notas de método
 
