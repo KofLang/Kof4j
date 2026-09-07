@@ -111,14 +111,27 @@ FunctionSyntaxTest 12; suíte21 957+8+5+8, 0 falhas
   `KofInterpreterParityTest` 16/16 + `KofScriptTest` 15/15 + suíte 973/0/3-skip.
   Fix de flake no MEU teste de channel (ordem `recv:42` vs `post-send` é
   corrida genuína; só `pre-send` < `recv:42` é garantido).
+  **VARREDURA DE PARIDADE FEITA (06/09, `0ba58fc`)**: bateria honesta de
+  edge-cases interpretado-vs-compilado (grupo A: 25 casos paridade
+  byte-idêntica obrigatória; grupo B: interpretador oráculo onde o compilado
+  tem VerifyError). **ACHADO + CORRIGIDO**: campo estático por nome simples
+  em método estático baixava `LoadLocal(0)+LoadField/StoreField` (this
+  inexistente) → VerifyError no compilado / recv-null no interpretador;
+  consertado nos 2 lowerers (GETSTATIC/PUTSTATIC, com `+=`). **REGISTRADOS
+  bugs 35–40** (known-bugs.md, lane lowering — regra 6): boxing de
+  `contains(int)`, `null==null`→if_icmpeq, `case Int` primitivo, re-throw
+  aninhado (slot errado), `println` de null de Map, `+=` em campo de
+  instância. ⚠️ O sweep commitado antes (`830259d`) passou em FALSO (sintaxe
+  inválida — ambos os caminhos falhavam iguais); reescrito com diretório por
+  caso + newline + sintaxe real. Suíte pós-fix 973+17+5+4, 0 falhas.
   **PRÓXIMO PASSO (minha lane)**: (a) `spawn func(arg)` com captura de
   argumento (bug #29 — VerifyError no JVM compilado também, NÃO é do
   interpretador; precisa de decisão de lowering, regra 6 → gap/plano);
   (b) ~~bug 34~~ **FEITO pelo outro agente** (`ccaf7a6`: SEM025 p/ método
-  desconhecido em List/Map/Set — nunca chega ao interpretador); (c) varredura
-  de paridade interpretado vs JVM nos 3 targets (JS/Native ainda no caminho
-  compilado — confirmar que runFileCompiled cobre). Provas: testes E2E por
-  item + suíte verde.
+  desconhecido em List/Map/Set — nunca chega ao interpretador); (c) bugs
+  35–40 registrados — correção é decisão de lowering (regra 6), NÃO minha;
+  (d) varredura de paridade nos targets JS/Native (ainda caminho compilado).
+  Provas: testes E2E por item + suíte verde.
 
 
 **PRÓXIMA TAREA (maior valor)**: **bug 33 CORRIGIDO** (`df2ffdd`, 06/09) —
