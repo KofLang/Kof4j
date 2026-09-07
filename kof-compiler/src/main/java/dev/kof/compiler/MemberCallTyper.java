@@ -89,6 +89,18 @@ final class MemberCallTyper {
                 TypeChecker.checkArgTypes(sa.diagnostics(), mc.methodName(), argTypes, ms.parameterTypes());
                 return ms.returnType();
             }
+            // P0 #6: super.metodoInexistente() — mesma regra da classe:
+            // SEM025 e depois UNKNOWN (error recovery). Excetos: Object
+            // methods e superclasse EXTERNA (android.*), cuja hierarquia
+            // completa não está no allClasses (super.onCreate é legítimo).
+            if (sa.diagnostics() != null
+                    && sa.allClasses().containsKey(superName)
+                    && !MemberResolver.isObjectMethod(mc.methodName(), mc.arguments().size())) {
+                sa.diagnostics().error("", 0, 0, 0,
+                        "Cannot resolve method '" + mc.methodName()
+                                + "' in superclass '" + superName + "'",
+                        "SEM025");
+            }
             return Type.UnknownType.UNKNOWN;
         }
         Type recvType = SemExpressionTyper.inferType(sa, mc.receiver(), scope);
@@ -177,14 +189,14 @@ final class MemberCallTyper {
                 }
                 return dbCall.returnType();
             }
-            return Type.UnknownType.UNKNOWN;
+            return unknownNamespaceMethod(sa, "db", mc.methodName());
         }
         if (mc.receiver() instanceof IdentifierExpr rid && !SemExpressionTyper.isLocalName(scope, rid.name()) && KofLog.isLogNamespace(rid.name())) {
             List<Type> argTypes = new ArrayList<>();
             for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
             KofLog.LogCall logCall = KofLog.staticCall(mc.methodName(), argTypes);
             if (logCall != null) return logCall.returnType();
-            return Type.UnknownType.UNKNOWN;
+            return unknownNamespaceMethod(sa, "log", mc.methodName());
         }
         if (mc.receiver() instanceof IdentifierExpr rid && !SemExpressionTyper.isLocalName(scope, rid.name()) && KofOrm.isOrmNamespace(rid.name())) {
             List<Type> argTypes = new ArrayList<>();
@@ -208,7 +220,7 @@ final class MemberCallTyper {
                 }
                 return ormCall.returnType();
             }
-            return Type.UnknownType.UNKNOWN;
+            return unknownNamespaceMethod(sa, "orm", mc.methodName());
         }
         if (mc.receiver() instanceof IdentifierExpr rid && "process".equals(rid.name())
                 && !SemExpressionTyper.isLocalName(scope, rid.name())) {
@@ -230,63 +242,63 @@ final class MemberCallTyper {
             for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
             KofConfig.ConfigCall cfgCall = KofConfig.staticCall(mc.methodName(), argTypes);
             if (cfgCall != null) return cfgCall.returnType();
-            return Type.UnknownType.UNKNOWN;
+            return unknownNamespaceMethod(sa, "config", mc.methodName());
         }
         if (mc.receiver() instanceof IdentifierExpr rid && !SemExpressionTyper.isLocalName(scope, rid.name()) && KofCache.isCacheNamespace(rid.name())) {
             List<Type> argTypes = new ArrayList<>();
             for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
             KofCache.CacheCall cacheCall = KofCache.staticCall(mc.methodName(), argTypes);
             if (cacheCall != null) return cacheCall.returnType();
-            return Type.UnknownType.UNKNOWN;
+            return unknownNamespaceMethod(sa, "cache", mc.methodName());
         }
         if (mc.receiver() instanceof IdentifierExpr rid && !SemExpressionTyper.isLocalName(scope, rid.name()) && KofGpu.isGpuNamespace(rid.name())) {
             List<Type> argTypes = new ArrayList<>();
             for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
             KofGpu.GpuCall gpuCall = KofGpu.staticCall(mc.methodName(), argTypes);
             if (gpuCall != null) return gpuCall.returnType();
-            return Type.UnknownType.UNKNOWN;
+            return unknownNamespaceMethod(sa, "gpu", mc.methodName());
         }
         if (mc.receiver() instanceof IdentifierExpr rid && !SemExpressionTyper.isLocalName(scope, rid.name()) && KofHttp.isHttpNamespace(rid.name())) {
             List<Type> argTypes = new ArrayList<>();
             for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
             KofHttp.HttpCall httpCall = KofHttp.staticCall(mc.methodName(), argTypes);
             if (httpCall != null) return httpCall.returnType();
-            return Type.UnknownType.UNKNOWN;
+            return unknownNamespaceMethod(sa, "http", mc.methodName());
         }
         if (mc.receiver() instanceof IdentifierExpr rid && !SemExpressionTyper.isLocalName(scope, rid.name()) && KofMq.isMqNamespace(rid.name())) {
             List<Type> argTypes = new ArrayList<>();
             for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
             KofMq.MqCall mqCall = KofMq.staticCall(mc.methodName(), argTypes);
             if (mqCall != null) return mqCall.returnType();
-            return Type.UnknownType.UNKNOWN;
+            return unknownNamespaceMethod(sa, "mq", mc.methodName());
         }
         if (mc.receiver() instanceof IdentifierExpr rid && !SemExpressionTyper.isLocalName(scope, rid.name()) && KofTime.isTimeNamespace(rid.name())) {
             List<Type> argTypes = new ArrayList<>();
             for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
             KofTime.TimeCall timeCall = KofTime.staticCall(mc.methodName(), argTypes);
             if (timeCall != null) return timeCall.returnType();
-            return Type.UnknownType.UNKNOWN;
+            return unknownNamespaceMethod(sa, "time", mc.methodName());
         }
         if (mc.receiver() instanceof IdentifierExpr rid && !SemExpressionTyper.isLocalName(scope, rid.name()) && KofSecurity.isSecurityNamespace(rid.name())) {
             List<Type> argTypes = new ArrayList<>();
             for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
             KofSecurity.SecCall secCall = KofSecurity.staticMethod(rid.name(), mc.methodName(), argTypes);
             if (secCall != null) return secCall.returnType();
-            return Type.UnknownType.UNKNOWN;
+            return unknownNamespaceMethod(sa, rid.name(), mc.methodName());
         }
         if (mc.receiver() instanceof IdentifierExpr rid && !SemExpressionTyper.isLocalName(scope, rid.name()) && KofValidation.isValidationNamespace(rid.name())) {
             List<Type> argTypes = new ArrayList<>();
             for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
             KofValidation.ValidationCall vCall = KofValidation.staticMethod(rid.name(), mc.methodName(), argTypes);
             if (vCall != null) return vCall.returnType();
-            return Type.UnknownType.UNKNOWN;
+            return unknownNamespaceMethod(sa, rid.name(), mc.methodName());
         }
         if (mc.receiver() instanceof IdentifierExpr rid && !SemExpressionTyper.isLocalName(scope, rid.name()) && KofObservability.isObservabilityNamespace(rid.name())) {
             List<Type> argTypes = new ArrayList<>();
             for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
             KofObservability.ObservabilityCall oCall = KofObservability.staticMethod(rid.name(), mc.methodName(), argTypes);
             if (oCall != null) return oCall.returnType();
-            return Type.UnknownType.UNKNOWN;
+            return unknownNamespaceMethod(sa, rid.name(), mc.methodName());
         }
         if (mc.receiver() instanceof IdentifierExpr rid && !SemExpressionTyper.isLocalName(scope, rid.name()) && KofTetris.isTetrisNamespace(rid.name())) {
             KofTetris.TetrisCall tetrisCall = KofTetris.staticMethod(rid.name(), mc.methodName(),
@@ -295,7 +307,7 @@ final class MemberCallTyper {
                 for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
                 return tetrisCall.returnType();
             }
-            return Type.UnknownType.UNKNOWN;
+            return unknownNamespaceMethod(sa, rid.name(), mc.methodName());
         }
         if (mc.receiver() instanceof IdentifierExpr rid && !SemExpressionTyper.isLocalName(scope, rid.name()) && KofMedia.isStaticNamespace(rid.name())) {
             KofMedia.MediaCall mediaCall = KofMedia.staticCall(rid.name(), mc.methodName(),
@@ -304,7 +316,7 @@ final class MemberCallTyper {
                 for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
                 return mediaCall.returnType();
             }
-            return Type.UnknownType.UNKNOWN;
+            return unknownNamespaceMethod(sa, rid.name(), mc.methodName());
         }
         if (mc.receiver() instanceof IdentifierExpr rid && !SemExpressionTyper.isLocalName(scope, rid.name()) && KofWeb.isWebNamespace(rid.name())
                 && "app".equals(mc.methodName()) && mc.arguments().isEmpty()) {
@@ -322,14 +334,14 @@ final class MemberCallTyper {
             for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
             KofWeb.WebCall webCall = KofWeb.instanceMethod(mc.methodName(), argTypes);
             if (webCall != null) return webCall.returnType();
-            return Type.UnknownType.UNKNOWN;
+            return unknownNamespaceMethod(sa, "web.app", mc.methodName());
         }
         if (KofWeb.isSseConnectionType(recvType)) {
             List<Type> argTypes = new ArrayList<>();
             for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
             KofWeb.WebCall sseCall = KofWeb.sseConnectionMethod(mc.methodName(), argTypes);
             if (sseCall != null) return sseCall.returnType();
-            return Type.UnknownType.UNKNOWN;
+            return unknownNamespaceMethod(sa, "sse", mc.methodName());
         }
         if (KofMedia.isImageData(recvType) || KofMedia.isAudio(recvType)) {
             KofMedia.MediaCall mediaCall = KofMedia.isImageData(recvType)
@@ -398,5 +410,23 @@ final class MemberCallTyper {
         List<Type> argTypes = new ArrayList<>();
         for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
         return argTypes;
+    }
+
+    /**
+     * Invariante central de resolução (P0, R6): método inexistente em
+     * NAMESPACE builtin (db, log, http, mq, time, security, ...) ou tipo
+     * de plataforma (web.app/SseConnection). Regra única: primeiro SEM025,
+     * depois UNKNOWN para error recovery — UNKNOWN NUNCA declara método
+     * implícito. Todos os ramos de namespace passam aqui (não espalhar
+     * if(namespace) pelo typer).
+     */
+    private static Type unknownNamespaceMethod(SemanticAnalyzer sa, String ns,
+                                               String method) {
+        if (sa.diagnostics() != null) {
+            sa.diagnostics().error("", 0, 0, 0,
+                    "Cannot resolve method '" + method + "' on namespace '" + ns + "'",
+                    "SEM025");
+        }
+        return Type.UnknownType.UNKNOWN;
     }
 }

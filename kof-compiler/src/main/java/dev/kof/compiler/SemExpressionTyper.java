@@ -308,6 +308,22 @@ final class SemExpressionTyper {
                             yield ExternalClasspath.typeFromDescriptor(desc);
                         }
                     }
+                    // P0 #3: campo inexistente em classe conhecida nao pode
+                    // mascarar com UNKNOWN (mesma regra SEM025 do metodo) —
+                    // erro primeiro, depois UNKNOWN p/ error recovery.
+                    // Excecoes: constante de enum (Color.Red e FieldAccess)
+                    // e metodos de Object (nao sao campos).
+                    boolean isKnownReceiver = sa.allClasses().containsKey(ct.name())
+                            || sa.isExternal(ct);
+                    boolean isEnumConstant = MemberResolver
+                            .enumConstantOfExpr(sa.unit(), fa) != null;
+                    if (sa.diagnostics() != null && isKnownReceiver && !isEnumConstant
+                            && !MemberResolver.isObjectMethod(fa.fieldName(), 0)) {
+                        sa.diagnostics().error("", 0, 0, 0,
+                                "Cannot resolve field '" + fa.fieldName()
+                                        + "' on type '" + ct.name() + "'",
+                                "SEM025");
+                    }
                 }
                 yield Type.UnknownType.UNKNOWN;
             }
