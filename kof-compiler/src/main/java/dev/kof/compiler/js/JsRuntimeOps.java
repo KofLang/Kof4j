@@ -138,6 +138,7 @@ void handleRuntimeOp(MethodCtx ctx, List<Object> stack,
                 || name.equals("kof_ui_label_text") || name.equals("kof_ui_label_remove")
                 || name.equals("kof_ui_button_set_text") || name.equals("kof_ui_button_text")
                 || name.equals("kof_ui_button_remove") || name.equals("kof_ui_input_set_text")
+                || name.equals("kof_ui_input_set_placeholder")
                 || name.equals("kof_ui_input_text") || name.equals("kof_ui_input_remove")
                 || name.equals("kof_ui_view_remove") || name.equals("kof_ui_window_set_theme")
                 || name.equals("kof_ui_window_set_size")

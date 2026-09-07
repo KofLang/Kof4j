@@ -226,6 +226,7 @@ public final class KofUi {
             return switch (name) {
                 case "text" -> argCount == 0 ? new UiCall("kof_ui_input_text", STR, List.of()) : null;
                 case "setText" -> argCount == 1 ? new UiCall("kof_ui_input_set_text", Type.PrimitiveType.VOID, List.of(STR)) : null;
+                case "setPlaceholder" -> argCount == 1 ? new UiCall("kof_ui_input_set_placeholder", Type.PrimitiveType.VOID, List.of(STR)) : null;
                 case "remove" -> argCount == 0 ? new UiCall("kof_ui_input_remove", Type.PrimitiveType.VOID, List.of()) : null;
                 default -> null;
             };

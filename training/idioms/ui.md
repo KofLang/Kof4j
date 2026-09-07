@@ -60,3 +60,23 @@ c.clearRect(0, 0, 400, 300)
 ```
 
 **Por quê:** `clearRect` é eficiente e preserva o elemento DOM.
+
+## Forms: input com placeholder
+
+**BAD — sem o idiom, o input nasce sem dica de entrada (placeholder é do
+widget, não da aplicação):**
+```kof
+// ❌ NÃO — input sem placeholder; a dica de uso fica no código, não na UI
+var campo = Input("")
+```
+
+**GOOD — `Input.setPlaceholder`:**
+```kof
+// ✅ IDIOMÁTICO — placeholder declarativo no widget
+var campo = Input("")
+campo.setPlaceholder("digite aqui")
+```
+
+**Por quê:** `setPlaceholder` é o atributo do widget (renderiza
+`placeholder="..."` no DOM do KofJS). Usar string vazia ou esconder a dica
+na aplicação é reimplementar uma feature da plataforma (R2).

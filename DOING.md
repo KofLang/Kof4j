@@ -141,11 +141,19 @@ reuso). **Prova E2E Cenário A (I2)**: app real `web.app()` + `serveDir` →
   (P0)**. KofJS (browser) = target real de DOM (widgets/router/canvas/store
   ok); faltam elementos (table/textarea/form), atributos (id/placeholder/
   disabled), style declarativo → UI003-7 (P1/P2). JVM no-op é design
-  documentado (não bug). **PRÓXIMO PASSO (Fase 4, minha lane)**:
-  **UI001+UI002 (P0, R6)** — diagnóstico claro quando `kof.ui` é usado em
-  Native/Script (gate no backend: "kof.ui não renderiza em <target>; use
-  kofjs/android [UI00x]"); teste por target (snippet kof.ui em native+script
-  → exigir diagnóstico, nunca no-op silencioso). **NÃO quebrar**:
+  documentado (não bug). **UI001/UI002 = DECISÃO DE DESIGN (regra 6)**:
+  erro em Native/Script quebraria retrocompatibilidade (hoje compila+roda
+  no-op) → registrado no audit p/ o maintainer; não é edição unilateral.
+  **UI004/5 FORMS — `Input.setPlaceholder` FEITO (este commit)**: aditivo,
+  5 pontos (registry `KofUi.instanceMethod`, whitelist `JsRuntimeOps`, impl
+  `JsRuntimeUiWidgets.kofUiInputSetPlaceholder`, stub no-op JVM
+  `JvmRuntimeUi` + Native `RuntimeUi` [preserva no-op]). **Prova**:
+  `KofJsBrowserE2ETest.inputPlaceholderRendersInRealBrowserDom` — Chrome
+  headless, DOM contém `placeholder="digite aqui"`; suíte 1086/0/64-skip.
+  **PRÓXIMO PASSO (Fase 4, minha lane)**: continuar UI003/4/5 forms —
+  `Input` tipo number/checkbox/select, `<form>`/submit, atributos
+  id/class/alt (mesmo padrão de 5 pontos + teste browser); depois UI007
+  style declarativo. **NÃO quebrar**:
   microsserviços (kof.http/kof.web/CmdServe), PKG002/4/5 (congelados), lanes
   `NativeBackend.java`/`KofInterpreter*`.
 

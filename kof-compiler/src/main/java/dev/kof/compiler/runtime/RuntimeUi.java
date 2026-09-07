@@ -189,6 +189,8 @@ public final class RuntimeUi {
                 ret
             kof_ui_input_set_text:
                 ret
+            kof_ui_input_set_placeholder:
+                ret
             kof_ui_input_text:
                 leaq .Lui_empty(%rip), %rdi
                 xorq %rsi, %rsi

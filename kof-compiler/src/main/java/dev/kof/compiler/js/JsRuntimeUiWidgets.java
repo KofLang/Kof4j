@@ -211,6 +211,12 @@ public final class JsRuntimeUiWidgets {
                 }
             }
 
+            export function kofUiInputSetPlaceholder(input, placeholder) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[input]) {
+                    window.__kofNodes[input].placeholder = placeholder;
+                }
+            }
+
             export function kofUiInputText(input) {
                 if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[input]) {
                     return window.__kofNodes[input].value;
