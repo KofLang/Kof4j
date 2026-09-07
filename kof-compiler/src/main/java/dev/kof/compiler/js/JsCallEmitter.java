@@ -54,7 +54,14 @@ void handleCall(MethodCtx ctx, List<Object> stack,
             throw new StatementEnd(new JsIr.JsCall(new JsIr.JsIdentifier(fn), List.of(value)));
         }
         if ("valueOf".equals(kc.methodName()) && kc.kind() == KofCallKind.STATIC) {
-            if (BuiltinTypes.isString(kc.ownerType())) {
+            if (!kc.parameterTypes().isEmpty()
+                    && kc.parameterTypes().get(0) instanceof Type.PrimitiveType cpt
+                    && "char".equals(Type.canonicalPrimitiveName(cpt.name()))) {
+                // String.valueOf(char) — caractere UTF-16 (paridade JVM/Native:
+                // "h", não o codepoint numérico). Ver known-bugs #27.
+                stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("String.fromCharCode"),
+                        List.of(args.get(0))));
+            } else if (BuiltinTypes.isString(kc.ownerType())) {
                 stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("String"), List.of(args.get(0))));
             } else if (!kc.parameterTypes().isEmpty()
                     && kc.parameterTypes().get(0) instanceof Type.PrimitiveType pt

@@ -466,7 +466,7 @@ EXTERNA produz lixo
 
 ---
 
-### 27. Paridade: `String.valueOf(char)` diverge entre JS e JVM/Native
+### 27. Paridade: `String.valueOf(char)` diverge entre JS e JVM/Native — ✅ CORRIGIDO 07/09
 
 - **Sintoma:** `String.valueOf(104 as Char)` devolve `"h"` no JVM e no Native,
   mas `"104"` no JS. `println(char)` é numérico (`72`) nos 3 targets (congelado
@@ -486,6 +486,7 @@ EXTERNA produz lixo
   não de correção silenciosa. Registrado como gap até lá.
 - **Arquivos:** `JsBackend.java` (dispatch de `valueOf`), `CompilerDriver.java`
   (lowering nativo char→Int para println).
+- **Corrigido 07/09:** `JsCallEmitter` valueOf(char) → `String.fromCharCode` (paridade JVM/Native "h"). Prova: `CoreRegressionE2ETest.stringValueOfCharParity` (3 targets).
 - **Descoberto:** 05/09 ao corrigir a regressão de `println(char)` (commit
   `94aca7a`).
 

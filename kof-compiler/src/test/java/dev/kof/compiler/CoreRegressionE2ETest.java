@@ -384,6 +384,18 @@ class CoreRegressionE2ETest {
                 """, "8\n5\n1\n30\n15\n10\n10", tempDir, "compound-order");
     }
 
+    // known-bugs #27 — String.valueOf(char) parity: JVM/Native return the UTF-8
+    // char ("h"); JS was returning the numeric codepoint ("104"). Now aligned.
+    @Test
+    void stringValueOfCharParity(@TempDir Path tempDir) throws IOException {
+        runBoth("""
+                main() {
+                    println(String.valueOf(104 as Char))
+                    println(String.valueOf(72 as Char))
+                }
+                """, "h\nH", tempDir, "string-valueof-char");
+    }
+
     // known-bugs #5/#24 — FP→Int/Long casts and Double→Float narrowing were
     // missing conversion ops → invalid bytecode (ClassFormatError). Now D2I/
     // F2I/D2L/F2L (truncate toward zero) and D2F are emitted.
