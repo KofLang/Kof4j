@@ -25,6 +25,36 @@ if (ae.target() instanceof IdentifierExpr ie && !owner.isEmpty()) {
                 || (fieldSym instanceof SymbolTable.MethodSymbol ms
                         && ms.parameterTypes().isEmpty()))) {
             Type ownerType = CompilerTypes.ownerTypeFromInternal(owner, driver.semanticAnalyzer);
+            // campo ESTÁTICO por nome simples (ex.: `count = count + 1` em
+            // bump()): GETSTATIC/PUTSTATIC — sem this (LoadLocal(0) quebraria
+            // método estático: aload_0 sem receiver).
+            if (fieldSym instanceof SymbolTable.FieldSymbol fsStatic
+                    && (fsStatic.accessFlags() & AccessFlags.STATIC) != 0) {
+                String sop = ae.operator();
+                boolean compound = "+=".equals(sop) || "-=".equals(sop) || "*=".equals(sop)
+                        || "/=".equals(sop) || "%=".equals(sop) || "&=".equals(sop)
+                        || "|=".equals(sop) || "^=".equals(sop);
+                if (compound) {
+                    ops.add(new KofGetStatic(ownerType, ie.name(), fsStatic.type()));
+                }
+                localIdx = ExpressionLowerer.emitExpression(driver, ae.value(), ops, owner, localIdx, locals);
+                if (compound) {
+                    KofBinaryOp binOp = switch (sop) {
+                        case "+=" -> KofBinaryOp.ADD;
+                        case "-=" -> KofBinaryOp.SUB;
+                        case "*=" -> KofBinaryOp.MUL;
+                        case "/=" -> KofBinaryOp.DIV;
+                        case "%=" -> KofBinaryOp.MOD;
+                        case "&=" -> KofBinaryOp.AND;
+                        case "|=" -> KofBinaryOp.OR;
+                        case "^=" -> KofBinaryOp.XOR;
+                        default -> KofBinaryOp.ADD;
+                    };
+                    ops.add(new KofBinary(binOp, fsStatic.type()));
+                }
+                ops.add(new KofPutStatic(ownerType, ie.name(), fsStatic.type()));
+                return localIdx;
+            }
             ops.add(new KofLoadLocal(ownerType, 0));
             String op = ae.operator();
             if ("+=".equals(op) || "-=".equals(op) || "*=".equals(op)

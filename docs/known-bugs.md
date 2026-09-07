@@ -684,6 +684,86 @@ EXTERNA produz lixo
 
 ---
 
+### 35. `listOf().contains(1)` → VerifyError no compilado (int não boxea) — ABERTO
+
+- **Sintoma:** `var l = listOf(); l.contains(1)` compila; no caminho
+  **compilado** o JVM rejeita o bytecode: `VerifyError: Bad type on operand
+  stack — Type integer is not assignable to 'java/lang/Object'` no
+  `invokevirtual ArrayList.contains`. O interpretador funciona (devolve
+  `false`).
+- **Causa raiz (diagnosticada 06/09):** `JvmOpCollections.emitListCall`
+  (ramo `kof_list_contains`) não emite `Integer.valueOf` para argumento
+  primitivo — empilha `int` direto onde `Object` é esperado.
+- **Esperado:** boxing do argumento (paridade com o interpretador: `false`).
+- **Prova/repro:** `KofScriptTest.interpreterCorrectWhereCompiledCrashes`
+  (caso `empty-list`) trava a saída correta do interpretador.
+- **Lane:** lowering/emit JVM (outro agente). Registrado pela varredura de
+  paridade do interpretador 06/09.
+
+### 36. `null == null` baixa `if_icmpeq` → VerifyError no compilado — ABERTO
+
+- **Sintoma:** `var a = null; var b = null; println(a == b)` compila; no
+  caminho **compilado**: `VerifyError: Type null is not assignable to
+  integer` (o `==` baixou comparação de inteiros). Interpretador: `true/false`
+  corretos.
+- **Causa raiz:** o typer do `==` não classifica locals inicializados com
+  `null` literal como referência → `KofConditionalJump` sai com
+  `operandType` primitivo e o emitter escolhe `if_icmpeq`.
+- **Esperado:** `if_acmpeq` (referências).
+- **Prova/repro:** caso `null-eq` no mesmo teste.
+
+### 37. `case Int n` em switch de primitivo → `KofInstanceOf[PrimitiveType]` — ABERTO
+
+- **Sintoma:** `switch (o) { case Int n -> ... }` com `o: Int`: compilado →
+  `VerifyError: Type integer is not assignable to 'java/lang/Object'`
+  (`instanceof` sobre primitivo é ilegal no JVM); interpretador → sempre
+  `false` (cai no `default`, imprime "other" em vez de "int:42").
+- **Causa raiz:** `SwitchExprLowerer` emite `KofInstanceOf` para todo
+  `case Tipo x:` sem boxar o scrutinee primitivo nem mapear `Int/Bool/...`
+  para um teste de tipo válido.
+- **Esperado:** boxar o scrutinee (ou teste direto de tipo estático) — o
+  caso deve casar. **Ambos os caminhos errados** (interpretador silencia).
+- **Prova/repro:** caso `pattern-match` (sweep manual 06/09; não travado no
+  teste porque o interpretador também está errado — aguarda decisão de
+  lowering na lane do outro agente).
+
+### 38. Re-throw em catch de try aninhado → handler externo lê slot errado — ABERTO
+
+- **Sintoma:** `try { try { throw "inner" } catch (String e) { throw "outer" } }
+  catch (String e) { println(e) }`: compilado → `VerifyError: Bad local
+  variable type` no handler externo; interpretador → imprime `inner` duas
+  vezes (o handler externo lê o slot do catch interno).
+- **Causa raiz:** lowering de `catch (String e)` aloca o slot do excector por
+  `excLocalIndex` sem considerar try aninhados — o handler externo recebe
+  `localIndex` sobreposto/errado (IR: op 24 `KofCatchStart[localIndex=1]`
+  mas o corpo lê `LoadLocal(2)`).
+- **Esperado:** `inner` + `outer` (semântica JVM de exception table).
+- **Prova/repro:** caso `nested-try` (sweep manual 06/09).
+
+### 39. `println(m.get("zz"))` (null de Map) → NPE/unbox errado nos 2 caminhos — ABERTO
+
+- **Sintoma:** `var m = mapOf("a", 1); println(m.get("zz"))`: compilado →
+  `NullPointerException` (escolheu overload `println(int)` e deu unbox de
+  null); interpretador → `NoSuchMethodError: Integer.valueOf/1` (escolheu
+  `valueOf(int)` para um null). Esperado: imprimir `null`.
+- **Causa raiz:** seleção de overload de `println` sobre `V?` (nullable de
+  genérico de coleção) resolve para o ramo primitivo.
+- **Prova/repro:** caso `map-null-val` (sweep manual 06/09).
+
+### 40. `n += 1` em campo de instância → crash nos 2 caminhos — ABERTO
+
+- **Sintoma:** `class Box { Int n; Int inc() { n += 1; return n } }` →
+  interpretador: `NoSuchElementException` (pilha vazia); compilado:
+  "frame crash em Box.inc: Index -1 out of bounds for length 0". Verificado
+  **pré-existente** (falha igual sem o fix de static-field de 06/09).
+- **Causa raiz (parcial):** `ExpressionAssignmentLowerer` ramo não-estático
+  faz `LoadLocal(0)` (this) mesmo em método sem receiver mapeado — o mesmo
+  padrão do bug 35-38 (this/local desalinhado em método com `owner` mas
+  lowering de `this` inconsistente).
+- **Prova/repro:** probe manual 06/09 (caso `inst`).
+
+---
+
 ## Comportamentos que PAREcem bugs mas são esperados (não corrigir)
 
 | Cenário | Comportamento | Por quê |

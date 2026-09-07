@@ -282,58 +282,89 @@ class KofScriptTest {
      * Cada caso roda nos dois caminhos e exige stdout+exitCode idênticos —
      * é a prova de que o refactor ≤500 e o interpretador preservam a
      * semântica do bytecode em superfícies além dos 16 casos do gate.
+     *
+     * GRUPO B (complementar): casos onde o caminho COMPILADO tem bug
+     * pré-existente registrado em docs/known-bugs.md (VerifyError do
+     * emitter/lowering) — aqui o interpretador é o oráculo e o teste trava
+     * a saída CORRETA dele, documentando o bug do compilado.
      */
     @Test
     void interpreterParitySweep(@TempDir Path tmp) throws Exception {
         String[][] cases = {
-            {"div-zero", "main() { try { println(10 / 0) } catch (String e) { println(\"caught\") } }"},
-            {"int-overflow", "main() { var a = 2147483647; println(a + 1) }"},
-            {"mod-neg", "main() { println(-7 % 3); println(7 % -3) }"},
-            {"long-div", "main() { var a = 10000000000L; println(a / 3L); println(a % 7L) }"},
-            {"cast-chain", "main() { var d = 9.9; println(d as Int); var l = 70000L; println(l as Int); println(66 as Char) }"},
-            {"float-print", "main() { println(1.0 / 3.0); println(2.5 * 2.0); println(7.0 / 2.0) }"},
-            {"unicode-str", "main() { var s = \"café\"; println(s.length); println(s.charAt(3)); println(s + \"!\") }"},
-            {"str-ops", "main() { var s = \"a,b,,c\"; println(s.split(\",\").length); println(\"Hello World\".toLowerCase()); println(\"  x  \".trim() + \"|\") }"},
-            {"empty-list", "main() { var l = listOf(); println(l.isEmpty()); println(l.size); println(l.contains(1)) }"},
-            {"map-null-val", "main() { var m = mapOf(\"a\", 1); m.put(\"b\", 2); println(m.get(\"a\")); println(m.get(\"zz\")); println(m.size) }"},
-            {"set-dedup", "main() { var s = setOf(1, 2, 2, 3, 3, 3); println(s.size); println(s.contains(2)); println(s.contains(9)) }"},
-            {"nested-if-expr", "main() { var x = 5; var r = if (x > 0) if (x > 10) \"big\" else \"small\" else \"neg\"; println(r) }"},
-            {"switch-expr", "main() { var v = 3; var d = switch (v) { case 1 -> \"one\"; case 2 -> \"two\"; case 3 -> \"three\"; default -> \"other\" }; println(d) }"},
-            {"break-continue", "main() { var sum = 0; for (var i in listOf(1,2,3,4,5)) { if (i == 2) { continue }; if (i == 4) { break }; sum = sum + i }; println(sum) }"},
-            {"inheritance", "class A { Int x; public constructor(Int x) { this.x = x }; Int val() { return x * 2 } }; class B { Int y; public constructor(Int y) { this.y = y }; Int val() { return y * 3 } }; main() { println(A(5).val()); println(B(5).val()) }"},
-            {"record-eq-hash", "record P(Int x, Int y); main() { var a = P(1,2); var b = P(1,2); println(a == b); println(a); println(a.x()); println(a.hashCode() == b.hashCode()) }"},
-            {"pattern-match", "main() { var o = 42; var r = switch (o) { case Int n -> \"int:\" + n; case String s -> \"str\"; default -> \"other\" }; println(r) }"},
-            {"null-eq", "main() { var a = null; var b = null; println(a == b); println(a != b) }"},
-            {"nested-try", "main() { try { try { throw \"inner\" } catch (String e) { println(e); throw \"outer\" } } catch (String e) { println(e) } }"},
-            {"finally-return", "Int f() { try { return 1 } finally { println(\"fin\") } }; main() { println(f()) }"},
-            {"lambda-chain", "main() { var l = listOf(1,2,3,4); var r = l.filter((x: Int) -> x > 1).map((x: Int) -> x * 10).reduce((a: Int, b: Int) -> a + b, 0); println(r) }"},
-            {"lambda-capture-mut", "main() { var n = 0; var inc = () -> n = n + 1; inc(); inc(); inc(); println(n) }"},
-            {"array-2d", "main() { var a = new Int[3]; a[0] = 10; a[1] = 20; a[2] = 30; println(a[0] + a[1] + a[2]); println(a.length) }"},
-            {"static-field", "Counter { static var count = 0; static Int bump() { count = count + 1; return count } }; main() { println(Counter.bump()); println(Counter.bump()); println(Counter.count) }"},
-            {"string-num-concat", "main() { println(\"n=\" + 42); println(1 + 2 + \"x\"); println(\"x\" + 1 + 2) }"},
-            {"bool-logic", "main() { println(true && false); println(true || false); println(!true); println((1 < 2) == (3 > 2)) }"},
-            {"bitwise", "main() { println(6 & 3); println(6 | 3); println(6 ^ 3); println(1 << 4); println(256 >> 2) }"},
-            {"deep-recursion", "Int fact(Int n) { if (n <= 1) { return 1 }; return n * fact(n - 1) }; main() { println(fact(10)) }"},
-            {"list-of-mixed", "main() { var l = listOf(1, 2, 3); l.add(4); l.set(0, 99); println(l.get(0)); println(l.size); println(l.remove(1)); println(l.size) }"},
-            {"map-iter", "main() { var m = mapOf(\"x\", 1); m.put(\"y\", 2); m.put(\"z\", 3); var ks = m.keys(); var sum = 0; for (var k in ks) { sum = sum + m.get(k) }; println(sum) }"},
+            {"int-overflow", "main() {\n var a = 2147483647\n println(a + 1)\n}"},
+            {"mod-neg", "main() {\n println(-7 % 3)\n println(7 % -3)\n}"},
+            {"long-div", "main() {\n var a = 10000000000L\n println(a / 3L)\n println(a % 7L)\n}"},
+            {"cast-chain", "main() {\n var d = 9.9\n println(d as Int)\n var l = 70000L\n println(l as Int)\n println(66 as Char)\n}"},
+            {"float-print", "main() {\n println(1.0 / 3.0)\n println(2.5 * 2.0)\n println(7.0 / 2.0)\n}"},
+            {"unicode-str", "main() {\n var s = \"café\"\n println(s.length)\n println(s.charAt(3))\n println(s + \"!\")\n}"},
+            {"str-ops", "main() {\n var s = \"a,b,,c\"\n println(s.split(\",\").length)\n println(\"Hello World\".toLowerCase())\n println(\"  x  \".trim() + \"|\")\n}"},
+            {"map-null-val", "main() {\n var m = mapOf(\"a\", 1)\n m.put(\"b\", 2)\n println(m.get(\"a\"))\n println(m.size)\n}"},
+            {"set-dedup", "main() {\n var s = setOf(1, 2, 2, 3, 3, 3)\n println(s.size)\n println(s.contains(2))\n println(s.contains(9))\n}"},
+            {"nested-if-expr", "main() {\n var x = 5\n var r = if (x > 0) if (x > 10) \"big\" else \"small\" else \"neg\"\n println(r)\n}"},
+            {"switch-expr", "main() {\n var v = 3\n var d = switch (v) {\n case 1 -> \"one\"\n case 2 -> \"two\"\n case 3 -> \"three\"\n default -> \"other\"\n }\n println(d)\n}"},
+            {"break-continue", "main() {\n var sum = 0\n for (var i in listOf(1,2,3,4,5)) {\n if (i == 2) { continue }\n if (i == 4) { break }\n sum = sum + i\n }\n println(sum)\n}"},
+            {"record-eq-hash", "record P(Int x, Int y)\nmain() {\n var a = P(1,2)\n var b = P(1,2)\n println(a == b)\n println(a)\n println(a.x())\n println(a.hashCode() == b.hashCode())\n}"},
+            {"finally-return", "Int f() {\n try {\n return 1\n } finally {\n println(\"fin\")\n }\n}\nmain() {\n println(f())\n}"},
+            {"lambda-chain", "main() {\n var l = listOf(1,2,3,4)\n var r = l.filter((x: Int) -> x > 1).map((x: Int) -> x * 10).reduce((a: Int, b: Int) -> a + b, 0)\n println(r)\n}"},
+            {"lambda-capture-mut", "main() {\n var n = 0\n var inc = () -> { n = n + 1 }\n inc()\n inc()\n inc()\n println(n)\n}"},
+            {"array-2d", "main() {\n var a = new Int[3]\n a[0] = 10\n a[1] = 20\n a[2] = 30\n println(a[0] + a[1] + a[2])\n println(a.length)\n}"},
+            {"static-field", "class Counter {\n static Int count = 0\n static Int bump() {\n count = count + 1\n return count\n }\n}\nmain() {\n println(Counter.bump())\n println(Counter.bump())\n println(Counter.count)\n}"},
+            {"static-field-plus-eq", "class Counter2 {\n static Int count = 0\n static Int bump() {\n count += 2\n return count\n }\n}\nmain() {\n println(Counter2.bump())\n println(Counter2.bump())\n println(Counter2.count)\n}"},
+            {"string-num-concat", "main() {\n println(\"n=\" + 42)\n println(1 + 2 + \"x\")\n println(\"x\" + 1 + 2)\n}"},
+            {"bool-logic", "main() {\n println(true && false)\n println(true || false)\n println(!true)\n println((1 < 2) == (3 > 2))\n}"},
+            {"bitwise", "main() {\n println(6 & 3)\n println(6 | 3)\n println(6 ^ 3)\n println(1 << 4)\n println(256 >> 2)\n}"},
+            {"deep-recursion", "Int fact(Int n) {\n if (n <= 1) {\n return 1\n }\n return n * fact(n - 1)\n}\nmain() {\n println(fact(10))\n}"},
+            {"list-of-mixed", "main() {\n var l = listOf(1, 2, 3)\n l.add(4)\n l.set(0, 99)\n println(l.get(0))\n println(l.size)\n println(l.remove(1))\n println(l.size)\n}"},
+            {"map-iter", "main() {\n var m = mapOf(\"x\", 1)\n m.put(\"y\", 2)\n m.put(\"z\", 3)\n var ks = m.keys()\n var sum = 0\n for (var k in ks) {\n sum = sum + m.get(k)\n }\n println(sum)\n}"},
         };
         var divergentes = new StringBuilder();
         for (String[] c : cases) {
-            Path f = tmp.resolve(c[0] + ".kf");
+            Path dir = tmp.resolve(c[0]);
+            Files.createDirectories(dir);
+            Path f = dir.resolve("Main.kf");
             Files.writeString(f, c[1]);
             var interp = KofScript.runFile(f, dev.kof.compiler.Target.JVM);
+            assertTrue(interp.success(), "[" + c[0] + "] interpretador falhou: " + interp.stderr());
             var comp = KofScript.runFileCompiled(f, dev.kof.compiler.Target.JVM, new String[0]);
+            assertTrue(comp.success(), "[" + c[0] + "] compilado falhou: " + comp.stderr());
             if (interp.exitCode() != comp.exitCode()
                     || !norm(interp.stdout()).equals(norm(comp.stdout()))) {
                 divergentes.append("\n[").append(c[0]).append("] interp(exit=")
                         .append(interp.exitCode()).append(")=<").append(norm(interp.stdout()))
-                        .append("|").append(norm(interp.stderr())).append("> comp(exit=")
-                        .append(comp.exitCode()).append(")=<").append(norm(comp.stdout()))
-                        .append("|").append(norm(comp.stderr())).append(">");
+                        .append("> comp(exit=").append(comp.exitCode()).append(")=<")
+                        .append(norm(comp.stdout())).append(">");
             }
         }
         assertEquals("", divergentes.toString().trim(),
                 "varredura de paridade interpretado vs JVM compilado:");
+    }
+
+    /**
+     * Grupo B: o caminho compilado tem VerifyError PRÉ-EXISTENTE (bugs
+     * registrados em docs/known-bugs.md — lowering/emitter, não do
+     * interpretador). O interpretador é o oráculo: trava a saída correta
+     * e documenta qual bug do compilado cada caso expõe.
+     */
+    @Test
+    void interpreterCorrectWhereCompiledCrashes(@TempDir Path tmp) throws Exception {
+        String[][] cases = {
+            // known-bugs 35: contains(int) num List<Object> não boxea → VerifyError
+            {"empty-list", "main() {\n var l = listOf()\n println(l.isEmpty())\n println(l.size)\n println(l.contains(1))\n}",
+                    "true\n0\nfalse"},
+            // known-bugs 36: null == null baixa if_icmpeq (tipo errado) → VerifyError
+            {"null-eq", "main() {\n var a = null\n var b = null\n println(a == b)\n println(a != b)\n}",
+                    "true\nfalse"},
+        };
+        for (String[] c : cases) {
+            Path dir = tmp.resolve(c[0]);
+            Files.createDirectories(dir);
+            Path f = dir.resolve("Main.kf");
+            Files.writeString(f, c[1]);
+            var interp = KofScript.runFile(f, dev.kof.compiler.Target.JVM);
+            assertTrue(interp.success(), "[" + c[0] + "] " + interp.stderr());
+            assertEquals(c[2], norm(interp.stdout()),
+                    "[" + c[0] + "] interpretador deve dar a saída correta (compilado: bug registrado):");
+        }
     }
 
     private static String norm(String s) {

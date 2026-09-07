@@ -76,8 +76,17 @@ final class ExpressionLowerer {
                     if (cs != null) {
                         SymbolTable.Symbol fieldSym = HierarchyResolver.resolveFieldInHierarchy(cs.name(), ie.name(), driver.semanticAnalyzer);
                         if (fieldSym instanceof SymbolTable.FieldSymbol fs) {
-                            ops.add(new KofLoadLocal(cs.type(), 0));
-                            ops.add(new KofLoadField(cs.type(), ie.name(), fs.type()));
+                            // campo ESTÁTICO acessado por nome simples (ex.:
+                            // `count` dentro de bump()): GETSTATIC — sem this.
+                            // Emitir LoadLocal(0)+LoadField quebrava método
+                            // estático (aload_0 sem this → VerifyError no
+                            // compilado, recv null no interpretador).
+                            if ((fs.accessFlags() & AccessFlags.STATIC) != 0) {
+                                ops.add(new KofGetStatic(cs.type(), ie.name(), fs.type()));
+                            } else {
+                                ops.add(new KofLoadLocal(cs.type(), 0));
+                                ops.add(new KofLoadField(cs.type(), ie.name(), fs.type()));
+                            }
                             yield localIdx;
                         } else if (fieldSym instanceof SymbolTable.MethodSymbol ms
                                 && ms.parameterTypes().isEmpty()) {
