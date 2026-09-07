@@ -98,23 +98,6 @@ List<JsIr.JsStatement> parseStatements(MethodCtx ctx, int[] pos,
      * The continue label of the enclosing for-loop: a label followed by the
      * update statements and the back-edge jump to the loop start.
      */
-boolean looksLikeContinueLabel(MethodCtx ctx, int[] pos, LabelId label) {
-        LoopCtx loop = ctx.currentLoop();
-        if (loop == null || label.equals(loop.start) || label.equals(loop.end)) return false;
-        for (int i = pos[0] + 1; i < ctx.ops.size(); i++) {
-            KofOperation op = ctx.ops.get(i);
-            if (op instanceof KofJump kj) {
-                return kj.target().equals(loop.start);
-            }
-            if (op instanceof KofLabel || op instanceof KofConditionalJump
-                    || op instanceof KofTryStart || op instanceof KofCatchStart
-                    || op instanceof KofReturn || op instanceof KofReturnVoid
-                    || op instanceof KofThrow) {
-                return false;
-            }
-        }
-        return false;
-    }
 
     /**
      * A label is a loop start when a later instruction jumps to it (back edge)
@@ -488,9 +471,7 @@ JsIr.JsStatement parseTryStatement(MethodCtx ctx, int[] pos) {
         }
         pos[0]++;
         List<JsIr.JsStatement> finallyBody = List.of();
-        // o label do finally é uma label nova da região do try — nunca um
-        // label do loop (ex.: o destino do catch no fim do try dentro de um
-        // for tem o continue label como próximo — não é um finally)
+        // o label do finally é novo da região do try — nunca do loop
         if (pos[0] < ctx.ops.size() && ctx.ops.get(pos[0]) instanceof KofLabel finallyStart
                 && !ctx.isLoopLabel(finallyStart.label())) {
             pos[0]++;
@@ -511,4 +492,8 @@ JsIr.JsStatement parseTryStatement(MethodCtx ctx, int[] pos) {
         }
         return new JsIr.JsTry(tryBody, catches, finallyBody);
     }
+    boolean looksLikeContinueLabel(MethodCtx ctx, int[] pos, LabelId continueLabel) {
+        return JsLabelParser.looksLikeContinueLabel(ctx, pos, continueLabel);
+    }
+
 }
