@@ -69,7 +69,7 @@
 | `String?` null safety básica | ✅ | ✅ | ✅ | 0.2.6-beta (`Type?`) |
 | `List map/filter/reduce` | ✅ | ✅ | ✅ | 0.2.6-beta |
 | `Box<T>` generic | ✅ | ✅ | ✅ | `substituteTypeVariable` |
-| `KofScript` top-level `let` → `KofScriptGlobals` | ✅ | ✅ | ✅ | `KofScript` 0.2.0 |
+| `KofScript` top-level `var`/`val` → `KofScriptGlobals` (execução direta via `KofInterpreter`) | ✅ | ✅ | ✅ | `KofScript` 0.3.0 |
 | `KofCcompiler` (`kof c`) C subset | — | ✅ x86_64 native-only | — | `kof_c`, while/if/deref &/* |
 | `native.risc` (riscv64) / `native.arm` (aarch64) | — | **core completo (02-03/09)**: plumbing + codegen/runtimes asm puro + qemu — `NativeRiscv64E2ETest 13/13` + `NativeAarch64E2ETest 13/13` (core: classes/arrays/List/switch/try-catch/pattern/Strings/recursão) — paridade avançada pendente — `docs/native-multiarch.md` | — | target separation 0.2.0 |
 | `kof fmt` (formatter parser real, idempotente) | ✅ 31/08 | ✅ | ✅ | `KofFormatter` (2c3e794) |

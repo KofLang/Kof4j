@@ -728,17 +728,23 @@ EXTERNA produz lixo
   (interpretador oráculo: `true\nfalse`; compilado: VerifyError).
 - **Registrado:** 06/09 (varredura de paridade do interpretador).
 
-### 37. `case Int n` em switch de primitivo → `KofInstanceOf[PrimitiveType]` — ABERTO
+### 37. `case Int n` em switch → `KofInstanceOf[PrimitiveType]` → VerifyError — ABERTO
 
+- **Escopo (refinado 06/09):** pattern matching com **referências** funciona
+  nos 2 caminhos (verificado: `case String s` → `str:oi`; `case Point(var x,
+  var y)` destructurando record → `3,4`). O bug é só **primitivo** (`case Int
+  n`), que **não está no corpus** (`training/idioms/control-flow.md` só
+  documenta `case String`/`case Point`).
 - **Sintoma:** `switch (o) { case Int n -> ... }` com `o: Int`: compilado →
   `VerifyError: Type integer is not assignable to 'java/lang/Object'`
   (`instanceof` sobre primitivo é ilegal no JVM); interpretador → sempre
-  `false` (cai no `default`, imprime "other" em vez de "int:42").
+  `false` (cai no `default`).
 - **Causa raiz:** `SwitchExprLowerer` emite `KofInstanceOf` para todo
-  `case Tipo x:` sem boxar o scrutinee primitivo nem mapear `Int/Bool/...`
-  para um teste de tipo válido.
-- **Esperado:** boxar o scrutinee (ou teste direto de tipo estático) — o
-  caso deve casar. **Ambos os caminhos errados** (interpretador silencia).
+  `case Tipo x:` sem boxar o scrutinee primitivo nem rejeitar tipo primitivo.
+- **Esperado (R6):** se `case Int` não é suportado, deve dar **SEM** em
+  compile-time (nunca VerifyError em runtime); se for suportado, boxar o
+  scrutinee e casar. **Ambos os caminhos errados** (interpretador silencia,
+  compilado crasha).
 - **Prova/repro:** caso `pattern-match` (sweep manual 06/09; não travado no
   teste porque o interpretador também está errado — aguarda decisão de
   lowering na lane do outro agente).

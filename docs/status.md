@@ -294,7 +294,7 @@ Bool positivo(Int x) = x > 0         // expression body
 | default parameters em funções | ✅ | ✅ | ✅ |
 | `readLine()` | ✅ | ✅ | ✅ |
 | `KofCcompiler` C subset → nativo | — | ✅ (27/08) | — |
-| `KofScript` top-level `let`/`const` → `KofScriptGlobals` | ✅ | ✅ | ✅ |
+| `KofScript` top-level `var`/`val` → `KofScriptGlobals` (execução direta via `KofInterpreter`) | ✅ | ✅ | ✅ |
 
 ### Concorrência (`spawn`)
 
@@ -740,7 +740,6 @@ Docs: `debugger-architecture.md`, `debugging.md`, `debug-adapter.md`,
 
 ### Planejado
 
-- KofScript — runtime completo de execução direta (hoje só top-level let)
 - package manager (`kof init`, `kofdeps`, registry)
 - complete language specification; conformance suite
 - query DSL tipada para o ORM (`User.query { where age > 18 }`)
