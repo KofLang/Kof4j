@@ -257,8 +257,19 @@ final class NativeMethodEmitter {
                     pushq %rax
                 """.stripIndent());
             case KofPop pop -> sb.append("    addq $8, %rsp\n");
-            case KofGetStatic gs -> { }
-            case KofPutStatic ps -> sb.append("    addq $8, %rsp\n");
+            case KofGetStatic gs -> {
+                // campo estático (bug 41): slot global no .data, não no objeto.
+                String sym = nb.staticSymbol(nb.staticKey(gs.ownerType()), gs.name());
+                sb.append("    leaq ").append(sym).append("(%rip), %rax\n");
+                sb.append("    movq 0(%rax), %rax\n");
+                sb.append("    pushq %rax\n");
+            }
+            case KofPutStatic ps -> {
+                String sym = nb.staticSymbol(nb.staticKey(ps.ownerType()), ps.name());
+                sb.append("    popq %rax\n");
+                sb.append("    leaq ").append(sym).append("(%rip), %rcx\n");
+                sb.append("    movq %rax, 0(%rcx)\n");
+            }
             case KofCheckCast cc -> { }
             case KofInstanceOf io -> {
                 int targetTypeId = 0;

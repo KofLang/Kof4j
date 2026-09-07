@@ -47,6 +47,7 @@ public class ClassLayout {
         List<FieldLayout> fields = new ArrayList<>();
         int offset = HEADER_SIZE;
         for (IRField field : clazz.fields()) {
+            if ((field.accessFlags() & 0x0008) != 0) continue; // static: por-classe, não no objeto
             int size = FieldLayout.sizeOf(field.type());
             fields.add(new FieldLayout(field.name(), field.type(), offset, size));
             offset += size;
@@ -73,6 +74,7 @@ public class ClassLayout {
             IRClass superClazz = superclassResolver.apply(superName);
             if (superClazz == null) continue;
             for (IRField field : superClazz.fields()) {
+                if ((field.accessFlags() & 0x0008) != 0) continue; // static
                 int size = FieldLayout.sizeOf(field.type());
                 allFields.add(new FieldLayout(field.name(), field.type(), offset, size));
                 offset += size;
@@ -80,6 +82,7 @@ public class ClassLayout {
         }
 
         for (IRField field : clazz.fields()) {
+            if ((field.accessFlags() & 0x0008) != 0) continue; // static
             int size = FieldLayout.sizeOf(field.type());
             allFields.add(new FieldLayout(field.name(), field.type(), offset, size));
             offset += size;
@@ -94,6 +97,7 @@ public class ClassLayout {
         List<FieldLayout> fields = new ArrayList<>();
         int offset = HEADER_SIZE;
         for (IRField field : fieldList) {
+            if ((field.accessFlags() & 0x0008) != 0) continue; // static
             int size = FieldLayout.sizeOf(field.type());
             fields.add(new FieldLayout(field.name(), field.type(), offset, size));
             offset += size;

@@ -49,6 +49,9 @@ public final class NativeX86Calls {
                 sb.append("    popq %rdi\n");
                 sb.append("    call kof_println\n");
             }
+            // o receiver (System.out via KofGetStatic) é descartado — o
+            // runtime nativo kof_println_* não usa o PrintStream.
+            sb.append("    addq $8, %rsp\n");
             return;
         }
         if (kc.kind() == KofCallKind.INSTANCE && "print".equals(kc.methodName())) {
@@ -68,6 +71,8 @@ public final class NativeX86Calls {
                 sb.append("    popq %rdi\n");
                 sb.append("    call kof_print\n");
             }
+            // o receiver (System.out) é descartado — o runtime kof_print não usa.
+            sb.append("    addq $8, %rsp\n");
             return;
         }
         if (NativeX86StringCalls.emit(sb, kc)) return;

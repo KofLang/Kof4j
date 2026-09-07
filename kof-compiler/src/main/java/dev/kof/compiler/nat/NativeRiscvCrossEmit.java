@@ -123,8 +123,19 @@ public final class NativeRiscvCrossEmit {
 
     void emitCrossOpRiscv(StringBuilder sb, KofOperation op, int frameSize, boolean joinMain) {
         switch (op) {
-            case KofGetStatic gs -> { }
-            case KofPutStatic ps -> sb.append("    addi sp, sp, 8\n");
+            case KofGetStatic gs -> {
+                // campo estático (bug 41): slot global no .data.
+                String sym = nb.staticSymbol(nb.staticKey(gs.ownerType()), gs.name());
+                sb.append("    la t0, ").append(sym).append("\n");
+                sb.append("    ld t0, 0(t0)\n");
+                pushRiscv(sb, "t0");
+            }
+            case KofPutStatic ps -> {
+                String sym = nb.staticSymbol(nb.staticKey(ps.ownerType()), ps.name());
+                sb.append("    pop t0\n");
+                sb.append("    la t1, ").append(sym).append("\n");
+                sb.append("    sd t0, 0(t1)\n");
+            }
             case KofLoadLiteral lit -> emitCrossLoadLiteralRiscv(sb, lit);
             case KofLoadLocal ll -> {
                 sb.append("    ld t0, ").append(crossLocalOffRiscv(ll.index())).append("(s11)\n");

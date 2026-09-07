@@ -128,6 +128,9 @@ public final class NativeRiscvCrossOps {
             } else {
                 sb.append(nl ? "    call kof_println_string\n" : "    call kof_print_string\n");
             }
+            // o receiver (System.out via KofGetStatic) é descartado — o
+            // runtime nativo não usa o PrintStream.
+            sb.append("    addi sp, sp, 8\n");
             sb.append("    li a0, 0\n");
             other.pushRiscv(sb, "a0");
             return;

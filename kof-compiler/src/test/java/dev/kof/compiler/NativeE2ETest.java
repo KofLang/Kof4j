@@ -897,4 +897,31 @@ class NativeE2ETest {
             """);
         runNative(source, tempDir.resolve("out"), "15\n25\n3");
     }
+
+    // known-bugs #41 — campo estático no Native dava lixo (stub KofGetStatic/
+    // KofPutStatic vazio). Int/String/bool estáticos agora residem no .data
+    // com initialValue; o acesso usa o slot global.
+    @Test
+    void nativeStaticFields(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+            class C {
+                static Int count = 0
+                static String name = "mel"
+                static Bool ok = true
+                static Int bump() {
+                    count = count + 1
+                    return count
+                }
+            }
+            main() {
+                println(C.name)
+                println(C.ok)
+                println(C.bump())
+                println(C.bump())
+                println(C.count)
+            }
+            """);
+        runNative(source, tempDir.resolve("out"), "mel\ntrue\n1\n2\n2");
+    }
 }
