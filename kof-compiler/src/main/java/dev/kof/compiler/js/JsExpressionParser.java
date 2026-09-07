@@ -46,159 +46,12 @@ import java.util.Set;
  */
 public final class JsExpressionParser {
 
-    private final JsMethodParser p;
+    final JsMethodParser p;
 
     JsExpressionParser(JsMethodParser p) {
         this.p = p;
     }
 
-List<JsIr.JsStatement> parseExpressionStatement(MethodCtx ctx, int[] pos) {
-        List<Object> stack = new ArrayList<>();
-        List<JsIr.JsStatement> preamble = new ArrayList<>();
-        List<JsIr.JsExpression> preambleExprs = new ArrayList<>();
-        while (pos[0] < ctx.ops.size()) {
-            KofOperation op = ctx.ops.get(pos[0]);
-            if (op instanceof KofStoreLocal sl) {
-                pos[0]++;
-                if (stack.isEmpty()) {
-                    throw new IllegalStateException("KofJS: store with empty stack at " + sl
-                            + "\nnext=" + (pos[0] < ctx.ops.size() ? ctx.ops.get(pos[0]) : "eof")
-                            + "\nops=" + ctx.ops.stream().map(Object::toString).reduce("", (a, b) -> a + "\n" + b));
-                }
-                JsIr.JsStatement stmt = storeLocalStatement(ctx, sl, pop(stack));
-                boolean switchTemp = "#switch".equals(ctx.rawLocalNames.get(sl.index()));
-                if (stack.isEmpty() && (!isCompilerTemp(ctx, sl.index()) || switchTemp)) {
-                    return finishExpressionStatement(preamble, preambleExprs, stmt);
-                }
-                // mid-expression store (++/-- temps, compiler temporaries)
-                preamble.add(stmt);
-                continue;
-            }
-            if (op instanceof KofStoreField sf) {
-                pos[0]++;
-                JsIr.JsExpression value = pop(stack);
-                JsIr.JsExpression receiver = pop(stack);
-                JsIr.JsStatement stmt = new JsIr.JsExprStmt(new JsIr.JsBinary(
-                        new JsIr.JsMember(receiver,
-                                ctx.recordClass ? "_" + JsTypeMapper.sanitizeName(sf.name()) : JsTypeMapper.sanitizeName(sf.name())), "=", value));
-                if (stack.isEmpty()) {
-                    return finishExpressionStatement(preamble, preambleExprs, stmt);
-                }
-                preamble.add(stmt);
-                continue;
-            }
-            if (op instanceof KofPutStatic ps) {
-                pos[0]++;
-                JsIr.JsExpression value = pop(stack);
-                String owner = JsTypeMapper.jsClassName(JsTypeMapper.ownerInternalName(ps.ownerType()));
-                return finishExpressionStatement(preamble, new JsIr.JsExprStmt(new JsIr.JsBinary(
-                        new JsIr.JsMember(new JsIr.JsIdentifier(owner), JsTypeMapper.sanitizeName(ps.name())), "=", value)));
-            }
-            if (op instanceof KofArrayStore as) {
-                if (stack.isEmpty()) {
-                    throw new IllegalStateException("KofJS: arraystore empty stack; next="
-                            + (pos[0] < ctx.ops.size() ? ctx.ops.get(pos[0]) : "eof")
-                            + "\nops=" + ctx.ops.stream().map(Object::toString).reduce("", (a, b) -> a + "\n" + b));
-                }
-                pos[0]++;
-                JsIr.JsExpression value = pop(stack);
-                JsIr.JsExpression index = pop(stack);
-                JsIr.JsExpression array = pop(stack);
-                JsIr.JsStatement stmt = new JsIr.JsExprStmt(new JsIr.JsBinary(
-                        new JsIr.JsIndex(array, index), "=", value));
-                if (stack.isEmpty() && !isIncTmpLoadAhead(ctx, pos)) {
-                    return finishExpressionStatement(preamble, preambleExprs, stmt);
-                }
-                preamble.add(stmt);
-                continue;
-            }
-            if (op instanceof KofPop) {
-                pos[0]++;
-                JsIr.JsExpression dropped = null;
-                if (!stack.isEmpty()) {
-                    dropped = pop(stack);
-                }
-                stack.clear();
-                if (dropped instanceof JsIr.JsCall || dropped instanceof JsIr.JsSequence
-                        || dropped instanceof JsIr.JsAwait) {
-                    // Side-effecting call, sequence, or await used as statement
-                    // (e.g. `await r;` / `await spawn tick();`) must survive POP.
-                    return finishExpressionStatement(preamble, preambleExprs,
-                            new JsIr.JsExprStmt(dropped));
-                }
-                return finishExpressionStatement(preamble, preambleExprs, null);
-            }
-            if (op instanceof KofReturn kr) {
-                pos[0]++;
-                if (Type.isVoid(kr.returnType()) && !stack.isEmpty()) {
-                    // A void call's result is still a side-effecting
-                    // expression (default-parameter wrapper returning a
-                    // void function call): return it so it executes.
-                    return finishExpressionStatement(preamble, preambleExprs,
-                            new JsIr.JsReturn(pop(stack)));
-                }
-                if (Type.isVoid(kr.returnType())) {
-                    stack.clear();
-                    return finishExpressionStatement(preamble, preambleExprs, new JsIr.JsReturn(null));
-                }
-                return finishExpressionStatement(preamble, preambleExprs, new JsIr.JsReturn(pop(stack)));
-            }
-            if (op instanceof KofThrow) {
-                pos[0]++;
-                return finishExpressionStatement(preamble, preambleExprs, new JsIr.JsThrow(pop(stack)));
-            }
-            if (op instanceof KofConditionalJump cj && pos[0] + 1 < ctx.ops.size()
-                    && ctx.ops.get(pos[0] + 1) instanceof KofLabel kl
-                    && kl.label().equals(cj.trueLabel())) {
-                // if-statement OR if-expression (var x = if (...) ... else ...)
-                pos[0]++;
-                JsIr.JsExpression right = pop(stack);
-                JsIr.JsExpression left = pop(stack);
-                JsIr.JsExpression condition = p.flow.comparisonExpr(cj.comparison(), left, right);
-                while (!stack.isEmpty()) {
-                    condition = new JsIr.JsSequence(List.of(pop(stack)), condition);
-                }
-                JsIr.JsExpression ifExpr = p.flow.tryParseIfExpr(ctx, pos, cj, condition);
-                if (ifExpr != null) {
-                    stack.add(ifExpr);
-                    continue;
-                }
-                return List.of(p.flow.parseIfBody(ctx, pos, cj, condition, stack));
-            }
-            if (!isExpressionOp(op)) {
-                // statement boundary: wrap any leftover stack (listOf(...) chains,
-                // increment temps) and finish the statement
-                if (!stack.isEmpty()) {
-                    JsIr.JsExpression wrapped = wrapStack(stack);
-                    stack.clear();
-                    return finishExpressionStatement(preamble, preambleExprs, new JsIr.JsExprStmt(wrapped));
-                }
-                if (!preamble.isEmpty() || !preambleExprs.isEmpty()) {
-                    return finishExpressionStatement(preamble, preambleExprs, null);
-                }
-                throw new IllegalStateException("KofJS: unexpected op in expression statement: " + op);
-            }
-            try {
-                consumeExpressionOp(ctx, pos, stack, preambleExprs);
-            } catch (StatementEnd se) {
-                if (!stack.isEmpty()) {
-                    JsIr.JsExpression wrapped = wrapStack(stack);
-                    stack.clear();
-                    return finishExpressionStatement(preamble, preambleExprs, new JsIr.JsExprStmt(
-                            new JsIr.JsSequence(List.of(wrapped), se.call)));
-                }
-                return finishExpressionStatement(preamble, preambleExprs, new JsIr.JsExprStmt(se.call));
-            }
-        }
-        if (!stack.isEmpty()) {
-            return finishExpressionStatement(preamble, preambleExprs,
-                    new JsIr.JsExprStmt(wrapStack(stack)));
-        }
-        if (!preambleExprs.isEmpty()) {
-            return finishExpressionStatement(preamble, preambleExprs, null);
-        }
-        throw new IllegalStateException("KofJS: unterminated expression statement");
-    }
 
 List<JsIr.JsStatement> finishExpressionStatement(List<JsIr.JsStatement> preamble,
                                                           JsIr.JsStatement finalStmt) {
@@ -523,4 +376,8 @@ boolean isPureDuplicate(JsIr.JsExpression expr) {
         }
         return all;
     }
+    List<JsIr.JsStatement> parseExpressionStatement(MethodCtx ctx, int[] pos) {
+        return JsExpressionStatementParser.parseExpressionStatement(this, ctx, pos);
+    }
+
 }
