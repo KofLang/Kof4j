@@ -44,6 +44,7 @@ training/
 │   ├── control-flow.md
 │   ├── strings.md
 │   ├── errors.md
+│   ├── web.md
 │   ├── architecture.md
 │   ├── composition.md
 │   └── concurrency.md
