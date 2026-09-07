@@ -46,6 +46,23 @@ public final class KofInterpreterRuntime {
         // no interpretador a classe Kof é KofObj (NUNCA vira classe JVM).
         // Espelha encodeKof: parse com o MESMO parser do runtime gerado e
         // monta o KofObj com os campos coeridos pelos tipos da IR.
+        if (name.equals("kof_json_decode_object_list") && args.length == 2
+                && args[0] instanceof String json && args[1] instanceof String cn) {
+            // decode<List<Classe>> — 2 args (json, className). O className é o
+            // nome da classe Kof (só existe como KofObj no interpretador).
+            IRClass kc = null;
+            for (IRClass c : interp.module().classes()) {
+                if (KofInterpreterValues.simpleOf(c.name()).equals(cn)
+                        || c.name().replace('/', '.').equals(cn)) { kc = c; break; }
+            }
+            if (kc == null) throw new NoSuchMethodError("KofRuntime." + name + " (classe '" + cn + "' não achada)");
+            Object parsed = runtimeFn("kof_json_parse", new Object[]{json});
+            List<Object> out = new ArrayList<>();
+            if (parsed instanceof List<?> l) {
+                for (Object e : l) out.add(decodeKofValue(kc, e));
+            }
+            return out;
+        }
         if (name.startsWith("kof_json_decode_") && args.length == 1
                 && args[0] instanceof String json) {
             IRClass kc = kofClassByDecodeName(name);

@@ -377,4 +377,20 @@ class KofInterpreterParityTest {
                 }
                 """);
     }
+
+    // known-bugs #48 — json.decode<List<Record>> no interpretador: o
+    // kof_json_decode_object_list (2 args) não era tratado (NoSuchMethodError).
+    @Test
+    void jsonDecodeListOfRecord() throws IOException {
+        parity("json-decode-list", """
+                import kof.json
+                record P(Int x)
+                main() {
+                    var l = json.decode<List<P>>("[{\"x\":1},{\"x\":2}]")
+                    println(l.size())
+                    println(l.get(0).x)
+                    println(l.get(1).x)
+                }
+                """);
+    }
 }
