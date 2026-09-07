@@ -102,38 +102,6 @@ public class CompilerDriver extends CompilerDriverState {
     }
 Target target = Target.JVM;
 
-    /** FFI (R3): binding suportado — JVM: Int→Int, String→Int, Double→Double,
-     *  Int[]→Int; Native x86-64: Int→Int, String→Int, Int[]→Int. */
-    boolean isExternBound(ExternalFunctionNode ext) {
-        if (ext.parameters().size() != 1) return false;
-        String p = ext.parameters().get(0).type();
-        String r = ext.returnType();
-        if (target == Target.JVM || target == Target.ANDROID) {
-            return (isIntType(r) && (isIntType(p) || isStringType(p) || isIntArrayType(p)))
-                    || (isDoubleType(r) && isDoubleType(p));
-        }
-        if (target == Target.NATIVE) {
-            return isIntType(r) && (isIntType(p) || isStringType(p) || isIntArrayType(p));
-        }
-        return false;
-    }
-
-    static boolean isIntType(String t) {
-        return "int".equals(t) || "Int".equals(t);
-    }
-
-    static boolean isStringType(String t) {
-        return "String".equals(t) || "string".equals(t);
-    }
-
-    static boolean isIntArrayType(String t) {
-        return "Int[]".equals(t) || "int[]".equals(t);
-    }
-
-    static boolean isDoubleType(String t) {
-        return "double".equals(t) || "Double".equals(t);
-    }
-
 
     /** Um caso `test "nome" { }` descoberto em compile-time. */
     public record TestInfo(String name, String functionName) {

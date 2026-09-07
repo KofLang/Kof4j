@@ -193,9 +193,7 @@ final class CompilerPipeline {
             }
             else if (decl instanceof ExternalFunctionNode ext) {
                 driver.externSignatures.put(ext.name(), ext);
-                // FFI (R3): binding suportado não é gap; o resto é gap honesto por
-                // target — FFI002 no JS, FFI001 nos demais — nunca stub silencioso.
-                if (driver.currentDiagnostics != null && !driver.isExternBound(ext)) {
+                if (driver.currentDiagnostics != null && !ExternCallLowerer.isExternBound(driver.target, ext)) {
                     SourcePosition sp = ext.position();
                     String lib = ext.library() != null ? " in " + ext.library() : "";
                     String code = driver.target == Target.JS ? "FFI002" : "FFI001";
