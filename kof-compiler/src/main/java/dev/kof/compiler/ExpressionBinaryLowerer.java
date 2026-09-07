@@ -213,6 +213,15 @@ for (int ci = chain.size() - 1; ci >= 0; ci--) {
             operandType = (other instanceof Type.ClassType || other instanceof Type.ArrayType
                     || other instanceof Type.TypeVariable || other instanceof Type.NullableType)
                     ? other : new Type.ClassType("java.lang", "Object", List.of());
+        } else if (("==".equals(be.operator()) || "!=".equals(be.operator()))
+                && accType instanceof Type.UnknownType && rightType instanceof Type.UnknownType) {
+            // ambos UnknownType (ex.: `var a = null; var b = null`): comparação
+            // de REFERÊNCIA (if_acmp*). Unknown só surge de null/untyped-get —
+            // nunca de int inferido (que dá INT) — então acmp é seguro e casa
+            // com o interpretador (Objects.equals: null==null → true). Sem
+            // isso, Unknown caía no default INT → if_icmpeq sobre null →
+            // VerifyError (bug 36).
+            operandType = new Type.ClassType("java.lang", "Object", List.of());
         }
         switch (be.operator()) {
             case "+" -> ops.add(new KofBinary(KofBinaryOp.ADD, operandType));

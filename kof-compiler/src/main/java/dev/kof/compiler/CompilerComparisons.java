@@ -58,6 +58,12 @@ final class CompilerComparisons {
                 || right instanceof Type.TypeVariable || right instanceof Type.NullableType) {
             return right;
         }
+        // ambos UnknownType (ex.: `if (a == b)` com `var a = null`): referência
+        // (if_acmp*) — espelha ExpressionBinaryLowerer (bug 36). Unknown nunca
+        // surge de int inferido (dá INT), então acmp é seguro.
+        if (left instanceof Type.UnknownType && right instanceof Type.UnknownType) {
+            return new Type.ClassType("java.lang", "Object", List.of());
+        }
         return Type.PrimitiveType.INT;
     }
 

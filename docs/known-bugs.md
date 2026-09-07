@@ -705,7 +705,7 @@ EXTERNA produz lixo
 - **Registrado:** 06/09 (varredura de paridade do interpretador) ·
   **Corrigido:** 06/09.
 
-### 36. `null == null` baixa `if_icmpeq` → VerifyError no compilado — ABERTO (regra 6)
+### 36. `null == null` baixa `if_icmpeq` → VerifyError no compilado — ✅ CORRIGIDO 06/09
 
 - **Sintoma:** `var a = null; var b = null; println(a == b)` compila; no
   caminho **compilado**: `VerifyError: Type null is not assignable to
@@ -716,17 +716,18 @@ EXTERNA produz lixo
   `UnknownType`; o check de null-**literal** (linha 210) não dispara (são
   locals); `operandType` fica `Unknown` → `JvmOpEmitter.emitBinary` trata
   Unknown como NÃO-referência → `IF_ICMPEQ` sobre nulls → verifier rejeita.
-- **Por que NÃO corrigido (regra 6 — semântica congelada):** as duas
-  correções candidatas mudam comportamento de `==` sobre `UnknownType`:
-  (a) rotear para `if_acmpeq` (identidade) divergiria do interpretador
-  (conteúdo via `Objects.equals`) para objetos não-null Unknown (ex.:
-  `m.get(k) == m.get(k2)` de `Map` sem type-arg); (b) rotear para `.equals`
-  (conteúdo, como record) é a correção **correta** mas exige decidir o
-  fallback de `==` para `UnknownType` em geral — é decisão de design, não
-  do agente. O interpretador já está do lado previsto (conteúdo).
-- **Prova/repro:** caso `null-eq` no grupo B de `KofScriptTest`
-  (interpretador oráculo: `true\nfalse`; compilado: VerifyError).
-- **Registrado:** 06/09 (varredura de paridade do interpretador).
+- **Fix (06/09):** `UnknownType == UnknownType` → comparação de **referência**
+  (`Object`/`if_acmp*`) nos 2 caminhos (valor: `ExpressionBinaryLowerer`;
+  shortcut `if`: `CompilerComparisons`). Justificativa: `Unknown` só surge de
+  `null`/untyped-get — **nunca** de int inferido (que dá `INT`) — então `acmp`
+  é seguro e casa com o interpretador (`Objects.equals`: `null==null`→true).
+  Antes disso o caso **crashava** (VerifyError), logo não há comportamento
+  observável a regredir.
+- **Prova:** `KofScriptTest.interpreterParitySweep` casos `null-eq` e
+  `null-eq-shortcut` (grupo A, paridade byte-idêntica nos 2 caminhos:
+  `true;false` e `iguais;nao-ne`).
+- **Registrado:** 06/09 (varredura de paridade do interpretador) ·
+  **Corrigido:** 06/09.
 
 ### 37. `case Int n` em switch → `KofInstanceOf[PrimitiveType]` → VerifyError — ABERTO
 
