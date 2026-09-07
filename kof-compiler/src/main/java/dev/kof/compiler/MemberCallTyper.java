@@ -101,6 +101,8 @@ final class MemberCallTyper {
             if (recvType instanceof Type.ClassType ct && !ct.typeArguments().isEmpty())
                 elemType = ct.typeArguments().get(0);
             String mn = mc.methodName();
+            // inferir args para detectar identificadores não declarados (ghost) nos argumentos/lambdas
+            for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
             if ("get".equals(mn)) return elemType;
             if ("remove".equals(mn)) return elemType;
             if ("size".equals(mn) || "length".equals(mn) || "count".equals(mn))
@@ -128,6 +130,7 @@ final class MemberCallTyper {
                 keyType = ct.typeArguments().get(0);
             }
             String mn = mc.methodName();
+            for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
             if ("get".equals(mn)) return valueType;
             if ("remove".equals(mn)) return valueType;
             if ("put".equals(mn)) return valueType;
@@ -149,6 +152,7 @@ final class MemberCallTyper {
             if (recvType instanceof Type.ClassType ct && !ct.typeArguments().isEmpty())
                 elemType = ct.typeArguments().get(0);
             String mn = mc.methodName();
+            for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
             if ("size".equals(mn) || "length".equals(mn) || "count".equals(mn))
                 return Type.PrimitiveType.INT;
             if ("contains".equals(mn) || "isEmpty".equals(mn))
