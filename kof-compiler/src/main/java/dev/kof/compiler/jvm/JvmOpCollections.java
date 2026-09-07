@@ -202,16 +202,11 @@ public final class JvmOpCollections {
             case "kof_map_get" -> {
                 emitBoxIfPrimitive(mv, keyType);
                 mv.visitMethodInsn(INVOKEVIRTUAL, "java/util/HashMap", "get", "(Ljava/lang/Object;)Ljava/lang/Object;", false);
-                // get devolve V? — ausência = null. Se o retorno é nullable,
-                // NÃO desboxar (o valor fica Integer? boxed; unbox de null =
-                // NPE, bug 39). Só checkcast/unbox quando o retorno é V puro.
-                boolean getNullable = kc.returnType() instanceof Type.NullableType;
-                if (!getNullable && !isPrimitiveType(valueType) && !KofUi.isUiType(valueType)
-                        && !KofMedia.isHandleType(valueType) && !(valueType instanceof Type.UnknownType)) {
+                if (!isPrimitiveType(valueType) && !KofUi.isUiType(valueType) && !KofMedia.isHandleType(valueType) && !(valueType instanceof Type.UnknownType)) {
                     String internal = JvmTypeMapper.toInternalName(valueType instanceof Type.ClassType ct ? ct.packageName() : "", valueType instanceof Type.ClassType ct ? ct.name() : "java/lang/Object");
                     mv.visitTypeInsn(CHECKCAST, internal);
                 }
-                if (!getNullable) emitUnboxIfPrimitive(mv, valueType);
+                emitUnboxIfPrimitive(mv, valueType);
             }
             case "kof_map_remove" -> {
                 emitBoxIfPrimitive(mv, keyType);

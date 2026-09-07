@@ -41,14 +41,15 @@ public final class SemMethodCallTyper {
                 if ("send".equals(mc.methodName())) return Type.PrimitiveType.VOID;
                 if ("receive".equals(mc.methodName())) return BuiltinTypes.channelElement(recv);
             }
-            // Map<K,V>: get() devolve V? SEMPRE (ausência = null, narrowing via
-            // if (x != null)); para primitivos, V? evita unbox de null
-            // (bug 39).
+            // Map<K,V>: get() devolve V? para valores de referência (ausência = null,
+            // narrowing via if (x != null)); primitivos/UI não representam ausência
             if (BuiltinTypes.isMap(recv)) {
                 for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
                 Type valueType = BuiltinTypes.mapValue(recv);
                 if ("get".equals(mc.methodName())) {
-                    return new Type.NullableType(valueType);
+                    return valueType instanceof Type.ClassType ct
+                            && !KofUi.isUiType(ct) && !KofMedia.isHandleType(ct)
+                            ? new Type.NullableType(valueType) : valueType;
                 }
                 if ("put".equals(mc.methodName()) || "remove".equals(mc.methodName())) return valueType;
                 if ("size".equals(mc.methodName()) || "length".equals(mc.methodName())

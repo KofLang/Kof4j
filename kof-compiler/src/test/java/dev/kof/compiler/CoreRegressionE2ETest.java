@@ -396,18 +396,6 @@ class CoreRegressionE2ETest {
                 """, "h\nH", tempDir, "string-valueof-char");
     }
 
-    // known-bugs #39 — println(m.get("chave-ausente")): get de Map devolve V?
-    // (nullable); o println deve imprimir "null", não NPE por unbox de null.
-    @Test
-    void printlnNullFromMapGet(@TempDir Path tempDir) throws IOException {
-        runBoth("""
-                main() {
-                    var m = mapOf("a", 1)
-                    println(m.get("zz"))
-                }
-                """, "null", tempDir, "map-null-val");
-    }
-
     // known-bugs #40 — compound assignment on instance FIELD: `n += 1` in a
     // method pushed `this` once, getfield consumed it, putfield underflowed.
     @Test

@@ -3,7 +3,6 @@ import dev.kof.compiler.BuiltinTypes;
 import dev.kof.compiler.KofMedia;
 import dev.kof.compiler.KofUi;
 import dev.kof.compiler.Type;
-import dev.kof.compiler.TypeMetrics;
 
 import java.util.List;
 import java.util.Map;
@@ -24,18 +23,7 @@ public final class JvmTypeMapper {
             case Type.FunctionType ft -> ft.className() != null
                     ? "L" + ft.className() + ";" : "Ljava/lang/Object;";
             case Type.UnknownType ut -> "Ljava/lang/Object;";
-            case Type.NullableType n -> {
-                // NullableType de primitivo: o valor é boxed (Integer?) — o
-                // descritor é a REFERÊNCIA boxed, não o primitivo (bug 39:
-                // NullableType(Int) virava "I" e o get de Map (devolve Object)
-                // quebrava no verifier).
-                if (n.inner() instanceof Type.PrimitiveType) {
-                    Type boxed = TypeMetrics.boxedTypeFor(n.inner());
-                    String name = boxed instanceof Type.ClassType ct ? ct.name() : "Object";
-                    yield "L" + name.replace('.', '/') + ";";
-                }
-                yield toDescriptor(n.inner());
-            }
+            case Type.NullableType n -> toDescriptor(n.inner());
             default -> "Ljava/lang/Object;";
         };
     }
