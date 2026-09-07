@@ -55,21 +55,24 @@ aninhado KofJS (na beta `5d6e68a`).
 
 ## 3. Estado do merge (CRÍTICO)
 
-**O HEAD da branch NÃO COMPILA contra a beta atual** (provado em worktree
-isolado 07/09):
-- imports stale: `dev.kof.compiler.ClassFileParser` → o refactor SOLID da
-  beta moveu para `dev.kof.compiler.parser.ClassFileParser`;
-- API divergiu: os CLI-files esperam `returnTypeName()`,
-  `parameterTypeNames()`, `instanceofCount`, `checkcastCount`, `m.code`,
-  `constantPool` no `ClassFileParser` — a versão da beta não tem esses
-  membros (o merge "favor beta" ficou com a API pobre da beta e manteve os
-  consumidores ricos da branch);
-- `Confidence.java` perdido no merge (import não resolve).
+**O HEAD da branch NÃO COMPILA nem sozinho** (provado em worktree isolado
+07/09 — os CLI-files quebram contra o PRÓPRIO parser da branch):
+- o merge `c9fcd41` ("favor beta") substituiu o parser **rico** da branch
+  (514 linhas, com `returnTypeName()`, `parameterTypeNames()`,
+  `instanceofCount`, `checkcastCount`, `m.code`/`CodeAttribute`,
+  `constantPool[]`, `Instruction`, `BasicBlock`, `disassemble`) pelo parser
+  **pobre** da beta (196 linhas, só `magic/thisClass/methods/fields/...`)
+  — os dois são byte-idênticos no HEAD;
+- os consumidores (`Decompile`/`Inspect`/`Migrate`) ficaram referenciando
+  a API rica perdida → ~8 erros `cannot find symbol` + import stale
+  (`dev.kof.compiler.ClassFileParser` → o SOLID moveu p/ `parser.`) +
+  `Confidence.java` perdido (import não resolve);
+- o parser rico existe só no histórico: `34ded81` (Type Recovery) e
+  `42d51cc` (fix decompilador), ANTES do move SOLID `190b393`.
 
-Mesmo corrigindo imports + restaurando `Confidence.java` (testado no
-worktree), restam ~8 erros `cannot find symbol` na API do
-`ClassFileParser`. **Portar a plataforma exige backportar os membros que a
-branch adicionou ao parser antigo** (ou reimplementar sobre a API atual).
+**Consequência para R1:** portar a plataforma exige restaurar o parser
+rico (de `34ded81`, realocado p/ `parser.`) + `Confidence.java`
+(`7e6fbe8`) + ajustar imports dos 5 CLI-files — não é só "corrigir import".
 
 ## 4. Veredito e próximos passos
 
