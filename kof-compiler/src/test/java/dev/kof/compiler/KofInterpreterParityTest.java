@@ -347,6 +347,25 @@ class KofInterpreterParityTest {
     }
 
     @Test
+    void staticFieldInitializer() throws IOException {
+        // Regressão: campo estático com valor inicial (constante do campo no
+        // bytecode JVM) precisa ser semeado no interpretador — sem isso o
+        // REPL (var de topo → static) imprimia 0 em vez do valor.
+        parity("static", """
+                class G {
+                    static Int counter = 41
+                    static String label = "kof"
+                }
+                main() {
+                    println(G.counter)
+                    println(G.label)
+                    G.counter = G.counter + 1
+                    println(G.counter)
+                }
+                """);
+    }
+
+    @Test
     void jsonEncode() throws IOException {
         parity("json", """
                 import kof.json

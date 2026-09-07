@@ -467,6 +467,15 @@ public final class KofInterpreter {
             IRClass sup = kofClasses.get(c.superName());
             if (sup != null) ensureInit(sup);
         }
+        // campos estáticos com valor inicial (constante do campo no bytecode
+        // JVM): semear o mapa de statics — o interpretador não tem o
+        // "ConstantValue" do class file, então aplica aqui.
+        Map<String, Object> st = kofStatics(c.name());
+        for (IRField fl : c.fields()) {
+            if ((fl.accessFlags() & 8) != 0 && fl.initialValue() != null) {
+                st.put(fl.name(), fl.initialValue());
+            }
+        }
         for (IRMethod m : c.methods()) {
             if ("<clinit>".equals(m.name())) {
                 invokeKof(c, m, new Object[0], false);
