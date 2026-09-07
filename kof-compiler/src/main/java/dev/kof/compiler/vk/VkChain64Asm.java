@@ -1,4 +1,4 @@
-package dev.kof.compiler;
+package dev.kof.compiler.vk;
 
 /**
  * M36.5: tradução do vkchain64.c (C) para assembly x86-64 emitido
