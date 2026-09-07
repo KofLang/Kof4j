@@ -143,9 +143,11 @@ FunctionSyntaxTest 12; suíte21 957+8+5+8, 0 falhas
   inexistente) → VerifyError/recv-null; consertado nos 2 lowerers
   (GETSTATIC/PUTSTATIC, com `+=`). (2) bug 35: `listOf().contains(1)` boxeava
   pelo tipo do ELEMENTO (Unknown) não do ARGUMENTO (int) → VerifyError;
-  consertado em `JvmOpCollections`. **REGISTRADOS bugs 36–40** (known-bugs.md):
-  `null==null`→if_icmpeq (regra 6: mudar semântica de `==` sobre UnknownType é
-  decisão de design, NÃO do agente — interpretador já está correto/conteúdo),
+  consertado em `JvmOpCollections` (`2c57a64`). (3) bug 36: `null == null`
+  baixava `if_icmpeq` (UnknownType→primitivo) → VerifyError; consertado nos
+  2 caminhos de comparação (`3c7641f`: Unknown==Unknown → referência —
+  Unknown nunca surge de int inferido, então acmp é seguro e casa com o
+  interpretador). **REGISTRADOS bugs 37–40** (known-bugs.md):
   `case Int` primitivo, re-throw aninhado (slot errado), `println` de null de
   Map, `+=` em campo de instância. ⚠️ O sweep commitado antes (`830259d`)
   passou em FALSO (sintaxe inválida — ambos os caminhos falhavam iguais);
@@ -153,12 +155,18 @@ FunctionSyntaxTest 12; suíte21 957+8+5+8, 0 falhas
   STALE do ECJ proceedOnError fez o `ne` (bug 36) PARECER corrigido quando não
   estava — só `rm -rf target/classes && mvn compile` (prova honesta) revelou o
   VerifyError real. Suíte pós-fix 973+17+5+4, 0 falhas.
+  **HEARTBEAT CORRIGIDO (07/09, `cfd5a4d`)**: o cron usava `opencode run
+  --session` SEM `--attach` → spawnava agente headless CONCORRENTE (a "outra
+  sessão" que o maintainer viu; um `run` ficou vivo 20 min disputando com o
+  TUI). Agora: `--attach http://127.0.0.1:9092` (porta fixa do servidor TUI
+  da sessão aberta) + health-check antes de disparar + AGENTS.md atualizado
+  com a regra. Testado com cron de 1 min: FUNCIONOU (injeção na sessão viva).
   **PRÓXIMO PASSO (minha lane)**: (a) ~~bug 34~~ FEITO (`ccaf7a6`); (b) ~~bug
-  35~~ CORRIGIDO (`2c57a64`); (c) bugs 36–40 registrados — correção é decisão
-  de lowering/semântica (regra 6), NÃO minha; (d) `spawn func(arg)` com
-  captura (bug #29, regra 6 → gap/plano); (e) varredura de paridade nos
-  targets JS/Native (ainda caminho compilado — confirmar runFileCompiled
-  cobre). Provas: testes E2E por item + suíte verde.
+  35~~ CORRIGIDO (`2c57a64`); (c) ~~bug 36~~ CORRIGIDO (`3c7641f`); (d) bugs
+  37–40 registrados — correção é decisão de lowering/semântica (regra 6),
+  NÃO minha; (e) `spawn func(arg)` com captura (bug #29, regra 6 → gap/plano);
+  (f) varredura de paridade nos targets JS/Native (ainda caminho compilado —
+  confirmar runFileCompiled cobre). Provas: testes E2E por item + suíte verde.
 
 
 **PRÓXIMA TAREA (maior valor)**: **bug 33 CORRIGIDO** (`df2ffdd`, 06/09) —
