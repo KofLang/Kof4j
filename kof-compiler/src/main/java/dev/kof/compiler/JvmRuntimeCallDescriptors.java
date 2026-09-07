@@ -5,7 +5,7 @@ package dev.kof.compiler;
  * Extraído de JvmRuntime (REFACTOR-500 Fase 5) — SRP: só mapeamento de
  * assinatura, sem geração de source.
  */
-final class JvmRuntimeCallDescriptors {
+public final class JvmRuntimeCallDescriptors {
 
     private JvmRuntimeCallDescriptors() {}
 

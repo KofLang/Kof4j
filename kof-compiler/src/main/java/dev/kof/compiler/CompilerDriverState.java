@@ -13,7 +13,7 @@ import java.util.Map;
  * CompilerDriver estende esta classe; as classes de apoio acessam os
  * campos via driver.xxx (herança) — nenhum call site precisa mudar.
  */
-class CompilerDriverState {
+public class CompilerDriverState {
 
 IRModule currentModule;
 

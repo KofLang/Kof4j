@@ -8,7 +8,7 @@ import java.util.List;
  * e aninhamento de tipos dentro do corpo de classe/interface/record. Move o
  * cursor do {@link ParseContext} — nunca duplica estado.
  */
-class ClassMemberParser {
+public class ClassMemberParser {
 
     static AstNode parseClassMember(ParseContext ctx) {
         List<AnnotationNode> annos = AnnotationParser.parseAnnotations(ctx);

@@ -6,7 +6,7 @@ import java.util.List;
 /**
  * Lowering do namespace mq (mq.*) no emitExpression.
  */
-final class ExpressionMqCallLowerer {
+public final class ExpressionMqCallLowerer {
 
     private ExpressionMqCallLowerer() {}
 

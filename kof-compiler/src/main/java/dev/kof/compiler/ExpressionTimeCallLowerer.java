@@ -6,7 +6,7 @@ import java.util.List;
 /**
  * Lowering do namespace time (time.*) no emitExpression.
  */
-final class ExpressionTimeCallLowerer {
+public final class ExpressionTimeCallLowerer {
 
     private ExpressionTimeCallLowerer() {}
 

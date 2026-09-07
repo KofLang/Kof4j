@@ -19,7 +19,7 @@ import java.util.Set;
  * declarações de tipo, e os helpers de token compartilhados
  * ({@code splitShiftRight}, {@code isGenericReturnTypeAhead}).
  */
-class Parser {
+public class Parser {
 
     static final Set<String> PRIMITIVE_TYPE_NAMES = Set.of(
             "bool", "byte", "short", "int", "long", "float", "double", "char", "string", "void"

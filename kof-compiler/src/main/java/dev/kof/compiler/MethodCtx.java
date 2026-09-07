@@ -6,7 +6,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-final class MethodCtx {
+public final class MethodCtx {
     final JsLoweringContext lc;
     final List<KofOperation> ops;
     final Map<Integer, String> localNames = new HashMap<>();

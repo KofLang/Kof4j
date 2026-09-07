@@ -7,7 +7,7 @@ import java.util.Objects;
  * {@code JvmRecordEmitter} gera no caminho compilado (record:
  * {@code Nome[a=1, b=2]}, equals por conteúdo de campos, hashCode 31*h+f).
  */
-final class KofInterpreterObjects {
+public final class KofInterpreterObjects {
 
     static final Object NOT_HANDLED = KofInterpreterValues.NOT_HANDLED;
 

@@ -12,7 +12,7 @@ import java.util.Set;
  * estático global. Os emissores (JsClassEmitter, JsMethodEmitter, ...)
  * recebem o contexto por parâmetro.
  */
-class JsLoweringContext {
+public class JsLoweringContext {
 
     final List<String> runtimeImports = new ArrayList<>();
     final List<String> ioRuntimeImports = new ArrayList<>();

@@ -2,7 +2,7 @@ package dev.kof.compiler;
 
 import java.util.List;
 
-final class KofCache {
+public final class KofCache {
     private KofCache() {}
     static final Type CACHE = new Type.ClassType("kof.cache", "Cache", List.of());
     private static final Type STR = BuiltinTypes.STRING;

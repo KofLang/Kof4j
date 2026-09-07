@@ -4,7 +4,7 @@ package dev.kof.compiler;
  * Fragmento do source do KofRuntime gerado (REFACTOR-500 Fase 8).
  * kof.http (JDK client) + kof.mq (pub/sub + filas) - parte 2/2 de JvmWebRuntime. Concatenacao preserva byte-a-byte.
  */
-final class JvmWebHttpRuntime {
+public final class JvmWebHttpRuntime {
 
     private JvmWebHttpRuntime() {}
 

@@ -16,7 +16,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * spawn/await/poll/cancel, select_any e jobs de time/scheduler — mesma
  * semântica do runtime gerado ({@code KofRuntime.kof_spawn/kof_time_interval}).
  */
-final class KofInterpreterConcurrency {
+public final class KofInterpreterConcurrency {
 
     static final Object NOT_HANDLED = KofInterpreterValues.NOT_HANDLED;
 

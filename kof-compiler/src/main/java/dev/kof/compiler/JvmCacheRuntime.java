@@ -1,6 +1,6 @@
 package dev.kof.compiler;
 
-final class JvmCacheRuntime {
+public final class JvmCacheRuntime {
     private JvmCacheRuntime() {}
     static String source() {
         return """

@@ -7,7 +7,7 @@ package dev.kof.compiler;
  * 23 ramos mutuamente exclusivos, cada um termina em return; emit() devolve
  * true quando um ramo casou (o chamador retorna). Zero estado do backend.
  */
-final class NativeX86StringCalls {
+public final class NativeX86StringCalls {
 
     private NativeX86StringCalls() {}
 

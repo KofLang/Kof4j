@@ -4,7 +4,7 @@ package dev.kof.compiler;
 Emissão do ASM de db4 do runtime nativo.
  * Domínio isolado do NativeRuntime -- refactor preserva semântica.
  */
-final class RuntimeDb4 {
+public final class RuntimeDb4 {
 
     private RuntimeDb4() {}
 

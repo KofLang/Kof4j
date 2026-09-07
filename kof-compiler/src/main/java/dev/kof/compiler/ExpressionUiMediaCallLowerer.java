@@ -6,7 +6,7 @@ import java.util.List;
  * Lowering dos namespaces Ui/Media/Io (receiver estático) no emitExpression.
  * Retorna -1 se nenhum namespace casou.
  */
-final class ExpressionUiMediaCallLowerer {
+public final class ExpressionUiMediaCallLowerer {
 
     private ExpressionUiMediaCallLowerer() {}
 

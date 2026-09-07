@@ -3,7 +3,7 @@ package dev.kof.compiler;
 import java.util.List;
 import java.util.Map;
 
-interface Type {
+public interface Type {
     record PrimitiveType(String name, int sort) implements Type {
         static final PrimitiveType BOOL = new PrimitiveType("bool", 1);
         static final PrimitiveType BYTE = new PrimitiveType("byte", 5);

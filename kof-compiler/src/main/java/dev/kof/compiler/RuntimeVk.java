@@ -5,7 +5,7 @@ import dev.kof.compiler.vk.VkChain64Asm;
  * Emissão do ASM de stubs Vulkan (kof_vk_*) do runtime nativo. Domínio isolado
  * do NativeRuntime -- refactor preserva semântica.
  */
-final class RuntimeVk {
+public final class RuntimeVk {
 
     private RuntimeVk() {}
 

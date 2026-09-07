@@ -5,7 +5,7 @@ import java.util.List;
 /**
  * Emissão de conversões de primitivos (widen/narrow/box/unbox) e helpers.
  */
-final class CompilerEmissionHelpers {
+public final class CompilerEmissionHelpers {
 
     private CompilerEmissionHelpers() {}
 

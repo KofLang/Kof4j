@@ -34,7 +34,7 @@ import java.util.List;
  * available on a target produce a clear compile-time diagnostic (SECN00x) —
  * never silent divergence.
  */
-final class KofSecurity {
+public final class KofSecurity {
 
     private KofSecurity() {}
 

@@ -6,7 +6,7 @@ import java.util.List;
 /**
  * Lowering de declarações de classe/interface/record para IRClass/IRMethod.
  */
-final class CompilerClassLowering {
+public final class CompilerClassLowering {
 
     private CompilerClassLowering() {}
 

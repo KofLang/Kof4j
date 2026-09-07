@@ -4,7 +4,7 @@ package dev.kof.compiler;
 Emissão do ASM de log2 do runtime nativo.
  * Domínio isolado do NativeRuntime -- refactor preserva semântica.
  */
-final class RuntimeLog2 {
+public final class RuntimeLog2 {
 
     private RuntimeLog2() {}
 

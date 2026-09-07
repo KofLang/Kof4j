@@ -9,7 +9,7 @@ import java.util.List;
  * SemanticAnalyzer (REFACTOR-500 fase 6). Retorna null quando nenhuma
  * regra se aplica.
  */
-final class BuiltinCallTyper {
+public final class BuiltinCallTyper {
 
     private BuiltinCallTyper() {}
 

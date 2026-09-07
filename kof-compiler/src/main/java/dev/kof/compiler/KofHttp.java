@@ -23,7 +23,7 @@ import java.util.List;
  * {@code kof.json}); headers are a single String with one {@code Name: value}
  * per line. Native and JS targets report {@code HTTP002} at compile time.
  */
-final class KofHttp {
+public final class KofHttp {
 
     private KofHttp() {}
 

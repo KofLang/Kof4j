@@ -6,7 +6,7 @@ import java.util.List;
 /**
  * Emissão de argumentos com tipos formais, super-bridges e ++/-- (emitIncrement).
  */
-final class CompilerEmission2 {
+public final class CompilerEmission2 {
 
     private CompilerEmission2() {}
 

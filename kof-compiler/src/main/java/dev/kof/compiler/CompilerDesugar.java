@@ -8,7 +8,7 @@ import java.util.List;
  * Desugar de testes (`test "nome" {}`) e lifecycle (`application { }`) do
  * CompilerDriver. Puro — recebe o estado (discoveredTests etc.) por parâmetro.
  */
-final class CompilerDesugar {
+public final class CompilerDesugar {
 
     private CompilerDesugar() {}
 

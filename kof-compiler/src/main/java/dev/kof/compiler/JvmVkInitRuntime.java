@@ -4,7 +4,7 @@ package dev.kof.compiler;
  * Fragmento do source do KofRuntime gerado (REFACTOR-500 Fase 8).
  * kof.vulkan FFM boot: handles, buffers, initAll (instance->device) - parte 1/3 de JvmVkRuntime. Concatenacao preserva byte-a-byte.
  */
-final class JvmVkInitRuntime {
+public final class JvmVkInitRuntime {
 
     private JvmVkInitRuntime() {}
 

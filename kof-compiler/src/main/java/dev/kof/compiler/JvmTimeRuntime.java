@@ -7,7 +7,7 @@ import java.util.List;
  * com o JvmRuntime. Separado num arquivo próprio porque o constant pool
  * do javac limita cada string a 65535 bytes.
  */
-final class JvmTimeRuntime {
+public final class JvmTimeRuntime {
 
     private JvmTimeRuntime() {}
 

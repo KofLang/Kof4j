@@ -6,7 +6,7 @@ import java.util.List;
 /**
  * Lowering do namespace KofDb (db.*) no emitExpression.
  */
-final class ExpressionDbCallLowerer {
+public final class ExpressionDbCallLowerer {
 
     private ExpressionDbCallLowerer() {}
 

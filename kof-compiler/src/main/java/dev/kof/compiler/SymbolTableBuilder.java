@@ -7,7 +7,7 @@ import java.util.List;
  * Construção das tables de símbolos (pre-declaração de tipos e definição
  * de membros), extraída do SemanticAnalyzer (REFACTOR-500 fase 6).
  */
-final class SymbolTableBuilder {
+public final class SymbolTableBuilder {
 
     private SymbolTableBuilder() {}
 

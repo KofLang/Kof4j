@@ -10,7 +10,7 @@ import static org.objectweb.asm.Opcodes.*;
  * extraído de JvmBackend.emitOperation). Sem estado próprio; o estado
  * de labels/try-catch e de module vem no contexto.
  */
-final class JvmOpEmitter {
+public final class JvmOpEmitter {
 
     private JvmOpEmitter() {}
 

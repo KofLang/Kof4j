@@ -14,7 +14,7 @@ import java.nio.file.Path;
  * Isso permite {@code import shared.Validation} com arquivo em
  * {@code src/main.kf} e módulo em {@code shared/} sob a mesma raiz.
  */
-final class ProjectLocator {
+public final class ProjectLocator {
 
     /** Nome do arquivo-manifesto do projeto. */
     static final String MANIFEST = "kof.toml";

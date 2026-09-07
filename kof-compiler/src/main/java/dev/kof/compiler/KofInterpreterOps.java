@@ -8,7 +8,7 @@ import java.lang.reflect.Array;
  * {@code emitConditionalJump}). Estado-free além do acesso às classes Kof
  * para {@code instanceof}.
  */
-final class KofInterpreterOps {
+public final class KofInterpreterOps {
 
     private final KofInterpreter interp;
 

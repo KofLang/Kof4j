@@ -8,7 +8,7 @@ import java.util.List;
  * javac limita cada classe: o ORM + MongoDB num único text block
  * estourariam o limite de 65535 bytes por string.
  */
-final class JvmOrmRuntime {
+public final class JvmOrmRuntime {
 
     private JvmOrmRuntime() {}
 

@@ -4,7 +4,7 @@ package dev.kof.compiler;
  * Emissão do ASM do scheduler (kof_scheduler/every/interval) do runtime nativo.
  * Domínio isolado do NativeRuntime -- refactor preserva semântica.
  */
-final class RuntimeScheduler {
+public final class RuntimeScheduler {
 
     private RuntimeScheduler() {}
 

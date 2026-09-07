@@ -20,7 +20,7 @@ import java.util.List;
  * {@code kof.web.App} type exists only at compile time; at runtime an app is
  * a String handle registered in the runtime registry.
  */
-final class KofWeb {
+public final class KofWeb {
 
     private KofWeb() {}
 

@@ -11,7 +11,7 @@ import java.util.Set;
 /**
  * JsCollectionOps — lowering das operações de List/Map/Set/Channel da stdlib Kof para os helpers do runtime JS (REFACTOR-500 FASE 4).
  */
-final class JsCollectionOps {
+public final class JsCollectionOps {
 
     private final JsMethodParser p;
 

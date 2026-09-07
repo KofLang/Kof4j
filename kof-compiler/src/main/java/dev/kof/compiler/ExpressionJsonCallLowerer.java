@@ -6,7 +6,7 @@ import java.util.List;
 /**
  * Lowering do dispatch json.encode/json.decode (receiver identificador "json").
  */
-final class ExpressionJsonCallLowerer {
+public final class ExpressionJsonCallLowerer {
 
     private ExpressionJsonCallLowerer() {}
 

@@ -5,7 +5,7 @@ package dev.kof.compiler;
  * length/concat/equals + kof_print_string/println_string + kof_memcpy) do
  * runtime nativo. Domínio isolado do NativeRuntime -- refactor preserva semântica.
  */
-final class RuntimeStringBase {
+public final class RuntimeStringBase {
 
     private RuntimeStringBase() {}
 

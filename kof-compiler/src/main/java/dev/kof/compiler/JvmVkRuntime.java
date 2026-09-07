@@ -21,7 +21,7 @@ package dev.kof.compiler;
  * REFACTOR-500 Fase 8: o source foi dividido em fragmentos (classes
  * Jvm*Part) no mesmo pacote; a concatenacao preserva byte-a-byte.
  */
-final class JvmVkRuntime {
+public final class JvmVkRuntime {
 
     private JvmVkRuntime() {}
 

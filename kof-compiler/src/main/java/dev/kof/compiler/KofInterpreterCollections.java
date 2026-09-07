@@ -10,7 +10,7 @@ import java.util.Objects;
  * (String methods, ArrayList, HashMap, HashSet, LinkedBlockingQueue),
  * espelhando {@code JvmOpCollections.emitStringCall/emitListCall/...}.
  */
-final class KofInterpreterCollections {
+public final class KofInterpreterCollections {
 
     static final Object NOT_HANDLED = KofInterpreterValues.NOT_HANDLED;
 

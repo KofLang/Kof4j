@@ -6,7 +6,7 @@ import java.util.List;
 /**
  * Lowering do namespace scheduler (scheduler.*) no emitExpression.
  */
-final class ExpressionSchedulerCallLowerer {
+public final class ExpressionSchedulerCallLowerer {
 
     private ExpressionSchedulerCallLowerer() {}
 

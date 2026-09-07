@@ -22,7 +22,7 @@ import java.util.List;
  * ({@code debug < info < warn < error < off}; default {@code info}).
  * Native and JS targets report {@code LOG001} at compile time.
  */
-final class KofLog {
+public final class KofLog {
 
     private KofLog() {}
 

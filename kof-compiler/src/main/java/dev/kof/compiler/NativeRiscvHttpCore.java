@@ -5,7 +5,7 @@ package dev.kof.compiler;
  * patch/delete/options/status) e strings de wire-format. Extraído verbatim
  * de NativeBackend.emitRiscvHttp (parte B) — asm byte-idêntico.
  */
-final class NativeRiscvHttpCore {
+public final class NativeRiscvHttpCore {
 
     private NativeRiscvHttpCore() {}
 

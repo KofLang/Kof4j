@@ -4,7 +4,7 @@ package dev.kof.compiler;
  * Emissão do ASM das constantes rodata de segurança (labels Lsec/Lstr) do
  * runtime nativo. Domínio isolado do NativeRuntime -- refactor preserva semântica.
  */
-final class RuntimeSecurityData {
+public final class RuntimeSecurityData {
 
     private RuntimeSecurityData() {}
 

@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.Map;
 
 
-final class JvmRuntime {
+public final class JvmRuntime {
 
     private JvmRuntime() {}
 

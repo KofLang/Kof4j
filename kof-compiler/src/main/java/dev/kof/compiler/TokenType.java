@@ -1,6 +1,6 @@
 package dev.kof.compiler;
 
-enum TokenType {
+public enum TokenType {
 
     EOF,
     ERROR,

@@ -17,7 +17,7 @@ package dev.kof.compiler;
  * 0x1000000 e Int (MYSQL_TYPE_LONG, 4B LE); senao KofString* (VAR_STRING,
  * lenenc) — mesmo teste de kof_db_bind.
  */
-final class NativeDbPrepared {
+public final class NativeDbPrepared {
 
     private NativeDbPrepared() {}
 

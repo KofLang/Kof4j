@@ -6,7 +6,7 @@ import java.util.List;
  * Emissão de annotations JVM (REFACTOR-500 FASE 8 — extraído de JvmBackend).
  * Sem estado: a escolha do visitor vem de fora (class/field/method).
  */
-final class JvmAnnotations {
+public final class JvmAnnotations {
 
     private JvmAnnotations() {}
 

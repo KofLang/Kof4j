@@ -3,7 +3,7 @@ package dev.kof.compiler;
 import java.util.List;
 import java.util.Map;
 
-final class JvmTypeMapper {
+public final class JvmTypeMapper {
 
     private JvmTypeMapper() {
     }

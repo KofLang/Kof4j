@@ -7,7 +7,7 @@ import java.util.List;
  * Lowering do dispatch ORM estático (KofOrm): save/find/all/where/page/migrate
  * e a validação tipada dos campos de entidade.
  */
-final class ExpressionOrmCallLowerer {
+public final class ExpressionOrmCallLowerer {
 
     private ExpressionOrmCallLowerer() {}
 

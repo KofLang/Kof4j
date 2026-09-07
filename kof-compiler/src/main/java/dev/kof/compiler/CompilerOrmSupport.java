@@ -8,7 +8,7 @@ import java.util.Map;
 /**
  * Suporte ORM/Query DSL: super-bridges, validação de campos, SQL em compile-time.
  */
-final class CompilerOrmSupport {
+public final class CompilerOrmSupport {
 
     private CompilerOrmSupport() {}
 

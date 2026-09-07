@@ -14,7 +14,7 @@ import java.util.Map;
  * Extraído de Optimizer (REFACTOR-500 FASE 8): transformação de IR pura,
  * sem alteração de semântica (gate: OptimizerTest + suíte).
  */
-final class OptimizerConstantFold {
+public final class OptimizerConstantFold {
 
     private OptimizerConstantFold() {}
     static List<KofOperation> constantFold(List<KofOperation> ops,

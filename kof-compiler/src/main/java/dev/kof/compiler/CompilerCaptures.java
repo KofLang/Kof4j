@@ -7,7 +7,7 @@ import java.util.List;
  * Coleta de capturas de lambda: resolve nomes usados dentro da lambda
  * contra os locals do escopo externo.
  */
-final class CompilerCaptures {
+public final class CompilerCaptures {
 
     private CompilerCaptures() {}
 

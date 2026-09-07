@@ -5,7 +5,7 @@ package dev.kof.compiler;
  * (x86_64 e cross). Puros sobre Type — DRY: consumidos por NativeBackend,
  * NativeX86Arith e afins.
  */
-final class NativeTypeKinds {
+public final class NativeTypeKinds {
 
     private NativeTypeKinds() {}
 

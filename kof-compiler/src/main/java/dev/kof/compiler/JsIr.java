@@ -13,7 +13,7 @@ import java.util.List;
  * into this tree-shaped JS AST. The JS AST deliberately stays small: it only
  * models what the Kof IR can express.
  */
-final class JsIr {
+public final class JsIr {
 
     private JsIr() {}
 

@@ -7,7 +7,7 @@ package dev.kof.compiler;
  * backend acessado via campo nb (padrão CompilerClassLowering); jsonSchemas
  * é estado próprio (coleta antes de emitStringData).
  */
-final class NativeJsonSchema {
+public final class NativeJsonSchema {
 
     private final NativeBackend nb;
 

@@ -6,7 +6,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-class SymbolTable {
+public class SymbolTable {
 
     private final SymbolTable parent;
     private final Map<String, Symbol> symbols = new HashMap<>();

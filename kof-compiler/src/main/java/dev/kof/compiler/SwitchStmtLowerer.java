@@ -6,7 +6,7 @@ import java.util.List;
 /**
  * Lowering de switch-statement (case SwitchStmt do StatementLowerer).
  */
-final class SwitchStmtLowerer {
+public final class SwitchStmtLowerer {
 
     private SwitchStmtLowerer() {}
 

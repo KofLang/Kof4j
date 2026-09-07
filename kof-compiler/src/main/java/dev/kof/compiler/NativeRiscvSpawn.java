@@ -8,7 +8,7 @@ package dev.kof.compiler;
  * do pai no ecall (a0=0, s0=handle) e roda o trampoline; await espera via
  * futex em handle->done (sem pthread_join). exit(93) mata só a thread.
  */
-final class NativeRiscvSpawn {
+public final class NativeRiscvSpawn {
 
     private NativeRiscvSpawn() {}
 

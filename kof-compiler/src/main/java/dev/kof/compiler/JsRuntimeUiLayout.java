@@ -1,7 +1,7 @@
 package dev.kof.compiler;
 
 /** kof-runtime.mjs — primitivas de layout + coleções/canais. */
-final class JsRuntimeUiLayout {
+public final class JsRuntimeUiLayout {
     private JsRuntimeUiLayout() {
     }
 

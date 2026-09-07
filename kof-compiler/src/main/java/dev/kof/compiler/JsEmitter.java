@@ -8,7 +8,7 @@ import java.util.List;
  * The emitter knows nothing about Kof IR: it only prints JS AST nodes.
  * Output targets ECMAScript 2022+ modules (ESM). No legacy syntax is emitted.
  */
-final class JsEmitter {
+public final class JsEmitter {
 
     private final StringBuilder sb = new StringBuilder();
     private int indent = 0;

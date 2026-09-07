@@ -4,7 +4,7 @@ package dev.kof.compiler;
  * Resolução de hierarquia de classes via SemanticAnalyzer (helpers do
  * CompilerDriver). Puro — recebe o analyzer por parâmetro.
  */
-final class HierarchyResolver {
+public final class HierarchyResolver {
 
     private HierarchyResolver() {}
 

@@ -28,7 +28,7 @@ import java.util.List;
  * {@link NativeRuntime#emitMq(StringBuilder)} (in-process pub/sub + queues,
  * 01/09, MQ001 fechado); the JS target reuses the in-process runtime.
  */
-final class KofMq {
+public final class KofMq {
 
     private KofMq() {}
 

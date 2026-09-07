@@ -20,7 +20,7 @@ import java.util.List;
  * Native reuses the scheduler (SCHED001); JS runs a cooperative timer queue
  * pumped by {@code time.sleep} (GraalJS has no event loop — TIME001 closed).
  */
-final class KofTime {
+public final class KofTime {
 
     private KofTime() {}
 

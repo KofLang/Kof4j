@@ -8,7 +8,7 @@ import java.util.List;
  * agente-idiomatic (CompilerDriver/NativeBackend) e por fixes-for-kofagent
  * (JvmBackend/SemanticAnalyzer). NUNCA duplicar estes predicados.
  */
-final class TypeMetrics {
+public final class TypeMetrics {
 
     private TypeMetrics() {}
 

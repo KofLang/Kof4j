@@ -11,7 +11,7 @@ import java.util.Set;
 /**
  * JsCallEmitter — lowering de chamadas (print, super, static, instance, construtores) e operadores binários/unários/literais (REFACTOR-500 FASE 4).
  */
-final class JsCallEmitter {
+public final class JsCallEmitter {
 
     private final JsMethodParser p;
 

@@ -1,7 +1,7 @@
 package dev.kof.compiler;
 
 
-final class NativeTypeMapper {
+public final class NativeTypeMapper {
 
     private NativeTypeMapper() {
     }

@@ -4,7 +4,7 @@ package dev.kof.compiler;
  * Emissão do ASM de message queue (kof_mq_*) do runtime nativo. Domínio isolado do
  * NativeRuntime -- refactor preserva semântica.
  */
-final class RuntimeMq {
+public final class RuntimeMq {
 
     private RuntimeMq() {}
 

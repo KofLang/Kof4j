@@ -6,7 +6,7 @@ import java.util.List;
 /**
  * Lowering de MethodCallExpr (case do emitExpression).
  */
-final class ExpressionMethodCallLowerer {
+public final class ExpressionMethodCallLowerer {
 
     private ExpressionMethodCallLowerer() {}
 

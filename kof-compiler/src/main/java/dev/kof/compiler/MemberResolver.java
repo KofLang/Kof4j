@@ -6,7 +6,7 @@ import java.util.List;
  * Resolução de membros e hierarquia extraída do SemanticAnalyzer
  * (REFACTOR-500 fase 6). Puro — recebe o estado necessário por parâmetro.
  */
-final class MemberResolver {
+public final class MemberResolver {
 
     private MemberResolver() {}
 

@@ -7,7 +7,7 @@ import java.util.List;
  * Extraído verbatim de NativeBackend (FASE 3, REFACTOR-500); estado do
  * backend acessado via campo `nb` (padrão CompilerClassLowering).
  */
-final class NativeRiscvCrossEmit {
+public final class NativeRiscvCrossEmit {
 
     private final NativeBackend nb;
 

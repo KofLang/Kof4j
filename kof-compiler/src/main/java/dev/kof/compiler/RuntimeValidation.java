@@ -4,7 +4,7 @@ package dev.kof.compiler;
  * Emissão do ASM de validation do runtime nativo.
  * Domínio isolado do NativeRuntime -- refactor preserva semântica.
  */
-final class RuntimeValidation {
+public final class RuntimeValidation {
 
     private RuntimeValidation() {}
 

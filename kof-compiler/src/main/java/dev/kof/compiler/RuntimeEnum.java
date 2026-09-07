@@ -4,7 +4,7 @@ package dev.kof.compiler;
  * Emissão do ASM de enum do runtime nativo.
  * Domínio isolado do NativeRuntime -- refactor preserva semântica.
  */
-final class RuntimeEnum {
+public final class RuntimeEnum {
 
     private RuntimeEnum() {}
 

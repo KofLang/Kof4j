@@ -5,7 +5,7 @@ package dev.kof.compiler;
  * Extraído de JvmRuntime.sourceCore (REFACTOR-500 Fase 5) — fragmento do
  * source do KofRuntime gerado; a concatenação preserva conteúdo byte-a-byte.
  */
-final class JvmRuntimeJson {
+public final class JvmRuntimeJson {
 
     private JvmRuntimeJson() {}
 

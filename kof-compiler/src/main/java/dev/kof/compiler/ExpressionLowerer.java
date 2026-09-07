@@ -6,7 +6,7 @@ import java.util.List;
 /**
  * Lowering de expressões (emitExpression) do CompilerDriver. Recebe o driver como host.
  */
-final class ExpressionLowerer {
+public final class ExpressionLowerer {
 
     private ExpressionLowerer() {}
 

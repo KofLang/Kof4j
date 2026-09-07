@@ -6,7 +6,7 @@ import java.util.List;
 /**
  * Lowering do namespace log (log.*) no emitExpression.
  */
-final class ExpressionLogCallLowerer {
+public final class ExpressionLogCallLowerer {
 
     private ExpressionLogCallLowerer() {}
 

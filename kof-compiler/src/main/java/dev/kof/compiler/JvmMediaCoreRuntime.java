@@ -4,7 +4,7 @@ package dev.kof.compiler;
  * Fragmento do source do KofRuntime gerado (REFACTOR-500 Fase 8).
  * kof.media (Bitmap/Video/Audio-WAV) - parte 1/2 de JvmMediaRuntime. Concatenacao preserva byte-a-byte.
  */
-final class JvmMediaCoreRuntime {
+public final class JvmMediaCoreRuntime {
 
     private JvmMediaCoreRuntime() {}
 

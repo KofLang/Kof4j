@@ -6,7 +6,7 @@ import java.util.List;
 /**
  * Emissão de instâncias UI (emitUiInstance), cores packed e SAM adapters.
  */
-final class CompilerUiEmitter {
+public final class CompilerUiEmitter {
 
     private CompilerUiEmitter() {}
 

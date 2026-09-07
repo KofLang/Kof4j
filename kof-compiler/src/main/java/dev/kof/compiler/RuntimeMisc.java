@@ -4,7 +4,7 @@ package dev.kof.compiler;
  * Emissão do ASM de utilidades (kof_instanceof) do runtime nativo. Domínio isolado
  * do NativeRuntime -- refactor preserva semântica.
  */
-final class RuntimeMisc {
+public final class RuntimeMisc {
 
     private RuntimeMisc() {}
 

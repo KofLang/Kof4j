@@ -27,7 +27,7 @@ import java.util.zip.ZipOutputStream;
  * dependências são resolvidas pelo Kof (ExternalClasspath), nunca por
  * arquivo de build — o pom é só cola dos binários oficiais do SDK.
  */
-final class AndroidProjectWriter {
+public final class AndroidProjectWriter {
 
     static final String APP_PACKAGE = "dev.kof.app";
     static final String APP_LABEL = "Kof App";

@@ -4,7 +4,7 @@ package dev.kof.compiler;
  * Emissão do ASM de security6 do runtime nativo.
  * Domínio isolado do NativeRuntime -- refactor preserva semântica.
  */
-final class RuntimeSecurity6 {
+public final class RuntimeSecurity6 {
 
     private RuntimeSecurity6() {}
 

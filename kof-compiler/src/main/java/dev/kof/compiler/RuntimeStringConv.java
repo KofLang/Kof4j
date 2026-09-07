@@ -7,7 +7,7 @@ package dev.kof.compiler;
  * isolado do NativeRuntime -- a extração NÃO muda o corpo (refactor preserva
  * semântica).
  */
-final class RuntimeStringConv {
+public final class RuntimeStringConv {
 
     private RuntimeStringConv() {}
 

@@ -5,7 +5,7 @@ package dev.kof.compiler;
  * indexOf/lastIndexOf) do runtime nativo. Domínio isolado do NativeRuntime --
  * refactor preserva semântica.
  */
-final class RuntimeStringSearch {
+public final class RuntimeStringSearch {
 
     private RuntimeStringSearch() {}
 

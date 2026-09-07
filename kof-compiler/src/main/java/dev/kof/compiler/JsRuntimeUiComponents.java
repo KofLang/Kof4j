@@ -1,7 +1,7 @@
 package dev.kof.compiler;
 
 /** kof-runtime.mjs — Component Core + Link/Image/Icon. */
-final class JsRuntimeUiComponents {
+public final class JsRuntimeUiComponents {
     private JsRuntimeUiComponents() {
     }
 

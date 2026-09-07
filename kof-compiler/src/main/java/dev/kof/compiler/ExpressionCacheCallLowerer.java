@@ -6,7 +6,7 @@ import java.util.List;
 /**
  * Lowering do namespace cache (cache.*) no emitExpression.
  */
-final class ExpressionCacheCallLowerer {
+public final class ExpressionCacheCallLowerer {
 
     private ExpressionCacheCallLowerer() {}
 

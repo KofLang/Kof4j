@@ -6,7 +6,7 @@ import java.util.List;
 /**
  * Lowering do namespace process (process.*) no emitExpression.
  */
-final class ExpressionProcessCallLowerer {
+public final class ExpressionProcessCallLowerer {
 
     private ExpressionProcessCallLowerer() {}
 

@@ -7,7 +7,7 @@ import java.util.Set;
  * sanitização de identificadores, mapeamento de tipos Kof → JS e
  * literais. Stateless por design (REFACTOR-500 FASE 4).
  */
-final class JsTypeMapper {
+public final class JsTypeMapper {
 
     private JsTypeMapper() {
     }

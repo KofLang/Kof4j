@@ -9,7 +9,7 @@ import java.nio.file.Path;
  * Extraído verbatim de NativeBackend (assemble/runCommand/ToolchainMissing);
  * os flags de link (db/mysql/concurrency) viram parâmetros.
  */
-final class NativeAssembler {
+public final class NativeAssembler {
 
     private NativeAssembler() {}
 

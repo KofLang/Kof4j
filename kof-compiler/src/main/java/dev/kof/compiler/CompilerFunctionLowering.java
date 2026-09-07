@@ -6,7 +6,7 @@ import java.util.List;
 /**
  * Lowering de funções top-level para IRMethod (incluindo defaults).
  */
-final class CompilerFunctionLowering {
+public final class CompilerFunctionLowering {
 
     private CompilerFunctionLowering() {}
 

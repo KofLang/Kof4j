@@ -6,7 +6,7 @@ import java.util.List;
 /**
  * Geração de métodos sintéticos para records: toString, equals, construtor.
  */
-final class CompilerRecordSupport {
+public final class CompilerRecordSupport {
 
     private CompilerRecordSupport() {}
 

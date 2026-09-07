@@ -4,7 +4,7 @@ package dev.kof.compiler;
  * Fragmento do source do KofRuntime gerado (REFACTOR-500 Fase 8).
  * kof.vulkan build: layouts/pipelines/desc-sets/host-buffers - parte 2/3 de JvmVkRuntime. Concatenacao preserva byte-a-byte.
  */
-final class JvmVkBuildRuntime {
+public final class JvmVkBuildRuntime {
 
     private JvmVkBuildRuntime() {}
 

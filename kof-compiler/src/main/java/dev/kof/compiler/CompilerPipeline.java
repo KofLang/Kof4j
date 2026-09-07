@@ -9,7 +9,7 @@ import java.util.List;
 /**
  * Orquestração do pipeline de compilação: parse, semântica, IR, otimização, emit.
  */
-final class CompilerPipeline {
+public final class CompilerPipeline {
 
     private CompilerPipeline() {}
 

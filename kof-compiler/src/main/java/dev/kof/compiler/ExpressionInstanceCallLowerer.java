@@ -8,7 +8,7 @@ import java.util.List;
  * chamadas super, recepção em Types Ui/Web/Media/Io/FunctionType/List/coleções
  * e o fallback para método resolvido/interface/runtime.
  */
-final class ExpressionInstanceCallLowerer {
+public final class ExpressionInstanceCallLowerer {
 
     private ExpressionInstanceCallLowerer() {}
 

@@ -20,8 +20,7 @@ import java.util.Map;
  * line tables / source maps that keep the Kof identity. The position is
  * registered before the backend, never synthesized there.
  */
-interface KofOperation {
-}
+
 
 /**
  * SUPER: non-virtual call to a superclass implementation (super.method()).

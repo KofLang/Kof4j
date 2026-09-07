@@ -11,7 +11,7 @@ import java.util.Set;
 /**
  * JsExpressionParser — converte a pilha de ops do IR em expressões JsIr (statement de expressão, fragmentos, pop/wrap da pilha) (REFACTOR-500 FASE 4).
  */
-final class JsExpressionParser {
+public final class JsExpressionParser {
 
     private final JsMethodParser p;
 

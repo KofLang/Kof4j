@@ -9,7 +9,7 @@ import java.util.List;
  * translateRiscvToAarch64) — bloco estático e autocontido; a saída aarch64
  * é byte-idêntica (prova: diff do .s nos 3 targets).
  */
-final class NativeAarch64Translator {
+public final class NativeAarch64Translator {
 
     private NativeAarch64Translator() {}
 

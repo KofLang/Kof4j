@@ -4,7 +4,7 @@ package dev.kof.compiler;
 Emissão do ASM de db6 do runtime nativo.
  * Domínio isolado do NativeRuntime -- refactor preserva semântica.
  */
-final class RuntimeDb6 {
+public final class RuntimeDb6 {
 
     private RuntimeDb6() {}
 

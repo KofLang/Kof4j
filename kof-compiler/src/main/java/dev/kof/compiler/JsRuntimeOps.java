@@ -11,7 +11,7 @@ import java.util.Set;
 /**
  * JsRuntimeOps — lowering das ops de runtime (json/io/ui/http/web/db/security/time/scheduler/mq/log/concurrency) para os helpers JS (REFACTOR-500 FASE 4).
  */
-final class JsRuntimeOps {
+public final class JsRuntimeOps {
 
     private final JsMethodParser p;
 

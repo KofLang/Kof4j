@@ -11,7 +11,7 @@ import java.util.Map;
  * com a mesma semântica do bytecode (System.out/err redirecionados,
  * {@code <clinit>} lazy, initialValue de campos estáticos).
  */
-final class KofInterpreterMembers {
+public final class KofInterpreterMembers {
 
     private final KofInterpreter interp;
     private final Map<String, IRClass> kofClasses = new HashMap<>();

@@ -8,7 +8,7 @@ import java.util.List;
  * (REFACTOR-500 fase 6). Mantém a ordem exata dos branches do switch
  * original (diagnósticos SEM0xx na mesma sequência).
  */
-final class SemMethodCallTyper {
+public final class SemMethodCallTyper {
 
     private SemMethodCallTyper() {}
 

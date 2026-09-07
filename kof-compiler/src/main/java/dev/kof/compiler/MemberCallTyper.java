@@ -8,7 +8,7 @@ import java.util.List;
  * super, classes externas, namespaces kof.*), extraída do SemanticAnalyzer
  * (REFACTOR-500 fase 6). Retorna null quando nenhuma regra se aplica.
  */
-final class MemberCallTyper {
+public final class MemberCallTyper {
 
     private MemberCallTyper() {}
 

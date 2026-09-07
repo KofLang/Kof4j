@@ -5,7 +5,7 @@ import java.util.List;
 /**
  * Lowering de AssignmentExpr (case do emitExpression).
  */
-final class ExpressionAssignmentLowerer {
+public final class ExpressionAssignmentLowerer {
 
     private ExpressionAssignmentLowerer() {}
 

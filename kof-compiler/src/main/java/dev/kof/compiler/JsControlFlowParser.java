@@ -11,7 +11,7 @@ import java.util.Set;
 /**
  * JsControlFlowParser — reconhece as estruturas de controle do IR (if/while/for/do-while/try) e produz JsIr nativo de JS (REFACTOR-500 FASE 4).
  */
-final class JsControlFlowParser {
+public final class JsControlFlowParser {
 
     private final JsMethodParser p;
 

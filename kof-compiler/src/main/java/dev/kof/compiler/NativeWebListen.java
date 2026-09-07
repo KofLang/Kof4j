@@ -6,7 +6,7 @@ package dev.kof.compiler;
  * Extraído de NativeWebRuntime (REFACTOR-500 Fase 8); a concatenação em
  * NativeWebRuntime preserva o assembly injetado byte-a-byte.
  */
-final class NativeWebListen {
+public final class NativeWebListen {
 
     private NativeWebListen() {}
 

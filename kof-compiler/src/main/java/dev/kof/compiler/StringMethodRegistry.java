@@ -6,7 +6,7 @@ import java.util.List;
  * Registro de assinaturas dos métodos de String e Object (resolução de
  * dispatch do CompilerDriver). Puro — sem estado de compilação.
  */
-final class StringMethodRegistry {
+public final class StringMethodRegistry {
 
     private StringMethodRegistry() {}
 

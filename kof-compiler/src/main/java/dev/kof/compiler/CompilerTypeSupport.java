@@ -5,7 +5,7 @@ import java.util.List;
 /**
  * Helpers de tipo e layout: json/fp support, nomes internos, access flags.
  */
-final class CompilerTypeSupport {
+public final class CompilerTypeSupport {
 
     private CompilerTypeSupport() {}
 

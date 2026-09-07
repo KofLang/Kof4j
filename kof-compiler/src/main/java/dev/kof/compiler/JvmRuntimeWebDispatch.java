@@ -5,7 +5,7 @@ package dev.kof.compiler;
  * Extraído de JvmRuntime.source (REFACTOR-500 Fase 5) — fragmento de source
  * do KofRuntime gerado; concatenação preserva ordem e conteúdo byte-a-byte.
  */
-final class JvmRuntimeWebDispatch {
+public final class JvmRuntimeWebDispatch {
 
     private JvmRuntimeWebDispatch() {}
 

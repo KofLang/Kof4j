@@ -12,7 +12,7 @@ import static org.objectweb.asm.Opcodes.*;
  * Emissão dos métodos sintéticos de record JVM (toString/equals/hashCode) —
  * REFACTOR-500 FASE 8, extraído de JvmBackend.emitClass. Sem estado.
  */
-final class JvmRecordEmitter {
+public final class JvmRecordEmitter {
 
     private JvmRecordEmitter() {}
 

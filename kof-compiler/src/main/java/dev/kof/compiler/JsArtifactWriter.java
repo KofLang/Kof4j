@@ -9,7 +9,7 @@ import java.util.List;
  * JsArtifactWriter — escreve os artefatos de saída do backend JS:
  * módulo .mjs + source map, runtime (kof-runtime*.mjs) e index.html.
  */
-class JsArtifactWriter {
+public class JsArtifactWriter {
 
     static String moduleFileName(String moduleName) {
         if (moduleName == null || moduleName.isBlank()) return "Default.mjs";

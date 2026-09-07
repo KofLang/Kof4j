@@ -4,7 +4,7 @@ package dev.kof.compiler;
  * Fragmento do source do KofRuntime gerado (REFACTOR-500 Fase 8).
  * kof.validation (G4) - parte 3/5 de JvmStringRuntime. Concatenacao preserva byte-a-byte.
  */
-final class JvmStringValidationRuntime {
+public final class JvmStringValidationRuntime {
 
     private JvmStringValidationRuntime() {}
 

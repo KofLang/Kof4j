@@ -8,7 +8,7 @@ import java.util.List;
  * ({@code (x) ->}, {@code { x: Int -> }}, trailing lambda). Move o cursor
  * do {@link ParseContext} — nunca duplica estado.
  */
-class LambdaParser {
+public class LambdaParser {
 
     static boolean looksLikeLambdaParams(ParseContext ctx) {
         // `(x: T) -> ...` — IDENTIFIER COLON no início é inequívoco: uma

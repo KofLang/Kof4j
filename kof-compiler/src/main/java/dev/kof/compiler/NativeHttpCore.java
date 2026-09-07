@@ -6,7 +6,7 @@ package dev.kof.compiler;
  * Extraído de NativeHttpRuntime (REFACTOR-500 Fase 8); a concatenação em
  * NativeHttpRuntime preserva o assembly injetado byte-a-byte.
  */
-final class NativeHttpCore {
+public final class NativeHttpCore {
 
     private NativeHttpCore() {}
 

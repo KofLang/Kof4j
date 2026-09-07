@@ -11,7 +11,7 @@ import java.util.List;
  * resolução transitiva relativa à raiz do módulo. Puro — recebe o
  * estado (moduleRoot/currentDiagnostics/declarationPackages) por parâmetro.
  */
-final class CompilerImports {
+public final class CompilerImports {
 
     private CompilerImports() {}
 

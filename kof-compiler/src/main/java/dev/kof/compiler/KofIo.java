@@ -3,7 +3,7 @@ package dev.kof.compiler;
 import java.util.List;
 
 
-final class KofIo {
+public final class KofIo {
 
     private KofIo() {}
 

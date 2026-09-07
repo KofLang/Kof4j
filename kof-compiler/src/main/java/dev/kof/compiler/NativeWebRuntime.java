@@ -13,7 +13,7 @@ package dev.kof.compiler;
  * NativeWebListen (listen + handle_client) e NativeWebResponses (helpers de
  * resposta). A concatenação abaixo preserva o assembly injetado byte-a-byte.
  */
-final class NativeWebRuntime {
+public final class NativeWebRuntime {
 
     private NativeWebRuntime() {}
 

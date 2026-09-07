@@ -5,7 +5,7 @@ import java.util.List;
 /**
  * Lowering de print/println no emitExpression.
  */
-final class ExpressionPrintLowerer {
+public final class ExpressionPrintLowerer {
 
     private ExpressionPrintLowerer() {}
 

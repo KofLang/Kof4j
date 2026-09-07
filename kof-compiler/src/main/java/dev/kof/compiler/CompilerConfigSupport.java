@@ -5,7 +5,7 @@ import java.util.List;
 /**
  * Descoberta de chaves de config (kof config) em compile-time.
  */
-final class CompilerConfigSupport {
+public final class CompilerConfigSupport {
 
     private CompilerConfigSupport() {}
 

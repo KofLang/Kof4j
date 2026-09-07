@@ -11,7 +11,7 @@ import java.nio.file.Path;
  * {@link KofInterpreterRuntime} (KofRuntime gerado + externo) e
  * {@link KofInterpreterObjects} (toString/equals/hashCode de record).
  */
-final class KofInterpreterBuiltins {
+public final class KofInterpreterBuiltins {
 
     static final Object NOT_HANDLED = KofInterpreterValues.NOT_HANDLED;
 

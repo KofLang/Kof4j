@@ -4,7 +4,7 @@ package dev.kof.compiler;
 Emissão do ASM de jsonarraydecode2 do runtime nativo.
  * Domínio isolado do NativeRuntime -- refactor preserva semântica.
  */
-final class RuntimeJsonArrayDecode2 {
+public final class RuntimeJsonArrayDecode2 {
 
     private RuntimeJsonArrayDecode2() {}
 

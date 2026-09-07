@@ -6,7 +6,7 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 
-class SemanticAnalyzer {
+public class SemanticAnalyzer {
 
     private SymbolTable currentScope;
     private CompilationUnitNode currentUnit;

@@ -16,7 +16,7 @@ package dev.kof.compiler;
  * helpers), NativeHttpParseUrl (parse de URL) e NativeHttpCore (request core
  * + wrappers). A concatenação abaixo preserva o assembly injetado byte-a-byte.
  */
-final class NativeHttpRuntime {
+public final class NativeHttpRuntime {
 
     private NativeHttpRuntime() {}
 

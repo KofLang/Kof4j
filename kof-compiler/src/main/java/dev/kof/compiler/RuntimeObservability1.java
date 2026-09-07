@@ -4,7 +4,7 @@ package dev.kof.compiler;
  * Emissão do ASM de observability1 do runtime nativo.
  * Domínio isolado do NativeRuntime -- refactor preserva semântica.
  */
-final class RuntimeObservability1 {
+public final class RuntimeObservability1 {
 
     private RuntimeObservability1() {}
 

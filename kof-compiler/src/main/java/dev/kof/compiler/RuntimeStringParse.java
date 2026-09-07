@@ -4,7 +4,7 @@ package dev.kof.compiler;
  * Emissão do ASM de conversão String → número (kof_string_to_int/long/double/float)
  * do runtime nativo. Domínio isolado do NativeRuntime -- refactor preserva semântica.
  */
-final class RuntimeStringParse {
+public final class RuntimeStringParse {
 
     private RuntimeStringParse() {}
 

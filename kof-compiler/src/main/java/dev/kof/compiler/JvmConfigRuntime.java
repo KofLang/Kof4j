@@ -5,7 +5,7 @@ package dev.kof.compiler;
  * Separado num arquivo próprio porque o constant pool do
  * javac limita cada string a 65535 bytes.
  */
-final class JvmConfigRuntime {
+public final class JvmConfigRuntime {
 
     private JvmConfigRuntime() {}
 

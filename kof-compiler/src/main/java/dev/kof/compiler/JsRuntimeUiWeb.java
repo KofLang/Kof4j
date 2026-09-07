@@ -1,7 +1,7 @@
 package dev.kof.compiler;
 
 /** kof-runtime.mjs — web server (WEB001) + timers cooperativos. */
-final class JsRuntimeUiWeb {
+public final class JsRuntimeUiWeb {
     private JsRuntimeUiWeb() {
     }
 

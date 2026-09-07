@@ -4,7 +4,7 @@ package dev.kof.compiler;
  * Fragmento do source do KofRuntime gerado (REFACTOR-500 Fase 8).
  * kof.media Mic + web serving (serveDir/estaticos/Range) - parte 2/2 de JvmMediaRuntime. Concatenacao preserva byte-a-byte.
  */
-final class JvmMediaWebRuntime {
+public final class JvmMediaWebRuntime {
 
     private JvmMediaWebRuntime() {}
 

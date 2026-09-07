@@ -10,7 +10,7 @@ import java.util.Set;
  * único estado mutável: todo parser extraído recebe este contexto por
  * parâmetro e o avança; nenhum estado é duplicado entre as classes.
  */
-class ParseContext {
+public class ParseContext {
 
     final List<Token> tokens;
     final DiagnosticCollector diagnostics;

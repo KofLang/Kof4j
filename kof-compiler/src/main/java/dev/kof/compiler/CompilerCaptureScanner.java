@@ -6,7 +6,7 @@ import java.util.List;
 /**
  * Análise de capturas mutadas e declarações/lambdas no escopo da função.
  */
-final class CompilerCaptureScanner {
+public final class CompilerCaptureScanner {
 
     private CompilerCaptureScanner() {}
 

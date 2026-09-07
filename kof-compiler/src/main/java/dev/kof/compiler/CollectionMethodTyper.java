@@ -5,7 +5,7 @@ import java.util.List;
 /**
  * Inferência de tipo de métodos de coleção (List/Map/Set/String).
  */
-final class CollectionMethodTyper {
+public final class CollectionMethodTyper {
 
     private CollectionMethodTyper() {}
 

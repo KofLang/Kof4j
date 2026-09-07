@@ -15,7 +15,7 @@ import java.util.stream.Collectors;
 import static org.objectweb.asm.Opcodes.*;
 
 
-class JvmBackend implements Backend {
+public class JvmBackend implements Backend {
 
     /** Classpath externo para computar ancestrais comuns de frames (android.*). */
     private ExternalClasspath externalTypes;

@@ -1,7 +1,7 @@
 package dev.kof.compiler;
 
 /** kof-runtime.mjs — eventos de UI (dispatch/bubbling). */
-final class JsRuntimeUiEvents {
+public final class JsRuntimeUiEvents {
     private JsRuntimeUiEvents() {
     }
 

@@ -4,7 +4,7 @@ package dev.kof.compiler;
 Emissão do ASM de io1 do runtime nativo.
  * Domínio isolado do NativeRuntime -- refactor preserva semântica.
  */
-final class RuntimeIo1 {
+public final class RuntimeIo1 {
 
     private RuntimeIo1() {}
 

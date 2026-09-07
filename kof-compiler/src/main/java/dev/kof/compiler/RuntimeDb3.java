@@ -4,7 +4,7 @@ package dev.kof.compiler;
 Emissão do ASM de db3 do runtime nativo.
  * Domínio isolado do NativeRuntime -- refactor preserva semântica.
  */
-final class RuntimeDb3 {
+public final class RuntimeDb3 {
 
     private RuntimeDb3() {}
 

@@ -4,7 +4,7 @@ package dev.kof.compiler;
  * Fragmento do source do KofRuntime gerado (REFACTOR-500 Fase 8).
  * kof.vulkan buffers+submit+matvec+matmul (vkGrow..dispatch64) - parte 3/3 de JvmVkRuntime. Concatenacao preserva byte-a-byte.
  */
-final class JvmVkDispatchRuntime {
+public final class JvmVkDispatchRuntime {
 
     private JvmVkDispatchRuntime() {}
 

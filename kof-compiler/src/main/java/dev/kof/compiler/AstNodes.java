@@ -26,28 +26,7 @@ import java.util.List;
  * os blocos são reduzidos pelo compilador a funções sintetizadas chamadas
  * no prólogo/epílogo do main (zero container, zero reflection).
  */
-record RecordDeclarationNode(SourcePosition position, String name, List<String> modifiers,
-                             String superClass, List<String> interfaces,
-                             List<String> typeParameters,
-                             List<RecordComponentNode> components,
-                             List<? extends AstNode> members,
-                             List<AnnotationNode> annotations) implements TypeDeclarationNode {
 
-    public RecordDeclarationNode(SourcePosition position, String name, List<String> modifiers,
-                                 String superClass, List<String> interfaces,
-                                 List<RecordComponentNode> components,
-                                 List<? extends AstNode> members) {
-        this(position, name, modifiers, superClass, interfaces, List.of(), components, members, List.of());
-    }
-
-    public RecordDeclarationNode(SourcePosition position, String name, List<String> modifiers,
-                                 String superClass, List<String> interfaces,
-                                 List<RecordComponentNode> components,
-                                 List<? extends AstNode> members,
-                                 List<AnnotationNode> annotations) {
-        this(position, name, modifiers, superClass, interfaces, List.of(), components, members, annotations);
-    }
-}
 
 /**
  * entity User {

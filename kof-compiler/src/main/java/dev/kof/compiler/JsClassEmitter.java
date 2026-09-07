@@ -8,7 +8,7 @@ import java.util.List;
  * (via JsMethodParser), sintéticos de record (toString/equals/toJSON) e o
  * helper de binding do json.decode (REFACTOR-500 FASE 4).
  */
-final class JsClassEmitter {
+public final class JsClassEmitter {
 
     private final JsMethodParser p;
 

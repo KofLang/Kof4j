@@ -4,7 +4,7 @@ package dev.kof.compiler;
  * Emissão do ASM de UI (kof_ui_color/window) do runtime nativo. Domínio isolado
  * do NativeRuntime -- refactor preserva semântica.
  */
-final class RuntimeUi {
+public final class RuntimeUi {
 
     private RuntimeUi() {}
 

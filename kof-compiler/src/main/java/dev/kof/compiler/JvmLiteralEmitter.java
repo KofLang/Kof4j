@@ -10,7 +10,7 @@ import static org.objectweb.asm.Opcodes.*;
  * Literais, tabelas de opcodes JVM e larguras de frame
  * (REFACTOR-500 FASE 8 — extraído de JvmBackend). Sem estado.
  */
-final class JvmLiteralEmitter {
+public final class JvmLiteralEmitter {
 
     private JvmLiteralEmitter() {}
 

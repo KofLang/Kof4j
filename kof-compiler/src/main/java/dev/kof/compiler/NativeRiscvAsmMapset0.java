@@ -3,7 +3,7 @@ package dev.kof.compiler;
 // FASE 3 (REFACTOR-500): fatia 0 de RISCV_MAPSET_ASM — runtime assembly riscv64.
 // Concatenada em ordem por NativeRiscvAsm; corpo verbatim (fechamento na
 // coluna 12 preserva o valor byte-idêntico ao original).
-final class NativeRiscvAsmMapset0 {
+public final class NativeRiscvAsmMapset0 {
 
     private NativeRiscvAsmMapset0() {}
 

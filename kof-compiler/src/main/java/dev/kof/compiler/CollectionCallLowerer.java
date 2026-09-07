@@ -7,7 +7,7 @@ import java.util.List;
  * Lowering de métodos de coleção (List/Channel/Map/Set) no emitExpression.
  * Retorna -1 se nenhum método de coleção foi reconhecido (cai no genérico).
  */
-final class CollectionCallLowerer {
+public final class CollectionCallLowerer {
 
     private CollectionCallLowerer() {}
 

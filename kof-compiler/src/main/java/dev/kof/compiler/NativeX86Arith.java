@@ -5,7 +5,7 @@ package dev.kof.compiler;
  * Extraído verbatim de NativeBackend (emitBinary + emitUnary) — os dois
  * métodos só dependem de NativeTypeKinds (estático), zero estado do backend.
  */
-final class NativeX86Arith {
+public final class NativeX86Arith {
 
     private NativeX86Arith() {}
 

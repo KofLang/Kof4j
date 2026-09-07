@@ -12,7 +12,7 @@ import java.util.Map;
  * comportamento do bytecode (pc na região + tipo do catch, throw-as-String
  * via getMessage), {@code asThrowable} converte o valor do throw.
  */
-final class KofInterpreterFrame {
+public final class KofInterpreterFrame {
 
     private final KofInterpreter interp;
 

@@ -8,7 +8,7 @@ import java.util.List;
  * compile-time (literais, arrays, {@code X.class}, {@code A.B}). Move o cursor
  * do {@link ParseContext} — nunca duplica estado.
  */
-class AnnotationParser {
+public class AnnotationParser {
 
     /**
      * @Name, @pkg.Name e @Name(valor | key = valor, ...) — valores são

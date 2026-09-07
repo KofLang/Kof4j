@@ -5,7 +5,7 @@ import java.util.List;
 /**
  * Lowering de switch-expression (emitSwitchExpr/Chain/Binding).
  */
-final class SwitchExprLowerer {
+public final class SwitchExprLowerer {
 
     private SwitchExprLowerer() {}
 

@@ -6,7 +6,7 @@ import java.util.List;
 /**
  * Lowering do namespace http (http.*) no emitExpression.
  */
-final class ExpressionHttpCallLowerer {
+public final class ExpressionHttpCallLowerer {
 
     private ExpressionHttpCallLowerer() {}
 

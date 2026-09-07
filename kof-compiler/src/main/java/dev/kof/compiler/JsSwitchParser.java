@@ -11,7 +11,7 @@ import java.util.Set;
 /**
  * JsSwitchParser — reconhece switch de valores e switch de patterns do IR e recria como switch/if-else JS (REFACTOR-500 FASE 4).
  */
-final class JsSwitchParser {
+public final class JsSwitchParser {
 
     private final JsMethodParser p;
 

@@ -6,7 +6,7 @@ import java.util.List;
 /**
  * Lowering de BinaryExpr (case do emitExpression).
  */
-final class ExpressionBinaryLowerer {
+public final class ExpressionBinaryLowerer {
 
     private ExpressionBinaryLowerer() {}
 

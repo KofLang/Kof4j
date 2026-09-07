@@ -28,7 +28,7 @@ import java.util.Set;
  * written next to the generated program. This backend never emits
  * console.* / process.* calls directly into user code.
  */
-class JsBackend implements Backend {
+public class JsBackend implements Backend {
 
     private final JsLoweringContext lc = new JsLoweringContext();
     private final JsMethodParser parser = new JsMethodParser(lc);

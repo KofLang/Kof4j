@@ -6,7 +6,7 @@ import java.util.List;
 /**
  * Lowering do namespace config (config.*) no emitExpression.
  */
-final class ExpressionConfigCallLowerer {
+public final class ExpressionConfigCallLowerer {
 
     private ExpressionConfigCallLowerer() {}
 

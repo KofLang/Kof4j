@@ -4,7 +4,7 @@ package dev.kof.compiler;
  * Emissão do ASM de canais (kof_channel_*) do runtime nativo. Domínio isolado do
  * NativeRuntime -- refactor preserva semântica.
  */
-final class RuntimeChannel {
+public final class RuntimeChannel {
 
     private RuntimeChannel() {}
 

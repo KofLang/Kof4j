@@ -8,7 +8,7 @@ import java.util.Objects;
  * {@link KofInterpreterOps}, {@link KofInterpreterRuntime},
  * {@link KofInterpreterConcurrency} e {@link KofInterpreterObjects}.
  */
-final class KofInterpreterValues {
+public final class KofInterpreterValues {
 
     private KofInterpreterValues() {}
 

@@ -1,7 +1,7 @@
 package dev.kof.compiler;
 
 
-final class AccessFlags {
+public final class AccessFlags {
     static final int PUBLIC     = 0x0001;
     static final int PRIVATE    = 0x0002;
     static final int PROTECTED  = 0x0004;

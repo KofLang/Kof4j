@@ -10,7 +10,7 @@ import static org.objectweb.asm.Opcodes.*;
  * (REFACTOR-500 FASE 8 — extraído de JvmBackend.emitOperation).
  * Sem estado próprio; só escreve em `mv` e nos flags do backend.
  */
-final class JvmOpCollections {
+public final class JvmOpCollections {
 
     private JvmOpCollections() {}
 

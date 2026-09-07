@@ -5,7 +5,7 @@ import java.util.List;
 /**
  * Lowering de factories Ui estáticos (Icon/Font/Button/Component/Store).
  */
-final class ExpressionUiStaticLowerer {
+public final class ExpressionUiStaticLowerer {
 
     private ExpressionUiStaticLowerer() {}
 

@@ -9,7 +9,7 @@ import java.util.Set;
  * Liga os parsers por domínio (controle, switch, expressão, chamadas,
  * coleções, runtime) e expõe a entrada parseMethodBody/lowerFunction.
  */
-final class JsMethodParser {
+public final class JsMethodParser {
 
     final JsLoweringContext lc;
     final JsControlFlowParser flow;

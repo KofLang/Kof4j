@@ -7,7 +7,7 @@ package dev.kof.compiler;
  * (≤500) e remontados por concatenação — valor byte-idêntico ao original
  * (prova: diff do .s gerado nos 3 targets).
  */
-final class NativeRiscvAsm {
+public final class NativeRiscvAsm {
 
     private NativeRiscvAsm() {}
 

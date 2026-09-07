@@ -23,7 +23,7 @@ import java.util.List;
  * bind) é resolvida por overloads de aridade fixa (0-4 parâmetros).
  * Native e JS reportam {@code DB001} em compile-time.
  */
-final class KofDb {
+public final class KofDb {
 
     private KofDb() {}
 

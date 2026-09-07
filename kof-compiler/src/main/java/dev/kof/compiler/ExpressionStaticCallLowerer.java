@@ -7,7 +7,7 @@ import java.util.List;
  * Lowering de chamadas estáticas/builtin (receiver null) no emitExpression.
  * Retorna -1 se nenhum branch estático foi reconhecido.
  */
-final class ExpressionStaticCallLowerer {
+public final class ExpressionStaticCallLowerer {
 
     private ExpressionStaticCallLowerer() {}
 

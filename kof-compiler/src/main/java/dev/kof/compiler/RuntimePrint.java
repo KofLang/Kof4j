@@ -5,7 +5,7 @@ package dev.kof.compiler;
  * nativo. Domínio isolado do NativeRuntime -- a extração NÃO muda o corpo
  * (refactor preserva semântica).
  */
-final class RuntimePrint {
+public final class RuntimePrint {
 
     private RuntimePrint() {}
 

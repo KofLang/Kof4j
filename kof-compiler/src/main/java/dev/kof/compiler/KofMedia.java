@@ -22,7 +22,7 @@ import java.util.List;
  * target JVM usa {@code javax.imageio} e {@code javax.sound.sampled}.
  * Os tipos kof.media.* existem só em compile-time; em runtime são Ints.
  */
-final class KofMedia {
+public final class KofMedia {
 
     private KofMedia() {}
 

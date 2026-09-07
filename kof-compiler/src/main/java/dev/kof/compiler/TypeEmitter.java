@@ -6,7 +6,7 @@ import java.util.List;
  * Emissão de operações de tipo (boxing/erasure/widening) sobre a lista de
  * ops IR. Puro — recebe o que precisa por parâmetro.
  */
-final class TypeEmitter {
+public final class TypeEmitter {
 
     private TypeEmitter() {}
 

@@ -4,7 +4,7 @@ package dev.kof.compiler;
  * Dispatch de funções JSON do runtime nativo (encode/decode) por tipo Kof.
  * Puro — não usa estado de compilação.
  */
-final class JsonDispatch {
+public final class JsonDispatch {
 
     private JsonDispatch() {}
 

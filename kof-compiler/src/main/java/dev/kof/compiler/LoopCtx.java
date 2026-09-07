@@ -6,7 +6,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-final class LoopCtx {
+public final class LoopCtx {
     final LabelId start;
     final LabelId continueLabel;
     final LabelId end;

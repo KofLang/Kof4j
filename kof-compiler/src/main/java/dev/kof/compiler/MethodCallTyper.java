@@ -6,7 +6,7 @@ import java.util.List;
 /**
  * Inferência de tipo de MethodCallExpr (parte do inferExprType).
  */
-final class MethodCallTyper {
+public final class MethodCallTyper {
 
     private MethodCallTyper() {}
 

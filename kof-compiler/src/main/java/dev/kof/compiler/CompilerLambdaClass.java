@@ -6,7 +6,7 @@ import java.util.List;
 /**
  * Geração de classes sintéticas para lambdas (nomes, interfaces, mangling).
  */
-final class CompilerLambdaClass {
+public final class CompilerLambdaClass {
 
     private CompilerLambdaClass() {}
 

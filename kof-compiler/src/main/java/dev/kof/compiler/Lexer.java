@@ -5,7 +5,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-class Lexer {
+public class Lexer {
 
     private static final Map<String, TokenType> KEYWORDS = new HashMap<>();
 

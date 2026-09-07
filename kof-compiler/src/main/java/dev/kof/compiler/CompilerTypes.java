@@ -7,7 +7,7 @@ import java.util.List;
  * ownerTypeFromInternal/mainClassType). Puro — recebe o estado necessário
  * (currentUnit/semanticAnalyzer/currentModule) por parâmetro.
  */
-final class CompilerTypes {
+public final class CompilerTypes {
 
     private CompilerTypes() {}
 

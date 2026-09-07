@@ -5,7 +5,7 @@ package dev.kof.compiler;
  * map/filter/reduce) do runtime nativo. Domínio isolado do NativeRuntime --
  * refactor preserva semântica.
  */
-final class RuntimeList {
+public final class RuntimeList {
 
     private RuntimeList() {}
 

@@ -3,7 +3,7 @@ package dev.kof.compiler;
 // FASE 3 (REFACTOR-500): fatia 2 de RISCV_RUNTIME_ASM_B — runtime assembly riscv64.
 // Concatenada em ordem por NativeRiscvAsm; corpo verbatim (fechamento na
 // coluna 12 preserva o valor byte-idêntico ao original).
-final class NativeRiscvAsmRtB2 {
+public final class NativeRiscvAsmRtB2 {
 
     private NativeRiscvAsmRtB2() {}
 

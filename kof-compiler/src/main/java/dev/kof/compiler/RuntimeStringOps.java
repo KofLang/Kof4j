@@ -5,7 +5,7 @@ package dev.kof.compiler;
  * case/equalsIgnoreCase) do runtime nativo. Domínio isolado do NativeRuntime --
  * refactor preserva semântica.
  */
-final class RuntimeStringOps {
+public final class RuntimeStringOps {
 
     private RuntimeStringOps() {}
 

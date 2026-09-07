@@ -4,7 +4,7 @@ package dev.kof.compiler;
  * Emissão do ASM de concorrência (kof_spawn/kof_spawn_result/kof_await/kof_thread) do
  * runtime nativo. Domínio isolado do NativeRuntime -- refactor preserva semântica.
  */
-final class RuntimeConcurrency {
+public final class RuntimeConcurrency {
 
     private RuntimeConcurrency() {}
 

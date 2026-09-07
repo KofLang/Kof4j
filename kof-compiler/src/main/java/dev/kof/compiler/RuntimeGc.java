@@ -5,7 +5,7 @@ package dev.kof.compiler;
  * kof_null_error/kof_bounds_error) do runtime nativo. Domínio isolado do
  * NativeRuntime -- refactor preserva semântica.
  */
-final class RuntimeGc {
+public final class RuntimeGc {
 
     private RuntimeGc() {}
 

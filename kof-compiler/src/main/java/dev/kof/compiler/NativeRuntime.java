@@ -7,7 +7,7 @@ import java.util.List;
  * string). Cada domínio vive numa classe própria ({@code Runtime*}) — esta
  * classe só ordena as emissões e as constantes de layout compartilhadas.
  */
-final class NativeRuntime {
+public final class NativeRuntime {
 
     private NativeRuntime() {}
 

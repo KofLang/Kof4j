@@ -14,7 +14,7 @@ import java.util.List;
  * All channel access is compiler-side bit manipulation; only toCss() needs
  * a runtime helper (string building).
  */
-final class KofUi {
+public final class KofUi {
 
     private KofUi() {}
 

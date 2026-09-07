@@ -4,7 +4,7 @@ package dev.kof.compiler;
  * Emissão do ASM do cache (kof_cache_*) do runtime nativo. Domínio isolado do
  * NativeRuntime -- refactor preserva semântica.
  */
-final class RuntimeCache {
+public final class RuntimeCache {
 
     private RuntimeCache() {}
 

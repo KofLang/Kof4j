@@ -4,7 +4,7 @@ package dev.kof.compiler;
  * Fragmento do source do KofRuntime gerado (REFACTOR-500 Fase 8).
  * kof.web (native web stack: WebApp/router/middleware/static/serve) - parte 1/2 de JvmWebRuntime. Concatenacao preserva byte-a-byte.
  */
-final class JvmWebCoreRuntime {
+public final class JvmWebCoreRuntime {
 
     private JvmWebCoreRuntime() {}
 

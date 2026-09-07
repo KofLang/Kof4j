@@ -7,7 +7,7 @@ import java.util.List;
  * Inferência de tipo de expressões (inferExprType) do CompilerDriver.
  * Recebe o driver como host.
  */
-final class ExpressionTyper {
+public final class ExpressionTyper {
 
     private ExpressionTyper() {}
 

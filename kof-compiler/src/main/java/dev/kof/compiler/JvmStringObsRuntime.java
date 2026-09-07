@@ -4,7 +4,7 @@ package dev.kof.compiler;
  * Fragmento do source do KofRuntime gerado (REFACTOR-500 Fase 8).
  * kof.observability (G5: counters/gauges/histograms/spans/metrics) - parte 4/5 de JvmStringRuntime. Concatenacao preserva byte-a-byte.
  */
-final class JvmStringObsRuntime {
+public final class JvmStringObsRuntime {
 
     private JvmStringObsRuntime() {}
 

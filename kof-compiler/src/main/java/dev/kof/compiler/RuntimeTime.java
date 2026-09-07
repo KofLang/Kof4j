@@ -4,7 +4,7 @@ package dev.kof.compiler;
  * Emissão do ASM de tempo (kof_time e kof_io_time) do runtime nativo.
  * Domínio isolado do NativeRuntime -- refactor preserva semântica.
  */
-final class RuntimeTime {
+public final class RuntimeTime {
 
     private RuntimeTime() {}
 

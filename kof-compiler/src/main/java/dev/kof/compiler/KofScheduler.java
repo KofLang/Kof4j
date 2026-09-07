@@ -2,7 +2,7 @@ package dev.kof.compiler;
 
 import java.util.List;
 
-final class KofScheduler {
+public final class KofScheduler {
     private KofScheduler() {}
     static final Type SCHEDULER = new Type.ClassType("kof.scheduler", "Scheduler", List.of());
     private static final Type STR = BuiltinTypes.STRING;

@@ -13,7 +13,7 @@ import java.util.List;
  * do JDK: despacho reflexivo com seleção de overload pelo tipo da IR,
  * coerção de argumentos e proxy para objetos Kof.
  */
-final class KofInterpreterRuntime {
+public final class KofInterpreterRuntime {
 
     static final Object NOT_HANDLED = KofInterpreterValues.NOT_HANDLED;
 

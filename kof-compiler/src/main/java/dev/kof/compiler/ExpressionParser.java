@@ -8,7 +8,7 @@ import java.util.List;
  * primary, lambdas, new/call, switch-expressão e Query DSL. Move o cursor
  * do {@link ParseContext} — nunca duplica estado.
  */
-class ExpressionParser {
+public class ExpressionParser {
 
     static ExpressionNode parseExpression(ParseContext ctx) {
         if (ctx.check(TokenType.SWITCH)) {

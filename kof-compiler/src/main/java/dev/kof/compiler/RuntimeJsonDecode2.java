@@ -3,7 +3,7 @@ package dev.kof.compiler;
 /**
  * Emissão do ASM do decode JSON (parte 2) do runtime nativo.
  */
-final class RuntimeJsonDecode2 {
+public final class RuntimeJsonDecode2 {
 
     private RuntimeJsonDecode2() {}
 

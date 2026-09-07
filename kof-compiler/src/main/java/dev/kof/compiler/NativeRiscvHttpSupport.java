@@ -5,7 +5,7 @@ package dev.kof.compiler;
  * Extraído verbatim de NativeBackend.emitRiscvHttp (parte A) — asm
  * byte-idêntico (prova: diff do .s nos 3 targets).
  */
-final class NativeRiscvHttpSupport {
+public final class NativeRiscvHttpSupport {
 
     private NativeRiscvHttpSupport() {}
 

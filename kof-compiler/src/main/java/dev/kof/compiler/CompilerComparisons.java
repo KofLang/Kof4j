@@ -7,7 +7,7 @@ import java.util.List;
  * Helpers de comparação (mapComparison/invert), shortcuts numéricos e
  * detecção de retorno (hasReturnValue).
  */
-final class CompilerComparisons {
+public final class CompilerComparisons {
 
     private CompilerComparisons() {}
 

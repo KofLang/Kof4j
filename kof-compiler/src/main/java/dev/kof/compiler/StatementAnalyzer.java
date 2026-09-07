@@ -6,7 +6,7 @@ import java.util.List;
  * Análise de statements/corpos, extraída do SemanticAnalyzer
  * (REFACTOR-500 fase 6). Mantém a ordem exata dos diagnósticos SEM0xx.
  */
-final class StatementAnalyzer {
+public final class StatementAnalyzer {
 
     private StatementAnalyzer() {}
 

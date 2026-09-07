@@ -8,7 +8,7 @@ import java.util.List;
  * for, throw, try, switch (statement e expressão), var decl. Move o cursor
  * do {@link ParseContext} — nunca duplica estado.
  */
-class StatementParser {
+public class StatementParser {
 
     static List<StatementNode> parseBlock(ParseContext ctx) {
         ctx.expect(TokenType.LBRACE, "Expected '{'", "PARSE024");

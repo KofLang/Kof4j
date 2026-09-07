@@ -4,7 +4,7 @@ package dev.kof.compiler;
  * Emissão do ASM de utilidades JSON (kof_json_quote/kof_json_find_value) do
  * runtime nativo. Domínio isolado do NativeRuntime -- refactor preserva semântica.
  */
-final class RuntimeJsonUtils {
+public final class RuntimeJsonUtils {
 
     private RuntimeJsonUtils() {}
 

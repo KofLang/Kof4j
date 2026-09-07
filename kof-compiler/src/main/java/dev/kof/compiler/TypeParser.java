@@ -8,7 +8,7 @@ import java.util.List;
  * argumentos genéricos, parâmetros formais e throws. Move o cursor
  * do {@link ParseContext} — nunca duplica estado.
  */
-class TypeParser {
+public class TypeParser {
 
     /**
      * Consumes the generic type arguments starting at the current LESS token

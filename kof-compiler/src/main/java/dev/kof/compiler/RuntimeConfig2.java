@@ -4,7 +4,7 @@ package dev.kof.compiler;
 Emissão do ASM de config2 do runtime nativo.
  * Domínio isolado do NativeRuntime -- refactor preserva semântica.
  */
-final class RuntimeConfig2 {
+public final class RuntimeConfig2 {
 
     private RuntimeConfig2() {}
 

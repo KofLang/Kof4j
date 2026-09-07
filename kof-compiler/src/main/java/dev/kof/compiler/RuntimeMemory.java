@@ -4,7 +4,7 @@ package dev.kof.compiler;
  * Emissão do ASM de alocação/liberação (kof_alloc/kof_free/kof_init_object/kof_memstats)
  * do runtime nativo. Domínio isolado do NativeRuntime -- refactor preserva semântica.
  */
-final class RuntimeMemory {
+public final class RuntimeMemory {
 
     private RuntimeMemory() {}
 

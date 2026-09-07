@@ -4,7 +4,7 @@ package dev.kof.compiler;
  * Emissão do ASM de edição de String (kof_string_replace/split) do runtime
  * nativo. Domínio isolado do NativeRuntime -- refactor preserva semântica.
  */
-final class RuntimeStringEdit {
+public final class RuntimeStringEdit {
 
     private RuntimeStringEdit() {}
 

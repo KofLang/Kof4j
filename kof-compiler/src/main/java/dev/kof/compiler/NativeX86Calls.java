@@ -7,7 +7,7 @@ package dev.kof.compiler;
  * helpers que ainda vivem no backend (resolveCalleeName,
  * findVirtualMethodIndex) são acessados via campo nb.
  */
-final class NativeX86Calls {
+public final class NativeX86Calls {
 
     private final NativeBackend nb;
 

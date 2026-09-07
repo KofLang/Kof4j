@@ -6,7 +6,7 @@ import java.util.List;
 /**
  * Lowering de anotações (AnnotationNode -> IRAnnotation) e dobra de valores.
  */
-final class CompilerAnnotations {
+public final class CompilerAnnotations {
 
     private CompilerAnnotations() {}
 

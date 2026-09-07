@@ -9,7 +9,7 @@ import java.util.List;
  * Maps to {@code kof_validation_*} runtime functions on each backend.
  * All validation predicates are available on JVM / Native / JS — no target gap.
  */
-final class KofValidation {
+public final class KofValidation {
 
     private KofValidation() {}
 

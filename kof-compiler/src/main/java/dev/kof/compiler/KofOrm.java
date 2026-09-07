@@ -29,7 +29,7 @@ import java.util.List;
  * <p>JVM: JDBC (via kof.db). Native e JS reportam {@code ORM001} em
  * compile-time.
  */
-final class KofOrm {
+public final class KofOrm {
 
     private KofOrm() {
     }

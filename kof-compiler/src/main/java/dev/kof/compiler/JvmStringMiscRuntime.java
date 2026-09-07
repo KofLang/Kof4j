@@ -4,7 +4,7 @@ package dev.kof.compiler;
  * Fragmento do source do KofRuntime gerado (REFACTOR-500 Fase 8).
  * kof.security G9 (rate-limit/sessions/api-keys) + higher-order + enum + tetris - parte 5/5 de JvmStringRuntime. Concatenacao preserva byte-a-byte.
  */
-final class JvmStringMiscRuntime {
+public final class JvmStringMiscRuntime {
 
     private JvmStringMiscRuntime() {}
 

@@ -6,7 +6,7 @@ import java.util.List;
 /**
  * Helpers de Path para resolução de módulo/package (puros, sem estado).
  */
-final class ModuleRoots {
+public final class ModuleRoots {
 
     private ModuleRoots() {}
 

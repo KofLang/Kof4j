@@ -1,7 +1,7 @@
 package dev.kof.compiler;
 
 /** kof-runtime-io.mjs — plataforma (fs/console). */
-final class JsRuntimeIo {
+public final class JsRuntimeIo {
     private JsRuntimeIo() {
     }
 

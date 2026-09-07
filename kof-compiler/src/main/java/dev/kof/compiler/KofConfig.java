@@ -24,7 +24,7 @@ import java.util.List;
  * ({@code kof.<KOF_PROFILE>.config} or {@code kof.config} in the working
  * directory). Native and JS targets report {@code CONF001} at compile time.
  */
-final class KofConfig {
+public final class KofConfig {
 
     private KofConfig() {}
 

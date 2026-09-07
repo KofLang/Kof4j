@@ -4,7 +4,7 @@ package dev.kof.compiler;
  * Fragmento do source do KofRuntime gerado (REFACTOR-500 Fase 8).
  * kof.security (digest/HMAC/random/PBKDF2/AES-GCM/JWT/auth/CSRF/CORS/headers) - parte 2/5 de JvmStringRuntime. Concatenacao preserva byte-a-byte.
  */
-final class JvmStringSecurityRuntime {
+public final class JvmStringSecurityRuntime {
 
     private JvmStringSecurityRuntime() {}
 

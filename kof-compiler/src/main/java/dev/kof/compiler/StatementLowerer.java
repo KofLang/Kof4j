@@ -7,7 +7,7 @@ import java.util.List;
  * Lowering de statements (emitStatementInner + switch-expr) do CompilerDriver.
  * Recebe o driver como host para os helpers compartilhados (emitExpression etc.).
  */
-final class StatementLowerer {
+public final class StatementLowerer {
 
     private StatementLowerer() {}
 

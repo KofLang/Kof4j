@@ -13,7 +13,7 @@ import java.util.List;
  *   println(result.stdout)
  *   println(result.exitCode)
  */
-final class KofProcess {
+public final class KofProcess {
 
     private KofProcess() {}
 

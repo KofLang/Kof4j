@@ -4,7 +4,7 @@ package dev.kof.compiler;
  * Emissão do ASM de set do runtime nativo.
  * Domínio isolado do NativeRuntime -- refactor preserva semântica.
  */
-final class RuntimeSet {
+public final class RuntimeSet {
 
     private RuntimeSet() {}
 

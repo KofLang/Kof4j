@@ -8,7 +8,7 @@ import java.util.List;
  * (REFACTOR-500 fase 6). Sem estado próprio — recebe o analyzer (estado
  * compartilhado) por parâmetro.
  */
-final class SemExpressionTyper {
+public final class SemExpressionTyper {
 
     private SemExpressionTyper() {}
 

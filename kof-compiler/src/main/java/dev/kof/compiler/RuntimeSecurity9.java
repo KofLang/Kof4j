@@ -4,7 +4,7 @@ package dev.kof.compiler;
  * Emissão do ASM de security9 do runtime nativo.
  * Domínio isolado do NativeRuntime -- refactor preserva semântica.
  */
-final class RuntimeSecurity9 {
+public final class RuntimeSecurity9 {
 
     private RuntimeSecurity9() {}
 

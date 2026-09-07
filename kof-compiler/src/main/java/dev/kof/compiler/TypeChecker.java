@@ -7,7 +7,7 @@ import java.util.List;
  * assignabilidade, conferência de argumentos, tipos de resultado de
  * operações binárias e literais. Sem estado — diagnostics por parâmetro.
  */
-final class TypeChecker {
+public final class TypeChecker {
 
     private TypeChecker() {}
 

@@ -11,7 +11,7 @@ import java.util.Set;
  * Cria as classes de box mutável (usadas para captura de variáveis mutadas
  * por lambdas). Encapsula o contador de nomes e os mapas de tipo por box.
  */
-final class BoxClassFactory {
+public final class BoxClassFactory {
 
     private final Set<String> boxClassNames = new HashSet<>();
     private final Map<String, Type> boxValueTypes = new HashMap<>();
