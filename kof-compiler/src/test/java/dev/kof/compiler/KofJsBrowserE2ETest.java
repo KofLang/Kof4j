@@ -183,6 +183,46 @@ class KofJsBrowserE2ETest {
         }
     }
 
+    @Test
+    void imageAltSizeRendersInRealBrowserDom(@TempDir Path tempDir) throws IOException {
+        Path chrome = findChrome();
+        assumeTrue(chrome != null, "Chrome/Chromium não instalado — pulando E2E de browser");
+
+        String program = """
+            main() {
+                var logo = Image("logo.png")
+                logo.setAlt("logotipo")
+                logo.setWidth(120)
+                logo.setHeight(60)
+                var col = Column(listOf(logo))
+                var w = Window("ImageTest")
+                w.bind(col)
+                w.show()
+            }
+            """;
+        Path source = tempDir.resolve("App.kf");
+        Files.writeString(source, program);
+
+        Path outDir = tempDir.resolve("out");
+        CompilationResult result = driver.compile(source, outDir, Target.JS);
+        assertTrue(result.success(), "compilação JS deve passar: " + result.diagnostics().getDiagnostics());
+
+        HttpServer server = serve(outDir);
+        int port = server.getAddress().getPort();
+        try {
+            String dom = dumpDom(chrome, "http://127.0.0.1:" + port + "/index.html");
+            assertTrue(dom.contains("kof-image"), "image kof.ui ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("alt=\"logotipo\""),
+                    "alt ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("width=\"120\""),
+                    "width ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("height=\"60\""),
+                    "height ausente no DOM: " + excerpt(dom));
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private static HttpServer serve(Path dir) throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/", exchange -> {

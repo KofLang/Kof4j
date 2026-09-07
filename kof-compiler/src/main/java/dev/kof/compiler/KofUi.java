@@ -267,6 +267,9 @@ public final class KofUi {
             return switch (name) {
                 case "src" -> argCount == 0 ? new UiCall("kof_ui_image_src", STR, List.of()) : null;
                 case "setSrc" -> argCount == 1 ? new UiCall("kof_ui_image_set_src", Type.PrimitiveType.VOID, List.of(STR)) : null;
+                case "setAlt" -> argCount == 1 ? new UiCall("kof_ui_image_set_alt", Type.PrimitiveType.VOID, List.of(STR)) : null;
+                case "setWidth" -> argCount == 1 ? new UiCall("kof_ui_image_set_width", Type.PrimitiveType.VOID, List.of(INT)) : null;
+                case "setHeight" -> argCount == 1 ? new UiCall("kof_ui_image_set_height", Type.PrimitiveType.VOID, List.of(INT)) : null;
                 case "remove" -> argCount == 0 ? new UiCall("kof_ui_image_remove", Type.PrimitiveType.VOID, List.of()) : null;
                 default -> null;
             };

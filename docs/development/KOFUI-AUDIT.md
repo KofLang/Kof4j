@@ -76,17 +76,50 @@ Grid, Center, Align, Store, Canvas + namespace `Router`.
 plano Fase 5 (hoje ausentes no runtime browser; o "web" JS atual é server
 GraalJS HttpServer — WEB001 residual ws/sse).
 
-## 5. Próximos passos (escopos realizáveis)
+## 5. Receita: método novo em kof.ui = **6 pontos** (aprendida na prática 07/09)
 
-1. **UI001+UI002 (P0, R6):** diagnóstico claro quando `kof.ui` é usado em
-   Native/Script (gate no backend: "kof.ui não renderiza em <target>; use
-   kofjs (browser) ou android [UI00x]"). Teste por target.
-2. **UI003/4/5 (P1):** estender registry `KofUi` + `JsRuntimeUi*`
-   (arquivo:elemento, aditivo — retrocompatível).
-3. **UI007 (P1):** `style` declarativo com parse próprio.
-4. Fronteira Fase 5: matriz fetch/WS/storage (outro escopo).
+Cada método de instância novo exige os 6 pontos abaixo — **faltar um quebra
+um target**. (Foi o 6º ponto — `JvmRuntimeCallDescriptors` — que faltou em
+3 commits: `setPlaceholder`/`setType`/`setChecked`/`checked` compilavam no
+JVM mas davam `NoSuchMethodError` em runtime; só o teste KofJS passava.)
 
-## 6. Notas de fidelidade
+1. **Registry**: `KofUi.instanceMethod()` (case no switch do tipo).
+2. **Whitelist JS**: `JsRuntimeOps.java` (lista `name.equals("kof_ui_…")` —
+   exceto famílias já cobertas por prefixo: `link_`/`image_`/`icon_`/
+   `canvas_`/`widget_`/`font_`).
+3. **Impl JS**: `JsRuntimeUi*.java` (função exportada; nome via
+   `JsTypeMapper.capitalizeUiFn`).
+4. **Stub JVM (source)**: `jvm/JvmRuntimeUi.java` (no-op; Bool=int 0/1;
+   String getter → `return ""`).
+5. **Descriptor JVM**: `jvm/JvmRuntimeCallDescriptors.java`
+   (`callDescriptor`) — **sem isso o bytecode chama assinatura errada
+   (default = `(String)Object`) → `NoSuchMethodError`**.
+6. **Stub Native (asm)**: `runtime/RuntimeUi.java` (void: `ret`;
+   int: `xorl/movl`+`ret`; String: `leaq .Lui_empty` + `jmp
+   kof_io_make_string`).
+
+**Prova (obrigatória, 2 suítes)**: `UiE2ETest` (`both()` = JVM+Native) +
+`KofJsBrowserE2ETest` (Chrome headless, DOM real). Só testar JS = deixar o
+JVM quebrado (regra que falhou 07/09).
+
+## 6. Próximos passos (estado 07/09, após forms + UI001-Native)
+
+**FEITOS (07/09):** UI001-Native (21 stubs — `Image/Link/Icon/Font` linkavam
+de novo); UI004/5 `Input.setPlaceholder`/`setType`/`setChecked`/`checked`;
+UI003/5 `Image.setAlt`/`setWidth`/`setHeight`.
+
+**Próximos (minha lane, Fase 4):**
+1. `<form>`/`onSubmit` (UI004 headline) — novo tipo + ctor c/ lambda (padrão
+   `Button(text, action)` em `ExpressionUiStaticLowerer`); teste browser.
+2. Atributos `id`/`class`/`disabled` (UI005) + elementos `textarea`/`select`
+   (UI003) — mesmo padrão de 6 pontos.
+3. UI007 `style` declarativo (CSS idiomático, parse próprio) — o item maior.
+4. UI002 (Script no-op silencioso) — decidir com maintainer (regra 6):
+   diagnóstico warning vs. erro (erro quebra retrocompatibilidade).
+
+**Fronteira Fase 5 (KofJS Web APIs — não é kof.ui):** fetch/WS/storage.
+
+## 7. Notas de fidelidade
 
 - `docs/development/README.md:30` diz "CANVAS001 JS pendente (anexar ao
   kof-root)" — **desatualizado**: `JsRuntimeUiWidgets.java` já anexa ao

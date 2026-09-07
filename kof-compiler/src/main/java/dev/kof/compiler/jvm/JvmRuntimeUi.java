@@ -70,6 +70,15 @@ public final class JvmRuntimeUi {
                 public static void kof_ui_image_set_src(int image, String src) {
                 }
 
+                public static void kof_ui_image_set_alt(int image, String alt) {
+                }
+
+                public static void kof_ui_image_set_width(int image, int width) {
+                }
+
+                public static void kof_ui_image_set_height(int image, int height) {
+                }
+
                 public static String kof_ui_image_src(int image) {
                     return "";
                 }

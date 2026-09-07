@@ -124,3 +124,24 @@ if (caixa.checked()) { println("aceito") }
 **Por quê:** `setChecked`/`checked` leem/escrevem o estado real do
 `<input>` (property + atributo `checked`). Duplicar o estado em variável
 à parte diverge do DOM (R1: intenção, não mecanismo).
+
+## Forms: imagem com alt + dimensões
+
+**BAD — `<img>` sem alt/dimensões (acessibilidade + layout quebrados):**
+```kof
+// ❌ NÃO — imagem sem descrição alternativa nem tamanho
+var logo = Image("logo.png")
+```
+
+**GOOD — `Image.setAlt/setWidth/setHeight`:**
+```kof
+// ✅ IDIOMÁTICO — alt (a11y) + dimensões declarativas
+var logo = Image("logo.png")
+logo.setAlt("logotipo")
+logo.setWidth(120)
+logo.setHeight(60)
+```
+
+**Por quê:** `alt` é acessibilidade (screen readers); `width`/`height`
+evitam layout-shift. São atributos do widget (renderizam no DOM do
+KofJS), não da aplicação (R2).

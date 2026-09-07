@@ -168,10 +168,24 @@ reuso). **Prova E2E Cenário A (I2)**: app real `web.app()` + `serveDir` →
   Antes: link-error duro; depois: compila+linka+roda no-op. **Prova**:
   `UiE2ETest.mediaWidgetsLinkOnAllTargets` (JVM+Native, `both()`); suíte
   1092/0/64-skip. ⚠️ O RESTO do UI001 (window/label/... no-op SILENCIOSO)
-  segue sendo decisão de design (regra 6) — só o link-error era bug.
-  **PRÓXIMO PASSO (Fase 4, minha lane)**: continuar UI003/4/5 forms —
-  `<form>`/submit, atributos id/class/alt/disabled (mesmo padrão de 5
-  pontos + teste browser); depois UI007 style declarativo. **NÃO quebrar**:
+   segue sendo decisão de design (regra 6) — só o link-error era bug.
+   **`Image.setAlt/setWidth/setHeight` FEITO (este commit) + BUG JVM
+   CORRIGIDO (minha regressão em 3 commits)**: UI003/5. Os métodos
+   `setPlaceholder`/`setType`/`setChecked`/`checked` (c862a91/4a90f88/
+   b932bc0) **faltavam em `JvmRuntimeCallDescriptors.java` (o 6º ponto)**
+   → compilavam no JVM mas davam `NoSuchMethodError` em runtime (default
+   = `(String)Object`). Só o teste KofJS passava; o JVM nunca testado.
+   Corrigido: 7 descriptors faltantes adicionados. **LIÇÃO (KOFUI-AUDIT
+   §5)**: método novo em kof.ui = **6 pontos** (registry, whitelist JS,
+   impl JS, stub JVM, **descriptor JVM**, stub Native) + prova em **2
+   suítes** (`UiE2ETest` JVM+Native E `KofJsBrowserE2ETest` Chrome).
+   Prova: `UiE2ETest.imageAttributesLinkOnAllTargets` (JVM+Native) +
+   `KofJsBrowserE2ETest.imageAltSizeRendersInRealBrowserDom` (DOM
+   alt/width/height); suíte 1094/0/64-skip. **PRÓXIMO PASSO (Fase 4,
+   minha lane)**: `<form>`/`onSubmit` (UI004 headline — novo tipo + ctor
+   c/ lambda, padrão `Button(text, action)`); depois UI005 id/class/
+   disabled + UI007 style declarativo. Seguir 6 pontos + 2 suítes.
+   **NÃO quebrar**:
   microsserviços (kof.http/kof.web/CmdServe), PKG002/4/5 (congelados), lanes
   `NativeBackend.java`/`KofInterpreter*`.
 

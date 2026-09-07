@@ -242,6 +242,12 @@ public final class RuntimeUi {
                 ret
             kof_ui_image_set_src:
                 ret
+            kof_ui_image_set_alt:
+                ret
+            kof_ui_image_set_width:
+                ret
+            kof_ui_image_set_height:
+                ret
             kof_ui_link_new:
                 movl $1, %eax
                 ret

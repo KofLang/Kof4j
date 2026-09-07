@@ -120,6 +120,21 @@ class UiE2ETest {
     }
 
     @Test
+    void imageAttributesLinkOnAllTargets(@TempDir Path tempDir) throws IOException {
+        // UI003/5: Image.setAlt/setWidth/setHeight — aditivo; no-op em
+        // JVM/Native, DOM real em KofJS (KofJsBrowserE2ETest).
+        both(tempDir, "imgattrs", """
+            main() {
+                var logo = Image("logo.png")
+                logo.setAlt("logotipo")
+                logo.setWidth(120)
+                logo.setHeight(60)
+                println(logo.src())
+            }
+            """, "");
+    }
+
+    @Test
     void mediaWidgetsLinkOnAllTargets(@TempDir Path tempDir) throws IOException {
         // UI001 (R6): Image/Link/Icon/Font não podiam linkar no Native
         // (undefined reference [COMP001] — 21 stubs ausentes em RuntimeUi).

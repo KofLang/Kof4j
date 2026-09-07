@@ -397,6 +397,18 @@ public final class JsRuntimeUiComponents {
                 const n = window.__kofNodes && window.__kofNodes[image];
                 if (n) n.src = src;
             }
+            export function kofUiImageSetAlt(image, alt) {
+                const n = window.__kofNodes && window.__kofNodes[image];
+                if (n) n.alt = alt;
+            }
+            export function kofUiImageSetWidth(image, width) {
+                const n = window.__kofNodes && window.__kofNodes[image];
+                if (n) n.setAttribute("width", width);
+            }
+            export function kofUiImageSetHeight(image, height) {
+                const n = window.__kofNodes && window.__kofNodes[image];
+                if (n) n.setAttribute("height", height);
+            }
             export function kofUiImageSrc(image) {
                 const n = window.__kofNodes && window.__kofNodes[image];
                 return n ? n.src : "";

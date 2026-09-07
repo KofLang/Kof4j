@@ -119,8 +119,14 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_ui_font_new_bold" -> "(Ljava/lang/String;IZ)I";
             case "kof_ui_widget_set_font" -> "(II)V";
             case "kof_ui_widget_font" -> "(I)I";
-            case "kof_ui_link_set_text", "kof_ui_link_set_url", "kof_ui_image_set_src",
-                    "kof_ui_icon_set_name" -> "(ILjava/lang/String;)V";
+             case "kof_ui_link_set_text", "kof_ui_link_set_url", "kof_ui_image_set_src",
+                     "kof_ui_icon_set_name" -> "(ILjava/lang/String;)V";
+             // ── Forms (UI004/5) + Image attrs (UI003/5) — aditivos ──
+             case "kof_ui_input_set_placeholder", "kof_ui_input_set_type",
+                     "kof_ui_image_set_alt" -> "(ILjava/lang/String;)V";
+             case "kof_ui_input_set_checked", "kof_ui_image_set_width",
+                     "kof_ui_image_set_height" -> "(II)V";
+             case "kof_ui_input_checked" -> "(I)I";
             case "kof_ui_link_text", "kof_ui_link_url", "kof_ui_image_src", "kof_ui_icon_name"
                     -> "(I)Ljava/lang/String;";
             case "kof_ui_icon_size" -> "(I)I";
