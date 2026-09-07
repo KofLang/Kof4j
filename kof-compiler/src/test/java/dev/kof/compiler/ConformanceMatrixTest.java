@@ -449,9 +449,9 @@ class ConformanceMatrixTest {
                     }
                 }
                 """, "got:kaboom", Set.of(), tempDir);
-        // PARTIAL: bug 49 (KofJS não compila try aninhado — `KofJS: try
-        // expected KofTryEnd`, COMP002 internal error). JVM/Native/Script
-        // concordam com a saída correta.
+        // FIXED (bug 49, 07/09): KofJS não compilava try aninhado
+        // (COMP002 "try expected KofTryEnd") — JsControlFlowParser
+        // consome o label de saída (done) do try no caso sem-finally.
         matrix("nestedtry", """
                 main() {
                     try {
@@ -465,7 +465,25 @@ class ConformanceMatrixTest {
                     }
                     println("end")
                 }
-                """, "caught-inner:inner\nend", Set.of("js"), tempDir);
+                """, "caught-inner:inner\nend", Set.of(), tempDir);
+        // PARTIAL: bug 52 (KofJS não compila re-throw em catch —
+        // `unexpected KofCatchStart`, JsControlFlowParser.parseStatement:145;
+        // corpo de catch que termina em KofThrow não sai pela região externa).
+        // JVM/Native/Script concordam com a saída correta.
+        matrix("catchrethrow", """
+                main() {
+                    try {
+                        try {
+                            throw "x"
+                        } catch (String e) {
+                            throw "re:" + e
+                        }
+                    } catch (String e) {
+                        println("outer:" + e)
+                    }
+                    println("end")
+                }
+                """, "outer:re:x\nend", Set.of("js"), tempDir);
     }
 
     @Test

@@ -864,7 +864,8 @@ EXTERNA produz lixo
 
 ### 49. KofJS não compila `try` aninhado — `KofJS: try expected KofTryEnd` (COMP002) — ✅ CORRIGIDO 07/09
 
-- **Sintoma:** um `try` dentro de outro `try` no target **KofJS** dá erro de COMPILAÇÃO: `Internal compiler error: KofJS: try expected KofTryEnd [COMP002]` (`JsControlFlowParser.parseTryStatement:470`). JVM/Native/Script (interpretador) compilam e rodam o mesmo programa normalmente.
+- **Sintoma:** um `try` dentro de outro `try` no target **KofJS** dava erro de COMPILAÇÃO: `Internal compiler error: KofJS: try expected KofTryEnd [COMP002]` (`JsControlFlowParser.parseTryStatement`). JVM/Native/Script (interpretador) compilam e rodam o mesmo programa normalmente.
+- **Correção (07/09, lane JS):** a causa era o label de saída (done) do try SEM-finally ficar sem consumo quando o try interno termina no meio de uma região externa: o `parseStatements` do corpo do catch interno para antes do `KofLabel(done)`, e a região externa esperava `KofTryEnd` ali. O `parseTryStatement` agora consome o `KofLabel(done)` no caso sem-finally (guardado por `hasCatchAll` para não engolir o label de finally real). Prova: `ConformanceMatrixTest` caso `nestedtry` (4 targets, JS incluído). Variante re-throw em catch = bug 52 (ABERTO).
 - **Repro:**
   ```kof
   main() {
@@ -882,11 +883,10 @@ EXTERNA produz lixo
   // JVM/Native/Script: caught-inner:inner / end   (exit 0)
   // KofJS: COMP002 (não compila)
   ```
-- **Causa raiz:** o `JsControlFlowParser.parseTryStatement` assume que o `KofTryEnd` que fecha o try externo vem imediatamente depois do try interno — não re-empilha o `TryEnd` do externo ao fechar o interno (stack de labels de try). É bug de lowering JS (mesma família do bug 38 de try aninhado no emit, mas no parser JS).
+- **Causa raiz:** o `JsControlFlowParser.parseTryStatement` não consumia o `KofLabel(done)` de saída do try no caso SEM-finally; num try aninhado esse label sobrava para a região externa, que esperava `KofTryEnd` ali → COMP002. (O texto antigo dizia "não re-empilha o TryEnd" — a causa real é o label de saída não consumido.)
 - **Diferente do bug 38:** o 38 é re-throw lendo slot errado no EMIT (x86/JVM); este é o PARSE/LOWERING JS não aceitando a estrutura aninhada.
-- **Prova/repro:** `ConformanceMatrixTest.conformanceErrors` → caso `nestedtry` (JVM/Native/Script na asserção, JS excluído como PARTIAL).
-- **Descoberto:** 07/09 (lote 2 da conformance matrix).
-- **Interpretador CORRIGIDO 07/09:** `kof_json_decode_object_list` (2 args) agora é tratado no interpretador (decodifica cada item da lista para KofObj da classe via className). Prova: `KofInterpreterParityTest.jsonDecodeListOfRecord`. ⚠️ Native AINDA pendente (`kof_json_decode_object_list` não existe no runtime riscv; decode inline de lista de records a implementar).
+- **Prova/repro:** `ConformanceMatrixTest.conformanceErrors` → caso `nestedtry` (agora nos 4 targets, JS incluído). Variante re-throw em catch = bug 52.
+- **Descoberto:** 07/09 (lote 2 da conformance matrix). **Corrigido:** 07/09 (lane JS, `JsControlFlowParser.parseTryStatement`).
 
 ### 50. channel send/recv DENTRO de `spawn` → SIGSEGV no Native (139) — ABERTO (lane Native)
 
@@ -908,6 +908,14 @@ EXTERNA produz lixo
 - **Prova/repro:** probe `Leak` (07/09).
 - **Correção (lane compiler-core):** reset dos campos mutáveis do `CompilerDriverState` no início de cada `compile()` (ou factory de estado por compilação). Não tocar no `CompilerDriverState`/`NativeBackend` enquanto REFACTOR-500 F3/FASE 3 os estão editando — coordenar.
 - **Descoberto:** 07/09 (lote 3 da conformance matrix).
+
+### 52. `throw` DENTRO de `catch` (re-throw) → KofJS não compila (`unexpected KofCatchStart`) — ABERTO (lane JS)
+
+- **Sintoma:** `try { try { throw "x" } catch (String e) { throw "re:" + e } } catch (String e) { println("outer:" + e) }`: JVM/Script/Native → `outer:re:x` / `end` ✅; **KofJS → COMPILE-FAIL** `KofJS: unexpected KofCatchStart at statement level` (`JsControlFlowParser.parseStatement:145`).
+- **Diferente do bug 49:** o 49 era try aninhado SEM re-throw (corrigido 07/09 — o parser consome o label de saída no caso sem-finally). Este é o catch que **lança de novo** (`throw` dentro do corpo do catch): o corpo do catch interno termina em `KofThrow` (não em `KofJump` para o done), e o `KofCatchStart` do externo aparece "solto" no statement level — o `parseStatements` do catch interno não trata a saída por throw. Pré-existente (falha igual antes e depois do fix do 49).
+- **Prova/repro:** probe `ReThrow` (07/09); caso `catchrethrow` na `ConformanceMatrixTest` (JS excluído como PARTIAL).
+- **Correção (lane JS):** `parseTryStatement`/`parseStatements` deve tratar corpo de catch que termina em `KofThrow` (a saída do try é o handler externo, não um jump) — consumir o `KofCatchStart`/`KofTryEnd` do externo corretamente. Mesma família do 49 (parser de try JS), arquivo `JsControlFlowParser`.
+- **Descoberto:** 07/09 (fix do bug 49, varredura de variantes de try).
 
 ---
 
