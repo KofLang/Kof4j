@@ -503,6 +503,29 @@ class CoreRegressionE2ETest {
                 """, "true\ntrue", tempDir, "rec-hash");
     }
 
+    // known-bugs #45 — JS: finally com `return` no try perdia o valor de
+    // retorno (`undefined`). O try/finally nativo do JS relança sozinho; o
+    // rethrow Kof (`throw _excTmp`) redundante abortava o return. Agora o
+    // finally roda e o retorno prevalece (Java-correct, doc "roda sempre").
+    // Obs.: JVM/Native/interp descartam o finally nesse caminho (bug de
+    // consistência registrado) — este teste cobre só o JS.
+    @Test
+    void finallyReturnJs(@TempDir Path tempDir) throws IOException {
+        Path src = tempDir.resolve("finret.kf");
+        Files.writeString(src, """
+                Int f() {
+                    try { return 1 } finally { println("fin") }
+                }
+                main() {
+                    println(f())
+                }
+                """);
+        Path outJs = tempDir.resolve("js");
+        CompilationResult rjs = driver.compile(src, outJs, Target.JS);
+        assertTrue(rjs.success(), "JS compile failed: " + rjs.diagnostics().getDiagnostics());
+        assertEquals("fin\n1", runJs(outJs), "JS finally+return output mismatch");
+    }
+
     // known-bugs #5/#24 — FP→Int/Long casts and Double→Float narrowing were
     // missing conversion ops → invalid bytecode (ClassFormatError). Now D2I/
     // F2I/D2L/F2L (truncate toward zero) and D2F are emitted.

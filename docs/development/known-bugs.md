@@ -824,7 +824,7 @@ EXTERNA produz lixo
 - **Prova/repro:** sweep cross-target 07/09 (caso `float-print`), Native x86_64.
 - **Nota:** a parte `5` vs `5.0` é da mesma família do formato documentado em "parecem bugs mas são esperados" (`JS println(2.0)→"2"`); a parte **6 casas** (`0.333333`) é nova e contradiz o doc.
 
-### 45. `finally` com `return` no try: JS perde o valor de retorno (`undefined`); JVM/Native/interp DESCARTAM o efeito colateral do finally — ABERTO (lane JS + regra 6 p/ o resto)
+### 45. `finally` com `return` no try: JS perde o valor de retorno (`undefined`); JVM/Native/interp DESCARTAM o efeito colateral do finally — ✅ CORRIGIDO 07/09 (JS); JVM/Native/interp = bug de consistência ABERTO (lane lowerers)
 
 - **Sintoma:** `Int f() { try { return 1 } finally { println("fin") } }` + `main() { println(f()) }`:
   - **JVM/Native/interpretador** → `1` (o `fin` **não** é impresso — o finally é descartado quando o try `return`s).

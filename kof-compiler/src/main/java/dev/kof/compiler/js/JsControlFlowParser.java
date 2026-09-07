@@ -501,6 +501,14 @@ JsIr.JsStatement parseTryStatement(MethodCtx ctx, int[] pos) {
             // mas NÃO se for o endLabel de um try aninhado/outer (bug 49).
             pos[0]++;
         }
+        if (!finallyBody.isEmpty() && finallyBody.get(finallyBody.size() - 1) instanceof JsIr.JsThrow) {
+            // bug 45: o rethrow Kof (`throw _excTmp`) que abre o caminho de
+            // exceção do finally é REDUNDANTE no try/finally nativo do JS (que
+            // relança automaticamente). Pior: quando o try `return`s, o throw
+            // de `_excTmp` (undefined) aborta o retorno → `undefined`. Removê-lo
+            // faz o finally rodar e o retorno prevalecer (Java-correct).
+            finallyBody = finallyBody.subList(0, finallyBody.size() - 1);
+        }
         return new JsIr.JsTry(tryBody, catches, finallyBody);
     }
     boolean looksLikeContinueLabel(MethodCtx ctx, int[] pos, LabelId continueLabel) {
