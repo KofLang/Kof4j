@@ -51,7 +51,10 @@ public final class KofScript {
         // statements do topo viram main() (wrapKsWithGlobals). Nenhum sugar
         // de outra linguagem (let/const/async/fn NÃO existem).
         String wrappedForEval = code.contains("main()") ? code : wrapPureKof(code);
-        String key = target + ":" + wrappedForEval.hashCode() + ":" + wrappedForEval.length();
+        // Chave = SHA-256 do programa: hashCode()+length() dava colisão real
+        // (bug 47: dois programas distintos c/ mesmo hash int + mesmo length
+        // → o 2º eval devolvia o resultado CACHADO do 1º — R6 silencioso).
+        String key = target + ":" + sha256hex(wrappedForEval);
         RunResult cached = evalCache.get(key);
         if (cached != null) return cached;
         Path tmp = Files.createTempDirectory("kofscript");
@@ -467,11 +470,25 @@ public final class KofScript {
     }
 
     private static void deleteRecursively(Path dir) {
+        if (!Files.exists(dir)) return;
         try {
-            if (!Files.exists(dir)) return;
             Files.walk(dir).sorted((a,b) -> b.compareTo(a)).forEach(p -> {
                 try { Files.deleteIfExists(p); } catch (IOException ignore) {}
             });
         } catch (IOException ignore) {}
+    }
+
+    /** SHA-256 hex — chave de cache sem colisão de `hashCode()+length` (bug 47). */
+    private static String sha256hex(String s) {
+        try {
+            byte[] d = java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(s.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder(d.length * 2);
+            for (byte b : d) hex.append(Character.forDigit((b >> 4) & 0xF, 16)).append(Character.forDigit(b & 0xF, 16));
+            return hex.toString();
+        } catch (java.security.NoSuchAlgorithmException e) {
+            // SHA-256 é obrigatório na JVM — fallback determinístico p/ não lançar.
+            return Integer.toHexString(s.hashCode()) + ":" + s.length();
+        }
     }
 }

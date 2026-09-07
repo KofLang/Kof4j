@@ -425,6 +425,28 @@ class KofScriptTest {
         assertTrue(w.contains("println(\"total\")"), "string intacta: " + w);
     }
 
+    /**
+     * Regressão (bug 47, 07/09): o cache do eval usava a chave
+     * `target:hashCode():length()` — dois programas DIFERENTES com o mesmo
+     * hash int + mesmo length colidiam e o 2º eval devolvia o resultado
+     * CACHADO do 1º (R6 silencioso). A chave é agora SHA-256.
+     */
+    @Test
+    void evalCacheKeyDoesNotCollide() throws Exception {
+        // 1008+2009=3017 e 1560+1340=2900: MESMO hashCode() e MESMO length()
+        String a = "main() {\n println(1008 + 2009)\n}";
+        String b = "main() {\n println(1560 + 1340)\n}";
+        assertEquals(a.length(), b.length(), "pré-condição: mesmo length");
+        assertEquals(a.hashCode(), b.hashCode(), "pré-condição: mesmo hashCode");
+        var ra = KofScript.eval(a);
+        var rb = KofScript.eval(b);
+        assertTrue(ra.success(), ra.stderr());
+        assertTrue(rb.success(), rb.stderr());
+        assertEquals("3017", norm(ra.stdout()), "programa A");
+        assertEquals("2900", norm(rb.stdout()),
+                "programa B não pode herdar o cache do programa A (bug 47)");
+    }
+
     private static String norm(String s) {
         return s == null ? "" : s.replace("\r\n", "\n").trim();
     }
