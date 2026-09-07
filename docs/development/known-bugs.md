@@ -785,6 +785,45 @@ EXTERNA produz lixo
   lowering de `this` inconsistente).
 - **Prova/repro:** probe manual 06/09 (caso `inst`).
 
+### 41. Campo ESTÁTICO no Native → lixo (R6 silencioso) — ABERTO (lane Native)
+
+- **Sintoma:** `class C { static Int count = 0; static Int bump() { count = count + 1; return count } }` + `main() { println(C.bump()) ... }`: JVM/JS/interpretador dão `1\n2\n2`; **Native imprime lixo** (`61241504\n4209948\n4211958` — memória não-inicializada, não-determinístico).
+- **Causa raiz:** `nat/NativeBackend.java:629-630` tem **stub vazio** para `KofGetStatic` (`case KofGetStatic gs -> { }` — não faz nada, o valor do campo nunca é carregado) e `KofPutStatic` (`addq $8, %rsp` — corrompe a pilha, não grava). O lowering por nome simples emite GETSTATIC/PUTSTATIC desde `0ba58fc` (fix para o caminho estático); o Native **nunca implementou** esses ops.
+- **Pré-existente, não regressão:** não há teste Native com campo estático (`NativeE2ETest` — `grep static` = 0). Antes de `0ba58fc` o Native baixava `LoadLocal(0)+LoadField` (também lixo, `this` inexistente em método estático). A suíte green (1045/0) não cobre estático×Native.
+- **Prova/repro:** sweep cross-target 07/09 (casos `static-field` / `static-field-plus-eq`), Native x86_64.
+- **Correção (lane Native, regra 6):** emitir `KofGetStatic`/`KofPutStatic` em `nat/NativeBackend` + `nat/NativeRiscvCrossEmit` (86-87) com offset real de campo estático (residir em segmento de dados, não em stack) — e remover os stubs silenciosos (R6).
+
+### 42. `hashCode()` de record ausente no JS e no Native — ABERTO (lane JS+Native)
+
+- **Sintoma:** `record P(Int x, Int y)` + `a.hashCode() == b.hashCode()`: JVM/interpretador → `true`; **JS** → `TypeError: a.hashCode is not a function` (exit 1); **Native** → `ld: undefined reference to 'P_hashCode'` (fail de link, exit 1).
+- **Causa raiz:** o runtime de record no JS/Native não emite o método `hashCode` (o JVM gera `hashCode` no `KofRuntime`). `equals`/`toString` existem nos 3; `hashCode` não.
+- **Prova/repro:** sweep cross-target 07/09 (caso `record-eq-hash`).
+- **Nota:** `a == b` (igualdade de conteúdo) e `println(a)` (`P[x=1, y=2]`) **têm** paridade nos 3 — só o `hashCode()` diverge.
+
+### 43. String no Native conta bytes UTF-8, JVM conta code units UTF-16 — ABERTO (lane Native; cf. STR001)
+
+- **Sintoma:** `var s = "café"; println(s.length); println(s.charAt(3))`: JVM → `4` / `233` (0xE9, code unit UTF-16 de `é`); **Native** → `5` / `195` (0xC3, 1º byte de `é` em UTF-8). `println(s + "!")` casa (`café!`) — só `length`/`charAt` divergem.
+- **Causa raiz:** as ops de string do Native são **byte/UTF-8** baseadas; as do JVM são **code-unit/UTF-16** baseadas. Mesma família do `STR001` (documentado p/ JVM `"Olá 😀".length`=6), mas aqui é **divergência cross-target** (Native ≠ JVM no MESMO programa) → paridade (regra 5).
+- **Prova/repro:** sweep cross-target 07/09 (caso `unicode-str`), Native x86_64.
+- **Correção (lane Native, decisão de design regra 6):** alinhar `length`/`charAt` a UMA convenção (code point ou code unit) nos 3 targets — é mudança de semântica congelada, precisa de bump.
+
+### 44. `println(double)` no Native x86_64 imprime 6 casas + `5` (JVM: 16 casas + `5.0`) — ABERTO (lane Native)
+
+- **Sintoma:** `println(1.0/3.0); println(2.5*2.0); println(7.0/2.0)`: JVM → `0.3333333333333333` / `5.0` / `3.5`; **Native** → `0.333333` / `5` / `3.5`.
+- **Causa raiz:** o printer de double do Native (`RuntimePrintNum` / `kof_print_double`) formata com **6 casas** decimais e **sem `.0`** para inteiro-valido. Contradiz `docs/backend-parity.md:89` ("x86_64/JVM/JS impecáveis" para FP→string).
+- **Prova/repro:** sweep cross-target 07/09 (caso `float-print`), Native x86_64.
+- **Nota:** a parte `5` vs `5.0` é da mesma família do formato documentado em "parecem bugs mas são esperados" (`JS println(2.0)→"2"`); a parte **6 casas** (`0.333333`) é nova e contradiz o doc.
+
+### 45. `finally` com `return` no try: JS perde o valor de retorno (`undefined`); JVM/Native/interp DESCARTAM o efeito colateral do finally — ABERTO (lane JS + regra 6 p/ o resto)
+
+- **Sintoma:** `Int f() { try { return 1 } finally { println("fin") } }` + `main() { println(f()) }`:
+  - **JVM/Native/interpretador** → `1` (o `fin` **não** é impresso — o finally é descartado quando o try `return`s).
+  - **JS** → `fin` + `undefined` (o finally **roda**, mas o valor de retorno vira `undefined`).
+- **Aisla (07/09, `Fin2` probe):** finally **roda** quando o try não retorna (`in-try|fin`) e quando o try **throwa** (`fin|caught:boom`); só o caminho **return-no-try** perde o efeito colateral. Em Java/Kotlin o finally roda e o `return` ainda vale (esperado: `fin` + `1`).
+- **Causa raiz (JS):** o backend JS não preserva o valor de retorno stashed quando o finally executa → vira `undefined`.
+- **Causa raiz (JVM/Native/interp, consistente):** o lowering/interpretador do `return` que sai do `try` pula o bloco `finally`. Como os 3 targets CONCORDAM, é **comportamento congelado por construção** (regra 6) — corrigir é **decisão de design** (mudaria semântica documentada por comportamento), não bug de paridade.
+- **Prova/repro:** sweep cross-target 07/09 (caso `finally-return`) + probe `Fin2` (A/B/C/D).
+
 ---
 
 ## Comportamentos que PAREcem bugs mas são esperados (não corrigir)

@@ -327,4 +327,69 @@ class BackendParityTest {
                 }
                 """, "true\nfalse", tempDir, "nulleq");
     }
+
+    // Paridade cross-target (regra 5, 07/09): os mesmos casos do
+    // KofScriptTest.interpreterParitySweep (grupo A — paridade total)
+    // agora travam JVM×JS. Os 25 que têm paridade JVM==JS ficam como gate
+    // permanente. EXCLUÍDOS (bug documentado, não gate):
+    //   - float-print  → JS formata double inteiro como "5" (JVM "5.0"):
+    //     "parece bug mas é esperado" (known-bugs.md), não divergência.
+    //   - record-eq-hash → bug 42 (hashCode ausente no JS: TypeError).
+    //   - finally-return → bug 45 (JS perde o valor de retorno: undefined).
+    // Native×JVM é coberto em NativeE2ETest; divergências Native estão em
+    // known-bugs.md 41 (static-field), 43 (unicode length), 44 (FP 6 casas).
+    @Test
+    void parityCrossTargetGroupA(@TempDir Path tempDir) throws IOException {
+        String[][] cases = {
+            {"int-overflow", "main() {\n var a = 2147483647\n println(a + 1)\n}", "-2147483648"},
+            {"mod-neg", "main() {\n println(-7 % 3)\n println(7 % -3)\n}", "-1\n1"},
+            {"long-div", "main() {\n var a = 10000000000L\n println(a / 3L)\n println(a % 7L)\n}", "3333333333\n4"},
+            {"cast-chain", "main() {\n var d = 9.9\n println(d as Int)\n var l = 70000L\n println(l as Int)\n println(66 as Char)\n}", "9\n70000\n66"},
+            {"unicode-str", "main() {\n var s = \"café\"\n println(s.length)\n println(s.charAt(3))\n println(s + \"!\")\n}", "4\n233\ncafé!"},
+            {"str-ops", "main() {\n var s = \"a,b,,c\"\n println(s.split(\",\").length)\n println(\"Hello World\".toLowerCase())\n println(\"  x  \".trim() + \"|\")\n}", "4\nhello world\nx|"},
+            {"map-null-val", "main() {\n var m = mapOf(\"a\", 1)\n m.put(\"b\", 2)\n println(m.get(\"a\"))\n println(m.size)\n}", "1\n2"},
+            {"empty-list", "main() {\n var l = listOf()\n println(l.isEmpty())\n println(l.size)\n println(l.contains(1))\n}", "true\n0\nfalse"},
+            {"null-eq", "main() {\n var a = null\n var b = null\n println(a == b)\n println(a != b)\n}", "true\nfalse"},
+            {"null-eq-shortcut", "main() {\n var a = null\n var b = null\n if (a == b) { println(\"iguais\") } else { println(\"dif\") }\n if (a != b) { println(\"ne\") } else { println(\"nao-ne\") }\n}", "iguais\nnao-ne"},
+            {"set-dedup", "main() {\n var s = setOf(1, 2, 2, 3, 3, 3)\n println(s.size)\n println(s.contains(2))\n println(s.contains(9))\n}", "3\ntrue\nfalse"},
+            {"nested-if-expr", "main() {\n var x = 5\n var r = if (x > 0) if (x > 10) \"big\" else \"small\" else \"neg\"\n println(r)\n}", "small"},
+            {"switch-expr", "main() {\n var v = 3\n var d = switch (v) {\n case 1 -> \"one\"\n case 2 -> \"two\"\n case 3 -> \"three\"\n default -> \"other\"\n }\n println(d)\n}", "three"},
+            {"break-continue", "main() {\n var sum = 0\n for (var i in listOf(1,2,3,4,5)) {\n if (i == 2) { continue }\n if (i == 4) { break }\n sum = sum + i\n }\n println(sum)\n}", "4"},
+            {"lambda-chain", "main() {\n var l = listOf(1,2,3,4)\n var r = l.filter((x: Int) -> x > 1).map((x: Int) -> x * 10).reduce((a: Int, b: Int) -> a + b, 0)\n println(r)\n}", "90"},
+            {"lambda-capture-mut", "main() {\n var n = 0\n var inc = () -> { n = n + 1 }\n inc()\n inc()\n inc()\n println(n)\n}", "3"},
+            {"array-2d", "main() {\n var a = new Int[3]\n a[0] = 10\n a[1] = 20\n a[2] = 30\n println(a[0] + a[1] + a[2])\n println(a.length)\n}", "60\n3"},
+            {"static-field", "class Counter {\n static Int count = 0\n static Int bump() {\n count = count + 1\n return count\n }\n}\nmain() {\n println(Counter.bump())\n println(Counter.bump())\n println(Counter.count)\n}", "1\n2\n2"},
+            {"static-field-plus-eq", "class Counter2 {\n static Int count = 0\n static Int bump() {\n count += 2\n return count\n }\n}\nmain() {\n println(Counter2.bump())\n println(Counter2.bump())\n println(Counter2.count)\n}", "2\n4\n4"},
+            {"string-num-concat", "main() {\n println(\"n=\" + 42)\n println(1 + 2 + \"x\")\n println(\"x\" + 1 + 2)\n}", "n=42\n3x\nx12"},
+            {"bool-logic", "main() {\n println(true && false)\n println(true || false)\n println(!true)\n println((1 < 2) == (3 > 2))\n}", "false\ntrue\nfalse\ntrue"},
+            {"bitwise", "main() {\n println(6 & 3)\n println(6 | 3)\n println(6 ^ 3)\n println(1 << 4)\n println(256 >> 2)\n}", "2\n7\n5\n16\n64"},
+            {"deep-recursion", "Int fact(Int n) {\n if (n <= 1) {\n return 1\n }\n return n * fact(n - 1)\n}\nmain() {\n println(fact(10))\n}", "3628800"},
+            {"list-of-mixed", "main() {\n var l = listOf(1, 2, 3)\n l.add(4)\n l.set(0, 99)\n println(l.get(0))\n println(l.size)\n println(l.remove(1))\n println(l.size)\n}", "99\n4\n2\n3"},
+            {"map-iter", "main() {\n var m = mapOf(\"x\", 1)\n m.put(\"y\", 2)\n m.put(\"z\", 3)\n var ks = m.keys()\n var sum = 0\n for (var k in ks) {\n sum = sum + m.get(k)\n }\n println(sum)\n}", "6"},
+        };
+        var divergentes = new StringBuilder();
+        for (String[] c : cases) {
+            Path dir = tempDir.resolve(c[0]);
+            Files.createDirectories(dir);
+            Path source = dir.resolve("Main.kf");
+            Files.writeString(source, c[1]);
+            CompilationResult rjvm = driver.compile(source, dir.resolve("jvm"), Target.JVM);
+            CompilationResult rjs = driver.compile(source, dir.resolve("js"), Target.JS);
+            if (!rjvm.success() || !rjs.success()) {
+                divergentes.append("\n[").append(c[0]).append("] compile falhou: JVM=")
+                        .append(rjvm.success()).append(" JS=").append(rjs.success());
+                continue;
+            }
+            RunResult jvm = runJvm(dir.resolve("jvm"));
+            RunResult js = runJs(dir.resolve("js"));
+            if (jvm.exitCode() != 0 || js.exitCode() != 0
+                    || !jvm.output().equals(js.output())
+                    || !c[2].equals(jvm.output())) {
+                divergentes.append("\n[").append(c[0]).append("] JVM=<").append(jvm.output())
+                        .append("> JS=<").append(js.output()).append("> esperado=<").append(c[2]).append(">");
+            }
+        }
+        assertEquals("", divergentes.toString().trim(),
+                "paridade cross-target JVM×JS (grupo A do sweep interpretado):");
+    }
 }

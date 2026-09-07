@@ -2,6 +2,7 @@ package dev.kof.compiler;
 
 import org.junit.jupiter.api.Test;
 
+import dev.kof.compiler.jvm.JvmRuntime;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
