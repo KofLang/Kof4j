@@ -752,7 +752,7 @@ EXTERNA produz lixo
   lowering na lane do outro agente).
 - **Corrigido 07/09:** pattern de PRIMITIVO em switch (statement e expressão) agora dá SEM035 em compile-time (instanceof de primitivo é ilegal no JVM). Prova: `CompilerDriverTest.primitivePatternInSwitchIsDiagnosed`.
 
-### 38. Re-throw em catch de try aninhado → handler externo lê slot errado — ABERTO
+### 38. Re-throw em catch de try aninhado → handler externo lê slot errado — ✅ CORRIGIDO 07/09
 
 - **Sintoma:** `try { try { throw "inner" } catch (String e) { throw "outer" } }
   catch (String e) { println(e) }`: compilado → `VerifyError: Bad local
@@ -764,6 +764,7 @@ EXTERNA produz lixo
   mas o corpo lê `LoadLocal(2)`).
 - **Esperado:** `inner` + `outer` (semântica JVM de exception table).
 - **Prova/repro:** caso `nested-try` (sweep manual 06/09).
+- **Corrigido 07/09 (JVM/Native):** o corpo do catch agora usa um sub-escopo de locals (`subList(0, pos-do-catch-corrente)`) — com try aninhado de catch de MESMO nome, o local do catch interno sobrescrevia o externo no findLocalVar. Prova: `CoreRegressionE2ETest.rethrowInNestedTry` (JVM). ⚠️ JS: gap SEPARADO — try aninhado com catch gera `KofCatchStart` que o KofJS não suporta (COMP002); pré-existente, registrar como gap.
 
 ### 39. `println(m.get("zz"))` (null de Map) → NPE/unbox errado nos 2 caminhos — ABERTO
 

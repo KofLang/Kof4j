@@ -418,6 +418,27 @@ class CoreRegressionE2ETest {
                 """, "11\n9", tempDir, "compound-instance-field");
     }
 
+    // known-bugs #38 — re-throw em try aninhado: o corpo do catch externo lia
+    // o slot do catch interno (mesmo nome "e"). Agora o corpo do catch usa um
+    // sub-escopo (locals até o catch corrente). [JS: gap separado, ver known-bugs]
+    @Test
+    void rethrowInNestedTry(@TempDir Path tempDir) throws IOException {
+        Path src = tempDir.resolve("rtnt.kf");
+        Files.writeString(src, """
+                main() {
+                    try {
+                        try { throw "inner" } catch (String e) { throw "outer" }
+                    } catch (String e) {
+                        println(e)
+                    }
+                }
+                """);
+        Path outJvm = tempDir.resolve("out");
+        CompilationResult rjvm = driver.compile(src, outJvm, Target.JVM);
+        assertTrue(rjvm.success(), "JVM compile failed: " + rjvm.diagnostics().getDiagnostics());
+        assertEquals("outer", runJvm(outJvm), "nested-try-rethrow JVM output mismatch");
+    }
+
     // known-bugs #5/#24 — FP→Int/Long casts and Double→Float narrowing were
     // missing conversion ops → invalid bytecode (ClassFormatError). Now D2I/
     // F2I/D2L/F2L (truncate toward zero) and D2F are emitted.

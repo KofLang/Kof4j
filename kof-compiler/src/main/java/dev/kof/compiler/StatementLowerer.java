@@ -438,7 +438,16 @@ public final class StatementLowerer {
                         locals.add(new IRLocalVariable(excIdx, cc.exceptionName(), CompilerTypes.toType(cc.exceptionType(), driver.currentUnit)));
                     }
                     ops.add(new KofCatchStart(handlerLabel, cc.exceptionType(), excIdx));
-                    localIdx = driver.emitStatement(new BlockStmt(cc.position(), cc.body()), ops, owner, localIdx, locals, returnType);
+                    // o corpo do catch deve enxergar apenas os locals ATÉ este
+                    // catch — com try aninhado de catch de MESMO nome, o local
+                    // do catch interno (slot maior) sobrescrevia o externo no
+                    // findLocalVar (bug 38: handler externo lia slot do interno).
+                    int catchLocalEnd = locals.size();
+                    for (int li = locals.size() - 1; li >= 0; li--) {
+                        if (locals.get(li).index() == excIdx) { catchLocalEnd = li + 1; break; }
+                    }
+                    localIdx = driver.emitStatement(new BlockStmt(cc.position(), cc.body()), ops, owner, localIdx,
+                            locals.subList(0, catchLocalEnd), returnType);
                     ops.add(new KofJump(finallyLabel));
                 }
                 if (hasFinally) {
