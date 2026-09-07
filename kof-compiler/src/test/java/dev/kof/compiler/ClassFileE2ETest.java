@@ -54,6 +54,43 @@ class ClassFileE2ETest {
     }
 
     @Test
+    void methodTypeRecovery(@TempDir Path tempDir) throws IOException, InterruptedException {
+        Path javaFile = tempDir.resolve("Types.java");
+        Files.writeString(javaFile, """
+                public class Types {
+                    public int add(int a, int b) {
+                        return a + b;
+                    }
+                    public String greet(Object name) {
+                        if (name instanceof String) {
+                            return (String) name;
+                        }
+                        return "";
+                    }
+                    public Object cast(Object o) {
+                        return (String) o;
+                    }
+                }
+                """);
+
+        Path classFile = tempDir.resolve("Types.class");
+        runJavac(javaFile, classFile);
+
+        var ir = ClassFileParser.parse(Files.newInputStream(classFile));
+
+        var add = ir.methods.stream().filter(m -> m.name.equals("add")).findFirst().orElseThrow();
+        assertEquals("int", add.returnTypeName());
+        assertEquals(java.util.List.of("int", "int"), add.parameterTypeNames());
+
+        var greet = ir.methods.stream().filter(m -> m.name.equals("greet")).findFirst().orElseThrow();
+        assertEquals("String", greet.returnTypeName());
+        assertTrue(greet.instanceofCount >= 1, "greet should contain instanceof");
+
+        var cast = ir.methods.stream().filter(m -> m.name.equals("cast")).findFirst().orElseThrow();
+        assertTrue(cast.checkcastCount >= 1, "cast should contain checkcast");
+    }
+
+    @Test
     void parseWithMain(@TempDir Path tempDir) throws IOException, InterruptedException {
         Path javaFile = tempDir.resolve("Main.java");
         Files.writeString(javaFile, """

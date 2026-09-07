@@ -1,5 +1,7 @@
 package dev.kof.compiler.parser;
 
+import dev.kof.compiler.Type;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -16,13 +18,81 @@ public final class ClassFileParser {
         public final String name;
         public final String descriptor;
         public final List<String> exceptions;
+        public final CodeAttribute code;
+        public final Type returnType;
+        public final List<Type> parameterTypes;
+        public final int instanceofCount;
+        public final int checkcastCount;
 
-        MethodInfo(int accessFlags, String name, String descriptor, List<String> exceptions) {
+        MethodInfo(int accessFlags, String name, String descriptor,
+                   List<String> exceptions, CodeAttribute code) {
             this.accessFlags = accessFlags;
             this.name = name;
             this.descriptor = descriptor;
             this.exceptions = exceptions;
+            this.code = code;
+
+            TypeParseResult types = parseDescriptor(descriptor);
+            this.returnType = types.returnType();
+            this.parameterTypes = types.parameterTypes();
+            this.instanceofCount = code != null ? countInstanceofCheckcast(code.bytecode) : 0;
+            this.checkcastCount = code != null ? countCheckcast(code.bytecode) : 0;
         }
+
+        public String returnTypeName() {
+            return Type.describe(returnType);
+        }
+
+        public List<String> parameterTypeNames() {
+            return parameterTypes.stream().map(Type::describe).toList();
+        }
+
+        private static int countInstanceofCheckcast(byte[] bytecode) {
+            return countOp(bytecode, 0xC1) + countOp(bytecode, 0xC0);
+        }
+
+        private static int countCheckcast(byte[] bytecode) {
+            return countOp(bytecode, 0xC0);
+        }
+
+        private static int countOp(byte[] bytecode, int opcode) {
+            int count = 0;
+            for (int pc = 0; pc < bytecode.length; pc++) {
+                if ((bytecode[pc] & 0xFF) == opcode) {
+                    count++;
+                }
+            }
+            return count;
+        }
+
+        private static TypeParseResult parseDescriptor(String desc) {
+            if (desc == null || desc.isEmpty()) return new TypeParseResult(Type.UnknownType.UNKNOWN, List.of());
+            if (!desc.startsWith("(")) return new TypeParseResult(Type.UnknownType.UNKNOWN, List.of());
+
+            int end = desc.indexOf(')');
+            if (end == -1) return new TypeParseResult(Type.UnknownType.UNKNOWN, List.of());
+
+            String params = desc.substring(1, end);
+            String returns = desc.substring(end + 1);
+
+            List<Type> paramTypes = new ArrayList<>();
+            int pos = 0;
+            while (pos < params.length()) {
+                Type t = Type.fromJvmDescriptor(params.substring(pos));
+                paramTypes.add(t);
+                pos = skipDescriptorLength(params, pos);
+            }
+
+            Type retType = Type.fromJvmDescriptor(returns);
+            return new TypeParseResult(retType, paramTypes);
+        }
+
+        private static int skipDescriptorLength(String desc, int pos) {
+            if (pos >= desc.length()) return pos;
+            return pos + 1;
+        }
+
+        private record TypeParseResult(Type returnType, List<Type> parameterTypes) {}
     }
 
     public static class FieldInfo {
@@ -37,12 +107,40 @@ public final class ClassFileParser {
         }
     }
 
+    public static final class ExceptionHandler {
+        public final int startPc;
+        public final int endPc;
+        public final int handlerPc;
+        public final String catchType;
+
+        ExceptionHandler(int startPc, int endPc, int handlerPc, String catchType) {
+            this.startPc = startPc;
+            this.endPc = endPc;
+            this.handlerPc = handlerPc;
+            this.catchType = catchType;
+        }
+    }
+
+    public static final class CodeAttribute {
+        public final int maxStack;
+        public final int maxLocals;
+        public final byte[] bytecode;
+        public final List<ExceptionHandler> exceptionHandlers;
+
+        CodeAttribute(int maxStack, int maxLocals, byte[] bytecode,
+                      List<ExceptionHandler> exceptionHandlers) {
+            this.maxStack = maxStack;
+            this.maxLocals = maxLocals;
+            this.bytecode = bytecode;
+            this.exceptionHandlers = exceptionHandlers;
+        }
+    }
+
     public static class ClassFile {
         public final int magic;
         public final int minorVersion;
         public final int majorVersion;
-        public final int[] constantPoolCount;
-        public final String[] constantPoolEntries;
+        public final String[] constantPool;
         public final int accessFlags;
         public final String thisClass;
         public final String superClass;
@@ -52,15 +150,14 @@ public final class ClassFileParser {
         public final Map<String, Object> attributes;
 
         ClassFile(int magic, int minorVersion, int majorVersion,
-                  int[] constantPoolCount, String[] constantPoolEntries,
-                  int accessFlags, String thisClass, String superClass,
-                  String[] interfaces, List<FieldInfo> fields,
-                  List<MethodInfo> methods, Map<String, Object> attributes) {
+                  String[] constantPool, int accessFlags, String thisClass,
+                  String superClass, String[] interfaces,
+                  List<FieldInfo> fields, List<MethodInfo> methods,
+                  Map<String, Object> attributes) {
             this.magic = magic;
             this.minorVersion = minorVersion;
             this.majorVersion = majorVersion;
-            this.constantPoolCount = constantPoolCount;
-            this.constantPoolEntries = constantPoolEntries;
+            this.constantPool = constantPool;
             this.accessFlags = accessFlags;
             this.thisClass = thisClass;
             this.superClass = superClass;
@@ -100,19 +197,19 @@ public final class ClassFileParser {
                 case 8: // String
                     constPool[i] = "#" + (bb.getShort() & 0xFFFF);
                     break;
-                case 3: case 4: case 5: case 6:
+                case 3: case 4: case 5: case 6: // Number
                     constPool[i] = String.valueOf(bb.getInt());
                     break;
-                case 9: case 10: case 11:
+                case 9: case 10: case 11: // Fieldref, Methodref, InterfaceMethodref
                     constPool[i] = "#" + (bb.getShort() & 0xFFFF) + "#" + (bb.getShort() & 0xFFFF);
                     break;
-                case 12:
+                case 12: // NameAndType
                     constPool[i] = "#" + (bb.getShort() & 0xFFFF) + "#" + (bb.getShort() & 0xFFFF);
                     break;
-                case 15:
+                case 15: // MethodHandle
                     constPool[i] = "#" + (bb.getShort() & 0xFFFF);
                     break;
-                case 17:
+                case 17: // MethodType
                     constPool[i] = "#" + (bb.getShort() & 0xFFFF);
                     break;
                 default:
@@ -150,6 +247,7 @@ public final class ClassFileParser {
             String methodName = constPool[bb.getShort() & 0xFFFF];
             String methodDesc = constPool[bb.getShort() & 0xFFFF];
             List<String> exceptions = new ArrayList<>();
+            CodeAttribute codeAttr = null;
             int attrCount = bb.getShort() & 0xFFFF;
             for (int j = 0; j < attrCount; j++) {
                 int attrNameIdx = bb.getShort() & 0xFFFF;
@@ -158,13 +256,35 @@ public final class ClassFileParser {
                 if ("Exceptions".equals(attrName)) {
                     int exCount = bb.getShort() & 0xFFFF;
                     for (int k = 0; k < exCount; k++) {
-                        exceptions.add(constPool[bb.getShort() & 0xFFFF]);
+                        exceptions.add(resolveClass(constPool, bb.getShort() & 0xFFFF));
                     }
+                } else if ("Code".equals(attrName)) {
+                    int maxStack = bb.getShort() & 0xFFFF;
+                    int maxLocals = bb.getShort() & 0xFFFF;
+                    int codeLen = bb.getInt();
+                    byte[] bytecode = new byte[codeLen];
+                    bb.get(bytecode);
+                    int exHandlerCount = bb.getShort() & 0xFFFF;
+                    List<ExceptionHandler> handlers = new ArrayList<>();
+                    for (int h = 0; h < exHandlerCount; h++) {
+                        int startPc = bb.getShort() & 0xFFFF;
+                        int endPc = bb.getShort() & 0xFFFF;
+                        int handlerPc = bb.getShort() & 0xFFFF;
+                        String catchType = resolveClass(constPool, bb.getShort() & 0xFFFF);
+                        handlers.add(new ExceptionHandler(startPc, endPc, handlerPc, catchType));
+                    }
+                    int innerAttrCount = bb.getShort() & 0xFFFF;
+                    for (int a = 0; a < innerAttrCount; a++) {
+                        bb.getShort();
+                        int innerLen = bb.getInt();
+                        bb.position(bb.position() + innerLen);
+                    }
+                    codeAttr = new CodeAttribute(maxStack, maxLocals, bytecode, handlers);
                 } else {
                     bb.position(bb.position() + attrLen);
                 }
             }
-            methods.add(new MethodInfo(methodAccess, methodName, methodDesc, exceptions));
+            methods.add(new MethodInfo(methodAccess, methodName, methodDesc, exceptions, codeAttr));
         }
 
         int attrCount = bb.getShort() & 0xFFFF;
@@ -178,8 +298,7 @@ public final class ClassFileParser {
         }
 
         return new ClassFile(magic, minorVersion, majorVersion,
-                new int[]{constantPoolCount}, constPool,
-                accessFlags, thisClass, superClass,
+                constPool, accessFlags, thisClass, superClass,
                 interfaces, fields, methods, attrs);
     }
 
