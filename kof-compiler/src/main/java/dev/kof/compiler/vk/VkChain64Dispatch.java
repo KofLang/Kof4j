@@ -1,7 +1,7 @@
 package dev.kof.compiler.vk;
 
 /** Fragmentos do .s x86-64 de Vulkan (vkchain64) — extraidos de VkChain64Asm (REFACTOR-500). O concatenador final e VkChain64Asm.source(); a ordem de chamada preserva o asm byte-a-byte. */
-final class VkChain64Dispatch {
+public final class VkChain64Dispatch {
     private VkChain64Dispatch() {}
 
     // kof_vk_dispatch64(rdi=a arr, rsi=b arr, rdx=c arr, ecx=m, r8d=n, r9d=k)
