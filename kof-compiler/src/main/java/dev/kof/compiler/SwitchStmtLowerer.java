@@ -62,6 +62,17 @@ if (hasPattern) {
         if (sc.value() instanceof PatternExpr pe) {
             Type patType = CompilerTypes.toType(pe.typeName(), driver.currentUnit);
             if (patType instanceof Type.UnknownType) patType = BuiltinTypes.STRING;
+            if (TypeMetrics.isPrimitiveType(patType)) {
+                if (driver.currentDiagnostics != null) {
+                    SourcePosition pp = pe.position();
+                    driver.currentDiagnostics.error(pp != null ? pp.file() : "",
+                            pp != null ? pp.line() : 0, pp != null ? pp.column() : 0, 0,
+                            "case de tipo primitivo não é suportado em pattern matching "
+                                    + "(use um tipo de referência ou o valor direto)",
+                            "SEM035");
+                }
+                return localIdx;
+            }
             ops.add(new KofLoadLocal(switchType, switchTmp));
             ops.add(new KofInstanceOf(patType));
             ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
@@ -85,6 +96,17 @@ if (hasPattern) {
         if (sc.value() instanceof PatternExpr pe) {
             Type patType = CompilerTypes.toType(pe.typeName(), driver.currentUnit);
             if (patType instanceof Type.UnknownType) patType = BuiltinTypes.STRING;
+            if (TypeMetrics.isPrimitiveType(patType)) {
+                if (driver.currentDiagnostics != null) {
+                    SourcePosition pp = pe.position();
+                    driver.currentDiagnostics.error(pp != null ? pp.file() : "",
+                            pp != null ? pp.line() : 0, pp != null ? pp.column() : 0, 0,
+                            "case de tipo primitivo não é suportado em pattern matching "
+                                    + "(use um tipo de referência ou o valor direto)",
+                            "SEM035");
+                }
+                return localIdx;
+            }
             ops.add(new KofLoadLocal(switchType, switchTmp));
             ops.add(new KofCheckCast(patType));
             if (pe.varName() != null) {

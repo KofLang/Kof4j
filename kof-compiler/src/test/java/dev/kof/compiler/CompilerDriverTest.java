@@ -100,6 +100,27 @@ class CompilerDriverTest {
         assertTrue(result.diagnostics().hasErrors(), "Should have error diagnostics");
     }
 
+    // known-bugs #37 — `case Int n` (pattern de primitivo) dava VerifyError/
+    // JavaFX em runtime; agora é SEM035 em compile-time (instanceof de
+    // primitivo é ilegal no JVM).
+    @Test
+    void primitivePatternInSwitchIsDiagnosed(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Prim.kf");
+        Files.writeString(source, """
+                main() {
+                    var o = 5
+                    switch (o) {
+                        case Int n: println(n)
+                        default: println("outro")
+                    }
+                }
+                """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "primitive pattern should fail to compile");
+        String d = result.diagnostics().getDiagnostics().toString();
+        assertTrue(d.contains("SEM035"), "should be SEM035, got: " + d);
+    }
+
     // known-bugs #25 — literal Long fora do range dava NumberFormatException
     // crua (crash do compilador); agora é diagnóstico limpo PARSE084
     @Test

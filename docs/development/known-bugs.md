@@ -730,7 +730,7 @@ EXTERNA produz lixo
 - **Registrado:** 06/09 (varredura de paridade do interpretador) ·
   **Corrigido:** 06/09.
 
-### 37. `case Int n` em switch → `KofInstanceOf[PrimitiveType]` → VerifyError — ABERTO
+### 37. `case Int n` em switch → `KofInstanceOf[PrimitiveType]` → VerifyError — ✅ CORRIGIDO 07/09
 
 - **Escopo (refinado 06/09):** pattern matching com **referências** funciona
   nos 2 caminhos (verificado: `case String s` → `str:oi`; `case Point(var x,
@@ -750,6 +750,7 @@ EXTERNA produz lixo
 - **Prova/repro:** caso `pattern-match` (sweep manual 06/09; não travado no
   teste porque o interpretador também está errado — aguarda decisão de
   lowering na lane do outro agente).
+- **Corrigido 07/09:** pattern de PRIMITIVO em switch (statement e expressão) agora dá SEM035 em compile-time (instanceof de primitivo é ilegal no JVM). Prova: `CompilerDriverTest.primitivePatternInSwitchIsDiagnosed`.
 
 ### 38. Re-throw em catch de try aninhado → handler externo lê slot errado — ABERTO
 
