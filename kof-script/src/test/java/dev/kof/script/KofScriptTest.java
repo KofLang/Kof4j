@@ -447,6 +447,38 @@ class KofScriptTest {
                 "programa B não pode herdar o cache do programa A (bug 47)");
     }
 
+    /**
+     * Regressão (07/09): json.decode<Record> no interpretador (target Script)
+     * dava exit 1 com stderr só "Point" (R6 silencioso) — o método gerado
+     * kof_json_decode_Point faz Class.forName("Point"), mas no interpretador
+     * a classe Kof é KofObj (nunca vira classe JVM). Corrigido em
+     * KofInterpreterRuntime.decodeKofValue (espelha encodeKof). Paridade com
+     * JVM/Native/JS que já funcionavam.
+     */
+    @Test
+    void jsonDecodeRecordRunsOnInterpreter(@TempDir Path tmp) throws Exception {
+        Path f = tmp.resolve("Main.kf");
+        Files.writeString(f, """
+                record Point(Int x, Int y)
+                main() {
+                    var dp = json.decode<Point>("{\\"x\\": 10, \\"y\\": 20}")
+                    println(dp.x)
+                    println(dp.y)
+                    var s = json.encode(Point(3, 4))
+                    var rt = json.decode<Point>(s)
+                    println(rt.x)
+                    println(rt.y)
+                }
+                """);
+        var interp = KofScript.runFile(f, dev.kof.compiler.Target.JVM);
+        assertTrue(interp.success(), interp.stderr());
+        assertEquals("10\n20\n3\n4", norm(interp.stdout()),
+                "interpretador deve dar a saída correta (decode<Record>): " + interp.stderr());
+        var comp = KofScript.runFileCompiled(f, dev.kof.compiler.Target.JVM, new String[0]);
+        assertEquals(norm(interp.stdout()), norm(comp.stdout()),
+                "paridade interpretado vs compilado em json.decode<Record>");
+    }
+
     private static String norm(String s) {
         return s == null ? "" : s.replace("\r\n", "\n").trim();
     }

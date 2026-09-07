@@ -853,6 +853,39 @@ EXTERNA produz lixo
 - **Prova/repro:** `KofScriptTest.evalCacheKeyDoesNotCollide` (trava a pré-condição de colisão hash+length e que cada programa dá sua soma).
 - **Descoberto:** 07/09 (probe `Collide3`) durante a varredura da lane KOFSCRIPT pós-paridade cross-target.
 
+### 48. `json.decode<List<Record>>` → interpretador exit 1 (R6) + Native não compila — ABERTO (lane interpreter + Native)
+
+- **Sintoma:** `record P(Int x); var l = json.decode<List<P>>("[{\"x\":1},{\"x\":2}]")`: JVM → `2`/`2` ✅; KofJS → `2`/`2` ✅; **interpretador (Script) → exit 1, stderr só `P`** (R6 silencioso — `ClassNotFoundException: P` embutido no `KofRuntime.kof_json_decode_P`); **Native → COMPILE-FAIL** (`decodeFunction` não gera caminho para lista de classe Kof — `JsonDispatch.decodeFunction` só trata `ClassType` no topo, não `List<ClassType>`).
+- **Diferente do fix de 07/09 (bug `decode<Record>`):** `json.decode<P>` (record no topo) foi corrigido no interpretador (`KofInterpreterRuntime.decodeKofValue` espelhando `encodeKof` — o método gerado faz `Class.forName` que não existe no interpretador). A variante **lista de record** tem duas falhas independentes: (a) interpretador — o dispatch de `List` usa `kof_json_decode_list`/`_object_list` com `Class.forName`; (b) Native — `JsonDispatch.decodeFunction` não tem ramo `isList` + elemento `ClassType`.
+- **Prova/repro:** probe `L2i`/`Decode` (07/09).
+- **Correção:** (a) lane interpreter: interceptar `kof_json_decode_object_list`/`decodeList<KofClass>` e mapear cada item para `KofObj` (mesmo padrão do fix `decode<Record>`); (b) lane Native: `JsonDispatch.decodeFunction` + runtime riscv para lista de record.
+- **Descoberto:** 07/09 (lote 2 da conformance matrix).
+
+### 49. KofJS não compila `try` aninhado — `KofJS: try expected KofTryEnd` (COMP002) — ABERTO (lane JS)
+
+- **Sintoma:** um `try` dentro de outro `try` no target **KofJS** dá erro de COMPILAÇÃO: `Internal compiler error: KofJS: try expected KofTryEnd [COMP002]` (`JsControlFlowParser.parseTryStatement:470`). JVM/Native/Script (interpretador) compilam e rodam o mesmo programa normalmente.
+- **Repro:**
+  ```kof
+  main() {
+      try {
+          try {
+              throw "inner"
+          } catch (String e) {
+              println("caught-inner:" + e)
+          }
+      } catch (String e) {
+          println("caught-outer")
+      }
+      println("end")
+  }
+  // JVM/Native/Script: caught-inner:inner / end   (exit 0)
+  // KofJS: COMP002 (não compila)
+  ```
+- **Causa raiz:** o `JsControlFlowParser.parseTryStatement` assume que o `KofTryEnd` que fecha o try externo vem imediatamente depois do try interno — não re-empilha o `TryEnd` do externo ao fechar o interno (stack de labels de try). É bug de lowering JS (mesma família do bug 38 de try aninhado no emit, mas no parser JS).
+- **Diferente do bug 38:** o 38 é re-throw lendo slot errado no EMIT (x86/JVM); este é o PARSE/LOWERING JS não aceitando a estrutura aninhada.
+- **Prova/repro:** `ConformanceMatrixTest.conformanceErrors` → caso `nestedtry` (JVM/Native/Script na asserção, JS excluído como PARTIAL).
+- **Descoberto:** 07/09 (lote 2 da conformance matrix).
+
 ---
 
 ## Comportamentos que PAREcem bugs mas são esperados (não corrigir)

@@ -405,4 +405,140 @@ class ConformanceMatrixTest {
                 }
                 """, "2\n4\n4", Set.of("native"), tempDir);
     }
+
+    // ===== Lote 2 — erros/null/JSON =====
+
+    @Test
+    void conformanceErrors(@TempDir Path tempDir) throws IOException {
+        matrix("trycatch", """
+                main() {
+                    try {
+                        throw "not found: x"
+                    } catch (String e) {
+                        println("caught:" + e)
+                    }
+                    println("after")
+                }
+                """, "caught:not found: x\nafter", Set.of(), tempDir);
+        matrix("trycatchfin", """
+                main() {
+                    try {
+                        println("in")
+                    } catch (String e) {
+                        println("c:" + e)
+                    } finally {
+                        println("fin")
+                    }
+                    println("after")
+                }
+                """, "in\nfin\nafter", Set.of(), tempDir);
+        matrix("throwprop", """
+                Int boom() {
+                    throw "kaboom"
+                }
+                main() {
+                    try {
+                        boom()
+                    } catch (String e) {
+                        println("got:" + e)
+                    }
+                }
+                """, "got:kaboom", Set.of(), tempDir);
+        // PARTIAL: bug 49 (KofJS não compila try aninhado — `KofJS: try
+        // expected KofTryEnd`, COMP002 internal error). JVM/Native/Script
+        // concordam com a saída correta.
+        matrix("nestedtry", """
+                main() {
+                    try {
+                        try {
+                            throw "inner"
+                        } catch (String e) {
+                            println("caught-inner:" + e)
+                        }
+                    } catch (String e) {
+                        println("caught-outer")
+                    }
+                    println("end")
+                }
+                """, "caught-inner:inner\nend", Set.of("js"), tempDir);
+    }
+
+    @Test
+    void conformanceNullSafety(@TempDir Path tempDir) throws IOException {
+        matrix("nullnarrow", """
+                String find(String k) {
+                    if (k == "a") { return "A" }
+                    return null
+                }
+                main() {
+                    var v = find("a")
+                    if (v != null) {
+                        println("val=" + v.length)
+                    }
+                    var w = find("z")
+                    if (w != null) {
+                        println("never")
+                    } else {
+                        println("null-ok")
+                    }
+                }
+                """, "val=1\nnull-ok", Set.of(), tempDir);
+    }
+
+    @Test
+    void conformanceJson(@TempDir Path tempDir) throws IOException {
+        matrix("jsonenc-int", """
+                main() {
+                    println(json.encode(42))
+                    println(json.encode("oi"))
+                    println(json.encode(true))
+                }
+                """, "42\n\"oi\"\ntrue", Set.of(), tempDir);
+        matrix("jsonenc-list", """
+                main() {
+                    println(json.encode(listOf(1, 2, 3)))
+                }
+                """, "[1,2,3]", Set.of(), tempDir);
+        matrix("jsonenc-record", """
+                record P(Int x, Int y)
+                main() {
+                    println(json.encode(P(1, 2)))
+                }
+                """, "{\"x\":1,\"y\":2}", Set.of(), tempDir);
+        matrix("jsondec-int", """
+                main() {
+                    println(json.decode<Int>("7"))
+                    println(json.decode<String>("\\"oi\\""))
+                    println(json.decode<Bool>("true"))
+                }
+                """, "7\noi\ntrue", Set.of(), tempDir);
+        matrix("jsondec-list", """
+                main() {
+                    var l = json.decode<List<Int>>("[1, 2, 3]")
+                    println(l.size())
+                    println(l.get(1))
+                }
+                """, "3\n2", Set.of(), tempDir);
+        // DONE após fix 07/09 (decode<Record> no interpretador —
+        // KofInterpreterRuntime.decodeKofValue espelha encodeKof; antes:
+        // interpretador exit 1 stderr "Point").
+        matrix("jsondec-record", """
+                record P(Int x, Int y)
+                main() {
+                    var p = json.decode<P>("{\\"x\\":1,\\"y\\":2}")
+                    println(p.x())
+                    println(p.y())
+                }
+                """, "1\n2", Set.of(), tempDir);
+        // PARTIAL: bug 48 — decode<List<Record>> (interpretador exit 1 R6;
+        // Native não compila). JVM e JS já dão 2/2.
+        matrix("jsondec-recordlist", """
+                record P(Int x)
+                main() {
+                    var l = json.decode<List<P>>("[{\\"x\\":1},{\\"x\\":2}]")
+                    println(l.size())
+                    println(l.get(1).x)
+                }
+                """, "2\n2", Set.of("script", "native"), tempDir);
+    }
 }

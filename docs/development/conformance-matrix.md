@@ -48,10 +48,28 @@
 | list add/set/remove | `99` / `4` / `2` / `3` | DONE | DONE | DONE | DONE | `listops` |
 | map keys() + iteração | `6` | DONE | DONE | DONE | DONE | `mapiter` |
 
-## Matriz (lote 2 — erros/null/JSON) — PREENCHER
+## Matriz (lote 2 — erros/null/JSON)
 
-_(em construção: try/catch/finally, throw-as-String, null-safety narrowing,
-json.encode/decode, spawn/await determinístico.)_
+| Feature | Saída esperada | JVM | Native | Script | KofJS | Caso |
+|---|---|---|---|---|---|---|
+| try/catch throw-as-String | `caught:not found: x` / `after` | DONE | DONE | DONE | DONE | `trycatch` |
+| try/catch/finally (sem throw) | `in` / `fin` / `after` | DONE | DONE | DONE | DONE | `trycatchfin` |
+| throw propagando p/ catch externo | `got:kaboom` | DONE | DONE | DONE | DONE | `throwprop` |
+| try aninhado | `caught-inner:inner` / `end` | DONE | DONE | DONE | PARTIAL (bug 49: COMP002) | `nestedtry` |
+| null-safety narrowing (`!= null`) | `val=1` / `null-ok` | DONE | DONE | DONE | DONE | `nullnarrow` |
+| json.encode int/string/bool | `42` / `"oi"` / `true` | DONE | DONE | DONE | DONE | `jsonenc-int` |
+| json.encode lista | `[1,2,3]` | DONE | DONE | DONE | DONE | `jsonenc-list` |
+| json.encode record | `{"x":1,"y":2}` | DONE | DONE | DONE | DONE | `jsonenc-record` |
+| json.decode int/string/bool | `7` / `oi` / `true` | DONE | DONE | DONE | DONE | `jsondec-int` |
+| json.decode lista de primitivo | `3` / `2` | DONE | DONE | DONE | DONE | `jsondec-list` |
+| json.decode record | `1` / `2` | DONE | DONE | DONE (fix 07/09) | DONE | `jsondec-record` |
+| json.decode lista de record | `2` / `2` | DONE | PARTIAL (bug 48: não compila) | PARTIAL (bug 48: exit 1 R6) | DONE | `jsondec-recordlist` |
+
+> **Fix 07/09 (lane interpreter):** `json.decode<Record>` no interpretador
+> dava exit 1 + stderr só `Point` (R6) — o método gerado `kof_json_decode_Point`
+> faz `Class.forName`, mas no interpretador a classe Kof é `KofObj`. Corrigido
+> em `KofInterpreterRuntime.decodeKofValue` (espelha `encodeKof`). O caso
+> `jsondec-record` passou de PARTIAL(Script) → DONE.
 
 ## Notas de método
 

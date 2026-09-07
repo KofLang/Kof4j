@@ -42,6 +42,15 @@ public final class KofInterpreterRuntime {
                 && args[0] instanceof KofInterpreter.KofObj ko) {
             return encodeKof(ko);
         }
+        // json.decode<KofClass>: o método gerado faz Class.forName(nome) — mas
+        // no interpretador a classe Kof é KofObj (NUNCA vira classe JVM).
+        // Espelha encodeKof: parse com o MESMO parser do runtime gerado e
+        // monta o KofObj com os campos coeridos pelos tipos da IR.
+        if (name.startsWith("kof_json_decode_") && args.length == 1
+                && args[0] instanceof String json) {
+            IRClass kc = kofClassByDecodeName(name);
+            if (kc != null) return decodeKofValue(kc, runtimeFn("kof_json_parse", new Object[]{json}));
+        }
         Class<?> rt = interp.runtimeClass();
         for (Method m : rt.getMethods()) {
             if (!m.getName().equals(name) || m.getParameterCount() != args.length) continue;
@@ -72,6 +81,48 @@ public final class KofInterpreterRuntime {
             }
         }
         return sb.append('}').toString();
+    }
+
+    /** Classe Kof cujo nome simples sanitizado casa `kof_json_decode_<X>`. */
+    private IRClass kofClassByDecodeName(String name) {
+        String suffix = name.substring("kof_json_decode_".length());
+        for (IRClass c : interp.module().classes()) {
+            if (JsonDispatch.sanitize(KofInterpreterValues.simpleOf(c.name())).equals(suffix)) return c;
+        }
+        return null;
+    }
+
+    /**
+     * Monta um {@link KofInterpreter.KofObj} a partir do valor JSON parseado
+     * (Map/List/escalar), coerindo cada campo pelo tipo declarado na IR —
+     * espelha o `kof_json_bind` do runtime gerado, mas para classes Kof que
+     * só existem como KofObj no interpretador.
+     */
+    private Object decodeKofValue(IRClass c, Object parsed) throws Throwable {
+        KofInterpreter.KofObj obj = new KofInterpreter.KofObj(c);
+        if (parsed instanceof java.util.Map<?, ?> m) {
+            for (IRField f : c.fields()) {
+                if (java.lang.reflect.Modifier.isStatic(f.accessFlags())) continue;
+                obj.fields.put(f.name(), bindKof(f.type(), m.get(f.name())));
+            }
+        }
+        return obj;
+    }
+
+    private Object bindKof(Type type, Object raw) throws Throwable {
+        if (raw == null) return null;
+        IRClass nested = interp.kofClassOrNull(type);
+        if (nested != null && raw instanceof java.util.Map) return decodeKofValue(nested, raw);
+        if (raw instanceof List<?> l && BuiltinTypes.isList(type)) {
+            Type elem = ((Type.ClassType) type).typeArguments().isEmpty()
+                    ? Type.UnknownType.UNKNOWN : ((Type.ClassType) type).typeArguments().get(0);
+            IRClass elemCls = interp.kofClassOrNull(elem);
+            List<Object> out = new ArrayList<>(l.size());
+            for (Object e : l) out.add(elemCls != null ? decodeKofValue(elemCls, e)
+                    : KofInterpreterValues.coerceFor(elem, e));
+            return out;
+        }
+        return KofInterpreterValues.coerceFor(type, raw);
     }
 
     Object[] coerceArgs(Class<?>[] params, Object[] args) {
