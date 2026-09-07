@@ -1,4 +1,5 @@
 package dev.kof.compiler;
+import dev.kof.compiler.jvm.JvmOpCollections;
 
 import java.util.ArrayList;
 import java.util.HashMap;

@@ -1,4 +1,5 @@
 package dev.kof.compiler;
+import dev.kof.compiler.jvm.JvmBackend;
 import dev.kof.compiler.nat.NativeBackend;
 
 import java.util.List;

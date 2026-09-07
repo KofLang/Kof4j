@@ -1,4 +1,5 @@
 package dev.kof.compiler;
+import dev.kof.compiler.jvm.JvmOpEmitter;
 
 import java.lang.reflect.Array;
 

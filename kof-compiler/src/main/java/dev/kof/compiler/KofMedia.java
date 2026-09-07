@@ -79,7 +79,7 @@ public final class KofMedia {
 
     /** Handles de mídia são Int em runtime (mesmo modelo dos handles kof.ui)
      *  — o backend JVM os mapeia para o descritor "I". */
-    static boolean isHandleType(Type t) {
+    static public boolean isHandleType(Type t) {
         return isImageData(t) || isAudio(t) || isVideo(t);
     }
 

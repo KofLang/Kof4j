@@ -1,4 +1,6 @@
 package dev.kof.compiler;
+import dev.kof.compiler.jvm.JvmOpCollections;
+import dev.kof.compiler.jvm.JvmRuntime;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;

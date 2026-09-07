@@ -83,7 +83,7 @@ public final class KofUi {
         return isLabel(t) || isButton(t) || isInput(t) || isView(t) || isLink(t);
     }
 
-    static boolean isUiType(Type t) {
+    static public boolean isUiType(Type t) {
         return isColor(t) || isTheme(t) || isLabel(t) || isButton(t) || isInput(t)
                 || isColumn(t) || isRow(t) || isView(t) || isStyle(t) || isWindow(t)
                 || isLink(t) || isImage(t) || isIcon(t) || isFont(t)

@@ -1,6 +1,6 @@
 package dev.kof.compiler.js;
+import dev.kof.compiler.jvm.JvmTypeMapper;
 import dev.kof.compiler.BuiltinTypes;
-import dev.kof.compiler.JvmTypeMapper;
 import dev.kof.compiler.KofArrayLength;
 import dev.kof.compiler.KofArrayLoad;
 import dev.kof.compiler.KofArrayStore;

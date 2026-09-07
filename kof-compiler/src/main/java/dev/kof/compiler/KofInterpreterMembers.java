@@ -1,4 +1,5 @@
 package dev.kof.compiler;
+import dev.kof.compiler.jvm.JvmOpCollections;
 
 import java.lang.reflect.Field;
 import java.util.HashMap;

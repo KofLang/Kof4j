@@ -1,4 +1,5 @@
 package dev.kof.compiler;
+import dev.kof.compiler.jvm.JvmRecordEmitter;
 
 import java.util.Objects;
 
