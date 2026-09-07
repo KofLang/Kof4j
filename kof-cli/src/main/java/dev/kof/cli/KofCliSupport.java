@@ -1,5 +1,8 @@
 package dev.kof.cli;
 
+import dev.kof.compiler.CompilationResult;
+import dev.kof.compiler.CompilerDriver;
+import dev.kof.compiler.Diagnostic;
 import dev.kof.compiler.KofProjectConfig;
 import dev.kof.compiler.Target;
 import dev.kof.compiler.TargetMatrix;
@@ -9,6 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Encanamento compartilhado dos subcomandos da CLI (dev.kof.cli):
@@ -28,9 +32,20 @@ final class KofCliSupport {
     static Process servedProcess;
 
     static void executeProcess(List<String> command, Path tempDir) {
+        executeProcess(command, tempDir, Map.of());
+    }
+
+    /**
+     * F3 (plataforma): variante com variáveis de ambiente extras para o
+     * processo filho — usada pelo serve full-stack para passar ao backend o
+     * caminho do bundle (KOF_WEB_OUT) e dos estáticos (KOF_STATIC_OUT), que
+     * o app consome via {@code config.env(...)} + {@code app.serveDir}.
+     */
+    static void executeProcess(List<String> command, Path tempDir, Map<String, String> extraEnv) {
         try {
             ProcessBuilder pb = new ProcessBuilder(command);
             pb.inheritIO();
+            pb.environment().putAll(extraEnv);
             Process p = pb.start();
             servedProcess = p;
             int exitCode = p.waitFor();
@@ -87,6 +102,35 @@ final class KofCliSupport {
             return new Layout(src, web, Files.isDirectory(st) ? st : null);
         }
         return new Layout(dir, null, null);
+    }
+
+    /**
+     * F3 (plataforma): compila o componente frontend (web/) para o bundle
+     * estático e copia os estáticos (static/) ao lado. Frontend KofJS gera
+     * .mjs + index.html em {@code buildRoot/frontend}; estáticos em
+     * {@code buildRoot/static}. Usado por build (artefatos) e serve
+     * (tempDir) full-stack. Falha de compilação aborta (System.exit 1) —
+     * nunca silencioso.
+     */
+    static void buildFrontend(CompilerDriver driver, Layout layout,
+                              Target frontendTarget, Path buildRoot) {
+        Path frontendOut = buildRoot.resolve("frontend");
+        List<Path> frontendFiles = collect(layout.frontendDir());
+        frontendFiles.sort(java.util.Comparator.comparing(p -> p.getFileName().toString()));
+        CompilationResult fe = driver.compileSources(frontendFiles, frontendOut, frontendTarget,
+                layout.frontendDir().toAbsolutePath().normalize());
+        for (Diagnostic d : fe.diagnostics().getDiagnostics()) System.out.println(d.format());
+        if (!fe.success()) System.exit(1);
+        if (layout.staticDir() != null) {
+            try {
+                int n = copyTree(layout.staticDir(), buildRoot.resolve("static"));
+                System.out.println(n + " estático(s) → " + buildRoot.resolve("static"));
+            } catch (java.io.IOException e) {
+                System.err.println("build: falha ao copiar estáticos: " + e.getMessage());
+                System.exit(1);
+            }
+        }
+        System.out.println("frontend (" + TargetMatrix.name(frontendTarget) + ") → " + frontendOut);
     }
 
     /** Copia uma árvore de arquivos (estáticos) preservando a estrutura relativa. */

@@ -14,6 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * kof serve — compila o módulo do arquivo e sobe o servidor: apps
@@ -101,6 +102,22 @@ final class CmdServe {
         for (Diagnostic d : result.diagnostics().getDiagnostics()) System.err.println(d.format());
         if (!result.success()) { KofCliSupport.cleanup(tempDir); System.exit(1); return; }
 
+        // F3 (plataforma, APPLICATION_MODEL I2/P2): full-stack — o APP é dono
+        // das rotas. A CLI só compila o frontend (bundle KofJS) + estáticos e
+        // passa os caminhos ao backend via env (KOF_WEB_OUT/KOF_STATIC_OUT),
+        // que o app consome com config.env(...) + app.serveDir. Aditivo: sem
+        // web/ com .kf = backend puro de hoje.
+        Path webOut = null;
+        Path staticOut = null;
+        if (serveTarget == Target.JVM) {
+            KofCliSupport.Layout layout = KofCliSupport.detectLayout(serveDir);
+            if (layout.fullStack()) {
+                KofCliSupport.buildFrontend(driver, layout, Target.JS, tempDir);
+                webOut = tempDir.resolve("frontend");
+                staticOut = layout.staticDir() != null ? tempDir.resolve("static") : null;
+            }
+        }
+
         String className = KofCliSupport.findMainClass(tempDir);
         if (System.getProperty("kof.trace") != null) {
             System.err.println("LAUNCH className=" + className + " dir=" + tempDir);
@@ -146,9 +163,14 @@ final class CmdServe {
                     }
                     KofCliSupport.cleanup(tempDir);
                 }));
+                // F3 full-stack: passa ao backend o caminho do bundle/estáticos
+                // (o app consome via config.env("KOF_WEB_OUT") + serveDir).
+                Map<String, String> appEnv = new java.util.HashMap<>();
+                if (webOut != null) appEnv.put("KOF_WEB_OUT", webOut.toString());
+                if (staticOut != null) appEnv.put("KOF_STATIC_OUT", staticOut.toString());
                 KofCliSupport.executeProcess(List.of(KofCliSupport.javaExecutable(),
                         "-Dkof.root=" + file.toAbsolutePath().normalize().getParent(),
-                        "-cp", tempDir.toString(), className), tempDir);
+                        "-cp", tempDir.toString(), className), tempDir, appEnv);
                 return;
             }
             dev.kof.compiler.KofHttpServer server = new dev.kof.compiler.KofHttpServer(

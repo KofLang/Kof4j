@@ -162,7 +162,7 @@ final class CmdBuild {
         if (!module.success()) System.exit(1);
         if (layout.fullStack()) {
             if (frontendTarget == null) frontendTarget = Target.JS;
-            buildFrontend(driver, layout, frontendTarget, outFlagged ? out : Path.of("build"));
+            KofCliSupport.buildFrontend(driver, layout, frontendTarget, outFlagged ? out : Path.of("build"));
             System.out.println("backend (" + TargetMatrix.name(target) + ") → " + backendOut);
         }
         // target android + --apk: pipeline direto (sem Maven) usando o SDK
@@ -170,33 +170,6 @@ final class CmdBuild {
         if (target == Target.ANDROID && apk) {
             runApkPipeline(backendOut, keystore, storepass, keypass, keyalias);
         }
-    }
-
-    /**
-     * F3 (plataforma): compila o componente frontend (web/) para o bundle
-     * estático e copia os estáticos (static/) ao lado. Frontend KofJS gera
-     * .mjs + index.html em build/frontend; estáticos vão em build/static.
-     * Nunca silencioso: falha de compilação do frontend aborta o build.
-     */
-    private static void buildFrontend(CompilerDriver driver, KofCliSupport.Layout layout,
-                                      Target frontendTarget, Path buildRoot) {
-        Path frontendOut = buildRoot.resolve("frontend");
-        List<Path> frontendFiles = KofCliSupport.collect(layout.frontendDir());
-        frontendFiles.sort(java.util.Comparator.comparing(p -> p.getFileName().toString()));
-        CompilationResult fe = driver.compileSources(frontendFiles, frontendOut, frontendTarget,
-                layout.frontendDir().toAbsolutePath().normalize());
-        for (Diagnostic d : fe.diagnostics().getDiagnostics()) System.out.println(d.format());
-        if (!fe.success()) System.exit(1);
-        if (layout.staticDir() != null) {
-            try {
-                int n = KofCliSupport.copyTree(layout.staticDir(), buildRoot.resolve("static"));
-                System.out.println(n + " estático(s) → " + buildRoot.resolve("static"));
-            } catch (java.io.IOException e) {
-                System.err.println("build: falha ao copiar estáticos: " + e.getMessage());
-                System.exit(1);
-            }
-        }
-        System.out.println("frontend (" + TargetMatrix.name(frontendTarget) + ") → " + frontendOut);
     }
 
     /**

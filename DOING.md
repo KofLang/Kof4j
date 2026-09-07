@@ -96,12 +96,23 @@ regressão monólito `build/classes`+`--output` idêntico a hoje).
 usado em JsRuntimeUiWeb — zero dep nova). `port=0`→efêmera; `/`→index.html;
 content-type por extensão; **R6: path traversal (`../`) → 404**, nunca serve
 fora do webRoot. Prova: `ServeStaticTest` 3/3 (root/estáticos/content-type +
-traversal bloqueado + subdir index). **DEGRAU 2b É O PRÓXIMO**: ligar
-`serveStatic` no `kof run --backend --frontend` (roda backend + serve o
-bundle/estáticos concorrentemente) e no `kof serve` full-stack — ver
-APPLICATION_MODEL §7 (backend `web.app` já serve via `app.serveDir` JVM; o
-`serveStatic` cobre o caso CLI-side/non-web.app e o dev-loop). Depois F3.5:
-testes full-stack dos 4 cenários (JVM+KofJS, Native+KofJS, Script+KofJS,
+traversal bloqueado + subdir index). **DEGRAU 2b FEITO (este commit)**:
+`kof serve` full-stack conforme APPLICATION_MODEL **I2/P2** (decisão no
+corpus, não inventada): o **APP é dono das rotas** — a CLI compila o
+frontend (bundle KofJS→tempDir/frontend) + estáticos (→tempDir/static) e
+passa os caminhos ao backend via **env `KOF_WEB_OUT`/`KOF_STATIC_OUT`**
+(`executeProcess(..., extraEnv)` novo); o app consome com
+`config.env("KOF_WEB_OUT")` + `app.serveDir("/", ...)` (JVM; Native/JS =
+WEB005, gap). `buildFrontend` movido p/ `KofCliSupport` (DRY — build+serve
+reuso). **Prova E2E Cenário A (I2)**: app real `web.app()` + `serveDir` →
+`GET /api/ping`={"pong":true} (JSON backend), `GET /`=bundle 200 text/html
+(via KOF_WEB_OUT), `GET /static/app.css` 200 text/css (KOF_STATIC_OUT),
+`GET /../Main.kf`=404 (traversal). **Regressão**: serve monólito sem web/
+invisível (0 linha frontend no log, rota ok, 404 sem rota). Suíte
+1067/0/64-skip verde. **DEGRAU 2c (restante de F3)**: `kof run
+--backend --frontend` (mesmo env-pass, processo filho) + rebuild do
+frontend sob demanda se mudou (I2.4, hash) + F3.5: `examples/fullstack/` +
+testes dos 4 cenários (JVM+KofJS, Native+KofJS→APP001, Script+KofJS,
 Script+Script). **NÃO quebrar**: microsserviços (kof.http/kof.web/CmdServe),
 PKG002/4/5 (congelados), lanes `NativeBackend.java`/`KofInterpreter*`.
 
