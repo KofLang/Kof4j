@@ -213,13 +213,7 @@ public final class ExpressionTyper {
                     paramTypes.add(pt);
                     extended.add(new IRLocalVariable(pidx++, p.name(), pt));
                 }
-                Type returnType = Type.UnknownType.UNKNOWN;
-                for (StatementNode s : le.body()) {
-                    if (s instanceof ReturnStmt rs && rs.value() != null) {
-                        returnType = inferExprType(driver, rs.value(), extended);
-                        break;
-                    }
-                }
+                Type returnType = firstReturnValueType(driver, le.body(), extended);
                 if (Type.UnknownType.UNKNOWN.equals(returnType)) {
                     // A lambda whose body has no return statement is void.
                     // Without this, the synthetic invoke method is lowered with
@@ -260,12 +254,62 @@ public final class ExpressionTyper {
             Type pt = CompilerTypes.toType(p.type(), driver.currentUnit);
             extended.add(new IRLocalVariable(pidx++, p.name(), pt));
         }
-        for (StatementNode s : le.body()) {
-            if (s instanceof ReturnStmt rs && rs.value() != null) {
-                return inferExprType(driver, rs.value(), extended);
-            }
+        Type t = firstReturnValueType(driver, le.body(), extended);
+        return Type.UnknownType.UNKNOWN.equals(t) ? Type.PrimitiveType.VOID : t;
+    }
+
+    /**
+     * Tipo do PRIMEIRO `return` com valor de um corpo de statements, varrendo
+     * RECURSIVAMENTE if/switch/try/loops/blocos (bug 53, GitHub #28): antes só
+     * se olhava o topo do corpo, então `if (x) { return "ok" } return null`
+     * tipava a lambda como VOID (o `return null` é UNKNOWN) e o backend
+     * descartava o valor de sucesso — o handler web respondia 404. Não desce
+     * em lambdas aninhadas (o return delas pertence a outro corpo).
+     */
+    private static Type firstReturnValueType(CompilerDriver driver,
+                                             List<StatementNode> body,
+                                             List<IRLocalVariable> locals) {
+        for (StatementNode s : body) {
+            Type t = returnValueType(driver, s, locals);
+            if (!Type.UnknownType.UNKNOWN.equals(t)) return t;
         }
-        return Type.PrimitiveType.VOID;
+        return Type.UnknownType.UNKNOWN;
+    }
+
+    private static Type returnValueType(CompilerDriver driver, StatementNode s,
+                                        List<IRLocalVariable> locals) {
+        if (s instanceof ReturnStmt rs) {
+            return rs.value() != null ? inferExprType(driver, rs.value(), locals)
+                    : Type.UnknownType.UNKNOWN;
+        }
+        if (s instanceof BlockStmt bs) return firstReturnValueType(driver, bs.statements(), locals);
+        if (s instanceof IfStmt is) {
+            Type t = returnValueType(driver, is.thenBranch(), locals);
+            if (!Type.UnknownType.UNKNOWN.equals(t)) return t;
+            if (is.elseBranch() != null) return returnValueType(driver, is.elseBranch(), locals);
+            return Type.UnknownType.UNKNOWN;
+        }
+        if (s instanceof SwitchStmt ss) {
+            for (SwitchCase sc : ss.cases()) {
+                Type t = firstReturnValueType(driver, sc.body(), locals);
+                if (!Type.UnknownType.UNKNOWN.equals(t)) return t;
+            }
+            return firstReturnValueType(driver, ss.defaultBody(), locals);
+        }
+        if (s instanceof TryStmt ts) {
+            Type t = firstReturnValueType(driver, ts.tryBody(), locals);
+            if (!Type.UnknownType.UNKNOWN.equals(t)) return t;
+            for (CatchClause cc : ts.catchClauses()) {
+                t = firstReturnValueType(driver, cc.body(), locals);
+                if (!Type.UnknownType.UNKNOWN.equals(t)) return t;
+            }
+            return firstReturnValueType(driver, ts.finallyBody(), locals);
+        }
+        if (s instanceof WhileStmt ws) return returnValueType(driver, ws.body(), locals);
+        if (s instanceof DoWhileStmt dws) return returnValueType(driver, dws.body(), locals);
+        if (s instanceof ForStmt fs) return returnValueType(driver, fs.body(), locals);
+        if (s instanceof ForInStmt fis) return returnValueType(driver, fis.body(), locals);
+        return Type.UnknownType.UNKNOWN;
     }
 
 

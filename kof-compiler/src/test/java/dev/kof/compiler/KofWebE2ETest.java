@@ -246,6 +246,33 @@ class KofWebE2ETest {
     }
 
     @Test
+    void handlerReturningNullAsLastPathStillRespondsValue(@TempDir Path tempDir) throws IOException {
+        // bug 53 (GitHub #28): forma idiomática `if (x) { return valor }
+        // return null` tipava invoke() como VOID (typer só varria ReturnStmt
+        // top-level) → valor de sucesso descartado → 404 em toda request.
+        String app = """
+                main() {
+                    var app = web.app()
+                    app.get("/x/:id") {
+                        var id = param("id").toInt()
+                        if (id == 1) {
+                            return "one"
+                        }
+                        return null
+                    }
+                    app.listen(PORT)
+                }
+                """;
+        int port = startServer(tempDir, app);
+        String hit = request(port, "GET /x/1 HTTP/1.1\r\nHost: x\r\n\r\n");
+        assertTrue(hit.startsWith("HTTP/1.1 200 OK"), hit);
+        assertTrue(bodyOf(hit).equals("one"), bodyOf(hit));
+        // return null continua sendo 404 documentado (não regrediu)
+        String miss = request(port, "GET /x/2 HTTP/1.1\r\nHost: x\r\n\r\n");
+        assertTrue(miss.startsWith("HTTP/1.1 404 Not Found"), miss);
+    }
+
+    @Test
     void middlewareShortCircuits(@TempDir Path tempDir) throws IOException {
         int port = startServer(tempDir);
         String r = request(port, "GET /hello HTTP/1.1\r\nHost: x\r\n\r\n");
