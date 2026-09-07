@@ -924,4 +924,21 @@ class NativeE2ETest {
             """);
         runNative(source, tempDir.resolve("out"), "mel\ntrue\n1\n2\n2");
     }
+
+    // known-bugs #43 — String.length no Native contava bytes UTF-8 (café=5)
+    // vs code units do JVM/JS (café=4). kof_string_length agora percorre o
+    // UTF-8 contando code units UTF-16 (astral → 2, surrogate pair).
+    @Test
+    void nativeStringLengthUtf16(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+                main() {
+                    var s = "café"
+                    println(s.length)
+                    var e = "a😀b"
+                    println(e.length)
+                }
+                """);
+        runNative(source, tempDir.resolve("out"), "4\n4");
+    }
 }

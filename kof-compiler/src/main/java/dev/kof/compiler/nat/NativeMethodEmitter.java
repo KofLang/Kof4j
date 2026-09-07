@@ -179,9 +179,16 @@ final class NativeMethodEmitter {
             case KofLoadField lf -> {
                 if (lf.ownerType() instanceof Type.ClassType ctLF && "MemEntry".equals(ctLF.name()) && "key".equals(lf.name())) {
                 }
-                sb.append("    popq %rax\n");
+                sb.append("    popq %rdi\n");
+                if (BuiltinTypes.isString(lf.ownerType()) && "length".equals(lf.name())) {
+                    // String.length conta code units UTF-16 (paridade JVM/JS),
+                    // não o byte length @16 (bug 43).
+                    sb.append("    call kof_string_length\n");
+                    sb.append("    pushq %rax\n");
+                    break;
+                }
                 int offset = nb.resolveFieldOffset(lf.ownerType(), lf.name());
-                sb.append("    movq ").append(offset).append("(%rax), %rax\n");
+                sb.append("    movq ").append(offset).append("(%rdi), %rax\n");
                 sb.append("    pushq %rax\n");
             }
             case KofStoreField sf -> {

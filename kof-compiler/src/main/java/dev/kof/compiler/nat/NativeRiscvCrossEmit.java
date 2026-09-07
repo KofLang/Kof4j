@@ -147,6 +147,13 @@ public final class NativeRiscvCrossEmit {
             }
             case KofLoadField lf -> {
                 sb.append("    pop t0\n");
+                if (BuiltinTypes.isString(lf.ownerType()) && "length".equals(lf.name())) {
+                    // String.length conta code units UTF-16 (bug 43).
+                    sb.append("    mv a0, t0\n");
+                    sb.append("    call kof_string_length\n");
+                    pushRiscv(sb, "a0");
+                    break;
+                }
                 int offset = nb.resolveFieldOffset(lf.ownerType(), lf.name());
                 sb.append("    ld t0, ").append(offset).append("(t0)\n");
                 pushRiscv(sb, "t0");

@@ -63,7 +63,46 @@ public final class RuntimeStringBase {
             .globl kof_string_length
             .type kof_string_length, @function
             kof_string_length:
-                movl 16(%rdi), %eax
+                # conta code units UTF-16 (paridade JVM/JS), não bytes UTF-8
+                # (bug 43): 1 byte → 1; 2/3 bytes → 1; astral (4 bytes) → 2.
+                pushq %rbx
+                pushq %r12
+                movl 16(%rdi), %ecx        # byteLen (bytes UTF-8)
+                leaq 24(%rdi), %rsi        # chars
+                xorl %eax, %eax            # count = 0
+                xorl %ebx, %ebx            # i = 0
+            .Lkof_strlen_loop:
+                cmpl %ecx, %ebx
+                jge .Lkof_strlen_done
+                movzbl (%rsi,%rbx), %edx   # byte
+                cmpb $0x80, %dl
+                jb .Lkof_strlen_inc1
+                movb %dl, %r8b
+                andb $0xE0, %r8b
+                cmpb $0xC0, %r8b
+                je .Lkof_strlen_inc2
+                movb %dl, %r8b
+                andb $0xF0, %r8b
+                cmpb $0xE0, %r8b
+                je .Lkof_strlen_inc3
+                addl $2, %eax             # astral: surrogate pair = 2 code units
+                addl $4, %ebx
+                jmp .Lkof_strlen_loop
+            .Lkof_strlen_inc1:
+                addl $1, %eax
+                addl $1, %ebx
+                jmp .Lkof_strlen_loop
+            .Lkof_strlen_inc2:
+                addl $1, %eax
+                addl $2, %ebx
+                jmp .Lkof_strlen_loop
+            .Lkof_strlen_inc3:
+                addl $1, %eax
+                addl $3, %ebx
+                jmp .Lkof_strlen_loop
+            .Lkof_strlen_done:
+                popq %r12
+                popq %rbx
                 ret
             """);
     }
