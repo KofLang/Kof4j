@@ -114,7 +114,16 @@ reuso). **Prova E2E Cenário A (I2)**: app real `web.app()` + `serveDir` →
  KOF_WEB_OUT/KOF_STATIC_OUT no processo filho; `--frontend script` = Fase 8
  SSR → erro honesto, não compila JS silencioso). Provas: E2E (env chega ao
  processo filho do backend: WEB_OUT/STATIC_OUT impressas; regressão monólito
- `mono-run 42` inalterado; R6 `--frontend script` rejeitado). **DEGRAU 2d
+  `mono-run 42` inalterado; R6 `--frontend script` rejeitado). **BUG
+  SERVEDIR-Raiz CORRIGIDO (este commit)**: `app.serveDir("/", dir)` (o case
+  canônico do full-stack I2 — montar o bundle na raiz) só servia `/`→index;
+  `/Default.mjs`/`/index.html` davam 404 (match `sd.prefix + "/"` = `"//"`
+  nunca casa). Fix em `kof_web_static_match` (JvmMediaWebRuntime, source
+  gerado): prefixo `/` → `rel = path.substring(1)`. Prova: E2E serve
+  full-stack (GET /, /index.html, /Default.mjs, /kof-runtime.mjs = 200;
+  traversal /../Main.kf = 404) + `KofMediaE2ETest` 14/14 (2 novos:
+  `servesRootPrefixFiles_notJustIndex`, `rootPrefix_stillBlocksTraversal`).
+  **DEGRAU 2d
  (fecho de F3)**: rebuild do frontend sob demanda se mudou (I2.4, hash) +
  F3.5: `examples/fullstack/` + testes dos 4 cenários (JVM+KofJS,
  Native+KofJS→APP001, Script+KofJS, Script+Script). **NÃO quebrar**:

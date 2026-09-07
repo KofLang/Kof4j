@@ -214,6 +214,38 @@ class KofMediaE2ETest {
         assertTrue(r.startsWith("HTTP/1.1 404"), "404: " + r.split("\r\n", 2)[0]);
     }
 
+    // ── serveDir("/") — prefixo RAIZ: o case canônico do full-stack (I2) ──
+    // O bundle do frontend é montado em "/" (app.serveDir("/", KOF_WEB_OUT));
+    // sem isso só o index servia e os .mjs do bundle davam 404.
+
+    private static final String SERVE_ROOT_APP = """
+            main() {
+                var app = web.app()
+                app.serveDir("/", "assets")
+                app.listen(PORT)
+            }
+            """;
+
+    @Test
+    void servesRootPrefixFiles_notJustIndex() throws IOException {
+        int port = startServer(appDir, SERVE_ROOT_APP);
+        assertTrue(request(port, "GET /style.css HTTP/1.1\r\nHost: x\r\n\r\n")
+                .startsWith("HTTP/1.1 200"), "arquivo no prefixo raiz serve (200)");
+        assertTrue(request(port, "GET /logo.png HTTP/1.1\r\nHost: x\r\n\r\n")
+                .startsWith("HTTP/1.1 200"), "binário no prefixo raiz serve (200)");
+        assertTrue(request(port, "GET / HTTP/1.1\r\nHost: x\r\n\r\n")
+                .startsWith("HTTP/1.1 404"), "sem index.html no dir → 404 (não 500)");
+    }
+
+    @Test
+    void rootPrefix_stillBlocksTraversal() throws IOException {
+        int port = startServer(appDir, SERVE_ROOT_APP);
+        String r = request(port, "GET /..%2fApp.kf HTTP/1.1\r\nHost: x\r\n\r\n");
+        assertTrue(r.startsWith("HTTP/1.1 404"), "traversal no prefixo raiz bloqueado (404): "
+                + r.split("\r\n", 2)[0]);
+        assertFalse(r.contains("web.app()"), "fonte do app não vaza");
+    }
+
     // ── Image: javax.imageio, sem base64 literal ────────────────────
 
     private static final String IMAGE_APP = """

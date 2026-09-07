@@ -155,6 +155,9 @@ public final class JvmMediaWebRuntime {
                         String rel;
                         if (path.equals(sd.prefix)) {
                             rel = "index.html";
+                        } else if (sd.prefix.equals("/")) {
+                            // prefix raiz: "/x" → "x" (sem o bug de "//")
+                            rel = path.startsWith("/") ? path.substring(1) : path;
                         } else if (path.startsWith(sd.prefix + "/")) {
                             rel = path.substring(sd.prefix.length() + 1);
                         } else {
