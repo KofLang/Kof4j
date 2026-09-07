@@ -654,6 +654,40 @@ EXTERNA produz lixo
 
 ---
 
+### 34. Método inexistente em tipo BUILTIN (List/Map/Set/String) → no-op silencioso (R6)
+
+- **Sintoma:** `l.ghost()`, `m.ghost()`, `s.ghost()`, `"ab".ghost()` **compilam**
+  e em runtime viram *no-op* que devolve o próprio receiver (JVM: `println(l.ghost())`
+  → `[1, 2]`). Diferente de `C.ghost()` em classe de usuário → `SEM025`.
+- **Causa raiz (diagnosticada 06/09):** em `MemberCallTyper.java:354` o gate do
+  SEM025 é `!BuiltinTypes.isList(ct) && isKnownReceiver(...)`. Dois furos:
+  (a) `isList` isenta **List** explicitamente; (b) o gate `isKnownReceiver`
+  (`allClasses().containsKey || isExternal`) é **falso** para Map/Set/String
+  (não são classes do programa nem externas) → nenhum deles chega ao SEM025.
+  O lowerer (`CollectionCallLowerer`) retorna -1 para método desconhecido e o
+  call cai no emit genérico com `KofCall ghost` na IR (verificado: a IR carrega
+  o call). Reproduzido nos 4 tipos (probe 06/09): list/map/set/string todos
+  `success=true, errs=[]`.
+- **O que deveria acontecer:** SEM025 em compile-time para método fora da
+  allow-list do tipo (R6: nunca silencioso). A allow-list **já existe** no
+  typer (linhas 99-143: get/remove/size/contains/add/set/clear/put/keys/values/
+  map/filter/reduce/...); falta usá-la como gate de erro.
+- **Por que NÃO foi corrigido (regra 6):** adicionar SEM025 a programas que hoje
+  **compilam** é mudança de contrato — exige decisão de design + bump. Além
+  disso, o risco é falso-positivo: qualquer método de coleção não coberto pela
+  allow-list (ou alias como `push`/`append`/`count`/`length`) passaria a dar
+  erro. Precisa de varredura completa dos 3 targets + corpus antes.
+- **Efeito colateral no interpretador (06/09):** `KofInterpreter` não tem o
+  no-op — `l.ghost()` vira `NoSuchMethodError` (mais correto, R6), mas **diverge
+  do JVM compilado** (que no-op). O gate de paridade (`KofInterpreterParityTest`)
+  não cobre método inexistente de propósito: a paridade só vale pós-fix do 34
+  (ambos os caminhos rejeitam no compile).
+- **Arquivos:** `MemberCallTyper.java:354` (gate), `CollectionCallLowerer.java`
+  (retorna -1), `StringMethodRegistry` (allow-list de String já existe).
+- **Registrado:** 06/09 (varredura de paridade do interpretador).
+
+---
+
 ## Comportamentos que PAREcem bugs mas são esperados (não corrigir)
 
 | Cenário | Comportamento | Por quê |
