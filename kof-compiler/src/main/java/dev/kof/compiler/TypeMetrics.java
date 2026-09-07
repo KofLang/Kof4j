@@ -109,7 +109,7 @@ public final class TypeMetrics {
         return false;
     }
 
-    static Type boxedTypeFor(Type primitive) {
+    public static Type boxedTypeFor(Type primitive) {
         if (primitive instanceof Type.PrimitiveType pt) {
             return switch (pt.name()) {
                 case "int", "Int", "char", "Char" -> new Type.ClassType("java.lang", "Integer", List.of());

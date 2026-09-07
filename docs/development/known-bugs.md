@@ -765,7 +765,7 @@ EXTERNA produz lixo
 - **Esperado:** `inner` + `outer` (semântica JVM de exception table).
 - **Prova/repro:** caso `nested-try` (sweep manual 06/09).
 
-### 39. `println(m.get("zz"))` (null de Map) → NPE/unbox errado nos 2 caminhos — ABERTO
+### 39. `println(m.get("zz"))` (null de Map) → NPE/unbox errado nos 2 caminhos — ✅ CORRIGIDO 07/09
 
 - **Sintoma:** `var m = mapOf("a", 1); println(m.get("zz"))`: compilado →
   `NullPointerException` (escolheu overload `println(int)` e deu unbox de
@@ -774,6 +774,7 @@ EXTERNA produz lixo
 - **Causa raiz:** seleção de overload de `println` sobre `V?` (nullable de
   genérico de coleção) resolve para o ramo primitivo.
 - **Prova/repro:** caso `map-null-val` (sweep manual 06/09).
+- **Corrigido 07/09:** `Map.get` devolve `V?` SEMPRE (SemMethodCallTyper + CollectionMethodTyper + CollectionCallLowerer); `toDescriptor` de `NullableType<primitivo>` → boxed referência; `emitMapCall` não desboxa get nullable (evita unbox de null). Prova: `CoreRegressionE2ETest.printlnNullFromMapGet` (3 targets).
 
 ### 40. `n += 1` em campo de instância → crash nos 2 caminhos — ✅ CORRIGIDO 07/09
 

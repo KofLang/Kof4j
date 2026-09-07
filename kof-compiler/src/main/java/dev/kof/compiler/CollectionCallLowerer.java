@@ -211,13 +211,10 @@ public final class CollectionCallLowerer {
             }
             Type retType = switch (mapFn) {
                 case "kof_map_put", "kof_map_remove" -> valueType;
-                // get() devolve V? para valores de REFERÊNCIA (ausência = null,
-                // narrowing via `if (x != null)`); para primitivos/UI a ausência
-                // não é representável no modelo atual (storage é o primitivo) —
-                // ficam como V e a ausência vira exceção/erro de runtime.
-                case "kof_map_get" -> valueType instanceof Type.ClassType ct
-                        && !KofUi.isUiType(ct) && !KofMedia.isHandleType(ct)
-                        ? new Type.NullableType(valueType) : valueType;
+                // get() devolve V? SEMPRE (ausência = null, narrowing via
+                // `if (x != null)`). Para primitivos, Int? evita unbox de
+                // null no println/etc. (bug 39).
+                case "kof_map_get" -> new Type.NullableType(valueType);
                 case "kof_map_contains", "kof_map_is_empty" -> Type.PrimitiveType.BOOL;
                 case "kof_map_size" -> Type.PrimitiveType.INT;
                 case "kof_map_clear" -> Type.PrimitiveType.VOID;
