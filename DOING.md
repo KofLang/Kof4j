@@ -43,11 +43,18 @@ commits que moveram `Optimizer`→`backend/`, `ClassFileParser`→`parser/`,
 `kof-compiler` quebrado em HEAD do origin (bloqueava TODOS os testes, gate
 de merge inutilizável). Adicionei os 3 `import` faltantes (ZERO mudança de
 teste/assertão — só compilação). Provas: `parityCrossTargetGroupA` +
-os 3 testes reparados + suíte 1046/0/3-skip. **PRÓXIMO (h)**: bug #29
-`spawn func(arg)` com captura (regra 6 → gap/plano) — registrar em
-`planning-*` com diagnóstico; não é correção minha. **Feitos antes (07/09)**:
-bug `wrapPureKof` (`qualifyGlobals` scanner, `3fbf12d`) + `Target.SCRIPT`
-routing (`51754fd`) + heartbeat `--attach` (`cfd5a4d`).
+os 3 testes reparados + suíte 1046/0/3-skip.
+**ITEM (h) RESOLVIDO (07/09)** — bug #29 investigado com dados reais
+(probes `S29`/`S29js`/`S29det`, 4 caminhos interp/JVM/JS/Native): o #29
+original (handle + lambda **void** com captura, `7ec8b9d`) e `spawn fn(arg)`
+(função nomeada + handle) **funcionam nos 4**. Restou 1 variante nova:
+`spawn { return n*2 }` (lambda literal com `return` + handle + await) →
+**SIGSEGV (139) no Native x86_64, determinístico** (interp/JVM/JS dão `42`)
+→ registrado como **bug 46** (`known-bugs.md`) — paridade (regra 5),
+correção = **lane Native** (trampoline de spawn + slot de retorno), NÃO
+minha. **Sem item pendente na minha lane** (g e h feitos); re-dispacho
+deve pegar item ABERTO da tabela ou ajudar a lane Native/JS com os bugs
+41-46.
 
 **PRÓXIMO PASSO (fixes-for-kofagent, 07/09 — PLATAFORMA F2)**: **FASE 2
 COMPLETA (4/4) E COMMITADA**. (1) `Target.SCRIPT` no enum + `run --target
@@ -197,21 +204,26 @@ FunctionSyntaxTest 12; suíte21 957+8+5+8, 0 falhas
   com a regra. Testado com cron de 1 min: FUNCIONOU (injeção na sessão viva).
   **PRÓXIMO PASSO (minha lane)**: (a) ~~bug 34~~ FEITO (`ccaf7a6`); (b) ~~bug
   35~~ CORRIGIDO (`2c57a64`); (c) ~~bug 36~~ CORRIGIDO (`3c7641f`); (d) bugs
-  37–40 registrados — correção é decisão de lowering/semântica (regra 6),
-  NÃO minha; (e) `spawn func(arg)` com captura (bug #29, regra 6 → gap/plano);
+   37–40 registrados — correção é decisão de lowering/semântica (regra 6),
+   NÃO minha; (e) ~~`spawn func(arg)` com captura (bug #29)~~ —
+   **RESOLVIDO (07/09, probes S29/S29js/S29det)**: #29 original (lambda void
+   + handle, `7ec8b9d`) e `spawn fn(arg)` funcionam nos 4 caminhos; restou a
+   variante `spawn { return … }` (lambda c/ return) → SIGSEGV Native →
+   **bug 46** (known-bugs.md, lane Native);
   (f) ~~varredura JS/Native~~ — **KofScript.runFile aceita Target.SCRIPT**
   (`51754fd`, fase 2 plataforma: SCRIPT==JVM no interpretador, teste
    `scriptTargetRunsDirectly`); (g) **PARIDADE CROSS-TARGET FEITA (07/09)** —
    sweep do grupo A (28 casos) vs JS + Native (x86_64): **5 divergências
    registradas** (bugs 41-45 em `known-bugs.md` + 5 linhas em
-   `backend-parity.md`): 41 campo estático Native (stub vazio `KofGetStatic`
-   `NativeBackend:573`, R6), 42 `record.hashCode()` ausente JS/Native, 43
+    `backend-parity.md`): 41 campo estático Native (stub vazio `KofGetStatic`
+    `nat/NativeBackend:629`, R6), 42 `record.hashCode()` ausente JS/Native, 43
    `String.length`/`charAt` Native UTF-8 vs JVM UTF-16, 44 `println(double)`
    Native 6 casas, 45 `finally` c/ `return` (JVM/Native/interp congelado;
    JS perde retorno). **Gate permanente**: `BackendParityTest
-   .parityCrossTargetGroupA` (25 casos JVM==JS). Correção dos 5 = lane
-   JS/Native (regra 6, NÃO minha). (h) bug #29 `spawn func(arg)` com captura
-   (regra 6 → gap/plano em `planning-*`).
+    .parityCrossTargetGroupA` (25 casos JVM==JS). Correção dos 5 = lane
+    JS/Native (regra 6, NÃO minha). (h) **RESOLVIDO (07/09)**: bug #29
+    investigado — original + `spawn fn(arg)` ok nos 4; variante
+    `spawn { return … }` → SIGSEGV Native = **bug 46** (lane Native).
 
 
 **PRÓXIMA TAREA (maior valor)**: **bug 33 CORRIGIDO** (`df2ffdd`, 06/09) —
@@ -251,7 +263,7 @@ implementado OU dá diagnóstico; suíte verde.
 | **SYN001** — `SwitchExpr`: switch como expressão (pattern matching via `case ... ->`) | `FEITO` | agente-switch-expr | main | `Parser.java`, `SemanticAnalyzer.java`, `CompilerDriver.java`, `JsBackend.java`, `AstNodes.java`, `KofFormatter.java` | 03/09 `1d1343f` — plano `docs/planning-switch-expr.md`. **Aditivo**: statement (`:`) intocado (KofPatternMatchingTest 10 + KofEnumSwitchTest 4 = gate). Lowering KIR em cadeia de if-expr (JVM+Native+JS ternários). Prova: `KofSwitchExprE2ETest` 23/23 (valor/string/pattern/destructuring/return/aninhado/enum-exaustivo/SEM032) + riscv64/aarch64 14/14 qemu. Suíte 910/0/3-skip. Bônus: fix PKG005 (`f6f1714`) — re-import transitivo não é colisão |
 | **NATIVE002** — paridade stdlib riscv64/aarch64 (log/config/time/cache/mq stubs→real) | `FEITO` | agente-nativo-val | main | `NativeBackend.java` (`RISCV_RUNTIME_ASM` + `translateRiscvToAarch64`) | qemu riscv64+aarch64 OK; suíte 842/0. Detalhe: log `[LEVEL] msg` + stderr; config env real (`/proc/self/environ` syscall); cache TTL via `kof_time_now`, mq pub/sub c/ list (libera NATIVE002 residual) |
  | **NATIVE002-stdlib** — JSON/http/spawn/db no runtime riscv64 (aarch64 herda via tradutor) | `FEITO` | agente-planning | `beta-0.3.0` | `NativeBackend.java` (`RISCV_RUNTIME_ASM`, `emitRiscvHttp`, `emitRiscvSpawn`), `NativeRuntime.java` (x86_64) | 04/09 `c23dcc8`+`a660adc`+`fba2731` — **JSON** ✅ + **http** ✅ (get/post/put/patch/delete/options/status + headers) + **spawn/await** ✅ (`clone(220)`+`futex` — qemu-riscv64 8.2.2 **não** implementa clone3 (ENOSYS), usa o flag-set da glibc 0x3D0F00; heap compartilhado → `kof_alloc` virou bump **atômico** `amoadd.d`/`ldadd` (tradutor: `.arch armv8.1-a`); riscv64+aarch64 **19/19 qemu** cada). **Root cause de "http não funciona"**: bug de **gp-relaxation** — `la` virava `addi rd,gp,off` com gp=0 (binário estático, sem C runtime) → fault; JSON passava por sorte de layout. Fix: `-mno-relax` no as + `--no-relax` no ld. **Fix tradutor aarch64**: `movz` (não `mov`) quando `lsl #16`; `parseImm` aceita hex; `amoadd.d`→`ldadd`; `fence`→`dmb ish`. **db**: link dinâmico de libsqlite3 exige libc → inviável no asm puro estático; cross agora reporta **DB001 em compile-time** (R6: nunca undefined-reference no ld) — `KofDb.supportedOn` exclui riscv64/aarch64, teste `crossNativeReportsDb001`. **String methods** (`trim`/`toUpperCase`/`toLowerCase`/`replace` char+String/`lastIndexOf`/`equalsIgnoreCase`/`split`) em asm puro — antes undefined-reference no link (R6); `RISCV_RUNTIME_ASM` dividido em 3 constantes (limite 64KB javac). **2 races corrigidos**: (1) filho herdava o `sp` do pai (frame ativo do `kof_spawn_result`) e o `call` do trampoline corrompia os slots salvos do pai → filho agora carrega `sp` da stack dedicada (handle+24) **antes** do call; (2) `println` fazia 2 `write` (string+newline) → interleave entre threads (`fimbg`) → virou **1 `writev`** atômico (syscall 66). Prova: `riscv64/aarch64StringTrimCaseReplaceSplit` + spawn 40/40 ×6 sem flake + suíte 913+8+5+8, 0 falhas. ⚠️ **RECONCILIAÇÃO PENDENTE**: outro agente refatorando as classes gigantes (`NativeBackend.java`/`NativeRuntime.java`, regra ≤500 linhas) — ao terminar, **normalizar** (reaplicar os ports http/spawn/String sobre a nova estrutura modular) e **retestar tudo** (suíte + E2E riscv64/aarch64). |
-| **KOFSCRIPT** — execução direta + paridade cross-target | `EM CURSO` | lane KOFSCRIPT (fixes-for-kofagent) | `beta-0.3.0` | `KofScript.java`, `KofScriptTest.java`, `KofInterpreter*.java` | **KofScript = alvo de execução direta** (06/09): IR interpretada, não compilada; paridade byte-idêntica interpretado vs JVM compilado (KofScriptTest 15/15). **REFATOR ≤500** (06/09): `KofInterpreter` 643→430 + `KofInterpreterBuiltins` 977→129 (fachada) em 8 colaboradores ≤500. **VARREDURA DE PARIDADE** (`0ba58fc`+`2c57a64`): bugs 35 (`contains` box pelo elemento) e 36 (`null==null` → `if_icmpeq`) corrigidos; campo estático por nome simples nos lowerers (GETSTATIC/PUTSTATIC). **Bugs 37–40 registrados** (known-bugs.md; correção = decisão de lowering, regra 6, NÃO minha lane). **HEARTBEAT CORRIGIDO** (`cfd5a4d`): `--attach` + health-check. **Target.SCRIPT** (`51754fd`): `runFile(f, SCRIPT)` → interpretador (fase 2 plataforma). **BUG do `wrapPureKof` CORRIGIDO (07/09, `3fbf12d`)**: `qualifyGlobals` (scanner) substitui `replaceAll(\b)` que corrompia nome da global DENTRO de string literal/comentário/membro (`println("my name is here")` → `"my KofScriptGlobals.name is here"`; gap "regex multiline-fragil" do roadmap-audit). Provas: `globalQualificationSkipsStringLiterals` + `qualifyGlobalsLeavesMembersAndComments` + suíte 1045/0/3-skip. **PARIDADE CROSS-TARGET (g) FEITA (07/09, este commit)**: sweep grupo A vs JS+Native → bugs 41-45 registrados + gate `BackendParityTest.parityCrossTargetGroupA` (25 casos JVM==JS). **PRÓXIMO (h)**: bug #29 `spawn func(arg)` c/ captura (regra 6 → gap/plano). |
+| **KOFSCRIPT** — execução direta + paridade cross-target | `EM CURSO` | lane KOFSCRIPT (fixes-for-kofagent) | `beta-0.3.0` | `KofScript.java`, `KofScriptTest.java`, `KofInterpreter*.java` | **KofScript = alvo de execução direta** (06/09): IR interpretada, não compilada; paridade byte-idêntica interpretado vs JVM compilado (KofScriptTest 15/15). **REFATOR ≤500** (06/09): `KofInterpreter` 643→430 + `KofInterpreterBuiltins` 977→129 (fachada) em 8 colaboradores ≤500. **VARREDURA DE PARIDADE** (`0ba58fc`+`2c57a64`): bugs 35 (`contains` box pelo elemento) e 36 (`null==null` → `if_icmpeq`) corrigidos; campo estático por nome simples nos lowerers (GETSTATIC/PUTSTATIC). **Bugs 37–40 registrados** (known-bugs.md; correção = decisão de lowering, regra 6, NÃO minha lane). **HEARTBEAT CORRIGIDO** (`cfd5a4d`): `--attach` + health-check. **Target.SCRIPT** (`51754fd`): `runFile(f, SCRIPT)` → interpretador (fase 2 plataforma). **BUG do `wrapPureKof` CORRIGIDO (07/09, `3fbf12d`)**: `qualifyGlobals` (scanner) substitui `replaceAll(\b)` que corrompia nome da global DENTRO de string literal/comentário/membro (`println("my name is here")` → `"my KofScriptGlobals.name is here"`; gap "regex multiline-fragil" do roadmap-audit). Provas: `globalQualificationSkipsStringLiterals` + `qualifyGlobalsLeavesMembersAndComments` + suíte 1045/0/3-skip. **PARIDADE CROSS-TARGET (g) FEITA (07/09, `e88ec98`)**: sweep grupo A vs JS+Native → bugs 41-45 registrados + gate `BackendParityTest.parityCrossTargetGroupA` (25 casos JVM==JS) + reparo de build (3 imports perdidos no SOLID-refactor). **ITEM (h) RESOLVIDO (07/09)**: bug #29 investigado com probes (S29/S29js/S29det, 4 caminhos) — original (lambda void+handle) e `spawn fn(arg)` funcionam nos 4; variante `spawn { return … }` → SIGSEGV Native x86_64 (determinístico) → **bug 46** (known-bugs.md, lane Native). **SEM ITEM PENDENTE NA MINHA LANE** (g+h feitos) — re-dispacho: pegar item ABERTO da tabela ou ajudar lane Native/JS com bugs 41-46. |
 | **SEM-AUDIT** — inferência nunca cria símbolo não declarado | `FEITO (parcial)` | agente-planning | `beta-0.3.0` | `SemanticAnalyzer.java`, `CompilerDriverTest.java` | 04/09 auditoria: **regra central SEGURA** — `println(ghost)`/`foo(ghost)`/`(x:Int)->y+1` dão SEM011 em qualquer posição (13 casos em `undeclaredIdentifiersNeverInferredIntoVariables`+`lambdaParametersBoundInOwnScope`, sem fallback Any/Object/dynamic). **Bug irmão corrigido**: param de lambda SEM anotação (`(x) -> x + 1`) caía no default silencioso `Object` e o emit fazia IADD sobre referência → bytecode inválido (VerifyError disfarçado de "JavaFX launcher"). Agora SEM001 explícito com dica `(x: Int)`; `==` sobre Object continua válido; teste `untypedLambdaParamArithmeticIsDiagnosedNotEmitted`. **Y-combinator**: `=>` é token morto no parser (só `->`); lambdas curried com tipos anotados param mas invoke de FunctionType = SEM032 (interface dispatch não implementado — gap real, não bug). |
 
 ## Concluídos recentemente
