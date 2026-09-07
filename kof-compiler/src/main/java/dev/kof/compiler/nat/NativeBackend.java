@@ -66,24 +66,25 @@ import java.util.Map;
 
 
 public class NativeBackend implements Backend {
+    private NativeMethodEmitter nativeMethods;
 
-    private final Target target;
-    private final Map<LabelId, String> labelMap = new HashMap<>();
-    private int labelCounter = 0;
-    private final List<String[]> stringLiterals = new ArrayList<>();
+    final Target target;
+    final Map<LabelId, String> labelMap = new HashMap<>();
+    int labelCounter = 0;
+    final List<String[]> stringLiterals = new ArrayList<>();
     private int stringCounter = 0;
-    private Type lastPushedType = Type.UnknownType.UNKNOWN;
-    private IRClass currentClass = null;
-    private boolean usesDb = false;
-    private boolean usesHttp = false;
-    private boolean usesMysql = false;
-    private boolean usesConcurrency = false;
+    Type lastPushedType = Type.UnknownType.UNKNOWN;
+    IRClass currentClass = null;
+    boolean usesDb = false;
+    boolean usesHttp = false;
+    boolean usesMysql = false;
+    boolean usesConcurrency = false;
     final Map<String, String> functionMangleMap = new HashMap<>();
     private final Map<String, ClassLayout> layoutCache = new HashMap<>();
     Map<String, IRClass> allClassesMap = new HashMap<>();
     /** Debug info nativa (DWARF .debug_line via .file/.loc). */
-    private boolean debugInfo = false;
-    private String sourceFile = "";
+    boolean debugInfo = false;
+    String sourceFile = "";
     private NativeRiscvCrossEmit crossEmitInst;
     private NativeJsonSchema jsonSchemaInst;
     private NativeX86Calls x86CallsInst;
@@ -104,7 +105,7 @@ public class NativeBackend implements Backend {
     }
 
     public NativeBackend() { this(Target.NATIVE); }
-    public NativeBackend(Target target) { this.target = target; }
+    public NativeBackend(Target target) { this.target = target; nativeMethods = new NativeMethodEmitter(this); }
 
     String resolveLabel(LabelId id) {
         return labelMap.computeIfAbsent(id, k -> ".Lkof_" + (labelCounter++));
@@ -387,7 +388,7 @@ public class NativeBackend implements Backend {
         return -1;
     }
 
-    private void emitStringData(StringBuilder sb) {
+    void emitStringData(StringBuilder sb) {
         for (String[] entry : stringLiterals) {
             String value = entry[0];
             String label = entry[1];
@@ -420,246 +421,9 @@ public class NativeBackend implements Backend {
         sb.append("    .long 0, 0\n");
     }
 
-    private void emitMethod(StringBuilder sb, IRClass clazz, IRMethod method) {
-        if ("<clinit>".equals(method.name())) return;
 
-        currentClass = clazz;
 
-        String mangled = sanitizeName(clazz.name()) + "_" + sanitizeName(method.name());
-        if ("<init>".equals(method.name())) {
-            mangled += "_" + method.parameterTypes().size();
-        }
-        functionMangleMap.put(method.name(), mangled);
-        sb.append("\n.globl ").append(mangled).append("\n");
-        sb.append(".type ").append(mangled).append(", @function\n");
-        sb.append(mangled).append(":\n");
-
-        sb.append("    pushq %rbp\n");
-        sb.append("    movq %rsp, %rbp\n");
-
-        int maxSlot = method.localVariables().stream()
-                .mapToInt(IRLocalVariable::index).max().orElse(0);
-        // Scan for CONSTRUCTOR calls with stack args to reserve frame space
-        int maxCtorStackArgs = 0;
-        for (IRBasicBlock bb : method.basicBlocks()) {
-            for (KofOperation op : bb.operations()) {
-                if (op instanceof KofCall kc && kc.kind() == KofCallKind.CONSTRUCTOR
-                        && "<init>".equals(kc.methodName())) {
-                    int sa = Math.max(0, kc.parameterTypes().size() - 5);
-                    maxCtorStackArgs = Math.max(maxCtorStackArgs, sa);
-                }
-            }
-        }
-        int extraFrame = maxCtorStackArgs > 0 ? 256 + maxCtorStackArgs * 8 : 0;
-        int frameSize = Math.max((maxSlot + 1) * 8, 16) + extraFrame;
-        frameSize = (frameSize + 15) & ~15;
-        if (frameSize > 0) {
-            sb.append("    subq $").append(frameSize).append(", %rsp\n");
-        }
-
-        int intArgIdx = 0;
-        // bug 9: capturas de lambda NÃO são args de entrada (são carregadas
-        // dos campos do objeto via ops). O prologue antigo iterava os locals
-        // na ordem de inserção [this, capture, param] e consumia rsi/rdx para
-        // a captura — o param real ficava com registro errado (lixo).
-        // Params ocupam os slots 1..(soma das larguras) — só eles recebem
-        // registros; capturas (slots acima) são preenchidas pelas ops.
-        int paramSlotMax = 1;
-        for (Type pt : method.parameterTypes()) paramSlotMax += NativeTypeKinds.isDoubleWidthSlot(pt) ? 2 : 1;
-        String[] intRegs = {"%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"};
-        java.util.List<IRLocalVariable> sortedLocals = new java.util.ArrayList<>(method.localVariables());
-        sortedLocals.sort(java.util.Comparator.comparingInt(lv -> lv.index()));
-        for (IRLocalVariable lv : sortedLocals) {
-            if (lv.name().equals("this")) {
-                sb.append("    movq %rdi, -").append((lv.index() + 1) * 8).append("(%rbp)\n");
-                intArgIdx++;
-                continue;
-            }
-            if (lv.index() >= paramSlotMax) {
-                // captura de lambda: preenchida pelas ops (KofLoadField) —
-                // NÃO consome registro de entrada
-                continue;
-            }
-            if (intArgIdx < 6) {
-                sb.append("    movq ").append(intRegs[intArgIdx]).append(", -").append((lv.index() + 1) * 8).append("(%rbp)\n");
-            } else {
-                // Args beyond register capacity are on the stack.
-                // After push %rbp, stack layout is: [saved_rbp][ret_addr][arg7][arg8]...
-                int stackOffset = 16 + (intArgIdx - 6) * 8;
-                sb.append("    movq ").append(stackOffset).append("(%rbp), %rax\n");
-                sb.append("    movq %rax, -").append((lv.index() + 1) * 8).append("(%rbp)\n");
-            }
-            intArgIdx++;
-        }
-
-        boolean endsWithReturn = false;
-        for (IRBasicBlock block : method.basicBlocks()) {
-            for (KofOperation op : block.operations()) {
-                if (op instanceof KofReturn || op instanceof KofReturnVoid) endsWithReturn = true;
-                emitOperation(sb, op, method);
-            }
-        }
-
-        if (!endsWithReturn) {
-            if (usesConcurrency && "main".equals(method.name())) {
-                // join implícito: nenhuma tarefa spawnada fica orfa
-                sb.append("    call kof_spawn_join_all\n");
-            }
-            sb.append("    movq %rbp, %rsp\n");
-            sb.append("    popq %rbp\n");
-            sb.append("    ret\n");
-        }
-    }
-
-    private void emitOperation(StringBuilder sb, KofOperation op, IRMethod currentMethod) {
-        if (debugInfo && currentMethod.debugInfo() != null) {
-            SourcePosition dbg = currentMethod.debugInfo().positions().get(op);
-            if (dbg != null && dbg.line() > 0) {
-                // .loc <file> <line> <col>: o as gera .debug_line (DWARF)
-                sb.append("    .loc 1 ").append(dbg.line()).append(" 0\n");
-            }
-        }
-        if (op instanceof KofLoadLiteral lit) {
-            lastPushedType = lit.type();
-        } else if (op instanceof KofLoadLocal ll) {
-            lastPushedType = ll.type();
-        } else if (op instanceof KofLoadField lf) {
-            lastPushedType = lf.fieldType();
-        } else if (op instanceof KofArrayLength) {
-            lastPushedType = Type.PrimitiveType.INT;
-        } else if (op instanceof KofBinary kb) {
-            lastPushedType = kb.operandType();
-        } else if (op instanceof KofUnary ku) {
-            lastPushedType = ku.operandType();
-        } else if (op instanceof KofCall kc) {
-            lastPushedType = kc.returnType();
-        }
-
-        switch (op) {
-            case KofLoadLiteral lit -> emitLoadLiteral(sb, lit);
-            case KofLoadLocal ll -> {
-                sb.append("    movq -").append((ll.index() + 1) * 8).append("(%rbp), %rax\n");
-                sb.append("    pushq %rax\n");
-            }
-            case KofStoreLocal sl -> {
-                sb.append("    popq %rax\n");
-                sb.append("    movq %rax, -").append((sl.index() + 1) * 8).append("(%rbp)\n");
-            }
-            case KofLoadField lf -> {
-                if (lf.ownerType() instanceof Type.ClassType ctLF && "MemEntry".equals(ctLF.name()) && "key".equals(lf.name())) {
-                }
-                sb.append("    popq %rax\n");
-                int offset = resolveFieldOffset(lf.ownerType(), lf.name());
-                sb.append("    movq ").append(offset).append("(%rax), %rax\n");
-                sb.append("    pushq %rax\n");
-            }
-            case KofStoreField sf -> {
-                sb.append("    popq %rax\n");
-                sb.append("    popq %rcx\n");
-                int offset = resolveFieldOffset(sf.ownerType(), sf.name());
-                sb.append("    movq %rax, ").append(offset).append("(%rcx)\n");
-            }
-            case KofBinary kb -> NativeX86Arith.emitBinary(sb, kb);
-            case KofUnary ku -> NativeX86Arith.emitUnary(sb, ku);
-            case KofReturn kr -> {
-                if (usesConcurrency && "main".equals(currentMethod.name())) {
-                    // join implícito no fim do main — nenhuma tarefa órfã.
-                    // (main sempre termina em um return explícito/implícito,
-                    //  então o join vai no epílogo do return, não no bloco
-                    //  !endsWithReturn — que nunca roda para o main.)
-                    sb.append("    call kof_spawn_join_all\n");
-                }
-                sb.append("    popq %rax\n");
-                sb.append("    movq %rbp, %rsp\n");
-                sb.append("    popq %rbp\n");
-                sb.append("    ret\n");
-            }
-            case KofReturnVoid rv -> {
-                if (usesConcurrency && "main".equals(currentMethod.name())) {
-                    sb.append("    call kof_spawn_join_all\n");
-                }
-                sb.append("    movq %rbp, %rsp\n");
-                sb.append("    popq %rbp\n");
-                sb.append("    ret\n");
-            }
-            case KofLabel kl -> sb.append(resolveLabel(kl.label())).append(":\n");
-            case KofCatchStart kcs -> {
-                sb.append(resolveLabel(kcs.handlerLabel())).append(":\n");
-                sb.append("    addq $32, %rsp\n");
-                sb.append("    movq %rdi, -").append((kcs.localIndex() + 1) * 8).append("(%rbp)\n");
-            }
-            case KofTryStart kts -> {
-                sb.append(resolveLabel(kts.startLabel())).append(":\n");
-                sb.append("    subq $32, %rsp\n");
-                sb.append("    leaq ").append(resolveLabel(kts.handlerLabel())).append("(%rip), %rax\n");
-                sb.append("    movq %rax, 0(%rsp)\n");
-                sb.append("    movq %rsp, 8(%rsp)\n");
-                sb.append("    movq %rbp, 16(%rsp)\n");
-                sb.append("    movq kof_exc_chain(%rip), %rcx\n");
-                sb.append("    movq %rcx, 24(%rsp)\n");
-                sb.append("    movq %rsp, kof_exc_chain(%rip)\n");
-            }
-            case KofTryEnd kte -> {
-                sb.append("    movq 24(%rsp), %rcx\n");
-                sb.append("    movq %rcx, kof_exc_chain(%rip)\n");
-                sb.append("    addq $32, %rsp\n");
-            }
-            case KofJump kj -> sb.append("    jmp ").append(resolveLabel(kj.target())).append("\n");
-            case KofConditionalJump kc -> emitConditionalJump(sb, kc);
-            case KofCall kc -> emitCall(sb, kc);
-            case KofNewObject no -> emitNewObject(sb, no);
-            case KofDup dup -> sb.append("    movq (%rsp), %rax\n    pushq %rax\n");
-            case KofDupX1 x1 -> sb.append("""
-                    movq (%rsp), %rax
-                    movq 8(%rsp), %rbx
-                    pushq %rax
-                    pushq %rbx
-                    pushq %rax
-                """.stripIndent());
-            case KofDupX2 x2 -> sb.append("""
-                    movq (%rsp), %rax
-                    movq 8(%rsp), %rbx
-                    movq 16(%rsp), %rcx
-                    pushq %rax
-                    pushq %rcx
-                    pushq %rbx
-                    pushq %rax
-                """.stripIndent());
-            case KofPop pop -> sb.append("    addq $8, %rsp\n");
-            case KofGetStatic gs -> { }
-            case KofPutStatic ps -> sb.append("    addq $8, %rsp\n");
-            case KofCheckCast cc -> { }
-            case KofInstanceOf io -> {
-                int targetTypeId = 0;
-                if (BuiltinTypes.isString(io.type())) {
-                    targetTypeId = NativeRuntime.KOF_STRING_TYPE_ID;
-                } else if (io.type() instanceof Type.ClassType ct) {
-                    for (IRClass clazz : allClassesMap.values()) {
-                        if (clazz.name().equals(ct.name()) || clazz.name().endsWith("/" + ct.name())
-                                || ct.name().endsWith("/" + clazz.name()) || ct.name().equals(sanitizeName(clazz.name()))) {
-                            targetTypeId = clazz.typeId();
-                            break;
-                        }
-                    }
-                }
-                sb.append("    popq %rdi\n");
-                sb.append("    movl $").append(targetTypeId).append(", %esi\n");
-                sb.append("    call kof_instanceof\n");
-                sb.append("    pushq %rax\n");
-            }
-            case KofNewArray na -> emitNewArray(sb, na);
-            case KofArrayLoad al -> emitArrayLoad(sb, al);
-            case KofArrayStore as -> emitArrayStore(sb, as);
-            case KofArrayLength al -> emitArrayLength(sb);
-            case KofThrow thr -> {
-                sb.append("    popq %rdi\n");
-                sb.append("    call kof_throw_string\n");
-            }
-            default -> { }
-        }
-    }
-
-    private void emitNewObject(StringBuilder sb, KofNewObject no) {
+    void emitNewObject(StringBuilder sb, KofNewObject no) {
         ClassLayout layout = null;
         String className = null;
         int typeId = 0;
@@ -703,35 +467,35 @@ public class NativeBackend implements Backend {
         };
     }
 
-    private void emitNewArray(StringBuilder sb, KofNewArray na) {
+    void emitNewArray(StringBuilder sb, KofNewArray na) {
         sb.append("    popq %rdi\n");
         sb.append("    movl $").append(elementTypeSize(na.elementType())).append(", %esi\n");
         sb.append("    call kof_array_alloc\n");
         sb.append("    pushq %rax\n");
     }
 
-    private void emitArrayLoad(StringBuilder sb, KofArrayLoad al) {
+    void emitArrayLoad(StringBuilder sb, KofArrayLoad al) {
         sb.append("    popq %rsi\n");
         sb.append("    popq %rdi\n");
         sb.append("    call kof_array_get\n");
         sb.append("    pushq %rax\n");
     }
 
-    private void emitArrayStore(StringBuilder sb, KofArrayStore as) {
+    void emitArrayStore(StringBuilder sb, KofArrayStore as) {
         sb.append("    popq %rdx\n");
         sb.append("    popq %rsi\n");
         sb.append("    popq %rdi\n");
         sb.append("    call kof_array_set\n");
     }
 
-    private void emitArrayLength(StringBuilder sb) {
+    void emitArrayLength(StringBuilder sb) {
         sb.append("    popq %rdi\n");
         sb.append("    call kof_array_length\n");
         sb.append("    movslq %eax, %rax\n");
         sb.append("    pushq %rax\n");
     }
 
-    private void emitLoadLiteral(StringBuilder sb, KofLoadLiteral lit) {
+    void emitLoadLiteral(StringBuilder sb, KofLoadLiteral lit) {
         if (lit.value() instanceof Integer i) {
             sb.append("    movq $").append(i).append(", %rax\n");
         } else if (lit.value() instanceof Long l) {
@@ -756,7 +520,7 @@ public class NativeBackend implements Backend {
 
 
 
-    private void emitConditionalJump(StringBuilder sb, KofConditionalJump kc) {
+    void emitConditionalJump(StringBuilder sb, KofConditionalJump kc) {
         Type opTy = kc.operandType();
         if (opTy != null && NativeTypeKinds.isFloatType(opTy)) {
             sb.append("    popq %rax\n");
@@ -836,7 +600,7 @@ public class NativeBackend implements Backend {
         sb.append("    jmp ").append(resolveLabel(kc.falseLabel())).append("\n");
     }
 
-    private void emitCall(StringBuilder sb, KofCall kc) {
+    void emitCall(StringBuilder sb, KofCall kc) {
         x86Calls().emitCall(sb, kc);
     }
 
@@ -869,7 +633,7 @@ public class NativeBackend implements Backend {
      * (User) — senão `C()` de uma classe importada vira undefined reference
      * `C_init_0` (a definição usa clazz.name()). Bug 22.
      */
-    private String classTypeManglePrefix(Type.ClassType ct) {
+    String classTypeManglePrefix(Type.ClassType ct) {
         String internal = ct.packageName() != null && !ct.packageName().isEmpty()
                 ? ct.packageName().replace('.', '/') + "/" + ct.name()
                 : ct.name();
@@ -890,32 +654,6 @@ public class NativeBackend implements Backend {
         return ClassLayout.HEADER_SIZE;
     }
 
-    private void emitStart(StringBuilder sb, IRClass clazz) {
-        boolean hasMain = clazz.methods().stream().anyMatch(m -> "main".equals(m.name()));
-        if (!hasMain) return;
-        boolean mainHasArgs = clazz.methods().stream()
-                .filter(m -> "main".equals(m.name()))
-                .anyMatch(m -> !m.parameterTypes().isEmpty());
-        sb.append("\n.globl _start\n");
-        sb.append("_start:\n");
-        // grava o TID do main thread (SYS_gettid=186) — limita GC ao main
-        sb.append("    movq $186, %rax\n");
-        sb.append("    syscall\n");
-        sb.append("    movq %rax, kof_main_tid(%rip)\n");
-        if (mainHasArgs) {
-            // N3: passa array vazio — evita segfault ao tratar argc como ponteiro
-            sb.append("    xorl %edi, %edi\n");
-            sb.append("    movl $8, %esi\n");
-            sb.append("    call kof_array_alloc\n");
-            sb.append("    movq %rax, %rdi\n");
-        }
-        sb.append("    call ").append(sanitizeName(clazz.name())).append("_main\n");
-        // M32.3: SYS_exit_group (231) — SYS_exit (60) só mata a thread
-        // chamadora; com threads do driver Vulkan o processo fica pendurado.
-        sb.append("    movq $231, %rax\n");
-        sb.append("    xorq %rdi, %rdi\n");
-        sb.append("    syscall\n");
-    }
 
     /** Detecta o protocolo do URL de conexão quando é um literal em
      *  compile-time (intenção conhecida pelo compilador): mysql/mariadb
@@ -1266,4 +1004,14 @@ public class NativeBackend implements Backend {
 
     /** Toolchain ausente (binário não encontrado) — gracioso: mantém asm,
      *  assumeToolchain() pula o teste. NÃO confundir com falha de as/ld. */
+    private void emitMethod(StringBuilder sb, IRClass clazz, IRMethod method) {
+        nativeMethods.emitMethod(sb, clazz, method);
+    }
+    private void emitOperation(StringBuilder sb, KofOperation op, IRMethod currentMethod) {
+        nativeMethods.emitOperation(sb, op, currentMethod);
+    }
+    private void emitStart(StringBuilder sb, IRClass clazz) {
+        nativeMethods.emitStart(sb, clazz);
+    }
+
 }
