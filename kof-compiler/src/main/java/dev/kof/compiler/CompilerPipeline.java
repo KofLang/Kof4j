@@ -1,4 +1,7 @@
 package dev.kof.compiler;
+import dev.kof.compiler.backend.AndroidProjectWriter;
+import dev.kof.compiler.backend.Backend;
+import dev.kof.compiler.backend.Optimizer;
 import dev.kof.compiler.jvm.JvmBackend;
 import dev.kof.compiler.nat.NativeBackend;
 import dev.kof.compiler.js.JsBackend;

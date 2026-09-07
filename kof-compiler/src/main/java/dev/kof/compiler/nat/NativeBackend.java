@@ -1,5 +1,5 @@
 package dev.kof.compiler.nat;
-import dev.kof.compiler.Backend;
+import dev.kof.compiler.backend.Backend;
 import dev.kof.compiler.BuiltinTypes;
 import dev.kof.compiler.ClassLayout;
 import dev.kof.compiler.IRBasicBlock;

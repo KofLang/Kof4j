@@ -1,4 +1,13 @@
-package dev.kof.compiler;
+package dev.kof.compiler.backend;
+import dev.kof.compiler.ExternalClasspath;
+import dev.kof.compiler.IRAnnotation;
+import dev.kof.compiler.IRBasicBlock;
+import dev.kof.compiler.IRClass;
+import dev.kof.compiler.IRMethod;
+import dev.kof.compiler.IRModule;
+import dev.kof.compiler.KofCall;
+import dev.kof.compiler.KofLoadLiteral;
+import dev.kof.compiler.KofOperation;
 import dev.kof.compiler.jvm.JvmBackend;
 import dev.kof.compiler.js.JsBackend;
 
@@ -41,7 +50,7 @@ public final class AndroidProjectWriter {
      * rodou antes); a versão KofJS é emitida aqui para os assets do WebView
      * — a MESMA camada de render widgets→DOM usada no desktop.
      */
-    void write(Path outputDir, IRModule module) throws IOException {
+    public void write(Path outputDir, IRModule module) throws IOException {
         Files.createDirectories(outputDir);
 
         // 0. metadados derivados DO PROGRAMA: label = título da primeira

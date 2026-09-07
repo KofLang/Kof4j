@@ -1,4 +1,26 @@
-package dev.kof.compiler;
+package dev.kof.compiler.backend;
+import dev.kof.compiler.IRBasicBlock;
+import dev.kof.compiler.IRClass;
+import dev.kof.compiler.IRMethod;
+import dev.kof.compiler.IRModule;
+import dev.kof.compiler.KofCatchStart;
+import dev.kof.compiler.KofConditionalJump;
+import dev.kof.compiler.KofDebugInfo;
+import dev.kof.compiler.KofDup;
+import dev.kof.compiler.KofJump;
+import dev.kof.compiler.KofLabel;
+import dev.kof.compiler.KofLoadLiteral;
+import dev.kof.compiler.KofLoadLocal;
+import dev.kof.compiler.KofOperation;
+import dev.kof.compiler.KofPop;
+import dev.kof.compiler.KofReturn;
+import dev.kof.compiler.KofReturnVoid;
+import dev.kof.compiler.KofStoreLocal;
+import dev.kof.compiler.KofThrow;
+import dev.kof.compiler.KofTryEnd;
+import dev.kof.compiler.KofTryStart;
+import dev.kof.compiler.LabelId;
+import dev.kof.compiler.SourcePosition;
 
 import java.util.ArrayList;
 import java.util.HashMap;

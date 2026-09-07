@@ -1,5 +1,5 @@
 package dev.kof.compiler.jvm;
-import dev.kof.compiler.Backend;
+import dev.kof.compiler.backend.Backend;
 import dev.kof.compiler.ExternalClasspath;
 import dev.kof.compiler.IRBasicBlock;
 import dev.kof.compiler.IRClass;

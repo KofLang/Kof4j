@@ -1,4 +1,14 @@
-package dev.kof.compiler;
+package dev.kof.compiler.backend;
+import dev.kof.compiler.KofBinary;
+import dev.kof.compiler.KofBinaryOp;
+import dev.kof.compiler.KofComparison;
+import dev.kof.compiler.KofConditionalJump;
+import dev.kof.compiler.KofJump;
+import dev.kof.compiler.KofLoadLiteral;
+import dev.kof.compiler.KofOperation;
+import dev.kof.compiler.KofUnary;
+import dev.kof.compiler.SourcePosition;
+import dev.kof.compiler.Type;
 
 import java.util.ArrayList;
 import java.util.List;

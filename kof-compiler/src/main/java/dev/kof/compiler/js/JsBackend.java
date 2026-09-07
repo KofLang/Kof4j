@@ -1,5 +1,5 @@
 package dev.kof.compiler.js;
-import dev.kof.compiler.Backend;
+import dev.kof.compiler.backend.Backend;
 import dev.kof.compiler.IRClass;
 import dev.kof.compiler.IRMethod;
 import dev.kof.compiler.IRModule;
