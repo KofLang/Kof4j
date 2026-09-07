@@ -4,6 +4,7 @@ import dev.kof.compiler.CompilationResult;
 import dev.kof.compiler.Diagnostic;
 import dev.kof.compiler.CompilerDriver;
 import dev.kof.compiler.Target;
+import dev.kof.compiler.TargetMatrix;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -29,10 +30,12 @@ final class CmdBuild {
         } return; }
         Path src = Path.of(args[1]);
         Target target = Target.JVM;
+        Target frontendTarget = null;
         boolean targetFlagged = false;
         String backendFlag = null;
         String frontendFlag = null;
         Path out = Path.of("build/classes");
+        boolean outFlagged = false;
         boolean release = false;
         boolean apk = false;
         String classpath = null;
@@ -48,6 +51,7 @@ final class CmdBuild {
                 targetFlagged = true;
             } else if (arg.startsWith("--output=")) {
                 out = Path.of(arg.substring("--output=".length()));
+                outFlagged = true;
             } else if (arg.equals("--target") && i + 1 < args.length) {
                 target = KofCliSupport.parseTarget(args[i + 1]);
                 targetFlagged = true;
@@ -62,6 +66,7 @@ final class CmdBuild {
                 frontendFlag = args[++i];
             } else if (arg.equals("--output") && i + 1 < args.length) {
                 out = Path.of(args[i + 1]);
+                outFlagged = true;
                 i++;
             } else if (arg.equals("--release")) {
                 release = true;
@@ -100,6 +105,7 @@ final class CmdBuild {
             try {
                 KofCliSupport.Targets sel = KofCliSupport.selectTargets(backendFlag, frontendFlag, src);
                 if (sel.backend() != null) target = sel.backend();
+                frontendTarget = sel.frontend();
             } catch (IllegalArgumentException e) {
                 System.err.println("build: " + e.getMessage());
                 System.exit(1);
@@ -134,19 +140,63 @@ final class CmdBuild {
                 return;
             }
         }
-        List<Path> files = KofCliSupport.collect(src);
+        // F3 (plataforma): full-stack = raiz com src/web/ (frontend) — aditivo.
+        // Backend → build/backend, frontend → build/frontend (respeitando
+        // --output quando presente). Sem web/ com .kf = monólito de hoje
+        // (detectLayout devolve a própria src → comportamento inalterado).
+        KofCliSupport.Layout layout = KofCliSupport.detectLayout(src);
+        Path backendDir = layout.backendDir();
+        List<Path> files = KofCliSupport.collect(backendDir);
         if (files.isEmpty()) { System.out.println("no .kf files found"); return; }
         files.sort(java.util.Comparator.comparing(p -> p.getFileName().toString()));
+        Path backendOut = out;
+        if (layout.fullStack()) {
+            Path buildRoot = outFlagged ? out : Path.of("build");
+            backendOut = buildRoot.resolve("backend");
+        }
         // convenção Go-like: TODOS os .kf do diretório formam UM módulo
-        // (raiz = diretório passado ao build; imports de pacotes resolvem daí)
-        CompilationResult module = driver.compileSources(files, out, target,
-                src.toAbsolutePath().normalize());
+        // (raiz = diretório do backend; imports de pacotes resolvem daí)
+        CompilationResult module = driver.compileSources(files, backendOut, target,
+                backendDir.toAbsolutePath().normalize());
         for (Diagnostic d : module.diagnostics().getDiagnostics()) System.out.println(d.format());
         if (!module.success()) System.exit(1);
-        // target android + --apk: pipeline direto (sem Maven) usando o SDK
-        if (target == Target.ANDROID && apk) {
-            runApkPipeline(out, keystore, storepass, keypass, keyalias);
+        if (layout.fullStack()) {
+            if (frontendTarget == null) frontendTarget = Target.JS;
+            buildFrontend(driver, layout, frontendTarget, outFlagged ? out : Path.of("build"));
+            System.out.println("backend (" + TargetMatrix.name(target) + ") → " + backendOut);
         }
+        // target android + --apk: pipeline direto (sem Maven) usando o SDK
+        // (full-stack: as classes do backend saíram em backendOut)
+        if (target == Target.ANDROID && apk) {
+            runApkPipeline(backendOut, keystore, storepass, keypass, keyalias);
+        }
+    }
+
+    /**
+     * F3 (plataforma): compila o componente frontend (web/) para o bundle
+     * estático e copia os estáticos (static/) ao lado. Frontend KofJS gera
+     * .mjs + index.html em build/frontend; estáticos vão em build/static.
+     * Nunca silencioso: falha de compilação do frontend aborta o build.
+     */
+    private static void buildFrontend(CompilerDriver driver, KofCliSupport.Layout layout,
+                                      Target frontendTarget, Path buildRoot) {
+        Path frontendOut = buildRoot.resolve("frontend");
+        List<Path> frontendFiles = KofCliSupport.collect(layout.frontendDir());
+        frontendFiles.sort(java.util.Comparator.comparing(p -> p.getFileName().toString()));
+        CompilationResult fe = driver.compileSources(frontendFiles, frontendOut, frontendTarget,
+                layout.frontendDir().toAbsolutePath().normalize());
+        for (Diagnostic d : fe.diagnostics().getDiagnostics()) System.out.println(d.format());
+        if (!fe.success()) System.exit(1);
+        if (layout.staticDir() != null) {
+            try {
+                int n = KofCliSupport.copyTree(layout.staticDir(), buildRoot.resolve("static"));
+                System.out.println(n + " estático(s) → " + buildRoot.resolve("static"));
+            } catch (java.io.IOException e) {
+                System.err.println("build: falha ao copiar estáticos: " + e.getMessage());
+                System.exit(1);
+            }
+        }
+        System.out.println("frontend (" + TargetMatrix.name(frontendTarget) + ") → " + frontendOut);
     }
 
     /**

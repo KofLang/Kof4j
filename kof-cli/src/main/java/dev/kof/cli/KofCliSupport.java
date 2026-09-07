@@ -64,6 +64,45 @@ final class KofCliSupport {
         };
     }
 
+    /**
+     * F3 (plataforma): layout de aplicação full-stack (APPLICATION_MODEL P6 —
+     * componentes por convenção de diretório): {@code src/} = backend,
+     * {@code src/web/} = frontend (módulo Kof compilado p/ KofJS),
+     * {@code src/static/} = estáticos crus. Aditivo: sem {@code web/} com .kf,
+     * é o monólito de hoje (zero regressão).
+     */
+    public static record Layout(Path backendDir, Path frontendDir, Path staticDir) {
+        public boolean fullStack() { return frontendDir != null; }
+    }
+
+    /** Detecta o layout a partir do diretório passado ao build/run (ou da raiz). */
+    public static Layout detectLayout(Path dir) {
+        Path src = dir;
+        if (!Files.isDirectory(dir.resolve("web")) && Files.isDirectory(dir.resolve("src"))) {
+            src = dir.resolve("src");
+        }
+        Path web = src.resolve("web");
+        if (Files.isDirectory(web) && !collectShallow(web).isEmpty()) {
+            Path st = src.resolve("static");
+            return new Layout(src, web, Files.isDirectory(st) ? st : null);
+        }
+        return new Layout(dir, null, null);
+    }
+
+    /** Copia uma árvore de arquivos (estáticos) preservando a estrutura relativa. */
+    static int copyTree(Path from, Path to) throws IOException {
+        List<Path> files;
+        try (var s = Files.walk(from)) {
+            files = s.filter(Files::isRegularFile).toList();
+        }
+        for (Path f : files) {
+            Path dst = to.resolve(from.relativize(f).toString());
+            Files.createDirectories(dst.getParent());
+            Files.copy(f, dst, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        }
+        return files.size();
+    }
+
     /** Irmãos .kf do MESMO diretório (não-recursivo) — inclusão no módulo do run. */
     static List<Path> collectShallow(Path dir) {
         List<Path> files = new ArrayList<>();

@@ -74,10 +74,24 @@ cenas (build/run × flag/manifesto/override/erro-honesto/coringa-script:
 `build --backend jvm`→roda `hello 42`; manifesto `backend=script`→COMP003;
 `--backend jvm` sobrepõe toml; `--backend js`→"não pode ser backend";
 `run --backend script`→42 via interpretador). Suíte completa 1054/0/64-skip
-verde (inclui os 3 testes SOLID desbloqueados). **FASE 3 (Full-stack) É O
-PRÓXIMO**: `kof build` compila backend+frontend no mesmo projeto (artefatos
-`build/backend`+`build/frontend`); `kof run --backend --frontend` roda
-backend + serve frontend. Ver `docs/development/future/PLATFORM-PLAN.md`.
+verde (inclui os 3 testes SOLID desbloqueados).
+
+**PRÓXIMO PASSO (fixes-for-kofagent, 07/09 — PLATAFORMA F3)**: FASE 3
+(Full-stack) **DEGRAU 1 FEITO (este commit)**: `kof build` full-stack —
+`KofCliSupport.detectLayout` (APPLICATION_MODEL P6: raiz com `src/` =
+backend, `src/web/` = frontend KofJS, `src/static/` = estáticos; **aditivo**:
+sem `web/` com .kf → `backendDir` = próprio dir, monólito inalterado) +
+`buildFrontend` (backend→`build/backend`, frontend→`build/frontend` com
+bundle KofJS, estáticos→`build/static`; `--output` respeitado). Provas:
+`LayoutTest` 5/5 + E2E manual (build da RAIZ full-stack: dist/backend roda
+`backend 42` + dist/frontend com index.html/.mjs + dist/static/style.css;
+regressão monólito `build/classes`+`--output` idêntico a hoje; `run
+--backend jvm` em projeto full-stack ok). Suíte 1062/0/64-skip verde.
+**DEGRAU 2 É O PRÓXIMO**: `kof run --backend --frontend` roda backend +
+**serve os estáticos/frontend** (hoje run só executa o backend). Depois:
+`kof serve --backend --frontend` (matriz, hoje JVM-only) + testes full-stack
+dos 4 cenários (JVM+KofJS, Native+KofJS, Script+KofJS, Script+Script —
+F3.5 do plano). Ver `docs/development/future/PLATFORM-PLAN.md` §Fase 3.
 **NÃO quebrar**: microsserviços (kof.http/kof.web/CmdServe existentes),
 PKG002/4/5 (congelados), lanes `NativeBackend.java` e `KofInterpreter*`.
 
