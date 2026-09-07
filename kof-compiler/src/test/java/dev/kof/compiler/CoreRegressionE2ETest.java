@@ -458,6 +458,36 @@ class CoreRegressionE2ETest {
         assertTrue(rjs.success(), "JS compile failed: " + rjs.diagnostics().getDiagnostics());
     }
 
+    // known-bugs #51 — CompilerDriver reutilizado vazava classes sintéticas
+    // (syntheticClasses/lambdaCounter não resetavam): compilar programa com
+    // spawn e DEPOIS outro sem spawn no MESMO driver quebrava o link Native
+    // (undefined reference a símbolos da compilação anterior).
+    @Test
+    void driverReuseDoesNotLeakSyntheticClasses(@TempDir Path tempDir) throws IOException {
+        Path src1 = tempDir.resolve("leak1.kf");
+        Files.writeString(src1, """
+                Int calc(Int n) = n * 2
+                main() {
+                    var h = spawn calc(21)
+                    println(await h)
+                }
+                """);
+        Path src2 = tempDir.resolve("leak2.kf");
+        Files.writeString(src2, """
+                main() {
+                    println("ok")
+                }
+                """);
+        Path out1 = tempDir.resolve("o1");
+        Path out2 = tempDir.resolve("o2");
+        CompilationResult r1 = driver.compile(src1, out1, Target.NATIVE);
+        assertTrue(r1.success(), "spawn compile failed: " + r1.diagnostics().getDiagnostics());
+        CompilationResult r2 = driver.compile(src2, out2, Target.NATIVE);
+        assertTrue(r2.success(), "reuse w/o spawn leaked synthetic classes: " + r2.diagnostics().getDiagnostics());
+        Path bin2 = out2.resolve("Default/Main");
+        assertTrue(Files.exists(bin2), "Binary should exist");
+    }
+
     // known-bugs #5/#24 — FP→Int/Long casts and Double→Float narrowing were
     // missing conversion ops → invalid bytecode (ClassFormatError). Now D2I/
     // F2I/D2L/F2L (truncate toward zero) and D2F are emitted.

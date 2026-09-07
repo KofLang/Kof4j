@@ -386,6 +386,33 @@ IRModule currentModule;
         return method.body() == null;
     }
 
+    /**
+     * Limpa o estado acumulado entre compilações (bug 51). Sem reset, um
+     * CompilerDriver reutilizado vazava classes sintéticas/lambdaCounter
+     * do programa anterior para o `.s`/bytecode do seguinte — no Native o
+     * link quebrava com referências órfãs a símbolos da compilação anterior.
+     * Não toca configuração (target, moduleRoot, diagnostics corrente).
+     */
+    void resetForCompilation() {
+        syntheticClasses.clear();
+        entitySchemas.clear();
+        pendingSuperBridges.clear();
+        declarationPackages.clear();
+        lambdaEnclosingOwner.clear();
+        mutatedCapturedNames.clear();
+        lambdaCapturedNames.clear();
+        lambdaEffectiveCaptures.clear();
+        lambdaNeedsOuter.clear();
+        discoveredTests.clear();
+        discoveredConfigKeys.clear();
+        discoveredConfigKeySet.clear();
+        lambdaCounter = 0;
+        breakLabels.clear();
+        continueLabels.clear();
+        currentModule = null;
+        currentUnit = null;
+    }
+
     CompilerDriverState() {}
 
 }

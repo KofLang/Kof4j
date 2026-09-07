@@ -58,7 +58,7 @@ public final class CompilerPipeline {
         driver.target = target;
         driver.currentDiagnostics = diagnostics;
         CompilerPipeline.flushClasspathWarnings(driver);
-        driver.entitySchemas.clear();
+        driver.resetForCompilation();
         try {
             Path rootAbs = driver.moduleRoot != null ? driver.moduleRoot.toAbsolutePath().normalize() : null;
             CompilationUnitNode unit = parseAndMerge(driver, sources, rootAbs, diagnostics);
