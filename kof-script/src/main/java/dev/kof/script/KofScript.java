@@ -230,10 +230,12 @@ public final class KofScript {
             // de topo -> globals). Sem sugar de outra linguagem.
             Materialized mat = materialize(sources, sourceFile);
             try {
-                if (target == Target.JVM) {
+                if (target == Target.JVM || target.isScript()) {
                     // KofScript = target de execução direta: interpreta a IR no
                     // mesmo frontend do compilador, sem emitir bytecode e sem
-                    // fork de JVM (paridade por construção).
+                    // fork de JVM (paridade por construção). SCRIPT é o nome
+                    // explícito do modo (fase 2 do plano de plataforma); JVM é
+                    // o default histórico — ambos rodam a IR no interpretador.
                     try {
                         KofInterpreter.Result ir = driver.interpret(mat.sources, mat.root, programArgs);
                         RunResult rr = new RunResult(ir.exitCode(), ir.stdout(), ir.stderr(),

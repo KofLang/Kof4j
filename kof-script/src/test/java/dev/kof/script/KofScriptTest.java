@@ -367,6 +367,34 @@ class KofScriptTest {
         }
     }
 
+    /**
+     * Target.SCRIPT (fase 2 do plano de plataforma): runFile(f, SCRIPT) é o
+     * nome EXPLÍCITO do modo de execução direta — mesma coisa que JVM no
+     * KofScript (interpretador de IR, sem emitir artefato). Regressão: antes
+     * caía no caminho compilado e dava COMP003.
+     */
+    @Test
+    void scriptTargetRunsDirectly(@TempDir Path tmp) throws Exception {
+        Path f = tmp.resolve("Main.kf");
+        Files.writeString(f, """
+                record Point(Int x, Int y)
+                main() {
+                    var o = Point(3, 4)
+                    var r = switch (o) {
+                        case Point(var x, var y) -> x + "," + y
+                        default -> "other"
+                    }
+                    println(r)
+                }
+                """);
+        var script = KofScript.runFile(f, dev.kof.compiler.Target.SCRIPT);
+        assertTrue(script.success(), script.stderr());
+        assertEquals("3,4", norm(script.stdout()));
+        var jvm = KofScript.runFile(f, dev.kof.compiler.Target.JVM);
+        assertEquals(norm(jvm.stdout()), norm(script.stdout()),
+                "SCRIPT e JVM rodam o mesmo interpretador");
+    }
+
     private static String norm(String s) {
         return s == null ? "" : s.replace("\r\n", "\n").trim();
     }
