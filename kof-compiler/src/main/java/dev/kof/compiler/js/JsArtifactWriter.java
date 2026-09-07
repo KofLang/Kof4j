@@ -1,4 +1,5 @@
-package dev.kof.compiler;
+package dev.kof.compiler.js;
+import dev.kof.compiler.IRModule;
 
 import java.io.IOException;
 import java.nio.file.Files;

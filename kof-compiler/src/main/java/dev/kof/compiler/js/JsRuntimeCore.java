@@ -1,4 +1,4 @@
-package dev.kof.compiler;
+package dev.kof.compiler.js;
 
 /** kof-runtime.mjs — núcleo (helpers neutros de plataforma). */
 public final class JsRuntimeCore {

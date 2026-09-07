@@ -1,4 +1,19 @@
-package dev.kof.compiler;
+package dev.kof.compiler.js;
+import dev.kof.compiler.BuiltinTypes;
+import dev.kof.compiler.CompilerDriver;
+import dev.kof.compiler.KofBinary;
+import dev.kof.compiler.KofBinaryOp;
+import dev.kof.compiler.KofCall;
+import dev.kof.compiler.KofComparison;
+import dev.kof.compiler.KofConditionalJump;
+import dev.kof.compiler.KofInstanceOf;
+import dev.kof.compiler.KofJump;
+import dev.kof.compiler.KofLabel;
+import dev.kof.compiler.KofLoadLiteral;
+import dev.kof.compiler.KofLoadLocal;
+import dev.kof.compiler.KofOperation;
+import dev.kof.compiler.LabelId;
+import dev.kof.compiler.Type;
 
 import java.util.ArrayList;
 import java.util.HashMap;

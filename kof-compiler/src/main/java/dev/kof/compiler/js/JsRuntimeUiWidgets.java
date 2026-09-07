@@ -1,4 +1,4 @@
-package dev.kof.compiler;
+package dev.kof.compiler.js;
 
 /** kof-runtime.mjs — widgets de UI (font/label/button/input). */
 public final class JsRuntimeUiWidgets {

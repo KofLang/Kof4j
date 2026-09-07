@@ -1,4 +1,5 @@
-package dev.kof.compiler;
+package dev.kof.compiler.js;
+import dev.kof.compiler.Target;
 
 import java.util.List;
 

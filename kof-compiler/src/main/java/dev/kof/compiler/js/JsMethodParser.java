@@ -1,4 +1,8 @@
-package dev.kof.compiler;
+package dev.kof.compiler.js;
+import dev.kof.compiler.IRClass;
+import dev.kof.compiler.IRMethod;
+import dev.kof.compiler.KofDebugInfo;
+import dev.kof.compiler.SourcePosition;
 
 import java.util.ArrayList;
 import java.util.List;

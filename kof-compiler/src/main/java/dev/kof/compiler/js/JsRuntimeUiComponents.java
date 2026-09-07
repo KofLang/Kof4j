@@ -1,4 +1,4 @@
-package dev.kof.compiler;
+package dev.kof.compiler.js;
 
 /** kof-runtime.mjs — Component Core + Link/Image/Icon. */
 public final class JsRuntimeUiComponents {

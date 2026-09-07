@@ -1,4 +1,8 @@
-package dev.kof.compiler;
+package dev.kof.compiler.js;
+import dev.kof.compiler.BuiltinTypes;
+import dev.kof.compiler.KofCall;
+import dev.kof.compiler.KofCallKind;
+import dev.kof.compiler.Type;
 
 import java.util.ArrayList;
 import java.util.HashMap;

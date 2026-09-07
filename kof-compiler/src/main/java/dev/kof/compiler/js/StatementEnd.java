@@ -1,4 +1,5 @@
-package dev.kof.compiler;
+package dev.kof.compiler.js;
+import dev.kof.compiler.js.JsIr;
 
 import java.util.ArrayList;
 import java.util.HashMap;

@@ -1,4 +1,11 @@
-package dev.kof.compiler;
+package dev.kof.compiler.js;
+import dev.kof.compiler.Backend;
+import dev.kof.compiler.IRClass;
+import dev.kof.compiler.IRMethod;
+import dev.kof.compiler.IRModule;
+import dev.kof.compiler.KofCall;
+import dev.kof.compiler.KofCallKind;
+import dev.kof.compiler.KofOperation;
 
 import java.io.IOException;
 import java.nio.file.Files;

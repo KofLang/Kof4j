@@ -1,4 +1,4 @@
-package dev.kof.compiler;
+package dev.kof.compiler.js;
 
 /** kof-runtime.mjs — AES-GCM + validation + observability + G9. */
 public final class JsRuntimeUiCrypto {

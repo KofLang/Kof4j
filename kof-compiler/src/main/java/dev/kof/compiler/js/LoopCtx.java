@@ -1,4 +1,5 @@
-package dev.kof.compiler;
+package dev.kof.compiler.js;
+import dev.kof.compiler.LabelId;
 
 import java.util.ArrayList;
 import java.util.HashMap;

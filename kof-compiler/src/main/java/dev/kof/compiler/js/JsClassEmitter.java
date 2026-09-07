@@ -1,4 +1,9 @@
-package dev.kof.compiler;
+package dev.kof.compiler.js;
+import dev.kof.compiler.AccessFlags;
+import dev.kof.compiler.IRClass;
+import dev.kof.compiler.IRField;
+import dev.kof.compiler.IRMethod;
+import dev.kof.compiler.KofLoadLiteral;
 
 import java.util.ArrayList;
 import java.util.List;

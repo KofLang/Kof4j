@@ -1,4 +1,4 @@
-package dev.kof.compiler;
+package dev.kof.compiler.js;
 
 /** kof-runtime.mjs — kof.security (hash/JWT). */
 public final class JsRuntimeUiSecurity {

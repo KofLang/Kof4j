@@ -1,4 +1,4 @@
-package dev.kof.compiler;
+package dev.kof.compiler.js;
 
 /** kof-runtime.mjs — suporte de UI (mq/stores/router). */
 public final class JsRuntimeUiSupport {

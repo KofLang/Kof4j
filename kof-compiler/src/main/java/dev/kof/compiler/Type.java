@@ -17,7 +17,7 @@ public sealed interface Type {
     }
 
     record ClassType(String packageName, String name, List<Type> typeArguments) implements Type {
-        String internalName() {
+        public String internalName() {
             if (packageName.isEmpty()) return name;
             return packageName.replace('.', '/') + "/" + name;
         }
@@ -39,7 +39,7 @@ public sealed interface Type {
     }
 
     record UnknownType() implements Type {
-        static final UnknownType UNKNOWN = new UnknownType();
+        public static final UnknownType UNKNOWN = new UnknownType();
     }
 
     record NullableType(Type inner) implements Type {

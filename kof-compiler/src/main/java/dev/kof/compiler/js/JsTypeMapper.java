@@ -1,4 +1,6 @@
-package dev.kof.compiler;
+package dev.kof.compiler.js;
+import dev.kof.compiler.KofBinaryOp;
+import dev.kof.compiler.Type;
 
 import java.util.Set;
 

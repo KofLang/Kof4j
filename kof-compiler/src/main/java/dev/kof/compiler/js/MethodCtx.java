@@ -1,4 +1,13 @@
-package dev.kof.compiler;
+package dev.kof.compiler.js;
+import dev.kof.compiler.AccessFlags;
+import dev.kof.compiler.IRClass;
+import dev.kof.compiler.IRField;
+import dev.kof.compiler.IRLocalVariable;
+import dev.kof.compiler.IRMethod;
+import dev.kof.compiler.KofOperation;
+import dev.kof.compiler.LabelId;
+import dev.kof.compiler.js.JsLoweringContext;
+import dev.kof.compiler.js.JsTypeMapper;
 
 import java.util.ArrayList;
 import java.util.HashMap;

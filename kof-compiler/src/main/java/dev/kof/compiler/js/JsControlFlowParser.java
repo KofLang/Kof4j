@@ -1,4 +1,20 @@
-package dev.kof.compiler;
+package dev.kof.compiler.js;
+import dev.kof.compiler.KofCatchStart;
+import dev.kof.compiler.KofCheckCast;
+import dev.kof.compiler.KofComparison;
+import dev.kof.compiler.KofConditionalJump;
+import dev.kof.compiler.KofJump;
+import dev.kof.compiler.KofLabel;
+import dev.kof.compiler.KofLoadLocal;
+import dev.kof.compiler.KofOperation;
+import dev.kof.compiler.KofPop;
+import dev.kof.compiler.KofReturn;
+import dev.kof.compiler.KofReturnVoid;
+import dev.kof.compiler.KofStoreLocal;
+import dev.kof.compiler.KofThrow;
+import dev.kof.compiler.KofTryEnd;
+import dev.kof.compiler.KofTryStart;
+import dev.kof.compiler.LabelId;
 
 import java.util.ArrayList;
 import java.util.HashMap;

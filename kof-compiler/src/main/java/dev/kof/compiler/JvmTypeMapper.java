@@ -77,7 +77,7 @@ public final class JvmTypeMapper {
         return sb.toString();
     }
 
-    static String toInternalName(String packageName, String simpleName) {
+    public static String toInternalName(String packageName, String simpleName) {
         if (simpleName.contains("/")) return simpleName;
         if (simpleName.contains(".")) return simpleName.replace('.', '/');
         if ("kof".equals(packageName) && "List".equals(simpleName)) return "java/util/ArrayList";
