@@ -439,6 +439,25 @@ class CoreRegressionE2ETest {
         assertEquals("outer", runJvm(outJvm), "nested-try-rethrow JVM output mismatch");
     }
 
+    // known-bugs #49 — try aninhado no KofJS (COMP002): o parseTryStatement
+    // confundia o endLabel do try outer com um finally do try inner.
+    @Test
+    void nestedTryJs(@TempDir Path tempDir) throws IOException {
+        Path src = tempDir.resolve("ntry.kf");
+        Files.writeString(src, """
+                main() {
+                    try {
+                        try { throw "inner" } catch (String e) { println(e) }
+                    } catch (String e) {
+                        println("outer:" + e)
+                    }
+                }
+                """);
+        Path outJs = tempDir.resolve("js");
+        CompilationResult rjs = driver.compile(src, outJs, Target.JS);
+        assertTrue(rjs.success(), "JS compile failed: " + rjs.diagnostics().getDiagnostics());
+    }
+
     // known-bugs #5/#24 — FP→Int/Long casts and Double→Float narrowing were
     // missing conversion ops → invalid bytecode (ClassFormatError). Now D2I/
     // F2I/D2L/F2L (truncate toward zero) and D2F are emitted.

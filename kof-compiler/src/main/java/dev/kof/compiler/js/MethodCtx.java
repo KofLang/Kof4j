@@ -8,6 +8,7 @@ import dev.kof.compiler.KofOperation;
 import dev.kof.compiler.LabelId;
 import dev.kof.compiler.js.JsLoweringContext;
 import dev.kof.compiler.js.JsTypeMapper;
+import dev.kof.compiler.KofTryStart;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -108,6 +109,14 @@ public final class MethodCtx {
     boolean isLoopEnd(LabelId label) {
         for (LoopCtx loop : loops) {
             if (label.equals(loop.end)) return true;
+        }
+        return false;
+    }
+
+    /** true se `label` é o endLabel de QUALQUER try no método (try aninhado/outer). */
+    boolean isTryEndLabel(LabelId label) {
+        for (KofOperation op : ops) {
+            if (op instanceof KofTryStart ts && ts.endLabel().equals(label)) return true;
         }
         return false;
     }

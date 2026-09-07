@@ -142,6 +142,7 @@ List<JsIr.JsStatement> parseStatement(MethodCtx ctx, int[] pos) {
             throw new IllegalStateException("KofJS: unexpected label at statement level");
         }
         if (op instanceof KofCatchStart) {
+            for (int k=0;k<ctx.ops.size();k++) System.err.println("  " + k + ": " + ctx.ops.get(k).getClass().getSimpleName());
             throw new IllegalStateException("KofJS: unexpected KofCatchStart at statement level");
         }
         return p.expr.parseExpressionStatement(ctx, pos);
@@ -442,7 +443,7 @@ boolean isDoWhileConditionAhead(MethodCtx ctx, int[] pos, LabelId startLabel) {
 
 JsIr.JsStatement parseTryStatement(MethodCtx ctx, int[] pos) {
         KofTryStart ts = (KofTryStart) ctx.ops.get(pos[0]);
-        pos[0]++;
+                pos[0]++;
         List<JsIr.JsStatement> tryBody = parseStatements(ctx, pos, Set.of(ts.endLabel()), new ArrayList<>());
         if (pos[0] < ctx.ops.size() && ctx.ops.get(pos[0]) instanceof KofLabel tryEnd
                 && tryEnd.label().equals(ts.endLabel())) {
@@ -452,9 +453,11 @@ JsIr.JsStatement parseTryStatement(MethodCtx ctx, int[] pos) {
             pos[0]++;
         }
         List<JsIr.JsCatchClause> catches = new ArrayList<>();
+        boolean hasFinally = false;
         while (pos[0] < ctx.ops.size() && ctx.ops.get(pos[0]) instanceof KofCatchStart cs) {
             if ("Throwable".equals(cs.exceptionType())) {
                 // catch-all + rethrow emulates finally; JS finally is native.
+                hasFinally = true;
                 pos[0]++;
                 if (pos[0] < ctx.ops.size() && ctx.ops.get(pos[0]) instanceof KofJump) {
                     pos[0]++;
@@ -471,8 +474,10 @@ JsIr.JsStatement parseTryStatement(MethodCtx ctx, int[] pos) {
         }
         pos[0]++;
         List<JsIr.JsStatement> finallyBody = List.of();
-        // o label do finally é novo da região do try — nunca do loop
-        if (pos[0] < ctx.ops.size() && ctx.ops.get(pos[0]) instanceof KofLabel finallyStart
+        // o label do finally é novo da região do try — nunca do loop. Só existe
+        // quando o try tem finally (catch-all "Throwable"): um KofLabel que não
+        // é o fim de um finally pertence ao try ANINHADO/outer (bug 49).
+        if (hasFinally && pos[0] < ctx.ops.size() && ctx.ops.get(pos[0]) instanceof KofLabel finallyStart
                 && !ctx.isLoopLabel(finallyStart.label())) {
             pos[0]++;
             List<LabelId> exits = new ArrayList<>();
@@ -489,6 +494,12 @@ JsIr.JsStatement parseTryStatement(MethodCtx ctx, int[] pos) {
                 // no-finally: the trailing empty label (done) ends the try
                 pos[0]++;
             }
+        } else if (pos[0] < ctx.ops.size() && ctx.ops.get(pos[0]) instanceof KofLabel doneLabel
+                && !ctx.isLoopLabel(doneLabel.label())
+                && !ctx.isTryEndLabel(doneLabel.label())) {
+            // sem finally: o label done (trailing) encerra o try — consome,
+            // mas NÃO se for o endLabel de um try aninhado/outer (bug 49).
+            pos[0]++;
         }
         return new JsIr.JsTry(tryBody, catches, finallyBody);
     }

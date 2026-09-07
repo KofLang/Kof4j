@@ -862,7 +862,7 @@ EXTERNA produz lixo
 - **Descoberto:** 07/09 (lote 2 da conformance matrix).
 - **Interpretador CORRIGIDO 07/09:** `kof_json_decode_object_list` (2 args) agora é tratado no interpretador (decodifica cada item da lista para KofObj da classe via className). Prova: `KofInterpreterParityTest.jsonDecodeListOfRecord`. ⚠️ Native AINDA pendente (`kof_json_decode_object_list` não existe no runtime riscv; decode inline de lista de records a implementar).
 
-### 49. KofJS não compila `try` aninhado — `KofJS: try expected KofTryEnd` (COMP002) — ABERTO (lane JS)
+### 49. KofJS não compila `try` aninhado — `KofJS: try expected KofTryEnd` (COMP002) — ✅ CORRIGIDO 07/09
 
 - **Sintoma:** um `try` dentro de outro `try` no target **KofJS** dá erro de COMPILAÇÃO: `Internal compiler error: KofJS: try expected KofTryEnd [COMP002]` (`JsControlFlowParser.parseTryStatement:470`). JVM/Native/Script (interpretador) compilam e rodam o mesmo programa normalmente.
 - **Repro:**
