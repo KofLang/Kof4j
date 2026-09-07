@@ -217,6 +217,18 @@ reuso). **Prova E2E Cenário A (I2)**: app real `web.app()` + `serveDir` →
     (DOM `<textarea>` + kof-textarea + texto + placeholder); suíte
     1105/0/64-skip (flaky `KofScriptTest.concurrentAwait` não se
     reproduziu — isolado 3/3 verde; lane interpretador, pré-existente).
+    **`Select` FEITO (07/09, `7157f05`) — UI003/UI004**: `Select(opções)`
+    (`List<String>`) + setOptions/setSelected/selected/remove + setId/
+    setClass/setDisabled (via isDomWidget). 9 pontos (registry, typer via
+    caminho geral isConstructor+constructorType, lowerer, emitter,
+    whitelist JS, impl JS, stub JVM, descriptor JVM, stub Native).
+    Detalhe: `setSelected` reflete o atributo `selected` nas `<option>`
+    (outerHTML/dump-dom serializa atributos de conteúdo, não a
+    propriedade IDL `selectedIndex`). Prova: `UiE2ETest.
+    selectLinksOnAllTargets` (JVM+Native) + `KofJsBrowserE2ETest.
+    selectRendersInRealBrowserDom` (DOM `<select kof-select>` + 3
+    `<option value=...>` + selected no índice 1); corpus
+    `training/idioms/ui.md` (Select BAD/GOOD/WHY). Suíte 1146/0/64-skip.
     **AUDITORIA planning-future FEITA (este commit)**:
     `docs/development/future/PLANNING-FUTURE-AUDIT.md`. Veredito: a branch
     entregou a plataforma de migração legado (Fases A/B/C-parcial/E/F/G/H,
