@@ -352,6 +352,9 @@ public final class JvmRuntimeUi {
                 public static void kof_ui_input_set_placeholder(int input, String placeholder) {
                 }
 
+                public static void kof_ui_input_set_type(int input, String type) {
+                }
+
                 public static String kof_ui_input_text(int input) {
                     return "";
                 }

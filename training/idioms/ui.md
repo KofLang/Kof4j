@@ -80,3 +80,23 @@ campo.setPlaceholder("digite aqui")
 **Por quê:** `setPlaceholder` é o atributo do widget (renderiza
 `placeholder="..."` no DOM do KofJS). Usar string vazia ou esconder a dica
 na aplicação é reimplementar uma feature da plataforma (R2).
+
+## Forms: tipo do input (password/number/email/...)
+
+**BAD — input text genérico para senha/número (o tipo é do widget, não da
+aplicação):**
+```kof
+// ❌ NÃO — senha em input text; o browser não mascara
+var senha = Input("")
+```
+
+**GOOD — `Input.setType`:**
+```kof
+// ✅ IDIOMÁTICO — tipo declarativo no widget (text/number/email/password/date)
+var senha = Input("")
+senha.setType("password")
+```
+
+**Por quê:** `setType` define o atributo `type` do `<input>` (mascara senha,
+teclado numérico no mobile, validação de email). Usar text para tudo é
+reimplementar uma feature da plataforma (R2).

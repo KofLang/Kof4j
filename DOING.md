@@ -150,10 +150,13 @@ reuso). **Prova E2E Cenário A (I2)**: app real `web.app()` + `serveDir` →
   `JvmRuntimeUi` + Native `RuntimeUi` [preserva no-op]). **Prova**:
   `KofJsBrowserE2ETest.inputPlaceholderRendersInRealBrowserDom` — Chrome
   headless, DOM contém `placeholder="digite aqui"`; suíte 1086/0/64-skip.
-  **PRÓXIMO PASSO (Fase 4, minha lane)**: continuar UI003/4/5 forms —
-  `Input` tipo number/checkbox/select, `<form>`/submit, atributos
-  id/class/alt (mesmo padrão de 5 pontos + teste browser); depois UI007
-  style declarativo. **NÃO quebrar**:
+  **`Input.setType` FEITO (este commit)**: aditivo 5 pontos (registry,
+  whitelist, `JsRuntimeUiWidgets.kofUiInputSetType`, stubs JVM/Native).
+  Prova: `KofJsBrowserE2ETest.inputTypeRendersInRealBrowserDom` (DOM
+  contém `type="password"`); suíte 1089/0/64-skip. **PRÓXIMO PASSO (Fase
+  4, minha lane)**: continuar UI003/4/5 forms — `<form>`/submit,
+  atributos id/class/alt/checked/disabled (mesmo padrão de 5 pontos +
+  teste browser); depois UI007 style declarativo. **NÃO quebrar**:
   microsserviços (kof.http/kof.web/CmdServe), PKG002/4/5 (congelados), lanes
   `NativeBackend.java`/`KofInterpreter*`.
 
