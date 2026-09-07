@@ -74,12 +74,38 @@ aninhado KofJS (na beta `5d6e68a`).
 rico (de `34ded81`, realocado p/ `parser.`) + `Confidence.java`
 (`7e6fbe8`) + ajustar imports dos 5 CLI-files — não é só "corrigir import".
 
-## 4. Veredito e próximos passos
+## 4. Atualização 07/09 (tarde) — o agente subiu mais e foi declarado morto
+
+Commits novos na branch (`f86d02e`/`f44b086`/`f1d6211`): só **conformance
+lote 3** (`spawnawait`/`channel-fifo`/`spawnvoid` na matriz) + DOING.
+Validação (worktree isolado, 07/09):
+
+- `spawnawait` + `channel-fifo`: ✅ passam (mas são **duplicata** — a beta
+  já fechou o F9 lotes 1-3 com 45 casos determinísticos, incluindo
+  `spawnawait-fn/two` e `channel-samethread/spawn/spawn-two`, e o
+  `KofConcurrency2Test` cobre fire-and-forget com asserções frouxas).
+- `spawnvoid` (`spawn { println("fire") }` + `println("done")` esperando
+  `done\nfire` nos 4 targets): ❌ **FLAKY/QUEBRADO — falha 5/5 rodando
+  isolado** (SCRIPT devolve `fire\ndone`). E contradiz a decisão
+  DOCUMENTADA da própria beta (`ConformanceMatrixTest:573-574`: "o order de
+  fire-and-forget é NÃO-determinístico por design e fica em
+  KofConcurrency2Test com asserções frouxas"). **Não portar.**
+- Plataforma de migração: **inalterada e ainda quebrada** (DecompileTest
+  não compila no HEAD novo — mesmos `cannot find symbol`).
+
+**Status do dono:** `EM CURSO` órfão → **AGENTE MORTO** (regra AGENTS.md:
+"EM CURSO órfão é ABERTO disfarçado"). A lane F9/conformance dele já está
+FECHADA na beta (DOING beta linha 416: lotes 1-3 + gate CI
+`ConformanceMatrixDocTest` + bugs 48-52). Nada dos commits novos precisa
+ser portado.
+
+## 5. Veredito e próximos passos
 
 **Veredito:** trabalho real e de qualidade (33 testes, honestidade R6 —
 "nunca inventa", stubs com Confidence), mas **incompleto** (Fase D zero,
 FFI/Codegen perdidos) e **não mergeável como está** (HEAD quebrado contra
-a beta).
+a beta). O lote 3 final é duplicata da beta com um caso flaky que viola
+decisão documentada — não portar.
 
 **Reconciliação (fila, na ordem):**
 1. **R1** — portar a plataforma de migração para a beta: restaurar
