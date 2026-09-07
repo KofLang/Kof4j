@@ -190,6 +190,16 @@ para método inexistente. Prova esperada: `vs.first()` compila com `first`
 implementado OU dá diagnóstico; suíte verde.
 ---
 
+## REGRA DE SINCRONIZAÇÃO (07/09, obrigatória)
+
+> **Antes de CADA commit/push: verificar conflito com o trabalho do outro agente.**
+> Pull/rebase PRIMEIRO (`git fetch origin && git rebase origin/beta-0.3.0`), conferir
+> se o working tree está limpo e se o rebase não trouxe conflitos. Se o rebase
+> aplicar commits novos do outro agente em arquivos que TOQUEI: re-verificar a
+> compilação e os testes da área antes de commitar. NUNCA commitar por cima de
+> um rebase não verificado. Push logo após cada commit (sincronizar sempre).
+> Heartbeat: `scripts/kof-heartbeat.sh` (10min, nohup loop via auto-loop.sh tick).
+
 ## Em curso agora
 
 | Gap/Item | Estado | Dono | Branch | Arquivos principais | Notas |
