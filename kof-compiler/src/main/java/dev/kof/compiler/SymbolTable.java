@@ -80,7 +80,7 @@ class SymbolTable {
         return Collections.unmodifiableMap(symbols);
     }
 
-    sealed interface Symbol {
+    interface Symbol {
         String name();
         Type type();
     }

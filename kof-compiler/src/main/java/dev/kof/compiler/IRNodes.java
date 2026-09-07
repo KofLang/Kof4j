@@ -20,7 +20,7 @@ import java.util.Map;
  * line tables / source maps that keep the Kof identity. The position is
  * registered before the backend, never synthesized there.
  */
-sealed interface KofOperation permits KofArrayLength, KofArrayLoad, KofArrayStore, KofBinary, KofCall, KofCatchStart, KofCheckCast, KofConditionalJump, KofDup, KofDupX1, KofDupX2, KofGetStatic, KofInstanceOf, KofJump, KofLabel, KofLoadField, KofLoadLiteral, KofLoadLocal, KofNewArray, KofNewObject, KofPop, KofPutStatic, KofReturn, KofReturnVoid, KofStoreField, KofStoreLocal, KofThrow, KofTryEnd, KofTryStart, KofUnary {
+interface KofOperation {
 }
 
 /**

@@ -49,7 +49,7 @@ final class JsIr {
 
     // ── Statements ──────────────────────────────────────────────────
 
-    sealed interface JsStatement {
+    interface JsStatement {
     }
 
     record JsExprStmt(JsExpression expression) implements JsStatement {
@@ -105,7 +105,7 @@ final class JsIr {
 
     // ── Expressions ─────────────────────────────────────────────────
 
-    sealed interface JsExpression {
+    interface JsExpression {
     }
 
     record JsNumber(String text) implements JsExpression {
