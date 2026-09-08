@@ -84,6 +84,7 @@ final class LspServer {
                 completion.put("triggerCharacters", List.of("."));
                 capabilities.put("completionProvider", completion);
                 capabilities.put("hoverProvider", Boolean.TRUE);
+                capabilities.put("definitionProvider", Boolean.TRUE);
                 capabilities.put("referencesProvider", Boolean.TRUE);
                 capabilities.put("renameProvider", Boolean.TRUE);
                 Map<String, Object> result = new LinkedHashMap<>();
@@ -98,6 +99,7 @@ final class LspServer {
             case "textDocument/didChange" -> publishDiagnostics(params);
             case "textDocument/didClose" -> clearDiagnostics(params);
             case "textDocument/hover" -> hover(id, params);
+            case "textDocument/definition" -> definition(id, params);
             case "textDocument/completion" -> completion(id, params);
             case "textDocument/references" -> references(id, params);
             case "textDocument/rename" -> rename(id, params);
@@ -344,6 +346,26 @@ final class LspServer {
 
     private static boolean isIdentChar(char c) {
         return Character.isLetterOrDigit(c) || c == '_';
+    }
+
+    @SuppressWarnings("unchecked")
+    private void definition(Object id, Map<String, Object> params) {
+        Map<String, Object> td = params.get("textDocument") instanceof Map<?, ?> p
+                ? (Map<String, Object>) p : Map.of();
+        String uri = str(td.get("uri"));
+        String text = openText.getOrDefault(uri, "");
+        Map<String, Object> pos = params.get("position") instanceof Map<?, ?> p
+                ? (Map<String, Object>) p : Map.of();
+        long line = pos.get("line") instanceof Number n ? n.longValue() : 0;
+        long ch = pos.get("character") instanceof Number n ? n.longValue() : 0;
+        int off = offsetOf(text, line, ch);
+        String word = wordAt(text, off);
+        int[] decl = LspSymbols.declarationRange(text, word);
+        if (decl == null) { respond(id, null); return; }
+        Map<String, Object> loc = new LinkedHashMap<>();
+        loc.put("uri", uri);
+        loc.put("range", rangeOf(text, decl[0], decl[1]));
+        respond(id, List.of(loc));
     }
 
     @SuppressWarnings("unchecked")

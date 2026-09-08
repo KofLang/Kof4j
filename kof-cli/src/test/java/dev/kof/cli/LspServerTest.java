@@ -10,6 +10,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
  * LSP references/rename — mock (didOpen + request) sem processo.
@@ -146,5 +148,72 @@ class LspServerTest {
         List<Map<String, Object>> msgs = messages(out.toString(StandardCharsets.UTF_8));
         assertEquals(null, byId(msgs, 3).get("result"), "sem palavra no cursor → result nulo");
         assertEquals(null, byId(msgs, 4).get("result"), "newName inválido → result nulo");
+    }
+
+    // ---- EDI001 degrau 0: textDocument/definition ------------------------
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void initializeAnnouncesDefinitionCapability() throws Exception {
+        String req = "{\"jsonrpc\":\"2.0\",\"id\":0,\"method\":\"initialize\",\"params\":{}}";
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        new LspServer(new ByteArrayInputStream(frame(req)), out).run();
+        Map<String, Object> res = (Map<String, Object>) byId(messages(out.toString(StandardCharsets.UTF_8)), 0).get("result");
+        Map<String, Object> caps = (Map<String, Object>) res.get("capabilities");
+        assertEquals(Boolean.TRUE, caps.get("definitionProvider"));
+    }
+
+    /** Abre um texto e pede definition na posição dada; retorna o range (linha,col) do start. */
+    @SuppressWarnings("unchecked")
+    private long[] definitionStart(String text, long line, long ch) throws Exception {
+        String didOpen = "{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{"
+                + "\"textDocument\":{\"uri\":\"" + URI + "\",\"text\":\"" + Json.escape(text) + "\"}}}";
+        String req = "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"textDocument/definition\",\"params\":{"
+                + "\"textDocument\":{\"uri\":\"" + URI + "\"},"
+                + "\"position\":{\"line\":" + line + ",\"character\":" + ch + "}}}";
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        new LspServer(new ByteArrayInputStream(all(frame(didOpen), frame(req))), out).run();
+        Object result = byId(messages(out.toString(StandardCharsets.UTF_8)), 9).get("result");
+        if (result == null) return null;
+        List<Object> locs = (List<Object>) result;
+        if (locs.isEmpty()) return null;
+        Map<String, Object> range = (Map<String, Object>) ((Map<String, Object>) locs.get(0)).get("range");
+        Map<String, Object> start = (Map<String, Object>) range.get("start");
+        return new long[]{ ((Number) start.get("line")).longValue(), ((Number) start.get("character")).longValue() };
+    }
+
+    @Test
+    void definitionFindsFunctionDeclaration() throws Exception {
+        // cursor em 'compute' na linha do main → declaração na linha 0, no nome (após "Int ")
+        String text = "Int compute(Int x) { return x * 2 }\nmain() { println(compute(3)) }\n";
+        long[] r = definitionStart(text, 1, 20);
+        assertNotNull(r, "deve achar a declaração da função");
+        assertEquals(0, r[0], "linha da declaração");
+        assertEquals(4, r[1], "coluna do nome 'compute'");
+    }
+
+    @Test
+    void definitionFindsRecordDeclaration() throws Exception {
+        String text = "record Point(Int x, Int y)\nmain() { var p = Point(1,2); println(p) }\n";
+        long[] r = definitionStart(text, 1, 18); // cursor dentro de 'Point' (col 17-21)
+        assertNotNull(r);
+        assertEquals(0, r[0]);
+        assertEquals(7, r[1], "coluna do nome 'Point'");
+    }
+
+    @Test
+    void definitionFindsVarDeclaration() throws Exception {
+        String text = "main() {\n    var total = 0\n    println(total)\n}\n";
+        long[] r = definitionStart(text, 2, 13); // cursor dentro de 'total' (linha 2)
+        assertNotNull(r);
+        assertEquals(1, r[0]);
+        assertEquals(8, r[1], "coluna do nome 'total'");
+    }
+
+    @Test
+    void definitionIsConservativeOnParameter() throws Exception {
+        // 'x' só aparece como parâmetro — não resolvemos parâmetro (null, não minto)
+        String text = "Int compute(Int x) { return x * 2 }\n";
+        assertNull(definitionStart(text, 0, 17), "parâmetro não é declarado por var/val/função — null honesto");
     }
 }
