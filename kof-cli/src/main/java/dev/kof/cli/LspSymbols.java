@@ -28,6 +28,38 @@ final class LspSymbols {
      */
     record DocSymbol(String name, int kind, int start, int end) {}
 
+    /** documentSymbol: mapa LSP (name/kind/selectionRange/range) por símbolo. */
+    static java.util.List<java.util.Map<String, Object>> documentSymbolMaps(String text) {
+        java.util.List<java.util.Map<String, Object>> out = new java.util.ArrayList<>();
+        for (DocSymbol s : documentSymbols(text)) {
+            java.util.Map<String, Object> sel = symbolRange(text, s.start(), s.end());
+            java.util.Map<String, Object> sym = new java.util.LinkedHashMap<>();
+            sym.put("name", s.name());
+            sym.put("kind", (long) s.kind());
+            sym.put("selectionRange", sel);
+            sym.put("range", sel);
+            out.add(sym);
+        }
+        return out;
+    }
+
+    private static java.util.Map<String, Object> symbolRange(String text, int start, int end) {
+        int[] ps = pos(text, start);
+        int[] pe = pos(text, end);
+        java.util.Map<String, Object> r = new java.util.LinkedHashMap<>();
+        r.put("start", java.util.Map.of("line", (long) ps[0], "character", (long) ps[1]));
+        r.put("end", java.util.Map.of("line", (long) pe[0], "character", (long) pe[1]));
+        return r;
+    }
+
+    private static int[] pos(String text, int offset) {
+        int line = 0, lineStart = 0;
+        for (int i = 0; i < offset && i < text.length(); i++) {
+            if (text.charAt(i) == '\n') { line++; lineStart = i + 1; }
+        }
+        return new int[]{ line, offset - lineStart };
+    }
+
     static java.util.List<DocSymbol> documentSymbols(String text) {
         java.util.List<DocSymbol> out = new java.util.ArrayList<>();
         if (text == null) return out;

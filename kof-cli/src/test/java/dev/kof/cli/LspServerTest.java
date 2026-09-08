@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -321,5 +322,52 @@ class LspServerTest {
         List<Map<String, Object>> syms = documentSymbols(text);
         assertEquals(1, syms.size(), "só 'main' é função: " + syms);
         assertEquals("main", syms.get(0).get("name"));
+    }
+
+    // ---- EDI001 §15: textDocument/codeAction (source.format) --------------
+
+    @SuppressWarnings("unchecked")
+    private List<Object> codeActions(String text) throws Exception {
+        String didOpen = "{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{"
+                + "\"textDocument\":{\"uri\":\"" + URI + "\",\"text\":\"" + Json.escape(text) + "\"}}}";
+        String req = "{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"textDocument/codeAction\",\"params\":{"
+                + "\"textDocument\":{\"uri\":\"" + URI + "\"},"
+                + "\"range\":{\"start\":{\"line\":0,\"character\":0},\"end\":{\"line\":0,\"character\":0}},"
+                + "\"context\":{\"diagnostics\":[]}}}";
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        new LspServer(new ByteArrayInputStream(all(frame(didOpen), frame(req))), out).run();
+        Object result = byId(messages(out.toString(StandardCharsets.UTF_8)), 6).get("result");
+        return result == null ? List.of() : (List<Object>) result;
+    }
+
+    @Test
+    void codeActionOffersFormatWhenUnformatted() throws Exception {
+        List<Object> actions = codeActions("main(){\nprintln(   1+2 )\n}\n");
+        assertEquals(1, actions.size(), "source.format oferecido: " + actions);
+        Map<String, Object> a = (Map<String, Object>) actions.get(0);
+        assertEquals("Format Document", a.get("title"));
+        assertEquals("source", a.get("kind"));
+        List<Object> changes = (List<Object>) ((Map<String, Object>) a.get("edit")).get("documentChanges");
+        assertEquals(1, changes.size());
+        List<Object> edits = (List<Object>) ((Map<String, Object>) changes.get(0)).get("edits");
+        assertTrue(((String) ((Map<String, Object>) edits.get(0)).get("newText")).contains("println(1 + 2)"));
+    }
+
+    @Test
+    void codeActionEmptyWhenAlreadyFormatted() throws Exception {
+        String formatted = dev.kof.compiler.KofFormatter.format("main(){\nprintln(1)\n}\n", "Main.kf");
+        assertTrue(codeActions(formatted).isEmpty(), "nada a formatar → nenhuma ação");
+    }
+
+    @Test
+    void codeActionProviderAnnouncedWithKinds() throws Exception {
+        String req = "{\"jsonrpc\":\"2.0\",\"id\":0,\"method\":\"initialize\",\"params\":{}}";
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        new LspServer(new ByteArrayInputStream(frame(req)), out).run();
+        Map<String, Object> res = (Map<String, Object>) byId(messages(out.toString(StandardCharsets.UTF_8)), 0).get("result");
+        Map<String, Object> caps = (Map<String, Object>) res.get("capabilities");
+        Object provider = caps.get("codeActionProvider");
+        assertInstanceOf(Map.class, provider, "codeActionProvider com opções");
+        assertEquals(List.of("source"), ((Map<String, Object>) provider).get("codeActionKinds"));
     }
 }

@@ -89,6 +89,8 @@ final class LspServer {
                 capabilities.put("renameProvider", Boolean.TRUE);
                 capabilities.put("documentFormattingProvider", Boolean.TRUE);
                 capabilities.put("documentSymbolProvider", Boolean.TRUE);
+                capabilities.put("codeActionProvider",
+                        Map.of("codeActionKinds", List.of("source")));
                 Map<String, Object> result = new LinkedHashMap<>();
                 result.put("capabilities", capabilities);
                 result.put("serverInfo", Map.of("name", "kof-lsp", "version", dev.kof.compiler.KofVersion.version()));
@@ -107,6 +109,7 @@ final class LspServer {
             case "textDocument/rename" -> rename(id, params);
             case "textDocument/formatting" -> formatting(id, params);
             case "textDocument/documentSymbol" -> documentSymbol(id, params);
+            case "textDocument/codeAction" -> codeAction(id, params);
             default -> {  }
         }
     }
@@ -342,18 +345,49 @@ final class LspServer {
                 ? (Map<String, Object>) p : Map.of();
         String uri = str(td.get("uri"));
         String text = openText.getOrDefault(uri, "");
+        Map<String, Object> edit = formatEdit(uri, text);
+        if (edit == null) { respond(id, List.of()); return; }
+        respond(id, List.of(edit));
+    }
+
+    /**
+     * Edit de formatação (range do documento inteiro + newText), ou null se
+     * já está formatado / o parser não fecha (não corrompe o buffer — R6).
+     * Compartilhado por textDocument/formatting e codeAction source.format.
+     */
+    private Map<String, Object> formatEdit(String uri, String text) {
         String formatted;
         try {
             formatted = dev.kof.compiler.KofFormatter.format(text, fileNameOf(uri));
         } catch (RuntimeException e) {
-            respond(id, null); // parser não fechou: não corrompe o buffer (R6)
-            return;
+            return null;
         }
-        if (formatted.equals(text)) { respond(id, List.of()); return; }
+        if (formatted.equals(text)) return null;
         Map<String, Object> edit = new LinkedHashMap<>();
         edit.put("range", rangeOf(text, 0, text.length()));
         edit.put("newText", formatted);
-        respond(id, List.of(edit));
+        return edit;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void codeAction(Object id, Map<String, Object> params) {
+        Map<String, Object> td = params.get("textDocument") instanceof Map<?, ?> p
+                ? (Map<String, Object>) p : Map.of();
+        String uri = str(td.get("uri"));
+        String text = openText.getOrDefault(uri, "");
+        List<Object> actions = new ArrayList<>();
+        Map<String, Object> edit = formatEdit(uri, text);
+        if (edit != null) {
+            Map<String, Object> docEdit = new LinkedHashMap<>();
+            docEdit.put("textDocument", Map.of("uri", uri));
+            docEdit.put("edits", List.of(edit));
+            Map<String, Object> action = new LinkedHashMap<>();
+            action.put("title", "Format Document");
+            action.put("kind", "source");
+            action.put("edit", Map.of("documentChanges", List.of(docEdit)));
+            actions.add(action);
+        }
+        respond(id, actions);
     }
 
     private static String fileNameOf(String uri) {
@@ -367,18 +401,7 @@ final class LspServer {
         Map<String, Object> td = params.get("textDocument") instanceof Map<?, ?> p
                 ? (Map<String, Object>) p : Map.of();
         String uri = str(td.get("uri"));
-        String text = openText.getOrDefault(uri, "");
-        List<Object> symbols = new ArrayList<>();
-        for (LspSymbols.DocSymbol s : LspSymbols.documentSymbols(text)) {
-            Map<String, Object> sel = rangeOf(text, s.start(), s.end());
-            Map<String, Object> sym = new LinkedHashMap<>();
-            sym.put("name", s.name());
-            sym.put("kind", s.kind());
-            sym.put("selectionRange", sel);
-            sym.put("range", sel);
-            symbols.add(sym);
-        }
-        respond(id, symbols);
+        respond(id, LspSymbols.documentSymbolMaps(openText.getOrDefault(uri, "")));
     }
 
     @SuppressWarnings("unchecked")
