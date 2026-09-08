@@ -50,6 +50,10 @@ final class VscodeExtensionContent {
               return vscode.workspace.getConfiguration('kof').get('executable') || '@KOF@';
             }
 
+            function kofTarget() {
+              return vscode.workspace.getConfiguration('kof').get('target') || 'jvm';
+            }
+
             function runKof(args) {
               const term = vscode.window.createTerminal({ name: 'Kof' });
               term.show();
@@ -63,9 +67,9 @@ final class VscodeExtensionContent {
 
             function activate(context) {
               const cmds = {
-                'kof.build': () => runKof(['build', '.']),
-                'kof.run': () => runKof(['run', activeFile() || '.']),
-                'kof.test': () => runKof(['test', '.']),
+                'kof.build': () => runKof(['build', '.', '--target', kofTarget()]),
+                'kof.run': () => runKof(['run', activeFile() || '.', '--target', kofTarget()]),
+                'kof.test': () => runKof(['test', '.', '--target', kofTarget()]),
                 'kof.check': () => runKof(['check', activeFile() || '.']),
                 'kof.fmt': () => runKof(['fmt', activeFile() || '.']),
                 'kof.serve': () => runKof(['serve', activeFile() || '.']),
