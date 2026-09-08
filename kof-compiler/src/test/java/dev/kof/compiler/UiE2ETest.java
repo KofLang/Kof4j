@@ -200,14 +200,16 @@ class UiE2ETest {
 
     @Test
     void ui006EventAccessorsLinkOnAllTargets(@TempDir Path tempDir) throws IOException {
-        // UI006: Event key/value/x/y — no-op JVM/Native (key=""/x=0),
-        // DOM real em KofJS (KofJsBrowserE2ETest).
+        // UI006: Event key/value/x/y + target/relatedTarget — no-op JVM/Native
+        // (key="" / target=""), DOM real em KofJS (KofJsBrowserE2ETest).
         both(tempDir, "ui006", """
             main() {
                 var campo = Input("")
                 campo.on("keydown", (e: Event) -> { println(e.key()) })
                 campo.on("input", (e: Event) -> { println(e.value()) })
                 campo.on("click", (e: Event) -> { println(e.x()) })
+                campo.on("click", (e: Event) -> { println(e.target()) })
+                campo.on("focus", (e: Event) -> { println(e.relatedTarget()) })
                 println("ok")
             }
             """, "ok");

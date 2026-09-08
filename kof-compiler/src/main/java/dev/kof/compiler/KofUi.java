@@ -421,6 +421,8 @@ public final class KofUi {
                 case "value" -> argCount == 0 ? new UiCall("kof_ui_event_value", STR, List.of()) : null;
                 case "x" -> argCount == 0 ? new UiCall("kof_ui_event_x", INT, List.of()) : null;
                 case "y" -> argCount == 0 ? new UiCall("kof_ui_event_y", INT, List.of()) : null;
+                case "target" -> argCount == 0 ? new UiCall("kof_ui_event_target", STR, List.of()) : null;
+                case "relatedTarget" -> argCount == 0 ? new UiCall("kof_ui_event_related_target", STR, List.of()) : null;
                 default -> null;
             };
         }

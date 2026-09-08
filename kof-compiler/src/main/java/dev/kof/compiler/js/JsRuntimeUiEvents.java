@@ -28,6 +28,20 @@ public final class JsRuntimeUiEvents {
                     },
                     x() { return raw && typeof raw.clientX === "number" ? raw.clientX : 0; },
                     y() { return raw && typeof raw.clientY === "number" ? raw.clientY : 0; },
+                    // UI006 residual: alvo do evento como id do nó (fallback
+                    // tagName minúscula quando sem setId; "" fora do browser).
+                    target() {
+                        const t = raw && raw.target;
+                        if (!t) return "";
+                        return t.id ? String(t.id)
+                                : (t.tagName ? t.tagName.toLowerCase() : "");
+                    },
+                    relatedTarget() {
+                        const t = raw && raw.relatedTarget;
+                        if (!t) return "";
+                        return t.id ? String(t.id)
+                                : (t.tagName ? t.tagName.toLowerCase() : "");
+                    },
                     // raw DOM event passthrough (null in the host mock)
                     raw: raw
                 };

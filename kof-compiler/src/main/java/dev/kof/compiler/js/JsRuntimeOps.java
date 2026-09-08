@@ -172,6 +172,7 @@ void handleRuntimeOp(MethodCtx ctx, List<Object> stack,
                 || name.equals("kof_ui_event_stop")
                 || name.startsWith("kof_ui_event_key") || name.startsWith("kof_ui_event_value")
                 || name.startsWith("kof_ui_event_x") || name.startsWith("kof_ui_event_y")
+                || name.startsWith("kof_ui_event_target") || name.startsWith("kof_ui_event_related_target")
                 || name.equals("kof_ui_store_new") || name.equals("kof_ui_store_get")
                 || name.equals("kof_ui_store_set") || name.equals("kof_ui_store_subscribe")
                 || name.equals("kof_ui_store_unsubscribe") || name.equals("kof_ui_stores_live")

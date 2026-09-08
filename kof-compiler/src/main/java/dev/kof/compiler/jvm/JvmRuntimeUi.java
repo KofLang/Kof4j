@@ -216,6 +216,14 @@ public final class JvmRuntimeUi {
                     return "";
                 }
 
+                public static String kof_ui_event_target(String type) {
+                    return "";
+                }
+
+                public static String kof_ui_event_related_target(String type) {
+                    return "";
+                }
+
                 public static int kof_ui_event_x(String type) {
                     return 0;
                 }

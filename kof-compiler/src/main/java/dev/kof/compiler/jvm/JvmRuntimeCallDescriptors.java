@@ -112,6 +112,7 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_ui_nodes_live", "kof_ui_hr_new" -> "()I";
             case "kof_ui_event_type" -> "(Ljava/lang/String;)Ljava/lang/String;";
             case "kof_ui_event_key", "kof_ui_event_value" -> "(Ljava/lang/String;)Ljava/lang/String;";
+            case "kof_ui_event_target", "kof_ui_event_related_target" -> "(Ljava/lang/String;)Ljava/lang/String;";
             case "kof_ui_event_x", "kof_ui_event_y" -> "(I)I";
             case "kof_ui_emit" -> "(ILjava/lang/String;)V";
             case "kof_ui_event_stop" -> "(Ljava/lang/Object;)V";

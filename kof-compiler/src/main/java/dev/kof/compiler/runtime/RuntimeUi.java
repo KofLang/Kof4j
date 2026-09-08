@@ -424,6 +424,8 @@ public final class RuntimeUi {
                 ret
             kof_ui_event_key:
             kof_ui_event_value:
+            kof_ui_event_target:
+            kof_ui_event_related_target:
                 leaq .Lui_empty(%rip), %rax
                 ret
             kof_ui_event_x:
@@ -449,6 +451,12 @@ public final class RuntimeUi {
             .globl Event_value
             Event_value:
                 jmp kof_ui_event_value
+            .globl Event_target
+            Event_target:
+                jmp kof_ui_event_target
+            .globl Event_relatedTarget
+            Event_relatedTarget:
+                jmp kof_ui_event_related_target
             .globl Event_x
             Event_x:
                 jmp kof_ui_event_x
