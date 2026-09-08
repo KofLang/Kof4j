@@ -280,7 +280,18 @@ final class BytecodeDecoder {
                 return null;
             }
         }
+        // Constante float (CP tag 4, via ldc): o parser agora guarda o valor
+        // float (ex. "3.5"), mas Kof não tem literal float inline — "3.5" é
+        // Double e drifta o tipo do método (SEM010). Recusar → stub honesto
+        // (irmão de Double/Long, que já caem em ldc2_w → default → null).
+        if (looksLikeFloatLiteral(e)) return null;
         return e;
+    }
+
+    /** Float.toString → sempre contém '.', 'e'/'E', ou NaN/Infinity. */
+    private static boolean looksLikeFloatLiteral(String s) {
+        if (s.indexOf('.') >= 0 || s.indexOf('e') >= 0 || s.indexOf('E') >= 0) return true;
+        return s.equals("NaN") || s.equals("Infinity") || s.equals("-Infinity");
     }
 
     // ── chamadas de método ───────────────────────────────────────────────

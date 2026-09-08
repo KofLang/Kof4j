@@ -210,11 +210,18 @@ public final class ClassFileParser {
                 case 8: // String
                     constPool[i] = "#" + (bb.getShort() & 0xFFFF);
                     break;
-                case 3: case 4: // Integer, Float
+                case 3: // Integer — 4 bytes
                     constPool[i] = String.valueOf(bb.getInt());
                     break;
-                case 5: case 6: // Long, Double — 8 bytes, ocupam 2 slots
+                case 4: // Float — 4 bytes, valor float (não os bits crus)
+                    constPool[i] = String.valueOf(Float.intBitsToFloat(bb.getInt()));
+                    break;
+                case 5: // Long — 8 bytes, ocupa 2 slots
                     constPool[i] = String.valueOf(bb.getLong());
+                    i++;
+                    break;
+                case 6: // Double — 8 bytes, valor double, ocupa 2 slots
+                    constPool[i] = String.valueOf(Double.longBitsToDouble(bb.getLong()));
                     i++;
                     break;
                 case 9: case 10: case 11: // Fieldref, Methodref, InterfaceMethodref

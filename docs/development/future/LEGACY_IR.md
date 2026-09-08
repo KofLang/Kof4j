@@ -145,3 +145,13 @@ Fase D  Type Recovery
 > threadado pela recursão) → recusar → stub UNKNOWN honesto. Provas:
 > `DecompileTest.diamondJoinShapesStayHonestStub` + `recoversNestedWhileLoops`
 > (aninhado legítimo continua recuperando) + `DecompileTest` 20/20.
+>
+> **Estado (08/09, este commit):** Fase B — **fix do constant pool**: os tags
+> 4 (Float) e 6 (Double) eram lidos como `getInt()`/`getLong()` crus — uma
+> constante `3.5f` virava o inteiro de bits `1079574528` no CP (perda total do
+> valor; `inspect`/`decompile` nunca recuperariam float/double). Agora
+> `Float.intBitsToFloat`/`Double.longBitsToDouble` guardam o VALOR. Para não
+> driftar tipo (Kof não tem literal float inline — "3.5" é Double → SEM010 no
+> corpo de um método `Float`), `ldc` recusa literais float → stub honesto,
+> irmão de Double/Long via `ldc2_w`. Prova: `DecompileTest.floatConstantsDegrade
+> NotDrift` (int ldc recupera, f/d degradam) + DecompileTest 21/21.

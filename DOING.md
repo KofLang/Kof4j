@@ -73,6 +73,12 @@ concreta (ordem de valor):**
    diamond com `continue` p/ incremento, `break` p/ pós-loop, `&&`/`?:` com
    braços que convergem — exige construção GSEA/semidominators (G6790) ou
    re-emissão com labels. Hoje: degradação honesta travada por teste.
+4. **✅ FEITO (este commit) — bug 62 (CP Float/Double como bits crus)**:
+   `ClassFileParser` misturava tags 3/4 (Integer/Float) e 5/6 (Long/Double) —
+   `3.5f` virava `1079574528` no CP (perda silenciosa). Fix: `intBitsToFloat`/
+   `longBitsToDouble`. `ldc` recusa literal float (Kof não tem; driftaria
+   SEM010) → stub honesto. Prova: `DecompileTest.floatConstantsDegradeNotDrift`
+   (21/21) + registro `docs/development/known-bugs.md` §62.
 3. **Sweeps R6 feitos (este commit, probes, sem código novo — tudo degrada
    honesto):** (a) control-flow joins (continue/&&/||/?:/break-mid) → stub
    ✅; (b) numérico (long/double aritmética, casts `i2d`/`d2i`/`l2i`, arrays

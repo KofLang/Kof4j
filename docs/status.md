@@ -493,7 +493,7 @@ main() { /* ignorado pelo kof test */ }
 
 ---
 
-## Testes (1222 = 1092 kof-compiler + 25 kof-script + 5 kof-c-compiler + 100 kof-cli — suíte completa verde, 64 skips condicionais de qemu/Chrome; medição 08/09)
+## Testes (1226 = 1095 kof-compiler + 25 kof-script + 5 kof-c-compiler + 101 kof-cli — suíte completa verde, 64 skips condicionais de qemu/Chrome; medição 08/09)
 
 | Suíte | Quantidade | Cobertura |
 |-------|-----------|-----------|

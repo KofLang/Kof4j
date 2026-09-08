@@ -300,6 +300,30 @@ class DecompileTest {
     }
 
     @Test
+    void floatConstantsDegradeNotDrift(@TempDir Path dir) throws Exception {
+        Path javaFile = dir.resolve("Fl.java");
+        Files.writeString(javaFile, """
+                public class Fl {
+                    public static float f() { return 3.5f; }
+                    public static double d() { return 2.25; }
+                    public static int i() { return 42; }
+                }
+                """);
+        runJavac(javaFile, dir);
+
+        String kof = Decompile.decompile(dir.resolve("Fl.class"));
+
+        // CP tag-4 (Float) agora decodifica o VALOR (3.5, não os bits crus) —
+        // mas Kof não tem literal float inline: emitir "3.5" num método Float
+        // drifta p/ Double (SEM010). ldc recusa literais float → stub honesto,
+        // igual a Double/Long (ldc2_w). Int constante segue recuperando.
+        assertTrue(kof.contains("Int i() = 42"), "int constante deve recuperar:\n" + kof);
+        assertFalse(kof.contains("= 3.5"), "float não pode virar literal Double:\n" + kof);
+        assertTrue(kof.contains("Float f()"), "assinatura Float exata:\n" + kof);
+        assertTrue(kof.contains("throw \"body not recovered\""), "f/d degradam p/ stub:\n" + kof);
+    }
+
+    @Test
     void recoversMethodCall(@TempDir Path dir) throws Exception {
         Path javaFile = dir.resolve("Call.java");
         Files.writeString(javaFile, """

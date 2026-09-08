@@ -1197,6 +1197,24 @@ EXTERNA produz lixo
 
 ## Aberto (gap Canvas — 06/09)
 
+### 62. Constant pool: Float/Double armazenados como bits crus (parser de migração) — ✅ CORRIGIDO 08/09
+
+- **Sintoma:** `kof inspect`/`kof decompile` de um `.class` com constante
+  float (`3.5f`) exibiam/emitiam `1079574528` (os bits IEEE-754 como inteiro);
+  `ldc 3.5` nunca recuperava o valor real. Sem crash — perda silenciosa de
+  informação (R6).
+- **Causa raiz:** `ClassFileParser` tratava tag 4 (Float) no mesmo ramo da
+  tag 3 (Integer) com `getInt()`, e tag 6 (Double) no ramo da tag 5 (Long)
+  com `getLong()` — sem `intBitsToFloat`/`longBitsToDouble`.
+- **Correção:** tags separados (4 → `Float.intBitsToFloat(getInt())`,
+  6 → `Double.longBitsToDouble(getLong())`). Para o recovery não driftar
+  tipo (Kof não tem literal float inline; "3.5" tipa como Double → SEM010 no
+  corpo de método Float), `BytecodeDecoder.ldc` recusa literais float → o
+  corpo degrada p/ stub UNKNOWN honesto (igual a Double/Long via ldc2_w).
+- **Prova:** `DecompileTest.floatConstantsDegradeNotDrift` (ldc int recupera
+  `Int i() = 42`; `Float f()`/`Double d()` → stub, sem "= 3.5" vazando);
+  DecompileTest 21/21; suíte 1226/0/64-skip.
+
 ### CANVAS001 — ClassFormatError com arc() (Double params) — JVM CORRIGIDO 06/09
 
 - **Sintoma (original):** `Canvas(400,300)` + `c.arc(200,150,100,0.0,3.14)` compila, mas
