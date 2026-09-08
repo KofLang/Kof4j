@@ -3,12 +3,18 @@ package dev.kof.cli;
 import dev.kof.cli.editor.DetectContext;
 import dev.kof.cli.editor.EditorInfo;
 import dev.kof.cli.editor.EditorIntegration;
+import dev.kof.cli.editor.EditorInstaller;
 import dev.kof.cli.editor.EditorRegistry;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.PrintStream;
+import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -60,7 +66,8 @@ class EditorIntegrationTest {
         assertEquals("1.102.3", info.version());
         assertEquals("/fake/bin/code", info.path());
         assertTrue(info.integrationAvailable());
-        assertTrue(info.integrationInstalled()); // ~/.vscode existe no fake
+        // integrationInstalled é por MARKER (não por config dir) — sem marker, false
+        assertFalse(info.integrationInstalled());
     }
 
     @Test
@@ -96,21 +103,22 @@ class EditorIntegrationTest {
         var ctx = fake(Set.of("code"), Map.of("code", "1.102.3"), Set.of(".vscode"));
         ByteArrayOutputStream bo = new ByteArrayOutputStream();
         PrintStream out = new PrintStream(bo, true, StandardCharsets.UTF_8);
+        BufferedReader in = new BufferedReader(new StringReader(""));
 
-        assertEquals(0, CmdEditor.run(new String[]{"editor", "list"}, ctx, out, out));
+        assertEquals(0, CmdEditor.run(new String[]{"editor", "list"}, ctx, null, in, out, out));
         String list = bo.toString(StandardCharsets.UTF_8);
         assertTrue(list.contains("Kof for VS Code"), list);
         assertTrue(list.contains("Kof mode for Emacs"), list);
 
         bo.reset();
-        assertEquals(0, CmdEditor.run(new String[]{"editor", "detect"}, ctx, out, out));
+        assertEquals(0, CmdEditor.run(new String[]{"editor", "detect"}, ctx, null, in, out, out));
         String detect = bo.toString(StandardCharsets.UTF_8);
         assertTrue(detect.contains("✓ Visual Studio Code"), detect);
         assertTrue(detect.contains("✗ Emacs"), detect);
         assertTrue(detect.contains("kof editor setup"), detect);
 
         bo.reset();
-        assertEquals(0, CmdEditor.run(new String[]{"editor", "status"}, ctx, out, out));
+        assertEquals(0, CmdEditor.run(new String[]{"editor", "status"}, ctx, null, in, out, out));
         String status = bo.toString(StandardCharsets.UTF_8);
         assertTrue(status.contains("debugger: PARTIAL"), status);
         assertTrue(status.contains("LSP: OK"), status);
@@ -118,13 +126,92 @@ class EditorIntegrationTest {
     }
 
     @Test
-    void writeCommandsAreHonestNotSilent() {
-        // R6: install/setup ainda não implementados → exit != 0 + mensagem clara
+    void unknownSubcommandFails() {
         var ctx = fake(Set.of(), Map.of(), Set.of());
         ByteArrayOutputStream bo = new ByteArrayOutputStream();
         PrintStream out = new PrintStream(bo, true, StandardCharsets.UTF_8);
-        assertEquals(2, CmdEditor.run(new String[]{"editor", "setup"}, ctx, out, out));
-        assertTrue(bo.toString(StandardCharsets.UTF_8).contains("não implementado"));
-        assertEquals(1, CmdEditor.run(new String[]{"editor", "bogus"}, ctx, out, out));
+        assertEquals(1, CmdEditor.run(new String[]{"editor", "bogus"}, ctx, null,
+                new BufferedReader(new StringReader("")), out, out));
+    }
+
+    // ---- degrau 3: install/uninstall/setup (escrevem só no tempDir, §24) --
+
+    @Test
+    void installWritesIdiomaticFiles_andIsIdempotent(@TempDir Path home) throws IOException {
+        var ctx = fake(Set.of("nvim"), Map.of("nvim", "NVIM v0.10.0"), Set.of());
+        EditorIntegration nvim = EditorRegistry.byId("neovim");
+        ByteArrayOutputStream bo = new ByteArrayOutputStream();
+        PrintStream out = new PrintStream(bo, true, StandardCharsets.UTF_8);
+
+        assertEquals(0, CmdEditor.run(new String[]{"editor", "install", "neovim"}, ctx, home,
+                new BufferedReader(new StringReader("")), out, out));
+        assertTrue(EditorInstaller.isInstalled(home, "neovim"), "marker deve existir");
+        Path ftplugin = home.resolve(".config/nvim/after/ftplugin/kof.lua");
+        assertTrue(Files.isRegularFile(ftplugin), "ftplugin kof.lua: " + bo);
+        String content = Files.readString(ftplugin);
+        assertTrue(content.contains("vim.lsp.start"), "deve delegar ao LSP: " + content);
+        assertTrue(content.contains("'lsp'"), "cmd do LSP: " + content);
+
+        // idempotência: rodar de novo não muda nada
+        bo.reset();
+        assertEquals(0, CmdEditor.run(new String[]{"editor", "install", "neovim"}, ctx, home,
+                new BufferedReader(new StringReader("")), out, out));
+        assertTrue(bo.toString(StandardCharsets.UTF_8).contains("já atualizado"), bo.toString());
+    }
+
+    @Test
+    void uninstallRemovesOnlyWhatWeWrote(@TempDir Path home) throws IOException {
+        var ctx = fake(Set.of("nvim"), Map.of("nvim", "NVIM v0.10.0"), Set.of());
+        ByteArrayOutputStream bo = new ByteArrayOutputStream();
+        PrintStream out = new PrintStream(bo, true, StandardCharsets.UTF_8);
+        CmdEditor.run(new String[]{"editor", "install", "neovim"}, ctx, home,
+                new BufferedReader(new StringReader("")), out, out);
+        Path ftplugin = home.resolve(".config/nvim/after/ftplugin/kof.lua");
+        assertTrue(Files.isRegularFile(ftplugin));
+        // um arquivo que NÃO é nosso deve sobreviver
+        Path foreign = home.resolve(".config/nvim/init.lua");
+        Files.createDirectories(foreign.getParent());
+        Files.writeString(foreign, "-- user config");
+
+        bo.reset();
+        assertEquals(0, CmdEditor.run(new String[]{"editor", "uninstall", "neovim"}, ctx, home,
+                new BufferedReader(new StringReader("")), out, out));
+        assertFalse(Files.isRegularFile(ftplugin), "nosso arquivo foi removido");
+        assertTrue(Files.isRegularFile(foreign), "arquivo do usuário NÃO pode sumir");
+        assertFalse(EditorInstaller.isInstalled(home, "neovim"));
+    }
+
+    @Test
+    void setupInstallsRecommendedOnlyWithConsent(@TempDir Path home) {
+        var ctx = fake(Set.of("code"), Map.of("code", "1.102.3"), Set.of());
+        ByteArrayOutputStream bo = new ByteArrayOutputStream();
+        PrintStream out = new PrintStream(bo, true, StandardCharsets.UTF_8);
+
+        // recusa (n) → nada instalado, mensagem de "depois"
+        assertEquals(0, CmdEditor.run(new String[]{"editor", "setup"}, ctx, home,
+                new BufferedReader(new StringReader("n\n")), out, out));
+        assertFalse(EditorInstaller.isInstalled(home, "vscode"), "recusou → não instala");
+        assertTrue(bo.toString(StandardCharsets.UTF_8).contains("kof editor setup"),
+                "deve dizer como instalar depois");
+
+        // aceita (y) → instala
+        bo.reset();
+        assertEquals(0, CmdEditor.run(new String[]{"editor", "setup"}, ctx, home,
+                new BufferedReader(new StringReader("y\n")), out, out));
+        assertTrue(EditorInstaller.isInstalled(home, "vscode"), "confirmou → instala");
+        assertTrue(Files.isRegularFile(home.resolve(".vscode/extensions/kof.kof/package.json")));
+    }
+
+    @Test
+    void vscodeGrammarTravelsFromDistribution(@TempDir Path home) throws IOException {
+        // §14: sem rede — a grammar da distribuição é copiada para a extensão
+        var ctx = fake(Set.of("code"), Map.of("code", "1.102.3"), Set.of());
+        ByteArrayOutputStream bo = new ByteArrayOutputStream();
+        PrintStream out = new PrintStream(bo, true, StandardCharsets.UTF_8);
+        assertEquals(0, CmdEditor.run(new String[]{"editor", "install", "vscode"}, ctx, home,
+                new BufferedReader(new StringReader("")), out, out));
+        String grammar = Files.readString(
+                home.resolve(".vscode/extensions/kof.kof/syntaxes/kof.tmLanguage.json"));
+        assertTrue(grammar.contains("source.kof"), "grammar válida: " + grammar.substring(0, Math.min(80, grammar.length())));
     }
 }

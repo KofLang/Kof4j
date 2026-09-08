@@ -25,4 +25,14 @@ public interface EditorIntegration {
      * Nunca inventa versão (usa {@code "unknown"} quando ilegível).
      */
     EditorInfo detect(DetectContext ctx);
+
+    /**
+     * Arquivos de integração que este provider escreve no HOME do usuário
+     * (degrau 3). Default vazio: um provider ainda sem conteúdo idiomático
+     * não instala nada (nunca sobrescreve silenciosamente). Adicionar é
+     * aditivo — quem só chama {@link #detect} não é afetado.
+     */
+    default java.util.List<EditorFile> integrationFiles(DetectContext ctx) {
+        return java.util.List.of();
+    }
 }

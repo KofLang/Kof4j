@@ -39,4 +39,13 @@ public interface DetectContext {
 
     /** S.O. atual: "linux" | "mac" | "windows" | "other". */
     String osName();
+
+    /**
+     * Executável do Kof que as integrações invocam (LSP/fmt/build). Default
+     * {@code "kof"} (assume PATH) — o launcher instalado é sempre {@code kof}.
+     */
+    default String kofExecutable() { return "kof"; }
+
+    /** Diretório de instalação da distribuição (onde {@code editor/} viaja), ou null. */
+    default Path installDir() { return null; }
 }
