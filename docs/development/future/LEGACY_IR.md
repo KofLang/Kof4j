@@ -118,3 +118,9 @@ Fase B  JVM Bytecode IR         (Class File → Bytecode IR)
 Fase C  Control Flow Recovery
 Fase D  Type Recovery
 ```
+
+> **Estado (08/09, `367d6c4`):** Fase D ✅ — `Type.fromJvmDescriptor`
+> (descriptors) **+** `Type.fromJvmSignature` (atributo `Signature`,
+> JVMS 4.7.9.1: genéricos, wildcards, type-variables, arrays) lido em
+> `ClassFileParser` nos 3 níveis. Provas: `ClassFileE2ETest.
+> genericSignatureRecovery` + `DecompileTest` 16/16.

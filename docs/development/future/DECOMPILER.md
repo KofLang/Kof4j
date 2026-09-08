@@ -94,6 +94,12 @@ Fase D  Type Recovery           (primitives, references, arrays, generics, inher
 Fase E  Kof Decompiler          (gerar Kof source)
 ```
 
+> **Estado (08/09, `367d6c4`):** Fase D com genéricos ✅ — o parser lê o
+> atributo `Signature` (JVMS 4.7.1/4.7.9.1) nos 3 níveis (classe, método,
+> campo) e `Type.fromJvmSignature` recupera `List<String>`,
+> `Map<String, Integer>`, arrays, wildcards e type-variables. Campos e
+> métodos preferem a signature (EXACT) ao descriptor apagado por erasure.
+
 ## 7. Relação com o Compilador
 
 O decompiler alimenta o pipeline existente:

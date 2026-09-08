@@ -1,10 +1,16 @@
 # Auditoria: `planning-future` × `docs/development/future` (07/09)
 
 > Pergunta: a branch terminou de implementar o que o plano documenta?
-> **Resposta: NÃO — entregou a maior parte da plataforma de migração
-> legado (Fases A/B/C-parcial/E/F/G/H, 33 testes), mas Fase D não existe,
-> FFI/Codegen foram DESCARTADOS num merge, e o HEAD da branch NÃO COMPILA
-> contra a beta atual.**
+> **Resposta (atualizada 08/09): parcialmente — Fase D (Type Recovery)
+> FEITA na beta (`367d6c4`), FFI TIER 2.1 portado (`178c71c`), R1 portado
+> (`7c7a19b`/`84c4804`). Restam R2 (kof.toml — colisão AppManifest ×
+> KofProjectConfig, decisão de design) e R5 (inspect --java +
+> switch/athrow recovery).**
+>
+> Resposta original (07/09): NÃO — entregou a maior parte da plataforma de
+> migração legado (Fases A/B/C-parcial/E/F/G/H, 33 testes), mas Fase D não
+> existia, FFI/Codegen foram DESCARTADOS num merge, e o HEAD da branch NÃO
+> COMPILAVA contra a beta atual.
 
 ## 1. O que a branch tem (125 commits únicos, 16 arquivos de código)
 
@@ -140,5 +146,11 @@ decisão documentada — não portar.
    binário de `_start` cru (glibc sem init) → FFI001 honesto no lugar de
    binário quebrado, `NativeFfiRuntime` (asm morto) removido, **bug 61**
    registrado. Prova: `FfiE2ETest` 5/5 no JDK 21 E no 25.
-4. **R4** — Fase D (Type Recovery) — o gap real do plano (Tier 4.2).
+4. **R4** — Fase D (Type Recovery) — ✅ **FEITO (08/09, `367d6c4`)**:
+   `ClassFileParser` lê atributo `Signature` nos 3 níveis +
+   `Type.fromJvmSignature` (parser recursivo JVMS 4.7.9.1: genéricos,
+   wildcards, type-variables, arrays) + fix descriptor multi-param
+   (`Type.parseJvmDescriptorAt`). Decompiler usa signature (EXACT) sobre
+   descriptor. Provas: `ClassFileE2ETest.genericSignatureRecovery` +
+   `DecompileTest` 16/16; suíte 1206/0/64-skip.
 5. **R5** — `inspect --java` + switch/athrow recovery (completar C).

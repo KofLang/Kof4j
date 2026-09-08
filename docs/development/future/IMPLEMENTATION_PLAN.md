@@ -73,6 +73,7 @@ Esta é a versão consolidada do plano de implementação para todos os document
 | Task | Source Doc | Difficulty | Dependencies | Status | Definition of Done |
 |------|-----------|------------|--------------|--------|-------------------|
 | Type-Recovery | LEGACY_IR.md | 🟡 M | Phase 2 | ✅ **COMPLETO** | `fromJvmDescriptor` + contagem instanceof/checkcast + `kof inspect` mostra tipos |
+| Type-Recovery-Gen | LEGACY_IR.md | 🟡 M | Type-Recovery | ✅ **COMPLETO (08/09, `367d6c4`)** | Atributo `Signature` (JVMS 4.7.1/4.7.9.1) lido nos 3 níveis + `Type.fromJvmSignature` (recursivo: genéricos, wildcards, type-variables, arrays) + fix do descriptor multi-param (`Type.parseJvmDescriptorAt`). Provas: `ClassFileE2ETest.genericSignatureRecovery`, `DecompileTest.decompileGenericSignaturesAreExact` (16/16); suíte 1206/0/64-skip |
 
 ---
 
