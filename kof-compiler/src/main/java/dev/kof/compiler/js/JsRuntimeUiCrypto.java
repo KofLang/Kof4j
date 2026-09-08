@@ -279,6 +279,14 @@ public final class JsRuntimeUiCrypto {
                 if (v == null || v.length === 0) return 0;
                 return /^[0-9]+$/.test(v) ? 1 : 0;
             }
+            export function kofStringsIsAlphaNumeric(v) {
+                if (v == null || v.length === 0) return 0;
+                return /^[A-Za-z0-9]+$/.test(v) ? 1 : 0;
+            }
+            export function kofStringsIsAscii(v) {
+                if (v == null || v.length === 0) return 0;
+                return /^[\\x00-\\x7F]+$/.test(v) ? 1 : 0;
+            }
 
             // ── kof.observability (G5) ──────────────────────────────
 

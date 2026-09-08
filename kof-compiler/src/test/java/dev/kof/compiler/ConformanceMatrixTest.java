@@ -208,8 +208,12 @@ class ConformanceMatrixTest {
                     println(strings.isNumeric("12345"))
                     println(strings.isNumeric("12.34"))
                     println(strings.isNumeric(""))
+                    println(strings.isAlphaNumeric("abc123"))
+                    println(strings.isAlphaNumeric("abc-123"))
+                    println(strings.isAscii("ola"))
+                    println(strings.isAscii("ola !123"))
                 }
-                """, "true\nfalse\nfalse\ntrue\nfalse\nfalse", Set.of(), tempDir);
+                """, "true\nfalse\nfalse\ntrue\nfalse\nfalse\ntrue\nfalse\ntrue\ntrue", Set.of(), tempDir);
     }
 
     @Test

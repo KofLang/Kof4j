@@ -48,7 +48,7 @@
 | lógica booleana + comparação | `false` / `true` / `false` / `true` | DONE | DONE | DONE | DONE | `boollogic` |
 | bitwise & \|\| ^ << >> | `2` / `7` / `5` / `16` / `64` | DONE | DONE | DONE | DONE | `bitwise` |
 | stdlib kof.math (S1: clamp/abs/sign/min/max/isEven/isOdd/isZero) | `10` / `0` / `7` / `-1` / `3` / `8` / `true` / `false` / `true` | DONE | DONE | DONE | DONE | `stdmath` |
-| stdlib kof.strings (S2a: isAlpha/isNumeric) | `true` / `false` / `false` / `true` / `false` / `false` | DONE | DONE | DONE | DONE | `stdstrings` |
+| stdlib kof.strings (S2a: isAlpha/isNumeric/isAlphaNumeric/isAscii) | `true` / `false` / `false` / `true` / `false` / `false` / `true` / `false` / `true` / `true` | DONE | DONE | DONE | DONE | `stdstrings` |
 | recursão profunda (fact 10) | `3628800` | DONE | DONE | DONE | DONE | `recursion` |
 | list add/set/remove | `99` / `4` / `2` / `3` | DONE | DONE | DONE | DONE | `listops` |
 | map keys() + iteração | `6` | DONE | DONE | DONE | DONE | `mapiter` |

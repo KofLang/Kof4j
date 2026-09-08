@@ -26,8 +26,14 @@ class KofStringsTest {
                 println(strings.isNumeric("12.34"))
                 println(strings.isNumeric("abc"))
                 println(strings.isNumeric(""))
+                println(strings.isAlphaNumeric("abc123"))
+                println(strings.isAlphaNumeric("abc-123"))
+                println(strings.isAlphaNumeric(""))
+                println(strings.isAscii("ola"))
+                println(strings.isAscii("olá"))
+                println(strings.isAscii(""))
             }
-            """, "true\nfalse\nfalse\nfalse\ntrue\nfalse\nfalse\nfalse");
+            """, "true\nfalse\nfalse\nfalse\ntrue\nfalse\nfalse\nfalse\ntrue\nfalse\nfalse\ntrue\nfalse\nfalse");
     }
 
     @Test
@@ -42,6 +48,12 @@ class KofStringsTest {
                 assert(!strings.isNumeric("12.34"))
                 assert(!strings.isNumeric("abc"))
                 assert(!strings.isNumeric(""))
+                assert(strings.isAlphaNumeric("abc123"))
+                assert(!strings.isAlphaNumeric("abc-123"))
+                assert(!strings.isAlphaNumeric(""))
+                assert(strings.isAscii("ola"))
+                assert(!strings.isAscii("olá"))
+                assert(!strings.isAscii(""))
                 println("ok")
             }
             """, "ok");
@@ -59,8 +71,14 @@ class KofStringsTest {
                 println(strings.isNumeric("12.34"))
                 println(strings.isNumeric("abc"))
                 println(strings.isNumeric(""))
+                println(strings.isAlphaNumeric("abc123"))
+                println(strings.isAlphaNumeric("abc-123"))
+                println(strings.isAlphaNumeric(""))
+                println(strings.isAscii("ola"))
+                println(strings.isAscii("olá"))
+                println(strings.isAscii(""))
             }
-            """, "true\nfalse\nfalse\nfalse\ntrue\nfalse\nfalse\nfalse");
+            """, "true\nfalse\nfalse\nfalse\ntrue\nfalse\nfalse\nfalse\ntrue\nfalse\nfalse\ntrue\nfalse\nfalse");
     }
 
     private String runJvm(Path tempDir, String source, String expected) throws Exception {

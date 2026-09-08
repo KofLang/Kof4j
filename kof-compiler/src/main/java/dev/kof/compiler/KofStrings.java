@@ -31,11 +31,12 @@ public final class KofStrings {
     static StringsCall staticMethod(String namespace, String name, List<Type> argTypes) {
         if (!"strings".equals(namespace)) return null;
         int argc = argTypes.size();
-        // S2a wedge: predicados de char plano (isAlpha/isNumeric). Expandir
-        // (isAlphaNumeric/isAscii/isUpper/isLower/isDecimal + count) em S2a.2
-        // depois que o padrão de scan-ASM (String→Bool) prova paridade 4-target.
+        // S2a: predicados de classe pura de char (String→Bool), todos no padrão
+        // "não-vazio && todo byte na classe". Semântica ASCII fixada na matriz
+        // stdstrings. (isUpperCase/isLowerCase precisam de acumulador hasLetter
+        // e ficam para S2a.3; count(s,sub) para S2a.4.)
         return switch (name) {
-            case "isAlpha", "isNumeric" -> argc == 1
+            case "isAlpha", "isNumeric", "isAlphaNumeric", "isAscii" -> argc == 1
                     ? new StringsCall("kof_strings_" + name, BOOL, List.of(STR)) : null;
             default -> null;
         };
