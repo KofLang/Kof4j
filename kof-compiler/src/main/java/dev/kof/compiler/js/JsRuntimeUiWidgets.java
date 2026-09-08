@@ -412,6 +412,14 @@ public final class JsRuntimeUiWidgets {
                 const ctx = window.__kofCanvasCtx && window.__kofCanvasCtx[id];
                 if (ctx) ctx.transform(a, b, c, d, e, f);
             }
+            export function kofUiCanvasDrawImage(id, imageId, x, y) {
+                const ctx = window.__kofCanvasCtx && window.__kofCanvasCtx[id];
+                const img = window.__kofNodes && window.__kofNodes[imageId];
+                if (ctx && img) {
+                    ctx.drawImage(img, x, y);
+                    kofUiSerializeHtml();
+                }
+            }
             export function kofUiCanvasRemove(id) {
                 if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[id]) {
                     const node = window.__kofNodes[id];

@@ -398,6 +398,7 @@ public final class KofUi {
                 case "fillText" -> argCount == 3 ? new UiCall("kof_ui_canvas_fill_text", Type.PrimitiveType.VOID, List.of(STR, INT, INT)) : null;
                 case "measureText" -> argCount == 1 ? new UiCall("kof_ui_canvas_measure_text", Type.PrimitiveType.DOUBLE, List.of(STR)) : null;
                 case "transform" -> argCount == 6 ? new UiCall("kof_ui_canvas_transform", Type.PrimitiveType.VOID, List.of(Type.PrimitiveType.DOUBLE, Type.PrimitiveType.DOUBLE, Type.PrimitiveType.DOUBLE, Type.PrimitiveType.DOUBLE, Type.PrimitiveType.DOUBLE, Type.PrimitiveType.DOUBLE)) : null;
+                case "drawImage" -> argCount == 3 ? new UiCall("kof_ui_canvas_draw_image", Type.PrimitiveType.VOID, List.of(INT, INT, INT)) : null;
                 case "remove" -> argCount == 0 ? new UiCall("kof_ui_canvas_remove", Type.PrimitiveType.VOID, List.of()) : null;
                 default -> null;
             };

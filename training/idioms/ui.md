@@ -275,3 +275,16 @@ var w = c.measureText("rótulo")   // Double — largura real do texto
 **Por quê:** `save`/`restore` empilham o estado do contexto (alpha, transform,
 cores) — sem eles, um ajuste vaza para todo o desenho seguinte.
 `measureText` devolve `Double` (largura em px) para layout de texto.
+
+## Canvas: compor imagens (drawImage)
+
+**GOOD — `drawImage(img, x, y)`:**
+```kof
+// ✅ IDIOMÁTICO — o Image é o próprio elemento <img> do DOM
+var logo = Image("data:image/svg+xml,...")
+c.drawImage(logo, 5, 5)
+```
+
+**Por quê:** `Image` já materializa um `<img>` no runtime; `drawImage` o
+compõe no bitmap do canvas sem round-trip por URL — a plataforma cuida do
+carregamento (R2).

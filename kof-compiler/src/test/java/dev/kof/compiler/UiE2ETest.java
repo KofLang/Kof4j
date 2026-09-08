@@ -548,6 +548,8 @@ class UiE2ETest {
                 c.transform(1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
                 c.fillText("oi", 10, 20)
                 println("w=" + (c.measureText("oi") >= 0.0))
+                var img = Image("x.png")
+                c.drawImage(img, 5, 5)
                 c.restore()
                 println("ok")
             }

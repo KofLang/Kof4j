@@ -68,7 +68,7 @@ Grid, Center, Align, Store, Canvas + namespace `Router`.
 | **UI006** | Eventos: `Event` expõe só type/stopPropagation (sem target, x/y, key, value, relatedTarget) | KofJS | P2 |
 | **UI007** | `style` declarativo (CSS idiomático) — novo, com parse próprio (item do plano Fase 4) | KofJS | P1 |
 | **UI008** | Window: size/position só no-op JVM; KofJS só title (browser não controla window — ok por plataforma) | JVM/KofJS | P3 |
-| **UI009** | Canvas: fillText ✅ measureText ✅ save ✅ restore ✅ transform ✅ setGlobalAlpha ✅ (FEITO 07/09 — `UiE2ETest.canvasUi009LinksOnAllTargets` + `KofJsBrowserE2ETest.canvasUi009RunsInRealBrowser`); drawImage pendente (integração c/ Image) | KofJS | P2 |
+| **UI009** | Canvas: fillText ✅ measureText ✅ save ✅ restore ✅ transform ✅ setGlobalAlpha ✅ (FEITO 07/09 — `UiE2ETest.canvasUi009LinksOnAllTargets` + `KofJsBrowserE2ETest.canvasUi009RunsInRealBrowser`); drawImage ✅ (07/09 — Image→canvas via elemento DOM) | KofJS | P2 **FEITO** |
 
 **Fronteira Fase 5 (KofJS Web APIs — não é kof.ui):** fetch/`WebSocket`/
 `EventSource`(SSE)/`localStorage`/`sessionStorage`/`navigator`/`location`/

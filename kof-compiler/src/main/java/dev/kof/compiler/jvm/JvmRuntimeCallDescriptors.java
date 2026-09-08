@@ -160,6 +160,7 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_ui_canvas_fill_text" -> "(ILjava/lang/String;II)V";
             case "kof_ui_canvas_measure_text" -> "(ILjava/lang/String;)D";
             case "kof_ui_canvas_transform" -> "(IDDDDDD)V";
+            case "kof_ui_canvas_draw_image" -> "(IIII)V";
             case "kof_io_dir_list" -> "(Ljava/lang/String;)Ljava/util/ArrayList;";
             case "kof_web_app_new" -> "()Ljava/lang/String;";
             case "kof_web_route" -> "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Object;)V";

@@ -464,6 +464,9 @@ public final class JvmRuntimeUi {
                         double c, double d, double e, double f) {
                 }
 
+                public static void kof_ui_canvas_draw_image(int canvas, int image, int x, int y) {
+                }
+
                 public static void kof_ui_canvas_remove(int canvas) {
                 }
 

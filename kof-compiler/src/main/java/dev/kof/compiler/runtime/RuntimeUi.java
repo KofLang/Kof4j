@@ -462,6 +462,8 @@ public final class RuntimeUi {
             kof_ui_canvas_measure_text:
                 xorpd %xmm0, %xmm0
                 ret
+            kof_ui_canvas_draw_image:
+                ret
             kof_ui_canvas_clear_rect:
                 ret
             """);
