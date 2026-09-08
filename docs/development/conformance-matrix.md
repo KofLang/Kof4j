@@ -100,6 +100,33 @@
 > Native quebrado) descoberto durante o lote 3: o teste usa driver fresco por
 > caso (como o CLI — 1 processo/compilação).
 
+## Alvos fora da matriz (Android / WebAssembly)
+
+A matriz cobre os 4 alvos de execução de programa (JVM/Native/Script/KofJS).
+Dois alvos nomeados na plataforma **não** entram nas células — cada um por um
+motivo diferente, ambos honestos (R6):
+
+- **`android`** — não é um backend de execução: é **empacotamento do app
+  inteiro**. Compila no pipeline JVM e produz APK via SDK oficial (d8 → aapt2
+  → zip → zipalign → apksigner; ver `CmdBuild.runApkPipeline`). A matriz de
+  conformidade **linguagem×target** já vale para o bytecode JVM que o APK
+  empacota; o que Android acrescenta é toolchain de empacotamento, não
+  semântica. Requisito de ambiente: `ANDROID_HOME` + build-tools 34 — sem
+  SDK a CLI reporta o erro (nunca simula o APK). A compilação no target é
+  coberta por `AndroidInteropE2ETest` (semântica JVM em `Target.ANDROID`);
+  o pipeline de APK em si exige SDK e não tem E2E na suíte.
+
+- **`wasm` / `kofwebassembly`** — **WASM001: ainda não existe**. Não há
+  `Target.WASM`; `TargetMatrix.frontendGapFor` mapeia os nomes pedidos
+  (`wasm`, `kofwasm`, `kofwebasm`, `kofwebassembly`, `webassembly`) ao gap
+  **WASM001**, planejado na Fase 6 do plano de plataforma
+  (`docs/development/future/PLATFORM-PLAN.md`). Os dois caminhos da CLI
+  diagnosticam igual: `--frontend=wasm`/`kof.toml` →
+  `TargetMatrix.parse` com o gap; `--target=wasm` (flag legado) → a mesma
+  mensagem via `KofCliSupport.parseTarget`. Nunca compila como JVM por
+  engano. Prova: `TargetMatrixTest.wasmGapMessagePointsToRealPlanPath` +
+  `SelectTargetsTest.wasmFrontendIsHonestGap`.
+
 ## Notas de método
 
 - **Oráculo:** a saída esperada é a do **comportamento documentado**
