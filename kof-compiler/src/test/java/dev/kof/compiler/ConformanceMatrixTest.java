@@ -231,9 +231,12 @@ class ConformanceMatrixTest {
                     var b = strings.capitalize("1abc")
                     var c = strings.reverse("abc123")
                     var d = strings.reverse("kayak")
-                    println(a + "|" + b + "|" + c + "|" + d)
+                    var e = strings.repeat("ab", 3)
+                    var f = strings.truncate("hello world", 5)
+                    var g = strings.truncate("abc", 10)
+                    println(a + "|" + b + "|" + c + "|" + d + "|" + e + "|" + f + "|" + g)
                 }
-                """, "Hello world|1abc|321cba|kayak", Set.of(), tempDir);
+                """, "Hello world|1abc|321cba|kayak|ababab|hello|abc", Set.of(), tempDir);
     }
 
     @Test

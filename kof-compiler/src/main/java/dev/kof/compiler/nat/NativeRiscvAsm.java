@@ -13,6 +13,6 @@ public final class NativeRiscvAsm {
 
     static final String RISCV_RUNTIME_ASM = NativeRiscvAsmRt0.RISCV_RUNTIME_ASM_0 + NativeRiscvAsmRt1.RISCV_RUNTIME_ASM_1;
     static final String RISCV_STRN002_ASM = NativeRiscvAsmStrn0.RISCV_STRN002_ASM_0 + NativeRiscvAsmStrn1.RISCV_STRN002_ASM_1;
-    static final String RISCV_RUNTIME_ASM_B = NativeRiscvAsmRtB0.RISCV_RUNTIME_ASM_B_0 + NativeRiscvAsmRtB1.RISCV_RUNTIME_ASM_B_1 + NativeRiscvAsmRtB2.RISCV_RUNTIME_ASM_B_2 + NativeRiscvAsmRtB3.RISCV_RUNTIME_ASM_B_3 + NativeRiscvAsmRtB4.RISCV_RUNTIME_ASM_B_4 + NativeRiscvAsmRtB5.RISCV_RUNTIME_ASM_B_5 + NativeRiscvAsmRtB6.RISCV_RUNTIME_ASM_B_6 + NativeRiscvAsmRtB7.RISCV_RUNTIME_ASM_B_7;
+    static final String RISCV_RUNTIME_ASM_B = NativeRiscvAsmRtB0.RISCV_RUNTIME_ASM_B_0 + NativeRiscvAsmRtB1.RISCV_RUNTIME_ASM_B_1 + NativeRiscvAsmRtB2.RISCV_RUNTIME_ASM_B_2 + NativeRiscvAsmRtB3.RISCV_RUNTIME_ASM_B_3 + NativeRiscvAsmRtB4.RISCV_RUNTIME_ASM_B_4 + NativeRiscvAsmRtB5.RISCV_RUNTIME_ASM_B_5 + NativeRiscvAsmRtB6.RISCV_RUNTIME_ASM_B_6 + NativeRiscvAsmRtB7.RISCV_RUNTIME_ASM_B_7 + NativeRiscvAsmRtB8.RISCV_RUNTIME_ASM_B_8;
     static final String RISCV_MAPSET_ASM = NativeRiscvAsmMapset0.RISCV_MAPSET_ASM_0 + NativeRiscvAsmMapset1.RISCV_MAPSET_ASM_1 + NativeRiscvAsmMapset2.RISCV_MAPSET_ASM_2;
 }

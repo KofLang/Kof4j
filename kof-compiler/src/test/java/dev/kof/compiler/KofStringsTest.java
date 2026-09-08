@@ -51,8 +51,14 @@ class KofStringsTest {
                 println(strings.reverse("abc"))
                 println(strings.reverse("racecar"))
                 println(strings.reverse("") + "|")
+                println(strings.repeat("ab", 3))
+                println(strings.repeat("x", 0) + "|")
+                println(strings.repeat("", 5) + "|")
+                println(strings.truncate("hello world", 5))
+                println(strings.truncate("abc", 10))
+                println(strings.truncate("abc", 0) + "|")
             }
-            """, "true\nfalse\nfalse\nfalse|\ntrue\nfalse\nfalse\nfalse|\ntrue\nfalse\nfalse|\ntrue\nfalse\nfalse|\ntrue\nfalse\nfalse\nfalse|\ntrue\ntrue\nfalse\nfalse|\n2\n1\n0\n0\nHello\nHello\n1abc\n|\ncba\nracecar\n|");
+            """, "true\nfalse\nfalse\nfalse|\ntrue\nfalse\nfalse\nfalse|\ntrue\nfalse\nfalse|\ntrue\nfalse\nfalse|\ntrue\nfalse\nfalse\nfalse|\ntrue\ntrue\nfalse\nfalse|\n2\n1\n0\n0\nHello\nHello\n1abc\n|\ncba\nracecar\n|\nababab\n|\n|\nhello\nabc\n|");
     }
 
     @Test
@@ -92,6 +98,12 @@ class KofStringsTest {
                 assert(strings.reverse("abc") == "cba")
                 assert(strings.reverse("racecar") == "racecar")
                 assert(strings.reverse("") == "")
+                assert(strings.repeat("ab", 3) == "ababab")
+                assert(strings.repeat("x", 0) == "")
+                assert(strings.repeat("", 5) == "")
+                assert(strings.truncate("hello world", 5) == "hello")
+                assert(strings.truncate("abc", 10) == "abc")
+                assert(strings.truncate("abc", 0) == "")
                 println("ok")
             }
             """, "ok");
@@ -128,8 +140,14 @@ class KofStringsTest {
                 println(strings.reverse("abc"))
                 println(strings.reverse("racecar"))
                 println(strings.reverse("") + "|")
+                println(strings.repeat("ab", 3))
+                println(strings.repeat("x", 0) + "|")
+                println(strings.repeat("", 5) + "|")
+                println(strings.truncate("hello world", 5))
+                println(strings.truncate("abc", 10))
+                println(strings.truncate("abc", 0) + "|")
             }
-            """, "true\nfalse\nfalse\nfalse|\ntrue\nfalse\nfalse\ntrue\nfalse\ntrue\nfalse\ntrue\nfalse\nfalse\ntrue\ntrue\nfalse\n2\n1\n0\nHello\nHello\n1abc\n|\ncba\nracecar\n|");
+            """, "true\nfalse\nfalse\nfalse|\ntrue\nfalse\nfalse\ntrue\nfalse\ntrue\nfalse\ntrue\nfalse\nfalse\ntrue\ntrue\nfalse\n2\n1\n0\nHello\nHello\n1abc\n|\ncba\nracecar\n|\nababab\n|\n|\nhello\nabc\n|");
     }
 
     private String runJvm(Path tempDir, String source, String expected) throws Exception {

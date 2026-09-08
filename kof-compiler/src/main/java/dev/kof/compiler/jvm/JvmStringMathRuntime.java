@@ -138,6 +138,19 @@ public final class JvmStringMathRuntime {
                     if (v == null) return null;
                     return new StringBuilder(v).reverse().toString();
                 }
+
+                public static String kof_strings_repeat(String v, int n) {
+                    if (v == null || v.isEmpty() || n <= 0) return "";
+                    StringBuilder sb = new StringBuilder(v.length() * n);
+                    for (int i = 0; i < n; i++) sb.append(v);
+                    return sb.toString();
+                }
+
+                public static String kof_strings_truncate(String v, int n) {
+                    if (v == null) return null;
+                    if (n <= 0) return "";
+                    return v.length() <= n ? v : v.substring(0, n);
+                }
         """;
     }
 }

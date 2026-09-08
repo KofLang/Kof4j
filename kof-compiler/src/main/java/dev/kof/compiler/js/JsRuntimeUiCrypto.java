@@ -314,6 +314,15 @@ public final class JsRuntimeUiCrypto {
                 if (v == null || v.length === 0) return v;
                 return [...v].reverse().join('');
             }
+            export function kofStringsRepeat(v, n) {
+                if (v == null || v.length === 0 || n <= 0) return "";
+                return v.repeat(n);
+            }
+            export function kofStringsTruncate(v, n) {
+                if (v == null) return v;
+                if (n <= 0) return "";
+                return v.length <= n ? v : v.slice(0, n);
+            }
 
             // ── kof.observability (G5) ──────────────────────────────
 

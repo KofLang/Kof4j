@@ -375,6 +375,136 @@ public final class RuntimeStrings {
                 popq %r12
                 popq %rbx
                 ret
+
+            # kof_strings_repeat(rdi=str, rsi=n) -> String
+            # null/""/n<=0 => "". total = len*n. kof_memcpy(rdi,rsi,rdx) e
+            # kof_alloc destroem r10/r11/rcx — manter estado só em callee-saved
+            # (rbx,r12-r15) + cursor i num stack slot (manter rsp 16-alinhado).
+            .globl kof_strings_repeat
+            .type kof_strings_repeat, @function
+            kof_strings_repeat:
+                pushq %rbx
+                pushq %r12
+                pushq %r13
+                pushq %r14
+                pushq %r15
+                subq $16, %rsp           # [rsp] = cursor i
+                movq %rdi, %rbx          # str
+                movl %esi, %r12d         # n
+                testq %rbx, %rbx
+                jz .Lv_str_rep_emp
+                testl %r12d, %r12d
+                jle .Lv_str_rep_emp
+                movl 16(%rbx), %r13d     # len (orig)
+                testl %r13d, %r13d
+                jle .Lv_str_rep_emp
+                movl %r13d, %r14d
+                imull %r12d, %r14d       # total = len * n
+                leal 25(%r14), %edi
+                call kof_alloc
+                movq %rax, %r15          # novo
+                movl $1, (%r15)
+                movl $0, 4(%r15)
+                movq $0, 8(%r15)
+                movl %r14d, 16(%r15)
+                movl $0, 20(%r15)
+                movq $0, (%rsp)          # i = 0
+            .Lv_str_rep_outer:
+                cmpq %r12, (%rsp)
+                jge .Lv_str_rep_term
+                movq (%rsp), %rax
+                imulq %r13, %rax         # off = i * len
+                leaq 24(%r15), %rdi
+                addq %rax, %rdi          # dst = novo.bytes + off
+                leaq 24(%rbx), %rsi      # src = str.bytes
+                movl %r13d, %edx         # n = len (orig intacto)
+                call kof_memcpy
+                incq (%rsp)
+                jmp .Lv_str_rep_outer
+            .Lv_str_rep_term:
+                movl %r14d, %eax
+                movb $0, 24(%r15,%rax)   # NUL no fim (total)
+                movq %r15, %rax
+                jmp .Lv_str_rep_done
+            .Lv_str_rep_emp:
+                movl $40, %edi
+                call kof_alloc
+                movq %rax, %r15
+                movl $1, (%r15)
+                movl $0, 4(%r15)
+                movq $0, 8(%r15)
+                movl $0, 16(%r15)
+                movl $0, 20(%r15)
+                movb $0, 24(%r15)
+                movq %r15, %rax
+            .Lv_str_rep_done:
+                addq $16, %rsp
+                popq %r15
+                popq %r14
+                popq %r13
+                popq %r12
+                popq %rbx
+                ret
+
+            # kof_strings_truncate(rdi=str, rsi=n) -> String
+            # null=>null; n<=0=>""; len<=n=>original; senao substring(0,n).
+            .globl kof_strings_truncate
+            .type kof_strings_truncate, @function
+            kof_strings_truncate:
+                pushq %rbx
+                pushq %r12
+                pushq %r13
+                pushq %r14
+                pushq %r15
+                movq %rdi, %rbx          # str
+                movl %esi, %r12d         # n
+                testq %rbx, %rbx
+                jz .Lv_str_tru_null
+                movl 16(%rbx), %r13d     # len
+                testl %r12d, %r12d
+                jle .Lv_str_tru_empty
+                cmpl %r13d, %r12d
+                jge .Lv_str_tru_orig
+                # alocar n + 25 (n < len)
+                leal 25(%r12), %edi
+                call kof_alloc
+                movq %rax, %r15
+                movl $1, (%r15)
+                movl $0, 4(%r15)
+                movq $0, 8(%r15)
+                movl %r12d, 16(%r15)
+                movl $0, 20(%r15)
+                leaq 24(%r15), %rdi
+                leaq 24(%rbx), %rsi
+                movl %r12d, %edx
+                call kof_memcpy
+                movb $0, 24(%r15,%r12)
+                movq %r15, %rax
+                jmp .Lv_str_tru_done
+            .Lv_str_tru_orig:
+                movq %rbx, %rax
+                jmp .Lv_str_tru_done
+            .Lv_str_tru_empty:
+                leal 25, %edi
+                call kof_alloc
+                movq %rax, %r15
+                movl $1, (%r15)
+                movl $0, 4(%r15)
+                movq $0, 8(%r15)
+                movl $0, 16(%r15)
+                movl $0, 20(%r15)
+                movb $0, 24(%r15)
+                movq %r15, %rax
+                jmp .Lv_str_tru_done
+            .Lv_str_tru_null:
+                xorl %eax, %eax
+            .Lv_str_tru_done:
+                popq %r15
+                popq %r14
+                popq %r13
+                popq %r12
+                popq %rbx
+                ret
         """);
     }
 }
