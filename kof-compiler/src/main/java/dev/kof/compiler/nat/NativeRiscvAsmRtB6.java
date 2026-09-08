@@ -64,5 +64,63 @@ public final class NativeRiscvAsmRtB6 {
                 li   a0, 0
                 ret
 
+            # kof_strings_isAlphaNumeric(a0=str) -> 1/0 (só [A-Za-z0-9], não-vazio)
+            .globl kof_strings_isAlphaNumeric
+            kof_strings_isAlphaNumeric:
+                beqz a0, .Lv_str_an_f
+                lw   t0, 16(a0)
+                blez t0, .Lv_str_an_f
+                addi t1, a0, 24
+                li   t3, 0
+            .Lv_str_an_loop:
+                bge  t3, t0, .Lv_str_an_t
+                add  t2, t1, t3
+                lbu  t2, 0(t2)
+                li   t4, 48
+                blt  t2, t4, .Lv_str_an_alpha
+                li   t4, 57
+                ble  t2, t4, .Lv_str_an_next
+            .Lv_str_an_alpha:
+                li   t4, 65
+                blt  t2, t4, .Lv_str_an_f
+                li   t4, 90
+                ble  t2, t4, .Lv_str_an_next
+                li   t4, 97
+                blt  t2, t4, .Lv_str_an_f
+                li   t4, 122
+                bgt  t2, t4, .Lv_str_an_f
+            .Lv_str_an_next:
+                addi t3, t3, 1
+                j    .Lv_str_an_loop
+            .Lv_str_an_t:
+                li   a0, 1
+                ret
+            .Lv_str_an_f:
+                li   a0, 0
+                ret
+
+            # kof_strings_isAscii(a0=str) -> 1/0 (não-vazio, todos os bytes < 128)
+            .globl kof_strings_isAscii
+            kof_strings_isAscii:
+                beqz a0, .Lv_str_asc_f
+                lw   t0, 16(a0)
+                blez t0, .Lv_str_asc_f
+                addi t1, a0, 24
+                li   t3, 0
+            .Lv_str_asc_loop:
+                bge  t3, t0, .Lv_str_asc_t
+                add  t2, t1, t3
+                lbu  t2, 0(t2)
+                li   t4, 128
+                bge  t2, t4, .Lv_str_asc_f
+                addi t3, t3, 1
+                j    .Lv_str_asc_loop
+            .Lv_str_asc_t:
+                li   a0, 1
+                ret
+            .Lv_str_asc_f:
+                li   a0, 0
+                ret
+
             """;
 }

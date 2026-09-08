@@ -76,6 +76,25 @@ public final class JvmStringMathRuntime {
                     }
                     return true;
                 }
+
+                public static boolean kof_strings_isAlphaNumeric(String v) {
+                    if (v == null || v.isEmpty()) return false;
+                    for (int i = 0; i < v.length(); i++) {
+                        char c = v.charAt(i);
+                        boolean ok = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
+                                  || (c >= '0' && c <= '9');
+                        if (!ok) return false;
+                    }
+                    return true;
+                }
+
+                public static boolean kof_strings_isAscii(String v) {
+                    if (v == null || v.isEmpty()) return false;
+                    for (int i = 0; i < v.length(); i++) {
+                        if (v.charAt(i) >= 128) return false;
+                    }
+                    return true;
+                }
         """;
     }
 }
