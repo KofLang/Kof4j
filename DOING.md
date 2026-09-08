@@ -65,10 +65,14 @@ concreta (ordem de valor):**
    — `back != b.start` hoje → stub). Arquivos: `BytecodeStatements.struct` +
    `BytecodeReader.cfg` (detectar header de 2 blocos). Prova: `DecompileTest`
    com javac `-O` (opt passa a fundir; sem opt o corpo pode ser separado).
-2. **Fase C: laços aninhados** (while dentro de while) — verificar se `struct`
-   já recusa honestamente (back-edge externo) vs emite errado; se errado,
-   mesmo tratamento de guard. Prova: probe `Probe2.java`.
-3. **`docs/status.md` DecompileTest 16→17** + linha Fase C do `DECOMPILER.md`.
+2. **Fase C: laços aninhados** (while dentro de while) — ✅ VERIFICADO (este
+   commit): `struct` já trata via recursão (header interno emitido dentro do
+   corpo externo) — `grid` decompile→compila no JVM. Regression travado:
+   `DecompileTest.recoversNestedWhileLoops`.
+3. **Fase C: do-while com corpo não-linear (if/break dentro)** — ✅ VERIFICADO
+   (este commit): `emitLinear` retorna null → corpo não recuperado → `struct`
+   retorna false → stub UNKNOWN honesto (R6: nunca `while` vazio inventado).
+   Probes `sep`/`brk` degradam certo; `call`/straight-line recuperam.
 Receita de recuperação de bytecode = editar `struct`/`emitLinear` (kof-cli) +
 `DecompileTest` (javac real + recompila Kof → JVM). Gate ≤500: BytecodeStatements
 390→~425 (ok).

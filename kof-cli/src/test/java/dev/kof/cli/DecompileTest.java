@@ -213,6 +213,36 @@ class DecompileTest {
     }
 
     @Test
+    void recoversNestedWhileLoops(@TempDir Path dir) throws Exception {
+        Path javaFile = dir.resolve("Nest.java");
+        Files.writeString(javaFile, """
+                public class Nest {
+                    public static int grid(int n) {
+                        int s = 0; int i = 0;
+                        while (i < n) { int j = 0; while (j < n) { s = s + i * j; j = j + 1; } i = i + 1; }
+                        return s;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+
+        String kof = Decompile.decompile(dir.resolve("Nest.class"));
+
+        // while dentro de while (top-tested, back-edge de bloco posterior p/
+        // o header externo): o struct() recursa pelo corpo do loop externo
+        // incluindo o header interno — recovery já lida, sem código errado.
+        assertTrue(kof.contains("while (v2 < arg0)"), "loop externo:\n" + kof);
+        assertTrue(kof.contains("while (v3 < arg0)"), "loop interno:\n" + kof);
+        assertFalse(kof.contains("throw \"body not recovered\""), "não deve ter stub:\n" + kof);
+
+        Path out = dir.resolve("Nest.kf");
+        Files.writeString(out, kof);
+        CompilerDriver driver = new CompilerDriver();
+        CompilationResult result = driver.compile(out, dir.resolve("out"), Target.JVM);
+        assertTrue(result.success(), "decompiled deve compilar:\n" + kof + "\n" + result.diagnostics().getDiagnostics());
+    }
+
+    @Test
     void recoversMethodCall(@TempDir Path dir) throws Exception {
         Path javaFile = dir.resolve("Call.java");
         Files.writeString(javaFile, """
