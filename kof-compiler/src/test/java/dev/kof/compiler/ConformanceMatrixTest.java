@@ -400,7 +400,7 @@ class ConformanceMatrixTest {
                     println(Counter.bump())
                     println(Counter.count)
                 }
-                """, "1\n2\n2", Set.of("native"), tempDir);
+                """, "1\n2\n2", Set.of(), tempDir);
         matrix("staticpluseq", """
                 class Counter2 {
                     static Int count = 0
@@ -414,7 +414,7 @@ class ConformanceMatrixTest {
                     println(Counter2.bump())
                     println(Counter2.count)
                 }
-                """, "2\n4\n4", Set.of("native"), tempDir);
+                """, "2\n4\n4", Set.of(), tempDir);
     }
 
     // ===== Lote 2 — erros/null/JSON =====

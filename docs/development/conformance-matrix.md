@@ -42,8 +42,8 @@
 | lambda filter/map/reduce | `90` | DONE | DONE | DONE | DONE | `lambdachain` |
 | lambda captura mutável | `3` | DONE | DONE | DONE | DONE | `lambdacapture` |
 | array 2D/length | `60` / `3` | DONE | DONE | DONE | DONE | `array2d` |
-| campo estático + bump | `1` / `2` / `2` | DONE | PARTIAL (bug 41: stub vazio, lixo) | DONE | DONE | `staticfield` |
-| campo estático `+=` | `2` / `4` / `4` | DONE | PARTIAL (bug 41) | DONE | DONE | `staticpluseq` |
+| campo estático + bump | `1` / `2` / `2` | DONE | DONE (bug 41 corrigido 07/09) | DONE | DONE | `staticfield` |
+| campo estático `+=` | `2` / `4` / `4` | DONE | DONE (bug 41) | DONE | DONE | `staticpluseq` |
 | concat string+num (ordem) | `n=42` / `3x` / `x12` | DONE | DONE | DONE | DONE | `concat` |
 | lógica booleana + comparação | `false` / `true` / `false` / `true` | DONE | DONE | DONE | DONE | `boollogic` |
 | bitwise & \|\| ^ << >> | `2` / `7` / `5` / `16` / `64` | DONE | DONE | DONE | DONE | `bitwise` |
