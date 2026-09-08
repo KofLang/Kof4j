@@ -406,6 +406,178 @@ class KofJsBrowserE2ETest {
     }
 
     @Test
+    void fieldsetRendersInRealBrowserDom(@TempDir Path tempDir) throws IOException {
+        Path chrome = findChrome();
+        assumeTrue(chrome != null, "Chrome/Chromium não instalado — pulando E2E de browser");
+
+        String program = """
+            main() {
+                var campo = Input("nome")
+                var fs = Fieldset(listOf(campo))
+                fs.setClass("dados")
+                var w = Window("FieldsetTest")
+                w.bind(fs)
+                w.show()
+            }
+            """;
+        Path source = tempDir.resolve("App.kf");
+        Files.writeString(source, program);
+
+        Path outDir = tempDir.resolve("out");
+        CompilationResult result = driver.compile(source, outDir, Target.JS);
+        assertTrue(result.success(), "compilação JS deve passar: " + result.diagnostics().getDiagnostics());
+
+        HttpServer server = serve(outDir);
+        int port = server.getAddress().getPort();
+        try {
+            String dom = dumpDom(chrome, "http://127.0.0.1:" + port + "/index.html");
+            assertTrue(dom.contains("<fieldset"), "elemento <fieldset> ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("kof-fieldset"), "classe kof-fieldset ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("dados"), "classe custom ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("<input"), "filho <input> ausente no <fieldset>: " + excerpt(dom));
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void iframeRendersInRealBrowserDom(@TempDir Path tempDir) throws IOException {
+        Path chrome = findChrome();
+        assumeTrue(chrome != null, "Chrome/Chromium não instalado — pulando E2E de browser");
+
+        String program = """
+            main() {
+                var iframe = Iframe("https://kof.dev")
+                var col = Column(listOf(iframe))
+                var w = Window("IframeTest")
+                w.bind(col)
+                w.show()
+            }
+            """;
+        Path source = tempDir.resolve("App.kf");
+        Files.writeString(source, program);
+
+        Path outDir = tempDir.resolve("out");
+        CompilationResult result = driver.compile(source, outDir, Target.JS);
+        assertTrue(result.success(), "compilação JS deve passar: " + result.diagnostics().getDiagnostics());
+
+        HttpServer server = serve(outDir);
+        int port = server.getAddress().getPort();
+        try {
+            String dom = dumpDom(chrome, "http://127.0.0.1:" + port + "/index.html");
+            assertTrue(dom.contains("<iframe"), "elemento <iframe> ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("kof-iframe"), "classe kof-iframe ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("src=\"https://kof.dev\""), "src ausente no DOM: " + excerpt(dom));
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void videoRendersInRealBrowserDom(@TempDir Path tempDir) throws IOException {
+        Path chrome = findChrome();
+        assumeTrue(chrome != null, "Chrome/Chromium não instalado — pulando E2E de browser");
+
+        String program = """
+            main() {
+                var video = Video("movie.mp4")
+                video.setControls(true)
+                var col = Column(listOf(video))
+                var w = Window("VideoTest")
+                w.bind(col)
+                w.show()
+            }
+            """;
+        Path source = tempDir.resolve("App.kf");
+        Files.writeString(source, program);
+
+        Path outDir = tempDir.resolve("out");
+        CompilationResult result = driver.compile(source, outDir, Target.JS);
+        assertTrue(result.success(), "compilação JS deve passar: " + result.diagnostics().getDiagnostics());
+
+        HttpServer server = serve(outDir);
+        int port = server.getAddress().getPort();
+        try {
+            String dom = dumpDom(chrome, "http://127.0.0.1:" + port + "/index.html");
+            assertTrue(dom.contains("<video"), "elemento <video> ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("kof-video"), "classe kof-video ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("src=\"movie.mp4\""), "src ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("controls"), "atributo controls ausente no DOM: " + excerpt(dom));
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void audioRendersInRealBrowserDom(@TempDir Path tempDir) throws IOException {
+        Path chrome = findChrome();
+        assumeTrue(chrome != null, "Chrome/Chromium não instalado — pulando E2E de browser");
+
+        String program = """
+            main() {
+                var audio = Audio("song.mp3")
+                audio.setControls(true)
+                var col = Column(listOf(audio))
+                var w = Window("AudioTest")
+                w.bind(col)
+                w.show()
+            }
+            """;
+        Path source = tempDir.resolve("App.kf");
+        Files.writeString(source, program);
+
+        Path outDir = tempDir.resolve("out");
+        CompilationResult result = driver.compile(source, outDir, Target.JS);
+        assertTrue(result.success(), "compilação JS deve passar: " + result.diagnostics().getDiagnostics());
+
+        HttpServer server = serve(outDir);
+        int port = server.getAddress().getPort();
+        try {
+            String dom = dumpDom(chrome, "http://127.0.0.1:" + port + "/index.html");
+            assertTrue(dom.contains("<audio"), "elemento <audio> ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("kof-audio"), "classe kof-audio ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("src=\"song.mp3\""), "src ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("controls"), "atributo controls ausente no DOM: " + excerpt(dom));
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void hrRendersInRealBrowserDom(@TempDir Path tempDir) throws IOException {
+        Path chrome = findChrome();
+        assumeTrue(chrome != null, "Chrome/Chromium não instalado — pulando E2E de browser");
+
+        String program = """
+            main() {
+                var hr = Hr()
+                hr.setClass("divisor")
+                var col = Column(listOf(hr))
+                var w = Window("HrTest")
+                w.bind(col)
+                w.show()
+            }
+            """;
+        Path source = tempDir.resolve("App.kf");
+        Files.writeString(source, program);
+
+        Path outDir = tempDir.resolve("out");
+        CompilationResult result = driver.compile(source, outDir, Target.JS);
+        assertTrue(result.success(), "compilação JS deve passar: " + result.diagnostics().getDiagnostics());
+
+        HttpServer server = serve(outDir);
+        int port = server.getAddress().getPort();
+        try {
+            String dom = dumpDom(chrome, "http://127.0.0.1:" + port + "/index.html");
+            assertTrue(dom.contains("<hr"), "elemento <hr> ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("kof-hr"), "classe kof-hr ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("divisor"), "classe custom ausente no DOM: " + excerpt(dom));
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void canvasUi009RunsInRealBrowser(@TempDir Path tempDir) throws IOException {
         Path chrome = findChrome();
         assumeTrue(chrome != null, "Chrome/Chromium não instalado — pulando E2E de browser");

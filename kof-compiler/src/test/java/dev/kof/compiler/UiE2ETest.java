@@ -239,6 +239,37 @@ class UiE2ETest {
     }
 
     @Test
+    void fieldsetIframeMediaHrLinkOnAllTargets(@TempDir Path tempDir) throws IOException {
+        // UI003: Fieldset/Iframe/Video/Audio/Hr — widgets de primeira
+        // classe; no-op JVM/Native, DOM real em KofJS (KofJsBrowserE2ETest).
+        both(tempDir, "fieldsetiframemediahr", """
+            main() {
+                var campo = Input("")
+                var fs = Fieldset(listOf(campo))
+                fs.setDisabled(true)
+
+                var iframe = Iframe("https://kof.dev")
+                iframe.setSrc("https://kof.dev/docs")
+
+                var video = Video("movie.mp4")
+                video.setControls(true)
+                video.play()
+                video.pause()
+
+                var audio = Audio("song.mp3")
+                audio.setControls(true)
+                audio.play()
+                audio.pause()
+
+                var hr = Hr()
+                hr.setClass("divisor")
+
+                println("ok")
+            }
+            """, "ok");
+    }
+
+    @Test
     void mediaWidgetsLinkOnAllTargets(@TempDir Path tempDir) throws IOException {
         // UI001 (R6): Image/Link/Icon/Font não podiam linkar no Native
         // (undefined reference [COMP001] — 21 stubs ausentes em RuntimeUi).
