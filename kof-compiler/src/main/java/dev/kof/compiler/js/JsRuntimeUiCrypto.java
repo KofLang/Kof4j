@@ -270,6 +270,16 @@ public final class JsRuntimeUiCrypto {
             export function kofMathIsNegative(v) { return v < 0 ? 1 : 0; }
             export function kofMathIsZero(v) { return v === 0 ? 1 : 0; }
 
+            // ── kof.strings (STDLIB S2a) — predicados de char ───────────
+            export function kofStringsIsAlpha(v) {
+                if (v == null || v.length === 0) return 0;
+                return /^[A-Za-z]+$/.test(v) ? 1 : 0;
+            }
+            export function kofStringsIsNumeric(v) {
+                if (v == null || v.length === 0) return 0;
+                return /^[0-9]+$/.test(v) ? 1 : 0;
+            }
+
             // ── kof.observability (G5) ──────────────────────────────
 
             const __kofObsCounters = {};

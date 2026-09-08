@@ -54,6 +54,28 @@ public final class JvmStringMathRuntime {
                 public static boolean kof_math_isZero(int v) {
                     return v == 0;
                 }
+
+                // ── kof.strings (STDLIB S2a) — predicados de char ──────────
+                // Convenção de paridade (travada em KofStringsTest + matriz):
+                // string vazia / null => false (nenhum char satisfaz).
+
+                public static boolean kof_strings_isAlpha(String v) {
+                    if (v == null || v.isEmpty()) return false;
+                    for (int i = 0; i < v.length(); i++) {
+                        char c = v.charAt(i);
+                        if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'))) return false;
+                    }
+                    return true;
+                }
+
+                public static boolean kof_strings_isNumeric(String v) {
+                    if (v == null || v.isEmpty()) return false;
+                    for (int i = 0; i < v.length(); i++) {
+                        char c = v.charAt(i);
+                        if (c < '0' || c > '9') return false;
+                    }
+                    return true;
+                }
         """;
     }
 }

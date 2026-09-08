@@ -251,18 +251,27 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
     }
     return localIdx;
 } else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
-            && KofMath.isMathNamespace(rid.name())) {
+            && KofStd.isStdNamespace(rid.name())) {
     List<Type> argTypes = new ArrayList<>();
     for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
-    KofMath.MathCall mCall = KofMath.staticMethod(rid.name(), mc.methodName(), argTypes);
-    if (mCall != null) {
-        // S1 é Int-only e presente em todos os targets — sem gap para gatear
-        // (KofMath.supportedOn sempre true). S1b (Double) reintroduz o gate.
+    KofStd.StdCall sCall = KofStd.staticMethod(rid.name(), mc.methodName(), argTypes);
+    if (sCall != null) {
+        if (!KofStd.supportedOn(sCall, driver.target)) {
+            if (driver.currentDiagnostics != null) {
+                driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
+                        mc.position() != null ? mc.position().line() : 0,
+                        mc.position() != null ? mc.position().column() : 0, 0,
+                        rid.name() + "." + mc.methodName() + ": not available on the "
+                                + driver.target + " target yet (" + KofStd.gapCode(sCall) + ")",
+                        KofStd.gapCode(sCall));
+            }
+            return localIdx;
+        }
         for (ExpressionNode arg : mc.arguments()) {
             localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
         }
-        ops.add(new KofCall(new Type.ClassType("kof.math", "Math", List.of()),
-                mCall.function(), mCall.parameterTypes(), mCall.returnType(),
+        ops.add(new KofCall(new Type.ClassType(sCall.ownerPackage(), sCall.ownerClass(), List.of()),
+                sCall.function(), sCall.parameterTypes(), sCall.returnType(),
                 KofCallKind.FUNCTION));
     }
     return localIdx;
