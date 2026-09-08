@@ -40,13 +40,16 @@ public abstract class AbstractEditorIntegration implements EditorIntegration {
             String p = ctx.whichPath(cand);
             if (p != null) { exe = cand; break; }
         }
+        // o marker vale mesmo com o editor ausente do PATH (install pode ser
+        // feito proativamente; status deve refletir o que foi escrito).
+        boolean integrationInstalled = integrationInstalled(ctx, null);
         if (exe == null) {
-            return EditorInfo.absent(id(), displayName(), integrationAvailable());
+            return new EditorInfo(id(), displayName(), "unknown", null,
+                    integrationAvailable(), integrationInstalled);
         }
         String version = parseVersion(ctx.readVersion(exe));
         String path = ctx.whichPath(exe);
-        boolean installed = integrationInstalled(ctx, path != null ? Path.of(path) : null);
-        return new EditorInfo(id(), displayName(), version, path, integrationAvailable(), installed);
+        return new EditorInfo(id(), displayName(), version, path, integrationAvailable(), integrationInstalled);
     }
 
     private String parseVersion(String raw) {
