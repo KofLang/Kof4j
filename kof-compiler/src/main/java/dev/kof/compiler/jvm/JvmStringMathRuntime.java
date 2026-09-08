@@ -219,6 +219,35 @@ public final class JvmStringMathRuntime {
                 public static String kof_strings_toSnakeCase(String v) { return kof_strings_joinWords(v, 2); }
                 public static String kof_strings_toKebabCase(String v) { return kof_strings_joinWords(v, 3); }
                 public static String kof_strings_slugify(String v) { return kof_strings_joinWords(v, 4); }
+
+                // ── kof.encoding (STDLIB S4) — hex (UTF-8 por bytes) ────────
+                public static String kof_encoding_hexEncode(String v) {
+                    if (v == null) return null;
+                    byte[] b = v.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                    StringBuilder sb = new StringBuilder(b.length * 2);
+                    for (byte x : b) { sb.append(Character.forDigit((x >> 4) & 15, 16)); sb.append(Character.forDigit(x & 15, 16)); }
+                    return sb.toString();
+                }
+
+                public static String kof_encoding_hexDecode(String v) {
+                    if (v == null) return null;
+                    byte[] out = new byte[(v.length() + 1) / 2];
+                    for (int i = 0; i < out.length; i++) {
+                        int hi = kof_enc_hexNib(v.charAt(i * 2));
+                        int lo = (i * 2 + 1 < v.length()) ? kof_enc_hexNib(v.charAt(i * 2 + 1)) : 0;
+                        out[i] = (byte) ((hi << 4) | lo);
+                    }
+                    return new String(out, java.nio.charset.StandardCharsets.UTF_8);
+                }
+
+                // ASCII-estrito (Character.digit aceitaria dígitos Unicode —
+                // paridade byte-a-byte com o asm, que só conhece 0-9a-fA-F).
+                private static int kof_enc_hexNib(char c) {
+                    if (c >= '0' && c <= '9') return c - '0';
+                    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+                    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+                    return 0;
+                }
         """;
     }
 }

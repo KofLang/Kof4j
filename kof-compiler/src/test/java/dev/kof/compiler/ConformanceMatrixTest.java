@@ -254,6 +254,18 @@ class ConformanceMatrixTest {
                     println(a + "|" + b + "|" + c + "|" + d + "|" + e + "|" + f)
                 }
                 """, "http_server|xml_parser|helloWorld|HelloWorld|hello-world|hello-world-42", Set.of(), tempDir);
+        // STDLIB S4 — kof.encoding hex (UTF-8 por bytes; paridade byte-idêntica
+        // nos 4: getBytes/TextEncoder/asm UTF-8 puro).
+        matrix("stdenc", """
+                main() {
+                    var a = encoding.hexEncode("Hi")
+                    var b = encoding.hexDecode("4869")
+                    var c = encoding.hexEncode("café")
+                    var d = encoding.hexDecode(c)
+                    var mark = if (encoding.hexEncode("") == "") "E" else "N"
+                    println(a + "|" + b + "|" + c + "|" + d + "|" + mark)
+                }
+                """, "4869|Hi|636166c3a9|café|E", Set.of(), tempDir);
     }
 
     @Test

@@ -31,6 +31,7 @@ boolean isRuntimeOp(KofCall kc) {
                 || name.startsWith("kof_validation_")
                 || name.startsWith("kof_math_")
                 || name.startsWith("kof_strings_")
+                || name.startsWith("kof_encoding_")
                 || name.startsWith("kof_enum_")
                 || name.startsWith("kof_config_")
                 || name.startsWith("kof_cache_")
