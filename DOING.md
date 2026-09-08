@@ -495,6 +495,7 @@ implementado OU dá diagnóstico; suíte verde.
 | **SECPQ** | baixa | PQC via liboqs FFI | Tier 9 (futuro) |
 | **~~MySQL query binário~~** | ~~baixo~~ | ~~`kof_db_mysql_prep_query`~~ | |
 | **Portar stdlib riscv64/aarch64** | média | `translateRiscvToAarch64` existe | agente-nativo-val |
+| **EDI001** — Editor Integration (infra + `kof editor` + 7 editores) | média | **SPEC ESCRITA** em `docs/development/plan-editor-integration.md` (contrato completo: §0 auditoria do que já existe, §2-3 abstração `EditorIntegration`/`EditorRegistry`/`EditorDetector` em `kof-cli/.../cli/editor/`, §6 CLI `kof editor`, §10 LSP central, §20 14 degraus commitáveis). **IMPLEMENTAÇÃO DEPOIS** — degrau 0 = LSP `definition` (gap no `LspServer.java`), degrau 1 = infra sem provider. Reutiliza `editor/kof.tmLanguage.json`+`kof lsp`+`kof fmt`+`ProjectLocator`; **nunca** 2º LSP/parser por editor. | briefing externo 07/09; gate §19 (não fecha com só VS Code); testes §24 em fs temp (sem tocar ambiente real) |
 | Debugger DWARF variáveis/expressões + VS Code ext | baixa | `kof.debug` | |
 | OpenTelemetry export | baixa | spans feitos; falta OTLP export | |
 
