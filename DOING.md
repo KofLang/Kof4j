@@ -39,8 +39,15 @@ concreta sem dono na minha lane (ordem de valor):**
 1. **UI007 style declarativo** — BLOQUEADO (regra 6): superfície de API
    aguarda decisão do maintainer (proposta em `docs/development/
    KOFUI-AUDIT.md` §UI007).
-2. Revisar fila KOFUI-AUDIT p/ gaps restantes não-bloqueados (UI005 readonly/
-   name ✅ feitos 07/09; conferir matriz completa antes de abrir trabalho novo).
+2. **Revisar fila KOFUI-AUDIT p/ gaps restantes não-bloqueados — FEITO (este
+   commit):** UI005 readonly/name já existiam com 6/6 pontos + prova browser
+   (`UiE2ETest.inputAttrsLinkOnAllTargets` + `KofJsBrowserE2ETest.
+   inputAttrsRenderInRealBrowserDom`) — a matriz dizia "pendentes", desatualizada;
+   corrigida p/ **FEITO**. Resultado: **fila UI não-bloqueada vazia.** Restam
+   só itens BLOQUEADOS por decisão de design (regra 6): UI007 style declarativo
+   (superfície de API — open questions Q1–Q5 em `KOFUI-AUDIT` §UI007), UI001
+   residual (diagnóstico no-op Native), UI008 (JVM no-op, P3). **Nenhum agente
+   deve "adivinhar" a superfície desses — é decisão do maintainer.**
 Receita de widget/método novo = 8/9 pontos (ver bloco R4/UI003/UI006 em
 "Estado atual"). Suíte atual: **1215/0/64-skip** verde JDK 21+25.
 
