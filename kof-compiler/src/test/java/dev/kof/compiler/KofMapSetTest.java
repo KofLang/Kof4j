@@ -97,6 +97,33 @@ class KofMapSetTest {
     }
 
     @Test
+    void memberCallOnNullableInferredFromMapJVM(@TempDir Path tmp) throws Exception {
+        // REGRESSION (bug 33): método chamado em receiver de tipo nullable
+        // INFERIDO (ex.: `var v = m.get(k)` → V?) — o MethodCallTyper re-
+        // inferia o receiver no lowering e o `instanceof ClassType` falhava
+        // no NullableType → retorno do método saía `Object` →
+        // NoSuchMethodError em runtime. Map/Set era só o caminho que produz
+        // o local nullable; `var v = maybe()` (função retornando V?)
+        // reproduz sem coleção.
+        String src = """
+            class View {
+                String name
+                public constructor(String name) { this.name = name }
+                String render() { return "v:" + name }
+            }
+            View? maybe() { return View("a") }
+            main() {
+                var v = maybe()
+                println(v.render())
+                var m = mapOf("k", View("x"))
+                var w = m.get("k")
+                println(w.render())
+            }
+            """;
+        runJvm(tmp, src, "v:a\nv:x");
+    }
+
+    @Test
     void mapSetNative(@TempDir Path tmp) throws Exception {
         runNative(tmp, """
             main() {

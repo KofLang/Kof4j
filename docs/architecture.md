@@ -4,12 +4,29 @@
 
 ## Status: Accepted
 
-**Última atualização:** 2 de setembro de 2026
-**Versão:** 0.2.6-beta
+**Última atualização:** 6 de setembro de 2026
+**Versão:** 0.3.0-beta
+
+> **Este ADR registra a decisão arquitetural (multi-target via frontend
+> compartilhado + backends plugáveis).** A descrição **completa e atual** da
+> implementação do compilador (pipeline real, IR, lowering, otimizações,
+> backends, targets, terminologia) está em
+> [`compiler-architecture.md`](compiler-architecture.md). A **especificação da
+> linguagem** (independente desta implementação) está em
+> [`language-reference/`](language-reference/).
+>
+ > **Correções 06/09 (auditoria):** (a) riscv64 e aarch64 **não** são mais
+ > "placeholder x86_64" — riscv64 tem lowering real (`NativeBackend.emitRiscv`)
+ > e aarch64 é traduzido do riscv64 (`translateRiscvToAarch64`); (b) **KofC**
+ > não consome a IR do Kof (subconjunto C → ELF); **KofScript consome o MESMO
+ > frontend** (lexer→parser→AST→IR) e executa a IR otimizada no interpretador
+ > (target de execução direta, 0.3.0-beta); (c) a IR é uma **máquina de pilha
+ > linear** (30 ops), não uma "árvore". Ver SG-E1/SG-E3 em
+ > [`specification-gaps.md`](specification-gaps.md).
 
 ## Context
 
-Kof é uma linguagem de programação fortemente tipada, estaticamente tipada e orientada a objetos. O compilador deve gerar código para múltiplos targets a partir de uma única IR.
+Kof é uma linguagem de programação estaticamente tipada e orientada a objetos. O compilador deve gerar código para múltiplos targets a partir de uma única IR.
 
 Uma linguagem. Um compilador. Múltiplos targets.
 
@@ -17,15 +34,19 @@ Uma linguagem. Um compilador. Múltiplos targets.
 
 ```text
 Source (.kf)
-  ↓ Lexer
+  ↓ Lexer (hand-written, maximal munch, LEX00x)
   ↓ Token stream
-  ↓ Parser
-  ↓ AST
-  ↓ Symbol resolution
-  ↓ Type checking
-  ↓ Semantic analysis
-  ↓ Kof IR (backend-agnostic, com KofDebugInfo)
-  ↓ Optimizer (constant folding, DCE, branch simplification, etc.)
+  ↓ Parser (recursive descent + precedence climbing, PARSE0xx)
+  ↓ AST crua (39 nós sealed, tipos como String)
+  ↓ Desugar (test/application) + expand imports
+  ↓ Semantic analysis (SemanticAnalyzer — name resolution e type checking
+  │   ENTRELACEADOS em inferType, NÃO fases separadas; 4 fases, fixpoint ≤4;
+  │   SEM0xx; NÃO há typed AST — tipos em IdentityHashMap laterais)
+  ↓ [aborta se houver erro]
+  ↓ Lowering AST→IR (StatementLowerer/ExpressionLowerer/lambdaClass)
+  ↓ Kof IR (máquina de pilha linear, 30 ops, tipada, backend-agnostic,
+  │   com KofDebugInfo; basic blocks nominais)
+  ↓ Optimizer (constant folding, dead effects, reachability, jump-to-next)
   ↓
   ├── Kof4J Backend (ASM, bytecode V21)
   │   ↓ .class files
@@ -38,30 +59,29 @@ Source (.kf)
   │   ↓ OS
   │
    ├── KofNative riscv64 (native.risc)
+   │   ↓ lowering riscv64 REAL (emitRiscv) — asm puro, raw syscalls, ELF estático
    │   ↓ toolchain riscv64-linux-gnu-as/ld + qemu
-   │   ↓ codegen ainda x86_64 (placeholder; `.option arch,rv64g` na toolchain)
-   │
+   
    ├── KofNative aarch64 (native.arm)
+   │   ↓ asm riscv64 traduzido linha-a-linha (translateRiscvToAarch64)
    │   ↓ toolchain aarch64-linux-gnu-as/ld + qemu
-   │   ↓ codegen ainda x86_64 (placeholder)
-   │
-  ├── KofJS Backend (GraalJS)
+   
+  ├── KofJS Backend (ESM ES2022+)
   │   ↓ ES Modules (ECMAScript 2022+)
   │   ↓ kof-runtime.mjs + KofJsRunner (embedded GraalJS)
   │   ↓ Node/Browser via kof_platform
-  │
-   ├── KofC Backend (KofCcompiler)
-   │   ↓ C subset → Native x86_64 via kof_c (while/if/deref &/*(int*))
-   │   ↓ ELF x86_64
-   │
    ├── KofAndroid (Target.ANDROID)
    │   ↓ bytecode JVM + host Activity em Kof (android-host.kf)
    │   ↓ projeto Maven (d8/aapt2/apksigner) + APK (Fase 1)
-   │
-   └── KofScript Runtime
-       ↓ top-level let → KofScriptGlobals (REPL, --watch)
-       ↓ JVM execution (compila para bytecode em temp dir)
-       ↓ Interactive
+     ├── KofScript (Target de execução direta — interpretador da IR)
+     │   ↓ Kof PURO consumindo o MESMO frontend (lexer→parser→AST→IR→opt);
+     │   ↓   sem `let`/`const`/`async`/`fn` — não é JavaScript.
+     │   ↓   único serviço do wrapper: statements de topo → main(),
+     │   ↓   var/val de topo → KofScriptGlobals.
+     │   ↓ KofInterpreter executa a IR otimizada SEM emitir bytecode e
+     │   ↓   SEM fork de JVM — paridade por construção com o backend JVM.
+     └── (fora da IR Kof) kof-c-compiler (subconjunto C → ELF x86_64)
+         NÃO consome a IR do Kof.
 ```
 
 ## Decision: Multiplatform via Shared Frontend + Pluggable Backends
@@ -83,7 +103,7 @@ public interface Backend {
 ```
 
 Implementations:
-- `JvmBackend` - generates `.class` files via ASM (`kof-compiler/src/main/java/dev/kof/compiler/JvmBackend.java:1`)
+- `JvmBackend` - generates `.class` files via ASM (`kof-compiler/src/main/java/dev/kof/compiler/jvm/JvmBackend.java:1`)
 - `NativeBackend` - generates ELF via assembly + `as` + `ld` (x86_64 stable, riscv64/aarch64 via cross toolchain)
 - `JsBackend` - generates ES Modules (ECMAScript 2022+), executed by the embedded GraalJS engine (`KofJsRunner`)
 - `KofCcompiler` - C subset (`kof c`) → ELF x86_64 native-only (`kof-compiler/src/main/java/dev/kof/compiler/KofCcompiler.java:1`)
@@ -249,7 +269,10 @@ Runtime functions (x86-64, `NativeRuntime.java:1`):
 
 ## KofScript Runtime
 
-KofScript enables direct execution of Kof programs (0.2.6-beta: top-level `let` → `KofScriptGlobals`).
+KofScript é um **target de execução direta**: Kof puro executado pelo
+interpretador da IR, sem etapa de compilação e sem fork de JVM
+(0.3.0-beta). **Não é JavaScript** — `let`/`const`/`async`/`fn` não
+existem; falham com o diagnóstico normal do parser Kof.
 
 ```bash
 kof run program.kf
@@ -258,9 +281,16 @@ kof repl
 ```
 
 Implementation:
-- Compiles to JVM bytecode in temp directory (shared frontend + IR)
-- `let`/`const` at top-level desugars to `KofScriptGlobals` fields
-- Executes via `java -cp` with `KofScript` harness
+- Mesmo frontend do compilador (lexer→parser→AST→semântica→lowering→IR
+  otimizada) via `CompilerDriver.interpret(...)`
+- `KofInterpreter` executa a IR como stack machine sobre valores reais do
+  JDK; classes Kof viram `KofObj` interpretado; builtins sem lambda são
+  despachados ao `KofRuntime` gerado — **paridade por construção** com o
+  backend JVM (mesma IR)
+- `var`/`val` at top-level desugars to `KofScriptGlobals` fields
+  (Kof não tem variável top-level — único serviço do wrapper)
+- Caminho compilado (`runFileCompiled`) permanece como fallback e é
+  usado nos testes de paridade; JS/Native continuam no caminho compilado
 - Cleans up temp files; `--watch` re-executes on change; SIGPIPE handled on Windows
 
 ## Standard Library (compile-time dispatch)

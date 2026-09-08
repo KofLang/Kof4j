@@ -3,21 +3,21 @@ package dev.kof.compiler;
 import java.util.List;
 import java.util.Map;
 
-sealed interface Type {
+public sealed interface Type {
     record PrimitiveType(String name, int sort) implements Type {
-        static final PrimitiveType BOOL = new PrimitiveType("bool", 1);
-        static final PrimitiveType BYTE = new PrimitiveType("byte", 5);
-        static final PrimitiveType SHORT = new PrimitiveType("short", 9);
-        static final PrimitiveType INT = new PrimitiveType("int", 10);
-        static final PrimitiveType LONG = new PrimitiveType("long", 11);
-        static final PrimitiveType FLOAT = new PrimitiveType("float", 6);
-        static final PrimitiveType DOUBLE = new PrimitiveType("double", 7);
-        static final PrimitiveType CHAR = new PrimitiveType("char", 2);
-        static final PrimitiveType VOID = new PrimitiveType("void", 0);
+        public static final PrimitiveType BOOL = new PrimitiveType("bool", 1);
+        public static final PrimitiveType BYTE = new PrimitiveType("byte", 5);
+        public static final PrimitiveType SHORT = new PrimitiveType("short", 9);
+        public static final PrimitiveType INT = new PrimitiveType("int", 10);
+        public static final PrimitiveType LONG = new PrimitiveType("long", 11);
+        public static final PrimitiveType FLOAT = new PrimitiveType("float", 6);
+        public static final PrimitiveType DOUBLE = new PrimitiveType("double", 7);
+        public static final PrimitiveType CHAR = new PrimitiveType("char", 2);
+        public static final PrimitiveType VOID = new PrimitiveType("void", 0);
     }
 
     record ClassType(String packageName, String name, List<Type> typeArguments) implements Type {
-        String internalName() {
+        public String internalName() {
             if (packageName.isEmpty()) return name;
             return packageName.replace('.', '/') + "/" + name;
         }
@@ -39,7 +39,7 @@ sealed interface Type {
     }
 
     record UnknownType() implements Type {
-        static final UnknownType UNKNOWN = new UnknownType();
+        public static final UnknownType UNKNOWN = new UnknownType();
     }
 
     record NullableType(Type inner) implements Type {
@@ -76,6 +76,7 @@ sealed interface Type {
             if ("Map".equals(base) || "HashMap".equals(base)) return new ClassType("kof", "Map", args);
             if ("Set".equals(base) || "HashSet".equals(base)) return new ClassType("kof", "Set", args);
             if ("Channel".equals(base)) return new ClassType("kof.concurrent", "Channel", args);
+            if ("Handle".equals(base)) return new ClassType("kof.concurrent", "Handle", args);
             return new ClassType("", base, args);
         }
         return switch (name) {
@@ -156,7 +157,7 @@ sealed interface Type {
 
     static Type fromJvmDescriptor(String desc) {
         if (desc == null || desc.isEmpty()) return UnknownType.UNKNOWN;
-        return parseJvmDescriptor(desc, 0).type;
+        return parseJvmDescriptor(desc, 0).type();
     }
 
     static String describe(Type type) {
@@ -177,9 +178,9 @@ sealed interface Type {
 
     private static ParseResult parseJvmDescriptor(String desc, int pos) {
         if (pos >= desc.length()) return new ParseResult(UnknownType.UNKNOWN, pos);
-        
+
         char c = desc.charAt(pos);
-        
+
         return switch (c) {
             case 'B' -> new ParseResult(PrimitiveType.BYTE, pos + 1);
             case 'C' -> new ParseResult(PrimitiveType.CHAR, pos + 1);
@@ -192,14 +193,13 @@ sealed interface Type {
             case 'Z' -> new ParseResult(PrimitiveType.BOOL, pos + 1);
             case '[' -> {
                 ParseResult inner = parseJvmDescriptor(desc, pos + 1);
-                yield new ParseResult(new ArrayType(inner.type), inner.pos);
+                yield new ParseResult(new ArrayType(inner.type()), inner.pos());
             }
             case 'L' -> {
                 int end = desc.indexOf(';', pos);
                 if (end == -1) throw new IllegalArgumentException("Malformed descriptor: " + desc);
                 String className = desc.substring(pos + 1, end);
-                Type type = parseClassName(className);
-                yield new ParseResult(type, end + 1);
+                yield new ParseResult(parseClassName(className), end + 1);
             }
             default -> new ParseResult(UnknownType.UNKNOWN, pos + 1);
         };
@@ -217,16 +217,14 @@ sealed interface Type {
             for (String arg : argsStr.split(",")) {
                 arg = arg.trim();
                 if (!arg.isEmpty() && !arg.contains(";")) {
-                    args.add(parseJvmDescriptor("L" + arg + ";", 0).type);
+                    args.add(parseJvmDescriptor("L" + arg + ";", 0).type());
                 } else if (arg.endsWith(";")) {
-                    args.add(parseJvmDescriptor(arg, 0).type);
+                    args.add(parseJvmDescriptor(arg, 0).type());
                 }
             }
+            return new ClassType("", base, args);
         }
-        if (args.isEmpty() && !simpleName.contains("<")) {
-            return new ClassType("", simpleName, List.of());
-        }
-        return new ClassType("", simpleName, args);
+        return new ClassType("", simpleName, List.of());
     }
 
     record ParseResult(Type type, int pos) {}

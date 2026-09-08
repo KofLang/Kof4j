@@ -2,8 +2,10 @@ package dev.kof.compiler;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.Assumptions;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -16,6 +18,19 @@ import static org.junit.jupiter.api.Assertions.*;
 class KofTimeE2ETest {
 
     private final CompilerDriver driver = new CompilerDriver();
+
+    private static boolean has(String... cmds) {
+        for (String c : cmds) {
+            try {
+                Process p = new ProcessBuilder("sh", "-c", "command -v " + c).redirectErrorStream(true).start();
+                String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+                if (p.waitFor() != 0 || out.isEmpty()) return false;
+            } catch (Exception e) {
+                return false;
+            }
+        }
+        return true;
+    }
 
     private String runJvm(Path tempDir, String kofSource, String expected) throws IOException {
         Path source = tempDir.resolve("Main.kf");
@@ -180,6 +195,52 @@ class KofTimeE2ETest {
         try (var s = Files.walk(dir)) {
             return s.filter(p -> p.toString().endsWith(".mjs"))
                     .findFirst().orElseThrow(() -> new IOException("no .mjs in " + dir));
+        }
+    }
+
+    @Test
+    void crossNativeTimeIntervalRuns(@TempDir Path tempDir) throws Exception {
+        // TIME001 FEITO no cross (05/09): time.interval/cancel são alias do
+        // scheduler (thread por job via clone+nanosleep). O callback dispara
+        // e o cancel silencia; END por último.
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+            main() {
+                var id = time.interval(100, () -> println("tick"))
+                time.sleep(250)
+                time.cancel(id)
+                time.sleep(250)
+                println("END")
+            }
+            """);
+        String[] q = {"qemu-riscv64", "qemu-aarch64"};
+        Target[] ts = {Target.NATIVE_RISCV64, Target.NATIVE_AARCH64};
+        Assumptions.assumeTrue(has("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64")
+                        && has("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"),
+                "cross toolchain riscv64/aarch64 + qemu ausente — pulando (NATIVE002)");
+        for (int i = 0; i < 2; i++) {
+            CompilationResult r = new CompilerDriver().compile(source, tempDir.resolve("cross-" + i), ts[i]);
+            assertTrue(r.success(), ts[i] + " deve compilar: " + r.diagnostics().getDiagnostics());
+            Path bin = tempDir.resolve("cross-" + i).resolve("Default/Main");
+            var p = new ProcessBuilder("timeout", "10", q[i], bin.toString()).redirectErrorStream(true).start();
+            String output = new String(p.getInputStream().readAllBytes()).trim();
+            assertEquals(0, p.waitFor(), ts[i] + " exit, output: " + output);
+            assertTrue(output.endsWith("END"), ts[i] + ": END por último: " + output);
+            int ticks = 0;
+            for (String l : output.split("\n")) if (l.equals("tick")) ticks++;
+            assertTrue(ticks >= 1 && ticks <= 8, ts[i] + ": esperava 1..8 ticks, veio " + ticks + ": " + output);
+        }
+        // now/sleep continuam ok no cross (sem gate)
+        Path ok = tempDir.resolve("Ok.kf");
+        Files.writeString(ok, """
+            main() {
+                var t = time.now()
+                println(t > 1000000000000)
+            }
+            """);
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            CompilationResult r = new CompilerDriver().compile(ok, tempDir.resolve("ok-" + t), t);
+            assertTrue(r.success(), t + " time.now should compile: " + r.diagnostics().getDiagnostics());
         }
     }
 }

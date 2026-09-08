@@ -146,6 +146,127 @@ class NativeAarch64E2ETest {
         assertEquals("true", out);
     }
 
+    // NATIVE002-stdlib: cache real (set/get/ttl) + println(null) → "null".
+    @Test
+    void aarch64Cache(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runAarch64(tempDir, """
+            main() {
+                cache.set("name", "Mel")
+                println(cache.get("name"))
+                println(cache.get("missing"))
+                cache.set("t", "x", 1)
+                println(cache.ttl("t") >= 0 && cache.ttl("t") <= 1)
+            }
+            """);
+        assertEquals("Mel\nnull\ntrue", out);
+    }
+
+    // NATIVE002-stdlib: "42".toInt() herdado do riscv64 (deref do valor → SIGSEGV).
+    @Test
+    void aarch64StringToInt(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runAarch64(tempDir, """
+            main() {
+                println("42".toInt())
+                println("-7".toInt())
+                println("0".toInt())
+            }
+            """);
+        assertEquals("42\n-7\n0", out);
+    }
+
+    // NATIVE002-stdlib: Map/Set herdado do riscv64 (port linear-scan).
+    @Test
+    void aarch64MapSet(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runAarch64(tempDir, """
+            main() {
+                var m = mapOf()
+                m.put("a", 1)
+                m.put("b", 2)
+                println(m.get("a"))
+                println(m.size())
+                println(m.contains("b"))
+                println(m.remove("a"))
+                println(m.size())
+                println(m.keys().size())
+                var s = setOf("x", "x", "y")
+                println(s.size())
+                println(s.contains("y"))
+                println(s.contains("z"))
+                println(s.remove("x"))
+                println(s.size())
+            }
+            """);
+        assertEquals("1\n2\ntrue\n1\n1\n1\n2\ntrue\nfalse\ntrue\n1", out);
+    }
+
+    // NATIVE002-stdlib: higher-order herdado do riscv64 (closure ABI igual mq).
+    @Test
+    void aarch64HigherOrder(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runAarch64(tempDir, """
+            main() {
+                var l = listOf(1, 2, 3)
+                var d = l.map((x: Int) -> x * 2)
+                println(d.get(2))
+                var f = l.filter((x: Int) -> x > 1)
+                println(f.size)
+                println(l.reduce((a: Int, b: Int) -> a + b, 0))
+            }
+            """);
+        assertEquals("6\n2\n6", out);
+    }
+
+    // NATIVE002-stdlib: json.decode<Int> escalar herdado do riscv64.
+    @Test
+    void aarch64JsonDecodeInt(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runAarch64(tempDir, """
+            main() {
+                println(json.decode<Int>("42"))
+                println(json.decode<Int>("-7"))
+                println(json.decode<Int>("  99  "))
+                println(json.decode<Bool>("false"))
+                println(json.decode<Bool>("  true"))
+                println(json.decode<String>("\\"oi\\""))
+                println(json.decode<Long>("-123"))
+            }
+            """);
+        assertEquals("42\n-7\n99\nfalse\ntrue\noi\n-123", out);
+    }
+
+    // NATIVE002-stdlib: metrics() "# TYPE" herdado do riscv64 (tradutor
+    // quote-aware — antes quebrava no .asciz "# TYPE ").
+    @Test
+    void aarch64MetricsParity(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runAarch64(tempDir, """
+            main() {
+                observability.counter("req")
+                observability.increment("req", 3)
+                observability.gauge("temp", 42)
+                println(observability.metrics())
+            }
+            """);
+        assertEquals("# TYPE req counter\nreq 4\n# TYPE temp gauge\ntemp 42", out);
+    }
+
+    // NATIVE002-stdlib: time.sleep real herdado do riscv64 (nanosleep 101).
+    @Test
+    void aarch64TimeSleep(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runAarch64(tempDir, """
+            main() {
+                var t0 = time.now()
+                time.sleep(300)
+                println(time.now() - t0 >= 280)
+            }
+            """);
+        assertEquals("true", out);
+    }
+
     private static int startHttpServer() throws IOException {
         java.net.ServerSocket ss = new java.net.ServerSocket(0);
         int port = ss.getLocalPort();

@@ -56,159 +56,16 @@ public final class Translate {
     // ── public API for tests ──────────────────────────────────────────────
 
     static String translateJava(String source) {
-        List<Tok> toks = lex(source);
+        List<Tok> toks = TranslateLexer.lex(source);
         Parser p = new Parser(toks);
         return new Emitter(p).translate();
     }
 
-    // ── Lexer ─────────────────────────────────────────────────────────────
-
-    private enum T {
-        IDENT, INT, FLOAT, STR, CHAR, P, // { } ( ) [ ] ; , . 
-        EQ, EQEQ, NE, LT, LE, GT, GE, PLUS, MINUS, STAR, SLASH, PERCENT,
-        ANDAND, OROR, NOT, PLUSEQ, MINUSEQ, STAREQ, SLASHEQ, PERCENTEQ,
-        INC, DEC, EOF
-    }
-
-    private record Tok(T type, String text) {
-    }
-
-    private static final java.util.Set<String> KEYWORDS = java.util.Set.of(
-            "public", "private", "protected", "static", "final", "abstract",
-            "class", "interface", "extends", "implements", "return", "if",
-            "else", "while", "for", "new", "package", "import", "null",
-            "true", "false", "throw", "try", "catch", "finally", "void",
-            "boolean", "byte", "short", "int", "long", "float", "double",
-            "char", "String", "this", "super", "switch", "case", "break",
-            "default", "do");
-
-    private static List<Tok> lex(String s) {
-        List<Tok> out = new ArrayList<>();
-        int i = 0;
-        int n = s.length();
-        while (i < n) {
-            char c = s.charAt(i);
-            if (Character.isWhitespace(c)) { i++; continue; }
-            if (c == '/' && i + 1 < n && s.charAt(i + 1) == '/') {
-                while (i < n && s.charAt(i) != '\n') i++;
-                continue;
-            }
-            if (c == '/' && i + 1 < n && s.charAt(i + 1) == '*') {
-                i += 2;
-                while (i + 1 < n && !(s.charAt(i) == '*' && s.charAt(i + 1) == '/')) i++;
-                i += 2;
-                continue;
-            }
-            if (c == '"') {
-                int j = i + 1;
-                StringBuilder sb = new StringBuilder();
-                while (j < n && s.charAt(j) != '"') {
-                    if (s.charAt(j) == '\\' && j + 1 < n) {
-                        char e = s.charAt(j + 1);
-                        sb.append(switch (e) {
-                            case 'n' -> '\n'; case 't' -> '\t'; case 'r' -> '\r';
-                            case '"' -> '"'; case '\\' -> '\\';
-                            default -> e;
-                        });
-                        j += 2;
-                    } else {
-                        sb.append(s.charAt(j)); j++;
-                    }
-                }
-                out.add(new Tok(T.STR, sb.toString()));
-                i = j + 1;
-                continue;
-            }
-            if (c == '\'') {
-                if (i + 2 < n && s.charAt(i + 2) == '\'') {
-                    out.add(new Tok(T.CHAR, String.valueOf(s.charAt(i + 1))));
-                    i += 3;
-                } else {
-                    i++;
-                }
-                continue;
-            }
-            if (Character.isDigit(c)) {
-                int j = i;
-                boolean isFloat = false;
-                while (j < n && (Character.isDigit(s.charAt(j)) || s.charAt(j) == '.')) {
-                    if (s.charAt(j) == '.') isFloat = true;
-                    j++;
-                }
-                out.add(new Tok(isFloat ? T.FLOAT : T.INT, s.substring(i, j)));
-                i = j;
-                continue;
-            }
-            if (Character.isJavaIdentifierStart(c)) {
-                int j = i;
-                while (j < n && Character.isJavaIdentifierPart(s.charAt(j))) j++;
-                String w = s.substring(i, j);
-                if (KEYWORDS.contains(w)) {
-                    out.add(new Tok(T.IDENT, w)); // keyword kept as IDENT text
-                } else {
-                    out.add(new Tok(T.IDENT, w));
-                }
-                i = j;
-                continue;
-            }
-            switch (c) {
-                case '{' -> out.add(new Tok(T.P, "{"));
-                case '}' -> out.add(new Tok(T.P, "}"));
-                case '(' -> out.add(new Tok(T.P, "("));
-                case ')' -> out.add(new Tok(T.P, ")"));
-                case '[' -> out.add(new Tok(T.P, "["));
-                case ']' -> out.add(new Tok(T.P, "]"));
-                case ';' -> out.add(new Tok(T.P, ";"));
-                case ',' -> out.add(new Tok(T.P, ","));
-                case ':' -> out.add(new Tok(T.P, ":"));
-                case '.' -> out.add(new Tok(T.P, "."));
-                case '=' -> { if (i + 1 < n && s.charAt(i + 1) == '=') { out.add(new Tok(T.EQEQ, "==")); i += 2; continue; } out.add(new Tok(T.EQ, "=")); }
-                case '!' -> { if (i + 1 < n && s.charAt(i + 1) == '=') { out.add(new Tok(T.NE, "!=")); i += 2; continue; } out.add(new Tok(T.NOT, "!")); }
-                case '<' -> { if (i + 1 < n && s.charAt(i + 1) == '=') { out.add(new Tok(T.LE, "<=")); i += 2; continue; } out.add(new Tok(T.LT, "<")); }
-                case '>' -> { if (i + 1 < n && s.charAt(i + 1) == '=') { out.add(new Tok(T.GE, ">=")); i += 2; continue; } out.add(new Tok(T.GT, ">")); }
-                case '+' -> { if (i + 1 < n && s.charAt(i + 1) == '+') { out.add(new Tok(T.INC, "++")); i += 2; continue; } if (i + 1 < n && s.charAt(i + 1) == '=') { out.add(new Tok(T.PLUSEQ, "+=")); i += 2; continue; } out.add(new Tok(T.PLUS, "+")); }
-                case '-' -> { if (i + 1 < n && s.charAt(i + 1) == '-') { out.add(new Tok(T.DEC, "--")); i += 2; continue; } if (i + 1 < n && s.charAt(i + 1) == '=') { out.add(new Tok(T.MINUSEQ, "-=")); i += 2; continue; } out.add(new Tok(T.MINUS, "-")); }
-                case '*' -> { if (i + 1 < n && s.charAt(i + 1) == '=') { out.add(new Tok(T.STAREQ, "*=")); i += 2; continue; } out.add(new Tok(T.STAR, "*")); }
-                case '/' -> { if (i + 1 < n && s.charAt(i + 1) == '=') { out.add(new Tok(T.SLASHEQ, "/=")); i += 2; continue; } out.add(new Tok(T.SLASH, "/")); }
-                case '%' -> { if (i + 1 < n && s.charAt(i + 1) == '=') { out.add(new Tok(T.PERCENTEQ, "%=")); i += 2; continue; } out.add(new Tok(T.PERCENT, "%")); }
-                case '&' -> { if (i + 1 < n && s.charAt(i + 1) == '&') { out.add(new Tok(T.ANDAND, "&&")); i += 2; continue; } }
-                case '|' -> { if (i + 1 < n && s.charAt(i + 1) == '|') { out.add(new Tok(T.OROR, "||")); i += 2; continue; } }
-                default -> i++;
-            }
-            i = Math.min(i + 1, n); // guarded advance for simple single-char cases
-        }
-        out.add(new Tok(T.EOF, ""));
-        return out;
-    }
-
-    // ── Parser + Emitter range helpers ────────────────────────────────────
-
-    private static final class TranslateException extends RuntimeException {
-        TranslateException(String m) { super(m); }
-    }
-
-    private static final class Parser {
-        final List<Tok> toks;
-        int pos;
-        Parser(List<Tok> toks) { this.toks = toks; }
-        Tok peek() { return toks.get(pos); }
-        Tok peek(int ahead) { int i = Math.min(pos + ahead, toks.size() - 1); return toks.get(i); }
-        Tok next() { Tok t = toks.get(pos); if (pos < toks.size() - 1) pos++; return t; }
-        boolean at(String text) { return peek().text.equals(text); }
-        boolean at(T t) { return peek().type == t; }
-        Tok expect(String text) {
-            if (!at(text)) throw new TranslateException("expected '" + text + "' but found '" + peek().text + "'");
-            return next();
-        }
-        Tok expectPunct() { return next(); }
-    }
-
-    private static final class Emitter {
-        final Parser p;
+    static final class Emitter extends TranslateExpr {
         final StringBuilder out = new StringBuilder();
         final StringBuilder topFns = new StringBuilder();
 
-        Emitter(Parser p) { this.p = p; }
+        Emitter(Parser p) { super(p); }
 
         String translate() {
             // Skip package / imports.
@@ -220,8 +77,10 @@ public final class Translate {
                 while (!p.at(";")) p.next();
                 p.next();
             }
-            // Parse a type declaration.
-            parseTypeDeclaration();
+            // Parse all top-level type declarations.
+            while (!p.at(T.EOF)) {
+                parseTypeDeclaration();
+            }
             // Static methods were collected as top-level functions; emit them first.
             out.insert(0, topFns);
             return out.toString();
@@ -234,9 +93,50 @@ public final class Translate {
                 parseClass();
             } else if (p.at("interface")) {
                 parseInterface();
+            } else if (p.at("record")) {
+                parseRecord();
+            } else if (p.at("enum")) {
+                parseEnum();
             } else {
-                throw new TranslateException("expected class/interface, found '" + p.peek().text + "'");
+                throw new TranslateException("expected class/interface/record/enum, found '" + p.peek().text + "'");
             }
+        }
+
+        private void parseEnum() {
+            p.expect("enum");
+            String name = p.next().text;
+            List<String> constants = new ArrayList<>();
+            p.expect("{");
+            while (!p.at("}") && !p.at(";")) {
+                constants.add(p.next().text);
+                if (p.at("(")) { p.next(); while (!p.at(")")) p.next(); p.next(); }  // args ignorados (MVP)
+                if (p.at("{")) skipBlock();                                          // corpo de constante ignorado
+                if (p.at(",")) p.next();
+            }
+            if (p.at(";")) { p.next(); while (!p.at("}")) skipBlock(); }             // métodos/campos ignorados
+            p.expect("}");
+            out.append("enum ").append(name).append(" { ")
+               .append(String.join(", ", constants)).append(" }\n");
+        }
+
+        private void parseRecord() {
+            p.expect("record");
+            String name = p.next().text;
+            List<String> components = new ArrayList<>();
+            if (p.at("(")) {
+                p.next();
+                while (!p.at(")")) {
+                    String type = kofType(p.next().text);
+                    String cname = p.next().text;
+                    components.add(type + " " + cname);
+                    if (p.at(",")) p.next();
+                }
+                p.expect(")");
+            }
+            if (p.at("{")) skipBlock();
+            else p.expect(";");
+            out.append("record ").append(name).append('(')
+               .append(String.join(", ", components)).append(")\n");
         }
 
         private void parseClass() {
@@ -478,253 +378,6 @@ public final class Translate {
             String e = parseExpr();
             p.expect(";");
             return e;
-        }
-
-        // ── expressions ────────────────────────────────────────────────────
-
-        private String parseExpr() {
-            return parseAssignment();
-        }
-
-        private String parseAssignment() {
-            String lhs = parseOr();
-            T t = p.peek().type;
-            if (t == T.EQ) { p.next(); return lhs + " = " + parseAssignment(); }
-            if (t == T.PLUSEQ) { p.next(); return lhs + " += " + parseAssignment(); }
-            if (t == T.MINUSEQ) { p.next(); return lhs + " -= " + parseAssignment(); }
-            if (t == T.STAREQ) { p.next(); return lhs + " *= " + parseAssignment(); }
-            if (t == T.SLASHEQ) { p.next(); return lhs + " /= " + parseAssignment(); }
-            if (t == T.PERCENTEQ) { p.next(); return lhs + " %= " + parseAssignment(); }
-            return lhs;
-        }
-
-        private String parseOr() {
-            String e = parseAnd();
-            while (p.at(T.OROR)) { p.next(); e = e + " || " + parseAnd(); }
-            return e;
-        }
-
-        private String parseAnd() {
-            String e = parseEquality();
-            while (p.at(T.ANDAND)) { p.next(); e = e + " && " + parseEquality(); }
-            return e;
-        }
-
-        private String parseEquality() {
-            String e = parseRel();
-            while (p.at(T.EQEQ) || p.at(T.NE)) {
-                if (p.at(T.EQEQ)) { p.next(); e = e + " == " + parseRel(); }
-                else { p.next(); e = e + " != " + parseRel(); }
-            }
-            return e;
-        }
-
-        private String parseRel() {
-            String e = parseAdd();
-            while (p.at(T.LT) || p.at(T.LE) || p.at(T.GT) || p.at(T.GE)) {
-                String op = p.next().text;
-                e = e + " " + op + " " + parseAdd();
-            }
-            return e;
-        }
-
-        private String parseAdd() {
-            String e = parseMul();
-            while (p.at(T.PLUS) || p.at(T.MINUS)) {
-                String op = p.next().text;
-                e = e + " " + op + " " + parseMul();
-            }
-            return e;
-        }
-
-        private String parseMul() {
-            String e = parseUnary();
-            while (p.at(T.STAR) || p.at(T.SLASH) || p.at(T.PERCENT)) {
-                String op = p.next().text;
-                e = e + " " + op + " " + parseUnary();
-            }
-            return e;
-        }
-
-        private String parseUnary() {
-            if (p.at(T.NOT)) { p.next(); return "!" + parseUnary(); }
-            if (p.at(T.MINUS)) { p.next(); return "-" + parseUnary(); }
-            if (p.at(T.PLUS)) { p.next(); return "+" + parseUnary(); }
-            return parsePostfix();
-        }
-
-        private String parsePostfix() {
-            String e = parsePrimary();
-            while (true) {
-                if (p.at(".")) {
-                    p.next();
-                    String field = p.next().text;
-                    if (p.at("(")) {
-                        // method call on receiver
-                        e = translateCall(e, field);
-                    } else {
-                        e = e + "." + field;
-                    }
-                } else if (p.at("[")) {
-                    p.next();
-                    String idx = parseExpr();
-                    p.expect("]");
-                    e = e + "[" + idx + "]";
-                } else if (p.at(T.INC)) { p.next(); e += "++"; }
-                else if (p.at(T.DEC)) { p.next(); e += "--"; }
-                else break;
-            }
-            return e;
-        }
-
-        private String translateCall(String receiver, String method) {
-            if (receiver.equals("System.out") && method.equals("println")) {
-                String args = parseCallArgs();
-                return "println(" + args + ")";
-            }
-            if (receiver.equals("System.out") && method.equals("print")) {
-                String args = parseCallArgs();
-                return "print(" + args + ")";
-            }
-            if (method.equals("equals")) {
-                String arg = parseSingleArg();
-                return receiver + " == " + arg;
-            }
-            String args = parseCallArgs();
-            return receiver + "." + method + "(" + args + ")";
-        }
-
-        private String parseSingleArg() {
-            p.expect("(");
-            String e = parseExpr();
-            p.expect(")");
-            return e;
-        }
-
-        private String parseCallArgs() {
-            p.expect("(");
-            List<String> args = new ArrayList<>();
-            if (!p.at(")")) {
-                args.add(parseExpr());
-                while (p.at(",")) { p.next(); args.add(parseExpr()); }
-            }
-            p.expect(")");
-            return String.join(", ", args);
-        }
-
-        private String parsePrimary() {
-            Tok t = p.next();
-            return switch (t.type) {
-                case INT, FLOAT -> t.text;
-                case STR -> "\"" + t.text + "\"";
-                case CHAR -> "'" + t.text + "'";
-                case IDENT -> switch (t.text) {
-                    case "true" -> "true";
-                    case "false" -> "false";
-                    case "null" -> "null";
-                    case "new" -> parseNew();
-                    case "this" -> "this";
-                    default -> t.text;
-                };
-                case P -> {
-                    if (t.text.equals("(")) {
-                        String e = parseExpr();
-                        p.expect(")");
-                        yield e;
-                    }
-                    yield t.text;
-                }
-                default -> t.text;
-            };
-        }
-
-        private String parseNew() {
-            String typeName = p.next().text;
-            if (p.at("[")) {
-                // array creation: new int[n] or new int[]{...}
-                p.next();
-                p.next(); // ]
-                String size = parseExpr();
-                return "new " + kofType(typeName) + "[" + size + "]";
-            }
-            String args = parseCallArgs();
-            return kofType(typeName) + "(" + args + ")";
-        }
-
-        // ── types ───────────────────────────────────────────────────────────
-
-        private String parseType() {
-            String base = p.next().text;
-            StringBuilder sb = new StringBuilder(kofType(base));
-            // generic args <...>
-            if (p.at("<")) {
-                p.next();
-                String inner = parseType();
-                while (p.at(",")) { p.next(); inner += ", " + parseType(); }
-                p.expect(">");
-                sb.append("<").append(inner).append(">");
-            }
-            while (p.at("[")) { p.next(); p.next(); sb.append("[]"); }
-            return sb.toString();
-        }
-
-        private List<String> parseParams() {
-            p.expect("(");
-            List<String> params = new ArrayList<>();
-            if (!p.at(")")) {
-                params.add(parseType());
-                String pname = p.next().text;
-                params.set(params.size() - 1, params.get(params.size() - 1) + " " + pname);
-                while (p.at(",")) { p.next(); String ty = parseType(); String nm = p.next().text; params.add(ty + " " + nm); }
-            }
-            p.expect(")");
-            return params;
-        }
-
-        private String paramList(List<String> params) {
-            return String.join(", ", params);
-        }
-
-        // ── static helpers ──────────────────────────────────────────────────
-
-        private static boolean isModifier(String s) {
-            return switch (s) {
-                case "public", "private", "protected", "static", "final",
-                     "abstract", "synchronized", "native", "transient", "volatile",
-                     "default" -> true;
-                default -> false;
-            };
-        }
-
-        private static boolean isTypekeyword(String s) {
-            return switch (s) {
-                case "int", "long", "float", "double", "boolean", "char", "byte",
-                     "short", "void", "String" -> true;
-                default -> false;
-            };
-        }
-
-        private static boolean isPrimitiveOrType(String s) {
-            return isTypekeyword(s) || (!isKeyword(s) && Character.isUpperCase(s.charAt(0)));
-        }
-
-        private static boolean isKeyword(String s) {
-            return KEYWORDS.contains(s);
-        }
-
-        private static String kofType(String javaType) {
-            return switch (javaType) {
-                case "int" -> "Int";
-                case "long" -> "Long";
-                case "float" -> "Float";
-                case "double" -> "Double";
-                case "boolean" -> "Bool";
-                case "char" -> "Char";
-                case "byte" -> "Byte";
-                case "short" -> "Short";
-                case "void" -> "void";
-                default -> javaType;
-            };
         }
     }
 

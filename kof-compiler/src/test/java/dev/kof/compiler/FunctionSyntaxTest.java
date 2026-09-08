@@ -130,4 +130,61 @@ class FunctionSyntaxTest {
         Files.writeString(source, CLASS_METHOD_FORMS);
         runNative(source, tempDir.resolve("out"), "10\ntrue\ncalc\n20");
     }
+
+    private void assertParse085(Path tempDir, String code) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, code);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "não deve compilar: " + code);
+        assertTrue(result.diagnostics().getDiagnostics().stream()
+                .anyMatch(d -> "PARSE085".equals(d.code())),
+                "esperava PARSE085, veio: " + result.diagnostics().getDiagnostics());
+    }
+
+    @Test
+    void funKeywordIsRejected(@TempDir Path tempDir) throws IOException {
+        assertParse085(tempDir, "fun main() {\n    println(\"x\")\n}\n");
+    }
+
+    @Test
+    void fnKeywordIsRejected(@TempDir Path tempDir) throws IOException {
+        assertParse085(tempDir, "fn main() {\n    println(\"x\")\n}\n");
+    }
+
+    @Test
+    void funcKeywordIsRejected(@TempDir Path tempDir) throws IOException {
+        assertParse085(tempDir, "func main() {\n    println(\"x\")\n}\n");
+    }
+
+    @Test
+    void fnWithReturnTypeIsRejected(@TempDir Path tempDir) throws IOException {
+        assertParse085(tempDir, "fn calc(): Int {\n    return 1\n}\nmain() {\n    println(calc())\n}\n");
+    }
+
+    @Test
+    void fnAsFunctionNameIsReserved(@TempDir Path tempDir) throws IOException {
+        // `fn`/`fun`/`func` são RESERVADAS (SG-001): nem como nome de função.
+        assertParse085(tempDir, "fn() {\n    println(\"x\")\n}\nmain() {\n    fn()\n}\n");
+    }
+
+    @Test
+    void funAsVariableNameIsReserved(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, "main() {\n    var fun = 1\n    println(fun)\n}\n");
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "var fun = 1 não deve compilar: " + result.diagnostics().getDiagnostics());
+    }
+
+    @Test
+    void fnAsParamNameIsReserved(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, "main(fn: Int) {\n    println(fn)\n}\n");
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "param fn não deve compilar: " + result.diagnostics().getDiagnostics());
+    }
+
+    @Test
+    void funInsideClassMemberIsReserved(@TempDir Path tempDir) throws IOException {
+        assertParse085(tempDir, "class C {\n    fun foo() {\n        println(\"x\")\n    }\n}\nmain() {\n    C().foo()\n}\n");
+    }
 }

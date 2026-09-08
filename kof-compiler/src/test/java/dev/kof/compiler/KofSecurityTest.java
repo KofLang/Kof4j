@@ -637,4 +637,22 @@ class KofSecurityTest {
                     .findFirst().orElseThrow();
         }
     }
+
+    @Test
+    void crossNativeReportsSecn000(@TempDir Path tmp) throws IOException {
+        // R6: o runtime riscv64/aarch64 não tem kof_sec_* — gate SECN000 em
+        // compile-time (antes: undefined-reference no ld, erro feio).
+        Path source = tmp.resolve("Main.kf");
+        Files.writeString(source, """
+            main() {
+                println(crypto.sha256("abc"))
+            }
+            """);
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            CompilationResult r = driver.compile(source, tmp.resolve("cross-" + t), t);
+            assertFalse(r.success(), t + " deve reportar SECN000");
+            assertTrue(r.diagnostics().getDiagnostics().toString().contains("SECN000"),
+                    t + ": " + r.diagnostics().getDiagnostics());
+        }
+    }
 }

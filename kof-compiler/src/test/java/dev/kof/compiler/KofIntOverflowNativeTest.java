@@ -22,7 +22,7 @@ class KofIntOverflowNativeTest {
     void intMulOverflowTruncatesTo32bitsAndComparesEqualNative(@TempDir Path tmp) throws Exception {
         // 2000000000 * 33 = 66000000000; truncado a 32 bits = 1575490560 (positivo)
         runNative(tmp, """
-            fn calc(): Int {
+            calc(): Int {
                 var h = 2000000000
                 h = h * 33
                 return h
@@ -41,7 +41,7 @@ class KofIntOverflowNativeTest {
     void intMulOverflowNegativeWrapsNative(@TempDir Path tmp) throws Exception {
         // 2000000000 * 34 = 68000000000; mod 2^32 = 3575490560; como int32 = 3575490560-2^32 = -719476736
         runNative(tmp, """
-            fn calc(): Int {
+            calc(): Int {
                 var h = 2000000000
                 h = h * 34
                 return h

@@ -8,7 +8,7 @@ import java.util.List;
  * gpu.available() → bool (device compute inicializado)
  * Os arrays são Int[] (ponto fixo de milésimos, coerente com o runtime Kof).
  */
-final class KofGpu {
+public final class KofGpu {
     private KofGpu() {}
     static final Type GPU = new Type.ClassType("kof.gpu", "Gpu", List.of());
     private static final Type INT = Type.PrimitiveType.INT;

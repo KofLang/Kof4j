@@ -11,7 +11,7 @@ import java.util.List;
  * (Native, JS) the call produces a clear compile-time diagnostic (EGG001)
  * instead of silently diverging.
  */
-final class KofTetris {
+public final class KofTetris {
 
     private KofTetris() {}
 

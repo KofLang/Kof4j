@@ -28,7 +28,7 @@ import java.util.zip.ZipFile;
  * tabelas de métodos dos .class dentro dos entries (jar/aar/diretório),
  * seguindo a cadeia de superclasses quando o membro é herdado.
  */
-final class ExternalClasspath {
+public final class ExternalClasspath {
 
     /** Assinatura resolvida: descritores formais de params, retorno e flags. */
     record MethodSignature(List<String> parameterDescriptors, String returnDescriptor,

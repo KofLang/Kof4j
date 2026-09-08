@@ -3,7 +3,7 @@ package dev.kof.compiler;
 import java.util.List;
 
 
-final class KofIo {
+public final class KofIo {
 
     private KofIo() {}
 
@@ -58,9 +58,16 @@ final class KofIo {
                     ? new IoCall("kof_io_read_range", INT_ARRAY, List.of(LONG, LONG)) : null;
             case "writeBytes" -> argCount == 1 ? new IoCall("kof_io_write_bytes", BOOL, List.of(INT_ARRAY)) : null;
             case "appendBytes" -> argCount == 1 ? new IoCall("kof_io_append_bytes", BOOL, List.of(INT_ARRAY)) : null;
-            case "delete" -> isDirectory(receiver)
-                    ? new IoCall("kof_io_dir_delete", BOOL, List.of())  // recursivo
-                    : new IoCall("kof_io_delete", BOOL, List.of());
+            // delete de instância é 0-args (File.delete()/Directory.delete()).
+            // Sem a guarda de aridade, `app.delete("/x") {…}` (2 args) colidia
+            // com este case em hasReturnValueInner (receiver UNKNOWN) → KofPop
+            // extra sobre kof_web_route (void) → underflow no Frame.merge
+            // (COMP002, GitHub #29 / bug 54).
+            case "delete" -> argCount == 0
+                    ? (isDirectory(receiver)
+                            ? new IoCall("kof_io_dir_delete", BOOL, List.of())  // recursivo
+                            : new IoCall("kof_io_delete", BOOL, List.of()))
+                    : null;
             case "size" -> argCount == 0 ? new IoCall("kof_io_file_size", LONG, List.of()) : null;
             case "name" -> argCount == 0 ? new IoCall("kof_io_file_name", STR, List.of()) : null;
             case "resolve" -> argCount == 1 ? new IoCall("kof_io_path_resolve", PATH, List.of(STR)) : null;

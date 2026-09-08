@@ -8,7 +8,7 @@ e por que NÃO é mais um problema.
 ## Problem (0.2.6-beta ≤ 31/08)
 
 ```kof
-fn f(List<Box> cache, Int n): Int {
+f(List<Box> cache, Int n): Int {
     cache.add(Box(7))     // call void builtin como statement
     var i = 0
     var tot = 0

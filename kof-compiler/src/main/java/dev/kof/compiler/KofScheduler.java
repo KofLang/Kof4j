@@ -2,7 +2,7 @@ package dev.kof.compiler;
 
 import java.util.List;
 
-final class KofScheduler {
+public final class KofScheduler {
     private KofScheduler() {}
     static final Type SCHEDULER = new Type.ClassType("kof.scheduler", "Scheduler", List.of());
     private static final Type STR = BuiltinTypes.STRING;
@@ -19,6 +19,9 @@ final class KofScheduler {
     }
     record SchedulerCall(String function, Type returnType, List<Type> parameterTypes) {}
     static boolean supportedOn(Target target) {
+        // SCHED001 FEITO no cross (05/09): kof_scheduler_every/cancel/at no
+        // runtime riscv64/aarch64 (thread por job via clone 220 + nanosleep
+        // 101 + spinlock amoswap.w — mesmo mecanismo do spawn).
         return target == Target.JVM || target == Target.ANDROID
                 || target == Target.JS || target.isNative();
     }

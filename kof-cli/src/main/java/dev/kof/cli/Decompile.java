@@ -1,6 +1,6 @@
 package dev.kof.cli;
 
-import dev.kof.compiler.ClassFileParser;
+import dev.kof.compiler.parser.ClassFileParser;
 import dev.kof.compiler.Confidence;
 
 import java.io.IOException;
@@ -64,8 +64,8 @@ public final class Decompile {
         var ir = ClassFileParser.parse(Files.newInputStream(classFile));
         StringBuilder sb = new StringBuilder();
         sb.append("// decompiled from ").append(classFile.getFileName()).append('\n');
-        sb.append("// structural skeleton — method bodies not recovered yet (Fase E)\n");
-        sb.append("// confidence: class/fields/signatures = EXACT; method bodies = UNKNOWN\n\n");
+        sb.append("// structural skeleton — simple method bodies recovered; others stubbed (Fase E)\n");
+        sb.append("// confidence: class/fields/signatures = EXACT; recovered bodies = EXACT; stubs = UNKNOWN\n\n");
 
         String simpleName = simpleName(ir.thisClass);
         sb.append("class ").append(simpleName);
@@ -95,11 +95,42 @@ public final class Decompile {
                   .append(") {\n    }\n");
                 continue;
             }
-            sb.append("    ").append(methodKofType(m.returnTypeName())).append(' ')
-              .append(m.name)
-              .append('(').append(paramList(m.parameterTypeNames())).append(") {\n");
-            sb.append("        throw \"body not recovered\"   // ").append(Confidence.UNKNOWN.label()).append('\n');
-            sb.append("    }\n");
+            String ret = methodKofType(m.returnTypeName());
+            String params = paramList(m.parameterTypeNames());
+            String body = null;
+            List<String> stmts = null;
+            if (m.code != null) {
+                boolean isStatic = (m.accessFlags & 0x0008) != 0;
+                int pcount = m.parameterTypeNames().size();
+                boolean hasHandlers = m.code.exceptionHandlers != null && !m.code.exceptionHandlers.isEmpty();
+                if (!hasHandlers) {
+                    body = BytecodeDecoder.recoverExpression(m.code.bytecode, ir.constantPool, pcount, isStatic);
+                }
+                if (body == null) {
+                    int[][] handlers = new int[m.code.exceptionHandlers.size()][];
+                    for (int i = 0; i < handlers.length; i++) {
+                        var h = m.code.exceptionHandlers.get(i);
+                        boolean isFinally = h.catchType == null || "INVALID".equals(h.catchType);
+                        handlers[i] = new int[]{h.startPc, h.endPc, h.handlerPc, isFinally ? 1 : 0};
+                    }
+                    stmts = BytecodeStatements.recoverStatements(m.code.bytecode, ir.constantPool, pcount, isStatic, handlers);
+                }
+            }
+            if (body == null && stmts == null) {
+                sb.append("    ").append(ret).append(' ').append(m.name)
+                  .append('(').append(params).append(") {\n");
+                sb.append("        throw \"body not recovered\"   // ").append(Confidence.UNKNOWN.label()).append('\n');
+                sb.append("    }\n");
+            } else if (stmts != null) {
+                sb.append("    ").append(ret).append(' ').append(m.name).append('(').append(params).append(") {\n");
+                for (String s : stmts) sb.append("        ").append(s).append('\n');
+                sb.append("    }\n");
+            } else if (body.isEmpty()) {
+                sb.append("    ").append(ret).append(' ').append(m.name).append('(').append(params).append(") {\n    }\n");
+            } else {
+                sb.append("    ").append(ret).append(' ').append(m.name).append('(').append(params)
+                  .append(") = ").append(body).append('\n');
+            }
         }
 
         sb.append("}\n");

@@ -415,6 +415,135 @@ class NativeRiscv64E2ETest {
         assertEquals("true", out);
     }
 
+    // NATIVE002-stdlib: cache real (set/get/ttl) + println(null) → "null".
+    // O scan loop usava t2/t3 (caller-saved) através de kof_string_equals →
+    // bounds quebrados → segfault. Agora usa ponteiro-fim salvo no frame.
+    @Test
+    void riscv64Cache(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runRiscv64(tempDir, """
+            main() {
+                cache.set("name", "Mel")
+                println(cache.get("name"))
+                println(cache.get("missing"))
+                cache.set("t", "x", 1)
+                println(cache.ttl("t") >= 0 && cache.ttl("t") <= 1)
+            }
+            """);
+        assertEquals("Mel\nnull\ntrue", out);
+    }
+
+    // NATIVE002-stdlib: "42".toInt() — o loop derefava o VALOR do char
+    // (lbu t0,24(s0) → 0x34) como endereço → SIGSEGV silencioso.
+    @Test
+    void riscv64StringToInt(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runRiscv64(tempDir, """
+            main() {
+                println("42".toInt())
+                println("-7".toInt())
+                println("0".toInt())
+            }
+            """);
+        assertEquals("42\n-7\n0", out);
+    }
+
+    // NATIVE002-stdlib: Map/Set no cross (port linear-scan do x86_64) —
+    // antes mapOf/setOf quebravam no link (undefined reference).
+    @Test
+    void riscv64MapSet(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runRiscv64(tempDir, """
+            main() {
+                var m = mapOf()
+                m.put("a", 1)
+                m.put("b", 2)
+                println(m.get("a"))
+                println(m.size())
+                println(m.contains("b"))
+                println(m.remove("a"))
+                println(m.size())
+                println(m.keys().size())
+                var s = setOf("x", "x", "y")
+                println(s.size())
+                println(s.contains("y"))
+                println(s.contains("z"))
+                println(s.remove("x"))
+                println(s.size())
+            }
+            """);
+        assertEquals("1\n2\ntrue\n1\n1\n1\n2\ntrue\nfalse\ntrue\n1", out);
+    }
+
+    // NATIVE002-stdlib: higher-order (map/filter/reduce) no cross — closure
+    // ABI igual mq (a0=fn, a1..=args, invoke via vtable[0]).
+    @Test
+    void riscv64HigherOrder(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runRiscv64(tempDir, """
+            main() {
+                var l = listOf(1, 2, 3)
+                var d = l.map((x: Int) -> x * 2)
+                println(d.get(2))
+                var f = l.filter((x: Int) -> x > 1)
+                println(f.size)
+                println(l.reduce((a: Int, b: Int) -> a + b, 0))
+            }
+            """);
+        assertEquals("6\n2\n6", out);
+    }
+
+    // NATIVE002-stdlib: json.decode<Int> escalar no cross (antes: undefined
+    // reference a kof_json_decode_int — só o _int_list existia).
+    @Test
+    void riscv64JsonDecodeInt(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runRiscv64(tempDir, """
+            main() {
+                println(json.decode<Int>("42"))
+                println(json.decode<Int>("-7"))
+                println(json.decode<Int>("  99  "))
+                println(json.decode<Bool>("false"))
+                println(json.decode<Bool>("  true"))
+                println(json.decode<String>("\\"oi\\""))
+                println(json.decode<Long>("-123"))
+            }
+            """);
+        assertEquals("42\n-7\n99\nfalse\ntrue\noi\n-123", out);
+    }
+
+    // NATIVE002-stdlib: metrics() com linhas "# TYPE" no cross (paridade
+    // exata com JVM/x86_64 — antes o riscv omitia o TYPE e o tradutor
+    // quebrava .asciz "# TYPE " ao stripar '#' como comentário).
+    @Test
+    void riscv64MetricsParity(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runRiscv64(tempDir, """
+            main() {
+                observability.counter("req")
+                observability.increment("req", 3)
+                observability.gauge("temp", 42)
+                println(observability.metrics())
+            }
+            """);
+        assertEquals("# TYPE req counter\nreq 4\n# TYPE temp gauge\ntemp 42", out);
+    }
+
+    // NATIVE002-stdlib: time.sleep real (nanosleep 101) — antes era stub
+    // `ret` (não dormia; R6). Pré-requisito do scheduler.
+    @Test
+    void riscv64TimeSleep(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runRiscv64(tempDir, """
+            main() {
+                var t0 = time.now()
+                time.sleep(300)
+                println(time.now() - t0 >= 280)
+            }
+            """);
+        assertEquals("true", out);
+    }
+
     private static int startHttpServer() throws IOException {
         java.net.ServerSocket ss = new java.net.ServerSocket(0);
         int port = ss.getLocalPort();

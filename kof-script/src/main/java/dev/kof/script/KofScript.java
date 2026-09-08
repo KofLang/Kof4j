@@ -2,10 +2,18 @@ package dev.kof.script;
 
 import dev.kof.compiler.CompilerDriver;
 import dev.kof.compiler.CompilationResult;
+import dev.kof.compiler.KofInterpretException;
+import dev.kof.compiler.KofInterpreter;
 import dev.kof.compiler.Target;
 
-import java.io.*;
-import java.nio.file.*;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.PrintStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -39,10 +47,14 @@ public final class KofScript {
     }
 
     public static RunResult eval(String code, Target target) throws IOException {
-        String pre = preprocess(code);
-        // top-level let/const as globals (KofScriptGlobals) — fast path for eval single snippet
-        String wrappedForEval = pre.contains("main()") ? pre : wrapKsWithGlobals(pre);
-        String key = target + ":" + wrappedForEval.hashCode() + ":" + wrappedForEval.length();
+        // KofScript = Kof puro executado direto: sem main() declarado, os
+        // statements do topo viram main() (wrapKsWithGlobals). Nenhum sugar
+        // de outra linguagem (let/const/async/fn NÃO existem).
+        String wrappedForEval = code.contains("main()") ? code : wrapPureKof(code);
+        // Chave = SHA-256 do programa: hashCode()+length() dava colisão real
+        // (bug 47: dois programas distintos c/ mesmo hash int + mesmo length
+        // → o 2º eval devolvia o resultado CACHADO do 1º — R6 silencioso).
+        String key = target + ":" + sha256hex(wrappedForEval);
         RunResult cached = evalCache.get(key);
         if (cached != null) return cached;
         Path tmp = Files.createTempDirectory("kofscript");
@@ -59,92 +71,160 @@ public final class KofScript {
         }
     }
 
-    private static String wrapKsWithGlobals(String pre) {
-        // Extract top-level let/var/val/const as globals -> class KofScriptGlobals
-        // Properly separates top-level decls (fn/class/record/enum) from stmts so that
-        // `let x=5; fn foo(){println(x)}; foo()` generates:
-        //   class KofScriptGlobals { static Int x=5 }
-        //   fn foo(){println(KofScriptGlobals.x)}
-        //   main(){ foo() }
+    /**
+     * KofScript = Kof puro executado direto. O único serviço do wrapper é o
+     * modelo de execução de script: statements no topo viram `main()`, e
+     * `var`/`val` no topo viram campos estáticos de `KofScriptGlobals`
+     * (Kof não tem variável top-level). NENHUM sugar de outra linguagem:
+     * `let`/`const`/`async`/`fn` NÃO existem — código com essas palavras
+     * falha no parser Kof com o diagnóstico normal (R6: nunca silencioso).
+     */
+    public static String wrapPureKof(String code) {
         java.util.List<String> gNames = new java.util.ArrayList<>();
         java.util.List<String> gTypes = new java.util.ArrayList<>();
         java.util.List<String> gInits = new java.util.ArrayList<>();
         StringBuilder decls = new StringBuilder();
         StringBuilder stmts = new StringBuilder();
-        String[] lines = pre.split("\n");
-        java.util.regex.Pattern letPat = java.util.regex.Pattern.compile("^(?:let|var|val|const)\\s+(\\w+)(?:\\s*:\\s*([^=]+))?\\s*=\\s*(.+)$");
+        java.util.regex.Pattern varPat = java.util.regex.Pattern.compile(
+                "^(var|val)\\s+(\\w+)(?:\\s*:\\s*([^=]+))?\\s*=\\s*(.+)$");
         StringBuilder cur = new StringBuilder();
-        boolean curIsDecl = false;
-        for (String raw : lines) {
+        for (String raw : code.split("\n", -1)) {
             String t = raw.strip();
-            String tNorm = t.replaceFirst("^async\\s+", "");
-            if (t.isEmpty() || t.startsWith("//")) continue;
+            if (t.isEmpty() || t.startsWith("//")) { if (cur.length() > 0) cur.append(raw).append('\n'); continue; }
+            if (cur.length() == 0) {
+                java.util.regex.Matcher m = varPat.matcher(t);
+                if (m.matches() && !t.contains("{") && !t.contains("}")) {
+                    gNames.add(m.group(2));
+                    gTypes.add(m.group(3) != null ? m.group(3).strip() : null);
+                    gInits.add(m.group(4).strip().replaceAll(";$", ""));
+                    continue;
+                }
+            }
             cur.append(raw).append('\n');
-            boolean declStart = tNorm.startsWith("fn ") || tNorm.startsWith("enum ") || tNorm.startsWith("class ") || tNorm.startsWith("record ");
-            if (cur.length() == raw.length() + 1) curIsDecl = declStart;
-            if (cur.toString().chars().filter(ch -> ch == '{').count() > cur.toString().chars().filter(ch -> ch == '}').count()) continue;
+            long opens = cur.toString().chars().filter(ch -> ch == '{').count();
+            long closes = cur.toString().chars().filter(ch -> ch == '}').count();
+            if (opens > closes) continue;
             String block = cur.toString().strip();
-            String blockTrim = block.strip();
-            java.util.regex.Matcher mLet = letPat.matcher(blockTrim);
-            boolean isTopLet = !curIsDecl && mLet.matches() && !blockTrim.contains("{") && !blockTrim.contains("}");
-            if (isTopLet) {
-                gNames.add(mLet.group(1));
-                gTypes.add(mLet.group(2) != null ? mLet.group(2).strip() : null);
-                gInits.add(mLet.group(3).strip().replaceAll(";$", ""));
-            } else if (curIsDecl) decls.append(block).append('\n');
-            else stmts.append(block).append('\n');
             cur.setLength(0);
+            if (isTopLevelDecl(block)) decls.append(block).append('\n');
+            else stmts.append(block).append('\n');
         }
-        if (!cur.isEmpty()) {
+        if (cur.length() > 0) {
             String block = cur.toString().strip();
-            String bt = block.strip();
-            java.util.regex.Matcher mLet2 = letPat.matcher(bt);
-            boolean isTopLet2 = mLet2.matches() && !bt.contains("{") && !bt.contains("}");
-            if (isTopLet2) { gNames.add(mLet2.group(1)); gTypes.add(mLet2.group(2)!=null?mLet2.group(2).strip():null); gInits.add(mLet2.group(3).strip().replaceAll(";$","")); }
-            else if (curIsDecl) decls.append(block); else stmts.append(block);
+            if (!block.isEmpty()) {
+                if (isTopLevelDecl(block)) decls.append(block); else stmts.append(block);
+            }
         }
-        if (gNames.isEmpty() && decls.length()==0) {
-            // no globals and no top-level decls — just wrap in main
-            return "main() {\n" + pre + "\n}";
+        if (gNames.isEmpty() && decls.length() == 0) {
+            return "main() {\n" + code + "\n}\n";
         }
-        if (gNames.isEmpty()) {
-            // only decls/stmts, no globals
-            StringBuilder prog0 = new StringBuilder();
-            prog0.append(decls);
-            if (!stmts.isEmpty()) prog0.append("main() {\n").append(stmts).append("\n}\n");
-            else if (decls.isEmpty()) prog0.append("main() {}\n");
-            return prog0.toString();
-        }
-        // dedup globals last wins
-        java.util.LinkedHashMap<String,String> typeMap = new java.util.LinkedHashMap<>();
-        java.util.LinkedHashMap<String,String> initMap = new java.util.LinkedHashMap<>();
-        for (int i=0;i<gNames.size();i++) { typeMap.put(gNames.get(i), gTypes.get(i)); initMap.put(gNames.get(i), gInits.get(i)); }
         StringBuilder prog = new StringBuilder();
-        prog.append("class KofScriptGlobals {\n");
-        for (String n: initMap.keySet()) {
-            String ty=typeMap.get(n);
-            String init=initMap.get(n);
-            String fieldTy = ty != null ? ty.strip() : inferKofType(init);
-            prog.append("  static ").append(fieldTy).append(" ").append(n).append(" = ").append(init).append("\n");
+        if (!gNames.isEmpty()) {
+            java.util.LinkedHashMap<String,String> typeMap = new java.util.LinkedHashMap<>();
+            java.util.LinkedHashMap<String,String> initMap = new java.util.LinkedHashMap<>();
+            for (int i = 0; i < gNames.size(); i++) { typeMap.put(gNames.get(i), gTypes.get(i)); initMap.put(gNames.get(i), gInits.get(i)); }
+            prog.append("class KofScriptGlobals {\n");
+            for (String n : initMap.keySet()) {
+                String ty = typeMap.get(n);
+                String init = initMap.get(n);
+                prog.append("  static ").append(ty != null ? ty : inferKofType(init)).append(" ").append(n).append(" = ").append(init).append("\n");
+            }
+            prog.append("}\n");
+            String ds = qualifyGlobals(decls.toString(), initMap.keySet());
+            String ss = qualifyGlobals(stmts.toString(), initMap.keySet());
+            decls = new StringBuilder(ds); stmts = new StringBuilder(ss);
         }
-        prog.append("}\n");
-        String declStr = decls.toString();
-        String stmtStr = stmts.toString();
-        for (String n : initMap.keySet()) {
-            declStr = declStr.replaceAll("\\b" + java.util.regex.Pattern.quote(n) + "\\b", "KofScriptGlobals." + n);
-            stmtStr = stmtStr.replaceAll("\\b" + java.util.regex.Pattern.quote(n) + "\\b", "KofScriptGlobals." + n);
-        }
-        declStr = normalizeVoidFns(declStr);
-        prog.append(declStr);
-        if (!stmtStr.isBlank()) prog.append("main() {\n").append(stmtStr).append("\n}\n");
-        else if (declStr.isBlank()) prog.append("main() {\nprintln(KofScriptGlobals.").append(initMap.keySet().iterator().next()).append(")\n}\n");
+        prog.append(decls);
+        if (stmts.length() > 0) prog.append("main() {\n").append(stmts).append("\n}\n");
+        else if (decls.length() == 0) prog.append("main() {\nprintln(KofScriptGlobals.").append(gNames.get(gNames.size()-1)).append(")\n}\n");
         else prog.append("main() {}\n");
         return prog.toString();
     }
 
-    private static String normalizeVoidFns(String decls0) {
-        // fn foo() { -> fn foo(): Void {
-        return decls0.replaceAll("fn\\s+(\\w+)\\s*\\(([^)]*)\\)\\s*\\{", "fn $1($2): Void {");
+    /**
+     * Qualifica referências a globais de topo (`name` → `KofScriptGlobals.name`)
+     * varrendo o texto como código: tokens dentro de strings ("..."), chars
+     * ('...') e comentários (//, /*) NÃO são reescritos — o replaceAll \\b que
+     * existia aqui corrompia literais (gap "regex multiline-fragil" do
+     * roadmap-audit: `println(\"my name is here\")` virava
+     * `\"my KofScriptGlobals.name is here\"`).
+     */
+    static String qualifyGlobals(String text, java.util.Collection<String> names) {
+        if (names.isEmpty()) return text;
+        StringBuilder out = new StringBuilder(text.length() + 32);
+        int i = 0, n = text.length();
+        while (i < n) {
+            char c = text.charAt(i);
+            if (c == '/' && i + 1 < n && text.charAt(i + 1) == '/') {
+                int e = text.indexOf('\n', i);
+                if (e < 0) e = n;
+                out.append(text, i, e); i = e; continue;
+            }
+            if (c == '/' && i + 1 < n && text.charAt(i + 1) == '*') {
+                int e = text.indexOf("*/", i + 2);
+                e = e < 0 ? n : e + 2;
+                out.append(text, i, e); i = e; continue;
+            }
+            if (c == '"' || c == '\'') {
+                int j = i + 1;
+                while (j < n) {
+                    char d = text.charAt(j);
+                    if (d == '\\') { j += 2; continue; }
+                    if (d == c) { j++; break; }
+                    if (d == '\n' && c == '\'') break;
+                    j++;
+                }
+                out.append(text, i, Math.min(j, n)); i = Math.min(j, n); continue;
+            }
+            if (Character.isJavaIdentifierStart(c)) {
+                int j = i;
+                while (j < n && Character.isJavaIdentifierPart(text.charAt(j))) j++;
+                String tok = text.substring(i, j);
+                // `x.y` não é referência à global x (é acesso a membro)
+                boolean isMember = out.length() > 0 && out.charAt(out.length() - 1) == '.';
+                // `new X` / declarador de tipo: não qualifica (nomes de tipo
+                // não colidem com globais na prática, mas preserva o antigo
+                // comportamento de só reescrever onde o replaceAll reescrevia)
+                if (!isMember && names.contains(tok)) out.append("KofScriptGlobals.").append(tok);
+                else out.append(tok);
+                i = j; continue;
+            }
+            out.append(c); i++;
+        }
+        return out.toString();
+    }
+
+    private static final java.util.regex.Pattern TOP_TYPE_KW = java.util.regex.Pattern.compile(
+            "^(class|interface|enum|record|entity)\\s");
+    private static final java.util.regex.Pattern STMT_KW = java.util.regex.Pattern.compile(
+            "^(if|while|for|switch|try|catch|finally|return|throw|assert|spawn|else|do|break|continue|var|val)\\b");
+    private static final java.util.regex.Pattern FUNC_HEAD = java.util.regex.Pattern.compile(
+            "^(?:[A-Za-z_][\\w.<>,?\\[\\]\\s]*\\s+)?[A-Za-z_]\\w*\\s*(?:<[^<>]*>)?\\s*\\(");
+
+    /**
+     * Classifica um bloco de topo como DECLARAÇÃO (classe/record/enum ou
+     * função com corpo/`=`/`: Tipo`) vs STATEMENT. Conservador: chamadas com
+     * literais nos parênteses (`println("x")`, `every(100) {…}`) e keywords de
+     * statement nunca são declarações.
+     */
+    static boolean isTopLevelDecl(String block) {
+        String t = block.strip();
+        if (TOP_TYPE_KW.matcher(t).find()) return true;
+        if (STMT_KW.matcher(t).find()) return false;
+        java.util.regex.Matcher m = FUNC_HEAD.matcher(t);
+        if (!m.find()) return false;
+        int open = t.indexOf('(', m.end() - 1);
+        int depth = 0, close = -1;
+        for (int i = open; i < t.length(); i++) {
+            char c = t.charAt(i);
+            if (c == '(') depth++;
+            else if (c == ')') { depth--; if (depth == 0) { close = i; break; } }
+        }
+        if (close < 0) return false;
+        String params = t.substring(open + 1, close);
+        if (params.matches(".*[0-9\"'].*")) return false;
+        String rest = t.substring(close + 1).strip();
+        return rest.startsWith("{") || rest.startsWith("=") || rest.startsWith(":");
     }
 
     private static String inferKofType(String init) {
@@ -161,19 +241,6 @@ public final class KofScript {
         return "Int";
     }
 
-    /**
-     * Preprocess KofScript syntactic sugar:
-     * - `async fn` → `fn` (async is just spawn+await, Kof already has spawn/await via Handle<T>)
-     * - `let`/`const` → `var` (Kof's var)
-     * Future: full async→Handle<T> transform will be done in the frontend.
-     */
-    public static String preprocess(String code) {
-        // Preserve string literals while replacing
-        String r = code.replaceAll("\\basync\\s+fn\\b", "fn");
-        r = r.replaceAll("\\blet\\b", "var");
-        r = r.replaceAll("\\bconst\\b", "val");
-        return r;
-    }
 
     public static RunResult runFile(Path sourceFile) throws IOException {
         return runFile(sourceFile, Target.JVM, new String[0]);
@@ -212,302 +279,108 @@ public final class KofScript {
         Path outDir = Files.createTempDirectory("kofscript-out");
         try {
             CompilerDriver driver = new CompilerDriver();
-            CompilationResult result;
-            if (sources.size() == 1) {
-                Path single = sources.get(0);
-                if (single.toString().endsWith(".ks")) {
-                    // Wrap single .ks like multi-file does — with top-level let as KofScriptGlobals
-                    String content = Files.readString(single);
-                    String pre = preprocess(content);
-                    String[] lines = pre.split("\n");
-                    StringBuilder decls = new StringBuilder();
-                    StringBuilder stmts = new StringBuilder();
-                    java.util.List<String> gNames = new java.util.ArrayList<>();
-                    java.util.List<String> gTypes = new java.util.ArrayList<>();
-                    java.util.List<String> gInits = new java.util.ArrayList<>();
-                    java.util.regex.Pattern letPat2 = java.util.regex.Pattern.compile("^(?:let|var|val|const)\\s+(\\w+)(?:\\s*:\\s*([^=]+))?\\s*=\\s*(.+)$");
-                    StringBuilder cur = new StringBuilder();
-                    boolean curIsDecl = false;
-                    for (String raw : lines) {
-                        String t = raw.strip();
-                        String tNorm = t.replaceFirst("^async\\s+", "");
-                        if (t.isEmpty() || t.startsWith("//")) continue;
-                        cur.append(raw).append('\n');
-                        boolean declStart = tNorm.startsWith("fn ") || tNorm.startsWith("enum ") || tNorm.startsWith("class ") || tNorm.startsWith("record ");
-                        if (cur.length() == raw.length() + 1) curIsDecl = declStart;
-                        if (cur.toString().chars().filter(ch -> ch == '{').count() > cur.toString().chars().filter(ch -> ch == '}').count()) continue;
-                        String block = cur.toString().strip().replaceFirst("(?m)^async\\s+fn\\b", "fn").replaceAll("\\blet\\b", "var").replaceAll("\\bconst\\b", "val");
-                        String blockTrim = block.strip();
-                        java.util.regex.Matcher mLet1 = letPat2.matcher(blockTrim);
-                        boolean isTopLet = !curIsDecl && mLet1.matches() && !blockTrim.contains("{") && !blockTrim.contains("}");
-                        if (isTopLet) {
-                            gNames.add(mLet1.group(1));
-                            gTypes.add(mLet1.group(2) != null ? mLet1.group(2).strip() : null);
-                            gInits.add(mLet1.group(3).strip().replaceAll(";$", ""));
-                        } else if (curIsDecl) decls.append(block).append('\n'); else stmts.append(block).append('\n');
-                        cur.setLength(0);
-                    }
-                    if (!cur.isEmpty()) {
-                        String block = cur.toString().strip().replaceFirst("(?m)^async\\s+fn\\b", "fn").replaceAll("\\blet\\b", "var");
-                        String bt = block.strip();
-                        java.util.regex.Matcher mLet2 = letPat2.matcher(bt);
-                        boolean isTopLet2 = mLet2.matches() && !bt.contains("{") && !bt.contains("}");
-                        if (isTopLet2) { gNames.add(mLet2.group(1)); gTypes.add(mLet2.group(2)!=null?mLet2.group(2).strip():null); gInits.add(mLet2.group(3).strip().replaceAll(";$","")); }
-                        else if (curIsDecl) decls.append(block); else stmts.append(block);
-                    }
-                    // dedup globals (last wins)
-                    java.util.LinkedHashMap<String,String> gTypeMap = new java.util.LinkedHashMap<>();
-                    java.util.LinkedHashMap<String,String> gInitMap = new java.util.LinkedHashMap<>();
-                    for (int i=0;i<gNames.size();i++) { gTypeMap.put(gNames.get(i), gTypes.get(i)); gInitMap.put(gNames.get(i), gInits.get(i)); }
-                    StringBuilder prog = new StringBuilder();
-                    if (!gInitMap.isEmpty()) {
-                        prog.append("class KofScriptGlobals {\n");
-                        for (String n: gInitMap.keySet()) {
-                            String ty=gTypeMap.get(n);
-                            String init=gInitMap.get(n);
-                            String fieldTy = ty != null ? ty.strip() : inferKofType(init);
-                            prog.append("  static ").append(fieldTy).append(" ").append(n).append(" = ").append(init).append("\n");
-                        }
-                        prog.append("}\n");
-                        String declStr = decls.toString();
-                        String stmtStr = stmts.toString();
-                        for (String n: gInitMap.keySet()) { declStr = declStr.replaceAll("\\b"+java.util.regex.Pattern.quote(n)+"\\b", "KofScriptGlobals."+n); stmtStr = stmtStr.replaceAll("\\b"+java.util.regex.Pattern.quote(n)+"\\b", "KofScriptGlobals."+n); }
-                        declStr = normalizeVoidFns(declStr);
-                        decls = new StringBuilder(declStr);
-                        stmts = new StringBuilder(stmtStr);
-                    }
-                    // normalize void fns even when no globals
-                    decls = new StringBuilder(normalizeVoidFns(decls.toString()));
-                    prog.append(decls);
-                    if (!stmts.isEmpty()) prog.append("main() {\n").append(stmts).append("\n}\n");
-                    else if (decls.isEmpty() && gInitMap.isEmpty()) prog.append("main() {}\n");
-                    else if (prog.length()==0) prog.append("main() {}\n");
-                    Path tmpKsDir = Files.createTempDirectory("kofscript-ks-single");
-                    String kfName = single.getFileName().toString().replaceFirst("\\.ks$", ".kf");
-                    if (!kfName.endsWith(".kf")) kfName = "Main.kf";
-                    Path kf = tmpKsDir.resolve(kfName);
-                    Files.writeString(kf, prog.toString());
-                    result = driver.compile(kf, outDir, target);
-                    deleteRecursively(tmpKsDir);
-                } else {
-                    result = driver.compile(single, outDir, target);
-                }
-            } else {
-                // For .ks files, we need to materialize them as .kf temp files with wrapping
-                java.util.List<Path> kfSources = new java.util.ArrayList<>();
-                Path tmpKsDir = null;
-                for (Path p : sources) {
-                    if (p.toString().endsWith(".ks")) {
-                        if (tmpKsDir == null) tmpKsDir = Files.createTempDirectory("kofscript-ks");
-                        String content = Files.readString(p);
-                        String pre = preprocess(content);
-                        String[] lines = pre.split("\n");
-                        StringBuilder decls = new StringBuilder();
-                        StringBuilder stmts = new StringBuilder();
-                        java.util.List<String> gNames2 = new java.util.ArrayList<>();
-                        java.util.List<String> gTypes2 = new java.util.ArrayList<>();
-                        java.util.List<String> gInits2 = new java.util.ArrayList<>();
-                        java.util.regex.Pattern letPat3 = java.util.regex.Pattern.compile("^(?:let|var|val|const)\\s+(\\w+)(?:\\s*:\\s*([^=]+))?\\s*=\\s*(.+)$");
-                        StringBuilder cur = new StringBuilder();
-                        boolean curIsDecl = false;
-                        for (String raw : lines) {
-                            String t = raw.strip();
-                            String tNorm = t.replaceFirst("^async\\s+", "");
-                            if (t.isEmpty() || t.startsWith("//")) continue;
-                            cur.append(raw).append('\n');
-                            boolean declStart = tNorm.startsWith("fn ") || tNorm.startsWith("enum ") || tNorm.startsWith("class ") || tNorm.startsWith("record ") || tNorm.startsWith("Int ") || tNorm.startsWith("String ");
-                            if (cur.length() == raw.length() + 1) curIsDecl = declStart;
-                            if (cur.toString().chars().filter(ch -> ch == '{').count() > cur.toString().chars().filter(ch -> ch == '}').count()) continue;
-                            String block = cur.toString().strip().replaceFirst("(?m)^async\\s+fn\\b", "fn").replaceAll("\\blet\\b", "var").replaceAll("\\bconst\\b", "val");
-                            String bt = block.strip();
-                            java.util.regex.Matcher mLet3 = letPat3.matcher(bt);
-                            boolean isTopLet3 = !curIsDecl && mLet3.matches() && !bt.contains("{") && !bt.contains("}");
-                            if (isTopLet3) { gNames2.add(mLet3.group(1)); gTypes2.add(mLet3.group(2)!=null?mLet3.group(2).strip():null); gInits2.add(mLet3.group(3).strip().replaceAll(";$","")); }
-                            else if (curIsDecl) decls.append(block).append('\n'); else stmts.append(block).append('\n');
-                            cur.setLength(0);
-                        }
-                        if (!cur.isEmpty()) {
-                            String block = cur.toString().strip().replaceFirst("(?m)^async\\s+fn\\b", "fn").replaceAll("\\blet\\b", "var");
-                            String bt2 = block.strip();
-                            java.util.regex.Matcher mLet4 = letPat3.matcher(bt2);
-                            boolean isTopLet4 = mLet4.matches() && !bt2.contains("{") && !bt2.contains("}");
-                            if (isTopLet4) { gNames2.add(mLet4.group(1)); gTypes2.add(mLet4.group(2)!=null?mLet4.group(2).strip():null); gInits2.add(mLet4.group(3).strip().replaceAll(";$","")); }
-                            else if (curIsDecl) decls.append(block); else stmts.append(block);
-                        }
-                        java.util.LinkedHashMap<String,String> gTypeMap2 = new java.util.LinkedHashMap<>();
-                        java.util.LinkedHashMap<String,String> gInitMap2 = new java.util.LinkedHashMap<>();
-                        for(int i=0;i<gNames2.size();i++){ gTypeMap2.put(gNames2.get(i), gTypes2.get(i)); gInitMap2.put(gNames2.get(i), gInits2.get(i)); }
-                        StringBuilder prog = new StringBuilder();
-                        if (!gInitMap2.isEmpty()) {
-                            prog.append("class KofScriptGlobals {\n");
-                            for(String n: gInitMap2.keySet()){ String ty=gTypeMap2.get(n); String init=gInitMap2.get(n); String fieldTy= ty!=null ? ty.strip() : inferKofType(init); prog.append("  static ").append(fieldTy).append(" ").append(n).append(" = ").append(init).append("\n"); }
-                            prog.append("}\n");
-                            String ds=decls.toString(); String ss=stmts.toString();
-                            for(String n: gInitMap2.keySet()){ ds=ds.replaceAll("\\b"+java.util.regex.Pattern.quote(n)+"\\b","KofScriptGlobals."+n); ss=ss.replaceAll("\\b"+java.util.regex.Pattern.quote(n)+"\\b","KofScriptGlobals."+n); }
-                            ds = normalizeVoidFns(ds);
-                            decls=new StringBuilder(ds); stmts=new StringBuilder(ss);
-                        }
-                        decls = new StringBuilder(normalizeVoidFns(decls.toString()));
-                        prog.append(decls);
-                        if (!stmts.isEmpty()) prog.append("main() {\n").append(stmts).append("\n}\n");
-                        Path kf = tmpKsDir.resolve(p.getFileName().toString().replace(".ks", ".kf"));
-                        Files.writeString(kf, prog.toString());
-                        kfSources.add(kf);
-                    } else {
-                        kfSources.add(p);
-                    }
-                }
-                Path root = sourceFile.toAbsolutePath().normalize().getParent();
-                if (root == null) root = Path.of(".").toAbsolutePath();
-                // If source is dir, root is the dir itself
-                if (Files.isDirectory(sourceFile)) root = sourceFile.toAbsolutePath().normalize();
-                result = driver.compileSources(kfSources, outDir, target, root);
-                if (tmpKsDir != null) deleteRecursively(tmpKsDir);
-            }
-            if (!result.success()) {
-                StringBuilder sb = new StringBuilder();
-                result.diagnostics().getDiagnostics().forEach(d -> sb.append(d.format()).append("\n"));
-                return new RunResult(1, "", sb.toString(), false);
-            }
-            RunResult rr;
-            if (target == Target.JS) {
-                String entry = findJsEntry(outDir);
-                if (entry == null) return new RunResult(1, "", "no JS entry", false);
-                ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                PrintStream ps = new PrintStream(baos);
-                ByteArrayOutputStream beos = new ByteArrayOutputStream();
-                PrintStream pe = new PrintStream(beos);
-                int ec = dev.kof.runtime.KofJsRunner.run(Path.of(entry), ps, System.in, pe, false, programArgs);
-                rr = new RunResult(ec, baos.toString(), beos.toString(), ec == 0);
-            } else if (target == Target.NATIVE) {
-                Path bin = outDir.resolve("Default/Main");
-                if (!Files.exists(bin)) return new RunResult(1, "", "no native binary", false);
-                java.util.List<String> cmd = new java.util.ArrayList<>();
-                cmd.add(bin.toString());
-                for (String a : programArgs) cmd.add(a);
-                ProcessBuilder pb = new ProcessBuilder(cmd);
-                pb.redirectErrorStream(false);
-                Process p = pb.start();
-                String stdout = new String(p.getInputStream().readAllBytes());
-                String stderr = new String(p.getErrorStream().readAllBytes());
-                boolean finished = false;
-                try { finished = p.waitFor(10, TimeUnit.SECONDS); } catch (InterruptedException e) { Thread.currentThread().interrupt(); p.destroyForcibly(); }
-                if (!finished) { p.destroyForcibly(); return new RunResult(124, stdout, "timeout", false); }
-                rr = new RunResult(p.exitValue(), stdout, stderr, p.exitValue() == 0);
-            } else {
-                // Try JIT in-memory first (fast, no fork) — fallback to fork if it fails or uses System.exit
-                RunResult inMem = null;
-                // Only use in-memory for simple cases without System.exit and with programArgs (our test harness doesn't use System.exit)
-                try {
-                    // Heuristic: if code contains System.exit or kof.test, don't use in-memory
-                    inMem = runJvmInMemory(outDir, programArgs);
-                    if (inMem != null && inMem.success()) {
-                        rr = inMem;
-                    } else if (inMem != null && !inMem.stderr().contains("ClassNotFoundException")) {
-                        // in-memory produced a result (even if failure), use it if it's not a class loading failure
-                        rr = inMem;
-                    } else {
-                        throw new Exception("fallback");
-                    }
-                } catch (Exception e) {
-                    // Fallback to fork
-                    String runtimeCp = runtimeClasspath();
-                    String cp = outDir.toString() + (runtimeCp != null ? File.pathSeparator + runtimeCp : "");
-                    String javaBin = System.getProperty("java.home") + File.separator + "bin" + File.separator + "java";
-                    java.util.List<String> cmd = new java.util.ArrayList<>();
-                    cmd.add(javaBin); cmd.add("-cp"); cmd.add(cp); cmd.add("Default.Main");
-                    for (String a : programArgs) cmd.add(a);
-                    ProcessBuilder pb = new ProcessBuilder(cmd);
-                    pb.redirectErrorStream(false);
-                    Process p = pb.start();
-                    String stdout = new String(p.getInputStream().readAllBytes());
-                    String stderr = new String(p.getErrorStream().readAllBytes());
-                    boolean finished = false;
+            // Materializa .ks como .kf (Kof puro: statements -> main(), var/val
+            // de topo -> globals). Sem sugar de outra linguagem.
+            Materialized mat = materialize(sources, sourceFile);
+            try {
+                if (target == Target.JVM || target.isScript()) {
+                    // KofScript = target de execução direta: interpreta a IR no
+                    // mesmo frontend do compilador, sem emitir bytecode e sem
+                    // fork de JVM (paridade por construção). SCRIPT é o nome
+                    // explícito do modo (fase 2 do plano de plataforma); JVM é
+                    // o default histórico — ambos rodam a IR no interpretador.
                     try {
-                        finished = p.waitFor(10, TimeUnit.SECONDS);
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        p.destroyForcibly();
+                        KofInterpreter.Result ir = driver.interpret(mat.sources, mat.root, programArgs);
+                        RunResult rr = new RunResult(ir.exitCode(), ir.stdout(), ir.stderr(),
+                                ir.exitCode() == 0);
+                        cacheFile(rr, abs, fkey, fhash, fileLm, sz);
+                        return rr;
+                    } catch (KofInterpretException e) {
+                        StringBuilder sb = new StringBuilder();
+                        e.diagnostics().getDiagnostics().forEach(d -> sb.append(d.format()).append("\n"));
+                        return new RunResult(1, "", sb.toString(), false);
                     }
-                    if (!finished) {
-                        p.destroyForcibly();
-                        return new RunResult(124, stdout, "timeout", false);
-                    }
-                    int ec = p.exitValue();
-                    rr = new RunResult(ec, stdout, stderr, ec == 0);
                 }
+                CompilationResult result = mat.sources.size() == 1
+                        ? driver.compile(mat.sources.get(0), outDir, target)
+                        : driver.compileSources(mat.sources, outDir, target, mat.root);
+                if (!result.success()) {
+                    StringBuilder sb = new StringBuilder();
+                    result.diagnostics().getDiagnostics().forEach(d -> sb.append(d.format()).append("\n"));
+                    return new RunResult(1, "", sb.toString(), false);
+                }
+                KofScript.RunResult rr = KofScriptExecutor.executeCompiled(outDir, target, programArgs);
+                cacheFile(rr, abs, fkey, fhash, fileLm, sz);
+                return rr;
+            } finally {
+                if (mat.tmpDir != null) deleteRecursively(mat.tmpDir);
             }
-            // Cache successful runs for file incremental
-            if (rr.success() && abs != null && fkey != null && fhash != null) {
-                fileCache.put(fkey, new FileCacheEntry(fileLm, sz, fhash, rr));
-                if (fileCache.size() > 64) fileCache.clear();
-            }
-            return rr;
         } finally {
             deleteRecursively(outDir);
         }
     }
 
-    private static String runtimeClasspath() {
-        try {
-            // When running from mvn test, kof-runtime/target/classes exists; when installed, kof.jar contains runtime
-            Path candidate = Path.of("kof-runtime/target/classes");
-            if (Files.exists(candidate)) return candidate.toString();
-            // Try to locate via protection domain of a runtime class (KofJsRunner is always present)
-            var loc = dev.kof.runtime.KofJsRunner.class.getProtectionDomain().getCodeSource().getLocation();
-            if (loc != null) {
-                Path p = Path.of(loc.toURI());
-                if (Files.exists(p)) return p.toString();
-            }
-        } catch (Exception ignore) {}
-        return null;
-    }
+    private record Materialized(java.util.List<Path> sources, Path root, Path tmpDir) {}
 
-    // JIT in-memory: try to run Default.Main via URLClassLoader without forking java (fast for repl/eval)
-    private static RunResult runJvmInMemory(Path outDir, String[] programArgs) {
+    /**
+     * Caminho COMPILADO (fallback): emite bytecode e executa (in-memory ou
+     * fork). Mantido vivo para paridade e para targets não-JVM; o teste de
+     * paridade compara runFile (interpretado) vs runFileCompiled (JVM real).
+     */
+    public static RunResult runFileCompiled(Path sourceFile, Target target, String[] programArgs)
+            throws IOException {
+        java.util.List<Path> sources = collectSources(sourceFile);
+        Path outDir = Files.createTempDirectory("kofscript-compiled");
         try {
-            var cl = new java.net.URLClassLoader(new java.net.URL[]{outDir.toUri().toURL()}, KofScript.class.getClassLoader());
-            Class<?> mainClass = cl.loadClass("Default.Main");
-            var mainMethod = mainClass.getMethod("main", String[].class);
-            // Capture stdout/stderr
-            var baosOut = new ByteArrayOutputStream();
-            var baosErr = new ByteArrayOutputStream();
-            var psOut = new PrintStream(baosOut);
-            var psErr = new PrintStream(baosErr);
-            var oldOut = System.out;
-            var oldErr = System.err;
-            System.setOut(psOut);
-            System.setErr(psErr);
-            int ec = 0;
+            CompilerDriver driver = new CompilerDriver();
+            Materialized mat = materialize(sources, sourceFile);
             try {
-                mainMethod.invoke(null, (Object) programArgs);
-            } catch (java.lang.reflect.InvocationTargetException ite) {
-                Throwable cause = ite.getCause();
-                if (cause != null) {
-                    // Kof's exit via System.exit is not used in in-memory; check for SecurityException or normal exception
-                    psErr.println(cause.toString());
-                    ec = 1;
-                } else ec = 1;
-            } catch (Exception e) {
-                psErr.println(e.toString());
-                ec = 1;
+                CompilationResult result = mat.sources.size() == 1
+                        ? driver.compile(mat.sources.get(0), outDir, target)
+                        : driver.compileSources(mat.sources, outDir, target, mat.root);
+                if (!result.success()) {
+                    StringBuilder sb = new StringBuilder();
+                    result.diagnostics().getDiagnostics().forEach(d -> sb.append(d.format()).append("\n"));
+                    return new RunResult(1, "", sb.toString(), false);
+                }
+                return KofScriptExecutor.executeCompiled(outDir, target, programArgs);
             } finally {
-                System.setOut(oldOut);
-                System.setErr(oldErr);
-                try { cl.close(); } catch (IOException ignore) {}
+                if (mat.tmpDir != null) deleteRecursively(mat.tmpDir);
             }
-            return new RunResult(ec, baosOut.toString(), baosErr.toString(), ec == 0);
-        } catch (Exception e) {
-            return null; // fallback to fork
+        } finally {
+            deleteRecursively(outDir);
         }
     }
 
-    private static String findJsEntry(Path dir) {
-        Path e = dir.resolve("Default.mjs");
-        if (Files.exists(e)) return e.toString();
-        try (var s = Files.walk(dir)) {
-            return s.filter(p -> p.toString().endsWith(".mjs")).findFirst().map(Path::toString).orElse(null);
-        } catch (IOException ex) { return null; }
+    /** Reescreve cada `.ks` como `.kf` (wrapPureKof) num diretório temporário. */
+    private static Materialized materialize(java.util.List<Path> sources, Path sourceFile)
+            throws IOException {
+        java.util.List<Path> kfSources = new java.util.ArrayList<>();
+        Path tmpKsDir = null;
+        for (Path p : sources) {
+            if (p.toString().endsWith(".ks")) {
+                if (tmpKsDir == null) tmpKsDir = Files.createTempDirectory("kofscript-ks");
+                String content = Files.readString(p);
+                String wrapped = content.contains("main()") ? content : wrapPureKof(content);
+                Path kf = tmpKsDir.resolve(p.getFileName().toString().replace(".ks", ".kf"));
+                Files.writeString(kf, wrapped);
+                kfSources.add(kf);
+            } else {
+                kfSources.add(p);
+            }
+        }
+        Path root = sourceFile.toAbsolutePath().normalize().getParent();
+        if (root == null) root = Path.of(".").toAbsolutePath();
+        if (Files.isDirectory(sourceFile)) root = sourceFile.toAbsolutePath().normalize();
+        return new Materialized(kfSources, root, tmpKsDir);
+    }
+
+    private static void cacheFile(RunResult rr, Path abs, String fkey, String fhash,
+                                  long fileLm, long sz) {
+        if (rr.success() && abs != null && fkey != null && fhash != null) {
+            fileCache.put(fkey, new FileCacheEntry(fileLm, sz, fhash, rr));
+            if (fileCache.size() > 64) fileCache.clear();
+        }
     }
 
     public static String inspect(Path sourceFile) throws IOException {
@@ -526,10 +399,9 @@ public final class KofScript {
                 if (p.toString().endsWith(".ks")) {
                     if (tmpKsDir == null) tmpKsDir = Files.createTempDirectory("kofscript-ks-inspect");
                     String content = Files.readString(p);
-                    String pre = preprocess(content);
-                    // Simplified wrap for inspect: just preprocess
+                    String wrapped = content.contains("main()") ? content : wrapPureKof(content);
                     Path kf = tmpKsDir.resolve(p.getFileName().toString().replace(".ks", ".kf"));
-                    Files.writeString(kf, pre.contains("main()") ? pre : "main() {\n" + pre + "\n}");
+                    Files.writeString(kf, wrapped);
                     kfSources.add(kf);
                 } else kfSources.add(p);
             }
@@ -598,11 +470,25 @@ public final class KofScript {
     }
 
     private static void deleteRecursively(Path dir) {
+        if (!Files.exists(dir)) return;
         try {
-            if (!Files.exists(dir)) return;
             Files.walk(dir).sorted((a,b) -> b.compareTo(a)).forEach(p -> {
                 try { Files.deleteIfExists(p); } catch (IOException ignore) {}
             });
         } catch (IOException ignore) {}
+    }
+
+    /** SHA-256 hex — chave de cache sem colisão de `hashCode()+length` (bug 47). */
+    private static String sha256hex(String s) {
+        try {
+            byte[] d = java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(s.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder(d.length * 2);
+            for (byte b : d) hex.append(Character.forDigit((b >> 4) & 0xF, 16)).append(Character.forDigit(b & 0xF, 16));
+            return hex.toString();
+        } catch (java.security.NoSuchAlgorithmException e) {
+            // SHA-256 é obrigatório na JVM — fallback determinístico p/ não lançar.
+            return Integer.toHexString(s.hashCode()) + ":" + s.length();
+        }
     }
 }

@@ -179,7 +179,7 @@ Compilador Kof:   lexer → parser → AST → IR → backend   // intention->Ko
 
 `*` Native inclui `native` (x86-64), `native.risc` (riscv64) e `native.arm` (aarch64) — seleção via `Target` enum.
 
-Não existe etapa de geração de Java. Não existe interpretador. O compilador gera bytecode ou código nativo diretamente.
+Não existe etapa de geração de Java. O compilador gera bytecode ou código nativo diretamente. Para o target **KofScript** (execução direta de script/REPL), a mesma IR otimizada é executada pelo `KofInterpreter` — sem emitir bytecode nem fork de JVM — com paridade por construção com o backend JVM (mesmo frontend, mesma IR).
 
 ## Próximo passo
 

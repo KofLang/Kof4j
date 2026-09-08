@@ -120,6 +120,141 @@ class UiE2ETest {
     }
 
     @Test
+    void textareaLinksOnAllTargets(@TempDir Path tempDir) throws IOException {
+        // UI003: Textarea — widget de primeira classe; no-op JVM/Native,
+        // DOM real em KofJS (KofJsBrowserE2ETest).
+        both(tempDir, "textarea", """
+            main() {
+                var obs = Textarea("linha1")
+                obs.setText("linha1\\nlinha2")
+                obs.setPlaceholder("descreva")
+                println("ok")
+            }
+            """, "ok");
+    }
+
+    @Test
+    void selectLinksOnAllTargets(@TempDir Path tempDir) throws IOException {
+        // UI003/4: Select — widget de primeira classe (lista de opções);
+        // no-op JVM/Native, DOM real em KofJS (KofJsBrowserE2ETest).
+        both(tempDir, "select", """
+            main() {
+                var sel = Select(listOf("uma", "duas", "tres"))
+                sel.setSelected(1)
+                sel.setOptions(listOf("a", "b"))
+                println("idx=" + sel.selected())
+                println("ok")
+            }
+            """, "idx=0\nok");
+    }
+
+    @Test
+    void listWidgetsLinkOnAllTargets(@TempDir Path tempDir) throws IOException {
+        // UI003: Ul/Ol — widgets data-driven (List<String> → <li>); no-op
+        // JVM/Native, DOM real em KofJS (KofJsBrowserE2ETest).
+        both(tempDir, "listwidgets", """
+            main() {
+                var u = Ul(listOf("a", "b", "c"))
+                u.setItems(listOf("x", "y"))
+                var o = Ol(listOf("1", "2"))
+                o.remove()
+                println("ok")
+            }
+            """, "ok");
+    }
+
+    @Test
+    void tableLinksOnAllTargets(@TempDir Path tempDir) throws IOException {
+        // UI003: Table — widget data-driven (header + List<List<String>> →
+        // <thead>/<tbody><tr><td>); no-op JVM/Native, DOM real em KofJS.
+        both(tempDir, "table", """
+            main() {
+                var t = Table(listOf("nome", "idade"),
+                              listOf(listOf("mel", "26"), listOf("ana", "30")))
+                t.setRows(listOf(listOf("bob", "41")))
+                println("ok")
+            }
+            """, "ok");
+    }
+
+    @Test
+    void inputAttrsLinksOnAllTargets(@TempDir Path tempDir) throws IOException {
+        // UI005: Input/Textarea setName + setReadonly — no-op JVM/Native,
+        // atributos reais (name/readonly) no DOM do browser em KofJS.
+        both(tempDir, "inputattrs", """
+            main() {
+                var i = Input("oi")
+                i.setName("usuario")
+                i.setReadonly(true)
+                var t = Textarea("x")
+                t.setName("bio")
+                t.setReadonly(true)
+                println("ok")
+            }
+            """, "ok");
+    }
+
+    @Test
+    void formSubmitLinksOnAllTargets(@TempDir Path tempDir) throws IOException {
+        // UI004: Form.onSubmit/submit — no-op em JVM/Native, DOM real em
+        // KofJS (KofJsBrowserE2ETest.formSubmitHandlerRunsInRealBrowser).
+        both(tempDir, "formsubmit", """
+            main() {
+                var campo = Input("")
+                var f = Form(listOf(campo))
+                f.onSubmit(() -> println("enviado"))
+                f.submit()
+                println("ok")
+            }
+            """, "ok");
+    }
+
+    @Test
+    void widgetAttributesLinkOnAllTargets(@TempDir Path tempDir) throws IOException {
+        // UI005: setId/setClass/setDisabled — aditivo; no-op JVM/Native,
+        // DOM real em KofJS (KofJsBrowserE2ETest).
+        both(tempDir, "widgetattrs", """
+            main() {
+                var campo = Input("")
+                campo.setId("nome")
+                campo.setClass("destaque")
+                campo.setDisabled(true)
+                println("ok")
+            }
+            """, "ok");
+    }
+
+    @Test
+    void formContainerLinksOnAllTargets(@TempDir Path tempDir) throws IOException {
+        // UI004: Form(children) — container <form>; no-op em JVM/Native,
+        // DOM real em KofJS (KofJsBrowserE2ETest).
+        both(tempDir, "form", """
+            main() {
+                var campo = Input("")
+                var b = Button("enviar")
+                var f = Form(listOf(campo, b))
+                println("ok")
+            }
+            """, "ok");
+    }
+
+    @Test
+    void mediaWidgetsLinkOnAllTargets(@TempDir Path tempDir) throws IOException {
+        // UI001 (R6): Image/Link/Icon/Font não podiam linkar no Native
+        // (undefined reference [COMP001] — 21 stubs ausentes em RuntimeUi).
+        // Agora compilam + linkam + rodam (no-op, paridade com JVM).
+        both(tempDir, "media", """
+            main() {
+                var i = Image("x.png")
+                var l = Link("aqui", "https://k.dev")
+                var ic = Icon("star")
+                var f = Font("sans", 14)
+                println("ok")
+            }
+            """, "ok");
+    }
+
+    @Test
     void themes(@TempDir Path tempDir) throws IOException {
         both(tempDir, "themes", """
             main() {
@@ -411,5 +546,59 @@ class UiE2ETest {
         assertTrue(html.contains("kof-window"), "window containers rendered");
         assertTrue(html.contains(">a<"), "first window label rendered");
         assertTrue(html.contains(">b<"), "second window label rendered");
+    }
+
+    @Test
+    void canvasCreation(@TempDir Path tempDir) throws IOException {
+        String program = """
+            main() {
+                var c = Canvas(400, 300)
+                c.setFill(Palette.blue)
+                c.setStroke(Palette.red)
+                c.setLineWidth(2)
+                c.beginPath()
+                c.moveTo(200, 150)
+                c.arc(200, 150, 100, 0.0, 3.14159)
+                c.closePath()
+                c.fill()
+                c.stroke()
+                c.clearRect(0, 0, 400, 300)
+                c.remove()
+            }
+            """;
+        Path src = tempDir.resolve("canvas.kf");
+        Files.writeString(src, program);
+        runJvm(src, tempDir.resolve("jvm"), "");
+        runNative(src, tempDir.resolve("native"), "");
+
+        Path srcJs = tempDir.resolve("canvas-js.kf");
+        Files.writeString(srcJs, program);
+        CompilationResult js = driver.compile(srcJs, tempDir.resolve("js"), Target.JS);
+        assertTrue(js.success(), "JS compilation should succeed: " + js.diagnostics().getDiagnostics());
+        String html = dev.kof.runtime.KofJsRunner.runCaptureHtml(
+                tempDir.resolve("js").resolve("Default.mjs"), new java.io.ByteArrayOutputStream(),
+                new java.io.ByteArrayInputStream(new byte[0]), new java.io.ByteArrayOutputStream());
+        assertNotNull(html, "canvas HTML should be captured");
+        assertTrue(html.contains("kof-canvas"), "canvas element rendered");
+    }
+
+    @Test
+    void canvasUi009LinksOnAllTargets(@TempDir Path tempDir) throws IOException {
+        // UI009: save/restore/setGlobalAlpha/fillText/measureText/transform —
+        // no-op JVM/Native (mede o link), DOM real em KofJS.
+        both(tempDir, "canvas-ui009", """
+            main() {
+                var c = Canvas(400, 300)
+                c.save()
+                c.setGlobalAlpha(0.5)
+                c.transform(1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
+                c.fillText("oi", 10, 20)
+                println("w=" + (c.measureText("oi") >= 0.0))
+                var img = Image("x.png")
+                c.drawImage(img, 5, 5)
+                c.restore()
+                println("ok")
+            }
+            """, "w=true\nok");
     }
 }

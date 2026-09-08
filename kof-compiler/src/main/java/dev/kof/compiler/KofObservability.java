@@ -16,7 +16,7 @@ import java.util.List;
  * sum+count, {@code metrics()} renders all in Prometheus text format. Request
  * IDs: {@code requestId()} / {@code correlationId()} generate random hex IDs.
  */
-final class KofObservability {
+public final class KofObservability {
 
     private KofObservability() {}
 

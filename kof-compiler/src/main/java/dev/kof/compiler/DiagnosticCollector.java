@@ -12,7 +12,7 @@ public class DiagnosticCollector {
         diagnostics.add(d);
     }
 
-    void error(String file, int line, int column, int length, String message, String code) {
+    public void error(String file, int line, int column, int length, String message, String code) {
         report(Diagnostic.error(file, line, column, length, message, code));
     }
 

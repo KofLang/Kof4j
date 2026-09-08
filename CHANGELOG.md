@@ -14,6 +14,84 @@ Linha de desenvolvimento 0.3.0 aberta em 04/09/2026. Semântica congelada
 
 ### Em desenvolvimento
 
+  - **KofScript virou target de execução direta com interpretador da IR
+    (06/09)** — `KofInterpreter` executa a MESMA IR otimizada que o backend
+    JVM consome (mesmo frontend: parse → merge → imports → desugar → análise
+    → lowering → otimização), sem emitir bytecode e sem fork de JVM.
+    Paridade por construção, provada em teste (saída byte-idêntica ao JVM
+    compilado: funções, strings, records com `==` de conteúdo + toString,
+    coleções com higher-order, classes mutáveis, while/for-in,
+    try/catch/finally com throw-as-String, spawn/await). `CompilerDriver`
+    ganhou `interpret(...)` (fachada pública) e os passos extraídos
+    `parseAndMerge`/`analyzeAndLower` (refactor puro, zero-regressão).
+    JS/Native continuam no caminho compilado; `runFileCompiled` mantido como
+    fallback e prova de paridade. Docs corrigidas: KofScript NÃO é linguagem
+    separada nem JavaScript — é Kof puro no mesmo frontend.
+  - **`fn`/`fun`/`func` viraram palavras reservadas no Kof (06/09, SG-001)** —
+    a documentação sempre disse que "não existe `fun` nem `func`" (AGENTS.md,
+    fake-idioms.md), mas o compilador aceitava `fn` como prefixo e `fun`/`func`
+    como tipo de retorno implícito. Agora as três são **palavras reservadas no
+    lexer** (tokens `FUN`/`FN`/`FUNC`, mesmo mecanismo de `sealed`/`permits`):
+    **não existem** no Kof em nenhuma posição — nem como keyword de declaração,
+    nem como nome de função/variável/parâmetro/campo. Em posição de declaração
+    dá **`PARSE085`** (diagnóstico claro: "declare como `Tipo nome(...) { }` ou
+    `nome(...): Tipo { }`"); em outra posição o `expectId` de cada parser já
+    falha (`PARSE037` variável, `PARSE023` parâmetro). Alinhamento
+    código↔corpus (regra 4). **KofScript (`.ks`) não é exceção** — é Kof puro
+    (ver entrada KofScript abaixo); `fn`/`fun`/`func` lá também dão
+    `PARSE085`. Breaking change deliberado e
+    documentado: código `.kf` que usava `fun`/`fn`/`func` (mesmo como
+    identificador) agora precisa renomear. Prova: `FunctionSyntaxTest` (12
+    casos) + KofScriptTest 8/8 + suíte completa 957/0.
+
+  - **KofScript é Kof puro — sugar JavaScript removido (06/09, correção de
+    design do maintainer)** — o pipeline carregava açúcar de outra língua:
+    `let`→`var`, `const`→`val`, `async fn`→`fn`, e um `fn` "próprio" traduzido
+    na fronteira `.ks`→`.kf`. **KofScript não é JavaScript**: é o target onde
+    o código Kof roda direto, sem compilação separada. Removido `preprocess`,
+    `normalizeVoidFns`, `toKofSyntax` e as 3 cópias da lógica de wrap
+    (KofScript/CmdScript/LspServer) — substituídas por um único `wrapPureKof`
+    que só faz o **modelo de execução de script**: statements de topo viram
+    `main()`, `var`/`val` de topo viram `KofScriptGlobals`. `let`/`const`/
+    `async`/`fn` agora dão o diagnóstico normal do parser Kof em `.ks` também
+    (R6: nunca silencioso). Breaking change deliberado: `.ks` que usava sugar
+    precisa da forma Kof. Prova: `KofScriptTest` 9/9 (inclui `jsSugarIsRejected`
+    — `fn`/`let` em `.ks` → `PARSE085`) + suíte completa.
+
+  - **NATIVE002-stdlib residual (05/09)** — auditoria R6 + paridade cross:
+    **fcvt riscv64** (os 10 mnemonics de conversão numérica saíam com
+    rd/rs invertidos — `as Int`/`as Double` quebravam no `as`),
+    **ToolchainMissing** (falha de `as`/`ld` nos cross agora propaga como
+    erro de compilação — antes era "success=true sem binário" silencioso),
+    **FLT001** (`println(double)`/`valueOf(double)` no cross vira
+    diagnóstico em compile-time: runtime asm puro sem libc não tem `%g` —
+    antes segfault silencioso; aritmética/conversão FP funciona),
+    **time.now()** real (`clock_gettime` 113 — era stub `li a0,0` que
+    quebrava o TTL do cache), **cache riscv64/aarch64** (scan loops usavam
+    t2/t3 clobberados pelo `kof_string_equals` → segfault; + `sle/sge`
+    inexistentes na ISA riscv → `<=`/`>=` quebravam; + `println(null)`→"null"),
+    **mq riscv64/aarch64** (port completo: queue por handle, pop via
+    `kof_list_remove`, queue_size, unsubscribe por identidade, invoke dos
+    handlers via vtable — antes infuncional: gate MQ001). Prova:
+    `KofMqE2ETest` 5/5 (incl. cross qemu c/ paridade de output),
+    `riscv64/aarch64Cache`, `riscv64/aarch64TimeNow`.
+    **tail-call em 8 funções riscv** (`call`+`ret` sem salvar `ra` = loop
+    infinito — `observability.health`/ids/`time_interval` hangavam),
+    **gates SCHED001/TIME001/SECN000** (scheduler/time.interval/kof_sec_*
+    ausentes no runtime cross → diagnóstico limpo em vez de undefined-reference
+    no link ou no-op silencioso), **`"42".toInt()`** (deref do VALOR do char
+    como endereço → SIGSEGV), **Map/Set + higher-order** no cross
+    (`RISCV_MAPSET_ASM` linear-scan; closure ABI do mq), **`kof_panic`**
+    imprime C-string (mensagem de bounds-check), **json decoders escalares**
+    (int/long/bool/string), **bug 30** (`decode<Bool>("false")`→true no
+    x86_64: length em registrador errado + offset ignorado), **metrics()
+    `# TYPE`** no cross + **tradutor quote-aware** (`.asciz "# TYPE "` era
+    strippado como comentário → string não-terminada no aarch64). Sweeps de
+    paridade (KSw/KSw2/KJ/KU/KMR3/KCFG/KVAL): **0 divergências** nos 3
+    targets. Bugs registrados fora da lane: #29 (`spawn { lambda }` com
+    handle), #31 (`process.<inexistente>` compila como acesso a campo),
+    #28 (flake ws). Suíte completa 962/0/3-skip.
+
   - NATIVE002 paridade avançada riscv64/aarch64: stdlib real no runtime asm —
     **JSON** (`kof_json_quote`/builder, encode/decode record+listas), **HTTP**
     (`get/post/put/patch/delete/options/status` + headers, asm puro: socket+

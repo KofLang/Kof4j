@@ -1,6 +1,6 @@
 package dev.kof.cli;
 
-import dev.kof.compiler.ClassFileParser;
+import dev.kof.compiler.parser.ClassFileParser;
 
 import java.io.IOException;
 import java.nio.file.Files;

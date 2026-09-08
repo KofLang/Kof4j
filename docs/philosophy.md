@@ -234,7 +234,7 @@ A semântica da linguagem é única. Os backends implementam essa semântica de 
 - Não é Java com outra sintaxe
 - Não é Kotlin 2
 - Não é um transpiler para Java
-- Não é um interpretador
+- Não é um interpretador (o compilador é real: bytecode/ELF/ESM; o `KofInterpreter` do target KofScript executa a MESMA IR otimizada do frontend — paridade por construção, não um disfarce)
 - Não é uma linguagem para scripts (embora possa ser usada para isso)
 - Não é uma linguagem para web (embora possa ser usada para isso)
 

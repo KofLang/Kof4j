@@ -26,6 +26,62 @@ escreva código Kof neste repositório. Leia antes de gerar qualquer `.kf`.
 6. VOLTE ao passo 1. Não anuncie "fim"; só pare por condição de parada.
 ```
 
+**O loop dentro de UM turno (regra que impede o "parar e resumir"):**
+
+> **O agente não se re-dispara sozinho.** Quando um turno termina, a execução
+> para. Então: **terminar um turno com resumo é a única falha de autonomia
+> imperdoável** — é o que transformou "dias a fio" em "um turno".
+
+1. **Encadeie tool calls dentro do turno** até: (a) uma condição de parada,
+   (b) o contexto quase esgotar, ou (c) o turno ficar sem trabalho novo
+   (suíte verde + DOING.md sem item sem dono na sua lane).
+2. **Proibido terminar o turno com resumo/status para o humano**
+   ("pushed", "resumo da sessão", "o que falta agora é..."). Se o turno
+   vai acabar, a ÚLTIMA coisa escrita no turno é:
+   - commit final do estado atual,
+   - `DOING.md` atualizado com a linha **"PRÓXIMO PASSO: <tarefa exata +
+     arquivo + prova esperada>"** (o re-dispacho lê isso e continua),
+   - `todowrite` espelhando isso.
+   Depois disso, silêncio — ou a próxima tool call.
+3. **Todo commit do turno exige atualização da linha no `DOING.md` no MESMO
+   commit** (regra da seção multi-agente vale dobrado aqui: sem DOING.md
+   atualizado, o próximo agente/sessão não sabe o que já existe).
+4. **`todowrite` a cada mudança de etapa** — exatamente um `in_progress`;
+   item só vai para `completed` com prova (teste verde/suíte).
+5. **Re-dispacho é do humano ou de cron** (o agente não acorda a si mesmo).
+    Ao entrar em modo autônomo, o agente **lança o cron** (ver "Heartbeat
+    de cron" abaixo). Por isso o item 2b é contrato: quem volta — humano ou
+    outra instância — deve conseguir retomar em ≤1 leitura do `DOING.md`,
+    sem perguntar.
+6. **Re-dispacho NÃO é conversa.** Quando o humano manda "continue", "vai",
+   "e agora?" ou qualquer re-disparo: **não responda com reconhecimento ou
+   status** ("Entendido", "ok", "pushed", "vou continuar..."). A PRIMEIRA
+   ação do turno é a tool call que lê o `PRÓXIMO PASSO` e executa. Um turno
+   que termina em frase de confirmação sem tool call é a MESMA falha de um
+   turno que termina em resumo — o loop parou e o humano teve que empurrar
+   de novo.
+7. **Unidade em progresso = turno em progresso.** Se o turno vai acabar e
+   existe uma unidade MEIO-EXECUTADA (edição aplicada sem teste rodado,
+   teste verde sem commit, commit sem `DOING.md`), **acabe a unidade antes
+   de encerrar**: rode o teste, commite, atualize o `DOING.md` — na mesma
+   resposta, encadeando as tool calls. "Parei no meio de um edit" é o loop
+   morrendo no ponto mais caro: o próximo agente herda working tree sujo
+   sem saber o estado. Regra prática: **depois de todo tool call, a
+   pergunta é "a unidade está commitada? não → próxima tool call agora"**,
+   nunca "chega de tool calls nesta resposta?".
+
+**Falhas reais que motivaram estas regras (05/09, três ocorrências):**
+(a) o agente fez 5 commits corretos (fixes riscv64) e terminou o turno com
+um "resumo da sessão" em vez de continuar o loop; `DOING.md` ficou sem
+atualização desde o início do trabalho. (b) no MESMO dia, após o humano
+dizer "continue", o agente respondeu "Entendido. Vou prosseguir." — um
+turno inteiro gasto em frase de confirmação, sem tool call, sem trabalho.
+(c) ainda no MESMO dia, com o loop rodando e um port (time.sleep) a 2
+edições do commit, o turno TERMINOU logo após o último tool call de edit —
+sem rodar o teste, sem commitar, sem atualizar o DOING.md; o humano teve
+que empurrar de novo. Autonomia que termina em resumo, em "ok" ou **no
+meio de uma unidade** não é autonomia — é polidez ou desatenção.
+
 **O que fazer em vez de perguntar:**
 
 | Dúvida | Fonte de resposta (nesta ordem) |
@@ -33,7 +89,7 @@ escreva código Kof neste repositório. Leia antes de gerar qualquer `.kf`.
 | "Existe dono nisso?" | `DOING.md` |
 | "Qual a sintaxe/idiom real?" | `training/`, `learn/`, **compile e confirme** |
 | "O que já funciona?" | suíte + E2E rodando (a prova, não a memória) |
-| "Qual a próxima prioridade?" | `docs/status.md`, `docs/backend-parity.md`, `planning-*` |
+| "Qual a próxima prioridade?" | `docs/status.md`, `docs/backend-parity.md`, `development/` (fila P0→P5: `roadmap-audit.md`/`roadmap.md`/`specification-gaps.md` + `known-bugs.md`), `planning-*` |
 | "Isso é decisão de design?" | **NÃO é sua** — registre gap/plano e siga (regra 6) |
 
 **Escopo realizável numa sessão** = uma unidade coesa com prova ao fim
@@ -62,6 +118,41 @@ Autonomia muda **quem decide a ordem**, nunca **o que é aceitável**.
 **Sinal para o humano:** `todowrite` é a janela desta conversa (atualize a
 cada etapa); `DOING.md` é a memória entre sessões. Se o humano voltar e ler
 esses dois, ele sabe exatamente onde você está e por quê.
+
+### Heartbeat de cron (obrigatório ao entrar no modo autônomo)
+
+> O agente **não acorda a si mesmo**. Para o loop sobreviver ao fim de cada
+> turno, ao **entrar em modo autônomo** o agente lança o cron da sessão:
+
+```bash
+scripts/auto-loop.sh start            # última sessão, re-disparo a cada 30 min
+scripts/auto-loop.sh status           # confirmar que está ativo
+```
+
+- O cron chama `opencode run --session <id> --dir <repo> --attach <server>
+  --auto "<prompt>"` a cada intervalo (padrão 30 min), com o prompt de
+  re-disparo: *"analize os documentos, verifique os gaps, identifique o que
+  falta em nossos planos, trace um todo de implementação e continue o
+  desenvolvimento"*.
+- **`--attach` é OBRIGATÓRIO — o heartbeat injeta na SESSÃO ABERTA, nunca
+  spawna agente concorrente.** Sem `--attach`, `opencode run --session` cria
+  um **processo headless novo** que só compartilha o histórico: você vê "outra
+  sessão" rodando em paralelo, dois agentes competindo pela mesma sessão (o
+  tick das 00:00 de 06/09 deixou um `run` vivo 20 min disputando com o TUI).
+  O servidor TUI da sessão aberta escuta em **`http://127.0.0.1:9092`**
+  (porta fixa do modo autônomo; sobres com `OPENCODE_SERVER_URL`). O `tick`
+  faz health-check na porta antes de disparar: servidor fora do ar → tick
+  pulado e logado (não adianta injetar numa sessão que não existe).
+- `flock` no `tick` impede run sobreposto: se o turno anterior ainda está
+  ativo, o tick é pulado e logado (`~/.local/state/kof-auto-loop/loop.log`).
+- **Ao sair do modo autônomo** (humano retorna, condição de parada, ou
+  trabalho concluído): `scripts/auto-loop.sh stop`. Deixar o cron rodando
+  depois do fim é ruído — o heartbeat existe só enquanto o loop vive.
+- Se o cron já está ATIVO (`status`), não lance outro — a sessão atual é a
+  continuada do heartbeat.
+- O re-disparo chega como turno normal: vale a regra 6 (responder com tool
+  call, não com "ok") e o contrato do `PRÓXIMO PASSO` no `DOING.md`.
+
 
 ---
 
@@ -114,10 +205,32 @@ feature/gap, leia `DOING.md`:**
 - Ao concluir, marque `FEITO` com data + SHA + teste que prova, e feche o gap
   em `docs/status.md`/`docs/backend-parity.md`.
 - Abandonou? Volte para `ABERTO` com nota do que funciona e o que falta.
+- **Dono sumiu = tarefa morta; reatribua.** Se um item está `EM CURSO` com dono
+  mas **não há commit novo na lane dele** (a linha não se move desde a
+  reivindicação, o dono não aparece no `git log`, ou o branch/arquivo citado não
+  existe), assuma que o agente **morreu no meio do turno** (crash, contexto
+  esgotado, sessão fechada sem fechar a unidade). O item não tem dono real:
+  qualquer agente pode **reivindicá-lo de novo** (troca o dono no `DOING.md`, no
+  mesmo commit do primeiro passo), reaproveitando o que o morto deixou (working
+  tree/branch) e seguindo. Antes de tocar, **verifique o estado real no código**
+  (o que compila, o que a suíte prova — nunca a memória do `DOING.md`) e note na
+  reivindicação o que o dono anterior deixou. Não espere o fantasma voltar nem
+  peça permissão — `EM CURSO` órfão é `ABERTO` disfarçado, e gap órfão é
+  trabalho perdido.
 
 Regra de ouro: **nunca dois agentes no mesmo gap ou no mesmo arquivo gigante**
 (`NativeRuntime.java`, `CompilerDriver.java`) ao mesmo tempo. Se for
 inevitável, combine no chat antes.
+
+**Sincronização obrigatória (pull antes, push depois):** antes de **todo
+commit** — `git fetch` + `git pull --rebase` (com working tree sujo, use
+`git stash push` antes e `git stash pop` depois, ou `--autostash`) e
+**verifique se há conflito** (rebase parado / `<<<<<<<`): conflito é resolvido
+na hora, nunca commitado por cima. Depois do commit, **`git push`** — o DOING.md
+só coordena quem *vê* o remoto; commit local não reivindicado é tarefa fantasma
+para os outros agentes. Depois do pull, **releia o DOING.md**: o que era seu
+"próximo passo" pode ter sido feito ou reivindicado por outro agente no
+intervalo.
 
 ### Lição aprendida (04/09) — trabalhe SEMPRE em partes pequenas
 
@@ -257,7 +370,7 @@ Bool isQuery(String op) {
 
 ---
 
-## Invariantes da plataforma (visão universal — `docs/future/PLAN-UNIVERSAL-PLATFORM.md`)
+## Invariantes da plataforma (visão universal — `development/future/PLAN-UNIVERSAL-PLATFORM.md`)
 
 Estas regras **sempre** se aplicam, mesmo quando não há código de domínio novo
 em jogo. São o mecanismo anti-"god language":
@@ -484,9 +597,9 @@ Se você está prestes a escrever algo desta lista, **pare**:
 
 | ❌ Não existe | ✅ Use |
 |---|---|
-| `fun` / `func` | `String nome(...) { }` |
+| `fun` / `func` / `fn` | `String nome(...) { }` (palavras reservadas — não existem) |
 | `val x = ...` / `var x = ...` no **top-level** | dentro de função; ou campo de `class` |
-| `let x = ...` (Kof; só existe em KofScript `.ks`) | `var`/`val` em função |
+| `let x = ...` / `const x = ...` / `async fn` | `var`/`val` em função; `spawn`/`await` (KofScript **não** é JavaScript — roda Kof puro) |
 | `x in [...]` (operador de expressão) | `setOf(...).contains(x)` |
 | `{"a", "b"}` (literal de conjunto) | `setOf("a", "b")` |
 | `[1, 2, 3]` (literal de array) | `listOf(1, 2, 3)` ou `new Int[n]` |
@@ -550,9 +663,15 @@ use o harness do projeto ou crie um teste E2E mínimo no pacote da área.
 | `training/anti-patterns/chained-or-membership.md` | Cadeia de `\|\|` → `setOf().contains()` |
 | `training/anti-patterns/java-like-code.md` | Java traduzido → Kof |
 | `learn/` | Tutorials passo a passo (00-introduction → 37-kofjs) |
-| `docs/security-plan.md`, `docs/native-multiarch.md` etc. | Domínios específicos |
-| `docs/future/` (plans) | Planos futuros: migração legado (decompiler/translator/IR/differential) + plataforma universal |
-| `docs/future/ACTION_PLAN.md` | Ordem de implementação de `docs/future` (Tiers 0–12) |
+| `docs/architecture.md`, `docs/compiler-architecture.md` etc. | Domínios específicos (estáveis) |
+| `development/` | **Backlog vivo — tudo que NÃO está concluído** (planos, roadmaps, audits, gaps, refactors). Ver `development/README.md` para índice completo. |
+| `development/future/` (plans) | Planos futuros: migração legado (decompiler/translator/IR/differential) + plataforma universal (era `docs/future/`) |
+| `development/roadmap.md`, `development/roadmap-audit.md`, `development/ecosystem-coverage.md` | Roadmaps & auditoria de cobertura (fila P0→P5) |
+| `development/specification-gaps.md`, `development/known-bugs.md` | Gaps de spec (20 SG-00x) + bugs abertos (37–40, CANVAS001) |
+| `development/native-multiarch.md`, `development/DATABASE_VISION.md`, `development/complexity-audit.md` | Native multiarch (NATIVE002) + DB vision + audit ≤500 |
+| `development/security-plan.md` | Plano de segurança (18 camadas, B/C/D pendentes) |
+| `development/plan-platform-completion.md`, `development/plan-spring-independence.md` | Plans de plataforma & Spring independence (P3–P5) |
+| `development/future/ACTION_PLAN.md` | Ordem de implementação de `development/future` (Tiers 0–12) |
 
 ---
 

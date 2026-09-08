@@ -79,6 +79,490 @@ class KofJsBrowserE2ETest {
         }
     }
 
+    @Test
+    void inputPlaceholderRendersInRealBrowserDom(@TempDir Path tempDir) throws IOException {
+        Path chrome = findChrome();
+        assumeTrue(chrome != null, "Chrome/Chromium não instalado — pulando E2E de browser");
+
+        String program = """
+            main() {
+                var campo = Input("")
+                campo.setPlaceholder("digite aqui")
+                var col = Column(listOf(campo))
+                var w = Window("InputTest")
+                w.bind(col)
+                w.show()
+            }
+            """;
+        Path source = tempDir.resolve("App.kf");
+        Files.writeString(source, program);
+
+        Path outDir = tempDir.resolve("out");
+        CompilationResult result = driver.compile(source, outDir, Target.JS);
+        assertTrue(result.success(), "compilação JS deve passar: " + result.diagnostics().getDiagnostics());
+
+        HttpServer server = serve(outDir);
+        int port = server.getAddress().getPort();
+        try {
+            String dom = dumpDom(chrome, "http://127.0.0.1:" + port + "/index.html");
+            assertTrue(dom.contains("kof-input"), "input kof.ui ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("placeholder=\"digite aqui\""),
+                    "placeholder ausente no DOM: " + excerpt(dom));
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void inputTypeRendersInRealBrowserDom(@TempDir Path tempDir) throws IOException {
+        Path chrome = findChrome();
+        assumeTrue(chrome != null, "Chrome/Chromium não instalado — pulando E2E de browser");
+
+        String program = """
+            main() {
+                var senha = Input("")
+                senha.setType("password")
+                var col = Column(listOf(senha))
+                var w = Window("InputTypeTest")
+                w.bind(col)
+                w.show()
+            }
+            """;
+        Path source = tempDir.resolve("App.kf");
+        Files.writeString(source, program);
+
+        Path outDir = tempDir.resolve("out");
+        CompilationResult result = driver.compile(source, outDir, Target.JS);
+        assertTrue(result.success(), "compilação JS deve passar: " + result.diagnostics().getDiagnostics());
+
+        HttpServer server = serve(outDir);
+        int port = server.getAddress().getPort();
+        try {
+            String dom = dumpDom(chrome, "http://127.0.0.1:" + port + "/index.html");
+            assertTrue(dom.contains("kof-input"), "input kof.ui ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("type=\"password\""),
+                    "type=password ausente no DOM: " + excerpt(dom));
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void inputCheckboxCheckedRendersInRealBrowserDom(@TempDir Path tempDir) throws IOException {
+        Path chrome = findChrome();
+        assumeTrue(chrome != null, "Chrome/Chromium não instalado — pulando E2E de browser");
+
+        String program = """
+            main() {
+                var aceitar = Input("")
+                aceitar.setType("checkbox")
+                aceitar.setChecked(true)
+                var col = Column(listOf(aceitar))
+                var w = Window("CheckboxTest")
+                w.bind(col)
+                w.show()
+            }
+            """;
+        Path source = tempDir.resolve("App.kf");
+        Files.writeString(source, program);
+
+        Path outDir = tempDir.resolve("out");
+        CompilationResult result = driver.compile(source, outDir, Target.JS);
+        assertTrue(result.success(), "compilação JS deve passar: " + result.diagnostics().getDiagnostics());
+
+        HttpServer server = serve(outDir);
+        int port = server.getAddress().getPort();
+        try {
+            String dom = dumpDom(chrome, "http://127.0.0.1:" + port + "/index.html");
+            assertTrue(dom.contains("type=\"checkbox\""),
+                    "type=checkbox ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("checked"),
+                    "checked ausente no DOM: " + excerpt(dom));
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void imageAltSizeRendersInRealBrowserDom(@TempDir Path tempDir) throws IOException {
+        Path chrome = findChrome();
+        assumeTrue(chrome != null, "Chrome/Chromium não instalado — pulando E2E de browser");
+
+        String program = """
+            main() {
+                var logo = Image("logo.png")
+                logo.setAlt("logotipo")
+                logo.setWidth(120)
+                logo.setHeight(60)
+                var col = Column(listOf(logo))
+                var w = Window("ImageTest")
+                w.bind(col)
+                w.show()
+            }
+            """;
+        Path source = tempDir.resolve("App.kf");
+        Files.writeString(source, program);
+
+        Path outDir = tempDir.resolve("out");
+        CompilationResult result = driver.compile(source, outDir, Target.JS);
+        assertTrue(result.success(), "compilação JS deve passar: " + result.diagnostics().getDiagnostics());
+
+        HttpServer server = serve(outDir);
+        int port = server.getAddress().getPort();
+        try {
+            String dom = dumpDom(chrome, "http://127.0.0.1:" + port + "/index.html");
+            assertTrue(dom.contains("kof-image"), "image kof.ui ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("alt=\"logotipo\""),
+                    "alt ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("width=\"120\""),
+                    "width ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("height=\"60\""),
+                    "height ausente no DOM: " + excerpt(dom));
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void formContainerRendersInRealBrowserDom(@TempDir Path tempDir) throws IOException {
+        Path chrome = findChrome();
+        assumeTrue(chrome != null, "Chrome/Chromium não instalado — pulando E2E de browser");
+
+        String program = """
+            main() {
+                var campo = Input("")
+                campo.setPlaceholder("nome")
+                var b = Button("enviar")
+                var f = Form(listOf(campo, b))
+                var w = Window("FormTest")
+                w.bind(f)
+                w.show()
+            }
+            """;
+        Path source = tempDir.resolve("App.kf");
+        Files.writeString(source, program);
+
+        Path outDir = tempDir.resolve("out");
+        CompilationResult result = driver.compile(source, outDir, Target.JS);
+        assertTrue(result.success(), "compilação JS deve passar: " + result.diagnostics().getDiagnostics());
+
+        HttpServer server = serve(outDir);
+        int port = server.getAddress().getPort();
+        try {
+            String dom = dumpDom(chrome, "http://127.0.0.1:" + port + "/index.html");
+            assertTrue(dom.contains("<form"), "elemento <form> ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("kof-form"), "classe kof-form ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("placeholder=\"nome\""),
+                    "input do form ausente no DOM: " + excerpt(dom));
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void widgetAttributesRenderInRealBrowserDom(@TempDir Path tempDir) throws IOException {
+        Path chrome = findChrome();
+        assumeTrue(chrome != null, "Chrome/Chromium não instalado — pulando E2E de browser");
+
+        String program = """
+            main() {
+                var campo = Input("")
+                campo.setId("nome")
+                campo.setClass("destaque")
+                campo.setDisabled(true)
+                var col = Column(listOf(campo))
+                var w = Window("AttrsTest")
+                w.bind(col)
+                w.show()
+            }
+            """;
+        Path source = tempDir.resolve("App.kf");
+        Files.writeString(source, program);
+
+        Path outDir = tempDir.resolve("out");
+        CompilationResult result = driver.compile(source, outDir, Target.JS);
+        assertTrue(result.success(), "compilação JS deve passar: " + result.diagnostics().getDiagnostics());
+
+        HttpServer server = serve(outDir);
+        int port = server.getAddress().getPort();
+        try {
+            String dom = dumpDom(chrome, "http://127.0.0.1:" + port + "/index.html");
+            assertTrue(dom.contains("id=\"nome\""), "id ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("destaque"), "class ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("disabled"), "disabled ausente no DOM: " + excerpt(dom));
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void formSubmitHandlerRunsInRealBrowser(@TempDir Path tempDir) throws IOException {
+        Path chrome = findChrome();
+        assumeTrue(chrome != null, "Chrome/Chromium não instalado — pulando E2E de browser");
+
+        // o handler do onSubmit muta o placeholder do input — se o DOM final
+        // traz "depois", o handler RODOU de verdade no browser.
+        String program = """
+            main() {
+                var campo = Input("")
+                campo.setPlaceholder("antes")
+                var f = Form(listOf(campo))
+                f.onSubmit(() -> campo.setPlaceholder("depois"))
+                var w = Window("SubmitTest")
+                w.bind(f)
+                w.show()
+                f.submit()
+            }
+            """;
+        Path source = tempDir.resolve("App.kf");
+        Files.writeString(source, program);
+
+        Path outDir = tempDir.resolve("out");
+        CompilationResult result = driver.compile(source, outDir, Target.JS);
+        assertTrue(result.success(), "compilação JS deve passar: " + result.diagnostics().getDiagnostics());
+
+        HttpServer server = serve(outDir);
+        int port = server.getAddress().getPort();
+        try {
+            String dom = dumpDom(chrome, "http://127.0.0.1:" + port + "/index.html");
+            assertTrue(dom.contains("placeholder=\"depois\""),
+                    "handler do onSubmit NÃO rodou (placeholder ainda 'antes'): " + excerpt(dom));
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void textareaRendersInRealBrowserDom(@TempDir Path tempDir) throws IOException {
+        Path chrome = findChrome();
+        assumeTrue(chrome != null, "Chrome/Chromium não instalado — pulando E2E de browser");
+
+        String program = """
+            main() {
+                var obs = Textarea("inicial")
+                obs.setPlaceholder("descreva")
+                var col = Column(listOf(obs))
+                var w = Window("TextareaTest")
+                w.bind(col)
+                w.show()
+            }
+            """;
+        Path source = tempDir.resolve("App.kf");
+        Files.writeString(source, program);
+
+        Path outDir = tempDir.resolve("out");
+        CompilationResult result = driver.compile(source, outDir, Target.JS);
+        assertTrue(result.success(), "compilação JS deve passar: " + result.diagnostics().getDiagnostics());
+
+        HttpServer server = serve(outDir);
+        int port = server.getAddress().getPort();
+        try {
+            String dom = dumpDom(chrome, "http://127.0.0.1:" + port + "/index.html");
+            assertTrue(dom.contains("<textarea"), "elemento <textarea> ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("kof-textarea"), "classe kof-textarea ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("inicial"), "texto inicial ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("placeholder=\"descreva\""),
+                    "placeholder ausente no DOM: " + excerpt(dom));
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void selectRendersInRealBrowserDom(@TempDir Path tempDir) throws IOException {
+        Path chrome = findChrome();
+        assumeTrue(chrome != null, "Chrome/Chromium não instalado — pulando E2E de browser");
+
+        String program = """
+            main() {
+                var sel = Select(listOf("uma", "duas", "tres"))
+                sel.setSelected(1)
+                var col = Column(listOf(sel))
+                var w = Window("SelectTest")
+                w.bind(col)
+                w.show()
+            }
+            """;
+        Path source = tempDir.resolve("App.kf");
+        Files.writeString(source, program);
+
+        Path outDir = tempDir.resolve("out");
+        CompilationResult result = driver.compile(source, outDir, Target.JS);
+        assertTrue(result.success(), "compilação JS deve passar: " + result.diagnostics().getDiagnostics());
+
+        HttpServer server = serve(outDir);
+        int port = server.getAddress().getPort();
+        try {
+            String dom = dumpDom(chrome, "http://127.0.0.1:" + port + "/index.html");
+            assertTrue(dom.contains("<select"), "elemento <select> ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("kof-select"), "classe kof-select ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("<option value=\"uma\""), "opção 'uma' ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("<option value=\"duas\""), "opção 'duas' ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("<option value=\"tres\""), "opção 'tres' ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("selected"), "opção selecionada (índice 1) ausente no DOM: " + excerpt(dom));
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void canvasUi009RunsInRealBrowser(@TempDir Path tempDir) throws IOException {
+        Path chrome = findChrome();
+        assumeTrue(chrome != null, "Chrome/Chromium não instalado — pulando E2E de browser");
+
+        // UI009: save/restore/setGlobalAlpha/fillText/measureText/transform
+        // rodam no contexto 2D real. O desenho é bitmap (não aparece no DOM),
+        // então provamos que executaram sem lançar usando o resultado de
+        // measureText (>0) num Label observável — se qualquer método falhasse,
+        // o script pararia e o Label não renderizaria.
+        String program = """
+            main() {
+                var c = Canvas(400, 300)
+                c.save()
+                c.setGlobalAlpha(0.5)
+                c.transform(1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
+                c.fillText("oi", 10, 20)
+                var w = c.measureText("oi")
+                var img = Image("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10'%3E%3C/svg%3E")
+                c.drawImage(img, 5, 5)
+                c.restore()
+                var lbl = Label(if (w > 0.0) "measured" else "zero")
+                var col = Column(listOf(c, lbl))
+                var win = Window("CanvasTest")
+                win.bind(col)
+                win.show()
+            }
+            """;
+        Path source = tempDir.resolve("App.kf");
+        Files.writeString(source, program);
+
+        Path outDir = tempDir.resolve("out");
+        CompilationResult result = driver.compile(source, outDir, Target.JS);
+        assertTrue(result.success(), "compilação JS deve passar: " + result.diagnostics().getDiagnostics());
+
+        HttpServer server = serve(outDir);
+        int port = server.getAddress().getPort();
+        try {
+            String dom = dumpDom(chrome, "http://127.0.0.1:" + port + "/index.html");
+            assertTrue(dom.contains("<canvas"), "elemento <canvas> ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("measured"),
+                    "measureText não retornou >0 (métodos UI009 não rodaram): " + excerpt(dom));
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void listWidgetsRenderInRealBrowserDom(@TempDir Path tempDir) throws IOException {
+        Path chrome = findChrome();
+        assumeTrue(chrome != null, "Chrome/Chromium não instalado — pulando E2E de browser");
+
+        String program = """
+            main() {
+                var u = Ul(listOf("maçã", "uva"))
+                var o = Ol(listOf("primeiro", "segundo"))
+                var col = Column(listOf(u, o))
+                var w = Window("ListTest")
+                w.bind(col)
+                w.show()
+            }
+            """;
+        Path source = tempDir.resolve("App.kf");
+        Files.writeString(source, program);
+
+        Path outDir = tempDir.resolve("out");
+        CompilationResult result = driver.compile(source, outDir, Target.JS);
+        assertTrue(result.success(), "compilação JS deve passar: " + result.diagnostics().getDiagnostics());
+
+        HttpServer server = serve(outDir);
+        int port = server.getAddress().getPort();
+        try {
+            String dom = dumpDom(chrome, "http://127.0.0.1:" + port + "/index.html");
+            assertTrue(dom.contains("<ul"), "elemento <ul> ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("kof-ul"), "classe kof-ul ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("<li>maçã</li>"), "<li> da maçã ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("<ol"), "elemento <ol> ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("<li>primeiro</li>"), "<li> do primeiro ausente no DOM: " + excerpt(dom));
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void inputAttrsRenderInRealBrowserDom(@TempDir Path tempDir) throws IOException {
+        Path chrome = findChrome();
+        assumeTrue(chrome != null, "Chrome/Chromium não instalado — pulando E2E de browser");
+
+        // name/readonly são ATRIBUTOS → serializam no outerHTML do dump-dom.
+        String program = """
+            main() {
+                var i = Input("oi")
+                i.setName("usuario")
+                i.setReadonly(true)
+                var t = Textarea("x")
+                t.setName("bio")
+                t.setReadonly(true)
+                var col = Column(listOf(i, t))
+                var w = Window("AttrsTest")
+                w.bind(col)
+                w.show()
+            }
+            """;
+        Path source = tempDir.resolve("App.kf");
+        Files.writeString(source, program);
+
+        Path outDir = tempDir.resolve("out");
+        CompilationResult result = driver.compile(source, outDir, Target.JS);
+        assertTrue(result.success(), "compilação JS deve passar: " + result.diagnostics().getDiagnostics());
+
+        HttpServer server = serve(outDir);
+        int port = server.getAddress().getPort();
+        try {
+            String dom = dumpDom(chrome, "http://127.0.0.1:" + port + "/index.html");
+            assertTrue(dom.contains("name=\"usuario\""), "name=\"usuario\" ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("name=\"bio\""), "name=\"bio\" ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("readonly"), "readonly ausente no DOM: " + excerpt(dom));
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void tableRendersInRealBrowserDom(@TempDir Path tempDir) throws IOException {
+        Path chrome = findChrome();
+        assumeTrue(chrome != null, "Chrome/Chromium não instalado — pulando E2E de browser");
+
+        String program = """
+            main() {
+                var t = Table(listOf("nome", "idade"),
+                              listOf(listOf("mel", "26"), listOf("ana", "30")))
+                var col = Column(listOf(t))
+                var w = Window("TableTest")
+                w.bind(col)
+                w.show()
+            }
+            """;
+        Path source = tempDir.resolve("App.kf");
+        Files.writeString(source, program);
+
+        Path outDir = tempDir.resolve("out");
+        CompilationResult result = driver.compile(source, outDir, Target.JS);
+        assertTrue(result.success(), "compilação JS deve passar: " + result.diagnostics().getDiagnostics());
+
+        HttpServer server = serve(outDir);
+        int port = server.getAddress().getPort();
+        try {
+            String dom = dumpDom(chrome, "http://127.0.0.1:" + port + "/index.html");
+            assertTrue(dom.contains("<table"), "elemento <table> ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("kof-table"), "classe kof-table ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("<th>nome</th>"), "<th> ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("<td>mel</td>"), "<td> mel ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("<td>30</td>"), "<td> 30 ausente no DOM: " + excerpt(dom));
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private static HttpServer serve(Path dir) throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/", exchange -> {

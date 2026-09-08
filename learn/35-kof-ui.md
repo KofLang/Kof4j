@@ -120,6 +120,68 @@ w.bind(view)
 `Style(background, foreground, padding, radius)` — cores via `Color`,
 `padding`/`radius` em px.
 
+## Canvas 2D
+
+Canvas permite desenho 2D livre — gráficos, visualizações, jogos.
+Renderiza em `<canvas>` no DOM (KofJS). JVM/Native são no-ops.
+
+```kof
+var c = Canvas(400, 300)         // cria canvas
+
+c.setFill(Palette.blue)         // cor de preenchimento
+c.setStroke(Palette.black)      // cor do traço
+c.setLineWidth(2)               // espessura do traço
+
+c.beginPath()                    // início de caminho
+c.moveTo(200, 150)              // move caneta
+c.lineTo(300, 200)              // desenha linha
+c.arc(200, 150, 100, 0.0, 3.14) // arco (radianos)
+c.closePath()                    // fecha caminho
+c.fill()                         // preenche
+c.stroke()                       // contorna
+
+c.clearRect(0, 0, 400, 300)    // limpa retângulo
+c.remove()                       // remove do DOM
+```
+
+### Gráfico de pizza
+
+```kof
+var c = Canvas(400, 300)
+var PI = 3.14159265358979
+var cx = 200
+var cy = 150
+var r = 100
+
+var dados = listOf(45, 25, 20, 10)
+var cores = listOf(Palette.blue, Palette.red, Palette.green, Palette.orange)
+var total = 100
+
+var inicio = 0.0
+for (var i in dados) {
+    var fim = inicio + (i * 2.0 * PI) / total
+    c.setFill(cores[i])
+    c.beginPath()
+    c.moveTo(cx, cy)
+    c.arc(cx, cy, r, inicio, fim)
+    c.closePath()
+    c.fill()
+    inicio = fim
+}
+```
+
+| Operação | Descrição |
+|----------|-----------|
+| `Canvas(largura, altura)` | cria canvas 2D |
+| `c.beginPath()` / `c.closePath()` | gerencia caminho |
+| `c.moveTo(x, y)` / `c.lineTo(x, y)` | desenha com a caneta |
+| `c.arc(x, y, r, inicio, fim)` | arco em radianos |
+| `c.fill()` / `c.stroke()` | preenche/contorna caminho |
+| `c.setFill(cor)` / `c.setStroke(cor)` | define cores |
+| `c.setLineWidth(largura)` | espessura do traço |
+| `c.clearRect(x, y, w, h)` | limpa retângulo |
+| `c.remove()` | remove do DOM |
+
 ## Router (Fase 7, 31/08)
 
 Navegação por troca de componente raiz (unmount do antigo + mount do novo):

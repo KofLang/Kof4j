@@ -56,6 +56,84 @@ class CoreRegressionE2ETest {
         assertEquals(expected, runJs(outJs), name + " JS output mismatch");
     }
 
+    // GitHub #30 — String.split + acesso ao array: .get(i) era baixado como
+    // KofCall com owner ArrayType → JvmTypeMapper produzia internalName ""
+    // → Methodref "" no constant pool → ClassFormatError: Illegal class name "".
+    // Fix: .get(i) → arrayload, .size/.length → arraylength (typer + lowering).
+    @Test
+    void stringSplitArrayAccess(@TempDir Path tempDir) throws IOException {
+        runBoth("""
+                main() {
+                    var parts = "a,b,c".split(",")
+                    println(parts.size)
+                    println(parts.get(0))
+                    println(parts.length)
+                }
+                """, "3\na\n3", tempDir, "splitArr");
+    }
+
+    // GitHub #31 — `await` sobre um handle que perdeu o Handle<T> ao passar
+    // por um parâmetro/campo Object (ou declarado Handle<Int>): o kof_await
+    // devolve Object boxed e o return fazia ireturn sobre referência →
+    // VerifyError. Fix: Handle<T> apaga p/ CompletableFuture (Type.of +
+    // JvmTypeMapper) + checkcast no emit + unbox no widening do return.
+    @Test
+    void awaitOnHandleThroughObjectParam(@TempDir Path tempDir) throws IOException {
+        Path src = tempDir.resolve("handleObj.kf");
+        Files.writeString(src, """
+                Int calc(Int x) { return x * 2 }
+                Int take(Object h) { return await h }
+                main() {
+                    val h = spawn calc(21)
+                    println(take(h))
+                }
+                """);
+        Path out = tempDir.resolve("handleObj-jvm");
+        CompilationResult r = driver.compile(src, out, Target.JVM);
+        assertTrue(r.success(), "JVM compile failed: " + r.diagnostics().getDiagnostics());
+        assertEquals("42", runJvm(out));
+    }
+
+    @Test
+    void awaitOnTypedHandleParam(@TempDir Path tempDir) throws IOException {
+        Path src = tempDir.resolve("handleTyped.kf");
+        Files.writeString(src, """
+                Int calc(Int x) { return x * 2 }
+                Int take(Handle<Int> h) { return await h }
+                main() {
+                    val h = spawn calc(21)
+                    println(take(h))
+                }
+                """);
+        Path out = tempDir.resolve("handleTyped-jvm");
+        CompilationResult r = driver.compile(src, out, Target.JVM);
+        assertTrue(r.success(), "JVM compile failed: " + r.diagnostics().getDiagnostics());
+        assertEquals("42", runJvm(out));
+    }
+
+    // GitHub #34 — json.decode de record com campo List<Record>: o campo
+    // chegava como lista de mapas crus (LinkedHashMap) → ClassCastException
+    // no acesso. Fix: backend emite o atributo Signature (genérico) nos
+    // campos/record components e o kof_json_bind usa getGenericType p/
+    // bindar os elementos recursivamente.
+    @Test
+    void jsonDecodeRecordWithListOfRecords(@TempDir Path tempDir) throws IOException {
+        Path src = tempDir.resolve("nestedRec.kf");
+        Files.writeString(src, """
+                record Addr(String city)
+                record User(String name, List<Addr> addrs)
+                main() {
+                    var u = json.decode<User>("{\\"name\\":\\"a\\",\\"addrs\\":[{\\"city\\":\\"x\\"},{\\"city\\":\\"y\\"}]}")
+                    println(u.addrs().get(0).city())
+                    println(u.addrs().get(1).city())
+                }
+                """);
+        Path out = tempDir.resolve("nestedRec-jvm");
+        CompilationResult r = driver.compile(src, out, Target.JVM);
+        assertTrue(r.success(), "JVM compile failed: " + r.diagnostics().getDiagnostics());
+        assertEquals("x\ny", runJvm(out));
+    }
+
     // B10 — primary constructor fields accessible inside methods (all targets)
     @Test
     void primaryConstructorFieldsInMethods(@TempDir Path tempDir) throws IOException {
@@ -382,6 +460,148 @@ class CoreRegressionE2ETest {
                     println(acc)
                 }
                 """, "8\n5\n1\n30\n15\n10\n10", tempDir, "compound-order");
+    }
+
+    // known-bugs #27 — String.valueOf(char) parity: JVM/Native return the UTF-8
+    // char ("h"); JS was returning the numeric codepoint ("104"). Now aligned.
+    @Test
+    void stringValueOfCharParity(@TempDir Path tempDir) throws IOException {
+        runBoth("""
+                main() {
+                    println(String.valueOf(104 as Char))
+                    println(String.valueOf(72 as Char))
+                }
+                """, "h\nH", tempDir, "string-valueof-char");
+    }
+
+    // known-bugs #40 — compound assignment on instance FIELD: `n += 1` in a
+    // method pushed `this` once, getfield consumed it, putfield underflowed.
+    @Test
+    void compoundOnInstanceField(@TempDir Path tempDir) throws IOException {
+        runBoth("""
+                class Box {
+                    Int n
+                    Int inc() {
+                        n += 1
+                        return n
+                    }
+                }
+                main() {
+                    var b = Box()
+                    b.n = 10
+                    println(b.inc())
+                    b.n -= 2
+                    println(b.n)
+                }
+                """, "11\n9", tempDir, "compound-instance-field");
+    }
+
+    // known-bugs #38 — re-throw em try aninhado: o corpo do catch externo lia
+    // o slot do catch interno (mesmo nome "e"). Agora o corpo do catch usa um
+    // sub-escopo (locals até o catch corrente). [JS: gap separado, ver known-bugs]
+    @Test
+    void rethrowInNestedTry(@TempDir Path tempDir) throws IOException {
+        Path src = tempDir.resolve("rtnt.kf");
+        Files.writeString(src, """
+                main() {
+                    try {
+                        try { throw "inner" } catch (String e) { throw "outer" }
+                    } catch (String e) {
+                        println(e)
+                    }
+                }
+                """);
+        Path outJvm = tempDir.resolve("out");
+        CompilationResult rjvm = driver.compile(src, outJvm, Target.JVM);
+        assertTrue(rjvm.success(), "JVM compile failed: " + rjvm.diagnostics().getDiagnostics());
+        assertEquals("outer", runJvm(outJvm), "nested-try-rethrow JVM output mismatch");
+    }
+
+    // known-bugs #49 — try aninhado no KofJS (COMP002): o parseTryStatement
+    // confundia o endLabel do try outer com um finally do try inner.
+    @Test
+    void nestedTryJs(@TempDir Path tempDir) throws IOException {
+        Path src = tempDir.resolve("ntry.kf");
+        Files.writeString(src, """
+                main() {
+                    try {
+                        try { throw "inner" } catch (String e) { println(e) }
+                    } catch (String e) {
+                        println("outer:" + e)
+                    }
+                }
+                """);
+        Path outJs = tempDir.resolve("js");
+        CompilationResult rjs = driver.compile(src, outJs, Target.JS);
+        assertTrue(rjs.success(), "JS compile failed: " + rjs.diagnostics().getDiagnostics());
+    }
+
+    // known-bugs #51 — CompilerDriver reutilizado vazava classes sintéticas
+    // (syntheticClasses/lambdaCounter não resetavam): compilar programa com
+    // spawn e DEPOIS outro sem spawn no MESMO driver quebrava o link Native
+    // (undefined reference a símbolos da compilação anterior).
+    @Test
+    void driverReuseDoesNotLeakSyntheticClasses(@TempDir Path tempDir) throws IOException {
+        Path src1 = tempDir.resolve("leak1.kf");
+        Files.writeString(src1, """
+                Int calc(Int n) = n * 2
+                main() {
+                    var h = spawn calc(21)
+                    println(await h)
+                }
+                """);
+        Path src2 = tempDir.resolve("leak2.kf");
+        Files.writeString(src2, """
+                main() {
+                    println("ok")
+                }
+                """);
+        Path out1 = tempDir.resolve("o1");
+        Path out2 = tempDir.resolve("o2");
+        CompilationResult r1 = driver.compile(src1, out1, Target.NATIVE);
+        assertTrue(r1.success(), "spawn compile failed: " + r1.diagnostics().getDiagnostics());
+        CompilationResult r2 = driver.compile(src2, out2, Target.NATIVE);
+        assertTrue(r2.success(), "reuse w/o spawn leaked synthetic classes: " + r2.diagnostics().getDiagnostics());
+        Path bin2 = out2.resolve("Default/Main");
+        assertTrue(Files.exists(bin2), "Binary should exist");
+    }
+
+    // known-bugs #42 — record hashCode() ausente no JS (TypeError). O JVM
+    // gera hashCode sintético no JvmRecordEmitter; o JS agora também.
+    @Test
+    void recordHashCodeJs(@TempDir Path tempDir) throws IOException {
+        runBoth("""
+                record P(Int x, Int y)
+                main() {
+                    var a = P(1, 2)
+                    var b = P(1, 2)
+                    println(a.hashCode() == b.hashCode())
+                    println(P(1, 2).hashCode() == P(1, 2).hashCode())
+                }
+                """, "true\ntrue", tempDir, "rec-hash");
+    }
+
+    // known-bugs #45 — JS: finally com `return` no try perdia o valor de
+    // retorno (`undefined`). O try/finally nativo do JS relança sozinho; o
+    // rethrow Kof (`throw _excTmp`) redundante abortava o return. Agora o
+    // finally roda e o retorno prevalece (Java-correct, doc "roda sempre").
+    // Obs.: JVM/Native/interp descartam o finally nesse caminho (bug de
+    // consistência registrado) — este teste cobre só o JS.
+    @Test
+    void finallyReturnJs(@TempDir Path tempDir) throws IOException {
+        Path src = tempDir.resolve("finret.kf");
+        Files.writeString(src, """
+                Int f() {
+                    try { return 1 } finally { println("fin") }
+                }
+                main() {
+                    println(f())
+                }
+                """);
+        Path outJs = tempDir.resolve("js");
+        CompilationResult rjs = driver.compile(src, outJs, Target.JS);
+        assertTrue(rjs.success(), "JS compile failed: " + rjs.diagnostics().getDiagnostics());
+        assertEquals("fin\n1", runJs(outJs), "JS finally+return output mismatch");
     }
 
     // known-bugs #5/#24 — FP→Int/Long casts and Double→Float narrowing were

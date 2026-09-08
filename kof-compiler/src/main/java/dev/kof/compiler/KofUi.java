@@ -14,7 +14,7 @@ import java.util.List;
  * All channel access is compiler-side bit manipulation; only toCss() needs
  * a runtime helper (string building).
  */
-final class KofUi {
+public final class KofUi {
 
     private KofUi() {}
 
@@ -23,8 +23,14 @@ final class KofUi {
     static final Type LABEL = new Type.ClassType("kof.ui", "Label", List.of());
     static final Type BUTTON = new Type.ClassType("kof.ui", "Button", List.of());
     static final Type INPUT = new Type.ClassType("kof.ui", "Input", List.of());
+    static final Type TEXTAREA = new Type.ClassType("kof.ui", "Textarea", List.of());
+    static final Type SELECT = new Type.ClassType("kof.ui", "Select", List.of());
+    static final Type UL = new Type.ClassType("kof.ui", "Ul", List.of());
+    static final Type OL = new Type.ClassType("kof.ui", "Ol", List.of());
+    static final Type TABLE = new Type.ClassType("kof.ui", "Table", List.of());
     static final Type COLUMN = new Type.ClassType("kof.ui", "Column", List.of());
     static final Type ROW = new Type.ClassType("kof.ui", "Row", List.of());
+    static final Type FORM = new Type.ClassType("kof.ui", "Form", List.of());
     static final Type VIEW = new Type.ClassType("kof.ui", "View", List.of());
     static final Type STYLE = new Type.ClassType("kof.ui", "Style", List.of());
     static final Type WINDOW = new Type.ClassType("kof.ui", "Window", List.of());
@@ -42,6 +48,7 @@ final class KofUi {
     static final Type CENTER = new Type.ClassType("kof.ui", "Center", List.of());
     static final Type ALIGN = new Type.ClassType("kof.ui", "Align", List.of());
     static final Type STORE = new Type.ClassType("kof.ui", "Store", List.of());
+    static final Type CANVAS = new Type.ClassType("kof.ui", "Canvas", List.of());
 
     /** Fase 7: Router é namespace (Router.go(...)), não tipo. */
     static boolean isRouterNamespace(String name) { return "Router".equals(name); }
@@ -51,8 +58,14 @@ final class KofUi {
     static boolean isLabel(Type t) { return LABEL.equals(t); }
     static boolean isButton(Type t) { return BUTTON.equals(t); }
     static boolean isInput(Type t) { return INPUT.equals(t); }
+    static boolean isTextarea(Type t) { return TEXTAREA.equals(t); }
+    static boolean isSelect(Type t) { return SELECT.equals(t); }
+    static boolean isUl(Type t) { return UL.equals(t); }
+    static boolean isOl(Type t) { return OL.equals(t); }
+    static boolean isTable(Type t) { return TABLE.equals(t); }
     static boolean isColumn(Type t) { return COLUMN.equals(t); }
     static boolean isRow(Type t) { return ROW.equals(t); }
+    static boolean isForm(Type t) { return FORM.equals(t); }
     static boolean isView(Type t) { return VIEW.equals(t); }
     static boolean isStyle(Type t) { return STYLE.equals(t); }
     static boolean isWindow(Type t) { return WINDOW.equals(t); }
@@ -70,6 +83,7 @@ final class KofUi {
     static boolean isCenter(Type t) { return CENTER.equals(t); }
     static boolean isAlign(Type t) { return ALIGN.equals(t); }
     static boolean isStore(Type t) { return STORE.equals(t); }
+    static boolean isCanvas(Type t) { return CANVAS.equals(t); }
 
     /** Primitivas de layout da Fase 4 (docs/ui/architecture.md §2.8). */
     static boolean isLayoutType(Type t) {
@@ -81,25 +95,38 @@ final class KofUi {
         return isLabel(t) || isButton(t) || isInput(t) || isView(t) || isLink(t);
     }
 
-    static boolean isUiType(Type t) {
+    /** UI005: widgets DOM que aceitam setId/setClass/setDisabled (família
+     *  compartilhada kof_ui_widget_*, como font). */
+    static boolean isDomWidget(Type t) {
+        return isLabel(t) || isButton(t) || isInput(t) || isTextarea(t) || isSelect(t)
+                || isUl(t) || isOl(t) || isTable(t)
+                || isView(t) || isLink(t)
+                || isImage(t) || isIcon(t) || isForm(t) || isColumn(t) || isRow(t);
+    }
+
+    static public boolean isUiType(Type t) {
         return isColor(t) || isTheme(t) || isLabel(t) || isButton(t) || isInput(t)
-                || isColumn(t) || isRow(t) || isView(t) || isStyle(t) || isWindow(t)
+                || isTextarea(t) || isSelect(t) || isUl(t) || isOl(t) || isTable(t)
+                || isColumn(t) || isRow(t) || isForm(t) || isView(t) || isStyle(t) || isWindow(t)
                 || isLink(t) || isImage(t) || isIcon(t) || isFont(t)
                 || isComponent(t) || isEvent(t)
-                || isLayoutType(t) || isStore(t);
+                || isLayoutType(t) || isStore(t) || isCanvas(t);
     }
 
     static boolean isConstructor(String name) {
         return "Color".equals(name) || "Theme".equals(name)
                 || "Label".equals(name) || "Button".equals(name) || "Input".equals(name)
-                || "Column".equals(name) || "Row".equals(name) || "View".equals(name)
+                || "Textarea".equals(name) || "Select".equals(name)
+                || "Ul".equals(name) || "Ol".equals(name) || "Table".equals(name)
+                || "Column".equals(name) || "Row".equals(name) || "Form".equals(name) || "View".equals(name)
                 || "Style".equals(name) || "Window".equals(name)
                 || "Link".equals(name) || "Image".equals(name)
                 || "Icon".equals(name) || "Font".equals(name)
                 || "Component".equals(name)
                 || "Box".equals(name) || "Stack".equals(name) || "Spacer".equals(name)
                 || "Wrap".equals(name) || "Grid".equals(name) || "Center".equals(name)
-                || "Align".equals(name) || "Store".equals(name);
+                || "Align".equals(name) || "Store".equals(name)
+                || "Canvas".equals(name);
     }
 
     static Type constructorType(String name) {
@@ -117,6 +144,11 @@ final class KofUi {
         if ("Center".equals(name)) return CENTER;
         if ("Align".equals(name)) return ALIGN;
         if ("Store".equals(name)) return STORE;
+        if ("Canvas".equals(name)) return CANVAS;
+        if ("Select".equals(name)) return SELECT;
+        if ("Ul".equals(name)) return UL;
+        if ("Ol".equals(name)) return OL;
+        if ("Table".equals(name)) return TABLE;
         return Type.UnknownType.UNKNOWN;
     }
 
@@ -174,6 +206,26 @@ final class KofUi {
     }
 
     static UiCall instanceMethod(Type receiver, String name, int argCount) {
+        // UI005: métodos compartilhados de widget DOM (família kof_ui_widget_*).
+        // Verificados ANTES dos blocos por-tipo (que retornam null no default e
+        // nunca cairiam aqui — aceitaFont era código morto p/ Label/Button/...).
+        if (isDomWidget(receiver)) {
+            UiCall shared = switch (name) {
+                case "setId" -> argCount == 1 ? new UiCall("kof_ui_widget_set_id", Type.PrimitiveType.VOID, List.of(STR)) : null;
+                case "setClass" -> argCount == 1 ? new UiCall("kof_ui_widget_set_class", Type.PrimitiveType.VOID, List.of(STR)) : null;
+                case "setDisabled" -> argCount == 1 ? new UiCall("kof_ui_widget_set_disabled", Type.PrimitiveType.VOID, List.of(BOOL)) : null;
+                default -> null;
+            };
+            if (shared != null) return shared;
+            if (acceptsFont(receiver)) {
+                UiCall f = switch (name) {
+                    case "font" -> argCount == 0 ? new UiCall("kof_ui_widget_font", FONT, List.of()) : null;
+                    case "setFont" -> argCount == 1 ? new UiCall("kof_ui_widget_set_font", Type.PrimitiveType.VOID, List.of(INT)) : null;
+                    default -> null;
+                };
+                if (f != null) return f;
+            }
+        }
         if (isWindow(receiver)) {
             return switch (name) {
                 case "title" -> argCount == 0 ? new UiCall("kof_ui_window_title", STR, List.of()) : null;
@@ -222,7 +274,49 @@ final class KofUi {
             return switch (name) {
                 case "text" -> argCount == 0 ? new UiCall("kof_ui_input_text", STR, List.of()) : null;
                 case "setText" -> argCount == 1 ? new UiCall("kof_ui_input_set_text", Type.PrimitiveType.VOID, List.of(STR)) : null;
+                case "setPlaceholder" -> argCount == 1 ? new UiCall("kof_ui_input_set_placeholder", Type.PrimitiveType.VOID, List.of(STR)) : null;
+                case "setType" -> argCount == 1 ? new UiCall("kof_ui_input_set_type", Type.PrimitiveType.VOID, List.of(STR)) : null;
+                case "setChecked" -> argCount == 1 ? new UiCall("kof_ui_input_set_checked", Type.PrimitiveType.VOID, List.of(BOOL)) : null;
+                case "checked" -> argCount == 0 ? new UiCall("kof_ui_input_checked", BOOL, List.of()) : null;
+                case "setName" -> argCount == 1 ? new UiCall("kof_ui_input_set_name", Type.PrimitiveType.VOID, List.of(STR)) : null;
+                case "setReadonly" -> argCount == 1 ? new UiCall("kof_ui_input_set_readonly", Type.PrimitiveType.VOID, List.of(BOOL)) : null;
                 case "remove" -> argCount == 0 ? new UiCall("kof_ui_input_remove", Type.PrimitiveType.VOID, List.of()) : null;
+                default -> null;
+            };
+        }
+        if (isTextarea(receiver)) {
+            return switch (name) {
+                case "text" -> argCount == 0 ? new UiCall("kof_ui_textarea_text", STR, List.of()) : null;
+                case "setText" -> argCount == 1 ? new UiCall("kof_ui_textarea_set_text", Type.PrimitiveType.VOID, List.of(STR)) : null;
+                case "setPlaceholder" -> argCount == 1 ? new UiCall("kof_ui_textarea_set_placeholder", Type.PrimitiveType.VOID, List.of(STR)) : null;
+                case "setName" -> argCount == 1 ? new UiCall("kof_ui_textarea_set_name", Type.PrimitiveType.VOID, List.of(STR)) : null;
+                case "setReadonly" -> argCount == 1 ? new UiCall("kof_ui_textarea_set_readonly", Type.PrimitiveType.VOID, List.of(BOOL)) : null;
+                case "remove" -> argCount == 0 ? new UiCall("kof_ui_textarea_remove", Type.PrimitiveType.VOID, List.of()) : null;
+                default -> null;
+            };
+        }
+        if (isSelect(receiver)) {
+            return switch (name) {
+                case "selected" -> argCount == 0 ? new UiCall("kof_ui_select_selected", INT, List.of()) : null;
+                case "setSelected" -> argCount == 1 ? new UiCall("kof_ui_select_set_selected", Type.PrimitiveType.VOID, List.of(INT)) : null;
+                case "setOptions" -> argCount == 1 ? new UiCall("kof_ui_select_set_options", Type.PrimitiveType.VOID, List.of(new Type.ClassType("kof", "List", List.of(STR)))) : null;
+                case "remove" -> argCount == 0 ? new UiCall("kof_ui_select_remove", Type.PrimitiveType.VOID, List.of()) : null;
+                default -> null;
+            };
+        }
+        if (isUl(receiver) || isOl(receiver)) {
+            String fn = isUl(receiver) ? "kof_ui_ul" : "kof_ui_ol";
+            return switch (name) {
+                case "setItems" -> argCount == 1 ? new UiCall(fn + "_set_items", Type.PrimitiveType.VOID, List.of(new Type.ClassType("kof", "List", List.of(STR)))) : null;
+                case "remove" -> argCount == 0 ? new UiCall(fn + "_remove", Type.PrimitiveType.VOID, List.of()) : null;
+                default -> null;
+            };
+        }
+        if (isTable(receiver)) {
+            Type rowsT = new Type.ClassType("kof", "List", List.of(new Type.ClassType("kof", "List", List.of(STR))));
+            return switch (name) {
+                case "setRows" -> argCount == 1 ? new UiCall("kof_ui_table_set_rows", Type.PrimitiveType.VOID, List.of(rowsT)) : null;
+                case "remove" -> argCount == 0 ? new UiCall("kof_ui_table_remove", Type.PrimitiveType.VOID, List.of()) : null;
                 default -> null;
             };
         }
@@ -259,6 +353,9 @@ final class KofUi {
             return switch (name) {
                 case "src" -> argCount == 0 ? new UiCall("kof_ui_image_src", STR, List.of()) : null;
                 case "setSrc" -> argCount == 1 ? new UiCall("kof_ui_image_set_src", Type.PrimitiveType.VOID, List.of(STR)) : null;
+                case "setAlt" -> argCount == 1 ? new UiCall("kof_ui_image_set_alt", Type.PrimitiveType.VOID, List.of(STR)) : null;
+                case "setWidth" -> argCount == 1 ? new UiCall("kof_ui_image_set_width", Type.PrimitiveType.VOID, List.of(INT)) : null;
+                case "setHeight" -> argCount == 1 ? new UiCall("kof_ui_image_set_height", Type.PrimitiveType.VOID, List.of(INT)) : null;
                 case "remove" -> argCount == 0 ? new UiCall("kof_ui_image_remove", Type.PrimitiveType.VOID, List.of()) : null;
                 default -> null;
             };
@@ -273,10 +370,10 @@ final class KofUi {
                 default -> null;
             };
         }
-        if (acceptsFont(receiver)) {
+        if (isForm(receiver)) {
             return switch (name) {
-                case "font" -> argCount == 0 ? new UiCall("kof_ui_widget_font", FONT, List.of()) : null;
-                case "setFont" -> argCount == 1 ? new UiCall("kof_ui_widget_set_font", Type.PrimitiveType.VOID, List.of(INT)) : null;
+                case "onSubmit" -> argCount == 1 ? new UiCall("kof_ui_form_on_submit", Type.PrimitiveType.VOID, List.of(Type.UnknownType.UNKNOWN)) : null;
+                case "submit" -> argCount == 0 ? new UiCall("kof_ui_form_submit", Type.PrimitiveType.VOID, List.of()) : null;
                 default -> null;
             };
         }
@@ -310,6 +407,30 @@ final class KofUi {
                 case "set" -> argCount == 1 ? new UiCall("kof_ui_store_set", Type.PrimitiveType.VOID, List.of(INT)) : null;
                 case "subscribe" -> argCount == 1 ? new UiCall("kof_ui_store_subscribe", Type.PrimitiveType.VOID, List.of(Type.UnknownType.UNKNOWN)) : null;
                 case "unsubscribe" -> argCount == 1 ? new UiCall("kof_ui_store_unsubscribe", Type.PrimitiveType.VOID, List.of(Type.UnknownType.UNKNOWN)) : null;
+                default -> null;
+            };
+        }
+        if (isCanvas(receiver)) {
+            return switch (name) {
+                case "beginPath" -> argCount == 0 ? new UiCall("kof_ui_canvas_begin_path", Type.PrimitiveType.VOID, List.of()) : null;
+                case "closePath" -> argCount == 0 ? new UiCall("kof_ui_canvas_close_path", Type.PrimitiveType.VOID, List.of()) : null;
+                case "moveTo" -> argCount == 2 ? new UiCall("kof_ui_canvas_move_to", Type.PrimitiveType.VOID, List.of(INT, INT)) : null;
+                case "lineTo" -> argCount == 2 ? new UiCall("kof_ui_canvas_line_to", Type.PrimitiveType.VOID, List.of(INT, INT)) : null;
+                case "arc" -> argCount == 5 ? new UiCall("kof_ui_canvas_arc", Type.PrimitiveType.VOID, List.of(INT, INT, INT, Type.PrimitiveType.DOUBLE, Type.PrimitiveType.DOUBLE)) : null;
+                case "fill" -> argCount == 0 ? new UiCall("kof_ui_canvas_fill", Type.PrimitiveType.VOID, List.of()) : null;
+                case "stroke" -> argCount == 0 ? new UiCall("kof_ui_canvas_stroke", Type.PrimitiveType.VOID, List.of()) : null;
+                case "setFill" -> argCount == 1 ? new UiCall("kof_ui_canvas_set_fill", Type.PrimitiveType.VOID, List.of(COLOR)) : null;
+                case "setStroke" -> argCount == 1 ? new UiCall("kof_ui_canvas_set_stroke", Type.PrimitiveType.VOID, List.of(COLOR)) : null;
+                case "setLineWidth" -> argCount == 1 ? new UiCall("kof_ui_canvas_set_line_width", Type.PrimitiveType.VOID, List.of(INT)) : null;
+                case "clearRect" -> argCount == 4 ? new UiCall("kof_ui_canvas_clear_rect", Type.PrimitiveType.VOID, List.of(INT, INT, INT, INT)) : null;
+                case "save" -> argCount == 0 ? new UiCall("kof_ui_canvas_save", Type.PrimitiveType.VOID, List.of()) : null;
+                case "restore" -> argCount == 0 ? new UiCall("kof_ui_canvas_restore", Type.PrimitiveType.VOID, List.of()) : null;
+                case "setGlobalAlpha" -> argCount == 1 ? new UiCall("kof_ui_canvas_set_global_alpha", Type.PrimitiveType.VOID, List.of(Type.PrimitiveType.DOUBLE)) : null;
+                case "fillText" -> argCount == 3 ? new UiCall("kof_ui_canvas_fill_text", Type.PrimitiveType.VOID, List.of(STR, INT, INT)) : null;
+                case "measureText" -> argCount == 1 ? new UiCall("kof_ui_canvas_measure_text", Type.PrimitiveType.DOUBLE, List.of(STR)) : null;
+                case "transform" -> argCount == 6 ? new UiCall("kof_ui_canvas_transform", Type.PrimitiveType.VOID, List.of(Type.PrimitiveType.DOUBLE, Type.PrimitiveType.DOUBLE, Type.PrimitiveType.DOUBLE, Type.PrimitiveType.DOUBLE, Type.PrimitiveType.DOUBLE, Type.PrimitiveType.DOUBLE)) : null;
+                case "drawImage" -> argCount == 3 ? new UiCall("kof_ui_canvas_draw_image", Type.PrimitiveType.VOID, List.of(INT, INT, INT)) : null;
+                case "remove" -> argCount == 0 ? new UiCall("kof_ui_canvas_remove", Type.PrimitiveType.VOID, List.of()) : null;
                 default -> null;
             };
         }

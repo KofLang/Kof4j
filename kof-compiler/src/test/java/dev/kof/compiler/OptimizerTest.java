@@ -1,7 +1,9 @@
 package dev.kof.compiler;
 
+import dev.kof.compiler.backend.Optimizer;
 import org.junit.jupiter.api.Test;
 
+import dev.kof.compiler.backend.Optimizer;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;

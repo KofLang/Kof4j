@@ -2,11 +2,26 @@ package dev.kof.compiler;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.Assumptions;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class KofConcurrency2Test {
     private final CompilerDriver driver = new CompilerDriver();
+
+    private static boolean has(String... cmds) {
+        for (String c : cmds) {
+            try {
+                Process p = new ProcessBuilder("sh", "-c", "command -v " + c).redirectErrorStream(true).start();
+                String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+                if (p.waitFor() != 0 || out.isEmpty()) return false;
+            } catch (Exception e) {
+                return false;
+            }
+        }
+        return true;
+    }
 
     @Test
     void cancelCooperativeJvm(@TempDir Path tmp) throws Exception {
@@ -604,6 +619,43 @@ class KofConcurrency2Test {
             assertTrue(ticks >= 1 && ticks <= 10, "esperava 1..10 ticks, veio " + ticks + ": " + output);
         } catch (InterruptedException e) {
             throw new java.io.IOException("interrupted", e);
+        }
+    }
+
+    @Test
+    void schedulerEveryCrossNative(@TempDir Path tmp) throws Exception {
+        // SCHED001 FEITO no cross (05/09): thread por job via clone 220 +
+        // nanosleep 101 + spinlock amoswap.w (mesmo mecanismo do spawn).
+        // Ticks no 1º trecho, silêncio após o cancel, END por último —
+        // contagem frouxa (timer não determinístico sob qemu).
+        Path f = tmp.resolve("M.kf");
+        Files.writeString(f, """
+                main() {
+                    var id = scheduler.every(100) { println("T") }
+                    time.sleep(250)
+                    scheduler.cancel(id)
+                    time.sleep(250)
+                    println("END")
+                }
+                """);
+        String[] q = {null, "qemu-riscv64", "qemu-aarch64"};
+        Target[] ts = {Target.NATIVE, Target.NATIVE_RISCV64, Target.NATIVE_AARCH64};
+        Assumptions.assumeTrue(has("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64")
+                        && has("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"),
+                "cross toolchain riscv64/aarch64 + qemu ausente — pulando (NATIVE002)");
+        for (int i = 0; i < 3; i++) {
+            CompilationResult r = driver.compile(f, tmp.resolve("out-" + i), ts[i]);
+            assertTrue(r.success(), ts[i] + " deve compilar: " + r.diagnostics().getDiagnostics());
+            Path bin = tmp.resolve("out-" + i).resolve("Default/Main");
+            var pb = new ProcessBuilder(bin.toString()).redirectErrorStream(true);
+            if (q[i] != null) pb.command().add(0, q[i]);
+            Process p = pb.start();
+            String output = new String(p.getInputStream().readAllBytes()).trim();
+            assertEquals(0, p.waitFor(), ts[i] + " exit, output: " + output);
+            assertTrue(output.endsWith("END"), ts[i] + ": END deve ser a última linha: " + output);
+            int ticks = 0;
+            for (String l : output.split("\n")) if (l.equals("T")) ticks++;
+            assertTrue(ticks >= 1 && ticks <= 6, ts[i] + ": esperava 1..6 ticks, veio " + ticks + ": " + output);
         }
     }
 

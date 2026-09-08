@@ -59,6 +59,7 @@ Backend
 | Janela | `Window` | título, bind, show/close, size, theme |
 | Folha | `Label`, `Button`, `Input`, `Link`, `Image`, `Icon` | text/fontSize/bold/color; Button tem ação (lambda c/ capturas); Icon = SVG embutidos |
 | Layout | `Column`, `Row`, `View`+`Style` | CSS flexbox; gap **fixo 8px**; Style(bg, fg, padding, radius) |
+| Desenho | `Canvas` | 2D context: beginPath/closePath/moveTo/lineTo/arc/fill/stroke/setFill/setStroke/setLineWidth/clearRect; renderiza em `<canvas>` no KofJS |
 | Fonte | `Font` | family, size, bold |
 
 ### Abstrações fundamentais que JÁ existem

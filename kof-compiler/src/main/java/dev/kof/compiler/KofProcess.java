@@ -13,14 +13,14 @@ import java.util.List;
  *   println(result.stdout)
  *   println(result.exitCode)
  */
-final class KofProcess {
+public final class KofProcess {
 
     private KofProcess() {}
 
     static final Type RESULT = new Type.ClassType("kof.process", "Result", List.of());
     static final Type STRING_LIST = new Type.ClassType("kof", "List", List.of(BuiltinTypes.STRING));
 
-    static boolean isResult(Type t) {
+    static public boolean isResult(Type t) {
         return RESULT.equals(t);
     }
 

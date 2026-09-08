@@ -1,8 +1,14 @@
 package dev.kof.cli;
 
-import dev.kof.compiler.*;
-import java.nio.file.*;
-import java.util.*;
+import dev.kof.compiler.CompilationResult;
+import dev.kof.compiler.CompilerDriver;
+import dev.kof.compiler.KofFormatter;
+import dev.kof.compiler.Target;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * kof fmt — formatador MVP baseado em tokenização leve:

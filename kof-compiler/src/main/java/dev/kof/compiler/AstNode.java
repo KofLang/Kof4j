@@ -1,0 +1,6 @@
+package dev.kof.compiler;
+
+import java.util.List;
+public interface AstNode {
+    SourcePosition position();
+}

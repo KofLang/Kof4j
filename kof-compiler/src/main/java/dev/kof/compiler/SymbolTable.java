@@ -6,7 +6,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-class SymbolTable {
+public class SymbolTable {
 
     private final SymbolTable parent;
     private final Map<String, Symbol> symbols = new HashMap<>();
@@ -80,7 +80,7 @@ class SymbolTable {
         return Collections.unmodifiableMap(symbols);
     }
 
-    sealed interface Symbol {
+    interface Symbol {
         String name();
         Type type();
     }

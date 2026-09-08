@@ -1,6 +1,6 @@
 package dev.kof.compiler;
 
-enum TokenType {
+public enum TokenType {
 
     EOF,
     ERROR,
@@ -28,6 +28,9 @@ enum TokenType {
     IMPLEMENTS,
     SEALED,
     PERMITS,
+    FUN,
+    FN,
+    FUNC,
     PACKAGE,
     IMPORT,
     PUBLIC,

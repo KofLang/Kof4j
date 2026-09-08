@@ -55,6 +55,9 @@ class KofHttpE2ETest {
                 app.get("/agent") {
                     return "agent=" + header("user-agent")
                 }
+                app.get("/multi") {
+                    return "A=" + header("x-a") + " B=" + header("x-b") + " C=" + header("x-c")
+                }
                 app.listen(PORT)
             }
             """;
@@ -142,6 +145,20 @@ class KofHttpE2ETest {
                     println(http.get("http://127.0.0.1:%d/agent", "User-Agent: kof-client/1.0"))
                 }
                 """.formatted(port), "agent=kof-client/1.0");
+    }
+
+    @Test
+    void multipleHeadersAsVariadicArgs(@TempDir Path tempDir) throws IOException {
+        // GitHub #32: http.<verb> com 2+ headers como argumentos separados
+        // (antes crashava o compilador / caía em SEM025). Os headers são
+        // mesclados em uma String \n-separada e o servidor os recebe
+        // individualmente.
+        int port = startServer(tempDir);
+        runJvm(tempDir, """
+                main() {
+                    println(http.get("http://127.0.0.1:%d/multi", "X-A: 1", "X-B: 2", "X-C: 3"))
+                }
+                """.formatted(port), "A=1 B=2 C=3");
     }
 
     @Test

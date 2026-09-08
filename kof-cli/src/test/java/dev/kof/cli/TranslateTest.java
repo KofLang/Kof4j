@@ -85,6 +85,84 @@ class TranslateTest {
         assertCompiles(dir, kof, "match\n3");
     }
 
+    @Test
+    void recordTranslates(@TempDir Path dir) throws Exception {
+        String kof = Translate.translateJava("""
+                public record Point(int x, int y) {
+                }
+                """);
+
+        assertTrue(kof.contains("record Point(Int x, Int y)"), "record Java vira record Kof:\n" + kof);
+        assertFalse(kof.contains("class Point"), "não deve virar class:\n" + kof);
+
+        assertCompiles(dir, kof, null);
+    }
+
+    @Test
+    void enumTranslates(@TempDir Path dir) throws Exception {
+        String kof = Translate.translateJava("""
+                public enum Color { RED, GREEN, BLUE }
+                """);
+
+        assertTrue(kof.contains("enum Color"), "enum Java vira enum Kof:\n" + kof);
+        assertTrue(kof.contains("RED"), "constante RED:\n" + kof);
+        assertTrue(kof.contains("GREEN"), "constante GREEN:\n" + kof);
+        assertTrue(kof.contains("BLUE"), "constante BLUE:\n" + kof);
+
+        assertCompiles(dir, kof, null);
+    }
+
+    @Test
+    void ternaryTranslates(@TempDir Path dir) throws Exception {
+        String kof = Translate.translateJava("""
+                public class T {
+                    public static int max(int a, int b) { return a > b ? a : b; }
+                }
+                """);
+
+        assertTrue(kof.contains("if (a > b) a else b"),
+                "ternário deve virar if-expression:\n" + kof);
+    }
+
+    @Test
+    void stringLengthProperty(@TempDir Path dir) throws Exception {
+        String kof = Translate.translateJava("""
+                public class S {
+                    public static int size(String s) { return s.length(); }
+                }
+                """);
+
+        assertTrue(kof.contains("s.length"), "length() vira propriedade .length:\n" + kof);
+        assertFalse(kof.contains("s.length()"), "não deve manter length():\n" + kof);
+    }
+
+    @Test
+    void lambdaTranslates(@TempDir Path dir) throws Exception {
+        String kof = Translate.translateJava("""
+                interface F { int run(int n); }
+                class L {
+                    static int go(int n) { F f = (int x) -> x + 1; return f.run(n); }
+                }
+                """);
+
+        assertTrue(kof.contains("(x: Int) -> x + 1"), "lambda tipada deve traduzir:\n" + kof);
+    }
+
+    @Test
+    void boxedTypesMapToPrimitives(@TempDir Path dir) throws Exception {
+        String kof = Translate.translateJava("""
+                import java.util.List;
+                public class G {
+                    List<Integer> integers;
+                    public Integer get(List<Boolean> flags) { return integers.get(0); }
+                }
+                """);
+
+        assertTrue(kof.contains("List<Int> integers"), "Integer vira Int:\n" + kof);
+        assertTrue(kof.contains("Int get"), "Integer retorno vira Int:\n" + kof);
+        assertTrue(kof.contains("List<Bool>"), "Boolean vira Bool:\n" + kof);
+    }
+
     private void assertCompiles(Path dir, String kof, String expected) throws Exception {
         Path src = dir.resolve("T.kf");
         Files.writeString(src, kof);

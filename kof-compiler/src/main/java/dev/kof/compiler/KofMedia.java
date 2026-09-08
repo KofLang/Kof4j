@@ -22,7 +22,7 @@ import java.util.List;
  * target JVM usa {@code javax.imageio} e {@code javax.sound.sampled}.
  * Os tipos kof.media.* existem só em compile-time; em runtime são Ints.
  */
-final class KofMedia {
+public final class KofMedia {
 
     private KofMedia() {}
 
@@ -79,7 +79,7 @@ final class KofMedia {
 
     /** Handles de mídia são Int em runtime (mesmo modelo dos handles kof.ui)
      *  — o backend JVM os mapeia para o descritor "I". */
-    static boolean isHandleType(Type t) {
+    static public boolean isHandleType(Type t) {
         return isImageData(t) || isAudio(t) || isVideo(t);
     }
 

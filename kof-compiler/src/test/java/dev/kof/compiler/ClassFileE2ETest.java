@@ -1,12 +1,13 @@
 package dev.kof.compiler;
 
+import dev.kof.compiler.parser.ClassFileParser;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import dev.kof.compiler.parser.ClassFileParser;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -61,11 +62,11 @@ class ClassFileE2ETest {
                         return a + b;
                     }
                     public String greet(Object name) {
-                    if (name instanceof String) {
-                        return (String) name;
+                        if (name instanceof String) {
+                            return (String) name;
+                        }
+                        return "";
                     }
-                    return "";
-                }
                     public Object cast(Object o) {
                         return (String) o;
                     }
@@ -79,7 +80,7 @@ class ClassFileE2ETest {
 
         var add = ir.methods.stream().filter(m -> m.name.equals("add")).findFirst().orElseThrow();
         assertEquals("int", add.returnTypeName());
-        assertEquals(List.of("int", "int"), add.parameterTypeNames());
+        assertEquals(java.util.List.of("int", "int"), add.parameterTypeNames());
 
         var greet = ir.methods.stream().filter(m -> m.name.equals("greet")).findFirst().orElseThrow();
         assertEquals("String", greet.returnTypeName());

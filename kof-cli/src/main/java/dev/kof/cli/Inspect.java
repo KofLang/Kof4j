@@ -143,7 +143,7 @@ public final class Inspect {
 
     private static int inspectClassFile(Path classFile, boolean jsonOut) {
         try {
-            var ir = dev.kof.compiler.ClassFileParser.parse(Files.newInputStream(classFile));
+            var ir = dev.kof.compiler.parser.ClassFileParser.parse(Files.newInputStream(classFile));
             
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("file", classFile.getFileName().toString());
