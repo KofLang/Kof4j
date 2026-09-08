@@ -185,6 +185,20 @@ class ConformanceMatrixTest {
                     println(256 >> 2)
                 }
                 """, "2\n7\n5\n16\n64", Set.of(), tempDir);
+        // STDLIB S1 — kof.math (Int-only) paridade total nos 4 targets.
+        matrix("stdmath", """
+                main() {
+                    println(math.clamp(15, 0, 10))
+                    println(math.clamp(-3, 0, 10))
+                    println(math.abs(-7))
+                    println(math.sign(-4))
+                    println(math.min(3, 8))
+                    println(math.max(3, 8))
+                    println(math.isEven(4))
+                    println(math.isOdd(4))
+                    println(math.isZero(0))
+                }
+                """, "10\n0\n7\n-1\n3\n8\ntrue\nfalse\ntrue", Set.of(), tempDir);
     }
 
     @Test

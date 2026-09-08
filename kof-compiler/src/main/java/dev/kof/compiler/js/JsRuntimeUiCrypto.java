@@ -258,6 +258,18 @@ public final class JsRuntimeUiCrypto {
                 return value <= max ? 1 : 0;
             }
 
+            // ── kof.math (STDLIB S1) — Int-only, paridade JVM/Native ─────
+            export function kofMathAbs(v) { return v < 0 ? -v : v; }
+            export function kofMathSign(v) { return v > 0 ? 1 : (v < 0 ? -1 : 0); }
+            export function kofMathClamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+            export function kofMathMin(a, b) { return a <= b ? a : b; }
+            export function kofMathMax(a, b) { return a >= b ? a : b; }
+            export function kofMathIsEven(v) { return (v & 1) === 0 ? 1 : 0; }
+            export function kofMathIsOdd(v) { return (v & 1) !== 0 ? 1 : 0; }
+            export function kofMathIsPositive(v) { return v > 0 ? 1 : 0; }
+            export function kofMathIsNegative(v) { return v < 0 ? 1 : 0; }
+            export function kofMathIsZero(v) { return v === 0 ? 1 : 0; }
+
             // ── kof.observability (G5) ──────────────────────────────
 
             const __kofObsCounters = {};

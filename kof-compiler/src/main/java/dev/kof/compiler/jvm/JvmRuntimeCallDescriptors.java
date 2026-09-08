@@ -318,6 +318,12 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_validation_matches" -> "(Ljava/lang/String;Ljava/lang/String;)Z";
             case "kof_validation_inRange" -> "(III)Z";
             case "kof_validation_min", "kof_validation_max" -> "(II)Z";
+            // ── kof.math (STDLIB S1) ──────────────────────────────────────
+            case "kof_math_abs", "kof_math_sign" -> "(I)I";
+            case "kof_math_clamp" -> "(III)I";
+            case "kof_math_min", "kof_math_max" -> "(II)I";
+            case "kof_math_isEven", "kof_math_isOdd", "kof_math_isPositive",
+                    "kof_math_isNegative", "kof_math_isZero" -> "(I)Z";
             // ── kof.observability (G5) ────────────────────────────────
             case "kof_observability_health", "kof_observability_request_id", "kof_observability_correlation_id",
                     "kof_observability_trace_id", "kof_observability_span_id",

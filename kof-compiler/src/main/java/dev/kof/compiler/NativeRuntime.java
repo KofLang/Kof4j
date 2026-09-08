@@ -21,6 +21,7 @@ import dev.kof.compiler.runtime.RuntimeLog1;
 import dev.kof.compiler.runtime.RuntimeLog2;
 import dev.kof.compiler.runtime.RuntimeMap;
 import dev.kof.compiler.runtime.RuntimeMemory;
+import dev.kof.compiler.runtime.RuntimeMath;
 import dev.kof.compiler.runtime.RuntimeMisc;
 import dev.kof.compiler.runtime.RuntimeMq;
 import dev.kof.compiler.runtime.RuntimeNet;
@@ -168,6 +169,7 @@ public final class NativeRuntime {
         RuntimeSecurity10.emit(sb);
         RuntimeSecurity11.emit(sb);
         RuntimeValidation.emit(sb);
+        RuntimeMath.emit(sb);
         RuntimeObservability1.emit(sb);
         RuntimeObservability2.emit(sb);
         RuntimeObservability3.emit(sb);
