@@ -190,6 +190,9 @@ class ConformanceMatrixTest {
     @Test
     void conformanceCoreStrings(@TempDir Path tempDir) throws IOException {
         // PARTIAL: Native bug 43 (UTF-8 byte-based: length 5, charAt 195).
+        // PARTIAL: bug 43 — metade length CORRIGIDA (kof_string_length UTF-16,
+        // NativeE2ETest.nativeStringLengthUtf16); charAt(3) no Native ainda dá
+        // 195 (byte UTF-8) vs 233 (code unit UTF-16) — verificado 08/09.
         matrix("unicode", """
                 main() {
                     var s = "café"
@@ -373,7 +376,8 @@ class ConformanceMatrixTest {
                     println(a.x())
                 }
                 """, "true\nP[x=1, y=2]\n1", Set.of(), tempDir);
-        // PARTIAL: bug 42 (hashCode ausente: JS TypeError, Native ld P_hashCode).
+        // PARTIAL: bug 42 (hashCode ausente no Native: ld P_hashCode).
+        // Metade JS CORRIGIDA 07/09 (verificado 08/09: JS roda 'true').
         matrix("recordhash", """
                 record P(Int x, Int y)
                 main() {
@@ -381,7 +385,7 @@ class ConformanceMatrixTest {
                     var b = P(1,2)
                     println(a.hashCode() == b.hashCode())
                 }
-                """, "true", Set.of("native", "js"), tempDir);
+                """, "true", Set.of("native"), tempDir);
         // PARTIAL: bug 41 (Native stub vazio KofGetStatic/KofPutStatic → lixo).
         matrix("staticfield", """
                 class Counter {
