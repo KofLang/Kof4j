@@ -26,6 +26,7 @@ class DecompileTest {
                     int total;
                     public int add(int a, int b) { return a + b; }
                     public String greet(String name) { return "hi " + name; }
+                    public static float noLit() { return 1.5f; }
                 }
                 """);
         Path classFile = dir.resolve("Calc.class");
@@ -37,6 +38,8 @@ class DecompileTest {
         assertTrue(kof.contains("Int total"), "should emit field with type:\n" + kof);
         assertTrue(kof.contains("Int add"), "should emit add method:\n" + kof);
         assertTrue(kof.contains("String greet"), "should emit greet method:\n" + kof);
+        // noLit (float ldc, sem literal float em Kof) degrada p/ stub honesto
+        // enquanto add/greet recuperam — o smoke valida os dois juntos.
         assertTrue(kof.contains("throw \"body not recovered\""), "bodies must be honest stubs:\n" + kof);
         assertTrue(kof.contains("// unknown"), "bodies must be marked UNKNOWN:\n" + kof);
         assertTrue(kof.contains("// exact"), "fields must be marked EXACT:\n" + kof);
@@ -377,6 +380,39 @@ class DecompileTest {
         assertTrue(kof.contains("= 1.0E-5"), "double expo ldc2:\n" + kof);
 
         Path out = dir.resolve("L2.kf");
+        Files.writeString(out, kof);
+        CompilerDriver driver = new CompilerDriver();
+        CompilationResult result = driver.compile(out, dir.resolve("out"), Target.JVM);
+        assertTrue(result.success(), "decompiled deve compilar:\n" + kof + "\n" + result.diagnostics().getDiagnostics());
+    }
+
+    @Test
+    void recoversStringConcatInvokedynamic(@TempDir Path dir) throws Exception {
+        Path javaFile = dir.resolve("Cat.java");
+        Files.writeString(javaFile, """
+                public class Cat {
+                    public static String greet(String n) { return "v=" + n + 42; }
+                    public static String simple(String a) { return a + "x"; }
+                    public static String mid(int i) { return "i" + i + "j"; }
+                }
+                """);
+        runJavac(javaFile, dir);
+
+        String kof = Decompile.decompile(dir.resolve("Cat.class"));
+
+        // String + em Java moderno (9+) é invokedynamic makeConcatWithConstants
+        // — a forma de corpo String MAIS comum. Sem recovery de receita, TODO
+        // corpo com concat caía em stub. O parser agora lê BootstrapMethods e
+        // o decoder aplica a receita (\u0001 = placeholder) → `a + "x" + b`.
+        assertTrue(kof.contains("greet(String arg0) = \"v=\" + arg0 + \"42\""),
+                "concat 'v=' + n + 42:\n" + kof);
+        assertTrue(kof.contains("simple(String arg0) = arg0 + \"x\""),
+                "concat 'a' + \"x\":\n" + kof);
+        assertTrue(kof.contains("\"i\" + arg0 + \"j\""),
+                "concat no meio:\n" + kof);
+        assertFalse(kof.contains("body not recovered"), "nenhum deve degradar:\n" + kof);
+
+        Path out = dir.resolve("Cat.kf");
         Files.writeString(out, kof);
         CompilerDriver driver = new CompilerDriver();
         CompilationResult result = driver.compile(out, dir.resolve("out"), Target.JVM);

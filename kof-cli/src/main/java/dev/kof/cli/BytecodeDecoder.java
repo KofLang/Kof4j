@@ -103,6 +103,13 @@ final class BytecodeDecoder {
                     if (f == null) return null;
                     stack.push(simpleOwner(f[0]) + "." + f[1]);
                 }
+                case 0xba -> { // invokedynamic — só String concat (CONCAT: no CP)
+                    String rec = BytecodeConcat.recipe(cp, in.operands()[0]);
+                    if (rec == null) return null;
+                    String expr = BytecodeConcat.apply(stack, rec);
+                    if (expr == null) return null;
+                    stack.push(expr);
+                }
                 case 0xbb -> { // new
                     String cn = resolveClassName(cp, in.operands()[0]);
                     if (cn == null) return null;
@@ -324,7 +331,6 @@ final class BytecodeDecoder {
 
     // ── chamadas de método ───────────────────────────────────────────────
 
-    /** Resolve um Methodref/InterfaceMethodref do CP → {ownerInternal, name, desc}. */
     static String[] resolveMethodRef(String[] cp, int idx) {
         if (idx <= 0 || idx >= cp.length || cp[idx] == null) return null;
         String e = cp[idx];

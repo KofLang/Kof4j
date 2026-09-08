@@ -61,6 +61,13 @@ recusa float p/ não driftar). **lconst/dconst recuperados** (0x09/0x0a/0x0e/
 recoversLongDoubleConstBodies`). **ldc2_w (0x14) recuperado** — `BytecodeDecoder.
 ldc2` classifica por FORMA (dígitos→sufixo `L`; `.`/e/E→Double literal, Kof
 aceita `1.0E-5`; NaN/Infinity→stub). `DecompileTest.recoversLdc2LongDoubleConstants`.
+**String concat (invokedynamic/J9+) recuperado** — parser lê o atributo
+`BootstrapMethods` (JVMS 4.7.23: args são índices u2 p/ o CP, não cp_info) e
+reescreve entradas tag-18 `makeConcatWithConstants` p/ `CONCAT:<receita>`; os
+2 decoders consomem a receita (\u0001=placeholder → `a + "x" + b`; \u0002/static-args
+→ recusar). Forma de corpo String mais comum em Java moderno.
+`DecompileTest.recoversStringConcatInvokedynamic` (24/24; o smoke agora mistura
+corpo recuperado com stub honesto).
 
 ### T3-MEDIUM: Type Recovery
 

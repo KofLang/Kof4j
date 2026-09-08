@@ -73,17 +73,35 @@ concreta (ordem de valor):**
    diamond com `continue` p/ incremento, `break` p/ pós-loop, `&&`/`?:` com
    braços que convergem — exige construção GSEA/semidominators (G6790) ou
    re-emissão com labels. Hoje: degradação honesta travada por teste.
-4. **✅ FEITO (08/09, `d953d92` + este doc) — recovery numérico com guard de
-   tipo (lesson bug 62)**: (a) lconst/dconst — 0x09/0x0a→"0L"/"1L", 0x0e/0x0f→
-   "0.0"/"1.0" (tipo embutido no opcode → não drifta; fconst 0x0b-0x0d recusado,
-   sem literal float em Kof); (b) **ldc2_w (0x14)** — `BytecodeDecoder.ldc2`
-   classifica por FORMA: dígitos→`<n>L` (String.valueOf de long é sempre
-   inteiro), '.'/e/E→Double literal (Kof aceita `1.0E-5`), NaN/Infinity→null→
-   stub honesto; tipo nunca drifta. Aplicado nos 2 decoders. Provas:
-   `DecompileTest.recoversLongDoubleConstBodies` + `recoversLdc2LongDoubleConstants`
-   (decompile→compila no JVM); DecompileTest 23/23; suíte **1231/0/64-skip**.
-5. **Próxima tarefa segura (baixo risco, sem design): aritmética long**
-   (`ladd/lsub/lmul/ldiv` 0x65-0x68) + casts `i2l`/`l2i`/`i2d`/`d2i` lineares —
+ 4. **✅ FEITO (08/09, `d953d92` + este doc) — recovery numérico com guard de
+    tipo (lesson bug 62)**: (a) lconst/dconst — 0x09/0x0a→"0L"/"1L", 0x0e/0x0f→
+    "0.0"/"1.0" (tipo embutido no opcode → não drifta; fconst 0x0b-0x0d recusado,
+    sem literal float em Kof); (b) **ldc2_w (0x14)** — `BytecodeDecoder.ldc2`
+    classifica por FORMA: dígitos→`<n>L` (String.valueOf de long é sempre
+    inteiro), '.'/e/E→Double literal (Kof aceita `1.0E-5`), NaN/Infinity→null→
+    stub honesto; tipo nunca drifta. Aplicado nos 2 decoders. Provas:
+    `DecompileTest.recoversLongDoubleConstBodies` + `recoversLdc2LongDoubleConstants`
+    (decompile→compila no JVM); DecompileTest 23/23; suíte **1231/0/64-skip**.
+ 5. **✅ FEITO (este commit) — String concat via invokedynamic (Java 9+)**: a
+    forma de corpo String MAIS comum em Java moderno — antes TODO corpo com
+    `+` caía em stub honesto. (a) `ClassFileParser` lê o atributo
+    `BootstrapMethods` (JVMS 4.7.23 — lição: `bootstrap_arguments` são ÍNDICES
+    u2 p/ o CP, NÃO cp_info; corrigido em implementação) e reescreve entradas
+    tag-18 `makeConcatWithConstants` p/ `CONCAT:<receita>`; (b) `BytecodeReader`
+    corrige `length(0xba)` 3→7 (opcode+index+4 zeros; antes desalinhava a
+    decodificação pós-0xba) + operand = índice CP; (c) novo `BytecodeConcat`
+    (82 linhas, extraído p/ manter Decoder ≤500): `recipe`/`apply`/`escape` —
+    aplica a receita (\u0001=placeholder → `a + "x" + b`; \u0002/static-args →
+    recusar; literais escapados p/ Kof) nos 2 decoders (linearReturn +
+    emitLinear). Todo invokedynamic que não for concat fica `IDYN` → default →
+    stub honesto. Provas: `DecompileTest.recoversStringConcatInvokedynamic`
+    (decompile→compila no JVM) + smoke `decompileProducesCompilableKof` agora
+    mistura corpo recuperado (greet/add) com stub honesto (noLit float);
+    DecompileTest 24/24; suíte **1232/0/64-skip**. ⚠️ Lição de processo: o
+    fat-jar incremental do `package` sem `clean` embutiu o kof-compiler VELHO
+    (9586 B vs 9634 B) e mascarou o fix — `clean package` resolveu.
+ 6. **Próxima tarefa segura (baixo risco, sem design): aritmética long**
+    (`ladd/lsub/lmul/ldiv` 0x65-0x68) + casts `i2l`/`l2i`/`i2d`/`d2i` lineares —
    exige GUARD de tipo na pilha (emitLinear hoje é stack de String sem tipo;
    bug 62 prova que forma não basta). Abordagem: rastrear o tipo Kof por item
    da pilha OU só emitir quando o retorno é longo (verificado pela assinatura

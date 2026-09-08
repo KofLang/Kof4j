@@ -34,10 +34,11 @@ final class BytecodeReader {
                  0x9f, 0xa0, 0xa1, 0xa2, 0xa3, 0xa4,          // if_icmp*
                  0xa5, 0xa6, 0xa7, 0xa8,                      // if_acmp*, goto, jsr
                  0xb2, 0xb3, 0xb4, 0xb5,                      // get/put static/field
-                 0xb6, 0xb7, 0xb8, 0xbb, 0xbd, 0xba,          // invokes + new + anewarray + invokedynamic
-                 0xc0, 0xc1, 0xc6, 0xc7 -> 3;                // checkcast, instanceof, ifnull, ifnonnull
-            case 0xc5 -> 4;                                   // multianewarray
-            case 0xb9, 0xc8, 0xc9 -> 5;                       // invokeinterface, goto_w, jsr_w
+                  0xb6, 0xb7, 0xb8, 0xbb, 0xbd,                // invokes + new + anewarray
+                  0xc0, 0xc1, 0xc6, 0xc7 -> 3;                // checkcast, instanceof, ifnull, ifnonnull
+             case 0xc5 -> 4;                                   // multianewarray
+             case 0xba -> 7;                                   // invokedynamic: opcode + index(2) + 4 zero
+             case 0xb9, 0xc8, 0xc9 -> 5;                       // invokeinterface, goto_w, jsr_w
             case 0xaa, 0xab, 0xc4 -> -1;                      // switch / wide (variável)
             default -> 1;
         };
@@ -67,6 +68,8 @@ final class BytecodeReader {
             } else if (len == 5 && (op == 0xc8 || op == 0xc9)) {
                 target = pc + readInt(code, pc + 1);
             } else if (len == 5 && op == 0xb9) { // invokeinterface: índice CP nos 2 bytes
+                operands = new int[]{((code[pc + 1] & 0xFF) << 8) | (code[pc + 2] & 0xFF)};
+            } else if (len == 7 && op == 0xba) { // invokedynamic: índice CP nos 2 bytes (depois, 4 zeros)
                 operands = new int[]{((code[pc + 1] & 0xFF) << 8) | (code[pc + 2] & 0xFF)};
             }
             out.add(new Insn(pc, op, operands, target));

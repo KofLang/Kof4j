@@ -240,8 +240,9 @@ public final class ClassFileParser {
                 case 17: // MethodType
                     constPool[i] = "#" + (bb.getShort() & 0xFFFF);
                     break;
-                case 18: // InvokeDynamic
-                    constPool[i] = "#" + (bb.getShort() & 0xFFFF) + "#" + (bb.getShort() & 0xFFFF);
+                case 18: // InvokeDynamic — "#" bootstrap#NameAndType (resolvido
+                         // p/ "CONCAT:<receita>" após ler BootstrapMethods)
+                    constPool[i] = "IDYN:" + (bb.getShort() & 0xFFFF) + "#" + (bb.getShort() & 0xFFFF);
                     break;
                 case 19: // Module
                     constPool[i] = "#" + (bb.getShort() & 0xFFFF);
@@ -338,17 +339,24 @@ public final class ClassFileParser {
         int attrCount = bb.getShort() & 0xFFFF;
         Map<String, Object> attrs = new HashMap<>();
         String classSig = null;
+        String[] bootstrapRecipes = new String[0];
         for (int i = 0; i < attrCount; i++) {
             int attrNameIdx = bb.getShort() & 0xFFFF;
             String attrName = constPool[attrNameIdx];
             int attrLen = bb.getInt();
             if ("Signature".equals(attrName)) {
                 classSig = constPool[bb.getShort() & 0xFFFF];
+            } else if ("BootstrapMethods".equals(attrName)) {
+                // JVMS 4.7.23 — receitas de makeConcatWithConstants (String +
+                // moderno é invokedynamic; sem isto todo corpo com concat
+                // caía em stub honesto, a forma de corpo mais comum em Java).
+                bootstrapRecipes = readBootstrapRecipes(bb, constPool, attrLen);
             } else {
                 bb.position(bb.position() + attrLen);
             }
             attrs.put(attrName, "size=" + attrLen);
         }
+        resolveInvokeDynamics(constPool, bootstrapRecipes);
 
         return new ClassFile(magic, minorVersion, majorVersion,
                 constPool, accessFlags, thisClass, superClass,
@@ -365,5 +373,69 @@ public final class ClassFileParser {
             }
         }
         return entry;
+    }
+
+    /**
+     * JVMS 4.7.23 BootstrapMethods: num_bootstrap_methods, e para cada um:
+     * bootstrap_method_ref (u2), num_bootstrap_arguments (u2), e os args como
+     * ÍNDICES u2 p/ o CP (NÃO cp_info!). O PRIMEIRO arg da StringConcatFactory
+     * é a String RECEITA (constante tag-8 → guardada "#<utf8>"; resolvemos o
+     * duplo indirecionamento). \u0001 = placeholder de arg. Falha de schema →
+     * array vazio → invokedynamic fica IDYN → o decoder recusa → stub honesto.
+     */
+    private static String[] readBootstrapRecipes(ByteBuffer bb, String[] constPool, int attrLen) {
+        int start = bb.position();
+        try {
+            int n = bb.getShort() & 0xFFFF;
+            String[] recipes = new String[n];
+            for (int i = 0; i < n; i++) {
+                bb.getShort();                       // bootstrap_method_ref
+                int nargs = bb.getShort() & 0xFFFF;
+                recipes[i] = null;
+                for (int a = 0; a < nargs; a++) {
+                    int idx = bb.getShort() & 0xFFFF;
+                    if (a == 0 && idx < constPool.length && constPool[idx] != null
+                            && constPool[idx].startsWith("#")) {
+                        // tag-8 String → "#<utf8Idx>" → o Utf8 é a receita
+                        int ui = Integer.parseInt(constPool[idx].substring(1));
+                        if (ui < constPool.length && constPool[ui] != null) recipes[i] = constPool[ui];
+                    }
+                }
+            }
+            return recipes;
+        } catch (RuntimeException e) {
+            return new String[0];
+        } finally {
+            bb.position(start + attrLen);            // robusto ao schema real
+        }
+    }
+
+    /**
+     * Reescreve entradas tag-18 (IDYN:bs#nameType) do CP p/ "CONCAT:<receita>"
+     * quando o NameAndType é makeConcatWithConstants e a bootstrap tem receita
+     * String. Qualquer outro invokedynamic (lambdas, etc.) fica IDYN → o decoder
+     * recusa (default) → stub honesto.
+     */
+    private static void resolveInvokeDynamics(String[] constPool, String[] recipes) {
+        if (recipes.length == 0) return;
+        for (int i = 1; i < constPool.length; i++) {
+            String e = constPool[i];
+            if (e == null || !e.startsWith("IDYN:")) continue;
+            int hash = e.indexOf('#', 5);
+            if (hash < 0) continue;
+            int bsIdx;
+            int ntIdx;
+            try {
+                bsIdx = Integer.parseInt(e.substring(5, hash));
+                ntIdx = Integer.parseInt(e.substring(hash + 1));
+            } catch (NumberFormatException ex) { continue; }
+            if (bsIdx < 0 || bsIdx >= recipes.length || recipes[bsIdx] == null) continue;
+            if (ntIdx >= constPool.length) continue;
+            String nt = constPool[ntIdx];
+            if (nt == null || !nt.startsWith("#")) continue;
+            int nameIdx = Integer.parseInt(nt.substring(1, nt.indexOf('#', 1)));
+            if (!"makeConcatWithConstants".equals(constPool[nameIdx])) continue;
+            constPool[i] = "CONCAT:" + recipes[bsIdx];
+        }
     }
 }
