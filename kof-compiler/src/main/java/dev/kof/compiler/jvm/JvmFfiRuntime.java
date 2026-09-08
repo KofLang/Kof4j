@@ -10,7 +10,15 @@ final class JvmFfiRuntime {
     private JvmFfiRuntime() {}
 
     static String source() {
-        return """
+        // O source gerado é compilado IN-PROCESS (ToolProvider) pelo MESMO JDK
+        // que roda o compilador — e o gate de preview em JvmRuntime usa a mesma
+        // condição. JDK 21 (FFM preview): Arena.allocateUtf8String(String);
+        // JDK 22+ (FFM final, JEP 454): Arena.allocateFrom(String).
+        String alloc = Runtime.version().feature() < 22 ? "allocateUtf8String" : "allocateFrom";
+        return FORMATTED.formatted(alloc);
+    }
+
+    private static final String FORMATTED = """
                 public static int kof_ffi_i(String lib, String name, int a) {
                     try {
                         java.lang.foreign.Arena arena = java.lang.foreign.Arena.global();
@@ -42,7 +50,7 @@ final class JvmFfiRuntime {
                                 java.lang.foreign.FunctionDescriptor.of(
                                         java.lang.foreign.ValueLayout.JAVA_INT,
                                         java.lang.foreign.ValueLayout.ADDRESS));
-                        java.lang.foreign.MemorySegment seg = arena.allocateFrom(a);
+                        java.lang.foreign.MemorySegment seg = arena.%s(a);
                         return (int) handle.invoke(seg);
                     } catch (Throwable t) {
                         throw new RuntimeException("kof_ffi_si: " + lib + "::" + name + " failed: "
@@ -70,5 +78,4 @@ final class JvmFfiRuntime {
                 }
 
     """;
-    }
 }
