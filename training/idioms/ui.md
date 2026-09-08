@@ -250,3 +250,28 @@ println(cor.selected())   // índice da opção ativa
 `setOptions` troca a lista, `selected`/`setSelected` leem/escrevem o índice.
 Representar o domínio (conjunto de opções) com a coleção da linguagem, não
 N widgets manuais (R3).
+
+## Canvas: estado de desenho e texto (UI009)
+
+**BAD — redesenhar sem preservar/limpar o estado do contexto:**
+```kof
+// ❌ NÃO — alpha/transform vazam para os próximos desenhos
+c.setGlobalAlpha(0.3)
+c.fillText("rótulo", 10, 20)
+c.setFill(Palette.blue)   // ainda com alpha 0.3!
+```
+
+**GOOD — `save()`/`restore()` em volta do estado temporário:**
+```kof
+// ✅ IDIOMÁTICO — o bloco salvo é descartado
+c.save()
+c.setGlobalAlpha(0.3)
+c.transform(1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
+c.fillText("rótulo", 10, 20)
+c.restore()
+var w = c.measureText("rótulo")   // Double — largura real do texto
+```
+
+**Por quê:** `save`/`restore` empilham o estado do contexto (alpha, transform,
+cores) — sem eles, um ajuste vaza para todo o desenho seguinte.
+`measureText` devolve `Double` (largura em px) para layout de texto.

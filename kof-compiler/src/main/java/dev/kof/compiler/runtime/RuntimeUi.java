@@ -453,6 +453,15 @@ public final class RuntimeUi {
             kof_ui_canvas_set_fill:
             kof_ui_canvas_set_stroke:
                 ret
+            kof_ui_canvas_save:
+            kof_ui_canvas_restore:
+            kof_ui_canvas_set_global_alpha:
+            kof_ui_canvas_fill_text:
+            kof_ui_canvas_transform:
+                ret
+            kof_ui_canvas_measure_text:
+                xorpd %xmm0, %xmm0
+                ret
             kof_ui_canvas_clear_rect:
                 ret
             """);

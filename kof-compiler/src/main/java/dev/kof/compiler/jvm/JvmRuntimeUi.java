@@ -444,6 +444,26 @@ public final class JvmRuntimeUi {
                         int w, int h) {
                 }
 
+                public static void kof_ui_canvas_save(int canvas) {
+                }
+
+                public static void kof_ui_canvas_restore(int canvas) {
+                }
+
+                public static void kof_ui_canvas_set_global_alpha(int canvas, double alpha) {
+                }
+
+                public static void kof_ui_canvas_fill_text(int canvas, String text, int x, int y) {
+                }
+
+                public static double kof_ui_canvas_measure_text(int canvas, String text) {
+                    return 0.0;
+                }
+
+                public static void kof_ui_canvas_transform(int canvas, double a, double b,
+                        double c, double d, double e, double f) {
+                }
+
                 public static void kof_ui_canvas_remove(int canvas) {
                 }
 

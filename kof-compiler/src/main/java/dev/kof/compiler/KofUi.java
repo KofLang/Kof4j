@@ -392,6 +392,12 @@ public final class KofUi {
                 case "setStroke" -> argCount == 1 ? new UiCall("kof_ui_canvas_set_stroke", Type.PrimitiveType.VOID, List.of(COLOR)) : null;
                 case "setLineWidth" -> argCount == 1 ? new UiCall("kof_ui_canvas_set_line_width", Type.PrimitiveType.VOID, List.of(INT)) : null;
                 case "clearRect" -> argCount == 4 ? new UiCall("kof_ui_canvas_clear_rect", Type.PrimitiveType.VOID, List.of(INT, INT, INT, INT)) : null;
+                case "save" -> argCount == 0 ? new UiCall("kof_ui_canvas_save", Type.PrimitiveType.VOID, List.of()) : null;
+                case "restore" -> argCount == 0 ? new UiCall("kof_ui_canvas_restore", Type.PrimitiveType.VOID, List.of()) : null;
+                case "setGlobalAlpha" -> argCount == 1 ? new UiCall("kof_ui_canvas_set_global_alpha", Type.PrimitiveType.VOID, List.of(Type.PrimitiveType.DOUBLE)) : null;
+                case "fillText" -> argCount == 3 ? new UiCall("kof_ui_canvas_fill_text", Type.PrimitiveType.VOID, List.of(STR, INT, INT)) : null;
+                case "measureText" -> argCount == 1 ? new UiCall("kof_ui_canvas_measure_text", Type.PrimitiveType.DOUBLE, List.of(STR)) : null;
+                case "transform" -> argCount == 6 ? new UiCall("kof_ui_canvas_transform", Type.PrimitiveType.VOID, List.of(Type.PrimitiveType.DOUBLE, Type.PrimitiveType.DOUBLE, Type.PrimitiveType.DOUBLE, Type.PrimitiveType.DOUBLE, Type.PrimitiveType.DOUBLE, Type.PrimitiveType.DOUBLE)) : null;
                 case "remove" -> argCount == 0 ? new UiCall("kof_ui_canvas_remove", Type.PrimitiveType.VOID, List.of()) : null;
                 default -> null;
             };

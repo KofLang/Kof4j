@@ -535,4 +535,22 @@ class UiE2ETest {
         assertNotNull(html, "canvas HTML should be captured");
         assertTrue(html.contains("kof-canvas"), "canvas element rendered");
     }
+
+    @Test
+    void canvasUi009LinksOnAllTargets(@TempDir Path tempDir) throws IOException {
+        // UI009: save/restore/setGlobalAlpha/fillText/measureText/transform —
+        // no-op JVM/Native (mede o link), DOM real em KofJS.
+        both(tempDir, "canvas-ui009", """
+            main() {
+                var c = Canvas(400, 300)
+                c.save()
+                c.setGlobalAlpha(0.5)
+                c.transform(1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
+                c.fillText("oi", 10, 20)
+                println("w=" + (c.measureText("oi") >= 0.0))
+                c.restore()
+                println("ok")
+            }
+            """, "w=true\nok");
+    }
 }

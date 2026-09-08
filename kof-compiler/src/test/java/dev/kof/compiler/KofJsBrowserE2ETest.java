@@ -405,6 +405,51 @@ class KofJsBrowserE2ETest {
         }
     }
 
+    @Test
+    void canvasUi009RunsInRealBrowser(@TempDir Path tempDir) throws IOException {
+        Path chrome = findChrome();
+        assumeTrue(chrome != null, "Chrome/Chromium não instalado — pulando E2E de browser");
+
+        // UI009: save/restore/setGlobalAlpha/fillText/measureText/transform
+        // rodam no contexto 2D real. O desenho é bitmap (não aparece no DOM),
+        // então provamos que executaram sem lançar usando o resultado de
+        // measureText (>0) num Label observável — se qualquer método falhasse,
+        // o script pararia e o Label não renderizaria.
+        String program = """
+            main() {
+                var c = Canvas(400, 300)
+                c.save()
+                c.setGlobalAlpha(0.5)
+                c.transform(1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
+                c.fillText("oi", 10, 20)
+                var w = c.measureText("oi")
+                c.restore()
+                var lbl = Label(if (w > 0.0) "measured" else "zero")
+                var col = Column(listOf(c, lbl))
+                var win = Window("CanvasTest")
+                win.bind(col)
+                win.show()
+            }
+            """;
+        Path source = tempDir.resolve("App.kf");
+        Files.writeString(source, program);
+
+        Path outDir = tempDir.resolve("out");
+        CompilationResult result = driver.compile(source, outDir, Target.JS);
+        assertTrue(result.success(), "compilação JS deve passar: " + result.diagnostics().getDiagnostics());
+
+        HttpServer server = serve(outDir);
+        int port = server.getAddress().getPort();
+        try {
+            String dom = dumpDom(chrome, "http://127.0.0.1:" + port + "/index.html");
+            assertTrue(dom.contains("<canvas"), "elemento <canvas> ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("measured"),
+                    "measureText não retornou >0 (métodos UI009 não rodaram): " + excerpt(dom));
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private static HttpServer serve(Path dir) throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/", exchange -> {

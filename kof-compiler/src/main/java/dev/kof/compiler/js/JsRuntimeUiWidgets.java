@@ -384,6 +384,34 @@ public final class JsRuntimeUiWidgets {
                 const ctx = window.__kofCanvasCtx && window.__kofCanvasCtx[id];
                 if (ctx) ctx.clearRect(x, y, w, h);
             }
+            export function kofUiCanvasSave(id) {
+                const ctx = window.__kofCanvasCtx && window.__kofCanvasCtx[id];
+                if (ctx) ctx.save();
+            }
+            export function kofUiCanvasRestore(id) {
+                const ctx = window.__kofCanvasCtx && window.__kofCanvasCtx[id];
+                if (ctx) ctx.restore();
+            }
+            export function kofUiCanvasSetGlobalAlpha(id, alpha) {
+                const ctx = window.__kofCanvasCtx && window.__kofCanvasCtx[id];
+                if (ctx) ctx.globalAlpha = alpha;
+            }
+            export function kofUiCanvasFillText(id, text, x, y) {
+                const ctx = window.__kofCanvasCtx && window.__kofCanvasCtx[id];
+                if (ctx) {
+                    ctx.fillText(text, x, y);
+                    kofUiSerializeHtml();
+                }
+            }
+            export function kofUiCanvasMeasureText(id, text) {
+                const ctx = window.__kofCanvasCtx && window.__kofCanvasCtx[id];
+                if (ctx) return ctx.measureText(text).width;
+                return 0;
+            }
+            export function kofUiCanvasTransform(id, a, b, c, d, e, f) {
+                const ctx = window.__kofCanvasCtx && window.__kofCanvasCtx[id];
+                if (ctx) ctx.transform(a, b, c, d, e, f);
+            }
             export function kofUiCanvasRemove(id) {
                 if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[id]) {
                     const node = window.__kofNodes[id];

@@ -155,6 +155,11 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_ui_canvas_arc" -> "(IIIIDD)V";
             case "kof_ui_canvas_set_fill", "kof_ui_canvas_set_stroke" -> "(II)V";
             case "kof_ui_canvas_clear_rect" -> "(IIIII)V";
+            case "kof_ui_canvas_save", "kof_ui_canvas_restore" -> "(I)V";
+            case "kof_ui_canvas_set_global_alpha" -> "(ID)V";
+            case "kof_ui_canvas_fill_text" -> "(ILjava/lang/String;II)V";
+            case "kof_ui_canvas_measure_text" -> "(ILjava/lang/String;)D";
+            case "kof_ui_canvas_transform" -> "(IDDDDDD)V";
             case "kof_io_dir_list" -> "(Ljava/lang/String;)Ljava/util/ArrayList;";
             case "kof_web_app_new" -> "()Ljava/lang/String;";
             case "kof_web_route" -> "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Object;)V";
