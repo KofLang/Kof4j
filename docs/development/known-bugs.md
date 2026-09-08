@@ -450,7 +450,7 @@ EXTERNA produz lixo
 
 ---
 
-### 26. Valor VOID usado como valor (println(f()) / `var x = f()`) → segfault/VerifyError
+### 26. Valor VOID usado como valor (println(f()) / `var x = f()`) → segfault/VerifyError — ✅ CORRIGIDO 04/09 (SEM033) + variante 08/09 (SEM036)
 
 - **Sintoma:** `println(f(5))` onde `f` é void (função `void` ou lambda com
   corpo de bloco sem `return`) compila mas quebra: Native segfault (pop de
@@ -463,6 +463,7 @@ EXTERNA produz lixo
   `CompilerDriverTest.voidCallAsValueGivesCleanDiagnostic` +
   `voidLambdaAsValueGivesCleanDiagnostic`.
 - **Arquivos:** `CompilerDriver.java` (emit de println/print e VarDeclStmt).
+- **Variante corrigida 08/09 (SEM036):** função/método com tipo NÃO-void cujo corpo PODE terminar sem return/throw (`Int f() { }`, `Int f(Int x) { var y = x + 1 }`, `if` sem `else` no fim) compilava e emitia `ireturn`/`areturn` com pilha vazia → VerifyError no JVM (disfarçado de "JavaFX launcher"), `expression stack underflow` no JS, `NoSuchElementException` no interpretador. `ReturnPathAnalyzer` (novo) checa o último statement do corpo em compile-time: return/throw/block-terminal/if-com-else-ambos-saem → ok; loops/try/switch conservadores (não acusam `while(true){return}`). Abstract pulado. Prova: `CompilerDriverTest.{nonVoidFunctionWithEmptyBody,nonVoidFunctionFallingOffEnd,ifWithoutElseAtEnd}GivesCleanDiagnostic` + `allPathsReturnStillCompiles` (negativo). Suíte 1085/59 (= só bug 59) — zero regressão.
 
 ---
 

@@ -277,6 +277,63 @@ class CompilerDriverTest {
         assertTrue(diags.contains("SEM033"), "Should be a clean diagnostic, was: " + diags);
     }
 
+    // known-bugs #26 (variante) — função com tipo NÃO-void cujo corpo pode
+    // terminar sem return/throw emitia ireturn/areturn com pilha vazia →
+    // VerifyError no JVM (disfarçado de "JavaFX"), stack underflow no JS,
+    // NoSuchElementException no interpretador. Agora SEM036 em compile-time.
+    @Test
+    void nonVoidFunctionWithEmptyBodyGivesCleanDiagnostic(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("NoRet.kf");
+        Files.writeString(source, """
+            Int f() { }
+            main() { println(f()) }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "Int f() { } should fail to compile");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM036"), "Should be a clean diagnostic, was: " + diags);
+    }
+
+    @Test
+    void nonVoidFunctionFallingOffEndGivesCleanDiagnostic(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("FallOff.kf");
+        Files.writeString(source, """
+            Int f(Int x) { var y = x + 1 }
+            main() { println(f(5)) }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "corpo que cai no fim sem return deve falhar");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM036"), "Should be a clean diagnostic, was: " + diags);
+    }
+
+    @Test
+    void ifWithoutElseAtEndGivesCleanDiagnostic(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("IfOnly.kf");
+        Files.writeString(source, """
+            Int f(Int x) { if (x > 0) { return 1 } }
+            main() { println(f(5)) }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "if sem else no fim deixa caminho sem return");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM036"), "Should be a clean diagnostic, was: " + diags);
+    }
+
+    @Test
+    void allPathsReturnStillCompiles(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Ok.kf");
+        Files.writeString(source, """
+            Int f(Int x) { if (x > 0) { return 1 } else { return 2 } }
+            Int g() { throw "sempre sai" }
+            Int loop(Int x) { while (true) { return x } }
+            main() { println(f(5)); println(loop(7)) }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertTrue(result.success(), "caminhos completos não devem acusar: "
+                + result.diagnostics().getDiagnostics());
+    }
+
     // known-bugs #16 — List.toArray() (unsupported/undocumented) produced
     // invalid bytecode on JVM and undefined references on Native. Now a clean
     // SEM029; Java interop methods like stream() must keep working.
