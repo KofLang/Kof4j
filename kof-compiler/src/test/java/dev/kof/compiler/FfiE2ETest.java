@@ -18,7 +18,12 @@ class FfiE2ETest {
     private final CompilerDriver driver = new CompilerDriver();
 
     @Test
-    void libcAbsEndToEndNative(@TempDir Path dir) throws IOException, InterruptedException {
+    void nativeExternEmitsFfi001(@TempDir Path dir) throws IOException {
+        // O binário nativo da Kof usa _start cru (syscalls diretos, sem init
+        // do glibc/TLS): dlopen/dlsym segfaultam nesse contexto (reproduzido
+        // com programa mínimo + MESMO link command; abs@PLT direto funciona).
+        // Enquanto o backend não inicializa libc, extern nativo é gap honesto
+        // FFI001 (R6) — nunca stub silencioso, nunca código que segfaulta.
         Path src = dir.resolve("ffi-native.kf");
         Files.writeString(src, """
                 extern "libc.so.6" abs(Int x): Int
@@ -28,20 +33,10 @@ class FfiE2ETest {
                 }
                 """);
 
-        Path out = dir.resolve("out-native");
-        CompilationResult result = driver.compile(src, out, Target.NATIVE);
-        assertTrue(result.success(), "native compile must succeed (extern bound): "
-                + result.diagnostics().getDiagnostics());
-
-        Path bin = out.resolve("Default/Main");
-        assertTrue(Files.exists(bin), "native binary must exist");
-        ProcessBuilder pb = new ProcessBuilder(bin.toString());
-        pb.redirectErrorStream(true);
-        Process p = pb.start();
-        String output = new String(p.getInputStream().readAllBytes(),
-                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
-        assertEquals(0, p.waitFor(), "native exit code, output: " + output);
-        assertEquals("5", output, "abs(-5) must return 5 via libc (native dlsym)");
+        CompilationResult result = driver.compile(src, dir.resolve("out-native"), Target.NATIVE);
+        assertFalse(result.success(), "Native target must not silently emit a segfaulting binary");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("FFI001"), "expected FFI001 on Native, got: " + diags);
     }
 
     @Test
@@ -78,12 +73,14 @@ class FfiE2ETest {
         assertTrue(rj.success(), "JVM compile: " + rj.diagnostics().getDiagnostics());
         assertEquals("42", runJava(dir.resolve("out-jvm")));
 
-        // Native
+        // Native: dlopen segfaulta no binário cru (sem init do glibc) — gap
+        // honesto FFI001 (mesma causa de nativeExternEmitsFfi001).
         Path natSrc = dir.resolve("atoi-native.kf");
         Files.writeString(natSrc, kof);
         CompilationResult rn = driver.compile(natSrc, dir.resolve("out-native"), Target.NATIVE);
-        assertTrue(rn.success(), "Native compile: " + rn.diagnostics().getDiagnostics());
-        assertEquals("42", runNative(dir.resolve("out-native")));
+        assertFalse(rn.success(), "Native must not silently emit a segfaulting binary");
+        assertTrue(rn.diagnostics().getDiagnostics().toString().contains("FFI001"),
+                "expected FFI001 on Native: " + rn.diagnostics().getDiagnostics());
     }
 
     @Test
@@ -126,21 +123,6 @@ class FfiE2ETest {
 
     private String runJava(Path outDir) throws IOException {
         return runJvm(outDir);
-    }
-
-    private String runNative(Path outDir) throws IOException {
-        ProcessBuilder pb = new ProcessBuilder(outDir.resolve("Default/Main").toString());
-        pb.redirectErrorStream(true);
-        try {
-            Process p = pb.start();
-            String output = new String(p.getInputStream().readAllBytes(),
-                    java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
-            assertEquals(0, p.waitFor(), "native exit code, output: " + output);
-            return output;
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IOException("interrupted", e);
-        }
     }
 
     private String runJvm(Path outDir) throws IOException {

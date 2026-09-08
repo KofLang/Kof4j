@@ -1,4 +1,4 @@
-package dev.kof.compiler;
+package dev.kof.compiler.jvm;
 
 /**
  * FFI (R3, TIER 2.1.4/2.1.6): downcall JVM-first via FFM
@@ -42,7 +42,7 @@ final class JvmFfiRuntime {
                                 java.lang.foreign.FunctionDescriptor.of(
                                         java.lang.foreign.ValueLayout.JAVA_INT,
                                         java.lang.foreign.ValueLayout.ADDRESS));
-                        java.lang.foreign.MemorySegment seg = arena.allocateUtf8String(a);
+                        java.lang.foreign.MemorySegment seg = arena.allocateFrom(a);
                         return (int) handle.invoke(seg);
                     } catch (Throwable t) {
                         throw new RuntimeException("kof_ffi_si: " + lib + "::" + name + " failed: "

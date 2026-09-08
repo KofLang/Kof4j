@@ -95,14 +95,15 @@ public class JvmBackend implements Backend {
         for (IRClass clazz : module.classes()) {
             emitClass(clazz, outputDir);
         }
-        if (usesJson || usesVk) {
-            JvmRuntime.ensureCompiled(outputDir, module.classes(), usesVk);
+        if (usesJson || usesVk || usesExtern) {
+            JvmRuntime.ensureCompiled(outputDir, module.classes(), usesVk, usesExtern);
         }
     }
 
     private boolean debugInfoEnabled = true;
     boolean usesJson = false;
     boolean usesVk = false;
+    boolean usesExtern = false;
     private String sourceName;
 
     private void emitClass(IRClass clazz, Path outputDir) throws IOException {

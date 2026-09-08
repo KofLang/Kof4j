@@ -26,6 +26,9 @@ public final class JvmOpCollections {
                 || kc.methodName().startsWith("kof_mv64_")) {
             ctx.usesVk = true;
         }
+        if (kc.methodName().startsWith("kof_ffi_")) {
+            ctx.usesExtern = true;
+        }
         mv.visitMethodInsn(INVOKESTATIC, "dev/kof/runtime/KofRuntime", kc.methodName(),
                 JvmRuntimeCallDescriptors.callDescriptor(kc.methodName()), false);
         if ("Ljava/lang/Object;".equals(JvmRuntimeCallDescriptors.callReturnDescriptor(kc.methodName()))) {

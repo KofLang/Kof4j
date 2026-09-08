@@ -1,5 +1,6 @@
 package dev.kof.compiler.backend;
 import dev.kof.compiler.KofBinary;
+import dev.kof.compiler.KofCall;
 import dev.kof.compiler.KofBinaryOp;
 import dev.kof.compiler.KofComparison;
 import dev.kof.compiler.KofConditionalJump;

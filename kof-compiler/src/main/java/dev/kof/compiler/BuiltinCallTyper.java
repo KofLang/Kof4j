@@ -366,6 +366,16 @@ public final class BuiltinCallTyper {
                         }
                     }
                     break;
+                } else if (d instanceof ExternalFunctionNode ext && ext.name().equals(mc.methodName())) {
+                    // FFI (TIER 2.1): chamada a `extern` declarado resolve pelo
+                    // contrato (tipo de retorno), nunca SEM015 — o binding real é
+                    // lowering por target (JVM/Native); JS emite FFI002.
+                    found = true;
+                    Type extRet = MemberResolver.resolveType(sa, ext.returnType(), scope);
+                    if (!Type.isVoid(extRet)) {
+                        sa.expressionTypes().put(mc, extRet);
+                        return extRet;
+                    }
                 }
             }
             if (!found && sa.diagnostics() != null && !sa.allClasses().containsKey(mc.methodName())) {

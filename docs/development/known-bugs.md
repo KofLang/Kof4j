@@ -997,6 +997,32 @@ EXTERNA produz lixo
 - **Prova:** `KofHttpE2ETest.multipleHeadersAsVariadicArgs` (3 headers → servidor ecoa `A=1 B=2 C=3`); probe post-4args/get-3args/post-5args compilam; E2E runtime com servidor Kof recebendo os 3 headers individualmente.
 - **Descoberto:** 07/09 (GitHub #32; corpo do issue obtido via API).
 
+### 61. FFI nativo: `dlopen`/`dlsym` segfaultam no binário nativo (sem init do glibc) — ABERTO (lane Native)
+
+- **Sintoma:** um `extern` compilado para NATIVE gera um binário que **segfaulta
+  (exit 139)** ao chamar `dlopen`. Na main, `FfiE2ETest.libcAbsEndToEndNative`
+  falhava 3/5 (o teste "verde no papel" nunca rodou de verdade — reconciliação
+  R1 já havia sinalizado o FFI da planning-future como não-executado).
+- **Reprodução mínima (fora do Kof):** programa asm com `_start` cru +
+  `call dlopen@PLT`, link `ld -o t t.o -dynamic-linker /lib64/ld-linux-x86-64.so.2
+  -lc` (o MESMO link command do `NativeAssembler`) → SIGSEGV dentro de
+  `dl_open_worker` (glibc). O MESMO `_start` chamando `strlen@PLT`/`abs@PLT`
+  direto → funciona. gcc normal (crt1.o + `__libc_start_main`) → funciona.
+- **Causa raiz:** o binário nativo da Kof usa `_start` próprio (syscalls
+  diretos, sem `__libc_start_main`); o `dlopen` do glibc exige TLS/estado
+  inicializado pelo loader do libc, que nunca roda. `dlopen` é o ÚNICO caminho
+  do `NativeFfiRuntime` (main) — por isso crasha.
+- **Comportamento previsto (R6):** `extern` em NATIVE emite **gap honesto
+  FFI001** em compile-time (nunca binário que segfaulta). Implementado na beta
+  (merge main→beta, 08/09): `CompilerPipeline.isExternBound` retorna false p/
+  NATIVE; `NativeFfiRuntime` (asm morto) removido.
+- **Correção (lane Native):** inicializar o runtime do glibc no `_start`
+  (chamar `__libc_start_main` / usar crt1) OU resolver símbolos via
+  `dlsym`-free (link direto `-l<lib>` + `call sym@PLT`, que funciona — provado
+  acima). Prova esperada: `FfiE2ETest` nativo verde + gate `check_500`.
+- **Descoberto:** 08/09 (porte do FFI da main para a beta; probes `dltest.s`/
+  `pltest.s` com o link command real do backend).
+
 ---
 
 ## Comportamentos que PAREcem bugs mas são esperados (não corrigir)

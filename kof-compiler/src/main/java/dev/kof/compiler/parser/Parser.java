@@ -9,6 +9,7 @@ import dev.kof.compiler.EntityDeclarationNode;
 import dev.kof.compiler.EntityFieldNode;
 import dev.kof.compiler.EnumDeclarationNode;
 import dev.kof.compiler.ExpressionNode;
+import dev.kof.compiler.ExternalFunctionNode;
 import dev.kof.compiler.FormalParameterNode;
 import dev.kof.compiler.FunctionDeclarationNode;
 import dev.kof.compiler.InterfaceDeclarationNode;
@@ -71,6 +72,8 @@ public class Parser {
             } else if (!annos.isEmpty()
                     && (ctx.check(TokenType.CLASS, TokenType.INTERFACE, TokenType.RECORD, TokenType.ENTITY))) {
                 declarations.add(parseTypeDeclaration(ctx, annos));
+            } else if (ctx.check(TokenType.EXTERN)) {
+                declarations.add(parseExternDeclaration(ctx));
             } else if (ctx.check(TokenType.IDENTIFIER) || ctx.check(TokenType.VOID) || TypeParser.isPrimitiveType(ctx)) {
                 declarations.add(parseFunctionDeclaration(ctx, List.of(), annos));
             } else {
@@ -184,6 +187,36 @@ public class Parser {
             ctx.expectSemicolon();
         }
         return new FunctionDeclarationNode(p, mods, returnType, name, params, thrown, typeParams, body, annos);
+    }
+
+    /**
+     * FFI (TIER 2.1): {@code extern name(params): ReturnType;} — formaliza a
+     * assinatura de uma função externa em compile-time. Não há corpo: o binding
+     * é responsabilidade do runtime por target (JVM/Native); JS emite FFI002.
+     */
+    static ExternalFunctionNode parseExternDeclaration(ParseContext ctx) {
+        SourcePosition p = ctx.pos();
+        ctx.expect(TokenType.EXTERN, "Expected 'extern'", "PARSE090");
+        String library = null;
+        if (ctx.check(TokenType.STRING_LITERAL)) {
+            library = ctx.advance().value();
+        }
+        String name = ctx.expectId("Expected extern function name", "PARSE091");
+        if (ctx.check(TokenType.LESS)) TypeParser.parseTypeParameters(ctx);
+        ctx.expect(TokenType.LPAREN, "Expected '('", "PARSE092");
+        List<FormalParameterNode> params = new ArrayList<>();
+        if (!ctx.check(TokenType.RPAREN)) {
+            params.add(TypeParser.parseFormalParameter(ctx));
+            while (ctx.check(TokenType.COMMA)) { ctx.advance(); params.add(TypeParser.parseFormalParameter(ctx)); }
+        }
+        ctx.expect(TokenType.RPAREN, "Expected ')'", "PARSE093");
+        String returnType = "void";
+        if (ctx.check(TokenType.COLON)) {
+            ctx.advance();
+            returnType = TypeParser.parseTypeRef(ctx);
+        }
+        ctx.expectSemicolon();
+        return new ExternalFunctionNode(p, library, returnType, name, params);
     }
 
     /**

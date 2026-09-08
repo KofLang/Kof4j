@@ -31,6 +31,9 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_json_decode_double_array" -> "(Ljava/lang/String;)[D";
             case "kof_json_decode_string_array" -> "(Ljava/lang/String;)[Ljava/lang/String;";
             case "kof_json_decode_object_list" -> "(Ljava/lang/String;Ljava/lang/String;)Ljava/util/ArrayList;";
+            case "kof_ffi_i" -> "(Ljava/lang/String;Ljava/lang/String;I)I";
+            case "kof_ffi_si" -> "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)I";
+            case "kof_ffi_dd" -> "(Ljava/lang/String;Ljava/lang/String;D)D";
             case "kof_now" -> "()J";
             case "kof_read_line" -> "()Ljava/lang/String;";
             case "kof_read_file" -> "(Ljava/lang/String;)Ljava/lang/String;";
@@ -348,6 +351,8 @@ public final class JvmRuntimeCallDescriptors {
     static String callReturnDescriptor(String methodName) {
         return switch (methodName) {
             case "kof_json_decode_int", "kof_json_decode_bool" -> "I";
+            case "kof_ffi_i", "kof_ffi_si" -> "I";
+            case "kof_ffi_dd" -> "D";
             case "kof_json_decode_long", "kof_now" -> "J";
             case "kof_json_decode_float" -> "F";
             case "kof_json_decode_double" -> "D";

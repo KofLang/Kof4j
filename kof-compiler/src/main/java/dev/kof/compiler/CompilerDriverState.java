@@ -109,6 +109,9 @@ IRModule currentModule;
 
     final java.util.Map<String, List<EntityFieldNode>> entitySchemas = new java.util.LinkedHashMap<>();
 
+    /** FFI (TIER 2.1): declarações {@code extern} por nome (preenchido no lowering). */
+    final java.util.Map<String, ExternalFunctionNode> externSignatures = new java.util.LinkedHashMap<>();
+
     /** Pontes super.metodo() geradas para lambdas: dono interno → método. */
     final Map<String, List<IRMethod>> pendingSuperBridges = new java.util.LinkedHashMap<>();
 
@@ -396,6 +399,7 @@ IRModule currentModule;
     void resetForCompilation() {
         syntheticClasses.clear();
         entitySchemas.clear();
+        externSignatures.clear();
         pendingSuperBridges.clear();
         declarationPackages.clear();
         lambdaEnclosingOwner.clear();

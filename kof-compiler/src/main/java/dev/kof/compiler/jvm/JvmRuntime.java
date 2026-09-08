@@ -48,6 +48,9 @@ public static boolean hasRuntimeFn(String methodName) {
                 || methodName.startsWith("kof_vk_")
                 || methodName.startsWith("kof_mv64_")
                 || methodName.startsWith("kof_scheduler_")
+                || methodName.equals("kof_ffi_i")
+                || methodName.equals("kof_ffi_si")
+                || methodName.equals("kof_ffi_dd")
                 || methodName.equals("kof_now")
                 || methodName.equals("kof_read_line")
                 || methodName.equals("kof_read_file")
@@ -61,11 +64,15 @@ public static boolean hasRuntimeFn(String methodName) {
     }
 
     static public void ensureCompiled(Path outputDir, List<IRClass> classes, boolean usesVk) throws IOException {
+        ensureCompiled(outputDir, classes, usesVk, false);
+    }
+
+    static public void ensureCompiled(Path outputDir, List<IRClass> classes, boolean usesVk, boolean usesExtern) throws IOException {
         Path runtimeDir = outputDir.resolve("dev/kof/runtime");
         if (Files.exists(runtimeDir.resolve("KofRuntime.class"))) return;
         Files.createDirectories(runtimeDir);
         Path sourceFile = outputDir.resolve("KofRuntime.java");
-        Files.writeString(sourceFile, source(classes, usesVk));
+        Files.writeString(sourceFile, source(classes, usesVk, usesExtern));
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         if (compiler == null) {
             throw new IOException("JVM runtime requires a full JDK (javac not available)");
@@ -78,7 +85,7 @@ public static boolean hasRuntimeFn(String methodName) {
         // --enable-preview" (COMP001). Capability/link-por-uso (R2) mantido:
         // o bloco só entra no source quando o programa realmente chama kof.vk.
         List<String> args = new java.util.ArrayList<>(List.of("-d", outputDir.toString()));
-        if (usesVk && Runtime.version().feature() < 22) {
+        if ((usesVk || usesExtern) && Runtime.version().feature() < 22) {
             args.add("--release");
             args.add("21");
             args.add("--enable-preview");
@@ -96,7 +103,7 @@ public static boolean hasRuntimeFn(String methodName) {
     }
 
 
-    private static String source(List<IRClass> classes, boolean usesVk) {
+    private static String source(List<IRClass> classes, boolean usesVk, boolean usesExtern) {
         StringBuilder decoders = new StringBuilder();
         for (IRClass clazz : classes) {
             String internal = clazz.name();
@@ -121,6 +128,7 @@ public static boolean hasRuntimeFn(String methodName) {
                 + JvmOrmRuntime.source()
                 + JvmTimeRuntime.source()
                 + JvmStringRuntime.source()
+                + (usesExtern ? JvmFfiRuntime.source() : "")
                 + (usesVk ? JvmVkRuntime.source() : "\n            }");
     }
 

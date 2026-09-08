@@ -220,6 +220,24 @@ public final class CompilerPipeline {
                 topLevelFunctions.add(CompilerFunctionLowering.lowerFunction(driver, func));
                 topLevelFunctions.addAll(CompilerFunctionLowering.lowerFunctionDefaults(driver, func));
             }
+            else if (decl instanceof ExternalFunctionNode ext) {
+                driver.externSignatures.put(ext.name(), ext);
+                // FFI (TIER 2.1.3/2.1.7): binding suportado (JVM Int→Int,
+                // String→Int, Double→Double; Native Int→Int, String→Int) não é
+                // gap; o resto é gap honesto por target — FFI002 no JS (web/edge
+                // sem FFI nativo), FFI001 nos demais. Nunca stub silencioso (R6).
+                if (diagnostics != null && !CompilerPipeline.isExternBound(driver, ext)) {
+                    SourcePosition sp = ext.position();
+                    String lib = ext.library() != null ? " in " + ext.library() : "";
+                    String code = driver.target == Target.JS ? "FFI002" : "FFI001";
+                    String msg = driver.target == Target.JS
+                            ? "extern '" + ext.name() + "'" + lib + ": FFI not available on the JS target (FFI002)"
+                            : "extern '" + ext.name() + "'" + lib + ": FFI binding not implemented on the "
+                                    + driver.target + " target yet (FFI001)";
+                    diagnostics.error(sp != null ? sp.file() : "", sp != null ? sp.line() : 0,
+                            sp != null ? sp.column() : 0, 0, msg, code);
+                }
+            }
         }
         if (!topLevelFunctions.isEmpty()) {
             String mainClassName = moduleName.isEmpty() ? "Main" : moduleName + "/Main";
@@ -411,6 +429,34 @@ public final class CompilerPipeline {
         merged = CompilerImports.expandKofImports(merged, driver.moduleRoot, diagnostics, driver.declarationPackages);
         if (diagnostics.hasErrors()) return null;
         return merged;
+    }
+
+
+    // ── FFI (TIER 2.1.4) — binding suportado por target ──
+    static boolean isExternBound(CompilerDriver driver, ExternalFunctionNode ext) {
+        if (ext.parameters().size() != 1) return false;
+        String p = ext.parameters().get(0).type();
+        String r = ext.returnType();
+        if (driver.target == Target.JVM) {
+            return (isIntType(r) && (isIntType(p) || isStringType(p)))
+                    || (isDoubleType(r) && isDoubleType(p));
+        }
+        // NATIVE: dlopen/dlsym segfaulta no binário nativo (glibc exige TLS
+        // que o _start cru não inicializa) — bug registrado (known-bugs);
+        // enquanto o backend não inicializa libc, extern nativo é FFI001 (R6).
+        return false;
+    }
+
+    static boolean isIntType(String t) {
+        return "int".equals(t) || "Int".equals(t);
+    }
+
+    static boolean isStringType(String t) {
+        return "String".equals(t) || "string".equals(t);
+    }
+
+    static boolean isDoubleType(String t) {
+        return "double".equals(t) || "Double".equals(t);
     }
 
 }
