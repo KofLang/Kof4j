@@ -1,6 +1,6 @@
 # PLAN — Editor Integration (EDI001)
 
-> **Status:** `PLANNED` · **Gap:** `EDI001` · **Criado:** 07/09/2026
+> **Status:** `EM CURSO` (degraus 1-3, 4-10, 11, 12 feitos; resta IntelliJ plugin) · **Gap:** `EDI001` · **Criado:** 07/09/2026
 > **Origem:** briefing "KOF EDITOR INTEGRATION" (infra oficial de integração de
 > editores/IDEs). **Escopo desta doc:** especificação + ordem de implementação.
 > **A implementação é DEPOIS** — este documento é o contrato.
