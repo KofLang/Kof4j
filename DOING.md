@@ -21,7 +21,26 @@ Estados: `ABERTO` · `EM CURSO` · `FEITO` · `BLOQUEADO`.
 
 ## PRÓXIMO PASSO (re-dispacho lê isto)
 
-**PRÓXIMO PASSO (08/09, lane KOFSCRIPT/fixes-for-kofagent):** P0 de
+**PRÓXIMO PASSO (08/09, lane UI/KofJS — Fase 4):** Fila KofUI avançada:
+R4 (Fase D Type Recovery) ✅ `367d6c4`; UI003 fieldset/iframe/video/audio/hr ✅
+`358ec80`; UI006 Event key/value/x/y + widget.on ✅ `f0907c2`. **Próxima
+tarefa concreta sem dono na minha lane (ordem de valor):**
+1. **UI002** — `Script` é no-op silencioso (R6): diagnosticar warning
+   `UI002` no compilador quando `Script(...)` aparece em target não-JS
+   (aditivo, não quebra retrocompat). Arquivo:
+   `kof-compiler/.../CompilerPipeline.java` (onde vive FFI001) + teste em
+   `UiE2ETest`. Prova: diagnostic UI002 em JVM/Native, ausente em JS.
+   **ATENÇÃO:** o no-op virar erro quebra retrocompat — warning apenas.
+2. **UI006 residual** — `Event.target()` (elemento que originou) +
+   `relatedTarget()`: `kofUiMakeEvent` já tem `raw`; expor target como
+   string id do nó. Mesma receita UI006. Prova: browser headless.
+3. **UI007 style declarativo** — BLOQUEADO (regra 6): superfície de API
+   aguarda decisão do maintainer (proposta em `docs/development/
+   KOFUI-AUDIT.md` §UI007).
+Receita de widget/método novo = 8/9 pontos (ver bloco R4/UI003/UI006 em
+"Estado atual"). Suíte atual: **1210/0/64-skip** verde JDK 21+25.
+
+**PRÓXIMO PASSO anterior (08/09, lane KOFSCRIPT/fixes-for-kofagent):** P0 de
 estabilização FECHADO (#28–#35). EDI001 completo na lane CLI (degraus 0-12 +
 extensão VS Code + LSP definition/formatting). SEM036 corrigido. Varredura da
 matriz (F9 a/c) FEITA. **Próxima tarefa concreta sem dono na minha lane:**
