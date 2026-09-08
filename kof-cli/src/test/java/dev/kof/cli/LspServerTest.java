@@ -12,6 +12,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * LSP references/rename — mock (didOpen + request) sem processo.
@@ -215,5 +216,49 @@ class LspServerTest {
         // 'x' só aparece como parâmetro — não resolvemos parâmetro (null, não minto)
         String text = "Int compute(Int x) { return x * 2 }\n";
         assertNull(definitionStart(text, 0, 17), "parâmetro não é declarado por var/val/função — null honesto");
+    }
+
+    // ---- EDI001 §15: textDocument/formatting (delegado ao KofFormatter) ----
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void initializeAnnouncesFormattingCapability() throws Exception {
+        String req = "{\"jsonrpc\":\"2.0\",\"id\":0,\"method\":\"initialize\",\"params\":{}}";
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        new LspServer(new ByteArrayInputStream(frame(req)), out).run();
+        Map<String, Object> res = (Map<String, Object>) byId(messages(out.toString(StandardCharsets.UTF_8)), 0).get("result");
+        Map<String, Object> caps = (Map<String, Object>) res.get("capabilities");
+        assertEquals(Boolean.TRUE, caps.get("documentFormattingProvider"));
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Object> formattingEdits(String text) throws Exception {
+        String didOpen = "{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{"
+                + "\"textDocument\":{\"uri\":\"" + URI + "\",\"text\":\"" + Json.escape(text) + "\"}}}";
+        String req = "{\"jsonrpc\":\"2.0\",\"id\":8,\"method\":\"textDocument/formatting\",\"params\":{"
+                + "\"textDocument\":{\"uri\":\"" + URI + "\"},\"options\":{\"tabSize\":4,\"insertSpaces\":true}}}";
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        new LspServer(new ByteArrayInputStream(all(frame(didOpen), frame(req))), out).run();
+        return (List<Object>) byId(messages(out.toString(StandardCharsets.UTF_8)), 8).get("result");
+    }
+
+    @Test
+    void formattingReturnsWholeDocumentEdit() throws Exception {
+        // texto desformatado → um edit de documento inteiro cujo newText é o formatado
+        List<Object> edits = formattingEdits("main(){\nprintln(   1+2 )\n}\n");
+        assertNotNull(edits);
+        assertEquals(1, edits.size(), "um edit de substituição total");
+        Map<String, Object> e = (Map<String, Object>) edits.get(0);
+        String newText = (String) e.get("newText");
+        assertTrue(newText.contains("println(1 + 2)"), "KofFormatter normaliza: " + newText);
+    }
+
+    @Test
+    void formattingIsIdempotentNoEditWhenAlreadyFormatted() throws Exception {
+        // formatar o que já está formatado → sem edits (lista vazia, não null)
+        String formatted = dev.kof.compiler.KofFormatter.format("main(){\nprintln(1)\n}\n", "Main.kf");
+        List<Object> edits = formattingEdits(formatted);
+        assertNotNull(edits);
+        assertTrue(edits.isEmpty(), "já formatado → nenhum edit, foi: " + edits);
     }
 }

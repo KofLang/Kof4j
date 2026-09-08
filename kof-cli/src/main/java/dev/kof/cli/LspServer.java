@@ -87,6 +87,7 @@ final class LspServer {
                 capabilities.put("definitionProvider", Boolean.TRUE);
                 capabilities.put("referencesProvider", Boolean.TRUE);
                 capabilities.put("renameProvider", Boolean.TRUE);
+                capabilities.put("documentFormattingProvider", Boolean.TRUE);
                 Map<String, Object> result = new LinkedHashMap<>();
                 result.put("capabilities", capabilities);
                 result.put("serverInfo", Map.of("name", "kof-lsp", "version", dev.kof.compiler.KofVersion.version()));
@@ -103,6 +104,7 @@ final class LspServer {
             case "textDocument/completion" -> completion(id, params);
             case "textDocument/references" -> references(id, params);
             case "textDocument/rename" -> rename(id, params);
+            case "textDocument/formatting" -> formatting(id, params);
             default -> {  }
         }
     }
@@ -366,6 +368,32 @@ final class LspServer {
         loc.put("uri", uri);
         loc.put("range", rangeOf(text, decl[0], decl[1]));
         respond(id, List.of(loc));
+    }
+
+    @SuppressWarnings("unchecked")
+    private void formatting(Object id, Map<String, Object> params) {
+        Map<String, Object> td = params.get("textDocument") instanceof Map<?, ?> p
+                ? (Map<String, Object>) p : Map.of();
+        String uri = str(td.get("uri"));
+        String text = openText.getOrDefault(uri, "");
+        String formatted;
+        try {
+            formatted = dev.kof.compiler.KofFormatter.format(text, fileNameOf(uri));
+        } catch (RuntimeException e) {
+            respond(id, null); // parser não fechou: não corrompe o buffer (R6)
+            return;
+        }
+        if (formatted.equals(text)) { respond(id, List.of()); return; }
+        Map<String, Object> edit = new LinkedHashMap<>();
+        edit.put("range", rangeOf(text, 0, text.length()));
+        edit.put("newText", formatted);
+        respond(id, List.of(edit));
+    }
+
+    private static String fileNameOf(String uri) {
+        String path = uri.startsWith("file:") ? uri.substring("file:".length()) : uri;
+        int slash = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+        return slash >= 0 ? path.substring(slash + 1) : path;
     }
 
     @SuppressWarnings("unchecked")
