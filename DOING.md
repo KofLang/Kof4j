@@ -21,6 +21,25 @@ Estados: `ABERTO` · `EM CURSO` · `FEITO` · `BLOQUEADO`.
 
 ## PRÓXIMO PASSO (re-dispacho lê isto)
 
+**PRÓXIMO PASSO (08/09, lane KOFSCRIPT/fixes-for-kofagent):** P0 de
+estabilização FECHADO (#28–#35 corrigidas + fechadas no GitHub com SHA/prova;
+só #1 IntelliJ plugin fica aberta — é feature). EDI001 implementado na lane
+CLI (degraus 1-3, 4-10, 11, 12 — `kof editor` completo, docs/editors/*, hook
+pós-instalador; resta o plugin IntelliJ = subprojeto, issue #1). SEM036
+(função não-void sem return) corrigido. **Próximo degrau concreto, sem dono na
+minha lane:** bug 42 metade Native (`record.hashCode()` → `ld: undefined
+P_hashCode`) — MAS `nat/` está EM CURSO no REFACTOR-500 (regra 2/3: não tocar
+sem coordenar). Alternativas seguras na lane: (a) fechar mais exclusões
+obsoletas da `ConformanceMatrixTest` (varrer `Set.of("js")`/`Set.of("script")`
+que já passam — como fiz com 52/42-js); (b) `docs/editors/` pode ganhar
+`learn/NN-editors.md` (tutorial passo-a-passo, §27 pede corpus). Suíte atual:
+1085 testes, 59 falhas = SÓ bug 59 (Native riscv/aarch, lane Native,
+pré-existente). **PRÓXIMO PASSO exato:** varrer as exclusões restantes da
+matriz (`grep 'Set.of(' ConformanceMatrixTest.java`) e revalidar cada uma com
+probe — as que já passam (efeito colateral de fixes alheios, como 52) perdem a
+exclusão + doc; as que ainda falham ganham nota de causa. Prova: matriz verde
++ `ConformanceMatrixDocTest` (gate doc×teste).
+
 **PRÓXIMO PASSO (lane KOFSCRIPT/interpreter, 07/09)**: **PARIDADE
 CROSS-TARGET (g) FEITA (este commit)** — sweep do grupo A (28 casos) nos
 targets JS e NATIVE (x86_64) vs JVM. **5 divergências reais achadas e
