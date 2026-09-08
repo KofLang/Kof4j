@@ -363,6 +363,11 @@ final class BytecodeStatements {
                     if (c == null) return null;
                     stack.push(c);
                 }
+                case 0x14 -> {
+                    String c = BytecodeDecoder.ldc2(cp, in.operands()[0]);
+                    if (c == null) return null;
+                    stack.push(c);
+                }
                 case 0x1a, 0x1b, 0x1c, 0x1d -> stack.push(BytecodeDecoder.slotName(op - 0x1a, paramCount, isStatic));
                 case 0x2a, 0x2b, 0x2c, 0x2d -> stack.push(BytecodeDecoder.slotName(op - 0x2a, paramCount, isStatic));
                 case 0x15, 0x19 -> stack.push(BytecodeDecoder.slotName(in.operands()[0], paramCount, isStatic));

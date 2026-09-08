@@ -356,6 +356,34 @@ class DecompileTest {
     }
 
     @Test
+    void recoversLdc2LongDoubleConstants(@TempDir Path dir) throws Exception {
+        Path javaFile = dir.resolve("L2.java");
+        Files.writeString(javaFile, """
+                public class L2 {
+                    public static long big() { return 9999999999L; }
+                    public static double frac() { return 2.25; }
+                    public static double expo() { return 1.0E-5; }
+                }
+                """);
+        runJavac(javaFile, dir);
+
+        String kof = Decompile.decompile(dir.resolve("L2.class"));
+
+        // ldc2_w (0x14) só aponta p/ CP Long/Double — classificação por FORMA
+        // (lição bug 62): dígitos → sufixo L; '.'/E → Double literal (Kof
+        // aceita "1.0E-5"); NaN/Infinity recusados (sem literal em Kof).
+        assertTrue(kof.contains("= 9999999999L"), "long ldc2:\n" + kof);
+        assertTrue(kof.contains("= 2.25"), "double ldc2:\n" + kof);
+        assertTrue(kof.contains("= 1.0E-5"), "double expo ldc2:\n" + kof);
+
+        Path out = dir.resolve("L2.kf");
+        Files.writeString(out, kof);
+        CompilerDriver driver = new CompilerDriver();
+        CompilationResult result = driver.compile(out, dir.resolve("out"), Target.JVM);
+        assertTrue(result.success(), "decompiled deve compilar:\n" + kof + "\n" + result.diagnostics().getDiagnostics());
+    }
+
+    @Test
     void recoversMethodCall(@TempDir Path dir) throws Exception {
         Path javaFile = dir.resolve("Call.java");
         Files.writeString(javaFile, """

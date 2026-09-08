@@ -58,6 +58,11 @@ final class BytecodeDecoder {
                     if (c == null) return null;
                     stack.push(c);
                 }
+                case 0x14 -> {
+                    String c = ldc2(cp, in.operands()[0]);
+                    if (c == null) return null;
+                    stack.push(c);
+                }
                 case 0x1a, 0x1b, 0x1c, 0x1d -> stack.push(slotName(op - 0x1a, paramCount, isStatic));
                 case 0x2a, 0x2b, 0x2c, 0x2d -> stack.push(slotName(op - 0x2a, paramCount, isStatic));
                 case 0x15, 0x19 -> stack.push(slotName(in.operands()[0], paramCount, isStatic));
@@ -272,6 +277,23 @@ final class BytecodeDecoder {
             case 0x9b -> ">= 0"; case 0x9c -> "< 0"; case 0x9d -> "<= 0"; case 0x9e -> "> 0";
             default -> null;
         };
+    }
+
+    /**
+     * ldc2_w (0x14) — só Long/Double no CP. Classificação por FORMA (lição
+     * bug 62: só emitir quando o tipo não pode driftar): String.valueOf(long)
+     * é sempre dígitos ([sinal]) → literal Long com sufixo `L`; o verificador
+     * garante const tipo == uso. Double.toString SEMPRE traz '.'/E (mesmo
+     * 100.0 → "100.0") → literal Double; NaN/Infinity ficam sem literal em
+     * Kof → recusar (stub honesto).
+     */
+    static String ldc2(String[] cp, int idx) {
+        if (idx <= 0 || idx >= cp.length || cp[idx] == null) return null;
+        String e = cp[idx];
+        if (e.startsWith("#")) return null;           // só String ref — nunca ldc2
+        if (e.equals("NaN") || e.equals("Infinity") || e.equals("-Infinity")) return null;
+        if (e.indexOf('.') >= 0 || e.indexOf('e') >= 0 || e.indexOf('E') >= 0) return e;
+        return e + "L";
     }
 
     static String ldc(String[] cp, int idx) {
