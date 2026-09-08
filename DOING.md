@@ -73,7 +73,16 @@ concreta (ordem de valor):**
    diamond com `continue` p/ incremento, `break` p/ pós-loop, `&&`/`?:` com
    braços que convergem — exige construção GSEA/semidominators (G6790) ou
    re-emissão com labels. Hoje: degradação honesta travada por teste.
-4. **✅ FEITO (este commit) — bug 62 (CP Float/Double como bits crus)**:
+4. **Próxima tarefa segura (baixo risco, sem design): estender `emitLinear`
+   p/ aritmética long + casts int-lineares** (`ladd/lsub/lmul` 0x65-0x67,
+   `i2l` 0x85, `i2d`/`d2i` etc.) — MAS com o GUARD de tipo aprendido no bug
+   62: só emitir quando o tipo Kof do literal/resultado não driftar (long
+   literal precisa de sufixo `L`; `d2i` é cast, não atribuição). Cada opcode
+   novo entra com probe byte-exato + teste (DecompileTest) + degradação
+   honesta p/ o que não couber. Arquivos: `BytecodeStatements.emitLinear` +
+   `BytecodeDecoder` (helper de tipo). Gate: DecompileTest + suíte + probe.
+   ⚠️ Lesson bug 62: opcode "linear" ainda pode driftar tipo — verificar o
+   TIPO Kof do emitido, não só a forma.
    `ClassFileParser` misturava tags 3/4 (Integer/Float) e 5/6 (Long/Double) —
    `3.5f` virava `1079574528` no CP (perda silenciosa). Fix: `intBitsToFloat`/
    `longBitsToDouble`. `ldc` recusa literal float (Kof não tem; driftaria
