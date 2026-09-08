@@ -73,6 +73,15 @@ concreta (ordem de valor):**
    diamond com `continue` p/ incremento, `break` p/ pós-loop, `&&`/`?:` com
    braços que convergem — exige construção GSEA/semidominators (G6790) ou
    re-emissão com labels. Hoje: degradação honesta travada por teste.
+3. **Sweeps R6 feitos (este commit, probes, sem código novo — tudo degrada
+   honesto):** (a) control-flow joins (continue/&&/||/?:/break-mid) → stub
+   ✅; (b) numérico (long/double aritmética, casts `i2d`/`d2i`/`l2i`, arrays
+   `newarray`/`iastore`, shifts) → emitLinear não cobre → stub ✅ (só
+   divmod/equals int recuperam corretos). **Próximo passo concreto da lane
+   (baixo risco, sem decisão de design):** estender `emitLinear` p/ opcodes
+   puramente-lineares seguros (ladd/lsub/lmul, i2d/d2i/l2i casts, fadd/…
+   FP) — cada um SEM stack-jan issue → mais recuperação real, degradação
+   p/ o resto. Gate: DecompileTest + suíte + probe byte-exato.
 Receita de recuperação de bytecode = editar `struct`/`emitLinear` (kof-cli) +
 `DecompileTest` (javac real + recompila Kof → JVM). Gate ≤500: BytecodeStatements
 390→~425 (ok).
