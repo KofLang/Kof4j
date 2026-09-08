@@ -653,13 +653,20 @@ mvn test -o -pl kof-compiler,kof-script,kof-c-compiler,kof-cli -am \
 > ele, o Maven é fail-fast por módulo: o **kof-compiler aborta o reactor** com
 > as 59 falhas conhecidas do bug 59 (Native riscv/aarch) e **kof-script,
 > kof-c-compiler e kof-cli nunca rodam** — você acha que validou tudo mas só
-> viu 1086/59 do primeiro módulo. O total real com o flag é **1207 testes**
-> (kof-compiler 1086 + kof-script 24 + kof-c 5 + kof-cli 92, com 1 skip
-> flaky): as 59 falhas devem ser SÓ `NativeRiscv64E2ETest`/`NativeAarch64E2ETest`
-> /`crossNative*` (bug 59). Qualquer falha fora dessas é sua — antes de
-> commitar, confira os reports POR MÓDULO (`grep -rl FAILURE */target/
-> surefire-reports/*.txt`). (Lição registrada 08/09: sessões inteiras citaram
-> "suíte 1085/59" sem os módulos finais terem rodado.)
+> viu 1086/59 do primeiro módulo. O total real com o flag é **~1207 testes**
+> (compiler ~1086 + script 24 + kof-c 5 + cli 92, números de 08/09 — crescem
+> com cada commit): as 59 falhas devem ser SÓ
+> `NativeRiscv64E2ETest`/`NativeAarch64E2ETest`/`crossNative*` (bug 59).
+> Qualquer falha fora dessas é sua — antes de commitar, confira os reports
+> POR MÓDULO (`grep -rl FAILURE */target/ surefire-reports/*.txt`).
+> (Lição registrada 08/09: sessões inteiras citaram "suíte 1085/59" sem os
+> módulos finais terem rodado.)
+>
+> **Os números mudam com qemu no ambiente:** sem qemu, os ~59 cross-arch
+> são **skipados** pelo guard (`4408eb6`) — mesma suíte vira
+> `~1210/0/~64-skip`. Com qemu, **falham** (bug 59 aberto) —
+> `~1207/59/3-skip`. Ambos os estados são "suíte verde" para a sua lane:
+> o que importa é não ter falha FORA do par riscv/aarch.
 
 Para validar um snippet isolado (ex.: confirmar se um idiom compila),
 use o harness do projeto ou crie um teste E2E mínimo no pacote da área.
