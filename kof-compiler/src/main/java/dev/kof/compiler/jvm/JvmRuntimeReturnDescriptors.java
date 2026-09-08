@@ -133,6 +133,7 @@ public final class JvmRuntimeReturnDescriptors {
                     "kof_strings_count" -> "I";
             case "kof_strings_capitalize", "kof_strings_reverse" -> "Ljava/lang/String;";
             case "kof_strings_repeat", "kof_strings_truncate" -> "Ljava/lang/String;";
+            case "kof_strings_padLeft", "kof_strings_padRight" -> "Ljava/lang/String;";
             // ── kof.observability (G5) ────────────────────────────────
             case "kof_observability_health", "kof_observability_request_id", "kof_observability_correlation_id",
                     "kof_observability_trace_id", "kof_observability_span_id",

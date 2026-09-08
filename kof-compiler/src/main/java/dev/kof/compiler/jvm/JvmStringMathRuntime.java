@@ -151,6 +151,25 @@ public final class JvmStringMathRuntime {
                     if (n <= 0) return "";
                     return v.length() <= n ? v : v.substring(0, n);
                 }
+
+                // pad = 1ª char do 3º arg; sem pad (null/"") ou len>=n => original.
+                public static String kof_strings_padLeft(String v, int n, String pad) {
+                    if (v == null) return null;
+                    if (pad == null || pad.isEmpty() || v.length() >= n) return v;
+                    char p = pad.charAt(0);
+                    StringBuilder sb = new StringBuilder(n);
+                    for (int i = v.length(); i < n; i++) sb.append(p);
+                    return sb.append(v).toString();
+                }
+
+                public static String kof_strings_padRight(String v, int n, String pad) {
+                    if (v == null) return null;
+                    if (pad == null || pad.isEmpty() || v.length() >= n) return v;
+                    char p = pad.charAt(0);
+                    StringBuilder sb = new StringBuilder(v);
+                    for (int i = v.length(); i < n; i++) sb.append(p);
+                    return sb.toString();
+                }
         """;
     }
 }

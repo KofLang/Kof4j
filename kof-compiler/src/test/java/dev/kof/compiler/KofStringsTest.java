@@ -57,8 +57,12 @@ class KofStringsTest {
                 println(strings.truncate("hello world", 5))
                 println(strings.truncate("abc", 10))
                 println(strings.truncate("abc", 0) + "|")
+                println(strings.padLeft("7", 3, "0"))
+                println(strings.padRight("ab", 5, "-"))
+                println(strings.padLeft("abc", 2, "0"))
+                println(strings.padRight("abc", 5, ""))
             }
-            """, "true\nfalse\nfalse\nfalse|\ntrue\nfalse\nfalse\nfalse|\ntrue\nfalse\nfalse|\ntrue\nfalse\nfalse|\ntrue\nfalse\nfalse\nfalse|\ntrue\ntrue\nfalse\nfalse|\n2\n1\n0\n0\nHello\nHello\n1abc\n|\ncba\nracecar\n|\nababab\n|\n|\nhello\nabc\n|");
+            """, "true\nfalse\nfalse\nfalse|\ntrue\nfalse\nfalse\nfalse|\ntrue\nfalse\nfalse|\ntrue\nfalse\nfalse|\ntrue\nfalse\nfalse\nfalse|\ntrue\ntrue\nfalse\nfalse|\n2\n1\n0\n0\nHello\nHello\n1abc\n|\ncba\nracecar\n|\nababab\n|\n|\nhello\nabc\n|\n007\nab---\nabc\nabc");
     }
 
     @Test
@@ -104,6 +108,10 @@ class KofStringsTest {
                 assert(strings.truncate("hello world", 5) == "hello")
                 assert(strings.truncate("abc", 10) == "abc")
                 assert(strings.truncate("abc", 0) == "")
+                assert(strings.padLeft("7", 3, "0") == "007")
+                assert(strings.padRight("ab", 5, "-") == "ab---")
+                assert(strings.padLeft("abc", 2, "0") == "abc")
+                assert(strings.padRight("abc", 5, "") == "abc")
                 println("ok")
             }
             """, "ok");
@@ -146,8 +154,12 @@ class KofStringsTest {
                 println(strings.truncate("hello world", 5))
                 println(strings.truncate("abc", 10))
                 println(strings.truncate("abc", 0) + "|")
+                println(strings.padLeft("7", 3, "0"))
+                println(strings.padRight("ab", 5, "-"))
+                println(strings.padLeft("abc", 2, "0"))
+                println(strings.padRight("abc", 5, ""))
             }
-            """, "true\nfalse\nfalse\nfalse|\ntrue\nfalse\nfalse\ntrue\nfalse\ntrue\nfalse\ntrue\nfalse\nfalse\ntrue\ntrue\nfalse\n2\n1\n0\nHello\nHello\n1abc\n|\ncba\nracecar\n|\nababab\n|\n|\nhello\nabc\n|");
+            """, "true\nfalse\nfalse\nfalse|\ntrue\nfalse\nfalse\ntrue\nfalse\ntrue\nfalse\ntrue\nfalse\nfalse\ntrue\ntrue\nfalse\n2\n1\n0\nHello\nHello\n1abc\n|\ncba\nracecar\n|\nababab\n|\n|\nhello\nabc\n|\n007\nab---\nabc\nabc");
     }
 
     private String runJvm(Path tempDir, String source, String expected) throws Exception {

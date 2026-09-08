@@ -234,9 +234,11 @@ class ConformanceMatrixTest {
                     var e = strings.repeat("ab", 3)
                     var f = strings.truncate("hello world", 5)
                     var g = strings.truncate("abc", 10)
-                    println(a + "|" + b + "|" + c + "|" + d + "|" + e + "|" + f + "|" + g)
+                    var h = strings.padLeft("7", 3, "0")
+                    var i = strings.padRight("ab", 5, "-")
+                    println(a + "|" + b + "|" + c + "|" + d + "|" + e + "|" + f + "|" + g + "|" + h + "|" + i)
                 }
-                """, "Hello world|1abc|321cba|kayak|ababab|hello|abc", Set.of(), tempDir);
+                """, "Hello world|1abc|321cba|kayak|ababab|hello|abc|007|ab---", Set.of(), tempDir);
     }
 
     @Test

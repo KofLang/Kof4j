@@ -323,6 +323,20 @@ public final class JsRuntimeUiCrypto {
                 if (n <= 0) return "";
                 return v.length <= n ? v : v.slice(0, n);
             }
+            export function kofStringsPadLeft(v, n, pad) {
+                if (v == null) return v;
+                if (pad == null || pad.length === 0 || v.length >= n) return v;
+                const p = pad.charAt(0);
+                while (v.length < n) v = p + v;
+                return v;
+            }
+            export function kofStringsPadRight(v, n, pad) {
+                if (v == null) return v;
+                if (pad == null || pad.length === 0 || v.length >= n) return v;
+                const p = pad.charAt(0);
+                while (v.length < n) v = v + p;
+                return v;
+            }
 
             // ── kof.observability (G5) ──────────────────────────────
 

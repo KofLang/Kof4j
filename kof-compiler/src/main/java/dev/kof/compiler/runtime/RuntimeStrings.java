@@ -505,6 +505,141 @@ public final class RuntimeStrings {
                 popq %r12
                 popq %rbx
                 ret
+
+            # kof_strings_padLeft(rdi=v, esi=n, rdx=pad) -> String
+            # null=>0; pad null/"" ou len(v)>=n => v; senao (n-len)×pad[0] + v.
+            .globl kof_strings_padLeft
+            .type kof_strings_padLeft, @function
+            kof_strings_padLeft:
+                pushq %rbx
+                pushq %r12
+                pushq %r13
+                pushq %r14
+                pushq %r15
+                subq $16, %rsp
+                movq %rdi, %rbx          # v
+                movl %esi, %r12d         # n
+                testq %rbx, %rbx
+                jz .Lv_str_pl_null
+                testq %rdx, %rdx
+                jz .Lv_str_pl_orig
+                movl 16(%rdx), %eax
+                testl %eax, %eax
+                jle .Lv_str_pl_orig
+                movzbl 24(%rdx), %r14d   # pad[0]
+                movl 16(%rbx), %r13d     # vlen
+                cmpl %r13d, %r12d
+                jle .Lv_str_pl_orig
+                leal 25(%r12), %edi
+                call kof_alloc
+                movq %rax, (%rsp)        # novo
+                movl $1, (%rax)
+                movl $0, 4(%rax)
+                movq $0, 8(%rax)
+                movl %r12d, 16(%rax)
+                movl $0, 20(%rax)
+                movq (%rsp), %r15
+                # preenche pad: i em [0, n-vlen)
+                xorq %rcx, %rcx
+            .Lv_str_pl_fill:
+                movl %r12d, %eax
+                subl %r13d, %eax
+                cmpl %eax, %ecx
+                jge .Lv_str_pl_copy
+                movb %r14b, 24(%r15,%rcx)
+                incl %ecx
+                jmp .Lv_str_pl_fill
+            .Lv_str_pl_copy:
+                leaq 24(%r15), %rdi
+                addq %rcx, %rdi
+                leaq 24(%rbx), %rsi
+                movl %r13d, %edx
+                testl %edx, %edx
+                jle .Lv_str_pl_term
+                call kof_memcpy
+            .Lv_str_pl_term:
+                movq (%rsp), %r15
+                movl %r12d, %eax
+                movb $0, 24(%r15,%rax)
+                movq %r15, %rax
+                jmp .Lv_str_pl_done
+            .Lv_str_pl_orig:
+                movq %rbx, %rax
+                jmp .Lv_str_pl_done
+            .Lv_str_pl_null:
+                xorl %eax, %eax
+            .Lv_str_pl_done:
+                addq $16, %rsp
+                popq %r15
+                popq %r14
+                popq %r13
+                popq %r12
+                popq %rbx
+                ret
+
+            # kof_strings_padRight(rdi=v, esi=n, rdx=pad) -> String
+            # v + (n-len)×pad[0]; mesmas regras de borda.
+            .globl kof_strings_padRight
+            .type kof_strings_padRight, @function
+            kof_strings_padRight:
+                pushq %rbx
+                pushq %r12
+                pushq %r13
+                pushq %r14
+                pushq %r15
+                subq $16, %rsp
+                movq %rdi, %rbx
+                movl %esi, %r12d
+                testq %rbx, %rbx
+                jz .Lv_str_pr_null
+                testq %rdx, %rdx
+                jz .Lv_str_pr_orig
+                movl 16(%rdx), %eax
+                testl %eax, %eax
+                jle .Lv_str_pr_orig
+                movzbl 24(%rdx), %r14d
+                movl 16(%rbx), %r13d
+                cmpl %r13d, %r12d
+                jle .Lv_str_pr_orig
+                leal 25(%r12), %edi
+                call kof_alloc
+                movq %rax, %r15
+                movl $1, (%r15)
+                movl $0, 4(%r15)
+                movq $0, 8(%r15)
+                movl %r12d, 16(%r15)
+                movl $0, 20(%r15)
+                # copia v primeiro: memcpy(novo.bytes, v.bytes, vlen)
+                leaq 24(%r15), %rdi
+                leaq 24(%rbx), %rsi
+                movl %r13d, %edx
+                call kof_memcpy
+                # preenche cauda: i em [vlen, n)
+                movl %r13d, %ecx
+            .Lv_str_pr_fill:
+                cmpl %r12d, %ecx
+                jge .Lv_str_pr_term
+                movb %r14b, 24(%r15,%rcx)
+                incl %ecx
+                jmp .Lv_str_pr_fill
+            .Lv_str_pr_term:
+                movl %r12d, %eax
+                movb $0, 24(%r15,%rax)
+                movq %r15, %rax
+                jmp .Lv_str_pr_done
+            .Lv_str_pr_orig:
+                movq %rbx, %rax
+                jmp .Lv_str_pr_done
+            .Lv_str_pr_null:
+                xorl %eax, %eax
+            .Lv_str_pr_done:
+                addq $16, %rsp
+                popq %r15
+                popq %r14
+                popq %r13
+                popq %r12
+                popq %rbx
+                ret
         """);
     }
 }

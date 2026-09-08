@@ -53,6 +53,12 @@ public final class KofStrings {
             // repeat n<=0 ou vazio => ""; truncate n<=0 => "", n>=len => original.
             case "repeat", "truncate" -> argc == 2
                     ? new StringsCall("kof_strings_" + name, STR, List.of(STR, INT)) : null;
+            // S2b.3: pad(String,Int,String) — pad é a 1ª char do 3º arg (idiom
+            // Kof: escreve "*", não o código Int). null=>null; pad vazio/null ou
+            // len>=n => original. ASCII travado na matriz (mesma ressalva UTF-8
+            // de reverse — NAT-STR01).
+            case "padLeft", "padRight" -> argc == 3
+                    ? new StringsCall("kof_strings_" + name, STR, List.of(STR, INT, STR)) : null;
             default -> null;
         };
     }

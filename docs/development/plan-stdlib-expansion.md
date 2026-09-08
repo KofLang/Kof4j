@@ -65,6 +65,12 @@ na semântica congelada (null-safety + throw são o mecanismo).
 - **S6** ext `validation` network (IPv4/IPv6/mac/domain/port) + Luhn
 - **S7** ext `time` (add/diff/boundaries/format) — JVM java.time, JS Date, Native syscall
 - **S8** `net` url/query parse/encode
+- **S1–S2b.2 FEITOS 08/09:** math(9) · strings predicados(8: isAlpha/isNumeric/
+  isAlphaNumeric/isAscii/isUpperCase/isLowerCase/count) · strings conversores(4:
+  capitalize/reverse/repeat/truncate — 1º caso de alocação de String no runtime,
+  fatias riscv B7/B8; gap NAT-STR01 p/ reverse UTF-8 no Native). Nota de API:
+  `validation.min/max` (binários, G4) ≠ `math.min/max` (aritméticos) — namespaces
+  distintos, sem colisão; documentar em learn.
 - **S9** matriz stdlib em docs/stdlib.md + learn/39-stdlib + training/idioms (math/
   strings/validation) + benchmarks mínimos (clamp/slugify) se aplicável
 
