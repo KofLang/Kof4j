@@ -82,7 +82,11 @@ public final class Decompile {
 
         for (var f : ir.fields) {
             if ((f.accessFlags & 0x0008) != 0) continue; // skip static
-            sb.append("    ").append(fieldKofType(f.descriptor)).append(' ')
+            String ftype = f.signature != null
+                    ? methodKofType(dev.kof.compiler.Type.describe(
+                            dev.kof.compiler.Type.fromJvmSignature(f.signature)))
+                    : fieldKofType(f.descriptor);
+            sb.append("    ").append(ftype).append(' ')
               .append(f.name).append("   // ").append(Confidence.EXACT.label()).append('\n');
         }
 

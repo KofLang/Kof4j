@@ -257,9 +257,29 @@ reuso). **Prova E2E Cenário A (I2)**: app real `web.app()` + `serveDir` →
     video/audio/hr (menor valor, mesma receita); (g) UI006 Event
     key/value/x/y (raw já no kofEv; prova precisa de disparo sintético
     com payload no browser).
-    **P0 fallbacks semânticos FECHADO (2f532e5)** — #7/#3/#6 corrigidos
-    (SemanticResolutionTest 6/6); #8 = error-recovery legítimo. R2/R3/R4 da migração = decisão de design / colidem com
-    APP-MODEL (dono) — NÃO são minha lane sem maintainer.
+    **R4 — FASE D (Type Recovery) FEITO (08/09, este commit)** — o gap real
+    da migração, antes "0 ocorrências no decoder". (R4.1) `ClassFileParser`
+    lê o atributo `Signature` (JVMS 4.7.1) nos 3 níveis — `MethodInfo.
+    signature`, `FieldInfo.signature`, `ClassFile.classSignature` (skip
+    Attribute_Signature; renomeado `skipLength` p/ não colidir). (R4.2)
+    `Type.fromJvmSignature` + `parseMethodSignature` (JVMS 4.7.9.1): parser
+    recursivo c/ primitivos, `[` arrays, `T...;` type-variables, wildcards
+    `*`/`+`/`-`, `Lpkg/C<args>;` (`parseClassSignature`/`parseTypeArguments`,
+    records `TypeArgsResult`/`ParseResult` públicos); split `[/.]` p/ simple
+    name + aninhamento `.Inner`. **Bug fix de descriptor**: o antigo
+    `skipDescriptorLength(pos+1)` parseava errado 2+ params de objeto/long —
+    substituído por loop `Type.parseJvmDescriptorAt(params,pos)` (método
+    público novo). O teste antigo só usava `(int,int)` (1 char) e não pegava.
+    (R4.3) `MethodInfo` prefere signature (EXACT c/ genéricos) sobre
+    descriptor; `Decompile` fields idem (`describe`→`capitalizePrimitive`).
+    (R4.4) Provas: `ClassFileE2ETest.genericSignatureRecovery` (javac real:
+    `List<String> names(Map<String,Integer>,String)`, `List<List<Integer>>
+    matrix()`) + `DecompileTest.decompileGenericSignaturesAreExact`
+    (`List<String> items`, `List<String> get`, `Map<String,Integer> arg0`)
+    — **DecompileTest 16/16** (era 15). Suíte completa pós-merge
+    (origin 9e2001c): **1206/0/64-skip**. Restam na migração: R2 (kof.toml —
+    decisão de design + colide APP-MODEL), R3 — ✅ FECHADO 08/09 (FFI TIER
+    2.1 portado, dual-JDK, ver PLANNING-FUTURE-AUDIT.md).
     **AUDITORIA planning-future FEITA (este commit)**:
     `docs/development/future/PLANNING-FUTURE-AUDIT.md`. Veredito: a branch
     entregou a plataforma de migração legado (Fases A/B/C-parcial/E/F/G/H,

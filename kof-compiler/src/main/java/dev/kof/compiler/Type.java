@@ -160,6 +160,16 @@ public sealed interface Type {
         return parseJvmDescriptor(desc, 0).type();
     }
 
+    /**
+     * Parses ONE type starting at {@code pos} and reports the position just
+     * after it. Used by the class-file parser to walk a method descriptor's
+     * parameter list without assuming every field is one char (a bug that
+     * mis-parsed 2+ object/long/double params).
+     */
+    public static ParseResult parseJvmDescriptorAt(String desc, int pos) {
+        return parseJvmDescriptor(desc, pos);
+    }
+
     static String describe(Type type) {
         return switch (type) {
             case PrimitiveType p -> p.name();
@@ -227,5 +237,116 @@ public sealed interface Type {
         return new ClassType("", simpleName, List.of());
     }
 
-    record ParseResult(Type type, int pos) {}
+    public record ParseResult(Type type, int pos) {}
+
+    // ── Fase D (Type Recovery): assinatura JVM com genéricos (JVMS 4.7.9.1) ──
+    // O descriptor apaga genéricos (erasure); só o atributo Signature os
+    // preserva. parseClassName trata "Foo<Bar>" textual, mas o Signature real
+    // é aninhado (Lx/List<Ljava/lang/Integer;>;) — exige parser recursivo.
+
+    /** Parses a single field/class type signature (e.g. "Ljava/util/List<...>;"). */
+    public static Type fromJvmSignature(String sig) {
+        if (sig == null || sig.isEmpty()) return UnknownType.UNKNOWN;
+        return parseSignatureType(sig, 0).type();
+    }
+
+    public record SignatureParseResult(Type returnType, List<Type> parameterTypes) {}
+
+    /** Parses a full method signature "(TT;Ljava/lang/String;)Ljava/util/List<...>;". */
+    public static SignatureParseResult parseMethodSignature(String sig) {
+        if (sig == null || sig.isEmpty() || sig.charAt(0) != '(') {
+            return new SignatureParseResult(UnknownType.UNKNOWN, List.of());
+        }
+        int pos = 1;
+        List<Type> params = new java.util.ArrayList<>();
+        while (pos < sig.length() && sig.charAt(pos) != ')') {
+            ParseResult pr = parseSignatureType(sig, pos);
+            params.add(pr.type());
+            pos = pr.pos();
+        }
+        if (pos < sig.length() && sig.charAt(pos) == ')') pos++;
+        Type ret = pos < sig.length() ? parseSignatureType(sig, pos).type() : PrimitiveType.VOID;
+        return new SignatureParseResult(ret, params);
+    }
+
+    private static ParseResult parseSignatureType(String sig, int pos) {
+        if (pos >= sig.length()) return new ParseResult(UnknownType.UNKNOWN, pos);
+        char c = sig.charAt(pos);
+        return switch (c) {
+            case 'B' -> new ParseResult(PrimitiveType.BYTE, pos + 1);
+            case 'C' -> new ParseResult(PrimitiveType.CHAR, pos + 1);
+            case 'D' -> new ParseResult(PrimitiveType.DOUBLE, pos + 1);
+            case 'F' -> new ParseResult(PrimitiveType.FLOAT, pos + 1);
+            case 'I' -> new ParseResult(PrimitiveType.INT, pos + 1);
+            case 'J' -> new ParseResult(PrimitiveType.LONG, pos + 1);
+            case 'S' -> new ParseResult(PrimitiveType.SHORT, pos + 1);
+            case 'Z' -> new ParseResult(PrimitiveType.BOOL, pos + 1);
+            case 'V' -> new ParseResult(PrimitiveType.VOID, pos + 1);
+            case '[' -> {
+                ParseResult inner = parseSignatureType(sig, pos + 1);
+                yield new ParseResult(new ArrayType(inner.type()), inner.pos());
+            }
+            case 'T' -> {
+                int end = sig.indexOf(';', pos);
+                if (end == -1) throw new IllegalArgumentException("Malformed signature: " + sig);
+                yield new ParseResult(new TypeVariable(sig.substring(pos + 1, end)), end + 1);
+            }
+            case '*' -> new ParseResult(new WildcardType(null, false), pos + 1);
+            case '+' -> {
+                ParseResult bound = parseSignatureType(sig, pos + 1);
+                yield new ParseResult(new WildcardType(bound.type(), true), bound.pos());
+            }
+            case '-' -> {
+                ParseResult bound = parseSignatureType(sig, pos + 1);
+                yield new ParseResult(new WildcardType(bound.type(), false), bound.pos());
+            }
+            case 'L' -> parseClassSignature(sig, pos);
+            default -> new ParseResult(UnknownType.UNKNOWN, pos + 1);
+        };
+    }
+
+    private static ParseResult parseClassSignature(String sig, int pos) {
+        // 'L' PackageSpecifier SimpleClassTypeSignature {ClassTypeSignatureSuffix} ';'
+        // Ex.: Ljava/util/Map<Ljava/lang/String;Ljava/util/List<Ljava/lang/Integer;>;>;
+        StringBuilder name = new StringBuilder();
+        List<Type> args = new java.util.ArrayList<>();
+        int i = pos + 1;
+        while (i < sig.length() && sig.charAt(i) != ';') {
+            char c = sig.charAt(i);
+            if (c == '<') {
+                TypeArgsResult ta = parseTypeArguments(sig, i + 1);
+                args.addAll(ta.args());
+                i = ta.pos();
+            } else if (c == '.') {
+                // ClassTypeSignatureSuffix: .Inner<...> — o simples nome vira Inner
+                i++;
+            } else {
+                name.append(c);
+                i++;
+            }
+        }
+        if (i < sig.length() && sig.charAt(i) == ';') i++;
+        String full = name.toString();
+        // Package usa '/', aninhamento usa '.' — o nome simples é o último
+        // segmento de ambos (Map$Entry / Map.Entry → "Entry").
+        String[] parts = full.split("[/.]");
+        String simple = parts[parts.length - 1];
+        String pkg = parts.length > 1
+                ? String.join(".", java.util.Arrays.copyOf(parts, parts.length - 1)) : "";
+        return new ParseResult(new ClassType(pkg, simple, args), i);
+    }
+
+    record TypeArgsResult(List<Type> args, int pos) {}
+
+    private static TypeArgsResult parseTypeArguments(String sig, int pos) {
+        List<Type> collected = new java.util.ArrayList<>();
+        int i = pos;
+        while (i < sig.length() && sig.charAt(i) != '>') {
+            ParseResult pr = parseSignatureType(sig, i);
+            collected.add(pr.type());
+            i = pr.pos();
+        }
+        if (i < sig.length() && sig.charAt(i) == '>') i++;
+        return new TypeArgsResult(collected, i);
+    }
 }

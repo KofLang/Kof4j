@@ -50,6 +50,27 @@ class DecompileTest {
     }
 
     @Test
+    void decompileGenericSignaturesAreExact(@TempDir Path dir) throws Exception {
+        // Fase D (Type Recovery): genéricos só existem no atributo Signature
+        // (o descriptor apaga por erasure). O esqueleto deve sair EXACT.
+        Path javaFile = dir.resolve("Bag.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                import java.util.Map;
+                public class Bag {
+                    List<String> items;
+                    public List<String> get(Map<String, Integer> counts, String key) { return items; }
+                }
+                """);
+        runJavac(javaFile, dir);
+
+        String kof = Decompile.decompile(dir.resolve("Bag.class"));
+        assertTrue(kof.contains("List<String> items"), "field genérico EXACT:\n" + kof);
+        assertTrue(kof.contains("List<String> get"), "retorno genérico EXACT:\n" + kof);
+        assertTrue(kof.contains("Map<String, Integer> arg0"), "param genérico EXACT:\n" + kof);
+    }
+
+    @Test
     void decompileStaticFieldSkipped(@TempDir Path dir) throws Exception {
         Path javaFile = dir.resolve("Const.java");
         Files.writeString(javaFile, """

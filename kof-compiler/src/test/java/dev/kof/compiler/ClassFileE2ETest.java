@@ -91,6 +91,40 @@ class ClassFileE2ETest {
     }
 
     @Test
+    void genericSignatureRecovery(@TempDir Path tempDir) throws IOException, InterruptedException {
+        // Fase D (Type Recovery): o descriptor apaga genéricos (erasure); só o
+        // atributo Signature os preserva. E 2+ params de objeto exercitam o
+        // consumo de posição do descriptor (skipDescriptorLength pos+1 era bug).
+        Path javaFile = tempDir.resolve("Gen.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                import java.util.Map;
+                public class Gen {
+                    public List<String> names(Map<String, Integer> counts, String key) {
+                        return null;
+                    }
+                    public List<List<Integer>> matrix() {
+                        return null;
+                    }
+                }
+                """);
+
+        Path classFile = tempDir.resolve("Gen.class");
+        runJavac(javaFile, classFile);
+
+        var ir = ClassFileParser.parse(Files.newInputStream(classFile));
+
+        var names = ir.methods.stream().filter(m -> m.name.equals("names")).findFirst().orElseThrow();
+        // Signature presente → EXACT com genéricos
+        assertNotNull(names.signature, "método genérico deve ter atributo Signature");
+        assertEquals("List<String>", names.returnTypeName());
+        assertEquals(java.util.List.of("Map<String, Integer>", "String"), names.parameterTypeNames());
+
+        var matrix = ir.methods.stream().filter(m -> m.name.equals("matrix")).findFirst().orElseThrow();
+        assertEquals("List<List<Integer>>", matrix.returnTypeName());
+    }
+
+    @Test
     void parseWithMain(@TempDir Path tempDir) throws IOException, InterruptedException {
         Path javaFile = tempDir.resolve("Main.java");
         Files.writeString(javaFile, """

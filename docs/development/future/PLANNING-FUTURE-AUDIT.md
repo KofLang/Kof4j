@@ -129,5 +129,16 @@ decisão documentada — não portar.
    ou vice-versa; decisão de design se fundir semânticas).
 3. **R3** — decidir FFI: re-portar `dd07cb0` (extern/FFI001/FFI002 +
    runtimes) ou registrar como perdido e reescrever (TIER 2.1 do plano).
+   **✅ R3 FECHADO 08/09** — o FFI foi PORTADO via merge `main→beta`
+   (`333e385`/`b7ff7c9` + meu porte SOLID `6afa209`): `extern` parse
+   (parser/Parser), resolução SEM015 (BuiltinCallTyper), lowering
+   `kof_ffi_*` (ExpressionMethodCallLowerer), FFI001/FFI002 (R6),
+   JvmFfiRuntime (FFM). **Duas correções no porte** (o FFI da main nunca
+   rodou — mesma lição do parser rico): (a) `Arena.allocateUtf8String`
+   (preview JDK 21 = CI) × `allocateFrom` (final JDK 22+) resolvido por
+   `Runtime.version()` (`178c71c`); (b) NATIVE `dlopen` segfaulta no
+   binário de `_start` cru (glibc sem init) → FFI001 honesto no lugar de
+   binário quebrado, `NativeFfiRuntime` (asm morto) removido, **bug 61**
+   registrado. Prova: `FfiE2ETest` 5/5 no JDK 21 E no 25.
 4. **R4** — Fase D (Type Recovery) — o gap real do plano (Tier 4.2).
 5. **R5** — `inspect --java` + switch/athrow recovery (completar C).

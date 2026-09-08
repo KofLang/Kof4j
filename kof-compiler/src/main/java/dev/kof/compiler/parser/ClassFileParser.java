@@ -17,6 +17,8 @@ public final class ClassFileParser {
         public final int accessFlags;
         public final String name;
         public final String descriptor;
+        /** JVMS 4.7.1: assinatura genérica (null quando o .class não a tem). */
+        public final String signature;
         public final List<String> exceptions;
         public final CodeAttribute code;
         public final Type returnType;
@@ -24,17 +26,27 @@ public final class ClassFileParser {
         public final int instanceofCount;
         public final int checkcastCount;
 
-        MethodInfo(int accessFlags, String name, String descriptor,
+        MethodInfo(int accessFlags, String name, String descriptor, String signature,
                    List<String> exceptions, CodeAttribute code) {
             this.accessFlags = accessFlags;
             this.name = name;
             this.descriptor = descriptor;
+            this.signature = signature;
             this.exceptions = exceptions;
             this.code = code;
 
-            TypeParseResult types = parseDescriptor(descriptor);
-            this.returnType = types.returnType();
-            this.parameterTypes = types.parameterTypes();
+            // Fase D (Type Recovery): o atributo Signature preserva genéricos
+            // que o descriptor apagou (erasure). Quando existe, é a fonte
+            // EXACT; senão cai no descriptor (sem args de tipo).
+            if (signature != null && signature.startsWith("(")) {
+                Type.SignatureParseResult sp = Type.parseMethodSignature(signature);
+                this.returnType = sp.returnType();
+                this.parameterTypes = sp.parameterTypes();
+            } else {
+                TypeParseResult types = parseDescriptor(descriptor);
+                this.returnType = types.returnType();
+                this.parameterTypes = types.parameterTypes();
+            }
             this.instanceofCount = code != null ? countInstanceofCheckcast(code.bytecode) : 0;
             this.checkcastCount = code != null ? countCheckcast(code.bytecode) : 0;
         }
@@ -78,18 +90,13 @@ public final class ClassFileParser {
             List<Type> paramTypes = new ArrayList<>();
             int pos = 0;
             while (pos < params.length()) {
-                Type t = Type.fromJvmDescriptor(params.substring(pos));
-                paramTypes.add(t);
-                pos = skipDescriptorLength(params, pos);
+                Type.ParseResult pr = Type.parseJvmDescriptorAt(params, pos);
+                paramTypes.add(pr.type());
+                pos = pr.pos();
             }
 
             Type retType = Type.fromJvmDescriptor(returns);
             return new TypeParseResult(retType, paramTypes);
-        }
-
-        private static int skipDescriptorLength(String desc, int pos) {
-            if (pos >= desc.length()) return pos;
-            return pos + 1;
         }
 
         private record TypeParseResult(Type returnType, List<Type> parameterTypes) {}
@@ -99,11 +106,14 @@ public final class ClassFileParser {
         public final int accessFlags;
         public final String name;
         public final String descriptor;
+        /** JVMS 4.7.1: assinatura genérica (null quando o .class não a tem). */
+        public final String signature;
 
-        FieldInfo(int accessFlags, String name, String descriptor) {
+        FieldInfo(int accessFlags, String name, String descriptor, String signature) {
             this.accessFlags = accessFlags;
             this.name = name;
             this.descriptor = descriptor;
+            this.signature = signature;
         }
     }
 
@@ -145,13 +155,15 @@ public final class ClassFileParser {
         public final String thisClass;
         public final String superClass;
         public final String[] interfaces;
+        /** JVMS 4.7.1: assinatura genérica da CLASSE (null se sem genéricos). */
+        public final String classSignature;
         public final List<FieldInfo> fields;
         public final List<MethodInfo> methods;
         public final Map<String, Object> attributes;
 
         ClassFile(int magic, int minorVersion, int majorVersion,
                   String[] constantPool, int accessFlags, String thisClass,
-                  String superClass, String[] interfaces,
+                  String superClass, String[] interfaces, String classSignature,
                   List<FieldInfo> fields, List<MethodInfo> methods,
                   Map<String, Object> attributes) {
             this.magic = magic;
@@ -162,6 +174,7 @@ public final class ClassFileParser {
             this.thisClass = thisClass;
             this.superClass = superClass;
             this.interfaces = interfaces;
+            this.classSignature = classSignature;
             this.fields = fields;
             this.methods = methods;
             this.attributes = attributes;
@@ -250,13 +263,19 @@ public final class ClassFileParser {
             int fieldAccess = bb.getShort() & 0xFFFF;
             String fieldName = constPool[bb.getShort() & 0xFFFF];
             String fieldDesc = constPool[bb.getShort() & 0xFFFF];
+            String fieldSig = null;
             int attrCount = bb.getShort() & 0xFFFF;
             for (int j = 0; j < attrCount; j++) {
-                bb.getShort(); // attr_name_index
+                int attrNameIdx = bb.getShort() & 0xFFFF;
+                String attrName = constPool[attrNameIdx];
                 int attrLen = bb.getInt();
-                bb.position(bb.position() + attrLen);
+                if ("Signature".equals(attrName)) {
+                    fieldSig = constPool[bb.getShort() & 0xFFFF];
+                } else {
+                    bb.position(bb.position() + attrLen);
+                }
             }
-            fields.add(new FieldInfo(fieldAccess, fieldName, fieldDesc));
+            fields.add(new FieldInfo(fieldAccess, fieldName, fieldDesc, fieldSig));
         }
 
         int methodCount = bb.getShort() & 0xFFFF;
@@ -267,12 +286,15 @@ public final class ClassFileParser {
             String methodDesc = constPool[bb.getShort() & 0xFFFF];
             List<String> exceptions = new ArrayList<>();
             CodeAttribute codeAttr = null;
+            String methodSig = null;
             int attrCount = bb.getShort() & 0xFFFF;
             for (int j = 0; j < attrCount; j++) {
                 int attrNameIdx = bb.getShort() & 0xFFFF;
                 String attrName = constPool[attrNameIdx];
                 int attrLen = bb.getInt();
-                if ("Exceptions".equals(attrName)) {
+                if ("Signature".equals(attrName)) {
+                    methodSig = constPool[bb.getShort() & 0xFFFF];
+                } else if ("Exceptions".equals(attrName)) {
                     int exCount = bb.getShort() & 0xFFFF;
                     for (int k = 0; k < exCount; k++) {
                         exceptions.add(resolveClass(constPool, bb.getShort() & 0xFFFF));
@@ -303,22 +325,27 @@ public final class ClassFileParser {
                     bb.position(bb.position() + attrLen);
                 }
             }
-            methods.add(new MethodInfo(methodAccess, methodName, methodDesc, exceptions, codeAttr));
+            methods.add(new MethodInfo(methodAccess, methodName, methodDesc, methodSig, exceptions, codeAttr));
         }
 
         int attrCount = bb.getShort() & 0xFFFF;
         Map<String, Object> attrs = new HashMap<>();
+        String classSig = null;
         for (int i = 0; i < attrCount; i++) {
             int attrNameIdx = bb.getShort() & 0xFFFF;
             String attrName = constPool[attrNameIdx];
             int attrLen = bb.getInt();
-            bb.position(bb.position() + attrLen);
+            if ("Signature".equals(attrName)) {
+                classSig = constPool[bb.getShort() & 0xFFFF];
+            } else {
+                bb.position(bb.position() + attrLen);
+            }
             attrs.put(attrName, "size=" + attrLen);
         }
 
         return new ClassFile(magic, minorVersion, majorVersion,
                 constPool, accessFlags, thisClass, superClass,
-                interfaces, fields, methods, attrs);
+                interfaces, classSig, fields, methods, attrs);
     }
 
     private static String resolveClass(String[] constPool, int idx) {
