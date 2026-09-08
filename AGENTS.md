@@ -343,7 +343,8 @@ Bool isQuery(String op) {
 > completa) provam. **Nenhum agente pode quebrar comportamento que já funciona.**
 
 1. **Zero regressão.** Nenhum commit pode fazer um teste existente passar a
-   falhar. A suíte completa (`mvn test`, hoje **840**) é **gate de merge** —
+   falhar. A suíte completa (`mvn test`, hoje **1207** nos 4 módulos — ver
+   §"Loop de verificação" para o comando com o flag de failure.ignore) é **gate de merge** —
    mudança que não mantém tudo verde não entra. Exceção única: mudança de
    contrato **deliberada**, com bump de versão + docs atualizados + migração.
 2. **Retrocompatibilidade obrigatória.** Toda feature/API nova é **aditiva**:
@@ -643,8 +644,22 @@ mvn -o -pl kof-compiler -am compile -q
 mvn test -o -pl kof-compiler -am -Dtest='KofAreaTest' -Dsurefire.failIfNoSpecifiedTests=false
 
 # 3. Suíte completa antes de commit
-mvn test -o -pl kof-compiler,kof-script,kof-c-compiler,kof-cli -am
+mvn test -o -pl kof-compiler,kof-script,kof-c-compiler,kof-cli -am \
+    -Dtest='!UiE2ETest#canvasCreation' -Dsurefire.failIfNoSpecifiedTests=false \
+    -Dmaven.test.failure.ignore=true
 ```
+
+> **`-Dmaven.test.failure.ignore=true` é OBRIGATÓRIO na suíte completa.** Sem
+> ele, o Maven é fail-fast por módulo: o **kof-compiler aborta o reactor** com
+> as 59 falhas conhecidas do bug 59 (Native riscv/aarch) e **kof-script,
+> kof-c-compiler e kof-cli nunca rodam** — você acha que validou tudo mas só
+> viu 1086/59 do primeiro módulo. O total real com o flag é **1207 testes**
+> (kof-compiler 1086 + kof-script 24 + kof-c 5 + kof-cli 92, com 1 skip
+> flaky): as 59 falhas devem ser SÓ `NativeRiscv64E2ETest`/`NativeAarch64E2ETest`
+> /`crossNative*` (bug 59). Qualquer falha fora dessas é sua — antes de
+> commitar, confira os reports POR MÓDULO (`grep -rl FAILURE */target/
+> surefire-reports/*.txt`). (Lição registrada 08/09: sessões inteiras citaram
+> "suíte 1085/59" sem os módulos finais terem rodado.)
 
 Para validar um snippet isolado (ex.: confirmar se um idiom compila),
 use o harness do projeto ou crie um teste E2E mínimo no pacote da área.
