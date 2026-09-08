@@ -105,10 +105,10 @@ public final class Decompile {
             List<String> stmts = null;
             if (m.code != null) {
                 boolean isStatic = (m.accessFlags & 0x0008) != 0;
-                int pcount = m.parameterTypeNames().size();
+                BytecodeFrame frame = new BytecodeFrame(m.descriptor, isStatic);
                 boolean hasHandlers = m.code.exceptionHandlers != null && !m.code.exceptionHandlers.isEmpty();
                 if (!hasHandlers) {
-                    body = BytecodeDecoder.recoverExpression(m.code.bytecode, ir.constantPool, pcount, isStatic);
+                    body = BytecodeDecoder.recoverExpression(m.code.bytecode, ir.constantPool, frame);
                 }
                 if (body == null) {
                     int[][] handlers = new int[m.code.exceptionHandlers.size()][];
@@ -117,7 +117,7 @@ public final class Decompile {
                         boolean isFinally = h.catchType == null || "INVALID".equals(h.catchType);
                         handlers[i] = new int[]{h.startPc, h.endPc, h.handlerPc, isFinally ? 1 : 0};
                     }
-                    stmts = BytecodeStatements.recoverStatements(m.code.bytecode, ir.constantPool, pcount, isStatic, handlers);
+                    stmts = BytecodeStatements.recoverStatements(m.code.bytecode, ir.constantPool, frame, handlers);
                 }
             }
             if (body == null && stmts == null) {

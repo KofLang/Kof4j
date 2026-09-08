@@ -19,14 +19,14 @@ final class BytecodeStatements {
     private BytecodeStatements() {
     }
 
-    static List<String> recoverStatements(byte[] code, String[] cp, int paramCount, boolean isStatic, int[][] handlers) {
+    static List<String> recoverStatements(byte[] code, String[] cp, BytecodeFrame frame, int[][] handlers) {
         List<BytecodeReader.Insn> insns = BytecodeReader.decode(code);
-        List<String> sw = recoverSwitch(code, insns, cp, paramCount, isStatic);
+        List<String> sw = recoverSwitch(code, insns, cp, frame);
         if (sw != null) return sw;
         if (handlers != null && handlers.length > 0) {
-            List<String> fin = recoverFinally(insns, cp, paramCount, isStatic, handlers);
+            List<String> fin = recoverFinally(insns, cp, frame, handlers);
             if (fin != null) return fin;
-            List<String> tc = tryCatch(insns, cp, paramCount, isStatic, handlers);
+            List<String> tc = tryCatch(insns, cp, frame, handlers);
             if (tc != null) return tc;
         }
         List<BytecodeReader.Block> blocks = BytecodeReader.cfg(insns, new int[0]);
@@ -36,7 +36,7 @@ final class BytecodeStatements {
         List<String> out = new ArrayList<>();
         Set<Integer> emitted = new HashSet<>();
         Set<Integer> declared = new HashSet<>();
-        if (!struct(blocks.get(0), insns, byStart, cp, paramCount, isStatic, out, emitted, declared, -1)) {
+        if (!struct(blocks.get(0), insns, byStart, cp, frame, out, emitted, declared, -1)) {
             return null;
         }
         return out;
@@ -44,7 +44,7 @@ final class BytecodeStatements {
 
     /** Simple try/catch (único handler): reconstroi try + catch como statement. */
     private static List<String> tryCatch(List<BytecodeReader.Insn> insns, String[] cp,
-                                         int paramCount, boolean isStatic, int[][] handlers) {
+                                         BytecodeFrame frame, int[][] handlers) {
         if (handlers.length != 1) return null;
         int start = handlers[0][0];
         int end = handlers[0][1];
@@ -60,12 +60,12 @@ final class BytecodeStatements {
             }
         }
         List<String> tryStmts;
-        String tryExpr = BytecodeDecoder.linearReturn(trySeq, cp, paramCount, isStatic);
+        String tryExpr = BytecodeDecoder.linearReturn(trySeq, cp, frame);
         if (tryExpr == null) {
             return null;
         }
         tryStmts = tryExpr.isEmpty() ? new ArrayList<>() : new ArrayList<>(List.of("return " + tryExpr));
-        List<String> handlerStmts = emitLinear(handlerSeq, cp, paramCount, isStatic, new HashSet<>());
+        List<String> handlerStmts = emitLinear(handlerSeq, cp, frame, new HashSet<>());
         if (handlerStmts == null) return null;
         List<String> out = new ArrayList<>();
         out.add("try {");
@@ -87,7 +87,7 @@ final class BytecodeStatements {
     // ── try/finally (bloco duplicado + handler catch-all) ────────────────
 
     private static List<String> recoverFinally(List<BytecodeReader.Insn> insns, String[] cp,
-                                               int paramCount, boolean isStatic, int[][] handlers) {
+                                               BytecodeFrame frame, int[][] handlers) {
         if (handlers.length != 1 || handlers[0].length < 4 || handlers[0][3] != 1) return null;
         int start = handlers[0][0];
         int to = handlers[0][1];
@@ -100,7 +100,7 @@ final class BytecodeStatements {
             if (isStore(in.opcode())) { lastStoreIdx = i; tempSlot = storeSlot(in); break; }
         }
         if (lastStoreIdx <= 0) return null;
-        String tryResult = BytecodeDecoder.linearReturn(tryInsns.subList(0, lastStoreIdx), cp, paramCount, isStatic);
+        String tryResult = BytecodeDecoder.linearReturn(tryInsns.subList(0, lastStoreIdx), cp, frame);
         if (tryResult == null) return null;
 
         // retOff = load do temp (após o finally), delimita o corpo do finally
@@ -113,7 +113,7 @@ final class BytecodeStatements {
             if (op >= 0x2a && op <= 0x2d && (op - 0x2a) == tempSlot) { retOff = in.offset(); break; }
         }
         if (retOff < 0) return null;
-        List<String> finStmts = emitLinear(range(insns, to, retOff), cp, paramCount, isStatic, new HashSet<>());
+        List<String> finStmts = emitLinear(range(insns, to, retOff), cp, frame, new HashSet<>());
         if (finStmts == null) return null;
 
         List<String> out = new ArrayList<>();
@@ -184,7 +184,7 @@ final class BytecodeStatements {
     }
 
     private static List<String> recoverSwitch(byte[] code, List<BytecodeReader.Insn> insns,
-                                              String[] cp, int paramCount, boolean isStatic) {
+                                              String[] cp, BytecodeFrame frame) {
         // localiza o switch
         int swOff = -1;
         int swOp = -1;
@@ -199,7 +199,7 @@ final class BytecodeStatements {
         if (si == null) return null;
 
         // expressão do switch = topo da pilha antes do switch
-        String expr = BytecodeDecoder.linearReturn(range(insns, 0, swOff), cp, paramCount, isStatic);
+        String expr = BytecodeDecoder.linearReturn(range(insns, 0, swOff), cp, frame);
         if (expr == null) return null;
 
         // limites (targets ordenados) p/ reconstruir cada corpo
@@ -212,12 +212,12 @@ final class BytecodeStatements {
         out.add("switch (" + expr + ") {");
         for (int i = 0; i < si.targets.length; i++) {
             int bodyEnd = nextBound(bounds, si.targets[i], maxOff);
-            String val = BytecodeDecoder.linearReturn(range(insns, si.targets[i], bodyEnd), cp, paramCount, isStatic);
+            String val = BytecodeDecoder.linearReturn(range(insns, si.targets[i], bodyEnd), cp, frame);
             if (val == null) return null;
             out.add("case " + si.values[i] + ": return " + val);
         }
         int dfltEnd = nextBound(bounds, si.dflt, maxOff);
-        String dfltVal = BytecodeDecoder.linearReturn(range(insns, si.dflt, dfltEnd), cp, paramCount, isStatic);
+        String dfltVal = BytecodeDecoder.linearReturn(range(insns, si.dflt, dfltEnd), cp, frame);
         if (dfltVal == null) return null;
         out.add("default: return " + dfltVal);
         out.add("}");
@@ -242,7 +242,7 @@ final class BytecodeStatements {
 
     private static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
                                   Map<Integer, BytecodeReader.Block> byStart, String[] cp,
-                                  int paramCount, boolean isStatic, List<String> out,
+                                  BytecodeFrame frame, List<String> out,
                                   Set<Integer> emitted, Set<Integer> declared, int header) {
         // Re-entrância de bloco: só a aresta de volta ao header do loop
         // ATUALMENTE ABERTO é legítima (back-edge normal; continue pode cair
@@ -258,7 +258,7 @@ final class BytecodeStatements {
         emitted.add(b.start);
 
         if (b.succ.isEmpty()) {
-            List<String> stmts = emitLinear(BytecodeDecoder.insnsWithin(b, insns), cp, paramCount, isStatic, declared);
+            List<String> stmts = emitLinear(BytecodeDecoder.insnsWithin(b, insns), cp, frame, declared);
             if (stmts == null) return false;
             out.addAll(stmts);
             return true;
@@ -285,14 +285,14 @@ final class BytecodeStatements {
                 List<BytecodeReader.Insn> body;
                 if (op >= 0x99 && op <= 0x9e) {
                     if (block.size() < 2) return false;
-                    String a = BytecodeDecoder.loadValue(block.get(block.size() - 2), paramCount, isStatic);
+                    String a = BytecodeDecoder.loadValue(block.get(block.size() - 2), frame);
                     if (a == null) return false;
                     cond = a + " " + contCond(op);
                     body = block.subList(0, block.size() - 2);
                 } else if (op >= 0x9f && op <= 0xa4) {
                     if (block.size() < 3) return false;
-                    String x = BytecodeDecoder.loadValue(block.get(block.size() - 3), paramCount, isStatic);
-                    String y = BytecodeDecoder.loadValue(block.get(block.size() - 2), paramCount, isStatic);
+                    String x = BytecodeDecoder.loadValue(block.get(block.size() - 3), frame);
+                    String y = BytecodeDecoder.loadValue(block.get(block.size() - 2), frame);
                     if (x == null || y == null) return false;
                     cond = x + " " + contCond(op) + " " + y;
                     body = block.subList(0, block.size() - 3);
@@ -300,46 +300,46 @@ final class BytecodeStatements {
                     return false;
                 }
                 if (body.isEmpty()) return false;
-                List<String> stmts = emitLinear(body, cp, paramCount, isStatic, declared);
+                List<String> stmts = emitLinear(body, cp, frame, declared);
                 if (stmts == null) return false;
                 out.add("do {");
                 out.addAll(stmts);
                 out.add("} while (" + cond + ")");
-                return struct(byStart.get(exit), insns, byStart, cp, paramCount, isStatic, out, emitted, declared, header);
+                return struct(byStart.get(exit), insns, byStart, cp, frame, out, emitted, declared, header);
             }
-            String cond = BytecodeDecoder.blockCondition(b, insns, paramCount, isStatic);
+            String cond = BytecodeDecoder.blockCondition(b, insns, frame);
             if (cond == null) return false;
             int exitStart = b.succ.get(0);   // alvo do branch (falso)
             int thenStart = b.succ.get(1);   // fall-through (verdadeiro)
             boolean loop = BytecodeReader.isLoopHeader(b);
             if (loop) {
                 out.add("while (" + cond + ") {");
-                if (!struct(byStart.get(thenStart), insns, byStart, cp, paramCount, isStatic, out, emitted, declared, b.start))
+                if (!struct(byStart.get(thenStart), insns, byStart, cp, frame, out, emitted, declared, b.start))
                     return false;
                 out.add("}");
-                return struct(byStart.get(exitStart), insns, byStart, cp, paramCount, isStatic, out, emitted, declared, header);
+                return struct(byStart.get(exitStart), insns, byStart, cp, frame, out, emitted, declared, header);
             }
             out.add("if (" + cond + ") {");
-            if (!struct(byStart.get(thenStart), insns, byStart, cp, paramCount, isStatic, out, emitted, declared, header))
+            if (!struct(byStart.get(thenStart), insns, byStart, cp, frame, out, emitted, declared, header))
                 return false;
             out.add("} else {");
-            if (!struct(byStart.get(exitStart), insns, byStart, cp, paramCount, isStatic, out, emitted, declared, header))
+            if (!struct(byStart.get(exitStart), insns, byStart, cp, frame, out, emitted, declared, header))
                 return false;
             out.add("}");
             return true;
         }
         if (b.succ.size() == 1) {
-            List<String> stmts = emitLinear(BytecodeDecoder.insnsWithin(b, insns), cp, paramCount, isStatic, declared);
+            List<String> stmts = emitLinear(BytecodeDecoder.insnsWithin(b, insns), cp, frame, declared);
             if (stmts == null) return false;
             out.addAll(stmts);
-            return struct(byStart.get(b.succ.get(0)), insns, byStart, cp, paramCount, isStatic, out, emitted, declared, header);
+            return struct(byStart.get(b.succ.get(0)), insns, byStart, cp, frame, out, emitted, declared, header);
         }
         return false;
     }
 
     /** Emite statements lineares de um bloco (para em branch/goto/return). */
     private static List<String> emitLinear(List<BytecodeReader.Insn> seq,
-                                           String[] cp, int paramCount, boolean isStatic,
+                                           String[] cp, BytecodeFrame frame,
                                            Set<Integer> declared) {
         List<String> stmts = new ArrayList<>();
         Deque<String> stack = new ArrayDeque<>();
@@ -375,30 +375,39 @@ final class BytecodeStatements {
                     if (expr == null) return null;
                     stack.push(expr);
                 }
-                case 0x1a, 0x1b, 0x1c, 0x1d -> stack.push(BytecodeDecoder.slotName(op - 0x1a, paramCount, isStatic));
-                case 0x2a, 0x2b, 0x2c, 0x2d -> stack.push(BytecodeDecoder.slotName(op - 0x2a, paramCount, isStatic));
-                case 0x15, 0x19 -> stack.push(BytecodeDecoder.slotName(in.operands()[0], paramCount, isStatic));
+                case 0x1a, 0x1b, 0x1c, 0x1d -> stack.push(BytecodeDecoder.slotName(op - 0x1a, frame));
+                case 0x1e, 0x1f, 0x20, 0x21 -> stack.push(BytecodeDecoder.slotName(op - 0x1e, frame));   // lload_0..3
+                case 0x26, 0x27, 0x28, 0x29 -> stack.push(BytecodeDecoder.slotName(op - 0x26, frame));   // dload_0..3
+                case 0x2a, 0x2b, 0x2c, 0x2d -> stack.push(BytecodeDecoder.slotName(op - 0x2a, frame));
+                case 0x15, 0x19 -> stack.push(BytecodeDecoder.slotName(in.operands()[0], frame));
+                case 0x16, 0x17, 0x18 -> stack.push(BytecodeDecoder.slotName(in.operands()[0], frame));   // lload/fload/dload
                 case 0x36, 0x37, 0x38, 0x39, 0x3a -> { // istore..astore idx
                     if (stack.isEmpty()) return null;
                     String val = stack.pop();
                     int slot = in.operands()[0];
-                    stmts.add(assign(slot, val, paramCount, isStatic, declared));
+                    stmts.add(assign(slot, val, frame, declared));
                 }
                 case 0x3b, 0x3c, 0x3d, 0x3e -> { // istore_0..3
                     if (stack.isEmpty()) return null;
                     String val = stack.pop();
-                    stmts.add(assign(op - 0x3b, val, paramCount, isStatic, declared));
+                    stmts.add(assign(op - 0x3b, val, frame, declared));
+                }
+                case 0x3f, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4a -> {
+                    // lstore_0..3 / fstore_0..3 / dstore_0..3 (nome = slot)
+                    if (stack.isEmpty()) return null;
+                    String val = stack.pop();
+                    stmts.add(assign(op - 0x3f, val, frame, declared));
                 }
                 case 0x4b, 0x4c, 0x4d, 0x4e -> { // astore_0..3
                     if (stack.isEmpty()) return null;
                     String val = stack.pop();
-                    stmts.add(assign(op - 0x4b, val, paramCount, isStatic, declared));
+                    stmts.add(assign(op - 0x4b, val, frame, declared));
                 }
                 case 0x84 -> { // iinc: byte1=index, byte2=const (signed)
                     int w = in.operands()[0];
                     int slot = (w >> 8) & 0xFF;
                     int k = (byte) (w & 0xFF);
-                    String name = BytecodeDecoder.slotName(slot, paramCount, isStatic);
+                    String name = BytecodeDecoder.slotName(slot, frame);
                     declared.add(slot);
                     stmts.add(name + " = " + name + " + " + k);
                 }
@@ -463,8 +472,8 @@ final class BytecodeStatements {
         return stmts;
     }
 
-    private static String assign(int slot, String value, int paramCount, boolean isStatic, Set<Integer> declared) {
-        String name = BytecodeDecoder.slotName(slot, paramCount, isStatic);
+    private static String assign(int slot, String value, BytecodeFrame frame, Set<Integer> declared) {
+        String name = BytecodeDecoder.slotName(slot, frame);
         if (!declared.contains(slot)) {
             declared.add(slot);
             return "var " + name + " = " + value;

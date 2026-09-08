@@ -23,21 +23,21 @@ final class BytecodeDecoder {
     }
 
     /** Devolve a expressão do corpo, {@code ""} para vazio, ou {@code null} se não recuperável. */
-    static String recoverExpression(byte[] code, String[] cp, int paramCount, boolean isStatic) {
+    static String recoverExpression(byte[] code, String[] cp, BytecodeFrame frame) {
         List<BytecodeReader.Insn> insns = BytecodeReader.decode(code);
         if (insns.isEmpty()) return null;
 
-        String lin = linearReturn(insns, cp, paramCount, isStatic);
+        String lin = linearReturn(insns, cp, frame);
         if (lin != null) return lin;
-        String cmp = comparisonReturn(insns, paramCount, isStatic);
+        String cmp = comparisonReturn(insns, frame);
         if (cmp != null) return cmp;
-        return ifElseReturn(insns, cp, paramCount, isStatic);
+        return ifElseReturn(insns, cp, frame);
     }
 
     // ── linear: pilha simbólica → value no return ────────────────────────
 
     static String linearReturn(List<BytecodeReader.Insn> insns, String[] cp,
-                                       int paramCount, boolean isStatic) {
+                                       BytecodeFrame frame) {
         Deque<String> stack = new ArrayDeque<>();
         for (BytecodeReader.Insn in : insns) {
             int op = in.opcode();
@@ -63,9 +63,12 @@ final class BytecodeDecoder {
                     if (c == null) return null;
                     stack.push(c);
                 }
-                case 0x1a, 0x1b, 0x1c, 0x1d -> stack.push(slotName(op - 0x1a, paramCount, isStatic));
-                case 0x2a, 0x2b, 0x2c, 0x2d -> stack.push(slotName(op - 0x2a, paramCount, isStatic));
-                case 0x15, 0x19 -> stack.push(slotName(in.operands()[0], paramCount, isStatic));
+                case 0x1a, 0x1b, 0x1c, 0x1d -> stack.push(slotName(op - 0x1a, frame));
+                case 0x1e, 0x1f, 0x20, 0x21 -> stack.push(slotName(op - 0x1e, frame));   // lload_0..3
+                case 0x26, 0x27, 0x28, 0x29 -> stack.push(slotName(op - 0x26, frame));   // dload_0..3
+                case 0x2a, 0x2b, 0x2c, 0x2d -> stack.push(slotName(op - 0x2a, frame));
+                case 0x15, 0x19 -> stack.push(slotName(in.operands()[0], frame));
+                case 0x16, 0x17, 0x18 -> stack.push(slotName(in.operands()[0], frame));   // lload/fload/dload
                 case 0x60 -> { if (!bin(stack, "+")) return null; }
                 case 0x64 -> { if (!bin(stack, "-")) return null; }
                 case 0x68 -> { if (!bin(stack, "*")) return null; }
@@ -146,7 +149,7 @@ final class BytecodeDecoder {
 
     // ── comparação booleana de retorno ───────────────────────────────────
 
-    static String comparisonReturn(List<BytecodeReader.Insn> insns, int paramCount, boolean isStatic) {
+    static String comparisonReturn(List<BytecodeReader.Insn> insns, BytecodeFrame frame) {
         int n = insns.size();
         if (n < 5) return null;
         BytecodeReader.Insn last = insns.get(n - 1);
@@ -162,7 +165,7 @@ final class BytecodeDecoder {
 
         java.util.List<String> operands = new java.util.ArrayList<>();
         for (int i = 0; i < n - 5 && operands.size() < 2; i++) {
-            String v = loadValue(insns.get(i), paramCount, isStatic);
+            String v = loadValue(insns.get(i), frame);
             if (v == null) return null;
             operands.add(v);
         }
@@ -176,13 +179,13 @@ final class BytecodeDecoder {
     // ── if/else de retorno (via CFG) ─────────────────────────────────────
 
     static String ifElseReturn(List<BytecodeReader.Insn> insns, String[] cp,
-                                       int paramCount, boolean isStatic) {
+                                       BytecodeFrame frame) {
         List<BytecodeReader.Block> blocks = BytecodeReader.cfg(insns, new int[0]);
         if (blocks.isEmpty()) return null;
         BytecodeReader.Block entry = blocks.get(0);
         if (entry.succ.size() != 2) return null;
         // entrada é condicional: dois sucessores (then e else)
-        String cond = blockCondition(entry, insns, paramCount, isStatic);
+        String cond = blockCondition(entry, insns, frame);
         if (cond == null) return null;
         // succ[0] = alvo do branch (falso/else); succ[1] = fall-through (verdadeiro/then)
         int elseStart = entry.succ.get(0);
@@ -190,8 +193,8 @@ final class BytecodeDecoder {
         BytecodeReader.Block thenB = find(blocks, thenStart);
         BytecodeReader.Block elseB = find(blocks, elseStart);
         if (thenB == null || elseB == null) return null;
-        String thenE = blockReturnExpr(thenB, insns, cp, paramCount, isStatic);
-        String elseE = blockReturnExpr(elseB, insns, cp, paramCount, isStatic);
+        String thenE = blockReturnExpr(thenB, insns, cp, frame);
+        String elseE = blockReturnExpr(elseB, insns, cp, frame);
         if (thenE == null || elseE == null) return null;
         return "if (" + cond + ") " + thenE + " else " + elseE;
     }
@@ -210,7 +213,7 @@ final class BytecodeDecoder {
     }
 
     static String blockCondition(BytecodeReader.Block entry, List<BytecodeReader.Insn> insns,
-                                         int paramCount, boolean isStatic) {
+                                         BytecodeFrame frame) {
         List<BytecodeReader.Insn> block = insnsWithin(entry, insns);
         if (block.isEmpty()) return null;
         BytecodeReader.Insn last = block.get(block.size() - 1);
@@ -219,7 +222,7 @@ final class BytecodeDecoder {
         if (inv == null) return null;
         java.util.List<String> operands = new java.util.ArrayList<>();
         for (int i = 0; i < block.size() - 1 && operands.size() < 2; i++) {
-            String v = loadValue(block.get(i), paramCount, isStatic);
+            String v = loadValue(block.get(i), frame);
             if (v == null) return null;
             operands.add(v);
         }
@@ -231,22 +234,21 @@ final class BytecodeDecoder {
     }
 
     static String blockReturnExpr(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
-                                          String[] cp, int paramCount, boolean isStatic) {
-        return linearReturn(insnsWithin(b, insns), cp, paramCount, isStatic);
+                                          String[] cp, BytecodeFrame frame) {
+        return linearReturn(insnsWithin(b, insns), cp, frame);
     }
 
-    static String slotName(int slot, int paramCount, boolean isStatic) {
-        if (!isStatic && slot == 0) return "this";
-        int paramIndex = isStatic ? slot : slot - 1;
-        if (paramIndex >= 0 && paramIndex < paramCount) return "arg" + paramIndex;
-        return "v" + slot;
+    static String slotName(int slot, BytecodeFrame frame) {
+        return frame.name(slot);
     }
 
-    static String loadValue(BytecodeReader.Insn in, int paramCount, boolean isStatic) {
+    static String loadValue(BytecodeReader.Insn in, BytecodeFrame frame) {
         return switch (in.opcode()) {
-            case 0x1a, 0x1b, 0x1c, 0x1d -> slotName(in.opcode() - 0x1a, paramCount, isStatic);
-            case 0x2a, 0x2b, 0x2c, 0x2d -> slotName(in.opcode() - 0x2a, paramCount, isStatic);
-            case 0x15, 0x19 -> slotName(in.operands()[0], paramCount, isStatic);
+            case 0x1a, 0x1b, 0x1c, 0x1d -> slotName(in.opcode() - 0x1a, frame);
+            case 0x1e, 0x1f, 0x20, 0x21 -> slotName(in.opcode() - 0x1e, frame);
+            case 0x26, 0x27, 0x28, 0x29 -> slotName(in.opcode() - 0x26, frame);
+            case 0x2a, 0x2b, 0x2c, 0x2d -> slotName(in.opcode() - 0x2a, frame);
+            case 0x15, 0x19, 0x16, 0x17, 0x18 -> slotName(in.operands()[0], frame);
             case 0x03 -> "0";
             case 0x04 -> "1";
             case 0x05 -> "2";

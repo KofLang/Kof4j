@@ -420,6 +420,38 @@ class DecompileTest {
     }
 
     @Test
+    void wideParamsMapToCorrectSlots(@TempDir Path dir) throws Exception {
+        Path javaFile = dir.resolve("V.java");
+        Files.writeString(javaFile, """
+                public class V {
+                    public static int m(long x, int a, int b) { return a < b ? 1 : 0; }
+                    public static long twoLongs(long a, long b) { return a; }
+                }
+                """);
+        runJavac(javaFile, dir);
+
+        String kof = Decompile.decompile(dir.resolve("V.class"));
+
+        // R6 (lição bug 62): Long/Double ocupam DOIS slots (JVMS 2.6.1). Com
+        // mapeamento de 1-slot, `iload_2` (segundo int, slot 2) virava nome de
+        // parâmetro ERRADO (arg2) / local inexistente (v3) → decompilado que
+        // NÃO compila (SEM011). BytecodeFrame resolve pelo descriptor.
+        assertTrue(kof.contains("Int m(Long arg0, Int arg1, Int arg2) = arg1 < arg2"),
+                "wide long empurra slots dos ints:\n" + kof);
+        assertFalse(kof.contains(" v3") && kof.contains("Int m("),
+                "slot 2 não é mais arg0-shift:\n" + kof);
+        // lload_0 devolve arg0 (não v0): corpo de 2 slots wide
+        assertTrue(kof.contains("Long twoLongs(Long arg0, Long arg1) = arg0"),
+                "lload_0 = arg0:\n" + kof);
+
+        Path out = dir.resolve("V.kf");
+        Files.writeString(out, kof);
+        CompilerDriver driver = new CompilerDriver();
+        CompilationResult result = driver.compile(out, dir.resolve("out"), Target.JVM);
+        assertTrue(result.success(), "decompiled deve compilar:\n" + kof + "\n" + result.diagnostics().getDiagnostics());
+    }
+
+    @Test
     void recoversMethodCall(@TempDir Path dir) throws Exception {
         Path javaFile = dir.resolve("Call.java");
         Files.writeString(javaFile, """

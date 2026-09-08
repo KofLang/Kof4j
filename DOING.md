@@ -102,13 +102,40 @@ concreta (ordem de valor):**
     (9586 B vs 9634 B) e mascarou o fix — `clean package` resolveu.
  6. **Próxima tarefa segura (baixo risco, sem design): aritmética long**
     (`ladd/lsub/lmul/ldiv` 0x65-0x68) + casts `i2l`/`l2i`/`i2d`/`d2i` lineares —
-   exige GUARD de tipo na pilha (emitLinear hoje é stack de String sem tipo;
-   bug 62 prova que forma não basta). Abordagem: rastrear o tipo Kof por item
-   da pilha OU só emitir quando o retorno é longo (verificado pela assinatura
-   do método). Arquivos: `BytecodeStatements.emitLinear` + `BytecodeDecoder`
-   (helper de tipo). Gate: DecompileTest (decompile→compila no JVM) + suíte.
-   ⚠️ Lesson bug 62: opcode "linear" ainda pode driftar tipo — verificar o
-   TIPO Kof do emitido, não só a forma.
+    exige GUARD de tipo na pilha (emitLinear hoje é stack de String sem tipo;
+    bug 62 prova que forma não basta). Abordagem: rastrear o tipo Kof por item
+    da pilha OU só emitir quando o retorno é longo (verificado pela assinatura
+    do método). Arquivos: `BytecodeStatements.emitLinear` + `BytecodeDecoder`
+    (helper de tipo). Gate: DecompileTest (decompile→compila no JVM) + suíte.
+    ⚠️ Lesson bug 62: opcode "linear" ainda pode driftar tipo — verificar o
+    TIPO Kof do emitido, não só a forma.
+ 6b. **✅ FEITO (este commit) — R6 de slots wide (pré-requisito do item 6)**:
+    `Long/Double` ocupam 2 slots (JVMS 2.6.1). `slotName` assumia 1-slot →
+    `add(long,long)` emitia `v2`/arg ERRADO → **decompilado que NÃO compila**
+    (SEM011 `Undefined variable 'v3'` — probe `V.java`: `m(long,int,int)` com
+    `a<b?1:0` virava `arg2 < v3`). R6: nunca código errado, mesmo alto. Fix:
+    novo `BytecodeFrame` (slot→nome via descriptor, wide-aware, testado)
+    threadado nos 2 decoders + `Decompile` (substitui `paramCount,isStatic`);
+    `loadValue`/`emitLinear` ganham `lload_0..3`/`dload_0..3` (0x1e-0x21/0x26-
+    0x29, len==1) e `lload`/`fload`/`dload` (0x16-0x18) — antes caiam em
+    `default→null` (motivo de TODO corpo long/double ser stub). Prova:
+    `DecompileTest.wideParamsMapToCorrectSlots` (decompile→compila no JVM;
+    `arg2 < v3`→`arg1 < arg2`, `lload_0`→`arg0`); DecompileTest 25/25; suíte
+    **1233/0/64-skip**. ⚠️ Ambiente: disco encheu (100%) no meio — Conformance
+    Matrix falhou com "no space" (NÃO regressão; liberado cache de browser).
+ 7. **PRÓXIMA (Unit B): aritmética/casts long+double** no caminho linear.
+    Tabela hex PROVADA por probe byte-exato (a nota `0x65-0x68` do item 6
+    estava ERRADA — step é 4): ladd=0x61 lsub=0x65 lmul=0x69 ldiv=0x6d
+    lrem=0x71 lneg=0x75; dadd=0x63 dsub=0x67 dmul=0x6b ddiv=0x6f drem=0x73
+    dneg=0x77; i2l=0x85 i2d=0x87 l2i=0x88 l2d=0x8a d2i=0x8e d2l=0x8f (f2i/
+    f2l/f2d/d2f/f2* idem). Guarda R6 (lição 62): pilha de TIPOS paralela
+    (opcode é fonte de tipo; JVM verificador garante) + return-desc do método;
+    só emitir quando o tipo bate. Semântica Kof já confirmada == Java:
+    `/` trunc, `%` trunc-div, l2i/d2i/d2l trunc com wrap, casts via `as`,
+    widening implícito (`5.0 %% 2.0`=1.0, `(a+b) as Long` ok). Arquivos:
+    `BytecodeDecoder.linearReturn` + `BytecodeStatements.emitLinear` (ambos
+    <500 ainda, mas apertado — extrair helper p/ caber). Gate: DecompileTest
+    com probe real (long/double aritm + casts → recompila no JVM) + suíte.
    `ClassFileParser` misturava tags 3/4 (Integer/Float) e 5/6 (Long/Double) —
    `3.5f` virava `1079574528` no CP (perda silenciosa). Fix: `intBitsToFloat`/
    `longBitsToDouble`. `ldc` recusa literal float (Kof não tem; driftaria
