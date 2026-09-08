@@ -563,6 +563,48 @@ class KofJsBrowserE2ETest {
         }
     }
 
+    @Test
+    void ui003RemainingRenderInRealBrowserDom(@TempDir Path tempDir) throws IOException {
+        Path chrome = findChrome();
+        assumeTrue(chrome != null, "Chrome/Chromium não instalado — pulando E2E de browser");
+
+        String program = """
+            main() {
+                var fs = Fieldset(listOf(Label("dentro")), "credenciais")
+                var fr = Iframe("https://example.org")
+                var v = Video("clip.mp4")
+                var a = Audio("som.mp3")
+                var h = Hr()
+                var col = Column(listOf(fs, fr, v, a, h))
+                var w = Window("Ui003RestTest")
+                w.bind(col)
+                w.show()
+            }
+            """;
+        Path source = tempDir.resolve("App.kf");
+        Files.writeString(source, program);
+
+        Path outDir = tempDir.resolve("out");
+        CompilationResult result = driver.compile(source, outDir, Target.JS);
+        assertTrue(result.success(), "compilação JS deve passar: " + result.diagnostics().getDiagnostics());
+
+        HttpServer server = serve(outDir);
+        int port = server.getAddress().getPort();
+        try {
+            String dom = dumpDom(chrome, "http://127.0.0.1:" + port + "/index.html");
+            assertTrue(dom.contains("<fieldset"), "<fieldset> ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("<legend>credenciais</legend>"), "<legend> ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("<iframe"), "<iframe> ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("https://example.org"), "src do iframe ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("<video"), "<video> ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("clip.mp4"), "src do video ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("<audio"), "<audio> ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("<hr"), "<hr> ausente no DOM: " + excerpt(dom));
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private static HttpServer serve(Path dir) throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/", exchange -> {

@@ -178,6 +178,27 @@ class UiE2ETest {
     }
 
     @Test
+    void ui003RemainingLinksOnAllTargets(@TempDir Path tempDir) throws IOException {
+        // UI003 (restante): Fieldset/Iframe/Video/Audio/Hr — no-op JVM/Native,
+        // DOM real (<fieldset>/<legend>/<iframe>/<video>/<audio>/<hr>) em KofJS.
+        both(tempDir, "ui003rest", """
+            main() {
+                var fs = Fieldset(listOf(Label("dentro")), "credenciais")
+                var fr = Iframe("https://example.org")
+                var v = Video("clip.mp4")
+                var a = Audio("som.mp3")
+                var h = Hr()
+                fs.remove()
+                fr.remove()
+                v.remove()
+                a.remove()
+                h.remove()
+                println("ok")
+            }
+            """, "ok");
+    }
+
+    @Test
     void inputAttrsLinksOnAllTargets(@TempDir Path tempDir) throws IOException {
         // UI005: Input/Textarea setName + setReadonly — no-op JVM/Native,
         // atributos reais (name/readonly) no DOM do browser em KofJS.

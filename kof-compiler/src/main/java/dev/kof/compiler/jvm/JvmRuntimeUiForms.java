@@ -107,6 +107,45 @@ public final class JvmRuntimeUiForms {
                 public static void kof_ui_table_remove(int table) {
                 }
 
+                public static int kof_ui_fieldset_new(java.util.ArrayList children) {
+                    return 1;
+                }
+
+                public static int kof_ui_fieldset_new_legend(java.util.ArrayList children, String legend) {
+                    return 1;
+                }
+
+                public static void kof_ui_fieldset_remove(int fs) {
+                }
+
+                public static int kof_ui_iframe_new(String url) {
+                    return 1;
+                }
+
+                public static void kof_ui_iframe_remove(int fr) {
+                }
+
+                public static int kof_ui_video_new(String url) {
+                    return 1;
+                }
+
+                public static void kof_ui_video_remove(int v) {
+                }
+
+                public static int kof_ui_audio_new(String url) {
+                    return 1;
+                }
+
+                public static void kof_ui_audio_remove(int a) {
+                }
+
+                public static int kof_ui_hr_new() {
+                    return 1;
+                }
+
+                public static void kof_ui_hr_remove(int hr) {
+                }
+
                 public static String kof_ui_input_text(int input) {
                     return "";
                 }

@@ -43,8 +43,7 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_io_read_text" -> "(Ljava/lang/String;)Ljava/lang/String;";
             case "kof_io_write_text", "kof_io_append_text" -> "(Ljava/lang/String;Ljava/lang/String;)I";
             case "kof_io_read_bytes" -> "(Ljava/lang/String;)[I";
-            case "kof_io_read_range" -> "(Ljava/lang/String;JJ)[I";
-            case "kof_io_read_range_path" -> "(Ljava/lang/String;JJ)[I";
+            case "kof_io_read_range", "kof_io_read_range_path" -> "(Ljava/lang/String;JJ)[I";
             case "kof_io_write_bytes", "kof_io_append_bytes" -> "(Ljava/lang/String;[I)I";
             case "kof_io_delete", "kof_io_dir_create", "kof_io_dir_create_dirs", "kof_io_dir_delete"
                     -> "(Ljava/lang/String;)I";
@@ -64,30 +63,30 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_args_list" -> "([Ljava/lang/String;)Ljava/util/ArrayList;";
             case "kof_io_path_is_absolute" -> "(Ljava/lang/String;)I";
             case "kof_ui_color_to_css" -> "(I)Ljava/lang/String;";
-            case "kof_ui_window_new", "kof_ui_label_new", "kof_ui_button_new", "kof_ui_input_new"
-                    -> "(Ljava/lang/String;)I";
-            case "kof_ui_textarea_new" -> "(Ljava/lang/String;)I";
+            case "kof_ui_window_new", "kof_ui_label_new", "kof_ui_button_new", "kof_ui_input_new",
+                    "kof_ui_textarea_new" -> "(Ljava/lang/String;)I";
             case "kof_ui_textarea_set_text", "kof_ui_textarea_set_placeholder" -> "(ILjava/lang/String;)V";
             case "kof_ui_textarea_text" -> "(I)Ljava/lang/String;";
             case "kof_ui_textarea_remove" -> "(I)V";
-            case "kof_ui_select_new" -> "(Ljava/util/ArrayList;)I";
+            case "kof_ui_select_new", "kof_ui_ul_new", "kof_ui_ol_new" -> "(Ljava/util/ArrayList;)I";
             case "kof_ui_select_set_options" -> "(ILjava/util/ArrayList;)V";
             case "kof_ui_select_set_selected" -> "(II)V";
             case "kof_ui_select_selected" -> "(I)I";
-            case "kof_ui_select_remove" -> "(I)V";
-            case "kof_ui_ul_new", "kof_ui_ol_new" -> "(Ljava/util/ArrayList;)I";
+            case "kof_ui_select_remove", "kof_ui_ul_remove", "kof_ui_ol_remove" -> "(I)V";
             case "kof_ui_ul_set_items", "kof_ui_ol_set_items" -> "(ILjava/util/ArrayList;)V";
-            case "kof_ui_ul_remove", "kof_ui_ol_remove" -> "(I)V";
             case "kof_ui_table_new" -> "(Ljava/util/ArrayList;Ljava/util/ArrayList;)I";
             case "kof_ui_table_set_rows" -> "(ILjava/util/ArrayList;)V";
             case "kof_ui_table_remove" -> "(I)V";
+            case "kof_ui_form_new" -> "(Ljava/util/ArrayList;)I";
+            case "kof_ui_fieldset_new_legend" -> "(Ljava/util/ArrayList;Ljava/lang/String;)I";
+            case "kof_ui_iframe_new", "kof_ui_video_new", "kof_ui_audio_new" -> "(Ljava/lang/String;)I";
+            case "kof_ui_fieldset_remove", "kof_ui_iframe_remove", "kof_ui_video_remove",
+                    "kof_ui_audio_remove", "kof_ui_hr_remove" -> "(I)V";
             case "kof_ui_button_new_action" -> "(Ljava/lang/String;Ljava/lang/Object;)I";
             case "kof_ui_window_set_title", "kof_ui_label_set_text", "kof_ui_button_set_text",
                     "kof_ui_input_set_text" -> "(ILjava/lang/String;)V";
             case "kof_ui_window_bind", "kof_ui_view_bind" -> "(II)V";
             case "kof_ui_window_set_size" -> "(III)V";
-            case "kof_ui_column_new", "kof_ui_row_new" -> "(Ljava/util/ArrayList;)I";
-            case "kof_ui_form_new" -> "(Ljava/util/ArrayList;)I";
             case "kof_ui_form_on_submit" -> "(ILjava/lang/Object;)V";
             case "kof_ui_form_submit" -> "(I)V";
             case "kof_ui_view_new" -> "(I)I";
@@ -96,7 +95,8 @@ public final class JvmRuntimeCallDescriptors {
                     "kof_ui_label_set_color" -> "(II)V";
             case "kof_ui_label_font_size", "kof_ui_label_bold", "kof_ui_label_color" -> "(I)I";
             case "kof_ui_box_new", "kof_ui_stack_new",
-                    "kof_ui_wrap_new", "kof_ui_center_new" -> "(Ljava/util/ArrayList;)I";
+                    "kof_ui_wrap_new", "kof_ui_center_new", "kof_ui_column_new",
+                    "kof_ui_row_new", "kof_ui_fieldset_new" -> "(Ljava/util/ArrayList;)I";
             case "kof_ui_grid_new", "kof_ui_align_new" -> "(ILjava/util/ArrayList;)I";
             case "kof_ui_spacer_new" -> "(I)I";
             // ── Component Core (docs/ui/architecture.md) ──
@@ -109,7 +109,7 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_ui_component_bind" -> "(II)V";
             case "kof_ui_component_remove", "kof_ui_component_mount",
                     "kof_ui_component_unmount", "kof_ui_flush_ui" -> "(I)V";
-            case "kof_ui_nodes_live" -> "()I";
+            case "kof_ui_nodes_live", "kof_ui_hr_new" -> "()I";
             case "kof_ui_event_type" -> "(Ljava/lang/String;)Ljava/lang/String;";
             case "kof_ui_emit" -> "(ILjava/lang/String;)V";
             case "kof_ui_event_stop" -> "(Ljava/lang/Object;)V";

@@ -252,6 +252,22 @@ public final class RuntimeUi {
             kof_ui_table_set_rows:
             kof_ui_table_remove:
                 ret
+            kof_ui_fieldset_new:
+            kof_ui_fieldset_new_legend:
+            kof_ui_iframe_new:
+            kof_ui_video_new:
+            kof_ui_audio_new:
+                movl $1, %eax
+                ret
+            kof_ui_fieldset_remove:
+            kof_ui_iframe_remove:
+            kof_ui_video_remove:
+            kof_ui_audio_remove:
+            kof_ui_hr_remove:
+                ret
+            kof_ui_hr_new:
+                movl $1, %eax
+                ret
             # Font / Icon / Image / Link / widget-font — no-op (paridade com
             # JVM; antes: undefined reference [COMP001] no link, R6/UI001).
             kof_ui_font_new:

@@ -325,5 +325,121 @@ public final class JsRuntimeUiForms {
                     delete window.__kofNodes[table];
                 }
             }
+
+            export function kofUiFieldsetNew(children) {
+                return kofUiFieldsetNewLegend(children, null);
+            }
+
+            export function kofUiFieldsetNewLegend(children, legend) {
+                const id = kofUiCreateNode("fieldset", "kof-fieldset");
+                if (id < 0) {
+                    return -1;
+                }
+                const node = window.__kofNodes[id];
+                if (typeof document !== "undefined" && legend) {
+                    const lg = document.createElement("legend");
+                    lg.textContent = String(legend);
+                    node.appendChild(lg);
+                }
+                if (typeof document !== "undefined" && Array.isArray(children)) {
+                    for (let i = 0; i < children.length; i++) {
+                        const child = window.__kofNodes[children[i]];
+                        if (child) node.appendChild(child);
+                    }
+                }
+                return id;
+            }
+
+            export function kofUiFieldsetRemove(fs) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[fs]) {
+                    const node = window.__kofNodes[fs];
+                    if (node.parentNode) {
+                        node.parentNode.removeChild(node);
+                    }
+                    delete window.__kofNodes[fs];
+                }
+            }
+
+            export function kofUiIframeNew(url) {
+                const id = kofUiCreateNode("iframe", "kof-iframe");
+                if (id < 0) {
+                    return -1;
+                }
+                const node = window.__kofNodes[id];
+                if (typeof document !== "undefined" && node) {
+                    node.src = String(url);
+                }
+                return id;
+            }
+
+            export function kofUiIframeRemove(fr) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[fr]) {
+                    const node = window.__kofNodes[fr];
+                    if (node.parentNode) {
+                        node.parentNode.removeChild(node);
+                    }
+                    delete window.__kofNodes[fr];
+                }
+            }
+
+            export function kofUiVideoNew(url) {
+                const id = kofUiCreateNode("video", "kof-video");
+                if (id < 0) {
+                    return -1;
+                }
+                const node = window.__kofNodes[id];
+                if (typeof document !== "undefined" && node) {
+                    if (node.canPlayType) node.setAttribute("controls", "controls");
+                    node.src = String(url);
+                }
+                return id;
+            }
+
+            export function kofUiVideoRemove(v) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[v]) {
+                    const node = window.__kofNodes[v];
+                    if (node.parentNode) {
+                        node.parentNode.removeChild(node);
+                    }
+                    delete window.__kofNodes[v];
+                }
+            }
+
+            export function kofUiAudioNew(url) {
+                const id = kofUiCreateNode("audio", "kof-audio");
+                if (id < 0) {
+                    return -1;
+                }
+                const node = window.__kofNodes[id];
+                if (typeof document !== "undefined" && node) {
+                    if (node.canPlayType) node.setAttribute("controls", "controls");
+                    node.src = String(url);
+                }
+                return id;
+            }
+
+            export function kofUiAudioRemove(a) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[a]) {
+                    const node = window.__kofNodes[a];
+                    if (node.parentNode) {
+                        node.parentNode.removeChild(node);
+                    }
+                    delete window.__kofNodes[a];
+                }
+            }
+
+            export function kofUiHrNew() {
+                return kofUiCreateNode("hr", "kof-hr");
+            }
+
+            export function kofUiHrRemove(hr) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[hr]) {
+                    const node = window.__kofNodes[hr];
+                    if (node.parentNode) {
+                        node.parentNode.removeChild(node);
+                    }
+                    delete window.__kofNodes[hr];
+                }
+            }
             """;
 }

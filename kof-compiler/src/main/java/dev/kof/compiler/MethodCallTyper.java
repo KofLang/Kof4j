@@ -134,6 +134,9 @@ if (mc.receiver() == null && ("Column".equals(mc.methodName()) || "Row".equals(m
 if (mc.receiver() == null && "View".equals(mc.methodName()) && mc.arguments().size() == 1) {
     return KofUi.VIEW;
 }
+if (mc.receiver() == null && "Hr".equals(mc.methodName()) && mc.arguments().size() == 0) {
+    return KofUi.HR;
+}
 if (mc.receiver() == null && KofUi.isConstructor(mc.methodName())
         && (mc.arguments().size() == 1 || mc.arguments().size() == 2
                 || mc.arguments().size() == 3)) {

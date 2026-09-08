@@ -253,8 +253,21 @@ reuso). **Prova E2E Cenário A (I2)**: app real `web.app()` + `serveDir` →
     (d) UI007 `style` declarativo — PROPOSTA REGISTRADA (`d6b9755`),
     aguarda decisão do maintainer (regra 6 — superfície de API);
     (e) ✅ UI005 setName/setReadonly FEITO (este commit — Input+Textarea,
-    atributos name/readonly no DOM real); (f) UI003 fieldset/iframe/
-    video/audio/hr (menor valor, mesma receita); (g) UI006 Event
+    atributos name/readonly no DOM real); (f) ✅ UI003 fieldset/iframe/
+    video/audio/hr FEITO (08/09 — Fieldset(children[, legend])/Iframe(url)/
+    Video(url)/Audio(url)/Hr() + remove() em todos; DOM real
+    `<fieldset>`+`<legend>`+`<iframe src>`+`<video controls src>`+
+    `<audio controls src>`+`<hr>`; `kofSerialize` ganhou `src` e void-tags
+    (hr/iframe/br/img sem `</tag>`); 8 pontos de extensão: KofUi (tipos +
+    isUiType/isDomWidget/isConstructor/constructorType), MethodCallTyper
+    (branch Hr() 0-args — sem ele UNKNOWN→owner vazio→ClassFormatError),
+    ExpressionUiStaticLowerer (lowering), JvmRuntimeCallDescriptors
+    (re-agrupado, 501 linhas), JvmRuntimeUiForms (stubs), RuntimeUi (asm),
+    JsRuntimeUiForms (DOM real) + JsRuntimeOps (whitelist), JsRuntimeCore
+    (serializer). Prova: `UiE2ETest.ui003RemainingLinksOnAllTargets`
+    (JVM+Native) + `KofJsBrowserE2ETest.ui003RemainingRenderInRealBrowserDom`
+    (Chrome headless: fieldset/legend/iframe src/video/audio/hr); suíte
+    **1208/0/64-skip**); (g) UI006 Event
     key/value/x/y (raw já no kofEv; prova precisa de disparo sintético
     com payload no browser).
     **R4 — FASE D (Type Recovery) FEITO (08/09, este commit)** — o gap real

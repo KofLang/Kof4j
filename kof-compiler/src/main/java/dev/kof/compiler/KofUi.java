@@ -49,6 +49,11 @@ public final class KofUi {
     static final Type ALIGN = new Type.ClassType("kof.ui", "Align", List.of());
     static final Type STORE = new Type.ClassType("kof.ui", "Store", List.of());
     static final Type CANVAS = new Type.ClassType("kof.ui", "Canvas", List.of());
+    static final Type FIELDSET = new Type.ClassType("kof.ui", "Fieldset", List.of());
+    static final Type IFRAME = new Type.ClassType("kof.ui", "Iframe", List.of());
+    static final Type VIDEO = new Type.ClassType("kof.ui", "Video", List.of());
+    static final Type AUDIO = new Type.ClassType("kof.ui", "Audio", List.of());
+    static final Type HR = new Type.ClassType("kof.ui", "Hr", List.of());
 
     /** Fase 7: Router é namespace (Router.go(...)), não tipo. */
     static boolean isRouterNamespace(String name) { return "Router".equals(name); }
@@ -84,6 +89,11 @@ public final class KofUi {
     static boolean isAlign(Type t) { return ALIGN.equals(t); }
     static boolean isStore(Type t) { return STORE.equals(t); }
     static boolean isCanvas(Type t) { return CANVAS.equals(t); }
+    static boolean isFieldset(Type t) { return FIELDSET.equals(t); }
+    static boolean isIframe(Type t) { return IFRAME.equals(t); }
+    static boolean isVideo(Type t) { return VIDEO.equals(t); }
+    static boolean isAudio(Type t) { return AUDIO.equals(t); }
+    static boolean isHr(Type t) { return HR.equals(t); }
 
     /** Primitivas de layout da Fase 4 (docs/ui/architecture.md §2.8). */
     static boolean isLayoutType(Type t) {
@@ -101,7 +111,8 @@ public final class KofUi {
         return isLabel(t) || isButton(t) || isInput(t) || isTextarea(t) || isSelect(t)
                 || isUl(t) || isOl(t) || isTable(t)
                 || isView(t) || isLink(t)
-                || isImage(t) || isIcon(t) || isForm(t) || isColumn(t) || isRow(t);
+                || isImage(t) || isIcon(t) || isForm(t) || isColumn(t) || isRow(t)
+                || isFieldset(t) || isIframe(t) || isVideo(t) || isAudio(t) || isHr(t);
     }
 
     static public boolean isUiType(Type t) {
@@ -110,7 +121,8 @@ public final class KofUi {
                 || isColumn(t) || isRow(t) || isForm(t) || isView(t) || isStyle(t) || isWindow(t)
                 || isLink(t) || isImage(t) || isIcon(t) || isFont(t)
                 || isComponent(t) || isEvent(t)
-                || isLayoutType(t) || isStore(t) || isCanvas(t);
+                || isLayoutType(t) || isStore(t) || isCanvas(t)
+                || isFieldset(t) || isIframe(t) || isVideo(t) || isAudio(t) || isHr(t);
     }
 
     static boolean isConstructor(String name) {
@@ -126,7 +138,9 @@ public final class KofUi {
                 || "Box".equals(name) || "Stack".equals(name) || "Spacer".equals(name)
                 || "Wrap".equals(name) || "Grid".equals(name) || "Center".equals(name)
                 || "Align".equals(name) || "Store".equals(name)
-                || "Canvas".equals(name);
+                || "Canvas".equals(name)
+                || "Fieldset".equals(name) || "Iframe".equals(name)
+                || "Video".equals(name) || "Audio".equals(name) || "Hr".equals(name);
     }
 
     static Type constructorType(String name) {
@@ -145,6 +159,11 @@ public final class KofUi {
         if ("Align".equals(name)) return ALIGN;
         if ("Store".equals(name)) return STORE;
         if ("Canvas".equals(name)) return CANVAS;
+        if ("Fieldset".equals(name)) return FIELDSET;
+        if ("Iframe".equals(name)) return IFRAME;
+        if ("Video".equals(name)) return VIDEO;
+        if ("Audio".equals(name)) return AUDIO;
+        if ("Hr".equals(name)) return HR;
         if ("Select".equals(name)) return SELECT;
         if ("Ul".equals(name)) return UL;
         if ("Ol".equals(name)) return OL;

@@ -72,8 +72,12 @@ public final class JsRuntimeCore {
                 let attrs = "";
                 if (node.id) attrs += ' id="' + kofEscapeHtml(node.id) + '"';
                 if (node.className) attrs += ' class="' + kofEscapeHtml(node.className) + '"';
+                if (node.src) attrs += ' src="' + kofEscapeHtml(node.src) + '"';
                 const kids = Array.from(node.children || []);
                 const inner = kids.map(kofSerialize).join("");
+                if (tag === "hr" || tag === "iframe" || tag === "br" || tag === "img") {
+                    return "<" + tag + attrs + ">";
+                }
                 const content = inner.length > 0 ? inner : kofEscapeHtml(node.textContent || "");
                 return "<" + tag + attrs + ">" + content + "</" + tag + ">";
             }
