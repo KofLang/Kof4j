@@ -357,7 +357,7 @@ var a = Audio("som.mp3")
 var h = Hr()
 ```
 
-## Eventos com payload (Event.key/value/x/y)
+## Eventos com payload (Event.key/value/x/y/target/relatedTarget)
 
 **BAD — handler global sem payload, mutação manual:**
 ```kof
@@ -367,13 +367,18 @@ campo.on("keydown", () -> { processar("") })
 
 **GOOD — o handler lê o payload do DOM event real:**
 ```kof
-// ✅ IDIOMÁTICO — o evento carrega a tecla/valor/posição
+// ✅ IDIOMÁTICO — o evento carrega tecla/valor/posição/alvo
 campo.on("keydown", (e: Event) -> { campo.setPlaceholder("tecla: " + e.key()) })
 campo.on("input",   (e: Event) -> { filtro.set(e.value()) })
 campo.on("click",   (e: Event) -> { println(e.x()) })
+campo.on("click",   (e: Event) -> { println(e.target()) })        // id do nó origem
+campo.on("focus",   (e: Event) -> { println(e.relatedTarget()) }) // nó de onde veio
 ```
 
-**Por quê:** `Event.key()/value()/x()/y()` leem o evento DOM real
-(KeyboardEvent.key, target.value, clientX/Y) — o payload vem do browser,
-não de estado global manual (R3). Funciona em qualquer widget DOM via
-`.on(type, handler)`.
+**Por quê:** `Event.key()/value()/x()/y()/target()/relatedTarget()` leem o
+evento DOM real (KeyboardEvent.key, target.value, clientX/Y, target.id,
+relatedTarget.id) — o payload vem do browser, não de estado global manual
+(R3). `target()` retorna o **id** do nó que originou o evento (fallback
+`tagName` minúsculo quando o nó não tem `setId`; `""` fora do browser).
+`relatedTarget()` idem para o nó relacionado (foco/mouse). Funciona em
+qualquer widget DOM via `.on(type, handler)`.

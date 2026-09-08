@@ -611,17 +611,18 @@ class KofJsBrowserE2ETest {
         assumeTrue(chrome != null, "Chrome/Chromium não instalado — pulando E2E de browser");
 
         // O handler lê e.key()/e.value()/e.target()/e.relatedTarget() do
-        // evento DOM real e muta o placeholder/class — se o DOM final traz
-        // "key=x", o handler RODOU com o event do browser (dispatch sintético
-        // no load, padrão formSubmit). target() expõe o id do nó que originou
-        // o evento (set em campo); relatedTarget() é "" nesses eventos.
+        // evento DOM real e muta class/placeholder — se o DOM final traz
+        // "key=xt=campo-main", o handler RODOU com o event do browser
+        // (dispatch sintético no load, padrão formSubmit). target() expõe o
+        // id do nó que originou o evento (set em campo); relatedTarget() é
+        // "" nesses eventos. Tokens de class sem espaço (classList.add).
         String program = """
             main() {
                 var campo = Input("")
                 campo.setId("campo-main")
                 campo.setPlaceholder("limpo")
-                campo.on("keydown", (e: Event) -> { campo.setPlaceholder("key=" + e.key() + " t=" + e.target()) })
-                campo.on("input", (e: Event) -> { campo.setClass("val=" + e.value() + " rt=" + e.relatedTarget()) })
+                campo.on("keydown", (e: Event) -> { campo.setClass("key=" + e.key() + "t=" + e.target()) })
+                campo.on("input", (e: Event) -> { campo.setPlaceholder("val=" + e.value() + " rt=" + e.relatedTarget()) })
                 var col = Column(listOf(campo))
                 var w = Window("Ui006Test")
                 w.bind(col)
@@ -663,7 +664,7 @@ class KofJsBrowserE2ETest {
                     "e.target() não trouxe o id do nó que originou o evento: " + excerpt(dom));
             assertTrue(dom.contains("val=abc"),
                     "e.value() não trouxe o valor do input real: " + excerpt(dom));
-            assertTrue(dom.contains("rt="),
+            assertTrue(dom.contains("val=abc rt="),
                     "e.relatedTarget() não respondeu (esperado vazio no input): " + excerpt(dom));
         } finally {
             server.stop(0);

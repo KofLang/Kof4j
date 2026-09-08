@@ -25,19 +25,22 @@ Estados: `ABERTO` · `EM CURSO` · `FEITO` · `BLOQUEADO`.
 R4 (Fase D Type Recovery) ✅ `367d6c4`; UI003 fieldset/iframe/video/audio/hr ✅
 `358ec80`; UI006 Event key/value/x/y + widget.on ✅ `f0907c2`; UI002 warning
 único no interpretador ✅ `7081551` (aditivo, no-op preservado, R6; teste
-`KofScriptTest.ui002WarnsOnceOnUiCalls`; suíte **1215/0/64-skip**). **Próxima
-tarefa concreta sem dono na minha lane (ordem de valor):**
-1. **UI006 residual** — `Event.target()` (elemento que originou) +
-   `relatedTarget()`: `kofUiMakeEvent` já tem `raw`; expor target como
-   string id do nó (fallback tagName quando sem id). Arquivos: `KofUi.java`
-   (accessors), `JsRuntimeUiEvents.java` (`raw`→id), `RuntimeUi.java`+
-   `JvmRuntimeUi*.java`+`JvmRuntimeCallDescriptors.java`+`JsRuntimeOps.java`
-   (paridade no-op/whitelist), `UiE2ETest` (link JVM/Native) +
-   `KofJsBrowserE2ETest` (prova DOM real com dispatch sintético). Prova:
-   browser headless mostra id do alvo.
-2. **UI007 style declarativo** — BLOQUEADO (regra 6): superfície de API
+`KofScriptTest.ui002WarnsOnceOnUiCalls`); **UI006 residual target()/
+relatedTarget() ✅ `61696ee` + fix de token neste commit** — `Event.target()`
+retorna o id do nó origem (fallback tagName minúscula, "" fora do browser);
+`relatedTarget()` idem p/ nó relacionado. 8/9 pontos: KofUi (registry STR),
+JsRuntimeUiEvents (`raw.target.id` no kofEv), RuntimeUi (intrínseco + alias
+`Event_target`/`Event_relatedTarget`), JvmRuntimeUi + CallDescriptors
+(descriptor `(String)String`), JsRuntimeOps (whitelist), UiE2ETest (link
+JVM+Native), KofJsBrowserE2ETest (prova browser: DOM final traz
+`t=campo-main` + `val=abc rt=`; tokens de class sem espaço — `classList.add`
+rejeita multi-token). Suíte **1218/0/64-skip** (sem qemu). **Próxima tarefa
+concreta sem dono na minha lane (ordem de valor):**
+1. **UI007 style declarativo** — BLOQUEADO (regra 6): superfície de API
    aguarda decisão do maintainer (proposta em `docs/development/
    KOFUI-AUDIT.md` §UI007).
+2. Revisar fila KOFUI-AUDIT p/ gaps restantes não-bloqueados (UI005 readonly/
+   name ✅ feitos 07/09; conferir matriz completa antes de abrir trabalho novo).
 Receita de widget/método novo = 8/9 pontos (ver bloco R4/UI003/UI006 em
 "Estado atual"). Suíte atual: **1215/0/64-skip** verde JDK 21+25.
 
