@@ -236,10 +236,9 @@ reuso). **Prova E2E Cenário A (I2)**: app real `web.app()` + `serveDir` →
     KofJsBrowserE2ETest.canvasUi009RunsInRealBrowser (métodos rodam no
     contexto real — measureText>0 via Label). drawImage pendente
     (integração c/ Image). **PRÓXIMO PASSO (minha lane, Fase 4)**:
-    (a) Canvas.drawImage (unidade própria — Image→canvas); (b) UI007
-    `style` declarativo (CSS idiomático, parse próprio — item maior,
-    superfície de design); (c) UI003 table/ul/li/fieldset (mesma receita
-    Select). R2/R3/R4 da migração = decisão de design / colidem com
+    (a) ✅ drawImage FEITO (`6e3181f`); (b) ✅ Ul/Ol FEITO (`796204a`);
+    (c) UI007 `style` declarativo (CSS idiomático, parse próprio — item
+    maior, em curso); (d) UI003 table/tr/td + fieldset (mesma receita). R2/R3/R4 da migração = decisão de design / colidem com
     APP-MODEL (dono) — NÃO são minha lane sem maintainer.
     **AUDITORIA planning-future FEITA (este commit)**:
     `docs/development/future/PLANNING-FUTURE-AUDIT.md`. Veredito: a branch

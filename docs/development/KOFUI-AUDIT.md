@@ -119,6 +119,32 @@ UI005 `setId`/`setClass`/`setDisabled` (+ fix do código morto `acceptsFont`).
 4. UI002 (Script no-op silencioso) — decidir com maintainer (regra 6):
    diagnóstico warning vs. erro (erro quebra retrocompatibilidade).
 
+### UI007 — proposta de design (aguarda maintainer; regra 6)
+
+O plano pede "`style` declarativo (CSS idiomático), parse próprio". A
+superfície exata é decisão de design (congelamento de API). Proposta
+mínima aditiva (não toca `Style(4 Ints)` existente — retrocompat):
+
+```kof
+// forma nova: CSS idiomático como string, parse no compilador
+var s = Style("background: #ff0000; padding: 8; border-radius: 4")
+var v = View(s)
+```
+
+Open questions (não decidíveis sem maintainer):
+- Q1: cores — aceitar `#rrggbb`/nomes CSS, ou só o `Color`/`Palette` da
+  linguagem (conversão `toCss` já existe)?
+- Q2: unidades — `8` = px? aceitar `em`/`%`/`rem`?
+- Q3: propriedades — whitelist (background/padding/margin/radius/
+  border/font) ou qualquer `prop: valor` passado ao `node.style`?
+- Q4: parse no compilador (IR de estilo) ou no runtime (string → CSSStyle
+  declaration)? "parse próprio" sugere compilador.
+- Q5: `Style` é só para `View` ou todo widget DOM aceita (via
+  `setStyle`)?
+
+Implementação aguarda decisão; o parse em si (lexer de `prop: valor;`) é
+mecânico quando a superfície fechar.
+
 **Fronteira Fase 5 (KofJS Web APIs — não é kof.ui):** fetch/WS/storage.
 
 ## 7. Notas de fidelidade
