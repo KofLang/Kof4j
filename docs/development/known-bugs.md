@@ -988,6 +988,15 @@ EXTERNA produz lixo
 - **Impacto no gate:** suíte completa vermelha (59 falhas) desde `62423bf` — não é regressão da lane KOFSCRIPT (nenhum arquivo `nat/` tocado por mim; bissect prova).
 - **Descoberto:** 07/09 (validação do fix #35.2 na suíte completa).
 
+### 60. `http.<verb>` com 2+ headers como argumentos separados → crash/SEM025 (GitHub #32) — ✅ CORRIGIDO 07/09 (lane compiler/http)
+
+- **Sintoma (GitHub issue #32, reportado por domfelipe):** `http.post(url, body, "Content-Type: …", "X-Test: abc")` (4 args) crashava o compilador (COMP002 frame crash no ASM). Com 1 header funcionava.
+- **Estado na beta ao reproduzir (07/09, probes `Http32`/`Http32b`/`Http32Run`):** o crash já tinha sido contido pelo trabalho SEM025 (`65e2dc0`) — 4+ args caíam em `staticCall` null → SEM025 honesto. Mas o pedido real do plano (BUG 5) é **múltiplos headers funcionarem**, não só diagnosticarem.
+- **Causa:** a API modela headers como UMA String `\n`-separada (`kof_http_<verb>_headers` com 2/3 parâmetros); `staticCall` só casava aridade exata 1-3 → 4+ args sem correspondência.
+- **Correção (07/09):** headers variádicos — `KofHttp.staticCall` aceita `>=2`/`>=3` args (get/delete/options e post/put/patch); `ExpressionHttpCallLowerer` emite url/body fixos e mescla os headers extras em um slot com `concat(acc, "\n", h)` (o runtime já splita por linha). Aditivo: 1 header (forma antiga) não muda de caminho.
+- **Prova:** `KofHttpE2ETest.multipleHeadersAsVariadicArgs` (3 headers → servidor ecoa `A=1 B=2 C=3`); probe post-4args/get-3args/post-5args compilam; E2E runtime com servidor Kof recebendo os 3 headers individualmente.
+- **Descoberto:** 07/09 (GitHub #32; corpo do issue obtido via API).
+
 ---
 
 ## Comportamentos que PAREcem bugs mas são esperados (não corrigir)

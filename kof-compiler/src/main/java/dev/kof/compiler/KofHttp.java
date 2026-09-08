@@ -58,19 +58,24 @@ public final class KofHttp {
         return "HTTP002";
     }
 
-    /** {@code http.<verb>(url[, body][, headers])} — 1 a 3 Strings. */
+    /** {@code http.<verb>(url[, body][, headers…])} — headers são variádicos
+     *  (GitHub #32): 2+ args de header são mesclados em uma String `\n`-separada
+     *  pelo lowering (o runtime já splita por linha). Aridade mínima: 1 (verb
+     *  sem body) ou 2 (com body). */
     static HttpCall staticCall(String name, List<Type> argTypes) {
         if (!isHttpMethod(name)) return null;
         return switch (name) {
             case "get", "delete", "options" -> switch (argTypes.size()) {
                 case 1 -> new HttpCall("kof_http_" + name, STR, List.of(STR));
-                case 2 -> new HttpCall("kof_http_" + name + "_headers", STR, List.of(STR, STR));
-                default -> null;
+                default -> argTypes.size() >= 2
+                        ? new HttpCall("kof_http_" + name + "_headers", STR, List.of(STR, STR))
+                        : null;
             };
             case "post", "put", "patch" -> switch (argTypes.size()) {
                 case 2 -> new HttpCall("kof_http_" + name, STR, List.of(STR, STR));
-                case 3 -> new HttpCall("kof_http_" + name + "_headers", STR, List.of(STR, STR, STR));
-                default -> null;
+                default -> argTypes.size() >= 3
+                        ? new HttpCall("kof_http_" + name + "_headers", STR, List.of(STR, STR, STR))
+                        : null;
             };
             case "status" -> argTypes.size() == 1
                     ? new HttpCall("kof_http_status", INT, List.of(STR))

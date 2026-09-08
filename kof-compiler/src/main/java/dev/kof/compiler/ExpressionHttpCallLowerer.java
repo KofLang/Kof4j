@@ -29,8 +29,28 @@ public final class ExpressionHttpCallLowerer {
             }
             return localIdx;
         }
-        for (ExpressionNode arg : mc.arguments()) {
-            localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
+        // headers variádicos (GitHub #32): o runtime recebe headers como uma
+        // única String `\n`-separada. args fixos = url (+body p/ post/put/patch);
+        // os demais são headers, colapsados em um só slot.
+        int fixed = ("post".equals(mc.methodName()) || "put".equals(mc.methodName())
+                || "patch".equals(mc.methodName())) ? 2 : 1;
+        int n = mc.arguments().size();
+        for (int i = 0; i < Math.min(n, fixed); i++) {
+            localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(i), ops, owner, localIdx, locals);
+        }
+        if (n > fixed) {
+            localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(fixed), ops, owner, localIdx, locals);
+            for (int i = fixed + 1; i < n; i++) {
+                // pilha: [..., acc]; queremos acc + "\n" + h_i
+                ops.add(new KofLoadLiteral(BuiltinTypes.STRING, "\n"));
+                localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(i), ops, owner, localIdx, locals);
+                ops.add(new KofCall(BuiltinTypes.STRING, "kof_string_concat",
+                        List.of(BuiltinTypes.STRING, BuiltinTypes.STRING),
+                        BuiltinTypes.STRING, KofCallKind.FUNCTION));
+                ops.add(new KofCall(BuiltinTypes.STRING, "kof_string_concat",
+                        List.of(BuiltinTypes.STRING, BuiltinTypes.STRING),
+                        BuiltinTypes.STRING, KofCallKind.FUNCTION));
+            }
         }
         ops.add(new KofCall(KofHttp.HTTP, httpCall.function(), httpCall.parameterTypes(),
                 httpCall.returnType(), KofCallKind.FUNCTION));
