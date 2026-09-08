@@ -357,6 +357,64 @@ class CoreRegressionE2ETest {
                 """, "hello Mel\nhello world\n15\n12", tempDir, "b8");
     }
 
+    @Test
+    void assignmentToParameterDoesNotRedeclareInJs(@TempDir Path tempDir) throws IOException {
+        runBoth("""
+                Int f(Int a) {
+                    a = 99
+                    return a
+                }
+
+                main() {
+                    println(f(1))
+                }
+                """, "99", tempDir, "param-reassign-simple");
+    }
+
+    @Test
+    void compoundAssignmentToParameterDoesNotRedeclareInJs(@TempDir Path tempDir) throws IOException {
+        runBoth("""
+                Int f(Int a) {
+                    a += 5
+                    return a
+                }
+
+                main() {
+                    println(f(1))
+                }
+                """, "6", tempDir, "param-reassign-compound");
+    }
+
+    @Test
+    void classMethodParameterReassignmentDoesNotRedeclareInJs(@TempDir Path tempDir) throws IOException {
+        runBoth("""
+                class Calc {
+                    Int bump(Int n) {
+                        n = n + 1
+                        return n
+                    }
+                }
+
+                main() {
+                    var c = Calc()
+                    println(c.bump(6))
+                }
+                """, "7", tempDir, "param-reassign-method");
+    }
+
+    @Test
+    void lambdaParameterReassignmentDoesNotRedeclareInJs(@TempDir Path tempDir) throws IOException {
+        runBoth("""
+                main() {
+                    var f = (n: Int) -> {
+                        n = 3
+                        return n
+                    }
+                    println(f(0))
+                }
+                """, "3", tempDir, "param-reassign-lambda");
+    }
+
     // F2 — main(args: List<String>) receives the program arguments (JVM)
     @Test
     void mainArgsList(@TempDir Path tempDir) throws IOException {
