@@ -393,10 +393,11 @@ final class BytecodeStatements {
                     stmts.add(assign(op - 0x3b, val, frame, declared));
                 }
                 case 0x3f, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4a -> {
-                    // lstore_0..3 / fstore_0..3 / dstore_0..3 (nome = slot)
+                    // lstore_0..3 / fstore_0..3 / dstore_0..3: 4 opcodes POR tipo
+                    // → slot = (op - 0x3f) % 4 (dstore_1 = 0x48 → slot 1, não 9)
                     if (stack.isEmpty()) return null;
                     String val = stack.pop();
-                    stmts.add(assign(op - 0x3f, val, frame, declared));
+                    stmts.add(assign((op - 0x3f) % 4, val, frame, declared));
                 }
                 case 0x4b, 0x4c, 0x4d, 0x4e -> { // astore_0..3
                     if (stack.isEmpty()) return null;

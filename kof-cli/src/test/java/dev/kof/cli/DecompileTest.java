@@ -426,6 +426,7 @@ class DecompileTest {
                 public class V {
                     public static int m(long x, int a, int b) { return a < b ? 1 : 0; }
                     public static long twoLongs(long a, long b) { return a; }
+                    public static double sq(double x) { double y = x; return y; }
                 }
                 """);
         runJavac(javaFile, dir);
@@ -443,6 +444,11 @@ class DecompileTest {
         // lload_0 devolve arg0 (não v0): corpo de 2 slots wide
         assertTrue(kof.contains("Long twoLongs(Long arg0, Long arg1) = arg0"),
                 "lload_0 = arg0:\n" + kof);
+        // dstore_2 (0x49): slot = (op-0x3f)%4 = 2 (o bug antigo dava slot 9→v10
+        // inconsistente com dload_1); y local no slot 2 (arg0 wide=0,1)
+        assertTrue(kof.contains("Double sq(Double arg0)") && kof.contains("var v2 = arg0")
+                        && kof.contains("return v2"),
+                "dstore_2 → slot 2:\n" + kof);
 
         Path out = dir.resolve("V.kf");
         Files.writeString(out, kof);
