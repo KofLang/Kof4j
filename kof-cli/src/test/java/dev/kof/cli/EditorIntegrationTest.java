@@ -215,6 +215,36 @@ class EditorIntegrationTest {
         assertTrue(grammar.contains("source.kof"), "grammar válida: " + grammar.substring(0, Math.min(80, grammar.length())));
     }
 
+    @Test
+    void vscodeExtensionHasCommandsSnippetsAndValidJson(@TempDir Path home) throws IOException {
+        // §3/§19: a extensão precisa de extension.js (senão "command not found")
+        // + snippets; todo JSON gerado tem que ser parseável (JSON inválido
+        // quebra a extensão silenciosamente).
+        var ctx = fake(Set.of("code"), Map.of("code", "1.102.3"), Set.of());
+        ByteArrayOutputStream bo = new ByteArrayOutputStream();
+        PrintStream out = new PrintStream(bo, true, StandardCharsets.UTF_8);
+        assertEquals(0, CmdEditor.run(new String[]{"editor", "install", "vscode"}, ctx, home,
+                new BufferedReader(new StringReader("")), out, out));
+        Path ext = home.resolve(".vscode/extensions/kof.kof");
+        assertTrue(Files.isRegularFile(ext.resolve("extension.js")), "extension.js presente");
+        String js = Files.readString(ext.resolve("extension.js"));
+        assertTrue(js.contains("registerCommand"), "registra comandos: " + js.substring(0, Math.min(60, js.length())));
+        assertTrue(js.contains("kof.build") && js.contains("kof.selectTarget"), "comandos Kof: (§19)");
+        assertTrue(js.contains("require('vscode')"), "usa API do vscode");
+        assertTrue(Files.isRegularFile(ext.resolve("snippets/kof.json")), "snippets presentes (§3)");
+
+        // JSONs parseáveis (parser do próprio projeto)
+        for (String rel : List.of("package.json", "language-configuration.json",
+                "snippets/kof.json", "syntaxes/kof.tmLanguage.json")) {
+            Object parsed = Json.parse(Files.readString(ext.resolve(rel)));
+            assertInstanceOf(Map.class, parsed, rel + " deve ser JSON objeto válido");
+        }
+        // package.json declara main + activationEvents + os 9 comandos
+        String pkg = Files.readString(ext.resolve("package.json"));
+        assertTrue(pkg.contains("\"main\": \"./extension.js\""), "declara entrypoint");
+        assertTrue(pkg.contains("kof.startLsp"), "comando Start LSP (§19)");
+    }
+
     // ---- degrau 11: hook pós-instalador (§13) -----------------------------
 
     @Test

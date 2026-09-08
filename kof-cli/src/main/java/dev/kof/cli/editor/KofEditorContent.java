@@ -183,56 +183,7 @@ public final class KofEditorContent {
     // ---- VS Code ---------------------------------------------------------
 
     public static List<EditorFile> vscode(DetectContext ctx) {
-        return List.of(
-            new EditorFile(".vscode/extensions/kof.kof/syntaxes/kof.tmLanguage.json", grammar(ctx)),
-            new EditorFile(".vscode/extensions/kof.kof/language-configuration.json", """
-                {
-                  "comments": { "lineComment": "//", "blockComment": ["/*", "*/"] },
-                  "brackets": [["{", "}"], ["[", "]"], ["(", ")"]],
-                  "autoClosingPairs": [
-                    { "open": "{", "close": "}" },
-                    { "open": "[", "close": "]" },
-                    { "open": "(", "close": ")" },
-                    { "open": "\\"", "close": "\\"", "notIn": ["string"] },
-                    { "open": "'", "close": "'", "notIn": ["string"] }
-                  ],
-                  "surroundingPairs": [["{", "}"], ["[", "]"], ["(", ")"], ["\\"", "\\""], ["'", "'"]]
-                }
-                """),
-            new EditorFile(".vscode/extensions/kof.kof/package.json", """
-                {
-                  "name": "kof",
-                  "displayName": "Kof",
-                  "description": "Kof language support — grammar + LSP (kof lsp).",
-                  "version": "0.3.1",
-                  "publisher": "KofLang",
-                  "engines": { "vscode": "^1.80.0" },
-                  "categories": ["Programming Languages"],
-                  "contributes": {
-                    "languages": [{
-                      "id": "kof",
-                      "aliases": ["Kof", "kof"],
-                      "extensions": [".kf", ".kof"],
-                      "configuration": "./language-configuration.json"
-                    }],
-                    "grammars": [{
-                      "language": "kof",
-                      "scopeName": "source.kof",
-                      "path": "./syntaxes/kof.tmLanguage.json"
-                    }],
-                    "commands": [
-                      { "command": "kof.build", "title": "Kof: Build" },
-                      { "command": "kof.run", "title": "Kof: Run" },
-                      { "command": "kof.test", "title": "Kof: Test" },
-                      { "command": "kof.check", "title": "Kof: Check" },
-                      { "command": "kof.fmt", "title": "Kof: Format" },
-                      { "command": "kof.serve", "title": "Kof: Serve" },
-                      { "command": "kof.selectTarget", "title": "Kof: Select Target" },
-                      { "command": "kof.openDocs", "title": "Kof: Open Documentation" }
-                    ]
-                  }
-                }
-                """));
+        return VscodeExtensionContent.files(ctx, grammar(ctx));
     }
 
     private static final String MINIMAL_GRAMMAR = """
