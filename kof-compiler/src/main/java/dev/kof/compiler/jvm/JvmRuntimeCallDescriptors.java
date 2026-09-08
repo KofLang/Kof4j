@@ -111,6 +111,8 @@ public final class JvmRuntimeCallDescriptors {
                     "kof_ui_component_unmount", "kof_ui_flush_ui" -> "(I)V";
             case "kof_ui_nodes_live", "kof_ui_hr_new" -> "()I";
             case "kof_ui_event_type" -> "(Ljava/lang/String;)Ljava/lang/String;";
+            case "kof_ui_event_key", "kof_ui_event_value" -> "(Ljava/lang/String;)Ljava/lang/String;";
+            case "kof_ui_event_x", "kof_ui_event_y" -> "(I)I";
             case "kof_ui_emit" -> "(ILjava/lang/String;)V";
             case "kof_ui_event_stop" -> "(Ljava/lang/Object;)V";
             case "kof_ui_store_new" -> "(I)I";
@@ -141,6 +143,7 @@ public final class JvmRuntimeCallDescriptors {
              case "kof_ui_widget_set_font" -> "(II)V";
              case "kof_ui_widget_set_id", "kof_ui_widget_set_class" -> "(ILjava/lang/String;)V";
              case "kof_ui_widget_set_disabled" -> "(II)V";
+             case "kof_ui_widget_on" -> "(ILjava/lang/String;Ljava/lang/Object;)V";
             case "kof_ui_widget_font" -> "(I)I";
              case "kof_ui_link_set_text", "kof_ui_link_set_url", "kof_ui_image_set_src",
                      "kof_ui_icon_set_name" -> "(ILjava/lang/String;)V";

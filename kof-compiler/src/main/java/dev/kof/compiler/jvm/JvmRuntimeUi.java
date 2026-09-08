@@ -131,6 +131,9 @@ public final class JvmRuntimeUi {
                 public static void kof_ui_widget_set_disabled(int widget, int disabled) {
                 }
 
+                public static void kof_ui_widget_on(int widget, String type, Object handler) {
+                }
+
                 // ── Component Core (docs/ui/architecture.md) ──
                 // JVM/Native: kof.ui é KofJS — os handles de componente são
                 // no-ops (a renderização/lifecycle/estado rodam no alvo JS).
@@ -203,6 +206,22 @@ public final class JvmRuntimeUi {
 
                 public static String kof_ui_event_type(String type) {
                     return type == null ? "" : type;
+                }
+
+                public static String kof_ui_event_key(String type) {
+                    return "";
+                }
+
+                public static String kof_ui_event_value(String type) {
+                    return "";
+                }
+
+                public static int kof_ui_event_x(String type) {
+                    return 0;
+                }
+
+                public static int kof_ui_event_y(String type) {
+                    return 0;
                 }
 
                 public static void kof_ui_emit(int c, String type) {

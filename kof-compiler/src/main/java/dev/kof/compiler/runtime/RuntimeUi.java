@@ -340,6 +340,8 @@ public final class RuntimeUi {
                 ret
             kof_ui_widget_set_disabled:
                 ret
+            kof_ui_widget_on:
+                ret
             kof_ui_column_new:
                 movl $1, %eax
                 ret
@@ -420,6 +422,14 @@ public final class RuntimeUi {
             kof_ui_event_type:
                 movq %rdi, %rax
                 ret
+            kof_ui_event_key:
+            kof_ui_event_value:
+                leaq .Lui_empty(%rip), %rax
+                ret
+            kof_ui_event_x:
+            kof_ui_event_y:
+                xorl %eax, %eax
+                ret
             kof_ui_emit:
                 ret
             kof_ui_event_stop:
@@ -433,6 +443,18 @@ public final class RuntimeUi {
             .globl Event_stopPropagation
             Event_stopPropagation:
                 jmp kof_ui_event_stop
+            .globl Event_key
+            Event_key:
+                jmp kof_ui_event_key
+            .globl Event_value
+            Event_value:
+                jmp kof_ui_event_value
+            .globl Event_x
+            Event_x:
+                jmp kof_ui_event_x
+            .globl Event_y
+            Event_y:
+                jmp kof_ui_event_y
             // ── Fase 8: Store observável (no-ops) ──
             kof_ui_store_new:
                 movl $1, %eax

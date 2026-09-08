@@ -267,9 +267,16 @@ reuso). **Prova E2E Cenário A (I2)**: app real `web.app()` + `serveDir` →
     (serializer). Prova: `UiE2ETest.ui003RemainingLinksOnAllTargets`
     (JVM+Native) + `KofJsBrowserE2ETest.ui003RemainingRenderInRealBrowserDom`
     (Chrome headless: fieldset/legend/iframe src/video/audio/hr); suíte
-    **1208/0/64-skip**); (g) UI006 Event
-    key/value/x/y (raw já no kofEv; prova precisa de disparo sintético
-    com payload no browser).
+    **1208/0/64-skip**);     (g) ✅ UI006 Event FEITO (08/09 — `Event.key()/value()/x()/y()` do DOM
+    real + `widget.on(type, handler)` para widgets DOM fora da árvore de
+    Component: `kofUiMakeEvent` (fábrica única, raw/key/value/clientX/
+    clientY) + `kofUiDispatchWidgetEvent` (o handler recebe o kofEv — antes
+    o `kofUiWidgetOn` chamava `fn()` SEM evento, handler recebia undefined);
+    prova: `UiE2ETest.ui006EventAccessorsLinkOnAllTargets` (JVM+Native) +
+    `KofJsBrowserE2ETest.ui006EventAccessorsRunInRealBrowser` (Chrome
+    headless, dispatch sintético via `setTimeout`+`KeyboardEvent('keydown',
+    {key:'x'})`+`Event('input')` — DOM final prova `key=x` no placeholder e
+    `val=abc` no class); suíte **1210/0/64-skip**).
     **R4 — FASE D (Type Recovery) FEITO (08/09, este commit)** — o gap real
     da migração, antes "0 ocorrências no decoder". (R4.1) `ClassFileParser`
     lê o atributo `Signature` (JVMS 4.7.1) nos 3 níveis — `MethodInfo.

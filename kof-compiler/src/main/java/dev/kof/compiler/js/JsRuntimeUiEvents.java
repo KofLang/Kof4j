@@ -9,15 +9,48 @@ public final class JsRuntimeUiEvents {
             // Fase 5 (docs/ui/architecture.md §2.5): target -> bubbles up the
             // component tree (child -> parent). The handler receives a Kof
             // Event with type + stopPropagation support.
-            function kofUiDispatchEvent(targetId, domType, ev) {
-                const kofEv = {
+            function kofUiMakeEvent(domType, ev) {
+                const raw = ev || null;
+                return {
                     stopped: false,
                     // Kof accesses event kind as e.type() (a method call)
                     type() { return domType; },
                     stopPropagation() { this.stopped = true; },
+                    // UI006: key/value/x/y do DOM event real (null/vazio no
+                    // host mock e no emit sintético).
+                    key() {
+                        return raw && typeof raw.key === "string" ? raw.key : "";
+                    },
+                    value() {
+                        if (!raw) return "";
+                        const t = raw.target;
+                        return t && typeof t.value === "string" ? t.value : "";
+                    },
+                    x() { return raw && typeof raw.clientX === "number" ? raw.clientX : 0; },
+                    y() { return raw && typeof raw.clientY === "number" ? raw.clientY : 0; },
                     // raw DOM event passthrough (null in the host mock)
-                    raw: ev || null
+                    raw: raw
                 };
+            }
+
+            // UI006: dispatch de widget DOM (fora da árvore de Component) —
+            // o handler recebe o kofEv construído do evento DOM real.
+            function kofUiDispatchWidgetEvent(id, domType, ev) {
+                const node = window.__kofNodes && window.__kofNodes[id];
+                if (!node) return;
+                const h = node._kofHandlers && node._kofHandlers[domType];
+                if (!h) return;
+                const kofEv = kofUiMakeEvent(domType, ev);
+                for (const fn of h) {
+                    try {
+                        if (typeof fn.invoke === "function") fn.invoke(kofEv);
+                        else fn(kofEv);
+                    } catch (e) {}
+                }
+            }
+
+            function kofUiDispatchEvent(targetId, domType, ev) {
+                const kofEv = kofUiMakeEvent(domType, ev);
                 let current = targetId;
                 while (current != null) {
                     const n = kofUiComponents.get(current);

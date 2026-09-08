@@ -199,6 +199,21 @@ class UiE2ETest {
     }
 
     @Test
+    void ui006EventAccessorsLinkOnAllTargets(@TempDir Path tempDir) throws IOException {
+        // UI006: Event key/value/x/y — no-op JVM/Native (key=""/x=0),
+        // DOM real em KofJS (KofJsBrowserE2ETest).
+        both(tempDir, "ui006", """
+            main() {
+                var campo = Input("")
+                campo.on("keydown", (e: Event) -> { println(e.key()) })
+                campo.on("input", (e: Event) -> { println(e.value()) })
+                campo.on("click", (e: Event) -> { println(e.x()) })
+                println("ok")
+            }
+            """, "ok");
+    }
+
+    @Test
     void inputAttrsLinksOnAllTargets(@TempDir Path tempDir) throws IOException {
         // UI005: Input/Textarea setName + setReadonly — no-op JVM/Native,
         // atributos reais (name/readonly) no DOM do browser em KofJS.

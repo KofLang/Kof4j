@@ -605,6 +605,64 @@ class KofJsBrowserE2ETest {
         }
     }
 
+    @Test
+    void ui006EventAccessorsRunInRealBrowser(@TempDir Path tempDir) throws IOException {
+        Path chrome = findChrome();
+        assumeTrue(chrome != null, "Chrome/Chromium não instalado — pulando E2E de browser");
+
+        // O handler lê e.key()/e.value() do evento DOM real e muta o
+        // placeholder — se o DOM final traz "key=x", o handler RODOU com o
+        // event do browser (dispatch sintético no load, padrão formSubmit).
+        String program = """
+            main() {
+                var campo = Input("")
+                campo.setPlaceholder("limpo")
+                campo.on("keydown", (e: Event) -> { campo.setPlaceholder("key=" + e.key()) })
+                campo.on("input", (e: Event) -> { campo.setClass("val=" + e.value()) })
+                var col = Column(listOf(campo))
+                var w = Window("Ui006Test")
+                w.bind(col)
+                w.show()
+            }
+            """;
+        Path source = tempDir.resolve("App.kf");
+        Files.writeString(source, program);
+
+        Path outDir = tempDir.resolve("out");
+        CompilationResult result = driver.compile(source, outDir, Target.JS);
+        assertTrue(result.success(), "compilação JS deve passar: " + result.diagnostics().getDiagnostics());
+
+        // injeta o dispatch sintético no index.html: keydown "x" + input "abc"
+        Path index = outDir.resolve("index.html");
+        String html = Files.readString(index);
+        String inject = """
+            <script type="module">
+            import './Default.mjs';
+            setTimeout(function () {
+                var el = document.querySelector('.kof-input');
+                if (!el) return;
+                el.dispatchEvent(new KeyboardEvent('keydown', { key: 'x', bubbles: true }));
+                el.value = 'abc';
+                el.dispatchEvent(new Event('input', { bubbles: true }));
+            }, 2000);
+            </script>
+            </body>""";
+        html = html.replace("</body>", inject);
+        Files.writeString(index, html);
+
+        HttpServer server = serve(outDir);
+        int port = server.getAddress().getPort();
+        try {
+            String dom = dumpDom(chrome, "http://127.0.0.1:" + port + "/index.html");
+            assertTrue(dom.contains("key=x"),
+                    "e.key() não trouxe a tecla do evento DOM real: " + excerpt(dom));
+            assertTrue(dom.contains("val=abc"),
+                    "e.value() não trouxe o valor do input real: " + excerpt(dom));
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private static HttpServer serve(Path dir) throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/", exchange -> {

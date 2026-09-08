@@ -318,14 +318,7 @@ public final class JsRuntimeUiComponents {
                 else node._kofHandlers[domType] = [handler];
                 if (typeof node.addEventListener === "function") {
                     node.addEventListener(domType, function (ev) {
-                        const h = node._kofHandlers && node._kofHandlers[domType];
-                        if (!h) return;
-                        for (const fn of h) {
-                            try {
-                                if (typeof fn.invoke === "function") fn.invoke();
-                                else fn();
-                            } catch (e) {}
-                        }
+                        kofUiDispatchWidgetEvent(id, domType, ev);
                     });
                 }
             }
