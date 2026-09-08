@@ -33,6 +33,50 @@ final class CmdEditor {
                 System.out, System.err);
     }
 
+    /**
+     * Hook pós-instalador (EDI001 §13): oferece as integrações recomendadas
+     * logo após `kof install`. NUNCA bloqueia a instalação: sem console
+     * (headless/CI/pipe) só aponta o comando; recusou → `kof editor setup`.
+     */
+    static void offerAfterInstall() {
+        DetectContext ctx = DetectContext.system();
+        offerAfterInstall(ctx, ctx.home(),
+                new BufferedReader(new InputStreamReader(System.in)),
+                System.out, System.err, System.console() != null);
+    }
+
+    /** Testável: tudo injetado, inclusive a flag de console interativo. */
+    static int offerAfterInstall(DetectContext ctx, Path home, BufferedReader in,
+                                 PrintStream out, PrintStream err, boolean interactive) {
+        if (home == null) return 0;
+        java.util.List<EditorIntegration> recommended = new ArrayList<>();
+        for (EditorIntegration e : EditorRegistry.all()) {
+            EditorInfo info = e.detect(ctx);
+            if (info.installed() && !EditorInstaller.isInstalled(home, e.id())) recommended.add(e);
+        }
+        if (recommended.isEmpty()) return 0;
+        out.println();
+        out.println("We detected editors without Kof integration:");
+        for (EditorIntegration e : recommended) out.println("  [✓] " + e.displayName());
+        if (!interactive) {
+            out.println();
+            out.println("Install them with:  kof editor setup");
+            return 0;
+        }
+        out.print("Install recommended integrations now? [Y/n] ");
+        out.flush();
+        String ans = readLine(in);
+        if (ans != null && !ans.isBlank() && !ans.trim().toLowerCase().startsWith("y")) {
+            out.println("You can install them later with:  kof editor setup");
+            return 0;
+        }
+        int rc = 0;
+        for (EditorIntegration e : recommended) {
+            rc |= report(e, doInstallResult(e, ctx, home), out, err, "setup");
+        }
+        return rc;
+    }
+
     /** Testável: contexto, home, stdin e saídas injetáveis (§24). */
     static int run(String[] args, DetectContext ctx, Path home, BufferedReader in,
                    PrintStream out, PrintStream err) {

@@ -116,6 +116,8 @@ public final class Main {
             if (Files.exists(src.resolve("tooling"))) copyTree(src.resolve("tooling"), prefix.resolve("tooling"));
             System.out.println("kof installed at " + prefix.toAbsolutePath());
             System.out.println("add " + prefix.resolve("bin") + " to your PATH and run: kof info");
+            // EDI001 §13: oferece integrações de editor (nunca bloqueia o install)
+            CmdEditor.offerAfterInstall();
         } catch (Exception e) {
             System.err.println("install: " + e.getMessage());
             System.exit(1);

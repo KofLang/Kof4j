@@ -214,4 +214,51 @@ class EditorIntegrationTest {
                 home.resolve(".vscode/extensions/kof.kof/syntaxes/kof.tmLanguage.json"));
         assertTrue(grammar.contains("source.kof"), "grammar válida: " + grammar.substring(0, Math.min(80, grammar.length())));
     }
+
+    // ---- degrau 11: hook pós-instalador (§13) -----------------------------
+
+    @Test
+    void postInstallHookNeverBlocksHeadless(@TempDir Path home) {
+        // sem console (interactive=false): NÃO pergunta, NÃO instala, só aponta
+        var ctx = fake(Set.of("code"), Map.of("code", "1.102.3"), Set.of());
+        ByteArrayOutputStream bo = new ByteArrayOutputStream();
+        PrintStream out = new PrintStream(bo, true, StandardCharsets.UTF_8);
+        assertEquals(0, CmdEditor.offerAfterInstall(ctx, home,
+                new BufferedReader(new StringReader("")), out, out, false));
+        String s = bo.toString(StandardCharsets.UTF_8);
+        assertTrue(s.contains("kof editor setup"), s);
+        assertFalse(s.contains("[Y/n]"), "headless não pergunta: " + s);
+        assertFalse(EditorInstaller.isInstalled(home, "vscode"), "headless não instala");
+    }
+
+    @Test
+    void postInstallHookRespectsDeclination(@TempDir Path home) {
+        var ctx = fake(Set.of("code"), Map.of("code", "1.102.3"), Set.of());
+        ByteArrayOutputStream bo = new ByteArrayOutputStream();
+        PrintStream out = new PrintStream(bo, true, StandardCharsets.UTF_8);
+        assertEquals(0, CmdEditor.offerAfterInstall(ctx, home,
+                new BufferedReader(new StringReader("n\n")), out, out, true));
+        assertFalse(EditorInstaller.isInstalled(home, "vscode"), "recusou → nada instalado");
+        assertTrue(bo.toString(StandardCharsets.UTF_8).contains("later"));
+    }
+
+    @Test
+    void postInstallHookInstallsOnYes(@TempDir Path home) {
+        var ctx = fake(Set.of("code"), Map.of("code", "1.102.3"), Set.of());
+        ByteArrayOutputStream bo = new ByteArrayOutputStream();
+        PrintStream out = new PrintStream(bo, true, StandardCharsets.UTF_8);
+        assertEquals(0, CmdEditor.offerAfterInstall(ctx, home,
+                new BufferedReader(new StringReader("y\n")), out, out, true));
+        assertTrue(EditorInstaller.isInstalled(home, "vscode"), "confirmou → instala");
+    }
+
+    @Test
+    void postInstallHookSilentWhenNothingDetected(@TempDir Path home) {
+        var ctx = fake(Set.of(), Map.of(), Set.of());
+        ByteArrayOutputStream bo = new ByteArrayOutputStream();
+        PrintStream out = new PrintStream(bo, true, StandardCharsets.UTF_8);
+        assertEquals(0, CmdEditor.offerAfterInstall(ctx, home,
+                new BufferedReader(new StringReader("")), out, out, true));
+        assertEquals("", bo.toString(StandardCharsets.UTF_8), "nada detectado → silêncio");
+    }
 }
