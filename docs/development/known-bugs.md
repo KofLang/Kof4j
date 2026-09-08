@@ -8,7 +8,7 @@
 >
 > | | |
 > |---|---|
-> | Abertos e atacáveis em JVM/JS | **4** — bugs 39, 45, 62, 63 |
+> | Abertos e atacáveis em JVM/JS | **5** — bugs 39, 45, 62, 63, 64 |
 > | Abertos, só reproduzíveis no Native | **7** — bugs 43, 44, 46, 48, 50, 59, 61 |
 > | Verificados corrigidos em 08/09 | **19** — bugs 1–8, 10–17, 19, 20, 26 |
 > | Não reverificados (faltou ambiente/setup) | bugs 9, 18, 21, 22, 23 |
@@ -1080,7 +1080,7 @@ EXTERNA produz lixo
 
 ---
 
-### 63. KofJS: atribuição a PARÂMETRO emite `let` redeclarado → SyntaxError derruba o módulo inteiro (GitHub #43) — ABERTO
+### 63. KofJS: atribuição a PARÂMETRO emite `let` redeclarado → SyntaxError derruba o módulo inteiro (GitHub #43) — ABERTO (correção proposta no PR #45)
 
 - **Sintoma:** `Int f(Int a) { a = 99; return a }` → JVM e interpretador dão
   `99`; KofJS falha no *parse* com
@@ -1105,6 +1105,35 @@ EXTERNA produz lixo
   `js/MethodCtx.java` (construtor), `js/JsMethodParser.java` (`parseMethodBody`).
 - **Native:** não verificado (host arm64/macOS sem toolchain x86_64-linux).
 - **Descoberto:** 08/09 (probe manual da matriz de mutabilidade).
+
+---
+
+### 64. KofJS: parâmetro após um `Long`/`Double` é descartado da assinatura e lê `undefined` (GitHub #47) — ABERTO (correção proposta no PR #48)
+
+- **Sintoma:** `Int after(Long a, Int b) { return b }` + `main() { println(after(1L, 42)) }`
+  → `kof check` "no errors"; JVM imprime `42`; **KofJS imprime `undefined`**.
+  Sem erro, sem diagnóstico — resposta errada em silêncio. O JS emitido é
+  `function after(a) { return b; }`: o parâmetro `b` some da assinatura.
+- **Matriz verificada (08/09):** `after(Long a, Int b)` → `undefined`;
+  `after(Double a, Int b)` → `undefined`; `before(Int b, Long a)` → `42` ✅;
+  `onlyWide(Long a)` → `42` ✅. Só quebra quando o parâmetro largo **não** é o
+  último — com ele por último o truncamento não descarta nada, e foi por isso
+  que passou despercebido.
+- **Efeito colateral:** o parâmetro perdido reaparece como local pré-declarado.
+  `Int wide(Long a, Int b, Double c)` emite `function wide(a, b) { let c; ... }`.
+- **Causa raiz:** `Long`/`Double` ocupam DOIS slots, mas a montagem da
+  assinatura assume um slot por parâmetro. O laço de `parameterSlots` percorre
+  `0..localNames.size()`, enquanto os índices são ESPARSOS com parâmetro largo:
+  em `f(Long a, Int b)` o mapa é `{0:a, 2:b}` e `size()` é 2, então o laço vai
+  até `i = 1` e para antes do slot 2. Correção: percorrer as chaves reais de
+  slot em ordem crescente.
+- **Arquivos:** `js/JsMethodParser.java` (`parameterSlots`/`parameterNames`).
+- **Não tem relação com o bug 63** (GitHub #43, `let` redeclarado): reproduzido
+  antes e depois daquela correção, com saída idêntica nos dois estados.
+- **Prova/repro:** `CoreRegressionE2ETest` +4 casos no PR #48 (JVM e KofJS com
+  saída idêntica exigida); falhavam com `expected: <42> but was: <undefined>`.
+- **Native:** não verificado (host arm64/macOS sem toolchain x86_64-linux).
+- **Descoberto:** 08/09, durante a correção do bug 63.
 
 ---
 
