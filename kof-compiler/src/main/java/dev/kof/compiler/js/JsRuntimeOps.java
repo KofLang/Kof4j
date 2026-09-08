@@ -147,6 +147,7 @@ void handleRuntimeOp(MethodCtx ctx, List<Object> stack,
                 || name.equals("kof_ui_input_set_placeholder")
                 || name.equals("kof_ui_input_set_type")
                 || name.equals("kof_ui_input_set_checked") || name.equals("kof_ui_input_checked")
+                || name.equals("kof_ui_input_set_name") || name.equals("kof_ui_input_set_readonly")
                 || name.equals("kof_ui_input_text") || name.equals("kof_ui_input_remove")
                 || name.equals("kof_ui_view_remove") || name.equals("kof_ui_window_set_theme")
                 || name.equals("kof_ui_window_set_size")

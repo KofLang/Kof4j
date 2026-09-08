@@ -489,6 +489,45 @@ class KofJsBrowserE2ETest {
     }
 
     @Test
+    void inputAttrsRenderInRealBrowserDom(@TempDir Path tempDir) throws IOException {
+        Path chrome = findChrome();
+        assumeTrue(chrome != null, "Chrome/Chromium não instalado — pulando E2E de browser");
+
+        // name/readonly são ATRIBUTOS → serializam no outerHTML do dump-dom.
+        String program = """
+            main() {
+                var i = Input("oi")
+                i.setName("usuario")
+                i.setReadonly(true)
+                var t = Textarea("x")
+                t.setName("bio")
+                t.setReadonly(true)
+                var col = Column(listOf(i, t))
+                var w = Window("AttrsTest")
+                w.bind(col)
+                w.show()
+            }
+            """;
+        Path source = tempDir.resolve("App.kf");
+        Files.writeString(source, program);
+
+        Path outDir = tempDir.resolve("out");
+        CompilationResult result = driver.compile(source, outDir, Target.JS);
+        assertTrue(result.success(), "compilação JS deve passar: " + result.diagnostics().getDiagnostics());
+
+        HttpServer server = serve(outDir);
+        int port = server.getAddress().getPort();
+        try {
+            String dom = dumpDom(chrome, "http://127.0.0.1:" + port + "/index.html");
+            assertTrue(dom.contains("name=\"usuario\""), "name=\"usuario\" ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("name=\"bio\""), "name=\"bio\" ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("readonly"), "readonly ausente no DOM: " + excerpt(dom));
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void tableRendersInRealBrowserDom(@TempDir Path tempDir) throws IOException {
         Path chrome = findChrome();
         assumeTrue(chrome != null, "Chrome/Chromium não instalado — pulando E2E de browser");

@@ -191,6 +191,10 @@ public final class RuntimeUi {
                 ret
             kof_ui_input_set_placeholder:
                 ret
+            kof_ui_input_set_name:
+                ret
+            kof_ui_input_set_readonly:
+                ret
             kof_ui_input_set_type:
                 ret
             kof_ui_input_set_checked:
@@ -213,6 +217,10 @@ public final class RuntimeUi {
                 leaq .Lui_empty(%rip), %rdi
                 xorq %rsi, %rsi
                 jmp kof_io_make_string
+            kof_ui_textarea_set_name:
+                ret
+            kof_ui_textarea_set_readonly:
+                ret
             kof_ui_textarea_set_placeholder:
                 ret
             kof_ui_textarea_remove:

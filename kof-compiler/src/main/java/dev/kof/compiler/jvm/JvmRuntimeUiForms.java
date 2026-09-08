@@ -21,6 +21,12 @@ public final class JvmRuntimeUiForms {
                 public static void kof_ui_input_set_placeholder(int input, String placeholder) {
                 }
 
+                public static void kof_ui_input_set_name(int input, String name) {
+                }
+
+                public static void kof_ui_input_set_readonly(int input, int readonly) {
+                }
+
                 public static void kof_ui_input_set_type(int input, String type) {
                 }
 
@@ -40,6 +46,12 @@ public final class JvmRuntimeUiForms {
 
                 public static String kof_ui_textarea_text(int ta) {
                     return "";
+                }
+
+                public static void kof_ui_textarea_set_name(int ta, String name) {
+                }
+
+                public static void kof_ui_textarea_set_readonly(int ta, int readonly) {
                 }
 
                 public static void kof_ui_textarea_set_placeholder(int ta, String placeholder) {

@@ -29,6 +29,22 @@ public final class JsRuntimeUiForms {
                 }
             }
 
+            export function kofUiInputSetName(input, name) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[input]) {
+                    window.__kofNodes[input].setAttribute("name", name);
+                }
+            }
+
+            export function kofUiInputSetReadonly(input, readonly) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[input]) {
+                    if (readonly) {
+                        window.__kofNodes[input].setAttribute("readonly", "");
+                    } else {
+                        window.__kofNodes[input].removeAttribute("readonly");
+                    }
+                }
+            }
+
             export function kofUiInputSetType(input, type) {
                 if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[input]) {
                     window.__kofNodes[input].type = type;
@@ -99,6 +115,22 @@ public final class JsRuntimeUiForms {
             export function kofUiTextareaSetPlaceholder(ta, placeholder) {
                 if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[ta]) {
                     window.__kofNodes[ta].placeholder = placeholder;
+                }
+            }
+
+            export function kofUiTextareaSetName(ta, name) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[ta]) {
+                    window.__kofNodes[ta].setAttribute("name", name);
+                }
+            }
+
+            export function kofUiTextareaSetReadonly(ta, readonly) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[ta]) {
+                    if (readonly) {
+                        window.__kofNodes[ta].setAttribute("readonly", "");
+                    } else {
+                        window.__kofNodes[ta].removeAttribute("readonly");
+                    }
                 }
             }
 

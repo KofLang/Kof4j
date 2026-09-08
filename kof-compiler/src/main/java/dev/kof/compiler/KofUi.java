@@ -278,6 +278,8 @@ public final class KofUi {
                 case "setType" -> argCount == 1 ? new UiCall("kof_ui_input_set_type", Type.PrimitiveType.VOID, List.of(STR)) : null;
                 case "setChecked" -> argCount == 1 ? new UiCall("kof_ui_input_set_checked", Type.PrimitiveType.VOID, List.of(BOOL)) : null;
                 case "checked" -> argCount == 0 ? new UiCall("kof_ui_input_checked", BOOL, List.of()) : null;
+                case "setName" -> argCount == 1 ? new UiCall("kof_ui_input_set_name", Type.PrimitiveType.VOID, List.of(STR)) : null;
+                case "setReadonly" -> argCount == 1 ? new UiCall("kof_ui_input_set_readonly", Type.PrimitiveType.VOID, List.of(BOOL)) : null;
                 case "remove" -> argCount == 0 ? new UiCall("kof_ui_input_remove", Type.PrimitiveType.VOID, List.of()) : null;
                 default -> null;
             };
@@ -287,6 +289,8 @@ public final class KofUi {
                 case "text" -> argCount == 0 ? new UiCall("kof_ui_textarea_text", STR, List.of()) : null;
                 case "setText" -> argCount == 1 ? new UiCall("kof_ui_textarea_set_text", Type.PrimitiveType.VOID, List.of(STR)) : null;
                 case "setPlaceholder" -> argCount == 1 ? new UiCall("kof_ui_textarea_set_placeholder", Type.PrimitiveType.VOID, List.of(STR)) : null;
+                case "setName" -> argCount == 1 ? new UiCall("kof_ui_textarea_set_name", Type.PrimitiveType.VOID, List.of(STR)) : null;
+                case "setReadonly" -> argCount == 1 ? new UiCall("kof_ui_textarea_set_readonly", Type.PrimitiveType.VOID, List.of(BOOL)) : null;
                 case "remove" -> argCount == 0 ? new UiCall("kof_ui_textarea_remove", Type.PrimitiveType.VOID, List.of()) : null;
                 default -> null;
             };

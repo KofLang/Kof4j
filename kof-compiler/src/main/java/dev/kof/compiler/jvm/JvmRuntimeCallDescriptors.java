@@ -143,7 +143,9 @@ public final class JvmRuntimeCallDescriptors {
                      "kof_ui_icon_set_name" -> "(ILjava/lang/String;)V";
              // ── Forms (UI004/5) + Image attrs (UI003/5) — aditivos ──
              case "kof_ui_input_set_placeholder", "kof_ui_input_set_type",
+                     "kof_ui_input_set_name", "kof_ui_textarea_set_name",
                      "kof_ui_image_set_alt" -> "(ILjava/lang/String;)V";
+             case "kof_ui_input_set_readonly", "kof_ui_textarea_set_readonly" -> "(II)V";
              case "kof_ui_input_set_checked", "kof_ui_image_set_width",
                      "kof_ui_image_set_height" -> "(II)V";
              case "kof_ui_input_checked" -> "(I)I";

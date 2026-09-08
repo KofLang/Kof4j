@@ -178,6 +178,23 @@ class UiE2ETest {
     }
 
     @Test
+    void inputAttrsLinksOnAllTargets(@TempDir Path tempDir) throws IOException {
+        // UI005: Input/Textarea setName + setReadonly — no-op JVM/Native,
+        // atributos reais (name/readonly) no DOM do browser em KofJS.
+        both(tempDir, "inputattrs", """
+            main() {
+                var i = Input("oi")
+                i.setName("usuario")
+                i.setReadonly(true)
+                var t = Textarea("x")
+                t.setName("bio")
+                t.setReadonly(true)
+                println("ok")
+            }
+            """, "ok");
+    }
+
+    @Test
     void formSubmitLinksOnAllTargets(@TempDir Path tempDir) throws IOException {
         // UI004: Form.onSubmit/submit — no-op em JVM/Native, DOM real em
         // KofJS (KofJsBrowserE2ETest.formSubmitHandlerRunsInRealBrowser).
