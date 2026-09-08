@@ -356,3 +356,24 @@ var v = Video("clip.mp4")
 var a = Audio("som.mp3")
 var h = Hr()
 ```
+
+## Eventos com payload (Event.key/value/x/y)
+
+**BAD — handler global sem payload, mutação manual:**
+```kof
+// ❌ NÃO — evento sem dados, estado global adivinhado
+campo.on("keydown", () -> { processar("") })
+```
+
+**GOOD — o handler lê o payload do DOM event real:**
+```kof
+// ✅ IDIOMÁTICO — o evento carrega a tecla/valor/posição
+campo.on("keydown", (e: Event) -> { campo.setPlaceholder("tecla: " + e.key()) })
+campo.on("input",   (e: Event) -> { filtro.set(e.value()) })
+campo.on("click",   (e: Event) -> { println(e.x()) })
+```
+
+**Por quê:** `Event.key()/value()/x()/y()` leem o evento DOM real
+(KeyboardEvent.key, target.value, clientX/Y) — o payload vem do browser,
+não de estado global manual (R3). Funciona em qualquer widget DOM via
+`.on(type, handler)`.
