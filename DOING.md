@@ -240,7 +240,11 @@ reuso). **Prova E2E Cenário A (I2)**: app real `web.app()` + `serveDir` →
     (c) ✅ Table FEITO (este commit — UI003 data-driven, header+linhas);
     (d) UI007 `style` declarativo — PROPOSTA REGISTRADA (`d6b9755`),
     aguarda decisão do maintainer (regra 6 — superfície de API);
-    (e) UI003 fieldset/iframe/video/audio/hr (menor valor, mesma receita).
+    (e) ✅ UI005 setName/setReadonly FEITO (este commit — Input+Textarea,
+    atributos name/readonly no DOM real); (f) UI003 fieldset/iframe/
+    video/audio/hr (menor valor, mesma receita); (g) UI006 Event
+    key/value/x/y (raw já no kofEv; prova precisa de disparo sintético
+    com payload no browser).
     **P0 fallbacks semânticos FECHADO (2f532e5)** — #7/#3/#6 corrigidos
     (SemanticResolutionTest 6/6); #8 = error-recovery legítimo. R2/R3/R4 da migração = decisão de design / colidem com
     APP-MODEL (dono) — NÃO são minha lane sem maintainer.
