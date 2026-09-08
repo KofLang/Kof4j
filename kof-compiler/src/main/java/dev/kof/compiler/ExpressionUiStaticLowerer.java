@@ -128,6 +128,16 @@ if (mc.receiver() == null && ("Ul".equals(mc.methodName()) || "Ol".equals(mc.met
             Type.PrimitiveType.INT, KofCallKind.FUNCTION));
     return localIdx;
 }
+if (mc.receiver() == null && "Table".equals(mc.methodName()) && mc.arguments().size() == 2) {
+    localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(0), ops, owner, localIdx, locals);
+    localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(1), ops, owner, localIdx, locals);
+    ops.add(new KofCall(new Type.ClassType("kof.ui", "Ui", List.of()),
+            "kof_ui_table_new",
+            List.of(new Type.ClassType("kof", "List", List.of(BuiltinTypes.STRING)),
+                    new Type.ClassType("kof", "List", List.of(new Type.ClassType("kof", "List", List.of(BuiltinTypes.STRING))))),
+            Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+    return localIdx;
+}
 if (mc.receiver() == null && ("Column".equals(mc.methodName()) || "Row".equals(mc.methodName())
         || "Form".equals(mc.methodName()))
         && mc.arguments().size() == 1) {

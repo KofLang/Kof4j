@@ -133,7 +133,8 @@ public final class CompilerUiEmitter {
         }
         if (KofUi.isWindow(recvType) || KofUi.isLabel(recvType) || KofUi.isButton(recvType)
                 || KofUi.isInput(recvType) || KofUi.isTextarea(recvType) || KofUi.isSelect(recvType)
-                || KofUi.isUl(recvType) || KofUi.isOl(recvType) || KofUi.isView(recvType)
+                || KofUi.isUl(recvType) || KofUi.isOl(recvType) || KofUi.isTable(recvType)
+                || KofUi.isView(recvType)
                 || KofUi.isLink(recvType) || KofUi.isImage(recvType) || KofUi.isIcon(recvType)
                 || KofUi.isForm(recvType) || KofUi.isCanvas(recvType)) {
             KofUi.UiCall uiCall = KofUi.instanceMethod(recvType, mc.methodName(), mc.arguments().size());

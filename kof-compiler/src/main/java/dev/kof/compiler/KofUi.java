@@ -27,6 +27,7 @@ public final class KofUi {
     static final Type SELECT = new Type.ClassType("kof.ui", "Select", List.of());
     static final Type UL = new Type.ClassType("kof.ui", "Ul", List.of());
     static final Type OL = new Type.ClassType("kof.ui", "Ol", List.of());
+    static final Type TABLE = new Type.ClassType("kof.ui", "Table", List.of());
     static final Type COLUMN = new Type.ClassType("kof.ui", "Column", List.of());
     static final Type ROW = new Type.ClassType("kof.ui", "Row", List.of());
     static final Type FORM = new Type.ClassType("kof.ui", "Form", List.of());
@@ -61,6 +62,7 @@ public final class KofUi {
     static boolean isSelect(Type t) { return SELECT.equals(t); }
     static boolean isUl(Type t) { return UL.equals(t); }
     static boolean isOl(Type t) { return OL.equals(t); }
+    static boolean isTable(Type t) { return TABLE.equals(t); }
     static boolean isColumn(Type t) { return COLUMN.equals(t); }
     static boolean isRow(Type t) { return ROW.equals(t); }
     static boolean isForm(Type t) { return FORM.equals(t); }
@@ -97,14 +99,14 @@ public final class KofUi {
      *  compartilhada kof_ui_widget_*, como font). */
     static boolean isDomWidget(Type t) {
         return isLabel(t) || isButton(t) || isInput(t) || isTextarea(t) || isSelect(t)
-                || isUl(t) || isOl(t)
+                || isUl(t) || isOl(t) || isTable(t)
                 || isView(t) || isLink(t)
                 || isImage(t) || isIcon(t) || isForm(t) || isColumn(t) || isRow(t);
     }
 
     static public boolean isUiType(Type t) {
         return isColor(t) || isTheme(t) || isLabel(t) || isButton(t) || isInput(t)
-                || isTextarea(t) || isSelect(t) || isUl(t) || isOl(t)
+                || isTextarea(t) || isSelect(t) || isUl(t) || isOl(t) || isTable(t)
                 || isColumn(t) || isRow(t) || isForm(t) || isView(t) || isStyle(t) || isWindow(t)
                 || isLink(t) || isImage(t) || isIcon(t) || isFont(t)
                 || isComponent(t) || isEvent(t)
@@ -115,7 +117,7 @@ public final class KofUi {
         return "Color".equals(name) || "Theme".equals(name)
                 || "Label".equals(name) || "Button".equals(name) || "Input".equals(name)
                 || "Textarea".equals(name) || "Select".equals(name)
-                || "Ul".equals(name) || "Ol".equals(name)
+                || "Ul".equals(name) || "Ol".equals(name) || "Table".equals(name)
                 || "Column".equals(name) || "Row".equals(name) || "Form".equals(name) || "View".equals(name)
                 || "Style".equals(name) || "Window".equals(name)
                 || "Link".equals(name) || "Image".equals(name)
@@ -146,6 +148,7 @@ public final class KofUi {
         if ("Select".equals(name)) return SELECT;
         if ("Ul".equals(name)) return UL;
         if ("Ol".equals(name)) return OL;
+        if ("Table".equals(name)) return TABLE;
         return Type.UnknownType.UNKNOWN;
     }
 
@@ -302,6 +305,14 @@ public final class KofUi {
             return switch (name) {
                 case "setItems" -> argCount == 1 ? new UiCall(fn + "_set_items", Type.PrimitiveType.VOID, List.of(new Type.ClassType("kof", "List", List.of(STR)))) : null;
                 case "remove" -> argCount == 0 ? new UiCall(fn + "_remove", Type.PrimitiveType.VOID, List.of()) : null;
+                default -> null;
+            };
+        }
+        if (isTable(receiver)) {
+            Type rowsT = new Type.ClassType("kof", "List", List.of(new Type.ClassType("kof", "List", List.of(STR))));
+            return switch (name) {
+                case "setRows" -> argCount == 1 ? new UiCall("kof_ui_table_set_rows", Type.PrimitiveType.VOID, List.of(rowsT)) : null;
+                case "remove" -> argCount == 0 ? new UiCall("kof_ui_table_remove", Type.PrimitiveType.VOID, List.of()) : null;
                 default -> null;
             };
         }

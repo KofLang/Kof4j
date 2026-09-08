@@ -85,6 +85,16 @@ public final class JvmRuntimeUiForms {
                 public static void kof_ui_ol_remove(int ol) {
                 }
 
+                public static int kof_ui_table_new(java.util.ArrayList<String> header, java.util.ArrayList rows) {
+                    return 1;
+                }
+
+                public static void kof_ui_table_set_rows(int table, java.util.ArrayList rows) {
+                }
+
+                public static void kof_ui_table_remove(int table) {
+                }
+
                 public static String kof_ui_input_text(int input) {
                     return "";
                 }

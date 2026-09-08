@@ -308,3 +308,23 @@ var passos = Ol(listOf("primeiro", "segundo"))
 **Por quê:** `Ul`/`Ol` tomam `List<String>` e materializam `<ul>/<ol>` com
 um `<li>` por item — representar o domínio (lista ordenada/não-ordenada)
 com a coleção da linguagem, não N widgets manuais (R3).
+
+## Tabelas de dados (Table)
+
+**BAD — Column de Rows de Labels para dados tabulares:**
+```kof
+// ❌ NÃO — grid manual
+var linha1 = Row(listOf(Label("mel"), Label("26")))
+```
+
+**GOOD — `Table(cabeçalho, linhas)`:**
+```kof
+// ✅ IDIOMÁTICO — a coleção aninhada VIRA a tabela
+var t = Table(listOf("nome", "idade"),
+              listOf(listOf("mel", "26"), listOf("ana", "30")))
+t.setRows(listOf(listOf("bob", "41")))
+```
+
+**Por quê:** `Table` toma `List<String>` (cabeçalho) + `List<List<String>>`
+(linhas) e materializa `<thead>/<tbody><tr><td>` — dados tabulares com a
+coleção da linguagem, não N widgets manuais (R3).

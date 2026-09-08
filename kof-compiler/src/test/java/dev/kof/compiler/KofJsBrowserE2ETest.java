@@ -488,6 +488,42 @@ class KofJsBrowserE2ETest {
         }
     }
 
+    @Test
+    void tableRendersInRealBrowserDom(@TempDir Path tempDir) throws IOException {
+        Path chrome = findChrome();
+        assumeTrue(chrome != null, "Chrome/Chromium não instalado — pulando E2E de browser");
+
+        String program = """
+            main() {
+                var t = Table(listOf("nome", "idade"),
+                              listOf(listOf("mel", "26"), listOf("ana", "30")))
+                var col = Column(listOf(t))
+                var w = Window("TableTest")
+                w.bind(col)
+                w.show()
+            }
+            """;
+        Path source = tempDir.resolve("App.kf");
+        Files.writeString(source, program);
+
+        Path outDir = tempDir.resolve("out");
+        CompilationResult result = driver.compile(source, outDir, Target.JS);
+        assertTrue(result.success(), "compilação JS deve passar: " + result.diagnostics().getDiagnostics());
+
+        HttpServer server = serve(outDir);
+        int port = server.getAddress().getPort();
+        try {
+            String dom = dumpDom(chrome, "http://127.0.0.1:" + port + "/index.html");
+            assertTrue(dom.contains("<table"), "elemento <table> ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("kof-table"), "classe kof-table ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("<th>nome</th>"), "<th> ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("<td>mel</td>"), "<td> mel ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("<td>30</td>"), "<td> 30 ausente no DOM: " + excerpt(dom));
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private static HttpServer serve(Path dir) throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/", exchange -> {

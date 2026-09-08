@@ -75,6 +75,9 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_ui_ul_new", "kof_ui_ol_new" -> "(Ljava/util/ArrayList;)I";
             case "kof_ui_ul_set_items", "kof_ui_ol_set_items" -> "(ILjava/util/ArrayList;)V";
             case "kof_ui_ul_remove", "kof_ui_ol_remove" -> "(I)V";
+            case "kof_ui_table_new" -> "(Ljava/util/ArrayList;Ljava/util/ArrayList;)I";
+            case "kof_ui_table_set_rows" -> "(ILjava/util/ArrayList;)V";
+            case "kof_ui_table_remove" -> "(I)V";
             case "kof_ui_button_new_action" -> "(Ljava/lang/String;Ljava/lang/Object;)I";
             case "kof_ui_window_set_title", "kof_ui_label_set_text", "kof_ui_button_set_text",
                     "kof_ui_input_set_text" -> "(ILjava/lang/String;)V";

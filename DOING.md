@@ -237,8 +237,12 @@ reuso). **Prova E2E Cenário A (I2)**: app real `web.app()` + `serveDir` →
     contexto real — measureText>0 via Label). drawImage pendente
     (integração c/ Image). **PRÓXIMO PASSO (minha lane, Fase 4)**:
     (a) ✅ drawImage FEITO (`6e3181f`); (b) ✅ Ul/Ol FEITO (`796204a`);
-    (c) UI007 `style` declarativo (CSS idiomático, parse próprio — item
-    maior, em curso); (d) UI003 table/tr/td + fieldset (mesma receita). R2/R3/R4 da migração = decisão de design / colidem com
+    (c) ✅ Table FEITO (este commit — UI003 data-driven, header+linhas);
+    (d) UI007 `style` declarativo — PROPOSTA REGISTRADA (`d6b9755`),
+    aguarda decisão do maintainer (regra 6 — superfície de API);
+    (e) UI003 fieldset/iframe/video/audio/hr (menor valor, mesma receita).
+    **P0 fallbacks semânticos FECHADO (2f532e5)** — #7/#3/#6 corrigidos
+    (SemanticResolutionTest 6/6); #8 = error-recovery legítimo. R2/R3/R4 da migração = decisão de design / colidem com
     APP-MODEL (dono) — NÃO são minha lane sem maintainer.
     **AUDITORIA planning-future FEITA (este commit)**:
     `docs/development/future/PLANNING-FUTURE-AUDIT.md`. Veredito: a branch

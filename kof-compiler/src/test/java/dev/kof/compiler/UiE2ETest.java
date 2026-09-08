@@ -164,6 +164,20 @@ class UiE2ETest {
     }
 
     @Test
+    void tableLinksOnAllTargets(@TempDir Path tempDir) throws IOException {
+        // UI003: Table — widget data-driven (header + List<List<String>> →
+        // <thead>/<tbody><tr><td>); no-op JVM/Native, DOM real em KofJS.
+        both(tempDir, "table", """
+            main() {
+                var t = Table(listOf("nome", "idade"),
+                              listOf(listOf("mel", "26"), listOf("ana", "30")))
+                t.setRows(listOf(listOf("bob", "41")))
+                println("ok")
+            }
+            """, "ok");
+    }
+
+    @Test
     void formSubmitLinksOnAllTargets(@TempDir Path tempDir) throws IOException {
         // UI004: Form.onSubmit/submit — no-op em JVM/Native, DOM real em
         // KofJS (KofJsBrowserE2ETest.formSubmitHandlerRunsInRealBrowser).

@@ -238,5 +238,60 @@ public final class JsRuntimeUiForms {
                     delete window.__kofNodes[ol];
                 }
             }
+
+            function kofUiFillTable(node, header, rows) {
+                node.innerHTML = "";
+                if (header) {
+                    const thead = document.createElement("thead");
+                    const tr = document.createElement("tr");
+                    for (const h of header) {
+                        const th = document.createElement("th");
+                        th.textContent = String(h);
+                        tr.appendChild(th);
+                    }
+                    thead.appendChild(tr);
+                    node.appendChild(thead);
+                }
+                const tbody = document.createElement("tbody");
+                if (rows) {
+                    for (const row of rows) {
+                        const tr = document.createElement("tr");
+                        for (const cell of row) {
+                            const td = document.createElement("td");
+                            td.textContent = String(cell);
+                            tr.appendChild(td);
+                        }
+                        tbody.appendChild(tr);
+                    }
+                }
+                node.appendChild(tbody);
+            }
+
+            export function kofUiTableNew(header, rows) {
+                const id = kofUiCreateNode("table", "kof-table");
+                if (id < 0) {
+                    return -1;
+                }
+                kofUiFillTable(window.__kofNodes[id], header, rows);
+                return id;
+            }
+
+            export function kofUiTableSetRows(table, rows) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[table]) {
+                    const node = window.__kofNodes[table];
+                    const header = Array.from(node.querySelectorAll("th")).map(function (th) { return th.textContent; });
+                    kofUiFillTable(node, header.length ? header : null, rows);
+                }
+            }
+
+            export function kofUiTableRemove(table) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[table]) {
+                    const node = window.__kofNodes[table];
+                    if (node.parentNode) {
+                        node.parentNode.removeChild(node);
+                    }
+                    delete window.__kofNodes[table];
+                }
+            }
             """;
 }
