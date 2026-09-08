@@ -493,7 +493,7 @@ main() { /* ignorado pelo kof test */ }
 
 ---
 
-## Testes (962 = 941 kof-compiler + 8 kof-script + 5 kof-c-compiler + 8 kof-cli — medição real 05/09 pós-sweep NATIVE002-stdlib; suíte completa verde, 3 skips condicionais de toolchain/hardware)
+## Testes (1218 = 1092 kof-compiler + 25 kof-script + 5 kof-c-compiler + 96 kof-cli — suíte completa verde, 64 skips condicionais de qemu/Chrome; medição 08/09)
 
 | Suíte | Quantidade | Cobertura |
 |-------|-----------|-----------|
@@ -510,7 +510,7 @@ main() { /* ignorado pelo kof test */ }
 | ComponentCoreE2ETest | 14 | kof.ui Component: view/onMount/onDispose |
 | CoreRegressionE2ETest | 14 | regressões de uso real (BOM, toInt, ARITH001...) |
 | JsonE2ETest | 14 | JSON JVM + Native |
-| UiE2ETest | 14 | kof.ui: widgets, estilo, bindings, múltiplas janelas |
+| UiE2ETest | 27 | kof.ui: widgets, estilo, bindings, múltiplas janelas, Table/Ul/Ol/Form/Fieldset/Event (link JVM+Native) |
 | AndroidInteropE2ETest | 11 | android: interop Java (external classpath) |
 | KofConfigE2ETest | 11 | kof.config: env, arquivo, profiles, precedência, typed, CONF001 |
 | KofWebWsE2ETest | 11 | WebSocket RFC 6455: handshake + frame + lifecycle |
@@ -550,7 +550,7 @@ main() { /* ignorado pelo kof test */ }
 | LambdaE2ETest | 4 | lambdas + if-expr |
 | RouterE2ETest | 4 | kof.ui Router Fase 7: go/replace/back/forward |
 | StdlibE2ETest | 4 | now/readFile/writeFile |
-| KofJsBrowserE2ETest | 1 | **KofJS no browser real** (Chrome headless + HTTP + DOM) — kof.ui renderiza de verdade (pula se Chrome ausente) |
+| KofJsBrowserE2ETest | 16 | **KofJS no browser real** (Chrome headless + HTTP + DOM) — kof.ui renderiza de verdade: widgets/Event/canvas/forms (pula se Chrome ausente) |
 | KofJsSourceMapTest | 1 | **source map V3 do KofJS** (mappings VLQ reais, nível de linha: função gerada → linha Kof via `KofDebugInfo`; antes era stub `"mappings":""`) |
 | ConfigGenTest | 3 | kof config gen: template kof.config do código |
 | KofHttpResilienceE2ETest | 3 | kof.http timeout/retry/circuit (JVM + JS paridade) |
