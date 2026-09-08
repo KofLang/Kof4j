@@ -32,8 +32,20 @@ class KofStringsTest {
                 println(strings.isAscii("ola"))
                 println(strings.isAscii("olá"))
                 println(strings.isAscii(""))
+                println(strings.isUpperCase("HELLO"))
+                println(strings.isUpperCase("Hello"))
+                println(strings.isUpperCase("123"))
+                println(strings.isUpperCase(""))
+                println(strings.isLowerCase("hello"))
+                println(strings.isLowerCase("abc-123"))
+                println(strings.isLowerCase("Hello"))
+                println(strings.isLowerCase(""))
+                println(strings.count("aabaabaa", "ab"))
+                println(strings.count("aaa", "aa"))
+                println(strings.count("abc", ""))
+                println(strings.count("", "x"))
             }
-            """, "true\nfalse\nfalse\nfalse\ntrue\nfalse\nfalse\nfalse\ntrue\nfalse\nfalse\ntrue\nfalse\nfalse");
+            """, "true\nfalse\nfalse\nfalse\ntrue\nfalse\nfalse\nfalse\ntrue\nfalse\nfalse\ntrue\nfalse\nfalse\ntrue\nfalse\nfalse\nfalse\ntrue\ntrue\nfalse\nfalse\n2\n1\n0\n0");
     }
 
     @Test
@@ -54,6 +66,18 @@ class KofStringsTest {
                 assert(strings.isAscii("ola"))
                 assert(!strings.isAscii("olá"))
                 assert(!strings.isAscii(""))
+                assert(strings.isUpperCase("HELLO"))
+                assert(!strings.isUpperCase("Hello"))
+                assert(!strings.isUpperCase("123"))
+                assert(!strings.isUpperCase(""))
+                assert(strings.isLowerCase("hello"))
+                assert(strings.isLowerCase("abc-123"))
+                assert(!strings.isLowerCase("Hello"))
+                assert(!strings.isLowerCase(""))
+                assert(strings.count("aabaabaa", "ab") == 2)
+                assert(strings.count("aaa", "aa") == 1)
+                assert(strings.count("abc", "") == 0)
+                assert(strings.count("", "x") == 0)
                 println("ok")
             }
             """, "ok");
@@ -77,8 +101,20 @@ class KofStringsTest {
                 println(strings.isAscii("ola"))
                 println(strings.isAscii("olá"))
                 println(strings.isAscii(""))
+                println(strings.isUpperCase("HELLO"))
+                println(strings.isUpperCase("Hello"))
+                println(strings.isUpperCase("123"))
+                println(strings.isUpperCase(""))
+                println(strings.isLowerCase("hello"))
+                println(strings.isLowerCase("abc-123"))
+                println(strings.isLowerCase("Hello"))
+                println(strings.isLowerCase(""))
+                println(strings.count("aabaabaa", "ab"))
+                println(strings.count("aaa", "aa"))
+                println(strings.count("abc", ""))
+                println(strings.count("", "x"))
             }
-            """, "true\nfalse\nfalse\nfalse\ntrue\nfalse\nfalse\nfalse\ntrue\nfalse\nfalse\ntrue\nfalse\nfalse");
+            """, "true\nfalse\nfalse\nfalse\ntrue\nfalse\nfalse\nfalse\ntrue\nfalse\nfalse\ntrue\nfalse\nfalse\ntrue\nfalse\nfalse\nfalse\ntrue\ntrue\nfalse\nfalse\n2\n1\n0\n0");
     }
 
     private String runJvm(Path tempDir, String source, String expected) throws Exception {

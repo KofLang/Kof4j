@@ -33,11 +33,15 @@ public final class KofStrings {
         int argc = argTypes.size();
         // S2a: predicados de classe pura de char (String→Bool), todos no padrão
         // "não-vazio && todo byte na classe". Semântica ASCII fixada na matriz
-        // stdstrings. (isUpperCase/isLowerCase precisam de acumulador hasLetter
-        // e ficam para S2a.3; count(s,sub) para S2a.4.)
+        // stdstrings. S2a.3: count (ocorrências NÃO-sobrepostas; "" => 0);
+        // S2a.4: isUpperCase/isLowerCase exigem ≥1 letra e todas as letras na
+        // caixa (outros chars ignorados). Conversores (alocam String) = S2b.
         return switch (name) {
-            case "isAlpha", "isNumeric", "isAlphaNumeric", "isAscii" -> argc == 1
+            case "isAlpha", "isNumeric", "isAlphaNumeric", "isAscii",
+                    "isUpperCase", "isLowerCase" -> argc == 1
                     ? new StringsCall("kof_strings_" + name, BOOL, List.of(STR)) : null;
+            case "count" -> argc == 2
+                    ? new StringsCall("kof_strings_count", INT, List.of(STR, STR)) : null;
             default -> null;
         };
     }

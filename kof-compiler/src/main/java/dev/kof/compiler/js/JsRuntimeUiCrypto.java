@@ -287,6 +287,22 @@ public final class JsRuntimeUiCrypto {
                 if (v == null || v.length === 0) return 0;
                 return /^[\\x00-\\x7F]+$/.test(v) ? 1 : 0;
             }
+            export function kofStringsIsUpperCase(v) {
+                if (v == null || v.length === 0) return 0;
+                if (/[a-z]/.test(v)) return 0;
+                return /[A-Z]/.test(v) ? 1 : 0;
+            }
+            export function kofStringsIsLowerCase(v) {
+                if (v == null || v.length === 0) return 0;
+                if (/[A-Z]/.test(v)) return 0;
+                return /[a-z]/.test(v) ? 1 : 0;
+            }
+            export function kofStringsCount(v, sub) {
+                if (v == null || sub == null || sub.length === 0 || v.length === 0) return 0;
+                let n = 0, i = 0;
+                while ((i = v.indexOf(sub, i)) >= 0) { n++; i += sub.length; }
+                return n;
+            }
 
             // ── kof.observability (G5) ──────────────────────────────
 
