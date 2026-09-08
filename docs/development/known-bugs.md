@@ -1032,6 +1032,70 @@ EXTERNA produz lixo
 
 ---
 
+### 62. Frontend não valida mutabilidade: `val` é decorativo e escrita em componente de record diverge nos 3 caminhos (GitHub #42) — ABERTO
+
+- **Sintoma (a):** `main() { val x = 1; x = 2; println(x) }` → `kof check` "no
+  errors" e imprime **`2`** no JVM, KofJS e interpretador. `val` não é imutável.
+  Idem com compound (`val x = 1; x += 5` → `6`) e referência (`val s = "a";
+  s = "b"` → `b`).
+- **Sintoma (b):** `record P(Int x)` + `p.x = 9` passa no `kof check` e dá **3
+  comportamentos**: JVM `IllegalAccessError: tried to access private field P.x`;
+  KofJS `TypeError: p.x is not a function` (a atribuição cria propriedade que
+  sombreia o accessor); interpretador **imprime `9`** (muta o record em
+  silêncio). Native não verificado (host arm64 sem toolchain x86_64-linux).
+  Vale igual para `class P(Int x) { }` — o parser trata como record (`javap`:
+  `final class P extends java.lang.Record`, campos `private final`).
+- **Sintoma (c):** `record P(Int x) { bump() { this.x = 99 } }` → JVM
+  `IllegalAccessError: Update to non-static final field P.x attempted from a
+  different method (bump)`; KofJS imprime `99` (mutação silenciosa).
+- **Causa raiz:** `StatementAnalyzer.analyzeAssignmentStatement` é o checkpoint
+  de toda atribuição-statement e valida **apenas** compatibilidade de tipo
+  (SEM012) — nunca pergunta se o alvo é atribuível. Em todo o `kof-compiler` as
+  únicas mensagens "cannot assign" são SEM012/SEM021, ambas de type mismatch:
+  não existe checagem de mutabilidade. Sem diagnóstico no frontend o lowering
+  emite o store cegamente (`putfield P.x:I` em campo `private final` de outra
+  classe no JVM — confirmado por `javap -c`).
+- **Regras violadas:** R6 (nunca silencioso), paridade cross-target, semântica
+  congelada 0.2.6-beta (`val` documentado como imutável).
+- **Correção proposta:** checagem de mutabilidade em
+  `analyzeAssignmentStatement` + diagnóstico novo (`SEM0xx: cannot assign to
+  immutable <nome>`) para (a) símbolo `val` e (b) componente de record.
+- **Arquivos:** `StatementAnalyzer.java` (`analyzeAssignmentStatement`),
+  `SemanticAnalyzer.java`.
+- **Cobertura:** nenhum teste da suíte cobre imutabilidade (busca por
+  `immutab|reassign|cannot assign to` em `kof-compiler/src/test/java` → zero).
+- **Descoberto:** 08/09 (probe manual; JVM + KofJS + interpretador).
+
+---
+
+### 63. KofJS: atribuição a PARÂMETRO emite `let` redeclarado → SyntaxError derruba o módulo inteiro (GitHub #43) — ABERTO
+
+- **Sintoma:** `Int f(Int a) { a = 99; return a }` → JVM e interpretador dão
+  `99`; KofJS falha no *parse* com
+  `SyntaxError: Variable "a" has already been declared`. JS gerado:
+  `function f(a) { let a = 99; return a; }`. Por ser erro de parse, derruba o
+  **módulo inteiro**, não só a função.
+- **Alcance (todos confirmados; JVM e interpretador corretos em todos):** função
+  top-level, duas atribuições ao mesmo parâmetro, compound `a += 1`, método de
+  classe, e lambda `(n: Int) -> { n = 3; return n }`.
+- **Causa raiz:** `JsExpressionParser.storeLocalStatement` decide declaração vs
+  atribuição por "primeiro store no slot" (`if (ctx.declared.add(sl.index()))`
+  → `JsVarDecl`). Correto para locais, errado para parâmetros — que já estão
+  ligados pela assinatura da função JS. O construtor de `MethodCtx` popula
+  `localNames`/`rawLocalNames`/`captureSlots` mas **nunca semeia `declared` com
+  os slots dos parâmetros**. O cálculo da faixa já existe em
+  `JsMethodParser.parseMethodBody` (`paramStart`/`paramEnd`), mas roda DEPOIS de
+  `flow.parseStatements(...)` — o `let` já foi emitido.
+- **Correção proposta:** semear `ctx.declared` com os slots `paramStart..paramEnd`
+  ANTES de parsear o corpo (construtor de `MethodCtx` ou topo de
+  `parseMethodBody`), reusando o cálculo existente.
+- **Arquivos:** `js/JsExpressionParser.java` (`storeLocalStatement`),
+  `js/MethodCtx.java` (construtor), `js/JsMethodParser.java` (`parseMethodBody`).
+- **Native:** não verificado (host arm64/macOS sem toolchain x86_64-linux).
+- **Descoberto:** 08/09 (probe manual da matriz de mutabilidade).
+
+---
+
 ## Comportamentos que PAREcem bugs mas são esperados (não corrigir)
 
 | Cenário | Comportamento | Por quê |
