@@ -111,6 +111,29 @@ class CoreRegressionE2ETest {
         assertEquals("42", runJvm(out));
     }
 
+    // GitHub #34 — json.decode de record com campo List<Record>: o campo
+    // chegava como lista de mapas crus (LinkedHashMap) → ClassCastException
+    // no acesso. Fix: backend emite o atributo Signature (genérico) nos
+    // campos/record components e o kof_json_bind usa getGenericType p/
+    // bindar os elementos recursivamente.
+    @Test
+    void jsonDecodeRecordWithListOfRecords(@TempDir Path tempDir) throws IOException {
+        Path src = tempDir.resolve("nestedRec.kf");
+        Files.writeString(src, """
+                record Addr(String city)
+                record User(String name, List<Addr> addrs)
+                main() {
+                    var u = json.decode<User>("{\\"name\\":\\"a\\",\\"addrs\\":[{\\"city\\":\\"x\\"},{\\"city\\":\\"y\\"}]}")
+                    println(u.addrs().get(0).city())
+                    println(u.addrs().get(1).city())
+                }
+                """);
+        Path out = tempDir.resolve("nestedRec-jvm");
+        CompilationResult r = driver.compile(src, out, Target.JVM);
+        assertTrue(r.success(), "JVM compile failed: " + r.diagnostics().getDiagnostics());
+        assertEquals("x\ny", runJvm(out));
+    }
+
     // B10 — primary constructor fields accessible inside methods (all targets)
     @Test
     void primaryConstructorFieldsInMethods(@TempDir Path tempDir) throws IOException {

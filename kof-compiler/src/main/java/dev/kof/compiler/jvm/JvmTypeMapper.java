@@ -74,6 +74,38 @@ public final class JvmTypeMapper {
         return "L" + internalName + ";";
     }
 
+    /**
+     * Assinatura genérica (atributo Signature do class file) de um tipo —
+     * preserva os type-arguments que o descriptor apaga. Emitida em campos e
+     * record components para que `Field.getGenericType()`/
+     * `RecordComponent.getGenericType()` devolva `List<Addr>` (não `List`
+     * cru) — é o que o decoder JSON usa p/ bindar elementos de coleção de
+     * records (GitHub #34 / bug 58). Retorna null quando o tipo não tem
+     * type-args (assinatura == descriptor, redundante).
+     */
+    static String toGenericSignature(Type type) {
+        if (type instanceof Type.ClassType c) {
+            // tipos apagados p/ int (UI/handle de media): sem assinatura
+            // genérica — o descriptor não é L...; e a erasure divergiria
+            if (KofUi.isUiType(c) || KofMedia.isHandleType(c)) return null;
+            String base = classDescriptor(c);
+            if (c.typeArguments().isEmpty()) return null;
+            StringBuilder sb = new StringBuilder(base.substring(0, base.length() - 1));
+            sb.append('<');
+            for (Type arg : c.typeArguments()) {
+                String s = toGenericSignature(arg);
+                sb.append(s != null ? s : toDescriptor(arg));
+            }
+            sb.append('>');
+            return sb.append(';').toString();
+        }
+        if (type instanceof Type.ArrayType a) {
+            String s = toGenericSignature(a.componentType());
+            return s == null ? null : "[" + s;
+        }
+        return null;
+    }
+
     static String toMethodDescriptor(Type returnType, List<Type> parameterTypes) {
         StringBuilder sb = new StringBuilder("(");
         for (Type pt : parameterTypes) sb.append(toDescriptor(pt));

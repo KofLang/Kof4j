@@ -114,6 +114,20 @@ public final class ExpressionJsonCallLowerer {
         if (BuiltinTypes.isList(targetType)
                 && driver.listElementType(targetType) instanceof Type.ClassType ect
                 && !BuiltinTypes.isString(ect)) {
+            if (BuiltinTypes.isList(ect) || BuiltinTypes.isMap(ect) || BuiltinTypes.isSet(ect)) {
+                // decode<List<List<T>>>: o className do elemento seria o nome
+                // do builtin ("kof.List") → Class.forName crasha em runtime
+                // (CNFE silencioso, violation R6). Gap honesto até o decoder
+                // recursivo existir (JSN004).
+                if (driver.currentDiagnostics != null) {
+                    SourcePosition p = mc.position();
+                    driver.currentDiagnostics.error(p != null ? p.file() : "",
+                            p != null ? p.line() : 0, p != null ? p.column() : 0, 0,
+                            "json.decode: nested collections (List<List<T>>) are not supported yet (JSN004)",
+                            "JSN004");
+                }
+                return localIdx;
+            }
             // decode<List<T>> where T is a user class: bind
             // each element to T (the element type survives the
             // generic erasure through the type system).

@@ -970,6 +970,15 @@ EXTERNA produz lixo
 - **Prova:** `CoreRegressionE2ETest.awaitOnHandleThroughObjectParam` + `awaitOnTypedHandleParam` (JVM, 42); probes HandleHunt/SpawnVerify/ChanTest3 15/15 com `-Xverify:all`; suíte completa verde.
 - **Descoberto:** 07/09 (GitHub #31; formas básicas já vivas pelo bug 29, faces Object/declarado novas).
 
+### 58. `json.decode` de record com campo `List<Record>` → elementos chegam como mapas crus (GitHub #34) — ✅ CORRIGIDO 07/09 (lane codegen JVM + runtime)
+
+- **Sintoma (GitHub issue #34, reportado por domfelipe):** `json.decode` de uma coleção de records não tipa os elementos — eles chegam como mapas crus (`LinkedHashMap`), e o acesso posterior causa `ClassCastException`.
+- **Reproduzido no repo (07/09, probes `Json34`/`Json34b`):** o caso canônico é um record com campo coleção de records: `record User(String name, List<Addr> addrs)` + `json.decode<User>(…)` → `u.addrs().get(0)` é `LinkedHashMap`, não `Addr` → `ClassCastException: LinkedHashMap cannot be cast to Addr`. (O caso `List<User>` plano já funcionava — bug 48 corrigido 07/09.)
+- **Causa raiz:** o record é emitido com o campo `addrs:Ljava/util/ArrayList;` **sem** o atributo `Signature` do class file (genérico apagado). O runtime `kof_json_bind` só recebe `Class<?>` (erasure: `List`), então o ramo de coleção retornava `new ArrayList(l)` cru, sem bindar os elementos p/ `Addr`.
+- **Correção (07/09):** (1) `JvmTypeMapper.toGenericSignature` — assinatura genérica (type-args embrulhados) espelhando `toDescriptor`; emitida em `visitField`/`visitRecordComponent` (guard: tipos UI/media apagados p/ `I` ficam sem signature). (2) `kof_json_bind` ganha overload com `java.lang.reflect.Type generic` (via `RecordComponent.getGenericType`/`Field.getGenericType`) e binda recursivamente os elementos da lista (`listElement`/`bindByType`). (3) Variante `List<List<T>>` (elemento é coleção builtin → `Class.forName("kof.List")` CNFE silencioso) agora dá **JSN004** (gap honesto, R6) no lugar do crash.
+- **Prova:** `CoreRegressionE2ETest.jsonDecodeRecordWithListOfRecords` (JVM: `x`/`y`); probes Json34/Json34b: `userWithListAddr`/`listUserNested` OK, `nestedList` → JSN004; suíte completa verde.
+- **Descoberto:** 07/09 (GitHub #34; caso canônico = campo `List<Record>`, não só `List<Record>` no topo).
+
 ---
 
 ## Comportamentos que PAREcem bugs mas são esperados (não corrigir)

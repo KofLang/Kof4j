@@ -167,14 +167,16 @@ public class JvmBackend implements Backend {
 
         for (IRField field : clazz.fields()) {
             String desc = JvmTypeMapper.toDescriptor(field.type());
-            var fv = cw.visitField(field.accessFlags(), field.name(), desc, null, field.initialValue());
+            String sig = JvmTypeMapper.toGenericSignature(field.type());
+            var fv = cw.visitField(field.accessFlags(), field.name(), desc, sig, field.initialValue());
             JvmAnnotations.emitAnnotations(fv::visitAnnotation, field.annotations());
             fv.visitEnd();
         }
 
         if ("java/lang/Record".equals(superName)) {
             for (IRField field : clazz.fields()) {
-                cw.visitRecordComponent(field.name(), JvmTypeMapper.toDescriptor(field.type()), null).visitEnd();
+                cw.visitRecordComponent(field.name(), JvmTypeMapper.toDescriptor(field.type()),
+                        JvmTypeMapper.toGenericSignature(field.type())).visitEnd();
             }
         }
 

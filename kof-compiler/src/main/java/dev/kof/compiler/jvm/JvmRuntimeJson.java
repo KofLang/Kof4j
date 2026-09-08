@@ -266,6 +266,14 @@ public final class JvmRuntimeJson {
                 }
 
                 private static Object kof_json_bind(Class<?> type, Object value) throws Exception {
+                    return kof_json_bind(type, type, value);
+                }
+
+                // generic: o Type REFLETIDO do slot (RecordComponent.getGenericType /
+                // Field.getGenericType) — preserva List<Addr> que o Class<?> apaga.
+                // Sem isto, um campo List<Record> decodificava como lista de mapas
+                // crus → ClassCastException no acesso (GitHub #34 / bug 58).
+                private static Object kof_json_bind(Class<?> type, java.lang.reflect.Type generic, Object value) throws Exception {
                     if (value == null) return null;
                     if (type == String.class) return value instanceof String s ? s : String.valueOf(value);
                     if (type == int.class || type == Integer.class || type == long.class || type == Long.class
@@ -280,7 +288,13 @@ public final class JvmRuntimeJson {
                         return value.toString().charAt(0);
                     }
                     if (type.isAssignableFrom(ArrayList.class) || type == List.class || type == java.util.Collection.class) {
-                        if (value instanceof List<?> l) return new ArrayList<Object>(l);
+                        if (value instanceof List<?> l) {
+                            java.lang.reflect.Type elem = listElement(generic);
+                            if (elem == null) return new ArrayList<Object>(l);
+                            ArrayList<Object> out = new ArrayList<>();
+                            for (Object e : l) out.add(bindByType(elem, e));
+                            return out;
+                        }
                     }
                     if (value instanceof Map<?, ?> m) {
                         if (type.isRecord()) {
@@ -289,7 +303,7 @@ public final class JvmRuntimeJson {
                             Object[] args = new Object[comps.length];
                             for (int i = 0; i < comps.length; i++) {
                                 argTypes[i] = comps[i].getType();
-                                args[i] = kof_json_bind(comps[i].getType(), m.get(comps[i].getName()));
+                                args[i] = kof_json_bind(comps[i].getType(), comps[i].getGenericType(), m.get(comps[i].getName()));
                             }
                             return type.getDeclaredConstructor(argTypes).newInstance(args);
                         }
@@ -298,7 +312,7 @@ public final class JvmRuntimeJson {
                             if (Modifier.isStatic(f.getModifiers())) continue;
                             if (!m.containsKey(f.getName())) continue;
                             f.setAccessible(true);
-                            Object v = kof_json_bind(f.getType(), m.get(f.getName()));
+                            Object v = kof_json_bind(f.getType(), f.getGenericType(), m.get(f.getName()));
                             if (v == null) continue;
                             if (f.getType() == int.class) f.setInt(obj, ((Number) v).intValue());
                             else if (f.getType() == long.class) f.setLong(obj, ((Number) v).longValue());
@@ -310,6 +324,28 @@ public final class JvmRuntimeJson {
                             else f.set(obj, v);
                         }
                         return obj;
+                    }
+                    return value;
+                }
+
+                // element type de um List<T>/Collection<T> refletido; null se não
+                // parametrizado (lista crua) — o caller decide o fallback.
+                private static java.lang.reflect.Type listElement(java.lang.reflect.Type generic) {
+                    if (generic instanceof java.lang.reflect.ParameterizedType pt) {
+                        java.lang.reflect.Type[] ta = pt.getActualTypeArguments();
+                        if (ta.length == 1) return ta[0];
+                    }
+                    return null;
+                }
+
+                // binda um elemento de lista cujo tipo só é conhecido via reflexão
+                // (Class, List<T> aninhado, ou Map<String,T>).
+                private static Object bindByType(java.lang.reflect.Type elem, Object value) throws Exception {
+                    if (value == null) return null;
+                    if (elem instanceof Class<?> ec) return kof_json_bind(ec, ec, value);
+                    if (elem instanceof java.lang.reflect.ParameterizedType pt) {
+                        Class<?> raw = (Class<?>) pt.getRawType();
+                        return kof_json_bind(raw, pt, value);
                     }
                     return value;
                 }
