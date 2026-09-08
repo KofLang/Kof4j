@@ -37,6 +37,7 @@ public final class Main {
             case "deps" -> System.exit(Deps.run(args));
             case "c" -> c(args);
             case "fmt" -> System.exit(Fmt.run(args));
+            case "editor" -> System.exit(CmdEditor.run(args));
             case "config" -> config(args);
             case "version" -> System.out.println("kof " + KofVersion.version());
             default -> { System.err.println("unknown: " + args[0]); printUsage(); }
@@ -68,6 +69,7 @@ public final class Main {
         System.out.println("  lsp                          Language Server (stdio, LSP protocol)");
         System.out.println("  install <dir>                install this build as a distribution");
         System.out.println("  deps <init|add|remove|list|resolve>   package manager (kofdeps)");
+        System.out.println("  editor <list|detect|status|setup|install|uninstall|update>   editor integration (EDI001)");
         System.out.println("  version");
         System.out.println();
         System.out.println("note: the js target is in development (alpha); it runs on Kof's embedded JS engine");
