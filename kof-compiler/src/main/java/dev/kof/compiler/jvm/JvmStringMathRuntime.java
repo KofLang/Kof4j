@@ -95,6 +95,36 @@ public final class JvmStringMathRuntime {
                     }
                     return true;
                 }
+
+                public static boolean kof_strings_isUpperCase(String v) {
+                    if (v == null || v.isEmpty()) return false;
+                    boolean hasLetter = false;
+                    for (int i = 0; i < v.length(); i++) {
+                        char c = v.charAt(i);
+                        if (c >= 'a' && c <= 'z') return false;
+                        if (c >= 'A' && c <= 'Z') hasLetter = true;
+                    }
+                    return hasLetter;
+                }
+
+                public static boolean kof_strings_isLowerCase(String v) {
+                    if (v == null || v.isEmpty()) return false;
+                    boolean hasLetter = false;
+                    for (int i = 0; i < v.length(); i++) {
+                        char c = v.charAt(i);
+                        if (c >= 'A' && c <= 'Z') return false;
+                        if (c >= 'a' && c <= 'z') hasLetter = true;
+                    }
+                    return hasLetter;
+                }
+
+                // Ocorrências NÃO-sobrepostas; vazio/null em qualquer lado => 0.
+                public static int kof_strings_count(String v, String sub) {
+                    if (v == null || sub == null || sub.isEmpty() || v.isEmpty()) return 0;
+                    int n = 0, i = 0;
+                    while ((i = v.indexOf(sub, i)) >= 0) { n++; i += sub.length(); }
+                    return n;
+                }
         """;
     }
 }

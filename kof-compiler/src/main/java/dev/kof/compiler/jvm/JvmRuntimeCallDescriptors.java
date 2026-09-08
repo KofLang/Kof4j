@@ -326,6 +326,8 @@ public final class JvmRuntimeCallDescriptors {
                     "kof_math_isNegative", "kof_math_isZero" -> "(I)Z";
             // ── kof.strings (STDLIB S2a) ────────────────────────────────────
             case "kof_strings_isAlpha", "kof_strings_isNumeric", "kof_strings_isAlphaNumeric", "kof_strings_isAscii" -> "(Ljava/lang/String;)Z";
+            case "kof_strings_isUpperCase", "kof_strings_isLowerCase" -> "(Ljava/lang/String;)Z";
+            case "kof_strings_count" -> "(Ljava/lang/String;Ljava/lang/String;)I";
             // ── kof.observability (G5) ────────────────────────────────
             case "kof_observability_health", "kof_observability_request_id", "kof_observability_correlation_id",
                     "kof_observability_trace_id", "kof_observability_span_id",

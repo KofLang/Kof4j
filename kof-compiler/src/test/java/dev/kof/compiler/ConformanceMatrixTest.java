@@ -212,8 +212,14 @@ class ConformanceMatrixTest {
                     println(strings.isAlphaNumeric("abc-123"))
                     println(strings.isAscii("ola"))
                     println(strings.isAscii("ola !123"))
+                    println(strings.isUpperCase("HELLO"))
+                    println(strings.isUpperCase("Hello"))
+                    println(strings.isLowerCase("abc-123"))
+                    println(strings.isLowerCase("Abc"))
+                    println(strings.count("aabaabaa", "ab"))
+                    println(strings.count("aaa", "aa"))
                 }
-                """, "true\nfalse\nfalse\ntrue\nfalse\nfalse\ntrue\nfalse\ntrue\ntrue", Set.of(), tempDir);
+                """, "true\nfalse\nfalse\ntrue\nfalse\nfalse\ntrue\nfalse\ntrue\ntrue\ntrue\nfalse\ntrue\nfalse\n2\n1", Set.of(), tempDir);
     }
 
     @Test
