@@ -30,8 +30,8 @@ Esta é a versão consolidada do plano de implementação para todos os document
 
 | Task | Source Doc | Difficulty | Dependencies | Status | Definition of Done |
 |------|-----------|------------|--------------|--------|-------------------|
-| JVM-Class-File-Basic | LEGACY_IR.md | 🟡 M | Nenhuma | MISSING | Parser lê magic, versão, constant_pool, emite IR JSON |
-| JVM-Inspect-CLI | LEGACY_MIGRATION.md | 🟢 E | JVM-Class-File-Basic | MISSING | `kof inspect <.class>` funciona com --help |
+| JVM-Class-File-Basic | LEGACY_IR.md | 🟡 M | Nenhuma | ✅ **COMPLETO** | Parser lê magic, versão,CP, fields, methods, Code attr |
+| JVM-Inspect-CLI | LEGACY_MIGRATION.md | 🟢 E | JVM-Class-File-Basic | ✅ **COMPLETO** | `kof inspect <.class>` funciona com --json |
 
 ---
 
@@ -50,6 +50,12 @@ Esta é a versão consolidada do plano de implementação para todos os document
 - Construir nós de bloco básico
 - Teste: código if/while simples
 
+| Task | Source Doc | Difficulty | Dependencies | Status | Definition of Done |
+|------|-----------|------------|--------------|--------|-------------------|
+| CFG-Basic-Blocks | LEGACY_IR.md | 🟡 M | Phase 1 | ✅ **EM CURSO** | BasicBlock identificado, instruções decodificadas |
+
+**Progresso:** `ClassFileParser.expand()` com `Instruction`, `BasicBlock`, `analyze()`, `disassemble()`
+
 ### T3-MEDIUM: Type Recovery
 
 **Objetivo:** Recuperar tipos primitivos, referências, arrays, generics  
@@ -59,8 +65,14 @@ Esta é a versão consolidada do plano de implementação para todos os document
 **Código existe:** `Type` system de Kof  
 **O que falta:** Mapear tipos JVM → Kof types  
 **Implementação mínima:**
-- Análise de instruções `instanceof`, `checkcast`, `new`
-- Tratar `int`, `long`, `float`, `double`, `boolean`
+- `Type.fromJvmDescriptor()` — parser de descriptors JVM → `Type` Kof
+- `Type.describe()` — representação legível de `Type`
+- `MethodInfo.returnTypeName()` / `parameterTypeNames()` — tipos recuperados
+- `MethodInfo.instanceofCount` / `checkcastCount` — contagem por opcode bruto (0xC1/0xC0)
+
+| Task | Source Doc | Difficulty | Dependencies | Status | Definition of Done |
+|------|-----------|------------|--------------|--------|-------------------|
+| Type-Recovery | LEGACY_IR.md | 🟡 M | Phase 2 | ✅ **COMPLETO** | `fromJvmDescriptor` + contagem instanceof/checkcast + `kof inspect` mostra tipos |
 
 ---
 
@@ -82,8 +94,8 @@ Esta é a versão consolidada do plano de implementação para todos os document
 
 | Task | Source Doc | Difficulty | Dependencies | Status | Definition of Done |
 |------|-----------|------------|--------------|--------|-------------------|
-| Java-Inspect-CLI | TRANSLATOR.md | 🟢 E | Phase 1 | MISSING | `kof inspect --java MyClass.java` imprime AST |
-| Java-AST-Basic | TRANSLATOR.md | 🟡 M | Java-Inspect-CLI | MISSING | Parser class/methods/fields funciona |
+| Java-Inspect-CLI | TRANSLATOR.md | 🟢 E | Phase 1 | ✅ **COMPLETO** | `kof translate <file.java>` emite Kof (lexer+parser recursivo subset) |
+| Java-AST-Basic | TRANSLATOR.md | 🟡 M | Java-Inspect-CLI | ✅ **COMPLETO** | classes/métodos/campos + if/while/for + strings; static main → top-level `main()` |
 
 ---
 
@@ -103,8 +115,8 @@ Esta é a versão consolidada do plano de implementação para todos os document
 
 | Task | Source Doc | Difficulty | Dependencies | Status | Definition of Done |
 |------|-----------|------------|--------------|--------|-------------------|
-| Decompiler-Structural | DECOMPILER.md | 🔴 H | Type Recovery | MISSING | `kof decompile X.class` gera `.kf` compilável |
-| Decompiler-Confidence | DECOMPILER.md | 🟡 M | Structural | MISSING | IR marca "inferred" vs "exact" |
+| Decompiler-Structural | DECOMPILER.md | 🔴 H | Type Recovery | ✅ **COMPLETO** | `kof decompile X.class` gera esqueleto `.kf` compilável (corpos = throw stub honesto) |
+| Decompiler-Confidence | DECOMPILER.md | 🟡 M | Structural | ✅ **COMPLETO** | `Confidence` enum (exact/with-metadata/inferred/heuristic/unknown); decompiler marca campos=EXACT, corpos=UNKNOWN |
 
 ---
 
@@ -125,8 +137,8 @@ Esta é a versão consolidada do plano de implementação para todos os document
 
 | Task | Source Doc | Difficulty | Dependencies | Status | Definition of Done |
 |------|-----------|------------|--------------|--------|-------------------|
-| Diff-Framework | DIFFERENTIAL_TESTING.md | 🟢 E | Inspect-CLI | MISSING | `kof compare --help` funciona |
-| Diff-Tests-Corpus | DIFFERENTIAL_TESTING.md | 🟡 M | Framework | MISSING | 3 casos testados (add, try, hello) |
+| Diff-Framework | DIFFERENTIAL_TESTING.md | 🟢 E | Inspect-CLI | ✅ **COMPLETO** | `kof compare <legacy.class|jar> <file.kf>` compara stdout/stderr/exit |
+| Diff-Tests-Corpus | DIFFERENTIAL_TESTING.md | 🟡 M | Framework | ✅ **COMPLETO** | 3+ casos (hello, add, divergência, lógica pura) |
 
 ---
 
@@ -144,6 +156,10 @@ Esta é a versão consolidada do plano de implementação para todos os document
 - Relatório JSON com % recovered, warnings  
 - Teste: migrar app simples, verifica relatório
 
+| Task | Source Doc | Difficulty | Dependencies | Status | Definition of Done |
+|------|-----------|------------|--------------|--------|-------------------|
+| Migration-Reports | LEGACY_MIGRATION.md | 🟡 M | Diff | ✅ **COMPLETO** | `kof migrate <.class\|.java>` emite relatório traceable (recovered %, manual review) |
+
 ### T8-MEDIUM: Interpreter Mode
 
 **Objetivo:** Execute código legado sem compilar  
@@ -153,25 +169,60 @@ Esta é a versão consolidada do plano de implementação para todos os document
 
 ---
 
-## FASE 7 — Platform Universal
+## FASE 7 — TIER 2: Fundações do compilador (quebrado em subtarefas)
 
-### T9-HARD: Type System Expansion
+> Quebra do TIER 2 do `ACTION_PLAN.md` (2.1–2.5) em incrementos menores,
+> cada um compilável e testável isoladamente. Ordem = dependência.
 
-**Objetivo:** Tipos avançados (Map, Set, Option, enum, sealed)  
-**Dificuldade:** 🔴 Alta  
-**Dependências:** Compiler core stable  
+### 2.1 FFI formalizado (R3: assinatura externa em compile-time)
 
-### T10-HARD: Concurrency Primitives
+| # | Subtarefa | Dificuldade | DoD |
+|---|-----------|-------------|-----|
+| 2.1.1 | Sintaxe `extern`: lexer + parser reconhecem declaração top-level de função externa (`extern name(Int): Int`) sem tocar semântica existente | 🟢 E | ✅ `extern` parseia (PARSE não emitido) |
+| 2.1.2 | Node de AST (`extern`) + type-check da assinatura (tipos primitivos/refs/arrays validados) | 🟡 M | ✅ `ExternalFunctionNode` + parsing de tipos |
+| 2.1.3 | Gap honesto por target: chamada a `extern` emite `FFI001` (diagnóstico), nunca stub silencioso | 🟢 E | ✅ lowering emite `FFI001` (nunca drop silencioso) |
+| 2.1.4 | Binding JVM-first: FFM (`java.lang.foreign`) para `.so` (padrão já usado em `JvmVkRuntime` M32.1) | 🔴 H | ✅ JVM Int→Int real (`extern "libc.so.6" abs` → 5) |
+| 2.1.5 | Binding Native: `dlsym` + marshalling ABI (primitive widths) no `NativeRuntime`/`NativeBackend` | 🔴 H | ✅ Native x86-64 Int→Int real (`extern "libc.so.6" abs` → 5 via dlopen/dlsym) |
+| 2.1.6 | Marshalling avançado: ponteiros/struct/array (fronteira segura, lifetime pelo GC) | 🔴 H | 🟡 parciais: String→Int e Double→Double (JVM) prontos; struct/array completo pendente |
+| 2.1.7 | JS: gap honesto `FFI002` (web/edge sem FFI nativo) | 🟢 E | ✅ extern no JS → FFI002 |
 
-**Objetivo:** Channels, select!, async/await completo  
-**Dificuldade:** 🔴 Alta  
-**Dependências:** `spawn`/`await` existentes
+**Critical path 2.1:** 2.1.1 → 2.1.2 → 2.1.3 antes de qualquer binding.
 
-### T11-HARD: FFI Formalized
+### 2.2 Codegen de compile-time formalizado (R4)
 
-**Objetivo:** `extern "c"` functions, .so/.dll loading  
-**Dificuldade:** 🔴 Alta  
-**Dependências:** Runtime threading
+| # | Subtarefa | Dificuldade | DoD |
+|---|-----------|-------------|-----|
+| 2.2.1 | Inventário do codegen implícito existente (`KofRuntime`, runner de teste sintetizado, DDL de `entity`) | 🟢 E | ✅ lista fechada: 4 pontos (runtime source, desugarTests, desugarApplication, entity→record+schema) |
+| 2.2.2 | Hook formal de codegen (fechado, não-macro): interface estável p/ gerar em compile-time | 🟡 M | ✅ `CodegenStep` (FunctionalInterface) + pipeline `runCodegen` ordenado |
+| 2.2.3 | Migrar DDL de `entity` + runner de teste para o hook formal | 🟡 M | comportamento idêntico (same suite) |
+| 2.2.4 | Base de `infra "prod" { }` (sacar sobre records) | 🟡 M | `infra` emite records de recurso |
+
+### 2.3 Compile-time eval leve
+
+| # | Subtarefa | Dificuldade | DoD |
+|---|-----------|-------------|-----|
+| 2.3.1 | Estender constant-folding a constantes de domínio (config, validação de schema) | 🟢 E | ✅ string-concat folding (`"a" + "b"` → `"ab"` em compile-time) |
+| 2.3.2 | Detecção de ciclos no grafo de `infra` em compile-time | 🟡 M | ciclo → diagnóstico |
+
+### 2.4 Scoped resources (RAII leve, sem ownership)
+
+| # | Subtarefa | Dificuldade | DoD |
+|---|-----------|-------------|-----|
+| 2.4.1 | `auto-closed`/scope leve para handles (arquivo/GPU/conexão/FFI) sobre `try/finally` | 🟡 M | 🟡 design pronto (`docs/future/scoped-resources-plan.md`); sintaxe `using` gated por bump 0.3.0 (semântica congelada) |
+| 2.4.2 | Fronteira segura de buffer p/ zona sem GC (handles de FFI) | 🟡 M | handle liberado pelo GC na fronteira |
+
+### 2.5 Variance / sealed (opcional, postergável)
+
+| # | Subtarefa | Dificuldade | DoD |
+|---|-----------|-------------|-----|
+| 2.5.1 | Avaliar necessidade real (coleções científicas, pipelines) antes de abrir | 🔴 R | ✅ **DEFERIR** — `enum` já cobre "closed alternatives"; variance só quando um domínio científico exigir |
+
+**Decisão (2.5):** variance (covariância/contravariância) e `sealed` (keywords
+reservadas, não implementadas) ficam **postergados**. `enum` (alternativas
+fechadas) + `record`/`interface` cobrem o caso imediato. Variance avançada só
+abre quando uma pipeline científica/coleções exigir type-safety covariante —
+gate: bump de versão (semântica congelada). Evitar type-classes (non-goal
+permanente).
 
 ---
 
@@ -203,26 +254,25 @@ Os itens que **bloqueiam** outros:
 
 ---
 
-## Status Atual (24h)
+## Status Atual
 
-| Phase | Status | Próximos Passos |
-|-------|--------|-----------------|
-| Phase 1 | ✅ Parcial (JVM_CLASS_FILE parser tem, mas não em CLI) | CLI `kof inspect` |
-| Phase 2 | ❌ Pending | Block para CFG |
-| Phase 3 | ❌ Pending | Parser Java sem |
-| Phase 4 | ❌ Pending | Decompiler sem |
-| Phase 5 | ❌ Pending | Framework sem |
-| Phase 6 | ❌ Pending | Reports sem |
-| Phase 7 | ❌ Pending | Domínio sem infra |
-| Phase 8 | ❌ Pending | Priority only |
-
----
+| Fase | Componente | Status |
+|------|-----------|--------|
+| A/B | JVM inspect + Bytecode IR (`kof inspect`) | ✅ concluído |
+| C | CFG Basic Blocks | ✅ concluído |
+| D | Type Recovery | ✅ concluído |
+| E | Decompiler (`kof decompile`) | ✅ concluído |
+| E | Decompiler-Confidence | ✅ concluído |
+| F | Java Translator (`kof translate`) | ✅ concluído |
+| G | Differential Testing (`kof compare`) | ✅ concluído |
+| H | Migration Reports (`kof migrate`) | ✅ concluído |
+| 2.1–2.5 | TIER 2 (FFI/codegen/ct-eval/RAII/variance) | ⏳ quebrado em subtarefas, não iniciado (gated por TIER 1) |
 
 ## Próxima Ação Recomendada
 
-**Priority #1: `JVM-Class-File-Basic`** — Este é o bloco inicial. Criar `kof inspect` CLI que lê class file e imprime JSON.
-
-**Motivo:** É o **único item sem dependências** e **todos os outros** dependem dele.
+**Tier 2.1.1** — sintaxe `extern` (lexer + parser) como primeiro osso do FFI
+formalizado, desde que o gate TIER 1 esteja resolvido; caso contrário,
+fechar primeiro os gaps do estágio SYSTEMS (R12).
 
 ---
 

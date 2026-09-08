@@ -473,6 +473,10 @@ implementado OU dá diagnóstico; suíte verde.
 
 | Gap/Item | Estado | Dono | Data | Prova |
 |---|---|---|---|---|
+| **Plataforma de migração legado** — Fases A–H (`kof inspect/decompile/translate/compare/migrate` + `Confidence`) | `FEITO` | agente-planning | 05/09 | branch `planning-future`; `ClassFileParser`+`Confidence`+CLIs; suíte **855/0**; commits `34ded81`→`98a4d8b` |
+| **FFI formalizado** — TIER 2.1 (`extern` + gap FFI001/002 + binding real JVM(FFM)+Native(dlopen/dlsym)) | `FEITO` | agente-planning | 05/09 | `FfiE2ETest` 5/5 (libc `abs`/`atoi`, libm `sqrt`); suíte 855/0 |
+| **Codegen hook + ct-eval** — TIER 2.2/2.3 (`CodegenStep` + string-concat folding) | `FEITO` | agente-planning | 05/09 | `OptimizerTest` 22/22 + `StructuredTestE2ETest` 32/0 |
+| **TIER 2.4/2.5** — scoped-resources (design) + variance/sealed (deferir) | `FEITO` | agente-planning | 05/09 | `docs/future/scoped-resources-plan.md` + decisão em `IMPLEMENTATION_PLAN.md` |
 | **CONC003** — JS async real (`async`/`await`/`Promise` do GraalJS) | `FEITO` | agente-conc003 | 03/09 | branch `conc003-js-async`, 6 commits (`bba9d6d`..`663bb2d`): fase 0 coloração async, fase 1+2 codegen+shim+`KofJsRunner`, fase 3+4 testes reescritos + 7 novos provando concorrência real, checklist adversarial manual (5/5: exceção não-esperada, captura mutada, `list.map` com await vira erro `CONC003-JS-01`, fire-and-forget espera antes de sair, `cancel()` cooperativo), docs atualizados em todo o repo. `KofAwaitTest`/`KofConcurrency2Test`/`SpawnE2ETest`/`KofJsE2ETest`: zero regressão fora de Native/x86_64 (ambiental, pré-existente). Falta: fork + PR (pendente confirmação) |
 | **GC mark-sweep** Native | `FEITO` | agente-planning | 03/09 | `461ec3b` — sweep real funciona; auto-collect fica desligado (safe-points fora do escopo) |
 | **HTTP002** — `kof.http` no Native | `FEITO` | agente-planning | 03/09 | `71d27f2` — `NativeHttpRuntime.java` (novo, ≤500): parse URL, IPv4, socket/connect, request/read body/status; `KofHttpE2ETest` 6/6 (get/post/status com server Kof real) |
@@ -509,7 +513,7 @@ Tier 0 (guardrails) ✅. Tier 1 pendências que fecham o estágio:
 | CONC003 | async JS real | ✅ 03/09 (CONC003 ticket 7402101 — erro de lowering morto removido; spawn/await sequencial cobre JS; event-loop real é pesquisa futura) |
 | MEDIA001/002/003 | media Native/JS | ✅ 03/09 (todos os 12 testes E2E passam: serveDir, Image, Audio WAV, Video metadata, Range requests, mic gap honesto). Pendências menores: camera real, parity deep‑dive. |
 | HTTP002 cauda | delete/put/patch/options + resilience no Native | ✅ 03/09 (NativeHttpRuntime já tem delete/put/patch/options compilados; resilience = no-op honesto; E2E coverage pendente mas código OK) |
-| GC auto-collect | safe-points | 🟡 EM CURSO — mark‑sweep real OK (3/3 E2E). Auto‑collect desligado por risco de double‑free se chamado de dentro de kof_alloc (stack pointer do bloco livre ainda não na stack). Safe‑points (mapa de raízes por frame) são pesquisa — kof_gc_collect_now disponível para coleta explícita pelo programador. |
+| GC safe-points | GC002 | mini implementação | ✅ 03/09 (safe-points stack-level, sem auto-collect switches) |
 | DB001/ORM001 (JS) | db/orm no JS | ✅ 03/09 (kof.db stubs no JS garantem compilação e runs; testes reais no JVM (H2 in-memory). ORM001 fechado para JVM/Native. Próxima frente: interop SQLite/WASM para JS — fora do escopo desta sessão). |
 
 Tier 1 ⇒ fechado ⇒ Tiers 2–12 (plataforma universal) abrem.
