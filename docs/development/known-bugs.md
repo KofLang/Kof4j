@@ -118,24 +118,6 @@
 
 ---
 
-### 6. Sufixo numérico MAIÚSCULO gera bytecode inválido
-
-- **Sintoma:** `42L` / `1.5F` compilam mas falham no load. Minúsculo
-  (`42l`, `1.5f`) funciona.
-- **Reprodução:**
-  ```kof
-  main() {
-      var x = 42L    // ClassFormatError
-      var y = 1.5F   // idem
-  }
-  ```
-- **Causa provável:** o lexer/lowering trata o sufixo maiúsculo como
-  identificador/errado. Deveria ser alias do minúsculo (ou rejeitar com
-  diagnostic claro).
-- **Arquivos:** `Lexer.java`, `Parser.java` (literais numéricos), `CompilerDriver.java`.
-
----
-
 ### 7. Argumento de tipo nullable em chamada genérica não parseia
 
 - **Sintoma:** `listOf<String?>()` → PARSE041 (Unexpected token `?`).
@@ -1047,7 +1029,7 @@ EXTERNA produz lixo
 
 ## Resolvidos nesta branch (referência)
 
-- `42l`/`1.5f` minúsculos funcionam (os maiúsculos são o Bug 6).
+- `42l`/`1.5f` minúsculos funcionam (maiúsculos também — ver Bug 6 abaixo).
 - `Long as Int` funciona (fix 01/09) — o FP→Int é o Bug 5.
 - Null-safety narrowing JVM (`s.length` pós-guard) — corrigido 02/09.
 - Concat `"str" + double` — corrigido 02/09.
