@@ -979,6 +979,15 @@ EXTERNA produz lixo
 - **Prova:** `CoreRegressionE2ETest.jsonDecodeRecordWithListOfRecords` (JVM: `x`/`y`); probes Json34/Json34b: `userWithListAddr`/`listUserNested` OK, `nestedList` → JSN004; suíte completa verde.
 - **Descoberto:** 07/09 (GitHub #34; caso canônico = campo `List<Record>`, não só `List<Record>` no topo).
 
+### 59. REGRESSÃO Native riscv64/aarch64: `println` → `undefined reference to kof_static_java_lang_System_out` no link (59 testes vermelhos) — ABERTO (lane Native)
+
+- **Sintoma:** desde `62423bf` (fix bug 41, "campo estático dava lixo", lane Native), os 59 testes `NativeRiscv64E2ETest`/`NativeAarch64E2ETest` falham no link: `aarch64-linux-gnu-ld: undefined reference to 'kof_static_java_lang_System_out'`. Qualquer programa com `println`/`print` quebra nos 2 archs. **x86_64 (`NativeE2ETest`) passa** — o autor provou só x86.
+- **Bissect:** verde em `4a073ff`, vermelho em `62423bf` (e `756e7b3` não conserta). Reproduzido standalone (probe `RiscvS`): o `.s` riscv64 gerado tem `la t0, kof_static_java_lang_System_out` (referência) mas **nenhuma definição** `kof_static_java_lang_System_out:` no `.data`.
+- **Causa (diagnóstico read-only — não corrigi, lane Native + `nat/` EM CURSO no REFACTOR-500):** `NativeBackend.emitStaticData` (`nat/NativeBackend.java:185`, chamado em `:281`) itera `staticFieldSymbols` e emite os `.quad`. No caminho riscv/aarch o símbolo referenciado por `NativeRiscvCrossEmit:128` (`KofGetStatic` → `nb.staticSymbol(...)`) não chega ao mapa de dados emitido — ou o `collectStaticFields` não coleta o `System.out` do receiver quando o lowering riscv o trata como builtin de print (o fix 62423bf "descarta o receiver System.out" em `NativeX86Calls`/`NativeRiscvCrossOps`), ou o `emitStaticData` não roda no emit riscv/aarch. O x86 define o símbolo; riscv/aarch referenciam sem definir.
+- **Correção (lane Native):** garantir que o símbolo estático referenciado por `KofGetStatic` no caminho riscv/aarch seja emitido no `.data` (mesmo `emitStaticData` do x86), OU que o `KofGetStatic` de `System.out` seja descartado no riscv/aarch como no x86 (não referenciado). Prova esperada: `NativeRiscv64E2ETest`/`NativeAarch64E2ETest` 26/26 + gate `check_500`.
+- **Impacto no gate:** suíte completa vermelha (59 falhas) desde `62423bf` — não é regressão da lane KOFSCRIPT (nenhum arquivo `nat/` tocado por mim; bissect prova).
+- **Descoberto:** 07/09 (validação do fix #35.2 na suíte completa).
+
 ---
 
 ## Comportamentos que PAREcem bugs mas são esperados (não corrigir)

@@ -214,6 +214,18 @@ class KofMediaE2ETest {
         assertTrue(r.startsWith("HTTP/1.1 404"), "404: " + r.split("\r\n", 2)[0]);
     }
 
+    @Test
+    void serveDirTrailingSlashServesIndex() throws IOException {
+        // GitHub #35.2: GET /img/ (barra final — browsers digitam) deve servir
+        // o index.html do diretório, não 404.
+        Files.writeString(appDir.resolve("assets/index.html"), "<html>home</html>");
+        int port = startServer(appDir, SERVE_APP);
+        String r = request(port, "GET /img/ HTTP/1.1\r\nHost: x\r\n\r\n");
+        assertTrue(r.startsWith("HTTP/1.1 200"), "barra final → 200: " + r.split("\r\n", 2)[0]);
+        String body = r.substring(r.indexOf("\r\n\r\n") + 4);
+        assertTrue(body.contains("home"), "index.html servido: " + body);
+    }
+
     // ── serveDir("/") — prefixo RAIZ: o case canônico do full-stack (I2) ──
     // O bundle do frontend é montado em "/" (app.serveDir("/", KOF_WEB_OUT));
     // sem isso só o index servia e os .mjs do bundle davam 404.

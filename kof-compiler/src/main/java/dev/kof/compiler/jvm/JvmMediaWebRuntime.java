@@ -158,8 +158,13 @@ public final class JvmMediaWebRuntime {
                         } else if (sd.prefix.equals("/")) {
                             // prefix raiz: "/x" → "x" (sem o bug de "//")
                             rel = path.startsWith("/") ? path.substring(1) : path;
+                            if (rel.isEmpty()) rel = "index.html";
                         } else if (path.startsWith(sd.prefix + "/")) {
                             rel = path.substring(sd.prefix.length() + 1);
+                            // GET /ui/ (barra final — browsers digitam) → o
+                            // diretório, não o arquivo vazio: index.html
+                            // (GitHub #35.2).
+                            if (rel.isEmpty()) rel = "index.html";
                         } else {
                             continue;
                         }
