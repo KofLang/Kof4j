@@ -149,6 +149,21 @@ class UiE2ETest {
     }
 
     @Test
+    void listWidgetsLinkOnAllTargets(@TempDir Path tempDir) throws IOException {
+        // UI003: Ul/Ol — widgets data-driven (List<String> → <li>); no-op
+        // JVM/Native, DOM real em KofJS (KofJsBrowserE2ETest).
+        both(tempDir, "listwidgets", """
+            main() {
+                var u = Ul(listOf("a", "b", "c"))
+                u.setItems(listOf("x", "y"))
+                var o = Ol(listOf("1", "2"))
+                o.remove()
+                println("ok")
+            }
+            """, "ok");
+    }
+
+    @Test
     void formSubmitLinksOnAllTargets(@TempDir Path tempDir) throws IOException {
         // UI004: Form.onSubmit/submit — no-op em JVM/Native, DOM real em
         // KofJS (KofJsBrowserE2ETest.formSubmitHandlerRunsInRealBrowser).

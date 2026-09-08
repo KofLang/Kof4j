@@ -288,3 +288,23 @@ c.drawImage(logo, 5, 5)
 **Por quê:** `Image` já materializa um `<img>` no runtime; `drawImage` o
 compõe no bitmap do canvas sem round-trip por URL — a plataforma cuida do
 carregamento (R2).
+
+## Listas de itens (Ul/Ol)
+
+**BAD — montar `<li>` na mão com Column + Labels:**
+```kof
+// ❌ NÃO — reimplementar a lista com widgets avulsos
+var col = Column(listOf(Label("maçã"), Label("uva")))
+```
+
+**GOOD — `Ul(itens)` / `Ol(itens)`:**
+```kof
+// ✅ IDIOMÁTICO — a coleção da linguagem VIRA a lista HTML
+var frutas = Ul(listOf("maçã", "uva"))
+frutas.setItems(listOf("manga"))
+var passos = Ol(listOf("primeiro", "segundo"))
+```
+
+**Por quê:** `Ul`/`Ol` tomam `List<String>` e materializam `<ul>/<ol>` com
+um `<li>` por item — representar o domínio (lista ordenada/não-ordenada)
+com a coleção da linguagem, não N widgets manuais (R3).

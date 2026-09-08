@@ -177,5 +177,66 @@ public final class JsRuntimeUiForms {
                     delete window.__kofNodes[sel];
                 }
             }
+
+            function kofUiFillListItems(node, items) {
+                node.innerHTML = "";
+                if (items) {
+                    for (const label of items) {
+                        const li = document.createElement("li");
+                        li.textContent = String(label);
+                        node.appendChild(li);
+                    }
+                }
+            }
+
+            export function kofUiUlNew(items) {
+                const id = kofUiCreateNode("ul", "kof-ul");
+                if (id < 0) {
+                    return -1;
+                }
+                kofUiFillListItems(window.__kofNodes[id], items);
+                return id;
+            }
+
+            export function kofUiUlSetItems(ul, items) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[ul]) {
+                    kofUiFillListItems(window.__kofNodes[ul], items);
+                }
+            }
+
+            export function kofUiUlRemove(ul) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[ul]) {
+                    const node = window.__kofNodes[ul];
+                    if (node.parentNode) {
+                        node.parentNode.removeChild(node);
+                    }
+                    delete window.__kofNodes[ul];
+                }
+            }
+
+            export function kofUiOlNew(items) {
+                const id = kofUiCreateNode("ol", "kof-ol");
+                if (id < 0) {
+                    return -1;
+                }
+                kofUiFillListItems(window.__kofNodes[id], items);
+                return id;
+            }
+
+            export function kofUiOlSetItems(ol, items) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[ol]) {
+                    kofUiFillListItems(window.__kofNodes[ol], items);
+                }
+            }
+
+            export function kofUiOlRemove(ol) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[ol]) {
+                    const node = window.__kofNodes[ol];
+                    if (node.parentNode) {
+                        node.parentNode.removeChild(node);
+                    }
+                    delete window.__kofNodes[ol];
+                }
+            }
             """;
 }

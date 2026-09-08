@@ -128,6 +128,7 @@ void handleRuntimeOp(MethodCtx ctx, List<Object> stack,
                 || name.equals("kof_ui_input_new") || name.equals("kof_ui_column_new")
                 || name.equals("kof_ui_textarea_new") || name.startsWith("kof_ui_textarea_")
                 || name.equals("kof_ui_select_new") || name.startsWith("kof_ui_select_")
+                || name.startsWith("kof_ui_ul_") || name.startsWith("kof_ui_ol_")
                 || name.equals("kof_ui_form_new") || name.equals("kof_ui_form_on_submit")
                 || name.equals("kof_ui_form_submit")
                 || name.equals("kof_ui_row_new") || name.equals("kof_ui_view_new")

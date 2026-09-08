@@ -452,6 +452,42 @@ class KofJsBrowserE2ETest {
         }
     }
 
+    @Test
+    void listWidgetsRenderInRealBrowserDom(@TempDir Path tempDir) throws IOException {
+        Path chrome = findChrome();
+        assumeTrue(chrome != null, "Chrome/Chromium não instalado — pulando E2E de browser");
+
+        String program = """
+            main() {
+                var u = Ul(listOf("maçã", "uva"))
+                var o = Ol(listOf("primeiro", "segundo"))
+                var col = Column(listOf(u, o))
+                var w = Window("ListTest")
+                w.bind(col)
+                w.show()
+            }
+            """;
+        Path source = tempDir.resolve("App.kf");
+        Files.writeString(source, program);
+
+        Path outDir = tempDir.resolve("out");
+        CompilationResult result = driver.compile(source, outDir, Target.JS);
+        assertTrue(result.success(), "compilação JS deve passar: " + result.diagnostics().getDiagnostics());
+
+        HttpServer server = serve(outDir);
+        int port = server.getAddress().getPort();
+        try {
+            String dom = dumpDom(chrome, "http://127.0.0.1:" + port + "/index.html");
+            assertTrue(dom.contains("<ul"), "elemento <ul> ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("kof-ul"), "classe kof-ul ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("<li>maçã</li>"), "<li> da maçã ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("<ol"), "elemento <ol> ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("<li>primeiro</li>"), "<li> do primeiro ausente no DOM: " + excerpt(dom));
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private static HttpServer serve(Path dir) throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/", exchange -> {
