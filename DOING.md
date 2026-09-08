@@ -23,22 +23,23 @@ Estados: `ABERTO` · `EM CURSO` · `FEITO` · `BLOQUEADO`.
 
 **PRÓXIMO PASSO (08/09, lane UI/KofJS — Fase 4):** Fila KofUI avançada:
 R4 (Fase D Type Recovery) ✅ `367d6c4`; UI003 fieldset/iframe/video/audio/hr ✅
-`358ec80`; UI006 Event key/value/x/y + widget.on ✅ `f0907c2`. **Próxima
+`358ec80`; UI006 Event key/value/x/y + widget.on ✅ `f0907c2`; UI002 warning
+único no interpretador ✅ `7081551` (aditivo, no-op preservado, R6; teste
+`KofScriptTest.ui002WarnsOnceOnUiCalls`; suíte **1215/0/64-skip**). **Próxima
 tarefa concreta sem dono na minha lane (ordem de valor):**
-1. **UI002** — `Script` é no-op silencioso (R6): diagnosticar warning
-   `UI002` no compilador quando `Script(...)` aparece em target não-JS
-   (aditivo, não quebra retrocompat). Arquivo:
-   `kof-compiler/.../CompilerPipeline.java` (onde vive FFI001) + teste em
-   `UiE2ETest`. Prova: diagnostic UI002 em JVM/Native, ausente em JS.
-   **ATENÇÃO:** o no-op virar erro quebra retrocompat — warning apenas.
-2. **UI006 residual** — `Event.target()` (elemento que originou) +
+1. **UI006 residual** — `Event.target()` (elemento que originou) +
    `relatedTarget()`: `kofUiMakeEvent` já tem `raw`; expor target como
-   string id do nó. Mesma receita UI006. Prova: browser headless.
-3. **UI007 style declarativo** — BLOQUEADO (regra 6): superfície de API
+   string id do nó (fallback tagName quando sem id). Arquivos: `KofUi.java`
+   (accessors), `JsRuntimeUiEvents.java` (`raw`→id), `RuntimeUi.java`+
+   `JvmRuntimeUi*.java`+`JvmRuntimeCallDescriptors.java`+`JsRuntimeOps.java`
+   (paridade no-op/whitelist), `UiE2ETest` (link JVM/Native) +
+   `KofJsBrowserE2ETest` (prova DOM real com dispatch sintético). Prova:
+   browser headless mostra id do alvo.
+2. **UI007 style declarativo** — BLOQUEADO (regra 6): superfície de API
    aguarda decisão do maintainer (proposta em `docs/development/
    KOFUI-AUDIT.md` §UI007).
 Receita de widget/método novo = 8/9 pontos (ver bloco R4/UI003/UI006 em
-"Estado atual"). Suíte atual: **1210/0/64-skip** verde JDK 21+25.
+"Estado atual"). Suíte atual: **1215/0/64-skip** verde JDK 21+25.
 
 **PRÓXIMO PASSO anterior (08/09, lane KOFSCRIPT/fixes-for-kofagent):** P0 de
 estabilização FECHADO (#28–#35). EDI001 completo na lane CLI (degraus 0-12 +
@@ -296,6 +297,13 @@ reuso). **Prova E2E Cenário A (I2)**: app real `web.app()` + `serveDir` →
     headless, dispatch sintético via `setTimeout`+`KeyboardEvent('keydown',
     {key:'x'})`+`Event('input')` — DOM final prova `key=x` no placeholder e
     `val=abc` no class); suíte **1210/0/64-skip**).
+    (h) ✅ UI002 FEITO (08/09 — `7081551`): warning **único** no stderr quando
+    `KofInterpreter` resolve `kof_ui_*` no target script (`warnUi002` c/ flag
+    `ui002Warned`; gatilho em `KofInterpreterRuntime.runtimeFn` por
+    `name.startsWith("kof_ui_")`); mensagem aponta `--target=js`; aditivo —
+    no-op preservado, nunca erro (regra 6 + retrocompat); prova:
+    `KofScriptTest.ui002WarnsOnceOnUiCalls` (presença no stderr + contagem
+    == 1); suíte **1215/0/64-skip**).
     **R4 — FASE D (Type Recovery) FEITO (08/09, este commit)** — o gap real
     da migração, antes "0 ocorrências no decoder". (R4.1) `ClassFileParser`
     lê o atributo `Signature` (JVMS 4.7.1) nos 3 níveis — `MethodInfo.

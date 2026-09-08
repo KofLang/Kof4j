@@ -61,7 +61,7 @@ Grid, Center, Align, Store, Canvas + namespace `Router`.
 | Gap | Descrição | Target | Prioridade |
 |---|---|---|---|
 | **UI001** | `kof.ui` no Native = no-op silencioso (binário roda sem diagnóstico). **PARCIALMENTE CORRIGIDO 07/09**: `Image/Link/Icon/Font` **não linkavam** (`undefined reference [COMP001]` — 21 stubs ausentes em `RuntimeUi`); adicionados (paridade no-op com JVM). Resta: diagnóstico p/ o no-op silencioso dos demais = decisão de design (regra 6) | Native | **P0 (R6)** → P2 (residual) |
-| **UI002** | `kof.ui` no Script = no-op silencioso (interprete executa sem efeito) | Script | **P0 (R6)** |
+| **UI002** | `kof.ui` no Script = no-op silencioso (interprete executa sem efeito). **FEITO 08/09** (`7081551`): warning `UI002` **uma única vez** no stderr quando `KofInterpreter` resolve função `kof_ui_*` (mensagem aponta `--target=js`); aditivo — no-op preservado (retrocompat), sem erro (regra 6); teste `KofScriptTest.ui002WarnsOnceOnUiCalls` (verifica presença + contagem == 1) | Script | **P0 (R6)** → **FEITO** |
 | **UI003** | Elementos: textarea ✅ FEITO 07/09 (`Textarea`); table/tr/td ✅ FEITO 07/09 (`Table(header, rows)` data-driven); select/option ✅ (`Select`); ul/ol/li ✅ (`Ul`/`Ol` data-driven); fieldset/legend ✅, iframe ✅, video/audio ✅, hr ✅ (08/09, `358ec80` — `Fieldset(children[, legend])`/`Iframe(url)`/`Video(url)`/`Audio(url)`/`Hr()` + remove; DOM real provado no Chrome headless; `kofSerialize` ganhou `src` + void-tags) | KofJS | P1 **FEITO** |
 | **UI004** | Forms: `<form>` ✅ + submit handler ✅ FEITO 07/09 (`Form(children)`, `onSubmit`, `submit()` — handler roda no browser, prova por mutação de DOM); fieldset ✅ FEITO 08/09 (`Fieldset(children[, legend])`, `358ec80`). `Input` tipos ✅ (`setType`); checkbox/radio estado ✅ (`setChecked`/`checked`); select ✅ (`Select`/`setOptions`/`selected`/`setSelected`) | KofJS | P1 **FEITO** |
 | **UI005** | Atributos: id ✅ class ✅ disabled ✅ (FEITO 07/09 — `setId`/`setClass`/`setDisabled` em widgets DOM, família `kof_ui_widget_*`); placeholder ✅ (`Input.setPlaceholder`); checked ✅; alt/width/height ✅ (`Image.*`); readonly/name pendentes | KofJS | P1 |
@@ -116,8 +116,9 @@ UI005 `setId`/`setClass`/`setDisabled` (+ fix do código morto `acceptsFont`).
 2. Atributos `id`/`class`/`disabled` (UI005) + elementos `textarea`/`select`
    (UI003) — mesmo padrão de 6 pontos.
 3. UI007 `style` declarativo (CSS idiomático, parse próprio) — o item maior.
-4. UI002 (Script no-op silencioso) — decidir com maintainer (regra 6):
-   diagnóstico warning vs. erro (erro quebra retrocompatibilidade).
+4. ~~UI002 (Script no-op silencioso)~~ **FEITO 08/09** (`7081551`): decisão
+   tomada como aditivo sem quebrar retrocompat — **warning** único no stderr
+   (nunca erro; regra 6 + congelamento); teste `KofScriptTest.ui002WarnsOnceOnUiCalls`.
 
 ### UI007 — proposta de design (aguarda maintainer; regra 6)
 
