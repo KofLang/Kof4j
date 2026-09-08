@@ -229,6 +229,18 @@ reuso). **Prova E2E Cenário A (I2)**: app real `web.app()` + `serveDir` →
     selectRendersInRealBrowserDom` (DOM `<select kof-select>` + 3
     `<option value=...>` + selected no índice 1); corpus
     `training/idioms/ui.md` (Select BAD/GOOD/WHY). Suíte 1146/0/64-skip.
+    **Canvas UI009 FEITO (07/09, `9300d6b`)**: save/restore/setGlobalAlpha/
+    fillText/measureText/transform (6 métodos, família kof_ui_canvas_*,
+    whitelist por prefixo). measureText→Double (xorpd xmm0 no Native).
+    Prova: UiE2ETest.canvasUi009LinksOnAllTargets (JVM+Native) +
+    KofJsBrowserE2ETest.canvasUi009RunsInRealBrowser (métodos rodam no
+    contexto real — measureText>0 via Label). drawImage pendente
+    (integração c/ Image). **PRÓXIMO PASSO (minha lane, Fase 4)**:
+    (a) Canvas.drawImage (unidade própria — Image→canvas); (b) UI007
+    `style` declarativo (CSS idiomático, parse próprio — item maior,
+    superfície de design); (c) UI003 table/ul/li/fieldset (mesma receita
+    Select). R2/R3/R4 da migração = decisão de design / colidem com
+    APP-MODEL (dono) — NÃO são minha lane sem maintainer.
     **AUDITORIA planning-future FEITA (este commit)**:
     `docs/development/future/PLANNING-FUTURE-AUDIT.md`. Veredito: a branch
     entregou a plataforma de migração legado (Fases A/B/C-parcial/E/F/G/H,
