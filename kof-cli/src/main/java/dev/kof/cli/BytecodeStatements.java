@@ -348,6 +348,14 @@ final class BytecodeStatements {
             switch (op) {
                 case 0x02 -> stack.push("-1");
                 case 0x03, 0x04, 0x05, 0x06, 0x07, 0x08 -> stack.push(String.valueOf(op - 0x03));
+                // lconst/dconst carregam o TIPO no próprio opcode (lição do
+                // bug 62: só emitir quando o tipo não pode driftar). Kof tem
+                // literal Long (42L) e Double (2.25) — fconst fica recusado.
+                case 0x09 -> stack.push("0L");
+                case 0x0a -> stack.push("1L");
+                case 0x0b, 0x0c, 0x0d -> { return null; }  // fconst: sem literal float em Kof
+                case 0x0e -> stack.push("0.0");
+                case 0x0f -> stack.push("1.0");
                 case 0x10 -> stack.push(String.valueOf((byte) in.operands()[0]));
                 case 0x11 -> stack.push(String.valueOf((short) in.operands()[0]));
                 case 0x12 -> {

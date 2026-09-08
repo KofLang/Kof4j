@@ -324,6 +324,38 @@ class DecompileTest {
     }
 
     @Test
+    void recoversLongDoubleConstBodies(@TempDir Path dir) throws Exception {
+        Path javaFile = dir.resolve("LC.java");
+        Files.writeString(javaFile, """
+                public class LC {
+                    public static long zl() { return 0L; }
+                    public static long one() { return 1L; }
+                    public static double zero() { return 0.0; }
+                    public static double uno() { return 1.0; }
+                }
+                """);
+        runJavac(javaFile, dir);
+
+        String kof = Decompile.decompile(dir.resolve("LC.class"));
+
+        // lconst_0/1 (0x09/0x0a) e dconst_0/1 (0x0e/0x0f) carregam o TIPO no
+        // opcode — emitir "0L"/"1L"/"0.0"/"1.0" não pode driftar (Kof tem os
+        // literais; e o verificador JVM garante const tipo == retorno). Lição
+        // aplicada do bug 62 (float ldc ficou recusado — sem literal em Kof).
+        assertTrue(kof.contains("= 0L"), "long const deve recuperar com sufixo L:\n" + kof);
+        assertTrue(kof.contains("= 1L"), "lconst_1:\n" + kof);
+        assertTrue(kof.contains("= 0.0"), "dconst_0:\n" + kof);
+        assertTrue(kof.contains("= 1.0"), "dconst_1:\n" + kof);
+        assertFalse(kof.contains("body not recovered"), "nenhum deve degradar:\n" + kof);
+
+        Path out = dir.resolve("LC.kf");
+        Files.writeString(out, kof);
+        CompilerDriver driver = new CompilerDriver();
+        CompilationResult result = driver.compile(out, dir.resolve("out"), Target.JVM);
+        assertTrue(result.success(), "decompiled deve compilar:\n" + kof + "\n" + result.diagnostics().getDiagnostics());
+    }
+
+    @Test
     void recoversMethodCall(@TempDir Path dir) throws Exception {
         Path javaFile = dir.resolve("Call.java");
         Files.writeString(javaFile, """

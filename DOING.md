@@ -73,7 +73,12 @@ concreta (ordem de valor):**
    diamond com `continue` p/ incremento, `break` p/ pós-loop, `&&`/`?:` com
    braços que convergem — exige construção GSEA/semidominators (G6790) ou
    re-emissão com labels. Hoje: degradação honesta travada por teste.
-4. **Próxima tarefa segura (baixo risco, sem design): estender `emitLinear`
+4. **✅ FEITO (este commit) — lconst/dconst no recovery**: 0x09/0x0a→"0L"/
+   "1L", 0x0e/0x0f→"0.0"/"1.0" (tipo embutido no opcode → não drifta —
+   lesson do bug 62 aplicada; fconst 0x0b-0x0d recusado, sem literal float
+   em Kof). `DecompileTest.recoversLongDoubleConstBodies` (compila de volta
+   no JVM); DecompileTest 22/22; suíte 1229/0/64-skip.
+5. **Próxima tarefa segura (baixo risco, sem design): estender `emitLinear`
    p/ aritmética long + casts int-lineares** (`ladd/lsub/lmul` 0x65-0x67,
    `i2l` 0x85, `i2d`/`d2i` etc.) — MAS com o GUARD de tipo aprendido no bug
    62: só emitir quando o tipo Kof do literal/resultado não driftar (long

@@ -54,7 +54,11 @@ Esta é a versão consolidada do plano de implementação para todos os document
 |------|-----------|------------|--------------|--------|-------------------|
 | CFG-Basic-Blocks | LEGACY_IR.md | 🟡 M | Phase 1 | ✅ **EM CURSO** | BasicBlock identificado, instruções decodificadas |
 
-**Progresso:** `ClassFileParser.expand()` com `Instruction`, `BasicBlock`, `analyze()`, `disassemble()`. **Recuperação de corpo (Fase C/E)** em `kof-cli` `BytecodeStatements`: if/while/for (top-tested) + **do-while (bottom-tested, 08/09)** — back-edge self/para-trás detectado no bloco cond → `do { corpo } while (c)`; caso de corpo separado do teste degrada p/ stub UNKNOWN honesto (nunca `while` de corpo vazio). Prova `DecompileTest.bottomTestedLoopRecoversAsDoWhile`.
+**Progresso:** `ClassFileParser.expand()` com `Instruction`, `BasicBlock`, `analyze()`, `disassemble()`. **Recuperação de corpo (Fase C/E)** em `kof-cli` `BytecodeStatements`: if/while/for (top-tested) + **do-while (bottom-tested, 08/09)** — back-edge self/para-trás detectado no bloco cond → `do { corpo } while (c)`; caso de corpo separado do teste degrada p/ stub UNKNOWN honesto (nunca `while` de corpo vazio). Prova `DecompileTest.bottomTestedLoopRecoversAsDoWhile`. **Bug 62 corrigido**
+(CP Float/Double como bits crus → `intBitsToFloat`/`longBitsToDouble`; `ldc`
+recusa float p/ não driftar). **lconst/dconst recuperados** (0x09/0x0a/0x0e/
+0x0f — tipo embutido no opcode, lesson bug 62 aplicada; `DecompileTest.
+recoversLongDoubleConstBodies`).
 
 ### T3-MEDIUM: Type Recovery
 
