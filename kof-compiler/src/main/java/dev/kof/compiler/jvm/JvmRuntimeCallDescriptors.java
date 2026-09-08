@@ -328,6 +328,7 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_strings_isAlpha", "kof_strings_isNumeric", "kof_strings_isAlphaNumeric", "kof_strings_isAscii" -> "(Ljava/lang/String;)Z";
             case "kof_strings_isUpperCase", "kof_strings_isLowerCase" -> "(Ljava/lang/String;)Z";
             case "kof_strings_count" -> "(Ljava/lang/String;Ljava/lang/String;)I";
+            case "kof_strings_capitalize", "kof_strings_reverse" -> "(Ljava/lang/String;)Ljava/lang/String;";
             // ── kof.observability (G5) ────────────────────────────────
             case "kof_observability_health", "kof_observability_request_id", "kof_observability_correlation_id",
                     "kof_observability_trace_id", "kof_observability_span_id",

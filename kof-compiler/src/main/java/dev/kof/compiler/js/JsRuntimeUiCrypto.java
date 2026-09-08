@@ -303,6 +303,17 @@ public final class JsRuntimeUiCrypto {
                 while ((i = v.indexOf(sub, i)) >= 0) { n++; i += sub.length; }
                 return n;
             }
+            // capitalize: ASCII-only (paridade travada com Native byte-1).
+            export function kofStringsCapitalize(v) {
+                if (v == null || v.length === 0) return v;
+                const c = v.charCodeAt(0);
+                if (c >= 97 && c <= 122) return String.fromCharCode(c - 32) + v.slice(1);
+                return v;
+            }
+            export function kofStringsReverse(v) {
+                if (v == null || v.length === 0) return v;
+                return [...v].reverse().join('');
+            }
 
             // ── kof.observability (G5) ──────────────────────────────
 

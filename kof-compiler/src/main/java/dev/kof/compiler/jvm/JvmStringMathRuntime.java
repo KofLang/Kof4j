@@ -125,6 +125,19 @@ public final class JvmStringMathRuntime {
                     while ((i = v.indexOf(sub, i)) >= 0) { n++; i += sub.length(); }
                     return n;
                 }
+
+                // ASCII-only: paridade byte-idêntica com Native (byte[0] a-z).
+                public static String kof_strings_capitalize(String v) {
+                    if (v == null || v.isEmpty()) return v;
+                    char c = v.charAt(0);
+                    if (c >= 'a' && c <= 'z') return (char) (c - 32) + v.substring(1);
+                    return v;
+                }
+
+                public static String kof_strings_reverse(String v) {
+                    if (v == null) return null;
+                    return new StringBuilder(v).reverse().toString();
+                }
         """;
     }
 }

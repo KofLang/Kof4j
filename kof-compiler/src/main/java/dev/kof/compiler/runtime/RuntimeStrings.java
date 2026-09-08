@@ -273,6 +273,108 @@ public final class RuntimeStrings {
                 xorl %eax, %eax
                 popq %rbx
                 ret
+
+            # kof_strings_capitalize(rdi=str) -> String (1º byte a-z => -32)
+            # null/"" => retorna o ponteiro original (paridade JVM).
+            .globl kof_strings_capitalize
+            .type kof_strings_capitalize, @function
+            kof_strings_capitalize:
+                pushq %rbx
+                pushq %r12
+                pushq %r13
+                pushq %r14
+                pushq %r15
+                movq %rdi, %rbx
+                testq %rbx, %rbx
+                jz .Lv_str_cap_ret_orig
+                movl 16(%rbx), %r12d
+                testl %r12d, %r12d
+                jle .Lv_str_cap_ret_orig
+                leal 25(%r12), %edi
+                call kof_alloc
+                movq %rax, %r13            # novo obj
+                movl $1, (%r13)
+                movl $0, 4(%r13)
+                movq $0, 8(%r13)
+                movl %r12d, 16(%r13)
+                movl $0, 20(%r13)
+                movzbl 24(%rbx), %eax
+                cmpl $97, %eax             # 'a'
+                jl .Lv_str_cap_put
+                cmpl $122, %eax            # 'z'
+                jg .Lv_str_cap_put
+                subl $32, %eax             # -> maiúscula
+            .Lv_str_cap_put:
+                movb %al, 24(%r13)
+                # resto: memcpy(novo+25, orig+25, len-1)
+                leaq 25(%r13), %rdi
+                leaq 25(%rbx), %rsi
+                movl %r12d, %edx
+                decl %edx
+                jz .Lv_str_cap_term
+                call kof_memcpy
+            .Lv_str_cap_term:
+                movb $0, 24(%r13,%r12)
+                movq %r13, %rax
+                jmp .Lv_str_cap_done
+            .Lv_str_cap_ret_orig:
+                movq %rbx, %rax
+            .Lv_str_cap_done:
+                popq %r15
+                popq %r14
+                popq %r13
+                popq %r12
+                popq %rbx
+                ret
+
+            # kof_strings_reverse(rdi=str) -> String (byte-reverso, ASCII)
+            # null/"" => retorna o ponteiro original (paridade JVM).
+            .globl kof_strings_reverse
+            .type kof_strings_reverse, @function
+            kof_strings_reverse:
+                pushq %rbx
+                pushq %r12
+                pushq %r13
+                pushq %r14
+                pushq %r15
+                movq %rdi, %rbx
+                testq %rbx, %rbx
+                jz .Lv_str_rev_ret_orig
+                movl 16(%rbx), %r12d
+                testl %r12d, %r12d
+                jle .Lv_str_rev_ret_orig
+                leal 25(%r12), %edi
+                call kof_alloc
+                movq %rax, %r13
+                movl $1, (%r13)
+                movl $0, 4(%r13)
+                movq $0, 8(%r13)
+                movl %r12d, 16(%r13)
+                movl $0, 20(%r13)
+                xorq %r14, %r14            # i
+            .Lv_str_rev_loop:
+                cmpq %r12, %r14
+                jge .Lv_str_rev_term
+                movq %r12, %r15
+                subq %r14, %r15
+                decq %r15
+                movzbl 24(%rbx,%r15), %eax # s[len-1-i]
+                movb %al, 24(%r13,%r14)
+                incq %r14
+                jmp .Lv_str_rev_loop
+            .Lv_str_rev_term:
+                movb $0, 24(%r13,%r12)
+                movq %r13, %rax
+                jmp .Lv_str_rev_done
+            .Lv_str_rev_ret_orig:
+                movq %rbx, %rax
+            .Lv_str_rev_done:
+                popq %r15
+                popq %r14
+                popq %r13
+                popq %r12
+                popq %rbx
+                ret
         """);
     }
 }

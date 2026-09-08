@@ -220,6 +220,20 @@ class ConformanceMatrixTest {
                     println(strings.count("aaa", "aa"))
                 }
                 """, "true\nfalse\nfalse\ntrue\nfalse\nfalse\ntrue\nfalse\ntrue\ntrue\ntrue\nfalse\ntrue\nfalse\n2\n1", Set.of(), tempDir);
+        // STDLIB S2b — kof.strings conversores (alocam String). ASCII-only:
+        // é onde JVM/Native/JS concordam byte a byte. capitalize é ASCII
+        // (mesma regra nos 4); reverse é byte-reverso no Native e UTF-16
+        // nos outros — em ASCII as três convenções coincidem. Gap UTF-8 do
+        // reverse nativo = NAT-STR01 (plan-stdlib-expansion §5).
+        matrix("stdstrings2b", """
+                main() {
+                    var a = strings.capitalize("hello world")
+                    var b = strings.capitalize("1abc")
+                    var c = strings.reverse("abc123")
+                    var d = strings.reverse("kayak")
+                    println(a + "|" + b + "|" + c + "|" + d)
+                }
+                """, "Hello world|1abc|321cba|kayak", Set.of(), tempDir);
     }
 
     @Test
