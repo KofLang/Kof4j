@@ -37,12 +37,14 @@ final class CmdServe {
         if (!Files.exists(file)) { System.err.println("file not found: " + file); System.exit(1); return; }
 
         int port = 8080;
+        boolean portFlag = false;
         String host = "0.0.0.0";
         String backendFlag = null;
         String frontendFlag = null;
         for (int i = 2; i < args.length; i++) {
             if (args[i].equals("--port") && i + 1 < args.length) {
                 port = Integer.parseInt(args[i + 1]);
+                portFlag = true;
                 i++;
             } else if (args[i].equals("--host") && i + 1 < args.length) {
                 host = args[i + 1];
@@ -129,10 +131,6 @@ final class CmdServe {
             return;
         }
 
-        System.out.println("kof serve starting on " + host + ":" + port);
-        System.out.println("compiling " + file + " ...");
-        System.out.println("server ready at http://" + host + ":" + port);
-
         URLClassLoader handlerLoader;
         try {
             handlerLoader = new URLClassLoader(
@@ -156,6 +154,14 @@ final class CmdServe {
                 // Kof-native web app (web.app() + app.listen()): the program
                 // runs its own server. Legacy handle(...) apps have no main.
                 handlerLoader.close();
+                // R6 (#35.3): o app é dono da porta via app.listen(port).
+                // --port/--host NÃO controlam este modo — avisar em vez de
+                // imprimir um banner mentiroso com a porta da CLI.
+                System.out.println("compiling " + file + " ...");
+                if (portFlag) {
+                    System.out.println("note: kof-native app defines its own port via "
+                            + "app.listen(port); --port " + port + " is ignored here.");
+                }
                 Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                     System.out.println("\nkof serve shutting down...");
                     if (KofCliSupport.servedProcess != null && KofCliSupport.servedProcess.isAlive()) {
@@ -182,6 +188,8 @@ final class CmdServe {
                 KofCliSupport.cleanup(tempDir);
             }));
 
+            System.out.println("compiling " + file + " ...");
+            System.out.println("kof serve listening on http://" + host + ":" + port);
             System.out.println("listening for connections...");
             server.serve(host, port);
         } catch (ClassNotFoundException e) {
