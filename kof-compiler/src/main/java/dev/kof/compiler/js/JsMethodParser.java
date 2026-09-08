@@ -100,18 +100,11 @@ public final class JsMethodParser {
     }
 
     List<String> parameterNames(MethodCtx ctx) {
-        if ("main".equals(ctx.methodName) && ctx.paramCount == 1) {
-            // The injected String[] parameter is not a source parameter.
-            return List.of();
-        }
+        // Fonte única: os mesmos slots que MethodCtx marca como já declarados
+        // (known-bugs #63). Assinatura e `declared` não podem divergir.
         List<String> names = new ArrayList<>();
-        int start = ctx.instanceMethod ? 1 : 0;
-        for (int i = start; i < ctx.localNames.size() && names.size() < ctx.paramCount; i++) {
-            if (ctx.captureSlots.contains(i)) continue;
-            String name = ctx.localNames.get(i);
-            if (name != null) {
-                names.add(name);
-            }
+        for (int slot : ctx.parameterSlots()) {
+            names.add(ctx.localNames.get(slot));
         }
         return names;
     }

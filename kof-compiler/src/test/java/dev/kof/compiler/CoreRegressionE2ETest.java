@@ -780,4 +780,78 @@ class CoreRegressionE2ETest {
                 }
                 """, "8\n12", tempDir, "lambda-returning-lambda");
     }
+
+    // known-bugs #63 / GitHub #43 — assigning to a PARAMETER emitted a `let`
+    // redeclaration in KofJS ("Variable 'a' has already been declared"), a
+    // parse error that killed the whole module. Parameters are already bound
+    // by the JS function signature, so the first store to a parameter slot is
+    // an assignment, never a declaration. JVM and the interpreter were correct.
+    @Test
+    void assignmentToParameterIsNotARedeclarationInJs(@TempDir Path tempDir) throws IOException {
+        runBoth("""
+                Int f(Int a) {
+                    a = 99
+                    return a
+                }
+                main() {
+                    println(f(1))
+                }
+                """, "99", tempDir, "param-assign");
+    }
+
+    // Same root cause, the remaining shapes: two stores to one parameter,
+    // compound assignment, an instance method (slot 0 is `this`) and a lambda
+    // (capture slots come before the real parameters).
+    @Test
+    void parameterReassignmentAcrossAllShapes(@TempDir Path tempDir) throws IOException {
+        runBoth("""
+                Int twice(Int a) {
+                    a = 1
+                    a = 2
+                    return a
+                }
+                Int compound(Int a) {
+                    a += 1
+                    return a
+                }
+                class C {
+                    Int m(Int a) {
+                        a = 7
+                        return a
+                    }
+                }
+                main() {
+                    println(twice(0))
+                    println(compound(5))
+                    var c = C()
+                    println(c.m(1))
+                    var g = (n: Int) -> {
+                        n = 3
+                        return n
+                    }
+                    println(g(1))
+                }
+                """, "2\n6\n7\n3", tempDir, "param-assign-shapes");
+    }
+
+    // The lambda case with a CAPTURE: in the synthetic invoke() the capture
+    // slots come before the real parameters, so the seeded parameter range has
+    // to account for them. The lambda reassigns its own parameter and only
+    // READS the capture (mutable-capture semantics is known-bugs #9 — kept out
+    // of this test on purpose).
+    @Test
+    void parameterReassignedInsideCapturingLambda(@TempDir Path tempDir) throws IOException {
+        runBoth("""
+                Int outer(Int base) {
+                    var add = (n: Int) -> {
+                        n = n + base
+                        return n
+                    }
+                    return add(1)
+                }
+                main() {
+                    println(outer(5))
+                }
+                """, "6", tempDir, "param-assign-capture");
+    }
 }

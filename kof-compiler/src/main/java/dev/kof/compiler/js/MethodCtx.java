@@ -76,6 +76,35 @@ public final class MethodCtx {
             }
             localNames.put(lv.index(), uniqueName(JsTypeMapper.sanitizeName(lv.name())));
         }
+        // known-bugs #63: os PARÂMETROS já estão ligados pela assinatura da
+        // função JS, então o primeiro store num slot de parâmetro é uma
+        // atribuição, nunca uma declaração (`let a = ...` redeclara e o
+        // SyntaxError derruba o módulo inteiro). Deriva da MESMA fonte que
+        // monta a assinatura (parameterSlots), para que os dois não possam
+        // divergir.
+        declared.addAll(parameterSlots());
+    }
+
+    /**
+     * Slots ligados pela assinatura da função JS, na ordem. É a fonte única
+     * usada tanto para emitir a lista de parâmetros quanto para saber quais
+     * slots já estão declarados (known-bugs #63).
+     *
+     * <p>As capturas ficam de fora: em {@code invoke()} elas são locais
+     * copiados dos campos e precisam manter o próprio {@code let}.
+     */
+    List<Integer> parameterSlots() {
+        if ("main".equals(methodName) && paramCount == 1) {
+            // O parâmetro String[] injetado no main não é parâmetro de fonte.
+            return List.of();
+        }
+        List<Integer> slots = new ArrayList<>();
+        int start = instanceMethod ? 1 : 0;
+        for (int i = start; i < localNames.size() && slots.size() < paramCount; i++) {
+            if (captureSlots.contains(i)) continue;
+            if (localNames.get(i) != null) slots.add(i);
+        }
+        return slots;
     }
 
     String uniqueName(String base) {
