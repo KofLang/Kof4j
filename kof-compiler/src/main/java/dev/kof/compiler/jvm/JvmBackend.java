@@ -256,6 +256,7 @@ public class JvmBackend implements Backend {
             mv.visitLabel(debugStart);
         }
         int lastLine = -1;
+        int opIndex = 0;
         for (KofOperation op : ops) {
             SourcePosition pos = debugPositions.get(op);
             if (pos != null && pos.line() != lastLine && debugInfoEnabled) {
@@ -264,7 +265,15 @@ public class JvmBackend implements Backend {
                 mv.visitLineNumber(pos.line(), lineLabel);
                 lastLine = pos.line();
             }
-            emitOperation(mv, className, op);
+            try {
+                emitOperation(mv, className, op);
+            } catch (RuntimeException e) {
+                throw new RuntimeException(JvmFrameDiagnostics.describe(
+                        ops.subList(0, opIndex + 1),
+                        debugPositions,
+                        (dump, o) -> emitOperation(dump, className, o), e), e);
+            }
+            opIndex++;
         }
         if (debugInfoEnabled && debugStart != null) {
             Label debugEnd = new Label();
@@ -285,8 +294,9 @@ public class JvmBackend implements Backend {
         try {
             mv.visitMaxs(maxStack, maxLocals);
         } catch (RuntimeException e) {
-            // re-emit num ClassWriter COMPUTE_MAXS + TraceClassVisitor: mostra
-            // o bytecode exato que quebrou o COMPUTE_FRAMES
+            // COMPUTE_FRAMES estourou: diagnóstico rico por padrão (plano
+            // estabilização parte 3) — arquivo:linha Kof, fase, IR, ASM.
+            // Flags kof.trace.asm/ir continuam adicionando o dump completo.
             if (Boolean.getBoolean("kof.trace.asm")) {
                 try {
                     java.io.StringWriter sw = new java.io.StringWriter();
@@ -294,21 +304,19 @@ public class JvmBackend implements Backend {
                     org.objectweb.asm.MethodVisitor dump = new org.objectweb.asm.util.TraceMethodVisitor(pr);
                     for (KofOperation op : ops) emitOperation(dump, className, op);
                     pr.print(new java.io.PrintWriter(sw, true));
-                    System.err.println("=== bytecode de " + className + "." + method.name() + " ===");
+                    System.err.println("=== bytecode completo de " + className + "." + method.name() + " ===");
                     System.err.println(sw);
                 } catch (Throwable t2) {
                     System.err.println("trace.asm falhou: " + t2);
                 }
             }
             if (Boolean.getBoolean("kof.trace.ir")) {
-                System.err.println("=== IR ops de " + className + "." + method.name() + " ===");
-                for (IRBasicBlock block : method.basicBlocks()) {
-                    for (KofOperation op : block.operations()) {
-                        System.err.println("  " + op);
-                    }
-                }
+                System.err.println("=== IR completo de " + className + "." + method.name() + " ===");
+                for (KofOperation op : ops) System.err.println("  " + op);
             }
-            throw e;
+            throw new RuntimeException(JvmFrameDiagnostics.describe(
+                    ops, debugPositions,
+                    (dump, o) -> emitOperation(dump, className, o), e), e);
         }
         mv.visitEnd();
     }
