@@ -261,4 +261,65 @@ class LspServerTest {
         assertNotNull(edits);
         assertTrue(edits.isEmpty(), "já formatado → nenhum edit, foi: " + edits);
     }
+
+    // ---- EDI001 §15: textDocument/documentSymbol (outline) ---------------
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void initializeAnnouncesDocumentSymbolCapability() throws Exception {
+        String req = "{\"jsonrpc\":\"2.0\",\"id\":0,\"method\":\"initialize\",\"params\":{}}";
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        new LspServer(new ByteArrayInputStream(frame(req)), out).run();
+        Map<String, Object> res = (Map<String, Object>) byId(messages(out.toString(StandardCharsets.UTF_8)), 0).get("result");
+        Map<String, Object> caps = (Map<String, Object>) res.get("capabilities");
+        assertEquals(Boolean.TRUE, caps.get("documentSymbolProvider"));
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> documentSymbols(String text) throws Exception {
+        String didOpen = "{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{"
+                + "\"textDocument\":{\"uri\":\"" + URI + "\",\"text\":\"" + Json.escape(text) + "\"}}}";
+        String req = "{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"textDocument/documentSymbol\",\"params\":{"
+                + "\"textDocument\":{\"uri\":\"" + URI + "\"}}}";
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        new LspServer(new ByteArrayInputStream(all(frame(didOpen), frame(req))), out).run();
+        Object result = byId(messages(out.toString(StandardCharsets.UTF_8)), 7).get("result");
+        List<Object> raw = result == null ? List.of() : (List<Object>) result;
+        List<Map<String, Object>> symbols = new java.util.ArrayList<>();
+        for (Object o : raw) symbols.add((Map<String, Object>) o);
+        return symbols;
+    }
+
+    @Test
+    void documentSymbolListsFunctionsAndTypes() throws Exception {
+        String text = "record Point(Int x, Int y)\nclass Box { Int n }\n"
+                + "Int compute(Int x) { return x * 2 }\nmain() { println(compute(3)) }\n";
+        List<Map<String, Object>> syms = documentSymbols(text);
+        java.util.Map<String, Integer> byName = new java.util.LinkedHashMap<>();
+        for (Map<String, Object> s : syms) byName.put((String) s.get("name"),
+                ((Number) s.get("kind")).intValue());
+        // tipos (kind 5) + funções (kind 12), em ordem de aparecimento
+        assertEquals(java.util.Map.of("Point", 5, "Box", 5, "compute", 12, "main", 12), byName,
+                "outline deve listar tipos e funções: " + syms);
+    }
+
+    @Test
+    void documentSymbolSelectionRangePointsAtName() throws Exception {
+        String text = "Int compute(Int x) { return x * 2 }\n";
+        List<Map<String, Object>> syms = documentSymbols(text);
+        assertEquals(1, syms.size());
+        Map<String, Object> start = (Map<String, Object>)
+                ((Map<String, Object>) syms.get(0).get("selectionRange")).get("start");
+        assertEquals(0, ((Number) start.get("line")).intValue());
+        assertEquals(4, ((Number) start.get("character")).intValue(), "seleção no nome 'compute' (col 4)");
+    }
+
+    @Test
+    void documentSymbolSkipsControlKeywords() throws Exception {
+        // if/while/for/switch com ( não são funções
+        String text = "main() {\n if (true) { println(1) }\n while (false) { }\n for (var i in listOf(1)) { }\n}\n";
+        List<Map<String, Object>> syms = documentSymbols(text);
+        assertEquals(1, syms.size(), "só 'main' é função: " + syms);
+        assertEquals("main", syms.get(0).get("name"));
+    }
 }

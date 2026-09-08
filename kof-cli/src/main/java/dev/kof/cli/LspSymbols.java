@@ -20,6 +20,52 @@ final class LspSymbols {
     private static final Set<String> CONTROL = Set.of(
             "if", "for", "while", "switch", "return", "catch", "do", "else");
 
+    /**
+     * documentSymbol (outline): nomes de tipo (record/class/interface/enum) e
+     * função declarados no arquivo, cada um com o offset [start,end) do nome e
+     * o tipo LSP (5=Class, 12=Function). Mesma varredura textual de
+     * {@link #declarationRange} — sem parser por request.
+     */
+    record DocSymbol(String name, int kind, int start, int end) {}
+
+    static java.util.List<DocSymbol> documentSymbols(String text) {
+        java.util.List<DocSymbol> out = new java.util.ArrayList<>();
+        if (text == null) return out;
+        int lineStart = 0;
+        int n = text.length();
+        while (lineStart <= n) {
+            int lineEnd = text.indexOf('\n', lineStart);
+            if (lineEnd < 0) lineEnd = n;
+            String ln = text.substring(lineStart, lineEnd);
+            String t = stripLeading(ln);
+            int lead = ln.length() - t.length();
+            // tipo: record/class/interface/enum NAME
+            for (String kw : new String[]{"record ", "class ", "interface ", "enum "}) {
+                if (t.startsWith(kw)) {
+                    int[] r = matchName(t.substring(kw.length()), null);
+                    if (r != null) out.add(new DocSymbol(
+                            t.substring(kw.length() + r[0], kw.length() + r[1]), 5,
+                            lineStart + lead + kw.length() + r[0], lineStart + lead + kw.length() + r[1]));
+                    break;
+                }
+            }
+            // função: [Tipo] nome(...) { | = | :
+            int paren = t.indexOf('(');
+            if (paren > 0) {
+                int end = paren;
+                int start = end;
+                while (start > 0 && isIdentChar(t.charAt(start - 1))) start--;
+                if (start < end && !CONTROL.contains(t.substring(start, end))
+                        && looksLikeDeclaration(t, paren)) {
+                    out.add(new DocSymbol(t.substring(start, end), 12,
+                            lineStart + lead + start, lineStart + lead + end));
+                }
+            }
+            lineStart = lineEnd + 1;
+        }
+        return out;
+    }
+
     /** Offset [start,end) do NOME declarado para {@code word}, ou null. */
     static int[] declarationRange(String text, String word) {
         if (word == null || word.isEmpty()) return null;
@@ -89,10 +135,12 @@ final class LspSymbols {
         return false;
     }
 
+    /** [0, fim-do-primeiro-identificador); se word!=null, só quando bate. */
     private static int[] matchName(String rest, String word) {
         int i = 0;
         while (i < rest.length() && isIdentChar(rest.charAt(i))) i++;
         if (i == 0) return null;
+        if (word == null) return new int[]{ 0, i };
         return rest.substring(0, i).equals(word) ? new int[]{ 0, i } : null;
     }
 
