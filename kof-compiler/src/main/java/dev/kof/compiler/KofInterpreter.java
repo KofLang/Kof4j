@@ -57,6 +57,7 @@ public final class KofInterpreter {
     private final PrintStream out;
     private final PrintStream err;
     private Class<?> runtimeClass;
+    private boolean ui002Warned;
     final KofInterpreterBuiltins builtins;
     private final KofInterpreterMembers members;
     private final KofInterpreterFrame frames;
@@ -68,6 +69,15 @@ public final class KofInterpreter {
         this.members = new KofInterpreterMembers(this, module.classes());
         this.frames = new KofInterpreterFrame(this);
         this.builtins = new KofInterpreterBuiltins(this);
+    }
+
+    /** UI002 (R6): kof.ui não renderiza no interpretador — warning único. */
+    void warnUi002(String fn) {
+        if (ui002Warned || err == null) return;
+        ui002Warned = true;
+        err.println("warning UI002: kof.ui não renderiza no target script "
+                + "(primeira chamada: " + fn + "); kof.ui é KofJS — "
+                + " rode com --target=js para UI real");
     }
 
     /**
