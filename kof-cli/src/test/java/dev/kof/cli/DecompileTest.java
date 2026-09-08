@@ -243,6 +243,37 @@ class DecompileTest {
     }
 
     @Test
+    void bottomTestedLoopWithBranchInsideStaysHonestStub(@TempDir Path dir) throws Exception {
+        Path javaFile = dir.resolve("DoBr.java");
+        Files.writeString(javaFile, """
+                public class DoBr {
+                    static int OUT = 0;
+                    public static int sep(int i) {
+                        do { OUT = i; if (i > 100) { OUT = i * 2; } i = i - 3; } while (i > 0);
+                        return OUT;
+                    }
+                    public static int brk(int i) {
+                        do { if (i == 3) break; i = i - 1; } while (i > 0);
+                        return i;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+
+        String kof = Decompile.decompile(dir.resolve("DoBr.class"));
+
+        // do-while com corpo ramificado (diamond/break): o teste fica em bloco
+        // SEPARADO do corpo (back-edge p/ bloco anterior) — recuperar isso
+        // exige análise de merge estruturado (o corpo com if-join sairia com o
+        // ponto de junção emitido dentro de um ramo; break escaparia p/ o pós-
+        // loop dentro do corpo). Enquanto isso: stub UNKNOWN honesto — NUNCA
+        // while de corpo vazio (código errado, anti-R6).
+        assertTrue(kof.contains("throw \"body not recovered\""), "deve degradar p/ stub:\n" + kof);
+        assertFalse(kof.contains("do {"), "não deve emitir do-while errado:\n" + kof);
+        assertFalse(kof.contains("while ("), "não deve inventar while:\n" + kof);
+    }
+
+    @Test
     void recoversMethodCall(@TempDir Path dir) throws Exception {
         Path javaFile = dir.resolve("Call.java");
         Files.writeString(javaFile, """

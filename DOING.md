@@ -69,10 +69,12 @@ concreta (ordem de valor):**
    commit): `struct` já trata via recursão (header interno emitido dentro do
    corpo externo) — `grid` decompile→compila no JVM. Regression travado:
    `DecompileTest.recoversNestedWhileLoops`.
-3. **Fase C: do-while com corpo não-linear (if/break dentro)** — ✅ VERIFICADO
-   (este commit): `emitLinear` retorna null → corpo não recuperado → `struct`
-   retorna false → stub UNKNOWN honesto (R6: nunca `while` vazio inventado).
-   Probes `sep`/`brk` degradam certo; `call`/straight-line recuperam.
+3. **Fase C: do-while com corpo ramificado (if/break dentro)** — ✅ TRAVADO
+   (este commit, `bottomTestedLoopWithBranchInsideStaysHonestStub`): o teste
+   fica em bloco SEPARADO (back p/ anterior) → `struct` retorna false → stub
+   UNKNOWN honesto. Recuperação estruturada (merge point do diamond; break
+   escapando p/ pós-loop) = trabalho futuro — NÃO inventar while/do errado.
+   Probes: sep/brk degradam certo; call/straight-line (com putstatic) recuperam.
 Receita de recuperação de bytecode = editar `struct`/`emitLinear` (kof-cli) +
 `DecompileTest` (javac real + recompila Kof → JVM). Gate ≤500: BytecodeStatements
 390→~425 (ok).
