@@ -99,6 +99,13 @@ Fase E  Kof Decompiler          (gerar Kof source)
 > campo) e `Type.fromJvmSignature` recupera `List<String>`,
 > `Map<String, Integer>`, arrays, wildcards e type-variables. Campos e
 > métodos preferem a signature (EXACT) ao descriptor apagado por erasure.
+>
+> **Estado (08/09, este commit):** Fase C avançou — `do-while` (loop testado-
+> embaixo) recuperado no `kof decompile`. Back-edge self/para-trás no bloco
+> cond → `do { corpo } while (c)` (direção de CONTINUAÇÃO, sem inversão);
+> corpo separado do teste → stub UNKNOWN honesto. Nunca mais `while` de corpo
+> vazio com `return` dentro (código errado). Prova:
+> `DecompileTest.bottomTestedLoopRecoversAsDoWhile` (17/17).
 
 ## 7. Relação com o Compilador
 

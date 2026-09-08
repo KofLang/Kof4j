@@ -124,3 +124,13 @@ Fase D  Type Recovery
 > JVMS 4.7.9.1: genéricos, wildcards, type-variables, arrays) lido em
 > `ClassFileParser` nos 3 níveis. Provas: `ClassFileE2ETest.
 > genericSignatureRecovery` + `DecompileTest` 16/16.
+>
+> **Estado (08/09, este commit):** Fase C — recuperação de **loop testado-
+> embaixo (`do-while`)**. O `BytecodeStatements.struct` distingue back-edge
+> self/para-trás no bloco cond (`s <= b.start`, impossível em while/for top-
+> tested) e emite `do { corpo } while (c)` (teste na direção de CONTINUAÇÃO,
+> sem inversão). Antes emitia um `while` de corpo VAZIO com o `return` dentro
+> (código semanticamente errado — violava "never invent silently"); agora o
+> corpo é recuperado e o caso de corpo-separado-do-teste degrada p/ o stub
+> UNKNOWN honesto. Prova: `DecompileTest.bottomTestedLoopRecoversAsDoWhile`
+> (unário + binário, `do { i = i - 1 } while (i > 0)` compila de volta no JVM).

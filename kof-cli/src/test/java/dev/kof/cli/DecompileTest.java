@@ -185,6 +185,34 @@ class DecompileTest {
     }
 
     @Test
+    void bottomTestedLoopRecoversAsDoWhile(@TempDir Path dir) throws Exception {
+        Path javaFile = dir.resolve("DoLoop.java");
+        Files.writeString(javaFile, """
+                public class DoLoop {
+                    public static int dec(int i) { do { i = i - 1; } while (i > 0); return i; }
+                }
+                """);
+        runJavac(javaFile, dir);
+
+        String kof = Decompile.decompile(dir.resolve("DoLoop.class"));
+
+        // Bottom-tested loop (do-while): corpo + teste embaixo — o recovery
+        // distingue por back-edge self/para-trás no bloco cond e emite
+        // `do { } while (c)` (NUNCA um while de corpo vazio — "never invent
+        // silently"). Kof tem do-while nativo (training/idioms/control-flow).
+        assertTrue(kof.contains("do {"), "deve ter do-while:\n" + kof);
+        assertTrue(kof.contains("} while (arg0 > 0)"), "teste embaixo, sem inversão:\n" + kof);
+        assertFalse(kof.contains("throw \"body not recovered\""), "não deve ter stub:\n" + kof);
+        assertFalse(kof.contains("while (arg0 <= 0)"), "não deve inverter p/ while vazio:\n" + kof);
+
+        Path out = dir.resolve("DoLoop.kf");
+        Files.writeString(out, kof);
+        CompilerDriver driver = new CompilerDriver();
+        CompilationResult result = driver.compile(out, dir.resolve("out"), Target.JVM);
+        assertTrue(result.success(), "decompiled deve compilar:\n" + kof + "\n" + result.diagnostics().getDiagnostics());
+    }
+
+    @Test
     void recoversMethodCall(@TempDir Path dir) throws Exception {
         Path javaFile = dir.resolve("Call.java");
         Files.writeString(javaFile, """

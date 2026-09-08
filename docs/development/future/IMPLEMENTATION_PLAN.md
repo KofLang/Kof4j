@@ -54,7 +54,7 @@ Esta é a versão consolidada do plano de implementação para todos os document
 |------|-----------|------------|--------------|--------|-------------------|
 | CFG-Basic-Blocks | LEGACY_IR.md | 🟡 M | Phase 1 | ✅ **EM CURSO** | BasicBlock identificado, instruções decodificadas |
 
-**Progresso:** `ClassFileParser.expand()` com `Instruction`, `BasicBlock`, `analyze()`, `disassemble()`
+**Progresso:** `ClassFileParser.expand()` com `Instruction`, `BasicBlock`, `analyze()`, `disassemble()`. **Recuperação de corpo (Fase C/E)** em `kof-cli` `BytecodeStatements`: if/while/for (top-tested) + **do-while (bottom-tested, 08/09)** — back-edge self/para-trás detectado no bloco cond → `do { corpo } while (c)`; caso de corpo separado do teste degrada p/ stub UNKNOWN honesto (nunca `while` de corpo vazio). Prova `DecompileTest.bottomTestedLoopRecoversAsDoWhile`.
 
 ### T3-MEDIUM: Type Recovery
 

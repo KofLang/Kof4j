@@ -49,7 +49,29 @@ concreta sem dono na minha lane (ordem de valor):**
    residual (diagnóstico no-op Native), UI008 (JVM no-op, P3). **Nenhum agente
    deve "adivinhar" a superfície desses — é decisão do maintainer.**
 Receita de widget/método novo = 8/9 pontos (ver bloco R4/UI003/UI006 em
-"Estado atual"). Suíte atual: **1215/0/64-skip** verde JDK 21+25.
+"Estado atual"). Suíte atual: **1218/0/64-skip** verde (sem qemu; JDK 25 local).
+
+**PRÓXIMO PASSO (08/09, lane migração-legado — Fase C/E, `kof decompile`):**
+A fila UI está vazia (só regra 6/P3). Migrei p/ a lane de migração (R1/R4
+foram meus; sem dono ativo em `BytecodeStatements`/`Decompile.java`). ✅
+**Fase C: recuperação de `do-while` (bottom-tested loop)** — este commit:
+`struct` distingue back-edge self/para-trás (`s <= b.start`, impossível em
+while/for top-tested) → `do { corpo } while (c)` (direção de CONTINUAÇÃO, sem
+inversão); antes emitia `while` de corpo VAZIO com `return` dentro (código
+errado). Prova `DecompileTest.bottomTestedLoopRecoversAsDoWhile` (unário +
+binário; compila de volta no JVM); DecompileTest 17/17. **Próxima tarefa
+concreta (ordem de valor):**
+1. **Fase C: corpo separado do teste** no `do-while` (loop com header != corpo
+   — `back != b.start` hoje → stub). Arquivos: `BytecodeStatements.struct` +
+   `BytecodeReader.cfg` (detectar header de 2 blocos). Prova: `DecompileTest`
+   com javac `-O` (opt passa a fundir; sem opt o corpo pode ser separado).
+2. **Fase C: laços aninhados** (while dentro de while) — verificar se `struct`
+   já recusa honestamente (back-edge externo) vs emite errado; se errado,
+   mesmo tratamento de guard. Prova: probe `Probe2.java`.
+3. **`docs/status.md` DecompileTest 16→17** + linha Fase C do `DECOMPILER.md`.
+Receita de recuperação de bytecode = editar `struct`/`emitLinear` (kof-cli) +
+`DecompileTest` (javac real + recompila Kof → JVM). Gate ≤500: BytecodeStatements
+390→~425 (ok).
 
 **PRÓXIMO PASSO anterior (08/09, lane KOFSCRIPT/fixes-for-kofagent):** P0 de
 estabilização FECHADO (#28–#35). EDI001 completo na lane CLI (degraus 0-12 +

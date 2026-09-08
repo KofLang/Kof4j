@@ -224,6 +224,17 @@ final class BytecodeStatements {
         return out;
     }
 
+    /** Condição de CONTINUAÇÃO (lado do fallthrough) — não invertida. */
+    private static String contCond(int op) {
+        return switch (op) {
+            case 0x99 -> "== 0"; case 0x9a -> "!= 0"; case 0x9b -> "< 0";
+            case 0x9c -> ">= 0"; case 0x9d -> "> 0"; case 0x9e -> "<= 0";
+            case 0x9f -> "=="; case 0xa0 -> "!="; case 0xa1 -> "<";
+            case 0xa2 -> ">="; case 0xa3 -> ">"; case 0xa4 -> "<=";
+            default -> null;
+        };
+    }
+
     private static int nextBound(java.util.TreeSet<Integer> bounds, int start, int maxOff) {
         Integer higher = bounds.higher(start);
         return higher == null ? maxOff : higher;
@@ -243,6 +254,49 @@ final class BytecodeStatements {
             return true;
         }
         if (b.succ.size() == 2) {
+            // Bottom-tested loop (do-while): o bloco cond tem aresta para si
+            // MESMO ou para um bloco ANTERIOR (teste embaixo; o corpo fica
+            // fundido no próprio bloco). Em loop top-tested (while/for) o
+            // bloco de teste é o menor offset do laço e ambos os sucessores
+            // são > start (o back-edge vem de um bloco posterior).
+            int back = -1;
+            int exit = -1;
+            for (int s : b.succ) {
+                if (s <= b.start) back = s; else exit = s;
+            }
+            if (back >= 0) {
+                if (back != b.start) return false;  // corpo separado do teste — não recuperar
+                List<BytecodeReader.Insn> block = BytecodeDecoder.insnsWithin(b, insns);
+                if (block.isEmpty()) return false;
+                BytecodeReader.Insn last = block.get(block.size() - 1);
+                if (!last.isCond()) return false;
+                int op = last.opcode();
+                String cond;
+                List<BytecodeReader.Insn> body;
+                if (op >= 0x99 && op <= 0x9e) {
+                    if (block.size() < 2) return false;
+                    String a = BytecodeDecoder.loadValue(block.get(block.size() - 2), paramCount, isStatic);
+                    if (a == null) return false;
+                    cond = a + " " + contCond(op);
+                    body = block.subList(0, block.size() - 2);
+                } else if (op >= 0x9f && op <= 0xa4) {
+                    if (block.size() < 3) return false;
+                    String x = BytecodeDecoder.loadValue(block.get(block.size() - 3), paramCount, isStatic);
+                    String y = BytecodeDecoder.loadValue(block.get(block.size() - 2), paramCount, isStatic);
+                    if (x == null || y == null) return false;
+                    cond = x + " " + contCond(op) + " " + y;
+                    body = block.subList(0, block.size() - 3);
+                } else {
+                    return false;
+                }
+                if (body.isEmpty()) return false;
+                List<String> stmts = emitLinear(body, cp, paramCount, isStatic, declared);
+                if (stmts == null) return false;
+                out.add("do {");
+                out.addAll(stmts);
+                out.add("} while (" + cond + ")");
+                return struct(byStart.get(exit), insns, byStart, cp, paramCount, isStatic, out, emitted, declared);
+            }
             String cond = BytecodeDecoder.blockCondition(b, insns, paramCount, isStatic);
             if (cond == null) return false;
             int exitStart = b.succ.get(0);   // alvo do branch (falso)
