@@ -392,11 +392,11 @@ if (mc.receiver() != null) {
         if (vCall != null) return vCall.returnType();
         return Type.UnknownType.UNKNOWN;
     }
-    if (mc.receiver() instanceof IdentifierExpr rid && KofMath.isMathNamespace(rid.name())) {
+    if (mc.receiver() instanceof IdentifierExpr rid && KofStd.isStdNamespace(rid.name())) {
         List<Type> argTypes = new ArrayList<>();
         for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
-        KofMath.MathCall mCall = KofMath.staticMethod(rid.name(), mc.methodName(), argTypes);
-        if (mCall != null) return mCall.returnType();
+        KofStd.StdCall sCall = KofStd.staticMethod(rid.name(), mc.methodName(), argTypes);
+        if (sCall != null) return sCall.returnType();
         return Type.UnknownType.UNKNOWN;
     }
     if (mc.receiver() instanceof IdentifierExpr rid && KofObservability.isObservabilityNamespace(rid.name())) {

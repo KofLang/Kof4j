@@ -199,6 +199,17 @@ class ConformanceMatrixTest {
                     println(math.isZero(0))
                 }
                 """, "10\n0\n7\n-1\n3\n8\ntrue\nfalse\ntrue", Set.of(), tempDir);
+        // STDLIB S2a — kof.strings predicados paridade total nos 4 targets.
+        matrix("stdstrings", """
+                main() {
+                    println(strings.isAlpha("Hello"))
+                    println(strings.isAlpha("Hello World"))
+                    println(strings.isAlpha(""))
+                    println(strings.isNumeric("12345"))
+                    println(strings.isNumeric("12.34"))
+                    println(strings.isNumeric(""))
+                }
+                """, "true\nfalse\nfalse\ntrue\nfalse\nfalse", Set.of(), tempDir);
     }
 
     @Test
