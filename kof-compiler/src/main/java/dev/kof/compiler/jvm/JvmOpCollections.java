@@ -31,7 +31,7 @@ public final class JvmOpCollections {
         }
         mv.visitMethodInsn(INVOKESTATIC, "dev/kof/runtime/KofRuntime", kc.methodName(),
                 JvmRuntimeCallDescriptors.callDescriptor(kc.methodName()), false);
-        if ("Ljava/lang/Object;".equals(JvmRuntimeCallDescriptors.callReturnDescriptor(kc.methodName()))) {
+        if ("Ljava/lang/Object;".equals(JvmRuntimeReturnDescriptors.callReturnDescriptor(kc.methodName()))) {
             if (kc.returnType() instanceof Type.ClassType ct && !BuiltinTypes.isString(kc.returnType())) {
                 // handle de spawn: o runtime devolve Object (o objeto real é
                 // CompletableFuture) — com Handle<T> mapeado p/ CompletableFuture
