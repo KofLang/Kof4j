@@ -43,6 +43,16 @@ diagnosticar). Os 4 maiores (todos em `SemExpressionTyper`/`MemberCallTyper`):
 Regra do plano: **inferência nunca cria declaração implícita; identificador
 inexistente deve falhar.** Estes casos são a prioridade P0.
 
+> **STATUS 07/09 (verificado no código + testes, não nesta tabela):** #7
+> (namespaces builtin → SEM025), #3 (campo inexistente em classe conhecida)
+> e #6 (super.metodoInexistente) estão **CORRIGIDOS** — helper
+> `unknownNamespaceMethod` (MemberCallTyper) + gate `isKnownReceiver`
+> (SemExpressionTyper); prova `SemanticResolutionTest` (6/6 verde: matriz
+> de 12 namespaces + web.app + super + campo + falso-positivo). #8
+> (receiver UNKNOWN + método inexistente) é **error-recovery legítimo** —
+> sem o tipo do receiver não há como diagnosticar sem falso-positivo;
+> manter UNKNOWN. P0 de fallbacks semânticos: **FECHADO**.
+
 ## Ordem de execução (ajustada pela auditoria)
 
 - **P0**: fallbacks semânticos (#7/#3/#6/#8 + SEM025 p/ os outros builtins) +
