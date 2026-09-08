@@ -73,19 +73,22 @@ concreta (ordem de valor):**
    diamond com `continue` p/ incremento, `break` p/ pós-loop, `&&`/`?:` com
    braços que convergem — exige construção GSEA/semidominators (G6790) ou
    re-emissão com labels. Hoje: degradação honesta travada por teste.
-4. **✅ FEITO (este commit) — lconst/dconst no recovery**: 0x09/0x0a→"0L"/
-   "1L", 0x0e/0x0f→"0.0"/"1.0" (tipo embutido no opcode → não drifta —
-   lesson do bug 62 aplicada; fconst 0x0b-0x0d recusado, sem literal float
-   em Kof). `DecompileTest.recoversLongDoubleConstBodies` (compila de volta
-   no JVM); DecompileTest 22/22; suíte 1229/0/64-skip.
-5. **Próxima tarefa segura (baixo risco, sem design): estender `emitLinear`
-   p/ aritmética long + casts int-lineares** (`ladd/lsub/lmul` 0x65-0x67,
-   `i2l` 0x85, `i2d`/`d2i` etc.) — MAS com o GUARD de tipo aprendido no bug
-   62: só emitir quando o tipo Kof do literal/resultado não driftar (long
-   literal precisa de sufixo `L`; `d2i` é cast, não atribuição). Cada opcode
-   novo entra com probe byte-exato + teste (DecompileTest) + degradação
-   honesta p/ o que não couber. Arquivos: `BytecodeStatements.emitLinear` +
-   `BytecodeDecoder` (helper de tipo). Gate: DecompileTest + suíte + probe.
+4. **✅ FEITO (08/09, `d953d92` + este doc) — recovery numérico com guard de
+   tipo (lesson bug 62)**: (a) lconst/dconst — 0x09/0x0a→"0L"/"1L", 0x0e/0x0f→
+   "0.0"/"1.0" (tipo embutido no opcode → não drifta; fconst 0x0b-0x0d recusado,
+   sem literal float em Kof); (b) **ldc2_w (0x14)** — `BytecodeDecoder.ldc2`
+   classifica por FORMA: dígitos→`<n>L` (String.valueOf de long é sempre
+   inteiro), '.'/e/E→Double literal (Kof aceita `1.0E-5`), NaN/Infinity→null→
+   stub honesto; tipo nunca drifta. Aplicado nos 2 decoders. Provas:
+   `DecompileTest.recoversLongDoubleConstBodies` + `recoversLdc2LongDoubleConstants`
+   (decompile→compila no JVM); DecompileTest 23/23; suíte **1231/0/64-skip**.
+5. **Próxima tarefa segura (baixo risco, sem design): aritmética long**
+   (`ladd/lsub/lmul/ldiv` 0x65-0x68) + casts `i2l`/`l2i`/`i2d`/`d2i` lineares —
+   exige GUARD de tipo na pilha (emitLinear hoje é stack de String sem tipo;
+   bug 62 prova que forma não basta). Abordagem: rastrear o tipo Kof por item
+   da pilha OU só emitir quando o retorno é longo (verificado pela assinatura
+   do método). Arquivos: `BytecodeStatements.emitLinear` + `BytecodeDecoder`
+   (helper de tipo). Gate: DecompileTest (decompile→compila no JVM) + suíte.
    ⚠️ Lesson bug 62: opcode "linear" ainda pode driftar tipo — verificar o
    TIPO Kof do emitido, não só a forma.
    `ClassFileParser` misturava tags 3/4 (Integer/Float) e 5/6 (Long/Double) —

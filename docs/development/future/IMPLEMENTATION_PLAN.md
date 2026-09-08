@@ -58,7 +58,9 @@ Esta é a versão consolidada do plano de implementação para todos os document
 (CP Float/Double como bits crus → `intBitsToFloat`/`longBitsToDouble`; `ldc`
 recusa float p/ não driftar). **lconst/dconst recuperados** (0x09/0x0a/0x0e/
 0x0f — tipo embutido no opcode, lesson bug 62 aplicada; `DecompileTest.
-recoversLongDoubleConstBodies`).
+recoversLongDoubleConstBodies`). **ldc2_w (0x14) recuperado** — `BytecodeDecoder.
+ldc2` classifica por FORMA (dígitos→sufixo `L`; `.`/e/E→Double literal, Kof
+aceita `1.0E-5`; NaN/Infinity→stub). `DecompileTest.recoversLdc2LongDoubleConstants`.
 
 ### T3-MEDIUM: Type Recovery
 
