@@ -176,6 +176,406 @@ Linha de desenvolvimento 0.3.0 aberta em 04/09/2026. Semântica congelada
 
   - abre linha 0.3.0-beta na branch beta-0.3.0
 
+## [0.3.1-beta] - 2026-09-08
+
+### Features
+
+  - implement extern function support and enhance FFI diagnostics
+  - Input/Textarea setName + setReadonly — UI005 (atributos)
+  - add JvmFrameDiagnostics for enhanced error reporting on frame crashes
+  - add setName and setReadonly methods for Input and Textarea components
+  - Table(header, rows) — UI003 data-driven (fecha table/tr/td)
+  - Ul/Ol data-driven — UI003 (List<String> vira <ul>/<ol><li>)
+  - Canvas.drawImage — fecha UI009 (Image composto no bitmap)
+  - Canvas UI009 — save/restore/setGlobalAlpha/fillText/measureText/transform
+  - Select(options) — UI003/UI004 (escolha de opção, 9 pontos + 2 provas)
+  - Textarea — widget multilinha (UI003, Fase 4)
+  - Form.onSubmit + Form.submit() (UI004 headline, Fase 4)
+  - setId/setClass/setDisabled (UI005) + fix código morto acceptsFont
+  - Form(children) — container <form> (UI004, Fase 4)
+  - Input.setChecked/checked (UI004 forms, Fase 4) — checkbox/radio state
+  - Input.setType (UI003/4 forms, Fase 4) — text/number/email/password/date
+  - Input.setPlaceholder (UI004/5 forms, Fase 4) — KofJS DOM real
+  - F3 fechada — APP001 + examples/fullstack + FullStackE2ETest (I2 DoD)
+  - F3-degrau-2c — kof run full-stack (env-pass ao processo filho)
+  - F3-degrau-2b — kof serve full-stack (I2: app serve o bundle via env)
+  - F3-degrau-2a — serveStatic (estáticos p/ full-stack, R6 traversal)
+  - F3-degrau-1 — kof build full-stack (backend+frontend+estáticos)
+  - F2-parte-4 — CLI --backend/--frontend c/ override do kof.toml
+  - add security plan and implementation layers documentation
+  - change interfaces to sealed for LiteralKind and Type
+  - F2-parte-2 — KofProjectConfig (parser mínimo de kof.toml)
+  - runFile aceita Target.SCRIPT (execução direta, fase 2 plataforma)
+  - F2-parte-1 — Target.SCRIPT (coringa) + COMP003 honesto + run --target script
+  - add KofScript target and module resolution for project roots
+  - Fase 1 — module resolution cross-directory via kof.toml + PKG006/PKG007 (plataforma, docs/future/PLATFORM-PLAN.md)
+  - add interpreter parity sweep test for edge cases
+  - add auto-loop script for autonomous opencode mode with cron integration
+  - implement x86_64 method emission in NativeMethodEmitter
+  - implement x86_64 call emission in NativeX86Calls class
+  - add Kof module interpretation without bytecode emission
+  - KofInterpreter — IR stack machine; KofScript roda sem compilar
+  - improve imports and add check script for class size limit
+  - Canvas 2D widget — desenho 2D via <canvas> (KofJS)
+  - scheduler/time.interval riscv64/aarch64 (SCHED001+TIME001 FEITO)
+  - time.sleep real riscv64/aarch64 (nanosleep 101)
+  - metrics() com # TYPE no riscv64/aarch64 + tradutor quote-aware
+  - json.decode<Int> escalar riscv64/aarch64
+  - gate SECN000 no cross (kof_sec_* ausente no runtime riscv64)
+  - higher-order (map/filter/reduce) riscv64/aarch64
+  - Map/Set riscv64/aarch64 + kof_panic imprime C-string (bounds msg)
+  - gates SCHED001 + TIME001 no cross (scheduler/time.interval stubs)
+  - MQ001 cross FEITO — port completo kof.mq riscv64/aarch64
+  - MQ001 no cross — gate honesto (padrao DB001)
+
+### Bugfixes
+
+  - source do runtime FFI casa com o JDK que o compila (CI 21 vs local 25)
+  - #35.3 banner reporta a porta REAL (R6, nunca mentir)
+  - headers variádicos — 2+ headers como args separados (bug 60, GitHub #32)
+  - serveDir com barra final serve index.html (GitHub #35.2) + regressão bug 59
+  - record com campo List<Record> decodifica tipado (bug 58, GitHub #34)
+  - String.length contava bytes UTF-8 (bug 43)
+  - campo estático dava lixo (bug 41)
+  - await sobre handle não quebra mais o bytecode (bug 57, GitHub #31)
+  - array.get(i)/.size não geram mais ClassFormatError (GitHub #30)
+  - lambda return aninhado (bug 53, #28) + CME no spawn (bug 55)
+  - handle return null in lambdas to avoid 404 responses (bug 53)
+  - finally com return no try perdia o retorno (bug 45)
+  - app.delete não colide mais com File.delete (bug 54, GitHub #29)
+  - record hashCode() ausente no KofJS (bug 42)
+  - try aninhado compila no KofJS (bug 49) + registra bug 52 (re-throw em catch)
+  - CompilerDriver reutilizado vazava classes sintéticas (bug 51)
+  - Image.setAlt/setWidth/setHeight (UI003/5) + FIX JVM descriptors (6º ponto)
+  - try aninhado no KofJS (bug 49)
+  - Native — 21 stubs UI ausentes quebravam link (UI001, R6 P0)
+  - json.decode<List<Record>> — trata kof_json_decode_object_list (bug 48)
+  - corrige RACE no spawn/await (lastReturned) + lote 3 da matriz (concorrência determinística)
+  - serveDir('/') serve o bundle completo, não só o index (F3 full-stack)
+  - decode<Record> no interpretador + lote 2 da matriz (erros/null/JSON)
+  - re-throw em try aninhado — corpo do catch usa sub-escopo (bug 38)
+  - REVERTER bug 39 (get nullable) — quebra m.get==1 (retrocompat); registrar design pendente
+  - Map.get devolve V? sempre — println(null) não dá NPE (bug 39)
+  - chave do cache do eval vira SHA-256 — colisão hashCode+length dava resultado errado (bug 47)
+  - case de primitivo em switch → SEM035 (bug 37)
+  - compound em campo de instância — KofDup + fieldType real (bug 40)
+  - watchdog teto 120→240min (turno ativo legítimo passa de ~2h)
+  - importa classes movidas no refactor SOLID (test-compile quebrado)
+  - paridade String.valueOf(char) — JS usa String.fromCharCode (bug 27)
+  - watchdog mata run pendurado (lock stale >120min)
+  - qualifyGlobals substitui replaceAll(\b) — nome de global não corrompe string literal/comentário/membro
+  - switches não-exaustivos após sealed->interface — adiciona default
+  - SEM025 para resolução falha em símbolo conhecido — namespaces builtin, super e campos (R6, P0 roadmap-audit)
+  - update cron job to require --attach for session injection and clarify server health check
+  - resolve VerifyError for null comparisons by using reference equality for UnknownType
+  - contains boxeia pelo tipo do argumento (bug 35)
+  - campo estático por nome simples baixa GETSTATIC/PUTSTATIC
+  - clarify autonomous mode cron behavior in AGENTS.md
+  - diagnose builtin unknown methods, wildcard and spawn void handle (bugs 29/31/34, SG-007)
+  - semear staticFields com initialValue de campos estáticos
+  - add error handling for unresolved collection and process method calls
+  - time.interval/scheduler com jobs canceláveis (paridade com runtime gerado)
+  - pilha aceita null (LinkedList); +3 testes de paridade
+  - FASE 3.1–3.7 corrigidas — ciclo StackOverflow, visibilidades, imports + prova honesta (jar fresco)
+  - Canvas renderiza no KofJS — shim getContext + attach ao root + snapshot em ops de renderização (CANVAS001 FECHADO)
+  - Canvas sem owner "" no JVM — construtores UI tipados no driver-side typer (CANVAS001 metade JVM)
+  - contadores WS publicados ANTES do estado observável — fecha bug 28 (flake gate)
+  - fun/fn/func viram palavras reservadas — não existem em nenhuma posição (SG-001)
+  - member call em receiver nullable inferido (bug 33) — MethodCallTyper unwrap
+  - PARSE085 também em membros de classe + âncoras da spec pós-F6/F7
+  - rejeita fn/fun/func como keyword de função (PARSE085) — SG-001
+  - resolveType do MemberResolver recebe o qualifyDeep do bug-32 (a extração FASE 6 duplicou o método sem o fix)
+  - type-argument genérico via import (bug 32) — qualificação recursiva
+  - JdwpPacket — codec no corpo da classe (0abb880 deixou aninhado como Packet, quebrando JdwpClient)
+  - JdwpPacket — codec no corpo da classe, não em aninhada morta (REFACTOR-500)
+  - metrics() x86_64 nao emite mais bytes NUL (comprimentos errados)
+  - decoders json escalares cross + decode<Bool> x86_64 invertido
+  - "42".toInt() riscv64/aarch64 — deref do VALOR do char = SIGSEGV
+  - tail-call em 8 funcoes riscv64 (call+ret sem salvar ra = loop infinito)
+  - F1.9 extrai RuntimeJson* — restaura label .Lkof_json_true perdido na divisão
+  - println(char) imprime código (paridade JVM) + F1.1 extrai RuntimePrint
+  - cache riscv64/aarch64 real + println(null) + sle/sge invalidos
+
+### Documentation
+
+  - fecha lane — issues #28–#35 fechadas no GitHub (0.3.1)
+  - fecha metade JS do bug 42 (recordhash) + corrige doc do 44
+  - especificação Editor Integration (plano, implementação depois)
+  - P0 fallbacks semânticos FECHADO (verificado no código)
+  - UI007 proposta de design (regra 6) + DOING atualizado (drawImage/Ul/Ol feitos)
+  - bug 56 (GitHub #30 split→ClassFormatError) + linha GITHUB-P0 no DOING
+  - auditoria planning-future — R1 marcado FEITO
+  - idiom web — contrato de retorno de handler (bug 53/54)
+  - auditoria planning-future — agente morto, lote 3 duplicata+flaky
+  - corrige causa-raiz da auditoria planning-future
+  - auditoria planning-future × docs/development/future
+  - bugs 53/54 (GitHub #28/#29) — reproduzidos + causa raiz por IR
+  - bug 49 descreve o código mesclado (5d6e68a), não minha versão descartada
+  - bugs 48/49 corrigidos (json list interpreter, try aninhado JS); suíte 1037/0
+  - F9 lotes 1-3 + 3 fixes da lane interpreter; suíte 1091/0/3-skip
+  - FASE 4 KofUI — auditoria de cobertura + matriz de gaps UI00x
+  - REFACTOR-500 COMPLETO — F3 NativeBackend 8834→479, check_500 OK, todas ≤500
+  - F3 reatribuída ao agente-idiomatic (fixes parou na 3.6; NativeBackend 1269)
+  - bugs 27/37/38/40 corrigidos (suíte 1025/0); 39 = design pendente
+  - bugs 27/37/40 corrigidos; 39 revertido (design); 38 pendente
+  - reivindica F9 — matriz Feature×Target com estado real do sweep cross-target
+  - atualiza caminhos de arquivos para os novos subpacotes SOLID (jvm/, nat/)
+  - comparação com a main — sem perda de funcionalidade
+  - bug 46 — spawn { return … } SIGSEGV no Native (variante do #29) + lane KOFSCRIPT g+h fechada
+  - SOLID organização em subpacotes — 7 módulos migrados (backend/js/jvm/nat/parser/runtime/vk)
+  - move pendentes para development/ e referencia no AGENTS.md
+  - regra de sincronização — verificar conflito antes de cada commit/push
+  - runFile SCRIPT feito (51754fd); proximo = paridade cross-target (regra 5)
+  - bug 36 CORRIGIDO (3c7641f) + heartbeat corrigido (--attach 9092, testado 1min)
+  - Fase 1 plataforma FEITA (6caf84d) — PRÓXIMO PASSO: F2 Target Architecture
+  - F0 auditoria real + plano técnico por fases (module system, targets, full-stack, KofUI/JS/Wasm/Android, conformance)
+  - roadmap-audit.md — matriz de estado real (12 itens + 12 fallbacks UNKNOWN P0)
+  - claim ROADMAP AUDIT lane (fase 1 auditoria em curso)
+  - KofScript = execução direta via KofInterpreter (status, backend-parity, bug 37 refinado)
+  - varredura FEITA (fix static-field + bug 35), bugs 36-40 registrados, licao do build stale ECJ
+  - varredura de paridade FEITA + bugs 35-40 registrados
+  - bug 34 registrado — método inexistente em builtin → no-op silencioso (R6)
+  - KOFSCRIPT pós-merge — paridade 15/15, bugs null+interval corrigidos, PRÓXIMO PASSO (bug 29/34 + varredura JS/Native)
+  - F3 3.1–3.9 completas (fixes-for-kofagent) + protocolo de prova honesta documentado
+  - REFACTOR-500 — FASE 9 (varredura) FEITA, só NativeBackend >500 (F3 do outro agente)
+  - KofScript = target de execução direta (interpretador da IR)
+  - REFACTOR-500 — FASE 2 COMPLETA (CompilerDriver ≤500)
+  - FASE 3 reivindicada (NativeBackend) — maintainer pediu, agente-idiomatic não iniciou; aviso de colisão NATIVE002 + plano byte-diff 3 targets
+  - PRÓXIMO PASSO — lane 4–8 fechada, CANVAS001 metade JVM corrigida, falta só design JS (lane Canvas)
+  - REFACTOR-500 — F2.33-F2.44 + lições (this->driver, campos intercalados)
+  - REFACTOR-500 — FASES 4-8 COMPLETAS (fixes-for-kofagent); suíte 955/0
+  - SG-001 palavras reservadas (bf84a86) + bug 33 corrigido + bug novo coleção
+  - REFACTOR-500 — F2.24-F2.32 + lição do bloco de instância
+  - SG-001 inclui membros de classe (7e6f9e3, suíte19)
+  - SG-001 resolvido (fn/fun/func → PARSE085, suíte18 verde)
+  - âncoras do CompilerDriver por método (não linha) + contagem AST 50 nós
+  - LANG-SPEC FEITO — suíte16 969/0/3-skip (zero regressão, docs puros)
+  - README + architecture.md — separa linguagem≠compilador≠target, corrige pipeline
+  - syntax (formas concretas) + compiler-architecture (implementação)
+  - modules + semantics + specification-status + specification-gaps
+  - functions + closures + classes
+  - expressions + statements — semântica de cada forma
+  - types + type-system — catálogo de tipos e regras concretas de validade
+  - grammar — gramática EBNF extrativa + AST (39 nós) + precedência exata
+  - lexical-structure — gramática léxica completa (tokens, keywords, literais, operadores, erros LEX00x)
+  - Language Reference — índice + separação linguagem≠compilador≠target (LANG-SPEC)
+  - REFACTOR-500 — lição da divisão do ExpressionMethodCallLowerer (cadeia if/else)
+  - REFACTOR-500 — F2.21-F2.23 + suíte 948 verde
+  - RFC completa §3-24 + plano I1-I4 — topologia, kof.toml, System, build/deploy, targets, segurança, testes, open questions
+  - REFACTOR-500 — F2.12-F2.20 (CompilerDriver 3419)
+  - RFC §3-7 — principles, application, manifesto kof.toml, componentes, topologia, monólito
+  - RFC APPLICATION_MODEL §1-2 — motivation + auditoria do estado (CLI/stdlib/targets/gaps)
+  - bug 28 — nota de recorrência 05/09 (suíte 969 pós bug-32, flake confirmada)
+  - REFACTOR-500 — FASE 5+8 FEITAS (fixes-for-kofagent); PRÓXIMO FASE 7 Parser
+  - REFACTOR-500 — limpa PRÓXIMO PASSO (F2.12 LoweringContext)
+  - REFACTOR-500 — F2.11 + PRÓXIMO PASSO (LoweringContext)
+  - REFACTOR-500 — F2.10 CompilerImports
+  - Bug 28 — flaky WS/SSE connection counter (JVM) registrado
+  - REFACTOR-500 — F2.9 CompilerDesugar
+  - time.sleep real no cross (ce81639) — fecha unidade
+  - regra 7 — unidade em progresso = turno em progresso
+  - REFACTOR-500 — F2.8 ModuleRoots
+  - estado real do NATIVE002-stdlib (sweep completo 05/09)
+  - REFACTOR-500 — F2.5-F2.7
+  - bug 31 (process.<inexistente> segfault) + gap formato log cross
+  - linha melissa — sweep R6 completo (SECN000, json decoders, metrics # TYPE, tradutor quote-aware); suíte 962/0
+  - REFACTOR-500 — F2.5 BoxClassFactory
+  - #29 spawn { lambda } com handle quebra em todos os targets
+  - re-dispacho nao e conversa — regra 6 do turno autonomo
+  - linha melissa atualizada — Map/Set/higher-order FEITO, sweep 0 divergencias
+  - PRÓXIMO PASSO — sweep R6 crypto/process-spawn-edge/json-edge/string-utf8
+  - REFACTOR-500 — PRÓXIMO PASSO atualizado (F2.5 BoxClassFactory/CompilerImports)
+  - REFACTOR-500 — F2.4 CompilerTypes
+  - REFACTOR-500 — F2.3 TypeEmitter + PRÓXIMO PASSO
+  - REFACTOR-500 — F2.1/F2.2 CompilerDriver (TypeMetrics, StringMethodRegistry)
+  - restaura PRÓXIMO PASSO + linha melissa (merge remoto sobrescreveu)
+  - REFACTOR-500 — divisão confirmada (idiomatic F1-3+9, fixes-for-kofagent F4-8) + FASE 1 completa
+  - REFACTOR-500 — FASE 1 COMPLETA (NativeRuntime)
+  - REFACTOR-500 — F1.15 divide métodos gigantes restantes
+  - REFACTOR-500 — F1.14 dedup
+  - REFACTOR-500 — F1.13 security/validation/observability
+  - REFACTOR-500 — F1.12 printnum/net/vk/misc
+  - REFACTOR-500 — F1.11 concurrency
+  - REFACTOR-500 — F1.10 RuntimeMemory/RuntimeGc
+  - REFACTOR-500 — progresso F1.1-F1.9 (agente-idiomatic) e regressão de paridade do merge
+  - Bug 28 (flake ws counter) + PRÓXIMO PASSO (auditoria R6 observability/scheduler)
+  - modo autonomo — regra do turno + PRÓXIMO PASSO
+
+### Refactoring
+
+  - dividir lowerer UI + JsRuntimeUiWidgets + JvmRuntimeUi (gate <=500)
+  - F3 — extrai NativeClassMeta (vtable/string data, 118 linhas)
+  - F3 — extrai NativeOpHelpers (ops de emissão, 178 linhas)
+  - F3 — extrai NativeArchEmitter (emitRiscv/emitAarch64, 262 linhas)
+  - F3 — extrai NativeMethodEmitter (emitMethod/emitOperation/emitStart, 251 linhas)
+  - SOLID — JsExpressionParser 526→383 (JsExpressionStatementParser helper)
+  - SOLID — JsControlFlowParser 514→499 (JsLabelParser helper)
+  - SOLID — ExpressionParser 519→475 (ExpressionNewParser helper)
+  - SOLID — migra parser para dev.kof.compiler.parser (10 classes)
+  - SOLID — migra backend/orquestração para dev.kof.compiler.backend (4 classes)
+  - SOLID — migra backend JVM para dev.kof.compiler.jvm (35 classes)
+  - SOLID — migra backend nativo para dev.kof.compiler.nat (36 classes)
+  - SOLID — migra runtime nativo para dev.kof.compiler.runtime (60 classes)
+  - SOLID — migra backend JS para dev.kof.compiler.js (30 classes)
+  - SOLID — 271 classes public + extrai RecordDeclarationNode/KofOperation
+  - SOLID — separa JsMethodCtx.java (5 classes) em arquivos próprios
+  - SOLID — separa AstNodes.java (59 decls) em arquivos próprios
+  - SOLID — separa IRNodes.java (45 records) em arquivos próprios public
+  - SOLID subpackages — grupo vk public (corrige acesso cross-package)
+  - divide KofInterpreter/KofInterpreterBuiltins em 8 colaboradores <=500
+  - update progress and next steps for REFACTOR-500 phases
+  - change resolveCalleeName method visibility to public
+  - extract assembly logic to NativeAssembler class
+  - F2.53 extrai CompilerUiEmitter (UI instance, packed color, SAM)
+  - F2.52 extrai lowerAndEmit para CompilerPipeline
+  - F2.51 move setters/local-scope/isAbstract para CompilerDriverState
+  - F2.50 move 35 wrappers/setters para CompilerDriverState (herança)
+  - F2.49 extrai CompilerEmission2 (super-bridge, args, increment)
+  - F2.48 extrai CompilerDriverState (33 campos via herança)
+  - F2.47 extrai CompilerEmissionHelpers + CompilerConfigSupport
+  - F2.46 extrai CompilerTypeSupport (type helpers)
+  - F2.45 extrai CompilerPipeline (orquestração)
+  - FASE 3.6 — aritmética x86_64 + predicados de tipo extraídos (NativeBackend 2070→1741, REFACTOR-500)
+  - FASE 3.5 — calls String/JSON x86_64 extraídos p/ NativeX86StringCalls (2286→2070, REFACTOR-500)
+  - FASE 3.4 — emissores cross riscv64 extraídos (2 classes ≤500, NativeBackend 2850→2286, REFACTOR-500)
+  - FASE 3.3 — HTTP/spawn riscv64 extraídos (3 classes ≤500, NativeBackend 3632→2850, REFACTOR-500)
+  - FASE 3.2 — tradutor riscv→aarch64 extraído p/ NativeAarch64Translator (4113→3632, REFACTOR-500)
+  - FASE 3.1 — constantes asm riscv64 fora do NativeBackend (8834→4113, REFACTOR-500)
+  - ExpressionStaticCallLowerer 502→493 — construtor Canvas move p/ ExpressionUiStaticLowerer (REFACTOR-500 varredura)
+  - F2.44 extrai CompilerOrmSupport (ORM + super-bridges)
+  - F2.43 extrai CompilerFunctionLowering (funções top-level)
+  - F2.42 extrai CompilerRecordSupport (métodos sintéticos de record)
+  - F2.41 extrai CompilerClassLowering (lowering de classes)
+  - F2.40 extrai CompilerComparisons (comparação + retorno)
+  - F2.39 extrai CompilerLambdaClass (geração de classes lambda)
+  - F2.38 extrai CompilerAnnotations (lowering de anotações)
+  - F2.37 extrai CompilerCaptureScanner (análise de capturas)
+  - F2.36 extrai CompilerCaptures (coleta de capturas de lambda)
+  - F2.35 extrai ExpressionOrmCallLowerer (ORM estático)
+  - F2.34 extrai ExpressionJsonCallLowerer (json.encode/decode)
+  - F2.33 extrai ExpressionInstanceCallLowerer (dispatch de instância)
+  - VkChain64Asm 3568 -> 57 (wrapper source() concatena 15 classes por dominio, REFACTOR-500)
+  - VkChain64Dispatch — kof_vk_dispatch64 (REFACTOR-500)
+  - VkChain64WSp — wputsp + wrunsp (REFACTOR-500)
+  - VkChain64W32 — wput32 + wrun32 (REFACTOR-500)
+  - VkChain64W64 — wput + wrun (REFACTOR-500)
+  - VkChain64Matvec — load_w + matvec (REFACTOR-500)
+  - VkChain64Shape — set_shape + shape_xy (REFACTOR-500)
+  - VkChain64Submit — submit + write_desc (REFACTOR-500)
+  - VkChain64Helpers — helpers fail/trace (REFACTOR-500)
+  - VkChain64Loader — dlopen/dlsym libvulkan (REFACTOR-500)
+  - VkChain64Data — .data/.bss/.rodata (REFACTOR-500)
+  - VkChain64Alloc — vk64_alloc_buffer (REFACTOR-500)
+  - VkChain64Init — init_common parte A (REFACTOR-500)
+  - VkChain64InitSpv — init parte B: spv/shader/pipelines (REFACTOR-500)
+  - VkChain64Init2 — pipe32+split opcionais (REFACTOR-500)
+  - VkChain64InitPools — init pools (pipe32/split/pools de VkChain64Asm, REFACTOR-500)
+  - F8.6 JvmBackend sem resíduos (REFACTOR-500)
+  - F8.5 extrai JvmOpEmitter de JvmBackend (REFACTOR-500)
+  - F8.4 extrai JvmOpCollections de JvmBackend (REFACTOR-500)
+  - F8.3 extrai JvmLiteralEmitter de JvmBackend (REFACTOR-500)
+  - F8.2 extrai JvmRecordEmitter de JvmBackend (REFACTOR-500)
+  - F8.1 extrai JvmAnnotations de JvmBackend (REFACTOR-500)
+  - F2.32 extrai ExpressionUiMediaCallLowerer (Ui/Media/Io estáticos)
+  - F2.31 extrai 5 lowerers de namespace (http/time/mq/config/cache)
+  - F2.30 extrai ExpressionLogCallLowerer (log.*)
+  - F2.29 extrai ExpressionSchedulerCallLowerer (scheduler.*)
+  - F2.28 extrai ExpressionProcessCallLowerer (namespace process.*)
+  - F2.27 extrai ExpressionDbCallLowerer (namespace db.*)
+  - F2.26 extrai ExpressionPrintLowerer (print/println)
+  - F2.25 extrai ExpressionUiStaticLowerer (Icon/Font/Button/Component/Store)
+  - F2.24 extrai ExpressionStaticCallLowerer (branches receiver-null)
+  - FASE 6 — renomeia ExpressionTyper/MethodCallTyper → Sem* (colisão de nome com F2.15/F2.16 do CompilerDriver)
+  - FASE 4.6 — remove classe placeholder vazia JsMethodCtx (REFACTOR-500)
+  - FASE 4.5 — divide parsing/lowering em 8 classes coesas ≤500 (REFACTOR-500)
+  - FASE 4.4 — extrai MethodCtx/LoopCtx/NewPending/DupMarker/StatementEnd + helpers estáticos (REFACTOR-500)
+  - FASE 4.3 — extrai JsLoweringContext (estado compartilhado do lowering) (REFACTOR-500)
+  - FASE 4.2 — extrai JsTypeMapper (helpers puros de nome/tipo) (REFACTOR-500)
+  - FASE 4.1 — extrai runtime constants + JsArtifactWriter (REFACTOR-500)
+  - F1.16 divide RuntimeJsonDecode em 2 (517→292)
+  - F2.21 extrai CollectionCallLowerer (branches List/Channel/Map/Set)
+  - REFACTOR-500 F6 (6/6) — remove SSE_CONNECTION_TYPE órfã do SemanticAnalyzer
+  - FASE 7 — divide Parser em StatementParser/ExpressionParser/LambdaParser/TypeParser/AnnotationParser/ClassMemberParser (REFACTOR-500)
+  - FASE 7 — cria ParseContext (estado compartilhado do parsing, REFACTOR-500)
+  - REFACTOR-500 F6 (5/6) — extrai ExpressionTyper + StatementAnalyzer + 3 typer de MethodCallExpr
+  - REFACTOR-500 F6 (4/6) — extrai SymbolTableBuilder
+  - REFACTOR-500 F6 (3/6) — extrai TypeChecker
+  - REFACTOR-500 F6 (2/6) — extrai MemberResolver
+  - F2.20 extrai ExpressionAssignmentLowerer + ExpressionBinaryLowerer
+  - REFACTOR-500 F6 (1/6) — SemanticAnalyzer expõe estado via accessors
+  - F2.19 extrai ExpressionMethodCallLowerer (case MethodCallExpr, 2205 linhas)
+  - F2.18 extrai ExpressionLowerer (emitExpression, 3169 linhas)
+  - F2.17 extrai CollectionMethodTyper (List/Map/Set/String)
+  - F2.16 extrai MethodCallTyper (case MethodCallExpr do inferExprType)
+  - F2.15 extrai ExpressionTyper (inferExprType)
+  - F2.14 divide StatementLowerer — SwitchStmtLowerer + SwitchExprLowerer
+  - F2.13 extrai StatementLowerer (emitStatementInner + switch-expr)
+  - F2.12 adiciona resolveWithTypeParams/substituteTypeVariable/defaultValueOp ao CompilerTypes
+  - FASE 8 — Main 1229 → 375 (dispatcher + comandos pequenos) (REFACTOR-500)
+  - FASE 8 — extrair CmdBuild/CmdRun/CmdTest/CmdScript/CmdServe + KofCliSupport de Main (1229) (REFACTOR-500)
+  - F2.11 adiciona type/enum/record helpers ao CompilerTypes
+  - F2.10 extrai CompilerImports (expandKofImports + declarationName)
+  - FASE 8 — KofJsRunner 568 → 419 + KofJsWebview (162) (REFACTOR-500)
+  - F2.9 extrai CompilerDesugar (desugarTests/desugarApplication/buildTestHarnessMain)
+  - FASE 8 — Bench 630 → 286 (orquestração só) (REFACTOR-500)
+  - FASE 8 — extrair BenchRunners (149) de Bench (630) (REFACTOR-500)
+  - FASE 8 — KofScript 608 → 479 + KofScriptExecutor (164) (REFACTOR-500)
+  - FASE 8 — extrair BenchBaseline (162) de Bench (630) (REFACTOR-500)
+  - F2.8 extrai ModuleRoots (moduleRootFor/commonAncestor/derivedPackageOf)
+  - FASE 8 — extrair BenchDiscovery (100) de Bench (630) (REFACTOR-500)
+  - F2.7 extrai JsonDispatch (encode/decode/listTag/sanitize)
+  - F2.6 extrai HierarchyResolver (5 métodos de hierarquia)
+  - F2.5 extrai BoxClassFactory (criação de box mutável)
+  - F2.4 extrai CompilerTypes (toType/qualifyViaImports/ownerTypeFromInternal/mainClassType)
+  - F2.3 extrai TypeEmitter.boxPrimitive
+  - FASE 8 — JvmVkRuntime 995 → wrapper + 3 partes ≤500 (REFACTOR-500)
+  - FASE 8 — JvmMediaRuntime 673 → wrapper + 2 partes ≤500 (REFACTOR-500)
+  - FASE 8 — JvmWebRuntime 716 → wrapper + 2 partes ≤500 (REFACTOR-500)
+  - FASE 8 — JvmStringRuntime 983 → wrapper 15 + 5 partes ≤500 (REFACTOR-500)
+  - F2.2 extrai StringMethodRegistry (assinaturas de String/Object)
+  - F2.1 extrai TypeMetrics (11 helpers de tipo puros)
+  - F1 final — RuntimeSecurityData extrai rodata; todas as Runtime* ≤500
+  - F1 COMPLETA — NativeRuntime 17726→141 linhas, orquestrador puro
+  - F1.15 divide JsonArrayDecode/Log/Config/Io/Db — NativeRuntime 5564→267 linhas
+  - F1.14 dedup — RuntimeJsonUtils/Cache/Time/Ui ligados ao NativeRuntime
+  - F1.13 extrai security/validation/observability/map/set/enum
+  - F1.12 extrai RuntimePrintNum/RuntimeNet/RuntimeVk/RuntimeMisc
+  - F1.11 extrai RuntimeConcurrency/Channel/Scheduler/Mq
+  - F1.10 extrai RuntimeMemory + RuntimeGc (alloc/free/gc/exit/panic/errors)
+  - F1.8 extrai RuntimeArray (alloc/length/get/set)
+  - F1.7 extrai RuntimeList (kof_list_new/grow/add/get/set/...)
+  - F1.6 extrai RuntimeStringBase (from_literal/memcpy/length/concat/equals/print_string)
+  - F1.5 extrai RuntimeStringOps + RuntimeStringEdit
+  - F1.4 extrai RuntimeStringSearch (contains/startsWith/endsWith/indexOf/lastIndexOf)
+  - F1.3 extrai RuntimeStringParse (toInt/toLong/toDouble/toFloat)
+  - F1.2 extrai RuntimeStringConv (int/char/long/bool/float/double→string)
+  - FASE 8 — Optimizer 611 → 240 (REFACTOR-500)
+  - FASE 8 — OptimizerConstantFold (388) — passe de constant folding (REFACTOR-500)
+  - FASE 8 — NativeWebRuntime 603 → 25 (REFACTOR-500)
+  - FASE 8 — NativeWebResponses (122) — helpers de resposta (REFACTOR-500)
+  - FASE 8 — NativeWebListen (355) — listen + handle_client (REFACTOR-500)
+  - FASE 8 — NativeWebCore (156) — dados + primitivas web (REFACTOR-500)
+  - FASE 8 — NativeHttpRuntime 652 → 30 (REFACTOR-500)
+  - FASE 8 — NativeHttpCore (392) — request core + wrappers (REFACTOR-500)
+  - FASE 8 — NativeHttpParseUrl (172) — parse URL + erro https (REFACTOR-500)
+  - FASE 8 — NativeHttpPrimitives (113) — data + buffer helpers (REFACTOR-500)
+  - FASE 8 — JdwpClient 503 → 415 + JdwpPacket (100) (REFACTOR-500)
+  - FASE 5 — JvmRuntime 2526 → 132 + 7 classes ≤500 (REFACTOR-500)
+
+### Tests
+
+  - fecha bug 52 — re-throw em catch já tinha paridade JS (colateral do 45)
+  - kitchen-sink com ORACLE strict-verifier (P0 parte 4)
+  - gate de CI da matriz — doc × exclusões do teste (Fase 9)
+  - comentário do freshDriver atualizado (bug 51 corrigido em b7afc5a)
+  - bug 48 — regressão decode<List<Record>> no interpretador + matriz
+  - ConformanceMatrixTest lote 1 — linguagem core nos 4 targets
+  - cross-target sweep JS/Native (regra 5) — bugs 41-45 registrados + gate JVM×JS
+  - casos dos bugs 35/36/static-field travados em JVM×JS
+  - gate de paridade permanente interpretado vs JVM (15 casos)
+  - guard Assumptions.assumeTrue (qemu ausente) em time/scheduler cross — convenção NATIVE002
+  - E2E riscv64/aarch64 Map/Set (paridade exata com x86_64)
+
 <!-- NEXT-RELEASE -->
 
 ## [0.2.7-beta] - 2026-09-04
