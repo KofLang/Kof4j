@@ -122,12 +122,21 @@ public final class JsMethodParser {
             // The injected String[] parameter is not a source parameter.
             return List.of();
         }
+        // known-bugs #64 / GitHub #47: `Long` e `Double` ocupam DOIS slots, então
+        // os índices são ESPARSOS — em `f(Long a, Int b)` o mapa é {0:a, 2:b}.
+        // Percorrer `0..localNames.size()` parava antes do slot 2 e descartava
+        // `b` da assinatura (lido como `undefined`, sem diagnóstico). Percorre
+        // as chaves REAIS em ordem crescente.
+        List<Integer> ordered = new ArrayList<>(ctx.localNames.keySet());
+        java.util.Collections.sort(ordered);
         List<Integer> slots = new ArrayList<>();
         int start = ctx.instanceMethod ? 1 : 0;
-        for (int i = start; i < ctx.localNames.size() && slots.size() < ctx.paramCount; i++) {
-            if (ctx.captureSlots.contains(i)) continue;
-            if (ctx.localNames.get(i) != null) {
-                slots.add(i);
+        for (int slot : ordered) {
+            if (slots.size() == ctx.paramCount) break;
+            if (slot < start) continue;
+            if (ctx.captureSlots.contains(slot)) continue;
+            if (ctx.localNames.get(slot) != null) {
+                slots.add(slot);
             }
         }
         return slots;

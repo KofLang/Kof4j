@@ -838,4 +838,72 @@ class CoreRegressionE2ETest {
                 }
                 """, "8\n12", tempDir, "lambda-returning-lambda");
     }
+
+    // known-bugs #64 / GitHub #47 — `Long` and `Double` occupy TWO slots, but
+    // the JS signature was built assuming one slot per parameter, so every
+    // parameter AFTER a wide one was dropped from the emitted signature and
+    // read back as `undefined` (silently wrong, no diagnostic). JVM was
+    // correct. A wide parameter in LAST position never triggered it.
+    @Test
+    void parameterAfterALongIsNotDroppedFromTheJsSignature(@TempDir Path tempDir) throws IOException {
+        runBoth("""
+                Int after(Long a, Int b) {
+                    return b
+                }
+                main() {
+                    println(after(1L, 42))
+                }
+                """, "42", tempDir, "wide-long-then-int");
+    }
+
+    @Test
+    void parameterAfterADoubleIsNotDroppedFromTheJsSignature(@TempDir Path tempDir) throws IOException {
+        runBoth("""
+                Int after(Double a, Int b) {
+                    return b
+                }
+                main() {
+                    println(after(1.5, 42))
+                }
+                """, "42", tempDir, "wide-double-then-int");
+    }
+
+    // Every parameter of a mixed-width signature must survive, including a
+    // narrow one sandwiched between two wide ones.
+    @Test
+    void mixedWidthParametersAllSurviveInJs(@TempDir Path tempDir) throws IOException {
+        runBoth("""
+                Double all(Long a, Int b, Double c) {
+                    return c
+                }
+                Int middle(Long a, Int b, Double c) {
+                    return b
+                }
+                Long first(Long a, Int b, Double c) {
+                    return a
+                }
+                main() {
+                    println(all(1L, 2, 3.5))
+                    println(middle(1L, 2, 3.5))
+                    println(first(1L, 2, 3.5))
+                }
+                """, "3.5\n2\n1", tempDir, "wide-mixed");
+    }
+
+    // The wide parameter belongs to an instance method (slot 0 is `this`), so
+    // the slot walk has to stay correct with the receiver in front.
+    @Test
+    void wideParametersInInstanceMethodKeepAllArgumentsInJs(@TempDir Path tempDir) throws IOException {
+        runBoth("""
+                class Calc {
+                    Int pick(Long a, Int b) {
+                        return b
+                    }
+                }
+                main() {
+                    var c = Calc()
+                    println(c.pick(1L, 42))
+                }
+                """, "42", tempDir, "wide-instance-method");
+    }
 }
