@@ -239,6 +239,21 @@ class ConformanceMatrixTest {
                     println(a + "|" + b + "|" + c + "|" + d + "|" + e + "|" + f + "|" + g + "|" + h + "|" + i)
                 }
                 """, "Hello world|1abc|321cba|kayak|ababab|hello|abc|007|ab---", Set.of(), tempDir);
+        // STDLIB S2b.4 — kof.strings conversores de palavra (split+join, ASCII).
+        // A matriz roda native=x86 (tem asm); o port riscv/aarch é STRN001-gated
+        // (KofStringsTest.wordConvertersGatedOnCrossArch). Em ASCII os 4 targets
+        // (jvm/native/script/js) concordam byte a byte.
+        matrix("stdstrings2b4", """
+                main() {
+                    var a = strings.toSnakeCase("HTTPServer")
+                    var b = strings.toSnakeCase("XMLParser")
+                    var c = strings.toCamelCase("hello_world")
+                    var d = strings.toPascalCase("hello world")
+                    var e = strings.toKebabCase("helloWorld")
+                    var f = strings.slugify("Hello, World!! 42")
+                    println(a + "|" + b + "|" + c + "|" + d + "|" + e + "|" + f)
+                }
+                """, "http_server|xml_parser|helloWorld|HelloWorld|hello-world|hello-world-42", Set.of(), tempDir);
     }
 
     @Test

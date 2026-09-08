@@ -170,6 +170,55 @@ public final class JvmStringMathRuntime {
                     for (int i = v.length(); i < n; i++) sb.append(p);
                     return sb.toString();
                 }
+
+                // ── kof.strings (STDLIB S2b.4) — split+join de palavras ──
+                // Words: sequência de [0-9A-Za-z] ASCII; boundary em: primeiro
+                // alnum após não-alnum, lower/digit→Upper, e Upper→Upper lower
+                // ("HTTPServer" = http+Server; "XMLParser" = xml+Parser).
+                // >=128 (não-ASCII) é delimitador/ignorado — paridade com o
+                // byte-a-byte do Native (NAT-STR01 documentado).
+                // mode: 0=camel 1=pascal 2=snake 3=kebab 4=slug.
+                private static String kof_strings_joinWords(String v, int mode) {
+                    if (v == null) return null;
+                    StringBuilder out = new StringBuilder();
+                    int wc = 0;
+                    int prev = -1;
+                    for (int i = 0; i < v.length(); i++) {
+                        int c = v.charAt(i);
+                        boolean upper = c >= 65 && c <= 90;
+                        boolean alnum = upper || (c >= 97 && c <= 122) || (c >= 48 && c <= 57);
+                        if (!alnum) { prev = -1; continue; }
+                        boolean nw = false;
+                        if (prev == -1) nw = true;
+                        else if (upper) {
+                            boolean pl = prev >= 97 && prev <= 122;
+                            boolean pd = prev >= 48 && prev <= 57;
+                            boolean pu = prev >= 65 && prev <= 90;
+                            boolean nl = false;
+                            if (i + 1 < v.length()) {
+                                int nx = v.charAt(i + 1);
+                                nl = nx >= 97 && nx <= 122;
+                            }
+                            nw = pl || pd || (pu && nl);
+                        }
+                        if (nw) {
+                            if (out.length() > 0 && mode >= 2) out.append((char) (mode == 2 ? '_' : '-'));
+                            boolean cap = mode == 1 || (mode == 0 && wc > 0);
+                            out.append((char) (cap ? (c >= 97 ? c - 32 : c) : (c >= 65 && c <= 90 ? c + 32 : c)));
+                            wc++;
+                        } else {
+                            out.append((char) (c >= 65 && c <= 90 ? c + 32 : c));
+                        }
+                        prev = c;
+                    }
+                    return out.toString();
+                }
+
+                public static String kof_strings_toCamelCase(String v) { return kof_strings_joinWords(v, 0); }
+                public static String kof_strings_toPascalCase(String v) { return kof_strings_joinWords(v, 1); }
+                public static String kof_strings_toSnakeCase(String v) { return kof_strings_joinWords(v, 2); }
+                public static String kof_strings_toKebabCase(String v) { return kof_strings_joinWords(v, 3); }
+                public static String kof_strings_slugify(String v) { return kof_strings_joinWords(v, 4); }
         """;
     }
 }

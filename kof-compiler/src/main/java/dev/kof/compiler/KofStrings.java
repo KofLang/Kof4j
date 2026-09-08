@@ -47,7 +47,8 @@ public final class KofStrings {
                     ? new StringsCall("kof_strings_" + name, BOOL, List.of(STR)) : null;
             case "count" -> argc == 2
                     ? new StringsCall("kof_strings_count", INT, List.of(STR, STR)) : null;
-            case "capitalize", "reverse" -> argc == 1
+            case "capitalize", "reverse", "toCamelCase", "toPascalCase",
+                    "toSnakeCase", "toKebabCase", "slugify" -> argc == 1
                     ? new StringsCall("kof_strings_" + name, STR, List.of(STR)) : null;
             // S2b.2: preencher/encurtar (String,Int→String). null=>null;
             // repeat n<=0 ou vazio => ""; truncate n<=0 => "", n>=len => original.
@@ -63,12 +64,27 @@ public final class KofStrings {
         };
     }
 
-    /** S2a (predicados/count) presentes em todos os targets. */
+    /**
+     * S2a/S2b (predicados/count/capitalize/reverse/repeat/truncate/pad) em
+     * todos os targets. STRN001 (padrão SECN000/FLT001): os conversores de
+     * palavras (joinWords — lógica complexa de boundary) têm asm x86_64
+     * testado, mas o port riscv64/aarch64 (asm puro, sem teste de runtime
+     * com o bug 59 aberto) fica gated: diagnóstico honesto em compile-time,
+     * nunca link quebrado nem stub silencioso.
+     */
+    private static final java.util.Set<String> WORD_FNS = java.util.Set.of(
+            "kof_strings_toCamelCase", "kof_strings_toPascalCase",
+            "kof_strings_toSnakeCase", "kof_strings_toKebabCase", "kof_strings_slugify");
+
     static boolean supportedOn(String function, Target target) {
+        if (WORD_FNS.contains(function)
+                && (target == Target.NATIVE_RISCV64 || target == Target.NATIVE_AARCH64)) {
+            return false;
+        }
         return true;
     }
 
     static String gapCode(String function) {
-        return "STR001";
+        return WORD_FNS.contains(function) ? "STRN001" : "STR001";
     }
 }

@@ -118,6 +118,62 @@ class KofStringsTest {
     }
 
     @Test
+    void wordConvertersMatchBriefing(@TempDir Path tmp) throws Exception {
+        // §5 do briefing stdlib: word-split de HTTPServer/XMLParser não é split(" ").
+        runJvm(tmp, """
+            main() {
+                println(strings.toSnakeCase("hello world"))
+                println(strings.toSnakeCase("helloWorld"))
+                println(strings.toSnakeCase("HTTPServer"))
+                println(strings.toSnakeCase("XMLParser"))
+                println(strings.toCamelCase("hello_world"))
+                println(strings.toCamelCase("hello-world"))
+                println(strings.toCamelCase("HTTPServer"))
+                println(strings.toPascalCase("hello world"))
+                println(strings.toKebabCase("XMLParser"))
+                println(strings.slugify("Hello, World!! 42"))
+            }
+            """, "hello_world\nhello_world\nhttp_server\nxml_parser\nhelloWorld\nhelloWorld\nhttpServer\nHelloWorld\nxml-parser\nhello-world-42");
+    }
+
+    @Test
+    void wordConvertersNative(@TempDir Path tmp) throws Exception {
+        runNative(tmp, """
+            main() {
+                assert(strings.toSnakeCase("hello world") == "hello_world")
+                assert(strings.toSnakeCase("helloWorld") == "hello_world")
+                assert(strings.toSnakeCase("HTTPServer") == "http_server")
+                assert(strings.toSnakeCase("XMLParser") == "xml_parser")
+                assert(strings.toCamelCase("hello_world") == "helloWorld")
+                assert(strings.toCamelCase("HTTPServer") == "httpServer")
+                assert(strings.toPascalCase("hello world") == "HelloWorld")
+                assert(strings.toKebabCase("XMLParser") == "xml-parser")
+                assert(strings.slugify("Hello, World!! 42") == "hello-world-42")
+                println("ok")
+            }
+            """, "ok");
+    }
+
+    @Test
+    void wordConvertersGatedOnCrossArch(@TempDir Path tmp) throws Exception {
+        // STRN001: port riscv/aarch do joinWords (asm puro) ainda não testado
+        // (bug 59 aberto) — diagnóstico honesto em compile-time, nunca link
+        // quebrado/stub silencioso (padrão SECN000/FLT001).
+        Path source = tmp.resolve("Main.kf");
+        Files.writeString(source, """
+            main() {
+                println(strings.toSnakeCase("helloWorld"))
+            }
+            """);
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            CompilationResult r = driver.compile(source, tmp.resolve("cross-" + t), t);
+            assertFalse(r.success(), t + " deve reportar STRN001");
+            assertTrue(r.diagnostics().getDiagnostics().toString().contains("STRN001"),
+                    t + ": " + r.diagnostics().getDiagnostics());
+        }
+    }
+
+    @Test
     void stringsJs(@TempDir Path tmp) throws Exception {
         runJs(tmp, """
             main() {

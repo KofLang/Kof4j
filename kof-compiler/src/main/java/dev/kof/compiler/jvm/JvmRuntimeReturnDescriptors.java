@@ -131,7 +131,9 @@ public final class JvmRuntimeReturnDescriptors {
                     "kof_math_isNegative", "kof_math_isZero", "kof_strings_isAlpha", "kof_strings_isNumeric", "kof_strings_isAlphaNumeric", "kof_strings_isAscii" -> "I";
             case "kof_strings_isUpperCase", "kof_strings_isLowerCase",
                     "kof_strings_count" -> "I";
-            case "kof_strings_capitalize", "kof_strings_reverse" -> "Ljava/lang/String;";
+            case "kof_strings_capitalize", "kof_strings_reverse", "kof_strings_toCamelCase",
+                    "kof_strings_toPascalCase", "kof_strings_toSnakeCase", "kof_strings_toKebabCase",
+                    "kof_strings_slugify" -> "Ljava/lang/String;";
             case "kof_strings_repeat", "kof_strings_truncate" -> "Ljava/lang/String;";
             case "kof_strings_padLeft", "kof_strings_padRight" -> "Ljava/lang/String;";
             // ── kof.observability (G5) ────────────────────────────────
