@@ -41,6 +41,7 @@ Kof é uma linguagem de programação compilada para múltiplas plataformas, for
 35 — kof.ui (cores, widgets, janelas)
 36 — Segurança (kof.security)
 37 — KofJS (o caminho da Web)
+38 — Editores (kof editor)
 ```
 
 ## Índice
@@ -86,6 +87,7 @@ Kof é uma linguagem de programação compilada para múltiplas plataformas, for
 | 35 | [UI e Estilização](35-ui-and-styling.md) |
 | 36 | [Segurança (kof.security)](36-security.md) |
 | 37 | [KofJS — o caminho da Web](37-kofjs.md) |
+| 38 | [Editores — kof editor](38-editors.md) |
 | — | [Native — Multiplatform](native/README.md) |
 
 ## Ordem recomendada
