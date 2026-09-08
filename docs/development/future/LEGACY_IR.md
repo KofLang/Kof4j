@@ -134,3 +134,14 @@ Fase D  Type Recovery
 > corpo é recuperado e o caso de corpo-separado-do-teste degrada p/ o stub
 > UNKNOWN honesto. Prova: `DecompileTest.bottomTestedLoopRecoversAsDoWhile`
 > (unário + binário, `do { i = i - 1 } while (i > 0)` compila de volta no JVM).
+>
+> **Estado (08/09, este commit):** Fase C — **fix R6 de ponto de junção**:
+> `struct()` re-entrava em bloco já emitido só por `isLoopHeader` e, em
+> shapes com join compartilhado (`continue` de `for` — o incremento é o join;
+> `&&`/`||` — os braços caem no mesmo bloco; `?:`), emitia código **errado
+> mas compilável** (ex.: `for`+`continue` perdia o incremento no caminho
+> normal; `&&` sugava o `return` final p/ dentro do `else`). Agora re-entrar
+> num bloco que NÃO é o header do loop atualmente aberto (parâmetro `header`
+> threadado pela recursão) → recusar → stub UNKNOWN honesto. Provas:
+> `DecompileTest.diamondJoinShapesStayHonestStub` + `recoversNestedWhileLoops`
+> (aninhado legítimo continua recuperando) + `DecompileTest` 20/20.

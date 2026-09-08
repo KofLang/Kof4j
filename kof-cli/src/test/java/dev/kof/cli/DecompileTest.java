@@ -274,6 +274,32 @@ class DecompileTest {
     }
 
     @Test
+    void diamondJoinShapesStayHonestStub(@TempDir Path dir) throws Exception {
+        Path javaFile = dir.resolve("Join.java");
+        Files.writeString(javaFile, """
+                public class Join {
+                    public static int contFor(int n) { int s = 0; for (int i = 0; i < n; i++) { if (i % 2 == 0) continue; s += i; } return s; }
+                    public static int shortc(int a, int b) { if (a > 0 && b > a) return 1; return 0; }
+                    public static int tern(int a) { return a > 0 ? a : -a; }
+                }
+                """);
+        runJavac(javaFile, dir);
+
+        String kof = Decompile.decompile(dir.resolve("Join.class"));
+
+        // REGRESSÃO R6 travada: continue (join no incremento), && (curto-
+        // circuito com braços que caem no mesmo bloco) e `?:` têm PONTO DE
+        // JUNÇÃO compartilhado entre braços. O struct() antigo re-emitia o
+        // bloco já emitido (só checava isLoopHeader), gerando código ERRADO
+        // mas COMPILÁVEL: o `for+continue` virava um while que PERDIA o
+        // incremento no caminho normal; `&&` sugava o return final p/ dentro
+        // do else. Agora: re-entrar em bloco que NÃO é o header do loop aberto
+        // → recusar → stub UNKNOWN honesto (R6: nunca código errado).
+        assertTrue(kof.contains("throw \"body not recovered\""), "continue/&&/?: devem degradar:\n" + kof);
+        assertFalse(kof.contains("while (v2 <"), "não deve emitir for errado (sem incremento):\n" + kof);
+    }
+
+    @Test
     void recoversMethodCall(@TempDir Path dir) throws Exception {
         Path javaFile = dir.resolve("Call.java");
         Files.writeString(javaFile, """

@@ -61,20 +61,18 @@ inversão); antes emitia `while` de corpo VAZIO com `return` dentro (código
 errado). Prova `DecompileTest.bottomTestedLoopRecoversAsDoWhile` (unário +
 binário; compila de volta no JVM); DecompileTest 17/17. **Próxima tarefa
 concreta (ordem de valor):**
-1. **Fase C: corpo separado do teste** no `do-while` (loop com header != corpo
-   — `back != b.start` hoje → stub). Arquivos: `BytecodeStatements.struct` +
-   `BytecodeReader.cfg` (detectar header de 2 blocos). Prova: `DecompileTest`
-   com javac `-O` (opt passa a fundir; sem opt o corpo pode ser separado).
-2. **Fase C: laços aninhados** (while dentro de while) — ✅ VERIFICADO (este
-   commit): `struct` já trata via recursão (header interno emitido dentro do
-   corpo externo) — `grid` decompile→compila no JVM. Regression travado:
-   `DecompileTest.recoversNestedWhileLoops`.
-3. **Fase C: do-while com corpo ramificado (if/break dentro)** — ✅ TRAVADO
-   (este commit, `bottomTestedLoopWithBranchInsideStaysHonestStub`): o teste
-   fica em bloco SEPARADO (back p/ anterior) → `struct` retorna false → stub
-   UNKNOWN honesto. Recuperação estruturada (merge point do diamond; break
-   escapando p/ pós-loop) = trabalho futuro — NÃO inventar while/do errado.
-   Probes: sep/brk degradam certo; call/straight-line (com putstatic) recuperam.
+1. **✅ FEITO (este commit) — REGRESSÃO R6 de join compartilhado**: sweep de
+   shapes (continue/&&/||/?:) provou que `struct` EMITIA CÓDIGO ERRADO
+   COMPILÁVEL (`for`+`continue` perdia o incremento no caminho normal; `&&`
+   sugava o `return` p/ dentro do `else`; `?:` idem). Fix: parâmetro `header`
+   threadado na recursão de `struct`; re-entrar em bloco já emitido que não é
+   o header do loop aberto → recusar → stub UNKNOWN honesto. Provas:
+   `DecompileTest.diamondJoinShapesStayHonestStub` + `recoversNestedWhileLoops`
+   (aninhado legítimo preserva); DecompileTest 20/20; suíte 1222/0/64-skip.
+2. **Fase C: recuperação estruturada de join** (trabalho futuro): merge de
+   diamond com `continue` p/ incremento, `break` p/ pós-loop, `&&`/`?:` com
+   braços que convergem — exige construção GSEA/semidominators (G6790) ou
+   re-emissão com labels. Hoje: degradação honesta travada por teste.
 Receita de recuperação de bytecode = editar `struct`/`emitLinear` (kof-cli) +
 `DecompileTest` (javac real + recompila Kof → JVM). Gate ≤500: BytecodeStatements
 390→~425 (ok).

@@ -36,7 +36,7 @@ final class BytecodeStatements {
         List<String> out = new ArrayList<>();
         Set<Integer> emitted = new HashSet<>();
         Set<Integer> declared = new HashSet<>();
-        if (!struct(blocks.get(0), insns, byStart, cp, paramCount, isStatic, out, emitted, declared)) {
+        if (!struct(blocks.get(0), insns, byStart, cp, paramCount, isStatic, out, emitted, declared, -1)) {
             return null;
         }
         return out;
@@ -243,8 +243,18 @@ final class BytecodeStatements {
     private static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
                                   Map<Integer, BytecodeReader.Block> byStart, String[] cp,
                                   int paramCount, boolean isStatic, List<String> out,
-                                  Set<Integer> emitted, Set<Integer> declared) {
-        if (emitted.contains(b.start)) return true;  // back-edge / já emitido
+                                  Set<Integer> emitted, Set<Integer> declared, int header) {
+        // Re-entrância de bloco: só a aresta de volta ao header do loop
+        // ATUALMENTE ABERTO é legítima (back-edge normal; continue pode cair
+        // no próprio header/incremento do loop). Re-entrar em bloco já emitido
+        // que NÃO é o header aberto = ponto de junção compartilhado entre
+        // braços de diamond (break, continue de loop externo, &&/||/?: com
+        // braços que caem no mesmo bloco) — re-emiti-lo dentro de um ramo
+        // perde o fluxo do outro ramo (ex.: `for` com `continue`: incremento
+        // emitido só num dos caminhos; `&&`: return final sugado p/ o else
+        // interno). Recovery de join estruturado é trabalho futuro; recusar →
+        // stub UNKNOWN honesto (R6: nunca código errado compilável).
+        if (emitted.contains(b.start)) return b.start == header;
         emitted.add(b.start);
 
         if (b.succ.isEmpty()) {
@@ -295,7 +305,7 @@ final class BytecodeStatements {
                 out.add("do {");
                 out.addAll(stmts);
                 out.add("} while (" + cond + ")");
-                return struct(byStart.get(exit), insns, byStart, cp, paramCount, isStatic, out, emitted, declared);
+                return struct(byStart.get(exit), insns, byStart, cp, paramCount, isStatic, out, emitted, declared, header);
             }
             String cond = BytecodeDecoder.blockCondition(b, insns, paramCount, isStatic);
             if (cond == null) return false;
@@ -304,16 +314,16 @@ final class BytecodeStatements {
             boolean loop = BytecodeReader.isLoopHeader(b);
             if (loop) {
                 out.add("while (" + cond + ") {");
-                if (!struct(byStart.get(thenStart), insns, byStart, cp, paramCount, isStatic, out, emitted, declared))
+                if (!struct(byStart.get(thenStart), insns, byStart, cp, paramCount, isStatic, out, emitted, declared, b.start))
                     return false;
                 out.add("}");
-                return struct(byStart.get(exitStart), insns, byStart, cp, paramCount, isStatic, out, emitted, declared);
+                return struct(byStart.get(exitStart), insns, byStart, cp, paramCount, isStatic, out, emitted, declared, header);
             }
             out.add("if (" + cond + ") {");
-            if (!struct(byStart.get(thenStart), insns, byStart, cp, paramCount, isStatic, out, emitted, declared))
+            if (!struct(byStart.get(thenStart), insns, byStart, cp, paramCount, isStatic, out, emitted, declared, header))
                 return false;
             out.add("} else {");
-            if (!struct(byStart.get(exitStart), insns, byStart, cp, paramCount, isStatic, out, emitted, declared))
+            if (!struct(byStart.get(exitStart), insns, byStart, cp, paramCount, isStatic, out, emitted, declared, header))
                 return false;
             out.add("}");
             return true;
@@ -322,7 +332,7 @@ final class BytecodeStatements {
             List<String> stmts = emitLinear(BytecodeDecoder.insnsWithin(b, insns), cp, paramCount, isStatic, declared);
             if (stmts == null) return false;
             out.addAll(stmts);
-            return struct(byStart.get(b.succ.get(0)), insns, byStart, cp, paramCount, isStatic, out, emitted, declared);
+            return struct(byStart.get(b.succ.get(0)), insns, byStart, cp, paramCount, isStatic, out, emitted, declared, header);
         }
         return false;
     }

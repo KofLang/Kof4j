@@ -106,6 +106,12 @@ Fase E  Kof Decompiler          (gerar Kof source)
 > corpo separado do teste → stub UNKNOWN honesto. Nunca mais `while` de corpo
 > vazio com `return` dentro (código errado). Prova:
 > `DecompileTest.bottomTestedLoopRecoversAsDoWhile` (17/17).
+>
+> **Estado (08/09, este commit):** Fase C — guard de **join compartilhado**
+> (continue/&&/||/?:): re-entrar em bloco já emitido que não é o header do
+> loop aberto → recusar (stub honesto). Nunca mais código errado compilável.
+> `DecompileTest` 20/20 (inclui `diamondJoinShapesStayHonestStub` e o
+> aninhado `recoversNestedWhileLoops` que continua recuperando).
 
 ## 7. Relação com o Compilador
 
