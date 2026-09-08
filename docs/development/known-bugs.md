@@ -1,9 +1,22 @@
 # Known Bugs — handoff para o próximo agente
 
-> **Data:** 02/09/2026 · **Status:** documentados e verificados no compilador
-> (0.2.6-beta). Este arquivo existe para que um agente (ou humano) pegue os
-> bugs sem precisar redescobri-los. **Não são características** — são bugs
-> reais com reprodução mínima.
+> **Data:** 08/09/2026 · **Versão:** 0.3.1-beta. Este arquivo existe para que
+> um agente (ou humano) pegue os bugs sem precisar redescobri-los. **Não são
+> características** — são bugs reais com reprodução mínima.
+>
+> **Estado (varredura de 08/09, JVM + KofJS + interpretador):**
+>
+> | | |
+> |---|---|
+> | Abertos e atacáveis em JVM/JS | **4** — bugs 39, 45, 62, 63 |
+> | Abertos, só reproduzíveis no Native | **7** — bugs 43, 44, 46, 48, 50, 59, 61 |
+> | Verificados corrigidos em 08/09 | **19** — bugs 1–8, 10–17, 19, 20, 26 |
+> | Não reverificados (faltou ambiente/setup) | bugs 9, 18, 21, 22, 23 |
+>
+> Os bugs marcados `✅ VERIFICADO CORRIGIDO 08/09` foram reproduzidos contra o
+> build atual e **não** falham mais — parte virou saída correta, parte virou
+> diagnóstico limpo. O Native não pôde ser reverificado nesta rodada (host
+> arm64/macOS sem toolchain x86_64-linux).
 >
 > **Como pegar:** reproduza o snippet (`kof run --target=jvm`), fix no CÓDIGO
 > (não no corpus), adicione teste E2E que falha antes/passa depois, atualize
@@ -14,7 +27,7 @@
 
 ## JVM / Native / JS — bugs por alvo
 
-### 1. `throw <valor não-String>` gera bytecode inválido no JVM
+### 1. `throw <valor não-String>` gera bytecode inválido no JVM — ✅ VERIFICADO CORRIGIDO 08/09 (diagnostico limpo: diagnostico proprio (`throw` exige String))
 
 - **Sintoma:** `throw 42` ou `catch (Int e)` compila, mas o `.class` falha no
   load (`ClassFormatError`, disfarçado de "JavaFX launcher error").
@@ -34,7 +47,7 @@
 
 ---
 
-### 2. Compound assignment `-=`, `/=`, `%=` produzem resultado ERRADO (JVM e Native)
+### 2. Compound assignment `-=`, `/=`, `%=` produzem resultado ERRADO (JVM e Native) — ✅ VERIFICADO CORRIGIDO 08/09 (saida correta: `8` / `5` / `1`)
 
 - **Sintoma:** `x -= 2` vira **sinal invertido**; `x /= 2` vira **0**;
   `x %= 3` vira resto errado. `+=` e `*=` funcionam.
@@ -54,7 +67,7 @@
 
 ---
 
-### 3. `s += "x"` (compound de String) dentro de loop CRASHA o compilador
+### 3. `s += "x"` (compound de String) dentro de loop CRASHA o compilador — ✅ VERIFICADO CORRIGIDO 08/09 (saida correta: `xxxxx`)
 
 - **Sintoma:** `while (i < 100) { s += "x" }` → `RuntimeException: frame crash
   em Default/Main.main (Index 0 out of bounds for length 0)` no
@@ -78,7 +91,7 @@
 
 ---
 
-### 4. `switch` com String gera bytecode inválido no JVM
+### 4. `switch` com String gera bytecode inválido no JVM — ✅ VERIFICADO CORRIGIDO 08/09 (saida correta: `A`)
 
 - **Sintoma:** `switch (s) { case "a": ... }` compila mas falha no load
   (`ClassFormatError`/JavaFX launcher error).
@@ -99,7 +112,7 @@
 
 ---
 
-### 5. Cast de ponto flutuante → inteiro gera bytecode inválido
+### 5. Cast de ponto flutuante → inteiro gera bytecode inválido — ✅ VERIFICADO CORRIGIDO 08/09 (saida correta: `3`)
 
 - **Sintoma:** `3.9 as Int`, `3.9 as Long`, `2.7f as Int` compilam mas falham
   no load (JavaFX/ClassFormatError). `Long as Int` e `Int as Char` funcionam
@@ -118,7 +131,7 @@
 
 ---
 
-### 6. Sufixo numérico MAIÚSCULO gera bytecode inválido
+### 6. Sufixo numérico MAIÚSCULO gera bytecode inválido — ✅ VERIFICADO CORRIGIDO 08/09 (saida correta: `42`)
 
 - **Sintoma:** `42L` / `1.5F` compilam mas falham no load. Minúsculo
   (`42l`, `1.5f`) funciona.
@@ -136,7 +149,7 @@
 
 ---
 
-### 7. Argumento de tipo nullable em chamada genérica não parseia
+### 7. Argumento de tipo nullable em chamada genérica não parseia — ✅ VERIFICADO CORRIGIDO 08/09 (saida correta: `0` (parseia))
 
 - **Sintoma:** `listOf<String?>()` → PARSE041 (Unexpected token `?`).
   `List<String?> l = listOf()` funciona.
@@ -152,7 +165,7 @@
 
 ---
 
-### 8. Tipo de função em argumento genérico não parseia
+### 8. Tipo de função em argumento genérico não parseia — ✅ VERIFICADO CORRIGIDO 08/09 (saida correta: `0` (parseia))
 
 - **Sintoma:** `listOf<(Int) -> Int>()` → PARSE (Unexpected token).
 - **Reprodução:**
@@ -190,7 +203,7 @@ EXTERNA produz lixo
 
 ## Descobertos na investigação agressiva (02/09, rodada 2)
 
-### 10. `!` (NOT lógico) como VALOR de expressão sempre retorna `true`
+### 10. `!` (NOT lógico) como VALOR de expressão sempre retorna `true` — ✅ VERIFICADO CORRIGIDO 08/09 (saida correta: `false`)
 
 - **Sintoma:** `println(!true)` → `true`; `var x = !false` → `true`. Em
   **condição** de `if`, `!` funciona (`if (!ativo)` ok).
@@ -211,7 +224,7 @@ EXTERNA produz lixo
 
 ---
 
-### 11. `==` em records usa igualdade de REFERÊNCIA no JVM (não `equals`)
+### 11. `==` em records usa igualdade de REFERÊNCIA no JVM (não `equals`) — ✅ VERIFICADO CORRIGIDO 08/09 (saida correta: `true` (igualdade de conteudo))
 
 - **Sintoma:** `Ponto(1,2) == Ponto(1,2)` → `false` (deveria `true`);
   `a.equals(b)` → `true`.
@@ -231,7 +244,7 @@ EXTERNA produz lixo
 
 ---
 
-### 12. Assignment encadeado (`var c = a = b`) crasha o compilador
+### 12. Assignment encadeado (`var c = a = b`) crasha o compilador — ✅ VERIFICADO CORRIGIDO 08/09 (diagnostico limpo: `SEM027` (atribuicao e statement, nao expressao))
 
 - **Sintoma:** `var c = a = b` → `Internal compiler error: frame crash
   COMP002 (Index -1 out of bounds)`.
@@ -250,7 +263,7 @@ EXTERNA produz lixo
 
 ---
 
-### 13. Cast (`x as T`) usado como operando de aritmética crasha o compilador
+### 13. Cast (`x as T`) usado como operando de aritmética crasha o compilador — ✅ VERIFICADO CORRIGIDO 08/09 (saida correta: `4`)
 
 - **Sintoma:** `var y = (x as Int) + 1` → `frame crash COMP002 (-1)`.
   `println(x as Int)` isolado funciona.
@@ -269,7 +282,7 @@ EXTERNA produz lixo
 
 ---
 
-### 14. `Map.size` (propriedade) → `NoSuchFieldError` confuso em runtime
+### 14. `Map.size` (propriedade) → `NoSuchFieldError` confuso em runtime — ✅ VERIFICADO CORRIGIDO 08/09 (saida correta: `1`)
 
 - **Sintoma:** `m.size` (sem parênteses) compila mas falha em runtime com
   `NoSuchFieldError: java.util.HashMap does not have member field 'size'`.
@@ -288,7 +301,7 @@ EXTERNA produz lixo
 
 ---
 
-### 15. Primitivo não é atribuível a `Object` (sem auto-boxing)
+### 15. Primitivo não é atribuível a `Object` (sem auto-boxing) — ✅ VERIFICADO CORRIGIDO 08/09 (saida correta: `42` (auto-boxing))
 
 - **Sintoma:** `Object n = 42` → `SEM021 type mismatch: cannot assign int to
   Object`. `Object o = "kof"` funciona (String→Object).
@@ -306,7 +319,7 @@ EXTERNA produz lixo
 
 ---
 
-### 16. `List.toArray()` quebra em JVM e Native (retorno de array)
+### 16. `List.toArray()` quebra em JVM e Native (retorno de array) — ✅ VERIFICADO CORRIGIDO 08/09 (diagnostico limpo: diagnostico com posicao (`metodo 'toArray' nao existe`))
 
 - **Sintoma:** JVM → `ClassFormatError` (disfarçado de JavaFX launcher error);
   Native → `undefined reference to 'List_toArray'` no link.
@@ -327,7 +340,7 @@ EXTERNA produz lixo
 
 ---
 
-### 17. Array `.get()`/`.set()` (não existem) são aceitos e geram saída quebrada
+### 17. Array `.get()`/`.set()` (não existem) são aceitos e geram saída quebrada — ✅ VERIFICADO CORRIGIDO 08/09 (diagnostico limpo: `SEM028` (use `arr[i]` / `arr[i] = v`))
 
 - **Sintoma:** a API real de array é o operador `arr[i]` / `arr[i] = v`
   (ver `training/language/arrays.md`). Porém `arr.get(0)` / `arr.set(0, 5)`
@@ -370,7 +383,7 @@ EXTERNA produz lixo
 
 ---
 
-### 19. Lambda retornando lambda → bytecode inválido (JVM) / COMP001 (Native)
+### 19. Lambda retornando lambda → bytecode inválido (JVM) / COMP001 (Native) — ✅ VERIFICADO CORRIGIDO 08/09 (saida correta: `7`)
 
 - **Sintoma:** `var make = (x: Int) -> ((y: Int) -> x + y); make(5)(3)` falha:
   JVM `ClassFormatError: Illegal class name ""`; Native `undefined reference`.
@@ -385,7 +398,7 @@ EXTERNA produz lixo
 
 ---
 
-### 20. Lambda armazenado em coleção e INVOCADO quebra (JVM/Native)
+### 20. Lambda armazenado em coleção e INVOCADO quebra (JVM/Native) — ✅ VERIFICADO CORRIGIDO 08/09 (saida correta: `10`)
 
 - **Sintoma:** `listOf((x)->x*2).get(0)(4)` → JVM `ClassFormatError`; Native
   `COMP001`. Guardar sem invocar funciona (`ops.size` ok); lambda em var e
@@ -450,7 +463,7 @@ EXTERNA produz lixo
 
 ---
 
-### 26. Valor VOID usado como valor (println(f()) / `var x = f()`) → segfault/VerifyError
+### 26. Valor VOID usado como valor (println(f()) / `var x = f()`) → segfault/VerifyError — ✅ VERIFICADO CORRIGIDO 08/09 (diagnostico limpo: `println(...) recebeu um valor void`)
 
 - **Sintoma:** `println(f(5))` onde `f` é void (função `void` ou lambda com
   corpo de bloco sem `return`) compila mas quebra: Native segfault (pop de
@@ -801,7 +814,6 @@ EXTERNA produz lixo
 - **Causa raiz:** `nat/NativeBackend.java:629-630` tem **stub vazio** para `KofGetStatic` (`case KofGetStatic gs -> { }` — não faz nada, o valor do campo nunca é carregado) e `KofPutStatic` (`addq $8, %rsp` — corrompe a pilha, não grava). O lowering por nome simples emite GETSTATIC/PUTSTATIC desde `0ba58fc` (fix para o caminho estático); o Native **nunca implementou** esses ops.
 - **Corrigido 07/09:** `ClassLayout` exclui os campos estáticos do layout de instância (não ocupam o objeto); `NativeBackend.collectStaticFields/emitStaticData/staticSymbol` emite um slot `.quad` no .data por campo estático com o initialValue (String vira OBJETO Kof: header+length@16+chars@24, não `.asciz`); `KofGetStatic`/`KofPutStatic` em `NativeMethodEmitter` (x86_64) e `NativeRiscvCrossEmit` (riscv/aarch64) acessam o slot; o receiver `System.out` do println/print é descartado (`addq $8,%rsp`/`addi sp,sp,8`) em `NativeX86Calls`/`NativeRiscvCrossOps`. Prova: `NativeE2ETest.nativeStaticFields` (Int/String/bool, `mel\ntrue\n1\n2\n2`).
 - **Pré-existente, não regressão:** não há teste Native com campo estático (`NativeE2ETest` — `grep static` = 0). Antes de `0ba58fc` o Native baixava `LoadLocal(0)+LoadField` (também lixo, `this` inexistente em método estático). A suíte green (1045/0) não cobre estático×Native.
-- **Corrigido 07/09:** `kof_string_length` (RuntimeStringBase) agora percorre o UTF-8 contando **code units UTF-16** (1 byte→1, 2/3 bytes→1, astral 4 bytes→2/surrogate), paridade exata com JVM/JS. O `KofLoadField(String,"length")` no x86_64 (`NativeMethodEmitter`) e riscv (`NativeRiscvCrossEmit`) chama `kof_string_length` em vez de ler o byte-length @16. Prova: `NativeE2ETest.nativeStringLengthUtf16` (`café`=4, `a😀b`=4).
 - **Prova/repro:** sweep cross-target 07/09 (casos `static-field` / `static-field-plus-eq`), Native x86_64.
 - **Correção (lane Native, regra 6):** emitir `KofGetStatic`/`KofPutStatic` em `nat/NativeBackend` + `nat/NativeRiscvCrossEmit` (86-87) com offset real de campo estático (residir em segmento de dados, não em stack) — e remover os stubs silenciosos (R6).
 
@@ -817,7 +829,6 @@ EXTERNA produz lixo
 
 - **Sintoma:** `var s = "café"; println(s.length); println(s.charAt(3))`: JVM → `4` / `233` (0xE9, code unit UTF-16 de `é`); **Native** → `5` / `195` (0xC3, 1º byte de `é` em UTF-8). `println(s + "!")` casa (`café!`) — só `length`/`charAt` divergem.
 - **Causa raiz:** as ops de string do Native são **byte/UTF-8** baseadas; as do JVM são **code-unit/UTF-16** baseadas. Mesma família do `STR001` (documentado p/ JVM `"Olá 😀".length`=6), mas aqui é **divergência cross-target** (Native ≠ JVM no MESMO programa) → paridade (regra 5).
-- **Corrigido 07/09:** `kof_string_length` (RuntimeStringBase) agora percorre o UTF-8 contando **code units UTF-16** (1 byte→1, 2/3 bytes→1, astral 4 bytes→2/surrogate), paridade exata com JVM/JS. O `KofLoadField(String,"length")` no x86_64 (`NativeMethodEmitter`) e riscv (`NativeRiscvCrossEmit`) chama `kof_string_length` em vez de ler o byte-length @16. Prova: `NativeE2ETest.nativeStringLengthUtf16` (`café`=4, `a😀b`=4).
 - **Prova/repro:** sweep cross-target 07/09 (caso `unicode-str`), Native x86_64.
 - **Correção (lane Native, decisão de design regra 6):** alinhar `length`/`charAt` a UMA convenção (code point ou code unit) nos 3 targets — é mudança de semântica congelada, precisa de bump.
 
@@ -829,16 +840,17 @@ EXTERNA produz lixo
 - **Prova/repro:** sweep cross-target 07/09 (caso `float-print`), Native x86_64.
 - **Nota:** a parte `5` vs `5.0` é da mesma família do formato documentado em "parecem bugs mas são esperados" (`JS println(2.0)→"2"`); a parte **6 casas** (`0.333333`) é nova e contradiz o doc.
 
-### 45. `finally` com `return` no try: JS perde o valor de retorno (`undefined`); JVM/Native/interp DESCARTAM o efeito colateral do finally — ✅ CORRIGIDO 07/09 (JS); JVM/Native/interp = bug de consistência ABERTO (lane lowerers)
+### 45. `finally` com `return` no try: JVM/interpretador DESCARTAM o efeito colateral do finally (JS correto) — ABERTO (lane lowerers) — bug de PARIDADE desde o fix de 07/09
 
 - **Sintoma:** `Int f() { try { return 1 } finally { println("fin") } }` + `main() { println(f()) }`:
-  - **JVM/Native/interpretador** → `1` (o `fin` **não** é impresso — o finally é descartado quando o try `return`s).
-  - **JS** → `fin` + `undefined` (o finally **roda**, mas o valor de retorno vira `undefined`).
+  - **JVM / interpretador** → `1` (o `fin` **não** é impresso — o finally é descartado quando o try `return`s). Reverificado 08/09.
+  - **JS** → `fin` + `1` — **correto** desde o fix de 07/09 (era `fin` + `undefined`). Reverificado 08/09.
+  - **Native** → não reverificado 08/09 (host arm64/macOS sem toolchain x86_64-linux).
 - **Aisla (07/09, `Fin2` probe):** finally **roda** quando o try não retorna (`in-try|fin`) e quando o try **throwa** (`fin|caught:boom`); só o caminho **return-no-try** perde o efeito colateral. Em Java/Kotlin o finally roda e o `return` ainda vale (esperado: `fin` + `1`).
-- **Causa raiz (JS):** o backend JS não preserva o valor de retorno stashed quando o finally executa → vira `undefined`.
-- **Causa raiz (JVM/Native/interp, consistente):** o lowering/interpretador do `return` que sai do `try` pula o bloco `finally`. Como os 3 targets CONCORDAM, é **comportamento congelado por construção** (regra 6) — corrigir é **decisão de design** (mudaria semântica documentada por comportamento), não bug de paridade.
-- **Corrigido 07/09:** `kof_string_length` (RuntimeStringBase) agora percorre o UTF-8 contando **code units UTF-16** (1 byte→1, 2/3 bytes→1, astral 4 bytes→2/surrogate), paridade exata com JVM/JS. O `KofLoadField(String,"length")` no x86_64 (`NativeMethodEmitter`) e riscv (`NativeRiscvCrossEmit`) chama `kof_string_length` em vez de ler o byte-length @16. Prova: `NativeE2ETest.nativeStringLengthUtf16` (`café`=4, `a😀b`=4).
-- **Prova/repro:** sweep cross-target 07/09 (caso `finally-return`) + probe `Fin2` (A/B/C/D).
+- **Causa raiz (JS, histórico — já corrigido 07/09):** o backend JS não preservava o valor de retorno stashed quando o finally executava → virava `undefined`.
+- **Causa raiz (JVM/interpretador):** o lowering/interpretador do `return` que sai do `try` pula o bloco `finally`.
+- **⚠️ A justificativa anterior CADUCOU (revisto 08/09):** a entrada argumentava que não era bug de paridade porque *"os 3 targets CONCORDAM, é comportamento congelado por construção (regra 6)"*. **O fix do JS em 07/09 quebrou esse acordo.** Hoje o JS faz o correto (`fin` + `1`, semântica Java/Kotlin) e JVM/interpretador divergem dele. Deixou de ser comportamento congelado e passou a ser **bug de paridade** — JVM e interpretador é que devem se alinhar ao JS.
+- **Prova/repro:** sweep cross-target 07/09 (caso `finally-return`) + probe `Fin2` (A/B/C/D); reverificado 08/09 em JVM, KofJS e interpretador.
 
 ### 46. `spawn { return … }` (lambda que RETORNA valor + handle) → SIGSEGV no Native — ABERTO (lane Native; variante do bug 29)
 
