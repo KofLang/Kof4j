@@ -468,10 +468,10 @@ class ConformanceMatrixTest {
                     println("end")
                 }
                 """, "caught-inner:inner\nend", Set.of(), tempDir);
-        // PARTIAL: bug 52 (KofJS não compila re-throw em catch —
-        // `unexpected KofCatchStart`, JsControlFlowParser.parseStatement:145;
-        // corpo de catch que termina em KofThrow não sai pela região externa).
-        // JVM/Native/Script concordam com a saída correta.
+        // bug 52 (re-throw em catch) — CORRIGIDO como efeito colateral do fix
+        // do bug 45 (c727fee, finally-c/return no try): o parser JS passou a
+        // tratar o corpo de catch que termina em KofThrow pela região externa.
+        // 4 targets agora concordam (JVM/Native/Script/JS).
         matrix("catchrethrow", """
                 main() {
                     try {
@@ -485,7 +485,7 @@ class ConformanceMatrixTest {
                     }
                     println("end")
                 }
-                """, "outer:re:x\nend", Set.of("js"), tempDir);
+                """, "outer:re:x\nend", Set.of(), tempDir);
     }
 
     @Test

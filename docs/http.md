@@ -117,15 +117,17 @@ kof serve <file.kf> [--port <port>] [--host <host>]
 
 | Flag | Default | Descrição |
 |------|---------|-----------|
-| `--port` | 8080 | Porta do servidor |
-| `--host` | 0.0.0.0 | Endereço de bind |
+| `--port` | 8080 | Porta do servidor — **só no modo legacy** (`handle(...)`). Em app kof-native (`web.app()` + `app.listen`), a porta é do app; a CLI avisa que `--port` é ignorado (#35.3, R6) |
+| `--host` | 0.0.0.0 | Endereço de bind — idem: só modo legacy |
 
 ### Comportamento
 
 1. Compila o arquivo `.kf`
-2. Inicia um servidor HTTP na porta especificada
-3. Para cada request, chama a função handler definida no programa
-4. Retorna a response
+2. **Modo legacy** (função `handle(...)`): inicia servidor HTTP na porta `--port`;
+   cada request chama o handler.
+3. **Modo kof-native** (`web.app()` + `app.listen(port)`): o **app** sobe e
+   escuta na porta que **ele** define; a CLI só compila e executa, e o banner
+   reporta a porta real do app (ou avisa que `--port` foi ignorado).
 
 ### Modo de operação
 
