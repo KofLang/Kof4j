@@ -49,8 +49,8 @@ mencionam e ainda não existe; é aditivo (novo método no `LspServer` +
 capability `codeActionProvider`), consome os diagnósticos que já publico
 (SEMxxx) e propõe fix quando houver (ex.: SEM036 → sugerir return). Arquivo:
 `kof-cli/.../cli/LspServer.java`. Prova: `LspServerTest` por capability +
-codeAction retornado p/ um range com diagnóstico. Suíte atual: 1086 testes,
-59 falhas = SÓ bug 59 (Native riscv/aarch, pré-existente).
+codeAction retornado p/ um range com diagnóstico. **LSP codeAction (source.format) + documentSymbol extraídos (este commit):** capability codeActionProvider{kinds:[source]} + handler delega ao MESMO KofFormatter (sem inventar quickfix — Diagnostic não carrega fixit; source.format é o único action honesto). LspServer 500 linhas (extract documentSymbolMaps p/ LspSymbols). LspServerTest 19/19.
+**SUÍTE (método correto, -Dmaven.test.failure.ignore=true):** kof-compiler 1091/61 — 59 = bug 59 (riscv/aarch) + **2 FALHAS NOVAS NA LANE UI** (KofJsBrowserE2ETest ui003/ui006 render em browser, determinísticas, NÃO flaky, NÃO do meu diff — commits f0907c2/358ec80 do agente UI). kof-cli 96/96, kof-script 24/24, kof-c 5/5 = verde. Regra 3: falha alheia → registro aqui, não conserto (lane UI).
 
 **PRÓXIMO PASSO (lane KOFSCRIPT/interpreter, 07/09)**: **PARIDADE
 CROSS-TARGET (g) FEITA (este commit)** — sweep do grupo A (28 casos) nos
