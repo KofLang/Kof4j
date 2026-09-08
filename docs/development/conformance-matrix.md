@@ -38,7 +38,7 @@
 | switch-expression `case ->` | `three` | DONE | DONE | DONE | DONE | `switchexpr` |
 | for-in + break/continue | `4` | DONE | DONE | DONE | DONE | `breakcont` |
 | record `==` conteúdo + toString + accessor | `true` / `P[x=1, y=2]` / `1` | DONE | DONE | DONE | DONE | `record` |
-| record `hashCode()` igual | `true` | DONE | PARTIAL (bug 42: ld P_hashCode) | DONE | PARTIAL (bug 42: TypeError) | `recordhash` |
+| record `hashCode()` igual | `true` | DONE | PARTIAL (bug 42: ld P_hashCode) | DONE | DONE (bug 42 JS corrigido `1ecfb3d`) | `recordhash` |
 | lambda filter/map/reduce | `90` | DONE | DONE | DONE | DONE | `lambdachain` |
 | lambda captura mutável | `3` | DONE | DONE | DONE | DONE | `lambdacapture` |
 | array 2D/length | `60` / `3` | DONE | DONE | DONE | DONE | `array2d` |

@@ -809,8 +809,8 @@ EXTERNA produz lixo
 
 - **Sintoma:** `record P(Int x, Int y)` + `a.hashCode() == b.hashCode()`: JVM/interpretador → `true`; **JS** → `TypeError: a.hashCode is not a function` (exit 1); **Native** → `ld: undefined reference to 'P_hashCode'` (fail de link, exit 1).
 - **Causa raiz:** o runtime de record no JS/Native não emite o método `hashCode` (o JVM gera `hashCode` no `KofRuntime`). `equals`/`toString` existem nos 3; `hashCode` não.
-- **Corrigido 07/09:** `kof_string_length` (RuntimeStringBase) agora percorre o UTF-8 contando **code units UTF-16** (1 byte→1, 2/3 bytes→1, astral 4 bytes→2/surrogate), paridade exata com JVM/JS. O `KofLoadField(String,"length")` no x86_64 (`NativeMethodEmitter`) e riscv (`NativeRiscvCrossEmit`) chama `kof_string_length` em vez de ler o byte-length @16. Prova: `NativeE2ETest.nativeStringLengthUtf16` (`café`=4, `a😀b`=4).
-- **Prova/repro:** sweep cross-target 07/09 (caso `record-eq-hash`).
+- **Corrigido 07/09 (metade JS, `1ecfb3d`):** `JsClassEmitter` emite `hashCode()` sintético de record (espelhando `JvmRecordEmitter`) + `kof_hashCode` no runtime JS. Verificado 08/09: JS roda `true` — exclusão `js` removida de `ConformanceMatrixTest.recordhash`. **Metade Native segue ABERTA** (`ld: undefined reference to 'P_hashCode'` — lane Native, `nat/` EM CURSO no REFACTOR-500).
+- **Prova/repro:** sweep cross-target 07/09 (caso `record-eq-hash`); `ConformanceMatrixTest.recordhash` (JVM/Script/JS verdes, Native excluído).
 - **Nota:** `a == b` (igualdade de conteúdo) e `println(a)` (`P[x=1, y=2]`) **têm** paridade nos 3 — só o `hashCode()` diverge.
 
 ### 43. String no Native conta bytes UTF-8, JVM conta code units — ✅ CORRIGIDO 07/09 (lane Native) UTF-16 — ABERTO (lane Native; cf. STR001)
@@ -825,7 +825,7 @@ EXTERNA produz lixo
 
 - **Sintoma:** `println(1.0/3.0); println(2.5*2.0); println(7.0/2.0)`: JVM → `0.3333333333333333` / `5.0` / `3.5`; **Native** → `0.333333` / `5` / `3.5`.
 - **Causa raiz:** o printer de double do Native (`RuntimePrintNum` / `kof_print_double`) formata com **6 casas** decimais e **sem `.0`** para inteiro-valido. Contradiz `docs/backend-parity.md:89` ("x86_64/JVM/JS impecáveis" para FP→string).
-- **Corrigido 07/09:** `kof_string_length` (RuntimeStringBase) agora percorre o UTF-8 contando **code units UTF-16** (1 byte→1, 2/3 bytes→1, astral 4 bytes→2/surrogate), paridade exata com JVM/JS. O `KofLoadField(String,"length")` no x86_64 (`NativeMethodEmitter`) e riscv (`NativeRiscvCrossEmit`) chama `kof_string_length` em vez de ler o byte-length @16. Prova: `NativeE2ETest.nativeStringLengthUtf16` (`café`=4, `a😀b`=4).
+- **ABERTO (lane Native).** (Nota: a linha "Corrigido 07/09" que estava aqui era copy-paste errado do bug 43 — `kof_string_length` não tem relação com print de double.)
 - **Prova/repro:** sweep cross-target 07/09 (caso `float-print`), Native x86_64.
 - **Nota:** a parte `5` vs `5.0` é da mesma família do formato documentado em "parecem bugs mas são esperados" (`JS println(2.0)→"2"`); a parte **6 casas** (`0.333333`) é nova e contradiz o doc.
 
