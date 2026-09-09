@@ -138,7 +138,7 @@ recomendações futuras (regra 14 da tarefa: não alterar comportamento).
   `resolveInHierarchy`). É a maior lacuna de segurança de tipos. **Não
   implementado aqui** (mudança de comportamento — exige suíte + possibly bump).
 
-### SG-010 — `val` não impede reatribuição
+### SG-010 — `val` não impede reatribuição — ✅ CORRIGIDO 09/09 (SEM037)
 
 - **Implementação**: `val x = 1; x = 2` **compila e roda** (imprime 2, *probe*
   confirmado isoladamente). Não há flag de imutabilidade no `VarDeclStmt`
@@ -148,6 +148,10 @@ recomendações futuras (regra 14 da tarefa: não alterar comportamento).
   observável.
 - **Recomendação**: ou implementar rejeição de atribuição a `val` (SEM novo), ou
   documentar que `val` é convenção (não-garantido). Decisão de design.
+- **CORRIGIDO 09/09 (DD-02, bug 62a):** `val` agora é imutável — reatribuir
+  (incl. compound `+=`) emite **SEM037** ("cannot assign to immutable 'val'"). O
+  parser carrega `type="val"` (antes sempre "var"); `LocalVariableSymbol` ganhou
+  `isVal`; `analyzeAssignmentStatement` checa. Ver `planning-mutability.md`.
 
 ### SG-011 — Função aninhada e sobrecarga top-level
 
