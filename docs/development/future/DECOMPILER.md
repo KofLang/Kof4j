@@ -112,6 +112,31 @@ Fase E  Kof Decompiler          (gerar Kof source)
 > loop aberto → recusar (stub honesto). Nunca mais código errado compilável.
 > `DecompileTest` 20/20 (inclui `diamondJoinShapesStayHonestStub` e o
 > aninhado `recoversNestedWhileLoops` que continua recuperando).
+>
+> **Estado (09/09, este commit): robustez sobre código REAL (601 classes).**
+> Rodar o decompiler sobre o próprio kof-compiler compilado expôs 3 bugs de
+> parsing/length que só aparecem em bytecode de produção (javac, não os
+> fixtures do teste). Correções (todas com teste):
+> 1. **CP tags 16/17 invertidas** (`ClassFileParser`): JVMS 4.4 — `MethodType`
+>    = tag 16 (u2), `Dynamic` = tag 17 (u2+u2). O parser tinha ao contrário →
+>    qualquer classe com MethodType/CondY dessincronizava o constant pool
+>    inteiro e CRASHAVA (`NumberFormatException "#378#513"`), matando o arquivo.
+>    601→0 crash: antes só 1/601 decompilava SEM crash; agora 601/601.
+> 2. **`length(0xba)=7` errado** (`BytecodeReader`): invokedynamic é 5 bytes
+>    (opcode + u2 + 2 zero, JVMS 4.9.3). Com 7, o pc saltava a instrução
+>    seguinte (`areturn`) → o teste do concat passava por ACIDENTE (fallback
+>    "fim sem return"). Corrigido a captura de operandos (len==5&&0xba).
+> 3. **`wide` drift** (`skipVariable`): `op == 0x84` era impossível (o op é
+>    0xc4; 0x84 é o SUB-opcode) → `wide iinc` (6B) lido como 3, deslocando TODO
+>    opcode seguinte. Agora lê o sub-opcode (0xc4,0x84 → 6 bytes; demais → 4).
+> + **Marcador de truncamento**: instrução que não cabe no Code → Insn(-1)
+>   → decoder default → null → stub honesto. A ferramenta NUNCA lança num
+>   `.class` real (era o caminho que virava NumberFormatException/AIOOBE).
+>
+> Prova: `DecompileTest` 32/32 (+`invokedynamicIsFiveBytes`,
+> `truncatedLastInstructionBecomesHonestStub`, `wideIincConsumesSixBytes`);
+> medição sobre as 601 classes: 601/601 decompilam sem exceção, ~3306 métodos,
+> 1812 stub (recuperação ~45%; fila Fase E = opcodes de controle/switch local).
 
 ## 7. Relação com o Compilador
 

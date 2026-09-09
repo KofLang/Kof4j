@@ -36,10 +36,10 @@ final class BytecodeReader {
                  0xb2, 0xb3, 0xb4, 0xb5,                      // get/put static/field
                   0xb6, 0xb7, 0xb8, 0xbb, 0xbd,                // invokes + new + anewarray
                   0xc0, 0xc1, 0xc6, 0xc7 -> 3;                // checkcast, instanceof, ifnull, ifnonnull
-             case 0xc5 -> 4;                                   // multianewarray
-             case 0xba -> 7;                                   // invokedynamic: opcode + index(2) + 4 zero
-             case 0xb9, 0xc8, 0xc9 -> 5;                       // invokeinterface, goto_w, jsr_w
-            case 0xaa, 0xab, 0xc4 -> -1;                      // switch / wide (variável)
+              case 0xc5 -> 4;                                   // multianewarray
+              case 0xba -> 5;                                   // invokedynamic: opcode + index(2) + 0 0 (JVMS 4.9.3)
+              case 0xb9, 0xc8, 0xc9 -> 5;                       // invokeinterface, goto_w, jsr_w
+             case 0xaa, 0xab, 0xc4 -> -1;                      // switch / wide (variável)
             default -> 1;
         };
     }
@@ -57,6 +57,13 @@ final class BytecodeReader {
             }
             int[] operands = new int[0];
             int target = -1;
+            if (pc + len > code.length) {
+                // instrução truncada no fim do Code (bytes insuficientes p/ os
+                // operandos): marcador -1 — todo decoder cai no default →
+                // null → stub honesto (ferramenta nunca lança em .class real).
+                out.add(new Insn(pc, -1, operands, -1));
+                break;
+            }
             if (len == 2) {
                 operands = new int[]{code[pc + 1] & 0xFF};
             } else if (len == 3) {
@@ -69,7 +76,7 @@ final class BytecodeReader {
                 target = pc + readInt(code, pc + 1);
             } else if (len == 5 && op == 0xb9) { // invokeinterface: índice CP nos 2 bytes
                 operands = new int[]{((code[pc + 1] & 0xFF) << 8) | (code[pc + 2] & 0xFF)};
-            } else if (len == 7 && op == 0xba) { // invokedynamic: índice CP nos 2 bytes (depois, 4 zeros)
+            } else if (len == 5 && op == 0xba) { // invokedynamic: índice CP nos 2 bytes (depois, 2 zeros)
                 operands = new int[]{((code[pc + 1] & 0xFF) << 8) | (code[pc + 2] & 0xFF)};
             }
             out.add(new Insn(pc, op, operands, target));
@@ -84,7 +91,6 @@ final class BytecodeReader {
 
     private static int skipVariable(byte[] code, int pc, int op) {
         if (op == 0xaa) { // tableswitch
-            int base = pc;
             int pad = (4 - ((pc + 1) % 4)) % 4;
             pc += 1 + pad;
             readInt(code, pc); pc += 4;   // default
@@ -101,10 +107,19 @@ final class BytecodeReader {
             pc += npairs * 8;
             return pc;
         }
-        // wide: opcode + 1 byte + 2/4 bytes
-        return pc + 1 + (op == 0x84 ? 4 : 2);
+        // wide: opcode(1) + sub(1) + índice(2) — e iinc largo = +const(2).
+        // op == 0x84 é IMPOSSÍVEL aqui (o op é 0xc4; 0x84 é o SUB-opcode
+        // após o pad), logo wide iinc era lido como 3 bytes → o pc avançava
+        // 1 a menos e TODO opcode depois driftava (causa-raiz do bad-code
+        // atrás do truncamento).
+        if (op == 0xc4) {
+            if (pc + 2 > code.length) return code.length;
+            int sub = code[pc + 1] & 0xFF;
+            int end = pc + 4 + (sub == 0x84 ? 2 : 0);   // 0xc4 + 0x84 → +6; demais → +4
+            return end > code.length ? code.length : end;
+        }
+        return pc + 3;
     }
-
     private static int readInt(byte[] code, int pc) {
         return (code[pc] << 24) | ((code[pc + 1] & 0xFF) << 16)
              | ((code[pc + 2] & 0xFF) << 8) | (code[pc + 3] & 0xFF);

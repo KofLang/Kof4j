@@ -440,6 +440,51 @@ class DecompileTest {
     }
 
     @Test
+    void invokedynamicIsFiveBytes() {
+        // REGRESSÃO PEGO POR TRUNCATION-MARKER: length(0xba) era 7 —
+        // INVÁLIDO (JVMS 4.9.3: opcode + u2 index + 2 zero-bytes = 5). Com 7,
+        // o pc saltava a instrução SEGUINTE (o `areturn`): o teste do concat
+        // passava por ACIDENTE (caía no fallback "fim sem return → topo").
+        // Bytes reais de javac: `lload_0; invokedynamic #7; areturn`
+        // → offsets 0,1..5,6. Com len=5, o 0xb0 em offset 6 É alcançado.
+        String[] cp = new String[9];
+        cp[7] = "CONCAT:v=\u000142";
+        byte[] code = {0x1e, (byte) 0xba, 0x00, 0x07, 0x00, 0x00, (byte) 0xb0};
+        String e = BytecodeDecoder.recoverExpression(code, cp,
+                new BytecodeFrame("(J)Ljava/lang/String;", true));
+        // o long vira toString no concat do javac; com o índice correto o
+        // decoder enxerga o areturn e recupera o valor (não o fallback):
+        assertEquals("\"v=\" + arg0 + \"42\"", e, "invokedynamic len=5: areturn alcançável:\n" + e);
+    }
+
+    @Test
+    void truncatedLastInstructionBecomesHonestStub() {
+        // BytecodeReader nunca lança em código truncado: marcador → decoder
+        // default → null → stub honesto (ferramenta sobre .class real).
+        String[] cp = new String[0];
+        byte[] trunc = {0x1a, 0x13, 0x01};   // iload_0; ldc_w com índice incompleto
+        assertNull(BytecodeDecoder.recoverExpression(trunc, cp,
+                new BytecodeFrame("()I", true)), "truncado → null (stub), nunca exceção");
+    }
+
+    @Test
+    void wideIincConsumesSixBytes() {
+        // skipVariable comparava op == 0x84 — IMPOSSÍVEL (o op é 0xc4; 0x84 é
+        // o SUB-opcode lido depois). Consequência: `wide iinc` (6 bytes) era
+        // pulado como 3 e TODO opcode seguinte driftava (ldc/invokes errados
+        // ou truncamento fantasma). wide normal = 4; wide iinc = 6.
+        byte[] code = {(byte) 0xc4, (byte) 0x84, 0x00, 0x65, 0x00, 0x03, (byte) 0xb1};
+        var insns = BytecodeReader.decode(code);
+        // wide é OPAQUE (1 insn, skipVariable consome os 6) + return = 2
+        assertEquals(2, insns.size());
+        assertEquals(6, insns.get(1).offset(), "return deve começar em 6 (não 3+1!)");
+        // wide SEM iinc (iinc = 4 bytes)
+        var w = BytecodeReader.decode(new byte[]{(byte) 0xc4, 0x15, 0x01, 0x23, (byte) 0xac});
+        assertEquals(2, w.size());
+        assertEquals(4, w.get(1).offset());
+    }
+
+    @Test
     void wideParamsMapToCorrectSlots(@TempDir Path dir) throws Exception {
         Path javaFile = dir.resolve("V.java");
         Files.writeString(javaFile, """

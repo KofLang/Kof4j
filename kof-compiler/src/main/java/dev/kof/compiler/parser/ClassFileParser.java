@@ -234,11 +234,11 @@ public final class ClassFileParser {
                     bb.get();
                     constPool[i] = "#" + (bb.getShort() & 0xFFFF);
                     break;
-                case 16: // Dynamic
-                    constPool[i] = "#" + (bb.getShort() & 0xFFFF) + "#" + (bb.getShort() & 0xFFFF);
-                    break;
-                case 17: // MethodType
+                case 16: // MethodType (JVMS 4.4.8) — u2 descriptor_index
                     constPool[i] = "#" + (bb.getShort() & 0xFFFF);
+                    break;
+                case 17: // Dynamic (JVMS 4.4.10) — u2 class_index + u2 name_and_type_index
+                    constPool[i] = "#" + (bb.getShort() & 0xFFFF) + "#" + (bb.getShort() & 0xFFFF);
                     break;
                 case 18: // InvokeDynamic — "#" bootstrap#NameAndType (resolvido
                          // p/ "CONCAT:<receita>" após ler BootstrapMethods)
