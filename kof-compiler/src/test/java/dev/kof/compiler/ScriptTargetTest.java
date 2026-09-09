@@ -88,9 +88,10 @@ class ScriptTargetTest {
     }
 
     // issue #54 — interp `super(v)` explícito em classe de domínio dava
-    // StackOverflowError (o dispatch de SUPER resolveu o <init> da MESMA classe
-    // → recursão infinita). JVM/JS ok. Agora o interpretador despacha para o
-    // <init> da superclasse.
+    // StackOverflowError (o dispatch resolveu o <init> da MESMA classe →
+    // recursão). JVM/JS ok. Agora <init> usa o ownerType ESTÁTICO do IR e
+    // KofCallKind.SUPER sobe p/ a superclasse (duas lanes, caminhos do
+    // lowering: CONSTRUCTOR-owner=super e SUPER-método).
     @Test
     void interpretExplicitSuperConstructor(@TempDir Path tmp) throws IOException {
         Path main = write(tmp, "Main.kf", """
@@ -113,5 +114,49 @@ class ScriptTargetTest {
         KofInterpreter.Result ir = driver.interpret(List.of(main), tmp, new String[0]);
         assertEquals(0, ir.exitCode(), "stderr: " + ir.stderr());
         assertTrue(ir.stdout().contains("42"), "stdout: " + ir.stdout());
+    }
+
+    // #54 — variante: `d.get()` herda de Base (prova o dispatch NÃO-virtual
+    // do ctor e o método virtual normal coexistindo).
+    @Test
+    void explicitSuperConstructorDoesNotRecurse(@TempDir Path tmp) throws IOException {
+        Path main = write(tmp, "Main.kf", """
+                class Base {
+                    Int v
+                    constructor(Int v) { this.v = v }
+                    Int get() { return v }
+                }
+                class Derived extends Base {
+                    constructor(Int v) {
+                        super(v)
+                    }
+                }
+                main() {
+                    var d = Derived(42)
+                    println(d.get())
+                }
+                """);
+        KofInterpreter.Result ir = driver.interpret(List.of(main), tmp, new String[0]);
+        assertEquals(0, ir.exitCode(), "stderr: " + ir.stderr());
+        assertTrue(ir.stdout().contains("42"), "super(v) deve subir p/ o ctor da superclasse: " + ir.stdout());
+    }
+
+    @Test
+    void recordWithExplicitConstructorRunsOnInterpreter(@TempDir Path tmp) throws IOException {
+        // par com #53 (metade script): o ctor canônico é o EXPLÍCITO, e o
+        // super() sintético de Record não tem runtime no interpretador.
+        Path main = write(tmp, "Main.kf", """
+                record Q(Int x) {
+                    constructor(Int x) {
+                        this.x = x
+                    }
+                }
+                main() {
+                    println(Q(3).x())
+                }
+                """);
+        KofInterpreter.Result ir = driver.interpret(List.of(main), tmp, new String[0]);
+        assertEquals(0, ir.exitCode(), "stderr: " + ir.stderr());
+        assertTrue(ir.stdout().contains("3"), "stdout: " + ir.stdout());
     }
 }

@@ -324,15 +324,22 @@ public final class KofInterpreter {
         if ("kof_box".equals(name) || "kof_unbox".equals(name)) {
             return args.length > 0 ? args[0] : recv;
         }
-        // receiver Kof → dispatch VIRTUAL pela classe real (polimorfismo)
-        IRClass owner = recv instanceof KofObj ko ? members.classByInternal(ko.internalName())
-                : members.kofClassOrNull(kc.ownerType());
-        // bug #54: `super(v)` (KofCallKind.SUPER) deve despachar para o <init>
-        // da SUPERCLASSE, não da classe atual — senão findKofMethod resolve de
-        // novo o próprio ctor e o interpretador recorre infinitamente →
-        // StackOverflowError (JVM/JS ok porque o backend resolve o super pelo
-        // invokespecial ao owner do call, não ao objeto).
-        if (kc.kind() == KofCallKind.SUPER && owner != null && owner.superName() != null) {
+        // receiver Kof → dispatch VIRTUAL pela classe real (polimorfismo).
+        // EXCETO construtores: <init> NÃO é virtual no JVM — o IR já traz o
+        // ownerType estático correto (super(v) → classe pai; new → classe do
+        // objeto; ExpressionMethodCallLowerer:414 emite CONSTRUCTOR com o
+        // owner da superclasse). Resolver pelo runtime-class do receiver fazia
+        // super(v) reencontrar o ctor da própria classe → recursão infinita
+        // (#54/bug 67; fix duplo das duas lanes reconciliado).
+        IRClass owner = "<init>".equals(name)
+                ? members.kofClassOrNull(kc.ownerType())
+                : (recv instanceof KofObj ko ? members.classByInternal(ko.internalName())
+                        : members.kofClassOrNull(kc.ownerType()));
+        // bug #54 (método, não ctor): `super.metodo()` (KofCallKind.SUPER) é
+        // NÃO-virtual — sem o bump, findKofMethod pelo runtime-class pegaria
+        // a sobrecarga da subclasse (dispatch virtual) em vez do da superclasse.
+        if (kc.kind() == KofCallKind.SUPER && !"<init>".equals(name)
+                && owner != null && owner.superName() != null) {
             IRClass sup = members.classByInternal(owner.superName());
             if (sup != null) owner = sup;
         }
@@ -361,6 +368,12 @@ public final class KofInterpreter {
             return builtins.kofToString(args[0]);
         }
         // classe Kof: interpretar método
+        if (owner == null && "<init>".equals(name) && recv instanceof KofObj) {
+            // super() para base NÃO-Kof (java.lang.Record/Object — o IR do JVM
+            // injeta a cadeia; #54: com <init> estático o owner some) → no-op,
+            // como era o "construtor padrão" do dispatch virtual antigo.
+            return null;
+        }
         if (owner != null) {
             IRMethod m = findKofMethod(owner, name, args.length);
             if (m == null && "<init>".equals(name)) return null; // construtor padrão
