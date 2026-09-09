@@ -58,6 +58,12 @@ final class NativeArchEmitter {
                     .replace("\n", "\\n").replace("\t", "\\t");
             sb.append(e[1]).append(": .asciz \"").append(esc).append("\"\n");
         }
+        // bug 59: símbolos de campos estáticos (ex: kof_static_java_lang_System_out)
+        // referenciados por KofGetStatic no riscv/aarch precisam ser DEFINIDOS no
+        // .data, senão o ld falha com "undefined reference". O x86_64 já emite via
+        // emitStaticData; aqui faltava. `.quad`/`.asciz` são direções ELF universais.
+        nb.collectStaticFields();
+        nb.emitStaticData(sb);
         // kof_super_table: pares (typeId, superTypeId) terminados por (0,0) —
         // usado por kof_instanceof (mesmo layout do x86_64).
         sb.append(".align 4\n");
@@ -193,6 +199,9 @@ final class NativeArchEmitter {
                     .replace("\n", "\\n").replace("\t", "\\t");
             riscvSb.append(e[1]).append(": .asciz \"").append(esc).append("\"\n");
         }
+        // bug 59: símbolos de campos estáticos definidos no .data (ver emitRiscv).
+        nb.collectStaticFields();
+        nb.emitStaticData(riscvSb);
         riscvSb.append(".align 4\n");
         riscvSb.append("kof_super_table:\n");
         for (IRClass c : module.classes()) {

@@ -21,6 +21,8 @@ Estados: `ABERTO` · `EM CURSO` · `FEITO` · `BLOQUEADO`.
 
 ## PRÓXIMO PASSO (re-dispacho lê isto)
 
+**PRÓXIMO PASSO (09/09, lane bug-fix — 65 bugs a 100%):** corrigindo `known-bugs.md` de forma verificada no código (doc dos bugs 1-23 estava DESATUALIZADO — vários já têm teste/código, ex: bug 2 compound assignment tem `CoreRegressionE2ETest.compoundAssignmentOrderAndStringInLoop`). Este commit: **bug 48** Native (`json.decode<List<Record>>` → gap honesto JSN004 em `ExpressionJsonCallLowerer` + panic em `RuntimeJsonDecode.kof_json_decode_record_list`; o runtime native não tem decoder real) e **bug 59** (REGRESSÃO riscv/aarch `undefined reference to kof_static_java_lang_System_out` — `NativeArchEmitter.emitRiscv`/`emitAarch64` não chamavam `collectStaticFields`/`emitStaticData`, então símbolos estáticos nunca definidos no `.data`). **PRÓXIMA TAREFA:** varrer bugs 1-23 verificando no código/testes se já estão corrigidos (muitos sim) e atualizar o doc honestamente; para os não-corrigidos, corrigir ou documentar como regra 6. Prova por bug = teste existente ou novo.
+
 **PRÓXIMO PASSO:** JSON runtime fixes commitado (e9156c72) — JsonDispatch/RuntimeJsonDecode/RuntimePrintNum improvements. Auto-loop ATIVO (30min). Próxima tarefa: escolher gap livre em `docs/development/known-bugs.md` e `development/roadmap-audit.md`. Itens abertos: CANVAS001, HTTP003, WEB001/002, MEDIA001/2/3, SECPQ.
 `relatedTarget()` idem p/ nó relacionado. 8/9 pontos: KofUi (registry STR),
 JsRuntimeUiEvents (`raw.target.id` no kofEv), RuntimeUi (intrínseco + alias

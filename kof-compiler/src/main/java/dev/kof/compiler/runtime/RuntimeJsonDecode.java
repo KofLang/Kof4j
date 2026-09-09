@@ -197,10 +197,26 @@ public final class RuntimeJsonDecode {
             .globl kof_json_decode_record_list
             .type kof_json_decode_record_list, @function
             kof_json_decode_record_list:
-                # Decode a list of records: each record is decoded using kof_json_bind
-                # with the record's generic type. For now, delegate to the list decoder
-                # with a flag, or implement record-by-record decoding.
-                jmp kof_json_decode_list
+                # R6: nunca silencioso. Decoder de lista de records ainda não
+                # implementado no runtime nativo — panic honesto (write + exit)
+                # em vez de retornar lixo (kof_json_decode_list → int_list).
+                pushq %rbx
+                leaq .Ljson_rec_list_msg(%rip), %rsi
+                xorl %edx, %edx
+            .Ljson_rec_len:
+                cmpb $0, (%rsi,%rdx)
+                je .Ljson_rec_go
+                incq %rdx
+                jmp .Ljson_rec_len
+            .Ljson_rec_go:
+                movq $1, %rax              # syscall write
+                movq $1, %rdi              # fd = stdout
+                syscall
+                movq $1, %rdi              # exit code 1
+                movq $60, %rax             # syscall exit
+                syscall
+            .Ljson_rec_list_msg:
+                .asciz "json.decode: List<Record> not supported on the Native target yet (JSN004)\n"
 
             .globl kof_json_decode_bool
             .type kof_json_decode_bool, @function
