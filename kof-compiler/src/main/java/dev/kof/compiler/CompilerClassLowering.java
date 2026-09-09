@@ -110,6 +110,7 @@ public final class CompilerClassLowering {
                 || driver.target == Target.NATIVE_AARCH64) {
             methods.add(CompilerRecordSupport.buildRecordToStringMethod(driver, internalName, rec, fields, typeParams));
             methods.add(CompilerRecordSupport.buildRecordEqualsMethod(driver, internalName, fields, typeParams));
+            methods.add(CompilerRecordSupport.buildRecordHashCodeMethod(driver, internalName, fields, typeParams));
         }
         return new IRClass(internalName, superName, ifaces, access, fields, methods, List.of(), null,
                 typeId, CompilerAnnotations.lowerAnnotations(driver, rec.annotations()));

@@ -799,13 +799,14 @@ EXTERNA produz lixo
 - **Prova/repro:** sweep cross-target 07/09 (casos `static-field` / `static-field-plus-eq`), Native x86_64.
 - **Correção (lane Native, regra 6):** emitir `KofGetStatic`/`KofPutStatic` em `nat/NativeBackend` + `nat/NativeRiscvCrossEmit` (86-87) com offset real de campo estático (residir em segmento de dados, não em stack) — e remover os stubs silenciosos (R6).
 
-### 42. `hashCode()` de record ausente no JS e no Native — ✅ CORRIGIDO 07/09 (metade JS; metade Native segue ABERTA)
+### 42. `hashCode()` de record ausente no JS e no Native — ✅ CORRIGIDO (JS `1ecfb3d` + Native `buildRecordHashCodeMethod`)
 
 - **Sintoma:** `record P(Int x, Int y)` + `a.hashCode() == b.hashCode()`: JVM/interpretador → `true`; **JS** → `TypeError: a.hashCode is not a function` (exit 1); **Native** → `ld: undefined reference to 'P_hashCode'` (fail de link, exit 1).
-- **Causa raiz:** o runtime de record no JS/Native não emite o método `hashCode` (o JVM gera `hashCode` no `KofRuntime`). `equals`/`toString` existem nos 3; `hashCode` não.
-- **Corrigido 07/09 (metade JS, `1ecfb3d`):** `JsClassEmitter` emite `hashCode()` sintético de record (espelhando `JvmRecordEmitter`) + `kof_hashCode` no runtime JS. Verificado 08/09: JS roda `true` — exclusão `js` removida de `ConformanceMatrixTest.recordhash`. **Metade Native segue ABERTA** (`ld: undefined reference to 'P_hashCode'` — lane Native, `nat/` EM CURSO no REFACTOR-500).
-- **Prova/repro:** sweep cross-target 07/09 (caso `record-eq-hash`); `ConformanceMatrixTest.recordhash` (JVM/Script/JS verdes, Native excluído).
-- **Nota:** `a == b` (igualdade de conteúdo) e `println(a)` (`P[x=1, y=2]`) **têm** paridade nos 3 — só o `hashCode()` diverge.
+- **Causa raiz:** o runtime de record no JS/Native não emitia o método `hashCode` (o JVM gera `hashCode` no `JvmRecordEmitter`). `equals`/`toString` existiam nos 3; `hashCode` não.
+- **Corrigido (JS, `1ecfb3d`):** `JsClassEmitter` emite `hashCode()` sintético de record + `kof_hashCode` no runtime JS.
+- **Corrigido (Native):** `CompilerRecordSupport.buildRecordHashCodeMethod` sintetiza `hashCode()` acumulando `31 * h + campo` no IR para Native (`lowerRecord`), gerando o símbolo `P_hashCode`. Exclusão de `native` removida de `ConformanceMatrixTest.recordhash`.
+- **Prova/repro:** `ConformanceMatrixTest.recordhash` (verde nos 4 targets: JVM, Script, JS e Native).
+- **Nota:** `a == b` (igualdade de conteúdo), `println(a)` (`P[x=1, y=2]`) e `a.hashCode() == b.hashCode()` agora têm paridade nos 3 targets.
 
 ### 43. String no Native conta bytes UTF-8, JVM conta code units — ✅ CORRIGIDO 07/09 (lane Native) UTF-16 — ABERTO (lane Native; cf. STR001)
 
