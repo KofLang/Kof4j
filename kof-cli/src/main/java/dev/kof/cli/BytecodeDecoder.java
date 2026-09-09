@@ -17,7 +17,14 @@ import java.util.Set;
  * e if/else de retorno → if-expression idiomática. Fora do subconjunto,
  * devolve {@code null} (o decompiler cai no stub honesto — nunca inventa).
  */
-final class BytecodeDecoder {
+ final class BytecodeDecoder {
+
+    /**
+     * Diagnóstico da fila Fase E: quando não-nulo, recebe cada opcode que faz
+     * a recuperação desistir (default → null). Nulo em produção (zero custo).
+     * Usado só por medidores offline (ver DECOMPILER.md §Fase E).
+     */
+    static java.util.function.IntConsumer blockerSink;
 
     private BytecodeDecoder() {
     }
@@ -179,7 +186,10 @@ final class BytecodeDecoder {
                     if (!"V".equals(frame.retType())) return null;   // return em método não-void → drift
                     return stack.isEmpty() ? "" : null;
                 }
-                default -> { return null; }
+                default -> {
+                    if (blockerSink != null) blockerSink.accept(op);
+                    return null;
+                }
             }
         }
         // fim sem return: devolve o topo da pilha (região protegida de try)

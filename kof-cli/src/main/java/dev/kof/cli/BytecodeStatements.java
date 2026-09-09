@@ -470,7 +470,10 @@ final class BytecodeStatements {
                 case 0xb1 -> { stmts.add("return"); return stmts; }
                 // terminadores de bloco: branch/goto — paramos sem emitir
                 case 0x99, 0x9a, 0x9b, 0x9c, 0x9d, 0x9e, 0x9f, 0xa0, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7 -> { return stmts; }
-                default -> { return null; }
+                default -> {
+                    if (BytecodeDecoder.blockerSink != null) BytecodeDecoder.blockerSink.accept(op);
+                    return null;
+                }
             }
         }
         return stmts;

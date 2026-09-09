@@ -136,7 +136,16 @@ Fase E  Kof Decompiler          (gerar Kof source)
 > Prova: `DecompileTest` 32/32 (+`invokedynamicIsFiveBytes`,
 > `truncatedLastInstructionBecomesHonestStub`, `wideIincConsumesSixBytes`);
 > medição sobre as 601 classes: 601/601 decompilam sem exceção, ~3306 métodos,
-> 1812 stub (recuperação ~45%; fila Fase E = opcodes de controle/switch local).
+> 1812 stub (recuperação ~45%).
+
+> **Fila Fase E medida (09/09):** `blockerSink` em `BytecodeDecoder` (custo
+> zero quando null, uso offline) conta qual opcode derruba a recuperação
+> sobre as 601 classes: `pop` 0x57 (347×), `instanceof` 0xc1 (165×),
+> `checkcast` 0xc0 (137×), `new` 0xbb (126×, quase todo é `isJdkClass`
+> recusando por R6), `astore_3`/arrays 0x4c (103×), `ifeq` 0x99 (102×).
+> Ataque por ROI: pop/instanceof/checkcast são os 3 maiores e idiomáticos
+> em Kof (`x instanceof T`, `x as T`) — sem drift R6 (cast já tratado na
+> aritmética).
 
 ## 7. Relação com o Compilador
 
