@@ -91,6 +91,29 @@ public final class CompilerRecordSupport {
                 List.of(), List.of(new IRBasicBlock(0, ops)), locals);
     }
 
+    /**
+     * hashCode() nativo de record: 31 * h + campo (bug 42 native).
+     */
+    static IRMethod buildRecordHashCodeMethod(CompilerDriver driver, String internalName,
+                                              List<IRField> fields,
+                                              List<String> typeParams) {
+        Type ownerType = CompilerTypes.ownerTypeFromInternal(internalName, driver.semanticAnalyzer);
+        List<KofOperation> ops = new ArrayList<>();
+        List<IRLocalVariable> locals = new ArrayList<>();
+        locals.add(new IRLocalVariable(0, "this", ownerType));
+        ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 1));
+        for (IRField f : fields) {
+            ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 31));
+            ops.add(new KofBinary(KofBinaryOp.MUL, Type.PrimitiveType.INT));
+            ops.add(new KofLoadLocal(ownerType, 0));
+            ops.add(new KofLoadField(ownerType, f.name(), f.type()));
+            ops.add(new KofBinary(KofBinaryOp.ADD, Type.PrimitiveType.INT));
+        }
+        ops.add(new KofReturn(Type.PrimitiveType.INT));
+        return new IRMethod("hashCode", Type.PrimitiveType.INT, List.of(), AccessFlags.PUBLIC,
+                List.of(), List.of(new IRBasicBlock(0, ops)), locals);
+    }
+
     static IRMethod generateRecordConstructor(CompilerDriver driver, RecordDeclarationNode rec,
                                   String owner) {
         List<String> typeParams = rec.typeParameters() == null ? List.of() : rec.typeParameters();
