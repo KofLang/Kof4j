@@ -174,7 +174,9 @@ public class Parser {
             ctx.advance();
             returnType = TypeParser.parseTypeRef(ctx);
         }
-        List<String> thrown = new ArrayList<>();
+        // SG-019: cláusula throw do top-level — antes nem era capturada aqui
+        // (só métodos de classe capturavam; o gap dizia "decorativa")
+        List<String> thrown = TypeParser.parseThrows(ctx);
         List<StatementNode> body = List.of();
         if (ctx.check(TokenType.LBRACE)) {
             body = StatementParser.parseBlock(ctx);

@@ -4608,4 +4608,44 @@ class CompilerDriverTest {
         assertTrue(driver.compile(source, tempDir.resolve("out"), Target.JVM).success(),
                 "plain main() deve compilar");
     }
+
+    // SG-019 (SEM045) — cláusula `throw X` valida que X é um tipo conhecido
+    // (não mais decorativa): classe do módulo, interface, builtin ou import.
+    @Test
+    void throwsUnknownTypeGivesCleanDiagnostic(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("T.kf");
+        Files.writeString(source, """
+            main() {
+                throw "x"
+            }
+            """);
+        Path src2 = tempDir.resolve("F.kf");
+        Files.writeString(src2, """
+            Int falha() throw NaoExiste {
+                return 1
+            }
+            """);
+        CompilationResult result = driver.compile(src2, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "unknown throw type must fail");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM045"), "should be SEM045, got: " + diags);
+    }
+
+    @Test
+    void throwsKnownTypeStaysGreen(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("T.kf");
+        Files.writeString(source, """
+            class MinhaExcecao {
+                String msg
+            }
+            Int falha() throw MinhaExcecao {
+                return 1
+            }
+            main() {
+                println(falha())
+            }
+            """);
+        assertTrue(driver.compile(source, tempDir.resolve("out"), Target.JVM).success(),
+                "throws com classe do módulo deve compilar");
+    }
 }

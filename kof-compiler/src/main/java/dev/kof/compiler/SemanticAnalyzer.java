@@ -210,6 +210,7 @@ public class SemanticAnalyzer {
     private void analyzeMethodBody(MethodDeclarationNode method) {
         SymbolTable methodScope = methodScopes.get(method);
         if (methodScope == null) return;
+        checkThrowsClause(method.thrownExceptions(), "método '" + method.name() + "'");
         Type returnType = resolveType(method.returnType(), methodScope);
         // bug 26: corpo pode terminar sem return/throw → SEM036 (uma vez por
         // método — o loop de 4 passes chamaria de novo). Antes do early-return
@@ -325,6 +326,25 @@ public class SemanticAnalyzer {
         currentClassName = prevClass;
     }
 
+    /**
+     * SG-019 (SEM045): a cláusula `throw X, Y` não é checked-exception (exceções
+     * são Strings em Kof), mas os nomes devem ser TIPOS conhecidos — classe do
+     * módulo, interface, ou externa via import. Antes era capturado pelo parser
+     * e nunca validado (decorativo).
+     */
+    void checkThrowsClause(List<String> thrown, String owner) {
+        if (diagnostics == null) return;
+        for (String name : thrown) {
+            if ("String".equals(name) || Type.isPrimitive(Type.of(name))) continue;
+            if (knownClasses.containsKey(name) || interfaceNames.contains(name)) continue;
+            Type viaImports = MemberResolver.qualifyViaImports(currentUnit, name);
+            if (viaImports != null) continue;
+            diagnostics.error("", 0, 0, 0,
+                    "throw clause of " + owner + " references unknown type '" + name + "'",
+                    "SEM045");
+        }
+    }
+
     private void analyzeFunction(FunctionDeclarationNode func) {
         // SG-018 (SEM044): o entry point é SÓ `main()` — sem tipo de retorno,
         // sem modifiers (o IR já emite public static void — CompilerFunctionLowering).
@@ -349,6 +369,7 @@ public class SemanticAnalyzer {
         }
         String prevFunction = currentFunctionName;
         currentFunctionName = func.name();
+        checkThrowsClause(func.thrownExceptions(), "função '" + func.name() + "'");
         SymbolTable funcScope = currentScope.enterScope();
         for (String tp : func.typeParameters()) {
             funcScope.define(new SymbolTable.TypeParameterSymbol(tp));
