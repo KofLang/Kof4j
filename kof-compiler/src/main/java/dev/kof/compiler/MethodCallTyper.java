@@ -126,15 +126,23 @@ if (mc.receiver() == null && "Textarea".equals(mc.methodName()) && mc.arguments(
     return KofUi.TEXTAREA;
 }
 if (mc.receiver() == null && ("Column".equals(mc.methodName()) || "Row".equals(mc.methodName())
-        || "Form".equals(mc.methodName()))
+        || "Form".equals(mc.methodName()) || "Fieldset".equals(mc.methodName()))
         && mc.arguments().size() == 1) {
     if ("Form".equals(mc.methodName())) return KofUi.FORM;
+    if ("Fieldset".equals(mc.methodName())) return KofUi.FIELDSET;
     return "Column".equals(mc.methodName()) ? KofUi.COLUMN : KofUi.ROW;
 }
 if (mc.receiver() == null && "View".equals(mc.methodName()) && mc.arguments().size() == 1) {
     return KofUi.VIEW;
 }
-if (mc.receiver() == null && "Hr".equals(mc.methodName()) && mc.arguments().size() == 0) {
+if (mc.receiver() == null && "Iframe".equals(mc.methodName()) && mc.arguments().size() == 1) {
+    return KofUi.IFRAME;
+}
+if (mc.receiver() == null && ("Video".equals(mc.methodName()) || "Audio".equals(mc.methodName()))
+        && mc.arguments().size() == 1) {
+    return "Video".equals(mc.methodName()) ? KofUi.VIDEO : KofUi.AUDIO;
+}
+if (mc.receiver() == null && "Hr".equals(mc.methodName()) && mc.arguments().isEmpty()) {
     return KofUi.HR;
 }
 if (mc.receiver() == null && KofUi.isConstructor(mc.methodName())

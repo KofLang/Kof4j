@@ -24,7 +24,7 @@ Por isso, a colaboração no Kof segue regras claras:
 3. **Documentação cirúrgica de erros.** O repositório mantém um **arquivo de
    regressão** dedicado: para cada bug, a **causa raiz** e o **menor pedaço de
    código que reproduz** — inclusive regressões que a própria mantenedora
-   introduziu. Nada de esconder o que está quebrado (ver `docs/known-bugs.md`).
+   introduziu. Nada de esconder o que está quebrado (ver `docs/development/known-bugs.md`).
 4. **Blindagem contra poluição.** Disclaimers e regras de nomenclatura explícitas
    existem para impedir que IAs e ferramentas generativas misturem a linguagem
    com termos alheios ao domínio e poluam o histórico do projeto.

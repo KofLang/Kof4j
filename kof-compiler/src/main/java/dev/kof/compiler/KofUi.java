@@ -397,6 +397,30 @@ public final class KofUi {
                 default -> null;
             };
         }
+        if (isIframe(receiver)) {
+            return switch (name) {
+                case "setSrc" -> argCount == 1 ? new UiCall("kof_ui_iframe_set_src", Type.PrimitiveType.VOID, List.of(STR)) : null;
+                case "remove" -> argCount == 0 ? new UiCall("kof_ui_iframe_remove", Type.PrimitiveType.VOID, List.of()) : null;
+                default -> null;
+            };
+        }
+        if (isVideo(receiver) || isAudio(receiver)) {
+            String fn = isVideo(receiver) ? "kof_ui_video" : "kof_ui_audio";
+            return switch (name) {
+                case "setSrc" -> argCount == 1 ? new UiCall(fn + "_set_src", Type.PrimitiveType.VOID, List.of(STR)) : null;
+                case "setControls" -> argCount == 1 ? new UiCall(fn + "_set_controls", Type.PrimitiveType.VOID, List.of(BOOL)) : null;
+                case "play" -> argCount == 0 ? new UiCall(fn + "_play", Type.PrimitiveType.VOID, List.of()) : null;
+                case "pause" -> argCount == 0 ? new UiCall(fn + "_pause", Type.PrimitiveType.VOID, List.of()) : null;
+                case "remove" -> argCount == 0 ? new UiCall(fn + "_remove", Type.PrimitiveType.VOID, List.of()) : null;
+                default -> null;
+            };
+        }
+        if (isHr(receiver)) {
+            return switch (name) {
+                case "remove" -> argCount == 0 ? new UiCall("kof_ui_hr_remove", Type.PrimitiveType.VOID, List.of()) : null;
+                default -> null;
+            };
+        }
         if (isComponent(receiver)) {
             // Component Core (docs/ui/architecture.md): estado reativo +
             // invalidação + render + lifecycle + effects + events.

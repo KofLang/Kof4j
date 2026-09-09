@@ -360,71 +360,122 @@ public final class JsRuntimeUiForms {
                 }
             }
 
-            export function kofUiIframeNew(url) {
+            export function kofUiIframeNew(src) {
                 const id = kofUiCreateNode("iframe", "kof-iframe");
                 if (id < 0) {
                     return -1;
                 }
-                const node = window.__kofNodes[id];
-                if (typeof document !== "undefined" && node) {
-                    node.src = String(url);
-                }
+                window.__kofNodes[id].src = src;
                 return id;
             }
 
-            export function kofUiIframeRemove(fr) {
-                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[fr]) {
-                    const node = window.__kofNodes[fr];
-                    if (node.parentNode) {
-                        node.parentNode.removeChild(node);
-                    }
-                    delete window.__kofNodes[fr];
+            export function kofUiIframeSetSrc(iframe, src) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[iframe]) {
+                    window.__kofNodes[iframe].src = src;
                 }
             }
 
-            export function kofUiVideoNew(url) {
+            export function kofUiIframeRemove(iframe) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[iframe]) {
+                    const node = window.__kofNodes[iframe];
+                    if (node.parentNode) {
+                        node.parentNode.removeChild(node);
+                    }
+                    delete window.__kofNodes[iframe];
+                }
+            }
+
+            export function kofUiVideoNew(src) {
                 const id = kofUiCreateNode("video", "kof-video");
                 if (id < 0) {
                     return -1;
                 }
-                const node = window.__kofNodes[id];
-                if (typeof document !== "undefined" && node) {
-                    if (node.canPlayType) node.setAttribute("controls", "controls");
-                    node.src = String(url);
-                }
+                window.__kofNodes[id].src = src;
                 return id;
             }
 
-            export function kofUiVideoRemove(v) {
-                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[v]) {
-                    const node = window.__kofNodes[v];
-                    if (node.parentNode) {
-                        node.parentNode.removeChild(node);
-                    }
-                    delete window.__kofNodes[v];
+            export function kofUiVideoSetSrc(video, src) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[video]) {
+                    window.__kofNodes[video].src = src;
                 }
             }
 
-            export function kofUiAudioNew(url) {
+            export function kofUiVideoSetControls(video, controls) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[video]) {
+                    window.__kofNodes[video].controls = controls ? true : false;
+                    if (controls) window.__kofNodes[video].setAttribute("controls", "");
+                    else window.__kofNodes[video].removeAttribute("controls");
+                }
+            }
+
+            export function kofUiVideoPlay(video) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[video]
+                        && typeof window.__kofNodes[video].play === "function") {
+                    window.__kofNodes[video].play();
+                }
+            }
+
+            export function kofUiVideoPause(video) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[video]
+                        && typeof window.__kofNodes[video].pause === "function") {
+                    window.__kofNodes[video].pause();
+                }
+            }
+
+            export function kofUiVideoRemove(video) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[video]) {
+                    const node = window.__kofNodes[video];
+                    if (node.parentNode) {
+                        node.parentNode.removeChild(node);
+                    }
+                    delete window.__kofNodes[video];
+                }
+            }
+
+            export function kofUiAudioNew(src) {
                 const id = kofUiCreateNode("audio", "kof-audio");
                 if (id < 0) {
                     return -1;
                 }
-                const node = window.__kofNodes[id];
-                if (typeof document !== "undefined" && node) {
-                    if (node.canPlayType) node.setAttribute("controls", "controls");
-                    node.src = String(url);
-                }
+                window.__kofNodes[id].src = src;
                 return id;
             }
 
-            export function kofUiAudioRemove(a) {
-                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[a]) {
-                    const node = window.__kofNodes[a];
+            export function kofUiAudioSetSrc(audio, src) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[audio]) {
+                    window.__kofNodes[audio].src = src;
+                }
+            }
+
+            export function kofUiAudioSetControls(audio, controls) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[audio]) {
+                    window.__kofNodes[audio].controls = controls ? true : false;
+                    if (controls) window.__kofNodes[audio].setAttribute("controls", "");
+                    else window.__kofNodes[audio].removeAttribute("controls");
+                }
+            }
+
+            export function kofUiAudioPlay(audio) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[audio]
+                        && typeof window.__kofNodes[audio].play === "function") {
+                    window.__kofNodes[audio].play();
+                }
+            }
+
+            export function kofUiAudioPause(audio) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[audio]
+                        && typeof window.__kofNodes[audio].pause === "function") {
+                    window.__kofNodes[audio].pause();
+                }
+            }
+
+            export function kofUiAudioRemove(audio) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[audio]) {
+                    const node = window.__kofNodes[audio];
                     if (node.parentNode) {
                         node.parentNode.removeChild(node);
                     }
-                    delete window.__kofNodes[a];
+                    delete window.__kofNodes[audio];
                 }
             }
 
