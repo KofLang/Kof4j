@@ -178,8 +178,8 @@ disconnect). Ver [docs/debugging.md](docs/debugging.md).
 
 **Auditoria do ecossistema**: matriz de cobertura da stdlib (inventário,
 gaps G1-G12, prioridade e estratégia) em
-[docs/ecosystem-coverage.md](docs/ecosystem-coverage.md). Plano de evolução
-para plataforma completa: [docs/plan-platform-completion.md](docs/plan-platform-completion.md).
+[docs/development/ecosystem-coverage.md](docs/development/ecosystem-coverage.md). Plano de evolução
+para plataforma completa: [docs/development/plan-platform-completion.md](docs/development/plan-platform-completion.md).
 
 ---
 
@@ -225,7 +225,7 @@ Ver: [learn/35-kof-ui.md](learn/35-kof-ui.md) e
 
 | Pasta | Para quem | O que contém |
 |-------|-----------|--------------|
-| [`docs/`](docs/) | arquitetos, mantenedores, decisões | **Documentação técnica e de projeto**: estado atual (`status.md`, `actual-state.md`), arquitetura (`architecture.md`), segurança (`security.md`), performance (`performance.md`), depuração (`debugging*.md`), roadmap (`roadmap.md`), stdlib (`stdlib/`, `stdlib-web.md`...), targets (`targets/`), distribuição (`distribution/`), ferramentas (`tooling/`), visões futuras (`future/`) e auditorias (`ecosystem-coverage.md`, `complexity-audit.md`) |
+| [`docs/`](docs/) | arquitetos, mantenedores, decisões | **Documentação técnica e de projeto**: estado atual (`status.md`, `development/actual-state.md`), arquitetura (`architecture.md`), segurança (`security.md`), performance (`performance.md`), depuração (`debugging*.md`), roadmap (`development/roadmap.md`), stdlib (`stdlib/`, `stdlib-web.md`...), targets (`targets/`), distribuição (`distribution/`), ferramentas (`tooling/`), visões futuras (`development/future/`) e auditorias (`development/ecosystem-coverage.md`, `development/complexity-audit.md`) |
 | [`learn/`](learn/README.md) | humanos aprendendo Kof | **Trilha de aprendizado em capítulos numerados** (00 Introdução → 37 KofJS): linguagem, classes, funções, lambdas, UI, segurança — cada capítulo um guia prático; `learn/native/` para o alvo nativo |
 | [`training/`](training/README.md) | LLMs e ferramentas de IA | **Corpus estruturado otimizado para modelos de linguagem**: fatos por tópico (`language/`), idiomas (`idioms/`), padrões/anti-padrões (`patterns/`, `anti-patterns/`), exemplos compiláveis (`examples/`), referência (`reference/`), migração Java→Kof (`migration/`), tooling e releases |
 
