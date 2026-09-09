@@ -286,4 +286,26 @@ class SpawnE2ETest {
         assertEquals(0, p.waitFor(), "exit code, output: " + output);
         assertTrue(output.contains("42"), "await devolve o valor da lambda: " + output);
     }
+
+    // bug 46 (isolamento): spawn { return 42 } SEM captura — determina se o
+    // SIGSEGV é da CAPTURA ou do return em si. Se este passa e o com captura
+    // falha → a captura é a causa; se ambos falham → o return lambda é a causa.
+    @Test
+    void nativeSpawnExprAwaitLambdaReturnNoCapture(@TempDir Path tempDir) throws IOException, InterruptedException {
+        Path source = tempDir.resolve("Main4.kf");
+        Files.writeString(source, """
+                main() {
+                    var h = spawn { return 42 }
+                    println(await h)
+                }
+                """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out4"), Target.NATIVE);
+        assertTrue(result.success(), "Native spawn-expr lambda return (no capture) should compile: " + result.diagnostics().getDiagnostics());
+        Path bin = tempDir.resolve("out4").resolve("Default/Main");
+        ProcessBuilder pb = new ProcessBuilder(bin.toString()).redirectErrorStream(true);
+        Process p = pb.start();
+        String output = new String(p.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).trim();
+        assertEquals(0, p.waitFor(), "exit code, output: " + output);
+        assertTrue(output.contains("42"), "await devolve o valor da lambda: " + output);
+    }
 }
