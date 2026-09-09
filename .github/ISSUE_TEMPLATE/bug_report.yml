@@ -1,0 +1,67 @@
+name: "🐞 Relato de bug"
+description: "Reportar um comportamento que diverge do documentado (leia docs/development/known-bugs.md antes — pode já estar catalogado)."
+labels: ["bug"]
+body:
+  - type: textarea
+    id: repro
+    attributes:
+      label: "Reprodução mínima (código Kof)"
+      description: "O menor programa .kf que reproduz o problema. Sem repro mínima, a issue não é acionável."
+      placeholder: |
+        ```kof
+        main() {
+            println(if ("" == "") 1 else "s")
+        }
+        ```
+    validations:
+      required: true
+  - type: dropdown
+    id: target
+    attributes:
+      label: "Target afetado"
+      options:
+        - JVM
+        - Native (x86_64)
+        - Native (riscv64/aarch64)
+        - JS (KofJS)
+        - script (interpretador)
+        - Todos
+    validations:
+      required: true
+  - type: input
+    id: versao
+    attributes:
+      label: "Versão (saída de `kof --version`)"
+      placeholder: "0.3.1-beta"
+    validations:
+      required: true
+  - type: input
+    id: so
+    attributes:
+      label: "Sistema operacional"
+      placeholder: "Ubuntu 24.04 / Windows 11 / macOS 15"
+    validations:
+      required: true
+  - type: textarea
+    id: comando
+    attributes:
+      label: "Comando executado e saída completa"
+      description: "O comando exato + stdout/stderr completos (não resuma o erro)."
+      placeholder: |
+        kof run bug.kf
+        Caused by: java.lang.VerifyError: ...
+    validations:
+      required: true
+  - type: textarea
+    id: esperado
+    attributes:
+      label: "Comportamento esperado"
+      description: "O que o corpus (training/, learn/, docs/) diz que deveria acontecer — com referência."
+    validations:
+      required: true
+  - type: textarea
+    id: obtido
+    attributes:
+      label: "Comportamento obtido"
+    validations:
+      required: true

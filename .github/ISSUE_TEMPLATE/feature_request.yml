@@ -1,0 +1,48 @@
+name: "💡 Proposta de funcionalidade"
+description: "Propor uma funcionalidade ou mudança de contrato (discussão técnica antes de código)."
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problema
+    attributes:
+      label: "Problema / motivação"
+      description: "Que problema real isso resolve? Por que a linguagem precisa disso?"
+    validations:
+      required: true
+  - type: textarea
+    id: proposta
+    attributes:
+      label: "Proposta"
+      description: "Sintaxe/semântica proposta, com exemplo Kof idiomático (intenção, não mecanismo)."
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: "Área afetada"
+      options:
+        - Frontend (parser/check)
+        - Backend JVM
+        - Backend Native
+        - Backend JS
+        - Interpretador/script
+        - Stdlib
+        - CLI/ferramentas
+        - Docs/corpus
+        - Outro
+    validations:
+      required: true
+  - type: textarea
+    id: alternativas
+    attributes:
+      label: "Alternativas consideradas"
+      description: "Por que interop/FFI ou uma feature existente não resolve? (R9: interop-first)"
+    validations:
+      required: false
+  - type: checkboxes
+    id: contrato
+    attributes:
+      label: "Compatibilidade"
+      options:
+        - label: "Li a regra de congelamento de semântica (AGENTS.md): mudança de contrato exige bump de versão + docs + migração, e é decisão da mantenedora."
+          required: true
