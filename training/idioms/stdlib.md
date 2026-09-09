@@ -99,7 +99,7 @@ dígito 19∈{8,9,a,b}), nunca por igualdade. v7/ulid ainda não existem.
 |---|---|---|---|---|
 | math.*, strings.is*/count/capitalize/reverse/repeat/truncate/pad*, encoding.hex*/url*, time.isLeapYear/daysInMonth/dayOfWeek/daysBetween, validation.isCpf/isCnpj/isCep/isPis/isIpv4/isIpv6/isMac/isPort/isCreditCard/isDomain | ✅ | ✅ | ✅ | ✅ |
 | strings.toCamel/Pascal/Snake/Kebab/slugify | ✅ | ✅ | ✅ (STRN001 fechado 09/09 — B15, diff golden qemu) | ✅ |
-| strings.escapeHtml (5 entidades; >=128 cópia) | ✅ | ✅ | ✅ (B20, diff golden qemu) | ✅ |
+| strings.escapeHtml/escapeJson (5 entidades; >=128 cópia) | ✅ | ✅ | ✅ (B20, diff golden qemu) | ✅ |
 | strings.removeWhitespace/normalizeWhitespace | ✅ | ✅ | ✅ (B21) | ✅ |
 | encoding.base64* / base64Url* | ✅ | ✅ | ✅ (ENC002 fechado 09/09) | ✅ |
 | net.scheme/host/port/path/query/fragment + queryEncode/Decode | ✅ | ✅ | ✅ (NET001 fechado 09/09) | ✅ |

@@ -124,7 +124,7 @@ public final class NativeRiscvAsmRtB26 {
             .Lv_ej_u:
                 add  t2, s2, s4
                 li   t3, 92
-                sb   t3, 24(t2)          # \
+                sb   t3, 24(t2)          # backslash
                 li   t3, 117
                 sb   t3, 25(t2)          # u
                 li   t3, 48

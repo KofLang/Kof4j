@@ -81,6 +81,11 @@ Escape HTML (5 entidades — nunca montar página com interpolação crua):
 
 ```kof
 strings.escapeHtml("a<b>&\"'c")   // "a&lt;b&gt;&amp;&quot;&#39;c"
+
+`strings.escapeJson(s)` escapa o corpo de uma string literal JSON
+(RFC 8259): `\` vira `\\`, `"` vira `\"`, os de controle viram `\b \f \n \r \t`
+ou `\u00xx` (hex minúsculo); demais bytes (incl. UTF-8) são copiados. Nos 4 targets.
+
 strings.escapeHtml("Café & ç")     // "Café &amp; ç" (>=128 é copiado)
 strings.unescapeHtml("a&amp;b")         // "a&b" — 5 nomeadas + &#DDD;/&#xHH; (UTF-8)
 ```
