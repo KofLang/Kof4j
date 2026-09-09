@@ -1502,6 +1502,27 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   in-memory); teste `nestedTransactionDoesNotCommitOuterScope`; classe
   KofDbE2ETest 15/0 (2 skips Native pré-existentes).
 
+### 78. Native: `transaction` aninhado comita o escopo externo (irmão asm do §77) — ABERTO (lane Native)
+
+- **Sintoma:** MESMO programa do §77 em target Native (x86_64, sqlite): o
+  bloco `transaction` interno comita (COMMIT no handle) enquanto o externo
+  ainda está em transação; rollback do externo não desfaz as linhas
+  confirmadas pelo interno. Paridade quebrada JVM vs Native (regra 5).
+- **Causa:** `runtime/RuntimeDb4.kof_db_transaction` (asm) faz
+  BEGIN/COMMIT/ROLLBACK pelo handle SEM flag de transação ativa — não há
+  equivalente do `ThreadLocal KOF_DB_TX` JVM; cada bloco aninhado repete
+  BEGIN (que no sqlite é no-op dentro de tx, mas o COMMIT interno efetiva).
+- **Correção esperada (lane Native):** espelhar a semântica JVM fixada em
+  `JvmConfigRuntime.kof_db_transaction` (`nested = mesma conexão/handle →
+  não comita, não rollbacka, não re-BEGIN; erro propaga p/ o externo
+  decidir`) — flag de transação ativa por handle no asm (x86_64 primeiro,
+  riscv/aarch64 quando a área db existir lá). Sem savepoints (decisão da
+  mantenedora, §77).
+- **Prova de repro:** o mesmo programa KofDbE2ETest da issue #65 rodando
+  no binário x86_64 (`caught {"n":2}` esperado antes do fix). Lane issues
+  (09/09) NÃO implementou — asm fora da lane; registrado p/ o dono Native
+  com a semântica alvo já definida no §77.
+
 
 
 
