@@ -117,6 +117,63 @@ class KofEncodingTest {
     }
 
     @Test
+    void urlEncodeDecodeJvm(@TempDir Path tmp) throws Exception {
+        // RFC 3986: unreserved [A-Za-z0-9-_.~] preservado; espaço => %20;
+        // hex MAIÚSCULO; decode aceita %xx minúsculo, '%' sem 2 dígitos => literal.
+        runJvm(tmp, """
+            main() {
+                println(encoding.urlEncode("a b"))
+                println(encoding.urlEncode("caf\u00e9"))
+                println(encoding.urlEncode("~-_."))
+                println(encoding.urlEncode("!*'()"))
+                println(encoding.urlDecode("a%20b%21"))
+                println(encoding.urlDecode("caf%C3%A9"))
+                println(encoding.urlDecode("caf%c3%a9"))
+                println(encoding.urlDecode("%zz"))
+                println(encoding.urlDecode("%4"))
+                println(encoding.urlDecode(encoding.urlEncode("ol\u00e1 mundo!")))
+            }
+            """, "a%20b\ncaf%C3%A9\n~-_.\n%21%2A%27%28%29\na b!\ncaf\u00e9\ncaf\u00e9\n%zz\n%4\nol\u00e1 mundo!");
+    }
+
+    @Test
+    void urlEncodeDecodeNative(@TempDir Path tmp) throws Exception {
+        runNative(tmp, """
+            main() {
+                assert(encoding.urlEncode("a b") == "a%20b")
+                assert(encoding.urlEncode("caf\u00e9") == "caf%C3%A9")
+                assert(encoding.urlEncode("~-_.") == "~-_.")
+                assert(encoding.urlEncode("!*'()") == "%21%2A%27%28%29")
+                assert(encoding.urlDecode("a%20b%21") == "a b!")
+                assert(encoding.urlDecode("caf%C3%A9") == "caf\u00e9")
+                assert(encoding.urlDecode("caf%c3%a9") == "caf\u00e9")
+                assert(encoding.urlDecode("%zz") == "%zz")
+                assert(encoding.urlDecode("%4") == "%4")
+                assert(encoding.urlDecode(encoding.urlEncode("ol\u00e1 mundo!")) == "ol\u00e1 mundo!")
+                println("ok")
+            }
+            """, "ok");
+    }
+
+    @Test
+    void urlEncodeDecodeJs(@TempDir Path tmp) throws Exception {
+        runJs(tmp, """
+            main() {
+                println(encoding.urlEncode("a b"))
+                println(encoding.urlEncode("caf\u00e9"))
+                println(encoding.urlEncode("~-_."))
+                println(encoding.urlEncode("!*'()"))
+                println(encoding.urlDecode("a%20b%21"))
+                println(encoding.urlDecode("caf%C3%A9"))
+                println(encoding.urlDecode("caf%c3%a9"))
+                println(encoding.urlDecode("%zz"))
+                println(encoding.urlDecode("%4"))
+                println(encoding.urlDecode(encoding.urlEncode("ol\u00e1 mundo!")))
+            }
+            """, "a%20b\ncaf%C3%A9\n~-_.\n%21%2A%27%28%29\na b!\ncaf\u00e9\ncaf\u00e9\n%zz\n%4\nol\u00e1 mundo!");
+    }
+
+    @Test
     void base64GatedOnCrossArch(@TempDir Path tmp) throws Exception {
         // ENC002: base64 reusa kof_b64_*_internal (runtime crypto x86); o
         // riscv/aarch não tem esses símbolos (asm puro, sem libc) — gate

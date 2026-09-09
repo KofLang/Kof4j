@@ -264,10 +264,12 @@ class ConformanceMatrixTest {
                     var d = encoding.hexDecode(c)
                     var e = encoding.base64Encode("Man")
                     var f = encoding.base64Decode("Y2Fmw6k=")
+                    var u = encoding.urlEncode("a b")
+                    var w = encoding.urlDecode("caf%C3%A9")
                     var mark = if (encoding.hexEncode("") == "") "E" else "N"
-                    println(a + "|" + b + "|" + c + "|" + d + "|" + e + "|" + f + "|" + mark)
+                    println(a + "|" + b + "|" + c + "|" + d + "|" + e + "|" + f + "|" + u + "|" + w + "|" + mark)
                 }
-                """, "4869|Hi|636166c3a9|café|TWFu|café|E", Set.of(), tempDir);
+                """, "4869|Hi|636166c3a9|café|TWFu|café|a%20b|café|E", Set.of(), tempDir);
     }
 
     @Test

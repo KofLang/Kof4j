@@ -34,7 +34,8 @@ public final class KofEncoding {
     static EncodingCall staticMethod(String namespace, String name, List<Type> argTypes) {
         int argc = argTypes.size();
         return switch (name) {
-            case "hexEncode", "base64Encode", "base64Decode" -> argc == 1
+            case "hexEncode", "base64Encode", "base64Decode",
+                    "urlEncode", "urlDecode" -> argc == 1
                     ? new EncodingCall("kof_encoding_" + name, STR, List.of(STR)) : null;
             case "hexDecode" -> argc == 1
                     ? new EncodingCall("kof_encoding_hexDecode", STR, List.of(STR)) : null;

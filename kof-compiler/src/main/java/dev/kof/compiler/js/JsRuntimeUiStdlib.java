@@ -209,6 +209,43 @@ final class JsRuntimeUiStdlib {
                 if (v == null) return v;
                 return kofEncFromUtf8(Array.from(kofSecB64Decode(v, false)));
             }
+            // ── kof.encoding (STDLIB S4.2b) — percent-encoding (RFC 3986) ──
+            const KOF_ENC_HEX = "0123456789ABCDEF";
+            export function kofEncodingUrlEncode(v) {
+                if (v == null) return v;
+                const b = kofEncUtf8Bytes(v);
+                let out = "";
+                for (let i = 0; i < b.length; i++) {
+                    const c = b[i];
+                    const unres = (c >= 65 && c <= 90) || (c >= 97 && c <= 122)
+                               || (c >= 48 && c <= 57) || c === 45 || c === 95
+                               || c === 46 || c === 126;
+                    if (unres) out += String.fromCharCode(c);
+                    else out += "%" + KOF_ENC_HEX.charAt(c >> 4) + KOF_ENC_HEX.charAt(c & 15);
+                }
+                return out;
+            }
+            function kofEncHexStrict(ch) {
+                const c = ch.charCodeAt(0);
+                if (c >= 48 && c <= 57) return c - 48;
+                if (c >= 97 && c <= 102) return c - 97 + 10;
+                if (c >= 65 && c <= 70) return c - 65 + 10;
+                return -1;
+            }
+            export function kofEncodingUrlDecode(v) {
+                if (v == null) return v;
+                const out = [];
+                for (let i = 0; i < v.length; i++) {
+                    const c = v.charCodeAt(i);
+                    if (c === 37 && i + 2 < v.length) {
+                        const hi = kofEncHexStrict(v[i + 1]);
+                        const lo = kofEncHexStrict(v[i + 2]);
+                        if (hi >= 0 && lo >= 0) { out.push((hi << 4) | lo); i += 2; continue; }
+                    }
+                    out.push(c & 255);
+                }
+                return kofEncFromUtf8(out);
+            }
 
     """;
 }

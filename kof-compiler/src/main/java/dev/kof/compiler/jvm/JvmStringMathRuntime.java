@@ -304,6 +304,53 @@ public final class JvmStringMathRuntime {
                     }
                     return new String(out.toByteArray(), java.nio.charset.StandardCharsets.UTF_8);
                 }
+
+                // ── kof.encoding (STDLIB S4.2b) — percent-encoding (RFC 3986) ──
+                // unreserved [A-Za-z0-9-_.~] preservado; todo outro byte UTF-8
+                // vira %XX (hex MAIÚSCULO). Espaço => %20 (não '+'). urlDecode é
+                // o inverso (aceita %xx minúsculo; '%' sem 2 dígitos => literal).
+                public static String kof_encoding_urlEncode(String v) {
+                    if (v == null) return null;
+                    final String HEX = "0123456789ABCDEF";
+                    byte[] b = v.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                    StringBuilder sb = new StringBuilder(b.length * 3);
+                    for (byte x : b) {
+                        int c = x & 255;
+                        boolean unres = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
+                                || (c >= '0' && c <= '9') || c == '-' || c == '_' || c == '.' || c == '~';
+                        if (unres) sb.append((char) c);
+                        else { sb.append('%').append(HEX.charAt(c >> 4)).append(HEX.charAt(c & 15)); }
+                    }
+                    return sb.toString();
+                }
+
+                public static String kof_encoding_urlDecode(String v) {
+                    if (v == null) return null;
+                    java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+                    int i = 0;
+                    while (i < v.length()) {
+                        char c = v.charAt(i);
+                        if (c == '%' && i + 2 < v.length()) {
+                            int hi = kof_enc_hexStrict(v.charAt(i + 1));
+                            int lo = kof_enc_hexStrict(v.charAt(i + 2));
+                            if (hi >= 0 && lo >= 0) {   // ASCII-estrito: inválido => % literal
+                                out.write((hi << 4) | lo);
+                                i += 3;
+                                continue;
+                            }
+                        }
+                        out.write((byte) c);
+                        i++;
+                    }
+                    return new String(out.toByteArray(), java.nio.charset.StandardCharsets.UTF_8);
+                }
+
+                private static int kof_enc_hexStrict(char c) {
+                    if (c >= '0' && c <= '9') return c - '0';
+                    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+                    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+                    return -1;
+                }
         """;
     }
 }
