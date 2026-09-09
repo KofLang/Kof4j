@@ -46,6 +46,20 @@ public final class StatementAnalyzer {
             } else {
                 targetType = SemExpressionTyper.inferType(sa, ae.target(), scope);
             }
+        } else if (ae.target() instanceof FieldAccessExpr fa) {
+            // #42 (DD-02): escrita em componente de record é SEM038 — o corpus
+            // (learn/07) define record como imutável; hoje só o JVM/JS falham
+            // em runtime (IllegalAccessError/TypeError) e o interpretador
+            // muta em silêncio. O guard no analyzer alinha os 4 caminhos.
+            Type recvType = SemExpressionTyper.inferType(sa, fa.receiver(), scope);
+            targetType = recvType;
+            boolean onThis = fa.receiver() instanceof IdentifierExpr rid && "this".equals(rid.name());
+            if (sa.diagnostics() != null && !onThis && recvType != null
+                    && CompilerTypes.isRecordType(recvType, sa.unit(), sa)) {
+                sa.diagnostics().error("", 0, 0, 0,
+                        "cannot assign to '" + fa.fieldName() + "': record is immutable",
+                        "SEM038");
+            }
         } else if (ae.target() != null) {
             targetType = SemExpressionTyper.inferType(sa, ae.target(), scope);
         }
@@ -166,10 +180,12 @@ public final class StatementAnalyzer {
                 if (fs.condition() != null) SemExpressionTyper.inferType(sa, fs.condition(), forScope);
                 analyzeStatement(sa, fs.body(), forScope, returnType);
                 if (fs.update() != null) {
-                    // `i = i + 1` no update é statement, não valor
+                    // `i = i + 1` no update é statement, não valor — passa
+                    // pelo MESMO checkpoint de atribuição (SEM012/SEM037/
+                    // SEM038); o bypass anterior deixava `for (val i = 0;
+                    // ...; i = i + 1)` silencioso (buraco #42 no guard do val).
                     if (fs.update() instanceof AssignmentExpr ae) {
-                        SemExpressionTyper.inferType(sa, ae.value(), forScope);
-                        if (ae.target() != null) SemExpressionTyper.inferType(sa, ae.target(), forScope);
+                        analyzeAssignmentStatement(sa, ae, forScope);
                     } else {
                         SemExpressionTyper.inferType(sa, fs.update(), forScope);
                     }
