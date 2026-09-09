@@ -835,7 +835,7 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 - **Divergência achada 08/09 (lane lowerers — NÃO corrigi, condição de parada 1):** o rótulo "congelado" CONTRADIZ o corpus. `training/idioms/errors.md:107` documenta que `finally` "roda no caminho normal, no caminho capturado e na propagação" — e `return` no try É caminho normal. Pela regra 4 (bug = alinhar ao previsto, proibido documentar em volta), o comportamento PREVISTO é `fin`+`1`; os 3 targets concordam no ERRADO. Então isto é **bug de código**, não decisão de design. **Por que não corrigi nesta sessão:** o fix exige (a) pilha de frames de finally no lowering (store do valor → jump finallyLabel → load+return no epílogo), (b) o `CompilerLambdaClass` limpar a pilha ao entrar no corpo de lambda (senão vaza), e (c) o `JsControlFlowParser.parseTryStatement` reconhecer a nova forma de IR — o JS RECONSTRÓI try/finally da IR (não emite raw), e o fix JS do c727fee já tem noção própria de return-value stash. Mudar a IR sem validar os 4 backends + o reconstructor JS é risco alto de regressão de controle-fluxo; exige vivência de design (regra 4 do repo: "discussão técnica antes de código"). **Ação:** decisão registrada em `docs/development/planning-finally-return.md` (DD-01, `PROPOSED`, bump 0.3.1); ao decidir, o fix é no lowering (propaga aos 4 via IR) + JS parser.
 - **Prova/repro:** sweep cross-target 07/09 (caso `finally-return`) + probe `Fin2` (A/B/C/D). Repro 08/09: `Int f(){ try { return 1 } finally { println("fin") } }` + `main(){ println(f()) }` → JVM `1` (sem `fin`).
 
-### 46. `spawn { return … }` (lambda que RETORNA valor + handle) → SIGSEGV no Native — ABERTO (lane Native; variante do bug 29)
+### 46. `spawn { return … }` (lambda que RETORNA valor + handle) → SIGSEGV no Native — ✅ CORRIGIDO 09/09 (era bug de TIPAGEM, não trampoline)
 
 - **Sintoma:** `var n = 21; var h = spawn { return n * 2 }; var v = await h; println(v)`: interpretador/JVM/JS → `42`; **Native x86_64 → SIGSEGV (exit 139), sem output, determinístico** (3/3 runs).
 - **Relação com bug 29:** o bug 29 original (handle + lambda **void** com captura, `spawn { println(n*2) }`) foi CORRIGIDO 06/09 (`7ec8b9d`) — hoje funciona nos 4 caminhos. E `spawn fn(arg)` (função nomeada + handle) funciona nos 4. Restou só a variante **lambda literal com `return`** (task que produz resultado via corpo lambda, não via chamada de função).
@@ -861,6 +861,19 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   do main.
 - **Correção (lane Native, regra 6):** trampoline de spawn deve propagar o slot de retorno quando a lambda tem retorno (cf. `emitRiscvSpawn` + `kof_spawn_result`); alternativa: diagnosticar `spawn { return … }` com código de gap (R6: nunca segfault silencioso). Decidir no plano.
 - **Corpus:** `training/idioms/concurrency.md` documenta `spawn f()` / `spawn { stmts }` — a forma **lambda com return** não está no corpus; como interp/JVM/JS a executam, o comportamento previsto (regra 5) é `42` nos 4 targets.
+
+- **✅ CORRIGIDO 09/09 — causa raiz REAL (não era trampoline, era TIPAGEM):**
+  o type checker de `spawn { return 42 }` devolvia `Handle<FunctionType([],Int)>`
+  (embrulhando o FunctionType da lambda), enquanto o lowering devolvia `Handle<Int>`
+  (usando `inferLambdaBodyType`). Com `await h` retornando `FunctionType`, o `println`
+  resolvia a sobrecarga **String** → emitia `kof_println_string(42)` → deref do
+  ponteiro `0x2a` (o int 42 tratado como objeto String) → SIGSEGV `si_addr=0x3a`.
+  O drama nativo era o `kof_println_string` lendo o header/caracteres "do 42".
+  **Fix:** `BuiltinCallTyper.__kof_spawn_expr` e `MethodCallTyper.__kof_spawn_expr`
+  agora desembrulham `FunctionType.returnType()` (ou `inferLambdaBodyType` na Lambin)
+  — o `Handle<T>` carrega o tipo do RETURN, espelhando o `ExpressionStaticCallLowerer`
+  (bug 29). Prova: `SpawnE2ETest.nativeSpawnExprAwaitLambdaReturn` +
+  `NativeSpawnExprAwaitLambdaReturnNoCapture` (ambos `42`, exit 0) — antes 139.
 
 ### 47. `KofScript.eval` cache colidia por `hashCode()+length` → resultado errado (R6) — ✅ CORRIGIDO 07/09 (lane KOFSCRIPT)
 
@@ -907,7 +920,7 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 - **Prova/repro:** `ConformanceMatrixTest.conformanceErrors` → caso `nestedtry` (agora nos 4 targets, JS incluído). Variante re-throw em catch = bug 52 (✅ corrigido 08/09).
 - **Descoberto:** 07/09 (lote 2 da conformance matrix). **Corrigido:** 07/09 (lane JS, `JsControlFlowParser.parseTryStatement`).
 
-### 50. channel send/recv DENTRO de `spawn` → SIGSEGV no Native (139) — correção candidata aplicada 09/09 (futex WAIT args); validação pendente (toolchain/qemu)
+### 50. channel send/recv DENTRO de `spawn` → SIGSEGV no Native (139) — ✅ CORRIGIDO 09/09 (usleep clobberava %rsi=&lock)
 
 - **Sintoma:** `val c = channel<Int>(); spawn { c.send(42) }; val v = c.receive(); println(v)`: JVM/Script/KofJS → `42`; **Native x86_64 → SIGSEGV (exit 139), sem output, determinístico** (4/4 runs).
 - **Isolamento (probe `Isol`, 07/09):** canal SEM spawn (mesma thread) → `exit=0 s=11` ✅; spawn SEM canal (lambda void) → `exit=0` ✅; canal send/recv mesma thread → `exit=0 42` ✅; **só a combinação spawn + op-de-canal → 139**. Ou seja: canal e spawn isoladamente funcionam no Native; o fault é na op de canal (send/receive, futex de mutex) executada **dentro da thread do spawn** (stack/raiz do futex não válida fora da thread principal — provável).
@@ -932,6 +945,20 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   (`spawn { c.send(42) }` + `c.receive()` no NATIVE, esperado `v=42`) — o caso
   do bug 50 que a suíte não cobria. Uso: qualquer correção do bug 50 deve deixar
   este teste verde (exit 0, sem SIGSEGV 139).
+
+- **✅ CORRIGIDO 09/09 — causa raiz REAL (não era futex args, era registrador
+  clobberado):** o teste `channelWithSpawnNative` passa agora (5/5 runs, `v=42`,
+  exit 0). A correção candidata anterior (futex WAIT args) estava certa MAS
+  incompleta: o SIGSEGV real (`si_addr=NULL`, confirmado por strace) vinha de
+  `kof_channel_receive` no caminho de fila **vazia** — `.Lchan_recv_empty` faz
+  `call usleep` (chamada libc que clobbera `%rsi`, que é caller-saved e guardava
+  `&lock`), e o `jmp .Lchan_recv_lock` reusava `%rsi` corrompido no
+  `lock cmpxchg (%rsi)` → deref de ponteiro inválido. No canal COM spawn o
+  `receive` roda ANTES do `send` (a thread ainda não enviou) → dorme no caminho
+  vazio → crash. Sem spawn (mesma thread) o send precede o receive e o caminho
+  vazio não roda — por isso o isolamento "canal sem spawn funciona".
+  **Fix:** re-setar `%rsi` (`leaq 20(%r13), %rsi`) após o `call usleep`. O
+  caminho de `kof_channel_send` não tinha o bug (usa futex, não usleep).
 
 ### 51. `CompilerDriver` reutilizado vaza classes sintéticas → 2ª compilação Native quebra (link: `undefined reference to 'calc'`) — ✅ CORRIGIDO 07/09 (compiler-core)
 

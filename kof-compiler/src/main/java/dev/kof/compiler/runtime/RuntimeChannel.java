@@ -154,6 +154,10 @@ public final class RuntimeChannel {
                 syscall
                 movl $1000, %edi
                 call usleep
+                leaq 20(%r13), %rsi              # bug 50: %rsi e caller-saved;
+                # usleep clobbera %rsi (&lock) -- sem restaura-lo, o cmpxchg
+                # de .Lchan_recv_lock deref um ponteiro corrompido -> SIGSEGV
+                # (raiz do channel+spawn, onde receive dorme na fila vazia).
                 jmp .Lchan_recv_lock
             """);
     }

@@ -276,6 +276,13 @@ public final class BuiltinCallTyper {
         }
         if (mc.receiver() == null && "__kof_spawn_expr".equals(mc.methodName())) {
             Type t = SemExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
+            // bug 46: `spawn { return 42 }` — inferType(lambda) dá
+            // FunctionType([], Int), mas o Handle é do RETURN da lambda, não
+            // do FunctionType. Guardar Handle<FunctionType> fazia `await h`
+            // devolver FunctionType → `println` escolhia a sobrecarga String →
+            // kof_println_string(42) → deref de ponteiro inválido (SIGSEGV
+            // nativo). Espelha o lowerer (ExpressionStaticCallLowerer, bug 29).
+            if (t instanceof Type.FunctionType ft) t = ft.returnType();
             return new Type.ClassType("kof.concurrent", "Handle", List.of(t));
         }
         if (mc.receiver() == null && "cancel".equals(mc.methodName())
