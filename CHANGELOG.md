@@ -802,6 +802,12 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
   - Fase C — trava laço aninhado + corpo não-linear (verificação com probes)
   - staticfield/staticpluseq nos 4 targets (bug 41 já corrigido no Native)
 
+## [0.3.6-beta] - 2026-09-09
+
+### Features
+
+  - introduce kof.random namespace with various random generation functions and runtime support
+
 <!-- NEXT-RELEASE -->
 
 ## [0.2.7-beta] - 2026-09-04
