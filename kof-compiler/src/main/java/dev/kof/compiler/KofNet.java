@@ -14,9 +14,9 @@ import java.util.List;
  * 1º '?' até '#'; fragment após o 1º '#'; campo ausente => ""; null => null;
  * NUNCA lança. queryEncode/Decode = fachada de intenção sobre encoding.url*.
  *
- * NET001 (padrão SECN000/ENC002-histórico): os 6 campos exigem byte-scan no
- * runtime nativo — x86/riscv/aarch ainda sem o port; gate honesto em
- * compile-time, nunca link quebrado. queryEncode/Decode só compõem encoding
+ * NET001 (padrão SECN000/ENC002-histórico): byte-scan nativo — x86 portado
+ * (RuntimeNet S8-B); riscv/aarch ainda gated em compile-time, nunca link
+ * quebrado. queryEncode/Decode só compõem encoding
  * existente (JVM/JS) — gated junto até o port dos nativos (mesma matriz).
  */
 public final class KofNet {
@@ -46,8 +46,7 @@ public final class KofNet {
     static boolean supportedOn(String function, Target target) {
         // NET001: byte-scan nativo pendente (port x86/riscv em unidades
         // próprias); JVM/SCRIPT/JS já implementados.
-        return target != Target.NATIVE && target != Target.NATIVE_RISCV64
-                && target != Target.NATIVE_AARCH64;
+        return target != Target.NATIVE_RISCV64 && target != Target.NATIVE_AARCH64;
     }
 
     static String gapCode(String function) {

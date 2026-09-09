@@ -60,7 +60,7 @@
 | stdlib kof.validation rede (S6a: isIpv4/isMac/isPort — dotted-quad sem zero à esquerda; MAC 6 hex sep : ou - consistente; porta 1..65535) | `true` / `false` / `false` / `true` / `false` / `true` / `false` | DONE | DONE | DONE | DONE | `stdvalidationnet` |
 | stdlib kof.validation Luhn (S6b: isCreditCard — dígitos extraídos, 12..19, soma de Luhn %10; 20+ dígitos => false) | `true` / `true` / `true` / `false` / `false` / `false` | DONE | DONE | DONE | DONE | `stdluhn` |
 | stdlib kof.validation IPv6 (S6b.3: isIpv6 — subconjunto RFC 5952; '::' no máx uma vez; sem forma mista/zona) | `true` / `true` / `true` / `false` / `false` / `false` | DONE | DONE | DONE | DONE | `stdipv6` |
-| stdlib kof.net (S8: 6 campos URI v1 + fachada query*) | `https\|host.io\|8443\|/p\|q\|f` / `/only/path\|onlyquery` / `a%20b%26c%3D1` / `a b&c=1` | DONE | PARTIAL (NET001: gate nativos) | DONE | DONE | `stdnet` |
+| stdlib kof.net (S8: 6 campos URI v1 + fachada query*) | `https\|host.io\|8443\|/p\|q\|f` / `/only/path\|onlyquery` / `a%20b%26c%3D1` / `a b&c=1` | DONE | DONE³ | DONE | DONE | `stdnet` |
 | stdlib kof.strings unescapeHtml (S3.1b: 5 nomeadas + &#DDD;/&#xHH;→UTF-8; outro & LITERAL; 0/surrogate/overflow LITERAL) | `a&b` / `<x>` / `café` / `☃` / `&&` / `&notreal;` | DONE | DONE | DONE | DONE | `stdunescape` |
 | stdlib kof.strings whitespace (S3.2: removeWhitespace/normalizeWhitespace — WS=9..13+32; >=128 não-WS; colapso p/ 1 espaço) | `abc\|Caféé` / `a b\|a b` / `\|[]` | DONE | DONE | DONE | DONE | `stdws` |
 | stdlib kof.strings escapeHtml (S3.1: 5 entidades; >=128 cópia; null/"" => original) | `a&lt;b&gt;&amp;&quot;&#39;c` / `Café &amp; ç` / `&amp;amp;lt;` / `&lt;a href=&quot;u&quot;&gt;y&lt;/a&gt;` | DONE | DONE | DONE | DONE | `stdescape` |
@@ -72,6 +72,10 @@
 > (mesmo asm traduzido) — paridade byte-a-byte com o x86_64 provada por diff do
 > golden oracle no qemu (16 vetores, incl. delimitadores UTF-8 `>=128`).
 > `KofStringsTest.wordConvertersClosedOnCrossArch`.
+
+> ³ `net.*` roda em x86_64 (RuntimeUri, S8-B); riscv64/aarch64 **NET001** gated
+> (byte-scan pendente; política SECN000/ENC002-histórico;
+> `KofNetTest.netGatedOnCrossArch`). A matriz roda native=x86.
 
 > ² `encoding.hex*`/`encoding.url*` (B10/B11) e `encoding.base64*`/`base64Url*`
 > (B23, **ENC002 fechado 09/09** — port riscv com alfabeto aritmético + decode

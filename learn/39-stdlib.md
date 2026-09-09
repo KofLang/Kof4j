@@ -198,7 +198,7 @@ compilação aponta o gap, nunca gera código silencioso.
 |---|---|---|---|---|
 | `math.*`, `strings.is*/count/capitalize/reverse/repeat/truncate/pad*/escapeHtml`, `toCamel/Pascal/Snake/Kebab/slugify`, `encoding.hex*/url*`, `time.isLeapYear/daysInMonth/dayOfWeek/daysBetween`, `validation.isCpf/isCnpj/isCep/isPis/isIpv4/isIpv6/isMac/isPort/isCreditCard/isDomain` | ✅ | ✅ | ✅ | ✅ |
 | `encoding.base64*` / `base64Url*` | ✅ | ✅ | ✅ | ✅ |
-| `net.*` (S8) | ✅ | ✅ | **NET001** (nativos pendentes) | ✅ |
+| `net.*` (S8) | ✅ | ✅ | **NET001** (riscv/aarch) | ✅ |
 | `uuid.v4` | ✅ | ✅ | **SECN000** (entropia; gate de compilação) | ✅ |
 
 Gate = erro de compilação **com código** (R6 — nunca stub silencioso):

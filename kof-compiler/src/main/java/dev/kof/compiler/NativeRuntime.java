@@ -30,6 +30,7 @@ import dev.kof.compiler.runtime.RuntimeStrings;
 import dev.kof.compiler.runtime.RuntimeMisc;
 import dev.kof.compiler.runtime.RuntimeMq;
 import dev.kof.compiler.runtime.RuntimeNet;
+import dev.kof.compiler.runtime.RuntimeUri;
 import dev.kof.compiler.runtime.RuntimeObservability1;
 import dev.kof.compiler.runtime.RuntimeObservability2;
 import dev.kof.compiler.runtime.RuntimeObservability3;
@@ -176,6 +177,7 @@ public final class NativeRuntime {
         RuntimeValidation.emit(sb);
         RuntimeValidationBr.emit(sb);
         RuntimeValidationNet.emit(sb);
+        RuntimeUri.emit(sb);
         RuntimeMath.emit(sb);
         RuntimeStrings.emit(sb);
         RuntimeEncoding.emit(sb);

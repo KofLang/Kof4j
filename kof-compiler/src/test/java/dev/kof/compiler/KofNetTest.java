@@ -88,11 +88,27 @@ class KofNetTest {
     }
 
     @Test
-    void netGatedOnNatives(@TempDir Path tmp) throws Exception {
-        // NET001: byte-scan nativo pendente (x86/riscv/aarch) — gate honesto.
+    void netOnNativeX86(@TempDir Path tmp) throws Exception {
+        // S8-B: x86 portado (RuntimeUri) — mesmos 17 vetores do oracle.
+        Path file = tmp.resolve("Main.kf");
+        Files.writeString(file, SRC);
+        Path out = tmp.resolve("nat");
+        CompilationResult r = driver.compile(file, out, Target.NATIVE);
+        assertTrue(r.success(), "Native compile: " + r.diagnostics().getDiagnostics());
+        Process p = new ProcessBuilder(out.resolve("Default/Main").toString())
+                .redirectErrorStream(true).start();
+        String o = new String(p.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, p.waitFor());
+        assertEquals(EXPECTED, o);
+    }
+
+    @Test
+    void netGatedOnCrossArch(@TempDir Path tmp) throws Exception {
+        // NET001 residual: byte-scan riscv/aarch pendente — gate honesto.
         Path file = tmp.resolve("Main.kf");
         Files.writeString(file, "main() {\n    println(net.host(\"http://h/p\"))\n}\n");
-        for (Target t : new Target[]{Target.NATIVE, Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
             CompilationResult r = driver.compile(file, tmp.resolve("g-" + t), t);
             assertFalse(r.success(), t + " deve reportar NET001");
             assertTrue(r.diagnostics().getDiagnostics().toString().contains("NET001"),
