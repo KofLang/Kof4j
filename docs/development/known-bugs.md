@@ -841,6 +841,19 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 - **Causa raiz (provável):** o trampoline de spawn do Native trata a vtable/capturas da lambda void (sem slot de retorno); quando o corpo lambda tem `return`, o trampoline escreve o resultado em slot inexistente/mal alinhado → fault. Mesma família do bug 29 (lowering de `SpawnStmt` + `LambdaExpr` → task object) — o fix de 06/09 não cobriu o caso com retorno.
 - **O que deveria acontecer:** `await` entregar `42` (igual `spawn twice(n)` — que funciona; o único delta é lambda-literal vs chamada).
 - **Prova/repro:** probe `S29`/`S29det` (07/09), Native x86_64, 3/3 determinístico.
+- **Teste de regressão (09/09):** `SpawnE2ETest.nativeSpawnExprAwaitLambdaReturn`
+  (`var n=21; var h = spawn { return n * 2 }; println(await h)` no NATIVE) —
+  **confirmado falhando com SIGSEGV (exit 139)**, pré-existente (passa no HEAD
+  sem as mudanças do bug-fix lane). Uso: qualquer correção do bug 46 deve deixar
+  este teste verde.
+- **Nota (09/09):** a "causa provável" original (escrita em slot inexistente) foi
+  escrita pensando no trampoline RISC-V; no **x86_64** o trampoline
+  (`RuntimeConcurrency.kof_spawn_trampoline`) grava `handle->result` em
+  `16(%r12)` (campo válido do handle 32B) e `await` lê o mesmo offset — então a
+  causa x86_64 é OUTRA (não-confirmada; requer qemu/gdb no worker). Hipóteses a
+  descartar/confirmar: GC coletando a task/stack do worker, alinhamento do
+  pthread_create, ou `kof_spawn_join_all` re-joinando handle já joinado no fim
+  do main.
 - **Correção (lane Native, regra 6):** trampoline de spawn deve propagar o slot de retorno quando a lambda tem retorno (cf. `emitRiscvSpawn` + `kof_spawn_result`); alternativa: diagnosticar `spawn { return … }` com código de gap (R6: nunca segfault silencioso). Decidir no plano.
 - **Corpus:** `training/idioms/concurrency.md` documenta `spawn f()` / `spawn { stmts }` — a forma **lambda com return** não está no corpus; como interp/JVM/JS a executam, o comportamento previsto (regra 5) é `42` nos 4 targets.
 
