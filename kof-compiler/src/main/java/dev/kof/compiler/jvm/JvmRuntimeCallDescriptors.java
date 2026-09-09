@@ -317,7 +317,9 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_sec_auth_authenticated" -> "()Z";
             // ── kof.validation (G4) ─────────────────────────────────────
             case "kof_validation_required", "kof_validation_notBlank", "kof_validation_isEmail",
-                    "kof_validation_isUrl", "kof_validation_isInt", "kof_validation_isLong" -> "(Ljava/lang/String;)Z";
+                    "kof_validation_isUrl", "kof_validation_isInt", "kof_validation_isLong",
+                    "kof_validation_isCpf", "kof_validation_isCnpj", "kof_validation_isCep",
+                    "kof_validation_isPis" -> "(Ljava/lang/String;)Z";
             case "kof_validation_minLength", "kof_validation_maxLength" -> "(Ljava/lang/String;I)Z";
             case "kof_validation_lengthBetween" -> "(Ljava/lang/String;II)Z";
             case "kof_validation_matches" -> "(Ljava/lang/String;Ljava/lang/String;)Z";

@@ -258,6 +258,53 @@ public final class JsRuntimeUiCrypto {
                 return value <= max ? 1 : 0;
             }
 
+            // ── kof.validation (STDLIB S5) — documentos BR ──────────────
+            function kofBrDigits(s) {
+                if (s == null) return [];
+                const out = [];
+                for (let i = 0; i < s.length; i++) {
+                    const c = s.charCodeAt(i);
+                    if (c >= 48 && c <= 57) out.push(c - 48);
+                }
+                return out;
+            }
+            export function kofValidationIsCpf(s) {
+                const d = kofBrDigits(s);
+                if (d.length !== 11) return 0;
+                let allSame = true;
+                for (let i = 1; i < 11; i++) if (d[i] !== d[0]) { allSame = false; break; }
+                if (allSame) return 0;
+                let r1 = 0;
+                for (let i = 0; i < 9; i++) r1 += d[i] * (10 - i);
+                r1 %= 11; if ((r1 < 2 ? 0 : 11 - r1) !== d[9]) return 0;
+                let r2 = 0;
+                for (let i = 0; i < 10; i++) r2 += d[i] * (11 - i);
+                r2 %= 11; return (r2 < 2 ? 0 : 11 - r2) === d[10] ? 1 : 0;
+            }
+            export function kofValidationIsCnpj(s) {
+                const d = kofBrDigits(s);
+                if (d.length !== 14) return 0;
+                const w1 = [5,4,3,2,9,8,7,6,5,4,3,2];
+                const w2 = [6,5,4,3,2,9,8,7,6,5,4,3,2];
+                let r1 = 0;
+                for (let i = 0; i < 12; i++) r1 += d[i] * w1[i];
+                r1 %= 11; if ((r1 < 2 ? 0 : 11 - r1) !== d[12]) return 0;
+                let r2 = 0;
+                for (let i = 0; i < 13; i++) r2 += d[i] * w2[i];
+                r2 %= 11; return (r2 < 2 ? 0 : 11 - r2) === d[13] ? 1 : 0;
+            }
+            export function kofValidationIsCep(s) {
+                return kofBrDigits(s).length === 8 ? 1 : 0;
+            }
+            export function kofValidationIsPis(s) {
+                const d = kofBrDigits(s);
+                if (d.length !== 11) return 0;
+                const w = [3,2,9,8,7,6,5,4,3,2];
+                let r = 0;
+                for (let i = 0; i < 10; i++) r += d[i] * w[i];
+                r %= 11; return (r < 2 ? 0 : 11 - r) === d[10] ? 1 : 0;
+            }
+
             // ── kof.observability (G5) ──────────────────────────────
 
             const __kofObsCounters = {};

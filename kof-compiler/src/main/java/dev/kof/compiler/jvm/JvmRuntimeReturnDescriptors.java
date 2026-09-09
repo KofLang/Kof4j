@@ -124,7 +124,8 @@ public final class JvmRuntimeReturnDescriptors {
                     "kof_validation_isUrl", "kof_validation_isInt", "kof_validation_isLong",
                     "kof_validation_minLength", "kof_validation_maxLength", "kof_validation_lengthBetween",
                     "kof_validation_matches", "kof_validation_inRange", "kof_validation_min",
-                    "kof_validation_max" -> "I";
+                    "kof_validation_max", "kof_validation_isCpf", "kof_validation_isCnpj",
+                    "kof_validation_isCep", "kof_validation_isPis" -> "I";
             // ── kof.math (STDLIB S1) — Int e Bool ambos são "I" no stack ──
             case "kof_math_abs", "kof_math_sign", "kof_math_clamp", "kof_math_min",
                     "kof_math_max", "kof_math_isEven", "kof_math_isOdd", "kof_math_isPositive",

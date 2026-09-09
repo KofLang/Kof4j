@@ -272,6 +272,18 @@ class ConformanceMatrixTest {
                     println(a + "|" + b + "|" + c + "|" + d + "|" + e + "|" + f + "|" + u + "|" + w + "|" + x + "|" + y + "|" + mark)
                 }
                 """, "4869|Hi|636166c3a9|café|TWFu|café|a%20b|café|ZmImTy0-Zg|fb&O->f|E", Set.of(), tempDir);
+        matrix("stdvalidation", """
+                main() {
+                    println(validation.isCpf("529.982.247-25"))
+                    println(validation.isCpf("111.111.111-11"))
+                    println(validation.isCnpj("11.222.333/0001-81"))
+                    println(validation.isCnpj("11.222.333/0001-82"))
+                    println(validation.isCep("01310-100"))
+                    println(validation.isCep("0131010"))
+                    println(validation.isPis("123.4567.890-0"))
+                    println(validation.isPis("12345678901"))
+                }
+                """, "true\nfalse\ntrue\nfalse\ntrue\nfalse\ntrue\nfalse", Set.of(), tempDir);
     }
 
     @Test

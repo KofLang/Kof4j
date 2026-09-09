@@ -1121,6 +1121,36 @@ EXTERNA produz lixo
 
 ---
 
+### 65. Frontend JS/browser: `Audio`/`Video` em `Window.show()` não chegam ao DOM real (Chrome) — ABERTO (lane UI)
+
+- **Introduzido por:** merge da PR #39 (`kof-ui-media-widgets`) em beta-0.3.0
+  (08/09) — não é regressão de outra lane (confirmado: falha no HEAD limpo,
+  sem o WIP da stdlib).
+- **Sintoma:** `KofJsBrowserE2ETest.audioRendersInRealBrowserDom` e
+  `videoRendersInRealBrowserDom` falham — `<audio>`/`<video>` ausentes no DOM
+  dumpado pelo Chrome. A compilação JS passa; só a renderização no browser não
+  monta o widget.
+- **Menor repro:**
+  ```kof
+  main() {
+      var audio = Audio("song.mp3")
+      audio.setControls(true)
+      var col = Column(listOf(audio))
+      var w = Window("AudioTest")
+      w.bind(col)
+      w.show()
+  }
+  ```
+  `kof build --target js` → abrir no Chrome → o DOM não contém `<audio>` nem
+  a classe `kof-audio`. (`Video("clip.mp4")` idem.)
+- **Causa raiz (provável, não confirmada — é da lane UI):** serialização dos
+  widgets de mídia não integrada no mesmo caminho de `kofUiSerializeHtml`
+  que `Window.show()` usa. Ver CANVAS001 (linha 1306) — problema análogo de
+  timing de serialização de widget sem janela/sem ganchos.
+- **Impacto na gate:** 2 testes vermelhos fora do par riscv/aarch (bug 59)
+  para qualquer agente que rode a suíte completa com Chrome instalado.
+  Quem corrigir: UI lane (dono da PR #39).
+
 ## Comportamentos que PAREcem bugs mas são esperados (não corrigir)
 
 | Cenário | Comportamento | Por quê |

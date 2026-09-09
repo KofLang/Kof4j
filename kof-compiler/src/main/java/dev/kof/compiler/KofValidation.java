@@ -55,6 +55,10 @@ public final class KofValidation {
                     ? new ValidationCall("kof_validation_min", BOOL, List.of(INT, INT)) : null;
             case "max" -> argc == 2
                     ? new ValidationCall("kof_validation_max", BOOL, List.of(INT, INT)) : null;
+            // S5 (STDLIB): documentos BR — dígitos extraídos (não-dígitos
+            // ignorados), algoritmos de dígito verificador módulo 11.
+            case "isCpf", "isCnpj", "isCep", "isPis" -> argc == 1
+                    ? new ValidationCall("kof_validation_" + name, BOOL, List.of(STR)) : null;
             default -> null;
         };
     }

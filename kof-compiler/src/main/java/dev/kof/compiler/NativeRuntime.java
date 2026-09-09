@@ -2,6 +2,7 @@ package dev.kof.compiler;
 import dev.kof.compiler.runtime.RuntimeArray;
 import dev.kof.compiler.runtime.RuntimeCache;
 import dev.kof.compiler.runtime.RuntimeEncoding;
+import dev.kof.compiler.runtime.RuntimeValidationBr;
 import dev.kof.compiler.runtime.RuntimeUuid;
 import dev.kof.compiler.runtime.RuntimeChannel;
 import dev.kof.compiler.runtime.RuntimeConcurrency;
@@ -172,6 +173,7 @@ public final class NativeRuntime {
         RuntimeSecurity10.emit(sb);
         RuntimeSecurity11.emit(sb);
         RuntimeValidation.emit(sb);
+        RuntimeValidationBr.emit(sb);
         RuntimeMath.emit(sb);
         RuntimeStrings.emit(sb);
         RuntimeEncoding.emit(sb);
