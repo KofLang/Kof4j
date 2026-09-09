@@ -46,7 +46,7 @@ public final class KofNet {
     static boolean supportedOn(String function, Target target) {
         // NET001: byte-scan nativo pendente (port x86/riscv em unidades
         // próprias); JVM/SCRIPT/JS já implementados.
-        return target != Target.NATIVE_RISCV64 && target != Target.NATIVE_AARCH64;
+        return true;
     }
 
     static String gapCode(String function) {

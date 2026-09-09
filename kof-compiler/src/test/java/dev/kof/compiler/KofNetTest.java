@@ -104,15 +104,42 @@ class KofNetTest {
     }
 
     @Test
-    void netGatedOnCrossArch(@TempDir Path tmp) throws Exception {
-        // NET001 residual: byte-scan riscv/aarch pendente — gate honesto.
-        Path file = tmp.resolve("Main.kf");
-        Files.writeString(file, "main() {\n    println(net.host(\"http://h/p\"))\n}\n");
-        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
-            CompilationResult r = driver.compile(file, tmp.resolve("g-" + t), t);
-            assertFalse(r.success(), t + " deve reportar NET001");
-            assertTrue(r.diagnostics().getDiagnostics().toString().contains("NET001"),
-                    t + ": " + r.diagnostics().getDiagnostics());
+    void netOnCrossArch(@TempDir Path tmp) throws Exception {
+        // NET001 FECHADO (09/09): net.* portado p/ riscv B24 + aarch translator —
+        // mesmos 17 vetores do oracle, byte-idênticos sob qemu.
+        assumeToolchain("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64");
+        runQemuE(tmp, Target.NATIVE_RISCV64, "qemu-riscv64", SRC, EXPECTED);
+        assumeToolchain("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64");
+        runQemuE(tmp, Target.NATIVE_AARCH64, "qemu-aarch64", SRC, EXPECTED);
+    }
+
+    private static void assumeToolchain(String... tools) {
+        for (String c : tools) {
+            try {
+                Process p = new ProcessBuilder(c, "--version").redirectErrorStream(true).start();
+                String o = new String(p.getInputStream().readAllBytes(),
+                        java.nio.charset.StandardCharsets.UTF_8).trim();
+                if (p.waitFor() != 0 || o.isEmpty()) {
+                    org.junit.jupiter.api.Assumptions.assumeTrue(false, "toolchain ausente: " + c);
+                }
+            } catch (Exception e) {
+                org.junit.jupiter.api.Assumptions.assumeTrue(false, "toolchain ausente: " + c);
+            }
         }
+    }
+
+    private void runQemuE(Path tempDir, Target target, String qemu, String source,
+                          String expected) throws Exception {
+        Path file = tempDir.resolve("Main-" + System.nanoTime() + ".kf");
+        Files.writeString(file, source);
+        Path out = tempDir.resolve("out-" + System.nanoTime());
+        CompilationResult r = driver.compile(file, out, target);
+        assertTrue(r.success(), target + " compile: " + r.diagnostics().getDiagnostics());
+        Process p = new ProcessBuilder(qemu, out.resolve("Default/Main").toString())
+                .redirectErrorStream(true).start();
+        String o = new String(p.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, p.waitFor());
+        assertEquals(expected, o, target + " output");
     }
 }

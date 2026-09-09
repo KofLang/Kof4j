@@ -189,8 +189,8 @@ Campo ausente devolve `""` (nunca lança, nunca `null` de surpresa — o `null` 
 chega se a entrada for `null`). É subconjunto v1 do RFC 3986: IPv6 com colchetes
 (`http://[::1]:8080`) ainda não é reconhecido (o host sai truncado) — port e
 forma mista ficam para a v2, documentado. Nos nativos (x86/riscv/aarch) o
-namespace está **NET001** gated: o parser byte-scan ainda não foi portado — a
-compilação aponta o gap, nunca gera código silencioso.
+namespace roda nos 4 alvos (port riscv/aarch fechado 09/09 — mesma máquina de
+spans nos 3 nativos).
 
 ## Paridade por target (tabela honesta)
 
@@ -198,7 +198,7 @@ compilação aponta o gap, nunca gera código silencioso.
 |---|---|---|---|---|
 | `math.*`, `strings.is*/count/capitalize/reverse/repeat/truncate/pad*/escapeHtml`, `toCamel/Pascal/Snake/Kebab/slugify`, `encoding.hex*/url*`, `time.isLeapYear/daysInMonth/dayOfWeek/daysBetween`, `validation.isCpf/isCnpj/isCep/isPis/isIpv4/isIpv6/isMac/isPort/isCreditCard/isDomain` | ✅ | ✅ | ✅ | ✅ |
 | `encoding.base64*` / `base64Url*` | ✅ | ✅ | ✅ | ✅ |
-| `net.*` (S8) | ✅ | ✅ | **NET001** (riscv/aarch) | ✅ |
+| `net.*` (S8) | ✅ | ✅ | ✅ | ✅ |
 | `uuid.v4` | ✅ | ✅ | **SECN000** (entropia; gate de compilação) | ✅ |
 
 Gate = erro de compilação **com código** (R6 — nunca stub silencioso):
@@ -218,5 +218,5 @@ executados de verdade (riscv/aarch64 sob qemu).
 - `docs/stdlib.md` §3 — a matriz de referência com gates.
 - `docs/development/plan-stdlib-expansion.md` — o que falta: `random` (P0),
   `last4`/`creditCardBrand` (tabela de bandeira = marca registrada — avaliar
-  antes), o port nativo de `net.*` (NET001) e `math` Double (FLT).
+  antes) e `math` Double (FLT).
 
