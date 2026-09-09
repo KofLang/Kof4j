@@ -126,6 +126,30 @@ class BackendParityTest {
                 """, "8\n3\n0", tempDir, "flow");
     }
 
+    // SG-006 — short-circuit de &&/||: `x != null && x.length > 0` NÃO pode
+    // NPE no JS (o operando direito não é avaliado quando o esquerdo é false).
+    // JVM/Native usam short-circuit por labels; JS usa &&/|| nativos (que também
+    // fazem short-circuit). Trava a paridade nos 4 targets.
+    @Test
+    void parityShortCircuitAndOr(@TempDir Path tempDir) throws IOException {
+        runParity("""
+                main() {
+                    String? s = null
+                    if (s != null && s.length > 0) {
+                        println("nao-vazio")
+                    } else {
+                        println("vazio")
+                    }
+                    String? t = "abc"
+                    if (t != null && t.length > 0) {
+                        println("nao-vazio")
+                    } else {
+                        println("vazio")
+                    }
+                }
+                """, "vazio\nnao-vazio", tempDir, "shortcircuit");
+    }
+
     @Test
     void parityFunctions(@TempDir Path tempDir) throws IOException {
         runParity("""
