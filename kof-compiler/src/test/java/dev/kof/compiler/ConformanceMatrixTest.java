@@ -315,6 +315,16 @@ class ConformanceMatrixTest {
                     println(validation.isIpv6("::ffff:192.168.0.1"))
                 }
                 """, "true\ntrue\ntrue\nfalse\nfalse\nfalse", Set.of(), tempDir);
+        matrix("stddomain", """
+                main() {
+                    println(validation.isDomain("example.com"))
+                    println(validation.isDomain("xn--mnchen-3ya.de"))
+                    println(validation.isDomain("localhost"))
+                    println(validation.isDomain("example..com"))
+                    println(validation.isDomain("ex_ample.com"))
+                    println(validation.isDomain("x.x"))
+                }
+                """, "true\ntrue\nfalse\nfalse\nfalse\nfalse", Set.of(), tempDir);
         matrix("stdtime", """
                 main() {
                     println(time.isLeapYear(2000))

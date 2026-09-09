@@ -70,6 +70,12 @@ public final class KofValidation {
                     ? new ValidationCall("kof_validation_isCreditCard", BOOL, List.of(STR)) : null;
             case "isIpv6" -> argc == 1
                     ? new ValidationCall("kof_validation_isIpv6", BOOL, List.of(STR)) : null;
+            // S6c (STDLIB): domínio — subconjunto RFC 1123 declarado (escopo
+            // v1, idem isIpv6): labels [A-Za-z0-9-] 1..63 sem hyphen em
+            // ponta; >=2 labels; TLD >=2 só letras; total<=253; sem ponto
+            // final, sem underscore, sem IDN (punycode xn-- passa: é ASCII).
+            case "isDomain" -> argc == 1
+                    ? new ValidationCall("kof_validation_isDomain", BOOL, List.of(STR)) : null;
             default -> null;
         };
     }

@@ -132,6 +132,9 @@ validation.isPort(443)                   // true  — 1..65535
 validation.isCreditCard("4532 0151 1283 0366") // true — Luhn, 12..19 dígitos
 validation.isIpv6("fe80::1")                 // true  — subconjunto RFC 5952
 validation.isIpv6("::ffff:192.168.0.1")      // false — forma mista não na v1
+validation.isDomain("sub.example.co.uk")     // true  — RFC 1123 labels
+validation.isDomain("localhost")             // false — exige >=2 labels
+validation.isDomain("xn--mnchen-3ya.de")     // true  — punycode (é ASCII)
 ```
 
 > O que **não** é validação de conteúdo: `validation.min/max` (já existiam,
@@ -154,7 +157,7 @@ de `time` desde antes — o calendário acima é a parte pura, determinística.
 
 | API | JVM / Script | Native x86_64 | Native riscv64 / aarch64 | JS |
 |---|---|---|---|---|
-| `math.*`, `strings.is*/count/capitalize/reverse/repeat/truncate/pad*`, `toCamel/Pascal/Snake/Kebab/slugify`, `encoding.hex*/url*`, `time.isLeapYear/daysInMonth/dayOfWeek/daysBetween`, `validation.isCpf/isCnpj/isCep/isPis/isIpv4/isIpv6/isMac/isPort/isCreditCard` | ✅ | ✅ | ✅ | ✅ |
+| `math.*`, `strings.is*/count/capitalize/reverse/repeat/truncate/pad*`, `toCamel/Pascal/Snake/Kebab/slugify`, `encoding.hex*/url*`, `time.isLeapYear/daysInMonth/dayOfWeek/daysBetween`, `validation.isCpf/isCnpj/isCep/isPis/isIpv4/isIpv6/isMac/isPort/isCreditCard/isDomain` | ✅ | ✅ | ✅ | ✅ |
 | `encoding.base64*` / `base64Url*` | ✅ | ✅ | **ENC002** (gate de compilação) | ✅ |
 | `uuid.v4` | ✅ | ✅ | **SECN000** (entropia; gate de compilação) | ✅ |
 
@@ -174,4 +177,4 @@ executados de verdade (riscv/aarch64 sob qemu).
 - `training/idioms/stdlib.md` — BAD/GOOD/WHY de cada namespace.
 - `docs/stdlib.md` §3 — a matriz de referência com gates.
 - `docs/development/plan-stdlib-expansion.md` — o que falta: `random` (P0),
-  `isDomain` (design aberto — regra de rótulo é decisão, não codar unilateral), `net`/`url` (S8).
+  `last4`/`creditCardBrand` (tabela de bandeira = marca registrada — avaliar antes), `net`/`url` (S8).

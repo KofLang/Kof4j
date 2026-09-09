@@ -330,6 +330,117 @@ public final class RuntimeValidationNet {
                 popq %rbx
                 ret
 
+            # kof_validation_isDomain(rdi=str) -> Bool. MESMA máquina do
+            # JVM/JS/riscv (oracle Python, 28 casos): varre labels; cada um
+            # 1..63 [A-Za-z0-9-] sem '-' nas pontas; >=2 labels; TLD>=2 só
+            # letras; total<=253; ponto final (label vazio) => false.
+            .globl kof_validation_isDomain
+            .type kof_validation_isDomain, @function
+            kof_validation_isDomain:
+                pushq %rbx
+                pushq %r12
+                pushq %r13
+                pushq %r14
+                testq %rdi, %rdi
+                jz .Lv_dm_false
+                movl 16(%rdi), %r13d     # len
+                testl %r13d, %r13d
+                jz .Lv_dm_false
+                cmpl $253, %r13d
+                ja .Lv_dm_false
+                movq %rdi, %rbx
+                xorl %r12d, %r12d        # start
+                xorl %r14d, %r14d        # labels
+                xorl %ecx, %ecx          # i
+            .Lv_dm_scan:
+                cmpl %r13d, %ecx
+                jge .Lv_dm_at
+                cmpb $46, 24(%rbx,%rcx)  # '.'
+                je .Lv_dm_at
+                incl %ecx
+                jmp .Lv_dm_scan
+            .Lv_dm_at:
+                movl %r12d, %r10d         # salva início deste label (vira o TLD se for o último)
+                # label = [start, i)
+                movl %ecx, %eax
+                subl %r12d, %eax         # len do label
+                testl %eax, %eax
+                jz .Lv_dm_false          # vazio (ponto duplo/final/inicial)
+                cmpl $63, %eax
+                ja .Lv_dm_false
+                movzbl 24(%rbx,%r12), %edx
+                cmpl $45, %edx
+                je .Lv_dm_false          # começa com '-'
+                movl %ecx, %r8d
+                decl %r8d
+                movzbl 24(%rbx,%r8), %edx
+                cmpl $45, %edx
+                je .Lv_dm_false          # termina com '-'
+                movl %r12d, %r9d
+            .Lv_dm_chk:
+                cmpl %ecx, %r9d
+                jae .Lv_dm_labelok
+                movzbl 24(%rbx,%r9), %edx
+                cmpl $45, %edx
+                je .Lv_dm_nx
+                movl %edx, %eax
+                subl $48, %eax
+                cmpl $9, %eax
+                jbe .Lv_dm_nx            # dígito
+                movl %edx, %eax
+                subl $97, %eax
+                cmpl $25, %eax
+                jbe .Lv_dm_nx            # minúscula
+                movl %edx, %eax
+                subl $65, %eax
+                cmpl $25, %eax
+                ja .Lv_dm_false          # não é maiúscula
+            .Lv_dm_nx:
+                incl %r9d
+                jmp .Lv_dm_chk
+            .Lv_dm_labelok:
+                incl %r14d
+                leal 1(%rcx), %r12d      # start = i+1
+                incl %ecx                # pula o '.' (ou avança além do fim)
+                cmpl %r13d, %ecx
+                jle .Lv_dm_scan          # i<=len: virtual fim pega o último label
+                jmp .Lv_dm_final
+            .Lv_dm_final:
+                cmpl $2, %r14d
+                jb .Lv_dm_false
+                # TLD = último label [dot+1, len): >=2 só letras
+                movl %r13d, %r8d
+                subl %r10d, %r8d
+                cmpl $2, %r8d
+                jb .Lv_dm_false          # tlen < 2
+                movl %r10d, %r9d
+            .Lv_dm_tld:
+                cmpl %r13d, %r9d
+                jae .Lv_dm_true
+                movzbl 24(%rbx,%r9), %edx
+                movl %edx, %eax
+                subl $97, %eax
+                cmpl $25, %eax
+                jbe .Lv_dm_tldnx
+                movl %edx, %eax
+                subl $65, %eax
+                cmpl $25, %eax
+                ja .Lv_dm_false
+            .Lv_dm_tldnx:
+                incl %r9d
+                jmp .Lv_dm_tld
+            .Lv_dm_true:
+                movl $1, %eax
+                jmp .Lv_dm_done
+            .Lv_dm_false:
+                xorl %eax, %eax
+            .Lv_dm_done:
+                popq %r14
+                popq %r13
+                popq %r12
+                popq %rbx
+                ret
+
             # kof_validation_isPort(edi=port) -> Bool (1..65535)
             .globl kof_validation_isPort
             .type kof_validation_isPort, @function

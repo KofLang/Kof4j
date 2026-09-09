@@ -315,6 +315,83 @@ class KofValidationTest {
         runQemu(tmp, Target.NATIVE_AARCH64, "qemu-aarch64", src);
     }
 
+    // S6c domínio: subconjunto RFC 1123 declarado (oracle Python 28 casos;
+    // x86==JVM==JS==riscv==aarch no diff dos 28).
+    @Test
+    void validationDomainJvm(@TempDir Path tmp) throws Exception {
+        runJvm(tmp, """
+            main() {
+                println(validation.isDomain("example.com"))
+                println(validation.isDomain("sub.example.co.uk"))
+                println(validation.isDomain("EXAMPLE.COM"))
+                println(validation.isDomain("example.c"))
+                println(validation.isDomain("example.com."))
+                println(validation.isDomain("-example.com"))
+                println(validation.isDomain("ex_ample.com"))
+                println(validation.isDomain("localhost"))
+                println(validation.isDomain("192.168.0.1"))
+                println(validation.isDomain("xn--mnchen-3ya.de"))
+                println(validation.isDomain("example..com"))
+                println(validation.isDomain("a.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.com"))
+            }
+            """, "true\ntrue\ntrue\nfalse\nfalse\nfalse\nfalse\nfalse\nfalse\ntrue\nfalse\nfalse");
+    }
+
+    @Test
+    void validationDomainNative(@TempDir Path tmp) throws Exception {
+        runNative(tmp, """
+            main() {
+                println(validation.isDomain("k.de"))
+                println(validation.isDomain("user@example.com"))
+                println(validation.isDomain("ex-ample.com"))
+                println(validation.isDomain("888.com"))
+                println(validation.isDomain("x.x"))
+            }
+            """, "true\nfalse\ntrue\ntrue\nfalse");
+    }
+
+    @Test
+    void validationDomainJs(@TempDir Path tmp) throws Exception {
+        runJs(tmp, """
+            main() {
+                println(validation.isDomain("a.io"))
+                println(validation.isDomain("example.123"))
+                println(validation.isDomain("co.uk"))
+                println(validation.isDomain(""))
+            }
+            """, "true\nfalse\ntrue\nfalse");
+    }
+
+    @Test
+    void validationDomainCrossArch(@TempDir Path tmp) throws Exception {
+        String src = """
+            main() {
+                assert(validation.isDomain("example.com"))
+                assert(validation.isDomain("sub.example.co.uk"))
+                assert(validation.isDomain("EXAMPLE.COM"))
+                assert(validation.isDomain("xn--mnchen-3ya.de"))
+                assert(validation.isDomain("k.de"))
+                assert(validation.isDomain("ex-ample.com"))
+                assert(validation.isDomain("888.com"))
+                assert(!validation.isDomain("example.c"))
+                assert(!validation.isDomain("example.com."))
+                assert(!validation.isDomain("-example.com"))
+                assert(!validation.isDomain("example-.com"))
+                assert(!validation.isDomain("ex_ample.com"))
+                assert(!validation.isDomain("localhost"))
+                assert(!validation.isDomain("192.168.0.1"))
+                assert(!validation.isDomain("example..com"))
+                assert(!validation.isDomain(".example.com"))
+                assert(!validation.isDomain("x.x"))
+                assert(!validation.isDomain(""))
+            }
+            """;
+        assumeToolchain("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64");
+        runQemu(tmp, Target.NATIVE_RISCV64, "qemu-riscv64", src);
+        assumeToolchain("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64");
+        runQemu(tmp, Target.NATIVE_AARCH64, "qemu-aarch64", src);
+    }
+
     // S6b Luhn: isCreditCard — dígitos extraídos, 12..19, soma de Luhn %10.
     @Test
     void validationLuhnJvm(@TempDir Path tmp) throws Exception {

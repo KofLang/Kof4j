@@ -403,5 +403,35 @@ final class JsRuntimeUiStdlib {
                 return dbl < 0 ? (g === 8 ? 1 : 0) : (g < 8 ? 1 : 0);
             }
 
+
+            function kofIsDomLabelC(c) {
+                return (c >= 48 && c <= 57) || (c >= 97 && c <= 122) || (c >= 65 && c <= 90) || c === 45;
+            }
+            export function kofValidationIsDomain(s) {
+                if (s == null || s.length === 0 || s.length > 253) return 0;
+                let start = 0, labels = 0;
+                for (let i = 0; i <= s.length; i++) {
+                    if (i === s.length || s.charCodeAt(i) === 46) {
+                        const len = i - start;
+                        if (len < 1 || len > 63) return 0;
+                        if (s.charCodeAt(start) === 45 || s.charCodeAt(i - 1) === 45) return 0;
+                        for (let j = start; j < i; j++) {
+                            if (!kofIsDomLabelC(s.charCodeAt(j))) return 0;
+                        }
+                        labels++;
+                        start = i + 1;
+                    }
+                }
+                if (labels < 2) return 0;
+                const dot = s.lastIndexOf(".");
+                const tlen = s.length - dot - 1;
+                if (tlen < 2) return 0;
+                for (let j = dot + 1; j < s.length; j++) {
+                    const c = s.charCodeAt(j);
+                    if (!((c >= 97 && c <= 122) || (c >= 65 && c <= 90))) return 0;
+                }
+                return 1;
+            }
+
     """;
 }

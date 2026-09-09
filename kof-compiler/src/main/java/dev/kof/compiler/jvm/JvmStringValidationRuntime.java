@@ -215,6 +215,40 @@ public final class JvmStringValidationRuntime {
                     return dbl < 0 ? g == 8 : g < 8;
                 }
 
+                // Domínio (v1, subconjunto RFC 1123 declarado): labels
+                // [A-Za-z0-9-] 1..63 sem hyphen em ponta; >=2 labels; TLD
+                // >=2 só letras; total<=253; sem ponto final/underscore/IDN.
+                public static boolean kof_validation_isDomain(String s) {
+                    if (s == null || s.isEmpty() || s.length() > 253) return false;
+                    int start = 0, labels = 0;
+                    for (int i = 0; i <= s.length(); i++) {
+                        boolean end = i == s.length();
+                        if (end || s.charAt(i) == '.') {
+                            int len = i - start;
+                            if (len < 1 || len > 63) return false;
+                            char first = s.charAt(start), last = s.charAt(i - 1);
+                            if (first == '-' || last == '-') return false;
+                            for (int j = start; j < i; j++) {
+                                char c = s.charAt(j);
+                                boolean ok = (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z')
+                                        || (c >= 'A' && c <= 'Z') || c == '-';
+                                if (!ok) return false;
+                            }
+                            labels++;
+                            start = i + 1;
+                        }
+                    }
+                    if (labels < 2) return false;
+                    int dot = s.lastIndexOf('.');
+                    int tlen = s.length() - dot - 1;
+                    if (tlen < 2) return false;
+                    for (int j = dot + 1; j < s.length(); j++) {
+                        char c = s.charAt(j);
+                        if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'))) return false;
+                    }
+                    return true;
+                }
+
                 // ── kof.validation (STDLIB S6b) — Luhn ─────────────────────
                 // isCreditCard: dígitos extraídos (não-dígitos ignorados),
                 // 12..19 dígitos, soma de Luhn (dobrar posições ímpares da
