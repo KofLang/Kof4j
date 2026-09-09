@@ -430,6 +430,30 @@ class KofConcurrency2Test {
         assertEquals("s=18\nab", output, "FIFO Int + String no Native");
     }
 
+    // known-bugs #50 — channel send/recv DENTRO de spawn no Native (SIGSEGV 139).
+    // Correção candidata 09/09: futex WAIT do canal x86_64 com args corretos
+    // (rdi=&lock, rsi=op). Este teste valida o fix quando o toolchain/qemu
+    // estiver disponível.
+    @Test
+    void channelWithSpawnNative(@TempDir Path tmp) throws Exception {
+        Path f = tmp.resolve("M.kf");
+        Files.writeString(f, """
+                main() {
+                    val c = channel<Int>()
+                    spawn { c.send(42) }
+                    val v = c.receive()
+                    println("v=" + v)
+                }
+                """);
+        CompilationResult r = driver.compile(f, tmp.resolve("out"), Target.NATIVE);
+        assertTrue(r.success(), "Native channel+spawn deve compilar: " + r.diagnostics().getDiagnostics());
+        Path bin = tmp.resolve("out").resolve("Default/Main");
+        Process p = new ProcessBuilder(bin.toString()).redirectErrorStream(true).start();
+        String output = new String(p.getInputStream().readAllBytes()).trim();
+        assertEquals(0, p.waitFor(), "exit code, output: " + output);
+        assertEquals("v=42", output, "channel send dentro de spawn no Native");
+    }
+
     @Test
     void channelJs(@TempDir Path tmp) throws Exception {
         // JS sequencial: canal = {items:[]} (send push, receive shift).
