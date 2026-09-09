@@ -248,6 +248,62 @@ public final class JvmStringMathRuntime {
                     if (c >= 'A' && c <= 'F') return c - 'A' + 10;
                     return 0;
                 }
+
+                // ── kof.encoding (STDLIB S4.2) — base64 (RFC 4648) ──────────
+                // Tabela + semântica de decode TOLERANTE idênticas ao
+                // kof_b64_*_internal do runtime x86 (ignora inválidos, para em
+                // '=', grupos <4 incompletos emetem floor(r9*6/8) bytes) e ao
+                // kofSecB64Decode do JS.
+                private static final String KOF_B64_CHARS =
+                    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+                public static String kof_encoding_base64Encode(String v) {
+                    if (v == null) return null;
+                    byte[] b = v.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                    StringBuilder sb = new StringBuilder((b.length + 2) / 3 * 4);
+                    int i = 0;
+                    while (i + 2 < b.length) {
+                        int n = ((b[i] & 255) << 16) | ((b[i + 1] & 255) << 8) | (b[i + 2] & 255);
+                        sb.append(KOF_B64_CHARS.charAt(n >> 18)).append(KOF_B64_CHARS.charAt((n >> 12) & 63))
+                          .append(KOF_B64_CHARS.charAt((n >> 6) & 63)).append(KOF_B64_CHARS.charAt(n & 63));
+                        i += 3;
+                    }
+                    if (i + 1 == b.length) {
+                        int n = (b[i] & 255) << 16;
+                        sb.append(KOF_B64_CHARS.charAt(n >> 18)).append(KOF_B64_CHARS.charAt((n >> 12) & 63))
+                          .append("==");
+                    } else if (i + 2 == b.length) {
+                        int n = ((b[i] & 255) << 16) | ((b[i + 1] & 255) << 8);
+                        sb.append(KOF_B64_CHARS.charAt(n >> 18)).append(KOF_B64_CHARS.charAt((n >> 12) & 63))
+                          .append(KOF_B64_CHARS.charAt((n >> 6) & 63)).append('=');
+                    }
+                    return sb.toString();
+                }
+
+                public static String kof_encoding_base64Decode(String v) {
+                    if (v == null) return null;
+                    java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+                    int acc = 0, nch = 0;
+                    for (int i = 0; i < v.length(); i++) {
+                        char c = v.charAt(i);
+                        if (c == '=') break;
+                        int d = KOF_B64_CHARS.indexOf(c);
+                        if (d < 0) continue;
+                        acc = (acc << 6) | d;
+                        if (++nch == 4) {
+                            out.write((acc >> 16) & 255);
+                            out.write((acc >> 8) & 255);
+                            out.write(acc & 255);
+                            acc = 0; nch = 0;
+                        }
+                    }
+                    if (nch == 2) out.write((acc >> 4) & 255);
+                    else if (nch == 3) {
+                        out.write((acc >> 10) & 255);
+                        out.write((acc >> 2) & 255);
+                    }
+                    return new String(out.toByteArray(), java.nio.charset.StandardCharsets.UTF_8);
+                }
         """;
     }
 }

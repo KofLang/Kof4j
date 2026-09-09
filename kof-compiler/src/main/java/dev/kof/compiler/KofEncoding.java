@@ -28,23 +28,35 @@ public final class KofEncoding {
 
     record EncodingCall(String function, Type returnType, List<Type> parameterTypes) {}
 
+    private static final java.util.Set<String> B64_FNS = java.util.Set.of(
+            "kof_encoding_base64Encode", "kof_encoding_base64Decode");
+
     static EncodingCall staticMethod(String namespace, String name, List<Type> argTypes) {
         int argc = argTypes.size();
         return switch (name) {
-            case "hexEncode" -> argc == 1
-                    ? new EncodingCall("kof_encoding_hexEncode", STR, List.of(STR)) : null;
+            case "hexEncode", "base64Encode", "base64Decode" -> argc == 1
+                    ? new EncodingCall("kof_encoding_" + name, STR, List.of(STR)) : null;
             case "hexDecode" -> argc == 1
                     ? new EncodingCall("kof_encoding_hexDecode", STR, List.of(STR)) : null;
             default -> null;
         };
     }
 
-    /** hex* é transformação pura de byte — presente em todos os targets. */
+    /**
+     * hex* é transformação pura de byte — presente em todos os targets.
+     * ENC002 (padrão SECN000): base64 reusa kof_b64_*_internal do runtime
+     * x86 (crypto lane); o riscv/aarch não tem esses símbolos (asm puro, sem
+     * libc) — gate honesto em compile-time até o port, nunca link quebrado.
+     */
     static boolean supportedOn(String function, Target target) {
+        if (B64_FNS.contains(function)
+                && (target == Target.NATIVE_RISCV64 || target == Target.NATIVE_AARCH64)) {
+            return false;
+        }
         return true;
     }
 
     static String gapCode(String function) {
-        return "ENC001";
+        return B64_FNS.contains(function) ? "ENC002" : "ENC001";
     }
 }

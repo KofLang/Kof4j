@@ -65,6 +65,76 @@ class KofEncodingTest {
             """, "true\ntrue\ntrue");
     }
 
+    @Test
+    void base64Jvm(@TempDir Path tmp) throws Exception {
+        runJvm(tmp, """
+            main() {
+                println(encoding.base64Encode("Hi"))
+                println(encoding.base64Encode("Ma"))
+                println(encoding.base64Encode("Man"))
+                println(encoding.base64Encode("") + "|")
+                println(encoding.base64Decode("TWFu"))
+                println(encoding.base64Decode("SGk="))
+                println(encoding.base64Encode("café"))
+                println(encoding.base64Decode(encoding.base64Encode("café")))
+            }
+            """, "SGk=\nTWE=\nTWFu\n|\nMan\nHi\nY2Fmw6k=\ncafé");
+    }
+
+    @Test
+    void base64Native(@TempDir Path tmp) throws Exception {
+        runNative(tmp, """
+            main() {
+                assert(encoding.base64Encode("Hi") == "SGk=")
+                assert(encoding.base64Encode("Ma") == "TWE=")
+                assert(encoding.base64Encode("Man") == "TWFu")
+                assert(encoding.base64Encode("") == "")
+                assert(encoding.base64Decode("TWFu") == "Man")
+                assert(encoding.base64Decode("SGk=") == "Hi")
+                assert(encoding.base64Encode("café") == "Y2Fmw6k=")
+                assert(encoding.base64Decode(encoding.base64Encode("café")) == "café")
+                // tolerante: ignora inválidos, para em '='
+                assert(encoding.base64Decode("SG k=") == "Hi")
+                println("ok")
+            }
+            """, "ok");
+    }
+
+    @Test
+    void base64Js(@TempDir Path tmp) throws Exception {
+        runJs(tmp, """
+            main() {
+                println(encoding.base64Encode("Hi"))
+                println(encoding.base64Encode("Ma"))
+                println(encoding.base64Encode("Man"))
+                println(encoding.base64Encode("") + "|")
+                println(encoding.base64Decode("TWFu"))
+                println(encoding.base64Decode("SGk="))
+                println(encoding.base64Encode("café"))
+                println(encoding.base64Decode(encoding.base64Encode("café")))
+            }
+            """, "SGk=\nTWE=\nTWFu\n|\nMan\nHi\nY2Fmw6k=\ncafé");
+    }
+
+    @Test
+    void base64GatedOnCrossArch(@TempDir Path tmp) throws Exception {
+        // ENC002: base64 reusa kof_b64_*_internal (runtime crypto x86); o
+        // riscv/aarch não tem esses símbolos (asm puro, sem libc) — gate
+        // honesto em compile-time (padrão SECN000/STRN001), nunca link quebrado.
+        Path source = tmp.resolve("Main.kf");
+        Files.writeString(source, """
+            main() {
+                println(encoding.base64Encode("Hi"))
+            }
+            """);
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            CompilationResult r = driver.compile(source, tmp.resolve("cross-" + t), t);
+            assertFalse(r.success(), t + " deve reportar ENC002");
+            assertTrue(r.diagnostics().getDiagnostics().toString().contains("ENC002"),
+                    t + ": " + r.diagnostics().getDiagnostics());
+        }
+    }
+
     private String runJvm(Path tempDir, String source, String expected) throws Exception {
         Path file = tempDir.resolve("Main-" + System.nanoTime() + ".kf");
         Files.writeString(file, source);

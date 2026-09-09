@@ -198,6 +198,17 @@ final class JsRuntimeUiStdlib {
                 }
                 return kofEncFromUtf8(out);
             }
+            // base64: compõe os helpers UTF-8 próprios + kofSecB64* (mesmo
+            // módulo concatenado; kofSecB64Decode strict=false = tolerante,
+            // idêntico ao kof_b64_decode_internal x86 e ao JVM).
+            export function kofEncodingBase64Encode(v) {
+                if (v == null) return v;
+                return kofSecB64Encode(kofEncUtf8Bytes(v));
+            }
+            export function kofEncodingBase64Decode(v) {
+                if (v == null) return v;
+                return kofEncFromUtf8(Array.from(kofSecB64Decode(v, false)));
+            }
 
     """;
 }

@@ -262,10 +262,12 @@ class ConformanceMatrixTest {
                     var b = encoding.hexDecode("4869")
                     var c = encoding.hexEncode("café")
                     var d = encoding.hexDecode(c)
+                    var e = encoding.base64Encode("Man")
+                    var f = encoding.base64Decode("Y2Fmw6k=")
                     var mark = if (encoding.hexEncode("") == "") "E" else "N"
-                    println(a + "|" + b + "|" + c + "|" + d + "|" + mark)
+                    println(a + "|" + b + "|" + c + "|" + d + "|" + e + "|" + f + "|" + mark)
                 }
-                """, "4869|Hi|636166c3a9|café|E", Set.of(), tempDir);
+                """, "4869|Hi|636166c3a9|café|TWFu|café|E", Set.of(), tempDir);
     }
 
     @Test
