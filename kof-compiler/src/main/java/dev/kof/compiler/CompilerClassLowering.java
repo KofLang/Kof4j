@@ -342,7 +342,15 @@ public final class CompilerClassLowering {
                 es.expression() instanceof MethodCallExpr mc &&
                 "super".equals(mc.methodName());
         // driver(...): o construtor alvo executa super() e os inicializadores
-        if (!delegatesToThis && !hasExplicitSuper && !"java/lang/Object".equals(superName)) {
+        // #53 (metades JS/Native/script): o <init> sintético de Record só
+        // existe no verificador JVM (precedente: generateRecordConstructor
+        // gateia o super em isJvmTarget). Em JS a classe de record não tem
+        // pai (SyntaxError 'super unexpected'); em Native não há
+        // java_lang_Record_init (undefined reference no link); no interpretador
+        // o Record não é super de nada. Suprimir fora do JVM.
+        boolean recordSuperOnlyJvm = "java/lang/Record".equals(superName) && !driver.isJvmTarget();
+        if (!delegatesToThis && !hasExplicitSuper && !"java/lang/Object".equals(superName)
+                && !recordSuperOnlyJvm) {
             ops.add(new KofLoadLocal(ownerType, 0));
             ops.add(new KofCall(superType, "<init>", List.of(), Type.PrimitiveType.VOID, KofCallKind.CONSTRUCTOR));
         }

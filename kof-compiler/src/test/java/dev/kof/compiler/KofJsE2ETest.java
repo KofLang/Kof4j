@@ -421,6 +421,27 @@ class KofJsE2ETest {
         runJs(source, tempDir.resolve("out"), "3\n4");
     }
 
+    // #53 (metade JS): record com construtor explícito → o lowering injeta
+    // super(Record.<init>) (exigido pelo verificador JVM), mas a classe JS de
+    // record não tem pai → `SyntaxError: 'super' keyword unexpected here` e o
+    // módulo inteiro caía. O emitter agora descarta o super sintético de
+    // java.lang.Record. Paridade com JVM/script (ambos imprimem o valor).
+    @Test
+    void recordWithExplicitConstructorRunsOnJs(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+            record Q(Int x) {
+                constructor(Int x) {
+                    this.x = x
+                }
+            }
+            main() {
+                println(Q(1).x())
+            }
+            """);
+        runJs(source, tempDir.resolve("out"), "1");
+    }
+
     // 9. Inheritance ─────────────────────────────────────────────────
 
     @Test
