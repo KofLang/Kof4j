@@ -168,12 +168,37 @@ Domínio **1..9999** (serial civil cabe em Int; fora disso ou data inexistente
 → `isLeapYear=false` / `0`). A função `now`/`sleep`/`interval` de relógio é
 de `time` desde antes — o calendário acima é a parte pura, determinística.
 
+## net — componentes de URL (S8)
+
+`net` decompõe uma URL em 6 campos, um por função — a mesma String entra, um
+pedaço sai:
+
+```kof
+val url = "https://user:pw@koflang.dev:8443/docs/intro?page=2#sintaxe"
+net.scheme(url)     // "https"
+net.host(url)       // "koflang.dev"   (userinfo e porta removidos)
+net.port(url)       // "8443"          (String — parse fica com quem usa)
+net.path(url)       // "/docs/intro"
+net.query(url)      // "page=2"
+net.fragment(url)   // "sintaxe"
+net.queryEncode("a b&c=1")          // "a%20b%26c%3D1"
+net.queryDecode("a%20b%26c%3D1")    // "a b&c=1"
+```
+
+Campo ausente devolve `""` (nunca lança, nunca `null` de surpresa — o `null` só
+chega se a entrada for `null`). É subconjunto v1 do RFC 3986: IPv6 com colchetes
+(`http://[::1]:8080`) ainda não é reconhecido (o host sai truncado) — port e
+forma mista ficam para a v2, documentado. Nos nativos (x86/riscv/aarch) o
+namespace está **NET001** gated: o parser byte-scan ainda não foi portado — a
+compilação aponta o gap, nunca gera código silencioso.
+
 ## Paridade por target (tabela honesta)
 
 | API | JVM / Script | Native x86_64 | Native riscv64 / aarch64 | JS |
 |---|---|---|---|---|
 | `math.*`, `strings.is*/count/capitalize/reverse/repeat/truncate/pad*/escapeHtml`, `toCamel/Pascal/Snake/Kebab/slugify`, `encoding.hex*/url*`, `time.isLeapYear/daysInMonth/dayOfWeek/daysBetween`, `validation.isCpf/isCnpj/isCep/isPis/isIpv4/isIpv6/isMac/isPort/isCreditCard/isDomain` | ✅ | ✅ | ✅ | ✅ |
 | `encoding.base64*` / `base64Url*` | ✅ | ✅ | ✅ | ✅ |
+| `net.*` (S8) | ✅ | ✅ | **NET001** (nativos pendentes) | ✅ |
 | `uuid.v4` | ✅ | ✅ | **SECN000** (entropia; gate de compilação) | ✅ |
 
 Gate = erro de compilação **com código** (R6 — nunca stub silencioso):
@@ -192,4 +217,6 @@ executados de verdade (riscv/aarch64 sob qemu).
 - `training/idioms/stdlib.md` — BAD/GOOD/WHY de cada namespace.
 - `docs/stdlib.md` §3 — a matriz de referência com gates.
 - `docs/development/plan-stdlib-expansion.md` — o que falta: `random` (P0),
-  `last4`/`creditCardBrand` (tabela de bandeira = marca registrada — avaliar antes), `net`/`url` (S8).
+  `last4`/`creditCardBrand` (tabela de bandeira = marca registrada — avaliar
+  antes), o port nativo de `net.*` (NET001) e `math` Double (FLT).
+

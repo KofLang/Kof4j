@@ -349,7 +349,9 @@ public final class JvmRuntimeCallDescriptors {
                     "kof_strings_normalizeWhitespace" -> "(Ljava/lang/String;)Ljava/lang/String;";
             case "kof_strings_repeat", "kof_strings_truncate" -> "(Ljava/lang/String;I)Ljava/lang/String;";
             case "kof_strings_padLeft", "kof_strings_padRight" -> "(Ljava/lang/String;ILjava/lang/String;)Ljava/lang/String;";
-            case "kof_encoding_hexEncode", "kof_encoding_hexDecode", "kof_encoding_base64Encode", "kof_encoding_base64Decode" -> "(Ljava/lang/String;)Ljava/lang/String;";
+            case "kof_net_scheme", "kof_net_host", "kof_net_port",
+                    "kof_net_path", "kof_net_query", "kof_net_fragment",
+                    "kof_net_queryEncode", "kof_net_queryDecode", "kof_encoding_hexEncode", "kof_encoding_hexDecode", "kof_encoding_base64Encode", "kof_encoding_base64Decode" -> "(Ljava/lang/String;)Ljava/lang/String;";
             case "kof_encoding_urlEncode", "kof_encoding_urlDecode", "kof_encoding_base64UrlEncode", "kof_encoding_base64UrlDecode" -> "(Ljava/lang/String;)Ljava/lang/String;";
             case "kof_uuid_v4" -> "()Ljava/lang/String;";
             // ── kof.observability (G5) ────────────────────────────────

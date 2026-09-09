@@ -45,7 +45,7 @@ briefing aceita ("adapte à arquitetura real"). Então: `math.clamp(...)`,
 | `random` | randomDouble · randomBoolean · randomChoice · randomString · randomBytes (secure split: `random.*` inseguro vs `security.*` seguro — já documentado) |
 | `validation` (ext) | isCpf/formatCpf · isCnpj · isCep/formatCep · isPis/isNis · isIp/isIpv4/isIpv6/isMac/isDomain/isPort · isCreditCard/creditCardBrand/last4 (Luhn) · isStrongPassword/passwordScore |
 | `time` (ext) | addDays/addMonths/addYears · daysBetween/hoursBetween · startOf/endOf (day/week/month/year) · isLeapYear · daysInMonth · age · formatDate/parseDate · isToday/isWeekend · today |
-| `net` (novo, P2) | urlParse (scheme/host/port/path/query/fragment) · queryEncode/queryDecode |
+| `net` (novo, P2) | **6 escalares** `net.scheme/host/port/path/query/fragment(STR)->STR` + `queryEncode/queryDecode` — ver §4 (decisão S8, 09/09) |
 | `util` (P2) | debounce/throttle · retry (backoff/jitter) |
 
 **Não** (regra do briefing §48/§49 + R6): browser/DOM/storage/clipboard = lane KofUI
@@ -90,3 +90,32 @@ Cada S = suíte completa verde (com `-Dmaven.test.failure.ignore=true`) + DOING 
 - riscv64/aarch64: enquanto bug 59 abre, novos símbolos seguem o padrão SECN000?
   NÃO — validation já tem riscv real (B3); copiar o padrão B3 (asm puro, sem libc).
   Gate de paridade = ConformanceMatrixTest (riscv só roda via qemu no CI de NATIVE002).
+
+## 4. Decisão S8 — forma de `net` (09/09)
+
+**Escolhida: 6 funções escalares** (`net.scheme(s)` … `net.fragment(s)`, todas
+`STR->STR`), **NÃO** um record `Uri(...)` retornado por `net.urlParse`. Motivo
+técnico, não estilístico: **nenhuma função do runtime asm devolve objeto
+estruturado hoje** (precedente KofHttp: "the body is returned as a String";
+records são classes geradas pelo compilador, não alocáveis pelo asm x86/riscv).
+Um `urlParse` que retorna record seria o PRIMEIRO objeto alocado em runtime no
+Native — escopo próprio, multi-sessão, e exige design separado (IR de record
+allocável). A forma escalar replica EXATAMENTE o precedente da família
+`validation` (`isIpv4(STR)->Bool`, …): N funções sobre a mesma String, cada uma
+byte-scan puro, portável aos 4 targets sem novo mecanismo. É **totalmente
+aditiva** (namespace novo → nada congelado em jogo; regra 6 satisfeita).
+
+**Semântica v1 (RFC 3986 subset, escopo honesto travado na matriz, R6):**
+- `scheme`: `[A-Za-z][A-Za-z0-9+.-]*` antes do primeiro `:`; senão `""`.
+- authority só após `//` ; `userinfo@` ignorado (host = após o último `@`).
+- `host`: até o primeiro `:` do authority ou fim dele; `port`: após esse `:`
+  (String, não Int — tolerante/sem parse, igual política validation).
+- **v1 SEM literal IPv6 entre colchetes** (`[::1]` cai no host como está) —
+  documentado, como isIpv6/isDomain (sem zona, sem forma mista).
+- `path` até `?`/`#`; `query` após 1º `?` até `#`; `fragment` após 1º `#`.
+- campo ausente ⇒ `""` (natural "sem substring"); `null` ⇒ `null` (paridade
+  com todas as STR->STR da stdlib). Entrada malformada ⇒ melhor esforço por
+  campo, NUNCA lança (família validation).
+- `queryEncode`/`queryDecode`: percent-encoding de chave/valor reusa EXATAMENTE
+  `encoding.urlEncode/urlDecode` (não re-implementar — regra 2); `net` é uma
+  fachada de intenção (`net.queryEncode` == `encoding.urlEncode`).

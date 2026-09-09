@@ -340,6 +340,15 @@ class ConformanceMatrixTest {
                     println(strings.normalizeWhitespace("   ") + "|[" + strings.removeWhitespace("") + "]")
                 }
                 """, "abc|Caféé\na b|a b\n|[]", Set.of(), tempDir);
+        matrix("stdnet", """
+                main() {
+                    val s = "https://user:pw@host.io:8443/p?q#f"
+                    println(net.scheme(s) + "|" + net.host(s) + "|" + net.port(s) + "|" + net.path(s) + "|" + net.query(s) + "|" + net.fragment(s))
+                    println(net.path("/only/path") + "|" + net.query("http://h?onlyquery"))
+                    println(net.queryEncode("a b&c=1"))
+                    println(net.queryDecode("a%20b%26c%3D1"))
+                }
+                """, "https|host.io|8443|/p|q|f\n/only/path|onlyquery\na%20b%26c%3D1\na b&c=1", Set.of("native"), tempDir);
         matrix("stdunescape", """
                 main() {
                     println(strings.unescapeHtml("a&amp;b"))
