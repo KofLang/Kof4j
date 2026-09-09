@@ -1231,6 +1231,20 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   (aridade diferente) continuam somando (canônico + overload). Prova:
   `CompilerDriverTest.recordWithExplicitCanonicalConstructorCompilesToJvm`.
 
+### 67. Interpretador: `super(v)` explícito em classe de domínio → StackOverflowError (issue #54) — ✅ CORRIGIDO 09/09
+
+- **Sintoma:** `class Base { ... }` + `class Derived extends Base { constructor(v) { super(v) ... } }`
+  → JVM/JS ok (`42`); **interpretador → StackOverflowError** (recursão no ctor).
+- **Causa raiz:** `KofInterpreter.dispatch` para `KofCallKind.SUPER` usava
+  `owner = classByInternal(recv.internalName())` (a classe ATUAL), então
+  `findKofMethod(owner, "<init>", argc)` resolvia o próprio ctor de novo →
+  recursão infinita. JVM/JS resolviam o super via `invokespecial` ao owner do
+  call (superclasse), por isso ok.
+- **Correção (09/09):** para `KofCallKind.SUPER`, `owner` sobe para a superclasse
+  imediata (`members.classByInternal(owner.superName())`) antes de `findKofMethod`.
+  Prova: `ScriptTargetTest.interpretExplicitSuperConstructor` (Derived(42) chama
+  `super(v)` e imprime 42).
+
 ## Comportamentos que PAREcem bugs mas são esperados (não corrigir)
 
 | Cenário | Comportamento | Por quê |
