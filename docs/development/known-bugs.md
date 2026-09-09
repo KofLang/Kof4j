@@ -1040,7 +1040,7 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 
 ---
 
-### 62. Frontend não valida mutabilidade: `val` é decorativo e escrita em componente de record diverge nos 3 caminhos (GitHub #42) — parcialmente CORRIGIDO (sintoma a: `val` imutável); sintomas b/c ABERTOS
+### 62. Frontend não valida mutabilidade: `val` é decorativo e escrita em componente de record diverge nos 3 caminhos (GitHub #42) — ✅ CORRIGIDO (a) SEM037 `val`; (b)/(c) SEM038 record component (DD-02)
 
 - **Sintoma (a):** `main() { val x = 1; x = 2; println(x) }` → `kof check` "no
   errors" e imprime **`2`** no JVM, KofJS e interpretador. `val` não é imutável.
