@@ -235,6 +235,11 @@ void consumeExpressionOp(MethodCtx ctx, int[] pos, List<Object> stack,
         } else if (op instanceof KofNewArray na) {
             JsIr.JsExpression size = pop(stack);
             stack.add(new JsIr.JsArray(size, JsTypeMapper.arrayFill(na.elementType())));
+        } else if (op instanceof KofNewMultiArray ma) {
+            // multidimensional: aninha JsArray (outter size × fill do array (dims-1))
+            JsIr.JsExpression size = pop(stack);
+            JsTypeMapper.ArrayFiller filler = new JsTypeMapper.ArrayFiller(ma.baseType(), ma.dims() - 1);
+            stack.add(new JsIr.JsArray(size, filler));
         } else if (op instanceof KofArrayLoad al) {
             JsIr.JsExpression index = pop(stack);
             JsIr.JsExpression array = pop(stack);

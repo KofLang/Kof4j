@@ -19,6 +19,7 @@ import dev.kof.compiler.KofLoadLiteral;
 import dev.kof.compiler.KofLoadLocal;
 import dev.kof.compiler.KofMedia;
 import dev.kof.compiler.KofNewArray;
+import dev.kof.compiler.KofNewMultiArray;
 import dev.kof.compiler.KofNewObject;
 import dev.kof.compiler.KofOperation;
 import dev.kof.compiler.KofPop;
@@ -198,7 +199,11 @@ public final class JvmLiteralEmitter {
             } else if (op instanceof KofReturn kr) {
                 if (!Type.isVoid(kr.returnType())) depth--;
             } else if (op instanceof KofReturnVoid) {
-            } else if (op instanceof KofNewArray || op instanceof KofArrayLoad) {
+            } else if (op instanceof KofNewArray) {
+                depth--;
+            } else if (op instanceof KofNewMultiArray ma) {
+                depth -= ma.dims() - 1;
+            } else if (op instanceof KofArrayLoad) {
                 depth--;
             } else if (op instanceof KofArrayStore) {
                 depth -= 3;

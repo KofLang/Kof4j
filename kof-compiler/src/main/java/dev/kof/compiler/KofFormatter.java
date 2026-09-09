@@ -386,7 +386,12 @@ public final class KofFormatter {
             sb.append(")");
             return sb.toString();
         }
-        if (expr instanceof NewArrayExpr nae) return "new " + nae.elementType() + "[" + formatExpr(nae.size()) + "]";
+        if (expr instanceof NewArrayExpr nae) {
+            StringBuilder sb2 = new StringBuilder("new ").append(nae.elementType())
+                    .append("[").append(formatExpr(nae.size())).append("]");
+            for (ExpressionNode dim : nae.moreDims()) sb2.append("[").append(formatExpr(dim)).append("]");
+            return sb2.toString();
+        }
         if (expr instanceof ArrayAccessExpr aae) return formatExpr(aae.receiver()) + "[" + formatExpr(aae.index()) + "]";
         if (expr instanceof FieldAccessExpr fae) return formatExpr(fae.receiver()) + "." + fae.fieldName();
         if (expr instanceof IfExpr ie) return "if (" + formatExpr(ie.condition()) + ") " + formatExpr(ie.thenExpr()) + " else " + formatExpr(ie.elseExpr());

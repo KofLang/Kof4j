@@ -22,6 +22,7 @@ import dev.kof.compiler.KofLoadField;
 import dev.kof.compiler.KofLoadLiteral;
 import dev.kof.compiler.KofLoadLocal;
 import dev.kof.compiler.KofNewArray;
+import dev.kof.compiler.KofNewMultiArray;
 import dev.kof.compiler.KofNewObject;
 import dev.kof.compiler.KofOperation;
 import dev.kof.compiler.KofPop;
@@ -213,6 +214,8 @@ public final class JvmOpEmitter {
             } else {
                 c.mv().visitIntInsn(NEWARRAY, JvmLiteralEmitter.arrayTypeForType(na.elementType()));
             }
+        } else if (op instanceof KofNewMultiArray ma) {
+            c.mv().visitMultiANewArrayInsn(JvmTypeMapper.toDescriptor(arrayTypeOf(ma.baseType(), ma.dims())), ma.dims());
         } else if (op instanceof KofArrayLoad al) {
             c.mv().visitInsn(JvmLiteralEmitter.arrayLoadOpcode(al.elementType()));
         } else if (op instanceof KofArrayStore as) {
@@ -220,6 +223,13 @@ public final class JvmOpEmitter {
         } else if (op instanceof KofArrayLength) {
             c.mv().visitInsn(ARRAYLENGTH);
         }
+    }
+
+    /** Type.ArrayType aninhado n vezes: base Int, n=2 → [[I (descriptor via toDescriptor). */
+    static Type arrayTypeOf(Type base, int n) {
+        Type t = base;
+        for (int i = 0; i < n; i++) t = new Type.ArrayType(t);
+        return t;
     }
 
     private static void emitBinary(MethodVisitor mv, KofBinary kb) {

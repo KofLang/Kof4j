@@ -222,7 +222,17 @@ public final class ExpressionLowerer {
             case NewArrayExpr na -> {
                 Type elemType = CompilerTypes.toType(na.elementType(), driver.currentUnit);
                 localIdx = ExpressionLowerer.emitExpression(driver, na.size(), ops, owner, localIdx, locals);
-                ops.add(new KofNewArray(elemType));
+                if (na.moreDims().isEmpty()) {
+                    ops.add(new KofNewArray(elemType));
+                } else {
+                    // multidimensional: empilha as dimensões restantes e cria
+                    // o array n-dimensional (bug 71 — antes só a 1ª dim era
+                    // criada e o `[b]` virava index inválido → VerifyError)
+                    for (ExpressionNode dim : na.moreDims()) {
+                        localIdx = ExpressionLowerer.emitExpression(driver, dim, ops, owner, localIdx, locals);
+                    }
+                    ops.add(new KofNewMultiArray(elemType, na.moreDims().size() + 1));
+                }
                 yield localIdx;
             }
             case ArrayAccessExpr aa -> {

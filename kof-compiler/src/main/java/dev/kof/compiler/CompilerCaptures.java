@@ -177,6 +177,9 @@ public final class CompilerCaptures {
             }
         } else if (expr instanceof NewArrayExpr nae) {
             collectCapturesExpr(driver,nae.size(), outerLocals, captures, captured, shadowed);
+            for (ExpressionNode dim : nae.moreDims()) {
+                collectCapturesExpr(driver, dim, outerLocals, captures, captured, shadowed);
+            }
         } else if (expr instanceof LambdaExpr le2) {
             // lambda retornando lambda: variáveis livres do lambda INTERNO
             // que pertencem ao escopo do EXTERNO são capturas do externo —

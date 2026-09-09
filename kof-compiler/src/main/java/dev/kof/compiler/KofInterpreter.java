@@ -283,6 +283,10 @@ public final class KofInterpreter {
                     Array.set(arr, idx, builtins.coerceFor(as.elementType(), v));
                 } else if (op instanceof KofNewArray na) {
                     st.push(builtins.newArray(na.elementType(), unboxInt(st.pop())));
+                } else if (op instanceof KofNewMultiArray ma) {
+                    int[] lens = new int[ma.dims()];
+                    for (int i = ma.dims() - 1; i >= 0; i--) lens[i] = unboxInt(st.pop());
+                    st.push(builtins.newMultiArray(ma.baseType(), lens));
                 } else if (op instanceof KofArrayLength) {
                     st.push(Array.getLength(st.pop()));
                 } else if (op instanceof KofThrow) {

@@ -121,6 +121,9 @@ public final class ExpressionTyper {
             }
             case NewArrayExpr na -> {
                 Type elemType = CompilerTypes.toType(na.elementType(), driver.currentUnit);
+                for (int i = 0; i < na.moreDims().size(); i++) {
+                    elemType = new Type.ArrayType(elemType);
+                }
                 yield new Type.ArrayType(elemType);
             }
             case NewExpr ne -> {

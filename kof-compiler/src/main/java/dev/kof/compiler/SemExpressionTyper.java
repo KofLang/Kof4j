@@ -332,6 +332,10 @@ public final class SemExpressionTyper {
             case NewArrayExpr na -> {
                 Type elemType = Type.of(na.elementType());
                 inferType(sa, na.size(), scope);
+                for (ExpressionNode dim : na.moreDims()) inferType(sa, dim, scope);
+                for (int i = 0; i < na.moreDims().size(); i++) {
+                    elemType = new Type.ArrayType(elemType);
+                }
                 yield new Type.ArrayType(elemType);
             }
             case ArrayAccessExpr aa -> {

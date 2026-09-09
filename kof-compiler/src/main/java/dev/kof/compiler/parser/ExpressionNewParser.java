@@ -38,7 +38,14 @@ final class ExpressionNewParser {
             ctx.advance();
             ExpressionNode size = ExpressionParser.parseExpression(ctx);
             ctx.expect(TokenType.RBRACKET, "Expected ']'", "PARSE046");
-            return new NewArrayExpr(p, typeName, size);
+            // multidimensional: new T[a][b][...] — dimensões adicionais explícitas
+            List<ExpressionNode> moreDims = new ArrayList<>();
+            while (ctx.check(TokenType.LBRACKET)) {
+                ctx.advance();
+                moreDims.add(ExpressionParser.parseExpression(ctx));
+                ctx.expect(TokenType.RBRACKET, "Expected ']'", "PARSE046");
+            }
+            return new NewArrayExpr(p, typeName, size, moreDims);
         }
         List<ExpressionNode> args = ExpressionParser.parseArguments(ctx);
         return new NewExpr(p, typeName, typeArgs, args);
