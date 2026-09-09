@@ -90,7 +90,7 @@ recomendações futuras (regra 14 da tarefa: não alterar comportamento).
 
 ### SG-006 — Short-circuit de `&&`/`||` desligado no JS
 
-- **Implementação**: `ExpressionLowerer.java:147-148` — o short-circuit por
+- **Implementação**: `ExpressionBinaryLowerer.java:56-57` — o short-circuit por
   labels é emitido só quando `target != JS`. No JS, ambos os lados são
   avaliados.
 - **Problema**: `if (x != null && x.length > 0)` pode NPE no JS mas não no
@@ -98,6 +98,14 @@ recomendações futuras (regra 14 da tarefa: não alterar comportamento).
 - **Recomendação**: documentar como Target-specific (feito em
   [expressions.md](language-reference/expressions.md) §5) **e** abrir gap de
   paridade para corrigir o JS.
+- **NOTA 09/09 (análise de código):** o lowering por labels é `target != JS`,
+  mas para `&&`/`||` de bool o JS emite os operadores nativos (`a && b`,
+  `a || b` — `JsCallEmitter.binaryExpr` linhas 274-277), que **já fazem
+  short-circuit** nativamente. Logo `x != null && x.length > 0` NÃO deve NPE no
+  JS (o `x.length > 0` não é avaliado se `x != null` é false). Paridade plausível
+  por leitura de código, mas **sem teste de runtime que trave** — recomenda-se um
+  caso em `BackendParityTest` (`if (x != null && x.length > 0)`) nos 4 targets
+  antes de fechar o gap.
 
 ### SG-007 — Wildcard de genérico (`? extends T`) compila mas quebra — ✅ CORRIGIDO 06/09 (PARSE086)
 
