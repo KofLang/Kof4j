@@ -97,6 +97,13 @@ final class BytecodeDecoder {
                 case 0x8a -> { if (!stack.mono("(%s as Double)", "J", "D")) return null; }  // l2d
                 case 0x8e -> { if (!stack.mono("(%s as Int)", "D", "I")) return null; }     // d2i
                 case 0x8f -> { if (!stack.mono("(%s as Long)", "D", "J")) return null; }    // d2l
+                // i2c é o ÚNICO cast narrowing de Kof que é fiel: o codegen
+                // emite i2c real para `x as Char` (16 bits, wrap igual ao
+                // (char) do Java). i2b/i2s NÃO têm equivalente fiel — Kof
+                // `as Byte`/`as Short` são no-op (Int 32 bits alarga; (byte)
+                // 256 = 0 em Java mas 256 as Byte = 256 em Kof) — deixam no
+                // default (recusa → stub honesto, bug-62 discipline).
+                case 0x92 -> { if (!stack.mono("(%s as Char)", "I", "I")) return null; }    // i2c
                 case 0xb8 -> { // invokestatic
                     String[] m = resolveMethodRef(cp, in.operands()[0]);
                     if (m == null) return null;

@@ -575,6 +575,38 @@ class DecompileTest {
     }
 
     @Test
+    void recoversCharCastButStaysHonestOnByteShort(@TempDir Path dir) throws Exception {
+        Path javaFile = dir.resolve("Cast.java");
+        Files.writeString(javaFile, """
+                public class Cast {
+                    public static char toChar(int a) { return (char) (a + 65); }
+                    public static byte toByte(int a) { return (byte) a; }
+                    public static short toShort(int a) { return (short) a; }
+                }
+                """);
+        runJavac(javaFile, dir);
+
+        String kof = Decompile.decompile(dir.resolve("Cast.class"));
+
+        // i2c → `as Char`: ÚNICO narrowing de Kof fiel ao Java (o codegen do
+        // Kof emite i2c real p/ `x as Char`, wrap 16 bits igual (char)).
+        assertTrue(kof.contains("Char toChar(Int arg0) = ((arg0 + 65) as Char)"),
+                "i2c deve recuperar as Char:\n" + kof);
+        // i2b/i2s NÃO têm equivalente fiel: Kof `as Byte`/`as Short` são no-op
+        // (256 as Byte = 256 ≠ (byte) 256 = 0). Recusa → stub honesto (R6).
+        assertTrue(kof.contains("Byte toByte(Int arg0) {\n        throw \"body not recovered\""),
+                "i2b deve ficar stub (sem cast fiel em Kof):\n" + kof);
+        assertTrue(kof.contains("Short toShort(Int arg0) {\n        throw \"body not recovered\""),
+                "i2s deve ficar stub (sem cast fiel em Kof):\n" + kof);
+
+        Path out = dir.resolve("Cast.kf");
+        Files.writeString(out, kof);
+        CompilerDriver driver = new CompilerDriver();
+        CompilationResult result = driver.compile(out, dir.resolve("out"), Target.JVM);
+        assertTrue(result.success(), "decompiled deve compilar:\n" + kof + "\n" + result.diagnostics().getDiagnostics());
+    }
+
+    @Test
     void recoversFieldAccess(@TempDir Path dir) throws Exception {
         Path javaFile = dir.resolve("Box.java");
         Files.writeString(javaFile, """
