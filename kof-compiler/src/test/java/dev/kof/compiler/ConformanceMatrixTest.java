@@ -295,6 +295,16 @@ class ConformanceMatrixTest {
                     println(validation.isPort(65536))
                 }
                 """, "true\nfalse\nfalse\ntrue\nfalse\ntrue\nfalse", Set.of(), tempDir);
+        matrix("stdluhn", """
+                main() {
+                    println(validation.isCreditCard("4111111111111111"))
+                    println(validation.isCreditCard("4532 0151 1283 0366"))
+                    println(validation.isCreditCard("378282246310005"))
+                    println(validation.isCreditCard("4111111111111112"))
+                    println(validation.isCreditCard("45"))
+                    println(validation.isCreditCard("1234567890123456789"))
+                }
+                """, "true\ntrue\ntrue\nfalse\nfalse\nfalse", Set.of(), tempDir);
         matrix("stdtime", """
                 main() {
                     println(time.isLeapYear(2000))

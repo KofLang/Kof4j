@@ -245,6 +245,67 @@ class KofValidationTest {
         runQemu(tmp, Target.NATIVE_AARCH64, "qemu-aarch64", src);
     }
 
+    // S6b Luhn: isCreditCard — dígitos extraídos, 12..19, soma de Luhn %10.
+    @Test
+    void validationLuhnJvm(@TempDir Path tmp) throws Exception {
+        runJvm(tmp, """
+            main() {
+                println(validation.isCreditCard("4111111111111111"))
+                println(validation.isCreditCard("4532 0151 1283 0366"))
+                println(validation.isCreditCard("378282246310005"))
+                println(validation.isCreditCard("6011-0000-0000-0004"))
+                println(validation.isCreditCard("4111111111111112"))
+                println(validation.isCreditCard("45"))
+                println(validation.isCreditCard(""))
+                println(validation.isCreditCard("1234567890123456789"))
+            }
+            """, "true\ntrue\ntrue\ntrue\nfalse\nfalse\nfalse\nfalse");
+    }
+
+    @Test
+    void validationLuhnNative(@TempDir Path tmp) throws Exception {
+        runNative(tmp, """
+            main() {
+                println(validation.isCreditCard("4111111111111111"))
+                println(validation.isCreditCard("card 4111 1111 1111 1111 ok"))
+                println(validation.isCreditCard("4111111111111112"))
+                println(validation.isCreditCard("1234567890123456789"))
+            }
+            """, "true\ntrue\nfalse\nfalse");
+    }
+
+    @Test
+    void validationLuhnJs(@TempDir Path tmp) throws Exception {
+        runJs(tmp, """
+            main() {
+                println(validation.isCreditCard("5500 0000 0000 0004"))
+                println(validation.isCreditCard("4111111111111112"))
+                println(validation.isCreditCard("45"))
+            }
+            """, "true\nfalse\nfalse");
+    }
+
+    @Test
+    void validationLuhnCrossArch(@TempDir Path tmp) throws Exception {
+        String src = """
+            main() {
+                assert(validation.isCreditCard("4111111111111111"))
+                assert(validation.isCreditCard("4532 0151 1283 0366"))
+                assert(validation.isCreditCard("378282246310005"))
+                assert(validation.isCreditCard("6011-0000-0000-0004"))
+                assert(validation.isCreditCard("card 4111 1111 1111 1111 ok"))
+                assert(!validation.isCreditCard("4111111111111112"))
+                assert(!validation.isCreditCard("45"))
+                assert(!validation.isCreditCard(""))
+                assert(!validation.isCreditCard("1234567890123456789"))
+            }
+            """;
+        assumeToolchain("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64");
+        runQemu(tmp, Target.NATIVE_RISCV64, "qemu-riscv64", src);
+        assumeToolchain("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64");
+        runQemu(tmp, Target.NATIVE_AARCH64, "qemu-aarch64", src);
+    }
+
     private static void assumeToolchain(String... bins) {
         for (String b : bins) {
             try {

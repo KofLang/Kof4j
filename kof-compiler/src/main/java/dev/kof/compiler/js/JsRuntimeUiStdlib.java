@@ -348,5 +348,28 @@ final class JsRuntimeUiStdlib {
                 return (port >= 1 && port <= 65535) ? 1 : 0;
             }
 
+
+            // ── kof.validation (STDLIB S6b) — Luhn ───────────────────────
+            export function kofValidationIsCreditCard(s) {
+                if (s == null) return 0;
+                const d = [];
+                for (let i = 0; i < s.length; i++) {
+                    const c = s.charCodeAt(i);
+                    if (c >= 48 && c <= 57) {
+                        if (d.length === 19) return 0;
+                        d.push(c - 48);
+                    }
+                }
+                const n = d.length;
+                if (n < 12) return 0;
+                let sum = 0;
+                for (let j = 0; j < n; j++) {
+                    let v = d[j];
+                    if (((n - 1 - j) & 1) === 1) { v *= 2; if (v > 9) v -= 9; }
+                    sum += v;
+                }
+                return sum % 10 === 0 ? 1 : 0;
+            }
+
     """;
 }

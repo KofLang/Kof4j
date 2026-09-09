@@ -65,6 +65,9 @@ public final class KofValidation {
                     ? new ValidationCall("kof_validation_" + name, BOOL, List.of(STR)) : null;
             case "isPort" -> argc == 1
                     ? new ValidationCall("kof_validation_isPort", BOOL, List.of(INT)) : null;
+            // S6b (STDLIB): Luhn (dígitos extraídos, 12..19, soma*alternada%10).
+            case "isCreditCard" -> argc == 1
+                    ? new ValidationCall("kof_validation_isCreditCard", BOOL, List.of(STR)) : null;
             default -> null;
         };
     }

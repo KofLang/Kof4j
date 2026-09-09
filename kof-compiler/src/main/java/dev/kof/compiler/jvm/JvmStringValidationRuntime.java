@@ -187,6 +187,34 @@ public final class JvmStringValidationRuntime {
                     return port >= 1 && port <= 65535;
                 }
 
+                // ── kof.validation (STDLIB S6b) — Luhn ─────────────────────
+                // isCreditCard: dígitos extraídos (não-dígitos ignorados),
+                // 12..19 dígitos, soma de Luhn (dobrar posições ímpares da
+                // direita, -9 se >9) divisível por 10.
+                public static boolean kof_validation_isCreditCard(String s) {
+                    if (s == null) return false;
+                    int[] d = new int[19];
+                    int n = 0;
+                    for (int i = 0; i < s.length(); i++) {
+                        char c = s.charAt(i);
+                        if (c >= '0' && c <= '9') {
+                            if (n == 19) return false;   // >19 dígitos
+                            d[n++] = c - '0';
+                        }
+                    }
+                    if (n < 12) return false;
+                    int sum = 0;
+                    for (int j = 0; j < n; j++) {
+                        int v = d[j];
+                        if (((n - 1 - j) & 1) == 1) {   // posição da direita ímpar
+                            v *= 2;
+                            if (v > 9) v -= 9;
+                        }
+                        sum += v;
+                    }
+                    return sum % 10 == 0;
+                }
+
 """;
     }
 }

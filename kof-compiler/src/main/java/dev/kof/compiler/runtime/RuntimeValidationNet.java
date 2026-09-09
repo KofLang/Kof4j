@@ -155,6 +155,78 @@ public final class RuntimeValidationNet {
                 popq %rbx
                 ret
 
+            # kof_validation_isCreditCard(rdi=str) -> Bool. Luhn: extrai
+            # dígitos p/ buf[19] (pilha); >19 => false; <12 => false; dobra
+            # posições ímpares-contando-da-direita (v*2; v>9 => v-9); soma%10.
+            .globl kof_validation_isCreditCard
+            .type kof_validation_isCreditCard, @function
+            kof_validation_isCreditCard:
+                pushq %rbx
+                pushq %r12
+                pushq %r13
+                subq $24, %rsp           # buf[19] em (%rsp)
+                movq %rdi, %rbx
+                movq %rsp, %r12          # buf
+                xorl %r13d, %r13d        # n
+                testq %rbx, %rbx
+                jz .Lv_cc_false
+                movl 16(%rbx), %ecx      # len
+                xorl %edx, %edx          # i
+            .Lv_cc_collect:
+                cmpl %ecx, %edx
+                jge .Lv_cc_ncheck
+                movzbl 24(%rbx,%rdx), %eax
+                incl %edx
+                subl $48, %eax
+                cmpl $9, %eax
+                ja .Lv_cc_collect
+                cmpl $19, %r13d
+                jae .Lv_cc_false         # >19 dígitos
+                movb %al, 0(%r12,%r13)
+                incl %r13d
+                jmp .Lv_cc_collect
+            .Lv_cc_ncheck:
+                cmpl $12, %r13d
+                jb .Lv_cc_false
+                # soma: j da esquerda; ímpar-contando-da-direita = (n-1-j)&1
+                xorl %r8d, %r8d          # j
+                xorl %r9d, %r9d          # sum
+            .Lv_cc_sum:
+                cmpl %r13d, %r8d
+                jge .Lv_cc_mod
+                movl %r13d, %eax
+                subl %r8d, %eax
+                decl %eax
+                andl $1, %eax
+                movzbl 0(%r12,%r8), %r10d   # v
+                testl %eax, %eax
+                jz .Lv_cc_add
+                addl %r10d, %r10d        # v*2
+                cmpl $9, %r10d
+                jbe .Lv_cc_add
+                subl $9, %r10d
+            .Lv_cc_add:
+                addl %r10d, %r9d
+                incl %r8d
+                jmp .Lv_cc_sum
+            .Lv_cc_mod:
+                movl %r9d, %eax
+                xorl %edx, %edx
+                movl $10, %ecx
+                divl %ecx
+                testl %edx, %edx
+                jnz .Lv_cc_false
+                movl $1, %eax
+                jmp .Lv_cc_done
+            .Lv_cc_false:
+                xorl %eax, %eax
+            .Lv_cc_done:
+                addq $24, %rsp
+                popq %r13
+                popq %r12
+                popq %rbx
+                ret
+
             # kof_validation_isPort(edi=port) -> Bool (1..65535)
             .globl kof_validation_isPort
             .type kof_validation_isPort, @function
