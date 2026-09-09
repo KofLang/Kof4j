@@ -93,8 +93,7 @@ public final class JvmTypeMapper {
             StringBuilder sb = new StringBuilder(base.substring(0, base.length() - 1));
             sb.append('<');
             for (Type arg : c.typeArguments()) {
-                String s = toGenericSignature(arg);
-                sb.append(s != null ? s : toDescriptor(arg));
+                sb.append(signatureTypeArg(arg));
             }
             sb.append('>');
             return sb.append(';').toString();
@@ -104,6 +103,34 @@ public final class JvmTypeMapper {
             return s == null ? null : "[" + s;
         }
         return null;
+    }
+
+    // GitHub #62 / bug 72: type-arg de assinatura genérica NUNCA pode ser
+    // descriptor primitivo (`D`, `I`, ...) — `List<Double>` emitia `Lkof/...<
+    // D>;` e `Field.getGenericType()` falhava com GenericSignatureFormatError
+    // ("Remaining input: D>"). Em posição de type-arg, primitivo vira o
+    // boxed (Ljava/lang/Double;) e nullable vira o inner.
+    private static String signatureTypeArg(Type type) {
+        if (type instanceof Type.NullableType n) type = n.inner();
+        if (type instanceof Type.PrimitiveType) {
+            return "L" + boxedInternalName(((Type.PrimitiveType) type).name()) + ";";
+        }
+        String s = toGenericSignature(type);
+        return s != null ? s : toDescriptor(type);
+    }
+
+    private static String boxedInternalName(String primitiveName) {
+        return switch (primitiveName) {
+            case "boolean", "bool", "Bool", "Boolean" -> "java/lang/Boolean";
+            case "byte", "Byte" -> "java/lang/Byte";
+            case "short", "Short" -> "java/lang/Short";
+            case "char", "Char" -> "java/lang/Character";
+            case "int", "Int" -> "java/lang/Integer";
+            case "long", "Long" -> "java/lang/Long";
+            case "float", "Float" -> "java/lang/Float";
+            case "double", "Double" -> "java/lang/Double";
+            default -> "java/lang/Object";
+        };
     }
 
     static String toMethodDescriptor(Type returnType, List<Type> parameterTypes) {

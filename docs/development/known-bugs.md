@@ -1343,6 +1343,31 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   matriz `ifexpr-{intlong,longdouble,intnull}-direct` (JVM+Native+Script;
   JS excluído — §69). Slots primitivos (`var x`/`Int x`) seguem §68(a).
 - **Observado fora de escopo:** `bool` no interpretador imprime `1`
+
+### 72. JVM: signature genérica de type-arg primitivo usa descriptor cru → GenericSignatureFormatError (GitHub #62) — ✅ CORRIGIDO 09/09
+
+- **Sintoma:** `record Checkpoint(List<Double> params, Int step)` +
+  `json.decode<Checkpoint>(j)` → `GenericSignatureFormatError:
+  Remaining input: D>` no LOAD da classe (a classe nem carrega). O compile
+  passa e o `json.encode` funciona.
+- **Causa raiz:** `JvmTypeMapper.toGenericSignature` retorna `null` para
+  type primitivo (assinaturas só aceitam referências), e o fallback no
+  loop de type-arguments era `toDescriptor(arg)` — que para `Double` é `D`
+  (válido em descriptor, INVÁLIDO dentro de `<...>` de signature, que só
+  aceita `L...;`/`[`/`T`). Resultado: `Lkof/.../Checkpoint;<Lkof/...List;<D>;>...`
+- **Correção (09/09):** helper `signatureTypeArg(Type)` no `JvmTypeMapper`:
+  primitivo em posição de type-arg vira o BOXED (`Ljava/lang/Double;`,
+  `Ljava/lang/Integer;`, ...), nullable unwrapa, resto cae no
+  `toGenericSignature`→`toDescriptor` como antes. Mapeamento boxed via
+  `boxedInternalName` (case dos nomes Kof e JVM). Campos `Double`/`Int`
+  NUS (não em `<>`) não mudam — descriptor `D`/`I` continua correto lá.
+- **Prova:** `CoreRegressionE2ETest.jsonDecodeRecordWithListOfDoubles`
+  (encode→decode→acesso a `params().get(0/1)` + `step()` = `1.0/2.0/3`,
+  ao lado do modelo `jsonDecodeRecordWithListOfRecords` #34); suíte
+  CoreRegressionE2ETest 45/0. Repro J62 standalone: antes
+  `GenericSignatureFormatError`, depois `exit=0 out={"params":[1.0,2.0],"step":3}`.
+
+
   (`println(if (c) true else 5)` → script `1` vs JVM `true`); lado JVM
   inalterado pela mudança (mesmo `Boolean.valueOf` antes e depois) —
   divergência do backend script, lane KOFSCRIPT se quiser.

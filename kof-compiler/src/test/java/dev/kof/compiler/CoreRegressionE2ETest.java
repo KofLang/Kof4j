@@ -134,6 +134,30 @@ class CoreRegressionE2ETest {
         assertEquals("x\ny", runJvm(out));
     }
 
+    // GitHub #62 / bug 72 — json.decode de record com List<Double>: a
+    // assinatura genérica do campo usava o DESCRIPTOR do primitivo (`D`)
+    // dentro de `L...<...>;` → GenericSignatureFormatError
+    // ("Remaining input: D>") no load da classe. Fix: type-arg primitivo
+    // emite o boxed (Ljava/lang/Double;).
+    @Test
+    void jsonDecodeRecordWithListOfDoubles(@TempDir Path tempDir) throws IOException {
+        Path src = tempDir.resolve("recDouble.kf");
+        Files.writeString(src, """
+                record Checkpoint(List<Double> params, Int step)
+                main() {
+                    var j = json.encode(Checkpoint(listOf(1.0, 2.0), 3))
+                    var d = json.decode<Checkpoint>(j)
+                    println(d.params().get(0))
+                    println(d.params().get(1))
+                    println(d.step())
+                }
+                """);
+        Path out = tempDir.resolve("recDouble-jvm");
+        CompilationResult r = driver.compile(src, out, Target.JVM);
+        assertTrue(r.success(), "JVM compile failed: " + r.diagnostics().getDiagnostics());
+        assertEquals("1.0\n2.0\n3", runJvm(out));
+    }
+
     // B10 — primary constructor fields accessible inside methods (all targets)
     @Test
     void primaryConstructorFieldsInMethods(@TempDir Path tempDir) throws IOException {
