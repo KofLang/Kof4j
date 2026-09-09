@@ -82,6 +82,7 @@ Escape HTML (5 entidades — nunca montar página com interpolação crua):
 ```kof
 strings.escapeHtml("a<b>&\"'c")   // "a&lt;b&gt;&amp;&quot;&#39;c"
 strings.escapeHtml("Café & ç")     // "Café &amp; ç" (>=128 é copiado)
+strings.unescapeHtml("a&amp;b")         // "a&b" — 5 nomeadas + &#DDD;/&#xHH; (UTF-8)
 ```
 
 Whitespace (WS = tab/LF/VT/FF/CR/espaço; >=128 **não** é WS):

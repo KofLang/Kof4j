@@ -57,6 +57,7 @@
 | stdlib kof.validation rede (S6a: isIpv4/isMac/isPort — dotted-quad sem zero à esquerda; MAC 6 hex sep : ou - consistente; porta 1..65535) | `true` / `false` / `false` / `true` / `false` / `true` / `false` | DONE | DONE | DONE | DONE | `stdvalidationnet` |
 | stdlib kof.validation Luhn (S6b: isCreditCard — dígitos extraídos, 12..19, soma de Luhn %10; 20+ dígitos => false) | `true` / `true` / `true` / `false` / `false` / `false` | DONE | DONE | DONE | DONE | `stdluhn` |
 | stdlib kof.validation IPv6 (S6b.3: isIpv6 — subconjunto RFC 5952; '::' no máx uma vez; sem forma mista/zona) | `true` / `true` / `true` / `false` / `false` / `false` | DONE | DONE | DONE | DONE | `stdipv6` |
+| stdlib kof.strings unescapeHtml (S3.1b: 5 nomeadas + &#DDD;/&#xHH;→UTF-8; outro & LITERAL; 0/surrogate/overflow LITERAL) | `a&b` / `<x>` / `café` / `☃` / `&&` / `&notreal;` | DONE | DONE | DONE | DONE | `stdunescape` |
 | stdlib kof.strings whitespace (S3.2: removeWhitespace/normalizeWhitespace — WS=9..13+32; >=128 não-WS; colapso p/ 1 espaço) | `abc\|Caféé` / `a b\|a b` / `\|[]` | DONE | DONE | DONE | DONE | `stdws` |
 | stdlib kof.strings escapeHtml (S3.1: 5 entidades; >=128 cópia; null/"" => original) | `a&lt;b&gt;&amp;&quot;&#39;c` / `Café &amp; ç` / `&amp;amp;lt;` / `&lt;a href=&quot;u&quot;&gt;y&lt;/a&gt;` | DONE | DONE | DONE | DONE | `stdescape` |
 | stdlib kof.validation domínio (S6c: isDomain — RFC 1123 labels, TLD>=2 letras, >=2 labels; v1 sem ponto final/IDN) | `true` / `true` / `false` / `false` / `false` / `false` | DONE | DONE | DONE | DONE | `stddomain` |

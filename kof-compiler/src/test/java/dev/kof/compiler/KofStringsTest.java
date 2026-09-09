@@ -389,6 +389,50 @@ class KofStringsTest {
         runQemu(tmp, Target.NATIVE_AARCH64, "qemu-aarch64", src);
     }
 
+    @Test
+    void unescapeHtmlJvmJsNative(@TempDir Path tmp) throws Exception {
+        // STDLIB S3.1b: 5 nomeadas + numéricos (UTF-8 1/2/3 bytes); outro
+        // "&" LITERAL; 0/surrogate/>=0x10000/overflow => LITERAL. Oracle Python.
+        String src = """
+            main() {
+                println(strings.unescapeHtml("a&amp;b"))
+                println(strings.unescapeHtml("&lt;script&gt;"))
+                println(strings.unescapeHtml("&amp;amp;"))
+                println(strings.unescapeHtml("&#65;&#x42;"))
+                println(strings.unescapeHtml("&notreal;"))
+                println(strings.unescapeHtml("&&amp;"))
+                println(strings.unescapeHtml("&#0;"))
+            }
+            """;
+        String expected = "a&b\n<script>\n&amp;\nAB\n&notreal;\n&&\n&#0;";
+        runJvm(tmp, src, expected);
+        runJs(tmp, src, expected);
+        runNative(tmp, src, expected);
+    }
+
+    @Test
+    void unescapeHtmlUtf8(@TempDir Path tmp) throws Exception {
+        // numéricos multi-byte: é (2B), ☀ (3B), €. JVM/JS/x86/riscv/aarch idênticos.
+        String src = """
+            main() {
+                assert(strings.unescapeHtml("caf&#233;") == "caf\u00e9")
+                assert(strings.unescapeHtml("&#9731;") == "\u2603")
+                assert(strings.unescapeHtml("&#8364;") == "\u20ac")
+                assert(strings.unescapeHtml("&#xD800;") == "&#xD800;")
+                assert(strings.unescapeHtml("&#x110000;") == "&#x110000;")
+                assert(strings.unescapeHtml("&amp;lt;") == "&lt;")
+                assert(strings.unescapeHtml("&amp;quot;x") == "&quot;x")
+                assert(strings.unescapeHtml("plain") == "plain")
+                assert(strings.unescapeHtml("&") == "&")
+            }
+            """;
+        runJvm(tmp, src, "");
+        assumeToolchain("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64");
+        runQemu(tmp, Target.NATIVE_RISCV64, "qemu-riscv64", src);
+        assumeToolchain("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64");
+        runQemu(tmp, Target.NATIVE_AARCH64, "qemu-aarch64", src);
+    }
+
     private static Path findJsEntry(Path dir) throws java.io.IOException {
         try (var s = Files.walk(dir)) {
             var opt = s.filter(p -> p.getFileName().toString().equals("Default.mjs")).findFirst();

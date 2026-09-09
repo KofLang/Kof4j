@@ -340,6 +340,16 @@ class ConformanceMatrixTest {
                     println(strings.normalizeWhitespace("   ") + "|[" + strings.removeWhitespace("") + "]")
                 }
                 """, "abc|Caféé\na b|a b\n|[]", Set.of(), tempDir);
+        matrix("stdunescape", """
+                main() {
+                    println(strings.unescapeHtml("a&amp;b"))
+                    println(strings.unescapeHtml("&lt;x&gt;"))
+                    println(strings.unescapeHtml("caf&#233;"))
+                    println(strings.unescapeHtml("&#9731;"))
+                    println(strings.unescapeHtml("&&amp;"))
+                    println(strings.unescapeHtml("&notreal;"))
+                }
+                """, "a&b\n<x>\ncafé\n\u2603\n&&\n&notreal;", Set.of(), tempDir);
         matrix("stdtime", """
                 main() {
                     println(time.isLeapYear(2000))
