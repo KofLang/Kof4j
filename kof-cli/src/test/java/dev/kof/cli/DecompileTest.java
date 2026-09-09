@@ -440,6 +440,60 @@ class DecompileTest {
     }
 
     @Test
+    void whitelistInstanceofRecoversAndCompiles(@TempDir Path dir) throws Exception {
+        // Fase E (09/09): `x instanceof String` é idiomático Kof e o nome
+        // resolve SEM import — seguro recuperar. Tipo de domínio fica stub
+        // (prova de drift: `instanceof DiagnosticCollector` gerava .kf que não
+        // compila; whitelist = String/primitivos/Object).
+        Path javaFile = dir.resolve("Is.java");
+        Files.writeString(javaFile, """
+                public class Is {
+                    public static boolean isStr(Object o) {
+                        boolean b = o instanceof String;
+                        return b;
+                    }
+                    public static boolean isCs(Object o) {
+                        boolean b = o instanceof CharSequence;
+                        return b;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Is.class"));
+        assertTrue(kof.contains("arg0 instanceof String"),
+                "instanceof String (whitelist) deve recuperar:\n" + kof);
+        assertTrue(kof.contains("isCs(Object arg0) {\n        throw \"body not recovered\""),
+                "instanceof CharSequence (domínio/JDK não-whitelist) fica stub:\n" + kof);
+        Path out = dir.resolve("Is.kf");
+        Files.writeString(out, kof);
+        CompilationResult result = new CompilerDriver().compile(out, dir.resolve("out"), Target.JVM);
+        assertTrue(result.success(), "decompiled deve compilar:\n" + kof + "\n" + result.diagnostics().getDiagnostics());
+    }
+
+    @Test
+    void whitelistCastRecoversPrimitiveTargetsOnly(@TempDir Path dir) throws Exception {
+        // checkcast p/ primitivo vira `(x as Int)` (útil p/ downcast de Object);
+        // p/ String/Object é recusado (cast trivial/ambíguo na verificação).
+        Path javaFile = dir.resolve("Cs.java");
+        Files.writeString(javaFile, """
+                public class Cs {
+                    public static int take(Object o) {
+                        Integer i = (Integer) o;
+                        int v = i;
+                        return v;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Cs.class"));
+        assertTrue(kof.contains("as Int"), "checkcast Integer → `as Int`:\n" + kof);
+        Path out = dir.resolve("Cs.kf");
+        Files.writeString(out, kof);
+        CompilationResult result = new CompilerDriver().compile(out, dir.resolve("out"), Target.JVM);
+        assertTrue(result.success(), "decompiled deve compilar:\n" + kof + "\n" + result.diagnostics().getDiagnostics());
+    }
+
+    @Test
     void invokedynamicIsFiveBytes() {
         // REGRESSÃO PEGO POR TRUNCATION-MARKER: length(0xba) era 7 —
         // INVÁLIDO (JVMS 4.9.3: opcode + u2 index + 2 zero-bytes = 5). Com 7,

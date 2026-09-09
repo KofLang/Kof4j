@@ -155,6 +155,13 @@ Fase E  Kof Decompiler          (gerar Kof source)
 > heurística "tem parênteses = chamada" aceita `(x + (y))` aritmético.
 > Fila correta da Fase E: primeiro multi-classe (tipo resolve), depois
 > pop/instanceof/checkcast (bloqueados por aquele, não por eles mesmos).
+>
+> ⚠️ **Caveat do blockerSink (09/09):** ele conta cada desistência do caminho
+> linear **de expressão** — mas um método só vira stub quando expressão E
+> statements desistem; stores/branches (0x3a/0x4c/0x99…) aparecem no ranking
+> mesmo sendo tratados pelo `emitLinear`. O ranking serve p/ ACHAR candidatos,
+> não p/ contar stubs; a fila real = (a) nomes de domínio não-resolvidos
+> (multi-classe §7) e (b) shapes estruturais recusados (joins, Fase C).
 
 ## 7. Relação com o Compilador
 
