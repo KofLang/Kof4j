@@ -212,8 +212,13 @@ public final class SymbolTableBuilder {
             methodScope.define(new SymbolTable.ParameterSymbol(param.name(), paramType, idx));
             idx++;
         }
+        // SG-013 (SEM046): preserva private/protected no símbolo — antes era
+        // hardcoded 1 (PUBLIC) e a checagem compile-time não tinha informação.
+        int accessFlags = AccessFlags.PUBLIC;
+        if (method.modifiers().contains("private")) accessFlags = AccessFlags.PRIVATE;
+        else if (method.modifiers().contains("protected")) accessFlags = AccessFlags.PROTECTED;
         SymbolTable.MethodSymbol methodSym = new SymbolTable.MethodSymbol(method.name(), className,
-                returnType, paramTypes, 1, SymbolTable.DispatchKind.INSTANCE);
+                returnType, paramTypes, accessFlags, SymbolTable.DispatchKind.INSTANCE);
         classScope.define(methodSym);
         SymbolTable.ClassSymbol cs = sa.allClasses().get(className);
         if (cs != null) cs.members().define(methodSym);

@@ -368,6 +368,11 @@ public final class MemberCallTyper {
         if (recvType instanceof Type.ClassType ct) {
             SymbolTable.Symbol m = MemberResolver.resolveInHierarchy(sa, ct.name(), mc.methodName());
             if (m instanceof SymbolTable.MethodSymbol ms) {
+                // SG-013 (SEM046): private/protected checados em compile-time
+                // (antes viravam flags JVM e acesso indevido só explodia em
+                // runtime com IllegalAccessError).
+                checkMemberAccess(sa, ms.accessFlags(), ms.ownerClass(), ct.name(),
+                        "'" + ct.name() + "." + mc.methodName() + "'");
                 sa.resolvedMethods().put(mc, ms);
                 List<Type> argTypes = new ArrayList<>();
                 for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
@@ -417,6 +422,61 @@ public final class MemberCallTyper {
         List<Type> argTypes = new ArrayList<>();
         for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
         return argTypes;
+    }
+
+    /**
+     * SG-013 (SEM046): visibilidade em compile-time. `private` só é acessível
+     * dentro da própria classe declarante; `protected` dentro da declarante ou
+     * subclasses. Chamada fora → erro SEM046 (antes: IllegalAccessError runtime).
+     */
+    private static void checkMemberAccess(SemanticAnalyzer sa, int accessFlags,
+                                          String ownerClass, String receiverClass,
+                                          String memberDesc) {
+        if (sa.diagnostics() == null) return;
+        boolean isPriv = (accessFlags & AccessFlags.PRIVATE) != 0;
+        boolean isProt = (accessFlags & AccessFlags.PROTECTED) != 0;
+        if (!isPriv && !isProt) return;
+        String caller = sa.currentClassName();
+        if (caller == null) {
+            // contexto top-level (main/função livre): não é dono de nada —
+            // private E protected são inacessíveis
+            sa.diagnostics().error("", 0, 0, 0,
+                    memberDesc + " is " + (isPriv ? "private" : "protected")
+                            + " (declared in '" + ownerClass
+                            + "') and cannot be accessed from top-level code",
+                    "SEM046");
+            return;
+        }
+        if (isPriv) {
+            // private: só a própria classe declarante
+            if (!ownerClass.equals(caller)) {
+                sa.diagnostics().error("", 0, 0, 0,
+                        memberDesc + " is private (declared in '" + ownerClass
+                                + "') and cannot be accessed from '" + caller + "'",
+                        "SEM046");
+            }
+        } else {
+            // protected: declarante ou subclasse (hierarquia transitiva)
+            if (!isInHierarchy(sa, caller, ownerClass)) {
+                sa.diagnostics().error("", 0, 0, 0,
+                        memberDesc + " is protected (declared in '" + ownerClass
+                                + "') and cannot be accessed from '" + caller + "'",
+                        "SEM046");
+            }
+        }
+    }
+
+    /** caller está na hierarquia de `base` (caller == base ou estende transitivamente)? */
+    private static boolean isInHierarchy(SemanticAnalyzer sa, String caller, String base) {
+        String current = caller;
+        int depth = 0;
+        while (current != null && depth++ < 32) {
+            if (current.equals(base)) return true;
+            SymbolTable.ClassSymbol cs = sa.allClasses().get(current);
+            if (cs == null) return false;
+            current = cs.superClass();
+        }
+        return false;
     }
 
     /**

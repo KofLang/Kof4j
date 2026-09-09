@@ -4648,4 +4648,80 @@ class CompilerDriverTest {
         assertTrue(driver.compile(source, tempDir.resolve("out"), Target.JVM).success(),
                 "throws com classe do módulo deve compilar");
     }
+
+    // SG-013 (SEM046) — private/protected checados em compile-time (antes:
+    // IllegalAccessError em runtime).
+    @Test
+    void privateMethodAccessOutsideClassFails(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("P.kf");
+        Files.writeString(source, """
+            class Segredo {
+                private String revela() { return "shh" }
+            }
+            main() {
+                var s = Segredo()
+                println(s.revela())
+            }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "private access outside class must fail");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM046"), "should be SEM046, got: " + diags);
+    }
+
+    @Test
+    void privateMethodAccessInsideClassStaysGreen(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("P.kf");
+        Files.writeString(source, """
+            class Segredo {
+                private String revela() { return "shh" }
+                String publica() { return revela() }
+            }
+            main() {
+                var s = Segredo()
+                println(s.publica())
+            }
+            """);
+        assertTrue(driver.compile(source, tempDir.resolve("out"), Target.JVM).success(),
+                "private dentro da própria classe deve compilar");
+    }
+
+    @Test
+    void protectedAccessFromSubclassStaysGreen(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Prot.kf");
+        Files.writeString(source, """
+            class Base {
+                protected Int seed() { return 7 }
+            }
+            class Sub extends Base {
+                Int usa() { return seed() }
+            }
+            main() {
+                var s = Sub()
+                println(s.usa())
+            }
+            """);
+        assertTrue(driver.compile(source, tempDir.resolve("out"), Target.JVM).success(),
+                "protected acessado da subclasse deve compilar");
+    }
+
+    @Test
+    void protectedAccessOutsideHierarchyFails(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Prot.kf");
+        Files.writeString(source, """
+            class Base {
+                protected Int seed() { return 7 }
+            }
+            class Estranho {
+                Int usa(Base b) { return b.seed() }
+            }
+            main() {
+                println("ok")
+            }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "protected fora da hierarquia deve falhar");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM046"), "should be SEM046, got: " + diags);
+    }
 }
