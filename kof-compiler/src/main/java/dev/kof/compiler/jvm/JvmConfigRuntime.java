@@ -422,24 +422,37 @@ public final class JvmConfigRuntime {
 
                 public static void kof_db_transaction(Object task) throws Exception {
                     java.sql.Connection c = kof_db_conn(KOF_DB_DEFAULT);
+                    // GitHub #65 / bug 77 — aninhamento: um bloco transaction
+                    // interno NESTA mesma conexão NÃO comita nem rollbacka —
+                    // participa da transação externa (qualquer erro propaga
+                    // p/ o bloco externo decidir). Antes o commit interno
+                    // confirmava as linhas da transação externa e o rollback
+                    // posterior não as desfazia (garantia transacional quebrada
+                    // silenciosamente). Bloco em OUTRA conexão continua com
+                    // transação própria (comportamento anterior).
+                    boolean nested = c.equals(KOF_DB_TX.get());
                     boolean prevAuto = c.getAutoCommit();
                     c.setAutoCommit(false);
-                    KOF_DB_TX.set(c);
+                    if (!nested) KOF_DB_TX.set(c);
                     try {
                         task.getClass().getMethod("invoke").invoke(task);
-                        c.commit();
+                        if (!nested) c.commit();
                     } catch (Exception e) {
-                        try {
-                            c.rollback();
-                        } catch (Exception ignored) {
+                        if (!nested) {
+                            try {
+                                c.rollback();
+                            } catch (Exception ignored) {
+                            }
                         }
                         Throwable cause = e.getCause() != null ? e.getCause() : e;
                         if (cause instanceof RuntimeException re) throw re;
                         if (cause instanceof Error err) throw err;
                         throw new RuntimeException(cause);
                     } finally {
-                        c.setAutoCommit(prevAuto);
-                        KOF_DB_TX.remove();
+                        if (!nested) {
+                            c.setAutoCommit(prevAuto);
+                            KOF_DB_TX.remove();
+                        }
                     }
                 }
 """;

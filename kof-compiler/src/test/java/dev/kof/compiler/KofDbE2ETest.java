@@ -173,6 +173,35 @@ class KofDbE2ETest {
         runJvm(source, tempDir.resolve("out"), "caught\n{\"n\":0}");
     }
 
+    // GitHub #65 / bug 77 — aninhamento: um bloco transaction interno NESTA
+    // mesma conexão NÃO comita (participa da transação externa). Antes o
+    // commit interno confirmava as linhas da transação externa e o rollback
+    // posterior não as desfazia ({"n":2} — garantia transacional quebrada).
+    @Test
+    void nestedTransactionDoesNotCommitOuterScope(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+            main() {
+                var connection = db.connect("jdbc:h2:mem:tx_probe;DB_CLOSE_DELAY=-1")
+                db.execute(connection, "create table entries(id int)")
+                try {
+                    transaction {
+                        db.execute(connection, "insert into entries values (1)")
+                        transaction {
+                            db.execute(connection, "insert into entries values (2)")
+                        }
+                        throw "abort outer transaction"
+                    }
+                } catch (String e) {
+                    println("caught")
+                }
+                var rows = db.query(connection, "select count(*) as n from entries")
+                println(rows.get(0))
+            }
+            """);
+        runJvm(source, tempDir.resolve("out"), "caught\n{\"n\":0}");
+    }
+
     @Test
     void nativeTransactionCommits(@TempDir Path tempDir) throws IOException {
         assumeTrue(isLinux(), "Native transaction requires Linux + libsqlite3");

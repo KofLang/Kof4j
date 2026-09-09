@@ -1475,6 +1475,36 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   reflexão `collect` = 2 files (.kf+.kof no mesmo dir); kof-cli build/test
   verde.
 
+### 77. JVM: `transaction` aninhado comita o escopo externo — rollback posterior não desfaz (GitHub #65) — ✅ CORRIGIDO 09/09 (JVM)
+
+- **Sintoma:** bloco `transaction` dentro de outro executa `commit()` na
+  MESMA conexão antes do externo terminar; o `throw` do externo depois
+  disso deixa as linhas confirmadas no banco (`{"n":2}` com rollback
+  seguinte). Controle sem o bloco interno: `{"n":0}` (rollback simples ok).
+- **Causa raiz:** `JvmConfigRuntime.kof_db_transaction` obtém a conexão,
+  desativa o autocommit e comita ao terminar — SEM consultar o
+  `ThreadLocal KOF_DB_TX`: `prevAuto` já era `false` no bloco interno, mas
+  o commit rodava igual, confirmando as linhas da transação externa.
+- **Correção (09/09, JVM):** `nested = c.equals(KOF_DB_TX.get())` — bloco
+  interno NESTA mesma conexão NÃO comita, não rollbacka, não restaura o
+  autocommit nem remove o `ThreadLocal` (participa da transação externa:
+  qualquer erro propaga p/ o bloco externo decidir — sem savepoints, que é
+  decisão da mantenedora). Bloco em OUTRA conexão mantém transação própria
+  (comportamento anterior). Política de savepoints/aninhamento explícito:
+  decisão da mantenedora (gap registrado aqui, não implementado).
+- **Gap honesto (R6):** o Native (`RuntimeDb4.kof_db_transaction`, asm
+  x86_64) tem o MESMO furo (BEGIN/COMMIT em transação externa comita o
+  escopo externo no sqlite/MySQL) — NÃO corrigido nesta lane (assembly
+  Native, sem ThreadLocal equivalente); lane Native deve espelhar a
+  semântica JVM (flag de transação ativa p/ o handle). O JS não implementa
+  `kof_db_transaction` (gap JS pré-existente, JSN00x).
+- **Prova:** repro EXATO da issue `caught {"n":0}` (antes `{"n":2}`, H2
+  in-memory); teste `nestedTransactionDoesNotCommitOuterScope`; classe
+  KofDbE2ETest 15/0 (2 skips Native pré-existentes).
+
+
+
+
 
 
 
