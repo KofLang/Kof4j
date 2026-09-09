@@ -1,0 +1,93 @@
+name: Bug report
+description: Report a bug in the Kof language, compiler, or standard library
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug. Please provide a minimal
+        reproduction so we can confirm it without rediscovering the problem.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: A clear and concise description of what the bug is.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: target
+    attributes:
+      label: Target
+      description: Which backend does this affect?
+      multiple: true
+      options:
+        - JVM
+        - Native
+        - JS
+        - Script / interpreter
+        - Unknown / all
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Kof version
+      description: Output of `kof --version` (e.g. 0.3.2-beta).
+      placeholder: "0.3.2-beta"
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      description: OS and architecture (e.g. macOS 15 arm64, Ubuntu 24.04 x86_64).
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: The smallest Kof snippet that triggers the bug.
+      render: kof
+    validations:
+      required: true
+
+  - type: input
+    id: command
+    attributes:
+      label: Command used
+      description: The exact command you ran.
+      placeholder: "kof run --target=jvm repro.kof"
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include the full error output or stack trace.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
+        - label: I reproduced this against the latest build.
+          required: true
