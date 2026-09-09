@@ -242,6 +242,22 @@ Fase E  Kof Decompiler          (gerar Kof source)
 > Suíte 1193+25+5+122 — ZERO falhas. Próximo da fila: `anewarray` 0xbd
 > (69×) e joins estruturais (Fase C).
 
+> **Estado (09/09, este commit): Fase E — arrays (`anewarray`/acessos).**
+> `anewarray` (0xbd) + `xaload`/`xastore`/`arraylength` SÓ no statements-path
+> (`statementOp`; linear recusa e cai no statements — mesma saída, menos
+> código, sem pressão no gate). Elemento ESTRITO (`String`/`Object`/domínio;
+> `Integer[]` recusa: `new Int[n]` é `int[]`, semântica distinta). Idioms:
+> `new T[n]`, `a[i]`, `a[i] = v` (stmt), `a.length` (probes JVM/script).
+> Prova: par A (`new String[n]` + store/load/length) compila +
+> `recoversArrayCreateAndAccess` (43/43 DecompileTest). Corpus: single
+> 1674→1658 stubs; drift 13→13 idêntico (zero novo). Suíte 1193+25+5+123 —
+> ZERO falhas. Incidentes da unidade: (1) python sem checar ordem
+> start<end DUPLICOU região do BytecodeDecoder (698 linhas) — revertido via
+> `git checkout` (só tinha código novo da unidade) e o path linear foi
+> ABANDONADO por desnecessário; (2) bug 71 registrado no caminho (Kof
+> `new Int[2][3]` → VerifyError — lane compiler, não tocado);
+> `multianewarray` recusado (sem forma válida p/ recuperar).
+
 ## 7. Relação com o Compilador
 
 O decompiler alimenta o pipeline existente:

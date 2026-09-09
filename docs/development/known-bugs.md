@@ -1306,6 +1306,23 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   backend JS, não do box. Casos excluídos com `Set.of("js")` até o dono do JS
   corrigir.
 
+### 71. JVM: array multidimensional `new Int[2][3]` compila e dá VerifyError — ABERTO (lane compiler/JVM)
+
+- **Sintoma:** `var arr = new Int[2][3]` + `println(arr.length)` → check aprova,
+  JVM rejeita no load: `VerifyError: Bad type on operand stack`.
+- **Causa raiz (bytecode):** o lowering emite `iconst_2; newarray int` (só a
+  1ª dimensão!) e trata o `[3]` como INDEX (`iaload 3`) + `getfield length`
+  sobre int → inválido. Multidimensional não é baixado (sem `multianewarray`
+  nem aninhamento); o `iaload` ainda estouraria (`AIOOBE`, array len 2 zerado).
+- **Repro mínimo:** `main() { var arr = new Int[2][3]
+ println(arr.length) }`
+  (JDK 21, `Default.Main`). Achado 09/09 pela lane migração ao sondar o
+  alvo de `multianewarray` do decompiler — decompiler RECUSA 0xc5 (stub
+  honesto) justamente por não haver forma válida p/ onde recuperar.
+- **Decisão de escopo:** forma `new T[a][b]` existe na sintaxe mas sem
+  semântica funcional = decisão da mantenedora (documentar como gap ou
+  implementar lowering); NÃO corrigir silenciosamente na lane migração.
+
 ### 70. JVM: heterogêneo primitivo-vs-primitivo como arg → crash do backend (`COMPUTE_FRAMES AIOOBE`) — ✅ CORRIGIDO 09/09 (posições de expressão; slots primitivos seguem ABERTOS)
 
 - **Sintoma:** `println(if (s == "") 1 else 2L)` → check aprova, mas o COMPILADOR

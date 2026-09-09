@@ -701,6 +701,47 @@ class DecompileTest {
     }
 
     @Test
+    void recoversArrayCreateAndAccess(@TempDir Path dir) throws Exception {
+        // Fase E arrays: `anewarray` + `aaload`/`aastore`/`arraylength`.
+        // Nenhum existia nos decoders → stub certo. Elemento ESTRITO
+        // (String/Object/domínio; wrappers como Integer[] recusam — `new
+        // Int[n]` é int[], semântica distinta). `arr[i]`/`arr[i] = v`/
+        // `arr.length` são os idioms Kof (training + probes JVM/script).
+        Path src = dir.resolve("classes");
+        Path p = src.resolve("p");
+        Files.createDirectories(p);
+        Path a = p.resolve("A.java");
+        Files.writeString(a, """
+                package p;
+                public class A {
+                    public static String first(int n) {
+                        String[] arr = new String[n];
+                        arr[0] = "hi";
+                        String s = arr[0];
+                        return s;
+                    }
+                    public static int len(String[] a) {
+                        return a.length;
+                    }
+                }
+                """);
+        runJavac(java.util.List.of(a), src);
+        String kof = Decompile.decompile(src.resolve("p/A.class"));
+        assertTrue(kof.contains("new String[arg0]"),
+                "anewarray deve recuperar `new String[n]`:\n" + kof);
+        assertTrue(kof.contains("v1[0] = \"hi\"") && kof.contains("v1[0]"),
+                "aastore/aaload devem recuperar `a[i] = v` / `a[i]`:\n" + kof);
+        assertTrue(kof.contains("arg0.length"),
+                "arraylength deve recuperar `a.length`:\n" + kof);
+        Path out = dir.resolve("gen");
+        Files.createDirectories(out.resolve("p"));
+        Files.writeString(out.resolve("p/A.kf"), kof);
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                out.resolve("p/A.kf")), dir.resolve("o"), Target.JVM, out);
+        assertTrue(r.success(), "array decompilado deve compilar (zero drift):\n" + kof + "\n" + r.diagnostics().getDiagnostics());
+    }
+
+    @Test
     void escapesStringConstantsInDecompiledSource(@TempDir Path dir) throws Exception {
         // R6 (prova de drift 09/09): o ldc emitia a string do CP CRUA — `\b`,
         // newline real e `"` estouravam o lexer do .kf (LEX002/LEX004). Agora

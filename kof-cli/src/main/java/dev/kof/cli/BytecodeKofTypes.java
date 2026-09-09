@@ -71,6 +71,36 @@ final class BytecodeKofTypes {
                 stack.push(marker.substring("⟦new⟧".length()) + "(" + String.join(", ", callArgs) + ")");
                 return true;
             }
+            case 0xbd -> { // anewarray → `new T[n]` (mirror do path linear).
+                // Elemento ESTRITO (String/Object/domínio; wrappers recusam).
+                if (stack.isEmpty()) return false;
+                String elem = arrayElementType(cp, in.operands()[0], frame);
+                if (elem == null) return false;
+                String n = stack.pop();
+                stack.push("new " + elem + "[" + n + "]");
+                return true;
+            }
+            case 0x2e, 0x2f, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35 -> { // xaload → `a[i]`
+                if (stack.size() < 2) return false;
+                String idx = stack.pop();
+                String arr = stack.pop();
+                stack.push(arr + "[" + idx + "]");
+                return true;
+            }
+            case 0x4f, 0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56 -> { // xastore → `a[i] = v`
+                if (stack.size() < 3) return false;
+                String v = stack.pop();
+                String idx = stack.pop();
+                String arr = stack.pop();
+                // stmt sem valor (void no bytecode) — como `pop` de chamada
+                stmts.add(arr + "[" + idx + "] = " + v);
+                return true;
+            }
+            case 0xbe -> { // arraylength → `a.length` (Kof idiomático)
+                if (stack.isEmpty()) return false;
+                stack.push(stack.pop() + ".length");
+                return true;
+            }
             default -> { return false; }
         }
     }
@@ -135,10 +165,25 @@ final class BytecodeKofTypes {
     }
 
     /**
+     * Elemento de `anewarray` → nome Kof, ou null (recusar → stub).
+     * Regra ESTRITA (probes 09/09): `String`/`Object`/domínio-via-índice
+     * compilam como `new T[n]`; wrappers (`Integer[]`) NÃO têm paralelo
+     * (`new Int[n]` é `int[]`, semântica distinta) → recusar; arrays e
+     * malformados caem no regex do índice.
+     */
+    static String arrayElementType(String[] cp, int classIdx, BytecodeFrame frame) {
+        String n = BytecodeDecoder.resolveClassName(cp, classIdx);
+        if (n == null) return null;
+        if (n.equals("String") || n.equals("Object")) return n;
+        if (frame == null) return null;
+        return indexKofType(cp, classIdx, frame);
+    }
+
+    /**
      * §7 degrau 2–3: resolve Class CP entry contra o escopo da árvore
      * (`kof decompile <dir>`). Mesmo pacote → simples (sem import);
      * outro pacote → simples + import (degrau 3), se globalmente único.
-     * Fora disso (escopo ausente = modo 1-arquivo, fora do índice, `Outer$Inner`,
+     * Fora disso (escopo ausente = modo 1-arquivo, outro pacote, `Outer$Inner`,
      * ambíguo, CP malformada) → null → stub honesto. Nunca inventa.
      */
     static String indexKofType(String[] cp, int classIdx, BytecodeFrame frame) {

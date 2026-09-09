@@ -419,10 +419,12 @@ final class BytecodeStatements {
                 case 0x6c -> { if (!BytecodeDecoder.bin(stack, "/")) return null; }
                 case 0x70 -> { if (!BytecodeDecoder.bin(stack, "%")) return null; }
                 case 0x74 -> { if (stack.isEmpty()) return null; stack.push("-" + stack.pop()); }
-                // Fase E: construção/teste-emit (0xbb new, 0x59 dup, 0xb7 init,
-                // 0x57 pop, 0xc0 cast, 0xc1 instanceof) — semântica em
-                // BytecodeKofTypes (gate ≤500); false = recusar → stub.
-                case 0x57, 0xc0, 0xc1, 0xbb, 0x59, 0xb7 -> {
+                // Fase E: construção/teste-emit (0xbb new, 0xbd anewarray,
+                // 0x59 dup, 0xb7 init, 0x57 pop, 0xc0 cast, 0xc1 instanceof)
+                // — semântica em BytecodeKofTypes (gate ≤500); false = stub.
+                case 0x57, 0xc0, 0xc1, 0xbb, 0xbd, 0x59, 0xb7,
+                     0x2e, 0x2f, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35,
+                     0x4f, 0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0xbe -> {
                     if (!BytecodeKofTypes.statementOp(op, in, stack, cp, stmts, frame)) return null;
                 }
                 case 0xb8 -> { // invokestatic
