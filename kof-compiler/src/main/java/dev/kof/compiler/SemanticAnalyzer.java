@@ -32,6 +32,9 @@ public class SemanticAnalyzer {
     private final Map<NewExpr, SymbolTable.ConstructorSymbol> resolvedConstructors = new IdentityHashMap<>();
     private final Map<String, SymbolTable> classMemberScopes = new HashMap<>();
     private String currentClassName;
+    /** DD-02/#42: dentro de corpo de construtor? `this.campo =` em record só
+     *  é legal no construtor (JVMS: final field init); métodos → SEM038. */
+    boolean inConstructor;
     /** Pacote efetivo por declaração (multi-pacote num módulo), vindo do driver. */
     private java.util.function.Function<AstNode, String> declarationPackageLookup;
 
@@ -192,7 +195,10 @@ public class SemanticAnalyzer {
         if (ctorScope == null || ctor.body() == null || ctor.body().isEmpty()) return;
         SymbolTable prevScope = currentScope;
         currentScope = ctorScope;
+        boolean prevCtor = inConstructor;
+        inConstructor = true;
         StatementAnalyzer.analyzeBody(this, ctor.body(), ctorScope, Type.PrimitiveType.VOID);
+        inConstructor = prevCtor;
         currentScope = prevScope;
     }
 

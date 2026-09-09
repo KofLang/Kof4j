@@ -288,57 +288,79 @@ class CompilerDriverTest {
         assertTrue(result.success(), "var assignment should still compile: " + result.diagnostics().getDiagnostics());
     }
 
-    // known-bugs #62(b) — escrita em componente de RECORD é imutável (SEM038).
+    // known-bugs #42 (b) — escrita em componente de record divergia nos 3
+    // caminhos (JVM IllegalAccessError / JS TypeError / interp mutava). Agora
+    // é SEM038 no frontend, igual nos 4 targets.
     @Test
-    void assignmentToRecordComponentGivesCleanDiagnostic(@TempDir Path tempDir) throws IOException {
+    void writeRecordComponentGivesSem038(@TempDir Path tempDir) throws IOException {
         Path source = tempDir.resolve("Bad.kf");
         Files.writeString(source, """
-            record P(Int x)
+            record P(Int x, Int y)
             main() {
-                var p = P(1)
+                var p = P(1, 2)
                 p.x = 9
             }
             """);
         CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
-        assertFalse(result.success(), "assignment to record component should fail to compile");
-        String diags = result.diagnostics().getDiagnostics().toString();
-        assertTrue(diags.contains("SEM038"), "Should be a clean diagnostic, was: " + diags);
+        assertFalse(result.success(), "write to record component should fail to compile");
+        assertTrue(result.diagnostics().getDiagnostics().toString().contains("SEM038"),
+                "should be SEM038, was: " + result.diagnostics().getDiagnostics());
     }
 
-    // known-bugs #62(c) — escrita em `this.x` dentro de record é imutável.
+    // known-bugs #42 (c) — `this.x =` em MÉTODO de record (não no construtor).
     @Test
-    void assignmentToThisRecordComponentGivesCleanDiagnostic(@TempDir Path tempDir) throws IOException {
+    void writeRecordFieldViaThisInMethodGivesSem038(@TempDir Path tempDir) throws IOException {
         Path source = tempDir.resolve("Bad.kf");
         Files.writeString(source, """
             record P(Int x) {
-                bump() { this.x = 99 }
+                bump() {
+                    this.x = 99
+                }
             }
-            main() { P(1).bump() }
+            main() { println(P(1).x()) }
             """);
         CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
-        assertFalse(result.success(), "assignment to this record component should fail to compile");
-        String diags = result.diagnostics().getDiagnostics().toString();
-        assertTrue(diags.contains("SEM038"), "Should be a clean diagnostic, was: " + diags);
+        assertFalse(result.success(), "this.x in record method should fail to compile");
+        assertTrue(result.diagnostics().getDiagnostics().toString().contains("SEM038"),
+                "should be SEM038, was: " + result.diagnostics().getDiagnostics());
     }
 
-    // known-bugs #62 — escrita em campo de CLASSE MUTÁVEL continua permitida.
+    // #42: `this.x =` DENTRO DO CONSTRUTOR de record continua legal (init do
+    // campo final, JVMS 4.4) e classe mutável nunca foi afetada.
     @Test
-    void assignmentToMutableClassFieldStillCompiles(@TempDir Path tempDir) throws IOException {
+    void recordConstructorThisAssignRemainsLegal(@TempDir Path tempDir) throws IOException {
         Path source = tempDir.resolve("Ok.kf");
         Files.writeString(source, """
-            class Box {
-                Int n
-                public constructor(Int n) { this.n = n }
-                set(Int v) { this.n = v }
+            record P(Int x)
+            class R {
+                Int x
+                constructor(Int x) { this.x = x }
+                bump() { this.x = 9 }
             }
             main() {
-                var b = Box(1)
-                b.set(2)
-                println(b.n)
+                var r = R(1)
+                r.bump()
+                println(r.x)
             }
             """);
         CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
-        assertTrue(result.success(), "assignment to mutable class field should compile: " + result.diagnostics().getDiagnostics());
+        assertTrue(result.success(), "class field write must stay legal: " + result.diagnostics().getDiagnostics());
+    }
+
+    // #42 — o update do `for` tinha atalho que pulava o checkpoint de atribuição:
+    // `for (val i = 0; ...; i = i + 1)` era silencioso. Agora SEM037.
+    @Test
+    void forUpdateAssignmentToValGivesSem037(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Bad.kf");
+        Files.writeString(source, """
+            main() {
+                for (val i = 0; i < 2; i = i + 1) { println(i) }
+            }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "for-update write to val should fail to compile");
+        assertTrue(result.diagnostics().getDiagnostics().toString().contains("SEM037"),
+                "should be SEM037, was: " + result.diagnostics().getDiagnostics());
     }
 
     // known-bugs #26 — a void call used as a VALUE (println(f()) where f is

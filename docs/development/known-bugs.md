@@ -1040,7 +1040,7 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 
 ---
 
-### 62. Frontend não valida mutabilidade: `val` é decorativo e escrita em componente de record diverge nos 3 caminhos (GitHub #42) — ✅ CORRIGIDO (a) SEM037 `val`; (b)/(c) SEM038 record component (DD-02)
+### 62. Frontend não valida mutabilidade: `val` é decorativo e escrita em componente de record diverge nos 3 caminhos (GitHub #42) — ✅ CORRIGIDO 09/09 (sintomas a/b/c)
 
 - **Sintoma (a):** `main() { val x = 1; x = 2; println(x) }` → `kof check` "no
   errors" e imprime **`2`** no JVM, KofJS e interpretador. `val` não é imutável.
@@ -1077,7 +1077,20 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   `StatementAnalyzer`/`StatementLowerer`/`CompilerFunctionLowering` tratam "val"
   como keyword (como "var") na inferência de tipo. Testes:
   `CompilerDriverTest.{assignmentToValGivesCleanDiagnostic,compoundAssignmentToValGivesCleanDiagnostic,varRemainsMutable}`.
-  Sintomas (b) `record P(Int x); p.x = 9` e (c) `this.x = 99` em record permanecem ABERTOS (exigem checagem de acesso a campo de record no `FieldAccessExpr` — alvo de escopo separado).
+- **Sintomas (b)+(c) CORRIGIDOS 09/09 (`cd0da824` + este commit, checkpoint
+  único `StatementAnalyzer.analyzeAssignmentStatement`):** alvo `FieldAccessExpr`
+  agora resolve o tipo do receiver (ou `currentClassName()` p/ `this`) e, se
+  `CompilerTypes.isRecordType`, emite **SEM038** ("cannot assign to 'x': record
+  is immutable"). (b) `p.x = 9` e (c) `this.x = 99` em MÉTODO de record viram
+  erro de compilação nos 4 caminhos (JVM `IllegalAccessError`, JS `TypeError` e
+  interp silencioso tornam-se inalcançáveis — paridade cross-target). A escrita
+  `this.x =` só é exempta DENTRO DE CONSTRUTOR (init do campo final, JVMS 4.4):
+  flag `inConstructor` salvo-restaurado em `analyzeConstructorBody`. Furo
+  adicional fechado no mesmo checkpoint: o `update` do `for` tinha atalho que só
+  inferia tipos (sem checagem de atribuição) → `for (val i = 0; i < 2; i = i + 1)`
+  era silencioso; agora usa `analyzeAssignmentStatement` (SEM012/037/038 de
+  graça). Prova CLI: check nos 4 cenários (b/c erro; ctor de record ok; classe
+  mutável ok) + suíte 1154/0-falhas-minhas.
 - **Arquivos:** `StatementAnalyzer.java` (`analyzeAssignmentStatement`),
   `SemanticAnalyzer.java`.
 - **Cobertura:** nenhum teste da suíte cobre imutabilidade (busca por
