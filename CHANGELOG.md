@@ -601,6 +601,12 @@ Linha de desenvolvimento 0.3.0 aberta em 04/09/2026. Semântica congelada
 
   - sintetizar hashCode() para records no backend nativo (#55)
 
+## [0.3.4-beta] - 2026-09-09
+
+### Documentation
+
+  - add GitHub issue form templates
+
 <!-- NEXT-RELEASE -->
 
 ## [0.2.7-beta] - 2026-09-04
