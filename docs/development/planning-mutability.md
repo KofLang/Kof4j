@@ -1,6 +1,6 @@
 # Planning — Validadores de mutabilidade: `val` e record (DD-02, GitHub #42)
 
-> **Status:** `PROPOSED` (aguarda decisão da mantenedora) · **Issues:** #42 ·
+> **Status:** `APLICADO` (erro direto, `cd0da824`+`ed0475c8`; reversão p/ warning = 1 linha) · **Issues:** #42 (FECHADA), #53 (aberta: record+ctor explícito → ClassFormatError JVM, pré-existente) ·
 > **Bump:** 0.3.1 → 0.3.2-beta · **Gate:** suíte completa + corpus sincronizado ·
 > **Criado:** 09/09/2026 (análise da sessão da lane migração/issues)
 
