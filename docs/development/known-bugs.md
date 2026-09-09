@@ -923,6 +923,10 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   mesma família do bug 61 (binário `_start` cru); se o send chega antes do
   receive o caminho vazio não roda. Validar o caso `spawn { c.send(42) }` +
   `c.receive()` com qemu/valgrind.
+- **Teste de validação (09/09):** `KofConcurrency2Test.channelWithSpawnNative`
+  (`spawn { c.send(42) }` + `c.receive()` no NATIVE, esperado `v=42`) — o caso
+  do bug 50 que a suíte não cobria. Uso: qualquer correção do bug 50 deve deixar
+  este teste verde (exit 0, sem SIGSEGV 139).
 
 ### 51. `CompilerDriver` reutilizado vaza classes sintéticas → 2ª compilação Native quebra (link: `undefined reference to 'calc'`) — ✅ CORRIGIDO 07/09 (compiler-core)
 
