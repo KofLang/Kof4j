@@ -21,13 +21,7 @@ Estados: `ABERTO` · `EM CURSO` · `FEITO` · `BLOQUEADO`.
 
 ## PRÓXIMO PASSO (re-dispacho lê isto)
 
-**PRÓXIMO PASSO (08/09, lane UI/KofJS — Fase 4):** Fila KofUI avançada:
-R4 (Fase D Type Recovery) ✅ `367d6c4`; UI003 fieldset/iframe/video/audio/hr ✅
-`358ec80`; UI006 Event key/value/x/y + widget.on ✅ `f0907c2`; UI002 warning
-único no interpretador ✅ `7081551` (aditivo, no-op preservado, R6; teste
-`KofScriptTest.ui002WarnsOnceOnUiCalls`); **UI006 residual target()/
-relatedTarget() ✅ `61696ee` + fix de token neste commit** — `Event.target()`
-retorna o id do nó origem (fallback tagName minúscula, "" fora do browser);
+**PRÓXIMO PASSO:** JSON runtime fixes commitado (e9156c72) — JsonDispatch/RuntimeJsonDecode/RuntimePrintNum improvements. Auto-loop ATIVO (30min). Próxima tarefa: escolher gap livre em `docs/development/known-bugs.md` e `development/roadmap-audit.md`. Itens abertos: CANVAS001, HTTP003, WEB001/002, MEDIA001/2/3, SECPQ.
 `relatedTarget()` idem p/ nó relacionado. 8/9 pontos: KofUi (registry STR),
 JsRuntimeUiEvents (`raw.target.id` no kofEv), RuntimeUi (intrínseco + alias
 `Event_target`/`Event_relatedTarget`), JvmRuntimeUi + CallDescriptors
