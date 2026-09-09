@@ -423,8 +423,8 @@ final class BytecodeStatements {
                 // tipos sempre-em-escopo + heurística de chamada p/ pop — a
                 // semântica (R6, recusa→stub) mora em BytecodeKofTypes.
                 case 0x57, 0xc0, 0xc1 -> {
-                    if (stack.isEmpty()
-                            || !BytecodeKofTypes.exprOp(op, stack, cp, in.operands()[0], stmts))
+                    int idx = op == 0x57 ? 0 : in.operands()[0];   // pop não tem operando
+                    if (stack.isEmpty() || !BytecodeKofTypes.exprOp(op, stack, cp, idx, stmts))
                         return null;
                 }
                 case 0xb8 -> { // invokestatic

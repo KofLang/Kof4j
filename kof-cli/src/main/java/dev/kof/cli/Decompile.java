@@ -29,13 +29,16 @@ public final class Decompile {
             args = java.util.Arrays.copyOfRange(args, 1, args.length);
         }
         if (args.length == 0) {
-            System.err.println("usage: kof decompile <file.class> [--output <file.kf>]");
+            System.err.println("usage: kof decompile <file.class|dir> [--output <file.kf|dir>]");
             return 1;
         }
         Path classFile = Path.of(args[0]);
         String outArg = optionValue(args, "--output");
         Path outFile = outArg != null ? Path.of(outArg) : null;
 
+        if (Files.isDirectory(classFile)) {
+            return decompileTree(classFile, outFile);
+        }
         if (!Files.isRegularFile(classFile)) {
             System.err.println("file not found: " + classFile);
             return 1;
@@ -60,12 +63,69 @@ public final class Decompile {
         }
     }
 
+    /**
+     * Modo multi-classe (DECOMPILER §7, degrau 1): varre um diretório de
+     * {@code .class}, decompila cada um p/ um {@code .kf} na ÁRVORE espelhada
+     * em {@code out} (com {@code package} derivado do caminho interno). O
+     * frontend Kof resolve tipos de MESMO pacote entre arquivos sem import
+     * (probe PKG004/SEM025) — então referências de domínio cross-file (as 4
+     * drifts restantes no corpus) deixam de ser "Undefined type". Cada arquivo
+     * é independente; um que falha não derruba os demais (R6: nunca silencioso
+     * — reporta no stderr e segue).
+     */
+    static int decompileTree(Path root, Path out) {
+        if (out == null) {
+            System.err.println("kof decompile <dir> exige --output <dir>");
+            return 1;
+        }
+        int ok = 0, fail = 0;
+        try (var walk = Files.walk(root)) {
+            var classes = walk.filter(Files::isRegularFile)
+                    .filter(p -> p.toString().endsWith(".class")).sorted().toList();
+            for (Path c : classes) {
+                try {
+                    var ir = ClassFileParser.parse(Files.newInputStream(c));
+                    String pkg = packageOf(ir.thisClass);
+                    String src = decompile(c, pkg);
+                    Path dest = out;
+                    if (!pkg.isEmpty()) dest = dest.resolve(pkg.replace('.', '/'));
+                    dest = dest.resolve(simpleName(ir.thisClass) + ".kf");
+                    Files.createDirectories(dest.getParent());
+                    Files.writeString(dest, src);
+                    ok++;
+                } catch (Throwable t) {
+                    fail++;
+                    System.err.println("kof decompile: " + c + ": " + t);
+                }
+            }
+        } catch (IOException e) {
+            System.err.println("kof decompile: " + e.getMessage());
+            return 1;
+        }
+        System.out.println("decompiled " + ok + " class(es) → " + out + (fail > 0 ? " (" + fail + " falharam)" : ""));
+        return fail > 0 ? 1 : 0;
+    }
+
+    /** Pacote Kof (pontos) derivado do internal name; "" p/ default package. */
+    static String packageOf(String internalName) {
+        if (internalName == null) return "";
+        int slash = internalName.lastIndexOf('/');
+        return slash < 0 ? "" : internalName.substring(0, slash).replace('/', '.');
+    }
+
     static String decompile(Path classFile) throws IOException {
+        return decompile(classFile, null);
+    }
+
+    static String decompile(Path classFile, String pkg) throws IOException {
         var ir = ClassFileParser.parse(Files.newInputStream(classFile));
         StringBuilder sb = new StringBuilder();
         sb.append("// decompiled from ").append(classFile.getFileName()).append('\n');
         sb.append("// structural skeleton — simple method bodies recovered; others stubbed (Fase E)\n");
-        sb.append("// confidence: class/fields/signatures = EXACT; recovered bodies = EXACT; stubs = UNKNOWN\n\n");
+        sb.append("// confidence: class/fields/signatures = EXACT; recovered bodies = EXACT; stubs = UNKNOWN\n");
+        if (pkg == null) pkg = packageOf(ir.thisClass);
+        if (!pkg.isEmpty()) sb.append("package ").append(pkg).append("\n\n");
+        else sb.append('\n');
 
         String simpleName = simpleName(ir.thisClass);
         sb.append("class ").append(simpleName);

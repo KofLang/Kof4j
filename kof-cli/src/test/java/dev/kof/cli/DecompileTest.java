@@ -9,6 +9,7 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -437,6 +438,41 @@ class DecompileTest {
         byte[] nul = {0x01, (byte) 0xb0};                          // aconst_null; areturn
         assertEquals("null", BytecodeDecoder.recoverExpression(nul, cp,
                 new BytecodeFrame("()Ljava/lang/String;", true)), "aconst_null → null");
+    }
+
+    @Test
+    void decompileTreeEmitsPackageAndResolvesCrossFileReference(@TempDir Path dir) throws Exception {
+        // §7 multi-classe degrau 1: `kof decompile <dir>` espelha a árvore com
+        // `package`, e o frontend resolve tipo de MESMO pacote entre arquivos
+        // SEM import (probe PKG004) → referência cross-file deixa de ser
+        // "Undefined variable or type" (as 4 drifts restantes no corpus).
+        Path src = dir.resolve("classes");
+        Path pkg = src.resolve("p");
+        Files.createDirectories(pkg);
+        Path b = pkg.resolve("B.java");
+        Files.writeString(b, """
+                package p;
+                public class B { public int v; public B(int v) { this.v = v; } }
+                """);
+        Path c = pkg.resolve("C.java");
+        Files.writeString(c, """
+                package p;
+                public class C {
+                    public static int use(B b) { return b.v; }
+                }
+                """);
+        runJavac(List.of(b, c), pkg);
+        Path out = dir.resolve("gen");
+        Decompile.decompileTree(src, out);
+        String bSrc = Files.readString(out.resolve("p/B.kf"));
+        String cSrc = Files.readString(out.resolve("p/C.kf"));
+        assertTrue(bSrc.contains("\npackage p\n"), "decompileTree deve emitir package:\n" + bSrc);
+        assertTrue(cSrc.contains("use(B"), "C referencia B por nome simples:\n" + cSrc);
+        // prova de fogo: o PAR compilado junto (mesmo pacote) resolve B em C —
+        // sem o modo multi-arquivo, C.kf sozinho daria SEM011.
+        CompilationResult r = new CompilerDriver().compileSources(List.of(
+                out.resolve("p/B.kf"), out.resolve("p/C.kf")), dir.resolve("o"), Target.JVM, out);
+        assertTrue(r.success(), "cross-file mesmo pacote deve compilar:\n" + cSrc + "\n" + r.diagnostics().getDiagnostics());
     }
 
     @Test
@@ -923,9 +959,16 @@ class DecompileTest {
     }
 
     private void runJavac(Path javaFile, Path dir) throws IOException, InterruptedException {
+        runJavac(java.util.List.of(javaFile), dir);
+    }
+
+    private void runJavac(java.util.List<Path> javaFiles, Path dir) throws IOException, InterruptedException {
         String javaHome = System.getProperty("java.home");
         Path javac = Path.of(javaHome, "bin", "javac");
-        ProcessBuilder pb = new ProcessBuilder(javac.toString(), "-d", dir.toString(), javaFile.toString());
+        var cmd = new java.util.ArrayList<String>();
+        cmd.add(javac.toString()); cmd.add("-d"); cmd.add(dir.toString());
+        for (Path f : javaFiles) cmd.add(f.toString());
+        ProcessBuilder pb = new ProcessBuilder(cmd);
         pb.redirectErrorStream(true);
         Process p = pb.start();
         int rc = p.waitFor();
