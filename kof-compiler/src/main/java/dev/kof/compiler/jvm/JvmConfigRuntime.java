@@ -214,6 +214,13 @@ public final class JvmConfigRuntime {
 
                 private static final java.util.concurrent.ConcurrentHashMap<String, java.sql.Connection> KOF_DB_CONNECTIONS =
                         new java.util.concurrent.ConcurrentHashMap<>();
+                // issue #60: o id era "db" + (size() + 1) — fechar uma conexão
+                // e abrir outra reutilizava o id de uma conexão AINDA ABERTA,
+                // sobrescrevia o registro e redirecionava operações p/ o banco
+                // errado (silencioso). Contador monotônico: nunca reutiliza
+                // handle (mesmo padrão do KOF_MONGO_SEQ acima).
+                private static final java.util.concurrent.atomic.AtomicInteger KOF_DB_SEQ =
+                        new java.util.concurrent.atomic.AtomicInteger();
                 private static volatile String KOF_DB_DEFAULT;
                 private static final ThreadLocal<java.sql.Connection> KOF_DB_TX = new ThreadLocal<>();
 
@@ -250,7 +257,7 @@ public final class JvmConfigRuntime {
                 }
 
                 private static String kof_db_register(java.sql.Connection c) {
-                    String id = "db" + (KOF_DB_CONNECTIONS.size() + 1);
+                    String id = "db" + KOF_DB_SEQ.incrementAndGet();
                     KOF_DB_CONNECTIONS.put(id, c);
                     KOF_DB_DEFAULT = id;
                     return id;

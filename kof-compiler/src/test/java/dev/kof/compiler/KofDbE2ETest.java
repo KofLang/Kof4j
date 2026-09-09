@@ -385,8 +385,34 @@ class KofDbE2ETest {
     }
 
     @Test
-    void crossNativeReportsDb001(@TempDir Path tempDir) throws IOException {
-        // R6: db exige link dinâmico de libsqlite3 (libc) — os cross estáticos
+    void handleReuseAfterCloseDoesNotAliasLiveConnection(@TempDir Path tempDir) throws IOException {
+        // issue #60 — `kof_db_register` gerava `"db" + (size() + 1)`: fechar
+        // `a` e abrir `c` reutilizava o id de `b` (ainda aberta), sobrescrevia
+        // o registro e o UPDATE via `b` escrevia no banco C — silencioso.
+        // Fix: contador monotônico (nunca reutilizar handle de conexão ativa).
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+            main() {
+                var a = db.connect("jdbc:h2:mem:database_a;DB_CLOSE_DELAY=-1")
+                var b = db.connect("jdbc:h2:mem:database_b;DB_CLOSE_DELAY=-1")
+                db.execute(b, "create table marker(amount int)")
+                db.execute(b, "insert into marker values (20)")
+                db.close(a)
+                var c = db.connect("jdbc:h2:mem:database_c;DB_CLOSE_DELAY=-1")
+                db.execute(c, "create table marker(amount int)")
+                db.execute(c, "insert into marker values (30)")
+                println(b)
+                println(c)
+                db.execute(b, "update marker set amount = 99")
+                var rows = db.query(c, "select amount as n from marker")
+                println(rows.get(0))
+            }
+            """);
+        runJvm(source, tempDir.resolve("jvm"), "db2\ndb3\n{\"n\":30}");
+    }
+
+    @Test
+    void crossNativeReportsDb001(@TempDir Path tempDir) throws IOException {        // R6: db exige link dinâmico de libsqlite3 (libc) — os cross estáticos
         // (asm puro, sem C) reportam DB001 em compile-time, nunca undefined-
         // reference silencioso no ld.
         Path source = tempDir.resolve("Main.kf");
