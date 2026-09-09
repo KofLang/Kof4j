@@ -158,6 +158,34 @@ class CoreRegressionE2ETest {
         assertEquals("1.0\n2.0\n3", runJvm(out));
     }
 
+    // GitHub #63 / bug 73 — LineNumberTable inválida em arquivo grande e
+    // denso de if/try/while: 2 labels de debug CONSECUTIVOS resolviam para o
+    // mesmo start_pc (o primeiro op do statement seguinte é KofLabel de IR,
+    // que NÃO é instrução) → 2 entries de LNT no mesmo pc → hotspot rejeita
+    // com `ClassFormatError: Invalid pc in LineNumberTable` no load. Fix:
+    // label de debug é retido e só visitado junto com a primeira instrução
+    // real; nunca 2 entries no mesmo pc.
+    @Test
+    void largeDenseFileLoadsOnJvm(@TempDir Path tempDir) throws IOException {
+        Path src = tempDir.resolve("dense.kf");
+        StringBuilder sb = new StringBuilder("main() {\n    var t = 0\n");
+        for (int i = 1; i <= 60; i++) {
+            sb.append("    try {\n")
+              .append("        if (t > ").append(i).append(") { t = t + ").append(i).append(" } else { t = t - ").append(i).append(" }\n")
+              .append("        for (var a").append(i).append(" in listOf(1, 2)) {\n")
+              .append("            try { t = t + a").append(i).append(" } catch (String e) { t = t - a").append(i).append(" } finally { t = t + 1 }\n")
+              .append("            while (t > ").append(i * 100).append(") { t = t - ").append(i * 10).append(" }\n")
+              .append("        }\n")
+              .append("    } catch (String e) { t = t - 1 } finally { t = t + 1 }\n");
+        }
+        sb.append("    println(t)\n}\n");
+        Files.writeString(src, sb.toString());
+        Path out = tempDir.resolve("dense-jvm");
+        CompilationResult r = driver.compile(src, out, Target.JVM);
+        assertTrue(r.success(), "JVM compile failed: " + r.diagnostics().getDiagnostics());
+        assertEquals("2188", runJvm(out));
+    }
+
     // B10 — primary constructor fields accessible inside methods (all targets)
     @Test
     void primaryConstructorFieldsInMethods(@TempDir Path tempDir) throws IOException {

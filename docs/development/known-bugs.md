@@ -1367,6 +1367,39 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   CoreRegressionE2ETest 45/0. Repro J62 standalone: antes
   `GenericSignatureFormatError`, depois `exit=0 out={"params":[1.0,2.0],"step":3}`.
 
+### 73. JVM: 2 labels de debug consecutivos → LNT com entries no mesmo pc → ClassFormatError no load (GitHub #63) — ✅ CORRIGIDO 09/09
+
+- **Sintoma:** arquivo `.kf` grande (280 linhas, denso de `if`/`try`/`catch`/
+  `finally`/`while` — repro real `lab.kof.old` de ThiagoLange) compila
+  (`kof check` OK) mas o `kof run` falha no LOAD:
+  `ClassFormatError: Invalid pc in LineNumberTable in class file Default/Main`.
+  Regressão 0.3.2 (0.1.3 OK); arquivo compacto (15 linhas) passa.
+- **Causa raiz (LNT, não lowering):** `JvmBackend.emitMethod` visitava um
+  `visitLabel`+`visitLineNumber` ANTES do emit de cada op com debug-position
+  de line nova. Statements seguidos cujos primeiros ops são `KofLabel` de IR
+  (que NÃO é instrução real — `visitLabel` não avança o pc) geravam 2 labels
+  de debug CONSECUTIVOS resolvendo para o MESMO `start_pc` → 2 entries de
+  LineNumberTable no mesmo pc. Probes ASM (`Mk3`/`Mk5`): hotspot rejeita
+  dup-pc MESMO com lines diferentes — e também fora de ordem/pc além do
+  código. Arquivos densos: o epílogo de `while` (label end com pos da line
+  do while) seguido do statement seguinte (line nova, zero instrução entre)
+  é o padrão mais frequente (6 sites no repro).
+- **Correção (09/09):** o label de debug é RETIDO (`pendingDebugLabel`) e só
+  é visitado junto com a LNT quando uma instrução real for emitida — `KofLabel`
+  de IR nunca limpa o pending nem dispara a visitação. Um novo debug-pos com
+  pending retido SUBSTITUI (a line anterior descrevia zero insns); pending
+  já visitado + nenhuma instrução real desde → novo label é skipado (as
+  próximas instruções seguem descrevendo a line anterior — debug impreciso
+  em vez de classe inválida, nunca falha de load).
+- **Prova:** repro real (`lab.kof.old`, 280 linhas) compilada pelo driver:
+  antes `exit=1 ClassFormatError Invalid pc` (JDK 21 + JDK 25), depois
+  `exit=0` com output correto do dispatcher; `javap` LNT validada por
+  parser (0 dup-pc/0 não-monotônico/0 overflow nos 13 métodos); scan
+  `-Xverify:all` nas 26 classes do output = 0 falha (JDK 21). Teste
+  `CoreRegressionE2ETest.largeDenseFileLoadsOnJvm` (60 blocos try/for/
+  while/finally aninhados, ~420 linhas geradas → 2188). Suíte
+  CoreRegressionE2ETest 46/0.
+
 
   (`println(if (c) true else 5)` → script `1` vs JVM `true`); lado JVM
   inalterado pela mudança (mesmo `Boolean.valueOf` antes e depois) —
