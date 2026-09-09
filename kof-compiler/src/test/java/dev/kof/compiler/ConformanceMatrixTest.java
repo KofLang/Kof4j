@@ -505,6 +505,28 @@ class ConformanceMatrixTest {
                     })
                 }
                 """, "1", Set.of("js"), tempDir);
+        // §70 — heterogêneo primitivo-vs-primitivo de slots distintos
+        // (Int 1-word vs Long 2-word): o join quebrava o COMPUTE_FRAMES
+        // (crash AIOOBE) em vez de VerifyError. Fix: cada ramo boxeado
+        // p/ SEU boxed (sem widening: `2L` imprime `2`, paridade script).
+        matrix("ifexpr-intlong-direct", """
+                main() {
+                    var s = ""
+                    println(if (s == "") 1 else 2L)
+                }
+                """, "1", Set.of("js"), tempDir);
+        matrix("ifexpr-longdouble-direct", """
+                main() {
+                    var s = ""
+                    println(if (s == "") 2L else 2.5)
+                }
+                """, "2", Set.of("js"), tempDir);
+        matrix("ifexpr-intnull-direct", """
+                main() {
+                    var s = ""
+                    println(if (s == "") 1 else null)
+                }
+                """, "1", Set.of("js"), tempDir);
         matrix("switchexpr", """
                 main() {
                     var v = 3

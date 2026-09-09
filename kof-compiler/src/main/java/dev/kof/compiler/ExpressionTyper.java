@@ -240,61 +240,78 @@ public final class ExpressionTyper {
     }
 
     /**
-     * IfExpr com branches heterogêneos primitivo-vs-referência (issue #57):
-     * o typer devolve o thenType, e o box pós-join ({@code kof_box} p/ o
-     * thenType) aplicaria {@code Integer.valueOf} ao valor do outro ramo
-     * (ex.: String) → VerifyError. true = cada ramo primitivo deve ser
-     * boxeado IN-branch (no lowering) e os callers devem PULAR o box
-     * pós-expressão. O check continua aprovando (semântica congelada);
-     * só o codegen muda — de classe inválida para válida.
+     * Ramos divergem? (issue #57 generalizada p/ §70): tipos distintos entre
+     * branches de if/switch. Só dispara sobre tipos CONCRETOS (primitivo
+     * não-void, classe, array, nullable destrinchado); Unknown/TypeVariable/
+     * Function (lambdas!) → false = status quo (nunca quebrar o que hoje
+     * verifica por acidente). Distintos → cada ramo primitivo é boxeado
+     * p/ SEU PRÓPRIO boxed (sem widening: `2L` continua `Long(2)`, não
+     * `Double(2.0)` — paridade com o interpretador por construção) e o
+     * caller pula o pós-box (join só tem referências).
      */
-    static boolean ifNeedsInnerBox(CompilerDriver driver, IfExpr ie,
-                                   List<IRLocalVariable> locals) {
-        if (ie.elseExpr() == null) return false;
-        Type t = inferExprType(driver, ie.thenExpr(), locals);
-        Type e = inferExprType(driver, ie.elseExpr(), locals);
-        return TypeMetrics.isPrimitiveType(t) != TypeMetrics.isPrimitiveType(e);
+    static boolean branchTypesDiffer(List<Type> ts) {
+        for (Type t : ts) if (!isConcreteBranchType(t)) return false;
+        return ts.stream().distinct().count() > 1;
+    }
+
+    static boolean isConcreteBranchType(Type t) {
+        if (t instanceof Type.PrimitiveType pt) return !"void".equals(pt.name());
+        if (t instanceof Type.ClassType) return true;
+        if (t instanceof Type.ArrayType) return true;
+        if (t instanceof Type.NullableType nt) return isConcreteBranchType(nt.inner());
+        return false;
+    }
+
+    /** Tipos dos ramos do if (then, else) p/ `branchTypesDiffer`. */
+    static List<Type> ifBranchTypes(CompilerDriver driver, IfExpr ie,
+                                    List<IRLocalVariable> locals) {
+        return List.of(branchTypeOrNullAsRef(driver, ie.thenExpr(), locals),
+                branchTypeOrNullAsRef(driver, ie.elseExpr(), locals));
+    }
+
+    /** Tipos dos corpos do switch (+ default; sem default, o sintético tem o
+     *  tipo do switch — igual ao lowering, que emite `defaultValueOp`). */
+    static List<Type> switchBranchTypes(CompilerDriver driver, List<SwitchExprCase> cases,
+                                        ExpressionNode defaultValue, Type switchFallbackType,
+                                        List<IRLocalVariable> locals) {
+        var ts = new java.util.ArrayList<Type>();
+        for (SwitchExprCase c : cases) ts.add(branchTypeOrNullAsRef(driver, c.body(), locals));
+        ts.add(defaultValue != null ? branchTypeOrNullAsRef(driver, defaultValue, locals) : switchFallbackType);
+        return ts;
     }
 
     /**
-     * SwitchExpr com corpos heterogêneos primitivo-vs-referência (mesma
-     * classe da #57: o typer usa o primeiro case). true = boxar ramos
-     * primitivos in-branch + pular box pós-expressão.
+     * Tipo de um ramo p/ o predicado — com uma exceção honesta: literal
+     * `null` infere `UnknownType` (não-concreto → predicado desligaria), mas
+     * `null` é referência 1-word no JVM. Sem isso, `if (c) 1 else null`
+     * seguia VerifyError mesmo com o mecanismo pronto.
      */
-    static boolean switchNeedsInnerBox(CompilerDriver driver, SwitchExpr se,
-                                       List<IRLocalVariable> locals) {
-        return switchBodiesNeedInnerBox(driver, se.cases(), se.defaultValue(), locals);
-    }
-
-    /**
-     * Núcleo do predicado acima, direto sobre corpos (o lowering em cadeia
-     * do switch não tem o nó SwitchExpr em mãos — só cases + default).
-     */
-    static boolean switchBodiesNeedInnerBox(CompilerDriver driver, List<SwitchExprCase> cases,
-                                            ExpressionNode defaultValue,
-                                            List<IRLocalVariable> locals) {
-        boolean seenPrim = false, seenRef = false;
-        for (SwitchExprCase c : cases) {
-            if (TypeMetrics.isPrimitiveType(inferExprType(driver, c.body(), locals))) seenPrim = true;
-            else seenRef = true;
+    static Type branchTypeOrNullAsRef(CompilerDriver driver, ExpressionNode e,
+                                      List<IRLocalVariable> locals) {
+        if (e instanceof LiteralExpr lit && lit.kind() == ConcreteLiteralKind.NULL) {
+            return new Type.ClassType("java.lang", "Object", List.of());
         }
-        if (defaultValue != null) {
-            if (TypeMetrics.isPrimitiveType(inferExprType(driver, defaultValue, locals))) seenPrim = true;
-            else seenRef = true;
-        }
-        return seenPrim && seenRef;
+        return inferExprType(driver, e, locals);
     }
 
     /**
-     * true = a expressão já boxeou seus ramos primitivos in-branch (#57) →
-     * o caller deve PULAR o box pós-expressão (senão box duplo). Cobre
+     * true = a expressão já boxeou seus ramos primitivos in-branch (#57/§70)
+     * → o caller deve PULAR o box pós-expressão (senão box duplo). Cobre
      * IfExpr e SwitchExpr heterogêneos; demais nós → false.
      */
     static boolean boxesOwnBranches(CompilerDriver driver, ExpressionNode e,
                                     List<IRLocalVariable> locals) {
-        if (e instanceof IfExpr ie) return ifNeedsInnerBox(driver, ie, locals);
-        if (e instanceof SwitchExpr se) return switchNeedsInnerBox(driver, se, locals);
+        if (e instanceof IfExpr ie && ie.elseExpr() != null)
+            return branchTypesDiffer(ifBranchTypes(driver, ie, locals));
+        if (e instanceof SwitchExpr se)
+            return branchTypesDiffer(switchBranchTypes(driver, se.cases(),
+                    se.defaultValue(), inferExprType(driver, se.expression(), locals), locals));
         return false;
+    }
+
+    /** Boxa o ramo se primitivo (p/ SEU boxed; JVM-only via emitErasureBox). */
+    static void boxPrimitiveBranch(CompilerDriver driver, List<KofOperation> ops, Type branchT) {
+        if (TypeMetrics.isPrimitiveType(branchT)) driver.emitErasureBox(ops, branchT);
     }
 
     /**

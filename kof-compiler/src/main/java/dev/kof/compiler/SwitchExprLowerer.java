@@ -26,12 +26,12 @@ public final class SwitchExprLowerer {
         if (i >= cases.size()) {
             if (defaultValue != null) {
                 localIdx = ExpressionLowerer.emitExpression(driver, defaultValue, ops, owner, localIdx, locals);
-                // #57 (switch heterogêneo): boxa ramo primitivo in-branch;
-                // callers pulam o pós-box (mesmo predicado).
-                if (ExpressionTyper.switchBodiesNeedInnerBox(driver, cases, defaultValue, locals)
-                        && TypeMetrics.isPrimitiveType(
-                                ExpressionTyper.inferExprType(driver, defaultValue, locals))) {
-                    driver.emitErasureBox(ops, ExpressionTyper.inferExprType(driver, defaultValue, locals));
+                // #57/§70: corpos com tipos distintos → boxa ramo primitivo
+                // in-branch (join só de referências); callers pulam pós-box.
+                if (ExpressionTyper.branchTypesDiffer(ExpressionTyper.switchBranchTypes(
+                        driver, cases, defaultValue, switchType, locals))) {
+                    ExpressionTyper.boxPrimitiveBranch(driver, ops,
+                            ExpressionTyper.inferExprType(driver, defaultValue, locals));
                 }
                 return localIdx;
             }
@@ -81,11 +81,11 @@ public final class SwitchExprLowerer {
             ops.add(new KofLabel(bodyLabel));
         }
         localIdx = ExpressionLowerer.emitExpression(driver, sc.body(), ops, owner, localIdx, locals);
-        // #57 (switch heterogêneo): boxa corpo primitivo in-branch.
-        if (ExpressionTyper.switchBodiesNeedInnerBox(driver, cases, defaultValue, locals)
-                && TypeMetrics.isPrimitiveType(
-                        ExpressionTyper.inferExprType(driver, sc.body(), locals))) {
-            driver.emitErasureBox(ops, ExpressionTyper.inferExprType(driver, sc.body(), locals));
+        // #57/§70: corpos com tipos distintos → boxa corpo primitivo in-branch.
+        if (ExpressionTyper.branchTypesDiffer(ExpressionTyper.switchBranchTypes(
+                driver, cases, defaultValue, switchType, locals))) {
+            ExpressionTyper.boxPrimitiveBranch(driver, ops,
+                    ExpressionTyper.inferExprType(driver, sc.body(), locals));
         }
         ops.add(new KofJump(endLabel));
         ops.add(new KofLabel(elseLabel));

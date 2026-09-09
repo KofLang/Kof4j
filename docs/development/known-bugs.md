@@ -1279,14 +1279,29 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   backend JS, não do box. Casos excluídos com `Set.of("js")` até o dono do JS
   corrigir.
 
-### 70. JVM: heterogêneo Int-vs-Long como arg → crash do backend (`COMPUTE_FRAMES AIOOBE`) — ABERTO
+### 70. JVM: heterogêneo primitivo-vs-primitivo como arg → crash do backend (`COMPUTE_FRAMES AIOOBE`) — ✅ CORRIGIDO 09/09 (posições de expressão; slots primitivos seguem ABERTOS)
 
 - **Sintoma:** `println(if (s == "") 1 else 2L)` → check aprova, mas o COMPILADOR
   crasha (`frame crash ... ASM COMPUTE_FRAMES ArrayIndexOutOfBounds`) em vez
   de emitir diagnóstico ou bytecode válido.
-- **Causa (distinta do §68):** int ocupa 1 slot, long 2 — o join tem tamanhos
-  de pilha diferentes; o backend não normaliza. Não é o box (que é por tipo,
-  não por tamanho). Repro mínimo acima; dono: lane compiler/JVM.
+- **Causa (distinta do §68):** int ocupa 1 slot, long/double 2 — o join tem
+  tamanhos de pilha diferentes; o backend não normaliza. Não é o box (que é
+  por tipo, não por tamanho).
+- **Correção (09/09, lane issues+migração — generaliza o §68):** sem widening
+  (que mudaria valor impresso: `2L`→`2.0`, divergindo do interpretador):
+  cada ramo primitivo é boxeado p/ SEU PRÓPRIO boxed (`Integer`/`Long`/
+  `Double`), join só de referências. Mecanismo único: `branchTypesDiffer`
+  (só tipos concretos; `Unknown`/`TypeVariable`/lambda → status quo) +
+  `boxPrimitiveBranch` + `boxesOwnBranches` nos 5 callers (predicado alargado
+  de "prim-vs-ref" p/ "tipos distintos"; comportamento idêntico p/ #57).
+  `null` literal conta como referência. Prova: probes JVM==script em
+  intlong/longdouble/strlong/boolint-JVM/intnull (`2` imprime `2`, não `2.0`);
+  matriz `ifexpr-{intlong,longdouble,intnull}-direct` (JVM+Native+Script;
+  JS excluído — §69). Slots primitivos (`var x`/`Int x`) seguem §68(a).
+- **Observado fora de escopo:** `bool` no interpretador imprime `1`
+  (`println(if (c) true else 5)` → script `1` vs JVM `true`); lado JVM
+  inalterado pela mudança (mesmo `Boolean.valueOf` antes e depois) —
+  divergência do backend script, lane KOFSCRIPT se quiser.
 
 
 - **Sintoma:** `class Base { ... }` + `class Derived extends Base { constructor(v) { super(v) ... } }`

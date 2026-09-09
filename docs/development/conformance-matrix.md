@@ -38,6 +38,9 @@
 | switch-expression `case ->` | `three` | DONE | DONE | DONE | DONE | `switchexpr` |
 | if-expr heterogêneo Int/String (issue #57) | `1` | DONE | DONE | DONE | PARTIAL (underflow KofJS §69) | `ifexpr-heterogeneous-direct` |
 | switch-expr heterogêneo Int/String (issue #57) | `1` | DONE | DONE | DONE | PARTIAL (underflow KofJS §69) | `switchexpr-heterogeneous-direct` |
+| if-expr heterogêneo Int/Long (§70, crash de join) | `1` | DONE | DONE | DONE | PARTIAL (underflow KofJS §69) | `ifexpr-intlong-direct` |
+| if-expr heterogêneo Long/Double (§70) | `2` | DONE | DONE | DONE | PARTIAL (underflow KofJS §69) | `ifexpr-longdouble-direct` |
+| if-expr heterogêneo Int/null (§70) | `1` | DONE | DONE | DONE | PARTIAL (underflow KofJS §69) | `ifexpr-intnull-direct` |
 | for-in + break/continue | `4` | DONE | DONE | DONE | DONE | `breakcont` |
 | record `==` conteúdo + toString + accessor | `true` / `P[x=1, y=2]` / `1` | DONE | DONE | DONE | DONE | `record` |
 | record `hashCode()` igual | `true` | DONE | DONE (bug 42 Native corrigido) | DONE | DONE (bug 42 JS corrigido `1ecfb3d`) | `recordhash` |

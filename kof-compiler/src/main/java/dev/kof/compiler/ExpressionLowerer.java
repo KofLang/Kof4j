@@ -428,22 +428,17 @@ public final class ExpressionLowerer {
                 }
                 ops.add(new KofLabel(thenLabel));
                 localIdx = ExpressionLowerer.emitExpression(driver, ie.thenExpr(), ops, owner, localIdx, locals);
-                // #57: ramos heterogêneos (primitivo vs referência) — o box
-                // pós-join usaria o thenType nos DOIS ramos → VerifyError.
-                // Boxa o ramo primitivo aqui dentro; os callers pulam o
-                // pós-box p/ este IfExpr (mesmo predicado, sem canal extra).
-                boolean innerBox = ExpressionTyper.ifNeedsInnerBox(driver, ie, locals);
-                if (innerBox && TypeMetrics.isPrimitiveType(
-                        ExpressionTyper.inferExprType(driver, ie.thenExpr(), locals))) {
-                    driver.emitErasureBox(ops, ExpressionTyper.inferExprType(driver, ie.thenExpr(), locals));
-                }
+                // #57/§70: ramos com tipos distintos — cada ramo primitivo é
+                // boxeado p/ SEU boxed aqui dentro (join só de referências);
+                // os callers pulam o pós-box (mesmo predicado, sem canal).
+                List<Type> bts = ie.elseExpr() != null
+                        ? ExpressionTyper.ifBranchTypes(driver, ie, locals) : List.of();
+                boolean differ = !bts.isEmpty() && ExpressionTyper.branchTypesDiffer(bts);
+                if (differ) ExpressionTyper.boxPrimitiveBranch(driver, ops, bts.get(0));
                 ops.add(new KofJump(endLabel));
                 ops.add(new KofLabel(elseLabel));
                 localIdx = ExpressionLowerer.emitExpression(driver, ie.elseExpr(), ops, owner, localIdx, locals);
-                if (innerBox && ie.elseExpr() != null && TypeMetrics.isPrimitiveType(
-                        ExpressionTyper.inferExprType(driver, ie.elseExpr(), locals))) {
-                    driver.emitErasureBox(ops, ExpressionTyper.inferExprType(driver, ie.elseExpr(), locals));
-                }
+                if (differ) ExpressionTyper.boxPrimitiveBranch(driver, ops, bts.get(1));
                 ops.add(new KofLabel(endLabel));
                 yield localIdx;
             }
