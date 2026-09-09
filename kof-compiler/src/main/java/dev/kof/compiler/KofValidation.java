@@ -59,6 +59,12 @@ public final class KofValidation {
             // ignorados), algoritmos de dígito verificador módulo 11.
             case "isCpf", "isCnpj", "isCep", "isPis" -> argc == 1
                     ? new ValidationCall("kof_validation_" + name, BOOL, List.of(STR)) : null;
+            // S6a (STDLIB): predicados de rede — dotted-quad / MAC (6 hex com
+            // separador : ou -) / porta 1..65535. Sem ambiguidade de design.
+            case "isIpv4", "isMac" -> argc == 1
+                    ? new ValidationCall("kof_validation_" + name, BOOL, List.of(STR)) : null;
+            case "isPort" -> argc == 1
+                    ? new ValidationCall("kof_validation_isPort", BOOL, List.of(INT)) : null;
             default -> null;
         };
     }

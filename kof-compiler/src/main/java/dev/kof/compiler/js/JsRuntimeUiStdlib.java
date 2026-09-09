@@ -305,5 +305,48 @@ final class JsRuntimeUiStdlib {
                 return Math.fround(n);   // Float = 32-bit (Kof aceita; paridade com Native)
             }
 
+            // ── kof.validation (STDLIB S6a) — rede ─────────────────────────
+            function kofIsHex(c) {
+                return (c >= 48 && c <= 57) || (c >= 97 && c <= 102) || (c >= 65 && c <= 70);
+            }
+            export function kofValidationIsIpv4(s) {
+                if (s == null) return 0;
+                const n = s.length;
+                let octets = 0, val = 0, digits = 0;
+                for (let i = 0; i <= n; i++) {
+                    const c = i < n ? s.charCodeAt(i) : 46;
+                    if (c >= 48 && c <= 57) {
+                        if (digits === 0 && i < n && c === 48 && i + 1 < n && s.charCodeAt(i + 1) !== 46) return 0;
+                        val = val * 10 + (c - 48);
+                        digits++;
+                        if (digits > 3) return 0;
+                    } else if (c === 46) {
+                        if (digits === 0) return 0;
+                        if (val > 255) return 0;
+                        octets++; val = 0; digits = 0;
+                    } else {
+                        return 0;
+                    }
+                }
+                return octets === 4 ? 1 : 0;
+            }
+            export function kofValidationIsMac(s) {
+                if (s == null || s.length !== 17) return 0;
+                const sep = s.charCodeAt(2);
+                if (sep !== 58 && sep !== 45) return 0;   // ':' ou '-'
+                for (let i = 0; i < 17; i++) {
+                    const c = s.charCodeAt(i);
+                    if ((i + 1) % 3 === 0) {
+                        if (c !== sep) return 0;
+                    } else if (!kofIsHex(c)) {
+                        return 0;
+                    }
+                }
+                return 1;
+            }
+            export function kofValidationIsPort(port) {
+                return (port >= 1 && port <= 65535) ? 1 : 0;
+            }
+
     """;
 }

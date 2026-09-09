@@ -52,6 +52,7 @@
 | stdlib kof.strings (S2b: capitalize/reverse/repeat/truncate/pad — ASCII) | `Hello world` / `1abc` / `321cba` / `kayak` / `ababab` / `hello` / `abc` / `007` / `ab---` | DONE | DONE | DONE | DONE | `stdstrings2b` |
 | stdlib kof.strings (S2b.4: toCamelCase/toPascalCase/toSnakeCase/toKebabCase/slugify — word-split HTTPServer/XMLParser) | `http_server` / `xml_parser` / `helloWorld` / `HelloWorld` / `hello-world` / `hello-world-42` | DONE | DONE | DONE | DONE | `stdstrings2b4` |
 | stdlib kof.validation BR (S5: isCpf/isCnpj/isCep/isPis — pesos aritméticos, mod-11 por subtração) | `true` / `false` / `true` / `false` / `true` / `false` / `true` / `false` | DONE | DONE | DONE | DONE | `stdvalidation` |
+| stdlib kof.validation rede (S6a: isIpv4/isMac/isPort — dotted-quad sem zero à esquerda; MAC 6 hex sep : ou - consistente; porta 1..65535) | `true` / `false` / `false` / `true` / `false` / `true` / `false` | DONE | DONE | DONE | DONE | `stdvalidationnet` |
 | stdlib kof.time (S7: isLeapYear/daysInMonth/dayOfWeek/daysBetween — calendário civil; ano<1 ou >9999 ou data inexistente => false/0; dia 1=seg..7=dom) | `true` / `false` / `true` / `false` / `29` / `28` / `30` / `0` / `4` / `3` / `0` / `60` / `-60` / `0` | DONE | DONE | DONE | DONE | `stdtime` |
 | stdlib kof.encoding (S4: hex + base64 + url + base64url — UTF-8 por bytes) | `4869` / `Hi` / `636166c3a9` / `café` / `TWFu` / `café` / `a%20b` / `café` / `ZmImTy0-Zg` / `fb&O->f` / `E` | DONE | DONE² | DONE | DONE | `stdenc` |
 

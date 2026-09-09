@@ -284,6 +284,17 @@ class ConformanceMatrixTest {
                     println(validation.isPis("12345678901"))
                 }
                 """, "true\nfalse\ntrue\nfalse\ntrue\nfalse\ntrue\nfalse", Set.of(), tempDir);
+        matrix("stdvalidationnet", """
+                main() {
+                    println(validation.isIpv4("192.168.0.1"))
+                    println(validation.isIpv4("256.1.1.1"))
+                    println(validation.isIpv4("01.2.3.4"))
+                    println(validation.isMac("00:1A:2B:3C:4D:5E"))
+                    println(validation.isMac("GG:1A:2B:3C:4D:5E"))
+                    println(validation.isPort(443))
+                    println(validation.isPort(65536))
+                }
+                """, "true\nfalse\nfalse\ntrue\nfalse\ntrue\nfalse", Set.of(), tempDir);
         matrix("stdtime", """
                 main() {
                     println(time.isLeapYear(2000))

@@ -166,6 +166,85 @@ class KofValidationTest {
             """);
     }
 
+    // S6a network: isIpv4/isMac/isPort — byte-scan, sem gate nos 4 targets.
+    @Test
+    void validationNetJvm(@TempDir Path tmp) throws Exception {
+        runJvm(tmp, """
+            main() {
+                println(validation.isIpv4("0.0.0.0"))
+                println(validation.isIpv4("255.255.255.255"))
+                println(validation.isIpv4("192.168.0.1"))
+                println(validation.isIpv4("256.1.1.1"))
+                println(validation.isIpv4("01.2.3.4"))
+                println(validation.isIpv4("1.2.3."))
+                println(validation.isMac("00:1A:2B:3C:4D:5E"))
+                println(validation.isMac("00-1a-2b-3c-4d-5e"))
+                println(validation.isMac("GG:1A:2B:3C:4D:5E"))
+                println(validation.isMac("00:1A:2B-3C:4D:5E"))
+                println(validation.isPort(0))
+                println(validation.isPort(443))
+                println(validation.isPort(65535))
+                println(validation.isPort(65536))
+            }
+            """, "true\ntrue\ntrue\nfalse\nfalse\nfalse\ntrue\ntrue\nfalse\nfalse\nfalse\ntrue\ntrue\nfalse");
+    }
+
+    @Test
+    void validationNetNative(@TempDir Path tmp) throws Exception {
+        runNative(tmp, """
+            main() {
+                println(validation.isIpv4("10.0.0.255"))
+                println(validation.isIpv4("0.0.0.00"))
+                println(validation.isMac("ff:ff:ff:ff:ff:ff"))
+                println(validation.isMac("1:2:3:4:5:6"))
+                println(validation.isPort(22))
+                println(validation.isPort(-1))
+            }
+            """, "true\nfalse\ntrue\nfalse\ntrue\nfalse");
+    }
+
+    @Test
+    void validationNetJs(@TempDir Path tmp) throws Exception {
+        runJs(tmp, """
+            main() {
+                println(validation.isIpv4("192.168.1.1"))
+                println(validation.isIpv4("999.1.1.1"))
+                println(validation.isMac("00:1A:2B:3C:4D:5E"))
+                println(validation.isPort(80))
+                println(validation.isPort(0))
+            }
+            """, "true\nfalse\ntrue\ntrue\nfalse");
+    }
+
+    @Test
+    void validationNetCrossArch(@TempDir Path tmp) throws Exception {
+        String src = """
+            main() {
+                assert(validation.isIpv4("0.0.0.0"))
+                assert(validation.isIpv4("255.255.255.255"))
+                assert(validation.isIpv4("10.0.0.255"))
+                assert(!validation.isIpv4("256.1.1.1"))
+                assert(!validation.isIpv4("01.2.3.4"))
+                assert(!validation.isIpv4("1.2.3."))
+                assert(!validation.isIpv4(""))
+                assert(validation.isMac("00:1A:2B:3C:4D:5E"))
+                assert(validation.isMac("00-1a-2b-3c-4d-5e"))
+                assert(!validation.isMac("GG:1A:2B:3C:4D:5E"))
+                assert(!validation.isMac("00:1A:2B-3C:4D:5E"))
+                assert(!validation.isMac("1:2:3:4:5:6"))
+                assert(!validation.isPort(0))
+                assert(validation.isPort(22))
+                assert(validation.isPort(65535))
+                assert(!validation.isPort(65536))
+                assert(!validation.isPort(-1))
+            }
+            """;
+        assumeToolchain("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64");
+        runQemu(tmp, Target.NATIVE_RISCV64, "qemu-riscv64", src);
+        assumeToolchain("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64");
+        runQemu(tmp, Target.NATIVE_AARCH64, "qemu-aarch64", src);
+    }
+
     private static void assumeToolchain(String... bins) {
         for (String b : bins) {
             try {

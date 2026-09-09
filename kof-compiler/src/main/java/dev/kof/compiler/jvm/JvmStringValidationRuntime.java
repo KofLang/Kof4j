@@ -132,6 +132,61 @@ public final class JvmStringValidationRuntime {
                     return dv == d[10];
                 }
 
+                // ── kof.validation (STDLIB S6a) — rede ──────────────────────
+                // IPv4 dotted-quad: 4 octetos, só dígitos, sem zero à esquerda
+                // ("0" ok, "01" não), 0..255. Sem CIDR, sem forma compacta.
+                public static boolean kof_validation_isIpv4(String s) {
+                    if (s == null) return false;
+                    int n = s.length();
+                    int octets = 0, val = 0, digits = 0;
+                    for (int i = 0; i <= n; i++) {
+                        char c = i < n ? s.charAt(i) : '.';
+                        if (c >= '0' && c <= '9') {
+                            if (digits == 0 && i < n && c == '0') {
+                                // leading zero só permitido se o octeto for "0"
+                                if (i + 1 < n && s.charAt(i + 1) != '.') return false;
+                            }
+                            val = val * 10 + (c - '0');
+                            digits++;
+                            if (digits > 3) return false;
+                        } else if (c == '.') {
+                            if (digits == 0) return false;
+                            if (val > 255) return false;
+                            octets++;
+                            val = 0; digits = 0;
+                        } else {
+                            return false;
+                        }
+                    }
+                    return octets == 4;
+                }
+
+                // MAC: 6 bytes hex (maiúsc ou minúsculo), separador ':' OU '-'
+                // consistente (mistura => inválida), 2 dígitos por byte.
+                public static boolean kof_validation_isMac(String s) {
+                    if (s == null || s.length() != 17) return false;
+                    char sep = s.charAt(2);
+                    if (sep != ':' && sep != '-') return false;
+                    for (int i = 0; i < 17; i++) {
+                        char c = s.charAt(i);
+                        if ((i + 1) % 3 == 0) {
+                            if (c != sep) return false;
+                        } else if (!isHex(c)) {
+                            return false;
+                        }
+                    }
+                    return true;
+                }
+
+                private static boolean isHex(char c) {
+                    return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+                }
+
+                // Porta: TCP/UDP 1..65535 (0 é reserva; >65535 inválida).
+                public static boolean kof_validation_isPort(int port) {
+                    return port >= 1 && port <= 65535;
+                }
+
 """;
     }
 }
