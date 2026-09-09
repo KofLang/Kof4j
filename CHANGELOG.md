@@ -595,6 +595,12 @@ Linha de desenvolvimento 0.3.0 aberta em 04/09/2026. Semântica congelada
   - registra bugs 62 e 63 (mutabilidade não validada; let redeclarado em parâmetro no KofJS)
   - bug 6 — remove seção duplicada/desatualizada em known-bugs.md
 
+## [0.3.3-beta] - 2026-09-09
+
+### Bugfixes
+
+  - sintetizar hashCode() para records no backend nativo (#55)
+
 <!-- NEXT-RELEASE -->
 
 ## [0.2.7-beta] - 2026-09-04
