@@ -450,5 +450,30 @@ final class JsRuntimeUiStdlib {
                 return o;
             }
 
+            // ── kof.random (STDLIB S10) — entropia = kof_platform (R11) ──
+            // kof_platform.randomBytesHex é injetado pelo runner GraalJS
+            // (mesma fonte do kofSecRandomHex/uuid.v4). Paridade: [0,1) com
+            // 53 bits (nunca 1.0); bool = bit do 1º byte; int bound<=0 => 0;
+            // hex n<=0 => null.
+            export function kofRandomDouble() {
+                const hex = kof_platform.randomBytesHex(7);   // 56 bits >= 53
+                const hi = parseInt(hex.slice(0, 8), 16);      // 32 bits
+                const lo = parseInt(hex.slice(8, 14), 16);     // 24 bits
+                const v = (hi * 2 ** 21 + lo * 2 ** -3) % 2 ** 53;
+                return v / 2 ** 53;
+            }
+            export function kofRandomBoolean() {
+                const hex = kof_platform.randomBytesHex(1);
+                return (parseInt(hex, 16) & 1) === 1 ? 1 : 0;
+            }
+            export function kofRandomInt(bound) {
+                if (bound == null || bound <= 0) return 0;
+                return kof_platform.randomInt(bound);
+            }
+            export function kofRandomHex(n) {
+                if (n == null || n <= 0) return null;
+                return kof_platform.randomBytesHex(n);
+            }
+
     """;
 }

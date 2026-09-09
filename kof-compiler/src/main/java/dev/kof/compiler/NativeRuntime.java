@@ -4,6 +4,7 @@ import dev.kof.compiler.runtime.RuntimeCache;
 import dev.kof.compiler.runtime.RuntimeEncoding;
 import dev.kof.compiler.runtime.RuntimeValidationBr;
 import dev.kof.compiler.runtime.RuntimeValidationNet;
+import dev.kof.compiler.runtime.RuntimeRandom;
 import dev.kof.compiler.runtime.RuntimeUuid;
 import dev.kof.compiler.runtime.RuntimeChannel;
 import dev.kof.compiler.runtime.RuntimeConcurrency;
@@ -182,6 +183,7 @@ public final class NativeRuntime {
         RuntimeStrings.emit(sb);
         RuntimeEncoding.emit(sb);
         RuntimeUuid.emit(sb);
+        RuntimeRandom.emit(sb);
         RuntimeObservability1.emit(sb);
         RuntimeObservability2.emit(sb);
         RuntimeObservability3.emit(sb);
