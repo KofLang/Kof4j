@@ -42,6 +42,7 @@ final class BytecodeDecoder {
         for (BytecodeReader.Insn in : insns) {
             int op = in.opcode();
             switch (op) {
+                case 0x01 -> stack.push("null", "L");                 // aconst_null
                 case 0x02 -> stack.push("-1", "I");
                 case 0x03, 0x04, 0x05, 0x06, 0x07, 0x08 -> stack.push(String.valueOf(op - 0x03), "I");
                 // lconst/dconst: tipo embutido no opcode (lição bug 62 — só
@@ -53,7 +54,7 @@ final class BytecodeDecoder {
                 case 0x0f -> stack.push("1.0", "D");
                 case 0x10 -> stack.push(String.valueOf((byte) in.operands()[0]), "I");
                 case 0x11 -> stack.push(String.valueOf((short) in.operands()[0]), "I");
-                case 0x12 -> {
+                case 0x12, 0x13 -> {                               // ldc, ldc_w (mesmo CP, índice u1/u2)
                     String c = ldc(cp, in.operands()[0]);
                     if (c == null) return null;
                     stack.push(c, c.startsWith("\"") ? "L" : "I");   // String vs Integer
@@ -287,6 +288,7 @@ final class BytecodeDecoder {
             case 0x07 -> "4";
             case 0x08 -> "5";
             case 0x02 -> "-1";
+            case 0x01 -> "null";
             case 0x10 -> String.valueOf((byte) in.operands()[0]);
             default -> null;
         };

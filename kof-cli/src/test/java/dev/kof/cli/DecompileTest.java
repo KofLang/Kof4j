@@ -420,6 +420,26 @@ class DecompileTest {
     }
 
     @Test
+    void recoversLdcWAndAconstNull() {
+        // Corpus-real coverage (histograma de opcodes do kof-compiler): ldc_w
+        // (0x13, índice u2 p/ CP>255) era o opcode NÃO-tratado mais frequente
+        // (~3k ocorrências) e aconst_null (0x01) ~800. ldc_w é o MESMO ldc já
+        // tratado (BytecodeReader já lê o índice de 2 bytes) — teste manual:
+        // bytecode `ldc_w #300; areturn` com cp[300]="#301", cp[301]="oi".
+        String[] cp = new String[302];
+        cp[300] = "#301";
+        cp[301] = "oi";
+        byte[] code = {0x13, 0x01, 0x2C, (byte) 0xb0};            // ldc_w 300; areturn
+        String e = BytecodeDecoder.recoverExpression(code, cp,
+                new BytecodeFrame("()Ljava/lang/String;", true));
+        assertEquals("\"oi\"", e, "ldc_w recupera igual ao ldc");
+
+        byte[] nul = {0x01, (byte) 0xb0};                          // aconst_null; areturn
+        assertEquals("null", BytecodeDecoder.recoverExpression(nul, cp,
+                new BytecodeFrame("()Ljava/lang/String;", true)), "aconst_null → null");
+    }
+
+    @Test
     void wideParamsMapToCorrectSlots(@TempDir Path dir) throws Exception {
         Path javaFile = dir.resolve("V.java");
         Files.writeString(javaFile, """

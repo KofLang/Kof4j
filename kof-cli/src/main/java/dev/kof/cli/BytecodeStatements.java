@@ -346,6 +346,7 @@ final class BytecodeStatements {
         for (BytecodeReader.Insn in : seq) {
             int op = in.opcode();
             switch (op) {
+                case 0x01 -> stack.push("null");
                 case 0x02 -> stack.push("-1");
                 case 0x03, 0x04, 0x05, 0x06, 0x07, 0x08 -> stack.push(String.valueOf(op - 0x03));
                 // lconst/dconst carregam o TIPO no próprio opcode (lição do
@@ -358,7 +359,7 @@ final class BytecodeStatements {
                 case 0x0f -> stack.push("1.0");
                 case 0x10 -> stack.push(String.valueOf((byte) in.operands()[0]));
                 case 0x11 -> stack.push(String.valueOf((short) in.operands()[0]));
-                case 0x12 -> {
+                case 0x12, 0x13 -> {                            // ldc, ldc_w
                     String c = BytecodeDecoder.ldc(cp, in.operands()[0]);
                     if (c == null) return null;
                     stack.push(c);
