@@ -497,13 +497,13 @@ class ConformanceMatrixTest {
         // primitivos boxeados in-branch + skip do pós-box (só codegen; o
         // check continua aprovando). JS excluído: underflow pré-existente
         // no backend KofJS p/ if heterogêneo (known-bugs §69, provado com
-        // o fix em stash). Paridade JVM+Native+Script (script = oráculo).
+        // Bug 69 CORRIGIDO: paridade JVM+Native+Script+JS.
         matrix("ifexpr-heterogeneous-direct", """
                 main() {
                     var s = ""
                     println(if (s == "") 1 else "s")
                 }
-                """, "1", Set.of("js"), tempDir);
+                """, "1", Set.of(), tempDir);
         // mesma classe da #57 p/ switch-expression heterogêneo.
         matrix("switchexpr-heterogeneous-direct", """
                 main() {
@@ -513,7 +513,7 @@ class ConformanceMatrixTest {
                         default -> "s"
                     })
                 }
-                """, "1", Set.of("js"), tempDir);
+                """, "1", Set.of(), tempDir);
         // §70 — heterogêneo primitivo-vs-primitivo de slots distintos
         // (Int 1-word vs Long 2-word): o join quebrava o COMPUTE_FRAMES
         // (crash AIOOBE) em vez de VerifyError. Fix: cada ramo boxeado
@@ -523,19 +523,19 @@ class ConformanceMatrixTest {
                     var s = ""
                     println(if (s == "") 1 else 2L)
                 }
-                """, "1", Set.of("js"), tempDir);
+                """, "1", Set.of(), tempDir);
         matrix("ifexpr-longdouble-direct", """
                 main() {
                     var s = ""
                     println(if (s == "") 2L else 2.5)
                 }
-                """, "2", Set.of("js"), tempDir);
+                """, "2", Set.of(), tempDir);
         matrix("ifexpr-intnull-direct", """
                 main() {
                     var s = ""
                     println(if (s == "") 1 else null)
                 }
-                """, "1", Set.of("js"), tempDir);
+                """, "1", Set.of(), tempDir);
         matrix("switchexpr", """
                 main() {
                     var v = 3
