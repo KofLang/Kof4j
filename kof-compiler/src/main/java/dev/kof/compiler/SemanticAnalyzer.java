@@ -164,6 +164,7 @@ public class SemanticAnalyzer {
             }
             if (!changed) break;
         }
+        checkInterfaceImplementation(cls, classScope);
         currentScope = prevScope;
         currentClassName = prevClass;
     }
@@ -275,6 +276,39 @@ public class SemanticAnalyzer {
         }
         currentScope = prevScope;
         currentClassName = prevClass;
+    }
+
+    /**
+     * SG-015 (SEM043): classe que implementa interface deve declarar os
+     * métodos da interface (por nome; paridade de assinatura checada por
+     * aridade — tipos exatos entram quando o dispatch virtual existir).
+     */
+    private void checkInterfaceImplementation(ClassDeclarationNode cls, SymbolTable classScope) {
+        if (diagnostics == null) return;
+        for (String ifaceName : cls.interfaces()) {
+            SymbolTable.ClassSymbol ifaceSym = knownClasses.get(ifaceName);
+            if (ifaceSym == null || !interfaceNames.contains(ifaceName)) continue;
+            for (Map.Entry<String, SymbolTable.Symbol> e
+                    : ifaceSym.members().localSymbols().entrySet()) {
+                if (!(e.getValue() instanceof SymbolTable.MethodSymbol im)) continue;
+                SymbolTable.Symbol local = classScope.resolve(im.name());
+                if (local instanceof SymbolTable.MethodSymbol cm) {
+                    if (cm.parameterTypes().size() != im.parameterTypes().size()) {
+                        diagnostics.error("", 0, 0, 0,
+                                "method '" + im.name() + "' of interface '" + ifaceName
+                                        + "' expects " + im.parameterTypes().size()
+                                        + " parameter(s) but implementation has "
+                                        + cm.parameterTypes().size(),
+                                "SEM043");
+                    }
+                } else {
+                    diagnostics.error("", 0, 0, 0,
+                            "class '" + cls.name() + "' implements '" + ifaceName
+                                    + "' but does not implement method '" + im.name() + "'",
+                            "SEM043");
+                }
+            }
+        }
     }
 
     private void analyzeInterface(InterfaceDeclarationNode iface) {

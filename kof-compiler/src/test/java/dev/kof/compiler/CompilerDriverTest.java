@@ -4504,4 +4504,62 @@ class CompilerDriverTest {
         CompilationResult ok = driver.compile(source, tempDir.resolve("out"), Target.JVM);
         assertTrue(ok.success(), "top-level class deve compilar: " + ok.diagnostics().getDiagnostics());
     }
+
+    // SG-015 (SEM043) — classe que implementa interface deve declarar os
+    // métodos da interface; aridade divergente também é erro.
+    @Test
+    void missingInterfaceMethodImplGivesCleanDiagnostic(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Impl.kf");
+        Files.writeString(source, """
+            interface Greeter {
+                String greet(String name)
+            }
+            class Pt implements Greeter {
+            }
+            main() { println("ok") }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "missing interface method must fail");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM043"), "should be SEM043, got: " + diags);
+        assertTrue(diags.contains("greet"), "must name the missing method: " + diags);
+    }
+
+    @Test
+    void wrongArityInterfaceMethodImplGivesCleanDiagnostic(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Arity.kf");
+        Files.writeString(source, """
+            interface Greeter {
+                String greet(String name)
+            }
+            class Pt implements Greeter {
+                String greet() { return "oi" }
+            }
+            main() { println("ok") }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "wrong arity implementation must fail");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM043"), "should be SEM043, got: " + diags);
+    }
+
+    @Test
+    void completeInterfaceImplStaysGreen(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Ok.kf");
+        Files.writeString(source, """
+            interface Greeter {
+                String greet(String name)
+            }
+            class Pt implements Greeter {
+                String greet(String name) { return "oi " + name }
+            }
+            main() {
+                var g = Pt()
+                println(g.greet("Mel"))
+            }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertTrue(result.success(), "complete implementation must compile: "
+                + result.diagnostics().getDiagnostics());
+    }
 }
