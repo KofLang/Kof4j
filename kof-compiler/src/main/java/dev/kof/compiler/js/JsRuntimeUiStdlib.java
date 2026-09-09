@@ -433,5 +433,22 @@ final class JsRuntimeUiStdlib {
                 return 1;
             }
 
+
+            export function kofStringsEscapeHtml(v) {
+                if (v == null) return null;
+                if (v.length === 0) return v;
+                let o = "";
+                for (let i = 0; i < v.length; i++) {
+                    const c = v[i];
+                    if (c === "&") o += "&amp;";
+                    else if (c === "<") o += "&lt;";
+                    else if (c === ">") o += "&gt;";
+                    else if (c === '"') o += "&quot;";
+                    else if (c === "'") o += "&#39;";
+                    else o += c;
+                }
+                return o;
+            }
+
     """;
 }

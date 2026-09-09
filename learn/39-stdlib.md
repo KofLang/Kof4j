@@ -77,6 +77,13 @@ strings.toKebabCase("helloWorld")   // "hello-world"
 strings.slugify("Hello, World!! 42")// "hello-world-42"
 ```
 
+Escape HTML (5 entidades — nunca montar página com interpolação crua):
+
+```kof
+strings.escapeHtml("a<b>&\"'c")   // "a&lt;b&gt;&amp;&quot;&#39;c"
+strings.escapeHtml("Café & ç")     // "Café &amp; ç" (>=128 é copiado)
+```
+
 > ⚠️ `capitalize` e os conversores de **palavra** são **ASCII** nos 4 targets
 > (medido): só `a-z` → `A-Z`; qualquer byte `>= 128` é **preservado** mas
 > **nunca capitalizado** (`"café"` → `"Café"`, mas `"ção"` → `"ção"`, não
@@ -157,7 +164,7 @@ de `time` desde antes — o calendário acima é a parte pura, determinística.
 
 | API | JVM / Script | Native x86_64 | Native riscv64 / aarch64 | JS |
 |---|---|---|---|---|
-| `math.*`, `strings.is*/count/capitalize/reverse/repeat/truncate/pad*`, `toCamel/Pascal/Snake/Kebab/slugify`, `encoding.hex*/url*`, `time.isLeapYear/daysInMonth/dayOfWeek/daysBetween`, `validation.isCpf/isCnpj/isCep/isPis/isIpv4/isIpv6/isMac/isPort/isCreditCard/isDomain` | ✅ | ✅ | ✅ | ✅ |
+| `math.*`, `strings.is*/count/capitalize/reverse/repeat/truncate/pad*/escapeHtml`, `toCamel/Pascal/Snake/Kebab/slugify`, `encoding.hex*/url*`, `time.isLeapYear/daysInMonth/dayOfWeek/daysBetween`, `validation.isCpf/isCnpj/isCep/isPis/isIpv4/isIpv6/isMac/isPort/isCreditCard/isDomain` | ✅ | ✅ | ✅ | ✅ |
 | `encoding.base64*` / `base64Url*` | ✅ | ✅ | **ENC002** (gate de compilação) | ✅ |
 | `uuid.v4` | ✅ | ✅ | **SECN000** (entropia; gate de compilação) | ✅ |
 

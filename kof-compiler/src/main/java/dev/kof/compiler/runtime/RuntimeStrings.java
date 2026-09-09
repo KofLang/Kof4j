@@ -277,5 +277,6 @@ public final class RuntimeStrings {
         // ordem de emissão preservada do arquivo único original (.s byte-idêntico)
         RuntimeStringsConv.emit(sb);
         RuntimeStringsWords.emit(sb);
+        RuntimeStringsEsc.emit(sb);
     }
 }

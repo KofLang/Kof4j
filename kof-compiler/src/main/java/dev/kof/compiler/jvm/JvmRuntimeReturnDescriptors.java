@@ -138,7 +138,8 @@ public final class JvmRuntimeReturnDescriptors {
                     "kof_strings_count" -> "I";
             case "kof_strings_capitalize", "kof_strings_reverse", "kof_strings_toCamelCase",
                     "kof_strings_toPascalCase", "kof_strings_toSnakeCase", "kof_strings_toKebabCase",
-                    "kof_strings_slugify" -> "Ljava/lang/String;";
+                    "kof_strings_slugify", "kof_strings_escapeHtml"
+                    -> "Ljava/lang/String;";
             case "kof_strings_repeat", "kof_strings_truncate" -> "Ljava/lang/String;";
             case "kof_strings_padLeft", "kof_strings_padRight" -> "Ljava/lang/String;";
             case "kof_encoding_hexEncode", "kof_encoding_hexDecode", "kof_encoding_base64Encode", "kof_encoding_base64Decode" -> "Ljava/lang/String;";

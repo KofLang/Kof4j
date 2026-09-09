@@ -306,6 +306,49 @@ class KofStringsTest {
         }
     }
 
+    @Test
+    void escapeHtmlJvmJsNative(@TempDir Path tmp) throws Exception {
+        // STDLIB S3.1: 5 chars -> entidade (amp/lt/gt/quot + apos numérica);
+        // >=128 cópia; null/"" => original. Oracle Python; golden == JVM == JS
+        // == x86 == riscv/aarch (diff dos 8 vetores).
+        String src = """
+            main() {
+                println(strings.escapeHtml("a<b>&\\"'c"))
+                println(strings.escapeHtml("<script>alert('x')</script>"))
+                println(strings.escapeHtml("Café & ç"))
+                println(strings.escapeHtml("&amp;lt;"))
+                println(strings.escapeHtml(""))
+                println(strings.escapeHtml("&"))
+                println(strings.escapeHtml("\\"hello\\" world"))
+                println(strings.escapeHtml("<a href=\\"u\\">y</a>"))
+            }
+            """;
+        String expected = "a&lt;b&gt;&amp;&quot;&#39;c\n"
+            + "&lt;script&gt;alert(&#39;x&#39;)&lt;/script&gt;\n"
+            + "Café &amp; ç\n&amp;amp;lt;\n\n&amp;\n"
+            + "&quot;hello&quot; world\n"
+            + "&lt;a href=&quot;u&quot;&gt;y&lt;/a&gt;";
+        runJvm(tmp, src, expected);
+        runJs(tmp, src, expected);
+        runNative(tmp, src, expected);
+    }
+
+    @Test
+    void escapeHtmlCrossArch(@TempDir Path tmp) throws Exception {
+        String src = """
+            main() {
+                assert(strings.escapeHtml("a<b>&\\"'c") == "a&lt;b&gt;&amp;&quot;&#39;c")
+                assert(strings.escapeHtml("Café & ç") == "Café &amp; ç")
+                assert(strings.escapeHtml("&amp;lt;") == "&amp;amp;lt;")
+                assert(strings.escapeHtml("") == "")
+            }
+            """;
+        assumeToolchain("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64");
+        runQemu(tmp, Target.NATIVE_RISCV64, "qemu-riscv64", src);
+        assumeToolchain("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64");
+        runQemu(tmp, Target.NATIVE_AARCH64, "qemu-aarch64", src);
+    }
+
     private static Path findJsEntry(Path dir) throws java.io.IOException {
         try (var s = Files.walk(dir)) {
             var opt = s.filter(p -> p.getFileName().toString().equals("Default.mjs")).findFirst();

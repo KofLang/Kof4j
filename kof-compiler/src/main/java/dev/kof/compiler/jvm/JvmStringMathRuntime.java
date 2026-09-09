@@ -389,6 +389,66 @@ public final class JvmStringMathRuntime {
                     if (c >= 'A' && c <= 'F') return c - 'A' + 10;
                     return -1;
                 }
+
+                // ── kof.strings (STDLIB S3.1) — HTML escape/unescape ────────
+                // escapeHtml: 5 chars especiais -> entidade nomeada (amp/lt/
+                // gt/quot) ou numérica &#39; (apos); bytes >=128 copiados
+                // (saída só toca ASCII nas entidades). null -> null, "" -> "".
+                public static String kof_strings_escapeHtml(String v) {
+                    if (v == null) return null;
+                    StringBuilder o = new StringBuilder(v.length() + 8);
+                    for (int i = 0; i < v.length(); i++) {
+                        char c = v.charAt(i);
+                        switch (c) {
+                            case '&': o.append("&amp;"); break;
+                            case '<': o.append("&lt;"); break;
+                            case '>': o.append("&gt;"); break;
+                            case '"': o.append("&quot;"); break;
+                            case (char) 39: o.append("&#39;"); break;
+                            default: o.append(c);
+                        }
+                    }
+                    return o.toString();
+                }
+
+                // unescapeHtml: 5 nomeadas (&amp &lt &gt &quot &apos) +
+                // numéricos &#DDD; / &#xHH; (valid <0x10000, não-surogates,
+                // >0). Qualquer outro "&..." fica LITERAL (regra travada).
+                public static String kof_strings_unescapeHtml(String v) {
+                    if (v == null) return null;
+                    StringBuilder o = new StringBuilder(v.length());
+                    int n = v.length(), i = 0;
+                    while (i < n) {
+                        char c = v.charAt(i);
+                        if (c != '&') { o.append(c); i++; continue; }
+                        if (v.startsWith("&amp;", i)) { o.append('&'); i += 5; continue; }
+                        if (v.startsWith("&lt;", i)) { o.append('<'); i += 4; continue; }
+                        if (v.startsWith("&gt;", i)) { o.append('>'); i += 4; continue; }
+                        if (v.startsWith("&quot;", i)) { o.append('"'); i += 6; continue; }
+                        if (v.startsWith("&apos;", i)) { o.append((char) 39); i += 6; continue; }
+                        if (i + 1 < n && v.charAt(i + 1) == '#') {
+                            int j = i + 2; boolean hx = false;
+                            if (j < n && (v.charAt(j) == 'x' || v.charAt(j) == 'X')) { hx = true; j++; }
+                            int k = j; int acc = 0;
+                            while (k < n) {
+                                char d = v.charAt(k); int dv;
+                                if (d >= '0' && d <= '9') dv = d - '0';
+                                else if (hx && d >= 'a' && d <= 'f') dv = d - 'a' + 10;
+                                else if (hx && d >= 'A' && d <= 'F') dv = d - 'A' + 10;
+                                else break;
+                                acc = acc * (hx ? 16 : 10) + dv;
+                                if (acc > 0x10FFFF) break;
+                                k++;
+                            }
+                            if (k > j && k < n && v.charAt(k) == ';' && acc > 0
+                                    && acc < 0x10000 && !(acc >= 0xD800 && acc <= 0xDFFF)) {
+                                o.appendCodePoint(acc); i = k + 1; continue;
+                            }
+                        }
+                        o.append('&'); i++;
+                    }
+                    return o.toString();
+                }
         """;
     }
 }

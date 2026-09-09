@@ -325,6 +325,14 @@ class ConformanceMatrixTest {
                     println(validation.isDomain("x.x"))
                 }
                 """, "true\ntrue\nfalse\nfalse\nfalse\nfalse", Set.of(), tempDir);
+        matrix("stdescape", """
+                main() {
+                    println(strings.escapeHtml("a<b>&\\"'c"))
+                    println(strings.escapeHtml("Café & ç"))
+                    println(strings.escapeHtml("&amp;lt;"))
+                    println(strings.escapeHtml("<a href=\\"u\\">y</a>"))
+                }
+                """, "a&lt;b&gt;&amp;&quot;&#39;c\nCafé &amp; ç\n&amp;amp;lt;\n&lt;a href=&quot;u&quot;&gt;y&lt;/a&gt;", Set.of(), tempDir);
         matrix("stdtime", """
                 main() {
                     println(time.isLeapYear(2000))
