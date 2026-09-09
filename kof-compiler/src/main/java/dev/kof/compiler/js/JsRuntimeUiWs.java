@@ -36,6 +36,28 @@ public final class JsRuntimeUiWs {
                 return o;
             }
 
+            // STDLIB S3.1c — escapeJson (corpo de string literal JSON, RFC 8259;
+            // aspas de delimitação são do caller). \\\\ -> \\\\\\\\  " -> \\" ;
+            // \\b \\f \\n \\r \\t 2-char; ctrl <0x20 -> \\u00xx; demais copiados.
+            export function kofStringsEscapeJson(v) {
+                if (v == null) return null;
+                const B = String.fromCharCode(92);
+                let o = "";
+                for (let i = 0; i < v.length; i++) {
+                    const c = v.charCodeAt(i);
+                    if (c === 92) o += B + B;
+                    else if (c === 34) o += B + '"';
+                    else if (c === 8) o += B + "b";
+                    else if (c === 12) o += B + "f";
+                    else if (c === 10) o += B + "n";
+                    else if (c === 13) o += B + "r";
+                    else if (c === 9) o += B + "t";
+                    else if (c < 32) o += B + "u" + c.toString(16).padStart(4, "0");
+                    else o += v[i];
+                }
+                return o;
+            }
+
             // STDLIB S3.1b — unescapeHtml (5 nomeadas + numéricos &#DDD;/&#xHH;
             // val <0x10000 não-surogate >0; outro "&..." fica LITERAL).
             function kofUnescHexD(c) {

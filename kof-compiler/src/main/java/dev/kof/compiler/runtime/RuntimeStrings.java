@@ -279,5 +279,6 @@ public final class RuntimeStrings {
         RuntimeStringsWords.emit(sb);
         RuntimeStringsEsc.emit(sb);
         RuntimeStringWs.emit(sb);
+        RuntimeStringsEscJson.emit(sb);
     }
 }

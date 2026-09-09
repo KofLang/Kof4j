@@ -350,6 +350,51 @@ class KofStringsTest {
     }
 
     @Test
+    void escapeJsonJvmJsNative(@TempDir Path tmp) throws Exception {
+        // STDLIB S3.1c: corpo de string literal JSON (RFC 8259) — backslash,
+        // aspas, b/f/n/r/t de 2 chars, ctrl -> backslash-u00xx hex minusculo,
+        // demais bytes copiados. Oracle Python; golden JVM == JS == x86.
+        String src = """
+            main() {
+                println(strings.escapeJson(\"plain\"))
+                println(strings.escapeJson(\"quote \\\" inside\"))
+                println(strings.escapeJson(\"back\\\\slash\"))
+                println(strings.escapeJson(\"tab\\there\"))
+                println(strings.escapeJson(\"nl\\nline\\r\\rend\"))
+                println(strings.escapeJson(\"\"))
+                println(strings.escapeJson(\"both \\\" \\\\ and \\t\"))
+                println(strings.escapeJson(\"a\\u0001b\\u001fc\"))
+                println(strings.escapeJson(\"bell\\u0007form\\u000c\"))
+            }
+            """;
+        String expected = "plain\nquote \\\" inside\nback\\\\slash\ntab\\there\nnl\\nline\\r\\rend\n\nboth \\\" \\\\ and \\t\na\\u0001b\\u001fc\nbell\\u0007form\\f";
+        runJvm(tmp, src, expected);
+        runJs(tmp, src, expected);
+        runNative(tmp, src, expected);
+    }
+
+    @Test
+    void escapeJsonCrossArch(@TempDir Path tmp) throws Exception {
+        String src = """
+            main() {
+                assert(strings.escapeJson(\"plain\") == \"plain\")
+                assert(strings.escapeJson(\"quote \\\" inside\") == \"quote \\\\\\\" inside\")
+                assert(strings.escapeJson(\"back\\\\slash\") == \"back\\\\\\\\slash\")
+                assert(strings.escapeJson(\"tab\\there\") == \"tab\\\\there\")
+                assert(strings.escapeJson(\"nl\\nline\\r\\rend\") == \"nl\\\\nline\\\\r\\\\rend\")
+                assert(strings.escapeJson(\"\") == \"\")
+                assert(strings.escapeJson(\"both \\\" \\\\ and \\t\") == \"both \\\\\\\" \\\\\\\\ and \\\\t\")
+                assert(strings.escapeJson(\"a\\u0001b\\u001fc\") == \"a\\\\u0001b\\\\u001fc\")
+                assert(strings.escapeJson(\"bell\\u0007form\\u000c\") == \"bell\\\\u0007form\\\\f\")
+            }
+            """;
+        assumeToolchain("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64");
+        runQemu(tmp, Target.NATIVE_RISCV64, "qemu-riscv64", src);
+        assumeToolchain("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64");
+        runQemu(tmp, Target.NATIVE_AARCH64, "qemu-aarch64", src);
+    }
+
+    @Test
     void whitespaceJvmJsNative(@TempDir Path tmp) throws Exception {
         // STDLIB S3.2: WS = {9..13,32}; >=128 NÃO é WS; ""/null => ""/null;
         // normalize: trim + colapso p/ UM espaço. Oracle Python.
@@ -411,8 +456,7 @@ class KofStringsTest {
     }
 
     @Test
-    void unescapeHtmlUtf8(@TempDir Path tmp) throws Exception {
-        // numéricos multi-byte: é (2B), ☀ (3B), €. JVM/JS/x86/riscv/aarch idênticos.
+    void unescapeHtmlUtf8(@TempDir Path tmp) throws Exception {        // numéricos multi-byte: é (2B), ☀ (3B), €. JVM/JS/x86/riscv/aarch idênticos.
         String src = """
             main() {
                 assert(strings.unescapeHtml("caf&#233;") == "caf\u00e9")

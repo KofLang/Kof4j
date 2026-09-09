@@ -411,6 +411,36 @@ public final class JvmStringMathRuntime {
                     return o.toString();
                 }
 
+                // escapeJson: corpo de string literal JSON (RFC 8259) — as
+                // aspas de delimitacao sao do CALLER. backslash dobra; aspas
+                // vira backslash-quote; b/f/n/r viram 2-char; ctrl abaixo de
+                // 0x20 vira backslash-u com 4 hex minusculos; demais (>=0x20,
+                // incl >=128) copiados. null/vazia => original.
+                public static String kof_strings_escapeJson(String v) {
+                    if (v == null) return null;
+                    StringBuilder o = new StringBuilder(v.length() + 8);
+                    final char BS = (char) 92;
+                    for (int i = 0; i < v.length(); i++) {
+                        char c = v.charAt(i);
+                        if (c == BS) { o.append(BS).append(BS); continue; }
+                        if (c == '"') { o.append(BS).append('"'); continue; }
+                        if (c < 32) {
+                            if (c == 8) { o.append(BS).append('b'); continue; }
+                            if (c == 12) { o.append(BS).append('f'); continue; }
+                            if (c == 10) { o.append(BS).append('n'); continue; }
+                            if (c == 13) { o.append(BS).append('r'); continue; }
+                            if (c == 9) { o.append(BS).append('t'); continue; }
+                            o.append(BS).append('u');
+                            String hx = Integer.toHexString(c);
+                            for (int z = hx.length(); z < 4; z++) o.append('0');
+                            o.append(hx);
+                            continue;
+                        }
+                        o.append(c);
+                    }
+                    return o.toString();
+                }
+
                 // unescapeHtml: 5 nomeadas (&amp &lt &gt &quot &apos) +
                 // numéricos &#DDD; / &#xHH; (valid <0x10000, não-surogates,
                 // >0). Qualquer outro "&..." fica LITERAL (regra travada).

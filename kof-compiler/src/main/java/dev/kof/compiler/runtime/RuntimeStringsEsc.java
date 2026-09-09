@@ -366,6 +366,7 @@ public final class RuntimeStringsEsc {
                 popq %r12
                 popq %rbx
                 ret
+
         """);
     }
 }
