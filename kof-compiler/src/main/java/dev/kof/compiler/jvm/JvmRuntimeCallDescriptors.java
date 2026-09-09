@@ -90,6 +90,15 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_ui_form_new" -> "(Ljava/util/ArrayList;)I";
             case "kof_ui_form_on_submit" -> "(ILjava/lang/Object;)V";
             case "kof_ui_form_submit" -> "(I)V";
+            case "kof_ui_fieldset_new" -> "(Ljava/util/ArrayList;)I";
+            case "kof_ui_iframe_new", "kof_ui_video_new", "kof_ui_audio_new" -> "(Ljava/lang/String;)I";
+            case "kof_ui_iframe_set_src", "kof_ui_video_set_src", "kof_ui_audio_set_src"
+                    -> "(ILjava/lang/String;)V";
+            case "kof_ui_video_set_controls", "kof_ui_audio_set_controls" -> "(II)V";
+            case "kof_ui_video_play", "kof_ui_video_pause", "kof_ui_audio_play", "kof_ui_audio_pause",
+                    "kof_ui_iframe_remove", "kof_ui_video_remove", "kof_ui_audio_remove",
+                    "kof_ui_hr_remove" -> "(I)V";
+            case "kof_ui_hr_new" -> "()I";
             case "kof_ui_view_new" -> "(I)I";
             case "kof_ui_style_new" -> "(IIII)I";
             case "kof_ui_window_set_theme", "kof_ui_label_set_font_size", "kof_ui_label_set_bold",

@@ -139,13 +139,36 @@ if (mc.receiver() == null && "Table".equals(mc.methodName()) && mc.arguments().s
     return localIdx;
 }
 if (mc.receiver() == null && ("Column".equals(mc.methodName()) || "Row".equals(mc.methodName())
-        || "Form".equals(mc.methodName()))
+        || "Form".equals(mc.methodName()) || "Fieldset".equals(mc.methodName()))
         && mc.arguments().size() == 1) {
     localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(0), ops, owner, localIdx, locals);
     String fn = "Column".equals(mc.methodName()) ? "kof_ui_column_new"
-            : "Form".equals(mc.methodName()) ? "kof_ui_form_new" : "kof_ui_row_new";
+            : "Form".equals(mc.methodName()) ? "kof_ui_form_new"
+            : "Fieldset".equals(mc.methodName()) ? "kof_ui_fieldset_new" : "kof_ui_row_new";
     ops.add(new KofCall(new Type.ClassType("kof.ui", "Ui", List.of()),
             fn, List.of(new Type.ClassType("kof", "List", List.of(Type.PrimitiveType.INT))),
+            Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+    return localIdx;
+}
+if (mc.receiver() == null && "Iframe".equals(mc.methodName()) && mc.arguments().size() == 1) {
+    localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(0), ops, owner, localIdx, locals);
+    ops.add(new KofCall(new Type.ClassType("kof.ui", "Ui", List.of()),
+            "kof_ui_iframe_new", List.of(BuiltinTypes.STRING),
+            Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+    return localIdx;
+}
+if (mc.receiver() == null && ("Video".equals(mc.methodName()) || "Audio".equals(mc.methodName()))
+        && mc.arguments().size() == 1) {
+    localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(0), ops, owner, localIdx, locals);
+    String fn = "Video".equals(mc.methodName()) ? "kof_ui_video_new" : "kof_ui_audio_new";
+    ops.add(new KofCall(new Type.ClassType("kof.ui", "Ui", List.of()),
+            fn, List.of(BuiltinTypes.STRING),
+            Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+    return localIdx;
+}
+if (mc.receiver() == null && "Hr".equals(mc.methodName()) && mc.arguments().isEmpty()) {
+    ops.add(new KofCall(new Type.ClassType("kof.ui", "Ui", List.of()),
+            "kof_ui_hr_new", List.of(),
             Type.PrimitiveType.INT, KofCallKind.FUNCTION));
     return localIdx;
 }

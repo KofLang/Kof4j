@@ -136,7 +136,9 @@ public final class CompilerUiEmitter {
                 || KofUi.isUl(recvType) || KofUi.isOl(recvType) || KofUi.isTable(recvType)
                 || KofUi.isView(recvType)
                 || KofUi.isLink(recvType) || KofUi.isImage(recvType) || KofUi.isIcon(recvType)
-                || KofUi.isForm(recvType) || KofUi.isCanvas(recvType)) {
+                || KofUi.isForm(recvType) || KofUi.isCanvas(recvType)
+                || KofUi.isFieldset(recvType) || KofUi.isIframe(recvType)
+                || KofUi.isVideo(recvType) || KofUi.isAudio(recvType) || KofUi.isHr(recvType)) {
             KofUi.UiCall uiCall = KofUi.instanceMethod(recvType, mc.methodName(), mc.arguments().size());
             if (uiCall != null) {
                 for (ExpressionNode arg : mc.arguments()) {

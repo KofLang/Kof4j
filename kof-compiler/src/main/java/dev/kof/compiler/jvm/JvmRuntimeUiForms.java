@@ -113,6 +113,65 @@ public final class JvmRuntimeUiForms {
 
                 public static void kof_ui_input_remove(int input) {
                 }
+
+                public static int kof_ui_fieldset_new(java.util.ArrayList children) {
+                    return 1;
+                }
+
+                public static int kof_ui_iframe_new(String src) {
+                    return 1;
+                }
+
+                public static void kof_ui_iframe_set_src(int iframe, String src) {
+                }
+
+                public static void kof_ui_iframe_remove(int iframe) {
+                }
+
+                public static int kof_ui_video_new(String src) {
+                    return 1;
+                }
+
+                public static void kof_ui_video_set_src(int video, String src) {
+                }
+
+                public static void kof_ui_video_set_controls(int video, int controls) {
+                }
+
+                public static void kof_ui_video_play(int video) {
+                }
+
+                public static void kof_ui_video_pause(int video) {
+                }
+
+                public static void kof_ui_video_remove(int video) {
+                }
+
+                public static int kof_ui_audio_new(String src) {
+                    return 1;
+                }
+
+                public static void kof_ui_audio_set_src(int audio, String src) {
+                }
+
+                public static void kof_ui_audio_set_controls(int audio, int controls) {
+                }
+
+                public static void kof_ui_audio_play(int audio) {
+                }
+
+                public static void kof_ui_audio_pause(int audio) {
+                }
+
+                public static void kof_ui_audio_remove(int audio) {
+                }
+
+                public static int kof_ui_hr_new() {
+                    return 1;
+                }
+
+                public static void kof_ui_hr_remove(int hr) {
+                }
                 """;
     }
 }
