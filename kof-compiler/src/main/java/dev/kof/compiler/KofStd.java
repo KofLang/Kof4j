@@ -23,7 +23,7 @@ public final class KofStd {
     /** true if the receiver identifier is a std namespace we own. */
     static boolean isStdNamespace(String name) {
         return KofMath.isMathNamespace(name) || KofStrings.isStringsNamespace(name)
-                || KofEncoding.isEncodingNamespace(name);
+                || KofEncoding.isEncodingNamespace(name) || KofUuid.isUuidNamespace(name);
     }
 
     static StdCall staticMethod(String namespace, String name, List<Type> argTypes) {
@@ -42,6 +42,11 @@ public final class KofStd {
             return c == null ? null
                     : new StdCall("kof.encoding", "Encoding", c.function(), c.returnType(), c.parameterTypes());
         }
+        if (KofUuid.isUuidNamespace(namespace)) {
+            KofUuid.UuidCall c = KofUuid.staticMethod(namespace, name, argTypes);
+            return c == null ? null
+                    : new StdCall("kof.uuid", "Uuid", c.function(), c.returnType(), c.parameterTypes());
+        }
         return null;
     }
 
@@ -49,6 +54,7 @@ public final class KofStd {
         if ("kof.math".equals(call.ownerPackage())) return KofMath.supportedOn(call.function(), target);
         if ("kof.strings".equals(call.ownerPackage())) return KofStrings.supportedOn(call.function(), target);
         if ("kof.encoding".equals(call.ownerPackage())) return KofEncoding.supportedOn(call.function(), target);
+        if ("kof.uuid".equals(call.ownerPackage())) return KofUuid.supportedOn(call.function(), target);
         return true;
     }
 
@@ -56,6 +62,7 @@ public final class KofStd {
         if ("kof.math".equals(call.ownerPackage())) return KofMath.gapCode(call.function());
         if ("kof.strings".equals(call.ownerPackage())) return KofStrings.gapCode(call.function());
         if ("kof.encoding".equals(call.ownerPackage())) return KofEncoding.gapCode(call.function());
+        if ("kof.uuid".equals(call.ownerPackage())) return KofUuid.gapCode(call.function());
         return "STD001";
     }
 }

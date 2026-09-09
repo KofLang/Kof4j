@@ -340,6 +340,7 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_strings_padLeft", "kof_strings_padRight" -> "(Ljava/lang/String;ILjava/lang/String;)Ljava/lang/String;";
             case "kof_encoding_hexEncode", "kof_encoding_hexDecode", "kof_encoding_base64Encode", "kof_encoding_base64Decode" -> "(Ljava/lang/String;)Ljava/lang/String;";
             case "kof_encoding_urlEncode", "kof_encoding_urlDecode", "kof_encoding_base64UrlEncode", "kof_encoding_base64UrlDecode" -> "(Ljava/lang/String;)Ljava/lang/String;";
+            case "kof_uuid_v4" -> "()Ljava/lang/String;";
             // ── kof.observability (G5) ────────────────────────────────
             case "kof_observability_health", "kof_observability_request_id", "kof_observability_correlation_id",
                     "kof_observability_trace_id", "kof_observability_span_id",
