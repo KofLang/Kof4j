@@ -244,6 +244,50 @@ class CompilerDriverTest {
         assertTrue(diags.contains("SEM027"), "Should be a clean diagnostic, was: " + diags);
     }
 
+    @Test
+    void assignmentToValGivesCleanDiagnostic(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Bad.kf");
+        Files.writeString(source, """
+            main() {
+                val x = 1
+                x = 2
+            }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "assignment to val should fail to compile");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM037"), "Should be a clean diagnostic, was: " + diags);
+    }
+
+    @Test
+    void compoundAssignmentToValGivesCleanDiagnostic(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Bad.kf");
+        Files.writeString(source, """
+            main() {
+                val x = 1
+                x += 5
+            }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "compound assignment to val should fail to compile");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM037"), "Should be a clean diagnostic, was: " + diags);
+    }
+
+    @Test
+    void varRemainsMutable(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Ok.kf");
+        Files.writeString(source, """
+            main() {
+                var x = 1
+                x = 2
+                println(x)
+            }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertTrue(result.success(), "var assignment should still compile: " + result.diagnostics().getDiagnostics());
+    }
+
     // known-bugs #26 — a void call used as a VALUE (println(f()) where f is
     // void, or `var x = voidCall()`) left the value stack empty → segfault on
     // Native / VerifyError on JVM. Now a clean SEM033.

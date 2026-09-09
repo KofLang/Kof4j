@@ -352,7 +352,12 @@ public class StatementParser {
     static StatementNode parseVarDecl(ParseContext ctx) {
         SourcePosition p = ctx.pos();
         String type = "var";
-        if (ctx.check(TokenType.VAR, TokenType.VAL)) {
+        if (ctx.check(TokenType.VAL)) {
+            // bug 62: `val` é imutável — o type do VarDeclStmt precisa carregar
+            // "val" para o analisador semântico emitir SEM037 em reatribuição.
+            ctx.advance();
+            type = "val";
+        } else if (ctx.check(TokenType.VAR)) {
             ctx.advance();
         } else {
             type = TypeParser.parseTypeRef(ctx);

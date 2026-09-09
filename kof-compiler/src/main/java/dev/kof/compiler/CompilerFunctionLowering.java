@@ -38,9 +38,10 @@ public final class CompilerFunctionLowering {
             }
             for (StatementNode stmt : func.body()) {
                 if (stmt instanceof VarDeclStmt vds && vds.initializer() != null) {
-                    Type vt = vds.type() != null && !"var".equals(vds.type())
-                            ? CompilerTypes.toType(vds.type(), driver.currentUnit)
-                            : ExpressionTyper.inferExprType(driver, vds.initializer(), tmpLocals);
+Type vt = vds.type() != null && !"var".equals(vds.type())
+                        && !"val".equals(vds.type())
+                        ? CompilerTypes.toType(vds.type(), driver.currentUnit)
+                        : ExpressionTyper.inferExprType(driver, vds.initializer(), tmpLocals);
                     tmpLocals.add(new IRLocalVariable(tmpIdx, vds.name(), vt));
                     tmpIdx += TypeMetrics.isDoubleWidth(vt) ? 2 : 1;
                 }

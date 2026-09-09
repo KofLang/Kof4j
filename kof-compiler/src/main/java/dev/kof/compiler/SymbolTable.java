@@ -95,7 +95,12 @@ public class SymbolTable {
         }
     }
 
-    record LocalVariableSymbol(String name, Type type, int index) implements Symbol {
+    record LocalVariableSymbol(String name, Type type, int index, boolean isVal) implements Symbol {
+        // construtor compacto: mantém os call sites de 3 args (params de catch,
+        // loop vars, pattern vars — nunca val) sem quebrar.
+        LocalVariableSymbol(String name, Type type, int index) {
+            this(name, type, index, false);
+        }
     }
 
     record FieldSymbol(String name, Type type, int accessFlags, String ownerClass) implements Symbol {

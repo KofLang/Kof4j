@@ -28,6 +28,14 @@ public final class StatementAnalyzer {
             SymbolTable.Symbol sym = scope.resolve(ie.name());
             if (sym != null) {
                 targetType = sym.type();
+                // bug 62: `val` é imutável — escrever em val é erro de
+                // mutabilidade (SEM037), alinhado à semântica congelada.
+                if (sym instanceof SymbolTable.LocalVariableSymbol lv && lv.isVal()
+                        && sa.diagnostics() != null) {
+                    sa.diagnostics().error("", 0, 0, 0,
+                            "cannot assign to immutable 'val' variable '" + ie.name() + "'",
+                            "SEM037");
+                }
                 if (sa.diagnostics() != null && !Type.isUnknown(targetType)
                         && !Type.isUnknown(valueType)
                         && !TypeChecker.isAssignable(valueType, targetType)) {
@@ -72,7 +80,10 @@ public final class StatementAnalyzer {
             }
             case VarDeclStmt vds -> {
                 Type varType;
-                if (vds.type() != null && !vds.type().isEmpty() && !"var".equals(vds.type())) {
+                // "val"/"var" são palavras-chave de mutabilidade, não tipos —
+                // o tipo real vem do initializer (ou do type explícito após ':').
+                if (vds.type() != null && !vds.type().isEmpty()
+                        && !"var".equals(vds.type()) && !"val".equals(vds.type())) {
                     Type viaImports = MemberResolver.qualifyViaImports(sa.unit(), vds.type());
                     varType = viaImports != null ? viaImports : Type.of(vds.type());
                 } else if (vds.initializer() != null) {
@@ -101,7 +112,8 @@ public final class StatementAnalyzer {
                                 "SEM021");
                     }
                 }
-                scope.define(new SymbolTable.LocalVariableSymbol(vds.name(), varType, 0));
+                scope.define(new SymbolTable.LocalVariableSymbol(vds.name(), varType, 0,
+                        vds.type() != null && "val".equals(vds.type())));
             }
             case ReturnStmt ret -> {
                 if (ret.value() != null) {

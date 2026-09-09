@@ -1028,7 +1028,7 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 
 ---
 
-### 62. Frontend não valida mutabilidade: `val` é decorativo e escrita em componente de record diverge nos 3 caminhos (GitHub #42) — ABERTO
+### 62. Frontend não valida mutabilidade: `val` é decorativo e escrita em componente de record diverge nos 3 caminhos (GitHub #42) — parcialmente CORRIGIDO (sintoma a: `val` imutável); sintomas b/c ABERTOS
 
 - **Sintoma (a):** `main() { val x = 1; x = 2; println(x) }` → `kof check` "no
   errors" e imprime **`2`** no JVM, KofJS e interpretador. `val` não é imutável.
@@ -1056,6 +1056,16 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 - **Correção proposta:** checagem de mutabilidade em
   `analyzeAssignmentStatement` + diagnóstico novo (`SEM0xx: cannot assign to
   immutable <nome>`) para (a) símbolo `val` e (b) componente de record.
+- **Sintoma (a) CORRIGIDO 09/09:** `parser/StatementParser.parseVarDecl` agora
+  carrega `type="val"` para `val` (antes sempre "var" → o flag nunca chegava ao
+  analisador); `SymbolTable.LocalVariableSymbol` ganhou campo `isVal` (construtor
+  compacto de 3 args preserva os call sites de catch/loop/pattern); `StatementAnalyzer.
+  analyzeAssignmentStatement` emite **SEM037** ("cannot assign to immutable 'val'
+  variable") para reatribuição (incluindo compound `+=`) de símbolo val;
+  `StatementAnalyzer`/`StatementLowerer`/`CompilerFunctionLowering` tratam "val"
+  como keyword (como "var") na inferência de tipo. Testes:
+  `CompilerDriverTest.{assignmentToValGivesCleanDiagnostic,compoundAssignmentToValGivesCleanDiagnostic,varRemainsMutable}`.
+  Sintomas (b) `record P(Int x); p.x = 9` e (c) `this.x = 99` em record permanecem ABERTOS (exigem checagem de acesso a campo de record no `FieldAccessExpr` — alvo de escopo separado).
 - **Arquivos:** `StatementAnalyzer.java` (`analyzeAssignmentStatement`),
   `SemanticAnalyzer.java`.
 - **Cobertura:** nenhum teste da suíte cobre imutabilidade (busca por
