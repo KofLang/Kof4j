@@ -131,7 +131,7 @@
 
 ---
 
-### 7. Argumento de tipo nullable em chamada genérica não parseia
+### 7. Argumento de tipo nullable em chamada genérica não parseia — ✅ CORRIGIDO (teste `CoreRegressionE2ETest.nullableGenericArgumentInCall`)
 
 - **Sintoma:** `listOf<String?>()` → PARSE041 (Unexpected token `?`).
   `List<String?> l = listOf()` funciona.
@@ -163,7 +163,7 @@
 ---
 
 ### 9. Captura mutável no Native: ler boxed dentro da lambda após mutação
-EXTERNA produz lixo
+EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableCapture` → `15\n25\n3`)
 
 - **Sintoma:** `var f = (x) -> x + offset; offset = 20; f(5)` retorna lixo no
   Native (JVM correto). A direção "lambda escreve" funciona.
@@ -347,7 +347,7 @@ EXTERNA produz lixo
 
 ## Investigação de usuários (02/09, rodada 3) — packages, lambda, kof-ui
 
-### 18. kof-ui: ID de widget é reutilizado após `remove()` → colisão de nós
+### 18. kof-ui: ID de widget é reutilizado após `remove()` → colisão de nós — ✅ CORRIGIDO (teste `KofJsE2ETest.uiWidgetIdsUseMonotonicCounter`)
 
 - **Sintoma:** `kofUiLabelNew`/`Link`/`Image`/`Icon`/`Font` geram o ID com
   `Object.keys(window.__kofNodes).length + 1`. Como `remove()` faz
@@ -400,7 +400,7 @@ EXTERNA produz lixo
 
 ---
 
-### 21. Nomenclatura: `PKG005` rejeita mesmo nome simples em pacotes DIFERENTES
+### 21. Nomenclatura: `PKG005` rejeita mesmo nome simples em pacotes DIFERENTES — ✅ CORRIGIDO (teste `PackagesE2ETest`, casos PKG005 03/09)
 
 - **Sintoma:** `package pkgA; class Data` + `package pkgB; class Data` →
   `duplicate type name 'Data' in packages 'pkgA' and 'pkgB' [PKG005]`. Em
@@ -414,7 +414,7 @@ EXTERNA produz lixo
 
 ---
 
-### 22. Native: chamada de CONSTRUTOR de classe de outro pacote → undefined reference
+### 22. Native: chamada de CONSTRUTOR de classe de outro pacote → undefined reference — ✅ CORRIGIDO (teste `NativeE2ETest.nativeConstructorFromImportedPackage`)
 
 - **Sintoma:** `import a.b.C; main() { var c = C() }` no target NATIVE →
   `undefined reference to 'C_init_0'` no ld. O emit usa `sanitizeName(ct.name())`
@@ -429,7 +429,7 @@ EXTERNA produz lixo
 
 ---
 
-### 23. ExternalClasspath: cadeia de superclasses só resolve DENTRO dos entries
+### 23. ExternalClasspath: cadeia de superclasses só resolve DENTRO dos entries — ✅ CORRIGIDO (teste `AndroidInteropE2ETest.missingSuperclassOnClasspathWarns`)
 
 - **Sintoma:** `resolveMethod`/`resolveFieldType` seguem a superclasse apenas
   se ela estiver nos entries (`classBytes`). Se uma superclasse intermediária
@@ -545,7 +545,7 @@ EXTERNA produz lixo
 
 ---
 
-### 30. Native x86_64: `json.decode<Bool>("false")` dava `true` (corrigido)
+### 30. Native x86_64: `json.decode<Bool>("false")` dava `true` — ✅ CORRIGIDO
 
 - **Sintoma:** `decode<Bool>` invertido no x86_64: `"false"`→`true`,
   `"  true"`→`false`. O JVM dava o correto (`false`/`true`); o riscv64
