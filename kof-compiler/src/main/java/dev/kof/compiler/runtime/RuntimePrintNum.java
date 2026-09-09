@@ -74,8 +74,8 @@ public final class RuntimePrintNum {
     public static void emitPrintFloat(StringBuilder sb) {
         sb.append("""
             .section .data
-            .Lfmt_float: .asciz "%g"
-            .Lfmt_double: .asciz "%g"
+            .Lfmt_float: .asciz "%.16g"
+            .Lfmt_double: .asciz "%.16g"
             .section .text
             .globl kof_print_float
             .type kof_print_float, @function

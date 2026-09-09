@@ -629,6 +629,10 @@ Responda SIM a todas antes de terminar:
    `kof.http`, `kof.cache`, `kof.security`, `kof.ui`) → use a stdlib.
 5. **Código parece gerado ou escrito por humano?** Se gerado, reescreva.
 6. **Novo idiom/anti-pattern descoberto?** → atualize `training/` (obrigatório).
+7. **Testei apenas o "caminho feliz"?** Se sim, testar comportamentos
+   inesperados (confiabilidade do codegen, bordas de erro, tipos nullable,
+   concorrência, alocação de memória, cross-target paridade). Nunca delivery
+   com testes que cobrem apenas o caso de sucesso esperado.
 
 ---
 

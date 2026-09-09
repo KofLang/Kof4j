@@ -60,6 +60,9 @@ public final class JsonDispatch {
                 return "kof_json_decode_int_list";
             }
             if (BuiltinTypes.isString(listElementType)) return "kof_json_decode_string_list";
+            if (listElementType instanceof Type.ClassType ct && "Record".equals(ct.name())) {
+                return "kof_json_decode_record_list";
+            }
             return "kof_json_decode_list";
         }
         if (type instanceof Type.ClassType ct) return "kof_json_decode_" + sanitize(ct.name());

@@ -194,6 +194,14 @@ public final class RuntimeJsonDecode {
             kof_json_decode_list:
                 jmp kof_json_decode_int_list
 
+            .globl kof_json_decode_record_list
+            .type kof_json_decode_record_list, @function
+            kof_json_decode_record_list:
+                # Decode a list of records: each record is decoded using kof_json_bind
+                # with the record's generic type. For now, delegate to the list decoder
+                # with a flag, or implement record-by-record decoding.
+                jmp kof_json_decode_list
+
             .globl kof_json_decode_bool
             .type kof_json_decode_bool, @function
             kof_json_decode_bool:
