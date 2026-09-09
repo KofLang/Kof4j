@@ -1000,7 +1000,7 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 - **Prova:** `KofHttpE2ETest.multipleHeadersAsVariadicArgs` (3 headers → servidor ecoa `A=1 B=2 C=3`); probe post-4args/get-3args/post-5args compilam; E2E runtime com servidor Kof recebendo os 3 headers individualmente.
 - **Descoberto:** 07/09 (GitHub #32; corpo do issue obtido via API).
 
-### 61. FFI nativo: `dlopen`/`dlsym` segfaultam no binário nativo (sem init do glibc) — ABERTO (lane Native)
+### 61. FFI nativo: `dlopen`/`dlsym` segfaultam no binário nativo (sem init do glibc) — ✅ gap honesto FFI001 implementado (08/09); correção real (glibc init) = trabalho futuro
 
 - **Sintoma:** um `extern` compilado para NATIVE gera um binário que **segfaulta
   (exit 139)** ao chamar `dlopen`. Na main, `FfiE2ETest.libcAbsEndToEndNative`

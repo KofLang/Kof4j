@@ -264,4 +264,26 @@ class SpawnE2ETest {
         assertEquals(0, p.waitFor(), "exit code, output: " + output);
         assertTrue(output.contains("42"), "await devolve o valor: " + output);
     }
+
+    // known-bugs #46 — spawn-expr com LAMBDA LITERAL que retorna valor
+    // (`spawn { return n * 2 }`) → SIGSEGV no Native (variante do bug 29).
+    @Test
+    void nativeSpawnExprAwaitLambdaReturn(@TempDir Path tempDir) throws IOException, InterruptedException {
+        Path source = tempDir.resolve("Main3.kf");
+        Files.writeString(source, """
+                main() {
+                    var n = 21
+                    var h = spawn { return n * 2 }
+                    println(await h)
+                }
+                """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out3"), Target.NATIVE);
+        assertTrue(result.success(), "Native spawn-expr lambda return should compile: " + result.diagnostics().getDiagnostics());
+        Path bin = tempDir.resolve("out3").resolve("Default/Main");
+        ProcessBuilder pb = new ProcessBuilder(bin.toString()).redirectErrorStream(true);
+        Process p = pb.start();
+        String output = new String(p.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).trim();
+        assertEquals(0, p.waitFor(), "exit code, output: " + output);
+        assertTrue(output.contains("42"), "await devolve o valor da lambda: " + output);
+    }
 }
