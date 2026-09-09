@@ -419,13 +419,11 @@ final class BytecodeStatements {
                 case 0x6c -> { if (!BytecodeDecoder.bin(stack, "/")) return null; }
                 case 0x70 -> { if (!BytecodeDecoder.bin(stack, "%")) return null; }
                 case 0x74 -> { if (stack.isEmpty()) return null; stack.push("-" + stack.pop()); }
-                // Fase E (09/09): pop/instanceof/checkcast com whitelist de
-                // tipos sempre-em-escopo + heurística de chamada p/ pop — a
-                // semântica (R6, recusa→stub) mora em BytecodeKofTypes.
-                case 0x57, 0xc0, 0xc1 -> {
-                    int idx = op == 0x57 ? 0 : in.operands()[0];   // pop não tem operando
-                    if (stack.isEmpty() || !BytecodeKofTypes.exprOp(op, stack, cp, idx, stmts, frame))
-                        return null;
+                // Fase E: construção/teste-emit (0xbb new, 0x59 dup, 0xb7 init,
+                // 0x57 pop, 0xc0 cast, 0xc1 instanceof) — semântica em
+                // BytecodeKofTypes (gate ≤500); false = recusar → stub.
+                case 0x57, 0xc0, 0xc1, 0xbb, 0x59, 0xb7 -> {
+                    if (!BytecodeKofTypes.statementOp(op, in, stack, cp, stmts, frame)) return null;
                 }
                 case 0xb8 -> { // invokestatic
                     String[] m = BytecodeDecoder.resolveMethodRef(cp, in.operands()[0]);

@@ -22,6 +22,61 @@ final class BytecodeKofTypes {
      * então abandona. Tipos fora da whitelist (String/primitivos/Object)
      * SEMPRE recusam.
      */
+    /**
+     * Handler dos opcodes de EXPRESSÃO no emitLinear. true = manipulou a
+     * stack (ops ok); false = recusar (→ stub honesto). Chamado com a pilha
+     * não-vazia. pop (0x57) devolve stmt (a chamada de efeito descartada) ou
+     * null (topo não-era-chamada); instanceof (0xc1)/checkcast (0xc0) empurram
+     * o valor (cast de Object p/ primitivo-alvo) ou recusam (null) — o emit
+     * então abandona. Tipos fora da whitelist (String/primitivos/Object)
+     * SEMPRE recusam.
+     */
+    static boolean statementOp(int op, BytecodeReader.Insn in, java.util.Deque<String> stack,
+                               String[] cp, java.util.List<String> stmts, BytecodeFrame frame) {
+        switch (op) {
+            case 0x57, 0xc0, 0xc1 -> {
+                if (stack.isEmpty()) return false;
+                int idx = op == 0x57 ? 0 : in.operands()[0];   // pop não tem operando
+                return exprOp(op, stack, cp, idx, stmts, frame);
+            }
+            case 0xbb -> { // new de DOMÍNIO (mirror do path linear):
+                // `new java.lang.X` nunca é idiomático (R6). Cross-package
+                // registra import (§7 degrau 3); emissão = nome simples.
+                String cn = BytecodeDecoder.resolveClassName(cp, in.operands()[0]);
+                if (cn == null || BytecodeDecoder.isJdkClass(cp, in.operands()[0])) return false;
+                if (frame != null && frame.treeScope != null) {
+                    String internal = indexInternalName(cp, in.operands()[0]);
+                    if (internal != null) frame.treeScope.resolve(internal);
+                }
+                stack.push("⟦new⟧" + cn);
+                return true;
+            }
+            case 0x59 -> { // dup — só no padrão new (mirror do linear)
+                if (stack.isEmpty()) return false;
+                String top = stack.peek();
+                if (top == null || !top.startsWith("⟦new⟧")) return false;
+                stack.push(top);
+                return true;
+            }
+            case 0xb7 -> { // invokespecial <init> (mirror do linear)
+                String[] m = BytecodeDecoder.resolveMethodRef(cp, in.operands()[0]);
+                if (m == null || !"<init>".equals(m[1])) return false;
+                int argc = BytecodeDecoder.argCount(m[2]);
+                if (stack.size() < argc + 2) return false;
+                var callArgs = new java.util.ArrayList<String>();
+                for (int i = 0; i < argc; i++) callArgs.add(0, stack.pop());
+                stack.pop();   // receiver (cópia do dup)
+                String marker = stack.pop();
+                if (marker == null || !marker.startsWith("⟦new⟧")) return false;
+                stack.push(marker.substring("⟦new⟧".length()) + "(" + String.join(", ", callArgs) + ")");
+                return true;
+            }
+            default -> { return false; }
+        }
+    }
+
+    /** Núcleo de 0x57/0xc0/0xc1 (pop/instanceof/checkcast); frame=null ok
+     *  (modo 1-arquivo: sem índice, só whitelist). Chamado com pilha não-vazia. */
     static boolean exprOp(int op, java.util.Deque<String> stack, String[] cp, int cpIdx,
                           java.util.List<String> stmts, BytecodeFrame frame) {
         switch (op) {

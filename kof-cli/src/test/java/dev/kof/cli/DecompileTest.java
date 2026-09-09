@@ -650,6 +650,57 @@ class DecompileTest {
     }
 
     @Test
+    void recoversNewInStatementBody(@TempDir Path dir) throws Exception {
+        // Fase E: `new` em corpo multi-statement (`var n = new N(x); ...`)
+        // não existia no emitLinear (só no path linear) → stub certo.
+        // Mirror 0xbb/0x59/0xb7; JDK recusa (R6); cross-package registra import.
+        Path src = dir.resolve("classes");
+        Path p = src.resolve("p");
+        Path q = src.resolve("q");
+        Files.createDirectories(p);
+        Files.createDirectories(q);
+        Path n = p.resolve("N.java");
+        Files.writeString(n, """
+                package p;
+                public class N {
+                    public int v;
+                    public N(int v) { this.v = v; }
+                    public static int build(int x) {
+                        N n = new N(x);
+                        int v = n.v;
+                        return v;
+                    }
+                }
+                """);
+        Path m = q.resolve("M.java");
+        Files.writeString(m, """
+                package q;
+                import p.N;
+                public class M {
+                    public static int build(int x) {
+                        N n = new N(x);
+                        int v = n.v;
+                        return v;
+                    }
+                }
+                """);
+        runJavac(java.util.List.of(n, m), src);
+        Path out = dir.resolve("gen");
+        assertEquals(0, Decompile.decompileTree(src, out));
+        String nSrc = Files.readString(out.resolve("p/N.kf"));
+        assertTrue(nSrc.contains("var v1 = N(arg0)") || nSrc.contains("= N(arg0)"),
+                "`new` same-package em statement deve recuperar:\n" + nSrc);
+        String mSrc = Files.readString(out.resolve("q/M.kf"));
+        assertTrue(mSrc.contains("import p.N"),
+                "`new` cross-package deve gerar import:\n" + mSrc);
+        assertTrue(mSrc.contains("N(arg0)"),
+                "`new` cross-package em statement deve recuperar:\n" + mSrc);
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                out.resolve("p/N.kf"), out.resolve("q/M.kf")), dir.resolve("o"), Target.JVM, out);
+        assertTrue(r.success(), "árvore com new cross-package deve compilar:\n" + mSrc + "\n" + r.diagnostics().getDiagnostics());
+    }
+
+    @Test
     void escapesStringConstantsInDecompiledSource(@TempDir Path dir) throws Exception {
         // R6 (prova de drift 09/09): o ldc emitia a string do CP CRUA — `\b`,
         // newline real e `"` estouravam o lexer do .kf (LEX002/LEX004). Agora

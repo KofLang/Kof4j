@@ -227,6 +227,21 @@ Fase E  Kof Decompiler          (gerar Kof source)
 > na árvore (resta só wildcard `? extends`, gap próprio, e slots — fora do
 > decompiler).
 
+> **Estado (09/09, este commit): Fase E — `new` em statement-body.**
+> O `emitLinear` não tratava 0xbb/0x59/0xb7 (só o path linear): qualquer
+> corpo multi-statement com `new B(...)` virava stub — 152 arquivos com stub
+> contêm `new` de domínio. Mirror exato do path linear (marcador `⟦new⟧`,
+> dup-só-pós-marker, `<init>` com argc+2 na pilha); JDK recusa (R6);
+> cross-package registra import (frame já presente). Prova: par N/M
+> (`var n = new N(x)` + field + return, same e cross-package) compila +
+> `recoversNewInStatementBody` (42/42 DecompileTest). Corpus: single
+> 1674→1665 e tree 1636→1627 stubs; drift single 13→13 (zero novo — baseline
+> com o fix em stash, mesmo harness com package espelhado; os 13 são wildcard
+> + refs cross-file que o path linear já emitia). Refactor gate ≤500:
+> `statementOp` em `BytecodeKofTypes` (Statements 496, KofTypes 182).
+> Suíte 1193+25+5+122 — ZERO falhas. Próximo da fila: `anewarray` 0xbd
+> (69×) e joins estruturais (Fase C).
+
 ## 7. Relação com o Compilador
 
 O decompiler alimenta o pipeline existente:
