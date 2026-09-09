@@ -69,6 +69,7 @@ CONC001, JSN00x) — nunca comportamento silenciosamente diferente.
 | `kof.scheduler` | ✅ | `scheduler.every(n, fn)`/`at(cron, fn)`/`cancel(id)` — JVM (ScheduledExecutor) + JS (setInterval) — Native `SCHED001` |
 | `kof.process` | ✅ | `kof.process` (spawn de processos) — ver `docs/status.md` |
 | `kof.config` | ✅ | `config.get/env/has`, `config.str/int/long/bool(name, fallback)`, `config.required`; interpolação `${key}`; `kof config gen` gera template; precedência `KOF_CONFIG` > env `KOF_<KEY>` > profile > `kof.config` — 3 targets (JVM/Native asm `/proc/self/environ`/JS) — `KofConfigE2ETest` (11) |
+| **STDLIB** (`math`/`strings`/`encoding`, namespace nu via `KofStd`) | ✅ S1–S4 | **08/09 plan-stdlib-expansion.** `math.clamp/abs/sign/min/max/isEven/isOdd/isPositive/isNegative/isZero` (Int, 4 alvos). `strings.isAlpha/isNumeric/isAlphaNumeric/isAscii/isUpperCase/isLowerCase/count/capitalize/reverse/repeat/truncate/padLeft/padRight/toCamelCase/toPascalCase/toSnakeCase/toKebabCase/slugify` (predicados+conversores; 4 alvos, exceto *word-converters* riscv/aarch **STRN001**). `encoding.hexEncode/Decode`, `urlEncode/Decode` (4 alvos), `base64Encode/Decode`, `base64UrlEncode/Decode` (JVM/Script/JS/x86; riscv/aarch **ENC002** — reusa internals x86). Semântica travada na matriz `stdmath`/`stdstrings`/`stdstrings2b`/`stdstrings2b4`/`stdenc` (ConformanceMatrixTest). Gaps: NAT-STR01 (UTF-8 no reverse nativo), FLT (math Double = S1b). |
 
 ---
 

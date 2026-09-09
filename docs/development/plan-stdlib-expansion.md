@@ -59,7 +59,10 @@ na semântica congelada (null-safety + throw são o mecanismo).
 - **S1** `math` (P0-a) — 4 targets
 - **S2** `strings` (parte 1: cases/slug/pad/reverse/count) — 4 targets
 - **S3** `strings` (parte 2: escapes/lines/words/indent/isX)
-- **S4** `uuid` + `encoding` (base64/hex/url) — JS browser-first (randomValues/textEncoder)
+- **S4** `encoding` (hex/url/base64/base64Url) **FEITO 08/09** — matriz `stdenc`
+  4 alvos; base64* é **ENC002** gated riscv/aarch (reusa internals x86). ⚠️ Nota:
+  o runner JS do projeto (GraalJS embutido) NÃO tem `TextEncoder/TextDecoder` —
+  UTF-8 codificado à mão em `JsRuntimeUiStdlib`. `uuid` (v4/v7/ulid) segue em S3b.
 - **S5** `random` novo namespace + ext `validation` BR (CPF/CNPJ/CEP/PIS/NIS com
   checksum reutilizável interno — §18 briefing)
 - **S6** ext `validation` network (IPv4/IPv6/mac/domain/port) + Luhn
