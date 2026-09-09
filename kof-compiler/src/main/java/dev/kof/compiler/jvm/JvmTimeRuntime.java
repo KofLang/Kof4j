@@ -31,6 +31,21 @@ public final class JvmTimeRuntime {
                     return System.currentTimeMillis();
                 }
 
+                // ── kof.time (STDLIB S7-wedge) — calendário civil ─────────
+                // isLeapYear: ano bissexto (Gregório: %4 && (!%100 || %400)).
+                // daysInMonth: 1..12; mês inválido => 0 (paridade nos 4).
+                public static boolean kof_time_isLeapYear(int year) {
+                    if (year < 1) return false;
+                    return year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+                }
+
+                private static final int[] KOF_TIME_DIM = {31,28,31,30,31,30,31,31,30,31,30,31};
+
+                public static int kof_time_daysInMonth(int year, int month) {
+                    if (year < 1 || month < 1 || month > 12) return 0;
+                    return (month == 2 && kof_time_isLeapYear(year)) ? 29 : KOF_TIME_DIM[month - 1];
+                }
+
                 public static String kof_time_interval(int ms, Object fn) {
                     if (ms <= 0) throw new IllegalArgumentException("interval must be positive: " + ms);
                     String id = "job-" + KOF_TIME_SEQ.incrementAndGet();

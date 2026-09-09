@@ -73,6 +73,7 @@ public final class JvmRuntimeReturnDescriptors {
                     "kof_mq_publish", "kof_mq_subscribe", "kof_mq_unsubscribe",
                     "kof_mq_push", "kof_time_sleep", "kof_time_cancel", "kof_scheduler_cancel" -> "V";
             case "kof_time_now" -> "J";
+            case "kof_time_isLeapYear", "kof_time_daysInMonth" -> "I";
             case "kof_time_interval" -> "Ljava/lang/String;";
             case "kof_config_int", "kof_config_bool", "kof_config_has" -> "I";
             case "kof_config_long" -> "J";

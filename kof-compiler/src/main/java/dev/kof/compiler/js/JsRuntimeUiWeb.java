@@ -97,6 +97,18 @@ public final class JsRuntimeUiWeb {
                 return Date.now();
             }
 
+            // ── kof.time (STDLIB S7-wedge) — calendário civil ─────────────
+            export function kofTimeIsLeapYear(year) {
+                if (year < 1) return 0;
+                return (year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0)) ? 1 : 0;
+            }
+            export function kofTimeDaysInMonth(year, month) {
+                if (year < 1 || month < 1 || month > 12) return 0;
+                const dim = [31,28,31,30,31,30,31,31,30,31,30,31];
+                if (month === 2 && kofTimeIsLeapYear(year)) return 29;
+                return dim[month - 1];
+            }
+
             export function kofTimeSleep(ms) {
                 const end = Date.now() + ms;
                 // bombeia a fila cooperativa de timers durante o wait (GraalJS

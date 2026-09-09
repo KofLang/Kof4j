@@ -236,6 +236,8 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_mq_pop" -> "(Ljava/lang/String;)Ljava/lang/Object;";
             case "kof_mq_queue_size" -> "(Ljava/lang/String;)I";
             case "kof_time_sleep" -> "(I)V";
+            case "kof_time_isLeapYear" -> "(I)Z";
+            case "kof_time_daysInMonth" -> "(II)I";
             case "kof_time_now" -> "()J";
             case "kof_time_interval" -> "(ILjava/lang/Object;)Ljava/lang/String;";
             case "kof_time_cancel" -> "(Ljava/lang/String;)V";

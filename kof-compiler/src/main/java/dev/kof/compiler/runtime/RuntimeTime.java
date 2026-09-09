@@ -185,6 +185,93 @@ public final class RuntimeTime {
             kof_time_now:
                 jmp kof_now
 
+            # ── kof.time (STDLIB S7-wedge) — calendário civil ──────────────
+            # kof_time_isLeapYear(edi=year) -> 0/1. Gregório: %4 && (!%100 || %400).
+            # Como year%4==0 => k=year/4; year%100==0 <=> k%25==0; year%400==0 <=> k%100==0.
+            .globl kof_time_isLeapYear
+            .type kof_time_isLeapYear, @function
+            kof_time_isLeapYear:
+                pushq %rbx
+                pushq %rcx
+                cmpl $1, %edi          # ano < 1 (Gregório): não bissexto (SIGNED)
+                jl   .Lly_false
+                movl %edi, %eax
+                movl %edi, %ebx
+                andl $3, %eax
+                testl %eax, %eax
+                jne .Lly_false
+                shrl $2, %ebx          # k = year/4
+                movl %ebx, %eax
+                xorl %edx, %edx
+                movl $25, %ecx
+                divl %ecx             # edx = k%25
+                testl %edx, %edx
+                jne .Lly_true         # year%100 != 0 => bissexto
+                movl %ebx, %eax
+                xorl %edx, %edx
+                movl $100, %ecx
+                divl %ecx             # edx = k%100
+                testl %edx, %edx
+                jne .Lly_false        # year%400 != 0 => não
+                jmp .Lly_true
+            .Lly_true:
+                movl $1, %eax
+                popq %rcx
+                popq %rbx
+                ret
+            .Lly_false:
+                xorl %eax, %eax
+                popq %rcx
+                popq %rbx
+                ret
+
+            # kof_time_daysInMonth(edi=year, esi=month) -> dias (mês inválido => 0)
+            .globl kof_time_daysInMonth
+            .type kof_time_daysInMonth, @function
+            kof_time_daysInMonth:
+                pushq %rbx
+                pushq %rcx
+                pushq %rdx
+                cmpl $1, %edi          # ano < 1 => 0 (paridade JVM/JS; SIGNED)
+                jl   .Ldim_zero
+                movl %esi, %ebx
+                cmpl $1, %ebx
+                jl .Ldim_zero
+                cmpl $12, %ebx
+                jg .Ldim_zero
+                cmpl $2, %ebx
+                je .Ldim_feb
+                cmpl $4, %ebx
+                je .Ldim_30
+                cmpl $6, %ebx
+                je .Ldim_30
+                cmpl $9, %ebx
+                je .Ldim_30
+                cmpl $11, %ebx
+                je .Ldim_30
+                movl $31, %eax
+                jmp .Ldim_done
+            .Ldim_30:
+                movl $30, %eax
+                jmp .Ldim_done
+            .Ldim_feb:
+                movl %edi, %eax
+                call kof_time_isLeapYear
+                testl %eax, %eax
+                jne .Ldim_29
+                movl $28, %eax
+                jmp .Ldim_done
+            .Ldim_29:
+                movl $29, %eax
+                jmp .Ldim_done
+            .Ldim_zero:
+                xorl %eax, %eax
+            .Ldim_done:
+                popq %rdx
+                popq %rcx
+                popq %rbx
+                ret
+
             .globl kof_time_sleep
             .type kof_time_sleep, @function
             kof_time_sleep:

@@ -284,6 +284,18 @@ class ConformanceMatrixTest {
                     println(validation.isPis("12345678901"))
                 }
                 """, "true\nfalse\ntrue\nfalse\ntrue\nfalse\ntrue\nfalse", Set.of(), tempDir);
+        matrix("stdtime", """
+                main() {
+                    println(time.isLeapYear(2000))
+                    println(time.isLeapYear(1900))
+                    println(time.isLeapYear(2024))
+                    println(time.isLeapYear(-4))
+                    println(time.daysInMonth(2024, 2))
+                    println(time.daysInMonth(2023, 2))
+                    println(time.daysInMonth(2024, 4))
+                    println(time.daysInMonth(2024, 13))
+                }
+                """, "true\nfalse\ntrue\nfalse\n29\n28\n30\n0", Set.of(), tempDir);
     }
 
     @Test
