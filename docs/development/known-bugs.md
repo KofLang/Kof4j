@@ -807,14 +807,14 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 - **Prova/repro:** sweep cross-target 07/09 (caso `record-eq-hash`); `ConformanceMatrixTest.recordhash` (JVM/Script/JS verdes, Native excluído).
 - **Nota:** `a == b` (igualdade de conteúdo) e `println(a)` (`P[x=1, y=2]`) **têm** paridade nos 3 — só o `hashCode()` diverge.
 
-### 43. String no Native conta bytes UTF-8, JVM conta code units — ✅ CORRIGIDO 07/09 (lane Native) UTF-16 — ABERTO (lane Native; cf. STR001)
+### 43. String no Native conta bytes UTF-8, JVM conta code units — ✅ CORRIGIDO (teste `NativeE2ETest.nativeStringLengthUtf16`) — decisão de design STR001: `kof_string_length` conta code units UTF-16 (paridade JVM/JS; `café`→4, `a😀b`→4)
 
 - **Sintoma:** `var s = "café"; println(s.length); println(s.charAt(3))`: JVM → `4` / `233` (0xE9, code unit UTF-16 de `é`); **Native** → `5` / `195` (0xC3, 1º byte de `é` em UTF-8). `println(s + "!")` casa (`café!`) — só `length`/`charAt` divergem.
 - **Causa raiz:** as ops de string do Native são **byte/UTF-8** baseadas; as do JVM são **code-unit/UTF-16** baseadas. Mesma família do `STR001` (documentado p/ JVM `"Olá 😀".length`=6), mas aqui é **divergência cross-target** (Native ≠ JVM no MESMO programa) → paridade (regra 5).
 - **Prova/repro:** sweep cross-target 07/09 (caso `unicode-str`), Native x86_64.
 - **Correção (lane Native, decisão de design regra 6):** alinhar `length`/`charAt` a UMA convenção (code point ou code unit) nos 3 targets — é mudança de semântica congelada, precisa de bump.
 
-### 44. `println(double)` no Native x86_64 imprime 6 casas + `5` (JVM: 16 casas + `5.0`) — ABERTO (lane Native)
+### 44. `println(double)` no Native x86_64 imprime 6 casas + `5` (JVM: 16 casas + `5.0`) — ✅ CORRIGIDO (teste `ConformanceMatrixTest` `0.3333333333333333\n5.0\n3.5`)
 
 - **Sintoma:** `println(1.0/3.0); println(2.5*2.0); println(7.0/2.0)`: JVM → `0.3333333333333333` / `5.0` / `3.5`; **Native** → `0.333333` / `5` / `3.5`.
 - **Causa raiz:** o printer de double do Native (`RuntimePrintNum` / `kof_print_double`) formata com **6 casas** decimais e **sem `.0`** para inteiro-valido. Contradiz `docs/backend-parity.md:89` ("x86_64/JVM/JS impecáveis" para FP→string).
@@ -1064,7 +1064,7 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 
 ---
 
-### 63. KofJS: atribuição a PARÂMETRO emite `let` redeclarado → SyntaxError derruba o módulo inteiro (GitHub #43) — ABERTO (correção proposta no PR #45)
+### 63. KofJS: atribuição a PARÂMETRO emite `let` redeclarado → SyntaxError derruba o módulo inteiro (GitHub #43) — ✅ CORRIGIDO (testes `CoreRegressionE2ETest.{compoundAssignmentToParameterDoesNotRedeclareInJs,classMethodParameterReassignmentDoesNotRedeclareInJs,lambdaParameterReassignmentDoesNotRedeclareInJs}`)
 
 - **Sintoma:** `Int f(Int a) { a = 99; return a }` → JVM e interpretador dão
   `99`; KofJS falha no *parse* com
@@ -1092,7 +1092,7 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 
 ---
 
-### 64. KofJS: parâmetro após um `Long`/`Double` é descartado da assinatura e lê `undefined` (GitHub #47) — ABERTO (correção proposta no PR #48)
+### 64. KofJS: parâmetro após um `Long`/`Double` é descartado da assinatura e lê `undefined` (GitHub #47) — ✅ CORRIGIDO (testes `CoreRegressionE2ETest.{parameterAfterALongIsNotDroppedFromTheJsSignature,parameterAfterADoubleIsNotDroppedFromTheJsSignature}`)
 
 - **Sintoma:** `Int after(Long a, Int b) { return b }` + `main() { println(after(1L, 42)) }`
   → `kof check` "no errors"; JVM imprime `42`; **KofJS imprime `undefined`**.
