@@ -84,6 +84,13 @@ strings.escapeHtml("a<b>&\"'c")   // "a&lt;b&gt;&amp;&quot;&#39;c"
 strings.escapeHtml("Café & ç")     // "Café &amp; ç" (>=128 é copiado)
 ```
 
+Whitespace (WS = tab/LF/VT/FF/CR/espaço; >=128 **não** é WS):
+
+```kof
+strings.removeWhitespace("  a\tb\nc  ")   // "abc"
+strings.normalizeWhitespace("  a   b  ") // "a b" — trim + colapso p/ 1 espaço
+```
+
 > ⚠️ `capitalize` e os conversores de **palavra** são **ASCII** nos 4 targets
 > (medido): só `a-z` → `A-Z`; qualquer byte `>= 128` é **preservado** mas
 > **nunca capitalizado** (`"café"` → `"Café"`, mas `"ção"` → `"ção"`, não

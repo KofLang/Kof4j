@@ -12,6 +12,6 @@ public final class JvmStringRuntime {
     private JvmStringRuntime() {}
 
     static String source() {
-        return JvmStringCoreRuntime.source() + JvmStringSecurityRuntime.source() + JvmStringValidationRuntime.source() + JvmStringMathRuntime.source() + JvmStringObsRuntime.source() + JvmStringMiscRuntime.source();
+        return JvmStringCoreRuntime.source() + JvmStringSecurityRuntime.source() + JvmStringValidationRuntime.source() + JvmStringMathRuntime.source() + JvmStringWsRuntime.source() + JvmStringObsRuntime.source() + JvmStringMiscRuntime.source();
     }
 }

@@ -349,6 +349,46 @@ class KofStringsTest {
         runQemu(tmp, Target.NATIVE_AARCH64, "qemu-aarch64", src);
     }
 
+    @Test
+    void whitespaceJvmJsNative(@TempDir Path tmp) throws Exception {
+        // STDLIB S3.2: WS = {9..13,32}; >=128 NÃO é WS; ""/null => ""/null;
+        // normalize: trim + colapso p/ UM espaço. Oracle Python.
+        String src = """
+            main() {
+                println(strings.removeWhitespace("  a\\tb\\nc  "))
+                println(strings.removeWhitespace("Café é"))
+                println(strings.removeWhitespace(""))
+                println(strings.normalizeWhitespace("  a   b  "))
+                println(strings.normalizeWhitespace("x"))
+                println(strings.normalizeWhitespace("   "))
+                println(strings.normalizeWhitespace("a\\t\\n b"))
+            }
+            """;
+        String expected = "abc\nCaféé\n\na b\nx\n\na b";
+        runJvm(tmp, src, expected);
+        runJs(tmp, src, expected);
+        runNative(tmp, src, expected);
+    }
+
+    @Test
+    void whitespaceCrossArch(@TempDir Path tmp) throws Exception {
+        String src = """
+            main() {
+                assert(strings.removeWhitespace("  a\\tb\\nc  ") == "abc")
+                assert(strings.removeWhitespace("Café é") == "Caféé")
+                assert(strings.removeWhitespace("") == "")
+                assert(strings.normalizeWhitespace("  a   b  ") == "a b")
+                assert(strings.normalizeWhitespace("x") == "x")
+                assert(strings.normalizeWhitespace("   ") == "")
+                assert(strings.normalizeWhitespace("a\\t\\n b") == "a b")
+            }
+            """;
+        assumeToolchain("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64");
+        runQemu(tmp, Target.NATIVE_RISCV64, "qemu-riscv64", src);
+        assumeToolchain("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64");
+        runQemu(tmp, Target.NATIVE_AARCH64, "qemu-aarch64", src);
+    }
+
     private static Path findJsEntry(Path dir) throws java.io.IOException {
         try (var s = Files.walk(dir)) {
             var opt = s.filter(p -> p.getFileName().toString().equals("Default.mjs")).findFirst();

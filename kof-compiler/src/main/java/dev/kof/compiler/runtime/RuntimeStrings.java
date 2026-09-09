@@ -278,5 +278,6 @@ public final class RuntimeStrings {
         RuntimeStringsConv.emit(sb);
         RuntimeStringsWords.emit(sb);
         RuntimeStringsEsc.emit(sb);
+        RuntimeStringWs.emit(sb);
     }
 }

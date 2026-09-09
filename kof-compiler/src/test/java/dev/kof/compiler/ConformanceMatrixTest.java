@@ -333,6 +333,13 @@ class ConformanceMatrixTest {
                     println(strings.escapeHtml("<a href=\\"u\\">y</a>"))
                 }
                 """, "a&lt;b&gt;&amp;&quot;&#39;c\nCafé &amp; ç\n&amp;amp;lt;\n&lt;a href=&quot;u&quot;&gt;y&lt;/a&gt;", Set.of(), tempDir);
+        matrix("stdws", """
+                main() {
+                    println(strings.removeWhitespace("  a\\tb\\nc  ") + "|" + strings.removeWhitespace("Café é"))
+                    println(strings.normalizeWhitespace("  a   b  ") + "|" + strings.normalizeWhitespace("a\\t\\n b"))
+                    println(strings.normalizeWhitespace("   ") + "|[" + strings.removeWhitespace("") + "]")
+                }
+                """, "abc|Caféé\na b|a b\n|[]", Set.of(), tempDir);
         matrix("stdtime", """
                 main() {
                     println(time.isLeapYear(2000))
