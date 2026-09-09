@@ -39,6 +39,55 @@ Por isso, a colaboração no Kof segue regras claras:
 
 ---
 
+# Normas de Desenvolvimento Colaborativo (pré-beta 0.3.0)
+
+> **Em vigor a partir da próxima beta.** As normas abaixo estão sendo testadas
+> durante a pré-beta 0.3.0 e serão ajustadas nos próximos dias, conforme a
+> experiência evoluir. Site do ecossistema: <https://koflang.github.io>.
+
+## O que mudou
+
+Passamos a **aceitar contribuições assistidas por agentes de IA**, desde que
+cumpram os requisitos de arquitetura, filosofia, sintaxe e regras de qualidade
+do projeto. Usar IA **não é o problema** — entregar código que você não
+entende, é.
+
+> Relação com as regras 1–6 acima: a **regra 5** (debate técnico antes de
+> código) continua valendo para mudanças de **semântica congelada** — proposta
+> de mudança de operador, precedência, contrato de API. O que muda é o fluxo
+> de contribuições em geral: PRs agora são bem-vindas (produzidas por pessoa,
+> agente ou ambos), **mantida a regra 6** — toda PR com issue relacionada.
+
+## Os três princípios
+
+1. **Acelerar, não terceirizar o pensamento.** Use os agentes para acelerar o
+   trabalho. O agente pode escrever o código; **quem precisa entender esse
+   código é você.**
+2. **O padrão de qualidade não muda.** Toda Pull Request continua sendo
+   cuidadosamente revisada antes de qualquer merge. Não importa se a
+   contribuição foi produzida por uma pessoa, por um agente ou pelos dois —
+   o critério é o mesmo.
+3. **Responsabilidade antes de permissividade.** A ideia não é impedir IA. É
+   descobrir como usar IA de forma responsável em um projeto de software real.
+   Qualidade e confiabilidade continuam sendo a meta principal.
+
+## Os dois arquivos de convivência
+
+| Arquivo | Papel | Conteúdo |
+|---|---|---|
+| **`AGENTS.md`** | memória de longo prazo dos agentes | contexto do projeto, regras de convivência, arquitetura, filosofia e coordenação entre múltiplos agentes — documentado e atualizado com frequência |
+| **`DOING.md`** | log dos agentes | tudo que os agentes estão fazendo fica registrado ali — permite acompanhar o trabalho em andamento e reduzir conflitos entre agentes diferentes trabalhando no projeto |
+
+## O experimento
+
+Este é um teste deliberado: descobrir até onde conseguimos evoluir o processo
+de desenvolvimento colaborativo **sem comprometer a qualidade e a
+confiabilidade do Kof**. Se a pré-beta 0.3.0 trouxer resultados positivos, as
+normas podem se tornar progressivamente menos restritivas em relação ao uso de
+agentes no futuro.
+
+---
+
 # Código de Conduta do Colaborador
 
 ## Nosso Compromisso
