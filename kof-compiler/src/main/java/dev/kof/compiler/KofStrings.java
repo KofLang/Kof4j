@@ -77,10 +77,9 @@ public final class KofStrings {
             "kof_strings_toSnakeCase", "kof_strings_toKebabCase", "kof_strings_slugify");
 
     static boolean supportedOn(String function, Target target) {
-        if (WORD_FNS.contains(function)
-                && (target == Target.NATIVE_RISCV64 || target == Target.NATIVE_AARCH64)) {
-            return false;
-        }
+        // STRN001 FECHADO 09/09: os conversores de palavra (joinWords) foram
+        // portados p/ riscv64 (fatia B15) e o aarch64 é o MESMO asm traduzido —
+        // paridade byte-a-byte travada por diff do golden oracle x86 no qemu.
         return true;
     }
 

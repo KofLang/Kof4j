@@ -2,6 +2,7 @@ package dev.kof.compiler;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.Assumptions;
 import java.nio.file.*;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -155,22 +156,60 @@ class KofStringsTest {
     }
 
     @Test
-    void wordConvertersGatedOnCrossArch(@TempDir Path tmp) throws Exception {
-        // STRN001: port riscv/aarch do joinWords (asm puro) ainda não testado
-        // (bug 59 aberto) — diagnóstico honesto em compile-time, nunca link
-        // quebrado/stub silencioso (padrão SECN000/FLT001).
-        Path source = tmp.resolve("Main.kf");
-        Files.writeString(source, """
+    void wordConvertersClosedOnCrossArch(@TempDir Path tmp) throws Exception {
+        // STRN001 FECHADO 09/09: joinWords portado p/ riscv (B15) + aarch
+        // (mesmo asm traduzido). Antes reportava STRN001; agora compila nos
+        // dois e executa byte-idêntico ao x86 (prova por diff do golden no
+        // KofStringsTest + matrix stdstrings2b4 já em 4 targets).
+        String src = """
             main() {
-                println(strings.toSnakeCase("helloWorld"))
+                assert(strings.toSnakeCase("HTTPServer") == "http_server")
+                assert(strings.toSnakeCase("XMLParser") == "xml_parser")
+                assert(strings.toCamelCase("hello_world") == "helloWorld")
+                assert(strings.toPascalCase("hello world") == "HelloWorld")
+                assert(strings.toKebabCase("helloWorld") == "hello-world")
+                assert(strings.slugify("Hello, World!! 42") == "hello-world-42")
             }
-            """);
+            """;
         for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
-            CompilationResult r = driver.compile(source, tmp.resolve("cross-" + t), t);
-            assertFalse(r.success(), t + " deve reportar STRN001");
-            assertTrue(r.diagnostics().getDiagnostics().toString().contains("STRN001"),
-                    t + ": " + r.diagnostics().getDiagnostics());
+            String qemu = t == Target.NATIVE_RISCV64 ? "qemu-riscv64" : "qemu-aarch64";
+            String[] tools = t == Target.NATIVE_RISCV64
+                    ? new String[]{"riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64"}
+                    : new String[]{"aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"};
+            assumeToolchain(tools);
+            runQemu(tmp, t, qemu, src);
         }
+    }
+
+    private void assumeToolchain(String... tools) {
+        for (String c : tools) {
+            try {
+                Process p = new ProcessBuilder("sh", "-c", "command -v " + c)
+                        .redirectErrorStream(true).start();
+                String out = new String(p.getInputStream().readAllBytes(),
+                        java.nio.charset.StandardCharsets.UTF_8).trim();
+                if (p.waitFor() != 0 || out.isEmpty()) {
+                    Assumptions.assumeTrue(false, "toolchain ausente: " + c);
+                }
+            } catch (Exception e) {
+                Assumptions.assumeTrue(false, "toolchain ausente: " + c);
+            }
+        }
+    }
+
+    private void runQemu(Path tempDir, Target target, String qemu, String source) throws Exception {
+        Path file = tempDir.resolve("Main-" + System.nanoTime() + ".kf");
+        Files.writeString(file, source);
+        Path outDir = tempDir.resolve("out-" + System.nanoTime());
+        CompilationResult result = driver.compile(file, outDir, target);
+        assertTrue(result.success(), target + " compile failed: "
+                + result.diagnostics().getDiagnostics());
+        Path bin = outDir.resolve("Default/Main");
+        Process p = new ProcessBuilder(qemu, bin.toString()).redirectErrorStream(true).start();
+        String output = new String(p.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).trim();
+        int ec = p.waitFor();
+        assertEquals(0, ec, target + " runtime (qemu) exit " + ec + ", out: " + output);
     }
 
     @Test

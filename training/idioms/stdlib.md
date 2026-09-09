@@ -98,7 +98,7 @@ dígito 19∈{8,9,a,b}), nunca por igualdade. v7/ulid ainda não existem.
 | função | JVM/Script | Native x86_64 | Native riscv64/aarch64 | JS |
 |---|---|---|---|---|
 | math.*, strings.is*/count/capitalize/reverse/repeat/truncate/pad*, encoding.hex*/url* | ✅ | ✅ | ✅ | ✅ |
-| strings.toCamel/Pascal/Snake/Kebab/slugify | ✅ | ✅ | **STRN001** (gate compile-time) | ✅ |
+| strings.toCamel/Pascal/Snake/Kebab/slugify | ✅ | ✅ | ✅ (STRN001 fechado 09/09 — B15, diff golden qemu) | ✅ |
 | encoding.base64* / base64Url* | ✅ | ✅ | **ENC002** (gate compile-time) | ✅ |
 | uuid.v4 | ✅ | ✅ | **SECN000** (sem getrandom no asm puro) | ✅ |
 
