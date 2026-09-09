@@ -86,4 +86,32 @@ class ScriptTargetTest {
         assertEquals(0, ir.exitCode(), "stderr: " + ir.stderr());
         assertTrue(ir.stdout().contains("3"), "stdout: " + ir.stdout());
     }
+
+    // issue #54 — interp `super(v)` explícito em classe de domínio dava
+    // StackOverflowError (o dispatch de SUPER resolveu o <init> da MESMA classe
+    // → recursão infinita). JVM/JS ok. Agora o interpretador despacha para o
+    // <init> da superclasse.
+    @Test
+    void interpretExplicitSuperConstructor(@TempDir Path tmp) throws IOException {
+        Path main = write(tmp, "Main.kf", """
+                class Base {
+                    Int v
+                    public constructor(Int v) {
+                        this.v = v
+                    }
+                }
+                class Derived extends Base {
+                    public constructor(Int v) {
+                        super(v)
+                        println(this.v)
+                    }
+                }
+                main() {
+                    Derived(42)
+                }
+                """);
+        KofInterpreter.Result ir = driver.interpret(List.of(main), tmp, new String[0]);
+        assertEquals(0, ir.exitCode(), "stderr: " + ir.stderr());
+        assertTrue(ir.stdout().contains("42"), "stdout: " + ir.stdout());
+    }
 }

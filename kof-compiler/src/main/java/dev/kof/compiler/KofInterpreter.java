@@ -327,6 +327,15 @@ public final class KofInterpreter {
         // receiver Kof → dispatch VIRTUAL pela classe real (polimorfismo)
         IRClass owner = recv instanceof KofObj ko ? members.classByInternal(ko.internalName())
                 : members.kofClassOrNull(kc.ownerType());
+        // bug #54: `super(v)` (KofCallKind.SUPER) deve despachar para o <init>
+        // da SUPERCLASSE, não da classe atual — senão findKofMethod resolve de
+        // novo o próprio ctor e o interpretador recorre infinitamente →
+        // StackOverflowError (JVM/JS ok porque o backend resolve o super pelo
+        // invokespecial ao owner do call, não ao objeto).
+        if (kc.kind() == KofCallKind.SUPER && owner != null && owner.superName() != null) {
+            IRClass sup = members.classByInternal(owner.superName());
+            if (sup != null) owner = sup;
+        }
         // métodos sintéticos de objeto Kof (record equals/hashCode/toString)
         if (recv instanceof KofObj && owner != null && findKofMethod(owner, name, args.length) == null) {
             Object synth = builtins.kofObjectMethod(name, recv, args, owner);
