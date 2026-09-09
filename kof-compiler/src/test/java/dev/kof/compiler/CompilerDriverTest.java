@@ -4468,4 +4468,40 @@ class CompilerDriverTest {
         assertTrue(driver.compile(cmp, tempDir.resolve("out3"), Target.JVM).success(),
                 "== sobre Object deve continuar válido");
     }
+
+    // SG-016 (SEM042) — tipo aninhado dentro de tipo não existe em Kof:
+    // `class A { class B {} }` é erro de parse limpo, não aceitação silenciosa.
+    @Test
+    void nestedClassGivesCleanDiagnostic(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Nested.kf");
+        Files.writeString(source, """
+            class Outer {
+                class Inner {
+                    Int x
+                }
+            }
+            main() { println("ok") }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "nested class must fail to compile");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM042"), "should be SEM042, got: " + diags);
+    }
+
+    @Test
+    void topLevelClassStaysGreen(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Top.kf");
+        Files.writeString(source, """
+            class Inner {
+                Int x
+            }
+            main() {
+                var i = Inner()
+                i.x = 3
+                println(i.x)
+            }
+            """);
+        CompilationResult ok = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertTrue(ok.success(), "top-level class deve compilar: " + ok.diagnostics().getDiagnostics());
+    }
 }
