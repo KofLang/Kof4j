@@ -4562,4 +4562,50 @@ class CompilerDriverTest {
         assertTrue(result.success(), "complete implementation must compile: "
                 + result.diagnostics().getDiagnostics());
     }
+
+    // SG-018 (SEM044) — o entry point é SÓ `main()`: sem tipo de retorno,
+    // sem modifiers. O IR emite public static void; a fonte nunca declara.
+    @Test
+    void typedMainGivesCleanDiagnostic(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+            Int main() {
+                println("hi")
+                return 0
+            }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "Int main() must fail to compile");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM044"), "should be SEM044, got: " + diags);
+    }
+
+    @Test
+    void modifiedMainGivesCleanDiagnostic(@TempDir Path tempDir) throws IOException {
+        // o parser não aceita modifiers em top-level function (PARSE007) —
+        // o SEM044 protege o contrato na camada semântica (desugar/futuro)
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+            public main() {
+                println("hi")
+            }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "modified main() must fail to compile");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("PARSE007") || diags.contains("SEM044"),
+                "should be PARSE007 or SEM044, got: " + diags);
+    }
+
+    @Test
+    void plainMainStaysGreen(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+            main() {
+                println("hi")
+            }
+            """);
+        assertTrue(driver.compile(source, tempDir.resolve("out"), Target.JVM).success(),
+                "plain main() deve compilar");
+    }
 }

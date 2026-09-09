@@ -326,6 +326,27 @@ public class SemanticAnalyzer {
     }
 
     private void analyzeFunction(FunctionDeclarationNode func) {
+        // SG-018 (SEM044): o entry point é SÓ `main()` — sem tipo de retorno,
+        // sem modifiers (o IR já emite public static void — CompilerFunctionLowering).
+        if ("main".equals(func.name())) {
+            String rt = func.returnType();
+            boolean badReturnType = rt != null && !"void".equals(rt)
+                    && !"var".equals(rt) && !"val".equals(rt);
+            if (!func.modifiers().isEmpty() && diagnostics != null) {
+                diagnostics.error(func.position().file(), func.position().line(),
+                        func.position().column(), 0,
+                        "main() must be declared without modifiers: 'main() { ... }' (found "
+                                + func.modifiers() + ")",
+                        "SEM044");
+            }
+            if (badReturnType && diagnostics != null) {
+                diagnostics.error(func.position().file(), func.position().line(),
+                        func.position().column(), 0,
+                        "main() must have no return type: 'main() { ... }' (found '"
+                                + rt + " main(...)')",
+                        "SEM044");
+            }
+        }
         String prevFunction = currentFunctionName;
         currentFunctionName = func.name();
         SymbolTable funcScope = currentScope.enterScope();
