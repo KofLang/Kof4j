@@ -8,6 +8,8 @@ public final class NativeRiscvAsmRtB5 {
 
             # ── kof.math (STDLIB S1) — Int-only ───────────────────────
 
+            .section .text
+
             .globl kof_math_abs
             kof_math_abs:
                 bltz a0, .Lv_math_abs_neg

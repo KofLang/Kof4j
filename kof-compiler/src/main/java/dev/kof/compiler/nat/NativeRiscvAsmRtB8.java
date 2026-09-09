@@ -12,6 +12,7 @@ public final class NativeRiscvAsmRtB8 {
             # kof_strings_repeat(a0=str, a1=n) -> String
             # null/""/n<=0 => "". total = len*n (mul 64-bit; iguala o produto int
             # do JVM p/ qualquer total alocável — >2^31 bytes não aloca de todo).
+            .section .text
             .globl kof_strings_repeat
             kof_strings_repeat:
                 addi sp, sp, -64

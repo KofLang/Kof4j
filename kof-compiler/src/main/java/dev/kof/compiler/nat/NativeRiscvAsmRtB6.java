@@ -10,6 +10,7 @@ public final class NativeRiscvAsmRtB6 {
             # ── kof.strings (STDLIB S2a) — predicados de char ─────────
 
             # kof_strings_isAlpha(a0=str) -> 1/0 (só [A-Za-z], não-vazio)
+            .section .text
             .globl kof_strings_isAlpha
             kof_strings_isAlpha:
                 beqz a0, .Lv_str_alpha_f

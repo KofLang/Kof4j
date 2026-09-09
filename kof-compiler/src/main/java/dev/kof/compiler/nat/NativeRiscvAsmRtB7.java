@@ -13,6 +13,7 @@ public final class NativeRiscvAsmRtB7 {
 
             # kof_strings_capitalize(a0=str) -> String (1º byte [a-z] => -32)
             # null/"" => retorna ponteiro original.
+            .section .text
             .globl kof_strings_capitalize
             kof_strings_capitalize:
                 addi sp, sp, -48

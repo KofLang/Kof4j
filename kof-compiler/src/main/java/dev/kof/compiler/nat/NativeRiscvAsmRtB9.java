@@ -10,6 +10,7 @@ public final class NativeRiscvAsmRtB9 {
 
             # kof_strings_padLeft(a0=v, a1=n, a2=pad) -> String
             # null=>0; pad null/"" ou len>=n => v; senao (n-len)×pad[0] + v.
+            .section .text
             .globl kof_strings_padLeft
             kof_strings_padLeft:
                 addi sp, sp, -64
