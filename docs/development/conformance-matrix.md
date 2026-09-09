@@ -72,12 +72,10 @@
 > golden oracle no qemu (16 vetores, incl. delimitadores UTF-8 `>=128`).
 > `KofStringsTest.wordConvertersClosedOnCrossArch`.
 
-> ² `encoding.hex*` e `encoding.url*` (byte-puro, asm riscv/aarch própria — B10/B11,
-> syntax-checked riscv64-as + aarch64-as rc=0) rodam nos 3 nativos; `encoding.base64*`
-> e `encoding.base64Url*` são **ENC002** gated em riscv64/aarch64 (reusam
-> os `kof_b64*_internal` do runtime crypto/JWT x86 — sem libc no asm puro cross-arch;
-> política SECN000; `KofEncodingTest.base64GatedOnCrossArch`). A matriz roda native=x86
-> (tem os símbolos), então os 4 targets cobrem o caso.
+> ² `encoding.hex*`/`encoding.url*` (B10/B11) e `encoding.base64*`/`base64Url*`
+> (B23, **ENC002 fechado 09/09** — port riscv com alfabeto aritmético + decode
+> tolerante, spec única do x86/JVM/JS; `KofEncodingTest.base64RunsOnCrossArch`
+> prova riscv+aarch sob qemu) rodam nos 3 nativos + JVM + JS + Script.
 | stdlib kof.uuid (S3b: v4 — não-determinístico, SEM caso de matriz) | shape `xxxxxxxx-xxxx-4xxx-[89ab]xxx-xxxxxxxxxxxx` | ✅ assert | ✅ assert¹ | ✅ | ✅ assert | `KofUuidTest` 4/4 |
 
 > `uuid.v4()` não entra na matriz equality (entropia): paridade provada por

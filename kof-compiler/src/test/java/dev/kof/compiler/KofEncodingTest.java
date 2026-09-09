@@ -223,23 +223,59 @@ class KofEncodingTest {
     }
 
     @Test
-    void base64GatedOnCrossArch(@TempDir Path tmp) throws Exception {
-        // ENC002: base64 reusa kof_b64_*_internal (runtime crypto x86); o
-        // riscv/aarch não tem esses símbolos (asm puro, sem libc) — gate
-        // honesto em compile-time (padrão SECN000/STRN001), nunca link quebrado.
-        Path source = tmp.resolve("Main.kf");
-        Files.writeString(source, """
+    void base64RunsOnCrossArch(@TempDir Path tmp) throws Exception {
+        // ENC002 FECHADO (09/09): base64/base64Url portados p/ riscv B23 +
+        // aarch64 translator. Spec tolerante única (= para, inválido ignora,
+        // resto 2/3→1/2 bytes; url aceita os 2 alfabetos). Oracle Python.
+        String src = """
             main() {
-                println(encoding.base64Encode("Hi"))
+                println(encoding.base64Encode("Man"))
+                println(encoding.base64Decode("Y2Fmw6k="))
+                println(encoding.base64UrlEncode("fb&O->f"))
+                println(encoding.base64UrlDecode("ZmImTy0-Zg"))
+                println(encoding.base64Decode("!!!!TWFu!!!!"))
+                println(encoding.base64Decode("QQ"))
             }
-            """);
-        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
-            CompilationResult r = driver.compile(source, tmp.resolve("cross-" + t), t);
-            assertFalse(r.success(), t + " deve reportar ENC002");
-            assertTrue(r.diagnostics().getDiagnostics().toString().contains("ENC002"),
-                    t + ": " + r.diagnostics().getDiagnostics());
+            """;
+        String expected = "TWFu\ncafé\nZmImTy0-Zg\nfb&O->f\nMan\nA";
+        assumeToolchain("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64");
+        runQemuE(tmp, Target.NATIVE_RISCV64, "qemu-riscv64", src, expected);
+        assumeToolchain("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64");
+        runQemuE(tmp, Target.NATIVE_AARCH64, "qemu-aarch64", src, expected);
+    }
+
+    private static void assumeToolchain(String... tools) {
+        for (String c : tools) {
+            try {
+                Process p = new ProcessBuilder(c, "--version").redirectErrorStream(true).start();
+                String out = new String(p.getInputStream().readAllBytes(),
+                        java.nio.charset.StandardCharsets.UTF_8).trim();
+                if (p.waitFor() != 0 || out.isEmpty()) {
+                    org.junit.jupiter.api.Assumptions.assumeTrue(false, "toolchain ausente: " + c);
+                }
+            } catch (Exception e) {
+                org.junit.jupiter.api.Assumptions.assumeTrue(false, "toolchain ausente: " + c);
+            }
         }
     }
+
+    private void runQemuE(Path tempDir, Target target, String qemu, String source,
+                          String expected) throws Exception {
+        Path file = tempDir.resolve("Main-" + System.nanoTime() + ".kf");
+        Files.writeString(file, source);
+        Path outDir = tempDir.resolve("out-" + System.nanoTime());
+        CompilationResult result = driver.compile(file, outDir, target);
+        assertTrue(result.success(), target + " compile failed: "
+                + result.diagnostics().getDiagnostics());
+        Path bin = outDir.resolve("Default/Main");
+        Process p = new ProcessBuilder(qemu, bin.toString()).redirectErrorStream(true).start();
+        String output = new String(p.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).trim();
+        int ec = p.waitFor();
+        assertEquals(0, ec, target + " runtime (qemu) exit " + ec + ", out: " + output);
+        assertEquals(expected, output, target + " output");
+    }
+
 
     private String runJvm(Path tempDir, String source, String expected) throws Exception {
         Path file = tempDir.resolve("Main-" + System.nanoTime() + ".kf");

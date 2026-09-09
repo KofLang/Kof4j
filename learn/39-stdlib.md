@@ -173,7 +173,7 @@ de `time` desde antes — o calendário acima é a parte pura, determinística.
 | API | JVM / Script | Native x86_64 | Native riscv64 / aarch64 | JS |
 |---|---|---|---|---|
 | `math.*`, `strings.is*/count/capitalize/reverse/repeat/truncate/pad*/escapeHtml`, `toCamel/Pascal/Snake/Kebab/slugify`, `encoding.hex*/url*`, `time.isLeapYear/daysInMonth/dayOfWeek/daysBetween`, `validation.isCpf/isCnpj/isCep/isPis/isIpv4/isIpv6/isMac/isPort/isCreditCard/isDomain` | ✅ | ✅ | ✅ | ✅ |
-| `encoding.base64*` / `base64Url*` | ✅ | ✅ | **ENC002** (gate de compilação) | ✅ |
+| `encoding.base64*` / `base64Url*` | ✅ | ✅ | ✅ | ✅ |
 | `uuid.v4` | ✅ | ✅ | **SECN000** (entropia; gate de compilação) | ✅ |
 
 Gate = erro de compilação **com código** (R6 — nunca stub silencioso):

@@ -144,7 +144,7 @@ Consulte também `training/` para corpus estruturado de conhecimento Kof.
 | 36 | Segurança (kof.security) | ✅ (JVM/Native/JS; gaps SECN00x) |
 | 35 | kof.ui (widgets, janelas, webview) | ✅ (JS render; JVM/Native no-ops) |
 | 37 | KofJS (caminho da Web) | ✅ (alpha) |
-| 39 | Standard Library (math/strings/encoding/uuid/validation/time) | ✅ (4 targets; gates ENC002/SECN000) |
+| 39 | Standard Library (math/strings/encoding/uuid/validation/time) | ✅ (4 targets; gate SECN000) |
 
 Kof está em fase de consolidação. O compilador é funcional com backends JVM,
 Native (x86-64 free-list), Native.risc, Native.arm, KofJS e KofC (0.2.6-beta, 810 testes).

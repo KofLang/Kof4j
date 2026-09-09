@@ -101,7 +101,7 @@ dígito 19∈{8,9,a,b}), nunca por igualdade. v7/ulid ainda não existem.
 | strings.toCamel/Pascal/Snake/Kebab/slugify | ✅ | ✅ | ✅ (STRN001 fechado 09/09 — B15, diff golden qemu) | ✅ |
 | strings.escapeHtml (5 entidades; >=128 cópia) | ✅ | ✅ | ✅ (B20, diff golden qemu) | ✅ |
 | strings.removeWhitespace/normalizeWhitespace | ✅ | ✅ | ✅ (B21) | ✅ |
-| encoding.base64* / base64Url* | ✅ | ✅ | **ENC002** (gate compile-time) | ✅ |
+| encoding.base64* / base64Url* | ✅ | ✅ | ✅ (ENC002 fechado 09/09) | ✅ |
 | uuid.v4 | ✅ | ✅ | **SECN000** (sem getrandom no asm puro) | ✅ |
 
 `strings.reverse` em não-ASCII: byte-reverso no Native vs UTF-16 no JVM/JS —

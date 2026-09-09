@@ -60,7 +60,7 @@ na semântica congelada (null-safety + throw são o mecanismo).
 - **S2** `strings` (parte 1: cases/slug/pad/reverse/count) — 4 targets
 - **S3** `strings` (parte 2: escapes/lines/words/indent/isX)
 - **S4** `encoding` (hex/url/base64/base64Url) **FEITO 08/09** — matriz `stdenc`
-  4 alvos; base64* é **ENC002** gated riscv/aarch (reusa internals x86). ⚠️ Nota:
+  4 alvos; base64* nos **4 alvos — ENC002 fechado 09/09** (port riscv B23; spec tolerante única). ⚠️ Nota:
   o runner JS do projeto (GraalJS embutido) NÃO tem `TextEncoder/TextDecoder` —
   UTF-8 codificado à mão em `JsRuntimeUiStdlib`. `uuid` (v4/v7/ulid) segue em S3b.
 - **S5** `random` novo namespace + ext `validation` BR (CPF/CNPJ/CEP/PIS/NIS com
