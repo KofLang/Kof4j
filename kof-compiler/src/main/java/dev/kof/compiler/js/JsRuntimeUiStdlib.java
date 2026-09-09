@@ -220,6 +220,16 @@ final class JsRuntimeUiStdlib {
                 const std = v.split("-").join("+").split("_").join("/");
                 return kofEncFromUtf8(Array.from(kofSecB64Decode(std, false)));
             }
+            // kof.uuid (STDLIB S3b) — v4: kof_platform.randomBytesHex (16 B)
+            export function kofUuidV4() {
+                const hex = kof_platform.randomBytesHex(16);   // 32 chars
+                const c = [...hex];
+                c[12] = "4";                                    // version
+                c[16] = "89ab"[parseInt(c[16], 16) >> 2];       // variant 10xx
+                return c.slice(0,8).join("") + "-" + c.slice(8,12).join("") + "-"
+                     + c.slice(12,16).join("") + "-" + c.slice(16,20).join("") + "-"
+                     + c.slice(20,32).join("");
+            }
             // ── kof.encoding (STDLIB S4.2b) — percent-encoding (RFC 3986) ──
             const KOF_ENC_HEX = "0123456789ABCDEF";
             export function kofEncodingUrlEncode(v) {

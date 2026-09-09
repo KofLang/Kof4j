@@ -60,9 +60,16 @@
 > ² `encoding.hex*` e `encoding.url*` (byte-puro, asm riscv/aarch própria — B10/B11,
 > syntax-checked riscv64-as + aarch64-as rc=0) rodam nos 3 nativos; `encoding.base64*`
 > e `encoding.base64Url*` são **ENC002** gated em riscv64/aarch64 (reusam
-> `kof_b64*_internal` do runtime crypto/JWT x86 — sem libc no asm puro cross-arch;
+> os `kof_b64*_internal` do runtime crypto/JWT x86 — sem libc no asm puro cross-arch;
 > política SECN000; `KofEncodingTest.base64GatedOnCrossArch`). A matriz roda native=x86
-> (tem os internals), então os 4 targets cobrem o caso.
+> (tem os símbolos), então os 4 targets cobrem o caso.
+| stdlib kof.uuid (S3b: v4 — não-determinístico, SEM caso de matriz) | shape `xxxxxxxx-xxxx-4xxx-[89ab]xxx-xxxxxxxxxxxx` | ✅ assert | ✅ assert¹ | ✅ | ✅ assert | `KofUuidTest` 4/4 |
+
+> `uuid.v4()` não entra na matriz equality (entropia): paridade provada por
+> ASSERTS DE SHAPE nos 3 targets testáveis (JVM/Native-x86/JS: length=36,
+> traços em 8/13/18/23, dígito 14='4', dígito 19∈{8,9,a,b}, unicidade de 2
+> draws) — riscv/aarch **SECN000** gated (sem getrandom no asm puro; mesmo
+> portão de toda a crypto lane). ¹ x86 fixa variant='8' (nibble alto direto).
 
 > **S2b ASCII:** `capitalize` usa a MESMA regra nos 4 targets (byte 0 `a-z`→`A-Z`).
 > `reverse` é byte-reverso no Native e UTF-16/UTF-8 nos demais — coincidem em ASCII
