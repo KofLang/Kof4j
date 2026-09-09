@@ -324,7 +324,7 @@ public final class JvmRuntimeCallDescriptors {
                     "kof_validation_isUrl", "kof_validation_isInt", "kof_validation_isLong",
                     "kof_validation_isCpf", "kof_validation_isCnpj", "kof_validation_isCep",
                     "kof_validation_isPis", "kof_validation_isIpv4", "kof_validation_isMac",
-                    "kof_validation_isCreditCard" -> "(Ljava/lang/String;)Z";
+                    "kof_validation_isCreditCard", "kof_validation_isIpv6" -> "(Ljava/lang/String;)Z";
             case "kof_validation_isPort" -> "(I)Z";
             case "kof_validation_minLength", "kof_validation_maxLength" -> "(Ljava/lang/String;I)Z";
             case "kof_validation_lengthBetween" -> "(Ljava/lang/String;II)Z";

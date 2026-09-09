@@ -371,5 +371,37 @@ final class JsRuntimeUiStdlib {
                 return sum % 10 === 0 ? 1 : 0;
             }
 
+
+            function kofIsHexC(c) {
+                return (c >= 48 && c <= 57) || ((c | 32) >= 97 && (c | 32) <= 102);
+            }
+            export function kofValidationIsIpv6(s) {
+                if (s == null || s.length === 0) return 0;
+                let i = 0, g = 0, dbl = -1;
+                const n = s.length;
+                while (i < n) {
+                    let h = 0;
+                    while (i < n && kofIsHexC(s.charCodeAt(i)) && h < 5) { h++; i++; }
+                    if (h > 4) return 0;
+                    if (h === 0) {
+                        if (i + 1 >= n || s.charCodeAt(i) !== 58 || s.charCodeAt(i + 1) !== 58) return 0;
+                        if (dbl >= 0) return 0;
+                        dbl = i; i += 2;
+                        continue;
+                    }
+                    g++;
+                    if (g > 8) return 0;
+                    if (i >= n) break;
+                    if (s.charCodeAt(i) !== 58) return 0;
+                    i++;
+                    if (i >= n) return 0;                    // "1:"
+                    if (s.charCodeAt(i) === 58) {
+                        if (dbl >= 0) return 0;
+                        dbl = i; i++;
+                    }
+                }
+                return dbl < 0 ? (g === 8 ? 1 : 0) : (g < 8 ? 1 : 0);
+            }
+
     """;
 }

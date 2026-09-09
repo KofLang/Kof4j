@@ -305,6 +305,16 @@ class ConformanceMatrixTest {
                     println(validation.isCreditCard("1234567890123456789"))
                 }
                 """, "true\ntrue\ntrue\nfalse\nfalse\nfalse", Set.of(), tempDir);
+        matrix("stdipv6", """
+                main() {
+                    println(validation.isIpv6("::1"))
+                    println(validation.isIpv6("fe80::1"))
+                    println(validation.isIpv6("a:b:c:d:e:f:1:2"))
+                    println(validation.isIpv6("1::2::3"))
+                    println(validation.isIpv6("12345::"))
+                    println(validation.isIpv6("::ffff:192.168.0.1"))
+                }
+                """, "true\ntrue\ntrue\nfalse\nfalse\nfalse", Set.of(), tempDir);
         matrix("stdtime", """
                 main() {
                     println(time.isLeapYear(2000))

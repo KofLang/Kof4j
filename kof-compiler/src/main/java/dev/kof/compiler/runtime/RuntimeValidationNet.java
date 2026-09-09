@@ -227,6 +227,109 @@ public final class RuntimeValidationNet {
                 popq %rbx
                 ret
 
+            # kof_validation_isIpv6(rdi=str) -> Bool. Máquina (validada em
+            # Python contra ipaddress, 30 casos): grupos 1..4 hex; ':' após
+            # grupo; '::' no MÁXIMO uma vez (sentinela dbl=-1 = ausente);
+            # sem '::' exige g==8; com '::' exige g<8. Forma MISTA
+            # (::ffff:1.2.3.4) e zona (%eth0) NÃO aceitas na v1 — subconjunto
+            # honesto de RFC 4291/5952, documentado em learn/39-stdlib.
+            .globl kof_validation_isIpv6
+            .type kof_validation_isIpv6, @function
+            kof_validation_isIpv6:
+                pushq %rbx
+                pushq %r12
+                pushq %r13
+                pushq %r14
+                pushq %r15
+                testq %rdi, %rdi
+                jz .Lv_v6_false
+                movq %rdi, %rbx
+                movl 16(%rbx), %r13d     # len
+                xorl %r12d, %r12d        # i
+                xorl %r14d, %r14d        # g
+                movl $-1, %r15d          # dbl
+            .Lv_v6_loop:
+                cmpl %r13d, %r12d
+                jae .Lv_v6_end
+                xorl %ecx, %ecx          # h
+            .Lv_v6_hex:
+                cmpl %r13d, %r12d
+                jae .Lv_v6_gend
+                movzbl 24(%rbx,%r12), %eax
+                movl %eax, %r8d
+                subl $48, %r8d
+                cmpl $9, %r8d
+                jbe .Lv_v6_ishex
+                movl %eax, %r8d
+                orl $32, %r8d
+                subl $97, %r8d
+                cmpl $5, %r8d
+                ja .Lv_v6_gend
+            .Lv_v6_ishex:
+                cmpl $4, %ecx
+                jae .Lv_v6_false         # 5º hex => grupo >4
+                incl %ecx
+                incl %r12d
+                jmp .Lv_v6_hex
+            .Lv_v6_gend:
+                testl %ecx, %ecx
+                jnz .Lv_v6_group
+                # h==0: precisa de '::' exatamente aqui
+                cmpl %r13d, %r12d
+                jae .Lv_v6_false
+                cmpb $58, 24(%rbx,%r12)
+                jne .Lv_v6_false
+                leal 1(%r12), %eax
+                cmpl %r13d, %eax
+                jge .Lv_v6_false
+                cmpb $58, 24(%rbx,%rax)
+                jne .Lv_v6_false
+                cmpl $0, %r15d
+                jge .Lv_v6_false         # segundo '::'
+                movl %r12d, %r15d
+                addl $2, %r12d
+                jmp .Lv_v6_loop
+            .Lv_v6_group:
+                incl %r14d
+                cmpl $8, %r14d
+                ja .Lv_v6_false
+                cmpl %r13d, %r12d
+                jae .Lv_v6_end
+                cmpb $58, 24(%rbx,%r12)
+                jne .Lv_v6_false
+                incl %r12d               # consome um ':'
+                cmpl %r13d, %r12d
+                jae .Lv_v6_false         # ':' terminal ("1:")
+                cmpb $58, 24(%rbx,%r12)
+                jne .Lv_v6_loop
+                cmpl $0, %r15d
+                jge .Lv_v6_false
+                movl %r12d, %r15d
+                incl %r12d               # consome o 2º ':'
+                jmp .Lv_v6_loop
+            .Lv_v6_end:
+                cmpl $0, %r15d
+                jl .Lv_v6_nodbl
+                cmpl $8, %r14d
+                jb .Lv_v6_true           # g < 8 com '::'
+                jmp .Lv_v6_false
+            .Lv_v6_nodbl:
+                cmpl $8, %r14d
+                je .Lv_v6_true
+                jmp .Lv_v6_false
+            .Lv_v6_true:
+                movl $1, %eax
+                jmp .Lv_v6_done
+            .Lv_v6_false:
+                xorl %eax, %eax
+            .Lv_v6_done:
+                popq %r15
+                popq %r14
+                popq %r13
+                popq %r12
+                popq %rbx
+                ret
+
             # kof_validation_isPort(edi=port) -> Bool (1..65535)
             .globl kof_validation_isPort
             .type kof_validation_isPort, @function

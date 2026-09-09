@@ -187,6 +187,34 @@ public final class JvmStringValidationRuntime {
                     return port >= 1 && port <= 65535;
                 }
 
+                // IPv6 (v1): subconjunto RFC 5952 sem forma mista e sem zona.
+                public static boolean kof_validation_isIpv6(String s) {
+                    if (s == null || s.isEmpty()) return false;
+                    int n = s.length(), i = 0, g = 0, dbl = -1;
+                    while (i < n) {
+                        int h = 0;
+                        while (i < n && isHex(s.charAt(i)) && h < 5) { h++; i++; }
+                        if (h > 4) return false;
+                        if (h == 0) {
+                            if (i + 1 >= n || s.charAt(i) != ':' || s.charAt(i + 1) != ':') return false;
+                            if (dbl >= 0) return false;
+                            dbl = i; i += 2;
+                            continue;
+                        }
+                        g++;
+                        if (g > 8) return false;
+                        if (i >= n) break;
+                        if (s.charAt(i) != ':') return false;
+                        i++;
+                        if (i >= n) return false;                 // "1:"
+                        if (s.charAt(i) == ':') {
+                            if (dbl >= 0) return false;
+                            dbl = i; i++;                          // consome o 2º ':'
+                        }
+                    }
+                    return dbl < 0 ? g == 8 : g < 8;
+                }
+
                 // ── kof.validation (STDLIB S6b) — Luhn ─────────────────────
                 // isCreditCard: dígitos extraídos (não-dígitos ignorados),
                 // 12..19 dígitos, soma de Luhn (dobrar posições ímpares da

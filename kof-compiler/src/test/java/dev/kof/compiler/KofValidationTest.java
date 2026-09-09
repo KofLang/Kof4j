@@ -245,6 +245,76 @@ class KofValidationTest {
         runQemu(tmp, Target.NATIVE_AARCH64, "qemu-aarch64", src);
     }
 
+    // S6b.3 IPv6: subconjunto RFC 5952 (sem forma mista/zona). Máquina
+    // validada em Python contra ipaddress (30 casos) + x86==JVM==JS==riscv==aarch.
+    @Test
+    void validationIpv6Jvm(@TempDir Path tmp) throws Exception {
+        runJvm(tmp, """
+            main() {
+                println(validation.isIpv6("::"))
+                println(validation.isIpv6("::1"))
+                println(validation.isIpv6("2001:0db8:85a3:0000:0000:8a2e:0370:7334"))
+                println(validation.isIpv6("fe80::1"))
+                println(validation.isIpv6("1:2:3:4:5:6:7:8"))
+                println(validation.isIpv6("12345::"))
+                println(validation.isIpv6("2001:db8:::1"))
+                println(validation.isIpv6("1::2::3"))
+                println(validation.isIpv6("::ffff:192.168.0.1"))
+                println(validation.isIpv6("1:"))
+                println(validation.isIpv6("g::1"))
+            }
+            """, "true\ntrue\ntrue\ntrue\ntrue\nfalse\nfalse\nfalse\nfalse\nfalse\nfalse");
+    }
+
+    @Test
+    void validationIpv6Native(@TempDir Path tmp) throws Exception {
+        runNative(tmp, """
+            main() {
+                println(validation.isIpv6("abcd:ef01::"))
+                println(validation.isIpv6("2001:db8:0:0:1:0:0:1"))
+                println(validation.isIpv6("ABCDEF::10"))
+                println(validation.isIpv6(":1"))
+            }
+            """, "true\ntrue\nfalse\nfalse");
+    }
+
+    @Test
+    void validationIpv6Js(@TempDir Path tmp) throws Exception {
+        runJs(tmp, """
+            main() {
+                println(validation.isIpv6("fe80::"))
+                println(validation.isIpv6("1:2:3:4:5:6:7"))
+                println(validation.isIpv6("::"))
+            }
+            """, "true\nfalse\ntrue");
+    }
+
+    @Test
+    void validationIpv6CrossArch(@TempDir Path tmp) throws Exception {
+        String src = """
+            main() {
+                assert(validation.isIpv6("::"))
+                assert(validation.isIpv6("::1"))
+                assert(validation.isIpv6("2001:0db8:85a3:0000:0000:8a2e:0370:7334"))
+                assert(validation.isIpv6("fe80::1"))
+                assert(validation.isIpv6("abcd:ef01::"))
+                assert(validation.isIpv6("a:b:c:d:e:f:1:2"))
+                assert(!validation.isIpv6("12345::"))
+                assert(!validation.isIpv6("2001:db8:::1"))
+                assert(!validation.isIpv6("1::2::3"))
+                assert(!validation.isIpv6("::ffff:192.168.0.1"))
+                assert(!validation.isIpv6("1:"))
+                assert(!validation.isIpv6(":1"))
+                assert(!validation.isIpv6("g::1"))
+                assert(!validation.isIpv6("ABCDEF::10"))
+            }
+            """;
+        assumeToolchain("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64");
+        runQemu(tmp, Target.NATIVE_RISCV64, "qemu-riscv64", src);
+        assumeToolchain("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64");
+        runQemu(tmp, Target.NATIVE_AARCH64, "qemu-aarch64", src);
+    }
+
     // S6b Luhn: isCreditCard — dígitos extraídos, 12..19, soma de Luhn %10.
     @Test
     void validationLuhnJvm(@TempDir Path tmp) throws Exception {
