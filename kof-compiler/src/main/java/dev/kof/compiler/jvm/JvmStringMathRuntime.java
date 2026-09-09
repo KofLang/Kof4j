@@ -305,6 +305,24 @@ public final class JvmStringMathRuntime {
                     return new String(out.toByteArray(), java.nio.charset.StandardCharsets.UTF_8);
                 }
 
+                // ── kof.encoding (STDLIB S4.2c) — base64url (RFC 4648 §5) ──
+                // Encode: alfabeto -_ SEM padding (paridade kofSecB64Url JS e
+                // kof_b64url_encode_internal x86). Decode: substitui -_/→+/
+                // e aplica o base64Decode TOLERANTE comum (aceita os dois
+                // alfabetos e padding opcional — especificação única nos 3).
+                public static String kof_encoding_base64UrlEncode(String v) {
+                    String b64 = kof_encoding_base64Encode(v);
+                    if (b64 == null) return null;
+                    int eq = b64.indexOf('=');
+                    if (eq >= 0) b64 = b64.substring(0, eq);
+                    return b64.replace('+', '-').replace('/', '_');
+                }
+
+                public static String kof_encoding_base64UrlDecode(String v) {
+                    if (v == null) return null;
+                    return kof_encoding_base64Decode(v.replace('-', '+').replace('_', '/'));
+                }
+
                 // ── kof.encoding (STDLIB S4.2b) — percent-encoding (RFC 3986) ──
                 // unreserved [A-Za-z0-9-_.~] preservado; todo outro byte UTF-8
                 // vira %XX (hex MAIÚSCULO). Espaço => %20 (não '+'). urlDecode é

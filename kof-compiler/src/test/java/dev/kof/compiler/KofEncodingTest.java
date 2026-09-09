@@ -117,6 +117,55 @@ class KofEncodingTest {
     }
 
     @Test
+    void base64UrlJvm(@TempDir Path tmp) throws Exception {
+        // RFC 4648 §5: alfabeto -_, SEM padding (paridade kofSecB64Url JS e
+        // kof_b64url_encode_internal x86). Decode tolerante aceita padding e
+        // os dois alfabetos (pré-substitui -_/=>+/). Vetores Python-derivados.
+        runJvm(tmp, """
+            main() {
+                println(encoding.base64UrlEncode("Hi"))
+                println(encoding.base64UrlEncode("fb&O->f"))
+                println(encoding.base64UrlEncode("café"))
+                println(encoding.base64UrlDecode("SGk"))
+                println(encoding.base64UrlDecode("ZmImTy0-Zg"))
+                println(encoding.base64UrlDecode("SGk="))
+                println(encoding.base64UrlDecode("Y2Fmw6k"))
+            }
+            """, "SGk\nZmImTy0-Zg\nY2Fmw6k\nHi\nfb&O->f\nHi\ncaf\u00e9");
+    }
+
+    @Test
+    void base64UrlNative(@TempDir Path tmp) throws Exception {
+        runNative(tmp, """
+            main() {
+                assert(encoding.base64UrlEncode("Hi") == "SGk")
+                assert(encoding.base64UrlEncode("fb&O->f") == "ZmImTy0-Zg")
+                assert(encoding.base64UrlEncode("café") == "Y2Fmw6k")
+                assert(encoding.base64UrlDecode("SGk") == "Hi")
+                assert(encoding.base64UrlDecode("ZmImTy0-Zg") == "fb&O->f")
+                assert(encoding.base64UrlDecode("SGk=") == "Hi")
+                assert(encoding.base64UrlDecode("Y2Fmw6k") == "caf\u00e9")
+                println("ok")
+            }
+            """, "ok");
+    }
+
+    @Test
+    void base64UrlJs(@TempDir Path tmp) throws Exception {
+        runJs(tmp, """
+            main() {
+                println(encoding.base64UrlEncode("Hi"))
+                println(encoding.base64UrlEncode("fb&O->f"))
+                println(encoding.base64UrlEncode("café"))
+                println(encoding.base64UrlDecode("SGk"))
+                println(encoding.base64UrlDecode("ZmImTy0-Zg"))
+                println(encoding.base64UrlDecode("SGk="))
+                println(encoding.base64UrlDecode("Y2Fmw6k"))
+            }
+            """, "SGk\nZmImTy0-Zg\nY2Fmw6k\nHi\nfb&O->f\nHi\ncaf\u00e9");
+    }
+
+    @Test
     void urlEncodeDecodeJvm(@TempDir Path tmp) throws Exception {
         // RFC 3986: unreserved [A-Za-z0-9-_.~] preservado; espaço => %20;
         // hex MAIÚSCULO; decode aceita %xx minúsculo, '%' sem 2 dígitos => literal.

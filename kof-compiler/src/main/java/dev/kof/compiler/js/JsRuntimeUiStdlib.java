@@ -209,6 +209,17 @@ final class JsRuntimeUiStdlib {
                 if (v == null) return v;
                 return kofEncFromUtf8(Array.from(kofSecB64Decode(v, false)));
             }
+            // base64url (S4.2c): kofSecB64Url (=_+-/ sem padding) + decode
+            // com pré-substituição => tolerante padrão (mesma spec JVM/x86).
+            export function kofEncodingBase64UrlEncode(v) {
+                if (v == null) return v;
+                return kofSecB64Url(kofEncUtf8Bytes(v));
+            }
+            export function kofEncodingBase64UrlDecode(v) {
+                if (v == null) return v;
+                const std = v.split("-").join("+").split("_").join("/");
+                return kofEncFromUtf8(Array.from(kofSecB64Decode(std, false)));
+            }
             // ── kof.encoding (STDLIB S4.2b) — percent-encoding (RFC 3986) ──
             const KOF_ENC_HEX = "0123456789ABCDEF";
             export function kofEncodingUrlEncode(v) {

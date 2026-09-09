@@ -29,12 +29,14 @@ public final class KofEncoding {
     record EncodingCall(String function, Type returnType, List<Type> parameterTypes) {}
 
     private static final java.util.Set<String> B64_FNS = java.util.Set.of(
-            "kof_encoding_base64Encode", "kof_encoding_base64Decode");
+            "kof_encoding_base64Encode", "kof_encoding_base64Decode",
+            "kof_encoding_base64UrlEncode", "kof_encoding_base64UrlDecode");
 
     static EncodingCall staticMethod(String namespace, String name, List<Type> argTypes) {
         int argc = argTypes.size();
         return switch (name) {
             case "hexEncode", "base64Encode", "base64Decode",
+                    "base64UrlEncode", "base64UrlDecode",
                     "urlEncode", "urlDecode" -> argc == 1
                     ? new EncodingCall("kof_encoding_" + name, STR, List.of(STR)) : null;
             case "hexDecode" -> argc == 1

@@ -51,7 +51,7 @@
 | stdlib kof.strings (S2a: isAlpha/isNumeric/isAlphaNumeric/isAscii/isUpper/isLower/count) | `true` / `false` / `false` / `true` / `false` / `false` / `true` / `false` / `true` / `true` / `true` / `false` / `true` / `false` / `2` / `1` | DONE | DONE | DONE | DONE | `stdstrings` |
 | stdlib kof.strings (S2b: capitalize/reverse/repeat/truncate/pad — ASCII) | `Hello world` / `1abc` / `321cba` / `kayak` / `ababab` / `hello` / `abc` / `007` / `ab---` | DONE | DONE | DONE | DONE | `stdstrings2b` |
 | stdlib kof.strings (S2b.4: toCamelCase/toPascalCase/toSnakeCase/toKebabCase/slugify — word-split HTTPServer/XMLParser) | `http_server` / `xml_parser` / `helloWorld` / `HelloWorld` / `hello-world` / `hello-world-42` | DONE | DONE¹ | DONE | DONE | `stdstrings2b4` |
-| stdlib kof.encoding (S4: hex + base64 + url — UTF-8 por bytes) | `4869` / `Hi` / `636166c3a9` / `café` / `TWFu` / `café` / `a%20b` / `café` / `E` | DONE | DONE² | DONE | DONE | `stdenc` |
+| stdlib kof.encoding (S4: hex + base64 + url + base64url — UTF-8 por bytes) | `4869` / `Hi` / `636166c3a9` / `café` / `TWFu` / `café` / `a%20b` / `café` / `ZmImTy0-Zg` / `fb&O->f` / `E` | DONE | DONE² | DONE | DONE | `stdenc` |
 
 > ¹ Native = x86_64 (asm joinWords testado). riscv64/aarch64: **STRN001** gated em
 > compile-time até o port com teste de runtime (mesma política SECN000/FLT001;
@@ -59,9 +59,10 @@
 
 > ² `encoding.hex*` e `encoding.url*` (byte-puro, asm riscv/aarch própria — B10/B11,
 > syntax-checked riscv64-as + aarch64-as rc=0) rodam nos 3 nativos; `encoding.base64*`
-> é **ENC002** gated em riscv64/aarch64 (reusa `kof_b64_*_internal` do runtime crypto
-> x86 — sem libc no asm puro cross-arch; política SECN000;
-> `KofEncodingTest.base64GatedOnCrossArch`).
+> e `encoding.base64Url*` são **ENC002** gated em riscv64/aarch64 (reusam
+> `kof_b64*_internal` do runtime crypto/JWT x86 — sem libc no asm puro cross-arch;
+> política SECN000; `KofEncodingTest.base64GatedOnCrossArch`). A matriz roda native=x86
+> (tem os internals), então os 4 targets cobrem o caso.
 
 > **S2b ASCII:** `capitalize` usa a MESMA regra nos 4 targets (byte 0 `a-z`→`A-Z`).
 > `reverse` é byte-reverso no Native e UTF-16/UTF-8 nos demais — coincidem em ASCII
