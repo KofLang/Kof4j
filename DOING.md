@@ -138,12 +138,31 @@ concreta (ordem de valor):**
     (BytecodeDecoder 442→462, BytecodeTypes 95, BytecodeFrame com retType).
     ⚠️ Retrabalho evitado por teste: ineg virou `(arg0)` sem o `-` (mono fmt
     errado) — pego por `recoversIfElseReturn` no mesmo ciclo.
- 8. **Próxima tarefa segura**: varrer os sweeps R6 de novo COM os ops novos
-    (shapes mistos: `(ladd + iload)` → stub?, casts aninhados, `iinc` em slot
-    wide?, concat de long) e só então decidir entre estender `emitLinear` c/
-    tipos OU ir p/ `tableswitch` em long-via-hash. Ver probe real ANTES de
-    codar (regra: nunca assumir tabela/ordem — lição 0x65-0x68 errada do
-    próprio DOING).
+ 8. **✅ FEITO (este commit) — R6 sweep pós-Unit B + buraco de owner JDK
+    encontrado e corrigido**: o sweep (probes S2/S3) achou bug PRÉ-EXISTENTE
+    que meu primeiro teste codificava sem querer: `Math.abs` → `Owner.method`
+    de Java emitido literal → SEM011 no `.kf` gerado (sem import do dono →
+    NUNCA compila — código errado, o pior R6). Fix em 3 camadas: (a)
+    `BytecodeStdlib.statics` mapeia `java/lang/Math` Int-only p/ `math.*`
+    QUALIFICADO POR DESCRIPTOR ((I)I/(II)I/(III)I — probe: math.abs Long/
+    Double NÃO existem, polimorfismo não pode ser chutado); (b) chamada
+    estática owner `java/*`/`jdk/*` sem mapeamento → recusar (antes emitia
+    `Owner.name` órfão); (c) `new java.X(...)` → `isJdkClass` recusa (só
+    construtor de classe de domínio); invokevirtual não-mapeado em resultado
+    de `⟦new⟧` → recusar. Mappers extraídos p/ `BytecodeStdlib` (Decoder
+    estava 511 → gate ≤500; 458 + 74). Provas: asserção do sweep virou
+    `(arg0 + math.abs(arg0))` (S2 compila) + `recoversMethodCall`/String
+    length intactos; DecompileTest 27/27; suíte **1246/0/64-skip**.
+    ⚠️ Lição do ciclo: minha asserção original `Math.abs(arg0)` PASSOU no
+    teste e o `compile` falhou — o gate decompila+RECOMPILA é o que salvou;
+    nunca só olhar o texto emitido.
+ 9. **Próxima tarefa segura**: (a) `iinc` em slot de parâmetro/`declared`
+    sem `var` prévio (probe `Long inc(Int a)` hoje stub OK — mas `x++` em
+    local com `var` precisa checar); (b) `i2b`/`i2c`/`i2s` (0x91-0x93)
+    recusados — confirmar com probe que estão fora do emitLinear; (c)
+    estender TStack p/ `emitLinear` (statements) quando houver valor
+    medido (loops com long estão em TODO corpo store+add — decidir depois
+    de ver quantos shapes reais destravaria).
    `ClassFileParser` misturava tags 3/4 (Integer/Float) e 5/6 (Long/Double) —
    `3.5f` virava `1079574528` no CP (perda silenciosa). Fix: `intBitsToFloat`/
    `longBitsToDouble`. `ldc` recusa literal float (Kof não tem; driftaria

@@ -101,7 +101,8 @@ final class BytecodeDecoder {
                     if (m == null) return null;
                     String a = stack.args(argCount(m[2]));
                     if (a == null) return null;
-                    String mapped = mapStaticCall(m[0], m[1], a);
+                    String mapped = BytecodeStdlib.statics(m[0], m[1], a, m[2]);
+                    if (mapped == null && isJdkOwner(m[0])) return null;   // R6: owner JDK não-idiomático
                     stack.push(mapped != null ? mapped : simpleOwner(m[0]) + "." + m[1] + "(" + a + ")",
                             retOf(m[2]));
                 }
@@ -112,7 +113,8 @@ final class BytecodeDecoder {
                     if (a == null) return null;
                     String recv = stack.popExpr();
                     if (recv == null) return null;
-                    String mapped = mapStdlib(recv, m[0], m[1], a);
+                    String mapped = BytecodeStdlib.virtual(recv, m[0], m[1], a);
+                    if (mapped == null && recv.startsWith("⟦new⟧")) return null;  // R6: método em novo Objeto JDK não-mapeado
                     stack.push(mapped != null ? mapped : recv + "." + m[1] + "(" + a + ")", retOf(m[2]));
                 }
                 case 0xb4 -> { // getfield
@@ -139,9 +141,10 @@ final class BytecodeDecoder {
                     if (expr == null) return null;
                     stack.push(expr, "L");
                 }
-                case 0xbb -> { // new
+                case 0xbb -> { // new — só p/ constructors de classes DE DOMÍNIO;
+                    // new java.lang.X(...) nunca é idiomático p/ Kof (R6).
                     String cn = resolveClassName(cp, in.operands()[0]);
-                    if (cn == null) return null;
+                    if (cn == null || isJdkClass(cp, in.operands()[0])) return null;
                     stack.push("⟦new⟧" + cn, "L");
                 }
                 case 0x59 -> { // dup (só no padrão new)
@@ -430,39 +433,20 @@ final class BytecodeDecoder {
     }
 
     /** Mapeia chamada de stdlib Java → idiom Kof (decompiler, TRANSLATOR-equivalente). */
-    static String mapStdlib(String receiver, String ownerInternal, String name, String args) {
-        if ("java/io/PrintStream".equals(ownerInternal) && "System.out".equals(receiver)
-                && ("println".equals(name) || "print".equals(name))) {
-            return (name.equals("println") ? "println" : "print") + "(" + args + ")";
-        }
-        if ("java/lang/String".equals(ownerInternal) && "equals".equals(name)) {
-            return receiver + " == " + args;
-        }
-        // métodos sem-argumento que em Kof são PROPRIEDADES (não métodos)
-        if (args.isEmpty() && ("length".equals(name) || "size".equals(name) || "isEmpty".equals(name))) {
-            return receiver + "." + name;
-        }
-        return null;
+    /** Owner (interno) é de plataforma JDK? (R6: new/java.X(...) e estáticas
+     *  java.X(...) sem mapeamento nunca são idiomáticos Kof.) */
+    static boolean isJdkOwner(String internal) {
+        return internal != null && (internal.startsWith("java/") || internal.startsWith("jdk/"));
     }
 
-    /** Mapeia chamada ESTÁTICA de stdlib → idiom Kof (ex.: Integer.parseInt -> .toInt). */
-    static String mapStaticCall(String ownerInternal, String name, String args) {
-        if ("java/lang/Integer".equals(ownerInternal) && ("parseInt".equals(name) || "valueOf".equals(name))) {
-            return args + ".toInt()";
-        }
-        if ("java/lang/Long".equals(ownerInternal) && ("parseLong".equals(name) || "valueOf".equals(name))) {
-            return args + ".toLong()";
-        }
-        if ("java/lang/Double".equals(ownerInternal) && ("parseDouble".equals(name) || "valueOf".equals(name))) {
-            return args + ".toDouble()";
-        }
-        if ("java/lang/Float".equals(ownerInternal) && ("parseFloat".equals(name) || "valueOf".equals(name))) {
-            return args + ".toFloat()";
-        }
-        if ("java/lang/System".equals(ownerInternal) && "currentTimeMillis".equals(name)) {
-            return "now()";
-        }
-        return null;
+    /** Class entry do CP aponta p/ owner de plataforma? */
+    static boolean isJdkClass(String[] cp, int classIdx) {
+        if (classIdx <= 0 || classIdx >= cp.length || cp[classIdx] == null) return false;
+        String e = cp[classIdx];
+        if (!e.startsWith("#")) return false;
+        Integer nameIdx = parseCp(e.substring(1));
+        if (nameIdx == null || nameIdx >= cp.length || cp[nameIdx] == null) return false;
+        return isJdkOwner(cp[nameIdx]);
     }
 
     /** Resolve um nome de classe (Class CP entry) → nome simples. */

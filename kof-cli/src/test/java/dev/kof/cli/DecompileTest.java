@@ -497,6 +497,41 @@ class DecompileTest {
     }
 
     @Test
+    void mixedTypeAndLoopShapesRecoverOrDegradeHonest(@TempDir Path dir) throws Exception {
+        Path javaFile = dir.resolve("S2.java");
+        Files.writeString(javaFile, """
+                public class S2 {
+                    public static long mixed(long a, int b) { return a + b; }
+                    public static int nestCast(long a, long b) { return (int) (a + b); }
+                    public static String longStr(long a) { return "v" + a; }
+                    public static int callRet(int a) { return a + Math.abs(a); }
+                }
+                """);
+        runJavac(javaFile, dir);
+
+        String kof = Decompile.decompile(dir.resolve("S2.class"));
+
+        // R6 sweep pós-Unit B: widening implícito de Java (long + int) é
+        // i2l+ladd no bytecode — recupera como `(arg0 + (arg1 as Long))`
+        // (cast explícito, tipo bate p/ o ladd). Cast aninhado e concat de
+        // long (invokedynamic) preservam o tipo. Não drifta (lição 62).
+        assertTrue(kof.contains("Long mixed(Long arg0, Int arg1) = (arg0 + (arg1 as Long))"),
+                "widening long+int:\n" + kof);
+        assertTrue(kof.contains("Int nestCast(Long arg0, Long arg1) = ((arg0 + arg1) as Int)"),
+                "cast aninhado:\n" + kof);
+        assertTrue(kof.contains("String longStr(Long arg0) = \"v\" + arg0"),
+                "concat de long (invokedynamic):\n" + kof);
+        assertTrue(kof.contains("(arg0 + math.abs(arg0))"),
+                "Math.abs (I)I → math.abs — sem owner JDK (R6: SEM011):\n" + kof);
+
+        Path out = dir.resolve("S2.kf");
+        Files.writeString(out, kof);
+        CompilerDriver driver = new CompilerDriver();
+        CompilationResult result = driver.compile(out, dir.resolve("out"), Target.JVM);
+        assertTrue(result.success(), "decompiled deve compilar:\n" + kof + "\n" + result.diagnostics().getDiagnostics());
+    }
+
+    @Test
     void recoversMethodCall(@TempDir Path dir) throws Exception {
         Path javaFile = dir.resolve("Call.java");
         Files.writeString(javaFile, """

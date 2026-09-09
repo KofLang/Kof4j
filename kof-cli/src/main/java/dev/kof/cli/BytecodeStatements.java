@@ -423,7 +423,8 @@ final class BytecodeStatements {
                     if (m == null) return null;
                     String a = BytecodeDecoder.callArgs(stack, BytecodeDecoder.argCount(m[2]));
                     if (a == null) return null;
-                    String mapped = BytecodeDecoder.mapStaticCall(m[0], m[1], a);
+                    String mapped = BytecodeStdlib.statics(m[0], m[1], a, m[2]);
+                    if (mapped == null && BytecodeDecoder.isJdkOwner(m[0])) return null;   // R6: owner JDK
                     String call = mapped != null ? mapped : BytecodeDecoder.simpleOwner(m[0]) + "." + m[1] + "(" + a + ")";
                     if (BytecodeDecoder.isVoidDesc(m[2])) { stmts.add(call); } else { stack.push(call); }
                 }
@@ -433,7 +434,8 @@ final class BytecodeStatements {
                     String a = BytecodeDecoder.callArgs(stack, BytecodeDecoder.argCount(m[2]));
                     if (a == null || stack.isEmpty()) return null;
                     String recv = stack.pop();
-                    String mapped = BytecodeDecoder.mapStdlib(recv, m[0], m[1], a);
+                    String mapped = BytecodeStdlib.virtual(recv, m[0], m[1], a);
+                    if (mapped == null && recv.startsWith("⟦new⟧")) return null;  // R6: método em novo Objeto JDK
                     String call = mapped != null ? mapped : recv + "." + m[1] + "(" + a + ")";
                     if (BytecodeDecoder.isVoidDesc(m[2])) { stmts.add(call); } else { stack.push(call); }
                 }
