@@ -18,9 +18,11 @@ final class BytecodeFrame {
 
     private final String[] names;      // índice = slot; null = não-parâmetro
     private final boolean isStatic;
+    private final String ret;          // tipo JVM do retorno ('I'/'J'/'D'/'V'/...); null p/ quebrado
 
     BytecodeFrame(String descriptor, boolean isStatic) {
         this.isStatic = isStatic;
+        this.ret = returnTypeOf(descriptor);
         List<String> params = parameterDescriptors(descriptor);
         int slots = isStatic ? 0 : 1;
         int[] widths = new int[params.size()];
@@ -42,6 +44,16 @@ final class BytecodeFrame {
     String name(int slot) {
         if (slot >= 0 && slot < names.length && names[slot] != null) return names[slot];
         return "v" + slot;
+    }
+
+    /** Tipo JVM do retorno ('I','J','F','D','L','[','V'); null se descriptor quebrado. */
+    String retType() { return ret; }
+
+    private static String returnTypeOf(String desc) {
+        if (desc == null) return null;
+        int close = desc.lastIndexOf(')');
+        if (close < 0 || close + 1 >= desc.length()) return null;
+        return String.valueOf(desc.charAt(close + 1));
     }
 
     /** true p/ J/D (dois slots). Parâmetros de referência/array têm 1. */

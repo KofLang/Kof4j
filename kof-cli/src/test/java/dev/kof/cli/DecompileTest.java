@@ -458,6 +458,45 @@ class DecompileTest {
     }
 
     @Test
+    void recoversLongDoubleArithmeticAndCasts(@TempDir Path dir) throws Exception {
+        Path javaFile = dir.resolve("Num.java");
+        Files.writeString(javaFile, """
+                public class Num {
+                    public static long ladd(long a, long b) { return a + b; }
+                    public static long ldiv(long a, long b) { return a / b; }
+                    public static double dmul(double a, double b) { return a * b; }
+                    public static long i2l(int a) { return a; }
+                    public static int l2i(long a) { return (int) a; }
+                    public static int d2i(double a) { return (int) a; }
+                }
+                """);
+        runJavac(javaFile, dir);
+
+        String kof = Decompile.decompile(dir.resolve("Num.class"));
+
+        // Unit B (Fase C/E): ladd/ldiv/dmul e casts têm opcode que é a FONTE do
+        // tipo (verificador JVM garante); a pilha valor+tipo (BytecodeTypes.TStack)
+        // só emite quando os operandos/retorno batem (lição bug 62: opcode
+        // "linear" ainda pode driftar). / long trunc, casts truncam p/ Int.
+        assertTrue(kof.contains("Long ladd(Long arg0, Long arg1) = (arg0 + arg1)"),
+                "ladd:\n" + kof);
+        assertTrue(kof.contains("Long ldiv(Long arg0, Long arg1) = (arg0 / arg1)"),
+                "ldiv:\n" + kof);
+        assertTrue(kof.contains("Double dmul(Double arg0, Double arg1) = (arg0 * arg1)"),
+                "dmul:\n" + kof);
+        assertTrue(kof.contains("Long i2l(Int arg0) = (arg0 as Long)"), "i2l:\n" + kof);
+        assertTrue(kof.contains("Int l2i(Long arg0) = (arg0 as Int)"), "l2i:\n" + kof);
+        assertTrue(kof.contains("Int d2i(Double arg0) = (arg0 as Int)"), "d2i:\n" + kof);
+        assertFalse(kof.contains("body not recovered"), "nenhum deve degradar:\n" + kof);
+
+        Path out = dir.resolve("Num.kf");
+        Files.writeString(out, kof);
+        CompilerDriver driver = new CompilerDriver();
+        CompilationResult result = driver.compile(out, dir.resolve("out"), Target.JVM);
+        assertTrue(result.success(), "decompiled deve compilar:\n" + kof + "\n" + result.diagnostics().getDiagnostics());
+    }
+
+    @Test
     void recoversMethodCall(@TempDir Path dir) throws Exception {
         Path javaFile = dir.resolve("Call.java");
         Files.writeString(javaFile, """

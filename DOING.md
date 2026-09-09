@@ -123,19 +123,33 @@ concreta (ordem de valor):**
     `arg2 < v3`→`arg1 < arg2`, `lload_0`→`arg0`); DecompileTest 25/25; suíte
     **1233/0/64-skip**. ⚠️ Ambiente: disco encheu (100%) no meio — Conformance
     Matrix falhou com "no space" (NÃO regressão; liberado cache de browser).
- 7. **PRÓXIMA (Unit B): aritmética/casts long+double** no caminho linear.
-    Tabela hex PROVADA por probe byte-exato (a nota `0x65-0x68` do item 6
-    estava ERRADA — step é 4): ladd=0x61 lsub=0x65 lmul=0x69 ldiv=0x6d
-    lrem=0x71 lneg=0x75; dadd=0x63 dsub=0x67 dmul=0x6b ddiv=0x6f drem=0x73
-    dneg=0x77; i2l=0x85 i2d=0x87 l2i=0x88 l2d=0x8a d2i=0x8e d2l=0x8f (f2i/
-    f2l/f2d/d2f/f2* idem). Guarda R6 (lição 62): pilha de TIPOS paralela
-    (opcode é fonte de tipo; JVM verificador garante) + return-desc do método;
-    só emitir quando o tipo bate. Semântica Kof já confirmada == Java:
-    `/` trunc, `%` trunc-div, l2i/d2i/d2l trunc com wrap, casts via `as`,
-    widening implícito (`5.0 %% 2.0`=1.0, `(a+b) as Long` ok). Arquivos:
-    `BytecodeDecoder.linearReturn` + `BytecodeStatements.emitLinear` (ambos
-    <500 ainda, mas apertado — extrair helper p/ caber). Gate: DecompileTest
-    com probe real (long/double aritm + casts → recompila no JVM) + suíte.
+ 7. **✅ FEITO (este commit) — Unit B: aritmética/casts long+double com GUARDA
+    de tipo (item 6)**: pilha valor+tipo single-stack (`BytecodeTypes.TStack`
+    novo: `pushed`/`bin`/`mono`/`args`/`retTyped`/`dup`) — o OPCODE DE LOAD é a
+    fonte do tipo (verificador JVM garante; bytecode mal-typed não executa);
+    `linearReturn` convertido inteiro (loads 0x15-0x29 tipados I/J/D/L, ldc=
+    "L" p/ String / "I" p/ Integer por forma, ldc2 classify J/D, ops I/J/D
+    0x60-0x73, ineg/lneg/dneg, casts
+    i2l=0x85 i2d=0x87 l2i=0x88 l2d=0x8a d2i=0x8e d2l=0x8f via `(x as Tipo)`,
+    return guard por opcode 0xac-0xb0 vs pilha; b1 exige desc 'V'). Ops só
+    emitem se os tipos dos operandos BATEM com o opcode (ex.: ladd exige dois
+    "J") — sem pilha de tipos, `a + b` com um double seria drift (lição 62).
+    Semântica Kof confirmada == Java por probe: `/` trunc, `%` trunc-div,
+    `as Int` trunc/wrap, unary minus com parênteses ok. f-load/fconst recusados
+    (paridade com bug-62 — não regredir). `emitLinear` (statements) fica na
+    pilha de String pura (ops wide só-lineares no retorno — próxima sessão se
+    houver valor). Prova: `DecompileTest.recoversLongDoubleArithmeticAndCasts`
+    (6 métodos ladd/ldiv/dmul/i2l/l2i/d2i; decompile→compila no JVM; nenhum
+    stub); DecompileTest 26/26; suíte **1241/0/64-skip**; gate ≤500 ok
+    (BytecodeDecoder 442→462, BytecodeTypes 95, BytecodeFrame com retType).
+    ⚠️ Retrabalho evitado por teste: ineg virou `(arg0)` sem o `-` (mono fmt
+    errado) — pego por `recoversIfElseReturn` no mesmo ciclo.
+ 8. **Próxima tarefa segura**: varrer os sweeps R6 de novo COM os ops novos
+    (shapes mistos: `(ladd + iload)` → stub?, casts aninhados, `iinc` em slot
+    wide?, concat de long) e só então decidir entre estender `emitLinear` c/
+    tipos OU ir p/ `tableswitch` em long-via-hash. Ver probe real ANTES de
+    codar (regra: nunca assumir tabela/ordem — lição 0x65-0x68 errada do
+    próprio DOING).
    `ClassFileParser` misturava tags 3/4 (Integer/Float) e 5/6 (Long/Double) —
    `3.5f` virava `1079574528` no CP (perda silenciosa). Fix: `intBitsToFloat`/
    `longBitsToDouble`. `ldc` recusa literal float (Kof não tem; driftaria

@@ -38,113 +38,141 @@ final class BytecodeDecoder {
 
     static String linearReturn(List<BytecodeReader.Insn> insns, String[] cp,
                                        BytecodeFrame frame) {
-        Deque<String> stack = new ArrayDeque<>();
+        BytecodeTypes.TStack stack = new BytecodeTypes.TStack();
         for (BytecodeReader.Insn in : insns) {
             int op = in.opcode();
             switch (op) {
-                case 0x02 -> stack.push("-1");
-                case 0x03, 0x04, 0x05, 0x06, 0x07, 0x08 -> stack.push(String.valueOf(op - 0x03));
+                case 0x02 -> stack.push("-1", "I");
+                case 0x03, 0x04, 0x05, 0x06, 0x07, 0x08 -> stack.push(String.valueOf(op - 0x03), "I");
                 // lconst/dconst: tipo embutido no opcode (lição bug 62 — só
                 // emitir quando não pode driftar). fconst (0x0b-0x0d) recusado.
-                case 0x09 -> stack.push("0L");
-                case 0x0a -> stack.push("1L");
+                case 0x09 -> stack.push("0L", "J");
+                case 0x0a -> stack.push("1L", "J");
                 case 0x0b, 0x0c, 0x0d -> { return null; }
-                case 0x0e -> stack.push("0.0");
-                case 0x0f -> stack.push("1.0");
-                case 0x10 -> stack.push(String.valueOf((byte) in.operands()[0]));
-                case 0x11 -> stack.push(String.valueOf((short) in.operands()[0]));
+                case 0x0e -> stack.push("0.0", "D");
+                case 0x0f -> stack.push("1.0", "D");
+                case 0x10 -> stack.push(String.valueOf((byte) in.operands()[0]), "I");
+                case 0x11 -> stack.push(String.valueOf((short) in.operands()[0]), "I");
                 case 0x12 -> {
                     String c = ldc(cp, in.operands()[0]);
                     if (c == null) return null;
-                    stack.push(c);
+                    stack.push(c, c.startsWith("\"") ? "L" : "I");   // String vs Integer
                 }
                 case 0x14 -> {
                     String c = ldc2(cp, in.operands()[0]);
                     if (c == null) return null;
-                    stack.push(c);
+                    stack.push(c, c.endsWith("L") ? "J" : "D");
                 }
-                case 0x1a, 0x1b, 0x1c, 0x1d -> stack.push(slotName(op - 0x1a, frame));
-                case 0x1e, 0x1f, 0x20, 0x21 -> stack.push(slotName(op - 0x1e, frame));   // lload_0..3
-                case 0x26, 0x27, 0x28, 0x29 -> stack.push(slotName(op - 0x26, frame));   // dload_0..3
-                case 0x2a, 0x2b, 0x2c, 0x2d -> stack.push(slotName(op - 0x2a, frame));
-                case 0x15, 0x19 -> stack.push(slotName(in.operands()[0], frame));
-                case 0x16, 0x17, 0x18 -> stack.push(slotName(in.operands()[0], frame));   // lload/fload/dload
-                case 0x60 -> { if (!bin(stack, "+")) return null; }
-                case 0x64 -> { if (!bin(stack, "-")) return null; }
-                case 0x68 -> { if (!bin(stack, "*")) return null; }
-                case 0x6c -> { if (!bin(stack, "/")) return null; }
-                case 0x70 -> { if (!bin(stack, "%")) return null; }
-                case 0x74 -> { // ineg
-                    if (stack.isEmpty()) return null;
-                    stack.push("-" + stack.pop());
-                }
+                case 0x1a, 0x1b, 0x1c, 0x1d -> stack.push(slotName(op - 0x1a, frame), "I");
+                case 0x1e, 0x1f, 0x20, 0x21 -> stack.push(slotName(op - 0x1e, frame), "J");   // lload_0..3
+                case 0x26, 0x27, 0x28, 0x29 -> stack.push(slotName(op - 0x26, frame), "D");   // dload_0..3
+                case 0x2a, 0x2b, 0x2c, 0x2d -> stack.push(slotName(op - 0x2a, frame), "L");
+                case 0x15 -> stack.push(slotName(in.operands()[0], frame), "I");
+                case 0x19 -> stack.push(slotName(in.operands()[0], frame), "L");
+                case 0x16 -> stack.push(slotName(in.operands()[0], frame), "J");   // lload
+                case 0x17 -> { return null; }                                       // fload (fconst já recusado)
+                case 0x18 -> stack.push(slotName(in.operands()[0], frame), "D");   // dload
+                case 0x60 -> { if (!stack.bin("+", "I")) return null; }
+                case 0x64 -> { if (!stack.bin("-", "I")) return null; }
+                case 0x68 -> { if (!stack.bin("*", "I")) return null; }
+                case 0x6c -> { if (!stack.bin("/", "I")) return null; }
+                case 0x70 -> { if (!stack.bin("%", "I")) return null; }
+                case 0x61 -> { if (!stack.bin("+", "J")) return null; }
+                case 0x65 -> { if (!stack.bin("-", "J")) return null; }
+                case 0x69 -> { if (!stack.bin("*", "J")) return null; }
+                case 0x6d -> { if (!stack.bin("/", "J")) return null; }
+                case 0x71 -> { if (!stack.bin("%", "J")) return null; }
+                case 0x63 -> { if (!stack.bin("+", "D")) return null; }
+                case 0x67 -> { if (!stack.bin("-", "D")) return null; }
+                case 0x6b -> { if (!stack.bin("*", "D")) return null; }
+                case 0x6f -> { if (!stack.bin("/", "D")) return null; }
+                case 0x73 -> { if (!stack.bin("%", "D")) return null; }
+                case 0x74 -> { if (!stack.mono("-%s", "I", "I")) return null; }         // ineg (paridade: -atom)
+                case 0x75 -> { if (!stack.mono("(-%s)", "J", "J")) return null; }       // lneg
+                case 0x77 -> { if (!stack.mono("(-%s)", "D", "D")) return null; }       // dneg
+                case 0x85 -> { if (!stack.mono("(%s as Long)", "I", "J")) return null; }    // i2l
+                case 0x87 -> { if (!stack.mono("(%s as Double)", "I", "D")) return null; }  // i2d
+                case 0x88 -> { if (!stack.mono("(%s as Int)", "J", "I")) return null; }     // l2i
+                case 0x8a -> { if (!stack.mono("(%s as Double)", "J", "D")) return null; }  // l2d
+                case 0x8e -> { if (!stack.mono("(%s as Int)", "D", "I")) return null; }     // d2i
+                case 0x8f -> { if (!stack.mono("(%s as Long)", "D", "J")) return null; }    // d2l
                 case 0xb8 -> { // invokestatic
                     String[] m = resolveMethodRef(cp, in.operands()[0]);
                     if (m == null) return null;
-                    String a = callArgs(stack, argCount(m[2]));
+                    String a = stack.args(argCount(m[2]));
                     if (a == null) return null;
                     String mapped = mapStaticCall(m[0], m[1], a);
-                    stack.push(mapped != null ? mapped : simpleOwner(m[0]) + "." + m[1] + "(" + a + ")");
+                    stack.push(mapped != null ? mapped : simpleOwner(m[0]) + "." + m[1] + "(" + a + ")",
+                            retOf(m[2]));
                 }
                 case 0xb6, 0xb9 -> { // invokevirtual / invokeinterface
                     String[] m = resolveMethodRef(cp, in.operands()[0]);
                     if (m == null) return null;
-                    String a = callArgs(stack, argCount(m[2]));
-                    if (a == null || stack.isEmpty()) return null;
-                    String recv = stack.pop();
+                    String a = stack.args(argCount(m[2]));
+                    if (a == null) return null;
+                    String recv = stack.popExpr();
+                    if (recv == null) return null;
                     String mapped = mapStdlib(recv, m[0], m[1], a);
-                    stack.push(mapped != null ? mapped : recv + "." + m[1] + "(" + a + ")");
+                    stack.push(mapped != null ? mapped : recv + "." + m[1] + "(" + a + ")", retOf(m[2]));
                 }
                 case 0xb4 -> { // getfield
                     String[] f = resolveMethodRef(cp, in.operands()[0]);
-                    if (f == null || stack.isEmpty()) return null;
-                    String obj = stack.pop();
-                    stack.push(obj + "." + f[1]);
+                    String obj = stack.popExpr();
+                    if (f == null || obj == null) return null;
+                    stack.push(obj + "." + f[1], retOf(f[2]));
                 }
                 case 0xb2 -> { // getstatic
                     String[] f = resolveMethodRef(cp, in.operands()[0]);
                     if (f == null) return null;
-                    stack.push(simpleOwner(f[0]) + "." + f[1]);
+                    stack.push(simpleOwner(f[0]) + "." + f[1], retOf(f[2]));
                 }
                 case 0xba -> { // invokedynamic — só String concat (CONCAT: no CP)
                     String rec = BytecodeConcat.recipe(cp, in.operands()[0]);
                     if (rec == null) return null;
-                    String expr = BytecodeConcat.apply(stack, rec);
+                    int n = 0;
+                    for (int i = 0; i < rec.length(); i++) if (rec.charAt(i) == 1) n++;
+                    java.util.List<String> argE = new java.util.ArrayList<>();
+                    for (int i = 0; i < n; i++) argE.add(0, stack.popExpr());
+                    if (argE.stream().anyMatch(java.util.Objects::isNull)) return null;
+                    java.util.Deque<String> vals = new java.util.ArrayDeque<>(argE);
+                    String expr = BytecodeConcat.apply(vals, rec);
                     if (expr == null) return null;
-                    stack.push(expr);
+                    stack.push(expr, "L");
                 }
                 case 0xbb -> { // new
                     String cn = resolveClassName(cp, in.operands()[0]);
                     if (cn == null) return null;
-                    stack.push("⟦new⟧" + cn);
+                    stack.push("⟦new⟧" + cn, "L");
                 }
                 case 0x59 -> { // dup (só no padrão new)
-                    if (stack.isEmpty()) return null;
-                    String t = stack.peek();
-                    if (!t.startsWith("⟦new⟧")) return null;
-                    stack.push(t);
+                    String t = stack.topExpr();
+                    if (t == null || !t.startsWith("⟦new⟧")) return null;
+                    stack.dup();
                 }
                 case 0xb7 -> { // invokespecial (<init>)
                     String[] m = resolveMethodRef(cp, in.operands()[0]);
                     if (m == null || !"<init>".equals(m[1])) return null;
-                    String a = callArgs(stack, argCount(m[2]));
+                    String a = stack.args(argCount(m[2]));
                     if (a == null || stack.size() < 2) return null;
                     stack.pop();                       // receiver (cópia do dup)
-                    String result = stack.pop();       // marcador do new
-                    if (!result.startsWith("⟦new⟧")) return null;
-                    stack.push(result.substring("⟦new⟧".length()) + "(" + a + ")");
+                    String result = stack.popExpr();   // marcador do new
+                    if (result == null || !result.startsWith("⟦new⟧")) return null;
+                    stack.push(result.substring("⟦new⟧".length()) + "(" + a + ")", "L");
                 }
-                case 0xac, 0xad, 0xae, 0xaf, 0xb0 -> {
-                    return stack.isEmpty() ? null : stack.pop();
-                }
+                case 0xac -> { return stack.retTyped("I"); }
+                case 0xad -> { return stack.retTyped("J"); }
+                case 0xae -> { return stack.retTyped("F"); }
+                case 0xaf -> { return stack.retTyped("D"); }
+                case 0xb0 -> { return stack.retTyped("L"); }
                 case 0xb1 -> {
+                    if (!"V".equals(frame.retType())) return null;   // return em método não-void → drift
                     return stack.isEmpty() ? "" : null;
                 }
                 default -> { return null; }
             }
         }
         // fim sem return: devolve o topo da pilha (região protegida de try)
-        return stack.size() == 1 ? stack.peek() : null;
+        return stack.size() == 1 ? stack.retTyped(frame.retType()) : null;
     }
 
     // ── comparação booleana de retorno ───────────────────────────────────
@@ -303,6 +331,15 @@ final class BytecodeDecoder {
         if (e.equals("NaN") || e.equals("Infinity") || e.equals("-Infinity")) return null;
         if (e.indexOf('.') >= 0 || e.indexOf('e') >= 0 || e.indexOf('E') >= 0) return e;
         return e + "L";
+    }
+
+    /** Tipo JVM resultante de um descriptor: método "(..)T" → char pós-')';
+     *  campo "T"/"Ljava…;" → primeiro char. null se vazio/quebrado. */
+    static String retOf(String desc) {
+        if (desc == null || desc.isEmpty()) return null;
+        int close = desc.lastIndexOf(')');
+        if (close >= 0) return close + 1 < desc.length() ? String.valueOf(desc.charAt(close + 1)) : null;
+        return String.valueOf(desc.charAt(0));
     }
 
     static String ldc(String[] cp, int idx) {
