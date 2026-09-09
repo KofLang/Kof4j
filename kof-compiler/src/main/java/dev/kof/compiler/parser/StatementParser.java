@@ -124,9 +124,16 @@ public class StatementParser {
             ctx.advance();
             return new ExpressionStmt(ctx.pos(), null);
         }
+        // GitHub #66 / bug 75: a posição do statement é capturada ANTES do
+        // parse — `ctx.pos()` APÓS `expectSemicolon()` aponta para o TOKEN
+        // DO PRÓXIMO STATEMENT (o `;` já foi consumido e o peek é o
+        // primeiro token da linha seguinte, ou o `}` de fechamento). O
+        // LineNumberTable herdava as linhas do statement SEGUINTE: a linha
+        // do statement atual não existia na tabela e o `}` ganhava entries.
+        SourcePosition stmtPos = ctx.pos();
         ExpressionNode expr = ExpressionParser.parseExpression(ctx);
         ctx.expectSemicolon();
-        return new ExpressionStmt(ctx.pos(), expr);
+        return new ExpressionStmt(stmtPos, expr);
     }
 
     static StatementNode parseReturn(ParseContext ctx) {

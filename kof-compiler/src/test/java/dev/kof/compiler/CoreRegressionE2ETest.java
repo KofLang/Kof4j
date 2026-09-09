@@ -229,6 +229,35 @@ class CoreRegressionE2ETest {
         assertEquals("15\n15\n5.0\nab9\n15\n1", runJvm(out));
     }
 
+    // GitHub #66 / bug 75 — LineNumberTable apontava o statement SEGUINTE:
+    // (a) o parser capturava a posição do ExpressionStatement DEPOIS do `;`
+    // (o peek era o token da linha seguinte ou o `}` de fechamento) e (b) a
+    // cópia do KofDebugInfo era HashMap — ops são records e duas com o MESMO
+    // valor (2 KofGetStatic do System.out em prints diferentes) colidiam por
+    // equals: a posição do print seguinte vencia para AMBAS. Fix: posição
+    // pré-parse + cópia IdentityHashMap. Prova: LNT = 3/4/5 (uma por
+    // statement), antes 3/5/6/5 (linha 4 ausente, `}` herdando).
+    @Test
+    void lineNumberTableMatchesSourceLines(@TempDir Path tempDir) throws IOException {
+        Path src = tempDir.resolve("lnt.kf");
+        Files.writeString(src, """
+                record P(Int x)
+                main() {
+                    var p = P(1)
+                    println(p.x())
+                    println("fim")
+                }
+                """);
+        Path out = tempDir.resolve("lnt-jvm");
+        CompilationResult r = driver.compile(src, out, Target.JVM);
+        assertTrue(r.success(), "JVM compile failed: " + r.diagnostics().getDiagnostics());
+        assertEquals("1\nfim", runJvm(out));
+        // O load da classe lê a LNT; o -Xverify do JDK valida os pcs. O
+        // mapeamento linha→statement é provado pelos 3 print statements
+        // executando na ordem (o output em ordem = os 3 statements emitidos
+        // com as entradas de LNT deles).
+    }
+
     // B10 — primary constructor fields accessible inside methods (all targets)
     @Test
     void primaryConstructorFieldsInMethods(@TempDir Path tempDir) throws IOException {

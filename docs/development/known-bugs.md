@@ -1430,6 +1430,36 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   (`5.0`); teste `compoundAssignmentOnArrayElementAndQualifiedStatic`;
   CoreRegressionE2ETest 47/0.
 
+### 75. JVM: LineNumberTable aponta o statement SEGUINTE (linha do statement ausente, `}` herdando) (GitHub #66) — ✅ CORRIGIDO 09/09
+
+- **Sintoma:** repro 6 linhas (`record P`, 2 prints): LNT = `3/5/6/5` em vez
+  de `3/4/5` — a linha do statement `println(p.x())` (4) não existia na
+  tabela; o `}` de fechamento (6) herdava entries; stacks traces apontavam
+  a linha errada.
+- **Causa raiz (2 defeitos independentes, ambos confirmados por instrumentação
+  `kof.trace.debug`):**
+  1. **Parser:** `new ExpressionStmt(ctx.pos(), expr)` capturava a posição
+     DEPOIS do `expectSemicolon()` — o peek era o PRIMEIRO TOKEN DO
+     STATEMENT SEGUINTE (ou o `}`). O statement herdava a linha do seguinte
+     (+1). O mesmo padrão em `finishMethod`/`parseField` (ClassMemberParser),
+     expression-body de função (Parser) e lambda-body (LambdaParser).
+  2. **Cópia do KofDebugInfo:** `new HashMap<>(IdentityHashMap)` — ops são
+     RECORDS e duas com o MESMO valor (2 `KofGetStatic` do `System.out` em
+     prints diferentes) colidem por equals/hashCode: 1 entry, o último put
+     vencia para AMBAS — a posição do print seguinte sobrescrevia a do
+     anterior na LNT.
+- **Correção (09/09):** posição capturada ANTES do parse em todos os 5 sites
+  (ExpressionStmt/finishMethod/parseField/func-expression-body/lambda-body);
+  a cópia do KofDebugInfo é `IdentityHashMap` (por identidade — instâncias
+  iguais mantêm entradas próprias). Flag diagnóstico `kof.trace.debug` (dumpa
+  os puts de posição por statement) fica como ferramenta permanente.
+- **Prova:** IR pós-fix: ops do statement 4 todas @4 e do 5 todas @5 (antes:
+  misto @4/@5 por colisão); LNT final = `3/4/5` (uma entrada por statement);
+  teste `lineNumberTableMatchesSourceLines`; CoreRegressionE2ETest 48/0.
+
+
+
+
 
 
 

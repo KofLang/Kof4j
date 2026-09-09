@@ -116,7 +116,12 @@ Type vt = vds.type() != null && !"var".equals(vds.type())
         }
         KofDebugInfo debugInfo = driver.currentDebugPositions.isEmpty()
                 ? KofDebugInfo.EMPTY
-                : new KofDebugInfo(new java.util.HashMap<>(driver.currentDebugPositions));
+                // GitHub #66 / bug 75: a cópia NÃO pode ser HashMap — ops são RECORDS e
+// duas instâncias com o MESMO VALOR (ex.: 2 KofGetStatic do System.out em
+// 2 prints) colidem por equals/hashCode: 1 entry sobrescreve o outro e
+// AMBAS as ops herdam a MESMA posição (o print seguinte "vencia" o anterior
+// — LNT apontando o statement seguinte). A cópia é por IDENTIDADE.
+                : new KofDebugInfo(new java.util.IdentityHashMap<>(driver.currentDebugPositions));
         driver.currentDebugPositions.clear();
         driver.loweringMain = prevMain;
         driver.mainArgsListField = prevMainArgsList;

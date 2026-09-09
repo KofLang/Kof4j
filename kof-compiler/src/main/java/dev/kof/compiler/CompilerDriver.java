@@ -262,6 +262,14 @@ Target target = Target.JVM;
                 currentDebugPositions.put(ops.get(i), stmt.position());
             }
         }
+        if (Boolean.getBoolean("kof.trace.debug")) {
+            System.err.println("emitStatement @" + (stmt.position() != null ? stmt.position().line() : "null")
+                    + " range=[" + before + ".." + ops.size() + ") " + stmt.getClass().getSimpleName());
+            for (int i = before; i < ops.size(); i++) {
+                System.err.println("  put[" + i + "] " + System.identityHashCode(ops.get(i))
+                        + " " + ops.get(i).getClass().getSimpleName());
+            }
+        }
         return result;
     }
 
