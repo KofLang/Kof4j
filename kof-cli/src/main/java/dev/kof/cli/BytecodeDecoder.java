@@ -371,7 +371,11 @@ import java.util.Set;
             try {
                 int ref = Integer.parseInt(e.substring(1));
                 if (ref <= 0 || ref >= cp.length || cp[ref] == null) return null;
-                return "\"" + cp[ref] + "\"";
+                // ESCAPAR (regra R6): a string do CP é o valor REAL; emitida
+                // crua, `\b`/`\n`/`"` estouravam o lexer do .kf (prova de
+                // drift 09/09: LEX002/LEX004/'\' inesperado). O escape do
+                // concat (BytecodeConcat) é o canonical — reusado aqui.
+                return "\"" + BytecodeConcat.escape(cp[ref]) + "\"";
             } catch (NumberFormatException ex) {
                 return null;
             }

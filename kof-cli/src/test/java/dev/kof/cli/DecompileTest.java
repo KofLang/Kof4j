@@ -440,6 +440,30 @@ class DecompileTest {
     }
 
     @Test
+    void escapesStringConstantsInDecompiledSource(@TempDir Path dir) throws Exception {
+        // R6 (prova de drift 09/09): o ldc emitia a string do CP CRUA — `\b`,
+        // newline real e `"` estouravam o lexer do .kf (LEX002/LEX004). Agora
+        // escape canônico (BytecodeConcat); round-trip: decompilar → compilar.
+        Path javaFile = dir.resolve("E.java");
+        Files.writeString(javaFile, """
+                public class E {
+                    public static String s1() { return "a\\\\b"; }
+                    public static String s2() { return "q\\"t"; }
+                    public static String s3() { return "nl\\nend"; }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("E.class"));
+        assertTrue(kof.contains("\"a\\\\b\""), "barra dupla escapada:\n" + kof);
+        assertTrue(kof.contains("\"q\\\"t\""), "aspas escapadas:\n" + kof);
+        assertTrue(kof.contains("\"nl\\nend\""), "newline escapado:\n" + kof);
+        Path out = dir.resolve("E.kf");
+        Files.writeString(out, kof);
+        CompilationResult result = new CompilerDriver().compile(out, dir.resolve("out"), Target.JVM);
+        assertTrue(result.success(), "decompiled deve compilar:\n" + kof + "\n" + result.diagnostics().getDiagnostics());
+    }
+
+    @Test
     void whitelistInstanceofRecoversAndCompiles(@TempDir Path dir) throws Exception {
         // Fase E (09/09): `x instanceof String` é idiomático Kof e o nome
         // resolve SEM import — seguro recuperar. Tipo de domínio fica stub

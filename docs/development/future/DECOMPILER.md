@@ -162,6 +162,14 @@ Fase E  Kof Decompiler          (gerar Kof source)
 > mesmo sendo tratados pelo `emitLinear`. O ranking serve p/ ACHAR candidatos,
 > não p/ contar stubs; a fila real = (a) nomes de domínio não-resolvidos
 > (multi-classe §7) e (b) shapes estruturais recusados (joins, Fase C).
+>
+> **DRIFT 69→5 (09/09, este commit):** o contador de drift (decompile→check
+> nos arquivos 100% recuperados) media PRÉ-EXISTENTES que os opcodes novos
+> expunham. A causa nº1 era semântica e única: `ldc` emitia a string do CP
+> CRUA (`\b`, newline real, `"` → LEX002/LEX004/'\' inesperado). Escapado com
+> o escape canônico do concat (`BytecodeConcat.escape`), o drift caiu 69→5.
+> As 5 restantes: 4× cross-file (classe referida noutro arquivo — exatamente
+> o passes multi-classe do §7) + 1× wildcard `? extends` (gap próprio).
 
 ## 7. Relação com o Compilador
 
