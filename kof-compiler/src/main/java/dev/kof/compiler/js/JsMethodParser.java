@@ -35,6 +35,9 @@ public final class JsMethodParser {
 
     List<JsIr.JsStatement> parseMethodBody(MethodCtx ctx) {
         this.lc.currentCtxOpsDump = ctx.ops;
+        for (int slot : parameterSlots(ctx)) {
+            ctx.declared.add(slot);
+        }
         int[] pos = {0};
         List<JsIr.JsStatement> body = flow.parseStatements(ctx, pos, Set.of(), new ArrayList<>());
         if (pos[0] < ctx.ops.size()) {
@@ -100,20 +103,43 @@ public final class JsMethodParser {
     }
 
     List<String> parameterNames(MethodCtx ctx) {
+        List<String> names = new ArrayList<>();
+        for (int slot : parameterSlots(ctx)) {
+            names.add(ctx.localNames.get(slot));
+        }
+        return names;
+    }
+
+    /**
+     * Slots dos parâmetros que viram a assinatura da função JS (exclui
+     * capturas de lambda, que ficam nos slots iniciais mas são locais
+     * comuns no corpo — e exclui o `String[] args` injetado de `main`,
+     * que não é parâmetro de origem). Fonte única para `parameterNames`
+     * (nomes da assinatura) e `parseMethodBody` (semeadura de `declared`).
+     */
+    List<Integer> parameterSlots(MethodCtx ctx) {
         if ("main".equals(ctx.methodName) && ctx.paramCount == 1) {
             // The injected String[] parameter is not a source parameter.
             return List.of();
         }
-        List<String> names = new ArrayList<>();
+        // known-bugs #64 / GitHub #47: `Long` e `Double` ocupam DOIS slots, então
+        // os índices são ESPARSOS — em `f(Long a, Int b)` o mapa é {0:a, 2:b}.
+        // Percorrer `0..localNames.size()` parava antes do slot 2 e descartava
+        // `b` da assinatura (lido como `undefined`, sem diagnóstico). Percorre
+        // as chaves REAIS em ordem crescente.
+        List<Integer> ordered = new ArrayList<>(ctx.localNames.keySet());
+        java.util.Collections.sort(ordered);
+        List<Integer> slots = new ArrayList<>();
         int start = ctx.instanceMethod ? 1 : 0;
-        for (int i = start; i < ctx.localNames.size() && names.size() < ctx.paramCount; i++) {
-            if (ctx.captureSlots.contains(i)) continue;
-            String name = ctx.localNames.get(i);
-            if (name != null) {
-                names.add(name);
+        for (int slot : ordered) {
+            if (slots.size() == ctx.paramCount) break;
+            if (slot < start) continue;
+            if (ctx.captureSlots.contains(slot)) continue;
+            if (ctx.localNames.get(slot) != null) {
+                slots.add(slot);
             }
         }
-        return names;
+        return slots;
     }
 
 
