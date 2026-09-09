@@ -80,6 +80,27 @@ class CompilerDriverTest {
         assertTrue(result.success(), "Native compilation should succeed");
     }
 
+    // issue #53 — record com construtor explícito canônico: NÃO pode gerar
+    // <init> duplicado (ClassFormatError no JVM). O automático é suprimido
+    // quando o record declara um construtor com a mesma aridade do canônico.
+    @Test
+    void recordWithExplicitCanonicalConstructorCompilesToJvm(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("P.kf");
+        Files.writeString(source, """
+            record P(Int x) {
+                constructor(Int x) {
+                    this.x = x
+                }
+            }
+            main() {
+                println(P(5).x())
+            }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertTrue(result.success(), "record with explicit canonical ctor should compile: " + result.diagnostics().getDiagnostics());
+        assertTrue(Files.exists(tempDir.resolve("out/P.class")), "Class file should exist");
+    }
+
     @Test
     void compilesFunctionWithPrintln(@TempDir Path tempDir) throws IOException {
         Path source = tempDir.resolve("Main.kf");

@@ -1186,6 +1186,18 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   para qualquer agente que rode a suíte completa com Chrome instalado.
   Quem corrigir: UI lane (dono da PR #39).
 
+### 66. `record` com construtor explícito canônico → `<init>` duplicado (ClassFormatError no JVM) — ✅ CORRIGIDO 09/09
+
+- **Sintoma (issue #53):** `record P(Int x) { constructor(Int x) { this.x = x } }` → o
+  record gera **dois** `<init>`: o automático (`CompilerRecordSupport.generateRecordConstructor`)
+  SEMPRE adicionado em `CompilerClassLowering.lowerRecord` + o explícito do usuário
+  (`lowerConstructor`) → `ClassFormatError: <init> duplicado` no load JVM.
+- **Correção (09/09):** `lowerRecord` agora verifica se o record declara um construtor
+  explícito com a MESMA aridade do canônico (número de componentes) e, nesse caso,
+  NÃO gera o automático (o explícito é lowered e substitui). Construtores não-canônicos
+  (aridade diferente) continuam somando (canônico + overload). Prova:
+  `CompilerDriverTest.recordWithExplicitCanonicalConstructorCompilesToJvm`.
+
 ## Comportamentos que PAREcem bugs mas são esperados (não corrigir)
 
 | Cenário | Comportamento | Por quê |

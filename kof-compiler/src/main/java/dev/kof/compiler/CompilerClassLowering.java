@@ -82,7 +82,17 @@ public final class CompilerClassLowering {
                     AccessFlags.PRIVATE | AccessFlags.FINAL,
                     null, CompilerAnnotations.lowerAnnotations(driver, comp.annotations())));
         }
-        methods.add(0, CompilerRecordSupport.generateRecordConstructor(driver, rec, internalName));
+        // bug #53: se o record declara um construtor explícito com a MESMA
+        // aridade do canônico (número de componentes), NÃO gerar o automático —
+        // senão dois <init> no JVM → ClassFormatError. O canônico explícito é
+        // lowered em lowerRecord (membros) e substitui o gerado.
+        boolean hasCanonicalCtor = rec.members().stream()
+                .filter(m -> m instanceof ConstructorDeclarationNode)
+                .anyMatch(c -> ((ConstructorDeclarationNode) c).parameters().size()
+                        == rec.components().size());
+        if (!hasCanonicalCtor) {
+            methods.add(0, CompilerRecordSupport.generateRecordConstructor(driver, rec, internalName));
+        }
         methods.addAll(CompilerRecordSupport.generateRecordDefaultOverloads(driver, rec, internalName));
         Type ownerType = CompilerTypes.ownerTypeFromInternal(internalName, driver.semanticAnalyzer);
         for (RecordComponentNode comp : rec.components()) {
