@@ -29,7 +29,7 @@ public final class StatementAnalyzer {
             if (sym != null) {
                 targetType = sym.type();
                 // bug 62: `val` é imutável — escrever em val é erro de
-                // mutabilidade (SEM037), alinhado à semântica congelada.
+                // mutabilidade (SEM037), alinhado à  .
                 if (sym instanceof SymbolTable.LocalVariableSymbol lv && lv.isVal()
                         && sa.diagnostics() != null) {
                     sa.diagnostics().error("", 0, 0, 0,

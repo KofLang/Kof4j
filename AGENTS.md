@@ -99,7 +99,7 @@ deixe trabalho grande não-commitado — é assim que se perde uma sessão.
 
 **Condições de parada (as ÚNICAS que justificam parar e chamar o humano):**
 
-1. **Semântica congelada em jogo** — mudança de contrato/operador/ordem de
+1. **  em jogo** — mudança de contrato/operador/ordem de
    avaliação (regra 6): vira gap/plano em `planning-*`, nunca edição.
 2. **Colisão de lane inevitável** — o único caminho toca um arquivo `EM CURSO`
    de outro agente e não dá para adiar: pare, registre no DOING.md, aguarde.
@@ -180,7 +180,7 @@ conceitual nem decide arquitetura/rumo. Consequências práticas para o agente:
 4. **Discussão técnica antes de código.** Quando a dúvida é conceitual (semântica,
    estouro de ponto flutuante, ABI), a contribuição é por **debate técnico** —
    propostas/documentos de design comentados — não PR desordenado que muda
-   semântica congelada.
+    .
 5. **Blindagem contra poluição.** Nunca misturar a linguagem Kof com termos
    alheios ao domínio (jogos, etc.) em docs/código. Disclaimers e nomenclatura
    são lei; violou, reverte.
@@ -363,7 +363,7 @@ Bool isQuery(String op) {
 5. **Paridade cross-target.** JVM/Native/JS divergindo no mesmo programa é bug
    de paridade. O comportamento previsto vale nos 3 targets, ou gap `XXX00x`
    diagnosticado — nunca divergência silenciosa.
-6. **Semântica congelada (0.2.6-beta).** Operadores, precedência, ordem de
+6. **  (0.2.6-beta).** Operadores, precedência, ordem de
    avaliação, null-safety, `==` de conteúdo, exceções como String,
    `spawn`/`await`, coleções `List/Map/Set` são **congelados**. Proposta de
    mudança vira gap/plano em `planning-*`, nunca edição direta da semântica

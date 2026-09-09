@@ -477,7 +477,7 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   para caractere (deixa o número passar); JVM usa `String.valueOf(char)` do JDK
   (caractere) e Native usa `kof_char_to_string` (UTF-8).
 - **O que deveria acontecer:** os 3 targets iguais. A decisão de qual é o certo
-  (`"h"` ou `"104"`) é **de design** (semântica congelada — regra 6): o corpus
+  (`"h"` ou `"104"`) é **de design** (  — regra 6): o corpus
   (`common-mistakes.md`) favorece `"h"`, mas isso precisa de bump + discussão,
   não de correção silenciosa. Registrado como gap até lá.
 - **Arquivos:** `JsBackend.java` (dispatch de `valueOf`), `CompilerDriver.java`
@@ -813,7 +813,7 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 - **Sintoma:** `var s = "café"; println(s.length); println(s.charAt(3))`: JVM → `4` / `233` (0xE9, code unit UTF-16 de `é`); **Native** → `5` / `195` (0xC3, 1º byte de `é` em UTF-8). `println(s + "!")` casa (`café!`) — só `length`/`charAt` divergem.
 - **Causa raiz:** as ops de string do Native são **byte/UTF-8** baseadas; as do JVM são **code-unit/UTF-16** baseadas. Mesma família do `STR001` (documentado p/ JVM `"Olá 😀".length`=6), mas aqui é **divergência cross-target** (Native ≠ JVM no MESMO programa) → paridade (regra 5).
 - **Prova/repro:** sweep cross-target 07/09 (caso `unicode-str`), Native x86_64.
-- **Correção (lane Native, decisão de design regra 6):** alinhar `length`/`charAt` a UMA convenção (code point ou code unit) nos 3 targets — é mudança de semântica congelada, precisa de bump.
+- **Correção (lane Native, decisão de design regra 6):** alinhar `length`/`charAt` a UMA convenção (code point ou code unit) nos 3 targets — é mudança de  , precisa de bump.
 
 ### 44. `println(double)` no Native x86_64 imprime 6 casas + `5` (JVM: 16 casas + `5.0`) — ✅ CORRIGIDO (teste `ConformanceMatrixTest` `0.3333333333333333\n5.0\n3.5`)
 

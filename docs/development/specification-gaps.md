@@ -290,5 +290,5 @@ Não duplicados aqui — ver [known-bugs.md](known-bugs.md):
 
 **Nenhum foi corrigido na linguagem** — esta tarefa é de documentação. Cada
 item B/C que envolve mudança de semântica é **decisão de design** (regra 6:
-semântica congelada) e deve virar gap/plano em `planning-*`, nunca edição
+ ) e deve virar gap/plano em `planning-*`, nunca edição
 silenciosa.

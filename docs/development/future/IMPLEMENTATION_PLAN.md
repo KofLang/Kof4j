@@ -222,7 +222,7 @@ corpo recuperado com stub honesto).
 
 | # | Subtarefa | Dificuldade | DoD |
 |---|-----------|-------------|-----|
-| 2.4.1 | `auto-closed`/scope leve para handles (arquivo/GPU/conexão/FFI) sobre `try/finally` | 🟡 M | 🟡 design pronto (`docs/future/scoped-resources-plan.md`); sintaxe `using` gated por bump 0.3.0 (semântica congelada) |
+| 2.4.1 | `auto-closed`/scope leve para handles (arquivo/GPU/conexão/FFI) sobre `try/finally` | 🟡 M | 🟡 design pronto (`docs/future/scoped-resources-plan.md`); sintaxe `using` gated por bump 0.3.0 ( ) |
 | 2.4.2 | Fronteira segura de buffer p/ zona sem GC (handles de FFI) | 🟡 M | handle liberado pelo GC na fronteira |
 
 ### 2.5 Variance / sealed (opcional, postergável)
@@ -235,7 +235,7 @@ corpo recuperado com stub honesto).
 reservadas, não implementadas) ficam **postergados**. `enum` (alternativas
 fechadas) + `record`/`interface` cobrem o caso imediato. Variance avançada só
 abre quando uma pipeline científica/coleções exigir type-safety covariante —
-gate: bump de versão (semântica congelada). Evitar type-classes (non-goal
+gate: bump de versão ( ). Evitar type-classes (non-goal
 permanente).
 
 ---

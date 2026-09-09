@@ -53,7 +53,6 @@ do projeto. Usar IA **não é o problema** — entregar código que você não
 entende, é.
 
 > Relação com as regras 1–6 acima: a **regra 5** (debate técnico antes de
-> código) continua valendo para mudanças de **semântica congelada** — proposta
 > de mudança de operador, precedência, contrato de API. O que muda é o fluxo
 > de contribuições em geral: PRs agora são bem-vindas (produzidas por pessoa,
 > agente ou ambos), **mantida a regra 6** — toda PR com issue relacionada.

@@ -50,7 +50,7 @@ briefing aceita ("adapte à arquitetura real"). Então: `math.clamp(...)`,
 
 **Não** (regra do briefing §48/§49 + R6): browser/DOM/storage/clipboard = lane KofUI
 (kof.ui já existe); crypto caseiro = proibido (JCA já); `Result`/`Option` = não existe
-na semântica congelada (null-safety + throw são o mecanismo).
+na   (null-safety + throw são o mecanismo).
 
 ## 3. Degraus commitáveis (cada um: dispatch + 3 backends + teste Kof<Domain>Test + matriz + doc)
 

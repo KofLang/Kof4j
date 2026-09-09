@@ -28,7 +28,7 @@ previsto. O agente anterior (07/09) rotulou os 3 de "congelado por construção"
 isto é **bug de código**, não decisão de design congelada.
 
 **Por que ainda é decisão de design *como implementá-lo*:** consertar muda a
-ordem de avaliação (regra 6 — "semântica congelada 0.2.6-beta": ordem de
+ordem de avaliação (regra 6 — "  0.2.6-beta": ordem de
 avaliação). A *direção* está no corpus (rodar `finally`); o *mecanismo* e o
 impacto nos 4 backends + no reconstructor JS exigem vivência → este DD pede
 bump + assinatura antes de editar o lowering.
