@@ -76,6 +76,10 @@ var a = Point(10, 20)      // construtor canônico
 var b = new Point(3, 4)    // também aceito
 ```
 
+> **Record é imutável.** Escrever em componente (`p.x = 9`) ou em `this.x` dentro
+> de um record é erro de compilação **SEM038** ("record is immutable"). Para
+> estado mutável use `class` com campos + `constructor(...)`.
+
 ## Pattern matching — record destructuring (0.2.6-beta)
 
 ```kof
