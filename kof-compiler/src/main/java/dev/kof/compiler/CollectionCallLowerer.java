@@ -24,7 +24,9 @@ public final class CollectionCallLowerer {
             if (!(arg instanceof LambdaExpr)) {
                 Type argT = ExpressionTyper.inferExprType(driver, arg, locals);
                 localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
-                if (TypeMetrics.isPrimitiveType(argT) && driver.target == Target.JVM) {
+                // (#57: IfExpr/switch heterogêneo já boxeou in-branch → pular)
+                if (TypeMetrics.isPrimitiveType(argT) && driver.target == Target.JVM
+                        && !ExpressionTyper.boxesOwnBranches(driver, arg, locals)) {
                     Type boxed = TypeMetrics.boxedTypeFor(argT);
                     ops.add(new KofCall(boxed, "kof_box", List.of(argT), boxed, KofCallKind.FUNCTION));
                 }

@@ -118,9 +118,11 @@ public final class StatementLowerer {
                 // bug 15: `Object n = 42` — primitivo atribuído a referência:
                 // boxa no JVM (JS/Native já são untyped). Sem isso o store de
                 // int num slot Object invalidava o bytecode.
+                // (#57: IfExpr/switch heterogêneo já boxeou in-branch → pular)
                 if (driver.erasesToReference(varType)
                         && vds.initializer() != null
-                        && TypeMetrics.isPrimitiveType(ExpressionTyper.inferExprType(driver, vds.initializer(), locals))) {
+                        && TypeMetrics.isPrimitiveType(ExpressionTyper.inferExprType(driver, vds.initializer(), locals))
+                        && !ExpressionTyper.boxesOwnBranches(driver, vds.initializer(), locals)) {
                     driver.emitErasureBox(ops, ExpressionTyper.inferExprType(driver, vds.initializer(), locals));
                 }
                 // declaração sem inicializador: default (0 primitivo / null

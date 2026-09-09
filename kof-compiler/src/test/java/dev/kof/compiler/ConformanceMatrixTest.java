@@ -472,6 +472,29 @@ class ConformanceMatrixTest {
                     println(r)
                 }
                 """, "small", Set.of(), tempDir);
+        // issue #57 — if-expr com branches heterogêneos (Int vs String) como
+        // argumento direto: o typer devolve o thenType e o box pós-join
+        // aplicava Integer.valueOf ao ramo String → VerifyError. Fix: ramos
+        // primitivos boxeados in-branch + skip do pós-box (só codegen; o
+        // check continua aprovando). JS excluído: underflow pré-existente
+        // no backend KofJS p/ if heterogêneo (known-bugs §69, provado com
+        // o fix em stash). Paridade JVM+Native+Script (script = oráculo).
+        matrix("ifexpr-heterogeneous-direct", """
+                main() {
+                    var s = ""
+                    println(if (s == "") 1 else "s")
+                }
+                """, "1", Set.of("js"), tempDir);
+        // mesma classe da #57 p/ switch-expression heterogêneo.
+        matrix("switchexpr-heterogeneous-direct", """
+                main() {
+                    var s = ""
+                    println(switch (s) {
+                        case "" -> 1
+                        default -> "s"
+                    })
+                }
+                """, "1", Set.of("js"), tempDir);
         matrix("switchexpr", """
                 main() {
                     var v = 3

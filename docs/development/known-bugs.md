@@ -1237,6 +1237,57 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   `CompilerDriverTest.recordWithExplicitCanonicalConstructorCompilesToJvm`.
 
 ### 67. Interpretador: `super(v)` explícito em classe de domínio → StackOverflowError (issue #54) — ✅ CORRIGIDO 09/09
+### 68. If/switch-expression com branches heterogêneos primitivo-vs-referência → VerifyError no JVM (issue #57) — ✅ CORRIGIDO 09/09 (posições de expressão; slots primitivos seguem ABERTOS)
+
+- **Sintoma (issue #57):** `println(if (s == "") 1 else "s")` → check aprova,
+  JVM rejeita: `VerifyError: Bad type on operand stack @25 invokestatic`
+  (`Integer.valueOf` recebendo String). Variante `var x = ...` e `switch`
+  heterogêneo como var-init → VerifyError no store. Nota de ambiente: no
+  JDK 25 (Temurin) o mesmo .class inválido aborta no launcher com a mensagem
+  "JavaFX runtime" em vez de VerifyError (disfarce já catalogado no bug da
+  variante SEM036, §461) — ground truth no JDK 21.
+- **Causa raiz:** o typer devolve o thenType (primeiro case no switch) e
+  IGNORA o else; os 5 sites de box pós-expressão (`ExpressionPrintLowerer`,
+  `CompilerEmission2` args, `ExpressionAssignmentLowerer`, `StatementLowerer`,
+  `CollectionCallLowerer`) aplicavam `kof_box(thenType)` DEPOIS do join →
+  `Integer.valueOf` sobre o valor do ramo String.
+- **Correção (09/09, lane issues+migração — só codegen, check inalterado):**
+  predicado `ExpressionTyper.{ifNeedsInnerBox,switchNeedsInnerBox,
+  boxesOwnBranches}` (heterogêneo = exatamente um lado primitivo);
+  `ExpressionLowerer`/`SwitchExprLowerer` boxeiam o ramo primitivo IN-branch
+  (`emitErasureBox`, JVM-only); os 5 callers pulam o pós-box p/ esses nós.
+  Prova: `ConformanceMatrixTest` casos `ifexpr-heterogeneous-direct` +
+  `switchexpr-heterogeneous-direct` (JVM+Native+Script verdes; JS excluído —
+  ver 69) + probes `objdecl`/`objassign` (slot Object) imprimindo `1`.
+- **ABERTO (mesma issue, status quo — nunca rodou, sem regressão):**
+  (a) `var x = if (c) 1 else "s"` (slot inferido Int) e `Int x = ...`
+  explícito → VerifyError no store; alargar o slot p/ Object mudaria o tipo
+  visível de `x` (`x+1` hoje é check-error com `Object`, provado por probe
+  `objplus`) → decisão de contrato, não fix silencioso;
+  (b) heterogêneo primitivo-vs-primitivo distinto (`1 else 2L`) → crash do
+  backend (`frame crash ... COMPUTE_FRAMES AIOOBE`, causa distinta:
+  slot-size 1 vs 2 no join) — ver 70.
+
+### 69. KofJS: if heterogêneo → `expression stack underflow` (COMP002) — ABERTO (pré-existente, causa no backend JS)
+
+- **Sintoma:** o MESMO programa da issue #57 (`println(if (s == "") 1 else "s")`)
+  no target JS: `Internal compiler error: KofJS: expression stack underflow`
+  (COMP002), em vez de JS válido.
+- **Prova de pré-existência (09/09):** revertido o fix JVM da lane (stash dos
+  8 arquivos do §68, teste mantido) → o JS falha IDÊNTICO; o backend JS ignora
+  `kof_box` (no-op), logo o underflow vem do tratamento de if-expr do próprio
+  backend JS, não do box. Casos excluídos com `Set.of("js")` até o dono do JS
+  corrigir.
+
+### 70. JVM: heterogêneo Int-vs-Long como arg → crash do backend (`COMPUTE_FRAMES AIOOBE`) — ABERTO
+
+- **Sintoma:** `println(if (s == "") 1 else 2L)` → check aprova, mas o COMPILADOR
+  crasha (`frame crash ... ASM COMPUTE_FRAMES ArrayIndexOutOfBounds`) em vez
+  de emitir diagnóstico ou bytecode válido.
+- **Causa (distinta do §68):** int ocupa 1 slot, long 2 — o join tem tamanhos
+  de pilha diferentes; o backend não normaliza. Não é o box (que é por tipo,
+  não por tamanho). Repro mínimo acima; dono: lane compiler/JVM.
+
 
 - **Sintoma:** `class Base { ... }` + `class Derived extends Base { constructor(v) { super(v) ... } }`
   → JVM/JS ok (`42`); **interpretador → StackOverflowError** (recursão no ctor).

@@ -334,8 +334,10 @@ if (ae.target() instanceof IdentifierExpr sie) {
         if (locals.get(i).name().equals(sie.name())) {
             driver.emitWideningIfNeeded(ops, ExpressionTyper.inferExprType(driver, ae.value(), locals), locals.get(i).type());
             // bug 15: `Object o; o = 7` — box primitivo p/ referência
+            // (#57: IfExpr/switch heterogêneo já boxeou in-branch → pular)
             if (driver.erasesToReference(locals.get(i).type())
-                    && TypeMetrics.isPrimitiveType(ExpressionTyper.inferExprType(driver, ae.value(), locals))) {
+                    && TypeMetrics.isPrimitiveType(ExpressionTyper.inferExprType(driver, ae.value(), locals))
+                    && !ExpressionTyper.boxesOwnBranches(driver, ae.value(), locals)) {
                 driver.emitErasureBox(ops, ExpressionTyper.inferExprType(driver, ae.value(), locals));
             }
             ops.add(new KofStoreLocal(locals.get(i).type(), locals.get(i).index()));

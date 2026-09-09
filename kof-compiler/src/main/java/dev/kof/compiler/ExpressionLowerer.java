@@ -428,9 +428,22 @@ public final class ExpressionLowerer {
                 }
                 ops.add(new KofLabel(thenLabel));
                 localIdx = ExpressionLowerer.emitExpression(driver, ie.thenExpr(), ops, owner, localIdx, locals);
+                // #57: ramos heterogêneos (primitivo vs referência) — o box
+                // pós-join usaria o thenType nos DOIS ramos → VerifyError.
+                // Boxa o ramo primitivo aqui dentro; os callers pulam o
+                // pós-box p/ este IfExpr (mesmo predicado, sem canal extra).
+                boolean innerBox = ExpressionTyper.ifNeedsInnerBox(driver, ie, locals);
+                if (innerBox && TypeMetrics.isPrimitiveType(
+                        ExpressionTyper.inferExprType(driver, ie.thenExpr(), locals))) {
+                    driver.emitErasureBox(ops, ExpressionTyper.inferExprType(driver, ie.thenExpr(), locals));
+                }
                 ops.add(new KofJump(endLabel));
                 ops.add(new KofLabel(elseLabel));
                 localIdx = ExpressionLowerer.emitExpression(driver, ie.elseExpr(), ops, owner, localIdx, locals);
+                if (innerBox && ie.elseExpr() != null && TypeMetrics.isPrimitiveType(
+                        ExpressionTyper.inferExprType(driver, ie.elseExpr(), locals))) {
+                    driver.emitErasureBox(ops, ExpressionTyper.inferExprType(driver, ie.elseExpr(), locals));
+                }
                 ops.add(new KofLabel(endLabel));
                 yield localIdx;
             }

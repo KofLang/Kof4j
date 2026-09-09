@@ -36,6 +36,8 @@
 | set dedup/contains | `3` / `true` / `false` | DONE | DONE | DONE | DONE | `setdedup` |
 | if-expression aninhada | `small` | DONE | DONE | DONE | DONE | `nestedif` |
 | switch-expression `case ->` | `three` | DONE | DONE | DONE | DONE | `switchexpr` |
+| if-expr heterogêneo Int/String (issue #57) | `1` | DONE | DONE | DONE | PARTIAL (underflow KofJS §69) | `ifexpr-heterogeneous-direct` |
+| switch-expr heterogêneo Int/String (issue #57) | `1` | DONE | DONE | DONE | PARTIAL (underflow KofJS §69) | `switchexpr-heterogeneous-direct` |
 | for-in + break/continue | `4` | DONE | DONE | DONE | DONE | `breakcont` |
 | record `==` conteúdo + toString + accessor | `true` / `P[x=1, y=2]` / `1` | DONE | DONE | DONE | DONE | `record` |
 | record `hashCode()` igual | `true` | DONE | DONE (bug 42 Native corrigido) | DONE | DONE (bug 42 JS corrigido `1ecfb3d`) | `recordhash` |

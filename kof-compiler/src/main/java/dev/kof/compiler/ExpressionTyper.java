@@ -228,8 +228,7 @@ public final class ExpressionTyper {
                 Type thenType = inferExprType(driver, ie.thenExpr(), locals);
                 Type elseType = inferExprType(driver, ie.elseExpr(), locals);
                 yield thenType;
-            }
-            case SwitchExpr se -> {
+            }            case SwitchExpr se -> {
                 if (!se.cases().isEmpty()) {
                     yield inferExprType(driver, se.cases().get(0).body(), locals);
                 }
@@ -238,6 +237,64 @@ public final class ExpressionTyper {
             }
             default -> Type.UnknownType.UNKNOWN;
         };
+    }
+
+    /**
+     * IfExpr com branches heterogêneos primitivo-vs-referência (issue #57):
+     * o typer devolve o thenType, e o box pós-join ({@code kof_box} p/ o
+     * thenType) aplicaria {@code Integer.valueOf} ao valor do outro ramo
+     * (ex.: String) → VerifyError. true = cada ramo primitivo deve ser
+     * boxeado IN-branch (no lowering) e os callers devem PULAR o box
+     * pós-expressão. O check continua aprovando (semântica congelada);
+     * só o codegen muda — de classe inválida para válida.
+     */
+    static boolean ifNeedsInnerBox(CompilerDriver driver, IfExpr ie,
+                                   List<IRLocalVariable> locals) {
+        if (ie.elseExpr() == null) return false;
+        Type t = inferExprType(driver, ie.thenExpr(), locals);
+        Type e = inferExprType(driver, ie.elseExpr(), locals);
+        return TypeMetrics.isPrimitiveType(t) != TypeMetrics.isPrimitiveType(e);
+    }
+
+    /**
+     * SwitchExpr com corpos heterogêneos primitivo-vs-referência (mesma
+     * classe da #57: o typer usa o primeiro case). true = boxar ramos
+     * primitivos in-branch + pular box pós-expressão.
+     */
+    static boolean switchNeedsInnerBox(CompilerDriver driver, SwitchExpr se,
+                                       List<IRLocalVariable> locals) {
+        return switchBodiesNeedInnerBox(driver, se.cases(), se.defaultValue(), locals);
+    }
+
+    /**
+     * Núcleo do predicado acima, direto sobre corpos (o lowering em cadeia
+     * do switch não tem o nó SwitchExpr em mãos — só cases + default).
+     */
+    static boolean switchBodiesNeedInnerBox(CompilerDriver driver, List<SwitchExprCase> cases,
+                                            ExpressionNode defaultValue,
+                                            List<IRLocalVariable> locals) {
+        boolean seenPrim = false, seenRef = false;
+        for (SwitchExprCase c : cases) {
+            if (TypeMetrics.isPrimitiveType(inferExprType(driver, c.body(), locals))) seenPrim = true;
+            else seenRef = true;
+        }
+        if (defaultValue != null) {
+            if (TypeMetrics.isPrimitiveType(inferExprType(driver, defaultValue, locals))) seenPrim = true;
+            else seenRef = true;
+        }
+        return seenPrim && seenRef;
+    }
+
+    /**
+     * true = a expressão já boxeou seus ramos primitivos in-branch (#57) →
+     * o caller deve PULAR o box pós-expressão (senão box duplo). Cobre
+     * IfExpr e SwitchExpr heterogêneos; demais nós → false.
+     */
+    static boolean boxesOwnBranches(CompilerDriver driver, ExpressionNode e,
+                                    List<IRLocalVariable> locals) {
+        if (e instanceof IfExpr ie) return ifNeedsInnerBox(driver, ie, locals);
+        if (e instanceof SwitchExpr se) return switchNeedsInnerBox(driver, se, locals);
+        return false;
     }
 
     /**
