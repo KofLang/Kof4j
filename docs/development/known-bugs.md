@@ -846,6 +846,10 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   **confirmado falhando com SIGSEGV (exit 139)**, pré-existente (passa no HEAD
   sem as mudanças do bug-fix lane). Uso: qualquer correção do bug 46 deve deixar
   este teste verde.
+- **Teste de isolamento (09/09):** `SpawnE2ETest.nativeSpawnExprAwaitLambdaReturnNoCapture`
+  (`spawn { return 42 }` SEM captura) — separa a causa: se este passa e o com
+  captura falha → a CAPTURA é a causa; se ambos falham → o return-lambda é a
+  causa. Rodar os dois no primeiro build com toolchain.
 - **Nota (09/09):** a "causa provável" original (escrita em slot inexistente) foi
   escrita pensando no trampoline RISC-V; no **x86_64** o trampoline
   (`RuntimeConcurrency.kof_spawn_trampoline`) grava `handle->result` em
