@@ -542,8 +542,8 @@ class ConformanceMatrixTest {
                     println(a.x())
                 }
                 """, "true\nP[x=1, y=2]\n1", Set.of(), tempDir);
-        // PARTIAL: bug 42 (hashCode ausente no Native: ld P_hashCode).
         // Metade JS CORRIGIDA 07/09 (verificado 08/09: JS roda 'true').
+        // Metade Native CORRIGIDA (buildRecordHashCodeMethod em CompilerRecordSupport).
         matrix("recordhash", """
                 record P(Int x, Int y)
                 main() {
@@ -551,7 +551,7 @@ class ConformanceMatrixTest {
                     var b = P(1,2)
                     println(a.hashCode() == b.hashCode())
                 }
-                """, "true", Set.of("native"), tempDir);
+                """, "true", Set.of(), tempDir);
         // PARTIAL: bug 41 (Native stub vazio KofGetStatic/KofPutStatic → lixo).
         matrix("staticfield", """
                 class Counter {
