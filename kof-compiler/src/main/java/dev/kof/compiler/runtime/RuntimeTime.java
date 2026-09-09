@@ -272,6 +272,173 @@ public final class RuntimeTime {
                 popq %rbx
                 ret
 
+            # ── kof.time (S7.2) — serial civil (Hinnant days-from-civil) ───
+            # Válido: 1<=ano<=9999, 1<=mês<=12, 1<=dia<=dim => senão 0
+            # (paridade exata JVM/JS/riscv). ano>=1 => dividendos >=0 => divl.
+            # interno .Lkd_valid(edi=y,esi=m,edx=d) -> eax 0/1
+            .Lkd_valid:
+                pushq %rbx
+                pushq %r12
+                pushq %r13
+                movl %edi, %ebx
+                movl %esi, %r12d
+                movl %edx, %r13d
+                cmpl $1, %ebx
+                jl .Lkd_vfalse
+                cmpl $9999, %ebx
+                jg .Lkd_vfalse
+                cmpl $1, %r12d
+                jl .Lkd_vfalse
+                cmpl $12, %r12d
+                jg .Lkd_vfalse
+                cmpl $1, %r13d
+                jl .Lkd_vfalse
+                call kof_time_daysInMonth       # edi/esi vivos: eax = dim
+                cmpl %eax, %r13d
+                jg .Lkd_vfalse                  # d > dim
+                movl $1, %eax
+                jmp .Lkd_vdone
+            .Lkd_vfalse:
+                xorl %eax, %eax
+            .Lkd_vdone:
+                popq %r13
+                popq %r12
+                popq %rbx
+                ret
+
+            # interno .Lkd_epoch(edi=y,esi=m,edx=d) -> eax (pré-validado)
+            .Lkd_epoch:
+                pushq %rbx
+                pushq %r12
+                pushq %r13
+                pushq %r14
+                movl %edx, %ebx                 # d
+                movl %edi, %eax
+                cmpl $2, %esi
+                jg .Lkd_e_nod
+                decl %eax                       # y2 = y-1 (m<=2)
+            .Lkd_e_nod:
+                xorl %edx, %edx
+                movl $400, %ecx
+                divl %ecx                       # eax=era edx=yoe
+                movl %eax, %r12d
+                movl %edx, %r13d
+                movl %r13d, %eax
+                imull $1461, %eax, %eax         # yoe*1461 (= yoe*365+yoe/4 exato)
+                xorl %edx, %edx
+                movl $4, %ecx
+                divl %ecx                       # eax = yoe*365 + yoe/4
+                movl %eax, %r14d
+                movl %r13d, %eax
+                xorl %edx, %edx
+                movl $100, %ecx
+                divl %ecx                       # eax = yoe/100 (QUOCIENTE)
+                subl %eax, %r14d
+                movl %esi, %eax
+                cmpl $2, %esi
+                jle .Lkd_e_mp9
+                subl $3, %eax                   # mp = m-3
+                jmp .Lkd_e_mp
+            .Lkd_e_mp9:
+                addl $9, %eax                   # mp = m+9
+            .Lkd_e_mp:
+                imull $153, %eax, %eax
+                addl $2, %eax
+                xorl %edx, %edx
+                movl $5, %ecx
+                divl %ecx
+                addl %ebx, %eax
+                decl %eax                       # doy
+                addl %eax, %r14d                # doe
+                imull $146097, %r12d, %eax      # era*146097 (era<=24)
+                addl %eax, %r14d
+                subl $719468, %r14d
+                movl %r14d, %eax
+                popq %r14
+                popq %r13
+                popq %r12
+                popq %rbx
+                ret
+
+            # kof_time_dayOfWeek(edi=y,esi=m,edx=d) -> 1..7 | 0
+            .globl kof_time_dayOfWeek
+            .type kof_time_dayOfWeek, @function
+            kof_time_dayOfWeek:
+                pushq %rbx
+                pushq %r12
+                pushq %r13
+                movl %edi, %ebx
+                movl %esi, %r12d
+                movl %edx, %r13d
+                call .Lkd_valid
+                testl %eax, %eax
+                je .Lkd_dw0
+                movl %ebx, %edi
+                movl %r12d, %esi
+                movl %r13d, %edx
+                call .Lkd_epoch
+                addl $719470, %eax              # ed+3 (bias: 719468+2, mín 308>0)
+                xorl %edx, %edx
+                movl $7, %ecx
+                divl %ecx                       # edx = floorMod(ed+3,7)
+                leal 1(%rdx), %eax
+                popq %r13
+                popq %r12
+                popq %rbx
+                ret
+            .Lkd_dw0:
+                xorl %eax, %eax
+                popq %r13
+                popq %r12
+                popq %rbx
+                ret
+
+            # kof_time_daysBetween(rdi..r9 = y1,m1,d1,y2,m2,d2) -> Int | 0
+            .globl kof_time_daysBetween
+            .type kof_time_daysBetween, @function
+            kof_time_daysBetween:
+                pushq %rbx
+                pushq %r12
+                pushq %r13
+                pushq %r14
+                pushq %r15
+                pushq %r9                       # d2 (6º arg SysV)
+                movl %edi, %ebx                 # y1
+                movl %esi, %r12d                # m1
+                movl %edx, %r13d                # d1 -> depois ep1
+                movl %ecx, %r14d                # y2
+                movl %r8d, %r15d                # m2
+                call .Lkd_valid
+                testl %eax, %eax
+                je .Lkd_db0
+                movl %ebx, %edi
+                movl %r12d, %esi
+                movl %r13d, %edx
+                call .Lkd_epoch
+                movl %eax, %r13d                # r13 = ep1 (d1 não precisa mais)
+                movl %r14d, %edi
+                movl %r15d, %esi
+                movl (%rsp), %edx               # d2
+                call .Lkd_valid
+                testl %eax, %eax
+                je .Lkd_db0
+                movl %r14d, %edi
+                movl %r15d, %esi
+                movl (%rsp), %edx
+                call .Lkd_epoch
+                subl %r13d, %eax                # ep2 - ep1
+                jmp .Lkd_dbdone
+            .Lkd_db0:
+                xorl %eax, %eax
+            .Lkd_dbdone:
+                popq %r9
+                popq %r15
+                popq %r14
+                popq %r13
+                popq %r12
+                popq %rbx
+                ret
+
             .globl kof_time_sleep
             .type kof_time_sleep, @function
             kof_time_sleep:

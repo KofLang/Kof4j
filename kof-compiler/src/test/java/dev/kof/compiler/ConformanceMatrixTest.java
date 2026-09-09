@@ -294,8 +294,14 @@ class ConformanceMatrixTest {
                     println(time.daysInMonth(2023, 2))
                     println(time.daysInMonth(2024, 4))
                     println(time.daysInMonth(2024, 13))
+                    println(time.dayOfWeek(1970, 1, 1))
+                    println(time.dayOfWeek(2026, 9, 9))
+                    println(time.dayOfWeek(2024, 2, 30))
+                    println(time.daysBetween(2024, 1, 1, 2024, 3, 1))
+                    println(time.daysBetween(2024, 3, 1, 2024, 1, 1))
+                    println(time.daysBetween(2023, 2, 29, 2023, 3, 1))
                 }
-                """, "true\nfalse\ntrue\nfalse\n29\n28\n30\n0", Set.of(), tempDir);
+                """, "true\nfalse\ntrue\nfalse\n29\n28\n30\n0\n4\n3\n0\n60\n-60\n0", Set.of(), tempDir);
     }
 
     @Test

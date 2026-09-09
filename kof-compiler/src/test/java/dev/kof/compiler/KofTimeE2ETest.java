@@ -134,8 +134,16 @@ class KofTimeE2ETest {
                     println(time.daysInMonth(2024, 4))
                     println(time.daysInMonth(2024, 13))
                     println(time.daysInMonth(0, 5))
+                    println(time.dayOfWeek(1970, 1, 1))
+                    println(time.dayOfWeek(2026, 9, 9))
+                    println(time.dayOfWeek(1, 1, 1))
+                    println(time.dayOfWeek(9999, 12, 31))
+                    println(time.dayOfWeek(2024, 2, 30))
+                    println(time.daysBetween(2024, 1, 1, 2024, 3, 1))
+                    println(time.daysBetween(2024, 3, 1, 2024, 1, 1))
+                    println(time.daysBetween(2023, 2, 29, 2023, 3, 1))
                 }
-                """, "true\nfalse\ntrue\nfalse\nfalse\n29\n28\n30\n0\n0");
+                """, "true\nfalse\ntrue\nfalse\nfalse\n29\n28\n30\n0\n0\n4\n3\n1\n5\n0\n60\n-60\n0");
     }
 
     @Test
@@ -186,6 +194,17 @@ class KofTimeE2ETest {
                     assert(time.daysInMonth(2024, 13) == 0)
                     assert(time.daysInMonth(0, 5) == 0)
                     assert(time.daysInMonth(2024, 12) == 31)
+                    assert(time.dayOfWeek(1970, 1, 1) == 4)
+                    assert(time.dayOfWeek(2026, 9, 9) == 3)
+                    assert(time.dayOfWeek(1, 1, 1) == 1)
+                    assert(time.dayOfWeek(9999, 12, 31) == 5)
+                    assert(time.dayOfWeek(2024, 2, 30) == 0)
+                    assert(time.dayOfWeek(10000, 1, 1) == 0)
+                    assert(time.daysBetween(2024, 1, 1, 2024, 3, 1) == 60)
+                    assert(time.daysBetween(2024, 3, 1, 2024, 1, 1) == -60)
+                    assert(time.daysBetween(2020, 2, 28, 2020, 3, 1) == 2)
+                    assert(time.daysBetween(2023, 2, 29, 2023, 3, 1) == 0)
+                    assert(time.daysBetween(2024, 1, 1, 10000, 1, 1) == 0)
                 }
                 """;
         if (has("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64")) {

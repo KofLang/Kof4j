@@ -108,6 +108,28 @@ public final class JsRuntimeUiWeb {
                 if (month === 2 && kofTimeIsLeapYear(year)) return 29;
                 return dim[month - 1];
             }
+            function kofTimeEpochDay(year, month, day) {
+                const y = year - (month <= 2 ? 1 : 0);
+                const era = Math.floor(y / 400);
+                const yoe = y - era * 400;
+                const mp = month + (month > 2 ? -3 : 9);
+                const doy = Math.floor((153 * mp + 2) / 5) + day - 1;
+                const doe = yoe * 365 + Math.floor(yoe / 4) - Math.floor(yoe / 100) + doy;
+                return era * 146097 + doe - 719468;
+            }
+            function kofTimeValidDate(y, m, d) {
+                if (y < 1 || y > 9999 || m < 1 || m > 12) return false;
+                return d >= 1 && d <= kofTimeDaysInMonth(y, m);
+            }
+            export function kofTimeDayOfWeek(year, month, day) {
+                if (!kofTimeValidDate(year, month, day)) return 0;
+                const ed = kofTimeEpochDay(year, month, day);
+                return ((ed % 7) + 7 + 3) % 7 + 1;   // floorMod(ed+3, 7) + 1
+            }
+            export function kofTimeDaysBetween(y1, m1, d1, y2, m2, d2) {
+                if (!kofTimeValidDate(y1, m1, d1) || !kofTimeValidDate(y2, m2, d2)) return 0;
+                return kofTimeEpochDay(y2, m2, d2) - kofTimeEpochDay(y1, m1, d1);
+            }
 
             export function kofTimeSleep(ms) {
                 const end = Date.now() + ms;
