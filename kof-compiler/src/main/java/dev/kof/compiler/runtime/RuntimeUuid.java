@@ -3,8 +3,10 @@ package dev.kof.compiler.runtime;
 /**
  * Runtime x86_64 — kof.uuid.v4 (STDLIB S3b). WRAPPER fino sobre
  * kof_sec_random_hex (getrandom, crypto lane) — não reimplementa entropia.
- * 16 bytes → força version=4 (nibble alto do byte 6) e variant=10 (nibble
- * alto do byte 8) — RFC 4122 — formata em 8-4-4-4-12 (36 chars + NUL).
+ * 16 bytes → força version=4 (nibble alto do byte 6) e VARIANT POR MÁSCARA
+ * (b[8] = (b[8]&0x3f)|0x80 => char ∈ {8,9,a,b}) — RFC 4122. Paridade com
+ * JVM/JS/riscv B25 (09/09): antes fixava '8', um subset do RFC — distribuição
+ * divergia dos outros targets (regra 5).
  */
 public final class RuntimeUuid {
 
@@ -62,9 +64,29 @@ public final class RuntimeUuid {
                 incl %ebx
                 jmp .Lv_uuid_loop
             .Lv_uuid_ver:
-                # r14 = 36 (fim). Forca version (pos 14) e variant (pos 19).
+                # r14 = 36 (fim). Forca version (pos 14); variant (pos 19)
+                # por MASK (nibble alto 10xx), nao por forca de '8':
+                # char = primeiro hex do byte 8 -> n em 0..15;
+                # n' = (n&3)|8 (=> 8..11); re-codifica '0'+n' ou 'a'+n'-10.
                 movb $52, 38(%r13)             # 24+14: '4' (version)
-                movb $56, 43(%r13)             # 24+19: '8' (variant 10xx)
+                movzbl 43(%r13), %eax          # char do nibble alto de b[8]
+                cmpl $58, %eax                 # acima de '9'?
+                jl .Lv_uuid_v8d
+                subl $0x57, %eax               # 'a'..'f' -> 10..15
+                jmp .Lv_uuid_v8n
+            .Lv_uuid_v8d:
+                subl $0x30, %eax               # '0'..'9' -> 0..9
+            .Lv_uuid_v8n:
+                andl $3, %eax
+                orl $8, %eax                   # 10xx -> 8..11
+                cmpl $10, %eax
+                jl .Lv_uuid_v8c
+                addl $0x57, %eax               # 10,11 -> 'a','b'
+                jmp .Lv_uuid_v8s
+            .Lv_uuid_v8c:
+                addl $0x30, %eax               # 8,9 -> '8','9'
+            .Lv_uuid_v8s:
+                movb %al, 43(%r13)             # 24+19: variant 10xx
                 movb $0, 60(%r13)              # 24+36: NUL
                 movq %r13, %rax
                 popq %r15

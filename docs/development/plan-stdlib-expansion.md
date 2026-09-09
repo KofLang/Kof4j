@@ -68,7 +68,7 @@ na semântica congelada (null-safety + throw são o mecanismo).
 - **S6** ext `validation` network (IPv4/IPv6/mac/domain/port) + Luhn
 - **S7** ext `time` (add/diff/boundaries/format) — JVM java.time, JS Date, Native syscall
 - **S8** `net` url/query parse/encode
-- **S3b-wedge (uuid.v4) + S4 COMPLETO FEITOS 08/09:** uuid shape-verified 3 targets + SECN000 cross-arch; encoding hex/url/base64/base64url (matriz stdenc 11 campos × 4; gates ENC002 base64* e SECN000 uuid nos cross). LIÇÃO JVM-runtime: nunca checked exceptions no KofRuntime gerado (SecureRandom new, não getInstanceStrong).
+- **S3b-wedge (uuid.v4) + S4 COMPLETO FEITOS 08/09:** uuid shape-verified 3 targets (SECN000 cross-arch fechado 09/09 — B25 getrandom ecall); encoding hex/url/base64/base64url (matriz stdenc 11 campos × 4; gates ENC002 base64* e SECN000 uuid nos cross). LIÇÃO JVM-runtime: nunca checked exceptions no KofRuntime gerado (SecureRandom new, não getInstanceStrong).
 - **S1–S2b.2 FEITOS 08/09:** math(9) · strings predicados(8: isAlpha/isNumeric/
   isAlphaNumeric/isAscii/isUpperCase/isLowerCase/count) · strings conversores(4:
   capitalize/reverse/repeat/truncate — 1º caso de alocação de String no runtime,

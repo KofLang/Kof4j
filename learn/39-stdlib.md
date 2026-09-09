@@ -199,7 +199,7 @@ spans nos 3 nativos).
 | `math.*`, `strings.is*/count/capitalize/reverse/repeat/truncate/pad*/escapeHtml`, `toCamel/Pascal/Snake/Kebab/slugify`, `encoding.hex*/url*`, `time.isLeapYear/daysInMonth/dayOfWeek/daysBetween`, `validation.isCpf/isCnpj/isCep/isPis/isIpv4/isIpv6/isMac/isPort/isCreditCard/isDomain` | ✅ | ✅ | ✅ | ✅ |
 | `encoding.base64*` / `base64Url*` | ✅ | ✅ | ✅ | ✅ |
 | `net.*` (S8) | ✅ | ✅ | ✅ | ✅ |
-| `uuid.v4` | ✅ | ✅ | **SECN000** (entropia; gate de compilação) | ✅ |
+| `uuid.v4` | ✅ | ✅ | ✅ | ✅ |
 
 Gate = erro de compilação **com código** (R6 — nunca stub silencioso):
 `strings.toCamelCase` e os conversores de palavra chegaram aos 4 targets só

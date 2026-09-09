@@ -41,7 +41,8 @@ class KofUuidTest {
                 assert(u.charAt(13) == 45)
                 assert(u.charAt(14) == 52)
                 assert(u.charAt(18) == 45)
-                assert(u.charAt(19) == 56)
+                var v = u.charAt(19)
+                assert(v == 56 || v == 57 || v == 97 || v == 98)
                 assert(u.charAt(23) == 45)
                 var w = uuid.v4()
                 assert(u != w)
@@ -65,22 +66,72 @@ class KofUuidTest {
     }
 
     @Test
-    void uuidV4GatedOnCrossArch(@TempDir Path tmp) throws Exception {
-        // SECN000 (política crypto lane): riscv/aarch sem primitiva de
-        // random no asm puro — gate em compile-time, nunca link quebrado.
-        Path source = tmp.resolve("Main.kf");
-        Files.writeString(source, """
+    void uuidV4CrossArch(@TempDir Path tmp) throws Exception {
+        // SECN000 FECHADO (09/09): getrandom(2) via ecall (syscall 278, probe
+        // riscv64+aarch64 no qemu) na fatia riscv B25 + aarch translator.
+        // Shape: 36, traços, char[14]='4', char[19] ∈ {8,9,a,b} (máscara de
+        // variant — paridade JVM/JS), unicidade. Não-determinístico: assert-only.
+        assumeToolchain("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64");
+        runQemu(tmp, Target.NATIVE_RISCV64, "qemu-riscv64", """
             main() {
                 var u = uuid.v4()
-                println(u)
+                assert(u.length == 36)
+                assert(u.charAt(8) == 45)
+                assert(u.charAt(13) == 45)
+                assert(u.charAt(18) == 45)
+                assert(u.charAt(23) == 45)
+                assert(u.charAt(14) == 52)
+                var v = u.charAt(19)
+                assert(v == 56 || v == 57 || v == 97 || v == 98)
+                var w = uuid.v4()
+                assert(u != w)
             }
             """);
-        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
-            CompilationResult r = driver.compile(source, tmp.resolve("cross-" + t), t);
-            assertFalse(r.success(), t + " deve reportar SECN000");
-            assertTrue(r.diagnostics().getDiagnostics().toString().contains("SECN000"),
-                    t + ": " + r.diagnostics().getDiagnostics());
+        assumeToolchain("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64");
+        runQemu(tmp, Target.NATIVE_AARCH64, "qemu-aarch64", """
+            main() {
+                var u = uuid.v4()
+                assert(u.length == 36)
+                assert(u.charAt(8) == 45)
+                assert(u.charAt(13) == 45)
+                assert(u.charAt(18) == 45)
+                assert(u.charAt(23) == 45)
+                assert(u.charAt(14) == 52)
+                var v = u.charAt(19)
+                assert(v == 56 || v == 57 || v == 97 || v == 98)
+                var w = uuid.v4()
+                assert(u != w)
+            }
+            """);
+    }
+
+    private static void assumeToolchain(String... tools) {
+        for (String c : tools) {
+            try {
+                Process p = new ProcessBuilder(c, "--version").redirectErrorStream(true).start();
+                String o = new String(p.getInputStream().readAllBytes(),
+                        java.nio.charset.StandardCharsets.UTF_8).trim();
+                if (p.waitFor() != 0 || o.isEmpty()) {
+                    org.junit.jupiter.api.Assumptions.assumeTrue(false, "toolchain ausente: " + c);
+                }
+            } catch (Exception e) {
+                org.junit.jupiter.api.Assumptions.assumeTrue(false, "toolchain ausente: " + c);
+            }
         }
+    }
+
+    private void runQemu(Path tempDir, Target target, String qemu, String source) throws Exception {
+        Path file = tempDir.resolve("Main-" + System.nanoTime() + ".kf");
+        Files.writeString(file, source);
+        Path out = tempDir.resolve("out-" + System.nanoTime());
+        CompilationResult r = driver.compile(file, out, target);
+        assertTrue(r.success(), target + " compile: " + r.diagnostics().getDiagnostics());
+        Process p = new ProcessBuilder(qemu, out.resolve("Default/Main").toString())
+                .redirectErrorStream(true).start();
+        String o = new String(p.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).trim();
+        int ec = p.waitFor();
+        assertEquals(0, ec, target + " qemu exit " + ec + ", out: " + o);
     }
 
     private String runJvm(Path tempDir, String source, String expected) throws Exception {

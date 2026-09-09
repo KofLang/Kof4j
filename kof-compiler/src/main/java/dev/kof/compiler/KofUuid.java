@@ -10,9 +10,9 @@ import java.util.List;
  * {@code 8-4-4-4-12} com version=4 e variant=10 (RFC 4122).
  * Fonte de entropia por target: x86 kof_sec_random_hex (getrandom),
  * JS kof_platform.randomBytesHex, JVM SecureRandom.
- * SECN000 (padrão crypto lane): riscv64/aarch64 (asm puro, sem libc) não
- * tem primitiva de random — gate honesto em compile-time. v7/ulid = S3b.2
- * (exigem clock + mais bytes aleatórios).
+ * SECN000 FECHADO (09/09): riscv64/aarch64 usam getrandom(2) via ecall
+ * (syscall 278) na fatia riscv B25 + aarch translator (R11 — só a primitiva
+ * do SO). v7/ulid = S3b.2 (exigem clock + mais bytes aleatórios).
  */
 public final class KofUuid {
 
@@ -37,11 +37,13 @@ public final class KofUuid {
     }
 
     /**
-     * uuid.v4 depende de entropia (getrandom/cryptorandom) — ausente no
-     * runtime cross-arch (asm puro, sem libc), igual a toda a lane crypto.
+     * SECN000 FECHADO (09/09): getrandom(2) via ecall (syscall 278, probe
+     * riscv64+aarch64) no runtime riscv B25 / aarch translator. R11: só a
+     * primitiva do SO, sem cripto caseira; null se o syscall falhar (mesmo
+     * contrato do x86 kof_sec_random_hex). supportedOn volta se outro gap.
      */
     static boolean supportedOn(String function, Target target) {
-        return target != Target.NATIVE_RISCV64 && target != Target.NATIVE_AARCH64;
+        return true;
     }
 
     static String gapCode(String function) {

@@ -81,13 +81,17 @@
 > (B23, **ENC002 fechado 09/09** — port riscv com alfabeto aritmético + decode
 > tolerante, spec única do x86/JVM/JS; `KofEncodingTest.base64RunsOnCrossArch`
 > prova riscv+aarch sob qemu) rodam nos 3 nativos + JVM + JS + Script.
-| stdlib kof.uuid (S3b: v4 — não-determinístico, SEM caso de matriz) | shape `xxxxxxxx-xxxx-4xxx-[89ab]xxx-xxxxxxxxxxxx` | ✅ assert | ✅ assert¹ | ✅ | ✅ assert | `KofUuidTest` 4/4 |
+| stdlib kof.uuid (S3b: v4 — não-determinístico, SEM caso de matriz) | shape `xxxxxxxx-xxxx-4xxx-[89ab]xxx-xxxxxxxxxxxx` | ✅ assert | ✅ assert¹ | ✅ | ✅ assert (+riscv/aarch qemu) | `KofUuidTest` 4/4 |
 
 > `uuid.v4()` não entra na matriz equality (entropia): paridade provada por
 > ASSERTS DE SHAPE nos 3 targets testáveis (JVM/Native-x86/JS: length=36,
 > traços em 8/13/18/23, dígito 14='4', dígito 19∈{8,9,a,b}, unicidade de 2
-> draws) — riscv/aarch **SECN000** gated (sem getrandom no asm puro; mesmo
-> portão de toda a crypto lane). ¹ x86 fixa variant='8' (nibble alto direto).
+> draws; **riscv64/aarch64 SECN000 FECHADO 09/09** — getrandom(2) via ecall
+> (syscall 278, probe em ambos os qemu) na fatia riscv B25 + aarch translator;
+> KofUuidTest.uuidV4CrossArch roda o shape+unicidade sob qemu nos dois).
+> ¹ variant por MÁSCARA nos 5 backends (b[8]=(b[8]&0x3f)|0x80 ⇒ char ∈
+> {8,9,a,b}) — x86 parity corrigida 09/09 com o fechamento do SECN000 (antes
+> fixava '8', subset do RFC com distribuição divergente — regra 5).
 
 > **S2b ASCII:** `capitalize` usa a MESMA regra nos 4 targets (byte 0 `a-z`→`A-Z`).
 > `reverse` é byte-reverso no Native e UTF-16/UTF-8 nos demais — coincidem em ASCII
