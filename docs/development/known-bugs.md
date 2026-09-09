@@ -1195,6 +1195,22 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   widgets de mídia não integrada no mesmo caminho de `kofUiSerializeHtml`
   que `Window.show()` usa. Ver CANVAS001 (linha 1306) — problema análogo de
   timing de serialização de widget sem janela/sem ganchos.
+- **Verificado 09/09 (por leitura de código — descarta hipóteses):** o pipeline
+  JS de mídia está CORRETO em todos os pontos, então a causa não é o mapeamento
+  de nome nem a ordem de concatenação:
+  - lowering: `Audio("x")`/`Video("x")` → `kof_ui_audio_new`/`kof_ui_video_new`
+    (`ExpressionUiStaticLowerer`);
+  - whitelist: `kof_ui_audio_*`/`kof_ui_video_*` em `JsRuntimeOps`;
+  - nome JS: `capitalizeUiFn("kof_ui_audio_new")` = `kofUiAudioNew` (define
+    exportada em `JsRuntimeUiForms`);
+  - ordem do bundle (`JsArtifactWriter`): Core → Components (declara
+    `kofNodeSeq`) → Widgets (`kofUiCreateNode`) → Forms — `kofNodeSeq` no escopo;
+  - montagem: `kofUiCreateNode` registra no `__kofNodes`; `Column` faz
+    appendChild; `WindowNew` → `root.appendChild(winEl)`; `WindowBind` →
+    appendChild do column; `kofSerialize` serializa `<video src>`/`<audio src>`.
+  → A falha é de TEMPO DE RUNTIME/ordem de montagem no browser (requer depurar
+  com Chrome devtools), não de codegen. O teste `dumpDom` usa `--dump-dom
+  --virtual-time-budget=8000`.
 - **Impacto na gate:** 2 testes vermelhos fora do par riscv/aarch (bug 59)
   para qualquer agente que rode a suíte completa com Chrome instalado.
   Quem corrigir: UI lane (dono da PR #39).
