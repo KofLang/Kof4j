@@ -142,6 +142,43 @@ public final class Decompile {
     }
 
     /**
+     * §7 degrau 4: registra usos cross-package de tipos de ASSINATURA
+     * (param/return/field) p/ import. A emissão continua com nomes simples
+     * (byte-idêntica); só o registro muda. Generics destrinchados
+     * (`List<p.B>` registra `p/B`); `Outer$Inner`/malformados caem nas
+     * guardas do `TreeScope.resolve` (recusa → como antes).
+     */
+    static void recordSignatureUses(dev.kof.compiler.Type t, TreeScope scope) {
+        if (scope == null || t == null) return;
+        if (t instanceof dev.kof.compiler.Type.ClassType ct) {
+            String internal = ct.packageName().isEmpty() ? ct.name()
+                    : ct.packageName().replace('.', '/') + "/" + ct.name();
+            scope.resolve(internal);
+            for (dev.kof.compiler.Type a : ct.typeArguments()) recordSignatureUses(a, scope);
+        } else if (t instanceof dev.kof.compiler.Type.ArrayType at) {
+            recordSignatureUses(at.componentType(), scope);
+        } else if (t instanceof dev.kof.compiler.Type.NullableType nt) {
+            recordSignatureUses(nt.inner(), scope);
+        }
+    }
+
+    /**
+     * Árvore de tipos de um field (signature genérica preferida, como na
+     * emissão; descriptor cru como fallback). Exceções de parse → null
+     * (a emissão quebra primeiro no mesmo input — nunca mascarar).
+     */
+    static dev.kof.compiler.Type fieldTypeTree(String descriptor, String signature) {
+        try {
+            if (signature != null) return dev.kof.compiler.Type.fromJvmSignature(signature);
+            if (descriptor != null && !descriptor.isEmpty()) {
+                return dev.kof.compiler.Type.parseJvmDescriptorAt(descriptor, 0).type();
+            }
+        } catch (RuntimeException ignored) {
+            // parse quebrado: a emissão já falhou/recusou acima; sem registro
+        }
+        return null;
+    }
+    /**
      * Nome p/ extends/implements: resolve no escopo (registrando import
      * cross-package) ou cai no simples (comportamento anterior).
      * Emissão nunca é null — no pior caso, igual a antes.
@@ -185,12 +222,17 @@ public final class Decompile {
                     ? methodKofType(dev.kof.compiler.Type.describe(
                             dev.kof.compiler.Type.fromJvmSignature(f.signature)))
                     : fieldKofType(f.descriptor);
+            recordSignatureUses(fieldTypeTree(f.descriptor, f.signature), scope);
             sb.append("    ").append(ftype).append(' ')
               .append(f.name).append("   // ").append(Confidence.EXACT.label()).append('\n');
         }
 
         for (var m : ir.methods) {
             sb.append('\n');
+            // §7 degrau 4 (vale p/ ctor também — o `continue` abaixo pulava):
+            // tipos de assinatura cross-package registrados p/ import.
+            recordSignatureUses(m.returnType, scope);
+            for (dev.kof.compiler.Type pt : m.parameterTypes) recordSignatureUses(pt, scope);
             if ("<clinit>".equals(m.name)) continue; // static initializer — skip
             if ("<init>".equals(m.name)) {
                 sb.append("    constructor(")

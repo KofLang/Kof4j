@@ -214,6 +214,19 @@ Fase E  Kof Decompiler          (gerar Kof source)
 > (statements não tratam 0xbb — gap Fase E próprio); assinaturas
 > (param/return/field cross-package) = degrau 4.
 
+> **Estado (09/09, este commit): §7 degrau 4 — tipos de assinatura.**
+> Field/ctor-param/param/return cross-package registram import via
+> `recordSignatureUses` (walker ClassType+args/Array/Nullable sobre
+> `m.returnType`/`m.parameterTypes` e `fieldTypeTree` — signature preferida,
+> descriptor como fallback; emissão de nomes INALTERADA). O hook fica no topo
+> do loop de métodos (o `continue` do `<init>` pulava ctor-params — pego na
+> revisão). Prova: par p/B+q/C (field+ctor+param+return+new) compila junto +
+> `decompileTreeEmitsImportsForSignatureTypes` (41/41 DecompileTest). Corpus:
+> arquivos-com-import 7→31; tree-check 614 = 4 erros wildcard pré-existentes,
+> zero SEM011. Com degraus 1–4, a classe "nome não resolve" de drift morreu
+> na árvore (resta só wildcard `? extends`, gap próprio, e slots — fora do
+> decompiler).
+
 ## 7. Relação com o Compilador
 
 O decompiler alimenta o pipeline existente:

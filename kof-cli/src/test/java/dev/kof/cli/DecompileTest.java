@@ -611,6 +611,45 @@ class DecompileTest {
     }
 
     @Test
+    void decompileTreeEmitsImportsForSignatureTypes(@TempDir Path dir) throws Exception {
+        // §7 degrau 4: tipos de ASSINATURA (field, ctor-param, param, return)
+        // cross-package registram import (emissão de nomes inalterada).
+        Path src = dir.resolve("classes");
+        Path p = src.resolve("p");
+        Path q = src.resolve("q");
+        Files.createDirectories(p);
+        Files.createDirectories(q);
+        Path b = p.resolve("B.java");
+        Files.writeString(b, """
+                package p;
+                public class B { public int v; public B(int v) { this.v = v; } }
+                """);
+        Path c = q.resolve("C.java");
+        Files.writeString(c, """
+                package q;
+                import p.B;
+                public class C {
+                    public B held;
+                    public C(B b) { this.held = b; }
+                    public static int take(B b) { return b.v; }
+                    public static B make() { return new B(3); }
+                }
+                """);
+        runJavac(java.util.List.of(b, c), src);
+        Path out = dir.resolve("gen");
+        assertEquals(0, Decompile.decompileTree(src, out));
+        String cSrc = Files.readString(out.resolve("q/C.kf"));
+        assertTrue(cSrc.contains("import p.B"),
+                "tipos de assinatura cross-package devem gerar import:\n" + cSrc);
+        assertTrue(cSrc.contains("B held") && cSrc.contains("take(B arg0")
+                && cSrc.contains("B make()"),
+                "field/param/return devem sair com o simples:\n" + cSrc);
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                out.resolve("p/B.kf"), out.resolve("q/C.kf")), dir.resolve("o"), Target.JVM, out);
+        assertTrue(r.success(), "árvore com import deve compilar (zero drift):\n" + cSrc + "\n" + r.diagnostics().getDiagnostics());
+    }
+
+    @Test
     void escapesStringConstantsInDecompiledSource(@TempDir Path dir) throws Exception {
         // R6 (prova de drift 09/09): o ldc emitia a string do CP CRUA — `\b`,
         // newline real e `"` estouravam o lexer do .kf (LEX002/LEX004). Agora
