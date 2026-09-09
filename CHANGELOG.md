@@ -576,6 +576,25 @@ Linha de desenvolvimento 0.3.0 aberta em 04/09/2026. Semântica congelada
   - guard Assumptions.assumeTrue (qemu ausente) em time/scheduler cross — convenção NATIVE002
   - E2E riscv64/aarch64 Map/Set (paridade exata com x86_64)
 
+## [0.3.2-beta] - 2026-09-09
+
+### Features
+
+  - add Fieldset, Iframe, Video, Audio, Hr widgets - UI003
+
+### Bugfixes
+
+  - parâmetro após um `Long`/`Double` deixa de sumir da assinatura (GitHub #47)
+  - atribuicao parametro let
+
+### Documentation
+
+  - corrigir links internos para docs/development (#49)
+  - registra o bug 64 (KofJS descarta parâmetro após Long/Double)
+  - reverifica o inventário contra o build 0.3.1-beta e corrige a entrada 45
+  - registra bugs 62 e 63 (mutabilidade não validada; let redeclarado em parâmetro no KofJS)
+  - bug 6 — remove seção duplicada/desatualizada em known-bugs.md
+
 <!-- NEXT-RELEASE -->
 
 ## [0.2.7-beta] - 2026-09-04
