@@ -132,8 +132,9 @@ public class LambdaParser {
         if (ctx.check(TokenType.LBRACE)) {
             return StatementParser.parseBlock(ctx);
         }
+        SourcePosition bodyPos = ctx.pos();
         ExpressionNode expr = ExpressionParser.parseExpression(ctx);
         if (ctx.check(TokenType.SEMICOLON)) ctx.advance();
-        return List.of(new ReturnStmt(ctx.pos(), expr));
+        return List.of(new ReturnStmt(bodyPos, expr));
     }
 }

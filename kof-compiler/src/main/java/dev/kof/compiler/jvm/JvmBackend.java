@@ -10,6 +10,7 @@ import dev.kof.compiler.IRModule;
 import dev.kof.compiler.KofCall;
 import dev.kof.compiler.KofCallKind;
 import dev.kof.compiler.KofCatchStart;
+import dev.kof.compiler.KofLabel;
 import dev.kof.compiler.KofLoadLocal;
 import dev.kof.compiler.KofOperation;
 import dev.kof.compiler.LabelId;
@@ -258,15 +259,44 @@ public class JvmBackend implements Backend {
         }
         int lastLine = -1;
         int opIndex = 0;
+        // GitHub #63 / bug 73: um label de debug visitado SEM nenhuma instrução
+        // real desde o anterior resolve para o MESMO start_pc do anterior —
+        // a LNT fica com 2 entries no mesmo pc e o hotspot rejeita com
+        // `ClassFormatError: Invalid pc in LineNumberTable` no load (arquivos
+        // grandes, densos de if/try/while: statements seguidos cujo primeiro
+        // op é KofLabel de IR, que NÃO é instrução). O label é retido e só
+        // visitado quando uma instrução real for emitida (a line pendente mais
+        // recente vence — a anterior descrevia zero insns). KofLabel de IR
+        // (visitLabel) não é instrução: NÃO limpa o pending.
+        Label pendingDebugLabel = null;
+        int pendingDebugLine = -1;
+        boolean lastLntAtPc = false;
         for (KofOperation op : ops) {
             SourcePosition pos = debugPositions.get(op);
             if (pos != null && pos.line() != lastLine && debugInfoEnabled) {
-                Label lineLabel = new Label();
-                mv.visitLabel(lineLabel);
-                mv.visitLineNumber(pos.line(), lineLabel);
+                if (pendingDebugLabel == null && !lastLntAtPc) {
+                    pendingDebugLabel = new Label();
+                    pendingDebugLine = pos.line();
+                }
+                // pending já retido (nunca virou LNT): a line mais recente vence.
+                // Já visitou LNT e nenhuma instrução real desde: novo label
+                // resolveria no MESMO pc (entry dup) — skipa; as próximas
+                // instruções seguem descrevendo a line anterior (debug levemente
+                // impreciso em vez de classe inválida).
                 lastLine = pos.line();
             }
+            // visitLabel de IR (KofLabel) não é instrução — nunca limpa o
+            // pending nem deve preceder a LNT do pending.
+            boolean isIrLabel = op instanceof KofLabel;
             try {
+                if (!isIrLabel && pendingDebugLabel != null) {
+                    mv.visitLabel(pendingDebugLabel);
+                    mv.visitLineNumber(pendingDebugLine, pendingDebugLabel);
+                    pendingDebugLabel = null;
+                    lastLntAtPc = true;
+                } else if (!isIrLabel) {
+                    lastLntAtPc = false;
+                }
                 emitOperation(mv, className, op);
             } catch (RuntimeException e) {
                 throw new RuntimeException(JvmFrameDiagnostics.describe(

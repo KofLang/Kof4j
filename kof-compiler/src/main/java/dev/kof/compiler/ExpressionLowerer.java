@@ -222,7 +222,17 @@ public final class ExpressionLowerer {
             case NewArrayExpr na -> {
                 Type elemType = CompilerTypes.toType(na.elementType(), driver.currentUnit);
                 localIdx = ExpressionLowerer.emitExpression(driver, na.size(), ops, owner, localIdx, locals);
-                ops.add(new KofNewArray(elemType));
+                if (na.moreDims().isEmpty()) {
+                    ops.add(new KofNewArray(elemType));
+                } else {
+                    // multidimensional: empilha as dimensões restantes e cria
+                    // o array n-dimensional (bug 71 — antes só a 1ª dim era
+                    // criada e o `[b]` virava index inválido → VerifyError)
+                    for (ExpressionNode dim : na.moreDims()) {
+                        localIdx = ExpressionLowerer.emitExpression(driver, dim, ops, owner, localIdx, locals);
+                    }
+                    ops.add(new KofNewMultiArray(elemType, na.moreDims().size() + 1));
+                }
                 yield localIdx;
             }
             case ArrayAccessExpr aa -> {
@@ -428,9 +438,17 @@ public final class ExpressionLowerer {
                 }
                 ops.add(new KofLabel(thenLabel));
                 localIdx = ExpressionLowerer.emitExpression(driver, ie.thenExpr(), ops, owner, localIdx, locals);
+                // #57/§70: ramos com tipos distintos — cada ramo primitivo é
+                // boxeado p/ SEU boxed aqui dentro (join só de referências);
+                // os callers pulam o pós-box (mesmo predicado, sem canal).
+                List<Type> bts = ie.elseExpr() != null
+                        ? ExpressionTyper.ifBranchTypes(driver, ie, locals) : List.of();
+                boolean differ = !bts.isEmpty() && ExpressionTyper.branchTypesDiffer(bts);
+                if (differ) ExpressionTyper.boxPrimitiveBranch(driver, ops, bts.get(0));
                 ops.add(new KofJump(endLabel));
                 ops.add(new KofLabel(elseLabel));
                 localIdx = ExpressionLowerer.emitExpression(driver, ie.elseExpr(), ops, owner, localIdx, locals);
+                if (differ) ExpressionTyper.boxPrimitiveBranch(driver, ops, bts.get(1));
                 ops.add(new KofLabel(endLabel));
                 yield localIdx;
             }

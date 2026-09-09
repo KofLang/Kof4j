@@ -328,3 +328,57 @@ t.setRows(listOf(listOf("bob", "41")))
 **Por quê:** `Table` toma `List<String>` (cabeçalho) + `List<List<String>>`
 (linhas) e materializa `<thead>/<tbody><tr><td>` — dados tabulares com a
 coleção da linguagem, não N widgets manuais (R3).
+
+## Agrupamento e mídia (Fieldset/Iframe/Video/Audio/Hr)
+
+**BAD — div com borda manual e Label de título para agrupar:**
+```kof
+// ❌ NÃO — agrupamento fake
+var g = Column(listOf(Label("credenciais"), user, pass))
+```
+
+**GOOD — `Fieldset(children, legenda)`:**
+```kof
+// ✅ IDIOMÁTICO — o widget de agrupamento semântico
+var fs = Fieldset(listOf(user, pass), "credenciais")
+```
+
+**Por quê:** `Fieldset` materializa `<fieldset>` + `<legend>` — agrupamento
+semântico de formulário com título, não um div com borda inventada (R3).
+
+**Mídia e separadores:** `Iframe(url)` → `<iframe src>`, `Video(url)`/
+`Audio(url)` → `<video|audio controls src>`, `Hr()` → `<hr>` — cada um é
+um widget de primeira classe (com `.remove()`), não markup manual.
+
+```kof
+var fr = Iframe("https://example.org")
+var v = Video("clip.mp4")
+var a = Audio("som.mp3")
+var h = Hr()
+```
+
+## Eventos com payload (Event.key/value/x/y/target/relatedTarget)
+
+**BAD — handler global sem payload, mutação manual:**
+```kof
+// ❌ NÃO — evento sem dados, estado global adivinhado
+campo.on("keydown", () -> { processar("") })
+```
+
+**GOOD — o handler lê o payload do DOM event real:**
+```kof
+// ✅ IDIOMÁTICO — o evento carrega tecla/valor/posição/alvo
+campo.on("keydown", (e: Event) -> { campo.setPlaceholder("tecla: " + e.key()) })
+campo.on("input",   (e: Event) -> { filtro.set(e.value()) })
+campo.on("click",   (e: Event) -> { println(e.x()) })
+campo.on("click",   (e: Event) -> { println(e.target()) })        // id do nó origem
+campo.on("focus",   (e: Event) -> { println(e.relatedTarget()) }) // nó de onde veio
+```
+
+**Por quê:** `Event.key()/value()/x()/y()/target()/relatedTarget()` leem o
+evento DOM real (KeyboardEvent.key, target.value, clientX/Y, target.id,
+relatedTarget.id) — o payload vem do browser, não de estado global manual
+(R3). `target()` retorna o **id** do nó que originou o evento (fallback
+`tagName` minúsculo quando o nó não tem `setId`; `""` fora do browser).
+`relatedTarget()` idem para o nó relacionado (foco/mouse). Funciona em
+qualquer widget DOM via `.on(type, handler)`.

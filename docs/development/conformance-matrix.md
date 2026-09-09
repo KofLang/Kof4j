@@ -36,17 +36,68 @@
 | set dedup/contains | `3` / `true` / `false` | DONE | DONE | DONE | DONE | `setdedup` |
 | if-expression aninhada | `small` | DONE | DONE | DONE | DONE | `nestedif` |
 | switch-expression `case ->` | `three` | DONE | DONE | DONE | DONE | `switchexpr` |
+| if-expr heterogêneo Int/String (issue #57) | `1` | DONE | DONE | DONE | PARTIAL (underflow KofJS §69) | `ifexpr-heterogeneous-direct` |
+| switch-expr heterogêneo Int/String (issue #57) | `1` | DONE | DONE | DONE | PARTIAL (underflow KofJS §69) | `switchexpr-heterogeneous-direct` |
+| if-expr heterogêneo Int/Long (§70, crash de join) | `1` | DONE | DONE | DONE | PARTIAL (underflow KofJS §69) | `ifexpr-intlong-direct` |
+| if-expr heterogêneo Long/Double (§70) | `2` | DONE | DONE | DONE | PARTIAL (underflow KofJS §69) | `ifexpr-longdouble-direct` |
+| if-expr heterogêneo Int/null (§70) | `1` | DONE | DONE | DONE | PARTIAL (underflow KofJS §69) | `ifexpr-intnull-direct` |
 | for-in + break/continue | `4` | DONE | DONE | DONE | DONE | `breakcont` |
 | record `==` conteúdo + toString + accessor | `true` / `P[x=1, y=2]` / `1` | DONE | DONE | DONE | DONE | `record` |
 | record `hashCode()` igual | `true` | DONE | DONE (bug 42 Native corrigido) | DONE | DONE (bug 42 JS corrigido `1ecfb3d`) | `recordhash` |
 | lambda filter/map/reduce | `90` | DONE | DONE | DONE | DONE | `lambdachain` |
 | lambda captura mutável | `3` | DONE | DONE | DONE | DONE | `lambdacapture` |
 | array 2D/length | `60` / `3` | DONE | DONE | DONE | DONE | `array2d` |
-| campo estático + bump | `1` / `2` / `2` | DONE | PARTIAL (bug 41: stub vazio, lixo) | DONE | DONE | `staticfield` |
-| campo estático `+=` | `2` / `4` / `4` | DONE | PARTIAL (bug 41) | DONE | DONE | `staticpluseq` |
+| campo estático + bump | `1` / `2` / `2` | DONE | DONE (bug 41 corrigido 07/09) | DONE | DONE | `staticfield` |
+| campo estático `+=` | `2` / `4` / `4` | DONE | DONE (bug 41) | DONE | DONE | `staticpluseq` |
 | concat string+num (ordem) | `n=42` / `3x` / `x12` | DONE | DONE | DONE | DONE | `concat` |
 | lógica booleana + comparação | `false` / `true` / `false` / `true` | DONE | DONE | DONE | DONE | `boollogic` |
 | bitwise & \|\| ^ << >> | `2` / `7` / `5` / `16` / `64` | DONE | DONE | DONE | DONE | `bitwise` |
+| stdlib kof.math (S1: clamp/abs/sign/min/max/isEven/isOdd/isZero) | `10` / `0` / `7` / `-1` / `3` / `8` / `true` / `false` / `true` | DONE | DONE | DONE | DONE | `stdmath` |
+| stdlib kof.strings (S2a: isAlpha/isNumeric/isAlphaNumeric/isAscii/isUpper/isLower/count) | `true` / `false` / `false` / `true` / `false` / `false` / `true` / `false` / `true` / `true` / `true` / `false` / `true` / `false` / `2` / `1` | DONE | DONE | DONE | DONE | `stdstrings` |
+| stdlib kof.strings (S2b: capitalize/reverse/repeat/truncate/pad — ASCII) | `Hello world` / `1abc` / `321cba` / `kayak` / `ababab` / `hello` / `abc` / `007` / `ab---` | DONE | DONE | DONE | DONE | `stdstrings2b` |
+| stdlib kof.strings (S2b.4: toCamelCase/toPascalCase/toSnakeCase/toKebabCase/slugify — word-split HTTPServer/XMLParser) | `http_server` / `xml_parser` / `helloWorld` / `HelloWorld` / `hello-world` / `hello-world-42` | DONE | DONE | DONE | DONE | `stdstrings2b4` |
+| stdlib kof.validation BR (S5: isCpf/isCnpj/isCep/isPis — pesos aritméticos, mod-11 por subtração) | `true` / `false` / `true` / `false` / `true` / `false` / `true` / `false` | DONE | DONE | DONE | DONE | `stdvalidation` |
+| stdlib kof.validation rede (S6a: isIpv4/isMac/isPort — dotted-quad sem zero à esquerda; MAC 6 hex sep : ou - consistente; porta 1..65535) | `true` / `false` / `false` / `true` / `false` / `true` / `false` | DONE | DONE | DONE | DONE | `stdvalidationnet` |
+| stdlib kof.validation Luhn (S6b: isCreditCard — dígitos extraídos, 12..19, soma de Luhn %10; 20+ dígitos => false) | `true` / `true` / `true` / `false` / `false` / `false` | DONE | DONE | DONE | DONE | `stdluhn` |
+| stdlib kof.validation IPv6 (S6b.3: isIpv6 — subconjunto RFC 5952; '::' no máx uma vez; sem forma mista/zona) | `true` / `true` / `true` / `false` / `false` / `false` | DONE | DONE | DONE | DONE | `stdipv6` |
+| stdlib kof.net (S8: 6 campos URI v1 + fachada query*) | `https\|host.io\|8443\|/p\|q\|f` / `/only/path\|onlyquery` / `a%20b%26c%3D1` / `a b&c=1` | DONE | DONE | DONE | DONE | `stdnet` |
+| stdlib kof.strings unescapeHtml (S3.1b: 5 nomeadas + &#DDD;/&#xHH;→UTF-8; outro & LITERAL; 0/surrogate/overflow LITERAL) | `a&b` / `<x>` / `café` / `☃` / `&&` / `&notreal;` | DONE | DONE | DONE | DONE | `stdunescape` |
+| stdlib kof.strings whitespace (S3.2: removeWhitespace/normalizeWhitespace — WS=9..13+32; >=128 não-WS; colapso p/ 1 espaço) | `abc\|Caféé` / `a b\|a b` / `\|[]` | DONE | DONE | DONE | DONE | `stdws` |
+| stdlib kof.strings escapeHtml (S3.1: 5 entidades; >=128 cópia; null/"" => original) | `a&lt;b&gt;&amp;&quot;&#39;c` / `Café &amp; ç` / `&amp;amp;lt;` / `&lt;a href=&quot;u&quot;&gt;y&lt;/a&gt;` | DONE | DONE | DONE | DONE | `stdescape` |
+| stdlib kof.strings escapeJson (S3.1c: corpo de literal JSON RFC 8259 — backslash dobra, aspas escape, ctrl 2-char/backslash-u, demais cópia; null/"" => original; golden 5 backends em KofStringsTest) | `plain` / `quote \" inside` / `back\\\\slash` / `a\\u0001b` | DONE | DONE | DONE | DONE | KofStringsTest |
+| stdlib kof.validation domínio (S6c: isDomain — RFC 1123 labels, TLD>=2 letras, >=2 labels; v1 sem ponto final/IDN) | `true` / `true` / `false` / `false` / `false` / `false` | DONE | DONE | DONE | DONE | `stddomain` |
+| stdlib kof.time (S7: isLeapYear/daysInMonth/dayOfWeek/daysBetween — calendário civil; ano<1 ou >9999 ou data inexistente => false/0; dia 1=seg..7=dom) | `true` / `false` / `true` / `false` / `29` / `28` / `30` / `0` / `4` / `3` / `0` / `60` / `-60` / `0` | DONE | DONE | DONE | DONE | `stdtime` |
+| stdlib kof.encoding (S4: hex + base64 + url + base64url — UTF-8 por bytes) | `4869` / `Hi` / `636166c3a9` / `café` / `TWFu` / `café` / `a%20b` / `café` / `ZmImTy0-Zg` / `fb&O->f` / `E` | DONE | DONE² | DONE | DONE | `stdenc` |
+
+> ¹ **STRN001 FECHADO 09/09:** joinWords portado p/ riscv64 (fatia B15) + aarch64
+> (mesmo asm traduzido) — paridade byte-a-byte com o x86_64 provada por diff do
+> golden oracle no qemu (16 vetores, incl. delimitadores UTF-8 `>=128`).
+> `KofStringsTest.wordConvertersClosedOnCrossArch`.
+
+> ³ **NET001 FECHADO 09/09:** `net.*` roda nos 3 nativos — x86 (RuntimeUri) +
+> riscv64 (fatia B24) + aarch64 (mesmo asm traduzido); paridade byte-a-byte
+> nos 17 vetores do oracle (`KofNetTest.netOnCrossArch`, qemu).
+
+> ² `encoding.hex*`/`encoding.url*` (B10/B11) e `encoding.base64*`/`base64Url*`
+> (B23, **ENC002 fechado 09/09** — port riscv com alfabeto aritmético + decode
+> tolerante, spec única do x86/JVM/JS; `KofEncodingTest.base64RunsOnCrossArch`
+> prova riscv+aarch sob qemu) rodam nos 3 nativos + JVM + JS + Script.
+| stdlib kof.uuid (S3b: v4 — não-determinístico, SEM caso de matriz) | shape `xxxxxxxx-xxxx-4xxx-[89ab]xxx-xxxxxxxxxxxx` | ✅ assert | ✅ assert¹ | ✅ | ✅ assert (+riscv/aarch qemu) | `KofUuidTest` 4/4 |
+
+> `uuid.v4()` não entra na matriz equality (entropia): paridade provada por
+> ASSERTS DE SHAPE nos 3 targets testáveis (JVM/Native-x86/JS: length=36,
+> traços em 8/13/18/23, dígito 14='4', dígito 19∈{8,9,a,b}, unicidade de 2
+> draws; **riscv64/aarch64 SECN000 FECHADO 09/09** — getrandom(2) via ecall
+> (syscall 278, probe em ambos os qemu) na fatia riscv B25 + aarch translator;
+> KofUuidTest.uuidV4CrossArch roda o shape+unicidade sob qemu nos dois).
+> ¹ variant por MÁSCARA nos 5 backends (b[8]=(b[8]&0x3f)|0x80 ⇒ char ∈
+> {8,9,a,b}) — x86 parity corrigida 09/09 com o fechamento do SECN000 (antes
+> fixava '8', subset do RFC com distribuição divergente — regra 5).
+
+> **S2b ASCII:** `capitalize` usa a MESMA regra nos 4 targets (byte 0 `a-z`→`A-Z`).
+> `reverse` é byte-reverso no Native e UTF-16/UTF-8 nos demais — coincidem em ASCII
+> (caso `stdstrings2b`). Casos não-ASCII: **NAT-STR01** (gap do UTF-8 nativo,
+> `plan-stdlib-expansion.md` §5) — não entram na matriz até corrigido (R5/R6).
 | recursão profunda (fact 10) | `3628800` | DONE | DONE | DONE | DONE | `recursion` |
 | list add/set/remove | `99` / `4` / `2` / `3` | DONE | DONE | DONE | DONE | `listops` |
 | map keys() + iteração | `6` | DONE | DONE | DONE | DONE | `mapiter` |
@@ -85,10 +136,11 @@
 | Feature | Saída esperada | JVM | Native | Script | KofJS | Caso |
 |---|---|---|---|---|---|---|
 | `spawn fn` + `await` (resultado) | `42` | DONE | DONE | DONE | DONE | `spawnawait-fn` |
+| `spawn { return ... }` (lambda-literal com retorno, bug 46) + `await` | `42` | DONE | DONE | DONE | DONE | `spawnexpr-return` |
 | 2 handles: cada `await` devolve o SEU | `2` / `11` | DONE | DONE | DONE (fix race 07/09) | DONE | `spawnawait-two` |
 | channel mesma-thread (FIFO Int+String) | `s=11` / `ab` | DONE | DONE | DONE | DONE | `channel-samethread` |
-| channel send-em-spawn + receive | `42` | DONE | PARTIAL (bug 50: SIGSEGV) | DONE | DONE | `channel-spawn` |
-| channel 2 sends em spawn + 2 receives | `1` / `2` | DONE | PARTIAL (bug 50) | DONE | DONE | `channel-spawn-two` |
+| channel send-em-spawn + receive | `42` | DONE | DONE (bug 50 fix 09/09) | DONE | DONE | `channel-spawn` |
+| channel 2 sends em spawn + 2 receives | `1` / `2` | DONE | DONE (bug 50 fix 09/09) | DONE | DONE | `channel-spawn-two` |
 
 > **Fix race 07/09 (lane interpreter):** `KofInterpreter.lastReturned` era um
 > ÚNICO campo de instância sobrescrito por cada `KofReturn`; com 2 `spawn`
@@ -99,6 +151,33 @@
 > **Bug 51** (vazamento de estado de `CompilerDriver` reutilizado → link
 > Native quebrado) descoberto durante o lote 3: o teste usa driver fresco por
 > caso (como o CLI — 1 processo/compilação).
+
+## Alvos fora da matriz (Android / WebAssembly)
+
+A matriz cobre os 4 alvos de execução de programa (JVM/Native/Script/KofJS).
+Dois alvos nomeados na plataforma **não** entram nas células — cada um por um
+motivo diferente, ambos honestos (R6):
+
+- **`android`** — não é um backend de execução: é **empacotamento do app
+  inteiro**. Compila no pipeline JVM e produz APK via SDK oficial (d8 → aapt2
+  → zip → zipalign → apksigner; ver `CmdBuild.runApkPipeline`). A matriz de
+  conformidade **linguagem×target** já vale para o bytecode JVM que o APK
+  empacota; o que Android acrescenta é toolchain de empacotamento, não
+  semântica. Requisito de ambiente: `ANDROID_HOME` + build-tools 34 — sem
+  SDK a CLI reporta o erro (nunca simula o APK). A compilação no target é
+  coberta por `AndroidInteropE2ETest` (semântica JVM em `Target.ANDROID`);
+  o pipeline de APK em si exige SDK e não tem E2E na suíte.
+
+- **`wasm` / `kofwebassembly`** — **WASM001: ainda não existe**. Não há
+  `Target.WASM`; `TargetMatrix.frontendGapFor` mapeia os nomes pedidos
+  (`wasm`, `kofwasm`, `kofwebasm`, `kofwebassembly`, `webassembly`) ao gap
+  **WASM001**, planejado na Fase 6 do plano de plataforma
+  (`docs/development/future/PLATFORM-PLAN.md`). Os dois caminhos da CLI
+  diagnosticam igual: `--frontend=wasm`/`kof.toml` →
+  `TargetMatrix.parse` com o gap; `--target=wasm` (flag legado) → a mesma
+  mensagem via `KofCliSupport.parseTarget`. Nunca compila como JVM por
+  engano. Prova: `TargetMatrixTest.wasmGapMessagePointsToRealPlanPath` +
+  `SelectTargetsTest.wasmFrontendIsHonestGap`.
 
 ## Notas de método
 

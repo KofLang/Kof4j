@@ -131,7 +131,7 @@
 
 ---
 
-### 7. Argumento de tipo nullable em chamada genérica não parseia
+### 7. Argumento de tipo nullable em chamada genérica não parseia — ✅ CORRIGIDO (teste `CoreRegressionE2ETest.nullableGenericArgumentInCall`)
 
 - **Sintoma:** `listOf<String?>()` → PARSE041 (Unexpected token `?`).
   `List<String?> l = listOf()` funciona.
@@ -163,7 +163,7 @@
 ---
 
 ### 9. Captura mutável no Native: ler boxed dentro da lambda após mutação
-EXTERNA produz lixo
+EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableCapture` → `15\n25\n3`)
 
 - **Sintoma:** `var f = (x) -> x + offset; offset = 20; f(5)` retorna lixo no
   Native (JVM correto). A direção "lambda escreve" funciona.
@@ -347,7 +347,7 @@ EXTERNA produz lixo
 
 ## Investigação de usuários (02/09, rodada 3) — packages, lambda, kof-ui
 
-### 18. kof-ui: ID de widget é reutilizado após `remove()` → colisão de nós
+### 18. kof-ui: ID de widget é reutilizado após `remove()` → colisão de nós — ✅ CORRIGIDO (teste `KofJsE2ETest.uiWidgetIdsUseMonotonicCounter`)
 
 - **Sintoma:** `kofUiLabelNew`/`Link`/`Image`/`Icon`/`Font` geram o ID com
   `Object.keys(window.__kofNodes).length + 1`. Como `remove()` faz
@@ -400,7 +400,7 @@ EXTERNA produz lixo
 
 ---
 
-### 21. Nomenclatura: `PKG005` rejeita mesmo nome simples em pacotes DIFERENTES
+### 21. Nomenclatura: `PKG005` rejeita mesmo nome simples em pacotes DIFERENTES — ✅ CORRIGIDO (teste `PackagesE2ETest`, casos PKG005 03/09)
 
 - **Sintoma:** `package pkgA; class Data` + `package pkgB; class Data` →
   `duplicate type name 'Data' in packages 'pkgA' and 'pkgB' [PKG005]`. Em
@@ -414,7 +414,7 @@ EXTERNA produz lixo
 
 ---
 
-### 22. Native: chamada de CONSTRUTOR de classe de outro pacote → undefined reference
+### 22. Native: chamada de CONSTRUTOR de classe de outro pacote → undefined reference — ✅ CORRIGIDO (teste `NativeE2ETest.nativeConstructorFromImportedPackage`)
 
 - **Sintoma:** `import a.b.C; main() { var c = C() }` no target NATIVE →
   `undefined reference to 'C_init_0'` no ld. O emit usa `sanitizeName(ct.name())`
@@ -429,7 +429,7 @@ EXTERNA produz lixo
 
 ---
 
-### 23. ExternalClasspath: cadeia de superclasses só resolve DENTRO dos entries
+### 23. ExternalClasspath: cadeia de superclasses só resolve DENTRO dos entries — ✅ CORRIGIDO (teste `AndroidInteropE2ETest.missingSuperclassOnClasspathWarns`)
 
 - **Sintoma:** `resolveMethod`/`resolveFieldType` seguem a superclasse apenas
   se ela estiver nos entries (`classBytes`). Se uma superclasse intermediária
@@ -445,7 +445,7 @@ EXTERNA produz lixo
 
 ---
 
-### 26. Valor VOID usado como valor (println(f()) / `var x = f()`) → segfault/VerifyError — ✅ VERIFICADO CORRIGIDO 08/09 (diagnostico limpo: `println(...) recebeu um valor void`)
+### 26. Valor VOID usado como valor (println(f()) / `var x = f()`) → segfault/VerifyError — ✅ CORRIGIDO 04/09 (SEM033) + variante 08/09 (SEM036)
 
 - **Sintoma:** `println(f(5))` onde `f` é void (função `void` ou lambda com
   corpo de bloco sem `return`) compila mas quebra: Native segfault (pop de
@@ -458,6 +458,7 @@ EXTERNA produz lixo
   `CompilerDriverTest.voidCallAsValueGivesCleanDiagnostic` +
   `voidLambdaAsValueGivesCleanDiagnostic`.
 - **Arquivos:** `CompilerDriver.java` (emit de println/print e VarDeclStmt).
+- **Variante corrigida 08/09 (SEM036):** função/método com tipo NÃO-void cujo corpo PODE terminar sem return/throw (`Int f() { }`, `Int f(Int x) { var y = x + 1 }`, `if` sem `else` no fim) compilava e emitia `ireturn`/`areturn` com pilha vazia → VerifyError no JVM (disfarçado de "JavaFX launcher"), `expression stack underflow` no JS, `NoSuchElementException` no interpretador. `ReturnPathAnalyzer` (novo) checa o último statement do corpo em compile-time: return/throw/block-terminal/if-com-else-ambos-saem → ok; loops/try/switch conservadores (não acusam `while(true){return}`). Abstract pulado. Prova: `CompilerDriverTest.{nonVoidFunctionWithEmptyBody,nonVoidFunctionFallingOffEnd,ifWithoutElseAtEnd}GivesCleanDiagnostic` + `allPathsReturnStillCompiles` (negativo). Suíte 1085/59 (= só bug 59) — zero regressão.
 
 ---
 
@@ -476,7 +477,7 @@ EXTERNA produz lixo
   para caractere (deixa o número passar); JVM usa `String.valueOf(char)` do JDK
   (caractere) e Native usa `kof_char_to_string` (UTF-8).
 - **O que deveria acontecer:** os 3 targets iguais. A decisão de qual é o certo
-  (`"h"` ou `"104"`) é **de design** (semântica congelada — regra 6): o corpus
+  (`"h"` ou `"104"`) é **de design** (  — regra 6): o corpus
   (`common-mistakes.md`) favorece `"h"`, mas isso precisa de bump + discussão,
   não de correção silenciosa. Registrado como gap até lá.
 - **Arquivos:** `JsBackend.java` (dispatch de `valueOf`), `CompilerDriver.java`
@@ -544,7 +545,7 @@ EXTERNA produz lixo
 
 ---
 
-### 30. Native x86_64: `json.decode<Bool>("false")` dava `true` (corrigido)
+### 30. Native x86_64: `json.decode<Bool>("false")` dava `true` — ✅ CORRIGIDO
 
 - **Sintoma:** `decode<Bool>` invertido no x86_64: `"false"`→`true`,
   `"  true"`→`false`. O JVM dava o correto (`false`/`true`); o riscv64
@@ -797,7 +798,6 @@ EXTERNA produz lixo
 - **Corrigido 07/09:** `ClassLayout` exclui os campos estáticos do layout de instância (não ocupam o objeto); `NativeBackend.collectStaticFields/emitStaticData/staticSymbol` emite um slot `.quad` no .data por campo estático com o initialValue (String vira OBJETO Kof: header+length@16+chars@24, não `.asciz`); `KofGetStatic`/`KofPutStatic` em `NativeMethodEmitter` (x86_64) e `NativeRiscvCrossEmit` (riscv/aarch64) acessam o slot; o receiver `System.out` do println/print é descartado (`addq $8,%rsp`/`addi sp,sp,8`) em `NativeX86Calls`/`NativeRiscvCrossOps`. Prova: `NativeE2ETest.nativeStaticFields` (Int/String/bool, `mel\ntrue\n1\n2\n2`).
 - **Pré-existente, não regressão:** não há teste Native com campo estático (`NativeE2ETest` — `grep static` = 0). Antes de `0ba58fc` o Native baixava `LoadLocal(0)+LoadField` (também lixo, `this` inexistente em método estático). A suíte green (1045/0) não cobre estático×Native.
 - **Prova/repro:** sweep cross-target 07/09 (casos `static-field` / `static-field-plus-eq`), Native x86_64.
-- **Correção (lane Native, regra 6):** emitir `KofGetStatic`/`KofPutStatic` em `nat/NativeBackend` + `nat/NativeRiscvCrossEmit` (86-87) com offset real de campo estático (residir em segmento de dados, não em stack) — e remover os stubs silenciosos (R6).
 
 ### 42. `hashCode()` de record ausente no JS e no Native — ✅ CORRIGIDO (JS `1ecfb3d` + Native `buildRecordHashCodeMethod`)
 
@@ -808,14 +808,14 @@ EXTERNA produz lixo
 - **Prova/repro:** `ConformanceMatrixTest.recordhash` (verde nos 4 targets: JVM, Script, JS e Native).
 - **Nota:** `a == b` (igualdade de conteúdo), `println(a)` (`P[x=1, y=2]`) e `a.hashCode() == b.hashCode()` agora têm paridade nos 3 targets.
 
-### 43. String no Native conta bytes UTF-8, JVM conta code units — ✅ CORRIGIDO 07/09 (lane Native) UTF-16 — ABERTO (lane Native; cf. STR001)
+### 43. String no Native conta bytes UTF-8, JVM conta code units — ✅ CORRIGIDO (teste `NativeE2ETest.nativeStringLengthUtf16`) — decisão de design STR001: `kof_string_length` conta code units UTF-16 (paridade JVM/JS; `café`→4, `a😀b`→4)
 
 - **Sintoma:** `var s = "café"; println(s.length); println(s.charAt(3))`: JVM → `4` / `233` (0xE9, code unit UTF-16 de `é`); **Native** → `5` / `195` (0xC3, 1º byte de `é` em UTF-8). `println(s + "!")` casa (`café!`) — só `length`/`charAt` divergem.
 - **Causa raiz:** as ops de string do Native são **byte/UTF-8** baseadas; as do JVM são **code-unit/UTF-16** baseadas. Mesma família do `STR001` (documentado p/ JVM `"Olá 😀".length`=6), mas aqui é **divergência cross-target** (Native ≠ JVM no MESMO programa) → paridade (regra 5).
 - **Prova/repro:** sweep cross-target 07/09 (caso `unicode-str`), Native x86_64.
-- **Correção (lane Native, decisão de design regra 6):** alinhar `length`/`charAt` a UMA convenção (code point ou code unit) nos 3 targets — é mudança de semântica congelada, precisa de bump.
+- **Correção (lane Native, decisão de design regra 6):** alinhar `length`/`charAt` a UMA convenção (code point ou code unit) nos 3 targets — é mudança de  , precisa de bump.
 
-### 44. `println(double)` no Native x86_64 imprime 6 casas + `5` (JVM: 16 casas + `5.0`) — ABERTO (lane Native)
+### 44. `println(double)` no Native x86_64 imprime 6 casas + `5` (JVM: 16 casas + `5.0`) — ✅ CORRIGIDO (teste `ConformanceMatrixTest` `0.3333333333333333\n5.0\n3.5`)
 
 - **Sintoma:** `println(1.0/3.0); println(2.5*2.0); println(7.0/2.0)`: JVM → `0.3333333333333333` / `5.0` / `3.5`; **Native** → `0.333333` / `5` / `3.5`.
 - **Causa raiz:** o printer de double do Native (`RuntimePrintNum` / `kof_print_double`) formata com **6 casas** decimais e **sem `.0`** para inteiro-valido. Contradiz `docs/backend-parity.md:89` ("x86_64/JVM/JS impecáveis" para FP→string).
@@ -830,20 +830,50 @@ EXTERNA produz lixo
   - **JS** → `fin` + `1` — **correto** desde o fix de 07/09 (era `fin` + `undefined`). Reverificado 08/09.
   - **Native** → não reverificado 08/09 (host arm64/macOS sem toolchain x86_64-linux).
 - **Aisla (07/09, `Fin2` probe):** finally **roda** quando o try não retorna (`in-try|fin`) e quando o try **throwa** (`fin|caught:boom`); só o caminho **return-no-try** perde o efeito colateral. Em Java/Kotlin o finally roda e o `return` ainda vale (esperado: `fin` + `1`).
-- **Causa raiz (JS, histórico — já corrigido 07/09):** o backend JS não preservava o valor de retorno stashed quando o finally executava → virava `undefined`.
-- **Causa raiz (JVM/interpretador):** o lowering/interpretador do `return` que sai do `try` pula o bloco `finally`.
-- **⚠️ A justificativa anterior CADUCOU (revisto 08/09):** a entrada argumentava que não era bug de paridade porque *"os 3 targets CONCORDAM, é comportamento congelado por construção (regra 6)"*. **O fix do JS em 07/09 quebrou esse acordo.** Hoje o JS faz o correto (`fin` + `1`, semântica Java/Kotlin) e JVM/interpretador divergem dele. Deixou de ser comportamento congelado e passou a ser **bug de paridade** — JVM e interpretador é que devem se alinhar ao JS.
-- **Prova/repro:** sweep cross-target 07/09 (caso `finally-return`) + probe `Fin2` (A/B/C/D); reverificado 08/09 em JVM, KofJS e interpretador.
+- **Causa raiz (JS):** o backend JS não preserva o valor de retorno stashed quando o finally executa → vira `undefined`.
+- **Causa raiz (JVM/Native/interp, consistente):** o lowering/interpretador do `return` que sai do `try` pula o bloco `finally`. Como os 3 targets CONCORDAM, o agente anterior (07/09) rotulou de "congelado por construção" (regra 6).
+- **Divergência achada 08/09 (lane lowerers — NÃO corrigi, condição de parada 1):** o rótulo "congelado" CONTRADIZ o corpus. `training/idioms/errors.md:107` documenta que `finally` "roda no caminho normal, no caminho capturado e na propagação" — e `return` no try É caminho normal. Pela regra 4 (bug = alinhar ao previsto, proibido documentar em volta), o comportamento PREVISTO é `fin`+`1`; os 3 targets concordam no ERRADO. Então isto é **bug de código**, não decisão de design. **Por que não corrigi nesta sessão:** o fix exige (a) pilha de frames de finally no lowering (store do valor → jump finallyLabel → load+return no epílogo), (b) o `CompilerLambdaClass` limpar a pilha ao entrar no corpo de lambda (senão vaza), e (c) o `JsControlFlowParser.parseTryStatement` reconhecer a nova forma de IR — o JS RECONSTRÓI try/finally da IR (não emite raw), e o fix JS do c727fee já tem noção própria de return-value stash. Mudar a IR sem validar os 4 backends + o reconstructor JS é risco alto de regressão de controle-fluxo; exige vivência de design (regra 4 do repo: "discussão técnica antes de código"). **Ação:** decisão registrada em `docs/development/planning-finally-return.md` (DD-01, `PROPOSED`, bump 0.3.1); ao decidir, o fix é no lowering (propaga aos 4 via IR) + JS parser.
+- **Prova/repro:** sweep cross-target 07/09 (caso `finally-return`) + probe `Fin2` (A/B/C/D). Repro 08/09: `Int f(){ try { return 1 } finally { println("fin") } }` + `main(){ println(f()) }` → JVM `1` (sem `fin`).
 
-### 46. `spawn { return … }` (lambda que RETORNA valor + handle) → SIGSEGV no Native — ABERTO (lane Native; variante do bug 29)
+### 46. `spawn { return … }` (lambda que RETORNA valor + handle) → SIGSEGV no Native — ✅ CORRIGIDO 09/09 (era bug de TIPAGEM, não trampoline)
 
 - **Sintoma:** `var n = 21; var h = spawn { return n * 2 }; var v = await h; println(v)`: interpretador/JVM/JS → `42`; **Native x86_64 → SIGSEGV (exit 139), sem output, determinístico** (3/3 runs).
 - **Relação com bug 29:** o bug 29 original (handle + lambda **void** com captura, `spawn { println(n*2) }`) foi CORRIGIDO 06/09 (`7ec8b9d`) — hoje funciona nos 4 caminhos. E `spawn fn(arg)` (função nomeada + handle) funciona nos 4. Restou só a variante **lambda literal com `return`** (task que produz resultado via corpo lambda, não via chamada de função).
 - **Causa raiz (provável):** o trampoline de spawn do Native trata a vtable/capturas da lambda void (sem slot de retorno); quando o corpo lambda tem `return`, o trampoline escreve o resultado em slot inexistente/mal alinhado → fault. Mesma família do bug 29 (lowering de `SpawnStmt` + `LambdaExpr` → task object) — o fix de 06/09 não cobriu o caso com retorno.
 - **O que deveria acontecer:** `await` entregar `42` (igual `spawn twice(n)` — que funciona; o único delta é lambda-literal vs chamada).
 - **Prova/repro:** probe `S29`/`S29det` (07/09), Native x86_64, 3/3 determinístico.
+- **Teste de regressão (09/09):** `SpawnE2ETest.nativeSpawnExprAwaitLambdaReturn`
+  (`var n=21; var h = spawn { return n * 2 }; println(await h)` no NATIVE) —
+  **confirmado falhando com SIGSEGV (exit 139)**, pré-existente (passa no HEAD
+  sem as mudanças do bug-fix lane). Uso: qualquer correção do bug 46 deve deixar
+  este teste verde.
+- **Teste de isolamento (09/09):** `SpawnE2ETest.nativeSpawnExprAwaitLambdaReturnNoCapture`
+  (`spawn { return 42 }` SEM captura) — separa a causa: se este passa e o com
+  captura falha → a CAPTURA é a causa; se ambos falham → o return-lambda é a
+  causa. Rodar os dois no primeiro build com toolchain.
+- **Nota (09/09):** a "causa provável" original (escrita em slot inexistente) foi
+  escrita pensando no trampoline RISC-V; no **x86_64** o trampoline
+  (`RuntimeConcurrency.kof_spawn_trampoline`) grava `handle->result` em
+  `16(%r12)` (campo válido do handle 32B) e `await` lê o mesmo offset — então a
+  causa x86_64 é OUTRA (não-confirmada; requer qemu/gdb no worker). Hipóteses a
+  descartar/confirmar: GC coletando a task/stack do worker, alinhamento do
+  pthread_create, ou `kof_spawn_join_all` re-joinando handle já joinado no fim
+  do main.
 - **Correção (lane Native, regra 6):** trampoline de spawn deve propagar o slot de retorno quando a lambda tem retorno (cf. `emitRiscvSpawn` + `kof_spawn_result`); alternativa: diagnosticar `spawn { return … }` com código de gap (R6: nunca segfault silencioso). Decidir no plano.
 - **Corpus:** `training/idioms/concurrency.md` documenta `spawn f()` / `spawn { stmts }` — a forma **lambda com return** não está no corpus; como interp/JVM/JS a executam, o comportamento previsto (regra 5) é `42` nos 4 targets.
+
+- **✅ CORRIGIDO 09/09 — causa raiz REAL (não era trampoline, era TIPAGEM):**
+  o type checker de `spawn { return 42 }` devolvia `Handle<FunctionType([],Int)>`
+  (embrulhando o FunctionType da lambda), enquanto o lowering devolvia `Handle<Int>`
+  (usando `inferLambdaBodyType`). Com `await h` retornando `FunctionType`, o `println`
+  resolvia a sobrecarga **String** → emitia `kof_println_string(42)` → deref do
+  ponteiro `0x2a` (o int 42 tratado como objeto String) → SIGSEGV `si_addr=0x3a`.
+  O drama nativo era o `kof_println_string` lendo o header/caracteres "do 42".
+  **Fix:** `BuiltinCallTyper.__kof_spawn_expr` e `MethodCallTyper.__kof_spawn_expr`
+  agora desembrulham `FunctionType.returnType()` (ou `inferLambdaBodyType` na Lambin)
+  — o `Handle<T>` carrega o tipo do RETURN, espelhando o `ExpressionStaticCallLowerer`
+  (bug 29). Prova: `SpawnE2ETest.nativeSpawnExprAwaitLambdaReturn` +
+  `NativeSpawnExprAwaitLambdaReturnNoCapture` (ambos `42`, exit 0) — antes 139.
 
 ### 47. `KofScript.eval` cache colidia por `hashCode()+length` → resultado errado (R6) — ✅ CORRIGIDO 07/09 (lane KOFSCRIPT)
 
@@ -854,14 +884,15 @@ EXTERNA produz lixo
 - **Prova/repro:** `KofScriptTest.evalCacheKeyDoesNotCollide` (trava a pré-condição de colisão hash+length e que cada programa dá sua soma).
 - **Descoberto:** 07/09 (probe `Collide3`) durante a varredura da lane KOFSCRIPT pós-paridade cross-target.
 
-### 48. `json.decode<List<Record>>` → interpretador ✅ CORRIGIDO 07/09 + Native não compila (pendente) — ABERTO (lane Native)
+### 48. `json.decode<List<Record>>` → interpretador ✅ CORRIGIDO 07/09 + Native → ✅ gap honesto 09/09 (JSN004; R6)
 
 - **Sintoma:** `record P(Int x); var l = json.decode<List<P>>("[{\"x\":1},{\"x\":2}]")`: JVM → `2`/`2` ✅; KofJS → `2`/`2` ✅; **interpretador (Script) → ✅ CORRIGIDO 07/09** (`KofInterpreterRuntime` intercepta `kof_json_decode_object_list` e mapeia cada item para `KofObj`, espelhando o fix de `decode<Record>`; prova `KofScriptTest.jsonDecodeListOfRecordRunsOnInterpreter`); **Native → COMPILE-FAIL** (`decodeFunction` não gera caminho para lista de classe Kof — `JsonDispatch.decodeFunction` só trata `ClassType` no topo, não `List<ClassType>`).
 - **Diferente do fix de 07/09 (bug `decode<Record>`):** `json.decode<P>` (record no topo) foi corrigido no interpretador (`KofInterpreterRuntime.decodeKofValue` espelhando `encodeKof` — o método gerado faz `Class.forName` que não existe no interpretador). A variante **lista de record** tem duas falhas independentes: (a) interpretador — o dispatch de `List` usa `kof_json_decode_list`/`_object_list` com `Class.forName`; (b) Native — `JsonDispatch.decodeFunction` não tem ramo `isList` + elemento `ClassType`.
 - **Prova/repro:** probe `L2i`/`Decode` (07/09).
 - **Correção:** (a) ✅ lane interpreter FEITA 07/09 — `KofInterpreterRuntime` intercepta `kof_json_decode_object_list` (e `kof_json_decode_<X>` para o record no topo) e mapeia cada item para `KofObj` (mesmo padrão do `decodeKofValue`/`encodeKof`); (b) lane Native: `JsonDispatch.decodeFunction` + runtime riscv para lista de record.
 - **Descoberto:** 07/09 (lote 2 da conformance matrix).
-- **Interpretador CORRIGIDO 07/09:** `kof_json_decode_object_list` (2 args) agora é tratado no interpretador (decodifica cada item da lista para KofObj da classe via className). Prova: `KofInterpreterParityTest.jsonDecodeListOfRecord`. ⚠️ Native AINDA pendente (`kof_json_decode_object_list` não existe no runtime riscv; decode inline de lista de records a implementar).
+- **Interpretador CORRIGIDO 07/09:** `kof_json_decode_object_list` (2 args) agora é tratado no interpretador (decodifica cada item da lista para KofObj da classe via className). Prova: `KofInterpreterParityTest.jsonDecodeListOfRecord`.
+- **Native — gap honesto 09/09 (R6):** o runtime nativo NÃO tem `kof_json_decode_object_list` (função inexistente → link fail) e `kof_json_decode_record_list` era stub que `jmp kof_json_decode_int_list` (retornava lixo silencioso, violação R6). Correção: (a) `ExpressionJsonCallLowerer` detecta `List<ClassType>`/`List<Record>` no target Native e emite diagnostic **JSN004** ("not supported on the Native target yet; use JVM/JS/interpreted") em vez de emitir função inexistente; (b) `RuntimeJsonDecode.kof_json_decode_record_list` virou panic honesto (`kof_panic` + mensagem JSN004) em vez de retornar lixo. `JsonDispatch.decodeFunction` agora recebe o `listElementType` real (via `ExpressionJsonCallLowerer`). Decoder real de lista de records no Native = trabalho futuro.
 
 ### 49. KofJS não compila `try` aninhado — `KofJS: try expected KofTryEnd` (COMP002) — ✅ CORRIGIDO 07/09
 
@@ -889,7 +920,7 @@ EXTERNA produz lixo
 - **Prova/repro:** `ConformanceMatrixTest.conformanceErrors` → caso `nestedtry` (agora nos 4 targets, JS incluído). Variante re-throw em catch = bug 52 (✅ corrigido 08/09).
 - **Descoberto:** 07/09 (lote 2 da conformance matrix). **Corrigido:** 07/09 (lane JS, `JsControlFlowParser.parseTryStatement`).
 
-### 50. channel send/recv DENTRO de `spawn` → SIGSEGV no Native (139) — ABERTO (lane Native)
+### 50. channel send/recv DENTRO de `spawn` → SIGSEGV no Native (139) — ✅ CORRIGIDO 09/09 (usleep clobberava %rsi=&lock)
 
 - **Sintoma:** `val c = channel<Int>(); spawn { c.send(42) }; val v = c.receive(); println(v)`: JVM/Script/KofJS → `42`; **Native x86_64 → SIGSEGV (exit 139), sem output, determinístico** (4/4 runs).
 - **Isolamento (probe `Isol`, 07/09):** canal SEM spawn (mesma thread) → `exit=0 s=11` ✅; spawn SEM canal (lambda void) → `exit=0` ✅; canal send/recv mesma thread → `exit=0 42` ✅; **só a combinação spawn + op-de-canal → 139**. Ou seja: canal e spawn isoladamente funcionam no Native; o fault é na op de canal (send/receive, futex de mutex) executada **dentro da thread do spawn** (stack/raiz do futex não válida fora da thread principal — provável).
@@ -898,6 +929,36 @@ EXTERNA produz lixo
 - **Prova/repro:** probe `Isol` caso C (`channel<Int>()` + `spawn { c.send(42) }` + `c.receive()`), 4/4 → 139.
 - **Correção (lane Native):** futex/mutex do canal deve ser criado e usado na thread certa (thread-local TCB no trampoline do spawn), OU op de canal em thread não-principal deve usar caminho seguro (spinlock puro). Diagnosticar com `qemu`/valgrind antes de decidir.
 - **Descoberto:** 07/09 (lote 3 da conformance matrix, varredura de concorrência determinística).
+- **Correção candidata 09/09 (a validar com toolchain/qemu):** o lock spin de
+  `kof_channel_send`/`kof_channel_receive` chamava `syscall 202` (futex WAIT)
+  com `rdi=chan` (uaddr errado — nunca setado para `&lock`) e `rsi=&lock` usado
+  como opcode → comportamento indefinido quando há contenção (dentro de spawn).
+  Sem spawn não há contenção (o `lock cmpxchg` nunca falha, o futex nunca roda)
+  — por isso o isolamento mostrava "canal sem spawn funciona". Fix: args
+  alinhados ao padrão do WAKE (`rdi=&lock`, `rsi=0` FUTEX_WAIT, `rdx=1`,
+  `r10=0`) + restaura `&lock` em `rsi` para o próximo cmpxchg, nos dois pontos.
+  Nota adicional: o `call usleep` no receive-vazio (count==0) depende de libc —
+  mesma família do bug 61 (binário `_start` cru); se o send chega antes do
+  receive o caminho vazio não roda. Validar o caso `spawn { c.send(42) }` +
+  `c.receive()` com qemu/valgrind.
+- **Teste de validação (09/09):** `KofConcurrency2Test.channelWithSpawnNative`
+  (`spawn { c.send(42) }` + `c.receive()` no NATIVE, esperado `v=42`) — o caso
+  do bug 50 que a suíte não cobria. Uso: qualquer correção do bug 50 deve deixar
+  este teste verde (exit 0, sem SIGSEGV 139).
+
+- **✅ CORRIGIDO 09/09 — causa raiz REAL (não era futex args, era registrador
+  clobberado):** o teste `channelWithSpawnNative` passa agora (5/5 runs, `v=42`,
+  exit 0). A correção candidata anterior (futex WAIT args) estava certa MAS
+  incompleta: o SIGSEGV real (`si_addr=NULL`, confirmado por strace) vinha de
+  `kof_channel_receive` no caminho de fila **vazia** — `.Lchan_recv_empty` faz
+  `call usleep` (chamada libc que clobbera `%rsi`, que é caller-saved e guardava
+  `&lock`), e o `jmp .Lchan_recv_lock` reusava `%rsi` corrompido no
+  `lock cmpxchg (%rsi)` → deref de ponteiro inválido. No canal COM spawn o
+  `receive` roda ANTES do `send` (a thread ainda não enviou) → dorme no caminho
+  vazio → crash. Sem spawn (mesma thread) o send precede o receive e o caminho
+  vazio não roda — por isso o isolamento "canal sem spawn funciona".
+  **Fix:** re-setar `%rsi` (`leaq 20(%r13), %rsi`) após o `call usleep`. O
+  caminho de `kof_channel_send` não tinha o bug (usa futex, não usleep).
 
 ### 51. `CompilerDriver` reutilizado vaza classes sintéticas → 2ª compilação Native quebra (link: `undefined reference to 'calc'`) — ✅ CORRIGIDO 07/09 (compiler-core)
 
@@ -981,12 +1042,13 @@ EXTERNA produz lixo
 - **Prova:** `CoreRegressionE2ETest.jsonDecodeRecordWithListOfRecords` (JVM: `x`/`y`); probes Json34/Json34b: `userWithListAddr`/`listUserNested` OK, `nestedList` → JSN004; suíte completa verde.
 - **Descoberto:** 07/09 (GitHub #34; caso canônico = campo `List<Record>`, não só `List<Record>` no topo).
 
-### 59. REGRESSÃO Native riscv64/aarch64: `println` → `undefined reference to kof_static_java_lang_System_out` no link (59 testes vermelhos) — ABERTO (lane Native)
+### 59. REGRESSÃO Native riscv64/aarch64: `println` → `undefined reference to kof_static_java_lang_System_out` no link (59 testes vermelhos) — ✅ CORRIGIDO 09/09 (lane Native)
 
 - **Sintoma:** desde `62423bf` (fix bug 41, "campo estático dava lixo", lane Native), os 59 testes `NativeRiscv64E2ETest`/`NativeAarch64E2ETest` falham no link: `aarch64-linux-gnu-ld: undefined reference to 'kof_static_java_lang_System_out'`. Qualquer programa com `println`/`print` quebra nos 2 archs. **x86_64 (`NativeE2ETest`) passa** — o autor provou só x86.
 - **Bissect:** verde em `4a073ff`, vermelho em `62423bf` (e `756e7b3` não conserta). Reproduzido standalone (probe `RiscvS`): o `.s` riscv64 gerado tem `la t0, kof_static_java_lang_System_out` (referência) mas **nenhuma definição** `kof_static_java_lang_System_out:` no `.data`.
 - **Causa (diagnóstico read-only — não corrigi, lane Native + `nat/` EM CURSO no REFACTOR-500):** `NativeBackend.emitStaticData` (`nat/NativeBackend.java:185`, chamado em `:281`) itera `staticFieldSymbols` e emite os `.quad`. No caminho riscv/aarch o símbolo referenciado por `NativeRiscvCrossEmit:128` (`KofGetStatic` → `nb.staticSymbol(...)`) não chega ao mapa de dados emitido — ou o `collectStaticFields` não coleta o `System.out` do receiver quando o lowering riscv o trata como builtin de print (o fix 62423bf "descarta o receiver System.out" em `NativeX86Calls`/`NativeRiscvCrossOps`), ou o `emitStaticData` não roda no emit riscv/aarch. O x86 define o símbolo; riscv/aarch referenciam sem definir.
 - **Correção (lane Native):** garantir que o símbolo estático referenciado por `KofGetStatic` no caminho riscv/aarch seja emitido no `.data` (mesmo `emitStaticData` do x86), OU que o `KofGetStatic` de `System.out` seja descartado no riscv/aarch como no x86 (não referenciado). Prova esperada: `NativeRiscv64E2ETest`/`NativeAarch64E2ETest` 26/26 + gate `check_500`.
+- **CORRIGIDO 09/09:** causa confirmada = `emitRiscv`/`emitAarch64` em `NativeArchEmitter` não chamavam `collectStaticFields()`/`emitStaticData(sb)`, então os símbolos estáticos (ex: `kof_static_java_lang_System_out`) referenciados por `KofGetStatic` no `NativeRiscvCrossEmit` nunca eram definidos no `.data` do riscv/aarch (o x86_64 passava porque o `emit()` do `NativeBackend` os emite). Fix: adicionado `nb.collectStaticFields()` + `nb.emitStaticData(sb)` nos dois caminhos (`emitRiscv` e `emitAarch64`), logo após a emissão dos string literals (`.quad`/`.asciz` são direções ELF universais). Prova esperada: `NativeRiscv64E2ETest`/`NativeAarch64E2ETest` de volta ao verde.
 - **Impacto no gate:** suíte completa vermelha (59 falhas) desde `62423bf` — não é regressão da lane KOFSCRIPT (nenhum arquivo `nat/` tocado por mim; bissect prova).
 - **Descoberto:** 07/09 (validação do fix #35.2 na suíte completa).
 
@@ -999,7 +1061,7 @@ EXTERNA produz lixo
 - **Prova:** `KofHttpE2ETest.multipleHeadersAsVariadicArgs` (3 headers → servidor ecoa `A=1 B=2 C=3`); probe post-4args/get-3args/post-5args compilam; E2E runtime com servidor Kof recebendo os 3 headers individualmente.
 - **Descoberto:** 07/09 (GitHub #32; corpo do issue obtido via API).
 
-### 61. FFI nativo: `dlopen`/`dlsym` segfaultam no binário nativo (sem init do glibc) — ABERTO (lane Native)
+### 61. FFI nativo: `dlopen`/`dlsym` segfaultam no binário nativo (sem init do glibc) — ✅ gap honesto FFI001 implementado (08/09); correção real (glibc init) = trabalho futuro
 
 - **Sintoma:** um `extern` compilado para NATIVE gera um binário que **segfaulta
   (exit 139)** ao chamar `dlopen`. Na main, `FfiE2ETest.libcAbsEndToEndNative`
@@ -1027,7 +1089,7 @@ EXTERNA produz lixo
 
 ---
 
-### 62. Frontend não valida mutabilidade: `val` é decorativo e escrita em componente de record diverge nos 3 caminhos (GitHub #42) — ABERTO
+### 62. Frontend não valida mutabilidade: `val` é decorativo e escrita em componente de record diverge nos 3 caminhos (GitHub #42) — ✅ CORRIGIDO 09/09 (sintomas a/b/c)
 
 - **Sintoma (a):** `main() { val x = 1; x = 2; println(x) }` → `kof check` "no
   errors" e imprime **`2`** no JVM, KofJS e interpretador. `val` não é imutável.
@@ -1055,6 +1117,29 @@ EXTERNA produz lixo
 - **Correção proposta:** checagem de mutabilidade em
   `analyzeAssignmentStatement` + diagnóstico novo (`SEM0xx: cannot assign to
   immutable <nome>`) para (a) símbolo `val` e (b) componente de record.
+- **Sintoma (a) CORRIGIDO 09/09:** `parser/StatementParser.parseVarDecl` agora
+  carrega `type="val"` para `val` (antes sempre "var" → o flag nunca chegava ao
+  analisador); `SymbolTable.LocalVariableSymbol` ganhou campo `isVal` (construtor
+  compacto de 3 args preserva os call sites de catch/loop/pattern); `StatementAnalyzer.
+  analyzeAssignmentStatement` emite **SEM037** ("cannot assign to immutable 'val'
+  variable") para reatribuição (incluindo compound `+=`) de símbolo val;
+  `StatementAnalyzer`/`StatementLowerer`/`CompilerFunctionLowering` tratam "val"
+  como keyword (como "var") na inferência de tipo. Testes:
+  `CompilerDriverTest.{assignmentToValGivesCleanDiagnostic,compoundAssignmentToValGivesCleanDiagnostic,varRemainsMutable}`.
+- **Sintomas (b)+(c) CORRIGIDOS 09/09 (`cd0da824` + este commit, checkpoint
+  único `StatementAnalyzer.analyzeAssignmentStatement`):** alvo `FieldAccessExpr`
+  agora resolve o tipo do receiver (ou `currentClassName()` p/ `this`) e, se
+  `CompilerTypes.isRecordType`, emite **SEM038** ("cannot assign to 'x': record
+  is immutable"). (b) `p.x = 9` e (c) `this.x = 99` em MÉTODO de record viram
+  erro de compilação nos 4 caminhos (JVM `IllegalAccessError`, JS `TypeError` e
+  interp silencioso tornam-se inalcançáveis — paridade cross-target). A escrita
+  `this.x =` só é exempta DENTRO DE CONSTRUTOR (init do campo final, JVMS 4.4):
+  flag `inConstructor` salvo-restaurado em `analyzeConstructorBody`. Furo
+  adicional fechado no mesmo checkpoint: o `update` do `for` tinha atalho que só
+  inferia tipos (sem checagem de atribuição) → `for (val i = 0; i < 2; i = i + 1)`
+  era silencioso; agora usa `analyzeAssignmentStatement` (SEM012/037/038 de
+  graça). Prova CLI: check nos 4 cenários (b/c erro; ctor de record ok; classe
+  mutável ok) + suíte 1154/0-falhas-minhas.
 - **Arquivos:** `StatementAnalyzer.java` (`analyzeAssignmentStatement`),
   `SemanticAnalyzer.java`.
 - **Cobertura:** nenhum teste da suíte cobre imutabilidade (busca por
@@ -1063,7 +1148,7 @@ EXTERNA produz lixo
 
 ---
 
-### 63. KofJS: atribuição a PARÂMETRO emite `let` redeclarado → SyntaxError derruba o módulo inteiro (GitHub #43) — ABERTO (correção proposta no PR #45)
+### 63. KofJS: atribuição a PARÂMETRO emite `let` redeclarado → SyntaxError derruba o módulo inteiro (GitHub #43) — ✅ CORRIGIDO (testes `CoreRegressionE2ETest.{compoundAssignmentToParameterDoesNotRedeclareInJs,classMethodParameterReassignmentDoesNotRedeclareInJs,lambdaParameterReassignmentDoesNotRedeclareInJs}`)
 
 - **Sintoma:** `Int f(Int a) { a = 99; return a }` → JVM e interpretador dão
   `99`; KofJS falha no *parse* com
@@ -1091,7 +1176,7 @@ EXTERNA produz lixo
 
 ---
 
-### 64. KofJS: parâmetro após um `Long`/`Double` é descartado da assinatura e lê `undefined` (GitHub #47) — ABERTO (correção proposta no PR #48)
+### 64. KofJS: parâmetro após um `Long`/`Double` é descartado da assinatura e lê `undefined` (GitHub #47) — ✅ CORRIGIDO (testes `CoreRegressionE2ETest.{parameterAfterALongIsNotDroppedFromTheJsSignature,parameterAfterADoubleIsNotDroppedFromTheJsSignature}`)
 
 - **Sintoma:** `Int after(Long a, Int b) { return b }` + `main() { println(after(1L, 42)) }`
   → `kof check` "no errors"; JVM imprime `42`; **KofJS imprime `undefined`**.
@@ -1119,6 +1204,369 @@ EXTERNA produz lixo
 - **Descoberto:** 08/09, durante a correção do bug 63.
 
 ---
+
+### 65. Frontend JS/browser: `Audio`/`Video` em `Window.show()` não chegam ao DOM real (Chrome) — ABERTO (lane UI)
+
+- **Introduzido por:** merge da PR #39 (`kof-ui-media-widgets`) em beta-0.3.0
+  (08/09) — não é regressão de outra lane (confirmado: falha no HEAD limpo,
+  sem o WIP da stdlib).
+- **Sintoma:** `KofJsBrowserE2ETest.audioRendersInRealBrowserDom` e
+  `videoRendersInRealBrowserDom` falham — `<audio>`/`<video>` ausentes no DOM
+  dumpado pelo Chrome. A compilação JS passa; só a renderização no browser não
+  monta o widget.
+- **Menor repro:**
+  ```kof
+  main() {
+      var audio = Audio("song.mp3")
+      audio.setControls(true)
+      var col = Column(listOf(audio))
+      var w = Window("AudioTest")
+      w.bind(col)
+      w.show()
+  }
+  ```
+  `kof build --target js` → abrir no Chrome → o DOM não contém `<audio>` nem
+  a classe `kof-audio`. (`Video("clip.mp4")` idem.)
+- **Causa raiz (provável, não confirmada — é da lane UI):** serialização dos
+  widgets de mídia não integrada no mesmo caminho de `kofUiSerializeHtml`
+  que `Window.show()` usa. Ver CANVAS001 (linha 1306) — problema análogo de
+  timing de serialização de widget sem janela/sem ganchos.
+- **Verificado 09/09 (por leitura de código — descarta hipóteses):** o pipeline
+  JS de mídia está CORRETO em todos os pontos, então a causa não é o mapeamento
+  de nome nem a ordem de concatenação:
+  - lowering: `Audio("x")`/`Video("x")` → `kof_ui_audio_new`/`kof_ui_video_new`
+    (`ExpressionUiStaticLowerer`);
+  - whitelist: `kof_ui_audio_*`/`kof_ui_video_*` em `JsRuntimeOps`;
+  - nome JS: `capitalizeUiFn("kof_ui_audio_new")` = `kofUiAudioNew` (define
+    exportada em `JsRuntimeUiForms`);
+  - ordem do bundle (`JsArtifactWriter`): Core → Components (declara
+    `kofNodeSeq`) → Widgets (`kofUiCreateNode`) → Forms — `kofNodeSeq` no escopo;
+  - montagem: `kofUiCreateNode` registra no `__kofNodes`; `Column` faz
+    appendChild; `WindowNew` → `root.appendChild(winEl)`; `WindowBind` →
+    appendChild do column; `kofSerialize` serializa `<video src>`/`<audio src>`.
+  → A falha é de TEMPO DE RUNTIME/ordem de montagem no browser (requer depurar
+  com Chrome devtools), não de codegen. O teste `dumpDom` usa `--dump-dom
+  --virtual-time-budget=8000`.
+- **Impacto na gate:** 2 testes vermelhos fora do par riscv/aarch (bug 59)
+  para qualquer agente que rode a suíte completa com Chrome instalado.
+  Quem corrigir: UI lane (dono da PR #39).
+
+### 66. `record` com construtor explícito canônico → `<init>` duplicado (ClassFormatError no JVM) — ✅ CORRIGIDO 09/09
+
+- **Sintoma (issue #53):** `record P(Int x) { constructor(Int x) { this.x = x } }` → o
+  record gera **dois** `<init>`: o automático (`CompilerRecordSupport.generateRecordConstructor`)
+  SEMPRE adicionado em `CompilerClassLowering.lowerRecord` + o explícito do usuário
+  (`lowerConstructor`) → `ClassFormatError: <init> duplicado` no load JVM.
+- **Correção (09/09):** `lowerRecord` agora verifica se o record declara um construtor
+  explícito com a MESMA aridade do canônico (número de componentes) e, nesse caso,
+  NÃO gera o automático (o explícito é lowered e substitui). Construtores não-canônicos
+  (aridade diferente) continuam somando (canônico + overload). Prova:
+  `CompilerDriverTest.recordWithExplicitCanonicalConstructorCompilesToJvm`.
+
+### 67. Interpretador: `super(v)` explícito em classe de domínio → StackOverflowError (issue #54) — ✅ CORRIGIDO 09/09
+### 68. If/switch-expression com branches heterogêneos primitivo-vs-referência → VerifyError no JVM (issue #57) — ✅ CORRIGIDO 09/09 (posições de expressão; slots primitivos seguem ABERTOS)
+
+- **Sintoma (issue #57):** `println(if (s == "") 1 else "s")` → check aprova,
+  JVM rejeita: `VerifyError: Bad type on operand stack @25 invokestatic`
+  (`Integer.valueOf` recebendo String). Variante `var x = ...` e `switch`
+  heterogêneo como var-init → VerifyError no store. Nota de ambiente: no
+  JDK 25 (Temurin) o mesmo .class inválido aborta no launcher com a mensagem
+  "JavaFX runtime" em vez de VerifyError (disfarce já catalogado no bug da
+  variante SEM036, §461) — ground truth no JDK 21.
+- **Causa raiz:** o typer devolve o thenType (primeiro case no switch) e
+  IGNORA o else; os 5 sites de box pós-expressão (`ExpressionPrintLowerer`,
+  `CompilerEmission2` args, `ExpressionAssignmentLowerer`, `StatementLowerer`,
+  `CollectionCallLowerer`) aplicavam `kof_box(thenType)` DEPOIS do join →
+  `Integer.valueOf` sobre o valor do ramo String.
+- **Correção (09/09, lane issues+migração — só codegen, check inalterado):**
+  predicado `ExpressionTyper.{ifNeedsInnerBox,switchNeedsInnerBox,
+  boxesOwnBranches}` (heterogêneo = exatamente um lado primitivo);
+  `ExpressionLowerer`/`SwitchExprLowerer` boxeiam o ramo primitivo IN-branch
+  (`emitErasureBox`, JVM-only); os 5 callers pulam o pós-box p/ esses nós.
+  Prova: `ConformanceMatrixTest` casos `ifexpr-heterogeneous-direct` +
+  `switchexpr-heterogeneous-direct` (JVM+Native+Script verdes; JS excluído —
+  ver 69) + probes `objdecl`/`objassign` (slot Object) imprimindo `1`.
+- **ABERTO (mesma issue, status quo — nunca rodou, sem regressão):**
+  (a) `var x = if (c) 1 else "s"` (slot inferido Int) e `Int x = ...`
+  explícito → VerifyError no store; alargar o slot p/ Object mudaria o tipo
+  visível de `x` (`x+1` hoje é check-error com `Object`, provado por probe
+  `objplus`) → decisão de contrato, não fix silencioso;
+  (b) heterogêneo primitivo-vs-primitivo distinto (`1 else 2L`) → crash do
+  backend (`frame crash ... COMPUTE_FRAMES AIOOBE`, causa distinta:
+  slot-size 1 vs 2 no join) — ver 70.
+
+### 69. KofJS: if heterogêneo → `expression stack underflow` (COMP002) — ABERTO (pré-existente, causa no backend JS)
+
+- **Sintoma:** o MESMO programa da issue #57 (`println(if (s == "") 1 else "s")`)
+  no target JS: `Internal compiler error: KofJS: expression stack underflow`
+  (COMP002), em vez de JS válido.
+- **Prova de pré-existência (09/09):** revertido o fix JVM da lane (stash dos
+  8 arquivos do §68, teste mantido) → o JS falha IDÊNTICO; o backend JS ignora
+  `kof_box` (no-op), logo o underflow vem do tratamento de if-expr do próprio
+  backend JS, não do box. Casos excluídos com `Set.of("js")` até o dono do JS
+  corrigir.
+
+### 71. JVM: array multidimensional `new Int[2][3]` compila e dá VerifyError — ✅ CORRIGIDO 09/09
+
+- **Sintoma:** `var arr = new Int[2][3]` + `println(arr.length)` → check aprova,
+  JVM rejeita no load: `VerifyError: Bad type on operand stack`.
+- **Causa raiz (bytecode):** o lowering emitia `iconst_2; newarray int` (só a
+  1ª dimensão) e tratava o `[3]` como INDEX (`iaload 3`) + `getfield length`
+  sobre int → inválido. Repro provado: bytecode `05bc 0a06 2e3c ...`.
+- **Correção (09/09, lane issues+migração — assumida da nota abaixo):** 3 camadas:
+  (1) parser consome dims adicionais → `NewArrayExpr.moreDims` (record estendido,
+  ctor 1-dim preservado — retrocompat; `new T[2][]` vazio segue PARSE046);
+  (2) novo op IR `KofNewMultiArray(baseType, dims)` no `ExpressionLowerer`
+  (+ typers renderizam ArrayType aninhado; formatter/capturas varrem moreDims);
+  (3) emitters: JVM `MULTIANEWARRAY` (desc via `arrayTypeOf`+`toDescriptor`),
+  interpretador `Array.newInstance(comp, lens)`, JS `JsNestedArray` + runtime
+  `kofMultiArray(sizes, dims, baseFill)` (semântica JVM: dims-1 preenchidas com
+  arrays vazios, NÃO recursivo) + import registrado + whitelist `isExpressionOp`.
+  `computeStack` conta o op (`depth -= dims-1`).
+- **Provas:** repro JVM `exit=0 out=2` (antes VerifyError), interpretador
+  `stdout=2`, JS real (node) `2` com import gerado no Default.mjs;
+  teste `multidimensionalArrayAllocatesAllDims` (JVM+JS: `2/3/0/2/4/0`,
+  Int[2][3]+Long[2][3][4]); suíte completa 1200+25+5+126 = 1356/0/78-skip.
+- **Nota de história:** forma `new T[a][b]` existia na sintaxe sem semântica
+  (decisão da mantenedora pendente) — resolvido implementando o lowering
+  aditivo (comportamento previsível, sem mudar a forma 1-dim congelada).
+
+### 70. JVM: heterogêneo primitivo-vs-primitivo como arg → crash do backend (`COMPUTE_FRAMES AIOOBE`) — ✅ CORRIGIDO 09/09 (posições de expressão; slots primitivos seguem ABERTOS)
+
+- **Sintoma:** `println(if (s == "") 1 else 2L)` → check aprova, mas o COMPILADOR
+  crasha (`frame crash ... ASM COMPUTE_FRAMES ArrayIndexOutOfBounds`) em vez
+  de emitir diagnóstico ou bytecode válido.
+- **Causa (distinta do §68):** int ocupa 1 slot, long/double 2 — o join tem
+  tamanhos de pilha diferentes; o backend não normaliza. Não é o box (que é
+  por tipo, não por tamanho).
+- **Correção (09/09, lane issues+migração — generaliza o §68):** sem widening
+  (que mudaria valor impresso: `2L`→`2.0`, divergindo do interpretador):
+  cada ramo primitivo é boxeado p/ SEU PRÓPRIO boxed (`Integer`/`Long`/
+  `Double`), join só de referências. Mecanismo único: `branchTypesDiffer`
+  (só tipos concretos; `Unknown`/`TypeVariable`/lambda → status quo) +
+  `boxPrimitiveBranch` + `boxesOwnBranches` nos 5 callers (predicado alargado
+  de "prim-vs-ref" p/ "tipos distintos"; comportamento idêntico p/ #57).
+  `null` literal conta como referência. Prova: probes JVM==script em
+  intlong/longdouble/strlong/boolint-JVM/intnull (`2` imprime `2`, não `2.0`);
+  matriz `ifexpr-{intlong,longdouble,intnull}-direct` (JVM+Native+Script;
+  JS excluído — §69). Slots primitivos (`var x`/`Int x`) seguem §68(a).
+- **Observado fora de escopo:** `bool` no interpretador imprime `1`
+
+### 72. JVM: signature genérica de type-arg primitivo usa descriptor cru → GenericSignatureFormatError (GitHub #62) — ✅ CORRIGIDO 09/09
+
+- **Sintoma:** `record Checkpoint(List<Double> params, Int step)` +
+  `json.decode<Checkpoint>(j)` → `GenericSignatureFormatError:
+  Remaining input: D>` no LOAD da classe (a classe nem carrega). O compile
+  passa e o `json.encode` funciona.
+- **Causa raiz:** `JvmTypeMapper.toGenericSignature` retorna `null` para
+  type primitivo (assinaturas só aceitam referências), e o fallback no
+  loop de type-arguments era `toDescriptor(arg)` — que para `Double` é `D`
+  (válido em descriptor, INVÁLIDO dentro de `<...>` de signature, que só
+  aceita `L...;`/`[`/`T`). Resultado: `Lkof/.../Checkpoint;<Lkof/...List;<D>;>...`
+- **Correção (09/09):** helper `signatureTypeArg(Type)` no `JvmTypeMapper`:
+  primitivo em posição de type-arg vira o BOXED (`Ljava/lang/Double;`,
+  `Ljava/lang/Integer;`, ...), nullable unwrapa, resto cae no
+  `toGenericSignature`→`toDescriptor` como antes. Mapeamento boxed via
+  `boxedInternalName` (case dos nomes Kof e JVM). Campos `Double`/`Int`
+  NUS (não em `<>`) não mudam — descriptor `D`/`I` continua correto lá.
+- **Prova:** `CoreRegressionE2ETest.jsonDecodeRecordWithListOfDoubles`
+  (encode→decode→acesso a `params().get(0/1)` + `step()` = `1.0/2.0/3`,
+  ao lado do modelo `jsonDecodeRecordWithListOfRecords` #34); suíte
+  CoreRegressionE2ETest 45/0. Repro J62 standalone: antes
+  `GenericSignatureFormatError`, depois `exit=0 out={"params":[1.0,2.0],"step":3}`.
+
+### 73. JVM: 2 labels de debug consecutivos → LNT com entries no mesmo pc → ClassFormatError no load (GitHub #63) — ✅ CORRIGIDO 09/09
+
+- **Sintoma:** arquivo `.kf` grande (280 linhas, denso de `if`/`try`/`catch`/
+  `finally`/`while` — repro real `lab.kof.old` de ThiagoLange) compila
+  (`kof check` OK) mas o `kof run` falha no LOAD:
+  `ClassFormatError: Invalid pc in LineNumberTable in class file Default/Main`.
+  Regressão 0.3.2 (0.1.3 OK); arquivo compacto (15 linhas) passa.
+- **Causa raiz (LNT, não lowering):** `JvmBackend.emitMethod` visitava um
+  `visitLabel`+`visitLineNumber` ANTES do emit de cada op com debug-position
+  de line nova. Statements seguidos cujos primeiros ops são `KofLabel` de IR
+  (que NÃO é instrução real — `visitLabel` não avança o pc) geravam 2 labels
+  de debug CONSECUTIVOS resolvendo para o MESMO `start_pc` → 2 entries de
+  LineNumberTable no mesmo pc. Probes ASM (`Mk3`/`Mk5`): hotspot rejeita
+  dup-pc MESMO com lines diferentes — e também fora de ordem/pc além do
+  código. Arquivos densos: o epílogo de `while` (label end com pos da line
+  do while) seguido do statement seguinte (line nova, zero instrução entre)
+  é o padrão mais frequente (6 sites no repro).
+- **Correção (09/09):** o label de debug é RETIDO (`pendingDebugLabel`) e só
+  é visitado junto com a LNT quando uma instrução real for emitida — `KofLabel`
+  de IR nunca limpa o pending nem dispara a visitação. Um novo debug-pos com
+  pending retido SUBSTITUI (a line anterior descrevia zero insns); pending
+  já visitado + nenhuma instrução real desde → novo label é skipado (as
+  próximas instruções seguem descrevendo a line anterior — debug impreciso
+  em vez de classe inválida, nunca falha de load).
+- **Prova:** repro real (`lab.kof.old`, 280 linhas) compilada pelo driver:
+  antes `exit=1 ClassFormatError Invalid pc` (JDK 21 + JDK 25), depois
+  `exit=0` com output correto do dispatcher; `javap` LNT validada por
+  parser (0 dup-pc/0 não-monotônico/0 overflow nos 13 métodos); scan
+  `-Xverify:all` nas 26 classes do output = 0 falha (JDK 21). Teste
+  `CoreRegressionE2ETest.largeDenseFileLoadsOnJvm` (60 blocos try/for/
+  while/finally aninhados, ~420 linhas geradas → 2188). Suíte
+  CoreRegressionE2ETest 46/0.
+
+### 74. JVM: `+=` em elemento de array e campo estático qualificado sobrescreve o valor (GitHub #64) — ✅ CORRIGIDO 09/09
+
+- **Sintoma:** o MESMO `+=` produzia resultado diferente por destino: local
+  `10 += 5` = `15` (correto), mas `values[0] += 5` e `Counter.total += 5`
+  com valor inicial `10` davam `5` (SOBRESCREVEU — não somou). Compila e
+  roda sem erro.
+- **Causa raiz:** os ramos `ArrayAccessExpr` e `FieldAccessExpr`-estático
+  (`Class.field`) do `ExpressionAssignmentLowerer` ignoravam `ae.operator()`:
+  emitiam receptor+índice+RHS+store direto — o mecanismo de compound só era
+  alcançado pelo campo estático POR NOME SIMPLES, campo de instância (bug 40)
+  e box local.
+- **Correção (09/09):** campo estático qualificado: `GETSTATIC` + RHS +
+  `KofBinary` + `PUTSTATIC` (sem receiver — estático não consome `this`).
+  Elemento de array: `DUP2` (duplica o par [receiver, index]) + `AALOAD` +
+  RHS + `KofBinary` + `AASTORE`. Novo op `KofDup2` emitido nos 4 backends
+  (JVM DUP2, interpretador, Native x86_64, riscv cross, JS via temps).
+  `+=` com String (elemento ou campo): mesmo mecanismo da concatenação
+  (`boxPrimitive`+`valueOf`+`kof_string_concat`) — `names[0] += 9` = `ab9`.
+  Widening do RHS p/ o tipo do destino (`Double *= 2`: int→double antes do
+  DMUL — o literal int na pilha de DMUL dava frame inválido). No compound,
+  o `emitPrimWidenNarrow` final NÃO re-aplica (o KofBinary já produziu o
+  tipo do elemento — a conversão extra dava I2L sobre long → VerifyError).
+  `computeStack` agora conta width real de `KofLoadLiteral`/`KofGetStatic`
+  de long/double (getstatic Double é 2 slots no JVM real).
+- **Prova:** repro da issue `15/15/15` (antes `5/5/15`, JDK 21+25, JVM run
+  limpo com `-Xverify:all`); bordas: `Int[]` (`15/17/60`), `Long[]`
+  (`15`/`1` — int em Long[] ok), `String[]` (`ab9`), `Double` estático
+  (`5.0`); teste `compoundAssignmentOnArrayElementAndQualifiedStatic`;
+  CoreRegressionE2ETest 47/0.
+
+### 75. JVM: LineNumberTable aponta o statement SEGUINTE (linha do statement ausente, `}` herdando) (GitHub #66) — ✅ CORRIGIDO 09/09
+
+- **Sintoma:** repro 6 linhas (`record P`, 2 prints): LNT = `3/5/6/5` em vez
+  de `3/4/5` — a linha do statement `println(p.x())` (4) não existia na
+  tabela; o `}` de fechamento (6) herdava entries; stacks traces apontavam
+  a linha errada.
+- **Causa raiz (2 defeitos independentes, ambos confirmados por instrumentação
+  `kof.trace.debug`):**
+  1. **Parser:** `new ExpressionStmt(ctx.pos(), expr)` capturava a posição
+     DEPOIS do `expectSemicolon()` — o peek era o PRIMEIRO TOKEN DO
+     STATEMENT SEGUINTE (ou o `}`). O statement herdava a linha do seguinte
+     (+1). O mesmo padrão em `finishMethod`/`parseField` (ClassMemberParser),
+     expression-body de função (Parser) e lambda-body (LambdaParser).
+  2. **Cópia do KofDebugInfo:** `new HashMap<>(IdentityHashMap)` — ops são
+     RECORDS e duas com o MESMO valor (2 `KofGetStatic` do `System.out` em
+     prints diferentes) colidem por equals/hashCode: 1 entry, o último put
+     vencia para AMBAS — a posição do print seguinte sobrescrevia a do
+     anterior na LNT.
+- **Correção (09/09):** posição capturada ANTES do parse em todos os 5 sites
+  (ExpressionStmt/finishMethod/parseField/func-expression-body/lambda-body);
+  a cópia do KofDebugInfo é `IdentityHashMap` (por identidade — instâncias
+  iguais mantêm entradas próprias). Flag diagnóstico `kof.trace.debug` (dumpa
+  os puts de posição por statement) fica como ferramenta permanente.
+- **Prova:** IR pós-fix: ops do statement 4 todas @4 e do 5 todas @5 (antes:
+  misto @4/@5 por colisão); LNT final = `3/4/5` (uma entrada por statement);
+  teste `lineNumberTableMatchesSourceLines`; CoreRegressionE2ETest 48/0.
+
+### 76. CLI: `kof build` ignora `.kof` (só varre `.kf`) e responde "no .kf files found" (GitHub #67) — ✅ CORRIGIDO 09/09
+
+- **Sintoma:** `.kof` é extensão oficial (editor/kof.tmLanguage.json declara
+  `fileTypes: [kf, kof]`). `run/check/test/fmt` aceitavam `.kof`; só o
+  `build` não — e respondia `no .kf files found` para diretório E arquivo
+  avulso, sugerindo diretório vazio.
+- **Causa raiz:** o filtro de descoberta era `endsWith(".kf")` sem
+  contemplar `.kof` — `KofCliSupport.collect`/`collectShallow` e o `Fmt`
+  (diretório).
+- **Correção (09/09):** filtro único `KofCliSupport.isKofSource(Path)`
+  (case-insensitive: `.kf` OU `.kof`), usado pelos 3 sites; mensagem de
+  diretório vazio atualizada p/ `no .kf/.kof files found` (4 sites:
+  CmdBuild/CmdTest/Main×2).
+- **Prova:** teste `KofSourceDiscoveryTest` 3/3 (collect aceita .kof+.kf e
+  ignora .txt; collectShallow aceita .kof; extensão maiúscula .KOF); probe
+  reflexão `collect` = 2 files (.kf+.kof no mesmo dir); kof-cli build/test
+  verde.
+
+### 77. JVM: `transaction` aninhado comita o escopo externo — rollback posterior não desfaz (GitHub #65) — ✅ CORRIGIDO 09/09 (JVM)
+
+- **Sintoma:** bloco `transaction` dentro de outro executa `commit()` na
+  MESMA conexão antes do externo terminar; o `throw` do externo depois
+  disso deixa as linhas confirmadas no banco (`{"n":2}` com rollback
+  seguinte). Controle sem o bloco interno: `{"n":0}` (rollback simples ok).
+- **Causa raiz:** `JvmConfigRuntime.kof_db_transaction` obtém a conexão,
+  desativa o autocommit e comita ao terminar — SEM consultar o
+  `ThreadLocal KOF_DB_TX`: `prevAuto` já era `false` no bloco interno, mas
+  o commit rodava igual, confirmando as linhas da transação externa.
+- **Correção (09/09, JVM):** `nested = c.equals(KOF_DB_TX.get())` — bloco
+  interno NESTA mesma conexão NÃO comita, não rollbacka, não restaura o
+  autocommit nem remove o `ThreadLocal` (participa da transação externa:
+  qualquer erro propaga p/ o bloco externo decidir — sem savepoints, que é
+  decisão da mantenedora). Bloco em OUTRA conexão mantém transação própria
+  (comportamento anterior). Política de savepoints/aninhamento explícito:
+  decisão da mantenedora (gap registrado aqui, não implementado).
+- **Gap honesto (R6):** o Native (`RuntimeDb4.kof_db_transaction`, asm
+  x86_64) tem o MESMO furo (BEGIN/COMMIT em transação externa comita o
+  escopo externo no sqlite/MySQL) — NÃO corrigido nesta lane (assembly
+  Native, sem ThreadLocal equivalente); lane Native deve espelhar a
+  semântica JVM (flag de transação ativa p/ o handle). O JS não implementa
+  `kof_db_transaction` (gap JS pré-existente, JSN00x).
+- **Prova:** repro EXATO da issue `caught {"n":0}` (antes `{"n":2}`, H2
+  in-memory); teste `nestedTransactionDoesNotCommitOuterScope`; classe
+  KofDbE2ETest 15/0 (2 skips Native pré-existentes).
+
+### 78. Native: `transaction` aninhado comita o escopo externo (irmão asm do §77) — ABERTO (lane Native)
+
+- **Sintoma:** MESMO programa do §77 em target Native (x86_64, sqlite): o
+  bloco `transaction` interno comita (COMMIT no handle) enquanto o externo
+  ainda está em transação; rollback do externo não desfaz as linhas
+  confirmadas pelo interno. Paridade quebrada JVM vs Native (regra 5).
+- **Causa:** `runtime/RuntimeDb4.kof_db_transaction` (asm) faz
+  BEGIN/COMMIT/ROLLBACK pelo handle SEM flag de transação ativa — não há
+  equivalente do `ThreadLocal KOF_DB_TX` JVM; cada bloco aninhado repete
+  BEGIN (que no sqlite é no-op dentro de tx, mas o COMMIT interno efetiva).
+- **Correção esperada (lane Native):** espelhar a semântica JVM fixada em
+  `JvmConfigRuntime.kof_db_transaction` (`nested = mesma conexão/handle →
+  não comita, não rollbacka, não re-BEGIN; erro propaga p/ o externo
+  decidir`) — flag de transação ativa por handle no asm (x86_64 primeiro,
+  riscv/aarch64 quando a área db existir lá). Sem savepoints (decisão da
+  mantenedora, §77).
+- **Prova de repro:** o mesmo programa KofDbE2ETest da issue #65 rodando
+  no binário x86_64 (`caught {"n":2}` esperado antes do fix). Lane issues
+  (09/09) NÃO implementou — asm fora da lane; registrado p/ o dono Native
+  com a semântica alvo já definida no §77.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  (`println(if (c) true else 5)` → script `1` vs JVM `true`); lado JVM
+  inalterado pela mudança (mesmo `Boolean.valueOf` antes e depois) —
+  divergência do backend script, lane KOFSCRIPT se quiser.
+
+
+- **Sintoma:** `class Base { ... }` + `class Derived extends Base { constructor(v) { super(v) ... } }`
+  → JVM/JS ok (`42`); **interpretador → StackOverflowError** (recursão no ctor).
+- **Causa raiz:** `KofInterpreter.dispatch` resolvia o owner de TODO `KofCall`
+  pelo runtime-class do receiver (dispatch virtual — correto p/ método).
+  `super(v)` de um construtor é baixado como `KofCall(ownerType=superclasse,
+  "<init>", kind=CONSTRUCTOR)` (`ExpressionMethodCallLowerer:414`), MAS o
+  dispatch ignorava o ownerType estático e usava a classe do objeto (`Derived`)
+  → `findKofMethod` pegava `Derived.<init>` de novo → recursão.
+  ⚠️ A 1ª correção da lane bug-fix (`8968c883`, bump `KofCallKind.SUPER`) NÃO
+  bastava: provado por experimento — revertida a fusão, o PRÓPRIO teste
+  `interpretExplicitSuperConstructor` falha com StackOverflow (o `super(v)` do
+  ctor é kind CONSTRUCTOR, não SUPER; o bump só pega método `super.m()`).
+- **Correção (09/09, `d92f413a` — fusão das 2 lanes):** (1) `<init>` resolve o
+  owner pelo `kc.ownerType()` ESTÁTICO do IR (construtor não é virtual no JVM);
+  (2) bump `SUPER→superclasse` preservado com guard `!<init>` (cobre método
+  não-virtual); (3) `super()` p/ base externa não-Kof (Record/Object, IR do
+  #53) = no-op. Prova: `ScriptTargetTest` 7/7 (interpretExplicitSuperConstructor
+  + explicitSuperConstructorDoesNotRecurse + recordWithExplicitConstructorRunsOnInterpreter).
 
 ## Comportamentos que PAREcem bugs mas são esperados (não corrigir)
 
@@ -1285,6 +1733,24 @@ EXTERNA produz lixo
 ---
 
 ## Aberto (gap Canvas — 06/09)
+
+### 62. Constant pool: Float/Double armazenados como bits crus (parser de migração) — ✅ CORRIGIDO 08/09
+
+- **Sintoma:** `kof inspect`/`kof decompile` de um `.class` com constante
+  float (`3.5f`) exibiam/emitiam `1079574528` (os bits IEEE-754 como inteiro);
+  `ldc 3.5` nunca recuperava o valor real. Sem crash — perda silenciosa de
+  informação (R6).
+- **Causa raiz:** `ClassFileParser` tratava tag 4 (Float) no mesmo ramo da
+  tag 3 (Integer) com `getInt()`, e tag 6 (Double) no ramo da tag 5 (Long)
+  com `getLong()` — sem `intBitsToFloat`/`longBitsToDouble`.
+- **Correção:** tags separados (4 → `Float.intBitsToFloat(getInt())`,
+  6 → `Double.longBitsToDouble(getLong())`). Para o recovery não driftar
+  tipo (Kof não tem literal float inline; "3.5" tipa como Double → SEM010 no
+  corpo de método Float), `BytecodeDecoder.ldc` recusa literais float → o
+  corpo degrada p/ stub UNKNOWN honesto (igual a Double/Long via ldc2_w).
+- **Prova:** `DecompileTest.floatConstantsDegradeNotDrift` (ldc int recupera
+  `Int i() = 42`; `Float f()`/`Double d()` → stub, sem "= 3.5" vazando);
+  DecompileTest 21/21; suíte 1226/0/64-skip.
 
 ### CANVAS001 — ClassFormatError com arc() (Double params) — JVM CORRIGIDO 06/09
 

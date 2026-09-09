@@ -421,6 +421,27 @@ class KofJsE2ETest {
         runJs(source, tempDir.resolve("out"), "3\n4");
     }
 
+    // #53 (metade JS): record com construtor explícito → o lowering injeta
+    // super(Record.<init>) (exigido pelo verificador JVM), mas a classe JS de
+    // record não tem pai → `SyntaxError: 'super' keyword unexpected here` e o
+    // módulo inteiro caía. O emitter agora descarta o super sintético de
+    // java.lang.Record. Paridade com JVM/script (ambos imprimem o valor).
+    @Test
+    void recordWithExplicitConstructorRunsOnJs(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+            record Q(Int x) {
+                constructor(Int x) {
+                    this.x = x
+                }
+            }
+            main() {
+                println(Q(1).x())
+            }
+            """);
+        runJs(source, tempDir.resolve("out"), "1");
+    }
+
     // 9. Inheritance ─────────────────────────────────────────────────
 
     @Test
@@ -587,6 +608,33 @@ class KofJsE2ETest {
             101
             2
             World""");
+    }
+
+    // String→número (github #51): toInt/toLong/toDouble/toFloat não existiam no
+    // runtime JS — `texto.kof_string_to_int()` → TypeError em execução. Paridade
+    // com JVM: parseInt/parseDouble de s.trim() validado (formato errado → throw).
+    @Test
+    void execStringToNumberConversion(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+            main() {
+                println("120000".toInt())
+                println("7".toLong())
+                println("2.5".toDouble())
+                println("-12".toInt())
+                try {
+                    println("abc".toInt())
+                } catch (String e) {
+                    println("ERR")
+                }
+            }
+            """);
+        runJs(source, tempDir.resolve("out"), """
+            120000
+            7
+            2.5
+            -12
+            ERR""");
     }
 
     // 14. Arrays ─────────────────────────────────────────────────────

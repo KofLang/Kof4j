@@ -109,7 +109,8 @@ public final class ExpressionJsonCallLowerer {
             return localIdx;
         }
         localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(0), ops, owner, localIdx, locals);
-        String decodeFn = JsonDispatch.decodeFunction(targetType, driver.listElementType(targetType));
+        Type listElementType = driver.listElementType(targetType);
+        String decodeFn = JsonDispatch.decodeFunction(targetType, listElementType);
         List<Type> decodeParams = List.of(BuiltinTypes.STRING);
         if (BuiltinTypes.isList(targetType)
                 && driver.listElementType(targetType) instanceof Type.ClassType ect
@@ -124,6 +125,21 @@ public final class ExpressionJsonCallLowerer {
                     driver.currentDiagnostics.error(p != null ? p.file() : "",
                             p != null ? p.line() : 0, p != null ? p.column() : 0, 0,
                             "json.decode: nested collections (List<List<T>>) are not supported yet (JSN004)",
+                            "JSN004");
+                }
+                return localIdx;
+            }
+            if (driver.target.isNative()) {
+                // decode<List<T>> (T = classe/record de usuário) no Native:
+                // o runtime nativo não tem kof_json_decode_object_list nem
+                // decoder real de lista de records (kof_json_decode_record_list
+                // é stub). Gap honesto (R6): diagnosticar em vez de emitir
+                // função inexistente (link fail) ou stub que retorna lixo.
+                if (driver.currentDiagnostics != null) {
+                    SourcePosition p = mc.position();
+                    driver.currentDiagnostics.error(p != null ? p.file() : "",
+                            p != null ? p.line() : 0, p != null ? p.column() : 0, 0,
+                            "json.decode: List<Record>/List<Class> not supported on the Native target yet (JSN004); use JVM/JS/interpreted",
                             "JSN004");
                 }
                 return localIdx;

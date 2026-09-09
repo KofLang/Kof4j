@@ -37,6 +37,7 @@ public final class Main {
             case "deps" -> System.exit(Deps.run(args));
             case "c" -> c(args);
             case "fmt" -> System.exit(Fmt.run(args));
+            case "editor" -> System.exit(CmdEditor.run(args));
             case "config" -> config(args);
             case "version" -> System.out.println("kof " + KofVersion.version());
             default -> { System.err.println("unknown: " + args[0]); printUsage(); }
@@ -68,6 +69,7 @@ public final class Main {
         System.out.println("  lsp                          Language Server (stdio, LSP protocol)");
         System.out.println("  install <dir>                install this build as a distribution");
         System.out.println("  deps <init|add|remove|list|resolve>   package manager (kofdeps)");
+        System.out.println("  editor <list|detect|status|setup|install|uninstall|update>   editor integration (EDI001)");
         System.out.println("  version");
         System.out.println();
         System.out.println("note: the js target is in development (alpha); it runs on Kof's embedded JS engine");
@@ -114,6 +116,8 @@ public final class Main {
             if (Files.exists(src.resolve("tooling"))) copyTree(src.resolve("tooling"), prefix.resolve("tooling"));
             System.out.println("kof installed at " + prefix.toAbsolutePath());
             System.out.println("add " + prefix.resolve("bin") + " to your PATH and run: kof info");
+            // EDI001 §13: oferece integrações de editor (nunca bloqueia o install)
+            CmdEditor.offerAfterInstall();
         } catch (Exception e) {
             System.err.println("install: " + e.getMessage());
             System.exit(1);
@@ -171,7 +175,7 @@ public final class Main {
         try {
             CompilerDriver driver = new CompilerDriver();
             List<Path> files = Files.isDirectory(src) ? KofCliSupport.collect(src) : List.of(src);
-            if (files.isEmpty()) { System.out.println("no .kf files found"); return; }
+            if (files.isEmpty()) { System.out.println("no .kf/.kof files found"); return; }
             // multi-arquivo: um módulo só (chaves são do programa inteiro)
             CompilationResult result = files.size() == 1
                     ? driver.compile(files.get(0), tmp, target)
@@ -289,7 +293,7 @@ public final class Main {
         Path src = Path.of(args[1]);
         if (!Files.exists(src)) { System.err.println("not found: " + src); System.exit(1); return; }
         List<Path> files = Files.isDirectory(src) ? KofCliSupport.collect(src) : List.of(src);
-        if (files.isEmpty()) { System.out.println("no .kf files found"); return; }
+        if (files.isEmpty()) { System.out.println("no .kf/.kof files found"); return; }
         CompilerDriver driver = new CompilerDriver();
         boolean ok = true;
         int count = files.size();

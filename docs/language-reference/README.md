@@ -96,7 +96,7 @@ são as que fazem sentido para o estado atual do Kof (beta):
 
 | Etiqueta | Significado |
 |---|---|
-| **Stable** | Comportamento definido pela linguagem, congelado (regra de semântica congelada 0.2.6-beta). Não muda sem bump de versão + migração. |
+| **Stable** | Comportamento definido pela linguagem, congelado (regra de   0.2.6-beta). Não muda sem bump de versão + migração. |
 | **Experimental** | Implementado e testável, mas sujeito a mudança. Não congelado. |
 | **Implementation-defined** | A linguagem não fixa o resultado; o compilador atual decide. Outro compilador Kof pode divergir legitimamente. |
 | **Target-specific** | O comportamento observável depende do target (JVM/Native/JS). Documentado como diferença, não escondido. |

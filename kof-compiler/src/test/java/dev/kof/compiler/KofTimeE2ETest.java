@@ -119,6 +119,144 @@ class KofTimeE2ETest {
                 """, "true");
     }
 
+    // ── STDLIB S7-wedge — calendário civil (isLeapYear/daysInMonth) ───────
+    @Test
+    void calendarJvm(@TempDir Path tempDir) throws IOException {
+        runJvm(tempDir, """
+                main() {
+                    println(time.isLeapYear(2000))
+                    println(time.isLeapYear(1900))
+                    println(time.isLeapYear(2024))
+                    println(time.isLeapYear(2023))
+                    println(time.isLeapYear(-4))
+                    println(time.daysInMonth(2024, 2))
+                    println(time.daysInMonth(2023, 2))
+                    println(time.daysInMonth(2024, 4))
+                    println(time.daysInMonth(2024, 13))
+                    println(time.daysInMonth(0, 5))
+                    println(time.dayOfWeek(1970, 1, 1))
+                    println(time.dayOfWeek(2026, 9, 9))
+                    println(time.dayOfWeek(1, 1, 1))
+                    println(time.dayOfWeek(9999, 12, 31))
+                    println(time.dayOfWeek(2024, 2, 30))
+                    println(time.daysBetween(2024, 1, 1, 2024, 3, 1))
+                    println(time.daysBetween(2024, 3, 1, 2024, 1, 1))
+                    println(time.daysBetween(2023, 2, 29, 2023, 3, 1))
+                }
+                """, "true\nfalse\ntrue\nfalse\nfalse\n29\n28\n30\n0\n0\n4\n3\n1\n5\n0\n60\n-60\n0");
+    }
+
+    @Test
+    void calendarJs(@TempDir Path tempDir) throws IOException {
+        runJs(tempDir, """
+                main() {
+                    println(time.isLeapYear(2000))
+                    println(time.isLeapYear(1900))
+                    println(time.daysInMonth(2024, 2))
+                    println(time.daysInMonth(2023, 2))
+                    println(time.daysInMonth(2024, 13))
+                    println(time.daysInMonth(0, 5))
+                }
+                """, "true\nfalse\n29\n28\n0\n0");
+    }
+
+    @Test
+    void calendarNative(@TempDir Path tempDir) throws IOException {
+        runNative(tempDir, """
+                main() {
+                    println(time.isLeapYear(2000))
+                    println(time.isLeapYear(1900))
+                    println(time.isLeapYear(2024))
+                    println(time.isLeapYear(-4))
+                    println(time.daysInMonth(2024, 2))
+                    println(time.daysInMonth(2023, 2))
+                    println(time.daysInMonth(2024, 4))
+                    println(time.daysInMonth(2024, 12))
+                    println(time.daysInMonth(2024, 13))
+                }
+                """, "true\nfalse\ntrue\nfalse\n29\n28\n30\n31\n0");
+    }
+
+    @Test
+    void calendarCrossArchRuntimes(@TempDir Path tempDir) throws IOException {
+        // PRIMEIRO teste de calendário que EXECUTA riscv/aarch (assert-only +
+        // qemu; bug 59 é só no link do println).
+        String src = """
+                main() {
+                    assert(time.isLeapYear(2000))
+                    assert(!time.isLeapYear(1900))
+                    assert(time.isLeapYear(2024))
+                    assert(!time.isLeapYear(2023))
+                    assert(!time.isLeapYear(-4))
+                    assert(time.daysInMonth(2024, 2) == 29)
+                    assert(time.daysInMonth(2023, 2) == 28)
+                    assert(time.daysInMonth(2024, 4) == 30)
+                    assert(time.daysInMonth(2024, 13) == 0)
+                    assert(time.daysInMonth(0, 5) == 0)
+                    assert(time.daysInMonth(2024, 12) == 31)
+                    assert(time.dayOfWeek(1970, 1, 1) == 4)
+                    assert(time.dayOfWeek(2026, 9, 9) == 3)
+                    assert(time.dayOfWeek(1, 1, 1) == 1)
+                    assert(time.dayOfWeek(9999, 12, 31) == 5)
+                    assert(time.dayOfWeek(2024, 2, 30) == 0)
+                    assert(time.dayOfWeek(10000, 1, 1) == 0)
+                    assert(time.daysBetween(2024, 1, 1, 2024, 3, 1) == 60)
+                    assert(time.daysBetween(2024, 3, 1, 2024, 1, 1) == -60)
+                    assert(time.daysBetween(2020, 2, 28, 2020, 3, 1) == 2)
+                    assert(time.daysBetween(2023, 2, 29, 2023, 3, 1) == 0)
+                    assert(time.daysBetween(2024, 1, 1, 10000, 1, 1) == 0)
+                }
+                """;
+        if (has("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64")) {
+            runQemu(tempDir, Target.NATIVE_RISCV64, "qemu-riscv64", src);
+        } else {
+            Assumptions.assumeTrue(false, "toolchain riscv64 ausente");
+        }
+        if (has("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64")) {
+            runQemu(tempDir, Target.NATIVE_AARCH64, "qemu-aarch64", src);
+        } else {
+            Assumptions.assumeTrue(false, "toolchain aarch64 ausente");
+        }
+    }
+
+    private void runQemu(Path tempDir, Target target, String qemu, String kofSource)
+            throws IOException {
+        Path file = tempDir.resolve("Main-" + target + "-" + System.nanoTime() + ".kf");
+        Files.writeString(file, kofSource);
+        Path outDir = tempDir.resolve("qemu-" + target + "-" + System.nanoTime());
+        CompilationResult result = new CompilerDriver().compile(file, outDir, target);
+        assertTrue(result.success(), target + " compile: " + result.diagnostics().getDiagnostics());
+        Path bin = outDir.resolve("Default/Main");
+        try {
+            Process p = new ProcessBuilder(qemu, bin.toString()).redirectErrorStream(true).start();
+            String output = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+            assertEquals(0, p.waitFor(), target + " qemu exit, out: " + output);
+        } catch (InterruptedException e) {
+            throw new IOException("interrupted", e);
+        }
+    }
+
+    private String runJs(Path tempDir, String kofSource, String expected) throws IOException {
+        Path file = tempDir.resolve("Main-" + System.nanoTime() + ".kf");
+        Files.writeString(file, kofSource);
+        Path outDir = tempDir.resolve("out-" + System.nanoTime());
+        CompilationResult result = driver.compile(file, outDir, Target.JS);
+        assertTrue(result.success(), "JS compile: " + result.diagnostics().getDiagnostics());
+        Path entry;
+        try (var s = Files.walk(outDir)) {
+            entry = s.filter(p -> p.getFileName().toString().equals("Default.mjs")).findFirst()
+                    .orElseThrow(() -> new IOException("no .mjs"));
+        }
+        try (java.io.ByteArrayOutputStream buf = new java.io.ByteArrayOutputStream()) {
+            int ec = dev.kof.runtime.KofJsRunner.run(entry, buf,
+                    java.io.InputStream.nullInputStream(), new java.io.ByteArrayOutputStream());
+            String output = buf.toString(StandardCharsets.UTF_8).trim();
+            assertEquals(0, ec, "JS exit, out: " + output);
+            assertEquals(expected, output, "JS output");
+            return output;
+        }
+    }
+
     @Test
     void nativeAndJsSupportNowAndSleep(@TempDir Path tempDir) throws IOException {
         Path source = tempDir.resolve("Main.kf");

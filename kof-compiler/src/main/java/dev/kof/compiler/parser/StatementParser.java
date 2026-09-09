@@ -124,9 +124,16 @@ public class StatementParser {
             ctx.advance();
             return new ExpressionStmt(ctx.pos(), null);
         }
+        // GitHub #66 / bug 75: a posição do statement é capturada ANTES do
+        // parse — `ctx.pos()` APÓS `expectSemicolon()` aponta para o TOKEN
+        // DO PRÓXIMO STATEMENT (o `;` já foi consumido e o peek é o
+        // primeiro token da linha seguinte, ou o `}` de fechamento). O
+        // LineNumberTable herdava as linhas do statement SEGUINTE: a linha
+        // do statement atual não existia na tabela e o `}` ganhava entries.
+        SourcePosition stmtPos = ctx.pos();
         ExpressionNode expr = ExpressionParser.parseExpression(ctx);
         ctx.expectSemicolon();
-        return new ExpressionStmt(ctx.pos(), expr);
+        return new ExpressionStmt(stmtPos, expr);
     }
 
     static StatementNode parseReturn(ParseContext ctx) {
@@ -352,7 +359,12 @@ public class StatementParser {
     static StatementNode parseVarDecl(ParseContext ctx) {
         SourcePosition p = ctx.pos();
         String type = "var";
-        if (ctx.check(TokenType.VAR, TokenType.VAL)) {
+        if (ctx.check(TokenType.VAL)) {
+            // bug 62: `val` é imutável — o type do VarDeclStmt precisa carregar
+            // "val" para o analisador semântico emitir SEM037 em reatribuição.
+            ctx.advance();
+            type = "val";
+        } else if (ctx.check(TokenType.VAR)) {
             ctx.advance();
         } else {
             type = TypeParser.parseTypeRef(ctx);

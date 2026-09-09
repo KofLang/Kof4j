@@ -51,12 +51,17 @@ public final class RuntimeChannel {
                 lock cmpxchg %edx, (%rsi)
                 testl %eax, %eax
                 jz .Lchan_send_locked
-                movl $1, %edx
-                xorq %r10, %r10
-                xorq %r8, %r8
-                xorq %r9, %r9
+                # futex WAIT — args corretos (bug 50): o código antigo chamava
+                # syscall 202 com rdi=chan (uaddr errado) e rsi=&lock (usado
+                # como op) → comportamento indefinido na contenção (spawn).
+                # Padrão do WAKE abaixo: rdi=uaddr, rsi=op, rdx=val.
+                movq %rsi, %rdi              # uaddr = &lock
+                movl $0, %esi                # op = FUTEX_WAIT
+                movl $1, %edx                # val = 1 (espera lock==1)
+                xorq %r10, %r10              # timeout = NULL
                 movq $202, %rax
                 syscall
+                leaq 20(%r13), %rsi          # restaura &lock p/ o cmpxchg
                 jmp .Lchan_send_lock
             .Lchan_send_locked:
                 movl $16, %edi
@@ -106,12 +111,14 @@ public final class RuntimeChannel {
                 lock cmpxchg %edx, (%rsi)
                 testl %eax, %eax
                 jz .Lchan_recv_locked
-                movl $1, %edx
-                xorq %r10, %r10
-                xorq %r8, %r8
-                xorq %r9, %r9
+                # futex WAIT — args corretos (bug 50): ver kof_channel_send.
+                movq %rsi, %rdi              # uaddr = &lock
+                movl $0, %esi                # op = FUTEX_WAIT
+                movl $1, %edx                # val = 1 (espera lock==1)
+                xorq %r10, %r10              # timeout = NULL
                 movq $202, %rax
                 syscall
+                leaq 20(%r13), %rsi          # restaura &lock p/ o cmpxchg
                 jmp .Lchan_recv_lock
             .Lchan_recv_locked:
                 cmpl $0, 16(%r13)                # count?
@@ -147,6 +154,10 @@ public final class RuntimeChannel {
                 syscall
                 movl $1000, %edi
                 call usleep
+                leaq 20(%r13), %rsi              # bug 50: %rsi e caller-saved;
+                # usleep clobbera %rsi (&lock) -- sem restaura-lo, o cmpxchg
+                # de .Lchan_recv_lock deref um ponteiro corrompido -> SIGSEGV
+                # (raiz do channel+spawn, onde receive dorme na fila vazia).
                 jmp .Lchan_recv_lock
             """);
     }

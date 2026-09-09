@@ -173,6 +173,35 @@ class KofDbE2ETest {
         runJvm(source, tempDir.resolve("out"), "caught\n{\"n\":0}");
     }
 
+    // GitHub #65 / bug 77 — aninhamento: um bloco transaction interno NESTA
+    // mesma conexão NÃO comita (participa da transação externa). Antes o
+    // commit interno confirmava as linhas da transação externa e o rollback
+    // posterior não as desfazia ({"n":2} — garantia transacional quebrada).
+    @Test
+    void nestedTransactionDoesNotCommitOuterScope(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+            main() {
+                var connection = db.connect("jdbc:h2:mem:tx_probe;DB_CLOSE_DELAY=-1")
+                db.execute(connection, "create table entries(id int)")
+                try {
+                    transaction {
+                        db.execute(connection, "insert into entries values (1)")
+                        transaction {
+                            db.execute(connection, "insert into entries values (2)")
+                        }
+                        throw "abort outer transaction"
+                    }
+                } catch (String e) {
+                    println("caught")
+                }
+                var rows = db.query(connection, "select count(*) as n from entries")
+                println(rows.get(0))
+            }
+            """);
+        runJvm(source, tempDir.resolve("out"), "caught\n{\"n\":0}");
+    }
+
     @Test
     void nativeTransactionCommits(@TempDir Path tempDir) throws IOException {
         assumeTrue(isLinux(), "Native transaction requires Linux + libsqlite3");
@@ -385,8 +414,34 @@ class KofDbE2ETest {
     }
 
     @Test
-    void crossNativeReportsDb001(@TempDir Path tempDir) throws IOException {
-        // R6: db exige link dinâmico de libsqlite3 (libc) — os cross estáticos
+    void handleReuseAfterCloseDoesNotAliasLiveConnection(@TempDir Path tempDir) throws IOException {
+        // issue #60 — `kof_db_register` gerava `"db" + (size() + 1)`: fechar
+        // `a` e abrir `c` reutilizava o id de `b` (ainda aberta), sobrescrevia
+        // o registro e o UPDATE via `b` escrevia no banco C — silencioso.
+        // Fix: contador monotônico (nunca reutilizar handle de conexão ativa).
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+            main() {
+                var a = db.connect("jdbc:h2:mem:database_a;DB_CLOSE_DELAY=-1")
+                var b = db.connect("jdbc:h2:mem:database_b;DB_CLOSE_DELAY=-1")
+                db.execute(b, "create table marker(amount int)")
+                db.execute(b, "insert into marker values (20)")
+                db.close(a)
+                var c = db.connect("jdbc:h2:mem:database_c;DB_CLOSE_DELAY=-1")
+                db.execute(c, "create table marker(amount int)")
+                db.execute(c, "insert into marker values (30)")
+                println(b)
+                println(c)
+                db.execute(b, "update marker set amount = 99")
+                var rows = db.query(c, "select amount as n from marker")
+                println(rows.get(0))
+            }
+            """);
+        runJvm(source, tempDir.resolve("jvm"), "db2\ndb3\n{\"n\":30}");
+    }
+
+    @Test
+    void crossNativeReportsDb001(@TempDir Path tempDir) throws IOException {        // R6: db exige link dinâmico de libsqlite3 (libc) — os cross estáticos
         // (asm puro, sem C) reportam DB001 em compile-time, nunca undefined-
         // reference silencioso no ld.
         Path source = tempDir.resolve("Main.kf");

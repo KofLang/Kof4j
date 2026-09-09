@@ -84,8 +84,13 @@ final class LspServer {
                 completion.put("triggerCharacters", List.of("."));
                 capabilities.put("completionProvider", completion);
                 capabilities.put("hoverProvider", Boolean.TRUE);
+                capabilities.put("definitionProvider", Boolean.TRUE);
                 capabilities.put("referencesProvider", Boolean.TRUE);
                 capabilities.put("renameProvider", Boolean.TRUE);
+                capabilities.put("documentFormattingProvider", Boolean.TRUE);
+                capabilities.put("documentSymbolProvider", Boolean.TRUE);
+                capabilities.put("codeActionProvider",
+                        Map.of("codeActionKinds", List.of("source")));
                 Map<String, Object> result = new LinkedHashMap<>();
                 result.put("capabilities", capabilities);
                 result.put("serverInfo", Map.of("name", "kof-lsp", "version", dev.kof.compiler.KofVersion.version()));
@@ -98,9 +103,13 @@ final class LspServer {
             case "textDocument/didChange" -> publishDiagnostics(params);
             case "textDocument/didClose" -> clearDiagnostics(params);
             case "textDocument/hover" -> hover(id, params);
+            case "textDocument/definition" -> definition(id, params);
             case "textDocument/completion" -> completion(id, params);
             case "textDocument/references" -> references(id, params);
             case "textDocument/rename" -> rename(id, params);
+            case "textDocument/formatting" -> formatting(id, params);
+            case "textDocument/documentSymbol" -> documentSymbol(id, params);
+            case "textDocument/codeAction" -> codeAction(id, params);
             default -> {  }
         }
     }
@@ -237,21 +246,6 @@ final class LspServer {
         return en > st ? text.substring(st, en) : "";
     }
 
-    private static final List<String[]> KEYWORDS = List.of(
-            new String[]{"var", "variável mutável"}, new String[]{"val", "valor imutável"},
-            new String[]{"spawn", "roda tarefa em virtual thread"},
-            new String[]{"await", "aguarda Handle<T> e devolve T"},
-            new String[]{"enum", "conjunto fechado de constantes"},
-            new String[]{"record", "estrutura imutável com componentes"},
-            new String[]{"class", "classe"}, new String[]{"interface", "contrato"},
-            new String[]{"switch", "seleção (exaustiva sobre enum → SEM031)"},
-            new String[]{"listOf", "cria List<T>"}, new String[]{"mapOf", "cria Map<K,V>"},
-            new String[]{"setOf", "cria Set<T>"},
-            new String[]{"println", "imprime linha no stdout"});
-
-    private static final List<String> BUILTIN_TYPES = List.of(
-            "Int", "Long", "Bool", "String", "Float", "Double");
-
     private void hover(Object id, Map<String, Object> params) {
         Map<String, Object> td = params.get("textDocument") instanceof Map<?, ?> p
                 ? (Map<String, Object>) p : Map.of();
@@ -261,30 +255,9 @@ final class LspServer {
         long line = pos.get("line") instanceof Number n ? n.longValue() : 0;
         long ch = pos.get("character") instanceof Number n ? n.longValue() : 0;
         String word = wordAt(text, offsetOf(text, line, ch));
-        if (word.isEmpty()) { respond(id, null); return; }
-        String contents = hoverFor(word, text);
+        String contents = word.isEmpty() ? null : LspHover.hoverFor(word, text);
         if (contents == null) { respond(id, null); return; }
         respond(id, Map.of("contents", Map.of("kind", "markdown", "value", contents)));
-    }
-
-    private String hoverFor(String word, String text) {
-        for (String[] k : KEYWORDS) {
-            if (k[0].equals(word)) return "**" + k[0] + "** — " + k[1];
-        }
-        if (BUILTIN_TYPES.contains(word)) return "**" + word + "** — tipo primitivo Kof";
-        for (String ln : text.split("\n")) {
-            String t = ln.strip();
-            if (t.startsWith("var ") || t.startsWith("val ")) {
-                String rest = t.substring(4).strip();
-                if (rest.startsWith(word)) {
-                    int after = rest.indexOf(word) + word.length();
-                    if (after < rest.length() && ":= \t".indexOf(rest.charAt(after)) >= 0) {
-                        return "**" + word + "** — variável local\n```kf\n" + ln.strip() + "\n```";
-                    }
-                }
-            }
-        }
-        return null;
     }
 
     @SuppressWarnings("unchecked")
@@ -307,8 +280,8 @@ final class LspServer {
             items.add(it);
         };
         if (!member) {
-            for (String[] k : KEYWORDS) add.accept(k[0], "Keyword");
-            for (String ty : BUILTIN_TYPES) add.accept(ty, "Type");
+            for (String[] k : LspHover.KEYWORDS) add.accept(k[0], "Keyword");
+            for (String ty : LspHover.BUILTIN_TYPES) add.accept(ty, "Type");
         }
         java.util.Set<String> seen = new java.util.HashSet<>();
         for (String ln : text.split("\n")) {
@@ -344,6 +317,91 @@ final class LspServer {
 
     private static boolean isIdentChar(char c) {
         return Character.isLetterOrDigit(c) || c == '_';
+    }
+
+    @SuppressWarnings("unchecked")
+    private void definition(Object id, Map<String, Object> params) {
+        Map<String, Object> td = params.get("textDocument") instanceof Map<?, ?> p
+                ? (Map<String, Object>) p : Map.of();
+        String uri = str(td.get("uri"));
+        String text = openText.getOrDefault(uri, "");
+        Map<String, Object> pos = params.get("position") instanceof Map<?, ?> p
+                ? (Map<String, Object>) p : Map.of();
+        long line = pos.get("line") instanceof Number n ? n.longValue() : 0;
+        long ch = pos.get("character") instanceof Number n ? n.longValue() : 0;
+        int off = offsetOf(text, line, ch);
+        String word = wordAt(text, off);
+        int[] decl = LspSymbols.declarationRange(text, word);
+        if (decl == null) { respond(id, null); return; }
+        Map<String, Object> loc = new LinkedHashMap<>();
+        loc.put("uri", uri);
+        loc.put("range", rangeOf(text, decl[0], decl[1]));
+        respond(id, List.of(loc));
+    }
+
+    @SuppressWarnings("unchecked")
+    private void formatting(Object id, Map<String, Object> params) {
+        Map<String, Object> td = params.get("textDocument") instanceof Map<?, ?> p
+                ? (Map<String, Object>) p : Map.of();
+        String uri = str(td.get("uri"));
+        String text = openText.getOrDefault(uri, "");
+        Map<String, Object> edit = formatEdit(uri, text);
+        if (edit == null) { respond(id, List.of()); return; }
+        respond(id, List.of(edit));
+    }
+
+    /**
+     * Edit de formatação (range do documento inteiro + newText), ou null se
+     * já está formatado / o parser não fecha (não corrompe o buffer — R6).
+     * Compartilhado por textDocument/formatting e codeAction source.format.
+     */
+    private Map<String, Object> formatEdit(String uri, String text) {
+        String formatted;
+        try {
+            formatted = dev.kof.compiler.KofFormatter.format(text, fileNameOf(uri));
+        } catch (RuntimeException e) {
+            return null;
+        }
+        if (formatted.equals(text)) return null;
+        Map<String, Object> edit = new LinkedHashMap<>();
+        edit.put("range", rangeOf(text, 0, text.length()));
+        edit.put("newText", formatted);
+        return edit;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void codeAction(Object id, Map<String, Object> params) {
+        Map<String, Object> td = params.get("textDocument") instanceof Map<?, ?> p
+                ? (Map<String, Object>) p : Map.of();
+        String uri = str(td.get("uri"));
+        String text = openText.getOrDefault(uri, "");
+        List<Object> actions = new ArrayList<>();
+        Map<String, Object> edit = formatEdit(uri, text);
+        if (edit != null) {
+            Map<String, Object> docEdit = new LinkedHashMap<>();
+            docEdit.put("textDocument", Map.of("uri", uri));
+            docEdit.put("edits", List.of(edit));
+            Map<String, Object> action = new LinkedHashMap<>();
+            action.put("title", "Format Document");
+            action.put("kind", "source");
+            action.put("edit", Map.of("documentChanges", List.of(docEdit)));
+            actions.add(action);
+        }
+        respond(id, actions);
+    }
+
+    private static String fileNameOf(String uri) {
+        String path = uri.startsWith("file:") ? uri.substring("file:".length()) : uri;
+        int slash = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+        return slash >= 0 ? path.substring(slash + 1) : path;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void documentSymbol(Object id, Map<String, Object> params) {
+        Map<String, Object> td = params.get("textDocument") instanceof Map<?, ?> p
+                ? (Map<String, Object>) p : Map.of();
+        String uri = str(td.get("uri"));
+        respond(id, LspSymbols.documentSymbolMaps(openText.getOrDefault(uri, "")));
     }
 
     @SuppressWarnings("unchecked")

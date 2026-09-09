@@ -3,7 +3,7 @@
 > Fonte: auditoria de código real (evidências `arquivo:linha`) + plano por fases.
 > Princípio (AGENTS.md): IR compartilhado + frontend semântico compartilhado +
 > capability system + backend/target específico. Zero fallback silencioso (R6).
-> Zero regressão: tudo aditivo; semântica congelada (0.2.6-beta) não muda.
+> Zero regressão: tudo aditivo;   (0.2.6-beta) não muda.
 
 ## F0 — ESTADO REAL (o que já existe)
 
@@ -128,7 +128,7 @@ sem --target, sem servir frontend estático por conta própria), `check`
 ## RESTRIÇÕES (do plano + AGENTS.md)
 - Nenhum `if target == X` espalhado: gates centralizados nos Kof*.java
   (supportedOn/gapCode) e em TargetMatrix (F2).
-- Semântica congelada: PKG002/4/5 e regra "dir = pacote" não mudam;
+-  : PKG002/4/5 e regra "dir = pacote" não mudam;
   F1 é aditivo (kof.toml opt-in; sem ele, tudo como antes).
 - Microsserviços: kof.http/kof.web/http server existentes (CmdServe,
   KofHttpServer, web.app()) permanecem intactos — full-stack é aditivo.

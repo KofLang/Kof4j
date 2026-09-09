@@ -186,7 +186,14 @@ if ("setOf".equals(mc.methodName()) && mc.receiver() == null) {
     return new Type.ClassType("kof", "Set", List.of(elemType));
 }
 if (mc.receiver() == null && "__kof_spawn_expr".equals(mc.methodName())) {
-    Type t = ExpressionTyper.inferExprType(driver, mc.arguments().get(0), locals);
+    ExpressionNode body = mc.arguments().get(0);
+    // bug 46: `spawn { return 42 }` — o type-arg do Handle é o RETURN da
+    // lambda, não o FunctionType (inferExprType(lambda) dá FunctionType([],Int)).
+    // Sem o unwrap, `await h` devolve FunctionType → println vira String →
+    // deref inválido (SIGSEGV nativo). Espelha ExpressionStaticCallLowerer.
+    Type t = body instanceof LambdaExpr le
+            ? ExpressionTyper.inferLambdaBodyType(driver, le, locals)
+            : ExpressionTyper.inferExprType(driver, body, locals);
     return new Type.ClassType("kof.concurrent", "Handle", List.of(t));
 }
                 if (mc.receiver() == null && "cancel".equals(mc.methodName())
@@ -398,6 +405,13 @@ if (mc.receiver() != null) {
         for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
         KofValidation.ValidationCall vCall = KofValidation.staticMethod(rid.name(), mc.methodName(), argTypes);
         if (vCall != null) return vCall.returnType();
+        return Type.UnknownType.UNKNOWN;
+    }
+    if (mc.receiver() instanceof IdentifierExpr rid && KofStd.isStdNamespace(rid.name())) {
+        List<Type> argTypes = new ArrayList<>();
+        for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
+        KofStd.StdCall sCall = KofStd.staticMethod(rid.name(), mc.methodName(), argTypes);
+        if (sCall != null) return sCall.returnType();
         return Type.UnknownType.UNKNOWN;
     }
     if (mc.receiver() instanceof IdentifierExpr rid && KofObservability.isObservabilityNamespace(rid.name())) {

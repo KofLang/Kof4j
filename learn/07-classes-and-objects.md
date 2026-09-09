@@ -49,7 +49,7 @@ main() {
     var u = User("Mel", "mel@kof.dev")
     println(u.greeting())      // Hello Mel
     println(u.name)            // leitura ok (vira o accessor)
-    // u.name = "Ana"          // ERRO de runtime: record é imutável
+    // u.name = "Ana"          // ERRO de compilação SEM038: record é imutável
 }
 ```
 

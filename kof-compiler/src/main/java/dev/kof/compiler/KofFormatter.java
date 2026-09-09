@@ -316,6 +316,24 @@ public final class KofFormatter {
     }
 
     static String formatExpr(ExpressionNode expr) {
+        return formatExpr(expr, 0);
+    }
+
+    /**
+     * #52 — impressão com reconstrução de agrupamento: parênteses são
+     * re-inseridos onde a árvore os exige. A regra espelha EXATAMENTE o
+     * parser (ExpressionParser.parseBinary: left = parseUnary, right =
+     * parseBinary(prec+1) → operadores ESQUERDA-associativos): um filho
+     * binário só é re-parseado sem parênteses quando sua precedência
+     * respeita o contexto (left: prec >= prec do pai; right: prec > prec
+     * do pai). Operadores unary/calls/if-expr/lambda são atômicos no
+     * nível de parseUnary/parsePostfix (precedência 9) — o parser os
+     * consome inteiros nesse nível, então nunca precisam de parênteses
+     * em si, mas seus operandos/branches são expressões completas.
+     *
+     * @param minPrec precedência mínima p/ imprimir sem parênteses
+     */
+    static String formatExpr(ExpressionNode expr, int minPrec) {
         if (expr == null) return "";
         if (expr instanceof IdentifierExpr ie) return ie.name();
         if (expr instanceof LiteralExpr le) {
@@ -323,12 +341,27 @@ public final class KofFormatter {
             if (le.kind() == ConcreteLiteralKind.CHAR) return "'" + le.value() + "'";
             return le.value();
         }
-        if (expr instanceof BinaryExpr be) return formatExpr(be.left()) + " " + be.operator() + " " + formatExpr(be.right());
-        if (expr instanceof UnaryExpr ue) {
-            if (ue.prefix()) return ue.operator() + formatExpr(ue.operand());
-            else return formatExpr(ue.operand()) + ue.operator();
+        if (expr instanceof BinaryExpr be) {
+            int p = precOf(be.operator());
+            if (p < minPrec) return "(" + formatExpr(be, 0) + ")";
+            // left-associativo (parser: left = parseUnary antes do op):
+            // filho esquerdo com precedência igual não precisa de parênteses
+            // (a - (b - c) != (a - b) - c; a - b - c = (a - b) - c).
+            String l = formatExpr(be.left(), p);
+            // parser: right = parseBinary(prec + 1) → filho direito com
+            // precedência igual PRECISA de parênteses.
+            String r = formatExpr(be.right(), p + 1);
+            return l + " " + be.operator() + " " + r;
         }
-        if (expr instanceof AssignmentExpr ae) return formatExpr(ae.target()) + " " + ae.operator() + " " + formatExpr(ae.value());
+        if (expr instanceof UnaryExpr ue) {
+            if (ue.prefix()) return ue.operator() + formatExpr(ue.operand(), 9);
+            else return formatExpr(ue.operand(), 9) + ue.operator();
+        }
+        if (expr instanceof AssignmentExpr ae) {
+            // parseAssignment: right = parseAssignment (right-associativo,
+            // precedência 0, a mais baixa) → a= b = c sem parênteses.
+            return formatExpr(ae.target()) + " " + ae.operator() + " " + formatExpr(ae.value(), 0);
+        }
         if (expr instanceof MethodCallExpr mce) {
             StringBuilder sb = new StringBuilder();
             if (mce.receiver() != null) sb.append(formatExpr(mce.receiver())).append(".");
@@ -353,7 +386,12 @@ public final class KofFormatter {
             sb.append(")");
             return sb.toString();
         }
-        if (expr instanceof NewArrayExpr nae) return "new " + nae.elementType() + "[" + formatExpr(nae.size()) + "]";
+        if (expr instanceof NewArrayExpr nae) {
+            StringBuilder sb2 = new StringBuilder("new ").append(nae.elementType())
+                    .append("[").append(formatExpr(nae.size())).append("]");
+            for (ExpressionNode dim : nae.moreDims()) sb2.append("[").append(formatExpr(dim)).append("]");
+            return sb2.toString();
+        }
         if (expr instanceof ArrayAccessExpr aae) return formatExpr(aae.receiver()) + "[" + formatExpr(aae.index()) + "]";
         if (expr instanceof FieldAccessExpr fae) return formatExpr(fae.receiver()) + "." + fae.fieldName();
         if (expr instanceof IfExpr ie) return "if (" + formatExpr(ie.condition()) + ") " + formatExpr(ie.thenExpr()) + " else " + formatExpr(ie.elseExpr());
@@ -389,5 +427,20 @@ public final class KofFormatter {
             return pe.typeName();
         }
         return expr.toString();
+    }
+
+    /** Espelho de ExpressionParser.precedence (fonte: o parser, não a memória). */
+    static int precOf(String op) {
+        return switch (op) {
+            case "||" -> 1;
+            case "&&" -> 2;
+            case "|", "^" -> 3;
+            case "&" -> 4;
+            case "==", "!=", "<", "<=", ">", ">=", "instanceof", "as" -> 5;
+            case "<<", ">>", ">>>" -> 6;
+            case "+", "-" -> 7;
+            case "*", "/", "%" -> 8;
+            default -> 0;
+        };
     }
 }

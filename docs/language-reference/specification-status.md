@@ -3,7 +3,7 @@
 **Versão:** 0.3.0-beta · **Data:** 06/09/2026
 
 Classificação de cada feature da linguagem. **Nada aqui é "estável" por
-cortesia** — Stable exige semântica congelada (regra 0.2.6-beta) **e** teste
+cortesia** — Stable exige   (regra 0.2.6-beta) **e** teste
 que a prova. Categorias: **Stable · Experimental · Implementation-defined ·
 Target-specific · Unspecified · Planned**.
 

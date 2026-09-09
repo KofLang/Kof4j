@@ -28,6 +28,14 @@ public final class StatementAnalyzer {
             SymbolTable.Symbol sym = scope.resolve(ie.name());
             if (sym != null) {
                 targetType = sym.type();
+                // bug 62: `val` é imutável — escrever em val é erro de
+                // mutabilidade (SEM037), alinhado à  .
+                if (sym instanceof SymbolTable.LocalVariableSymbol lv && lv.isVal()
+                        && sa.diagnostics() != null) {
+                    sa.diagnostics().error("", 0, 0, 0,
+                            "cannot assign to immutable 'val' variable '" + ie.name() + "'",
+                            "SEM037");
+                }
                 if (sa.diagnostics() != null && !Type.isUnknown(targetType)
                         && !Type.isUnknown(valueType)
                         && !TypeChecker.isAssignable(valueType, targetType)) {
@@ -37,6 +45,28 @@ public final class StatementAnalyzer {
                 }
             } else {
                 targetType = SemExpressionTyper.inferType(sa, ae.target(), scope);
+            }
+        } else if (ae.target() instanceof FieldAccessExpr fa) {
+            // #42 (DD-02): escrita em componente de record é SEM038 — o corpus
+            // (learn/07) define record como imutável; hoje só o JVM/JS falham
+            // em runtime (IllegalAccessError/TypeError) e o interpretador
+            // muta em silêncio. O guard no analyzer alinha os 4 caminhos.
+            Type recvType = SemExpressionTyper.inferType(sa, fa.receiver(), scope);
+            targetType = recvType;
+            // DD-02/#42: escrita em componente de record é SEM038. Para o
+            // receiver explícito, o tipo resolve normalmente; para `this`,
+            // inferType não tipa o identificador — usa-se currentClassName.
+            // `this.x =` só é legal no construtor (init do campo final,
+            // JVMS 4.4); em método de record → sintoma (c) do #42.
+            boolean onThis = fa.receiver() instanceof IdentifierExpr rid && "this".equals(rid.name());
+            boolean recvIsRecord = onThis
+                    ? (sa.currentClassName() != null && CompilerTypes.isRecordType(
+                            new Type.ClassType("", sa.currentClassName(), List.of()), sa.unit(), sa))
+                    : (recvType != null && CompilerTypes.isRecordType(recvType, sa.unit(), sa));
+            if (sa.diagnostics() != null && recvIsRecord && !(onThis && sa.inConstructor)) {
+                sa.diagnostics().error("", 0, 0, 0,
+                        "cannot assign to '" + fa.fieldName() + "': record is immutable",
+                        "SEM038");
             }
         } else if (ae.target() != null) {
             targetType = SemExpressionTyper.inferType(sa, ae.target(), scope);
@@ -72,7 +102,10 @@ public final class StatementAnalyzer {
             }
             case VarDeclStmt vds -> {
                 Type varType;
-                if (vds.type() != null && !vds.type().isEmpty() && !"var".equals(vds.type())) {
+                // "val"/"var" são palavras-chave de mutabilidade, não tipos —
+                // o tipo real vem do initializer (ou do type explícito após ':').
+                if (vds.type() != null && !vds.type().isEmpty()
+                        && !"var".equals(vds.type()) && !"val".equals(vds.type())) {
                     Type viaImports = MemberResolver.qualifyViaImports(sa.unit(), vds.type());
                     varType = viaImports != null ? viaImports : Type.of(vds.type());
                 } else if (vds.initializer() != null) {
@@ -101,7 +134,8 @@ public final class StatementAnalyzer {
                                 "SEM021");
                     }
                 }
-                scope.define(new SymbolTable.LocalVariableSymbol(vds.name(), varType, 0));
+                scope.define(new SymbolTable.LocalVariableSymbol(vds.name(), varType, 0,
+                        vds.type() != null && "val".equals(vds.type())));
             }
             case ReturnStmt ret -> {
                 if (ret.value() != null) {
@@ -154,10 +188,12 @@ public final class StatementAnalyzer {
                 if (fs.condition() != null) SemExpressionTyper.inferType(sa, fs.condition(), forScope);
                 analyzeStatement(sa, fs.body(), forScope, returnType);
                 if (fs.update() != null) {
-                    // `i = i + 1` no update é statement, não valor
+                    // `i = i + 1` no update é statement, não valor — passa
+                    // pelo MESMO checkpoint de atribuição (SEM012/SEM037/
+                    // SEM038); o bypass anterior deixava `for (val i = 0;
+                    // ...; i = i + 1)` silencioso (buraco #42 no guard do val).
                     if (fs.update() instanceof AssignmentExpr ae) {
-                        SemExpressionTyper.inferType(sa, ae.value(), forScope);
-                        if (ae.target() != null) SemExpressionTyper.inferType(sa, ae.target(), forScope);
+                        analyzeAssignmentStatement(sa, ae, forScope);
                     } else {
                         SemExpressionTyper.inferType(sa, fs.update(), forScope);
                     }

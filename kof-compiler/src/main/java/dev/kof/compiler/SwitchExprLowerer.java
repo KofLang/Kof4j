@@ -25,7 +25,15 @@ public final class SwitchExprLowerer {
                                 int localIdx, List<IRLocalVariable> locals) {
         if (i >= cases.size()) {
             if (defaultValue != null) {
-                return ExpressionLowerer.emitExpression(driver, defaultValue, ops, owner, localIdx, locals);
+                localIdx = ExpressionLowerer.emitExpression(driver, defaultValue, ops, owner, localIdx, locals);
+                // #57/§70: corpos com tipos distintos → boxa ramo primitivo
+                // in-branch (join só de referências); callers pulam pós-box.
+                if (ExpressionTyper.branchTypesDiffer(ExpressionTyper.switchBranchTypes(
+                        driver, cases, defaultValue, switchType, locals))) {
+                    ExpressionTyper.boxPrimitiveBranch(driver, ops,
+                            ExpressionTyper.inferExprType(driver, defaultValue, locals));
+                }
+                return localIdx;
             }
             ops.add(CompilerTypes.defaultValueOp(switchType));
             return localIdx;
@@ -73,6 +81,12 @@ public final class SwitchExprLowerer {
             ops.add(new KofLabel(bodyLabel));
         }
         localIdx = ExpressionLowerer.emitExpression(driver, sc.body(), ops, owner, localIdx, locals);
+        // #57/§70: corpos com tipos distintos → boxa corpo primitivo in-branch.
+        if (ExpressionTyper.branchTypesDiffer(ExpressionTyper.switchBranchTypes(
+                driver, cases, defaultValue, switchType, locals))) {
+            ExpressionTyper.boxPrimitiveBranch(driver, ops,
+                    ExpressionTyper.inferExprType(driver, sc.body(), locals));
+        }
         ops.add(new KofJump(endLabel));
         ops.add(new KofLabel(elseLabel));
         localIdx = emitSwitchChain(driver, cases, i + 1, defaultValue, switchType, switchTmp,

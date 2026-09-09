@@ -32,6 +32,9 @@ public class SemanticAnalyzer {
     private final Map<NewExpr, SymbolTable.ConstructorSymbol> resolvedConstructors = new IdentityHashMap<>();
     private final Map<String, SymbolTable> classMemberScopes = new HashMap<>();
     private String currentClassName;
+    /** DD-02/#42: dentro de corpo de construtor? `this.campo =` em record só
+     *  é legal no construtor (JVMS: final field init); métodos → SEM038. */
+    boolean inConstructor;
     /** Pacote efetivo por declaração (multi-pacote num módulo), vindo do driver. */
     private java.util.function.Function<AstNode, String> declarationPackageLookup;
 
@@ -166,6 +169,8 @@ public class SemanticAnalyzer {
     private final java.util.IdentityHashMap<ConstructorDeclarationNode, SymbolTable> ctorScopes = new java.util.IdentityHashMap<>();
     private final java.util.IdentityHashMap<MethodDeclarationNode, SymbolTable> methodScopes = new java.util.IdentityHashMap<>();
     private final java.util.IdentityHashMap<MethodDeclarationNode, SymbolTable.MethodSymbol> methodSymbols = new java.util.IdentityHashMap<>();
+    private final java.util.Set<MethodDeclarationNode> reportedReturnPath =
+            java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
 
     // Acesso ao estado compartilhado para as classes extraídas (REFACTOR-500
     // fase 6). Não há duplicação de estado: apenas leitura/direção.
@@ -190,14 +195,26 @@ public class SemanticAnalyzer {
         if (ctorScope == null || ctor.body() == null || ctor.body().isEmpty()) return;
         SymbolTable prevScope = currentScope;
         currentScope = ctorScope;
+        boolean prevCtor = inConstructor;
+        inConstructor = true;
         StatementAnalyzer.analyzeBody(this, ctor.body(), ctorScope, Type.PrimitiveType.VOID);
+        inConstructor = prevCtor;
         currentScope = prevScope;
     }
 
     private void analyzeMethodBody(MethodDeclarationNode method) {
         SymbolTable methodScope = methodScopes.get(method);
-        if (methodScope == null || method.body() == null || method.body().isEmpty()) return;
+        if (methodScope == null) return;
         Type returnType = resolveType(method.returnType(), methodScope);
+        // bug 26: corpo pode terminar sem return/throw → SEM036 (uma vez por
+        // método — o loop de 4 passes chamaria de novo). Antes do early-return
+        // de corpo vazio, que é exatamente o caso do bug. Abstract não conta
+        // (corpo vazio é legítimo).
+        if (!method.modifiers().contains("abstract") && reportedReturnPath.add(method)) {
+            ReturnPathAnalyzer.check(this, method.body(), returnType, method.position(),
+                    "método '" + method.name() + "'");
+        }
+        if (method.body() == null || method.body().isEmpty()) return;
         SymbolTable prevScope = currentScope;
         currentScope = methodScope;
         StatementAnalyzer.analyzeBody(this, method.body(), methodScope, returnType);
@@ -286,6 +303,9 @@ public class SemanticAnalyzer {
         }
         SymbolTable prevScope = currentScope;
         currentScope = funcScope;
+        // bug 26: função top-level com tipo não-void pode terminar sem return
+        ReturnPathAnalyzer.check(this, func.body(), returnType, func.position(),
+                "função '" + func.name() + "'");
         StatementAnalyzer.analyzeBody(this, func.body(), funcScope, returnType);
         currentScope = prevScope;
     }

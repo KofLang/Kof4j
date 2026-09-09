@@ -72,8 +72,12 @@ public final class JsRuntimeCore {
                 let attrs = "";
                 if (node.id) attrs += ' id="' + kofEscapeHtml(node.id) + '"';
                 if (node.className) attrs += ' class="' + kofEscapeHtml(node.className) + '"';
+                if (node.src) attrs += ' src="' + kofEscapeHtml(node.src) + '"';
                 const kids = Array.from(node.children || []);
                 const inner = kids.map(kofSerialize).join("");
+                if (tag === "hr" || tag === "iframe" || tag === "br" || tag === "img") {
+                    return "<" + tag + attrs + ">";
+                }
                 const content = inner.length > 0 ? inner : kofEscapeHtml(node.textContent || "");
                 return "<" + tag + attrs + ">" + content + "</" + tag + ">";
             }
@@ -90,6 +94,21 @@ public final class JsRuntimeCore {
 
             export function kofPrintln(x) {
                 console.log(x);
+            }
+
+            // Array multidimensional (bug 71): new T[d1][d2]...[dn].
+            // sizes = dims externas→internas; baseFill preenche a folha.
+            // JVM: MULTIANEWARRAY cria dims-1 preenchidas com arrays vazios
+            // (não preenche recursivamente) — mesmo comportamento aqui.
+            export function kofMultiArray(sizes, dims, baseFill) {
+                if (dims === 1) {
+                    return new Array(sizes[0]).fill(baseFill);
+                }
+                const outer = new Array(sizes[0]);
+                for (let i = 0; i < sizes[0]; i++) {
+                    outer[i] = kofMultiArray(sizes.slice(1), dims - 1, baseFill);
+                }
+                return outer;
             }
 
             // hashCode de valor Kof: espelha o Objects.hashCode/record JVM.

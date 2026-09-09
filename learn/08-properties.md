@@ -45,7 +45,7 @@ main() {
     var p = Point(10, 20)
     println(p.x())        // 10 — accessor do record
     println(p)            // Point[x=10, y=20] (JVM)
-    // p.x = 99           // ERRO de runtime: campo final — records são imutáveis
+    // p.x = 99           // ERRO de compilação SEM038: records são imutáveis
 }
 ```
 

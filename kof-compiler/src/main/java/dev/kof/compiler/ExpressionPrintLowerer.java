@@ -35,7 +35,9 @@ if (("print".equals(mc.methodName()) || "println".equals(mc.methodName())) && mc
             "out", new Type.ClassType("java.io", "PrintStream", List.of())));
     localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(0), ops, owner, localIdx, locals);
     Type argType = ExpressionTyper.inferExprType(driver, mc.arguments().get(0), locals);
-    if (TypeMetrics.isPrimitiveType(argType)) {
+    // (#57: IfExpr/switch heterogêneo já boxeou in-branch → pular o box)
+    if (TypeMetrics.isPrimitiveType(argType)
+            && !ExpressionTyper.boxesOwnBranches(driver, mc.arguments().get(0), locals)) {
         if (driver.target.isNative()) {
             // println(char) é NUMÉRICO (congelado: strings.md
             // "72 (H)" + execStringCharAt). valueOf(char) solto

@@ -80,6 +80,46 @@ class CompilerDriverTest {
         assertTrue(result.success(), "Native compilation should succeed");
     }
 
+    // issue #53 — record com construtor explícito canônico: NÃO pode gerar
+    // <init> duplicado (ClassFormatError no JVM). O automático é suprimido
+    // quando o record declara um construtor com a mesma aridade do canônico.
+    @Test
+    void recordWithExplicitCanonicalConstructorCompilesToJvm(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("P.kf");
+        Files.writeString(source, """
+            record P(Int x) {
+                constructor(Int x) {
+                    this.x = x
+                }
+            }
+            main() {
+                println(P(5).x())
+            }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertTrue(result.success(), "record with explicit canonical ctor should compile: " + result.diagnostics().getDiagnostics());
+        assertTrue(Files.exists(tempDir.resolve("out/P.class")), "Class file should exist");
+    }
+
+    // known-bugs #48 — json.decode<List<Record>> no Native: gap honesto JSN004
+    // (o runtime nativo não tem decoder real de lista de records). Nunca link
+    // fail nem stub silencioso.
+    @Test
+    void jsonDecodeListOfRecordNativeGivesJsn004(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+            record P(Int x)
+            main() {
+                var l = json.decode<List<P>>("[{\\"x\\":1},{\\"x\\":2}]")
+                println(l.size)
+            }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.NATIVE);
+        assertFalse(result.success(), "json.decode<List<Record>> no Native deve diagnosticar (não link fail)");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("JSN004"), "Should be a clean JSN004 gap, was: " + diags);
+    }
+
     @Test
     void compilesFunctionWithPrintln(@TempDir Path tempDir) throws IOException {
         Path source = tempDir.resolve("Main.kf");
@@ -244,6 +284,125 @@ class CompilerDriverTest {
         assertTrue(diags.contains("SEM027"), "Should be a clean diagnostic, was: " + diags);
     }
 
+    @Test
+    void assignmentToValGivesCleanDiagnostic(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Bad.kf");
+        Files.writeString(source, """
+            main() {
+                val x = 1
+                x = 2
+            }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "assignment to val should fail to compile");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM037"), "Should be a clean diagnostic, was: " + diags);
+    }
+
+    @Test
+    void compoundAssignmentToValGivesCleanDiagnostic(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Bad.kf");
+        Files.writeString(source, """
+            main() {
+                val x = 1
+                x += 5
+            }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "compound assignment to val should fail to compile");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM037"), "Should be a clean diagnostic, was: " + diags);
+    }
+
+    @Test
+    void varRemainsMutable(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Ok.kf");
+        Files.writeString(source, """
+            main() {
+                var x = 1
+                x = 2
+                println(x)
+            }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertTrue(result.success(), "var assignment should still compile: " + result.diagnostics().getDiagnostics());
+    }
+
+    // known-bugs #42 (b) — escrita em componente de record divergia nos 3
+    // caminhos (JVM IllegalAccessError / JS TypeError / interp mutava). Agora
+    // é SEM038 no frontend, igual nos 4 targets.
+    @Test
+    void writeRecordComponentGivesSem038(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Bad.kf");
+        Files.writeString(source, """
+            record P(Int x, Int y)
+            main() {
+                var p = P(1, 2)
+                p.x = 9
+            }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "write to record component should fail to compile");
+        assertTrue(result.diagnostics().getDiagnostics().toString().contains("SEM038"),
+                "should be SEM038, was: " + result.diagnostics().getDiagnostics());
+    }
+
+    // known-bugs #42 (c) — `this.x =` em MÉTODO de record (não no construtor).
+    @Test
+    void writeRecordFieldViaThisInMethodGivesSem038(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Bad.kf");
+        Files.writeString(source, """
+            record P(Int x) {
+                bump() {
+                    this.x = 99
+                }
+            }
+            main() { println(P(1).x()) }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "this.x in record method should fail to compile");
+        assertTrue(result.diagnostics().getDiagnostics().toString().contains("SEM038"),
+                "should be SEM038, was: " + result.diagnostics().getDiagnostics());
+    }
+
+    // #42: `this.x =` DENTRO DO CONSTRUTOR de record continua legal (init do
+    // campo final, JVMS 4.4) e classe mutável nunca foi afetada.
+    @Test
+    void recordConstructorThisAssignRemainsLegal(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Ok.kf");
+        Files.writeString(source, """
+            record P(Int x)
+            class R {
+                Int x
+                constructor(Int x) { this.x = x }
+                bump() { this.x = 9 }
+            }
+            main() {
+                var r = R(1)
+                r.bump()
+                println(r.x)
+            }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertTrue(result.success(), "class field write must stay legal: " + result.diagnostics().getDiagnostics());
+    }
+
+    // #42 — o update do `for` tinha atalho que pulava o checkpoint de atribuição:
+    // `for (val i = 0; ...; i = i + 1)` era silencioso. Agora SEM037.
+    @Test
+    void forUpdateAssignmentToValGivesSem037(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Bad.kf");
+        Files.writeString(source, """
+            main() {
+                for (val i = 0; i < 2; i = i + 1) { println(i) }
+            }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "for-update write to val should fail to compile");
+        assertTrue(result.diagnostics().getDiagnostics().toString().contains("SEM037"),
+                "should be SEM037, was: " + result.diagnostics().getDiagnostics());
+    }
+
     // known-bugs #26 — a void call used as a VALUE (println(f()) where f is
     // void, or `var x = voidCall()`) left the value stack empty → segfault on
     // Native / VerifyError on JVM. Now a clean SEM033.
@@ -275,6 +434,63 @@ class CompilerDriverTest {
         assertFalse(result.success(), "void lambda as println arg should fail to compile");
         String diags = result.diagnostics().getDiagnostics().toString();
         assertTrue(diags.contains("SEM033"), "Should be a clean diagnostic, was: " + diags);
+    }
+
+    // known-bugs #26 (variante) — função com tipo NÃO-void cujo corpo pode
+    // terminar sem return/throw emitia ireturn/areturn com pilha vazia →
+    // VerifyError no JVM (disfarçado de "JavaFX"), stack underflow no JS,
+    // NoSuchElementException no interpretador. Agora SEM036 em compile-time.
+    @Test
+    void nonVoidFunctionWithEmptyBodyGivesCleanDiagnostic(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("NoRet.kf");
+        Files.writeString(source, """
+            Int f() { }
+            main() { println(f()) }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "Int f() { } should fail to compile");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM036"), "Should be a clean diagnostic, was: " + diags);
+    }
+
+    @Test
+    void nonVoidFunctionFallingOffEndGivesCleanDiagnostic(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("FallOff.kf");
+        Files.writeString(source, """
+            Int f(Int x) { var y = x + 1 }
+            main() { println(f(5)) }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "corpo que cai no fim sem return deve falhar");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM036"), "Should be a clean diagnostic, was: " + diags);
+    }
+
+    @Test
+    void ifWithoutElseAtEndGivesCleanDiagnostic(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("IfOnly.kf");
+        Files.writeString(source, """
+            Int f(Int x) { if (x > 0) { return 1 } }
+            main() { println(f(5)) }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "if sem else no fim deixa caminho sem return");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM036"), "Should be a clean diagnostic, was: " + diags);
+    }
+
+    @Test
+    void allPathsReturnStillCompiles(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Ok.kf");
+        Files.writeString(source, """
+            Int f(Int x) { if (x > 0) { return 1 } else { return 2 } }
+            Int g() { throw "sempre sai" }
+            Int loop(Int x) { while (true) { return x } }
+            main() { println(f(5)); println(loop(7)) }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertTrue(result.success(), "caminhos completos não devem acusar: "
+                + result.diagnostics().getDiagnostics());
     }
 
     // known-bugs #16 — List.toArray() (unsupported/undocumented) produced

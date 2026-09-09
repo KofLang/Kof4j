@@ -252,6 +252,22 @@ public final class RuntimeUi {
             kof_ui_table_set_rows:
             kof_ui_table_remove:
                 ret
+            kof_ui_fieldset_new:
+            kof_ui_fieldset_new_legend:
+            kof_ui_iframe_new:
+            kof_ui_video_new:
+            kof_ui_audio_new:
+                movl $1, %eax
+                ret
+            kof_ui_fieldset_remove:
+            kof_ui_iframe_remove:
+            kof_ui_video_remove:
+            kof_ui_audio_remove:
+            kof_ui_hr_remove:
+                ret
+            kof_ui_hr_new:
+                movl $1, %eax
+                ret
             # Font / Icon / Image / Link / widget-font — no-op (paridade com
             # JVM; antes: undefined reference [COMP001] no link, R6/UI001).
             kof_ui_font_new:
@@ -324,6 +340,8 @@ public final class RuntimeUi {
                 ret
             kof_ui_widget_set_disabled:
                 ret
+            kof_ui_widget_on:
+                ret
             kof_ui_column_new:
                 movl $1, %eax
                 ret
@@ -334,15 +352,6 @@ public final class RuntimeUi {
                 ret
             kof_ui_form_submit:
                 ret
-            kof_ui_fieldset_new:
-                movl $1, %eax
-                ret
-            kof_ui_iframe_new:
-            kof_ui_video_new:
-            kof_ui_audio_new:
-            kof_ui_hr_new:
-                movl $1, %eax
-                ret
             kof_ui_iframe_set_src:
             kof_ui_video_set_src:
             kof_ui_video_set_controls:
@@ -352,10 +361,6 @@ public final class RuntimeUi {
             kof_ui_audio_set_controls:
             kof_ui_audio_play:
             kof_ui_audio_pause:
-            kof_ui_iframe_remove:
-            kof_ui_video_remove:
-            kof_ui_audio_remove:
-            kof_ui_hr_remove:
                 ret
             kof_ui_row_new:
                 movl $1, %eax
@@ -427,6 +432,16 @@ public final class RuntimeUi {
             kof_ui_event_type:
                 movq %rdi, %rax
                 ret
+            kof_ui_event_key:
+            kof_ui_event_value:
+            kof_ui_event_target:
+            kof_ui_event_related_target:
+                leaq .Lui_empty(%rip), %rax
+                ret
+            kof_ui_event_x:
+            kof_ui_event_y:
+                xorl %eax, %eax
+                ret
             kof_ui_emit:
                 ret
             kof_ui_event_stop:
@@ -440,6 +455,24 @@ public final class RuntimeUi {
             .globl Event_stopPropagation
             Event_stopPropagation:
                 jmp kof_ui_event_stop
+            .globl Event_key
+            Event_key:
+                jmp kof_ui_event_key
+            .globl Event_value
+            Event_value:
+                jmp kof_ui_event_value
+            .globl Event_target
+            Event_target:
+                jmp kof_ui_event_target
+            .globl Event_relatedTarget
+            Event_relatedTarget:
+                jmp kof_ui_event_related_target
+            .globl Event_x
+            Event_x:
+                jmp kof_ui_event_x
+            .globl Event_y
+            Event_y:
+                jmp kof_ui_event_y
             // ── Fase 8: Store observável (no-ops) ──
             kof_ui_store_new:
                 movl $1, %eax

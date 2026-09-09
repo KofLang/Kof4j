@@ -178,6 +178,44 @@ class UiE2ETest {
     }
 
     @Test
+    void ui003RemainingLinksOnAllTargets(@TempDir Path tempDir) throws IOException {
+        // UI003 (restante): Fieldset/Iframe/Video/Audio/Hr — no-op JVM/Native,
+        // DOM real (<fieldset>/<legend>/<iframe>/<video>/<audio>/<hr>) em KofJS.
+        both(tempDir, "ui003rest", """
+            main() {
+                var fs = Fieldset(listOf(Label("dentro")), "credenciais")
+                var fr = Iframe("https://example.org")
+                var v = Video("clip.mp4")
+                var a = Audio("som.mp3")
+                var h = Hr()
+                fs.remove()
+                fr.remove()
+                v.remove()
+                a.remove()
+                h.remove()
+                println("ok")
+            }
+            """, "ok");
+    }
+
+    @Test
+    void ui006EventAccessorsLinkOnAllTargets(@TempDir Path tempDir) throws IOException {
+        // UI006: Event key/value/x/y + target/relatedTarget — no-op JVM/Native
+        // (key="" / target=""), DOM real em KofJS (KofJsBrowserE2ETest).
+        both(tempDir, "ui006", """
+            main() {
+                var campo = Input("")
+                campo.on("keydown", (e: Event) -> { println(e.key()) })
+                campo.on("input", (e: Event) -> { println(e.value()) })
+                campo.on("click", (e: Event) -> { println(e.x()) })
+                campo.on("click", (e: Event) -> { println(e.target()) })
+                campo.on("focus", (e: Event) -> { println(e.relatedTarget()) })
+                println("ok")
+            }
+            """, "ok");
+    }
+
+    @Test
     void inputAttrsLinksOnAllTargets(@TempDir Path tempDir) throws IOException {
         // UI005: Input/Textarea setName + setReadonly — no-op JVM/Native,
         // atributos reais (name/readonly) no DOM do browser em KofJS.

@@ -293,6 +293,13 @@ public final class MemberCallTyper {
             if (vCall != null) return vCall.returnType();
             return unknownNamespaceMethod(sa, rid.name(), mc.methodName());
         }
+        if (mc.receiver() instanceof IdentifierExpr rid && !SemExpressionTyper.isLocalName(scope, rid.name()) && KofStd.isStdNamespace(rid.name())) {
+            List<Type> argTypes = new ArrayList<>();
+            for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
+            KofStd.StdCall sCall = KofStd.staticMethod(rid.name(), mc.methodName(), argTypes);
+            if (sCall != null) return sCall.returnType();
+            return unknownNamespaceMethod(sa, rid.name(), mc.methodName());
+        }
         if (mc.receiver() instanceof IdentifierExpr rid && !SemExpressionTyper.isLocalName(scope, rid.name()) && KofObservability.isObservabilityNamespace(rid.name())) {
             List<Type> argTypes = new ArrayList<>();
             for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));

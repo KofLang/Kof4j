@@ -57,6 +57,7 @@ public final class KofInterpreter {
     private final PrintStream out;
     private final PrintStream err;
     private Class<?> runtimeClass;
+    private boolean ui002Warned;
     final KofInterpreterBuiltins builtins;
     private final KofInterpreterMembers members;
     private final KofInterpreterFrame frames;
@@ -68,6 +69,15 @@ public final class KofInterpreter {
         this.members = new KofInterpreterMembers(this, module.classes());
         this.frames = new KofInterpreterFrame(this);
         this.builtins = new KofInterpreterBuiltins(this);
+    }
+
+    /** UI002 (R6): kof.ui não renderiza no interpretador — warning único. */
+    void warnUi002(String fn) {
+        if (ui002Warned || err == null) return;
+        ui002Warned = true;
+        err.println("warning UI002: kof.ui não renderiza no target script "
+                + "(primeira chamada: " + fn + "); kof.ui é KofJS — "
+                + " rode com --target=js para UI real");
     }
 
     /**
@@ -234,6 +244,13 @@ public final class KofInterpreter {
                     return;
                 } else if (op instanceof KofDup) {
                     st.push(st.peek());
+                } else if (op instanceof KofDup2) {
+                    Object top = st.pop();
+                    Object below = st.pop();
+                    st.push(below);
+                    st.push(top);
+                    st.push(below);
+                    st.push(top);
                 } else if (op instanceof KofDupX1) {
                     Object top = st.pop();
                     Object below = st.pop();
@@ -266,6 +283,10 @@ public final class KofInterpreter {
                     Array.set(arr, idx, builtins.coerceFor(as.elementType(), v));
                 } else if (op instanceof KofNewArray na) {
                     st.push(builtins.newArray(na.elementType(), unboxInt(st.pop())));
+                } else if (op instanceof KofNewMultiArray ma) {
+                    int[] lens = new int[ma.dims()];
+                    for (int i = ma.dims() - 1; i >= 0; i--) lens[i] = unboxInt(st.pop());
+                    st.push(builtins.newMultiArray(ma.baseType(), lens));
                 } else if (op instanceof KofArrayLength) {
                     st.push(Array.getLength(st.pop()));
                 } else if (op instanceof KofThrow) {
@@ -314,9 +335,25 @@ public final class KofInterpreter {
         if ("kof_box".equals(name) || "kof_unbox".equals(name)) {
             return args.length > 0 ? args[0] : recv;
         }
-        // receiver Kof → dispatch VIRTUAL pela classe real (polimorfismo)
-        IRClass owner = recv instanceof KofObj ko ? members.classByInternal(ko.internalName())
-                : members.kofClassOrNull(kc.ownerType());
+        // receiver Kof → dispatch VIRTUAL pela classe real (polimorfismo).
+        // EXCETO construtores: <init> NÃO é virtual no JVM — o IR já traz o
+        // ownerType estático correto (super(v) → classe pai; new → classe do
+        // objeto; ExpressionMethodCallLowerer:414 emite CONSTRUCTOR com o
+        // owner da superclasse). Resolver pelo runtime-class do receiver fazia
+        // super(v) reencontrar o ctor da própria classe → recursão infinita
+        // (#54/bug 67; fix duplo das duas lanes reconciliado).
+        IRClass owner = "<init>".equals(name)
+                ? members.kofClassOrNull(kc.ownerType())
+                : (recv instanceof KofObj ko ? members.classByInternal(ko.internalName())
+                        : members.kofClassOrNull(kc.ownerType()));
+        // bug #54 (método, não ctor): `super.metodo()` (KofCallKind.SUPER) é
+        // NÃO-virtual — sem o bump, findKofMethod pelo runtime-class pegaria
+        // a sobrecarga da subclasse (dispatch virtual) em vez do da superclasse.
+        if (kc.kind() == KofCallKind.SUPER && !"<init>".equals(name)
+                && owner != null && owner.superName() != null) {
+            IRClass sup = members.classByInternal(owner.superName());
+            if (sup != null) owner = sup;
+        }
         // métodos sintéticos de objeto Kof (record equals/hashCode/toString)
         if (recv instanceof KofObj && owner != null && findKofMethod(owner, name, args.length) == null) {
             Object synth = builtins.kofObjectMethod(name, recv, args, owner);
@@ -342,6 +379,12 @@ public final class KofInterpreter {
             return builtins.kofToString(args[0]);
         }
         // classe Kof: interpretar método
+        if (owner == null && "<init>".equals(name) && recv instanceof KofObj) {
+            // super() para base NÃO-Kof (java.lang.Record/Object — o IR do JVM
+            // injeta a cadeia; #54: com <init> estático o owner some) → no-op,
+            // como era o "construtor padrão" do dispatch virtual antigo.
+            return null;
+        }
         if (owner != null) {
             IRMethod m = findKofMethod(owner, name, args.length);
             if (m == null && "<init>".equals(name)) return null; // construtor padrão

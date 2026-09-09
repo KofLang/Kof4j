@@ -149,7 +149,7 @@ final class CmdBuild {
         String app001 = KofCliSupport.app001(target, layout.fullStack());
         if (app001 != null) { System.err.println("build: " + app001); System.exit(1); return; }
         List<Path> files = KofCliSupport.collect(backendDir);
-        if (files.isEmpty()) { System.out.println("no .kf files found"); return; }
+        if (files.isEmpty()) { System.out.println("no .kf/.kof files found"); return; }
         files.sort(java.util.Comparator.comparing(p -> p.getFileName().toString()));
         Path backendOut = out;
         if (layout.fullStack()) {

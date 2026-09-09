@@ -251,6 +251,31 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
     }
     return localIdx;
 } else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
+            && KofStd.isStdNamespace(rid.name())) {
+    List<Type> argTypes = new ArrayList<>();
+    for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
+    KofStd.StdCall sCall = KofStd.staticMethod(rid.name(), mc.methodName(), argTypes);
+    if (sCall != null) {
+        if (!KofStd.supportedOn(sCall, driver.target)) {
+            if (driver.currentDiagnostics != null) {
+                driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
+                        mc.position() != null ? mc.position().line() : 0,
+                        mc.position() != null ? mc.position().column() : 0, 0,
+                        rid.name() + "." + mc.methodName() + ": not available on the "
+                                + driver.target + " target yet (" + KofStd.gapCode(sCall) + ")",
+                        KofStd.gapCode(sCall));
+            }
+            return localIdx;
+        }
+        for (ExpressionNode arg : mc.arguments()) {
+            localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
+        }
+        ops.add(new KofCall(new Type.ClassType(sCall.ownerPackage(), sCall.ownerClass(), List.of()),
+                sCall.function(), sCall.parameterTypes(), sCall.returnType(),
+                KofCallKind.FUNCTION));
+    }
+    return localIdx;
+} else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
             && KofObservability.isObservabilityNamespace(rid.name())) {
     List<Type> argTypes = new ArrayList<>();
     for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));

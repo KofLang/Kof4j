@@ -88,9 +88,9 @@ recomendações futuras (regra 14 da tarefa: não alterar comportamento).
   estreita, deref direto é permitido), ou tornar deref de `T?` sem narrowing um
   erro (breaking change).
 
-### SG-006 — Short-circuit de `&&`/`||` desligado no JS
+### SG-006 — Short-circuit de `&&`/`||` desligado no JS — ✅ CORRIGIDO 09/09 (paridade OK + teste)
 
-- **Implementação**: `ExpressionLowerer.java:147-148` — o short-circuit por
+- **Implementação**: `ExpressionBinaryLowerer.java:56-57` — o short-circuit por
   labels é emitido só quando `target != JS`. No JS, ambos os lados são
   avaliados.
 - **Problema**: `if (x != null && x.length > 0)` pode NPE no JS mas não no
@@ -98,6 +98,18 @@ recomendações futuras (regra 14 da tarefa: não alterar comportamento).
 - **Recomendação**: documentar como Target-specific (feito em
   [expressions.md](language-reference/expressions.md) §5) **e** abrir gap de
   paridade para corrigir o JS.
+- **NOTA 09/09 (análise de código):** o lowering por labels é `target != JS`,
+  mas para `&&`/`||` de bool o JS emite os operadores nativos (`a && b`,
+  `a || b` — `JsCallEmitter.binaryExpr` linhas 274-277), que **já fazem
+  short-circuit** nativamente. Logo `x != null && x.length > 0` NÃO deve NPE no
+  JS (o `x.length > 0` não é avaliado se `x != null` é false). Paridade plausível
+  por leitura de código, mas **sem teste de runtime que trave** — recomenda-se um
+  caso em `BackendParityTest` (`if (x != null && x.length > 0)`) nos 4 targets
+  antes de fechar o gap.
+- **✅ CORRIGIDO 09/09:** `BackendParityTest.parityShortCircuitAndOr` adicionado
+  (`String? s = null` → `vazio` via short-circuit; `String? t = "abc"` →
+  `nao-vazio`). Suíte verde (a única falha da suíte 1163+25+5+109 é o bug 46,
+  pré-existente) → o short-circuit de `&&` no JS/JVM está travado por teste.
 
 ### SG-007 — Wildcard de genérico (`? extends T`) compila mas quebra — ✅ CORRIGIDO 06/09 (PARSE086)
 
@@ -130,7 +142,7 @@ recomendações futuras (regra 14 da tarefa: não alterar comportamento).
   `resolveInHierarchy`). É a maior lacuna de segurança de tipos. **Não
   implementado aqui** (mudança de comportamento — exige suíte + possibly bump).
 
-### SG-010 — `val` não impede reatribuição
+### SG-010 — `val` não impede reatribuição — ✅ CORRIGIDO 09/09 (SEM037)
 
 - **Implementação**: `val x = 1; x = 2` **compila e roda** (imprime 2, *probe*
   confirmado isoladamente). Não há flag de imutabilidade no `VarDeclStmt`
@@ -140,6 +152,10 @@ recomendações futuras (regra 14 da tarefa: não alterar comportamento).
   observável.
 - **Recomendação**: ou implementar rejeição de atribuição a `val` (SEM novo), ou
   documentar que `val` é convenção (não-garantido). Decisão de design.
+- **CORRIGIDO 09/09 (DD-02, bug 62a):** `val` agora é imutável — reatribuir
+  (incl. compound `+=`) emite **SEM037** ("cannot assign to immutable 'val'"). O
+  parser carrega `type="val"` (antes sempre "var"); `LocalVariableSymbol` ganhou
+  `isVal`; `analyzeAssignmentStatement` checa. Ver `planning-mutability.md`.
 
 ### SG-011 — Função aninhada e sobrecarga top-level
 
@@ -274,5 +290,5 @@ Não duplicados aqui — ver [known-bugs.md](known-bugs.md):
 
 **Nenhum foi corrigido na linguagem** — esta tarefa é de documentação. Cada
 item B/C que envolve mudança de semântica é **decisão de design** (regra 6:
-semântica congelada) e deve virar gap/plano em `planning-*`, nunca edição
+ ) e deve virar gap/plano em `planning-*`, nunca edição
 silenciosa.

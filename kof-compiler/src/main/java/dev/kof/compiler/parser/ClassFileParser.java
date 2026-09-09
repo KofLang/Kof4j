@@ -17,6 +17,8 @@ public final class ClassFileParser {
         public final int accessFlags;
         public final String name;
         public final String descriptor;
+        /** JVMS 4.7.1: assinatura genérica (null quando o .class não a tem). */
+        public final String signature;
         public final List<String> exceptions;
         public final CodeAttribute code;
         public final Type returnType;
@@ -24,17 +26,27 @@ public final class ClassFileParser {
         public final int instanceofCount;
         public final int checkcastCount;
 
-        MethodInfo(int accessFlags, String name, String descriptor,
+        MethodInfo(int accessFlags, String name, String descriptor, String signature,
                    List<String> exceptions, CodeAttribute code) {
             this.accessFlags = accessFlags;
             this.name = name;
             this.descriptor = descriptor;
+            this.signature = signature;
             this.exceptions = exceptions;
             this.code = code;
 
-            TypeParseResult types = parseDescriptor(descriptor);
-            this.returnType = types.returnType();
-            this.parameterTypes = types.parameterTypes();
+            // Fase D (Type Recovery): o atributo Signature preserva genéricos
+            // que o descriptor apagou (erasure). Quando existe, é a fonte
+            // EXACT; senão cai no descriptor (sem args de tipo).
+            if (signature != null && signature.startsWith("(")) {
+                Type.SignatureParseResult sp = Type.parseMethodSignature(signature);
+                this.returnType = sp.returnType();
+                this.parameterTypes = sp.parameterTypes();
+            } else {
+                TypeParseResult types = parseDescriptor(descriptor);
+                this.returnType = types.returnType();
+                this.parameterTypes = types.parameterTypes();
+            }
             this.instanceofCount = code != null ? countInstanceofCheckcast(code.bytecode) : 0;
             this.checkcastCount = code != null ? countCheckcast(code.bytecode) : 0;
         }
@@ -78,18 +90,13 @@ public final class ClassFileParser {
             List<Type> paramTypes = new ArrayList<>();
             int pos = 0;
             while (pos < params.length()) {
-                Type t = Type.fromJvmDescriptor(params.substring(pos));
-                paramTypes.add(t);
-                pos = skipDescriptorLength(params, pos);
+                Type.ParseResult pr = Type.parseJvmDescriptorAt(params, pos);
+                paramTypes.add(pr.type());
+                pos = pr.pos();
             }
 
             Type retType = Type.fromJvmDescriptor(returns);
             return new TypeParseResult(retType, paramTypes);
-        }
-
-        private static int skipDescriptorLength(String desc, int pos) {
-            if (pos >= desc.length()) return pos;
-            return pos + 1;
         }
 
         private record TypeParseResult(Type returnType, List<Type> parameterTypes) {}
@@ -99,11 +106,14 @@ public final class ClassFileParser {
         public final int accessFlags;
         public final String name;
         public final String descriptor;
+        /** JVMS 4.7.1: assinatura genérica (null quando o .class não a tem). */
+        public final String signature;
 
-        FieldInfo(int accessFlags, String name, String descriptor) {
+        FieldInfo(int accessFlags, String name, String descriptor, String signature) {
             this.accessFlags = accessFlags;
             this.name = name;
             this.descriptor = descriptor;
+            this.signature = signature;
         }
     }
 
@@ -145,13 +155,15 @@ public final class ClassFileParser {
         public final String thisClass;
         public final String superClass;
         public final String[] interfaces;
+        /** JVMS 4.7.1: assinatura genérica da CLASSE (null se sem genéricos). */
+        public final String classSignature;
         public final List<FieldInfo> fields;
         public final List<MethodInfo> methods;
         public final Map<String, Object> attributes;
 
         ClassFile(int magic, int minorVersion, int majorVersion,
                   String[] constantPool, int accessFlags, String thisClass,
-                  String superClass, String[] interfaces,
+                  String superClass, String[] interfaces, String classSignature,
                   List<FieldInfo> fields, List<MethodInfo> methods,
                   Map<String, Object> attributes) {
             this.magic = magic;
@@ -162,6 +174,7 @@ public final class ClassFileParser {
             this.thisClass = thisClass;
             this.superClass = superClass;
             this.interfaces = interfaces;
+            this.classSignature = classSignature;
             this.fields = fields;
             this.methods = methods;
             this.attributes = attributes;
@@ -197,11 +210,18 @@ public final class ClassFileParser {
                 case 8: // String
                     constPool[i] = "#" + (bb.getShort() & 0xFFFF);
                     break;
-                case 3: case 4: // Integer, Float
+                case 3: // Integer — 4 bytes
                     constPool[i] = String.valueOf(bb.getInt());
                     break;
-                case 5: case 6: // Long, Double — 8 bytes, ocupam 2 slots
+                case 4: // Float — 4 bytes, valor float (não os bits crus)
+                    constPool[i] = String.valueOf(Float.intBitsToFloat(bb.getInt()));
+                    break;
+                case 5: // Long — 8 bytes, ocupa 2 slots
                     constPool[i] = String.valueOf(bb.getLong());
+                    i++;
+                    break;
+                case 6: // Double — 8 bytes, valor double, ocupa 2 slots
+                    constPool[i] = String.valueOf(Double.longBitsToDouble(bb.getLong()));
                     i++;
                     break;
                 case 9: case 10: case 11: // Fieldref, Methodref, InterfaceMethodref
@@ -214,14 +234,15 @@ public final class ClassFileParser {
                     bb.get();
                     constPool[i] = "#" + (bb.getShort() & 0xFFFF);
                     break;
-                case 16: // Dynamic
-                    constPool[i] = "#" + (bb.getShort() & 0xFFFF) + "#" + (bb.getShort() & 0xFFFF);
-                    break;
-                case 17: // MethodType
+                case 16: // MethodType (JVMS 4.4.8) — u2 descriptor_index
                     constPool[i] = "#" + (bb.getShort() & 0xFFFF);
                     break;
-                case 18: // InvokeDynamic
+                case 17: // Dynamic (JVMS 4.4.10) — u2 class_index + u2 name_and_type_index
                     constPool[i] = "#" + (bb.getShort() & 0xFFFF) + "#" + (bb.getShort() & 0xFFFF);
+                    break;
+                case 18: // InvokeDynamic — "#" bootstrap#NameAndType (resolvido
+                         // p/ "CONCAT:<receita>" após ler BootstrapMethods)
+                    constPool[i] = "IDYN:" + (bb.getShort() & 0xFFFF) + "#" + (bb.getShort() & 0xFFFF);
                     break;
                 case 19: // Module
                     constPool[i] = "#" + (bb.getShort() & 0xFFFF);
@@ -250,13 +271,19 @@ public final class ClassFileParser {
             int fieldAccess = bb.getShort() & 0xFFFF;
             String fieldName = constPool[bb.getShort() & 0xFFFF];
             String fieldDesc = constPool[bb.getShort() & 0xFFFF];
+            String fieldSig = null;
             int attrCount = bb.getShort() & 0xFFFF;
             for (int j = 0; j < attrCount; j++) {
-                bb.getShort(); // attr_name_index
+                int attrNameIdx = bb.getShort() & 0xFFFF;
+                String attrName = constPool[attrNameIdx];
                 int attrLen = bb.getInt();
-                bb.position(bb.position() + attrLen);
+                if ("Signature".equals(attrName)) {
+                    fieldSig = constPool[bb.getShort() & 0xFFFF];
+                } else {
+                    bb.position(bb.position() + attrLen);
+                }
             }
-            fields.add(new FieldInfo(fieldAccess, fieldName, fieldDesc));
+            fields.add(new FieldInfo(fieldAccess, fieldName, fieldDesc, fieldSig));
         }
 
         int methodCount = bb.getShort() & 0xFFFF;
@@ -267,12 +294,15 @@ public final class ClassFileParser {
             String methodDesc = constPool[bb.getShort() & 0xFFFF];
             List<String> exceptions = new ArrayList<>();
             CodeAttribute codeAttr = null;
+            String methodSig = null;
             int attrCount = bb.getShort() & 0xFFFF;
             for (int j = 0; j < attrCount; j++) {
                 int attrNameIdx = bb.getShort() & 0xFFFF;
                 String attrName = constPool[attrNameIdx];
                 int attrLen = bb.getInt();
-                if ("Exceptions".equals(attrName)) {
+                if ("Signature".equals(attrName)) {
+                    methodSig = constPool[bb.getShort() & 0xFFFF];
+                } else if ("Exceptions".equals(attrName)) {
                     int exCount = bb.getShort() & 0xFFFF;
                     for (int k = 0; k < exCount; k++) {
                         exceptions.add(resolveClass(constPool, bb.getShort() & 0xFFFF));
@@ -303,22 +333,34 @@ public final class ClassFileParser {
                     bb.position(bb.position() + attrLen);
                 }
             }
-            methods.add(new MethodInfo(methodAccess, methodName, methodDesc, exceptions, codeAttr));
+            methods.add(new MethodInfo(methodAccess, methodName, methodDesc, methodSig, exceptions, codeAttr));
         }
 
         int attrCount = bb.getShort() & 0xFFFF;
         Map<String, Object> attrs = new HashMap<>();
+        String classSig = null;
+        String[] bootstrapRecipes = new String[0];
         for (int i = 0; i < attrCount; i++) {
             int attrNameIdx = bb.getShort() & 0xFFFF;
             String attrName = constPool[attrNameIdx];
             int attrLen = bb.getInt();
-            bb.position(bb.position() + attrLen);
+            if ("Signature".equals(attrName)) {
+                classSig = constPool[bb.getShort() & 0xFFFF];
+            } else if ("BootstrapMethods".equals(attrName)) {
+                // JVMS 4.7.23 — receitas de makeConcatWithConstants (String +
+                // moderno é invokedynamic; sem isto todo corpo com concat
+                // caía em stub honesto, a forma de corpo mais comum em Java).
+                bootstrapRecipes = readBootstrapRecipes(bb, constPool, attrLen);
+            } else {
+                bb.position(bb.position() + attrLen);
+            }
             attrs.put(attrName, "size=" + attrLen);
         }
+        resolveInvokeDynamics(constPool, bootstrapRecipes);
 
         return new ClassFile(magic, minorVersion, majorVersion,
                 constPool, accessFlags, thisClass, superClass,
-                interfaces, fields, methods, attrs);
+                interfaces, classSig, fields, methods, attrs);
     }
 
     private static String resolveClass(String[] constPool, int idx) {
@@ -331,5 +373,69 @@ public final class ClassFileParser {
             }
         }
         return entry;
+    }
+
+    /**
+     * JVMS 4.7.23 BootstrapMethods: num_bootstrap_methods, e para cada um:
+     * bootstrap_method_ref (u2), num_bootstrap_arguments (u2), e os args como
+     * ÍNDICES u2 p/ o CP (NÃO cp_info!). O PRIMEIRO arg da StringConcatFactory
+     * é a String RECEITA (constante tag-8 → guardada "#<utf8>"; resolvemos o
+     * duplo indirecionamento). \u0001 = placeholder de arg. Falha de schema →
+     * array vazio → invokedynamic fica IDYN → o decoder recusa → stub honesto.
+     */
+    private static String[] readBootstrapRecipes(ByteBuffer bb, String[] constPool, int attrLen) {
+        int start = bb.position();
+        try {
+            int n = bb.getShort() & 0xFFFF;
+            String[] recipes = new String[n];
+            for (int i = 0; i < n; i++) {
+                bb.getShort();                       // bootstrap_method_ref
+                int nargs = bb.getShort() & 0xFFFF;
+                recipes[i] = null;
+                for (int a = 0; a < nargs; a++) {
+                    int idx = bb.getShort() & 0xFFFF;
+                    if (a == 0 && idx < constPool.length && constPool[idx] != null
+                            && constPool[idx].startsWith("#")) {
+                        // tag-8 String → "#<utf8Idx>" → o Utf8 é a receita
+                        int ui = Integer.parseInt(constPool[idx].substring(1));
+                        if (ui < constPool.length && constPool[ui] != null) recipes[i] = constPool[ui];
+                    }
+                }
+            }
+            return recipes;
+        } catch (RuntimeException e) {
+            return new String[0];
+        } finally {
+            bb.position(start + attrLen);            // robusto ao schema real
+        }
+    }
+
+    /**
+     * Reescreve entradas tag-18 (IDYN:bs#nameType) do CP p/ "CONCAT:<receita>"
+     * quando o NameAndType é makeConcatWithConstants e a bootstrap tem receita
+     * String. Qualquer outro invokedynamic (lambdas, etc.) fica IDYN → o decoder
+     * recusa (default) → stub honesto.
+     */
+    private static void resolveInvokeDynamics(String[] constPool, String[] recipes) {
+        if (recipes.length == 0) return;
+        for (int i = 1; i < constPool.length; i++) {
+            String e = constPool[i];
+            if (e == null || !e.startsWith("IDYN:")) continue;
+            int hash = e.indexOf('#', 5);
+            if (hash < 0) continue;
+            int bsIdx;
+            int ntIdx;
+            try {
+                bsIdx = Integer.parseInt(e.substring(5, hash));
+                ntIdx = Integer.parseInt(e.substring(hash + 1));
+            } catch (NumberFormatException ex) { continue; }
+            if (bsIdx < 0 || bsIdx >= recipes.length || recipes[bsIdx] == null) continue;
+            if (ntIdx >= constPool.length) continue;
+            String nt = constPool[ntIdx];
+            if (nt == null || !nt.startsWith("#")) continue;
+            int nameIdx = Integer.parseInt(nt.substring(1, nt.indexOf('#', 1)));
+            if (!"makeConcatWithConstants".equals(constPool[nameIdx])) continue;
+            constPool[i] = "CONCAT:" + recipes[bsIdx];
+        }
     }
 }

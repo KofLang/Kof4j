@@ -131,6 +131,7 @@ public final class CompilerCaptureScanner {
             for (ExpressionNode a : ne.arguments()) collectDeclaredVarNamesExpr(a);
         } else if (expr instanceof NewArrayExpr nae) {
             collectDeclaredVarNamesExpr(nae.size());
+            for (ExpressionNode dim : nae.moreDims()) collectDeclaredVarNamesExpr(dim);
         }
     }
 
@@ -225,6 +226,7 @@ public final class CompilerCaptureScanner {
             for (ExpressionNode a : ne.arguments()) collectLambdasExpr(a, out);
         } else if (expr instanceof NewArrayExpr nae) {
             collectLambdasExpr(nae.size(), out);
+            for (ExpressionNode dim : nae.moreDims()) collectLambdasExpr(dim, out);
         }
     }
 
@@ -343,6 +345,7 @@ public final class CompilerCaptureScanner {
             for (ExpressionNode arg : ne.arguments()) collectMutatedCapturesExpr(driver, arg, shadowed, inLambda);
         } else if (expr instanceof NewArrayExpr nae) {
             collectMutatedCapturesExpr(driver, nae.size(), shadowed, inLambda);
+            for (ExpressionNode dim : nae.moreDims()) collectMutatedCapturesExpr(driver, dim, shadowed, inLambda);
         }
     }
 }

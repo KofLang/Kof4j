@@ -118,3 +118,40 @@ Fase B  JVM Bytecode IR         (Class File → Bytecode IR)
 Fase C  Control Flow Recovery
 Fase D  Type Recovery
 ```
+
+> **Estado (08/09, `367d6c4`):** Fase D ✅ — `Type.fromJvmDescriptor`
+> (descriptors) **+** `Type.fromJvmSignature` (atributo `Signature`,
+> JVMS 4.7.9.1: genéricos, wildcards, type-variables, arrays) lido em
+> `ClassFileParser` nos 3 níveis. Provas: `ClassFileE2ETest.
+> genericSignatureRecovery` + `DecompileTest` 16/16.
+>
+> **Estado (08/09, este commit):** Fase C — recuperação de **loop testado-
+> embaixo (`do-while`)**. O `BytecodeStatements.struct` distingue back-edge
+> self/para-trás no bloco cond (`s <= b.start`, impossível em while/for top-
+> tested) e emite `do { corpo } while (c)` (teste na direção de CONTINUAÇÃO,
+> sem inversão). Antes emitia um `while` de corpo VAZIO com o `return` dentro
+> (código semanticamente errado — violava "never invent silently"); agora o
+> corpo é recuperado e o caso de corpo-separado-do-teste degrada p/ o stub
+> UNKNOWN honesto. Prova: `DecompileTest.bottomTestedLoopRecoversAsDoWhile`
+> (unário + binário, `do { i = i - 1 } while (i > 0)` compila de volta no JVM).
+>
+> **Estado (08/09, este commit):** Fase C — **fix R6 de ponto de junção**:
+> `struct()` re-entrava em bloco já emitido só por `isLoopHeader` e, em
+> shapes com join compartilhado (`continue` de `for` — o incremento é o join;
+> `&&`/`||` — os braços caem no mesmo bloco; `?:`), emitia código **errado
+> mas compilável** (ex.: `for`+`continue` perdia o incremento no caminho
+> normal; `&&` sugava o `return` final p/ dentro do `else`). Agora re-entrar
+> num bloco que NÃO é o header do loop atualmente aberto (parâmetro `header`
+> threadado pela recursão) → recusar → stub UNKNOWN honesto. Provas:
+> `DecompileTest.diamondJoinShapesStayHonestStub` + `recoversNestedWhileLoops`
+> (aninhado legítimo continua recuperando) + `DecompileTest` 20/20.
+>
+> **Estado (08/09, este commit):** Fase B — **fix do constant pool**: os tags
+> 4 (Float) e 6 (Double) eram lidos como `getInt()`/`getLong()` crus — uma
+> constante `3.5f` virava o inteiro de bits `1079574528` no CP (perda total do
+> valor; `inspect`/`decompile` nunca recuperariam float/double). Agora
+> `Float.intBitsToFloat`/`Double.longBitsToDouble` guardam o VALOR. Para não
+> driftar tipo (Kof não tem literal float inline — "3.5" é Double → SEM010 no
+> corpo de um método `Float`), `ldc` recusa literais float → stub honesto,
+> irmão de Double/Long via `ldc2_w`. Prova: `DecompileTest.floatConstantsDegrade
+> NotDrift` (int ldc recupera, f/d degradam) + DecompileTest 21/21.

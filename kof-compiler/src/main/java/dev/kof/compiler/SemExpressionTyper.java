@@ -124,6 +124,7 @@ public final class SemExpressionTyper {
                         && !KofLog.isLogNamespace(ie.name())
                         && !KofSecurity.isSecurityNamespace(ie.name())
                         && !KofValidation.isValidationNamespace(ie.name())
+                        && !KofStd.isStdNamespace(ie.name())
                         && !KofObservability.isObservabilityNamespace(ie.name())
                         && !KofHttp.isHttpNamespace(ie.name())
                         && !KofMq.isMqNamespace(ie.name())
@@ -171,7 +172,8 @@ public final class SemExpressionTyper {
                                 && !KofOrm.isOrmNamespace(ie.name())
                                 && !KofLog.isLogNamespace(ie.name())
                                 && !KofSecurity.isSecurityNamespace(ie.name())
-                                && !KofValidation.isValidationNamespace(ie.name())
+                        && !KofValidation.isValidationNamespace(ie.name())
+                        && !KofStd.isStdNamespace(ie.name())
                                 && !KofObservability.isObservabilityNamespace(ie.name())
                                 && !KofHttp.isHttpNamespace(ie.name())
                                 && !KofMq.isMqNamespace(ie.name())
@@ -330,6 +332,10 @@ public final class SemExpressionTyper {
             case NewArrayExpr na -> {
                 Type elemType = Type.of(na.elementType());
                 inferType(sa, na.size(), scope);
+                for (ExpressionNode dim : na.moreDims()) inferType(sa, dim, scope);
+                for (int i = 0; i < na.moreDims().size(); i++) {
+                    elemType = new Type.ArrayType(elemType);
+                }
                 yield new Type.ArrayType(elemType);
             }
             case ArrayAccessExpr aa -> {

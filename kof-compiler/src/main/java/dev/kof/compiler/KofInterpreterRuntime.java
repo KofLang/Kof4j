@@ -36,6 +36,11 @@ public final class KofInterpreterRuntime {
     }
 
     Object runtimeFn(String name, Object[] args, Type ret) throws Throwable {
+        // UI002 (R6): kof.ui no interpretador é no-op silencioso — avisa UMA
+        // vez, nunca quebra a execução (o no-op é design do target).
+        if (name.startsWith("kof_ui_")) {
+            interp.warnUi002(name);
+        }
         // json.encode sobre objeto Kof: campos do mapa (mesmo formato do
         // runtime gerado, que lê declared fields de instâncias reais)
         if (name.equals("kof_json_encode") && args.length == 1

@@ -3,6 +3,7 @@ import dev.kof.compiler.AnnotationNode;
 import dev.kof.compiler.AstNode;
 import dev.kof.compiler.ConstructorDeclarationNode;
 import dev.kof.compiler.ExpressionNode;
+import dev.kof.compiler.SourcePosition;
 import dev.kof.compiler.FieldDeclarationNode;
 import dev.kof.compiler.FormalParameterNode;
 import dev.kof.compiler.MethodDeclarationNode;
@@ -98,29 +99,34 @@ public class ClassMemberParser {
     /** Corpo de método nas três formas: bloco, `= expr` e declaração vazia. */
     static AstNode finishMethod(ParseContext ctx, List<String> mods, List<AnnotationNode> annos, String name,
                                  List<FormalParameterNode> params, String returnType, List<String> thrown) {
+        // GitHub #66 / bug 75: posição capturada ANTES do parse do corpo —
+        // `ctx.pos()` APÓS o corpo aponta para o token seguinte (o `;` foi
+        // consumido), deslocando a declaração para a linha errada.
+        SourcePosition declPos = ctx.pos();
         if (ctx.check(TokenType.LBRACE)) {
             List<StatementNode> body = StatementParser.parseBlock(ctx);
-            return new MethodDeclarationNode(ctx.pos(), mods, returnType, name, params, thrown, body, annos);
+            return new MethodDeclarationNode(declPos, mods, returnType, name, params, thrown, body, annos);
         }
         if (ctx.check(TokenType.EQUAL)) {
             ctx.advance();
             ExpressionNode expr = ExpressionParser.parseExpression(ctx);
             if (ctx.check(TokenType.SEMICOLON)) ctx.advance();
-            return new MethodDeclarationNode(ctx.pos(), mods, returnType, name, params, thrown,
-                    List.of(new ReturnStmt(ctx.pos(), expr)), annos);
+            return new MethodDeclarationNode(declPos, mods, returnType, name, params, thrown,
+                    List.of(new ReturnStmt(declPos, expr)), annos);
         }
         ctx.expectSemicolon();
-        return new MethodDeclarationNode(ctx.pos(), mods, returnType, name, params, thrown, List.of(), annos);
+        return new MethodDeclarationNode(declPos, mods, returnType, name, params, thrown, List.of(), annos);
     }
 
     static FieldDeclarationNode parseField(ParseContext ctx, List<String> mods, String type, String name) {
+        SourcePosition declPos = ctx.pos();
         ExpressionNode init = null;
         if (ctx.check(TokenType.EQUAL)) {
             ctx.advance();
             init = ExpressionParser.parseExpression(ctx);
         }
         ctx.expectSemicolon();
-        return new FieldDeclarationNode(ctx.pos(), mods, type, name, init);
+        return new FieldDeclarationNode(declPos, mods, type, name, init);
     }
 
     static ConstructorDeclarationNode parseConstructor(ParseContext ctx, List<String> mods) {

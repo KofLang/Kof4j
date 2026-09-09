@@ -83,6 +83,10 @@ public final class KofInterpreterBuiltins {
         return ops.newArray(elementType, size);
     }
 
+    Object newMultiArray(Type baseType, int[] lens) {
+        return ops.newMultiArray(baseType, lens);
+    }
+
     Object arrayLoad(KofArrayLoad al, Object arr, int idx) {
         return ops.arrayLoad(al, arr, idx);
     }

@@ -185,6 +185,198 @@ class ConformanceMatrixTest {
                     println(256 >> 2)
                 }
                 """, "2\n7\n5\n16\n64", Set.of(), tempDir);
+        // STDLIB S1 — kof.math (Int-only) paridade total nos 4 targets.
+        matrix("stdmath", """
+                main() {
+                    println(math.clamp(15, 0, 10))
+                    println(math.clamp(-3, 0, 10))
+                    println(math.abs(-7))
+                    println(math.sign(-4))
+                    println(math.min(3, 8))
+                    println(math.max(3, 8))
+                    println(math.isEven(4))
+                    println(math.isOdd(4))
+                    println(math.isZero(0))
+                }
+                """, "10\n0\n7\n-1\n3\n8\ntrue\nfalse\ntrue", Set.of(), tempDir);
+        // STDLIB S2a — kof.strings predicados paridade total nos 4 targets.
+        matrix("stdstrings", """
+                main() {
+                    println(strings.isAlpha("Hello"))
+                    println(strings.isAlpha("Hello World"))
+                    println(strings.isAlpha(""))
+                    println(strings.isNumeric("12345"))
+                    println(strings.isNumeric("12.34"))
+                    println(strings.isNumeric(""))
+                    println(strings.isAlphaNumeric("abc123"))
+                    println(strings.isAlphaNumeric("abc-123"))
+                    println(strings.isAscii("ola"))
+                    println(strings.isAscii("ola !123"))
+                    println(strings.isUpperCase("HELLO"))
+                    println(strings.isUpperCase("Hello"))
+                    println(strings.isLowerCase("abc-123"))
+                    println(strings.isLowerCase("Abc"))
+                    println(strings.count("aabaabaa", "ab"))
+                    println(strings.count("aaa", "aa"))
+                }
+                """, "true\nfalse\nfalse\ntrue\nfalse\nfalse\ntrue\nfalse\ntrue\ntrue\ntrue\nfalse\ntrue\nfalse\n2\n1", Set.of(), tempDir);
+        // STDLIB S2b — kof.strings conversores (alocam String). ASCII-only:
+        // é onde JVM/Native/JS concordam byte a byte. capitalize é ASCII
+        // (mesma regra nos 4); reverse é byte-reverso no Native e UTF-16
+        // nos outros — em ASCII as três convenções coincidem. Gap UTF-8 do
+        // reverse nativo = NAT-STR01 (plan-stdlib-expansion §5).
+        matrix("stdstrings2b", """
+                main() {
+                    var a = strings.capitalize("hello world")
+                    var b = strings.capitalize("1abc")
+                    var c = strings.reverse("abc123")
+                    var d = strings.reverse("kayak")
+                    var e = strings.repeat("ab", 3)
+                    var f = strings.truncate("hello world", 5)
+                    var g = strings.truncate("abc", 10)
+                    var h = strings.padLeft("7", 3, "0")
+                    var i = strings.padRight("ab", 5, "-")
+                    println(a + "|" + b + "|" + c + "|" + d + "|" + e + "|" + f + "|" + g + "|" + h + "|" + i)
+                }
+                """, "Hello world|1abc|321cba|kayak|ababab|hello|abc|007|ab---", Set.of(), tempDir);
+        // STDLIB S2b.4 — kof.strings conversores de palavra (split+join, ASCII).
+        // A matriz roda native=x86 (tem asm); o port riscv/aarch é STRN001-gated
+        // (KofStringsTest.wordConvertersGatedOnCrossArch). Em ASCII os 4 targets
+        // (jvm/native/script/js) concordam byte a byte.
+        matrix("stdstrings2b4", """
+                main() {
+                    var a = strings.toSnakeCase("HTTPServer")
+                    var b = strings.toSnakeCase("XMLParser")
+                    var c = strings.toCamelCase("hello_world")
+                    var d = strings.toPascalCase("hello world")
+                    var e = strings.toKebabCase("helloWorld")
+                    var f = strings.slugify("Hello, World!! 42")
+                    println(a + "|" + b + "|" + c + "|" + d + "|" + e + "|" + f)
+                }
+                """, "http_server|xml_parser|helloWorld|HelloWorld|hello-world|hello-world-42", Set.of(), tempDir);
+        // STDLIB S4 — kof.encoding hex (UTF-8 por bytes; paridade byte-idêntica
+        // nos 4: getBytes/TextEncoder/asm UTF-8 puro).
+        matrix("stdenc", """
+                main() {
+                    var a = encoding.hexEncode("Hi")
+                    var b = encoding.hexDecode("4869")
+                    var c = encoding.hexEncode("café")
+                    var d = encoding.hexDecode(c)
+                    var e = encoding.base64Encode("Man")
+                    var f = encoding.base64Decode("Y2Fmw6k=")
+                    var u = encoding.urlEncode("a b")
+                    var w = encoding.urlDecode("caf%C3%A9")
+                    var x = encoding.base64UrlEncode("fb&O->f")
+                    var y = encoding.base64UrlDecode("ZmImTy0-Zg")
+                    var mark = if (encoding.hexEncode("") == "") "E" else "N"
+                    println(a + "|" + b + "|" + c + "|" + d + "|" + e + "|" + f + "|" + u + "|" + w + "|" + x + "|" + y + "|" + mark)
+                }
+                """, "4869|Hi|636166c3a9|café|TWFu|café|a%20b|café|ZmImTy0-Zg|fb&O->f|E", Set.of(), tempDir);
+        matrix("stdvalidation", """
+                main() {
+                    println(validation.isCpf("529.982.247-25"))
+                    println(validation.isCpf("111.111.111-11"))
+                    println(validation.isCnpj("11.222.333/0001-81"))
+                    println(validation.isCnpj("11.222.333/0001-82"))
+                    println(validation.isCep("01310-100"))
+                    println(validation.isCep("0131010"))
+                    println(validation.isPis("123.4567.890-0"))
+                    println(validation.isPis("12345678901"))
+                }
+                """, "true\nfalse\ntrue\nfalse\ntrue\nfalse\ntrue\nfalse", Set.of(), tempDir);
+        matrix("stdvalidationnet", """
+                main() {
+                    println(validation.isIpv4("192.168.0.1"))
+                    println(validation.isIpv4("256.1.1.1"))
+                    println(validation.isIpv4("01.2.3.4"))
+                    println(validation.isMac("00:1A:2B:3C:4D:5E"))
+                    println(validation.isMac("GG:1A:2B:3C:4D:5E"))
+                    println(validation.isPort(443))
+                    println(validation.isPort(65536))
+                }
+                """, "true\nfalse\nfalse\ntrue\nfalse\ntrue\nfalse", Set.of(), tempDir);
+        matrix("stdluhn", """
+                main() {
+                    println(validation.isCreditCard("4111111111111111"))
+                    println(validation.isCreditCard("4532 0151 1283 0366"))
+                    println(validation.isCreditCard("378282246310005"))
+                    println(validation.isCreditCard("4111111111111112"))
+                    println(validation.isCreditCard("45"))
+                    println(validation.isCreditCard("1234567890123456789"))
+                }
+                """, "true\ntrue\ntrue\nfalse\nfalse\nfalse", Set.of(), tempDir);
+        matrix("stdipv6", """
+                main() {
+                    println(validation.isIpv6("::1"))
+                    println(validation.isIpv6("fe80::1"))
+                    println(validation.isIpv6("a:b:c:d:e:f:1:2"))
+                    println(validation.isIpv6("1::2::3"))
+                    println(validation.isIpv6("12345::"))
+                    println(validation.isIpv6("::ffff:192.168.0.1"))
+                }
+                """, "true\ntrue\ntrue\nfalse\nfalse\nfalse", Set.of(), tempDir);
+        matrix("stddomain", """
+                main() {
+                    println(validation.isDomain("example.com"))
+                    println(validation.isDomain("xn--mnchen-3ya.de"))
+                    println(validation.isDomain("localhost"))
+                    println(validation.isDomain("example..com"))
+                    println(validation.isDomain("ex_ample.com"))
+                    println(validation.isDomain("x.x"))
+                }
+                """, "true\ntrue\nfalse\nfalse\nfalse\nfalse", Set.of(), tempDir);
+        matrix("stdescape", """
+                main() {
+                    println(strings.escapeHtml("a<b>&\\"'c"))
+                    println(strings.escapeHtml("Café & ç"))
+                    println(strings.escapeHtml("&amp;lt;"))
+                    println(strings.escapeHtml("<a href=\\"u\\">y</a>"))
+                }
+                """, "a&lt;b&gt;&amp;&quot;&#39;c\nCafé &amp; ç\n&amp;amp;lt;\n&lt;a href=&quot;u&quot;&gt;y&lt;/a&gt;", Set.of(), tempDir);
+        matrix("stdws", """
+                main() {
+                    println(strings.removeWhitespace("  a\\tb\\nc  ") + "|" + strings.removeWhitespace("Café é"))
+                    println(strings.normalizeWhitespace("  a   b  ") + "|" + strings.normalizeWhitespace("a\\t\\n b"))
+                    println(strings.normalizeWhitespace("   ") + "|[" + strings.removeWhitespace("") + "]")
+                }
+                """, "abc|Caféé\na b|a b\n|[]", Set.of(), tempDir);
+        matrix("stdnet", """
+                main() {
+                    val s = "https://user:pw@host.io:8443/p?q#f"
+                    println(net.scheme(s) + "|" + net.host(s) + "|" + net.port(s) + "|" + net.path(s) + "|" + net.query(s) + "|" + net.fragment(s))
+                    println(net.path("/only/path") + "|" + net.query("http://h?onlyquery"))
+                    println(net.queryEncode("a b&c=1"))
+                    println(net.queryDecode("a%20b%26c%3D1"))
+                }
+                """, "https|host.io|8443|/p|q|f\n/only/path|onlyquery\na%20b%26c%3D1\na b&c=1", Set.of(), tempDir);
+        matrix("stdunescape", """
+                main() {
+                    println(strings.unescapeHtml("a&amp;b"))
+                    println(strings.unescapeHtml("&lt;x&gt;"))
+                    println(strings.unescapeHtml("caf&#233;"))
+                    println(strings.unescapeHtml("&#9731;"))
+                    println(strings.unescapeHtml("&&amp;"))
+                    println(strings.unescapeHtml("&notreal;"))
+                }
+                """, "a&b\n<x>\ncafé\n\u2603\n&&\n&notreal;", Set.of(), tempDir);
+        matrix("stdtime", """
+                main() {
+                    println(time.isLeapYear(2000))
+                    println(time.isLeapYear(1900))
+                    println(time.isLeapYear(2024))
+                    println(time.isLeapYear(-4))
+                    println(time.daysInMonth(2024, 2))
+                    println(time.daysInMonth(2023, 2))
+                    println(time.daysInMonth(2024, 4))
+                    println(time.daysInMonth(2024, 13))
+                    println(time.dayOfWeek(1970, 1, 1))
+                    println(time.dayOfWeek(2026, 9, 9))
+                    println(time.dayOfWeek(2024, 2, 30))
+                    println(time.daysBetween(2024, 1, 1, 2024, 3, 1))
+                    println(time.daysBetween(2024, 3, 1, 2024, 1, 1))
+                    println(time.daysBetween(2023, 2, 29, 2023, 3, 1))
+                }
+                """, "true\nfalse\ntrue\nfalse\n29\n28\n30\n0\n4\n3\n0\n60\n-60\n0", Set.of(), tempDir);
     }
 
     @Test
@@ -299,6 +491,51 @@ class ConformanceMatrixTest {
                     println(r)
                 }
                 """, "small", Set.of(), tempDir);
+        // issue #57 — if-expr com branches heterogêneos (Int vs String) como
+        // argumento direto: o typer devolve o thenType e o box pós-join
+        // aplicava Integer.valueOf ao ramo String → VerifyError. Fix: ramos
+        // primitivos boxeados in-branch + skip do pós-box (só codegen; o
+        // check continua aprovando). JS excluído: underflow pré-existente
+        // no backend KofJS p/ if heterogêneo (known-bugs §69, provado com
+        // o fix em stash). Paridade JVM+Native+Script (script = oráculo).
+        matrix("ifexpr-heterogeneous-direct", """
+                main() {
+                    var s = ""
+                    println(if (s == "") 1 else "s")
+                }
+                """, "1", Set.of("js"), tempDir);
+        // mesma classe da #57 p/ switch-expression heterogêneo.
+        matrix("switchexpr-heterogeneous-direct", """
+                main() {
+                    var s = ""
+                    println(switch (s) {
+                        case "" -> 1
+                        default -> "s"
+                    })
+                }
+                """, "1", Set.of("js"), tempDir);
+        // §70 — heterogêneo primitivo-vs-primitivo de slots distintos
+        // (Int 1-word vs Long 2-word): o join quebrava o COMPUTE_FRAMES
+        // (crash AIOOBE) em vez de VerifyError. Fix: cada ramo boxeado
+        // p/ SEU boxed (sem widening: `2L` imprime `2`, paridade script).
+        matrix("ifexpr-intlong-direct", """
+                main() {
+                    var s = ""
+                    println(if (s == "") 1 else 2L)
+                }
+                """, "1", Set.of("js"), tempDir);
+        matrix("ifexpr-longdouble-direct", """
+                main() {
+                    var s = ""
+                    println(if (s == "") 2L else 2.5)
+                }
+                """, "2", Set.of("js"), tempDir);
+        matrix("ifexpr-intnull-direct", """
+                main() {
+                    var s = ""
+                    println(if (s == "") 1 else null)
+                }
+                """, "1", Set.of("js"), tempDir);
         matrix("switchexpr", """
                 main() {
                     var v = 3
@@ -400,7 +637,7 @@ class ConformanceMatrixTest {
                     println(Counter.bump())
                     println(Counter.count)
                 }
-                """, "1\n2\n2", Set.of("native"), tempDir);
+                """, "1\n2\n2", Set.of(), tempDir);
         matrix("staticpluseq", """
                 class Counter2 {
                     static Int count = 0
@@ -414,7 +651,7 @@ class ConformanceMatrixTest {
                     println(Counter2.bump())
                     println(Counter2.count)
                 }
-                """, "2\n4\n4", Set.of("native"), tempDir);
+                """, "2\n4\n4", Set.of(), tempDir);
     }
 
     // ===== Lote 2 — erros/null/JSON =====
@@ -602,6 +839,18 @@ class ConformanceMatrixTest {
                     println(await h2)
                 }
                 """, "2\n11", Set.of(), tempDir);
+        // spawn-EXPR com LAMBDA LITERAL que retorna valor (bug 46): a ordem é
+        // garantida (await bloqueia). O typer de `spawn { return ... }` devolvia
+        // Handle<FunctionType> e o await vazava FunctionType -> println String ->
+        // SIGSEGV no Native; interp/JVM/JS davam 42. Fix 09/09: desembrulhar o
+        // returnType. Travado nos 4 targets (antes excluía native).
+        matrix("spawnexpr-return", """
+                main() {
+                    var n = 21
+                    var h = spawn { return n * 2 }
+                    println(await h)
+                }
+                """, "42", Set.of(), tempDir);
         // canal na MESMA thread: FIFO, ordem garantida, sem spawn.
         matrix("channel-samethread", """
                 main() {
@@ -621,9 +870,8 @@ class ConformanceMatrixTest {
                     println(cs.receive() + cs.receive())
                 }
                 """, "s=11\nab", Set.of(), tempDir);
-        // canal + spawn (send na task): JVM/Script/JS dão 42.
-        // PARTIAL: bug 50 (Native SIGSEGV — futex do canal fora da thread
-        // principal; isolado: canal sem spawn OK, spawn sem canal OK).
+        // canal + spawn (send na task): 4 targets dão 42 (bug 50 corrigido
+        // 09/09 — usleep clobberava %rsi=&lock no caminho de fila vazia).
         matrix("channel-spawn", """
                 main() {
                     val c = channel<Int>()
@@ -633,7 +881,7 @@ class ConformanceMatrixTest {
                     val v = c.receive()
                     println(v)
                 }
-                """, "42", Set.of("native"), tempDir);
+                """, "42", Set.of(), tempDir);
         matrix("channel-spawn-two", """
                 main() {
                     val c = channel<Int>()
@@ -644,6 +892,6 @@ class ConformanceMatrixTest {
                     println(c.receive())
                     println(c.receive())
                 }
-                """, "1\n2", Set.of("native"), tempDir);
+                """, "1\n2", Set.of(), tempDir);
     }
 }

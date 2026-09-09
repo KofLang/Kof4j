@@ -82,7 +82,17 @@ public final class CompilerClassLowering {
                     AccessFlags.PRIVATE | AccessFlags.FINAL,
                     null, CompilerAnnotations.lowerAnnotations(driver, comp.annotations())));
         }
-        methods.add(0, CompilerRecordSupport.generateRecordConstructor(driver, rec, internalName));
+        // bug #53: se o record declara um construtor explícito com a MESMA
+        // aridade do canônico (número de componentes), NÃO gerar o automático —
+        // senão dois <init> no JVM → ClassFormatError. O canônico explícito é
+        // lowered em lowerRecord (membros) e substitui o gerado.
+        boolean hasCanonicalCtor = rec.members().stream()
+                .filter(m -> m instanceof ConstructorDeclarationNode)
+                .anyMatch(c -> ((ConstructorDeclarationNode) c).parameters().size()
+                        == rec.components().size());
+        if (!hasCanonicalCtor) {
+            methods.add(0, CompilerRecordSupport.generateRecordConstructor(driver, rec, internalName));
+        }
         methods.addAll(CompilerRecordSupport.generateRecordDefaultOverloads(driver, rec, internalName));
         Type ownerType = CompilerTypes.ownerTypeFromInternal(internalName, driver.semanticAnalyzer);
         for (RecordComponentNode comp : rec.components()) {
@@ -232,7 +242,12 @@ public final class CompilerClassLowering {
         }
         KofDebugInfo debugInfo = driver.currentDebugPositions.isEmpty()
                 ? KofDebugInfo.EMPTY
-                : new KofDebugInfo(new java.util.HashMap<>(driver.currentDebugPositions));
+                // GitHub #66 / bug 75: a cópia NÃO pode ser HashMap — ops são RECORDS e
+// duas instâncias com o MESMO VALOR (ex.: 2 KofGetStatic do System.out em
+// 2 prints) colidem por equals/hashCode: 1 entry sobrescreve o outro e
+// AMBAS as ops herdam a MESMA posição (o print seguinte "vencia" o anterior
+// — LNT apontando o statement seguinte). A cópia é por IDENTIDADE.
+                : new KofDebugInfo(new java.util.IdentityHashMap<>(driver.currentDebugPositions));
         driver.currentDebugPositions.clear();
         return new IRMethod(method.name(), returnType, paramTypes, access, method.thrownExceptions(),
                 body, locals, debugInfo,
@@ -333,7 +348,15 @@ public final class CompilerClassLowering {
                 es.expression() instanceof MethodCallExpr mc &&
                 "super".equals(mc.methodName());
         // driver(...): o construtor alvo executa super() e os inicializadores
-        if (!delegatesToThis && !hasExplicitSuper && !"java/lang/Object".equals(superName)) {
+        // #53 (metades JS/Native/script): o <init> sintético de Record só
+        // existe no verificador JVM (precedente: generateRecordConstructor
+        // gateia o super em isJvmTarget). Em JS a classe de record não tem
+        // pai (SyntaxError 'super unexpected'); em Native não há
+        // java_lang_Record_init (undefined reference no link); no interpretador
+        // o Record não é super de nada. Suprimir fora do JVM.
+        boolean recordSuperOnlyJvm = "java/lang/Record".equals(superName) && !driver.isJvmTarget();
+        if (!delegatesToThis && !hasExplicitSuper && !"java/lang/Object".equals(superName)
+                && !recordSuperOnlyJvm) {
             ops.add(new KofLoadLocal(ownerType, 0));
             ops.add(new KofCall(superType, "<init>", List.of(), Type.PrimitiveType.VOID, KofCallKind.CONSTRUCTOR));
         }

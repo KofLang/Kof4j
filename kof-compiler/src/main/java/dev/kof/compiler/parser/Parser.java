@@ -182,7 +182,8 @@ public class Parser {
             ctx.advance();
             ExpressionNode expr = ExpressionParser.parseExpression(ctx);
             if (ctx.check(TokenType.SEMICOLON)) ctx.advance();
-            body = List.of(new ReturnStmt(ctx.pos(), expr));
+            // pos pré-capturada (bug 75): pós-parse apontaria o token seguinte
+            body = List.of(new ReturnStmt(p, expr));
         } else {
             ctx.expectSemicolon();
         }

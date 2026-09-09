@@ -62,8 +62,30 @@ final class KofCliSupport {
         }
     }
 
+    /**
+     * Diagnóstico para um {@code --target} que não resolve (flag legado).
+     * {@code wasm} e cia. são alvos CONHECIDOS que ainda não existem →
+     * mesma mensagem do caminho {@code --backend/--frontend} (WASM001,
+     * Fase 6), nunca "unknown" genérico (R6). Vazio se o valor é válido.
+     */
+    static java.util.List<String> unknownTargetMessages(String value) {
+        Target t = switch (value) {
+            case "jvm", "native", "native.risc", "native.riscv64", "native.riscv",
+                 "native.arm", "native.aarch64", "native.aarch", "js", "kofjs",
+                 "android", "script", "kofscript" -> Target.JVM;
+            default -> null;
+        };
+        if (t != null) return List.of();
+        if (dev.kof.compiler.TargetMatrix.frontendGapFor(value) != null) {
+            java.util.List<String> errs = new java.util.ArrayList<>();
+            dev.kof.compiler.TargetMatrix.parse(value, errs);
+            return errs;
+        }
+        return List.of("unknown target: " + value);
+    }
+
     static Target parseTarget(String value) {
-        return switch (value) {
+        Target t = switch (value) {
             case "jvm" -> Target.JVM;
             case "native" -> Target.NATIVE;
             case "native.risc", "native.riscv64", "native.riscv" -> Target.NATIVE_RISCV64;
@@ -72,11 +94,12 @@ final class KofCliSupport {
             case "android" -> Target.ANDROID;
             case "script", "kofscript" -> Target.SCRIPT;
             default -> {
-                System.err.println("unknown target: " + value);
+                for (String e : unknownTargetMessages(value)) System.err.println(e);
                 System.exit(1);
-                yield Target.JVM;
+                yield Target.JVM; // inalcançável (exit acima)
             }
         };
+        return t;
     }
 
     /**
@@ -220,14 +243,21 @@ final class KofCliSupport {
         return "application/octet-stream";
     }
 
-    /** Irmãos .kf do MESMO diretório (não-recursivo) — inclusão no módulo do run. */
+    /** Irmãos .kf/.kof do MESMO diretório (não-recursivo) — inclusão no módulo do run.
+     *  GitHub #67: .kof é extensão oficial (editor/kof.tmLanguage.json declara as duas). */
     static List<Path> collectShallow(Path dir) {
         List<Path> files = new ArrayList<>();
         try (var s = Files.list(dir)) {
-            s.filter(p -> p.toString().endsWith(".kf")).forEach(files::add);
+            s.filter(KofCliSupport::isKofSource).forEach(files::add);
         } catch (IOException e) { System.err.println("error: " + e.getMessage()); }
         files.sort(java.util.Comparator.comparing(Path::toString));
         return files;
+    }
+
+    /** O path é um arquivo-fonte Kof (.kf ou .kof)? Único filtro da descoberta. */
+    static boolean isKofSource(Path p) {
+        String n = p.toString().toLowerCase();
+        return n.endsWith(".kf") || n.endsWith(".kof");
     }
 
     /**
@@ -261,7 +291,7 @@ final class KofCliSupport {
         // convenção Go-like: um diretório = UM pacote → não-recursivo
         // (subdirs como tests/ são pacotes independentes)
         List<Path> files = new ArrayList<>();
-        try (var s = Files.list(dir)) { s.filter(p -> p.toString().endsWith(".kf")).forEach(files::add); }
+        try (var s = Files.list(dir)) { s.filter(KofCliSupport::isKofSource).forEach(files::add); }
         catch (IOException e) { System.err.println("error: " + e.getMessage()); }
         files.sort(java.util.Comparator.comparing(Path::toString));
         return files;

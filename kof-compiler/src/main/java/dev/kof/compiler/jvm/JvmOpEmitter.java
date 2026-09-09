@@ -11,6 +11,7 @@ import dev.kof.compiler.KofCatchStart;
 import dev.kof.compiler.KofCheckCast;
 import dev.kof.compiler.KofConditionalJump;
 import dev.kof.compiler.KofDup;
+import dev.kof.compiler.KofDup2;
 import dev.kof.compiler.KofDupX1;
 import dev.kof.compiler.KofDupX2;
 import dev.kof.compiler.KofGetStatic;
@@ -21,6 +22,7 @@ import dev.kof.compiler.KofLoadField;
 import dev.kof.compiler.KofLoadLiteral;
 import dev.kof.compiler.KofLoadLocal;
 import dev.kof.compiler.KofNewArray;
+import dev.kof.compiler.KofNewMultiArray;
 import dev.kof.compiler.KofNewObject;
 import dev.kof.compiler.KofOperation;
 import dev.kof.compiler.KofPop;
@@ -170,6 +172,8 @@ public final class JvmOpEmitter {
             c.mv().visitTypeInsn(NEW, type);
         } else if (op instanceof KofDup) {
             c.mv().visitInsn(DUP);
+        } else if (op instanceof KofDup2) {
+            c.mv().visitInsn(DUP2);
         } else if (op instanceof KofDupX1) {
             c.mv().visitInsn(DUP_X1);
         } else if (op instanceof KofDupX2) {
@@ -210,6 +214,8 @@ public final class JvmOpEmitter {
             } else {
                 c.mv().visitIntInsn(NEWARRAY, JvmLiteralEmitter.arrayTypeForType(na.elementType()));
             }
+        } else if (op instanceof KofNewMultiArray ma) {
+            c.mv().visitMultiANewArrayInsn(JvmTypeMapper.toDescriptor(arrayTypeOf(ma.baseType(), ma.dims())), ma.dims());
         } else if (op instanceof KofArrayLoad al) {
             c.mv().visitInsn(JvmLiteralEmitter.arrayLoadOpcode(al.elementType()));
         } else if (op instanceof KofArrayStore as) {
@@ -217,6 +223,13 @@ public final class JvmOpEmitter {
         } else if (op instanceof KofArrayLength) {
             c.mv().visitInsn(ARRAYLENGTH);
         }
+    }
+
+    /** Type.ArrayType aninhado n vezes: base Int, n=2 → [[I (descriptor via toDescriptor). */
+    static Type arrayTypeOf(Type base, int n) {
+        Type t = base;
+        for (int i = 0; i < n; i++) t = new Type.ArrayType(t);
+        return t;
     }
 
     private static void emitBinary(MethodVisitor mv, KofBinary kb) {

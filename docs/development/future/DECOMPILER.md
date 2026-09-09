@@ -94,6 +94,170 @@ Fase D  Type Recovery           (primitives, references, arrays, generics, inher
 Fase E  Kof Decompiler          (gerar Kof source)
 ```
 
+> **Estado (08/09, `367d6c4`):** Fase D com genéricos ✅ — o parser lê o
+> atributo `Signature` (JVMS 4.7.1/4.7.9.1) nos 3 níveis (classe, método,
+> campo) e `Type.fromJvmSignature` recupera `List<String>`,
+> `Map<String, Integer>`, arrays, wildcards e type-variables. Campos e
+> métodos preferem a signature (EXACT) ao descriptor apagado por erasure.
+>
+> **Estado (08/09, este commit):** Fase C avançou — `do-while` (loop testado-
+> embaixo) recuperado no `kof decompile`. Back-edge self/para-trás no bloco
+> cond → `do { corpo } while (c)` (direção de CONTINUAÇÃO, sem inversão);
+> corpo separado do teste → stub UNKNOWN honesto. Nunca mais `while` de corpo
+> vazio com `return` dentro (código errado). Prova:
+> `DecompileTest.bottomTestedLoopRecoversAsDoWhile` (17/17).
+>
+> **Estado (08/09, este commit):** Fase C — guard de **join compartilhado**
+> (continue/&&/||/?:): re-entrar em bloco já emitido que não é o header do
+> loop aberto → recusar (stub honesto). Nunca mais código errado compilável.
+> `DecompileTest` 20/20 (inclui `diamondJoinShapesStayHonestStub` e o
+> aninhado `recoversNestedWhileLoops` que continua recuperando).
+>
+> **Estado (09/09, este commit): robustez sobre código REAL (601 classes).**
+> Rodar o decompiler sobre o próprio kof-compiler compilado expôs 3 bugs de
+> parsing/length que só aparecem em bytecode de produção (javac, não os
+> fixtures do teste). Correções (todas com teste):
+> 1. **CP tags 16/17 invertidas** (`ClassFileParser`): JVMS 4.4 — `MethodType`
+>    = tag 16 (u2), `Dynamic` = tag 17 (u2+u2). O parser tinha ao contrário →
+>    qualquer classe com MethodType/CondY dessincronizava o constant pool
+>    inteiro e CRASHAVA (`NumberFormatException "#378#513"`), matando o arquivo.
+>    601→0 crash: antes só 1/601 decompilava SEM crash; agora 601/601.
+> 2. **`length(0xba)=7` errado** (`BytecodeReader`): invokedynamic é 5 bytes
+>    (opcode + u2 + 2 zero, JVMS 4.9.3). Com 7, o pc saltava a instrução
+>    seguinte (`areturn`) → o teste do concat passava por ACIDENTE (fallback
+>    "fim sem return"). Corrigido a captura de operandos (len==5&&0xba).
+> 3. **`wide` drift** (`skipVariable`): `op == 0x84` era impossível (o op é
+>    0xc4; 0x84 é o SUB-opcode) → `wide iinc` (6B) lido como 3, deslocando TODO
+>    opcode seguinte. Agora lê o sub-opcode (0xc4,0x84 → 6 bytes; demais → 4).
+> + **Marcador de truncamento**: instrução que não cabe no Code → Insn(-1)
+>   → decoder default → null → stub honesto. A ferramenta NUNCA lança num
+>   `.class` real (era o caminho que virava NumberFormatException/AIOOBE).
+>
+> Prova: `DecompileTest` 32/32 (+`invokedynamicIsFiveBytes`,
+> `truncatedLastInstructionBecomesHonestStub`, `wideIincConsumesSixBytes`);
+> medição sobre as 601 classes: 601/601 decompilam sem exceção, ~3306 métodos,
+> 1812 stub (recuperação ~45%).
+
+> **Fila Fase E medida (09/09):** `blockerSink` em `BytecodeDecoder` (custo
+> zero quando null, uso offline) conta qual opcode derruba a recuperação
+> sobre as 601 classes: `pop` 0x57 (347×), `instanceof` 0xc1 (165×),
+> `checkcast` 0xc0 (137×), `new` 0xbb (126×, quase todo é `isJdkClass`
+> recusando por R6), `astore_3`/arrays 0x4c (103×), `ifeq` 0x99 (102×).
+> Ataque por ROI: pop/instanceof/checkcast são os 3 maiores. **Implementado e
+> REVERTIDO no mesmo dia (lição R6):** emitidos como `x instanceof T`/`(x as
+> T)`, a classe-alvo do bytecode é de DOMÍNIO (ex.: `DiagnosticCollector`) e
+> não existe no `.kf` isolado → `kof check` falha "Undefined variable or
+> type" — **recuperou código que não compila** (o teste de drift: decompile →
+> check sobre as 601 classes; 12+ arquivos driftavam). A recuperação só é
+> válida quando o nome do tipo já está em escopo (classes do MESMO arquivo
+> recuperado) — requer o passes multi-classe do DECOMPILER (seção 7: resolver
+> imports/usos), não um patch no decoder. `pop` sozinho também drifta: a
+> heurística "tem parênteses = chamada" aceita `(x + (y))` aritmético.
+> Fila correta da Fase E: primeiro multi-classe (tipo resolve), depois
+> pop/instanceof/checkcast (bloqueados por aquele, não por eles mesmos).
+>
+> ⚠️ **Caveat do blockerSink (09/09):** ele conta cada desistência do caminho
+> linear **de expressão** — mas um método só vira stub quando expressão E
+> statements desistem; stores/branches (0x3a/0x4c/0x99…) aparecem no ranking
+> mesmo sendo tratados pelo `emitLinear`. O ranking serve p/ ACHAR candidatos,
+> não p/ contar stubs; a fila real = (a) nomes de domínio não-resolvidos
+> (multi-classe §7) e (b) shapes estruturais recusados (joins, Fase C).
+>
+> **DRIFT 69→5 (09/09, este commit):** o contador de drift (decompile→check
+> nos arquivos 100% recuperados) media PRÉ-EXISTENTES que os opcodes novos
+> expunham. A causa nº1 era semântica e única: `ldc` emitia a string do CP
+> CRUA (`\b`, newline real, `"` → LEX002/LEX004/'\' inesperado). Escapado com
+> o escape canônico do concat (`BytecodeConcat.escape`), o drift caiu 69→5.
+> As 5 restantes: 4× cross-file (classe referida noutro arquivo — exatamente
+> o passes multi-classe do §7) + 1× wildcard `? extends` (gap próprio).
+
+> **Estado (09/09, este commit): §7 degrau 2 — índice same-package.**
+> `kof decompile <dir>` agora é em 2 passes (parse uma vez, reuso — sem
+> re-parse): passe 1 monta `internalName → pacote` de TODA a árvore; passe 2
+> decompila com o índice no `BytecodeFrame` (por-método, sem estático global
+> — modo 1-arquivo tem índice null = byte-idêntico ao anterior). Com o índice,
+> `instanceof`/`checkcast` de classe de DOMÍNIO do MESMO pacote recuperam
+> (`arg0 instanceof B`, `(arg0 as B)`); fora do índice (outro pacote, `Outer$Inner`,
+> CP malformada) segue stub honesto. Cross-package com import = degrau 3.
+>
+> Prova: par controlado B/C (javac → tree → par compila, zero drift) +
+> `DecompileTest.decompileTreeResolvesSamePackageInstanceofAndCast` e
+> `decompileTreeStillStubsOutOfTreeDomainTypes` (recusa preservada) —
+> 38/38. Corpus 613 classes: 1674→1638 stubs; invariante textual verificada
+> nos 613 `.kf` (36 instanceof/as de domínio emitidos em posição de código,
+> 100% com `.kf` irmão no mesmo dir — zero drift por construção).
+> Decisão de design: índice via `BytecodeFrame` (contexto existente), não
+> estático global (vazaria entre arquivos/testes no mesmo JVM) nem parâmetro
+> novo nas ~10 assinaturas dos decoders.
+
+> **Estado (09/09, este commit): §7 degrau 3 — imports cross-package.**
+> `TreeScope` por arquivo (índice + pacote atual + imports usados; frames
+> compartilham — sem global, modo 1-arquivo intacto com bytes idênticos,
+> provado: stubs single-file 1674 = baseline). `instanceof`/`checkcast`
+> cross-package resolvem com `import` emitido; `new` em expression-body
+> registra uso; `extends`/`implements` idem. Regra de sanidade: simples
+> globalmente único (duplicado em 2+ pacotes → stub, mesmo com import
+> possível — conservador; probe provou que `import` DESEMPATA no frontend,
+> relaxamento futuro documentado).
+>
+> Prova: par p/B+q/C (extends+instanceof+new) compila junto (zero drift) +
+> `decompileTreeEmitsImportsForCrossPackageDomainRefs` e
+> `decompileTreeRefusesAmbiguousSimpleNames` — 40/40 DecompileTest. Corpus:
+> tree 1636 stubs, 7 arquivos com import; invariante textual 36/36 nomes
+> com `.kf` irmão. Tree-check 613 arquivos: 4 erros, todos wildcard
+> `? extends` pré-existente (gap próprio) — ZERO SEM011/PKG (e idêntico sem
+> os imports: o frontend resolve simples não-ambíguo module-wide; imports
+> são explícitos/idiomáticos + desambiguadores + robustez).
+> Decisão de design: índice no `BytecodeFrame` (contexto existente), coleta
+> durante o decode (import não-usado por corpo-stub é inofensivo — probe:
+> só import INEXISTENTE é erro PKG006); `new` em statement-body segue stub
+> (statements não tratam 0xbb — gap Fase E próprio); assinaturas
+> (param/return/field cross-package) = degrau 4.
+
+> **Estado (09/09, este commit): §7 degrau 4 — tipos de assinatura.**
+> Field/ctor-param/param/return cross-package registram import via
+> `recordSignatureUses` (walker ClassType+args/Array/Nullable sobre
+> `m.returnType`/`m.parameterTypes` e `fieldTypeTree` — signature preferida,
+> descriptor como fallback; emissão de nomes INALTERADA). O hook fica no topo
+> do loop de métodos (o `continue` do `<init>` pulava ctor-params — pego na
+> revisão). Prova: par p/B+q/C (field+ctor+param+return+new) compila junto +
+> `decompileTreeEmitsImportsForSignatureTypes` (41/41 DecompileTest). Corpus:
+> arquivos-com-import 7→31; tree-check 614 = 4 erros wildcard pré-existentes,
+> zero SEM011. Com degraus 1–4, a classe "nome não resolve" de drift morreu
+> na árvore (resta só wildcard `? extends`, gap próprio, e slots — fora do
+> decompiler).
+
+> **Estado (09/09, este commit): Fase E — `new` em statement-body.**
+> O `emitLinear` não tratava 0xbb/0x59/0xb7 (só o path linear): qualquer
+> corpo multi-statement com `new B(...)` virava stub — 152 arquivos com stub
+> contêm `new` de domínio. Mirror exato do path linear (marcador `⟦new⟧`,
+> dup-só-pós-marker, `<init>` com argc+2 na pilha); JDK recusa (R6);
+> cross-package registra import (frame já presente). Prova: par N/M
+> (`var n = new N(x)` + field + return, same e cross-package) compila +
+> `recoversNewInStatementBody` (42/42 DecompileTest). Corpus: single
+> 1674→1665 e tree 1636→1627 stubs; drift single 13→13 (zero novo — baseline
+> com o fix em stash, mesmo harness com package espelhado; os 13 são wildcard
+> + refs cross-file que o path linear já emitia). Refactor gate ≤500:
+> `statementOp` em `BytecodeKofTypes` (Statements 496, KofTypes 182).
+> Suíte 1193+25+5+122 — ZERO falhas. Próximo da fila: `anewarray` 0xbd
+> (69×) e joins estruturais (Fase C).
+
+> **Estado (09/09, este commit): Fase E — arrays (`anewarray`/acessos).**
+> `anewarray` (0xbd) + `xaload`/`xastore`/`arraylength` SÓ no statements-path
+> (`statementOp`; linear recusa e cai no statements — mesma saída, menos
+> código, sem pressão no gate). Elemento ESTRITO (`String`/`Object`/domínio;
+> `Integer[]` recusa: `new Int[n]` é `int[]`, semântica distinta). Idioms:
+> `new T[n]`, `a[i]`, `a[i] = v` (stmt), `a.length` (probes JVM/script).
+> Prova: par A (`new String[n]` + store/load/length) compila +
+> `recoversArrayCreateAndAccess` (43/43 DecompileTest). Corpus: single
+> 1674→1658 stubs; drift 13→13 idêntico (zero novo). Suíte 1193+25+5+123 —
+> ZERO falhas. Incidentes da unidade: (1) python sem checar ordem
+> start<end DUPLICOU região do BytecodeDecoder (698 linhas) — revertido via
+> `git checkout` (só tinha código novo da unidade) e o path linear foi
+> ABANDONADO por desnecessário; (2) bug 71 registrado no caminho (Kof
+> `new Int[2][3]` → VerifyError — lane compiler, não tocado);
+> `multianewarray` recusado (sem forma válida p/ recuperar).
+
 ## 7. Relação com o Compilador
 
 O decompiler alimenta o pipeline existente:

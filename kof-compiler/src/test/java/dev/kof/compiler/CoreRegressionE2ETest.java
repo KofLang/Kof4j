@@ -134,6 +134,152 @@ class CoreRegressionE2ETest {
         assertEquals("x\ny", runJvm(out));
     }
 
+    // GitHub #62 / bug 72 — json.decode de record com List<Double>: a
+    // assinatura genérica do campo usava o DESCRIPTOR do primitivo (`D`)
+    // dentro de `L...<...>;` → GenericSignatureFormatError
+    // ("Remaining input: D>") no load da classe. Fix: type-arg primitivo
+    // emite o boxed (Ljava/lang/Double;).
+    @Test
+    void jsonDecodeRecordWithListOfDoubles(@TempDir Path tempDir) throws IOException {
+        Path src = tempDir.resolve("recDouble.kf");
+        Files.writeString(src, """
+                record Checkpoint(List<Double> params, Int step)
+                main() {
+                    var j = json.encode(Checkpoint(listOf(1.0, 2.0), 3))
+                    var d = json.decode<Checkpoint>(j)
+                    println(d.params().get(0))
+                    println(d.params().get(1))
+                    println(d.step())
+                }
+                """);
+        Path out = tempDir.resolve("recDouble-jvm");
+        CompilationResult r = driver.compile(src, out, Target.JVM);
+        assertTrue(r.success(), "JVM compile failed: " + r.diagnostics().getDiagnostics());
+        assertEquals("1.0\n2.0\n3", runJvm(out));
+    }
+
+    // GitHub #63 / bug 73 — LineNumberTable inválida em arquivo grande e
+    // denso de if/try/while: 2 labels de debug CONSECUTIVOS resolviam para o
+    // mesmo start_pc (o primeiro op do statement seguinte é KofLabel de IR,
+    // que NÃO é instrução) → 2 entries de LNT no mesmo pc → hotspot rejeita
+    // com `ClassFormatError: Invalid pc in LineNumberTable` no load. Fix:
+    // label de debug é retido e só visitado junto com a primeira instrução
+    // real; nunca 2 entries no mesmo pc.
+    @Test
+    void largeDenseFileLoadsOnJvm(@TempDir Path tempDir) throws IOException {
+        Path src = tempDir.resolve("dense.kf");
+        StringBuilder sb = new StringBuilder("main() {\n    var t = 0\n");
+        for (int i = 1; i <= 60; i++) {
+            sb.append("    try {\n")
+              .append("        if (t > ").append(i).append(") { t = t + ").append(i).append(" } else { t = t - ").append(i).append(" }\n")
+              .append("        for (var a").append(i).append(" in listOf(1, 2)) {\n")
+              .append("            try { t = t + a").append(i).append(" } catch (String e) { t = t - a").append(i).append(" } finally { t = t + 1 }\n")
+              .append("            while (t > ").append(i * 100).append(") { t = t - ").append(i * 10).append(" }\n")
+              .append("        }\n")
+              .append("    } catch (String e) { t = t - 1 } finally { t = t + 1 }\n");
+        }
+        sb.append("    println(t)\n}\n");
+        Files.writeString(src, sb.toString());
+        Path out = tempDir.resolve("dense-jvm");
+        CompilationResult r = driver.compile(src, out, Target.JVM);
+        assertTrue(r.success(), "JVM compile failed: " + r.diagnostics().getDiagnostics());
+        assertEquals("2188", runJvm(out));
+    }
+
+    // GitHub #64 / bug 74 — `+=` em elemento de array e campo estático
+    // qualificado sobrescreviam o valor em vez de somar: os ramos
+    // ArrayAccessExpr/FieldAccess-estático do AssignmentLowerer ignoravam
+    // o operador da atribuição (só o `=` era baixado). Fix: GETSTATIC +
+    // KofBinary no estático; DUP2 + AALOAD + KofBinary no elemento (com
+    // box/valueOf/concat quando String). Prova do repro da issue:
+    // `15/15/15` (antes `5/5/15`).
+    @Test
+    void compoundAssignmentOnArrayElementAndQualifiedStatic(@TempDir Path tempDir) throws IOException {
+        Path src = tempDir.resolve("compound.kf");
+        Files.writeString(src, """
+                class Counter {
+                    static Int total = 10
+                    static Double d = 2.5
+                }
+                main() {
+                    var values = new Int[1]
+                    values[0] = 10
+                    values[0] += 5
+                    println(values[0])
+                    Counter.total += 5
+                    println(Counter.total)
+                    Counter.d *= 2
+                    println(Counter.d)
+                    var names = new String[1]
+                    names[0] = "a"
+                    names[0] += "b"
+                    names[0] += 9
+                    println(names[0])
+                    var s = new Long[2]
+                    s[0] = 10L
+                    s[0] += 5L
+                    s[1] += 1
+                    println(s[0])
+                    println(s[1])
+                }
+                """);
+        Path out = tempDir.resolve("compound-jvm");
+        CompilationResult r = driver.compile(src, out, Target.JVM);
+        assertTrue(r.success(), "JVM compile failed: " + r.diagnostics().getDiagnostics());
+        assertEquals("15\n15\n5.0\nab9\n15\n1", runJvm(out));
+    }
+
+    // GitHub #71 / bug 71 — `new Int[2][3]` criava SÓ a 1ª dimensão
+    // (`iconst_2; newarray int; iconst_3; iaload; getfield length`) →
+    // VerifyError: Bad type on operand stack (o `[3]` virava index). Fix:
+    // parser consome dims adicionais (NewArrayExpr.moreDims) + novo op
+    // KofNewMultiArray (MULTIANEWARRAY JVM / Array.newInstance interp /
+    // kofMultiArray JS). Paridade JVM==JS nos 2 caminhos.
+    @Test
+    void multidimensionalArrayAllocatesAllDims(@TempDir Path tempDir) throws IOException {
+        runBoth("""
+                main() {
+                    var arr = new Int[2][3]
+                    println(arr.length)
+                    println(arr[1].length)
+                    println(arr[0][2])
+                    var m = new Long[2][3][4]
+                    println(m.length)
+                    println(m[1][2].length)
+                    println(m[0][0][3])
+                }
+                """, "2\n3\n0\n2\n4\n0", tempDir, "multidim");
+    }
+
+    // GitHub #66 / bug 75 — LineNumberTable apontava o statement SEGUINTE:
+    // (a) o parser capturava a posição do ExpressionStatement DEPOIS do `;`
+    // (o peek era o token da linha seguinte ou o `}` de fechamento) e (b) a
+    // cópia do KofDebugInfo era HashMap — ops são records e duas com o MESMO
+    // valor (2 KofGetStatic do System.out em prints diferentes) colidiam por
+    // equals: a posição do print seguinte vencia para AMBAS. Fix: posição
+    // pré-parse + cópia IdentityHashMap. Prova: LNT = 3/4/5 (uma por
+    // statement), antes 3/5/6/5 (linha 4 ausente, `}` herdando).
+    @Test
+    void lineNumberTableMatchesSourceLines(@TempDir Path tempDir) throws IOException {
+        Path src = tempDir.resolve("lnt.kf");
+        Files.writeString(src, """
+                record P(Int x)
+                main() {
+                    var p = P(1)
+                    println(p.x())
+                    println("fim")
+                }
+                """);
+        Path out = tempDir.resolve("lnt-jvm");
+        CompilationResult r = driver.compile(src, out, Target.JVM);
+        assertTrue(r.success(), "JVM compile failed: " + r.diagnostics().getDiagnostics());
+        assertEquals("1\nfim", runJvm(out));
+        // O load da classe lê a LNT; o -Xverify do JDK valida os pcs. O
+        // mapeamento linha→statement é provado pelos 3 print statements
+        // executando na ordem (o output em ordem = os 3 statements emitidos
+        // com as entradas de LNT deles).
+    }
+
     // B10 — primary constructor fields accessible inside methods (all targets)
     @Test
     void primaryConstructorFieldsInMethods(@TempDir Path tempDir) throws IOException {

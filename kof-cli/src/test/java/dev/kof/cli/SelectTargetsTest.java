@@ -83,4 +83,18 @@ class SelectTargetsTest {
         assertThrows(IllegalArgumentException.class,
                 () -> KofCliSupport.selectTargets("not-a-target", null, dir));
     }
+
+    @Test
+    void legacyTargetFlagSharesWasmHonestGap() {
+        // --target=wasm (legado) deve explicar o WASM001/Fase 6 como
+        // --frontend=wasm — nunca "unknown target" genérico (R6).
+        var msgs = KofCliSupport.unknownTargetMessages("wasm");
+        assertEquals(1, msgs.size());
+        assertTrue(msgs.get(0).contains("WASM001"), msgs.get(0));
+        assertTrue(msgs.get(0).contains("docs/development/future/PLATFORM-PLAN.md"),
+                "mensagem deve apontar para o caminho REAL do plano: " + msgs.get(0));
+        // alvo válido → sem diagnóstico; lixo → unknown genérico
+        assertTrue(KofCliSupport.unknownTargetMessages("native").isEmpty());
+        assertTrue(KofCliSupport.unknownTargetMessages("nada").toString().contains("unknown target"));
+    }
 }

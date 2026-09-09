@@ -327,20 +327,37 @@ public final class JsRuntimeUiForms {
             }
 
             export function kofUiFieldsetNew(children) {
+                return kofUiFieldsetNewLegend(children, null);
+            }
+
+            export function kofUiFieldsetNewLegend(children, legend) {
                 const id = kofUiCreateNode("fieldset", "kof-fieldset");
                 if (id < 0) {
                     return -1;
                 }
                 const node = window.__kofNodes[id];
-                if (children) {
-                    for (const childId of children) {
-                        const child = window.__kofNodes[childId];
-                        if (child) {
-                            node.appendChild(child);
-                        }
+                if (typeof document !== "undefined" && legend) {
+                    const lg = document.createElement("legend");
+                    lg.textContent = String(legend);
+                    node.appendChild(lg);
+                }
+                if (typeof document !== "undefined" && Array.isArray(children)) {
+                    for (let i = 0; i < children.length; i++) {
+                        const child = window.__kofNodes[children[i]];
+                        if (child) node.appendChild(child);
                     }
                 }
                 return id;
+            }
+
+            export function kofUiFieldsetRemove(fs) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[fs]) {
+                    const node = window.__kofNodes[fs];
+                    if (node.parentNode) {
+                        node.parentNode.removeChild(node);
+                    }
+                    delete window.__kofNodes[fs];
+                }
             }
 
             export function kofUiIframeNew(src) {

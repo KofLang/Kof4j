@@ -14,7 +14,7 @@
 class User(String name, Int age) { }
 var u = User("Mel", 30)
 println(u.name)      // leitura ok (accessor)
-// u.age = 31         // ERRO de runtime: record é imutável
+// u.age = 31         // ERRO de compilação SEM038: record é imutável
 
 // Mutável — forma de classe real
 class User2 {

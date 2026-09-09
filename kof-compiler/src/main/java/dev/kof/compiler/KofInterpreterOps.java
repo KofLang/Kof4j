@@ -198,6 +198,27 @@ public final class KofInterpreterOps {
         return Array.newInstance(comp, size);
     }
 
+    /** Array n-dimensional (bug 71): Array.newInstance(componente, lens) resolve o aninhamento. */
+    Object newMultiArray(Type baseType, int[] lens) {
+        Class<?> comp = Object.class;
+        if (baseType instanceof Type.PrimitiveType pt) {
+            comp = switch (Type.canonicalPrimitiveName(pt.name())) {
+                case "long" -> long.class;
+                case "double" -> double.class;
+                case "float" -> float.class;
+                case "char" -> char.class;
+                case "bool" -> boolean.class;
+                default -> int.class;
+            };
+        } else if (baseType instanceof Type.ClassType ct) {
+            try {
+                comp = KofInterpreterValues.classForType(ct);
+            } catch (Throwable ignored) {
+            }
+        }
+        return Array.newInstance(comp, lens);
+    }
+
     Object arrayLoad(KofArrayLoad al, Object arr, int idx) {
         Object v = Array.get(arr, idx);
         Type t = al.elementType();

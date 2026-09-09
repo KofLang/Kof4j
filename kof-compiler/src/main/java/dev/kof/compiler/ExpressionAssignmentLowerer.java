@@ -95,8 +95,58 @@ if (ae.target() instanceof FieldAccessExpr fa) {
         SymbolTable.ClassSymbol cs = driver.semanticAnalyzer.getClass(rid.name());
         SymbolTable.Symbol fs = HierarchyResolver.resolveFieldInHierarchy(cs.name(), fa.fieldName(), driver.semanticAnalyzer);
         if (fs instanceof SymbolTable.FieldSymbol fld) {
+            String sfaOp = ae.operator();
+            boolean sfaCompound = "+=".equals(sfaOp) || "-=".equals(sfaOp) || "*=".equals(sfaOp)
+                    || "/=".equals(sfaOp) || "%=".equals(sfaOp) || "&=".equals(sfaOp)
+                    || "|=".equals(sfaOp) || "^=".equals(sfaOp);
+            // compound em campo ESTÁTICO qualificado (`Counter.total += 5`,
+            // GitHub #64): getstatic antes do emit — sem receiver na pilha
+            // (estático não consome this), a ordem simples do caminho por
+            // nome simples basta.
+            if (sfaCompound) {
+                ops.add(new KofGetStatic(cs.type(), fa.fieldName(), fld.type()));
+            }
+            Type sfaValueType = ExpressionTyper.inferExprType(driver, ae.value(), locals);
+            boolean sfaConcat = sfaCompound && "+=".equals(sfaOp)
+                    && (Type.isString(fld.type()) || Type.isString(sfaValueType));
+            if (sfaConcat) {
+                if (!Type.isString(fld.type()) && TypeMetrics.isPrimitiveType(fld.type())) {
+                    TypeEmitter.boxPrimitive(ops, fld.type());
+                }
+                if (!Type.isString(fld.type())) {
+                    ops.add(new KofCall(BuiltinTypes.STRING, "valueOf",
+                            List.of(driver.target.isNative() && !Type.isString(fld.type())
+                                    && !(fld.type() instanceof Type.PrimitiveType)
+                                    ? fld.type() : Type.UnknownType.UNKNOWN),
+                            BuiltinTypes.STRING, KofCallKind.STATIC));
+                }
+            }
             localIdx = ExpressionLowerer.emitExpression(driver, ae.value(), ops, owner, localIdx, locals);
-            ops.add(new KofPutStatic(cs.type(), fa.fieldName(), fld.type()));
+            if (sfaConcat) {
+                if (!Type.isString(sfaValueType) && TypeMetrics.isPrimitiveType(sfaValueType)) {
+                    TypeEmitter.boxPrimitive(ops, sfaValueType);
+                }
+                if (!Type.isString(sfaValueType)) {
+                    ops.add(new KofCall(BuiltinTypes.STRING, "valueOf",
+                            List.of(driver.target.isNative() && !Type.isString(sfaValueType)
+                                    && !(sfaValueType instanceof Type.PrimitiveType)
+                                    ? sfaValueType : Type.UnknownType.UNKNOWN),
+                            BuiltinTypes.STRING, KofCallKind.STATIC));
+                }
+                ops.add(new KofCall(BuiltinTypes.STRING, "kof_string_concat",
+                        List.of(BuiltinTypes.STRING, BuiltinTypes.STRING),
+                        BuiltinTypes.STRING, KofCallKind.FUNCTION));
+            } else if (sfaCompound) {
+                // RHS primitivo ≠ campo (ex.: Double *= int): widening p/ o
+                // tipo do campo — o KofBinary usa fld.type() p/ o opcode e o
+                // literal int na pilha de um DMUL daria frame inválido.
+                if (TypeMetrics.isPrimitiveType(sfaValueType)
+                        && TypeMetrics.isPrimitiveType(fld.type())) {
+                    driver.emitWideningIfNeeded(ops, sfaValueType, fld.type());
+                }
+                ops.add(new KofBinary(compoundBinaryOp(sfaOp), fld.type()));
+            }
+            ops.add(new KofPutStatic(cs.type(), fa.fieldName(), sfaConcat ? BuiltinTypes.STRING : fld.type()));
             return localIdx;
         }
     }
@@ -220,15 +270,66 @@ if (ae.target() instanceof FieldAccessExpr fa) {
 if (ae.target() instanceof ArrayAccessExpr aa) {
     localIdx = ExpressionLowerer.emitExpression(driver, aa.receiver(), ops, owner, localIdx, locals);
     localIdx = ExpressionLowerer.emitExpression(driver, aa.index(), ops, owner, localIdx, locals);
+    Type aaRecvType = ExpressionTyper.inferExprType(driver, aa.receiver(), locals);
+    Type aaElemType = Type.arrayElementType(aaRecvType);
+    String aaOp = ae.operator();
+    boolean aaCompound = "+=".equals(aaOp) || "-=".equals(aaOp) || "*=".equals(aaOp)
+            || "/=".equals(aaOp) || "%=".equals(aaOp) || "&=".equals(aaOp)
+            || "|=".equals(aaOp) || "^=".equals(aaOp);
+    if (aaCompound) {
+        // compound em ELEMENTO de array (`values[0] += 5`, GitHub #64): o
+        // stack do aaload é [receiver, index] — duplica os 2 e carrega o
+        // valor atual; o store consome um par + o resultado.
+        ops.add(new KofDup2());
+        ops.add(new KofArrayLoad(aaElemType));
+    }
+    Type aaValueType = ExpressionTyper.inferExprType(driver, ae.value(), locals);
+    boolean aaStringConcat = aaCompound && "+=".equals(aaOp)
+            && (Type.isString(aaElemType) || Type.isString(aaValueType));
+    if (aaStringConcat && !Type.isString(aaElemType) && TypeMetrics.isPrimitiveType(aaElemType)) {
+        TypeEmitter.boxPrimitive(ops, aaElemType);
+    }
+    if (aaStringConcat && !Type.isString(aaElemType)) {
+        ops.add(new KofCall(BuiltinTypes.STRING, "valueOf",
+                List.of(driver.target.isNative() && !Type.isString(aaElemType)
+                        && !(aaElemType instanceof Type.PrimitiveType)
+                        ? aaElemType : Type.UnknownType.UNKNOWN),
+                BuiltinTypes.STRING, KofCallKind.STATIC));
+    }
     localIdx = ExpressionLowerer.emitExpression(driver, ae.value(), ops, owner, localIdx, locals);
-    Type recvType = ExpressionTyper.inferExprType(driver, aa.receiver(), locals);
-    Type elemType = Type.arrayElementType(recvType);
-    // valor com primitivo ≠ slot (ex.: Int em Long[]) →
-    // converter no IR (I2L/L2I), senão o emit gera aastore/
-    // lastore com tipo errado e o verifier rejeita (o
-    // frame crash COMP002 em new Long[] + a[i] = i*3)
-    driver.emitPrimWidenNarrow(ops, ae.value(), elemType, locals);
-    ops.add(new KofArrayStore(elemType));
+    if (aaStringConcat) {
+        if (!Type.isString(aaValueType) && TypeMetrics.isPrimitiveType(aaValueType)) {
+            TypeEmitter.boxPrimitive(ops, aaValueType);
+        }
+        if (!Type.isString(aaValueType)) {
+            ops.add(new KofCall(BuiltinTypes.STRING, "valueOf",
+                    List.of(driver.target.isNative() && !Type.isString(aaValueType)
+                            && !(aaValueType instanceof Type.PrimitiveType)
+                            ? aaValueType : Type.UnknownType.UNKNOWN),
+                    BuiltinTypes.STRING, KofCallKind.STATIC));
+        }
+        ops.add(new KofCall(BuiltinTypes.STRING, "kof_string_concat",
+                List.of(BuiltinTypes.STRING, BuiltinTypes.STRING),
+                BuiltinTypes.STRING, KofCallKind.FUNCTION));
+    } else if (aaCompound) {
+        // RHS primitivo ≠ elemento (ex.: Int[] += int ok, Long[] += int
+        // precisa widening) — o KofBinary usa aaElemType p/ o opcode.
+        if (TypeMetrics.isPrimitiveType(aaValueType)
+                && TypeMetrics.isPrimitiveType(aaElemType)) {
+            driver.emitWideningIfNeeded(ops, aaValueType, aaElemType);
+        }
+        ops.add(new KofBinary(compoundBinaryOp(aaOp), aaElemType));
+    }
+    if (!aaStringConcat && !aaCompound) {
+        // valor com primitivo ≠ slot (ex.: Int em Long[]) →
+        // converter no IR (I2L/L2I), senão o emit gera aastore/
+        // lastore com tipo errado e o verifier rejeita (o
+        // frame crash COMP002 em new Long[] + a[i] = i*3).
+        // NO compound NÃO aplicar: o resultado do KofBinary já é o tipo do
+        // elemento (o widening do RHS foi feito antes) — a conversão extra
+        // consumiria o topo errado (I2L sobre long → VerifyError).
+    }
+    ops.add(new KofArrayStore(aaStringConcat ? BuiltinTypes.STRING : aaElemType));
     return localIdx;
 }
 if (ae.target() instanceof IdentifierExpr ieBox) {
@@ -334,8 +435,10 @@ if (ae.target() instanceof IdentifierExpr sie) {
         if (locals.get(i).name().equals(sie.name())) {
             driver.emitWideningIfNeeded(ops, ExpressionTyper.inferExprType(driver, ae.value(), locals), locals.get(i).type());
             // bug 15: `Object o; o = 7` — box primitivo p/ referência
+            // (#57: IfExpr/switch heterogêneo já boxeou in-branch → pular)
             if (driver.erasesToReference(locals.get(i).type())
-                    && TypeMetrics.isPrimitiveType(ExpressionTyper.inferExprType(driver, ae.value(), locals))) {
+                    && TypeMetrics.isPrimitiveType(ExpressionTyper.inferExprType(driver, ae.value(), locals))
+                    && !ExpressionTyper.boxesOwnBranches(driver, ae.value(), locals)) {
                 driver.emitErasureBox(ops, ExpressionTyper.inferExprType(driver, ae.value(), locals));
             }
             ops.add(new KofStoreLocal(locals.get(i).type(), locals.get(i).index()));
@@ -345,5 +448,19 @@ if (ae.target() instanceof IdentifierExpr sie) {
 }
 ops.add(new KofStoreLocal(Type.UnknownType.UNKNOWN, localIdx));
 return localIdx;
+    }
+
+    private static KofBinaryOp compoundBinaryOp(String op) {
+        return switch (op) {
+            case "+=" -> KofBinaryOp.ADD;
+            case "-=" -> KofBinaryOp.SUB;
+            case "*=" -> KofBinaryOp.MUL;
+            case "/=" -> KofBinaryOp.DIV;
+            case "%=" -> KofBinaryOp.MOD;
+            case "&=" -> KofBinaryOp.AND;
+            case "|=" -> KofBinaryOp.OR;
+            case "^=" -> KofBinaryOp.XOR;
+            default -> KofBinaryOp.ADD;
+        };
     }
 }

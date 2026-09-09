@@ -90,7 +90,7 @@ public final class TargetMatrix {
         if (gap != null) {
             if (outError != null) outError.add(
                     "target '" + value + "' (KofWebAssembly) ainda não existe — planejado"
-                            + " na Fase 6 do plano de plataforma (docs/future/PLATFORM-PLAN.md) ["
+                            + " na Fase 6 do plano de plataforma (docs/development/future/PLATFORM-PLAN.md) ["
                             + gap + "]");
             return null;
         }

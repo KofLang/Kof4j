@@ -38,9 +38,10 @@ public final class CompilerFunctionLowering {
             }
             for (StatementNode stmt : func.body()) {
                 if (stmt instanceof VarDeclStmt vds && vds.initializer() != null) {
-                    Type vt = vds.type() != null && !"var".equals(vds.type())
-                            ? CompilerTypes.toType(vds.type(), driver.currentUnit)
-                            : ExpressionTyper.inferExprType(driver, vds.initializer(), tmpLocals);
+Type vt = vds.type() != null && !"var".equals(vds.type())
+                        && !"val".equals(vds.type())
+                        ? CompilerTypes.toType(vds.type(), driver.currentUnit)
+                        : ExpressionTyper.inferExprType(driver, vds.initializer(), tmpLocals);
                     tmpLocals.add(new IRLocalVariable(tmpIdx, vds.name(), vt));
                     tmpIdx += TypeMetrics.isDoubleWidth(vt) ? 2 : 1;
                 }
@@ -115,7 +116,12 @@ public final class CompilerFunctionLowering {
         }
         KofDebugInfo debugInfo = driver.currentDebugPositions.isEmpty()
                 ? KofDebugInfo.EMPTY
-                : new KofDebugInfo(new java.util.HashMap<>(driver.currentDebugPositions));
+                // GitHub #66 / bug 75: a cópia NÃO pode ser HashMap — ops são RECORDS e
+// duas instâncias com o MESMO VALOR (ex.: 2 KofGetStatic do System.out em
+// 2 prints) colidem por equals/hashCode: 1 entry sobrescreve o outro e
+// AMBAS as ops herdam a MESMA posição (o print seguinte "vencia" o anterior
+// — LNT apontando o statement seguinte). A cópia é por IDENTIDADE.
+                : new KofDebugInfo(new java.util.IdentityHashMap<>(driver.currentDebugPositions));
         driver.currentDebugPositions.clear();
         driver.loweringMain = prevMain;
         driver.mainArgsListField = prevMainArgsList;

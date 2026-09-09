@@ -27,7 +27,7 @@
 | `future/TRANSLATOR.md` | translator | `PLANNED` | — |
 | `future/DIFFERENTIAL_TESTING.md` | differential testing | `PLANNED` | — |
 | `future/IMPLEMENTATION_PLAN.md` | plano de implementação legado | `PLANNED` | — |
-| `future/PLAN-CANVAS-WIDGET.md` | Canvas widget (CANVAS001) | `PARTIAL` (JVM OK, JS pendente) | fechar metade JS (anexar ao kof-root) |
+ | `future/PLAN-CANVAS-WIDGET.md` | Canvas widget (CANVAS001) | `FEITO` (`5a9cac4` — 3 targets; UI009 drawImage `6e3181f`) | — |
 
 ### 2. Roadmaps & Audits
 | Arquivo | Por que está aqui | Estado |
@@ -50,8 +50,8 @@
 ### 4. Gaps & Bugs
 | Arquivo | Por que está aqui | Estado |
 |---|---|---|
-| `specification-gaps.md` | 20 gaps SG-00x (A/B/C/D/E) — nenhum corrigido na linguagem | `ABERTO` (20 gaps) |
-| `known-bugs.md` | bugs 37–40 ABERTO (instanceof Int, re-throw, println null Map, n+= em campo) + CANVAS001 JS | `ABERTO` (4 bugs) |
+ | `specification-gaps.md` | 23 entradas (SG-001–020 + E1–E3) — SG-001/007 resolvidos; demais ABERTOS (a maioria decisão de design, regra 6) | `ABERTO` (~21 gaps) |
+ | `known-bugs.md` | bugs 1–60: 39 ABERTO (null de Map — decisão de design regra 6); 37/38/40 + CANVAS001 ✅ corrigidos; Native lane 43/44/46/48/50/59 | `ABERTO` (bug 39 + lane Native) |
 | `security-plan.md` | 18 camadas: A ✅ mas B/C/D com ❌ (cookies, middleware, OAuth2, TLS cert próprio) | `PARTIAL` |
 
 ### 5. Native Multiarch

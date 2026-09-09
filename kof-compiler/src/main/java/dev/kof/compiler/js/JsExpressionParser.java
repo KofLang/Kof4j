@@ -10,6 +10,7 @@ import dev.kof.compiler.KofCatchStart;
 import dev.kof.compiler.KofCheckCast;
 import dev.kof.compiler.KofConditionalJump;
 import dev.kof.compiler.KofDup;
+import dev.kof.compiler.KofDup2;
 import dev.kof.compiler.KofDupX1;
 import dev.kof.compiler.KofDupX2;
 import dev.kof.compiler.KofGetStatic;
@@ -20,6 +21,7 @@ import dev.kof.compiler.KofLoadField;
 import dev.kof.compiler.KofLoadLiteral;
 import dev.kof.compiler.KofLoadLocal;
 import dev.kof.compiler.KofNewArray;
+import dev.kof.compiler.KofNewMultiArray;
 import dev.kof.compiler.KofNewObject;
 import dev.kof.compiler.KofOperation;
 import dev.kof.compiler.KofPop;
@@ -119,6 +121,7 @@ boolean isExpressionOp(KofOperation op) {
                 || op instanceof KofBinary || op instanceof KofUnary
                 || op instanceof KofCall || op instanceof KofNewObject
                 || op instanceof KofDup || op instanceof KofDupX1 || op instanceof KofDupX2 || op instanceof KofNewArray
+                || op instanceof KofNewMultiArray
                 || op instanceof KofArrayLoad || op instanceof KofArrayLength
                 || op instanceof KofInstanceOf || op instanceof KofCheckCast
                 || op instanceof KofStoreLocal;
@@ -184,6 +187,20 @@ void consumeExpressionOp(MethodCtx ctx, int[] pos, List<Object> stack,
             preambleExprs.add(new JsIr.JsAssignExpr(temp, top));
             stack.add(new JsIr.JsIdentifier(temp));
             stack.add(new JsIr.JsIdentifier(temp));
+        } else if (op instanceof KofDup2) {
+            // compound em elemento de array (#64): [array, index] × 2 +
+            // o valor atual — o par [array, index] é materializado duas
+            // vezes (via temp p/ não reavaliar efeitos).
+            JsIr.JsExpression index = pop(stack);
+            JsIr.JsExpression array = pop(stack);
+            String tempA = ctx.freshTemp();
+            String tempI = ctx.freshTemp();
+            preambleExprs.add(new JsIr.JsAssignExpr(tempA, array));
+            preambleExprs.add(new JsIr.JsAssignExpr(tempI, index));
+            stack.add(new JsIr.JsIdentifier(tempA));
+            stack.add(new JsIr.JsIdentifier(tempI));
+            stack.add(new JsIr.JsIdentifier(tempA));
+            stack.add(new JsIr.JsIdentifier(tempI));
         } else if (op instanceof KofDupX1) {
             JsIr.JsExpression top = pop(stack);
             JsIr.JsExpression below = pop(stack);
@@ -220,6 +237,14 @@ void consumeExpressionOp(MethodCtx ctx, int[] pos, List<Object> stack,
         } else if (op instanceof KofNewArray na) {
             JsIr.JsExpression size = pop(stack);
             stack.add(new JsIr.JsArray(size, JsTypeMapper.arrayFill(na.elementType())));
+        } else if (op instanceof KofNewMultiArray ma) {
+            // multidimensional (bug 71): pop das n dims (a 1ª pushed é a externa)
+            List<JsIr.JsExpression> sizes = new ArrayList<>();
+            for (int i = 0; i < ma.dims(); i++) {
+                sizes.add(0, pop(stack));
+            }
+            p.lc.registerRuntime("kofMultiArray");
+            stack.add(new JsIr.JsNestedArray(sizes, JsTypeMapper.arrayFill(ma.baseType())));
         } else if (op instanceof KofArrayLoad al) {
             JsIr.JsExpression index = pop(stack);
             JsIr.JsExpression array = pop(stack);

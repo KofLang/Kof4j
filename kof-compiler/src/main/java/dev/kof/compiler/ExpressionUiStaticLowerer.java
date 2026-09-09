@@ -179,6 +179,34 @@ if (mc.receiver() == null && "View".equals(mc.methodName()) && mc.arguments().si
             Type.PrimitiveType.INT, KofCallKind.FUNCTION));
     return localIdx;
 }
+// ── UI003 (restante): Fieldset/Iframe/Video/Audio/Hr — widgets DOM simples
+if (mc.receiver() == null && "Fieldset".equals(mc.methodName())
+        && (mc.arguments().size() == 1 || mc.arguments().size() == 2)) {
+    for (ExpressionNode arg : mc.arguments()) {
+        localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
+    }
+    ops.add(new KofCall(new Type.ClassType("kof.ui", "Ui", List.of()),
+            mc.arguments().size() == 2 ? "kof_ui_fieldset_new_legend" : "kof_ui_fieldset_new",
+            mc.arguments().size() == 2
+                    ? List.of(new Type.ClassType("kof", "List", List.of(Type.PrimitiveType.INT)), BuiltinTypes.STRING)
+                    : List.of(new Type.ClassType("kof", "List", List.of(Type.PrimitiveType.INT))),
+            Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+    return localIdx;
+}
+if (mc.receiver() == null && ("Iframe".equals(mc.methodName()) || "Video".equals(mc.methodName())
+        || "Audio".equals(mc.methodName())) && mc.arguments().size() == 1) {
+    localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(0), ops, owner, localIdx, locals);
+    String fn = "Iframe".equals(mc.methodName()) ? "kof_ui_iframe_new"
+            : "Video".equals(mc.methodName()) ? "kof_ui_video_new" : "kof_ui_audio_new";
+    ops.add(new KofCall(new Type.ClassType("kof.ui", "Ui", List.of()),
+            fn, List.of(BuiltinTypes.STRING), Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+    return localIdx;
+}
+if (mc.receiver() == null && "Hr".equals(mc.methodName()) && mc.arguments().size() == 0) {
+    ops.add(new KofCall(new Type.ClassType("kof.ui", "Ui", List.of()),
+            "kof_ui_hr_new", List.of(), Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+    return localIdx;
+}
 // ── Fase 4: primitivas de layout (docs/ui/architecture.md §2.8)
 if (mc.receiver() == null && ("Box".equals(mc.methodName())
         || "Stack".equals(mc.methodName()) || "Wrap".equals(mc.methodName())

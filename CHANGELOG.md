@@ -9,7 +9,6 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 
 ## [0.3.0-beta] - unreleased (branch `beta-0.3.0`)
 
-Linha de desenvolvimento 0.3.0 aberta em 04/09/2026. Semântica congelada
 (0.2.6) preservada — mudanças aqui são aditivas ou com bump deliberado.
 
 ### Em desenvolvimento

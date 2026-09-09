@@ -121,3 +121,10 @@ Quando a feature não existe: use a alternativa real OU marque `WORKAROUND`.
 ## Exceptions
 
 - Nenhuma — fake idioms nunca são aceitáveis no corpus.
+
+> **Lexer gotcha (verificado 09/09):** o lexer do Kof pré-processa `\uXXXX` nas
+> strings **antes** de formar o token (Java-style). `\u0027` dentro de string
+> vira `'` literal e pode estourar o parse (LEX004 "unterminated char") em
+> bordas de token. Para aspas em string-esperada de test, prefira **evitar a
+> aspa** no assert (ex.: testar `&amp;quot;` → `&quot;` em vez de embutir `"`/
+> `'` no literal esperado).

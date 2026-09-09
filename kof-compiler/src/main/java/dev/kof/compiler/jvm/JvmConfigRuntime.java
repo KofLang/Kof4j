@@ -214,6 +214,13 @@ public final class JvmConfigRuntime {
 
                 private static final java.util.concurrent.ConcurrentHashMap<String, java.sql.Connection> KOF_DB_CONNECTIONS =
                         new java.util.concurrent.ConcurrentHashMap<>();
+                // issue #60: o id era "db" + (size() + 1) — fechar uma conexão
+                // e abrir outra reutilizava o id de uma conexão AINDA ABERTA,
+                // sobrescrevia o registro e redirecionava operações p/ o banco
+                // errado (silencioso). Contador monotônico: nunca reutiliza
+                // handle (mesmo padrão do KOF_MONGO_SEQ acima).
+                private static final java.util.concurrent.atomic.AtomicInteger KOF_DB_SEQ =
+                        new java.util.concurrent.atomic.AtomicInteger();
                 private static volatile String KOF_DB_DEFAULT;
                 private static final ThreadLocal<java.sql.Connection> KOF_DB_TX = new ThreadLocal<>();
 
@@ -250,7 +257,7 @@ public final class JvmConfigRuntime {
                 }
 
                 private static String kof_db_register(java.sql.Connection c) {
-                    String id = "db" + (KOF_DB_CONNECTIONS.size() + 1);
+                    String id = "db" + KOF_DB_SEQ.incrementAndGet();
                     KOF_DB_CONNECTIONS.put(id, c);
                     KOF_DB_DEFAULT = id;
                     return id;
@@ -415,24 +422,37 @@ public final class JvmConfigRuntime {
 
                 public static void kof_db_transaction(Object task) throws Exception {
                     java.sql.Connection c = kof_db_conn(KOF_DB_DEFAULT);
+                    // GitHub #65 / bug 77 — aninhamento: um bloco transaction
+                    // interno NESTA mesma conexão NÃO comita nem rollbacka —
+                    // participa da transação externa (qualquer erro propaga
+                    // p/ o bloco externo decidir). Antes o commit interno
+                    // confirmava as linhas da transação externa e o rollback
+                    // posterior não as desfazia (garantia transacional quebrada
+                    // silenciosamente). Bloco em OUTRA conexão continua com
+                    // transação própria (comportamento anterior).
+                    boolean nested = c.equals(KOF_DB_TX.get());
                     boolean prevAuto = c.getAutoCommit();
                     c.setAutoCommit(false);
-                    KOF_DB_TX.set(c);
+                    if (!nested) KOF_DB_TX.set(c);
                     try {
                         task.getClass().getMethod("invoke").invoke(task);
-                        c.commit();
+                        if (!nested) c.commit();
                     } catch (Exception e) {
-                        try {
-                            c.rollback();
-                        } catch (Exception ignored) {
+                        if (!nested) {
+                            try {
+                                c.rollback();
+                            } catch (Exception ignored) {
+                            }
                         }
                         Throwable cause = e.getCause() != null ? e.getCause() : e;
                         if (cause instanceof RuntimeException re) throw re;
                         if (cause instanceof Error err) throw err;
                         throw new RuntimeException(cause);
                     } finally {
-                        c.setAutoCommit(prevAuto);
-                        KOF_DB_TX.remove();
+                        if (!nested) {
+                            c.setAutoCommit(prevAuto);
+                            KOF_DB_TX.remove();
+                        }
                     }
                 }
 """;

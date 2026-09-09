@@ -32,7 +32,7 @@ final class CmdTest {
         }
         if (!Files.exists(src)) { System.err.println("not found: " + src); System.exit(1); return; }
         List<Path> files = Files.isDirectory(src) ? KofCliSupport.collect(src) : List.of(src);
-        if (files.isEmpty()) { System.out.println("no .kf files found"); return; }
+        if (files.isEmpty()) { System.out.println("no .kf/.kof files found"); return; }
         CompilerDriver driver = new CompilerDriver();
         int passed = 0;
         int failed = 0;

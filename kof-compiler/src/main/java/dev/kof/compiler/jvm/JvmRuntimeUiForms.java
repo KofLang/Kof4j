@@ -107,15 +107,22 @@ public final class JvmRuntimeUiForms {
                 public static void kof_ui_table_remove(int table) {
                 }
 
+                public static int kof_ui_fieldset_new(java.util.ArrayList children) {
+                    return 1;
+                }
+
+                public static int kof_ui_fieldset_new_legend(java.util.ArrayList children, String legend) {
+                    return 1;
+                }
+
+                public static void kof_ui_fieldset_remove(int fs) {
+                }
+
                 public static String kof_ui_input_text(int input) {
                     return "";
                 }
 
                 public static void kof_ui_input_remove(int input) {
-                }
-
-                public static int kof_ui_fieldset_new(java.util.ArrayList children) {
-                    return 1;
                 }
 
                 public static int kof_ui_iframe_new(String src) {

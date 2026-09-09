@@ -28,6 +28,7 @@ public final class KofTime {
 
     private static final Type STR = BuiltinTypes.STRING;
     private static final Type INT = Type.PrimitiveType.INT;
+    private static final Type BOOL = Type.PrimitiveType.BOOL;
     private static final Type LONG = Type.PrimitiveType.LONG;
     private static final Type OBJ = Type.UnknownType.UNKNOWN;
     private static final Type VOID = Type.PrimitiveType.VOID;
@@ -38,7 +39,10 @@ public final class KofTime {
 
     static boolean isTimeMethod(String name) {
         return switch (name) {
-            case "sleep", "now", "interval", "cancel" -> true;
+            case "sleep", "now", "interval", "cancel",
+                    // STDLIB S7-wedge: calendário civil (escalares puros —
+                    // dias entre datas e dia-da-semana chegam no próximo degrau)
+                    "isLeapYear", "daysInMonth", "dayOfWeek", "daysBetween" -> true;
             default -> false;
         };
     }
@@ -79,6 +83,17 @@ public final class KofTime {
             case "cancel" -> argTypes.size() == 1
                     ? new TimeCall("kof_time_cancel", VOID, List.of(STR))
                     : null;
+            // STDLIB S7-wedge — calendário civil (só mnemônicos aritméticos;
+            // year >= 1 => nada negativo; paridade byte-a-byte JVM/JS/Native).
+            case "isLeapYear" -> argTypes.size() == 1 && argTypes.get(0) == INT
+                    ? new TimeCall("kof_time_isLeapYear", BOOL, List.of(INT)) : null;
+            case "daysInMonth" -> argTypes.size() == 2
+                    ? new TimeCall("kof_time_daysInMonth", INT, List.of(INT, INT)) : null;
+            case "dayOfWeek" -> argTypes.size() == 3
+                    ? new TimeCall("kof_time_dayOfWeek", INT, List.of(INT, INT, INT)) : null;
+            case "daysBetween" -> argTypes.size() == 6
+                    ? new TimeCall("kof_time_daysBetween", INT,
+                            List.of(INT, INT, INT, INT, INT, INT)) : null;
             default -> null;
         };
     }

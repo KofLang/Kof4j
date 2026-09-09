@@ -41,6 +41,8 @@ Kof é uma linguagem de programação compilada para múltiplas plataformas, for
 35 — kof.ui (cores, widgets, janelas)
 36 — Segurança (kof.security)
 37 — KofJS (o caminho da Web)
+38 — Editores (kof editor)
+39 — Standard Library universal
 ```
 
 ## Índice
@@ -86,6 +88,8 @@ Kof é uma linguagem de programação compilada para múltiplas plataformas, for
 | 35 | [UI e Estilização](35-ui-and-styling.md) |
 | 36 | [Segurança (kof.security)](36-security.md) |
 | 37 | [KofJS — o caminho da Web](37-kofjs.md) |
+| 38 | [Editores — kof editor](38-editors.md) |
+| 39 | [Standard Library universal](39-stdlib.md) |
 | — | [Native — Multiplatform](native/README.md) |
 
 ## Ordem recomendada
@@ -140,6 +144,7 @@ Consulte também `training/` para corpus estruturado de conhecimento Kof.
 | 36 | Segurança (kof.security) | ✅ (JVM/Native/JS; gaps SECN00x) |
 | 35 | kof.ui (widgets, janelas, webview) | ✅ (JS render; JVM/Native no-ops) |
 | 37 | KofJS (caminho da Web) | ✅ (alpha) |
+| 39 | Standard Library (math/strings/encoding/uuid/validation/time) | ✅ (4 targets; gates FLT/NAT-STR01) |
 
 Kof está em fase de consolidação. O compilador é funcional com backends JVM,
 Native (x86-64 free-list), Native.risc, Native.arm, KofJS e KofC (0.2.6-beta, 810 testes).

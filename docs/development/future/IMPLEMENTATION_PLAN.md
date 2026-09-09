@@ -54,7 +54,20 @@ Esta é a versão consolidada do plano de implementação para todos os document
 |------|-----------|------------|--------------|--------|-------------------|
 | CFG-Basic-Blocks | LEGACY_IR.md | 🟡 M | Phase 1 | ✅ **EM CURSO** | BasicBlock identificado, instruções decodificadas |
 
-**Progresso:** `ClassFileParser.expand()` com `Instruction`, `BasicBlock`, `analyze()`, `disassemble()`
+**Progresso:** `ClassFileParser.expand()` com `Instruction`, `BasicBlock`, `analyze()`, `disassemble()`. **Recuperação de corpo (Fase C/E)** em `kof-cli` `BytecodeStatements`: if/while/for (top-tested) + **do-while (bottom-tested, 08/09)** — back-edge self/para-trás detectado no bloco cond → `do { corpo } while (c)`; caso de corpo separado do teste degrada p/ stub UNKNOWN honesto (nunca `while` de corpo vazio). Prova `DecompileTest.bottomTestedLoopRecoversAsDoWhile`. **Bug 62 corrigido**
+(CP Float/Double como bits crus → `intBitsToFloat`/`longBitsToDouble`; `ldc`
+recusa float p/ não driftar). **lconst/dconst recuperados** (0x09/0x0a/0x0e/
+0x0f — tipo embutido no opcode, lesson bug 62 aplicada; `DecompileTest.
+recoversLongDoubleConstBodies`). **ldc2_w (0x14) recuperado** — `BytecodeDecoder.
+ldc2` classifica por FORMA (dígitos→sufixo `L`; `.`/e/E→Double literal, Kof
+aceita `1.0E-5`; NaN/Infinity→stub). `DecompileTest.recoversLdc2LongDoubleConstants`.
+**String concat (invokedynamic/J9+) recuperado** — parser lê o atributo
+`BootstrapMethods` (JVMS 4.7.23: args são índices u2 p/ o CP, não cp_info) e
+reescreve entradas tag-18 `makeConcatWithConstants` p/ `CONCAT:<receita>`; os
+2 decoders consomem a receita (\u0001=placeholder → `a + "x" + b`; \u0002/static-args
+→ recusar). Forma de corpo String mais comum em Java moderno.
+`DecompileTest.recoversStringConcatInvokedynamic` (24/24; o smoke agora mistura
+corpo recuperado com stub honesto).
 
 ### T3-MEDIUM: Type Recovery
 
@@ -73,6 +86,7 @@ Esta é a versão consolidada do plano de implementação para todos os document
 | Task | Source Doc | Difficulty | Dependencies | Status | Definition of Done |
 |------|-----------|------------|--------------|--------|-------------------|
 | Type-Recovery | LEGACY_IR.md | 🟡 M | Phase 2 | ✅ **COMPLETO** | `fromJvmDescriptor` + contagem instanceof/checkcast + `kof inspect` mostra tipos |
+| Type-Recovery-Gen | LEGACY_IR.md | 🟡 M | Type-Recovery | ✅ **COMPLETO (08/09, `367d6c4`)** | Atributo `Signature` (JVMS 4.7.1/4.7.9.1) lido nos 3 níveis + `Type.fromJvmSignature` (recursivo: genéricos, wildcards, type-variables, arrays) + fix do descriptor multi-param (`Type.parseJvmDescriptorAt`). Provas: `ClassFileE2ETest.genericSignatureRecovery`, `DecompileTest.decompileGenericSignaturesAreExact` (16/16); suíte 1206/0/64-skip |
 
 ---
 
@@ -208,7 +222,7 @@ Esta é a versão consolidada do plano de implementação para todos os document
 
 | # | Subtarefa | Dificuldade | DoD |
 |---|-----------|-------------|-----|
-| 2.4.1 | `auto-closed`/scope leve para handles (arquivo/GPU/conexão/FFI) sobre `try/finally` | 🟡 M | 🟡 design pronto (`docs/future/scoped-resources-plan.md`); sintaxe `using` gated por bump 0.3.0 (semântica congelada) |
+| 2.4.1 | `auto-closed`/scope leve para handles (arquivo/GPU/conexão/FFI) sobre `try/finally` | 🟡 M | 🟡 design pronto (`docs/future/scoped-resources-plan.md`); sintaxe `using` gated por bump 0.3.0 ( ) |
 | 2.4.2 | Fronteira segura de buffer p/ zona sem GC (handles de FFI) | 🟡 M | handle liberado pelo GC na fronteira |
 
 ### 2.5 Variance / sealed (opcional, postergável)
@@ -221,7 +235,7 @@ Esta é a versão consolidada do plano de implementação para todos os document
 reservadas, não implementadas) ficam **postergados**. `enum` (alternativas
 fechadas) + `record`/`interface` cobrem o caso imediato. Variance avançada só
 abre quando uma pipeline científica/coleções exigir type-safety covariante —
-gate: bump de versão (semântica congelada). Evitar type-classes (non-goal
+gate: bump de versão ( ). Evitar type-classes (non-goal
 permanente).
 
 ---

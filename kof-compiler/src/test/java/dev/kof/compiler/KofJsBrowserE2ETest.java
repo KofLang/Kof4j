@@ -735,6 +735,114 @@ class KofJsBrowserE2ETest {
         }
     }
 
+    @Test
+    void ui003RemainingRenderInRealBrowserDom(@TempDir Path tempDir) throws IOException {
+        Path chrome = findChrome();
+        assumeTrue(chrome != null, "Chrome/Chromium não instalado — pulando E2E de browser");
+
+        String program = """
+            main() {
+                var fs = Fieldset(listOf(Label("dentro")), "credenciais")
+                var fr = Iframe("https://example.org")
+                var v = Video("clip.mp4")
+                var a = Audio("som.mp3")
+                var h = Hr()
+                var col = Column(listOf(fs, fr, v, a, h))
+                var w = Window("Ui003RestTest")
+                w.bind(col)
+                w.show()
+            }
+            """;
+        Path source = tempDir.resolve("App.kf");
+        Files.writeString(source, program);
+
+        Path outDir = tempDir.resolve("out");
+        CompilationResult result = driver.compile(source, outDir, Target.JS);
+        assertTrue(result.success(), "compilação JS deve passar: " + result.diagnostics().getDiagnostics());
+
+        HttpServer server = serve(outDir);
+        int port = server.getAddress().getPort();
+        try {
+            String dom = dumpDom(chrome, "http://127.0.0.1:" + port + "/index.html");
+            assertTrue(dom.contains("<fieldset"), "<fieldset> ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("<legend>credenciais</legend>"), "<legend> ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("<iframe"), "<iframe> ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("https://example.org"), "src do iframe ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("<video"), "<video> ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("clip.mp4"), "src do video ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("<audio"), "<audio> ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("<hr"), "<hr> ausente no DOM: " + excerpt(dom));
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void ui006EventAccessorsRunInRealBrowser(@TempDir Path tempDir) throws IOException {
+        Path chrome = findChrome();
+        assumeTrue(chrome != null, "Chrome/Chromium não instalado — pulando E2E de browser");
+
+        // O handler lê e.key()/e.value()/e.target()/e.relatedTarget() do
+        // evento DOM real e muta class/placeholder — se o DOM final traz
+        // "key=xt=campo-main", o handler RODOU com o event do browser
+        // (dispatch sintético no load, padrão formSubmit). target() expõe o
+        // id do nó que originou o evento (set em campo); relatedTarget() é
+        // "" nesses eventos. Tokens de class sem espaço (classList.add).
+        String program = """
+            main() {
+                var campo = Input("")
+                campo.setId("campo-main")
+                campo.setPlaceholder("limpo")
+                campo.on("keydown", (e: Event) -> { campo.setClass("key=" + e.key() + "t=" + e.target()) })
+                campo.on("input", (e: Event) -> { campo.setPlaceholder("val=" + e.value() + " rt=" + e.relatedTarget()) })
+                var col = Column(listOf(campo))
+                var w = Window("Ui006Test")
+                w.bind(col)
+                w.show()
+            }
+            """;
+        Path source = tempDir.resolve("App.kf");
+        Files.writeString(source, program);
+
+        Path outDir = tempDir.resolve("out");
+        CompilationResult result = driver.compile(source, outDir, Target.JS);
+        assertTrue(result.success(), "compilação JS deve passar: " + result.diagnostics().getDiagnostics());
+
+        // injeta o dispatch sintético no index.html: keydown "x" + input "abc"
+        Path index = outDir.resolve("index.html");
+        String html = Files.readString(index);
+        String inject = """
+            <script type="module">
+            import './Default.mjs';
+            setTimeout(function () {
+                var el = document.querySelector('.kof-input');
+                if (!el) return;
+                el.dispatchEvent(new KeyboardEvent('keydown', { key: 'x', bubbles: true }));
+                el.value = 'abc';
+                el.dispatchEvent(new Event('input', { bubbles: true }));
+            }, 2000);
+            </script>
+            </body>""";
+        html = html.replace("</body>", inject);
+        Files.writeString(index, html);
+
+        HttpServer server = serve(outDir);
+        int port = server.getAddress().getPort();
+        try {
+            String dom = dumpDom(chrome, "http://127.0.0.1:" + port + "/index.html");
+            assertTrue(dom.contains("key=x"),
+                    "e.key() não trouxe a tecla do evento DOM real: " + excerpt(dom));
+            assertTrue(dom.contains("t=campo-main"),
+                    "e.target() não trouxe o id do nó que originou o evento: " + excerpt(dom));
+            assertTrue(dom.contains("val=abc"),
+                    "e.value() não trouxe o valor do input real: " + excerpt(dom));
+            assertTrue(dom.contains("val=abc rt="),
+                    "e.relatedTarget() não respondeu (esperado vazio no input): " + excerpt(dom));
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private static HttpServer serve(Path dir) throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/", exchange -> {

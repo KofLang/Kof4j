@@ -55,6 +55,27 @@ public final class KofValidation {
                     ? new ValidationCall("kof_validation_min", BOOL, List.of(INT, INT)) : null;
             case "max" -> argc == 2
                     ? new ValidationCall("kof_validation_max", BOOL, List.of(INT, INT)) : null;
+            // S5 (STDLIB): documentos BR — dígitos extraídos (não-dígitos
+            // ignorados), algoritmos de dígito verificador módulo 11.
+            case "isCpf", "isCnpj", "isCep", "isPis" -> argc == 1
+                    ? new ValidationCall("kof_validation_" + name, BOOL, List.of(STR)) : null;
+            // S6a (STDLIB): predicados de rede — dotted-quad / MAC (6 hex com
+            // separador : ou -) / porta 1..65535. Sem ambiguidade de design.
+            case "isIpv4", "isMac" -> argc == 1
+                    ? new ValidationCall("kof_validation_" + name, BOOL, List.of(STR)) : null;
+            case "isPort" -> argc == 1
+                    ? new ValidationCall("kof_validation_isPort", BOOL, List.of(INT)) : null;
+            // S6b (STDLIB): Luhn (dígitos extraídos, 12..19, soma*alternada%10).
+            case "isCreditCard" -> argc == 1
+                    ? new ValidationCall("kof_validation_isCreditCard", BOOL, List.of(STR)) : null;
+            case "isIpv6" -> argc == 1
+                    ? new ValidationCall("kof_validation_isIpv6", BOOL, List.of(STR)) : null;
+            // S6c (STDLIB): domínio — subconjunto RFC 1123 declarado (escopo
+            // v1, idem isIpv6): labels [A-Za-z0-9-] 1..63 sem hyphen em
+            // ponta; >=2 labels; TLD >=2 só letras; total<=253; sem ponto
+            // final, sem underscore, sem IDN (punycode xn-- passa: é ASCII).
+            case "isDomain" -> argc == 1
+                    ? new ValidationCall("kof_validation_isDomain", BOOL, List.of(STR)) : null;
             default -> null;
         };
     }

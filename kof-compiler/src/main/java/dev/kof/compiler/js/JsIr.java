@@ -150,6 +150,10 @@ public final class JsIr {
     record JsArray(JsExpression size, String fill) implements JsExpression {
     }
 
+    /** Array multidimensional (bug 71): sizes[0] é a dim externa; baseFill preenche a folha. */
+    record JsNestedArray(List<JsExpression> sizes, String baseFill) implements JsExpression {
+    }
+
     record JsObjectLiteral(List<JsObjectEntry> entries) implements JsExpression {
     }
 

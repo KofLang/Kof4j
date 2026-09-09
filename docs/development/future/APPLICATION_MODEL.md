@@ -969,7 +969,7 @@ aplicações independentes + System), sem tocar semântica de linguagem.
 - [x] ≤500 linhas/classe: `AppManifest`, `CmdNew`, `AppPackager` novos e
       pequenos; `CmdServe`/`CmdBuild` crescem só na leitura do manifesto
       (se passar de 500, extrair — já extraídos do `Main` na Fase 8).
-- [x] Semântica congelada: zero mudança de linguagem.
+- [x]  : zero mudança de linguagem.
 - [x] Corpus: ao implementar I2, adicionar idiom "full-stack em Kof"
       (`training/idioms/` — BAD: 2 servers manuais; GOOD: `kof.toml` +
       `kof serve`).

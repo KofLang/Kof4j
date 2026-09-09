@@ -396,6 +396,35 @@ class KofScriptTest {
     }
 
     /**
+     * UI002 (R6): kof.ui no interpretador é no-op silencioso — mas avisa
+     * UMA vez no stderr (warning, nunca erro: quebrar seria retrocompat).
+     * kof.ui é KofJS; o apontamento é para o target com UI real.
+     */
+    @Test
+    void ui002WarnsOnceOnUiCalls(@TempDir Path tmp) throws Exception {
+        Path f = tmp.resolve("Ui002.kf");
+        Files.writeString(f, """
+                main() {
+                    var w = Window("App")
+                    var l = Label("oi")
+                    var c = Column(listOf(l))
+                    w.bind(c)
+                    w.show()
+                    println("ok")
+                }
+                """);
+        var script = KofScript.runFile(f, dev.kof.compiler.Target.SCRIPT);
+        assertTrue(script.success(), script.stderr());
+        assertEquals("ok", norm(script.stdout()));
+        assertTrue(script.stderr().contains("UI002"),
+                "warning UI002 ausente no stderr: " + script.stderr());
+        assertTrue(script.stderr().contains("kof_ui_window_new"),
+                "warning deve citar a primeira fn kof_ui_*: " + script.stderr());
+        long count = script.stderr().lines().filter(s -> s.contains("UI002")).count();
+        assertEquals(1, count, "UI002 deve avisar UMA vez, não por chamada: " + script.stderr());
+    }
+
+    /**
      * Regressão (gap "regex multiline-fragil" do roadmap-audit): wrapPureKof
      * qualificava globais com replaceAll(\b), que reescrevia o nome DENTRO de
      * string literal — `println("my name is here")` virava

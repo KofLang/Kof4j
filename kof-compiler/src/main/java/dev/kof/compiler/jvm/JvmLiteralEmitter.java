@@ -9,6 +9,7 @@ import dev.kof.compiler.KofCatchStart;
 import dev.kof.compiler.KofCheckCast;
 import dev.kof.compiler.KofConditionalJump;
 import dev.kof.compiler.KofDup;
+import dev.kof.compiler.KofDup2;
 import dev.kof.compiler.KofGetStatic;
 import dev.kof.compiler.KofInstanceOf;
 import dev.kof.compiler.KofJump;
@@ -18,6 +19,7 @@ import dev.kof.compiler.KofLoadLiteral;
 import dev.kof.compiler.KofLoadLocal;
 import dev.kof.compiler.KofMedia;
 import dev.kof.compiler.KofNewArray;
+import dev.kof.compiler.KofNewMultiArray;
 import dev.kof.compiler.KofNewObject;
 import dev.kof.compiler.KofOperation;
 import dev.kof.compiler.KofPop;
@@ -179,8 +181,14 @@ public final class JvmLiteralEmitter {
                 if (isDoubleWidth(ll.type())) depth++;
             } else if (op instanceof KofLoadLiteral || op instanceof KofNewObject || op instanceof KofArrayLength || op instanceof KofInstanceOf || op instanceof KofGetStatic) {
                 depth++;
+                Type loaded = op instanceof KofLoadLiteral lit ? lit.type()
+                        : op instanceof KofGetStatic gs ? gs.fieldType()
+                        : Type.UnknownType.UNKNOWN;
+                if (isDoubleWidth(loaded)) depth++;
             } else if (op instanceof KofDup) {
                 depth++;
+            } else if (op instanceof KofDup2) {
+                depth += 2;
             } else if (op instanceof KofPop) {
                 depth--;
             } else if (op instanceof KofStoreLocal || op instanceof KofStoreField || op instanceof KofPutStatic) {
@@ -191,7 +199,11 @@ public final class JvmLiteralEmitter {
             } else if (op instanceof KofReturn kr) {
                 if (!Type.isVoid(kr.returnType())) depth--;
             } else if (op instanceof KofReturnVoid) {
-            } else if (op instanceof KofNewArray || op instanceof KofArrayLoad) {
+            } else if (op instanceof KofNewArray) {
+                depth--;
+            } else if (op instanceof KofNewMultiArray ma) {
+                depth -= ma.dims() - 1;
+            } else if (op instanceof KofArrayLoad) {
                 depth--;
             } else if (op instanceof KofArrayStore) {
                 depth -= 3;

@@ -8,6 +8,11 @@ O suporte de editores para Kof é distribuído com a própria linguagem:
 
 Nenhum editor precisa de um parser próprio. O editor consome o tooling do Kof.
 
+> **Instalação automática:** `kof editor setup` detecta seus editores e
+> instala as integrações recomendadas (com consentimento). Documentação por
+> editor em [`docs/editors/`](../editors/overview.md). Infra e plano:
+> `docs/development/plan-editor-integration.md` (EDI001).
+
 ---
 
 ## VS Code

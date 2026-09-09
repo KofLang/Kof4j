@@ -159,6 +159,11 @@ public final class KofUi {
         if ("Align".equals(name)) return ALIGN;
         if ("Store".equals(name)) return STORE;
         if ("Canvas".equals(name)) return CANVAS;
+        if ("Fieldset".equals(name)) return FIELDSET;
+        if ("Iframe".equals(name)) return IFRAME;
+        if ("Video".equals(name)) return VIDEO;
+        if ("Audio".equals(name)) return AUDIO;
+        if ("Hr".equals(name)) return HR;
         if ("Select".equals(name)) return SELECT;
         if ("Ul".equals(name)) return UL;
         if ("Ol".equals(name)) return OL;
@@ -228,6 +233,7 @@ public final class KofUi {
                 case "setId" -> argCount == 1 ? new UiCall("kof_ui_widget_set_id", Type.PrimitiveType.VOID, List.of(STR)) : null;
                 case "setClass" -> argCount == 1 ? new UiCall("kof_ui_widget_set_class", Type.PrimitiveType.VOID, List.of(STR)) : null;
                 case "setDisabled" -> argCount == 1 ? new UiCall("kof_ui_widget_set_disabled", Type.PrimitiveType.VOID, List.of(BOOL)) : null;
+                case "on" -> argCount == 2 ? new UiCall("kof_ui_widget_on", Type.PrimitiveType.VOID, List.of(STR, Type.UnknownType.UNKNOWN)) : null;
                 default -> null;
             };
             if (shared != null) return shared;
@@ -435,6 +441,12 @@ public final class KofUi {
             return switch (name) {
                 case "type" -> argCount == 0 ? new UiCall("kof_ui_event_type", STR, List.of()) : null;
                 case "stopPropagation" -> argCount == 0 ? new UiCall("kof_ui_event_stop", Type.PrimitiveType.VOID, List.of()) : null;
+                case "key" -> argCount == 0 ? new UiCall("kof_ui_event_key", STR, List.of()) : null;
+                case "value" -> argCount == 0 ? new UiCall("kof_ui_event_value", STR, List.of()) : null;
+                case "x" -> argCount == 0 ? new UiCall("kof_ui_event_x", INT, List.of()) : null;
+                case "y" -> argCount == 0 ? new UiCall("kof_ui_event_y", INT, List.of()) : null;
+                case "target" -> argCount == 0 ? new UiCall("kof_ui_event_target", STR, List.of()) : null;
+                case "relatedTarget" -> argCount == 0 ? new UiCall("kof_ui_event_related_target", STR, List.of()) : null;
                 default -> null;
             };
         }
