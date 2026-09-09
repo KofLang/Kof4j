@@ -210,6 +210,26 @@ class CoreRegressionE2ETest {
                 """, "1\n2\n1\n6\n6\n5", tempDir, "b2");
     }
 
+    @Test
+    void compoundAssignmentOnArrayAndQualifiedStaticField(@TempDir Path tempDir) throws IOException {
+        runBoth("""
+                class Counter {
+                    static Int total = 10
+                }
+                main() {
+                    var values = new Int[1]
+                    values[0] = 10
+                    values[0] += 5
+                    println(values[0])
+                    Counter.total += 5
+                    println(Counter.total)
+                    var local = 10
+                    local += 5
+                    println(local)
+                }
+                """, "15\n15\n15", tempDir, "compound-array-static");
+    }
+
     // B3 — records inside typed lists keep their type through for-in
     @Test
     void recordsInListsKeepType(@TempDir Path tempDir) throws IOException {

@@ -95,7 +95,29 @@ if (ae.target() instanceof FieldAccessExpr fa) {
         SymbolTable.ClassSymbol cs = driver.semanticAnalyzer.getClass(rid.name());
         SymbolTable.Symbol fs = HierarchyResolver.resolveFieldInHierarchy(cs.name(), fa.fieldName(), driver.semanticAnalyzer);
         if (fs instanceof SymbolTable.FieldSymbol fld) {
+            String qop = ae.operator();
+            boolean qCompound = "+=".equals(qop) || "-=".equals(qop) || "*=".equals(qop)
+                    || "/=".equals(qop) || "%=".equals(qop) || "&=".equals(qop)
+                    || "|=".equals(qop) || "^=".equals(qop);
+            if (qCompound) {
+                ops.add(new KofGetStatic(cs.type(), fa.fieldName(), fld.type()));
+            }
             localIdx = ExpressionLowerer.emitExpression(driver, ae.value(), ops, owner, localIdx, locals);
+            if (qCompound) {
+                driver.emitPrimWidenNarrow(ops, ae.value(), fld.type(), locals);
+                KofBinaryOp qBinOp = switch (qop) {
+                    case "+=" -> KofBinaryOp.ADD;
+                    case "-=" -> KofBinaryOp.SUB;
+                    case "*=" -> KofBinaryOp.MUL;
+                    case "/=" -> KofBinaryOp.DIV;
+                    case "%=" -> KofBinaryOp.MOD;
+                    case "&=" -> KofBinaryOp.AND;
+                    case "|=" -> KofBinaryOp.OR;
+                    case "^=" -> KofBinaryOp.XOR;
+                    default -> KofBinaryOp.ADD;
+                };
+                ops.add(new KofBinary(qBinOp, fld.type()));
+            }
             ops.add(new KofPutStatic(cs.type(), fa.fieldName(), fld.type()));
             return localIdx;
         }
@@ -218,11 +240,69 @@ if (ae.target() instanceof FieldAccessExpr fa) {
     return localIdx;
 }
 if (ae.target() instanceof ArrayAccessExpr aa) {
+    Type recvType = ExpressionTyper.inferExprType(driver, aa.receiver(), locals);
+    Type elemType = Type.arrayElementType(recvType);
+    String aaOp = ae.operator();
+    boolean aaCompound = "+=".equals(aaOp) || "-=".equals(aaOp) || "*=".equals(aaOp)
+            || "/=".equals(aaOp) || "%=".equals(aaOp) || "&=".equals(aaOp)
+            || "|=".equals(aaOp) || "^=".equals(aaOp);
+    if (aaCompound) {
+        // Bug: `a[i] += v` baixava como `a[i] = v` (sobrescrevia em vez de
+        // somar) — faltava ler o valor anterior. ArrayLoad/ArrayStore
+        // consomem (arrayref, index) — diferente de campo (só o receiver) —
+        // então não dá para duplicar com um DUP simples; guarda receiver e
+        // índice em locais temporários e reusa dos dois lados (mesmo padrão
+        // de CompilerUiEmitter.emitFieldIncrement).
+        int recvTmp = localIdx++;
+        int idxTmp = localIdx++;
+        int newTmp = localIdx++;
+        locals.add(new IRLocalVariable(recvTmp, "#arr", recvType));
+        locals.add(new IRLocalVariable(idxTmp, "#idx", Type.PrimitiveType.INT));
+        locals.add(new IRLocalVariable(newTmp, "#new", elemType));
+        localIdx = ExpressionLowerer.emitExpression(driver, aa.receiver(), ops, owner, localIdx, locals);
+        ops.add(new KofStoreLocal(recvType, recvTmp));
+        localIdx = ExpressionLowerer.emitExpression(driver, aa.index(), ops, owner, localIdx, locals);
+        ops.add(new KofStoreLocal(Type.PrimitiveType.INT, idxTmp));
+        ops.add(new KofLoadLocal(recvType, recvTmp));
+        ops.add(new KofLoadLocal(Type.PrimitiveType.INT, idxTmp));
+        ops.add(new KofArrayLoad(elemType));
+        if ("+=".equals(aaOp) && BuiltinTypes.isString(elemType)) {
+            ops.add(new KofCall(BuiltinTypes.STRING, "valueOf",
+                    List.of(Type.UnknownType.UNKNOWN), BuiltinTypes.STRING,
+                    KofCallKind.STATIC));
+            localIdx = ExpressionLowerer.emitExpression(driver, ae.value(), ops, owner, localIdx, locals);
+            ops.add(new KofCall(BuiltinTypes.STRING, "valueOf",
+                    List.of(Type.UnknownType.UNKNOWN), BuiltinTypes.STRING,
+                    KofCallKind.STATIC));
+            ops.add(new KofCall(BuiltinTypes.STRING, "kof_string_concat",
+                    List.of(BuiltinTypes.STRING, BuiltinTypes.STRING),
+                    BuiltinTypes.STRING, KofCallKind.FUNCTION));
+        } else {
+            localIdx = ExpressionLowerer.emitExpression(driver, ae.value(), ops, owner, localIdx, locals);
+            driver.emitPrimWidenNarrow(ops, ae.value(), elemType, locals);
+            KofBinaryOp aaBinOp = switch (aaOp) {
+                case "+=" -> KofBinaryOp.ADD;
+                case "-=" -> KofBinaryOp.SUB;
+                case "*=" -> KofBinaryOp.MUL;
+                case "/=" -> KofBinaryOp.DIV;
+                case "%=" -> KofBinaryOp.MOD;
+                case "&=" -> KofBinaryOp.AND;
+                case "|=" -> KofBinaryOp.OR;
+                case "^=" -> KofBinaryOp.XOR;
+                default -> KofBinaryOp.ADD;
+            };
+            ops.add(new KofBinary(aaBinOp, elemType));
+        }
+        ops.add(new KofStoreLocal(elemType, newTmp));
+        ops.add(new KofLoadLocal(recvType, recvTmp));
+        ops.add(new KofLoadLocal(Type.PrimitiveType.INT, idxTmp));
+        ops.add(new KofLoadLocal(elemType, newTmp));
+        ops.add(new KofArrayStore(elemType));
+        return localIdx;
+    }
     localIdx = ExpressionLowerer.emitExpression(driver, aa.receiver(), ops, owner, localIdx, locals);
     localIdx = ExpressionLowerer.emitExpression(driver, aa.index(), ops, owner, localIdx, locals);
     localIdx = ExpressionLowerer.emitExpression(driver, ae.value(), ops, owner, localIdx, locals);
-    Type recvType = ExpressionTyper.inferExprType(driver, aa.receiver(), locals);
-    Type elemType = Type.arrayElementType(recvType);
     // valor com primitivo ≠ slot (ex.: Int em Long[]) →
     // converter no IR (I2L/L2I), senão o emit gera aastore/
     // lastore com tipo errado e o verifier rejeita (o

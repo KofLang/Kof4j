@@ -53,6 +53,30 @@ class DebugInfoE2ETest {
     }
 
     @Test
+    void expressionStatementLineNumbersMatchSource(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+                record P(Int x)
+                main() {
+                    var p = P(1)
+                    println(p.x())
+                    println("fim")
+                }
+                """);
+        Path out = tempDir.resolve("out");
+        CompilationResult result = driver.compile(source, out, Target.JVM);
+        assertTrue(result.success(), "Compilation should succeed: " + result.diagnostics().getDiagnostics());
+
+        String javap = runJavap(out.resolve("Default/Main.class"));
+        assertTrue(javap.contains("line 4:"),
+                "println(p.x()) é a linha 4 — deve aparecer na LineNumberTable:\n" + javap);
+        assertTrue(javap.contains("line 5:"),
+                "println(\"fim\") é a linha 5 — deve aparecer na LineNumberTable:\n" + javap);
+        assertFalse(javap.contains("line 6:"),
+                "linha 6 é só o '}' de fechamento do main — não tem código, não deveria aparecer:\n" + javap);
+    }
+
+    @Test
     void nativeBinaryStillRuns(@TempDir Path tempDir) throws IOException {
         Path source = tempDir.resolve("Main.kf");
         Files.writeString(source, SRC);

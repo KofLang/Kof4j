@@ -121,12 +121,14 @@ public class StatementParser {
             return StatementParser.parseVarDecl(ctx);
         }
         if (ctx.check(TokenType.SEMICOLON)) {
+            SourcePosition emptyPos = ctx.pos();
             ctx.advance();
-            return new ExpressionStmt(ctx.pos(), null);
+            return new ExpressionStmt(emptyPos, null);
         }
+        SourcePosition exprPos = ctx.pos();
         ExpressionNode expr = ExpressionParser.parseExpression(ctx);
         ctx.expectSemicolon();
-        return new ExpressionStmt(ctx.pos(), expr);
+        return new ExpressionStmt(exprPos, expr);
     }
 
     static StatementNode parseReturn(ParseContext ctx) {
