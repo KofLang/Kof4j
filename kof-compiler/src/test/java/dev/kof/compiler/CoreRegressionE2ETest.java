@@ -186,6 +186,49 @@ class CoreRegressionE2ETest {
         assertEquals("2188", runJvm(out));
     }
 
+    // GitHub #64 / bug 74 — `+=` em elemento de array e campo estático
+    // qualificado sobrescreviam o valor em vez de somar: os ramos
+    // ArrayAccessExpr/FieldAccess-estático do AssignmentLowerer ignoravam
+    // o operador da atribuição (só o `=` era baixado). Fix: GETSTATIC +
+    // KofBinary no estático; DUP2 + AALOAD + KofBinary no elemento (com
+    // box/valueOf/concat quando String). Prova do repro da issue:
+    // `15/15/15` (antes `5/5/15`).
+    @Test
+    void compoundAssignmentOnArrayElementAndQualifiedStatic(@TempDir Path tempDir) throws IOException {
+        Path src = tempDir.resolve("compound.kf");
+        Files.writeString(src, """
+                class Counter {
+                    static Int total = 10
+                    static Double d = 2.5
+                }
+                main() {
+                    var values = new Int[1]
+                    values[0] = 10
+                    values[0] += 5
+                    println(values[0])
+                    Counter.total += 5
+                    println(Counter.total)
+                    Counter.d *= 2
+                    println(Counter.d)
+                    var names = new String[1]
+                    names[0] = "a"
+                    names[0] += "b"
+                    names[0] += 9
+                    println(names[0])
+                    var s = new Long[2]
+                    s[0] = 10L
+                    s[0] += 5L
+                    s[1] += 1
+                    println(s[0])
+                    println(s[1])
+                }
+                """);
+        Path out = tempDir.resolve("compound-jvm");
+        CompilationResult r = driver.compile(src, out, Target.JVM);
+        assertTrue(r.success(), "JVM compile failed: " + r.diagnostics().getDiagnostics());
+        assertEquals("15\n15\n5.0\nab9\n15\n1", runJvm(out));
+    }
+
     // B10 — primary constructor fields accessible inside methods (all targets)
     @Test
     void primaryConstructorFieldsInMethods(@TempDir Path tempDir) throws IOException {

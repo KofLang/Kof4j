@@ -1400,6 +1400,39 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   while/finally aninhados, ~420 linhas geradas → 2188). Suíte
   CoreRegressionE2ETest 46/0.
 
+### 74. JVM: `+=` em elemento de array e campo estático qualificado sobrescreve o valor (GitHub #64) — ✅ CORRIGIDO 09/09
+
+- **Sintoma:** o MESMO `+=` produzia resultado diferente por destino: local
+  `10 += 5` = `15` (correto), mas `values[0] += 5` e `Counter.total += 5`
+  com valor inicial `10` davam `5` (SOBRESCREVEU — não somou). Compila e
+  roda sem erro.
+- **Causa raiz:** os ramos `ArrayAccessExpr` e `FieldAccessExpr`-estático
+  (`Class.field`) do `ExpressionAssignmentLowerer` ignoravam `ae.operator()`:
+  emitiam receptor+índice+RHS+store direto — o mecanismo de compound só era
+  alcançado pelo campo estático POR NOME SIMPLES, campo de instância (bug 40)
+  e box local.
+- **Correção (09/09):** campo estático qualificado: `GETSTATIC` + RHS +
+  `KofBinary` + `PUTSTATIC` (sem receiver — estático não consome `this`).
+  Elemento de array: `DUP2` (duplica o par [receiver, index]) + `AALOAD` +
+  RHS + `KofBinary` + `AASTORE`. Novo op `KofDup2` emitido nos 4 backends
+  (JVM DUP2, interpretador, Native x86_64, riscv cross, JS via temps).
+  `+=` com String (elemento ou campo): mesmo mecanismo da concatenação
+  (`boxPrimitive`+`valueOf`+`kof_string_concat`) — `names[0] += 9` = `ab9`.
+  Widening do RHS p/ o tipo do destino (`Double *= 2`: int→double antes do
+  DMUL — o literal int na pilha de DMUL dava frame inválido). No compound,
+  o `emitPrimWidenNarrow` final NÃO re-aplica (o KofBinary já produziu o
+  tipo do elemento — a conversão extra dava I2L sobre long → VerifyError).
+  `computeStack` agora conta width real de `KofLoadLiteral`/`KofGetStatic`
+  de long/double (getstatic Double é 2 slots no JVM real).
+- **Prova:** repro da issue `15/15/15` (antes `5/5/15`, JDK 21+25, JVM run
+  limpo com `-Xverify:all`); bordas: `Int[]` (`15/17/60`), `Long[]`
+  (`15`/`1` — int em Long[] ok), `String[]` (`ab9`), `Double` estático
+  (`5.0`); teste `compoundAssignmentOnArrayElementAndQualifiedStatic`;
+  CoreRegressionE2ETest 47/0.
+
+
+
+
 
   (`println(if (c) true else 5)` → script `1` vs JVM `true`); lado JVM
   inalterado pela mudança (mesmo `Boolean.valueOf` antes e depois) —

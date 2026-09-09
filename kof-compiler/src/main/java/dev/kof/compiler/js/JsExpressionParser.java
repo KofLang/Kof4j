@@ -10,6 +10,7 @@ import dev.kof.compiler.KofCatchStart;
 import dev.kof.compiler.KofCheckCast;
 import dev.kof.compiler.KofConditionalJump;
 import dev.kof.compiler.KofDup;
+import dev.kof.compiler.KofDup2;
 import dev.kof.compiler.KofDupX1;
 import dev.kof.compiler.KofDupX2;
 import dev.kof.compiler.KofGetStatic;
@@ -184,6 +185,20 @@ void consumeExpressionOp(MethodCtx ctx, int[] pos, List<Object> stack,
             preambleExprs.add(new JsIr.JsAssignExpr(temp, top));
             stack.add(new JsIr.JsIdentifier(temp));
             stack.add(new JsIr.JsIdentifier(temp));
+        } else if (op instanceof KofDup2) {
+            // compound em elemento de array (#64): [array, index] × 2 +
+            // o valor atual — o par [array, index] é materializado duas
+            // vezes (via temp p/ não reavaliar efeitos).
+            JsIr.JsExpression index = pop(stack);
+            JsIr.JsExpression array = pop(stack);
+            String tempA = ctx.freshTemp();
+            String tempI = ctx.freshTemp();
+            preambleExprs.add(new JsIr.JsAssignExpr(tempA, array));
+            preambleExprs.add(new JsIr.JsAssignExpr(tempI, index));
+            stack.add(new JsIr.JsIdentifier(tempA));
+            stack.add(new JsIr.JsIdentifier(tempI));
+            stack.add(new JsIr.JsIdentifier(tempA));
+            stack.add(new JsIr.JsIdentifier(tempI));
         } else if (op instanceof KofDupX1) {
             JsIr.JsExpression top = pop(stack);
             JsIr.JsExpression below = pop(stack);

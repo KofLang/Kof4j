@@ -15,6 +15,7 @@ import dev.kof.compiler.KofCatchStart;
 import dev.kof.compiler.KofCheckCast;
 import dev.kof.compiler.KofConditionalJump;
 import dev.kof.compiler.KofDup;
+import dev.kof.compiler.KofDup2;
 import dev.kof.compiler.KofDupX1;
 import dev.kof.compiler.KofDupX2;
 import dev.kof.compiler.KofGetStatic;
@@ -174,6 +175,10 @@ public final class NativeRiscvCrossEmit {
             case KofDup dup -> {
                 sb.append("    ld t0, 0(sp)\n");
                 pushRiscv(sb, "t0");
+            }
+            case KofDup2 dup2 -> {
+                sb.append("    ld t0, 0(sp)\n    ld t1, 8(sp)\n");
+                pushRiscv(sb, "t1"); pushRiscv(sb, "t0"); pushRiscv(sb, "t1"); pushRiscv(sb, "t0");
             }
             case KofDupX1 x1 -> {
                 sb.append("    ld t0, 0(sp)\n    ld t1, 8(sp)\n");

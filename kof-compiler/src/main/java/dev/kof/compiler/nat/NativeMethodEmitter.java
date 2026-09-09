@@ -6,6 +6,7 @@ import dev.kof.compiler.KofCallKind;
 import dev.kof.compiler.KofCatchStart;
 import dev.kof.compiler.KofCheckCast;
 import dev.kof.compiler.KofDup;
+import dev.kof.compiler.KofDup2;
 import dev.kof.compiler.KofDupX1;
 import dev.kof.compiler.KofDupX2;
 import dev.kof.compiler.KofInstanceOf;
@@ -247,6 +248,12 @@ final class NativeMethodEmitter {
             case KofCall kc -> nb.emitCall(sb, kc);
             case KofNewObject no -> nb.emitNewObject(sb, no);
             case KofDup dup -> sb.append("    movq (%rsp), %rax\n    pushq %rax\n");
+            case KofDup2 dup2 -> sb.append("""
+                    movq (%rsp), %rax
+                    movq 8(%rsp), %rbx
+                    pushq %rbx
+                    pushq %rax
+                    """);
             case KofDupX1 x1 -> sb.append("""
                     movq (%rsp), %rax
                     movq 8(%rsp), %rbx

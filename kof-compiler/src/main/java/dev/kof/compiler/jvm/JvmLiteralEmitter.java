@@ -9,6 +9,7 @@ import dev.kof.compiler.KofCatchStart;
 import dev.kof.compiler.KofCheckCast;
 import dev.kof.compiler.KofConditionalJump;
 import dev.kof.compiler.KofDup;
+import dev.kof.compiler.KofDup2;
 import dev.kof.compiler.KofGetStatic;
 import dev.kof.compiler.KofInstanceOf;
 import dev.kof.compiler.KofJump;
@@ -179,8 +180,14 @@ public final class JvmLiteralEmitter {
                 if (isDoubleWidth(ll.type())) depth++;
             } else if (op instanceof KofLoadLiteral || op instanceof KofNewObject || op instanceof KofArrayLength || op instanceof KofInstanceOf || op instanceof KofGetStatic) {
                 depth++;
+                Type loaded = op instanceof KofLoadLiteral lit ? lit.type()
+                        : op instanceof KofGetStatic gs ? gs.fieldType()
+                        : Type.UnknownType.UNKNOWN;
+                if (isDoubleWidth(loaded)) depth++;
             } else if (op instanceof KofDup) {
                 depth++;
+            } else if (op instanceof KofDup2) {
+                depth += 2;
             } else if (op instanceof KofPop) {
                 depth--;
             } else if (op instanceof KofStoreLocal || op instanceof KofStoreField || op instanceof KofPutStatic) {

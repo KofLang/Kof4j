@@ -11,6 +11,7 @@ import dev.kof.compiler.KofCatchStart;
 import dev.kof.compiler.KofCheckCast;
 import dev.kof.compiler.KofConditionalJump;
 import dev.kof.compiler.KofDup;
+import dev.kof.compiler.KofDup2;
 import dev.kof.compiler.KofDupX1;
 import dev.kof.compiler.KofDupX2;
 import dev.kof.compiler.KofGetStatic;
@@ -170,6 +171,8 @@ public final class JvmOpEmitter {
             c.mv().visitTypeInsn(NEW, type);
         } else if (op instanceof KofDup) {
             c.mv().visitInsn(DUP);
+        } else if (op instanceof KofDup2) {
+            c.mv().visitInsn(DUP2);
         } else if (op instanceof KofDupX1) {
             c.mv().visitInsn(DUP_X1);
         } else if (op instanceof KofDupX2) {

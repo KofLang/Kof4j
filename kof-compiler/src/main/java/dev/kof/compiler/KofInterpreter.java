@@ -244,6 +244,13 @@ public final class KofInterpreter {
                     return;
                 } else if (op instanceof KofDup) {
                     st.push(st.peek());
+                } else if (op instanceof KofDup2) {
+                    Object top = st.pop();
+                    Object below = st.pop();
+                    st.push(below);
+                    st.push(top);
+                    st.push(below);
+                    st.push(top);
                 } else if (op instanceof KofDupX1) {
                     Object top = st.pop();
                     Object below = st.pop();
