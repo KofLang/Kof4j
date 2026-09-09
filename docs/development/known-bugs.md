@@ -1239,15 +1239,22 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 
 - **Sintoma:** `class Base { ... }` + `class Derived extends Base { constructor(v) { super(v) ... } }`
   → JVM/JS ok (`42`); **interpretador → StackOverflowError** (recursão no ctor).
-- **Causa raiz:** `KofInterpreter.dispatch` para `KofCallKind.SUPER` usava
-  `owner = classByInternal(recv.internalName())` (a classe ATUAL), então
-  `findKofMethod(owner, "<init>", argc)` resolvia o próprio ctor de novo →
-  recursão infinita. JVM/JS resolviam o super via `invokespecial` ao owner do
-  call (superclasse), por isso ok.
-- **Correção (09/09):** para `KofCallKind.SUPER`, `owner` sobe para a superclasse
-  imediata (`members.classByInternal(owner.superName())`) antes de `findKofMethod`.
-  Prova: `ScriptTargetTest.interpretExplicitSuperConstructor` (Derived(42) chama
-  `super(v)` e imprime 42).
+- **Causa raiz:** `KofInterpreter.dispatch` resolvia o owner de TODO `KofCall`
+  pelo runtime-class do receiver (dispatch virtual — correto p/ método).
+  `super(v)` de um construtor é baixado como `KofCall(ownerType=superclasse,
+  "<init>", kind=CONSTRUCTOR)` (`ExpressionMethodCallLowerer:414`), MAS o
+  dispatch ignorava o ownerType estático e usava a classe do objeto (`Derived`)
+  → `findKofMethod` pegava `Derived.<init>` de novo → recursão.
+  ⚠️ A 1ª correção da lane bug-fix (`8968c883`, bump `KofCallKind.SUPER`) NÃO
+  bastava: provado por experimento — revertida a fusão, o PRÓPRIO teste
+  `interpretExplicitSuperConstructor` falha com StackOverflow (o `super(v)` do
+  ctor é kind CONSTRUCTOR, não SUPER; o bump só pega método `super.m()`).
+- **Correção (09/09, `d92f413a` — fusão das 2 lanes):** (1) `<init>` resolve o
+  owner pelo `kc.ownerType()` ESTÁTICO do IR (construtor não é virtual no JVM);
+  (2) bump `SUPER→superclasse` preservado com guard `!<init>` (cobre método
+  não-virtual); (3) `super()` p/ base externa não-Kof (Record/Object, IR do
+  #53) = no-op. Prova: `ScriptTargetTest` 7/7 (interpretExplicitSuperConstructor
+  + explicitSuperConstructorDoesNotRecurse + recordWithExplicitConstructorRunsOnInterpreter).
 
 ## Comportamentos que PAREcem bugs mas são esperados (não corrigir)
 
