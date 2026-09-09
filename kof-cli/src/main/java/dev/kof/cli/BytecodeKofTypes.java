@@ -80,27 +80,33 @@ final class BytecodeKofTypes {
     }
 
     /**
-     * §7 degrau 2: resolve Class CP entry contra o ÍNDICE da árvore
-     * (`kof decompile <dir>`). Devolve o nome simples SOMENTE quando a classe
-     * está no MESMO pacote do arquivo sendo decompilado (resolve sem import
-     * no frontend — probe PKG004/SEM025). Fora disso (índice ausente =
-     * modo 1-arquivo, outro pacote, nome não-identificador como `Outer$Inner`,
-     * entrada CP malformada) → null → stub honesto. Nunca inventa.
+     * §7 degrau 2–3: resolve Class CP entry contra o escopo da árvore
+     * (`kof decompile <dir>`). Mesmo pacote → simples (sem import);
+     * outro pacote → simples + import (degrau 3), se globalmente único.
+     * Fora disso (escopo ausente = modo 1-arquivo, fora do índice, `Outer$Inner`,
+     * ambíguo, CP malformada) → null → stub honesto. Nunca inventa.
      */
     static String indexKofType(String[] cp, int classIdx, BytecodeFrame frame) {
-        if (frame == null || frame.treeIndex == null || frame.treePackage == null) return null;
+        if (frame == null || frame.treeScope == null) return null;
         if (classIdx <= 0 || classIdx >= cp.length || cp[classIdx] == null) return null;
         String e = cp[classIdx];
         if (!e.startsWith("#") || e.indexOf('#', 1) >= 0) return null;   // Class = 1 ref (não NameAndType)
         Integer nameIdx = BytecodeDecoder.parseCp(e.substring(1));
         if (nameIdx == null || nameIdx >= cp.length || cp[nameIdx] == null) return null;
-        String internal = cp[nameIdx];
-        String pkg = frame.treeIndex.get(internal);
-        if (pkg == null || !pkg.equals(frame.treePackage)) return null;  // outro pacote = degrau 3 (imports)
-        int slash = internal.lastIndexOf('/');
-        String simple = slash >= 0 ? internal.substring(slash + 1) : internal;
-        if (!simple.matches("[A-Za-z_][A-Za-z0-9_]*")) return null;      // `Outer$Inner`, arrays, quebrados
-        return simple;
+        return frame.treeScope.resolve(cp[nameIdx]);
+    }
+
+    /**
+     * Internal name de Class CP entry (p/ `new`/uso direto), ou null.
+     * Mesmas guardas do `indexKofType`, sem resolver (o chamador resolve).
+     */
+    static String indexInternalName(String[] cp, int classIdx) {
+        if (classIdx <= 0 || classIdx >= cp.length || cp[classIdx] == null) return null;
+        String e = cp[classIdx];
+        if (!e.startsWith("#") || e.indexOf('#', 1) >= 0) return null;
+        Integer nameIdx = BytecodeDecoder.parseCp(e.substring(1));
+        if (nameIdx == null || nameIdx >= cp.length || cp[nameIdx] == null) return null;
+        return cp[nameIdx];
     }
 
     /** Heurística p/ pop (0x57): o topo é uma chamada? exige '(' imediatamente

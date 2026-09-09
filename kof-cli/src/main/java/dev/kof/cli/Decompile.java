@@ -94,14 +94,16 @@ public final class Decompile {
                     System.err.println("kof decompile: " + c + ": " + t);
                 }
             }
-            var index = new java.util.TreeMap<String, String>();
-            for (ParsedClass p : parsed) index.put(p.ir.thisClass, packageOf(p.ir.thisClass));
-            // passe 2: decompila com o índice (instanceof/cast de domínio do
-            // MESMO pacote resolvem sem import; resto segue stub honesto).
+            var pkgOf = new java.util.TreeMap<String, String>();
+            for (ParsedClass p : parsed) pkgOf.put(p.ir.thisClass, packageOf(p.ir.thisClass));
+            // passe 2: decompila com o escopo (instanceof/cast/new de domínio
+            // resolvem no mesmo pacote sem import; cross-package com import;
+            // resto segue stub honesto).
             for (ParsedClass p : parsed) {
                 try {
                     String pkg = packageOf(p.ir.thisClass);
-                    String src = decompile(p.file, pkg, index);
+                    var scope = new TreeScope(pkgOf, pkg);
+                    String src = decompile(p.file, pkg, scope);
                     Path dest = out;
                     if (!pkg.isEmpty()) dest = dest.resolve(pkg.replace('.', '/'));
                     dest = dest.resolve(simpleName(p.ir.thisClass) + ".kf");
@@ -139,26 +141,40 @@ public final class Decompile {
         return decompile(classFile, pkg, null);
     }
 
+    /**
+     * Nome p/ extends/implements: resolve no escopo (registrando import
+     * cross-package) ou cai no simples (comportamento anterior).
+     * Emissão nunca é null — no pior caso, igual a antes.
+     */
+    static String resolveSuperName(String internal, TreeScope scope) {
+        if (scope != null) {
+            String r = scope.resolve(internal);
+            if (r != null) return r;
+        }
+        return simpleName(internal);
+    }
+
     static String decompile(Path classFile, String pkg,
-                            java.util.Map<String, String> treeIndex) throws IOException {
+                            TreeScope scope) throws IOException {
         var ir = ClassFileParser.parse(Files.newInputStream(classFile));
         StringBuilder sb = new StringBuilder();
         sb.append("// decompiled from ").append(classFile.getFileName()).append('\n');
         sb.append("// structural skeleton — simple method bodies recovered; others stubbed (Fase E)\n");
         sb.append("// confidence: class/fields/signatures = EXACT; recovered bodies = EXACT; stubs = UNKNOWN\n");
         if (pkg == null) pkg = packageOf(ir.thisClass);
-        if (!pkg.isEmpty()) sb.append("package ").append(pkg).append("\n\n");
-        else sb.append('\n');
+        if (!pkg.isEmpty()) sb.append("package ").append(pkg).append('\n');
+        int importPos = sb.length();   // imports entram aqui (pós-passe)
+        sb.append('\n');
 
         String simpleName = simpleName(ir.thisClass);
         sb.append("class ").append(simpleName);
         if (ir.superClass != null && !ir.superClass.equals("java/lang/Object")) {
-            sb.append(" extends ").append(simpleName(ir.superClass));
+            sb.append(" extends ").append(resolveSuperName(ir.superClass, scope));
         }
         if (ir.interfaces.length > 0) {
             sb.append(" implements ");
             List<String> ifaces = new ArrayList<>();
-            for (String i : ir.interfaces) ifaces.add(simpleName(i));
+            for (String i : ir.interfaces) ifaces.add(resolveSuperName(i, scope));
             sb.append(String.join(", ", ifaces));
         }
         sb.append(" {\n");
@@ -189,8 +205,7 @@ public final class Decompile {
             if (m.code != null) {
                 boolean isStatic = (m.accessFlags & 0x0008) != 0;
                 BytecodeFrame frame = new BytecodeFrame(m.descriptor, isStatic);
-                frame.treeIndex = treeIndex;
-                frame.treePackage = pkg;
+                frame.treeScope = scope;
                 boolean hasHandlers = m.code.exceptionHandlers != null && !m.code.exceptionHandlers.isEmpty();
                 if (!hasHandlers) {
                     body = BytecodeDecoder.recoverExpression(m.code.bytecode, ir.constantPool, frame);
@@ -223,6 +238,14 @@ public final class Decompile {
         }
 
         sb.append("}\n");
+        // §7 degrau 3: imports usados (só modo tree; escopo null = sem imports
+        // = bytes idênticos ao anterior). Inserção no ponto marcado p/ ficarem
+        // entre package e classe (`package p\nimport q.B\n\nclass ...`).
+        if (scope != null) {
+            var lines = new StringBuilder();
+            for (String imp : scope.usedImports()) lines.append("import ").append(imp).append('\n');
+            if (lines.length() > 0) sb.insert(importPos, lines.toString());
+        }
         return sb.toString();
     }
 

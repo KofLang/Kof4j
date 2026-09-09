@@ -19,12 +19,13 @@ final class BytecodeFrame {
     private final String[] names;      // índice = slot; null = não-parâmetro
     private final boolean isStatic;
     private final String ret;          // tipo JVM do retorno ('I'/'J'/'D'/'V'/...); null p/ quebrado
-    // §7 degrau 2 (índice multi-classe): internalName → pacote, de TODAS as
-    // classes da árvore (só em `kof decompile <dir>`; null no modo 1-arquivo
-    // = comportamento idêntico ao anterior). Por-frame (instância nova por
-    // método/teste) — nunca vaza entre arquivos (sem estático global).
-    java.util.Map<String, String> treeIndex;
-    String treePackage;
+    // §7 degrau 2–3 (índice multi-classe): escopo de resolução da árvore
+    // (só em `kof decompile <dir>`; null no modo 1-arquivo = comportamento
+    // idêntico ao anterior). Por-frame (instância nova por método/teste) —
+    // nunca vaza entre arquivos (sem estático global). O TreeScope é
+    // POR-ARQUIVO (compartilhado pelos frames dos métodos) e acumula os
+    // imports usados p/ emissão.
+    TreeScope treeScope;
 
     BytecodeFrame(String descriptor, boolean isStatic) {
         this.isStatic = isStatic;

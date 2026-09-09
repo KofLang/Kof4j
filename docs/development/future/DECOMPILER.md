@@ -190,6 +190,30 @@ Fase E  Kof Decompiler          (gerar Kof source)
 > estático global (vazaria entre arquivos/testes no mesmo JVM) nem parâmetro
 > novo nas ~10 assinaturas dos decoders.
 
+> **Estado (09/09, este commit): §7 degrau 3 — imports cross-package.**
+> `TreeScope` por arquivo (índice + pacote atual + imports usados; frames
+> compartilham — sem global, modo 1-arquivo intacto com bytes idênticos,
+> provado: stubs single-file 1674 = baseline). `instanceof`/`checkcast`
+> cross-package resolvem com `import` emitido; `new` em expression-body
+> registra uso; `extends`/`implements` idem. Regra de sanidade: simples
+> globalmente único (duplicado em 2+ pacotes → stub, mesmo com import
+> possível — conservador; probe provou que `import` DESEMPATA no frontend,
+> relaxamento futuro documentado).
+>
+> Prova: par p/B+q/C (extends+instanceof+new) compila junto (zero drift) +
+> `decompileTreeEmitsImportsForCrossPackageDomainRefs` e
+> `decompileTreeRefusesAmbiguousSimpleNames` — 40/40 DecompileTest. Corpus:
+> tree 1636 stubs, 7 arquivos com import; invariante textual 36/36 nomes
+> com `.kf` irmão. Tree-check 613 arquivos: 4 erros, todos wildcard
+> `? extends` pré-existente (gap próprio) — ZERO SEM011/PKG (e idêntico sem
+> os imports: o frontend resolve simples não-ambíguo module-wide; imports
+> são explícitos/idiomáticos + desambiguadores + robustez).
+> Decisão de design: índice no `BytecodeFrame` (contexto existente), coleta
+> durante o decode (import não-usado por corpo-stub é inofensivo — probe:
+> só import INEXISTENTE é erro PKG006); `new` em statement-body segue stub
+> (statements não tratam 0xbb — gap Fase E próprio); assinaturas
+> (param/return/field cross-package) = degrau 4.
+
 ## 7. Relação com o Compilador
 
 O decompiler alimenta o pipeline existente:

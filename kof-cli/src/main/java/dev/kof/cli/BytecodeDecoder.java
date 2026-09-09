@@ -160,6 +160,12 @@ import java.util.Set;
                     // new java.lang.X(...) nunca é idiomático p/ Kof (R6).
                     String cn = resolveClassName(cp, in.operands()[0]);
                     if (cn == null || isJdkClass(cp, in.operands()[0])) return null;
+                    // §7 degrau 3: registra uso cross-package p/ import
+                    // (emissão inalterada — nome simples como antes).
+                    if (frame != null && frame.treeScope != null) {
+                        String internal = BytecodeKofTypes.indexInternalName(cp, in.operands()[0]);
+                        if (internal != null) frame.treeScope.resolve(internal);
+                    }
                     stack.push("⟦new⟧" + cn, "L");
                 }
                 case 0x59 -> { // dup (só no padrão new)

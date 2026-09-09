@@ -545,6 +545,72 @@ class DecompileTest {
     }
 
     @Test
+    void decompileTreeEmitsImportsForCrossPackageDomainRefs(@TempDir Path dir) throws Exception {
+        // §7 degrau 3: referência de domínio cross-package (extends,
+        // instanceof, new) sai com `import` e o par compila junto
+        // (antes: nome simples sem import → SEM011).
+        Path src = dir.resolve("classes");
+        Path p = src.resolve("p");
+        Path q = src.resolve("q");
+        Files.createDirectories(p);
+        Files.createDirectories(q);
+        Path b = p.resolve("B.java");
+        Files.writeString(b, """
+                package p;
+                public class B { public int v; public B(int v) { this.v = v; } }
+                """);
+        Path c = q.resolve("C.java");
+        Files.writeString(c, """
+                package q;
+                import p.B;
+                public class C extends B {
+                    public C(int v) { super(v); }
+                    public static boolean isB(Object o) { boolean x = o instanceof B; return x; }
+                    public static B make() { return new B(3); }
+                }
+                """);
+        runJavac(java.util.List.of(b, c), src);
+        Path out = dir.resolve("gen");
+        assertEquals(0, Decompile.decompileTree(src, out));
+        String cSrc = Files.readString(out.resolve("q/C.kf"));
+        assertTrue(cSrc.contains("import p.B"),
+                "uso cross-package deve gerar import:\n" + cSrc);
+        assertTrue(cSrc.contains("arg0 instanceof B") && cSrc.contains("= B(3)"),
+                "extends/instanceof/new devem recuperar:\n" + cSrc);
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                out.resolve("p/B.kf"), out.resolve("q/C.kf")), dir.resolve("o"), Target.JVM, out);
+        assertTrue(r.success(), "árvore com import deve compilar (zero drift):\n" + cSrc + "\n" + r.diagnostics().getDiagnostics());
+    }
+
+    @Test
+    void decompileTreeRefusesAmbiguousSimpleNames(@TempDir Path dir) throws Exception {
+        // Recusa R6: simples duplicado em 2+ pacotes do índice nunca ganha
+        // import (ambíguo) → stub honesto, mesmo com o pacote atual tendo um.
+        Path src = dir.resolve("classes");
+        for (String pkg : new String[]{"p", "q", "r"}) Files.createDirectories(src.resolve(pkg));
+        Path dp = src.resolve("p/Dup.java");
+        Files.writeString(dp, "package p;\npublic class Dup { public int v; }\n");
+        Path dq = src.resolve("q/Dup.java");
+        Files.writeString(dq, "package q;\npublic class Dup { public int w; }\n");
+        Path c = src.resolve("r/C.java");
+        Files.writeString(c, """
+                package r;
+                import p.Dup;
+                public class C {
+                    public static boolean isD(Object o) { boolean x = o instanceof Dup; return x; }
+                }
+                """);
+        runJavac(java.util.List.of(dp, dq, c), src);
+        Path out = dir.resolve("gen");
+        assertEquals(0, Decompile.decompileTree(src, out));
+        String cSrc = Files.readString(out.resolve("r/C.kf"));
+        assertTrue(cSrc.contains("body not recovered") && !cSrc.contains("instanceof Dup"),
+                "simples ambíguo (p.Dup + q.Dup) fica stub, sem import:\n" + cSrc);
+        assertTrue(!cSrc.contains("import p.Dup"),
+                "nenhum import ambíguo deve ser emitido:\n" + cSrc);
+    }
+
+    @Test
     void escapesStringConstantsInDecompiledSource(@TempDir Path dir) throws Exception {
         // R6 (prova de drift 09/09): o ldc emitia a string do CP CRUA — `\b`,
         // newline real e `"` estouravam o lexer do .kf (LEX002/LEX004). Agora
