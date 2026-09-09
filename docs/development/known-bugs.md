@@ -889,7 +889,7 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 - **Prova/repro:** `ConformanceMatrixTest.conformanceErrors` → caso `nestedtry` (agora nos 4 targets, JS incluído). Variante re-throw em catch = bug 52 (✅ corrigido 08/09).
 - **Descoberto:** 07/09 (lote 2 da conformance matrix). **Corrigido:** 07/09 (lane JS, `JsControlFlowParser.parseTryStatement`).
 
-### 50. channel send/recv DENTRO de `spawn` → SIGSEGV no Native (139) — ABERTO (lane Native)
+### 50. channel send/recv DENTRO de `spawn` → SIGSEGV no Native (139) — correção candidata aplicada 09/09 (futex WAIT args); validação pendente (toolchain/qemu)
 
 - **Sintoma:** `val c = channel<Int>(); spawn { c.send(42) }; val v = c.receive(); println(v)`: JVM/Script/KofJS → `42`; **Native x86_64 → SIGSEGV (exit 139), sem output, determinístico** (4/4 runs).
 - **Isolamento (probe `Isol`, 07/09):** canal SEM spawn (mesma thread) → `exit=0 s=11` ✅; spawn SEM canal (lambda void) → `exit=0` ✅; canal send/recv mesma thread → `exit=0 42` ✅; **só a combinação spawn + op-de-canal → 139**. Ou seja: canal e spawn isoladamente funcionam no Native; o fault é na op de canal (send/receive, futex de mutex) executada **dentro da thread do spawn** (stack/raiz do futex não válida fora da thread principal — provável).
@@ -898,6 +898,18 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 - **Prova/repro:** probe `Isol` caso C (`channel<Int>()` + `spawn { c.send(42) }` + `c.receive()`), 4/4 → 139.
 - **Correção (lane Native):** futex/mutex do canal deve ser criado e usado na thread certa (thread-local TCB no trampoline do spawn), OU op de canal em thread não-principal deve usar caminho seguro (spinlock puro). Diagnosticar com `qemu`/valgrind antes de decidir.
 - **Descoberto:** 07/09 (lote 3 da conformance matrix, varredura de concorrência determinística).
+- **Correção candidata 09/09 (a validar com toolchain/qemu):** o lock spin de
+  `kof_channel_send`/`kof_channel_receive` chamava `syscall 202` (futex WAIT)
+  com `rdi=chan` (uaddr errado — nunca setado para `&lock`) e `rsi=&lock` usado
+  como opcode → comportamento indefinido quando há contenção (dentro de spawn).
+  Sem spawn não há contenção (o `lock cmpxchg` nunca falha, o futex nunca roda)
+  — por isso o isolamento mostrava "canal sem spawn funciona". Fix: args
+  alinhados ao padrão do WAKE (`rdi=&lock`, `rsi=0` FUTEX_WAIT, `rdx=1`,
+  `r10=0`) + restaura `&lock` em `rsi` para o próximo cmpxchg, nos dois pontos.
+  Nota adicional: o `call usleep` no receive-vazio (count==0) depende de libc —
+  mesma família do bug 61 (binário `_start` cru); se o send chega antes do
+  receive o caminho vazio não roda. Validar o caso `spawn { c.send(42) }` +
+  `c.receive()` com qemu/valgrind.
 
 ### 51. `CompilerDriver` reutilizado vaza classes sintéticas → 2ª compilação Native quebra (link: `undefined reference to 'calc'`) — ✅ CORRIGIDO 07/09 (compiler-core)
 
