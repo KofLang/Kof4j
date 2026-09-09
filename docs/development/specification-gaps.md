@@ -88,7 +88,7 @@ recomendações futuras (regra 14 da tarefa: não alterar comportamento).
   estreita, deref direto é permitido), ou tornar deref de `T?` sem narrowing um
   erro (breaking change).
 
-### SG-006 — Short-circuit de `&&`/`||` desligado no JS
+### SG-006 — Short-circuit de `&&`/`||` desligado no JS — ✅ CORRIGIDO 09/09 (paridade OK + teste)
 
 - **Implementação**: `ExpressionBinaryLowerer.java:56-57` — o short-circuit por
   labels é emitido só quando `target != JS`. No JS, ambos os lados são
@@ -106,6 +106,10 @@ recomendações futuras (regra 14 da tarefa: não alterar comportamento).
   por leitura de código, mas **sem teste de runtime que trave** — recomenda-se um
   caso em `BackendParityTest` (`if (x != null && x.length > 0)`) nos 4 targets
   antes de fechar o gap.
+- **✅ CORRIGIDO 09/09:** `BackendParityTest.parityShortCircuitAndOr` adicionado
+  (`String? s = null` → `vazio` via short-circuit; `String? t = "abc"` →
+  `nao-vazio`). Suíte verde (a única falha da suíte 1163+25+5+109 é o bug 46,
+  pré-existente) → o short-circuit de `&&` no JS/JVM está travado por teste.
 
 ### SG-007 — Wildcard de genérico (`? extends T`) compila mas quebra — ✅ CORRIGIDO 06/09 (PARSE086)
 
