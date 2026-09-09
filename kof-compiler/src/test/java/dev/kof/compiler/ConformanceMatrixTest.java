@@ -839,6 +839,18 @@ class ConformanceMatrixTest {
                     println(await h2)
                 }
                 """, "2\n11", Set.of(), tempDir);
+        // spawn-EXPR com LAMBDA LITERAL que retorna valor (bug 46): a ordem é
+        // garantida (await bloqueia). O typer de `spawn { return ... }` devolvia
+        // Handle<FunctionType> e o await vazava FunctionType -> println String ->
+        // SIGSEGV no Native; interp/JVM/JS davam 42. Fix 09/09: desembrulhar o
+        // returnType. Travado nos 4 targets (antes excluía native).
+        matrix("spawnexpr-return", """
+                main() {
+                    var n = 21
+                    var h = spawn { return n * 2 }
+                    println(await h)
+                }
+                """, "42", Set.of(), tempDir);
         // canal na MESMA thread: FIFO, ordem garantida, sem spawn.
         matrix("channel-samethread", """
                 main() {
@@ -858,9 +870,8 @@ class ConformanceMatrixTest {
                     println(cs.receive() + cs.receive())
                 }
                 """, "s=11\nab", Set.of(), tempDir);
-        // canal + spawn (send na task): JVM/Script/JS dão 42.
-        // PARTIAL: bug 50 (Native SIGSEGV — futex do canal fora da thread
-        // principal; isolado: canal sem spawn OK, spawn sem canal OK).
+        // canal + spawn (send na task): 4 targets dão 42 (bug 50 corrigido
+        // 09/09 — usleep clobberava %rsi=&lock no caminho de fila vazia).
         matrix("channel-spawn", """
                 main() {
                     val c = channel<Int>()
@@ -870,7 +881,7 @@ class ConformanceMatrixTest {
                     val v = c.receive()
                     println(v)
                 }
-                """, "42", Set.of("native"), tempDir);
+                """, "42", Set.of(), tempDir);
         matrix("channel-spawn-two", """
                 main() {
                     val c = channel<Int>()
@@ -881,6 +892,6 @@ class ConformanceMatrixTest {
                     println(c.receive())
                     println(c.receive())
                 }
-                """, "1\n2", Set.of("native"), tempDir);
+                """, "1\n2", Set.of(), tempDir);
     }
 }

@@ -131,10 +131,11 @@
 | Feature | Saída esperada | JVM | Native | Script | KofJS | Caso |
 |---|---|---|---|---|---|---|
 | `spawn fn` + `await` (resultado) | `42` | DONE | DONE | DONE | DONE | `spawnawait-fn` |
+| `spawn { return ... }` (lambda-literal com retorno, bug 46) + `await` | `42` | DONE | DONE | DONE | DONE | `spawnexpr-return` |
 | 2 handles: cada `await` devolve o SEU | `2` / `11` | DONE | DONE | DONE (fix race 07/09) | DONE | `spawnawait-two` |
 | channel mesma-thread (FIFO Int+String) | `s=11` / `ab` | DONE | DONE | DONE | DONE | `channel-samethread` |
-| channel send-em-spawn + receive | `42` | DONE | PARTIAL (bug 50: SIGSEGV) | DONE | DONE | `channel-spawn` |
-| channel 2 sends em spawn + 2 receives | `1` / `2` | DONE | PARTIAL (bug 50) | DONE | DONE | `channel-spawn-two` |
+| channel send-em-spawn + receive | `42` | DONE | DONE (bug 50 fix 09/09) | DONE | DONE | `channel-spawn` |
+| channel 2 sends em spawn + 2 receives | `1` / `2` | DONE | DONE (bug 50 fix 09/09) | DONE | DONE | `channel-spawn-two` |
 
 > **Fix race 07/09 (lane interpreter):** `KofInterpreter.lastReturned` era um
 > ÚNICO campo de instância sobrescrito por cada `KofReturn`; com 2 `spawn`
