@@ -288,6 +288,59 @@ class CompilerDriverTest {
         assertTrue(result.success(), "var assignment should still compile: " + result.diagnostics().getDiagnostics());
     }
 
+    // known-bugs #62(b) — escrita em componente de RECORD é imutável (SEM038).
+    @Test
+    void assignmentToRecordComponentGivesCleanDiagnostic(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Bad.kf");
+        Files.writeString(source, """
+            record P(Int x)
+            main() {
+                var p = P(1)
+                p.x = 9
+            }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "assignment to record component should fail to compile");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM038"), "Should be a clean diagnostic, was: " + diags);
+    }
+
+    // known-bugs #62(c) — escrita em `this.x` dentro de record é imutável.
+    @Test
+    void assignmentToThisRecordComponentGivesCleanDiagnostic(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Bad.kf");
+        Files.writeString(source, """
+            record P(Int x) {
+                bump() { this.x = 99 }
+            }
+            main() { P(1).bump() }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "assignment to this record component should fail to compile");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM038"), "Should be a clean diagnostic, was: " + diags);
+    }
+
+    // known-bugs #62 — escrita em campo de CLASSE MUTÁVEL continua permitida.
+    @Test
+    void assignmentToMutableClassFieldStillCompiles(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Ok.kf");
+        Files.writeString(source, """
+            class Box {
+                Int n
+                public constructor(Int n) { this.n = n }
+                set(Int v) { this.n = v }
+            }
+            main() {
+                var b = Box(1)
+                b.set(2)
+                println(b.n)
+            }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertTrue(result.success(), "assignment to mutable class field should compile: " + result.diagnostics().getDiagnostics());
+    }
+
     // known-bugs #26 — a void call used as a VALUE (println(f()) where f is
     // void, or `var x = voidCall()`) left the value stack empty → segfault on
     // Native / VerifyError on JVM. Now a clean SEM033.

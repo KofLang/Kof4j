@@ -47,18 +47,24 @@ public final class StatementAnalyzer {
                 targetType = SemExpressionTyper.inferType(sa, ae.target(), scope);
             }
         } else if (ae.target() instanceof FieldAccessExpr fa) {
-            // #42 (DD-02): escrita em componente de record é SEM038 — o corpus
-            // (learn/07) define record como imutável; hoje só o JVM/JS falham
-            // em runtime (IllegalAccessError/TypeError) e o interpretador
-            // muta em silêncio. O guard no analyzer alinha os 4 caminhos.
-            Type recvType = SemExpressionTyper.inferType(sa, fa.receiver(), scope);
-            targetType = recvType;
-            boolean onThis = fa.receiver() instanceof IdentifierExpr rid && "this".equals(rid.name());
-            if (sa.diagnostics() != null && !onThis && recvType != null
-                    && CompilerTypes.isRecordType(recvType, sa.unit(), sa)) {
-                sa.diagnostics().error("", 0, 0, 0,
-                        "cannot assign to '" + fa.fieldName() + "': record is immutable",
-                        "SEM038");
+            targetType = SemExpressionTyper.inferType(sa, ae.target(), scope);
+            // #42 (DD-02) / bug 62(b)(c): escrita em componente de record é
+            // SEM038 — o corpus (learn/07) define record como imutável; hoje só
+            // o JVM/JS falham em runtime (IllegalAccessError/TypeError) e o
+            // interpretador muta em silêncio. O guard no analyzer alinha os 4.
+            if (sa.diagnostics() != null && fa.receiver() != null) {
+                Type recvType;
+                if (fa.receiver() instanceof IdentifierExpr rid && "this".equals(rid.name())
+                        && sa.currentClassName() != null) {
+                    recvType = new Type.ClassType("", sa.currentClassName(), List.of());
+                } else {
+                    recvType = SemExpressionTyper.inferType(sa, fa.receiver(), scope);
+                }
+                if (CompilerTypes.isRecordType(recvType, sa.unit(), sa)) {
+                    sa.diagnostics().error("", 0, 0, 0,
+                            "cannot assign to '" + fa.fieldName() + "': record is immutable",
+                            "SEM038");
+                }
             }
         } else if (ae.target() != null) {
             targetType = SemExpressionTyper.inferType(sa, ae.target(), scope);
