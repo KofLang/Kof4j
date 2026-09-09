@@ -66,6 +66,11 @@ public final class SymbolTableBuilder {
             sa.interfaceNames().add(iface.name());
             sa.currentScope().define(sym);
         }
+        // SG-017 (SEM041): registra classes abstratas — `new A()` vira erro.
+        if (decl instanceof ClassDeclarationNode cls
+                && cls.modifiers().contains("abstract")) {
+            sa.abstractClasses().add(cls.name());
+        }
     }
 
     static void defineMembers(SemanticAnalyzer sa, AstNode decl) {

@@ -224,6 +224,12 @@ public final class SemExpressionTyper {
             case NewExpr ne -> {
                 SymbolTable.ClassSymbol cs = sa.getClass(ne.typeName());
                 if (cs != null) {
+                    // SG-017 (SEM041): classe abstrata não pode ser instanciada.
+                    if (sa.abstractClasses().contains(ne.typeName()) && sa.diagnostics() != null) {
+                        sa.diagnostics().error("", 0, 0, 0,
+                                "cannot instantiate abstract class '" + ne.typeName() + "'",
+                                "SEM041");
+                    }
                     List<Type> argTypes = new ArrayList<>();
                     for (ExpressionNode arg : ne.arguments()) {
                         argTypes.add(inferType(sa, arg, scope));

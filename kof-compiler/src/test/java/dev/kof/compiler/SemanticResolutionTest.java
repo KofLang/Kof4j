@@ -120,6 +120,43 @@ class SemanticResolutionTest {
                 + r.diagnostics().getDiagnostics());
     }
 
+    // ---- SG-017 (SEM041): `new` de classe abstrata → erro ----
+
+    @Test
+    void abstractClassInstantiationFails(@TempDir Path tmp) throws IOException {
+        CompilationResult r = compile(tmp, "A.kf", """
+                abstract class Shape {
+                    Int area() { return 0 }
+                }
+                main() {
+                    var s = Shape()
+                    println(s)
+                }
+                """);
+        assertFalse(r.success(), "deve falhar: new de abstract class");
+        boolean found = r.diagnostics().getDiagnostics().stream()
+                .anyMatch(d -> "SEM041".equals(d.code())
+                        && d.message().contains("abstract class 'Shape'"));
+        assertTrue(found, "esperava SEM041, foi: " + r.diagnostics().getDiagnostics());
+    }
+
+    @Test
+    void abstractClassSubclassInstantiationStaysGreen(@TempDir Path tmp) throws IOException {
+        CompilationResult r = compile(tmp, "A.kf", """
+                abstract class Shape {
+                    Int area() { return 0 }
+                }
+                class Circle extends Shape {
+                }
+                main() {
+                    var c = Circle()
+                    println(c)
+                }
+                """);
+        assertTrue(r.success(), "subclass concreta instanciável: "
+                + r.diagnostics().getDiagnostics());
+    }
+
     // ---- método inexistente em classe do módulo → SEM025 (já coberto
     //      pelo caminho ClassType; trava regressão do gate isKnownReceiver) ----
 

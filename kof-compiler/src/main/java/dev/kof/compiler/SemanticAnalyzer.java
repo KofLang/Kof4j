@@ -27,6 +27,8 @@ public class SemanticAnalyzer {
 
     private final Map<String, SymbolTable.ClassSymbol> knownClasses = new HashMap<>();
     private final java.util.Set<String> interfaceNames = new java.util.HashSet<>();
+    /** SG-017 (SEM041): classes declaradas `abstract` — `new A()` vira erro compile-time. */
+    private final java.util.Set<String> abstractClasses = new java.util.HashSet<>();
     private final Map<ExpressionNode, Type> expressionTypes = new IdentityHashMap<>();
     private final Map<MethodCallExpr, SymbolTable.MethodSymbol> resolvedMethods = new IdentityHashMap<>();
     private final Map<NewExpr, SymbolTable.ConstructorSymbol> resolvedConstructors = new IdentityHashMap<>();
@@ -182,6 +184,8 @@ public class SemanticAnalyzer {
     String currentPackage() { return currentPackage; }
     DiagnosticCollector diagnostics() { return diagnostics; }
     java.util.Set<String> interfaceNames() { return interfaceNames; }
+
+    java.util.Set<String> abstractClasses() { return abstractClasses; }
     Map<ExpressionNode, Type> expressionTypes() { return expressionTypes; }
     Map<MethodCallExpr, SymbolTable.MethodSymbol> resolvedMethods() { return resolvedMethods; }
     Map<NewExpr, SymbolTable.ConstructorSymbol> resolvedConstructors() { return resolvedConstructors; }
