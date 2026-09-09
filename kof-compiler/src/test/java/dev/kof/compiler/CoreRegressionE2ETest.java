@@ -229,6 +229,28 @@ class CoreRegressionE2ETest {
         assertEquals("15\n15\n5.0\nab9\n15\n1", runJvm(out));
     }
 
+    // GitHub #71 / bug 71 — `new Int[2][3]` criava SÓ a 1ª dimensão
+    // (`iconst_2; newarray int; iconst_3; iaload; getfield length`) →
+    // VerifyError: Bad type on operand stack (o `[3]` virava index). Fix:
+    // parser consome dims adicionais (NewArrayExpr.moreDims) + novo op
+    // KofNewMultiArray (MULTIANEWARRAY JVM / Array.newInstance interp /
+    // kofMultiArray JS). Paridade JVM==JS nos 2 caminhos.
+    @Test
+    void multidimensionalArrayAllocatesAllDims(@TempDir Path tempDir) throws IOException {
+        runBoth("""
+                main() {
+                    var arr = new Int[2][3]
+                    println(arr.length)
+                    println(arr[1].length)
+                    println(arr[0][2])
+                    var m = new Long[2][3][4]
+                    println(m.length)
+                    println(m[1][2].length)
+                    println(m[0][0][3])
+                }
+                """, "2\n3\n0\n2\n4\n0", tempDir, "multidim");
+    }
+
     // GitHub #66 / bug 75 — LineNumberTable apontava o statement SEGUINTE:
     // (a) o parser capturava a posição do ExpressionStatement DEPOIS do `;`
     // (o peek era o token da linha seguinte ou o `}` de fechamento) e (b) a

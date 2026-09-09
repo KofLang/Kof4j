@@ -21,6 +21,7 @@ import dev.kof.compiler.KofLoadField;
 import dev.kof.compiler.KofLoadLiteral;
 import dev.kof.compiler.KofLoadLocal;
 import dev.kof.compiler.KofNewArray;
+import dev.kof.compiler.KofNewMultiArray;
 import dev.kof.compiler.KofNewObject;
 import dev.kof.compiler.KofOperation;
 import dev.kof.compiler.KofPop;
@@ -120,6 +121,7 @@ boolean isExpressionOp(KofOperation op) {
                 || op instanceof KofBinary || op instanceof KofUnary
                 || op instanceof KofCall || op instanceof KofNewObject
                 || op instanceof KofDup || op instanceof KofDupX1 || op instanceof KofDupX2 || op instanceof KofNewArray
+                || op instanceof KofNewMultiArray
                 || op instanceof KofArrayLoad || op instanceof KofArrayLength
                 || op instanceof KofInstanceOf || op instanceof KofCheckCast
                 || op instanceof KofStoreLocal;
@@ -236,10 +238,13 @@ void consumeExpressionOp(MethodCtx ctx, int[] pos, List<Object> stack,
             JsIr.JsExpression size = pop(stack);
             stack.add(new JsIr.JsArray(size, JsTypeMapper.arrayFill(na.elementType())));
         } else if (op instanceof KofNewMultiArray ma) {
-            // multidimensional: aninha JsArray (outter size × fill do array (dims-1))
-            JsIr.JsExpression size = pop(stack);
-            JsTypeMapper.ArrayFiller filler = new JsTypeMapper.ArrayFiller(ma.baseType(), ma.dims() - 1);
-            stack.add(new JsIr.JsArray(size, filler));
+            // multidimensional (bug 71): pop das n dims (a 1ª pushed é a externa)
+            List<JsIr.JsExpression> sizes = new ArrayList<>();
+            for (int i = 0; i < ma.dims(); i++) {
+                sizes.add(0, pop(stack));
+            }
+            p.lc.registerRuntime("kofMultiArray");
+            stack.add(new JsIr.JsNestedArray(sizes, JsTypeMapper.arrayFill(ma.baseType())));
         } else if (op instanceof KofArrayLoad al) {
             JsIr.JsExpression index = pop(stack);
             JsIr.JsExpression array = pop(stack);

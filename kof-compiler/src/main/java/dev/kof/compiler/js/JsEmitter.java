@@ -277,6 +277,15 @@ public final class JsEmitter {
         if (e instanceof JsIr.JsArray a) {
             return "new Array(" + expr(a.size()) + ").fill(" + a.fill() + ")";
         }
+        if (e instanceof JsIr.JsNestedArray n) {
+            // multidimensional (bug 71): kofMultiArray(sizes, dims, baseFill)
+            StringBuilder parts = new StringBuilder();
+            for (JsIr.JsExpression s : n.sizes()) {
+                if (!parts.isEmpty()) parts.append(", ");
+                parts.append(expr(s));
+            }
+            return "kofMultiArray([" + parts + "], " + n.sizes().size() + ", " + n.baseFill() + ")";
+        }
         if (e instanceof JsIr.JsObjectLiteral o) {
             StringBuilder parts = new StringBuilder();
             for (JsIr.JsObjectEntry entry : o.entries()) {

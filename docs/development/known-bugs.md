@@ -1306,22 +1306,30 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   backend JS, não do box. Casos excluídos com `Set.of("js")` até o dono do JS
   corrigir.
 
-### 71. JVM: array multidimensional `new Int[2][3]` compila e dá VerifyError — ABERTO (lane compiler/JVM)
+### 71. JVM: array multidimensional `new Int[2][3]` compila e dá VerifyError — ✅ CORRIGIDO 09/09
 
 - **Sintoma:** `var arr = new Int[2][3]` + `println(arr.length)` → check aprova,
   JVM rejeita no load: `VerifyError: Bad type on operand stack`.
-- **Causa raiz (bytecode):** o lowering emite `iconst_2; newarray int` (só a
-  1ª dimensão!) e trata o `[3]` como INDEX (`iaload 3`) + `getfield length`
-  sobre int → inválido. Multidimensional não é baixado (sem `multianewarray`
-  nem aninhamento); o `iaload` ainda estouraria (`AIOOBE`, array len 2 zerado).
-- **Repro mínimo:** `main() { var arr = new Int[2][3]
- println(arr.length) }`
-  (JDK 21, `Default.Main`). Achado 09/09 pela lane migração ao sondar o
-  alvo de `multianewarray` do decompiler — decompiler RECUSA 0xc5 (stub
-  honesto) justamente por não haver forma válida p/ onde recuperar.
-- **Decisão de escopo:** forma `new T[a][b]` existe na sintaxe mas sem
-  semântica funcional = decisão da mantenedora (documentar como gap ou
-  implementar lowering); NÃO corrigir silenciosamente na lane migração.
+- **Causa raiz (bytecode):** o lowering emitia `iconst_2; newarray int` (só a
+  1ª dimensão) e tratava o `[3]` como INDEX (`iaload 3`) + `getfield length`
+  sobre int → inválido. Repro provado: bytecode `05bc 0a06 2e3c ...`.
+- **Correção (09/09, lane issues+migração — assumida da nota abaixo):** 3 camadas:
+  (1) parser consome dims adicionais → `NewArrayExpr.moreDims` (record estendido,
+  ctor 1-dim preservado — retrocompat; `new T[2][]` vazio segue PARSE046);
+  (2) novo op IR `KofNewMultiArray(baseType, dims)` no `ExpressionLowerer`
+  (+ typers renderizam ArrayType aninhado; formatter/capturas varrem moreDims);
+  (3) emitters: JVM `MULTIANEWARRAY` (desc via `arrayTypeOf`+`toDescriptor`),
+  interpretador `Array.newInstance(comp, lens)`, JS `JsNestedArray` + runtime
+  `kofMultiArray(sizes, dims, baseFill)` (semântica JVM: dims-1 preenchidas com
+  arrays vazios, NÃO recursivo) + import registrado + whitelist `isExpressionOp`.
+  `computeStack` conta o op (`depth -= dims-1`).
+- **Provas:** repro JVM `exit=0 out=2` (antes VerifyError), interpretador
+  `stdout=2`, JS real (node) `2` com import gerado no Default.mjs;
+  teste `multidimensionalArrayAllocatesAllDims` (JVM+JS: `2/3/0/2/4/0`,
+  Int[2][3]+Long[2][3][4]); suíte completa 1200+25+5+126 = 1356/0/78-skip.
+- **Nota de história:** forma `new T[a][b]` existia na sintaxe sem semântica
+  (decisão da mantenedora pendente) — resolvido implementando o lowering
+  aditivo (comportamento previsível, sem mudar a forma 1-dim congelada).
 
 ### 70. JVM: heterogêneo primitivo-vs-primitivo como arg → crash do backend (`COMPUTE_FRAMES AIOOBE`) — ✅ CORRIGIDO 09/09 (posições de expressão; slots primitivos seguem ABERTOS)
 

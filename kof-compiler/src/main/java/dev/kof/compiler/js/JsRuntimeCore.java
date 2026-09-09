@@ -96,6 +96,21 @@ public final class JsRuntimeCore {
                 console.log(x);
             }
 
+            // Array multidimensional (bug 71): new T[d1][d2]...[dn].
+            // sizes = dims externas→internas; baseFill preenche a folha.
+            // JVM: MULTIANEWARRAY cria dims-1 preenchidas com arrays vazios
+            // (não preenche recursivamente) — mesmo comportamento aqui.
+            export function kofMultiArray(sizes, dims, baseFill) {
+                if (dims === 1) {
+                    return new Array(sizes[0]).fill(baseFill);
+                }
+                const outer = new Array(sizes[0]);
+                for (let i = 0; i < sizes[0]; i++) {
+                    outer[i] = kofMultiArray(sizes.slice(1), dims - 1, baseFill);
+                }
+                return outer;
+            }
+
             // hashCode de valor Kof: espelha o Objects.hashCode/record JVM.
             // primitivos numéricos → int32 (wrap), String → algoritmo Java,
             // record → hashCode() sintético, senão → hash de String(valor).
