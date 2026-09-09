@@ -171,6 +171,25 @@ Fase E  Kof Decompiler          (gerar Kof source)
 > As 5 restantes: 4× cross-file (classe referida noutro arquivo — exatamente
 > o passes multi-classe do §7) + 1× wildcard `? extends` (gap próprio).
 
+> **Estado (09/09, este commit): §7 degrau 2 — índice same-package.**
+> `kof decompile <dir>` agora é em 2 passes (parse uma vez, reuso — sem
+> re-parse): passe 1 monta `internalName → pacote` de TODA a árvore; passe 2
+> decompila com o índice no `BytecodeFrame` (por-método, sem estático global
+> — modo 1-arquivo tem índice null = byte-idêntico ao anterior). Com o índice,
+> `instanceof`/`checkcast` de classe de DOMÍNIO do MESMO pacote recuperam
+> (`arg0 instanceof B`, `(arg0 as B)`); fora do índice (outro pacote, `Outer$Inner`,
+> CP malformada) segue stub honesto. Cross-package com import = degrau 3.
+>
+> Prova: par controlado B/C (javac → tree → par compila, zero drift) +
+> `DecompileTest.decompileTreeResolvesSamePackageInstanceofAndCast` e
+> `decompileTreeStillStubsOutOfTreeDomainTypes` (recusa preservada) —
+> 38/38. Corpus 613 classes: 1674→1638 stubs; invariante textual verificada
+> nos 613 `.kf` (36 instanceof/as de domínio emitidos em posição de código,
+> 100% com `.kf` irmão no mesmo dir — zero drift por construção).
+> Decisão de design: índice via `BytecodeFrame` (contexto existente), não
+> estático global (vazaria entre arquivos/testes no mesmo JVM) nem parâmetro
+> novo nas ~10 assinaturas dos decoders.
+
 ## 7. Relação com o Compilador
 
 O decompiler alimenta o pipeline existente:

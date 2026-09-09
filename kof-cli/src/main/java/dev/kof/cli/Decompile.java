@@ -82,20 +82,35 @@ public final class Decompile {
         try (var walk = Files.walk(root)) {
             var classes = walk.filter(Files::isRegularFile)
                     .filter(p -> p.toString().endsWith(".class")).sorted().toList();
+            // §7 degrau 2, passe 1: índice internalName → pacote de TODA a
+            // árvore (parse uma vez, reuso no passe 2 — sem re-parse).
+            var parsed = new java.util.ArrayList<ParsedClass>();
             for (Path c : classes) {
                 try {
                     var ir = ClassFileParser.parse(Files.newInputStream(c));
-                    String pkg = packageOf(ir.thisClass);
-                    String src = decompile(c, pkg);
+                    parsed.add(new ParsedClass(c, ir));
+                } catch (Throwable t) {
+                    fail++;
+                    System.err.println("kof decompile: " + c + ": " + t);
+                }
+            }
+            var index = new java.util.TreeMap<String, String>();
+            for (ParsedClass p : parsed) index.put(p.ir.thisClass, packageOf(p.ir.thisClass));
+            // passe 2: decompila com o índice (instanceof/cast de domínio do
+            // MESMO pacote resolvem sem import; resto segue stub honesto).
+            for (ParsedClass p : parsed) {
+                try {
+                    String pkg = packageOf(p.ir.thisClass);
+                    String src = decompile(p.file, pkg, index);
                     Path dest = out;
                     if (!pkg.isEmpty()) dest = dest.resolve(pkg.replace('.', '/'));
-                    dest = dest.resolve(simpleName(ir.thisClass) + ".kf");
+                    dest = dest.resolve(simpleName(p.ir.thisClass) + ".kf");
                     Files.createDirectories(dest.getParent());
                     Files.writeString(dest, src);
                     ok++;
                 } catch (Throwable t) {
                     fail++;
-                    System.err.println("kof decompile: " + c + ": " + t);
+                    System.err.println("kof decompile: " + p.file + ": " + t);
                 }
             }
         } catch (IOException e) {
@@ -106,6 +121,9 @@ public final class Decompile {
         return fail > 0 ? 1 : 0;
     }
 
+    /** .class parseado + seu path (passe 1 do índice, sem re-parse no passe 2). */
+    private record ParsedClass(Path file, dev.kof.compiler.parser.ClassFileParser.ClassFile ir) {}
+
     /** Pacote Kof (pontos) derivado do internal name; "" p/ default package. */
     static String packageOf(String internalName) {
         if (internalName == null) return "";
@@ -114,10 +132,15 @@ public final class Decompile {
     }
 
     static String decompile(Path classFile) throws IOException {
-        return decompile(classFile, null);
+        return decompile(classFile, null, null);
     }
 
     static String decompile(Path classFile, String pkg) throws IOException {
+        return decompile(classFile, pkg, null);
+    }
+
+    static String decompile(Path classFile, String pkg,
+                            java.util.Map<String, String> treeIndex) throws IOException {
         var ir = ClassFileParser.parse(Files.newInputStream(classFile));
         StringBuilder sb = new StringBuilder();
         sb.append("// decompiled from ").append(classFile.getFileName()).append('\n');
@@ -166,6 +189,8 @@ public final class Decompile {
             if (m.code != null) {
                 boolean isStatic = (m.accessFlags & 0x0008) != 0;
                 BytecodeFrame frame = new BytecodeFrame(m.descriptor, isStatic);
+                frame.treeIndex = treeIndex;
+                frame.treePackage = pkg;
                 boolean hasHandlers = m.code.exceptionHandlers != null && !m.code.exceptionHandlers.isEmpty();
                 if (!hasHandlers) {
                     body = BytecodeDecoder.recoverExpression(m.code.bytecode, ir.constantPool, frame);

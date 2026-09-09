@@ -476,6 +476,75 @@ class DecompileTest {
     }
 
     @Test
+    void decompileTreeResolvesSamePackageInstanceofAndCast(@TempDir Path dir) throws Exception {
+        // §7 degrau 2: com o índice da árvore, instanceof/checkcast de classe
+        // de DOMÍNIO do MESMO pacote recuperam (antes: stub honesto); o par
+        // decompilado junto compila (zero drift). Fora do índice → stub.
+        Path src = dir.resolve("classes");
+        Path pkg = src.resolve("p");
+        Files.createDirectories(pkg);
+        Path b = pkg.resolve("B.java");
+        Files.writeString(b, """
+                package p;
+                public class B { public int v; public B(int v) { this.v = v; } }
+                """);
+        Path c = pkg.resolve("C.java");
+        Files.writeString(c, """
+                package p;
+                public class C {
+                    public static boolean isB(Object o) { boolean x = o instanceof B; return x; }
+                    public static int getV(Object o) { B bb = (B) o; int v = bb.v; return v; }
+                }
+                """);
+        runJavac(java.util.List.of(b, c), pkg);
+        Path out = dir.resolve("gen");
+        assertEquals(0, Decompile.decompileTree(src, out));
+        String cSrc = Files.readString(out.resolve("p/C.kf"));
+        assertTrue(cSrc.contains("arg0 instanceof B"),
+                "instanceof de domínio same-package deve recuperar:\n" + cSrc);
+        assertTrue(cSrc.contains("(arg0 as B)"),
+                "checkcast de domínio same-package deve recuperar:\n" + cSrc);
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                out.resolve("p/B.kf"), out.resolve("p/C.kf")), dir.resolve("o"), Target.JVM, out);
+        assertTrue(r.success(), "par cross-file deve compilar (zero drift):\n" + cSrc + "\n" + r.diagnostics().getDiagnostics());
+    }
+
+    @Test
+    void decompileTreeStillStubsOutOfTreeDomainTypes(@TempDir Path dir) throws Exception {
+        // Recusa R6 preservada: classe de domínio que NÃO está na árvore
+        // (outro pacote, sem índice) continua stub honesto — nunca inventa.
+        Path src = dir.resolve("classes");
+        Path pkg = src.resolve("p");
+        Files.createDirectories(pkg);
+        Path b = pkg.resolve("B.java");
+        Files.writeString(b, """
+                package p;
+                public class B { public int v; }
+                """);
+        Path q = src.resolve("q");
+        Files.createDirectories(q);
+        Path c = q.resolve("C.java");
+        Files.writeString(c, """
+                package q;
+                import p.B;
+                public class C {
+                    public static boolean isB(Object o) { boolean x = o instanceof B; return x; }
+                }
+                """);
+        runJavac(java.util.List.of(b), pkg);
+        runJavac(java.util.List.of(b, c), src);
+        Path out = dir.resolve("gen");
+        // decompila SÓ q (B fora da árvore) → instanceof p.B não resolve
+        Path onlyQ = dir.resolve("onlyQ");
+        Files.createDirectories(onlyQ.resolve("q"));
+        Files.copy(src.resolve("q/C.class"), onlyQ.resolve("q/C.class"));
+        assertEquals(0, Decompile.decompileTree(onlyQ, out));
+        String cSrc = Files.readString(out.resolve("q/C.kf"));
+        assertTrue(cSrc.contains("body not recovered"),
+                "instanceof cross-package fora do índice fica stub:\n" + cSrc);
+    }
+
+    @Test
     void escapesStringConstantsInDecompiledSource(@TempDir Path dir) throws Exception {
         // R6 (prova de drift 09/09): o ldc emitia a string do CP CRUA — `\b`,
         // newline real e `"` estouravam o lexer do .kf (LEX002/LEX004). Agora

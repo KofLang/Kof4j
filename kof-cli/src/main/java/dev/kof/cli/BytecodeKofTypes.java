@@ -23,7 +23,7 @@ final class BytecodeKofTypes {
      * SEMPRE recusam.
      */
     static boolean exprOp(int op, java.util.Deque<String> stack, String[] cp, int cpIdx,
-                          java.util.List<String> stmts) {
+                          java.util.List<String> stmts, BytecodeFrame frame) {
         switch (op) {
             case 0x57 -> {   // pop: descarta CHAMADA de valor não-usado
                 String top = stack.pop();
@@ -32,9 +32,10 @@ final class BytecodeKofTypes {
                 return true;
             }
             case 0xc1 -> {   // instanceof → whitelist inline (String/primitivos/
-                // Object). Tipo de domínio → null → stub (recusa R6: o nome
-                // não resolve sem import no .kf isolado).
+                // Object) ou classe do ÍNDICE da árvore (§7 degrau 2). Fora
+                // disso → stub (recusa R6: o nome não resolve no .kf).
                 String t = inlineKofType(cp, cpIdx);
+                if (t == null) t = indexKofType(cp, cpIdx, frame);
                 if (t == null) return false;
                 stack.push(stack.pop() + " instanceof " + t);
                 return true;
@@ -42,8 +43,15 @@ final class BytecodeKofTypes {
             case 0xc0 -> {   // checkcast → `(x as T)` só p/ primitivo-alvo
                 // (Kof: downcast Object→Int é explícito). String/Object
                 // recusados: `x as String` é redundante/ambíguo na verificação.
+                // Domínio SÓ via índice (§7 degrau 2) — nome resolve no tree.
                 String t = inlineKofType(cp, cpIdx);
-                if (t == null || t.equals("String") || t.equals("Object")) return false;
+                if (t == null) {
+                    t = indexKofType(cp, cpIdx, frame);
+                    if (t == null) return false;
+                    stack.push("(" + stack.pop() + " as " + t + ")");
+                    return true;
+                }
+                if (t.equals("String") || t.equals("Object")) return false;
                 stack.push("(" + stack.pop() + " as " + t + ")");
                 return true;
             }
@@ -57,8 +65,7 @@ final class BytecodeKofTypes {
      * domínio, Number, List/Map/Set — precisam de import/contexto
      * multi-classe do §7) → o emissor recusa → stub honesto.
      */
-    static String inlineKofType(String[] cp, int classIdx) {
-        String n = BytecodeDecoder.resolveClassName(cp, classIdx);
+    static String inlineKofType(String[] cp, int classIdx) {        String n = BytecodeDecoder.resolveClassName(cp, classIdx);
         if (n == null || !n.matches("[A-Za-z_][A-Za-z0-9_]*")) return null;
         return switch (n) {
             case "String" -> "String";
@@ -70,6 +77,30 @@ final class BytecodeKofTypes {
             case "Object" -> "Object";
             default -> null;   // domínio/Number/List/… → recusar (stub)
         };
+    }
+
+    /**
+     * §7 degrau 2: resolve Class CP entry contra o ÍNDICE da árvore
+     * (`kof decompile <dir>`). Devolve o nome simples SOMENTE quando a classe
+     * está no MESMO pacote do arquivo sendo decompilado (resolve sem import
+     * no frontend — probe PKG004/SEM025). Fora disso (índice ausente =
+     * modo 1-arquivo, outro pacote, nome não-identificador como `Outer$Inner`,
+     * entrada CP malformada) → null → stub honesto. Nunca inventa.
+     */
+    static String indexKofType(String[] cp, int classIdx, BytecodeFrame frame) {
+        if (frame == null || frame.treeIndex == null || frame.treePackage == null) return null;
+        if (classIdx <= 0 || classIdx >= cp.length || cp[classIdx] == null) return null;
+        String e = cp[classIdx];
+        if (!e.startsWith("#") || e.indexOf('#', 1) >= 0) return null;   // Class = 1 ref (não NameAndType)
+        Integer nameIdx = BytecodeDecoder.parseCp(e.substring(1));
+        if (nameIdx == null || nameIdx >= cp.length || cp[nameIdx] == null) return null;
+        String internal = cp[nameIdx];
+        String pkg = frame.treeIndex.get(internal);
+        if (pkg == null || !pkg.equals(frame.treePackage)) return null;  // outro pacote = degrau 3 (imports)
+        int slash = internal.lastIndexOf('/');
+        String simple = slash >= 0 ? internal.substring(slash + 1) : internal;
+        if (!simple.matches("[A-Za-z_][A-Za-z0-9_]*")) return null;      // `Outer$Inner`, arrays, quebrados
+        return simple;
     }
 
     /** Heurística p/ pop (0x57): o topo é uma chamada? exige '(' imediatamente
