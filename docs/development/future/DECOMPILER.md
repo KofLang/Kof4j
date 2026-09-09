@@ -143,9 +143,18 @@ Fase E  Kof Decompiler          (gerar Kof source)
 > sobre as 601 classes: `pop` 0x57 (347×), `instanceof` 0xc1 (165×),
 > `checkcast` 0xc0 (137×), `new` 0xbb (126×, quase todo é `isJdkClass`
 > recusando por R6), `astore_3`/arrays 0x4c (103×), `ifeq` 0x99 (102×).
-> Ataque por ROI: pop/instanceof/checkcast são os 3 maiores e idiomáticos
-> em Kof (`x instanceof T`, `x as T`) — sem drift R6 (cast já tratado na
-> aritmética).
+> Ataque por ROI: pop/instanceof/checkcast são os 3 maiores. **Implementado e
+> REVERTIDO no mesmo dia (lição R6):** emitidos como `x instanceof T`/`(x as
+> T)`, a classe-alvo do bytecode é de DOMÍNIO (ex.: `DiagnosticCollector`) e
+> não existe no `.kf` isolado → `kof check` falha "Undefined variable or
+> type" — **recuperou código que não compila** (o teste de drift: decompile →
+> check sobre as 601 classes; 12+ arquivos driftavam). A recuperação só é
+> válida quando o nome do tipo já está em escopo (classes do MESMO arquivo
+> recuperado) — requer o passes multi-classe do DECOMPILER (seção 7: resolver
+> imports/usos), não um patch no decoder. `pop` sozinho também drifta: a
+> heurística "tem parênteses = chamada" aceita `(x + (y))` aritmético.
+> Fila correta da Fase E: primeiro multi-classe (tipo resolve), depois
+> pop/instanceof/checkcast (bloqueados por aquele, não por eles mesmos).
 
 ## 7. Relação com o Compilador
 
