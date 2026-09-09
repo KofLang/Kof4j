@@ -268,5 +268,42 @@ final class JsRuntimeUiStdlib {
                 return kofEncFromUtf8(out);
             }
 
+            // ── String→número (github #51) — paridade JVM/Native (parse s.trim()) ──
+            // Antes inexistiam no backend JS: o emitter gerava `texto.kof_string_to_int()`
+            // (membro) → TypeError só em tempo de execução. Validação ESTREITA por
+            // regex (lição bug 62: parseInt/Number sozinhos driftam nos bordas —
+            // "0x1a"→0, ""→0, overflow wraps p/ valor errado; o JVM lança fora de
+            // formato/range). Long em KofJS é Number (sem BigInt) — acima de 2^53 a
+            // precisão é limite do backend, não deste helper.
+            function kofParseChecked(v, intRe, name) {
+                const s = String(v).trim();
+                if (!intRe.test(s)) throw new Error("Cannot parse \\"" + s + "\\" as " + name);
+                return s;
+            }
+            export function kof_string_to_int(v) {
+                const s = kofParseChecked(v, /^[-+]?\\d+$/, "Int");
+                const n = Number(s);
+                if (n < -2147483648 || n > 2147483647) throw new Error("Cannot parse \\"" + s + "\\" as Int");
+                return n | 0;   // Int = 32-bit signed (idem intWrap nos binops)
+            }
+            export function kof_string_to_long(v) {
+                const s = kofParseChecked(v, /^[-+]?\\d+$/, "Long");
+                return Number(s);
+            }
+            function kofParseDoubleChecked(v, name) {
+                const s = String(v).trim();
+                if (!/^[-+]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][-+]?\\d+)?$|^-?Infinity$|^NaN$/.test(s)) {
+                    throw new Error("Cannot parse \\"" + s + "\\" as " + name);
+                }
+                return s;
+            }
+            export function kof_string_to_double(v) {
+                return Number(kofParseDoubleChecked(v, "Double"));
+            }
+            export function kof_string_to_float(v) {
+                const n = Number(kofParseDoubleChecked(v, "Float"));
+                return Math.fround(n);   // Float = 32-bit (Kof aceita; paridade com Native)
+            }
+
     """;
 }

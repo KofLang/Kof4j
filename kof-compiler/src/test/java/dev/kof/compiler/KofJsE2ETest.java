@@ -589,6 +589,33 @@ class KofJsE2ETest {
             World""");
     }
 
+    // String→número (github #51): toInt/toLong/toDouble/toFloat não existiam no
+    // runtime JS — `texto.kof_string_to_int()` → TypeError em execução. Paridade
+    // com JVM: parseInt/parseDouble de s.trim() validado (formato errado → throw).
+    @Test
+    void execStringToNumberConversion(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+            main() {
+                println("120000".toInt())
+                println("7".toLong())
+                println("2.5".toDouble())
+                println("-12".toInt())
+                try {
+                    println("abc".toInt())
+                } catch (String e) {
+                    println("ERR")
+                }
+            }
+            """);
+        runJs(source, tempDir.resolve("out"), """
+            120000
+            7
+            2.5
+            -12
+            ERR""");
+    }
+
     // 14. Arrays ─────────────────────────────────────────────────────
 
     @Test

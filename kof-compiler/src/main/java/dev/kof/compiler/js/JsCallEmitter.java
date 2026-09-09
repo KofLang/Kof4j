@@ -228,6 +228,15 @@ void handleStringOp(MethodCtx ctx, List<Object> stack,
                                 "join"),
                         List.of(to)));
             }
+            // Conversões String→número (github #51): não existem em String.prototype;
+            // o backend JS baixa p/ helper top-level do runtime (paridade JVM/Native:
+            // parseInt(s.trim()), erro de parse → exceção). Antes caíam no default
+            // e geravam `texto.kof_string_to_int()` → TypeError em runtime.
+            case "kof_string_to_int", "kof_string_to_long",
+                 "kof_string_to_double", "kof_string_to_float" -> {
+                ctx.lc.registerRuntime(kc.methodName());
+                stack.add(new JsIr.JsCall(new JsIr.JsIdentifier(kc.methodName()), List.of(receiver)));
+            }
             default -> {
                 // substring, contains, indexOf, trim, toUpperCase, toLowerCase,
                 // startsWith, endsWith, concat, split — direct JS mapping.
