@@ -101,6 +101,25 @@ class CompilerDriverTest {
         assertTrue(Files.exists(tempDir.resolve("out/P.class")), "Class file should exist");
     }
 
+    // known-bugs #48 — json.decode<List<Record>> no Native: gap honesto JSN004
+    // (o runtime nativo não tem decoder real de lista de records). Nunca link
+    // fail nem stub silencioso.
+    @Test
+    void jsonDecodeListOfRecordNativeGivesJsn004(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+            record P(Int x)
+            main() {
+                var l = json.decode<List<P>>("[{\\"x\\":1},{\\"x\\":2}]")
+                println(l.size)
+            }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.NATIVE);
+        assertFalse(result.success(), "json.decode<List<Record>> no Native deve diagnosticar (não link fail)");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("JSN004"), "Should be a clean JSN004 gap, was: " + diags);
+    }
+
     @Test
     void compilesFunctionWithPrintln(@TempDir Path tempDir) throws IOException {
         Path source = tempDir.resolve("Main.kf");
