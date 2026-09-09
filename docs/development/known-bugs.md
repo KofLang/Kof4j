@@ -1457,6 +1457,27 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   misto @4/@5 por colisão); LNT final = `3/4/5` (uma entrada por statement);
   teste `lineNumberTableMatchesSourceLines`; CoreRegressionE2ETest 48/0.
 
+### 76. CLI: `kof build` ignora `.kof` (só varre `.kf`) e responde "no .kf files found" (GitHub #67) — ✅ CORRIGIDO 09/09
+
+- **Sintoma:** `.kof` é extensão oficial (editor/kof.tmLanguage.json declara
+  `fileTypes: [kf, kof]`). `run/check/test/fmt` aceitavam `.kof`; só o
+  `build` não — e respondia `no .kf files found` para diretório E arquivo
+  avulso, sugerindo diretório vazio.
+- **Causa raiz:** o filtro de descoberta era `endsWith(".kf")` sem
+  contemplar `.kof` — `KofCliSupport.collect`/`collectShallow` e o `Fmt`
+  (diretório).
+- **Correção (09/09):** filtro único `KofCliSupport.isKofSource(Path)`
+  (case-insensitive: `.kf` OU `.kof`), usado pelos 3 sites; mensagem de
+  diretório vazio atualizada p/ `no .kf/.kof files found` (4 sites:
+  CmdBuild/CmdTest/Main×2).
+- **Prova:** teste `KofSourceDiscoveryTest` 3/3 (collect aceita .kof+.kf e
+  ignora .txt; collectShallow aceita .kof; extensão maiúscula .KOF); probe
+  reflexão `collect` = 2 files (.kf+.kof no mesmo dir); kof-cli build/test
+  verde.
+
+
+
+
 
 
 

@@ -175,7 +175,7 @@ public final class Main {
         try {
             CompilerDriver driver = new CompilerDriver();
             List<Path> files = Files.isDirectory(src) ? KofCliSupport.collect(src) : List.of(src);
-            if (files.isEmpty()) { System.out.println("no .kf files found"); return; }
+            if (files.isEmpty()) { System.out.println("no .kf/.kof files found"); return; }
             // multi-arquivo: um módulo só (chaves são do programa inteiro)
             CompilationResult result = files.size() == 1
                     ? driver.compile(files.get(0), tmp, target)
@@ -293,7 +293,7 @@ public final class Main {
         Path src = Path.of(args[1]);
         if (!Files.exists(src)) { System.err.println("not found: " + src); System.exit(1); return; }
         List<Path> files = Files.isDirectory(src) ? KofCliSupport.collect(src) : List.of(src);
-        if (files.isEmpty()) { System.out.println("no .kf files found"); return; }
+        if (files.isEmpty()) { System.out.println("no .kf/.kof files found"); return; }
         CompilerDriver driver = new CompilerDriver();
         boolean ok = true;
         int count = files.size();

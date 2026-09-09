@@ -32,7 +32,7 @@ final class Fmt {
         try {
             if (Files.isDirectory(src)) {
                 try (var s = Files.walk(src)) {
-                    s.filter(p -> p.toString().endsWith(".kf")).forEach(files::add);
+                    s.filter(KofCliSupport::isKofSource).forEach(files::add);
                 }
             } else files.add(src);
         } catch (Exception e) { System.err.println("fmt: " + e.getMessage()); return 1; }

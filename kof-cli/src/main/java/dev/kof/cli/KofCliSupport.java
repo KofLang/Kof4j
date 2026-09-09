@@ -243,14 +243,21 @@ final class KofCliSupport {
         return "application/octet-stream";
     }
 
-    /** Irmãos .kf do MESMO diretório (não-recursivo) — inclusão no módulo do run. */
+    /** Irmãos .kf/.kof do MESMO diretório (não-recursivo) — inclusão no módulo do run.
+     *  GitHub #67: .kof é extensão oficial (editor/kof.tmLanguage.json declara as duas). */
     static List<Path> collectShallow(Path dir) {
         List<Path> files = new ArrayList<>();
         try (var s = Files.list(dir)) {
-            s.filter(p -> p.toString().endsWith(".kf")).forEach(files::add);
+            s.filter(KofCliSupport::isKofSource).forEach(files::add);
         } catch (IOException e) { System.err.println("error: " + e.getMessage()); }
         files.sort(java.util.Comparator.comparing(Path::toString));
         return files;
+    }
+
+    /** O path é um arquivo-fonte Kof (.kf ou .kof)? Único filtro da descoberta. */
+    static boolean isKofSource(Path p) {
+        String n = p.toString().toLowerCase();
+        return n.endsWith(".kf") || n.endsWith(".kof");
     }
 
     /**
@@ -284,7 +291,7 @@ final class KofCliSupport {
         // convenção Go-like: um diretório = UM pacote → não-recursivo
         // (subdirs como tests/ são pacotes independentes)
         List<Path> files = new ArrayList<>();
-        try (var s = Files.list(dir)) { s.filter(p -> p.toString().endsWith(".kf")).forEach(files::add); }
+        try (var s = Files.list(dir)) { s.filter(KofCliSupport::isKofSource).forEach(files::add); }
         catch (IOException e) { System.err.println("error: " + e.getMessage()); }
         files.sort(java.util.Comparator.comparing(Path::toString));
         return files;
