@@ -75,7 +75,7 @@ public final class NativeX86Calls {
             sb.append("    addq $8, %rsp\n");
             return;
         }
-        if (NativeX86StringCalls.emit(sb, kc)) return;
+        if (NativeX86StringCalls.emit(nb, sb, kc)) return;
         // STDLIB S10: random.double retorna bits em xmm0 (mesma convenção de
         // kof_string_to_double); int/hex/boolean seguem rax via o caminho
         // genérico FUNCTION abaixo (tail-jmp no runtime).

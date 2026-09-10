@@ -1006,4 +1006,22 @@ class NativeE2ETest {
                 """);
         runNative(source, tempDir.resolve("out"), "6\n3\n4\n-1\n4\n0\n7\n3\n0\n-1");
     }
+
+    // bug 95: o ramo inline do split usava labels FIXAS (.Lkof_split_empty_sep/
+    // _call) — um 2º split no mesmo programa redefinía o símbolo → "already
+    // defined" no assembler (COMP001). Qualquer programa com 2+ splits (parsear
+    // 2 CSV) era INCOMPILÁVEL no Native x86_64.
+    @Test
+    void nativeTwoSplitsInOneProgram(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+                main() {
+                    var a = "x,y".split(",").length
+                    var b = "p,q,r".split(",").length
+                    println(a + b)
+                    println("m,n".split(",").get(1))
+                }
+                """);
+        runNative(source, tempDir.resolve("out"), "5\nn");
+    }
 }
