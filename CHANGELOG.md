@@ -878,6 +878,21 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
   - status PARCIAL — math/random corrigidos; strings/validation/security documentados c/ nota dos guards return 0
   - bug paridade JS Bool — boolExpr==true sempre false (funções stdlib retornam 1/0; print coerce mas == usa === cru; evidência no .mjs gerado) + PRÓXIMO PASSO com fix (opção A, todos os sites incl guards validation)
 
+## [0.3.16-beta] - 2026-09-10
+
+### Bugfixes
+
+  - Bool==true no JS normalizado no chokepoint da comparação — paridade JVM/Native
+
+### Documentation
+
+  - S7c Native x86 addDays/diffDays FEITO (cd622c47) — header estava stale
+
+### Tests
+
+  - stdstrings ganha caso `isAlpha("Hello") == true` — 4 targets
+  - matriz stdmath ganha os casos `==true`/`==false` — 4 targets travam a comparação
+
 <!-- NEXT-RELEASE -->
 
 ## [0.2.7-beta] - 2026-09-04
