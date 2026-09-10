@@ -4724,4 +4724,38 @@ class CompilerDriverTest {
         String diags = result.diagnostics().getDiagnostics().toString();
         assertTrue(diags.contains("SEM046"), "should be SEM046, got: " + diags);
     }
+
+    // SG-012 — inferência contextual: lambda de map/filter/reduce herda o
+    // tipo do elemento da coleção; anotação explícita continua válida.
+    @Test
+    void lambdaParamInferredFromListContext(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Ctx.kf");
+        Files.writeString(source, """
+            main() {
+                var nums = listOf(1, 2, 3)
+                var dobro = nums.map((x) -> x * 2)
+                println(dobro.get(0))
+                var pares = nums.filter((n) -> n > 1)
+                println(pares.size())
+                var soma = nums.reduce((a: Int, b: Int) -> a + b, 0)
+                println(soma)
+            }
+            """);
+        assertTrue(driver.compile(source, tempDir.resolve("out"), Target.JVM).success(),
+                "lambda sem anotação em contexto List<Int> deve compilar");
+    }
+
+    @Test
+    void annotatedLambdaStillWorks(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Ann.kf");
+        Files.writeString(source, """
+            main() {
+                var nums = listOf(1, 2, 3)
+                var dobro = nums.map((x: Int) -> x * 2)
+                println(dobro.get(1))
+            }
+            """);
+        assertTrue(driver.compile(source, tempDir.resolve("out2"), Target.JVM).success(),
+                "lambda anotada continua válida");
+    }
 }

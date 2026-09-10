@@ -12,6 +12,8 @@ public final class CompilerTypes {
     private CompilerTypes() {}
 
     static Type toType(String typeName, CompilationUnitNode currentUnit) {
+        // SG-012: param de lambda sem anotação — Unknown (nunca Object)
+        if (typeName == null) return Type.UnknownType.UNKNOWN;
         if ("List".equals(typeName) || "ArrayList".equals(typeName)) return BuiltinTypes.LIST;
         if ("Channel".equals(typeName)) return BuiltinTypes.CHANNEL;
         Type viaImports = qualifyViaImports(typeName, currentUnit);

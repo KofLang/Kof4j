@@ -120,6 +120,10 @@ public class LambdaParser {
     static FormalParameterNode parseLambdaParameter(ParseContext ctx) {
         SourcePosition p = ctx.pos();
         String name = ctx.expectId("Expected parameter name", "PARSE010");
+        // SG-012: sem anotação fica "Object" (compatível com o gate SEM001 da
+        // aritmética sobre referência); a inferência contextual do typer
+        // reescreve para o tipo do elemento nos métodos de coleção
+        // (map/filter/reduce) — nunca mascara, nunca Object silencioso no emit.
         String type = "Object";
         if (ctx.check(TokenType.COLON)) {
             ctx.advance();

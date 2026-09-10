@@ -113,6 +113,17 @@ public final class MemberCallTyper {
             if (recvType instanceof Type.ClassType ct && !ct.typeArguments().isEmpty())
                 elemType = ct.typeArguments().get(0);
             String mn = mc.methodName();
+            // SG-012 (inferência contextual): lambda de map/filter/reduce sem
+            // anotação herda o tipo do ELEMENTO da lista — antes caía em
+            // Object/Unknown e forçava `(x: Int)` mesmo com contexto óbvio.
+            if (("map".equals(mn) || "filter".equals(mn) || "reduce".equals(mn))
+                    && !(elemType instanceof Type.UnknownType)) {
+                for (int i = 0; i < mc.arguments().size(); i++) {
+                    if (mc.arguments().get(i) instanceof LambdaExpr le) {
+                        mc.arguments().set(i, contextualLambda(le, elemType));
+                    }
+                }
+            }
             // inferir args para detectar identificadores não declarados (ghost) nos argumentos/lambdas
             for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
             if ("get".equals(mn)) return elemType;
@@ -422,6 +433,42 @@ public final class MemberCallTyper {
         List<Type> argTypes = new ArrayList<>();
         for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
         return argTypes;
+    }
+
+    /**
+     * SG-012: reescreve a lambda com os params sem anotação tipados pelo
+     * contexto (elemento da coleção). Params anotados são preservados.
+     */
+    static LambdaExpr contextualLambda(LambdaExpr le, Type paramType) {
+        String typeName = paramTypeToSource(paramType);
+        if (typeName == null) return le;
+        List<FormalParameterNode> newParams = new ArrayList<>();
+        boolean changed = false;
+        for (FormalParameterNode p : le.parameters()) {
+            if (p.type() == null || "Object".equals(p.type())) {
+                newParams.add(new FormalParameterNode(p.position(), p.modifiers(),
+                        typeName, p.name(), p.defaultExpression(), p.annotations()));
+                changed = true;
+            } else {
+                newParams.add(p);
+            }
+        }
+        if (!changed) return le;
+        return new LambdaExpr(le.position(), newParams, le.body());
+    }
+
+    /** Nome de tipo fonte para um Type (usado pela reescrita da lambda). */
+    private static String paramTypeToSource(Type t) {
+        if (t == Type.PrimitiveType.INT) return "Int";
+        if (t == Type.PrimitiveType.LONG) return "Long";
+        if (t == Type.PrimitiveType.DOUBLE) return "Double";
+        if (t == Type.PrimitiveType.BOOL) return "Bool";
+        if (t == Type.PrimitiveType.CHAR) return "Char";
+        if (t instanceof Type.ClassType ct) {
+            return ct.packageName().isEmpty() ? ct.name()
+                    : ct.packageName() + "." + ct.name();
+        }
+        return null;
     }
 
     /**
