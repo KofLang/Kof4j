@@ -905,6 +905,12 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 
   - §80 fechado + endurecido (matrizes stdmath/stdstrings/stdvalidation); PRÓXIMO PASSO = S1b math Double (ou uuid.isUuid p/ risco menor)
 
+## [0.3.19-beta] - 2026-09-10
+
+### Features
+
+  - uuid.isUuid(STR)->Bool — 4 targets, gate UUID001 honesto riscv/aarch
+
 <!-- NEXT-RELEASE -->
 
 ## [0.2.7-beta] - 2026-09-04
