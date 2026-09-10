@@ -8,6 +8,50 @@ import static org.junit.jupiter.api.Assertions.*;
 class KofPatternMatchingTest {
     private final CompilerDriver driver = new CompilerDriver();
 
+    // SG-014 — guarda no pattern: `case T v if (cond)` — false cai p/ próximo case
+    @Test
+    void switchCaseGuardFalseFallsThrough(@TempDir Path tmp) throws Exception {
+        runJvm(tmp, """
+                class Num {
+                    Int v
+                    constructor(Int v) { this.v = v }
+                }
+                main() {
+                    var n = Num(5)
+                    switch (n) {
+                        case Num x if (x.v > 10):
+                            println("grande")
+                        case Num x:
+                            println("pequeno")
+                        default:
+                            println("outro")
+                    }
+                }
+                """, "pequeno");
+    }
+
+    // SG-014 — guarda true: o braço guarda roda, o próximo case não
+    @Test
+    void switchCaseGuardTrueRunsGuardedArm(@TempDir Path tmp) throws Exception {
+        runJvm(tmp, """
+                class Num {
+                    Int v
+                    constructor(Int v) { this.v = v }
+                }
+                main() {
+                    var n = Num(50)
+                    switch (n) {
+                        case Num x if (x.v > 10):
+                            println("grande")
+                        case Num x:
+                            println("pequeno")
+                        default:
+                            println("outro")
+                    }
+                }
+                """, "grande");
+    }
+
     @Test
     void switchCaseStringJvm(@TempDir Path tmp) throws Exception {
         runJvm(tmp, """

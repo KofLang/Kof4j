@@ -397,6 +397,10 @@ public final class SemExpressionTyper {
                     SymbolTable caseScope = scope.enterScope();
                     if (sc.value() instanceof PatternExpr pe) {
                         bindPatternVars(sa, pe, caseScope);
+                        // SG-014: guarda analisada com a var do pattern bound
+                        if (pe.guard() != null) {
+                            inferType(sa, pe.guard(), caseScope);
+                        }
                     } else {
                         inferType(sa, sc.value(), scope);
                     }

@@ -222,6 +222,10 @@ public final class StatementAnalyzer {
                         if (pe.varName() != null) {
                             caseScope.define(new SymbolTable.LocalVariableSymbol(pe.varName(), patType, 0));
                         }
+                        // SG-014: guarda analisada com a var do pattern bound
+                        if (pe.guard() != null) {
+                            SemExpressionTyper.inferType(sa, pe.guard(), caseScope);
+                        }
                         if (!pe.fieldVars().isEmpty()) {
                             String simple = patType instanceof Type.ClassType ct ? ct.name() : pe.typeName();
                             SymbolTable.ClassSymbol cls = sa.getClass(simple);

@@ -315,15 +315,18 @@ public class StatementParser {
      */
     static ExpressionNode parseSwitchCasePatternOrValue(ParseContext ctx, SourcePosition cp) {
         // pattern matching: case Type var  /  case Type(var1, var2)
+        // SG-014: com guarda, `case Type var if (...)` — o token pós-var pode
+        // ser `if` em vez de `:`/`->`
         if (ctx.check(TokenType.IDENTIFIER) && ctx.pos + 2 < ctx.tokens.size()
                 && ctx.tokens.get(ctx.pos + 1).type() == TokenType.IDENTIFIER
                 && (ctx.tokens.get(ctx.pos + 2).type() == TokenType.COLON
-                        || ctx.tokens.get(ctx.pos + 2).type() == TokenType.ARROW)) {
+                        || ctx.tokens.get(ctx.pos + 2).type() == TokenType.ARROW
+                        || ctx.tokens.get(ctx.pos + 2).type() == TokenType.IF)) {
             String typeName = ctx.advance().value();
             String varName = ctx.advance().value();
-            return new PatternExpr(cp, typeName, varName, java.util.List.of());
-        }
-        if (ctx.check(TokenType.IDENTIFIER) && ctx.pos + 1 < ctx.tokens.size()
+            return new PatternExpr(cp, typeName, varName, java.util.List.of(),
+                    parseGuardIfPresent(ctx));
+        }        if (ctx.check(TokenType.IDENTIFIER) && ctx.pos + 1 < ctx.tokens.size()
                 && ctx.tokens.get(ctx.pos + 1).type() == TokenType.LPAREN) {
             // Try destructuring: case Type(var1, var2)
             String typeName = ctx.tokens.get(ctx.pos).value();
@@ -339,7 +342,8 @@ public class StatementParser {
             }
             if (rparenPos != -1 && rparenPos + 1 < ctx.tokens.size()
                     && (ctx.tokens.get(rparenPos + 1).type() == TokenType.COLON
-                            || ctx.tokens.get(rparenPos + 1).type() == TokenType.ARROW)) {
+                            || ctx.tokens.get(rparenPos + 1).type() == TokenType.ARROW
+                            || ctx.tokens.get(rparenPos + 1).type() == TokenType.IF)) {
                 java.util.List<String> fieldVars = new java.util.ArrayList<>();
                 for (int q = ctx.pos + 2; q < rparenPos; q++) {
                     if (ctx.tokens.get(q).type() == TokenType.IDENTIFIER) {
@@ -357,10 +361,22 @@ public class StatementParser {
                 ctx.advance(); // LPAREN
                 while (!ctx.check(TokenType.RPAREN) && !ctx.atEnd()) ctx.advance();
                 if (ctx.check(TokenType.RPAREN)) ctx.advance();
-                return new PatternExpr(cp, typeName, null, java.util.List.copyOf(fieldVars));
+                return new PatternExpr(cp, typeName, null, java.util.List.copyOf(fieldVars),
+                        parseGuardIfPresent(ctx));
             }
             return ExpressionParser.parseExpression(ctx);
         }
+        return ExpressionParser.parseExpression(ctx);
+    }
+
+    /**
+     * SG-014: guarda do pattern — `case Type var if (cond):` / `... if cond ->`.
+     * Consome `if` + a expressão da guarda (até `:`/`->`) quando presente;
+     * null caso contrário.
+     */
+    static ExpressionNode parseGuardIfPresent(ParseContext ctx) {
+        if (!ctx.check(TokenType.IF)) return null;
+        ctx.advance();
         return ExpressionParser.parseExpression(ctx);
     }
 
