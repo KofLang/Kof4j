@@ -355,7 +355,7 @@ public final class JvmRuntimeCallDescriptors {
                     "kof_net_path", "kof_net_query", "kof_net_fragment",
                     "kof_net_queryEncode", "kof_net_queryDecode", "kof_encoding_hexEncode", "kof_encoding_hexDecode", "kof_encoding_base64Encode", "kof_encoding_base64Decode" -> "(Ljava/lang/String;)Ljava/lang/String;";
             case "kof_encoding_urlEncode", "kof_encoding_urlDecode", "kof_encoding_base64UrlEncode", "kof_encoding_base64UrlDecode" -> "(Ljava/lang/String;)Ljava/lang/String;";
-            case "kof_uuid_v4" -> "()Ljava/lang/String;";
+            case "kof_uuid_v4", "kof_uuid_v7" -> "()Ljava/lang/String;";
             case "kof_uuid_isUuid" -> "(Ljava/lang/String;)Z";
             // ── kof.random (STDLIB S10) ─────────────────────────────────
             case "kof_random_double" -> "()D";

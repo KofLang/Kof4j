@@ -220,30 +220,6 @@ final class JsRuntimeUiStdlib {
                 const std = v.split("-").join("+").split("_").join("/");
                 return kofEncFromUtf8(Array.from(kofSecB64Decode(std, false)));
             }
-            // kof.uuid (STDLIB S3b) — v4: kof_platform.randomBytesHex (16 B)
-            export function kofUuidV4() {
-                const hex = kof_platform.randomBytesHex(16);   // 32 chars
-                const c = [...hex];
-                c[12] = "4";                                    // version
-                c[16] = "89ab"[parseInt(c[16], 16) >> 2];       // variant 10xx
-                return c.slice(0,8).join("") + "-" + c.slice(8,12).join("") + "-"
-                     + c.slice(12,16).join("") + "-" + c.slice(16,20).join("") + "-"
-                     + c.slice(20,32).join("");
-            }
-            // isUuid: forma 8-4-4-4-12; traços em 8/13/18/23; hex (min ou
-            // maiúsculo). Version/variant NÃO verificadas (mesma regra JVM/x86).
-            export function kofUuidIsUuid(v) {
-                if (v == null || v.length !== 36) return false;
-                for (let i = 0; i < 36; i++) {
-                    const c = v.charCodeAt(i);
-                    if (i === 8 || i === 13 || i === 18 || i === 23) {
-                        if (c !== 45) return false;
-                    } else if (!((c >= 48 && c <= 57) || (c >= 97 && c <= 102) || (c >= 65 && c <= 70))) {
-                        return false;
-                    }
-                }
-                return true;
-            }
             // ── kof.encoding (STDLIB S4.2b) — percent-encoding (RFC 3986) ──
             const KOF_ENC_HEX = "0123456789ABCDEF";
             export function kofEncodingUrlEncode(v) {
