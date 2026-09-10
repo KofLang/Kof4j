@@ -230,6 +230,30 @@ final class JsRuntimeUiStdlib {
                      + c.slice(12,16).join("") + "-" + c.slice(16,20).join("") + "-"
                      + c.slice(20,32).join("");
             }
+            // kof.random (STDLIB S10a) — face não-críptográfica. Entropia do
+            // SO: kof_platform (SecureRandom no runner Node); no browser o
+            // proxy lança, cai em crypto.getRandomValues. bound<=0 -> 0
+            // (leniente — contrato do plano; security.randomInt lança).
+            function kofRandByte() {
+                try {
+                    const h = kof_platform.randomBytesHex(1);
+                    if (typeof h === "string" && h.length === 2) return parseInt(h, 16);
+                } catch (e) { /* browser: proxy — cai no crypto abaixo */ }
+                return crypto.getRandomValues(new Uint8Array(1))[0];
+            }
+            export function kofRandomInt(bound) {
+                if (bound <= 0) return 0;
+                // rejection: aceita v < 2^32 - (2^32 mod bound) => v%bound uniforme
+                const limit = 4294967296 - (4294967296 % bound);
+                for (;;) {
+                    const v = (kofRandByte() * 16777216) + (kofRandByte() * 65536)
+                            + (kofRandByte() * 256) + kofRandByte();
+                    if (v < limit) return v % bound;
+                }
+            }
+            export function kofRandomBool() {
+                return kofRandByte() & 1;
+            }
             // ── kof.encoding (STDLIB S4.2b) — percent-encoding (RFC 3986) ──
             const KOF_ENC_HEX = "0123456789ABCDEF";
             export function kofEncodingUrlEncode(v) {

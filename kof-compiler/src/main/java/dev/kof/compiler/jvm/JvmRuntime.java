@@ -37,6 +37,7 @@ public static boolean hasRuntimeFn(String methodName) {
                 || methodName.startsWith("kof_encoding_")
                 || methodName.startsWith("kof_net_")
                 || methodName.startsWith("kof_uuid_")
+                || methodName.startsWith("kof_random_")
                 || methodName.startsWith("kof_enum_")
                 || methodName.equals("kof_spawn_result") || methodName.equals("kof_await")
                 || methodName.equals("kof_poll") || methodName.equals("kof_done")

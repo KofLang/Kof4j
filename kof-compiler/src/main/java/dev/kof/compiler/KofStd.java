@@ -24,7 +24,7 @@ public final class KofStd {
     static boolean isStdNamespace(String name) {
         return KofMath.isMathNamespace(name) || KofStrings.isStringsNamespace(name)
                 || KofEncoding.isEncodingNamespace(name) || KofUuid.isUuidNamespace(name)
-                || KofNet.isNetNamespace(name);
+                || KofNet.isNetNamespace(name) || KofRandom.isRandomNamespace(name);
     }
 
     static StdCall staticMethod(String namespace, String name, List<Type> argTypes) {
@@ -53,6 +53,11 @@ public final class KofStd {
             return c == null ? null
                     : new StdCall("kof.uuid", "Uuid", c.function(), c.returnType(), c.parameterTypes());
         }
+        if (KofRandom.isRandomNamespace(namespace)) {
+            KofRandom.RandomCall c = KofRandom.staticMethod(namespace, name, argTypes);
+            return c == null ? null
+                    : new StdCall("kof.random", "Random", c.function(), c.returnType(), c.parameterTypes());
+        }
         return null;
     }
 
@@ -62,6 +67,7 @@ public final class KofStd {
         if ("kof.encoding".equals(call.ownerPackage())) return KofEncoding.supportedOn(call.function(), target);
         if ("kof.uuid".equals(call.ownerPackage())) return KofUuid.supportedOn(call.function(), target);
         if ("kof.net".equals(call.ownerPackage())) return KofNet.supportedOn(call.function(), target);
+        if ("kof.random".equals(call.ownerPackage())) return KofRandom.supportedOn(call.function(), target);
         return true;
     }
 
@@ -71,6 +77,7 @@ public final class KofStd {
         if ("kof.encoding".equals(call.ownerPackage())) return KofEncoding.gapCode(call.function());
         if ("kof.uuid".equals(call.ownerPackage())) return KofUuid.gapCode(call.function());
         if ("kof.net".equals(call.ownerPackage())) return KofNet.gapCode(call.function());
+        if ("kof.random".equals(call.ownerPackage())) return KofRandom.gapCode(call.function());
         return "STD001";
     }
 }
