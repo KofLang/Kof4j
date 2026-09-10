@@ -403,6 +403,20 @@ class ConformanceMatrixTest {
                     println(e.charAt(3))
                 }
                 """, "4\n55357\n56832\n98", Set.of(), tempDir);
+        // bug 43 (substring face, 10/09) — code units UTF-16, paridade 4
+        // targets. SÓ fronteiras bem-formadas (corte de par astral ao meio
+        // exige storage WTF-8 — sub-residual §43, não entra na matriz).
+        matrix("unicode-substring", """
+                main() {
+                    var s = "café"
+                    println(s.substring(1))
+                    println(s.substring(3))
+                    var e = "a😀b"
+                    println(e.substring(1, 3))
+                    println(e.substring(0, 3).length)
+                    println(e.substring(3))
+                }
+                """, "afé\né\n😀\n3\nb", Set.of(), tempDir);
         matrix("strops", """
                 main() {
                     var s = "a,b,,c"

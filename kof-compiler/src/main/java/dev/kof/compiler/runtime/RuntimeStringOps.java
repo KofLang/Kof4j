@@ -154,6 +154,11 @@ public final class RuntimeStringOps {
             """);
     }
     public static void emitStringSubstring(StringBuilder sb) {
+        // bug 43 (metade substring, 10/09): substring conta CODE UNITS UTF-16
+        // (contrato JVM/JS), não bytes UTF-8. .Lkof_substr_walk converte
+        // code unit → byte offset; a cópia é a fatia de bytes entre as duas
+        // fronteiras (par astral sempre inteiro, senão cut → diagnóstico).
+        sb.append(".Lstr_substr_astral: .asciz \"Runtime error: substring cannot split an astral code point (native UTF-16 face pending, known-bugs 43)\"\n");
         sb.append("""
             .globl kof_string_substring
             .type kof_string_substring, @function
@@ -164,40 +169,53 @@ public final class RuntimeStringOps {
                 pushq %r14
                 pushq %r15
                 movq %rdi, %rbx
-                movl %esi, %r12d
-                movl %edx, %r13d
-                movl 16(%rbx), %ecx
-                cmpl $0, %r13d
-                jne .Lkof_substr_end_ok
-                movl %ecx, %r13d
-            .Lkof_substr_end_ok:
-                cmpl %ecx, %r13d
-                jg .Lkof_substr_bounds
+                movl %esi, %r12d                  # start (code units UTF-16)
+                movl %edx, %r13d                  # end (0 = até o fim — call site 1-arg)
                 testl %r12d, %r12d
                 jl .Lkof_substr_bounds
-                cmpl %r13d, %r12d
-                jg .Lkof_substr_bounds
-                movl %r13d, %edi
-                subl %r12d, %edi
-                movl %edi, %r14d
+                movq %rbx, %rdi
+                movl %r12d, %esi
+                call .Lkof_substr_walk
+                testl %ecx, %ecx
+                jne .Lkof_substr_astral_panic
+                cmpl %r12d, %edx
+                jb .Lkof_substr_bounds            # start > total de units
+                movl %eax, %r15d                  # startBytes
+                testl %r13d, %r13d
+                jz .Lkof_substr_toend
+                movq %rbx, %rdi
+                movl %r13d, %esi
+                call .Lkof_substr_walk
+                testl %ecx, %ecx
+                jne .Lkof_substr_astral_panic
+                cmpl %r13d, %edx
+                jb .Lkof_substr_bounds            # end > total de units
+                cmpl %r15d, %eax
+                jb .Lkof_substr_bounds            # end < start (off monótono)
+                movl %eax, %r13d                  # endBytes
+                jmp .Lkof_substr_copy
+            .Lkof_substr_toend:
+                movl 16(%rbx), %r13d              # nBytes (fim da string)
+            .Lkof_substr_copy:
+                movl %r13d, %r14d
+                subl %r15d, %r14d                 # lenBytes (callee-saved p/ atravessar calls)
                 leal 25(%r14), %edi
                 call kof_alloc
-                movq %rax, %r15
-                movl $1, (%r15)
-                movl $0, 4(%r15)
-                movq $0, 8(%r15)
-                movl %r14d, 16(%r15)
-                movl $0, 20(%r15)
-                movq %r15, %rdi
+                movq %rax, %r13                   # novo KofStr*
+                movl $1, (%r13)
+                movl $0, 4(%r13)
+                movq $0, 8(%r13)
+                movl %r14d, 16(%r13)
+                movl $0, 20(%r13)
+                movq %r13, %rdi
                 addq $24, %rdi
                 movq %rbx, %rsi
                 addq $24, %rsi
-                movl %r12d, %eax
-                addq %rax, %rsi
+                addq %r15, %rsi
                 movl %r14d, %edx
                 call kof_memcpy
-                movb $0, 24(%r15,%r14)
-                movq %r15, %rax
+                movb $0, 24(%r13,%r14)
+                movq %r13, %rax
                 popq %r15
                 popq %r14
                 popq %r13
@@ -208,6 +226,61 @@ public final class RuntimeStringOps {
                 movl %r12d, %edi
                 movl %r13d, %esi
                 call kof_bounds_error
+            .Lkof_substr_astral_panic:
+                leaq .Lstr_substr_astral(%rip), %rdi
+                call kof_panic
+            # walk: rdi=str, esi=target → eax=byteOff do target,
+            # edx=units consumidas (=min(target,total)), ecx=1 se o target
+            # caiu na 2ª unit de um par astral (corte de code point).
+            .Lkof_substr_walk:
+                xorl %eax, %eax
+                xorl %edx, %edx
+                xorl %ecx, %ecx
+                movl 16(%rdi), %r8d
+                leaq 24(%rdi), %r9
+            .Lksw_loop:
+                cmpl %esi, %edx
+                jae .Lksw_hit
+                cmpl %r8d, %eax
+                jae .Lksw_end
+                movzbl (%r9,%rax), %r10d
+                movl %r10d, %r11d
+                andb $0x80, %r11b
+                jz .Lksw_c1
+                movl %r10d, %r11d
+                andb $0xE0, %r11b
+                cmpb $0xC0, %r11b
+                je .Lksw_c2
+                movl %r10d, %r11d
+                andb $0xF0, %r11b
+                cmpb $0xE0, %r11b
+                je .Lksw_c3
+                leal 1(%rdx), %r11d
+                cmpl %esi, %r11d
+                je .Lksw_cut                      # target = low do par
+                addl $2, %edx
+                addl $4, %eax
+                jmp .Lksw_loop
+            .Lksw_c1:
+                addl $1, %edx
+                addl $1, %eax
+                jmp .Lksw_loop
+            .Lksw_c2:
+                addl $1, %edx
+                addl $2, %eax
+                jmp .Lksw_loop
+            .Lksw_c3:
+                addl $1, %edx
+                addl $3, %eax
+                jmp .Lksw_loop
+            .Lksw_hit:
+                ret
+            .Lksw_cut:
+                movl $1, %ecx
+                ret
+            .Lksw_end:
+                movl %r8d, %eax
+                ret
             """);
     }
     public static void emitStringTrim(StringBuilder sb) {
