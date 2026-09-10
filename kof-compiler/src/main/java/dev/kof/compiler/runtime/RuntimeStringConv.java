@@ -261,6 +261,29 @@ public final class RuntimeStringConv {
                 incq %rdx
                 jmp .Lkof_flt_str_len
             .Lkof_flt_str_gotlen:
+                # bug 44: mesmo append ".0" do double (ver emitDoubleToString)
+                xorl %ecx, %ecx
+                testl %edx, %edx
+                jz .Lkof_flt_str_make
+                xorl %ecx, %ecx
+            .Lkof_flt_str_scan:
+                cmpb $46, (%r12,%rcx)       # '.'
+                je .Lkof_flt_str_make
+                cmpb $101, (%r12,%rcx)      # 'e'
+                je .Lkof_flt_str_make
+                cmpb $110, (%r12,%rcx)      # 'n' (nan)
+                je .Lkof_flt_str_make
+                cmpb $105, (%r12,%rcx)      # 'i' (inf)
+                je .Lkof_flt_str_make
+                incq %rcx
+                cmpq %rdx, %rcx
+                jb .Lkof_flt_str_scan
+                movl %edx, %esi
+                leaq (%r12,%rsi), %rdi
+                movw $12334, (%rdi)         # ".0"
+                movb $0, 2(%rdi)
+                addl $2, %edx
+            .Lkof_flt_str_make:
                 movl %edx, %esi
                 movq %r12, %rdi
                 call kof_string_from_literal
@@ -298,6 +321,30 @@ public final class RuntimeStringConv {
                 incq %rdx
                 jmp .Lkof_dbl_str_len
             .Lkof_dbl_str_gotlen:
+                # bug 44: inteiro-válido (sem '.', 'e', 'n' de nan, 'i' de inf)
+                # → append ".0" (JDK Double.toString: valueOf(5.0) == "5.0")
+                xorl %ecx, %ecx
+                testl %edx, %edx
+                jz .Lkof_dbl_str_make
+                xorl %ecx, %ecx             # idx
+            .Lkof_dbl_str_scan:
+                cmpb $46, (%r12,%rcx)       # '.'
+                je .Lkof_dbl_str_make
+                cmpb $101, (%r12,%rcx)      # 'e'
+                je .Lkof_dbl_str_make
+                cmpb $110, (%r12,%rcx)      # 'n' (nan)
+                je .Lkof_dbl_str_make
+                cmpb $105, (%r12,%rcx)      # 'i' (inf)
+                je .Lkof_dbl_str_make
+                incq %rcx
+                cmpq %rdx, %rcx
+                jb .Lkof_dbl_str_scan
+                movl %edx, %esi
+                leaq (%r12,%rsi), %rdi
+                movw $12334, (%rdi)         # 0x302E = ".0" ('.','0')
+                movb $0, 2(%rdi)
+                addl $2, %edx
+            .Lkof_dbl_str_make:
                 movl %edx, %esi
                 movq %r12, %rdi
                 call kof_string_from_literal

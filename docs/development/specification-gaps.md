@@ -344,29 +344,29 @@ recomendações futuras (regra 14 da tarefa: não alterar comportamento).
 
 ---
 
-## Categoria C — Divergências entre targets (paridade)
+## Categoria C — Divergências entre targets (paridade) — atualizada 10/09
 
 | # | Divergência | JVM | Native | JS | Gap |
 |---|---|---|---|---|---|
-| SG-C1 | Short-circuit `&&`/`||` | ✅ | ✅ | ❌ | SG-006 |
+| SG-C1 | Short-circuit `&&`/`\|\|` | ✅ | ✅ | ✅ CORRIGIDO 09/09 | SG-006 ✅ |
 | SG-C2 | Exceção (representação) | RuntimeException | kof_panic | throw string | Stable efeito |
 | SG-C3 | GC | JVM | free-list/mark-sweep (x86); bump (riscv) | engine | Target-specific |
 | SG-C4 | FP extremo | IEEE | IEEE (FLT001) | IEEE | FLT001 |
 | SG-C5 | Interop tipos host | ✅ | ❌ | ❌ | Target-specific |
-| SG-C6 | `println(null)` | "null" | (corrigido R6) | "null" | — |
-| SG-C7 | Map/Set type-arg classe | ❌ bug#33 | ❌ bug#33 | ❌ bug#33 | #33 |
-| SG-C8 | `spawn{lambda}` handle | ❌ bug#29 | ❌ bug#29 | ❌ bug#29 | #29 |
+| SG-C6 | `println(null)` | "null" | ✅ (R6) | "null" | — |
+| SG-C7 | Map/Set type-arg classe | ✅ CORRIGIDO 06/09 (era bug#33 — causa real: nullable inferido) | ✅ | ✅ | — |
+| SG-C8 | `spawn{lambda}` handle | ✅ CORRIGIDO 06/09 (bug#29) | ✅ | ✅ | — |
 
 ---
 
-## Categoria D — Bugs conhecidos (referência cruzada)
+## Categoria D — Bugs conhecidos (referência cruzada) — atualizada 10/09
 
 Não duplicados aqui — ver [known-bugs.md](known-bugs.md):
-- **#29** spawn{lambda}-com-handle (todos os targets)
-- **#30** decode<Bool> x86_64 (corrigido)
-- **#31** process.<inexistente>
-- **#32** type-arg genérico via import (corrigido — `qualifyDeep`)
-- **#33** Map/Set com type-arg de classe (emit) — **aberto**
+- **#29** spawn{lambda}-com-handle — ✅ CORRIGIDO 06/09
+- **#30** decode<Bool> x86_64 — ✅ CORRIGIDO
+- **#31** process.<inexistente> — ✅ CORRIGIDO 06/09
+- **#32** type-arg genérico via import — ✅ CORRIGIDO (`qualifyDeep`)
+- **#33** "Map/Set com type-arg de classe" — ✅ CORRIGIDO 06/09 (causa real: member call em receiver nullable **inferido**; o emit de Map/Set nunca foi o problema)
 
 ---
 
@@ -416,7 +416,8 @@ Não duplicados aqui — ver [known-bugs.md](known-bugs.md):
   snapshot 10/09, E3 verificado).
 - **5 bugs** (D, já em known-bugs) — 29/30/31/32/33 ✅ corrigidos.
 
-**Nenhum foi corrigido na linguagem** — esta tarefa é de documentação. Cada
-item B/C que envolve mudança de semântica é **decisão de design** (regra 6:
- ) e deve virar gap/plano em `planning-*`, nunca edição
-silenciosa.
+**Estado 10/09:** a auditoria original foi de documentação, mas a fila
+subsequente de decisões do maintainer corrigiu a linguagem com testes
+(SEM041–SEM049, SG-009 subtipagem nominal, SG-020 spec de memória). Cada
+item B/C que envolve mudança de semântica SEM decisão do maintainer segue
+regra 6: vira gap/plano em `planning-*`, nunca edição silenciosa.
