@@ -1762,16 +1762,25 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   — o fix `696c6c9` do deref). A suíte nunca passou entrada inválida nos
   nativos. O JS ganhou `kofParseChecked` (regex + throw) no #51; o nativo nunca
   foi alinhado.
-- **Fix necessário (código, não design — alinhar ao previsto, regra 4):** nos 2
-  asm (x86 + B0 riscv; aarch traduz junto): validar dígito a dígito
-  (não-dígito → lançar exceção String com a mesma forma do JVM, via mecanismo
-  de throw já existente — `RuntimeConcurrency:223` `call kof_throw_string`;
-  verificar se a rota throw+catch do nativo funciona a partir de função de
-  runtime com try no main, precedente `try/catch` da suíte riscv), adicionar
-  trim no x86 (riscv já tem), e overflow: Int fora de [-2^31, 2^31) → throw
-  (o site toLong mantém 64 bits). Custo ~40 linhas asm por arquivo.
+- **Correção (x86) FEITA 10/09:** `RuntimeStringParse.emitStringToInt/Long`
+  reescritos no contrato exato do JDK — trim (byte<=32 nas duas pontas), sinal
+  `+/-`, dígito-a-dígito, acumulação NEGATIVA (`acc<=0`, `limit=MIN` p/
+  negativos / `-MAX` p/ positivos, overflow detectado por-dígito antes do
+  `*10` e antes da subtração), e falha → `kof_string_from_literal` +
+  `kof_throw_string` (exceção String capturável; sem try outer = panic com
+  código — nunca número silencioso). Prova medida: os 14 vetores da matriz
+  acima (T1..T7 + válidas, incl. `+7`, `-2147483648`, `-9223372036854775808`)
+  saem BYTE-IDÊNTICOS ao JVM no x86; suíte kof-compiler verde (aarch64 28/28
+  roda o mesmo asm-x86? não — aarch64 traduz riscv; ver pendência).
+  LIÇÃO do port: o imediato `$-9223372036854775808` não cabe em cmp
+  sign-extended do gas — o bloco final de comparação com MIN é redundante
+  quando o guard por-dígito usa `limit=MIN` (removido).
+- **PENDENTE (U3):** riscv64/aarch64 seguem divergentes (`"abc"→0`,
+  `"12a34"→1234`; `toLong` nem existe no runtime riscv — link quebra, gap
+  adicional medido 10/09); a correção vai para B0 riscv (throw nativo já
+  existe: `NativeRiscvAsmRt0:323`) + rotina `to_long` nova.
   Menor repro: `main() { try { println("abc".toInt()) } catch (String e) { println("THREW") } }` —
-  JVM/JS imprimem `THREW`; x86 imprime `5451`, riscv/aarch imprimem `0`.
+  JVM/JS/x86 imprimem `THREW`; riscv/aarch imprimem `0`.
 
 ### 62. Constant pool: Float/Double armazenados como bits crus (parser de migração) — ✅ CORRIGIDO 08/09
 
