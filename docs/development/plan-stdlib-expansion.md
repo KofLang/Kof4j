@@ -1,6 +1,6 @@
 # Plano — Universal Standard Library (STDLIB)
 
-**Dono:** lane KOFSCRIPT (fixes-for-kofagent) · **Status:** EM CURSO — **S7 parcial**: `addDays`/`diffDays` FEITOS em JVM/Script (S7a) + JS (S7b); resta **Native** (TIME002, asm String-alloc) + `format`/`boundaries` (decisão de superfície da mantenedora); S0–S6, S8–S10 FEITOS (auditoria 10/09 vs código: KofMath/KofStrings/KofEncoding/KofUuid/KofValidation/KofNet/KofTime + KofRandomTest) · **Briefing:** maintainer 08/09 (universal stdlib, multitarget, anti-microdependência)
+**Dono:** lane KOFSCRIPT (fixes-for-kofagent) · **Status:** EM CURSO — **S7 parcial**: `addDays`/`diffDays` FEITOS em JVM/Script (S7a) + JS (S7b) + **Native x86** (S7c `cd622c47`, classe nova `runtime/RuntimeTimeIso.java`); resta só **riscv64/aarch64** (TIME002 residual — asm riscv da spec x86 pronta, bloqueado de PROVA sem qemu/toolchain) + `format`/`boundaries` (decisão de superfície da mantenedora); S0–S6, S8–S10 FEITOS (auditoria 10/09 vs código: KofMath/KofStrings/KofEncoding/KofUuid/KofValidation/KofNet/KofTime + KofRandomTest) · **Briefing:** maintainer 08/09 (universal stdlib, multitarget, anti-microdependência)
 
 ## 0. Arquitetura real (mapeada 08/09 — NÃO inventar paralela)
 
