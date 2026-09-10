@@ -1734,6 +1734,45 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 
 ## Aberto (gap Canvas — 06/09)
 
+### 79. Native: `String.toInt/toLong` divergem do contrato JVM em entrada inválida — R6 silencioso nos 3 nativos — ABERTO (achado 10/09, varredura da lane STDLIB)
+
+- **Contrato previsto** (congelado, tabela "PAREcem bugs mas são esperados" deste
+  arquivo + teste `KofJsE2ETest.execStringToNumberConversion`): `"abc".toInt()` →
+  `NumberFormatException` (exceção=String em Kof); `"12a34".toInt()` → throw
+  (JVM `Integer.parseInt` valida dígito a dígito); `" -42 "` → `-42` (JVM aceita
+  espaços); `"999999999999".toInt()` → throw (overflow).
+- **Comportamento medido 10/09 (qemu/proc real, harness GenU):**
+
+| entrada | JVM/JS (previsto) | x86_64 | riscv64 | aarch64 |
+|---|---|---|---|---|
+| `"abc".toInt()` | throw | **5451** | **0** | **0** |
+| `"12a34".toInt()` | throw | **16934** | **1234** | **1234** |
+| `" -42 ".toInt()` | `-42` | **-162596** (espaço→16*10+(32-48)=-270; só '-' é parseado como sinal) | -42 ✅ (trim) | -42 ✅ |
+| `"999999999999".toInt()` | throw | **wraparound** (-727379969) | **999999999999** (retorna LONG num site Int — lixo de 64 bits) | idem riscv |
+
+- **Três implementações divergentes entre si**, todas violando o contrato:
+  (a) **x86** (`RuntimeStringParse.emitStringToInt/Long`): loop `acc*10+(c-48)`
+  sem validação de dígito, sem trim, sem throw — "abc"→5451;
+  (b) **riscv** (`NativeRiscvAsmRtB0` `.Lsti_*`): tem **trim** e **pula
+  não-dígitos** (`bgt 9,.Lsti_skip`) — "abc"→0, "12a34"→1234 (silencioso, pior:
+  parece que funciona); aarch64 é tradução linha-a-linha (mesmo comportamento);
+  (c) overflow: ninguém checa 32-bit; o riscv propaga 64 bits para um site Int.
+- **Por que ninguém viu:** os testes cross-arch (`NativeRiscv64E2ETest:443`,
+  `NativeAarch64E2ETest:171`) só exercitam **entradas válidas** ("42", "-7", "0"
+  — o fix `696c6c9` do deref). A suíte nunca passou entrada inválida nos
+  nativos. O JS ganhou `kofParseChecked` (regex + throw) no #51; o nativo nunca
+  foi alinhado.
+- **Fix necessário (código, não design — alinhar ao previsto, regra 4):** nos 2
+  asm (x86 + B0 riscv; aarch traduz junto): validar dígito a dígito
+  (não-dígito → lançar exceção String com a mesma forma do JVM, via mecanismo
+  de throw já existente — `RuntimeConcurrency:223` `call kof_throw_string`;
+  verificar se a rota throw+catch do nativo funciona a partir de função de
+  runtime com try no main, precedente `try/catch` da suíte riscv), adicionar
+  trim no x86 (riscv já tem), e overflow: Int fora de [-2^31, 2^31) → throw
+  (o site toLong mantém 64 bits). Custo ~40 linhas asm por arquivo.
+  Menor repro: `main() { try { println("abc".toInt()) } catch (String e) { println("THREW") } }` —
+  JVM/JS imprimem `THREW`; x86 imprime `5451`, riscv/aarch imprimem `0`.
+
 ### 62. Constant pool: Float/Double armazenados como bits crus (parser de migração) — ✅ CORRIGIDO 08/09
 
 - **Sintoma:** `kof inspect`/`kof decompile` de um `.class` com constante
