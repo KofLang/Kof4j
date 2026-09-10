@@ -2181,6 +2181,55 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   pararia de compilar → é mudança de contrato, bump).
 
 
+### 95. Native: 2+ `String.split` no mesmo programa → assembler "already defined" (COMP001) — ✅ CORRIGIDO 10/09 (x86_64; varredura de paridade String)
+
+- **Sintoma:** `var a = "x,y".split(",").length; var b = "p,q".split(",").length`
+  falha no Native x86_64: `ld: symbol '.Lkof_split_empty_sep' is already
+  defined` → COMP001 (erro de montagem). QUALQUER programa com 2+ splits
+  (parsear 2 linhas CSV, query-string + header) era **incompilável** no Native;
+  JVM/Script rodam normal. Paridade quebrada (regra 5) de forma barulhenta.
+- **Causa raiz:** o ramo inline do `split` (`NativeX86StringCalls.emit`,
+  extraído verbatim do `NativeBackend.emitCall` na FASE 3 do REFACTOR-500)
+  emitia DUAS labels com nome FIXO (`.Lkof_split_empty_sep` / `.Lkof_split_call`)
+  dentro do corpo de cada call site. Um segundo `split` no MESMO arquivo `.s`
+  redefinia o símbolo → erro do assembler. Os demais ramos inline usam labels
+  via `resolveLabel`/contador; o `split` foi o único que ficou com nome estático.
+- **✅ CORRIGIDO 10/09 (x86_64):** `NativeBackend` ganha `inlineSeq` (resetado
+  por programa, junto de `stringCounter` — output determinístico); o ramo do
+  `split` sequencia as labels (`.Lkof_split_empty_sep<N>`/`.Lkof_split_call<N>`).
+  `NativeX86StringCalls.emit` recebe o `nb` (única mudança de assinatura; o
+  `emit` já é estático e o único caller é `NativeX86Calls.emitCall:78`).
+- **Prova:** `NativeE2ETest.nativeTwoSplitsInOneProgram` (2 splits + get: `5\nn`);
+  oracle JVM==Native==Script no mesmo programa. Suíte 0 falhas.
+- **Nota (riscv/aarch):** o backend cross não tem o mesmo ramo inline de split
+  com labels fixas (o `kof_string_split` é chamado direto) — não reproduz.
+
+### 96. Native: `String.repeat`/`padStart`/`padEnd` como MÉTODO DE INSTÂNCIA → `undefined reference` no link — ABERTO (fora do corpus; API documentada é a função `strings.repeat(...)`)
+
+- **Sintoma:** `println("ab".repeat(2))` / `"ab".padStart(4,"-")` / `"ab".padEnd(4,"-")`
+  no Native x86_64 falham no link: `undefined reference to
+  'java_lang_String_repeat'` / `_padStart` / `_padEnd` (COMP001). O typer aceita
+  (o método existe no registry — `KofStrings.java:59` reconhece `repeat`), mas
+  nenhum backend emite o intrínseco nem a runtime define o símbolo. JVM/Script
+  executam correto.
+- **Causa:** o typer/registry conhece `repeat` como método de String (a função
+  top-level `strings.repeat` é o idiom CANÔNICO do corpus —
+  `training/idioms/stdlib.md:37`, `learn/39-stdlib.md:63`), mas o emit nativo
+  desses 3 como **método de instância** nunca foi escrito. Não há teste nem doc
+  que pinnem a forma `"ab".repeat(2)` — só a forma `strings.repeat("ab",2)`.
+- **Por que NÃO é "só implementar" (regra 6):** é API de superfície nova
+  (adicionar o emit dos 3 intrínsecos nos nativos) OU decisão de o typer
+  REJEITAR método-de-instância fora do corpus (mudança de contrato p/ quem usa
+  no JVM — bump). Mesma família da decisão §89 (superfície não-pinned).
+- **Ação p/ o dono Native:** (a) implementar `repeat`/`padStart`/`padEnd` no
+  runtime x86 (`kof_string_repeat`/`_pad_start`/`_pad_end`) + rotear em
+  `NativeX86StringCalls` (o emit de método já existe, só falta o symbol); OU
+  (b) diagnosticar no typer apontando p/ `strings.repeat(...)` (o idiom real).
+  Decidir com a mantenedora. **Workaround atual:** `strings.repeat("ab", 3)`
+  (funciona nos targets que têm a função).
+- **Descoberto:** 10/09 na varredura de paridade String (batch `swA.kf`).
+
+
 ### 62. Constant pool: Float/Double armazenados como bits crus (parser de migração) — ✅ CORRIGIDO 08/09
 
 - **Sintoma:** `kof inspect`/`kof decompile` de um `.class` com constante
