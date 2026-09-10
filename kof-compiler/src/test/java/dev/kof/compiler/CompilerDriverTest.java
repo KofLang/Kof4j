@@ -4563,6 +4563,23 @@ class CompilerDriverTest {
                 + result.diagnostics().getDiagnostics());
     }
 
+    // SG-011B (SEM047) — sobrecarga top-level não existe: função homônima é
+    // erro de compilação (antes a última sobrescrevia silenciosamente).
+    @Test
+    void duplicateTopLevelFunctionFails(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("D.kf");
+        Files.writeString(source, """
+            Int f(Int x) { return x + 1 }
+            Int f(String s) { return 2 }
+            main() { println(f(1)) }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "overload top-level deve falhar");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM047"), "should be SEM047, got: " + diags);
+        assertTrue(diags.contains("already defined"), "deve nomear o conflito: " + diags);
+    }
+
     // SG-002 — tokens mortos removidos: `~`, `=>`, `|>`, `::`, `...`, `_`,
     // `sealed`/`permits` não são mais reconhecidos pelo lexer (erro limpo
     // LEX005 — a gramática nunca os usou).

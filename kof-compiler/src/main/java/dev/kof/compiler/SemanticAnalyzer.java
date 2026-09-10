@@ -60,6 +60,29 @@ public class SemanticAnalyzer {
         this.currentPackage = unit.packageName();
         this.currentScope = new SymbolTable();
         this.currentUnit = unit;
+        // SG-011B (SEM047): sobrecarga top-level não existe em Kof — duas
+        // funções homônimas eram sobrescritas silenciosamente (a última
+        // vencia); agora é erro de compilação nomeando ambas as aridades.
+        if (diagnostics != null) {
+            Map<String, String> fnNames = new HashMap<>();
+            for (AstNode decl : unit.declarations()) {
+                if (decl instanceof FunctionDeclarationNode f) {
+                    String prev = fnNames.get(f.name());
+                    if (prev != null) {
+                        diagnostics.error(f.position().file(), f.position().line(),
+                                f.position().column(), 0,
+                                "function '" + f.name() + "' is already defined (" + prev
+                                        + "); top-level functions cannot be overloaded"
+                                        + " — use a different name",
+                                "SEM047");
+                    } else {
+                        List<String> arities = new ArrayList<>();
+                        for (var p : f.parameters()) arities.add(p.type() != null ? p.type() : "?");
+                        fnNames.put(f.name(), "with parameters (" + String.join(", ", arities) + ")");
+                    }
+                }
+            }
+        }
         for (AstNode decl : unit.declarations()) {
             SymbolTableBuilder.preDeclareType(this, decl);
         }
