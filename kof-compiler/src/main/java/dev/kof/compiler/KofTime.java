@@ -42,7 +42,9 @@ public final class KofTime {
             case "sleep", "now", "interval", "cancel",
                     // STDLIB S7-wedge: calendário civil (escalares puros —
                     // dias entre datas e dia-da-semana chegam no próximo degrau)
-                    "isLeapYear", "daysInMonth", "dayOfWeek", "daysBetween" -> true;
+                    "isLeapYear", "daysInMonth", "dayOfWeek", "daysBetween",
+                    // STDLIB S7a: add/diff sobre data ISO (STR->STR/Int)
+                    "addDays", "diffDays" -> true;
             default -> false;
         };
     }
@@ -60,7 +62,23 @@ public final class KofTime {
         // TIME001 FEITO no cross (05/09): kof_time_interval/cancel são alias
         // de kof_scheduler_every/cancel no runtime riscv64/aarch64 (thread por
         // job via clone+nanosleep — mesmo mecanismo do spawn).
+        // S7a TIME002 (10/09): addDays/diffDays = só JVM-family (JVM/SCRIPT/
+        // ANDROID — interpretador herda o KofRuntime do JVM). JS/Native = gap
+        // honesto (String-alocação no asm + parse data: escopo próprio, R6 —
+        // nunca fallback silencioso).
+        if (("addDays".equals(method) || "diffDays".equals(method))
+                && (target.isNative() || target == Target.JS)) {
+            return false;
+        }
         return true;
+    }
+
+    static String gapCode(String method) {
+        // TIME002 — data ISO add/diff só JVM/Script hoje (JS: Date + parse é
+        // trivia mas fica num degrau próprio; Native: alocação de String em
+        // runtime asm é o mesmo escopo do NET001 nativo).
+        return ("addDays".equals(method) || "diffDays".equals(method))
+                ? "TIME002" : "TIME001";
     }
 
     static String gapCode() {
@@ -94,6 +112,16 @@ public final class KofTime {
             case "daysBetween" -> argTypes.size() == 6
                     ? new TimeCall("kof_time_daysBetween", INT,
                             List.of(INT, INT, INT, INT, INT, INT)) : null;
+            // STDLIB S7a — data ISO (String) add/diff. JVM/SCRIPT via
+            // java.time; Native/JS = gap honesto TIME002 (parse+alocação de
+            // String no asm é escopo próprio, R6). Inválido => ""/0 (paridade
+            // com a política "invalid => 0" do calendário wedge).
+            case "addDays" -> argTypes.size() == 2 && argTypes.get(0) == STR
+                    && argTypes.get(1) == INT
+                    ? new TimeCall("kof_time_addDays", STR, List.of(STR, INT)) : null;
+            case "diffDays" -> argTypes.size() == 2 && argTypes.get(0) == STR
+                    && argTypes.get(1) == STR
+                    ? new TimeCall("kof_time_diffDays", INT, List.of(STR, STR)) : null;
             default -> null;
         };
     }

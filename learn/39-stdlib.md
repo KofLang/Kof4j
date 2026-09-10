@@ -167,11 +167,19 @@ time.isLeapYear(2024)                 // true   — Gregório (%4, %100, %400)
 time.daysInMonth(2024, 2)             // 29
 time.dayOfWeek(2026, 9, 9)            // 3      — ISO: 1=segunda..7=domingo
 time.daysBetween(2024, 1, 1, 2024, 3, 1) // 60  — pode ser negativo
+time.addDays("2024-02-28", 1)         // "2024-02-29" — data ISO (String)
+time.diffDays("2024-01-01", "2024-03-01") // 60 — pode ser negativo
 ```
 
 Domínio **1..9999** (serial civil cabe em Int; fora disso ou data inexistente
 → `isLeapYear=false` / `0`). A função `now`/`sleep`/`interval` de relógio é
 de `time` desde antes — o calendário acima é a parte pura, determinística.
+
+`addDays`/`diffDays` aceitam data **ISO em String** (`YYYY-MM-DD`); inválido
+→ `""` (add) / `0` (diff). Disponível em **JVM e Script** (via `java.time`);
+no **Native/JS** é gap honesto `TIME002` (erro claro no compile, nunca
+fallback silencioso) — o port para asm/JS é o próximo degrau (mesma ordem do
+port nativo do `net`, `NET001`).
 
 ## net — componentes de URL (S8)
 
@@ -205,6 +213,7 @@ spans nos 3 nativos).
 | `encoding.base64*` / `base64Url*` | ✅ | ✅ | ✅ | ✅ |
 | `net.*` (S8) | ✅ | ✅ | ✅ | ✅ |
 | `uuid.v4` | ✅ | ✅ | ✅ | ✅ |
+| `time.addDays` / `time.diffDays` (S7a, data ISO) | ✅ | `TIME002` | `TIME002` | `TIME002` |
 
 Gate = erro de compilação **com código** (R6 — nunca stub silencioso):
 `strings.toCamelCase` e os conversores de palavra chegaram aos 4 targets só

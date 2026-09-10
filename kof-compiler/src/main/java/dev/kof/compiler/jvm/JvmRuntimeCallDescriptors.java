@@ -240,6 +240,8 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_time_daysInMonth" -> "(II)I";
             case "kof_time_dayOfWeek" -> "(III)I";
             case "kof_time_daysBetween" -> "(IIIIII)I";
+            case "kof_time_addDays" -> "(Ljava/lang/String;I)Ljava/lang/String;";
+            case "kof_time_diffDays" -> "(Ljava/lang/String;Ljava/lang/String;)I";
             case "kof_time_now" -> "()J";
             case "kof_time_interval" -> "(ILjava/lang/Object;)Ljava/lang/String;";
             case "kof_time_cancel" -> "(Ljava/lang/String;)V";

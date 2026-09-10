@@ -381,4 +381,40 @@ class KofTimeE2ETest {
             assertTrue(r.success(), t + " time.now should compile: " + r.diagnostics().getDiagnostics());
         }
     }
+
+    /**
+     * STDLIB S7a — addDays/diffDays em data ISO (String).
+     * Shape travado no JVM (java.time); Native/JS = gap honesto TIME002
+     * (erro claro no compile, nunca fallback silencioso — R6).
+     */
+    @Test
+    void timeAddDaysDiffDaysJvmShapeAndTime002Gate(@TempDir Path tempDir) throws IOException {
+        String src = """
+            main() {
+                println(time.addDays("2024-02-28", 1))
+                println(time.addDays("2023-02-28", 1))
+                println(time.addDays("2024-12-31", 1))
+                println(time.addDays("2024-01-01", -1))
+                println(time.addDays("2024-02-30", 1))
+                println(time.addDays("garbage", 1))
+                println(time.diffDays("2024-01-01", "2024-03-01"))
+                println(time.diffDays("2024-03-01", "2024-01-01"))
+                println(time.diffDays("x", "y"))
+            }
+            """;
+        assertEquals("2024-02-29\n2023-03-01\n2025-01-01\n2023-12-31\n\n\n60\n-60\n0",
+                runJvm(tempDir, src,
+                        "2024-02-29\n2023-03-01\n2025-01-01\n2023-12-31\n\n\n60\n-60\n0"));
+        Path gateSrc = tempDir.resolve("Gate.kf");
+        Files.writeString(gateSrc, src);
+        for (Target t : new Target[]{Target.JS, Target.NATIVE}) {
+            CompilationResult r = new CompilerDriver().compile(gateSrc, tempDir.resolve("gate-" + t), t);
+            assertFalse(r.success(), t + " deve rejeitar addDays/diffDays (TIME002)");
+            boolean hasTime002 = r.diagnostics().getDiagnostics().stream()
+                    .anyMatch(d -> "TIME002".equals(d.code())
+                            && d.severity() == Diagnostic.Severity.ERROR);
+            assertTrue(hasTime002, t + " deve reportar TIME002, veio: "
+                    + r.diagnostics().getDiagnostics());
+        }
+    }
 }

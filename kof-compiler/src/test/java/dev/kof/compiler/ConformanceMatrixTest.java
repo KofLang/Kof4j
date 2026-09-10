@@ -377,6 +377,22 @@ class ConformanceMatrixTest {
                     println(time.daysBetween(2023, 2, 29, 2023, 3, 1))
                 }
                 """, "true\nfalse\ntrue\nfalse\n29\n28\n30\n0\n4\n3\n0\n60\n-60\n0", Set.of(), tempDir);
+        // STDLIB S7a — addDays/diffDays em data ISO (String). JVM+Script
+        // (java.time); Native/JS = TIME002 (gate honesto no compile-time —
+        // skipped aqui; o erro é provado em KofTimeE2ETest).
+        matrix("stdtime2", """
+                main() {
+                    println(time.addDays("2024-02-28", 1))
+                    println(time.addDays("2023-02-28", 1))
+                    println(time.addDays("2024-12-31", 1))
+                    println(time.addDays("2024-01-01", -1))
+                    println(time.addDays("2024-02-30", 1))
+                    println(time.addDays("garbage", 1))
+                    println(time.diffDays("2024-01-01", "2024-03-01"))
+                    println(time.diffDays("2024-03-01", "2024-01-01"))
+                    println(time.diffDays("x", "y"))
+                }
+                """, "2024-02-29\n2023-03-01\n2025-01-01\n2023-12-31\n\n\n60\n-60\n0", Set.of("native", "js"), tempDir);
     }
 
     @Test
