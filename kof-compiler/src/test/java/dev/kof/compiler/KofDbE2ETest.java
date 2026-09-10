@@ -246,6 +246,37 @@ class KofDbE2ETest {
         runNative(source, tempDir.resolve("out"), "caught\n{\"n\":0}");
     }
 
+    // §78 (irmão asm do §77) — aninhamento no Native: o bloco transaction
+    // interno NESTA MESMA conexão NÃO comita (participa da transação externa).
+    // Antes, o commit interno confirmava as linhas da externa e o rollback
+    // posterior não as desfazia ({"n":2} — garantia transacional quebrada).
+    @Test
+    void nativeNestedTransactionDoesNotCommitOuterScope(@TempDir Path tempDir) throws IOException {
+        assumeTrue(isLinux(), "Native transaction requires Linux + libsqlite3");
+        Path source = tempDir.resolve("Native.kf");
+        Files.writeString(source, """
+            main() {
+                var db = db.connect("sqlite:%s/txn.db")
+                db.execute(db, "create table if not exists t(x int)")
+                db.execute(db, "delete from t")
+                try {
+                    transaction {
+                        db.execute(db, "insert into t values (1)")
+                        transaction {
+                            db.execute(db, "insert into t values (2)")
+                        }
+                        throw "abort outer transaction"
+                    }
+                } catch (String e) {
+                    println("caught")
+                }
+                var rows = db.query(db, "select count(*) as n from t")
+                println(rows.get(0))
+            }
+            """.formatted(tempDir));
+        runNative(source, tempDir.resolve("out"), "caught\n{\"n\":0}");
+    }
+
     @Test
     void connectWithCredentials(@TempDir Path tempDir) throws IOException {
         Path source = tempDir.resolve("Main.kf");
