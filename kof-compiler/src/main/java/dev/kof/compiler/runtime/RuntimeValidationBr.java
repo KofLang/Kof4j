@@ -324,6 +324,132 @@ public final class RuntimeValidationBr {
                 popq %r12
                 popq %rbx
                 ret
+
+            # kof_validation_formatCep(rdi=str) -> String (S12)
+            # 8 dígitos => DDDDD-DDDD; senão (incl. null) => original (no-op).
+            .globl kof_validation_formatCep
+            .type kof_validation_formatCep, @function
+            kof_validation_formatCep:
+                pushq %rbx
+                pushq %r12
+                subq $32, %rsp           # buf[16] em (%rsp); 2 pushes + 32 = 16-align
+                movq %rdi, %rbx
+                movq %rsp, %rsi
+                call kof_br_digits       # eax = count (null => 0)
+                cmpl $8, %eax
+                jne .Lv_br_fcep_orig
+                movl $34, %edi           # 9+25
+                call kof_alloc
+                movq %rax, %r12
+                movl $1, (%r12)
+                movl $0, 4(%r12)
+                movq $0, 8(%r12)
+                movl $9, 16(%r12)
+                movl $0, 20(%r12)
+                movzbl 0(%rsp), %eax
+                addl $48, %eax
+                movb %al, 24(%r12)
+                movzbl 1(%rsp), %eax
+                addl $48, %eax
+                movb %al, 25(%r12)
+                movzbl 2(%rsp), %eax
+                addl $48, %eax
+                movb %al, 26(%r12)
+                movzbl 3(%rsp), %eax
+                addl $48, %eax
+                movb %al, 27(%r12)
+                movzbl 4(%rsp), %eax
+                addl $48, %eax
+                movb %al, 28(%r12)
+                movb $45, 29(%r12)       # '-'
+                movzbl 5(%rsp), %eax
+                addl $48, %eax
+                movb %al, 30(%r12)
+                movzbl 6(%rsp), %eax
+                addl $48, %eax
+                movb %al, 31(%r12)
+                movzbl 7(%rsp), %eax
+                addl $48, %eax
+                movb %al, 32(%r12)
+                movb $0, 33(%r12)
+                movq %r12, %rax
+                jmp .Lv_br_fcep_done
+            .Lv_br_fcep_orig:
+                movq %rbx, %rax
+            .Lv_br_fcep_done:
+                addq $32, %rsp
+                popq %r12
+                popq %rbx
+                ret
+
+            # kof_validation_formatCpf(rdi=str) -> String (S12)
+            # 11 dígitos => DDD.DDD.DDD-DD; senão (incl. null) => original.
+            # Formata SEM validar (dígitos quaisquer) — paridade JVM/JS.
+            .globl kof_validation_formatCpf
+            .type kof_validation_formatCpf, @function
+            kof_validation_formatCpf:
+                pushq %rbx
+                pushq %r12
+                subq $32, %rsp           # buf[16] em (%rsp); 2 pushes + 32 = 16-align
+                movq %rdi, %rbx
+                movq %rsp, %rsi
+                call kof_br_digits       # eax = count (null => 0)
+                cmpl $11, %eax
+                jne .Lv_br_fcpf_orig
+                movl $39, %edi           # 14+25
+                call kof_alloc
+                movq %rax, %r12
+                movl $1, (%r12)
+                movl $0, 4(%r12)
+                movq $0, 8(%r12)
+                movl $14, 16(%r12)
+                movl $0, 20(%r12)
+                movzbl 0(%rsp), %eax
+                addl $48, %eax
+                movb %al, 24(%r12)
+                movzbl 1(%rsp), %eax
+                addl $48, %eax
+                movb %al, 25(%r12)
+                movzbl 2(%rsp), %eax
+                addl $48, %eax
+                movb %al, 26(%r12)
+                movb $46, 27(%r12)       # '.'
+                movzbl 3(%rsp), %eax
+                addl $48, %eax
+                movb %al, 28(%r12)
+                movzbl 4(%rsp), %eax
+                addl $48, %eax
+                movb %al, 29(%r12)
+                movzbl 5(%rsp), %eax
+                addl $48, %eax
+                movb %al, 30(%r12)
+                movb $46, 31(%r12)       # '.'
+                movzbl 6(%rsp), %eax
+                addl $48, %eax
+                movb %al, 32(%r12)
+                movzbl 7(%rsp), %eax
+                addl $48, %eax
+                movb %al, 33(%r12)
+                movzbl 8(%rsp), %eax
+                addl $48, %eax
+                movb %al, 34(%r12)
+                movb $45, 35(%r12)       # '-'
+                movzbl 9(%rsp), %eax
+                addl $48, %eax
+                movb %al, 36(%r12)
+                movzbl 10(%rsp), %eax
+                addl $48, %eax
+                movb %al, 37(%r12)
+                movb $0, 38(%r12)
+                movq %r12, %rax
+                jmp .Lv_br_fcpf_done
+            .Lv_br_fcpf_orig:
+                movq %rbx, %rax
+            .Lv_br_fcpf_done:
+                addq $32, %rsp
+                popq %r12
+                popq %rbx
+                ret
         """);
     }
 }

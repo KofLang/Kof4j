@@ -57,6 +57,11 @@ public final class KofValidation {
                     ? new ValidationCall("kof_validation_max", BOOL, List.of(INT, INT)) : null;
             // S5 (STDLIB): documentos BR — dígitos extraídos (não-dígitos
             // ignorados), algoritmos de dígito verificador módulo 11.
+            // S12 (STDLIB): pontuação BR — 11 dígitos => DDD.DDD.DDD-DD (CPF),
+            // 8 => DDDDD-DDDD (CEP); null/fora-de-11/8 => original (no-op,
+            // nunca lança — face leniente da lane, idêntico a isCpf/isCep).
+            case "formatCpf", "formatCep" -> argc == 1
+                    ? new ValidationCall("kof_validation_" + name, STR, List.of(STR)) : null;
             case "isCpf", "isCnpj", "isCep", "isPis" -> argc == 1
                     ? new ValidationCall("kof_validation_" + name, BOOL, List.of(STR)) : null;
             // S6a (STDLIB): predicados de rede — dotted-quad / MAC (6 hex com

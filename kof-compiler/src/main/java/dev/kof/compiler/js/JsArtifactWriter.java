@@ -44,6 +44,8 @@ public class JsArtifactWriter {
                     java.nio.file.StandardOpenOption.APPEND);
             Files.writeString(core, JsRuntimeUiCrypto.UI_CRYPTO_RUNTIME,
                     java.nio.file.StandardOpenOption.APPEND);
+            Files.writeString(core, JsRuntimeUiValidation.UI_VALIDATION_RUNTIME,
+                    java.nio.file.StandardOpenOption.APPEND);
             Files.writeString(core, JsRuntimeUiStdlib.STDLIB_RUNTIME,
                     java.nio.file.StandardOpenOption.APPEND);
             Files.writeString(core, JsRuntimeUiNet.NET_RUNTIME,

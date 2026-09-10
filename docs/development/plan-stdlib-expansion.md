@@ -43,7 +43,7 @@ briefing aceita ("adapte à arquitetura real"). Então: `math.clamp(...)`,
 | `uuid` | v4 · isUuid · v7 · ulid/isUlid (P1) |
 | `encoding` | base64Encode/Decode · base64UrlEncode/Decode · hexEncode/Decode · urlEncode/Decode |
 | `random` | randomDouble · randomBoolean · randomChoice · randomString · randomBytes (secure split: `random.*` inseguro vs `security.*` seguro — já documentado) |
-| `validation` (ext) | isCpf/formatCpf · isCnpj · isCep/formatCep · isPis/isNis · isIp/isIpv4/isIpv6/isMac/isDomain/isPort · isCreditCard/creditCardBrand/last4 (Luhn) · isStrongPassword/passwordScore |
+| `validation` (ext) | ~~isCpf/formatCpf~~ (formatCpf FEITO S12 09/09, 5 alvos) · isCnpj · ~~isCep/formatCep~~ (formatCep FEITO S12 09/09, 5 alvos) · isPis/isNis · isIp/isIpv4/isIpv6/isMac/isDomain/isPort · isCreditCard/creditCardBrand/last4 (Luhn) · isStrongPassword/passwordScore |
 | `time` (ext) | addDays/addMonths/addYears · daysBetween/hoursBetween · startOf/endOf (day/week/month/year) · isLeapYear · daysInMonth · age · formatDate/parseDate · isToday/isWeekend · today |
 | `net` (novo, P2) | **6 escalares** `net.scheme/host/port/path/query/fragment(STR)->STR` + `queryEncode/queryDecode` — ver §4 (decisão S8, 09/09) |
 | `util` (P2) | debounce/throttle · retry (backoff/jitter) |
@@ -65,6 +65,13 @@ na   (null-safety + throw são o mecanismo).
   UTF-8 codificado à mão em `JsRuntimeUiStdlib`. `uuid` (v4/v7/ulid) segue em S3b.
 - **S5** `random` novo namespace + ext `validation` BR (CPF/CNPJ/CEP/PIS/NIS com
   checksum reutilizável interno — §18 briefing)
+  - **S12 FEITO 09/09:** `validation.formatCpf/formatCep` nos 5 alvos —
+    pontuação BR (11 dígitos => DDD.DDD.DDD-DD; 8 => DDDDD-DDDD; senão
+    original, nunca lança — face leniente; reusa kof_br_digits já portada).
+    x86 RuntimeValidationBr (movl $34/$39, não leal — gas); riscv B12
+    (frame -48: -40 desalinha PS; len em 16, 20=0); aarch traduz; JVM
+    JvmStringValidationRuntime; JS JsRuntimeUiValidation (novo fragmento,
+    Crypto 489/500 sem espaço). KofValidationTest formatBr* (5 alvos).
   - **S11 FEITO 09/09:** `strings.uncapitalize` nos 5 alvos — espelho byte-a-
     byte do capitalize (dispatch único KofStrings; JVM JvmStringWsRuntime, JS
     kofStringsUncapitalize, x86 RuntimeStringsConv derivado, riscv B7, aarch

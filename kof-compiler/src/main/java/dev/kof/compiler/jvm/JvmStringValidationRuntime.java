@@ -122,6 +122,36 @@ public final class JvmStringValidationRuntime {
                     return d.length == 8;
                 }
 
+                // formatCpf (S12): 11 dígitos -> DDD.DDD.DDD-DD; senão original
+                // (no-op, nunca lança — face leniente, paridade com isCpf).
+                public static String kof_validation_formatCpf(String s) {
+                    if (s == null) return null;
+                    int[] d = kof_br_digits(s);
+                    if (d.length != 11) return s;
+                    StringBuilder o = new StringBuilder(14);
+                    for (int i = 0; i < 3; i++) o.append((char) ('0' + d[i]));
+                    o.append('.');
+                    for (int i = 3; i < 6; i++) o.append((char) ('0' + d[i]));
+                    o.append('.');
+                    for (int i = 6; i < 9; i++) o.append((char) ('0' + d[i]));
+                    o.append('-');
+                    o.append((char) ('0' + d[9]));
+                    o.append((char) ('0' + d[10]));
+                    return o.toString();
+                }
+
+                // formatCep (S12): 8 dígitos -> DDDDD-DDDD; senão original.
+                public static String kof_validation_formatCep(String s) {
+                    if (s == null) return null;
+                    int[] d = kof_br_digits(s);
+                    if (d.length != 8) return s;
+                    StringBuilder o = new StringBuilder(9);
+                    for (int i = 0; i < 5; i++) o.append((char) ('0' + d[i]));
+                    o.append('-');
+                    for (int i = 5; i < 8; i++) o.append((char) ('0' + d[i]));
+                    return o.toString();
+                }
+
                 public static boolean kof_validation_isPis(String s) {
                     int[] d = kof_br_digits(s);
                     if (d.length != 11) return false;
