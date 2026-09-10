@@ -160,15 +160,12 @@ public final class NativeAarch64Translator {
                 return List.of(indent + "scvtf " + dst + ", " + src);
             }
             if (parts.length == 3 && parts[1].equals("d") && (parts[2].equals("l") || parts[2].equals("w"))) {
-                // fcvt.d.l/w (int->double): aarch scvtf dN, X/Wm
-                String[] args = rest.split(",");
-                String src = parts[2].equals("w") ? "w" + R.apply(args[1].trim()).substring(1) : R.apply(args[1].trim());
-                return List.of(indent + "scvtf d" + args[0].trim().substring(1) + ", " + src);
+                String[] a = rest.split(","); // fcvt.d.l/w int->double (bug 82: faltava)
+                String src = parts[2].equals("w") ? "w" + R.apply(a[1].trim()).substring(1) : R.apply(a[1].trim());
+                return List.of(indent + "scvtf d" + a[0].trim().substring(1) + ", " + src);
             }
             if (parts.length == 3 && (parts[1].equals("s") || parts[1].equals("d")) && (parts[2].equals("s") || parts[2].equals("d"))) {
-                // RV fcvt.<dst>.<src> fd,fs (dest=parts[1]). CORRIGIDO 10/09
-                // (bug 82): antes trocava dst/src ('fcvt d0, s0' -> 'fcvt s0,
-                // d0') — truncava silencioso todo F2D/D2F no aarch64.
+                // RV fcvt.<dst>.<src> (dest=parts[1]); bug 82: dst/src trocados.
                 String[] args = rest.split(",");
                 String dst = parts[1].equals("s") ? "s" + args[0].trim().substring(1) : "d" + args[0].trim().substring(1);
                 String src = parts[2].equals("s") ? "s" + args[1].trim().substring(1) : "d" + args[1].trim().substring(1);
