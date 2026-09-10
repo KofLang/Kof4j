@@ -222,8 +222,9 @@ class ConformanceMatrixTest {
                     println(strings.isLowerCase("Abc"))
                     println(strings.count("aabaabaa", "ab"))
                     println(strings.count("aaa", "aa"))
+                    println(strings.isAlpha("Hello") == true)
                 }
-                """, "true\nfalse\nfalse\ntrue\nfalse\nfalse\ntrue\nfalse\ntrue\ntrue\ntrue\nfalse\ntrue\nfalse\n2\n1", Set.of(), tempDir);
+                """, "true\nfalse\nfalse\ntrue\nfalse\nfalse\ntrue\nfalse\ntrue\ntrue\ntrue\nfalse\ntrue\nfalse\n2\n1\ntrue", Set.of(), tempDir);
         // STDLIB S2b — kof.strings conversores (alocam String). ASCII-only:
         // é onde JVM/Native/JS concordam byte a byte. capitalize é ASCII
         // (mesma regra nos 4); reverse é byte-reverso no Native e UTF-16
