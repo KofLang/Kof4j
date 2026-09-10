@@ -142,8 +142,12 @@ class KofTimeE2ETest {
                     println(time.daysBetween(2024, 1, 1, 2024, 3, 1))
                     println(time.daysBetween(2024, 3, 1, 2024, 1, 1))
                     println(time.daysBetween(2023, 2, 29, 2023, 3, 1))
+                    println(time.isWeekend(2026, 9, 12))
+                    println(time.isWeekend(2026, 9, 13))
+                    println(time.isWeekend(2026, 9, 9))
+                    println(time.isWeekend(2026, 2, 30))
                 }
-                """, "true\nfalse\ntrue\nfalse\nfalse\n29\n28\n30\n0\n0\n4\n3\n1\n5\n0\n60\n-60\n0");
+                """, "true\nfalse\ntrue\nfalse\nfalse\n29\n28\n30\n0\n0\n4\n3\n1\n5\n0\n60\n-60\n0\ntrue\ntrue\nfalse\nfalse");
     }
 
     @Test
@@ -156,8 +160,10 @@ class KofTimeE2ETest {
                     println(time.daysInMonth(2023, 2))
                     println(time.daysInMonth(2024, 13))
                     println(time.daysInMonth(0, 5))
+                    println(time.isWeekend(2026, 9, 12))
+                    println(time.isWeekend(2026, 9, 9))
                 }
-                """, "true\nfalse\n29\n28\n0\n0");
+                """, "true\nfalse\n29\n28\n0\n0\ntrue\nfalse");
     }
 
     @Test
@@ -173,8 +179,10 @@ class KofTimeE2ETest {
                     println(time.daysInMonth(2024, 4))
                     println(time.daysInMonth(2024, 12))
                     println(time.daysInMonth(2024, 13))
+                    println(time.isWeekend(2024, 2, 25))
+                    println(time.isWeekend(2024, 2, 29))
                 }
-                """, "true\nfalse\ntrue\nfalse\n29\n28\n30\n31\n0");
+                """, "true\nfalse\ntrue\nfalse\n29\n28\n30\n31\n0\ntrue\nfalse");
     }
 
     @Test
@@ -205,6 +213,13 @@ class KofTimeE2ETest {
                     assert(time.daysBetween(2020, 2, 28, 2020, 3, 1) == 2)
                     assert(time.daysBetween(2023, 2, 29, 2023, 3, 1) == 0)
                     assert(time.daysBetween(2024, 1, 1, 10000, 1, 1) == 0)
+                    assert(time.isWeekend(2026, 9, 12))
+                    assert(time.isWeekend(2026, 9, 13))
+                    assert(!time.isWeekend(2026, 9, 9))
+                    assert(!time.isWeekend(2026, 9, 7))
+                    assert(!time.isWeekend(2026, 2, 30))
+                    assert(time.isWeekend(2024, 2, 25))
+                    assert(!time.isWeekend(2024, 2, 29))
                 }
                 """;
         if (has("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64")) {

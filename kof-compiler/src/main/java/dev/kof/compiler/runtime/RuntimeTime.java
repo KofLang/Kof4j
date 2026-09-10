@@ -393,6 +393,23 @@ public final class RuntimeTime {
                 popq %rbx
                 ret
 
+            # kof_time_isWeekend(edi=year, esi=month, edx=day) -> 0/1 (S7-ext)
+            # Wrapper: dayOfWeek >= 6 (ISO 1=seg..7=dom). Data inválida => 0
+            # => false (gating automático). Sem frame (args em regs, dayOfWeek
+            # preserva tudo).
+            .globl kof_time_isWeekend
+            .type kof_time_isWeekend, @function
+            kof_time_isWeekend:
+                call kof_time_dayOfWeek
+                cmpl $6, %eax
+                jl .Lwk_false
+            .Lwk_true:
+                movl $1, %eax
+                ret
+            .Lwk_false:
+                xorl %eax, %eax
+                ret
+
             # kof_time_daysBetween(rdi..r9 = y1,m1,d1,y2,m2,d2) -> Int | 0
             .globl kof_time_daysBetween
             .type kof_time_daysBetween, @function

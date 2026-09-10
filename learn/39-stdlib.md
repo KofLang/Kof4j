@@ -136,6 +136,17 @@ println(id.length)              // 36
 
 Não-determinístico por natureza: os testes travam **forma**, não igualdade.
 
+## time — isWeekend (S7-ext)
+
+```kof
+time.isWeekend(2026, 9, 12)   // true  — sábado
+time.isWeekend(2026, 9, 9)    // false — quarta
+time.isWeekend(2026, 2, 30)   // false — data inválida (dayOfWeek => 0)
+```
+
+`dayOfWeek(y,m,d) >= 6` (ISO 1=segunda..7=domingo). Wrapper puro nos 5 alvos —
+reusa a máquina de calendário; data inválida cai em `false` automaticamente.
+
 ## validation — formatCpf / formatCep (S12)
 
 ```kof

@@ -42,7 +42,9 @@ public final class KofTime {
             case "sleep", "now", "interval", "cancel",
                     // STDLIB S7-wedge: calendário civil (escalares puros —
                     // dias entre datas e dia-da-semana chegam no próximo degrau)
-                    "isLeapYear", "daysInMonth", "dayOfWeek", "daysBetween" -> true;
+                    "isLeapYear", "daysInMonth", "dayOfWeek", "daysBetween",
+                    // S7-ext: fim de semana (dayOfWeek >= 6)
+                    "isWeekend" -> true;
             default -> false;
         };
     }
@@ -91,6 +93,10 @@ public final class KofTime {
                     ? new TimeCall("kof_time_daysInMonth", INT, List.of(INT, INT)) : null;
             case "dayOfWeek" -> argTypes.size() == 3
                     ? new TimeCall("kof_time_dayOfWeek", INT, List.of(INT, INT, INT)) : null;
+            // S7-ext (STDLIB): isWeekend — dayOfWeek>=6 (ISO 1=seg..7=dom).
+            // Data inválida => dayOfWeek 0 => false (gating automático, paridade 4).
+            case "isWeekend" -> argTypes.size() == 3 && argTypes.get(0) == INT
+                    ? new TimeCall("kof_time_isWeekend", BOOL, List.of(INT, INT, INT)) : null;
             case "daysBetween" -> argTypes.size() == 6
                     ? new TimeCall("kof_time_daysBetween", INT,
                             List.of(INT, INT, INT, INT, INT, INT)) : null;

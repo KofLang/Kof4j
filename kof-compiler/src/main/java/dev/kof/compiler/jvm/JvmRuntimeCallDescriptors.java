@@ -239,6 +239,7 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_time_isLeapYear" -> "(I)Z";
             case "kof_time_daysInMonth" -> "(II)I";
             case "kof_time_dayOfWeek" -> "(III)I";
+            case "kof_time_isWeekend" -> "(III)Z";
             case "kof_time_daysBetween" -> "(IIIIII)I";
             case "kof_time_now" -> "()J";
             case "kof_time_interval" -> "(ILjava/lang/Object;)Ljava/lang/String;";

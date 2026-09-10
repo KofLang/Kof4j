@@ -112,6 +112,25 @@ public final class NativeRiscvAsmRtB14 {
                 addi sp, sp, 32
                 ret
 
+            # kof_time_isWeekend(a0=year, a1=month, a2=day) -> 0/1 (S7-ext)
+            # Wrapper: dayOfWeek >= 6 (ISO 1=seg..7=dom). Data inválida => 0
+            # => false (gating automático). Salva ra (call clobbera ra — lição:
+            # wrapper riscv SEMPRE salva o ra do chamador, ou ret entra em loop).
+            .globl kof_time_isWeekend
+            kof_time_isWeekend:
+                addi sp, sp, -16
+                sd   ra, 8(sp)
+                call kof_time_dayOfWeek
+                ld   ra, 8(sp)
+                addi sp, sp, 16
+                li   t0, 6
+                blt  a0, t0, .Lv_wk_false
+                li   a0, 1
+                ret
+            .Lv_wk_false:
+                li   a0, 0
+                ret
+
             # kof_time_daysBetween(a0..a5 = y1,m1,d1,y2,m2,d2) -> Int | 0
             .globl kof_time_daysBetween
             kof_time_daysBetween:

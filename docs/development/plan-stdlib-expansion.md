@@ -44,7 +44,7 @@ briefing aceita ("adapte à arquitetura real"). Então: `math.clamp(...)`,
 | `encoding` | base64Encode/Decode · base64UrlEncode/Decode · hexEncode/Decode · urlEncode/Decode |
 | `random` | randomDouble · randomBoolean · randomChoice · randomString · randomBytes (secure split: `random.*` inseguro vs `security.*` seguro — já documentado) |
 | `validation` (ext) | ~~isCpf/formatCpf~~ (formatCpf FEITO S12 09/09, 5 alvos) · isCnpj · ~~isCep/formatCep~~ (formatCep FEITO S12 09/09, 5 alvos) · isPis/isNis · isIp/isIpv4/isIpv6/isMac/isDomain/isPort · isCreditCard/creditCardBrand/last4 (Luhn) · isStrongPassword/passwordScore |
-| `time` (ext) | addDays/addMonths/addYears · daysBetween/hoursBetween · startOf/endOf (day/week/month/year) · isLeapYear · daysInMonth · age · formatDate/parseDate · isToday/isWeekend · today |
+| `time` (ext) | addDays/addMonths/addYears · daysBetween/hoursBetween · startOf/endOf (day/week/month/year) · isLeapYear · daysInMonth · age · formatDate/parseDate · isToday/~~isWeekend~~ (FEITO S7-ext 09/09, 5 alvos) · today |
 | `net` (novo, P2) | **6 escalares** `net.scheme/host/port/path/query/fragment(STR)->STR` + `queryEncode/queryDecode` — ver §4 (decisão S8, 09/09) |
 | `util` (P2) | debounce/throttle · retry (backoff/jitter) |
 
@@ -65,6 +65,15 @@ na   (null-safety + throw são o mecanismo).
   UTF-8 codificado à mão em `JsRuntimeUiStdlib`. `uuid` (v4/v7/ulid) segue em S3b.
 - **S5** `random` novo namespace + ext `validation` BR (CPF/CNPJ/CEP/PIS/NIS com
   checksum reutilizável interno — §18 briefing)
+  - **S7-ext FEITO 09/09:** `time.isWeekend(y,m,d)` nos 5 alvos — wrapper
+    `dayOfWeek >= 6` (ISO 1=seg..7=dom; data inválida => dayOfWeek 0 => false,
+    gating automático). JVM JvmTimeRuntime + descritor (III)Z (não I —
+    boolean real; NoSuchMethodError descoberto no E2E); JS kofTimeIsWeekend
+    (wrapper em JsRuntimeUiWeb); x86 wrapper `call kof_time_dayOfWeek` +
+    cmpl $6; riscv B14 wrapper — LIÇÃO: wrapper riscv SEMPRE salva `ra`
+    (jalr do call clobbera ra → ret volta ao próprio corpo = loop infinito;
+    isolado via qemu -d in_asm); aarch traduz. KofTimeE2ETest calendar*
+    estendidos (JVM/JS/x86 println + cross assert).
   - **S12 FEITO 09/09:** `validation.formatCpf/formatCep` nos 5 alvos —
     pontuação BR (11 dígitos => DDD.DDD.DDD-DD; 8 => DDDDD-DDDD; senão
     original, nunca lança — face leniente; reusa kof_br_digits já portada).
