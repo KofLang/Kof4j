@@ -114,8 +114,8 @@ Implementations:
 public enum Target {
     JVM,
     NATIVE,          // x86_64 stable (free-list + kof_gc_collect, pthread spawn 31/08)
-    NATIVE_RISCV64,  // native.risc: toolchain riscv64 (codegen x86_64 placeholder via qemu)
-    NATIVE_AARCH64,  // native.arm: toolchain aarch64 (codegen x86_64 placeholder via qemu)
+    NATIVE_RISCV64,  // native.risc: lowering riscv64 real (NativeBackend.emitRiscv) + toolchain riscv64 + qemu
+    NATIVE_AARCH64,  // native.arm: tradução do riscv64 (translateRiscvToAarch64) + toolchain aarch64 + qemu
     JS,              // alpha (GraalJS)
     ANDROID          // Fase 1: projeto Maven + APK (bytecode JVM + host Activity em Kof)
 }
@@ -239,8 +239,8 @@ ELF binary
 
 Targets (0.2.6-beta, 31/08):
 - `native` (x86_64) **stable**: ELF x86_64, syscalls, free-list allocator (`kof_free_head`; mark-sweep pendente, auto-GC desativado — memória devolvida só no `munmap` fallback), strings/lists/JSON (objetos/records + arrays FP, 31/08), exceptions with unwinding, `spawn`/`await` via `pthread_create` + trampoline + `pthread_join` com allocator thread-safe (futex) — CONC001 (31/08), FP real em XMM (`vcvtsi2sd`/`mulsd`, dtoa via `snprintf`) — FLT001, `kof_db_mysql_scramble` + wire protocol em progresso
-- `native.risc` (riscv64) **toolchain + placeholder**: `riscv64-linux-gnu-as/ld` + qemu; codegen ainda x86_64
-- `native.arm` (aarch64) **toolchain + placeholder**: `aarch64-linux-gnu-as/ld` + qemu; codegen ainda x86_64
+- `native.risc` (riscv64) **real**: lowering riscv64 (`NativeBackend.emitRiscv`); `riscv64-linux-gnu-as/ld` + qemu
+- `native.arm` (aarch64) **real**: tradução do riscv64 (`translateRiscvToAarch64`); `aarch64-linux-gnu-as/ld` + qemu
 
 Current capabilities (x86_64):
 - Record structs with fields, constructors, accessors, inheritance 3 levels, virtual dispatch via vtable

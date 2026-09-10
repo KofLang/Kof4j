@@ -372,39 +372,49 @@ Não duplicados aqui — ver [known-bugs.md](known-bugs.md):
 
 ## Categoria E — Documentação desatualizada (docs ≠ código)
 
-### SG-E1 — `docs/architecture.md` chama riscv64/aarch64 de "placeholder x86_64"
+### SG-E1 — `docs/architecture.md` chama riscv64/aarch64 de "placeholder x86_64" — ✅ CORRIGIDO 10/09 (residual)
 
 - **Doc** (`architecture.md:40-46,97-98`): "codegen ainda x86_64 (placeholder)".
-- **Código**: `NativeBackend.emitRiscv` (`:1947`) é lowering riscv64 **real**;
-  aarch64 via `translateRiscvToAarch64` (`:8200`). `docs/status.md:668,737`
-  confirma "core completo".
-- **Problema**: a arquitetura está **1 versão desatualizada** (0.2.6 → 0.3.0).
-- **Recomendação**: atualizar `architecture.md` (feito parcialmente em
-  [compiler-architecture.md](compiler-architecture.md); o arquivo antigo deve
-  apontar para o novo).
+- **Código**: `NativeBackend.emitRiscv` é lowering riscv64 **real**;
+  aarch64 via `translateRiscvToAarch64`.
+- **CORRIGIDO 10/09:** o cabeçalho do doc já tinha a nota de correção de
+  06/09; os residuais ("codegen x86_64 placeholder via qemu" no enum Target
+  e a seção de targets 0.2.6) foram atualizados para lowering real.
+  Verificação: grep "placeholder" em `docs/architecture.md` agora só
+  aparece na nota histórica de correção (que explica o porquê).
 
-### SG-E2 — `docs/language-state.md` data 02/09, versão 0.2.6-beta
+### SG-E2 — `docs/language-state.md` data 02/09, versão 0.2.6-beta — ✅ CORRIGIDO 10/09
 
-- Conta 810 testes; hoje são **969**. Versão 0.2.6; hoje 0.3.0.
-- **Recomendação**: regenerar ou marcar como snapshot histórico.
+- Contava 810 testes; hoje são **1270** (kof-compiler só). Versão 0.2.6;
+  hoje 0.3.0.
+- **CORRIGIDO 10/09:** marcado como **SNAPSHOT HISTÓRICO** (nota no topo
+  apontando para `docs/status.md`, `docs/language-reference/` e
+  `specification-gaps.md` como fontes correntes). Regenerar o doc seria
+  duplicar o status.md — snapshot honesto é melhor que cópia derivada que
+  apodrece.
 
-### SG-E3 — `docs/architecture.md` lista "KofC Backend" como backend da IR
+### SG-E3 — `docs/architecture.md` lista "KofC Backend" como backend da IR — ✅ CORRIGIDO (06/09) / verificado 10/09
 
-- **Doc**: mostra `KofC Backend` no pipeline consumindo a IR.
+- **Doc antigo**: mostrava `KofC Backend` no pipeline consumindo a IR.
 - **Código**: `KofCCompiler` **não** implementa `Backend` nem consome
   `IRModule` — é um compilador C-subset separado (`kof-c-compiler`).
-- **Recomendação**: corrigir o diagrama (o pipeline de IR tem 3 backends:
-  JVM/Native/JS; Android é JVM+empacotamento).
+- **Verificado 10/09:** o diagrama do pipeline em `docs/architecture.md`
+  mostra os 3 backends da IR (JvmRuntime/NativeRuntime/JsBackend) e
+  `KofCcompiler` está seção própria, sem relação com a IR;
+  `docs/compiler-architecture.md` tabela "É / Não é" já diz explicitamente
+  "KofC **não é** backend da IR Kof". Fechado sem código novo.
 
 ---
 
 ## Resumo
 
 - **20 gaps SG-00x** (A: contradições doc/código; B: comportamento não
-  especificado).
+  especificado). **Fila do maintainer (2ª rodada, 10/09) COMPLETA:**
+  SG-008 ✅, SG-005 ✅, SG-009 ✅, SG-020 ✅ — ver histórico em cada seção.
 - **8 divergências de target** (C).
-- **3 docs desatualizados** (E).
-- **5 bugs** (D, já em known-bugs).
+- **3 docs desatualizados** (E) — **todos ✅** (E1 residual 10/09, E2
+  snapshot 10/09, E3 verificado).
+- **5 bugs** (D, já em known-bugs) — 29/30/31/32/33 ✅ corrigidos.
 
 **Nenhum foi corrigido na linguagem** — esta tarefa é de documentação. Cada
 item B/C que envolve mudança de semântica é **decisão de design** (regra 6:

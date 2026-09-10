@@ -762,7 +762,7 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 - **Prova/repro:** caso `nested-try` (sweep manual 06/09).
 - **Corrigido 07/09 (JVM/Native):** o corpo do catch agora usa um sub-escopo de locals (`subList(0, pos-do-catch-corrente)`) — com try aninhado de catch de MESMO nome, o local do catch interno sobrescrevia o externo no findLocalVar. Prova: `CoreRegressionE2ETest.rethrowInNestedTry` (JVM). ⚠️ JS: gap SEPARADO — try aninhado com catch gera `KofCatchStart` que o KofJS não suporta (COMP002); pré-existente, registrar como gap.
 
-### 39. `println(m.get("zz"))` (null de Map) → NPE/unbox errado nos 2 caminhos — ABERTO
+### 39. `println(m.get("zz"))` (null de Map) → NPE/unbox errado nos 2 caminhos — ✅ CORRIGIDO 10/09 (SG-008/bug 87, decisão do maintainer)
 
 - **Sintoma:** `var m = mapOf("a", 1); println(m.get("zz"))`: compilado →
   `NullPointerException` (escolheu overload `println(int)` e deu unbox de
@@ -776,7 +776,16 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   VerifyError. A nullability de primitivos (congelada, AGENTS.md R6) exige
   decidir o narrowing do `==` (e dos demais consumidores) antes — requer bump
   de versão + discussão, não correção silenciosa.
-- **Prova/repro:** caso `map-null-val` (sweep manual 06/09).
+- **CORRIGIDO 10/09 (decisão do maintainer aplicada — ver §87):** `Map.get()`
+  devolve `V?` para TODO V (4 typers/lowerers + pin `K,V` via
+  `SymbolTable.updateLocalType`); `T? == x` sem NPE (desembrulho Nullable +
+  primitivo boxado + guard-unbox nos 4 caminhos: interpretador/JVM/Native/JS).
+  O caso `m.get(k) == 1` da reversão de 07/09 compila (o `1` é boxado,
+  `if_acmpeq` — retrocompat preservada).
+- **Prova:** repro §39 no MESMO programa (`println(m.get("zz"))` = `null` E
+  `m.get("a") == 1` = `true`); paridade 4 targets (BackendParity +
+  ConformanceMatrix + KofScript); suíte 1255/0 na época. Ver §87 para o
+  registro completo.
 
 ### 40. `n += 1` em campo de instância → crash nos 2 caminhos — ✅ CORRIGIDO 07/09
 
