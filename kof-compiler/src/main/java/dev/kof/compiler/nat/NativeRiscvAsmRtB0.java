@@ -8,52 +8,9 @@ public final class NativeRiscvAsmRtB0 {
     private NativeRiscvAsmRtB0() {}
 
     static final String RISCV_RUNTIME_ASM_B_0 = """
-            # kof_string_to_int(str) -> Int
-            .globl kof_string_to_int
-            kof_string_to_int:
-                addi sp, sp, -48
-                sd   ra, 40(sp)
-                sd   s0, 32(sp)
-                sd   s1, 24(sp)
-                sd   s2, 16(sp)
-                sd   s3, 8(sp)
-                mv   s0, a0
-                li   s1, 0
-                li   s2, 0
-                li   a0, 0
-                lw   s3, 16(s0)
-                beqz s3, .Lsti_done
-                lbu  t0, 24(s0)
-                li   t1, 45
-                bne  t0, t1, .Lsti_loop
-                li   s2, 1
-            .Lsti_loop:
-                bge  s1, s3, .Lsti_sign
-                addi t0, s0, 24
-                add  t0, t0, s1
-                lbu  t0, 0(t0)
-                addi t0, t0, -48
-                li   t1, 9
-                bgt  t0, t1, .Lsti_skip
-                li   t1, 0
-                blt  t0, t1, .Lsti_skip
-                li   t1, 10
-                mul  a0, a0, t1
-                add  a0, a0, t0
-            .Lsti_skip:
-                addi s1, s1, 1
-                j    .Lsti_loop
-            .Lsti_sign:
-                beqz s2, .Lsti_done
-                neg  a0, a0
-            .Lsti_done:
-                ld   s0, 32(sp)
-                ld   s1, 24(sp)
-                ld   s2, 16(sp)
-                ld   s3, 8(sp)
-                ld   ra, 40(sp)
-                addi sp, sp, 48
-                ret
+            # kof_string_to_int MOVIDO p/ B30 (bug 79 U3: contrato JDK
+            # c/ trim+digito-a-digito+overflow->throw; este corpo silencioso
+            # era "abc"=0 / "12a34"=1234 — divergente do JVM).
 
             # ---- List (typeId@0 super@4 vtable@8 len@16 cap@20 data@24) ----
             .globl kof_list_new

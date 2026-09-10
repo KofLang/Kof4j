@@ -1775,12 +1775,69 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   LIÇÃO do port: o imediato `$-9223372036854775808` não cabe em cmp
   sign-extended do gas — o bloco final de comparação com MIN é redundante
   quando o guard por-dígito usa `limit=MIN` (removido).
-- **PENDENTE (U3):** riscv64/aarch64 seguem divergentes (`"abc"→0`,
-  `"12a34"→1234`; `toLong` nem existe no runtime riscv — link quebra, gap
-  adicional medido 10/09); a correção vai para B0 riscv (throw nativo já
-  existe: `NativeRiscvAsmRt0:323`) + rotina `to_long` nova.
+- **Correção (riscv/aarch) FEITA 10/09 (U3):** `NativeRiscvAsmRtB0` perdeu o
+  `kof_string_to_int` silencioso; os dois parseadores agora vivem numa fatia
+  NOVA (`NativeRiscvAsmRtB30`, montada via template String.format) com o MESMO
+  algoritmo do x86 (trim, +/-, dígito-a-dígito, acumulação negativa,
+  kof_string_from_literal+kof_throw_string). aarch64 herda por tradução.
+  `toLong` riscv **criado** (antes: link quebrava — undefined reference).
+  PROVA: 16 vetores golden idênticos JVM==x86==riscv-qemu==aarch-qemu
+  (KofStringParseTest + riscv64/aarch64StringToInt estendidos). B30 abre a
+  seção com `.section .text` (armadilha conhecida) e fecha `.section .data`
+  (msg) — verificado com `riscv64-linux-gnu-as` na fatia isolada.
+- **Divergência irmã descoberta e travada:** `println(Long.MIN_VALUE)` no
+  riscv/aarch imprime lixo → registrado como **bug 80** (printer, não parse —
+  o parse retorna MIN exato, provado por `(w - v) == 1`). E `toLong` no JS é
+  `Number` (double 53-bit): overflow ±2^53 não lança → **bug 81** (design do
+  modelo numérico, congelado — golden do teste JS limita-se a ±2^53).
   Menor repro: `main() { try { println("abc".toInt()) } catch (String e) { println("THREW") } }` —
   JVM/JS/x86 imprimem `THREW`; riscv/aarch imprimem `0`.
+
+### 80. riscv64/aarch64: `println(Long.MIN_VALUE)` imprime lixo (Int.MIN ok) — ABERTO (lane Native; achado 10/09 pela varredura da STDLIB)
+
+- **Sintoma:** `var m = -(9223372036854775807 + 1); println(m)`: JVM/x86 →
+  `-9223372036854775808`; riscv64 e aarch64 → `-'..--).0-*(+,))+(0(` (bytes
+  fora de ASCII). `println(-2147483648)` (Int.MIN) e `println` de qualquer
+  outro long (inclusive MIN+1, MAX) estão corretos nos 2.
+- **Causa raiz:** `NativeRiscvAsmRt0` define
+  `kof_long_to_string: j kof_int_to_string` (alias). O `kof_int_to_string` é
+  RV64 e faz `neg s0, s0` p/ magnitude. Para `Int.MIN` (= -2^31, sign-extended
+  a 64 bits) o `neg` dá +2^31 — ok. Para `Long.MIN` (= -2^63) o `neg` é
+  **auto-referente** (magnitude continua negativa) → o laço de contagem e o
+  `rem`/`div` **signed** produzem restos negativos; `addi t3,48` cai abaixo de
+  '0' → bytes de lixo. (É a técnica de Int.MIN funcionar "por acaso" só em 64
+  bits.)
+- **Por que ninguém viu:** o único exercício de Long nos cross-arch é
+  `42/0/-7` (válidos, magnitude positiva). Long.MIN não é testado em riscv/aarch.
+- **Prova/repro:** harness GenU, arquivo `prn.kf` (`main(){ var big
+  = 9223372036854775807; var m = -(big+1); println(m) }`) → riscv-qemu e
+  aarch-qemu imprimem lixo; JVM e x86 nativo imprimem o valor. Isolado do bug
+  79: `"-9223372036854775808".toLong()` **retorna** MIN exato nos 3 (provado
+  via `("-9223372036854775807".toLong() - v) == 1` → true nos 3); só a
+  IMPRESSÃO falha.
+- **Fix (lane Native, ~6 linhas):** magnitude em aritmética **unsigned** para
+  o caso negativo (o valor é 2^63, só cabe como magnitude sem sinal) — no
+  laço usar `divu`/`remu` (RV64) sobre `s5` tratado como unsigned, OU imprimir
+  `Long.MIN` como caso especial (escrever "-9223372036854775808" direto). Antes
+  de tocar, verificar se o tradutor aarch (`NativeAarch64Translator`) já tem
+  `divu`/`remu` → `udiv`/`umull`-seq; se não, a opção caso-especial é mais
+  segura. Registrado da varredura do bug 79 (não é da unidade de parse).
+
+### 81. KofJS: `Long` é `Number` (double 53-bit) — `"...".toLong()` acima de ±2^53 perde precisão e NÃO lança overflow — ABERTO (paridade R5 cross-target)
+
+- **Sintoma:** `println("9007199254740993".toLong())` no JS → `9007199254740992`
+  (arredondado); `println("12345678901234567890".toLong())` → notação
+  exponencial; e o overflow além de `Number.MAX_SAFE_INTEGER` **não** lança
+  (o JVM/Native/Script lançam exceção por contrato `Long.parseLong`).
+  Medido 10/09 ao escrever o `KofStringParseTest` (JS `toLong`).
+- **Causa raiz:** `JsRuntimeUiStdlib:314` — `Number(s)` (IEEE-754 double); o
+  comentário no fonte já assume "sem BigInt". É decisão do **modelo numérico JS**
+  (congelado, regra 6), não do parser do bug 79.
+- **Não-corrigível silenciosamente:**BigInt no GraalJS rodaria, mas trocar o
+  tipo de `Long` em JS é mudança de contrato (narrowing/`==`/println) → nota de
+  design, não edição. Por ora a matriz `stdparse` (linha bug 79) cobre `toInt`
+  nos 5 e `toLong` com golden JVM/Native; o teste JS limita-se a ±2^53
+  (documentado no próprio `KofStringParseTest`).
 
 ### 62. Constant pool: Float/Double armazenados como bits crus (parser de migração) — ✅ CORRIGIDO 08/09
 

@@ -443,9 +443,22 @@ class NativeRiscv64E2ETest {
                 println("42".toInt())
                 println("-7".toInt())
                 println("0".toInt())
+                try { println("abc".toInt()); println("S1") } catch (String e) { println("T1") }
+                try { println("12a34".toInt()); println("S2") } catch (String e) { println("T2") }
+                println(" -42 ".toInt())
+                println("+7".toInt())
+                println("-2147483648".toInt())
+                try { println("2147483648".toInt()); println("S3") } catch (String e) { println("T3") }
+                try { println("999999999999".toInt()); println("S4") } catch (String e) { println("T4") }
+                println("1234567890".toLong())
+                println("-9223372036854775807".toLong())
+                try { println("9223372036854775808".toLong()); println("S5") } catch (String e) { println("T5") }
+                var v = "-9223372036854775808".toLong()
+                println(v < 0)
+                println(("0".toLong()) == 0)
             }
             """);
-        assertEquals("42\n-7\n0", out);
+        assertEquals("42\n-7\n0\nT1\nT2\n-42\n7\n-2147483648\nT3\nT4\n1234567890\n-9223372036854775807\nT5\ntrue\ntrue", out);
     }
 
     // NATIVE002-stdlib: Map/Set no cross (port linear-scan do x86_64) —
