@@ -219,7 +219,30 @@ class ConformanceMatrixTest {
                     println(math.sqrt(-1.0) == -1.0)
                     println(math.sqrt(-1.0) != math.sqrt(-1.0))
                 }
-                """, "true\ntrue\ntrue\ntrue\nfalse\ntrue", Set.of("script"), tempDir);
+                 """, "true\ntrue\ntrue\ntrue\nfalse\ntrue", Set.of("script"), tempDir);
+        // STDLIB S1b.1 — kof.math escalares Double (lerp/percentage/
+        // isInteger/isDecimal). Subset determinístico travado nos 4 targets
+        // (NaN excluído — bug 94 no interpretador; provado só nos compilados
+        // em KofMathTest.doubleOps*). Bool == false no script casa (S12b).
+        matrix("stdmath2", """
+                main() {
+                    println(math.lerp(0.0, 10.0, 0.5) == 5.0)
+                    println(math.lerp(0.0, 10.0, 0.25) == 2.5)
+                    println(math.lerp(-4.0, 4.0, 0.75) == 2.0)
+                    println(math.lerp(2.0, 8.0, 1.5) == 11.0)
+                    println(math.percentage(3.0, 4.0) == 75.0)
+                    println(math.percentage(1.0, 3.0) == 33.33333333333333)
+                    println(math.percentage(-2.0, 8.0) == -25.0)
+                    println(math.percentage(0.0, 5.0) == 0.0)
+                    println(math.isInteger(4.0))
+                    println(math.isInteger(4.5) == false)
+                    println(math.isInteger(-3.0))
+                    println(math.isInteger(0.0))
+                    println(math.isInteger(1e20))
+                    println(math.isDecimal(4.5))
+                    println(math.isDecimal(4.0) == false)
+                }
+                """, "true\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue", Set.of(), tempDir);
         // STDLIB S2a — kof.strings predicados paridade total nos 4 targets.
         matrix("stdstrings", """
                 main() {

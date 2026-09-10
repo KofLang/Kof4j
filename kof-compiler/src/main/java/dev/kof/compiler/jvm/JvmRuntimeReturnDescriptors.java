@@ -135,6 +135,8 @@ public final class JvmRuntimeReturnDescriptors {
                     "kof_math_max", "kof_math_isEven", "kof_math_isOdd", "kof_math_isPositive",
                     "kof_math_isNegative", "kof_math_isZero", "kof_strings_isAlpha", "kof_strings_isNumeric", "kof_strings_isAlphaNumeric", "kof_strings_isAscii" -> "I";
             case "kof_math_sqrt" -> "D";
+            case "kof_math_lerp", "kof_math_percentage" -> "D";
+            case "kof_math_isInteger", "kof_math_isDecimal" -> "I";
             case "kof_strings_isUpperCase", "kof_strings_isLowerCase",
                     "kof_strings_count" -> "I";
             case "kof_strings_capitalize", "kof_strings_uncapitalize", "kof_strings_reverse", "kof_strings_toCamelCase",

@@ -18,12 +18,19 @@ math.abs(x)  math.sign(x)
 math.min(a, b)  math.max(a, b)     // aritmético; ≠ validation.min/max (predicado de tamanho)
 math.isEven(x) math.isOdd(x) math.isPositive(x) math.isNegative(x) math.isZero(x)
 math.sqrt(2.0)                          // Double; -1.0 => NaN (IEEE); riscv/aarch = MATH001
+math.lerp(0.0, 10.0, 0.5)               // a + (b - a) * t — interpolação linear (S1b.1)
+math.percentage(3.0, 4.0)               // 75.0; total == 0 => NaN (nunca lança) (S1b.1)
+math.isInteger(4.0)                     // true; 4.5/NaN/Inf => false (S1b.1)
+math.isDecimal(4.5)                     // !isInteger (S1b.1)
 ```
 
-Double: `math.sqrt(x)` existe (S1b, 10/09 — primeiro Double da namespace;
+Double: `math.sqrt(x)` (S1b) + `lerp`/`percentage`/`isInteger`/`isDecimal`
+(S1b.1, 10/09 — escalares Double **puros**, sem libm) existem em
 JVM/Script/JS/x86; NaN em <0 = IEEE; riscv64/aarch64 = `MATH001`, não
-compila). `lerp`/`percentage`/`roundTo`/`parse*`/`pow` ficam em degrau
-próprio — **não invente** esses ainda: não compilam.
+compilam. Os args são **Double explícitos** — `math.lerp(0, 10, 0.5)` (Int)
+**não** compila (SEM025; sem widening silencioso). `roundTo`/`parse*`/`pow`
+ficam em degrau próprio — **não invente** esses ainda: não compilam (`pow`
+precisa de decisão de link libm; `roundTo` de floor asm).
 
 ## strings — predicados e conversores (S2)
 
@@ -156,6 +163,7 @@ porque `dayOfWeek` dá 0).
 | uuid.v4 | ✅ | ✅ | ✅ (SECN000 fechado 09/09) | ✅ |
 | uuid.isUuid (forma 8-4-4-4-12; version/variant não verificadas) | ✅ | ✅ | ✅ (B25, UUID001 fechado no merge beta→main 10/09) | ✅ |
 | math.sqrt (S1b — primeiro Double; NaN em <0 = IEEE) | ✅ | ✅ | ❌ `MATH001` | ✅ |
+| math.lerp/percentage/isInteger/isDecimal (S1b.1 — SSE2 puro, sem libm) | ✅ | ✅ | ❌ `MATH001` | ✅ |
 | random.randomInt/randomBoolean/randomString (face beta S10a/b) | ✅ | ✅ | ✅ (B27/B28, getrandom/lemire) | ✅ |
 | random.double/boolean/int/hex (face main S10) | ✅ | ✅ | ✅ (B27) | ✅ |
 

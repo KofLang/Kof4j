@@ -145,6 +145,74 @@ public final class RuntimeMath {
             kof_math_sqrt:
                 sqrtsd %xmm0, %xmm0
                 ret
+
+            # S1b.1: escalares Double puros (SSE2 — sem libm). Args chegam
+            # como 8 bits crus em rdi/rsi/rdx (pilha 1-slot do generic path);
+            # retorno = bits crus em rax (o generic path faz pushq %rax).
+            # lerp(a,b,t) = a+(b-a)*t — mesma ordem do JVM/JS (dsub/dmul/dadd).
+            .globl kof_math_lerp
+            .type kof_math_lerp, @function
+            kof_math_lerp:
+                movq %rdi, %xmm0                 # a
+                movq %rsi, %xmm1                 # b
+                movq %rdx, %xmm2                 # t
+                subsd %xmm0, %xmm1               # b-a
+                mulsd %xmm2, %xmm1               # (b-a)*t
+                addsd %xmm1, %xmm0               # a+...
+                movq %xmm0, %rax
+                ret
+
+            # percentage(part,total) = part/total*100.0 — ordem div-then-mul
+            # igual JVM/JS. 0/0 => NaN em todos (IEEE). 100.0 = 0x4059000...0
+            # em constante imediata (sem .rodata — RuntimeMath é concatenado
+            # no meio do .text; trocar de seção aqui arrastaria os runtimes
+            # seguintes p/ .rodata).
+            .globl kof_math_percentage
+            .type kof_math_percentage, @function
+            kof_math_percentage:
+                movq %rdi, %xmm0                 # part
+                movq %rsi, %xmm1                 # total
+                divsd %xmm1, %xmm0
+                movabsq $0x4059000000000000, %rax
+                movq %rax, %xmm1
+                mulsd %xmm1, %xmm0
+                movq %xmm0, %rax
+                ret
+
+            # isInteger(v): exp==0x7ff (NaN/Inf) => 0; exp>=0x433 (|v|>=2^52,
+            # finito) => 1; senão trunc==v. floor vs trunc: equivalente p/
+            # igualdade (não-inteiro nenhum dos dois casa). 1/0 em eax.
+            .globl kof_math_isInteger
+            .type kof_math_isInteger, @function
+            kof_math_isInteger:
+                movq %rdi, %xmm0
+                movq %xmm0, %rax
+                movq %rax, %rdx
+                shrq $52, %rdx
+                andl $0x7ff, %edx
+                cmpl $0x7ff, %edx
+                je .Lv_mathii_false
+                cmpl $0x433, %edx
+                jae .Lv_mathii_true
+                cvttsd2si %xmm0, %rdx
+                cvtsi2sdq %rdx, %xmm1
+                ucomisd %xmm1, %xmm0
+                jp .Lv_mathii_false
+                jne .Lv_mathii_false
+            .Lv_mathii_true:
+                movl $1, %eax
+                ret
+            .Lv_mathii_false:
+                xorl %eax, %eax
+                ret
+
+            # isDecimal(v) = !isInteger(v)
+            .globl kof_math_isDecimal
+            .type kof_math_isDecimal, @function
+            kof_math_isDecimal:
+                call kof_math_isInteger
+                xorl $1, %eax
+                ret
         """);
     }
 }

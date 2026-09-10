@@ -37,11 +37,17 @@ math.isPositive(4)    // true   (0 não é positivo)
 math.isNegative(4)    // false
 math.isZero(0)        // true
 math.sqrt(16.0)       // 4.0  — PRIMEIRO Double (S1b); -1.0 => NaN
+math.lerp(0.0, 10.0, 0.5)     // 5.0  — a + (b - a) * t   (S1b.1)
+math.percentage(3.0, 4.0)     // 75.0 — total 0 => NaN, nunca lança (S1b.1)
+math.isInteger(4.0)           // true;  4.5/NaN/Inf => false (S1b.1)
+math.isDecimal(4.5)           // true;  !isInteger (S1b.1)
 ```
 
-Os inteiros ficam acima; `sqrt` é o primeiro `Double` da namespace
-(JVM/Script/JS/x86; riscv64/aarch64 = `MATH001`, não compila). `lerp`/
-`roundTo`/`parse*`/`pow` ficam em degrau próprio, com as mesmas garantias.
+Os inteiros ficam acima; `sqrt`/`lerp`/`percentage`/`isInteger`/`isDecimal`
+são os `Double` da namespace (JVM/Script/JS/x86; riscv64/aarch64 = `MATH001`,
+não compilam). Os argumentos são **Double explícitos** — `math.lerp(0, 10,
+0.5)` não compila (SEM025; sem widening silencioso). `roundTo`/`parse*`/`pow`
+ficam em degrau próprio, com as mesmas garantias.
 
 ## strings — predicados, conversores e palavras
 

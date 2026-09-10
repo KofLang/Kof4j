@@ -50,15 +50,30 @@ public final class KofMath {
             // cross-assembler/qemu p/ montar+rodar — regra: nunca asm sem prova).
             case "sqrt" -> argc == 1 && isDouble(argTypes.get(0))
                     ? new MathCall("kof_math_sqrt", DOUBLE, List.of(DOUBLE)) : null;
+            // S1b.1: escalares Double puros (SSE2 — sem libm, sem floor).
+            // lerp/percentage: sub/mul/add/divsd. isInteger/isDecimal:
+            // NaN→false, Inf→false, |x|>=2^52→true (finite big = integer),
+            // senão x==trunc(x). Guard de tipo: args Double explícitos
+            // (Int não alarga em silêncio — SEM025, R6).
+            case "lerp" -> argc == 3 && isDouble(argTypes.get(0))
+                    && isDouble(argTypes.get(1)) && isDouble(argTypes.get(2))
+                    ? new MathCall("kof_math_lerp", DOUBLE, List.of(DOUBLE, DOUBLE, DOUBLE)) : null;
+            case "percentage" -> argc == 2 && isDouble(argTypes.get(0)) && isDouble(argTypes.get(1))
+                    ? new MathCall("kof_math_percentage", DOUBLE, List.of(DOUBLE, DOUBLE)) : null;
+            case "isInteger", "isDecimal" -> argc == 1 && isDouble(argTypes.get(0))
+                    ? new MathCall("kof_math_" + name, BOOL, List.of(DOUBLE)) : null;
             default -> null;
         };
     }
 
-    /** S1 (Int) em todos os targets; S1b sqrt = JVM/Script/JS/x86, gate
-     * MATH001 nos cross (sem cross-assembler na lane — prova impossível). */
+    /** S1 (Int) + S1b (Double) em todos os targets; sqrt/lerp/percentage/
+     * isInteger/isDecimal = JVM/Script/JS/x86, gate MATH001 nos cross
+     * (sem cross-assembler na lane — prova impossível). */
     static boolean supportedOn(String function, Target target) {
-        if ("kof_math_sqrt".equals(function)
-                && (target == Target.NATIVE_RISCV64 || target == Target.NATIVE_AARCH64)) {
+        boolean fp = function.equals("kof_math_sqrt") || function.equals("kof_math_lerp")
+                || function.equals("kof_math_percentage")
+                || function.equals("kof_math_isInteger") || function.equals("kof_math_isDecimal");
+        if (fp && (target == Target.NATIVE_RISCV64 || target == Target.NATIVE_AARCH64)) {
             return false;
         }
         return true;

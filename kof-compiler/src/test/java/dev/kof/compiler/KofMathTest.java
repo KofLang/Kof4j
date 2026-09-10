@@ -108,15 +108,71 @@ class KofMathTest {
 
     @Test
     void sqrtGatedOnCrossArch(@TempDir Path tmp) throws Exception {
-        // MATH001 (R6 — nunca silencioso): sqrt tem JVM/Script/JS/x86 (sqrtsd);
-        // riscv64/aarch64 aguardam fsqrt.d montado+rodado (a lane não tem
-        // cross-assembler/qemu — regra: nunca asm sem prova).
-        Path gateSrc = tmp.resolve("SqrtGate-" + System.nanoTime() + ".kf");
-        Files.writeString(gateSrc, SQRT_SRC);
+        assertGated(tmp, SQRT_SRC, "sqrt");
+    }
+
+    // S1b.1: escalares Double puros (lerp/percentage/isInteger/isDecimal) —
+    // paridade byte-idêntica JVM/Script/JS/x86 (harness SSE2 isolado 18/18
+    // antes desta classe). Golden travado no oracle JVM medido (P.java/O.java
+    // da sessão), nunca de memória: 2.675-style não entra (roundTo fica no
+    // degrau seguinte). NaN via percentage(0,0) — IEEE, != != em todos.
+    private static final String DBL_SRC = """
+        main() {
+            println(math.lerp(0.0, 10.0, 0.5) == 5.0)
+            println(math.lerp(0.0, 10.0, 0.25) == 2.5)
+            println(math.lerp(-4.0, 4.0, 0.75) == 2.0)
+            println(math.lerp(2.0, 8.0, 1.5) == 11.0)
+            println(math.percentage(3.0, 4.0) == 75.0)
+            println(math.percentage(1.0, 3.0) == 33.33333333333333)
+            println(math.percentage(-2.0, 8.0) == -25.0)
+            println(math.percentage(0.0, 5.0) == 0.0)
+            println(math.percentage(0.0, 0.0) != math.percentage(0.0, 0.0))
+            println(math.isInteger(4.0))
+            println(math.isInteger(4.5) == false)
+            println(math.isInteger(-3.0))
+            println(math.isInteger(0.0))
+            println(math.isInteger(1e20))
+            println(math.isDecimal(4.5))
+            println(math.isDecimal(4.0) == false)
+            println(math.isInteger(1.0 / 0.0) == false)
+            println(math.isDecimal(1.0 / 0.0))
+        }
+        """;
+
+    private static final String DBL_OUT = String.join("\n",
+            "true", "true", "true", "true", "true", "true", "true", "true", "true",
+            "true", "true", "true", "true", "true", "true", "true", "true", "true");
+
+    @Test
+    void doubleOpsJvm(@TempDir Path tmp) throws Exception {
+        runJvm(tmp, DBL_SRC, DBL_OUT);
+    }
+
+    @Test
+    void doubleOpsNative(@TempDir Path tmp) throws Exception {
+        runNative(tmp, DBL_SRC, DBL_OUT);
+    }
+
+    @Test
+    void doubleOpsJs(@TempDir Path tmp) throws Exception {
+        runJs(tmp, DBL_SRC, DBL_OUT);
+    }
+
+    @Test
+    void doubleOpsGatedOnCrossArch(@TempDir Path tmp) throws Exception {
+        assertGated(tmp, DBL_SRC, "lerp");
+    }
+
+    private void assertGated(@TempDir Path tmp, String src, String label) throws Exception {
+        // MATH001 (R6 — nunca silencioso): Double ops têm JVM/Script/JS/x86
+        // (sqrtsd + SSE2); riscv64/aarch64 aguardam as rotinas FP montadas e
+        // rodadas (a lane não tem cross-assembler/qemu — regra: nunca asm sem prova).
+        Path gateSrc = tmp.resolve("Gate-" + label + "-" + System.nanoTime() + ".kf");
+        Files.writeString(gateSrc, src);
         for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
             CompilationResult r = new CompilerDriver().compile(
                     gateSrc, tmp.resolve("gate-" + t + "-" + System.nanoTime()), t);
-            assertFalse(r.success(), t + " deve rejeitar sqrt (MATH001)");
+            assertFalse(r.success(), t + " deve rejeitar " + label + " (MATH001)");
             boolean has = r.diagnostics().getDiagnostics().stream()
                     .anyMatch(d -> "MATH001".equals(d.code())
                             || (d.message() != null && d.message().contains("MATH001")));
