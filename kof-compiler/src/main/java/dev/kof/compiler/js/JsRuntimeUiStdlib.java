@@ -254,6 +254,14 @@ final class JsRuntimeUiStdlib {
             export function kofRandomBool() {
                 return kofRandByte() & 1;
             }
+            // S10b: n chars, cada um uniforme do alfabeto (reusa kofRandomInt).
+            // Borda leniente: n<=0 OU alfabeto nulo/vazio => "".
+            export function kofRandomString(n, alphabet) {
+                if (n <= 0 || alphabet == null || alphabet.length === 0) return "";
+                let out = "";
+                for (let i = 0; i < n; i++) out += alphabet.charAt(kofRandomInt(alphabet.length));
+                return out;
+            }
             // ── kof.encoding (STDLIB S4.2b) — percent-encoding (RFC 3986) ──
             const KOF_ENC_HEX = "0123456789ABCDEF";
             export function kofEncodingUrlEncode(v) {

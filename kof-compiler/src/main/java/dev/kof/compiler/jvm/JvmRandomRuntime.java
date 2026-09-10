@@ -27,6 +27,16 @@ public final class JvmRandomRuntime {
                 public static boolean kof_random_bool() {
                     return KOF_SEC_RANDOM.nextBoolean();
                 }
+
+                public static String kof_random_string(int n, String alphabet) {
+                    if (n <= 0 || alphabet == null || alphabet.length() == 0) return "";
+                    int len = alphabet.length();
+                    StringBuilder sb = new StringBuilder(n);
+                    for (int i = 0; i < n; i++) {
+                        sb.append(alphabet.charAt(KOF_SEC_RANDOM.nextInt(len)));
+                    }
+                    return sb.toString();
+                }
 """;
     }
 }

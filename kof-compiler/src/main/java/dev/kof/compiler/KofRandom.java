@@ -14,10 +14,16 @@ import java.util.List;
  * (o tradutor aarch64 não tem {@code divu}); distribuição uniforme o
  * suficiente para uso não-críptográfico (shuffle, sorteio, teste).
  *
- * <p>{@code randomDouble}/{@code randomBytes}/{@code randomChoice} ficam para
- * S10b: double exige o primeiro caminho de ponto-flutuante no runtime
- * cross-arch (FLT gate), bytes/choice alocam tipos que o backend asm puro
- * ainda não devolve (array / objeto de List indexado).
+ * <p>S10b: {@code randomString(Int n, String alphabet)} — n chars, cada um
+ * uniforme do alfabeto (reusa randomInt). Semântica de borda (mesma face
+ * leniente): n<=0 OU alfabeto nula/vazia → "". (O plano lista alphabet
+ * opcional; a forma explícita é a que os 5 backends portam agora — a
+ * sobrecarga com default é aditiva e trivial sobre esta.)
+ *
+ * <p>{@code randomDouble} fica S1b (FLT001: probe 09/09 — nem {@code 1.5*2.0}
+ * compila em riscv64/aarch64; double não existe no asm puro).
+ * {@code randomBytes}/{@code randomChoice} (retorno Array/objeto — sem
+ * precedente em stdlib, decisão de design) ficam S10c.
  */
 public final class KofRandom {
 
@@ -25,6 +31,7 @@ public final class KofRandom {
 
     private static final Type INT = Type.PrimitiveType.INT;
     private static final Type BOOL = Type.PrimitiveType.BOOL;
+    private static final Type STR = BuiltinTypes.STRING;
 
     static final List<String> NAMESPACES = List.of("random");
 
@@ -40,14 +47,17 @@ public final class KofRandom {
                     ? new RandomCall("kof_random_int", INT, List.of(INT)) : null;
             case "randomBoolean" -> argTypes.isEmpty()
                     ? new RandomCall("kof_random_bool", BOOL, List.of()) : null;
+            case "randomString" -> argTypes.size() == 2 && argTypes.get(0) == INT
+                    && argTypes.get(1) == STR
+                    ? new RandomCall("kof_random_string", STR, List.of(INT, STR)) : null;
             default -> null;
         };
     }
 
     /**
-     * S10a: as duas funções só precisam de getrandom (fatia B25 já portada) +
-     * aritmética inteira — rodam nos 5 alvos sem gate. FLT (double) e
-     * alocação (bytes/choice) chegam S10b com gate honesto próprio.
+     * S10a+S10b: getrandom (fatia B25/B27) + aritmética inteira + String
+     * (machine kof_sec_random_hex x86 / B25 riscv) — rodam nos 5 alvos sem
+     * gate. FLT (double) chega S1b; alocação (bytes/choice) S10c.
      */
     static boolean supportedOn(String function, Target target) {
         return true;

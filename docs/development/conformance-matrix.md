@@ -83,6 +83,19 @@
 > tolerante, spec única do x86/JVM/JS; `KofEncodingTest.base64RunsOnCrossArch`
 > prova riscv+aarch sob qemu) rodam nos 3 nativos + JVM + JS + Script.
 | stdlib kof.uuid (S3b: v4 — não-determinístico, SEM caso de matriz) | shape `xxxxxxxx-xxxx-4xxx-[89ab]xxx-xxxxxxxxxxxx` | ✅ assert | ✅ assert¹ | ✅ | ✅ assert (+riscv/aarch qemu) | `KofUuidTest` 4/4 |
+| stdlib kof.random (S10a/b — não-determinístico, SEM caso de matriz) | contrato `0<=randomInt(b)<b` / `randomBoolean∈{0,1}` / `randomString: len==n, chars∈alphabet` + bordas lenientes (`b<=0→0`, `n<=0 ou alphabet vazio→""`) | ✅ assert | ✅ assert | ✅ | ✅ assert (+riscv/aarch qemu) | `KofRandomTest` 8/8 |
+
+> `random.*` não entra na matriz equality (entropia — mesma razão do uuid):
+> paridade provada por ASSERTS DE CONTRATO nos 5 alvos (JVM SecureRandom, JS
+> kof_platform/crypto, x86/riscv/aarch getrandom(2)). **S10a 09/09**:
+> `randomInt` (x86 alias de `kof_sec_random_int`; riscv B27 Lemire-reduced
+> `raw²>>>31 % bound` sem loop de rejeição — o tradutor aarch não tem `divu`)
+> + `randomBoolean`. **S10b 09/09**: `randomString(n, alphabet)` (borda
+> leniente `""` = precedentes x86 `repeat` / riscv B25). Entropia só do SO
+> (R11); split `random.*` inseguro vs `security.*` seguro é do plano.
+> `randomDouble` fica S1b (FLT001: probe 09/09 — double não existe no asm
+> riscv/aarch); `randomBytes`/`randomChoice` ficam S10c (retorno Array/objeto
+> sem precedente na camada de dispatch).
 
 > `uuid.v4()` não entra na matriz equality (entropia): paridade provada por
 > ASSERTS DE SHAPE nos 3 targets testáveis (JVM/Native-x86/JS: length=36,

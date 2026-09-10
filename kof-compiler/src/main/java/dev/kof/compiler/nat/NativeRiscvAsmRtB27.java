@@ -43,7 +43,10 @@ public final class NativeRiscvAsmRtB27 {
                 j    .Lr_int_done
             .Lr_int_zero:                    # bound <= 0 -> 0 (leniente)
                 mv   a0, zero
-            .Lr_int_fail:                    # getrandom falhou -> 0 (sem fraco)
+            .Lr_int_fail:                    # getrandom falhou -> 0 (sem fraco
+                                            # — paridade x86/JVM/JS; antes
+                                            # caia em done com a0=-errno!)
+                mv   a0, zero
             .Lr_int_done:
                 ld   s0, 16(sp)
                 addi sp, sp, 32

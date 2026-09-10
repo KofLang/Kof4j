@@ -70,6 +70,53 @@ class KofRandomTest {
         }
     }
 
+    /** S10b: randomString(n, alphabet) — contrato: len==n + chars do alfabeto. */
+    private static final String STRING_SRC = """
+        main() {
+            var s = random.randomString(8, "abc")
+            assert(s.length == 8)
+            var i = 0
+            while (i < 8) {
+                var c = s.charAt(i)
+                if (c != 97 && c != 98 && c != 99) { throw "char fora: " + s }
+                i = i + 1
+            }
+            assert(random.randomString(0, "abc") == "")
+            assert(random.randomString(-3, "abc") == "")
+            assert(random.randomString(4, "") == "")
+            assert(random.randomString(3, "x") == "xxx")
+            var t = random.randomString(16, "0123456789abcdef")
+            assert(t.length == 16)
+            println("OK")
+        }
+        """;
+
+    @Test
+    void randomStringJvm(@TempDir Path tmp) throws Exception {
+        runJvm(tmp, STRING_SRC);
+    }
+
+    @Test
+    void randomStringJs(@TempDir Path tmp) throws Exception {
+        runJs(tmp, STRING_SRC);
+    }
+
+    @Test
+    void randomStringNative(@TempDir Path tmp) throws Exception {
+        runNative(tmp, STRING_SRC);
+    }
+
+    @Test
+    void randomStringCrossArch(@TempDir Path tmp) throws Exception {
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            String[] tools = t == Target.NATIVE_RISCV64
+                    ? new String[]{"riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64"}
+                    : new String[]{"aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"};
+            assumeToolchain(tools);
+            runQemu(tmp, t, STRING_SRC);
+        }
+    }
+
     private void assumeToolchain(String... tools) {
         for (String c : tools) {
             try {

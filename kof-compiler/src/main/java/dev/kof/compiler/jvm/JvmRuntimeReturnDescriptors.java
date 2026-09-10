@@ -150,6 +150,7 @@ public final class JvmRuntimeReturnDescriptors {
             case "kof_uuid_v4" -> "Ljava/lang/String;";
             // ── kof.random (STDLIB S10a) — Int/Bool ambos "I" no stack ──
             case "kof_random_int", "kof_random_bool" -> "I";
+            case "kof_random_string" -> "Ljava/lang/String;";
             // ── kof.observability (G5) ────────────────────────────────
             case "kof_observability_health", "kof_observability_request_id", "kof_observability_correlation_id",
                     "kof_observability_trace_id", "kof_observability_span_id",
