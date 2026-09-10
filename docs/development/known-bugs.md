@@ -1972,6 +1972,51 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   alvos — **não** é divergência cross; registrar como gap de semântica
   `mapOf()`-vazio (se a mantenedora quiser `null` ali, é decisão SG-00x).
 
+### 89. Native (x86 + cross): conversão numérica de primitivo `n.toDouble()`/`n.toInt()`/`n.toFloat()`/`n.toLong()` quebra o LINK — o idiom documentado é `as` — ABERTO (decisão de design, regra 6; achado 10/09 varredura STDLIB)
+
+- **Sintoma:** `main() { var n = 5; println(n.toDouble() == 5.0) }` falha no
+  link nos 3 nativos — x86: `undefined reference to toDouble`; riscv64/
+  aarch64: idem. **JVM e JS executam certo** (interpretador implementa o
+  método em primitivo — probe `box2.kf`: JVM success=true). A API **existe**
+  e funciona em 2 dos 3 targets; falta só o emit nativo.
+- **Causa raiz:** o backend nativo (`NativeX86Calls.emitCall` /
+  `NativeRiscvCrossOps`) não tem intrínseco p/ conversão numérica de
+  primitivo — o call genérico cai em `call <nome>` sem que NENHUMA runtime
+  defina `toDouble`/`toInt`/`toFloat`/`toLong` (só `String.toDouble` →
+  `kof_string_to_double`, símbolo diferente). O idiom que funciona em TODOS
+  os targets (incluindo cross, exit 0 medido 10/09) é o **cast `as`**:
+  `n as Double`, `d as Int` (AGENTS.md "Cast: x as Char / big as Int";
+  `learn/04`: `Int i = d as Int`) — o `as` lower p/ o intrínseco numérico
+  do backend (I2D/D2I/...) que existe nos 3 nativos.
+- **Por que NÃO é "só implementar" (regra 6 — decisão de design):** p/
+  adicionar o emit nativo de `.toDouble()`/`.toInt()` em primitivo falta a
+  **semântica congelada** da conversão — `3.7.toInt()` deve truncar?
+  arredondar? overflow → throw? — e **nenhum teste e nenhum doc do corpus**
+  pinam o valor em primitivo (só o da `String`, outro contrato: §79/§82).
+  Implementar = inventar API + semântica de arredondamento; o caminho
+  idiomático já existe (`as`). Opções p/ a mantenedora: (a) `.toDouble()`
+  em primitivo vira alias do `as` (definir trunc/round + overflow → throw?)
+  e entra no emit dos 3 nativos; (b) o typer **rejeita** `.toDouble()`/
+  `.toInt()`/`.toFloat()`/`.toLong()` em receiver primitivo com diagnóstico
+  apontando p/ `as` (superfície = corpus); (c) deixar como está (JVM/JS
+  funcionam, nativo quebra no link — divergência R5 honesta, sem gate).
+- **Evidência:** `box2.kf` (`5.toInt()`) — JVM success=true; NATIVE/
+  NATIVE_RISCV64 `undefined reference to toInt`; **pre-existing** (reproduzido
+  em worktree de `9436da12`, anterior ao trabalho da varredura STDLIB — que
+  não tocou X86Calls/typer numérico). `cast.kf` (`as`) — JVM + 3 nativos
+  exit 0 com valores corretos.
+- **Menor repro:** `main() { var n = 5; println(n.toDouble() == 5.0) }` →
+  x86/riscv/aarch `undefined reference to toDouble`; JVM/JS `true`.
+- **Custo da opção (a):** baixo — o emit é o MESMO intrínseco do `as`
+  (I2D/L2D/I2F já existem no backend; `fcvt.d.w`/`fcvt.d.l` funcionando nos
+  3 nativos após o §82); o trabalho é só definir a semântica (trunc vs
+  round vs throw) e rotear o call no `emitCall`. **Custo da (b):** uma
+  rejeição no `MethodCallTyper`/`SemMethodCallTyper` com mensagem apontando
+  p/ o cast `as` — e quebra-retro? (JVM/JS aceitam hoje; rejeitar no typer
+  atinge TODOS os targets — código de usuário que usa `5.toDouble()` no JVM
+  pararia de compilar → é mudança de contrato, bump).
+
+
 ### 62. Constant pool: Float/Double armazenados como bits crus (parser de migração) — ✅ CORRIGIDO 08/09
 
 - **Sintoma:** `kof inspect`/`kof decompile` de um `.class` com constante
