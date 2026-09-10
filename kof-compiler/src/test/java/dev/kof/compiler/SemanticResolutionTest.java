@@ -66,6 +66,13 @@ class SemanticResolutionTest {
                 {"strings", "strings.capitalize()"},           // precisa 1
                 {"validation", "validation.formatCpf(1, 2)"},  // precisa 1
                 {"uuid", "uuid.isUuid()"},                     // precisa 1
+                // Famílias de OUTRAS lanes (varredura R6 10/09 — aditivo,
+                // prova persistida das sondas manuais db.connect()/http.get()/
+                // cache.get()/mq.publish(): nome EXISTE, aridade não casa).
+                {"db", "db.connect()"},                        // precisa ≥1
+                {"http", "http.get()"},                        // precisa ≥1
+                {"cache", "cache.get()"},                      // precisa 1+
+                {"mq", "mq.publish()"},                        // precisa 2
         };
         for (String[] c : cases) {
             CompilationResult r = compile(tmp, c[0] + ".kf", "main() { " + c[1] + " }");
