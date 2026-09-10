@@ -47,6 +47,7 @@
 | `planning-switch-expr.md` | SYN001 ✅ mas doc de planejamento histórico (contrato fechado) | `FEITO` (mantido aqui como histórico) |
 | `planning-finally-return.md` | DD-01: `finally` no caminho `return` (bug 45) — proposta de semântica, aguarda mantenedora | `PROPOSED` |
 | `planning-mutability.md` | DD: mutabilidade/`val` reassign — documento de debate | `PROPOSED` |
+| `planning-stdlib-time-design.md` | DD-STDLIB-02: semântica de tempo restante (fuso/today, assinaturas compostas, hoursBetween, formatDate) — libera só todayIso/formatDateIso se D1-A | `PROPOSED` |
 | `planning-stdlib-array-returns.md` | DD-STDLIB-01: retorno Array/objeto na camada de dispatch stdlib (S10c randomBytes/randomChoice) — recomendação: choice via idiom, bytes decide a mantenedora | `PROPOSED` |
 | `plan-stdlib-expansion.md` | STDLIB universal S1–S10: S1–S8+S10a/b ✅ 09/09; S1b (FLT double) + S10c (DD-STDLIB-01) pendentes | `EM CURSO` |
 | `refactoring/PLAN-SOLID-500.md` | regra ≤500 linhas: Fases 4–8 fechadas, mas F1–3 + 9 com resíduo 502 → 493 | `EM CURSO` |
