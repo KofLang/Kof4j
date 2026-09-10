@@ -62,6 +62,12 @@ final class JsRuntimeUiStdlib {
                 if (c >= 97 && c <= 122) return String.fromCharCode(c - 32) + v.slice(1);
                 return v;
             }
+            export function kofStringsUncapitalize(v) {
+                if (v == null || v.length === 0) return v;
+                const c = v.charCodeAt(0);
+                if (c >= 65 && c <= 90) return String.fromCharCode(c + 32) + v.slice(1);
+                return v;
+            }
             export function kofStringsReverse(v) {
                 if (v == null || v.length === 0) return v;
                 return [...v].reverse().join('');

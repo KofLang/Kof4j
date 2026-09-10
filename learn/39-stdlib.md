@@ -136,6 +136,17 @@ println(id.length)              // 36
 
 Não-determinístico por natureza: os testes travam **forma**, não igualdade.
 
+## strings — uncapitalize (S11)
+
+```kof
+strings.uncapitalize("Hello World")   // "hello World"
+strings.uncapitalize("HELLO")         // "hELLO"
+strings.uncapitalize("1abc")          // "1abc" (1º byte fora de A-Z => original)
+```
+
+Espelho do `capitalize`: só o 1º byte; `A-Z` -> `a-z`; null/`""`/fora-de-A-Z
+=> original. ASCII nos 5 alvos (paridade com a regra S2b do capitalize).
+
 ## random — sorteio com entropia do SO (S10a/b)
 
 ```kof

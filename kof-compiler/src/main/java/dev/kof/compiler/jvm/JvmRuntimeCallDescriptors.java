@@ -342,7 +342,7 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_strings_isAlpha", "kof_strings_isNumeric", "kof_strings_isAlphaNumeric", "kof_strings_isAscii" -> "(Ljava/lang/String;)Z";
             case "kof_strings_isUpperCase", "kof_strings_isLowerCase" -> "(Ljava/lang/String;)Z";
             case "kof_strings_count" -> "(Ljava/lang/String;Ljava/lang/String;)I";
-            case "kof_strings_capitalize", "kof_strings_reverse", "kof_strings_toCamelCase",
+            case "kof_strings_capitalize", "kof_strings_uncapitalize", "kof_strings_reverse", "kof_strings_toCamelCase",
                     "kof_strings_toPascalCase", "kof_strings_toSnakeCase", "kof_strings_toKebabCase",
                     "kof_strings_slugify", "kof_strings_escapeHtml", "kof_strings_unescapeHtml",
                     "kof_strings_escapeJson", "kof_strings_removeWhitespace",

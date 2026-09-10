@@ -39,7 +39,7 @@ briefing aceita ("adapte à arquitetura real"). Então: `math.clamp(...)`,
 | Namespace | Funções novas (P0 primeiro) |
 |---|---|
 | `math` | clamp · sign · abs · isEven/isOdd · isPositive/isNegative/isZero · lerp · percentage · roundTo · isInteger/isDecimal · parseInt/parseLong/parseDouble + OrNull/OrDefault · pow/sqrt |
-| `strings` | capitalize/uncapitalize · toCamelCase/toPascalCase/toSnakeCase/toKebabCase (com HTTPServer/XMLParser) · slugify · truncate · repeat · reverse · count · removeWhitespace/normalizeWhitespace · padLeft/padRight · isNumeric/isInteger/isDecimal/isAlpha/isAlphaNumeric/isUpper/isLower/isAscii · escapeHtml/unescapeHtml/escapeJson · lines/words · indent/dedent |
+| `strings` | ~~capitalize/uncapitalize~~ ✅ (uncapitalize FEITO 09/09 S11, 5 alvos) · toCamelCase/toPascalCase/toSnakeCase/toKebabCase (com HTTPServer/XMLParser) · slugify · truncate · repeat · reverse · count · removeWhitespace/normalizeWhitespace · padLeft/padRight · isNumeric/isInteger/isDecimal/isAlpha/isAlphaNumeric/isUpper/isLower/isAscii · escapeHtml/unescapeHtml/escapeJson · lines/words · indent/dedent |
 | `uuid` | v4 · isUuid · v7 · ulid/isUlid (P1) |
 | `encoding` | base64Encode/Decode · base64UrlEncode/Decode · hexEncode/Decode · urlEncode/Decode |
 | `random` | randomDouble · randomBoolean · randomChoice · randomString · randomBytes (secure split: `random.*` inseguro vs `security.*` seguro — já documentado) |
@@ -65,6 +65,10 @@ na   (null-safety + throw são o mecanismo).
   UTF-8 codificado à mão em `JsRuntimeUiStdlib`. `uuid` (v4/v7/ulid) segue em S3b.
 - **S5** `random` novo namespace + ext `validation` BR (CPF/CNPJ/CEP/PIS/NIS com
   checksum reutilizável interno — §18 briefing)
+  - **S11 FEITO 09/09:** `strings.uncapitalize` nos 5 alvos — espelho byte-a-
+    byte do capitalize (dispatch único KofStrings; JVM JvmStringWsRuntime, JS
+    kofStringsUncapitalize, x86 RuntimeStringsConv derivado, riscv B7, aarch
+    traduzida; KofStringsTest#uncapitalizeAllTargets golden 3 + assert qemu 2).
   - **S10a/b FEITO 09/09:** `randomInt(bound)`/`randomBoolean`/`randomString(n,
     alphabet)` nos 5 alvos (entropia só do SO — getrandom/SecureRandom/crypto;
     x86 alias `kof_sec_random_int`, riscv B27/B28 + aarch translator, JS

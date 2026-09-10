@@ -73,6 +73,67 @@ public final class NativeRiscvAsmRtB7 {
                 addi sp, sp, 48
                 ret
 
+            # kof_strings_uncapitalize(a0=str) -> String — espelho do capitalize
+            # (S2b ASCII): 1º byte A-Z -> a-z; null/""/fora-de-A-Z => original.
+            .globl kof_strings_uncapitalize
+            kof_strings_uncapitalize:
+                addi sp, sp, -48
+                sd   ra, 40(sp)
+                sd   s0, 32(sp)
+                sd   s1, 24(sp)
+                sd   s2, 16(sp)
+                sd   s3, 8(sp)
+                mv   s0, a0              # str original
+                beqz s0, .Lv_str_unc_orig
+                lw   s1, 16(s0)          # len
+                blez s1, .Lv_str_unc_orig
+                # alocar (len+25+15)&-16
+                addi a0, s1, 25
+                addi a0, a0, 15
+                andi a0, a0, -16
+                call kof_alloc
+                mv   s3, a0              # novo obj
+                li   t0, 1
+                sw   t0, 0(s3)
+                li   t0, 0
+                sw   t0, 4(s3)
+                sd   t0, 8(s3)
+                sw   s1, 16(s3)
+                sw   t0, 20(s3)
+                # primeiro byte, possivelmente minusculado
+                lbu  t1, 24(s0)          # s[0]
+                li   t2, 65
+                blt  t1, t2, .Lv_str_unc_put   # < 'A'
+                li   t2, 90
+                bgt  t1, t2, .Lv_str_unc_put   # > 'Z'
+                addi t1, t1, 32          # -> [a-z]
+            .Lv_str_unc_put:
+                sb   t1, 24(s3)
+                # resto: memcpy(novo+25, orig+25, len-1)
+                addi s2, s1, -1          # len-1
+                beqz s2, .Lv_str_unc_term
+                addi a0, s3, 25
+                addi a1, s0, 25
+                mv   a2, s2
+                call kof_memcpy
+            .Lv_str_unc_term:
+                li   t0, 0
+                addi t1, s3, 24
+                add  t1, t1, s1
+                sb   t0, 0(t1)           # NUL
+                mv   a0, s3
+                j    .Lv_str_unc_done
+            .Lv_str_unc_orig:
+                mv   a0, s0
+            .Lv_str_unc_done:
+                ld   ra, 40(sp)
+                ld   s0, 32(sp)
+                ld   s1, 24(sp)
+                ld   s2, 16(sp)
+                ld   s3, 8(sp)
+                addi sp, sp, 48
+                ret
+
             # kof_strings_reverse(a0=str) -> String (byte-reverso, ASCII)
             # null/"" => retorna ponteiro original.
             .globl kof_strings_reverse

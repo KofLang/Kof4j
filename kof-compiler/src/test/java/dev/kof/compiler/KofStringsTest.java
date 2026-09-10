@@ -181,6 +181,42 @@ class KofStringsTest {
         }
     }
 
+    @Test
+    void uncapitalizeAllTargets(@TempDir Path tmp) throws Exception {
+        // S11: uncapitalize = espelho do capitalize (1º byte A-Z->a-z; null/""/
+        // fora-de-A-Z => original). ASCII, paridade byte-a-byte nos 5 alvos.
+        String golden = """
+            main() {
+                println(strings.uncapitalize("Hello World"))
+                println(strings.uncapitalize("HELLO"))
+                println(strings.uncapitalize("1abc"))
+                println(strings.uncapitalize("hello"))
+                println(strings.uncapitalize("") + "|")
+            }
+            """;
+        String expected = "hello World\nhELLO\n1abc\nhello\n|";
+        runJvm(tmp, golden, expected);
+        runJs(tmp, golden, expected);
+        runNative(tmp, golden, expected);
+        String assertSrc = """
+            main() {
+                assert(strings.uncapitalize("Hello World") == "hello World")
+                assert(strings.uncapitalize("HELLO") == "hELLO")
+                assert(strings.uncapitalize("1abc") == "1abc")
+                assert(strings.uncapitalize("hello") == "hello")
+                assert(strings.uncapitalize("") == "")
+            }
+            """;
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            String qemu = t == Target.NATIVE_RISCV64 ? "qemu-riscv64" : "qemu-aarch64";
+            String[] tools = t == Target.NATIVE_RISCV64
+                    ? new String[]{"riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64"}
+                    : new String[]{"aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"};
+            assumeToolchain(tools);
+            runQemu(tmp, t, qemu, assertSrc);
+        }
+    }
+
     private void assumeToolchain(String... tools) {
         for (String c : tools) {
             try {

@@ -47,7 +47,7 @@ public final class KofStrings {
                     ? new StringsCall("kof_strings_" + name, BOOL, List.of(STR)) : null;
             case "count" -> argc == 2
                     ? new StringsCall("kof_strings_count", INT, List.of(STR, STR)) : null;
-            case "capitalize", "reverse", "toCamelCase", "toPascalCase",
+            case "capitalize", "uncapitalize", "reverse", "toCamelCase", "toPascalCase",
                     "toSnakeCase", "toKebabCase", "slugify" -> argc == 1
                     ? new StringsCall("kof_strings_" + name, STR, List.of(STR)) : null;
             // S2b.2: preencher/encurtar (String,Int→String). null=>null;

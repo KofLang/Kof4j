@@ -66,6 +66,59 @@ public final class RuntimeStringsConv {
                 popq %rbx
                 ret
 
+            # kof_strings_uncapitalize(rdi=str) -> String (1º byte A-Z->a-z;
+            # null/""/fora-de-A-Z => original — espelho do capitalize, S2b ASCII)
+            .globl kof_strings_uncapitalize
+            .type kof_strings_uncapitalize, @function
+            kof_strings_uncapitalize:
+                pushq %rbx
+                pushq %r12
+                pushq %r13
+                pushq %r14
+                pushq %r15
+                movq %rdi, %rbx
+                testq %rbx, %rbx
+                jz .Lv_str_unc_ret_orig
+                movl 16(%rbx), %r12d
+                testl %r12d, %r12d
+                jle .Lv_str_unc_ret_orig
+                leal 25(%r12), %edi
+                call kof_alloc
+                movq %rax, %r13            # novo obj
+                movl $1, (%r13)
+                movl $0, 4(%r13)
+                movq $0, 8(%r13)
+                movl %r12d, 16(%r13)
+                movl $0, 20(%r13)
+                movzbl 24(%rbx), %eax
+                cmpl $65, %eax             # 'A'
+                jl .Lv_str_unc_put
+                cmpl $90, %eax            # 'Z'
+                jg .Lv_str_unc_put
+                addl $32, %eax             # -> minúscula
+            .Lv_str_unc_put:
+                movb %al, 24(%r13)
+                # resto: memcpy(novo+25, orig+25, len-1)
+                leaq 25(%r13), %rdi
+                leaq 25(%rbx), %rsi
+                movl %r12d, %edx
+                decl %edx
+                jz .Lv_str_unc_term
+                call kof_memcpy
+            .Lv_str_unc_term:
+                movb $0, 24(%r13,%r12)
+                movq %r13, %rax
+                jmp .Lv_str_unc_done
+            .Lv_str_unc_ret_orig:
+                movq %rbx, %rax
+            .Lv_str_unc_done:
+                popq %r15
+                popq %r14
+                popq %r13
+                popq %r12
+                popq %rbx
+                ret
+
             # kof_strings_reverse(rdi=str) -> String (byte-reverso, ASCII)
             # null/"" => retorna o ponteiro original (paridade JVM).
             .globl kof_strings_reverse
