@@ -830,6 +830,12 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 
   - consolidar classificacao docs/development pela nova regra - mover planning-switch-expr + planning-mutability (FEITOS) p/ docs/, planning-finally-return (PROPOSED/zero codigo) p/ future/; classificar plan-stdlib-expansion por degrau (S7 unico aberto); atualizar README do indice + DOING.md
 
+## [0.3.10-beta] - 2026-09-10
+
+### Features
+
+  - time.addDays/diffDays em data ISO (JVM/Script via java.time) + gate TIME002 em JS/Native; matriz stdtime2 + KofTimeE2ETest + docs (stdlib/learn/matrix/plan); DOING.md
+
 <!-- NEXT-RELEASE -->
 
 ## [0.2.7-beta] - 2026-09-04
