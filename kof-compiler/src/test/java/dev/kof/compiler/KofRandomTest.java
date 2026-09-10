@@ -77,6 +77,8 @@ class KofRandomTest {
                 var d = random.double()
                 assert(d >= 0.0)
                 assert(d < 1.0)
+                var b = random.boolean()
+                assert(b == true || b == false)
                 var i = random.int(10)
                 assert(i >= 0 && i < 10)
                 assert(random.int(0) == 0)
