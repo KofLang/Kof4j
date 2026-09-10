@@ -4853,4 +4853,91 @@ class CompilerDriverTest {
                 "T? de API (sem literal null) deve compilar: " + driver.compile(
                         source, tempDir.resolve("out2"), Target.JVM).diagnostics());
     }
+
+    // SG-005 (SEM049) — deref de T? sem narrowing é erro: null safety é por
+    // narrowing (`if (x != null)` re-tipa o símbolo no escopo). Antes o
+    // lowering desembrulhava silenciosamente — advisory, NPE em runtime.
+    @Test
+    void nullableDerefWithoutNarrowingFails(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("N4.kf");
+        Files.writeString(source, """
+            main() {
+                var s: String? = mapOf("k", "v").get("k")
+                println(s.length)
+            }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "deref de T? sem narrowing deve falhar");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM049"), "should be SEM049, got: " + diags);
+    }
+
+    @Test
+    void nullableDerefPropertyWithoutNarrowingFails(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("N5.kf");
+        Files.writeString(source, """
+            main() {
+                var s: String? = mapOf("k", "v").get("k")
+                println(s.toUpperCase())
+            }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "method call em T? sem narrowing deve falhar");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM049"), "should be SEM049, got: " + diags);
+    }
+
+    @Test
+    void nullableNarrowedIfStaysGreen(@TempDir Path tempDir) throws IOException {
+        // narrowing simples: if (x != null) re-tipa no escopo do THEN
+        Path source = tempDir.resolve("N6.kf");
+        Files.writeString(source, """
+            main() {
+                var s: String? = mapOf("k", "v").get("k")
+                if (s != null) {
+                    println(s.length)
+                }
+            }
+            """);
+        assertTrue(driver.compile(source, tempDir.resolve("out"), Target.JVM).success(),
+                "deref com narrowing deve compilar: " + driver.compile(
+                        source, tempDir.resolve("out2"), Target.JVM).diagnostics());
+    }
+
+    @Test
+    void nullableNarrowedAndStaysGreen(@TempDir Path tempDir) throws IOException {
+        // narrowing por conjunção: if (x != null && Y) — o lado direito da
+        // && e o THEN veem x narrowed (short-circuit)
+        Path source = tempDir.resolve("N7.kf");
+        Files.writeString(source, """
+            main() {
+                var s: String? = mapOf("k", "v").get("k")
+                if (s != null && s.length > 0) {
+                    println(s.toUpperCase())
+                }
+            }
+            """);
+        assertTrue(driver.compile(source, tempDir.resolve("out"), Target.JVM).success(),
+                "deref com narrowing && deve compilar: " + driver.compile(
+                        source, tempDir.resolve("out2"), Target.JVM).diagnostics());
+    }
+
+    @Test
+    void nullableNarrowedElseStaysGreen(@TempDir Path tempDir) throws IOException {
+        // narrowing pela negativa: if (x == null) A else B — B ve x narrowed
+        Path source = tempDir.resolve("N8.kf");
+        Files.writeString(source, """
+            main() {
+                var s: String? = mapOf("k", "v").get("k")
+                if (s == null) {
+                    println("vazio")
+                } else {
+                    println(s.length)
+                }
+            }
+            """);
+        assertTrue(driver.compile(source, tempDir.resolve("out"), Target.JVM).success(),
+                "deref no else de x==null deve compilar: " + driver.compile(
+                        source, tempDir.resolve("out2"), Target.JVM).diagnostics());
+    }
 }

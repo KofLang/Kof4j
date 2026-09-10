@@ -26,6 +26,41 @@ public final class SemExpressionTyper {
     }
 
     /**
+     * SG-005: escopo com os narrowings de nullability de `cond` aplicados
+     * (lado direito de `&&`: `s != null && s.length` vê `s: T`). Mirror do
+     * collectNarrowing do StatementAnalyzer, nível expressão — só `x != null`
+     * e conjunção; `||` não narrow.
+     */
+    static SymbolTable narrowedScope(SemanticAnalyzer sa, ExpressionNode cond, SymbolTable scope) {
+        if (scope == null) return scope;
+        java.util.List<SymbolTable.LocalVariableSymbol> narrow = new java.util.ArrayList<>();
+        collectCondNarrowing(cond, scope, narrow);
+        if (narrow.isEmpty()) return scope;
+        SymbolTable child = scope.enterScope();
+        for (SymbolTable.LocalVariableSymbol s : narrow) child.define(s);
+        return child;
+    }
+
+    private static void collectCondNarrowing(ExpressionNode cond, SymbolTable scope,
+            java.util.List<SymbolTable.LocalVariableSymbol> out) {
+        if (!(cond instanceof BinaryExpr be)) return;
+        String op = be.operator();
+        if ("&&".equals(op)) {
+            collectCondNarrowing(be.left(), scope, out);
+            collectCondNarrowing(be.right(), scope, out);
+            return;
+        }
+        if ("||".equals(op)) return;
+        if (!(be.right() instanceof LiteralExpr rl && rl.kind() == ConcreteLiteralKind.NULL)) return;
+        if (!(be.left() instanceof IdentifierExpr id)) return;
+        if (!"!=".equals(be.operator())) return;
+        SymbolTable.Symbol sym = scope.resolve(id.name());
+        if (sym != null && sym.type() instanceof Type.NullableType nt) {
+            out.add(new SymbolTable.LocalVariableSymbol(id.name(), nt.inner(), 0));
+        }
+    }
+
+    /**
      * Define no escopo do case as variáveis de um pattern:
      * {@code case T v} → {@code v:T}; {@code case T(var x, var y)} → campos por
      * índice (record) ou por nome. Espelha a lógica do {@code SwitchStmt}.
@@ -198,6 +233,15 @@ public final class SemExpressionTyper {
                 yield targetType;
             }
             case BinaryExpr bin -> {
+                // SG-005: narrowing intra-expressão de `&&` — em
+                // `s != null && s.length > 0`, o lado direito vê `s` narrowed
+                // (o lado só é avaliado se o esquerdo passou; short-circuit).
+                if ("&&".equals(bin.operator())) {
+                    Type leftT = inferType(sa, bin.left(), scope);
+                    SymbolTable rightScope = narrowedScope(sa, bin.left(), scope);
+                    Type rightT = inferType(sa, bin.right(), rightScope);
+                    yield TypeChecker.inferBinaryResultType(sa.diagnostics(), "&&", leftT, rightT);
+                }
                 // Left-associative chains (huge string concatenations in
                 // generated UIs, editors) are iterated instead of recursed:
                 // deep chains would overflow the compiler's own stack.
@@ -292,6 +336,13 @@ public final class SemExpressionTyper {
                     yield KofUi.COLOR;
                 }
                 Type recvType = inferType(sa, fa.receiver(), scope);
+                // SG-005: deref de T? sem narrowing é erro (espelha SEM049 de
+                // method call) — `s.length` em String? seria NPE em runtime.
+                if (recvType instanceof Type.NullableType && sa.diagnostics() != null) {
+                    sa.diagnostics().error("", 0, 0, 0,
+                            "receiver is nullable (T?); narrow first: if (x != null) { x.field }",
+                            "SEM049");
+                }
                 if (KofUi.isComponent(recvType) && "state".equals(fa.fieldName())) {
                     yield Type.PrimitiveType.INT;
                 }

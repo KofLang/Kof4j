@@ -171,25 +171,24 @@ public final class StatementAnalyzer {
             case ContinueStmt ignored -> {}
             case IfStmt ifStmt -> {
                 Type condType = SemExpressionTyper.inferType(sa, ifStmt.condition(), scope);
-                // Nullability narrowing: if (x != null) { x: T } where x: T?
+                // Nullability narrowing (SG-005):
+                //   if (x != null) → x: T no THEN
+                //   if (x == null) → x: T no ELSE
+                //   if (x != null && Y) / if (Y && x != null) → x: T no THEN
+                //     (a conjunção garante que o ramo tomado satisfaz TODOS)
                 SymbolTable ifScope = scope.enterScope();
-                if (ifStmt.condition() instanceof BinaryExpr be && "!=".equals(be.operator())
-                        && be.left() instanceof IdentifierExpr ie
-                        && be.right() instanceof LiteralExpr le && le.kind() == ConcreteLiteralKind.NULL) {
-                    SymbolTable.Symbol sym = scope.resolve(ie.name());
-                    if (sym != null && sym.type() instanceof Type.NullableType nt) {
-                        ifScope.define(new SymbolTable.LocalVariableSymbol(ie.name(), nt.inner(), 0));
-                    }
-                } else if (ifStmt.condition() instanceof BinaryExpr be2 && "!=".equals(be2.operator())
-                        && be2.right() instanceof IdentifierExpr ie2
-                        && be2.left() instanceof LiteralExpr le2 && le2.kind() == ConcreteLiteralKind.NULL) {
-                    SymbolTable.Symbol sym2 = scope.resolve(ie2.name());
-                    if (sym2 != null && sym2.type() instanceof Type.NullableType nt2) {
-                        ifScope.define(new SymbolTable.LocalVariableSymbol(ie2.name(), nt2.inner(), 0));
-                    }
+                java.util.List<SymbolTable.LocalVariableSymbol> thenNarrow = new java.util.ArrayList<>();
+                java.util.List<SymbolTable.LocalVariableSymbol> elseNarrow = new java.util.ArrayList<>();
+                collectNarrowing(sa, ifStmt.condition(), scope, thenNarrow, elseNarrow, false);
+                for (SymbolTable.LocalVariableSymbol s : thenNarrow) ifScope.define(s);
+                if (!elseNarrow.isEmpty() && ifStmt.elseBranch() != null) {
+                    SymbolTable elseScope = scope.enterScope();
+                    for (SymbolTable.LocalVariableSymbol s : elseNarrow) elseScope.define(s);
+                    analyzeStatement(sa, ifStmt.elseBranch(), elseScope, returnType);
+                } else {
+                    analyzeStatement(sa, ifStmt.thenBranch(), ifScope, returnType);
+                    if (ifStmt.elseBranch() != null) analyzeStatement(sa, ifStmt.elseBranch(), scope, returnType);
                 }
-                analyzeStatement(sa, ifStmt.thenBranch(), ifScope, returnType);
-                if (ifStmt.elseBranch() != null) analyzeStatement(sa, ifStmt.elseBranch(), scope, returnType);
             }
             case WhileStmt ws -> {
                 SemExpressionTyper.inferType(sa, ws.condition(), scope);
@@ -335,6 +334,44 @@ public final class StatementAnalyzer {
             case AssertStmt asrt -> {
                 if (asrt.condition() != null) SemExpressionTyper.inferType(sa, asrt.condition(), scope);
             }
+            default -> {}
+        }
+    }
+
+    /**
+     * SG-005: coleta os narrowings de nullability de uma condição de if.
+     * `x != null` → THEN; `x == null` → ELSE; conjunção (&&) une os dois
+     * lados no mesmo ramo THEN (o ramo só roda se TODOS os conjuntos valerem).
+     * Disjunção (||) NÃO narrow (o ramo roda se UM valer) — recursão para
+     * sem coletar. Só narrow locais cujo símbolo é NullableType.
+     */
+    private static void collectNarrowing(SemanticAnalyzer sa, ExpressionNode cond,
+            SymbolTable scope,
+            java.util.List<SymbolTable.LocalVariableSymbol> thenNarrow,
+            java.util.List<SymbolTable.LocalVariableSymbol> elseNarrow,
+            boolean underOr) {
+        if (!(cond instanceof BinaryExpr be)) return;
+        String op = be.operator();
+        if ("&&".equals(op) && !underOr) {
+            collectNarrowing(sa, be.left(), scope, thenNarrow, elseNarrow, false);
+            collectNarrowing(sa, be.right(), scope, thenNarrow, elseNarrow, false);
+            return;
+        }
+        if ("||".equals(op)) {
+            // disjunção não narrow nenhum ramo — mas não desce (nada a coletar)
+            return;
+        }
+        boolean isNullTest = be.right() instanceof LiteralExpr rl && rl.kind() == ConcreteLiteralKind.NULL;
+        boolean leftIsId = be.left() instanceof IdentifierExpr;
+        if (!isNullTest || !leftIsId) return;
+        IdentifierExpr id = (IdentifierExpr) be.left();
+        SymbolTable.Symbol sym = scope.resolve(id.name());
+        if (!(sym != null && sym.type() instanceof Type.NullableType nt)) return;
+        SymbolTable.LocalVariableSymbol narrowed =
+                new SymbolTable.LocalVariableSymbol(id.name(), nt.inner(), 0);
+        switch (op) {
+            case "!=" -> thenNarrow.add(narrowed);
+            case "==" -> elseNarrow.add(narrowed);
             default -> {}
         }
     }

@@ -88,15 +88,35 @@ recomendações futuras (regra 14 da tarefa: não alterar comportamento).
 - **Recomendação**: decidir se é regra da linguagem (documentar + testar) ou
   deve ser rejeitada (SEM002 já pega aritmética, mas não atribuição).
 
-### SG-005 — Deref de `T?` sem narrowing não é erro
+### SG-005 — Deref de `T?` sem narrowing não é erro ✅ CORRIGIDO 10/09 (SEM049)
 
-- **Implementação**: `var s: String? = "x"; s.length` **compila e roda**
-  (*probe* → 1). O lowering desembrulha o receiver (`ExpressionTyper.java:143`).
-- **Problema**: null-safety é **advisory**: o compilador não impede NPE. Se
-  `s` fosse `null`, NPE em runtime.
-- **Recomendação**: ou documentar que null-safety é parcial (só `if (x!=null)`
-  estreita, deref direto é permitido), ou tornar deref de `T?` sem narrowing um
-  erro (breaking change).
+- **Implementação anterior**: `var s: String? = "x"; s.length` **compila e roda**.
+  O lowering desembrulha o receiver (`ExpressionTyper.java:143`). Null-safety era
+  **advisory**: o compilador não impede NPE.
+- **Correção (10/09, breaking — regra 6 suspensa, decisão do maintainer no
+  SG-005/008 "o próprio nome já diz")**: deref de `T?` sem narrowing → erro
+  **SEM049** ("receiver is nullable (T?); narrow first").
+  1. **Method call** (`SemMethodCallTyper`, logo após inferir `recv`): receiver
+     `NullableType` → SEM049, antes dos branches de coleções/process/channel.
+  2. **Field/property** (`SemExpressionTyper` case `FieldAccessExpr`): idem —
+     `s.length` em `String?` era o furo (o `Type.isString` desembrulha Nullable).
+  3. **Narrowing estendido** (`StatementAnalyzer.collectNarrowing`): além do
+     `if (x != null)` → THEN (que já existia), agora `if (x == null)` → **ELSE**,
+     e conjunção `x != null && Y` narrowa o THEN inteiro. Disjunção (`||`) NÃO
+     narrowa (o ramo roda se UM valer) — honesto.
+  4. **Narrowing intra-expressão** (`SemExpressionTyper.narrowedScope`): em
+     `if (s != null && s.length > 0)`, o lado DIREITO da `&&` vê `s` narrowed
+     (short-circuit: o lado só é avaliado se o esquerdo passou) — sem isso a
+     PRÓPRIA condição daria SEM049 no `s.length`.
+- **Aritmética sobre `T?`** (`a + 1` com `a: Int?`) **continua verde** — não é
+  deref; o guard-unbox do bug 87 cobre.
+- **Testes migrados**: `KofMapSetTest.memberCallOnNullableInferredFromMapJVM`
+  (deref direto → narrowing `if (v != null)`).
+- **Provas**: `CompilerDriverTest.nullableDerefWithoutNarrowingFails` /
+  `nullableDerefPropertyWithoutNarrowingFails` (SEM049) +
+  `nullableNarrowedIfStaysGreen` / `nullableNarrowedAndStaysGreen` /
+  `nullableNarrowedElseStaysGreen` (246/246). Suíte compiler 1263 run /
+  0 falhas de código (15 errors ambientais: node/javac/javap).
 
 ### SG-006 — Short-circuit de `&&`/`||` desligado no JS — ✅ CORRIGIDO 09/09 (paridade OK + teste)
 

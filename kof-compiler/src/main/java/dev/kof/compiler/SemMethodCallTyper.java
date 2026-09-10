@@ -21,6 +21,16 @@ public final class SemMethodCallTyper {
         // F10: métodos de instância do handle de process.spawn
         if (mc.receiver() != null) {
             Type recv = SemExpressionTyper.inferType(sa, mc.receiver(), scope);
+            // SG-005: deref de T? sem narrowing é erro — null safety é por
+            // narrowing (`if (x != null)` re-tipa o símbolo no escopo filho,
+            // StatementAnalyzer). Se o receiver AINDA é NullableType aqui, o
+            // acesso é direto e seria NPE em runtime. Antes o lowering
+            // desembrulhava silenciosamente (ExpressionTyper) — advisory.
+            if (recv instanceof Type.NullableType && sa.diagnostics() != null) {
+                sa.diagnostics().error("", 0, 0, 0,
+                        "receiver is nullable (T?); narrow first: if (x != null) { x.method() }",
+                        "SEM049");
+            }
             // bug 17: array não tem método get()/set() — a API é o
             // operador arr[i]. Antes o compilador aceitava e emitia
             // bytecode inválido (ClassFormatError no JVM, undefined
