@@ -1525,26 +1525,36 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   in-memory); teste `nestedTransactionDoesNotCommitOuterScope`; classe
   KofDbE2ETest 15/0 (2 skips Native pré-existentes).
 
-### 78. Native: `transaction` aninhado comita o escopo externo (irmão asm do §77) — ABERTO (lane Native)
+### 78. Native: `transaction` aninhado comita o escopo externo (irmão asm do §77) — ✅ CORRIGIDO 10/09 (x86_64, espelhando o §77)
 
 - **Sintoma:** MESMO programa do §77 em target Native (x86_64, sqlite): o
   bloco `transaction` interno comita (COMMIT no handle) enquanto o externo
   ainda está em transação; rollback do externo não desfaz as linhas
   confirmadas pelo interno. Paridade quebrada JVM vs Native (regra 5).
-- **Causa:** `runtime/RuntimeDb4.kof_db_transaction` (asm) faz
-  BEGIN/COMMIT/ROLLBACK pelo handle SEM flag de transação ativa — não há
-  equivalente do `ThreadLocal KOF_DB_TX` JVM; cada bloco aninhado repete
-  BEGIN (que no sqlite é no-op dentro de tx, mas o COMMIT interno efetiva).
-- **Correção esperada (lane Native):** espelhar a semântica JVM fixada em
-  `JvmConfigRuntime.kof_db_transaction` (`nested = mesma conexão/handle →
-  não comita, não rollbacka, não re-BEGIN; erro propaga p/ o externo
-  decidir`) — flag de transação ativa por handle no asm (x86_64 primeiro,
-  riscv/aarch64 quando a área db existir lá). Sem savepoints (decisão da
-  mantenedora, §77).
-- **Prova de repro:** o mesmo programa KofDbE2ETest da issue #65 rodando
-  no binário x86_64 (`caught {"n":2}` esperado antes do fix). Lane issues
-  (09/09) NÃO implementou — asm fora da lane; registrado p/ o dono Native
-  com a semântica alvo já definida no §77.
+- **Causa:** `runtime/RuntimeDb4.kof_db_transaction` (asm) fazia
+  BEGIN/COMMIT/ROLLBACK pelo handle SEM flag de transação ativa — não havia
+  equivalente do `ThreadLocal KOF_DB_TX` JVM; cada bloco aninhado repetia
+  BEGIN (no-op dentro de tx no sqlite, mas o COMMIT interno efetivava as
+  linhas antes do rollback do externo).
+- **✅ CORRIGIDO 10/09 (x86_64):** espelhou a semântica do §77 no asm —
+  (1) novo slot BSS `.Ldb_tx_handle` (`RuntimeDb1`, 0 = sem tx) é o
+  equivalente do `ThreadLocal KOF_DB_TX`; (2) o flag `nested =
+  (tx_handle != 0 && tx_handle == default_handle)` é calculado na entrada e
+  salvo no **slot 32 do frame de try** (frame crescido p/ 48B — 0/8/16/24
+  seguem do layout do unwinder de `KofTryStart`); (3) BEGIN/COMMIT/ROLLBACK e
+  o `KOF_DB_TX.set/remove` só rodam quando `!nested` — o bloco interno
+  **participa** da transação externa e propaga o erro p/ o externo decidir.
+  A flag lida do FRAME (não de reg) porque a lambda chamada pode clobberar
+  callee-saved; o handler `.Ltx_rollback` lê-a de `32(%rsp)` (o unwinder
+  deixa `%rsp` = base do frame de try) ANTES do `addq $48` que o desfaz.
+  Sem savepoints (mesma decisão da mantenedora, §77). riscv/aarch64: o db
+  reporta DB001 em compile-time no cross (asm puro, sem lib) — não há
+  `kof_db_transaction` lá para espelhar (mesma restrição do §77 cross).
+- **Prova:** `KofDbE2ETest.nativeNestedTransactionDoesNotCommitOuterScope`
+  (sqlite x86_64; MESMO programa do §77 no binário — antes `caught {"n":2}`,
+  agora `caught {"n":0}`, paridade JVM). Regressões: `nativeTransactionCommits`
+  + `nativeTransactionRollsBackOnFailure` + `nativeSqliteRoundtrip` intactas
+  (caso não-aninhado não regrediu); `KofDbE2ETest` 16/0.
 
 
 

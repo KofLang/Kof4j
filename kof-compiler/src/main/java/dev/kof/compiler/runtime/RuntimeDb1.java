@@ -43,6 +43,11 @@ public final class RuntimeDb1 {
             # handle (KofString*) da conexão "default" — o que transaction {} usa.
             # 0 = sem conexão aberta.
             .Ldb_default_handle: .quad 0
+            # bug 78: handle da conexão COM transação ativa (equivalente do
+            # ThreadLocal KOF_DB_TX do JvmConfigRuntime) — bloco transaction
+            # aninhado NA MESMA conexão não BEGIN/COMMIT/ROLLBACK: participa
+            # da transação externa. 0 = nenhuma.
+            .Ldb_tx_handle: .quad 0
             .Ldb_mysql_buf: .zero 16384
             .Ldb_mysql_names: .zero 1024
             .Ldb_mysql_seq: .zero 1
