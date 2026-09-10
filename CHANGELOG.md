@@ -893,6 +893,12 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
   - stdstrings ganha caso `isAlpha("Hello") == true` — 4 targets
   - matriz stdmath ganha os casos `==true`/`==false` — 4 targets travam a comparação
 
+## [0.3.17-beta] - 2026-09-10
+
+### Tests
+
+  - stdvalidation ganha `isCpf==true`/`isCpf==false` — fecha a família flagged como FALTAM
+
 <!-- NEXT-RELEASE -->
 
 ## [0.2.7-beta] - 2026-09-04
