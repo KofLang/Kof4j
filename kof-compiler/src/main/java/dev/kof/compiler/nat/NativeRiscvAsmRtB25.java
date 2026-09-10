@@ -135,5 +135,80 @@ public final class NativeRiscvAsmRtB25 {
             .Lv_uuid_h9:
                 addi a0, a0, 48          # '0'
                 ret
-            """;
+
+            # kof_uuid_isUuid(a0=str) -> 0/1 (S3b-ext)
+            # Shape RFC 4122: len 36; hífens fixos em 8/13/18/23; resto hex.
+            # null/len!=36 => 0. Frame -32: ra+s0+s1; s1=str, s2=i (só t* + s*).
+            .globl kof_uuid_isUuid
+            kof_uuid_isUuid:
+                addi sp, sp, -32
+                sd   ra, 24(sp)
+                sd   s0, 16(sp)
+                sd   s1, 8(sp)
+                beqz a0, .Lv_uu_end
+                li   s0, 0
+                mv   s1, a0
+                lw   t0, 16(s1)
+                li   t1, 36
+                bne  t0, t1, .Lv_uu_end
+                li   t0, 0                    # t0 = i
+            .Lv_uu_loop:
+                bge  t0, t1, .Lv_uu_true
+                add  t2, s1, 24
+                add  t2, t2, t0
+                lbu  t2, 0(t2)
+                # hífens fixos 8/13/18/23?
+                li   t3, 8
+                bne  t0, t3, .Lv_uu_c13
+                li   t3, 45
+                bne  t2, t3, .Lv_uu_end
+                j    .Lv_uu_next
+            .Lv_uu_c13:
+                li   t3, 13
+                bne  t0, t3, .Lv_uu_c18
+                li   t3, 45
+                bne  t2, t3, .Lv_uu_end
+                j    .Lv_uu_next
+            .Lv_uu_c18:
+                li   t3, 18
+                bne  t0, t3, .Lv_uu_c23
+                li   t3, 45
+                bne  t2, t3, .Lv_uu_end
+                j    .Lv_uu_next
+            .Lv_uu_c23:
+                li   t3, 23
+                bne  t0, t3, .Lv_uu_noh
+                li   t3, 45
+                bne  t2, t3, .Lv_uu_end
+                j    .Lv_uu_next
+            .Lv_uu_noh:
+                # hex digit?  0-9 (48..57) | A-F (65..70) | a-f (97..102)
+                # limites SUPERIORES EXCLUSIVOS (+1): bltu t2,lim = aceita
+                # t2 < lim (LIÇÃO: upper-bound com <= precisa de lim+1).
+                li   t3, 48
+                bltu t2, t3, .Lv_uu_end
+                li   t3, 58
+                bltu t2, t3, .Lv_uu_next
+                li   t3, 65
+                bltu t2, t3, .Lv_uu_end
+                li   t3, 71
+                bltu t2, t3, .Lv_uu_next
+                li   t3, 97
+                bltu t2, t3, .Lv_uu_end
+                li   t3, 103
+                bltu t2, t3, .Lv_uu_next
+                j    .Lv_uu_end
+            .Lv_uu_next:
+                addi t0, t0, 1
+                j    .Lv_uu_loop
+            .Lv_uu_true:
+                li   s0, 1
+            .Lv_uu_end:
+                mv   a0, s0
+                ld   ra, 24(sp)
+                ld   s0, 16(sp)
+                ld   s1, 8(sp)
+                addi sp, sp, 32
+                ret
+                        """;
 }

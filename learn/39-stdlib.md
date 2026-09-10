@@ -136,6 +136,18 @@ println(id.length)              // 36
 
 Não-determinístico por natureza: os testes travam **forma**, não igualdade.
 
+## uuid — isUuid (S3b-ext)
+
+```kof
+uuid.isUuid("550e8400-e29b-41d4-a716-446655440000")   // true
+uuid.isUuid("550e8400e29b41d4a716446655440000")        // false (sem traços)
+uuid.isUuid(uuid.v4())                                  // true (paridade)
+```
+
+Valida o **shape** RFC 4122: 36 chars, hífens fixos em 8/13/18/23, o resto
+hex (maiúsculas ou minúsculas). **Não** checa versão/variante — qualquer
+v1..v5 canônico é `true`; a entropia é papel do `v4()`.
+
 ## time — isWeekend (S7-ext)
 
 ```kof

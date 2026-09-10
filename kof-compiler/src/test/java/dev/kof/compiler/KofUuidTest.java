@@ -105,6 +105,72 @@ class KofUuidTest {
             """);
     }
 
+    @Test
+    void isUuidJvm(@TempDir Path tmp) throws Exception {
+        // S3b-ext: shape RFC 4122 (36, hífens em 8/13/18/23, resto hex;
+        // maiúsculas aceitas). v4() => true (paridade com o gerador).
+        runJvm(tmp, """
+            main() {
+                println(uuid.isUuid("550e8400-e29b-41d4-a716-446655440000"))
+                println(uuid.isUuid("550E8400-E29B-41D4-A716-446655440000"))
+                println(uuid.isUuid("550e8400e29b41d4a716446655440000"))
+                println(uuid.isUuid("550e8400-e29b-41d4-a716-44665544000"))
+                println(uuid.isUuid("550e8400-e29b-41d4-a716-44665544000g"))
+                println(uuid.isUuid(""))
+                println(uuid.isUuid(uuid.v4()))
+            }
+            """, "true\ntrue\nfalse\nfalse\nfalse\nfalse\ntrue");
+    }
+
+    @Test
+    void isUuidJs(@TempDir Path tmp) throws Exception {
+        runJs(tmp, """
+            main() {
+                println(uuid.isUuid("550e8400-e29b-41d4-a716-446655440000"))
+                println(uuid.isUuid("550e8400e29b41d4a716446655440000"))
+                println(uuid.isUuid(""))
+                println(uuid.isUuid(uuid.v4()))
+            }
+            """, "true\nfalse\nfalse\ntrue");
+    }
+
+    @Test
+    void isUuidNative(@TempDir Path tmp) throws Exception {
+        runNative(tmp, """
+            main() {
+                assert(uuid.isUuid("550e8400-e29b-41d4-a716-446655440000"))
+                assert(uuid.isUuid("550E8400-E29B-41D4-A716-446655440000"))
+                assert(!uuid.isUuid("550e8400e29b41d4a716446655440000"))
+                assert(!uuid.isUuid("550e8400-e29b-41d4-a716-44665544000"))
+                assert(!uuid.isUuid("550e8400-e29b-41d4-a716-44665544000g"))
+                assert(!uuid.isUuid(""))
+                assert(uuid.isUuid(uuid.v4()))
+                println("ok")
+            }
+            """, "ok");
+    }
+
+    @Test
+    void isUuidCrossArch(@TempDir Path tmp) throws Exception {
+        // assert-only (bug 59 no println cross). LIÇÕES travadas: (1) wrapper
+        // riscv salva ra antes de call; (2) upper-bound hex = EXCLUSIVO (58/71/103).
+        String src = """
+            main() {
+                assert(uuid.isUuid("550e8400-e29b-41d4-a716-446655440000"))
+                assert(uuid.isUuid("550E8400-E29B-41D4-A716-446655440000"))
+                assert(!uuid.isUuid("550e8400e29b41d4a716446655440000"))
+                assert(!uuid.isUuid("550e8400-e29b-41d4-a716-44665544000"))
+                assert(!uuid.isUuid("550e8400-e29b-41d4-a716-44665544000g"))
+                assert(!uuid.isUuid(""))
+                assert(uuid.isUuid(uuid.v4()))
+            }
+            """;
+        assumeToolchain("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64");
+        runQemu(tmp, Target.NATIVE_RISCV64, "qemu-riscv64", src);
+        assumeToolchain("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64");
+        runQemu(tmp, Target.NATIVE_AARCH64, "qemu-aarch64", src);
+    }
+
     private static void assumeToolchain(String... tools) {
         for (String c : tools) {
             try {

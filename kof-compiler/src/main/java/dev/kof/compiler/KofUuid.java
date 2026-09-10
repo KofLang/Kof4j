@@ -19,6 +19,7 @@ public final class KofUuid {
     private KofUuid() {}
 
     private static final Type STR = BuiltinTypes.STRING;
+    private static final Type BOOL = Type.PrimitiveType.BOOL;
 
     static final List<String> NAMESPACES = List.of("uuid");
 
@@ -30,6 +31,11 @@ public final class KofUuid {
 
     static UuidCall staticMethod(String namespace, String name, List<Type> argTypes) {
         return switch (name) {
+            // S3b-ext: isUuid — shape RFC 4122 (8-4-4-4-12 hex, hífens em
+            // 8/13/18/23). Não valida versão/variante (qualquer v1..v5
+            // canônico é true) — validação de entropia é do v4() (SECN000).
+            case "isUuid" -> argTypes.size() == 1
+                    ? new UuidCall("kof_uuid_isUuid", BOOL, List.of(STR)) : null;
             case "v4" -> argTypes.isEmpty()
                     ? new UuidCall("kof_uuid_v4", STR, List.of()) : null;
             default -> null;

@@ -95,6 +95,60 @@ public final class RuntimeUuid {
                 popq %r12
                 popq %rbx
                 ret
+
+            # kof_uuid_isUuid(rdi=str) -> 0/1 (S3b-ext)
+            # Shape RFC 4122: len 36; hífens fixos em 8/13/18/23; resto hex.
+            # null/len!=36 => 0. Não checa versão/variante.
+            .globl kof_uuid_isUuid
+            .type kof_uuid_isUuid, @function
+            kof_uuid_isUuid:
+                testq %rdi, %rdi
+                jz .Lv_uu_false
+                movl 16(%rdi), %eax
+                cmpl $36, %eax
+                jne .Lv_uu_false
+                leaq 24(%rdi), %r12
+                xorl %ecx, %ecx            # ecx = i (0..35)
+                xorl %edx, %edx
+            .Lv_uu_loop:
+                cmpl $36, %ecx
+                jge .Lv_uu_true
+                movzbl (%r12,%rcx), %edx
+                # hífens fixos?
+                cmpl $8, %ecx
+                je .Lv_uu_hp
+                cmpl $13, %ecx
+                je .Lv_uu_hp
+                cmpl $18, %ecx
+                je .Lv_uu_hp
+                cmpl $23, %ecx
+                je .Lv_uu_hp
+                # hex digit?
+                cmpb $48, %dl
+                jb .Lv_uu_false
+                cmpb $57, %dl
+                jbe .Lv_uu_next
+                cmpb $65, %dl
+                jb .Lv_uu_false
+                cmpb $70, %dl
+                jbe .Lv_uu_next
+                cmpb $97, %dl
+                jb .Lv_uu_false
+                cmpb $102, %dl
+                ja .Lv_uu_false
+                jmp .Lv_uu_next
+            .Lv_uu_hp:
+                cmpb $45, %dl
+                jne .Lv_uu_false
+            .Lv_uu_next:
+                incl %ecx
+                jmp .Lv_uu_loop
+            .Lv_uu_true:
+                movl $1, %eax
+                ret
+            .Lv_uu_false:
+                xorl %eax, %eax
+                ret
         """);
     }
 }

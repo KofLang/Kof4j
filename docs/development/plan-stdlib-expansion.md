@@ -40,7 +40,7 @@ briefing aceita ("adapte à arquitetura real"). Então: `math.clamp(...)`,
 |---|---|
 | `math` | clamp · sign · abs · isEven/isOdd · isPositive/isNegative/isZero · lerp · percentage · roundTo · isInteger/isDecimal · parseInt/parseLong/parseDouble + OrNull/OrDefault · pow/sqrt |
 | `strings` | ~~capitalize/uncapitalize~~ ✅ (uncapitalize FEITO 09/09 S11, 5 alvos) · toCamelCase/toPascalCase/toSnakeCase/toKebabCase (com HTTPServer/XMLParser) · slugify · truncate · repeat · reverse · count · removeWhitespace/normalizeWhitespace · padLeft/padRight · isNumeric/isInteger/isDecimal/isAlpha/isAlphaNumeric/isUpper/isLower/isAscii · escapeHtml/unescapeHtml/escapeJson · lines/words · indent/dedent |
-| `uuid` | v4 · isUuid · v7 · ulid/isUlid (P1) |
+| `uuid` | v4 · ~~isUuid~~ (FEITO S3b-ext 09/09, 5 alvos) · v7 · ulid/isUlid (P1) |
 | `encoding` | base64Encode/Decode · base64UrlEncode/Decode · hexEncode/Decode · urlEncode/Decode |
 | `random` | randomDouble · randomBoolean · randomChoice · randomString · randomBytes (secure split: `random.*` inseguro vs `security.*` seguro — já documentado) |
 | `validation` (ext) | ~~isCpf/formatCpf~~ (formatCpf FEITO S12 09/09, 5 alvos) · isCnpj · ~~isCep/formatCep~~ (formatCep FEITO S12 09/09, 5 alvos) · isPis/isNis · isIp/isIpv4/isIpv6/isMac/isDomain/isPort · isCreditCard/creditCardBrand/last4 (Luhn) · isStrongPassword/passwordScore |
@@ -65,6 +65,13 @@ na   (null-safety + throw são o mecanismo).
   UTF-8 codificado à mão em `JsRuntimeUiStdlib`. `uuid` (v4/v7/ulid) segue em S3b.
 - **S5** `random` novo namespace + ext `validation` BR (CPF/CNPJ/CEP/PIS/NIS com
   checksum reutilizável interno — §18 briefing)
+  - **S3b-ext FEITO 09/09:** `uuid.isUuid(STR->BOOL)` nos 5 alvos — shape
+    RFC 4122 (36; hífens em 8/13/18/23; resto hex maiúsculo/minúsculo). Não
+    valida versão/variante. JVM JvmUuidRuntime + JS JsRuntimeUiUuid
+    (fragmentos novos — gates ≤500); x86 RuntimeUuid; riscv B25 (LIÇÃO:
+    upper-bound de banda com bltu é EXCLUSIVO — 58/71/103, não 57/70/102;
+    'e'/'9' eram rejeitados — isolado no trace x86-ok/riscv-fail). KofUuidTest
+    isUuid* (JVM/JS golden + cross assert v4()-paridade).
   - **S7-ext FEITO 09/09:** `time.isWeekend(y,m,d)` nos 5 alvos — wrapper
     `dayOfWeek >= 6` (ISO 1=seg..7=dom; data inválida => dayOfWeek 0 => false,
     gating automático). JVM JvmTimeRuntime + descritor (III)Z (não I —
