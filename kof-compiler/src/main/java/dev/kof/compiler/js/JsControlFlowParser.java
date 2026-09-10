@@ -227,7 +227,7 @@ JsIr.JsExpression comparisonExpr(KofComparison comp, JsIr.JsExpression left, JsI
             // boolean conditions: (cond, 0) CJump(NE) — truthiness in JS
             return left;
         }
-        // §89 paridade: Bool no JS pode chegar como 1/0 (stdlib funcs, instanceof)
+        // §93 paridade: Bool no JS pode chegar como 1/0 (stdlib funcs, instanceof)
         // ou true/false (literais). === cru faz 1===true ser false. Normaliza
         // os dois lados com !! para truthiness booleana (JVM/Native usam Z real).
         // Dispara tanto por tipo (operandType bool) quanto por literal (==true/false),

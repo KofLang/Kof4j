@@ -300,7 +300,7 @@ JsIr.JsExpression intWrap(Type operandType, JsIr.JsExpression inner) {
     }
 
     /**
-     * §89 paridade Bool no JS: uma expressão Bool pode chegar como 1/0 (funções
+     * §93 paridade Bool no JS: uma expressão Bool pode chegar como 1/0 (funções
      * stdlib, instanceof, predicados de coleção) ou true/false (literais). O
      * === cru faz 1===true ser false. Normaliza ambos os lados com !! (ToBoolean)
      * para casar a semântica de conteúdo do == de Kof com JVM/Native (que usam Z).

@@ -52,11 +52,12 @@ public final class RuntimeDb4 {
             # COM_QUERY) e o EH (kf_throw_string chega no handler com %rdi=exceção
             # e a chain apontando p/ o try externo). Conexão: a última aberta
             # (.Ldb_default_handle), paridade com KOF_DB_DEFAULT no JVM.
-            # §78 (10/09): aninhamento = semântica JvmConfigRuntime (KOF_DB_TX):
-            # bloco interno NESTA MESMA conexão NÃO é dono da transação — não
-            # BEGIN, não COMMIT, não ROLLBACK, não limpa (erro propaga p/ o
-            # externo decidir). Dono = .Ldb_tx_handle; flag gravada no record
-            # do try (slot @32) p/ sobreviver lambda + unwind.
+            # bug 78 (§77 espelhado no Native, paridade com JvmConfigRuntime):
+            # aninhamento — um bloco interno NA MESMA conexão NÃO BEGIN/COMMIT/
+            # ROLLBACK: participa da transação externa (erro propaga p/ o
+            # externo decidir). .Ldb_tx_handle = equivalente do ThreadLocal
+            # KOF_DB_TX. O flag `nested` mora no slot 32 do frame de try (48B:
+            # 0/8/16/24 são do unwinder) — a lambda pode clobberar callee-saved.
             .globl kof_db_transaction
             .type kof_db_transaction, @function
             kof_db_transaction:
@@ -66,55 +67,62 @@ public final class RuntimeDb4 {
                 pushq %rbx
                 pushq %r12
                 pushq %r14
-                subq $56, %rsp                     # record 40B + pad 16 (alinhamento SysV no call)
                 movq %rdi, %rbx                    # task (lambda)
-                movq .Ldb_default_handle(%rip), %r12
-                xorl %eax, %eax                    # owner = 0
-                testq %r12, %r12
-                jz .Ltx_write_owner
-                cmpq .Ldb_tx_handle(%rip), %r12    # já dono desta conexão?
-                je .Ltx_write_owner                #   => nested: pula BEGIN
-                movq %r12, .Ldb_tx_handle(%rip)    #   vira o dono
-                movl $1, %eax
-            .Ltx_write_owner:
-                movq %rax, 32(%rsp)                # owner gravado ANTES de call
+                movq .Ldb_default_handle(%rip), %r12   # c
+                # nested = (tx_handle != 0 && tx_handle == c) — o %r14 segura o
+                # flag até o frame existir (é callee-saved; kof_db_execute não
+                # o toca).
+                movq .Ldb_tx_handle(%rip), %rax
+                xorl %r14d, %r14d                  # nested = 0
                 testq %rax, %rax
-                jz .Ltx_try
+                jz .Ltx_check_handle
+                cmpq %rax, %r12
+                jne .Ltx_check_handle
+                movl $1, %r14d                     # nested = 1
+            .Ltx_check_handle:
+                # BEGIN (só se !nested) + marca tx ativa
+                testl %r14d, %r14d
+                jne .Ltx_begin_done
+                testq %r12, %r12
+                jz .Ltx_begin_done
                 movq %r12, %rdi
                 leaq .Ldb_begin_str(%rip), %rsi
-                call kof_db_execute                # clobbers %rax — já salvo
-            .Ltx_try:
-                # ── try start (mesmo layout de KofTryStart no NativeBackend) ──
+                call kof_db_execute
+                movq %r12, .Ldb_tx_handle(%rip)    # KOF_DB_TX.set(c)
+            .Ltx_begin_done:
+                # ── try start (mesmo layout de KofTryStart no NativeBackend;
+                # 48B — slot 32 guarda o flag p/ o handler) ──
+                subq $48, %rsp
                 leaq .Ltx_rollback(%rip), %rax
                 movq %rax, 0(%rsp)
+                movq %rsp, 8(%rsp)
                 movq %rbp, 16(%rsp)
                 movq kof_exc_chain(%rip), %rcx
                 movq %rcx, 24(%rsp)
-                movq %rsp, 8(%rsp)                 # slot8 = base do record
                 movq %rsp, kof_exc_chain(%rip)
+                movl %r14d, 32(%rsp)               # nested (frame p/ o handler)
                 # invoca a lambda (vtable[0] = invoke); rdi = this (a lambda,
                 # onde ficam as capturas) — mesmo padrão do sched_trampoline.
                 movq %rbx, %rdi
                 movq 8(%rbx), %rax
                 movq (%rax), %rax
                 call *%rax
-                # ── try end / commit ── (re-carrega o handle do BSS: a lambda
-                # pode ter clobberado r12)
+                # ── try end / commit ── (nested NÃO comita — o externo decide).
+                # Flag re-lido do FRAME: a lambda pode ter clobberado regs.
                 movq 24(%rsp), %rcx
                 movq %rcx, kof_exc_chain(%rip)
-                movq 32(%rsp), %rax                # flag-owner (lambda não toca)
-                testq %rax, %rax
-                jz .Ltx_done                       # nested/sem conexão: não comita
+                movl 32(%rsp), %r14d
+                addq $48, %rsp
+                testl %r14d, %r14d
+                jne .Ltx_done
                 movq .Ldb_default_handle(%rip), %r12
                 testq %r12, %r12
-                jz .Ltx_clear
+                jz .Ltx_done
                 movq %r12, %rdi
                 leaq .Ldb_commit_str(%rip), %rsi
                 call kof_db_execute
-            .Ltx_clear:
-                movq $0, .Ldb_tx_handle(%rip)
+                movq $0, .Ldb_tx_handle(%rip)      # KOF_DB_TX.remove()
             .Ltx_done:
-                addq $56, %rsp
                 popq %r14
                 popq %r12
                 popq %rbx
@@ -122,20 +130,21 @@ public final class RuntimeDb4 {
                 popq %rbp
                 ret
             .Ltx_rollback:
-                # thrower restaurou rsp = base do record (8(%record)), rdi = ex
                 movq %rdi, %r14                    # preserva a exceção
-                movq 32(%rsp), %rax                # flag-owner
-                addq $56, %rsp
-                testq %rax, %rax
-                jz .Ltx_rethrow                    # nested: não desfaz, não limpa
+                # nested vem do FRAME (unwinder deixou %rsp = base do try
+                # frame — slot 8; lê ANTES do addq que o desfaz).
+                movl 32(%rsp), %eax
+                addq $48, %rsp                     # desfaz o subq do try
+                # rollback só se !nested (nested propaga p/ o externo decidir)
+                testl %eax, %eax
+                jne .Ltx_rethrow
                 movq .Ldb_default_handle(%rip), %r12   # re-carrega (lambda clobberou)
                 testq %r12, %r12
-                jz .Ltx_rclear
+                jz .Ltx_rethrow
                 movq %r12, %rdi
                 leaq .Ldb_rollback_str(%rip), %rsi
                 call kof_db_execute
-            .Ltx_rclear:
-                movq $0, .Ldb_tx_handle(%rip)
+                movq $0, .Ldb_tx_handle(%rip)      # KOF_DB_TX.remove()
             .Ltx_rethrow:
                 movq %r14, %rdi
                 call kof_throw_string

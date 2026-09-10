@@ -887,7 +887,7 @@ class CoreRegressionE2ETest {
                  """, "3\n1\n0", tempDir, "nullable-generic-arg");
     }
 
-    // known-bugs §89 (paridade JS Bool) — no JS, predicados da stdlib (math/
+    // known-bugs §93 (paridade JS Bool) — no JS, predicados da stdlib (math/
     // strings/validation), `instanceof` e predicados de coleção (contains/
     // isEmpty) baixam para 1/0 enquanto `true`/`false` baixam para boolean
     // real. `===` cru fazia `boolExpr == true` sempre false no JS (print

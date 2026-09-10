@@ -82,23 +82,90 @@ public final class RuntimePrintNum {
             kof_print_float:
                 pushq %rbp
                 movq %rsp, %rbp
-                subq $32, %rsp
+                pushq %rbx
+                pushq %r12
+                subq $80, %rsp
                 cvtss2sd %xmm0, %xmm0
-                leaq .Lfmt_float(%rip), %rdi
+                leaq -72(%rbp), %r12
+                movq %r12, %rdi
+                movq $64, %rsi
+                leaq .Lfmt_float(%rip), %rdx
                 movl $1, %eax
-                call printf
-                leave
-                ret
+                movq %rsp, %rbx
+                andq $-16, %rsp             # alinha para snprintf
+                call snprintf
+                movq %rbx, %rsp
+                jmp kof_print_dbl_emit      # +6: float imprime como double
             .globl kof_print_double
             .type kof_print_double, @function
             kof_print_double:
                 pushq %rbp
                 movq %rsp, %rbp
-                subq $32, %rsp
-                leaq .Lfmt_double(%rip), %rdi
+                pushq %rbx
+                pushq %r12
+                subq $80, %rsp
+                leaq -72(%rbp), %r12
+                movq %r12, %rdi
+                movq $64, %rsi
+                leaq .Lfmt_double(%rip), %rdx
                 movl $1, %eax
-                call printf
-                leave
+                movq %rsp, %rbx
+                andq $-16, %rsp             # alinha para snprintf
+                call snprintf
+                movq %rbx, %rsp
+            kof_print_dbl_emit:
+                # bug 44: NaN/Infinity passam retos (JVM idem).
+                # inteiro-válido (sem '.', 'e', 'n'/'i' de nan/inf) → append ".0"
+                # (JDK Double.toString: println(5.0) == "5.0", não "5").
+                # write via syscall (NÃO printf) — bug 44 face (b): misturar
+                # stdout-buffered (printf) com write direto (Int/String)
+                # REORDENAVA a saída inteira do programa.
+                xorl %ecx, %ecx             # rc = len
+            .Lkof_dbl_emit_len:
+                cmpb $0, (%r12,%rcx)
+                je .Lkof_dbl_emit_have
+                incq %rcx
+                jmp .Lkof_dbl_emit_len
+            .Lkof_dbl_emit_have:
+                xorl %ebx, %ebx             # precisa .0? (0 = ainda não achou)
+                testq %rcx, %rcx
+                jz .Lkof_dbl_emit_write     # vazio → imprime como está
+                xorl %edx, %edx             # idx
+            .Lkof_dbl_emit_scan:
+                movb (%r12,%rdx), %al
+                cmpb $46, %al               # '.' → decimal, ok
+                je .Lkof_dbl_emit_write
+                cmpb $101, %al              # 'e' → notação científica, ok
+                je .Lkof_dbl_emit_write
+                cmpb $110, %al              # 'n' de nan
+                je .Lkof_dbl_emit_write
+                cmpb $105, %al              # 'i' de inf/Infinity
+                je .Lkof_dbl_emit_write
+                incq %rdx
+                cmpq %rcx, %rdx
+                jb .Lkof_dbl_emit_scan
+                movl $1, %ebx               # inteiro-válido → precisa .0
+            .Lkof_dbl_emit_write:
+                testq %rbx, %rbx
+                jz .Lkof_dbl_emit_ok
+                # append ".0" ao buffer (64 bytes: %.16g de 1 dígito ocupa
+                # no máx ~24 — sempre cabe) — o mesmo buffer é reaproveitado
+                # pelo kof_double_to_string (String) via .Lkof_dbl_str_done
+                leaq (%r12,%rcx), %rsi
+                movw $12334, (%rsi)         # 0x302E = ".0" little-endian ('.','0')
+                movb $0, 2(%rsi)
+                addq $2, %rcx
+                movb $0, (%r12,%rcx)
+            .Lkof_dbl_emit_ok:
+                movq $1, %rax               # SYS_write
+                movq $1, %rdi               # stdout
+                leaq -72(%rbp), %rsi
+                movq %rcx, %rdx
+                syscall
+                addq $80, %rsp
+                popq %r12
+                popq %rbx
+                popq %rbp
                 ret
             """);
     }

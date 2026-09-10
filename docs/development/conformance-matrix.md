@@ -26,8 +26,9 @@
 | aritmética int + overflow | `-2147483648` / `-1` / `1` | DONE | DONE | DONE | DONE | `arith` |
 | long div/mod | `3333333333` / `4` | DONE | DONE | DONE | DONE | `longdiv` |
 | cast `d as Int` / `L as Int` / `66 as Char` | `9` / `70000` / `66` | DONE | DONE | DONE | DONE | `cast` |
-| float println | `0.3333333333333333` / `5.0` / `3.5` | DONE | PARTIAL (bug 44: 6 casas + `5`) | DONE | PARTIAL (doc: `5` vs `5.0`) | `floatprint` |
-| string unicode length/charAt | `4` / `233` / `café!` | DONE | PARTIAL (bug 43: UTF-8 5/195) | DONE | DONE | `unicode` |
+| float println | `0.3333333333333333` / `5.0` / `3.5` | DONE | DONE (bug 44 ✅ 10/09 x86) | DONE | PARTIAL (doc: `5` vs `5.0`) | `floatprint` |
+| string unicode length/charAt | `4` / `233` / `café!` | DONE | DONE (bug 43 ✅ 10/09 x86) | DONE | DONE | `unicode` |
+| string unicode astral (surrogate pair) | `4` / `55357` / `56832` / `98` | DONE | DONE (bug 43 ✅ 10/09 x86) | DONE | DONE | `unicode-astral` |
 | string ops split/toLowerCase/trim | `4` / `hello world` / `x\|` | DONE | DONE | DONE | DONE | `strops` |
 | map put/get/size | `1` / `2` | DONE | DONE | DONE | DONE | `map` |
 | list empty/isEmpty/contains | `true` / `0` / `false` | DONE | DONE | DONE | DONE | `emptylist` |
@@ -52,14 +53,14 @@
 | concat string+num (ordem) | `n=42` / `3x` / `x12` | DONE | DONE | DONE | DONE | `concat` |
 | lógica booleana + comparação | `false` / `true` / `false` / `true` | DONE | DONE | DONE | DONE | `boollogic` |
 | bitwise & \|\| ^ << >> | `2` / `7` / `5` / `16` / `64` | DONE | DONE | DONE | DONE | `bitwise` |
-| stdlib kof.math (S1: clamp/abs/sign/min/max/isEven/isOdd/isZero + `==true`/`==false` §89) | `10` / `0` / `7` / `-1` / `3` / `8` / `true` / `false` / `true` / `true` / `false` | DONE | DONE | DONE | DONE | `stdmath` |
-| stdlib kof.math (S1b: sqrt — primeiro Double; comparações Bool, NaN em <0 = IEEE; riscv/aarch = MATH001) | `true` / `true` / `true` / `true` / `false` / `true` | DONE | DONE | PARTIAL (bug 90: `numEq`→`Double.compare`, `NaN==NaN` true) | DONE | `stdsqrt` |
-| stdlib kof.strings (S2a: isAlpha/isNumeric/isAlphaNumeric/isAscii/isUpper/isLower/count + `==true` §89) | `true` / `false` / `false` / `true` / `false` / `false` / `true` / `false` / `true` / `true` / `true` / `false` / `true` / `false` / `2` / `1` / `true` | DONE | DONE | DONE | DONE | `stdstrings` |
+| stdlib kof.math (S1: clamp/abs/sign/min/max/isEven/isOdd/isZero + `==true`/`==false` §93) | `10` / `0` / `7` / `-1` / `3` / `8` / `true` / `false` / `true` / `true` / `false` | DONE | DONE | DONE | DONE | `stdmath` |
+| stdlib kof.math (S1b: sqrt — primeiro Double; comparações Bool, NaN em <0 = IEEE; riscv/aarch = MATH001) | `true` / `true` / `true` / `true` / `false` / `true` | DONE | DONE | PARTIAL (bug 94: `numEq`→`Double.compare`, `NaN==NaN` true) | DONE | `stdsqrt` |
+| stdlib kof.strings (S2a: isAlpha/isNumeric/isAlphaNumeric/isAscii/isUpper/isLower/count + `==true` §93) | `true` / `false` / `false` / `true` / `false` / `false` / `true` / `false` / `true` / `true` / `true` / `false` / `true` / `false` / `2` / `1` / `true` | DONE | DONE | DONE | DONE | `stdstrings` |
 | stdlib kof.strings (S2b: capitalize/reverse/repeat/truncate/pad — ASCII) | `Hello world` / `1abc` / `321cba` / `kayak` / `ababab` / `hello` / `abc` / `007` / `ab---` | DONE | DONE | DONE | DONE | `stdstrings2b` |
 | stdlib kof.validation (S12/S12b: formatCpf/formatCep/formatCnpj — pontuação BR, face leniente; formatPis NÃO entra — máscara ambígua = decisão) | `529.982.247-25` / `123` (no-op) / `01310-100` / `34.546.401/0001-63` | DONE | DONE | DONE | DONE | `formatBr*`/`formatCnpj*` (KofValidationTest; riscv/aarch sob qemu, assert) |
 | stdlib kof.strings (S11: uncapitalize — espelho do capitalize, ASCII) | `hello World` / `hELLO` / `1abc` / `hello` | DONE | DONE | DONE | DONE | `uncapitalizeAllTargets` (KofStringsTest; riscv B7 + aarch sob qemu) |
 | stdlib kof.strings (S2b.4: toCamelCase/toPascalCase/toSnakeCase/toKebabCase/slugify — word-split HTTPServer/XMLParser) | `http_server` / `xml_parser` / `helloWorld` / `HelloWorld` / `hello-world` / `hello-world-42` | DONE | DONE | DONE | DONE | `stdstrings2b4` |
-| stdlib kof.validation BR (S5: isCpf/isCnpj/isCep/isPis — pesos aritméticos, mod-11 por subtração; + `==true`/`==false` §89) | `true` / `false` / `true` / `false` / `true` / `false` / `true` / `false` / `true` / `true` | DONE | DONE | DONE | DONE | `stdvalidation` |
+| stdlib kof.validation BR (S5: isCpf/isCnpj/isCep/isPis — pesos aritméticos, mod-11 por subtração; + `==true`/`==false` §93) | `true` / `false` / `true` / `false` / `true` / `false` / `true` / `false` / `true` / `true` | DONE | DONE | DONE | DONE | `stdvalidation` |
 | stdlib kof.validation rede (S6a: isIpv4/isMac/isPort — dotted-quad sem zero à esquerda; MAC 6 hex sep : ou - consistente; porta 1..65535) | `true` / `false` / `false` / `true` / `false` / `true` / `false` | DONE | DONE | DONE | DONE | `stdvalidationnet` |
 | stdlib kof.validation Luhn (S6b: isCreditCard — dígitos extraídos, 12..19, soma de Luhn %10; 20+ dígitos => false) | `true` / `true` / `true` / `false` / `false` / `false` | DONE | DONE | DONE | DONE | `stdluhn` |
 | stdlib kof.validation IPv6 (S6b.3: isIpv6 — subconjunto RFC 5952; '::' no máx uma vez; sem forma mista/zona) | `true` / `true` / `true` / `false` / `false` / `false` | DONE | DONE | DONE | DONE | `stdipv6` |
@@ -103,7 +104,7 @@
 > paridade provada por ASSERTS DE CONTRATO nos 5 alvos (JVM SecureRandom, JS
 > kof_platform/crypto, x86/riscv/aarch getrandom(2)). **S10a 09/09** (beta):
 > `randomInt`/`randomBoolean`. **S10b 09/09** (beta): `randomString(n,
-> alphabet)` (borda leniente `""`). **S10 10/09** (main, fix §88): `double/
+> alphabet)` (borda leniente `""`). **S10 10/09** (main, fix §92): `double/
 > boolean/int/hex` — o `double` chegou a riscv/aarch na fatia B27
 > (fcvt.d.l/fdiv + tradutor ucvtf/fld), encerrando o FLT001 para a família
 > random. As duas faces convivem no dispatch (retrocompat aditiva).
