@@ -2229,7 +2229,7 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   (funciona nos targets que têm a função).
 - **Descoberto:** 10/09 na varredura de paridade String (batch `swA.kf`).
 
-### 97. Native: `String.compareTo`/`String.hashCode` declarados no reference → `undefined reference` no link (os 3 nativos) — ABERTO (paridade regra 5; face UTF-16 é a lição)
+### 97. Native: `String.compareTo`/`String.hashCode` declarados no reference → `undefined reference` no link — ✅ x86_64 CORRIGIDO 10/09 (varredura String parte 2; faces JS + riscv/aarch residuais)
 
 - **Sintoma:** `a.compareTo("abd")` e `a.hashCode()` falham no link Native
   x86_64: `undefined reference to java_lang_String_compareTo` / `_hashCode`
@@ -2252,13 +2252,31 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   units UTF-16** (`a😀b` vs `a�b` — o 😀 é 2 surrogados), o `hashCode` é
   `31*…` sobre UTF-16. Exatamente o que o §43 pegou em charAt/substring/indexOf.
   O fix correto reusa `.Lkof_substr_walk` (decoder UTF-8→code-unit) nos 2.
-- **Plano de fix (lane Native, NÃO-urgente — sem teste pinning hoje):** (1)
-  `java_lang_String_hashCode` — laço sobre code units UTF-16 (walk do §43),
-  `h = h*31 + unit`; (2) `java_lang_String_compareTo` — walk paralelo das 2
-  strings, primeira code-unit diferente → sinal, senão sinal de
-  `lenA-lenB` (unidades, não bytes); golden JVM==Nativos com astrais/BMP
-  (mesmo harness de 22 vetores do §43). Provar em `NativeE2ETest` +
-  `BackendParityTest`; portar riscv/aarch só no ambiente com qemu.
+- **✅ CORRIGIDO 10/09 (face x86_64):** arquivo novo `runtime/RuntimeStringCompare`
+  encadeado em `NativeRuntime.emitRuntime`; o helper `.Lksu_next` decodifica o
+  UTF-8 interno em **sequência de code units UTF-16** (par astral → high, depois
+  low pendurado no cursor) — NÃO memcmp/byte-sum; `kof_string_compare_to`
+  (primeira unit diferente → `A−B`, como o JVM; prefixo → diferença de
+  contagem de units) + `kof_string_hash_code` (`h=31*h+unit`). Routing em
+  `NativeX86StringCalls.emit` (caller pop → rdi/rsi; convenção dos demais
+  `kof_string_*`). Bugs pegos na prova: (a) a validação de continuação
+  (`and 0xC0/cmp 0x80`) DESTRUÍA o registrador do byte antes do `and 0x3F` →
+  é(233) virava 192 — reler/re-usar scratch (`r8d/r10d/r11d`); (b) em `.Lksn4`
+  o bookkeeping das posições lia b2 como b3 (astral hash 131791936 vs 1772899);
+  (c) o `.Lct_diff` comparava além do fim da string curta (prefixo `ab`/`abc`
+  dava −99) — agora unit 0 (fim) cai na contagem de units.
+- **Prova:** `NativeE2ETest.nativeStringCompareToAndHashCodeUtf16` — 11 vetores
+  com astral/BMP/prefixo/vazio, golden JVM==Native==Script idênticos
+  (`10 1 -1 -1 55260 -10176 10176 96354 3240 1772899 0`). Suíte da área verde
+  (NativeE2ETest 59, BackendParity 16, ConformanceMatrix 11, doc-gate).
+- **Residuais (honestos, NÃO regredidos):** **JS** — `JsCallEmitter` não trata os
+  dois no switch; caem no `default` → `texto.compareTo(o)`/`texto.hashCode()`
+  que NÃO existem em `String.prototype` → `TypeError` em runtime (bug-irmão do
+  `equals`, que é tratado). Como node está AUSENTE aqui, não travar por teste —
+  face da lane JS. **riscv64/aarch64** — os símbolos vivem só no `.s` x86
+  (`NativeRuntime` é x86-only; o cross tem suas fatias). Ferramenta de cross
+  ausente neste ambiente → portar no env da lane cross (com qemu) reusando o
+  MESMO algoritmo de code-unit. Ver matriz `backend-parity.md`.
 - **Descoberto:** 10/09 na varredura de paridade String (batch `swB.kf`/`swF.kf`).
 
 ### 98. String `<`/`>`: três backends divergem e TODOS dão lixo — ABERTO (semântica **Unspecified** no reference; regra 6 — decisão da mantenedora)

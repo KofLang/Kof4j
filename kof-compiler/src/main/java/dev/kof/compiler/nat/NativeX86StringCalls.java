@@ -118,6 +118,19 @@ public final class NativeX86StringCalls {
             sb.append("    pushq %rax\n");
             return true;
         }
+        if (kc.kind() == KofCallKind.INSTANCE && "compareTo".equals(kc.methodName())) {
+            sb.append("    popq %rsi\n");
+            sb.append("    popq %rdi\n");
+            sb.append("    call kof_string_compare_to\n");
+            sb.append("    pushq %rax\n");
+            return true;
+        }
+        if (kc.kind() == KofCallKind.INSTANCE && "hashCode".equals(kc.methodName())) {
+            sb.append("    popq %rdi\n");
+            sb.append("    call kof_string_hash_code\n");
+            sb.append("    pushq %rax\n");
+            return true;
+        }
         if (kc.kind() == KofCallKind.INSTANCE && "trim".equals(kc.methodName())) {
             sb.append("    popq %rdi\n");
             sb.append("    call kof_string_trim\n");

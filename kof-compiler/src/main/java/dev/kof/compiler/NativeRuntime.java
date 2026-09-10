@@ -1,6 +1,7 @@
 package dev.kof.compiler;
 import dev.kof.compiler.runtime.RuntimeArray;
 import dev.kof.compiler.runtime.RuntimeCache;
+import dev.kof.compiler.runtime.RuntimeStringCompare;
 import dev.kof.compiler.runtime.RuntimeEncoding;
 import dev.kof.compiler.runtime.RuntimeValidationBr;
 import dev.kof.compiler.runtime.RuntimeValidationFmtBr;
@@ -134,6 +135,7 @@ public final class NativeRuntime {
         RuntimeStringSearch.emitStringEndsWith(sb);
         RuntimeStringSearch.emitStringIndexOf(sb);
         RuntimeStringSearch.emitStringLastIndexOf(sb);
+        RuntimeStringCompare.emit(sb);
         RuntimeStringOps.emitStringTrim(sb);
         RuntimeStringOps.emitStringCase(sb);
         RuntimeStringEdit.emitStringReplace(sb);
