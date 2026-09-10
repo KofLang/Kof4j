@@ -2229,6 +2229,65 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   (funciona nos targets que têm a função).
 - **Descoberto:** 10/09 na varredura de paridade String (batch `swA.kf`).
 
+### 97. Native: `String.compareTo`/`String.hashCode` declarados no reference → `undefined reference` no link (os 3 nativos) — ABERTO (paridade regra 5; face UTF-16 é a lição)
+
+- **Sintoma:** `a.compareTo("abd")` e `a.hashCode()` falham no link Native
+  x86_64: `undefined reference to java_lang_String_compareTo` / `_hashCode`
+  (COMP001). riscv/aarch idem (mesmo `emitCall` genérico → símbolo `java_lang_String_*`
+  nunca definido no runtime). **JVM e interpretador rodam** (o typer aceita —
+  `BuiltinCallTyper.java:420` tipa os dois como `String→Int`; o interpretador
+  trata `hashCode` em `KofInterpreterObjects:32`/`KofInterpreterCollections:74`).
+- **Contradição com o corpus (por que é paridade, não design):** o
+  `docs/language-reference/type-system.md:289` DECLARA a API — "`String`:
+  indexOf/length/**compareTo/hashCode**→Int". O typer honra a declaração; os 3
+  nativos não. Paridade cross-target quebrada (regra 5) em método *documentado*
+  — família do §96, mas lá o método NÃO está no corpus (design); aqui ESTÁ.
+- **Causa:** nenhum dos 3 backends nativos emite os intrínsecos
+  `java_lang_String_compareTo`/`_hashCode`. `NativeX86StringCalls.emit` roteia
+  length/charAt/substring/indexOf/… mas não estes dois → caem no `emitCall`
+  genérico que chama o símbolo que ninguém define (mesma raiz do §96/§89).
+- **A armadilha que o fix NÃO pode repetir (lição bug 43):** uma implementação
+  byte-a-byte (`memcmp` no UTF-8, soma de bytes no `hashCode`) DIVERGE do JVM
+  em strings astrais/multi-byte: o `String.compareTo` do JVM compara **code
+  units UTF-16** (`a😀b` vs `a�b` — o 😀 é 2 surrogados), o `hashCode` é
+  `31*…` sobre UTF-16. Exatamente o que o §43 pegou em charAt/substring/indexOf.
+  O fix correto reusa `.Lkof_substr_walk` (decoder UTF-8→code-unit) nos 2.
+- **Plano de fix (lane Native, NÃO-urgente — sem teste pinning hoje):** (1)
+  `java_lang_String_hashCode` — laço sobre code units UTF-16 (walk do §43),
+  `h = h*31 + unit`; (2) `java_lang_String_compareTo` — walk paralelo das 2
+  strings, primeira code-unit diferente → sinal, senão sinal de
+  `lenA-lenB` (unidades, não bytes); golden JVM==Nativos com astrais/BMP
+  (mesmo harness de 22 vetores do §43). Provar em `NativeE2ETest` +
+  `BackendParityTest`; portar riscv/aarch só no ambiente com qemu.
+- **Descoberto:** 10/09 na varredura de paridade String (batch `swB.kf`/`swF.kf`).
+
+### 98. String `<`/`>`: três backends divergem e TODOS dão lixo — ABERTO (semântica **Unspecified** no reference; regra 6 — decisão da mantenedora)
+
+- **Sintoma (medido 10/09, 3 targets no MESMO programa `swE.kf`,
+  `"abc"` vs `"abd"`):** `a<b | a>b | b<a | b>a | a==b` —
+  **JVM** `false|false|false|false|false` (tudo false: `if_acmp` em referência
+  é sempre-falso p/ `<`/`>`); **Native x86_64** `false|true|true|false|false`
+  (compara o **ponteiro** — ordem de alocação, não conteúdo); **interpretador**
+  `true|false|false|true|false` (lexicográfico, **invertido** p/ `<` vs `>` do
+  Native). `a==b` bate (`false`) nos 3 (conteúdo, congelado — §regra 6).
+- **Não é "só alinhar":** `docs/language-reference/expressions.md:56-58`
+  declara a ordem lexicográfica de String por `<`/`>` como **Unspecified** —
+  "o parser aceita, o lowering usa `if_acmp*` para referências, o que para
+  `<`/`>` em referência é **não suportado**". Escolher SEMÂNTICA (ordem
+  lexicográfica UTF-16? por code point? erro de compilação?) é **mudança de
+  contrato sobre operadores congelados** → regra 6: decisão da mantenedora,
+  NUNCA edição silenciosa.
+- **Três caminhos possíveis (documentar + discutir, não implementar):**
+  (a) **rejeitar no typer** (`<`/`>` em String = erro SEM, apontando p/
+  `compareTo`) — o mais honesto com "não suportado" do reference, mas quebra
+  código que compila hoje nos 3 (bump); (b) **definir lexicográfico UTF-16**
+  (= `compareTo < 0`) e implementar nos 3 (a opção "completa"; exige o §97
+  primeiro); (c) deixar unspecified e só adicionar **diagnóstico** no Native/
+  Script quando hoje compila em silêncio (meio-termo R6). Cada um muda
+  observável → bump/discussão.
+- **Ação p/ a mantenedora:** escolher (a)/(b)/(c) → eu implemento na lane.
+- **Descoberto:** 10/09 na varredura de paridade String (batch `swD.kf`/`swE.kf`).
+
 
 ### 62. Constant pool: Float/Double armazenados como bits crus (parser de migração) — ✅ CORRIGIDO 08/09
 
