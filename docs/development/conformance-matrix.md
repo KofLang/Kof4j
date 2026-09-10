@@ -52,7 +52,7 @@
 | concat string+num (ordem) | `n=42` / `3x` / `x12` | DONE | DONE | DONE | DONE | `concat` |
 | lógica booleana + comparação | `false` / `true` / `false` / `true` | DONE | DONE | DONE | DONE | `boollogic` |
 | bitwise & \|\| ^ << >> | `2` / `7` / `5` / `16` / `64` | DONE | DONE | DONE | DONE | `bitwise` |
-| stdlib kof.math (S1: clamp/abs/sign/min/max/isEven/isOdd/isZero) | `10` / `0` / `7` / `-1` / `3` / `8` / `true` / `false` / `true` | DONE | DONE | DONE | DONE | `stdmath` |
+| stdlib kof.math (S1: clamp/abs/sign/min/max/isEven/isOdd/isZero + `==true`/`==false` §80) | `10` / `0` / `7` / `-1` / `3` / `8` / `true` / `false` / `true` / `true` / `false` | DONE | DONE | DONE | DONE | `stdmath` |
 | stdlib kof.strings (S2a: isAlpha/isNumeric/isAlphaNumeric/isAscii/isUpper/isLower/count) | `true` / `false` / `false` / `true` / `false` / `false` / `true` / `false` / `true` / `true` / `true` / `false` / `true` / `false` / `2` / `1` | DONE | DONE | DONE | DONE | `stdstrings` |
 | stdlib kof.strings (S2b: capitalize/reverse/repeat/truncate/pad — ASCII) | `Hello world` / `1abc` / `321cba` / `kayak` / `ababab` / `hello` / `abc` / `007` / `ab---` | DONE | DONE | DONE | DONE | `stdstrings2b` |
 | stdlib kof.strings (S2b.4: toCamelCase/toPascalCase/toSnakeCase/toKebabCase/slugify — word-split HTTPServer/XMLParser) | `http_server` / `xml_parser` / `helloWorld` / `HelloWorld` / `hello-world` / `hello-world-42` | DONE | DONE | DONE | DONE | `stdstrings2b4` |

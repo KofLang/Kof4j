@@ -186,6 +186,8 @@ class ConformanceMatrixTest {
                 }
                 """, "2\n7\n5\n16\n64", Set.of(), tempDir);
         // STDLIB S1 — kof.math (Int-only) paridade total nos 4 targets.
+        // §80: os dois últimos casos comparam `== true`/`== false` no
+        // CAMINHO DE VALOR (o print sozinho coercia 1/0 e mascarava o bug).
         matrix("stdmath", """
                 main() {
                     println(math.clamp(15, 0, 10))
@@ -197,8 +199,10 @@ class ConformanceMatrixTest {
                     println(math.isEven(4))
                     println(math.isOdd(4))
                     println(math.isZero(0))
+                    println(math.isEven(4) == true)
+                    println(math.isEven(4) == false)
                 }
-                """, "10\n0\n7\n-1\n3\n8\ntrue\nfalse\ntrue", Set.of(), tempDir);
+                """, "10\n0\n7\n-1\n3\n8\ntrue\nfalse\ntrue\ntrue\nfalse", Set.of(), tempDir);
         // STDLIB S2a — kof.strings predicados paridade total nos 4 targets.
         matrix("stdstrings", """
                 main() {
