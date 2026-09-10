@@ -187,6 +187,77 @@ public final class TypeChecker {
         return false;
     }
 
+    /**
+     * SG-009: subtipagem NOMINAL — `A a = <não-relacionado>` é erro
+     * compile-time (antes só o checkcast do emit salvava, em runtime).
+     * Caminha superClass/interfaces via BFS (MemberResolver usa o mesmo
+     * padrão). Conservador (true) quando a hierarquia é desconhecida:
+     * tipo externo (imports Android/JDK), builtin (String/List/Map — o
+     * BuiltinTypes resolve), ou classe não declarada no módulo — restringir
+     * esses quebraria interop legítima (regra 6: nunca quebrar o que funciona).
+     */
+    static boolean isAssignable(SemanticAnalyzer sa, Type from, Type to) {
+        // caminhos não-nominais primeiro (primitivos, nullability, Unknown):
+        if (!isReferenceCandidate(from, to)) return isAssignable(from, to);
+        if (!(from instanceof Type.ClassType fc) || !(to instanceof Type.ClassType tc)) {
+            return isAssignable(from, to);
+        }
+        // mesmo tipo (já coberto por from.equals, mas barato re-checar via
+        // caminho nominal p/ genéricos com args diferentes — conservador)
+        String toName = tc.name();
+        // Object é raiz: qualquer referência atribui
+        if ("Object".equals(toName) && "java.lang".equals(tc.packageName())) return true;
+        // tipos builtin (String, List, Map, Set...) têm relações próprias
+        // (String → Object via regra acima; List<X> → List<Y> não é nominal)
+        if (isBuiltinClassType(fc) || isBuiltinClassType(tc)) {
+            return isAssignable(from, to);
+        }
+        // classes de domínio: BFS nominal
+        String fromName = fc.name();
+        if (fromName.equals(toName)) return true;
+        SymbolTable.ClassSymbol node = sa.getClass(fromName);
+        if (node == null) return true; // externa/desconhecida — conservador
+        java.util.Set<String> visited = new java.util.HashSet<>();
+        java.util.Queue<String> queue = new java.util.LinkedList<>();
+        visited.add(fromName);
+        if (node.superClass() != null && !"Object".equals(node.superClass())) {
+            queue.add(node.superClass());
+        }
+        queue.addAll(node.interfaces());
+        while (!queue.isEmpty()) {
+            String current = queue.poll();
+            if (current.equals(toName)) return true;
+            if (!visited.add(current)) continue;
+            SymbolTable.ClassSymbol cur = sa.getClass(current);
+            if (cur == null) continue; // ancestral externo — para o ramo
+            if (cur.superClass() != null && !"Object".equals(cur.superClass())) queue.add(cur.superClass());
+            queue.addAll(cur.interfaces());
+        }
+        // from pode ser subtipo declarado com nome qualificado divergente —
+        // conservador quando o símbolo de to não existe no módulo
+        return sa.getClass(toName) == null;
+    }
+
+    /** Referência → referência (o único caminho que a subtipagem nominal rege). */
+    private static boolean isReferenceCandidate(Type from, Type to) {
+        return from instanceof Type.ClassType && to instanceof Type.ClassType;
+    }
+
+    /**
+     * Builtin/stdlib/runtime (java.*, kof.*, pacotes de runtime): relações
+     * próprias, não nominais de domínio. Classe de domínio SEM pacote
+     * (declarada top-level no módulo) NÃO é builtin — é o caso comum
+     * (class Cat ... main() no mesmo arquivo) e DEVE ser checada.
+     */
+    private static boolean isBuiltinClassType(Type.ClassType ct) {
+        String pkg = ct.packageName();
+        return "kof".equals(pkg) || "java".equals(pkg)
+                || "java.lang".equals(pkg) || "java.util".equals(pkg)
+                || "kof.concurrent".equals(pkg) || "dev.kof".equals(pkg)
+                || pkg.startsWith("java.") || pkg.startsWith("dev.kof.")
+                || pkg.startsWith("kof.");
+    }
+
     static int primitiveWidth(Type.PrimitiveType pt) {
         return switch (pt.name()) {
             case "bool", "Bool" -> 0;

@@ -4940,4 +4940,86 @@ class CompilerDriverTest {
                 "deref no else de x==null deve compilar: " + driver.compile(
                         source, tempDir.resolve("out2"), Target.JVM).diagnostics());
     }
+
+    // SG-009 — subtipagem nominal: A a = <classe não-relacionada> é erro
+    // compile-time (antes só o checkcast do emit salvava, em runtime).
+    @Test
+    void unrelatedClassAssignmentFails(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("S1.kf");
+        Files.writeString(source, """
+            class Cat {
+                String meow() { return "miau" }
+            }
+            class Dog {
+                String bark() { return "au" }
+            }
+            main() {
+                Cat c = Dog()
+                println(c.meow())
+            }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "atribuição de classe não-relacionada deve falhar");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM021"), "should be SEM021, got: " + diags);
+    }
+
+    @Test
+    void subclassAssignmentStaysGreen(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("S2.kf");
+        Files.writeString(source, """
+            class Animal {
+                String speak() { return "..." }
+            }
+            class Dog extends Animal {
+                String speak() { return "au" }
+            }
+            main() {
+                Animal a = Dog()
+                println(a.speak())
+            }
+            """);
+        assertTrue(driver.compile(source, tempDir.resolve("out"), Target.JVM).success(),
+                "subclasse deve atribuir à superclasse: " + driver.compile(
+                        source, tempDir.resolve("out2"), Target.JVM).diagnostics());
+    }
+
+    @Test
+    void interfaceAssignmentStaysGreen(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("S3.kf");
+        Files.writeString(source, """
+            interface Speaker {
+                String speak()
+            }
+            class Cat implements Speaker {
+                String speak() { return "miau" }
+            }
+            main() {
+                Speaker s = Cat()
+                println(s.speak())
+            }
+            """);
+        assertTrue(driver.compile(source, tempDir.resolve("out"), Target.JVM).success(),
+                "implementador deve atribuir à interface: " + driver.compile(
+                        source, tempDir.resolve("out2"), Target.JVM).diagnostics());
+    }
+
+    @Test
+    void externalTypeAssignmentStaysConservative(@TempDir Path tempDir) throws IOException {
+        // tipos builtin/externos ficam conservadores (regra 6: nunca quebrar
+        // interop) — String s = <externo desconhecido> não vira erro aqui
+        Path source = tempDir.resolve("S4.kf");
+        Files.writeString(source, """
+            main() {
+                var x = mapOf("k", "v")
+                var s = x.get("k")
+                if (s != null) {
+                    println(s.length)
+                }
+            }
+            """);
+        assertTrue(driver.compile(source, tempDir.resolve("out"), Target.JVM).success(),
+                "builtin/nullable continua pelo caminho próprio: " + driver.compile(
+                        source, tempDir.resolve("out2"), Target.JVM).diagnostics());
+    }
 }

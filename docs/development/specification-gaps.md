@@ -184,18 +184,36 @@ recomendações futuras (regra 14 da tarefa: não alterar comportamento).
   `BackendParityTest`/`ConformanceMatrixTest`/`KofScriptTest`.
 - **Registrado em `known-bugs.md` §87.**
 
-### SG-009 — Subtipagem não é checada pelo type checker
+### SG-009 — Subtipagem não é checada pelo type checker — ✅ CORRIGIDO 10/09 (SEM021 nominal)
 
-- **Implementação**: `isAssignable` retorna `true` para **qualquer** par
-  `ClassType→ClassType` (`TypeChecker.isAssignable`). A segurança vem
+- **Implementação anterior**: `isAssignable` retornava `true` para **qualquer**
+  par `ClassType→ClassType` (`TypeChecker.isAssignable`). A segurança vinha
   do `checkcast` do lowering/runtime.
-- **Problema**: `A a = <objeto de classe não-relacionada>` passa na checagem de
-  tipos; falha só em runtime. `implements` sem cobrir métodos compila (SG-015).
-  Abstract pode ser instanciado (SG-017).
-- **Recomendação**: implementar checagem de subtipagem nominal em
-  `isAssignable` (caminhando `superClass`/`interfaces` via
-  `resolveInHierarchy`). É a maior lacuna de segurança de tipos. **Não
-  implementado aqui** (mudança de comportamento — exige suíte + possibly bump).
+- **Problema**: `A a = <objeto de classe não-relacionada>` passava na checagem
+  de tipos; falhava só em runtime. `implements` sem cobrir métodos compila
+  (SG-015 — já corrigido). Abstract pode ser instanciado (SG-017 — já
+  corrigido).
+- **CORRIGIDO 10/09 (subtipagem nominal em `isAssignable`):** novo overload
+  `TypeChecker.isAssignable(sa, from, to)` — para referência→referência de
+  classes de domínio, caminha `superClass`/`interfaces` via BFS (mesmo padrão
+  de `MemberResolver.resolveInHierarchy`); não-relacionado → erro compile-time
+  **SEM021** (var-decl tipado; assignment/return mantêm SEM012/SEM010 já
+  existentes). Conservador (true) quando a hierarquia é desconhecida — tipo
+  externo (imports Android/JDK), builtin (String/List/Map, relações próprias
+  do BuiltinTypes) ou classe não declarada no módulo — restringir isso
+  quebraria interop legítima (regra 6: nunca quebrar o que funciona).
+  **Subtipos legítimos continuam verdes**: `Dog extends Animal` → `Animal a =
+  Dog()` compila (superclass BFS); `Cat implements Speaker` → `Speaker s =
+  Cat()` compila (interfaces BFS); `Object` raiz aceita qualquer referência.
+  **Call sites migrados**: `SemExpressionTyper:225` (assignment-expr),
+  `StatementAnalyzer:48` (assignment-stmt), `:147` (var-decl tipado),
+  `:164` (return). **Provas:** 4 testes novos em `CompilerDriverTest`
+  (`unrelatedClassAssignmentFails` = SEM021 no repro `Cat c = Dog()`;
+  `subclassAssignmentStaysGreen`; `interfaceAssignmentStaysGreen`;
+  `externalTypeAssignmentStaysConservative`) — CompilerDriverTest 250/250;
+  suíte compiler **1270 run / 0 falhas de código** (16 errors ambientais =
+  node/javac/javap ausentes); zero falso-positivo no corpus (todos os
+  programas legítimos existentes continuam compilando).
 
 ### SG-010 — `val` não impede reatribuição — ✅ CORRIGIDO 09/09 (SEM037)
 

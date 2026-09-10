@@ -45,7 +45,7 @@ public final class StatementAnalyzer {
                 }
                 if (sa.diagnostics() != null && !Type.isUnknown(targetType)
                         && !Type.isUnknown(valueType)
-                        && !TypeChecker.isAssignable(valueType, targetType)) {
+                        && !TypeChecker.isAssignable(sa, valueType, targetType)) {
                     sa.diagnostics().error("", 0, 0, 0,
                             "Type mismatch: cannot assign " + valueType + " to " + targetType,
                             "SEM012");
@@ -144,7 +144,7 @@ public final class StatementAnalyzer {
                         && !varType.equals(Type.UnknownType.UNKNOWN)) {
                     Type initType = SemExpressionTyper.inferType(sa, vds.initializer(), scope);
                     if (!initType.equals(Type.UnknownType.UNKNOWN)
-                            && !TypeChecker.isAssignable(initType, varType)
+                            && !TypeChecker.isAssignable(sa, initType, varType)
                             && !(initType instanceof Type.FunctionType)
                             && !(varType instanceof Type.FunctionType)) {
                         sa.diagnostics().error("", 0, 0, 0,
@@ -161,7 +161,7 @@ public final class StatementAnalyzer {
                     Type valueType = SemExpressionTyper.inferType(sa, ret.value(), scope);
                     sa.expressionTypes().put(ret.value(), valueType);
                     if (sa.diagnostics() != null && !Type.isUnknown(returnType) && !Type.isVoid(returnType)
-                            && !Type.isUnknown(valueType) && !TypeChecker.isAssignable(valueType, returnType)) {
+                            && !Type.isUnknown(valueType) && !TypeChecker.isAssignable(sa, valueType, returnType)) {
                         sa.diagnostics().error("", 0, 0, 0,
                                 "Return type mismatch: expected " + returnType + " but got " + valueType, "SEM010");
                     }

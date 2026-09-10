@@ -222,7 +222,7 @@ public final class SemExpressionTyper {
                     if (sym != null) {
                         targetType = sym.type();
                         if (sa.diagnostics() != null && !Type.isUnknown(targetType) && !Type.isUnknown(valueType)
-                                && !TypeChecker.isAssignable(valueType, targetType)) {
+                                && !TypeChecker.isAssignable(sa, valueType, targetType)) {
                             sa.diagnostics().error("", 0, 0, 0,
                                     "Type mismatch: cannot assign " + valueType + " to " + targetType, "SEM012");
                         }
