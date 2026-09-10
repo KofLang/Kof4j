@@ -24,8 +24,8 @@ public final class ExpressionTimeCallLowerer {
                         0,
                         ((IdentifierExpr) mc.receiver()).name() + "." + mc.methodName()
                                 + ": not available on the " + driver.target
-                                + " driver.target yet (TIME001)",
-                        "TIME001");
+                                + " driver.target yet (" + KofTime.gapCode(mc.methodName()) + ")",
+                        KofTime.gapCode(mc.methodName()));
             }
             return localIdx;
         }

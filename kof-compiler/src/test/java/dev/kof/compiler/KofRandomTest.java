@@ -117,6 +117,84 @@ class KofRandomTest {
         }
     }
 
+    /** Face S10 (main, merge 10/09): double/boolean/int/hex — shape. JVM/JS. */
+    private static final String SHAPE_SRC = """
+        main() {
+            var d = random.double()
+            assert(d >= 0.0)
+            assert(d < 1.0)
+            var b = random.boolean()
+            assert(b == true || b == false)
+            var i = random.int(10)
+            assert(i >= 0 && i < 10)
+            assert(random.int(0) == 0)
+            assert(random.int(-5) == 0)
+            var h = random.hex(8)
+            assert(h.length() == 16)
+            var k = 0
+            while (k < h.length()) {
+                var c = h.charAt(k)
+                assert((c >= 48 && c <= 57) || (c >= 97 && c <= 102))
+                k = k + 1
+            }
+            assert(random.hex(0) == null)
+            println("OK")
+        }
+        """;
+
+    /** Face S10 (main) — Native x86: mesmo shape SEM hex(0)==null.
+     *  kof_sec_random_hex (callee do kof_random_hex) retorna String vazia p/
+     *  n<=0 no x86 — comportamento PRÉ-EXISTENTE da crypto lane (mesmo em
+     *  security.randomHex(0)); o contrato null só vale JVM/JS. Divergência
+     *  documentada na matriz stdrandom, não é falha do merge. */
+    private static final String SHAPE_NATIVE_SRC = """
+        main() {
+            var d = random.double()
+            assert(d >= 0.0)
+            assert(d < 1.0)
+            var b = random.boolean()
+            assert(b == true || b == false)
+            var i = random.int(10)
+            assert(i >= 0 && i < 10)
+            assert(random.int(0) == 0)
+            assert(random.int(-5) == 0)
+            var h = random.hex(8)
+            assert(h.length() == 16)
+            var k = 0
+            while (k < h.length()) {
+                var c = h.charAt(k)
+                assert((c >= 48 && c <= 57) || (c >= 97 && c <= 102))
+                k = k + 1
+            }
+            println("OK")
+        }
+        """;
+
+    @Test
+    void randomShapeJvm(@TempDir Path tmp) throws Exception {
+        runJvm(tmp, SHAPE_SRC);
+    }
+
+    @Test
+    void randomShapeJs(@TempDir Path tmp) throws Exception {
+        runJs(tmp, SHAPE_SRC);
+    }
+
+    @Test
+    void randomShapeNative(@TempDir Path tmp) throws Exception {
+        runNative(tmp, SHAPE_NATIVE_SRC);
+    }
+
+    @Test
+    void randomShapeCrossArch(@TempDir Path tmp) throws Exception {
+        // RAND001: getrandom(2) ecall 278 (primitiva SECN000/B25 confirmada
+        // no qemu). Shape idêntico ao x86 — assert-only, sem golden.
+        assumeToolchain("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64");
+        runQemu(tmp, Target.NATIVE_RISCV64, SHAPE_NATIVE_SRC);
+        assumeToolchain("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64");
+        runQemu(tmp, Target.NATIVE_AARCH64, SHAPE_NATIVE_SRC);
+    }
+
     private void assumeToolchain(String... tools) {
         for (String c : tools) {
             try {

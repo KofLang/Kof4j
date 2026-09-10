@@ -1,67 +1,93 @@
-name: "🐞 Relato de bug"
-description: "Reportar um comportamento que diverge do documentado (leia docs/development/known-bugs.md antes — pode já estar catalogado)."
+name: Bug report
+description: Report a bug in the Kof language, compiler, or standard library
+title: "[Bug]: "
 labels: ["bug"]
 body:
-  - type: textarea
-    id: repro
+  - type: markdown
     attributes:
-      label: "Reprodução mínima (código Kof)"
-      description: "O menor programa .kf que reproduz o problema. Sem repro mínima, a issue não é acionável."
-      placeholder: |
-        ```kof
-        main() {
-            println(if ("" == "") 1 else "s")
-        }
-        ```
+      value: |
+        Thanks for taking the time to file a bug. Please provide a minimal
+        reproduction so we can confirm it without rediscovering the problem.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: A clear and concise description of what the bug is.
     validations:
       required: true
+
   - type: dropdown
     id: target
     attributes:
-      label: "Target afetado"
+      label: Target
+      description: Which backend does this affect?
+      multiple: true
       options:
         - JVM
-        - Native (x86_64)
-        - Native (riscv64/aarch64)
-        - JS (KofJS)
-        - script (interpretador)
-        - Todos
+        - Native
+        - JS
+        - Script / interpreter
+        - Unknown / all
     validations:
       required: true
+
   - type: input
-    id: versao
+    id: version
     attributes:
-      label: "Versão (saída de `kof --version`)"
-      placeholder: "0.3.1-beta"
+      label: Kof version
+      description: Output of `kof --version` (e.g. 0.3.2-beta).
+      placeholder: "0.3.2-beta"
     validations:
       required: true
+
   - type: input
-    id: so
+    id: os
     attributes:
-      label: "Sistema operacional"
-      placeholder: "Ubuntu 24.04 / Windows 11 / macOS 15"
+      label: Operating system
+      description: OS and architecture (e.g. macOS 15 arm64, Ubuntu 24.04 x86_64).
     validations:
       required: true
+
   - type: textarea
-    id: comando
+    id: repro
     attributes:
-      label: "Comando executado e saída completa"
-      description: "O comando exato + stdout/stderr completos (não resuma o erro)."
-      placeholder: |
-        kof run bug.kf
-        Caused by: java.lang.VerifyError: ...
+      label: Minimal reproduction
+      description: The smallest Kof snippet that triggers the bug.
+      render: kof
     validations:
       required: true
+
+  - type: input
+    id: command
+    attributes:
+      label: Command used
+      description: The exact command you ran.
+      placeholder: "kof run --target=jvm repro.kof"
+    validations:
+      required: true
+
   - type: textarea
-    id: esperado
+    id: expected
     attributes:
-      label: "Comportamento esperado"
-      description: "O que o corpus (training/, learn/, docs/) diz que deveria acontecer — com referência."
+      label: Expected behavior
     validations:
       required: true
+
   - type: textarea
-    id: obtido
+    id: actual
     attributes:
-      label: "Comportamento obtido"
+      label: Actual behavior
+      description: Include the full error output or stack trace.
     validations:
       required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
+        - label: I reproduced this against the latest build.
+          required: true

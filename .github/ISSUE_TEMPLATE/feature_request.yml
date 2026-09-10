@@ -1,48 +1,51 @@
-name: "💡 Proposta de funcionalidade"
-description: "Propor uma funcionalidade ou mudança de contrato (discussão técnica antes de código)."
+name: Feature request
+description: Propose a new feature or improvement for Kof
+title: "[Feature]: "
 labels: ["enhancement"]
 body:
   - type: textarea
-    id: problema
+    id: problem
     attributes:
-      label: "Problema / motivação"
-      description: "Que problema real isso resolve? Por que a linguagem precisa disso?"
+      label: Problem / motivation
+      description: What problem does this solve? What are you trying to do today that is hard or impossible?
     validations:
       required: true
+
   - type: textarea
-    id: proposta
+    id: proposal
     attributes:
-      label: "Proposta"
-      description: "Sintaxe/semântica proposta, com exemplo Kof idiomático (intenção, não mecanismo)."
+      label: Proposed solution
+      description: Describe the feature. Include example syntax or API if relevant.
     validations:
       required: true
+
   - type: dropdown
     id: area
     attributes:
-      label: "Área afetada"
+      label: Area
+      description: Which part of the project does this affect?
+      multiple: true
       options:
-        - Frontend (parser/check)
-        - Backend JVM
-        - Backend Native
-        - Backend JS
-        - Interpretador/script
-        - Stdlib
-        - CLI/ferramentas
-        - Docs/corpus
-        - Outro
+        - Language / syntax
+        - Compiler
+        - Standard library
+        - Tooling (CLI, LSP, debugger)
+        - Documentation
     validations:
       required: true
+
   - type: textarea
-    id: alternativas
+    id: alternatives
     attributes:
-      label: "Alternativas consideradas"
-      description: "Por que interop/FFI ou uma feature existente não resolve? (R9: interop-first)"
+      label: Alternatives considered
+      description: Other approaches you thought about and why you rejected them.
     validations:
       required: false
+
   - type: checkboxes
-    id: contrato
+    id: checks
     attributes:
-      label: "Compatibilidade"
+      label: Checklist
       options:
-        - label: "Li a regra de congelamento de semântica (AGENTS.md): mudança de contrato exige bump de versão + docs + migração, e é decisão da mantenedora."
+        - label: I searched existing issues and this is not a duplicate.
           required: true

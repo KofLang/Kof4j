@@ -63,6 +63,14 @@ public final class JsTypeMapper {
                 && "bool".equals(Type.canonicalPrimitiveName(pt.name()));
     }
 
+    /** §89: true/false em Kof baixam p/ JsIdentifier("true"/"false"). Serve de
+     * gatilho p/ normalizar Bool no `==`/`!=` (lado literal) quando o operandType
+     * colapsou p/ INT no lowerer (ex.: `if (boolExpr == true)`). */
+    static boolean isBoolLiteral(JsIr.JsExpression e) {
+        return e instanceof JsIr.JsIdentifier id
+                && ("true".equals(id.name()) || "false".equals(id.name()));
+    }
+
     static boolean isLongType(Type type) {
         if (!(type instanceof Type.PrimitiveType pt)) return false;
         return "long".equals(Type.canonicalPrimitiveName(pt.name()));

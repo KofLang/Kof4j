@@ -18,6 +18,7 @@ public final class KofMath {
 
     private static final Type INT = Type.PrimitiveType.INT;
     private static final Type BOOL = Type.PrimitiveType.BOOL;
+    private static final Type DOUBLE = Type.PrimitiveType.DOUBLE;
 
     static final List<String> NAMESPACES = List.of("math");
 
@@ -43,12 +44,23 @@ public final class KofMath {
                     ? new MathCall("kof_math_max", INT, List.of(INT, INT)) : null;
             case "isEven", "isOdd", "isPositive", "isNegative", "isZero" -> argc == 1
                     ? new MathCall("kof_math_" + name, BOOL, List.of(INT)) : null;
+            // S1b wedge: sqrt = PRIMEIRO Double em kof.math (x86 sqrtsd — FLT
+            // fechado 31/08 via XMM). NaN em <0 paridade JVM/JS (Math.sqrt).
+            // riscv64/aarch64 = MATH001 (fsqrt.d portável mas a lane não tem
+            // cross-assembler/qemu p/ montar+rodar — regra: nunca asm sem prova).
+            case "sqrt" -> argc == 1 && isDouble(argTypes.get(0))
+                    ? new MathCall("kof_math_sqrt", DOUBLE, List.of(DOUBLE)) : null;
             default -> null;
         };
     }
 
-    /** All S1 math functions are Int-only and present on every target. */
+    /** S1 (Int) em todos os targets; S1b sqrt = JVM/Script/JS/x86, gate
+     * MATH001 nos cross (sem cross-assembler na lane — prova impossível). */
     static boolean supportedOn(String function, Target target) {
+        if ("kof_math_sqrt".equals(function)
+                && (target == Target.NATIVE_RISCV64 || target == Target.NATIVE_AARCH64)) {
+            return false;
+        }
         return true;
     }
 
@@ -58,5 +70,9 @@ public final class KofMath {
 
     private static boolean isInt(Type t) {
         return t == INT || "int".equals(t.toString()) || "Int".equals(t.toString());
+    }
+
+    private static boolean isDouble(Type t) {
+        return t == DOUBLE || "double".equals(t.toString()) || "Double".equals(t.toString());
     }
 }

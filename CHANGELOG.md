@@ -575,6 +575,342 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
   - guard Assumptions.assumeTrue (qemu ausente) em time/scheduler cross — convenção NATIVE002
   - E2E riscv64/aarch64 Map/Set (paridade exata com x86_64)
 
+## [0.3.2-beta] - 2026-09-09
+
+### Features
+
+  - add Fieldset, Iframe, Video, Audio, Hr widgets - UI003
+
+### Bugfixes
+
+  - parâmetro após um `Long`/`Double` deixa de sumir da assinatura (GitHub #47)
+  - atribuicao parametro let
+
+### Documentation
+
+  - corrigir links internos para docs/development (#49)
+  - registra o bug 64 (KofJS descarta parâmetro após Long/Double)
+  - reverifica o inventário contra o build 0.3.1-beta e corrige a entrada 45
+  - registra bugs 62 e 63 (mutabilidade não validada; let redeclarado em parâmetro no KofJS)
+  - bug 6 — remove seção duplicada/desatualizada em known-bugs.md
+
+## [0.3.3-beta] - 2026-09-09
+
+### Bugfixes
+
+  - sintetizar hashCode() para records no backend nativo (#55)
+
+## [0.3.4-beta] - 2026-09-09
+
+### Documentation
+
+  - add GitHub issue form templates
+
+## [0.3.5-beta] - 2026-09-09
+
+### Features
+
+  - S3.1c — strings.escapeJson nos 5 backends (RFC 8259, oracle Python)
+  - add escapeJson function for JSON string escaping
+  - add support for multidimensional arrays and related operations
+  - SECN000 fechado — uuid.v4 riscv/aarch (B25, getrandom ecall 278) + paridade variant x86 (máscara 10xx)
+  - S8-C riscv/aarch — net.* portado (B24) — NET001 FECHADO
+  - Fase E — arrays (anewarray + acessos) no statements-path
+  - S8-B x86 — net.* URI-parse nos nativos x86 (RuntimeUri, NET001 só riscv/aarch)
+  - Fase E — new/dup/init em statement-bodies
+  - §7 degrau 4 — tipos de assinatura registram import
+  - S8-wedge net nos 6 alvos não-nativos — decisão de shape + NET001 gate
+  - §7 degrau 3 — imports cross-package com regra de não-ambiguidade
+  - ENC002 fechado — base64/base64Url riscv B23 + aarch64 (port)
+  - §7 degrau 2 — índice same-package resolve instanceof/cast de domínio
+  - S3.1b — strings.unescapeHtml nos 4 targets
+  - #58 — issue forms (bug_report + feature_request + config)
+  - S3.2 — strings.removeWhitespace/normalizeWhitespace nos 4 targets
+  - §7 degrau 1 — kof decompile <dir> com package + fix pop sem operando
+  - S3.1 — strings.escapeHtml nos 4 targets, sem gate
+  - Fase E — pop/instanceof/checkcast com whitelist R6-segura
+  - S6c — validation.isDomain nos 4 targets, sem gate (RFC 1123 v1)
+  - blockerSink — medidor da fila Fase E (custo zero) + ROI medido
+  - S6b.3 — validation.isIpv6 nos 4 targets, sem gate
+  - S6b — validation.isCreditCard (Luhn) nos 4 targets, sem gate
+  - S6a — validation.isIpv4/isMac/isPort nos 4 targets, sem gate
+  - STRN001 FECHADO — word-converters (joinWords) portados p/ riscv64 B15 + aarch64
+  - i2c → as Char (único narrowing fiel); i2b/i2s ficam stub honesto
+  - S7.2 — time.dayOfWeek/daysBetween nos 4 targets, sem gate
+  - bug 62(b)/(c) — escrita em componente de RECORD é imutável (SEM037)
+  - S7-wedge — time.isLeapYear/daysInMonth nos 4 targets, sem gate
+  - bug 62 (a) — val é imutável (SEM037) + parser carrega type=val
+  - S5 — validation.isCpf/isCnpj/isCep/isPis nos 4 targets, sem gate
+  - S3b-wedge — uuid.v4 (RFC 4122) nos 3 targets testáveis + SECN000 gate cross-arch
+  - decompile trata ldc_w (maior gap real do corpus) e aconst_null
+  - S4.2c — encoding.base64UrlEncode/Decode (RFC 4648 §5) + split RuntimeEncoding ≤500
+  - JSON runtime improvements and self-check update
+  - S4.2b — encoding.urlEncode/urlDecode (RFC 3986) nos 4 targets, sem gate
+  - decompile recupera aritmética/casts long+double com guarda de tipo
+  - S4.2a — encoding.base64Encode/Decode (reuso dos internals x86 + gate ENC002 cross-arch)
+  - S4-hex — namespace encoding com hexEncode/hexDecode nos 4 targets
+  - S2b.4 — word-converters (toCamel/Pascal/Snake/Kebab/slugify) + split ≤500 (RuntimeStrings, JsCrypto)
+  - decompile recupera String concat via invokedynamic (J9+ BootstrapMethods)
+  - S2b.3 — strings.padLeft/padRight nos 4 targets + fix do limite de 64KB na cadeia riscv
+  - S2b.2 — strings.repeat/truncate nos 4 targets
+  - S2b-wedge — strings.capitalize/reverse nos 4 targets (1º conversor que alocou String)
+  - Fase C/E — ldc2_w (const Long/Double) no kof decompile
+  - S2a.3+S2a.4 — strings.count (não-sobrepostas) + isUpperCase/isLowerCase nos 4 targets
+  - Fase C/E — lconst/dconst no kof decompile (lesson bug 62 aplicada)
+  - S2a.2 — strings.isAlphaNumeric/isAscii nos 4 targets (paridade ASCII travada)
+  - S2a — hook KofStd unificado + kof.strings isAlpha/isNumeric nos 4 targets
+  - S1 kof.math Int-only nos 4 targets (clamp/abs/sign/min/max/isEven/isOdd/isPositive/isNegative/isZero)
+  - Fase C — do-while (bottom-tested loop) no kof decompile
+  - UI006 residual FEITO — Event.target()/relatedTarget() com prova browser corrigida
+  - add target and relatedTarget event accessors for UI006
+  - codeAction source.format (EDI001 §15 — último bullet)
+  - UI002 — warning único quando kof.ui roda no interpretador (R6)
+  - UI006 — Event key/value/x/y + widget.on() (DOM real em KofJS)
+  - documentSymbol (outline) + LspHover extraído (EDI001 §15)
+  - UI003 — Fieldset/Iframe/Video/Audio/Hr (DOM real em KofJS)
+  - Fase D — Type Recovery (Signature JVM com genéricos)
+  - F9(c) — Android/Wasm documentados + --target=wasm honesto (R6)
+  - textDocument/formatting — delega ao KofFormatter (EDI001 §15)
+  - EDI001 §18 — kof.target flui para build/run/test da extensão
+  - EDI001 — extensão VS Code completa (extension.js + snippets, §3/§19)
+  - textDocument/definition — go-to-definition same-file (EDI001 §15)
+  - EDI001 degrau 11 — hook pós-instalador oferece integrações (§13)
+  - EDI001 degraus 3+4-10 — install/uninstall/setup com consentimento + conteúdo idiomático por editor
+  - EDI001 degraus 1-2 — infra EditorIntegration + kof editor (read-only)
+
+### Bugfixes
+
+  - bug 71 — new T[a][b] cria TODAS as dims (KofNewMultiArray: MULTIANEWARRAY JVM / Array.newInstance interp / kofMultiArray JS) — restaura gate quebrado no remote (53264c9f era meio-de-grau)
+  - #65 transaction aninhado comita o escopo externo — rollback não desfaz
+  - #67 kof build ignora .kof (só varre .kf) e responde no .kf files found
+  - #66 LNT apontava o statement seguinte (pos pós-ponto-e-vírgula + cópia HashMap colidindo records iguais)
+  - #64 += em elemento de array e campo estático qualificado sobrescreve em vez de somar
+  - #63 2 labels de debug consecutivos no mesmo pc → LNT inválida (ClassFormatError no load)
+  - #62 signature genérica de type-arg primitivo usava descriptor cru (D) → GenericSignatureFormatError
+  - resolve SIGSEGV in spawn expressions by correcting type inference for lambda returns
+  - #60 — handle de conexão nunca reutilizado (contador monotônico)
+  - §70 — join heterogêneo primitivo-vs-primitivo (Int/Long/Double/null) sem crash e sem widening
+  - #57 — if/switch heterogêneo primitivo-vs-referência não gera mais VerifyError no JVM
+  - sintetizar hashCode() para records no backend nativo (#55)
+  - ldc escapa constantes de string — DRIFT 69→5 no corpus (09/09)
+  - 3 bugs de parsing/length que travavam bytecode REAL (601 classes)
+  - #54 — <init> NÃO é virtual no interpretador (super(v) recursiva)
+  - bug #54 — super(v) explícito despacha p/ <init> da SUPERCLASSE (era recursão no ctor → StackOverflowError)
+  - #53 metades JS/Native/script — super(Record.<init>) só no JVM
+  - bug 66 (#53) — record com ctor explícito canônico não gera <init> duplicado
+  - #42(c) — SEM038 em this.x= de MÉTODO de record (exempt só construtor) + testes
+  - #42 — SEM038 escrita em componente de record + SEM037 no update do for
+  - bug 50 — futex WAIT do canal x86_64 com args corretos (uaddr=&lock, op, val)
+  - #52 — reconstruir agrupamento por precedência/associatividade
+  - String.toInt/toLong/toDouble/toFloat no runtime (GitHub #51)
+  - bug 48 json.decode<List<Record>> gap honesto JSN004 + bug 59 regressão riscv/aarch estáticos
+  - B5-B9 emitiam código em .rodata (herdado do B4) — crash em runtime
+  - decompile nunca emite owner java/jdk sem mapeamento (R6)
+  - slot de xstore_0..3 wide era (op-0x3f) sem %4 (bug da unit anterior)
+  - decompile mapeia slots wide (R6 — Long/Double = 2 slots)
+  - bug 62 — CP Float/Double como bits crus; ldc recusa float p/ não driftar
+  - Fase C — R6: nunca emitir código errado p/ join compartilhado
+  - status reflete o marker mesmo com editor ausente do PATH
+  - SEM036 — função não-void que pode terminar sem return (bug 26 variante)
+
+### Documentation
+
+  - STDLIB — registra gate quebrado no remote (53264c9f multidim/bug71 WIP: ArrayFiller nunca criado + import KofNewMultiArray ausente em JsExpressionParser) — build limpo falha; escapeJson S3.1c FEITO (d57f8e5c) suíte verde antes do rebase; lane pausa por colisão (bug 71 do autor)
+  - #62 docs de Kof (docs de Kof) — docs
+  - #61 respondida (design da mantenedora) — sessão issues 62-67
+  - switch-Fase-C em espera (stash WIP); #62 assumida; #61 não (design)
+  - bugs 46/50 verificados pós-fix órfão (a617d840) — testes verdes, linha bug-fix atualizada
+  - junta linha da lane STDLIB rachada por newline (`\\n` literal dentro do replace — contagem de pipes 7 restaurada)
+  - #60 fechada c/ evidência; convenção koftmp; próxima fila
+  - gotcha LEX004 — lexer pré-processa \\uXXXX antes do token
+  - #55/#57/#58 fechadas c/ evidência; próximo = degrau 2 multi-classe ou §§69-70
+  - #55 FECHADA (cherry-pick main def86a5a→c57855fd, prova recordhash 4 targets)
+  - Fase E — pop/instanceof/cast feitos (3ca20067); próximo degrau = multi-classe §7
+  - fila Fase E CORRIGIDA pela prova de drift — pop/instanceof/cast bloqueados por multi-classe, não por eles
+  - migração — 601/601 robustez (ff2369f6); fila Fase E = 1812 stubs/3306
+  - 39-stdlib — tutorial da standard library universal (S9.2)
+  - #54/bug 67 — corrigido registro da causa raiz (o 8968c883 sozinho NÃO fechava) + DOING com evidência
+  - SG-006 resolvido — short-circuit && paridade travada por teste (suíte verde)
+  - bug 46 — registra teste de isolamento (sem captura)
+  - registrar que #54 (bug 67) foi corrigido pelo lane bug-fix — agente migração não deve refazer
+  - bug 67 (#54) super(v) interp corrigido + known-bugs + DOING
+  - bug 50 — registra teste de validação channelWithSpawnNative
+  - #53 FECHADA (203096e4) + #54 aberta (interp super(v), sem dono) — próximo passo do loop
+  - SG-010 resolvido — val imutável (SEM037, bug 62a)
+  - 'ERRO de runtime: record é imutável' → 'ERRO de compilação SEM038' (training/language/classes + learn/07)
+  - learn/08 — p.x=99 é erro de COMPILAÇÃO SEM038 (não runtime)
+  - records — documenta imutabilidade (SEM038, bug 62)
+  - concurrency — documenta spawn { return ... } lambda literal + Handle (bug 46 Native gap)
+  - bug 65 — registra verificação do pipeline JS (descarta codegen; causa = timing runtime no browser)
+  - corrigir \\n literal que mesclou as linhas STDLIB e EDI001
+  - SG-006 — análise: JS emite &&/|| nativos com short-circuit; recomendar teste de paridade
+  - bug 46 — registra teste de regressão + confirmação SIGSEGV + nota sobre causa x86_64
+  - remover pipe extra órfão na linha STDLIB (herança do commit S5)
+  - bug 66 corrigido; estado atualizado
+  - #42 FECHADA (a/b/c, ed0475c8) — linha da sessão atualizada
+  - DD-02 → APLICADO (erro direto) + link p/ #53 (record+ctor JVM, aberto); issue #53 criada com repro mínimo
+  - bug 62 completo (a val SEM037 + b/c record SEM038); restam 5 exigem ambiente/regra 6
+  - bug 62 (mutabilidade) completo — (a) val SEM037, (b)/(c) record SEM038
+  - #42 62(b)/(c) FEITO (72e79b9f) — não retocar; mantém bloco 9364b973 da lane bug-fix
+  - consertar linha da lane STDLIB — S7-wedge dentro da linha + PRÓXIMO PASSO reordenado
+  - bug 50 correção candidata (futex WAIT args) + DOING estado real
+  - estado real dos bugs apos a sessao (48,59,62a corrigidos; doc atualizado)
+  - marcar bugs 43,44,63,64 como corrigidos (fixes já no código com testes)
+  - marcar bugs 7,9,18,21,22,23,30 como corrigidos (doc desatualizado)
+  - DD-02 — design dos validadores de mutabilidade (val/record, #42)
+  - normas de desenvolvimento colaborativo da pré-beta 0.3.0 no código de conduta
+  - training/idioms/stdlib.md — os 4 namespaces STDLIB com BAD/GOOD/WHY
+  - S4 completo — linha STDLIB na matriz de módulos + nota do plano
+  - contagem da suíte pós-merge (1249/0/64-skip)
+  - update PRÓXIMO PASSO and remove legacy heartbeat (auto-loop.sh ativo)
+  - add specification-gaps.md with compiler gaps (R6, HW001, CONC001, etc.)
+  - registra ldc2_w no DOING + IMPLEMENTATION_PLAN (follow-up d953d92)
+  - STDLIB S2a.2 FEITO (257b9b0) — linha de PRÓXIMO PASSO corrigida (fica em S2a.3)
+  - PRÓXIMO PASSO — estender emitLinear p/ long/casts c/ guard de tipo (lesson bug 62)
+  - sweeps R6 do decompiler (control-flow + numérico) — tudo degrada honesto
+  - STDLIB S1+S1a FEITO (d0b829a) — registro da lição do inline de constant JS + PRÓXIMO (S1b math Double, S2 strings)
+  - sincroniza tabela de testes (DoD-docs) — 1218 total, UiE2ETest 27, browser 16
+  - UI005 readonly/name FEITO na matriz + índice README desatualizado corrigido
+  - RETRATA 2 falsas falhas UI (build stale meu pós-rebase; suíte fresca 1091/59bug59 + 126 demais = verde) + EDI001 codeAction FEITO (4329898)
+  - UI002 FEITO (warning único no interpretador) — matriz + DOING
+  - codeAction feito + registro das 2 falhas UI003/UI006 (lane UI, regra 3)
+  - esclarece contagem da suíte (qemu presente vs ausente)
+  - suíte completa exige -Dmaven.test.failure.ignore=true (lição 08/09)
+  - PRÓXIMO PASSO — fila UI (UI002 warning, UI006 residual, UI007 bloqueado)
+  - UI006 FEITO (key/value/x/y + widget.on) — matriz + corpus
+  - UI003 FEITO (fieldset/iframe/video/audio/hr) — matriz + corpus
+  - Fase D (Type Recovery) marcada completa — provas 367d6c4
+  - DD-01 — finally no caminho return (bug 45) vira plano de design + limpeza
+  - 38-editors — tutorial kof editor (§27 pede corpus passo-a-passo)
+  - PRÓXIMO PASSO — varredura de exclusões obsoletas da matriz de conformância
+  - degrau 12 — docs/editors/* + corpus (training/cli, EDITOR_SUPPORT)
+  - DOING — degrau 11 feito (hook pós-instalador, e7e3564)
+
+### Refactoring
+
+  - S1a stdlib — JvmRuntimeCallDescriptors 504→354 (callReturnDescriptor → JvmRuntimeReturnDescriptors, gate ≤500 limpo na lane) + docs/development/plan-stdlib-expansion.md (mapeamento da arquitetura real da stdlib: Kof<Domain>.java→typer→3 backends, existente vs lacunas P0-P2, degraus S1-S9) + claim STDLIB no DOING
+
+### Tests
+
+  - reabilita native p/ channel-spawn (bug 50) e adiciona spawnexpr-return (bug 46)
+  - json.decode<List<Record>> Native dá JSN004 (gap honesto, não link fail)
+  - isolamento spawn { return 42 } sem captura — separa causa captura vs return lambda
+  - bug 50 — channel+spawn no Native (valida fix candidata futex WAIT quando build disponível)
+  - SG-006 — short-circuit && no JS/JVM (String? null && length > 0 não NPE)
+  - spawn-expr lambda literal com return + handle no Native; docs bug 61 gap honesto FFI001
+  - Fase C — trava degradação honesta de do-while com corpo ramificado
+  - Fase C — trava laço aninhado + corpo não-linear (verificação com probes)
+  - staticfield/staticpluseq nos 4 targets (bug 41 já corrigido no Native)
+
+## [0.3.6-beta] - 2026-09-09
+
+### Features
+
+  - introduce kof.random namespace with various random generation functions and runtime support
+
+## [0.3.7-beta] - 2026-09-10
+
+### Bugfixes
+
+  - preservar operandos da pilha em if/switch-expressions (#69)
+
+## [0.3.8-beta] - 2026-09-10
+
+### Features
+
+  - implement kof.random namespace with double, boolean, int, and hex functions; add tests for cross-platform compatibility
+
+### Bugfixes
+
+  - random.double() usava 2^52 como divisor (constante .Lrnd_two53 errada) — corrigir para 2^53 nos runtimes x86 e riscv/aarch; docs: gravar regra de organizacao de documentacao no AGENTS.md + known-bugs SS79 + DOING.md
+
+## [0.3.9-beta] - 2026-09-10
+
+### Documentation
+
+  - consolidar classificacao docs/development pela nova regra - mover planning-switch-expr + planning-mutability (FEITOS) p/ docs/, planning-finally-return (PROPOSED/zero codigo) p/ future/; classificar plan-stdlib-expansion por degrau (S7 unico aberto); atualizar README do indice + DOING.md
+
+## [0.3.10-beta] - 2026-09-10
+
+### Features
+
+  - time.addDays/diffDays em data ISO (JVM/Script via java.time) + gate TIME002 em JS/Native; matriz stdtime2 + KofTimeE2ETest + docs (stdlib/learn/matrix/plan); DOING.md
+
+## [0.3.11-beta] - 2026-09-10
+
+### Features
+
+  - time.addDays/diffDays em JS (algoritmo civil sem Date, paridade byte-idêntica); TIME002 resta só Native; matriz stdtime2 JS DONE + gate KofTimeE2ETest + docs (stdlib/learn/matrix/plan); DOING.md
+
+## [0.3.12-beta] - 2026-09-10
+
+### Bugfixes
+
+  - pad4 de ano em time.addDays JS (parity byte-idêntica com JVM %04d; ano<1000 divergia) + stdtime2 trava 0999/0001/1700-02-28; DOING.md com design fechado do S7c x86
+
+## [0.3.13-beta] - 2026-09-10
+
+### Features
+
+  - time.addDays/diffDays no native x86 (RuntimeTimeIso — parse ISO + inversa civil Hinnant asm; round-trip exaustivo 1..9999 + fuzz C 200k) + gate TIME002 afunilado p/ riscv/aarch (precedente NET001) + matriz stdtime2 roda x86 local + docs; DOING.md
+
+## [0.3.14-beta] - 2026-09-10
+
+### Bugfixes
+
+  - transaction aninhado no native x86 não comita o escopo externo — .Ldb_tx_handle dono + flag-owner no record do try (paridade §77 JVM) + teste E2E sqlite; known-bugs/DOING
+
+### Documentation
+
+  - carry JS bool = false alarm (matriz stdmath prova println true/false no JS; isBoolOperand converte 1/0) — fechar após ler randomShapeJs
+  - PRÓXIMO PASSO refina S7c-1 (bloqueio qemu/toolchain documentado) + tarefa (B) paridade JS bool como próxima executável sem qemu
+
+## [0.3.15-beta] - 2026-09-10
+
+### Bugfixes
+
+  - math.is*/random.boolean retornam boolean JS real — boolExpr==true funciona no JS (paridade JVM/Native); randomShapeJs ganha o assert que native já tinha; FALTAM strings/validation/security (guards)
+
+### Documentation
+
+  - §80 math/random feito nesta sessão; PRÓXIMO PASSO = strings/validation/security (guards)
+  - plan-stdlib-expansion + stdlib.md + learn/39 atualizados — addDays/diffDays x86 FECHADO (TIME002 residual só riscv/aarch)
+  - status PARCIAL — math/random corrigidos; strings/validation/security documentados c/ nota dos guards return 0
+  - bug paridade JS Bool — boolExpr==true sempre false (funções stdlib retornam 1/0; print coerce mas == usa === cru; evidência no .mjs gerado) + PRÓXIMO PASSO com fix (opção A, todos os sites incl guards validation)
+
+## [0.3.16-beta] - 2026-09-10
+
+### Bugfixes
+
+  - Bool==true no JS normalizado no chokepoint da comparação — paridade JVM/Native
+
+### Documentation
+
+  - S7c Native x86 addDays/diffDays FEITO (cd622c47) — header estava stale
+
+### Tests
+
+  - stdstrings ganha caso `isAlpha("Hello") == true` — 4 targets
+  - matriz stdmath ganha os casos `==true`/`==false` — 4 targets travam a comparação
+
+## [0.3.17-beta] - 2026-09-10
+
+### Tests
+
+  - stdvalidation ganha `isCpf==true`/`isCpf==false` — fecha a família flagged como FALTAM
+
+## [0.3.18-beta] - 2026-09-10
+
+### Documentation
+
+  - §80 fechado + endurecido (matrizes stdmath/stdstrings/stdvalidation); PRÓXIMO PASSO = S1b math Double (ou uuid.isUuid p/ risco menor)
+
+## [0.3.19-beta] - 2026-09-10
+
+### Features
+
+  - uuid.isUuid(STR)->Bool — 4 targets, gate UUID001 honesto riscv/aarch
+
 <!-- NEXT-RELEASE -->
 
 ## [0.2.7-beta] - 2026-09-04

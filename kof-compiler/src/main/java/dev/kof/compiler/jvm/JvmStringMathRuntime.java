@@ -55,6 +55,12 @@ public final class JvmStringMathRuntime {
                     return v == 0;
                 }
 
+                // S1b: PRIMEIRO Double em kof.math (x86 sqrtsd; FLT001 fechado
+                // 31/08 via XMM). NaN em <0 (Math.sqrt) — paridade JS/native.
+                public static double kof_math_sqrt(double v) {
+                    return Math.sqrt(v);
+                }
+
                 // ── kof.strings (STDLIB S2a) — predicados de char ──────────
                 // Convenção de paridade (travada em KofStringsTest + matriz):
                 // string vazia / null => false (nenhum char satisfaz).
@@ -323,25 +329,6 @@ public final class JvmStringMathRuntime {
                     return kof_encoding_base64Decode(v.replace('-', '+').replace('_', '/'));
                 }
 
-                // ── kof.uuid (STDLIB S3b) — v4 (RFC 4122) ─────────────────
-                private static final java.security.SecureRandom KOF_UUID_RANDOM =
-                        new java.security.SecureRandom();
-                // 16 bytes aleatorios -> 8-4-4-4-12, version=4, variant=10xx.
-                public static String kof_uuid_v4() {
-                    byte[] b = new byte[16];
-                    KOF_UUID_RANDOM.nextBytes(b);
-                    b[6] = (byte) ((b[6] & 0x0f) | 0x40);   // version 4
-                    b[8] = (byte) ((b[8] & 0x3f) | 0x80);   // variant 10
-                    final char[] H = "0123456789abcdef".toCharArray();
-                    char[] c = new char[36];
-                    int k = 0;
-                    for (int i = 0; i < 16; i++) {
-                        c[k++] = H[(b[i] >> 4) & 15];
-                        c[k++] = H[b[i] & 15];
-                        if (i == 3 || i == 5 || i == 7 || i == 9) c[k++] = '-';
-                    }
-                    return new String(c);
-                }
 
                 // ── kof.encoding (STDLIB S4.2b) — percent-encoding (RFC 3986) ──
                 // unreserved [A-Za-z0-9-_.~] preservado; todo outro byte UTF-8

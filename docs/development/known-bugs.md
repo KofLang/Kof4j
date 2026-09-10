@@ -10,6 +10,7 @@
 > |---|---|
 > | Abertos e atacáveis em JVM/JS | **5** — bugs 39, 45, 62, 63, 64 |
 > | Abertos, só reproduzíveis no Native | **7** — bugs 43, 44, 46, 48, 50, 59, 61 |
+> | Paridade interpretador × compilados (semântica `==` congelada — regra 6) | **1** — bug 90 (NaN/±0.0 `==` de Double no SCRIPT) |
 > | Verificados corrigidos em 08/09 | **19** — bugs 1–8, 10–17, 19, 20, 26 |
 > | Não reverificados (faltou ambiente/setup) | bugs 9, 18, 21, 22, 23 |
 >
@@ -1304,16 +1305,26 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   backend (`frame crash ... COMPUTE_FRAMES AIOOBE`, causa distinta:
   slot-size 1 vs 2 no join) — ver 70.
 
-### 69. KofJS: if heterogêneo → `expression stack underflow` (COMP002) — ABERTO (pré-existente, causa no backend JS)
+### 69. KofJS: if heterogêneo → `expression stack underflow` (COMP002) (issue #69) — ✅ CORRIGIDO 09/09
 
 - **Sintoma:** o MESMO programa da issue #57 (`println(if (s == "") 1 else "s")`)
   no target JS: `Internal compiler error: KofJS: expression stack underflow`
   (COMP002), em vez de JS válido.
-- **Prova de pré-existência (09/09):** revertido o fix JVM da lane (stash dos
-  8 arquivos do §68, teste mantido) → o JS falha IDÊNTICO; o backend JS ignora
-  `kof_box` (no-op), logo o underflow vem do tratamento de if-expr do próprio
-  backend JS, não do box. Casos excluídos com `Set.of("js")` até o dono do JS
-  corrigir.
+- **Causa raiz:** Em `JsExpressionStatementParser.java`, ao processar `KofConditionalJump`,
+  o compilador drenava incondicionalmente toda a pilha de operandos acumulada até então
+  (`while (!stack.isEmpty())`) para dentro da `condition` antes de determinar se o salto
+  era um `if-expression` ou um `if-statement`. Quando a expressão ocorria como argumento
+  de uma chamada de função (ex.: `println(...)`), o receiver `$kofOut` que já estava na pilha
+  era descartado prematuramente. Ao terminar de emitir o `ifExpr`, apenas o resultado da
+  expressão ficava na pilha, fazendo com que a chamada de função subsequente falhasse com
+  `expression stack underflow`.
+- **Correção:** O empacotamento de preâmbulo na condição só é executado se `tryParseIfExpr(...)`
+  retornar `null` (ou seja, quando for comprovadamente um `if-statement`). Em `if-expression`,
+  os operandos prévios na pilha permanecem intactos.
+- **Provas:** Todos os 5 testes da `ConformanceMatrixTest` com branches heterogêneos
+  (`ifexpr-heterogeneous-direct`, `switchexpr-heterogeneous-direct`, `ifexpr-intlong-direct`,
+  `ifexpr-longdouble-direct`, `ifexpr-intnull-direct`) foram reabilitados para o target JS
+  (remoção de `Set.of("js")`), passando com sucesso no KofJS.
 
 ### 71. JVM: array multidimensional `new Int[2][3]` compila e dá VerifyError — ✅ CORRIGIDO 09/09
 
@@ -1519,26 +1530,133 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   in-memory); teste `nestedTransactionDoesNotCommitOuterScope`; classe
   KofDbE2ETest 15/0 (2 skips Native pré-existentes).
 
-### 78. Native: `transaction` aninhado comita o escopo externo (irmão asm do §77) — ABERTO (lane Native)
+### 78. Native: `transaction` aninhado comita o escopo externo (irmão asm do §77) — ✅ CORRIGIDO 10/09 (x86)
 
 - **Sintoma:** MESMO programa do §77 em target Native (x86_64, sqlite): o
   bloco `transaction` interno comita (COMMIT no handle) enquanto o externo
   ainda está em transação; rollback do externo não desfaz as linhas
   confirmadas pelo interno. Paridade quebrada JVM vs Native (regra 5).
-- **Causa:** `runtime/RuntimeDb4.kof_db_transaction` (asm) faz
-  BEGIN/COMMIT/ROLLBACK pelo handle SEM flag de transação ativa — não há
+- **Causa:** `runtime/RuntimeDb4.kof_db_transaction` (asm) fazia
+  BEGIN/COMMIT/ROLLBACK pelo handle SEM flag de transação ativa — não havia
   equivalente do `ThreadLocal KOF_DB_TX` JVM; cada bloco aninhado repete
-  BEGIN (que no sqlite é no-op dentro de tx, mas o COMMIT interno efetiva).
-- **Correção esperada (lane Native):** espelhar a semântica JVM fixada em
-  `JvmConfigRuntime.kof_db_transaction` (`nested = mesma conexão/handle →
-  não comita, não rollbacka, não re-BEGIN; erro propaga p/ o externo
-  decidir`) — flag de transação ativa por handle no asm (x86_64 primeiro,
-  riscv/aarch64 quando a área db existir lá). Sem savepoints (decisão da
-  mantenedora, §77).
-- **Prova de repro:** o mesmo programa KofDbE2ETest da issue #65 rodando
-  no binário x86_64 (`caught {"n":2}` esperado antes do fix). Lane issues
-  (09/09) NÃO implementou — asm fora da lane; registrado p/ o dono Native
-  com a semântica alvo já definida no §77.
+  BEGIN (no-op no sqlite dentro de tx, mas o COMMIT interno efetiva).
+- **Correção (10/09, x86):** espelha a semântica fixada em
+  `JvmConfigRuntime.kof_db_transaction` — novo `.Ldb_tx_handle` (BSS,
+  `RuntimeDb1`) guarda a conexão DONO da transação aberta; `kof_db_transaction`
+  compara com o handle atual (`nested = handle == .Ldb_tx_handle`) e o bloco
+  interno NÃO é dono: não BEGIN, não COMMIT, não ROLLBACK, não limpa — o erro
+  propaga p/ o externo decidir (re-throw via `.Ltx_rethrow`). A flag-owner é
+  gravada no record do try (slot @32, `subq $56`) p/ sobreviver lambda +
+  unwind (o `kof_throw_string` restaura `rsp` na base do record e o handler
+  lê de lá). Bônus de correção: o `call` da lambda agora sai com `rsp` 16B
+  alinhado (SysV) — antes o `subq $32` deixava 8 mod 16. Sem savepoints
+  (decisão da mantenedora, §77).
+- **PROVA:** `KofDbE2ETest.nativeNestedTransactionDoesNotCommitOuterScope`
+  (binário x86 + sqlite: `caught` + `{"n":0}` — antes `{"n":2}`) +
+  `nativeTransactionCommits`/`nativeTransactionRollsBackOnFailure` intactos
+  (classe 16/0, 2 skips pré-existentes cross-arch). riscv64/aarch64: db
+  (sqlite/mysql) não existe na fatia cross — sem escopo de ação.
+
+### 88. Native (x86/riscv/aarch): `random.double()` retorna valores em [0,2) — constante 2^53 codificada como 2^52 — ✅ CORRIGIDO 10/09
+
+- **Sintoma:** `KofRandomTest.randomShapeNative` flaky em main (`845284e5`):
+  `assert(d < 1.0)` falha em ~50% das execuções do MESMO binário
+  (31/60 no harness; com 6 asserts de double no programa, falha ~100%).
+- **Menor repro:** `main() { var d = random.double(); assert(d < 1.0) }` →
+  `kof run --target native`, ~1 em 2 rods → `assertion failed`.
+- **Causa raiz:** `.Lrnd_two53` tem `.quad 0x4330000000000000`, que é
+  **2^52** (4503599627370496.0), não 2^53 (9007199254740992.0 =
+  `0x4340000000000000`). O asm divide `v ∈ [0,2^53)` (mantissa >> 11) por
+  2^52 → resultado em [0,2). Bit 52 do exponent field: `0x433` vs `0x434`.
+  Mesmo valor copiado no runtime x86 (`RuntimeRandom.java`) e no bloco
+  riscv/aarch (`NativeRiscvAsmRtB27.java`) — bug único, dois sites +
+  translator aarch64 (mesma const).
+- **Correção (10/09):** `.quad 0x4340000000000000` nos 2 sites. PROVA:
+  harness isolado chamando `kof_random_double` 200k×: `ge1=0`, max < 1.0;
+  binário real do teste: **0/200** falhas (antes 31/60);
+  `KofRandomTest` 4/4 (1 skip cross-arch sem toolchain).
+ - **Lição:** golden de valor é impossível p/ random (por design), mas
+   CONSTANTE DE FP em asm merece teste de decode no harness — o comentário
+   dizia "= 2^53" e o bit não era (confiança no texto, não na máquina).
+
+### 89. JS: valor `Bool` de função stdlib é number 1/0 → `boolExpr == true` sempre `false` (paridade cross-target quebrada) — CORRIGIDO 10/09 (chokepoint `!!` na comparação cobre stdlib + instanceof + coleções)
+
+- **Sintoma:** `var b = random.boolean()` (ou `var e = math.isEven(2)`) no
+  target JS: `println(e)` mostra `true`, MAS `e == true` e `e == false` são
+  AMBOS `false`, e `assert(b == true || b == false)` FALHA. No JVM e no
+  Native (x86/riscv/aarch) o mesmo programa é `true`/`false` corretos
+  (paridade regra 5 quebrada). Menor repro (`kof run --target js`):
+  ```
+  main() {
+      var e = math.isEven(2)
+      if (e == true) { println("E-TRUE") } else { println("E-NOTTRUE") }
+      println(e)                 // -> "true"  (parece ok!)
+      var b = random.boolean()
+      assert(b == true || b == false)   // falha no JS, passa no JVM
+  }
+  ```
+  Saída JS observada (harness KofJsRunner, 10/09): `E-NOTTRUE` + println
+  `true`; somatório de `(b==true)+(b==false)` sobre 60 amostras = **0**
+  (esperado 60).
+- **Causa raiz (EVIDÊNCIA decisiva — `.mjs` gerado, 10/09):**
+  ```js
+  let e = kofMathIsEven(2);                 // função retorna NUMBER 1
+  kofPrintln(String((e ? true : false)));   // PRINT injeta coerção → "true"
+  if ((e === true)) { ... }                 // == baixa p/ === STRICTO → 1===true=false
+  ```
+  O backend JS **não é simétrico**: o emissor de `println` envolve o operando
+  Bool num `(x ? true : false)` (por isso imprimir `true` engana), mas o
+  emissor de `==` emite o operando CRU `===` (`JsCallEmitter.java:268
+  case EQ -> JsBinary(left,"===",right)`; idem `JsControlFlowParser:230`) e os
+  literais Kof `true/false` baixam p/ boolean JS. Como as funções stdlib
+  Bool-returning entregam **number `1/0`** (`JsRuntimeUiStdlib:
+  kofMathIsEven/IsOdd/IsPositive/IsNegative/IsZero` linhas 19-23,
+  `kofRandomBoolean` ~467, predicados `strings.is*` 27-53, `validation.is*`
+  ~331-403, `security.constantTime*` ~230-341), `boolExpr == true` é sempre
+  falso. No JVM/Native o valor é primitivo `Z` real e a comparação casa.
+- **Fix (implementado 10/09 — opção B no SÍNTESE, o chokepoint da comparação):**
+  em vez de reescrever os ~48 sites `? 1 : 0` (opção A — INCOMPLETA: os guards
+  `return 0` das famílias validation/security ficariam `0===false`, e NÃO cobria
+  `instanceof` nem predicados de coleção), os emissores de `==`/`!=` do backend
+  JS agora **normalizam ambos os operandos com `!!`** (ToBoolean) quando o lado
+  é Bool — cobrindo uniformemente 1/0 de stdlib, `instanceof` e `contains`/
+  `isEmpty`. Disparo por TIPO (`JsTypeMapper.isBoolOperand`) **ou** por LITERAL
+  (`JsTypeMapper.isBoolLiteral` — `true`/`false`), porque `if (boolExpr == true)`
+  colapsa `operandType` p/ `INT` no lowerer compartilhado (`comparisonOperandType`,
+  CompilerComparisons.java) — o tipo não é sinal suficiente no caminho de
+  condição. LT/LE/GT/GE ficam intocados (Kof proíbe ordenar Bool). Sites:
+  `JsCallEmitter.binaryExpr` (caso valor, `KofBinary`) + `boolEq` helper novo;
+  `JsControlFlowParser.comparisonExpr` (caminho de condição — agora recebe
+  `operandType` do `KofConditionalJump`; 3 call-sites atualizados em
+  JsControlFlowParser/JsExpressionStatementParser/JsExpressionParser).
+  A opção A parcial (math.is*/random.boolean → boolean JS real) FICOU nos
+  commits anteriores e é compatível com o chokepoint (defesa em profundidade).
+- **Prova (real execução + paridade):** `node` roda o `.mjs` gerado e imprime
+  as 10 saídas corretas (era o bug: `cond`/`instanceof==true`/`isEmpty==false`
+  todos `false`); `CoreRegressionE2ETest.boolEqualityContentParityJvmJs`
+  (`runBoth`) trava **JVM == JS byte-idênticos** no caminho de VALOR
+  (`var x = a == true`) E de CONDIÇÃO (`if (a == true)`), para stdlib
+  (strings/math), `instanceof` e coleção (contains/isEmpty/list/map). Suíte
+  completa **1365/0** (compiler 1208 + script 25 + kof-c 5 + cli 127; 80 skip
+  = riscv/aarch sem qemu). Matriz `stdmath`/`stdstrings`/`stdvalidation` e
+  `KofRandomTest.randomShapeJs` verdes (sem regressão).
+- **Status (10/09): CORRIGIDO** — chokepoint de comparação cobre TODAS as
+  famílias (math/strings/validation/security + instanceof + coleções), não só
+  as já convertidas. `randomShapeJs` mantém o assert `b==true||b==false`.
+- **Por que passou despercebido (lição §88 de novo):** `randomShapeJs`
+  (`KofRandomTest:74`) **omite** as linhas `var b = random.boolean();
+  assert(b == true || b == false)` que `randomShapeNative`/`randomShapeCrossArch`
+  têm — o shape JS nunca exercita Bool de função. E a matriz `stdmath` só faz
+  `println(isEven(...))` (caminho impresso, coercente), nunca `== true`.
+- **Prova de aceite esperada:** estender `randomShapeJs` com as 2 linhas de
+  boolean (espelhando native) + caso `math.isEven(2) == true` na matriz; deve
+  dar exit 0 nos 3 targets com saída idêntica.
+- **Arquivo:** `js/JsRuntimeUiStdlib.java` (linhas 19,23,~467); verificar
+  também `JsCallEmitter`/`JsValueEmitter` p/ outros retornos Bool numericados.
+  Registrado 10/09 (sessão S7c; achado ao tentar FECHAR uma "carry JS bool"
+  que na verdade NÃO era false alarm — a matriz `stdmath` só provava o print,
+  não a comparação).
+
 
 
 
@@ -1576,6 +1694,44 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   não-virtual); (3) `super()` p/ base externa não-Kof (Record/Object, IR do
   #53) = no-op. Prova: `ScriptTargetTest` 7/7 (interpretExplicitSuperConstructor
   + explicitSuperConstructorDoesNotRecurse + recordWithExplicitConstructorRunsOnInterpreter).
+
+### 90. Interpretador: `==` de Double via `Double.compare` → `NaN == NaN` é `true` (JVM/Native/JS compilados: `false`, IEEE) — ABERTO (paridade regra 5, semântica `==` congelada = regra 6)
+
+- **Sintoma:** `math.sqrt(-1.0) != math.sqrt(-1.0)` (ou qualquer `NaN != NaN`):
+  JVM/Native-x86/KofJS → `true` (IEEE 754: NaN nunca é igual a si mesmo);
+  interpretador (SCRIPT) → `false`. Menor repro — precisa de uma origem de
+  NaN sem literal (literal `nan` não existe em Kof; `sqrt(-1.0)` é a que a
+  stdlib S1b expôs):
+  ```kof
+  main() {
+      println(math.sqrt(-1.0) != math.sqrt(-1.0))
+  }
+  ```
+  `kof run` (script) → `false`; `--target jvm|native|js` → `true`.
+- **Causa raiz (verificada 10/09 ao escrever o wedge S1b):**
+  `KofInterpreterOps.binary` rota EQ/NE primitivos por
+  `KofInterpreterValues.numEq`, que para Double usa
+  `Double.compare(x, y) == 0` — e `Double.compare(NaN, NaN)` retorna **0**
+  (ordenação total de `Comparable`, NÃO igualdade IEEE). O caminho compilado
+  é `DCMPL`/`===`/`comisd`+push, todos IEEE (`NaN != NaN`). O mesmo `numEq`
+  também inverte `+0.0 == -0.0` (JVM compilado: `true`; `Double.compare`:
+  `false` — mesmo buraco, não reproduzido ainda).
+- **Por que NÃO foi corrigido na hora (regra 6):** `==` é
+  **congelado (0.2.6-beta)** — mudar a semântica do interpretador afeta todo
+  código Kof existente que compare Doubles (ordenação vs igualdade em mapas,
+  `contains` de lista sobre Object cai em outro ramo). É decisão de design →
+  discussão + bump, nunca correção silenciosa. O correto provável é EQ/NE
+  usarem `x == y` nativo (IEEE) e `compareRefs`/ordenação manterem
+  `Double.compare` — mas quem decide é a mantenedora.
+- **Mitigação atual (R6 honesto):** a matriz `stdsqrt` marca a célula script
+  como **PARTIAL-bug 90** e o `Set.of("script")` exclui da asserção — o teste
+  continua provando os 3 targets compilados; o caso NaN vive inteiro em
+  `KofMathTest.sqrtJvm/sqrtNative/sqrtJs`.
+- **Prova de aceite esperada:** `stdsqrt` sem exclusão (4 targets idênticos
+  no `NaN != NaN`); + vetor `+0.0 == -0.0`.
+- **Arquivos:** `KofInterpreterValues.numEq` (linha ~91),
+  `KofInterpreterOps.binary` (EQ/NE). Descoberto 10/09 (sessão stdlib S1b).
+- **Status: ABERTO** (semântica congelada — aguarda decisão de design).
 
 ## Comportamentos que PAREcem bugs mas são esperados (não corrigir)
 
@@ -2005,3 +2161,33 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 - **Causa raiz:** `StatementLowerer.emitStatementInner` case `ExpressionStmt` emite `KofPop` incondicional para descartar o valor da expressão; Long/Double são categoria-2 (2 slots) e exigem POP2. `KofPop` virava POP (1 slot) → o 2º slot do long ficava na pilha → verificador rejeita.
 - **Fix:** novo op IR `KofPop2` (POP2 JVM, `addq $16,%rsp` x86, `addi sp,sp,16` riscv); o statement escolhe `KofPop2` quando `TypeMetrics.isDoubleWidth(tipo)`. Interpretador trata `KofPop2` como pop; JvmLiteralEmitter conta depth−1 igual (modelo de 1 slot do emitter). (Repro: `KofConcurrency2Test.noWordTearingOnLong` antes do fix.)
 - **Arquivos:** `KofPop2.java` (novo), `StatementLowerer.java`, `JvmOpEmitter.java`, `JvmLiteralEmitter.java`, `NativeMethodEmitter.java`, `NativeRiscvCrossEmit.java`, `KofInterpreter.java`.
+
+---
+
+### 91. Varredura KofPop width-blind — 2 sítios além do statement_expression ainda emitiam POP de 1 slot (VerifyError `long_2nd`) — ✅ CORRIGIDO 10/09 (merge main→beta-0.3.0; irmãos do `KofPop2` acima)
+
+O caso canônico (statement-expression, `await w` de `Handle<Long>`) foi fechado
+pelo `KofPop2` (linha acima, "Bug 79" da lane SG-020). A varredura dos demais
+`new KofPop()` restantes achou 2 sítios com o MESMO furo width-blind, corrigidos
+nesta merge (mesma técnica: `TypeMetrics.isDoubleWidth` → `KofPop2`):
+
+- **`StatementLowerer.java` (corpo de atualização do `for`)** — descarta o valor
+  da expressão do update (ex.: `for (...) { } ... random.double()` / método que
+  devolve Long/Double chamado por efeito). Antes: `KofPop()` unconditional →
+  `VerifyError: Bad type on operand stack ... long_2nd` no load. Prova: `for`
+  com update double-wide compila e o bytecode traz `pop2`.
+- **`ExpressionBinaryLowerer.java` (comparação `primitivo == null`)** — o caminho
+  que valida um valor primitivo contra `null` empurra o valor e descarta. Antes
+  do fix, o tipo descartado era tratado como 1-slot; agora usa `accType`/`rightType`
+  do operando e emite `KofPop2` quando o valor é categoria-2 (Long/Double).
+  Repro: `random.double() == null` compilava e rodava sem crash (antes: o
+  mesmo `long_2nd`).
+- **`ExpressionInstanceCallLowerer.java:51` (args de call em array)** — BENIGNO:
+  só é alcançado depois de diagnóstico SEM025 (caminho de erro que retorna
+  `INT 0`); o programa já falhou a compilação, o POP nunca roda em bytecode
+  válido. Deixado como está.
+
+**Regra travada:** todo descarte de valor de expressão usa o TIPO real
+(`isDoubleWidth` → `KofPop2`), nunca `KofPop()` unconditional. Os demais
+`new KofPop()` do repo estão em contexto de 1-slot (String/ref/prim de 32 bits,
+int de índice) — verificados na varredura.

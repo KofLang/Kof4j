@@ -159,6 +159,14 @@ public final class NativeAarch64Translator {
                 if (parts[1].equals("w") && R.apply(rs).startsWith("x")) src = "w" + R.apply(rs).substring(1);
                 return List.of(indent + "scvtf " + dst + ", " + src);
             }
+            // fcvt.d.l f0, t0 (int->double 64-bit unsigned-semântica aqui:
+            // valor em [0,2^53) — ucvtf x é fiel) — STDLIB S10 B27
+            if (parts.length == 3 && parts[1].equals("d") && parts[2].equals("l")) {
+                String[] args = rest.split(",");
+                String fd = args[0].trim();
+                String rs = R.apply(args[1].trim());
+                return List.of(indent + "ucvtf d" + fd.substring(1) + ", " + rs);
+            }
             if (parts.length == 3 && (parts[1].equals("s") || parts[1].equals("d")) && (parts[2].equals("s") || parts[2].equals("d"))) {
                 // fcvt.s.d f0, f0 -> fcvt d0, s0
                 String[] args = rest.split(",");
@@ -210,6 +218,23 @@ public final class NativeAarch64Translator {
                 String[] args = rest.split(",");
                 return List.of(indent + "fmov s" + args[0].trim().substring(1) + ", w" + R.apply(args[1].trim()).substring(1));
             }
+        }
+        if (mn.equals("fld")) {
+            // fld f1, 0(t1)  ->  ldr d1, [x10]  (FP load de .rodata; S10 B27)
+            String[] args = rest.split(",");
+            String fd = "d" + args[0].trim().substring(1);
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("^(-?\\d+)\\((\\w+)\\)$").matcher(args[1].trim());
+            if (!m.matches()) return List.of(line);
+            int off = Integer.parseInt(m.group(1));
+            String base = R.apply(m.group(2));
+            if (off >= -256 && off <= 255) {
+                String addr = off == 0 ? "[" + base + "]" : "[" + base + ", #" + off + "]";
+                return List.of(indent + "ldr " + fd + ", " + addr);
+            }
+            List<String> out = new ArrayList<>();
+            out.add(indent + "add x17, " + base + ", #" + off);
+            out.add(indent + "ldr " + fd + ", [x17]");
+            return out;
         }
         if (mn.startsWith("fadd.") || mn.startsWith("fsub.") || mn.startsWith("fmul.") || mn.startsWith("fdiv.")) {
             String op = mn.substring(1, 5); // add, sub, mul, div
@@ -334,6 +359,15 @@ public final class NativeAarch64Translator {
         if (mn.equals("div")) {
             String[] args = rest.split(",");
             return List.of(indent + "sdiv " + R.apply(args[0].trim()) + ", " + R.apply(args[1].trim()) + ", " + R.apply(args[2].trim()));
+        }
+        if (mn.equals("divu")) {
+            String[] args = rest.split(",");
+            return List.of(indent + "udiv " + R.apply(args[0].trim()) + ", " + R.apply(args[1].trim()) + ", " + R.apply(args[2].trim()));
+        }
+        if (mn.equals("remu")) {
+            String[] args = rest.split(",");
+            String rd = R.apply(args[0].trim()), rs1 = R.apply(args[1].trim()), rs2 = R.apply(args[2].trim());
+            return List.of(indent + "udiv x17, " + rs1 + ", " + rs2, indent + "msub " + rd + ", x17, " + rs2 + ", " + rs1);
         }
         if (mn.equals("rem")) {
             String[] args = rest.split(",");

@@ -36,10 +36,12 @@ math.isOdd(4)         // false
 math.isPositive(4)    // true   (0 não é positivo)
 math.isNegative(4)    // false
 math.isZero(0)        // true
+math.sqrt(16.0)       // 4.0  — PRIMEIRO Double (S1b); -1.0 => NaN
 ```
 
-Todos `Int`/`Bool` inteiros — sem ponto flutuante aqui (`math.lerp`/
-`roundTo` ficam em degrau próprio, com as mesmas garantias).
+Os inteiros ficam acima; `sqrt` é o primeiro `Double` da namespace
+(JVM/Script/JS/x86; riscv64/aarch64 = `MATH001`, não compila). `lerp`/
+`roundTo`/`parse*`/`pow` ficam em degrau próprio, com as mesmas garantias.
 
 ## strings — predicados, conversores e palavras
 
@@ -132,9 +134,17 @@ literais). Isso é decisão travada na matriz — não "jeitinho".
 var id = uuid.v4()
 println(id.length)              // 36
 // 8-4-4-4-12, dígito 13 == '4', 19º ∈ {8,9,a,b}
+
+uuid.isUuid(id)                 // true  — valida a FORMA
+uuid.isUuid("550e8400-e29b-41d4-a716-446655440000")  // true
+uuid.isUuid("não-é-uuid")       // false
 ```
 
-Não-determinístico por natureza: os testes travam **forma**, não igualdade.
+`v4()` é não-determinístico por natureza: os testes travam **forma**, não
+igualdade. `isUuid` é o inverso: predicado puro de forma (36 chars, traços
+em 8/13/18/23, hex min ou maiúsculo) — não verifica version/variant. Tem
+JVM/Script/JS/x86; riscv64/aarch64 ficam atrás do gap `UUID001` (fatia B
+própria pendente — o compilador recusa com código claro, nunca stub).
 
 ## uuid — isUuid (S3b-ext)
 
@@ -233,11 +243,20 @@ time.isLeapYear(2024)                 // true   — Gregório (%4, %100, %400)
 time.daysInMonth(2024, 2)             // 29
 time.dayOfWeek(2026, 9, 9)            // 3      — ISO: 1=segunda..7=domingo
 time.daysBetween(2024, 1, 1, 2024, 3, 1) // 60  — pode ser negativo
+time.addDays("2024-02-28", 1)         // "2024-02-29" — data ISO (String)
+time.diffDays("2024-01-01", "2024-03-01") // 60 — pode ser negativo
 ```
 
 Domínio **1..9999** (serial civil cabe em Int; fora disso ou data inexistente
 → `isLeapYear=false` / `0`). A função `now`/`sleep`/`interval` de relógio é
 de `time` desde antes — o calendário acima é a parte pura, determinística.
+
+`addDays`/`diffDays` aceitam data **ISO em String** (`YYYY-MM-DD`); inválido
+→ `""` (add) / `0` (diff). Disponível em **JVM, Script** (via `java.time`) e
+**JS** (mesmo algoritmo civil do calendário, sem `Date` => paridade byte-idêntica);
+no native **riscv64/aarch64** é gap honesto `TIME002` (erro claro no compile, nunca — x86 FECHADO S7c: RuntimeTimeIso asm)
+fallback silencioso) — o port para asm é o próximo degrau (mesma ordem do
+port nativo do `net`, `NET001`).
 
 ## net — componentes de URL (S8)
 
@@ -271,7 +290,10 @@ spans nos 3 nativos).
 | `encoding.base64*` / `base64Url*` | ✅ | ✅ | ✅ | ✅ |
 | `net.*` (S8) | ✅ | ✅ | ✅ | ✅ |
 | `uuid.v4` | ✅ | ✅ | ✅ | ✅ |
-| `random.randomInt/randomBoolean/randomString` | ✅ | ✅ | ✅ | ✅ |
+| `random.randomInt/randomBoolean/randomString` (face beta S10a/b) | ✅ | ✅ | ✅ | ✅ |
+| `random.double/boolean/int/hex` (face main S10) | ✅ | ✅ | ✅ (B27) | ✅ |
+| `uuid.isUuid` (S3b.1, predicado de forma) | ✅ | ✅ | ✅ (B25) | ✅ |
+| `time.addDays` / `time.diffDays` (S7a/b/c, data ISO) | ✅ | ✅ | `TIME002` | ✅ |
 
 Gate = erro de compilação **com código** (R6 — nunca stub silencioso):
 `strings.toCamelCase` e os conversores de palavra chegaram aos 4 targets só

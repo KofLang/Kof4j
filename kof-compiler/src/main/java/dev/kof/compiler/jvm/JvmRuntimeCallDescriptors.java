@@ -241,6 +241,8 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_time_dayOfWeek" -> "(III)I";
             case "kof_time_isWeekend" -> "(III)Z";
             case "kof_time_daysBetween" -> "(IIIIII)I";
+            case "kof_time_addDays" -> "(Ljava/lang/String;I)Ljava/lang/String;";
+            case "kof_time_diffDays" -> "(Ljava/lang/String;Ljava/lang/String;)I";
             case "kof_time_now" -> "()J";
             case "kof_time_interval" -> "(ILjava/lang/Object;)Ljava/lang/String;";
             case "kof_time_cancel" -> "(Ljava/lang/String;)V";
@@ -340,6 +342,7 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_math_min", "kof_math_max" -> "(II)I";
             case "kof_math_isEven", "kof_math_isOdd", "kof_math_isPositive",
                     "kof_math_isNegative", "kof_math_isZero" -> "(I)Z";
+            case "kof_math_sqrt" -> "(D)D";
             // ── kof.strings (STDLIB S2a) ────────────────────────────────────
             case "kof_strings_isAlpha", "kof_strings_isNumeric", "kof_strings_isAlphaNumeric", "kof_strings_isAscii" -> "(Ljava/lang/String;)Z";
             case "kof_strings_isUpperCase", "kof_strings_isLowerCase" -> "(Ljava/lang/String;)Z";
@@ -357,10 +360,14 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_encoding_urlEncode", "kof_encoding_urlDecode", "kof_encoding_base64UrlEncode", "kof_encoding_base64UrlDecode" -> "(Ljava/lang/String;)Ljava/lang/String;";
             case "kof_uuid_v4" -> "()Ljava/lang/String;";
             case "kof_uuid_isUuid" -> "(Ljava/lang/String;)Z";
-            // ── kof.random (STDLIB S10a) ───────────────────────────────────
+            // ── kof.random (STDLIB S10a/S10b) ──────────────────────────────
             case "kof_random_int" -> "(I)I";
             case "kof_random_bool" -> "()Z";
             case "kof_random_string" -> "(ILjava/lang/String;)Ljava/lang/String;";
+            // ── kof.random (STDLIB S10, face main — merge 10/09) ──────────
+            case "kof_random_double" -> "()D";
+            case "kof_random_boolean" -> "()Z";
+            case "kof_random_hex" -> "(I)Ljava/lang/String;";
             // ── kof.observability (G5) ────────────────────────────────
             case "kof_observability_health", "kof_observability_request_id", "kof_observability_correlation_id",
                     "kof_observability_trace_id", "kof_observability_span_id",

@@ -17,10 +17,13 @@ math.clamp(v, lo, hi)      // hi < lo => comportamento de swap NÃO garantido: v
 math.abs(x)  math.sign(x)
 math.min(a, b)  math.max(a, b)     // aritmético; ≠ validation.min/max (predicado de tamanho)
 math.isEven(x) math.isOdd(x) math.isPositive(x) math.isNegative(x) math.isZero(x)
+math.sqrt(2.0)                          // Double; -1.0 => NaN (IEEE); riscv/aarch = MATH001
 ```
 
-Double (lerp/roundTo/sqrt/pow) ainda não existe — é S1b (FP no asm riscv é
-caro; FLT001 parcial). **Não invente** `math.sqrt` hoje: não compila.
+Double: `math.sqrt(x)` existe (S1b, 10/09 — primeiro Double da namespace;
+JVM/Script/JS/x86; NaN em <0 = IEEE; riscv64/aarch64 = `MATH001`, não
+compila). `lerp`/`percentage`/`roundTo`/`parse*`/`pow` ficam em degrau
+próprio — **não invente** esses ainda: não compilam.
 
 ## strings — predicados e conversores (S2)
 
@@ -150,8 +153,11 @@ porque `dayOfWeek` dá 0).
 | strings.removeWhitespace/normalizeWhitespace | ✅ | ✅ | ✅ (B21) | ✅ |
 | encoding.base64* / base64Url* | ✅ | ✅ | ✅ (ENC002 fechado 09/09) | ✅ |
 | net.scheme/host/port/path/query/fragment + queryEncode/Decode | ✅ | ✅ | ✅ (NET001 fechado 09/09) | ✅ |
-| uuid.v4 / uuid.isUuid | ✅ | ✅ | ✅ (SECN000 fechado 09/09) | ✅ |
-| random.randomInt/randomBoolean/randomString | ✅ | ✅ | ✅ (B27/B28, getrandom/lemire) | ✅ |
+| uuid.v4 | ✅ | ✅ | ✅ (SECN000 fechado 09/09) | ✅ |
+| uuid.isUuid (forma 8-4-4-4-12; version/variant não verificadas) | ✅ | ✅ | ✅ (B25, UUID001 fechado no merge beta→main 10/09) | ✅ |
+| math.sqrt (S1b — primeiro Double; NaN em <0 = IEEE) | ✅ | ✅ | ❌ `MATH001` | ✅ |
+| random.randomInt/randomBoolean/randomString (face beta S10a/b) | ✅ | ✅ | ✅ (B27/B28, getrandom/lemire) | ✅ |
+| random.double/boolean/int/hex (face main S10) | ✅ | ✅ | ✅ (B27) | ✅ |
 
 `strings.reverse` em não-ASCII: byte-reverso no Native vs UTF-16 no JVM/JS —
 gap **NAT-STR01** (paridade só travada em ASCII na matriz).

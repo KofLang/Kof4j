@@ -60,6 +60,7 @@ import dev.kof.compiler.runtime.RuntimeStringParse;
 import dev.kof.compiler.runtime.RuntimeStringParseFp;
 import dev.kof.compiler.runtime.RuntimeStringSearch;
 import dev.kof.compiler.runtime.RuntimeTime;
+import dev.kof.compiler.runtime.RuntimeTimeIso;
 import dev.kof.compiler.runtime.RuntimeUi;
 import dev.kof.compiler.runtime.RuntimeValidation;
 
@@ -145,6 +146,7 @@ public final class NativeRuntime {
         RuntimeMemory.emitMemstats(sb);
         RuntimeTime.emitIoTimeFunctions(sb);
         RuntimeTime.emitKofTimeFunctions(sb);
+        RuntimeTimeIso.emitTimeIsoFunctions(sb);
         RuntimeCache.emitCacheFunctions(sb);
         RuntimeVk.emitVkStubs(sb);
         RuntimeLog1.emit(sb);

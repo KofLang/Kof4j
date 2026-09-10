@@ -95,58 +95,60 @@ public final class RuntimeUuid {
                 popq %r12
                 popq %rbx
                 ret
-
-            # kof_uuid_isUuid(rdi=str) -> 0/1 (S3b-ext)
-            # Shape RFC 4122: len 36; hífens fixos em 8/13/18/23; resto hex.
-            # null/len!=36 => 0. Não checa versão/variante.
+        """);
+        // kof_uuid_isUuid(rdi=str) -> 1/0 — predicado de forma (sem alocação):
+        // len 36, traços em 8/13/18/23, demais hex (0-9 a-f A-F). Paridade
+        // travada na matriz stduuidform (riscv/aarch = UUID001 até a fatia B).
+        sb.append("""
+            # kof_uuid_isUuid(rdi=str) -> 1/0 (forma 8-4-4-4-12, hex, traços
+            # fixos; version/variant NAO verificadas — mesma regra JVM/JS/x86)
             .globl kof_uuid_isUuid
             .type kof_uuid_isUuid, @function
             kof_uuid_isUuid:
                 testq %rdi, %rdi
-                jz .Lv_uu_false
-                movl 16(%rdi), %eax
-                cmpl $36, %eax
-                jne .Lv_uu_false
-                leaq 24(%rdi), %r12
-                xorl %ecx, %ecx            # ecx = i (0..35)
-                xorl %edx, %edx
-            .Lv_uu_loop:
-                cmpl $36, %ecx
-                jge .Lv_uu_true
-                movzbl (%r12,%rcx), %edx
-                # hífens fixos?
-                cmpl $8, %ecx
-                je .Lv_uu_hp
-                cmpl $13, %ecx
-                je .Lv_uu_hp
-                cmpl $18, %ecx
-                je .Lv_uu_hp
-                cmpl $23, %ecx
-                je .Lv_uu_hp
-                # hex digit?
-                cmpb $48, %dl
-                jb .Lv_uu_false
-                cmpb $57, %dl
-                jbe .Lv_uu_next
-                cmpb $65, %dl
-                jb .Lv_uu_false
-                cmpb $70, %dl
-                jbe .Lv_uu_next
-                cmpb $97, %dl
-                jb .Lv_uu_false
-                cmpb $102, %dl
-                ja .Lv_uu_false
-                jmp .Lv_uu_next
-            .Lv_uu_hp:
-                cmpb $45, %dl
-                jne .Lv_uu_false
-            .Lv_uu_next:
-                incl %ecx
-                jmp .Lv_uu_loop
-            .Lv_uu_true:
+                jz .Lv_uuid_f
+                cmpl $36, 16(%rdi)
+                jne .Lv_uuid_f
+                leaq 24(%rdi), %r8
+                xorq %rax, %rax
+            .Lv_uuid_i_loop:
+                cmpq $36, %rax
+                jge .Lv_uuid_t
+                # posicoes de traco fixas: 8/13/18/23 (testadas direto)
+                cmpq $8, %rax
+                je .Lv_uuid_i_dash
+                cmpq $13, %rax
+                je .Lv_uuid_i_dash
+                cmpq $18, %rax
+                je .Lv_uuid_i_dash
+                cmpq $23, %rax
+                je .Lv_uuid_i_dash
+                movzbl (%r8,%rax), %edx
+                # 48..57 | 65..70 | 97..102
+                cmpl $48, %edx
+                jl .Lv_uuid_f
+                cmpl $57, %edx
+                jle .Lv_uuid_next
+                cmpl $65, %edx
+                jl .Lv_uuid_f
+                cmpl $70, %edx
+                jle .Lv_uuid_next
+                cmpl $97, %edx
+                jl .Lv_uuid_f
+                cmpl $102, %edx
+                jg .Lv_uuid_f
+            .Lv_uuid_next:
+                incq %rax
+                jmp .Lv_uuid_i_loop
+            .Lv_uuid_i_dash:
+                cmpb $45, (%r8,%rax)
+                jne .Lv_uuid_f
+                incq %rax
+                jmp .Lv_uuid_i_loop
+            .Lv_uuid_t:
                 movl $1, %eax
                 ret
-            .Lv_uu_false:
+            .Lv_uuid_f:
                 xorl %eax, %eax
                 ret
         """);

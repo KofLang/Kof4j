@@ -36,11 +36,11 @@
 | set dedup/contains | `3` / `true` / `false` | DONE | DONE | DONE | DONE | `setdedup` |
 | if-expression aninhada | `small` | DONE | DONE | DONE | DONE | `nestedif` |
 | switch-expression `case ->` | `three` | DONE | DONE | DONE | DONE | `switchexpr` |
-| if-expr heterogêneo Int/String (issue #57) | `1` | DONE | DONE | DONE | PARTIAL (underflow KofJS §69) | `ifexpr-heterogeneous-direct` |
-| switch-expr heterogêneo Int/String (issue #57) | `1` | DONE | DONE | DONE | PARTIAL (underflow KofJS §69) | `switchexpr-heterogeneous-direct` |
-| if-expr heterogêneo Int/Long (§70, crash de join) | `1` | DONE | DONE | DONE | PARTIAL (underflow KofJS §69) | `ifexpr-intlong-direct` |
-| if-expr heterogêneo Long/Double (§70) | `2` | DONE | DONE | DONE | PARTIAL (underflow KofJS §69) | `ifexpr-longdouble-direct` |
-| if-expr heterogêneo Int/null (§70) | `1` | DONE | DONE | DONE | PARTIAL (underflow KofJS §69) | `ifexpr-intnull-direct` |
+| if-expr heterogêneo Int/String (issue #57) | `1` | DONE | DONE | DONE | DONE (bug 69 corrigido) | `ifexpr-heterogeneous-direct` |
+| switch-expr heterogêneo Int/String (issue #57) | `1` | DONE | DONE | DONE | DONE (bug 69 corrigido) | `switchexpr-heterogeneous-direct` |
+| if-expr heterogêneo Int/Long (§70, crash de join) | `1` | DONE | DONE | DONE | DONE (bug 69 corrigido) | `ifexpr-intlong-direct` |
+| if-expr heterogêneo Long/Double (§70) | `2` | DONE | DONE | DONE | DONE (bug 69 corrigido) | `ifexpr-longdouble-direct` |
+| if-expr heterogêneo Int/null (§70) | `1` | DONE | DONE | DONE | DONE (bug 69 corrigido) | `ifexpr-intnull-direct` |
 | for-in + break/continue | `4` | DONE | DONE | DONE | DONE | `breakcont` |
 | record `==` conteúdo + toString + accessor | `true` / `P[x=1, y=2]` / `1` | DONE | DONE | DONE | DONE | `record` |
 | record `hashCode()` igual | `true` | DONE | DONE (bug 42 Native corrigido) | DONE | DONE (bug 42 JS corrigido `1ecfb3d`) | `recordhash` |
@@ -52,13 +52,14 @@
 | concat string+num (ordem) | `n=42` / `3x` / `x12` | DONE | DONE | DONE | DONE | `concat` |
 | lógica booleana + comparação | `false` / `true` / `false` / `true` | DONE | DONE | DONE | DONE | `boollogic` |
 | bitwise & \|\| ^ << >> | `2` / `7` / `5` / `16` / `64` | DONE | DONE | DONE | DONE | `bitwise` |
-| stdlib kof.math (S1: clamp/abs/sign/min/max/isEven/isOdd/isZero) | `10` / `0` / `7` / `-1` / `3` / `8` / `true` / `false` / `true` | DONE | DONE | DONE | DONE | `stdmath` |
-| stdlib kof.strings (S2a: isAlpha/isNumeric/isAlphaNumeric/isAscii/isUpper/isLower/count) | `true` / `false` / `false` / `true` / `false` / `false` / `true` / `false` / `true` / `true` / `true` / `false` / `true` / `false` / `2` / `1` | DONE | DONE | DONE | DONE | `stdstrings` |
+| stdlib kof.math (S1: clamp/abs/sign/min/max/isEven/isOdd/isZero + `==true`/`==false` §89) | `10` / `0` / `7` / `-1` / `3` / `8` / `true` / `false` / `true` / `true` / `false` | DONE | DONE | DONE | DONE | `stdmath` |
+| stdlib kof.math (S1b: sqrt — primeiro Double; comparações Bool, NaN em <0 = IEEE; riscv/aarch = MATH001) | `true` / `true` / `true` / `true` / `false` / `true` | DONE | DONE | PARTIAL (bug 90: `numEq`→`Double.compare`, `NaN==NaN` true) | DONE | `stdsqrt` |
+| stdlib kof.strings (S2a: isAlpha/isNumeric/isAlphaNumeric/isAscii/isUpper/isLower/count + `==true` §89) | `true` / `false` / `false` / `true` / `false` / `false` / `true` / `false` / `true` / `true` / `true` / `false` / `true` / `false` / `2` / `1` / `true` | DONE | DONE | DONE | DONE | `stdstrings` |
 | stdlib kof.strings (S2b: capitalize/reverse/repeat/truncate/pad — ASCII) | `Hello world` / `1abc` / `321cba` / `kayak` / `ababab` / `hello` / `abc` / `007` / `ab---` | DONE | DONE | DONE | DONE | `stdstrings2b` |
 | stdlib kof.validation (S12/S12b: formatCpf/formatCep/formatCnpj — pontuação BR, face leniente; formatPis NÃO entra — máscara ambígua = decisão) | `529.982.247-25` / `123` (no-op) / `01310-100` / `34.546.401/0001-63` | DONE | DONE | DONE | DONE | `formatBr*`/`formatCnpj*` (KofValidationTest; riscv/aarch sob qemu, assert) |
 | stdlib kof.strings (S11: uncapitalize — espelho do capitalize, ASCII) | `hello World` / `hELLO` / `1abc` / `hello` | DONE | DONE | DONE | DONE | `uncapitalizeAllTargets` (KofStringsTest; riscv B7 + aarch sob qemu) |
 | stdlib kof.strings (S2b.4: toCamelCase/toPascalCase/toSnakeCase/toKebabCase/slugify — word-split HTTPServer/XMLParser) | `http_server` / `xml_parser` / `helloWorld` / `HelloWorld` / `hello-world` / `hello-world-42` | DONE | DONE | DONE | DONE | `stdstrings2b4` |
-| stdlib kof.validation BR (S5: isCpf/isCnpj/isCep/isPis — pesos aritméticos, mod-11 por subtração) | `true` / `false` / `true` / `false` / `true` / `false` / `true` / `false` | DONE | DONE | DONE | DONE | `stdvalidation` |
+| stdlib kof.validation BR (S5: isCpf/isCnpj/isCep/isPis — pesos aritméticos, mod-11 por subtração; + `==true`/`==false` §89) | `true` / `false` / `true` / `false` / `true` / `false` / `true` / `false` / `true` / `true` | DONE | DONE | DONE | DONE | `stdvalidation` |
 | stdlib kof.validation rede (S6a: isIpv4/isMac/isPort — dotted-quad sem zero à esquerda; MAC 6 hex sep : ou - consistente; porta 1..65535) | `true` / `false` / `false` / `true` / `false` / `true` / `false` | DONE | DONE | DONE | DONE | `stdvalidationnet` |
 | stdlib kof.validation Luhn (S6b: isCreditCard — dígitos extraídos, 12..19, soma de Luhn %10; 20+ dígitos => false) | `true` / `true` / `true` / `false` / `false` / `false` | DONE | DONE | DONE | DONE | `stdluhn` |
 | stdlib kof.validation IPv6 (S6b.3: isIpv6 — subconjunto RFC 5952; '::' no máx uma vez; sem forma mista/zona) | `true` / `true` / `true` / `false` / `false` / `false` | DONE | DONE | DONE | DONE | `stdipv6` |
@@ -72,12 +73,19 @@
 | stdlib kof.* (S10–S12b, S3b-ext, S7-ext: paridade kof-script × JVM compilado — fachada random, format BR, uncapitalize, isUuid, isWeekend) | (asserts de contrato + golden; não-determinístico só via fachada) | DONE | DONE | — | — | `KofScriptStdlibParityTest` (kof-script, 5) |
 | stdlib kof.uuid (S3b-ext: isUuid — shape RFC 4122, 8-4-4-4-12 hex, hífens 8/13/18/23; sem checar versão/variante) | `true` / `true`(maj) / `false`(sem traço/tam/g/empty) | DONE | DONE | DONE | DONE | `isUuid*` (KofUuidTest; riscv/aarch assert sob qemu) |
 | stdlib kof.time (S7-ext: isWeekend — dayOfWeek>=6, wrapper nos 5 alvos; data inválida => false) | `true`(sáb) / `false`(qua) / `false`(inválida) | DONE | DONE | DONE | DONE | `calendar*` (KofTimeE2ETest; riscv/aarch assert sob qemu) |
+| stdlib kof.time (S7a/b/c: addDays/diffDays em data ISO String — parse estrito YYYY-MM-DD, inválido => ""/0; JVM/java.time + JS algoritmo civil sem Date + x86 asm `RuntimeTimeIso`) ⁴ | `2024-02-29` / `2023-03-01` / `2025-01-01` / `2023-12-31` / `''` / `''` / `60` / `-60` / `0` | DONE | DONE ⁴ | DONE | DONE | `stdtime2` |
 | stdlib kof.encoding (S4: hex + base64 + url + base64url — UTF-8 por bytes) | `4869` / `Hi` / `636166c3a9` / `café` / `TWFu` / `café` / `a%20b` / `café` / `ZmImTy0-Zg` / `fb&O->f` / `E` | DONE | DONE² | DONE | DONE | `stdenc` |
 
 > ¹ **STRN001 FECHADO 09/09:** joinWords portado p/ riscv64 (fatia B15) + aarch64
 > (mesmo asm traduzido) — paridade byte-a-byte com o x86_64 provada por diff do
 > golden oracle no qemu (16 vetores, incl. delimitadores UTF-8 `>=128`).
 > `KofStringsTest.wordConvertersClosedOnCrossArch`.
+
+> ⁴ **TIME002 parcial (riscv64/aarch64)**: `addDays`/`diffDays` rodam em JVM/Script/JS e
+> no native **x86** (`RuntimeTimeIso` — parse ISO + inversa civil Hinnant no
+> asm; round-trip exaustivo 1..9999 + fuzz C 200k). O port riscv64/aarch64
+> (fatia B) mantém o gate TIME002 nesses dois alvos (precedente NET001:
+> x86 fecha primeiro); provado em `KofTimeE2ETest` (erro claro no compile).
 
 > ³ **NET001 FECHADO 09/09:** `net.*` roda nos 3 nativos — x86 (RuntimeUri) +
 > riscv64 (fatia B24) + aarch64 (mesmo asm traduzido); paridade byte-a-byte
@@ -88,19 +96,19 @@
 > tolerante, spec única do x86/JVM/JS; `KofEncodingTest.base64RunsOnCrossArch`
 > prova riscv+aarch sob qemu) rodam nos 3 nativos + JVM + JS + Script.
 | stdlib kof.uuid (S3b: v4 — não-determinístico, SEM caso de matriz) | shape `xxxxxxxx-xxxx-4xxx-[89ab]xxx-xxxxxxxxxxxx` | ✅ assert | ✅ assert¹ | ✅ | ✅ assert (+riscv/aarch qemu) | `KofUuidTest` 4/4 |
-| stdlib kof.random (S10a/b — não-determinístico, SEM caso de matriz) | contrato `0<=randomInt(b)<b` / `randomBoolean∈{0,1}` / `randomString: len==n, chars∈alphabet` + bordas lenientes (`b<=0→0`, `n<=0 ou alphabet vazio→""`) | ✅ assert | ✅ assert | ✅ | ✅ assert (+riscv/aarch qemu) | `KofRandomTest` 8/8 |
+| stdlib kof.uuid (S3b.1: isUuid — predicado de forma 8-4-4-4-12, hex min/maiúsc, version/variant não verificadas; riscv/aarch = fatia B25, UUID001 fechado no merge beta→main 10/09) | `true` / `true` / `false` / `false` / `false` / `false` / `true` | DONE | DONE | DONE | DONE | `stduuidform` |
+| stdlib kof.random (S10/S10a/S10b — não-determinístico, SEM caso de matriz) | contrato `0<=randomInt(b)<b` / `randomBoolean∈{0,1}` / `randomString: len==n, chars∈alphabet` + face main `double∈[0,1)` / `hex: 2n chars, n<=0→null (JVM/JS; x86 →""` pré-existente da crypto lane) + bordas lenientes (`b<=0→0`) | ✅ assert | ✅ assert | ✅ | ✅ assert (+riscv/aarch qemu) | `KofRandomTest` 12/12 |
 
 > `random.*` não entra na matriz equality (entropia — mesma razão do uuid):
 > paridade provada por ASSERTS DE CONTRATO nos 5 alvos (JVM SecureRandom, JS
-> kof_platform/crypto, x86/riscv/aarch getrandom(2)). **S10a 09/09**:
-> `randomInt` (x86 alias de `kof_sec_random_int`; riscv B27 Lemire-reduced
-> `raw²>>>31 % bound` sem loop de rejeição — o tradutor aarch não tem `divu`)
-> + `randomBoolean`. **S10b 09/09**: `randomString(n, alphabet)` (borda
-> leniente `""` = precedentes x86 `repeat` / riscv B25). Entropia só do SO
-> (R11); split `random.*` inseguro vs `security.*` seguro é do plano.
-> `randomDouble` fica S1b (FLT001: probe 09/09 — double não existe no asm
-> riscv/aarch); `randomBytes`/`randomChoice` ficam S10c (retorno Array/objeto
-> sem precedente na camada de dispatch).
+> kof_platform/crypto, x86/riscv/aarch getrandom(2)). **S10a 09/09** (beta):
+> `randomInt`/`randomBoolean`. **S10b 09/09** (beta): `randomString(n,
+> alphabet)` (borda leniente `""`). **S10 10/09** (main, fix §88): `double/
+> boolean/int/hex` — o `double` chegou a riscv/aarch na fatia B27
+> (fcvt.d.l/fdiv + tradutor ucvtf/fld), encerrando o FLT001 para a família
+> random. As duas faces convivem no dispatch (retrocompat aditiva).
+> `randomBytes`/`randomChoice` ficam S10c (retorno Array/objeto
+> sem precedente na camada de dispatch — DD-STDLIB-01).
 
 > `uuid.v4()` não entra na matriz equality (entropia): paridade provada por
 > ASSERTS DE SHAPE nos 3 targets testáveis (JVM/Native-x86/JS: length=36,

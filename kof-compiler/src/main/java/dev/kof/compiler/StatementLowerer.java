@@ -260,7 +260,15 @@ public final class StatementLowerer {
                         }
                     } else {
                         localIdx = ExpressionLowerer.emitExpression(driver, fs.update(), ops, owner, localIdx, locals);
-                        if (driver.hasReturnValue(fs.update(), locals)) ops.add(new KofPop());
+                        // KofPop2 width-aware (mesma regra do ExpressionStmt,
+                        // SG-020/bug 79): update de 2 slots (ex.:
+                        // `for (i; i<n; time.now())`) exigia POP2 — POP
+                        // deixava o 2º slot na pilha (VerifyError/COMP002).
+                        if (driver.hasReturnValue(fs.update(), locals)) {
+                            Type updT = ExpressionTyper.inferExprType(driver, fs.update(), locals);
+                            ops.add(TypeMetrics.isDoubleWidth(updT)
+                                    ? new KofPop2() : new KofPop());
+                        }
                     }
                 }
                 ops.add(new KofJump(startLabel));

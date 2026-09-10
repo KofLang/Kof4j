@@ -21,6 +21,7 @@ final class JsRuntimeUiStdlib {
             export function kofMathIsPositive(v) { return v > 0 ? 1 : 0; }
             export function kofMathIsNegative(v) { return v < 0 ? 1 : 0; }
             export function kofMathIsZero(v) { return v === 0 ? 1 : 0; }
+            export function kofMathSqrt(v) { return Math.sqrt(v); }
 
             // ── kof.strings (STDLIB S2a) — predicados de char ───────────
             export function kofStringsIsAlpha(v) {
@@ -266,6 +267,32 @@ final class JsRuntimeUiStdlib {
                 if (n <= 0 || alphabet == null || alphabet.length === 0) return "";
                 let out = "";
                 for (let i = 0; i < n; i++) out += alphabet.charAt(kofRandomInt(alphabet.length));
+                return out;
+            }
+            // ── kof.random face S10 (main, merge 10/09) — mesma entropia ──
+            // [0,1): mantissa 53 bits (32b hi * 2^21 + 24b lo / 8) % 2^53 / 2^53;
+            // nunca 1.0. Sem estouro de precisão (hi*2^21 < 2^53).
+            export function kofRandomDouble() {
+                let hi = 0;
+                for (let i = 0; i < 4; i++) hi = hi * 256 + kofRandByte();
+                let lo = 0;
+                for (let i = 0; i < 3; i++) lo = lo * 256 + kofRandByte();
+                const v = (hi * 2 ** 21 + lo * 2 ** -3) % 2 ** 53;
+                return v / 2 ** 53;
+            }
+            export function kofRandomBoolean() {
+                return kofRandomBool();
+            }
+            // 2n dígito hex minúsculo; n<=0 => null (mesmo contrato do hex
+            // x86 kof_sec_random_hex / riscv B27).
+            export function kofRandomHex(n) {
+                if (n == null || n <= 0) return null;
+                const hexl = "0123456789abcdef";
+                let out = "";
+                for (let i = 0; i < n; i++) {
+                    const b = kofRandByte();
+                    out += hexl.charAt(b >> 4) + hexl.charAt(b & 15);
+                }
                 return out;
             }
             // ── kof.encoding (STDLIB S4.2b) — percent-encoding (RFC 3986) ──

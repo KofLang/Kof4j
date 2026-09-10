@@ -1,14 +1,18 @@
 package dev.kof.compiler.runtime;
 
 /**
- * Fatia de runtime x86_64 — kof.random (STDLIB S10a).
+ * Fatia de runtime x86_64 — kof.random (STDLIB S10/S10a/S10b).
+ * Entropia SEMPRE getrandom(2) (syscall 318 — mesma primitiva da crypto
+ * lane): NUNCA caseira (R11).
  *
- * <p>random_int = ALIAS de kof_sec_random_int (mesma primitiva de entropia,
- * getrandom(2); a diferença entre os dois é a face da API — random é a
- * não-críptográfica, security a de propósito criptográfico; contrato
- * leniente bound<=0 -> 0 já vive no callee). random_bool: 1 byte de
- * getrandom & 1 (mesmo shape do kof_sec_random_hex: falha do syscall -> 0,
- * nunca false fraco "por falta de fonte").
+ * <p>random_int/hex = alias (tail-jmp) de kof_sec_random_int/hex (mesma
+ * fonte de entropia; a face da API é que muda — random é a não-
+ * criptográfica, security a de propósito criptográfico; contrato leniente
+ * bound<=0 -> 0 já vive no callee). random_bool/boolean: 1 byte de
+ * getrandom & 1 (falha do syscall -> 0, nunca false fraco "por falta de
+ * fonte"). random_double (S10 main): 8 bytes aleatórios, 53 bits de
+ * mantissa (>>11) / 2^53; xmm0 no retorno; 0.0 em falha do SO.
+ * random_string (S10b): n chars uniformes do alfabeto (ASCII).
  */
 public final class RuntimeRandom {
 
@@ -45,6 +49,46 @@ public final class RuntimeRandom {
             .Lv_rand_bool_fail:
                 addq $4, %rsp
                 xorl %eax, %eax
+                ret
+
+            # kof_random_boolean = alias de nome (face S10) — MESMA máquina.
+            .globl kof_random_boolean
+            .type kof_random_boolean, @function
+            kof_random_boolean:
+                jmp kof_random_bool
+
+            # kof_random_hex(n) -> tail-jmp p/ kof_sec_random_hex (crypto lane)
+            .globl kof_random_hex
+            .type kof_random_hex, @function
+            kof_random_hex:
+                jmp kof_sec_random_hex
+
+            # kof_random_double() -> Double em [0,1) via xmm0 (53-bit mantissa)
+            .globl kof_random_double
+            .type kof_random_double, @function
+            kof_random_double:
+                pushq %rbx
+                subq $16, %rsp                  # buf 8 bytes (16-align)
+                movq %rsp, %rdi
+                movq $8, %rsi
+                xorq %rdx, %rdx
+                movq $318, %rax                 # getrandom
+                syscall
+                testq %rax, %rax
+                js .Lrnd_d_fail
+                movq (%rsp), %rax               # 64 bits aleatorios
+                shrq $11, %rax                  # 53 bits (>= 0, < 2^53)
+                cvtsi2sdq %rax, %xmm0           # v como double
+                movsd .Lrnd_two53(%rip), %xmm1  # 2^53
+                divsd %xmm1, %xmm0              # [0,1)
+                addq $16, %rsp
+                popq %rbx
+                ret
+            .Lrnd_d_fail:
+                xorq %rax, %rax
+                cvtsi2sdq %rax, %xmm0           # 0.0 (falha do SO)
+                addq $16, %rsp
+                popq %rbx
                 ret
 
             # kof_random_string(edi=n, rsi=alphabet) -> String (S10b)
@@ -108,6 +152,12 @@ public final class RuntimeRandom {
                 popq %r12
                 popq %rbx
                 ret
+
+            .section .rodata
+            .balign 8
+            .Lrnd_two53:
+                .quad 0x4340000000000000        # 9007199254740992.0 = 2^53
+            .section .text
             """);
     }
 }

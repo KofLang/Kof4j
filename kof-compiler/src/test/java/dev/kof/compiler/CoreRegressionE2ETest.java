@@ -884,8 +884,41 @@ class CoreRegressionE2ETest {
                     List<String?> typed = listOf<String?>()
                     println(typed.size)
                 }
-                """, "3\n1\n0", tempDir, "nullable-generic-arg");
+                 """, "3\n1\n0", tempDir, "nullable-generic-arg");
     }
+
+    // known-bugs §89 (paridade JS Bool) — no JS, predicados da stdlib (math/
+    // strings/validation), `instanceof` e predicados de coleção (contains/
+    // isEmpty) baixam para 1/0 enquanto `true`/`false` baixam para boolean
+    // real. `===` cru fazia `boolExpr == true` sempre false no JS (print
+    // coercia via String.valueOf, mascando o bug). Fix: `==`/`!=` com lado
+    // bool (tipo ou literal) normaliza ambos com `!!`. Trava JVM == JS nos
+    // dois sítios (valor `var x = a == true` e condição `if (a == true)`).
+    @Test
+    void boolEqualityContentParityJvmJs(@TempDir Path tempDir) throws IOException {
+        runBoth("""
+                main() {
+                    var a = strings.isAlpha("abc")
+                    println(a == true)
+                    println(a == false)
+                    println(a != false)
+                    if (a == true) { println("cond-true") }
+                    var o = "hello"
+                    println(o instanceof String == true)
+                    var l = listOf(1, 2, 3)
+                    println(l.contains(2) == true)
+                    println(l.isEmpty() == false)
+                    var m = mapOf("k", 1)
+                    println(m.isEmpty() == false)
+                    println(math.isEven(4) == true)
+                    var e = math.isEven(5)
+                    println(e == false)
+                }
+                """,
+                "true\nfalse\ntrue\ncond-true\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue",
+                tempDir, "bool-eq-content-parity");
+    }
+
 
     // known-bugs #4 — `switch` with String values generated invalid bytecode
     // on JVM (the non-enum path used SUB to test equality → String - String).

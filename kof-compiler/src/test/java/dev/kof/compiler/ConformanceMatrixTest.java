@@ -186,6 +186,8 @@ class ConformanceMatrixTest {
                 }
                 """, "2\n7\n5\n16\n64", Set.of(), tempDir);
         // STDLIB S1 — kof.math (Int-only) paridade total nos 4 targets.
+        // §89: os dois últimos casos comparam `== true`/`== false` no
+        // CAMINHO DE VALOR (o print sozinho coercia 1/0 e mascarava o bug).
         matrix("stdmath", """
                 main() {
                     println(math.clamp(15, 0, 10))
@@ -197,8 +199,25 @@ class ConformanceMatrixTest {
                     println(math.isEven(4))
                     println(math.isOdd(4))
                     println(math.isZero(0))
+                    println(math.isEven(4) == true)
+                    println(math.isEven(4) == false)
                 }
-                """, "10\n0\n7\n-1\n3\n8\ntrue\nfalse\ntrue", Set.of(), tempDir);
+                """, "10\n0\n7\n-1\n3\n8\ntrue\nfalse\ntrue\ntrue\nfalse", Set.of(), tempDir);
+        // STDLIB S1b — kof.math.sqrt (PRIMEIRO Double da namespace). Compara-
+        // ções Bool (nunca print de double cru — bug 44 no Native). riscv/aarch
+        // = MATH001 (gate em KofMath; a matriz não cobre nativos cross).
+        // PARTIAL script = bug 90 (numEq usa Double.compare → NaN==NaN true,
+        // divergindo dos 3 compilados que seguem IEEE NaN!=NaN).
+        matrix("stdsqrt", """
+                main() {
+                    println(math.sqrt(9.0) == 3.0)
+                    println(math.sqrt(2.0) == 1.4142135623730951)
+                    println(math.sqrt(0.25) == 0.5)
+                    println(math.sqrt(0.0) == 0.0)
+                    println(math.sqrt(-1.0) == -1.0)
+                    println(math.sqrt(-1.0) != math.sqrt(-1.0))
+                }
+                """, "true\ntrue\ntrue\ntrue\nfalse\ntrue", Set.of("script"), tempDir);
         // STDLIB S2a — kof.strings predicados paridade total nos 4 targets.
         matrix("stdstrings", """
                 main() {
@@ -218,8 +237,9 @@ class ConformanceMatrixTest {
                     println(strings.isLowerCase("Abc"))
                     println(strings.count("aabaabaa", "ab"))
                     println(strings.count("aaa", "aa"))
+                    println(strings.isAlpha("Hello") == true)
                 }
-                """, "true\nfalse\nfalse\ntrue\nfalse\nfalse\ntrue\nfalse\ntrue\ntrue\ntrue\nfalse\ntrue\nfalse\n2\n1", Set.of(), tempDir);
+                """, "true\nfalse\nfalse\ntrue\nfalse\nfalse\ntrue\nfalse\ntrue\ntrue\ntrue\nfalse\ntrue\nfalse\n2\n1\ntrue", Set.of(), tempDir);
         // STDLIB S2b — kof.strings conversores (alocam String). ASCII-only:
         // é onde JVM/Native/JS concordam byte a byte. capitalize é ASCII
         // (mesma regra nos 4); reverse é byte-reverso no Native e UTF-16
@@ -282,8 +302,10 @@ class ConformanceMatrixTest {
                     println(validation.isCep("0131010"))
                     println(validation.isPis("123.4567.890-0"))
                     println(validation.isPis("12345678901"))
+                    println(validation.isCpf("529.982.247-25") == true)
+                    println(validation.isCpf("111.111.111-11") == false)
                 }
-                """, "true\nfalse\ntrue\nfalse\ntrue\nfalse\ntrue\nfalse", Set.of(), tempDir);
+                """, "true\nfalse\ntrue\nfalse\ntrue\nfalse\ntrue\nfalse\ntrue\ntrue", Set.of(), tempDir);
         matrix("stdvalidationnet", """
                 main() {
                     println(validation.isIpv4("192.168.0.1"))
@@ -349,6 +371,21 @@ class ConformanceMatrixTest {
                     println(net.queryDecode("a%20b%26c%3D1"))
                 }
                 """, "https|host.io|8443|/p|q|f\n/only/path|onlyquery\na%20b%26c%3D1\na b&c=1", Set.of(), tempDir);
+        // STDLIB S3 — kof.uuid.isUuid (predicado de forma 8-4-4-4-12; hex min
+        // ou maiúsculo; version/variant NAO verificadas — so forma canonica).
+        // Deterministica => matriz nos 4 targets (riscv/aarch = UUID001 gate,
+        // nao alvo da matriz; ultima linha: v4() gerada no proprio target).
+        matrix("stduuidform", """
+                main() {
+                    println(uuid.isUuid("550e8400-e29b-41d4-a716-446655440000"))
+                    println(uuid.isUuid("550E8400-E29B-41D4-A716-446655440000"))
+                    println(uuid.isUuid("550e8400e29b41d4a716446655440000"))
+                    println(uuid.isUuid("550e8400xe29b-41d4-a716-446655440000"))
+                    println(uuid.isUuid("550e8400-e29b-41d4-a716-44665544000g"))
+                    println(uuid.isUuid(""))
+                    println(uuid.isUuid(uuid.v4()))
+                }
+                """, "true\ntrue\nfalse\nfalse\nfalse\nfalse\ntrue", Set.of(), tempDir);
         matrix("stdunescape", """
                 main() {
                     println(strings.unescapeHtml("a&amp;b"))
@@ -377,6 +414,26 @@ class ConformanceMatrixTest {
                     println(time.daysBetween(2023, 2, 29, 2023, 3, 1))
                 }
                 """, "true\nfalse\ntrue\nfalse\n29\n28\n30\n0\n4\n3\n0\n60\n-60\n0", Set.of(), tempDir);
+                // STDLIB S7a/S7b — addDays/diffDays em data ISO (String).
+                // JVM+Script (java.time) + JS (algoritmo civil, sem Date);
+                // Native = TIME002 (gate honesto no compile-time; o erro é
+                // provado em KofTimeE2ETest).
+                matrix("stdtime2", """
+                main() {
+                    println(time.addDays("2024-02-28", 1))
+                    println(time.addDays("2023-02-28", 1))
+                    println(time.addDays("2024-12-31", 1))
+                    println(time.addDays("2024-01-01", -1))
+                    println(time.addDays("2024-02-30", 1))
+                    println(time.addDays("garbage", 1))
+                    println(time.diffDays("2024-01-01", "2024-03-01"))
+                    println(time.diffDays("2024-03-01", "2024-01-01"))
+                    println(time.diffDays("x", "y"))
+                    println(time.addDays("0999-12-31", 1))
+                    println(time.addDays("0001-01-01", -1))
+                    println(time.addDays("1700-02-28", 1))
+                }
+                """, "2024-02-29\n2023-03-01\n2025-01-01\n2023-12-31\n\n\n60\n-60\n0\n1000-01-01\n\n1700-03-01", Set.of(), tempDir);
     }
 
     @Test
@@ -498,13 +555,13 @@ class ConformanceMatrixTest {
         // primitivos boxeados in-branch + skip do pós-box (só codegen; o
         // check continua aprovando). JS excluído: underflow pré-existente
         // no backend KofJS p/ if heterogêneo (known-bugs §69, provado com
-        // o fix em stash). Paridade JVM+Native+Script (script = oráculo).
+        // Bug 69 CORRIGIDO: paridade JVM+Native+Script+JS.
         matrix("ifexpr-heterogeneous-direct", """
                 main() {
                     var s = ""
                     println(if (s == "") 1 else "s")
                 }
-                """, "1", Set.of("js"), tempDir);
+                """, "1", Set.of(), tempDir);
         // mesma classe da #57 p/ switch-expression heterogêneo.
         matrix("switchexpr-heterogeneous-direct", """
                 main() {
@@ -514,7 +571,7 @@ class ConformanceMatrixTest {
                         default -> "s"
                     })
                 }
-                """, "1", Set.of("js"), tempDir);
+                """, "1", Set.of(), tempDir);
         // §70 — heterogêneo primitivo-vs-primitivo de slots distintos
         // (Int 1-word vs Long 2-word): o join quebrava o COMPUTE_FRAMES
         // (crash AIOOBE) em vez de VerifyError. Fix: cada ramo boxeado
@@ -524,19 +581,19 @@ class ConformanceMatrixTest {
                     var s = ""
                     println(if (s == "") 1 else 2L)
                 }
-                """, "1", Set.of("js"), tempDir);
+                """, "1", Set.of(), tempDir);
         matrix("ifexpr-longdouble-direct", """
                 main() {
                     var s = ""
                     println(if (s == "") 2L else 2.5)
                 }
-                """, "2", Set.of("js"), tempDir);
+                """, "2", Set.of(), tempDir);
         matrix("ifexpr-intnull-direct", """
                 main() {
                     var s = ""
                     println(if (s == "") 1 else null)
                 }
-                """, "1", Set.of("js"), tempDir);
+                """, "1", Set.of(), tempDir);
         matrix("switchexpr", """
                 main() {
                     var v = 3

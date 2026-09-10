@@ -76,6 +76,26 @@ public final class NativeX86Calls {
             return;
         }
         if (NativeX86StringCalls.emit(sb, kc)) return;
+        // STDLIB S10: random.double retorna bits em xmm0 (mesma convenção de
+        // kof_string_to_double); int/hex/boolean seguem rax via o caminho
+        // genérico FUNCTION abaixo (tail-jmp no runtime).
+        if ("kof_random_double".equals(kc.methodName())) {
+            sb.append("    call kof_random_double\n");
+            sb.append("    movq %xmm0, %rax\n");
+            sb.append("    pushq %rax\n");
+            return;
+        }
+        // STDLIB S1b: sqrt(Double)->Double. Arg chega como 8 bytes de bits
+        // IEEE na pilha (convenção double do native — ver println/kof_random_
+        // double); sqrtsd opera em xmm0, resultado volta empilhado cru.
+        if ("kof_math_sqrt".equals(kc.methodName())) {
+            sb.append("    popq %rax\n");
+            sb.append("    movq %rax, %xmm0\n");
+            sb.append("    call kof_math_sqrt\n");
+            sb.append("    movq %xmm0, %rax\n");
+            sb.append("    pushq %rax\n");
+            return;
+        }
         // CONC001: spawn/await no Native
         if ("kof_spawn".equals(kc.methodName()) || "kof_spawn_result".equals(kc.methodName())) {
             sb.append("    popq %rdi\n");

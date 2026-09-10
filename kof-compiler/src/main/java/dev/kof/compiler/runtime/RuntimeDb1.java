@@ -43,6 +43,10 @@ public final class RuntimeDb1 {
             # handle (KofString*) da conexão "default" — o que transaction {} usa.
             # 0 = sem conexão aberta.
             .Ldb_default_handle: .quad 0
+            # §78 — conexão que É a dona da transação aberta (ou 0 = sem tx).
+            # kof_db_transaction compara com o handle atual p/ detectar
+            # aninhamento (mesma conexão => o bloco interno não comita).
+            .Ldb_tx_handle: .quad 0
             .Ldb_mysql_buf: .zero 16384
             .Ldb_mysql_names: .zero 1024
             .Ldb_mysql_seq: .zero 1

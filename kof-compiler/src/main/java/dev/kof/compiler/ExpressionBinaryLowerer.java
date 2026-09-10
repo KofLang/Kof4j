@@ -176,8 +176,12 @@ for (int ci = chain.size() - 1; ci >= 0; ci--) {
                     && ll.kind() == ConcreteLiteralKind.NULL
                     && TypeMetrics.isPrimitiveType(rightType)))) {
         // primitivo nunca é null: == → false, != → true
-        // (o lado não-nulo já está na pilha — descarta)
-        ops.add(new KofPop());
+        // (o lado não-nulo já está na pilha — descarta; 2 slots = POP2,
+        //  SG-020/bug 79 — POP de Double/Long deixa o 2º slot e o
+        //  verificador rejeita: VerifyError mascarado de "JavaFX")
+        Type popT = be.right() instanceof LiteralExpr rl2
+                && rl2.kind() == ConcreteLiteralKind.NULL ? accType : rightType;
+        ops.add(TypeMetrics.isDoubleWidth(popT) ? new KofPop2() : new KofPop());
         boolean eq = "==".equals(be.operator());
         ops.add(new KofLoadLiteral(Type.PrimitiveType.BOOL, eq ? 0 : 1));
         accType = Type.PrimitiveType.BOOL;

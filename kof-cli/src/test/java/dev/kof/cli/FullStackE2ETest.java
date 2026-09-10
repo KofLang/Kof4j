@@ -199,4 +199,36 @@ class FullStackE2ETest {
         assertTrue(Files.exists(app.resolve("out/Default/Main.class")), "monólito compila: " + out);
         assertFalse(Files.exists(app.resolve("out/frontend")), "sem web/ → sem frontend (zero regressão)");
     }
+
+    @Test
+    void buildFullStack_frontendResolvesCrossDirectoryImport(@TempDir Path tmp) throws Exception {
+        // PKG006 (#71): buildFrontend usava src/web/ como module root —
+        // `import src.Shared` a partir do frontend falhava com PKG006
+        // mesmo com kof.toml válido na raiz. A raiz do projeto (kof.toml)
+        // manda, mesma regra do entry-point principal (CmdRun).
+        Path app = tmp.resolve("meuapp");
+        Files.createDirectories(app.resolve("src/web"));
+        Files.writeString(app.resolve("kof.toml"), """
+                [project]
+                name = "meuapp"
+
+                [backend]
+                target = "jvm"
+
+                [frontend]
+                target = "kofjs"
+                """);
+        Files.writeString(app.resolve("src/Shared.kf"),
+                "Long dobro(Long a) { return a * 2L }\n");
+        Files.writeString(app.resolve("src/Main.kf"), "main() { println(\"ok\") }\n");
+        Files.writeString(app.resolve("src/web/Index.kf"),
+                "import src.Shared\n\nmain() { println(dobro(21L)) }\n");
+        Process p = startCli(app, "build", "src", "--output", "dist");
+        String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertTrue(p.waitFor(120, TimeUnit.SECONDS), "build timeout\n" + out);
+        assertEquals(0, p.exitValue(), "build rc (PKG006 se a raiz estiver errada)\n" + out);
+        String bundle = Files.readString(app.resolve("dist/frontend/Default.mjs"));
+        assertTrue(bundle.contains("dobro"),
+                "import cross-directory resolvido no bundle frontend");
+    }
 }

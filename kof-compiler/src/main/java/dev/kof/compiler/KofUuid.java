@@ -47,6 +47,10 @@ public final class KofUuid {
      * riscv64+aarch64) no runtime riscv B25 / aarch translator. R11: só a
      * primitiva do SO, sem cripto caseira; null se o syscall falhar (mesmo
      * contrato do x86 kof_sec_random_hex). supportedOn volta se outro gap.
+     * UUID001 FECHADO (merge beta→main 10/09): isUuid portado p/ riscv64
+     * (fatia B25 — byte-scan de forma, lição travada: upper-bound das
+     * bandas hex é EXCLUSIVO, 58/71/103) + aarch64 via tradutor; prova
+     * KofUuidTest.isUuidCrossArch (assert sob qemu — bug 59 no println).
      */
     static boolean supportedOn(String function, Target target) {
         return true;

@@ -83,6 +83,40 @@ public final class JvmTimeRuntime {
                     return (int) (kof_time_epochDay(y2, m2, d2) - kof_time_epochDay(y1, m1, d1));
                 }
 
+                // ── kof.time (STDLIB S7a) — data ISO (String) add/diff ─────
+                // "YYYY-MM-DD" estrito; inválido => "" (add) / 0 (diff) —
+                // mesma política "invalid => 0" do calendário wedge.
+                private static java.time.LocalDate kof_time_parseIso(String iso) {
+                    if (iso == null || iso.length() != 10) return null;
+                    if (iso.charAt(4) != '-' || iso.charAt(7) != '-') return null;
+                    try {
+                        int y = Integer.parseInt(iso.substring(0, 4));
+                        int m = Integer.parseInt(iso.substring(5, 7));
+                        int d = Integer.parseInt(iso.substring(8, 10));
+                        if (!kof_time_validDate(y, m, d)) return null;
+                        return java.time.LocalDate.of(y, m, d);
+                    } catch (RuntimeException e) {
+                        return null;
+                    }
+                }
+
+                public static String kof_time_addDays(String iso, int days) {
+                    java.time.LocalDate ld = kof_time_parseIso(iso);
+                    if (ld == null) return "";
+                    java.time.LocalDate r = ld.plusDays(days);
+                    if (r.getYear() < 1 || r.getYear() > 9999) return "";
+                    return String.format("%04d-%02d-%02d", r.getYear(), r.getMonthValue(), r.getDayOfMonth());
+                }
+
+                public static int kof_time_diffDays(String iso1, String iso2) {
+                    java.time.LocalDate a = kof_time_parseIso(iso1);
+                    java.time.LocalDate b = kof_time_parseIso(iso2);
+                    if (a == null || b == null) return 0;
+                    long diff = java.time.temporal.ChronoUnit.DAYS.between(a, b);
+                    return (diff < Integer.MIN_VALUE || diff > Integer.MAX_VALUE)
+                            ? 0 : (int) diff;
+                }
+
                 public static String kof_time_interval(int ms, Object fn) {
                     if (ms <= 0) throw new IllegalArgumentException("interval must be positive: " + ms);
                     String id = "job-" + KOF_TIME_SEQ.incrementAndGet();
