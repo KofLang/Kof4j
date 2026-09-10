@@ -1024,4 +1024,31 @@ class NativeE2ETest {
                 """);
         runNative(source, tempDir.resolve("out"), "5\nn");
     }
+
+    // bug 97: String.compareTo/String.hashCode eram declarados no
+    // type-system.md + aceitos pelo typer, mas nenhum nativo os emitia →
+    // undefined reference java_lang_String_compareTo/_hashCode no link. Os 2
+    // agora andam por CODE UNITS UTF-16 (não memcmp/byte-sum — paridade falsa
+    // em astrais era a armadilha, lição bug 43). Golden = saída JVM/Script.
+    @Test
+    void nativeStringCompareToAndHashCodeUtf16(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+                main() {
+                    println("ab".compareTo("aX"))
+                    println("a\\u00e9".compareTo("a"))
+                    println("abc".compareTo("abd"))
+                    println("ab".compareTo("abc"))
+                    println("\\uD83D\\uDE00".compareTo("a"))
+                    println("a\\uD83D\\uDE00".compareTo("a\\uFFFD"))
+                    println("a\\uFFFD".compareTo("a\\uD83D\\uDE00"))
+                    println("abc".hashCode())
+                    println("a\\u00e9".hashCode())
+                    println("\\uD83D\\uDE00".hashCode())
+                    println("".hashCode())
+                }
+                """);
+        runNative(source, tempDir.resolve("out"),
+                "10\n1\n-1\n-1\n55260\n-10176\n10176\n96354\n3240\n1772899\n0");
+    }
 }
