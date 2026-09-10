@@ -36,10 +36,12 @@ math.isOdd(4)         // false
 math.isPositive(4)    // true   (0 não é positivo)
 math.isNegative(4)    // false
 math.isZero(0)        // true
+math.sqrt(16.0)       // 4.0  — PRIMEIRO Double (S1b); -1.0 => NaN
 ```
 
-Todos `Int`/`Bool` inteiros — sem ponto flutuante aqui (`math.lerp`/
-`roundTo` ficam em degrau próprio, com as mesmas garantias).
+Os inteiros ficam acima; `sqrt` é o primeiro `Double` da namespace
+(JVM/Script/JS/x86; riscv64/aarch64 = `MATH001`, não compila). `lerp`/
+`roundTo`/`parse*`/`pow` ficam em degrau próprio, com as mesmas garantias.
 
 ## strings — predicados, conversores e palavras
 

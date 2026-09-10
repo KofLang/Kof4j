@@ -137,6 +137,14 @@ public final class RuntimeMath {
             .Lv_math_zero_false:
                 xorl %eax, %eax
                 ret
+
+            # S1b: kof_math_sqrt(xmm0=v) -> xmm0 (FLT fechado 31/08 via XMM;
+            # riscv64/aarch64 = MATH001). NaN em <0 — paridade Math.sqrt.
+            .globl kof_math_sqrt
+            .type kof_math_sqrt, @function
+            kof_math_sqrt:
+                sqrtsd %xmm0, %xmm0
+                ret
         """);
     }
 }

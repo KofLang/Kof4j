@@ -21,6 +21,7 @@ final class JsRuntimeUiStdlib {
             export function kofMathIsPositive(v) { return v > 0; }
             export function kofMathIsNegative(v) { return v < 0; }
             export function kofMathIsZero(v) { return v === 0; }
+            export function kofMathSqrt(v) { return Math.sqrt(v); }
 
             // ── kof.strings (STDLIB S2a) — predicados de char ───────────
             export function kofStringsIsAlpha(v) {

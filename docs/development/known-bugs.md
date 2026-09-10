@@ -10,6 +10,7 @@
 > |---|---|
 > | Abertos e atacáveis em JVM/JS | **5** — bugs 39, 45, 62, 63, 64 |
 > | Abertos, só reproduzíveis no Native | **7** — bugs 43, 44, 46, 48, 50, 59, 61 |
+> | Paridade interpretador × compilados (semântica `==` congelada — regra 6) | **1** — bug 81 (NaN/±0.0 `==` de Double no SCRIPT) |
 > | Verificados corrigidos em 08/09 | **19** — bugs 1–8, 10–17, 19, 20, 26 |
 > | Não reverificados (faltou ambiente/setup) | bugs 9, 18, 21, 22, 23 |
 >
@@ -1684,6 +1685,44 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   não-virtual); (3) `super()` p/ base externa não-Kof (Record/Object, IR do
   #53) = no-op. Prova: `ScriptTargetTest` 7/7 (interpretExplicitSuperConstructor
   + explicitSuperConstructorDoesNotRecurse + recordWithExplicitConstructorRunsOnInterpreter).
+
+### 81. Interpretador: `==` de Double via `Double.compare` → `NaN == NaN` é `true` (JVM/Native/JS compilados: `false`, IEEE) — ABERTO (paridade regra 5, semântica `==` congelada = regra 6)
+
+- **Sintoma:** `math.sqrt(-1.0) != math.sqrt(-1.0)` (ou qualquer `NaN != NaN`):
+  JVM/Native-x86/KofJS → `true` (IEEE 754: NaN nunca é igual a si mesmo);
+  interpretador (SCRIPT) → `false`. Menor repro — precisa de uma origem de
+  NaN sem literal (literal `nan` não existe em Kof; `sqrt(-1.0)` é a que a
+  stdlib S1b expôs):
+  ```kof
+  main() {
+      println(math.sqrt(-1.0) != math.sqrt(-1.0))
+  }
+  ```
+  `kof run` (script) → `false`; `--target jvm|native|js` → `true`.
+- **Causa raiz (verificada 10/09 ao escrever o wedge S1b):**
+  `KofInterpreterOps.binary` rota EQ/NE primitivos por
+  `KofInterpreterValues.numEq`, que para Double usa
+  `Double.compare(x, y) == 0` — e `Double.compare(NaN, NaN)` retorna **0**
+  (ordenação total de `Comparable`, NÃO igualdade IEEE). O caminho compilado
+  é `DCMPL`/`===`/`comisd`+push, todos IEEE (`NaN != NaN`). O mesmo `numEq`
+  também inverte `+0.0 == -0.0` (JVM compilado: `true`; `Double.compare`:
+  `false` — mesmo buraco, não reproduzido ainda).
+- **Por que NÃO foi corrigido na hora (regra 6):** `==` é
+  **congelado (0.2.6-beta)** — mudar a semântica do interpretador afeta todo
+  código Kof existente que compare Doubles (ordenação vs igualdade em mapas,
+  `contains` de lista sobre Object cai em outro ramo). É decisão de design →
+  discussão + bump, nunca correção silenciosa. O correto provável é EQ/NE
+  usarem `x == y` nativo (IEEE) e `compareRefs`/ordenação manterem
+  `Double.compare` — mas quem decide é a mantenedora.
+- **Mitigação atual (R6 honesto):** a matriz `stdsqrt` marca a célula script
+  como **PARTIAL-bug 81** e o `Set.of("script")` exclui da asserção — o teste
+  continua provando os 3 targets compilados; o caso NaN vive inteiro em
+  `KofMathTest.sqrtJvm/sqrtNative/sqrtJs`.
+- **Prova de aceite esperada:** `stdsqrt` sem exclusão (4 targets idênticos
+  no `NaN != NaN`); + vetor `+0.0 == -0.0`.
+- **Arquivos:** `KofInterpreterValues.numEq` (linha ~91),
+  `KofInterpreterOps.binary` (EQ/NE). Descoberto 10/09 (sessão stdlib S1b).
+- **Status: ABERTO** (semântica congelada — aguarda decisão de design).
 
 ## Comportamentos que PAREcem bugs mas são esperados (não corrigir)
 

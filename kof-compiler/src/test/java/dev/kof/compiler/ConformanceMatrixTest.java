@@ -203,6 +203,21 @@ class ConformanceMatrixTest {
                     println(math.isEven(4) == false)
                 }
                 """, "10\n0\n7\n-1\n3\n8\ntrue\nfalse\ntrue\ntrue\nfalse", Set.of(), tempDir);
+        // STDLIB S1b — kof.math.sqrt (PRIMEIRO Double da namespace). Compara-
+        // ções Bool (nunca print de double cru — bug 44 no Native). riscv/aarch
+        // = MATH001 (gate em KofMath; a matriz não cobre nativos cross).
+        // PARTIAL script = bug 81 (numEq usa Double.compare → NaN==NaN true,
+        // divergindo dos 3 compilados que seguem IEEE NaN!=NaN).
+        matrix("stdsqrt", """
+                main() {
+                    println(math.sqrt(9.0) == 3.0)
+                    println(math.sqrt(2.0) == 1.4142135623730951)
+                    println(math.sqrt(0.25) == 0.5)
+                    println(math.sqrt(0.0) == 0.0)
+                    println(math.sqrt(-1.0) == -1.0)
+                    println(math.sqrt(-1.0) != math.sqrt(-1.0))
+                }
+                """, "true\ntrue\ntrue\ntrue\nfalse\ntrue", Set.of("script"), tempDir);
         // STDLIB S2a — kof.strings predicados paridade total nos 4 targets.
         matrix("stdstrings", """
                 main() {

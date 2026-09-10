@@ -55,6 +55,12 @@ public final class JvmStringMathRuntime {
                     return v == 0;
                 }
 
+                // S1b: PRIMEIRO Double em kof.math (x86 sqrtsd; FLT001 fechado
+                // 31/08 via XMM). NaN em <0 (Math.sqrt) — paridade JS/native.
+                public static double kof_math_sqrt(double v) {
+                    return Math.sqrt(v);
+                }
+
                 // ── kof.strings (STDLIB S2a) — predicados de char ──────────
                 // Convenção de paridade (travada em KofStringsTest + matriz):
                 // string vazia / null => false (nenhum char satisfaz).
