@@ -54,11 +54,21 @@ recomendações futuras (regra 14 da tarefa: não alterar comportamento).
 
 ### SG-003 — Termos de marketing vs definição técnica
 
-- **Documentação**: `README.md:60` "Kof é uma linguagem **fortemente tipada e
-  estaticamente tipada**"; `docs/architecture.md` "fortemente tipada".
-- **Implementação**: o type checker **não** garante subtipagem (§SG-009),
-  **não** checa elemento de coleção, **não** impõe `private`/`abstract` em
-  compile-time, **não** impede reatribuição de `val`.
+- **APLICADO (09/09, decisão do maintainer — "review and apply" com as
+  checagens novas):** com SEM041–SEM046 aplicados, as garantias de compilação
+  cobrem instancição de abstract, tipo aninhado, cobertura de interface,
+  assinatura de main, throw-clause e visibilidade — o que a README/overview
+  podem afirmar como propriedades concretas. `docs/language-reference/
+  type-system.md` §1 atualizado com a nota de 09/09 e §13 com os 6 códigos
+  novos na tabela SEM0xx. "Fortemente tipada" continua FORA do vocabulário
+  oficial (vago por definição) — o que vale é a lista de checagens, agora
+  completa e testada.
+- **Documentação (histórico)**: `README.md:60` "Kof é uma linguagem
+  **fortemente tipada e estaticamente tipada**"; `docs/architecture.md`
+  "fortemente tipada".
+- **Implementação (histórico)**: o type checker **não** garante subtipagem
+  (§SG-009), **não** checa elemento de coleção, **não** impõe
+  `private`/`abstract` em compile-time, **não** impede reatribuição de `val`.
 - **Problema**: "strongly typed" é vago e, lido como "o compilador impede
   operações mal tipadas", é **falso** para Kof hoje.
 - **Recomendação**: substituir por propriedades concretas (já feitas em
@@ -159,63 +169,96 @@ recomendações futuras (regra 14 da tarefa: não alterar comportamento).
 
 ### SG-011 — Função aninhada e sobrecarga top-level
 
-- **Implementação**: função dentro de função não é parseada como declaração
-  (SG-011); duas funções top-level homônimas colidem sem diagnóstico claro
-  (o `define` sobrescreve).
-- **Recomendação**: especificar (erro? último-vence?) e testar.
+- **APLICADO (09/09, decisão do maintainer, SEM048-lane spec-gaps):** função
+  aninhada funciona — parser captura `Type name(params) { ... }` em statement
+  (`lookaheadNestedFunction`, checado ANTES do typed-var-decl) e o desugar faz
+  hoisting para top-level `outer__inner` inserida ANTES da outer ("inner
+  primeiro"); chamadas `inner(...)` reescritas para `outer__inner(...)`.
+  Semântica: inner definida antes do corpo executar; outer chama e aguarda o
+  retorno. Prova: `JvmE2ETest.execNestedFunction` (42) +
+  `execNestedFunctionWithCondition`. Sobrecarga top-level homônima segue
+  aberta (parte B do gap).
+- **Implementação (histórico)**: função dentro de função não era parseada como
+  declaração (SG-011); duas funções top-level homônimas colidem sem
+  diagnóstico claro (o `define` sobrescreve).
 
 ### SG-012 — Inferência de tipo de parâmetro de lambda
 
-- **Implementação**: `(x) -> x + 1` → `x` é `Object` → `SEM001`. A tabela de
-  `map` sabe que o elemento é `Int`, mas não propaga ao corpo.
-- **Problema**: força anotação mesmo quando o tipo é óbvio do contexto.
-- **Recomendação**: é uma **limitação** conhecida; documentar (feito em
-  [closures.md](language-reference/closures.md) §2). Inferência contextual é
-  feature futura.
+- **APLICADO (09/09, decisão do maintainer):** inferência contextual — param
+  de lambda sem anotação em `map`/`filter`/`reduce` de `List<T>` herda o tipo
+  do ELEMENTO (`MemberCallTyper.contextualLambda` reescreve o param no AST;
+  padrão SSE já usado p/ KofWeb). `nums.map((x) -> x * 2)` compila sem
+  `(x: Int)`. Aritmética sobre param untyped SEM contexto continua SEM001
+  (nunca Object silencioso). Prova: `lambdaParamInferredFromListContext` +
+  regressão `untypedLambdaParamArithmeticIsDiagnosedNotEmitted`.
 
 ### SG-013 — `private`/`protected` não são checados em compile-time
 
-- **Implementação**: viram flags JVM; acesso indevido → `IllegalAccessError` em
-  **runtime** (*probe*).
-- **Recomendação**: adicionar checagem de visibilidade no analyzer (SEM novo).
+- **APLICADO (09/09, decisão do maintainer, SEM046):** causa raiz era
+  `defineMethodSymbol` com accessFlags=1 (PUBLIC) hardcoded — modifiers
+  descartados. Agora o símbolo carrega PRIVATE/PROTECTED reais e
+  `MemberCallTyper.checkMemberAccess` rejeita: private fora da classe
+  declarante, protected fora da hierarquia (transitiva), ambos de contexto
+  top-level. Prova: 4 testes `CompilerDriverTest` (private/protected,
+  dentro/fora).
 
 ### SG-014 — Pattern matching sem guardas/aninhamento
 
-- **Implementação**: só `case Type var` e `case Type(a,b)` (top-level).
-- **Recomendação**: documentar como limite (feito). Guardas/aninhados são
-  planned.
+- **APLICADO (09/09, decisão do maintainer, parte guardas):** `case T v if
+  (cond):` / `case T(a,b) if (cond) ->` — PatternExpr ganha campo `guard`
+  (ctors antigos preservados), parser consome `if` + expressão, SEM analisa
+  a guard com a var bound, lowering emite nos 2 switch (statement: guard no
+  teste com cast temporário; expressão: guard pós-binding). False → próximo
+  case/braço. Prova: `switchCaseGuardFalseFallsThrough` +
+  `switchCaseGuardTrueRunsGuardedArm`. Aninhamento (`case T(Inner(a,b))`)
+  segue planned (parte B do gap).
+- **Implementação (histórico)**: só `case Type var` e `case Type(a,b)`
+  (top-level).
 
 ### SG-015 — `implements` não exige cobrir métodos abstratos
 
-- **Implementação**: `class C implements I {}` (com `I.f()` abstrato) compila
-  (*probe*); falha runtime (`AbstractMethodError`).
-- **Recomendação**: checagem de implementação completa no analyzer (ligado a
-  SG-009).
+- **APLICADO (09/09, decisão do maintainer, SEM043):** `checkInterfaceImplementation`
+  no fim de `analyzeClass` — método ausente → SEM043 nomeando o método;
+  aridade divergente → SEM043 com esperado/encontrado (paridade de tipo exata
+  aguarda dispatch virtual). Prova: 3 testes `CompilerDriverTest`
+  (missing/wrongArity/complete-green).
 
 ### SG-016 — Semântica de classes aninhadas
 
-- **Implementação**: parser aceita `class` dentro de `class`
-  (`parseClassMember:740`), mas não há teste que fixe o nomeamento (`A.B`?
-  `B`? pacote?).
-- **Recomendação**: especificar e testar.
+- **APLICADO (09/09, decisão do maintainer, SEM042):** tipo aninhado não
+  existe em Kof — `class A { class B {} }` é erro de parse imediato SEM042
+  ("declare at top level") em `ClassMemberParser.parseClassMember`;
+  interface/record/entity aninhados idem (mesmo branch). Prova:
+  `nestedClassGivesCleanDiagnostic` + `topLevelClassStaysGreen`.
 
 ### SG-017 — `abstract class` instanciável em compile-time
 
-- **Implementação**: `new A()` de classe abstrata compila; `InstantiationError`
-  runtime (*probe*).
-- **Recomendação**: erro de compilação (SEM novo).
+- **APLICADO (09/09, decisão do maintainer, SEM041):** `new A()` e `A()`
+  (construção implícita) de classe abstrata → erro SEM041 compile-time.
+  Registro `abstractClasses` em `SymbolTableBuilder.preDeclareType`; checagem
+  nos 2 caminhos de instanciação (SemExpressionTyper NewExpr +
+  BuiltinCallTyper receiver-null — `Shape()` é MethodCallExpr, não NewExpr).
+  Prova: `abstractClassInstantiationFails` +
+  `abstractClassSubclassInstantiationStaysGreen`.
 
 ### SG-018 — Exit code de `Int main()`
 
-- **Implementação**: o emit JVM gera `void main`; o `Int` retornado é ignorado.
-- **Recomendação**: decidir se `Int main()` define exit code (útil para CLI) ou
-  não (remover a forma). Hoje Unspecified.
+- **APLICADO (09/09, decisão do maintainer, SEM044):** a forma `Int main()`
+  foi REMOVIDA — o entry point é SÓ `main()` (sem tipo de retorno, sem
+  modifiers); `Int main()` → erro SEM044. Modifiers em main nem chegam ao SEM
+  (parser sempre passa mods vazios p/ top-level function; SEM044 protege o
+  contrato na camada semântica). O IR já emite public static void. Prova:
+  3 testes `CompilerDriverTest` (typedMain/modifiedMain/plainMain-green).
 
 ### SG-019 — Cláusula `throws` é decorativa
 
-- **Implementação**: `parseThrows` captura, mas nada valida (exceções são
-  String, não há checked).
-- **Recomendação**: documentar como metadado (não contrato) ou remover.
+- **APLICADO (09/09, decisão do maintainer, SEM045):** descoberta — top-level
+  function NEM CAPTURAVA `throw` (só `parseClassMember` chamava `parseThrows`;
+  o gap dizia "decorativa", na verdade era duplamente morta). Fix:
+  `Parser.parseFunctionDeclaration` captura + `SemanticAnalyzer.checkThrowsClause`
+  valida que cada nome é tipo conhecido (classe/interface do módulo, builtin,
+  ou externa via import) → SEM045. Prova: `throwsUnknownTypeGivesCleanDiagnostic`
+  + `throwsKnownTypeStaysGreen`.
 
 ### SG-020 — Modelo de memória concorrente ausente
 

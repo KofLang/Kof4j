@@ -19,6 +19,15 @@ O termo "strong typing" **não** é usado aqui como elogio. As propriedades
 concretas — e as **falhas de garantia** — estão nas seções seguintes. Onde o
 type checker **não** impede uma operação, isso está dito explicitamente.
 
+> **Atualização 09/09 (decisões do maintainer sobre os gaps B):** as garantias
+> de compilação se tornaram estritas nos pontos que faltavam — instanciação de
+> `abstract` (SEM041), tipo aninhado (SEM042), cobertura de `implements`
+> (SEM043), assinatura de `main` (SEM044), cláusula `throw` (SEM045) e
+> visibilidade `private`/`protected` (SEM046) são erros de compile-time.
+> Lambda em coleção herda o tipo do elemento sem anotação (SG-012); função
+> aninhada funciona com hoisting (SG-011); guardas em pattern matching
+> (`case T v if cond`) são suportadas (SG-014). Ver tabela de erros no §13.
+
 ---
 
 ## 2. Onde o type checking acontece (pipeline real)
@@ -313,6 +322,14 @@ retorno do lambda (*probe*: map/filter/reduce corretos).
 | `SEM032` | switch-expressão sem default | `SemExpressionTyper` (case `SwitchExpr`) |
 | `SEM033` | valor `void` usado como expressão | driver:2675 |
 | `SEM034` | `sublist()`/`subSet()` | driver:4067 |
+| `SEM037` | reatribuição de `val` | parser (`type="val"`) + `StatementAnalyzer` |
+| `SEM038` | escrita em componente de record | `StatementAnalyzer` (DD-02) |
+| `SEM041` | instanciação de classe `abstract` (`new A()` e `A()`) | `SemExpressionTyper`/`BuiltinCallTyper` (SG-017) |
+| `SEM042` | tipo aninhado (class dentro de class) | `ClassMemberParser.parseClassMember` (SG-016) |
+| `SEM043` | `implements` sem cobrir método da interface / aridade errada | `SemanticAnalyzer.checkInterfaceImplementation` (SG-015) |
+| `SEM044` | `main()` com tipo de retorno declarado (`Int main()`) | `SemanticAnalyzer.analyzeFunction` (SG-018) |
+| `SEM045` | cláusula `throw X` com tipo desconhecido | `SemanticAnalyzer.checkThrowsClause` (SG-019) |
+| `SEM046` | acesso `private`/`protected` fora do permitido | `MemberCallTyper.checkMemberAccess` (SG-013) |
 | `ARITH001` | divisão/resto por zero **constante** | ExpressionLowerer:198 |
 
 Divisão por zero **não-constante** (`7 / z` com `z=0`) → erro de **runtime**
