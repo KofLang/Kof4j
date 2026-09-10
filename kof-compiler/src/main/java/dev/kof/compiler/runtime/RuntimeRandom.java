@@ -87,7 +87,7 @@ public final class RuntimeRandom {
             .section .rodata
             .balign 8
             .Lrnd_two53:
-                .quad 0x4330000000000000        # 9007199254740992.0 = 2^53
+                .quad 0x4340000000000000        # 9007199254740992.0 = 2^53
             .section .text
         """);
     }

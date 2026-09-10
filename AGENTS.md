@@ -89,7 +89,7 @@ meio de uma unidade** não é autonomia — é polidez ou desatenção.
 | "Existe dono nisso?" | `DOING.md` |
 | "Qual a sintaxe/idiom real?" | `training/`, `learn/`, **compile e confirme** |
 | "O que já funciona?" | suíte + E2E rodando (a prova, não a memória) |
-| "Qual a próxima prioridade?" | `docs/status.md`, `docs/backend-parity.md`, `development/` (fila P0→P5: `roadmap-audit.md`/`roadmap.md`/`specification-gaps.md` + `known-bugs.md`), `planning-*` |
+| "Qual a próxima prioridade?" | `docs/status.md`, `docs/backend-parity.md`, `docs/development/` (fila P0→P5: `roadmap-audit.md`/`roadmap.md`/`specification-gaps.md` + `known-bugs.md`), `planning-*` |
 | "Isso é decisão de design?" | **NÃO é sua** — registre gap/plano e siga (regra 6) |
 
 **Escopo realizável numa sessão** = uma unidade coesa com prova ao fim
@@ -104,7 +104,7 @@ deixe trabalho grande não-commitado — é assim que se perde uma sessão.
 2. **Colisão de lane inevitável** — o único caminho toca um arquivo `EM CURSO`
    de outro agente e não dá para adiar: pare, registre no DOING.md, aguarde.
 3. **Gate quebrado sem causa na sua mudança** — suíte vermelha que você não
-   introduziu e não consegue diagnosticar: registre em `docs/known-bugs.md`
+   introduziu e não consegue diagnosticar: registre em `docs/development/known-bugs.md`
    com reproduções, não "conserte" o teste para passar.
 4. **Requisito genuinamente ausente do corpus** — nem `training/`, nem
    `learn/`, nem o compilador respondem: escreva a pergunta no DOING.md na
@@ -174,7 +174,7 @@ conceitual nem decide arquitetura/rumo. Consequências práticas para o agente:
    raiz": rigor na compilação, vivência prática, código robusto.
 2. **Compile antes de entregar.** Alucinação é proibida. "Achar" que compila
    não compila. O loop de verificação (§ abaixo) é inegociável.
-3. **Transparência cirúrgica de erros.** Erros vão para `docs/known-bugs.md`
+3. **Transparência cirúrgica de erros.** Erros vão para `docs/development/known-bugs.md`
    com **causa raiz** + **menor repro**, inclusive regressões que a mantenedora
    introduziu. Nunca "documentar em volta" do bug.
 4. **Discussão técnica antes de código.** Quando a dúvida é conceitual (semântica,
@@ -235,7 +235,7 @@ intervalo.
 ### Lição aprendida (04/09) — trabalhe SEMPRE em partes pequenas
 
 > **Nunca tente gravar/produzir um artefato grande de uma vez.** O plano de
-> refactoring `docs/refactoring/PLAN-SOLID-500.md` (120 classes, 8 fases) foi
+> refactoring `docs/development/refactoring/PLAN-SOLID-500.md` (120 classes, 8 fases) foi
 > perdido uma vez porque o agente tentou escrever o documento inteiro num único
 > `write`. A lição:
 
@@ -274,6 +274,91 @@ uma lista de tarefas que a CLI renderiza em tempo real. Os dois são
   ao `todowrite` na hora.
 - Ao fim da sessão, o `DOING.md` continua sendo a fonte da verdade para o
   **próximo** agente; o `todowrite` é só a janela desta conversa.
+
+---
+
+## Organização de documentação (obrigatório — 09/09)
+
+A estrutura de documentação tem **três estados**, e a classificação reflete o
+estado do **SOFTWARE**, não o do texto:
+
+| Pasta | Conteúdo | Significado |
+|---|---|---|
+| `docs/` | documentação consolidada e válida | **somente** o que já foi implementado, validado ou decidido |
+| `docs/development/` | trabalho atualmente em desenvolvimento | **somente** itens com implementação, validação, testes ou integração **pendentes** |
+| `docs/development/future/` | planejado para depois | ideias/funcionalidades **não** em desenvolvimento atual |
+
+> **`docs/development/` NÃO é arquivo morto, histórico nem depósito de
+> documentação.** A presença de um documento lá significa explicitamente:
+> *"existe trabalho técnico pendente para este item."*
+
+### Regra fundamental — auditar antes de iniciar
+
+**Antes de iniciar qualquer nova implementação**, o agente DEVE vasculhar
+`docs/development/` e comparar cada documento com o estado REAL do código,
+testes, build e commits. Para cada item:
+
+1. **Já implementado e validado** → atualizar a doc se necessário, **mover
+   para `docs/`**, remover referências antigas que indiquem desenvolvimento.
+2. **Parcialmente implementado** → manter em `docs/development/`, identificar
+   exatamente o que falta, **implementar o que falta**, rodar os testes;
+   somente após a conclusão mover para `docs/`.
+3. **Apenas planejado** (sem implementação em andamento) → mover para
+   `docs/development/future/`.
+4. **Obsoleto, duplicado ou contradizendo o estado atual** → corrigir ou
+   consolidar; nunca manter documentação falsa/desatualizada em
+   `docs/development/`.
+
+### Regra de conclusão
+
+**NADA que esteja concluído pode permanecer em `docs/development/`.** A ordem
+obrigatória ao concluir uma tarefa é:
+
+```
+implementar → testar → validar → atualizar documentação → mover de development/ para docs/
+```
+
+A movimentação do documento **não é opcional nem tarefa administrativa
+secundária** — faz parte da definição de "concluído".
+
+### Regra de retomada
+
+Ao retomar o trabalho no repositório:
+
+1. Ler `DOING.md`, `AGENTS.md` e `docs/status.md`.
+2. Vasculhar `docs/development/`.
+3. Para cada documento, verificar o estado real da implementação no código e
+   nos testes.
+4. Corrigir a classificação dos documentos.
+5. **Finalizar primeiro o trabalho que já está em desenvolvimento** antes de
+   iniciar novas funcionalidades.
+6. Após cada conclusão, mover imediatamente a documentação para `docs/`.
+7. Somente depois de esgotar o trabalho em desenvolvimento, selecionar novos
+   itens.
+8. Itens em `future/` **não** são trabalho atual sem decisão explícita de
+   promovê-los para desenvolvimento.
+
+### Proibição de cascata documental
+
+- Não criar documentos de planejamento, auditoria, roadmap ou TODO **apenas
+  para evitar implementar** uma tarefa já iniciada.
+- Não transformar uma tarefa em desenvolvimento em outra tarefa de planejamento.
+- Se o código já começou a ser implementado, o objetivo é **terminar a
+  implementação**, testar e consolidar a documentação.
+
+### Critério objetivo e prioridade
+
+```
+development/ + implementação concluída  = doc MAL classificada (mover p/ docs/)
+development/ + implementação pendente   = correto
+future/      + implementação não iniciada = correto
+docs/        + funcional implementada/validada = correto
+```
+
+Ordem de prioridade do agente: (1) concluir o que já está em
+`docs/development/`; (2) validar e consolidar; (3) mover doc concluída para
+`docs/`; (4) só então escolher novo trabalho; (5) `future/` só entra em
+execução sem trabalho atual pendente ou por decisão explícita da mantenedora.
 
 ---
 
@@ -355,7 +440,7 @@ Bool isQuery(String op) {
    **comportamento**. Prova: mesma suíte + golden E2E por target. Se o refactor
    muda output observável, é **bug do refactor** — corrige ou reverte.
 4. **Bug = alinhar ao previsto, nunca o contrário.** Tudo em
-   `docs/known-bugs.md` é desvio do comportamento previsto e **deve ser
+   `docs/development/known-bugs.md` é desvio do comportamento previsto e **deve ser
    corrigido no código** para atingir o comportamento documentado. Proibido
    "documentar em volta do bug" (mudar o corpus para aceitar o comportamento
    errado como se fosse o certo). Se o comportamento documentado está errado,
@@ -371,7 +456,7 @@ Bool isQuery(String op) {
 
 ---
 
-## Invariantes da plataforma (visão universal — `development/future/PLAN-UNIVERSAL-PLATFORM.md`)
+## Invariantes da plataforma (visão universal — `docs/development/future/PLAN-UNIVERSAL-PLATFORM.md`)
 
 Estas regras **sempre** se aplicam, mesmo quando não há código de domínio novo
 em jogo. São o mecanismo anti-"god language":
@@ -690,14 +775,14 @@ use o harness do projeto ou crie um teste E2E mínimo no pacote da área.
 | `training/anti-patterns/java-like-code.md` | Java traduzido → Kof |
 | `learn/` | Tutorials passo a passo (00-introduction → 37-kofjs) |
 | `docs/architecture.md`, `docs/compiler-architecture.md` etc. | Domínios específicos (estáveis) |
-| `development/` | **Backlog vivo — tudo que NÃO está concluído** (planos, roadmaps, audits, gaps, refactors). Ver `development/README.md` para índice completo. |
-| `development/future/` (plans) | Planos futuros: migração legado (decompiler/translator/IR/differential) + plataforma universal (era `docs/future/`) |
-| `development/roadmap.md`, `development/roadmap-audit.md`, `development/ecosystem-coverage.md` | Roadmaps & auditoria de cobertura (fila P0→P5) |
-| `development/specification-gaps.md`, `development/known-bugs.md` | Gaps de spec (20 SG-00x) + bugs abertos (37–40, CANVAS001) |
-| `development/native-multiarch.md`, `development/DATABASE_VISION.md`, `development/complexity-audit.md` | Native multiarch (NATIVE002) + DB vision + audit ≤500 |
-| `development/security-plan.md` | Plano de segurança (18 camadas, B/C/D pendentes) |
-| `development/plan-platform-completion.md`, `development/plan-spring-independence.md` | Plans de plataforma & Spring independence (P3–P5) |
-| `development/future/ACTION_PLAN.md` | Ordem de implementação de `development/future` (Tiers 0–12) |
+| `docs/development/` | **Backlog vivo — tudo que NÃO está concluído** (planos, roadmaps, audits, gaps, refactors). Ver `docs/development/README.md` para índice completo. |
+| `docs/development/future/` (plans) | Planos futuros: migração legado (decompiler/translator/IR/differential) + plataforma universal (era `docs/future/`) |
+| `docs/development/roadmap.md`, `docs/development/roadmap-audit.md`, `docs/development/ecosystem-coverage.md` | Roadmaps & auditoria de cobertura (fila P0→P5) |
+| `docs/development/specification-gaps.md`, `docs/development/known-bugs.md` | Gaps de spec (20 SG-00x) + bugs abertos (37–40, CANVAS001) |
+| `docs/development/native-multiarch.md`, `docs/development/DATABASE_VISION.md`, `docs/development/complexity-audit.md` | Native multiarch (NATIVE002) + DB vision + audit ≤500 |
+| `docs/development/security-plan.md` | Plano de segurança (18 camadas, B/C/D pendentes) |
+| `docs/development/plan-platform-completion.md`, `docs/development/plan-spring-independence.md` | Plans de plataforma & Spring independence (P3–P5) |
+| `docs/development/future/ACTION_PLAN.md` | Ordem de implementação de `docs/development/future` (Tiers 0–12) |
 
 ---
 

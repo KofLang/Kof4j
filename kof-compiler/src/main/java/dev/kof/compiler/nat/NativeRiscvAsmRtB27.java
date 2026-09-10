@@ -215,7 +215,7 @@ public final class NativeRiscvAsmRtB27 {
             .section .rodata
             .balign 8
             .Lrnd_two53:
-                .quad 0x4330000000000000
+                .quad 0x4340000000000000
             .section .text
         """;
 }

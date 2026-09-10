@@ -1537,9 +1537,32 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   riscv/aarch64 quando a área db existir lá). Sem savepoints (decisão da
   mantenedora, §77).
 - **Prova de repro:** o mesmo programa KofDbE2ETest da issue #65 rodando
-  no binário x86_64 (`caught {"n":2}` esperado antes do fix). Lane issues
-  (09/09) NÃO implementou — asm fora da lane; registrado p/ o dono Native
-  com a semântica alvo já definida no §77.
+   no binário x86_64 (`caught {"n":2}` esperado antes do fix). Lane issues
+   (09/09) NÃO implementou — asm fora da lane; registrado p/ o dono Native
+   com a semântica alvo já definida no §77.
+
+### 79. Native (x86/riscv/aarch): `random.double()` retorna valores em [0,2) — constante 2^53 codificada como 2^52 — ✅ CORRIGIDO 10/09
+
+- **Sintoma:** `KofRandomTest.randomShapeNative` flaky em main (`845284e5`):
+  `assert(d < 1.0)` falha em ~50% das execuções do MESMO binário
+  (31/60 no harness; com 6 asserts de double no programa, falha ~100%).
+- **Menor repro:** `main() { var d = random.double(); assert(d < 1.0) }` →
+  `kof run --target native`, ~1 em 2 rods → `assertion failed`.
+- **Causa raiz:** `.Lrnd_two53` tem `.quad 0x4330000000000000`, que é
+  **2^52** (4503599627370496.0), não 2^53 (9007199254740992.0 =
+  `0x4340000000000000`). O asm divide `v ∈ [0,2^53)` (mantissa >> 11) por
+  2^52 → resultado em [0,2). Bit 52 do exponent field: `0x433` vs `0x434`.
+  Mesmo valor copiado no runtime x86 (`RuntimeRandom.java`) e no bloco
+  riscv/aarch (`NativeRiscvAsmRtB27.java`) — bug único, dois sites +
+  translator aarch64 (mesma const).
+- **Correção (10/09):** `.quad 0x4340000000000000` nos 2 sites. PROVA:
+  harness isolado chamando `kof_random_double` 200k×: `ge1=0`, max < 1.0;
+  binário real do teste: **0/200** falhas (antes 31/60);
+  `KofRandomTest` 4/4 (1 skip cross-arch sem toolchain).
+- **Lição:** golden de valor é impossível p/ random (por design), mas
+  CONSTANTE DE FP em asm merece teste de decode no harness — o comentário
+  dizia "= 2^53" e o bit não era (confiança no texto, não na máquina).
+
 
 
 
