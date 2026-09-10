@@ -57,6 +57,7 @@ import dev.kof.compiler.runtime.RuntimeStringConv;
 import dev.kof.compiler.runtime.RuntimeStringEdit;
 import dev.kof.compiler.runtime.RuntimeStringOps;
 import dev.kof.compiler.runtime.RuntimeStringParse;
+import dev.kof.compiler.runtime.RuntimeStringParseFp;
 import dev.kof.compiler.runtime.RuntimeStringSearch;
 import dev.kof.compiler.runtime.RuntimeTime;
 import dev.kof.compiler.runtime.RuntimeUi;
@@ -122,8 +123,7 @@ public final class NativeRuntime {
         RuntimeStringBase.emitStringEquals(sb);
         RuntimeStringParse.emitStringToInt(sb);
         RuntimeStringParse.emitStringToLong(sb);
-        RuntimeStringParse.emitStringToDouble(sb);
-        RuntimeStringParse.emitStringToFloat(sb);
+        RuntimeStringParseFp.emitStringToDouble(sb);
         RuntimeStringBase.emitPrintString(sb);
         RuntimeStringBase.emitPrintlnString(sb);
         RuntimeStringOps.emitStringCharAt(sb);

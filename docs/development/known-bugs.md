@@ -1851,17 +1851,24 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 - **Causa raiz cross:** `kof_string_to_double/float` só existem no asm x86
   (`NativeRuntime`); a cadeia `NativeRiscvAsm*` nunca definiu (FLT001 é o gap
   de aritmética FP cross — mas aqui quebra até o LINK de `String.toDouble()`).
-- **Correção face x86 FEITA 10/09 (parcial, ver limite abaixo):** parser
-  reescrito no contrato: trim, `+/-` inicial, dígitos-a-dígitos, um único
-  `.`, expoente opcional só com dígitos, literais `NaN/Infinity/-Infinity`
-  (case-sensitive, idem JDK; NaN via comparação-consigo-mesma que força qNaN
-  real em SSE), falha → `kof_throw_string`. Mantissa acumulada em int64 +
-  UMA divisão por 10^ndigitos (evita o erro acumulado do parser antigo:
-  `"0.3".toDouble() == 0.3` agora true como no JDK).
-- **LIMITE travado (documentado, não corrigível em asm puro):** paridade
-  bit-exata p/ decimais que não cabem em int64 e expoentes >22 exige o
-  algoritmo correcto do JDK (big-int shortest-round-trip) → fica na família
-  FLT001/paridade-FP; vetores curtos (≤15 dígitos, exp |e|≤22) batem.
+- **Correção face x86 FEITA 10/09:** parser reescrito no contrato: trim,
+  `+/-` inicial, dígitos-a-dígitos, um único `.` (com dígitos antes OU
+  depois), expoente `e/E` só com dígitos, literais `NaN/Infinity/-Infinity`
+  (case-sensitive, idem JDK; NaN é o qNaN estático — `NaN==NaN` dá false
+  como no JVM), falha → `kof_throw_string` (nunca número). Mantissa em
+  int64 + UMA divisão por 10^nfrac (rounding único). `toDouble`/`toFloat`
+  partilham a máquina (`cvtsd2ss` no fim) — split de arquivo novo
+  `runtime/RuntimeStringParseFp.java` (gate ≤500; `RuntimeStringParse`
+  ficou só com Int/Long). Prova: oracle booleano de 24 vetores medidos no
+  JVM == x86 == JS byte-a-byte (`KofStringParseTest` 6/6: toInt/toLong +
+  toDouble/toFloat em JVM/x86/JS).
+- **LIMITE travado (documentado no parser e nos testes):** mantissa com
+  >19 dígitos LANÇA no x86 (JVM/JS parseiam com arredondamento — a máquina
+  usa int64 + UMA divisão por 10^nfrac, o que dá round-trip correto p/
+  ≤19 dígitos: `"0.3"==0.3`, `"0.1"+"0.2"==0.30000000000000004` batem);
+  hex-float (`0x1p3`) lança (JVM parseia). Paridade bit-exata p/ casos fora
+  disso exige o algoritmo big-int shortest-round-trip do JDK → família
+  FLT001. exp |e|>320 satura a 0/Infinity (JVM idem).
 - **PENDENTE (face cross):** riscv/aarch precisam de `to_double/to_float`
   reais — depende de FP RV64 (`fadd.d`/`fmul.d`/`fcvt.*`) no conjunto do
   tradutor aarch (parcialmente presente: `NativeRiscvCrossOps` usa fcvt).

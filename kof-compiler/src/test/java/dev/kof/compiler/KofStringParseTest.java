@@ -123,4 +123,91 @@ class KofStringParseTest {
         assertEquals(0, ec, t + " exit " + ec + ": " + output);
         assertEquals(EXPECTED, output, t + " stdout");
     }
+
+    // === bug 82 (face x86): toDouble/toFloat no contrato do JDK (parse com
+    // trim, +/-, expoente, NaN/Infinity literais, throw em invalido). O
+    // oracle e o proprio output JVM medido 10/09 (paridade JVM==x86==JS em
+    // 24/24). NaN == NaN eh false (IEEE, idem JVM). Limites documentados
+    // §82: mantissa >19 digitos LANCA no x86 (JVM parseia), formato do
+    // printer NAO e testado aqui (bug 44). Cross-arch (riscv/aarch):
+    // undefined reference honesta (COMP001) — pendente FLT001, §82.
+    @Test
+    void toDoubleToFloatContractJvm(@TempDir Path tmp) throws Exception {
+        runFp(tmp, Target.JVM);
+    }
+
+    @Test
+    void toDoubleToFloatContractNativeX86(@TempDir Path tmp) throws Exception {
+        runFp(tmp, Target.NATIVE);
+    }
+
+    @Test
+    void toDoubleToFloatContractJs(@TempDir Path tmp) throws Exception {
+        Path src = tmp.resolve("Main.kf");
+        Files.writeString(src, FP_GOLDEN);
+        Path out = tmp.resolve("out-fp-js");
+        CompilationResult r = driver.compile(src, out, Target.JS);
+        assertTrue(r.success(), "JS compile: " + r.diagnostics().getDiagnostics());
+        Path mjs;
+        try (var s = Files.walk(out)) {
+            mjs = s.filter(x -> x.getFileName().toString().equals("Default.mjs"))
+                   .findFirst().orElseThrow();
+        }
+        Process p = new ProcessBuilder("node", mjs.toString()).redirectErrorStream(true).start();
+        String output = new String(p.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        int ec = p.waitFor();
+        assertEquals(0, ec, "JS fp exit " + ec + ": " + output);
+        assertEquals(FP_EXPECTED, output, "JS fp stdout");
+    }
+
+    private void runFp(Path tmp, Target t) throws Exception {
+        Path src = tmp.resolve("Main.kf");
+        Files.writeString(src, FP_GOLDEN);
+        Path out = tmp.resolve("out-fp-" + t);
+        CompilationResult r = driver.compile(src, out, t);
+        assertTrue(r.success(), t + " fp compile: " + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = (t == Target.JVM)
+                ? new ProcessBuilder(System.getProperty("java.home") + "/bin/java",
+                        "-cp", out.toString(), "Default.Main")
+                : new ProcessBuilder(out.resolve("Default/Main").toString());
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        int ec = proc.waitFor();
+        assertEquals(0, ec, t + " fp exit " + ec + ": " + output);
+        assertEquals(FP_EXPECTED, output, t + " fp stdout");
+    }
+
+    private static final String FP_GOLDEN = """
+main() {
+    println("0.3".toDouble() == 0.3)
+    println("123.456".toDouble() == 123.456)
+    println("1.5e2".toDouble() == 150.0)
+    println("-1.5e-2".toDouble() == -0.015)
+    println("Infinity".toDouble() > 1e300)
+    println("-Infinity".toDouble() < -1e300)
+    try { println("infinity".toDouble()); println("S1") } catch (String e) { println("T1") }
+    try { println("Inf".toDouble()); println("S2") } catch (String e) { println("T2") }
+    println("5.e3".toDouble() == 5000.0)
+    println("1e3".toDouble() == 1000.0)
+    try { println("1e".toDouble()); println("S3") } catch (String e) { println("T3") }
+    println(" 1.5 ".toDouble() == 1.5)
+    println("+2.25".toDouble() == 2.25)
+    println("0.1".toDouble() + "0.2".toDouble() == 0.30000000000000004)
+    println(".5".toDouble() == 0.5)
+    println("5.".toDouble() == 5.0)
+    println("NaN".toDouble() == "NaN".toDouble())
+    println("1e400".toDouble() > 1e300)
+    println("1e-400".toDouble() == 0.0)
+    println("2.5".toFloat() == 2.5)
+    try { println("abc".toFloat()); println("S5") } catch (String e) { println("T5") }
+    try { println("abc".toDouble()); println("S6") } catch (String e) { println("T6") }
+    try { println("1.2.3".toDouble()); println("S7") } catch (String e) { println("T7") }
+    println("7".toDouble() == 7.0)
+    println("1e3".toFloat() == 1000.0)
+}    """;
+
+    private static final String FP_EXPECTED = "true\ntrue\ntrue\ntrue\ntrue\ntrue\nT1\nT2\ntrue\ntrue\nT3\ntrue\ntrue\ntrue\ntrue\ntrue\nfalse\ntrue\ntrue\ntrue\nT5\nT6\nT7\ntrue\ntrue";
 }
