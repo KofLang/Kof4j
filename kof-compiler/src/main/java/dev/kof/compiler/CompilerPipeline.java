@@ -294,6 +294,7 @@ public final class CompilerPipeline {
         }
         unit = CompilerDesugar.desugarTests(unit, driver.discoveredTests, driver.testHarnessMode, driver.currentSourceName);
         unit = CompilerDesugar.desugarApplication(unit);
+        unit = CompilerDesugar.desugarNestedFunctions(unit);
         driver.discoveredConfigKeys.clear();
         if (driver.target == Target.ANDROID) {
             unit = CompilerPipeline.appendAndroidHostIfNeeded(driver, unit);

@@ -559,4 +559,38 @@ class JvmE2ETest {
         // 03/09 (known-bugs #11); antes era referência (false).
         runJvm(source, tempDir.resolve("out"), "Ponto[x=3, y=7]\ntrue\ntrue\ntrue\ntrue");
     }
+
+    // SG-011 — função aninhada: inner definida primeiro (hoisting para
+    // top-level `main__dobro`), outer chama e aguarda o retorno.
+    @Test
+    void execNestedFunction(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+            main() {
+                Int dobro(Int x) {
+                    return x * 2
+                }
+                println(dobro(21))
+            }
+            """);
+        runJvm(source, tempDir.resolve("out"), "42");
+    }
+
+    @Test
+    void execNestedFunctionWithCondition(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+            main() {
+                String classifica(Int n) {
+                    if (n >= 10) {
+                        return "alto"
+                    }
+                    return "baixo"
+                }
+                println(classifica(15))
+                println(classifica(3))
+            }
+            """);
+        runJvm(source, tempDir.resolve("out2"), "alto\nbaixo");
+    }
 }
