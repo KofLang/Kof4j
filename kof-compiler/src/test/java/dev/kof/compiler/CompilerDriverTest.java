@@ -4799,4 +4799,58 @@ class CompilerDriverTest {
         assertTrue(driver.compile(source, tempDir.resolve("out2"), Target.JVM).success(),
                 "lambda anotada continua válida");
     }
+
+    // SG-005/008 (SEM048) — null safety é por narrowing; o literal `null` não
+    // é atribuível: nem na declaração (`T? x = null`), nem na reatribuição
+    // (`x = null`). APIs devolvem T?; o programador não fabrica null.
+    @Test
+    void nullInVarDeclFails(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("N1.kf");
+        Files.writeString(source, """
+            main() {
+                Int? a = null
+                println("unreachable")
+            }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "Int? a = null deve falhar");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM048"), "should be SEM048, got: " + diags);
+    }
+
+    @Test
+    void nullInAssignmentFails(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("N2.kf");
+        Files.writeString(source, """
+            main() {
+                String? s = "mel"
+                s = null
+                println("unreachable")
+            }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "s = null deve falhar");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM048"), "should be SEM048, got: " + diags);
+    }
+
+    @Test
+    void nullFromApiStaysGreen(@TempDir Path tempDir) throws IOException {
+        // o idioma correto: T? vem de API (map.get/readLine), narrowing decide
+        Path source = tempDir.resolve("N3.kf");
+        Files.writeString(source, """
+            main() {
+                Int? a = mapOf("x", 1).get("y")
+                if (a == null) {
+                    println("vazio")
+                } else {
+                    println(a + 1)
+                }
+                println("done")
+            }
+            """);
+        assertTrue(driver.compile(source, tempDir.resolve("out"), Target.JVM).success(),
+                "T? de API (sem literal null) deve compilar: " + driver.compile(
+                        source, tempDir.resolve("out2"), Target.JVM).diagnostics());
+    }
 }

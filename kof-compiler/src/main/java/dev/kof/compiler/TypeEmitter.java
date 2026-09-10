@@ -12,6 +12,10 @@ public final class TypeEmitter {
 
     /** Boxa um primitivo via static valueOf (equivalente Kof de autoboxing). */
     static void boxPrimitive(List<KofOperation> ops, Type type) {
+        if (type instanceof Type.NullableType nt) {
+            boxPrimitive(ops, nt.inner());
+            return;
+        }
         if (type instanceof Type.PrimitiveType pt) {
             String name = Type.canonicalPrimitiveName(pt.name());
             Type boxed = switch (name) {

@@ -10,6 +10,12 @@ public final class ExpressionBinaryLowerer {
 
     private ExpressionBinaryLowerer() {}
 
+    /** Unknown OU Nullable(Unknown): o valor pode ser null (get sem pin). */
+    private static boolean isMaybeNullType(Type t) {
+        return t instanceof Type.UnknownType
+                || (t instanceof Type.NullableType nt && nt.inner() instanceof Type.UnknownType);
+    }
+
     static int lower(CompilerDriver driver, BinaryExpr bin, List<KofOperation> ops,
                         String owner, int localIdx, List<IRLocalVariable> locals) {
 if ("instanceof".equals(bin.operator()) || "as".equals(bin.operator())) {
@@ -203,16 +209,26 @@ for (int ci = chain.size() - 1; ci >= 0; ci--) {
         }
         accType = Type.PrimitiveType.BOOL;
     } else {
+        // Unknown/Nullable(Unknown) vs primitivo (get de mapOf() sem pin
+        // vs int): o lado nullable só pode ser null (miss) → referência
+        // com o primitivo boxado (SG-008/bug 87; espelha Objects.equals).
+        // O box do lado primitivo acontece ANTES do emit do lado oposto
+        // (boxa o valor no topo da pilha, na ordem certa).
+        boolean boxLeftNow = ("==".equals(be.operator()) || "!=".equals(be.operator()))
+                && isMaybeNullType(rightType) && TypeMetrics.isPrimitiveType(accType);
+        if (boxLeftNow) TypeEmitter.boxPrimitive(ops, accType);
         localIdx = ExpressionLowerer.emitExpression(driver, be.right(), ops, owner, localIdx, locals);
         Type operandType = accType;
-        // comparação contra null é referência (if_acmp*):
-        // usa o tipo do lado não-null, ou Object se Unknown
         if (("==".equals(be.operator()) || "!=".equals(be.operator()))
                 && (driver.isNullLiteral(be.left()) || driver.isNullLiteral(be.right()))) {
             Type other = driver.isNullLiteral(be.left()) ? rightType : accType;
             operandType = (other instanceof Type.ClassType || other instanceof Type.ArrayType
                     || other instanceof Type.TypeVariable || other instanceof Type.NullableType)
                     ? other : new Type.ClassType("java.lang", "Object", List.of());
+        } else if (("==".equals(be.operator()) || "!=".equals(be.operator()))
+                && ((isMaybeNullType(accType) && TypeMetrics.isPrimitiveType(rightType))
+                    || (isMaybeNullType(rightType) && TypeMetrics.isPrimitiveType(accType)))) {
+            operandType = new Type.ClassType("java.lang", "Object", List.of());
         } else if (("==".equals(be.operator()) || "!=".equals(be.operator()))
                 && accType instanceof Type.UnknownType && rightType instanceof Type.UnknownType) {
             // ambos UnknownType (ex.: `var a = null; var b = null`): comparação

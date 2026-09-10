@@ -117,7 +117,19 @@ public final class KofInterpreterCollections {
                 Object prev = m.put(key, val);
                 yield Type.isVoid(kc.returnType()) ? null : prev;
             }
-            case "kof_map_get" -> m.get(args[0]);
+            case "kof_map_get" -> {
+                // SG-008 (bug 87): get() devolve V? — o miss é null comparável
+                // (`x == null` → true). Mas se o USO espera primitivo
+                // (Nullable(primitivo) desembrulhado no typer), o valor null
+                // vira o default do primitivo (espelha o guard-unbox do emit
+                // JVM, JvmOpCollections.kof_map_get): 0/0.0/false.
+                Object v = m.get(args[0]);
+                if (v == null && kc.returnType() instanceof Type.NullableType nt
+                        && nt.inner() instanceof Type.PrimitiveType) {
+                    yield KofInterpreterMembers.defaultValue(nt.inner());
+                }
+                yield v;
+            }
             case "kof_map_remove" -> m.remove(args[0]);
             case "kof_map_contains" -> m.containsKey(args[0]) ? 1 : 0;
             case "kof_map_size" -> m.size();

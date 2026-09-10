@@ -123,37 +123,41 @@ public final class NativeX86Calls {
         }
         if (kc.kind() == KofCallKind.STATIC && "valueOf".equals(kc.methodName())) {
             Type argType = kc.parameterTypes().isEmpty() ? Type.UnknownType.UNKNOWN : kc.parameterTypes().get(0);
-            if (argType instanceof Type.PrimitiveType pt && "char".equals(pt.name())) {
+            // T? (get de Map, SG-008): o despacho usa o INNER — sem isso o
+            // Nullable(primitivo) não casava nenhum branch e o raw int
+            // seguia para println_string (SIGSEGV, bug 87)
+            Type dispatchType = argType instanceof Type.NullableType nt ? nt.inner() : argType;
+            if (dispatchType instanceof Type.PrimitiveType pt && "char".equals(pt.name())) {
                 // char → string UTF-8 (kof_int_to_string imprimia o
                 // número do codepoint: String.valueOf(0xE9 as Char)
                 // devolvia "233" em vez de "é")
                 sb.append("    popq %rdi\n");
                 sb.append("    call kof_char_to_string\n");
                 sb.append("    pushq %rax\n");
-            } else if (argType instanceof Type.PrimitiveType pt && ("int".equals(pt.name())
+            } else if (dispatchType instanceof Type.PrimitiveType pt && ("int".equals(pt.name())
                     || "short".equals(pt.name()) || "byte".equals(pt.name()))) {
                 sb.append("    popq %rdi\n");
                 sb.append("    call kof_int_to_string\n");
                 sb.append("    pushq %rax\n");
-            } else if (argType instanceof Type.PrimitiveType pt && "long".equals(pt.name())) {
+            } else if (dispatchType instanceof Type.PrimitiveType pt && "long".equals(pt.name())) {
                 sb.append("    popq %rdi\n");
                 sb.append("    call kof_long_to_string\n");
                 sb.append("    pushq %rax\n");
-            } else if (argType instanceof Type.PrimitiveType pt && "bool".equals(pt.name())) {
+            } else if (dispatchType instanceof Type.PrimitiveType pt && "bool".equals(pt.name())) {
                 sb.append("    popq %rdi\n");
                 sb.append("    call kof_bool_to_string\n");
                 sb.append("    pushq %rax\n");
-            } else if (argType instanceof Type.PrimitiveType pt && NativeTypeKinds.isFloatType(pt)) {
+            } else if (dispatchType instanceof Type.PrimitiveType pt && NativeTypeKinds.isFloatType(pt)) {
                 sb.append("    popq %rdi\n");
                 sb.append("    movd %edi, %xmm0\n");
                 sb.append("    call kof_float_to_string\n");
                 sb.append("    pushq %rax\n");
-            } else if (argType instanceof Type.PrimitiveType pt && NativeTypeKinds.isDoubleType(pt)) {
+            } else if (dispatchType instanceof Type.PrimitiveType pt && NativeTypeKinds.isDoubleType(pt)) {
                 sb.append("    popq %rdi\n");
                 sb.append("    movq %rdi, %xmm0\n");
                 sb.append("    call kof_double_to_string\n");
                 sb.append("    pushq %rax\n");
-            } else if (argType instanceof Type.ClassType ct && !BuiltinTypes.isString(argType)) {
+            } else if (dispatchType instanceof Type.ClassType ct && !BuiltinTypes.isString(dispatchType)) {
                 // valueOf(objeto) → obj.toString() via vtable (records têm
                 // toString no IR; String é identity). Paridade com o JVM.
                 int tosIdx = nb.findVirtualMethodIndex(ct.name(), "toString");

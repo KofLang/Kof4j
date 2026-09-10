@@ -132,15 +132,16 @@ class BackendParityTest {
     // fazem short-circuit). Trava a paridade nos 4 targets.
     @Test
     void parityShortCircuitAndOr(@TempDir Path tempDir) throws IOException {
+        // SEM048: null não é fabricável — T? vem de API (mapOf().get()).
         runParity("""
                 main() {
-                    String? s = null
+                    var s = mapOf("k", "valor").get("missing")
                     if (s != null && s.length > 0) {
                         println("nao-vazio")
                     } else {
                         println("vazio")
                     }
-                    String? t = "abc"
+                    var t = mapOf("k", "abc").get("k")
                     if (t != null && t.length > 0) {
                         println("nao-vazio")
                     } else {
@@ -342,10 +343,11 @@ class BackendParityTest {
     void parityNullEquality(@TempDir Path tempDir) throws IOException {
         // bug 36: null == null baixava if_icmpeq (UnknownType→primitivo) →
         // VerifyError no JVM compilado.
+        // SEM048: null não é mais fabricável (literal banido); T? vem de API.
         runParity("""
                 main() {
-                    var a = null
-                    var b = null
+                    var a = mapOf("x", 1).get("y")
+                    var b = mapOf("x", 1).get("z")
                     println(a == b)
                     println(a != b)
                 }
@@ -373,8 +375,8 @@ class BackendParityTest {
             {"str-ops", "main() {\n var s = \"a,b,,c\"\n println(s.split(\",\").length)\n println(\"Hello World\".toLowerCase())\n println(\"  x  \".trim() + \"|\")\n}", "4\nhello world\nx|"},
             {"map-null-val", "main() {\n var m = mapOf(\"a\", 1)\n m.put(\"b\", 2)\n println(m.get(\"a\"))\n println(m.size)\n}", "1\n2"},
             {"empty-list", "main() {\n var l = listOf()\n println(l.isEmpty())\n println(l.size)\n println(l.contains(1))\n}", "true\n0\nfalse"},
-            {"null-eq", "main() {\n var a = null\n var b = null\n println(a == b)\n println(a != b)\n}", "true\nfalse"},
-            {"null-eq-shortcut", "main() {\n var a = null\n var b = null\n if (a == b) { println(\"iguais\") } else { println(\"dif\") }\n if (a != b) { println(\"ne\") } else { println(\"nao-ne\") }\n}", "iguais\nnao-ne"},
+            {"null-eq", "main() {\n var a = mapOf(\"x\", 1).get(\"y\")\n var b = mapOf(\"x\", 1).get(\"z\")\n println(a == b)\n println(a != b)\n}", "true\nfalse"},
+            {"null-eq-shortcut", "main() {\n var a = mapOf(\"x\", 1).get(\"y\")\n var b = mapOf(\"x\", 1).get(\"z\")\n if (a == b) { println(\"iguais\") } else { println(\"dif\") }\n if (a != b) { println(\"ne\") } else { println(\"nao-ne\") }\n}", "iguais\nnao-ne"},
             {"set-dedup", "main() {\n var s = setOf(1, 2, 2, 3, 3, 3)\n println(s.size)\n println(s.contains(2))\n println(s.contains(9))\n}", "3\ntrue\nfalse"},
             {"nested-if-expr", "main() {\n var x = 5\n var r = if (x > 0) if (x > 10) \"big\" else \"small\" else \"neg\"\n println(r)\n}", "small"},
             {"switch-expr", "main() {\n var v = 3\n var d = switch (v) {\n case 1 -> \"one\"\n case 2 -> \"two\"\n case 3 -> \"three\"\n default -> \"other\"\n }\n println(d)\n}", "three"},

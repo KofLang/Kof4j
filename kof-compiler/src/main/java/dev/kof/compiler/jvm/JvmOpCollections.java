@@ -206,11 +206,40 @@ public final class JvmOpCollections {
             case "kof_map_get" -> {
                 emitBoxIfPrimitive(mv, keyType);
                 mv.visitMethodInsn(INVOKEVIRTUAL, "java/util/HashMap", "get", "(Ljava/lang/Object;)Ljava/lang/Object;", false);
-                if (!isPrimitiveType(valueType) && !KofUi.isUiType(valueType) && !KofMedia.isHandleType(valueType) && !(valueType instanceof Type.UnknownType)) {
-                    String internal = JvmTypeMapper.toInternalName(valueType instanceof Type.ClassType ct ? ct.packageName() : "", valueType instanceof Type.ClassType ct ? ct.name() : "java/lang/Object");
-                    mv.visitTypeInsn(CHECKCAST, internal);
+                // SG-008 (bug 87): get() devolve V? — ausência é null comparável
+                // (`x == null` dá true, nunca NPE). Quando o USE espera o
+                // primitivo (slot `Int a` / aritmética), o unbox é com GUARD
+                // (null → default), espelhando o kof_poll.
+                Type valueNullable = kc.returnType() instanceof Type.NullableType nt
+                        ? nt.inner() : null;
+                Type unboxGuardType = valueNullable;
+                if (unboxGuardType != null && boxedClassNameFor(unboxGuardType) != null) {
+                    String boxed = boxedClassNameFor(unboxGuardType);
+                    Label notNull = new Label();
+                    Label end = new Label();
+                    mv.visitInsn(DUP);
+                    mv.visitJumpInsn(IFNONNULL, notNull);
+                    mv.visitInsn(POP);
+                    emitDefaultValue(mv, unboxGuardType);
+                    mv.visitJumpInsn(GOTO, end);
+                    mv.visitLabel(notNull);
+                    mv.visitTypeInsn(CHECKCAST, boxed);
+                    mv.visitMethodInsn(INVOKEVIRTUAL, boxed, unboxMethodName(unboxGuardType),
+                            "()" + JvmTypeMapper.toDescriptor(unboxGuardType), false);
+                    mv.visitLabel(end);
+                } else if (valueNullable != null) {
+                    // valor de referência (String? etc.): só o cast
+                    if (!KofUi.isUiType(valueType) && !KofMedia.isHandleType(valueType) && !(valueType instanceof Type.UnknownType)) {
+                        String internal = JvmTypeMapper.toInternalName(valueType instanceof Type.ClassType ct ? ct.packageName() : "", valueType instanceof Type.ClassType ct ? ct.name() : "java/lang/Object");
+                        mv.visitTypeInsn(CHECKCAST, internal);
+                    }
+                } else {
+                    if (!isPrimitiveType(valueType) && !KofUi.isUiType(valueType) && !KofMedia.isHandleType(valueType) && !(valueType instanceof Type.UnknownType)) {
+                        String internal = JvmTypeMapper.toInternalName(valueType instanceof Type.ClassType ct ? ct.packageName() : "", valueType instanceof Type.ClassType ct ? ct.name() : "java/lang/Object");
+                        mv.visitTypeInsn(CHECKCAST, internal);
+                    }
+                    emitUnboxIfPrimitive(mv, valueType);
                 }
-                emitUnboxIfPrimitive(mv, valueType);
             }
             case "kof_map_remove" -> {
                 emitBoxIfPrimitive(mv, keyType);

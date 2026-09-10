@@ -23,6 +23,13 @@ public final class StatementAnalyzer {
      */
     static Type analyzeAssignmentStatement(SemanticAnalyzer sa, AssignmentExpr ae, SymbolTable scope) {
         Type valueType = SemExpressionTyper.inferType(sa, ae.value(), scope);
+        // SG-005/008 (SEM048): `x = null` é erro — null nunca é atribuível
+        if (CompilerComparisons.isNullLiteral(ae.value()) && sa.diagnostics() != null) {
+            sa.diagnostics().error("", 0, 0, 0,
+                    "null cannot be assigned: null safety works by narrowing"
+                            + " (if (x != null)), never by direct null literals",
+                    "SEM048");
+        }
         Type targetType = Type.UnknownType.UNKNOWN;
         if (ae.target() instanceof IdentifierExpr ie) {
             SymbolTable.Symbol sym = scope.resolve(ie.name());
@@ -102,6 +109,18 @@ public final class StatementAnalyzer {
             }
             case VarDeclStmt vds -> {
                 Type varType;
+                // SG-005/008 (SEM048): o literal `null` NUNCA é atribuível —
+                // null safety é por narrowing (`if (x != null)`), nunca por
+                // atribuição direta (o próprio nome já diz). APIs devolvem T?;
+                // o programador não fabrica null.
+                if (vds.initializer() != null && CompilerComparisons.isNullLiteral(vds.initializer())
+                        && sa.diagnostics() != null) {
+                    sa.diagnostics().error("", 0, 0, 0,
+                            "null cannot be assigned: null safety works by narrowing"
+                                    + " (if (x != null)), never by direct null literals"
+                                    + " (variable '" + vds.name() + "')",
+                            "SEM048");
+                }
                 // "val"/"var" são palavras-chave de mutabilidade, não tipos —
                 // o tipo real vem do initializer (ou do type explícito após ':').
                 if (vds.type() != null && !vds.type().isEmpty()

@@ -11,6 +11,12 @@ public final class CompilerComparisons {
 
     private CompilerComparisons() {}
 
+    /** Unknown OU Nullable(Unknown): o valor pode ser null (get sem pin). */
+    private static boolean isMaybeNullType(Type t) {
+        return t instanceof Type.UnknownType
+                || (t instanceof Type.NullableType nt && nt.inner() instanceof Type.UnknownType);
+    }
+
     static boolean isComparisonShortcut(CompilerDriver driver, BinaryExpr bin, List<IRLocalVariable> locals) {
         if (!TypeMetrics.isComparisonOp(bin.operator())) return false;
         if ("==".equals(bin.operator()) || "!=".equals(bin.operator())) {
@@ -35,15 +41,28 @@ public final class CompilerComparisons {
     static Type comparisonOperandType(CompilerDriver driver, BinaryExpr bin, List<IRLocalVariable> locals) {
         Type left = ExpressionTyper.inferExprType(driver, bin.left(), locals);
         Type right = ExpressionTyper.inferExprType(driver, bin.right(), locals);
+        // T? desembrulha: Nullable(primitivo) é numérico (unbox com guard
+        // do kof_map_get), Nullable(referência) é referência (SG-008/bug 87)
+        if (left instanceof Type.NullableType nl) left = nl.inner();
+        if (right instanceof Type.NullableType nr) right = nr.inner();
         if (TypeMetrics.isNumeric(left) && TypeMetrics.isNumeric(right)) {
             return TypeMetrics.commonNumericType(left, right);
+        }
+        // Unknown/Nullable(Unknown) vs primitivo (get de mapOf() sem pin
+        // vs literal int): o lado nullable só pode ser null (miss) →
+        // comparação de referência com o primitivo BOXADO (espelha o
+        // interpretador, Objects.equals). Sem isso o default INT emitia
+        // if_icmp* sobre null → VerifyError (SG-008/bug 87).
+        if ((isMaybeNullType(left) && TypeMetrics.isPrimitiveType(right))
+                || (isMaybeNullType(right) && TypeMetrics.isPrimitiveType(left))) {
+            return new Type.ClassType("java.lang", "Object", List.of());
         }
         // comparação contra literal null é sempre referência (if_acmp*);
         // quando o outro lado é Unknown (get de Map, etc.) marca como Object
         if (isNullLiteral(bin.left()) || isNullLiteral(bin.right())) {
             Type other = isNullLiteral(bin.left()) ? right : left;
             if (other instanceof Type.ClassType || other instanceof Type.ArrayType
-                    || other instanceof Type.TypeVariable || other instanceof Type.NullableType) {
+                    || other instanceof Type.TypeVariable) {
                 return other;
             }
             return new Type.ClassType("java.lang", "Object", List.of());
@@ -51,11 +70,11 @@ public final class CompilerComparisons {
         // referências conhecidas (String vs String, record vs record):
         // preserva o tipo para o backend emitir if_acmp*
         if (left instanceof Type.ClassType || left instanceof Type.ArrayType
-                || left instanceof Type.TypeVariable || left instanceof Type.NullableType) {
+                || left instanceof Type.TypeVariable) {
             return left;
         }
         if (right instanceof Type.ClassType || right instanceof Type.ArrayType
-                || right instanceof Type.TypeVariable || right instanceof Type.NullableType) {
+                || right instanceof Type.TypeVariable) {
             return right;
         }
         // ambos UnknownType (ex.: `if (a == b)` com `var a = null`): referência
@@ -82,10 +101,27 @@ public final class CompilerComparisons {
         if (!driver.fpSupportedOnNative(common, bin.position())) {
             return localIdx;
         }
+        Type leftT = ExpressionTyper.inferExprType(driver, bin.left(), locals);
+        Type rightT = ExpressionTyper.inferExprType(driver, bin.right(), locals);
+        // lado "Unknown-ou-Nullable(Unknown)" pode conter null (get de
+        // mapOf() sem pin) — o primitivo oposto é boxado (comparação vira
+        // referência; espelha o interpretador, Objects.equals)
+        boolean leftMaybeNull = isMaybeNullType(leftT);
+        boolean rightMaybeNull = isMaybeNullType(rightT);
         localIdx = ExpressionLowerer.emitExpression(driver, bin.left(), ops, owner, localIdx, locals);
-        driver.emitWideningIfNeeded(ops, ExpressionTyper.inferExprType(driver, bin.left(), locals), common);
+        // rightMaybeNull: o left (na pilha) é primitivo → boxa ele AGORA
+        // (antes do emit do right, que empilha por cima)
+        if (rightMaybeNull && TypeMetrics.isPrimitiveType(leftT)) {
+            TypeEmitter.boxPrimitive(ops, leftT);
+        }
+        driver.emitWideningIfNeeded(ops, leftT, common);
         localIdx = ExpressionLowerer.emitExpression(driver, bin.right(), ops, owner, localIdx, locals);
-        driver.emitWideningIfNeeded(ops, ExpressionTyper.inferExprType(driver, bin.right(), locals), common);
+        // leftMaybeNull: o right (acabou de emitir, topo da pilha) é primitivo
+        // → boxa ele DEPOIS do emit
+        if (leftMaybeNull && TypeMetrics.isPrimitiveType(rightT)) {
+            TypeEmitter.boxPrimitive(ops, rightT);
+        }
+        driver.emitWideningIfNeeded(ops, rightT, common);
         return localIdx;
     }
 

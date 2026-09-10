@@ -1886,6 +1886,40 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   nos 5 e `toLong` com golden JVM/Native; o teste JS limita-se a ±2^53
   (documentado no próprio `KofStringParseTest`).
 
+### 87. `T?` de primitivo NPE no `== null`; literal `null` fabricável; `Map.get()` primitivo sem null — ✅ CORRIGIDO 10/09 (SG-008 + SEM048, decisão do maintainer)
+
+- **Sintoma (3 faces do mesmo gap de null safety):**
+  1. `Int? a = mapOf("k",1).get("zz"); a == null` → **NPE** no compilado (unbox
+     de `Integer` null) — o get de primitivo nem devolvia `V?` (só referência).
+  2. `Int? x = null` / `x = null` compilavam — o programador fabricava null,
+     source de NPEs que a nullability deveria prevenir.
+  3. `println(m.get("zz"))` (bug 39, revertido 07/09 por retrocompat) — o
+     corrigir só o println quebrava `m.get(k) == 1` (VerifyError `if_acmpeq`
+     sobre ref vs int).
+- **Decisão do maintainer (09/09, "o próprio nome já diz")**: `null` NUNCA é
+  fabricável (ban total do literal, nem a `T?`); `null` só chega de API
+  (`mapOf().get(missing)`); `T? == null` é comparação de referência — sem
+  unbox, sem NPE. Regra 6 SUSPENSA para breaking (testes migrados junto).
+- **Correção 10/09** (detalhada em `specification-gaps.md` §SG-008): SEM048
+  ban do literal (`StatementAnalyzer`); `get()` → `V?` sempre (4 typers,
+  fechando a janela do bug 39 com o `==` corrigido); pin `K,V` no primeiro
+  `put()` via `SymbolTable.updateLocalType`; `==` com lado nullable →
+  referência com primitivo boxado (`CompilerComparisons` +
+  `ExpressionBinaryLowerer`, box na ordem certa); interpretador
+  `eqAllowsNull` + unbox com guard. Retrocompat preservada: `m.get(k) == 1`
+  compila (o `1` é boxado, `if_acmpeq` — o caso que REVERTIA o fix do bug 39).
+- **Provas:** `CompilerDriverTest.nullInVarDeclFails`/`nullInAssignmentFails`/
+  `nullFromApiStaysGreen` (241/241); paridade 4 targets `BackendParityTest`
+  (16) + `ConformanceMatrixTest` (11) + `KofScriptTest`; repro do bug 39
+  (`println(m.get("zz"))` imprime `null`) e `m.get("a") == 1` → `true` no
+  mesmo programa. Suíte compiler 1255/0-falhas-de-código (14 errors = ambiente:
+  node/javac/javap ausentes).
+- **Lição de regressão (registrada):** a 1ª tentativa adicionou um path
+  `isComparisonShortcut` no `case AssertStmt` (StatementLowerer) que quebrou
+  `assert(cancel(r) == 0)` no JS (`Bool == Int` → `comparisonOperandType`
+  retorna BOOL → código errado). Revertido ao path genérico — o `assert`
+  NÃO usa shortcut; testes verdes depois.
+
 ### 62. Constant pool: Float/Double armazenados como bits crus (parser de migração) — ✅ CORRIGIDO 08/09
 
 - **Sintoma:** `kof inspect`/`kof decompile` de um `.class` com constante

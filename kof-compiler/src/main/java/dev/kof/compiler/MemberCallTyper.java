@@ -154,7 +154,11 @@ public final class MemberCallTyper {
             }
             String mn = mc.methodName();
             for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
-            if ("get".equals(mn)) return valueType;
+            if ("get".equals(mn)) {
+                // SG-008 (bug 87): get() devolve V? para TODO valor — ausência
+                // é null comparável, nunca NPE por unbox
+                return new Type.NullableType(valueType);
+            }
             if ("remove".equals(mn)) return valueType;
             if ("put".equals(mn)) return valueType;
             if ("size".equals(mn) || "length".equals(mn) || "count".equals(mn))

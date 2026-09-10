@@ -130,14 +130,39 @@ recomendações futuras (regra 14 da tarefa: não alterar comportamento).
 - **Problema (antes)**: sintaxe aceita sem significado — pior que erro claro (viola R6
   "nunca silencioso").
 
-### SG-008 — Comparação de nullable de primitivo com `null`
+### SG-008 — Null safety: `T?` nunca NPE e literal `null` não é fabricável ✅ CORRIGIDO 10/09 (bug 87 + SEM048)
 
-- **Implementação**: `Int? a = null; a == null` → **NPE em runtime** (*probe*:
-  o unbox do `Integer` null lança). `String? s = null; s == null` → `true`
-  corretamente.
-- **Problema**: inconsistência entre nullable de primitivo e de referência.
-- **Recomendação**: tratar `T? == null` para `T` primitivo como comparação de
-  referência (sem unbox). Bug — registrar em `known-bugs.md`.
+- **Implementação anterior**: `Int? a = null; a == null` → **NPE em runtime**
+  (*probe*: o unbox do `Integer` null lança). `String? s = null; s == null` →
+  `true` corretamente. Inconsistência entre nullable de primitivo e de referência.
+- **Decisão do maintainer (09/09)**: "o próprio nome já diz" — **NENHUM literal
+  `null` é atribuível** (nem a `T?`): `Int? x = null` → erro; `x = null` → erro.
+  `null` só chega a `T?` via **API** (ex.: `mapOf("k", v).get("missing")`), e
+  `T? == null` é comparação de **referência** (nunca NPE por unbox).
+- **Implementação (10/09):**
+  1. **SEM048** — `StatementAnalyzer` rejeita literal `null` em `VarDeclStmt`
+     (`T? x = null`) e em atribuição (`x = null`); o idioma correto é obter `null`
+     de API. Prova: `CompilerDriverTest.nullInVarDeclFails` /
+     `nullInAssignmentFails` / `nullFromApiStaysGreen` (241/241).
+  2. **`Map.get()` devolve `V?` para TODO `V`** — `CollectionCallLowerer`,
+     `CollectionMethodTyper`, `SemMethodCallTyper`, `MemberCallTyper` deixam de
+     devolver `V` para primitivo e passam a devolver `NullableType(valueType)`
+     sempre (ausência = null comparável, nunca exceção/unbox). O `put()` em
+     `mapOf()` vazio pina os tipos `K,V` no símbolo do local (`SymbolTable.
+     updateLocalType`) para o cache semântico não divergir do emit.
+  3. **Comparação `T? == x` sem NPE** — `CompilerComparisons` desembrulha
+     `NullableType` no tipo de operando; quando um lado é `Unknown`/`Nullable(Unknown)`
+     (get de `mapOf()` sem pin) contra um primitivo, a comparação vira referência
+     (primitivo boxado, `Objects.equals`) espelhando o interpretador, em vez de
+     `if_icmp*` sobre null → VerifyError. `ExpressionBinaryLowerer` faz o box do
+     lado primitivo na ordem correta. O interpretador ganha `eqAllowsNull` /
+     unbox com guard (`KofInterpreterCollections`/`KofInterpreterOps`/
+     `KofInterpreterValues`).
+- **KofScript** migrado para o mesmo idioma (não fabrica null, usa `mapOf().get()`).
+- **Nota (regra 6)**: o programa `m.get(k) == 1` continua compilando — o `1` é
+  boxado e comparado por `if_acmpeq` (paridade cross-target). Provas de paridade em
+  `BackendParityTest`/`ConformanceMatrixTest`/`KofScriptTest`.
+- **Registrado em `known-bugs.md` §87.**
 
 ### SG-009 — Subtipagem não é checada pelo type checker
 

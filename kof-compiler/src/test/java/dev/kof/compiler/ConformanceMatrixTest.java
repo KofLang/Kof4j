@@ -464,18 +464,19 @@ class ConformanceMatrixTest {
 
     @Test
     void conformanceCoreNull(@TempDir Path tempDir) throws IOException {
+        // SEM048: null não é fabricável (literal banido); T? vem de API.
         matrix("nulleq", """
                 main() {
-                    var a = null
-                    var b = null
+                    var a = mapOf("x", 1).get("y")
+                    var b = mapOf("x", 1).get("z")
                     println(a == b)
                     println(a != b)
                 }
                 """, "true\nfalse", Set.of(), tempDir);
         matrix("nulleqshortcut", """
                 main() {
-                    var a = null
-                    var b = null
+                    var a = mapOf("x", 1).get("y")
+                    var b = mapOf("x", 1).get("z")
                     if (a == b) { println("iguais") } else { println("dif") }
                     if (a != b) { println("ne") } else { println("nao-ne") }
                 }

@@ -112,7 +112,10 @@ public final class NativeRiscvCrossOps {
         if (kc.kind() == KofCallKind.INSTANCE && ("println".equals(mn) || "print".equals(mn))) {
             boolean nl = "println".equals(mn);
             sb.append("    pop a0\n");
-            if (argType instanceof Type.PrimitiveType pt) {
+            // T? (get de Map, SG-008/bug 87): despacho pelo INNER — sem isso
+            // Nullable(primitivo) caía no println_string sobre raw int (segv)
+            Type dispatchType = argType instanceof Type.NullableType nt ? nt.inner() : argType;
+            if (dispatchType instanceof Type.PrimitiveType pt) {
                 String cn = Type.canonicalPrimitiveName(pt.name());
                 switch (cn) {
                     case "int", "char", "short", "byte" -> {
