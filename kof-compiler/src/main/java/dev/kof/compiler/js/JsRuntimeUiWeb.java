@@ -157,12 +157,17 @@ public final class JsRuntimeUiWeb {
                 return { y: y, m: m, d: d };
             }
             function kofTimePad2(n) { return (n < 10 ? "0" : "") + n; }
+            function kofTimePad4(n) {
+                let s = "" + n;
+                while (s.length < 4) s = "0" + s;
+                return s;
+            }
             export function kofTimeAddDays(iso, days) {
                 const a = kofTimeParseIso(iso);
                 if (!a) return "";
                 const r = kofTimeCivilFromEpoch(kofTimeEpochDay(a.y, a.m, a.d) + days);
                 if (r.y < 1 || r.y > 9999) return "";
-                return "" + r.y + "-" + kofTimePad2(r.m) + "-" + kofTimePad2(r.d);
+                return kofTimePad4(r.y) + "-" + kofTimePad2(r.m) + "-" + kofTimePad2(r.d);
             }
             export function kofTimeDiffDays(iso1, iso2) {
                 const a = kofTimeParseIso(iso1);
