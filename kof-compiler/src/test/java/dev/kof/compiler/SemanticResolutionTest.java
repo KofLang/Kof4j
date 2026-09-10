@@ -41,11 +41,35 @@ class SemanticResolutionTest {
     @Test
     void unknownMethodOnBuiltinNamespaces(@TempDir Path tmp) throws IOException {
         String[] namespaces = {"db", "log", "http", "mq", "time", "security",
-                "orm", "cache", "gpu", "config", "observability", "validation"};
+                "orm", "cache", "gpu", "config", "observability", "validation",
+                // Família KofStd (lane STDLIB) — R6: método inexistente em
+                // qualquer namespace stdlib dá SEM025, nunca é descartado em
+                // silêncio pelo lowerer (fonte única: typer e lowerer usam a
+                // mesma tabela KofStd/Kof<Dom>.staticMethod).
+                "strings", "random", "uuid", "encoding", "math", "net"};
         for (String ns : namespaces) {
             CompilationResult r = compile(tmp, ns + ".kf",
                     "main() { " + ns + ".metodoRuim() }");
             assertSem025(r, "on namespace '" + ns + "'");
+        }
+    }
+
+    @Test
+    void wrongArityOnStdlibMethod(@TempDir Path tmp) throws IOException {
+        // R6 (complemento do anterior): aridade ERRADA em um nome que EXISTE
+        // também é SEM025, não "typer passou e lowerer descartou". A tabela
+        // de dispatch valida argc; se o nome não casa na aridade, o
+        // staticMethod retorna null => SEM025 (prova a fonte única).
+        String[][] cases = {
+                {"time", "time.isWeekend(2026, 9)"},           // precisa 3
+                {"random", "random.randomInt()"},              // precisa 1
+                {"strings", "strings.capitalize()"},           // precisa 1
+                {"validation", "validation.formatCpf(1, 2)"},  // precisa 1
+                {"uuid", "uuid.isUuid()"},                     // precisa 1
+        };
+        for (String[] c : cases) {
+            CompilationResult r = compile(tmp, c[0] + ".kf", "main() { " + c[1] + " }");
+            assertSem025(r, "on namespace '" + c[0] + "'");
         }
     }
 
