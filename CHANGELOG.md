@@ -824,6 +824,12 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 
   - random.double() usava 2^52 como divisor (constante .Lrnd_two53 errada) — corrigir para 2^53 nos runtimes x86 e riscv/aarch; docs: gravar regra de organizacao de documentacao no AGENTS.md + known-bugs SS79 + DOING.md
 
+## [0.3.9-beta] - 2026-09-10
+
+### Documentation
+
+  - consolidar classificacao docs/development pela nova regra - mover planning-switch-expr + planning-mutability (FEITOS) p/ docs/, planning-finally-return (PROPOSED/zero codigo) p/ future/; classificar plan-stdlib-expansion por degrau (S7 unico aberto); atualizar README do indice + DOING.md
+
 <!-- NEXT-RELEASE -->
 
 ## [0.2.7-beta] - 2026-09-04
