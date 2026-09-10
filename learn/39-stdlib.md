@@ -178,7 +178,7 @@ de `time` desde antes — o calendário acima é a parte pura, determinística.
 `addDays`/`diffDays` aceitam data **ISO em String** (`YYYY-MM-DD`); inválido
 → `""` (add) / `0` (diff). Disponível em **JVM, Script** (via `java.time`) e
 **JS** (mesmo algoritmo civil do calendário, sem `Date` => paridade byte-idêntica);
-no **Native** é gap honesto `TIME002` (erro claro no compile, nunca
+no native **riscv64/aarch64** é gap honesto `TIME002` (erro claro no compile, nunca — x86 FECHADO S7c: RuntimeTimeIso asm)
 fallback silencioso) — o port para asm é o próximo degrau (mesma ordem do
 port nativo do `net`, `NET001`).
 
@@ -214,7 +214,7 @@ spans nos 3 nativos).
 | `encoding.base64*` / `base64Url*` | ✅ | ✅ | ✅ | ✅ |
 | `net.*` (S8) | ✅ | ✅ | ✅ | ✅ |
 | `uuid.v4` | ✅ | ✅ | ✅ | ✅ |
-| `time.addDays` / `time.diffDays` (S7a/b, data ISO) | ✅ | `TIME002` | `TIME002` | ✅ |
+| `time.addDays` / `time.diffDays` (S7a/b/c, data ISO) | ✅ | ✅ | `TIME002` | ✅ |
 
 Gate = erro de compilação **com código** (R6 — nunca stub silencioso):
 `strings.toCamelCase` e os conversores de palavra chegaram aos 4 targets só

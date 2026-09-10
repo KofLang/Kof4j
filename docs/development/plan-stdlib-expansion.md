@@ -72,12 +72,18 @@ na   (null-safety + throw são o mecanismo).
      reusam o `kof_time_validDate`/época civil do wedge). **S7b** `addDays`/`diffDays`
      JS (10/09 — `JsRuntimeUiWeb.kofTimeAddDays/kofTimeDiffDays`, MESMO algoritmo
      civil do wedge, SEM `Date` => paridade byte-idêntica; inversa de época de
-     Hinnant validada p/ 12 datas + round-trip). Matriz `stdtime2` (JVM+Script+JS;
-     Native=TIME002) + `KofTimeE2ETest.timeAddDaysDiffDaysJvmShapeAndTime002Gate`.
-   - **ABERTO — TIME002** (R6, nunca silencioso): `addDays`/`diffDays` em
-     **Native** (asm: parse String + alocação de String em runtime — MESMO escopo
-     do port nativo `net` NET001; riscv/aarch via tradutor). Gate dispara no
-     compile-time (`KofTime.supportedOn(method,target)` → erro `TIME002`).
+     Hinnant validada p/ 12 datas + round-trip). **S7c** `addDays`/`diffDays`
+     native **x86** (10/09 — `runtime/RuntimeTimeIso.java`: `.Lka_parse2` (ISO
+     estrito) + `.Lka_civil` (inversa Hinnant; round-trip EXAUSTIVO travado em
+     todos os dias de ano 1..9999) + alocação String no asm (layout len@16/
+     bytes@24, kof_alloc) — harness C 200k fuzz 0 fails). Matriz `stdtime2`
+     (JVM+Script+JS+x86; riscv/aarch=TIME002) + `KofTimeE2ETest...Time002Gate`.
+   - **ABERTO — TIME002 residual** (R6, nunca silencioso): `addDays`/`diffDays`
+     em **riscv64/aarch64** (asm riscv da especificação x86 pronta em
+     `RuntimeTimeIso`; `divl`→`divu/remu` seguro: z≥0 garantido pelo guard de
+     range; aloc String = padrão kof_alloc riscv + translator aarch; fatia B
+     própria — precedente NET001: x86 fecha primeiro, cross depois). Gate
+     dispara no compile-time só p/ esses 2 alvos.
    - **ABERTO**: `format`/`boundaries` (forma de API — `format(date, "yyyy-MM-dd")`
      vs funções escalares `yearOf`/`monthOf`… — decisão de superfície da
      mantenedora, como a família `net`/`validation`).
