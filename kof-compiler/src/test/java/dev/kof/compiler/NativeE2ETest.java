@@ -982,4 +982,28 @@ class NativeE2ETest {
                 """);
         runNative(source, tempDir.resolve("out"), "afé\n3\né\n3\n😀\nb");
     }
+
+    // bug 43 (face indexOf/lastIndexOf, 10/09): índice em CODE UNITS UTF-16 no
+    // Native — igual ao JVM/Script (byte-based dava `a😀b.indexOf("c")`=10 vs
+    // 6). Needle vazio, needle maior, corte de par e casos-borda cobertos.
+    @Test
+    void nativeStringIndexOfUtf16(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+                main() {
+                    var e = "a😀b😀c"
+                    println(e.indexOf("c"))
+                    println(e.indexOf("b"))
+                    println(e.indexOf("😀c"))
+                    println(e.indexOf("z"))
+                    println(e.lastIndexOf("😀"))
+                    println(e.indexOf(""))
+                    println(e.lastIndexOf(""))
+                    println("café".indexOf("é"))
+                    println("abcdef".indexOf("abcdef"))
+                    println("abcdef".indexOf("abcdefg"))
+                }
+                """);
+        runNative(source, tempDir.resolve("out"), "6\n3\n4\n-1\n4\n0\n7\n3\n0\n-1");
+    }
 }

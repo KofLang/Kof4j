@@ -417,6 +417,17 @@ class ConformanceMatrixTest {
                     println(e.substring(3))
                 }
                 """, "afé\né\n😀\n3\nb", Set.of(), tempDir);
+        // bug 43 (indexOf/lastIndexOf face, 10/09) — índice em code units
+        // UTF-16 nos 4 targets (needle vazio / ausente / astral).
+        matrix("unicode-indexof", """
+                main() {
+                    var e = "a😀b😀c"
+                    println(e.indexOf("c"))
+                    println(e.indexOf("z"))
+                    println(e.lastIndexOf("😀"))
+                    println("café".indexOf("é"))
+                }
+                """, "6\n-1\n4\n3", Set.of(), tempDir);
         matrix("strops", """
                 main() {
                     var s = "a,b,,c"
