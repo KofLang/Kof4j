@@ -1,6 +1,6 @@
 # Plano — Universal Standard Library (STDLIB)
 
-**Dono:** lane KOFSCRIPT (fixes-for-kofagent) · **Status:** EM CURSO · **Briefing:** maintainer 08/09 (universal stdlib, multitarget, anti-microdependência)
+**Dono:** lane KOFSCRIPT (fixes-for-kofagent) · **Status:** EM CURSO — **só S7 aberto** (time add/diff/format + port calendário multi-target); S0–S6, S8–S10 FEITOS (auditoria 10/09 vs código: KofMath/KofStrings/KofEncoding/KofUuid/KofValidation/KofNet/KofTime + KofRandomTest) · **Briefing:** maintainer 08/09 (universal stdlib, multitarget, anti-microdependência)
 
 ## 0. Arquitetura real (mapeada 08/09 — NÃO inventar paralela)
 
@@ -63,11 +63,10 @@ na   (null-safety + throw são o mecanismo).
   4 alvos; base64* nos **4 alvos — ENC002 fechado 09/09** (port riscv B23; spec tolerante única). ⚠️ Nota:
   o runner JS do projeto (GraalJS embutido) NÃO tem `TextEncoder/TextDecoder` —
   UTF-8 codificado à mão em `JsRuntimeUiStdlib`. `uuid` (v4/v7/ulid) segue em S3b.
-- **S5** `random` novo namespace + ext `validation` BR (CPF/CNPJ/CEP/PIS/NIS com
-  checksum reutilizável interno — §18 briefing)
-- **S6** ext `validation` network (IPv4/IPv6/mac/domain/port) + Luhn
-- **S7** ext `time` (add/diff/boundaries/format) — JVM java.time, JS Date, Native syscall
-- **S8** `net` url/query parse/encode
+- **S5** `random` novo namespace — **FEITO (S10, `845284e5` + fix §79 `b6668803`):** `random.double/boolean/int/hex` nos 4 targets (getrandom(2)/RNG JVM/Math.random JS); shape-verified `KofRandomTest` (4/4, sem golden — entropia). ⚠️ §79: divisor 2^52→2^53 corrigido 10/09. Ext `validation` BR **já feita em S6** (abaixo).
+- **S6** ext `validation` network (IPv4/IPv6/mac/domain/port) + Luhn — **FEITO** (S6a/S6b, `KofValidation.java` isIpv4/isIpv6/isMac/isPort/isDomain/isCreditCard + RuntimeValidationNet; matrizes stdvalidation*/stdluhn/stdipv6/stddomain).
+- **S7** ext `time` (add/diff/boundaries/format) — **PARCIAL (ABERTO, único degrau pendente):** calendário `isLeapYear/daysInMonth/dayOfWeek/daysBetween` feito em JVM (KofTime, matriz stdtime); **FALTA** `add*`/`diff*`/`format` e o port multi-target (x86/riscv/JS) da parte de calendário.
+- **S8** `net` url/query parse/encode — **FEITO** (S8 decisão §4; KofNet 6 escalares + queryEncode/Decode, RuntimeUri, stdnet, NET001 riscv fechado B24).
 - **S3b-wedge (uuid.v4) + S4 COMPLETO FEITOS 08/09:** uuid shape-verified 3 targets (SECN000 cross-arch fechado 09/09 — B25 getrandom ecall); encoding hex/url/base64/base64url (matriz stdenc 11 campos × 4; gates ENC002 base64* e SECN000 uuid nos cross). LIÇÃO JVM-runtime: nunca checked exceptions no KofRuntime gerado (SecureRandom new, não getInstanceStrong).
 - **S1–S2b.2 FEITOS 08/09:** math(9) · strings predicados(8: isAlpha/isNumeric/
   isAlphaNumeric/isAscii/isUpperCase/isLowerCase/count) · strings conversores(4:
@@ -76,7 +75,7 @@ na   (null-safety + throw são o mecanismo).
   `validation.min/max` (binários, G4) ≠ `math.min/max` (aritméticos) — namespaces
   distintos, sem colisão; documentar em learn.
 - **S9** matriz stdlib em docs/stdlib.md + learn/39-stdlib + training/idioms (math/
-  strings/validation) + benchmarks mínimos (clamp/slugify) se aplicável
+  strings/validation) + benchmarks mínimos (clamp/slugify) se aplicável — **FEITO** (matriz `std*` no ConformanceMatrixTest + `docs/stdlib.md` §STDLIB + `learn/39-stdlib.md` + `training/idioms/stdlib.md`/`strings.md`).
 
 Cada S = suíte completa verde (com `-Dmaven.test.failure.ignore=true`) + DOING atualizado.
 

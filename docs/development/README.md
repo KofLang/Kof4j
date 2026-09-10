@@ -44,7 +44,9 @@
 |---|---|---|
 | `plan-platform-completion.md` | P0–P5: P3 (query DSL) ✅ mas P4–P5 (health/tracing/LSP/debug) pendentes | `PARTIAL` |
 | `plan-spring-independence.md` | Fases 5–14: web completa + gRPC planejados, GC pending | `PARTIAL` |
-| `planning-switch-expr.md` | SYN001 ✅ mas doc de planejamento histórico (contrato fechado) | `FEITO` (mantido aqui como histórico) |
+| `planning-switch-expr.md` | **movido p/ `docs/planning-switch-expr.md` 10/09** (SYN001 FECHADO — nada pendente; concluído não fica em development/) | `FEITO` |
+| `planning-mutability.md` | **movido p/ `docs/planning-mutability.md` 10/09** (DD-02/SEM037/SEM038 aplicados, #42 fechada) | `FEITO` |
+| `planning-finally-return.md` | **movido p/ `docs/development/future/` 10/09** (PROPOSED — bug 45, zero código, decisão da mantenedora pendente) | `PLANEJADO` |
 | `refactoring/PLAN-SOLID-500.md` | regra ≤500 linhas: Fases 4–8 fechadas, mas F1–3 + 9 com resíduo 502 → 493 | `EM CURSO` |
 
 ### 4. Gaps & Bugs

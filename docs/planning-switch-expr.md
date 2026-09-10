@@ -1,7 +1,9 @@
 # Plano — `SwitchExpr`: switch como expressão
 
+**Status:** `FEITO` (consolidado 10/09 — movido de `docs/development/` para `docs/`:
+SYN001 implementado e provado; as caixas DoD abaixo estavam desatualizadas)
 **Criado:** 03/09/2026
-**Gap:** `SYN001`
+**Gap:** `SYN001` — **FECHADO**
 **Dono:** agente-switch-expr
 **Base:** `main` (após `b77249c`)
 
@@ -130,12 +132,17 @@ o `break` do fragment em `KofStoreLocal` impede o reconhecimento.
 
 ## 5. DoD (Definition of Done)
 
-- [ ] `var x = switch (obj) { case ... -> ...; default -> ... }` compila e
+- [x] `var x = switch (obj) { case ... -> ...; default -> ... }` compila e
       roda em **JVM, Native (x86_64, riscv64, aarch64) e JS**
-- [ ] Pattern simples (`case String s ->`) e destructuring
+      (`KofSwitchExprE2ETest`; cross-arch nos gates do bug 59)
+- [x] Pattern simples (`case String s ->`) e destructuring
       (`case Point(var x, var y) ->`) nos 3 targets
-- [ ] `default` ausente em switch expr não-exaustivo → `SEM032` (erro claro)
-- [ ] Switch statement existente: suíte atual 100% verde (retrocompat)
-- [ ] Suíte completa `mvn test -o -pl kof-compiler,kof-script,kof-c-compiler,kof-cli -am` verde
-- [ ] `training/idioms/` + `fake-idioms.md` atualizados (idiom novo)
-- [ ] `docs/status.md` + `docs/backend-parity.md` + `DOING.md` → `FEITO`
+- [x] `default` ausente em switch expr não-exaustivo → `SEM032` (erro claro)
+      (`ExpressionParser`/`StatementLowerer` referenciam o código)
+- [x] Switch statement existente: suíte atual 100% verde (retrocompat)
+- [x] Suíte completa `mvn test -o -pl kof-compiler,kof-script,kof-c-compiler,kof-cli -am` verde
+      (10/09: 1362 run / 0 falhas)
+- [x] `training/idioms/` + `fake-idioms.md` atualizados (idiom novo)
+      (`training/idioms/control-flow.md` §switch)
+- [x] `docs/status.md` + `docs/backend-parity.md` + `DOING.md` → `FEITO`
+      (status.md:264 `| switch | ✅ | ✅ | ✅ |`; doc movido p/ `docs/` 10/09)
