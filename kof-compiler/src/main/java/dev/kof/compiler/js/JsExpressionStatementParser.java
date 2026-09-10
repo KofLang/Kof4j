@@ -122,13 +122,13 @@ final class JsExpressionStatementParser {
                 JsIr.JsExpression right = parser.pop(stack);
                 JsIr.JsExpression left = parser.pop(stack);
                 JsIr.JsExpression condition = parser.p.flow.comparisonExpr(cj.comparison(), left, right);
-                while (!stack.isEmpty()) {
-                    condition = new JsIr.JsSequence(List.of(parser.pop(stack)), condition);
-                }
                 JsIr.JsExpression ifExpr = parser.p.flow.tryParseIfExpr(ctx, pos, cj, condition);
                 if (ifExpr != null) {
                     stack.add(ifExpr);
                     continue;
+                }
+                while (!stack.isEmpty()) {
+                    condition = new JsIr.JsSequence(List.of(parser.pop(stack)), condition);
                 }
                 return List.of(parser.p.flow.parseIfBody(ctx, pos, cj, condition, stack));
             }

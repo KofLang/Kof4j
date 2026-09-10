@@ -1295,16 +1295,26 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   backend (`frame crash ... COMPUTE_FRAMES AIOOBE`, causa distinta:
   slot-size 1 vs 2 no join) — ver 70.
 
-### 69. KofJS: if heterogêneo → `expression stack underflow` (COMP002) — ABERTO (pré-existente, causa no backend JS)
+### 69. KofJS: if heterogêneo → `expression stack underflow` (COMP002) (issue #69) — ✅ CORRIGIDO 09/09
 
 - **Sintoma:** o MESMO programa da issue #57 (`println(if (s == "") 1 else "s")`)
   no target JS: `Internal compiler error: KofJS: expression stack underflow`
   (COMP002), em vez de JS válido.
-- **Prova de pré-existência (09/09):** revertido o fix JVM da lane (stash dos
-  8 arquivos do §68, teste mantido) → o JS falha IDÊNTICO; o backend JS ignora
-  `kof_box` (no-op), logo o underflow vem do tratamento de if-expr do próprio
-  backend JS, não do box. Casos excluídos com `Set.of("js")` até o dono do JS
-  corrigir.
+- **Causa raiz:** Em `JsExpressionStatementParser.java`, ao processar `KofConditionalJump`,
+  o compilador drenava incondicionalmente toda a pilha de operandos acumulada até então
+  (`while (!stack.isEmpty())`) para dentro da `condition` antes de determinar se o salto
+  era um `if-expression` ou um `if-statement`. Quando a expressão ocorria como argumento
+  de uma chamada de função (ex.: `println(...)`), o receiver `$kofOut` que já estava na pilha
+  era descartado prematuramente. Ao terminar de emitir o `ifExpr`, apenas o resultado da
+  expressão ficava na pilha, fazendo com que a chamada de função subsequente falhasse com
+  `expression stack underflow`.
+- **Correção:** O empacotamento de preâmbulo na condição só é executado se `tryParseIfExpr(...)`
+  retornar `null` (ou seja, quando for comprovadamente um `if-statement`). Em `if-expression`,
+  os operandos prévios na pilha permanecem intactos.
+- **Provas:** Todos os 5 testes da `ConformanceMatrixTest` com branches heterogêneos
+  (`ifexpr-heterogeneous-direct`, `switchexpr-heterogeneous-direct`, `ifexpr-intlong-direct`,
+  `ifexpr-longdouble-direct`, `ifexpr-intnull-direct`) foram reabilitados para o target JS
+  (remoção de `Set.of("js")`), passando com sucesso no KofJS.
 
 ### 71. JVM: array multidimensional `new Int[2][3]` compila e dá VerifyError — ✅ CORRIGIDO 09/09
 
