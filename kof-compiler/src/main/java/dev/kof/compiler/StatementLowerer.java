@@ -38,7 +38,16 @@ public final class StatementLowerer {
             case ExpressionStmt es -> {
                 if (es.expression() != null) {
                     localIdx = ExpressionLowerer.emitExpression(driver, es.expression(), ops, owner, localIdx, locals);
-                    if (driver.hasReturnValue(es.expression(), locals)) ops.add(new KofPop());
+                    if (driver.hasReturnValue(es.expression(), locals)) {
+                        // SG-020/bug 79: descarte de valor de categoria-2 (Long/
+                        // Double) exige POP2 — POP sobre long deixa o 2º slot na
+                        // pilha e o verificador rejeita (Bad type on operand
+                        // stack: long_2nd). Statement de await de Long era o
+                        // caso canônico.
+                        Type discardT = ExpressionTyper.inferExprType(driver, es.expression(), locals);
+                        ops.add(TypeMetrics.isDoubleWidth(discardT)
+                                ? new KofPop2() : new KofPop());
+                    }
                 }
                 yield localIdx;
             }

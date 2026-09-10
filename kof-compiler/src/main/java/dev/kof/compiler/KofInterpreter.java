@@ -267,6 +267,9 @@ public final class KofInterpreter {
                     st.push(top);
                 } else if (op instanceof KofPop) {
                     st.pop();
+                } else if (op instanceof KofPop2) {
+                    // categoria-2 (Long/Double ocupa 2 slots)
+                    st.pop();
                 } else if (op instanceof KofCheckCast) {
                     // cast sem efeito observável na pilha do interpretador
                 } else if (op instanceof KofInstanceOf ki) {

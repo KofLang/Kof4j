@@ -23,6 +23,7 @@ import dev.kof.compiler.KofNewMultiArray;
 import dev.kof.compiler.KofNewObject;
 import dev.kof.compiler.KofOperation;
 import dev.kof.compiler.KofPop;
+import dev.kof.compiler.KofPop2;
 import dev.kof.compiler.KofPutStatic;
 import dev.kof.compiler.KofReturn;
 import dev.kof.compiler.KofReturnVoid;
@@ -190,6 +191,9 @@ public final class JvmLiteralEmitter {
             } else if (op instanceof KofDup2) {
                 depth += 2;
             } else if (op instanceof KofPop) {
+                depth--;
+            } else if (op instanceof KofPop2) {
+                // categoria-2: mesmo efeito no modelo de 1 slot do emitter
                 depth--;
             } else if (op instanceof KofStoreLocal || op instanceof KofStoreField || op instanceof KofPutStatic) {
                 depth -= 2;

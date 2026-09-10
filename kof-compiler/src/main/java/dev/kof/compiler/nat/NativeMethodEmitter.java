@@ -13,6 +13,7 @@ import dev.kof.compiler.KofInstanceOf;
 import dev.kof.compiler.KofJump;
 import dev.kof.compiler.KofLabel;
 import dev.kof.compiler.KofPop;
+import dev.kof.compiler.KofPop2;
 import dev.kof.compiler.KofReturn;
 import dev.kof.compiler.KofReturnVoid;
 import dev.kof.compiler.KofThrow;
@@ -271,6 +272,7 @@ final class NativeMethodEmitter {
                     pushq %rax
                 """.stripIndent());
             case KofPop pop -> sb.append("    addq $8, %rsp\n");
+            case KofPop2 pop2 -> sb.append("    addq $16, %rsp\n");
             case KofGetStatic gs -> {
                 // campo estático (bug 41): slot global no .data, não no objeto.
                 String sym = nb.staticSymbol(nb.staticKey(gs.ownerType()), gs.name());
