@@ -600,4 +600,41 @@ class NativeRiscv64E2ETest {
         t.start();
         return port;
     }
+    // NATIVE002-stdlib (residual R6, 10/09): paridade cross do CORE S1/S2/S4/S3b
+    // (math/strings/encoding/uuid) — antes SO os 3 targets da ConformanceMatrix
+    // (JVM/x86/JS); riscv/aarch tinham fatias (B7/B8 math, encoding, uuid.v4) sem
+    // CI de execucao. 18 vetores golden JVM-medidos 10/09 — divergencia silente
+    // (tipo do bug 88) fica travada nos 2 qemu.
+    @Test
+    void riscv64StdlibCore(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runRiscv64(tempDir, """
+main() {
+    println(math.clamp(15, 1, 10))
+    println(math.clamp(-5, 1, 10))
+    println(math.sign(-7))
+    println(math.sign(0))
+    println(math.abs(-9))
+    println(math.isEven(4))
+    println(math.isOdd(4))
+    println(math.min(3, 8))
+    println(math.max(3, 8))
+    println(strings.isAlpha("abc"))
+    println(strings.isAlpha("a1"))
+    println(strings.isNumeric("12"))
+    println(strings.count("ababa", "ba"))
+    var h = encoding.hexEncode("Hi")
+    println(h)
+    println(encoding.hexDecode(h))
+    println(encoding.base64Encode("Hi"))
+    println(encoding.base64Decode(encoding.base64Encode("Hi")))
+    var u = uuid.v4()
+    println(uuid.isUuid(u))
+    println(uuid.isUuid("nope"))
+}
+            """);
+        assertEquals("10\n1\n-1\n0\n9\ntrue\nfalse\n3\n8\ntrue\nfalse\ntrue\n2\n4869\nHi\nSGk=\nHi\ntrue\nfalse", out);
+    }
+
+
 }
