@@ -842,6 +842,12 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 
   - time.addDays/diffDays em JS (algoritmo civil sem Date, paridade byte-idêntica); TIME002 resta só Native; matriz stdtime2 JS DONE + gate KofTimeE2ETest + docs (stdlib/learn/matrix/plan); DOING.md
 
+## [0.3.12-beta] - 2026-09-10
+
+### Bugfixes
+
+  - pad4 de ano em time.addDays JS (parity byte-idêntica com JVM %04d; ano<1000 divergia) + stdtime2 trava 0999/0001/1700-02-28; DOING.md com design fechado do S7c x86
+
 <!-- NEXT-RELEASE -->
 
 ## [0.2.7-beta] - 2026-09-04
