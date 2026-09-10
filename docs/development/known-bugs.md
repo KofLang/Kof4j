@@ -1759,7 +1759,7 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 
 ## Aberto (gap Canvas — 06/09)
 
-### 79. Native: `String.toInt/toLong` divergem do contrato JVM em entrada inválida — R6 silencioso nos 3 nativos — ABERTO (achado 10/09, varredura da lane STDLIB)
+### 79. Native: `String.toInt/toLong` divergem do contrato JVM em entrada inválida — R6 silencioso nos 3 nativos — ✅ CORRIGIDO 10/09 (as 3 faces; varredura da lane STDLIB — header fechado na auditoria cross)
 
 - **Contrato previsto** (congelado, tabela "PAREcem bugs mas são esperados" deste
   arquivo + teste `KofJsE2ETest.execStringToNumberConversion`): `"abc".toInt()` →
