@@ -21,6 +21,13 @@ public final class JsRuntimeUiValidation {
                 const g = n => d.slice(n, n + 3).join('');
                 return g(0) + '.' + g(3) + '.' + g(6) + '-' + d[9] + d[10];
             }
+            export function kofValidationFormatCnpj(s) {
+                if (s == null) return null;
+                const d = kofBrDigits(s);
+                if (d.length !== 14) return s;
+                const g = (i, n) => d.slice(i, i + n).join('');
+                return g(0,2) + '.' + g(2,3) + '.' + g(5,3) + '/' + g(8,4) + '-' + g(12,2);
+            }
             export function kofValidationFormatCep(s) {
                 if (s == null) return null;
                 const d = kofBrDigits(s);

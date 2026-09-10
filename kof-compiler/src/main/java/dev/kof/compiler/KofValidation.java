@@ -62,6 +62,10 @@ public final class KofValidation {
             // nunca lança — face leniente da lane, idêntico a isCpf/isCep).
             case "formatCpf", "formatCep" -> argc == 1
                     ? new ValidationCall("kof_validation_" + name, STR, List.of(STR)) : null;
+            // S12b: 14 digitos => NN.NNN.NNN/NNNN-NN (IBGE canonico unico;
+            // formatPis NAO entra — mascara 11-digitos ambigua = decisao).
+            case "formatCnpj" -> argc == 1
+                    ? new ValidationCall("kof_validation_formatCnpj", STR, List.of(STR)) : null;
             case "isCpf", "isCnpj", "isCep", "isPis" -> argc == 1
                     ? new ValidationCall("kof_validation_" + name, BOOL, List.of(STR)) : null;
             // S6a (STDLIB): predicados de rede — dotted-quad / MAC (6 hex com

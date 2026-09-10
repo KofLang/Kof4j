@@ -165,10 +165,11 @@ reusa a máquina de calendário; data inválida cai em `false` automaticamente.
 validation.formatCpf("52998224725")    // "529.982.247-25"
 validation.formatCpf("123")            // "123" (não confere => original)
 validation.formatCep("01310100")       // "01310-100"
-validation.formatCep("12")             // "12" (não confere => original)
+validation.formatCnpj("34546401000163") // "34.546.401/0001-63"
 ```
 
-Pontuação BR: 11 dígitos => `DDD.DDD.DDD-DD`; 8 => `DDDDD-DDDD`. Fora disso
+Pontuação BR: 11 dígitos => `DDD.DDD.DDD-DD` (CPF); 8 => `DDDDD-DDDD` (CEP);
+14 => `NN.NNN.NNN/NNNN-NN` (CNPJ). Fora disso
 (nº errado de dígitos, null) => **original** — face leniente, nunca lança.
 Formata **sem validar** (dígitos quaisquer; validar é papel de `isCpf`/
 `isCep`). 5 alvos; reusa o mesmo `brDigits` dos predicadores.

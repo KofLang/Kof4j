@@ -240,6 +240,70 @@ class KofValidationTest {
             """);
     }
 
+    // S12b formatCnpj: 14 dígitos => NN.NNN.NNN/NNNN-NN (canônico IBGE);
+    // senão original (no-op, nunca lança). Paridade byte-a-byte nos 5 alvos.
+    @Test
+    void formatCnpjJvm(@TempDir Path tmp) throws Exception {
+        runJvm(tmp, """
+            main() {
+                println(validation.formatCnpj("34546401000163"))
+                println(validation.formatCnpj("34.546.401/0001-63"))
+                println(validation.formatCnpj("11222333000181"))
+                println(validation.formatCnpj("123") + "|")
+                println(validation.formatCnpj("") + "|")
+                println(validation.formatCnpj("3454640100016") + "|")
+            }
+            """, "34.546.401/0001-63\n34.546.401/0001-63\n11.222.333/0001-81\n123|\n|\n3454640100016|");
+    }
+
+    @Test
+    void formatCnpjNative(@TempDir Path tmp) throws Exception {
+        runNative(tmp, """
+            main() {
+                assert(validation.formatCnpj("34546401000163") == "34.546.401/0001-63")
+                assert(validation.formatCnpj("11222333000181") == "11.222.333/0001-81")
+                assert(validation.formatCnpj("34.546.401/0001-63") == "34.546.401/0001-63")
+                assert(validation.formatCnpj("123") == "123")
+                assert(validation.formatCnpj("") == "")
+                println("ok")
+            }
+            """, "ok");
+    }
+
+    @Test
+    void formatCnpjJs(@TempDir Path tmp) throws Exception {
+        runJs(tmp, """
+            main() {
+                println(validation.formatCnpj("34546401000163"))
+                println(validation.formatCnpj("123") + "|")
+                println(validation.formatCnpj("") + "|")
+            }
+            """, "34.546.401/0001-63\n123|\n|");
+    }
+
+    @Test
+    void formatCnpjNativeRiscv(@TempDir Path tmp) throws Exception {
+        assumeToolchain("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64");
+        runQemu(tmp, Target.NATIVE_RISCV64, "qemu-riscv64", """
+            main() {
+                assert(validation.formatCnpj("34546401000163") == "34.546.401/0001-63")
+                assert(validation.formatCnpj("123") == "123")
+                assert(validation.formatCnpj("") == "")
+            }
+            """);
+    }
+
+    @Test
+    void formatCnpjNativeAarch64(@TempDir Path tmp) throws Exception {
+        assumeToolchain("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64");
+        runQemu(tmp, Target.NATIVE_AARCH64, "qemu-aarch64", """
+            main() {
+                assert(validation.formatCnpj("34546401000163") == "34.546.401/0001-63")
+                assert(validation.formatCnpj("123") == "123")
+            }
+            """);
+    }
+
     // S6a network: isIpv4/isMac/isPort — byte-scan, sem gate nos 4 targets.
     @Test
     void validationNetJvm(@TempDir Path tmp) throws Exception {

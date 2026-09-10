@@ -141,7 +141,7 @@ public final class JvmRuntimeReturnDescriptors {
                     "kof_strings_slugify", "kof_strings_escapeHtml", "kof_strings_unescapeHtml",
                     "kof_strings_escapeJson", "kof_strings_removeWhitespace",
                     "kof_strings_normalizeWhitespace",
-                    "kof_validation_formatCpf", "kof_validation_formatCep" -> "Ljava/lang/String;";
+                    "kof_validation_formatCnpj", "kof_validation_formatCpf", "kof_validation_formatCep" -> "Ljava/lang/String;";
             case "kof_strings_repeat", "kof_strings_truncate" -> "Ljava/lang/String;";
             case "kof_strings_padLeft", "kof_strings_padRight" -> "Ljava/lang/String;";
             case "kof_net_scheme", "kof_net_host", "kof_net_port",

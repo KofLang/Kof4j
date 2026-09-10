@@ -152,6 +152,25 @@ public final class JvmStringValidationRuntime {
                     return o.toString();
                 }
 
+                // formatCnpj (S12b): 14 dígitos -> NN.NNN.NNN/NNNN-NN; senão
+                // original (no-op, nunca lança — paridade formatCpf).
+                public static String kof_validation_formatCnpj(String s) {
+                    if (s == null) return null;
+                    int[] d = kof_br_digits(s);
+                    if (d.length != 14) return s;
+                    StringBuilder o = new StringBuilder(18);
+                    for (int i = 0; i < 2; i++) o.append((char) ('0' + d[i]));
+                    o.append('.');
+                    for (int i = 2; i < 5; i++) o.append((char) ('0' + d[i]));
+                    o.append('.');
+                    for (int i = 5; i < 8; i++) o.append((char) ('0' + d[i]));
+                    o.append('/');
+                    for (int i = 8; i < 12; i++) o.append((char) ('0' + d[i]));
+                    o.append('-');
+                    for (int i = 12; i < 14; i++) o.append((char) ('0' + d[i]));
+                    return o.toString();
+                }
+
                 public static boolean kof_validation_isPis(String s) {
                     int[] d = kof_br_digits(s);
                     if (d.length != 11) return false;

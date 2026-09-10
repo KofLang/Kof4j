@@ -43,7 +43,7 @@ briefing aceita ("adapte à arquitetura real"). Então: `math.clamp(...)`,
 | `uuid` | v4 · ~~isUuid~~ (FEITO S3b-ext 09/09, 5 alvos) · v7 · ulid/isUlid (P1) |
 | `encoding` | base64Encode/Decode · base64UrlEncode/Decode · hexEncode/Decode · urlEncode/Decode |
 | `random` | randomDouble · randomBoolean · randomChoice · randomString · randomBytes (secure split: `random.*` inseguro vs `security.*` seguro — já documentado) |
-| `validation` (ext) | ~~isCpf/formatCpf~~ (formatCpf FEITO S12 09/09, 5 alvos) · isCnpj · ~~isCep/formatCep~~ (formatCep FEITO S12 09/09, 5 alvos) · isPis/isNis · isIp/isIpv4/isIpv6/isMac/isDomain/isPort · isCreditCard/creditCardBrand/last4 (Luhn) · isStrongPassword/passwordScore |
+| `validation` (ext) | ~~isCpf/formatCpf~~ (formatCpf FEITO S12 09/09, 5 alvos) · ~~isCnpj~~ · formatCnpj FEITO S12b 09/09 (5 alvos) · ~~isCep/formatCep~~ (formatCep FEITO S12 09/09, 5 alvos) · isPis/isNis · isIp/isIpv4/isIpv6/isMac/isDomain/isPort · isCreditCard/creditCardBrand/last4 (Luhn) · isStrongPassword/passwordScore |
 | `time` (ext) | addDays/addMonths/addYears · daysBetween/hoursBetween · startOf/endOf (day/week/month/year) · isLeapYear · daysInMonth · age · formatDate/parseDate · isToday/~~isWeekend~~ (FEITO S7-ext 09/09, 5 alvos) · today |
 | `net` (novo, P2) | **6 escalares** `net.scheme/host/port/path/query/fragment(STR)->STR` + `queryEncode/queryDecode` — ver §4 (decisão S8, 09/09) |
 | `util` (P2) | debounce/throttle · retry (backoff/jitter) |
@@ -65,6 +65,14 @@ na   (null-safety + throw são o mecanismo).
   UTF-8 codificado à mão em `JsRuntimeUiStdlib`. `uuid` (v4/v7/ulid) segue em S3b.
 - **S5** `random` novo namespace + ext `validation` BR (CPF/CNPJ/CEP/PIS/NIS com
   checksum reutilizável interno — §18 briefing)
+  - **S12b FEITO 09/09:** `validation.formatCnpj` nos 5 alvos — 14 dígitos
+    => NN.NNN.NNN/NNNN-NN (canônico IBGE único). Arquivos NOVOS (gates
+    estouravam): x86 RuntimeValidationFmtBr (Br 455/500; emit após Br em
+    NativeRuntime — usa kof_br_digits dele) + riscv B29 (B12 484/500; append
+    NativeRiscvAsm). LIÇÕES de S12 respeitadas (frame -48, len@16/20=0,
+    movl não leal). KofValidationTest formatCnpj* 5/5 (classe 34/34).
+    **formatPis NÃO entra:** máscara 11-dígitos sem forma IBGE única
+    (3.5.2.1 vs 3.4.3.1) = decisão de design — nota, não código (regra 6).
   - **S3b-ext FEITO 09/09:** `uuid.isUuid(STR->BOOL)` nos 5 alvos — shape
     RFC 4122 (36; hífens em 8/13/18/23; resto hex maiúsculo/minúsculo). Não
     valida versão/variante. JVM JvmUuidRuntime + JS JsRuntimeUiUuid
