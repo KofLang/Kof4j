@@ -65,6 +65,13 @@ na   (null-safety + throw são o mecanismo).
   UTF-8 codificado à mão em `JsRuntimeUiStdlib`. `uuid` (v4/v7/ulid) segue em S3b.
 - **S5** `random` novo namespace + ext `validation` BR (CPF/CNPJ/CEP/PIS/NIS com
   checksum reutilizável interno — §18 briefing)
+  - **PARIDADE kof-script FEITA 10/09:** `KofScriptStdlibParityTest` (5
+    testes) prova interpretador (Target.SCRIPT) × JVM compilado para toda a
+    stdlib nova da sessão — uncapitalize, formatCpf/formatCep/formatCnpj,
+    isUuid (+v4), isWeekend, fachada random (contrato/faixa, nunca valor
+    sorteado). Sem GAP: o interpretador resolve kof_* por reflexão no MESMO
+    KofRuntime gerado (paridade por construção, R5); o teste é a prova, não
+    a memória. Roda no gate de kof-script (25 -> 30).
   - **S12b FEITO 09/09:** `validation.formatCnpj` nos 5 alvos — 14 dígitos
     => NN.NNN.NNN/NNNN-NN (canônico IBGE único). Arquivos NOVOS (gates
     estouravam): x86 RuntimeValidationFmtBr (Br 455/500; emit após Br em
