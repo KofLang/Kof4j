@@ -1747,7 +1747,7 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 |---|---|---|---|---|
 | `"abc".toInt()` | throw | **5451** | **0** | **0** |
 | `"12a34".toInt()` | throw | **16934** | **1234** | **1234** |
-| `" -42 ".toInt()` | `-42` | **-162596** (espaço→16*10+(32-48)=-270; só '-' é parseado como sinal) | -42 ✅ (trim) | -42 ✅ |
+| `" -42 ".toInt()` | `-42` | **-162596** (espaço→16*10+(32-48)=-270; só o `-` do meio é parseado como sinal) | **42** (pula não-dígitos inclusive o `-` fora do índice 0 — sinal perdido) | **42** (tradução idêntica) |
 | `"999999999999".toInt()` | throw | **wraparound** (-727379969) | **999999999999** (retorna LONG num site Int — lixo de 64 bits) | idem riscv |
 
 - **Três implementações divergentes entre si**, todas violando o contrato:
