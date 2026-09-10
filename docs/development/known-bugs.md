@@ -1827,6 +1827,49 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   `v` impresso adicionado aos golden cross-arch dos testes do 79
   (riscv64StringToInt/aarch64StringToInt) + `KofStringParseTest` (3 alvos).
 
+### 82. Native: `String.toDouble/toFloat` fora do contrato JVM — parser x86 silencioso-e-errado; riscv/aarch nem definem os símbolos — PARCIALMENTE CORRIGIDO 10/09 (irmão FP do bug 79; mesma família, varredura STDLIB)
+
+- **Contrato previsto** (congelado, tabela "PAREcem bugs" deste arquivo —
+  `Double/Float.parseFloat(s.trim())`, exceção=String em inválido — e o teste
+  `KofJsE2ETest.execStringToNumberConversion` cobre `"abc".toDouble()`→throw).
+- **Medido 10/09 (harness GenU):**
+
+| entrada | JVM/JS (previsto) | x86 atual | riscv64/aarch64 |
+|---|---|---|---|
+| `"2.5".toDouble()` | 2.5 ✅ | ✅ | **link quebra** (undefined ref `kof_string_to_double`) |
+| `"1e3".toDouble()` | 1000.0 | **lixo** (xmm0 nunca inicializado no caminho int→exp) | link quebra |
+| `" 3.0 "` | 3.0 | **-157** (espaço vira dígito -16) | link quebra |
+| `"abc"` | throw | **5451** (silencioso!) | link quebra |
+| `"1.2.3"` | throw | **1.2** (para no 2º '.', aceita) | link quebra |
+| `"NaN".toDouble() == "NaN".toDouble()` | false (IEEE NaN≠NaN) | **true** (virou número 3493…) | link quebra |
+| `"7".toDouble()` | 7.0 | ✅ (int path com '.' ausente) | link quebra |
+
+- **Causa raiz x86** (`RuntimeStringParse.emitStringToDouble/Float`): parser
+  ad-hoc sem trim, sem validação (qualquer byte não-dígito vira `c-48`), sem
+  throw, sem literais NaN/Infinity, e o ramo expoente-por-inteiro pula o
+  `vcvtsi2sd` (só o caminho fracionário cria xmm0) → garbage multiplicado.
+- **Causa raiz cross:** `kof_string_to_double/float` só existem no asm x86
+  (`NativeRuntime`); a cadeia `NativeRiscvAsm*` nunca definiu (FLT001 é o gap
+  de aritmética FP cross — mas aqui quebra até o LINK de `String.toDouble()`).
+- **Correção face x86 FEITA 10/09 (parcial, ver limite abaixo):** parser
+  reescrito no contrato: trim, `+/-` inicial, dígitos-a-dígitos, um único
+  `.`, expoente opcional só com dígitos, literais `NaN/Infinity/-Infinity`
+  (case-sensitive, idem JDK; NaN via comparação-consigo-mesma que força qNaN
+  real em SSE), falha → `kof_throw_string`. Mantissa acumulada em int64 +
+  UMA divisão por 10^ndigitos (evita o erro acumulado do parser antigo:
+  `"0.3".toDouble() == 0.3` agora true como no JDK).
+- **LIMITE travado (documentado, não corrigível em asm puro):** paridade
+  bit-exata p/ decimais que não cabem em int64 e expoentes >22 exige o
+  algoritmo correcto do JDK (big-int shortest-round-trip) → fica na família
+  FLT001/paridade-FP; vetores curtos (≤15 dígitos, exp |e|≤22) batem.
+- **PENDENTE (face cross):** riscv/aarch precisam de `to_double/to_float`
+  reais — depende de FP RV64 (`fadd.d`/`fmul.d`/`fcvt.*`) no conjunto do
+  tradutor aarch (parcialmente presente: `NativeRiscvCrossOps` usa fcvt).
+  Não é link-fail silencioso (COMP001 honesto), mas programa válido não
+  linka. Registrado p/ lane NATIVE002/FLT001 com este §82 como spec.
+  Menor repro: `main() { println("2.5".toDouble()) }` em riscv → COMP001
+  undefined reference; em x86 pré-fix: `"abc".toDouble()` → 5451.
+
 ### 81. KofJS: `Long` é `Number` (double 53-bit) — `"...".toLong()` acima de ±2^53 perde precisão e NÃO lança overflow — ABERTO (paridade R5 cross-target)
 
 - **Sintoma:** `println("9007199254740993".toLong())` no JS → `9007199254740992`
