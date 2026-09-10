@@ -623,4 +623,47 @@ main() {
     }
 
 
+
+
+    // NATIVE002-stdlib (residual R6, 10/09, parte 2): validacao BR/rede +
+    // Luhn + IPv6/domain + escape/unescape/whitespace + net + time nos 2
+    // qemu — fatias B12/B15/B16/B17/B20/B21 rodavam sem CI de execucao;
+    // divergência silente cross (classe do bug 88) agora travada. Golden
+    // medido no JVM — idêntico x86/riscv/aarch 10/09 (26 vetores).
+    @Test
+    void aarch64StdlibValidationNetTime(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runAarch64(tempDir, """
+main() {
+    println(validation.isCpf("529.982.247-25"))
+    println(validation.isCpf("111.111.111-11"))
+    println(validation.isCnpj("11.222.333/0001-81"))
+    println(validation.isCep("0131010"))
+    println(validation.isPis("123.4567.890-0"))
+    println(validation.isIpv4("192.168.0.1"))
+    println(validation.isIpv4("256.1.1.1"))
+    println(validation.isMac("00:1A:2B:3C:4D:5E"))
+    println(validation.isPort(443))
+    println(validation.isPort(65536))
+    println(validation.isCreditCard("4111111111111111"))
+    println(validation.isCreditCard("4111111111111112"))
+    println(validation.isIpv6("::1"))
+    println(validation.isIpv6("1::2::3"))
+    println(validation.isDomain("example.com"))
+    println(validation.isDomain("-bad.com"))
+    println(strings.escapeHtml("a<b>&\\"'c"))
+    println(strings.unescapeHtml("caf&#233;"))
+    println(strings.removeWhitespace("  a\\tb  ") + "|" + strings.normalizeWhitespace("  a   b  "))
+    var u = "https://user:pw@host.io:8443/p?q#f"
+    println(net.scheme(u) + "|" + net.host(u) + "|" + net.port(u) + "|" + net.path(u))
+    println(net.queryEncode("a b&c=1"))
+    println(time.isLeapYear(2000))
+    println(time.isLeapYear(1900))
+    println(time.daysInMonth(2024, 2))
+    println(time.dayOfWeek(1970, 1, 1))
+    println(time.daysBetween(2024, 1, 1, 2024, 3, 1))
+}
+            """);
+        assertEquals("true\nfalse\ntrue\nfalse\ntrue\ntrue\nfalse\ntrue\ntrue\nfalse\ntrue\nfalse\ntrue\nfalse\ntrue\nfalse\na&lt;b&gt;&amp;&quot;&#39;c\ncafé\nab|a b\nhttps|host.io|8443|/p\na%20b%26c%3D1\ntrue\nfalse\n29\n4\n60", out);
+    }
 }
