@@ -1569,7 +1569,7 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
    CONSTANTE DE FP em asm merece teste de decode no harness — o comentário
    dizia "= 2^53" e o bit não era (confiança no texto, não na máquina).
 
-### 80. JS: valor `Bool` de função stdlib é number 1/0 → `boolExpr == true` sempre `false` (paridade cross-target quebrada) — ABERTO (lane JS)
+### 80. JS: valor `Bool` de função stdlib é number 1/0 → `boolExpr == true` sempre `false` (paridade cross-target quebrada) — PARCIAL 10/09 (math/random feitos; strings/validation/security faltam)
 
 - **Sintoma:** `var b = random.boolean()` (ou `var e = math.isEven(2)`) no
   target JS: `println(e)` mostra `true`, MAS `e == true` e `e == false` são
@@ -1613,6 +1613,14 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   print). Preferir A: corrói a divergência na FONTE, não no uso. Validar que
   nenhum consumidor usa esses retornos como Int (procura por `+ kofMath`,
   `* kofRandom` etc. no lowering JS).
+- **Status (10/09): PARCIAL** — `math.isEven/isOdd/isPositive/isNegative/isZero`
+  + `random.boolean()` agora retornam boolean JS real (PROVA: `randomShapeJs`
+  estendido com `assert(b==true||b==false)`, 4/0; `stdmath`/`coreArithmetic` sem
+  regressão). **FALTAM:** `strings.is*` (27-53), `validation.is*` (313-403),
+  `security.constantTimeEqual*` (230-341) — essas têm **guards `return 0`**
+  espalhados; converter SÓ o return final deixa `0===false` falhar ainda —
+  trocar TODAS as saídas p/ `false`/`true` e rodar `KofStringsTest`/
+  `KofValidationTest`/`KofSecurityTest` + matriz `stdstrings`/`stdvalidation`.
 - **Por que passou despercebido (lição §79 de novo):** `randomShapeJs`
   (`KofRandomTest:74`) **omite** as linhas `var b = random.boolean();
   assert(b == true || b == false)` que `randomShapeNative`/`randomShapeCrossArch`
