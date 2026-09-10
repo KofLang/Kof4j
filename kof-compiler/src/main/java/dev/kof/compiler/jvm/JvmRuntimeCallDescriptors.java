@@ -357,7 +357,8 @@ public final class JvmRuntimeCallDescriptors {
             // ── kof.random (STDLIB S10) ─────────────────────────────────
             case "kof_random_double" -> "()D";
             case "kof_random_boolean" -> "()Z";
-            case "kof_random_int", "kof_random_hex" -> "(I)I";
+            case "kof_random_int" -> "(I)I";
+            case "kof_random_hex" -> "(I)Ljava/lang/String;";
             // ── kof.observability (G5) ────────────────────────────────
             case "kof_observability_health", "kof_observability_request_id", "kof_observability_correlation_id",
                     "kof_observability_trace_id", "kof_observability_span_id",

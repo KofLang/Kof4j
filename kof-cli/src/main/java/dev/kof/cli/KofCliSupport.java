@@ -153,8 +153,14 @@ final class KofCliSupport {
         Path frontendOut = buildRoot.resolve("frontend");
         List<Path> frontendFiles = collect(layout.frontendDir());
         frontendFiles.sort(java.util.Comparator.comparing(p -> p.getFileName().toString()));
+        // PKG006 (#71): se o frontend vive num projeto com kof.toml, a raiz do
+        // projeto manda — imports cross-directory tipo `import src.Shared`
+        // resolvem a partir dela, mesma regra que CmdRun aplica ao módulo de
+        // entrada. Sem kof.toml, mantém o comportamento anterior.
+        Path frontendRoot = driver.resolveModuleRoot(frontendFiles);
+        if (frontendRoot == null) frontendRoot = layout.frontendDir().toAbsolutePath().normalize();
         CompilationResult fe = driver.compileSources(frontendFiles, frontendOut, frontendTarget,
-                layout.frontendDir().toAbsolutePath().normalize());
+                frontendRoot);
         for (Diagnostic d : fe.diagnostics().getDiagnostics()) System.out.println(d.format());
         if (!fe.success()) System.exit(1);
         if (layout.staticDir() != null) {
