@@ -1,6 +1,6 @@
 # Plano — Universal Standard Library (STDLIB)
 
-**Dono:** lane KOFSCRIPT (fixes-for-kofagent) · **Status:** EM CURSO — **só S7 aberto** (time add/diff/format + port calendário multi-target); S0–S6, S8–S10 FEITOS (auditoria 10/09 vs código: KofMath/KofStrings/KofEncoding/KofUuid/KofValidation/KofNet/KofTime + KofRandomTest) · **Briefing:** maintainer 08/09 (universal stdlib, multitarget, anti-microdependência)
+**Dono:** lane KOFSCRIPT (fixes-for-kofagent) · **Status:** EM CURSO — **S7 parcial**: `addDays`/`diffDays` FEITOS em JVM/Script (S7a) + JS (S7b); resta **Native** (TIME002, asm String-alloc) + `format`/`boundaries` (decisão de superfície da mantenedora); S0–S6, S8–S10 FEITOS (auditoria 10/09 vs código: KofMath/KofStrings/KofEncoding/KofUuid/KofValidation/KofNet/KofTime + KofRandomTest) · **Briefing:** maintainer 08/09 (universal stdlib, multitarget, anti-microdependência)
 
 ## 0. Arquitetura real (mapeada 08/09 — NÃO inventar paralela)
 
@@ -66,18 +66,21 @@ na   (null-safety + throw são o mecanismo).
 - **S5** `random` novo namespace — **FEITO (S10, `845284e5` + fix §79 `b6668803`):** `random.double/boolean/int/hex` nos 4 targets (getrandom(2)/RNG JVM/Math.random JS); shape-verified `KofRandomTest` (4/4, sem golden — entropia). ⚠️ §79: divisor 2^52→2^53 corrigido 10/09. Ext `validation` BR **já feita em S6** (abaixo).
 - **S6** ext `validation` network (IPv4/IPv6/mac/domain/port) + Luhn — **FEITO** (S6a/S6b, `KofValidation.java` isIpv4/isIpv6/isMac/isPort/isDomain/isCreditCard + RuntimeValidationNet; matrizes stdvalidation*/stdluhn/stdipv6/stddomain).
 - **S7** ext `time` (add/diff/boundaries/format) — **PARCIAL (ÚNICO degrau aberto):**
-  - **FEITO** calendário `isLeapYear/daysInMonth/dayOfWeek/daysBetween` (4 alvos;
-    matriz stdtime) **S7a** `addDays`/`diffDays` em data ISO (String)
-    JVM+Script via `java.time` (10/09 — `JvmTimeRuntime.kof_time_addDays/diffDays`
-    reusam o `kof_time_validDate`/época civil do wedge; matriz `stdtime2` +
-    `KofTimeE2ETest.timeAddDaysDiffDaysJvmShapeAndTime002Gate`).
-  - **ABERTO — TIME002** (R6, nunca silencioso): `addDays`/`diffDays` em
-    Native (asm: parse data + alocação de String runtime — mesmo escopo do
-    port nativo NET001) e JS (`Date`/parse — escopo próprio). Gate dispara no
-    compile-time (`KofTime.supportedOn(method,target)` → erro `TIME002`).
-  - **ABERTO**: `format`/`boundaries` (forma de API — `format(date, "yyyy-MM-dd")`
-    vs funções escalares `yearOf`/`monthOf`… — decisão de superfície da
-    mantenedora, como a família `net`/`validation`).
+   - **FEITO** calendário `isLeapYear/daysInMonth/dayOfWeek/daysBetween` (4 alvos;
+     matriz stdtime). **S7a** `addDays`/`diffDays` em data ISO (String)
+     JVM+Script via `java.time` (10/09 — `JvmTimeRuntime.kof_time_addDays/diffDays`
+     reusam o `kof_time_validDate`/época civil do wedge). **S7b** `addDays`/`diffDays`
+     JS (10/09 — `JsRuntimeUiWeb.kofTimeAddDays/kofTimeDiffDays`, MESMO algoritmo
+     civil do wedge, SEM `Date` => paridade byte-idêntica; inversa de época de
+     Hinnant validada p/ 12 datas + round-trip). Matriz `stdtime2` (JVM+Script+JS;
+     Native=TIME002) + `KofTimeE2ETest.timeAddDaysDiffDaysJvmShapeAndTime002Gate`.
+   - **ABERTO — TIME002** (R6, nunca silencioso): `addDays`/`diffDays` em
+     **Native** (asm: parse String + alocação de String em runtime — MESMO escopo
+     do port nativo `net` NET001; riscv/aarch via tradutor). Gate dispara no
+     compile-time (`KofTime.supportedOn(method,target)` → erro `TIME002`).
+   - **ABERTO**: `format`/`boundaries` (forma de API — `format(date, "yyyy-MM-dd")`
+     vs funções escalares `yearOf`/`monthOf`… — decisão de superfície da
+     mantenedora, como a família `net`/`validation`).
 - **S8** `net` url/query parse/encode — **FEITO** (S8 decisão §4; KofNet 6 escalares + queryEncode/Decode, RuntimeUri, stdnet, NET001 riscv fechado B24).
 - **S3b-wedge (uuid.v4) + S4 COMPLETO FEITOS 08/09:** uuid shape-verified 3 targets (SECN000 cross-arch fechado 09/09 — B25 getrandom ecall); encoding hex/url/base64/base64url (matriz stdenc 11 campos × 4; gates ENC002 base64* e SECN000 uuid nos cross). LIÇÃO JVM-runtime: nunca checked exceptions no KofRuntime gerado (SecureRandom new, não getInstanceStrong).
 - **S1–S2b.2 FEITOS 08/09:** math(9) · strings predicados(8: isAlpha/isNumeric/

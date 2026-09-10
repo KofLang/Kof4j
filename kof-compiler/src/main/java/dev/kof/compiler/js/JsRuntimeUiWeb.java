@@ -130,6 +130,46 @@ public final class JsRuntimeUiWeb {
                 if (!kofTimeValidDate(y1, m1, d1) || !kofTimeValidDate(y2, m2, d2)) return 0;
                 return kofTimeEpochDay(y2, m2, d2) - kofTimeEpochDay(y1, m1, d1);
             }
+            // STDLIB S7b — data ISO (String) add/diff. MESMO algoritmo civil
+            // do wedge (época de Hinnant + inversa), SEM Date (evita DST e o
+            // parse de ano 2-dígitos) => paridade byte-idêntica JVM/JS/Native.
+            // Inválido => "" (add) / 0 (diff) — política "invalid => 0".
+            function kofTimeCivilFromEpoch(ed) {
+                const floor = (a, b) => Math.floor(a / b);
+                const z = ed + 719468;
+                const era = z >= 0 ? floor(z, 146097) : floor(z - 146096, 146097);
+                const doe = z - era * 146097;                              // [0, 146096]
+                const yoe = floor(doe - floor(doe, 1460) + floor(doe, 36524) - floor(doe, 146096), 365);
+                const y = yoe + era * 400;
+                const doy = doe - (365 * yoe + floor(yoe, 4) - floor(yoe, 100)); // [0, 365]
+                const mp = floor(5 * doy + 2, 153);
+                const d = doy - floor(153 * mp + 2, 5) + 1;
+                const m = mp + (mp < 10 ? 3 : -9);
+                return { y: y + (m <= 2 ? 1 : 0), m: m, d: d };
+            }
+            function kofTimeParseIso(s) {
+                if (typeof s !== "string" || s.length !== 10) return null;
+                if (s.charCodeAt(4) !== 45 || s.charCodeAt(7) !== 45) return null;
+                const y = parseInt(s.slice(0, 4), 10);
+                const m = parseInt(s.slice(5, 7), 10);
+                const d = parseInt(s.slice(8, 10), 10);
+                if (isNaN(y) || isNaN(m) || isNaN(d) || !kofTimeValidDate(y, m, d)) return null;
+                return { y: y, m: m, d: d };
+            }
+            function kofTimePad2(n) { return (n < 10 ? "0" : "") + n; }
+            export function kofTimeAddDays(iso, days) {
+                const a = kofTimeParseIso(iso);
+                if (!a) return "";
+                const r = kofTimeCivilFromEpoch(kofTimeEpochDay(a.y, a.m, a.d) + days);
+                if (r.y < 1 || r.y > 9999) return "";
+                return "" + r.y + "-" + kofTimePad2(r.m) + "-" + kofTimePad2(r.d);
+            }
+            export function kofTimeDiffDays(iso1, iso2) {
+                const a = kofTimeParseIso(iso1);
+                const b = kofTimeParseIso(iso2);
+                if (!a || !b) return 0;
+                return kofTimeEpochDay(b.y, b.m, b.d) - kofTimeEpochDay(a.y, a.m, a.d);
+            }
 
             export function kofTimeSleep(ms) {
                 const end = Date.now() + ms;

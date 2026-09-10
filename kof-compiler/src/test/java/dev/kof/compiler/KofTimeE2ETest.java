@@ -407,7 +407,9 @@ class KofTimeE2ETest {
                         "2024-02-29\n2023-03-01\n2025-01-01\n2023-12-31\n\n\n60\n-60\n0"));
         Path gateSrc = tempDir.resolve("Gate.kf");
         Files.writeString(gateSrc, src);
-        for (Target t : new Target[]{Target.JS, Target.NATIVE}) {
+        // S7b: JS agora FECHADO (kofTimeAddDays/kofTimeDiffDays); restam só
+        // os targets Native (TIME002) com erro claro no compile (R6).
+        for (Target t : new Target[]{Target.NATIVE, Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
             CompilationResult r = new CompilerDriver().compile(gateSrc, tempDir.resolve("gate-" + t), t);
             assertFalse(r.success(), t + " deve rejeitar addDays/diffDays (TIME002)");
             boolean hasTime002 = r.diagnostics().getDiagnostics().stream()

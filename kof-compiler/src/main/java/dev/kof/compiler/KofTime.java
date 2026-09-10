@@ -66,17 +66,20 @@ public final class KofTime {
         // ANDROID — interpretador herda o KofRuntime do JVM). JS/Native = gap
         // honesto (String-alocação no asm + parse data: escopo próprio, R6 —
         // nunca fallback silencioso).
+        // S7b (10/09): JS FECHADO — kofTimeAddDays/kofTimeDiffDays no
+        // JsRuntimeUiWeb (mesmo algoritmo civil do wedge, SEM Date =>
+        // paridade byte-idêntica). Restam apenas os targets NATIVE.
         if (("addDays".equals(method) || "diffDays".equals(method))
-                && (target.isNative() || target == Target.JS)) {
+                && target.isNative()) {
             return false;
         }
         return true;
     }
 
     static String gapCode(String method) {
-        // TIME002 — data ISO add/diff só JVM/Script hoje (JS: Date + parse é
-        // trivia mas fica num degrau próprio; Native: alocação de String em
-        // runtime asm é o mesmo escopo do NET001 nativo).
+        // TIME002 — data ISO add/diff: JVM/Script/JS FEITOS (S7a/S7b); resta
+        // só Native (asm: parse String + alocação de String em runtime —
+        // mesmo escopo do port nativo NET001).
         return ("addDays".equals(method) || "diffDays".equals(method))
                 ? "TIME002" : "TIME001";
     }
