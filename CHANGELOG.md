@@ -814,6 +814,16 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 
   - preservar operandos da pilha em if/switch-expressions (#69)
 
+## [0.3.8-beta] - 2026-09-10
+
+### Features
+
+  - implement kof.random namespace with double, boolean, int, and hex functions; add tests for cross-platform compatibility
+
+### Bugfixes
+
+  - random.double() usava 2^52 como divisor (constante .Lrnd_two53 errada) — corrigir para 2^53 nos runtimes x86 e riscv/aarch; docs: gravar regra de organizacao de documentacao no AGENTS.md + known-bugs SS79 + DOING.md
+
 <!-- NEXT-RELEASE -->
 
 ## [0.2.7-beta] - 2026-09-04
