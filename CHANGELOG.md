@@ -808,6 +808,12 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 
   - introduce kof.random namespace with various random generation functions and runtime support
 
+## [0.3.7-beta] - 2026-09-10
+
+### Bugfixes
+
+  - preservar operandos da pilha em if/switch-expressions (#69)
+
 <!-- NEXT-RELEASE -->
 
 ## [0.2.7-beta] - 2026-09-04
