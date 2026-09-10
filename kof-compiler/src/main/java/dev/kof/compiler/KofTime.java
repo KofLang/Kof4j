@@ -68,9 +68,13 @@ public final class KofTime {
         // nunca fallback silencioso).
         // S7b (10/09): JS FECHADO — kofTimeAddDays/kofTimeDiffDays no
         // JsRuntimeUiWeb (mesmo algoritmo civil do wedge, SEM Date =>
-        // paridade byte-idêntica). Restam apenas os targets NATIVE.
+        // paridade byte-idêntica).
+        // S7c (10/09): x86 FECHADO — RuntimeTimeIso (parse ISO + inversa
+        // civil Hinnant + alocação de String no asm; harness C 200k fuzz +
+        // matriz stdtime2 rodando local). Restam riscv64/aarch64 (TIME002,
+        // fatia B própria — precedente NET001: x86 fecha antes do cross).
         if (("addDays".equals(method) || "diffDays".equals(method))
-                && target.isNative()) {
+                && (target == Target.NATIVE_RISCV64 || target == Target.NATIVE_AARCH64)) {
             return false;
         }
         return true;
