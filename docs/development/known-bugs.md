@@ -1569,7 +1569,7 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
    CONSTANTE DE FP em asm merece teste de decode no harness — o comentário
    dizia "= 2^53" e o bit não era (confiança no texto, não na máquina).
 
-### 80. JS: valor `Bool` de função stdlib é number 1/0 → `boolExpr == true` sempre `false` (paridade cross-target quebrada) — PARCIAL 10/09 (math/random feitos; strings/validation/security faltam)
+### 80. JS: valor `Bool` de função stdlib é number 1/0 → `boolExpr == true` sempre `false` (paridade cross-target quebrada) — CORRIGIDO 10/09 (chokepoint `!!` na comparação cobre stdlib + instanceof + coleções)
 
 - **Sintoma:** `var b = random.boolean()` (ou `var e = math.isEven(2)`) no
   target JS: `println(e)` mostra `true`, MAS `e == true` e `e == false` são
@@ -1604,23 +1604,35 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   `kofRandomBoolean` ~467, predicados `strings.is*` 27-53, `validation.is*`
   ~331-403, `security.constantTime*` ~230-341), `boolExpr == true` é sempre
   falso. No JVM/Native o valor é primitivo `Z` real e a comparação casa.
-- **Fix (escolha da lane JS):** opção A (menor risco, recomendada) — fazer as
-  funções stdlib JS retornarem **boolean JS de verdade** (`return (v & 1) === 0;`
-  em vez de `? 1 : 0`) em TODOS os sites Bool (lista acima); a coerção do
-  print fica redundante mas inofensiva, e o `===` passa a casar com os
-  literais. Opção B (mais ampla) — o emissor de `==`/`!=`/`<`... injetar a
-  MESMA coerção `(x?true:false)` dos operandos Bool no comparison (igual ao
-  print). Preferir A: corrói a divergência na FONTE, não no uso. Validar que
-  nenhum consumidor usa esses retornos como Int (procura por `+ kofMath`,
-  `* kofRandom` etc. no lowering JS).
-- **Status (10/09): PARCIAL** — `math.isEven/isOdd/isPositive/isNegative/isZero`
-  + `random.boolean()` agora retornam boolean JS real (PROVA: `randomShapeJs`
-  estendido com `assert(b==true||b==false)`, 4/0; `stdmath`/`coreArithmetic` sem
-  regressão). **FALTAM:** `strings.is*` (27-53), `validation.is*` (313-403),
-  `security.constantTimeEqual*` (230-341) — essas têm **guards `return 0`**
-  espalhados; converter SÓ o return final deixa `0===false` falhar ainda —
-  trocar TODAS as saídas p/ `false`/`true` e rodar `KofStringsTest`/
-  `KofValidationTest`/`KofSecurityTest` + matriz `stdstrings`/`stdvalidation`.
+- **Fix (implementado 10/09 — opção B no SÍNTESE, o chokepoint da comparação):**
+  em vez de reescrever os ~48 sites `? 1 : 0` (opção A — INCOMPLETA: os guards
+  `return 0` das famílias validation/security ficariam `0===false`, e NÃO cobria
+  `instanceof` nem predicados de coleção), os emissores de `==`/`!=` do backend
+  JS agora **normalizam ambos os operandos com `!!`** (ToBoolean) quando o lado
+  é Bool — cobrindo uniformemente 1/0 de stdlib, `instanceof` e `contains`/
+  `isEmpty`. Disparo por TIPO (`JsTypeMapper.isBoolOperand`) **ou** por LITERAL
+  (`JsTypeMapper.isBoolLiteral` — `true`/`false`), porque `if (boolExpr == true)`
+  colapsa `operandType` p/ `INT` no lowerer compartilhado (`comparisonOperandType`,
+  CompilerComparisons.java) — o tipo não é sinal suficiente no caminho de
+  condição. LT/LE/GT/GE ficam intocados (Kof proíbe ordenar Bool). Sites:
+  `JsCallEmitter.binaryExpr` (caso valor, `KofBinary`) + `boolEq` helper novo;
+  `JsControlFlowParser.comparisonExpr` (caminho de condição — agora recebe
+  `operandType` do `KofConditionalJump`; 3 call-sites atualizados em
+  JsControlFlowParser/JsExpressionStatementParser/JsExpressionParser).
+  A opção A parcial (math.is*/random.boolean → boolean JS real) FICOU nos
+  commits anteriores e é compatível com o chokepoint (defesa em profundidade).
+- **Prova (real execução + paridade):** `node` roda o `.mjs` gerado e imprime
+  as 10 saídas corretas (era o bug: `cond`/`instanceof==true`/`isEmpty==false`
+  todos `false`); `CoreRegressionE2ETest.boolEqualityContentParityJvmJs`
+  (`runBoth`) trava **JVM == JS byte-idênticos** no caminho de VALOR
+  (`var x = a == true`) E de CONDIÇÃO (`if (a == true)`), para stdlib
+  (strings/math), `instanceof` e coleção (contains/isEmpty/list/map). Suíte
+  completa **1365/0** (compiler 1208 + script 25 + kof-c 5 + cli 127; 80 skip
+  = riscv/aarch sem qemu). Matriz `stdmath`/`stdstrings`/`stdvalidation` e
+  `KofRandomTest.randomShapeJs` verdes (sem regressão).
+- **Status (10/09): CORRIGIDO** — chokepoint de comparação cobre TODAS as
+  famílias (math/strings/validation/security + instanceof + coleções), não só
+  as já convertidas. `randomShapeJs` mantém o assert `b==true||b==false`.
 - **Por que passou despercebido (lição §79 de novo):** `randomShapeJs`
   (`KofRandomTest:74`) **omite** as linhas `var b = random.boolean();
   assert(b == true || b == false)` que `randomShapeNative`/`randomShapeCrossArch`

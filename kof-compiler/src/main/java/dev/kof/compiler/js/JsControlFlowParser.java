@@ -15,6 +15,7 @@ import dev.kof.compiler.KofThrow;
 import dev.kof.compiler.KofTryEnd;
 import dev.kof.compiler.KofTryStart;
 import dev.kof.compiler.LabelId;
+import dev.kof.compiler.Type;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -221,10 +222,21 @@ JsIr.JsExpression tryParseIfExpr(MethodCtx ctx, int[] pos, KofConditionalJump cj
         }
     }
 
-JsIr.JsExpression comparisonExpr(KofComparison comp, JsIr.JsExpression left, JsIr.JsExpression right) {
+JsIr.JsExpression comparisonExpr(KofComparison comp, JsIr.JsExpression left, JsIr.JsExpression right, Type operandType) {
         if (comp == KofComparison.NE && right instanceof JsIr.JsNumber n && "0".equals(n.text())) {
             // boolean conditions: (cond, 0) CJump(NE) — truthiness in JS
             return left;
+        }
+        // §80 paridade: Bool no JS pode chegar como 1/0 (stdlib funcs, instanceof)
+        // ou true/false (literais). === cru faz 1===true ser false. Normaliza
+        // os dois lados com !! para truthiness booleana (JVM/Native usam Z real).
+        // Dispara tanto por tipo (operandType bool) quanto por literal (==true/false),
+        // porque `if (boolExpr == true)` colapsa operandType p/ INT no lowerer.
+        if ((comp == KofComparison.EQ || comp == KofComparison.NE)
+                && (JsTypeMapper.isBoolOperand(operandType)
+                    || JsTypeMapper.isBoolLiteral(left) || JsTypeMapper.isBoolLiteral(right))) {
+            left = new JsIr.JsUnary("!!", left);
+            right = new JsIr.JsUnary("!!", right);
         }
         return switch (comp) {
             case EQ -> new JsIr.JsBinary(left, "===", right);
@@ -291,7 +303,7 @@ JsIr.JsStatement parseLoop(MethodCtx ctx, int[] pos, LabelId startLabel) {
         if (!condStack.isEmpty()) {
             throw new IllegalStateException("KofJS: malformed loop condition stack");
         }
-        JsIr.JsExpression condition = comparisonExpr(cj2.comparison(), left, right);
+        JsIr.JsExpression condition = comparisonExpr(cj2.comparison(), left, right, cj2.operandType());
         if (!condPreamble.isEmpty()) {
             condition = new JsIr.JsSequence(condPreamble, condition);
         }
@@ -407,7 +419,7 @@ JsIr.JsStatement parseDoWhile(MethodCtx ctx, int[] pos, LabelId startLabel,
         pos[0]++;
         JsIr.JsExpression right = p.expr.pop(condStack);
         JsIr.JsExpression left = p.expr.pop(condStack);
-        JsIr.JsExpression condition = comparisonExpr(cj.comparison(), left, right);
+        JsIr.JsExpression condition = comparisonExpr(cj.comparison(), left, right, cj.operandType());
         while (!condStack.isEmpty()) {
             condition = new JsIr.JsSequence(List.of(p.expr.pop(condStack)), condition);
         }

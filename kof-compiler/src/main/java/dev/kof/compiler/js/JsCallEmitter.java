@@ -265,8 +265,12 @@ JsIr.JsExpression binaryExpr(KofBinary kb, JsIr.JsExpression left, JsIr.JsExpres
                 yield new JsIr.JsBinary(left, "/", right);
             }
             case MOD -> new JsIr.JsBinary(left, "%", right);
-            case EQ -> new JsIr.JsBinary(left, "===", right);
-            case NE -> new JsIr.JsBinary(left, "!==", right);
+            case EQ -> JsTypeMapper.isBoolOperand(kb.operandType()) || JsTypeMapper.isBoolLiteral(left) || JsTypeMapper.isBoolLiteral(right)
+                    ? boolEq(left, right, true)
+                    : new JsIr.JsBinary(left, "===", right);
+            case NE -> JsTypeMapper.isBoolOperand(kb.operandType()) || JsTypeMapper.isBoolLiteral(left) || JsTypeMapper.isBoolLiteral(right)
+                    ? boolEq(left, right, false)
+                    : new JsIr.JsBinary(left, "!==", right);
             case LT -> new JsIr.JsBinary(left, "<", right);
             case LE -> new JsIr.JsBinary(left, "<=", right);
             case GT -> new JsIr.JsBinary(left, ">", right);
@@ -293,6 +297,18 @@ JsIr.JsExpression intWrap(Type operandType, JsIr.JsExpression inner) {
             return new JsIr.JsBinary(inner, "|", new JsIr.JsNumber("0"));
         }
         return inner;
+    }
+
+    /**
+     * §80 paridade Bool no JS: uma expressão Bool pode chegar como 1/0 (funções
+     * stdlib, instanceof, predicados de coleção) ou true/false (literais). O
+     * === cru faz 1===true ser false. Normaliza ambos os lados com !! (ToBoolean)
+     * para casar a semântica de conteúdo do == de Kof com JVM/Native (que usam Z).
+     */
+JsIr.JsExpression boolEq(JsIr.JsExpression left, JsIr.JsExpression right, boolean eq) {
+        JsIr.JsExpression l = new JsIr.JsUnary("!!", left);
+        JsIr.JsExpression r = new JsIr.JsUnary("!!", right);
+        return new JsIr.JsBinary(l, eq ? "===" : "!==", r);
     }
 
 JsIr.JsExpression unaryExpr(KofUnary ku, JsIr.JsExpression operand) {

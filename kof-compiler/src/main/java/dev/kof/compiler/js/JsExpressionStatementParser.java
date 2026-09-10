@@ -121,7 +121,7 @@ final class JsExpressionStatementParser {
                 pos[0]++;
                 JsIr.JsExpression right = parser.pop(stack);
                 JsIr.JsExpression left = parser.pop(stack);
-                JsIr.JsExpression condition = parser.p.flow.comparisonExpr(cj.comparison(), left, right);
+                JsIr.JsExpression condition = parser.p.flow.comparisonExpr(cj.comparison(), left, right, cj.operandType());
                 JsIr.JsExpression ifExpr = parser.p.flow.tryParseIfExpr(ctx, pos, cj, condition);
                 if (ifExpr != null) {
                     stack.add(ifExpr);
