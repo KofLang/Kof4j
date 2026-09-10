@@ -32,6 +32,8 @@ public final class KofUuid {
         return switch (name) {
             case "v4" -> argTypes.isEmpty()
                     ? new UuidCall("kof_uuid_v4", STR, List.of()) : null;
+            case "isUuid" -> argTypes.size() == 1
+                    ? new UuidCall("kof_uuid_isUuid", Type.PrimitiveType.BOOL, List.of(STR)) : null;
             default -> null;
         };
     }
@@ -41,12 +43,20 @@ public final class KofUuid {
      * riscv64+aarch64) no runtime riscv B25 / aarch translator. R11: só a
      * primitiva do SO, sem cripto caseira; null se o syscall falhar (mesmo
      * contrato do x86 kof_sec_random_hex). supportedOn volta se outro gap.
+     * UUID001 (10/09): isUuid (predicado de forma, byte-scan puro) tem
+     * JVM/Script/JS/x86; riscv64/aarch64 = fatia B própria pendente (mesma
+     * condição de parada de S7c-1: sem cross-assembler/qemu no ambiente da
+     * lane — spec x86 pronta; NÃO escrever asm sem montar/rodar).
      */
     static boolean supportedOn(String function, Target target) {
+        if ("kof_uuid_isUuid".equals(function)
+                && (target == Target.NATIVE_RISCV64 || target == Target.NATIVE_AARCH64)) {
+            return false;
+        }
         return true;
     }
 
     static String gapCode(String function) {
-        return "SECN000";
+        return "kof_uuid_isUuid".equals(function) ? "UUID001" : "SECN000";
     }
 }

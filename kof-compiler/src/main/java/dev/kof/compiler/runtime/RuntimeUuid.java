@@ -96,5 +96,61 @@ public final class RuntimeUuid {
                 popq %rbx
                 ret
         """);
+        // kof_uuid_isUuid(rdi=str) -> 1/0 — predicado de forma (sem alocação):
+        // len 36, traços em 8/13/18/23, demais hex (0-9 a-f A-F). Paridade
+        // travada na matriz stduuidform (riscv/aarch = UUID001 até a fatia B).
+        sb.append("""
+            # kof_uuid_isUuid(rdi=str) -> 1/0 (forma 8-4-4-4-12, hex, traços
+            # fixos; version/variant NAO verificadas — mesma regra JVM/JS/x86)
+            .globl kof_uuid_isUuid
+            .type kof_uuid_isUuid, @function
+            kof_uuid_isUuid:
+                testq %rdi, %rdi
+                jz .Lv_uuid_f
+                cmpl $36, 16(%rdi)
+                jne .Lv_uuid_f
+                leaq 24(%rdi), %r8
+                xorq %rax, %rax
+            .Lv_uuid_i_loop:
+                cmpq $36, %rax
+                jge .Lv_uuid_t
+                # posicoes de traco fixas: 8/13/18/23 (testadas direto)
+                cmpq $8, %rax
+                je .Lv_uuid_i_dash
+                cmpq $13, %rax
+                je .Lv_uuid_i_dash
+                cmpq $18, %rax
+                je .Lv_uuid_i_dash
+                cmpq $23, %rax
+                je .Lv_uuid_i_dash
+                movzbl (%r8,%rax), %edx
+                # 48..57 | 65..70 | 97..102
+                cmpl $48, %edx
+                jl .Lv_uuid_f
+                cmpl $57, %edx
+                jle .Lv_uuid_next
+                cmpl $65, %edx
+                jl .Lv_uuid_f
+                cmpl $70, %edx
+                jle .Lv_uuid_next
+                cmpl $97, %edx
+                jl .Lv_uuid_f
+                cmpl $102, %edx
+                jg .Lv_uuid_f
+            .Lv_uuid_next:
+                incq %rax
+                jmp .Lv_uuid_i_loop
+            .Lv_uuid_i_dash:
+                cmpb $45, (%r8,%rax)
+                jne .Lv_uuid_f
+                incq %rax
+                jmp .Lv_uuid_i_loop
+            .Lv_uuid_t:
+                movl $1, %eax
+                ret
+            .Lv_uuid_f:
+                xorl %eax, %eax
+                ret
+        """);
     }
 }

@@ -343,6 +343,26 @@ public final class JvmStringMathRuntime {
                     return new String(c);
                 }
 
+                // isUuid: forma canônica 8-4-4-4-12 (36 chars, traços em
+                // 8/13/18/23, demais hex; maiúsculas aceitas; version/variant
+                // NÃO verificadas — predicado de forma, paridade travada na matriz).
+                public static boolean kof_uuid_isUuid(String v) {
+                    if (v == null || v.length() != 36) return false;
+                    for (int i = 0; i < 36; i++) {
+                        char c = v.charAt(i);
+                        if (i == 8 || i == 13 || i == 18 || i == 23) {
+                            if (c != '-') return false;
+                        } else if (!isUuidHex(c)) {
+                            return false;
+                        }
+                    }
+                    return true;
+                }
+
+                private static boolean isUuidHex(char c) {
+                    return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+                }
+
                 // ── kof.encoding (STDLIB S4.2b) — percent-encoding (RFC 3986) ──
                 // unreserved [A-Za-z0-9-_.~] preservado; todo outro byte UTF-8
                 // vira %XX (hex MAIÚSCULO). Espaço => %20 (não '+'). urlDecode é

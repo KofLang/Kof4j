@@ -105,6 +105,51 @@ class KofUuidTest {
             """);
     }
 
+    @Test
+    void isUuidShapeJvmJsNative(@TempDir Path tmp) throws Exception {
+        // isUuid = predicado de forma 8-4-4-4-12 (hex min ou maiúsculo;
+        // traços em 8/13/18/23; version/variant NÃO verificadas — paridade
+        // travada na matriz stduuidform). Última linha: v4() do próprio target.
+        String src = """
+            main() {
+                println(uuid.isUuid("550e8400-e29b-41d4-a716-446655440000"))
+                println(uuid.isUuid("550E8400-E29B-41D4-A716-446655440000"))
+                println(uuid.isUuid("550e8400e29b41d4a716446655440000"))
+                println(uuid.isUuid("550e8400xe29b-41d4-a716-446655440000"))
+                println(uuid.isUuid("550e8400-e29b-41d4-a716-44665544000g"))
+                println(uuid.isUuid(""))
+                println(uuid.isUuid(uuid.v4()))
+            }
+            """;
+        String gold = "true\ntrue\nfalse\nfalse\nfalse\nfalse\ntrue";
+        runJvm(tmp, src, gold);
+        runJs(tmp, src, gold);
+        runNative(tmp, src, gold);
+    }
+
+    @Test
+    void isUuidGatedOnCrossArch(@TempDir Path tmp) throws Exception {
+        // UUID001 (R6 — nunca silencioso): isUuid tem JVM/Script/JS/x86;
+        // riscv64/aarch64 aguardam a fatia B própria (spec x86 pronta).
+        String src = """
+            main() {
+                println(uuid.isUuid("550e8400-e29b-41d4-a716-446655440000"))
+            }
+            """;
+        Path gateSrc = tmp.resolve("UuidGate-" + System.nanoTime() + ".kf");
+        Files.writeString(gateSrc, src);
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            CompilationResult r = new CompilerDriver().compile(
+                    gateSrc, tmp.resolve("gate-" + t + "-" + System.nanoTime()), t);
+            assertFalse(r.success(), t + " deve rejeitar isUuid (UUID001)");
+            boolean has = r.diagnostics().getDiagnostics().stream()
+                    .anyMatch(d -> "UUID001".equals(d.code())
+                            || (d.message() != null && d.message().contains("UUID001")));
+            assertTrue(has, t + " deve reportar UUID001, veio: "
+                    + r.diagnostics().getDiagnostics());
+        }
+    }
+
     private static void assumeToolchain(String... tools) {
         for (String c : tools) {
             try {

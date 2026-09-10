@@ -104,6 +104,7 @@ dígito 19∈{8,9,a,b}), nunca por igualdade. v7/ulid ainda não existem.
 | encoding.base64* / base64Url* | ✅ | ✅ | ✅ (ENC002 fechado 09/09) | ✅ |
 | net.scheme/host/port/path/query/fragment + queryEncode/Decode | ✅ | ✅ | ✅ (NET001 fechado 09/09) | ✅ |
 | uuid.v4 | ✅ | ✅ | ✅ (SECN000 fechado 09/09) | ✅ |
+| uuid.isUuid (forma 8-4-4-4-12; version/variant não verificadas) | ✅ | ✅ | ❌ `UUID001` | ✅ |
 
 `strings.reverse` em não-ASCII: byte-reverso no Native vs UTF-16 no JVM/JS —
 gap **NAT-STR01** (paridade só travada em ASCII na matriz).

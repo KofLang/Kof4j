@@ -132,9 +132,17 @@ literais). Isso é decisão travada na matriz — não "jeitinho".
 var id = uuid.v4()
 println(id.length)              // 36
 // 8-4-4-4-12, dígito 13 == '4', 19º ∈ {8,9,a,b}
+
+uuid.isUuid(id)                 // true  — valida a FORMA
+uuid.isUuid("550e8400-e29b-41d4-a716-446655440000")  // true
+uuid.isUuid("não-é-uuid")       // false
 ```
 
-Não-determinístico por natureza: os testes travam **forma**, não igualdade.
+`v4()` é não-determinístico por natureza: os testes travam **forma**, não
+igualdade. `isUuid` é o inverso: predicado puro de forma (36 chars, traços
+em 8/13/18/23, hex min ou maiúsculo) — não verifica version/variant. Tem
+JVM/Script/JS/x86; riscv64/aarch64 ficam atrás do gap `UUID001` (fatia B
+própria pendente — o compilador recusa com código claro, nunca stub).
 
 ## validation — documentos BR, rede e cartão
 
@@ -214,6 +222,7 @@ spans nos 3 nativos).
 | `encoding.base64*` / `base64Url*` | ✅ | ✅ | ✅ | ✅ |
 | `net.*` (S8) | ✅ | ✅ | ✅ | ✅ |
 | `uuid.v4` | ✅ | ✅ | ✅ | ✅ |
+| `uuid.isUuid` (S3b.1, predicado de forma) | ✅ | ✅ | `UUID001` | ✅ |
 | `time.addDays` / `time.diffDays` (S7a/b/c, data ISO) | ✅ | ✅ | `TIME002` | ✅ |
 
 Gate = erro de compilação **com código** (R6 — nunca stub silencioso):

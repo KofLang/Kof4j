@@ -90,6 +90,7 @@
 > tolerante, spec única do x86/JVM/JS; `KofEncodingTest.base64RunsOnCrossArch`
 > prova riscv+aarch sob qemu) rodam nos 3 nativos + JVM + JS + Script.
 | stdlib kof.uuid (S3b: v4 — não-determinístico, SEM caso de matriz) | shape `xxxxxxxx-xxxx-4xxx-[89ab]xxx-xxxxxxxxxxxx` | ✅ assert | ✅ assert¹ | ✅ | ✅ assert (+riscv/aarch qemu) | `KofUuidTest` 4/4 |
+| stdlib kof.uuid (S3b.1: isUuid — predicado de forma 8-4-4-4-12, hex min/maiúsc, version/variant não verificadas; riscv/aarch = UUID001) | `true` / `true` / `false` / `false` / `false` / `false` / `true` | DONE | DONE | DONE | DONE | `stduuidform` |
 
 > `uuid.v4()` não entra na matriz equality (entropia): paridade provada por
 > ASSERTS DE SHAPE nos 3 targets testáveis (JVM/Native-x86/JS: length=36,

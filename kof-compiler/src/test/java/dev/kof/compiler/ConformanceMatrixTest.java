@@ -356,6 +356,21 @@ class ConformanceMatrixTest {
                     println(net.queryDecode("a%20b%26c%3D1"))
                 }
                 """, "https|host.io|8443|/p|q|f\n/only/path|onlyquery\na%20b%26c%3D1\na b&c=1", Set.of(), tempDir);
+        // STDLIB S3 — kof.uuid.isUuid (predicado de forma 8-4-4-4-12; hex min
+        // ou maiúsculo; version/variant NAO verificadas — so forma canonica).
+        // Deterministica => matriz nos 4 targets (riscv/aarch = UUID001 gate,
+        // nao alvo da matriz; ultima linha: v4() gerada no proprio target).
+        matrix("stduuidform", """
+                main() {
+                    println(uuid.isUuid("550e8400-e29b-41d4-a716-446655440000"))
+                    println(uuid.isUuid("550E8400-E29B-41D4-A716-446655440000"))
+                    println(uuid.isUuid("550e8400e29b41d4a716446655440000"))
+                    println(uuid.isUuid("550e8400xe29b-41d4-a716-446655440000"))
+                    println(uuid.isUuid("550e8400-e29b-41d4-a716-44665544000g"))
+                    println(uuid.isUuid(""))
+                    println(uuid.isUuid(uuid.v4()))
+                }
+                """, "true\ntrue\nfalse\nfalse\nfalse\nfalse\ntrue", Set.of(), tempDir);
         matrix("stdunescape", """
                 main() {
                     println(strings.unescapeHtml("a&amp;b"))
