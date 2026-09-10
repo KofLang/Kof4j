@@ -4563,6 +4563,30 @@ class CompilerDriverTest {
                 + result.diagnostics().getDiagnostics());
     }
 
+    // SG-002 — tokens mortos removidos: `~`, `=>`, `|>`, `::`, `...`, `_`,
+    // `sealed`/`permits` não são mais reconhecidos pelo lexer (erro limpo
+    // LEX005 — a gramática nunca os usou).
+    @Test
+    void deadTokensGiveCleanLexerError(@TempDir Path tempDir) throws IOException {
+        String[][] cases = {
+            {"main() { var x = ~5 }", "LEX005"},
+            {"main() { val f = (x) => x }", "PARSE041"},
+            {"main() { var y = xs |> f }", "PARSE041"},
+            {"main() { var z = A::b }", "PARSE041"},
+            // sealed agora é IDENTIFIER comum: falha no parse como função
+            {"sealed class S { }", "PARSE010"},
+        };
+        for (int i = 0; i < cases.length; i++) {
+            Path source = tempDir.resolve("T" + i + ".kf");
+            Files.writeString(source, cases[i][0]);
+            CompilationResult result = driver.compile(source, tempDir.resolve("out" + i), Target.JVM);
+            assertFalse(result.success(), "deve falhar: " + cases[i][0]);
+            String diags = result.diagnostics().getDiagnostics().toString();
+            assertTrue(diags.contains(cases[i][1]),
+                "esperava " + cases[i][1] + " para '" + cases[i][0] + "', foi: " + diags);
+        }
+    }
+
     // SG-018 (SEM044) — o entry point é SÓ `main()`: sem tipo de retorno,
     // sem modifiers. O IR emite public static void; a fonte nunca declara.
     @Test
