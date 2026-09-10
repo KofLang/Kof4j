@@ -854,6 +854,17 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 
   - time.addDays/diffDays no native x86 (RuntimeTimeIso — parse ISO + inversa civil Hinnant asm; round-trip exaustivo 1..9999 + fuzz C 200k) + gate TIME002 afunilado p/ riscv/aarch (precedente NET001) + matriz stdtime2 roda x86 local + docs; DOING.md
 
+## [0.3.14-beta] - 2026-09-10
+
+### Bugfixes
+
+  - transaction aninhado no native x86 não comita o escopo externo — .Ldb_tx_handle dono + flag-owner no record do try (paridade §77 JVM) + teste E2E sqlite; known-bugs/DOING
+
+### Documentation
+
+  - carry JS bool = false alarm (matriz stdmath prova println true/false no JS; isBoolOperand converte 1/0) — fechar após ler randomShapeJs
+  - PRÓXIMO PASSO refina S7c-1 (bloqueio qemu/toolchain documentado) + tarefa (B) paridade JS bool como próxima executável sem qemu
+
 <!-- NEXT-RELEASE -->
 
 ## [0.2.7-beta] - 2026-09-04
