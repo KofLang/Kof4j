@@ -66,10 +66,12 @@ de HB da §2 com os E2Es da §4 antes de sair de `experimental`.
 5. Cancelamento: `cancel` seguido de `cancelled()` observável na tarefa
    (borda 4) — coberto pelos testes existentes de handle.
 
-> **Estado atual das provas:** (1)(2)(5) já cobertos por `SpawnE2ETest`/
-> `KofConcurrency2Test` (canal JVM+Native, spawn/await cross-target).
-> (3)(4) a implementar — lane spec-gaps deixa o plano pronto; o gate de
-> exaustão (N×1000) é o único teste novo pesado.
+> **Estado atual das provas (validado 10/09):** (1)(2)(5) já cobertos por
+> `SpawnE2ETest`/`KofConcurrency2Test` (canal JVM+Native, spawn/await
+> cross-target). **(3) `staticsAreSequentiallyConsistent` (4×soma 0..999 =
+> 1998000, HB de await) e (4) `noWordTearingOnLong` (leitor nunca observa
+> valor parcial) IMPLEMENTADOS** — `KofConcurrency2Test:699/:737`, verde na
+> suíte (29/0/1-skip qemu). Todas as 5 bordas de HB da §2 têm prova.
 
 ## 5. O que NÃO é especificado (non-goals)
 

@@ -323,12 +323,24 @@ recomendações futuras (regra 14 da tarefa: não alterar comportamento).
   ou externa via import) → SEM045. Prova: `throwsUnknownTypeGivesCleanDiagnostic`
   + `throwsKnownTypeStaysGreen`.
 
-### SG-020 — Modelo de memória concorrente ausente
+### SG-020 — Modelo de memória concorrente ausente — ✅ CORRIGIDO 09/09 (spec) / validado 10/09
 
-- **Implementação**: `spawn`/`await`/`Channel` funcionam, mas não há definição
-  de happens-before/visibilidade/atomicidade.
-- **Recomendação**: para uma spec de conformidade, adotar um modelo (mesmo que
-  "sequentially consistent por target"). Hoje Unspecified.
+- **Implementação anterior**: `spawn`/`await`/`Channel` funcionavam, mas não
+  havia definição de happens-before/visibilidade/atomicidade.
+- **CORRIGIDO 09/09:** spec completa em
+  `docs/development/concurrency-memory-model.md` — SC em todos os targets,
+  6 regras de happens-before (spawn/await/channel/cancel/locais/race),
+  mapeamento por target (JMM virtual threads / x86-TSO futex / riscv-aarch
+  fence), non-goals (sem volatile/synchronized na superfície — Channel é a
+  abstração), DoD com provas. Interpretador: mapa de statics concorrente
+  (HB por campo).
+- **Validado 10/09 (varredura doc↔código):** as provas §4 do doc — (1)(2)(5)
+  cobertas por `SpawnE2ETest`/`KofConcurrency2Test` (spawn/await/channel
+  cross-target); (3) `staticsAreSequentiallyConsistent` (1998000) e
+  (4) `noWordTearingOnLong` (leitor nunca vê valor inválido) **já
+  implementados** em `KofConcurrency2Test:699/:737` (o doc §4 dizia
+  "(3)(4) a implementar" — desatualizado; corrigido no doc). Gate:
+  `KofConcurrency2Test` 29/0/1-skip (qemu) na suíte 1270/0-código.
 
 ---
 
