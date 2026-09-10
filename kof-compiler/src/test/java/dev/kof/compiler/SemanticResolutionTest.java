@@ -73,6 +73,11 @@ class SemanticResolutionTest {
                 {"http", "http.get()"},                        // precisa ≥1
                 {"cache", "cache.get()"},                      // precisa 1+
                 {"mq", "mq.publish()"},                        // precisa 2
+                {"security", "security.hash()"},               // precisa 1
+                {"orm", "orm.save()"},                         // precisa >=1
+                {"config", "config.get()"},                    // precisa 1
+                {"cache", "cache.put()"},                      // precisa 2
+                {"log", "log.info()"},                         // precisa >=1
         };
         for (String[] c : cases) {
             CompilationResult r = compile(tmp, c[0] + ".kf", "main() { " + c[1] + " }");
