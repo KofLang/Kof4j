@@ -960,4 +960,50 @@ class NativeE2ETest {
                 """);
         runNative(source, tempDir.resolve("out"), "233\n55357\n56832\n98");
     }
+
+    // bug 43 (metade substring, 10/09): substring conta code units UTF-16 no
+    // Native — igual ao JVM/JS. Testes SEM cortar par astral ao meio (corte de
+    // surrogate exige storage WTF-8 — sub-residual registrado, §43). Verificado
+    // contra o oracle JVM no mesmo programa (3/1/bc/cd/é idênticos).
+    @Test
+    void nativeStringSubstringUtf16(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+                main() {
+                    var s = "café"
+                    println(s.substring(1))
+                    println(s.substring(1).length)
+                    println(s.substring(3))
+                    var e = "a😀b"
+                    println(e.substring(0, 3).length)
+                    println(e.substring(1, 3))
+                    println(e.substring(3))
+                }
+                """);
+        runNative(source, tempDir.resolve("out"), "afé\n3\né\n3\n😀\nb");
+    }
+
+    // bug 43 (face indexOf/lastIndexOf, 10/09): índice em CODE UNITS UTF-16 no
+    // Native — igual ao JVM/Script (byte-based dava `a😀b.indexOf("c")`=10 vs
+    // 6). Needle vazio, needle maior, corte de par e casos-borda cobertos.
+    @Test
+    void nativeStringIndexOfUtf16(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+                main() {
+                    var e = "a😀b😀c"
+                    println(e.indexOf("c"))
+                    println(e.indexOf("b"))
+                    println(e.indexOf("😀c"))
+                    println(e.indexOf("z"))
+                    println(e.lastIndexOf("😀"))
+                    println(e.indexOf(""))
+                    println(e.lastIndexOf(""))
+                    println("café".indexOf("é"))
+                    println("abcdef".indexOf("abcdef"))
+                    println("abcdef".indexOf("abcdefg"))
+                }
+                """);
+        runNative(source, tempDir.resolve("out"), "6\n3\n4\n-1\n4\n0\n7\n3\n0\n-1");
+    }
 }
