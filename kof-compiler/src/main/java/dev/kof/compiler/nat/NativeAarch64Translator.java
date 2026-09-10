@@ -159,20 +159,11 @@ public final class NativeAarch64Translator {
                 if (parts[1].equals("w") && R.apply(rs).startsWith("x")) src = "w" + R.apply(rs).substring(1);
                 return List.of(indent + "scvtf " + dst + ", " + src);
             }
-<<<<<<< HEAD
-            // fcvt.d.l f0, t0 (int->double 64-bit unsigned-semântica aqui:
-            // valor em [0,2^53) — ucvtf x é fiel) — STDLIB S10 B27
-            if (parts.length == 3 && parts[1].equals("d") && parts[2].equals("l")) {
-                String[] args = rest.split(",");
-                String fd = args[0].trim();
-                String rs = R.apply(args[1].trim());
-                return List.of(indent + "ucvtf d" + fd.substring(1) + ", " + rs);
-=======
             if (parts.length == 3 && parts[1].equals("d") && (parts[2].equals("l") || parts[2].equals("w"))) {
                 String[] a = rest.split(","); // fcvt.d.l/w int->double (bug 82: faltava)
                 String src = parts[2].equals("w") ? "w" + R.apply(a[1].trim()).substring(1) : R.apply(a[1].trim());
                 return List.of(indent + "scvtf d" + a[0].trim().substring(1) + ", " + src);
->>>>>>> origin/beta-0.3.0
+
             }
             if (parts.length == 3 && (parts[1].equals("s") || parts[1].equals("d")) && (parts[2].equals("s") || parts[2].equals("d"))) {
                 // RV fcvt.<dst>.<src> (dest=parts[1]); bug 82: dst/src trocados.
