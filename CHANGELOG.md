@@ -899,6 +899,12 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 
   - stdvalidation ganha `isCpf==true`/`isCpf==false` — fecha a família flagged como FALTAM
 
+## [0.3.18-beta] - 2026-09-10
+
+### Documentation
+
+  - §80 fechado + endurecido (matrizes stdmath/stdstrings/stdvalidation); PRÓXIMO PASSO = S1b math Double (ou uuid.isUuid p/ risco menor)
+
 <!-- NEXT-RELEASE -->
 
 ## [0.2.7-beta] - 2026-09-04
