@@ -1,6 +1,6 @@
 # Known Bugs — handoff para o próximo agente
 
-> **Data:** 08/09/2026 · **Versão:** 0.3.1-beta. Este arquivo existe para que
+> **Data:** 10/09/2026 · **Versão:** 0.3.1-beta. Este arquivo existe para que
 > um agente (ou humano) pegue os bugs sem precisar redescobri-los. **Não são
 > características** — são bugs reais com reprodução mínima.
 >
@@ -9,7 +9,7 @@
 > | | |
 > |---|---|
 > | Abertos e atacáveis em JVM/JS | **5** — bugs 39, 45, 62, 63, 64 |
-> | Abertos, só reproduzíveis no Native | **7** — bugs 43, 44, 46, 48, 50, 59, 61 |
+> | Abertos, só reproduzíveis no Native | **5** — bugs 46, 48, 50, 59, 61 |
 > | Verificados corrigidos em 08/09 | **19** — bugs 1–8, 10–17, 19, 20, 26 |
 > | Não reverificados (faltou ambiente/setup) | bugs 9, 18, 21, 22, 23 |
 >
@@ -817,22 +817,26 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 - **Prova/repro:** `ConformanceMatrixTest.recordhash` (verde nos 4 targets: JVM, Script, JS e Native).
 - **Nota:** `a == b` (igualdade de conteúdo), `println(a)` (`P[x=1, y=2]`) e `a.hashCode() == b.hashCode()` agora têm paridade nos 3 targets.
 
-### 43. String no Native conta bytes UTF-8, JVM conta code units — PARCIAL (length ✅ UTF-16; `charAt` segue byte-UTF-8 no Native) — decisão de design STR001: convenção code units UTF-16 (paridade JVM/JS; `café`→4, `a😀b`→4)
+### 43. String no Native conta bytes UTF-8, JVM conta code units — CORRIGIDO x86_64 (10/09; `length` + `charAt` UTF-16) — decisão de design STR001: convenção code units UTF-16 (paridade JVM/JS; `café`→4, `a😀b`→4)
 
 - **Sintoma:** `var s = "café"; println(s.length); println(s.charAt(3))`: JVM → `4` / `233` (0xE9, code unit UTF-16 de `é`); **Native** → `5` / `195` (0xC3, 1º byte de `é` em UTF-8). `println(s + "!")` casa (`café!`) — só `length`/`charAt` divergem.
 - **Causa raiz:** as ops de string do Native são **byte/UTF-8** baseadas; as do JVM são **code-unit/UTF-16** baseadas. Mesma família do `STR001` (documentado p/ JVM `"Olá 😀".length`=6), mas aqui é **divergência cross-target** (Native ≠ JVM no MESMO programa) → paridade (regra 5).
 - **Prova/repro:** sweep cross-target 07/09 (caso `unicode-str`), Native x86_64.
-- **Correção (lane Native, decisão de design regra 6):** alinhar `length`/`charAt` a UMA convenção (code point ou code unit) nos 3 targets — é mudança de  , precisa de bump.
-- **⚠️ Estado REAL 10/09 (re-verificado na varredura de gaps):** `length` CORRIGIDA (UTF-16, `NativeE2ETest.nativeStringLengthUtf16`); **`charAt` continua byte-UTF-8 no Native** (`ConformanceMatrixTest.unicode` PARTIAL ativo: `charAt(3)` → 195 vs 233) — o título "✅ CORRIGIDO" cobria só a metade length. Falta: `kof_string_char_at` UTF-16 (decodificar o byte-lead e compor o code unit) — lane Native.
+- **Correção (lane Native, decisão de design regra 6):** alinhar `length`/`charAt` a UMA convenção (code point ou code unit) nos 3 targets — é mudança de contrato, precisa de bump.
+- **✅ CORRIGIDO 10/09 (x86_64):** `kof_string_length` UTF-16 (08/09, `NativeE2ETest.nativeStringLengthUtf16`) **E** `kof_string_char_at` agora percorre o UTF-8 decodificando cada sequência e devolvendo a **code unit UTF-16** da posição — 1/2/3 bytes → 1 unit, astral (4 bytes) → 2 (high surrogate `0xD800+((cp-0x10000)>>10)` / low `0xDC00+((cp-0x10000)&0x3FF)`). `café.charAt(3)`→233, `a😀b.charAt(1)`→55357, `charAt(2)`→56832, `charAt(3)`→98. Prova: `NativeE2ETest.nativeStringCharAtUtf16` + `ConformanceMatrixTest.unicode`/`unicode-astral` (native desbloqueado, 4 targets) + `BackendParityTest.unicode-str`.
+- **⚠️ Residual (lane Native riscv64/aarch64):** `kof_string_length`/`kof_string_char_at` no RISC-V (`NativeRiscvAsmRt0`/`Rt1`) ainda são **byte-based** — as faces riscv/aarch só rodam sob qemu (ausente no worker) e os testes cross-arch skipam/falham pelo bug 59. O fix x86_64 é o caminho; riscv/aarch seguem quando o toolchain estiver no ambiente. `substring` (todos os targets) ainda é byte-based — verificado por probe 10/09 (`café".substring(0,3).length` diverge) — face separada, ainda ABERTA.
 
-### 44. `println(double)` no Native x86_64 imprime 6 casas + `5` (JVM: 16 casas + `5.0`) — PARCIALMENTE CORRIGIDO (16 casas ✅); residuais CONFIRMADOS por probe 10/09 (lane Native)
+### 44. `println(double)` no Native x86_64 imprime 6 casas + `5` (JVM: 16 casas + `5.0`) — ✅ CORRIGIDO 10/09 (x86_64; faces (a) e (b) verificadas por probe pós-fix)
 
 - **Sintoma original:** `println(1.0/3.0); println(2.5*2.0); println(7.0/2.0)`: JVM → `0.3333333333333333` / `5.0` / `3.5`; **Native** → `0.333333` / `5` / `3.5`.
-- **Corrigido:** as 16 casas (`%.16g` em `RuntimePrintNum.emitPrintFloat`, usado por print float E double) — o caso `0.3333333333333333` bate (prova: ConformanceMatrixTest exclui native só pelas faces abaixo).
-- **⚠️ Residual (a) — `5` vs `5.0`:** `%.16g` omite o `.0` de inteiro-válido; o JVM (`Double.toString`) imprime `5.0`. Repro probe 10/09: `println(2.5 * 2.0)` → native `5`, JVM `5.0`. Correção esperada: pós-processar a saída do `%.16g` (se sem `.`/`e`/`inf`/`nan` → append `.0`) no `kof_print_double`/`kof_double_to_string` — mesmo contrato JDK (a parte `5` vs `5.0` do JS é documentada como "parece bug mas é esperado" e fica).
-- **⚠️ Residual (b) — ORDEM de stdout corrompida (mix printf/write):** `kof_print_double` usa `printf` (buffered stdio) enquanto `kof_print_int`/`kof_print` (String) usam syscall `write` direto → qualquer programa que misture println(double) com println(Int)/println(String) imprime FORA DE ORDEM. Repro probe 10/09: `print(2.5*2.0); println(0); println(5.0); println(2.5*2.0)` → native `50\n5\n5\n` (o 1º double saiu DEPOIS do `0` e o `print` colou no `println(0)`), JVM `5.00\n5.0\n5.0\n`. Correção esperada: OU `fflush(stdout)` após cada printf OU (melhor, sem stdio) converter double→string com o MESMO caminho `kof_double_to_string` + `write` do resto do runtime. A face (b) pode reordenar QUALQUER saída — prioridade maior que (a).
-- **Prova/repro:** probes `Fp44`/`Fp44c` 10/09 (código no known-bugs acima); sweep cross-target 07/09 (caso `float-print`).
-- **Nota JS:** `println(2.5*2.0)` → `5` no JS é o `String(5.0)`="5" documentado ("parecem bugs mas são esperados") — NÃO é bug; só o Native diverge do JVM aqui.
+- **✅ CORRIGIDO 10/09 (commit `5ae263d1`, `RuntimePrintNum`):**
+  - **16 casas:** `%.16g` em `kof_print_double`/`kof_print_float` — `1.0/3.0` → `0.3333333333333333` (casa com o JVM).
+  - **face (a) `5` vs `5.0`:** pós-processamento — inteiro-válido (saída sem `.`/`e`/`nan`/`inf`) ganha `.0` — `println(2.5*2.0)` → `5.0` (contrato JDK `Double.toString`).
+  - **face (b) reordenação stdout:** `kof_print_double`/`kof_print_float` abandonam `printf` (buffered stdio) e emitem via o mesmo caminho `snprintf` + syscall `write` dos Int/String — misturar `println(double)` com `println(Int)`/`println(String)` NÃO reordena mais. Probe `Fp44c` 10/09 (pós-fix): `print(2.5*2.0); println(0); println(5.0); println(2.5*2.0)` → `5.0 0 5.0 5.0` (ordem preservada; o reprodutor antigo dava `50\n5\n5\n`).
+  - `float` imprime como `double` (`cvtss2sd` antes de formatar) — paridade JVM.
+- **Prova:** `ConformanceMatrixTest.floatprint` (native desbloqueado, JVM+Native+Script verde; KofJS segue excluído: doc "parece bug mas é esperado" — JS `String(5.0)` = `"5"`) + probes `Fp44`/`Fp44c` 10/09.
+- **Nota:** a parte `5` vs `5.0` do JS fica documentada como esperado (não é bug); só o Native divergia do JVM.
+- **Residual:** faces riscv64/aarch64 não re-verificadas (qemu ausente no worker) — o formato do double no RISC-V segue o path anterior até o toolchain chegar; bug 59 bloqueia a verificação cross-arch de qualquer jeito.
 
 ### 45. `finally` com `return` no try: JVM/interpretador DESCARTAM o efeito colateral do finally (JS correto) — ABERTO (lane lowerers) — bug de PARIDADE desde o fix de 07/09
 

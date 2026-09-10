@@ -941,4 +941,23 @@ class NativeE2ETest {
                 """);
         runNative(source, tempDir.resolve("out"), "4\n4");
     }
+
+    // bug 43 (metade char_at, 10/09): charAt conta code units UTF-16 no Native
+    // x86_64 — igual ao JVM/JS. café.charAt(3)=233 (é), astral: charAt(1)=
+    // 55357 (surrogate high), charAt(2)=56832 (surrogate low).
+    @Test
+    void nativeStringCharAtUtf16(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+                main() {
+                    var s = "café"
+                    println(s.charAt(3))
+                    var e = "a😀b"
+                    println(e.charAt(1))
+                    println(e.charAt(2))
+                    println(e.charAt(3))
+                }
+                """);
+        runNative(source, tempDir.resolve("out"), "233\n55357\n56832\n98");
+    }
 }

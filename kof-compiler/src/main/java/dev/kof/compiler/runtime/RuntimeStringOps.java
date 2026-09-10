@@ -11,20 +11,145 @@ public final class RuntimeStringOps {
     private RuntimeStringOps() {}
 
     public static void emitStringCharAt(StringBuilder sb) {
+        // bug 43 (metade char_at): s.charAt(i) no JVM/JS devolve o CODE UNIT
+        // UTF-16 na posição i — não o byte UTF-8 cru. O runtime guarda bytes
+        // UTF-8; caminhamos do início: sequência 1/2/3 bytes consume 1 code
+        // unit, astral (4 bytes) consume 2 (high+low surrogate). O índice
+        // pedido conta CODE UNITS; ao alcançá-lo devolvemos o code unit da
+        // posição (high half se o par astral começa aqui, low half senão).
         sb.append("""
             .globl kof_string_char_at
             .type kof_string_char_at, @function
             kof_string_char_at:
-                movl 16(%rdi), %edx
-                cmpl %edx, %esi
-                jge .Lkof_strcharAt_bounds
+                pushq %rbx
+                pushq %r12
+                pushq %r13
+                movl 16(%rdi), %r10d      # byteLen (bytes UTF-8)
+                leaq 24(%rdi), %r11       # chars base
                 testl %esi, %esi
                 jl .Lkof_strcharAt_bounds
-                movzbl 24(%rdi,%rsi), %eax
+                xorl %ebx, %ebx           # byteOff = 0
+                xorl %r12d, %r12d         # units consumidos
+            .Lkof_strcharAt_walk:
+                cmpl %r10d, %ebx
+                jge .Lkof_strcharAt_bounds
+                cmpl %esi, %r12d
+                jge .Lkof_strcharAt_at
+                movzbl (%r11,%rbx), %eax  # lead byte
+                movb %al, %r13b
+                andb $0x80, %r13b
+                jz .Lkof_strcharAt_adv1
+                movb %al, %r13b
+                andb $0xE0, %r13b
+                cmpb $0xC0, %r13b
+                je .Lkof_strcharAt_adv2
+                movb %al, %r13b
+                andb $0xF0, %r13b
+                cmpb $0xE0, %r13b
+                je .Lkof_strcharAt_adv3
+                leal 1(%r12), %eax        # astral: 2 code units
+                cmpl %esi, %eax
+                je .Lkof_strcharAt_low
+                addl $2, %r12d
+                addl $4, %ebx
+                jmp .Lkof_strcharAt_walk
+            .Lkof_strcharAt_adv1:
+                addl $1, %r12d
+                addl $1, %ebx
+                jmp .Lkof_strcharAt_walk
+            .Lkof_strcharAt_adv2:
+                addl $1, %r12d
+                addl $2, %ebx
+                jmp .Lkof_strcharAt_walk
+            .Lkof_strcharAt_adv3:
+                addl $1, %r12d
+                addl $3, %ebx
+                jmp .Lkof_strcharAt_walk
+            .Lkof_strcharAt_at:
+                movzbl (%r11,%rbx), %eax
+                movb %al, %r13b
+                andb $0x80, %r13b
+                jz .Lkof_strcharAt_ret
+                movb %al, %r13b
+                andb $0xE0, %r13b
+                cmpb $0xC0, %r13b
+                je .Lkof_strcharAt_dec2
+                movb %al, %r13b
+                andb $0xF0, %r13b
+                cmpb $0xE0, %r13b
+                je .Lkof_strcharAt_dec3
+                jmp .Lkof_strcharAt_high
+            .Lkof_strcharAt_high:
+                movzbl (%r11,%rbx), %eax
+                andl $0x07, %eax
+                shll $18, %eax
+                movzbl 1(%r11,%rbx), %ecx
+                andl $0x3F, %ecx
+                shll $12, %ecx
+                orl %ecx, %eax
+                movzbl 2(%r11,%rbx), %ecx
+                andl $0x3F, %ecx
+                shll $6, %ecx
+                orl %ecx, %eax
+                movzbl 3(%r11,%rbx), %ecx
+                andl $0x3F, %ecx
+                orl %ecx, %eax
+                subl $0x10000, %eax
+                shrl $10, %eax
+                addl $0xD800, %eax
+                jmp .Lkof_strcharAt_ret
+            .Lkof_strcharAt_low:
+                movzbl (%r11,%rbx), %eax
+                andl $0x07, %eax
+                shll $18, %eax
+                movzbl 1(%r11,%rbx), %ecx
+                andl $0x3F, %ecx
+                shll $12, %ecx
+                orl %ecx, %eax
+                movzbl 2(%r11,%rbx), %ecx
+                andl $0x3F, %ecx
+                shll $6, %ecx
+                orl %ecx, %eax
+                movzbl 3(%r11,%rbx), %ecx
+                andl $0x3F, %ecx
+                orl %ecx, %eax
+                subl $0x10000, %eax
+                andl $0x3FF, %eax
+                addl $0xDC00, %eax
+                jmp .Lkof_strcharAt_ret
+            .Lkof_strcharAt_dec2:
+                movzbl (%r11,%rbx), %eax
+                andl $0x1F, %eax
+                shll $6, %eax
+                movzbl 1(%r11,%rbx), %ecx
+                andl $0x3F, %ecx
+                orl %ecx, %eax
+                jmp .Lkof_strcharAt_ret
+            .Lkof_strcharAt_dec3:
+                movzbl (%r11,%rbx), %eax
+                andl $0x0F, %eax
+                shll $12, %eax
+                movzbl 1(%r11,%rbx), %ecx
+                andl $0x3F, %ecx
+                shll $6, %ecx
+                orl %ecx, %eax
+                movzbl 2(%r11,%rbx), %ecx
+                andl $0x3F, %ecx
+                orl %ecx, %eax
+                jmp .Lkof_strcharAt_ret
+            .Lkof_strcharAt_ret:
+                popq %r13
+                popq %r12
+                popq %rbx
                 ret
             .Lkof_strcharAt_bounds:
-                movl %esi, %edi
-                movl 16(%rdi), %esi
+                popq %r13
+                popq %r12
+                popq %rbx
+                movl %esi, %r13d
+                call kof_string_length
+                movl %eax, %esi
+                movl %r13d, %edi
                 call kof_bounds_error
             """);
     }
