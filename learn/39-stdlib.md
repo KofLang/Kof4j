@@ -152,6 +152,18 @@ em 8/13/18/23, hex min ou maiúsculo) — não verifica version/variant. Tem
 JVM/Script/JS/x86; riscv64/aarch64 ficam atrás do gap `UUID001` (fatia B
 própria pendente — o compilador recusa com código claro, nunca stub).
 
+## uuid — v7 (S3b.2, RFC 9562)
+
+```kof
+var id = uuid.v7()          // ordenável por tempo: 48 bits de unix-ts-ms no início
+println(id.charAt(14))      // '7' (versão)
+```
+
+Mesmo shape 8-4-4-4-12 do v4, mas os 12 primeiros hex codificam o relógio
+(epoch-ms big-endian), então v7's gerados em sequência são ordenáveis.
+Variante 10xx (19º ∈ {8,9,a,b}) como no v4. Entropia só do SO (SecureRandom /
+getrandom / crypto — R11).
+
 ## uuid — isUuid (S3b-ext)
 
 ```kof
@@ -295,7 +307,7 @@ spans nos 3 nativos).
 | `math.*`, `strings.is*/count/capitalize/reverse/repeat/truncate/pad*/escapeHtml`, `toCamel/Pascal/Snake/Kebab/slugify`, `encoding.hex*/url*`, `time.isLeapYear/daysInMonth/dayOfWeek/daysBetween`, `validation.isCpf/isCnpj/isCep/isPis/isIpv4/isIpv6/isMac/isPort/isCreditCard/isDomain` | ✅ | ✅ | ✅ | ✅ |
 | `encoding.base64*` / `base64Url*` | ✅ | ✅ | ✅ | ✅ |
 | `net.*` (S8) | ✅ | ✅ | ✅ | ✅ |
-| `uuid.v4` | ✅ | ✅ | ✅ | ✅ |
+| `uuid.v4` / `uuid.v7` | ✅ | ✅ | ✅ | ✅ |
 | `random.randomInt/randomBoolean/randomString` (face beta S10a/b) | ✅ | ✅ | ✅ | ✅ |
 | `random.double/boolean/int/hex` (face main S10) | ✅ | ✅ | ✅ (B27) | ✅ |
 | `uuid.isUuid` (S3b.1, predicado de forma) | ✅ | ✅ | ✅ (B25) | ✅ |

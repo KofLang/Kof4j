@@ -2180,6 +2180,30 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   atinge TODOS os targets — código de usuário que usa `5.toDouble()` no JVM
   pararia de compilar → é mudança de contrato, bump).
 
+### 90. `KofWebHardeningTest.sse_events_sent_counter_tracks_calls` é FLAKY sob carga da suíte completa (espera 3, obtém 2) — ABERTO (lane web; não-correlacionado com a varredura STDLIB, achado 10/09)
+
+- **Sintoma:** na suíte completa (`mvn test` 4 módulos, ~1281 testes rodando
+  juntos) o caso `sse_events_sent_counter_tracks_calls` (KofWebHardeningTest
+  linha ~395) falha `expected: <3> but was: <2>` — o contador de eventos SSE
+  enviados fica 1 atrás no momento da asserção. **Passa 3/3 quando rodado
+  isolado** (`-Dtest='KofWebHardeningTest#sse_events_sent_counter_tracks_calls'`,
+  8–9s cada) — medido 10/09.
+- **Diagnóstico:** não-correlacionado com a varredura STDLIB (uuid/parse
+  string/asm cross — nenhum toca web/SSE). O padrão "espera 3 obtém 2, verde
+  isolado, vermelho sob carga" é corrida de despacho/contagem do servidor SSE
+  no teste: a asserção lê o contador antes do último write ter sido
+  contabilizado sob contenção de CPU da suíte paralela. (Investigação da causa
+  raiz exata = lane web.)
+- **Menor repro:** roda a suíte completa com qemu (carga alta) → o caso cai
+  com 2; roda isolado → verde. Não consegui reproduzir isolado em 3 tentativas
+  (10/09).
+- **Não corrigido aqui (regra 3):** não "conserto o teste para passar" (não
+  é minha lane nem tenho a causa raiz do despacho SSE); registrado com
+  evidência p/ a lane web. Suspeito de asserção sem sincronização — provável
+  fix = esperar o contador convergir (poll com timeout) em vez de ler 1x, OU
+  eliminar a corrida no contador do handler. Se a causa raiz for um undercount
+  real (evento perdido), aí é bug de funcionalidade da lane web.
+
 
 ### 95. Native: 2+ `String.split` no mesmo programa → assembler "already defined" (COMP001) — ✅ CORRIGIDO 10/09 (x86_64; varredura de paridade String)
 

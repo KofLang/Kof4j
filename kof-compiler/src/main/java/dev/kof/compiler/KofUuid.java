@@ -38,6 +38,9 @@ public final class KofUuid {
                     ? new UuidCall("kof_uuid_isUuid", BOOL, List.of(STR)) : null;
             case "v4" -> argTypes.isEmpty()
                     ? new UuidCall("kof_uuid_v4", STR, List.of()) : null;
+            // S3b.2: v7 (RFC 9562) — ts 48 bits + rand_a/ver + rand_b/variante.
+            case "v7" -> argTypes.isEmpty()
+                    ? new UuidCall("kof_uuid_v7", STR, List.of()) : null;
             default -> null;
         };
     }
@@ -53,10 +56,16 @@ public final class KofUuid {
      * KofUuidTest.isUuidCrossArch (assert sob qemu — bug 59 no println).
      */
     static boolean supportedOn(String function, Target target) {
+        // v7 (S3b.2): JVM/SCRIPT/JS têm o emit (SecureRandom / Date.now /
+        // crypto). Os 3 nativos ainda não têm fatia asm — UUID001 os bloqueia
+        // com código de erro (R6: nunca link-quebrado silencioso, lição §89).
+        // S3b.2 FEITO nos 5 alvos 10/09: JVM/SCRIPT (SecureRandom), JS
+        // (Date.now+randomBytesHex), x86_64 (RuntimeUuid), riscv64 B25b +
+        // aarch64 (tradutor). Gate removido; supportedOn volta se outro gap.
         return true;
     }
 
     static String gapCode(String function) {
-        return "SECN000";
+        return "kof_uuid_v7".equals(function) ? "UUID001" : "SECN000";
     }
 }

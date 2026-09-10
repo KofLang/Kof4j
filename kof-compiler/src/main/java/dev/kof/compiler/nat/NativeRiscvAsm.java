@@ -45,6 +45,7 @@ public final class NativeRiscvAsm {
                 .append(NativeRiscvAsmRtB23.RISCV_RUNTIME_ASM_B_23)
                 .append(NativeRiscvAsmRtB24.RISCV_RUNTIME_ASM_B_24)
                 .append(NativeRiscvAsmRtB25.RISCV_RUNTIME_ASM_B_25)
+                .append(NativeRiscvAsmRtB25b.RISCV_RUNTIME_ASM_B_25B)
                 .append(NativeRiscvAsmRtB26.RISCV_RUNTIME_ASM_B_26)
                 .append(NativeRiscvAsmRtB27.RISCV_RUNTIME_ASM_B_27)
                 .append(NativeRiscvAsmRtB28.RISCV_RUNTIME_ASM_B_28)
