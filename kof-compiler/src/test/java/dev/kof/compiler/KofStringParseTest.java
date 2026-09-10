@@ -210,4 +210,79 @@ main() {
 }    """;
 
     private static final String FP_EXPECTED = "true\ntrue\ntrue\ntrue\ntrue\ntrue\nT1\nT2\ntrue\ntrue\nT3\ntrue\ntrue\ntrue\ntrue\ntrue\nfalse\ntrue\ntrue\ntrue\nT5\nT6\nT7\ntrue\ntrue";
+    // === bug 82 (face cross): riscv64/aarch64 definem kof_string_to_double/float
+    // (NativeRiscvAsmRtB31, espelho do x86 RuntimeStringParseFp). Oracle SEM
+    // print de double (print double segue FLT001 no cross) — throw vira var +
+    // comparacao booleana que da o MESMO marker T# se o parse lancar (R6).
+    // Esperado = JVM/x86/JS medido 10/09, idêntico nos 5 alvos (25 vetores).
+    @Test
+    void toDoubleToFloatContractRiscv64(@TempDir Path tmp) throws Exception {
+        runFpCross("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64",
+                Target.NATIVE_RISCV64, "qemu-riscv64", tmp, "out-fp-riscv");
+    }
+
+    @Test
+    void toDoubleToFloatContractAarch64(@TempDir Path tmp) throws Exception {
+        runFpCross("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64",
+                Target.NATIVE_AARCH64, "qemu-aarch64", tmp, "out-fp-aarch");
+    }
+
+    private void runFpCross(String asBin, String ldBin, String qemu, Target t,
+            String qemuBin, Path tmp, String outName) throws Exception {
+        java.util.List<String> missing = new java.util.ArrayList<>();
+        for (String b : new String[]{asBin, ldBin, qemu}) {
+            boolean ok = false;
+            try {
+                Process c = new ProcessBuilder("which", b).redirectErrorStream(true).start();
+                String o = new String(c.getInputStream().readAllBytes()).trim();
+                ok = !o.isEmpty() && c.waitFor() == 0;
+            } catch (Exception e) { /* ausente */ }
+            if (!ok) missing.add(b);
+        }
+        org.junit.jupiter.api.Assumptions.assumeTrue(missing.isEmpty(),
+                "toolchain cross ausente: " + missing);
+        Path src = tmp.resolve("Main.kf");
+        Files.writeString(src, FP_CROSS_GOLDEN);
+        Path out = tmp.resolve(outName);
+        CompilationResult r = driver.compile(src, out, t);
+        assertTrue(r.success(), t + " fp cross compile: " + r.diagnostics().getDiagnostics());
+        Process p = new ProcessBuilder(qemuBin, out.resolve("Default/Main").toString())
+                .redirectErrorStream(true).start();
+        String output = new String(p.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).trim();
+        int ec = p.waitFor();
+        assertEquals(0, ec, t + " fp cross exit " + ec + ": " + output);
+        assertEquals(FP_CROSS_EXPECTED, output, t + " fp cross stdout");
+    }
+
+    private static final String FP_CROSS_GOLDEN = """
+main() {
+    println("0.3".toDouble() == 0.3)
+    println("123.456".toDouble() == 123.456)
+    println("1.5e2".toDouble() == 150.0)
+    println("-1.5e-2".toDouble() == -0.015)
+    println("Infinity".toDouble() > 1e300)
+    println("-Infinity".toDouble() < -1e300)
+    try { var d1 = "infinity".toDouble(); println(d1 == 1.0); println("S1") } catch (String e) { println("T1") }
+    try { var d2 = "Inf".toDouble(); println(d2 == 1.0); println("S2") } catch (String e) { println("T2") }
+    println("5.e3".toDouble() == 5000.0)
+    println("1e3".toDouble() == 1000.0)
+    try { var d3 = "1e".toDouble(); println(d3 == 1.0); println("S3") } catch (String e) { println("T3") }
+    println(" 1.5 ".toDouble() == 1.5)
+    println("+2.25".toDouble() == 2.25)
+    println("0.1".toDouble() + "0.2".toDouble() == 0.30000000000000004)
+    println(".5".toDouble() == 0.5)
+    println("5.".toDouble() == 5.0)
+    println("NaN".toDouble() == "NaN".toDouble())
+    println("1e400".toDouble() > 1e300)
+    println("1e-400".toDouble() == 0.0)
+    println("2.5".toFloat() == 2.5)
+    try { var f1 = "abc".toFloat(); println(f1 == 1.0); println("S5") } catch (String e) { println("T5") }
+    try { var d4 = "abc".toDouble(); println(d4 == 1.0); println("S6") } catch (String e) { println("T6") }
+    try { var d5 = "1.2.3".toDouble(); println(d5 == 1.0); println("S7") } catch (String e) { println("T7") }
+    println("7".toDouble() == 7.0)
+    println("1e3".toFloat() == 1000.0)
+}
+    """;
+    private static final String FP_CROSS_EXPECTED = "true\ntrue\ntrue\ntrue\ntrue\ntrue\nT1\nT2\ntrue\ntrue\nT3\ntrue\ntrue\ntrue\ntrue\ntrue\nfalse\ntrue\ntrue\ntrue\nT5\nT6\nT7\ntrue\ntrue";
 }

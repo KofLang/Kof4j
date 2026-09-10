@@ -1838,7 +1838,7 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   `v` impresso adicionado aos golden cross-arch dos testes do 79
   (riscv64StringToInt/aarch64StringToInt) + `KofStringParseTest` (3 alvos).
 
-### 82. Native: `String.toDouble/toFloat` fora do contrato JVM — parser x86 silencioso-e-errado; riscv/aarch nem definem os símbolos — PARCIALMENTE CORRIGIDO 10/09 (irmão FP do bug 79; mesma família, varredura STDLIB)
+### 82. Native: `String.toDouble/toFloat` fora do contrato JVM — parser x86 silencioso-e-errado; riscv/aarch nem definem os símbolos — ✅ CORRIGIDO 10/09 (as duas faces; irmão FP do bug 79, varredura STDLIB)
 
 - **Contrato previsto** (congelado, tabela "PAREcem bugs" deste arquivo —
   `Double/Float.parseFloat(s.trim())`, exceção=String em inválido — e o teste
@@ -1880,13 +1880,19 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   hex-float (`0x1p3`) lança (JVM parseia). Paridade bit-exata p/ casos fora
   disso exige o algoritmo big-int shortest-round-trip do JDK → família
   FLT001. exp |e|>320 satura a 0/Infinity (JVM idem).
-- **PENDENTE (face cross):** riscv/aarch precisam de `to_double/to_float`
-  reais — depende de FP RV64 (`fadd.d`/`fmul.d`/`fcvt.*`) no conjunto do
-  tradutor aarch (parcialmente presente: `NativeRiscvCrossOps` usa fcvt).
-  Não é link-fail silencioso (COMP001 honesto), mas programa válido não
-  linka. Registrado p/ lane NATIVE002/FLT001 com este §82 como spec.
-  Menor repro: `main() { println("2.5".toDouble()) }` em riscv → COMP001
-  undefined reference; em x86 pré-fix: `"abc".toDouble()` → 5451.
+- **Correção face cross FEITA 10/09:** `NativeRiscvAsmRtB31` novo (parser
+  riscv espelho do x86 — trim/sinal/digito/um-ponto/expoente/NaN-Infinity/
+  throw; mantissa int64 + 1 divisão por 10^nfrac; retorno cross = Double em
+  bits-raw `a0`, Float em low32). Duas admissões corrigidas no tradutor aarch:
+  `fcvt.d.l` **faltava** (int64→double; o L2D do backend riscv a usa — nunca
+  exercitado por causa do gate FLT001) e `fcvt.s.d`/`fcvt.d.s` estavam com
+  **dst/src invertidos** (todo F2D/D2F do aarch corromperia) + operadores
+  `fdiv.`/`fmul.` com ponto extra. Prova: oracle de 25 vetores **JVM==x86==
+  riscv==aarch==JS** byte-a-byte (`KofStringParseTest` 8/8, os 2 cross via
+  qemu). Print de Double no cross segue FLT001 (double→string exige
+  snprintf); `Int/Long.toDouble()` boxing segue `toDouble` undefined (gap
+  separado, família FLT001). Menor repro pré-fix: riscv `"2.5".toDouble()` →
+  COMP001 `undefined reference to kof_string_to_double`.
 
 ### 81. KofJS: `Long` é `Number` (double 53-bit) — `"...".toLong()` acima de ±2^53 perde precisão e NÃO lança overflow — ABERTO (paridade R5 cross-target)
 

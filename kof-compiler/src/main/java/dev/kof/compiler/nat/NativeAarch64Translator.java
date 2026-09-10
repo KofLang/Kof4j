@@ -159,13 +159,19 @@ public final class NativeAarch64Translator {
                 if (parts[1].equals("w") && R.apply(rs).startsWith("x")) src = "w" + R.apply(rs).substring(1);
                 return List.of(indent + "scvtf " + dst + ", " + src);
             }
-            if (parts.length == 3 && (parts[1].equals("s") || parts[1].equals("d")) && (parts[2].equals("s") || parts[2].equals("d"))) {
-                // fcvt.s.d f0, f0 -> fcvt d0, s0
+            if (parts.length == 3 && parts[1].equals("d") && (parts[2].equals("l") || parts[2].equals("w"))) {
+                // fcvt.d.l/w (int->double): aarch scvtf dN, X/Wm
                 String[] args = rest.split(",");
-                String fd = args[0].trim();
-                String fs = args[1].trim();
-                String dst = parts[2].equals("s") ? "s" + fd.substring(1) : "d" + fd.substring(1);
-                String src = parts[1].equals("s") ? "s" + fs.substring(1) : "d" + fs.substring(1);
+                String src = parts[2].equals("w") ? "w" + R.apply(args[1].trim()).substring(1) : R.apply(args[1].trim());
+                return List.of(indent + "scvtf d" + args[0].trim().substring(1) + ", " + src);
+            }
+            if (parts.length == 3 && (parts[1].equals("s") || parts[1].equals("d")) && (parts[2].equals("s") || parts[2].equals("d"))) {
+                // RV fcvt.<dst>.<src> fd,fs (dest=parts[1]). CORRIGIDO 10/09
+                // (bug 82): antes trocava dst/src ('fcvt d0, s0' -> 'fcvt s0,
+                // d0') — truncava silencioso todo F2D/D2F no aarch64.
+                String[] args = rest.split(",");
+                String dst = parts[1].equals("s") ? "s" + args[0].trim().substring(1) : "d" + args[0].trim().substring(1);
+                String src = parts[2].equals("s") ? "s" + args[1].trim().substring(1) : "d" + args[1].trim().substring(1);
                 return List.of(indent + "fcvt " + dst + ", " + src);
             }
         }
@@ -212,7 +218,7 @@ public final class NativeAarch64Translator {
             }
         }
         if (mn.startsWith("fadd.") || mn.startsWith("fsub.") || mn.startsWith("fmul.") || mn.startsWith("fdiv.")) {
-            String op = mn.substring(1, 5); // add, sub, mul, div
+            String op = mn.substring(1, 4); // add, sub, mul, div (sem o '.')
             String suffix = mn.substring(5); // .s ou .d
             String[] args = rest.split(",");
             String fd = args[0].trim(), fs1 = args[1].trim(), fs2 = args[2].trim();
