@@ -1938,6 +1938,34 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   retorna BOOL → código errado). Revertido ao path genérico — o `assert`
   NÃO usa shortcut; testes verdes depois.
 
+### 88. riscv64/aarch64: `Map.get()` imprime `0`/segv — `String.valueOf(T?)` no cross não emite (SG-008/87 parcial) — ✅ CORRIGIDO 10/09 (regra zero-regressão; achado na varredura STDLIB ao bisectar o gate da suíte)
+
+- **Sintoma:** após `9436da12` (SG-008, `Map.get()` devolve `V?`), o
+  `riscv64MapSet`/`aarch64MapSet` (qemu) passaram a dar **SIGSEGV** e o
+  `println(m.get(k))` imprimia `0` — green→red. x86 e JVM estavam corretos
+  (o MESMO commit corrigiu o `valueOf` x86 e o `println` instance).
+- **Causa raiz:** `NativeRiscvCrossOps` — o branch `String.valueOf` (STATIC)
+  despachava sobre `argType` sem unwrappar `Nullable`. Com `V?`, o
+  `valueOf(m.get(k))` recebia `Nullable(Int)`, não casava
+  `instanceof PrimitiveType` e **não emitia nada** (sem `pop`, sem conversão):
+  o raw `Int` ficava na pilha e o `println` seguinte tratava-o como
+  ponteiro de string → segv (ou `0` quando o Int era 0). O próprio commit
+  do bug 87 já tinha aplicado o `dispatchType` (unwrap) ao `println`
+  instance (linha ~116) e ao `NativeX86Calls` (x86), mas **esqueceu esse
+  branch cross** — a mesma classe de defeito, alvo diferente.
+- **Correção:** mesmo unwrap já presente no `println` cross e no x86:
+  `Type vArgType = argType instanceof Type.NullableType nt ? nt.inner() : argType`.
+  (A decisão `Map.get()`→`V?` é do maintainer/SG-008 — este fix é alinhar o
+  código cross ao comportamento já decidido, não é escolha de design:
+  "bug = alinhar ao previsto, nunca o contrário".)
+- **Prova:** `riscv64MapSet`/`aarch64MapSet` 28/28 verdes de novo;
+  `println(m.get(k))` cross == x86 == JVM nos vetores 0/1/2; `m.get("a")==1`,
+  `m.get("zz")==null`, `println(m.get("zz"))` cross == JVM (exit 0).
+  Nota: a saída `0` vs `null` para `mapOf()` **sem tipo** é semântica do
+  JVM (KofMap.put sem tipo-erasure; `get` ausente → 0), idêntica entre os
+  alvos — **não** é divergência cross; registrar como gap de semântica
+  `mapOf()`-vazio (se a mantenedora quiser `null` ali, é decisão SG-00x).
+
 ### 62. Constant pool: Float/Double armazenados como bits crus (parser de migração) — ✅ CORRIGIDO 08/09
 
 - **Sintoma:** `kof inspect`/`kof decompile` de um `.class` com constante

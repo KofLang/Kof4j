@@ -141,7 +141,15 @@ public final class NativeRiscvCrossOps {
 
         // String.valueOf (STATIC)
         if (kc.kind() == KofCallKind.STATIC && "valueOf".equals(mn)) {
-            if (argType instanceof Type.PrimitiveType pt) {
+            // T? (Map.get→V? desde SG-008/bug 87): despacho pelo INNER. Sem
+            // isso, valueOf(m.get(k)) com V?=Int nao casava o branch primitivo
+            // e nao emitia NADA — o raw Int ficava na pilha e o println virava
+            // println_string sobre inteiro (SIGSEGV riscv64/aarch64, bug 88).
+            // Espelha o dispatchType ja aplicado ao println acima e ao
+            // valueOf no NativeX86Calls (9436da12 corrigiu x86 mas esqueceu o
+            // cross aqui — mesma familia, lane paridade R5).
+            Type vArgType = argType instanceof Type.NullableType nt ? nt.inner() : argType;
+            if (vArgType instanceof Type.PrimitiveType pt) {
                 String cn = Type.canonicalPrimitiveName(pt.name());
                 if ("float".equals(cn) || "double".equals(cn)) {
                     // FLT001: double→string exige %g (snprintf/libc) — ausente
