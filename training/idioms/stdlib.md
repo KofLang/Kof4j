@@ -32,6 +32,7 @@ strings.isUpperCase("HELLO")       // >=1 letra e nenhuma minúscula; "123" => f
 strings.isLowerCase("abc-123")     // demais chars ignorados
 strings.count("aabaabaa", "ab")    // 2 — NÃO-sobrepostas; sub vazio => 0
 strings.capitalize("hello")        // "Hello" (ASCII; 1º byte a-z)
+strings.uncapitalize("Hello")      // "hello" — espelho exato do capitalize (S11)
 strings.reverse("abc")             // "cba" (byte-reverso no Native — ver NAT-STR01)
 strings.repeat("ab", 3)            // "ababab"; n<=0 => ""
 strings.truncate("hello", 3)       // "hel"; n>=len => original; n<=0 => ""
@@ -88,10 +89,11 @@ encoding.urlDecode("caf%C3%A9")       // "café"; '%' sem 2 dígitos passa liter
 
 ```kof
 var id = uuid.v4()   // ex.: "xxxxxxxx-xxxx-4xxx-[89ab]xxx-xxxxxxxxxxxx" (shape RFC 4122)
+uuid.isUuid(id)      // true — valida o SHAPE (traços 8/13/18/23 + resto hex); NÃO checa versão/variante
 ```
 
-Não-determinístico: valide pelo **shape** (traços em 8/13/18/23, dígito 14='4',
-dígito 19∈{8,9,a,b}), nunca por igualdade. v7/ulid ainda não existem.
+Não-determinístico: valide pelo **shape** (`isUuid`, ou à mão: traços em 8/13/18/23,
+dígito 14='4', dígito 19∈{8,9,a,b}), nunca por igualdade. v7/ulid ainda não existem.
 
 ## random (S10a/b)
 
@@ -105,6 +107,7 @@ seed = (seed * 1103515245 + 12345) % 32768
 // ✅ GOOD — entropia da plataforma, face de intenção
 var roll = random.randomInt(6) + 1
 var pass = random.randomString(12, "abcdefghijkmnpqrstuvwxyz23456789")
+var flip = random.randomBoolean()              // sorteio de moeda
 var pick = colors[random.randomInt(colors.size)]   // choice = idiom
 ```
 
@@ -113,17 +116,42 @@ var pick = colors[random.randomInt(colors.size)]   // choice = idiom
 `list[random.randomInt(list.size)]` é o idiom; `randomChoice` exigiria
 retorno Object na camada de dispatch (DD-STDLIB-01 em aberto).
 
+## validation — formatar NÃO é validar (S12/S12b)
+
+```kof
+// ❌ BAD — pontuar à mão, e lançar quando o CPF tem dígitos demais
+var out = ""
+for (var i = 0; i < cpf.length; i++) {
+    out = out + cpf.charAt(i)
+    if (i == 2 || i == 5) { out = out + "." }
+}
+
+// ✅ GOOD — as duas faces, cada uma no seu lugar
+validation.isCpf("52998224725")     // STRICTA: false se dígitos verificação não batem
+validation.formatCpf("529.982.247-25") // "529.982.247-25" — LENIENTE: só pontua
+```
+
+**WHY:** `formatCpf`/`formatCep`/`formatCnpj` **formam, não validam**: tiram
+pontuação existente e reimponhem a máscara; se o número de dígitos não bate
+(ou é `null`), devolvem a **entrada original** — nunca lançam, nunca truncam.
+Quem decide se o documento é *válido* é a face stricta (`isCpf`/`isCnpj`/
+`isCep`). Separar as duas é a regra "represente a intenção": formatar
+apresentação é uma coisa, checar legitimidade é outra. O mesmo vale p/
+`time.isWeekend(y,m,d)` (só calendário, sem relógio — data inválida => `false`
+porque `dayOfWeek` dá 0).
+
 ## Nota por target (gates honestos)
 
 | função | JVM/Script | Native x86_64 | Native riscv64/aarch64 | JS |
 |---|---|---|---|---|
-| math.*, strings.is*/count/capitalize/reverse/repeat/truncate/pad*, encoding.hex*/url*, time.isLeapYear/daysInMonth/dayOfWeek/daysBetween, validation.isCpf/isCnpj/isCep/isPis/isIpv4/isIpv6/isMac/isPort/isCreditCard/isDomain | ✅ | ✅ | ✅ | ✅ |
+| math.*, strings.is*/count/capitalize/uncapitalize/reverse/repeat/truncate/pad*, encoding.hex*/url*, time.isLeapYear/daysInMonth/dayOfWeek/daysBetween/isWeekend, validation.isCpf/isCnpj/isCep/isPis/isIpv4/isIpv6/isMac/isPort/isCreditCard/isDomain/formatCpf/formatCep/formatCnpj | ✅ | ✅ | ✅ | ✅ |
 | strings.toCamel/Pascal/Snake/Kebab/slugify | ✅ | ✅ | ✅ (STRN001 fechado 09/09 — B15, diff golden qemu) | ✅ |
 | strings.escapeHtml/escapeJson (5 entidades; >=128 cópia) | ✅ | ✅ | ✅ (B20, diff golden qemu) | ✅ |
 | strings.removeWhitespace/normalizeWhitespace | ✅ | ✅ | ✅ (B21) | ✅ |
 | encoding.base64* / base64Url* | ✅ | ✅ | ✅ (ENC002 fechado 09/09) | ✅ |
 | net.scheme/host/port/path/query/fragment + queryEncode/Decode | ✅ | ✅ | ✅ (NET001 fechado 09/09) | ✅ |
-| uuid.v4 | ✅ | ✅ | ✅ (SECN000 fechado 09/09) | ✅ |
+| uuid.v4 / uuid.isUuid | ✅ | ✅ | ✅ (SECN000 fechado 09/09) | ✅ |
+| random.randomInt/randomBoolean/randomString | ✅ | ✅ | ✅ (B27/B28, getrandom/lemire) | ✅ |
 
 `strings.reverse` em não-ASCII: byte-reverso no Native vs UTF-16 no JVM/JS —
 gap **NAT-STR01** (paridade só travada em ASCII na matriz).
