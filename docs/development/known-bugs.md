@@ -1565,9 +1565,67 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   harness isolado chamando `kof_random_double` 200k×: `ge1=0`, max < 1.0;
   binário real do teste: **0/200** falhas (antes 31/60);
   `KofRandomTest` 4/4 (1 skip cross-arch sem toolchain).
-- **Lição:** golden de valor é impossível p/ random (por design), mas
-  CONSTANTE DE FP em asm merece teste de decode no harness — o comentário
-  dizia "= 2^53" e o bit não era (confiança no texto, não na máquina).
+ - **Lição:** golden de valor é impossível p/ random (por design), mas
+   CONSTANTE DE FP em asm merece teste de decode no harness — o comentário
+   dizia "= 2^53" e o bit não era (confiança no texto, não na máquina).
+
+### 80. JS: valor `Bool` de função stdlib é number 1/0 → `boolExpr == true` sempre `false` (paridade cross-target quebrada) — ABERTO (lane JS)
+
+- **Sintoma:** `var b = random.boolean()` (ou `var e = math.isEven(2)`) no
+  target JS: `println(e)` mostra `true`, MAS `e == true` e `e == false` são
+  AMBOS `false`, e `assert(b == true || b == false)` FALHA. No JVM e no
+  Native (x86/riscv/aarch) o mesmo programa é `true`/`false` corretos
+  (paridade regra 5 quebrada). Menor repro (`kof run --target js`):
+  ```
+  main() {
+      var e = math.isEven(2)
+      if (e == true) { println("E-TRUE") } else { println("E-NOTTRUE") }
+      println(e)                 // -> "true"  (parece ok!)
+      var b = random.boolean()
+      assert(b == true || b == false)   // falha no JS, passa no JVM
+  }
+  ```
+  Saída JS observada (harness KofJsRunner, 10/09): `E-NOTTRUE` + println
+  `true`; somatório de `(b==true)+(b==false)` sobre 60 amostras = **0**
+  (esperado 60).
+- **Causa raiz (EVIDÊNCIA decisiva — `.mjs` gerado, 10/09):**
+  ```js
+  let e = kofMathIsEven(2);                 // função retorna NUMBER 1
+  kofPrintln(String((e ? true : false)));   // PRINT injeta coerção → "true"
+  if ((e === true)) { ... }                 // == baixa p/ === STRICTO → 1===true=false
+  ```
+  O backend JS **não é simétrico**: o emissor de `println` envolve o operando
+  Bool num `(x ? true : false)` (por isso imprimir `true` engana), mas o
+  emissor de `==` emite o operando CRU `===` (`JsCallEmitter.java:268
+  case EQ -> JsBinary(left,"===",right)`; idem `JsControlFlowParser:230`) e os
+  literais Kof `true/false` baixam p/ boolean JS. Como as funções stdlib
+  Bool-returning entregam **number `1/0`** (`JsRuntimeUiStdlib:
+  kofMathIsEven/IsOdd/IsPositive/IsNegative/IsZero` linhas 19-23,
+  `kofRandomBoolean` ~467, predicados `strings.is*` 27-53, `validation.is*`
+  ~331-403, `security.constantTime*` ~230-341), `boolExpr == true` é sempre
+  falso. No JVM/Native o valor é primitivo `Z` real e a comparação casa.
+- **Fix (escolha da lane JS):** opção A (menor risco, recomendada) — fazer as
+  funções stdlib JS retornarem **boolean JS de verdade** (`return (v & 1) === 0;`
+  em vez de `? 1 : 0`) em TODOS os sites Bool (lista acima); a coerção do
+  print fica redundante mas inofensiva, e o `===` passa a casar com os
+  literais. Opção B (mais ampla) — o emissor de `==`/`!=`/`<`... injetar a
+  MESMA coerção `(x?true:false)` dos operandos Bool no comparison (igual ao
+  print). Preferir A: corrói a divergência na FONTE, não no uso. Validar que
+  nenhum consumidor usa esses retornos como Int (procura por `+ kofMath`,
+  `* kofRandom` etc. no lowering JS).
+- **Por que passou despercebido (lição §79 de novo):** `randomShapeJs`
+  (`KofRandomTest:74`) **omite** as linhas `var b = random.boolean();
+  assert(b == true || b == false)` que `randomShapeNative`/`randomShapeCrossArch`
+  têm — o shape JS nunca exercita Bool de função. E a matriz `stdmath` só faz
+  `println(isEven(...))` (caminho impresso, coercente), nunca `== true`.
+- **Prova de aceite esperada:** estender `randomShapeJs` com as 2 linhas de
+  boolean (espelhando native) + caso `math.isEven(2) == true` na matriz; deve
+  dar exit 0 nos 3 targets com saída idêntica.
+- **Arquivo:** `js/JsRuntimeUiStdlib.java` (linhas 19,23,~467); verificar
+  também `JsCallEmitter`/`JsValueEmitter` p/ outros retornos Bool numericados.
+  Registrado 10/09 (sessão S7c; achado ao tentar FECHAR uma "carry JS bool"
+  que na verdade NÃO era false alarm — a matriz `stdmath` só provava o print,
+  não a comparação).
 
 
 
