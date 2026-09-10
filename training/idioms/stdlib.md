@@ -93,6 +93,26 @@ var id = uuid.v4()   // ex.: "xxxxxxxx-xxxx-4xxx-[89ab]xxx-xxxxxxxxxxxx" (shape 
 Não-determinístico: valide pelo **shape** (traços em 8/13/18/23, dígito 14='4',
 dígito 19∈{8,9,a,b}), nunca por igualdade. v7/ulid ainda não existem.
 
+## random (S10a/b)
+
+```kof
+// ❌ BAD — PRNG próprio, LCG de internet
+var seed = 12345
+seed = (seed * 1103515245 + 12345) % 32768
+```
+
+```kof
+// ✅ GOOD — entropia da plataforma, face de intenção
+var roll = random.randomInt(6) + 1
+var pass = random.randomString(12, "abcdefghijkmnpqrstuvwxyz23456789")
+var pick = colors[random.randomInt(colors.size)]   // choice = idiom
+```
+
+**WHY:** `random.*` = sorteio (não-críptográfico); `security.*` = tokens
+(rejeição + validação). A escolha de lista **não** é função da stdlib —
+`list[random.randomInt(list.size)]` é o idiom; `randomChoice` exigiria
+retorno Object na camada de dispatch (DD-STDLIB-01 em aberto).
+
 ## Nota por target (gates honestos)
 
 | função | JVM/Script | Native x86_64 | Native riscv64/aarch64 | JS |

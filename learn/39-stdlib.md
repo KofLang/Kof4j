@@ -136,6 +136,23 @@ println(id.length)              // 36
 
 Não-determinístico por natureza: os testes travam **forma**, não igualdade.
 
+## random — sorteio com entropia do SO (S10a/b)
+
+```kof
+var n = random.randomInt(100)          // 0..99 (bound<=0 -> 0, face leniente)
+var coin = random.randomBoolean()      // 0 ou 1
+var token = random.randomString(8, "0123456789abcdef")  // 8 chars do alfabeto
+// escolha de lista = idiom, não função:
+var l = listOf("a", "b", "c")
+var pick = l[random.randomInt(l.size)]
+```
+
+A entropia vem SEMPRE da primitiva do SO (getrandom / SecureRandom /
+crypto) — sem PRNG caseiro. Para tokens de segurança use `security.*`
+(randomHex/randomInt com validação estrita); `random.*` é a face
+sorteio/shuffle/teste. Não-determinístico: os testes travam **contrato**
+(faixa + bordas), não igualdade.
+
 ## validation — documentos BR, rede e cartão
 
 ```kof
@@ -205,6 +222,7 @@ spans nos 3 nativos).
 | `encoding.base64*` / `base64Url*` | ✅ | ✅ | ✅ | ✅ |
 | `net.*` (S8) | ✅ | ✅ | ✅ | ✅ |
 | `uuid.v4` | ✅ | ✅ | ✅ | ✅ |
+| `random.randomInt/randomBoolean/randomString` | ✅ | ✅ | ✅ | ✅ |
 
 Gate = erro de compilação **com código** (R6 — nunca stub silencioso):
 `strings.toCamelCase` e os conversores de palavra chegaram aos 4 targets só

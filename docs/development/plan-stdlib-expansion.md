@@ -65,6 +65,15 @@ na   (null-safety + throw são o mecanismo).
   UTF-8 codificado à mão em `JsRuntimeUiStdlib`. `uuid` (v4/v7/ulid) segue em S3b.
 - **S5** `random` novo namespace + ext `validation` BR (CPF/CNPJ/CEP/PIS/NIS com
   checksum reutilizável interno — §18 briefing)
+  - **S10a/b FEITO 09/09:** `randomInt(bound)`/`randomBoolean`/`randomString(n,
+    alphabet)` nos 5 alvos (entropia só do SO — getrandom/SecureRandom/crypto;
+    x86 alias `kof_sec_random_int`, riscv B27/B28 + aarch translator, JS
+    kof_platform+crypto fallback, JVM SecureRandom). Matriz `random` (assert-
+    only, estilo uuid). `randomChoice` NÃO entra: idiom `l[randomInt(l.size)]`
+    (a regra — complexidade a quem usa). `randomBytes`/`randomChoice` binário =
+    DD-STDLIB-01 (`planning-stdlib-array-returns.md`, PROPOSED) — retorno Array
+    na camada de dispatch é decisão de design, não edição. `randomDouble` = S1b
+    (FLT001 — double não existe no asm riscv/aarch, probe 09/09).
 - **S6** ext `validation` network (IPv4/IPv6/mac/domain/port) + Luhn
 - **S7** ext `time` (add/diff/boundaries/format) — JVM java.time, JS Date, Native syscall
 - **S8** `net` url/query parse/encode
