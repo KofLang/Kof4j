@@ -1793,7 +1793,7 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   Menor repro: `main() { try { println("abc".toInt()) } catch (String e) { println("THREW") } }` —
   JVM/JS/x86 imprimem `THREW`; riscv/aarch imprimem `0`.
 
-### 80. riscv64/aarch64: `println(Long.MIN_VALUE)` imprime lixo (Int.MIN ok) — ABERTO (lane Native; achado 10/09 pela varredura da STDLIB)
+### 80. riscv64/aarch64: `println(Long.MIN_VALUE)` imprime lixo (Int.MIN ok) — ✅ CORRIGIDO 10/09 (varredura STDLIB; NATIVE002 órfão reatribuído)
 
 - **Sintoma:** `var m = -(9223372036854775807 + 1); println(m)`: JVM/x86 →
   `-9223372036854775808`; riscv64 e aarch64 → `-'..--).0-*(+,))+(0(` (bytes
@@ -1815,13 +1815,17 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   79: `"-9223372036854775808".toLong()` **retorna** MIN exato nos 3 (provado
   via `("-9223372036854775807".toLong() - v) == 1` → true nos 3); só a
   IMPRESSÃO falha.
-- **Fix (lane Native, ~6 linhas):** magnitude em aritmética **unsigned** para
-  o caso negativo (o valor é 2^63, só cabe como magnitude sem sinal) — no
-  laço usar `divu`/`remu` (RV64) sobre `s5` tratado como unsigned, OU imprimir
-  `Long.MIN` como caso especial (escrever "-9223372036854775808" direto). Antes
-  de tocar, verificar se o tradutor aarch (`NativeAarch64Translator`) já tem
-  `divu`/`remu` → `udiv`/`umull`-seq; se não, a opção caso-especial é mais
-  segura. Registrado da varredura do bug 79 (não é da unidade de parse).
+- **Correção FEITA 10/09 (varredura da STDLIB; NATIVE002 reatribuído — linha
+  órfã desde 05/09, regra do DOING):** magnitude mantida na forma **NEGATIVA**
+  (`s5 = -|v|`, técnica de acumulação-negativa do JDK): `rem(v≤0, 10)∈[-9,0]`
+  e `digit = -rem`; todos os 64 bits cabem em [-2^63, 0] sem overflow — o `neg`
+  auto-referente nunca acontece. Opções usadas (rem/div/neg/bgtz/bltz) já
+  suportadas no tradutor aarch (divu/remu NÃO existem lá — primeira tentativa
+  com eles falhou exatamente por isso; a versão negativa é a que passa).
+  Prova: riscv-qemu e aarch-qemu imprimem `-9223372036854775808`; diff JVM
+  ==x86==riscv==aarch no vetor 0/±42/±10/±MAX/Int.MIN/Long.MIN/10^6. Trava:
+  `v` impresso adicionado aos golden cross-arch dos testes do 79
+  (riscv64StringToInt/aarch64StringToInt) + `KofStringParseTest` (3 alvos).
 
 ### 81. KofJS: `Long` é `Number` (double 53-bit) — `"...".toLong()` acima de ±2^53 perde precisão e NÃO lança overflow — ABERTO (paridade R5 cross-target)
 

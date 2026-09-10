@@ -456,9 +456,10 @@ class NativeRiscv64E2ETest {
                 var v = "-9223372036854775808".toLong()
                 println(v < 0)
                 println(("0".toLong()) == 0)
+                println(v)
             }
             """);
-        assertEquals("42\n-7\n0\nT1\nT2\n-42\n7\n-2147483648\nT3\nT4\n1234567890\n-9223372036854775807\nT5\ntrue\ntrue", out);
+        assertEquals("42\n-7\n0\nT1\nT2\n-42\n7\n-2147483648\nT3\nT4\n1234567890\n-9223372036854775807\nT5\ntrue\ntrue\n-9223372036854775808", out);
     }
 
     // NATIVE002-stdlib: Map/Set no cross (port linear-scan do x86_64) —

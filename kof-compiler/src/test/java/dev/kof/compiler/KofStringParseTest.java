@@ -11,8 +11,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * (Integer/Long.parseLong(s.trim())) — entrada inválida ou overflow LANÇA
  * exceção String (capturável em try/catch), nunca número silencioso. Coberto
  * aqui nos 3 alvos golden (JVM/JS/Native-x86); riscv64/aarch64 = vetores
- * idênticos em NativeRiscv64E2ETest/NativeAarch64E2ETest (qemu). NÃO se
- * imprime Long.MIN_VALUE aqui: printer riscv/aarch tem bug próprio (§80).
+ * idênticos em NativeRiscv64E2ETest/NativeAarch64E2ETest (qemu).
  */
 class KofStringParseTest {
 
@@ -37,11 +36,12 @@ class KofStringParseTest {
                 var v = "-9223372036854775808".toLong()
                 println(v < 0)
                 println(("0".toLong()) == 0)
+                println(v)
             }
             """;
     private static final String EXPECTED =
             "42\n-7\n0\nT1\nT2\n-42\n7\n-2147483648\nT3\nT4\nT5\n1234567890\n"
-            + "-9223372036854775807\nT6\ntrue\ntrue";
+            + "-9223372036854775807\nT6\ntrue\ntrue\n-9223372036854775808";
 
     @Test
     void toIntToLongContractJvm(@TempDir Path tmp) throws Exception {
