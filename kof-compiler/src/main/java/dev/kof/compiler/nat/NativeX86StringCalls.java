@@ -118,6 +118,21 @@ public final class NativeX86StringCalls {
             sb.append("    pushq %rax\n");
             return true;
         }
+        if (kc.kind() == KofCallKind.INSTANCE && "equals".equals(kc.methodName())
+                && BuiltinTypes.isString(kc.ownerType())
+                && kc.parameterTypes().size() == 1) {
+            // bug 97 (continuação): `.equals` em String é conteúdo (mesma função
+            // do `==`, null-safe) — mas o método NÃO era roteado → undefined
+            // reference java_lang_String_equals no link (JVM/Script rodam).
+            // Guard isString: record.equals é gerado campo-a-campo, NUNCA deve
+            // cair aqui. type-system.md:258 documenta ".equals funciona (probe)
+            // mas é anti-pattern — use ==".
+            sb.append("    popq %rsi\n");
+            sb.append("    popq %rdi\n");
+            sb.append("    call kof_string_equals\n");
+            sb.append("    pushq %rax\n");
+            return true;
+        }
         if (kc.kind() == KofCallKind.INSTANCE && "compareTo".equals(kc.methodName())) {
             sb.append("    popq %rsi\n");
             sb.append("    popq %rdi\n");

@@ -1051,4 +1051,30 @@ class NativeE2ETest {
         runNative(source, tempDir.resolve("out"),
                 "10\n1\n-1\n-1\n55260\n-10176\n10176\n96354\n3240\n1772899\n0");
     }
+
+    // bug 97 (continuação): String.equals caiu no caminho genérico →
+    // undefined reference java_lang_String_equals. Agora roteado p/
+    // kof_string_equals (mesmo conteúdo do `==`). Guard isString é essencial:
+    // record.equals (equals gerado campo-a-campo) NÃO pode ser hijackado —
+    // o teste cobre os DOIS lado a lado no MESMO programa.
+    @Test
+    void nativeStringEqualsVsRecordEquals(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+                record P(Int x, Int y)
+                main() {
+                    println("a\\u00e9".equals("a\\u00e9"))
+                    println("caf\\u00e9".equals("cafe"))
+                    println("hi".equals("hi" + ""))
+                    var a = P(1,2)
+                    var b = P(1,2)
+                    var c = P(1,3)
+                    println(a.equals(b))
+                    println(a.equals(c))
+                    var l = listOf(1,2,3)
+                    println(l.contains(2))
+                }
+                """);
+        runNative(source, tempDir.resolve("out"), "true\nfalse\ntrue\ntrue\nfalse\ntrue");
+    }
 }

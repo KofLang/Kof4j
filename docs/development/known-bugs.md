@@ -2277,7 +2277,21 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   (`NativeRuntime` é x86-only; o cross tem suas fatias). Ferramenta de cross
   ausente neste ambiente → portar no env da lane cross (com qemu) reusando o
   MESMO algoritmo de code-unit. Ver matriz `backend-parity.md`.
-- **Descoberto:** 10/09 na varredura de paridade String (batch `swB.kf`/`swF.kf`).
+- **Continuação 10/09 (mesma varredura): `String.equals` link-fail** →
+  `undefined reference java_lang_String_equals`. O `==` de String JÁ baixava p/
+  `kof_string_equals` (conteúdo, null-safe); o MÉTODO `.equals` não era roteado
+  (caía no caminho genérico). Fix: routing em `NativeX86StringCalls.emit` p/ o
+  MESMO `kof_string_equals` (type-system.md:258 documenta ".equals funciona
+  (probe) mas é anti-pattern — use `==`"). **Guard `isString(ownerType)` é
+  essencial:** `record.equals` (gerado campo-a-campo, `ExpressionBinaryLowerer:196`)
+  NUNCA pode ser hijackado — provado lado a lado no mesmo programa.
+- **Resíduo NEW (não-meu escopo, registrar): `Object.equals`** — `var o = s as
+  Object; o.equals("café")` dá `undefined reference java_lang_Object_equals` no
+  link (JVM/Script rodam). Diferente do caso String: exige **dispatch virtual**
+  (vtable) num receiver tipado como referência — não é "só chamar o intrínseco",
+  é o mecanismo de `invokevirtual` genérico do Native. Decidir com a lane Native
+  (dispatch) — NÃO silencioso: gap aberto, menor repro `/tmp/oq.kf`.
+- **Descoberto:** 10/09 na varredura de paridade String (batch `swB.kf`/`swF.kf`/`sw2b.kf`).
 
 ### 98. String `<`/`>`: três backends divergem e TODOS dão lixo — ABERTO (semântica **Unspecified** no reference; regra 6 — decisão da mantenedora)
 
