@@ -174,10 +174,60 @@ public final class JsRuntimeCore {
                     ":root { --bg:#282a36; --fg:#f8f8f2; --panel:#21222c; --border:#2e303e;",
                     "  --hover:#2e303e; --accent:#8be9fd; --dim:#6272a4; --output:#50fa7b; }",
                     "html, body { margin:0; height:100%; overflow:hidden; }",
+                    // UI font stack (docs/ui/architecture.md design-system gap:
+                    // "não há tokens de Typography"). Widget.setFont() throws
+                    // before the window opens in kof run's headless-DOM
+                    // detection pass (n.dataset write on a DOM without
+                    // `dataset`), so this is set once here instead — a sans
+                    // stack fits a general UI window better than the previous
+                    // fixed monospace default, which stays available per
+                    // element via an explicit font-family if ever needed.
                     "body { background:var(--bg); color:var(--fg); font-family:",
-                    '  "Cascadia Code", "Fira Code", Consolas, Menlo, monospace; }',
+                    "  -apple-system, \\"Segoe UI\\", Roboto, Inter, Arial, sans-serif; }",
                     ".kof-label { color:var(--output); font-size:13px; line-height:1.5;",
-                    "  white-space:pre-wrap; padding:2px 0; }"
+                    "  white-space:pre-wrap; padding:2px 0; }",
+                    // Column/Row are documented as flexbox (docs/ui/architecture.md
+                    // §1: "CSS flexbox; gap fixo 8px") but had no matching rule on
+                    // this (live) runtime path — only the static artifact export
+                    // defined it. Restored here, with wrap on Row so multi-card
+                    // rows collapse to one column on narrow viewports without any
+                    // media query.
+                    ".kof-column { display:flex; flex-direction:column; gap:8px; }",
+                    ".kof-row { display:flex; flex-direction:row; flex-wrap:wrap;",
+                    "  align-items:flex-start; gap:8px; }",
+                    // Base component styling: .kof-button/.kof-input/.kof-textarea/
+                    // .kof-select had NO rule at all on this (live) runtime path —
+                    // they rendered as bare native form controls (the static
+                    // artifact-export path is the only place that styled them).
+                    // Neutral defaults here so a Button/Input is a real, usable
+                    // component out of the box; an app overrides look via
+                    // Style/setBorder/setShadow/setGradient (inline style wins
+                    // over these rules).
+                    ".kof-view, .kof-button, .kof-input, .kof-textarea, .kof-select {",
+                    "  box-sizing:border-box; }",
+                    ".kof-button, .kof-input, .kof-textarea, .kof-select {",
+                    "  font:inherit; color:inherit; font-size:15px; }",
+                    ".kof-input, .kof-textarea, .kof-select {",
+                    "  padding:10px 14px; border-radius:10px;",
+                    "  border:1px solid rgba(0,0,0,.15); background:#fff; }",
+                    ".kof-button {",
+                    "  padding:12px 20px; border:none; border-radius:12px;",
+                    "  background:#1f2937; color:#fff; font-weight:600; }",
+                    // Interactive states: neutral (theme-agnostic) hover/focus/
+                    // transition for the standard form/action widgets. brightness()
+                    // reacts to whatever background an app sets via Style, so this
+                    // stays correct across light/dark palettes; the focus ring uses
+                    // a fixed accessible blue, the conventional cross-browser default.
+                    ".kof-button, .kof-input, .kof-textarea, .kof-select, .kof-view {",
+                    "  transition: box-shadow 180ms ease, transform 180ms ease,",
+                    "    filter 180ms ease, border-color 180ms ease; }",
+                    ".kof-button { cursor:pointer; }",
+                    ".kof-button:hover:not(:disabled) { filter:brightness(1.06); transform:translateY(-1px); }",
+                    ".kof-button:active:not(:disabled) { transform:translateY(0); filter:brightness(0.97); }",
+                    ".kof-button:disabled { opacity:.6; cursor:not-allowed; }",
+                    ".kof-input:focus, .kof-textarea:focus, .kof-select:focus {",
+                    "  outline:none; border-color:#3b82f6;",
+                    "  box-shadow:0 0 0 4px rgba(59,130,246,.18); }"
                 ].join("\\n");
                 (document.head || document.documentElement).appendChild(style);
             }
