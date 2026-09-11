@@ -3401,26 +3401,55 @@ int de índice) — verificados na varredura.
   ainda SIGSEGVa até a guarda de Map/Set; §124 novo (abaixo) foi achado
   pela célula.
 
-### 124. Script/interpretador: `println` de `String?` null → NPE "Cannot read the array length because \"value\" is null" (JVM/Native/JS imprimem `null`) — ⏳ ABERTO (achado 11/09 pela célula `mapint` do §123)
+### 124. Script/interpretador: `println` de `String?` null → NPE "Cannot read the array length because \"value\" is null" (JVM/Native/JS imprimem `null`) — ✅ CORRIGIDO 11/09
 
 - **Menor repro (medido 11/09, MI5):** `String? nd() { return null }` +
   `println(nd())` → **Script ec=1** com a mensagem em stderr; **JVM/Native
   imprimem `null`**. Confirmado PRÉ-EXISTENTE (roda igual com a árvore do
   §123 em stash) — não é regressão da tag do map. `map.get` de MISS com
   valor String no interpretador cai no mesmo caminho (MI1: out=[um] então
-  ec=1) e `m.remove` de chave inexistente idem (MI6).
-- **Causa (parcial — rastreamento interrompido pelo fim da sessão):** a
-  helpful-NPE é um `.length` de ARRAY chamado `value` (não `length()`),
-  i.e. String interpretada como `char[]`/Object[] em algum printer/concat
-  do caminho do `println`; `kofToString` trata null (`"null"`) → o crash
-  é ANTES/DEPOIS dele. `r.stderr()` do `interpret()` só entrega a
-  mensagem, sem stack — preciso do print com `KofInterpretException`
-  completa para pinar a linha (grep `value.length` em KofInterpreter*
-  não achou — procurar em `KofInterpreterValues`/`appendValue`/`unbox`).
-- **Prova esperada:** MI5 deve imprimir `null` no Script (célula na matriz
-  4/4 sem exclusão) + `KofInterpreterParityTest` com a menor repro.
-- **Prioridade:** média (crash ruidoso, não silent-wrong; workaround:
-  narrowing `if (x != null)` antes do println).
+  ec=1) e `m.remove` de chave inexistente idem (MI6/MI3).
+- **Causa raiz (stack via `-Dkof.interp.trace=1`):** o `println(arg)`
+  não-escalar baixa `String.valueOf(arg)` como chamada EXTERNA
+  (ExpressionPrintLowerer: `List.of(Unknown)` nos targets não-nativos). No
+  interpretador, `KofInterpreterRuntime.invokeExternal` pontua os overloads
+  com `signatureScore`: arg null nunca passa em `p.isInstance(args[i])`,
+  e `valueOf(char[])`/`valueOf(Object)` empatam em score → a ordem de
+  `c.getMethods()` escolhia o ARRAY → o JDK NPE ("Cannot read the array
+  length because "value" is null" = `new String(char[])` null).
+- **✅ Fix:** no scorer, arg `null` desqualifica parâmetro ARRAY (score
+  −1) a menos que o IR declare `ArrayType` de verdade (guarda por IR, não
+  por sorteio de reflection). `valueOf(Object)` vence → `String.valueOf(
+  null)` = "null", como JVM/Native.
+- **Prova:** `KofInterpreterParityTest.printNullableStringNull` (2 paridades
+  interp≡JVM: `println(nd())` e map-get-miss) + célula `mapint` da matriz
+  4/4 imprimindo `null` no get-miss (antes contornava a terra-minada);
+  suíte completa 4 módulos.
+- **Achas irmãs (registradas, NÃO corrigidas aqui):** `println(Int? null)`
+  → JVM **VerifyError** e Script `Integer.valueOf/1` (NoSuchMethod) —
+  §125. `println(char)` congelado numérico (strings.md) continua intocado.
+
+### 125. `println(<primitivo>? null)` (Int?/Bool?/... null): JVM **VerifyError** na carga + Script **NoSuchMethodError `Integer.valueOf/1`**; Native imprime `0` — ⏳ ABERTO (achado 11/09 ao fixar o §124)
+
+- **Menor repro (PN2, medido 11/09):** `Int? ni() { return null }` +
+  `println(ni())` → **JVM**: VerifyError na inicialização da classe
+  (operand stack — boxing do null); **Script**: `java.lang.Integer.valueOf/1`
+  NoSuchMethodError (o MESMO `invokeExternal` do §124 — agora escolhendo o
+  overload certo, mas o boxing do null não resolve p/ `Integer.valueOf/1`);
+  **Native**: imprime `0` (default do primitivo, SG-008). Os 3 divergem.
+- **Por que é DIVERSO do §124:** lá o arg null do `String?` batia no
+  overload errado (char[] vs Object); aqui `println(Nullable(INT))` faz
+  `boxPrimitive` → `valueOf(INT)` e o caminho do null no boxing/choice
+  falha em outros pontos (JVM bytecode inválido + reflect sem alvo).
+- **Oracle ANTES de corrigir (regra 4):** corpus decide `null` vs `0`.
+  `training/idioms/errors.md`/null-safety ainda não coberto por esta
+  varredura — DEFINIR o oracle (medir `println(x)` onde `Int? x = miss`
+  no interpretador-vs-JVM com narrowing ausente) e SÓ ENTÃO editar; se
+  ambíguo, aguarda decisão da mantenedora (condição de parada 1).
+- **Prova esperada:** PN2 com o valor do oracle nos 4 targets (célula na
+  matriz 4/4) + `KofInterpreterParityTest`; hoje crash/crash/0.
+- **Prioridade:** média-baixa (crash ruidoso; workaround `if (x != null)`
+  ou `println(x == null ? "null" : x)`).
 
 ### 120. Tradutor riscv→aarch64: `fcvt.w/l.{s,d}` (FP→INT) traduzido como `scvtf` (direção INVERTIDA) — ✅ CORRIGIDO 11/09 (`fcvtzs`)  *(renumerado de §104 na reconciliação do merge 11/09 — colidiu com o record-equals §104 da série ativa)*
 

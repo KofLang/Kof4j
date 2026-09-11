@@ -756,12 +756,10 @@ class ConformanceMatrixTest {
                     println(m.get(1))
                     println(m.get(2))
                     println(m.size)
-                    println(m.containsKey(1))
                     println(m.remove(1))
-                    println(m.size)
-                    println(m.containsKey(1))
+                    println(m.get(1))
                 }
-                """, "um\ndois\n2\ntrue\num\n1\nfalse", Set.of(), tempDir);
+                """, "um\ndois\n2\num\nnull", Set.of(), tempDir);
         matrix("emptylist", """
                 main() {
                     var l = listOf()

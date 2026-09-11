@@ -280,6 +280,14 @@ public final class KofInterpreterRuntime {
                     && !isBoxedIr(ir, p)) {
                 if (p != Object.class) return -1;
             }
+            // §124: arg null não pode casar com parâmetro ARRAY (ex.: o
+            // println(null) baixa valueOf(Unknown) e o scorer dava empate
+            // entre valueOf(char[]) e valueOf(Object) → ordem de getMethods()
+            // escolhia char[] → NPE "Cannot read the array length". Array só
+            // compete quando o IR declara array de verdade.
+            if (args[i] == null && p.isArray() && !(ir instanceof Type.ArrayType)) {
+                return -1;
+            }
             if (ir != null && primitiveMatchesIr(p, ir)) score += 2;
             if (args[i] != null && p.isInstance(args[i])) score += 1;
         }

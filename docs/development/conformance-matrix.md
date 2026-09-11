@@ -43,7 +43,7 @@
 | string unicode indexOf/lastIndexOf (code units) | `6` / `-1` / `4` / `3` | DONE | DONE (bug 43 ✅ 10/09 x86) | DONE | DONE | `unicode-indexof` |
 | string ops split/toLowerCase/trim | `4` / `hello world` / `x\|` | DONE | DONE | DONE | DONE | `strops` |
 | map put/get/size | `1` / `2` | DONE | DONE | DONE | DONE | `map` |
-| `Map<Int,V>` put/get/remove/containsKey | `um`/`dois`/`2`/`true`/`um`/`1`/`false` | DONE | DONE | DONE | DONE (bug 123 ✅ 11/09 — era **SIGSEGV**: `kof_map_find` com `kof_string_equals` no chave Int → ponteiro; tag de chave no header off 40, espelhando o Set) | `mapint` |
+| `Map<Int,V>` put/get/remove + get-miss `null` | `um`/`dois`/`2`/`um`/`null` | DONE | DONE (bug 123 ✅ 11/09 — era **SIGSEGV**: `kof_map_find` com `kof_string_equals` no chave Int → ponteiro; tag de chave no header off 40, espelhando o Set) | DONE (bug 124 ✅ 11/09 — era NPE "value is null": `println` do miss baixava `valueOf(Unknown)`, o scorer do `invokeExternal` empatava `valueOf(char[])`/`valueOf(Object)` e pegava o array) | DONE | `mapint` |
 | list empty/isEmpty/contains | `true` / `0` / `false` | DONE | DONE | DONE | DONE | `emptylist` |
 | `null == null` / `!=` | `true` / `false` | DONE | DONE | DONE | DONE | `nulleq` |
 | if-expr curto-circuito null | `iguais` / `nao-ne` | DONE | DONE | DONE | DONE | `nulleqshortcut` |
