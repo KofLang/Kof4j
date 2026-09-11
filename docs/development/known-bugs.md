@@ -3451,6 +3451,38 @@ int de índice) — verificados na varredura.
 - **Prioridade:** média-baixa (crash ruidoso; workaround `if (x != null)`
   ou `println(x == null ? "null" : x)`).
 
+### 126. Chave do TIPO ERRADO em Map/Set/`contains`-de-List pinados → Native SIGSEGV (JVM tolera com miss/false) — ⏳ ABERTO (família §122, opção B; design fechado 11/09)
+
+- **Matriz medida 11/09 (probes A1/A2/MP2/ST1/ST2/E1):**
+  | programa | JVM | Native (hoje) |
+  |---|---|---|
+  | `mapOf("a",1).get(5)` (Int em String-map) | `0` | ✅ `0` (tag §123 resolve: raw cmpq) |
+  | `mapOf(1,"a").get("x")` (String em Int-map) | `null` | ❌ **SIGSEGV** (A2) |
+  | `setOf("a","b").add(5)` / `.contains(5)` / `.remove(5)` | `true/false` | ❌ **SIGSEGV** (ST1/ST2) |
+  | `listOf("a","b").contains(5)` | `false` | ❌ **SIGSEGV** (E1) |
+  | `mapOf(1,"um").put/get(String)` | — | ❌ SIGSEGV (A2 path) |
+- **Causa:** onde existe COMPARAÇÃO por conteúdo o tag 0/1 decide String↔raw,
+  mas o tag vem do tipo do ARG/elemento, não do conteúdo PINADO: em
+  `set.add(5)` num set String o tag sai 1 (String-elem) e o Int cru vira
+  ponteiro no `kof_string_equals`; no Map, o caso simétrico. JVM usa
+  HashMap/HashSet reais (equals por classe → miss silencioso).
+- **Fix (duas metades, mesma família SEM055):**
+  (a) **Map:** o tag do native deve vir do **keyType do receptor**
+      (pinning já garante concreto), não do arg → A2 vira `raw cmpq` e
+      dá `null` como o JVM (seguro, sem rejeição). O emitter já lê
+      `kc.parameterTypes().get(0)` — mudar para o keyType do `ownerType`
+      no lowering (o call carrega Map<K,V> no ownerType).
+  (b) **Set/List-contains:** String-pinned + arg conhecido NÃO-String →
+      **SEM056** (rejeitar; análogo §122; Unknown passa). Int-pinned + arg
+      String: raw-cmp é SEGURO (sem deref) → pode devolver false/null
+      como o JVM sem rejeição. Não rejeitar o que é apenas "miss".
+- **Prova esperada:** A1/A2/MP2/ST1/ST2/E1 viram células 4/4 (com SEM056
+  onde rejeição; null/false onde miss) + `listIndexNonIntRejected`-style
+  no SemanticResolutionTest.
+- **Nota:** tentativa de meia-implementação revertida 11/09 (fim de
+  contexto; verde é lei). A metade (a) é 3 linhas; (b) copia o padrão do
+  SEM055 já no arquivo.
+
 ### 120. Tradutor riscv→aarch64: `fcvt.w/l.{s,d}` (FP→INT) traduzido como `scvtf` (direção INVERTIDA) — ✅ CORRIGIDO 11/09 (`fcvtzs`)  *(renumerado de §104 na reconciliação do merge 11/09 — colidiu com o record-equals §104 da série ativa)*
 
 - **Sintoma (achado 11/09 ao portar MATH001):** `var e = 2.5; println((e * 2.0) as Int)`
