@@ -39,6 +39,7 @@ import dev.kof.compiler.KofLoadLocal;
 import dev.kof.compiler.KofStoreLocal;
 import dev.kof.compiler.KofNewObject;
 import dev.kof.compiler.KofNewArray;
+import dev.kof.compiler.KofNewMultiArray;
 import dev.kof.compiler.KofLoadField;
 import dev.kof.compiler.KofStoreField;
 import dev.kof.compiler.KofGetStatic;
@@ -306,6 +307,7 @@ final class NativeMethodEmitter {
                 sb.append("    pushq %rax\n");
             }
             case KofNewArray na -> nb.emitNewArray(sb, na);
+            case KofNewMultiArray ma -> nb.emitNewMultiArray(sb, ma);
             case KofArrayLoad al -> nb.emitArrayLoad(sb, al);
             case KofArrayStore as -> nb.emitArrayStore(sb, as);
             case KofArrayLength al -> nb.emitArrayLength(sb);
@@ -313,7 +315,9 @@ final class NativeMethodEmitter {
                 sb.append("    popq %rdi\n");
                 sb.append("    call kof_throw_string\n");
             }
-            default -> { }
+            default -> throw new UnsupportedOperationException(
+                    "operação sem lowering x86: " + op.getClass().getSimpleName()
+                    + " (R6: nunca silenciar) em método " + currentMethod.name());
         }
     }
 

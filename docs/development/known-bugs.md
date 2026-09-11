@@ -2922,7 +2922,7 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   side-effecting em Kof — sem short-circuit de efeitos colaterais). Mesma
   vizinhança do bug 79 (KofPop width-blind).
 
-### 113. Native: `new Int[a][b]` não aloca NADA (op IR sumido) → SIGSEGV em `m[0][0]`/`m.length` — ⏳ ABERTO (backend-only, lane Native)
+### 113. Native: `new Int[a][b]` não aloca NADA (op IR sumido) → SIGSEGV em `m[0][0]`/`m.length` — ✅ CORRIGIDO 11/09 (x86; faces riscv/aarch port p/ sessão c/ toolchain) [renumerado da fila pós-merge]
 
 - **Menor repro (medido 11/09):** `main() { var m = new Int[2][2]; println(m.length) }`
   → JVM `2`, Script `2`, **Native exit=139 / saída vazia**. Idem
@@ -2947,9 +2947,25 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   precedente B35–B37). Alternativa R6-honesta imediata: diagnóstico no typer
   quando `driver.target.isNative() && dims>=2` (SEMxxx) até o port — mas
   QUEBRA código multi-target válido; decisão da lane Native com a mantenedora.
-- **Prova esperada:** célula `arr2d` (sem exclusões) `m.length`/store/load/
-  stride-correcto byte-idêntica 4/4 (JS+JVM+Script+Native x86) + faces
-  riscv/aarch sob qemu.
+- **✅ CORRIGIDO 11/09 (x86):** helper recursivo `kof_multi_alloc`
+  (`RuntimeArray.emitMultiArrayAlloc`): nível i lê `d_i` do stack do chamador
+  (`rsp + 56i + 8n` — frame 64B/nível), aloca via `kof_array_alloc` com
+  elemSize 8 (nó interno = ponteiros) ou `rbx`=stride da folha, e preenche os
+  slots recursivamente; folhas `rep stosb` (zero — paridade MULTIANEWARRAY).
+  Chamador (`NativeBackend.emitNewMultiArray`) passa n/stride/i=1, coleta as
+  dims da pilha e pusha o nó. O `default -> {}` do `NativeMethodEmitter`
+  virou **throw** (R6: op sem lowering nunca mais some em silêncio).
+- **Port riscv/aarch NÃO feito nesta sessão:** sem toolchain no host
+  (nota DOING) + records já bloqueiam cross (§104) e a pilha de frame do
+  riscv exige re-derivação dos offsets 56i+8n; fica p/ sessão c/ qemu
+  (precedente B32–B37), com a célula da matrix já travando o oracle.
+- **Achado colateral (menor repro no probe, 11/09):** guardar `Int` em
+  `Long[]` crasha o **JVM** (`frame crash / NegativeArraySizeException` na
+  COMPUTE_FRAMES) — ver §121. A célula usa Int p/ não pendurar na lane alheia.
+- **Prova:** célula `array2d` AGORA multidimensional de verdade
+  (`new Int[2][3]` + 3-D `new Int[2][2][2]` store/load + zero-fill) 4/4
+  sem exclusões + `NativeE2ETest#nativeMultiDimArray` (repro menor do §113
+  → `2/7`); suíte completa pós-clean verde. Faces riscv/aarch: port pendente.
 
 ### 114. Native: `equals`/`==` de record com campo de REFERÊNCIA (String ou record aninhado) compara PONTEIRO → `false` — ⏳ ABERTO (sub-face do §104b-ii (i), backend-only)
 
@@ -3295,6 +3311,26 @@ int de índice) — verificados na varredura.
   suítes cross-ativas 13 classes ~194/0 sob qemu (concorrência/math/net/
   security/time/uuid/validation/string/encoding/mq/random/parse/matrix) +
   `NativeE2ETest` x86 61/0 + suíte completa baseline 0-falhas.
+
+### 121. JVM: guardar `Int` em array `Long` (`new Long[4]; c[1] = 9`) crasha o backend — ⏳ ABERTO (pre-existing, achado pela prova do §113)
+
+- **Menor repro (probe 11/09):** `new Long[4]; c[1] = 9` →
+  **compile JVM falha**: `frame crash ... COMPUTE_FRAMES (visitMaxs)
+  NegativeArraySizeException: -1`. Idem `new Long[2][2]; c[1][0] = 9` (o
+  `c[1][0]` resolve p/ `long` primitivo). Int→Int e String→String ok; o
+  bug é o widening store `Int`→slot `Long`.
+- **Causa raiz provável:** `ExpressionAssignmentLowerer:321-329` — o bloco
+  que DEVERIA emitir a conversão (`I2L`/`L2I`) quando o primitivo do valor ≠
+  o tipo do slot é um `if {}` VAZIO (só o comentário explica o motivo: sem
+  ela, `aastore/lastore` com tipo errado → verifier rejeita = o frame crash
+  documentado como COMP002). O comentário diz "converter no IR"; o código não
+  converte. `newMultiArray` do §113 expôs isto ao varrer os alvos da célula.
+- **Fix (não feito — lane JVM):** aplicar `driver.emitWideningIfNeeded(ops,
+  aaValueType, aaElemType)` (ou I2L) ANTES do `KofArrayStore`, no caminho
+  não-compound não-concat. Provar com a célula `arrlongstore` na matrix +
+  repro acima; JS/Native/Script já aceitam (JS number, Native unbox,
+  Script coercion). NÃO é mudança de contrato (Int em Long[] é widening já
+  documentado — só o codegen JVM está quebrado).
 
 ### 120. Tradutor riscv→aarch64: `fcvt.w/l.{s,d}` (FP→INT) traduzido como `scvtf` (direção INVERTIDA) — ✅ CORRIGIDO 11/09 (`fcvtzs`)  *(renumerado de §104 na reconciliação do merge 11/09 — colidiu com o record-equals §104 da série ativa)*
 

@@ -919,6 +919,12 @@ class ConformanceMatrixTest {
                     println(n)
                 }
                 """, "3", Set.of(), tempDir);
+        // §113: `array2d` era enganoso — só exercitava 1-D (new Int[3]).
+        // Agora é multidimensional DE VERDADE: a célula que o bug-59 nunca
+        // deixou de fora porque o Native NUNCA alocou nada (KofNewMultiArray
+        // caía no default -> {} → SIGSEGV). Oracle: zero-fill + lengths +
+        // store/load em todas as células, 3-D incluso (stride de ponteiro
+        // interno 8; folha 0). 4/4 targets sem exclusão.
         matrix("array2d", """
                 main() {
                     var a = new Int[3]
@@ -927,8 +933,20 @@ class ConformanceMatrixTest {
                     a[2] = 30
                     println(a[0] + a[1] + a[2])
                     println(a.length)
+                    var m = new Int[2][3]
+                    println(m.length)
+                    println(m[1].length)
+                    println(m[0][2])
+                    m[1][2] = 7
+                    println(m[1][2])
+                    var c = new Int[2][2][2]
+                    println(c.length)
+                    println(c[0][1].length)
+                    c[1][0][1] = 9
+                    println(c[1][0][1])
+                    println(c[0][0][0])
                 }
-                """, "60\n3", Set.of(), tempDir);
+                """, "60\n3\n2\n3\n0\n7\n2\n2\n9\n0", Set.of(), tempDir);
     }
 
     @Test

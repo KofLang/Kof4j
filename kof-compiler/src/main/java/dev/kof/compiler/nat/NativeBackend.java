@@ -30,6 +30,7 @@ import dev.kof.compiler.KofLoadField;
 import dev.kof.compiler.KofLoadLiteral;
 import dev.kof.compiler.KofLoadLocal;
 import dev.kof.compiler.KofNewArray;
+import dev.kof.compiler.KofNewMultiArray;
 import dev.kof.compiler.KofNewObject;
 import dev.kof.compiler.KofOperation;
 import dev.kof.compiler.KofPop;
@@ -405,6 +406,15 @@ public class NativeBackend implements Backend {
         sb.append("    popq %rdi\n");
         sb.append("    movl $").append(elementTypeSize(na.elementType())).append(", %esi\n");
         sb.append("    call kof_array_alloc\n");
+        sb.append("    pushq %rax\n");
+    }
+
+    void emitNewMultiArray(StringBuilder sb, KofNewMultiArray ma) {
+        sb.append("    movl $").append(ma.dims()).append(", %edx\n");
+        sb.append("    movl $").append(elementTypeSize(ma.baseType())).append(", %ebx\n");
+        sb.append("    movl $1, %esi\n");
+        sb.append("    call kof_multi_alloc\n");
+        sb.append("    addq $").append(8 * ma.dims()).append(", %rsp\n");
         sb.append("    pushq %rax\n");
     }
 

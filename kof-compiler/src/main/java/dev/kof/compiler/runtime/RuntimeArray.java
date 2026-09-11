@@ -35,6 +35,73 @@ public final class RuntimeArray {
                 ret
             """);
     }
+    public static void emitMultiArrayAlloc(StringBuilder sb) {
+        sb.append("""
+            # §113 — alocação recursiva de array multidimensional. O chamador
+            # empurra os n tamanhos (d_1 primeiro ... d_n no topo). Frame por
+            # nível: ret(8) + 6 pushes(48) + dummy(8) = 64 → d_i na depth i está
+            # em rsp + 56i + 8(n-i). ABI de entrada: esi=i (1-based), edx=n,
+            # rbx=stride da última dim. Ret: rax = nó (header de kof_array_alloc).
+            # Nós internos: elemSize 8 (ponteiros p/ sub-array). Folhas:
+            # elemSize=rbx e payload zeroed (paridade MULTIANEWARRAY/newMultiArray).
+            .globl kof_multi_alloc
+            .type kof_multi_alloc, @function
+            kof_multi_alloc:
+                pushq %rbx
+                pushq %r12
+                pushq %r13
+                pushq %r14
+                pushq %r15
+                pushq %rbp
+                pushq %rax
+                movl %edx, %r15d
+                movl %esi, %r12d
+                movq %r12, %rax
+                imulq $56, %rax
+                movq %r15, %rcx
+                imulq $8, %rcx
+                addq %rcx, %rax
+                movq (%rsp,%rax), %rdi
+                movq %rdi, %r13
+                movl $8, %esi
+                cmpl %r15d, %r12d
+                jne .Lma_go
+                movl %ebx, %esi
+            .Lma_go:
+                call kof_array_alloc
+                movq %rax, %r14
+                xorl %ebp, %ebp
+                cmpl %r15d, %r12d
+                jne .Lma_fill
+                movq %r14, %rdi
+                addq $24, %rdi
+                movq %r13, %rcx
+                imulq %rbx, %rcx
+                xorl %eax, %eax
+                cld
+                rep stosb
+                jmp .Lma_done
+            .Lma_fill:
+                cmpq %r13, %rbp
+                jae .Lma_done
+                leal 1(%r12), %esi
+                movl %r15d, %edx
+                call kof_multi_alloc
+                movq %rax, 24(%r14,%rbp,8)
+                incq %rbp
+                jmp .Lma_fill
+            .Lma_done:
+                movq %r14, %rax
+                addq $8, %rsp
+                popq %rbp
+                popq %r15
+                popq %r14
+                popq %r13
+                popq %r12
+                popq %rbx
+                ret
+            """);
+    }
     public static void emitArrayLength(StringBuilder sb) {
         sb.append("""
             .globl kof_array_length
