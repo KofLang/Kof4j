@@ -1162,4 +1162,20 @@ class NativeE2ETest {
                 "-1\n1\n1\n-1\n2\n3\n0\n0\n-1\n2\n2\n3\n-1\ntrue\nfalse\nfalse\ntrue\nfalse"
                 + "\n3\n3\n1\n-1\n2\n-1\n3\n0\n1\nfalse\ntrue\ntrue\nfalse");
     }
+
+    @Test
+    void nativeMultiDimArray(@TempDir Path tempDir) throws IOException {
+        // §113: `new Int[a][b]` não alocava NADA no Native (KofNewMultiArray
+        // caía no default -> {} → SIGSEGV). JVM/Script/JS: 2 / 7.
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+            main() {
+                var m = new Int[2][3]
+                m[1][2] = 7
+                println(m.length)
+                println(m[1][2])
+            }
+            """);
+        runNative(source, tempDir.resolve("out"), "2\n7");
+    }
 }

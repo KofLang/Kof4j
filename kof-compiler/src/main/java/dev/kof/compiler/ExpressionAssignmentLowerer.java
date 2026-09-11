@@ -321,13 +321,17 @@ if (ae.target() instanceof ArrayAccessExpr aa) {
         ops.add(new KofBinary(compoundBinaryOp(aaOp), aaElemType));
     }
     if (!aaStringConcat && !aaCompound) {
-        // valor com primitivo ≠ slot (ex.: Int em Long[]) →
-        // converter no IR (I2L/L2I), senão o emit gera aastore/
-        // lastore com tipo errado e o verifier rejeita (o
-        // frame crash COMP002 em new Long[] + a[i] = i*3).
-        // NO compound NÃO aplicar: o resultado do KofBinary já é o tipo do
-        // elemento (o widening do RHS foi feito antes) — a conversão extra
-        // consumiria o topo errado (I2L sobre long → VerifyError).
+        // §121: valor primitivo ≠ slot (ex.: Int em Long[]) → converter no IR
+        // (I2L/L2I) ANTES do store, senão o emit gera lastore/aastore com tipo
+        // errado e o verifier rejeita (frame crash COMP002 em
+        // `new Long[4]; c[1] = 9`). O bloco existia como comentário-vazio
+        // (prometia a conversão, nunca a emitiu) — mesma linha que o caminho
+        // compound logo acima já aplica. NO compound NÃO duplicar: lá o
+        // widening do RHS já foi feito antes do KofBinary.
+        if (TypeMetrics.isPrimitiveType(aaValueType)
+                && TypeMetrics.isPrimitiveType(aaElemType)) {
+            driver.emitWideningIfNeeded(ops, aaValueType, aaElemType);
+        }
     }
     ops.add(new KofArrayStore(aaStringConcat ? BuiltinTypes.STRING : aaElemType));
     return localIdx;
