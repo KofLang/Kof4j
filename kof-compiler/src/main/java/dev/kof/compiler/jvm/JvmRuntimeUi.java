@@ -131,6 +131,23 @@ public final class JvmRuntimeUi {
                 public static void kof_ui_widget_set_disabled(int widget, int disabled) {
                 }
 
+                // Design-system primitives: real CSS on the JS target only
+                // (kof.ui rendering is KofJS-only, JVM/Native stay no-op).
+                public static void kof_ui_widget_set_border(int widget, int color, int width) {
+                }
+
+                public static void kof_ui_widget_set_shadow(int widget, int color, int offsetY, int blur) {
+                }
+
+                public static void kof_ui_widget_set_gradient(int widget, int colorA, int colorB, int angleDeg) {
+                }
+
+                public static void kof_ui_widget_set_flex_basis(int widget, int px) {
+                }
+
+                public static void kof_ui_widget_set_max_width(int widget, int px) {
+                }
+
                 public static void kof_ui_widget_on(int widget, String type, Object handler) {
                 }
 

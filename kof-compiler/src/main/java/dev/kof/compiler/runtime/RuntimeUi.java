@@ -340,6 +340,16 @@ public final class RuntimeUi {
                 ret
             kof_ui_widget_set_disabled:
                 ret
+            kof_ui_widget_set_border:
+                ret
+            kof_ui_widget_set_shadow:
+                ret
+            kof_ui_widget_set_gradient:
+                ret
+            kof_ui_widget_set_flex_basis:
+                ret
+            kof_ui_widget_set_max_width:
+                ret
             kof_ui_widget_on:
                 ret
             kof_ui_column_new:
