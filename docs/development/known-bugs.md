@@ -13,7 +13,7 @@
 > | Paridade interpretador × compilados (semântica `==` congelada — regra 6) | **1** — bug 94 (NaN/±0.0 `==` de Double no SCRIPT) |
 > | Paridade backend-only (regra 5, atacável na lane Native) | **2** — §107 (println coleção → lixo no nativo, sem toString de coleção; §107-JS corrigido 11/09), §104b-ii (equals de conteúdo p/ record + box de primitivo no storage asm — inclui SIGSEGV do `println(l.get)` char achado no §109)
 > | Operadores relacionais NaN cross (congelados — regra 6) | **1** — bug 101 (`<`/`<=`/`>=` com NaN: riscv IEEE vs x86/JVM quirk `dcmpg`) |
-> | **Corrigidos na sessão de paridade absoluta 11/09** | **14** — bugs 96 (SEM052), 98 (SEM053), 100 (SEM051+fold), 44-residual, 102 (from-idx), 103 (SEM054), 104a (KofObj equals/hash/toString no interpretador), 104b-i (LINK_FAIL `Object.equals` herdado no Native), 104c (membership de record por conteúdo no JS — `kofValEq`), 107-JS (`kofFormat` no JS), 109 (CRASH JVM no guard do `map.get` primitivo), 110 (`-0.0` colapsado em `+0.0` no literal emitter JVM), 111 (trailing-empties no `split` Native/JS + sentinela `substring` 0→-1; ✅ cross riscv/aarch B36/B37 11/09 — FECHADO nos 5 targets), 112 (prev de `put`/`remove` p/ primitivo: VerifyError/NPE JVM + SIGSEGV Native por pilha desequilibrada + `set.add` do interpretador; face JS aberta) — todos com prova na matrix/suíte |
+> | **Corrigidos na sessão de paridade absoluta 11/09** | **14** — bugs 96 (SEM052), 98 (SEM053), 100 (SEM051+fold), 44-residual, 102 (from-idx), 103 (SEM054), 104a (KofObj equals/hash/toString no interpretador), 104b-i (LINK_FAIL `Object.equals` herdado no Native), 104c (membership de record por conteúdo no JS — `kofValEq`), 107-JS (`kofFormat` no JS), 109 (CRASH JVM no guard do `map.get` primitivo), 110 (`-0.0` colapsado em `+0.0` no literal emitter JVM), 111 (trailing-empties no `split` Native/JS + sentinela `substring` 0→-1; ✅ cross riscv/aarch B36/B37 11/09 — FECHADO nos 5 targets), 112 (prev de `put`/`remove` p/ primitivo: VerifyError/NPE JVM + SIGSEGV Native por pilha desequilibrada + `set.add` do interpretador + **JS fechado na mesma unidade** — `?? default` + `KofPop` preserva side-effect embrulhado; 4/4 targets) — todos com prova na matrix/suíte |
 > | **Corrigidos na prova cross-arch 11/09 (MATH001/TIME002/B33)** | **3** — bugs 101→registrado (relacional NaN, ABERTO regra 6), MATH001 (Double math B32), TIME002 (ISO add/diff B33), 105 (random.int loop — renumerado de 102, colidiu c/ §102 indexOf) |
 > | Verificados corrigidos em 08/09 | **19** — bugs 1–8, 10–17, 19, 20, 26 |
 > | Não reverificados (faltou ambiente/setup) | bugs 9, 18, 21, 22, 23 |
@@ -2859,25 +2859,28 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   `false/true/3/true/false/1/2/2/0/0` — cobre add existente/novo, size, remove
   hit/miss, put over existente, get, remove-miss com value Int, size final) +
   probes `mmr.kf`/`ad.kf`/`t[A-D].kf`.
-- **⚠️ §112-JS ⏳ ABERTO (face restante, lane JS):** no JS o `put`/`remove` de
-  prev AUSENTE imprime `null` em vez do default do primitivo (`0`), porque o
+- **✅ §112-JS CORRIGIDO 11/09 (face JS, na mesma unidade):** no JS o `put`/`remove` de
+  prev AUSENTE imprimia `null` em vez do default do primitivo (`0`), porque o
   typer declara o retorno como `V` **não-nullable** (get é `V?`, e por isso o
-  miss do get já é coerçado) e o emitter JS não aplica default a `null` nesse
-  caminho. Célula `mapmutret` mantém **JS excluído** com este ref (não é
-  regressão — é a mesma classe de gap, face JS, ainda não corrigida).
-  **Tentativa malsucedida documentada (11/09, revertida antes do commit):**
-  envolver o call de put/remove com `?? defaultForType(V)` no `JsCollectionOps
-  .handleMapOp` (padrão exato do `kof_poll`/`JsRuntimeOps:339`) **quebrou a
-  célula `map`** — ali `m.put("b",2)` é STATEMENT: o retorno primitivo do put
-  é descartado pelo parser de statement via `KofPop` (o `ExpressionStatementParser
-  js` trata `KofPop`), e a forma embrulhada `(call ?? 0)` do statement seguiu
-  outro caminho de parsing/descarte e passou a imprimir o prev (JS deu
-  `1\n1` — o `1` do put apareceu duas vezes). **Fix correto exige** distinguir
-  uso-value de uso-statement ANTES do wrap (ex.: só envolver quando o call não
-  é seguido de KofPop no contexto do statement, ou mover o wrap p/ o ponto de
-  uso com tipo — não no emitter do call op). Unidade própria; mudança pequena
-  mas o parser JS de statements é sensível à forma (ver também bug 79 no
-  KofPop width-blind — mesma vizinhança).
+  miss do get já é coerçado) e o emitter JS não aplicava default a `null` nesse
+  caminho. Célula `mapmutret` hoje cobre JS (Set.of() vazio).
+  **Fix (2 partes — o wrap sozinho NÃO bastava, ver armadilha abaixo):**
+  `JsCollectionOps.handleMapOp` envolve put/remove primitivo com
+  `?? defaultForType(V)` (padrão exato do `kof_poll`), E
+  `JsExpressionStatementParser` estende o `KofPop` p/ preservar
+  `JsBinary` cujo operando é `JsCall` (side-effect). Prova: célula
+  `mapmutret` 4 targets idênticos + célula `map` (put-statement) verde.
+  **Armadilha documentada (11/09, 1ª tentativa revertida — causou o wrap):**
+  só envolver o call com `?? defaultForType(V)` (padrão exato do
+  `kof_poll`/`JsRuntimeOps:339`) **quebrou a célula `map`**: ali `m.put("b",2)`
+  é STATEMENT — o retorno é descartado por `KofPop` no parser de statement JS,
+  que só sobrevivia a `JsCall`/`JsSequence`/`JsAwait`; a forma embrulhada
+  `(call ?? 0)` era `JsBinary` e caiu no descarte silencioso → **o side-effect
+  do put se PERDIA** (put não rodava; `map` deu `1\n1` em vez de `1\n2`).
+  **Fix real:** o `KofPop` do `JsExpressionStatementParser` foi estendido p/
+  preservar `JsBinary` com operando `JsCall` (expressão com chamada é sempre
+  side-effecting em Kof — sem short-circuit de efeitos colaterais). Mesma
+  vizinhança do bug 79 (KofPop width-blind).
 
 ### 111. `split` não removia vazios TRAILING (Native x86 + JS) e `substring(a,0)` devolvia a string toda (Native x86) — ✅ CORRIGIDO 11/09 (x86_64 + JS; residual riscv/aarch)
 - **Menor repro split:** `println("a,".split(",").length)` → JVM/Script **1**,

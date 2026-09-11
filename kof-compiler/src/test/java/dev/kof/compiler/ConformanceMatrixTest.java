@@ -338,7 +338,7 @@ class ConformanceMatrixTest {
                     println(m.remove("zz"))
                     println(m.size)
                 }
-                """, "false\ntrue\n3\ntrue\nfalse\n1\n2\n2\n0\n0", Set.of("js"), tempDir);
+                """, "false\ntrue\n3\ntrue\nfalse\n1\n2\n2\n0\n0", Set.of(), tempDir);
         // §104b-i (Native): `Thing.equals(...)` em classe NÂO-record dava
         // LINK_FAIL (Object.equals herdado sem símbolo no bare-metal).
         // Síntese de equals de identidade → oracle JVM (false entre
