@@ -36,8 +36,8 @@
 | `roadmap-audit.md` | matriz 06/09: 13 itens — 5× `PARTIAL`, 4× `NOT STARTED` | `PARTIAL` |
 | `roadmap-gap-2026-09-03.md` | gap report NATIVE002 + discrepâncias | `PARTIAL` |
 | `ecosystem-coverage.md` | matriz G1–G12: muitos `PARTIAL`/`PLANNED` (events, messaging, OAuth2, batch, AI) | `PARTIAL` |
-| `actual-state.md` | "O que NÃO está implementado" residual 0.2.6-beta | `PARTIAL` |
-| `language-state.md` | snapshot 02/09 desatualizado (SG-E2: 810 testes vs 969 hoje, v0.2.6 vs 0.3.0) | `OUTDATED` |
+| `docs/actual-state.md` | **movido p/ docs/ 11/09** — snapshot histórico 0.2.6-beta (registro, não backlog) | `HISTÓRICO` |
+| `docs/language-state.md` | **movido p/ docs/ 11/09** — snapshot histórico 02/09 (SG-E2; registro, não backlog) | `HISTÓRICO` |
 
 ### 3. Plans de Plataforma
 | Arquivo | Por que está aqui | Estado |

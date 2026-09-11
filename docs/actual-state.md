@@ -1,4 +1,12 @@
-# Estado Atual do Projeto Kof
+# Estado do Projeto Kof — SNAPSHOT HISTÓRICO (02/09, 0.2.6-beta)
+
+> ⚠️ **REGISTRO HISTÓRICO.** Este doc congela o estado em 02/09 (0.2.6-beta);
+> a lista "O que NÃO está implementado" está em grande parte resolvida na
+> 0.3.x (ver a prova real). Para o estado **CORRENTE**: `docs/status.md`
+> (gate da suíte), `docs/backend-parity.md` (matriz) e
+> `docs/development/known-bugs.md` (fila de bugs). Movido de
+> `docs/development/` p/ `docs/` em 11/09 (regra de classificação: snapshot
+> sem trabalho pendente não é backlog vivo).
 
 **Última atualização:** 2 de setembro de 2026
 **Versão:** 0.2.6-beta
