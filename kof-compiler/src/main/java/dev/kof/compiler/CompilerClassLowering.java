@@ -49,6 +49,15 @@ public final class CompilerClassLowering {
         if (!methods.stream().anyMatch(m -> m.name().equals("<init>"))) {
             methods.add(0, CompilerClassLowering.generateDefaultConstructor(driver,internalName, superName, fields, fieldInits));
         }
+        // bug 104b-i: classe não-record chamada com `.equals()` precisa de
+        // símbolo no Native — o JVM resolve no Object.equals herdado, o
+        // backend não tem java.lang.Object. Sintetiza identidade (oracle JVM).
+        if ((driver.target == Target.NATIVE || driver.target == Target.NATIVE_RISCV64
+                || driver.target == Target.NATIVE_AARCH64)
+                && "java/lang/Object".equals(superName)
+                && !methods.stream().anyMatch(m -> "equals".equals(m.name()))) {
+            methods.add(CompilerRecordSupport.buildClassIdentityEqualsMethod(driver, internalName));
+        }
         return new IRClass(internalName, superName, ifaces, access, fields, methods, List.of(), null,
                 typeId, CompilerAnnotations.lowerAnnotations(driver, cls.annotations()));
     }

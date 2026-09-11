@@ -2517,13 +2517,22 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
     `KofInterpreterObjects.java` (helpers estáticos + equals de classe→identidade).
   | JS | **false** | **false** | **null** | `Point[x=1, y=2]` (sem `[]`!) | — |
 
-- **§104b ⏳ ABERTO (Native):** (i) `Thing(5).equals(Thing(5))` (classe
-  não-record, método `equals` NÃO declarado) → **LINK_FAIL** (`ld:
+- **§104b-i ✅ CORRIGIDO 11/09 (Native):** (i) `Thing(5).equals(Thing(5))`
+  (classe não-record, método `equals` NÃO declarado) → **LINK_FAIL** (`ld:
   undefined reference to Thing_equals` — `resolveCalleeName` mangla o dono mas
-  ninguém emite o `Object.equals` herdado). (ii) record em coleção:
-  `kof_list_contains`/set/map comparam `cmpl %r12,%rax` (ponteiro) ou só
-  string — nunca o equals de conteúdo. Reprodução mínima: célula `objmethods`
-  (Native excluído) + `/tmp/om.kf` / `/tmp/req3.kf`. Proibido: fallback
+  o bare-metal não tem `java.lang.Object` herdado). Fix: síntese de
+  **equals de identidade** (`this == other`, o mesmo contrato do
+  `Object.equals` do JVM — oracle) em
+  `CompilerRecordSupport.buildClassIdentityEqualsMethod`, ligado em
+  `CompilerClassLowering.lowerClass` para os 3 targets Native quando a classe
+  não declara `equals` e herda direto de Object. Prova: célula `classequals`
+  (4 targets, `false|true|false|true`) — JS/Script/JVM já batiam.
+- **§104b-ii ⏳ ABERTO (Native):** (ii) record em coleção:
+  `kof_list_contains`/`kof_set_contains` comparam ponteiro (ou só String) —
+  `setOf(p1).contains(p2)` = **false** vs JVM **true**; `println(listOf(p1))`
+  imprime vazio (helper não conhece handle Kof p/ toString). Exige equals/
+  hash genérico por vtable nos helpers asm (x86+riscv+aarch) — unidade
+  própria, célula `objmethods` mantém Native excluído. Proibido: fallback
   silencioso.
 - **§104c ⏳ ABERTO (JS):** record em `setOf`/`mapOf`/`listOf().contains`
   usa **identidade** (Map/HashSet JS nativos com objeto por referência) e

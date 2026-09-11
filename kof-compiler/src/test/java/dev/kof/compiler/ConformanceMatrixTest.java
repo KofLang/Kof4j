@@ -236,6 +236,25 @@ class ConformanceMatrixTest {
                     println(listOf(p1))
                 }
                 """, "true\ntrue\n7\n[Point[x=1, y=2]]", Set.of("native", "js"), tempDir);
+        // §104b-i (Native): `Thing.equals(...)` em classe NÂO-record dava
+        // LINK_FAIL (Object.equals herdado sem símbolo no bare-metal).
+        // Síntese de equals de identidade → oracle JVM (false entre
+        // instâncias novas, true por referência).
+        matrix("classequals", """
+                class Thing {
+                    Int v
+                    public constructor(Int v) { this.v = v }
+                }
+                main() {
+                    val t1 = Thing(5)
+                    val t2 = Thing(5)
+                    val r = t1
+                    println(t1 == t2)
+                    println(r == t1)
+                    println(t1.equals(t2))
+                    println(listOf(t1).contains(t1))
+                }
+                """, "false\ntrue\nfalse\ntrue", Set.of(), tempDir);
         matrix("boollogic", """
                 main() {
                     println(true && false)
