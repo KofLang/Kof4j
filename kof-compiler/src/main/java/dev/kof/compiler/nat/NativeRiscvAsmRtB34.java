@@ -281,7 +281,7 @@ final class NativeRiscvAsmRtB34 {
                 bnez a2, .Lu9_ss_panic
                 blt  t3, s1, .Lu9_ss_bounds    # units < start → start > total (x86: cmpl %r12d,%edx; jb)
                 mv   s3, a0                    # startOff
-                beqz s2, .Lu9_ss_tofim
+                bltz s2, .Lu9_ss_tofim
                 mv   a0, s0
                 mv   a1, s2
                 call .Lu9_walk

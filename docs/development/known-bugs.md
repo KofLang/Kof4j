@@ -2274,7 +2274,7 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 - **Descoberto:** 10/09; **corrigido 11/09** sob a diretriz "paridade entre os
   targets em primeiro lugar; opção B = rejeitar em tempo de compilação".
 
-### 97. Native: `String.compareTo`/`String.hashCode` declarados no reference → `undefined reference` no link — ✅ x86_64 CORRIGIDO 10/09 (varredura String parte 2; faces JS + riscv/aarch residuais)
+### 97. Native: `String.compareTo`/`String.hashCode` declarados no reference → `undefined reference` no link — ✅ x86_64 CORRIGIDO 10/09 + riscv/aarch 11/09 (B36, qemu; face JS residual)
 
 - **Sintoma:** `a.compareTo("abd")` e `a.hashCode()` falham no link Native
   x86_64: `undefined reference to java_lang_String_compareTo` / `_hashCode`
@@ -2320,9 +2320,19 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   que NÃO existem em `String.prototype` → `TypeError` em runtime (bug-irmão do
   `equals`, que é tratado). Como node está AUSENTE aqui, não travar por teste —
   face da lane JS. **riscv64/aarch64** — os símbolos vivem só no `.s` x86
-  (`NativeRuntime` é x86-only; o cross tem suas fatias). Ferramenta de cross
-  ausente neste ambiente → portar no env da lane cross (com qemu) reusando o
-  MESMO algoritmo de code-unit. Ver matriz `backend-parity.md`.
+  (`NativeRuntime` é x86-only; o cross tem suas fatias). **✅ CORRIGIDO 11/09
+  (cross, fatia B36 `NativeRiscvAsmRtB36`)**: port 1:1 do algoritmo
+  `.Lksu_next` (helper de cursor com pendência de surrogate no stack) →
+  `String_equals`/`String_compareTo`/`String_hashCode` no riscv (aarch via
+  tradutor); router cross roteia `equals/compareTo/hashCode` pelo bloco String
+  (receiver + arg em a0/a1 — antes caíam no fallback genérico que só dava pop
+  de a0). Bug pegado na prova: lead de 4-byte é `0xF0..0xF7` — testar
+  `&0xF8==248` em vez de `240` fazia astral cair no raw (hashCode/hash de
+  "a😀b" errado); e o round-trip da sentinela −1 pela pilha exige `sext.w` no
+  aarch (o tradutor mapeia `lw`→`ldr w`, zero-extend, vs sign-extend riscv).
+  Prova: `NativeStringCompareCrossTest` 2/2 (18 vetores JVM==x86==riscv==aarch
+  byte-idênticos; sabotagem → 2/2 FAIL = não-skip) + substring 1-arg §111
+  cross no MESMO teste (sentinela 0→−1, fix abaixo).
 - **Continuação 10/09 (mesma varredura): `String.equals` link-fail** →
   `undefined reference java_lang_String_equals`. O `==` de String JÁ baixava p/
   `kof_string_equals` (conteúdo, null-safe); o MÉTODO `.equals` não era roteado

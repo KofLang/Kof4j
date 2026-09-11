@@ -198,6 +198,13 @@ public final class NativeRiscvCrossOps {
                 case "toLowerCase" -> "kof_string_to_lower";
                 case "lastIndexOf" -> "kof_string_last_index_of";
                 case "equalsIgnoreCase" -> "kof_string_equals_ignore_case";
+                // §97 cross (B36): métodos declarados no reference (equals/
+                // compareTo/hashCode). Sem entry aqui caíam no fallback
+                // genérico (pop só de a0 → receiver fica na pilha, link-fail
+                // String_equals). O bloco abaixo faz pop a1..aN + pop a0.
+                case "equals" -> "String_equals";
+                case "compareTo" -> "String_compareTo";
+                case "hashCode" -> "String_hashCode";
                 default -> null;
             };
             if (fn != null) {
@@ -210,7 +217,9 @@ public final class NativeRiscvCrossOps {
                     fn = fn + "2";
                 }
                 if ("substring".equals(mn) && argCount == 1) {
-                    sb.append("    pop a1\n    li a2, 0\n");
+                    // §111 cross: sentinela "até o fim" = -1 (0 colide com o
+                    // 0 legítimo do 2-arg — mesmo fix x86 do maintainer).
+                    sb.append("    pop a1\n    li a2, -1\n");
                 } else {
                     for (int i = argCount - 1; i >= 0; i--) {
                         sb.append("    pop ").append(crossArgReg(i + 1)).append("\n");
