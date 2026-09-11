@@ -336,6 +336,26 @@ public final class SemExpressionTyper {
                     yield KofUi.COLOR;
                 }
                 Type recvType = inferType(sa, fa.receiver(), scope);
+                // bug 99 (R6, nunca silencioso): `Int.MAX_VALUE`/`Long.foo` etc.
+                // — acesso a campo num NOME DE TIPO PRIMITIVO. `Int` resolve p/
+                // UNKNOWN (a isenção isBuiltinTypeName de SEM011 existe p/ posição
+                // de TIPO, não p/ receiver de campo) e o guard SEM025 abaixo só
+                // dispara em ClassType → o campo passava SEM diagnóstico e o
+                // lowering emitia `getfield "?".field` (NoClassDefFoundError/SIGSEGV
+                // nos 3 targets; `var x = Int.MAX_VALUE` ainda CRASHAVA o
+                // compilador — ASM visitMaxs NegativeArraySizeException). Não há
+                // constante estática de primitivo em Kof (idiom = literal/`as`).
+                if (recvType instanceof Type.UnknownType
+                        && fa.receiver() instanceof IdentifierExpr rid
+                        && MemberResolver.isBuiltinTypeName(rid.name())
+                        && sa.diagnostics() != null) {
+                    sa.diagnostics().error("", 0, 0, 0,
+                            "'" + rid.name() + "' é um tipo primitivo, não tem campo "
+                                    + "estático '" + fa.fieldName() + "' (use o literal, "
+                                    + "ex.: 2147483647 p/ Int; sem Int.MAX_VALUE em Kof)",
+                            "SEM050");
+                    yield Type.UnknownType.UNKNOWN;
+                }
                 // SG-005: deref de T? sem narrowing é erro (espelha SEM049 de
                 // method call) — `s.length` em String? seria NPE em runtime.
                 if (recvType instanceof Type.NullableType && sa.diagnostics() != null) {

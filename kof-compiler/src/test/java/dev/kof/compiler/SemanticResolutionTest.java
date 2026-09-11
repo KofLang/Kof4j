@@ -209,4 +209,49 @@ class SemanticResolutionTest {
                 """);
         assertSem025(r, "on type 'P'");
     }
+
+    // ---- #99 (R6): campo estático num TIPO PRIMITIVO (Int.MAX_VALUE) — fake
+    // idiom, nunca existiu no Kof; antes passava sem diagnóstico e gerava lixo
+    // nos 3 targets (JVM NoClassDefFoundError "?", Native SIGSEGV, Script null)
+    // — e `var x = Int.MAX_VALUE` CRASHAVA o compilador (ASM visitMaxs). ----
+
+    private void assertSem050(CompilationResult r, String snippet) {
+        assertFalse(r.success(), "deve falhar: " + snippet);
+        boolean found = r.diagnostics().getDiagnostics().stream()
+                .anyMatch(d -> "SEM050".equals(d.code()) && d.message().contains(snippet));
+        assertTrue(found, "esperava SEM050 contendo '" + snippet + "', foi: "
+                + r.diagnostics().getDiagnostics());
+    }
+
+    @Test
+    void staticFieldOnPrimitiveTypeRejected(@TempDir Path tmp) throws IOException {
+        // as 3 formas: expressão solta, println, e assignment (o último era o
+        // que CRASHAVA o compilador — agora é SEM050 limpo, não COMP002).
+        String[] types = {"Int", "Long", "Double", "Float", "Char", "Byte", "Short", "Bool"};
+        String[] fields = {"MAX_VALUE", "MIN_VALUE", "SIZE", "foo"};
+        for (String t : types) {
+            for (String f : fields) {
+                assertSem050(compile(tmp, "e.kf", "main() { var x = " + t + "." + f + " }"),
+                        "'" + t + "' é um tipo primitivo");
+            }
+        }
+    }
+
+    @Test
+    void primitiveAsTypeAndLiteralStillCompile(@TempDir Path tmp) throws IOException {
+        // o SEM050 não pode quebrar o que LEGITIMAMENTE usa um nome de tipo:
+        // anotação (`x: Int`), cast (`as Int`), e acesso a campo em INSTÂNCIA
+        // (String.length, "abc".length). Proibido regridir (regra 1).
+        CompilationResult r = compile(tmp, "ok.kf", """
+                main() {
+                    var x: Int = 2147483647
+                    var s = "abc"
+                    println(s.length)
+                    println("a😀b".length)
+                    val big = 3000000000
+                    println(x + big)
+                }
+                """);
+        assertTrue(r.success(), "legítimo deve compilar: " + r.diagnostics().getDiagnostics());
+    }
 }

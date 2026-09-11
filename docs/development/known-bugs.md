@@ -2321,6 +2321,49 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 - **Descoberto:** 10/09 na varredura de paridade String (batch `swD.kf`/`swE.kf`).
 
 
+### 99. `Int.MAX_VALUE`/`<primitivo>.<campo>` passa SEM diagnóstico → lixo nos 3 targets + CRASH do compilador — ✅ CORRIGIDO 10/09 (R6; varredura numeric/estático)
+
+- **Sintoma:** `Int.MAX_VALUE` (e qualquer `Int/Long/Double/Float/Char/Byte/
+  Short/Bool.<campo>`) é **fake idiom** (não existe em Kof — corpus só usa
+  literal ou `as`). Mas o compilador ACEITAVA:
+  - `println(Int.MAX_VALUE)` → `ok=true` + `getfield "?".MAX_VALUE` no bytecode
+    → **JVM** `NoClassDefFoundError: ?`, **Native** SIGSEGV, **Script** `null`.
+  - `var x = Int.MAX_VALUE` (assignment) → **crash do próprio compilador**:
+    `RuntimeException: frame crash ... NegativeArraySizeException: -1` (ASM
+    COMPUTE_FRAMES) — um programa do usuário derruba o `mvn`/driver.
+  - `Int.foo` / `Int.SIZE` → idem, aceito silenciosamente.
+- **Causa raiz:** em `SemExpressionTyper`, o receiver `Int` é um
+  `IdentifierExpr` com nome em `isBuiltinTypeName` → a isenção (linha ~173,
+  que existe p/ **posição de tipo**: `var x: Int`, `x as Int`) suprime o SEM011
+  e `inferType` cai em `yield UNKNOWN`. No caso `FieldAccessExpr`, o único
+  guard de campo inexistente (SEM025, linha ~383) dispara só em
+  `recvType instanceof ClassType` — `UNKNOWN` não é ClassType, logo o campo
+  escapa SEM diagnóstico. O lowering (`ExpressionLowerer`/`ExpressionTyper`
+  `case FieldAccessExpr`) então emite um acesso a campo num dono primitivo →
+  `JvmOpEmitter:104` faz o fallback `sf.ownerType() instanceof ClassType ct ?
+  ct.name() : "?"` → o dono literal `"?"` cai no constant pool.
+- **✅ CORRIGIDO 10/09 (R6, nunca silencioso — NÃO é mudança de contrato, é
+  rejeitar código que nunca funcionou):** novo guard no caso `FieldAccessExpr`
+  do `SemExpressionTyper` — se `recvType` é `UNKNOWN` **e** o receiver é um
+  `IdentifierExpr` cujo nome é `isBuiltinTypeName` → **SEM050** ("'<T>' é um
+  tipo primitivo, não tem campo estático '<f>' (use o literal...)"), antes do
+  lowering. Como `analyze()` → `hasErrors()` → `return null` ocorre ANTES do
+  `visitMaxs`, o crash do compilador e o bytecode lixo morrem no typer, nos 3
+  targets (JVM/Native/interpretador compartilham o frontend — paridade por
+  construção).
+- **Escopo cirúrgico (não regridir legítimo):** `String.valueOf(42)`/
+  `String.format(...)`/`Int.parseInt(...)` são **MethodCallExpr** (têm
+  parênteses/args), caminho diferente (`BuiltinCallTyper`) — NÃO afetados
+  (probe: `String.valueOf(42)`→"42" nos 3). `s.length` (instância, receiver
+  String-typed) e anotação/cast `x: Int`/`x as Int` permanecem válidos (testado).
+- **Prova:** `SemanticResolutionTest.staticFieldOnPrimitiveTypeRejected`
+  (8 tipos × 4 campos, incl. a forma assignment que crashava) +
+  `primitiveAsTypeAndLiteralStillCompile` (anotação/cast/length-instância/literal
+  compilam). Suíte completa **1464 run / 0 falhas** (12 err = node ausente).
+- **Arquivos:** `SemExpressionTyper.java` (guard SEM050); testes em
+  `SemanticResolutionTest.java`.
+
+
 ### 62. Constant pool: Float/Double armazenados como bits crus (parser de migração) — ✅ CORRIGIDO 08/09
 
 - **Sintoma:** `kof inspect`/`kof decompile` de um `.class` com constante
