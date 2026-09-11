@@ -2514,11 +2514,22 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
     pós-clean **1474 run / 0 falhas** (12 err = node ausente).
   - **Arquivos:** `KofInterpreter.java` (override em `KofObj`),
     `KofInterpreterObjects.java` (helpers estáticos + equals de classe→identidade).
-- **§104b ⏳ ABERTO (Native):** `Thing(5).equals(Thing(5))` (classe não-record,
-  método `equals` NÃO declarado) → **LINK_FAIL** (símbolo virtual ausente). O
-  record `.equals()` campo-a-campo resolve, mas a chamada a `Object.equals`
-  herdado não tem vtable slot. Reprodução mínima `/tmp/om.kf` (últimos 3
-  prints) / `/tmp/req3.kf`. Proibido: fallback silencioso.
+  | JS | **false** | **false** | **null** | `Point[x=1, y=2]` (sem `[]`!) | — |
+
+- **§104b ⏳ ABERTO (Native):** (i) `Thing(5).equals(Thing(5))` (classe
+  não-record, método `equals` NÃO declarado) → **LINK_FAIL** (`ld:
+  undefined reference to Thing_equals` — `resolveCalleeName` mangla o dono mas
+  ninguém emite o `Object.equals` herdado). (ii) record em coleção:
+  `kof_list_contains`/set/map comparam `cmpl %r12,%rax` (ponteiro) ou só
+  string — nunca o equals de conteúdo. Reprodução mínima: célula `objmethods`
+  (Native excluído) + `/tmp/om.kf` / `/tmp/req3.kf`. Proibido: fallback
+  silencioso.
+- **§104c ⏳ ABERTO (JS):** record em `setOf`/`mapOf`/`listOf().contains`
+  usa **identidade** (Map/HashSet JS nativos com objeto por referência) e
+  `println(listOf(p1))` imprime `Point[x=1, y=2]` **sem os colchetes**
+  (join sem wrapper `[...]`). Prova: célula `objmethods` (JS excluída, medido
+  11/09: `false|false|null|Point[x=1, y=2]`). Fix exige wrapper de coleção
+  com equals/hashing por conteúdo no emitter JS — unidade própria.
 
 
 ### 103. Subscript `x[i]` em String/List/Map/Set aceito em silêncio → quebra os 3 targets (VerifyError/vazio) — ✅ CORRIGIDO 11/09 (SEM054, opção B)

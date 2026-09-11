@@ -219,6 +219,23 @@ class ConformanceMatrixTest {
                     println(s.equals('x'))
                 }
                 """, "true\nfalse\nfalse\nfalse", Set.of(), tempDir);
+        // §104 (paridade absoluta): record DENTRO de coleção usa equals/
+        // hashCode/toString por CONTEÚDO (oracle = JVM, registro real gera os
+        // 3). Script era identidade (KofObj sem override → §104a CORRIGIDO
+        // 11/09); Native LINK_FAIL em Thing.equals (Object.equals herdado sem
+        // slot na vtable → §104b ABERTO, célula excluída); JS usa identidade
+        // (Map/HashSet nativos + sem wrapper → §104c ABERTO, excluído).
+        matrix("objmethods", """
+                record Point(Int x, Int y)
+                main() {
+                    val p1 = Point(1, 2)
+                    val p2 = Point(1, 2)
+                    println(listOf(p1).contains(p2))
+                    println(setOf(p1).contains(p2))
+                    println(mapOf(p1, 7).get(p2))
+                    println(listOf(p1))
+                }
+                """, "true\ntrue\n7\n[Point[x=1, y=2]]", Set.of("native", "js"), tempDir);
         matrix("boollogic", """
                 main() {
                     println(true && false)
