@@ -11,6 +11,7 @@
 > | Abertos e atacáveis em JVM/JS | **5** — bugs 39, 45, 62, 63, 64 |
 > | Abertos, só reproduzíveis no Native | **5** — bugs 46, 48, 50, 59, 61 |
 > | Paridade interpretador × compilados (semântica `==` congelada — regra 6) | **1** — bug 94 (NaN/±0.0 `==` de Double no SCRIPT) |
+> | Operadores relacionais NaN cross (congelados — regra 6) | **1** — bug 100 (`<`/`<=`/`>=` com NaN: riscv IEEE vs x86/JVM quirk `dcmpg`) |
 > | Verificados corrigidos em 08/09 | **19** — bugs 1–8, 10–17, 19, 20, 26 |
 > | Não reverificados (faltou ambiente/setup) | bugs 9, 18, 21, 22, 23 |
 >
@@ -2468,6 +2469,43 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 - **Arquivos:** `SemExpressionTyper.java` (guard SEM050); testes em
   `SemanticResolutionTest.java`.
 
+
+### 100. Operadores relacionais de Double com NaN: x86/JVM/Script divergem do riscv/aarch (e entre si em `<=`/`>=`) — ABERTO (regra 6 — operadores congelados, decisão da mantenedora)
+
+- **Sintoma (medido 11/09 na prova do MATH001 — menor repro, mesma entrada
+  nos 5 alvos):** `var n = 0.0/0.0` e comparações relacionais com NaN:
+
+  | programa | JVM | x86_64 | riscv64/aarch64 |
+  |---|---|---|---|
+  | `1.0 < n` | true | true | **false** |
+  | `1.0 > n` | false | false | false |
+  | `1.0 <= n` | true | **false** | **false** |
+  | `1.0 >= n` | false | false | false |
+  | `n < 1.0` | true | true | **false** |
+
+  (IEEE 754 puro: TODO relational com NaN é false — o riscv segue IEEE; o
+  JVM/JS seguem a semântica Java de `dcmpg`/`<` que troca o resultado p/
+  `true` no NaN — é o mesmo quirk do bug 94, que congela `NaN == NaN` =
+  `false` nos compilados mas `true` no interpretador via `Double.compare`.)
+- **Causa:** no cross, `NativeRiscvCrossOps.emitCrossBinaryRiscv` usa
+  `flt.d`/`fle.d`/`fgt`/`fge` p/ os operadores relacionais (IEEE — NaN
+  sempre false), enquanto o x86 usa `cmpsd`+`seta/setae`-style com swap
+  (quirk `dcmpg`) idêntico ao `DCMPL/DCMPG` do JVM. Os dois caminhos são
+  "defensáveis"; a spec da linguagem NÃO fixa a semântica NaN de `<`/`>`
+  (expressions.md: relacional de float segue o backend). Escolher UMA das
+  duas = mudança de contrato sobre operadores congelados (regra 6:
+  bump + discussão com a mantenedora), então **NADA foi alterado aqui**.
+- **Notas do registro:** (a) a face `!=`/`==` JÁ estava congelada correta-
+  mente — o achado do MATH001 foi só no NE riscv (`fle+snez` dizia
+  `NaN != NaN` = false, divergia de TODOS os outros = true IEEE) —
+  corrigido p/ `feq+seqz` em 11/09 (alinha o cross com o contrato IEEE
+  já travado na matriz `stdsqrt`/golden KofMathTest, NÃO é escolha nova);
+  (b) o parâmetro do `<`/`<=`/etc. fica como está nos 3 caminhos atuais.
+- **Próximo passo honesto:** decisão DD no planning-* (qual família: IEEE
+  pura nos 5 ou quirk-JVM nos 5) — a matriz não cobre relacionais com NaN
+  (só Bool-equality, padrão bug 44), então nada está silencioso.
+- **Arquivos:** `NativeRiscvCrossOps.emitCrossBinaryRiscv` (cross),
+  `NativeX86Calls`/`RuntimeFp` (x86), `JvmOpEmitter` (JVM DCMPL/G).
 
 ### 62. Constant pool: Float/Double armazenados como bits crus (parser de migração) — ✅ CORRIGIDO 08/09
 

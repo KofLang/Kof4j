@@ -229,7 +229,9 @@ class ConformanceMatrixTest {
                 """, "10\n0\n7\n-1\n3\n8\ntrue\nfalse\ntrue\ntrue\nfalse", Set.of(), tempDir);
         // STDLIB S1b — kof.math.sqrt (PRIMEIRO Double da namespace). Compara-
         // ções Bool (nunca print de double cru — bug 44 no Native). riscv/aarch
-        // = MATH001 (gate em KofMath; a matriz não cobre nativos cross).
+        // = B32 `fsqrt.d` (MATH001 fechado 11/09 — a cobertura cross com
+        // golden byte-idêntico mora em KofMathTest.sqrtCrossArch/
+        // doubleOpsCrossArch sob qemu; esta matriz roda os 4 targets não-cross).
         // PARTIAL script = bug 94 (numEq usa Double.compare → NaN==NaN true,
         // divergindo dos 3 compilados que seguem IEEE NaN!=NaN).
         matrix("stdsqrt", """

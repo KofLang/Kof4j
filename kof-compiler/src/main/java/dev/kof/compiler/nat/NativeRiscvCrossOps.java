@@ -38,7 +38,10 @@ public final class NativeRiscvCrossOps {
                 case MUL -> sb.append("    fmul.").append(s).append(" f0, f0, f1\n");
                 case DIV -> sb.append("    fdiv.").append(s).append(" f0, f0, f1\n");
                 case EQ -> { sb.append("    feq.").append(s).append(" t1, f0, f1\n    mv t0, t1\n"); }
-                case NE -> { sb.append("    fle.").append(s).append(" t1, f0, f1\n    snez t0, t1\n"); }
+                // NE = NOT(EQ): feq dá 0 p/ NaN (IEEE) e seqz inverte — o
+                // antigo fle+snez dizia NaN != NaN falso (divergia do x86/
+                // JVM/JS = true; achado na prova MATH001 11/09).
+                case NE -> { sb.append("    feq.").append(s).append(" t1, f0, f1\n    seqz t0, t1\n"); }
                 case LT -> { sb.append("    flt.").append(s).append(" t0, f0, f1\n"); }
                 case LE -> { sb.append("    fle.").append(s).append(" t0, f0, f1\n"); }
                 case GT -> { sb.append("    fgt.").append(s).append(" t0, f0, f1\n"); }
