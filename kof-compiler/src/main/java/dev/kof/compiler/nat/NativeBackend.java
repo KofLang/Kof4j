@@ -75,6 +75,7 @@ public class NativeBackend implements Backend {
     int labelCounter = 0;
     final List<String[]> stringLiterals = new ArrayList<>();
     int stringCounter = 0;
+    int inlineSeq = 0;   // labels inline (split etc.) — únicas por call site
 
     /** Campos estáticos: chave "owner|name" → label no .data (bug 41). */
     final java.util.LinkedHashMap<String, String> staticFieldSymbols = new java.util.LinkedHashMap<>();
@@ -259,6 +260,7 @@ public class NativeBackend implements Backend {
         labelMap.clear();
         stringLiterals.clear();
         stringCounter = 0;
+        inlineSeq = 0;
         functionMangleMap.clear();
         layoutCache.clear();
         allClassesMap.clear();

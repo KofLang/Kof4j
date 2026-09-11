@@ -2181,6 +2181,146 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   pararia de compilar → é mudança de contrato, bump).
 
 
+### 95. Native: 2+ `String.split` no mesmo programa → assembler "already defined" (COMP001) — ✅ CORRIGIDO 10/09 (x86_64; varredura de paridade String)
+
+- **Sintoma:** `var a = "x,y".split(",").length; var b = "p,q".split(",").length`
+  falha no Native x86_64: `ld: symbol '.Lkof_split_empty_sep' is already
+  defined` → COMP001 (erro de montagem). QUALQUER programa com 2+ splits
+  (parsear 2 linhas CSV, query-string + header) era **incompilável** no Native;
+  JVM/Script rodam normal. Paridade quebrada (regra 5) de forma barulhenta.
+- **Causa raiz:** o ramo inline do `split` (`NativeX86StringCalls.emit`,
+  extraído verbatim do `NativeBackend.emitCall` na FASE 3 do REFACTOR-500)
+  emitia DUAS labels com nome FIXO (`.Lkof_split_empty_sep` / `.Lkof_split_call`)
+  dentro do corpo de cada call site. Um segundo `split` no MESMO arquivo `.s`
+  redefinia o símbolo → erro do assembler. Os demais ramos inline usam labels
+  via `resolveLabel`/contador; o `split` foi o único que ficou com nome estático.
+- **✅ CORRIGIDO 10/09 (x86_64):** `NativeBackend` ganha `inlineSeq` (resetado
+  por programa, junto de `stringCounter` — output determinístico); o ramo do
+  `split` sequencia as labels (`.Lkof_split_empty_sep<N>`/`.Lkof_split_call<N>`).
+  `NativeX86StringCalls.emit` recebe o `nb` (única mudança de assinatura; o
+  `emit` já é estático e o único caller é `NativeX86Calls.emitCall:78`).
+- **Prova:** `NativeE2ETest.nativeTwoSplitsInOneProgram` (2 splits + get: `5\nn`);
+  oracle JVM==Native==Script no mesmo programa. Suíte 0 falhas.
+- **Nota (riscv/aarch):** o backend cross não tem o mesmo ramo inline de split
+  com labels fixas (o `kof_string_split` é chamado direto) — não reproduz.
+
+### 96. Native: `String.repeat`/`padStart`/`padEnd` como MÉTODO DE INSTÂNCIA → `undefined reference` no link — ABERTO (fora do corpus; API documentada é a função `strings.repeat(...)`)
+
+- **Sintoma:** `println("ab".repeat(2))` / `"ab".padStart(4,"-")` / `"ab".padEnd(4,"-")`
+  no Native x86_64 falham no link: `undefined reference to
+  'java_lang_String_repeat'` / `_padStart` / `_padEnd` (COMP001). O typer aceita
+  (o método existe no registry — `KofStrings.java:59` reconhece `repeat`), mas
+  nenhum backend emite o intrínseco nem a runtime define o símbolo. JVM/Script
+  executam correto.
+- **Causa:** o typer/registry conhece `repeat` como método de String (a função
+  top-level `strings.repeat` é o idiom CANÔNICO do corpus —
+  `training/idioms/stdlib.md:37`, `learn/39-stdlib.md:63`), mas o emit nativo
+  desses 3 como **método de instância** nunca foi escrito. Não há teste nem doc
+  que pinnem a forma `"ab".repeat(2)` — só a forma `strings.repeat("ab",2)`.
+- **Por que NÃO é "só implementar" (regra 6):** é API de superfície nova
+  (adicionar o emit dos 3 intrínsecos nos nativos) OU decisão de o typer
+  REJEITAR método-de-instância fora do corpus (mudança de contrato p/ quem usa
+  no JVM — bump). Mesma família da decisão §89 (superfície não-pinned).
+- **Ação p/ o dono Native:** (a) implementar `repeat`/`padStart`/`padEnd` no
+  runtime x86 (`kof_string_repeat`/`_pad_start`/`_pad_end`) + rotear em
+  `NativeX86StringCalls` (o emit de método já existe, só falta o symbol); OU
+  (b) diagnosticar no typer apontando p/ `strings.repeat(...)` (o idiom real).
+  Decidir com a mantenedora. **Workaround atual:** `strings.repeat("ab", 3)`
+  (funciona nos targets que têm a função).
+- **Descoberto:** 10/09 na varredura de paridade String (batch `swA.kf`).
+
+### 97. Native: `String.compareTo`/`String.hashCode` declarados no reference → `undefined reference` no link — ✅ x86_64 CORRIGIDO 10/09 (varredura String parte 2; faces JS + riscv/aarch residuais)
+
+- **Sintoma:** `a.compareTo("abd")` e `a.hashCode()` falham no link Native
+  x86_64: `undefined reference to java_lang_String_compareTo` / `_hashCode`
+  (COMP001). riscv/aarch idem (mesmo `emitCall` genérico → símbolo `java_lang_String_*`
+  nunca definido no runtime). **JVM e interpretador rodam** (o typer aceita —
+  `BuiltinCallTyper.java:420` tipa os dois como `String→Int`; o interpretador
+  trata `hashCode` em `KofInterpreterObjects:32`/`KofInterpreterCollections:74`).
+- **Contradição com o corpus (por que é paridade, não design):** o
+  `docs/language-reference/type-system.md:289` DECLARA a API — "`String`:
+  indexOf/length/**compareTo/hashCode**→Int". O typer honra a declaração; os 3
+  nativos não. Paridade cross-target quebrada (regra 5) em método *documentado*
+  — família do §96, mas lá o método NÃO está no corpus (design); aqui ESTÁ.
+- **Causa:** nenhum dos 3 backends nativos emite os intrínsecos
+  `java_lang_String_compareTo`/`_hashCode`. `NativeX86StringCalls.emit` roteia
+  length/charAt/substring/indexOf/… mas não estes dois → caem no `emitCall`
+  genérico que chama o símbolo que ninguém define (mesma raiz do §96/§89).
+- **A armadilha que o fix NÃO pode repetir (lição bug 43):** uma implementação
+  byte-a-byte (`memcmp` no UTF-8, soma de bytes no `hashCode`) DIVERGE do JVM
+  em strings astrais/multi-byte: o `String.compareTo` do JVM compara **code
+  units UTF-16** (`a😀b` vs `a�b` — o 😀 é 2 surrogados), o `hashCode` é
+  `31*…` sobre UTF-16. Exatamente o que o §43 pegou em charAt/substring/indexOf.
+  O fix correto reusa `.Lkof_substr_walk` (decoder UTF-8→code-unit) nos 2.
+- **✅ CORRIGIDO 10/09 (face x86_64):** arquivo novo `runtime/RuntimeStringCompare`
+  encadeado em `NativeRuntime.emitRuntime`; o helper `.Lksu_next` decodifica o
+  UTF-8 interno em **sequência de code units UTF-16** (par astral → high, depois
+  low pendurado no cursor) — NÃO memcmp/byte-sum; `kof_string_compare_to`
+  (primeira unit diferente → `A−B`, como o JVM; prefixo → diferença de
+  contagem de units) + `kof_string_hash_code` (`h=31*h+unit`). Routing em
+  `NativeX86StringCalls.emit` (caller pop → rdi/rsi; convenção dos demais
+  `kof_string_*`). Bugs pegos na prova: (a) a validação de continuação
+  (`and 0xC0/cmp 0x80`) DESTRUÍA o registrador do byte antes do `and 0x3F` →
+  é(233) virava 192 — reler/re-usar scratch (`r8d/r10d/r11d`); (b) em `.Lksn4`
+  o bookkeeping das posições lia b2 como b3 (astral hash 131791936 vs 1772899);
+  (c) o `.Lct_diff` comparava além do fim da string curta (prefixo `ab`/`abc`
+  dava −99) — agora unit 0 (fim) cai na contagem de units.
+- **Prova:** `NativeE2ETest.nativeStringCompareToAndHashCodeUtf16` — 11 vetores
+  com astral/BMP/prefixo/vazio, golden JVM==Native==Script idênticos
+  (`10 1 -1 -1 55260 -10176 10176 96354 3240 1772899 0`). Suíte da área verde
+  (NativeE2ETest 59, BackendParity 16, ConformanceMatrix 11, doc-gate).
+- **Residuais (honestos, NÃO regredidos):** **JS** — `JsCallEmitter` não trata os
+  dois no switch; caem no `default` → `texto.compareTo(o)`/`texto.hashCode()`
+  que NÃO existem em `String.prototype` → `TypeError` em runtime (bug-irmão do
+  `equals`, que é tratado). Como node está AUSENTE aqui, não travar por teste —
+  face da lane JS. **riscv64/aarch64** — os símbolos vivem só no `.s` x86
+  (`NativeRuntime` é x86-only; o cross tem suas fatias). Ferramenta de cross
+  ausente neste ambiente → portar no env da lane cross (com qemu) reusando o
+  MESMO algoritmo de code-unit. Ver matriz `backend-parity.md`.
+- **Continuação 10/09 (mesma varredura): `String.equals` link-fail** →
+  `undefined reference java_lang_String_equals`. O `==` de String JÁ baixava p/
+  `kof_string_equals` (conteúdo, null-safe); o MÉTODO `.equals` não era roteado
+  (caía no caminho genérico). Fix: routing em `NativeX86StringCalls.emit` p/ o
+  MESMO `kof_string_equals` (type-system.md:258 documenta ".equals funciona
+  (probe) mas é anti-pattern — use `==`"). **Guard `isString(ownerType)` é
+  essencial:** `record.equals` (gerado campo-a-campo, `ExpressionBinaryLowerer:196`)
+  NUNCA pode ser hijackado — provado lado a lado no mesmo programa.
+- **Resíduo NEW (não-meu escopo, registrar): `Object.equals`** — `var o = s as
+  Object; o.equals("café")` dá `undefined reference java_lang_Object_equals` no
+  link (JVM/Script rodam). Diferente do caso String: exige **dispatch virtual**
+  (vtable) num receiver tipado como referência — não é "só chamar o intrínseco",
+  é o mecanismo de `invokevirtual` genérico do Native. Decidir com a lane Native
+  (dispatch) — NÃO silencioso: gap aberto, menor repro `/tmp/oq.kf`.
+- **Descoberto:** 10/09 na varredura de paridade String (batch `swB.kf`/`swF.kf`/`sw2b.kf`).
+
+### 98. String `<`/`>`: três backends divergem e TODOS dão lixo — ABERTO (semântica **Unspecified** no reference; regra 6 — decisão da mantenedora)
+
+- **Sintoma (medido 10/09, 3 targets no MESMO programa `swE.kf`,
+  `"abc"` vs `"abd"`):** `a<b | a>b | b<a | b>a | a==b` —
+  **JVM** `false|false|false|false|false` (tudo false: `if_acmp` em referência
+  é sempre-falso p/ `<`/`>`); **Native x86_64** `false|true|true|false|false`
+  (compara o **ponteiro** — ordem de alocação, não conteúdo); **interpretador**
+  `true|false|false|true|false` (lexicográfico, **invertido** p/ `<` vs `>` do
+  Native). `a==b` bate (`false`) nos 3 (conteúdo, congelado — §regra 6).
+- **Não é "só alinhar":** `docs/language-reference/expressions.md:56-58`
+  declara a ordem lexicográfica de String por `<`/`>` como **Unspecified** —
+  "o parser aceita, o lowering usa `if_acmp*` para referências, o que para
+  `<`/`>` em referência é **não suportado**". Escolher SEMÂNTICA (ordem
+  lexicográfica UTF-16? por code point? erro de compilação?) é **mudança de
+  contrato sobre operadores congelados** → regra 6: decisão da mantenedora,
+  NUNCA edição silenciosa.
+- **Três caminhos possíveis (documentar + discutir, não implementar):**
+  (a) **rejeitar no typer** (`<`/`>` em String = erro SEM, apontando p/
+  `compareTo`) — o mais honesto com "não suportado" do reference, mas quebra
+  código que compila hoje nos 3 (bump); (b) **definir lexicográfico UTF-16**
+  (= `compareTo < 0`) e implementar nos 3 (a opção "completa"; exige o §97
+  primeiro); (c) deixar unspecified e só adicionar **diagnóstico** no Native/
+  Script quando hoje compila em silêncio (meio-termo R6). Cada um muda
+  observável → bump/discussão.
+- **Ação p/ a mantenedora:** escolher (a)/(b)/(c) → eu implemento na lane.
+- **Descoberto:** 10/09 na varredura de paridade String (batch `swD.kf`/`swE.kf`).
+
+
 ### 62. Constant pool: Float/Double armazenados como bits crus (parser de migração) — ✅ CORRIGIDO 08/09
 
 - **Sintoma:** `kof inspect`/`kof decompile` de um `.class` com constante
