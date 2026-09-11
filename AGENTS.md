@@ -418,6 +418,13 @@ Bool isQuery(String op) {
    antes de usar. Sintaxe que não compila é pior que sintaxe verbosa.
 6. **Multi-target honesto.** Código que só roda em um target precisa de
    diagnóstico claro (gap `XXX00x`), nunca fallback silencioso.
+7. **Nome descreve responsabilidade, nunca posição.** `JsRuntimeUiMathDouble`,
+   `RuntimeStringsWords` — sim; `...Math2`, `...V2`, `...New`, `...Bak`,
+   `stdmath2` — não. Sufixo numérico é lixo de co-processador (só existe para
+   não colidir com um nome que ninguém entendeu). Ao splitar por gate ≤500, o
+   arquivo novo ganha nome pelo que **contém** (a responsabilidade que
+   saiu), não por quantos irmãos já existem. Legibilidade vem antes de
+   qualquer economia de digitação.
 
 ---
 

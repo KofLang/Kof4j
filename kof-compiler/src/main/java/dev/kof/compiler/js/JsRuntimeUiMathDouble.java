@@ -5,9 +5,9 @@ package dev.kof.compiler.js;
  * (lerp/percentage/isInteger/isDecimal). Fragmento próprio (gate ≤500:
  * JsRuntimeUiStdlib já estava acima). Ordem de append livre (ESM).
  */
-final class JsRuntimeUiMath2 {
+final class JsRuntimeUiMathDouble {
 
-    private JsRuntimeUiMath2() {}
+    private JsRuntimeUiMathDouble() {}
 
     static final String MATH2_RUNTIME = """
             // ── kof.math S1b.1 — Double puros (paridade JVM/Native) ─────

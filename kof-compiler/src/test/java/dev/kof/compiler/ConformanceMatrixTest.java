@@ -224,7 +224,7 @@ class ConformanceMatrixTest {
         // isInteger/isDecimal). Subset determinístico travado nos 4 targets
         // (NaN excluído — bug 94 no interpretador; provado só nos compilados
         // em KofMathTest.doubleOps*). Bool == false no script casa (S12b).
-        matrix("stdmath2", """
+        matrix("stdmathdouble", """
                 main() {
                     println(math.lerp(0.0, 10.0, 0.5) == 5.0)
                     println(math.lerp(0.0, 10.0, 0.25) == 2.5)

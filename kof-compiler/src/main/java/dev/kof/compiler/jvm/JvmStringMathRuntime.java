@@ -63,7 +63,7 @@ public final class JvmStringMathRuntime {
 
                 // S1b.1: escalares Double puros (lerp/percentage/isInteger/
                 // isDecimal) — mesma aritmética SSE2 do Native e da semântica
-                // JS (travada na matriz stdmath2 + KofMathTest golden JVM).
+                // JS (travada na matriz stdmathdouble + KofMathTest golden JVM).
                 public static double kof_math_lerp(double a, double b, double t) {
                     return a + (b - a) * t;
                 }

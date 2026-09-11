@@ -50,7 +50,7 @@ public class JsArtifactWriter {
                     java.nio.file.StandardOpenOption.APPEND);
             Files.writeString(core, JsRuntimeUiStdlib.STDLIB_RUNTIME,
                     java.nio.file.StandardOpenOption.APPEND);
-            Files.writeString(core, JsRuntimeUiMath2.MATH2_RUNTIME,
+            Files.writeString(core, JsRuntimeUiMathDouble.MATH2_RUNTIME,
                     java.nio.file.StandardOpenOption.APPEND);
             Files.writeString(core, JsRuntimeUiNet.NET_RUNTIME,
                     java.nio.file.StandardOpenOption.APPEND);

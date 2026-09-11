@@ -22,8 +22,6 @@ final class JsRuntimeUiStdlib {
             export function kofMathIsNegative(v) { return v < 0 ? 1 : 0; }
             export function kofMathIsZero(v) { return v === 0 ? 1 : 0; }
             export function kofMathSqrt(v) { return Math.sqrt(v); }
-            // S1b.1 (lerp/percentage/isInteger/isDecimal) mora em
-            // JsRuntimeUiMath2 (gate ≤500 deste arquivo).
 
             // ── kof.strings (STDLIB S2a) — predicados de char ───────────
             export function kofStringsIsAlpha(v) {
