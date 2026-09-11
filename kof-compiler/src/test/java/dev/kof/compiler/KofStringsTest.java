@@ -217,6 +217,36 @@ class KofStringsTest {
         }
     }
 
+    // bug 97 (face JS): String.compareTo/hashCode caíam no default do
+    // JsCallEmitter → `a.compareTo()` = TypeError (não existem em
+    // String.prototype). Agora: hashCode → kofHashCode (bug 42, 31*h+unit
+    // UTF-16), compareTo → kofStringCompareTo (walk de code units — sem
+    // localeCompare, que diverge de locale/astral). Golden = MESMO do
+    // NativeE2ETest.nativeStringCompareToAndHashCodeUtf16 (medido no oracle
+    // JVM: 31*h+charCodeAt = Java; prefixo → diff de units; astral em pair).
+    @Test
+    void compareToAndHashCodeJvmJsNative(@TempDir Path tmp) throws Exception {
+        String golden = """
+            main() {
+                println("ab".compareTo("aX"))
+                println("a\\u00e9".compareTo("a"))
+                println("abc".compareTo("abd"))
+                println("ab".compareTo("abc"))
+                println("\\uD83D\\uDE00".compareTo("a"))
+                println("a\\uD83D\\uDE00".compareTo("a\\uFFFD"))
+                println("a\\uFFFD".compareTo("a\\uD83D\\uDE00"))
+                println("abc".hashCode())
+                println("a\\u00e9".hashCode())
+                println("\\uD83D\\uDE00".hashCode())
+                println("".hashCode())
+            }
+            """;
+        String expected = "10\n1\n-1\n-1\n55260\n-10176\n10176\n96354\n3240\n1772899\n0";
+        runJvm(tmp, golden, expected);
+        runJs(tmp, golden, expected);
+        runNative(tmp, golden, expected);
+    }
+
     private void assumeToolchain(String... tools) {
         for (String c : tools) {
             try {

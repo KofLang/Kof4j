@@ -2229,7 +2229,7 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   (funciona nos targets que têm a função).
 - **Descoberto:** 10/09 na varredura de paridade String (batch `swA.kf`).
 
-### 97. Native: `String.compareTo`/`String.hashCode` declarados no reference → `undefined reference` no link — ✅ x86_64 CORRIGIDO 10/09 (varredura String parte 2; faces JS + riscv/aarch residuais)
+### 97. Native: `String.compareTo`/`String.hashCode` declarados no reference → `undefined reference` no link — ✅ x86_64 CORRIGIDO 10/09 + ✅ JS CORRIGIDO 10/09 (varredura String parte 2; residual só riscv/aarch)
 
 - **Sintoma:** `a.compareTo("abd")` e `a.hashCode()` falham no link Native
   x86_64: `undefined reference to java_lang_String_compareTo` / `_hashCode`
@@ -2269,14 +2269,21 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   com astral/BMP/prefixo/vazio, golden JVM==Native==Script idênticos
   (`10 1 -1 -1 55260 -10176 10176 96354 3240 1772899 0`). Suíte da área verde
   (NativeE2ETest 59, BackendParity 16, ConformanceMatrix 11, doc-gate).
-- **Residuais (honestos, NÃO regredidos):** **JS** — `JsCallEmitter` não trata os
-  dois no switch; caem no `default` → `texto.compareTo(o)`/`texto.hashCode()`
-  que NÃO existem em `String.prototype` → `TypeError` em runtime (bug-irmão do
-  `equals`, que é tratado). Como node está AUSENTE aqui, não travar por teste —
-  face da lane JS. **riscv64/aarch64** — os símbolos vivem só no `.s` x86
-  (`NativeRuntime` é x86-only; o cross tem suas fatias). Ferramenta de cross
-  ausente neste ambiente → portar no env da lane cross (com qemu) reusando o
-  MESMO algoritmo de code-unit. Ver matriz `backend-parity.md`.
+- **✅ CORRIGIDO 10/09 (face JS):** `JsCallEmitter.handleStringOp` ganha case
+  `hashCode` → `kofHashCode` (runtime, bug 42 — `31*h+charCodeAt` sobre code
+  units UTF-16, MESMO algoritmo do x86) e `compareTo` → helper novo
+  `JsRuntimeCore.kofStringCompareTo` (walk de code units UTF-16: primeira unit
+  diferente → `A−B`; prefixo → diff de contagem — **NÃO** `localeCompare`, que
+  diverge de locale e de astral). Antes caíam no `default` → `texto.compareTo()`
+  / `texto.hashCode()` que não existem em `String.prototype` → `TypeError`.
+  (node AUSENTE na sessão do bug x86 era a razão do residual; disponível na
+  sessão JS.) **Residual restante: riscv64/aarch64** — os símbolos vivem só no
+  `.s` x86 (`NativeRuntime` é x86-only; o cross tem suas fatias). Ferramenta de
+  cross ausente neste ambiente → portar no env da lane cross (com qemu)
+  reusando o MESMO algoritmo de code-unit. Ver matriz `backend-parity.md`.
+- **Prova face JS:** `KofStringsTest.compareToAndHashCodeJvmJsNative` — MESMOS
+  11 vetores do §97-x86 (astral/BMP/prefixo/vazio), golden JVM==JS==x86
+  idênticos (`10 1 -1 -1 55260 -10176 10176 96354 3240 1772899 0`).
 - **Continuação 10/09 (mesma varredura): `String.equals` link-fail** →
   `undefined reference java_lang_String_equals`. O `==` de String JÁ baixava p/
   `kof_string_equals` (conteúdo, null-safe); o MÉTODO `.equals` não era roteado
