@@ -170,6 +170,28 @@ class ConformanceMatrixTest {
                     println(7.0 / 2.0)
                 }
                 """, "0.3333333333333333\n5.0\n3.5", Set.of("js"), tempDir);
+        // bug 44 (residual, x86_64, paridade regra 5): o glibc %.16g escreve
+        // 'inf'/'-inf'/'nan' mas o contrato é JDK Double.toString →
+        // 'Infinity'/'-Infinity'/'NaN' (o que JVM/Script imprimem). O println
+        // boxa via kof_double_to_string (RuntimeStringConv); o print sem box via
+        // kof_print_double (RuntimePrintNum). As 2 faces + float + concat
+        // String.valueOf. JS mantém a exclusão (idêntica ao floatprint:
+        // String(5.0) = "5" no JS, "5.0" no JVM — a divergência é o '.0', não
+        // o spelling de inf/nan, que o JS já casa).
+        matrix("infinityprint", """
+                main() {
+                    println(1.0 / 0.0)
+                    println(-1.0 / 0.0)
+                    println(0.0 / 0.0)
+                    println(1e38f * 1e38f)
+                    print(1.0 / 0.0)
+                    print(" ")
+                    print(0.0 / 0.0)
+                    println("")
+                    println("v=" + (0.0 / 0.0))
+                }
+                """, "Infinity\n-Infinity\nNaN\nInfinity\nInfinity NaN\nv=NaN",
+                Set.of("js"), tempDir);
         matrix("boollogic", """
                 main() {
                     println(true && false)
