@@ -22,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * árvore/heartbeat (DD-OTP-04/05 adiados no plano).
  *
  * Paridade honesta (regra 6 / R6): NATIVE e JS bloqueiam no compile-time com
- * OTP001 (§109 longjmp cross-thread) / OTP002 (§112 event-loop single-thread),
+ * OTP001 (§129 longjmp cross-thread) / OTP002 (§132 event-loop single-thread),
  * nunca fallback silencioso. JVM (runJvm) + Script (interpret) executam o núcleo.
  */
 class KofSupervisorE2ETest {

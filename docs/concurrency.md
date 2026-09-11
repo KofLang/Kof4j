@@ -212,8 +212,8 @@ supervisor("net")                       // objeto novo por sistema
 - **Encerramento controlado:** `stop(deadlineMs)` cancela cooperativamente
   (flag `cancelled()` nos targets com threads) e espera o deadline; filhos que
   ignoram o cancel são reportados.
-- **Paridade (regra 6):** JVM ✅ · KofScript ✅ · Native = `OTP001` (§123: throw
-  em task longjmpa no handler chain global) · JS = `OTP002` (§126: event-loop
+- **Paridade (regra 6):** JVM ✅ · KofScript ✅ · Native = `OTP001` (§129: throw
+  em task longjmpa no handler chain global) · JS = `OTP002` (§132: event-loop
   não agenda task-de-task) — ambos bloqueados no compile-time com diagnóstico.
 
 ## 5. I/O Concorrente

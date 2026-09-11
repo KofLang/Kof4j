@@ -3355,7 +3355,7 @@ int de índice) — verificados na varredura.
   medido) + sonda `Double as Int` aarch (0→`5`) + suíte completa.
 
 
-### 121. JVM: cast para tipo de função (`x as () -> Int`) gera bytecode inválido (VerifyError) — 🔴 ABERTO (achado no spike OTP #83 11/09)
+### 127. JVM: cast para tipo de função (`x as () -> Int`) gera bytecode inválido (VerifyError) — 🔴 ABERTO (achado no spike OTP #83 11/09)
 - **Reprodução:** `var o: Object = (Object)(() -> 5)`… em Kof puro:
   `fun(Int x) { var g = x as () -> Int; return g() }` — `fun(() -> 9)` →
   **compila ok** mas ao rodar: `VerifyError: Operand stack underflow` /
@@ -3372,7 +3372,7 @@ int de índice) — verificados na varredura.
   `Worker` + `spawn { w.criar() }` + try/await/catch = captura/limit/restart tudo
   verde no JVM). O campo tipado como `() -> Int` dá PARSE016 (parser de corpo de
   classe não aceita LPAREN como início de campo — `ClassMemberParser`), e como
-  `Object`+cast dá este §121.
+  `Object`+cast dá este §127.
 - **Por que NÃO corrigi agora:** consertar o erasure do cast de tipo-função no
   `JvmTypeMapper` é mudança de infraestrutura de tipos (afeta `mapOf<String,
   ()->T>` etc.) — fora do escopo OTP (a interface resolve o caso de uso do
@@ -3380,7 +3380,7 @@ int de índice) — verificados na varredura.
   tipo-valor declarado.
 
 
-### 122. JVM: resultado de `selectAny`/`await` de Handle<Int> atribuído a var e usado como Int → VerifyError — 🔴 ABERTO (spike OTP #83 11/09)
+### 128. JVM: resultado de `selectAny`/`await` de Handle<Int> atribuído a var e usado como Int → VerifyError — 🔴 ABERTO (spike OTP #83 11/09)
 - **Menor repro:** `Int um(){return 1}; Int dois(){return 2}; main(){ var a=spawn
   um(); var b=spawn dois(); var v=selectAny(a,b); println(v==1||v==2) }` →
   compila ok, roda: `VerifyError: Bad type on operand stack … Type
@@ -3396,7 +3396,7 @@ int de índice) — verificados na varredura.
   supervisor N-workers. No JVM o resultado primitivo é inutilizável hoje.
   Contorno do spike: supervisor JVM usa `poll`/`done` por filho no laço (verificados
   — `KofConcurrency2Test`) OU um `await` por filho com a thread supervisora por
-  worker; a decisão final depende de fechar este §122 ou fixar o unbox.
+  worker; a decisão final depende de fechar este §128 ou fixar o unbox.
 - **Fix mínimo provável (NÃO aplicado — fora do escopo da unidade, para a lane
   CONC/native):** no `ExpressionStaticCallLowerer` ramo `selectAny`, inserir o
   mesmo unbox que `await` já faz quando o tipo-destino é primitivo. Reproduzível
@@ -3405,7 +3405,7 @@ int de índice) — verificados na varredura.
   supervisor consegue viver sem selectAny no núcleo 1ª fatia).
 
 
-### 123. Native x86_64: `throw` dentro de worker `spawn` → unwinder faz longjmp no handler da THREAD MAIN (crash/hang cross-thread) — 🔴 ABERTO (impeditivo do OTP no Native; spike #83 11/09, evidência GDB)
+### 129. Native x86_64: `throw` dentro de worker `spawn` → unwinder faz longjmp no handler da THREAD MAIN (crash/hang cross-thread) — 🔴 ABERTO (impeditivo do OTP no Native; spike #83 11/09, evidência GDB)
 - **Reprodução (M2, deterministicamente travado/crashado no native):**
   `main(){ var i=0; while(i<3){ var h=spawn { throw "x" }; try { await h }
   catch(String e){println("cap")} i=i+1 } println("fim3") }` → imprime
@@ -3428,8 +3428,8 @@ int de índice) — verificados na varredura.
 - **Impacto OTP (por que é impeditivo, não "bug alheio adiado"):** o núcleo do
   supervisor #83 É "worker falha → supervisor observa → reinicia". Na forma
   puro-Kof (spawn+await+try/catch, que é a recomendada no DD-OTP-01-A), isso
-  cai exatamente no caminho do §123 → no Native o supervisor crasha/hanga ao
-  reiniciar UM worker que lança. Sem resolver §123, o gate de paridade da
+  cai exatamente no caminho do §129 → no Native o supervisor crasha/hanga ao
+  reiniciar UM worker que lança. Sem resolver §129, o gate de paridade da
   feature (E2E nos nativos) é inalcançável — seria `OTP001` no Native (gap
   honesto R6), não implementação.
 - **Não corrigi nesta sessão (motivo):** o fix exige dar ao unwinder do Native
@@ -3440,11 +3440,11 @@ int de índice) — verificados na varredura.
   superfície congelada-adjacente (regra 6/§). Precisa de decisão da mantenedora
   sobre a convenção de unwind no Native (chain TLS por TID vs frame por thread).
   Escopo grande (afeta RuntimeDb4/Gc que compartilham o chain). **Ação:**
-  registrar §123 + na 1ª fatia OTP, o gate Native é `OTP001` honesto (R6) até
-  §123 fechado; JVM+Script+JS entregam o núcleo.
+  registrar §129 + na 1ª fatia OTP, o gate Native é `OTP001` honesto (R6) até
+  §129 fechado; JVM+Script+JS entregam o núcleo.
 
 
-### 124. Frontend: re-análise do corpo de método no mesmo escopo → SEM024 falso ("variable already defined") — ✅ CORRIGIDO 11/09 (impeditivo do host OTP puro-Kof)
+### 130. Frontend: re-análise do corpo de método no mesmo escopo → SEM024 falso ("variable already defined") — ✅ CORRIGIDO 11/09 (impeditivo do host OTP puro-Kof)
 - **Sintoma:** classe cujo método **sem tipo de retorno declarado** termina em
   `return <expr>` (ou **chama outro método da mesma classe** que faz isso) →
   `SEM024: variable 'q' is already defined in this scope` apontando para um `var`
@@ -3476,11 +3476,11 @@ int de índice) — verificados na varredura.
   = 679/0.
 - **Por que corrigi (regra dos bugs impeditivos):** o núcleo OTP #83 na forma
   **puro-Kof** (DD-OTP-01-A, recomendada no plano) exige API fluente com método
-  sem tipo declarado encadeando `return`; §124 travava a compilação do host no
+  sem tipo declarado encadeando `return`; §130 travava a compilação do host no
   passo ZERO. É impeditivo direto da unidade assumida, não auditoria geral.
 
 
-### 125. Frontend/Backend: sobrecarga de método por ARIDADE na mesma classe quebra (SEM013 no JVM; colisão de símbolo no NATIVE) — 🔴 ABERTO (achado no spike OTP #83 11/09; contornado)
+### 131. Frontend/Backend: sobrecarga de método por ARIDADE na mesma classe quebra (SEM013 no JVM; colisão de símbolo no NATIVE) — 🔴 ABERTO (achado no spike OTP #83 11/09; contornado)
 - **Reprodução:** `class B { Int m(Int a){ return this.m(a,1) } Int m(Int a, Int
   b){ return a+b } }` → no JVM: `SEM013: Wrong number of arguments for 'm':
   expected 2 but got 1` na chamada `b.m(5)` — a seleção de overload ignora o
@@ -3499,7 +3499,7 @@ int de índice) — verificados na varredura.
   este menor repro.
 
 
-### 126. KofJS: task spawnada DE DENTRO de outra task nunca roda sem ceder o event-loop (worker do supervisor nunca dispara) — 🔴 ABERTO (impeditivo JS do OTP #83; gate OTP002 aplicado)
+### 132. KofJS: task spawnada DE DENTRO de outra task nunca roda sem ceder o event-loop (worker do supervisor nunca dispara) — 🔴 ABERTO (impeditivo JS do OTP #83; gate OTP002 aplicado)
 - **Reprodução (host_u1, target JS, node v20):** `main(){ var h = spawn { 42 }; var t=0; while(t<50 && !done(h)){ time.sleep(10); t=t+1 }; println(done(h)) }` → `done=false` sempre; e no supervisor: `spawn { self.vigiar(n) }` (thread supervisora) faz `n.h = spawn { w.run() }` de DENTRO da task `vigiar` — a fábrica NUNCA é chamada (`fabrica=0`; no JVM a mesma saída é `fabrica=3`).
 - **Causa:** o backend JS é single-thread (modelo de event-loop; `kofSpawnResult` cria Promise). Um `await`/loop numa task agenda continuations como micro/macro-tasks — mas o `time.sleep` do backend JS é síncrono/busy-wait (fila cooperativa de timers, TIME001) e **cede o loop só para timers, não para as promises pendentes da task-mãe** no ponto do `while(!done)` — e o `spawn` filho dentro de uma task-filha pode nunca ser agendado enquanto a mãe segura o loop. `done(h)` num handle rejeitado também reportou `false` no probe J1 (reject marca `done=true` no `.catch` do runtime, mas a visibilidade ao laço spin depende de ceder — mesmo sintoma raiz).
 - **Por que NÃO corrigi:** consertar = redesenhar `time.sleep` JS para ceder o loop (await-style) OU exigir CPS no lowering — mudança de **contrato de execução do backend JS** (concorrência single-thread é decisão documentada, regra 6). Não é mineira nem impeditiva para a UNIDADE: a issue #83 pediu "o menor núcleo funcional"; o gate honesto (OTP002 em compile-time, R6) está aplicado e testado (`KofSupervisorE2ETest#jsGateOtp002`).

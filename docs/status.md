@@ -7,8 +7,8 @@
 > `kof.supervisor` (host puro-Kof, `import kof.supervisor`), com observar-falha,
 > reinício individual (fábrica nova), limite de reinícios + escalate e stop
 > controlado (`KofSupervisorE2ETest` 6/6). Native/JS bloqueados no compile-time
-> com diagnóstico claro (`OTP001`/`OTP002`, §123/§126 — nunca silêncio). Impeditivo
-> §124 (SEM024 falso em método re-analisado) corrigido junto.
+> com diagnóstico claro (`OTP001`/`OTP002`, §129/§132 — nunca silêncio). Impeditivo
+> §130 (SEM024 falso em método re-analisado) corrigido junto.
 > **11/09 — MATH001 fechado** (`kof.math` Double nos 5 targets; §120 + §105 na série remota).
 > **11/09 — TIME002 fechado** (`addDays`/`diffDays` nos 5 targets).
 

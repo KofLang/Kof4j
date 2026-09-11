@@ -128,8 +128,8 @@ silencioso).
 
 Paridade honesta: **JVM + Script** (interpretador) entregam o núcleo. NATIVE =
 `OTP001` (o `throw` em task no backend nativo atual cai no handler chain global
-— §123), JS = `OTP002` (event-loop single-thread não agenda task-de-task —
-§126). Nos dois o `import kof.supervisor` falha no compile-time com
+— §129), JS = `OTP002` (event-loop single-thread não agenda task-de-task —
+§132). Nos dois o `import kof.supervisor` falha no compile-time com
 diagnóstico claro, nunca um binário que trava.
 
 ## WHY

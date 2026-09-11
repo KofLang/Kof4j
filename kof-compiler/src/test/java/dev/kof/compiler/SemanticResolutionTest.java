@@ -223,7 +223,7 @@ class SemanticResolutionTest {
                 + r.diagnostics().getDiagnostics());
     }
 
-    // §110 (spike OTP #83, 11/09): o laço de 4 passes do corpo de MÉTODO
+    // §130 (spike OTP #83, 11/09): o laço de 4 passes do corpo de MÉTODO
     // (inference de return-type "bug 26") re-analisava cada corpo no MESMO
     // SymbolTable → do 2º pass em diante, todo `var` colidia (SEM024 falso)
     // quando UM método sem tipo declarado termina em `return <expr>` (ou chama
@@ -277,7 +277,7 @@ class SemanticResolutionTest {
         }
     }
 
-    // §110 borda: redeclaração GENUÍNA no mesmo corpo continua SEM024
+    // §130 borda: redeclaração GENUÍNA no mesmo corpo continua SEM024
     // (o fix só isola passes, nunca afrouxa o SC5).
     @Test
     void redeclaracaoMesmoCorpoAindaErro(@TempDir Path tmp) throws IOException {

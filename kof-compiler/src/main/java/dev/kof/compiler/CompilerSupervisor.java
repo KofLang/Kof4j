@@ -19,8 +19,8 @@ import java.util.List;
  * <p>Paridade honesta (regra 6 / R6): o núcleo observa falha de worker via
  * {@code try { await h } catch} no laço por filho. No Native x86/risv/aarch o
  * {@code throw} dentro de task longjmpa no {@code kof_exc_chain} GLOBAL (bug
- * §123 → crash/hang), e no JS o modelo single-thread não roda tasks spawned de
- * dentro de outra task sem ceder o event-loop (§126 → worker nunca dispara).
+ * §129 → crash/hang), e no JS o modelo single-thread não roda tasks spawned de
+ * dentro de outra task sem ceder o event-loop (§132 → worker nunca dispara).
  * Então esses targets dão diagnóstico claro (OTP001/OTP002) no lugar de um
  * binário que trava — NUNCA fallback silencioso. JVM/ANDROID (JvmBackend) e
  * Script (interpretador) entregam o núcleo.
@@ -52,7 +52,7 @@ final class CompilerSupervisor {
                             + "supervisao usa 'try { await } catch' sobre tasks que "
                             + "falham, e no Native um throw em task longjmpa no "
                             + "handler chain GLOBAL da thread main (crash/hang — "
-                            + "known-bugs §123). Nucleo OTP disponivel em JVM e "
+                            + "known-bugs §129). Nucleo OTP disponivel em JVM e "
                             + "Script (kof run --target script).",
                     "OTP001");
             return null;
@@ -62,7 +62,7 @@ final class CompilerSupervisor {
                     "kof.supervisor no target js: o backend JS roda num event-loop "
                             + "single-thread e uma task spawnada de dentro de outra "
                             + "task nao e agendada sem ceder (o worker nunca roda — "
-                            + "known-bugs §126). Nucleo OTP disponivel em JVM e "
+                            + "known-bugs §132). Nucleo OTP disponivel em JVM e "
                             + "Script (kof run --target script).",
                     "OTP002");
             return null;
