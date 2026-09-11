@@ -2427,3 +2427,55 @@ nesta merge (mesma técnica: `TypeMetrics.isDoubleWidth` → `KofPop2`):
 (`isDoubleWidth` → `KofPop2`), nunca `KofPop()` unconditional. Os demais
 `new KofPop()` do repo estão em contexto de 1-slot (String/ref/prim de 32 bits,
 int de índice) — verificados na varredura.
+
+### 99. String methods com formal String/CharSequence aceitando Int/Char → 4 backends divergem (JVM VerifyError / Native SIGSEGV / JS −1 silencioso / interpretador CCE) — ✅ CORRIGIDO 10/09 (SEM025 no lowering; R6)
+
+- **Sintoma:** `s.indexOf('c')` (e a família `contains`/`lastIndexOf`/
+  `startsWith`/`endsWith` com 1º arg Int/Char) **compila** nos 4 backends e
+  quebra de 4 jeitos: JVM `VerifyError: integer is not assignable to
+  'java/lang/String'`; Native x86 **SIGSEGV** (`kof_string_index_of`
+  dereferencia o Int como ponteiro de String); JS `-1`/`false` **silencioso**
+  (number coerçado p/ string `"99"`); interpretador `ClassCastException` no
+  cast `(String) args[0]`.
+- **Causa raiz:** `StringMethodRegistry.stringMethodSignature` resolve
+  `indexOf`/`contains`/… **por ARIDADE** — o formal é sempre
+  String/CharSequence (só `replace` escolhe overload por tipo, com o javadoc
+  admitindo o VerifyError que a versão anterior deu). O guard de tipos no
+  lowering não validava formal-vs-arg, então o `char` (que em Kof **É** `Int`
+  — não existe tipo char separado) atravessava e cada backend fazia o que
+  queria com a incoerência. Paridade cross-target (regra 5) quebrada de
+  4 maneiras simultâneas — a pior classe: um dos 4 (JS) não quebra, só dá
+  resposta errada.
+- **Contradição com o corpus:** `type-system.md:289` documenta
+  `String.indexOf/length/compareTo/hashCode→Int` — a API existe e o idiom
+  é `s.indexOf("c")` (String). O overload char de `java.lang.String` **não é
+  superfície documentada do Kof** — o char literal do Kof não tem tipo
+  próprio p/ mapear.
+- **Decisão (regra 6 — R6, nunca o "compila e quebra"):** **rejeitar no
+  lowering** (`ExpressionInstanceCallLowerer`, no branch `BuiltinTypes.isString`
+  do registry) quando um formal String/CharSequence recebe primitivo —
+  `SEM025` com mensagem apontando o idiom ("pass \"c\" not 'c'"). **Por que
+  rejeitar e não suportar:** (a) suportar char em `indexOf` nos 4 backends
+  exigiria converter `Int→String` no formal — mas o `char` Kof não é "a
+  mesma coisa" de um char 16 bits (é Int — `for (var c in s)` itera Int);
+  definir a semântica (byte? unit? code point?) = **mudança de contrato**
+  sobre método documentado, decisão da mantenedora; (b) o idiom já existe e
+  é unívoco. **Por que no lowering e não no SEM:** o lowering é o único
+  ponto que roda nos 4 caminhos (interpretador + 3 compilados compartilham o
+  IR do `ExpressionInstanceCallLowerer`); `replace(char,char)` continua
+  aceito (formal intencional `CHAR` — o guard só trava formais REF
+  String/CharSequence, primitivos não).
+- **Prova:** `SemanticResolutionTest.stringMethodRefusoesCharEmFormalString`
+  (6 casos: indexOf/contains/lastIndexOf/startsWith/endsWith com char literal
+  + Int variável no indexOf — todos SEM025) +
+  `stringMethodAceitaStringEReplaceChar` (formais String + replace(char,char)
+  + replace(String,String) compilam). **Reprodução pré-fix medida** (não
+  memória): JVM `VerifyError @9 invokevirtual`, JS `-1`, Native SIGSEGV
+  (exit 139), interpretador `ClassCastException`. Suíte completa
+  **1304+30+5+127 / 0 falhas / 94-skip** (zero regressão: nenhum teste/corpus
+  chamava a superfície com char).
+- **Resíduo (honesto):** a MESMA classe de furo existe em **outros** métodos
+  com formal String que o registry tipa por aridade — cobertos pelo guard
+  genérico (qualquer formal String/CharSequence + primitivo). `indexOf(s, n)`
+  (2-arg) com 2º arg não-Int não é tipado pelo registry (o aridade-2 formal já
+  é `(String, Int)` — o Int está no formal, ok).

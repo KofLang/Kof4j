@@ -209,4 +209,50 @@ class SemanticResolutionTest {
                 """);
         assertSem025(r, "on type 'P'");
     }
+
+    // ---- bug 99: String method com formal String/CharSequence recebe
+    //      Int/Char → SEM025 (R6). O registry resolve por ARIDADE, então o
+    //      formal String "aceita" o Int/Char no caminho e cada backend
+    //      divergia: JVM VerifyError, Native SIGSEGV, JS -1 silencioso,
+    //      interpretador CCE. Kof não tem tipo char ('x' É Int) — rejeitar
+    //      apontando p/ o idiom, nunca o "compila e quebra". ----
+
+    @Test
+    void stringMethodRefusoesCharEmFormalString(@TempDir Path tmp) throws IOException {
+        // indexOf/contains/lastIndexOf/startsWith/endsWith com char literal
+        assertSem025(compile(tmp, "I.kf", "main() {\n var s = \"abc\"\n println(s.indexOf('c'))\n}"),
+                "indexOf' expects a String");
+        assertSem025(compile(tmp, "C.kf", "main() {\n var s = \"abc\"\n println(s.contains('b'))\n}"),
+                "contains' expects a String");
+        assertSem025(compile(tmp, "L.kf", "main() {\n var s = \"abc\"\n println(s.lastIndexOf('c'))\n}"),
+                "lastIndexOf' expects a String");
+        assertSem025(compile(tmp, "S.kf", "main() {\n var s = \"abc\"\n println(s.startsWith('a'))\n}"),
+                "startsWith' expects a String");
+        assertSem025(compile(tmp, "E.kf", "main() {\n var s = \"abc\"\n println(s.endsWith('c'))\n}"),
+                "endsWith' expects a String");
+        // Int (não literal) no formal String também rejeita — o tipo importa,
+        // não a forma da literal.
+        assertSem025(compile(tmp, "N.kf", "main() {\n var s = \"abc\"\n var n = 42\n println(s.indexOf(n))\n}"),
+                "indexOf' expects a String");
+    }
+
+    // Formais corretos continuam aceitos (zero regressão): String em
+    // indexOf/contains/startsWith, E replace(char,char) que é intencional.
+    @Test
+    void stringMethodAceitaStringEReplaceChar(@TempDir Path tmp) throws IOException {
+        CompilationResult r = compile(tmp, "M.kf", """
+                main() {
+                    var s = "aXbXc"
+                    println(s.indexOf("X"))
+                    println(s.contains("b"))
+                    println(s.lastIndexOf("c"))
+                    println(s.startsWith("a"))
+                    println(s.endsWith("c"))
+                    println(s.replace('X', "-"))
+                    println(s.replace("X", "-"))
+                }
+                """);
+        assertTrue(r.success(), "formais String + replace(char,char) devem compilar: "
+                + r.diagnostics().getDiagnostics());
+    }
 }
