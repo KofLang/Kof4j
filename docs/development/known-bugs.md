@@ -2703,7 +2703,7 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 - **Por que ABERTO (não corrijo silencioso):** formato de `encode(Map)` é SEMÂNTICA de superfície (ordem das chaves? insertion vs sorted? null values?) — é decisão da mantenedora (regra 6: JSON surface congelada 0.2.6-beta). A correção tem 3 partes: gate honesto no compile-time até a superfície decidir (diagnóstico `JSN00x` no estilo JSN004 no dispatch de Map em nativos) + decisão de formato + ramos JVM (entries) e nativo. Registra aqui; NÃO vira edição de semântica sem decisão.
 - **Pista de teste faltante (para quem fechar):** `json.encode(mapOf(...))` nos 5 alvos com golden de ordem (provavelmente insertion-order = `LinkedHashMap` semantics, mas é a decisão).
 
-### 108. `println(listOf(bool,...))` — interpretador (Script) imprime `[1, 0]` vs JVM `[true, false]` — ⏳ ABERTO (Script-only; storage boxing)
+### 108. `println(listOf(bool,...))` — interpretador (Script) imprime `[1, 0]` vs JVM `[true, false]` — ✅ CORRIGIDO (11/09, Script-only; storage boxing)
 
 - **Menor repro (medido 11/09):** `println(listOf(true, false))` → JVM/JS
   `[true, false]`, **Script `[1, 0]`**. Descoberto junto do `collprint`
@@ -2725,6 +2725,19 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   (novo caso bool-in-list) como gate. Unidade própria, não começada.
 - **Arquivos:** `KofInterpreterCollections.java` (listOps/mapOps/setOps +
   helpers box/unbox por tipo), `KofInterpreterParityTest.java` (gate).
+- **Correção aplicada (11/09, mesma lane do §112 — merged com ele):**
+  `box/unbox` por tipo em `listOps`/`mapOps`/`setOps`/`channelOps`
+  (inclusão box, extração unbox; `contains` de list usa o tipo do
+  ARGUMENTO, espelhando o bug 35). Derivação de tipos espelha
+  `JvmOpCollections` (typeArguments do ownerType + override por
+  parameterTypes). O merge com o §112 mantém o `prevOrDefault` do
+  `put`/`remove` (guard de prev null) E o boolean real do `set.add`, com
+  unbox do prev antes do guard. Prova: célula `boolcoll`
+  (`println(l)`/`println(m)`/`println(s)` + get/contains/set) FAIL sem o
+  fix (`[1, 0]`/`{yes=1}`) e verde com (`[true, false]`/`{yes=true}` =
+  JVM); `KofInterpreterParityTest` 19/19 + `ConformanceMatrixTest` 11/11
+  (célula `mapmutret` do §112 intocada) + suíte completa 1292/0 (5 skip)
+  + script/c-compiler/cli BUILD SUCCESS. Gate: `boolInCollectionsPrintsLikeJvm`.
 
 ### 107. `println(<coleção>)` no nativo imprime LIXO de ponteiro (JVM: `[1, 2, 3]`/`{k=9}`) — ❌ ABERTO (backend-only; paridade regra 5; sem gate)
 
