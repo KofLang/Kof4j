@@ -29,6 +29,7 @@
 | float println | `0.3333333333333333` / `5.0` / `3.5` | DONE | DONE (bug 44 ✅ 10/09 x86) | DONE | PARTIAL (doc: `5` vs `5.0`) | `floatprint` |
 | infinity/NaN println+String.valueOf | `Infinity` / `-Infinity` / `NaN` | DONE | DONE (bug 44 residual ✅ 11/09 x86) | DONE | PARTIAL (doc: `5` vs `5.0`) | `infinityprint` |
 | String.equals(não-String) → false | `true` / `false` / `false` / `false` | DONE | DONE (bug 100 ✅ 11/09 x86 — era SIGSEGV/vazio) | DONE | DONE (fold `false`) | `equalsfold` |
+| indexOf/lastIndexOf/startsWith `from` | `-1` / `3` / `-1` / `2` / `true` / `false` | DONE | DONE (bug 102 ✅ 11/09 x86 — era ignorado) | DONE | DONE (nativo) | `searchfrom` |
 | string unicode length/charAt | `4` / `233` / `café!` | DONE | DONE (bug 43 ✅ 10/09 x86) | DONE | DONE | `unicode` |
 | string unicode astral (surrogate pair) | `4` / `55357` / `56832` / `98` | DONE | DONE (bug 43 ✅ 10/09 x86) | DONE | DONE | `unicode-astral` |
 | string unicode substring (code units, fronteiras bem-formadas) | `afé` / `é` / `😀` / `3` / `b` | DONE | DONE (bug 43 ✅ 10/09 x86) | DONE | DONE | `unicode-substring` |

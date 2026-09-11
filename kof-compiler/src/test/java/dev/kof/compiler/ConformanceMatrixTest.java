@@ -197,6 +197,19 @@ class ConformanceMatrixTest {
         // CRASHAVA (SIGSEGV/vazio) ao ler o Int-boxado como ponteiro-String.
         // Agora é constant-fold no lowering (mesmo `false` nos 5). O == de
         // String-vs-String (conteúdo) segue pelo runtime em todos.
+        // §102 (paridade absoluta): o índice inicial de indexOf/lastIndexOf/
+        // startsWith era IGNORADO no Native (helper de aridade 1 só). JDK 21
+        // é o oracle (clampagens: from<0, from>total, vazia, corte de par).
+        matrix("searchfrom", """
+                main() {
+                    println("aXb".indexOf("X",2))
+                    println("abc".indexOf("",5))
+                    println("aXa".lastIndexOf("a",-1))
+                    println("aXa".lastIndexOf("a",9))
+                    println("aXb".startsWith("X",1))
+                    println("abc".startsWith("",4))
+                }
+                """, "-1\n3\n-1\n2\ntrue\nfalse", Set.of(), tempDir);
         matrix("equalsfold", """
                 main() {
                     val s = "abc"

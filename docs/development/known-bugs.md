@@ -2444,26 +2444,44 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   `STRING_ARG_METHODS`); testes em `SemanticResolutionTest.java`.
 
 
-### 102. Native: `indexOf(String, from)`/`lastIndexOf(String, from)` ignoram o índice inicial — ABERTO (achado 11/09 no sweep da família §100)
+### 102. Native/JS: `indexOf(String, from)`/`lastIndexOf(String, from)`/`startsWith(String, from)` ignoravam/am o índice inicial — ✅ CORRIGIDO 11/09 (x86_64 + JS; paridade absoluta)
 
-- **Sintoma (medido 11/09):** `"aXb".indexOf("X", 2)` → **JVM `-1`** (correto:
-  o `"X"` está no índice 1 < 2), **Native `1`** (acha desde 0), Script `-1`.
-  O Native x86_64 tem UMA única entrada `kof_string_index_of` e o roteamento
-  em `NativeX86StringCalls` empilha os 2 args em `%rdi/%rsi` mas o helper trata
-  `%rsi` como a needle e NUNCA usa um 3º registrador p/ o start — a aridade 2
-  vira aridade 1 silenciosa. Provável mesmo padrão em `lastIndexOf(s, from)` e
-  `indexOf(char, from)` (não medidos ainda).
-- **Por que é paridade absoluta (regra da mantenedora 11/09):** mesmo código,
-  resultado DIFERENTE por target, sem diagnóstico — R6.
-- **Caminhos:** (a) implementar a forma com start no runtime (loop começa em
-  `max(0,start)` — `lastIndexOf` usa `start` como teto); (b) SEM054 no guard
-  (mesma família §100) rejeitando `indexOf(String,Int)` até o runtime ter a
-  forma — honesto, mas o operador EXISTE no reference/registry (é API
-  documentada, ao contrário do §96) → rejeitar REGREDIRIA código válido.
-  Escolha natural: **(a)** (backend-only, sem tocar frontend/contrato).
-- **Repro mínimo:** `main() { println("aXb".indexOf("X", 2)) }` → esperado
-  `-1` nos 5, Native dá `1`.
-- **Descoberto:** 11/09 na varredura do batch equalsfold/SEM051.
+- **Sintoma (medido 11/09):** `"aXb".indexOf("X", 2)` → **JVM `-1`** (correto),
+  **Native `1`** (o helper `kof_string_index_of` lê só `%rdi/%rsi` e IGNORA o
+  `%rdx` que o roteador já empilha — aridade 2 vira 1 em silêncio). No **JS**,
+  o `String.prototype` respeita o `from` mas **diverge do JDK no clamp**:
+  `lastIndexOf("a",-1)` JS `0` vs JDK `-1`; `startsWith("",4)` JS `true` vs
+  JDK `false`; vazio+from idem. Paridade absoluta JVM=JS=X86=ARM=RISC quebrada
+  de 2 formas diferentes (R6). Mesma família para `lastIndexOf(s,from)` e
+  `startsWith(s,from)`.
+- **✅ CORRIGIDO 11/09 (x86_64):** helpers novos `kof_string_index_of2` /
+  `kof_string_last_index_of2` / `kof_string_starts_with2` (arquivo novo
+  `runtime/RuntimeStringSearchFrom.java` — regra ≤500; registrados em
+  `NativeRuntime`) com as clampagens do **JDK 21 travadas em oracle**
+  (`Jdk.java`/`Jdk3.java`: from<0→0 no indexOf e −1 no lastIndexOf e false no
+  startsWith; from>totalH→totalH (indexOf/lastIndexOf) / false (startsWith);
+  needle vazia→start (indexOf) / min(from,totalH) (lastIndexOf) / true se
+  within (startsWith); corte de par astral no início → pulado/false, como o
+  scan do bug 43). Reusam `.Lkof_substr_walk` (UTF-16 code units) e o from vive
+  em registrador callee-saved antes dos walks clobberarem. Roteamento em
+  `NativeX86StringCalls` por **aridade** (`parameterTypes().size() >= 2` →
+  helper `_2`; 1-arg intacto).
+- **✅ CORRIGIDO 11/09 (JS):** helpers `kof_string_index_of2`/
+  `_last_index_of2`/`_starts_with2` no runtime `STDLIB_RUNTIME` com os clamps
+  do JDK (JS é UTF-16 nativo — o scan por `startsWith` no laço é exato);
+  `JsCallEmitter.handleStringOp` roteia por aridade (2+ args → helper; 1-arg
+  segue o protótipo, que bate o JDK).
+- **Prova:** oracle JDK 21 gravado em `Jdk/Jdk3`; `NativeE2ETest.
+  nativeStringSearchFromIndex` (31 vetores — 18 ASCII edge + 13 astrais UTF-16:
+  cut de par, needle astral, from sobre surrogate) golden JVM==Native; matriz
+  `searchfrom` (JVM=NATIVE=SCRIPT=**JS(Graal)** idênticos nos 6 vetores de
+  clamp — a célula que PEGOU a divergência do JS); DocTest par célula.
+  Suíte completa pós-clean **1471 run / 0 falhas** (12 err = node ausente).
+- **Residual honesto:** faces riscv64/aarch64 — o roteamento cross
+  (`NativeRiscvCrossOps`) mapeia `indexOf/lastIndexOf` p/ o helper de 1 arg
+  byte-based do port (o MESMO bug, com o sub-problema UTF-8 byte-vs-unit do
+  §43 cross) — port só com qemu/toolchain (bug 59, lane cross `2b9a483b`).
+- **Descoberto:** 11/09 (sweep §100); **corrigido 11/09** (x86_64 + JS).
 
 
 ### 99. `Int.MAX_VALUE`/`<primitivo>.<campo>` passa SEM diagnóstico → lixo nos 3 targets + CRASH do compilador — ✅ CORRIGIDO 10/09 (R6; varredura numeric/estático)

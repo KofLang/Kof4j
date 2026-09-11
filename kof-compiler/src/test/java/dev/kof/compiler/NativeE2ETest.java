@@ -1077,4 +1077,55 @@ class NativeE2ETest {
                 """);
         runNative(source, tempDir.resolve("out"), "true\nfalse\ntrue\ntrue\nfalse\ntrue");
     }
+
+    // §102 (paridade absoluta): indexOf/lastIndexOf/startsWith com índice
+    // inicial — o helper de aridade 1 IGNORAVA o 2º arg (o roteador já
+    // empilhava em %rdx). `"aXb".indexOf("X",2)` dava 1 no Native vs -1 no
+    // JVM/Script. Agora: kof_string_index_of2/_last_index_of2/_starts_with2
+    // (UTF-16 code units + clampagens do JDK 21, oracle travado neste teste;
+    // astrais cobrem o corte de par). Faces riscv/aarch: residuais honestos
+    // (env cross ausente aqui; bug 59).
+    @Test
+    void nativeStringSearchFromIndex(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+                main() {
+                    println("aXb".indexOf("X",2))
+                    println("aXb".indexOf("X",1))
+                    println("aXb".indexOf("X",-3))
+                    println("aXb".indexOf("X",4))
+                    println("abc".indexOf("",2))
+                    println("abc".indexOf("",5))
+                    println("abc".indexOf("",-1))
+                    println("aXa".lastIndexOf("a",1))
+                    println("aXa".lastIndexOf("a",-1))
+                    println("aXa".lastIndexOf("a",9))
+                    println("abc".lastIndexOf("",2))
+                    println("abc".lastIndexOf("",5))
+                    println("abc".lastIndexOf("",-1))
+                    println("aXb".startsWith("X",1))
+                    println("aXb".startsWith("X",2))
+                    println("aXb".startsWith("X",-1))
+                    println("abc".startsWith("",3))
+                    println("abc".startsWith("",4))
+                    var s = "a😀b"
+                    println(s.indexOf("b",2))
+                    println(s.indexOf("b",1))
+                    println(s.indexOf("😀",1))
+                    println(s.indexOf("😀",2))
+                    println(s.indexOf("",2))
+                    println(s.lastIndexOf("b",2))
+                    println(s.lastIndexOf("b",3))
+                    println(s.lastIndexOf("a",2))
+                    println(s.lastIndexOf("😀",1))
+                    println(s.startsWith("b",2))
+                    println(s.startsWith("b",3))
+                    println(s.startsWith("😀",1))
+                    println(s.startsWith("😀",2))
+                }
+                """);
+        runNative(source, tempDir.resolve("out"),
+                "-1\n1\n1\n-1\n2\n3\n0\n0\n-1\n2\n2\n3\n-1\ntrue\nfalse\nfalse\ntrue\nfalse"
+                + "\n3\n3\n1\n-1\n2\n-1\n3\n0\n1\nfalse\ntrue\ntrue\nfalse");
+    }
 }

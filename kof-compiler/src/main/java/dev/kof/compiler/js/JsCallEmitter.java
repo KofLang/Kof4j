@@ -192,6 +192,27 @@ boolean isStringOp(KofCall kc) {
 void handleStringOp(MethodCtx ctx, List<Object> stack,
                                 List<JsIr.JsExpression> preambleExprs, KofCall kc,
                                 JsIr.JsExpression receiver, List<JsIr.JsExpression> args) {
+        // §102 (paridade absoluta): com 2 args (needle + from), o
+        // String.prototype do JS diverge do JDK no clamp do `from`
+        // (lastIndexOf(from<0) JS=0 vs JDK=-1; startsWith(from>len) JS=true vs
+        // JDK=false; vazio+from JS difere). Baixa p/ helper top-level com os
+        // clamps do JDK. 1-arg cai no default (nativo, bate o JDK).
+        if (args.size() >= 2) {
+            String s2fn = switch (kc.methodName()) {
+                case "indexOf" -> "kof_string_index_of2";
+                case "lastIndexOf" -> "kof_string_last_index_of2";
+                case "startsWith" -> "kof_string_starts_with2";
+                default -> null;
+            };
+            if (s2fn != null) {
+                ctx.lc.registerRuntime(s2fn);
+                List<JsIr.JsExpression> full = new ArrayList<>();
+                full.add(receiver);
+                full.addAll(args);
+                stack.add(new JsIr.JsCall(new JsIr.JsIdentifier(s2fn), full));
+                return;
+            }
+        }
         switch (kc.methodName()) {
             case "kof_string_concat" -> stack.add(new JsIr.JsBinary(args.get(0), "+", args.get(1)));
             case "kof_string_equals" -> stack.add(new JsIr.JsConditional(
