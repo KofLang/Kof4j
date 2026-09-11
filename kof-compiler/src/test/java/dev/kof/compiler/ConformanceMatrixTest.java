@@ -192,6 +192,20 @@ class ConformanceMatrixTest {
                 }
                 """, "Infinity\n-Infinity\nNaN\nInfinity\nInfinity NaN\nv=NaN",
                 Set.of("js"), tempDir);
+        // bug 100 (paridade absoluta): `String.equals(não-String)` é `false` em
+        // todo target — o JVM sempre deu false (Objects.equals), mas o Native
+        // CRASHAVA (SIGSEGV/vazio) ao ler o Int-boxado como ponteiro-String.
+        // Agora é constant-fold no lowering (mesmo `false` nos 5). O == de
+        // String-vs-String (conteúdo) segue pelo runtime em todos.
+        matrix("equalsfold", """
+                main() {
+                    val s = "abc"
+                    println(s.equals("abc"))
+                    println(s.equals("abd"))
+                    println(s.equals(5))
+                    println(s.equals('x'))
+                }
+                """, "true\nfalse\nfalse\nfalse", Set.of(), tempDir);
         matrix("boollogic", """
                 main() {
                     println(true && false)

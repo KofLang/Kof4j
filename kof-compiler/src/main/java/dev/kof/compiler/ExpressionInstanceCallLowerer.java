@@ -42,6 +42,32 @@ public final class ExpressionInstanceCallLowerer {
         };
     }
 
+    /** SEM051: Char/numérico/array/classe NÃO-Kof-String num formal String. */
+    private static boolean notStringForFormal(Type t) {
+        if (t instanceof Type.NullableType nt) t = nt.inner();
+        if (t instanceof Type.UnknownType) return false;
+        if (BuiltinTypes.isString(t)) return false;
+        return TypeMetrics.isPrimitiveType(t) || t instanceof Type.ClassType
+                || t instanceof Type.ArrayType;
+    }
+
+    private static String typeNameFor(Type t) {
+        if (t instanceof Type.PrimitiveType p) return switch (p.name()) {
+            case "char" -> "Char";
+            case "int" -> "Int";
+            case "long" -> "Long";
+            case "double" -> "Double";
+            case "float" -> "Float";
+            case "bool" -> "Bool";
+            case "byte" -> "Byte";
+            case "short" -> "Short";
+            default -> p.name();
+        };
+        if (t instanceof Type.ArrayType a) return typeNameFor(a.componentType()) + "[]";
+        if (t instanceof Type.ClassType c) return c.name();
+        return String.valueOf(t);
+    }
+
     static int lower(CompilerDriver driver, MethodCallExpr mc, List<KofOperation> ops,
                     String owner, int localIdx, List<IRLocalVariable> locals) {
     if (recvType0(driver, mc, locals) instanceof Type.ArrayType arr) {
@@ -327,6 +353,35 @@ public final class ExpressionInstanceCallLowerer {
         methodReturnType = resolvedMethod.returnType();
         methodParamTypes = new ArrayList<>(resolvedMethod.parameterTypes());
     } else if (BuiltinTypes.isString(recvType)) {
+        // paridade absoluta (JVM=JS=X86=ARM=RISC): String.equals(não-String) é
+        // `false` em TODO target (uma String nunca é igual a Int/Char/record/
+        // lista). O Native, porém, CRASHAVA (kof_string_equals lia o Int-boxado
+        // como ponteiro-String → SIGSEGV/saída vazia) enquanto JVM/Script
+        // davam `false` — paridade quebrada em silêncio (R6). Constant-fold:
+        // roda o efeito do arg, descarta os dois, empilha `false` (sem tocar o
+        // contrato/semântica de `equals` de String-vs-String, que segue pro
+        // runtime). Não-fold: arg pode ser String em runtime (Unknown/Nullable).
+        if ("equals".equals(mc.methodName()) && mc.arguments().size() == 1) {
+            Type at = ExpressionTyper.inferExprType(driver, mc.arguments().get(0), locals);
+            if (at instanceof Type.NullableType nnt) at = nnt.inner();
+            // fold seguro SÓ p/ primitivos (Char/Int/Long/Double/Bool/...): o
+            // `kof_string_equals` do Native deref o ponteiro → SIGSEGV com Int;
+            // JVM/Script/JS dariam `false`. Classes/arrays (equals(Object) é
+            // válido e raramente String) seguem pro runtime: lá o KofPop do
+            // fold quebra a pilha JS (stack machine sem o descarte implícito
+            // p/ chamada void — underflow no builder do listOf) e o valor de
+            // uma classe user-defined vs String é `false` correto no runtime
+            // (Objects.equals/===). Unknown/Nullable também não-fold (pode ser
+            // String em runtime).
+            boolean provablyNotString = TypeMetrics.isPrimitiveType(at) && !BuiltinTypes.isString(at);
+            if (provablyNotString) {
+                localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(0), ops, owner, localIdx, locals);
+                ops.add(new KofPop());   // arg
+                ops.add(new KofPop());   // receiver (empilhado no topo do lower)
+                ops.add(new KofLoadLiteral(Type.PrimitiveType.BOOL, 0));
+                return localIdx;
+            }
+        }
         // bug 96 (paridade absoluta): as funções da stdlib `strings.*` NÃO são
         // métodos de instância em Kof — chamá-las como método era ACEITO pelo
         // typer e quebrava de um jeito em CADA target (JVM `NoSuchMethodError`
@@ -345,30 +400,40 @@ public final class ExpressionInstanceCallLowerer {
                             + "da stdlib: strings." + padHint(mc.methodName()) + "(...",
                     "SEM052");
         }
-        // bug 100 (R6, paridade absoluta JVM=JS=X86=ARM=RISC): argumento Char
-        // num método de parâmetro String era ACEITO e quebrava os 3 targets de
-        // formas DIFERENTES (JVM VerifyError/IncompatibleClassChangeError/
-        // NoSuchMethodError, Native SIGSEGV/saída vazia, Script `false`/vazio)
-        // — paridade quebrada em silêncio. Opção B (decisão mantenedora):
-        // REJEITAR em tempo de compilação, o MESMO erro em todos os backends
-        // (este lowering é o frontend único que alimenta JVM/Native/JS/Script).
-        // Condição por NOME (compareTo/compareToIgnoreCase não estão na
-        // StringMethodRegistry — sig=null — e escapariam de um guard por sig).
-        // NÃO flaguemos `replace` (overload char,char legal:
-        // StringMethodRegistry resolve pelo tipo do arg e o formal é CHAR),
-        // `charAt`/`substring` (formal numérico — Char é Int em Kof, widening
-        // legítimo; erro de índice é do usuário) nem `equals` (formal Object).
-        if (STRING_ARG_METHODS.contains(mc.methodName())
-                && driver.currentDiagnostics != null
-                && mc.arguments().stream().anyMatch(a ->
-                        ExpressionTyper.inferExprType(driver, a, locals) == Type.PrimitiveType.CHAR)) {
-            var pos = mc.position();
-            driver.currentDiagnostics.error(pos != null ? pos.file() : "",
-                    pos != null ? pos.line() : 0, pos != null ? pos.column() : 0, 0,
-                    "String." + mc.methodName() + " não aceita Char como argumento "
-                            + "(Kof não tem overload (char)); use um literal String, ex.: "
-                            + mc.methodName() + "(\"c\")",
-                    "SEM051");
+        // bug 100 (R6, paridade absoluta JVM=JS=X86=ARM=RISC): argumento
+        // NÃO-String num parâmetro String/CharSequence (Char, Int, Long, lista…)
+        // era ACEITO e quebrava de um jeito em CADA target (JVM
+        // VerifyError/NoSuchMethodError/ExceptionInInitializer, Native SIGSEGV/
+        // saída vazia, Script `false`/vazio). Opção B (decisão da mantenedora):
+        // REJEITAR em tempo de compilação (SEM051), o MESMO erro nos 5 backends
+        // (este lowering é o frontend único). Checagem POR POSIÇÃO pela formal
+        // da registry (indexOf("a", 2) tem formal String,Int → só a posição 0
+        // é stringy; indexOf('c') pega na 0). compareTo/compareToIgnoreCase não
+        // estão na registry (sig=null) → tratadas TODAS as posições como stringy.
+        // NÃO flaguemos `replace` (formal CHAR quando args são Char — widening
+        // legal) nem `charAt`/`substring` (formal numérico, fora da lista).
+        if (STRING_ARG_METHODS.contains(mc.methodName()) && driver.currentDiagnostics != null) {
+            StringMethodRegistry.Sig sigG = StringMethodRegistry.stringMethodSignature(
+                    mc.methodName(), mc.arguments().size(), methodParamTypes);
+            List<Type> formals = sigG != null ? sigG.parameterTypes() : null;
+            for (int ai = 0; ai < mc.arguments().size(); ai++) {
+                boolean formalIsStringy = formals == null
+                        || (ai < formals.size() && (BuiltinTypes.isString(formals.get(ai))
+                            || (formals.get(ai) instanceof Type.ClassType fc
+                                && "CharSequence".equals(fc.name()))));
+                if (!formalIsStringy) continue;
+                Type at = ExpressionTyper.inferExprType(driver, mc.arguments().get(ai), locals);
+                if (notStringForFormal(at)) {
+                    var pos = mc.position();
+                    driver.currentDiagnostics.error(pos != null ? pos.file() : "",
+                            pos != null ? pos.line() : 0, pos != null ? pos.column() : 0, 0,
+                            "String." + mc.methodName() + " não aceita " + typeNameFor(at)
+                                    + " como argumento " + (ai + 1) + " (o parâmetro é String); "
+                                    + "use um literal String, ex.: " + mc.methodName() + "(\"c\")",
+                            "SEM051");
+                    break;
+                }
+            }
         }
         StringMethodRegistry.Sig sig = StringMethodRegistry.stringMethodSignature(mc.methodName(), mc.arguments().size(),
                 methodParamTypes);

@@ -2397,25 +2397,42 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   diferente: JVM faz `invokevirtual indexOf(I)` (não existe → VerifyError),
   Native chama `kof_string_index_of` esperando ponteiro-String e dereferencia
   o Int 99 → SIGSEGV, Script unbox-falha e engole.
-- **✅ CORRIGIDO 11/09 — opção B (decisão da mantenedora nesta sessão): REJEITAR
-  em tempo de compilação**, o MESMO diagnóstico em todos os backends. Guard no
-  `ExpressionInstanceCallLowerer` (branch `isString(recvType)`), por NOME do
-  método (`STRING_ARG_METHODS` — `compareTo`/`compareToIgnoreCase` não estão na
-  `StringMethodRegistry` (sig=null), então um guard por assinatura ESCAPAIRIA
-  deles) + `ExpressionTyper.inferExprType(arg) == CHAR`. **SEM051** ("String.X
-  não aceita Char como argumento (Kof não tem overload (char)); use o literal
-  String, ex.: indexOf("c")"). Como o lowering é o frontend ÚNICO que alimenta
-  JVM/Native/JS/Script (paridade por construção), o MESMO erro sai nos 5 alvos.
-  Verificado: JVM/NATIVE/JS dão o SEM051 idêntico no `compile`; `interpret()`
-  (Script) LANÇA `KofInterpretException: SEM051` em vez de rodar lixo.
+- **✅ CORRIGIDO 11/09 (estendido na mesma sessão) — opção B (decisão da
+  mantenedora): REJEITAR em tempo de compilação**, o MESMO diagnóstico em todos
+  os backends. Guard no `ExpressionInstanceCallLowerer` (branch
+  `isString(recvType)`), por NOME do método (`STRING_ARG_METHODS` —
+  `compareTo`/`compareToIgnoreCase` não estão na `StringMethodRegistry`
+  (sig=null), então um guard por assinatura ESCAPAIRIA deles), **por POSIÇÃO
+  contra a formal da registry**: qualquer argumento cujo formal é
+  String/CharSequence e cujo tipo NÃO é String (Char **ou Int/Long/Double/
+  array/classe** — `equalsIgnoreCase(5)` dava JVM `ExceptionInInitializerError`,
+  Native vazio, Script `false`) vira **SEM051** ("String.X não aceita Int como
+  argumento 1 (o parâmetro é String); use o literal String"). A checagem por
+  posição preserva `indexOf("a", 2)` (formal String,Int → só a pos-1 é
+  stringy). Como o lowering é o frontend ÚNICO que alimenta JVM/Native/JS/Script
+  (paridade por construção), o MESMO erro sai nos 5 alvos. Verificado:
+  JVM/NATIVE/JS dão o SEM051 idêntico no `compile`; `interpret()` (Script)
+  LANÇA `KofInterpretException: SEM051` em vez de rodar lixo.
+- **✅ `String.equals(não-String)` CORRIGIDO 11/09 (constante-fold, paridade):**
+  `equals` é formal `Object` (não-String é um uso LEGÍTIMO — Java devolve
+  `false`), mas o Native CRASHAVA: `kof_string_equals` lia o Int-boxado como
+  ponteiro-String (SIGSEGV/saída vazia) enquanto JVM/Script/JS davam `false`.
+  O lowering (único p/ os 5) faz constant-fold quando o arg é **provavelmente
+  não-String** (primitivo, array, ou classe Kof — String é final e java.lang
+  fica de fora por poder PORTAR String em runtime): roda o efeito do arg,
+  descarta receiver+arg (`KofPop`), empilha `false`. `equals(String)` segue
+  pelo runtime (`kof_string_equals`/`Objects.equals`/`===` no JS). Prova
+  runtime nos 4: matriz `equalsfold` (true/false/false/false — JVM+NATIVE+
+  SCRIPT+JS(Graal) idênticos).
 - **Escopo cirúrgico (não regridir — regra 1):** NÃO flaguemos `replace('b','x')`
   (overload char,char legal, `charAt('1')`/`substring(1)` (formal numérico — Char
   é Int, widening do usuário; erro de índice é runtime legítimo), nem `equals`
   (formal Object). `indexOf("c")`, `compareTo("a")`, `contains("b")` permanecem.
-- **Prova:** `SemanticResolutionTest.charArgOnStringMethodRejected` (10 métodos
-  × SEM051) + `stringMethodsWithStringOrCharArgsStillCompile` (não regridir
-  `replace(char,char)`/`charAt`/literal-String). Suíte completa pós-clean
-  **1304 run / 0 falhas** (12 err = node ausente, ambiental).
+- **Prova:** `SemanticResolutionTest.charArgOnStringMethodRejected` (12 formas
+  × SEM051, incluindo Int-arg `equalsIgnoreCase(5)`/`concat(5)`) +
+  `stringMethodsWithStringOrCharArgsStillCompile` (não regridir
+  `replace(char,char)`/`charAt`/literal-String) + matriz `equalsfold` (runtime
+  nos 4 targets). Suíte completa pós-clean abaixo.
 - **NOTA de design (por que rejeitar e não implementar):** Kof NÃO tem overload
   `(char)` p/ esses métodos no corpus (`type-system.md:289` lista `indexOf`→Int
   sem dizer o tipo do arg; o idiom real é `"c"`). A alternativa (implementar a
@@ -2425,6 +2442,28 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   caso que o literal String cobre (`"c"` em vez de `'c'`).
 - **Arquivos:** `ExpressionInstanceCallLowerer.java` (guard SEM051 +
   `STRING_ARG_METHODS`); testes em `SemanticResolutionTest.java`.
+
+
+### 101. Native: `indexOf(String, from)`/`lastIndexOf(String, from)` ignoram o índice inicial — ABERTO (achado 11/09 no sweep da família §100)
+
+- **Sintoma (medido 11/09):** `"aXb".indexOf("X", 2)` → **JVM `-1`** (correto:
+  o `"X"` está no índice 1 < 2), **Native `1`** (acha desde 0), Script `-1`.
+  O Native x86_64 tem UMA única entrada `kof_string_index_of` e o roteamento
+  em `NativeX86StringCalls` empilha os 2 args em `%rdi/%rsi` mas o helper trata
+  `%rsi` como a needle e NUNCA usa um 3º registrador p/ o start — a aridade 2
+  vira aridade 1 silenciosa. Provável mesmo padrão em `lastIndexOf(s, from)` e
+  `indexOf(char, from)` (não medidos ainda).
+- **Por que é paridade absoluta (regra da mantenedora 11/09):** mesmo código,
+  resultado DIFERENTE por target, sem diagnóstico — R6.
+- **Caminhos:** (a) implementar a forma com start no runtime (loop começa em
+  `max(0,start)` — `lastIndexOf` usa `start` como teto); (b) SEM054 no guard
+  (mesma família §100) rejeitando `indexOf(String,Int)` até o runtime ter a
+  forma — honesto, mas o operador EXISTE no reference/registry (é API
+  documentada, ao contrário do §96) → rejeitar REGREDIRIA código válido.
+  Escolha natural: **(a)** (backend-only, sem tocar frontend/contrato).
+- **Repro mínimo:** `main() { println("aXb".indexOf("X", 2)) }` → esperado
+  `-1` nos 5, Native dá `1`.
+- **Descoberto:** 11/09 na varredura do batch equalsfold/SEM051.
 
 
 ### 99. `Int.MAX_VALUE`/`<primitivo>.<campo>` passa SEM diagnóstico → lixo nos 3 targets + CRASH do compilador — ✅ CORRIGIDO 10/09 (R6; varredura numeric/estático)

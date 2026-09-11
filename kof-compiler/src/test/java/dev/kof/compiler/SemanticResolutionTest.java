@@ -267,12 +267,13 @@ class SemanticResolutionTest {
             "\"abc\".indexOf('c')", "\"abc\".lastIndexOf('b')", "\"abc\".contains('b')",
             "\"abc\".startsWith('a')", "\"abc\".endsWith('c')", "\"a,b\".split(',')",
             "\"abc\".concat('x')", "\"abc\".equalsIgnoreCase('a')",
-            "\"abc\".compareTo('a')", "\"abc\".compareToIgnoreCase('a')" };
+            "\"abc\".compareTo('a')", "\"abc\".compareToIgnoreCase('a')",
+            "\"abc\".equalsIgnoreCase(5)", "\"abc\".concat(5)" };
         for (String e : exprs) {
             CompilationResult r = compile(tmp, "e.kf", "main() { println(" + e + ") }");
             assertFalse(r.success(), "deve falhar: " + e);
             boolean found = r.diagnostics().getDiagnostics().stream()
-                    .anyMatch(d -> "SEM051".equals(d.code()) && d.message().contains("Char"));
+                    .anyMatch(d -> "SEM051".equals(d.code()) && d.message().contains("como argumento"));
             assertTrue(found, "esperava SEM051 p/ '" + e + "', foi: "
                     + r.diagnostics().getDiagnostics());
         }
