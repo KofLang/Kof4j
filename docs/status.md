@@ -1,7 +1,16 @@
 # Status do Projeto Kof
 
-**Última atualização:** 3 de setembro de 2026
+**Última atualização:** 11 de setembro de 2026
 **Versão:** 0.3.0-beta
+
+> **11/09 — OTP núcleo (issue #83) entregue em JVM+Script:** pacote virtual
+> `kof.supervisor` (host puro-Kof, `import kof.supervisor`), com observar-falha,
+> reinício individual (fábrica nova), limite de reinícios + escalate e stop
+> controlado (`KofSupervisorE2ETest` 6/6). Native/JS bloqueados no compile-time
+> com diagnóstico claro (`OTP001`/`OTP002`, §109/§112 — nunca silêncio). Impeditivo
+> §110 (SEM024 falso em método re-analisado) corrigido junto.
+> **11/09 — MATH001 fechado** (`kof.math` Double nos 5 targets; §104/§105/§106).
+> **11/09 — TIME002 fechado** (`addDays`/`diffDays` nos 5 targets).
 
 ---
 

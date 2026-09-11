@@ -179,6 +179,43 @@ async functions intercaladas no GraalJS embutido).
 
 ---
 
+## 4.5 Supervisor (kof.supervisor — issue #83, 11/09, experimental)
+
+Núcleo de supervisão OTP escrito **em Kof** (host injetado pelo
+`import kof.supervisor` — mecanismo do `android-host`, zero mudança de VM):
+
+```kof
+import kof.supervisor
+
+supervisor("net")                       // objeto novo por sistema
+    .child("conn", Fabrica(), "permanent")  // permanent|transient|temporary
+    .restartLimit(5)                    // máximo de reinícios antes de escalar
+    .escalate(Handler)                  // callback KofEscalate (opcional)
+    .start()                            // dispara os workers
+    .stop(2000)                         // encerra controlado (cancel + deadline)
+    .stats()                            // KofSupStats(started,restarts,dropped,vivos)
+```
+
+- **Observação de falha:** um laço `vigiar` por filho (`spawn` dedicado) faz
+  `await` do handle do worker dentro de `try/catch (String)` — a causa original
+  chega ao supervisor (`done()`+poll não é usado: polling de handle-falha é
+  frágil nos alvos sem preempção).
+- **Reinício individual com estado limpo:** a `KofWorkerFactory` fabrica um
+  `KofWorker` **novo** a cada reinício (DD-OTP-06) — nunca re-corre o objeto que
+  falhou.
+- **Políticas (DD-OTP-04):** `permanent` cai→sempre reinicia (terminar normal é
+  anomalia); `transient` termina-normal→para, falha→reinicia; `temporary`
+  nunca reinicia (descartado).
+- **Limite + escala (DD-OTP-07/08):** `restartLimit(max)` → ao estourar, chama
+  `escalate.disparou(id,motivo,reinicios)`; sem handler, PARA de reiniciar e
+  avisa no stdout (R6 — nunca loop infinito silencioso).
+- **Encerramento controlado:** `stop(deadlineMs)` cancela cooperativamente
+  (flag `cancelled()` nos targets com threads) e espera o deadline; filhos que
+  ignoram o cancel são reportados.
+- **Paridade (regra 6):** JVM ✅ · KofScript ✅ · Native = `OTP001` (§109: throw
+  em task longjmpa no handler chain global) · JS = `OTP002` (§112: event-loop
+  não agenda task-de-task) — ambos bloqueados no compile-time com diagnóstico.
+
 ## 5. I/O Concorrente
 
 Código como:

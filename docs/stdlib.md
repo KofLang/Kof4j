@@ -62,6 +62,7 @@ CONC001, JSN00x) — nunca comportamento silenciosamente diferente.
 | `kof.rest` | ⏳ | planejado |
 | `kof.database` | ✅ | `kof.db` (JVM JDBC: H2/MySQL/MariaDB/PostgreSQL; Native SQLite via `.so` direto + MySQL wire protocol WIP — auth scramble SHA-1; JS `DB001`) + `kof.orm` (entity, create/save/saveAll/find/where/count/page/delete/deleteAll/migrate; **coluna tipada em where/count: literal não-campo → `ORM003` em compile-time**; JVM + MongoDB; Native/JS `ORM001`) — ver `docs/DATABASE_VISION.md` |
 | `kof.messaging` | ✅ | `kof.mq` publish/subscribe/queue — **3 targets** (JVM in-memory; Native asm 01/09; JS in-process) — `KofMqE2ETest` 4/4 |
+| `kof.supervisor` | ✅ | Núcleo OTP (issue #83): `supervisor(name).child(id,fabrica,politica)`+`restartLimit`+`escalate`+`start`/`stop`/`stats` — host **puro-Kof** injetado por `import kof.supervisor` (mecanismo android-host). **JVM+Script ✅ 11/09**; NATIVE=OTP001 (§109), JS=OTP002 (§112) bloqueados no compile-time (R6). `KofSupervisorE2ETest` 6/6 |
 | `kof.validation` | ✅ | `validation.required/notBlank/minLength/maxLength/lengthBetween/isEmail/isUrl/matches/isInt/isLong/inRange/min/max` — JVM/Native/JS (`KofValidationTest` 3/3) |
 | `kof.logging` | ✅ | `log.debug/info/warn/error`, níveis, off — JVM+Native (asm, `kof_log_*`, 27/08) — `KofLogE2ETest` + `NativeLogE2ETest` |
 | `kof.observability` | ✅ | `observability.health/readiness/liveness`, `counter`/`increment`/`gauge`, `requestId()`/`correlationId()` — JVM/Native/JS (`KofObservabilityTest` 3/3) |
