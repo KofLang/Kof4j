@@ -32,6 +32,8 @@ public final class NativeRiscvAsmMapset0 {
                 li   a0, 128
                 call kof_alloc
                 sd   a0, 32(s0)          # vals
+                li   t0, 1
+                sw   t0, 40(s0)          # §123: key tag — 1=String default
                 mv   a0, s0
                 ld   s0, 0(sp)
                 ld   ra, 8(sp)
@@ -39,6 +41,8 @@ public final class NativeRiscvAsmMapset0 {
                 ret
 
             # kof_map_find(map, key) -> idx | -1  (interno)
+            # §123: tag da chave no header (off 40): 1=String (kof_string_equals),
+            # 0=raw (chave Int virava PONTEIRO no equals de String → SIGSEGV).
             .globl kof_map_find
             kof_map_find:
                 addi sp, sp, -48
@@ -46,8 +50,10 @@ public final class NativeRiscvAsmMapset0 {
                 sd   s0, 32(sp)          # map
                 sd   s1, 24(sp)          # key
                 sd   s2, 16(sp)          # i
+                sd   s3, 8(sp)           # tag
                 mv   s0, a0
                 mv   s1, a1
+                lw   s3, 40(s0)          # tag
                 li   s2, 0
             .Lkmf_loop:
                 lw   t0, 16(s0)
@@ -56,10 +62,16 @@ public final class NativeRiscvAsmMapset0 {
                 slli t2, s2, 3
                 add  t1, t1, t2
                 ld   a0, 0(t1)           # candidato
+                li   t3, 1
+                bne  s3, t3, .Lkmf_raw
                 beqz a0, .Lkmf_next
                 mv   a1, s1
                 call kof_string_equals
                 bnez a0, .Lkmf_hit
+                j    .Lkmf_next
+            .Lkmf_raw:
+                bne  a0, s1, .Lkmf_next
+                j    .Lkmf_hit
             .Lkmf_next:
                 addi s2, s2, 1
                 j    .Lkmf_loop
@@ -69,6 +81,7 @@ public final class NativeRiscvAsmMapset0 {
             .Lkmf_miss:
                 li   a0, -1
             .Lkmf_ret:
+                ld   s3, 8(sp)
                 ld   s2, 16(sp)
                 ld   s1, 24(sp)
                 ld   s0, 32(sp)

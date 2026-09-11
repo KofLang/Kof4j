@@ -43,6 +43,7 @@
 | string unicode indexOf/lastIndexOf (code units) | `6` / `-1` / `4` / `3` | DONE | DONE (bug 43 ✅ 10/09 x86) | DONE | DONE | `unicode-indexof` |
 | string ops split/toLowerCase/trim | `4` / `hello world` / `x\|` | DONE | DONE | DONE | DONE | `strops` |
 | map put/get/size | `1` / `2` | DONE | DONE | DONE | DONE | `map` |
+| `Map<Int,V>` put/get/remove/containsKey | `um`/`dois`/`2`/`true`/`um`/`1`/`false` | DONE | DONE | DONE | DONE (bug 123 ✅ 11/09 — era **SIGSEGV**: `kof_map_find` com `kof_string_equals` no chave Int → ponteiro; tag de chave no header off 40, espelhando o Set) | `mapint` |
 | list empty/isEmpty/contains | `true` / `0` / `false` | DONE | DONE | DONE | DONE | `emptylist` |
 | `null == null` / `!=` | `true` / `false` | DONE | DONE | DONE | DONE | `nulleq` |
 | if-expr curto-circuito null | `iguais` / `nao-ne` | DONE | DONE | DONE | DONE | `nulleqshortcut` |

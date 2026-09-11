@@ -267,6 +267,18 @@ public final class NativeRiscvCrossOps {
                 sb.append("    pop ").append(crossArgReg(i + 1)).append("\n");
             }
             sb.append("    pop a0\n");
+            // §123: tag de chave no header do map (off 40) — 1=String
+            // (kof_string_equals), 0=raw cmpq (Int/Long/... senão chave Int
+            // vira PONTEIRO → SIGSEGV). Unknown NÃO toca (mantém default 1;
+            // chave Int chega concreta pelo pinning). Espelha o x86.
+            if (mn.startsWith("kof_map_") && argCount >= 1) {
+                Type kt = kc.parameterTypes().get(0);
+                if (kt instanceof Type.NullableType nt) kt = nt.inner();
+                if (!(kt instanceof Type.UnknownType)) {
+                    sb.append("    li t0, ").append(BuiltinTypes.isString(kt) ? 1 : 0).append("\n");
+                    sb.append("    sw t0, 40(a0)\n");
+                }
+            }
             sb.append("    call ").append(mn).append("\n");
             if (!Type.isVoid(kc.returnType())) other.pushRiscv(sb, "a0");
             return;

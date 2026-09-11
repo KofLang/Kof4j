@@ -749,6 +749,19 @@ class ConformanceMatrixTest {
                     println(m.size)
                 }
                 """, "1\n2", Set.of(), tempDir);
+        matrix("mapint", """
+                main() {
+                    var m = mapOf(1, "um")
+                    m.put(2, "dois")
+                    println(m.get(1))
+                    println(m.get(2))
+                    println(m.size)
+                    println(m.containsKey(1))
+                    println(m.remove(1))
+                    println(m.size)
+                    println(m.containsKey(1))
+                }
+                """, "um\ndois\n2\ntrue\num\n1\nfalse", Set.of(), tempDir);
         matrix("emptylist", """
                 main() {
                     var l = listOf()

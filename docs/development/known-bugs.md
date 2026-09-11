@@ -3371,6 +3371,57 @@ int de índice) — verificados na varredura.
 - **Corpus:** `training/idioms/collections.md` (comentário no remove) +
   `fake-idioms.md` (linha nova).
 
+### 123. Native: `Map<Int,*>` SIGSEGVa em qualquer get/put — `kof_map_find` hardcoded `kof_string_equals` (chave Int vira PONTEIRO) — ✅ CORRIGIDO 11/09 (x86+riscv; aarch por tradução)
+
+- **Menor repro (medido 11/09, probes C1/D1):** `var m = mapOf(1, 2);
+  println(m.get(1))` → **Native ec=139** (SIGSEGV), JVM `2`. Não é o caso
+  de tipo-errado (§122): com os tipos CERTOS (Int key, Int/String val) o
+  programa morria. `m.put(3,4)` idem; `m.size` passava (não chama find).
+- **Causa raiz:** o Map nativo foi escrito para a fase P1 como
+  **`Map<String,V>`** (literal no header do arquivo: "kof.collections:
+  Map<String,V> nativo (P1)") — `kof_map_find` chama `kof_string_equals`
+  SEMPRE; com chave Int o inteiro cru é interpretado como ponteiro →
+  leitura em endereço inválido. O Set já tinha tag de tipo (1=String →
+  `kof_string_equals`, 0 → `cmpq`); o Map nunca recebeu.
+- **✅ Fix (mesma tag, no HEADER do map — off 40, dentro dos 64B já
+  alocados; sem mudar assinatura nem IR):** `kof_map_new` inicializa
+  tag=1 (String = o caso histórico → **zero regressão p/ Unknown**);
+  `kof_map_find` lê a tag do struct (String → equals; senão `cmpq` — chave
+  0 é legítima no modo raw, por isso o skip de null só vale p/ String);
+  o EMITTER (x86 `NativeX86Calls` + riscv `NativeRiscvCrossOps`; aarch
+  traduz o x86) escreve a tag a partir do tipo do 1º arg do put/get/
+  remove/contains (Unknown NÃO toca). O `KofCall` original do mapOf já
+  carregava key Int como INT no slot (mapOf(1,2) funcionava em size) —
+  o modo raw compara exatamente esses words.
+- **Prova:** célula `mapint` 4/4 sem exclusão (put/get/size/containsKey/
+  remove Int-key String-val) + probes D1/C1/C2/D4/A1/A3/MP2 nativos
+  ec=0; suíte completa 4 módulos verde (1501/0/12err-node/136skip).
+- **Fora daqui (registrados):** chave do TIPO ERRADO (Int em Map<String,V>
+  e vizinhos) → família §122 (SEM05x, rejeitar em compile-time) — A2
+  ainda SIGSEGVa até a guarda de Map/Set; §124 novo (abaixo) foi achado
+  pela célula.
+
+### 124. Script/interpretador: `println` de `String?` null → NPE "Cannot read the array length because \"value\" is null" (JVM/Native/JS imprimem `null`) — ⏳ ABERTO (achado 11/09 pela célula `mapint` do §123)
+
+- **Menor repro (medido 11/09, MI5):** `String? nd() { return null }` +
+  `println(nd())` → **Script ec=1** com a mensagem em stderr; **JVM/Native
+  imprimem `null`**. Confirmado PRÉ-EXISTENTE (roda igual com a árvore do
+  §123 em stash) — não é regressão da tag do map. `map.get` de MISS com
+  valor String no interpretador cai no mesmo caminho (MI1: out=[um] então
+  ec=1) e `m.remove` de chave inexistente idem (MI6).
+- **Causa (parcial — rastreamento interrompido pelo fim da sessão):** a
+  helpful-NPE é um `.length` de ARRAY chamado `value` (não `length()`),
+  i.e. String interpretada como `char[]`/Object[] em algum printer/concat
+  do caminho do `println`; `kofToString` trata null (`"null"`) → o crash
+  é ANTES/DEPOIS dele. `r.stderr()` do `interpret()` só entrega a
+  mensagem, sem stack — preciso do print com `KofInterpretException`
+  completa para pinar a linha (grep `value.length` em KofInterpreter*
+  não achou — procurar em `KofInterpreterValues`/`appendValue`/`unbox`).
+- **Prova esperada:** MI5 deve imprimir `null` no Script (célula na matriz
+  4/4 sem exclusão) + `KofInterpreterParityTest` com a menor repro.
+- **Prioridade:** média (crash ruidoso, não silent-wrong; workaround:
+  narrowing `if (x != null)` antes do println).
+
 ### 120. Tradutor riscv→aarch64: `fcvt.w/l.{s,d}` (FP→INT) traduzido como `scvtf` (direção INVERTIDA) — ✅ CORRIGIDO 11/09 (`fcvtzs`)  *(renumerado de §104 na reconciliação do merge 11/09 — colidiu com o record-equals §104 da série ativa)*
 
 - **Sintoma (achado 11/09 ao portar MATH001):** `var e = 2.5; println((e * 2.0) as Int)`
