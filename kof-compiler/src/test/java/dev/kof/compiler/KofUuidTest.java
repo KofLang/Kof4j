@@ -66,6 +66,81 @@ class KofUuidTest {
     }
 
     @Test
+    void uuidV7Jvm(@TempDir Path tmp) throws Exception {
+        runJvm(tmp, """
+            main() {
+                var u = uuid.v7()
+                assert(u.length == 36)
+                assert(u.charAt(8) == 45)
+                assert(u.charAt(13) == 45)
+                assert(u.charAt(18) == 45)
+                assert(u.charAt(23) == 45)
+                assert(u.charAt(14) == 55)
+                var v = u.charAt(19)
+                assert(v == 56 || v == 57 || v == 97 || v == 98)
+                assert(uuid.isUuid(u))
+                var w = uuid.v7()
+                assert(u != w)
+                println("ok")
+            }
+            """, "ok");
+    }
+
+    @Test
+    void uuidV7Native(@TempDir Path tmp) throws Exception {
+        runNative(tmp, """
+            main() {
+                var u = uuid.v7()
+                assert(u.length == 36)
+                assert(u.charAt(8) == 45)
+                assert(u.charAt(13) == 45)
+                assert(u.charAt(14) == 55)
+                assert(u.charAt(18) == 45)
+                var v = u.charAt(19)
+                assert(v == 56 || v == 57 || v == 97 || v == 98)
+                assert(u.charAt(23) == 45)
+                assert(uuid.isUuid(u))
+                var w = uuid.v7()
+                assert(u != w)
+                println("ok")
+            }
+            """, "ok");
+    }
+
+    @Test
+    void uuidV7Js(@TempDir Path tmp) throws Exception {
+        runJs(tmp, """
+            main() {
+                var u = uuid.v7()
+                assert(u.length == 36)
+                assert(u.charAt(8) == 45)
+                assert(u.charAt(13) == 45)
+                assert(u.charAt(14) == 55)
+                assert(u.charAt(18) == 45)
+                var v = u.charAt(19)
+                assert(v == 56 || v == 57 || v == 97 || v == 98)
+                assert(u.charAt(23) == 45)
+                assert(uuid.isUuid(u))
+                var w = uuid.v7()
+                assert(u != w)
+                println("ok")
+            }
+            """, "ok");
+    }
+
+    @Test
+    void uuidV7MonotonicOrderJvm(@TempDir Path tmp) throws Exception {
+        runJvm(tmp, """
+            main() {
+                var u1 = uuid.v7()
+                var u2 = uuid.v7()
+                assert(u2.charAt(0) >= u1.charAt(0))
+                println("ok")
+            }
+            """, "ok");
+    }
+
+    @Test
     void uuidV4CrossArch(@TempDir Path tmp) throws Exception {
         // SECN000 FECHADO (09/09): getrandom(2) via ecall (syscall 278, probe
         // riscv64+aarch64 no qemu) na fatia riscv B25 + aarch translator.
@@ -109,7 +184,7 @@ class KofUuidTest {
     void isUuidShapeJvmJsNative(@TempDir Path tmp) throws Exception {
         // isUuid = predicado de forma 8-4-4-4-12 (hex min ou maiúsculo;
         // traços em 8/13/18/23; version/variant NÃO verificadas — paridade
-        // travada na matriz stduuidform). Última linha: v4() do próprio target.
+        // travada na matriz stduuidform). Últimas linhas: v4() e v7() do próprio target.
         String src = """
             main() {
                 println(uuid.isUuid("550e8400-e29b-41d4-a716-446655440000"))
@@ -119,9 +194,10 @@ class KofUuidTest {
                 println(uuid.isUuid("550e8400-e29b-41d4-a716-44665544000g"))
                 println(uuid.isUuid(""))
                 println(uuid.isUuid(uuid.v4()))
+                println(uuid.isUuid(uuid.v7()))
             }
             """;
-        String gold = "true\ntrue\nfalse\nfalse\nfalse\nfalse\ntrue";
+        String gold = "true\ntrue\nfalse\nfalse\nfalse\nfalse\ntrue\ntrue";
         runJvm(tmp, src, gold);
         runJs(tmp, src, gold);
         runNative(tmp, src, gold);
@@ -146,6 +222,29 @@ class KofUuidTest {
                     .anyMatch(d -> "UUID001".equals(d.code())
                             || (d.message() != null && d.message().contains("UUID001")));
             assertTrue(has, t + " deve reportar UUID001, veio: "
+                    + r.diagnostics().getDiagnostics());
+        }
+    }
+
+    @Test
+    void uuidV7GatedOnCrossArch(@TempDir Path tmp) throws Exception {
+        // UUID002 (R6 — nunca silencioso): uuid.v7 tem JVM/JS/x86;
+        // riscv64/aarch64 aguardam implementação nativa.
+        String src = """
+            main() {
+                var u = uuid.v7()
+            }
+            """;
+        Path gateSrc = tmp.resolve("UuidV7Gate-" + System.nanoTime() + ".kf");
+        Files.writeString(gateSrc, src);
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            CompilationResult r = new CompilerDriver().compile(
+                    gateSrc, tmp.resolve("gate-v7-" + t + "-" + System.nanoTime()), t);
+            assertFalse(r.success(), t + " deve rejeitar uuid.v7 (UUID002)");
+            boolean has = r.diagnostics().getDiagnostics().stream()
+                    .anyMatch(d -> "UUID002".equals(d.code())
+                            || (d.message() != null && d.message().contains("UUID002")));
+            assertTrue(has, t + " deve reportar UUID002, veio: "
                     + r.diagnostics().getDiagnostics());
         }
     }

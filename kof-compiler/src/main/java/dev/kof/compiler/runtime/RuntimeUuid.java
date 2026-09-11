@@ -95,6 +95,128 @@ public final class RuntimeUuid {
                 popq %r12
                 popq %rbx
                 ret
+
+            # kof_uuid_v7() -> String (8-4-4-4-12, RFC 9562, version 7, variant 10xx)
+            .globl kof_uuid_v7
+            .type kof_uuid_v7, @function
+            kof_uuid_v7:
+                pushq %rbx
+                pushq %r12
+                pushq %r13
+                pushq %r14
+                pushq %r15
+                call kof_now                   # rax = unix_ts_ms (64-bit int)
+                movq %rax, %r14                # r14 = unix timestamp em ms
+                movl $16, %edi                 # 16 bytes de entropia getrandom
+                call kof_sec_random_hex        # rax = string de 32 hex chars
+                movq %rax, %r12                # r12 = base da string hex aleatoria
+                movl $61, %edi                 # 24 header + 36 chars + NUL
+                call kof_alloc
+                movq %rax, %r13                # r13 = novo objeto String
+                movl $1, 0(%r13)               # tipo = 1 (string)
+                movl $0, 4(%r13)
+                movq $0, 8(%r13)
+                movl $36, 16(%r13)             # len = 36
+                movl $0, 20(%r13)
+                leaq .Lsec_hex_chars(%rip), %rbx # tabela de hex chars [0-9a-f]
+                # Grava os primeiros 8 hex chars do timestamp (ms bits 47..16)
+                movl $44, %ecx
+                xorl %r15d, %r15d              # out_pos = 0..7
+            .Lv7_ts_loop1:
+                movq %r14, %rax
+                shrq %cl, %rax
+                andl $15, %eax
+                movzbl (%rbx,%rax), %eax
+                movb %al, 24(%r13,%r15)
+                incl %r15d
+                subl $4, %ecx
+                cmpl $16, %ecx
+                jge .Lv7_ts_loop1
+                # Hifen apos 8 chars (pos 8)
+                movb $45, 24(%r13,%r15)
+                incl %r15d                     # out_pos = 9
+                # Grava os proximos 4 hex chars do timestamp (ms bits 15..0)
+                movl $12, %ecx
+            .Lv7_ts_loop2:
+                movq %r14, %rax
+                shrq %cl, %rax
+                andl $15, %eax
+                movzbl (%rbx,%rax), %eax
+                movb %al, 24(%r13,%r15)
+                incl %r15d
+                subl $4, %ecx
+                jge .Lv7_ts_loop2
+                # Hifen apos byte 5 (pos 13)
+                movb $45, 24(%r13,%r15)
+                incl %r15d                     # out_pos = 14
+                # Versao 7 na pos 14 ('7')
+                movb $55, 24(%r13,%r15)
+                incl %r15d                     # out_pos = 15
+                # 3 hex chars aleatorios de rand_a (chars 0..2 de r12) em pos 15..17
+                movzbl 24(%r12), %eax
+                movb %al, 24(%r13,%r15)
+                incl %r15d
+                movzbl 25(%r12), %eax
+                movb %al, 24(%r13,%r15)
+                incl %r15d
+                movzbl 26(%r12), %eax
+                movb %al, 24(%r13,%r15)
+                incl %r15d                     # out_pos = 18
+                # Hifen apos byte 7 (pos 18)
+                movb $45, 24(%r13,%r15)
+                incl %r15d                     # out_pos = 19
+                # Variante 10xx (RFC 4122 / RFC 9562) na pos 19: (n&3)|8 -> '8','9','a','b'
+                movzbl 27(%r12), %eax          # char 3 da string aleatoria
+                cmpl $58, %eax
+                jl .Lv7_var_digit
+                subl $0x57, %eax               # 'a'..'f' -> 10..15
+                jmp .Lv7_var_mask
+            .Lv7_var_digit:
+                subl $0x30, %eax               # '0'..'9' -> 0..9
+            .Lv7_var_mask:
+                andl $3, %eax
+                orl $8, %eax                   # 10xx -> 8..11
+                cmpl $10, %eax
+                jl .Lv7_var_char_digit
+                addl $0x57, %eax               # 10,11 -> 'a','b'
+                jmp .Lv7_var_store
+            .Lv7_var_char_digit:
+                addl $0x30, %eax               # 8,9 -> '8','9'
+            .Lv7_var_store:
+                movb %al, 24(%r13,%r15)
+                incl %r15d                     # out_pos = 20
+                # 3 hex chars aleatorios de rand_b (chars 4..6 de r12) em pos 20..22
+                movzbl 28(%r12), %eax
+                movb %al, 24(%r13,%r15)
+                incl %r15d
+                movzbl 29(%r12), %eax
+                movb %al, 24(%r13,%r15)
+                incl %r15d
+                movzbl 30(%r12), %eax
+                movb %al, 24(%r13,%r15)
+                incl %r15d                     # out_pos = 23
+                # Hifen apos byte 9 (pos 23)
+                movb $45, 24(%r13,%r15)
+                incl %r15d                     # out_pos = 24
+                # 12 hex chars aleatorios de rand_b (chars 7..18 de r12) em pos 24..35
+                xorl %ecx, %ecx
+            .Lv7_rand_b_loop:
+                cmpl $12, %ecx
+                jge .Lv7_done
+                movzbl 31(%r12,%rcx), %eax
+                movb %al, 24(%r13,%r15)
+                incl %r15d
+                incl %ecx
+                jmp .Lv7_rand_b_loop
+            .Lv7_done:
+                movb $0, 60(%r13)              # 24+36: NUL
+                movq %r13, %rax
+                popq %r15
+                popq %r14
+                popq %r13
+                popq %r12
+                popq %rbx
+                ret
         """);
         // kof_uuid_isUuid(rdi=str) -> 1/0 — predicado de forma (sem alocação):
         // len 36, traços em 8/13/18/23, demais hex (0-9 a-f A-F). Paridade

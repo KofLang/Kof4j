@@ -32,6 +32,8 @@ public final class KofUuid {
         return switch (name) {
             case "v4" -> argTypes.isEmpty()
                     ? new UuidCall("kof_uuid_v4", STR, List.of()) : null;
+            case "v7" -> argTypes.isEmpty()
+                    ? new UuidCall("kof_uuid_v7", STR, List.of()) : null;
             case "isUuid" -> argTypes.size() == 1
                     ? new UuidCall("kof_uuid_isUuid", Type.PrimitiveType.BOOL, List.of(STR)) : null;
             default -> null;
@@ -47,9 +49,11 @@ public final class KofUuid {
      * JVM/Script/JS/x86; riscv64/aarch64 = fatia B própria pendente (mesma
      * condição de parada de S7c-1: sem cross-assembler/qemu no ambiente da
      * lane — spec x86 pronta; NÃO escrever asm sem montar/rodar).
+     * UUID002 (10/09): v7 (RFC 9562 time-ordered ms timestamp + random bits)
+     * tem JVM/Script/JS/x86; riscv64/aarch64 = fatia B pendente de prova.
      */
     static boolean supportedOn(String function, Target target) {
-        if ("kof_uuid_isUuid".equals(function)
+        if (("kof_uuid_isUuid".equals(function) || "kof_uuid_v7".equals(function))
                 && (target == Target.NATIVE_RISCV64 || target == Target.NATIVE_AARCH64)) {
             return false;
         }
@@ -57,6 +61,7 @@ public final class KofUuid {
     }
 
     static String gapCode(String function) {
+        if ("kof_uuid_v7".equals(function)) return "UUID002";
         return "kof_uuid_isUuid".equals(function) ? "UUID001" : "SECN000";
     }
 }
