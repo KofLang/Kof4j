@@ -15,7 +15,7 @@ public final class NativeX86StringCalls {
 
     private NativeX86StringCalls() {}
 
-    static boolean emit(StringBuilder sb, KofCall kc) {
+    static boolean emit(NativeBackend nb, StringBuilder sb, KofCall kc) {
         if (kc.kind() == KofCallKind.INSTANCE && BuiltinTypes.isString(kc.ownerType())
                 && "length".equals(kc.methodName())) {
             sb.append("    popq %rdi\n");
@@ -118,6 +118,34 @@ public final class NativeX86StringCalls {
             sb.append("    pushq %rax\n");
             return true;
         }
+        if (kc.kind() == KofCallKind.INSTANCE && "equals".equals(kc.methodName())
+                && BuiltinTypes.isString(kc.ownerType())
+                && kc.parameterTypes().size() == 1) {
+            // bug 97 (continuação): `.equals` em String é conteúdo (mesma função
+            // do `==`, null-safe) — mas o método NÃO era roteado → undefined
+            // reference java_lang_String_equals no link (JVM/Script rodam).
+            // Guard isString: record.equals é gerado campo-a-campo, NUNCA deve
+            // cair aqui. type-system.md:258 documenta ".equals funciona (probe)
+            // mas é anti-pattern — use ==".
+            sb.append("    popq %rsi\n");
+            sb.append("    popq %rdi\n");
+            sb.append("    call kof_string_equals\n");
+            sb.append("    pushq %rax\n");
+            return true;
+        }
+        if (kc.kind() == KofCallKind.INSTANCE && "compareTo".equals(kc.methodName())) {
+            sb.append("    popq %rsi\n");
+            sb.append("    popq %rdi\n");
+            sb.append("    call kof_string_compare_to\n");
+            sb.append("    pushq %rax\n");
+            return true;
+        }
+        if (kc.kind() == KofCallKind.INSTANCE && "hashCode".equals(kc.methodName())) {
+            sb.append("    popq %rdi\n");
+            sb.append("    call kof_string_hash_code\n");
+            sb.append("    pushq %rax\n");
+            return true;
+        }
         if (kc.kind() == KofCallKind.INSTANCE && "trim".equals(kc.methodName())) {
             sb.append("    popq %rdi\n");
             sb.append("    call kof_string_trim\n");
@@ -160,15 +188,23 @@ public final class NativeX86StringCalls {
             return true;
         }
         if (kc.kind() == KofCallKind.INSTANCE && "split".equals(kc.methodName())) {
+            // bug 95: as labels do ramo inline viviam num nome FIXO — um 2º
+            // split no mesmo programa redefinía o símbolo → "symbol .Lkof_split_*
+            // is already defined" no assembler (COMP001, qualquer programa com
+            // 2+ splits, ex.: parsear 2 strings CSV). Sequência única p/ call
+            // site (nb.inlineSeq, resetado por programa).
+            int seq = nb.inlineSeq++;
+            String empty = ".Lkof_split_empty_sep" + seq;
+            String call = ".Lkof_split_call" + seq;
             sb.append("    popq %rsi\n");
             sb.append("    movl 16(%rsi), %ecx\n");
             sb.append("    testl %ecx, %ecx\n");
-            sb.append("    jz .Lkof_split_empty_sep\n");
+            sb.append("    jz " + empty + "\n");
             sb.append("    movzbl 24(%rsi), %esi\n");
-            sb.append("    jmp .Lkof_split_call\n");
-            sb.append(".Lkof_split_empty_sep:\n");
+            sb.append("    jmp " + call + "\n");
+            sb.append(empty + ":\n");
             sb.append("    xorl %esi, %esi\n");
-            sb.append(".Lkof_split_call:\n");
+            sb.append(call + ":\n");
             sb.append("    popq %rdi\n");
             sb.append("    call kof_string_split\n");
             sb.append("    pushq %rax\n");

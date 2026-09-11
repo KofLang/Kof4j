@@ -239,6 +239,7 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_time_isLeapYear" -> "(I)Z";
             case "kof_time_daysInMonth" -> "(II)I";
             case "kof_time_dayOfWeek" -> "(III)I";
+            case "kof_time_isWeekend" -> "(III)Z";
             case "kof_time_daysBetween" -> "(IIIIII)I";
             case "kof_time_addDays" -> "(Ljava/lang/String;I)Ljava/lang/String;";
             case "kof_time_diffDays" -> "(Ljava/lang/String;Ljava/lang/String;)I";
@@ -328,6 +329,7 @@ public final class JvmRuntimeCallDescriptors {
                     "kof_validation_isPis", "kof_validation_isIpv4", "kof_validation_isMac",
                     "kof_validation_isCreditCard", "kof_validation_isIpv6",
                     "kof_validation_isDomain" -> "(Ljava/lang/String;)Z";
+            case "kof_validation_formatCnpj", "kof_validation_formatCpf", "kof_validation_formatCep" -> "(Ljava/lang/String;)Ljava/lang/String;";
             case "kof_validation_isPort" -> "(I)Z";
             case "kof_validation_minLength", "kof_validation_maxLength" -> "(Ljava/lang/String;I)Z";
             case "kof_validation_lengthBetween" -> "(Ljava/lang/String;II)Z";
@@ -340,11 +342,15 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_math_min", "kof_math_max" -> "(II)I";
             case "kof_math_isEven", "kof_math_isOdd", "kof_math_isPositive",
                     "kof_math_isNegative", "kof_math_isZero" -> "(I)Z";
+            case "kof_math_sqrt" -> "(D)D";
+            case "kof_math_lerp" -> "(DDD)D";
+            case "kof_math_percentage" -> "(DD)D";
+            case "kof_math_isInteger", "kof_math_isDecimal" -> "(D)Z";
             // ── kof.strings (STDLIB S2a) ────────────────────────────────────
             case "kof_strings_isAlpha", "kof_strings_isNumeric", "kof_strings_isAlphaNumeric", "kof_strings_isAscii" -> "(Ljava/lang/String;)Z";
             case "kof_strings_isUpperCase", "kof_strings_isLowerCase" -> "(Ljava/lang/String;)Z";
             case "kof_strings_count" -> "(Ljava/lang/String;Ljava/lang/String;)I";
-            case "kof_strings_capitalize", "kof_strings_reverse", "kof_strings_toCamelCase",
+            case "kof_strings_capitalize", "kof_strings_uncapitalize", "kof_strings_reverse", "kof_strings_toCamelCase",
                     "kof_strings_toPascalCase", "kof_strings_toSnakeCase", "kof_strings_toKebabCase",
                     "kof_strings_slugify", "kof_strings_escapeHtml", "kof_strings_unescapeHtml",
                     "kof_strings_escapeJson", "kof_strings_removeWhitespace",
@@ -357,10 +363,13 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_encoding_urlEncode", "kof_encoding_urlDecode", "kof_encoding_base64UrlEncode", "kof_encoding_base64UrlDecode" -> "(Ljava/lang/String;)Ljava/lang/String;";
             case "kof_uuid_v4", "kof_uuid_v7" -> "()Ljava/lang/String;";
             case "kof_uuid_isUuid" -> "(Ljava/lang/String;)Z";
-            // ── kof.random (STDLIB S10) ─────────────────────────────────
+            // ── kof.random (STDLIB S10a/S10b) ──────────────────────────────
+            case "kof_random_int" -> "(I)I";
+            case "kof_random_bool" -> "()Z";
+            case "kof_random_string" -> "(ILjava/lang/String;)Ljava/lang/String;";
+            // ── kof.random (STDLIB S10, face main — merge 10/09) ──────────
             case "kof_random_double" -> "()D";
             case "kof_random_boolean" -> "()Z";
-            case "kof_random_int" -> "(I)I";
             case "kof_random_hex" -> "(I)Ljava/lang/String;";
             // ── kof.observability (G5) ────────────────────────────────
             case "kof_observability_health", "kof_observability_request_id", "kof_observability_correlation_id",

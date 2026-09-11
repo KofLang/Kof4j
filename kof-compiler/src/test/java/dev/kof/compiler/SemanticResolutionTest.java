@@ -41,11 +41,47 @@ class SemanticResolutionTest {
     @Test
     void unknownMethodOnBuiltinNamespaces(@TempDir Path tmp) throws IOException {
         String[] namespaces = {"db", "log", "http", "mq", "time", "security",
-                "orm", "cache", "gpu", "config", "observability", "validation"};
+                "orm", "cache", "gpu", "config", "observability", "validation",
+                // Família KofStd (lane STDLIB) — R6: método inexistente em
+                // qualquer namespace stdlib dá SEM025, nunca é descartado em
+                // silêncio pelo lowerer (fonte única: typer e lowerer usam a
+                // mesma tabela KofStd/Kof<Dom>.staticMethod).
+                "strings", "random", "uuid", "encoding", "math", "net"};
         for (String ns : namespaces) {
             CompilationResult r = compile(tmp, ns + ".kf",
                     "main() { " + ns + ".metodoRuim() }");
             assertSem025(r, "on namespace '" + ns + "'");
+        }
+    }
+
+    @Test
+    void wrongArityOnStdlibMethod(@TempDir Path tmp) throws IOException {
+        // R6 (complemento do anterior): aridade ERRADA em um nome que EXISTE
+        // também é SEM025, não "typer passou e lowerer descartou". A tabela
+        // de dispatch valida argc; se o nome não casa na aridade, o
+        // staticMethod retorna null => SEM025 (prova a fonte única).
+        String[][] cases = {
+                {"time", "time.isWeekend(2026, 9)"},           // precisa 3
+                {"random", "random.randomInt()"},              // precisa 1
+                {"strings", "strings.capitalize()"},           // precisa 1
+                {"validation", "validation.formatCpf(1, 2)"},  // precisa 1
+                {"uuid", "uuid.isUuid()"},                     // precisa 1
+                // Famílias de OUTRAS lanes (varredura R6 10/09 — aditivo,
+                // prova persistida das sondas manuais db.connect()/http.get()/
+                // cache.get()/mq.publish(): nome EXISTE, aridade não casa).
+                {"db", "db.connect()"},                        // precisa ≥1
+                {"http", "http.get()"},                        // precisa ≥1
+                {"cache", "cache.get()"},                      // precisa 1+
+                {"mq", "mq.publish()"},                        // precisa 2
+                {"security", "security.hash()"},               // precisa 1
+                {"orm", "orm.save()"},                         // precisa >=1
+                {"config", "config.get()"},                    // precisa 1
+                {"cache", "cache.put()"},                      // precisa 2
+                {"log", "log.info()"},                         // precisa >=1
+        };
+        for (String[] c : cases) {
+            CompilationResult r = compile(tmp, c[0] + ".kf", "main() { " + c[1] + " }");
+            assertSem025(r, "on namespace '" + c[0] + "'");
         }
     }
 
@@ -120,6 +156,43 @@ class SemanticResolutionTest {
                 + r.diagnostics().getDiagnostics());
     }
 
+    // ---- SG-017 (SEM041): `new` de classe abstrata → erro ----
+
+    @Test
+    void abstractClassInstantiationFails(@TempDir Path tmp) throws IOException {
+        CompilationResult r = compile(tmp, "A.kf", """
+                abstract class Shape {
+                    Int area() { return 0 }
+                }
+                main() {
+                    var s = Shape()
+                    println(s)
+                }
+                """);
+        assertFalse(r.success(), "deve falhar: new de abstract class");
+        boolean found = r.diagnostics().getDiagnostics().stream()
+                .anyMatch(d -> "SEM041".equals(d.code())
+                        && d.message().contains("abstract class 'Shape'"));
+        assertTrue(found, "esperava SEM041, foi: " + r.diagnostics().getDiagnostics());
+    }
+
+    @Test
+    void abstractClassSubclassInstantiationStaysGreen(@TempDir Path tmp) throws IOException {
+        CompilationResult r = compile(tmp, "A.kf", """
+                abstract class Shape {
+                    Int area() { return 0 }
+                }
+                class Circle extends Shape {
+                }
+                main() {
+                    var c = Circle()
+                    println(c)
+                }
+                """);
+        assertTrue(r.success(), "subclass concreta instanciável: "
+                + r.diagnostics().getDiagnostics());
+    }
+
     // ---- método inexistente em classe do módulo → SEM025 (já coberto
     //      pelo caminho ClassType; trava regressão do gate isKnownReceiver) ----
 
@@ -135,5 +208,51 @@ class SemanticResolutionTest {
                 }
                 """);
         assertSem025(r, "on type 'P'");
+    }
+
+    // ---- bug 99: String method com formal String/CharSequence recebe
+    //      Int/Char → SEM025 (R6). O registry resolve por ARIDADE, então o
+    //      formal String "aceita" o Int/Char no caminho e cada backend
+    //      divergia: JVM VerifyError, Native SIGSEGV, JS -1 silencioso,
+    //      interpretador CCE. Kof não tem tipo char ('x' É Int) — rejeitar
+    //      apontando p/ o idiom, nunca o "compila e quebra". ----
+
+    @Test
+    void stringMethodRefusoesCharEmFormalString(@TempDir Path tmp) throws IOException {
+        // indexOf/contains/lastIndexOf/startsWith/endsWith com char literal
+        assertSem025(compile(tmp, "I.kf", "main() {\n var s = \"abc\"\n println(s.indexOf('c'))\n}"),
+                "indexOf' expects a String");
+        assertSem025(compile(tmp, "C.kf", "main() {\n var s = \"abc\"\n println(s.contains('b'))\n}"),
+                "contains' expects a String");
+        assertSem025(compile(tmp, "L.kf", "main() {\n var s = \"abc\"\n println(s.lastIndexOf('c'))\n}"),
+                "lastIndexOf' expects a String");
+        assertSem025(compile(tmp, "S.kf", "main() {\n var s = \"abc\"\n println(s.startsWith('a'))\n}"),
+                "startsWith' expects a String");
+        assertSem025(compile(tmp, "E.kf", "main() {\n var s = \"abc\"\n println(s.endsWith('c'))\n}"),
+                "endsWith' expects a String");
+        // Int (não literal) no formal String também rejeita — o tipo importa,
+        // não a forma da literal.
+        assertSem025(compile(tmp, "N.kf", "main() {\n var s = \"abc\"\n var n = 42\n println(s.indexOf(n))\n}"),
+                "indexOf' expects a String");
+    }
+
+    // Formais corretos continuam aceitos (zero regressão): String em
+    // indexOf/contains/startsWith, E replace(char,char) que é intencional.
+    @Test
+    void stringMethodAceitaStringEReplaceChar(@TempDir Path tmp) throws IOException {
+        CompilationResult r = compile(tmp, "M.kf", """
+                main() {
+                    var s = "aXbXc"
+                    println(s.indexOf("X"))
+                    println(s.contains("b"))
+                    println(s.lastIndexOf("c"))
+                    println(s.startsWith("a"))
+                    println(s.endsWith("c"))
+                    println(s.replace('X', "-"))
+                    println(s.replace("X", "-"))
+                }
+                """);
+        assertTrue(r.success(), "formais String + replace(char,char) devem compilar: "
+                + r.diagnostics().getDiagnostics());
     }
 }

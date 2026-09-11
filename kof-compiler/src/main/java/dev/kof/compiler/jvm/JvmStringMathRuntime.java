@@ -55,6 +55,31 @@ public final class JvmStringMathRuntime {
                     return v == 0;
                 }
 
+                // S1b: PRIMEIRO Double em kof.math (x86 sqrtsd; FLT001 fechado
+                // 31/08 via XMM). NaN em <0 (Math.sqrt) — paridade JS/native.
+                public static double kof_math_sqrt(double v) {
+                    return Math.sqrt(v);
+                }
+
+                // S1b.1: escalares Double puros (lerp/percentage/isInteger/
+                // isDecimal) — mesma aritmética SSE2 do Native e da semântica
+                // JS (travada na matriz stdmathdouble + KofMathTest golden JVM).
+                public static double kof_math_lerp(double a, double b, double t) {
+                    return a + (b - a) * t;
+                }
+
+                public static double kof_math_percentage(double part, double total) {
+                    return part / total * 100.0;
+                }
+
+                public static boolean kof_math_isInteger(double v) {
+                    return v == Math.floor(v) && !Double.isInfinite(v);
+                }
+
+                public static boolean kof_math_isDecimal(double v) {
+                    return !(v == Math.floor(v) && !Double.isInfinite(v));
+                }
+
                 // ── kof.strings (STDLIB S2a) — predicados de char ──────────
                 // Convenção de paridade (travada em KofStringsTest + matriz):
                 // string vazia / null => false (nenhum char satisfaz).

@@ -10,6 +10,8 @@ import dev.kof.compiler.ExpressionNode;
 import dev.kof.compiler.ExpressionStmt;
 import dev.kof.compiler.ForInStmt;
 import dev.kof.compiler.ForStmt;
+import dev.kof.compiler.FunctionDeclStmt;
+import dev.kof.compiler.FunctionDeclarationNode;
 import dev.kof.compiler.IfStmt;
 import dev.kof.compiler.LiteralExpr;
 import dev.kof.compiler.PatternExpr;
@@ -112,6 +114,12 @@ public class StatementParser {
         }
         if (ctx.check(TokenType.VAR, TokenType.VAL)) {
             return StatementParser.parseVarDecl(ctx);
+        }
+        // SG-011: função aninhada ANTES do typed var decl — `Int dobro(Int x)`
+        // não é `Int dobro` (var decl); o `(` logo após o nome decide.
+        if ((ctx.check(TokenType.IDENTIFIER) || ctx.check(TokenType.VOID) || TypeParser.isPrimitiveType(ctx))
+                && StatementParser.lookaheadNestedFunction(ctx)) {
+            return StatementParser.parseNestedFunction(ctx);
         }
         if ((ctx.check(TokenType.IDENTIFIER) || ctx.check(TokenType.VOID) || TypeParser.isPrimitiveType(ctx))
                 && StatementParser.lookaheadTypedVarDecl(ctx)) {
@@ -307,15 +315,18 @@ public class StatementParser {
      */
     static ExpressionNode parseSwitchCasePatternOrValue(ParseContext ctx, SourcePosition cp) {
         // pattern matching: case Type var  /  case Type(var1, var2)
+        // SG-014: com guarda, `case Type var if (...)` — o token pós-var pode
+        // ser `if` em vez de `:`/`->`
         if (ctx.check(TokenType.IDENTIFIER) && ctx.pos + 2 < ctx.tokens.size()
                 && ctx.tokens.get(ctx.pos + 1).type() == TokenType.IDENTIFIER
                 && (ctx.tokens.get(ctx.pos + 2).type() == TokenType.COLON
-                        || ctx.tokens.get(ctx.pos + 2).type() == TokenType.ARROW)) {
+                        || ctx.tokens.get(ctx.pos + 2).type() == TokenType.ARROW
+                        || ctx.tokens.get(ctx.pos + 2).type() == TokenType.IF)) {
             String typeName = ctx.advance().value();
             String varName = ctx.advance().value();
-            return new PatternExpr(cp, typeName, varName, java.util.List.of());
-        }
-        if (ctx.check(TokenType.IDENTIFIER) && ctx.pos + 1 < ctx.tokens.size()
+            return new PatternExpr(cp, typeName, varName, java.util.List.of(),
+                    parseGuardIfPresent(ctx));
+        }        if (ctx.check(TokenType.IDENTIFIER) && ctx.pos + 1 < ctx.tokens.size()
                 && ctx.tokens.get(ctx.pos + 1).type() == TokenType.LPAREN) {
             // Try destructuring: case Type(var1, var2)
             String typeName = ctx.tokens.get(ctx.pos).value();
@@ -331,7 +342,8 @@ public class StatementParser {
             }
             if (rparenPos != -1 && rparenPos + 1 < ctx.tokens.size()
                     && (ctx.tokens.get(rparenPos + 1).type() == TokenType.COLON
-                            || ctx.tokens.get(rparenPos + 1).type() == TokenType.ARROW)) {
+                            || ctx.tokens.get(rparenPos + 1).type() == TokenType.ARROW
+                            || ctx.tokens.get(rparenPos + 1).type() == TokenType.IF)) {
                 java.util.List<String> fieldVars = new java.util.ArrayList<>();
                 for (int q = ctx.pos + 2; q < rparenPos; q++) {
                     if (ctx.tokens.get(q).type() == TokenType.IDENTIFIER) {
@@ -349,10 +361,22 @@ public class StatementParser {
                 ctx.advance(); // LPAREN
                 while (!ctx.check(TokenType.RPAREN) && !ctx.atEnd()) ctx.advance();
                 if (ctx.check(TokenType.RPAREN)) ctx.advance();
-                return new PatternExpr(cp, typeName, null, java.util.List.copyOf(fieldVars));
+                return new PatternExpr(cp, typeName, null, java.util.List.copyOf(fieldVars),
+                        parseGuardIfPresent(ctx));
             }
             return ExpressionParser.parseExpression(ctx);
         }
+        return ExpressionParser.parseExpression(ctx);
+    }
+
+    /**
+     * SG-014: guarda do pattern — `case Type var if (cond):` / `... if cond ->`.
+     * Consome `if` + a expressão da guarda (até `:`/`->`) quando presente;
+     * null caso contrário.
+     */
+    static ExpressionNode parseGuardIfPresent(ParseContext ctx) {
+        if (!ctx.check(TokenType.IF)) return null;
+        ctx.advance();
         return ExpressionParser.parseExpression(ctx);
     }
 
@@ -382,6 +406,44 @@ public class StatementParser {
         }
         ctx.expectSemicolon();
         return new VarDeclStmt(p, type, name, init);
+    }
+
+    /**
+     * SG-011: lookahead de função aninhada em statement —
+     * `Type name(params) {` (o `{` do corpo distingue de chamada/
+     * declaração de variável; a detection não pode capturar
+     * `Int x = f()` nem `f(1)`).
+     */
+    static boolean lookaheadNestedFunction(ParseContext ctx) {
+        if (ctx.pos + 2 >= ctx.tokens.size()) return false;
+        int i = ctx.pos + 1;
+        if (!ctx.tokens.get(i).is(TokenType.IDENTIFIER)) return false;
+        i++;
+        if (i >= ctx.tokens.size() || !ctx.tokens.get(i).is(TokenType.LPAREN)) return false;
+        // pula a lista de parâmetros balanceada
+        int depth = 0;
+        while (i < ctx.tokens.size()) {
+            TokenType tt = ctx.tokens.get(i).type();
+            if (tt == TokenType.LPAREN) depth++;
+            else if (tt == TokenType.RPAREN) {
+                depth--;
+                if (depth == 0) { i++; break; }
+            }
+            i++;
+        }
+        // opcional `: Type` / `-> Type` de retorno
+        if (i < ctx.tokens.size() && ctx.tokens.get(i).is(TokenType.COLON)) {
+            i++;
+            while (i < ctx.tokens.size() && !ctx.tokens.get(i).is(TokenType.LBRACE)) i++;
+        }
+        return i < ctx.tokens.size() && ctx.tokens.get(i).is(TokenType.LBRACE);
+    }
+
+    static StatementNode parseNestedFunction(ParseContext ctx) {
+        // reaproveita o parser de função top-level (mods vazios), mas SEM
+        // expectSemicolon — o statement termina no `}` do corpo
+        FunctionDeclarationNode fn = Parser.parseFunctionDeclaration(ctx, List.of(), List.of());
+        return new FunctionDeclStmt(ctx.pos(), fn);
     }
 
     /**

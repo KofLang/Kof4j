@@ -4468,4 +4468,558 @@ class CompilerDriverTest {
         assertTrue(driver.compile(cmp, tempDir.resolve("out3"), Target.JVM).success(),
                 "== sobre Object deve continuar válido");
     }
+
+    // SG-016 (SEM042) — tipo aninhado dentro de tipo não existe em Kof:
+    // `class A { class B {} }` é erro de parse limpo, não aceitação silenciosa.
+    @Test
+    void nestedClassGivesCleanDiagnostic(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Nested.kf");
+        Files.writeString(source, """
+            class Outer {
+                class Inner {
+                    Int x
+                }
+            }
+            main() { println("ok") }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "nested class must fail to compile");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM042"), "should be SEM042, got: " + diags);
+    }
+
+    @Test
+    void topLevelClassStaysGreen(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Top.kf");
+        Files.writeString(source, """
+            class Inner {
+                Int x
+            }
+            main() {
+                var i = Inner()
+                i.x = 3
+                println(i.x)
+            }
+            """);
+        CompilationResult ok = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertTrue(ok.success(), "top-level class deve compilar: " + ok.diagnostics().getDiagnostics());
+    }
+
+    // SG-015 (SEM043) — classe que implementa interface deve declarar os
+    // métodos da interface; aridade divergente também é erro.
+    @Test
+    void missingInterfaceMethodImplGivesCleanDiagnostic(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Impl.kf");
+        Files.writeString(source, """
+            interface Greeter {
+                String greet(String name)
+            }
+            class Pt implements Greeter {
+            }
+            main() { println("ok") }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "missing interface method must fail");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM043"), "should be SEM043, got: " + diags);
+        assertTrue(diags.contains("greet"), "must name the missing method: " + diags);
+    }
+
+    @Test
+    void wrongArityInterfaceMethodImplGivesCleanDiagnostic(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Arity.kf");
+        Files.writeString(source, """
+            interface Greeter {
+                String greet(String name)
+            }
+            class Pt implements Greeter {
+                String greet() { return "oi" }
+            }
+            main() { println("ok") }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "wrong arity implementation must fail");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM043"), "should be SEM043, got: " + diags);
+    }
+
+    @Test
+    void completeInterfaceImplStaysGreen(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Ok.kf");
+        Files.writeString(source, """
+            interface Greeter {
+                String greet(String name)
+            }
+            class Pt implements Greeter {
+                String greet(String name) { return "oi " + name }
+            }
+            main() {
+                var g = Pt()
+                println(g.greet("Mel"))
+            }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertTrue(result.success(), "complete implementation must compile: "
+                + result.diagnostics().getDiagnostics());
+    }
+
+    // SG-011B (SEM047) — sobrecarga top-level não existe: função homônima é
+    // erro de compilação (antes a última sobrescrevia silenciosamente).
+    @Test
+    void duplicateTopLevelFunctionFails(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("D.kf");
+        Files.writeString(source, """
+            Int f(Int x) { return x + 1 }
+            Int f(String s) { return 2 }
+            main() { println(f(1)) }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "overload top-level deve falhar");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM047"), "should be SEM047, got: " + diags);
+        assertTrue(diags.contains("already defined"), "deve nomear o conflito: " + diags);
+    }
+
+    // SG-002 — tokens mortos removidos: `~`, `=>`, `|>`, `::`, `...`, `_`,
+    // `sealed`/`permits` não são mais reconhecidos pelo lexer (erro limpo
+    // LEX005 — a gramática nunca os usou).
+    @Test
+    void deadTokensGiveCleanLexerError(@TempDir Path tempDir) throws IOException {
+        String[][] cases = {
+            {"main() { var x = ~5 }", "LEX005"},
+            {"main() { val f = (x) => x }", "PARSE041"},
+            {"main() { var y = xs |> f }", "PARSE041"},
+            {"main() { var z = A::b }", "PARSE041"},
+            // sealed agora é IDENTIFIER comum: falha no parse como função
+            {"sealed class S { }", "PARSE010"},
+        };
+        for (int i = 0; i < cases.length; i++) {
+            Path source = tempDir.resolve("T" + i + ".kf");
+            Files.writeString(source, cases[i][0]);
+            CompilationResult result = driver.compile(source, tempDir.resolve("out" + i), Target.JVM);
+            assertFalse(result.success(), "deve falhar: " + cases[i][0]);
+            String diags = result.diagnostics().getDiagnostics().toString();
+            assertTrue(diags.contains(cases[i][1]),
+                "esperava " + cases[i][1] + " para '" + cases[i][0] + "', foi: " + diags);
+        }
+    }
+
+    // SG-018 (SEM044) — o entry point é SÓ `main()`: sem tipo de retorno,
+    // sem modifiers. O IR emite public static void; a fonte nunca declara.
+    @Test
+    void typedMainGivesCleanDiagnostic(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+            Int main() {
+                println("hi")
+                return 0
+            }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "Int main() must fail to compile");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM044"), "should be SEM044, got: " + diags);
+    }
+
+    @Test
+    void modifiedMainGivesCleanDiagnostic(@TempDir Path tempDir) throws IOException {
+        // o parser não aceita modifiers em top-level function (PARSE007) —
+        // o SEM044 protege o contrato na camada semântica (desugar/futuro)
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+            public main() {
+                println("hi")
+            }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "modified main() must fail to compile");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("PARSE007") || diags.contains("SEM044"),
+                "should be PARSE007 or SEM044, got: " + diags);
+    }
+
+    @Test
+    void plainMainStaysGreen(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+            main() {
+                println("hi")
+            }
+            """);
+        assertTrue(driver.compile(source, tempDir.resolve("out"), Target.JVM).success(),
+                "plain main() deve compilar");
+    }
+
+    // SG-019 (SEM045) — cláusula `throw X` valida que X é um tipo conhecido
+    // (não mais decorativa): classe do módulo, interface, builtin ou import.
+    @Test
+    void throwsUnknownTypeGivesCleanDiagnostic(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("T.kf");
+        Files.writeString(source, """
+            main() {
+                throw "x"
+            }
+            """);
+        Path src2 = tempDir.resolve("F.kf");
+        Files.writeString(src2, """
+            Int falha() throw NaoExiste {
+                return 1
+            }
+            """);
+        CompilationResult result = driver.compile(src2, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "unknown throw type must fail");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM045"), "should be SEM045, got: " + diags);
+    }
+
+    @Test
+    void throwsKnownTypeStaysGreen(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("T.kf");
+        Files.writeString(source, """
+            class MinhaExcecao {
+                String msg
+            }
+            Int falha() throw MinhaExcecao {
+                return 1
+            }
+            main() {
+                println(falha())
+            }
+            """);
+        assertTrue(driver.compile(source, tempDir.resolve("out"), Target.JVM).success(),
+                "throws com classe do módulo deve compilar");
+    }
+
+    // SG-013 (SEM046) — private/protected checados em compile-time (antes:
+    // IllegalAccessError em runtime).
+    @Test
+    void privateMethodAccessOutsideClassFails(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("P.kf");
+        Files.writeString(source, """
+            class Segredo {
+                private String revela() { return "shh" }
+            }
+            main() {
+                var s = Segredo()
+                println(s.revela())
+            }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "private access outside class must fail");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM046"), "should be SEM046, got: " + diags);
+    }
+
+    @Test
+    void privateMethodAccessInsideClassStaysGreen(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("P.kf");
+        Files.writeString(source, """
+            class Segredo {
+                private String revela() { return "shh" }
+                String publica() { return revela() }
+            }
+            main() {
+                var s = Segredo()
+                println(s.publica())
+            }
+            """);
+        assertTrue(driver.compile(source, tempDir.resolve("out"), Target.JVM).success(),
+                "private dentro da própria classe deve compilar");
+    }
+
+    @Test
+    void protectedAccessFromSubclassStaysGreen(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Prot.kf");
+        Files.writeString(source, """
+            class Base {
+                protected Int seed() { return 7 }
+            }
+            class Sub extends Base {
+                Int usa() { return seed() }
+            }
+            main() {
+                var s = Sub()
+                println(s.usa())
+            }
+            """);
+        assertTrue(driver.compile(source, tempDir.resolve("out"), Target.JVM).success(),
+                "protected acessado da subclasse deve compilar");
+    }
+
+    @Test
+    void protectedAccessOutsideHierarchyFails(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Prot.kf");
+        Files.writeString(source, """
+            class Base {
+                protected Int seed() { return 7 }
+            }
+            class Estranho {
+                Int usa(Base b) { return b.seed() }
+            }
+            main() {
+                println("ok")
+            }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "protected fora da hierarquia deve falhar");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM046"), "should be SEM046, got: " + diags);
+    }
+
+    // SG-012 — inferência contextual: lambda de map/filter/reduce herda o
+    // tipo do elemento da coleção; anotação explícita continua válida.
+    @Test
+    void lambdaParamInferredFromListContext(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Ctx.kf");
+        Files.writeString(source, """
+            main() {
+                var nums = listOf(1, 2, 3)
+                var dobro = nums.map((x) -> x * 2)
+                println(dobro.get(0))
+                var pares = nums.filter((n) -> n > 1)
+                println(pares.size())
+                var soma = nums.reduce((a: Int, b: Int) -> a + b, 0)
+                println(soma)
+            }
+            """);
+        assertTrue(driver.compile(source, tempDir.resolve("out"), Target.JVM).success(),
+                "lambda sem anotação em contexto List<Int> deve compilar");
+    }
+
+    @Test
+    void annotatedLambdaStillWorks(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Ann.kf");
+        Files.writeString(source, """
+            main() {
+                var nums = listOf(1, 2, 3)
+                var dobro = nums.map((x: Int) -> x * 2)
+                println(dobro.get(1))
+            }
+            """);
+        assertTrue(driver.compile(source, tempDir.resolve("out2"), Target.JVM).success(),
+                "lambda anotada continua válida");
+    }
+
+    // SG-005/008 (SEM048) — null safety é por narrowing; o literal `null` não
+    // é atribuível: nem na declaração (`T? x = null`), nem na reatribuição
+    // (`x = null`). APIs devolvem T?; o programador não fabrica null.
+    @Test
+    void nullInVarDeclFails(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("N1.kf");
+        Files.writeString(source, """
+            main() {
+                Int? a = null
+                println("unreachable")
+            }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "Int? a = null deve falhar");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM048"), "should be SEM048, got: " + diags);
+    }
+
+    @Test
+    void nullInAssignmentFails(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("N2.kf");
+        Files.writeString(source, """
+            main() {
+                String? s = "mel"
+                s = null
+                println("unreachable")
+            }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "s = null deve falhar");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM048"), "should be SEM048, got: " + diags);
+    }
+
+    @Test
+    void nullFromApiStaysGreen(@TempDir Path tempDir) throws IOException {
+        // o idioma correto: T? vem de API (map.get/readLine), narrowing decide
+        Path source = tempDir.resolve("N3.kf");
+        Files.writeString(source, """
+            main() {
+                Int? a = mapOf("x", 1).get("y")
+                if (a == null) {
+                    println("vazio")
+                } else {
+                    println(a + 1)
+                }
+                println("done")
+            }
+            """);
+        assertTrue(driver.compile(source, tempDir.resolve("out"), Target.JVM).success(),
+                "T? de API (sem literal null) deve compilar: " + driver.compile(
+                        source, tempDir.resolve("out2"), Target.JVM).diagnostics());
+    }
+
+    // SG-005 (SEM049) — deref de T? sem narrowing é erro: null safety é por
+    // narrowing (`if (x != null)` re-tipa o símbolo no escopo). Antes o
+    // lowering desembrulhava silenciosamente — advisory, NPE em runtime.
+    @Test
+    void nullableDerefWithoutNarrowingFails(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("N4.kf");
+        Files.writeString(source, """
+            main() {
+                var s: String? = mapOf("k", "v").get("k")
+                println(s.length)
+            }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "deref de T? sem narrowing deve falhar");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM049"), "should be SEM049, got: " + diags);
+    }
+
+    @Test
+    void nullableDerefPropertyWithoutNarrowingFails(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("N5.kf");
+        Files.writeString(source, """
+            main() {
+                var s: String? = mapOf("k", "v").get("k")
+                println(s.toUpperCase())
+            }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "method call em T? sem narrowing deve falhar");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM049"), "should be SEM049, got: " + diags);
+    }
+
+    @Test
+    void nullableNarrowedIfStaysGreen(@TempDir Path tempDir) throws IOException {
+        // narrowing simples: if (x != null) re-tipa no escopo do THEN
+        Path source = tempDir.resolve("N6.kf");
+        Files.writeString(source, """
+            main() {
+                var s: String? = mapOf("k", "v").get("k")
+                if (s != null) {
+                    println(s.length)
+                }
+            }
+            """);
+        assertTrue(driver.compile(source, tempDir.resolve("out"), Target.JVM).success(),
+                "deref com narrowing deve compilar: " + driver.compile(
+                        source, tempDir.resolve("out2"), Target.JVM).diagnostics());
+    }
+
+    @Test
+    void nullableNarrowedAndStaysGreen(@TempDir Path tempDir) throws IOException {
+        // narrowing por conjunção: if (x != null && Y) — o lado direito da
+        // && e o THEN veem x narrowed (short-circuit)
+        Path source = tempDir.resolve("N7.kf");
+        Files.writeString(source, """
+            main() {
+                var s: String? = mapOf("k", "v").get("k")
+                if (s != null && s.length > 0) {
+                    println(s.toUpperCase())
+                }
+            }
+            """);
+        assertTrue(driver.compile(source, tempDir.resolve("out"), Target.JVM).success(),
+                "deref com narrowing && deve compilar: " + driver.compile(
+                        source, tempDir.resolve("out2"), Target.JVM).diagnostics());
+    }
+
+    @Test
+    void nullableNarrowedElseStaysGreen(@TempDir Path tempDir) throws IOException {
+        // narrowing pela negativa: if (x == null) A else B — B ve x narrowed
+        Path source = tempDir.resolve("N8.kf");
+        Files.writeString(source, """
+            main() {
+                var s: String? = mapOf("k", "v").get("k")
+                if (s == null) {
+                    println("vazio")
+                } else {
+                    println(s.length)
+                }
+            }
+            """);
+        assertTrue(driver.compile(source, tempDir.resolve("out"), Target.JVM).success(),
+                "deref no else de x==null deve compilar: " + driver.compile(
+                        source, tempDir.resolve("out2"), Target.JVM).diagnostics());
+    }
+
+    // SG-009 — subtipagem nominal: A a = <classe não-relacionada> é erro
+    // compile-time (antes só o checkcast do emit salvava, em runtime).
+    @Test
+    void unrelatedClassAssignmentFails(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("S1.kf");
+        Files.writeString(source, """
+            class Cat {
+                String meow() { return "miau" }
+            }
+            class Dog {
+                String bark() { return "au" }
+            }
+            main() {
+                Cat c = Dog()
+                println(c.meow())
+            }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "atribuição de classe não-relacionada deve falhar");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("SEM021"), "should be SEM021, got: " + diags);
+    }
+
+    @Test
+    void subclassAssignmentStaysGreen(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("S2.kf");
+        Files.writeString(source, """
+            class Animal {
+                String speak() { return "..." }
+            }
+            class Dog extends Animal {
+                String speak() { return "au" }
+            }
+            main() {
+                Animal a = Dog()
+                println(a.speak())
+            }
+            """);
+        assertTrue(driver.compile(source, tempDir.resolve("out"), Target.JVM).success(),
+                "subclasse deve atribuir à superclasse: " + driver.compile(
+                        source, tempDir.resolve("out2"), Target.JVM).diagnostics());
+    }
+
+    @Test
+    void interfaceAssignmentStaysGreen(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("S3.kf");
+        Files.writeString(source, """
+            interface Speaker {
+                String speak()
+            }
+            class Cat implements Speaker {
+                String speak() { return "miau" }
+            }
+            main() {
+                Speaker s = Cat()
+                println(s.speak())
+            }
+            """);
+        assertTrue(driver.compile(source, tempDir.resolve("out"), Target.JVM).success(),
+                "implementador deve atribuir à interface: " + driver.compile(
+                        source, tempDir.resolve("out2"), Target.JVM).diagnostics());
+    }
+
+    @Test
+    void externalTypeAssignmentStaysConservative(@TempDir Path tempDir) throws IOException {
+        // tipos builtin/externos ficam conservadores (regra 6: nunca quebrar
+        // interop) — String s = <externo desconhecido> não vira erro aqui
+        Path source = tempDir.resolve("S4.kf");
+        Files.writeString(source, """
+            main() {
+                var x = mapOf("k", "v")
+                var s = x.get("k")
+                if (s != null) {
+                    println(s.length)
+                }
+            }
+            """);
+        assertTrue(driver.compile(source, tempDir.resolve("out"), Target.JVM).success(),
+                "builtin/nullable continua pelo caminho próprio: " + driver.compile(
+                        source, tempDir.resolve("out2"), Target.JVM).diagnostics());
+    }
 }

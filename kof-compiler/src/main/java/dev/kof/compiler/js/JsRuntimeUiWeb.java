@@ -126,6 +126,9 @@ public final class JsRuntimeUiWeb {
                 const ed = kofTimeEpochDay(year, month, day);
                 return ((ed % 7) + 7 + 3) % 7 + 1;   // floorMod(ed+3, 7) + 1
             }
+            export function kofTimeIsWeekend(year, month, day) {
+                return kofTimeDayOfWeek(year, month, day) >= 6 ? 1 : 0;
+            }
             export function kofTimeDaysBetween(y1, m1, d1, y2, m2, d2) {
                 if (!kofTimeValidDate(y1, m1, d1) || !kofTimeValidDate(y2, m2, d2)) return 0;
                 return kofTimeEpochDay(y2, m2, d2) - kofTimeEpochDay(y1, m1, d1);

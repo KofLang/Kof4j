@@ -36,10 +36,18 @@ math.isOdd(4)         // false
 math.isPositive(4)    // true   (0 não é positivo)
 math.isNegative(4)    // false
 math.isZero(0)        // true
+math.sqrt(16.0)       // 4.0  — PRIMEIRO Double (S1b); -1.0 => NaN
+math.lerp(0.0, 10.0, 0.5)     // 5.0  — a + (b - a) * t   (S1b.1)
+math.percentage(3.0, 4.0)     // 75.0 — total 0 => NaN, nunca lança (S1b.1)
+math.isInteger(4.0)           // true;  4.5/NaN/Inf => false (S1b.1)
+math.isDecimal(4.5)           // true;  !isInteger (S1b.1)
 ```
 
-Todos `Int`/`Bool` inteiros — sem ponto flutuante aqui (`math.lerp`/
-`roundTo` ficam em degrau próprio, com as mesmas garantias).
+Os inteiros ficam acima; `sqrt`/`lerp`/`percentage`/`isInteger`/`isDecimal`
+são os `Double` da namespace (JVM/Script/JS/x86; riscv64/aarch64 = `MATH001`,
+não compilam). Os argumentos são **Double explícitos** — `math.lerp(0, 10,
+0.5)` não compila (SEM025; sem widening silencioso). `roundTo`/`parse*`/`pow`
+ficam em degrau próprio, com as mesmas garantias.
 
 ## strings — predicados, conversores e palavras
 
@@ -144,6 +152,72 @@ em 8/13/18/23, hex min ou maiúsculo) — não verifica version/variant. Tem
 JVM/Script/JS/x86; riscv64/aarch64 ficam atrás do gap `UUID001` (fatia B
 própria pendente — o compilador recusa com código claro, nunca stub).
 
+## uuid — isUuid (S3b-ext)
+
+```kof
+uuid.isUuid("550e8400-e29b-41d4-a716-446655440000")   // true
+uuid.isUuid("550e8400e29b41d4a716446655440000")        // false (sem traços)
+uuid.isUuid(uuid.v4())                                  // true (paridade)
+```
+
+Valida o **shape** RFC 4122: 36 chars, hífens fixos em 8/13/18/23, o resto
+hex (maiúsculas ou minúsculas). **Não** checa versão/variante — qualquer
+v1..v5 canônico é `true`; a entropia é papel do `v4()`.
+
+## time — isWeekend (S7-ext)
+
+```kof
+time.isWeekend(2026, 9, 12)   // true  — sábado
+time.isWeekend(2026, 9, 9)    // false — quarta
+time.isWeekend(2026, 2, 30)   // false — data inválida (dayOfWeek => 0)
+```
+
+`dayOfWeek(y,m,d) >= 6` (ISO 1=segunda..7=domingo). Wrapper puro nos 5 alvos —
+reusa a máquina de calendário; data inválida cai em `false` automaticamente.
+
+## validation — formatCpf / formatCep (S12)
+
+```kof
+validation.formatCpf("52998224725")    // "529.982.247-25"
+validation.formatCpf("123")            // "123" (não confere => original)
+validation.formatCep("01310100")       // "01310-100"
+validation.formatCnpj("34546401000163") // "34.546.401/0001-63"
+```
+
+Pontuação BR: 11 dígitos => `DDD.DDD.DDD-DD` (CPF); 8 => `DDDDD-DDDD` (CEP);
+14 => `NN.NNN.NNN/NNNN-NN` (CNPJ). Fora disso
+(nº errado de dígitos, null) => **original** — face leniente, nunca lança.
+Formata **sem validar** (dígitos quaisquer; validar é papel de `isCpf`/
+`isCep`). 5 alvos; reusa o mesmo `brDigits` dos predicadores.
+
+## strings — uncapitalize (S11)
+
+```kof
+strings.uncapitalize("Hello World")   // "hello World"
+strings.uncapitalize("HELLO")         // "hELLO"
+strings.uncapitalize("1abc")          // "1abc" (1º byte fora de A-Z => original)
+```
+
+Espelho do `capitalize`: só o 1º byte; `A-Z` -> `a-z`; null/`""`/fora-de-A-Z
+=> original. ASCII nos 5 alvos (paridade com a regra S2b do capitalize).
+
+## random — sorteio com entropia do SO (S10a/b)
+
+```kof
+var n = random.randomInt(100)          // 0..99 (bound<=0 -> 0, face leniente)
+var coin = random.randomBoolean()      // 0 ou 1
+var token = random.randomString(8, "0123456789abcdef")  // 8 chars do alfabeto
+// escolha de lista = idiom, não função:
+var l = listOf("a", "b", "c")
+var pick = l[random.randomInt(l.size)]
+```
+
+A entropia vem SEMPRE da primitiva do SO (getrandom / SecureRandom /
+crypto) — sem PRNG caseiro. Para tokens de segurança use `security.*`
+(randomHex/randomInt com validação estrita); `random.*` é a face
+sorteio/shuffle/teste. Não-determinístico: os testes travam **contrato**
+(faixa + bordas), não igualdade.
+
 ## validation — documentos BR, rede e cartão
 
 ```kof
@@ -222,7 +296,9 @@ spans nos 3 nativos).
 | `encoding.base64*` / `base64Url*` | ✅ | ✅ | ✅ | ✅ |
 | `net.*` (S8) | ✅ | ✅ | ✅ | ✅ |
 | `uuid.v4` | ✅ | ✅ | ✅ | ✅ |
-| `uuid.isUuid` (S3b.1, predicado de forma) | ✅ | ✅ | `UUID001` | ✅ |
+| `random.randomInt/randomBoolean/randomString` (face beta S10a/b) | ✅ | ✅ | ✅ | ✅ |
+| `random.double/boolean/int/hex` (face main S10) | ✅ | ✅ | ✅ (B27) | ✅ |
+| `uuid.isUuid` (S3b.1, predicado de forma) | ✅ | ✅ | ✅ (B25) | ✅ |
 | `time.addDays` / `time.diffDays` (S7a/b/c, data ISO) | ✅ | ✅ | `TIME002` | ✅ |
 
 Gate = erro de compilação **com código** (R6 — nunca stub silencioso):

@@ -113,6 +113,17 @@ public final class MemberCallTyper {
             if (recvType instanceof Type.ClassType ct && !ct.typeArguments().isEmpty())
                 elemType = ct.typeArguments().get(0);
             String mn = mc.methodName();
+            // SG-012 (inferência contextual): lambda de map/filter/reduce sem
+            // anotação herda o tipo do ELEMENTO da lista — antes caía em
+            // Object/Unknown e forçava `(x: Int)` mesmo com contexto óbvio.
+            if (("map".equals(mn) || "filter".equals(mn) || "reduce".equals(mn))
+                    && !(elemType instanceof Type.UnknownType)) {
+                for (int i = 0; i < mc.arguments().size(); i++) {
+                    if (mc.arguments().get(i) instanceof LambdaExpr le) {
+                        mc.arguments().set(i, contextualLambda(le, elemType));
+                    }
+                }
+            }
             // inferir args para detectar identificadores não declarados (ghost) nos argumentos/lambdas
             for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
             if ("get".equals(mn)) return elemType;
@@ -143,7 +154,11 @@ public final class MemberCallTyper {
             }
             String mn = mc.methodName();
             for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
-            if ("get".equals(mn)) return valueType;
+            if ("get".equals(mn)) {
+                // SG-008 (bug 87): get() devolve V? para TODO valor — ausência
+                // é null comparável, nunca NPE por unbox
+                return new Type.NullableType(valueType);
+            }
             if ("remove".equals(mn)) return valueType;
             if ("put".equals(mn)) return valueType;
             if ("size".equals(mn) || "length".equals(mn) || "count".equals(mn))
@@ -368,6 +383,11 @@ public final class MemberCallTyper {
         if (recvType instanceof Type.ClassType ct) {
             SymbolTable.Symbol m = MemberResolver.resolveInHierarchy(sa, ct.name(), mc.methodName());
             if (m instanceof SymbolTable.MethodSymbol ms) {
+                // SG-013 (SEM046): private/protected checados em compile-time
+                // (antes viravam flags JVM e acesso indevido só explodia em
+                // runtime com IllegalAccessError).
+                checkMemberAccess(sa, ms.accessFlags(), ms.ownerClass(), ct.name(),
+                        "'" + ct.name() + "." + mc.methodName() + "'");
                 sa.resolvedMethods().put(mc, ms);
                 List<Type> argTypes = new ArrayList<>();
                 for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
@@ -417,6 +437,97 @@ public final class MemberCallTyper {
         List<Type> argTypes = new ArrayList<>();
         for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
         return argTypes;
+    }
+
+    /**
+     * SG-012: reescreve a lambda com os params sem anotação tipados pelo
+     * contexto (elemento da coleção). Params anotados são preservados.
+     */
+    static LambdaExpr contextualLambda(LambdaExpr le, Type paramType) {
+        String typeName = paramTypeToSource(paramType);
+        if (typeName == null) return le;
+        List<FormalParameterNode> newParams = new ArrayList<>();
+        boolean changed = false;
+        for (FormalParameterNode p : le.parameters()) {
+            if (p.type() == null || "Object".equals(p.type())) {
+                newParams.add(new FormalParameterNode(p.position(), p.modifiers(),
+                        typeName, p.name(), p.defaultExpression(), p.annotations()));
+                changed = true;
+            } else {
+                newParams.add(p);
+            }
+        }
+        if (!changed) return le;
+        return new LambdaExpr(le.position(), newParams, le.body());
+    }
+
+    /** Nome de tipo fonte para um Type (usado pela reescrita da lambda). */
+    private static String paramTypeToSource(Type t) {
+        if (t == Type.PrimitiveType.INT) return "Int";
+        if (t == Type.PrimitiveType.LONG) return "Long";
+        if (t == Type.PrimitiveType.DOUBLE) return "Double";
+        if (t == Type.PrimitiveType.BOOL) return "Bool";
+        if (t == Type.PrimitiveType.CHAR) return "Char";
+        if (t instanceof Type.ClassType ct) {
+            return ct.packageName().isEmpty() ? ct.name()
+                    : ct.packageName() + "." + ct.name();
+        }
+        return null;
+    }
+
+    /**
+     * SG-013 (SEM046): visibilidade em compile-time. `private` só é acessível
+     * dentro da própria classe declarante; `protected` dentro da declarante ou
+     * subclasses. Chamada fora → erro SEM046 (antes: IllegalAccessError runtime).
+     */
+    private static void checkMemberAccess(SemanticAnalyzer sa, int accessFlags,
+                                          String ownerClass, String receiverClass,
+                                          String memberDesc) {
+        if (sa.diagnostics() == null) return;
+        boolean isPriv = (accessFlags & AccessFlags.PRIVATE) != 0;
+        boolean isProt = (accessFlags & AccessFlags.PROTECTED) != 0;
+        if (!isPriv && !isProt) return;
+        String caller = sa.currentClassName();
+        if (caller == null) {
+            // contexto top-level (main/função livre): não é dono de nada —
+            // private E protected são inacessíveis
+            sa.diagnostics().error("", 0, 0, 0,
+                    memberDesc + " is " + (isPriv ? "private" : "protected")
+                            + " (declared in '" + ownerClass
+                            + "') and cannot be accessed from top-level code",
+                    "SEM046");
+            return;
+        }
+        if (isPriv) {
+            // private: só a própria classe declarante
+            if (!ownerClass.equals(caller)) {
+                sa.diagnostics().error("", 0, 0, 0,
+                        memberDesc + " is private (declared in '" + ownerClass
+                                + "') and cannot be accessed from '" + caller + "'",
+                        "SEM046");
+            }
+        } else {
+            // protected: declarante ou subclasse (hierarquia transitiva)
+            if (!isInHierarchy(sa, caller, ownerClass)) {
+                sa.diagnostics().error("", 0, 0, 0,
+                        memberDesc + " is protected (declared in '" + ownerClass
+                                + "') and cannot be accessed from '" + caller + "'",
+                        "SEM046");
+            }
+        }
+    }
+
+    /** caller está na hierarquia de `base` (caller == base ou estende transitivamente)? */
+    private static boolean isInHierarchy(SemanticAnalyzer sa, String caller, String base) {
+        String current = caller;
+        int depth = 0;
+        while (current != null && depth++ < 32) {
+            if (current.equals(base)) return true;
+            SymbolTable.ClassSymbol cs = sa.allClasses().get(current);
+            if (cs == null) return false;
+            current = cs.superClass();
+        }
+        return false;
     }
 
     /**

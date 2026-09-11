@@ -237,6 +237,20 @@ void handleStringOp(MethodCtx ctx, List<Object> stack,
                 ctx.lc.registerRuntime(kc.methodName());
                 stack.add(new JsIr.JsCall(new JsIr.JsIdentifier(kc.methodName()), List.of(receiver)));
             }
+            // bug 97 (face JS): hashCode/compareTo NÃO existem em
+            // String.prototype → o default mapeava p/ `a.compareTo()` =
+            // TypeError. hashCode reusa kofHashCode (bug 42 — 31*h+unit
+            // UTF-16, mesmo algoritmo JVM/x86); compareTo baixa p/ helper
+            // kofStringCompareTo (walk de code units, semântica JVM).
+            case "hashCode" -> {
+                ctx.lc.registerRuntime("kofHashCode");
+                stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofHashCode"), List.of(receiver)));
+            }
+            case "compareTo" -> {
+                ctx.lc.registerRuntime("kofStringCompareTo");
+                stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofStringCompareTo"),
+                        List.of(receiver, args.get(0))));
+            }
             default -> {
                 // substring, contains, indexOf, trim, toUpperCase, toLowerCase,
                 // startsWith, endsWith, concat, split — direct JS mapping.
@@ -300,7 +314,7 @@ JsIr.JsExpression intWrap(Type operandType, JsIr.JsExpression inner) {
     }
 
     /**
-     * §80 paridade Bool no JS: uma expressão Bool pode chegar como 1/0 (funções
+     * §93 paridade Bool no JS: uma expressão Bool pode chegar como 1/0 (funções
      * stdlib, instanceof, predicados de coleção) ou true/false (literais). O
      * === cru faz 1===true ser false. Normaliza ambos os lados com !! (ToBoolean)
      * para casar a semântica de conteúdo do == de Kof com JVM/Native (que usam Z).

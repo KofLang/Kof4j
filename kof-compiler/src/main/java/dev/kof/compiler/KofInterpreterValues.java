@@ -59,8 +59,16 @@ public final class KofInterpreterValues {
 
     static boolean isRefType(Type t) {
         return t instanceof Type.ClassType || t instanceof Type.ArrayType
-                || t instanceof Type.TypeVariable
-                || (t instanceof Type.NullableType nt && !(nt.inner() instanceof Type.PrimitiveType));
+                || t instanceof Type.TypeVariable;
+    }
+
+    /**
+     * ==/!= tolerante a null: Nullable(primitivo) (get de Map sem hit) compara
+     * via Objects.equals (espelha o JVM: primitivo boxado vs null → acmp),
+     * nunca unboxInt(null) (SG-008/bug 87).
+     */
+    static boolean eqAllowsNull(Type t) {
+        return t instanceof Type.NullableType;
     }
 
     static boolean isLongType(Type t) {

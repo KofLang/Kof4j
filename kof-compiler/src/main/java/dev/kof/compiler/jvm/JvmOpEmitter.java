@@ -26,6 +26,7 @@ import dev.kof.compiler.KofNewMultiArray;
 import dev.kof.compiler.KofNewObject;
 import dev.kof.compiler.KofOperation;
 import dev.kof.compiler.KofPop;
+import dev.kof.compiler.KofPop2;
 import dev.kof.compiler.KofProcess;
 import dev.kof.compiler.KofPutStatic;
 import dev.kof.compiler.KofReturn;
@@ -180,6 +181,8 @@ public final class JvmOpEmitter {
             c.mv().visitInsn(DUP_X2);
         } else if (op instanceof KofPop) {
             c.mv().visitInsn(POP);
+        } else if (op instanceof KofPop2) {
+            c.mv().visitInsn(POP2);
         } else if (op instanceof KofReturn kr) {
             c.mv().visitInsn(JvmLiteralEmitter.returnOpcode(kr.returnType()));
         } else if (op instanceof KofReturnVoid) {

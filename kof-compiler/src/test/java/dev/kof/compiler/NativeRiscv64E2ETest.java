@@ -443,9 +443,23 @@ class NativeRiscv64E2ETest {
                 println("42".toInt())
                 println("-7".toInt())
                 println("0".toInt())
+                try { println("abc".toInt()); println("S1") } catch (String e) { println("T1") }
+                try { println("12a34".toInt()); println("S2") } catch (String e) { println("T2") }
+                println(" -42 ".toInt())
+                println("+7".toInt())
+                println("-2147483648".toInt())
+                try { println("2147483648".toInt()); println("S3") } catch (String e) { println("T3") }
+                try { println("999999999999".toInt()); println("S4") } catch (String e) { println("T4") }
+                println("1234567890".toLong())
+                println("-9223372036854775807".toLong())
+                try { println("9223372036854775808".toLong()); println("S5") } catch (String e) { println("T5") }
+                var v = "-9223372036854775808".toLong()
+                println(v < 0)
+                println(("0".toLong()) == 0)
+                println(v)
             }
             """);
-        assertEquals("42\n-7\n0", out);
+        assertEquals("42\n-7\n0\nT1\nT2\n-42\n7\n-2147483648\nT3\nT4\n1234567890\n-9223372036854775807\nT5\ntrue\ntrue\n-9223372036854775808", out);
     }
 
     // NATIVE002-stdlib: Map/Set no cross (port linear-scan do x86_64) —
@@ -585,5 +599,85 @@ class NativeRiscv64E2ETest {
         t.setDaemon(true);
         t.start();
         return port;
+    }
+    // NATIVE002-stdlib (residual R6, 10/09): paridade cross do CORE S1/S2/S4/S3b
+    // (math/strings/encoding/uuid) — antes SO os 3 targets da ConformanceMatrix
+    // (JVM/x86/JS); riscv/aarch tinham fatias (B7/B8 math, encoding, uuid.v4) sem
+    // CI de execucao. 18 vetores golden JVM-medidos 10/09 — divergencia silente
+    // (tipo do bug 88) fica travada nos 2 qemu.
+    @Test
+    void riscv64StdlibCore(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runRiscv64(tempDir, """
+main() {
+    println(math.clamp(15, 1, 10))
+    println(math.clamp(-5, 1, 10))
+    println(math.sign(-7))
+    println(math.sign(0))
+    println(math.abs(-9))
+    println(math.isEven(4))
+    println(math.isOdd(4))
+    println(math.min(3, 8))
+    println(math.max(3, 8))
+    println(strings.isAlpha("abc"))
+    println(strings.isAlpha("a1"))
+    println(strings.isNumeric("12"))
+    println(strings.count("ababa", "ba"))
+    var h = encoding.hexEncode("Hi")
+    println(h)
+    println(encoding.hexDecode(h))
+    println(encoding.base64Encode("Hi"))
+    println(encoding.base64Decode(encoding.base64Encode("Hi")))
+    var u = uuid.v4()
+    println(uuid.isUuid(u))
+    println(uuid.isUuid("nope"))
+}
+            """);
+        assertEquals("10\n1\n-1\n0\n9\ntrue\nfalse\n3\n8\ntrue\nfalse\ntrue\n2\n4869\nHi\nSGk=\nHi\ntrue\nfalse", out);
+    }
+
+
+
+
+    // NATIVE002-stdlib (residual R6, 10/09, parte 2): validacao BR/rede +
+    // Luhn + IPv6/domain + escape/unescape/whitespace + net + time nos 2
+    // qemu — fatias B12/B15/B16/B17/B20/B21 rodavam sem CI de execucao;
+    // divergência silente cross (classe do bug 88) agora travada. Golden
+    // medido no JVM — idêntico x86/riscv/aarch 10/09 (26 vetores).
+    @Test
+    void riscv64StdlibValidationNetTime(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runRiscv64(tempDir, """
+main() {
+    println(validation.isCpf("529.982.247-25"))
+    println(validation.isCpf("111.111.111-11"))
+    println(validation.isCnpj("11.222.333/0001-81"))
+    println(validation.isCep("0131010"))
+    println(validation.isPis("123.4567.890-0"))
+    println(validation.isIpv4("192.168.0.1"))
+    println(validation.isIpv4("256.1.1.1"))
+    println(validation.isMac("00:1A:2B:3C:4D:5E"))
+    println(validation.isPort(443))
+    println(validation.isPort(65536))
+    println(validation.isCreditCard("4111111111111111"))
+    println(validation.isCreditCard("4111111111111112"))
+    println(validation.isIpv6("::1"))
+    println(validation.isIpv6("1::2::3"))
+    println(validation.isDomain("example.com"))
+    println(validation.isDomain("-bad.com"))
+    println(strings.escapeHtml("a<b>&\\"'c"))
+    println(strings.unescapeHtml("caf&#233;"))
+    println(strings.removeWhitespace("  a\\tb  ") + "|" + strings.normalizeWhitespace("  a   b  "))
+    var u = "https://user:pw@host.io:8443/p?q#f"
+    println(net.scheme(u) + "|" + net.host(u) + "|" + net.port(u) + "|" + net.path(u))
+    println(net.queryEncode("a b&c=1"))
+    println(time.isLeapYear(2000))
+    println(time.isLeapYear(1900))
+    println(time.daysInMonth(2024, 2))
+    println(time.dayOfWeek(1970, 1, 1))
+    println(time.daysBetween(2024, 1, 1, 2024, 3, 1))
+}
+            """);
+        assertEquals("true\nfalse\ntrue\nfalse\ntrue\ntrue\nfalse\ntrue\ntrue\nfalse\ntrue\nfalse\ntrue\nfalse\ntrue\nfalse\na&lt;b&gt;&amp;&quot;&#39;c\ncafé\nab|a b\nhttps|host.io|8443|/p\na%20b%26c%3D1\ntrue\nfalse\n29\n4\n60", out);
     }
 }

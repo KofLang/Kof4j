@@ -181,6 +181,72 @@ class KofStringsTest {
         }
     }
 
+    @Test
+    void uncapitalizeAllTargets(@TempDir Path tmp) throws Exception {
+        // S11: uncapitalize = espelho do capitalize (1º byte A-Z->a-z; null/""/
+        // fora-de-A-Z => original). ASCII, paridade byte-a-byte nos 5 alvos.
+        String golden = """
+            main() {
+                println(strings.uncapitalize("Hello World"))
+                println(strings.uncapitalize("HELLO"))
+                println(strings.uncapitalize("1abc"))
+                println(strings.uncapitalize("hello"))
+                println(strings.uncapitalize("") + "|")
+            }
+            """;
+        String expected = "hello World\nhELLO\n1abc\nhello\n|";
+        runJvm(tmp, golden, expected);
+        runJs(tmp, golden, expected);
+        runNative(tmp, golden, expected);
+        String assertSrc = """
+            main() {
+                assert(strings.uncapitalize("Hello World") == "hello World")
+                assert(strings.uncapitalize("HELLO") == "hELLO")
+                assert(strings.uncapitalize("1abc") == "1abc")
+                assert(strings.uncapitalize("hello") == "hello")
+                assert(strings.uncapitalize("") == "")
+            }
+            """;
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            String qemu = t == Target.NATIVE_RISCV64 ? "qemu-riscv64" : "qemu-aarch64";
+            String[] tools = t == Target.NATIVE_RISCV64
+                    ? new String[]{"riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64"}
+                    : new String[]{"aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"};
+            assumeToolchain(tools);
+            runQemu(tmp, t, qemu, assertSrc);
+        }
+    }
+
+    // bug 97 (face JS): String.compareTo/hashCode caíam no default do
+    // JsCallEmitter → `a.compareTo()` = TypeError (não existem em
+    // String.prototype). Agora: hashCode → kofHashCode (bug 42, 31*h+unit
+    // UTF-16), compareTo → kofStringCompareTo (walk de code units — sem
+    // localeCompare, que diverge de locale/astral). Golden = MESMO do
+    // NativeE2ETest.nativeStringCompareToAndHashCodeUtf16 (medido no oracle
+    // JVM: 31*h+charCodeAt = Java; prefixo → diff de units; astral em pair).
+    @Test
+    void compareToAndHashCodeJvmJsNative(@TempDir Path tmp) throws Exception {
+        String golden = """
+            main() {
+                println("ab".compareTo("aX"))
+                println("a\\u00e9".compareTo("a"))
+                println("abc".compareTo("abd"))
+                println("ab".compareTo("abc"))
+                println("\\uD83D\\uDE00".compareTo("a"))
+                println("a\\uD83D\\uDE00".compareTo("a\\uFFFD"))
+                println("a\\uFFFD".compareTo("a\\uD83D\\uDE00"))
+                println("abc".hashCode())
+                println("a\\u00e9".hashCode())
+                println("\\uD83D\\uDE00".hashCode())
+                println("".hashCode())
+            }
+            """;
+        String expected = "10\n1\n-1\n-1\n55260\n-10176\n10176\n96354\n3240\n1772899\n0";
+        runJvm(tmp, golden, expected);
+        runJs(tmp, golden, expected);
+        runNative(tmp, golden, expected);
+    }
+
     private void assumeToolchain(String... tools) {
         for (String c : tools) {
             try {

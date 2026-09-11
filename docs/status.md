@@ -315,6 +315,11 @@ spawn {
   todas as tasks terminarem — ver `docs/concurrency.md` seção 4,
   `docs/targets/KOFJS.md`).
 - Zero API de plataforma exposta (Thread/Runnable são internos do runtime).
+- **Modelo de memória (SG-020)**: spec de happens-before em
+  `docs/development/concurrency-memory-model.md` — SC em todos os targets,
+  6 bordas de HB (spawn/await/channel/cancel/locais/race), provas
+  `staticsAreSequentiallyConsistent`/`noWordTearingOnLong` em
+  `KofConcurrency2Test`.
 - Ver: `docs/concurrency.md`.
 
 ### HTTP (`kof serve`)

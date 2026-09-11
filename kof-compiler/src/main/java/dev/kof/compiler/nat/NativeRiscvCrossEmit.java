@@ -29,6 +29,7 @@ import dev.kof.compiler.KofNewArray;
 import dev.kof.compiler.KofNewObject;
 import dev.kof.compiler.KofOperation;
 import dev.kof.compiler.KofPop;
+import dev.kof.compiler.KofPop2;
 import dev.kof.compiler.KofPutStatic;
 import dev.kof.compiler.KofReturn;
 import dev.kof.compiler.KofReturnVoid;
@@ -189,6 +190,7 @@ public final class NativeRiscvCrossEmit {
                 pushRiscv(sb, "t0"); pushRiscv(sb, "t2"); pushRiscv(sb, "t1"); pushRiscv(sb, "t0");
             }
             case KofPop pop -> sb.append("    addi sp, sp, 8\n");
+            case KofPop2 pop2 -> sb.append("    addi sp, sp, 16\n");
             case KofCheckCast cc -> { }
             case KofInstanceOf io -> {
                 int targetTypeId = 0;

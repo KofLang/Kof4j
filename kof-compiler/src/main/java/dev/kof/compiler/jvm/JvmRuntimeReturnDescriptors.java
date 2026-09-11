@@ -73,7 +73,7 @@ public final class JvmRuntimeReturnDescriptors {
                     "kof_mq_publish", "kof_mq_subscribe", "kof_mq_unsubscribe",
                     "kof_mq_push", "kof_time_sleep", "kof_time_cancel", "kof_scheduler_cancel" -> "V";
             case "kof_time_now" -> "J";
-            case "kof_time_isLeapYear", "kof_time_daysInMonth", "kof_time_dayOfWeek", "kof_time_daysBetween", "kof_time_diffDays" -> "I";
+            case "kof_time_isLeapYear", "kof_time_daysInMonth", "kof_time_dayOfWeek", "kof_time_daysBetween", "kof_time_isWeekend", "kof_time_diffDays" -> "I";
             case "kof_time_interval", "kof_time_addDays" -> "Ljava/lang/String;";
             case "kof_config_int", "kof_config_bool", "kof_config_has" -> "I";
             case "kof_config_long" -> "J";
@@ -134,13 +134,17 @@ public final class JvmRuntimeReturnDescriptors {
             case "kof_math_abs", "kof_math_sign", "kof_math_clamp", "kof_math_min",
                     "kof_math_max", "kof_math_isEven", "kof_math_isOdd", "kof_math_isPositive",
                     "kof_math_isNegative", "kof_math_isZero", "kof_strings_isAlpha", "kof_strings_isNumeric", "kof_strings_isAlphaNumeric", "kof_strings_isAscii" -> "I";
+            case "kof_math_sqrt" -> "D";
+            case "kof_math_lerp", "kof_math_percentage" -> "D";
+            case "kof_math_isInteger", "kof_math_isDecimal" -> "I";
             case "kof_strings_isUpperCase", "kof_strings_isLowerCase",
                     "kof_strings_count" -> "I";
-            case "kof_strings_capitalize", "kof_strings_reverse", "kof_strings_toCamelCase",
+            case "kof_strings_capitalize", "kof_strings_uncapitalize", "kof_strings_reverse", "kof_strings_toCamelCase",
                     "kof_strings_toPascalCase", "kof_strings_toSnakeCase", "kof_strings_toKebabCase",
                     "kof_strings_slugify", "kof_strings_escapeHtml", "kof_strings_unescapeHtml",
                     "kof_strings_escapeJson", "kof_strings_removeWhitespace",
-                    "kof_strings_normalizeWhitespace" -> "Ljava/lang/String;";
+                    "kof_strings_normalizeWhitespace",
+                    "kof_validation_formatCnpj", "kof_validation_formatCpf", "kof_validation_formatCep" -> "Ljava/lang/String;";
             case "kof_strings_repeat", "kof_strings_truncate" -> "Ljava/lang/String;";
             case "kof_strings_padLeft", "kof_strings_padRight" -> "Ljava/lang/String;";
             case "kof_net_scheme", "kof_net_host", "kof_net_port",
@@ -149,11 +153,10 @@ public final class JvmRuntimeReturnDescriptors {
             case "kof_encoding_urlEncode", "kof_encoding_urlDecode", "kof_encoding_base64UrlEncode", "kof_encoding_base64UrlDecode" -> "Ljava/lang/String;";
             case "kof_uuid_v4", "kof_uuid_v7" -> "Ljava/lang/String;";
             case "kof_uuid_isUuid" -> "I";
-            // ── kof.random (STDLIB S10) ─────────────────────────────────
+            // ── kof.random (STDLIB S10a/S10b) — Int/Bool ambos "I" no stack ──
+            case "kof_random_int", "kof_random_bool", "kof_random_boolean" -> "I";
+            case "kof_random_string", "kof_random_hex" -> "Ljava/lang/String;";
             case "kof_random_double" -> "D";
-            case "kof_random_boolean" -> "I";
-            case "kof_random_int" -> "I";
-            case "kof_random_hex" -> "Ljava/lang/String;";
             // ── kof.observability (G5) ────────────────────────────────
             case "kof_observability_health", "kof_observability_request_id", "kof_observability_correlation_id",
                     "kof_observability_trace_id", "kof_observability_span_id",

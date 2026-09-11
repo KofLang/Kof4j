@@ -23,6 +23,13 @@ public final class StatementAnalyzer {
      */
     static Type analyzeAssignmentStatement(SemanticAnalyzer sa, AssignmentExpr ae, SymbolTable scope) {
         Type valueType = SemExpressionTyper.inferType(sa, ae.value(), scope);
+        // SG-005/008 (SEM048): `x = null` é erro — null nunca é atribuível
+        if (CompilerComparisons.isNullLiteral(ae.value()) && sa.diagnostics() != null) {
+            sa.diagnostics().error("", 0, 0, 0,
+                    "null cannot be assigned: null safety works by narrowing"
+                            + " (if (x != null)), never by direct null literals",
+                    "SEM048");
+        }
         Type targetType = Type.UnknownType.UNKNOWN;
         if (ae.target() instanceof IdentifierExpr ie) {
             SymbolTable.Symbol sym = scope.resolve(ie.name());
@@ -38,7 +45,7 @@ public final class StatementAnalyzer {
                 }
                 if (sa.diagnostics() != null && !Type.isUnknown(targetType)
                         && !Type.isUnknown(valueType)
-                        && !TypeChecker.isAssignable(valueType, targetType)) {
+                        && !TypeChecker.isAssignable(sa, valueType, targetType)) {
                     sa.diagnostics().error("", 0, 0, 0,
                             "Type mismatch: cannot assign " + valueType + " to " + targetType,
                             "SEM012");
@@ -102,6 +109,18 @@ public final class StatementAnalyzer {
             }
             case VarDeclStmt vds -> {
                 Type varType;
+                // SG-005/008 (SEM048): o literal `null` NUNCA é atribuível —
+                // null safety é por narrowing (`if (x != null)`), nunca por
+                // atribuição direta (o próprio nome já diz). APIs devolvem T?;
+                // o programador não fabrica null.
+                if (vds.initializer() != null && CompilerComparisons.isNullLiteral(vds.initializer())
+                        && sa.diagnostics() != null) {
+                    sa.diagnostics().error("", 0, 0, 0,
+                            "null cannot be assigned: null safety works by narrowing"
+                                    + " (if (x != null)), never by direct null literals"
+                                    + " (variable '" + vds.name() + "')",
+                            "SEM048");
+                }
                 // "val"/"var" são palavras-chave de mutabilidade, não tipos —
                 // o tipo real vem do initializer (ou do type explícito após ':').
                 if (vds.type() != null && !vds.type().isEmpty()
@@ -125,7 +144,7 @@ public final class StatementAnalyzer {
                         && !varType.equals(Type.UnknownType.UNKNOWN)) {
                     Type initType = SemExpressionTyper.inferType(sa, vds.initializer(), scope);
                     if (!initType.equals(Type.UnknownType.UNKNOWN)
-                            && !TypeChecker.isAssignable(initType, varType)
+                            && !TypeChecker.isAssignable(sa, initType, varType)
                             && !(initType instanceof Type.FunctionType)
                             && !(varType instanceof Type.FunctionType)) {
                         sa.diagnostics().error("", 0, 0, 0,
@@ -142,7 +161,7 @@ public final class StatementAnalyzer {
                     Type valueType = SemExpressionTyper.inferType(sa, ret.value(), scope);
                     sa.expressionTypes().put(ret.value(), valueType);
                     if (sa.diagnostics() != null && !Type.isUnknown(returnType) && !Type.isVoid(returnType)
-                            && !Type.isUnknown(valueType) && !TypeChecker.isAssignable(valueType, returnType)) {
+                            && !Type.isUnknown(valueType) && !TypeChecker.isAssignable(sa, valueType, returnType)) {
                         sa.diagnostics().error("", 0, 0, 0,
                                 "Return type mismatch: expected " + returnType + " but got " + valueType, "SEM010");
                     }
@@ -152,25 +171,24 @@ public final class StatementAnalyzer {
             case ContinueStmt ignored -> {}
             case IfStmt ifStmt -> {
                 Type condType = SemExpressionTyper.inferType(sa, ifStmt.condition(), scope);
-                // Nullability narrowing: if (x != null) { x: T } where x: T?
+                // Nullability narrowing (SG-005):
+                //   if (x != null) → x: T no THEN
+                //   if (x == null) → x: T no ELSE
+                //   if (x != null && Y) / if (Y && x != null) → x: T no THEN
+                //     (a conjunção garante que o ramo tomado satisfaz TODOS)
                 SymbolTable ifScope = scope.enterScope();
-                if (ifStmt.condition() instanceof BinaryExpr be && "!=".equals(be.operator())
-                        && be.left() instanceof IdentifierExpr ie
-                        && be.right() instanceof LiteralExpr le && le.kind() == ConcreteLiteralKind.NULL) {
-                    SymbolTable.Symbol sym = scope.resolve(ie.name());
-                    if (sym != null && sym.type() instanceof Type.NullableType nt) {
-                        ifScope.define(new SymbolTable.LocalVariableSymbol(ie.name(), nt.inner(), 0));
-                    }
-                } else if (ifStmt.condition() instanceof BinaryExpr be2 && "!=".equals(be2.operator())
-                        && be2.right() instanceof IdentifierExpr ie2
-                        && be2.left() instanceof LiteralExpr le2 && le2.kind() == ConcreteLiteralKind.NULL) {
-                    SymbolTable.Symbol sym2 = scope.resolve(ie2.name());
-                    if (sym2 != null && sym2.type() instanceof Type.NullableType nt2) {
-                        ifScope.define(new SymbolTable.LocalVariableSymbol(ie2.name(), nt2.inner(), 0));
-                    }
+                java.util.List<SymbolTable.LocalVariableSymbol> thenNarrow = new java.util.ArrayList<>();
+                java.util.List<SymbolTable.LocalVariableSymbol> elseNarrow = new java.util.ArrayList<>();
+                collectNarrowing(sa, ifStmt.condition(), scope, thenNarrow, elseNarrow, false);
+                for (SymbolTable.LocalVariableSymbol s : thenNarrow) ifScope.define(s);
+                if (!elseNarrow.isEmpty() && ifStmt.elseBranch() != null) {
+                    SymbolTable elseScope = scope.enterScope();
+                    for (SymbolTable.LocalVariableSymbol s : elseNarrow) elseScope.define(s);
+                    analyzeStatement(sa, ifStmt.elseBranch(), elseScope, returnType);
+                } else {
+                    analyzeStatement(sa, ifStmt.thenBranch(), ifScope, returnType);
+                    if (ifStmt.elseBranch() != null) analyzeStatement(sa, ifStmt.elseBranch(), scope, returnType);
                 }
-                analyzeStatement(sa, ifStmt.thenBranch(), ifScope, returnType);
-                if (ifStmt.elseBranch() != null) analyzeStatement(sa, ifStmt.elseBranch(), scope, returnType);
             }
             case WhileStmt ws -> {
                 SemExpressionTyper.inferType(sa, ws.condition(), scope);
@@ -221,6 +239,10 @@ public final class StatementAnalyzer {
                         SymbolTable caseScope = switchScope.enterScope();
                         if (pe.varName() != null) {
                             caseScope.define(new SymbolTable.LocalVariableSymbol(pe.varName(), patType, 0));
+                        }
+                        // SG-014: guarda analisada com a var do pattern bound
+                        if (pe.guard() != null) {
+                            SemExpressionTyper.inferType(sa, pe.guard(), caseScope);
                         }
                         if (!pe.fieldVars().isEmpty()) {
                             String simple = patType instanceof Type.ClassType ct ? ct.name() : pe.typeName();
@@ -312,6 +334,44 @@ public final class StatementAnalyzer {
             case AssertStmt asrt -> {
                 if (asrt.condition() != null) SemExpressionTyper.inferType(sa, asrt.condition(), scope);
             }
+            default -> {}
+        }
+    }
+
+    /**
+     * SG-005: coleta os narrowings de nullability de uma condição de if.
+     * `x != null` → THEN; `x == null` → ELSE; conjunção (&&) une os dois
+     * lados no mesmo ramo THEN (o ramo só roda se TODOS os conjuntos valerem).
+     * Disjunção (||) NÃO narrow (o ramo roda se UM valer) — recursão para
+     * sem coletar. Só narrow locais cujo símbolo é NullableType.
+     */
+    private static void collectNarrowing(SemanticAnalyzer sa, ExpressionNode cond,
+            SymbolTable scope,
+            java.util.List<SymbolTable.LocalVariableSymbol> thenNarrow,
+            java.util.List<SymbolTable.LocalVariableSymbol> elseNarrow,
+            boolean underOr) {
+        if (!(cond instanceof BinaryExpr be)) return;
+        String op = be.operator();
+        if ("&&".equals(op) && !underOr) {
+            collectNarrowing(sa, be.left(), scope, thenNarrow, elseNarrow, false);
+            collectNarrowing(sa, be.right(), scope, thenNarrow, elseNarrow, false);
+            return;
+        }
+        if ("||".equals(op)) {
+            // disjunção não narrow nenhum ramo — mas não desce (nada a coletar)
+            return;
+        }
+        boolean isNullTest = be.right() instanceof LiteralExpr rl && rl.kind() == ConcreteLiteralKind.NULL;
+        boolean leftIsId = be.left() instanceof IdentifierExpr;
+        if (!isNullTest || !leftIsId) return;
+        IdentifierExpr id = (IdentifierExpr) be.left();
+        SymbolTable.Symbol sym = scope.resolve(id.name());
+        if (!(sym != null && sym.type() instanceof Type.NullableType nt)) return;
+        SymbolTable.LocalVariableSymbol narrowed =
+                new SymbolTable.LocalVariableSymbol(id.name(), nt.inner(), 0);
+        switch (op) {
+            case "!=" -> thenNarrow.add(narrowed);
+            case "==" -> elseNarrow.add(narrowed);
             default -> {}
         }
     }

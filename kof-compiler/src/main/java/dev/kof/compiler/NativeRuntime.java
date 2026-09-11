@@ -1,8 +1,10 @@
 package dev.kof.compiler;
 import dev.kof.compiler.runtime.RuntimeArray;
 import dev.kof.compiler.runtime.RuntimeCache;
+import dev.kof.compiler.runtime.RuntimeStringCompare;
 import dev.kof.compiler.runtime.RuntimeEncoding;
 import dev.kof.compiler.runtime.RuntimeValidationBr;
+import dev.kof.compiler.runtime.RuntimeValidationFmtBr;
 import dev.kof.compiler.runtime.RuntimeValidationNet;
 import dev.kof.compiler.runtime.RuntimeRandom;
 import dev.kof.compiler.runtime.RuntimeUuid;
@@ -56,6 +58,7 @@ import dev.kof.compiler.runtime.RuntimeStringConv;
 import dev.kof.compiler.runtime.RuntimeStringEdit;
 import dev.kof.compiler.runtime.RuntimeStringOps;
 import dev.kof.compiler.runtime.RuntimeStringParse;
+import dev.kof.compiler.runtime.RuntimeStringParseFp;
 import dev.kof.compiler.runtime.RuntimeStringSearch;
 import dev.kof.compiler.runtime.RuntimeTime;
 import dev.kof.compiler.runtime.RuntimeTimeIso;
@@ -122,8 +125,7 @@ public final class NativeRuntime {
         RuntimeStringBase.emitStringEquals(sb);
         RuntimeStringParse.emitStringToInt(sb);
         RuntimeStringParse.emitStringToLong(sb);
-        RuntimeStringParse.emitStringToDouble(sb);
-        RuntimeStringParse.emitStringToFloat(sb);
+        RuntimeStringParseFp.emitStringToDouble(sb);
         RuntimeStringBase.emitPrintString(sb);
         RuntimeStringBase.emitPrintlnString(sb);
         RuntimeStringOps.emitStringCharAt(sb);
@@ -133,6 +135,7 @@ public final class NativeRuntime {
         RuntimeStringSearch.emitStringEndsWith(sb);
         RuntimeStringSearch.emitStringIndexOf(sb);
         RuntimeStringSearch.emitStringLastIndexOf(sb);
+        RuntimeStringCompare.emit(sb);
         RuntimeStringOps.emitStringTrim(sb);
         RuntimeStringOps.emitStringCase(sb);
         RuntimeStringEdit.emitStringReplace(sb);
@@ -179,6 +182,7 @@ public final class NativeRuntime {
         RuntimeSecurity11.emit(sb);
         RuntimeValidation.emit(sb);
         RuntimeValidationBr.emit(sb);
+        RuntimeValidationFmtBr.emit(sb);
         RuntimeValidationNet.emit(sb);
         RuntimeUri.emit(sb);
         RuntimeMath.emit(sb);

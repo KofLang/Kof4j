@@ -1,5 +1,7 @@
 package dev.kof.compiler;
 
+import dev.kof.compiler.SymbolTable.LocalVariableSymbol;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -19,6 +21,16 @@ public final class SemMethodCallTyper {
         // F10: métodos de instância do handle de process.spawn
         if (mc.receiver() != null) {
             Type recv = SemExpressionTyper.inferType(sa, mc.receiver(), scope);
+            // SG-005: deref de T? sem narrowing é erro — null safety é por
+            // narrowing (`if (x != null)` re-tipa o símbolo no escopo filho,
+            // StatementAnalyzer). Se o receiver AINDA é NullableType aqui, o
+            // acesso é direto e seria NPE em runtime. Antes o lowering
+            // desembrulhava silenciosamente (ExpressionTyper) — advisory.
+            if (recv instanceof Type.NullableType && sa.diagnostics() != null) {
+                sa.diagnostics().error("", 0, 0, 0,
+                        "receiver is nullable (T?); narrow first: if (x != null) { x.method() }",
+                        "SEM049");
+            }
             // bug 17: array não tem método get()/set() — a API é o
             // operador arr[i]. Antes o compilador aceitava e emitia
             // bytecode inválido (ClassFormatError no JVM, undefined
@@ -46,10 +58,38 @@ public final class SemMethodCallTyper {
             if (BuiltinTypes.isMap(recv)) {
                 for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
                 Type valueType = BuiltinTypes.mapValue(recv);
+                // mapOf() nasce Map<Unknown,Unknown>: o primeiro put() pina os
+                // tipos no SÍMBOLO do local (espelha o pin de IR no emit,
+                // CollectionCallLowerer) — sem isso get() permanecia
+                // Nullable(Unknown) no cache semântico enquanto o emit já
+                // via o tipo concreto (divergência typer/emit, VerifyError)
+                if ("put".equals(mc.methodName()) && valueType instanceof Type.UnknownType
+                        && mc.arguments().size() == 2
+                        && mc.receiver() instanceof IdentifierExpr rid) {
+                    Type putKey = sa.expressionTypes().get(mc.arguments().get(0));
+                    Type putValue = sa.expressionTypes().get(mc.arguments().get(1));
+                    if (putKey != null && putValue != null
+                            && !(putKey instanceof Type.UnknownType)
+                            && !(putValue instanceof Type.UnknownType)
+                            && sa.currentScope() != null) {
+                        SymbolTable scopeTbl = sa.currentScope();
+                        // resolve o símbolo em qualquer escopo ancestral, mas
+                        // atualiza no escopo que O DEFINE (updateLocalType só
+                        // mexe no escopo dono — retorna false caso contrário)
+                        SymbolTable owner = null;
+                        for (SymbolTable s = scopeTbl; s != null; s = s.parent()) {
+                            if (s.hasLocal(rid.name())) { owner = s; break; }
+                        }
+                        if (owner != null && owner.updateLocalType(rid.name(),
+                                new Type.ClassType("kof", "Map", List.of(putKey, putValue)))) {
+                            valueType = putValue;
+                        }
+                    }
+                }
                 if ("get".equals(mc.methodName())) {
-                    return valueType instanceof Type.ClassType ct
-                            && !KofUi.isUiType(ct) && !KofMedia.isHandleType(ct)
-                            ? new Type.NullableType(valueType) : valueType;
+                    // SG-008 (bug 87): get() devolve V? para TODO valor —
+                    // ausência é null comparável, nunca NPE por unbox
+                    return new Type.NullableType(valueType);
                 }
                 if ("put".equals(mc.methodName()) || "remove".equals(mc.methodName())) return valueType;
                 if ("size".equals(mc.methodName()) || "length".equals(mc.methodName())

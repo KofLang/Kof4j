@@ -20,6 +20,10 @@ public final class KofInterpreterMembers {
     // (ensureInit/kofStatics no dispatch): HashMap comum → CME no
     // computeIfAbsent/putIfAbsent concorrente (bug 55). ConcurrentHashMap
     // torna a criação do mapa de statics e a guarda de init atômicas.
+    // SG-020 (modelo de memória): os VALORES também — mapa interno
+    // concorrente dá HB (read-after-write) por campo de static, honrando a
+    // borda 5 do modelo (statics sequentialmente consistentes) no
+    // interpretador; o backend JVM compilado usa vars estáticas JVM (JMM).
     private final Map<String, Map<String, Object>> staticFields = new java.util.concurrent.ConcurrentHashMap<>();
     private final Map<String, Boolean> initialized = new java.util.concurrent.ConcurrentHashMap<>();
     private final Map<String, Object> initLocks = new java.util.concurrent.ConcurrentHashMap<>();
@@ -175,6 +179,8 @@ public final class KofInterpreterMembers {
     }
 
     Map<String, Object> kofStatics(String internal) {
-        return staticFields.computeIfAbsent(internal, k -> new HashMap<>());
+        // SG-020: mapa de valores concorrente — HB por campo de static
+        return staticFields.computeIfAbsent(internal,
+                k -> new java.util.concurrent.ConcurrentHashMap<>());
     }
 }

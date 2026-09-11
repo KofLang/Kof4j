@@ -26,8 +26,6 @@ public enum TokenType {
     UNIQUE,
     EXTENDS,
     IMPLEMENTS,
-    SEALED,
-    PERMITS,
     FUN,
     FN,
     FUNC,
@@ -99,7 +97,6 @@ public enum TokenType {
     AMP,
     PIPE,
     CARET,
-    TILDE,
     LESS_LESS,
     GREATER_GREATER,
     GREATER_GREATER_GREATER,
@@ -117,9 +114,6 @@ public enum TokenType {
     GREATER_GREATER_EQUAL,
     GREATER_GREATER_GREATER_EQUAL,
     ARROW,
-    DOUBLE_ARROW,
-    ELLIPSIS,
-    PIPE_LINE,
 
     LPAREN,
     RPAREN,
@@ -131,8 +125,6 @@ public enum TokenType {
     COMMA,
     DOT,
     COLON,
-    COLON_COLON,
     QUESTION,
     AT,
-    UNDERSCORE
 }

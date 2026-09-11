@@ -325,5 +325,160 @@ public final class NativeRiscvAsmRtB12 {
                 ld   s3, 32(sp)
                 addi sp, sp, 64
                 ret
-            """;
+
+            # kof_validation_formatCep(a0=str) -> String (S12)
+            # 8 dígitos => DDDDD-DDDD; senão (incl. null) => original (no-op).
+            # Frame: buf sp+0..15; s1 = str original (caminho no-op).
+            .globl kof_validation_formatCep
+            kof_validation_formatCep:
+                addi sp, sp, -48
+                sd   ra, 40(sp)
+                sd   s0, 32(sp)
+                sd   s1, 24(sp)
+                li   s0, 0
+                mv   s1, a0
+                addi a1, sp, 0
+                call kof_br_digits_rv        # a0 = count
+                li   t1, 8
+                bne  a0, t1, .Lv_br_fcep_end
+                li   a0, 48                  # (9+25+15)&-16
+                call kof_alloc
+                mv   s0, a0
+                li   t0, 1
+                sw   t0, 0(s0)
+                li   t0, 0
+                sw   t0, 4(s0)
+                sd   t0, 8(s0)
+                li   t0, 0
+                sw   t0, 20(s0)
+                li   t0, 9
+                sw   t0, 16(s0)
+                li   t1, 48
+                lbu  t2, 0(sp)
+                add  t2, t2, t1
+                sb   t2, 24(s0)
+                lbu  t2, 1(sp)
+                add  t2, t2, t1
+                sb   t2, 25(s0)
+                lbu  t2, 2(sp)
+                add  t2, t2, t1
+                sb   t2, 26(s0)
+                lbu  t2, 3(sp)
+                add  t2, t2, t1
+                sb   t2, 27(s0)
+                lbu  t2, 4(sp)
+                add  t2, t2, t1
+                sb   t2, 28(s0)
+                li   t2, 45
+                sb   t2, 29(s0)               # '-'
+                lbu  t2, 5(sp)
+                add  t2, t2, t1
+                sb   t2, 30(s0)
+                lbu  t2, 6(sp)
+                add  t2, t2, t1
+                sb   t2, 31(s0)
+                lbu  t2, 7(sp)
+                add  t2, t2, t1
+                sb   t2, 32(s0)
+                li   t2, 0
+                sb   t2, 33(s0)               # NUL
+                j    .Lv_br_fcep_done
+            .Lv_br_fcep_end:
+                beqz s0, .Lv_br_fcep_orig
+            .Lv_br_fcep_done:
+                mv   a0, s0
+                j    .Lv_br_fcep_ret
+            .Lv_br_fcep_orig:
+                mv   a0, s1
+            .Lv_br_fcep_ret:
+                addi sp, sp, 48
+                ld   ra, 40(sp)
+                ld   s0, 32(sp)
+                ld   s1, 24(sp)
+                ret
+
+            # kof_validation_formatCpf(a0=str) -> String (S12)
+            # 11 dígitos => DDD.DDD.DDD-DD; senão (incl. null) => original.
+            # Formata SEM validar (dígitos quaisquer) — paridade JVM/JS/x86.
+            .globl kof_validation_formatCpf
+            kof_validation_formatCpf:
+                addi sp, sp, -48
+                sd   ra, 40(sp)
+                sd   s0, 32(sp)
+                sd   s1, 24(sp)
+                li   s0, 0
+                mv   s1, a0
+                addi a1, sp, 0
+                call kof_br_digits_rv        # a0 = count
+                li   t1, 11
+                bne  a0, t1, .Lv_br_fcpf_end
+                li   a0, 48                  # (14+25+15)&-16
+                call kof_alloc
+                mv   s0, a0
+                li   t0, 1
+                sw   t0, 0(s0)
+                li   t0, 0
+                sw   t0, 4(s0)
+                sd   t0, 8(s0)
+                li   t0, 0
+                sw   t0, 20(s0)
+                li   t0, 14
+                sw   t0, 16(s0)
+                li   t1, 48
+                lbu  t2, 0(sp)
+                add  t2, t2, t1
+                sb   t2, 24(s0)
+                lbu  t2, 1(sp)
+                add  t2, t2, t1
+                sb   t2, 25(s0)
+                lbu  t2, 2(sp)
+                add  t2, t2, t1
+                sb   t2, 26(s0)
+                li   t2, 46
+                sb   t2, 27(s0)               # '.'
+                lbu  t2, 3(sp)
+                add  t2, t2, t1
+                sb   t2, 28(s0)
+                lbu  t2, 4(sp)
+                add  t2, t2, t1
+                sb   t2, 29(s0)
+                lbu  t2, 5(sp)
+                add  t2, t2, t1
+                sb   t2, 30(s0)
+                li   t2, 46
+                sb   t2, 31(s0)               # '.'
+                lbu  t2, 6(sp)
+                add  t2, t2, t1
+                sb   t2, 32(s0)
+                lbu  t2, 7(sp)
+                add  t2, t2, t1
+                sb   t2, 33(s0)
+                lbu  t2, 8(sp)
+                add  t2, t2, t1
+                sb   t2, 34(s0)
+                li   t2, 45
+                sb   t2, 35(s0)               # '-'
+                lbu  t2, 9(sp)
+                add  t2, t2, t1
+                sb   t2, 36(s0)
+                lbu  t2, 10(sp)
+                add  t2, t2, t1
+                sb   t2, 37(s0)
+                li   t2, 0
+                sb   t2, 38(s0)               # NUL
+                j    .Lv_br_fcpf_done
+            .Lv_br_fcpf_end:
+                beqz s0, .Lv_br_fcpf_orig
+            .Lv_br_fcpf_done:
+                mv   a0, s0
+                j    .Lv_br_fcpf_ret
+            .Lv_br_fcpf_orig:
+                mv   a0, s1
+            .Lv_br_fcpf_ret:
+                addi sp, sp, 48
+                ld   ra, 40(sp)
+                ld   s0, 32(sp)
+                ld   s1, 24(sp)
+                ret
+                        """;
 }

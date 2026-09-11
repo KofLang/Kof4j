@@ -57,6 +57,13 @@ public final class BuiltinCallTyper {
             // the same name (e.g. KofUi's Color).
             SymbolTable.ClassSymbol ctorClass = sa.allClasses().get(mc.methodName());
             for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
+            // SG-017 (SEM041): classe abstrata não pode ser instanciada —
+            // cobre tanto `new A()` (SemExpressionTyper) quanto `A()` (aqui).
+            if (sa.abstractClasses().contains(mc.methodName()) && sa.diagnostics() != null) {
+                sa.diagnostics().error("", 0, 0, 0,
+                        "cannot instantiate abstract class '" + mc.methodName() + "'",
+                        "SEM041");
+            }
             SymbolTable.ConstructorSymbol ctor = SymbolTable.constructorFor(
                     ctorClass.members(), mc.arguments().size());
             if (ctor != null) {

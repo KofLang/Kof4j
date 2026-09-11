@@ -688,6 +688,100 @@ class KofConcurrency2Test {
         return runJvm(tempDir, source, null);
     }
 
+    // ── SG-020 (modelo de memória concorrente) — provas §4.3 e §4.4 ──
+
+    // §4.3: statics sequentialmente consistentes — visibilidade e sem
+    // reordenação: cada tarefa publica SEU delta final com HB de await;
+    // o pai acumula APÓS os awaits (data race de read-modify-write NÃO é
+    // atômico por definição do modelo — a abstração Kof p/ contagem
+    // concorrente é Channel, não campo compartilhado).
+    @Test
+    void staticsAreSequentiallyConsistent(@TempDir Path tmp) throws Exception {
+        String out = runJvm(tmp, """
+                class Resultado {
+                    static Int r1
+                    static Int r2
+                    static Int r3
+                    static Int r4
+                }
+                Int soma1000() {
+                    var s = 0
+                    var i = 0
+                    while (i < 1000) {
+                        s = s + i
+                        i = i + 1
+                    }
+                    return s
+                }
+                main() {
+                    var a = spawn soma1000()
+                    var b = spawn soma1000()
+                    var c = spawn soma1000()
+                    var d = spawn soma1000()
+                    await a
+                    await b
+                    await c
+                    await d
+                    var total = 0 + await a + await b + await c + await d
+                    println(total)
+                }
+                """);
+        // 4 × (0+1+...+999) = 4 × 499500 = 1998000 — HB das bordas de await
+        // garante que o pai vê as 4 escritas completas
+        assertEquals("1998000", out.trim(), "HB de await deve tornar os resultados visíveis");
+    }
+
+    // §4.4: sem word-tearing em Long — leitor concorrente nunca observa
+    // valor inválido (valores publicados são sempre pares e >= 0).
+    @Test
+    void noWordTearingOnLong(@TempDir Path tmp) throws Exception {
+        String out = runJvm(tmp, """
+                class Estado {
+                    static Long v
+                    static Bool pronto
+                }
+                Long escreve() {
+                    var i = 0L
+                    while (i < 5000L) {
+                        Estado.v = i * 2L
+                        i = i + 1L
+                    }
+                    Estado.pronto = true
+                    return i
+                }
+                Bool le() {
+                    var ok = true
+                    var i = 0
+                    while (i < 500000) {
+                        var atual = Estado.v
+                        if (atual < 0L || atual > 10000L) {
+                            ok = false
+                        }
+                        i = i + 1
+                    }
+                    if (ok) {
+                        println("valido")
+                    } else {
+                        println("invalido-observado")
+                    }
+                    return ok
+                }
+                main() {
+                    var r = spawn le()
+                    var w = spawn escreve()
+                    await w
+                    await r
+                    println(Estado.v)
+                }
+                """);
+        String[] lines = out.trim().split("\n");
+        assertTrue(lines.length >= 2, "esperava valido/invalido + valor final: " + out);
+        assertEquals("valido", lines[0], "Long nunca pode ser observado rasgado (borda 6)");
+        // última escrita do loop: 4999*2 = 9998 (a var i chega a 5000 mas o
+        // static guarda o valor DA ÚLTIMA ESCRITA, não do contador final)
+        assertEquals("9998", lines[lines.length - 1], "valor final do escritor");
+    }
+
     private String runJvm(Path tempDir, String source, String expected) throws java.io.IOException {
         Path file = tempDir.resolve("Main-" + System.nanoTime() + ".kf");
         Files.writeString(file, source);

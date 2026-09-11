@@ -75,6 +75,12 @@ if (hasPattern) {
             }
             ops.add(new KofLoadLocal(switchType, switchTmp));
             ops.add(new KofInstanceOf(patType));
+            // SG-014: guarda — depois do instanceof, o corpo é só alcançado
+            // se a guarda avaliar true (a var é bound no início do corpo;
+            // a guarda referencia a var pelo ACCESO por cast implícito)
+            if (pe.guard() != null) {
+                localIdx = emitGuard(driver, pe, patType, switchTmp, ops, owner, localIdx, locals);
+            }
             ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
             ops.add(new KofConditionalJump(KofComparison.EQ, nextTest, bodyLabels.get(i)));
         } else {
@@ -201,5 +207,28 @@ if (!ss.defaultBody().isEmpty()) {
 }
 ops.add(new KofLabel(endLabel));
         return localIdx;
+    }
+
+    /** SG-014: emite a guarda do pattern no teste (var referenciada via cast no subject). */
+    private static int emitGuard(CompilerDriver driver, PatternExpr pe, Type patType,
+                                 int switchTmp, List<KofOperation> ops, String owner,
+                                 int localIdx, List<IRLocalVariable> locals) {
+        // a guarda referencia a var do pattern; para emitir, bound temporário:
+        // cast do subject num tmp #guardCast e a var disponível como local
+        int castIdx = localIdx++;
+        locals.add(new IRLocalVariable(castIdx, "#guardCast", patType));
+        ops.add(new KofLoadLocal(switchTypeOf(locals, switchTmp, patType), switchTmp));
+        ops.add(new KofCheckCast(patType));
+        ops.add(new KofStoreLocal(patType, castIdx));
+        List<IRLocalVariable> guardLocals = new ArrayList<>(locals);
+        guardLocals.add(new IRLocalVariable(castIdx, pe.varName() != null ? pe.varName() : "#patCast", patType));
+        return ExpressionLowerer.emitExpression(driver, pe.guard(), ops, owner, localIdx, guardLocals);
+    }
+
+    private static Type switchTypeOf(List<IRLocalVariable> locals, int switchTmp, Type fallback) {
+        for (IRLocalVariable lv : locals) {
+            if (lv.index() == switchTmp) return lv.type();
+        }
+        return fallback;
     }
 }

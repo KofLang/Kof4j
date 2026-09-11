@@ -300,8 +300,33 @@ public final class ExpressionInstanceCallLowerer {
         StringMethodRegistry.Sig sig = StringMethodRegistry.stringMethodSignature(mc.methodName(), mc.arguments().size(),
                 methodParamTypes);
         if (sig != null) {
+            // bug 99: registry resolve indexOf/contains/… por ARIDADE — o
+            // formal String/CharSequence aceita Int/Char no caminho e cada
+            // backend divergia (JVM VerifyError, Native SIGSEGV, JS -1
+            // silencioso, interpretador CCE). Kof não tem tipo char: 'x' É
+            // Int. Rejeitar no lowering (R6 — nunca o "compila e quebra")
+            // apontando p/ o idiom. replace é intencionalmente (CHAR,CHAR)
+            // quando os args são chars — só formais REF de string guardam.
+            int bad = stringFormalMismatch(sig.parameterTypes(), methodParamTypes);
+            if (bad >= 0) {
+                if (driver.currentDiagnostics != null) {
+                    SourcePosition p = mc.arguments().get(bad).position();
+                    String what = argTypeName(methodParamTypes.get(bad));
+                    driver.currentDiagnostics.error(p != null ? p.file() : "",
+                            p != null ? p.line() : 0, p != null ? p.column() : 0, 0,
+                            "String method '" + mc.methodName() + "' expects a String argument, got "
+                                    + what + " (char literals are Ints in Kof — pass \"c\" not 'c')",
+                            "SEM025");
+                }
+                for (ExpressionNode arg : mc.arguments()) {
+                    localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
+                    ops.add(new KofPop());
+                }
+                ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
+                return localIdx + 1;
+            }
             methodReturnType = sig.returnType();
-            methodParamTypes = sig.parameterTypes();
+            methodParamTypes = new ArrayList<>(sig.parameterTypes());
         }
     } else if (TypeMetrics.isPrimitiveType(recvType) && "toString".equals(mc.methodName())
             && mc.arguments().isEmpty()) {
@@ -408,6 +433,26 @@ public final class ExpressionInstanceCallLowerer {
         }
     }
         return localIdx;
+    }
+
+    /** Índice do 1º arg cujo tipo (Int/Char) não bate com o formal REF
+     *  (String/CharSequence) do registry; -1 = compatível. Object (equals)
+     *  aceita qualquer coisa. */
+    private static int stringFormalMismatch(List<Type> formals, List<Type> args) {
+        for (int i = 0; i < formals.size() && i < args.size(); i++) {
+            Type f = formals.get(i);
+            Type a = args.get(i);
+            boolean formalIsStringish = f instanceof Type.ClassType ct
+                    && "java.lang".equals(ct.packageName())
+                    && ("String".equals(ct.name()) || "CharSequence".equals(ct.name()));
+            if (formalIsStringish && TypeMetrics.isPrimitiveType(a)) return i;
+        }
+        return -1;
+    }
+
+    private static String argTypeName(Type t) {
+        if (t instanceof Type.PrimitiveType pt) return Type.canonicalPrimitiveName(pt.name());
+        return t.toString();
     }
 
     private static Type recvType0(CompilerDriver driver, MethodCallExpr mc, List<IRLocalVariable> locals) {

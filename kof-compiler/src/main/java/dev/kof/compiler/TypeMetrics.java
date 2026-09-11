@@ -15,10 +15,12 @@ public final class TypeMetrics {
     private TypeMetrics() {}
 
     static boolean isPrimitiveType(Type type) {
+        if (type instanceof Type.NullableType nt) return isPrimitiveType(nt.inner());
         return type instanceof Type.PrimitiveType pt && !"void".equals(pt.name());
     }
 
     static boolean isCharType(Type type) {
+        if (type instanceof Type.NullableType nt) return isCharType(nt.inner());
         return type instanceof Type.PrimitiveType pt
                 && ("char".equals(pt.name()) || "Char".equals(pt.name()));
     }
@@ -41,6 +43,7 @@ public final class TypeMetrics {
     }
 
     static boolean isNumeric(Type t) {
+        if (t instanceof Type.NullableType nt) return isNumeric(nt.inner());
         if (!(t instanceof Type.PrimitiveType pt)) return false;
         String name = Type.canonicalPrimitiveName(pt.name());
         return switch (name) {
@@ -50,6 +53,7 @@ public final class TypeMetrics {
     }
 
     static String primitiveName(Type t) {
+        if (t instanceof Type.NullableType nt) return primitiveName(nt.inner());
         if (t instanceof Type.PrimitiveType pt) {
             return Type.canonicalPrimitiveName(pt.name());
         }

@@ -90,6 +90,15 @@ public final class KofInterpreterOps {
     }
 
     boolean compare(KofComparison cmp, Type t, Object a, Object b) {
+        boolean eqNe = cmp == KofComparison.EQ || cmp == KofComparison.NE;
+        // Nullable(T?): ausência é null comparável — nunca unbox null
+        // (SG-008/bug 87; espelha if_acmp* do JVM com primitivo boxado)
+        if (eqNe && KofInterpreterValues.eqAllowsNull(t)) {
+            boolean eq = java.util.Objects.equals(a, b)
+                    || KofInterpreterValues.numEq(a, b);
+            boolean want = cmp == KofComparison.EQ;
+            return eq == want;
+        }
         if (KofInterpreterValues.isRefType(t)) {
             int c = (cmp == KofComparison.EQ || cmp == KofComparison.NE)
                     ? (java.util.Objects.equals(a, b) ? 0 : 1)

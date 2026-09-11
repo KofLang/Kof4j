@@ -4,6 +4,8 @@ package dev.kof.compiler.js;
  * Runtime JS do kof.uuid (STDLIB S3b/S3b.2).
  * v4 (RFC 4122), v7 (RFC 9562 time-ordered ms timestamp) e isUuid.
  * Extraído de JsRuntimeUiStdlib para garantir estrita observância ao gate ≤500 linhas.
+ * isUuid retorna 1/0 (convenção runtime-Bool — bug 93: boolean JS puro não
+ * sobrevive a `==` de Bool nem a `if` narrowing no Kof).
  */
 public final class JsRuntimeUiUuid {
 
@@ -36,17 +38,18 @@ public final class JsRuntimeUiUuid {
             }
             // isUuid: forma 8-4-4-4-12; traços em 8/13/18/23; hex (min ou
             // maiúsculo). Version/variant NÃO verificadas (mesma regra JVM/x86).
+            // 1/0 = convenção Bool de runtime (bug 93).
             export function kofUuidIsUuid(v) {
-                if (v == null || v.length !== 36) return false;
+                if (v == null || v.length !== 36) return 0;
                 for (let i = 0; i < 36; i++) {
                     const c = v.charCodeAt(i);
                     if (i === 8 || i === 13 || i === 18 || i === 23) {
-                        if (c !== 45) return false;
+                        if (c !== 45) return 0;
                     } else if (!((c >= 48 && c <= 57) || (c >= 97 && c <= 102) || (c >= 65 && c <= 70))) {
-                        return false;
+                        return 0;
                     }
                 }
-                return true;
+                return 1;
             }
             """;
 }

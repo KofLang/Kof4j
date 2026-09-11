@@ -44,8 +44,202 @@ public final class CompilerDesugar {
                 java.util.Collections.unmodifiableList(decls));
     }
 
-    static CompilationUnitNode desugarApplication(CompilationUnitNode unit) {
+    /**
+     * SG-011: hoisting de funções aninhadas. Cada FunctionDeclStmt vira uma
+     * função top-level `outer__inner` (nome único por enclosing) inserida
+     * ANTES da outer ("inner primeiro"), e as chamadas `inner(...)` no corpo
+     * da outer são reescritas para `outer__inner(...)`. O statement some do
+     * corpo (a declaração é efetiva desde o início do corpo — a outer chama
+     * e aguarda o retorno).
+     */
+    static CompilationUnitNode desugarNestedFunctions(CompilationUnitNode unit) {
+        boolean any = false;
+        for (AstNode d : unit.declarations()) {
+            if (d instanceof FunctionDeclarationNode f && hasNestedFunction(f.body())) {
+                any = true;
+                break;
+            }
+        }
+        if (!any) return unit;
         java.util.List<AstNode> decls = new ArrayList<>();
+        for (AstNode d : unit.declarations()) {
+            if (d instanceof FunctionDeclarationNode f) {
+                List<StatementNode> hoisted = new ArrayList<>();
+                List<FunctionDeclarationNode> inners = new ArrayList<>();
+                stripNestedFunctions(f.body(), f.name(), hoisted, inners);
+                if (!inners.isEmpty()) {
+                    // "inner primeiro": as inner entram ANTES da outer
+                    decls.addAll(inners);
+                    decls.add(new FunctionDeclarationNode(f.position(), f.modifiers(),
+                            f.returnType(), f.name(), f.parameters(), f.thrownExceptions(),
+                            f.typeParameters(), rewriteCalls(hoisted, inners), f.annotations()));
+                    continue;
+                }
+            }
+            decls.add(d);
+        }
+        return new CompilationUnitNode(unit.position(), unit.packageName(), unit.imports(),
+                java.util.Collections.unmodifiableList(decls));
+    }
+
+    private static boolean hasNestedFunction(List<StatementNode> body) {
+        if (body == null) return false;
+        for (StatementNode s : body) {
+            if (s instanceof FunctionDeclStmt) return true;
+            if (s instanceof BlockStmt b && hasNestedFunction(b.statements())) return true;
+            if (s instanceof IfStmt is && (hasNestedFunction(List.of(is.thenBranch()))
+                    || (is.elseBranch() != null && hasNestedFunction(List.of(is.elseBranch()))))) return true;
+            if (s instanceof WhileStmt ws && hasNestedFunction(List.of(ws.body()))) return true;
+            if (s instanceof ForStmt fs && hasNestedFunction(List.of(fs.body()))) return true;
+            if (s instanceof ForInStmt fis && hasNestedFunction(List.of(fis.body()))) return true;
+            if (s instanceof TryStmt ts) {
+                if (hasNestedFunction(ts.tryBody())) return true;
+                for (CatchClause c : ts.catchClauses()) {
+                    if (hasNestedFunction(c.body())) return true;
+                }
+                if (ts.finallyBody() != null && hasNestedFunction(ts.finallyBody())) return true;
+            }
+        }
+        return false;
+    }
+
+    /** Remove os FunctionDeclStmt do corpo (recursivo) e coleta as funções renomeadas. */
+    private static void stripNestedFunctions(List<StatementNode> body, String outerName,
+                                             List<StatementNode> out,
+                                             List<FunctionDeclarationNode> inners) {
+        for (StatementNode s : body) {
+            if (s instanceof FunctionDeclStmt fds) {
+                FunctionDeclarationNode fn = fds.function();
+                String qualified = outerName + "__" + fn.name();
+                inners.add(new FunctionDeclarationNode(fn.position(), List.of(),
+                        fn.returnType(), qualified, fn.parameters(), fn.thrownExceptions(),
+                        fn.typeParameters(), rewriteCalls(fn.body(), inners), List.of()));
+                continue;
+            }
+            if (s instanceof BlockStmt b) {
+                List<StatementNode> inner = new ArrayList<>();
+                stripNestedFunctions(b.statements(), outerName, inner, inners);
+                out.add(new BlockStmt(b.position(), inner));
+                continue;
+            }
+            if (s instanceof IfStmt is) {
+                StatementNode thenB = hoistOne(is.thenBranch(), outerName, inners);
+                StatementNode elseB = is.elseBranch() != null
+                        ? hoistOne(is.elseBranch(), outerName, inners) : null;
+                out.add(new IfStmt(is.position(), is.condition(), thenB, elseB));
+                continue;
+            }
+            if (s instanceof WhileStmt ws) {
+                out.add(new WhileStmt(ws.position(), ws.condition(),
+                        hoistOne(ws.body(), outerName, inners)));
+                continue;
+            }
+            if (s instanceof ForStmt fs) {
+                out.add(new ForStmt(fs.position(), fs.init(), fs.condition(), fs.update(),
+                        hoistOne(fs.body(), outerName, inners)));
+                continue;
+            }
+            if (s instanceof ForInStmt fis) {
+                out.add(new ForInStmt(fis.position(), fis.varName(),
+                        fis.collection(), hoistOne(fis.body(), outerName, inners)));
+                continue;
+            }
+            if (s instanceof TryStmt ts) {
+                List<CatchClause> newCatches = new ArrayList<>();
+                for (CatchClause c : ts.catchClauses()) {
+                    List<StatementNode> cb = new ArrayList<>();
+                    stripNestedFunctions(c.body(), outerName, cb, inners);
+                    newCatches.add(new CatchClause(c.position(), c.exceptionType(),
+                            c.exceptionName(), cb));
+                }
+                List<StatementNode> fin = ts.finallyBody() != null ? new ArrayList<>() : null;
+                if (fin != null) stripNestedFunctions(ts.finallyBody(), outerName, fin, inners);
+                List<StatementNode> tb = new ArrayList<>();
+                stripNestedFunctions(ts.tryBody(), outerName, tb, inners);
+                out.add(new TryStmt(ts.position(), tb, newCatches, fin));
+                continue;
+            }
+            out.add(s);
+        }
+    }
+
+    private static StatementNode hoistOne(StatementNode s, String outerName,
+                                          List<FunctionDeclarationNode> inners) {
+        List<StatementNode> single = new ArrayList<>();
+        stripNestedFunctions(List.of(s), outerName, single, inners);
+        return single.isEmpty() ? s : single.get(0);
+    }
+
+    /** Reescreve chamadas `inner(...)` → `outer__inner(...)` nas statements. */
+    private static List<StatementNode> rewriteCalls(List<StatementNode> body,
+                                                    List<FunctionDeclarationNode> inners) {
+        if (inners.isEmpty() || body == null) return body;
+        java.util.Map<String, String> renames = new java.util.HashMap<>();
+        for (FunctionDeclarationNode in : inners) {
+            String q = in.name();
+            renames.put(q.substring(q.lastIndexOf("__") + 2), q);
+        }
+        List<StatementNode> out = new ArrayList<>();
+        for (StatementNode s : body) out.add(rewriteStmt(s, renames));
+        return out;
+    }
+
+    private static StatementNode rewriteStmt(StatementNode s, java.util.Map<String, String> renames) {
+        if (s instanceof ExpressionStmt es && es.expression() != null) {
+            return new ExpressionStmt(es.position(), rewriteExpr(es.expression(), renames));
+        }
+        if (s instanceof ReturnStmt rs && rs.value() != null) {
+            return new ReturnStmt(rs.position(), rewriteExpr(rs.value(), renames));
+        }
+        if (s instanceof VarDeclStmt vd && vd.initializer() != null) {
+            return new VarDeclStmt(vd.position(), vd.type(), vd.name(),
+                    rewriteExpr(vd.initializer(), renames));
+        }
+        if (s instanceof IfStmt is) {
+            StatementNode thenB = rewriteStmt(is.thenBranch(), renames);
+            StatementNode elseB = is.elseBranch() != null ? rewriteStmt(is.elseBranch(), renames) : null;
+            return new IfStmt(is.position(), rewriteExpr(is.condition(), renames), thenB, elseB);
+        }
+        if (s instanceof WhileStmt ws) {
+            return new WhileStmt(ws.position(), rewriteExpr(ws.condition(), renames),
+                    rewriteStmt(ws.body(), renames));
+        }
+        if (s instanceof BlockStmt b) {
+            List<StatementNode> inner = new ArrayList<>();
+            for (StatementNode st : b.statements()) inner.add(rewriteStmt(st, renames));
+            return new BlockStmt(b.position(), inner);
+        }
+        return s;
+    }
+
+    private static ExpressionNode rewriteExpr(ExpressionNode e, java.util.Map<String, String> renames) {
+        if (e == null) return null;
+        if (e instanceof MethodCallExpr mc && mc.receiver() == null) {
+            String target = renames.get(mc.methodName());
+            if (target != null) {
+                List<ExpressionNode> args = new ArrayList<>();
+                for (ExpressionNode a : mc.arguments()) args.add(rewriteExpr(a, renames));
+                return new MethodCallExpr(mc.position(), null, target,
+                        mc.typeArguments(), args);
+            }
+            List<ExpressionNode> args = new ArrayList<>();
+            for (ExpressionNode a : mc.arguments()) args.add(rewriteExpr(a, renames));
+            return new MethodCallExpr(mc.position(), mc.receiver() != null
+                    ? rewriteExpr(mc.receiver(), renames) : null,
+                    mc.methodName(), mc.typeArguments(), args);
+        }
+        if (e instanceof BinaryExpr bin) {
+            return new BinaryExpr(bin.position(), bin.operator(),
+                    rewriteExpr(bin.left(), renames), rewriteExpr(bin.right(), renames));
+        }
+        if (e instanceof UnaryExpr ue) {
+            return new UnaryExpr(ue.position(), ue.operator(),
+                    rewriteExpr(ue.operand(), renames), ue.prefix());
+        }
+        return e;
+    }
+
+    static CompilationUnitNode desugarApplication(CompilationUnitNode unit) {        java.util.List<AstNode> decls = new ArrayList<>();
         boolean hasOnStart = false;
         boolean hasOnShutdown = false;
         for (AstNode d : unit.declarations()) {

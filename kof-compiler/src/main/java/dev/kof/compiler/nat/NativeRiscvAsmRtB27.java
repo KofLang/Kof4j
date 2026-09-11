@@ -1,6 +1,8 @@
 package dev.kof.compiler.nat;
 
 // FASE 4 (STDLIB S10): fatia 27 de RISCV_RUNTIME_ASM_B — kof.random.
+// Merge beta/main (10/09): kof_random_bool (apelido da face beta S10a)
+// tail-jmp p/ kof_random_boolean; kof_random_string mora na B28 (beta).
 // Entropia por getrandom(2) via ecall — syscall 278 (CONFIRMADO no probe
 // SECN000/B25, qemu-riscv64 E qemu-aarch64). R11: só a primitiva do SO.
 //
@@ -77,6 +79,13 @@ public final class NativeRiscvAsmRtB27 {
             .Lrnd_b_done:
                 addi sp, sp, 80
                 ret
+
+            # kof_random_bool() = apelido da face beta (S10a) do MESMO
+            # contrato kof_random_boolean (bit do 1o byte de getrandom).
+            # Tail-jmp: zero lógica duplicada (R11/reuso).
+            .globl kof_random_bool
+            kof_random_bool:
+                j    kof_random_boolean
 
             # kof_random_int(a0=bound) -> Int em [0,bound); bound<=0 => 0
             # (blez trata negativo e zero).

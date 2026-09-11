@@ -941,4 +941,140 @@ class NativeE2ETest {
                 """);
         runNative(source, tempDir.resolve("out"), "4\n4");
     }
+
+    // bug 43 (metade char_at, 10/09): charAt conta code units UTF-16 no Native
+    // x86_64 — igual ao JVM/JS. café.charAt(3)=233 (é), astral: charAt(1)=
+    // 55357 (surrogate high), charAt(2)=56832 (surrogate low).
+    @Test
+    void nativeStringCharAtUtf16(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+                main() {
+                    var s = "café"
+                    println(s.charAt(3))
+                    var e = "a😀b"
+                    println(e.charAt(1))
+                    println(e.charAt(2))
+                    println(e.charAt(3))
+                }
+                """);
+        runNative(source, tempDir.resolve("out"), "233\n55357\n56832\n98");
+    }
+
+    // bug 43 (metade substring, 10/09): substring conta code units UTF-16 no
+    // Native — igual ao JVM/JS. Testes SEM cortar par astral ao meio (corte de
+    // surrogate exige storage WTF-8 — sub-residual registrado, §43). Verificado
+    // contra o oracle JVM no mesmo programa (3/1/bc/cd/é idênticos).
+    @Test
+    void nativeStringSubstringUtf16(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+                main() {
+                    var s = "café"
+                    println(s.substring(1))
+                    println(s.substring(1).length)
+                    println(s.substring(3))
+                    var e = "a😀b"
+                    println(e.substring(0, 3).length)
+                    println(e.substring(1, 3))
+                    println(e.substring(3))
+                }
+                """);
+        runNative(source, tempDir.resolve("out"), "afé\n3\né\n3\n😀\nb");
+    }
+
+    // bug 43 (face indexOf/lastIndexOf, 10/09): índice em CODE UNITS UTF-16 no
+    // Native — igual ao JVM/Script (byte-based dava `a😀b.indexOf("c")`=10 vs
+    // 6). Needle vazio, needle maior, corte de par e casos-borda cobertos.
+    @Test
+    void nativeStringIndexOfUtf16(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+                main() {
+                    var e = "a😀b😀c"
+                    println(e.indexOf("c"))
+                    println(e.indexOf("b"))
+                    println(e.indexOf("😀c"))
+                    println(e.indexOf("z"))
+                    println(e.lastIndexOf("😀"))
+                    println(e.indexOf(""))
+                    println(e.lastIndexOf(""))
+                    println("café".indexOf("é"))
+                    println("abcdef".indexOf("abcdef"))
+                    println("abcdef".indexOf("abcdefg"))
+                }
+                """);
+        runNative(source, tempDir.resolve("out"), "6\n3\n4\n-1\n4\n0\n7\n3\n0\n-1");
+    }
+
+    // bug 95: o ramo inline do split usava labels FIXAS (.Lkof_split_empty_sep/
+    // _call) — um 2º split no mesmo programa redefinía o símbolo → "already
+    // defined" no assembler (COMP001). Qualquer programa com 2+ splits (parsear
+    // 2 CSV) era INCOMPILÁVEL no Native x86_64.
+    @Test
+    void nativeTwoSplitsInOneProgram(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+                main() {
+                    var a = "x,y".split(",").length
+                    var b = "p,q,r".split(",").length
+                    println(a + b)
+                    println("m,n".split(",").get(1))
+                }
+                """);
+        runNative(source, tempDir.resolve("out"), "5\nn");
+    }
+
+    // bug 97: String.compareTo/String.hashCode eram declarados no
+    // type-system.md + aceitos pelo typer, mas nenhum nativo os emitia →
+    // undefined reference java_lang_String_compareTo/_hashCode no link. Os 2
+    // agora andam por CODE UNITS UTF-16 (não memcmp/byte-sum — paridade falsa
+    // em astrais era a armadilha, lição bug 43). Golden = saída JVM/Script.
+    @Test
+    void nativeStringCompareToAndHashCodeUtf16(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+                main() {
+                    println("ab".compareTo("aX"))
+                    println("a\\u00e9".compareTo("a"))
+                    println("abc".compareTo("abd"))
+                    println("ab".compareTo("abc"))
+                    println("\\uD83D\\uDE00".compareTo("a"))
+                    println("a\\uD83D\\uDE00".compareTo("a\\uFFFD"))
+                    println("a\\uFFFD".compareTo("a\\uD83D\\uDE00"))
+                    println("abc".hashCode())
+                    println("a\\u00e9".hashCode())
+                    println("\\uD83D\\uDE00".hashCode())
+                    println("".hashCode())
+                }
+                """);
+        runNative(source, tempDir.resolve("out"),
+                "10\n1\n-1\n-1\n55260\n-10176\n10176\n96354\n3240\n1772899\n0");
+    }
+
+    // bug 97 (continuação): String.equals caiu no caminho genérico →
+    // undefined reference java_lang_String_equals. Agora roteado p/
+    // kof_string_equals (mesmo conteúdo do `==`). Guard isString é essencial:
+    // record.equals (equals gerado campo-a-campo) NÃO pode ser hijackado —
+    // o teste cobre os DOIS lado a lado no MESMO programa.
+    @Test
+    void nativeStringEqualsVsRecordEquals(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+                record P(Int x, Int y)
+                main() {
+                    println("a\\u00e9".equals("a\\u00e9"))
+                    println("caf\\u00e9".equals("cafe"))
+                    println("hi".equals("hi" + ""))
+                    var a = P(1,2)
+                    var b = P(1,2)
+                    var c = P(1,3)
+                    println(a.equals(b))
+                    println(a.equals(c))
+                    var l = listOf(1,2,3)
+                    println(l.contains(2))
+                }
+                """);
+        runNative(source, tempDir.resolve("out"), "true\nfalse\ntrue\ntrue\nfalse\ntrue");
+    }
 }

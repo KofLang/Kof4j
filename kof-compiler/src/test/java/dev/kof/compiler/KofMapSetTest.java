@@ -114,10 +114,14 @@ class KofMapSetTest {
             View? maybe() { return View("a") }
             main() {
                 var v = maybe()
-                println(v.render())
+                if (v != null) {
+                    println(v.render())
+                }
                 var m = mapOf("k", View("x"))
                 var w = m.get("k")
-                println(w.render())
+                if (w != null) {
+                    println(w.render())
+                }
             }
             """;
         runJvm(tmp, src, "v:a\nv:x");

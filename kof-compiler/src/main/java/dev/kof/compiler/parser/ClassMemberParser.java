@@ -84,6 +84,12 @@ public class ClassMemberParser {
                     f.initializer(), annos);
         }
         if (ctx.check(TokenType.CLASS, TokenType.INTERFACE, TokenType.RECORD, TokenType.ENTITY)) {
+            // SG-016 (SEM042): tipo aninhado dentro de tipo não existe em Kof —
+            // erro de parse imediato (antes aceitava silenciosamente).
+            String nested = ctx.peek().value().toLowerCase();
+            ctx.error("nested type declaration is not supported: declare '" + nested
+                    + "' at top level", "SEM042");
+            ctx.advance();
             return Parser.parseTypeDeclaration(ctx, annos);
         }
         if (ctx.check(TokenType.LBRACE)) {

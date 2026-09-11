@@ -70,6 +70,12 @@ public final class JvmTimeRuntime {
                     return (int) Math.floorMod(ed + 3, 7) + 1;
                 }
 
+                // isWeekend (S7-ext): dayOfWeek >= 6 (ISO 1=seg..7=dom).
+                // Data inválida => dayOfWeek 0 => false (gating automático).
+                public static boolean kof_time_isWeekend(int year, int month, int day) {
+                    return kof_time_dayOfWeek(year, month, day) >= 6;
+                }
+
                 public static int kof_time_daysBetween(int y1, int m1, int d1,
                                                        int y2, int m2, int d2) {
                     if (!kof_time_validDate(y1, m1, d1) || !kof_time_validDate(y2, m2, d2)) return 0;

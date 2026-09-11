@@ -159,15 +159,17 @@ class ConformanceMatrixTest {
                     println(66 as Char)
                 }
                 """, "9\n70000\n66", Set.of(), tempDir);
-        // PARTIAL: Native bug 44 (6 casas + `5` sem `.0`); KofJS doc
-        // "parece bug mas é esperado" (JS `String(5.0)` = `"5"`).
+        // bug 44 CORRIGIDO 10/09 (x86_64): kof_print_double/float via snprintf
+        // %.16g + append '.0' p/ inteiro-válido + write via syscall (sem
+        // printf/reordenação) — Native desbloqueado. KofJS mantém a exclusão:
+        // doc "parece bug mas é esperado" (JS String(5.0) = "5").
         matrix("floatprint", """
                 main() {
                     println(1.0 / 3.0)
                     println(2.5 * 2.0)
                     println(7.0 / 2.0)
                 }
-                """, "0.3333333333333333\n5.0\n3.5", Set.of("native", "js"), tempDir);
+                """, "0.3333333333333333\n5.0\n3.5", Set.of("js"), tempDir);
         matrix("boollogic", """
                 main() {
                     println(true && false)
@@ -186,7 +188,7 @@ class ConformanceMatrixTest {
                 }
                 """, "2\n7\n5\n16\n64", Set.of(), tempDir);
         // STDLIB S1 — kof.math (Int-only) paridade total nos 4 targets.
-        // §80: os dois últimos casos comparam `== true`/`== false` no
+        // §93: os dois últimos casos comparam `== true`/`== false` no
         // CAMINHO DE VALOR (o print sozinho coercia 1/0 e mascarava o bug).
         matrix("stdmath", """
                 main() {
@@ -203,6 +205,44 @@ class ConformanceMatrixTest {
                     println(math.isEven(4) == false)
                 }
                 """, "10\n0\n7\n-1\n3\n8\ntrue\nfalse\ntrue\ntrue\nfalse", Set.of(), tempDir);
+        // STDLIB S1b — kof.math.sqrt (PRIMEIRO Double da namespace). Compara-
+        // ções Bool (nunca print de double cru — bug 44 no Native). riscv/aarch
+        // = MATH001 (gate em KofMath; a matriz não cobre nativos cross).
+        // PARTIAL script = bug 94 (numEq usa Double.compare → NaN==NaN true,
+        // divergindo dos 3 compilados que seguem IEEE NaN!=NaN).
+        matrix("stdsqrt", """
+                main() {
+                    println(math.sqrt(9.0) == 3.0)
+                    println(math.sqrt(2.0) == 1.4142135623730951)
+                    println(math.sqrt(0.25) == 0.5)
+                    println(math.sqrt(0.0) == 0.0)
+                    println(math.sqrt(-1.0) == -1.0)
+                    println(math.sqrt(-1.0) != math.sqrt(-1.0))
+                }
+                 """, "true\ntrue\ntrue\ntrue\nfalse\ntrue", Set.of("script"), tempDir);
+        // STDLIB S1b.1 — kof.math escalares Double (lerp/percentage/
+        // isInteger/isDecimal). Subset determinístico travado nos 4 targets
+        // (NaN excluído — bug 94 no interpretador; provado só nos compilados
+        // em KofMathTest.doubleOps*). Bool == false no script casa (S12b).
+        matrix("stdmathdouble", """
+                main() {
+                    println(math.lerp(0.0, 10.0, 0.5) == 5.0)
+                    println(math.lerp(0.0, 10.0, 0.25) == 2.5)
+                    println(math.lerp(-4.0, 4.0, 0.75) == 2.0)
+                    println(math.lerp(2.0, 8.0, 1.5) == 11.0)
+                    println(math.percentage(3.0, 4.0) == 75.0)
+                    println(math.percentage(1.0, 3.0) == 33.33333333333333)
+                    println(math.percentage(-2.0, 8.0) == -25.0)
+                    println(math.percentage(0.0, 5.0) == 0.0)
+                    println(math.isInteger(4.0))
+                    println(math.isInteger(4.5) == false)
+                    println(math.isInteger(-3.0))
+                    println(math.isInteger(0.0))
+                    println(math.isInteger(1e20))
+                    println(math.isDecimal(4.5))
+                    println(math.isDecimal(4.0) == false)
+                }
+                """, "true\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue", Set.of(), tempDir);
         // STDLIB S2a — kof.strings predicados paridade total nos 4 targets.
         matrix("stdstrings", """
                 main() {
@@ -423,10 +463,9 @@ class ConformanceMatrixTest {
 
     @Test
     void conformanceCoreStrings(@TempDir Path tempDir) throws IOException {
-        // PARTIAL: Native bug 43 (UTF-8 byte-based: length 5, charAt 195).
-        // PARTIAL: bug 43 — metade length CORRIGIDA (kof_string_length UTF-16,
-        // NativeE2ETest.nativeStringLengthUtf16); charAt(3) no Native ainda dá
-        // 195 (byte UTF-8) vs 233 (code unit UTF-16) — verificado 08/09.
+        // bug 43 CORRIGIDO (x86_64, 10/09): kof_string_char_at agora conta
+        // code units UTF-16 (café.charAt(3)=233) — verificado no teste abaixo.
+        // Residual: substring ainda é byte-based (separado, §43 nota).
         matrix("unicode", """
                 main() {
                     var s = "café"
@@ -434,7 +473,41 @@ class ConformanceMatrixTest {
                     println(s.charAt(3))
                     println(s + "!")
                 }
-                """, "4\n233\ncafé!", Set.of("native"), tempDir);
+                """, "4\n233\ncafé!", Set.of(), tempDir);
+        matrix("unicode-astral", """
+                main() {
+                    var e = "a😀b"
+                    println(e.length)
+                    println(e.charAt(1))
+                    println(e.charAt(2))
+                    println(e.charAt(3))
+                }
+                """, "4\n55357\n56832\n98", Set.of(), tempDir);
+        // bug 43 (substring face, 10/09) — code units UTF-16, paridade 4
+        // targets. SÓ fronteiras bem-formadas (corte de par astral ao meio
+        // exige storage WTF-8 — sub-residual §43, não entra na matriz).
+        matrix("unicode-substring", """
+                main() {
+                    var s = "café"
+                    println(s.substring(1))
+                    println(s.substring(3))
+                    var e = "a😀b"
+                    println(e.substring(1, 3))
+                    println(e.substring(0, 3).length)
+                    println(e.substring(3))
+                }
+                """, "afé\né\n😀\n3\nb", Set.of(), tempDir);
+        // bug 43 (indexOf/lastIndexOf face, 10/09) — índice em code units
+        // UTF-16 nos 4 targets (needle vazio / ausente / astral).
+        matrix("unicode-indexof", """
+                main() {
+                    var e = "a😀b😀c"
+                    println(e.indexOf("c"))
+                    println(e.indexOf("z"))
+                    println(e.lastIndexOf("😀"))
+                    println("café".indexOf("é"))
+                }
+                """, "6\n-1\n4\n3", Set.of(), tempDir);
         matrix("strops", """
                 main() {
                     var s = "a,b,,c"
@@ -506,18 +579,19 @@ class ConformanceMatrixTest {
 
     @Test
     void conformanceCoreNull(@TempDir Path tempDir) throws IOException {
+        // SEM048: null não é fabricável (literal banido); T? vem de API.
         matrix("nulleq", """
                 main() {
-                    var a = null
-                    var b = null
+                    var a = mapOf("x", 1).get("y")
+                    var b = mapOf("x", 1).get("z")
                     println(a == b)
                     println(a != b)
                 }
                 """, "true\nfalse", Set.of(), tempDir);
         matrix("nulleqshortcut", """
                 main() {
-                    var a = null
-                    var b = null
+                    var a = mapOf("x", 1).get("y")
+                    var b = mapOf("x", 1).get("z")
                     if (a == b) { println("iguais") } else { println("dif") }
                     if (a != b) { println("ne") } else { println("nao-ne") }
                 }

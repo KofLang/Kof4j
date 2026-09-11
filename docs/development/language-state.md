@@ -1,5 +1,10 @@
 # Estado Atual da Linguagem Kof
 
+> ⚠️ **SNAPSHOT HISTÓRICO (02/09, 0.2.6-beta).** Este doc estava uma versão
+> atrás da implementação; foi mantido como registro do estado naquele dia.
+> Para o estado CORRENTE: `docs/status.md`, `docs/language-reference/`,
+> `docs/development/specification-gaps.md` e a suíte (`mvn test`).
+
 **Data:** 2 de setembro de 2026
 **Versão:** 0.2.6-beta
 **Testes:** 810 JUnit (793 kof-compiler +8 kof-script +5 kof-c-compiler +4 kof-cli, 0 falhas) +1 skip condicional; `NativeE2ETest` 50/50, `JvmE2ETest` 29/29, `KofJsE2ETest` 35/35, `KofCCompilerTest` 5/5, `KofHttpE2ETest` 4/4, `KofCacheE2ETest` 5/5 (x3 targets), `KofWebWsE2ETest` 11/11, `KofWebSseE2ETest` 7/7; inclui JSON (completo nos 3 targets, 31/08), exceptions, web (ws/sse 30/08), db/orm, UI, security G9, generics `Box<T>` fix, pattern matching e null safety (fix JVM 02/09)

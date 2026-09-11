@@ -64,6 +64,13 @@ public final class SwitchExprLowerer {
             ops.add(new KofConditionalJump(KofComparison.NE, bodyLabel, elseLabel));
             ops.add(new KofLabel(bodyLabel));
             localIdx = emitPatternBinding(driver, pe, patType, switchType, switchTmp, ops, localIdx, locals);
+            // SG-014: guarda — avaliada com a var JÁ bound; false → próximo braço
+            if (pe.guard() != null) {
+                localIdx = ExpressionLowerer.emitExpression(driver, pe.guard(), ops, owner, localIdx, locals);
+                ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
+                ops.add(new KofConditionalJump(KofComparison.EQ, elseLabel, bodyLabel));
+                ops.add(new KofLabel(bodyLabel));
+            }
         } else {
             ops.add(new KofLoadLocal(switchType, switchTmp));
             localIdx = ExpressionLowerer.emitExpression(driver, sc.value(), ops, owner, localIdx, locals);

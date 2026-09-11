@@ -17,10 +17,20 @@ math.clamp(v, lo, hi)      // hi < lo => comportamento de swap NÃO garantido: v
 math.abs(x)  math.sign(x)
 math.min(a, b)  math.max(a, b)     // aritmético; ≠ validation.min/max (predicado de tamanho)
 math.isEven(x) math.isOdd(x) math.isPositive(x) math.isNegative(x) math.isZero(x)
+math.sqrt(2.0)                          // Double; -1.0 => NaN (IEEE); riscv/aarch = MATH001
+math.lerp(0.0, 10.0, 0.5)               // a + (b - a) * t — interpolação linear (S1b.1)
+math.percentage(3.0, 4.0)               // 75.0; total == 0 => NaN (nunca lança) (S1b.1)
+math.isInteger(4.0)                     // true; 4.5/NaN/Inf => false (S1b.1)
+math.isDecimal(4.5)                     // !isInteger (S1b.1)
 ```
 
-Double (lerp/roundTo/sqrt/pow) ainda não existe — é S1b (FP no asm riscv é
-caro; FLT001 parcial). **Não invente** `math.sqrt` hoje: não compila.
+Double: `math.sqrt(x)` (S1b) + `lerp`/`percentage`/`isInteger`/`isDecimal`
+(S1b.1, 10/09 — escalares Double **puros**, sem libm) existem em
+JVM/Script/JS/x86; NaN em <0 = IEEE; riscv64/aarch64 = `MATH001`, não
+compilam. Os args são **Double explícitos** — `math.lerp(0, 10, 0.5)` (Int)
+**não** compila (SEM025; sem widening silencioso). `roundTo`/`parse*`/`pow`
+ficam em degrau próprio — **não invente** esses ainda: não compilam (`pow`
+precisa de decisão de link libm; `roundTo` de floor asm).
 
 ## strings — predicados e conversores (S2)
 
@@ -32,6 +42,7 @@ strings.isUpperCase("HELLO")       // >=1 letra e nenhuma minúscula; "123" => f
 strings.isLowerCase("abc-123")     // demais chars ignorados
 strings.count("aabaabaa", "ab")    // 2 — NÃO-sobrepostas; sub vazio => 0
 strings.capitalize("hello")        // "Hello" (ASCII; 1º byte a-z)
+strings.uncapitalize("Hello")      // "hello" — espelho exato do capitalize (S11)
 strings.reverse("abc")             // "cba" (byte-reverso no Native — ver NAT-STR01)
 strings.repeat("ab", 3)            // "ababab"; n<=0 => ""
 strings.truncate("hello", 3)       // "hel"; n>=len => original; n<=0 => ""
@@ -88,23 +99,73 @@ encoding.urlDecode("caf%C3%A9")       // "café"; '%' sem 2 dígitos passa liter
 
 ```kof
 var id = uuid.v4()   // ex.: "xxxxxxxx-xxxx-4xxx-[89ab]xxx-xxxxxxxxxxxx" (shape RFC 4122)
+uuid.isUuid(id)      // true — valida o SHAPE (traços 8/13/18/23 + resto hex); NÃO checa versão/variante
 ```
 
-Não-determinístico: valide pelo **shape** (traços em 8/13/18/23, dígito 14='4',
-dígito 19∈{8,9,a,b}), nunca por igualdade. v7/ulid ainda não existem.
+Não-determinístico: valide pelo **shape** (`isUuid`, ou à mão: traços em 8/13/18/23,
+dígito 14='4', dígito 19∈{8,9,a,b}), nunca por igualdade. v7/ulid ainda não existem.
+
+## random (S10a/b)
+
+```kof
+// ❌ BAD — PRNG próprio, LCG de internet
+var seed = 12345
+seed = (seed * 1103515245 + 12345) % 32768
+```
+
+```kof
+// ✅ GOOD — entropia da plataforma, face de intenção
+var roll = random.randomInt(6) + 1
+var pass = random.randomString(12, "abcdefghijkmnpqrstuvwxyz23456789")
+var flip = random.randomBoolean()              // sorteio de moeda
+var pick = colors[random.randomInt(colors.size)]   // choice = idiom
+```
+
+**WHY:** `random.*` = sorteio (não-críptográfico); `security.*` = tokens
+(rejeição + validação). A escolha de lista **não** é função da stdlib —
+`list[random.randomInt(list.size)]` é o idiom; `randomChoice` exigiria
+retorno Object na camada de dispatch (DD-STDLIB-01 em aberto).
+
+## validation — formatar NÃO é validar (S12/S12b)
+
+```kof
+// ❌ BAD — pontuar à mão, e lançar quando o CPF tem dígitos demais
+var out = ""
+for (var i = 0; i < cpf.length; i++) {
+    out = out + cpf.charAt(i)
+    if (i == 2 || i == 5) { out = out + "." }
+}
+
+// ✅ GOOD — as duas faces, cada uma no seu lugar
+validation.isCpf("52998224725")     // STRICTA: false se dígitos verificação não batem
+validation.formatCpf("529.982.247-25") // "529.982.247-25" — LENIENTE: só pontua
+```
+
+**WHY:** `formatCpf`/`formatCep`/`formatCnpj` **formam, não validam**: tiram
+pontuação existente e reimponhem a máscara; se o número de dígitos não bate
+(ou é `null`), devolvem a **entrada original** — nunca lançam, nunca truncam.
+Quem decide se o documento é *válido* é a face stricta (`isCpf`/`isCnpj`/
+`isCep`). Separar as duas é a regra "represente a intenção": formatar
+apresentação é uma coisa, checar legitimidade é outra. O mesmo vale p/
+`time.isWeekend(y,m,d)` (só calendário, sem relógio — data inválida => `false`
+porque `dayOfWeek` dá 0).
 
 ## Nota por target (gates honestos)
 
 | função | JVM/Script | Native x86_64 | Native riscv64/aarch64 | JS |
 |---|---|---|---|---|
-| math.*, strings.is*/count/capitalize/reverse/repeat/truncate/pad*, encoding.hex*/url*, time.isLeapYear/daysInMonth/dayOfWeek/daysBetween, validation.isCpf/isCnpj/isCep/isPis/isIpv4/isIpv6/isMac/isPort/isCreditCard/isDomain | ✅ | ✅ | ✅ | ✅ |
+| math.*, strings.is*/count/capitalize/uncapitalize/reverse/repeat/truncate/pad*, encoding.hex*/url*, time.isLeapYear/daysInMonth/dayOfWeek/daysBetween/isWeekend, validation.isCpf/isCnpj/isCep/isPis/isIpv4/isIpv6/isMac/isPort/isCreditCard/isDomain/formatCpf/formatCep/formatCnpj | ✅ | ✅ | ✅ | ✅ |
 | strings.toCamel/Pascal/Snake/Kebab/slugify | ✅ | ✅ | ✅ (STRN001 fechado 09/09 — B15, diff golden qemu) | ✅ |
 | strings.escapeHtml/escapeJson (5 entidades; >=128 cópia) | ✅ | ✅ | ✅ (B20, diff golden qemu) | ✅ |
 | strings.removeWhitespace/normalizeWhitespace | ✅ | ✅ | ✅ (B21) | ✅ |
 | encoding.base64* / base64Url* | ✅ | ✅ | ✅ (ENC002 fechado 09/09) | ✅ |
 | net.scheme/host/port/path/query/fragment + queryEncode/Decode | ✅ | ✅ | ✅ (NET001 fechado 09/09) | ✅ |
 | uuid.v4 | ✅ | ✅ | ✅ (SECN000 fechado 09/09) | ✅ |
-| uuid.isUuid (forma 8-4-4-4-12; version/variant não verificadas) | ✅ | ✅ | ❌ `UUID001` | ✅ |
+| uuid.isUuid (forma 8-4-4-4-12; version/variant não verificadas) | ✅ | ✅ | ✅ (B25, UUID001 fechado no merge beta→main 10/09) | ✅ |
+| math.sqrt (S1b — primeiro Double; NaN em <0 = IEEE) | ✅ | ✅ | ❌ `MATH001` | ✅ |
+| math.lerp/percentage/isInteger/isDecimal (S1b.1 — SSE2 puro, sem libm) | ✅ | ✅ | ❌ `MATH001` | ✅ |
+| random.randomInt/randomBoolean/randomString (face beta S10a/b) | ✅ | ✅ | ✅ (B27/B28, getrandom/lemire) | ✅ |
+| random.double/boolean/int/hex (face main S10) | ✅ | ✅ | ✅ (B27) | ✅ |
 
 `strings.reverse` em não-ASCII: byte-reverso no Native vs UTF-16 no JVM/JS —
 gap **NAT-STR01** (paridade só travada em ASCII na matriz).

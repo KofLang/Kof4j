@@ -125,7 +125,15 @@ public final class NativeRiscvAsmRt0 {
                 ld   ra, 40(sp)
                 addi sp, sp, 48
                 ret
-            # kof_int_to_string(n) -> KofStr*
+            # kof_int_to_string(n) -> KofStr*  (RV64: serve Int E Long —
+            # kof_long_to_string e alias). bug 80: extrai digitos de s5=-|v|
+            # (magnitude em forma NEGATIVA), nao de +|v|: para Int.MIN o
+            # neg(+|v|) cabia em 64 bits "por acaso", mas Long.MIN=-2^63 e
+            # AUTO-REFERENTE (neg devolve o proprio MIN) -> rem/div signed
+            # sobre "magnitude" negativa davam restos negativos = lixo. Na
+            # forma negativa TODOS os 64-bit cabem ([-2^63,0]) sem overflow:
+            # v>0 => neg; v<=0 => mantem. rem(v<=0)E[-9,0], digit=-rem.
+            # Ops usadas (rem/div/neg/b*li) ja suportadas no aarch64.
             .globl kof_int_to_string
             kof_int_to_string:
                 addi sp, sp, -48
@@ -137,10 +145,15 @@ public final class NativeRiscvAsmRt0 {
                 sd   s5, 0(sp)
                 mv   s0, a0
                 li   s4, 0
-                bgez s0, .Lkits_pos
-                li   s4, 1
-                neg  s0, s0
+                bgtz s0, .Lkits_pos
+                bltz s0, .Lkits_neg
+                j    .Lkits_mag
             .Lkits_pos:
+                neg  s0, s0
+                j    .Lkits_mag
+            .Lkits_neg:
+                li   s4, 1
+            .Lkits_mag:
                 mv   s5, s0
                 li   s3, 0
                 mv   t4, s5
@@ -171,6 +184,7 @@ public final class NativeRiscvAsmRt0 {
             .Lkits_loop:
                 li   t2, 10
                 rem  t3, t0, t2
+                neg  t3, t3
                 addi t3, t3, 48
                 sb   t3, 0(t1)
                 addi t1, t1, -1

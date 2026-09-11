@@ -61,7 +61,7 @@ public final class MemberResolver {
      * JVM quebra.
      */
     static Type qualifyViaImports(CompilationUnitNode unit, String name) {
-        if (name.contains(".") || name.contains("<") || name.endsWith("[]")) return null;
+        if (name == null || name.contains(".") || name.contains("<") || name.endsWith("[]")) return null;
         if (unit == null) return null;
         for (String imp : unit.imports()) {
             if (!imp.endsWith("*") && imp.endsWith("." + name)) {
@@ -91,6 +91,9 @@ public final class MemberResolver {
 
     /** Resolve um nome de tipo no escopo (type param → import → qualificado). */
     static Type resolveType(SemanticAnalyzer sa, String name, SymbolTable scope) {
+        // SG-012: param de lambda sem anotação chega como null — Unknown
+        // (a inferência contextual decide; nunca Object silencioso)
+        if (name == null) return Type.UnknownType.UNKNOWN;
         SymbolTable.Symbol sym = scope != null ? scope.resolve(name) : null;
         if (sym instanceof SymbolTable.TypeParameterSymbol) return sym.type();
         Type viaImports = qualifyViaImports(sa.unit(), name);

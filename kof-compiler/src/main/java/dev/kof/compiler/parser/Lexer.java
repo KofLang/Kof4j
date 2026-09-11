@@ -23,8 +23,6 @@ public class Lexer {
         KEYWORDS.put("unique", TokenType.UNIQUE);
         KEYWORDS.put("extends", TokenType.EXTENDS);
         KEYWORDS.put("implements", TokenType.IMPLEMENTS);
-        KEYWORDS.put("sealed", TokenType.SEALED);
-        KEYWORDS.put("permits", TokenType.PERMITS);
         // Palavras RESERVADAS (SG-001, 06/09): nunca foram keyword de função
         // do Kof (o corpus diz "não existe fun/fn/func") — viraram reserved
         // words para que NÃO voltem nem como identificador (fun() como nome,
@@ -413,7 +411,6 @@ public class Lexer {
             };
             case '=' -> switch (peek()) {
                 case '=' -> { advance(); yield TokenType.EQUAL_EQUAL; }
-                case '>' -> { advance(); yield TokenType.DOUBLE_ARROW; }
                 default -> TokenType.EQUAL;
             };
             case '<' -> switch (peek()) {
@@ -447,14 +444,12 @@ public class Lexer {
             case '|' -> switch (peek()) {
                 case '|' -> { advance(); yield TokenType.PIPE_PIPE; }
                 case '=' -> { advance(); yield TokenType.PIPE_EQUAL; }
-                case '>' -> { advance(); yield TokenType.PIPE_LINE; }
                 default -> TokenType.PIPE;
             };
             case '^' -> switch (peek()) {
                 case '=' -> { advance(); yield TokenType.CARET_EQUAL; }
                 default -> TokenType.CARET;
             };
-            case '~' -> TokenType.TILDE;
             case '(' -> TokenType.LPAREN;
             case ')' -> TokenType.RPAREN;
             case '{' -> TokenType.LBRACE;
@@ -463,21 +458,10 @@ public class Lexer {
             case ']' -> TokenType.RBRACKET;
             case ';' -> TokenType.SEMICOLON;
             case ',' -> TokenType.COMMA;
-            case '.' -> {
-                if (peek() == '.' && peekNext() == '.') {
-                    advance();
-                    advance();
-                    yield TokenType.ELLIPSIS;
-                }
-                yield TokenType.DOT;
-            }
-            case ':' -> {
-                if (peek() == ':') { advance(); yield TokenType.COLON_COLON; }
-                yield TokenType.COLON;
-            }
+            case '.' -> TokenType.DOT;
+            case ':' -> TokenType.COLON;
             case '?' -> TokenType.QUESTION;
             case '@' -> TokenType.AT;
-            case '_' -> TokenType.UNDERSCORE;
             default -> {
                 diagnostics.error(file, startLine, startCol, 1,
                         "Unexpected character: '" + c + "'", "LEX005");

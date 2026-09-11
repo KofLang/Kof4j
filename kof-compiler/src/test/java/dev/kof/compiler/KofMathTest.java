@@ -72,6 +72,115 @@ class KofMathTest {
             """, "10\n0\n7\n-1\n3\n8\ntrue\nfalse\ntrue\nfalse\ntrue");
     }
 
+    // S1b: sqrt = PRIMEIRO Double em kof.math. Comparações Bool (nunca
+    // println de double cru — bug 44 no Native). NaN em <0 = paridade
+    // Math.sqrt (IEEE, medido nos 4 targets: NaN==NaN é false).
+    private static final String SQRT_SRC = """
+        main() {
+            println(math.sqrt(9.0) == 3.0)
+            println(math.sqrt(2.0) == 1.4142135623730951)
+            println(math.sqrt(0.25) == 0.5)
+            println(math.sqrt(1e30) == 1000000000000000.0)
+            println(math.sqrt(1e300) == 1e150)
+            println(math.sqrt(0.0) == 0.0)
+            println(math.sqrt(-1.0) == -1.0)
+            println(math.sqrt(-1.0) != math.sqrt(-1.0))
+        }
+        """;
+
+    private static final String SQRT_OUT =
+            "true\ntrue\ntrue\ntrue\ntrue\ntrue\nfalse\ntrue";
+
+    @Test
+    void sqrtJvm(@TempDir Path tmp) throws Exception {
+        runJvm(tmp, SQRT_SRC, SQRT_OUT);
+    }
+
+    @Test
+    void sqrtNative(@TempDir Path tmp) throws Exception {
+        runNative(tmp, SQRT_SRC, SQRT_OUT);
+    }
+
+    @Test
+    void sqrtJs(@TempDir Path tmp) throws Exception {
+        runJs(tmp, SQRT_SRC, SQRT_OUT);
+    }
+
+    @Test
+    void sqrtGatedOnCrossArch(@TempDir Path tmp) throws Exception {
+        assertGated(tmp, SQRT_SRC, "sqrt");
+    }
+
+    // S1b.1: escalares Double puros (lerp/percentage/isInteger/isDecimal) —
+    // paridade byte-idêntica JVM/Script/JS/x86 (harness SSE2 isolado 18/18
+    // antes desta classe). Golden travado no oracle JVM medido (P.java/O.java
+    // da sessão), nunca de memória: 2.675-style não entra (roundTo fica no
+    // degrau seguinte). NaN via percentage(0,0) — IEEE, != != em todos.
+    private static final String DBL_SRC = """
+        main() {
+            println(math.lerp(0.0, 10.0, 0.5) == 5.0)
+            println(math.lerp(0.0, 10.0, 0.25) == 2.5)
+            println(math.lerp(-4.0, 4.0, 0.75) == 2.0)
+            println(math.lerp(2.0, 8.0, 1.5) == 11.0)
+            println(math.percentage(3.0, 4.0) == 75.0)
+            println(math.percentage(1.0, 3.0) == 33.33333333333333)
+            println(math.percentage(-2.0, 8.0) == -25.0)
+            println(math.percentage(0.0, 5.0) == 0.0)
+            println(math.percentage(0.0, 0.0) != math.percentage(0.0, 0.0))
+            println(math.isInteger(4.0))
+            println(math.isInteger(4.5) == false)
+            println(math.isInteger(-3.0))
+            println(math.isInteger(0.0))
+            println(math.isInteger(1e20))
+            println(math.isDecimal(4.5))
+            println(math.isDecimal(4.0) == false)
+            println(math.isInteger(1.0 / 0.0) == false)
+            println(math.isDecimal(1.0 / 0.0))
+        }
+        """;
+
+    private static final String DBL_OUT = String.join("\n",
+            "true", "true", "true", "true", "true", "true", "true", "true", "true",
+            "true", "true", "true", "true", "true", "true", "true", "true", "true");
+
+    @Test
+    void doubleOpsJvm(@TempDir Path tmp) throws Exception {
+        runJvm(tmp, DBL_SRC, DBL_OUT);
+    }
+
+    @Test
+    void doubleOpsNative(@TempDir Path tmp) throws Exception {
+        runNative(tmp, DBL_SRC, DBL_OUT);
+    }
+
+    @Test
+    void doubleOpsJs(@TempDir Path tmp) throws Exception {
+        runJs(tmp, DBL_SRC, DBL_OUT);
+    }
+
+    @Test
+    void doubleOpsGatedOnCrossArch(@TempDir Path tmp) throws Exception {
+        assertGated(tmp, DBL_SRC, "lerp");
+    }
+
+    private void assertGated(@TempDir Path tmp, String src, String label) throws Exception {
+        // MATH001 (R6 — nunca silencioso): Double ops têm JVM/Script/JS/x86
+        // (sqrtsd + SSE2); riscv64/aarch64 aguardam as rotinas FP montadas e
+        // rodadas (a lane não tem cross-assembler/qemu — regra: nunca asm sem prova).
+        Path gateSrc = tmp.resolve("Gate-" + label + "-" + System.nanoTime() + ".kf");
+        Files.writeString(gateSrc, src);
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            CompilationResult r = new CompilerDriver().compile(
+                    gateSrc, tmp.resolve("gate-" + t + "-" + System.nanoTime()), t);
+            assertFalse(r.success(), t + " deve rejeitar " + label + " (MATH001)");
+            boolean has = r.diagnostics().getDiagnostics().stream()
+                    .anyMatch(d -> "MATH001".equals(d.code())
+                            || (d.message() != null && d.message().contains("MATH001")));
+            assertTrue(has, t + " deve reportar MATH001, veio: "
+                    + r.diagnostics().getDiagnostics());
+        }
+    }
+
     private String runJvm(Path tempDir, String source, String expected) throws Exception {
         Path file = tempDir.resolve("Main-" + System.nanoTime() + ".kf");
         Files.writeString(file, source);

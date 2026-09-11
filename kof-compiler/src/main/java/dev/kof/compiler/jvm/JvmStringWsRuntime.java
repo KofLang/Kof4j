@@ -19,6 +19,14 @@ public final class JvmStringWsRuntime {
                 }
 
                 // removeWhitespace: descarta todo WS; null -> null.
+                // uncapitalize (S11): espelho do capitalize — byte 0 A-Z -> a-z.
+                public static String kof_strings_uncapitalize(String v) {
+                    if (v == null || v.isEmpty()) return v;
+                    char c = v.charAt(0);
+                    if (c >= 'A' && c <= 'Z') return (char) (c + 32) + v.substring(1);
+                    return v;
+                }
+
                 public static String kof_strings_removeWhitespace(String v) {
                     if (v == null) return null;
                     StringBuilder o = new StringBuilder(v.length());

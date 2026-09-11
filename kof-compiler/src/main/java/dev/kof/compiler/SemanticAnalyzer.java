@@ -27,6 +27,8 @@ public class SemanticAnalyzer {
 
     private final Map<String, SymbolTable.ClassSymbol> knownClasses = new HashMap<>();
     private final java.util.Set<String> interfaceNames = new java.util.HashSet<>();
+    /** SG-017 (SEM041): classes declaradas `abstract` — `new A()` vira erro compile-time. */
+    private final java.util.Set<String> abstractClasses = new java.util.HashSet<>();
     private final Map<ExpressionNode, Type> expressionTypes = new IdentityHashMap<>();
     private final Map<MethodCallExpr, SymbolTable.MethodSymbol> resolvedMethods = new IdentityHashMap<>();
     private final Map<NewExpr, SymbolTable.ConstructorSymbol> resolvedConstructors = new IdentityHashMap<>();
@@ -58,6 +60,29 @@ public class SemanticAnalyzer {
         this.currentPackage = unit.packageName();
         this.currentScope = new SymbolTable();
         this.currentUnit = unit;
+        // SG-011B (SEM047): sobrecarga top-level não existe em Kof — duas
+        // funções homônimas eram sobrescritas silenciosamente (a última
+        // vencia); agora é erro de compilação nomeando ambas as aridades.
+        if (diagnostics != null) {
+            Map<String, String> fnNames = new HashMap<>();
+            for (AstNode decl : unit.declarations()) {
+                if (decl instanceof FunctionDeclarationNode f) {
+                    String prev = fnNames.get(f.name());
+                    if (prev != null) {
+                        diagnostics.error(f.position().file(), f.position().line(),
+                                f.position().column(), 0,
+                                "function '" + f.name() + "' is already defined (" + prev
+                                        + "); top-level functions cannot be overloaded"
+                                        + " — use a different name",
+                                "SEM047");
+                    } else {
+                        List<String> arities = new ArrayList<>();
+                        for (var p : f.parameters()) arities.add(p.type() != null ? p.type() : "?");
+                        fnNames.put(f.name(), "with parameters (" + String.join(", ", arities) + ")");
+                    }
+                }
+            }
+        }
         for (AstNode decl : unit.declarations()) {
             SymbolTableBuilder.preDeclareType(this, decl);
         }
@@ -162,6 +187,7 @@ public class SemanticAnalyzer {
             }
             if (!changed) break;
         }
+        checkInterfaceImplementation(cls, classScope);
         currentScope = prevScope;
         currentClassName = prevClass;
     }
@@ -182,6 +208,8 @@ public class SemanticAnalyzer {
     String currentPackage() { return currentPackage; }
     DiagnosticCollector diagnostics() { return diagnostics; }
     java.util.Set<String> interfaceNames() { return interfaceNames; }
+
+    java.util.Set<String> abstractClasses() { return abstractClasses; }
     Map<ExpressionNode, Type> expressionTypes() { return expressionTypes; }
     Map<MethodCallExpr, SymbolTable.MethodSymbol> resolvedMethods() { return resolvedMethods; }
     Map<NewExpr, SymbolTable.ConstructorSymbol> resolvedConstructors() { return resolvedConstructors; }
@@ -205,6 +233,7 @@ public class SemanticAnalyzer {
     private void analyzeMethodBody(MethodDeclarationNode method) {
         SymbolTable methodScope = methodScopes.get(method);
         if (methodScope == null) return;
+        checkThrowsClause(method.thrownExceptions(), "método '" + method.name() + "'");
         Type returnType = resolveType(method.returnType(), methodScope);
         // bug 26: corpo pode terminar sem return/throw → SEM036 (uma vez por
         // método — o loop de 4 passes chamaria de novo). Antes do early-return
@@ -273,6 +302,39 @@ public class SemanticAnalyzer {
         currentClassName = prevClass;
     }
 
+    /**
+     * SG-015 (SEM043): classe que implementa interface deve declarar os
+     * métodos da interface (por nome; paridade de assinatura checada por
+     * aridade — tipos exatos entram quando o dispatch virtual existir).
+     */
+    private void checkInterfaceImplementation(ClassDeclarationNode cls, SymbolTable classScope) {
+        if (diagnostics == null) return;
+        for (String ifaceName : cls.interfaces()) {
+            SymbolTable.ClassSymbol ifaceSym = knownClasses.get(ifaceName);
+            if (ifaceSym == null || !interfaceNames.contains(ifaceName)) continue;
+            for (Map.Entry<String, SymbolTable.Symbol> e
+                    : ifaceSym.members().localSymbols().entrySet()) {
+                if (!(e.getValue() instanceof SymbolTable.MethodSymbol im)) continue;
+                SymbolTable.Symbol local = classScope.resolve(im.name());
+                if (local instanceof SymbolTable.MethodSymbol cm) {
+                    if (cm.parameterTypes().size() != im.parameterTypes().size()) {
+                        diagnostics.error("", 0, 0, 0,
+                                "method '" + im.name() + "' of interface '" + ifaceName
+                                        + "' expects " + im.parameterTypes().size()
+                                        + " parameter(s) but implementation has "
+                                        + cm.parameterTypes().size(),
+                                "SEM043");
+                    }
+                } else {
+                    diagnostics.error("", 0, 0, 0,
+                            "class '" + cls.name() + "' implements '" + ifaceName
+                                    + "' but does not implement method '" + im.name() + "'",
+                            "SEM043");
+                }
+            }
+        }
+    }
+
     private void analyzeInterface(InterfaceDeclarationNode iface) {
         String prevClass = currentClassName;
         currentClassName = iface.name();
@@ -287,9 +349,50 @@ public class SemanticAnalyzer {
         currentClassName = prevClass;
     }
 
+    /**
+     * SG-019 (SEM045): a cláusula `throw X, Y` não é checked-exception (exceções
+     * são Strings em Kof), mas os nomes devem ser TIPOS conhecidos — classe do
+     * módulo, interface, ou externa via import. Antes era capturado pelo parser
+     * e nunca validado (decorativo).
+     */
+    void checkThrowsClause(List<String> thrown, String owner) {
+        if (diagnostics == null) return;
+        for (String name : thrown) {
+            if ("String".equals(name) || Type.isPrimitive(Type.of(name))) continue;
+            if (knownClasses.containsKey(name) || interfaceNames.contains(name)) continue;
+            Type viaImports = MemberResolver.qualifyViaImports(currentUnit, name);
+            if (viaImports != null) continue;
+            diagnostics.error("", 0, 0, 0,
+                    "throw clause of " + owner + " references unknown type '" + name + "'",
+                    "SEM045");
+        }
+    }
+
     private void analyzeFunction(FunctionDeclarationNode func) {
+        // SG-018 (SEM044): o entry point é SÓ `main()` — sem tipo de retorno,
+        // sem modifiers (o IR já emite public static void — CompilerFunctionLowering).
+        if ("main".equals(func.name())) {
+            String rt = func.returnType();
+            boolean badReturnType = rt != null && !"void".equals(rt)
+                    && !"var".equals(rt) && !"val".equals(rt);
+            if (!func.modifiers().isEmpty() && diagnostics != null) {
+                diagnostics.error(func.position().file(), func.position().line(),
+                        func.position().column(), 0,
+                        "main() must be declared without modifiers: 'main() { ... }' (found "
+                                + func.modifiers() + ")",
+                        "SEM044");
+            }
+            if (badReturnType && diagnostics != null) {
+                diagnostics.error(func.position().file(), func.position().line(),
+                        func.position().column(), 0,
+                        "main() must have no return type: 'main() { ... }' (found '"
+                                + rt + " main(...)')",
+                        "SEM044");
+            }
+        }
         String prevFunction = currentFunctionName;
         currentFunctionName = func.name();
+        checkThrowsClause(func.thrownExceptions(), "função '" + func.name() + "'");
         SymbolTable funcScope = currentScope.enterScope();
         for (String tp : func.typeParameters()) {
             funcScope.define(new SymbolTable.TypeParameterSymbol(tp));

@@ -246,31 +246,31 @@ class KofDbE2ETest {
         runNative(source, tempDir.resolve("out"), "caught\n{\"n\":0}");
     }
 
-    // §78 (irmão asm do §77) — aninhamento no Native: o bloco transaction
-    // interno NESTA MESMA conexão NÃO comita (participa da transação externa).
-    // Antes, o commit interno confirmava as linhas da externa e o rollback
-    // posterior não as desfazia ({"n":2} — garantia transacional quebrada).
+    // GitHub #65 / bug 77 espelhado no Native (§78): o bloco transaction
+    // interno NESTA mesma conexão NÃO comita — participa da externa. Antes o
+    // commit interno efetivava as linhas e o rollback do externo não as
+    // desfazia ({"n":2}). Esperado: {"n":0} (paridade com o JVM).
     @Test
     void nativeNestedTransactionDoesNotCommitOuterScope(@TempDir Path tempDir) throws IOException {
         assumeTrue(isLinux(), "Native transaction requires Linux + libsqlite3");
         Path source = tempDir.resolve("Native.kf");
         Files.writeString(source, """
             main() {
-                var db = db.connect("sqlite:%s/txn.db")
-                db.execute(db, "create table if not exists t(x int)")
-                db.execute(db, "delete from t")
+                var db = db.connect("sqlite:%s/txnest.db")
+                db.execute(db, "create table if not exists entries(id int)")
+                db.execute(db, "delete from entries")
                 try {
                     transaction {
-                        db.execute(db, "insert into t values (1)")
+                        db.execute(db, "insert into entries values (1)")
                         transaction {
-                            db.execute(db, "insert into t values (2)")
+                            db.execute(db, "insert into entries values (2)")
                         }
                         throw "abort outer transaction"
                     }
                 } catch (String e) {
                     println("caught")
                 }
-                var rows = db.query(db, "select count(*) as n from t")
+                var rows = db.query(db, "select count(*) as n from entries")
                 println(rows.get(0))
             }
             """.formatted(tempDir));

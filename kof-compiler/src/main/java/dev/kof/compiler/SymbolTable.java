@@ -72,6 +72,21 @@ public class SymbolTable {
         return new SymbolTable(this);
     }
 
+    /**
+     * Atualiza o tipo de um local já definido NESTE escopo (pinning de
+     * coleções: o primeiro put() em mapOf() vazio tipa o Map — SG-008).
+     * Retorna true se atualizou.
+     */
+    boolean updateLocalType(String name, Type newType) {
+        Symbol s = symbols.get(name);
+        if (s instanceof LocalVariableSymbol lv && !lv.isVal()
+                && !newType.equals(lv.type())) {
+            symbols.put(name, new LocalVariableSymbol(lv.name(), newType, lv.index(), lv.isVal()));
+            return true;
+        }
+        return false;
+    }
+
     SymbolTable parent() {
         return parent;
     }

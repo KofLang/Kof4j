@@ -153,6 +153,11 @@ public final class RuntimeStringSearch {
 
 
     public static void emitStringIndexOf(StringBuilder sb) {
+        // bug 43 (face indexOf, 10/09): devolve o índice em CODE UNITS UTF-16
+        // (contrato JVM/JS), não bytes UTF-8. Reusa o walk de code units
+        // (.Lkof_substr_walk, emitStringSubstring): alvo de corte de par
+        // astral é pulado — needles well-formed (tudo que o Kof permite em
+        // literal) não casam numa 2ª unit, então o skip é exato.
         sb.append("""
             .globl kof_string_index_of
             .type kof_string_index_of, @function
@@ -162,39 +167,54 @@ public final class RuntimeStringSearch {
                 pushq %r13
                 pushq %r14
                 pushq %r15
+                pushq %rbp
                 movq %rdi, %rbx
                 movq %rsi, %r12
-                movl 16(%rbx), %r13d
-                movl 16(%r12), %r14d
+                # totais em code units (walk p/ target grande vai ao fim)
+                movq %rbx, %rdi
+                movl $0x7FFFFFFF, %esi
+                call .Lkof_substr_walk
+                movl %edx, %r13d                  # totalH
+                movq %r12, %rdi
+                movl $0x7FFFFFFF, %esi
+                call .Lkof_substr_walk
+                movl %edx, %r14d                  # totalN
+                movl %eax, %r15d                  # lenBytes da needle
                 testl %r14d, %r14d
-                jz .Lkof_idx_found0
+                jz .Lkof_idx_found0               # needle vazio -> 0 (JVM)
                 cmpl %r13d, %r14d
+                jg .Lkof_idx_notfound             # needle maior que o alvo
+                xorl %ebp, %ebp                   # i = 0 (unit)
+            .Lkof_idx_scan:
+                movl %r13d, %r8d
+                subl %r14d, %r8d
+                cmpl %r8d, %ebp
                 jg .Lkof_idx_notfound
-                xorl %r15d, %r15d
-            .Lkof_idx_outer:
-                movl %r13d, %eax
-                subl %r14d, %eax
-                cmpl %eax, %r15d
-                jg .Lkof_idx_notfound
-                xorl %ecx, %ecx
-            .Lkof_idx_inner:
-                cmpl %r14d, %ecx
+                movq %rbx, %rdi
+                movl %ebp, %esi
+                call .Lkof_substr_walk
+                testl %ecx, %ecx
+                jne .Lkof_idx_next                # corte de par: nao casa aqui
+                xorl %r9d, %r9d                   # j (byte da needle)
+            .Lkof_idx_cmp:
+                cmpl %r15d, %r9d
                 jge .Lkof_idx_found
-                movl %r15d, %eax
-                addl %ecx, %eax
-                movzbl 24(%rbx,%rax), %eax
-                movzbl 24(%r12,%rcx), %edx
-                cmpl %edx, %eax
+                movl %eax, %r10d
+                addl %r9d, %r10d
+                movzbl 24(%rbx,%r10), %r11d
+                movzbl 24(%r12,%r9), %edx
+                cmpl %edx, %r11d
                 jne .Lkof_idx_next
-                incq %rcx
-                jmp .Lkof_idx_inner
+                incl %r9d
+                jmp .Lkof_idx_cmp
             .Lkof_idx_next:
-                incl %r15d
-                jmp .Lkof_idx_outer
+                incl %ebp
+                jmp .Lkof_idx_scan
             .Lkof_idx_found0:
-                xorl %r15d, %r15d
+                xorl %ebp, %ebp
             .Lkof_idx_found:
-                movl %r15d, %eax
+                movl %ebp, %eax
+                popq %rbp
                 popq %r15
                 popq %r14
                 popq %r13
@@ -203,18 +223,19 @@ public final class RuntimeStringSearch {
                 ret
             .Lkof_idx_notfound:
                 movl $-1, %eax
+                popq %rbp
                 popq %r15
                 popq %r14
                 popq %r13
-                 popq %r12
-                 popq %rbx
-                 ret
-             """);
-     }
-
-    /** lastIndexOf: varre do fim para o início; retorna -1 se não achar. */
-
+                popq %r12
+                popq %rbx
+                ret
+            """);
+    }
     public static void emitStringLastIndexOf(StringBuilder sb) {
+        // bug 43 (face lastIndexOf, 10/09): índice em CODE UNITS UTF-16
+        // (contrato JVM/JS); varre do fim. Corte de par astral pulado (idem
+        // indexOf). Needle vazio -> total de units (JVM: lastIndexOf("")=len).
         sb.append("""
             .globl kof_string_last_index_of
             .type kof_string_last_index_of, @function
@@ -224,36 +245,50 @@ public final class RuntimeStringSearch {
                 pushq %r13
                 pushq %r14
                 pushq %r15
+                pushq %rbp
                 movq %rdi, %rbx
                 movq %rsi, %r12
-                movl 16(%rbx), %r13d
-                movl 16(%r12), %r14d
+                movq %rbx, %rdi
+                movl $0x7FFFFFFF, %esi
+                call .Lkof_substr_walk
+                movl %edx, %r13d                  # totalH
+                movq %r12, %rdi
+                movl $0x7FFFFFFF, %esi
+                call .Lkof_substr_walk
+                movl %edx, %r14d                  # totalN
+                movl %eax, %r15d                  # lenBytes da needle
                 testl %r14d, %r14d
-                jz .Lkof_lidx_found_end
+                jz .Lkof_lidx_found_end           # vazio -> totalH
                 cmpl %r13d, %r14d
-                jg .Lkof_lidx_notfound
-                movl %r13d, %r15d
-                subl %r14d, %r15d
-            .Lkof_lidx_outer:
-                testl %r15d, %r15d
+                jg .Lkof_lidx_notfound            # needle maior que o alvo
+                movl %r13d, %ebp
+                subl %r14d, %ebp                  # i = totalH - totalN
+            .Lkof_lidx_scan:
+                testl %ebp, %ebp
                 js .Lkof_lidx_notfound
-                xorl %ecx, %ecx
-            .Lkof_lidx_inner:
-                cmpl %r14d, %ecx
+                movq %rbx, %rdi
+                movl %ebp, %esi
+                call .Lkof_substr_walk
+                testl %ecx, %ecx
+                jne .Lkof_lidx_next               # corte de par: nao casa aqui
+                xorl %r9d, %r9d
+            .Lkof_lidx_cmp:
+                cmpl %r15d, %r9d
                 jge .Lkof_lidx_found
-                movl %r15d, %eax
-                addl %ecx, %eax
-                movzbl 24(%rbx,%rax), %eax
-                movzbl 24(%r12,%rcx), %edx
-                cmpl %edx, %eax
+                movl %eax, %r10d
+                addl %r9d, %r10d
+                movzbl 24(%rbx,%r10), %r11d
+                movzbl 24(%r12,%r9), %edx
+                cmpl %edx, %r11d
                 jne .Lkof_lidx_next
-                incq %rcx
-                jmp .Lkof_lidx_inner
+                incl %r9d
+                jmp .Lkof_lidx_cmp
             .Lkof_lidx_next:
-                decl %r15d
-                jmp .Lkof_lidx_outer
+                decl %ebp
+                jmp .Lkof_lidx_scan
             .Lkof_lidx_found:
-                movl %r15d, %eax
+                movl %ebp, %eax
+                popq %rbp
                 popq %r15
                 popq %r14
                 popq %r13
@@ -262,6 +297,7 @@ public final class RuntimeStringSearch {
                 ret
             .Lkof_lidx_found_end:
                 movl %r13d, %eax
+                popq %rbp
                 popq %r15
                 popq %r14
                 popq %r13
@@ -270,6 +306,7 @@ public final class RuntimeStringSearch {
                 ret
             .Lkof_lidx_notfound:
                 movl $-1, %eax
+                popq %rbp
                 popq %r15
                 popq %r14
                 popq %r13

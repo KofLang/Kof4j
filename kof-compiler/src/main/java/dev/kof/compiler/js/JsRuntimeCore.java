@@ -128,6 +128,21 @@ public final class JsRuntimeCore {
                 return kofHashCode(String(v));
             }
 
+            // String.compareTo: espelha o JVM (bug 97, face JS) — walk de
+            // code units UTF-16: primeira unit diferente → A−B; prefixo →
+            // diferença de contagem de units (charCodeAt = UTF-16 unit, como
+            // no asm x86 .Lct_diff — NAO String.localeCompare, que diverge
+            // de locale e de astral).
+            export function kofStringCompareTo(a, b) {
+                const la = a.length, lb = b.length;
+                const n = la < lb ? la : lb;
+                for (let i = 0; i < n; i++) {
+                    const u = a.charCodeAt(i), v = b.charCodeAt(i);
+                    if (u !== v) return u - v;
+                }
+                return la - lb;
+            }
+
             let kofLogLevel = 1; // default "info": 0 debug, 1 info, 2 warn, 3 error, 4 off
             try {
                 const lv = (process.env.KOF_LOG_LEVEL || "info").trim().toLowerCase();

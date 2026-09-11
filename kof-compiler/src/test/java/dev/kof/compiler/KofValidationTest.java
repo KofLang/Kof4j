@@ -166,6 +166,144 @@ class KofValidationTest {
             """);
     }
 
+    // S12 formatBr: pontuação BR — 11 dígitos => DDD.DDD.DDD-DD; 8 =>
+    // DDDDD-DDDD; null/fora-dos-11-8 => original (no-op, nunca lança).
+    // Paridade byte-a-byte nos 5 alvos (dígitos via kof_br_digits já portada).
+    @Test
+    void formatBrJvm(@TempDir Path tmp) throws Exception {
+        runJvm(tmp, """
+            main() {
+                println(validation.formatCpf("52998224725"))
+                println(validation.formatCpf("529.982.247-25"))
+                println(validation.formatCpf("123") + "|")
+                println(validation.formatCpf("529982247254") + "|")
+                println(validation.formatCep("01310100"))
+                println(validation.formatCep("01310-100"))
+                println(validation.formatCep("12") + "|")
+                println(validation.formatCep("0131010012") + "|")
+            }
+            """, "529.982.247-25\n529.982.247-25\n123|\n529982247254|\n01310-100\n01310-100\n12|\n0131010012|");
+    }
+
+    @Test
+    void formatBrNative(@TempDir Path tmp) throws Exception {
+        runNative(tmp, """
+            main() {
+                assert(validation.formatCpf("52998224725") == "529.982.247-25")
+                assert(validation.formatCpf("529.982.247-25") == "529.982.247-25")
+                assert(validation.formatCpf("123") == "123")
+                assert(validation.formatCpf("") == "")
+                assert(validation.formatCep("01310100") == "01310-100")
+                assert(validation.formatCep("01310-100") == "01310-100")
+                assert(validation.formatCep("12") == "12")
+                println("ok")
+            }
+            """, "ok");
+    }
+
+    @Test
+    void formatBrJs(@TempDir Path tmp) throws Exception {
+        runJs(tmp, """
+            main() {
+                println(validation.formatCpf("52998224725"))
+                println(validation.formatCpf("123") + "|")
+                println(validation.formatCep("01310100"))
+                println(validation.formatCep("12") + "|")
+            }
+            """, "529.982.247-25\n123|\n01310-100\n12|");
+    }
+
+    @Test
+    void formatBrNativeRiscv(@TempDir Path tmp) throws Exception {
+        assumeToolchain("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64");
+        runQemu(tmp, Target.NATIVE_RISCV64, "qemu-riscv64", """
+            main() {
+                assert(validation.formatCpf("52998224725") == "529.982.247-25")
+                assert(validation.formatCpf("123") == "123")
+                assert(validation.formatCpf("") == "")
+                assert(validation.formatCep("01310100") == "01310-100")
+                assert(validation.formatCep("12") == "12")
+            }
+            """);
+    }
+
+    @Test
+    void formatBrNativeAarch64(@TempDir Path tmp) throws Exception {
+        assumeToolchain("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64");
+        runQemu(tmp, Target.NATIVE_AARCH64, "qemu-aarch64", """
+            main() {
+                assert(validation.formatCpf("52998224725") == "529.982.247-25")
+                assert(validation.formatCpf("123") == "123")
+                assert(validation.formatCep("01310100") == "01310-100")
+                assert(validation.formatCep("12") == "12")
+            }
+            """);
+    }
+
+    // S12b formatCnpj: 14 dígitos => NN.NNN.NNN/NNNN-NN (canônico IBGE);
+    // senão original (no-op, nunca lança). Paridade byte-a-byte nos 5 alvos.
+    @Test
+    void formatCnpjJvm(@TempDir Path tmp) throws Exception {
+        runJvm(tmp, """
+            main() {
+                println(validation.formatCnpj("34546401000163"))
+                println(validation.formatCnpj("34.546.401/0001-63"))
+                println(validation.formatCnpj("11222333000181"))
+                println(validation.formatCnpj("123") + "|")
+                println(validation.formatCnpj("") + "|")
+                println(validation.formatCnpj("3454640100016") + "|")
+            }
+            """, "34.546.401/0001-63\n34.546.401/0001-63\n11.222.333/0001-81\n123|\n|\n3454640100016|");
+    }
+
+    @Test
+    void formatCnpjNative(@TempDir Path tmp) throws Exception {
+        runNative(tmp, """
+            main() {
+                assert(validation.formatCnpj("34546401000163") == "34.546.401/0001-63")
+                assert(validation.formatCnpj("11222333000181") == "11.222.333/0001-81")
+                assert(validation.formatCnpj("34.546.401/0001-63") == "34.546.401/0001-63")
+                assert(validation.formatCnpj("123") == "123")
+                assert(validation.formatCnpj("") == "")
+                println("ok")
+            }
+            """, "ok");
+    }
+
+    @Test
+    void formatCnpjJs(@TempDir Path tmp) throws Exception {
+        runJs(tmp, """
+            main() {
+                println(validation.formatCnpj("34546401000163"))
+                println(validation.formatCnpj("123") + "|")
+                println(validation.formatCnpj("") + "|")
+            }
+            """, "34.546.401/0001-63\n123|\n|");
+    }
+
+    @Test
+    void formatCnpjNativeRiscv(@TempDir Path tmp) throws Exception {
+        assumeToolchain("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64");
+        runQemu(tmp, Target.NATIVE_RISCV64, "qemu-riscv64", """
+            main() {
+                assert(validation.formatCnpj("34546401000163") == "34.546.401/0001-63")
+                assert(validation.formatCnpj("123") == "123")
+                assert(validation.formatCnpj("") == "")
+            }
+            """);
+    }
+
+    @Test
+    void formatCnpjNativeAarch64(@TempDir Path tmp) throws Exception {
+        assumeToolchain("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64");
+        runQemu(tmp, Target.NATIVE_AARCH64, "qemu-aarch64", """
+            main() {
+                assert(validation.formatCnpj("34546401000163") == "34.546.401/0001-63")
+                assert(validation.formatCnpj("123") == "123")
+            }
+            """);
+    }
+
     // S6a network: isIpv4/isMac/isPort — byte-scan, sem gate nos 4 targets.
     @Test
     void validationNetJvm(@TempDir Path tmp) throws Exception {

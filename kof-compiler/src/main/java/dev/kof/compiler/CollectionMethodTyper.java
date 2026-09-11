@@ -48,10 +48,9 @@ public final class CollectionMethodTyper {
         Type keyType = Type.UnknownType.UNKNOWN;
         if (recvType instanceof Type.ClassType ct && ct.typeArguments().size() == 2) keyType = ct.typeArguments().get(0);
         if ("get".equals(mn)) {
-            // mesmo contrato do emit: valores de referência devolvem V?
-            return valueType instanceof Type.ClassType ct
-                    && !KofUi.isUiType(ct) && !KofMedia.isHandleType(ct)
-                    ? new Type.NullableType(valueType) : valueType;
+            // SG-008 (bug 87): get() devolve V? para TODO valor — ausência é
+            // null comparável (`x == null`), nunca NPE por unbox
+            return new Type.NullableType(valueType);
         }
         if ("remove".equals(mn)) return valueType;
         if ("put".equals(mn)) return valueType;
