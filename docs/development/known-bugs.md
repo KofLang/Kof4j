@@ -3063,7 +3063,7 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 - **Prova:** `KofRandomTest` 12/12 (incl. os 2 cross-arch com os 500 loops
   de bound=1000/2 + asserts de borda 1/0/-5/1e6) sob qemu-riscv64 +
   qemu-aarch64; probe isolado OK nos 2 alvos.
-- **Arquivos:** `NativeRiscvAsmRtB27.java` (`kof_random_int`).
+- **Arquivos:** `NativeRiscvAsmRtB27.java` (`kof_random_int`). Também destrava `random.randomString` (B28 chama `kof_random_int` p/ índice do alfabeto). *(Confirmação independente na ponta da 0.4.0, `2266f323` — mesma fórmula, merged sem conflito.)*
 
 ### 115. Constant pool: Float/Double armazenados como bits crus (parser de migração) — ✅ CORRIGIDO 08/09  *(renumerado de §62 na reconciliação do merge beta-0.3.0→beta-0.4.0 11/09 — colidiu com a série ativa §95–§114)*
 
@@ -3295,3 +3295,22 @@ int de índice) — verificados na varredura.
   suítes cross-ativas 13 classes ~194/0 sob qemu (concorrência/math/net/
   security/time/uuid/validation/string/encoding/mq/random/parse/matrix) +
   `NativeE2ETest` x86 61/0 + suíte completa baseline 0-falhas.
+
+### 120. Tradutor riscv→aarch64: `fcvt.w/l.{s,d}` (FP→INT) traduzido como `scvtf` (direção INVERTIDA) — ✅ CORRIGIDO 11/09 (`fcvtzs`)  *(renumerado de §104 na reconciliação do merge 11/09 — colidiu com o record-equals §104 da série ativa)*
+
+- **Sintoma (achado 11/09 ao portar MATH001):** `var e = 2.5; println((e * 2.0) as Int)`
+  dava `0` no aarch64 (riscv/x86/JVM = `5`). Qualquer `Double as Int`/`as Long`
+  no aarch dava lixo (o D2I do cross-emit emite exatamente `fcvt.w.d t0, f0, rtz`).
+- **Causa raiz:** o ramo `fcvt.{w,l}.{s,d}` do `NativeAarch64Translator` emitia
+  `scvtf` (INT→FP, a direção OPOSTA), lendo o registrador FP como se fosse
+  inteiro — ex.: `fcvt.w.d t0, f0` → `scvtf d0, f0` (src FP inválido; `as
+  Int` virava 0/sujeira). O caso int→float correto vive no ramo irmão
+  (`parts[1]=d`, `fcvt.d.l/w` — bug 82) e permanece.
+- **Fix (mínimo, impeditivo MATH001 — `isInteger` precisa de trunc FP→int):**
+  `fcvt.w/l.s/d` → `fcvtzs w/x, s/d` (truncate toward zero == `rtz` do riscv
+  == `cvttsd2si` do x86; paridade preservada). `fsqrt.d` ganhou ramo próprio
+  (`fsqrt d/s`) — era UNHANDLED pass-through (montava as riscv mas travava o
+  aarch; impeditivo p/ `math.sqrt` cross).
+- **Prova:** E2E cross `nativeMathDoubleSeries` (riscv/aarch, golden JVM
+  medido) + sonda `Double as Int` aarch (0→`5`) + suíte completa.
+

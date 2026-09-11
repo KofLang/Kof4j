@@ -49,7 +49,7 @@
 | `planning-finally-return.md` | **movido p/ `docs/development/future/` 10/09** (PROPOSED — bug 45, zero código, decisão da mantenedora pendente) | `PLANEJADO` |
 | `planning-stdlib-time-design.md` | **movido p/ `docs/development/future/` 11/09** (DD-STDLIB-02 PROPOSED — zero código em andamento; sem decisão da mantenedora não é trabalho atual) | `PLANEJADO (future)` |
 | `planning-stdlib-array-returns.md` | **movido p/ `docs/development/future/` 11/09** (DD-STDLIB-01 PROPOSED — zero código; trava de dispatch Array/objeto) | `PLANEJADO (future)` |
-| `plan-stdlib-expansion.md` | STDLIB universal S1–S10: S1–S8+S10/S10a/b ✅ 09-10/09; **MATH001/TIME002 FECHADOS 11/09** (Double math + addDays/diffDays riscv/aarch, B32/B33 — gates removidos, golden qemu). Restam só decisões da mantenedora (format/boundaries, S10c, §89) + itens sem algoritmo no corpus (isNis/ulid) | `EM CURSO` |
+| `plan-stdlib-expansion.md` | STDLIB universal S1–S12: S1–S8+S10–S12 ✅ 09–11/09 (TIME002 fechado 11/09 fatia B33; MATH001 fechado 11/09 fatia B32); pendentes: S10c (DD-STDLIB-01) + S7 `format`/`boundaries` (decisão de superfície) — `pow`/`roundTo`-mode ag. mantenedora | `EM CURSO` |
 | `planning-otp-supervision.md` | DD-OTP-01..13: supervisão OTP one_for_one (issue #83) — recomend. stdlib puro-Kof + fábrica + escalate-callback + flag própria (5 alvos grátis) — decide a mantenedora | `PROPOSED` |
 | `refactoring/PLAN-SOLID-500.md` | regra ≤500 linhas: Fases 4–8 fechadas, mas F1–3 + 9 com resíduo 502 → 493 | `EM CURSO` |
 

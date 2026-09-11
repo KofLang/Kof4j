@@ -33,32 +33,6 @@ public final class JvmUuidRuntime {
                     return new String(c);
                 }
 
-                // ── kof.uuid (STDLIB S3b.2) — v7 (RFC 9562) ─────────────────
-                // 48-bit timestamp ms (big-endian) + 74 bits aleatórios.
-                // b[0..5] = unix_ts_ms, b[6] version 7 (0111xxxx), b[8] variant 10xx.
-                public static String kof_uuid_v7() {
-                    long ts = System.currentTimeMillis();
-                    byte[] b = new byte[16];
-                    KOF_UUID_RANDOM.nextBytes(b);
-                    b[0] = (byte) ((ts >>> 40) & 0xff);
-                    b[1] = (byte) ((ts >>> 32) & 0xff);
-                    b[2] = (byte) ((ts >>> 24) & 0xff);
-                    b[3] = (byte) ((ts >>> 16) & 0xff);
-                    b[4] = (byte) ((ts >>> 8) & 0xff);
-                    b[5] = (byte) (ts & 0xff);
-                    b[6] = (byte) ((b[6] & 0x0f) | 0x70);   // version 7
-                    b[8] = (byte) ((b[8] & 0x3f) | 0x80);   // variant 10
-                    final char[] H = "0123456789abcdef".toCharArray();
-                    char[] c = new char[36];
-                    int k = 0;
-                    for (int i = 0; i < 16; i++) {
-                        c[k++] = H[(b[i] >> 4) & 15];
-                        c[k++] = H[b[i] & 15];
-                        if (i == 3 || i == 5 || i == 7 || i == 9) c[k++] = '-';
-                    }
-                    return new String(c);
-                }
-
                 // isUuid: forma canônica 8-4-4-4-12 (36 chars, traços em
                 // 8/13/18/23, demais hex; maiúsculas aceitas; version/variant
                 // NÃO verificadas — predicado de forma, paridade travada na matriz).

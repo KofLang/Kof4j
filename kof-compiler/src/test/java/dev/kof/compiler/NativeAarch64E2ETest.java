@@ -771,4 +771,39 @@ main() {
                 + "\n1000-01-01\n\n1700-03-01\n\n1999-03-01\n2024-02-29"
                 + "\n1\n1\n0", out);
     }
+    @Test
+    void nativeMathDoubleSeries(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        // STDLIB S1b/S1b.1 (MATH001 fechado 11/09): escalares Double puros
+        // kof.math (sqrt/lerp/percentage/isInteger/isDecimal) riscv64/aarch64
+        // — fatia B36 (bits crus via a0..aN, fsqrt.d/fcvt/feq cobertos no
+        // tradutor). Golden = oracle JVM MEDIDO (KofMathTest SQRT_SRC+DBL_SRC;
+        // inclui NaN `!=` — exige o fix da maquina NE cross `feq+seqz`).
+        String out = runAarch64(tempDir, """
+                main() {
+                    println(math.sqrt(4.0) == 2.0)
+                    println(math.sqrt(9.0) == 3.0)
+                    println(math.sqrt(2.25) == 1.5)
+                    println(math.sqrt(0.0) == 0.0)
+                    println(math.sqrt(-1.0) == -1.0)
+                    println(math.sqrt(-1.0) != math.sqrt(-1.0))
+                    println(math.lerp(0.0, 10.0, 0.5) == 5.0)
+                    println(math.lerp(-4.0, 4.0, 0.75) == 2.0)
+                    println(math.percentage(3.0, 4.0) == 75.0)
+                    println(math.percentage(0.0, 0.0) != math.percentage(0.0, 0.0))
+                    println(math.isInteger(4.0))
+                    println(math.isInteger(4.5) == false)
+                    println(math.isInteger(-3.0))
+                    println(math.isInteger(0.0))
+                    println(math.isInteger(1e20))
+                    println(math.isInteger(-0.5) == false)
+                    println(math.isDecimal(4.5))
+                    println(math.isDecimal(4.0) == false)
+                    println(math.isInteger(1.0 / 0.0) == false)
+                    println(math.isDecimal(1.0 / 0.0))
+                }
+                """);
+        assertEquals("true\ntrue\ntrue\ntrue\nfalse\ntrue\ntrue\ntrue\ntrue\ntrue"
+                + "\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue", out);
+    }
 }
