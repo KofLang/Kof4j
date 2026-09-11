@@ -109,6 +109,31 @@ class NativeStringCompareCrossTest {
     private static final String SUBSTR_GOLDEN =
             "[]\n[llo]\n[]\n[]\n[af]\n[😀b]\n[a]";
 
+    // §111 cross (B37): split remove vazios TRAILING como Java — o trim x86
+    // do maintainer (7a4e482d) nunca chegou ao riscv (qemu ausente na sessão
+    // dele). "".split → [""] nunca é garbage do bump-allocator.
+    private static final String SPLIT_PROGRAM = """
+            main() {
+                var a = "a,b,".split(",")
+                println(a.size)
+                println(a.get(0) + "|" + a.get(1))
+                var b = "a,".split(",")
+                println(b.size)
+                println(b.get(0))
+                var c = ",".split(",")
+                println(c.size)
+                var d = "".split(",")
+                println(d.size)
+                println("[" + d.get(0) + "]")
+                var e = "a,b".split(",")
+                println(e.size)
+                var f = ",a".split(",")
+                println(f.size + "|" + f.get(0) + "|" + f.get(1))
+            }
+            """;
+
+    private static final String SPLIT_GOLDEN = "2\na|b\n1\na\n0\n1\n[]\n2\n2||a";
+
     @Test
     void riscv64StringCompareHashEquals(@TempDir Path tempDir) throws IOException {
         Assumptions.assumeTrue(
@@ -116,6 +141,7 @@ class NativeStringCompareCrossTest {
                 "cross toolchain riscv64 + qemu ausente — pulando (NATIVE002)");
         assertEquals(COMPARE_GOLDEN, runCross(tempDir, COMPARE_PROGRAM, "qemu-riscv64", "NATIVE_RISCV64"));
         assertEquals(SUBSTR_GOLDEN, runCross(tempDir, SUBSTR_PROGRAM, "qemu-riscv64", "NATIVE_RISCV64"));
+        assertEquals(SPLIT_GOLDEN, runCross(tempDir, SPLIT_PROGRAM, "qemu-riscv64", "NATIVE_RISCV64"));
     }
 
     @Test
@@ -125,5 +151,6 @@ class NativeStringCompareCrossTest {
                 "cross toolchain aarch64 + qemu ausente — pulando (NATIVE002)");
         assertEquals(COMPARE_GOLDEN, runCross(tempDir, COMPARE_PROGRAM, "qemu-aarch64", "NATIVE_AARCH64"));
         assertEquals(SUBSTR_GOLDEN, runCross(tempDir, SUBSTR_PROGRAM, "qemu-aarch64", "NATIVE_AARCH64"));
+        assertEquals(SPLIT_GOLDEN, runCross(tempDir, SPLIT_PROGRAM, "qemu-aarch64", "NATIVE_AARCH64"));
     }
 }
