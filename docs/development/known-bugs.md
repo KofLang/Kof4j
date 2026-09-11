@@ -822,7 +822,7 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 - **Prova/repro:** `ConformanceMatrixTest.recordhash` (verde nos 4 targets: JVM, Script, JS e Native).
 - **Nota:** `a == b` (igualdade de conteúdo), `println(a)` (`P[x=1, y=2]`) e `a.hashCode() == b.hashCode()` agora têm paridade nos 3 targets.
 
-### 43. String no Native conta bytes UTF-8, JVM conta code units — CORRIGIDO x86_64 (10/09; `length` + `charAt` + `substring` + `indexOf`/`lastIndexOf` UTF-16) — decisão de design STR001: convenção code units UTF-16 (paridade JVM/JS; `café`→4, `a😀b`→4)
+### 43. String no Native conta bytes UTF-8, JVM conta code units — ✅ CORRIGIDO 5/5 faces nos 5 targets (10/09 x86 `length`/`charAt`/`substring`/`indexOf`/`lastIndexOf`; 11/09 cross B34/B35 riscv+aarch) — decisão de design STR001: convenção code units UTF-16 (paridade JVM/JS; `café`→4, `a😀b`→4)
 
 - **Sintoma:** `var s = "café"; println(s.length); println(s.charAt(3))`: JVM → `4` / `233` (0xE9, code unit UTF-16 de `é`); **Native** → `5` / `195` (0xC3, 1º byte de `é` em UTF-8). `println(s + "!")` casa (`café!`) — só `length`/`charAt`/`substring` divergem.
 - **Causa raiz:** as ops de string do Native são **byte/UTF-8** baseadas; as do JVM são **code-unit/UTF-16** baseadas. Mesma família do `STR001` (documentado p/ JVM `"Olá 😀".length`=6), mas aqui é **divergência cross-target** (Native ≠ JVM no MESMO programa) → paridade (regra 5).
@@ -831,7 +831,7 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 - **✅ CORRIGIDO 10/09 (x86_64):** `kof_string_length` UTF-16 (08/09, `NativeE2ETest.nativeStringLengthUtf16`), `kof_string_char_at` (10/09, percorre o UTF-8 e devolve a **code unit UTF-16** da posição — 1/2/3 bytes → 1 unit, astral (4 bytes) → 2 surrogates; `café.charAt(3)`→233, `a😀b.charAt(1)`→55357) **E `kof_string_substring` (10/09)**: `RuntimeStringOps.emitStringSubstring` ganha um walk interno (`.Lkof_substr_walk`, rdi=str/esi=target → eax=byteOff, edx=units, ecx=1 se caiu no meio do par) que converte start/end de code units para byte offsets; a cópia passa a ser a fatia de bytes entre as duas fronteiras (par astral sempre inteiro). `café.substring(1)`→`afé`, `substring(3)`→`é`, `a😀b.substring(1,3)`→`😀`, `.substring(3)`→`b`. Prova: `NativeE2ETest.nativeStringSubstringUtf16` + `ConformanceMatrixTest.unicode`/`unicode-astral`/`unicode-substring` (native desbloqueado, 4 targets) + `BackendParityTest.unicode-str`. **E `kof_string_index_of`/`kof_string_last_index_of` (10/09, achado por varredura de paridade):** `RuntimeStringSearch` reusa o MESMO `.Lkof_substr_walk` para varrer o haystack por **code units** e casar a needle byte-a-byte na posição convertida (needle vazio → 0/len, needle>alvo → -1, corte de par pulado — needle well-formed nunca casa numa 2ª unit). `a😀b.indexOf("c")`: era 10 (byte) → 6 (unit) = JVM/Script. Prova: `NativeE2ETest.nativeStringIndexOfUtf16` + `ConformanceMatrixTest.unicode-indexof` (4 targets) + sweep de 22 vetores (ASCII+latin1+astral+bordas) batendo JVM==Native==Script.
 - **⚠️ Sub-residual (corte de par astral ao meio em `substring`):** fronteira `end`/`start` que cai na **2ª unit de um par astral** (ex.: `a😀b.substring(0,2)`, `a😀b.substring(1,2)`) produziria um **surrogate solto** na string resultante. O Native ainda não casa com o JVM aqui: produz um **diagnóstico R6** (`substring cannot split an astral code point`), nunca um byte-cru errado. A paridade plena exige o **storage ser WTF-8** (permitir surrogates soltos) + `length`/`concat` aceitarem-no — mudança maior do layout interno de string, fora do escopo desta unidade (fronteiras bem-formadas cobrem o uso real; registro p/ a próxima iteração de storage). `charAt` já casa (devolve o code unit numérico, sem storage envolvido).
 - **✅ Faces riscv64/aarch64 (1/3–3/3) CORRIGIDAS 11/09 (fatia B34):** `kof_string_length`/`kof_string_char_at`/`kof_string_substring` contam code units UTF-16 no riscv (port 1:1 dos refs x86; aarch via tradutor). Qemu presente no ambiente da sessão → PROVA REAL: `NativeStringUtf16CrossTest` 2/2 (golden JVM medido, 12 valores, riscv+aarch sob qemu; sabotagem do golden falhou nos 2 = não-skip) + json.decode-list-strings idêntico JVM/x86/riscv/aarch. `Mapset1` (json.decode string) passou a copiar bytes INLINE (não chama mais o substring UTF-16 — offsets do scanner são bytes; espelha o `.Lkof_jdd_copy` x86).
-- **⚠️ Residual RESTANTE (2/5 faces, lane Native riscv/aarch):** `kof_string_index_of`/`kof_string_last_index_of` no riscv (`NativeRiscvAsmRt1`/`AsmStrn0`) ainda **byte-based** (`café😀x`.indexOf("😀"): riscv 5/9/9 vs JVM 4/6/6 — medido 11/09). Próxima unidade (B35: walk por unidades + índice-code-unit na casa encontrada; port do `.Lkof_strindex_walk`). Sub-residual dos 2 (corte de par astral ao meio em `substring`) = R6 diagnostic (`kof_panic`), paridade plena exige WTF-8 storage (§43).
+- **✅ Residual FECHADO 11/09 (fatia B35, `522e63e8`):** `kof_string_index_of`/`kof_string_last_index_of` no riscv contam e **devolvem** índice em code units UTF-16 (port 1:1 dos refs x86; reusa `.Lu9_walk` da B34), + variantes `_2` (`index_of2`/`last_index_of2`/`starts_with2`) com os clamps JDK do §102; CrossOps roteia por aridade como o x86. `café😀x`.indexOf("😀") → 4 (era 5). Prova: `NativeStringUtf16CrossTest.searchUtf16Cross` (16 vetores, golden JVM medido, riscv+aarch sob qemu; sabotagem → 2/2 FAIL = não-skip) + E2Es 30/30+30/30 + matrix 11/11 intactos (ASCII `lastIndexOf("na")`/`contains` dos testes não-regredem). `contains`/`startsWith` 1-arg ficam byte-based de propósito (bool de prefixo/substring em UTF-8 bem-formado == bool em units — só o VALOR de índice divergia). Sub-residual (corte de par astral ao meio em `substring`) = R6 diagnostic (`kof_panic`), paridade plena exige WTF-8 storage (§43).
 
 ### 44. `println(double)` no Native x86_64 imprime 6 casas + `5` (JVM: 16 casas + `5.0`) — ✅ CORRIGIDO 10/09 (x86_64; faces (a) e (b) verificadas por probe pós-fix)
 
@@ -2481,10 +2481,15 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   `searchfrom` (JVM=NATIVE=SCRIPT=**JS(Graal)** idênticos nos 6 vetores de
   clamp — a célula que PEGOU a divergência do JS); DocTest par célula.
   Suíte completa pós-clean **1471 run / 0 falhas** (12 err = node ausente).
-- **Residual honesto:** faces riscv64/aarch64 — o roteamento cross
-  (`NativeRiscvCrossOps`) mapeia `indexOf/lastIndexOf` p/ o helper de 1 arg
-  byte-based do port (o MESMO bug, com o sub-problema UTF-8 byte-vs-unit do
-  §43 cross) — port só com qemu/toolchain (bug 59, lane cross `2b9a483b`).
+- **✅ Residual FECHADO 11/09 (riscv64/aarch64, fatia B35 `522e63e8`):** o
+  roteamento cross (`NativeRiscvCrossOps`) passou a rotear `indexOf`/
+  `lastIndexOf`/`startsWith` p/ os helpers `_2` por aridade (como o x86), e os
+  4 helpers riscv (`kof_string_index_of`/`_of2`/`last_index_of`/`_of2`/
+  `starts_with2`, arquivo novo `NativeRiscvAsmRtB35`) contam e devolvem índice
+  em CODE UNITS UTF-16 com os clamps JDK — reusando `.Lu9_walk` (B34). Prova:
+  `NativeStringUtf16CrossTest.searchUtf16Cross` (16 vetores, golden JVM medido,
+  riscv+aarch sob qemu). Paridade absoluta JVM=JS=X86=ARM=RISC na família
+  fechada nos 5 targets.
 - **Descoberto:** 11/09 (sweep §100); **corrigido 11/09** (x86_64 + JS).
 
 

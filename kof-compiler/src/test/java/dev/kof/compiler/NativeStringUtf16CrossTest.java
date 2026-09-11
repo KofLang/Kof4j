@@ -124,13 +124,19 @@ class NativeStringUtf16CrossTest {
                 println(h.lastIndexOf("x", 2))
                 println(h.lastIndexOf("x", -1))
                 println(h.startsWith("café"))
+                println(h.startsWith("😀x", 4))
+                println(h.startsWith("x", 6))
+                println(h.startsWith("x", 7))
+                println(h.startsWith("x", -1))
+                println(h.startsWith("", 7))
+                println(h.startsWith("", 99))
                 println(h.contains("é"))
                 println(h.contains("z"))
             }
             """;
 
     private static final String SEARCH_GOLDEN =
-            "3\n4\n6\n0\n3\n6\n-1\n-1\n3\n0\n7\n-1\n-1\ntrue\ntrue\nfalse";
+            "3\n4\n6\n0\n3\n6\n-1\n-1\n3\n0\n7\n-1\n-1\ntrue\ntrue\ntrue\nfalse\nfalse\ntrue\nfalse\ntrue\nfalse";
 
     @Test
     void riscv64StringSearchUtf16(@TempDir Path tempDir) throws IOException {
