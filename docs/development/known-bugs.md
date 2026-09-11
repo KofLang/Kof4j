@@ -2651,6 +2651,21 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 - **Arquivos:** `NativeRiscvCrossOps.emitCrossBinaryRiscv` (cross),
   `NativeX86Calls`/`RuntimeFp` (x86), `JvmOpEmitter` (JVM DCMPL/G).
 
+### 106. `json.encode(Map)` quebra em 3 dos 5 alvos (JVM crasha; x86/riscv link error; só Script/JS ok) — ❌ ABERTO (decisão de superfície JSON = mantenedora, regra 6)
+
+- **Menor repro (medido 11/09):**
+  ```kof
+  import kof.json.*
+  main() { println(json.encode(mapOf("x", 1))) }
+  ```
+  - **JVM**: `InaccessibleObjectException: Unable to make field HashMap.table accessible` — `KofRuntime.kof_json_encode_object` reflete campos do objeto sobre um `HashMap` (Map não é objeto de campo; reflexão em java.base exige `--add-opens java.base/java.util=ALL-UNNAMED` que o runtime não pede nem aplica). CRASH em runtime.
+  - **x86 e riscv64/aarch64**: o link falha — `JsonDispatch.java:31` cai no genérico `kof_json_encode` (só existe no interpretador/JVM; o nativo define apenas os tipados `int/long/bool/float/double/string/list/array`), e o `ld` não tem o símbolo → erro bruto `undefined reference to kof_json_encode` embrulhado em `COMP001 "Error reading source file"` (pior: diagnóstico misleading + R6: o gate honesto deveria ser compile-time, não link).
+  - **Script (interpretador)**: funciona (`KofInterpreterRuntime.kof_json_encode` trata Map). **JS**: não medido no harness (classpath GraalJS); presumido ok pelo path de objeto nativo JS.
+  - Cobertura de teste é o motivo de nunca ter aparecido: os E2E de encode cobrem Int/String/List/Array/record — NUNCA `Map`/`Map<String,*>`.
+- **Causa raiz (2 camadas):** (a) dispatch: `JsonDispatch` não tem ramo `isMap` → genérico inexistente no nativo; (b) JVM: encode de objeto por reflexão não diferencia Map (deveria iterar entries, não `getDeclaredFields`). E (c) UX: failure de link não é diagnóstico R6.
+- **Por que ABERTO (não corrijo silencioso):** formato de `encode(Map)` é SEMÂNTICA de superfície (ordem das chaves? insertion vs sorted? null values?) — é decisão da mantenedora (regra 6: JSON surface congelada 0.2.6-beta). A correção tem 3 partes: gate honesto no compile-time até a superfície decidir (diagnóstico `JSN00x` no estilo JSN004 no dispatch de Map em nativos) + decisão de formato + ramos JVM (entries) e nativo. Registra aqui; NÃO vira edição de semântica sem decisão.
+- **Pista de teste faltante (para quem fechar):** `json.encode(mapOf(...))` nos 5 alvos com golden de ordem (provavelmente insertion-order = `LinkedHashMap` semantics, mas é a decisão).
+
 ### 105. `random.int(bound)`/`randomInt(bound)` em riscv64/aarch64 entra em LOOP INFINITO para qualquer bound > 1 — ✅ CORRIGIDO 11/09 (aritmética de rejection sampling) [renumerado de 102 — o número foi tomado pelo §102 indexOf(String,from) no remoto na mesma data]
 
 - **Sintoma:** `KofRandomTest.randomIntCrossArch`/`randomShapeCrossArch`
