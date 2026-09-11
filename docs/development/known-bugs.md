@@ -3344,6 +3344,33 @@ int de índice) — verificados na varredura.
   estava quebrado — nenhuma mudança de contrato (widening Int→Long já é
   documentado em `learn/`).
 
+### 122. List `get`/`set`/`remove` com índice NÃO-Int (String/record/array) aceito em silêncio → JVM VerifyError na carga, Native pointer-as-index → ⏳→✅ (opção B, família SEM051-054) [SEM055 11/09]
+
+- **Menor repro (medido 11/09, probes RM3/IX/IX2):**
+  `var s = listOf("a","b"); println(s.remove("a"))` → **JVM**:
+  `VerifyError: Bad type on operand stack ... not assignable to integer` na
+  **carga da classe** (todo o programa morre, não só o statement);
+  **Native**: o ponteiro da String vira índice → `array index out of bounds`
+  (exit≠0). `get("x")`/`set("k",v)` idem. Int no índice funciona (`IXC`).
+- **Causa raiz:** `CollectionCallLowerer` (lowering único dos 5 targets)
+  despacha `kof_list_get/set/remove` sem checar o tipo do argumento — o
+  contrato (learn/12, training/idioms/collections) é **índice Int**
+  (`remove(0)` devolve o elemento); Java tem overloads remove(int)/remove(Object),
+  Kof não — o by-value era fake idiom aceito.
+- **✅ CORRIGIDO 11/09 (opção B — decisão da mantenedora §100, mesma
+  família SEM051/052/053/054):** guarda por posição no lowering:
+  `get/set/remove` de List com tipo de **referência** (ClassType/record/
+  ArrayType/TypeVariable, desconhecidos-nullable NUNCA flagados — SG-008 pode
+  chegar Int em runtime) no índice → **SEM055** ("List.remove pega ÍNDICE
+  Int; String não é índice (para buscar por valor use contains)"), nos 5
+  backends pelo frontend único. Programas que funcionavam: nenhum (todos
+  crashavam ou imprimiam lixo) → rejeição aditiva, retrocompatível.
+- **Prova:** `SemanticResolutionTest.listIndexNonIntRejected` (4 vetores,
+  String/record-aninhado/array) + `listIndexIntAndUnknownStillCompiles`
+  (regra 1 — Int não regride); suíte completa 4 módulos verde.
+- **Corpus:** `training/idioms/collections.md` (comentário no remove) +
+  `fake-idioms.md` (linha nova).
+
 ### 120. Tradutor riscv→aarch64: `fcvt.w/l.{s,d}` (FP→INT) traduzido como `scvtf` (direção INVERTIDA) — ✅ CORRIGIDO 11/09 (`fcvtzs`)  *(renumerado de §104 na reconciliação do merge 11/09 — colidiu com o record-equals §104 da série ativa)*
 
 - **Sintoma (achado 11/09 ao portar MATH001):** `var e = 2.5; println((e * 2.0) as Int)`

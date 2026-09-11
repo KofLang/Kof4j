@@ -412,6 +412,45 @@ class SemanticResolutionTest {
         }
     }
 
+    // ---- §122: índice de List.get/set/remove é Int (learn/12). String/record
+    // no índice era ACEITO em silêncio e quebrava feio (JVM VerifyError na
+    // carga da classe, Native pointer-as-index → "array index out of bounds"
+    // — probes RM3/IX/IX2 11/09). Opção B (família SEM051-054): REJEITAR em
+    // compile-time com SEM055 apontando p/ `contains`. Unknown/Int passam. ----
+
+    @Test
+    void listIndexNonIntRejected(@TempDir Path tmp) throws IOException {
+        String[] exprs = {
+            "var l = listOf(\"a\", \"b\"); println(l.remove(\"a\"))",
+            "var l2 = listOf(\"a\", \"b\"); println(l2.get(\"x\"))",
+            "var l3 = listOf(\"a\", \"b\"); l3.set(\"k\", \"z\")",
+            "var l4 = listOf(1, 2); println(l4.remove(new Int[1]))" };
+        for (String e : exprs) {
+            CompilationResult r = compile(tmp, "e.kf", "main() { " + e + " }");
+            assertFalse(r.success(), "deve falhar: " + e);
+            boolean found = r.diagnostics().getDiagnostics().stream()
+                    .anyMatch(d -> "SEM055".equals(d.code()) && d.message().contains("ÍNDICE"));
+            assertTrue(found, "esperava SEM055 p/ '" + e + "', foi: "
+                    + r.diagnostics().getDiagnostics());
+        }
+    }
+
+    @Test
+    void listIndexIntAndUnknownStillCompiles(@TempDir Path tmp) throws IOException {
+        // remove/get/set com índice Int e recebendo de função Unknown não
+        // regredem (regra 1 — SG-008: Unknown pode ser Int em runtime).
+        CompilationResult r = compile(tmp, "ok.kf", """
+                main() {
+                    var l = listOf(5, 7)
+                    println(l.remove(1))
+                    println(l.get(0))
+                    l.set(0, 9)
+                    println(l.size)
+                }
+                """);
+        assertTrue(r.success(), "Int-index não deve regride: " + r.diagnostics().getDiagnostics());
+    }
+
     @Test
     void subscriptOnArraysStillCompiles(@TempDir Path tmp) throws IOException {
         // array de verdade (o único [] do corpus) não regride (regra 1).
