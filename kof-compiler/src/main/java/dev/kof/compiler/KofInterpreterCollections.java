@@ -115,7 +115,8 @@ public final class KofInterpreterCollections {
                 Object key = recv == null ? args[1] : args[0];
                 Object val = recv == null ? args[0] : args[1];
                 Object prev = m.put(key, val);
-                yield Type.isVoid(kc.returnType()) ? null : prev;
+                yield Type.isVoid(kc.returnType()) ? null
+                        : prevOrDefault(prev, kc.returnType());
             }
             case "kof_map_get" -> {
                 // SG-008 (bug 87): get() devolve V? — o miss é null comparável
@@ -130,7 +131,7 @@ public final class KofInterpreterCollections {
                 }
                 yield v;
             }
-            case "kof_map_remove" -> m.remove(args[0]);
+            case "kof_map_remove" -> prevOrDefault(m.remove(args[0]), kc.returnType());
             case "kof_map_contains" -> m.containsKey(args[0]) ? 1 : 0;
             case "kof_map_size" -> m.size();
             case "kof_map_is_empty" -> m.isEmpty() ? 1 : 0;
@@ -144,14 +145,33 @@ public final class KofInterpreterCollections {
         };
     }
 
+    /**
+     * §112: `put`/`remove` devolvem o valor ANTERIOR, que pode ser null
+     * (put novo / remove de chave ausente). Quando o uso espera o primitivo
+     * (typer devolve V, não V?), o null estourava NullPointerException no
+     * unbox (exit=1). Guard com default do primitivo, espelhando o
+     * kof_map_get (SG-008) e o emitPrevValueUnbox do JvmOpCollections.
+     */
+    private static Object prevOrDefault(Object prev, Type declared) {
+        Type inner = declared instanceof Type.NullableType nt ? nt.inner() : declared;
+        if (prev == null && inner instanceof Type.PrimitiveType
+                && KofInterpreterMembers.defaultValue(inner) != null) {
+            return KofInterpreterMembers.defaultValue(inner);
+        }
+        return prev;
+    }
+
     private Object setOps(KofCall kc, Object recv, Object[] args) {
         @SuppressWarnings("unchecked")
         HashSet<Object> s = (HashSet<Object>) recv;
         return switch (kc.methodName()) {
             case "kof_set_new" -> new HashSet<>();
             case "kof_set_add" -> {
-                s.add(args[0]);
-                yield Type.isVoid(kc.returnType()) ? null : (s.contains(args[0]) ? 1 : 0);
+                // §112: add devolve "foi ADICIONADO?" (false se já existia).
+                // O código antigo fazia s.add() e depois s.contains() — sempre
+                // true. HashSet.add retorna o correto (mesmo oracle do JVM).
+                boolean added = s.add(args[0]);
+                yield Type.isVoid(kc.returnType()) ? null : (added ? 1 : 0);
             }
             case "kof_set_contains" -> s.contains(args[0]) ? 1 : 0;
             case "kof_set_remove" -> s.remove(args[0]) ? 1 : 0;

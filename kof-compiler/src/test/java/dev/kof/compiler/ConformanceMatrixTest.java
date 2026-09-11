@@ -307,6 +307,38 @@ class ConformanceMatrixTest {
                     println(miss)
                 }
                 """, "true\ntrue\n8\n9000000001\ntrue\n97\nfalse", Set.of("native"), tempDir);
+
+        // §112 (paridade absoluta, 3 superfícies novas achadas no sweep de
+        // coleções): (a) JVM **VerifyError** em `println(m.put(k,v))` com V
+        // primitivo — HashMap.put devolve Object (prev), e o typer declara o
+        // retorno V; o Object entrando em uso primitivo quebrava o verifier.
+        // (b) JVM **NullPointerException** em `println(m.remove(k))` de chave
+        // AUSENTE — remove devolve null e o unbox cru de primitivo estourava.
+        // (c) interpretador (Script) `s.add(1)` de um set que JÁ CONTÉM 1
+        // devolvia true (o código fazia add() e depois contains() — sempre
+        // true) vs JVM false. (d) interpretador os mesmos NPE/VerifyError de
+        // (a)/(b). Fix: emitPrevValueUnbox (guard null→default, espelhando o
+        // guard do kof_map_get) no JvmOpCollections kof_map_put/kof_map_remove
+        // + prevOrDefault no interpretador + s.add corrigido. **Bug extra no
+        // mesmo caminho:** o x86 `kof_map_remove` na rota de MISS fazia
+        // 3 popq para 5 pushq (desequilíbrio de pilha → `ret` para lixo →
+        // **SIGSEGV** em `m.remove(chave-ausente)`) — 5 pops simétricos.
+        matrix("mapmutret", """
+                main() {
+                    var s = setOf(1, 2)
+                    println(s.add(1))
+                    println(s.add(5))
+                    println(s.size)
+                    println(s.remove(1))
+                    println(s.remove(42))
+                    var m = mapOf("a", 1)
+                    println(m.put("a", 2))
+                    println(m.get("a"))
+                    println(m.remove("a"))
+                    println(m.remove("zz"))
+                    println(m.size)
+                }
+                """, "false\ntrue\n3\ntrue\nfalse\n1\n2\n2\n0\n0", Set.of("js"), tempDir);
         // §104b-i (Native): `Thing.equals(...)` em classe NÂO-record dava
         // LINK_FAIL (Object.equals herdado sem símbolo no bare-metal).
         // Síntese de equals de identidade → oracle JVM (false entre

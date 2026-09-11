@@ -201,6 +201,14 @@ public final class JvmOpCollections {
                 // VOID no call-site (ex.: pares do mapOf): o valor anterior é descartado
                 if (Type.isVoid(kc.returnType())) {
                     mv.visitInsn(POP);
+                } else {
+                    // §112: HashMap.put devolve Object (prev, possivelmente
+                    // null). O typer declara o retorno como V — quando V é
+                    // primitivo o stack ficava Object entrando em uso
+                    // primitivo → VerifyError (println(m.put(...)) emitia
+                    // valueOf(int) sobre Object). Unbox com guard, espelhando
+                    // o kof_map_get (null → default do primitivo).
+                    emitPrevValueUnbox(mv, kc.returnType());
                 }
             }
             case "kof_map_get" -> {
@@ -248,7 +256,12 @@ public final class JvmOpCollections {
                     String internal = JvmTypeMapper.toInternalName(valueType instanceof Type.ClassType ct ? ct.packageName() : "", valueType instanceof Type.ClassType ct ? ct.name() : "java/lang/Object");
                     mv.visitTypeInsn(CHECKCAST, internal);
                 }
-                emitUnboxIfPrimitive(mv, valueType);
+                // §112: remove de chave AUSENTE devolve null — o unbox cru de
+                // primitivo dava NullPointerException (NPE não é exceção-as-
+                // String do contrato Kof). Guard com default, como get/put.
+                if (isPrimitiveType(valueType) && !KofUi.isUiType(valueType) && !KofMedia.isHandleType(valueType)) {
+                    emitPrevValueUnbox(mv, valueType);
+                }
             }
             case "kof_map_contains" -> {
                 emitBoxIfPrimitive(mv, keyType);
@@ -396,6 +409,44 @@ public final class JvmOpCollections {
     static public boolean isPrimitiveType(Type type) {
         if (type instanceof Type.NullableType nt) return isPrimitiveType(nt.inner());
         return type instanceof Type.PrimitiveType pt && !"void".equals(pt.name());
+    }
+
+    /**
+     * §112: unbox com guard para o VALOR ANTERIOR devolvido por
+     * `HashMap.put`/`HashMap.remove` quando o tipo declarado do retorno é
+     * primitivo. Esses métodos devolvem `Object` (o prev), que pode ser
+     * **null** (primeiro put / remove de chave ausente). O unbox cru de
+     * primitivo (`checkcast Integer; intValue`) estourava NullPointerException
+     * (não é exceção-as-String do contrato Kof) e, no put, o Object entrando em
+     * uso primitivo dava VerifyError. Espelha o guard do `kof_map_get`:
+     * null → default do primitivo (0/false/0.0). Recebe o Object no topo.
+     */
+    static void emitPrevValueUnbox(MethodVisitor mv, Type declared) {
+        Type prim = declared instanceof Type.NullableType nt ? nt.inner() : declared;
+        String boxed = boxedClassNameFor(prim);
+        if (boxed == null) {
+            // valor de referência: só o cast (null-safe); Unknown/UI/Media
+            // não cast (null é comparável, sem NPE).
+            if (!(prim instanceof Type.UnknownType)
+                    && !KofUi.isUiType(prim) && !KofMedia.isHandleType(prim)
+                    && prim instanceof Type.ClassType ct) {
+                mv.visitTypeInsn(CHECKCAST,
+                        JvmTypeMapper.toInternalName(ct.packageName(), ct.name()));
+            }
+            return;
+        }
+        Label notNull = new Label();
+        Label end = new Label();
+        mv.visitInsn(DUP);
+        mv.visitJumpInsn(IFNONNULL, notNull);
+        mv.visitInsn(POP);
+        emitDefaultValue(mv, prim);
+        mv.visitJumpInsn(GOTO, end);
+        mv.visitLabel(notNull);
+        mv.visitTypeInsn(CHECKCAST, boxed);
+        mv.visitMethodInsn(INVOKEVIRTUAL, boxed, unboxMethodName(prim),
+                "()" + JvmTypeMapper.toDescriptor(prim), false);
+        mv.visitLabel(end);
     }
 
     static void emitUnboxIfPrimitive(MethodVisitor mv, Type type) {

@@ -13,7 +13,7 @@
 > | Paridade interpretador × compilados (semântica `==` congelada — regra 6) | **1** — bug 94 (NaN/±0.0 `==` de Double no SCRIPT) |
 > | Paridade backend-only (regra 5, atacável na lane Native) | **2** — §107 (println coleção → lixo no nativo, sem toString de coleção; §107-JS corrigido 11/09), §104b-ii (equals de conteúdo p/ record + box de primitivo no storage asm — inclui SIGSEGV do `println(l.get)` char achado no §109)
 > | Operadores relacionais NaN cross (congelados — regra 6) | **1** — bug 101 (`<`/`<=`/`>=` com NaN: riscv IEEE vs x86/JVM quirk `dcmpg`) |
-> | **Corrigidos na sessão de paridade absoluta 11/09** | **13** — bugs 96 (SEM052), 98 (SEM053), 100 (SEM051+fold), 44-residual, 102 (from-idx), 103 (SEM054), 104a (KofObj equals/hash/toString no interpretador), 104b-i (LINK_FAIL `Object.equals` herdado no Native), 104c (membership de record por conteúdo no JS — `kofValEq`), 107-JS (`kofFormat` no JS), 109 (CRASH JVM no guard do `map.get` primitivo), 110 (`-0.0` colapsado em `+0.0` no literal emitter JVM), 111 (trailing-empties no `split` Native/JS + sentinela `substring` 0→-1; residual riscv/aarch sem qemu) — todos com prova na matrix/suíte |
+> | **Corrigidos na sessão de paridade absoluta 11/09** | **14** — bugs 96 (SEM052), 98 (SEM053), 100 (SEM051+fold), 44-residual, 102 (from-idx), 103 (SEM054), 104a (KofObj equals/hash/toString no interpretador), 104b-i (LINK_FAIL `Object.equals` herdado no Native), 104c (membership de record por conteúdo no JS — `kofValEq`), 107-JS (`kofFormat` no JS), 109 (CRASH JVM no guard do `map.get` primitivo), 110 (`-0.0` colapsado em `+0.0` no literal emitter JVM), 111 (trailing-empties no `split` Native/JS + sentinela `substring` 0→-1; residual riscv/aarch sem qemu), 112 (prev de `put`/`remove` p/ primitivo: VerifyError/NPE JVM + SIGSEGV Native por pilha desequilibrada + `set.add` do interpretador; face JS aberta) — todos com prova na matrix/suíte |
 > | **Corrigidos na prova cross-arch 11/09 (MATH001/TIME002/B33)** | **3** — bugs 101→registrado (relacional NaN, ABERTO regra 6), MATH001 (Double math B32), TIME002 (ISO add/diff B33), 105 (random.int loop — renumerado de 102, colidiu c/ §102 indexOf) |
 > | Verificados corrigidos em 08/09 | **19** — bugs 1–8, 10–17, 19, 20, 26 |
 > | Não reverificados (faltou ambiente/setup) | bugs 9, 18, 21, 22, 23 |
@@ -2817,6 +2817,67 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 - **Nota de teste faltante:** nenhum teste cobria `println(map.get(k))` com
   valor primitivo não-Int/Double — Bool e Char eram os gatilhos do default
   silencioso do `unboxMethodName`.
+
+### 112. `println(m.put(k,v))` → **VerifyError**; `println(m.remove(chave-ausente))` → **NPE** (JVM) / **SIGSEGV** (Native); `s.add(já-existente)` → `true` no interpretador — ✅ CORRIGIDO 11/09 (3 targets; JS registrado como face restante)
+- **Menor repro (JVM):** `var m = mapOf("a",1); println(m.put("a",2))` →
+  `java.lang.VerifyError: Bad type on operand stack ... Type 'java/lang/Object'
+  (stack[1]) is not assignable to integer` (crash no verifier, NÃO output
+  errado). `println(m.remove("zz"))` → `NullPointerException: Cannot invoke
+  Integer.intValue()` (NPE não é exceção-as-String do contrato Kof).
+- **Menor repro (Native x86):** `var m = mapOf("a",1); println(m.remove("zz"))`
+  → **SIGSEGV (exit=139)**.
+- **Menor repro (interpretador/Script):** `var s = setOf(1,2); println(s.add(1))`
+  → **`true`** (devia `false` — já continha 1); `println(m.remove("zz"))` → exit=1
+  com `java.lang.Integer.valueOf/1` no stderr (NPE simétrico do JVM).
+- **Causas raiz (três distintas, mesma família "retorno primitivo de put/remove/
+  add"):**
+  1. **JVM `kof_map_put`/`kof_map_remove` (`JvmOpCollections`):** `HashMap.put`/
+     `remove` devolvem `Object` (o valor anterior, que pode ser null). O typer
+     (`CollectionMethodTyper`/`MemberCallTyper`) declara o retorno como `V` —
+     quando `V` é primitivo, o `Object` entrava direto em uso primitivo: no
+     `put` o `println` emitia `String.valueOf(int)` sobre `Object` → **VerifyError**;
+     no `remove` o unbox cru `checkcast Integer; intValue` sobre null → **NPE**.
+     (O `get` já tinha o guard null→default do §87/§109; put/remove não.)
+  2. **Native `kof_map_remove` rota de MISS (`RuntimeMap.java`):** desequilíbrio
+     de pilha — a rotina faz **5 pushq** (rbx/r12/r13/r14/r15) mas o caminho
+     `.LKMR_miss` fazia só **3 popq** → `ret` saltava para lixo na pilha →
+     **SIGSEGV** em qualquer `m.remove(chave-ausente)`.
+  3. **Interpretador (`KofInterpreterCollections`):** `set.add` fazia
+     `s.add(x); s.contains(x)` → sempre `true`; e `map.put`/`remove` não
+     guardavam o `prev` null para retorno primitivo (NPE/exit=1).
+- **Correção:**
+  - JVM: novo helper `emitPrevValueUnbox(mv, declared)` — `DUP; IFNONNULL; POP;
+    default; …checkcast boxed; unboxMethodName` (guard null→default, **mesmo**
+    caminho do guard do `get`, reaproveitando `unboxMethodName` corrigido no
+    §109); ligado no `kof_map_put` (quando o retorno NÃO é void) e no
+    `kof_map_remove` (ramo primitivo). Valor de referência: cast no declared.
+  - Native: 5 pops simétricos na `.LKMR_miss`.
+  - Interpretador: `set.add` usa o `boolean` real de `HashSet.add`; helper
+    `prevOrDefault(prev, declared)` (null→`KofInterpreterMembers.defaultValue`)
+    no `kof_map_put`/`kof_map_remove`, espelhando o guard do `get` (SG-008).
+- **Prova:** célula `mapmutret` na matriz (JVM+Native+Script byte-idênticos
+  `false/true/3/true/false/1/2/2/0/0` — cobre add existente/novo, size, remove
+  hit/miss, put over existente, get, remove-miss com value Int, size final) +
+  probes `mmr.kf`/`ad.kf`/`t[A-D].kf`.
+- **⚠️ §112-JS ⏳ ABERTO (face restante, lane JS):** no JS o `put`/`remove` de
+  prev AUSENTE imprime `null` em vez do default do primitivo (`0`), porque o
+  typer declara o retorno como `V` **não-nullable** (get é `V?`, e por isso o
+  miss do get já é coerçado) e o emitter JS não aplica default a `null` nesse
+  caminho. Célula `mapmutret` mantém **JS excluído** com este ref (não é
+  regressão — é a mesma classe de gap, face JS, ainda não corrigida).
+  **Tentativa malsucedida documentada (11/09, revertida antes do commit):**
+  envolver o call de put/remove com `?? defaultForType(V)` no `JsCollectionOps
+  .handleMapOp` (padrão exato do `kof_poll`/`JsRuntimeOps:339`) **quebrou a
+  célula `map`** — ali `m.put("b",2)` é STATEMENT: o retorno primitivo do put
+  é descartado pelo parser de statement via `KofPop` (o `ExpressionStatementParser
+  js` trata `KofPop`), e a forma embrulhada `(call ?? 0)` do statement seguiu
+  outro caminho de parsing/descarte e passou a imprimir o prev (JS deu
+  `1\n1` — o `1` do put apareceu duas vezes). **Fix correto exige** distinguir
+  uso-value de uso-statement ANTES do wrap (ex.: só envolver quando o call não
+  é seguido de KofPop no contexto do statement, ou mover o wrap p/ o ponto de
+  uso com tipo — não no emitter do call op). Unidade própria; mudança pequena
+  mas o parser JS de statements é sensível à forma (ver também bug 79 no
+  KofPop width-blind — mesma vizinhança).
 
 ### 111. `split` não removia vazios TRAILING (Native x86 + JS) e `substring(a,0)` devolvia a string toda (Native x86) — ✅ CORRIGIDO 11/09 (x86_64 + JS; residual riscv/aarch)
 - **Menor repro split:** `println("a,".split(",").length)` → JVM/Script **1**,
