@@ -2843,11 +2843,13 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   call-site 1-arg virou `li a2, -1` (CrossOps) + guard `bltz s2` (B34) —
   `hello.substring(0,0)` → `[]` (era a string toda), `substring(2)` → `[llo]`;
   prova `NativeStringCompareCrossTest` (7 vetores, riscv+aarch == JVM == x86).
-- **⚠️ Residual riscv64/aarch64 (FACES QUE FALTAM):** o `kof_string_split` riscv
-  (`NativeRiscvAsmStrn1:63`) ainda NÃO tem o trim de trailing do §111 x86
-  (`a,`→`['a']`, `,`→`[]`, `''`→`['']`). Célula `strsplit` é **parcial p/ estas
-  faces** — o guard skipa riscv/aarch sem qemu, então não falha agora, mas o
-  port do trim é a próxima unidade cross-arch (mesma família §44/§100/§102/§110).
+- **✅ Face `split` CORRIGIDA 11/09 (cross, B37 `e960c9fd`, qemu):** port 1:1
+  do `.Lkof_split_done` x86 no riscv (`NativeRiscvAsmStrn1`): scan do fim
+  podando vazios (s7 = peças MATERIALIZADAS, não o count da alocação),
+  sobrescreve length do array, e input vazio força `[""]` (nunca garbage do
+  bump). Prova: `NativeStringCompareCrossTest` split (9 linhas, 6 faces
+  `a,b,`→2/`a,`→1/`,`→0/`""`→1`[]`/`a,b`→2/`,a`→2) riscv+aarch == JVM == x86
+  byte-idênticos sob qemu. §111 ✅ FECHADO nos 5 targets (paridade absoluta).
 
 ### 110. Literal/fold `-0.0` vira `+0.0` no JVM (perde o zero com sinal) — ✅ CORRIGIDO 11/09 (guard de raw bits no literal emitter)
 - **Menor repro:** `main() { println(-0.0) }` → JVM **`0.0`**, Native/Script **`-0.0`**.
