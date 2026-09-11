@@ -2543,6 +2543,30 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   com equals/hashing por conteúdo no emitter JS — unidade própria.
 
 
+### 106. Native `println(coleção)` imprime ponteiro como lixo (bytes crus) — ⏳ ABERTO (paridade + R6)
+
+- **Sintoma (11/09, sweep `/tmp/s3.kf`):** `println(listOf(1,2,3))` → JVM
+  `[1, 2, 3]`, Script `[1, 2, 3]`, **Native = bytes de memória crua**
+  (`\ufffd\ufffdx`); idem Map (`{k=1}` vs vazio/lixo) e Set. `println` de
+  lista de String e lista pós-`map/filter` (`[10, 12, 14]` → lixo/símbolos)
+  mesmo padrão. Código VÁLIDO do corpus (`training/idioms/collections.md`
+  imprime coleções) → saída corrompida = R6 + paridade absoluta.
+- **Causa raiz (diagnosticada 11/09):** `NativeX86Calls.java:180` — no
+  `println`/valueOf de ClassType não-String, o dispatch é
+  `findVirtualMethodIndex(ct.name(), "toString")`; `kof.List`/`kof.Map`/
+  `kof.Set` NÃO são IRClasses com vtable → índice **-1** → o branch
+  **NÃO EMITE NADA** e o handle (ponteiro) cai cru no println. Silencioso:
+  nem LINK_FAIL, nem diagnóstico.
+- **Fix (unidade própria, não iniciada):** helpers asm `kof_list_toString`/
+  `kof_map_toString`/`kof_set_toString` no runtime (formato do oracle JVM:
+  `[a, b]` sem aspas, `{k=1}`, elementos via os conversores primitivos +
+  vtable toString p/ handles) + dispatch quando o tipo é coleção (antes do
+  -1 silencioso). Mesma infraestrutura de dispatch de valor do §104b-ii
+  (contains por conteúdo) — resolver os dois juntos na fatia 4.
+- **Arquivos:** `nat/NativeX86Calls.java` (branch ClassType),
+  `runtime/RuntimeList|RuntimeMap|RuntimeSet.java` (helpers novos).
+
+
 ### 103. Subscript `x[i]` em String/List/Map/Set aceito em silêncio → quebra os 3 targets (VerifyError/vazio) — ✅ CORRIGIDO 11/09 (SEM054, opção B)
 
 - **Sintoma:** `"abc"[0]` e `listOf(10,20)[1]` (e escrita `l[0] = 9`) eram
