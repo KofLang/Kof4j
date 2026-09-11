@@ -121,6 +121,12 @@ public class JsArtifactWriter {
                       border: 1px solid var(--border); border-radius: 6px;
                       font-family: inherit;
                     }
+                    .kof-textarea, .kof-select {
+                      font-size: 13px; padding: 6px 10px;
+                      background: var(--panel); color: var(--fg);
+                      border: 1px solid var(--border); border-radius: 6px;
+                      font-family: inherit;
+                    }
                     .kof-column { display: flex; flex-direction: column; gap: 8px; }
                     .kof-row { display: flex; flex-direction: row; gap: 8px; align-items: center; }
                     .kof-view { box-sizing: border-box; }

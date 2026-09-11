@@ -28,6 +28,7 @@ final class KofJsWebview {
             Files.copy(ioRuntime, appDir.resolve("kof-runtime-io.mjs"));
         }
         String page = "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n"
+                + "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
                 + "  <title>Kof</title>\n  <style>\n"
                 + "    body { margin: 0; font-family: system-ui, sans-serif; }\n"
                 + "    #kof-root { display: flex; flex-direction: column; gap: 8px;\n"

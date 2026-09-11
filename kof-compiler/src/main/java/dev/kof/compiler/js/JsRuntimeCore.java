@@ -192,7 +192,27 @@ public final class JsRuntimeCore {
                     "body { background:var(--bg); color:var(--fg); font-family:",
                     '  "Cascadia Code", "Fira Code", Consolas, Menlo, monospace; }',
                     ".kof-label { color:var(--output); font-size:13px; line-height:1.5;",
-                    "  white-space:pre-wrap; padding:2px 0; }"
+                    "  white-space:pre-wrap; padding:2px 0; }",
+                    // issues #75/#76 (10/09): o runtime AO VIVO não tinha NENHUMA
+                    // regra p/ Column/Row (renderizavam divs crus, sem flex) nem
+                    // p/ Button/Input/Textarea/Select (controles nativos crus).
+                    // Espelha o exportador ESTÁTICO (JsArtifactWriter) no MESMO
+                    // vocabulário de var(--…) do tema — paridade vivo↔estático.
+                    ".kof-column { display:flex; flex-direction:column; gap:8px; }",
+                    ".kof-row { display:flex; flex-direction:row; flex-wrap:wrap;",
+                    "  gap:8px; align-items:flex-start; }",
+                    ".kof-button { font-size:13px; padding:6px 14px; cursor:pointer;",
+                    "  background:var(--panel); color:var(--fg);",
+                    "  border:1px solid var(--border); border-radius:6px; }",
+                    ".kof-button:hover { background:var(--hover); }",
+                    ".kof-input, .kof-textarea, .kof-select { font-size:13px; padding:6px 10px;",
+                    "  background:var(--panel); color:var(--fg); font-family:inherit;",
+                    "  border:1px solid var(--border); border-radius:6px; }",
+                    ".kof-input { width:100%; }",
+                    ".kof-view { box-sizing:border-box; }",
+                    ".kof-window { box-sizing:border-box; padding:16px; border-radius:8px;",
+                    "  border:1px solid var(--border); background:var(--bg);",
+                    "  display:flex; flex-direction:column; gap:8px; }"
                 ].join("\\n");
                 (document.head || document.documentElement).appendChild(style);
             }
