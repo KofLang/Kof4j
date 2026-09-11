@@ -2444,7 +2444,7 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   `STRING_ARG_METHODS`); testes em `SemanticResolutionTest.java`.
 
 
-### 101. Native: `indexOf(String, from)`/`lastIndexOf(String, from)` ignoram o índice inicial — ABERTO (achado 11/09 no sweep da família §100)
+### 102. Native: `indexOf(String, from)`/`lastIndexOf(String, from)` ignoram o índice inicial — ABERTO (achado 11/09 no sweep da família §100)
 
 - **Sintoma (medido 11/09):** `"aXb".indexOf("X", 2)` → **JVM `-1`** (correto:
   o `"X"` está no índice 1 < 2), **Native `1`** (acha desde 0), Script `-1`.
