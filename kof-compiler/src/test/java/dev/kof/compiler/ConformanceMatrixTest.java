@@ -947,6 +947,20 @@ class ConformanceMatrixTest {
                     println(c[0][0][0])
                 }
                 """, "60\n3\n2\n3\n0\n7\n2\n2\n9\n0", Set.of(), tempDir);
+        // §121: store de Int em slot Long (crashava o COMPUTE_FRAMES do JVM —
+        // o bloco de conversão do ExpressionAssignmentLowerer era um if {} que
+        // sÓ comentava a promessa). widened 1-D e 2-D; oracle do interpretador.
+        matrix("arrlongstore", """
+                main() {
+                    var e = new Long[4]
+                    e[1] = 9
+                    println(e[1])
+                    var c = new Long[2][2]
+                    c[1][0] = 3
+                    println(c[1][0])
+                    println(e[0])
+                }
+                """, "9\n3\n0", Set.of(), tempDir);
     }
 
     @Test

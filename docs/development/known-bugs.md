@@ -3312,7 +3312,7 @@ int de índice) — verificados na varredura.
   security/time/uuid/validation/string/encoding/mq/random/parse/matrix) +
   `NativeE2ETest` x86 61/0 + suíte completa baseline 0-falhas.
 
-### 121. JVM: guardar `Int` em array `Long` (`new Long[4]; c[1] = 9`) crasha o backend — ⏳ ABERTO (pre-existing, achado pela prova do §113)
+### 121. JVM: guardar `Int` em array `Long` (`new Long[4]; c[1] = 9`) crasha o backend — ✅ CORRIGIDO 11/09 (achado pela prova do §113)
 
 - **Menor repro (probe 11/09):** `new Long[4]; c[1] = 9` →
   **compile JVM falha**: `frame crash ... COMPUTE_FRAMES (visitMaxs)
@@ -3325,12 +3325,16 @@ int de índice) — verificados na varredura.
   ela, `aastore/lastore` com tipo errado → verifier rejeita = o frame crash
   documentado como COMP002). O comentário diz "converter no IR"; o código não
   converte. `newMultiArray` do §113 expôs isto ao varrer os alvos da célula.
-- **Fix (não feito — lane JVM):** aplicar `driver.emitWideningIfNeeded(ops,
-  aaValueType, aaElemType)` (ou I2L) ANTES do `KofArrayStore`, no caminho
-  não-compound não-concat. Provar com a célula `arrlongstore` na matrix +
-  repro acima; JS/Native/Script já aceitam (JS number, Native unbox,
-  Script coercion). NÃO é mudança de contrato (Int em Long[] é widening já
-  documentado — só o codegen JVM está quebrado).
+- **✅ CORRIGIDO 11/09 (lane JVM):** o bloco vazio recebeu a MESMA linha
+  que o caminho compound usa 20 linhas acima:
+  `if (isPrimitiveType(value) && isPrimitiveType(elem))
+   driver.emitWideningIfNeeded(ops, aaValueType, aaElemType)` antes do
+  `KofArrayStore` (`I2L` etc. no IR — cada backend já trata `KofUnary(I2L)`).
+- **Prova:** célula `arrlongstore` (Int→Long 1-D e 2-D + zero-fill, 4/4 sem
+  exclusão); suíte completa pós-clean verde (1499 run; 12 err=node, 136 skip=
+  cross-sem-toolchain). JS/Native/Script já aceitavam; só o codegen JVM
+  estava quebrado — nenhuma mudança de contrato (widening Int→Long já é
+  documentado em `learn/`).
 
 ### 120. Tradutor riscv→aarch64: `fcvt.w/l.{s,d}` (FP→INT) traduzido como `scvtf` (direção INVERTIDA) — ✅ CORRIGIDO 11/09 (`fcvtzs`)  *(renumerado de §104 na reconciliação do merge 11/09 — colidiu com o record-equals §104 da série ativa)*
 
