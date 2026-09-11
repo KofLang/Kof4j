@@ -985,6 +985,22 @@ class ConformanceMatrixTest {
                     println(a.hashCode() == b.hashCode())
                 }
                 """, "true", Set.of(), tempDir);
+        // §114 (face String): `==` de record com campo String era PONTEIRO no
+        // Native (S("ab")==S("ab") → false vs JVM/JS/Script true). Agora o
+        // campo String compara por CONTEÚDO via kof_string_equals (null-safe).
+        // Campo de RECORD aninhado / hash de referência / record-em-coleção
+        // ficam no §104b-ii (equals/hashCode genérico por vtable — unidade
+        // própria; a célula objmethods mantém native excluído).
+        matrix("recordstrfield", """
+                record S(String t)
+                record T(Int n, String s)
+                main() {
+                    println(S("ab") == S("ab"))
+                    println(S("ab") == S("cd"))
+                    println(T(1, "x") == T(1, "x"))
+                    println(T(2, "x") == T(1, "x"))
+                }
+                """, "true\nfalse\ntrue\nfalse", Set.of(), tempDir);
         // PARTIAL: bug 41 (Native stub vazio KofGetStatic/KofPutStatic → lixo).
         matrix("staticfield", """
                 class Counter {

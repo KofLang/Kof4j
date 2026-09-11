@@ -61,6 +61,10 @@ public final class CompilerRecordSupport {
 
     /**
      * equals() nativo de record: compara todos os componentes (bug 11 native).
+     * §114: campo String → CONTEÚDO via kof_string_equals (null-safe, o mesmo
+     * helper que o top-level `s == t` usa — FUNCTION, roteado nos 3 backends
+     * nativos); campo de classe/record aninhado continua EQ de ponteiro até a
+     * armadura genérica de equals-vtable-do-campo do §104b-ii (unidade própria).
      */
     static IRMethod buildRecordEqualsMethod(CompilerDriver driver, String internalName,
                             List<IRField> fields,
@@ -76,7 +80,13 @@ public final class CompilerRecordSupport {
             ops.add(new KofLoadField(ownerType, f.name(), f.type()));
             ops.add(new KofLoadLocal(ownerType, 1));
             ops.add(new KofLoadField(ownerType, f.name(), f.type()));
-            ops.add(new KofBinary(KofBinaryOp.EQ, f.type()));
+            if (Type.isString(f.type())) {
+                ops.add(new KofCall(BuiltinTypes.STRING, "kof_string_equals",
+                        List.of(BuiltinTypes.STRING, BuiltinTypes.STRING),
+                        Type.PrimitiveType.BOOL, KofCallKind.FUNCTION));
+            } else {
+                ops.add(new KofBinary(KofBinaryOp.EQ, f.type()));
+            }
             // AND acumula a partir do 2º campo: [bool0] → (bool0 AND bool1)
             // O AND só após a 2ª comparação ter empilhado o 2º bool.
             if (i > 0) {

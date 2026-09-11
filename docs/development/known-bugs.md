@@ -2967,7 +2967,7 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   sem exclusões + `NativeE2ETest#nativeMultiDimArray` (repro menor do §113
   → `2/7`); suíte completa pós-clean verde. Faces riscv/aarch: port pendente.
 
-### 114. Native: `equals`/`==` de record com campo de REFERÊNCIA (String ou record aninhado) compara PONTEIRO → `false` — ⏳ ABERTO (sub-face do §104b-ii (i), backend-only)
+### 114. Native: `equals`/`==` de record com campo de REFERÊNCIA (String ou record aninhado) compara PONTEIRO → `false` — ⏳ PARCIAL 11/09 (face String ✅; record-aninhado/hash/coleção = §104b-ii) (sub-face do §104b-ii (i), backend-only)
 
 - **Menor repro (medido 11/09):**
   `record S(String t)` + `println(S("ab") == S("ab"))` → JVM/Script/JS `true`,
@@ -2983,7 +2983,15 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   Top-level `s == t` de String funciona porque passa pelo caminho de
   comparação de String do typer (`Objects.equals`/`kof_string_equals`), não
   por aqui.
-- **Fix (não feito):** mesma infra do §104b-ii (i) — nos campos de referência
+- **✅ FACE STRING CORRIGIDA 11/09:** campo String → `KofCall
+  kof_string_equals(STRING,STRING)` como FUNCTION — o MESMO lowering do
+  top-level `s == t` (ExpressionBinaryLowerer:214), já roteado nos 3 backends
+  nativos (x86 direto; riscv `NativeRiscvCrossOps:253`; aarch via tradutor),
+  null-safe medido: `S(null)==S(null)` → true (era true-acidental por
+  ponteiro-null; continua true por conteúdo). Prova: célula `recordstrfield`
+  4/4 sem exclusão (`S("ab")==S("ab")` true, mismatch false, campo misto
+  Int+String) + suíte completa 4 módulos verde (1337+30+5+127).
+- **Fix (não feito — faces restantes):** mesma infra do §104b-ii (i) — nos campos de referência
   do equals sintetizado, emitir o compare de conteúdo: String →
   `call kof_string_equals` (helper já existe); record aninhado → dispatch vtable
   `equals` pelo slot do tipo do campo (`findVirtualMethodIndex(f.type(),
