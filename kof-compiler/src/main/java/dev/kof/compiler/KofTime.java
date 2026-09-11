@@ -64,21 +64,11 @@ public final class KofTime {
         // TIME001 FEITO no cross (05/09): kof_time_interval/cancel são alias
         // de kof_scheduler_every/cancel no runtime riscv64/aarch64 (thread por
         // job via clone+nanosleep — mesmo mecanismo do spawn).
-        // S7a TIME002 (10/09): addDays/diffDays = só JVM-family (JVM/SCRIPT/
-        // ANDROID — interpretador herda o KofRuntime do JVM). JS/Native = gap
-        // honesto (String-alocação no asm + parse data: escopo próprio, R6 —
-        // nunca fallback silencioso).
-        // S7b (10/09): JS FECHADO — kofTimeAddDays/kofTimeDiffDays no
-        // JsRuntimeUiWeb (mesmo algoritmo civil do wedge, SEM Date =>
-        // paridade byte-idêntica).
-        // S7c (10/09): x86 FECHADO — RuntimeTimeIso (parse ISO + inversa
-        // civil Hinnant + alocação de String no asm; harness C 200k fuzz +
-        // matriz stdtime2 rodando local). Restam riscv64/aarch64 (TIME002,
-        // fatia B própria — precedente NET001: x86 fecha antes do cross).
-        if (("addDays".equals(method) || "diffDays".equals(method))
-                && (target == Target.NATIVE_RISCV64 || target == Target.NATIVE_AARCH64)) {
-            return false;
-        }
+        // TIME002 FEITO (11/09): addDays/diffDays — JVM/SCRIPT (S7a), JS
+        // (S7b, algoritmo civil sem Date), x86 (S7c RuntimeTimeIso) e
+        // riscv64/aarch64 (B33: .Lu8_parse2/.Lu8_civil/.Lu8_put* — port 1:1
+        // do spec x86 reusando kdv_valid/kdv_epoch da B14; prova golden
+        // byte-idêntico sob qemu nos 2 cross, KofTimeE2ETest).
         return true;
     }
 

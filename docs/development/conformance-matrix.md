@@ -81,7 +81,7 @@
 | stdlib kof.* (S10–S12b, S3b-ext, S7-ext: paridade kof-script × JVM compilado — fachada random, format BR, uncapitalize, isUuid, isWeekend) | (asserts de contrato + golden; não-determinístico só via fachada) | DONE | DONE | — | — | `KofScriptStdlibParityTest` (kof-script, 5) |
 | stdlib kof.uuid (S3b-ext: isUuid — shape RFC 4122, 8-4-4-4-12 hex, hífens 8/13/18/23; sem checar versão/variante) | `true` / `true`(maj) / `false`(sem traço/tam/g/empty) | DONE | DONE | DONE | DONE | `isUuid*` (KofUuidTest; riscv/aarch assert sob qemu) |
 | stdlib kof.time (S7-ext: isWeekend — dayOfWeek>=6, wrapper nos 5 alvos; data inválida => false) | `true`(sáb) / `false`(qua) / `false`(inválida) | DONE | DONE | DONE | DONE | `calendar*` (KofTimeE2ETest; riscv/aarch assert sob qemu) |
-| stdlib kof.time (S7a/b/c: addDays/diffDays em data ISO String — parse estrito YYYY-MM-DD, inválido => ""/0; JVM/java.time + JS algoritmo civil sem Date + x86 asm `RuntimeTimeIso`) ⁴ | `2024-02-29` / `2023-03-01` / `2025-01-01` / `2023-12-31` / `''` / `''` / `60` / `-60` / `0` | DONE | DONE ⁴ | DONE | DONE | `stdtime2` |
+| stdlib kof.time (S7a/b/c: addDays/diffDays em data ISO String — parse estrito YYYY-MM-DD, inválido => ""/0; JVM/java.time + JS algoritmo civil sem Date + x86 asm `RuntimeTimeIso` + riscv/aarch **B33** (TIME002 fechado 11/09)) ⁴ | `2024-02-29` / `2023-03-01` / `2025-01-01` / `2023-12-31` / `''` / `''` / `60` / `-60` / `0` | DONE | DONE ⁴ | DONE | DONE | `stdtime2` |
 | stdlib kof.encoding (S4: hex + base64 + url + base64url — UTF-8 por bytes) | `4869` / `Hi` / `636166c3a9` / `café` / `TWFu` / `café` / `a%20b` / `café` / `ZmImTy0-Zg` / `fb&O->f` / `E` | DONE | DONE² | DONE | DONE | `stdenc` |
 
 > ¹ **STRN001 FECHADO 09/09:** joinWords portado p/ riscv64 (fatia B15) + aarch64
@@ -89,11 +89,16 @@
 > golden oracle no qemu (16 vetores, incl. delimitadores UTF-8 `>=128`).
 > `KofStringsTest.wordConvertersClosedOnCrossArch`.
 
-> ⁴ **TIME002 parcial (riscv64/aarch64)**: `addDays`/`diffDays` rodam em JVM/Script/JS e
-> no native **x86** (`RuntimeTimeIso` — parse ISO + inversa civil Hinnant no
-> asm; round-trip exaustivo 1..9999 + fuzz C 200k). O port riscv64/aarch64
-> (fatia B) mantém o gate TIME002 nesses dois alvos (precedente NET001:
-> x86 fecha primeiro); provado em `KofTimeE2ETest` (erro claro no compile).
+> ⁴ **TIME002 FECHADO 11/09 (riscv64/aarch64)**: `addDays`/`diffDays` rodam nos 5 alvos —
+> JVM/Script/JS + native **x86** (`RuntimeTimeIso`) + riscv64/aarch64 (fatia
+> **B33**: `.Lu8_parse2`/`.Lu8_civil`/`.Lu8_put*` port 1:1 do spec x86 reusando
+> `kdv_valid`/`kdv_epoch` da B14; aarch via tradutor). Prova:
+> `KofTimeE2ETest.timeAddDaysDiffDaysJvmShapeAndCrossArch` — golden
+> byte-idêntico (9 linhas) sob qemu-riscv64 + qemu-aarch64, invertendo o
+> antigo gate TIME002 (precedente NET001: x86 fecha primeiro, cross depois).
+> LIÇÕES riscv do port: `call` sobrescreve `ra` (jalr, não pilha) — helper
+> que termina em `call h; ret` deve fazer **tail-jmp** `j h`; e `kdv_valid`
+> clobbers `s0` (daysInMonth) — nenhum valor vivo em `s0` entre calls.
 
 > ³ **NET001 FECHADO 09/09:** `net.*` roda nos 3 nativos — x86 (RuntimeUri) +
 > riscv64 (fatia B24) + aarch64 (mesmo asm traduzido); paridade byte-a-byte

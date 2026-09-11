@@ -403,7 +403,7 @@ class KofTimeE2ETest {
      * (erro claro no compile, nunca fallback silencioso — R6).
      */
     @Test
-    void timeAddDaysDiffDaysJvmShapeAndTime002Gate(@TempDir Path tempDir) throws IOException {
+    void timeAddDaysDiffDaysJvmShapeAndCrossArch(@TempDir Path tempDir) throws IOException {
         String src = """
             main() {
                 println(time.addDays("2024-02-28", 1))
@@ -423,15 +423,47 @@ class KofTimeE2ETest {
         Path gateSrc = tempDir.resolve("Gate.kf");
         Files.writeString(gateSrc, src);
         // S7b: JS FECHADO; S7c: x86 FECHADO (matriz stdtime2 roda local).
-        // Restam riscv64/aarch64 (TIME002) com erro claro no compile (R6).
+        // S7d (TIME002 fechado 11/09): riscv64/aarch64 — B33 (.Lu8_parse2/
+        // .Lu8_civil/.Lu8_put*) port 1:1 do RuntimeTimeIso x86 reusando
+        // kdv_valid/kdv_epoch (B14). Golden byte-idêntico sob qemu.
+        String expected = "2024-02-29\n2023-03-01\n2025-01-01\n2023-12-31\n\n\n60\n-60\n0";
         for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
-            CompilationResult r = new CompilerDriver().compile(gateSrc, tempDir.resolve("gate-" + t), t);
-            assertFalse(r.success(), t + " deve rejeitar addDays/diffDays (TIME002)");
-            boolean hasTime002 = r.diagnostics().getDiagnostics().stream()
-                    .anyMatch(d -> "TIME002".equals(d.code())
-                            && d.severity() == Diagnostic.Severity.ERROR);
-            assertTrue(hasTime002, t + " deve reportar TIME002, veio: "
-                    + r.diagnostics().getDiagnostics());
+            String qemu = t == Target.NATIVE_RISCV64 ? "qemu-riscv64" : "qemu-aarch64";
+            String[] tools = t == Target.NATIVE_RISCV64
+                    ? new String[]{"riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64"}
+                    : new String[]{"aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"};
+            assumeToolchain(tools);
+            Path file = tempDir.resolve("Ad-" + t + "-" + System.nanoTime() + ".kf");
+            Files.writeString(file, src);
+            Path outDir = tempDir.resolve("ad-" + t + "-" + System.nanoTime());
+            CompilationResult r = new CompilerDriver().compile(file, outDir, t);
+            assertTrue(r.success(), t + " compile: " + r.diagnostics().getDiagnostics());
+            Process p = new ProcessBuilder(qemu, outDir.resolve("Default/Main").toString())
+                    .redirectErrorStream(true).start();
+            String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
+                    .replace("\r\n", "\n").trim();
+            int ec;
+            try {
+                ec = p.waitFor();
+            } catch (InterruptedException e) {
+                throw new IOException("interrupted", e);
+            }
+            assertEquals(0, ec, t + " qemu exit, out: " + out);
+            assertEquals(expected, out, t + " golden addDays/diffDays");
+        }
+    }
+
+    private void assumeToolchain(String... tools) {
+        for (String c : tools) {
+            try {
+                Process p = new ProcessBuilder("sh", "-c", "command -v " + c)
+                        .redirectErrorStream(true).start();
+                String o = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+                org.junit.jupiter.api.Assumptions.assumeTrue(
+                        p.waitFor() == 0 && !o.isEmpty(), "toolchain ausente: " + c);
+            } catch (Exception e) {
+                org.junit.jupiter.api.Assumptions.assumeTrue(false, "toolchain ausente: " + c);
+            }
         }
     }
 }

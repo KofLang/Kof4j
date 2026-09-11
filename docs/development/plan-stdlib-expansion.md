@@ -1,6 +1,6 @@
 # Plano — Universal Standard Library (STDLIB)
 
-**Dono:** lane KOFSCRIPT (fixes-for-kofagent) · **Status:** EM CURSO — **S7 parcial**: `addDays`/`diffDays` FEITOS em JVM/Script (S7a) + JS (S7b) + **Native x86** (S7c `cd622c47`, classe nova `runtime/RuntimeTimeIso.java`); resta só **riscv64/aarch64** (TIME002 residual — asm riscv da spec x86 pronta, bloqueado de PROVA sem qemu/toolchain) + `format`/`boundaries` (decisão de superfície da mantenedora); S0–S6, S8–S10 FEITOS (auditoria 10/09 vs código: KofMath/KofStrings/KofEncoding/KofUuid/KofValidation/KofNet/KofTime + KofRandomTest) · **Briefing:** maintainer 08/09 (universal stdlib, multitarget, anti-microdependência)
+**Dono:** lane KOFSCRIPT (fixes-for-kofagent) · **Status:** EM CURSO — **S7d FECHADO 11/09**: `addDays`/`diffDays` nos 5 alvos (JVM/Script S7a, JS S7b, x86 S7c `RuntimeTimeIso`, riscv/aarch **B33** — TIME002 fechado; a spec "bloqueada sem qemu" caiu: toolchain+qemu presentes, goldens byte-idênticos sob qemu). S1b/S1b.1 **MATH001 fechado 11/09** (Double math riscv/aarch B32). Restam no plano só decisões da mantenedora (`format`/`boundaries`, S10c, §89) + itens sem algoritmo no corpus (isNis/ulid/creditCard); S0–S6, S8–S10 FEITOS (auditoria 10/09 vs código) · **Briefing:** maintainer 08/09 (universal stdlib, multitarget, anti-microdependência)
 
 ## 0. Arquitetura real (mapeada 08/09 — NÃO inventar paralela)
 
@@ -134,13 +134,22 @@ na   (null-safety + throw são o mecanismo).
      `.Lka_parse2` + `.Lka_civil` (round-trip EXAUSTIVO 1..9999) + alocação String
      no asm; harness C 200k fuzz 0 fails). Matriz `stdtime2` (JVM+Script+JS+x86;
      riscv/aarch=TIME002) + `KofTimeE2ETest...Time002Gate`.
-   - **ABERTO — TIME002 residual** (R6, nunca silencioso): `addDays`/`diffDays`
-     em **riscv64/aarch64** (asm riscv da especificação x86 pronta em
-     `RuntimeTimeIso`; `divl`→`divu/remu` seguro: z≥0 garantido pelo guard de
-     range; aloc String = padrão kof_alloc riscv + translator aarch; fatia B
-     própria — precedente NET001: x86 fecha primeiro, cross depois). Gate
-     dispara no compile-time só p/ esses 2 alvos. **BLOQUEIO de prova:** sem
-     cross-assembler/qemu no ambiente da lane — NÃO escrever asm sem montar/rodar.
+   - **S7d FEITO 11/09 — TIME002 FECHADO** (`addDays`/`diffDays` em riscv64/
+     aarch64, fatia **B33**): port 1:1 do spec x86 (`RuntimeTimeIso`) —
+     `.Lu8_parse2` (formato + dígitos + kdv_valid) / `.Lu8_civil` (inversa
+     Hinnant) / `.Lu8_put4`/`.Lu8_put2`, reusando `kdv_valid`/`kdv_epoch` da
+     B14; `divl`→`divu/remu` (z≥0 pelo guard -719162..2932896); aloc String =
+     padrão kof_alloc riscv; aarch herda via tradutor. Gate `KofTime.supportedOn`
+     removido (5 alvos). **LIÇÕES riscv do port (registradas no código):**
+     (1) `call` no riscv é `jalr ra` — sobrescreve o `ra` do caller (não é a
+     pilha do x86); helper que termina em `call h; ret` precisa de **tail-jmp**
+     `j h` senão o `ret` volta ao próprio corpo = loop infinito (pegado no
+     trace qemu do parse2). (2) `kdv_valid` faz `call daysInMonth` e **clobbers
+     s0** — nenhum valor vivo em `s0` entre calls (tudo em slot de pilha,
+     lição B14). (3) `blt`/`bge` SIGNED no bounds epoch (diferença de `bltu`
+     unsigned). Prova: golden byte-idêntico de 9 linhas (oracle JVM medido)
+     sob qemu-riscv64 + qemu-aarch64 (`KofTimeE2ETest` invertendo o antigo
+     `Time002Gate`); KofTimeE2ETest 11/11, matriz stdtime2 + E2E riscv/aarch.
    - **ABERTO**: `format`/`boundaries` (forma de API — `format(date, "yyyy-MM-dd")`
      vs funções escalares `yearOf`/`monthOf`… — decisão de superfície da
      mantenedora, como a família `net`/`validation`).
