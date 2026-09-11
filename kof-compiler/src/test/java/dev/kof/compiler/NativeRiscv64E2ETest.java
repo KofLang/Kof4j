@@ -705,6 +705,32 @@ main() {
     }
 
     @Test
+    void nativeStringSubstringIndexOfUtf16(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        // bug 43 cross (estágio 2): substring/indexOf/lastIndexOf em code
+        // units UTF-16 — golden JVM MEDIDO (B34, trampolins p/ kof_su_*).
+        String out = runRiscv64(tempDir, """
+                main() {
+                    println("caf\\u00e9".substring(0, 3).length)
+                    println("\\u00e9abc".indexOf("a"))
+                    println("\\u00e9abc".indexOf("bc"))
+                    println("caf\\u00e9".indexOf(""))
+                    println("\\u00e9x\\u00e9".lastIndexOf("\\u00e9"))
+                    println("caf\\u00e9x".indexOf("x"))
+                    println("ab\\u00e9cd".substring(1, 3) + "|")
+                    println("ab\\u00e9cd".substring(3) + "|")
+                    println("a\\uD83D\\uDE00b".substring(1, 3) + "|")
+                    println("a\\uD83D\\uDE00b".substring(3))
+                    println("a\\uD83D\\uDE00b".indexOf("b"))
+                    println("a\\uD83D\\uDE00b".lastIndexOf(""))
+                    println("\\u20acx\\u20ac".lastIndexOf("\\u20ac"))
+                    println("caf\\u00e9".substring(2, 4) + "|")
+                }
+                """);
+        assertEquals("3\n1\n2\n0\n2\n4\nbé|\ncd|\n😀|\nb\n3\n4\n2\nfé|", out);
+    }
+
+    @Test
     void nativeStringCompareToAndHashCodeUtf16(@TempDir Path tempDir) throws IOException {
         assumeToolchain();
         // bug 97 cross: compareTo/hashCode em code units UTF-16 (port do x86,
