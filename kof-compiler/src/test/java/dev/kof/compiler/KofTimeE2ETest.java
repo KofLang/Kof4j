@@ -398,12 +398,15 @@ class KofTimeE2ETest {
     }
 
     /**
-     * STDLIB S7a — addDays/diffDays em data ISO (String).
-     * Shape travado no JVM (java.time); Native/JS = gap honesto TIME002
-     * (erro claro no compile, nunca fallback silencioso — R6).
+     * STDLIB S7a/S7c-1 — addDays/diffDays em data ISO (String).
+     * Shape travado no JVM (java.time); TIME002 FECHADO no cross 11/09
+     * (fatia B35 riscv64 + tradutor aarch64). O gate era rejeição com
+     * diagnóstico TIME002; agora compila nos 5 targets (prova de execução
+     * riscv/aarch sob qemu em NativeRiscv64/Aarch64E2ETest; golden da
+     * matriz stdtime2 em ConformanceMatrixTest).
      */
     @Test
-    void timeAddDaysDiffDaysJvmShapeAndTime002Gate(@TempDir Path tempDir) throws IOException {
+    void timeAddDaysDiffDaysCompilesOnAllTargets(@TempDir Path tempDir) throws IOException {
         String src = """
             main() {
                 println(time.addDays("2024-02-28", 1))
@@ -422,15 +425,11 @@ class KofTimeE2ETest {
                         "2024-02-29\n2023-03-01\n2025-01-01\n2023-12-31\n\n\n60\n-60\n0"));
         Path gateSrc = tempDir.resolve("Gate.kf");
         Files.writeString(gateSrc, src);
-        // S7b: JS FECHADO; S7c: x86 FECHADO (matriz stdtime2 roda local).
-        // Restam riscv64/aarch64 (TIME002) com erro claro no compile (R6).
+        // TIME002 fechado (S7c-1): addDays/diffDays compilam em riscv64/
+        // aarch64 (asm B35; execução provada sob qemu nos E2E cross).
         for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
             CompilationResult r = new CompilerDriver().compile(gateSrc, tempDir.resolve("gate-" + t), t);
-            assertFalse(r.success(), t + " deve rejeitar addDays/diffDays (TIME002)");
-            boolean hasTime002 = r.diagnostics().getDiagnostics().stream()
-                    .anyMatch(d -> "TIME002".equals(d.code())
-                            && d.severity() == Diagnostic.Severity.ERROR);
-            assertTrue(hasTime002, t + " deve reportar TIME002, veio: "
+            assertTrue(r.success(), t + " deve compilar addDays/diffDays (TIME002 fechado): "
                     + r.diagnostics().getDiagnostics());
         }
     }

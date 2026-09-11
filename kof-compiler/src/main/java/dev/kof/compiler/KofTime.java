@@ -73,19 +73,20 @@ public final class KofTime {
         // paridade byte-idêntica).
         // S7c (10/09): x86 FECHADO — RuntimeTimeIso (parse ISO + inversa
         // civil Hinnant + alocação de String no asm; harness C 200k fuzz +
-        // matriz stdtime2 rodando local). Restam riscv64/aarch64 (TIME002,
-        // fatia B própria — precedente NET001: x86 fecha antes do cross).
-        if (("addDays".equals(method) || "diffDays".equals(method))
-                && (target == Target.NATIVE_RISCV64 || target == Target.NATIVE_AARCH64)) {
-            return false;
-        }
+        // matriz stdtime2 rodando local).
+        // S7c-1 (11/09): riscv64/aarch64 FECHADOS — TIME002 encerrado.
+        // Fatia B35 (NativeRiscvAsmRtB35) = transcrição fiel da máquina x86
+        // (parse2/civil/put4/put2 + kof_time_addDays/diffDays) reusando
+        // kdv_valid/kdv_epoch da B14; aarch64 via tradutor (divu/remu/
+        // sext.w cobertos — verificado). golden stdtime2 nos 4 targets.
         return true;
     }
 
     static String gapCode(String method) {
-        // TIME002 — data ISO add/diff: JVM/Script/JS FEITOS (S7a/S7b); resta
-        // só Native (asm: parse String + alocação de String em runtime —
-        // mesmo escopo do port nativo NET001).
+        // TIME001 (interval/cancel) fechado no cross (05/09); TIME002
+        // (addDays/diffDays) fechado no cross 11/09 (S7c-1, fatia B35).
+        // gapCode só alimenta o gate de suporte; mantém a chave por
+        // retrocompatibilidade dos diagnósticos existentes.
         return ("addDays".equals(method) || "diffDays".equals(method))
                 ? "TIME002" : "TIME001";
     }

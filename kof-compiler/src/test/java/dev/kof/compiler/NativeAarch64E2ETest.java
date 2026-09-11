@@ -738,4 +738,37 @@ main() {
                 """);
         assertEquals("10\n1\n-1\n-1\n55260\n-10176\n10176\n96354\n3240\n1772899\n0", out);
     }
+    @Test
+    void nativeTimeAddDaysDiffDaysIso(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        // STDLIB S7c-1 (TIME002 fechado 11/09): addDays/diffDays em data ISO
+        // riscv64/aarch64 — fatia B35 + tradutor. Golden stdtime2 (matriz) +
+        // 3 vetores extras (overflow 9999 / borrow 0001 / fim de ano bissexto
+        // de século não-bissexto) verificados byte-a-byte sob qemu vs JVM.
+        String out = runAarch64(tempDir, """
+                main() {
+                    println(time.addDays("2024-02-28", 1))
+                    println(time.addDays("2023-02-28", 1))
+                    println(time.addDays("2024-12-31", 1))
+                    println(time.addDays("2024-01-01", -1))
+                    println(time.addDays("2024-02-30", 1))
+                    println(time.addDays("garbage", 1))
+                    println(time.diffDays("2024-01-01", "2024-03-01"))
+                    println(time.diffDays("2024-03-01", "2024-01-01"))
+                    println(time.diffDays("x", "y"))
+                    println(time.addDays("0999-12-31", 1))
+                    println(time.addDays("0001-01-01", -1))
+                    println(time.addDays("1700-02-28", 1))
+                    println(time.addDays("9999-12-31", 1))
+                    println(time.addDays("2000-02-29", -365))
+                    println(time.addDays("2024-03-01", -1))
+                    println(time.diffDays("2024-02-29", "2024-03-01"))
+                    println(time.diffDays("1999-12-31", "2000-01-01"))
+                    println(time.diffDays("", "2024-01-01"))
+                }
+                """);
+        assertEquals("2024-02-29\n2023-03-01\n2025-01-01\n2023-12-31\n\n\n60\n-60\n0"
+                + "\n1000-01-01\n\n1700-03-01\n\n1999-03-01\n2024-02-29"
+                + "\n1\n1\n0", out);
+    }
 }

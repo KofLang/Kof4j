@@ -85,11 +85,11 @@
 > golden oracle no qemu (16 vetores, incl. delimitadores UTF-8 `>=128`).
 > `KofStringsTest.wordConvertersClosedOnCrossArch`.
 
-> ⁴ **TIME002 parcial (riscv64/aarch64)**: `addDays`/`diffDays` rodam em JVM/Script/JS e
-> no native **x86** (`RuntimeTimeIso` — parse ISO + inversa civil Hinnant no
-> asm; round-trip exaustivo 1..9999 + fuzz C 200k). O port riscv64/aarch64
-> (fatia B) mantém o gate TIME002 nesses dois alvos (precedente NET001:
-> x86 fecha primeiro); provado em `KofTimeE2ETest` (erro claro no compile).
+> ⁴ **TIME002 FECHADO 11/09 (riscv64/aarch64)**: `addDays`/`diffDays` rodam nos
+> 5 targets — JVM/Script (java.time), JS (algoritmo civil), native x86
+> (`RuntimeTimeIso`) e riscv64/aarch64 (fatia B35 `NativeRiscvAsmRtB35` —
+> transcrição fiel da máquina x86 + tradutor). Prova: golden stdtime2 +
+> 18 vetores byte-a-byte sob qemu (`NativeRiscv64/Aarch64E2ETest#nativeTimeAddDaysDiffDaysIso`).
 
 > ³ **NET001 FECHADO 09/09:** `net.*` roda nos 3 nativos — x86 (RuntimeUri) +
 > riscv64 (fatia B24) + aarch64 (mesmo asm traduzido); paridade byte-a-byte

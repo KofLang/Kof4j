@@ -48,7 +48,7 @@
 | `kof.io` (File, Path, Directory) | ✅ | ✅ | ✅ | `readText`/`readFile` → `String?` (`null` p/ ausência, 02/09); `size()` lança em vez de `-1` |
 | `readLine` (stdin) | ✅ | ✅ | ✅ | `String?` — `null` no EOF (02/09; Native antes devolvia `""`) |
 | kof.io `readText`/`size` | ✅ | ✅ | ✅ | `STR002` histórico fechado 02/09: Native `readText` devolve `null` (antes encerrava); `size()` sem sentinela `-1` |
-| kof.time (`now()`, `sleep`, `interval`) | ✅ | ✅ | ✅ | `interval`/`every` JVM (ScheduledExecutor) + **Native (01/09, `time.interval` reusa o scheduler — SCHED001; mutação por referência validada; **cross 05/09** — alias `j kof_scheduler_every`/`cancel` no runtime riscv64/aarch64)** + **JS (TIME001 fechado 02/09)** — fila cooperativa bombeada por `time.sleep` no GraalJS, `setInterval` nativo em browser/Node |
+| kof.time (`now()`, `sleep`, `interval`) | ✅ | ✅ | ✅ | `interval`/`every` JVM (ScheduledExecutor) + **Native (01/09, `time.interval` reusa o scheduler — SCHED001; mutação por referência validada; **cross 05/09** — alias `j kof_scheduler_every`/`cancel` no runtime riscv64/aarch64)** + **JS (TIME001 fechado 02/09)** — fila cooperativa bombeada por `time.sleep` no GraalJS, `setInterval` nativo em browser/Node. Calendário civil + data ISO (`isLeapYear`/`daysInMonth`/`dayOfWeek`/`daysBetween`/`addDays`/`diffDays`): **TIME002 fechado 11/09** — `addDays`/`diffDays` nos 5 targets (x86 `RuntimeTimeIso` + riscv64 fatia B35 + aarch64 traduzida; golden sob qemu) |
 | `readLine`, `readFile`, `writeFile` | ✅ | ✅ | ✅ | |
 | `kof.validation` (13 preds) | ✅ | ✅ | ✅ | `KofValidationTest` |
 | `kof.observability` (health/metrics/requestId) | ✅ | ✅ | ✅ | `KofObservabilityTest` |

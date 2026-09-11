@@ -1,6 +1,6 @@
 # Plano — Universal Standard Library (STDLIB)
 
-**Dono:** lane KOFSCRIPT (fixes-for-kofagent) · **Status:** EM CURSO — **S7 parcial**: `addDays`/`diffDays` FEITOS em JVM/Script (S7a) + JS (S7b) + **Native x86** (S7c `cd622c47`, classe nova `runtime/RuntimeTimeIso.java`); resta só **riscv64/aarch64** (TIME002 residual — asm riscv da spec x86 pronta, bloqueado de PROVA sem qemu/toolchain) + `format`/`boundaries` (decisão de superfície da mantenedora); S0–S6, S8–S10 FEITOS (auditoria 10/09 vs código: KofMath/KofStrings/KofEncoding/KofUuid/KofValidation/KofNet/KofTime + KofRandomTest) · **Briefing:** maintainer 08/09 (universal stdlib, multitarget, anti-microdependência)
+**Dono:** lane KOFSCRIPT (fixes-for-kofagent) · **Status:** EM CURSO — **S7 add/diff FECHADO 11/09** (TIME002 cross: `addDays`/`diffDays` nos 5 targets — JVM/Script + JS + x86 + riscv/aarch fatia B35); resta em S7 só `format`/`boundaries` (decisão de superfície da mantenedora); S0–S6, S8–S10 FEITOS (auditoria 10/09 vs código: KofMath/KofStrings/KofEncoding/KofUuid/KofValidation/KofNet/KofTime + KofRandomTest); abertos: S10c (DD-STDLIB-01), MATH001 (sqrt/Double riscv/aarch) · **Briefing:** maintainer 08/09 (universal stdlib, multitarget, anti-microdependência)
 
 ## 0. Arquitetura real (mapeada 08/09 — NÃO inventar paralela)
 
@@ -133,14 +133,25 @@ na   (null-safety + throw são o mecanismo).
      byte-idêntica). **S7c** native **x86** (10/09 — `runtime/RuntimeTimeIso.java`:
      `.Lka_parse2` + `.Lka_civil` (round-trip EXAUSTIVO 1..9999) + alocação String
      no asm; harness C 200k fuzz 0 fails). Matriz `stdtime2` (JVM+Script+JS+x86;
-     riscv/aarch=TIME002) + `KofTimeE2ETest...Time002Gate`.
-   - **ABERTO — TIME002 residual** (R6, nunca silencioso): `addDays`/`diffDays`
-     em **riscv64/aarch64** (asm riscv da especificação x86 pronta em
-     `RuntimeTimeIso`; `divl`→`divu/remu` seguro: z≥0 garantido pelo guard de
-     range; aloc String = padrão kof_alloc riscv + translator aarch; fatia B
-     própria — precedente NET001: x86 fecha primeiro, cross depois). Gate
-     dispara no compile-time só p/ esses 2 alvos. **BLOQUEIO de prova:** sem
-     cross-assembler/qemu no ambiente da lane — NÃO escrever asm sem montar/rodar.
+     riscv/aarch fechados na S7c-1 abaixo) + `KofTimeE2ETest...Time002Gate`
+     (virou `timeAddDaysDiffDaysCompilesOnAllTargets` com o fechamento).
+   - **S7c-1 FEITO 11/09 — TIME002 fechado no cross (riscv64/aarch64):**
+     fatia B35 `NativeRiscvAsmRtB35` = transcrição fiel da máquina x86
+     (`.Lka_parse2`→`kta_parse2`, `.Lka_civil`→`kta_civil`, put4/put2) +
+     `kof_time_addDays`/`kof_time_diffDays`, reusando `kdv_valid`/`kdv_epoch`
+     da B14. `divl`→`divu/remu` (z≥0 garantido pelo guard de range); aloc
+     String = padrão `kof_alloc (len+25+15)&-16` (precedente B34); aarch64
+     pelo tradutor (divu/remu/sext.w cobertos — verificado). LIÇÃO aplicada:
+     frame de saves (16+) NUNCA colide com a área de dados do parse (0..11)
+     — o primeiro corte tinha `sd s8,8(sp)` esmagando out[2]=dia e o parse
+     usava `s8` sem salvar (violou callee-saved → migrou p/ `t2`, sem call
+     no loop). Gate vazio em `KofTime.supportedOn`; `KofTimeE2ETest` virou
+     teste positivo (compila nos 5); prova de execução:
+     `NativeRiscv64/Aarch64E2ETest#nativeTimeAddDaysDiffDaysIso` (18 vetores
+     byte-a-byte vs JVM sob qemu — inclui overflow 9999/borrow 0001/centúria
+     não-bissexta 1700) + matriz `stdtime2` (4 faces). Suíte 1477/0.
+     **BLOQUEIO de prova levantado:** toolchain cross (as/ld/qemu) disponível
+     nesta sessão (lição: export PATH/LD_LIBRARY_PATH por chamada bash).
    - **ABERTO**: `format`/`boundaries` (forma de API — `format(date, "yyyy-MM-dd")`
      vs funções escalares `yearOf`/`monthOf`… — decisão de superfície da
      mantenedora, como a família `net`/`validation`).
