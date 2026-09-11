@@ -2485,6 +2485,42 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 - **Descoberto:** 11/09 (sweep §100); **corrigido 11/09** (x86_64 + JS).
 
 
+### 104. Métodos de objeto (equals/hashCode/toString) de record divergem por target — §104a ✅ CORRIGIDO 11/09 (Script), §104b em aberto (Native)
+
+- **Superfície:** `record Point(Int x, Int y)` — `p1.equals(p2)`, `==`, e
+  record **dentro de coleção** (`listOf(p1).contains(p2)`, `setOf(p1).contains`,
+  `mapOf(p1,7).get(p2)`, `println(listOf(p1))`). Oracle = **JVM** (registro
+  real gera equals/hashCode/toString por **conteúdo**; classe não-record =
+  **identidade** — `Thing(5).equals(Thing(5))` é `false`). Matriz (`/tmp/om.kf`):
+
+  | alvo | `listOf(p1).contains(p2)` | `setOf.contains` | `map.get` | `println(list)` | `Thing.equals` |
+  |---|---|---|---|---|---|
+  | JVM | true | true | 7 | `[Point[x=1, y=2]]` | false |
+  | Script (antes) | **false** | **false** | **0** | `KofObj@...` | **true** ❌ |
+  | Script (depois) | true | true | 7 | `[Point[x=1, y=2]]` | false |
+  | Native | **LINK_FAIL** (`Thing.equals`) | — | — | — | — |
+
+- **§104a ✅ CORRIGIDO 11/09 (Script) — opção (a) backend erra:** `KofObj`
+  (o objeto do interpretador) **não sobrescrevia** `equals`/`hashCode`/
+  `toString`. Os métodos sintéticos só existiam no dispatch `KofInterpreter`
+  (chamada virtual Kof `.equals()`), mas o **JDK** chama `Object.*` por dentro
+  de `ArrayList.contains/indexOf`, `HashMap`/`HashSet` e `List.toString` → usava
+  **identidade**. Fix: override real em `KofObj` delegando em helpers estáticos
+  `KofInterpreterObjects.objectEquals/objectHash/objectToString`; conteúdo SÓ
+  para `isRecord()`, classe não-record mantém identidade (e o `.equals()` de
+  classe, que antes dava `true` errado, agora dá `false` = JVM).
+  - **Prova:** `KofInterpreterParityTest.recordsInCollectionsUseContentEquals`
+    (gate interpretador≡JVM com record em list/set/map/println). Suíte completa
+    pós-clean **1474 run / 0 falhas** (12 err = node ausente).
+  - **Arquivos:** `KofInterpreter.java` (override em `KofObj`),
+    `KofInterpreterObjects.java` (helpers estáticos + equals de classe→identidade).
+- **§104b ⏳ ABERTO (Native):** `Thing(5).equals(Thing(5))` (classe não-record,
+  método `equals` NÃO declarado) → **LINK_FAIL** (símbolo virtual ausente). O
+  record `.equals()` campo-a-campo resolve, mas a chamada a `Object.equals`
+  herdado não tem vtable slot. Reprodução mínima `/tmp/om.kf` (últimos 3
+  prints) / `/tmp/req3.kf`. Proibido: fallback silencioso.
+
+
 ### 103. Subscript `x[i]` em String/List/Map/Set aceito em silêncio → quebra os 3 targets (VerifyError/vazio) — ✅ CORRIGIDO 11/09 (SEM054, opção B)
 
 - **Sintoma:** `"abc"[0]` e `listOf(10,20)[1]` (e escrita `l[0] = 9`) eram
