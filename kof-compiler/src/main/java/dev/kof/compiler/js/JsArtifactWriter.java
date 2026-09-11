@@ -46,13 +46,15 @@ public class JsArtifactWriter {
                     java.nio.file.StandardOpenOption.APPEND);
             Files.writeString(core, JsRuntimeUiValidation.UI_VALIDATION_RUNTIME,
                     java.nio.file.StandardOpenOption.APPEND);
-            Files.writeString(core, JsRuntimeUiUuid.UI_UUID_RUNTIME,
-                    java.nio.file.StandardOpenOption.APPEND);
             Files.writeString(core, JsRuntimeUiStdlib.STDLIB_RUNTIME,
                     java.nio.file.StandardOpenOption.APPEND);
-            Files.writeString(core, JsRuntimeUiMathDouble.MATH2_RUNTIME,
+            Files.writeString(core, JsRuntimeUiRandom.RANDOM_RUNTIME,
+                    java.nio.file.StandardOpenOption.APPEND);
+            Files.writeString(core, JsRuntimeUiMathDouble.MATH_DOUBLE_RUNTIME,
                     java.nio.file.StandardOpenOption.APPEND);
             Files.writeString(core, JsRuntimeUiNet.NET_RUNTIME,
+                    java.nio.file.StandardOpenOption.APPEND);
+            Files.writeString(core, JsRuntimeUiUuid.UUID_RUNTIME,
                     java.nio.file.StandardOpenOption.APPEND);
             Files.writeString(core, JsRuntimeUiWs.WS_RUNTIME,
                     java.nio.file.StandardOpenOption.APPEND);

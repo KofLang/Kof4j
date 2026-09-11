@@ -38,6 +38,11 @@ public final class KofUuid {
                     ? new UuidCall("kof_uuid_isUuid", BOOL, List.of(STR)) : null;
             case "v4" -> argTypes.isEmpty()
                     ? new UuidCall("kof_uuid_v4", STR, List.of()) : null;
+            // S3b.2 (main, RFC 9562): v7 time-ordered — 48 bits unix_ts_ms +
+            // rand; JVM/Script/JS/x86; riscv/aarch = UUID002 (fatia pendente
+            // — sem cross-assembler/qemu na lane, prova impossível).
+            case "v7" -> argTypes.isEmpty()
+                    ? new UuidCall("kof_uuid_v7", STR, List.of()) : null;
             default -> null;
         };
     }
@@ -51,12 +56,20 @@ public final class KofUuid {
      * (fatia B25 — byte-scan de forma, lição travada: upper-bound das
      * bandas hex é EXCLUSIVO, 58/71/103) + aarch64 via tradutor; prova
      * KofUuidTest.isUuidCrossArch (assert sob qemu — bug 59 no println).
+     * UUID002 (10/09, main): v7 (RFC 9562 — unix_ts_ms 48 bits + rand) tem
+     * JVM/Script/JS/x86; riscv64/aarch64 = fatia B pendente (sem cross-
+     * assembler/qemu na lane — regra: nunca asm sem montar/rodar).
      */
     static boolean supportedOn(String function, Target target) {
+        if ("kof_uuid_v7".equals(function)
+                && (target == Target.NATIVE_RISCV64 || target == Target.NATIVE_AARCH64)) {
+            return false;
+        }
         return true;
     }
 
     static String gapCode(String function) {
+        if ("kof_uuid_v7".equals(function)) return "UUID002";
         return "SECN000";
     }
 }

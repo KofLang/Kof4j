@@ -9,7 +9,7 @@ final class JsRuntimeUiMathDouble {
 
     private JsRuntimeUiMathDouble() {}
 
-    static final String MATH2_RUNTIME = """
+    static final String MATH_DOUBLE_RUNTIME = """
             // ── kof.math S1b.1 — Double puros (paridade JVM/Native) ─────
             // Bool = 1/0 (chokepoint §93 cuida do ==true).
             export function kofMathLerp(a, b, t) { return a + (b - a) * t; }

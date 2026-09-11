@@ -911,6 +911,18 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 
   - uuid.isUuid(STR)->Bool — 4 targets, gate UUID001 honesto riscv/aarch
 
+## [0.3.20-beta] - 2026-09-10
+
+### Refactoring
+
+  - JvmStringMathRuntime 504→465 + JvmUuidRuntime novo (58) — split do próprio 79d2668a
+
+## [0.3.21-beta] - 2026-09-11
+
+### Features
+
+  - implementar uuid.v7() ordenado no tempo conforme RFC 9562
+
 <!-- NEXT-RELEASE -->
 
 ## [0.2.7-beta] - 2026-09-04

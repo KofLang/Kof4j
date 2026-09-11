@@ -101,6 +101,7 @@
 > prova riscv+aarch sob qemu) rodam nos 3 nativos + JVM + JS + Script.
 | stdlib kof.uuid (S3b: v4 — não-determinístico, SEM caso de matriz) | shape `xxxxxxxx-xxxx-4xxx-[89ab]xxx-xxxxxxxxxxxx` | ✅ assert | ✅ assert¹ | ✅ | ✅ assert (+riscv/aarch qemu) | `KofUuidTest` 4/4 |
 | stdlib kof.uuid (S3b.1: isUuid — predicado de forma 8-4-4-4-12, hex min/maiúsc, version/variant não verificadas; riscv/aarch = fatia B25, UUID001 fechado no merge beta→main 10/09) | `true` / `true` / `false` / `false` / `false` / `false` / `true` | DONE | DONE | DONE | DONE | `stduuidform` |
+| stdlib kof.uuid (S3b.2: v7 — RFC 9562 time-ordered, SEM caso de matriz; riscv/aarch = UUID002) | shape `xxxxxxxx-xxxx-7xxx-[89ab]xxx-xxxxxxxxxxxx` | ✅ assert | ✅ assert | ✅ | ✅ assert | `KofUuidTest` (v7) |
 | stdlib kof.random (S10/S10a/S10b — não-determinístico, SEM caso de matriz) | contrato `0<=randomInt(b)<b` / `randomBoolean∈{0,1}` / `randomString: len==n, chars∈alphabet` + face main `double∈[0,1)` / `hex: 2n chars, n<=0→null (JVM/JS; x86 →""` pré-existente da crypto lane) + bordas lenientes (`b<=0→0`) | ✅ assert | ✅ assert | ✅ | ✅ assert (+riscv/aarch qemu) | `KofRandomTest` 12/12 |
 
 > `random.*` não entra na matriz equality (entropia — mesma razão do uuid):
@@ -123,6 +124,11 @@
 > ¹ variant por MÁSCARA nos 5 backends (b[8]=(b[8]&0x3f)|0x80 ⇒ char ∈
 > {8,9,a,b}) — x86 parity corrigida 09/09 com o fechamento do SECN000 (antes
 > fixava '8', subset do RFC com distribuição divergente — regra 5).
+>
+> `uuid.v7()` (RFC 9562 time-ordered, S3b.2): paridade provada por asserções
+> de shape (length=36, traços em 8/13/18/23, dígito 14='7', variante 10xx
+> dígito 19∈{8,9,a,b}, monotonicidade de timestamp e unicidade) em JVM,
+> Native x86 e JS. Gate UUID002 (R6 — nunca silencioso) ativo em riscv64 e aarch64.
 
 > **S2b ASCII:** `capitalize` usa a MESMA regra nos 4 targets (byte 0 `a-z`→`A-Z`).
 > `reverse` é byte-reverso no Native e UTF-16/UTF-8 nos demais — coincidem em ASCII

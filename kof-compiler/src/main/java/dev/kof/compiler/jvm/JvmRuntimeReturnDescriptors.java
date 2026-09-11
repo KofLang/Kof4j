@@ -151,7 +151,7 @@ public final class JvmRuntimeReturnDescriptors {
                     "kof_net_path", "kof_net_query", "kof_net_fragment",
                     "kof_net_queryEncode", "kof_net_queryDecode", "kof_encoding_hexEncode", "kof_encoding_hexDecode", "kof_encoding_base64Encode", "kof_encoding_base64Decode" -> "Ljava/lang/String;";
             case "kof_encoding_urlEncode", "kof_encoding_urlDecode", "kof_encoding_base64UrlEncode", "kof_encoding_base64UrlDecode" -> "Ljava/lang/String;";
-            case "kof_uuid_v4" -> "Ljava/lang/String;";
+            case "kof_uuid_v4", "kof_uuid_v7" -> "Ljava/lang/String;";
             case "kof_uuid_isUuid" -> "I";
             // ── kof.random (STDLIB S10a/S10b) — Int/Bool ambos "I" no stack ──
             case "kof_random_int", "kof_random_bool", "kof_random_boolean" -> "I";
