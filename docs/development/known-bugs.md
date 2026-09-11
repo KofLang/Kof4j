@@ -2641,6 +2641,35 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 - **Arquivos:** `NativeRiscvCrossOps.emitCrossBinaryRiscv` (cross),
   `NativeX86Calls`/`RuntimeFp` (x86), `JvmOpEmitter` (JVM DCMPL/G).
 
+### 102. `random.int(bound)`/`randomInt(bound)` em riscv64/aarch64 entra em LOOP INFINITO para qualquer bound > 1 — ✅ CORRIGIDO 11/09 (aritmética de rejection sampling)
+
+- **Sintoma:** `KofRandomTest.randomIntCrossArch`/`randomShapeCrossArch`
+  travavam (0 output, CPU 53% indefinidamente) sob qemu-riscv64 com
+  `random.randomInt(1000)`. Reprodução mínima: os 500 loops do próprio
+  shape-test (qualquer bound>1 basta; bound=2 trava 100% — range=0).
+- **Causa raiz:** na fatia B27 (S10, merge 10/09), o rejection sampling
+  computava `range = (floor((2^64-1)/bound) + 1) * bound` (= floor(2^64/bound)
+  * bound). O `+1` faz o produto **sempre** > 2^64 para bound>1 → wraps em
+  64 bits: bound=1000 → range=384; bound=2 → range=0 (`bgeu t0, s1` rejeita
+  tudo = loop). A referência x86 (`kof_sec_random_int`, RuntimeSecurity11)
+  usa `(0xffffffff/bound)*bound` em 32 bits — a fórmula correta é
+  `q*bound` sem o `+1` (q*b ≤ 2^64-1 sempre).
+- **Por que nunca foi pego:** B27 entrou no merge 10/09 em ambiente SEM
+  qemu/toolchain → `randomIntCrossArch`/`randomShapeCrossArch` passaram
+  SKIPPED pelo guard honesto (4408eb6). Com qemu presente (11/09, prova do
+  MATH001/TIME002 na mesma cadeia de fatias), o skip virou EXECUÇÃO — e o
+  loop apareceu no primeiro teste com bound>1. A lição do DOING de 08/09
+  ("suíte sem flag/ambiente != suíte rodando") confirmada em mais um item.
+- **✅ CORRIGIDO 11/09:** B27 `.Lrnd_i_*`: `divu t1,-1,bound; mul s1,t1,bound`
+  (sem `addi +1`) — range = q*bound ≤ 2^64-1 sempre; rejeição x<range +
+  remu uniforme (mesma distribuição do contrato: uniforme [0,bound)).
+  bound=1: q=2^64-1, range=2^64-1 (rejeita só x=2^64-1 — desprezível,
+  remu=0 trivial).
+- **Prova:** `KofRandomTest` 12/12 (incl. os 2 cross-arch com os 500 loops
+  de bound=1000/2 + asserts de borda 1/0/-5/1e6) sob qemu-riscv64 +
+  qemu-aarch64; probe isolado OK nos 2 alvos.
+- **Arquivos:** `NativeRiscvAsmRtB27.java` (`kof_random_int`).
+
 ### 62. Constant pool: Float/Double armazenados como bits crus (parser de migração) — ✅ CORRIGIDO 08/09
 
 - **Sintoma:** `kof inspect`/`kof decompile` de um `.class` com constante

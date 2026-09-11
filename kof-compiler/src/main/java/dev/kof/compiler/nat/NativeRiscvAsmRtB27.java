@@ -100,16 +100,16 @@ public final class NativeRiscvAsmRtB27 {
                 sd   s0, 64(sp)
                 sd   s1, 56(sp)
                 mv   s0, a0              # bound
-                # range = floor(2^64/bound)*bound  (64-bit unsigned):
-                # divu (2^64-1)/bound + 1; rejeição garante x < range e
-                # range*bound <= 2^64 (divu satura overflow p/ 2^64-1 no
-                # bound=1, mas bound=1 => range=2^64-1*1+... remu com s0=1
-                # = 0 — uniforme trivial; sem UB: divu nunca div-by-0
-                # porque blez já desviou bound<=0).
+                # range = floor((2^64-1)/bound)*bound  (64-bit unsigned) —
+                # MESMA fórmula do kof_sec_random_int x86 em 64 bits (bug 102:
+                # o `+1` de floor(2^64/bound)*bound estourava SEMPRE p/ >2^64
+                # e wraps (b=1000 -> range=384; b=2 -> range=0 = loop eterno).
+                # range <= 2^64-1 garantido: q*b <= (2^64-1). divu nunca por
+                # zero: blez desvia bound<=0. Rejeição x < range => x mod b
+                # uniforme em [0,bound).
                 li   t1, -1              # 2^64-1
-                divu t1, t1, s0          # floor((2^64-1)/bound)
-                addi t1, t1, 1           # floor(2^64/bound)
-                mul  s1, t1, s0          # s1 = range
+                divu t1, t1, s0          # floor((2^64-1)/bound) = q
+                mul  s1, t1, s0          # s1 = range = q*bound
             .Lrnd_i_retry:
                 addi a0, sp, 0
                 li   a1, 8
