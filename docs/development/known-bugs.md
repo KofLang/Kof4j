@@ -2839,15 +2839,15 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 - **Prova:** célula `strsplit` (4 targets byte-idênticos
   `1/0/2/1/3/0/llo/0`) + os probes `sp2.kf`/`sp3.kf` (conteúdo dos pieces,
   trailing, bordas `substring(5)`/unicode `café`).
-- **⚠️ Residual riscv64/aarch64 (qemu ausente — condição de parada):** o
-  `kof_string_split` riscv (`NativeRiscvAsmRt1`/`B34`) NÃO tem o trim de
-  trailing (mesmo bug original) e o call-site 1-arg de `substring` riscv
-  (`NativeRiscvCrossOps:205`, `li a2, 0`) ainda usa sentinela `0` (bug idêntico
-  ao x86 antes do fix). Corrigir exige montar+rodar sob qemu (regra AGENTS:
-  "NÃO escrever asm sem montar/rodar"). Célula `strsplit` é **parcial p/ estas
+- **✅ Face `substring` CORRIGIDA 11/09 (cross, B36 `f6831e31`, qemu presente):**
+  call-site 1-arg virou `li a2, -1` (CrossOps) + guard `bltz s2` (B34) —
+  `hello.substring(0,0)` → `[]` (era a string toda), `substring(2)` → `[llo]`;
+  prova `NativeStringCompareCrossTest` (7 vetores, riscv+aarch == JVM == x86).
+- **⚠️ Residual riscv64/aarch64 (FACES QUE FALTAM):** o `kof_string_split` riscv
+  (`NativeRiscvAsmStrn1:63`) ainda NÃO tem o trim de trailing do §111 x86
+  (`a,`→`['a']`, `,`→`[]`, `''`→`['']`). Célula `strsplit` é **parcial p/ estas
   faces** — o guard skipa riscv/aarch sem qemu, então não falha agora, mas o
-  port 1:1 do trim+sentinela para os dois backends é a próxima unidade cross-arch
-  (mesma família §44/§100/§102/§110 residual).
+  port do trim é a próxima unidade cross-arch (mesma família §44/§100/§102/§110).
 
 ### 110. Literal/fold `-0.0` vira `+0.0` no JVM (perde o zero com sinal) — ✅ CORRIGIDO 11/09 (guard de raw bits no literal emitter)
 - **Menor repro:** `main() { println(-0.0) }` → JVM **`0.0`**, Native/Script **`-0.0`**.
