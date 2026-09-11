@@ -138,6 +138,29 @@ Supervisão é **intenção**, não mecanismo: o usuário declara o *quê* vigia
 (fábrica + política + limite), não *como* reaplicar threads. A plataforma
 (`spawn`/`await`/`try-catch`) já existe; o supervisor é código Kof por cima.
 
+## GOOD — fetch assíncrono: `var h = spawn http.get(url); await h`
+
+```kof
+// ❌ BAD — "paralelo" com threads/futures de outra linguagem, ou síncrono no JS
+val a = http.get(urlA)            // bloqueia a thread inteira até responder
+val b = http.get(urlB)            // sequencial: soma as latências
+
+// ✅ GOOD — a linguagem já tem Handle: spawn dá concorrência, await pega o valor
+var ha = spawn http.get(urlA)
+var hb = spawn http.get(urlB)
+val a = await ha                  // dispara antes de esperar; latência = max(a,b)
+val b = await hb
+
+// ✅ GOOD — "qualquer um primeiro"
+val first = await selectAny(spawn http.get(a), spawn http.get(b))
+```
+
+Em JVM/Script/Native a thread do worker faz o I/O; no **Node/browser** o
+`http.*` é `fetch` de verdade — o `Handle` carrega a Promise, e o `await`
+resolve o corpo (`spawn`+`await` é o ÚNICO caminho que transporta em JS puro;
+chamada síncrona lá devolve o Promise cru — §133). Nunca `Thread`/`Future`/
+`async`/`await` de outra linguagem: `spawn`/`await` cobrem os três.
+
 ## Anti-patterns relacionados
 
 - `fake-idioms.md` — `async`/`await`/Thread não existem (use `spawn`/`await`)

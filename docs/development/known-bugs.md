@@ -3504,3 +3504,37 @@ int de índice) — verificados na varredura.
 - **Causa:** o backend JS é single-thread (modelo de event-loop; `kofSpawnResult` cria Promise). Um `await`/loop numa task agenda continuations como micro/macro-tasks — mas o `time.sleep` do backend JS é síncrono/busy-wait (fila cooperativa de timers, TIME001) e **cede o loop só para timers, não para as promises pendentes da task-mãe** no ponto do `while(!done)` — e o `spawn` filho dentro de uma task-filha pode nunca ser agendado enquanto a mãe segura o loop. `done(h)` num handle rejeitado também reportou `false` no probe J1 (reject marca `done=true` no `.catch` do runtime, mas a visibilidade ao laço spin depende de ceder — mesmo sintoma raiz).
 - **Por que NÃO corrigi:** consertar = redesenhar `time.sleep` JS para ceder o loop (await-style) OU exigir CPS no lowering — mudança de **contrato de execução do backend JS** (concorrência single-thread é decisão documentada, regra 6). Não é mineira nem impeditiva para a UNIDADE: a issue #83 pediu "o menor núcleo funcional"; o gate honesto (OTP002 em compile-time, R6) está aplicado e testado (`KofSupervisorE2ETest#jsGateOtp002`).
 - **Prova do contorno:** mesma semântica verde em JVM e no interpretador (KofScript) via o MESMO frontend + MESMO host .kf — paridade por construção nos dois alvos; os demais bloqueados com diagnóstico, nunca silêncio.
+
+### 133. KofJS (Node/browser): `http.*` sem interop Java devolvia `""` silencioso; fetch era stub — ✅ CORRIGIDO 11/09
+- **Menor repro (node v20):** `main(){ println(http.get("http://127.0.0.1:P/x")) }`
+  → imprimia linha VAZIA (sem erro); `spawn http.get(...)` + `await h` idem → o
+  supervisor/consumidor lia `""` como "resposta vazia" legítima (R6-violation:
+  silêncio onde deveria haver transporte ou erro).
+- **Causa:** `JsRuntimeUiLayout.kofHttpRequest` só implementava o caminho
+  síncrono `Java.type('java.net.http.HttpClient')` (funciona no GraalJS
+  embutido — `KofJsRunner`); no Node/browser o fallback tinha o comentário
+  literal "synchronous fallback not possible … return empty" e `return ""`.
+  O fetch real nunca existiu. `kofHttpStatus` idem (catch → `return 0`).
+- **Por que a face era "impossível":** HTTP é inherently async em JS; a API
+  `http.get(...)` é síncrona por contrato nos outros targets. Resolver
+  async→sync no thread principal não existe (Atomics.wait trava o próprio loop).
+- **Fix:** fallback Node/browser agora usa `fetch` REAL e devolve **Promise**
+  (headers `\n`-split, `AbortController` com `http.timeout(sec)`, ≥500 →
+  falha + circuit-record, como o ramo Java). `kofSpawnResult` já roda
+  `task.invoke()` dentro de `Promise.resolve().then(...)` — a Promise do fetch
+  encadeia NATURALMENTE e `await h` resolve o corpo: **`spawn http.get(url)`
+  + `await` vira a forma assíncrona idiomática no JS** (zero mudança de AST,
+  a máquina Handle<T> existente é o carrier). `await http.get(...)` de valor
+  já-resolvido continua ok; o `await` do `main` JS precisa ceder o loop (§132 —
+  task-de-TASK segue gateada; aqui não há task-de-task: o fetch é o proprio
+  worker do handle). Face SÍNCRONA no Node fica honesta: `http.get(...)` sem
+  spawn/await devolve o Promise cru (`[object Promise]` no println) — NÃO
+  retrói para `""`; registro HTTP004 na matriz de paridade como borda do
+  backend (sync http não existe em JS puro; a linguagem entrega async).
+  `kofHttpStatus` ganhou fallback HEAD via fetch (Promise→status).
+  Caminho GraalJS (KofJsRunner) INTACTO — `jsHttpGet`/`jsHttpServerRoundtrip`
+  continuam síncronos e verdes.
+- **Prova:** `KofHttpE2ETest.jsNodeSpawnAwaitHttpResolvesBody` (node v20;
+  `spawn get` + `spawn post` + awaits → `"Hello from Kof|got:xyz"` byte-a-byte;
+  sabotagem do fallback → fail) + harness medindo `spawn/await/selectAny` no
+  Node (`ola-async|ola-async`, `any=true`) e status `200` via `spawn`+`await`.

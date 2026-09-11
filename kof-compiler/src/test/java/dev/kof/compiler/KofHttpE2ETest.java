@@ -258,4 +258,42 @@ class KofHttpE2ETest {
         String out = baos.toString().replace("\r\n", "\n").trim();
         assertEquals("Hello from Kof", out);
     }
+
+    @Test
+    void jsNodeSpawnAwaitHttpResolvesBody(@TempDir Path tempDir) throws IOException, InterruptedException {
+        org.junit.jupiter.api.Assumptions.assumeTrue(
+                hasNode(), "node não disponível — face assíncrona do JS é a do Node");
+        int port = startServer(tempDir);
+        Path source = tempDir.resolve("JsAsync.kf");
+        Files.writeString(source, """
+                main() {
+                    var h = spawn http.get("http://127.0.0.1:%d/hello")
+                    var g = spawn http.post("http://127.0.0.1:%d/echo", "xyz")
+                    println(await h + "|" + await g)
+                }
+                """.formatted(port, port));
+        Path outDir = tempDir.resolve("js-async-out");
+        CompilationResult result = driver.compile(source, outDir, Target.JS);
+        assertTrue(result.success(), "" + result.diagnostics().getDiagnostics());
+        Process p = new ProcessBuilder("node", outDir.resolve("Default.mjs").toString())
+                .redirectErrorStream(true).start();
+        String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
+                .replace("\r\n", "\n").trim();
+        int ec = p.waitFor();
+        assertEquals(0, ec, "node exit, out=" + out);
+        assertEquals("Hello from Kof|got:xyz", out,
+                "spawn/await de http no Node deve resolver o corpo (fetch real), "
+                        + "não o vazio silencioso do stub");
+    }
+
+    private static boolean hasNode() {
+        try {
+            Process p = new ProcessBuilder("sh", "-c", "command -v node")
+                    .redirectErrorStream(true).start();
+            int ec = p.waitFor();
+            return ec == 0;
+        } catch (Exception e) {
+            return false;
+        }
+    }
 }
