@@ -273,7 +273,44 @@ public final class RuntimeStringEdit {
                 movl %r13d, %ecx
                 jmp .Lkof_split_piece
             .Lkof_split_done:
+                # §111: Java String.split(regex, 0) REMOVE os vazios TRAILING
+                # (`"a,"`→["a"], `","`→[], `"a,b,"`→["a","b"]), EXCETO o caso
+                # especial de input VAZIO (`""`→[""], tamanho 1). O loop acima
+                # contava pieces SEM o trim → JVM/Script 0/1/2 vs Native 2/3/3.
+                # Elementos em 24(%r15)+i*8; piece vazio ⟺ nBytes 16(%piece)==0;
+                # length do array ⟹ 16(%r15). r8d = nº de pieces materializados.
+                cmpl $0, %r13d
+                jne .Lkof_split_trim_i
+                # input vazio: nenhum piece foi gravado; força [""] (1 piece).
+                movq $25, %rdi
+                call kof_alloc
+                movl $1, (%rax)
+                movl $0, 4(%rax)
+                movq $0, 8(%rax)
+                movl $0, 16(%rax)            # nBytes = 0
+                movl $0, 20(%rax)
+                movb $0, 24(%rax)
+                movq %rax, 24(%r15)          # element[0] = ""
+                movl $1, 16(%r15)            # length = 1
                 movq %r15, %rax
+                jmp .Lkof_split_ret
+            .Lkof_split_trim_i:
+                movl %r8d, %ecx              # i = count
+            .Lkof_split_trim_dec:
+                decl %ecx                    # i--
+                js .Lkof_split_set0          # todos vazios → tamanho 0
+                movslq %ecx, %rax
+                movq 24(%r15,%rax,8), %rsi   # piece[i]
+                cmpl $0, 16(%rsi)
+                je .Lkof_split_trim_dec      # vazio → continua removendo
+                incl %ecx                    # count = i+1 (mantém até i)
+                jmp .Lkof_split_setcount_final
+            .Lkof_split_set0:
+                xorl %ecx, %ecx
+            .Lkof_split_setcount_final:
+                movl %ecx, 16(%r15)          # novo length do array
+                movq %r15, %rax
+            .Lkof_split_ret:
                 popq %r11
                 popq %r10
                 popq %r9

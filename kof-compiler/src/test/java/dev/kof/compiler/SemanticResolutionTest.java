@@ -210,49 +210,224 @@ class SemanticResolutionTest {
         assertSem025(r, "on type 'P'");
     }
 
-    // ---- bug 99: String method com formal String/CharSequence recebe
-    //      Int/Char → SEM025 (R6). O registry resolve por ARIDADE, então o
-    //      formal String "aceita" o Int/Char no caminho e cada backend
-    //      divergia: JVM VerifyError, Native SIGSEGV, JS -1 silencioso,
-    //      interpretador CCE. Kof não tem tipo char ('x' É Int) — rejeitar
-    //      apontando p/ o idiom, nunca o "compila e quebra". ----
+    // ---- #99 (R6): campo estático num TIPO PRIMITIVO (Int.MAX_VALUE) — fake
+    // idiom, nunca existiu no Kof; antes passava sem diagnóstico e gerava lixo
+    // nos 3 targets (JVM NoClassDefFoundError "?", Native SIGSEGV, Script null)
+    // — e `var x = Int.MAX_VALUE` CRASHAVA o compilador (ASM visitMaxs). ----
 
-    @Test
-    void stringMethodRefusoesCharEmFormalString(@TempDir Path tmp) throws IOException {
-        // indexOf/contains/lastIndexOf/startsWith/endsWith com char literal
-        assertSem025(compile(tmp, "I.kf", "main() {\n var s = \"abc\"\n println(s.indexOf('c'))\n}"),
-                "indexOf' expects a String");
-        assertSem025(compile(tmp, "C.kf", "main() {\n var s = \"abc\"\n println(s.contains('b'))\n}"),
-                "contains' expects a String");
-        assertSem025(compile(tmp, "L.kf", "main() {\n var s = \"abc\"\n println(s.lastIndexOf('c'))\n}"),
-                "lastIndexOf' expects a String");
-        assertSem025(compile(tmp, "S.kf", "main() {\n var s = \"abc\"\n println(s.startsWith('a'))\n}"),
-                "startsWith' expects a String");
-        assertSem025(compile(tmp, "E.kf", "main() {\n var s = \"abc\"\n println(s.endsWith('c'))\n}"),
-                "endsWith' expects a String");
-        // Int (não literal) no formal String também rejeita — o tipo importa,
-        // não a forma da literal.
-        assertSem025(compile(tmp, "N.kf", "main() {\n var s = \"abc\"\n var n = 42\n println(s.indexOf(n))\n}"),
-                "indexOf' expects a String");
+    private void assertSem050(CompilationResult r, String snippet) {
+        assertFalse(r.success(), "deve falhar: " + snippet);
+        boolean found = r.diagnostics().getDiagnostics().stream()
+                .anyMatch(d -> "SEM050".equals(d.code()) && d.message().contains(snippet));
+        assertTrue(found, "esperava SEM050 contendo '" + snippet + "', foi: "
+                + r.diagnostics().getDiagnostics());
     }
 
-    // Formais corretos continuam aceitos (zero regressão): String em
-    // indexOf/contains/startsWith, E replace(char,char) que é intencional.
     @Test
-    void stringMethodAceitaStringEReplaceChar(@TempDir Path tmp) throws IOException {
-        CompilationResult r = compile(tmp, "M.kf", """
+    void staticFieldOnPrimitiveTypeRejected(@TempDir Path tmp) throws IOException {
+        // as 3 formas: expressão solta, println, e assignment (o último era o
+        // que CRASHAVA o compilador — agora é SEM050 limpo, não COMP002).
+        String[] types = {"Int", "Long", "Double", "Float", "Char", "Byte", "Short", "Bool"};
+        String[] fields = {"MAX_VALUE", "MIN_VALUE", "SIZE", "foo"};
+        for (String t : types) {
+            for (String f : fields) {
+                assertSem050(compile(tmp, "e.kf", "main() { var x = " + t + "." + f + " }"),
+                        "'" + t + "' é um tipo primitivo");
+            }
+        }
+    }
+
+    @Test
+    void primitiveAsTypeAndLiteralStillCompile(@TempDir Path tmp) throws IOException {
+        // o SEM050 não pode quebrar o que LEGITIMAMENTE usa um nome de tipo:
+        // anotação (`x: Int`), cast (`as Int`), e acesso a campo em INSTÂNCIA
+        // (String.length, "abc".length). Proibido regridir (regra 1).
+        CompilationResult r = compile(tmp, "ok.kf", """
                 main() {
-                    var s = "aXbXc"
-                    println(s.indexOf("X"))
-                    println(s.contains("b"))
-                    println(s.lastIndexOf("c"))
-                    println(s.startsWith("a"))
-                    println(s.endsWith("c"))
-                    println(s.replace('X', "-"))
-                    println(s.replace("X", "-"))
+                    var x: Int = 2147483647
+                    var s = "abc"
+                    println(s.length)
+                    println("a😀b".length)
+                    val big = 3000000000
+                    println(x + big)
                 }
                 """);
-        assertTrue(r.success(), "formais String + replace(char,char) devem compilar: "
-                + r.diagnostics().getDiagnostics());
+        assertTrue(r.success(), "legítimo deve compilar: " + r.diagnostics().getDiagnostics());
+    }
+
+    // ---- #100 (R6, paridade absoluta): Char em método de String — o programa
+    // era ACEITO e quebrava de um jeito DIFERENTE em cada target (JVM
+    // VerifyError/IncompatibleClassChangeError, Native SIGSEGV/saída vazia,
+    // Script false/vazio). REJEITAR em compile-time com o mesmo SEM051 em
+    // todos os backends (lowering = frontend único dos 5 alvos). ----
+
+    @Test
+    void charArgOnStringMethodRejected(@TempDir Path tmp) throws IOException {
+        String[] exprs = {
+            "\"abc\".indexOf('c')", "\"abc\".lastIndexOf('b')", "\"abc\".contains('b')",
+            "\"abc\".startsWith('a')", "\"abc\".endsWith('c')", "\"a,b\".split(',')",
+            "\"abc\".concat('x')", "\"abc\".equalsIgnoreCase('a')",
+            "\"abc\".compareTo('a')", "\"abc\".compareToIgnoreCase('a')",
+            "\"abc\".equalsIgnoreCase(5)", "\"abc\".concat(5)" };
+        for (String e : exprs) {
+            CompilationResult r = compile(tmp, "e.kf", "main() { println(" + e + ") }");
+            assertFalse(r.success(), "deve falhar: " + e);
+            boolean found = r.diagnostics().getDiagnostics().stream()
+                    .anyMatch(d -> "SEM051".equals(d.code()) && d.message().contains("como argumento"));
+            assertTrue(found, "esperava SEM051 p/ '" + e + "', foi: "
+                    + r.diagnostics().getDiagnostics());
+        }
+    }
+
+    @Test
+    void stringMethodsWithStringOrCharArgsStillCompile(@TempDir Path tmp) throws IOException {
+        // não regridir (regra 1): literal String ok; replace(char,char) é o
+        // overload LEGAL da registry; charAt/substring recebem numérico
+        // (Char é Int em Kof — widening do usuário, não erro do compilador).
+        CompilationResult r = compile(tmp, "ok.kf", """
+                main() {
+                    var s = "abc"
+                    println(s.indexOf("c"))
+                    println(s.replace('b', 'x'))
+                    println(s.charAt(1))
+                    println(s.substring(1))
+                    println(s.contains("b"))
+                    println(s.compareTo("a"))
+                }
+                """);
+        assertTrue(r.success(), "legítimo deve compilar: " + r.diagnostics().getDiagnostics());
+    }
+
+    // ---- #96 (paridade absoluta JVM=JS=X86=ARM=RISC): funções da stdlib
+    // `strings.*` chamadas como MÉTODO de String — o typer aceitava e cada
+    // backend quebrava de um jeito (JVM NoSuchMethodError, Native link-fail,
+    // JS roda o nativo do JS, Script roda por reflexão). Opção B: REJEITAR em
+    // compile-time (SEM052) apontando para o idiom real do corpus. ----
+
+    @Test
+    void stringsFunctionsAsInstanceMethodsRejected(@TempDir Path tmp) throws IOException {
+        String[] exprs = {
+            "\"ab\".repeat(3)", "\"ab\".truncate(3)", "\"7\".padStart(5,\"-\")",
+            "\"7\".padEnd(5,\"-\")", "\"7\".padLeft(3,\"0\")", "\"7\".padRight(3,\"0\")",
+            "\"ab\".reverse()", "\"ab\".capitalize()", "\"abc\".count(\"a\")",
+            "\"a\".isAlpha()", "\"a\".isNumeric()", "\"a_b\".toCamelCase()",
+            "\"a\".escapeHtml()", "\"a\".slugify()" };
+        for (String e : exprs) {
+            CompilationResult r = compile(tmp, "e.kf", "main() { println(" + e + ") }");
+            assertFalse(r.success(), "deve falhar: " + e);
+            boolean found = r.diagnostics().getDiagnostics().stream()
+                    .anyMatch(d -> "SEM052".equals(d.code()) && d.message().contains("strings."));
+            assertTrue(found, "esperava SEM052 p/ '" + e + "', foi: "
+                    + r.diagnostics().getDiagnostics());
+        }
+    }
+
+    @Test
+    void stringsFunctionsAndRealStringMethodsStillCompile(@TempDir Path tmp) throws IOException {
+        // não regridir (regra 1): a forma função da stdlib e os métodos QUE
+        // SÃO de String na registry (toUpperCase/trim/split/replace/substring).
+        CompilationResult r = compile(tmp, "ok.kf", """
+                main() {
+                    println(strings.repeat("ab", 3))
+                    println(strings.truncate("abcdef", 3))
+                    println(strings.padLeft("7", 3, "0"))
+                    println(strings.padRight("7", 3, "0"))
+                    println(strings.reverse("ab"))
+                    println(strings.capitalize("ab"))
+                    println(strings.count("abc", "a"))
+                    println(strings.isAlpha("a"))
+                    var s = "ab"
+                    println(s.toUpperCase())
+                    println(s.trim())
+                    println(s.replace("a", "b"))
+                    println(s.substring(1))
+                }
+                """);
+        assertTrue(r.success(), "legítimo deve compilar: " + r.diagnostics().getDiagnostics());
+    }
+
+    // ---- #98 (paridade absoluta JVM=JS=X86=ARM=RISC): `<`/`<=`/`>`/`>=` em
+    // String era aceito e dava LIXO DIFERENTE em cada target (JVM tudo-false
+    // via if_acmp, Native comparava PONTEIRO, Script lexicográfico). Opção B:
+    // REJEITAR (SEM053) apontando p/ `compareTo` — igual nos 5 alvos. ----
+
+    @Test
+    void stringOrderingOperatorsRejected(@TempDir Path tmp) throws IOException {
+        String[] exprs = {
+            "\"abc\" < \"abd\"", "\"abc\" <= \"abd\"", "\"abc\" > \"abd\"",
+            "\"abc\" >= \"abd\"", "\"abd\" < \"abc\"", "\"abc\" < 'b'" };
+        for (String e : exprs) {
+            CompilationResult r = compile(tmp, "e.kf", "main() { println(" + e + ") }");
+            assertFalse(r.success(), "deve falhar: " + e);
+            boolean found = r.diagnostics().getDiagnostics().stream()
+                    .anyMatch(d -> "SEM053".equals(d.code()) && d.message().contains("compareTo"));
+            assertTrue(found, "esperava SEM053 p/ '" + e + "', foi: "
+                    + r.diagnostics().getDiagnostics());
+        }
+    }
+
+    @Test
+    void stringEqualityAndNumericOrderingStillCompile(@TempDir Path tmp) throws IOException {
+        // não regridir: `==`/`!=` de String (conteúdo, congelado) e toda
+        // comparação numérica (o guard é SÓ p/ String).
+        CompilationResult r = compile(tmp, "ok.kf", """
+                main() {
+                    var a = "abc"
+                    var b = "abd"
+                    println(a == b)
+                    println(a != b)
+                    println(a == "abc")
+                    println(3 < 5)
+                    println(3L <= 5L)
+                    println(2.5 > 1.5)
+                    println(a.compareTo(b) < 0)
+                    var n = 0
+                    while (n < 10) { n = n + 1 }
+                    println(n)
+                }
+                """);
+        assertTrue(r.success(), "legítimo deve compilar: " + r.diagnostics().getDiagnostics());
+    }
+
+    // ---- subscript `[]`: só existe para ARRAY no corpus (learn/04:84,
+    // control-flow.md:81). Em String/List/Map/Set era ACEITO e quebrava de um
+    // jeito por target (JVM VerifyError aaload, Native/Script vazios). SEM054
+    // rejeita nos 5 alvos (paridade absoluta) — escrita (l[0] = 9) inclusa. ----
+
+    @Test
+    void subscriptOnCollectionsRejected(@TempDir Path tmp) throws IOException {
+        String[] exprs = {
+            "var s = \"abc\"; println(s[0])",
+            "var l = listOf(10, 20); println(l[1])",
+            "var m = mapOf(\"a\", 1); println(m[\"a\"])",
+            "var st = setOf(\"a\"); println(st[\"a\"])",
+            "var l2 = listOf(1); l2[0] = 9" };
+        for (String e : exprs) {
+            CompilationResult r = compile(tmp, "e.kf", "main() { " + e + " }");
+            assertFalse(r.success(), "deve falhar: " + e);
+            boolean found = r.diagnostics().getDiagnostics().stream()
+                    .anyMatch(d -> "SEM054".equals(d.code()) && d.message().contains("array"));
+            assertTrue(found, "esperava SEM054 p/ '" + e + "', foi: "
+                    + r.diagnostics().getDiagnostics());
+        }
+    }
+
+    @Test
+    void subscriptOnArraysStillCompiles(@TempDir Path tmp) throws IOException {
+        // array de verdade (o único [] do corpus) não regride (regra 1).
+        CompilationResult r = compile(tmp, "ok.kf", """
+                main() {
+                    var nums = new Int[3]
+                    nums[0] = 5
+                    println(nums[0])
+                    var words = new String[2]
+                    words[1] = "x"
+                    println(words[1])
+                    var grid = new Int[2][2]
+                    grid[0][1] = 7
+                    println(grid[0][1])
+                }
+                """);
+        assertTrue(r.success(), "array deve compilar: " + r.diagnostics().getDiagnostics());
     }
 }

@@ -301,6 +301,41 @@ final class JsRuntimeUiStdlib {
                 const n = Number(kofParseDoubleChecked(v, "Float"));
                 return Math.fround(n);   // Float = 32-bit (Kof aceita; paridade com Native)
             }
+            // §102 (paridade absoluta JVM=JS=X86=ARM=RISC): o `from` de
+            // lastIndexOf/startsWith. JS `String.prototype` já é UTF-16 (code
+            // units, casa com o contrato do bug 43), mas diverge do JDK em 2
+            // clamps: lastIndexOf(x, from<0) → JS trata como 0 (acha), JDK dá
+            // -1; startsWith(p, from<0|from>len) → JS faz clamp (startsWith("")
+            // dá true), JDK dá false. indexOf bate o JDK nativo (clamp from<0→0,
+            // vazio→min(from,len)) — não precisa de helper. Os 2 abaixo aplicam
+            // os clamps JDK ANTES de delegar (needle vazia: lastIndexOf → 
+            // min(from,len), >=0; o resto o prototype resolve exato).
+            export function kof_string_index_of2(s, needle, from) {
+                const s2 = String(s), n2 = String(needle);
+                const f = from < 0 ? 0 : (from > s2.length ? s2.length : from);
+                if (n2.length === 0) return f;
+                if (n2.length > s2.length) return -1;
+                for (let i = f; i + n2.length <= s2.length; i++) {
+                    if (s2.startsWith(n2, i)) return i;
+                }
+                return -1;
+            }
+            export function kof_string_last_index_of2(s, needle, from) {
+                const s2 = String(s), n2 = String(needle);
+                if (from < 0) return -1;
+                const f = from > s2.length ? s2.length : from;
+                if (n2.length === 0) return f;
+                if (n2.length > s2.length) return -1;
+                for (let i = Math.min(f, s2.length - n2.length); i >= 0; i--) {
+                    if (s2.startsWith(n2, i)) return i;
+                }
+                return -1;
+            }
+            export function kof_string_starts_with2(s, needle, from) {
+                const s2 = String(s), n2 = String(needle);
+                if (from < 0 || from > s2.length) return false;
+                return s2.startsWith(n2, from);
+            }
 
             // ── kof.validation (STDLIB S6a) — rede ─────────────────────────
             function kofIsHex(c) {

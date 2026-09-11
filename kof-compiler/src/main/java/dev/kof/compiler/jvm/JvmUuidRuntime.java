@@ -78,6 +78,34 @@ public final class JvmUuidRuntime {
                 private static boolean isUuidHex(char c) {
                     return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
                 }
+
+                // v7 (RFC 9562, S3b.2): b0..b5 = unix-ts-ms 48 bits big-endian;
+                // b6 = 0111|rand_a (nibble alto '7', resto aleatorio); b7 =
+                // rand_a; b8 = 10x|rand_b (mask); b9..b15 = rand_b. Entropia =
+                // MESMO SecureRandom do v4 (R11 — sem gerador caseiro).
+                // ts>2^48: trunca p/ low-48 (formato; ano ~10889).
+                public static String kof_uuid_v7() {
+                    final long ts = System.currentTimeMillis();
+                    byte[] b = new byte[16];
+                    KOF_UUID_RANDOM.nextBytes(b);
+                    b[0] = (byte) (ts >>> 40);
+                    b[1] = (byte) (ts >>> 32);
+                    b[2] = (byte) (ts >>> 24);
+                    b[3] = (byte) (ts >>> 16);
+                    b[4] = (byte) (ts >>> 8);
+                    b[5] = (byte) ts;
+                    b[6] = (byte) ((b[6] & 0x0f) | 0x70);   // version 7
+                    b[8] = (byte) ((b[8] & 0x3f) | 0x80);   // variant 10
+                    final char[] H = "0123456789abcdef".toCharArray();
+                    char[] c = new char[36];
+                    int k = 0;
+                    for (int i = 0; i < 16; i++) {
+                        c[k++] = H[(b[i] >> 4) & 15];
+                        c[k++] = H[b[i] & 15];
+                        if (i == 3 || i == 5 || i == 7 || i == 9) c[k++] = '-';
+                    }
+                    return new String(c);
+                }
         """;
     }
 }

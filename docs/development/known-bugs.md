@@ -11,6 +11,10 @@
 > | Abertos e atacáveis em JVM/JS | **5** — bugs 39, 45, 62, 63, 64 |
 > | Abertos, só reproduzíveis no Native | **5** — bugs 46, 48, 50, 59, 61 |
 > | Paridade interpretador × compilados (semântica `==` congelada — regra 6) | **1** — bug 94 (NaN/±0.0 `==` de Double no SCRIPT) |
+> | Paridade backend-only (regra 5, atacável na lane Native) | **2** — §107 (println coleção → lixo no nativo, sem toString de coleção; §107-JS corrigido 11/09), §104b-ii (equals de conteúdo p/ record + box de primitivo no storage asm; **face char ✅ FECHADA 11/09** — `mapgetprim` 4/4)
+> | Operadores relacionais NaN cross (congelados — regra 6) | **1** — bug 101 (`<`/`<=`/`>=` com NaN: riscv IEEE vs x86/JVM quirk `dcmpg`) |
+> | **Corrigidos na sessão de paridade absoluta 11/09** | **15** — bugs 96 (SEM052), 98 (SEM053), 100 (SEM051+fold), 44-residual, 102 (from-idx), 103 (SEM054), 104a (KofObj equals/hash/toString no interpretador), 104b-i (LINK_FAIL `Object.equals` herdado no Native), 104c (membership de record por conteúdo no JS — `kofValEq`), 107-JS (`kofFormat` no JS), 109 (CRASH JVM no guard do `map.get` primitivo), 110 (`-0.0` colapsado em `+0.0` no literal emitter JVM), 111 (trailing-empties no `split` Native/JS + sentinela `substring` 0→-1; ✅ cross riscv/aarch B36/B37 11/09 — FECHADO nos 5 targets), 112 (prev de `put`/`remove` p/ primitivo: VerifyError/NPE JVM + SIGSEGV Native por pilha desequilibrada + `set.add` do interpretador + **JS fechado na mesma unidade** — `?? default` + `KofPop` preserva side-effect embrulhado; 4/4 targets), **104b-ii FACE CHAR** (SIGSEGV/`a` no `println(char-em-coleção)`; 3 buracos: desembrulhar `Nullable(CHAR)` no print-lowering JVM-coerente `unboxDescriptor` (char→`Integer`, não `Character`/`charValue`) + repair de `as Char` no `SemExpressionTyper` — `mapgetprim` 4/4) — todos com prova na matrix/suíte |
+> | **Corrigidos na prova cross-arch 11/09 (MATH001/TIME002/B33)** | **3** — bugs 101→registrado (relacional NaN, ABERTO regra 6), MATH001 (Double math B32), TIME002 (ISO add/diff B33), 105 (random.int loop — renumerado de 102, colidiu c/ §102 indexOf) |
 > | Verificados corrigidos em 08/09 | **19** — bugs 1–8, 10–17, 19, 20, 26 |
 > | Não reverificados (faltou ambiente/setup) | bugs 9, 18, 21, 22, 23 |
 >
@@ -818,7 +822,7 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 - **Prova/repro:** `ConformanceMatrixTest.recordhash` (verde nos 4 targets: JVM, Script, JS e Native).
 - **Nota:** `a == b` (igualdade de conteúdo), `println(a)` (`P[x=1, y=2]`) e `a.hashCode() == b.hashCode()` agora têm paridade nos 3 targets.
 
-### 43. String no Native conta bytes UTF-8, JVM conta code units — CORRIGIDO x86_64 (10/09; `length` + `charAt` + `substring` + `indexOf`/`lastIndexOf` UTF-16) — decisão de design STR001: convenção code units UTF-16 (paridade JVM/JS; `café`→4, `a😀b`→4)
+### 43. String no Native conta bytes UTF-8, JVM conta code units — ✅ CORRIGIDO 5/5 faces nos 5 targets (10/09 x86 `length`/`charAt`/`substring`/`indexOf`/`lastIndexOf`; 11/09 cross B34/B35 riscv+aarch) — decisão de design STR001: convenção code units UTF-16 (paridade JVM/JS; `café`→4, `a😀b`→4)
 
 - **Sintoma:** `var s = "café"; println(s.length); println(s.charAt(3))`: JVM → `4` / `233` (0xE9, code unit UTF-16 de `é`); **Native** → `5` / `195` (0xC3, 1º byte de `é` em UTF-8). `println(s + "!")` casa (`café!`) — só `length`/`charAt`/`substring` divergem.
 - **Causa raiz:** as ops de string do Native são **byte/UTF-8** baseadas; as do JVM são **code-unit/UTF-16** baseadas. Mesma família do `STR001` (documentado p/ JVM `"Olá 😀".length`=6), mas aqui é **divergência cross-target** (Native ≠ JVM no MESMO programa) → paridade (regra 5).
@@ -826,9 +830,8 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 - **Correção (lane Native, decisão de design regra 6):** alinhar `length`/`charAt`/`substring` a UMA convenção (code point ou code unit) nos 3 targets — é mudança de contrato, precisa de bump.
 - **✅ CORRIGIDO 10/09 (x86_64):** `kof_string_length` UTF-16 (08/09, `NativeE2ETest.nativeStringLengthUtf16`), `kof_string_char_at` (10/09, percorre o UTF-8 e devolve a **code unit UTF-16** da posição — 1/2/3 bytes → 1 unit, astral (4 bytes) → 2 surrogates; `café.charAt(3)`→233, `a😀b.charAt(1)`→55357) **E `kof_string_substring` (10/09)**: `RuntimeStringOps.emitStringSubstring` ganha um walk interno (`.Lkof_substr_walk`, rdi=str/esi=target → eax=byteOff, edx=units, ecx=1 se caiu no meio do par) que converte start/end de code units para byte offsets; a cópia passa a ser a fatia de bytes entre as duas fronteiras (par astral sempre inteiro). `café.substring(1)`→`afé`, `substring(3)`→`é`, `a😀b.substring(1,3)`→`😀`, `.substring(3)`→`b`. Prova: `NativeE2ETest.nativeStringSubstringUtf16` + `ConformanceMatrixTest.unicode`/`unicode-astral`/`unicode-substring` (native desbloqueado, 4 targets) + `BackendParityTest.unicode-str`. **E `kof_string_index_of`/`kof_string_last_index_of` (10/09, achado por varredura de paridade):** `RuntimeStringSearch` reusa o MESMO `.Lkof_substr_walk` para varrer o haystack por **code units** e casar a needle byte-a-byte na posição convertida (needle vazio → 0/len, needle>alvo → -1, corte de par pulado — needle well-formed nunca casa numa 2ª unit). `a😀b.indexOf("c")`: era 10 (byte) → 6 (unit) = JVM/Script. Prova: `NativeE2ETest.nativeStringIndexOfUtf16` + `ConformanceMatrixTest.unicode-indexof` (4 targets) + sweep de 22 vetores (ASCII+latin1+astral+bordas) batendo JVM==Native==Script.
 - **⚠️ Sub-residual (corte de par astral ao meio em `substring`):** fronteira `end`/`start` que cai na **2ª unit de um par astral** (ex.: `a😀b.substring(0,2)`, `a😀b.substring(1,2)`) produziria um **surrogate solto** na string resultante. O Native ainda não casa com o JVM aqui: produz um **diagnóstico R6** (`substring cannot split an astral code point`), nunca um byte-cru errado. A paridade plena exige o **storage ser WTF-8** (permitir surrogates soltos) + `length`/`concat` aceitarem-no — mudança maior do layout interno de string, fora do escopo desta unidade (fronteiras bem-formadas cobrem o uso real; registro p/ a próxima iteração de storage). `charAt` já casa (devolve o code unit numérico, sem storage envolvido).
-- **✅ CORRIGIDO 11/09 (face riscv64/aarch64 — `length`/`charAt`):** com a toolchain cross destravada (apt-get download + dpkg -x, sem root — ver DOING.md 11/09), `kof_string_length`/`kof_string_char_at` portados para CODE UNITS UTF-16 em fatia nova `NativeRiscvAsmRtB33` (`kof_su_length`/`kof_su_char_at`, reusando o decoder `kof_su_next` da B32; trampolins `j` dos símbolos byte-based em Rt0/Rt1 p/ não crescer as fatias gigantes). Prova: `NativeRiscv64E2ETest`/`NativeAarch64E2ETest.nativeStringLengthAndCharAtUtf16` (11 vetores — latin1/€+astral/BMP/bordas) = golden JVM medido `4 233 3 233 232 2 8364 4 55357 56832 98`; fuzz charAt em todas as units de `"aé€😀z"` idêntico nos 4 targets (`97 233 8364 55357 56832 122 6`). aarch64 herda do tradutor.
-- **✅ CORRIGIDO 11/09 (face riscv64/aarch64 — `substring`/`indexOf`/`lastIndexOf`, estágio 2):** as 3 faces restantes no RISC-V portadas para CODE UNITS UTF-16 em fatia nova `NativeRiscvAsmRtB34` — helper FOLHA `kof_su_walk` (anda LEAD BYTES, converte unit→byteOff, flag `cut` quando a target cai na 2ª unit de par astral; modelo x86 `RuntimeStringOps.emitStringSubstring`/`RuntimeStringSearch`, port fiel) + `kof_su_substring`/`kof_su_index_of`/`kof_su_last_index_of`. Trampolins `j` nos símbolos byte-based de `Rt1`/`RtStrn0`. Contratos espelhados do x86: `end=0` = "até o fim" (call site 1-arg); needle vazio → `indexOf`=0 / `lastIndexOf`=total; `needle>alvo` → -1; corte de par → substring panica (`substring cannot split an astral code point`) e indexOf/lastIndexOf pulam a posição. Lições da B32/B33 aplicadas: `cut` é flag 0/1 → `bnez` (não `bltz`); estado do laço em s-regs (walk clobbers `t0..t6`); `sext.w` no retorno do `-1`. Prova: `NativeRiscv64E2ETest`/`NativeAarch64E2ETest.nativeStringSubstringIndexOfUtf16` (14 vetores — é/€/astral/BMP/bordas; golden JVM MEDIDO `3 1 2 0 2 4 bé| cd| 😀| b 3 4 2 fé|`) + bordas (`substring(0,0)`, `substring(2,2)`, vazio, `indexOf` não-achado=-1, `lastIndexOf` vazio=total) idênticas nos 4 targets + panic astral idêntico nos 3 targets nativos. aarch64 herda do tradutor. **⚠️ Resíduo de CONTRATO (x86, não cross):** `"ab".substring(0, 0)` dá `"ab"` em x86 (o `end=0`-é-marker-"até-o-fim" colide com `end=0` explícito; o JVM dá `""`). O port riscv/aarch é **fiel ao x86** (mesmo output) — é o mesmo comportamento dos 2 targets, não divergência cross; resolver exige distinguir `end=0`-explícito de `end=0`-marker (mudança de ABI do call site / parâmetro extra) → decisão de design da mantenedora, não fixo silencioso aqui. **Nota (matriz):** `ConformanceMatrixTest.unicode*` só cobre JVM/x86/Script/JS — a prova cross vive nos E2E nativos (`assumeToolchain`).
-
+- **✅ Faces riscv64/aarch64 (1/3–3/3) CORRIGIDAS 11/09 (fatia B34):** `kof_string_length`/`kof_string_char_at`/`kof_string_substring` contam code units UTF-16 no riscv (port 1:1 dos refs x86; aarch via tradutor). Qemu presente no ambiente da sessão → PROVA REAL: `NativeStringUtf16CrossTest` 2/2 (golden JVM medido, 12 valores, riscv+aarch sob qemu; sabotagem do golden falhou nos 2 = não-skip) + json.decode-list-strings idêntico JVM/x86/riscv/aarch. `Mapset1` (json.decode string) passou a copiar bytes INLINE (não chama mais o substring UTF-16 — offsets do scanner são bytes; espelha o `.Lkof_jdd_copy` x86).
+- **✅ Residual FECHADO 11/09 (fatia B35, `522e63e8`):** `kof_string_index_of`/`kof_string_last_index_of` no riscv contam e **devolvem** índice em code units UTF-16 (port 1:1 dos refs x86; reusa `.Lu9_walk` da B34), + variantes `_2` (`index_of2`/`last_index_of2`/`starts_with2`) com os clamps JDK do §102; CrossOps roteia por aridade como o x86. `café😀x`.indexOf("😀") → 4 (era 5). Prova: `NativeStringUtf16CrossTest.searchUtf16Cross` (16 vetores, golden JVM medido, riscv+aarch sob qemu; sabotagem → 2/2 FAIL = não-skip) + E2Es 30/30+30/30 + matrix 11/11 intactos (ASCII `lastIndexOf("na")`/`contains` dos testes não-regredem). `contains`/`startsWith` 1-arg ficam byte-based de propósito (bool de prefixo/substring em UTF-8 bem-formado == bool em units — só o VALOR de índice divergia). Sub-residual (corte de par astral ao meio em `substring`) = R6 diagnostic (`kof_panic`), paridade plena exige WTF-8 storage (§43).
 ### 44. `println(double)` no Native x86_64 imprime 6 casas + `5` (JVM: 16 casas + `5.0`) — ✅ CORRIGIDO 10/09 (x86_64; faces (a) e (b) verificadas por probe pós-fix)
 
 - **Sintoma original:** `println(1.0/3.0); println(2.5*2.0); println(7.0/2.0)`: JVM → `0.3333333333333333` / `5.0` / `3.5`; **Native** → `0.333333` / `5` / `3.5`.
@@ -840,6 +843,7 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 - **Prova:** `ConformanceMatrixTest.floatprint` (native desbloqueado, JVM+Native+Script verde; KofJS segue excluído: doc "parece bug mas é esperado" — JS `String(5.0)` = `"5"`) + probes `Fp44`/`Fp44c` 10/09.
 - **Nota:** a parte `5` vs `5.0` do JS fica documentada como esperado (não é bug); só o Native divergia do JVM.
 - **Residual:** faces riscv64/aarch64 não re-verificadas (qemu ausente no worker) — o formato do double no RISC-V segue o path anterior até o toolchain chegar; bug 59 bloqueia a verificação cross-arch de qualquer jeito.
+- **✅ RESIDUAL CORRIGIDO 11/09 (x86_64) — spelling de `inf`/`-inf`/`nan`:** o fix original (16 casas + `.0`) deixou **passar reto** o spelling do glibc `%.16g`, que escreve `inf`/`-inf`/`nan`, mas o contrato é o de `Double.toString` do JDK → `Infinity`/`-Infinity`/`NaN` (o que JVM/Script imprimem; o comentário antigo "NaN/Infinity passam retos (JVM idem)" era **erro** — o glibc não escreve `Infinity`). Paridade regra 5 quebrada de forma **silenciosa** (sem diagnóstico): `println(1.0/0.0)` → JVM/Script `Infinity`, Native `inf`; `0.0/0.0` → `NaN` vs `nan`; afetava **todos** os caminhos de conversão (println box, `print` sem box, `String.valueOf`, concat `+`). **Fix:** reescrita in-place no buffer (64 bytes, os 3 spellings cabem) nos **4** ramos — `RuntimeStringConv.emitDoubleToString`/`emitFloatToString` (o box, que é o caminho real do `println(double)` — verificado via `objdump`: `main` chama `kof_double_to_string`+`kof_println_string`, **não** `kof_print_double`) + `RuntimePrintNum.emitPrintFloat` (o `print`/unbox). Cada ramo só reescreve quando o buffer é **exatamente** o spelling do glibc (compara char a char + tamanho) — decimal/científico/`.0` têm dígito e passam. **Prova:** `ConformanceMatrixTest.infinityprint` (println + print sem box + String.valueOf + float overflow, 3 targets) + linha `infinityprint` em `conformance-matrix.md` (o `ConformanceMatrixDocTest` exige paridade test×doc). **Lição (4ª vez): build incremental com constante inlined** — a `UI_UUID_RUNTIME` do `JsRuntimeUiUuid` ficou stale no `JsArtifactWriter.class` após o merge, e `KofUuidTest.uuidV7Js` falhava com "export not provided" **sem culpa do merge nem do código**; `clean test` resolve. Sempre `clean` ao suspeitar de "export missing" em fragmento wired. **Residual:** riscv64/aarch64 não re-verificados (qemu ausente) — seguem o path anterior até o toolchain chegar.
 
 ### 45. `finally` com `return` no try: JVM/interpretador DESCARTAM o efeito colateral do finally (JS correto) — ABERTO (lane lowerers) — bug de PARIDADE desde o fix de 07/09
 
@@ -2181,6 +2185,30 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   atinge TODOS os targets — código de usuário que usa `5.toDouble()` no JVM
   pararia de compilar → é mudança de contrato, bump).
 
+### 90. `KofWebHardeningTest.sse_events_sent_counter_tracks_calls` é FLAKY sob carga da suíte completa (espera 3, obtém 2) — ABERTO (lane web; não-correlacionado com a varredura STDLIB, achado 10/09)
+
+- **Sintoma:** na suíte completa (`mvn test` 4 módulos, ~1281 testes rodando
+  juntos) o caso `sse_events_sent_counter_tracks_calls` (KofWebHardeningTest
+  linha ~395) falha `expected: <3> but was: <2>` — o contador de eventos SSE
+  enviados fica 1 atrás no momento da asserção. **Passa 3/3 quando rodado
+  isolado** (`-Dtest='KofWebHardeningTest#sse_events_sent_counter_tracks_calls'`,
+  8–9s cada) — medido 10/09.
+- **Diagnóstico:** não-correlacionado com a varredura STDLIB (uuid/parse
+  string/asm cross — nenhum toca web/SSE). O padrão "espera 3 obtém 2, verde
+  isolado, vermelho sob carga" é corrida de despacho/contagem do servidor SSE
+  no teste: a asserção lê o contador antes do último write ter sido
+  contabilizado sob contenção de CPU da suíte paralela. (Investigação da causa
+  raiz exata = lane web.)
+- **Menor repro:** roda a suíte completa com qemu (carga alta) → o caso cai
+  com 2; roda isolado → verde. Não consegui reproduzir isolado em 3 tentativas
+  (10/09).
+- **Não corrigido aqui (regra 3):** não "conserto o teste para passar" (não
+  é minha lane nem tenho a causa raiz do despacho SSE); registrado com
+  evidência p/ a lane web. Suspeito de asserção sem sincronização — provável
+  fix = esperar o contador convergir (poll com timeout) em vez de ler 1x, OU
+  eliminar a corrida no contador do handler. Se a causa raiz for um undercount
+  real (evento perdido), aí é bug de funcionalidade da lane web.
+
 
 ### 95. Native: 2+ `String.split` no mesmo programa → assembler "already defined" (COMP001) — ✅ CORRIGIDO 10/09 (x86_64; varredura de paridade String)
 
@@ -2205,32 +2233,47 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 - **Nota (riscv/aarch):** o backend cross não tem o mesmo ramo inline de split
   com labels fixas (o `kof_string_split` é chamado direto) — não reproduz.
 
-### 96. Native: `String.repeat`/`padStart`/`padEnd` como MÉTODO DE INSTÂNCIA → `undefined reference` no link — ABERTO (fora do corpus; API documentada é a função `strings.repeat(...)`)
+### 96. `String.repeat`/`padStart`/`padEnd` como MÉTODO DE INSTÂNCIA — aceito e quebrado em 3/4 backends — ✅ CORRIGIDO 11/09 (SEM052: rejeitar e apontar p/ o idiom `strings.*`)
 
-- **Sintoma:** `println("ab".repeat(2))` / `"ab".padStart(4,"-")` / `"ab".padEnd(4,"-")`
-  no Native x86_64 falham no link: `undefined reference to
-  'java_lang_String_repeat'` / `_padStart` / `_padEnd` (COMP001). O typer aceita
-  (o método existe no registry — `KofStrings.java:59` reconhece `repeat`), mas
-  nenhum backend emite o intrínseco nem a runtime define o símbolo. JVM/Script
-  executam correto.
-- **Causa:** o typer/registry conhece `repeat` como método de String (a função
-  top-level `strings.repeat` é o idiom CANÔNICO do corpus —
-  `training/idioms/stdlib.md:37`, `learn/39-stdlib.md:63`), mas o emit nativo
-  desses 3 como **método de instância** nunca foi escrito. Não há teste nem doc
-  que pinnem a forma `"ab".repeat(2)` — só a forma `strings.repeat("ab",2)`.
-- **Por que NÃO é "só implementar" (regra 6):** é API de superfície nova
-  (adicionar o emit dos 3 intrínsecos nos nativos) OU decisão de o typer
-  REJEITAR método-de-instância fora do corpus (mudança de contrato p/ quem usa
-  no JVM — bump). Mesma família da decisão §89 (superfície não-pinned).
-- **Ação p/ o dono Native:** (a) implementar `repeat`/`padStart`/`padEnd` no
-  runtime x86 (`kof_string_repeat`/`_pad_start`/`_pad_end`) + rotear em
-  `NativeX86StringCalls` (o emit de método já existe, só falta o symbol); OU
-  (b) diagnosticar no typer apontando p/ `strings.repeat(...)` (o idiom real).
-  Decidir com a mantenedora. **Workaround atual:** `strings.repeat("ab", 3)`
-  (funciona nos targets que têm a função).
-- **Descoberto:** 10/09 na varredura de paridade String (batch `swA.kf`).
+- **Sintoma (paridade absoluta JVM=JS=X86=ARM=RISC quebrada):** `"ab".repeat(3)`,
+  `"ab".padStart(5,"-")`, `"ab".padEnd(5,"-")`, `"abcdef".truncate(3)`,
+  `"7".padLeft(3,"0")`, `"ab".reverse()`, `"abc".count("a")`, `"a".isAlpha()`,
+  `"a".toCamelCase()`, `"a".escapeHtml()`, `"a".slugify()` (toda a superfície
+  `strings.*` chamada como método) eram ACEITOS pelo typer e cada target fazia
+  UMA COISA DIFERENTE:
+  | alvo | `"ab".repeat(3)` | `"ab".padStart(5,"-")` |
+  |---|---|---|
+  | JVM | `NoSuchMethodError String.repeat(I)` (descritor sai Object) | `NoSuchMethodError` idem |
+  | Native x86 | `undefined reference java_lang_String_repeat` (link-fail) | idem (link-fail) |
+  | JS | roda o `.repeat` NATIVO do JavaScript (paridade por acaso) | roda `.padStart` do JS |
+  | Script | `ababab` (reflexão JDK) | vazio + `exit=1` |
+- **Causa raiz:** nenhuma parte do typer lowering conhece esses nomes como
+  métodos de String (a `StringMethodRegistry` não os lista), mas nenhum ponto
+  os REJEITA — o `KofCall` sai com owner `String` e o backend cada um faz o que
+  dá (`JvmTypeMapper` monta descritor Object; Native emite call p/ símbolo que
+  ninguém define; JsCallEmitter cai no método nativo do JS; o interpretador
+  resolve por `Method.invoke` no JDK). O corpus (`training/idioms/stdlib.md:47-50`,
+  `learn/39-stdlib.md:71-74`) só documenta a forma FUNÇÃO:
+  `strings.repeat("ab", 3)` / `strings.padLeft("7", 3, "0")` / `strings.truncate`.
+- **Decisão (opção B da mantenedora, 11/09 — paridade absoluta é a regra):**
+  REJEITAR em compile-time com **SEM052** apontando para o idiom real
+  (`Kof não tem método "repeat" de String; use a função da stdlib:
+  strings.repeat(...` — com `padStart→padLeft`/`padEnd→padRight` no hint).
+  Guard por NOME (`NOT_INSTANCE_METHODS` = toda a superfície de
+  `KofStrings.staticMethod`) no branch `isString(recvType)` do
+  `ExpressionInstanceCallLowerer` — mesmo ponto dos guards §100/SEM051:
+  lowering é o frontend ÚNICO dos 5 alvos, um erro igual em todos por
+  construção. NÃO flaguemos `toUpperCase`/`toLowerCase`/`trim`/`split`/
+  `replace`/`substring`/`equals`/`indexOf`... (SÃO métodos na registry).
+  Verificado: JVM/NATIVE/JS dão SEM052 idêntico; `interpret()` (Script) LANÇA
+  com a mesma mensagem (antes: `ababab`/vazio por reflexão).
+- **Prova:** `SemanticResolutionTest.stringsFunctionsAsInstanceMethodsRejected`
+  (14 formas × SEM052) + `stringsFunctionsAndRealStringMethodsStillCompile`
+  (funções `strings.*` + métodos reais de String não regridem).
+- **Descoberto:** 10/09; **corrigido 11/09** sob a diretriz "paridade entre os
+  targets em primeiro lugar; opção B = rejeitar em tempo de compilação".
 
-### 97. Native: `String.compareTo`/`String.hashCode` declarados no reference → `undefined reference` no link — ✅ x86_64 CORRIGIDO 10/09 + ✅ JS CORRIGIDO 10/09 + ✅ riscv64/aarch64 CORRIGIDO 11/09 (todas as faces fechadas; varredura String parte 2)
+### 97. Native: `String.compareTo`/`String.hashCode` declarados no reference → `undefined reference` no link — ✅ x86_64 CORRIGIDO 10/09 + riscv/aarch 11/09 (B36, qemu; face JS residual)
 
 - **Sintoma:** `a.compareTo("abd")` e `a.hashCode()` falham no link Native
   x86_64: `undefined reference to java_lang_String_compareTo` / `_hashCode`
@@ -2242,7 +2285,8 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   `docs/language-reference/type-system.md:289` DECLARA a API — "`String`:
   indexOf/length/**compareTo/hashCode**→Int". O typer honra a declaração; os 3
   nativos não. Paridade cross-target quebrada (regra 5) em método *documentado*
-  — família do §96, mas lá o método NÃO está no corpus (design); aqui ESTÁ.
+  — família do §96 (corr. 11/09 com SEM052), mas lá o método NÃO está no
+  corpus (rejeitado); aqui ESTÁ (implementado no x86).
 - **Causa:** nenhum dos 3 backends nativos emite os intrínsecos
   `java_lang_String_compareTo`/`_hashCode`. `NativeX86StringCalls.emit` roteia
   length/charAt/substring/indexOf/… mas não estes dois → caem no `emitCall`
@@ -2270,45 +2314,24 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   com astral/BMP/prefixo/vazio, golden JVM==Native==Script idênticos
   (`10 1 -1 -1 55260 -10176 10176 96354 3240 1772899 0`). Suíte da área verde
   (NativeE2ETest 59, BackendParity 16, ConformanceMatrix 11, doc-gate).
-- **✅ CORRIGIDO 10/09 (face JS):** `JsCallEmitter.handleStringOp` ganha case
-  `hashCode` → `kofHashCode` (runtime, bug 42 — `31*h+charCodeAt` sobre code
-  units UTF-16, MESMO algoritmo do x86) e `compareTo` → helper novo
-  `JsRuntimeCore.kofStringCompareTo` (walk de code units UTF-16: primeira unit
-  diferente → `A−B`; prefixo → diff de contagem — **NÃO** `localeCompare`, que
-  diverge de locale e de astral). Antes caíam no `default` → `texto.compareTo()`
-  / `texto.hashCode()` que não existem em `String.prototype` → `TypeError`.
-  (node AUSENTE na sessão do bug x86 era a razão do residual; disponível na
-  sessão JS.)
-- **✅ CORRIGIDO 11/09 (face riscv64 + aarch64):** toolchain cross obtida SEM
-  root (`apt-get download qemu-user-static binutils-riscv64-linux-gnu
-  binutils-aarch64-linux-gnu` + `dpkg -x` num prefixo + `PATH`/`LD_LIBRARY_PATH`
-  — os guards `has(...)` dos testes passam; mesma artimanha do agente cross
-  `2b9a483b`). Fatia nova `NativeRiscvAsmRtB32` (B30/B31 já tomados) portando
-  o MESMO algoritmo de code-unit: helper FOLHA `kof_su_next` (cursor 8B:
-  off@0 + pendLow@4 — no x86 o cursor é `rsi`, aqui `a1`; só t-regs) +
-  `kof_string_compare_to` + `kof_string_hash_code`; routing em
-  `NativeRiscvCrossOps` (o guard `isString` do branch já impede hijack de
-  classe de usuário; `equals` → `kof_string_equals` existente, que o dispatcher
-  cross NUNCA roteava — caía no mangling `String_equals` indefinido). aarch64
-  vem do tradutor riscv→aarch (mesma lição do B25 uuid). Dois bugs pegos na
-  prova: (a) `.Lct*`/labels genéricas COLIDIAM com a fatia B2 existente →
-  namespace próprio `.Ls97*` (lição do bug 95, mas em outro eixo); (b) o
-  tradutor faz `lw`→`ldr w` (**zero**-extend) onde o riscv é **sign**-extend —
-  a sentinela `-1` vinda da pilha (`lw t0,16(sp)`) virava `0xFFFFFFFF` no
-  aarch e o diff de prefixo saía `-100`; fix no meu asm: `sext.w` explícito
-  após o `lw` (no-op no riscv, corrige no aarch) — o TRADUTOR fica intacto
-  (mexer nele = risco global; latente em todo `lw` de valor negativo via pilha
-  — registrado como lição, sonda futura da lane. **ATUALIZADO 11/09: a sonda
-  foi feita e a raiz corrigida — ver §103; o `sext.w` da B32 fica como
-  double-proteção inocua**). **Prova:** os MESMOS 11
-  vetores golden do x86 nos 2 cross (`NativeRiscv64E2ETest.
-  nativeStringCompareToAndHashCodeUtf16` + `NativeAarch64E2ETest` idem) =
-  `10 1 -1 -1 55260 -10176 10176 96354 3240 1772899 0` em riscv64 E aarch64
-  sob qemu; `equals`/record lado a lado também verde; suítes riscv 31/0 +
-  aarch 31/0 + KofStrings 16 + BackendParity 16 + ConformanceMatrix 11.
-- **Prova face JS:** `KofStringsTest.compareToAndHashCodeJvmJsNative` — MESMOS
-  11 vetores do §97-x86 (astral/BMP/prefixo/vazio), golden JVM==JS==x86
-  idênticos (`10 1 -1 -1 55260 -10176 10176 96354 3240 1772899 0`).
+- **Residuais (honestos, NÃO regredidos):** **JS** — `JsCallEmitter` não trata os
+  dois no switch; caem no `default` → `texto.compareTo(o)`/`texto.hashCode()`
+  que NÃO existem em `String.prototype` → `TypeError` em runtime (bug-irmão do
+  `equals`, que é tratado). Como node está AUSENTE aqui, não travar por teste —
+  face da lane JS. **riscv64/aarch64** — os símbolos vivem só no `.s` x86
+  (`NativeRuntime` é x86-only; o cross tem suas fatias). **✅ CORRIGIDO 11/09
+  (cross, fatia B36 `NativeRiscvAsmRtB36`)**: port 1:1 do algoritmo
+  `.Lksu_next` (helper de cursor com pendência de surrogate no stack) →
+  `String_equals`/`String_compareTo`/`String_hashCode` no riscv (aarch via
+  tradutor); router cross roteia `equals/compareTo/hashCode` pelo bloco String
+  (receiver + arg em a0/a1 — antes caíam no fallback genérico que só dava pop
+  de a0). Bug pegado na prova: lead de 4-byte é `0xF0..0xF7` — testar
+  `&0xF8==248` em vez de `240` fazia astral cair no raw (hashCode/hash de
+  "a😀b" errado); e o round-trip da sentinela −1 pela pilha exige `sext.w` no
+  aarch (o tradutor mapeia `lw`→`ldr w`, zero-extend, vs sign-extend riscv).
+  Prova: `NativeStringCompareCrossTest` 2/2 (18 vetores JVM==x86==riscv==aarch
+  byte-idênticos; sabotagem → 2/2 FAIL = não-skip) + substring 1-arg §111
+  cross no MESMO teste (sentinela 0→−1, fix abaixo).
 - **Continuação 10/09 (mesma varredura): `String.equals` link-fail** →
   `undefined reference java_lang_String_equals`. O `==` de String JÁ baixava p/
   `kof_string_equals` (conteúdo, null-safe); o MÉTODO `.equals` não era roteado
@@ -2325,7 +2348,7 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   (dispatch) — NÃO silencioso: gap aberto, menor repro `/tmp/oq.kf`.
 - **Descoberto:** 10/09 na varredura de paridade String (batch `swB.kf`/`swF.kf`/`sw2b.kf`).
 
-### 98. String `<`/`>`: três backends divergem e TODOS dão lixo — ABERTO (semântica **Unspecified** no reference; regra 6 — decisão da mantenedora)
+### 98. String `<`/`>`: três backends divergem e TODOS dão lixo — ✅ CORRIGIDO 11/09 (SEM053: rejeitar, opção B da mantenedora)
 
 - **Sintoma (medido 10/09, 3 targets no MESMO programa `swE.kf`,
   `"abc"` vs `"abd"`):** `a<b | a>b | b<a | b>a | a==b` —
@@ -2334,26 +2357,715 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   (compara o **ponteiro** — ordem de alocação, não conteúdo); **interpretador**
   `true|false|false|true|false` (lexicográfico, **invertido** p/ `<` vs `>` do
   Native). `a==b` bate (`false`) nos 3 (conteúdo, congelado — §regra 6).
-- **Não é "só alinhar":** `docs/language-reference/expressions.md:56-58`
-  declara a ordem lexicográfica de String por `<`/`>` como **Unspecified** —
-  "o parser aceita, o lowering usa `if_acmp*` para referências, o que para
-  `<`/`>` em referência é **não suportado**". Escolher SEMÂNTICA (ordem
-  lexicográfica UTF-16? por code point? erro de compilação?) é **mudança de
-  contrato sobre operadores congelados** → regra 6: decisão da mantenedora,
-  NUNCA edição silenciosa.
-- **Três caminhos possíveis (documentar + discutir, não implementar):**
-  (a) **rejeitar no typer** (`<`/`>` em String = erro SEM, apontando p/
-  `compareTo`) — o mais honesto com "não suportado" do reference, mas quebra
-  código que compila hoje nos 3 (bump); (b) **definir lexicográfico UTF-16**
-  (= `compareTo < 0`) e implementar nos 3 (a opção "completa"; exige o §97
-  primeiro); (c) deixar unspecified e só adicionar **diagnóstico** no Native/
-  Script quando hoje compila em silêncio (meio-termo R6). Cada um muda
-  observável → bump/discussão.
-- **Ação p/ a mantenedora:** escolher (a)/(b)/(c) → eu implemento na lane.
-- **Descoberto:** 10/09 na varredura de paridade String (batch `swD.kf`/`swE.kf`).
+- **Revalidado 11/09** sob a diretriz nova da mantenedora ("paridade entre os
+  targets em primeiro lugar; regra absoluta JVM=JS=X86=ARM=RISC; opção B =
+  rejeitar em tempo de compilação"): os 3 alvos reproduzem os 3 resultados
+  DIFERENTES acima — é exatamente o que a regra proíbe (mesmo código,
+  comportamento distinto). Não é mais caso de "decisão de design aberta": a
+  decisão É rejeitar (a mesma família da opção B dos §96/§100).
+- **✅ CORRIGIDO 11/09 — SEM053 no typer de resultado binário**
+  (`TypeChecker.inferBinaryResultType`): `<`/`<=`/`>`/`>=` com um lado
+  String (ou `Nullable(String)`) agora é **erro em compile-time** apontando
+  para o idiom: "use `s.compareTo(t) < 0`" (com o relacional correto por
+  operador). Operando **mistos** (`"abc" < 'b'`, `"abc" < 1`) caem na MESMA
+  SEM053 (o guard é `isMaybeString(left) || isMaybeString(right)`). Como o
+  `inferBinaryResultType` é o frontend ÚNICO (alimenta o shortcut de condição
+  `if`/`while`/`for` **e** o valor `KofBinary` de `println(a<b)`), a rejeição
+  é idêntica nos 5 alvos — verificado: JVM/NATIVE/JS dão SEM053 igual no
+  `compile` e o `interpret()` (Script) LANÇA a mesma mensagem.
+- **Escopo cirúrgico (não regridir — regra 1):** `==`/`!=` de String (conteúdo,
+  congelado §regra 6) e `+` (concat) NÃO passam pelo guard; toda comparação
+  NUMÉRICA (int/long/float/double, `while (n < 10)`) e Char-vs-Char seguem
+  válidas. O caminho de referência não-String (`if_acmp*` p/ Object) não é
+  tocado.
+- **Prova:** `SemanticResolutionTest.stringOrderingOperatorsRejected` (6 formas
+  × SEM053) + `stringEqualityAndNumericOrderingStillCompile` (==/!= numérico/
+  compareTo idiom não regridem). Suíte completa pós-clean abaixo.
+- **O que um dia reabriria discussão:** (b) definir ordem lexicográfica UTF-16
+  como CONTRATO (exigiria os 5 backends + bump + migração — hoje o `compareTo`
+  cobre 100% dos usos reais e o reference mantém `Unspecified`). Não é a
+  decisão desta sessão.
+- **Descoberto:** 10/09; **corrigido 11/09** (SEM053, opção B).
+
+### 100. Char como argumento de método String aceito em silêncio → quebra de um jeito DIFERENTE em cada target (paridade absoluta + R6) — ✅ CORRIGIDO 11/09 (SEM051, opção B: rejeitar em compile-time)
+
+- **Sintoma:** `"abc".indexOf('c')` (Char, não String) é **aceito** pelo compilador
+  e roda de um jeito **diferente em cada target** — paridade absoluta (JVM=JS=x86=arm=risc)
+  quebrada em silêncio (R6):
+  | método | JVM | Native x86 | Script |
+  |---|---|---|---|
+  | `indexOf('c')`/`lastIndexOf`/`startsWith`/`endsWith`/`split(',')` | `VerifyError` (getfield/invokevirtual com int p/ slot String) | saída VAZIA (SIGSEGV silencioso) | saída VAZIA |
+  | `contains('b')` | `IncompatibleClassChangeError` (Integer→CharSequence) | vazio | `false` (lixo) |
+  | `compareTo('a')` | `NoSuchMethodError String.compareTo(int)` | vazio | vazio |
+  | `concat('x')` | `VerifyError` | vazio | vazio |
+  (`replace('b','x')` **funciona** nos 3 — Java tem `replace(char,char)` e a
+  `StringMethodRegistry` resolve o overload pelo tipo do arg.)
+- **Causa raiz:** os métodos String com parâmetro String/CharSequence
+  (`indexOf`/`lastIndexOf`/`contains`/`startsWith`/`endsWith`/`split`/`concat`/
+  `compareTo`/...) NÃO têm checagem de tipo de argumento no typer — o bloco de
+  String do `BuiltinCallTyper` e o `CollectionMethodTyper` devolvem o tipo de
+  RETORNO sem validar os args, e o `MemberCallTyper:415-420` pula a checagem
+  para String (comentário: "resolvidos via lowering direto"). O Char
+  (representado como Int em Kof) desce pro lowering e cada backend o trata
+  diferente: JVM faz `invokevirtual indexOf(I)` (não existe → VerifyError),
+  Native chama `kof_string_index_of` esperando ponteiro-String e dereferencia
+  o Int 99 → SIGSEGV, Script unbox-falha e engole.
+- **✅ CORRIGIDO 11/09 (estendido na mesma sessão) — opção B (decisão da
+  mantenedora): REJEITAR em tempo de compilação**, o MESMO diagnóstico em todos
+  os backends. Guard no `ExpressionInstanceCallLowerer` (branch
+  `isString(recvType)`), por NOME do método (`STRING_ARG_METHODS` —
+  `compareTo`/`compareToIgnoreCase` não estão na `StringMethodRegistry`
+  (sig=null), então um guard por assinatura ESCAPAIRIA deles), **por POSIÇÃO
+  contra a formal da registry**: qualquer argumento cujo formal é
+  String/CharSequence e cujo tipo NÃO é String (Char **ou Int/Long/Double/
+  array/classe** — `equalsIgnoreCase(5)` dava JVM `ExceptionInInitializerError`,
+  Native vazio, Script `false`) vira **SEM051** ("String.X não aceita Int como
+  argumento 1 (o parâmetro é String); use o literal String"). A checagem por
+  posição preserva `indexOf("a", 2)` (formal String,Int → só a pos-1 é
+  stringy). Como o lowering é o frontend ÚNICO que alimenta JVM/Native/JS/Script
+  (paridade por construção), o MESMO erro sai nos 5 alvos. Verificado:
+  JVM/NATIVE/JS dão o SEM051 idêntico no `compile`; `interpret()` (Script)
+  LANÇA `KofInterpretException: SEM051` em vez de rodar lixo.
+- **✅ `String.equals(não-String)` CORRIGIDO 11/09 (constante-fold, paridade):**
+  `equals` é formal `Object` (não-String é um uso LEGÍTIMO — Java devolve
+  `false`), mas o Native CRASHAVA: `kof_string_equals` lia o Int-boxado como
+  ponteiro-String (SIGSEGV/saída vazia) enquanto JVM/Script/JS davam `false`.
+  O lowering (único p/ os 5) faz constant-fold quando o arg é **provavelmente
+  não-String** (primitivo, array, ou classe Kof — String é final e java.lang
+  fica de fora por poder PORTAR String em runtime): roda o efeito do arg,
+  descarta receiver+arg (`KofPop`), empilha `false`. `equals(String)` segue
+  pelo runtime (`kof_string_equals`/`Objects.equals`/`===` no JS). Prova
+  runtime nos 4: matriz `equalsfold` (true/false/false/false — JVM+NATIVE+
+  SCRIPT+JS(Graal) idênticos).
+- **Escopo cirúrgico (não regridir — regra 1):** NÃO flaguemos `replace('b','x')`
+  (overload char,char legal, `charAt('1')`/`substring(1)` (formal numérico — Char
+  é Int, widening do usuário; erro de índice é runtime legítimo), nem `equals`
+  (formal Object). `indexOf("c")`, `compareTo("a")`, `contains("b")` permanecem.
+- **Prova:** `SemanticResolutionTest.charArgOnStringMethodRejected` (12 formas
+  × SEM051, incluindo Int-arg `equalsIgnoreCase(5)`/`concat(5)`) +
+  `stringMethodsWithStringOrCharArgsStillCompile` (não regridir
+  `replace(char,char)`/`charAt`/literal-String) + matriz `equalsfold` (runtime
+  nos 4 targets). Suíte completa pós-clean abaixo.
+- **NOTA de design (por que rejeitar e não implementar):** Kof NÃO tem overload
+  `(char)` p/ esses métodos no corpus (`type-system.md:289` lista `indexOf`→Int
+  sem dizer o tipo do arg; o idiom real é `"c"`). A alternativa (implementar a
+  sobrecarga char em 5 backends) seria mudar o contrato de forma aditiva — é
+  opção de design, mas a mantenedora optou pela REJEIÇÃO (opção B) porque
+  mantém a linguagem simples e o custo de 5 backends não se justifica p/ um
+  caso que o literal String cobre (`"c"` em vez de `'c'`).
+- **Arquivos:** `ExpressionInstanceCallLowerer.java` (guard SEM051 +
+  `STRING_ARG_METHODS`); testes em `SemanticResolutionTest.java`.
 
 
-### 62. Constant pool: Float/Double armazenados como bits crus (parser de migração) — ✅ CORRIGIDO 08/09
+### 102. Native/JS: `indexOf(String, from)`/`lastIndexOf(String, from)`/`startsWith(String, from)` ignoravam/am o índice inicial — ✅ CORRIGIDO 11/09 (x86_64 + JS; paridade absoluta)
+
+- **Sintoma (medido 11/09):** `"aXb".indexOf("X", 2)` → **JVM `-1`** (correto),
+  **Native `1`** (o helper `kof_string_index_of` lê só `%rdi/%rsi` e IGNORA o
+  `%rdx` que o roteador já empilha — aridade 2 vira 1 em silêncio). No **JS**,
+  o `String.prototype` respeita o `from` mas **diverge do JDK no clamp**:
+  `lastIndexOf("a",-1)` JS `0` vs JDK `-1`; `startsWith("",4)` JS `true` vs
+  JDK `false`; vazio+from idem. Paridade absoluta JVM=JS=X86=ARM=RISC quebrada
+  de 2 formas diferentes (R6). Mesma família para `lastIndexOf(s,from)` e
+  `startsWith(s,from)`.
+- **✅ CORRIGIDO 11/09 (x86_64):** helpers novos `kof_string_index_of2` /
+  `kof_string_last_index_of2` / `kof_string_starts_with2` (arquivo novo
+  `runtime/RuntimeStringSearchFrom.java` — regra ≤500; registrados em
+  `NativeRuntime`) com as clampagens do **JDK 21 travadas em oracle**
+  (`Jdk.java`/`Jdk3.java`: from<0→0 no indexOf e −1 no lastIndexOf e false no
+  startsWith; from>totalH→totalH (indexOf/lastIndexOf) / false (startsWith);
+  needle vazia→start (indexOf) / min(from,totalH) (lastIndexOf) / true se
+  within (startsWith); corte de par astral no início → pulado/false, como o
+  scan do bug 43). Reusam `.Lkof_substr_walk` (UTF-16 code units) e o from vive
+  em registrador callee-saved antes dos walks clobberarem. Roteamento em
+  `NativeX86StringCalls` por **aridade** (`parameterTypes().size() >= 2` →
+  helper `_2`; 1-arg intacto).
+- **✅ CORRIGIDO 11/09 (JS):** helpers `kof_string_index_of2`/
+  `_last_index_of2`/`_starts_with2` no runtime `STDLIB_RUNTIME` com os clamps
+  do JDK (JS é UTF-16 nativo — o scan por `startsWith` no laço é exato);
+  `JsCallEmitter.handleStringOp` roteia por aridade (2+ args → helper; 1-arg
+  segue o protótipo, que bate o JDK).
+- **Prova:** oracle JDK 21 gravado em `Jdk/Jdk3`; `NativeE2ETest.
+  nativeStringSearchFromIndex` (31 vetores — 18 ASCII edge + 13 astrais UTF-16:
+  cut de par, needle astral, from sobre surrogate) golden JVM==Native; matriz
+  `searchfrom` (JVM=NATIVE=SCRIPT=**JS(Graal)** idênticos nos 6 vetores de
+  clamp — a célula que PEGOU a divergência do JS); DocTest par célula.
+  Suíte completa pós-clean **1471 run / 0 falhas** (12 err = node ausente).
+- **✅ Residual FECHADO 11/09 (riscv64/aarch64, fatia B35 `522e63e8`):** o
+  roteamento cross (`NativeRiscvCrossOps`) passou a rotear `indexOf`/
+  `lastIndexOf`/`startsWith` p/ os helpers `_2` por aridade (como o x86), e os
+  4 helpers riscv (`kof_string_index_of`/`_of2`/`last_index_of`/`_of2`/
+  `starts_with2`, arquivo novo `NativeRiscvAsmRtB35`) contam e devolvem índice
+  em CODE UNITS UTF-16 com os clamps JDK — reusando `.Lu9_walk` (B34). Prova:
+  `NativeStringUtf16CrossTest.searchUtf16Cross` (16 vetores, golden JVM medido,
+  riscv+aarch sob qemu). Paridade absoluta JVM=JS=X86=ARM=RISC na família
+  fechada nos 5 targets.
+- **Descoberto:** 11/09 (sweep §100); **corrigido 11/09** (x86_64 + JS).
+
+
+### 104. Métodos de objeto (equals/hashCode/toString) de record divergem por target — §104a ✅ CORRIGIDO 11/09 (Script), §104b em aberto (Native)
+
+- **Superfície:** `record Point(Int x, Int y)` — `p1.equals(p2)`, `==`, e
+  record **dentro de coleção** (`listOf(p1).contains(p2)`, `setOf(p1).contains`,
+  `mapOf(p1,7).get(p2)`, `println(listOf(p1))`). Oracle = **JVM** (registro
+  real gera equals/hashCode/toString por **conteúdo**; classe não-record =
+  **identidade** — `Thing(5).equals(Thing(5))` é `false`). Matriz (`/tmp/om.kf`):
+
+  | alvo | `listOf(p1).contains(p2)` | `setOf.contains` | `map.get` | `println(list)` | `Thing.equals` |
+  |---|---|---|---|---|---|
+  | JVM | true | true | 7 | `[Point[x=1, y=2]]` | false |
+  | Script (antes) | **false** | **false** | **0** | `KofObj@...` | **true** ❌ |
+  | Script (depois) | true | true | 7 | `[Point[x=1, y=2]]` | false |
+  | Native | **LINK_FAIL** (`Thing.equals`) | — | — | — | — |
+
+- **§104a ✅ CORRIGIDO 11/09 (Script) — opção (a) backend erra:** `KofObj`
+  (o objeto do interpretador) **não sobrescrevia** `equals`/`hashCode`/
+  `toString`. Os métodos sintéticos só existiam no dispatch `KofInterpreter`
+  (chamada virtual Kof `.equals()`), mas o **JDK** chama `Object.*` por dentro
+  de `ArrayList.contains/indexOf`, `HashMap`/`HashSet` e `List.toString` → usava
+  **identidade**. Fix: override real em `KofObj` delegando em helpers estáticos
+  `KofInterpreterObjects.objectEquals/objectHash/objectToString`; conteúdo SÓ
+  para `isRecord()`, classe não-record mantém identidade (e o `.equals()` de
+  classe, que antes dava `true` errado, agora dá `false` = JVM).
+  - **Prova:** `KofInterpreterParityTest.recordsInCollectionsUseContentEquals`
+    (gate interpretador≡JVM com record em list/set/map/println). Suíte completa
+    pós-clean **1474 run / 0 falhas** (12 err = node ausente).
+  - **Arquivos:** `KofInterpreter.java` (override em `KofObj`),
+    `KofInterpreterObjects.java` (helpers estáticos + equals de classe→identidade).
+  | JS | **false** | **false** | **null** | `Point[x=1, y=2]` (sem `[]`!) | — |
+
+- **§104b-i ✅ CORRIGIDO 11/09 (Native):** (i) `Thing(5).equals(Thing(5))`
+  (classe não-record, método `equals` NÃO declarado) → **LINK_FAIL** (`ld:
+  undefined reference to Thing_equals` — `resolveCalleeName` mangla o dono mas
+  o bare-metal não tem `java.lang.Object` herdado). Fix: síntese de
+  **equals de identidade** (`this == other`, o mesmo contrato do
+  `Object.equals` do JVM — oracle) em
+  `CompilerRecordSupport.buildClassIdentityEqualsMethod`, ligado em
+  `CompilerClassLowering.lowerClass` para os 3 targets Native quando a classe
+  não declara `equals` e herda direto de Object. Prova: célula `classequals`
+  (4 targets, `false|true|false|true`) — JS/Script/JVM já batiam.
+- **§104b-ii ⏳ ABERTO (Native):** (ii) record em coleção:
+  `kof_list_contains`/`kof_set_contains` comparam ponteiro (ou só String) —
+  `setOf(p1).contains(p2)` = **false** vs JVM **true**; `println(listOf(p1))`
+  imprime vazio (helper não conhece handle Kof p/ toString). Exige equals/
+  hash genérico por vtable nos helpers asm (x86+riscv+aarch) — unidade
+  própria, célula `objmethods` mantém Native excluído. Proibido: fallback
+  silencioso.
+  - **Face primitivo-em-coleção — ✅ CHAR FECHADO 11/09:** o storage da coleção
+    asm guarda o valor **cru** (sem box). `println(l.get(i))` com char **SIGSEGV
+    (exit=139)**: `kof_list_get` retorna `0x61` e o print dispatchava
+    `kof_println_string` (objeto) sobre um codepoint → deref inválido. Prova
+    (11/09): `mc2.kf` `println('a' as Char)` → `97` ok; `mc.kf`
+    `println(listOf('a' as Char).get(0))` → exit=139; `mc3.kf` `l.get(0) == 'a'`
+    → `true` ok. **Não era storage-box**: as outras faces primitivas (int/long/
+    bool/double) já imprimiam corretamente da coleção; só o char tinha
+    três buracos de DISPATCH de print, todos fechados:
+    (1) **Native** `ExpressionPrintLowerer` mapeava `char→Int` (p/ o `valueOf`
+    imprimir o codepoint, contrato congelado `strings.md` "72 (H)") só quando o
+    tipo era `CHAR` CRU — `Nullable(CHAR)` (retorno do `map.get`) não casava e
+    caía no ramo `char_to_string` do backend, que imprime o **caractere** (`a`)
+    ou, com `Unknown`, nada → o raw `0x61` chegava a `kof_println_string`
+    (SIGSEGV). Desembrulha o INNER agora.
+    (2) **JVM** `unboxMethodName(char)→"charValue"` + descriptor
+    `toDescriptor(CHAR)="C"` emitiam `Integer.charValue()C`/`Integer.intValue()C`
+    — inexistentes: char é **guardado como `Integer`** (`boxedClassNameFor`
+    default → `java/lang/Integer`; `emitBoxIfPrimitive` → `valueOf(I)`), a caixa
+    nunca é `Character`. Unbox agora é `intValue` com `unboxDescriptor` coerente
+    com a caixa (novo helper; os 4 sítios de unbox roteiam por ele).
+    (3) **frontend** `x as Char` pinava `Unknown` como V do `mapOf`/elemento do
+    `listOf` (não `char`): o cache do `SemanticAnalyzer`
+    (`SemExpressionTyper`) não tinha o repair de cast que só o
+    `ExpressionTyper:89` (lowering) fazia — e `MethodCallTyper` lê o cache, não
+    o lowering. Mirror do repair no `SemExpressionTyper`.
+    **Prova:** célula `mapgetprim` com a **exclusão Native REMOVIDA** → os 4
+    targets byte-idênticos `true/true/8/9000000001/true/97/false`; varredura
+    `int/long/bool/char/String` lidos de Map e List imprimem idênticos nos 3
+    targets. O `(i)` storage-box genérico (record-em-coleção) e o
+    dispatch por tag continuam ABERTOS (abaixo).
+- **§104c ✅ CORRIGIDO 11/09 (JS):** record em `setOf`/`mapOf`/`listOf().contains`
+  usava **identidade** (Map/HashSet JS nativos com objeto por referência):
+  `listOf(p1).contains(p2)` = **false** vs JVM **true**; `setOf(p1).contains(p2)`
+  = **false**; `mapOf(p1,7).get(p2)` = **null**. (A face `println(listOf(p1))`
+  sem colchetes era outra coisa — fechada no **§107-JS** com `kofFormat`.)
+  **Fix:** records no JS já ganham `.equals(other)` sintético por conteúdo
+  (`JsClassEmitter.lowerRecordEquals`, bug 11). O runtime JS agora tem
+  `kofValEq(a,b)`: primitivos/String via `===` (NaN=NaN), objeto Kof delega ao
+  `.equals` sintético (1/0). Os helpers `kofListContains`/`kofSetAdd`/
+  `kofSetContains`/`kofSetRemove`/`kofMapPut`/`kofMapGet`/`kofMapRemove`/
+  `kofMapContains` iteram + `kofValEq` em vez de `includes`/`has`/`get`/`delete`
+  (ordem de inserção preservada; primitivos/String seguem o caminho nativo).
+  **Prova:** célula `objmethods` com a **exclusão JS removida** → os 4 targets
+  (JVM/Script/JS; Native excluído = §104b-ii) byte-idênticos `true/true/7/
+  [Point[x=1, y=2]]`. Sem wrapper de coleção/hashing: reuso do `.equals` do
+  record = menor superfície.
+
+
+### 103. Subscript `x[i]` em String/List/Map/Set aceito em silêncio → quebra os 3 targets (VerifyError/vazio) — ✅ CORRIGIDO 11/09 (SEM054, opção B)
+
+- **Sintoma:** `"abc"[0]` e `listOf(10,20)[1]` (e escrita `l[0] = 9`) eram
+  ACEITOS pelo parser/typer e quebravam de um jeito em cada target (R6 +
+  paridade absoluta): **JVM** `VerifyError: Bad type on operand stack in
+  aaload` (o receiver é Object/`kof.List`, não array — a classe nem
+  inicializa), **Native**/Script **saída vazia** (exit=1 silencioso).
+  Achado no sweep de coleções/records (11/09, `/tmp/col1.kf`→`/tmp/rec1.kf`):
+  o programa inteiro morria no JVM pelo último statement.
+- **Corpus:** o `[]` SÓ existe para **array** (`learn/04-variables-and-types.md:84`
+  `numeros[0]`, `training/idioms/control-flow.md:81` `nums[0] = 5` — ambos
+  `new Int[n]`). Coleção tem accessor (`get(i)`, `charAt(i)`, `substring`);
+  `[]` em coleção NUNCA foi documentado nem funciona em algum backend.
+- **✅ CORRIGIDO 11/09 — opção B:** guard no `SemExpressionTyper` (caso
+  `ArrayAccessExpr` — o frontend SEMÂNTICO único dos 5 alvos, casa do
+  §99/SEM050): receiver com tipo **Kof-collection** (String/List/Map/Set,
+  desembrulhando Nullable) → **SEM054** ("`[]` só pega em array em Kof; para
+  esta coleção use charAt(i) / substring(i) | get(i) | get(k)"). Cobertura de
+  LEITURA E ESCRITA (`l[0] = 9` cai no mesmo caso). NÃO flagados:
+  `ArrayType` (legítimo), `UnknownType`/`Nullable(Unknown)` (pode ser array em
+  runtime via get sem pin — SG-008; flagar regridiria código válido).
+- **Prova:** `SemanticResolutionTest.subscriptOnCollectionsRejected` (5 formas
+  × SEM054) + `subscriptOnArraysStillCompiles` (array simples/2D/não regridir);
+  verificado SEM054 idêntico em JVM/NATIVE/JS + `interpret()` lança a mesma
+  mensagem. Suíte completa pós-clean **1473 run / 0 falhas** (12 err=node).
+- **Arquivos:** `SemExpressionTyper.java` (caso ArrayAccessExpr + helpers
+  `isKofCollectionType`/`collectionIndexHint`); `SemanticResolutionTest.java`.
+
+
+### 99. `Int.MAX_VALUE`/`<primitivo>.<campo>` passa SEM diagnóstico → lixo nos 3 targets + CRASH do compilador — ✅ CORRIGIDO 10/09 (R6; varredura numeric/estático)
+
+- **Sintoma:** `Int.MAX_VALUE` (e qualquer `Int/Long/Double/Float/Char/Byte/
+  Short/Bool.<campo>`) é **fake idiom** (não existe em Kof — corpus só usa
+  literal ou `as`). Mas o compilador ACEITAVA:
+  - `println(Int.MAX_VALUE)` → `ok=true` + `getfield "?".MAX_VALUE` no bytecode
+    → **JVM** `NoClassDefFoundError: ?`, **Native** SIGSEGV, **Script** `null`.
+  - `var x = Int.MAX_VALUE` (assignment) → **crash do próprio compilador**:
+    `RuntimeException: frame crash ... NegativeArraySizeException: -1` (ASM
+    COMPUTE_FRAMES) — um programa do usuário derruba o `mvn`/driver.
+  - `Int.foo` / `Int.SIZE` → idem, aceito silenciosamente.
+- **Causa raiz:** em `SemExpressionTyper`, o receiver `Int` é um
+  `IdentifierExpr` com nome em `isBuiltinTypeName` → a isenção (linha ~173,
+  que existe p/ **posição de tipo**: `var x: Int`, `x as Int`) suprime o SEM011
+  e `inferType` cai em `yield UNKNOWN`. No caso `FieldAccessExpr`, o único
+  guard de campo inexistente (SEM025, linha ~383) dispara só em
+  `recvType instanceof ClassType` — `UNKNOWN` não é ClassType, logo o campo
+  escapa SEM diagnóstico. O lowering (`ExpressionLowerer`/`ExpressionTyper`
+  `case FieldAccessExpr`) então emite um acesso a campo num dono primitivo →
+  `JvmOpEmitter:104` faz o fallback `sf.ownerType() instanceof ClassType ct ?
+  ct.name() : "?"` → o dono literal `"?"` cai no constant pool.
+- **✅ CORRIGIDO 10/09 (R6, nunca silencioso — NÃO é mudança de contrato, é
+  rejeitar código que nunca funcionou):** novo guard no caso `FieldAccessExpr`
+  do `SemExpressionTyper` — se `recvType` é `UNKNOWN` **e** o receiver é um
+  `IdentifierExpr` cujo nome é `isBuiltinTypeName` → **SEM050** ("'<T>' é um
+  tipo primitivo, não tem campo estático '<f>' (use o literal...)"), antes do
+  lowering. Como `analyze()` → `hasErrors()` → `return null` ocorre ANTES do
+  `visitMaxs`, o crash do compilador e o bytecode lixo morrem no typer, nos 3
+  targets (JVM/Native/interpretador compartilham o frontend — paridade por
+  construção).
+- **Escopo cirúrgico (não regridir legítimo):** `String.valueOf(42)`/
+  `String.format(...)`/`Int.parseInt(...)` são **MethodCallExpr** (têm
+  parênteses/args), caminho diferente (`BuiltinCallTyper`) — NÃO afetados
+  (probe: `String.valueOf(42)`→"42" nos 3). `s.length` (instância, receiver
+  String-typed) e anotação/cast `x: Int`/`x as Int` permanecem válidos (testado).
+- **Prova:** `SemanticResolutionTest.staticFieldOnPrimitiveTypeRejected`
+  (8 tipos × 4 campos, incl. a forma assignment que crashava) +
+  `primitiveAsTypeAndLiteralStillCompile` (anotação/cast/length-instância/literal
+  compilam). Suíte completa **1464 run / 0 falhas** (12 err = node ausente).
+- **Arquivos:** `SemExpressionTyper.java` (guard SEM050); testes em
+  `SemanticResolutionTest.java`.
+
+
+### 101. Operadores relacionais de Double com NaN: x86/JVM/Script divergem do riscv/aarch (e entre si em `<=`/`>=`) — ABERTO (regra 6 — operadores congelados, decisão da mantenedora)
+
+- **Sintoma (medido 11/09 na prova do MATH001 — menor repro, mesma entrada
+  nos 5 alvos):** `var n = 0.0/0.0` e comparações relacionais com NaN:
+
+  | programa | JVM | x86_64 | riscv64/aarch64 |
+  |---|---|---|---|
+  | `1.0 < n` | true | true | **false** |
+  | `1.0 > n` | false | false | false |
+  | `1.0 <= n` | true | **false** | **false** |
+  | `1.0 >= n` | false | false | false |
+  | `n < 1.0` | true | true | **false** |
+
+  (IEEE 754 puro: TODO relational com NaN é false — o riscv segue IEEE; o
+  JVM/JS seguem a semântica Java de `dcmpg`/`<` que troca o resultado p/
+  `true` no NaN — é o mesmo quirk do bug 94, que congela `NaN == NaN` =
+  `false` nos compilados mas `true` no interpretador via `Double.compare`.)
+- **Causa:** no cross, `NativeRiscvCrossOps.emitCrossBinaryRiscv` usa
+  `flt.d`/`fle.d`/`fgt`/`fge` p/ os operadores relacionais (IEEE — NaN
+  sempre false), enquanto o x86 usa `cmpsd`+`seta/setae`-style com swap
+  (quirk `dcmpg`) idêntico ao `DCMPL/DCMPG` do JVM. Os dois caminhos são
+  "defensáveis"; a spec da linguagem NÃO fixa a semântica NaN de `<`/`>`
+  (expressions.md: relacional de float segue o backend). Escolher UMA das
+  duas = mudança de contrato sobre operadores congelados (regra 6:
+  bump + discussão com a mantenedora), então **NADA foi alterado aqui**.
+- **Notas do registro:** (a) a face `!=`/`==` JÁ estava congelada correta-
+  mente — o achado do MATH001 foi só no NE riscv (`fle+snez` dizia
+  `NaN != NaN` = false, divergia de TODOS os outros = true IEEE) —
+  corrigido p/ `feq+seqz` em 11/09 (alinha o cross com o contrato IEEE
+  já travado na matriz `stdsqrt`/golden KofMathTest, NÃO é escolha nova);
+  (b) o parâmetro do `<`/`<=`/etc. fica como está nos 3 caminhos atuais.
+- **Próximo passo honesto:** decisão DD no planning-* (qual família: IEEE
+  pura nos 5 ou quirk-JVM nos 5) — a matriz não cobre relacionais com NaN
+  (só Bool-equality, padrão bug 44), então nada está silencioso.
+- **Arquivos:** `NativeRiscvCrossOps.emitCrossBinaryRiscv` (cross),
+  `NativeX86Calls`/`RuntimeFp` (x86), `JvmOpEmitter` (JVM DCMPL/G).
+
+### 106. `json.encode(Map)` quebra em 3 dos 5 alvos (JVM crasha; x86/riscv link error; só Script/JS ok) — ❌ ABERTO (decisão de superfície JSON = mantenedora, regra 6)
+
+- **Menor repro (medido 11/09):**
+  ```kof
+  import kof.json.*
+  main() { println(json.encode(mapOf("x", 1))) }
+  ```
+  - **JVM**: `InaccessibleObjectException: Unable to make field HashMap.table accessible` — `KofRuntime.kof_json_encode_object` reflete campos do objeto sobre um `HashMap` (Map não é objeto de campo; reflexão em java.base exige `--add-opens java.base/java.util=ALL-UNNAMED` que o runtime não pede nem aplica). CRASH em runtime.
+  - **x86 e riscv64/aarch64**: o link falha — `JsonDispatch.java:31` cai no genérico `kof_json_encode` (só existe no interpretador/JVM; o nativo define apenas os tipados `int/long/bool/float/double/string/list/array`), e o `ld` não tem o símbolo → erro bruto `undefined reference to kof_json_encode` embrulhado em `COMP001 "Error reading source file"` (pior: diagnóstico misleading + R6: o gate honesto deveria ser compile-time, não link).
+  - **Script (interpretador)**: funciona (`KofInterpreterRuntime.kof_json_encode` trata Map). **JS**: não medido no harness (classpath GraalJS); presumido ok pelo path de objeto nativo JS.
+  - Cobertura de teste é o motivo de nunca ter aparecido: os E2E de encode cobrem Int/String/List/Array/record — NUNCA `Map`/`Map<String,*>`.
+- **Causa raiz (2 camadas):** (a) dispatch: `JsonDispatch` não tem ramo `isMap` → genérico inexistente no nativo; (b) JVM: encode de objeto por reflexão não diferencia Map (deveria iterar entries, não `getDeclaredFields`). E (c) UX: failure de link não é diagnóstico R6.
+- **Por que ABERTO (não corrijo silencioso):** formato de `encode(Map)` é SEMÂNTICA de superfície (ordem das chaves? insertion vs sorted? null values?) — é decisão da mantenedora (regra 6: JSON surface congelada 0.2.6-beta). A correção tem 3 partes: gate honesto no compile-time até a superfície decidir (diagnóstico `JSN00x` no estilo JSN004 no dispatch de Map em nativos) + decisão de formato + ramos JVM (entries) e nativo. Registra aqui; NÃO vira edição de semântica sem decisão.
+- **Pista de teste faltante (para quem fechar):** `json.encode(mapOf(...))` nos 5 alvos com golden de ordem (provavelmente insertion-order = `LinkedHashMap` semantics, mas é a decisão).
+
+### 108. `println(listOf(bool,...))` — interpretador (Script) imprime `[1, 0]` vs JVM `[true, false]` — ✅ CORRIGIDO (11/09, Script-only; storage boxing)
+
+- **Menor repro (medido 11/09):** `println(listOf(true, false))` → JVM/JS
+  `[true, false]`, **Script `[1, 0]`**. Descoberto junto do `collprint`
+  (KofInterpreter usa `String(v)`/`valueOf` real e o ArrayList já imprime o
+  objeto — mas o interpretador guarda Bool como `Integer 1/0`, perdendo o
+  tipo na fronteira da coleção).
+- **Causa raiz:** no backend compilado, `kof_list_add`/`set`/`contains`
+  fazem `emitBoxIfPrimitive(elemType)` (JvmOpCollections:85,111,124) →
+  `Boolean.valueOf` → o ArrayList guarda `Boolean` e `toString` dá `true`;
+  `get` faz `emitUnboxIfPrimitive`. No `KofInterpreterCollections` o valor
+  entra como `Integer 1/0` (o interpretador não distingue Bool de Int em
+  storage) → o `toString` do ArrayList imprime `1`/`0`.
+- **Correção (Script-only, espelhar o box do JVM, simétrico):** boxing na
+  INCLUSÃO (`list add/set`, `set add`, `map put` — chave E valor) e unboxing
+  na EXTRAÇÃO (`list get`, `set/map contains/remove` — senão o `==` de Bool
+  `Integer 1 vs Boolean true` quebra) pelo tipo do elemento/argumento.
+  Char NÃO precisa (JVM imprime `[97,98]` — já bate). Risco: o unboxing na
+  extração é obrigatório e largo; exige suíte + KofInterpreterParityTest
+  (novo caso bool-in-list) como gate. Unidade própria, não começada.
+- **Arquivos:** `KofInterpreterCollections.java` (listOps/mapOps/setOps +
+  helpers box/unbox por tipo), `KofInterpreterParityTest.java` (gate).
+- **Correção aplicada (11/09, mesma lane do §112 — merged com ele):**
+  `box/unbox` por tipo em `listOps`/`mapOps`/`setOps`/`channelOps`
+  (inclusão box, extração unbox; `contains` de list usa o tipo do
+  ARGUMENTO, espelhando o bug 35). Derivação de tipos espelha
+  `JvmOpCollections` (typeArguments do ownerType + override por
+  parameterTypes). O merge com o §112 mantém o `prevOrDefault` do
+  `put`/`remove` (guard de prev null) E o boolean real do `set.add`, com
+  unbox do prev antes do guard. Prova: célula `boolcoll`
+  (`println(l)`/`println(m)`/`println(s)` + get/contains/set) FAIL sem o
+  fix (`[1, 0]`/`{yes=1}`) e verde com (`[true, false]`/`{yes=true}` =
+  JVM); `KofInterpreterParityTest` 19/19 + `ConformanceMatrixTest` 11/11
+  (célula `mapmutret` do §112 intocada) + suíte completa 1292/0 (5 skip)
+  + script/c-compiler/cli BUILD SUCCESS. Gate: `boolInCollectionsPrintsLikeJvm`.
+
+### 107. `println(<coleção>)` no nativo imprime LIXO de ponteiro (JVM: `[1, 2, 3]`/`{k=9}`) — ❌ ABERTO (backend-only; paridade regra 5; sem gate)
+
+- **Menor repro (medido 11/09, pós-fix §104b-i que liberou o link):**
+  ```kof
+  main() { println(listOf(1, 2, 3)); println(setOf(1, 2)); println(mapOf("k", 9)) }
+  ```
+  - **JVM (oracle)**: `[1, 2, 3]` / `[1, 2]` / `{k=9}` (medido — od -c).
+  - **Script**: idêntico ao JVM (interpretador imprime `toString` real).
+  - **x86_64**: bytes-lixo (`\300\224` / `\240` / \`\`` = ponteiro do objeto reinterpretado
+    como KofString) + `\n`. **riscv64/aarch64**: idem (ponteiro via
+    `kof_println_string`). Exit 0 (silencioso — R6 violada: nunca deveria
+    imprimir lixo).
+  - **JS**: ✅ CORRIGIDO (§107-JS, 11/09) — `kofFormat` espelha `ArrayList/HashMap/HashSet.toString`
+    (era join sem colchetes). A face JS deste bug está fechada; o que restava
+    (membership de record por conteúdo) é §104c, também fechado 11/09.
+- **Causa raiz (x86_64 + riscv/aarch, 1 caminho):** `ExpressionPrintLowerer`
+  baixa `println(obj)` como `valueOf(arg)` STATIC → `NativeX86Calls.java:180`
+  trata `dispatchType instanceof ClassType && !String` procurando `toString`
+  na **vtable** (`findVirtualMethodIndex(ct.name(), "toString")`). Record tem
+  `toString` na vtable (funciona — bug 42/recordhash). **List/Map/Set NÃO
+  têm vtable `toString`** (são tipos de coleção do runtime, não classes Kof)
+  → `tosIdx < 0` → o ramo **não emite NADA** → o ponteiro cru fica na pilha
+  e cai em `kof_println_string` = lixo. Não há `kof_list_to_string`/
+  `kof_set_to_string`/`kof_map_to_string` no runtime nativo (grep = 0).
+- **Correção (backend-only, minha lane Native — NÃO toca o §104b dos
+  records):** emitir `toString` de coleção em asm (B34): `kof_list_to_string`
+  (percorre `24(base)`, elementos `8` bytes, tag no header — reusar
+  `kof_int_to_string`/`kof_long_to_string`/`kof_double_to_string`/
+  `kof_bool_to_string`/`kof_string_*` conforme tag; join `", "`; wrapper
+  `[`/`]`), `kof_set_to_string` (idem wrapper, ordem de inserção),
+  `kof_map_to_string` (wrapper `{`/`}`, `chave=valor`, iteração `0..`
+  bucket). Routing no dispatch valueOf: quando `dispatchType` é
+  List/Map/Set (predicado `isList/isMap/isSet` — já existe em `KofType`?) →
+  `call kof_<coll>_to_string` em vez de vtable. AArch herda via tradutor.
+  **Oracle = formato JVM exato** (medir, não adivinhar — pode ser `[1, 2]`
+  com vírgula+espaço; confirmar `Map` ordem). Elemento record dentro usa o
+  MESMO `toString` (recursão via dispatch) — MAS só depois do §104b fechado
+  (senão aninha lixo); por ora `println(listOf(int/String))` já conserta a
+  maioria (record-em-list fica pro §104b-ii).
+- **Escopo honesto do registro:** NÃO implementei ainda nesta passada —
+  parei pra registrar (regra: unidade coesa c/ prova). Face record-em-coleção
+  recursivo depende do §104b-ii (equals/toString de conteúdo — lane
+  maintenedor, EM CURSO, não tocar).
+- **✅ Face JS CORRIGIDA 11/09 (mesma raiz — formato de contêiner ausente):**
+  o JS dava `1,2` (Array.toString sem colchetes) e `[object Map]`/`[object
+  Set]`. Fix: `kofFormat` em `JsRuntimeCore` espelhando
+  `ArrayList/HashMap/HashSet.toString` (`[a, b]` com `", "`, `{k=v}`,
+  recursivo p/ aninhados, Map/Set nativos JS; escalares passam por
+  `String(x)` sem mudança — não toca bug 44) + roteamento por TIPO no
+  `valueOf` (`JsCallEmitter`; o `ExpressionPrintLowerer` passa o tipo real do
+  arg no JS como já fazia no Native). Célula `collprint` (JVM+Script+JS
+  byte-idênticos; **Native excluído = o lixo de ponteiro deste bug**). A face
+  Native (esta seção) segue ABERTA — é a mesma infraestrutura de dispatch que
+  o §104b-ii precisa (equals/toString de conteúdo) para o caso record-em-lista.
+- **Nota de teste faltante:** nenhum E2E nativo faz `println(coleçãoInteira)`
+  (só `lista.get`/`.size` nos tests/learn) → por isso nunca apareceu.
+
+### 109. `mapOf(k, <primitivo>).get(k)` → **CRASH no JVM** (`NoSuchMethodError: Boolean.intValue()Z`) — ✅ CORRIGIDO 11/09 (ramo primitivo no `unboxMethodName`)
+- **Menor repro:** `main() { println(mapOf("t", true).get("t")) }` → JVM:
+  `Exception in thread "main" java.lang.NoSuchMethodError: 'boolean
+  java.lang.Boolean.intValue()'` (crash em runtime, não compile-time).
+  Mesmo caminho para `listOf(true).get(0)` e `setOf(7).contains(...)` que
+  passem pelo guard de `Nullable(primitivo)`.
+- **Causa raiz:** o guard do `kof_map_get` (e afins) desempacota o valor com
+  `JvmOpCollections.unboxMethodName(tipoInterno)` passando o tipo **primitivo**
+  interno do `Nullable(Bool)` (ex.: `PrimitiveType[bool]`). `unboxMethodName`
+  só tinha ramo para `Type.ClassType` (`Boolean`→`booleanValue`); primitivo
+  caía no default `"intValue"` → emitia `checkcast Boolean; invokevirtual
+  Boolean.intValue()Z` → link error em runtime.
+- **Fix (mesma tabela de `boxedClassNameFor`):** `unboxMethodName` trata agora
+  `Type.PrimitiveType`: `bool→booleanValue`, `char→charValue`, `byte→byteValue`,
+  `short→shortValue`, `int→intValue`, `long→longValue`, `float→floatValue`,
+  `double→doubleValue` — default `intValue` só permanece para tipos
+  genuinamente desconhecidos.
+- **Prova:** célula de matriz `mapgetprim` — desde 11/09 **sem exclusões**
+  (4/4 targets byte-idênticos; a face char do §104b-ii foi fechada na mesma
+  data, ver §104b-ii); esperado
+  `true\ntrue\n8\n9000000001\ntrue\n97\nfalse` cobre Bool/Int/Long/Double/Char/miss
+  pelo mesmo caminho de guard.
+- **Faces PRÉ-EXISTENTES descobertas pela célula (não são do §109):**
+  - **Native:** `println(l.get(i))` com char-em-coleção → **SIGSEGV (exit=139)**
+    — ✅ **FECHADO 11/09** como face char do **§104b-ii** (não era storage-box:
+    eram 3 buracos de dispatch/digitação do char, detalhados lá; a célula
+    `mapgetprim` não exclui mais Native).
+  - **JS:** `println(d * 2)` para `Double` imprime `5` vs `5.0` do JVM — é o
+    **floatprint (bug 44)** já registrado (`String(5.0)==="5"`), não regressão.
+    A célula usa predicado (`d > 1.0`) para exercitar storage Double sem
+    colidir com o §44.
+- **Nota de teste faltante:** nenhum teste cobria `println(map.get(k))` com
+  valor primitivo não-Int/Double — Bool e Char eram os gatilhos do default
+  silencioso do `unboxMethodName`.
+- **Nota (face JVM do char, corrigida junto com §104b-ii 11/09):** o próprio
+  ramo primitivo que FECHOU o §109 trazia um segundo crash latente para Char:
+  `char→charValue` + descriptor `toDescriptor(CHAR)="C"` emitiam
+  `Integer.charValue()C`, inexistente — char é GUARDADO como `Integer`
+  (`boxedClassNameFor` default), a caixa nunca é `Character`. `mapOf("c",'a')
+  .get("c")` crashava no JVM com `NoSuchMethodError` até o fix de coerência
+  caixa↔unbox (novo `unboxDescriptor`, `char→intValue/()I`).
+
+### 112. `println(m.put(k,v))` → **VerifyError**; `println(m.remove(chave-ausente))` → **NPE** (JVM) / **SIGSEGV** (Native); `s.add(já-existente)` → `true` no interpretador — ✅ CORRIGIDO 11/09 (3 targets; JS registrado como face restante)
+- **Menor repro (JVM):** `var m = mapOf("a",1); println(m.put("a",2))` →
+  `java.lang.VerifyError: Bad type on operand stack ... Type 'java/lang/Object'
+  (stack[1]) is not assignable to integer` (crash no verifier, NÃO output
+  errado). `println(m.remove("zz"))` → `NullPointerException: Cannot invoke
+  Integer.intValue()` (NPE não é exceção-as-String do contrato Kof).
+- **Menor repro (Native x86):** `var m = mapOf("a",1); println(m.remove("zz"))`
+  → **SIGSEGV (exit=139)**.
+- **Menor repro (interpretador/Script):** `var s = setOf(1,2); println(s.add(1))`
+  → **`true`** (devia `false` — já continha 1); `println(m.remove("zz"))` → exit=1
+  com `java.lang.Integer.valueOf/1` no stderr (NPE simétrico do JVM).
+- **Causas raiz (três distintas, mesma família "retorno primitivo de put/remove/
+  add"):**
+  1. **JVM `kof_map_put`/`kof_map_remove` (`JvmOpCollections`):** `HashMap.put`/
+     `remove` devolvem `Object` (o valor anterior, que pode ser null). O typer
+     (`CollectionMethodTyper`/`MemberCallTyper`) declara o retorno como `V` —
+     quando `V` é primitivo, o `Object` entrava direto em uso primitivo: no
+     `put` o `println` emitia `String.valueOf(int)` sobre `Object` → **VerifyError**;
+     no `remove` o unbox cru `checkcast Integer; intValue` sobre null → **NPE**.
+     (O `get` já tinha o guard null→default do §87/§109; put/remove não.)
+  2. **Native `kof_map_remove` rota de MISS (`RuntimeMap.java`):** desequilíbrio
+     de pilha — a rotina faz **5 pushq** (rbx/r12/r13/r14/r15) mas o caminho
+     `.LKMR_miss` fazia só **3 popq** → `ret` saltava para lixo na pilha →
+     **SIGSEGV** em qualquer `m.remove(chave-ausente)`.
+  3. **Interpretador (`KofInterpreterCollections`):** `set.add` fazia
+     `s.add(x); s.contains(x)` → sempre `true`; e `map.put`/`remove` não
+     guardavam o `prev` null para retorno primitivo (NPE/exit=1).
+- **Correção:**
+  - JVM: novo helper `emitPrevValueUnbox(mv, declared)` — `DUP; IFNONNULL; POP;
+    default; …checkcast boxed; unboxMethodName` (guard null→default, **mesmo**
+    caminho do guard do `get`, reaproveitando `unboxMethodName` corrigido no
+    §109); ligado no `kof_map_put` (quando o retorno NÃO é void) e no
+    `kof_map_remove` (ramo primitivo). Valor de referência: cast no declared.
+  - Native: 5 pops simétricos na `.LKMR_miss`.
+  - Interpretador: `set.add` usa o `boolean` real de `HashSet.add`; helper
+    `prevOrDefault(prev, declared)` (null→`KofInterpreterMembers.defaultValue`)
+    no `kof_map_put`/`kof_map_remove`, espelhando o guard do `get` (SG-008).
+- **Prova:** célula `mapmutret` na matriz (JVM+Native+Script byte-idênticos
+  `false/true/3/true/false/1/2/2/0/0` — cobre add existente/novo, size, remove
+  hit/miss, put over existente, get, remove-miss com value Int, size final) +
+  probes `mmr.kf`/`ad.kf`/`t[A-D].kf`.
+- **✅ §112-JS CORRIGIDO 11/09 (face JS, na mesma unidade):** no JS o `put`/`remove` de
+  prev AUSENTE imprimia `null` em vez do default do primitivo (`0`), porque o
+  typer declara o retorno como `V` **não-nullable** (get é `V?`, e por isso o
+  miss do get já é coerçado) e o emitter JS não aplicava default a `null` nesse
+  caminho. Célula `mapmutret` hoje cobre JS (Set.of() vazio).
+  **Fix (2 partes — o wrap sozinho NÃO bastava, ver armadilha abaixo):**
+  `JsCollectionOps.handleMapOp` envolve put/remove primitivo com
+  `?? defaultForType(V)` (padrão exato do `kof_poll`), E
+  `JsExpressionStatementParser` estende o `KofPop` p/ preservar
+  `JsBinary` cujo operando é `JsCall` (side-effect). Prova: célula
+  `mapmutret` 4 targets idênticos + célula `map` (put-statement) verde.
+  **Armadilha documentada (11/09, 1ª tentativa revertida — causou o wrap):**
+  só envolver o call com `?? defaultForType(V)` (padrão exato do
+  `kof_poll`/`JsRuntimeOps:339`) **quebrou a célula `map`**: ali `m.put("b",2)`
+  é STATEMENT — o retorno é descartado por `KofPop` no parser de statement JS,
+  que só sobrevivia a `JsCall`/`JsSequence`/`JsAwait`; a forma embrulhada
+  `(call ?? 0)` era `JsBinary` e caiu no descarte silencioso → **o side-effect
+  do put se PERDIA** (put não rodava; `map` deu `1\n1` em vez de `1\n2`).
+  **Fix real:** o `KofPop` do `JsExpressionStatementParser` foi estendido p/
+  preservar `JsBinary` com operando `JsCall` (expressão com chamada é sempre
+  side-effecting em Kof — sem short-circuit de efeitos colaterais). Mesma
+  vizinhança do bug 79 (KofPop width-blind).
+
+### 113. Native: `new Int[a][b]` não aloca NADA (op IR sumido) → SIGSEGV em `m[0][0]`/`m.length` — ⏳ ABERTO (backend-only, lane Native)
+
+- **Menor repro (medido 11/09):** `main() { var m = new Int[2][2]; println(m.length) }`
+  → JVM `2`, Script `2`, **Native exit=139 / saída vazia**. Idem
+  `m[0][1] = 7; println(m[0][1])` (vazio/crash). `new Int[2]` (1 dim) funciona.
+- **Causa raiz (parcial — o asm prova):** o lowering frontend EMITE
+  `KofNewMultiArray(baseType, dims)` (ExpressionLowerer:234) para ≥2 dimensões —
+  JVM (`JvmOpEmitter:220` MULTIANEWARRAY), interpretador
+  (`KofInterpreter:308` `newMultiArray`) e JS (`JsExpressionParser:240`) tratam.
+  **O backend Native não tem o caso**: `NativeMethodEmitter` casa
+  `case KofNewArray` mas o `KofNewMultiArray` cai no `default -> { }` — os N
+  `pushq` dos tamanhos ficam na pilha e o assignment pop **um só** (lixo): o
+  slot guarda um endereçamento dos pushes remanescentes → deref → SIGSEGV. O
+  default silencioso é ainda R6-violation (superfície documentada
+  `learn/04-…:84` arrays multi-dim deveria diagnosticar se não implementável).
+- **Fix (não feito — exige qemu p/ riscv/aarch? NÃO: x86 validável aqui, mas o
+  desenho é multi-arch):** alocar recursively n-veis de `kof_array_alloc` com
+  stride 8 (ponteiro) nas dimensões externas e o stride do `baseType` na
+  última, preenchendo cada slot com o sub-array alocado; um helper
+  `kof_multi_array_alloc(nDims, baseSize)` com loop interno (allocs aninhados
+  na ordem de pilha dos tamanhos) nos 3 targets (x86 direto; riscv/aarch via
+  as faces cross ficam skipadas NESTA sessão — port 1:1 quando houver qemu,
+  precedente B35–B37). Alternativa R6-honesta imediata: diagnóstico no typer
+  quando `driver.target.isNative() && dims>=2` (SEMxxx) até o port — mas
+  QUEBRA código multi-target válido; decisão da lane Native com a mantenedora.
+- **Prova esperada:** célula `arr2d` (sem exclusões) `m.length`/store/load/
+  stride-correcto byte-idêntica 4/4 (JS+JVM+Script+Native x86) + faces
+  riscv/aarch sob qemu.
+
+### 114. Native: `equals`/`==` de record com campo de REFERÊNCIA (String ou record aninhado) compara PONTEIRO → `false` — ⏳ ABERTO (sub-face do §104b-ii (i), backend-only)
+
+- **Menor repro (medido 11/09):**
+  `record S(String t)` + `println(S("ab") == S("ab"))` → JVM/Script/JS `true`,
+  **Native `false`**. Idem aninhado: `record W(Pt p, String t)` +
+  `W(Pt(1,2),"z") == W(Pt(1,2),"z")` → Native `false`. `Pt(Int,Int)` só com
+  primitivos funciona (mesmo programa, `true` nos 4).
+- **Causa raiz:** `CompilerRecordSupport.buildRecordEqualsMethod` (síntese
+  Native, gateada a `Target.NATIVE*` — JVM usa `JvmRecordEmitter` com
+  `Objects.equals`, JS usa `lowerRecordEquals`) compara CADA campo com
+  `KofBinary(EQ, f.type())`. Para primitivo o lowering casa (valores crus);
+  para `ClassType` o caminho é `cmpq`/`==` de **ponteiro** — nunca o equals de
+  conteúdo (String: `kof_string_equals`; record: o próprio equals sintético).
+  Top-level `s == t` de String funciona porque passa pelo caminho de
+  comparação de String do typer (`Objects.equals`/`kof_string_equals`), não
+  por aqui.
+- **Fix (não feito):** mesma infra do §104b-ii (i) — nos campos de referência
+  do equals sintetizado, emitir o compare de conteúdo: String →
+  `call kof_string_equals` (helper já existe); record aninhado → dispatch vtable
+  `equals` pelo slot do tipo do campo (`findVirtualMethodIndex(f.type(),
+  "equals")`, o mesmo mecanismo da célula `classequals`/§104b-i). Precisa do
+  hash de conteúdo junto (hoje `buildRecordHashCodeMethod` soma campos — para
+  referência usaria `hashCode()` vtable), e o mesmo port nas 3 faces
+  (riscv/aarch sob qemu — bloqueadas NESTA sessão). NÃO é de superfície:
+  `.equals`/`==` de String é contrato congelado e o oracle JVM é claro
+  (conteúdo), por isso pode ser atacado direto na lane Native.
+- **Prova esperada:** estender célula `objmethods` (hoje Native excluído =
+  §104b-ii) com as variantes `S("ab")==S("ab")` e `W(Pt(1,2),"z")==W(Pt(1,2),"z")`
+  → 4/4 sem exclusões.
+
+### 111. `split` não removia vazios TRAILING (Native x86 + JS) e `substring(a,0)` devolvia a string toda (Native x86) — ✅ CORRIGIDO 11/09 (x86_64 + JS; residual riscv/aarch)
+- **Menor repro split:** `println("a,".split(",").length)` → JVM/Script **1**,
+  x86 **2**, JS **2**. `",".split(",")` → JVM **0** (todos trailing), x86 **2**.
+  Oracle = Java `String.split(regex)` que é `split(regex,0)`: remove vazios
+  TRAILING, EXCETO input `""` → `[""]` (tamanho 1).
+- **Menor repro substring:** `"hello".substring(0,0).length` → JVM **0**, x86
+  **5**. O call-site 1-arg (`NativeX86StringCalls`) passava `end=0` como
+  sentinela "até o fim"; o helper `kof_string_substring` tratava `end==0` como
+  toend — mas `0` é um **end legítimo** da forma 2-arg → colapsava.
+- **Causa raiz split:** o loop `.Lkof_split_done` (`RuntimeStringEdit`) contava
+  pieces SEM o trim Java. **JS:** `JsCallEmitter` mapeava `split` →
+  `String.prototype.split` direto, que PRESERVA trailing (semântica JS ≠ Java).
+- **Fix x86:** pós-processamento no `.Lkof_split_done` — scan do fim do array
+  removendo pieces com `nBytes==0` (offset 16), sobrescreve o `length` do array
+  (offset 16); caso input vazio força `[""]`. **Fix JS:** helper `kofSplit`
+  (`JsRuntimeCore`) faz `split` + trim de trailing + o caso `""`. **Fix
+  substring x86:** sentinela do 1-arg `0` → `-1` (call-site + helper
+  `cmpl $-1`), liberando `end=0` como valor real.
+- **Prova:** célula `strsplit` (4 targets byte-idênticos
+  `1/0/2/1/3/0/llo/0`) + os probes `sp2.kf`/`sp3.kf` (conteúdo dos pieces,
+  trailing, bordas `substring(5)`/unicode `café`).
+- **✅ Face `substring` CORRIGIDA 11/09 (cross, B36 `f6831e31`, qemu presente):**
+  call-site 1-arg virou `li a2, -1` (CrossOps) + guard `bltz s2` (B34) —
+  `hello.substring(0,0)` → `[]` (era a string toda), `substring(2)` → `[llo]`;
+  prova `NativeStringCompareCrossTest` (7 vetores, riscv+aarch == JVM == x86).
+- **✅ Face `split` CORRIGIDA 11/09 (cross, B37 `e960c9fd`, qemu):** port 1:1
+  do `.Lkof_split_done` x86 no riscv (`NativeRiscvAsmStrn1`): scan do fim
+  podando vazios (s7 = peças MATERIALIZADAS, não o count da alocação),
+  sobrescreve length do array, e input vazio força `[""]` (nunca garbage do
+  bump). Prova: `NativeStringCompareCrossTest` split (9 linhas, 6 faces
+  `a,b,`→2/`a,`→1/`,`→0/`""`→1`[]`/`a,b`→2/`,a`→2) riscv+aarch == JVM == x86
+  byte-idênticos sob qemu. §111 ✅ FECHADO nos 5 targets (paridade absoluta).
+
+### 110. Literal/fold `-0.0` vira `+0.0` no JVM (perde o zero com sinal) — ✅ CORRIGIDO 11/09 (guard de raw bits no literal emitter)
+- **Menor repro:** `main() { println(-0.0) }` → JVM **`0.0`**, Native/Script **`-0.0`**.
+  Idem para fold: `println(-1.0 * 0.0)` e negação `val z = 0.0; println(-z)`.
+- **Causa raiz (JVM-only, `JvmLiteralEmitter`):** os atalhos de instrução
+  testavam `value == 0.0` / `value == 0f` — e **em IEEE `-0.0 == 0.0` é true**,
+  então o literal (ou resultado de fold em `OptimizerConstantFold`, que é
+  correto: `av * bv` dá `-0.0`) era emitido como `DCONST_0`/`FCONST_0`, que
+  são sempre **+zero** no bytecode. O run-time estava certo (`a * b` com
+  variáveis → `-0.0`); só o **caminho do literal** colapsava.
+- **Fix:** guard por bits crus — `value == 0.0 && Double.doubleToRawLongBits(value) == 0L`
+  (idem `Float.floatToRawIntBits` para float); `-0.0` cai no `visitLdcInsn`
+  (LDC de double preserva bits). Mesmo bug simétrico em `emitLoadFloat`,
+  corrigido junto (`val f = -0.0 as Float`).
+- **Contrato preservado (não é §94):** `0.0 == -0.0` continua **`true`** —
+  a célula NÃO mexe em comparação de signed zero (congelado), só no SPELLING
+  do literal. Oracle: comportamento de run-time do próprio JVM (que já dava
+  `-0.0` corretamente em `a*b`).
+- **Prova:** célula `negzero` (JVM+Native+Script byte-idênticos; **JS excluído**
+  = `String(-0.0)` → `"0"` sem `.0`, já é o floatprint §44 documentado, não
+  regressão). Face riscv/aarch: sem qemu no ambiente — o fix é JVM-only
+  (emissor de bytecode), as faces nativas nunca tiveram o colapso.
+
+### 105. `random.int(bound)`/`randomInt(bound)` em riscv64/aarch64 entra em LOOP INFINITO para qualquer bound > 1 — ✅ CORRIGIDO 11/09 (aritmética de rejection sampling) [renumerado de 102 — o número foi tomado pelo §102 indexOf(String,from) no remoto na mesma data]
+
+- **Sintoma:** `KofRandomTest.randomIntCrossArch`/`randomShapeCrossArch`
+  travavam (0 output, CPU 53% indefinidamente) sob qemu-riscv64 com
+  `random.randomInt(1000)`. Reprodução mínima: os 500 loops do próprio
+  shape-test (qualquer bound>1 basta; bound=2 trava 100% — range=0).
+- **Causa raiz:** na fatia B27 (S10, merge 10/09), o rejection sampling
+  computava `range = (floor((2^64-1)/bound) + 1) * bound` (= floor(2^64/bound)
+  * bound). O `+1` faz o produto **sempre** > 2^64 para bound>1 → wraps em
+  64 bits: bound=1000 → range=384; bound=2 → range=0 (`bgeu t0, s1` rejeita
+  tudo = loop). A referência x86 (`kof_sec_random_int`, RuntimeSecurity11)
+  usa `(0xffffffff/bound)*bound` em 32 bits — a fórmula correta é
+  `q*bound` sem o `+1` (q*b ≤ 2^64-1 sempre).
+- **Por que nunca foi pego:** B27 entrou no merge 10/09 em ambiente SEM
+  qemu/toolchain → `randomIntCrossArch`/`randomShapeCrossArch` passaram
+  SKIPPED pelo guard honesto (4408eb6). Com qemu presente (11/09, prova do
+  MATH001/TIME002 na mesma cadeia de fatias), o skip virou EXECUÇÃO — e o
+  loop apareceu no primeiro teste com bound>1. A lição do DOING de 08/09
+  ("suíte sem flag/ambiente != suíte rodando") confirmada em mais um item.
+- **✅ CORRIGIDO 11/09:** B27 `.Lrnd_i_*`: `divu t1,-1,bound; mul s1,t1,bound`
+  (sem `addi +1`) — range = q*bound ≤ 2^64-1 sempre; rejeição x<range +
+  remu uniforme (mesma distribuição do contrato: uniforme [0,bound)).
+  bound=1: q=2^64-1, range=2^64-1 (rejeita só x=2^64-1 — desprezível,
+  remu=0 trivial).
+- **Prova:** `KofRandomTest` 12/12 (incl. os 2 cross-arch com os 500 loops
+  de bound=1000/2 + asserts de borda 1/0/-5/1e6) sob qemu-riscv64 +
+  qemu-aarch64; probe isolado OK nos 2 alvos.
+- **Arquivos:** `NativeRiscvAsmRtB27.java` (`kof_random_int`).
+
+### 115. Constant pool: Float/Double armazenados como bits crus (parser de migração) — ✅ CORRIGIDO 08/09  *(renumerado de §62 na reconciliação do merge beta-0.3.0→beta-0.4.0 11/09 — colidiu com a série ativa §95–§114)*
 
 - **Sintoma:** `kof inspect`/`kof decompile` de um `.class` com constante
   float (`3.5f`) exibiam/emitiam `1079574528` (os bits IEEE-754 como inteiro);
@@ -2453,59 +3165,7 @@ nesta merge (mesma técnica: `TypeMetrics.isDoubleWidth` → `KofPop2`):
 `new KofPop()` do repo estão em contexto de 1-slot (String/ref/prim de 32 bits,
 int de índice) — verificados na varredura.
 
-### 99. String methods com formal String/CharSequence aceitando Int/Char → 4 backends divergem (JVM VerifyError / Native SIGSEGV / JS −1 silencioso / interpretador CCE) — ✅ CORRIGIDO 10/09 (SEM025 no lowering; R6)
-
-- **Sintoma:** `s.indexOf('c')` (e a família `contains`/`lastIndexOf`/
-  `startsWith`/`endsWith` com 1º arg Int/Char) **compila** nos 4 backends e
-  quebra de 4 jeitos: JVM `VerifyError: integer is not assignable to
-  'java/lang/String'`; Native x86 **SIGSEGV** (`kof_string_index_of`
-  dereferencia o Int como ponteiro de String); JS `-1`/`false` **silencioso**
-  (number coerçado p/ string `"99"`); interpretador `ClassCastException` no
-  cast `(String) args[0]`.
-- **Causa raiz:** `StringMethodRegistry.stringMethodSignature` resolve
-  `indexOf`/`contains`/… **por ARIDADE** — o formal é sempre
-  String/CharSequence (só `replace` escolhe overload por tipo, com o javadoc
-  admitindo o VerifyError que a versão anterior deu). O guard de tipos no
-  lowering não validava formal-vs-arg, então o `char` (que em Kof **É** `Int`
-  — não existe tipo char separado) atravessava e cada backend fazia o que
-  queria com a incoerência. Paridade cross-target (regra 5) quebrada de
-  4 maneiras simultâneas — a pior classe: um dos 4 (JS) não quebra, só dá
-  resposta errada.
-- **Contradição com o corpus:** `type-system.md:289` documenta
-  `String.indexOf/length/compareTo/hashCode→Int` — a API existe e o idiom
-  é `s.indexOf("c")` (String). O overload char de `java.lang.String` **não é
-  superfície documentada do Kof** — o char literal do Kof não tem tipo
-  próprio p/ mapear.
-- **Decisão (regra 6 — R6, nunca o "compila e quebra"):** **rejeitar no
-  lowering** (`ExpressionInstanceCallLowerer`, no branch `BuiltinTypes.isString`
-  do registry) quando um formal String/CharSequence recebe primitivo —
-  `SEM025` com mensagem apontando o idiom ("pass \"c\" not 'c'"). **Por que
-  rejeitar e não suportar:** (a) suportar char em `indexOf` nos 4 backends
-  exigiria converter `Int→String` no formal — mas o `char` Kof não é "a
-  mesma coisa" de um char 16 bits (é Int — `for (var c in s)` itera Int);
-  definir a semântica (byte? unit? code point?) = **mudança de contrato**
-  sobre método documentado, decisão da mantenedora; (b) o idiom já existe e
-  é unívoco. **Por que no lowering e não no SEM:** o lowering é o único
-  ponto que roda nos 4 caminhos (interpretador + 3 compilados compartilham o
-  IR do `ExpressionInstanceCallLowerer`); `replace(char,char)` continua
-  aceito (formal intencional `CHAR` — o guard só trava formais REF
-  String/CharSequence, primitivos não).
-- **Prova:** `SemanticResolutionTest.stringMethodRefusoesCharEmFormalString`
-  (6 casos: indexOf/contains/lastIndexOf/startsWith/endsWith com char literal
-  + Int variável no indexOf — todos SEM025) +
-  `stringMethodAceitaStringEReplaceChar` (formais String + replace(char,char)
-  + replace(String,String) compilam). **Reprodução pré-fix medida** (não
-  memória): JVM `VerifyError @9 invokevirtual`, JS `-1`, Native SIGSEGV
-  (exit 139), interpretador `ClassCastException`. Suíte completa
-  **1304+30+5+127 / 0 falhas / 94-skip** (zero regressão: nenhum teste/corpus
-  chamava a superfície com char).
-- **Resíduo (honesto):** a MESMA classe de furo existe em **outros** métodos
-  com formal String que o registry tipa por aridade — cobertos pelo guard
-  genérico (qualquer formal String/CharSequence + primitivo). `indexOf(s, n)`
-  (2-arg) com 2º arg não-Int não é tipado pelo registry (o aridade-2 formal já
-  é `(String, Int)` — o Int está no formal, ok).
-
-### 100. Native x86: hijack de método de usuário com nome de String-op (`p.trim()` → LIXO silencioso) — ✅ CORRIGIDO 10/09
+### 116. Native x86: hijack de método de usuário com nome de String-op (`p.trim()` → LIXO silencioso) — ✅ CORRIGIDO 10/09  *(renumerado de §100 na reconciliação do merge beta-0.3.0→beta-0.4.0 11/09 — colidiu com a série ativa §95–§114)*
 
 - **Sintoma:** `class P { Int trim() { 42 } }` + `p.trim()` no x86: JVM e JS
   dão `42`, o **Native dá lixo** (medido: `-103849952` — o receiver da classe
@@ -2535,7 +3195,7 @@ int de índice) — verificados na varredura.
   residual da família §97 cross é SÓ a AUSÊNCIA dos 3 símbolos
   (equals/compareTo/hashCode), não o hijack.
 
-### 101. Native x86: `cancelled()` usa tabela de 256 slots por hash de TID → colisão (cancel de um worker vaza/outro apaga) — ABERTO (registrado da issue #83)
+### 117. Native x86: `cancelled()` usa tabela de 256 slots por hash de TID → colisão (cancel de um worker vaza/outro apaga) — ABERTO (registrado da issue #83)  *(renumerado de §101 na reconciliação do merge beta-0.3.0→beta-0.4.0 11/09 — colidiu com a série ativa §95–§114)*
 
 - **Sintoma (potencial, não reproduzido):** o trampoline de spawn
   (`RuntimeConcurrency.java:20-38`) resolve o slot como
@@ -2579,7 +3239,7 @@ int de índice) — verificados na varredura.
   riscv/aarch não têm `kof_cancel` exportado (gate CONC001 só no x86) — o
   fix é x86-only, sem efeito paridade nos outros nativos (já diagnosticado).
 
-### 102. kof.ui: chamadas de instância em `Column`/`Row` eram DROPADAS silenciosamente (compila e não faz nada) — ✅ CORRIGIDO 11/09
+### 118. kof.ui: chamadas de instância em `Column`/`Row` eram DROPADAS silenciosamente (compila e não faz nada) — ✅ CORRIGIDO 11/09  *(renumerado de §102 na reconciliação do merge beta-0.3.0→beta-0.4.0 11/09 — colidiu com a série ativa §95–§114)*
 
 - **Sintoma:** `col.setId("x")`, `col.setClass("c")`, `col.setBorder(...)` etc.
   compilavam com sucesso nos 4 alvos e **não emitiam call nenhuma** — o `.mjs`
@@ -2605,7 +3265,7 @@ int de índice) — verificados na varredura.
   registry — se um dia `instanceMethod` os aceitar, o gate precisa cobri-los
   (mesma lição: registry e lowerer compartilham predicado, não lista).
 
-### 103. Tradutor riscv→aarch64: `lw` traduzido como `ldr w` (zero-extend) onde riscv é sign-extend — ✅ CORRIGIDO 11/09 (raiz; `ldrsw`)
+### 119. Tradutor riscv→aarch64: `lw` traduzido como `ldr w` (zero-extend) onde riscv é sign-extend — ✅ CORRIGIDO 11/09 (raiz; `ldrsw`)  *(renumerado de §103 na reconciliação do merge beta-0.3.0→beta-0.4.0 11/09 — colidiu com a série ativa §95–§114)*
 
 - **Sintoma (histórico, pegado na prova do §97 cross em 11/09):** programa com
   sentinela `-1` carregada da pilha (`lw t0, 16(sp)`-like) dava `-1` no riscv e

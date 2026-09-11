@@ -45,6 +45,7 @@ public final class NativeRiscvAsm {
                 .append(NativeRiscvAsmRtB23.RISCV_RUNTIME_ASM_B_23)
                 .append(NativeRiscvAsmRtB24.RISCV_RUNTIME_ASM_B_24)
                 .append(NativeRiscvAsmRtB25.RISCV_RUNTIME_ASM_B_25)
+                .append(NativeRiscvAsmRtB25b.RISCV_RUNTIME_ASM_B_25B)
                 .append(NativeRiscvAsmRtB26.RISCV_RUNTIME_ASM_B_26)
                 .append(NativeRiscvAsmRtB27.RISCV_RUNTIME_ASM_B_27)
                 .append(NativeRiscvAsmRtB28.RISCV_RUNTIME_ASM_B_28)
@@ -55,6 +56,7 @@ public final class NativeRiscvAsm {
                 .append(NativeRiscvAsmRtB33.RISCV_RUNTIME_ASM_B_33)
                 .append(NativeRiscvAsmRtB34.RISCV_RUNTIME_ASM_B_34)
                 .append(NativeRiscvAsmRtB35.RISCV_RUNTIME_ASM_B_35)
+                .append(NativeRiscvAsmRtB36.RISCV_RUNTIME_ASM_B_36)
                 .toString();
     }
     static final String RISCV_MAPSET_ASM = NativeRiscvAsmMapset0.RISCV_MAPSET_ASM_0 + NativeRiscvAsmMapset1.RISCV_MAPSET_ASM_1 + NativeRiscvAsmMapset2.RISCV_MAPSET_ASM_2;

@@ -132,7 +132,8 @@ public final class CompilerUiEmitter {
             return localIdx;
         }
         if (KofUi.isDomWidget(recvType) || KofUi.isWindow(recvType) || KofUi.isCanvas(recvType)) {
-            // bug 102: a lista hardcoded omitia Column/Row (isDomWidget os
+            // bug 118 (renumerado do §102 na reconciliação do merge 11/09): a
+            // lista hardcoded omitia Column/Row (isDomWidget os
             // inclui) → setId/setClass/setDisabled/on/setBorder/... de um
             // Column eram DROPADOS silenciosamente (compilava e não fazia nada).
             KofUi.UiCall uiCall = KofUi.instanceMethod(recvType, mc.methodName(), mc.arguments().size());

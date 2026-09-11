@@ -45,6 +45,25 @@ public final class KofInterpreter {
         KofObj(IRClass clazz) { this.clazz = clazz; }
         String internalName() { return clazz.name(); }
         boolean isRecord() { return "java/lang/Record".equals(clazz.superName()); }
+
+        @Override public boolean equals(Object o) {
+            // bug 104a: equals/hashCode/toString VIRTUAIS (não só a synthetic
+            // path kofObjectMethod). O JDK usa Object.equals em
+            // ArrayList.contains/indexOf, HashMap/HashSet e List.toString —
+            // sem override, record em coleção batia por identidade (Script
+            // false vs JVM true). Conteúdo SÓ para record (oracle JVM:
+            // classe não-record = identidade).
+            return o instanceof KofObj other && KofInterpreterObjects.objectEquals(this, other);
+        }
+
+        @Override public int hashCode() {
+            return isRecord() ? KofInterpreterObjects.objectHash(this)
+                              : System.identityHashCode(this);
+        }
+
+        @Override public String toString() {
+            return KofInterpreterObjects.objectToString(this);
+        }
     }
 
     /** NEW de classe externa (ex.: RuntimeException do throw): construído no <init>. */

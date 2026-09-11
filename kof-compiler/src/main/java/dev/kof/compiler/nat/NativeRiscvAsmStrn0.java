@@ -400,13 +400,7 @@ public final class NativeRiscvAsmStrn0 {
                 addi sp, sp, 96
                 ret
 
-            # kof_string_last_index_of(str@a0, sub@a1) -> Int
-            .globl kof_string_last_index_of
-            kof_string_last_index_of:
-                # bug 43 (face riscv/aarch): índice em code units UTF-16 —
-                # corpo em B34 (trampoline; mesma lição da B33).
-                j kof_su_last_index_of
-
+            # kof_string_last_index_of — MOVIDO p/ B35 (UTF-16 code units — §43 cross)
             # kof_string_equals_ignore_case(a@a0, b@a1) -> Bool
             """;
 }

@@ -119,6 +119,43 @@ public final class NativeRiscvAsmStrn1 {
                 mv   s5, s2
                 call .Lsk_emit
             .Lsk_done:
+                # §111 cross (B37): Java String.split remove vazios TRAILING
+                # (port do .Lkof_split_done x86). s7 = pieces MATERIALIZADAS
+                # (não o count da alocação — sobra pode ser lixo). Input
+                # vazio: força [""] (JVM: "".split → size 1, piece "" — nunca
+                # garbage do bump-allocator).
+                beqz s2, .Lsk_empty
+                mv   t1, s7                      # i = s7
+            .Lsk_trim:
+                addi t1, t1, -1
+                bltz t1, .Lsk_set0
+                addi t2, s6, 24
+                slli t3, t1, 3
+                add  t2, t2, t3
+                ld   t2, 0(t2)                   # piece[i]
+                lw   t3, 16(t2)                  # nBytes
+                beqz t3, .Lsk_trim               # vazio -> continua podando
+                addi t1, t1, 1                   # length = i+1
+                sw   t1, 16(s6)
+                mv   a0, s6
+                j    .Lsk_ret
+            .Lsk_set0:
+                sw   zero, 16(s6)
+                mv   a0, s6
+                j    .Lsk_ret
+            .Lsk_empty:
+                li   a0, 32                      # (0+25+15)&-16
+                call kof_alloc
+                li   t2, 1
+                sw   t2, 0(a0)
+                sw   zero, 4(a0)
+                sd   zero, 8(a0)
+                sw   zero, 16(a0)                # nBytes = 0
+                sw   zero, 20(a0)
+                sb   zero, 24(a0)
+                sd   a0, 24(s6)                  # element[0] = ""
+                li   t0, 1
+                sw   t0, 16(s6)                  # length = 1
                 mv   a0, s6
                 j    .Lsk_ret
             .Lsk_emit:

@@ -138,6 +138,16 @@ void handleMapOp(MethodCtx ctx, List<Object> stack,
         callArgs.add(receiver);
         callArgs.addAll(args);
         JsIr.JsExpression call = new JsIr.JsCall(new JsIr.JsIdentifier(fn), callArgs);
+        // §112-JS: put/remove devolvem o valor ANTERIOR, que pode ser null
+        // (primeiro put / remove de chave ausente). O typer declara o retorno
+        // como V (não V? — só get é nullable), então sem coerção o null vazava
+        // p/ uso primitivo (JS imprimia "null" onde JVM dá 0/false). Mesmo
+        // padrão do kof_poll (?? default do primitivo). O KofPop do statement
+        // parser foi estendido p/ preservar o side-effect embrulhado.
+        if (("kof_map_put".equals(kc.methodName()) || "kof_map_remove".equals(kc.methodName()))
+                && kc.returnType() instanceof Type.PrimitiveType) {
+            call = new JsIr.JsBinary(call, "??", JsTypeMapper.defaultForType(kc.returnType()));
+        }
         if (Type.isVoid(kc.returnType())) {
             if (receiver instanceof JsIr.JsIdentifier id && id.name().startsWith("__kof_t")
                     && !stack.isEmpty() && stack.get(stack.size() - 1) instanceof JsIr.JsSequence seq

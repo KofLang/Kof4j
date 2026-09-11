@@ -65,70 +65,30 @@ class KofUuidTest {
             """, "ok");
     }
 
-    @Test
-    void uuidV7Jvm(@TempDir Path tmp) throws Exception {
-        runJvm(tmp, """
+@Test
+    void isUuidShapeJvmJsNative(@TempDir Path tmp) throws Exception {
+        // isUuid = predicado de forma 8-4-4-4-12 (hex min ou maiúsculo;
+        // traços em 8/13/18/23; version/variant NÃO verificadas — paridade
+        // travada na matriz stduuidform). Últimas linhas: v4() e v7() do próprio target.
+        String src = """
             main() {
-                var u = uuid.v7()
-                assert(u.length == 36)
-                assert(u.charAt(8) == 45)
-                assert(u.charAt(13) == 45)
-                assert(u.charAt(18) == 45)
-                assert(u.charAt(23) == 45)
-                assert(u.charAt(14) == 55)
-                var v = u.charAt(19)
-                assert(v == 56 || v == 57 || v == 97 || v == 98)
-                assert(uuid.isUuid(u))
-                var w = uuid.v7()
-                assert(u != w)
-                println("ok")
+                println(uuid.isUuid("550e8400-e29b-41d4-a716-446655440000"))
+                println(uuid.isUuid("550E8400-E29B-41D4-A716-446655440000"))
+                println(uuid.isUuid("550e8400e29b41d4a716446655440000"))
+                println(uuid.isUuid("550e8400-e29b-41d4-a716-44665544000"))
+                println(uuid.isUuid("550e8400-e29b-41d4-a716-44665544000g"))
+                println(uuid.isUuid(""))
+                println(uuid.isUuid(uuid.v4()))
+                println(uuid.isUuid(uuid.v7()))
             }
-            """, "ok");
+            """;
+        String gold = "true\ntrue\nfalse\nfalse\nfalse\nfalse\ntrue\ntrue";
+        runJvm(tmp, src, gold);
+        runJs(tmp, src, gold);
+        runNative(tmp, src, gold);
     }
 
-    @Test
-    void uuidV7Native(@TempDir Path tmp) throws Exception {
-        runNative(tmp, """
-            main() {
-                var u = uuid.v7()
-                assert(u.length == 36)
-                assert(u.charAt(8) == 45)
-                assert(u.charAt(13) == 45)
-                assert(u.charAt(14) == 55)
-                assert(u.charAt(18) == 45)
-                var v = u.charAt(19)
-                assert(v == 56 || v == 57 || v == 97 || v == 98)
-                assert(u.charAt(23) == 45)
-                assert(uuid.isUuid(u))
-                var w = uuid.v7()
-                assert(u != w)
-                println("ok")
-            }
-            """, "ok");
-    }
-
-    @Test
-    void uuidV7Js(@TempDir Path tmp) throws Exception {
-        runJs(tmp, """
-            main() {
-                var u = uuid.v7()
-                assert(u.length == 36)
-                assert(u.charAt(8) == 45)
-                assert(u.charAt(13) == 45)
-                assert(u.charAt(14) == 55)
-                assert(u.charAt(18) == 45)
-                var v = u.charAt(19)
-                assert(v == 56 || v == 57 || v == 97 || v == 98)
-                assert(u.charAt(23) == 45)
-                assert(uuid.isUuid(u))
-                var w = uuid.v7()
-                assert(u != w)
-                println("ok")
-            }
-            """, "ok");
-    }
-
-    @Test
+@Test
     void uuidV7MonotonicOrderJvm(@TempDir Path tmp) throws Exception {
         runJvm(tmp, """
             main() {
@@ -181,11 +141,10 @@ class KofUuidTest {
     }
 
     @Test
-    void isUuidShapeJvmJsNative(@TempDir Path tmp) throws Exception {
-        // isUuid = predicado de forma 8-4-4-4-12 (hex min ou maiúsculo;
-        // traços em 8/13/18/23; version/variant NÃO verificadas — paridade
-        // travada na matriz stduuidform). Últimas linhas: v4() e v7() do próprio target.
-        String src = """
+    void isUuidJvm(@TempDir Path tmp) throws Exception {
+        // S3b-ext: shape RFC 4122 (36, hífens em 8/13/18/23, resto hex;
+        // maiúsculas aceitas). v4() => true (paridade com o gerador).
+        runJvm(tmp, """
             main() {
                 println(uuid.isUuid("550e8400-e29b-41d4-a716-446655440000"))
                 println(uuid.isUuid("550E8400-E29B-41D4-A716-446655440000"))
@@ -194,13 +153,8 @@ class KofUuidTest {
                 println(uuid.isUuid("550e8400-e29b-41d4-a716-44665544000g"))
                 println(uuid.isUuid(""))
                 println(uuid.isUuid(uuid.v4()))
-                println(uuid.isUuid(uuid.v7()))
             }
-            """;
-        String gold = "true\ntrue\nfalse\nfalse\nfalse\nfalse\ntrue\ntrue";
-        runJvm(tmp, src, gold);
-        runJs(tmp, src, gold);
-        runNative(tmp, src, gold);
+            """, "true\ntrue\nfalse\nfalse\nfalse\nfalse\ntrue");
     }
 
     @Test
@@ -252,29 +206,6 @@ class KofUuidTest {
         runQemu(tmp, Target.NATIVE_AARCH64, "qemu-aarch64", src);
     }
 
-    @Test
-    void uuidV7GatedOnCrossArch(@TempDir Path tmp) throws Exception {
-        // UUID002 (R6 — nunca silencioso): uuid.v7 tem JVM/JS/x86;
-        // riscv64/aarch64 aguardam implementação nativa.
-        String src = """
-            main() {
-                var u = uuid.v7()
-            }
-            """;
-        Path gateSrc = tmp.resolve("UuidV7Gate-" + System.nanoTime() + ".kf");
-        Files.writeString(gateSrc, src);
-        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
-            CompilationResult r = new CompilerDriver().compile(
-                    gateSrc, tmp.resolve("gate-v7-" + t + "-" + System.nanoTime()), t);
-            assertFalse(r.success(), t + " deve rejeitar uuid.v7 (UUID002)");
-            boolean has = r.diagnostics().getDiagnostics().stream()
-                    .anyMatch(d -> "UUID002".equals(d.code())
-                            || (d.message() != null && d.message().contains("UUID002")));
-            assertTrue(has, t + " deve reportar UUID002, veio: "
-                    + r.diagnostics().getDiagnostics());
-        }
-    }
-
     private static void assumeToolchain(String... tools) {
         for (String c : tools) {
             try {
@@ -288,6 +219,115 @@ class KofUuidTest {
                 org.junit.jupiter.api.Assumptions.assumeTrue(false, "toolchain ausente: " + c);
             }
         }
+    }
+
+
+    @Test
+    void uuidV7Jvm(@TempDir Path tmp) throws Exception {
+        // S3b.2 (RFC 9562): b0..5 = ts-48 BE, b6 alto='7', b8 variant 10xx.
+        // Parseia o ts dos 12 primeiros hex (pulando o hífen na pos 8) e
+        // exige janela de epoch plausivel — formato + relogio provados.
+        runJvm(tmp, """
+            main() {
+                var u = uuid.v7()
+                assert(u.length == 36)
+                assert(u.charAt(8) == 45)
+                assert(u.charAt(14) == 55)
+                var v = u.charAt(19)
+                assert(v == 56 || v == 57 || v == 97 || v == 98)
+                assert(uuid.isUuid(u))
+                // ts real embutido (48-bit BE): epoch-ms em [2^40 (set/2001),
+                // 2^44 (ano 2526)) => nibble ALTO do b0 = '0' sempre; se o
+                // relogio fosse random/lixeira o char[0] seria hex qualquer.
+                assert(u.charAt(0) == 48)
+                var w = uuid.v7()
+                assert(u != w)
+                println("ok")
+            }
+            """, "ok");
+    }
+
+    @Test
+    void uuidV7Js(@TempDir Path tmp) throws Exception {
+        // Mesma forma byte-level (Date.now + randomBytesHex) — paridade JVM.
+        runJs(tmp, """
+            main() {
+                var u = uuid.v7()
+                assert(u.length == 36)
+                assert(u.charAt(8) == 45)
+                assert(u.charAt(14) == 55)
+                var v = u.charAt(19)
+                assert(v == 56 || v == 57 || v == 97 || v == 98)
+                assert(uuid.isUuid(u))
+                // ts real embutido (48-bit BE): epoch-ms em [2^40 (set/2001),
+                // 2^44 (ano 2526)) => nibble ALTO do b0 = '0' sempre; se o
+                // relogio fosse random/lixeira o char[0] seria hex qualquer.
+                assert(u.charAt(0) == 48)
+                var w = uuid.v7()
+                assert(u != w)
+                println("ok")
+            }
+            """, "ok");
+    }
+
+    @Test
+    void uuidV7Native(@TempDir Path tmp) throws Exception {
+        // S3b.2 no x86_64: ts (RuntimeUuid) sobre os hex aleatorios, ver='7'
+        // no char14, variante mask no char19; unicidade. Nao-deterministico:
+        // assert-only (char[0]='0' = relogio real plausivel ate o ano 2526).
+        runNative(tmp, """
+            main() {
+                var u = uuid.v7()
+                assert(u.length == 36)
+                assert(u.charAt(0) == 48)
+                assert(u.charAt(8) == 45)
+                assert(u.charAt(14) == 55)
+                var v = u.charAt(19)
+                assert(v == 56 || v == 57 || v == 97 || v == 98)
+                assert(uuid.isUuid(u))
+                var w = uuid.v7()
+                assert(u != w)
+                println("ok")
+            }
+            """, "ok");
+    }
+
+    @Test
+    void uuidV7CrossArch(@TempDir Path tmp) throws Exception {
+        // S3b.2 riscv64 B25b + aarch64 (tradutor): getrandom(278) kof_time_now
+        // + mascara de version/variante — os MESMOS asserts do v4/JVM/JS.
+        assumeToolchain("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64");
+        runQemu(tmp, Target.NATIVE_RISCV64, "qemu-riscv64", """
+            main() {
+                var u = uuid.v7()
+                assert(u.length == 36)
+                assert(u.charAt(0) == 48)
+                assert(u.charAt(8) == 45)
+                assert(u.charAt(14) == 55)
+                var v = u.charAt(19)
+                assert(v == 56 || v == 57 || v == 97 || v == 98)
+                assert(uuid.isUuid(u))
+                var w = uuid.v7()
+                assert(u != w)
+                println("ok")
+            }
+            """);
+        assumeToolchain("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64");
+        runQemu(tmp, Target.NATIVE_AARCH64, "qemu-aarch64", """
+            main() {
+                var u = uuid.v7()
+                assert(u.length == 36)
+                assert(u.charAt(0) == 48)
+                assert(u.charAt(8) == 45)
+                assert(u.charAt(14) == 55)
+                var v = u.charAt(19)
+                assert(v == 56 || v == 57 || v == 97 || v == 98)
+                assert(uuid.isUuid(u))
+                var w = uuid.v7()
+                assert(u != w)
+                println("ok")
+            }
+            """);
     }
 
     private void runQemu(Path tempDir, Target target, String qemu, String source) throws Exception {

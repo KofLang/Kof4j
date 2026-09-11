@@ -255,6 +255,18 @@ public final class SemExpressionTyper {
                 for (int ci = chain.size() - 1; ci >= 0; ci--) {
                     BinaryExpr be = chain.get(ci);
                     Type rightType = inferType(sa, be.right(), scope);
+                    // "x as Char/Int/…" — o alvo é um identificador de tipo
+                    // (não resolve como valor): scope.resolve dá null →
+                    // rightType=Unknown (mesmo repair do ExpressionTyper:89,
+                    // que só roda no lowering; o cache daqui é o que o
+                    // MethodCallTyper lê para `mapOf(k, v as T)`). Sem isto o
+                    // V do Map pinava Unknown e o unbox/print do char-em-
+                    // coleção (§104b-ii) perdia o tipo.
+                    if ("as".equals(be.operator()) && rightType instanceof Type.UnknownType
+                            && be.right() instanceof dev.kof.compiler.IdentifierExpr rie) {
+                        Type q = CompilerTypes.toType(rie.name(), sa.unit());
+                        if (!(q instanceof Type.UnknownType)) rightType = q;
+                    }
                     accType = TypeChecker.inferBinaryResultType(sa.diagnostics(), be.operator(), accType, rightType);
                 }
                 yield accType;
@@ -336,6 +348,26 @@ public final class SemExpressionTyper {
                     yield KofUi.COLOR;
                 }
                 Type recvType = inferType(sa, fa.receiver(), scope);
+                // bug 99 (R6, nunca silencioso): `Int.MAX_VALUE`/`Long.foo` etc.
+                // — acesso a campo num NOME DE TIPO PRIMITIVO. `Int` resolve p/
+                // UNKNOWN (a isenção isBuiltinTypeName de SEM011 existe p/ posição
+                // de TIPO, não p/ receiver de campo) e o guard SEM025 abaixo só
+                // dispara em ClassType → o campo passava SEM diagnóstico e o
+                // lowering emitia `getfield "?".field` (NoClassDefFoundError/SIGSEGV
+                // nos 3 targets; `var x = Int.MAX_VALUE` ainda CRASHAVA o
+                // compilador — ASM visitMaxs NegativeArraySizeException). Não há
+                // constante estática de primitivo em Kof (idiom = literal/`as`).
+                if (recvType instanceof Type.UnknownType
+                        && fa.receiver() instanceof IdentifierExpr rid
+                        && MemberResolver.isBuiltinTypeName(rid.name())
+                        && sa.diagnostics() != null) {
+                    sa.diagnostics().error("", 0, 0, 0,
+                            "'" + rid.name() + "' é um tipo primitivo, não tem campo "
+                                    + "estático '" + fa.fieldName() + "' (use o literal, "
+                                    + "ex.: 2147483647 p/ Int; sem Int.MAX_VALUE em Kof)",
+                            "SEM050");
+                    yield Type.UnknownType.UNKNOWN;
+                }
                 // SG-005: deref de T? sem narrowing é erro (espelha SEM049 de
                 // method call) — `s.length` em String? seria NPE em runtime.
                 if (recvType instanceof Type.NullableType && sa.diagnostics() != null) {
@@ -400,6 +432,23 @@ public final class SemExpressionTyper {
                 inferType(sa, aa.index(), scope);
                 if (recvType instanceof Type.ArrayType at) {
                     yield at.componentType();
+                }
+                // paridade absoluta (JVM=JS=X86=ARM=RISC, regra 6/R6) — mesmo
+                // padrão do §96/§98/§100: `x[i]` SÓ existe para ARRAY no corpus
+                // (`learn/04:84`, `new Int[n]`). Em String/List/Map/Set o
+                // subscript era ACEITO e quebrava de um jeito em cada target
+                // ("abc"[0]: JVM VerifyError, Native/Script vazios;
+                // listOf(1,2)[0]: JVM VerifyError `aaload` em Object, idem).
+                // Opção B: REJEITAR em compile-time (SEM054) apontando p/ o
+                // idiom da coleção. Unknown/Nullable (ex.: get de map sem pin)
+                // NÃO é flagado — pode ser array em runtime (SG-008).
+                if (sa.diagnostics() != null && isKofCollectionType(recvType)) {
+                    var pos = aa.position();
+                    sa.diagnostics().error(pos != null ? pos.file() : "",
+                            pos != null ? pos.line() : 0, pos != null ? pos.column() : 0, 0,
+                            "`[]` só pega em array em Kof; para esta coleção use "
+                                    + collectionIndexHint(recvType),
+                            "SEM054");
                 }
                 yield Type.UnknownType.UNKNOWN;
             }
@@ -487,5 +536,20 @@ public final class SemExpressionTyper {
             }
             default -> Type.UnknownType.UNKNOWN;
         };
+    }
+
+    private static boolean isKofCollectionType(Type t) {
+        if (t instanceof Type.NullableType nt) t = nt.inner();
+        if (t instanceof Type.ArrayType) return false;   // array: [] é válido
+        if (t instanceof Type.UnknownType) return false; // pode ser array em runtime (SG-008)
+        return BuiltinTypes.isString(t) || BuiltinTypes.isList(t)
+                || BuiltinTypes.isMap(t) || BuiltinTypes.isSet(t);
+    }
+
+    private static String collectionIndexHint(Type t) {
+        if (t instanceof Type.NullableType nt) t = nt.inner();
+        if (BuiltinTypes.isString(t)) return "charAt(i) / substring(i)";
+        if (BuiltinTypes.isMap(t)) return "get(k)";
+        return "get(i)";
     }
 }

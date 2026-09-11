@@ -149,6 +149,34 @@ class KofInterpreterParityTest {
                 """);
     }
 
+    // §108: o interpretador guarda Bool como Integer 0/1 na fronteira da
+    // coleção → println(listOf(true)) dava [1, 0] vs JVM [true, false].
+    // Box/unbox espelhando JvmOpCollections (Boolean ↔ Integer) na inclusão
+    // e extração, nos 3 contêineres. Char NÃO precisa (JVM imprime [97,98]).
+    // O discriminador é o toString do contêiner (println(l)) — println do
+    // ELEMENTO individual passa pelo normalizeReturn do IR (dá "true" de
+    // qualquer forma); o ArrayList.toString usa o toString do objeto cru.
+    @Test
+    void boolInCollectionsPrintsLikeJvm() throws IOException {
+        parity("boolcoll", """
+                main() {
+                    var l = listOf(true, false)
+                    println(l)
+                    println(l.get(0))
+                    println(l.contains(true))
+                    var m = mapOf("yes", true)
+                    println(m)
+                    println(m.get("yes"))
+                    println(m.containsKey("yes"))
+                    var s = setOf(true)
+                    println(s)
+                    println(s.contains(true))
+                    l.set(0, false)
+                    println(l)
+                }
+                """);
+    }
+
     @Test
     void recordsAndClasses() throws IOException {
         parity("rec", """
@@ -172,6 +200,25 @@ class KofInterpreterParityTest {
                     c.inc()
                     c.inc()
                     println(c.get())
+                }
+                """);
+    }
+
+    @Test
+    void recordsInCollectionsUseContentEquals() throws IOException {
+        // bug 104a: KofObj de record precisa de equals/hashCode/toString VIRTUAIS
+        // — o JDK chama Object.* dentro de ArrayList.contains, HashMap e
+        // List.toString; sem o override o interpretador batia por identidade.
+        parity("reccoll", """
+                record Point(Int x, Int y)
+                main() {
+                    var p1 = Point(1, 2)
+                    var p2 = Point(1, 2)
+                    println(listOf(p1).contains(p2))
+                    println(setOf(p1).contains(p2))
+                    println(mapOf(p1, 7).get(p2))
+                    println(listOf(p1))
+                    println(listOf(p1, Point(9, 9)).contains(p2))
                 }
                 """);
     }

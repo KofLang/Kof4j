@@ -45,9 +45,15 @@ if (("print".equals(mc.methodName()) || "println".equals(mc.methodName())) && mc
             // O dispatch nativo do valueOf decide pelo tipo do
             // parâmetro — aqui mapeia char→Int para imprimir o
             // codepoint sem quebrar String.valueOf(char).
-            Type nativeArg = (argType instanceof Type.PrimitiveType p
-                    && "char".equals(p.name()))
-                    ? Type.PrimitiveType.INT : argType;
+            // §104b-ii (face print): o storage de coleção devolve
+            // Nullable(char) (get de Map) — o INNER é que decide o
+            // dispatch; sem desembrulhar, char-em-coleção caía no
+            // ramo char_to_string ("a") ou, Unknown, em nada
+            // (raw int → println_string → SIGSEGV).
+            Type charCheck = argType instanceof Type.NullableType nt ? nt.inner() : argType;
+            boolean mapCharToInt = charCheck instanceof Type.PrimitiveType p
+                    && "char".equals(Type.canonicalPrimitiveName(p.name()));
+            Type nativeArg = mapCharToInt ? Type.PrimitiveType.INT : argType;
             ops.add(new KofCall(
                     BuiltinTypes.STRING,
                     "valueOf", List.of(nativeArg),
@@ -60,13 +66,13 @@ if (("print".equals(mc.methodName()) || "println".equals(mc.methodName())) && mc
                     BuiltinTypes.STRING, KofCallKind.STATIC));
         }
     } else {
-        // o tipo REAL do arg só vai para o valueOf NATIVO (para
-        // despachar toString de records). JVM/JS usam Object
-        // (String.valueOf(Object) chama toString; valueOf de um
+        // o tipo REAL do arg só vai para o valueOf NATIVO/JS (para
+        // despachar toString de records e formatar coleções). JVM usa
+        // Object (String.valueOf(Object) chama toString; valueOf de um
         // ClassType específico não existe no JVM).
         ops.add(new KofCall(
                 BuiltinTypes.STRING,
-                "valueOf", List.of(driver.target.isNative()
+                "valueOf", List.of((driver.target.isNative() || driver.target == Target.JS)
                         && !Type.isString(argType) ? argType
                         : Type.UnknownType.UNKNOWN),
                 BuiltinTypes.STRING, KofCallKind.STATIC));

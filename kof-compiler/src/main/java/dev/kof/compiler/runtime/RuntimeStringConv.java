@@ -284,6 +284,16 @@ public final class RuntimeStringConv {
                 movb $0, 2(%rdi)
                 addl $2, %edx
             .Lkof_flt_str_make:
+                # bug 44 (residual — paridade regra 5, x86_64): mesmo re-spell
+                # do glibc 'inf'/'-inf'/'nan' → JDK 'Infinity'/'-Infinity'/'NaN'
+                # que o kof_double_to_string faz (float cvtss2sd → idem).
+                testl %edx, %edx
+                jz .Lkof_flt_str_fin
+                cmpl $3, %edx
+                je .Lkof_flt_str_sp3
+                cmpl $4, %edx
+                je .Lkof_flt_str_sp4
+            .Lkof_flt_str_fin:
                 movl %edx, %esi
                 movq %r12, %rdi
                 call kof_string_from_literal
@@ -292,6 +302,59 @@ public final class RuntimeStringConv {
                 popq %rbx
                 popq %rbp
                 ret
+            .Lkof_flt_str_sp3:
+                cmpb $105, (%r12)           # 'i'
+                je .Lkof_flt_str_3i
+                cmpb $110, (%r12)           # 'n'
+                je .Lkof_flt_str_3n
+                jmp .Lkof_flt_str_fin
+            .Lkof_flt_str_3i:
+                cmpb $110, 1(%r12)
+                jne .Lkof_flt_str_fin
+                cmpb $102, 2(%r12)
+                jne .Lkof_flt_str_fin
+                movb $73, (%r12)            # 'I'
+                movb $110, 1(%r12)          # 'n'
+                movb $102, 2(%r12)          # 'f'
+                movb $105, 3(%r12)          # 'i'
+                movb $110, 4(%r12)          # 'n'
+                movb $105, 5(%r12)          # 'i'
+                movb $116, 6(%r12)          # 't'
+                movb $121, 7(%r12)          # 'y'
+                movb $0, 8(%r12)
+                movl $8, %edx               # "Infinity"
+                jmp .Lkof_flt_str_fin
+            .Lkof_flt_str_3n:
+                cmpb $97, 1(%r12)           # 'a'
+                jne .Lkof_flt_str_fin
+                cmpb $110, 2(%r12)          # 'n'
+                jne .Lkof_flt_str_fin
+                movb $78, (%r12)            # 'N'
+                movb $97, 1(%r12)           # 'a'
+                movb $78, 2(%r12)           # 'N'
+                movb $0, 3(%r12)
+                movl $3, %edx               # "NaN"
+                jmp .Lkof_flt_str_fin
+            .Lkof_flt_str_sp4:
+                cmpb $45, (%r12)            # '-'
+                jne .Lkof_flt_str_fin
+                cmpb $105, 1(%r12)
+                jne .Lkof_flt_str_fin
+                cmpb $110, 2(%r12)
+                jne .Lkof_flt_str_fin
+                cmpb $102, 3(%r12)
+                jne .Lkof_flt_str_fin
+                movb $73, 1(%r12)           # 'I' (buf[0] '-' já está)
+                movb $110, 2(%r12)          # 'n'
+                movb $102, 3(%r12)          # 'f'
+                movb $105, 4(%r12)          # 'i'
+                movb $110, 5(%r12)          # 'n'
+                movb $105, 6(%r12)          # 'i'
+                movb $116, 7(%r12)          # 't'
+                movb $121, 8(%r12)          # 'y'
+                movb $0, 9(%r12)
+                movl $9, %edx               # "-Infinity"
+                jmp .Lkof_flt_str_fin
             """);
     }
 
@@ -345,6 +408,19 @@ public final class RuntimeStringConv {
                 movb $0, 2(%rdi)
                 addl $2, %edx
             .Lkof_dbl_str_make:
+                # bug 44 (residual — paridade regra 5, x86_64): o glibc %.16g
+                # escreve 'inf'/'-inf'/'nan' mas o contrato é JDK Double.toString
+                # → 'Infinity'/'-Infinity'/'NaN' (o que JVM/Script imprimem — o
+                # println(double) BOXA via este kof_double_to_string, não via
+                # kof_print_double). Reescreve in-place; só os 3 spellings
+                # EXATOS do glibc casam (decimal/científico têm dígito).
+                testl %edx, %edx
+                jz .Lkof_dbl_str_fin
+                cmpl $3, %edx
+                je .Lkof_dbl_str_sp3
+                cmpl $4, %edx
+                je .Lkof_dbl_str_sp4
+            .Lkof_dbl_str_fin:
                 movl %edx, %esi
                 movq %r12, %rdi
                 call kof_string_from_literal
@@ -353,6 +429,59 @@ public final class RuntimeStringConv {
                 popq %rbx
                 popq %rbp
                 ret
+            .Lkof_dbl_str_sp3:
+                cmpb $105, (%r12)           # 'i' de inf
+                je .Lkof_dbl_str_3i
+                cmpb $110, (%r12)           # 'n' de nan
+                je .Lkof_dbl_str_3n
+                jmp .Lkof_dbl_str_fin
+            .Lkof_dbl_str_3i:
+                cmpb $110, 1(%r12)          # 'n'
+                jne .Lkof_dbl_str_fin
+                cmpb $102, 2(%r12)          # 'f'
+                jne .Lkof_dbl_str_fin
+                movb $73, (%r12)            # 'I'
+                movb $110, 1(%r12)          # 'n'
+                movb $102, 2(%r12)          # 'f'
+                movb $105, 3(%r12)          # 'i'
+                movb $110, 4(%r12)          # 'n'
+                movb $105, 5(%r12)          # 'i'
+                movb $116, 6(%r12)          # 't'
+                movb $121, 7(%r12)          # 'y'
+                movb $0, 8(%r12)
+                movl $8, %edx               # "Infinity"
+                jmp .Lkof_dbl_str_fin
+            .Lkof_dbl_str_3n:
+                cmpb $97, 1(%r12)           # 'a'
+                jne .Lkof_dbl_str_fin
+                cmpb $110, 2(%r12)          # 'n'
+                jne .Lkof_dbl_str_fin
+                movb $78, (%r12)            # 'N'
+                movb $97, 1(%r12)           # 'a'
+                movb $78, 2(%r12)           # 'N'
+                movb $0, 3(%r12)
+                movl $3, %edx               # "NaN"
+                jmp .Lkof_dbl_str_fin
+            .Lkof_dbl_str_sp4:
+                cmpb $45, (%r12)            # '-' de -inf
+                jne .Lkof_dbl_str_fin
+                cmpb $105, 1(%r12)          # 'i'
+                jne .Lkof_dbl_str_fin
+                cmpb $110, 2(%r12)          # 'n'
+                jne .Lkof_dbl_str_fin
+                cmpb $102, 3(%r12)          # 'f'
+                jne .Lkof_dbl_str_fin
+                movb $73, 1(%r12)           # 'I' (buf[0] '-' já está)
+                movb $110, 2(%r12)          # 'n'
+                movb $102, 3(%r12)          # 'f'
+                movb $105, 4(%r12)          # 'i'
+                movb $110, 5(%r12)          # 'n'
+                movb $105, 6(%r12)          # 'i'
+                movb $116, 7(%r12)          # 't'
+                movb $121, 8(%r12)          # 'y'
+                movb $0, 9(%r12)
+                movl $9, %edx               # "-Infinity"
+                jmp .Lkof_dbl_str_fin
             """);
     }
 }

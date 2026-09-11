@@ -38,9 +38,7 @@ public final class KofUuid {
                     ? new UuidCall("kof_uuid_isUuid", BOOL, List.of(STR)) : null;
             case "v4" -> argTypes.isEmpty()
                     ? new UuidCall("kof_uuid_v4", STR, List.of()) : null;
-            // S3b.2 (main, RFC 9562): v7 time-ordered — 48 bits unix_ts_ms +
-            // rand; JVM/Script/JS/x86; riscv/aarch = UUID002 (fatia pendente
-            // — sem cross-assembler/qemu na lane, prova impossível).
+            // S3b.2: v7 (RFC 9562) — ts 48 bits + rand_a/ver + rand_b/variante.
             case "v7" -> argTypes.isEmpty()
                     ? new UuidCall("kof_uuid_v7", STR, List.of()) : null;
             default -> null;
@@ -56,20 +54,18 @@ public final class KofUuid {
      * (fatia B25 — byte-scan de forma, lição travada: upper-bound das
      * bandas hex é EXCLUSIVO, 58/71/103) + aarch64 via tradutor; prova
      * KofUuidTest.isUuidCrossArch (assert sob qemu — bug 59 no println).
-     * UUID002 (10/09, main): v7 (RFC 9562 — unix_ts_ms 48 bits + rand) tem
-     * JVM/Script/JS/x86; riscv64/aarch64 = fatia B pendente (sem cross-
-     * assembler/qemu na lane — regra: nunca asm sem montar/rodar).
      */
     static boolean supportedOn(String function, Target target) {
-        if ("kof_uuid_v7".equals(function)
-                && (target == Target.NATIVE_RISCV64 || target == Target.NATIVE_AARCH64)) {
-            return false;
-        }
+        // v7 (S3b.2): JVM/SCRIPT/JS têm o emit (SecureRandom / Date.now /
+        // crypto). Os 3 nativos ainda não têm fatia asm — UUID001 os bloqueia
+        // com código de erro (R6: nunca link-quebrado silencioso, lição §89).
+        // S3b.2 FEITO nos 5 alvos 10/09: JVM/SCRIPT (SecureRandom), JS
+        // (Date.now+randomBytesHex), x86_64 (RuntimeUuid), riscv64 B25b +
+        // aarch64 (tradutor). Gate removido; supportedOn volta se outro gap.
         return true;
     }
 
     static String gapCode(String function) {
-        if ("kof_uuid_v7".equals(function)) return "UUID002";
-        return "SECN000";
+        return "kof_uuid_v7".equals(function) ? "UUID001" : "SECN000";
     }
 }

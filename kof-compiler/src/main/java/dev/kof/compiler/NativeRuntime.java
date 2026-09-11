@@ -135,6 +135,10 @@ public final class NativeRuntime {
         RuntimeStringSearch.emitStringEndsWith(sb);
         RuntimeStringSearch.emitStringIndexOf(sb);
         RuntimeStringSearch.emitStringLastIndexOf(sb);
+        // §102: variantes com índice inicial (from) respeitado (UTF-16, JDK).
+        dev.kof.compiler.runtime.RuntimeStringSearchFrom.emitStringIndexOf2(sb);
+        dev.kof.compiler.runtime.RuntimeStringSearchFrom.emitStringLastIndexOf2(sb);
+        dev.kof.compiler.runtime.RuntimeStringSearchFrom.emitStringStartsWith2(sb);
         RuntimeStringCompare.emit(sb);
         RuntimeStringOps.emitStringTrim(sb);
         RuntimeStringOps.emitStringCase(sb);

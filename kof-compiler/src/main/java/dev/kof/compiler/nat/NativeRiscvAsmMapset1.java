@@ -88,11 +88,33 @@ public final class NativeRiscvAsmMapset1 {
                 lbu  t1, 0(t0)
                 li   t2, 34
                 bne  t1, t2, .Lkds_close
-                # substring [s3, t3)
-                mv   a0, s0
-                mv   a1, s3
-                mv   a2, t3
-                call kof_string_substring
+                # substring [s3, t3) — CÓPIA DE BYTES inline (espelha o
+                # .Lkof_jdd_copy do x86: JSON decode NUNCA chama
+                # kof_string_substring, que desde a B34 é UTF-16 por
+                # code units — offsets de byte do scanner quebrariam
+                # fatias com acentos/astral).
+                sub   a2, t3, s3               # lenBytes
+                addi  a0, a2, 25
+                addi  a0, a0, 15
+                andi  a0, a0, -16
+                sd    s4, 0(sp)
+                call  kof_alloc
+                mv    s4, a0
+                li    t0, 1
+                sw    t0, 0(s4)
+                sw    zero, 4(s4)
+                sd    zero, 8(s4)
+                sw    a2, 16(s4)
+                sw    zero, 20(s4)
+                addi  a0, s4, 24
+                addi  a1, s0, 24
+                add   a1, a1, s3
+                call  kof_memcpy
+                addi  t0, s4, 24
+                add   t0, t0, a2
+                sb    zero, 0(t0)
+                mv    a0, s4
+                ld    s4, 0(sp)
                 j    .Lkds_ret
             .Lkds_empty:
                 li   a0, 0
