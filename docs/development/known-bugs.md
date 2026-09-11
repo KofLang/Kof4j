@@ -11,9 +11,9 @@
 > | Abertos e atacáveis em JVM/JS | **5** — bugs 39, 45, 62, 63, 64 |
 > | Abertos, só reproduzíveis no Native | **5** — bugs 46, 48, 50, 59, 61 |
 > | Paridade interpretador × compilados (semântica `==` congelada — regra 6) | **1** — bug 94 (NaN/±0.0 `==` de Double no SCRIPT) |
-> | Paridade backend-only (regra 5, atacável na lane Native) | **2** — §107 (println coleção → lixo no nativo, sem toString de coleção), §104b-ii (equals de conteúdo p/ record em coleção — maintenedor, EM CURSO)
+> | Paridade backend-only (regra 5, atacável na lane Native) | **2** — §107 (println coleção → lixo no nativo, sem toString de coleção; §107-JS corrigido 11/09), §104b-ii (equals de conteúdo p/ record + box de primitivo no storage asm — inclui SIGSEGV do `println(l.get)` char achado no §109)
 > | Operadores relacionais NaN cross (congelados — regra 6) | **1** — bug 101 (`<`/`<=`/`>=` com NaN: riscv IEEE vs x86/JVM quirk `dcmpg`) |
-> | **Corrigidos na sessão de paridade absoluta 11/09** | **6** — bugs 96 (SEM052), 98 (SEM053), 100 (SEM051+fold), 44-residual, 102 (from-idx), 103 (SEM054) — todos com o MESMO comportamento nos 5 alvos  |
+> | **Corrigidos na sessão de paridade absoluta 11/09** | **10** — bugs 96 (SEM052), 98 (SEM053), 100 (SEM051+fold), 44-residual, 102 (from-idx), 103 (SEM054), 104a (KofObj equals/hash/toString no interpretador), 104b-i (LINK_FAIL `Object.equals` herdado no Native), 107-JS (`kofFormat` no JS), 109 (CRASH JVM no guard do `map.get` primitivo) — todos com prova na matrix/suíte |
 > | **Corrigidos na prova cross-arch 11/09 (MATH001/TIME002/B33)** | **3** — bugs 101→registrado (relacional NaN, ABERTO regra 6), MATH001 (Double math B32), TIME002 (ISO add/diff B33), 105 (random.int loop — renumerado de 102, colidiu c/ §102 indexOf) |
 > | Verificados corrigidos em 08/09 | **19** — bugs 1–8, 10–17, 19, 20, 26 |
 > | Não reverificados (faltou ambiente/setup) | bugs 9, 18, 21, 22, 23 |
@@ -2536,6 +2536,16 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   hash genérico por vtable nos helpers asm (x86+riscv+aarch) — unidade
   própria, célula `objmethods` mantém Native excluído. Proibido: fallback
   silencioso.
+  - **Face primitivo-em-coleção (repro do §109, mesma raiz asm):** o storage
+    da coleção asm guarda o valor **cru** (sem box). `println(l.get(i))` com
+    char **SIGSEGV (exit=139)**: `kof_list_get` retorna `0x61` e o print
+    dispatcha `kof_println_string` (objeto) sobre um codepoint → deref inválido.
+    Prova (11/09): `mc2.kf` `println('a' as Char)` → `97` ok; `mc.kf`
+    `println(listOf('a' as Char).get(0))` → exit=139; `mc3.kf`
+    `l.get(0) == 'a'` → `true` ok. Só o **print de primitivo em coleção** quebra
+    (a célula `mapgetprim` mantém Native excluído por isto). A correção desta
+    face é a mesma infraestrutura do item (i): box de primitivo no storage asm
+    (ou dispatch de print por tag de tipo) — x86 + riscv + aarch.
 - **§104c ⏳ ABERTO (JS):** record em `setOf`/`mapOf`/`listOf().contains`
   usa **identidade** (Map/HashSet JS nativos com objeto por referência) e
   `println(listOf(p1))` imprime `Point[x=1, y=2]` **sem os colchetes**
@@ -2746,6 +2756,41 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   o §104b-ii precisa (equals/toString de conteúdo) para o caso record-em-lista.
 - **Nota de teste faltante:** nenhum E2E nativo faz `println(coleçãoInteira)`
   (só `lista.get`/`.size` nos tests/learn) → por isso nunca apareceu.
+
+### 109. `mapOf(k, <primitivo>).get(k)` → **CRASH no JVM** (`NoSuchMethodError: Boolean.intValue()Z`) — ✅ CORRIGIDO 11/09 (ramo primitivo no `unboxMethodName`)
+- **Menor repro:** `main() { println(mapOf("t", true).get("t")) }` → JVM:
+  `Exception in thread "main" java.lang.NoSuchMethodError: 'boolean
+  java.lang.Boolean.intValue()'` (crash em runtime, não compile-time).
+  Mesmo caminho para `listOf(true).get(0)` e `setOf(7).contains(...)` que
+  passem pelo guard de `Nullable(primitivo)`.
+- **Causa raiz:** o guard do `kof_map_get` (e afins) desempacota o valor com
+  `JvmOpCollections.unboxMethodName(tipoInterno)` passando o tipo **primitivo**
+  interno do `Nullable(Bool)` (ex.: `PrimitiveType[bool]`). `unboxMethodName`
+  só tinha ramo para `Type.ClassType` (`Boolean`→`booleanValue`); primitivo
+  caía no default `"intValue"` → emitia `checkcast Boolean; invokevirtual
+  Boolean.intValue()Z` → link error em runtime.
+- **Fix (mesma tabela de `boxedClassNameFor`):** `unboxMethodName` trata agora
+  `Type.PrimitiveType`: `bool→booleanValue`, `char→charValue`, `byte→byteValue`,
+  `short→shortValue`, `int→intValue`, `long→longValue`, `float→floatValue`,
+  `double→doubleValue` — default `intValue` só permanece para tipos
+  genuinamente desconhecidos.
+- **Prova:** célula de matriz `mapgetprim` (JVM+Script+JS byte-idênticos,
+  **Native excluído com ref ao §104b-ii**); esperado
+  `true\ntrue\n8\n9000000001\ntrue\n97\nfalse` cobre Bool/Int/Long/Double/Char/miss
+  pelo mesmo caminho de guard.
+- **Faces PRÉ-EXISTENTES descobertas pela célula (não são do §109):**
+  - **Native:** `println(l.get(i))` com char-em-coleção → **SIGSEGV (exit=139)**.
+    O guard é só bytecode JVM — o Native usa helpers asm (`kof_list_get`
+    retorna o storage cru; `println` dispatcha `kof_println_string` sobre ele).
+    Mesmo raiz do **§104b-ii** (primitivo no storage asm sem box).
+    `mc3.kf` (`l.get(i) == 'a'`) funciona; só o **print** quebra.
+  - **JS:** `println(d * 2)` para `Double` imprime `5` vs `5.0` do JVM — é o
+    **floatprint (bug 44)** já registrado (`String(5.0)==="5"`), não regressão.
+    A célula usa predicado (`d > 1.0`) para exercitar storage Double sem
+    colidir com o §44.
+- **Nota de teste faltante:** nenhum teste cobria `println(map.get(k))` com
+  valor primitivo não-Int/Double — Bool e Char eram os gatilhos do default
+  silencioso do `unboxMethodName`.
 
 ### 105. `random.int(bound)`/`randomInt(bound)` em riscv64/aarch64 entra em LOOP INFINITO para qualquer bound > 1 — ✅ CORRIGIDO 11/09 (aritmética de rejection sampling) [renumerado de 102 — o número foi tomado pelo §102 indexOf(String,from) no remoto na mesma data]
 

@@ -255,6 +255,38 @@ class ConformanceMatrixTest {
                 }
                 """, "[1, 2]\n[a, b]\n[1.5, 2.25]\n{k=1}\n[1]\n[Point[x=1, y=2], Point[x=3, y=4]]\n[[1], [2]]",
                 Set.of("native"), tempDir);
+
+        // §109 (paridade absoluta + JVM CRASH): mapOf(k, <primitivo>) e o
+        // GUARD do kof_map_get (Nullable(V) primitivo) chamavam
+        // unboxMethodName com o tipo PRIMITIVO interno — só o ramo ClassType
+        // era tratado, então Bool caía em `intValue` → `Boolean.intValue()Z`
+        // → NoSuchMethodError em runtime no JVM. Fix trata o ramo primitivo
+        // (mesma tabela de boxedClassNameFor). Cobre Int/Long/Double/Bool/Char
+        // pelo mesmo caminho de guard.
+        // Faces PRÉ-EXISTENTES fora do §109 (guard é só JVM; Native usa asm):
+        //   - native: SIGSEGV em println(char-em-coleção) → §104b-ii
+        //     (primitivo no storage asm sem box; mc3.kf prova que `==` do
+        //     char funciona, só o print quebra).
+        //   - JS: `d * 2` → `5` vs `5.0` (String(5.0)="5") é o floatprint
+        //     já registrado; a célula usa predicado (`d > 1.0`) para
+        //     exercitar o storage Double sem colidir com ele.
+        matrix("mapgetprim", """
+                main() {
+                    val b = mapOf("t", true).get("t")
+                    println(b)
+                    println(b == true)
+                    val n = mapOf("i", 7).get("i")
+                    println(n + 1)
+                    val g = mapOf("l", 9000000000L).get("l")
+                    println(g + 1)
+                    val d = mapOf("d", 2.5).get("d")
+                    println(d > 1.0)
+                    val c = mapOf("c", 'a' as Char).get("c")
+                    println(c)
+                    val miss = mapOf("x", true).get("nope")
+                    println(miss)
+                }
+                """, "true\ntrue\n8\n9000000001\ntrue\n97\nfalse", Set.of("native"), tempDir);
         // §104b-i (Native): `Thing.equals(...)` em classe NÂO-record dava
         // LINK_FAIL (Object.equals herdado sem símbolo no bare-metal).
         // Síntese de equals de identidade → oracle JVM (false entre

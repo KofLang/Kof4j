@@ -327,6 +327,25 @@ public final class JvmOpCollections {
     }
 
     static String unboxMethodName(Type boxed) {
+        // bug 109: o GUARD do kof_map_get (Nullable(V) com V primitivo) chama
+        // esta função com o tipo PRIMITIVO interno (Bool/Int/...), não com a
+        // Classe boxada — antes só o ramo ClassType era tratado e um Bool
+        // caía no `return "intValue"` → `Boolean.intValue()Z` →
+        // NoSuchMethodError em runtime (mapOf(k, true).get(k) CRASHAVA no JVM;
+        // só o path ClassType (await/poll) acertava). Espelha o dispatch de
+        // nome de boxedClassNameFor (mesma tabela, método correto por tipo).
+        if (boxed instanceof Type.PrimitiveType pt) {
+            return switch (pt.name()) {
+                case "long", "Long" -> "longValue";
+                case "float", "Float" -> "floatValue";
+                case "double", "Double" -> "doubleValue";
+                case "boolean", "bool", "Bool" -> "booleanValue";
+                case "byte", "Byte" -> "byteValue";
+                case "short", "Short" -> "shortValue";
+                case "char", "Char" -> "charValue";
+                default -> "intValue";
+            };
+        }
         if (boxed instanceof Type.ClassType ct) {
             return switch (ct.name()) {
                 case "Integer" -> "intValue";
