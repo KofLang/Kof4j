@@ -254,4 +254,46 @@ class SemanticResolutionTest {
                 """);
         assertTrue(r.success(), "legítimo deve compilar: " + r.diagnostics().getDiagnostics());
     }
+
+    // ---- #100 (R6, paridade absoluta): Char em método de String — o programa
+    // era ACEITO e quebrava de um jeito DIFERENTE em cada target (JVM
+    // VerifyError/IncompatibleClassChangeError, Native SIGSEGV/saída vazia,
+    // Script false/vazio). REJEITAR em compile-time com o mesmo SEM051 em
+    // todos os backends (lowering = frontend único dos 5 alvos). ----
+
+    @Test
+    void charArgOnStringMethodRejected(@TempDir Path tmp) throws IOException {
+        String[] exprs = {
+            "\"abc\".indexOf('c')", "\"abc\".lastIndexOf('b')", "\"abc\".contains('b')",
+            "\"abc\".startsWith('a')", "\"abc\".endsWith('c')", "\"a,b\".split(',')",
+            "\"abc\".concat('x')", "\"abc\".equalsIgnoreCase('a')",
+            "\"abc\".compareTo('a')", "\"abc\".compareToIgnoreCase('a')" };
+        for (String e : exprs) {
+            CompilationResult r = compile(tmp, "e.kf", "main() { println(" + e + ") }");
+            assertFalse(r.success(), "deve falhar: " + e);
+            boolean found = r.diagnostics().getDiagnostics().stream()
+                    .anyMatch(d -> "SEM051".equals(d.code()) && d.message().contains("Char"));
+            assertTrue(found, "esperava SEM051 p/ '" + e + "', foi: "
+                    + r.diagnostics().getDiagnostics());
+        }
+    }
+
+    @Test
+    void stringMethodsWithStringOrCharArgsStillCompile(@TempDir Path tmp) throws IOException {
+        // não regridir (regra 1): literal String ok; replace(char,char) é o
+        // overload LEGAL da registry; charAt/substring recebem numérico
+        // (Char é Int em Kof — widening do usuário, não erro do compilador).
+        CompilationResult r = compile(tmp, "ok.kf", """
+                main() {
+                    var s = "abc"
+                    println(s.indexOf("c"))
+                    println(s.replace('b', 'x'))
+                    println(s.charAt(1))
+                    println(s.substring(1))
+                    println(s.contains("b"))
+                    println(s.compareTo("a"))
+                }
+                """);
+        assertTrue(r.success(), "legítimo deve compilar: " + r.diagnostics().getDiagnostics());
+    }
 }

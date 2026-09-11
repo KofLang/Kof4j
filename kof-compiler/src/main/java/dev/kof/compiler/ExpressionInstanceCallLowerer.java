@@ -10,6 +10,11 @@ import java.util.List;
  */
 public final class ExpressionInstanceCallLowerer {
 
+    /** Métodos de String cujo parâmetro é String/CharSequence (SEM051 — bug 100). */
+    private static final java.util.Set<String> STRING_ARG_METHODS = java.util.Set.of(
+            "indexOf", "lastIndexOf", "contains", "startsWith", "endsWith",
+            "split", "concat", "equalsIgnoreCase", "compareTo", "compareToIgnoreCase");
+
     private ExpressionInstanceCallLowerer() {}
 
     static int lower(CompilerDriver driver, MethodCallExpr mc, List<KofOperation> ops,
@@ -297,6 +302,31 @@ public final class ExpressionInstanceCallLowerer {
         methodReturnType = resolvedMethod.returnType();
         methodParamTypes = new ArrayList<>(resolvedMethod.parameterTypes());
     } else if (BuiltinTypes.isString(recvType)) {
+        // bug 100 (R6, paridade absoluta JVM=JS=X86=ARM=RISC): argumento Char
+        // num método de parâmetro String era ACEITO e quebrava os 3 targets de
+        // formas DIFERENTES (JVM VerifyError/IncompatibleClassChangeError/
+        // NoSuchMethodError, Native SIGSEGV/saída vazia, Script `false`/vazio)
+        // — paridade quebrada em silêncio. Opção B (decisão mantenedora):
+        // REJEITAR em tempo de compilação, o MESMO erro em todos os backends
+        // (este lowering é o frontend único que alimenta JVM/Native/JS/Script).
+        // Condição por NOME (compareTo/compareToIgnoreCase não estão na
+        // StringMethodRegistry — sig=null — e escapariam de um guard por sig).
+        // NÃO flaguemos `replace` (overload char,char legal:
+        // StringMethodRegistry resolve pelo tipo do arg e o formal é CHAR),
+        // `charAt`/`substring` (formal numérico — Char é Int em Kof, widening
+        // legítimo; erro de índice é do usuário) nem `equals` (formal Object).
+        if (STRING_ARG_METHODS.contains(mc.methodName())
+                && driver.currentDiagnostics != null
+                && mc.arguments().stream().anyMatch(a ->
+                        ExpressionTyper.inferExprType(driver, a, locals) == Type.PrimitiveType.CHAR)) {
+            var pos = mc.position();
+            driver.currentDiagnostics.error(pos != null ? pos.file() : "",
+                    pos != null ? pos.line() : 0, pos != null ? pos.column() : 0, 0,
+                    "String." + mc.methodName() + " não aceita Char como argumento "
+                            + "(Kof não tem overload (char)); use um literal String, ex.: "
+                            + mc.methodName() + "(\"c\")",
+                    "SEM051");
+        }
         StringMethodRegistry.Sig sig = StringMethodRegistry.stringMethodSignature(mc.methodName(), mc.arguments().size(),
                 methodParamTypes);
         if (sig != null) {

@@ -2346,6 +2346,59 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 - **Descoberto:** 10/09 na varredura de paridade String (batch `swD.kf`/`swE.kf`).
 
 
+### 100. Char como argumento de método String aceito em silêncio → quebra de um jeito DIFERENTE em cada target (paridade absoluta + R6) — ✅ CORRIGIDO 11/09 (SEM051, opção B: rejeitar em compile-time)
+
+- **Sintoma:** `"abc".indexOf('c')` (Char, não String) é **aceito** pelo compilador
+  e roda de um jeito **diferente em cada target** — paridade absoluta (JVM=JS=x86=arm=risc)
+  quebrada em silêncio (R6):
+  | método | JVM | Native x86 | Script |
+  |---|---|---|---|
+  | `indexOf('c')`/`lastIndexOf`/`startsWith`/`endsWith`/`split(',')` | `VerifyError` (getfield/invokevirtual com int p/ slot String) | saída VAZIA (SIGSEGV silencioso) | saída VAZIA |
+  | `contains('b')` | `IncompatibleClassChangeError` (Integer→CharSequence) | vazio | `false` (lixo) |
+  | `compareTo('a')` | `NoSuchMethodError String.compareTo(int)` | vazio | vazio |
+  | `concat('x')` | `VerifyError` | vazio | vazio |
+  (`replace('b','x')` **funciona** nos 3 — Java tem `replace(char,char)` e a
+  `StringMethodRegistry` resolve o overload pelo tipo do arg.)
+- **Causa raiz:** os métodos String com parâmetro String/CharSequence
+  (`indexOf`/`lastIndexOf`/`contains`/`startsWith`/`endsWith`/`split`/`concat`/
+  `compareTo`/...) NÃO têm checagem de tipo de argumento no typer — o bloco de
+  String do `BuiltinCallTyper` e o `CollectionMethodTyper` devolvem o tipo de
+  RETORNO sem validar os args, e o `MemberCallTyper:415-420` pula a checagem
+  para String (comentário: "resolvidos via lowering direto"). O Char
+  (representado como Int em Kof) desce pro lowering e cada backend o trata
+  diferente: JVM faz `invokevirtual indexOf(I)` (não existe → VerifyError),
+  Native chama `kof_string_index_of` esperando ponteiro-String e dereferencia
+  o Int 99 → SIGSEGV, Script unbox-falha e engole.
+- **✅ CORRIGIDO 11/09 — opção B (decisão da mantenedora nesta sessão): REJEITAR
+  em tempo de compilação**, o MESMO diagnóstico em todos os backends. Guard no
+  `ExpressionInstanceCallLowerer` (branch `isString(recvType)`), por NOME do
+  método (`STRING_ARG_METHODS` — `compareTo`/`compareToIgnoreCase` não estão na
+  `StringMethodRegistry` (sig=null), então um guard por assinatura ESCAPAIRIA
+  deles) + `ExpressionTyper.inferExprType(arg) == CHAR`. **SEM051** ("String.X
+  não aceita Char como argumento (Kof não tem overload (char)); use o literal
+  String, ex.: indexOf("c")"). Como o lowering é o frontend ÚNICO que alimenta
+  JVM/Native/JS/Script (paridade por construção), o MESMO erro sai nos 5 alvos.
+  Verificado: JVM/NATIVE/JS dão o SEM051 idêntico no `compile`; `interpret()`
+  (Script) LANÇA `KofInterpretException: SEM051` em vez de rodar lixo.
+- **Escopo cirúrgico (não regridir — regra 1):** NÃO flaguemos `replace('b','x')`
+  (overload char,char legal, `charAt('1')`/`substring(1)` (formal numérico — Char
+  é Int, widening do usuário; erro de índice é runtime legítimo), nem `equals`
+  (formal Object). `indexOf("c")`, `compareTo("a")`, `contains("b")` permanecem.
+- **Prova:** `SemanticResolutionTest.charArgOnStringMethodRejected` (10 métodos
+  × SEM051) + `stringMethodsWithStringOrCharArgsStillCompile` (não regridir
+  `replace(char,char)`/`charAt`/literal-String). Suíte completa pós-clean
+  **1304 run / 0 falhas** (12 err = node ausente, ambiental).
+- **NOTA de design (por que rejeitar e não implementar):** Kof NÃO tem overload
+  `(char)` p/ esses métodos no corpus (`type-system.md:289` lista `indexOf`→Int
+  sem dizer o tipo do arg; o idiom real é `"c"`). A alternativa (implementar a
+  sobrecarga char em 5 backends) seria mudar o contrato de forma aditiva — é
+  opção de design, mas a mantenedora optou pela REJEIÇÃO (opção B) porque
+  mantém a linguagem simples e o custo de 5 backends não se justifica p/ um
+  caso que o literal String cobre (`"c"` em vez de `'c'`).
+- **Arquivos:** `ExpressionInstanceCallLowerer.java` (guard SEM051 +
+  `STRING_ARG_METHODS`); testes em `SemanticResolutionTest.java`.
+
+
 ### 99. `Int.MAX_VALUE`/`<primitivo>.<campo>` passa SEM diagnóstico → lixo nos 3 targets + CRASH do compilador — ✅ CORRIGIDO 10/09 (R6; varredura numeric/estático)
 
 - **Sintoma:** `Int.MAX_VALUE` (e qualquer `Int/Long/Double/Float/Char/Byte/
