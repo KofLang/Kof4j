@@ -417,8 +417,8 @@ public final class NativeAarch64Translator {
             String base = R.apply(m.group(2));
             // sp como destino não é encodável como Rt -> usar temp
             if (rdRaw.equals("sp")) {
-                String op = mn.equals("ld") ? "ldr" : mn.equals("lw") ? "ldr" : mn.equals("lbu") ? "ldrb" : mn.equals("lb") ? "ldrsb" : "ldrsh";
-                String rtTmp = mn.equals("lbu") || mn.equals("lw") ? "w17" : "x17";
+                String op = mn.equals("ld") ? "ldr" : mn.equals("lw") ? "ldrsw" : mn.equals("lbu") ? "ldrb" : mn.equals("lb") ? "ldrsb" : "ldrsh";
+                String rtTmp = mn.equals("lbu") ? "w17" : "x17";
                 List<String> out = new ArrayList<>();
                 if (off >= -256 && off <= 255) {
                     String addr = off == 0 ? "[" + base + "]" : "[" + base + ", #" + off + "]";
@@ -433,7 +433,7 @@ public final class NativeAarch64Translator {
             String rt;
             String op;
             if (mn.equals("ld")) { rt = R.apply(rdRaw); op = "ldr"; }
-            else if (mn.equals("lw")) { rt = R.apply(rdRaw).replace("x", "w"); op = "ldr"; }
+            else if (mn.equals("lw")) { rt = R.apply(rdRaw); op = "ldrsw"; }
             else if (mn.equals("lbu")) { rt = R.apply(rdRaw).replace("x", "w"); op = "ldrb"; }
             else if (mn.equals("lb")) { rt = R.apply(rdRaw); op = "ldrsb"; }
             else { rt = R.apply(rdRaw); op = "ldrsh"; }

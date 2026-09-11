@@ -2298,7 +2298,9 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   aarch e o diff de prefixo saía `-100`; fix no meu asm: `sext.w` explícito
   após o `lw` (no-op no riscv, corrige no aarch) — o TRADUTOR fica intacto
   (mexer nele = risco global; latente em todo `lw` de valor negativo via pilha
-  — registrado como lição, sonda futura da lane). **Prova:** os MESMOS 11
+  — registrado como lição, sonda futura da lane. **ATUALIZADO 11/09: a sonda
+  foi feita e a raiz corrigida — ver §103; o `sext.w` da B32 fica como
+  double-proteção inocua**). **Prova:** os MESMOS 11
   vetores golden do x86 nos 2 cross (`NativeRiscv64E2ETest.
   nativeStringCompareToAndHashCodeUtf16` + `NativeAarch64E2ETest` idem) =
   `10 1 -1 -1 55260 -10176 10176 96354 3240 1772899 0` em riscv64 E aarch64
@@ -2578,3 +2580,34 @@ int de índice) — verificados na varredura.
   (Style/Font/Event/Box/Stack/...) continuam sem métodos próprios no
   registry — se um dia `instanceMethod` os aceitar, o gate precisa cobri-los
   (mesma lição: registry e lowerer compartilham predicado, não lista).
+
+### 103. Tradutor riscv→aarch64: `lw` traduzido como `ldr w` (zero-extend) onde riscv é sign-extend — ✅ CORRIGIDO 11/09 (raiz; `ldrsw`)
+
+- **Sintoma (histórico, pegado na prova do §97 cross em 11/09):** programa com
+  sentinela `-1` carregada da pilha (`lw t0, 16(sp)`-like) dava `-1` no riscv e
+  `0xFFFFFFFF` no aarch sob qemu (diff de prefixo `compareTo` virava `-100`).
+- **Causa raiz:** `NativeAarch64Translator` mapeava `lw` → `ldr w, [..]`, que
+  no AArch64 **zera** os 32 bits altos; o `lw` riscv faz **sign-extend** do
+  word para 64 bits. Os irmãos já estavam certos (`lb`→`ldrsb`, `lh`→`ldrsh`,
+  e `lbu`→`ldrb` que de fato é zero-extend no riscv) — `lw` era o único
+  mnemonic com extensão errada. Latente em TODO `lw` de valor possivelmente
+  negativo (o codegen de locals usa `ld`, e os `lw` do runtime são metadados
+  não-negativos — byteLen/tam/flags — por isso nunca aparecera fora do §97).
+- **Menor repro (na época):** o caso prefixo do §97 (`"ab"` vs `"abc"` →
+  `compareTo` = `-1`, lida da pilha e somada) → riscv `-1`, aarch `-100`.
+- **Workaround da época (mantido):** `sext.w` explícito após o `lw` na fatia
+  B32 (no-op no riscv; corrigia o aarch). Após a correção-raiz o `sext.w` fica
+  redundante mas INOCUO (sinal-extend de um valor já sinal-extendido) —
+  removê-lo seria churn sem ganho; fica como double-proteção documentada.
+- **Fix (raiz):** `lw` → `ldrsw x<rd>, [base]` (load signed word, o match
+  exato do `lw` riscv). Para valores não-negativos (todos os usos atuais do
+  runtime: contagens, offsets, headers, flags) `ldrsw` é bit-idêntico a
+  `ldr w` → risco controlado pela suíte. O caso `rdRaw=sp` ajustado
+  conjuntamente (`lw sp` inexistente no corpus, 0 refs — mas o ramo ficaria
+  inconsistente; temp passa a `x17` 64-bit).
+- **Prova:** gate de EXECUÇÃO sob qemu (sem golden textual do tradutor no
+  repo): `NativeRiscv64E2ETest` 33/0 + `NativeAarch64E2ETest` 33/0 (inclui os
+  3 testes UTF-16 que cobrem as sentinela `-1` do §97/§43 nos dois alvos) +
+  suítes cross-ativas 13 classes ~194/0 sob qemu (concorrência/math/net/
+  security/time/uuid/validation/string/encoding/mq/random/parse/matrix) +
+  `NativeE2ETest` x86 61/0 + suíte completa baseline 0-falhas.
