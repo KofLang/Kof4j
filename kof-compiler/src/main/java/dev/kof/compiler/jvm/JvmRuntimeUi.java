@@ -131,6 +131,14 @@ public final class JvmRuntimeUi {
                 public static void kof_ui_widget_set_disabled(int widget, int disabled) {
                 }
 
+                // issue #78: primitivas visuais — no-op JVM/Native (real só no JS,
+                // como setId/setClass/setDisabled — kof.ui é KofJS). Color empacotado.
+                public static void kof_ui_widget_set_border(int widget, int color, int width) { }
+                public static void kof_ui_widget_set_shadow(int widget, int c, int oy, int blur) { }
+                public static void kof_ui_widget_set_gradient(int widget, int a, int b, int angle) { }
+                public static void kof_ui_widget_set_flex_basis(int widget, int px) { }
+                public static void kof_ui_widget_set_max_width(int widget, int px) { }
+
                 public static void kof_ui_widget_on(int widget, String type, Object handler) {
                 }
 

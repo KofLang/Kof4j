@@ -234,6 +234,12 @@ public final class KofUi {
                 case "setClass" -> argCount == 1 ? new UiCall("kof_ui_widget_set_class", Type.PrimitiveType.VOID, List.of(STR)) : null;
                 case "setDisabled" -> argCount == 1 ? new UiCall("kof_ui_widget_set_disabled", Type.PrimitiveType.VOID, List.of(BOOL)) : null;
                 case "on" -> argCount == 2 ? new UiCall("kof_ui_widget_on", Type.PrimitiveType.VOID, List.of(STR, Type.UnknownType.UNKNOWN)) : null;
+                // issue #78: primitivas visuais aditivas (real só no JS; no-op JVM/Native como setId).
+                case "setBorder" -> argCount == 2 ? new UiCall("kof_ui_widget_set_border", Type.PrimitiveType.VOID, List.of(COLOR, INT)) : null;
+                case "setShadow" -> argCount == 3 ? new UiCall("kof_ui_widget_set_shadow", Type.PrimitiveType.VOID, List.of(COLOR, INT, INT)) : null;
+                case "setGradient" -> argCount == 3 ? new UiCall("kof_ui_widget_set_gradient", Type.PrimitiveType.VOID, List.of(COLOR, COLOR, INT)) : null;
+                case "setFlexBasis" -> argCount == 1 ? new UiCall("kof_ui_widget_set_flex_basis", Type.PrimitiveType.VOID, List.of(INT)) : null;
+                case "setMaxWidth" -> argCount == 1 ? new UiCall("kof_ui_widget_set_max_width", Type.PrimitiveType.VOID, List.of(INT)) : null;
                 default -> null;
             };
             if (shared != null) return shared;

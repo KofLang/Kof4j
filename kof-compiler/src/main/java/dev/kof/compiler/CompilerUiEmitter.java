@@ -131,14 +131,10 @@ public final class CompilerUiEmitter {
             }
             return localIdx;
         }
-        if (KofUi.isWindow(recvType) || KofUi.isLabel(recvType) || KofUi.isButton(recvType)
-                || KofUi.isInput(recvType) || KofUi.isTextarea(recvType) || KofUi.isSelect(recvType)
-                || KofUi.isUl(recvType) || KofUi.isOl(recvType) || KofUi.isTable(recvType)
-                || KofUi.isView(recvType)
-                || KofUi.isLink(recvType) || KofUi.isImage(recvType) || KofUi.isIcon(recvType)
-                || KofUi.isForm(recvType) || KofUi.isCanvas(recvType)
-                || KofUi.isFieldset(recvType) || KofUi.isIframe(recvType)
-                || KofUi.isVideo(recvType) || KofUi.isAudio(recvType) || KofUi.isHr(recvType)) {
+        if (KofUi.isDomWidget(recvType) || KofUi.isWindow(recvType) || KofUi.isCanvas(recvType)) {
+            // bug 102: a lista hardcoded omitia Column/Row (isDomWidget os
+            // inclui) → setId/setClass/setDisabled/on/setBorder/... de um
+            // Column eram DROPADOS silenciosamente (compilava e não fazia nada).
             KofUi.UiCall uiCall = KofUi.instanceMethod(recvType, mc.methodName(), mc.arguments().size());
             if (uiCall != null) {
                 for (ExpressionNode arg : mc.arguments()) {

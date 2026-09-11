@@ -48,6 +48,33 @@ public final class JsRuntimeUiWidgets {
                 if (n) n.disabled = disabled ? true : false;
             }
 
+            // issue #78: primitivas visuais além do Style(bg/fg/padding/radius).
+            // Real só no JS (no-op JVM/Native, como setId/setDisabled). Color é
+            // o Int empacotado RGBA do runtime (kofUiColorToCss); style inline
+            // sempre vence regras de classe — setBorder/setGradient de um app
+            // sobrepõem o tema dos issues #75/#76.
+            export function kofUiWidgetSetBorder(widget, color, width) {
+                const n = window.__kofNodes && window.__kofNodes[widget];
+                if (n) n.style.border = width + "px solid " + kofUiColorToCss(color);
+            }
+            export function kofUiWidgetSetShadow(widget, color, offsetY, blur) {
+                const n = window.__kofNodes && window.__kofNodes[widget];
+                if (n) n.style.boxShadow = "0px " + offsetY + "px " + blur + "px " + kofUiColorToCss(color);
+            }
+            export function kofUiWidgetSetGradient(widget, colorA, colorB, angle) {
+                const n = window.__kofNodes && window.__kofNodes[widget];
+                if (n) n.style.background = "linear-gradient(" + angle + "deg, "
+                        + kofUiColorToCss(colorA) + ", " + kofUiColorToCss(colorB) + ")";
+            }
+            export function kofUiWidgetSetFlexBasis(widget, px) {
+                const n = window.__kofNodes && window.__kofNodes[widget];
+                if (n) n.style.flex = "1 1 " + px + "px";
+            }
+            export function kofUiWidgetSetMaxWidth(widget, px) {
+                const n = window.__kofNodes && window.__kofNodes[widget];
+                if (n) { n.style.maxWidth = px + "px"; n.style.width = "100%"; }
+            }
+
             export function kofUiLabelNew(text) {
                 if (typeof document === "undefined") {
                     return -1;

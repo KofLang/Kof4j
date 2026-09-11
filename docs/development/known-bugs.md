@@ -2529,3 +2529,29 @@ int de índice) — verificados na varredura.
   um: E2E com 2 workers longos + cancel do 2º (harness de 50+ iterações p/
   pegar colisão). NÃO bloqueia `planning-otp-supervision` (que usa flag
   própria de stdlib — DD-OTP-08).
+
+### 102. kof.ui: chamadas de instância em `Column`/`Row` eram DROPADAS silenciosamente (compila e não faz nada) — ✅ CORRIGIDO 11/09
+
+- **Sintoma:** `col.setId("x")`, `col.setClass("c")`, `col.setBorder(...)` etc.
+  compilavam com sucesso nos 4 alvos e **não emitiam call nenhuma** — o `.mjs`
+  simplesmente não tinha a chamada (repro: `Column(listOf(b)).setId/setClass/
+  setBorder` → `Default.mjs` só com `kofUiColumnNew`).
+- **Causa raiz:** o typer resolve métodos UI por `KofUi.isUiType` (inclui
+  Column/Row, e `KofUi.instanceMethod` aceita os `kof_ui_widget_*` para todo
+  `isDomWidget`, que inclui Column/Row), mas o `emitUiInstance` do lowerer
+  roteava por uma LISTA HARDCODED de tipos que omitia Column/Row → branch
+  `default → return` sem call e sem diagnóstico (anti-R6).
+- **Fix:** gate do bloco/widget em `CompilerUiEmitter.emitUiInstance` passa a
+  `KofUi.isDomWidget(recvType) || KofUi.isWindow(recvType) || KofUi.isCanvas
+  (recvType)` — o MESMO predicado que o registry usa para resolver; a lista
+  não pode voltar a divergir do `isDomWidget`.
+- **Prova:** `UiE2ETest.widgetVisualPrimitivesLinkOnAllTargets` (JVM+Native
+  link+run das 5 primitivas novas em Column) +
+  `KofJsBrowserE2ETest.widgetVisualPrimitivesRenderInRealBrowserDom` (Chrome
+  headless real: border/box-shadow/linear-gradient/flex/max-width no DOM — o
+  gradiente num Column é exatamente o caso que sumia); emit verificado no
+  `.mjs` (`kofUiWidgetSetId/SetClass/SetBorder` aparecem).
+- **Resíduo honesto:** outros receivers de `isUiType` que não widget DOM
+  (Style/Font/Event/Box/Stack/...) continuam sem métodos próprios no
+  registry — se um dia `instanceMethod` os aceitar, o gate precisa cobri-los
+  (mesma lição: registry e lowerer compartilham predicado, não lista).

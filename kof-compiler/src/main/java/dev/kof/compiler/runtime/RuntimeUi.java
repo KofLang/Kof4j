@@ -340,6 +340,13 @@ public final class RuntimeUi {
                 ret
             kof_ui_widget_set_disabled:
                 ret
+            // issue #78: primitivas visuais — no-op Native (real só no JS).
+            kof_ui_widget_set_border:
+            kof_ui_widget_set_shadow:
+            kof_ui_widget_set_gradient:
+            kof_ui_widget_set_flex_basis:
+            kof_ui_widget_set_max_width:
+                ret
             kof_ui_widget_on:
                 ret
             kof_ui_column_new:

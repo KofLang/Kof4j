@@ -263,6 +263,23 @@ class UiE2ETest {
     }
 
     @Test
+    void widgetVisualPrimitivesLinkOnAllTargets(@TempDir Path tempDir) throws IOException {
+        // issue #78: setBorder/setShadow/setGradient/setFlexBasis/setMaxWidth —
+        // aditivo; no-op JVM/Native, DOM real em KofJS (KofJsBrowserE2ETest).
+        both(tempDir, "widgetvisual", """
+            main() {
+                var card = Column(listOf(Label("x")))
+                card.setBorder(Color(255, 0, 0), 2)
+                card.setShadow(Color(0, 0, 0), 4, 12)
+                card.setGradient(Color(255, 0, 0), Color(0, 0, 255), 90)
+                card.setFlexBasis(300)
+                card.setMaxWidth(600)
+                println("ok")
+            }
+            """, "ok");
+    }
+
+    @Test
     void formContainerLinksOnAllTargets(@TempDir Path tempDir) throws IOException {
         // UI004: Form(children) — container <form>; no-op em JVM/Native,
         // DOM real em KofJS (KofJsBrowserE2ETest).

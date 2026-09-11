@@ -296,6 +296,50 @@ class KofJsBrowserE2ETest {
     }
 
     @Test
+    void widgetVisualPrimitivesRenderInRealBrowserDom(@TempDir Path tempDir) throws IOException {
+        Path chrome = findChrome();
+        assumeTrue(chrome != null, "Chrome/Chromium não instalado — pulando E2E de browser");
+
+        // issue #78: border/shadow/gradient/flex-basis/max-width aplicados de
+        // verdade no nó DOM (style inline), não só linkando no JVM/Native.
+        String program = """
+            main() {
+                var btn = Button("card")
+                btn.setBorder(Color(255, 0, 0), 2)
+                btn.setShadow(Color(0, 0, 0), 4, 12)
+                btn.setFlexBasis(300)
+                btn.setMaxWidth(600)
+                var col = Column(listOf(btn))
+                col.setGradient(Color(255, 0, 0), Color(0, 0, 255), 90)
+                var w = Window("VisualTest")
+                w.bind(col)
+                w.show()
+            }
+            """;
+        Path source = tempDir.resolve("App.kf");
+        Files.writeString(source, program);
+
+        Path outDir = tempDir.resolve("out");
+        CompilationResult result = driver.compile(source, outDir, Target.JS);
+        assertTrue(result.success(), "compilação JS deve passar: " + result.diagnostics().getDiagnostics());
+
+        HttpServer server = serve(outDir);
+        int port = server.getAddress().getPort();
+        try {
+            String dom = dumpDom(chrome, "http://127.0.0.1:" + port + "/index.html");
+            assertTrue(dom.contains("rgb(255, 0, 0) 2px solid") || dom.contains("2px solid rgb(255, 0, 0)"),
+                    "border inline ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("box-shadow"), "box-shadow ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("linear-gradient"), "gradiente ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("max-width: 600px"), "max-width ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("flex: 1 1 300px") || dom.contains("flex-basis: 300px"),
+                    "flex-basis ausente no DOM: " + excerpt(dom));
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void formSubmitHandlerRunsInRealBrowser(@TempDir Path tempDir) throws IOException {
         Path chrome = findChrome();
         assumeTrue(chrome != null, "Chrome/Chromium não instalado — pulando E2E de browser");
