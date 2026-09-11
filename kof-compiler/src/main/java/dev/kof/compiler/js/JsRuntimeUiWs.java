@@ -36,6 +36,58 @@ public final class JsRuntimeUiWs {
                 return o;
             }
 
+            export function kofStringsIndent(v, n) {
+                if (v == null) return null;
+                if (v.length === 0 || n <= 0) return v;
+                const LF = String.fromCharCode(10);
+                const CR = String.fromCharCode(13);
+                const pad = " ".repeat(n);
+                const lines = v.split(LF);
+                for (let i = 0; i < lines.length; i++) {
+                    let line = lines[i];
+                    let hasCr = line.endsWith(CR);
+                    if (hasCr) line = line.slice(0, -1);
+                    if (line.length > 0) {
+                        lines[i] = pad + line + (hasCr ? CR : "");
+                    } else {
+                        lines[i] = hasCr ? CR : "";
+                    }
+                }
+                return lines.join(LF);
+            }
+
+            export function kofStringsDedent(v) {
+                if (v == null || v.length === 0) return v;
+                const LF = String.fromCharCode(10);
+                const CR = String.fromCharCode(13);
+                const TAB = String.fromCharCode(9);
+                const lines = v.split(LF);
+                let minIndent = -1;
+                for (let i = 0; i < lines.length; i++) {
+                    let line = lines[i];
+                    if (line.endsWith(CR)) line = line.slice(0, -1);
+                    let ws = 0;
+                    while (ws < line.length && (line[ws] === ' ' || line[ws] === TAB)) {
+                        ws++;
+                    }
+                    if (ws < line.length) {
+                        if (minIndent === -1 || ws < minIndent) minIndent = ws;
+                    }
+                }
+                if (minIndent <= 0) return v;
+                for (let i = 0; i < lines.length; i++) {
+                    let line = lines[i];
+                    let hasCr = line.endsWith(CR);
+                    if (hasCr) line = line.slice(0, -1);
+                    let ws = 0;
+                    while (ws < line.length && ws < minIndent && (line[ws] === ' ' || line[ws] === TAB)) {
+                        ws++;
+                    }
+                    lines[i] = line.slice(ws) + (hasCr ? CR : "");
+                }
+                return lines.join(LF);
+            }
+
             // STDLIB S3.1c — escapeJson (corpo de string literal JSON, RFC 8259;
             // aspas de delimitação são do caller). \\\\ -> \\\\\\\\  " -> \\" ;
             // \\b \\f \\n \\r \\t 2-char; ctrl <0x20 -> \\u00xx; demais copiados.

@@ -109,6 +109,19 @@ class KofScriptStdlibParityTest {
             """, "0\n|\n|\n|\ntrue\n8\ntrue");
     }
 
+    @Test
+    void indentDedentParity() throws Exception {
+        parity("""
+            main() {
+                println("---")
+                println(strings.indent("a\\nb", 2))
+                println(strings.indent("x", 0))
+                println(strings.dedent("  a\\n    b"))
+                println(strings.dedent("hello"))
+            }
+            """, "---\n  a\n  b\nx\na\n  b\nhello");
+    }
+
     private static void deleteRecursively(Path dir) {
         try (var s = Files.walk(dir)) {
             s.sorted(java.util.Comparator.reverseOrder()).forEach(p -> {
