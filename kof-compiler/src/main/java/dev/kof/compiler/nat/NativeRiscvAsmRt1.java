@@ -149,15 +149,9 @@ public final class NativeRiscvAsmRt1 {
             # kof_string_char_at(str, idx) -> Int (char code)
             .globl kof_string_char_at
             kof_string_char_at:
-                lw   t0, 16(a0)
-                bge  a1, t0, .Lca_bounds
-                blt  a1, zero, .Lca_bounds
-                addi t1, a0, 24
-                add  t1, t1, a1
-                lbu  a0, 0(t1)
-                ret
-            .Lca_bounds:
-                call kof_bounds_error
+                # bug 43 (face riscv/aarch): code unit UTF-16 (par astral →
+                # high/low), bounds em units — corpo em B33 (trampoline).
+                j kof_su_char_at
 
             # kof_string_substring(str, start, end) -> KofStr* (end=0 → até o fim)
             .globl kof_string_substring

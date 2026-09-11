@@ -668,6 +668,29 @@ main() {
     }
 
     @Test
+    void nativeStringLengthAndCharAtUtf16(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        // bug 43 cross (faces 1/3): length/charAt em code units UTF-16
+        // (tradução riscv→aarch da B33) — MESMO golden do JVM medido.
+        String out = runAarch64(tempDir, """
+                main() {
+                    println("caf\\u00e9".length)
+                    println("caf\\u00e9".charAt(3))
+                    println("a\\u00e9\\u00e8".length)
+                    println("a\\u00e9\\u00e8".charAt(1))
+                    println("a\\u00e9\\u00e8".charAt(2))
+                    println("a\\u20ac".length)
+                    println("a\\u20ac".charAt(1))
+                    println("a\\uD83D\\uDE00b".length)
+                    println("a\\uD83D\\uDE00b".charAt(1))
+                    println("a\\uD83D\\uDE00b".charAt(2))
+                    println("a\\uD83D\\uDE00b".charAt(3))
+                }
+                """);
+        assertEquals("4\n233\n3\n233\n232\n2\n8364\n4\n55357\n56832\n98", out);
+    }
+
+    @Test
     void nativeStringCompareToAndHashCodeUtf16(@TempDir Path tempDir) throws IOException {
         assumeToolchain();
         // bug 97 cross: compareTo/hashCode em code units UTF-16 (tradução
