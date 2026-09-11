@@ -101,4 +101,50 @@ class NativeStringUtf16CrossTest {
                 "cross toolchain aarch64 + qemu ausente — pulando (NATIVE002)");
         assertEquals(GOLDEN, runCross(tempDir, PROGRAM, "qemu-aarch64", "NATIVE_AARCH64"));
     }
+
+    // B35 (§43 cross + §102 cross): busca em CODE UNITS UTF-16 + `from`
+    // respeitado (clamps do JDK 21). haystack "café😀x" = 7 units
+    // (c,a,f,é,D83D,DE00,x). 16 vetores: indexOf/lastIndexOf com e sem
+    // from (needle vazia, out-of-range, negative, corte de par), startsWith,
+    // contains. Golden = oracle JVM medido 11/09 (mesmo programa).
+    private static final String SEARCH_PROGRAM = """
+            main() {
+                var h = "café😀x"
+                println(h.indexOf("é"))
+                println(h.indexOf("😀"))
+                println(h.indexOf("x"))
+                println(h.indexOf(""))
+                println(h.indexOf("é", 3))
+                println(h.indexOf("x", 5))
+                println(h.indexOf("x", 99))
+                println(h.indexOf("z"))
+                println(h.lastIndexOf("é"))
+                println(h.lastIndexOf("café"))
+                println(h.lastIndexOf(""))
+                println(h.lastIndexOf("x", 2))
+                println(h.lastIndexOf("x", -1))
+                println(h.startsWith("café"))
+                println(h.contains("é"))
+                println(h.contains("z"))
+            }
+            """;
+
+    private static final String SEARCH_GOLDEN =
+            "3\n4\n6\n0\n3\n6\n-1\n-1\n3\n0\n7\n-1\n-1\ntrue\ntrue\nfalse";
+
+    @Test
+    void riscv64StringSearchUtf16(@TempDir Path tempDir) throws IOException {
+        Assumptions.assumeTrue(
+                has("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64"),
+                "cross toolchain riscv64 + qemu ausente — pulando (NATIVE002)");
+        assertEquals(SEARCH_GOLDEN, runCross(tempDir, SEARCH_PROGRAM, "qemu-riscv64", "NATIVE_RISCV64"));
+    }
+
+    @Test
+    void aarch64StringSearchUtf16(@TempDir Path tempDir) throws IOException {
+        Assumptions.assumeTrue(
+                has("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"),
+                "cross toolchain aarch64 + qemu ausente — pulando (NATIVE002)");
+        assertEquals(SEARCH_GOLDEN, runCross(tempDir, SEARCH_PROGRAM, "qemu-aarch64", "NATIVE_AARCH64"));
+    }
 }

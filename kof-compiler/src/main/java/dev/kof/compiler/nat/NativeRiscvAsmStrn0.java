@@ -400,59 +400,7 @@ public final class NativeRiscvAsmStrn0 {
                 addi sp, sp, 96
                 ret
 
-            # kof_string_last_index_of(str@a0, sub@a1) -> Int
-            .globl kof_string_last_index_of
-            kof_string_last_index_of:
-                addi sp, sp, -48
-                sd   ra, 40(sp)
-                sd   s0, 32(sp)
-                sd   s1, 24(sp)
-                sd   s2, 16(sp)
-                sd   s3, 8(sp)
-                sd   s4, 0(sp)
-                mv   s0, a0
-                mv   s1, a1
-                lw   s2, 16(s0)
-                lw   s3, 16(s1)
-                beqz s3, .Lli_end
-                bgt  s3, s2, .Lli_no
-                sub  s4, s2, s3
-            .Lli_outer:
-                bltz s4, .Lli_no
-                li   t0, 0
-            .Lli_inner:
-                bge  t0, s3, .Lli_found
-                addi t1, s0, 24
-                add  t2, s4, t0
-                add  t1, t1, t2
-                lbu  t1, 0(t1)
-                addi t2, s1, 24
-                add  t2, t2, t0
-                lbu  t2, 0(t2)
-                bne  t1, t2, .Lli_next
-                addi t0, t0, 1
-                j    .Lli_inner
-            .Lli_next:
-                addi s4, s4, -1
-                j    .Lli_outer
-            .Lli_found:
-                mv   a0, s4
-                j    .Lli_ret
-            .Lli_end:
-                mv   a0, s2
-                j    .Lli_ret
-            .Lli_no:
-                li   a0, -1
-            .Lli_ret:
-                ld   s4, 0(sp)
-                ld   s3, 8(sp)
-                ld   s2, 16(sp)
-                ld   s1, 24(sp)
-                ld   s0, 32(sp)
-                ld   ra, 40(sp)
-                addi sp, sp, 48
-                ret
-
+            # kof_string_last_index_of — MOVIDO p/ B35 (UTF-16 code units — §43 cross)
             # kof_string_equals_ignore_case(a@a0, b@a1) -> Bool
             """;
 }

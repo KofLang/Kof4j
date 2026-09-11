@@ -277,56 +277,6 @@ public final class NativeRiscvAsmRt1 {
                 addi sp, sp, 48
                 ret
 
-            # kof_string_index_of(a, b) -> Int
-            .globl kof_string_index_of
-            kof_string_index_of:
-                addi sp, sp, -48
-                sd   ra, 40(sp)
-                sd   s0, 32(sp)
-                sd   s1, 24(sp)
-                sd   s2, 16(sp)
-                sd   s3, 8(sp)
-                mv   s0, a0
-                mv   s1, a1
-                lw   s2, 16(s0)
-                lw   s3, 16(s1)
-                beqz s3, .Liof_found0
-                bgt  s3, s2, .Liof_no
-                li   t0, 0
-            .Liof_outer:
-                mv   t1, s2
-                sub  t1, t1, s3
-                bgt  t0, t1, .Liof_no
-                li   t2, 0
-            .Liof_inner:
-                bge  t2, s3, .Liof_found
-                addi t3, s0, 24
-                add  t4, t0, t2
-                add  t3, t3, t4
-                lbu  t3, 0(t3)
-                addi t4, s1, 24
-                add  t4, t4, t2
-                lbu  t4, 0(t4)
-                bne  t3, t4, .Liof_next
-                addi t2, t2, 1
-                j    .Liof_inner
-            .Liof_next:
-                addi t0, t0, 1
-                j    .Liof_outer
-            .Liof_found0:
-                li   t0, 0
-            .Liof_found:
-                mv   a0, t0
-                j    .Liof_ret
-            .Liof_no:
-                li   a0, -1
-            .Liof_ret:
-                ld   s0, 32(sp)
-                ld   s1, 24(sp)
-                ld   s2, 16(sp)
-                ld   s3, 8(sp)
-                ld   ra, 40(sp)
-                addi sp, sp, 48
-                ret
+            # kof_string_index_of — MOVIDO p/ B35 (UTF-16 code units — §43 cross)
             """;
 }

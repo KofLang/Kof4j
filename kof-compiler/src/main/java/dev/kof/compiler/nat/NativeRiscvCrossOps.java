@@ -202,6 +202,13 @@ public final class NativeRiscvCrossOps {
             };
             if (fn != null) {
                 int argCount = kc.parameterTypes().size();
+                // §102 cross (B35): com 2+ args o 2º (from) vive em a2 —
+                // roteia p/ o helper _2 (clamps JDK em code units UTF-16),
+                // idem ao dispatch de aridade do x86 em NativeX86StringCalls.
+                if (argCount >= 2 && (mn.equals("indexOf") || mn.equals("lastIndexOf")
+                        || mn.equals("startsWith"))) {
+                    fn = fn + "2";
+                }
                 if ("substring".equals(mn) && argCount == 1) {
                     sb.append("    pop a1\n    li a2, 0\n");
                 } else {
