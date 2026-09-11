@@ -18,7 +18,7 @@ public final class Main {
             case "build" -> CmdBuild.run(args);
             case "run" -> CmdRun.run(args);
             case "serve" -> CmdServe.run(args);
-            case "check" -> check(args);
+            case "check" -> System.exit(CmdCheck.run(args));
             case "test" -> CmdTest.run(args);
             case "bench" -> System.exit(Bench.run(args));
             case "profile" -> System.exit(Profile.run(args));
@@ -49,7 +49,7 @@ public final class Main {
         System.out.println("  build <dir> [--target jvm|native|js|android] [--output <dir>] [--release] [--apk]");
         System.out.println("  run <file.kf> [--target jvm|native|js|android] [--release] [args...]");
         System.out.println("  serve <file.kf> [--port <port>] [--host <host>]");
-        System.out.println("  check <file.kf|dir>          type-check without emitting output");
+        System.out.println("  check <file.kf|dir> [--json]   type-check without emitting output");
         System.out.println("  script <file.ks|kf> [--target jvm|native|js]   execução direta KofScript (JVM/Native/JS, diagnostics com file:line)");
         System.out.println("  repl                         REPL incremental KofScript (type 'exit' to quit)");
         System.out.println("  test <file.kf|dir> [--target jvm|native]   run programs, PASS/FAIL by exit code");
@@ -282,36 +282,6 @@ public final class Main {
             e.printStackTrace();
             System.exit(1);
         }
-    }
-
-    private static void check(String[] args) {
-        if (args.length < 2) { System.err.println("usage: kof check <file.kf|dir>"); System.exit(1); return; }
-        if ("--help".equals(args[1]) || "-h".equals(args[1]) || "--version".equals(args[1])) {
-            System.out.println("usage: kof check <file.kf|dir>");
-            return;
-        }
-        Path src = Path.of(args[1]);
-        if (!Files.exists(src)) { System.err.println("not found: " + src); System.exit(1); return; }
-        List<Path> files = Files.isDirectory(src) ? KofCliSupport.collect(src) : List.of(src);
-        if (files.isEmpty()) { System.out.println("no .kf/.kof files found"); return; }
-        CompilerDriver driver = new CompilerDriver();
-        boolean ok = true;
-        int count = files.size();
-        Path tmp;
-        try { tmp = Files.createTempDirectory("kof-check-"); }
-        catch (IOException e) { System.err.println("failed to create temp dir: " + e.getMessage()); System.exit(1); return; }
-        // diretório = um módulo (mesmo modelo do build/run); arquivo único = isolado
-        CompilationResult r = files.size() > 1
-                ? driver.compileSources(files.stream()
-                        .map(p -> p.toAbsolutePath().normalize()).distinct()
-                        .collect(java.util.stream.Collectors.toList()), tmp, Target.JVM,
-                        src.toAbsolutePath().normalize())
-                : driver.compile(files.get(0), tmp, Target.JVM);
-        for (Diagnostic d : r.diagnostics().getDiagnostics()) System.out.println(d.format());
-        KofCliSupport.cleanup(tmp);
-        if (!r.success()) ok = false;
-        if (!ok) System.exit(1);
-        System.out.println("checked " + count + " file(s) — no errors");
     }
 
     private static void info(String[] args) {

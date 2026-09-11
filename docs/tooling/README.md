@@ -102,4 +102,5 @@ semântica do programa.
 
 `kof check` executa o pipeline completo (Lexer → Parser → Semantic Analysis)
 sem emitir código, reportando todos os erros. O LSP publica o mesmo conjunto
-de diagnósticos, com os mesmos códigos, em tempo de edição.
+de diagnósticos, com os mesmos códigos, em tempo de edição. Com a flag `--json`,
+o `kof check` produz saída estruturada para ferramentas de análise e CI/CD.

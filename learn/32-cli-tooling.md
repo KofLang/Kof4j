@@ -19,7 +19,7 @@ A CLI é a ferramenta central da plataforma Kof.
 | `kof repl` | REPL incremental KofScript (type `exit` to quit) |
 | `kof c <file.c> [--run] [--output <bin>]` | KofC C subset → ELF x86-64 nativo-only |
 | `kof serve <file.kf>` | Web server HTTP (`web.app()` nativo + API legada `handle()`) |
-| `kof check <file.kf\|dir>` | Type-check sem emitir código |
+| `kof check <file.kf\|dir> [--json]` | Type-check sem emitir código |
 | `kof test <file.kf\|dir> [--target jvm|native|js]` | Suíte estruturada `test "nome" { assert(...) }` nos 3 targets + programas inteiros por exit code |
 | `kof bench [paths...] [--target ...] [--iterations N] [--baseline <file>] [--threshold <ratio>] [--json] [--fail-on-regression]` | Benchmark harness (compile, run, validate, métricas, baseline) |
 | `kof profile <file.kf> [--target ...]` | Execução + métricas (CPU, RSS, GC) |
@@ -64,6 +64,8 @@ Formato estruturado: `kof info --json`.
 
 Executa o pipeline completo (Lexer → Parser → Análise Semântica) e reporta
 todos os erros, sem emitir código. É a mesma checagem que o LSP publica.
+Com a flag `--json` (`kof check <file.kf|dir> --json`), emite os diagnósticos
+em formato JSON estruturado para automação e integração contínua (CI/CD).
 
 ## `kof script` e `kof c` (0.2.0)
 
