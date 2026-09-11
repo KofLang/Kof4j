@@ -2784,3 +2784,56 @@ int de índice) — verificados na varredura.
   Escopo grande (afeta RuntimeDb4/Gc que compartilham o chain). **Ação:**
   registrar §109 + na 1ª fatia OTP, o gate Native é `OTP001` honesto (R6) até
   §109 fechado; JVM+Script+JS entregam o núcleo.
+
+### 110. Frontend: re-análise do corpo de método no mesmo escopo → SEM024 falso ("variable already defined") — ✅ CORRIGIDO 11/09 (impeditivo do host OTP puro-Kof)
+- **Sintoma:** classe cujo método **sem tipo de retorno declarado** termina em
+  `return <expr>` (ou **chama outro método da mesma classe** que faz isso) →
+  `SEM024: variable 'q' is already defined in this scope` apontando para um `var`
+  que aparece UMA só vez no corpo. Bypassava todo construtor/builder encadeado
+  (`child(id,f)` → `return child(id,f,pol)`), forma canônica de API fluente.
+- **Menor repro (título `S18`):** `class C { a(Int x) { var q = x; return q } }`
+  → SEM024 em `q`. Com `Int a(Int x)` (tipo declarado) → compila. Duas funções
+  de topo com o mesmo `var q` → compila (não é colisão entre unidades).
+- **Causa raiz (`SemanticAnalyzer`):** o corpo de método/constructor passa por um
+  **laço de 4 passes** para inferir return-type (bug 26). No pass 1 o
+  `analyzeBody` `define` cada `var` no `methodScope` (IdentityHashMap criado em
+  `SymbolTableBuilder.defineMethodSymbol`). Quando um `return <expr>` num método
+  void dispara a reinferência (`ms.setReturnType`, l.257-263), `changed=true` e o
+  laço **re-executa `analyzeBody` no MESMO `methodScope`** → o SC5
+  (`scope.hasLocal`, `StatementAnalyzer:136`) reclama de cada `var` do pass
+  anterior. Por isso a suíte estava verde: todo o corpus usa tipos declarados.
+- **Fix (mínimo, sem tocar semântica):** cada análise de corpo ganha um
+  **escopo-filho** (`methodScope.enterScope()` / `ctorScope.enterScope()`) em
+  `analyzeMethodBody`/`analyzeConstructorBody`. `resolve()` anda pai-acima, então
+  params/`this`/campos continuam visíveis; apenas os `var`s deixam de vazar entre
+  passes (o pinning de tipo SG-008 é por-pass e o codegen lê `expressionTypes`,
+  não estes escopos — verificado: nenhum leitor de `methodScopes()`/`ctorScopes()`
+  fora do próprio builder). Redeclaração genuína **no mesmo corpo** continua
+  SEM024 (coberto pelo teste).
+- **Prova:** `SemanticResolutionTest#redeclarationFalsePositiveEmMetodoDeClasse`
+  (repro + run com valor encadeado correto `total==3`) e
+  `#redeclaracaoMesmoCorpoAindaErro` (borda SC5); os 5 mini-repro do spike
+  (T15/T16/T18/T19/T21) viram `ok=true`; bloco `*Class*,*Method*,*Semantic*,*E2E*`
+  = 679/0.
+- **Por que corrigi (regra dos bugs impeditivos):** o núcleo OTP #83 na forma
+  **puro-Kof** (DD-OTP-01-A, recomendada no plano) exige API fluente com método
+  sem tipo declarado encadeando `return`; §110 travava a compilação do host no
+  passo ZERO. É impeditivo direto da unidade assumida, não auditoria geral.
+
+### 111. Frontend/Backend: sobrecarga de método por ARIDADE na mesma classe quebra (SEM013 no JVM; colisão de símbolo no NATIVE) — 🔴 ABERTO (achado no spike OTP #83 11/09; contornado)
+- **Reprodução:** `class B { Int m(Int a){ return this.m(a,1) } Int m(Int a, Int
+  b){ return a+b } }` → no JVM: `SEM013: Wrong number of arguments for 'm':
+  expected 2 but got 1` na chamada `b.m(5)` — a seleção de overload ignora o
+  1º método e só "vê" o último definido. Default de parâmetro (`m(Int a, String
+  p = "def")`) também não existe no parser. No NATIVE: quando a resolução passa,
+  a emissão colide (`as: symbol 'Supervisor_child' is already defined`).
+- **Causa provável (JVM):** `defineMethodSymbol` faz `classScope.define(methodSym)`
+  sobreescrevendo o `Symbol` homônimo (um slot por NOME, não por assinatura) →
+  só a última aridade sobrevive no mapa de membros. NÃO investigado a fundo
+  (fora do escopo da unidade — workaround adotado).
+- **Contorno no host OTP:** API usa **assinatura única** `child(id, fabrica,
+  politica)` (sem overload `child/2`). Zero impacto no caso de uso.
+- **Por que NÃO corrigi:** seleção de overload é mudança na **resolução de
+  membros** (afeta toda dispatch, testada por centenas de casos). Impeditivo?
+  NÃO — contornado com 1 assinatura. Deixado para a lane de tipos/overload com
+  este menor repro.

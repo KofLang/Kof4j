@@ -255,4 +255,75 @@ class SemanticResolutionTest {
         assertTrue(r.success(), "formais String + replace(char,char) devem compilar: "
                 + r.diagnostics().getDiagnostics());
     }
+
+    // §110 (spike OTP #83, 11/09): o laço de 4 passes do corpo de MÉTODO
+    // (inference de return-type "bug 26") re-analisava cada corpo no MESMO
+    // SymbolTable → do 2º pass em diante, todo `var` colidia (SEM024 falso)
+    // quando UM método sem tipo declarado termina em `return <expr>` (ou chama
+    // outro da classe que faz isso). Forma do spike: builder de cadeia com
+    // overload `child(id, f)` delegando para `child(id, f, politica)`.
+    @Test
+    void redeclarationFalsePositiveEmMetodoDeClasse(@TempDir Path tmp) throws IOException {
+        String src = """
+                class Node {
+                    Int value
+                    Int rest
+                    constructor(Int value, Int rest) { this.value = value; this.rest = rest }
+                }
+                class S {
+                    Int total
+                    constructor() { this.total = 0 }
+                    add(Int v) {
+                        return this.add2(Node(v, 0))
+                    }
+                    add2(Node n) {
+                        var q = n.value
+                        var r = n.rest
+                        total = total + q + r
+                        return total
+                    }
+                }
+                main() {
+                    var s = S()
+                    s.add(3)
+                    println(s.total == 3)
+                }
+                """;
+        CompilationResult r = compile(tmp, "S110.kf", src);
+        assertTrue(r.success(), "corpos de método re-analisados devem aceitar 'var' "
+                + "repetido (escopo por análise, não por classe): "
+                + r.diagnostics().getDiagnostics());
+        // executa de verdade (o fix nao pode trocar SEM024 por bytecode quebrado)
+        java.nio.file.Path out = tmp.resolve("out-run");
+        CompilationResult r2 = driver.compile(tmp.resolve("S110.kf"), out, Target.JVM);
+        assertTrue(r2.success(), "segunda compilacao p/ run: " + r2.diagnostics().getDiagnostics());
+        try {
+            Process p = new ProcessBuilder("java", "-cp", out.toString(), "Default.Main")
+                    .redirectErrorStream(true).start();
+            String os = new String(p.getInputStream().readAllBytes(),
+                    java.nio.charset.StandardCharsets.UTF_8);
+            assertEquals(0, p.waitFor(), "run deve sair limpo: " + os);
+            assertTrue(os.contains("true"), "inference de return-type encadeado deve "
+                    + "produzir o valor certo: " + os);
+        } catch (InterruptedException e) {
+            throw new IOException(e);
+        }
+    }
+
+    // §110 borda: redeclaração GENUÍNA no mesmo corpo continua SEM024
+    // (o fix só isola passes, nunca afrouxa o SC5).
+    @Test
+    void redeclaracaoMesmoCorpoAindaErro(@TempDir Path tmp) throws IOException {
+        CompilationResult r = compile(tmp, "S110b.kf", """
+                main() {
+                    var q = 1
+                    var q = 2
+                    println(q)
+                }
+                """);
+        assertFalse(r.success(), "redeclaracao no mesmo escopo continua SEM024");
+        assertTrue(r.diagnostics().getDiagnostics().stream()
+                .anyMatch(d -> "SEM024".equals(d.code()) && d.message().contains("'q'")),
+                "esperava SEM024 de 'q', foi: " + r.diagnostics().getDiagnostics());
+    }
 }
