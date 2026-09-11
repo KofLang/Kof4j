@@ -2698,3 +2698,89 @@ int de índice) — verificados na varredura.
 - **Prova:** `KofRandomTest` (contrato 500× randomInt(1000)/randomInt(2) +
   randomString + assert randomInt(1)==0) riscv64+aarch64 sob qemu; suíte completa.
 
+
+### 107. JVM: cast para tipo de função (`x as () -> Int`) gera bytecode inválido (VerifyError) — 🔴 ABERTO (achado no spike OTP #83 11/09)
+- **Reprodução:** `var o: Object = (Object)(() -> 5)`… em Kof puro:
+  `fun(Int x) { var g = x as () -> Int; return g() }` — `fun(() -> 9)` →
+  **compila ok** mas ao rodar: `VerifyError: Operand stack underflow` /
+  `checkcast // class "?"` (checkcast para classe INEXISTENTE — o tipo de
+  função não tem erasure mapeado no cast).
+- **Menor repro:** `main(){ var l = listOf(() -> 5); var g = l.get(0) as () -> Int; println(g()==5) }` (out_B107).
+- **Impacto OTP:** DD-OTP-02 propunha `child(id, factory, ...)` com `factory`
+  como tipo de função. O cast `as () -> T` está quebrado no JVM, então a forma
+  "Object/qualquer + cast p/ função" NÃO é utilizável hoje.
+- **Workaround verificado (forma que RODA nos targets):** usar **interface** como
+  contrato da fábrica (DD-OTP-06 "factory nova sempre"): `interface Worker { Int
+  criar() }` + `class W implements Worker { criar(){...} }` — dispatch virtual de
+  interface funciona nos 5 targets (spike S2/S4: supervisor puro-Kof com campo
+  `Worker` + `spawn { w.criar() }` + try/await/catch = captura/limit/restart tudo
+  verde no JVM). O campo tipado como `() -> Int` dá PARSE016 (parser de corpo de
+  classe não aceita LPAREN como início de campo — `ClassMemberParser`), e como
+  `Object`+cast dá este §107.
+- **Por que NÃO corrigi agora:** consertar o erasure do cast de tipo-função no
+  `JvmTypeMapper` é mudança de infraestrutura de tipos (afeta `mapOf<String,
+  ()->T>` etc.) — fora do escopo OTP (a interface resolve o caso de uso do
+  supervisor). Registrado como pré-requisito se um dia a API quiser closure como
+  tipo-valor declarado.
+
+### 108. JVM: resultado de `selectAny`/`await` de Handle<Int> atribuído a var e usado como Int → VerifyError — 🔴 ABERTO (spike OTP #83 11/09)
+- **Menor repro:** `Int um(){return 1}; Int dois(){return 2}; main(){ var a=spawn
+  um(); var b=spawn dois(); var v=selectAny(a,b); println(v==1||v==2) }` →
+  compila ok, roda: `VerifyError: Bad type on operand stack … Type
+  'java/lang/Object' is not assignable to integer` no `istore` do resultado de
+  `kof_select_any` (que retorna `Object`).
+- **Causa:** o typer sabe o elemento (`selectAny`→typeArg do Handle,
+  `BuiltinCallTyper:304`), mas o lowerer emite `kof_select_any`→`Object` e **não
+  insere o unbox** (`Integer.intValue`) quando o destino é primitivo. `await h`
+  de Handle<Int> seguido de uso Int (`var v=await h; v==1`) NÃO trava no JVM
+  (B108/A1 verdinhos), mas `selectAny` sim. Divergência entre os dois builtins no
+  mesmo lowerer.
+- **Impacto OTP:** DD-OTP-03 propunha `selectAny(handles)` como coração do
+  supervisor N-workers. No JVM o resultado primitivo é inutilizável hoje.
+  Contorno do spike: supervisor JVM usa `poll`/`done` por filho no laço (verificados
+  — `KofConcurrency2Test`) OU um `await` por filho com a thread supervisora por
+  worker; a decisão final depende de fechar este §108 ou fixar o unbox.
+- **Fix mínimo provável (NÃO aplicado — fora do escopo da unidade, para a lane
+  CONC/native):** no `ExpressionStaticCallLowerer` ramo `selectAny`, inserir o
+  mesmo unbox que `await` já faz quando o tipo-destino é primitivo. Reproduzível
+  e pequeno; mas como `await h` de Int já funciona, a assimetria é só de
+  `selectAny` → deixo para o dono da lane CONC (regra dos bugs não-impeditivos: o
+  supervisor consegue viver sem selectAny no núcleo 1ª fatia).
+
+### 109. Native x86_64: `throw` dentro de worker `spawn` → unwinder faz longjmp no handler da THREAD MAIN (crash/hang cross-thread) — 🔴 ABERTO (impeditivo do OTP no Native; spike #83 11/09, evidência GDB)
+- **Reprodução (M2, deterministicamente travado/crashado no native):**
+  `main(){ var i=0; while(i<3){ var h=spawn { throw "x" }; try { await h }
+  catch(String e){println("cap")} i=i+1 } println("fim3") }` → imprime
+  `cap 0 cap 1 cap 2 fim3` e o **processo nunca sai** (exit 124 no timeout).
+  Sem try no worker (V1/V3: `spawn { 5 }` + await, sem throw) → sai limpo.
+- **Evidência (GDB, não hipótese):** sob timing variável o processo dá SIGSEGV
+  com `rip=0x0` na main **e** a thread-3 (worker) aparece com stack frames de
+  `kof_spawn_handle_new` nos endereços de STACK DA MAIN (`0x7fffffffd580`,
+  `0x7fffffffd5a0` = locals do `main`). I.e.: o `throw` do worker não
+  encapsula a falha na thread do worker — o **handler chain global
+  (`kof_exc_chain`, bss compartilhada entre threads — `NativeMethodEmitter:238`)
+  faz o longjmp do worker saltar para o handler `try` registrado pela main**
+  (o `try { await h }` da main), corrompendo o stack da main / deixando a
+  task sem join → o epílogo `kof_spawn_join_all` pendura ou a main já se foi.
+- **Comportamento PREVISTO (JVM/interpretador/JS):** `spawn { throw }` faz a
+  task completar excepcionalmente; `await` na main re-lança a causa no
+  CONSUMIDOR (JvmRuntimeCore:202 / KofInterpreterConcurrency:172). A task que
+  falha NUNCA executa código na thread da main. O Native diverge (regra 5 —
+  paridade cross-target).
+- **Impacto OTP (por que é impeditivo, não "bug alheio adiado"):** o núcleo do
+  supervisor #83 É "worker falha → supervisor observa → reinicia". Na forma
+  puro-Kof (spawn+await+try/catch, que é a recomendada no DD-OTP-01-A), isso
+  cai exatamente no caminho do §109 → no Native o supervisor crasha/hanga ao
+  reiniciar UM worker que lança. Sem resolver §109, o gate de paridade da
+  feature (E2E nos nativos) é inalcançável — seria `OTP001` no Native (gap
+  honesto R6), não implementação.
+- **Não corrigi nesta sessão (motivo):** o fix exige dar ao unwinder do Native
+  **isolamento por thread** de `kof_exc_chain` (chain thread-local, como o
+  `cancelled()` por TID já é) + garantir que um `throw` sem handler no worker
+  marque o handle como excepcionalmente-completo em vez de longjmpar para fora
+  da thread. É mudança do MECANISMO de exceção no Native (não um bug pontual) —
+  superfície congelada-adjacente (regra 6/§). Precisa de decisão da mantenedora
+  sobre a convenção de unwind no Native (chain TLS por TID vs frame por thread).
+  Escopo grande (afeta RuntimeDb4/Gc que compartilham o chain). **Ação:**
+  registrar §109 + na 1ª fatia OTP, o gate Native é `OTP001` honesto (R6) até
+  §109 fechado; JVM+Script+JS entregam o núcleo.
