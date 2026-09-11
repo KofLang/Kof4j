@@ -2554,6 +2554,30 @@ int de índice) — verificados na varredura.
   um: E2E com 2 workers longos + cancel do 2º (harness de 50+ iterações p/
   pegar colisão). NÃO bloqueia `planning-otp-supervision` (que usa flag
   própria de stdlib — DD-OTP-08).
+- **SONDA 11/09 (tentativa de atacar — voltou a ABERTO, com plano travado):**
+  repro probabilística medida: worker longo cooperativo + worker curto
+  cancelado, 5 execuções x86 nativas — 5/5 sem colisão (TIDs de pthread
+  tendem a ser sequenciais; o hash `0x9E3779B9…>>56` só colide com TIDs
+  distantes ~2^56 — raro na prática, mas REAL após wrap de TID / threads
+  encerradas: o `movb $0` do trampoline no slot alheio continua silencioso).
+  **Por que NAO implementei sem decisão (regra 6):** o fix correto exige TLS
+  (`__thread kof_current_handle`, setado na entrada do trampoline — ~6 linhas
+  x86 + chamada `tls_get_addr` ou FS-base via `movq %fs:0`) OU crescer o bloco
+  do trampolim p/ carregar o handle (já carregado! `8(%rdi)` é o handle no
+  bloco — o trampoline PODE setar um field `cancelled` no próprio handle ANTES
+  da task, mas `cancelled()` não recebe handle — é função global; trocar a
+  assinatura `cancelled()`→leitura TLS = mudança de CONTRATO da API
+  congelada spawn/await/cancel). O caminho sem mudança de contrato é o **TLS
+  implícito**: `kof_cancel(h)` marca `h.canceled` (field novo 32 no handle,
+  alloc 32→40) E o trampoline publica `tls = h` no start; `cancelled()` lê o
+  TLS e responde `h.canceled` (fora de worker → 0, paridade com hoje). Zero
+  colisão (flag é do handle), tabela 256 some. **Decisão pedida à
+  mantenedora:** aprovar TLS+field `canceled@32` (plano acima, ~30 linhas em
+  `RuntimeConcurrency.java` + `KofInterpreterConcurrency` paridade + teste de
+  colisão forçada via 2 workers com cancel encadeado em loop de 1000 spawns)
+  OU aceitar o risco documentado (colisão exige TID-wrap; 5/5 limpo na sonda).
+  riscv/aarch não têm `kof_cancel` exportado (gate CONC001 só no x86) — o
+  fix é x86-only, sem efeito paridade nos outros nativos (já diagnosticado).
 
 ### 102. kof.ui: chamadas de instância em `Column`/`Row` eram DROPADAS silenciosamente (compila e não faz nada) — ✅ CORRIGIDO 11/09
 
