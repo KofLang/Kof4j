@@ -344,4 +344,47 @@ class SemanticResolutionTest {
                 """);
         assertTrue(r.success(), "legítimo deve compilar: " + r.diagnostics().getDiagnostics());
     }
+
+    // ---- #98 (paridade absoluta JVM=JS=X86=ARM=RISC): `<`/`<=`/`>`/`>=` em
+    // String era aceito e dava LIXO DIFERENTE em cada target (JVM tudo-false
+    // via if_acmp, Native comparava PONTEIRO, Script lexicográfico). Opção B:
+    // REJEITAR (SEM053) apontando p/ `compareTo` — igual nos 5 alvos. ----
+
+    @Test
+    void stringOrderingOperatorsRejected(@TempDir Path tmp) throws IOException {
+        String[] exprs = {
+            "\"abc\" < \"abd\"", "\"abc\" <= \"abd\"", "\"abc\" > \"abd\"",
+            "\"abc\" >= \"abd\"", "\"abd\" < \"abc\"", "\"abc\" < 'b'" };
+        for (String e : exprs) {
+            CompilationResult r = compile(tmp, "e.kf", "main() { println(" + e + ") }");
+            assertFalse(r.success(), "deve falhar: " + e);
+            boolean found = r.diagnostics().getDiagnostics().stream()
+                    .anyMatch(d -> "SEM053".equals(d.code()) && d.message().contains("compareTo"));
+            assertTrue(found, "esperava SEM053 p/ '" + e + "', foi: "
+                    + r.diagnostics().getDiagnostics());
+        }
+    }
+
+    @Test
+    void stringEqualityAndNumericOrderingStillCompile(@TempDir Path tmp) throws IOException {
+        // não regridir: `==`/`!=` de String (conteúdo, congelado) e toda
+        // comparação numérica (o guard é SÓ p/ String).
+        CompilationResult r = compile(tmp, "ok.kf", """
+                main() {
+                    var a = "abc"
+                    var b = "abd"
+                    println(a == b)
+                    println(a != b)
+                    println(a == "abc")
+                    println(3 < 5)
+                    println(3L <= 5L)
+                    println(2.5 > 1.5)
+                    println(a.compareTo(b) < 0)
+                    var n = 0
+                    while (n < 10) { n = n + 1 }
+                    println(n)
+                }
+                """);
+        assertTrue(r.success(), "legítimo deve compilar: " + r.diagnostics().getDiagnostics());
+    }
 }

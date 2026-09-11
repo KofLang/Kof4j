@@ -2334,7 +2334,7 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   (dispatch) — NÃO silencioso: gap aberto, menor repro `/tmp/oq.kf`.
 - **Descoberto:** 10/09 na varredura de paridade String (batch `swB.kf`/`swF.kf`/`sw2b.kf`).
 
-### 98. String `<`/`>`: três backends divergem e TODOS dão lixo — ABERTO (semântica **Unspecified** no reference; regra 6 — decisão da mantenedora)
+### 98. String `<`/`>`: três backends divergem e TODOS dão lixo — ✅ CORRIGIDO 11/09 (SEM053: rejeitar, opção B da mantenedora)
 
 - **Sintoma (medido 10/09, 3 targets no MESMO programa `swE.kf`,
   `"abc"` vs `"abd"`):** `a<b | a>b | b<a | b>a | a==b` —
@@ -2343,24 +2343,35 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   (compara o **ponteiro** — ordem de alocação, não conteúdo); **interpretador**
   `true|false|false|true|false` (lexicográfico, **invertido** p/ `<` vs `>` do
   Native). `a==b` bate (`false`) nos 3 (conteúdo, congelado — §regra 6).
-- **Não é "só alinhar":** `docs/language-reference/expressions.md:56-58`
-  declara a ordem lexicográfica de String por `<`/`>` como **Unspecified** —
-  "o parser aceita, o lowering usa `if_acmp*` para referências, o que para
-  `<`/`>` em referência é **não suportado**". Escolher SEMÂNTICA (ordem
-  lexicográfica UTF-16? por code point? erro de compilação?) é **mudança de
-  contrato sobre operadores congelados** → regra 6: decisão da mantenedora,
-  NUNCA edição silenciosa.
-- **Três caminhos possíveis (documentar + discutir, não implementar):**
-  (a) **rejeitar no typer** (`<`/`>` em String = erro SEM, apontando p/
-  `compareTo`) — o mais honesto com "não suportado" do reference, mas quebra
-  código que compila hoje nos 3 (bump); (b) **definir lexicográfico UTF-16**
-  (= `compareTo < 0`) e implementar nos 3 (a opção "completa"; exige o §97
-  primeiro); (c) deixar unspecified e só adicionar **diagnóstico** no Native/
-  Script quando hoje compila em silêncio (meio-termo R6). Cada um muda
-  observável → bump/discussão.
-- **Ação p/ a mantenedora:** escolher (a)/(b)/(c) → eu implemento na lane.
-- **Descoberto:** 10/09 na varredura de paridade String (batch `swD.kf`/`swE.kf`).
-
+- **Revalidado 11/09** sob a diretriz nova da mantenedora ("paridade entre os
+  targets em primeiro lugar; regra absoluta JVM=JS=X86=ARM=RISC; opção B =
+  rejeitar em tempo de compilação"): os 3 alvos reproduzem os 3 resultados
+  DIFERENTES acima — é exatamente o que a regra proíbe (mesmo código,
+  comportamento distinto). Não é mais caso de "decisão de design aberta": a
+  decisão É rejeitar (a mesma família da opção B dos §96/§100).
+- **✅ CORRIGIDO 11/09 — SEM053 no typer de resultado binário**
+  (`TypeChecker.inferBinaryResultType`): `<`/`<=`/`>`/`>=` com um lado
+  String (ou `Nullable(String)`) agora é **erro em compile-time** apontando
+  para o idiom: "use `s.compareTo(t) < 0`" (com o relacional correto por
+  operador). Operando **mistos** (`"abc" < 'b'`, `"abc" < 1`) caem na MESMA
+  SEM053 (o guard é `isMaybeString(left) || isMaybeString(right)`). Como o
+  `inferBinaryResultType` é o frontend ÚNICO (alimenta o shortcut de condição
+  `if`/`while`/`for` **e** o valor `KofBinary` de `println(a<b)`), a rejeição
+  é idêntica nos 5 alvos — verificado: JVM/NATIVE/JS dão SEM053 igual no
+  `compile` e o `interpret()` (Script) LANÇA a mesma mensagem.
+- **Escopo cirúrgico (não regridir — regra 1):** `==`/`!=` de String (conteúdo,
+  congelado §regra 6) e `+` (concat) NÃO passam pelo guard; toda comparação
+  NUMÉRICA (int/long/float/double, `while (n < 10)`) e Char-vs-Char seguem
+  válidas. O caminho de referência não-String (`if_acmp*` p/ Object) não é
+  tocado.
+- **Prova:** `SemanticResolutionTest.stringOrderingOperatorsRejected` (6 formas
+  × SEM053) + `stringEqualityAndNumericOrderingStillCompile` (==/!= numérico/
+  compareTo idiom não regridem). Suíte completa pós-clean abaixo.
+- **O que um dia reabriria discussão:** (b) definir ordem lexicográfica UTF-16
+  como CONTRATO (exigiria os 5 backends + bump + migração — hoje o `compareTo`
+  cobre 100% dos usos reais e o reference mantém `Unspecified`). Não é a
+  decisão desta sessão.
+- **Descoberto:** 10/09; **corrigido 11/09** (SEM053, opção B).
 
 ### 100. Char como argumento de método String aceito em silêncio → quebra de um jeito DIFERENTE em cada target (paridade absoluta + R6) — ✅ CORRIGIDO 11/09 (SEM051, opção B: rejeitar em compile-time)
 

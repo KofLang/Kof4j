@@ -25,7 +25,40 @@ public final class TypeChecker {
         };
     }
 
+    /** String OU Nullable(String) — para o guard de ordem em String (bug 98). */
+    private static boolean isMaybeString(Type t) {
+        if (t instanceof Type.NullableType nt) return BuiltinTypes.isString(nt.inner());
+        return BuiltinTypes.isString(t);
+    }
+
     static Type inferBinaryResultType(DiagnosticCollector diagnostics, String operator, Type left, Type right) {
+        // bug 98 (paridade absoluta JVM=JS=X86=ARM=RISC, opção B da mantenedora):
+        // `<`/`<=`/`>`/`>=` entre Strings — a ordem era UNspecified no reference
+        // (expressions.md:56-58) e cada target dava lixo DIFERENTE: JVM tudo
+        // false (if_acmp em referência), Native comparava PONTEIRO (ordem de
+        // alocação), Script dava lexicográfico — paridade quebrada em silêncio
+        // (R6). REJEITAR em compile-time com SEM053 (o MESMO erro nos 5 alvos:
+        // este typer é o frontend único) apontando para o idiom do corpus —
+        // `s.compareTo(t) < 0` (ordem lexicográfica, paridade §97). `==`/`!=`
+        // (conteúdo, congelado) e `+` (concat) NÃO são afetados.
+        if (("<".equals(operator) || "<=".equals(operator) || ">".equals(operator)
+                || ">=".equals(operator))
+                && (isMaybeString(left) || isMaybeString(right))) {
+            if (diagnostics != null) {
+                String rel = switch (operator) {
+                    case "<" -> "< 0";
+                    case "<=" -> "<= 0";
+                    case ">" -> "> 0";
+                    default -> ">= 0";
+                };
+                diagnostics.error("", 0, 0, 0,
+                        "Kof não tem o operador '" + operator + "' para String "
+                                + "(ordem lexicográfica Unspecified — divergia por target); "
+                                + "use: s.compareTo(t) " + rel,
+                        "SEM053");
+            }
+            return Type.UnknownType.UNKNOWN;
+        }
         if ("==".equals(operator) || "!=".equals(operator) || "<".equals(operator) ||
                 ">".equals(operator) || "<=".equals(operator) || ">=".equals(operator)) {
             return Type.PrimitiveType.BOOL;
