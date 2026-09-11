@@ -248,6 +248,18 @@ public final class NativeX86Calls {
                 }
                 sb.append("    popq %rax\n");
                 sb.append("    movq %rax, %rdi\n");
+                // §123: tag de chave no header do map (off 40). 1=String
+                // (kof_string_equals), 0=raw cmpq. Unknown NÃO toca (mantém o
+                // default 1 — String é o caso histórico; chave Int chega
+                // SEMPRE com tipo concreto pelo pinning do put/mapOf).
+                if (collFn.startsWith("kof_map_") && argCount >= 1) {
+                    Type kt = kc.parameterTypes().get(0);
+                    if (kt instanceof Type.NullableType nt) kt = nt.inner();
+                    if (!(kt instanceof Type.UnknownType)) {
+                        sb.append("    movl $").append(BuiltinTypes.isString(kt) ? 1 : 0)
+                          .append(", 40(%rdi)\n");
+                    }
+                }
                 sb.append("    call ").append(collFn).append("\n");
                 if (!Type.isVoid(kc.returnType())) {
                     sb.append("    pushq %rax\n");

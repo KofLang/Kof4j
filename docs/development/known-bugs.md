@@ -2967,7 +2967,7 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   sem exclusões + `NativeE2ETest#nativeMultiDimArray` (repro menor do §113
   → `2/7`); suíte completa pós-clean verde. Faces riscv/aarch: port pendente.
 
-### 114. Native: `equals`/`==` de record com campo de REFERÊNCIA (String ou record aninhado) compara PONTEIRO → `false` — ⏳ ABERTO (sub-face do §104b-ii (i), backend-only)
+### 114. Native: `equals`/`==` de record com campo de REFERÊNCIA (String ou record aninhado) compara PONTEIRO → `false` — ⏳ PARCIAL 11/09 (face String ✅; record-aninhado/hash/coleção = §104b-ii) (sub-face do §104b-ii (i), backend-only)
 
 - **Menor repro (medido 11/09):**
   `record S(String t)` + `println(S("ab") == S("ab"))` → JVM/Script/JS `true`,
@@ -2983,7 +2983,15 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   Top-level `s == t` de String funciona porque passa pelo caminho de
   comparação de String do typer (`Objects.equals`/`kof_string_equals`), não
   por aqui.
-- **Fix (não feito):** mesma infra do §104b-ii (i) — nos campos de referência
+- **✅ FACE STRING CORRIGIDA 11/09:** campo String → `KofCall
+  kof_string_equals(STRING,STRING)` como FUNCTION — o MESMO lowering do
+  top-level `s == t` (ExpressionBinaryLowerer:214), já roteado nos 3 backends
+  nativos (x86 direto; riscv `NativeRiscvCrossOps:253`; aarch via tradutor),
+  null-safe medido: `S(null)==S(null)` → true (era true-acidental por
+  ponteiro-null; continua true por conteúdo). Prova: célula `recordstrfield`
+  4/4 sem exclusão (`S("ab")==S("ab")` true, mismatch false, campo misto
+  Int+String) + suíte completa 4 módulos verde (1337+30+5+127).
+- **Fix (não feito — faces restantes):** mesma infra do §104b-ii (i) — nos campos de referência
   do equals sintetizado, emitir o compare de conteúdo: String →
   `call kof_string_equals` (helper já existe); record aninhado → dispatch vtable
   `equals` pelo slot do tipo do campo (`findVirtualMethodIndex(f.type(),
@@ -3335,6 +3343,145 @@ int de índice) — verificados na varredura.
   cross-sem-toolchain). JS/Native/Script já aceitavam; só o codegen JVM
   estava quebrado — nenhuma mudança de contrato (widening Int→Long já é
   documentado em `learn/`).
+
+### 122. List `get`/`set`/`remove` com índice NÃO-Int (String/record/array) aceito em silêncio → JVM VerifyError na carga, Native pointer-as-index → ⏳→✅ (opção B, família SEM051-054) [SEM055 11/09]
+
+- **Menor repro (medido 11/09, probes RM3/IX/IX2):**
+  `var s = listOf("a","b"); println(s.remove("a"))` → **JVM**:
+  `VerifyError: Bad type on operand stack ... not assignable to integer` na
+  **carga da classe** (todo o programa morre, não só o statement);
+  **Native**: o ponteiro da String vira índice → `array index out of bounds`
+  (exit≠0). `get("x")`/`set("k",v)` idem. Int no índice funciona (`IXC`).
+- **Causa raiz:** `CollectionCallLowerer` (lowering único dos 5 targets)
+  despacha `kof_list_get/set/remove` sem checar o tipo do argumento — o
+  contrato (learn/12, training/idioms/collections) é **índice Int**
+  (`remove(0)` devolve o elemento); Java tem overloads remove(int)/remove(Object),
+  Kof não — o by-value era fake idiom aceito.
+- **✅ CORRIGIDO 11/09 (opção B — decisão da mantenedora §100, mesma
+  família SEM051/052/053/054):** guarda por posição no lowering:
+  `get/set/remove` de List com tipo de **referência** (ClassType/record/
+  ArrayType/TypeVariable, desconhecidos-nullable NUNCA flagados — SG-008 pode
+  chegar Int em runtime) no índice → **SEM055** ("List.remove pega ÍNDICE
+  Int; String não é índice (para buscar por valor use contains)"), nos 5
+  backends pelo frontend único. Programas que funcionavam: nenhum (todos
+  crashavam ou imprimiam lixo) → rejeição aditiva, retrocompatível.
+- **Prova:** `SemanticResolutionTest.listIndexNonIntRejected` (4 vetores,
+  String/record-aninhado/array) + `listIndexIntAndUnknownStillCompiles`
+  (regra 1 — Int não regride); suíte completa 4 módulos verde.
+- **Corpus:** `training/idioms/collections.md` (comentário no remove) +
+  `fake-idioms.md` (linha nova).
+
+### 123. Native: `Map<Int,*>` SIGSEGVa em qualquer get/put — `kof_map_find` hardcoded `kof_string_equals` (chave Int vira PONTEIRO) — ✅ CORRIGIDO 11/09 (x86+riscv; aarch por tradução)
+
+- **Menor repro (medido 11/09, probes C1/D1):** `var m = mapOf(1, 2);
+  println(m.get(1))` → **Native ec=139** (SIGSEGV), JVM `2`. Não é o caso
+  de tipo-errado (§122): com os tipos CERTOS (Int key, Int/String val) o
+  programa morria. `m.put(3,4)` idem; `m.size` passava (não chama find).
+- **Causa raiz:** o Map nativo foi escrito para a fase P1 como
+  **`Map<String,V>`** (literal no header do arquivo: "kof.collections:
+  Map<String,V> nativo (P1)") — `kof_map_find` chama `kof_string_equals`
+  SEMPRE; com chave Int o inteiro cru é interpretado como ponteiro →
+  leitura em endereço inválido. O Set já tinha tag de tipo (1=String →
+  `kof_string_equals`, 0 → `cmpq`); o Map nunca recebeu.
+- **✅ Fix (mesma tag, no HEADER do map — off 40, dentro dos 64B já
+  alocados; sem mudar assinatura nem IR):** `kof_map_new` inicializa
+  tag=1 (String = o caso histórico → **zero regressão p/ Unknown**);
+  `kof_map_find` lê a tag do struct (String → equals; senão `cmpq` — chave
+  0 é legítima no modo raw, por isso o skip de null só vale p/ String);
+  o EMITTER (x86 `NativeX86Calls` + riscv `NativeRiscvCrossOps`; aarch
+  traduz o x86) escreve a tag a partir do tipo do 1º arg do put/get/
+  remove/contains (Unknown NÃO toca). O `KofCall` original do mapOf já
+  carregava key Int como INT no slot (mapOf(1,2) funcionava em size) —
+  o modo raw compara exatamente esses words.
+- **Prova:** célula `mapint` 4/4 sem exclusão (put/get/size/containsKey/
+  remove Int-key String-val) + probes D1/C1/C2/D4/A1/A3/MP2 nativos
+  ec=0; suíte completa 4 módulos verde (1501/0/12err-node/136skip).
+- **Fora daqui (registrados):** chave do TIPO ERRADO (Int em Map<String,V>
+  e vizinhos) → família §122 (SEM05x, rejeitar em compile-time) — A2
+  ainda SIGSEGVa até a guarda de Map/Set; §124 novo (abaixo) foi achado
+  pela célula.
+
+### 124. Script/interpretador: `println` de `String?` null → NPE "Cannot read the array length because \"value\" is null" (JVM/Native/JS imprimem `null`) — ✅ CORRIGIDO 11/09
+
+- **Menor repro (medido 11/09, MI5):** `String? nd() { return null }` +
+  `println(nd())` → **Script ec=1** com a mensagem em stderr; **JVM/Native
+  imprimem `null`**. Confirmado PRÉ-EXISTENTE (roda igual com a árvore do
+  §123 em stash) — não é regressão da tag do map. `map.get` de MISS com
+  valor String no interpretador cai no mesmo caminho (MI1: out=[um] então
+  ec=1) e `m.remove` de chave inexistente idem (MI6/MI3).
+- **Causa raiz (stack via `-Dkof.interp.trace=1`):** o `println(arg)`
+  não-escalar baixa `String.valueOf(arg)` como chamada EXTERNA
+  (ExpressionPrintLowerer: `List.of(Unknown)` nos targets não-nativos). No
+  interpretador, `KofInterpreterRuntime.invokeExternal` pontua os overloads
+  com `signatureScore`: arg null nunca passa em `p.isInstance(args[i])`,
+  e `valueOf(char[])`/`valueOf(Object)` empatam em score → a ordem de
+  `c.getMethods()` escolhia o ARRAY → o JDK NPE ("Cannot read the array
+  length because "value" is null" = `new String(char[])` null).
+- **✅ Fix:** no scorer, arg `null` desqualifica parâmetro ARRAY (score
+  −1) a menos que o IR declare `ArrayType` de verdade (guarda por IR, não
+  por sorteio de reflection). `valueOf(Object)` vence → `String.valueOf(
+  null)` = "null", como JVM/Native.
+- **Prova:** `KofInterpreterParityTest.printNullableStringNull` (2 paridades
+  interp≡JVM: `println(nd())` e map-get-miss) + célula `mapint` da matriz
+  4/4 imprimindo `null` no get-miss (antes contornava a terra-minada);
+  suíte completa 4 módulos.
+- **Achas irmãs (registradas, NÃO corrigidas aqui):** `println(Int? null)`
+  → JVM **VerifyError** e Script `Integer.valueOf/1` (NoSuchMethod) —
+  §125. `println(char)` congelado numérico (strings.md) continua intocado.
+
+### 125. `println(<primitivo>? null)` (Int?/Bool?/... null): JVM **VerifyError** na carga + Script **NoSuchMethodError `Integer.valueOf/1`**; Native imprime `0` — ⏳ ABERTO (achado 11/09 ao fixar o §124)
+
+- **Menor repro (PN2, medido 11/09):** `Int? ni() { return null }` +
+  `println(ni())` → **JVM**: VerifyError na inicialização da classe
+  (operand stack — boxing do null); **Script**: `java.lang.Integer.valueOf/1`
+  NoSuchMethodError (o MESMO `invokeExternal` do §124 — agora escolhendo o
+  overload certo, mas o boxing do null não resolve p/ `Integer.valueOf/1`);
+  **Native**: imprime `0` (default do primitivo, SG-008). Os 3 divergem.
+- **Por que é DIVERSO do §124:** lá o arg null do `String?` batia no
+  overload errado (char[] vs Object); aqui `println(Nullable(INT))` faz
+  `boxPrimitive` → `valueOf(INT)` e o caminho do null no boxing/choice
+  falha em outros pontos (JVM bytecode inválido + reflect sem alvo).
+- **Oracle ANTES de corrigir (regra 4):** corpus decide `null` vs `0`.
+  `training/idioms/errors.md`/null-safety ainda não coberto por esta
+  varredura — DEFINIR o oracle (medir `println(x)` onde `Int? x = miss`
+  no interpretador-vs-JVM com narrowing ausente) e SÓ ENTÃO editar; se
+  ambíguo, aguarda decisão da mantenedora (condição de parada 1).
+- **Prova esperada:** PN2 com o valor do oracle nos 4 targets (célula na
+  matriz 4/4) + `KofInterpreterParityTest`; hoje crash/crash/0.
+- **Prioridade:** média-baixa (crash ruidoso; workaround `if (x != null)`
+  ou `println(x == null ? "null" : x)`).
+
+### 126. Chave do TIPO ERRADO em Map/Set/`contains`-de-List pinados → Native SIGSEGV (JVM tolera com miss/false) — ⏳ ABERTO (família §122, opção B; design fechado 11/09)
+
+- **Matriz medida 11/09 (probes A1/A2/MP2/ST1/ST2/E1):**
+  | programa | JVM | Native (hoje) |
+  |---|---|---|
+  | `mapOf("a",1).get(5)` (Int em String-map) | `0` | ✅ `0` (tag §123 resolve: raw cmpq) |
+  | `mapOf(1,"a").get("x")` (String em Int-map) | `null` | ❌ **SIGSEGV** (A2) |
+  | `setOf("a","b").add(5)` / `.contains(5)` / `.remove(5)` | `true/false` | ❌ **SIGSEGV** (ST1/ST2) |
+  | `listOf("a","b").contains(5)` | `false` | ❌ **SIGSEGV** (E1) |
+  | `mapOf(1,"um").put/get(String)` | — | ❌ SIGSEGV (A2 path) |
+- **Causa:** onde existe COMPARAÇÃO por conteúdo o tag 0/1 decide String↔raw,
+  mas o tag vem do tipo do ARG/elemento, não do conteúdo PINADO: em
+  `set.add(5)` num set String o tag sai 1 (String-elem) e o Int cru vira
+  ponteiro no `kof_string_equals`; no Map, o caso simétrico. JVM usa
+  HashMap/HashSet reais (equals por classe → miss silencioso).
+- **Fix (duas metades, mesma família SEM055):**
+  (a) **Map:** o tag do native deve vir do **keyType do receptor**
+      (pinning já garante concreto), não do arg → A2 vira `raw cmpq` e
+      dá `null` como o JVM (seguro, sem rejeição). O emitter já lê
+      `kc.parameterTypes().get(0)` — mudar para o keyType do `ownerType`
+      no lowering (o call carrega Map<K,V> no ownerType).
+  (b) **Set/List-contains:** String-pinned + arg conhecido NÃO-String →
+      **SEM056** (rejeitar; análogo §122; Unknown passa). Int-pinned + arg
+      String: raw-cmp é SEGURO (sem deref) → pode devolver false/null
+      como o JVM sem rejeição. Não rejeitar o que é apenas "miss".
+- **Prova esperada:** A1/A2/MP2/ST1/ST2/E1 viram células 4/4 (com SEM056
+  onde rejeição; null/false onde miss) + `listIndexNonIntRejected`-style
+  no SemanticResolutionTest.
+- **Nota:** tentativa de meia-implementação revertida 11/09 (fim de
+  contexto; verde é lei). A metade (a) é 3 linhas; (b) copia o padrão do
+  SEM055 já no arquivo.
 
 ### 120. Tradutor riscv→aarch64: `fcvt.w/l.{s,d}` (FP→INT) traduzido como `scvtf` (direção INVERTIDA) — ✅ CORRIGIDO 11/09 (`fcvtzs`)  *(renumerado de §104 na reconciliação do merge 11/09 — colidiu com o record-equals §104 da série ativa)*
 

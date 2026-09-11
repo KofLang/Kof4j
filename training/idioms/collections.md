@@ -18,7 +18,9 @@ l.set(0, 9)
 l.size                  // propriedade, não método
 l.contains(3)
 l.isEmpty()
-var r = l.remove(1)
+var r = l.remove(1)       // remove por ÍNDICE (Int), devolve o elemento
+// NUNCA l.remove("x") (by-value do Java): SEM055 (bug 122) — para achar por
+// valor use contains(x); para achar posição, loop com get(i).
 l.clear()
 var vazio = listOf<Int>()
 

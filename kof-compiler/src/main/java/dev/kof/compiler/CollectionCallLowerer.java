@@ -127,6 +127,29 @@ public final class CollectionCallLowerer {
             List<Type> argTypes = new ArrayList<>();
             for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
             Type elemType = driver.listElementType(recvType);
+            // §122 (opção B, família SEM051/052/053/054): o índice de
+            // get/set/remove é Int (learn/12: remove(0) devolve o elemento);
+            // String/record/array no índice era ACEITO em silêncio e quebrava
+            // feio: JVM VerifyError "not assignable to integer" na carga da
+            // classe, Native usa o PONTEIRO como índice (array index out of
+            // bounds — RM/RM5/IX/IX2 probes 11/09). Unknown/Nullable NÃO
+            // flagados (SG-008: pode chegar Int em runtime); numéricos passam
+            // (Int é o contrato; o verifier cuida do resto).
+            if (("kof_list_get".equals(listFn) || "kof_list_set".equals(listFn)
+                    || "kof_list_remove".equals(listFn))
+                    && !argTypes.isEmpty() && driver.currentDiagnostics != null) {
+                Type idxT = argTypes.get(0);
+                if (isReferenceIndexType(idxT)) {
+                    var pos = mc.position();
+                    driver.currentDiagnostics.error(pos != null ? pos.file() : "",
+                            pos != null ? pos.line() : 0,
+                            pos != null ? pos.column() : 0, 0,
+                            "List." + mc.methodName() + " pega ÍNDICE Int; " + typeNameFor(idxT)
+                                    + " não é índice (para buscar por valor use contains)",
+                            "SEM055");
+                    return localIdx;
+                }
+            }
             // listOf() with no type argument produces
             // List<Unknown>; the first add() pins the element
             // type on the local so later get() calls are
@@ -310,5 +333,21 @@ public final class CollectionCallLowerer {
         methodParamTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
     }
         return -1;
+    }
+
+    /** §122: tipos que NUNCA são um índice válido p/ get/set/remove de List. */
+    private static boolean isReferenceIndexType(Type t) {
+        if (t == null || Type.UnknownType.UNKNOWN.equals(t)) return false;
+        if (t instanceof Type.NullableType nt) return isReferenceIndexType(nt.inner());
+        if (TypeMetrics.isPrimitiveType(t)) return false;
+        return t instanceof Type.ClassType || t instanceof Type.ArrayType
+                || t instanceof Type.TypeVariable;
+    }
+
+    private static String typeNameFor(Type t) {
+        if (t instanceof Type.NullableType nt) return typeNameFor(nt.inner()) + "?";
+        if (t instanceof Type.ClassType ct) return ct.name();
+        if (t instanceof Type.ArrayType a) return typeNameFor(a.componentType()) + "[]";
+        return String.valueOf(t);
     }
 }

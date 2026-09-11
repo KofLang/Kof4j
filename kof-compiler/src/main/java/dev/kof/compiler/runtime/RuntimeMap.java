@@ -29,6 +29,7 @@ public final class RuntimeMap {
                 movq $128, %rdi
                 call kof_alloc
                 movq %rax, 32(%rbx)
+                movl $1, 40(%rbx)           # §123: key tag — 1=String default
                 movq %rbx, %rax
                 popq %rbx
                 ret
