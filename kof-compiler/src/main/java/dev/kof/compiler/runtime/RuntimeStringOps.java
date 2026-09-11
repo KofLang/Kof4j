@@ -181,8 +181,9 @@ public final class RuntimeStringOps {
                 cmpl %r12d, %edx
                 jb .Lkof_substr_bounds            # start > total de units
                 movl %eax, %r15d                  # startBytes
-                testl %r13d, %r13d
-                jz .Lkof_substr_toend
+                cmpl $-1, %r13d                   # §111: sentinela "até o fim"
+                je .Lkof_substr_toend             # (era 0; colidia com end=0
+                                                  #  legítimo do 2-arg)
                 movq %rbx, %rdi
                 movl %r13d, %esi
                 call .Lkof_substr_walk

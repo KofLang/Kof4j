@@ -39,7 +39,11 @@ public final class NativeX86StringCalls {
             int argCount = kc.parameterTypes().size();
             if (argCount == 1) {
                 sb.append("    popq %rsi\n");
-                sb.append("    xorq %rdx, %rdx\n");
+                // §111: sentinela "até o fim" era 0 — colidia com o end=0
+                // LEGÍTIMO da forma 2-arg ("hello".substring(0,0) devolvia a
+                // string toda). -1 é impossível como índice (bounds já rejeitam
+                // <0) e o helper trata só -1 como toend.
+                sb.append("    movq $-1, %rdx\n");
             } else {
                 sb.append("    popq %rdx\n");
                 sb.append("    popq %rsi\n");

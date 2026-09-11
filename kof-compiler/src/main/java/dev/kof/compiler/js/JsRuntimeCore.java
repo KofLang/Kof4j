@@ -116,6 +116,16 @@ public final class JsRuntimeCore {
                 return false;
             }
 
+            // §111: split com a regra Java (não JS): remove vazios TRAILING,
+            // exceto input "" → [""]. JS nativo preserva trailing ("a,"→["a",""]).
+            export function kofSplit(s, sep) {
+                const parts = String(s).split(sep === undefined ? "" : sep);
+                if (s === "") return [""];
+                let end = parts.length;
+                while (end > 0 && parts[end - 1] === "") end--;
+                return parts.slice(0, end);
+            }
+
             export function kofFormat(x) {
                 if (x instanceof Map) {
                     let s = "{";

@@ -13,7 +13,7 @@
 > | Paridade interpretador × compilados (semântica `==` congelada — regra 6) | **1** — bug 94 (NaN/±0.0 `==` de Double no SCRIPT) |
 > | Paridade backend-only (regra 5, atacável na lane Native) | **2** — §107 (println coleção → lixo no nativo, sem toString de coleção; §107-JS corrigido 11/09), §104b-ii (equals de conteúdo p/ record + box de primitivo no storage asm — inclui SIGSEGV do `println(l.get)` char achado no §109)
 > | Operadores relacionais NaN cross (congelados — regra 6) | **1** — bug 101 (`<`/`<=`/`>=` com NaN: riscv IEEE vs x86/JVM quirk `dcmpg`) |
-> | **Corrigidos na sessão de paridade absoluta 11/09** | **12** — bugs 96 (SEM052), 98 (SEM053), 100 (SEM051+fold), 44-residual, 102 (from-idx), 103 (SEM054), 104a (KofObj equals/hash/toString no interpretador), 104b-i (LINK_FAIL `Object.equals` herdado no Native), 104c (membership de record por conteúdo no JS — `kofValEq`), 107-JS (`kofFormat` no JS), 109 (CRASH JVM no guard do `map.get` primitivo), 110 (`-0.0` colapsado em `+0.0` no literal emitter JVM) — todos com prova na matrix/suíte |
+> | **Corrigidos na sessão de paridade absoluta 11/09** | **13** — bugs 96 (SEM052), 98 (SEM053), 100 (SEM051+fold), 44-residual, 102 (from-idx), 103 (SEM054), 104a (KofObj equals/hash/toString no interpretador), 104b-i (LINK_FAIL `Object.equals` herdado no Native), 104c (membership de record por conteúdo no JS — `kofValEq`), 107-JS (`kofFormat` no JS), 109 (CRASH JVM no guard do `map.get` primitivo), 110 (`-0.0` colapsado em `+0.0` no literal emitter JVM), 111 (trailing-empties no `split` Native/JS + sentinela `substring` 0→-1; residual riscv/aarch sem qemu) — todos com prova na matrix/suíte |
 > | **Corrigidos na prova cross-arch 11/09 (MATH001/TIME002/B33)** | **3** — bugs 101→registrado (relacional NaN, ABERTO regra 6), MATH001 (Double math B32), TIME002 (ISO add/diff B33), 105 (random.int loop — renumerado de 102, colidiu c/ §102 indexOf) |
 > | Verificados corrigidos em 08/09 | **19** — bugs 1–8, 10–17, 19, 20, 26 |
 > | Não reverificados (faltou ambiente/setup) | bugs 9, 18, 21, 22, 23 |
@@ -2807,6 +2807,37 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 - **Nota de teste faltante:** nenhum teste cobria `println(map.get(k))` com
   valor primitivo não-Int/Double — Bool e Char eram os gatilhos do default
   silencioso do `unboxMethodName`.
+
+### 111. `split` não removia vazios TRAILING (Native x86 + JS) e `substring(a,0)` devolvia a string toda (Native x86) — ✅ CORRIGIDO 11/09 (x86_64 + JS; residual riscv/aarch)
+- **Menor repro split:** `println("a,".split(",").length)` → JVM/Script **1**,
+  x86 **2**, JS **2**. `",".split(",")` → JVM **0** (todos trailing), x86 **2**.
+  Oracle = Java `String.split(regex)` que é `split(regex,0)`: remove vazios
+  TRAILING, EXCETO input `""` → `[""]` (tamanho 1).
+- **Menor repro substring:** `"hello".substring(0,0).length` → JVM **0**, x86
+  **5**. O call-site 1-arg (`NativeX86StringCalls`) passava `end=0` como
+  sentinela "até o fim"; o helper `kof_string_substring` tratava `end==0` como
+  toend — mas `0` é um **end legítimo** da forma 2-arg → colapsava.
+- **Causa raiz split:** o loop `.Lkof_split_done` (`RuntimeStringEdit`) contava
+  pieces SEM o trim Java. **JS:** `JsCallEmitter` mapeava `split` →
+  `String.prototype.split` direto, que PRESERVA trailing (semântica JS ≠ Java).
+- **Fix x86:** pós-processamento no `.Lkof_split_done` — scan do fim do array
+  removendo pieces com `nBytes==0` (offset 16), sobrescreve o `length` do array
+  (offset 16); caso input vazio força `[""]`. **Fix JS:** helper `kofSplit`
+  (`JsRuntimeCore`) faz `split` + trim de trailing + o caso `""`. **Fix
+  substring x86:** sentinela do 1-arg `0` → `-1` (call-site + helper
+  `cmpl $-1`), liberando `end=0` como valor real.
+- **Prova:** célula `strsplit` (4 targets byte-idênticos
+  `1/0/2/1/3/0/llo/0`) + os probes `sp2.kf`/`sp3.kf` (conteúdo dos pieces,
+  trailing, bordas `substring(5)`/unicode `café`).
+- **⚠️ Residual riscv64/aarch64 (qemu ausente — condição de parada):** o
+  `kof_string_split` riscv (`NativeRiscvAsmRt1`/`B34`) NÃO tem o trim de
+  trailing (mesmo bug original) e o call-site 1-arg de `substring` riscv
+  (`NativeRiscvCrossOps:205`, `li a2, 0`) ainda usa sentinela `0` (bug idêntico
+  ao x86 antes do fix). Corrigir exige montar+rodar sob qemu (regra AGENTS:
+  "NÃO escrever asm sem montar/rodar"). Célula `strsplit` é **parcial p/ estas
+  faces** — o guard skipa riscv/aarch sem qemu, então não falha agora, mas o
+  port 1:1 do trim+sentinela para os dois backends é a próxima unidade cross-arch
+  (mesma família §44/§100/§102/§110 residual).
 
 ### 110. Literal/fold `-0.0` vira `+0.0` no JVM (perde o zero com sinal) — ✅ CORRIGIDO 11/09 (guard de raw bits no literal emitter)
 - **Menor repro:** `main() { println(-0.0) }` → JVM **`0.0`**, Native/Script **`-0.0`**.

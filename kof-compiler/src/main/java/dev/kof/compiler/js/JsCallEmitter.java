@@ -268,6 +268,16 @@ void handleStringOp(MethodCtx ctx, List<Object> stack,
                 ctx.lc.registerRuntime(kc.methodName());
                 stack.add(new JsIr.JsCall(new JsIr.JsIdentifier(kc.methodName()), List.of(receiver)));
             }
+            case "split" -> {
+                // §111: JS String.prototype.split PRESERVA vazios trailing
+                // ("a,".split(",")=["a",""]) mas o contrato é o Java
+                // (remove trailing, exceto input "" → [""]). helper kofSplit.
+                p.lc.registerRuntime("kofSplit");
+                java.util.List<JsIr.JsExpression> sa = new java.util.ArrayList<>();
+                sa.add(receiver);
+                sa.addAll(args);
+                stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofSplit"), sa));
+            }
             default -> {
                 // substring, contains, indexOf, trim, toUpperCase, toLowerCase,
                 // startsWith, endsWith, concat, split — direct JS mapping.

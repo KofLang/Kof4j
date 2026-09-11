@@ -674,6 +674,25 @@ class ConformanceMatrixTest {
                     println("  x  ".trim() + "|")
                 }
                 """, "4\nhello world\nx|", Set.of(), tempDir);
+        // §111 (paridade absoluta): `split` não removía vazios TRAILING no
+        // Native nem no JS. O contrato é o Java: "a,"→["a"], ","→[], "a,b,"→
+        // ["a","b"], EXCETO input ""→[""] (size 1). Native (RuntimeStringEdit
+        // .Lkof_split_done) e JS (helper kofSplit) ganham o trim; JVM/Script
+        // (java.lang.String.split) já eram oracle. Também trava o §111 do
+        // substring: sentinela "até o fim" do 1-arg passou de 0→-1 (end=0 é
+        // valor legítimo do 2-arg — "hello".substring(0,0) era "hello").
+        matrix("strsplit", """
+                main() {
+                    println("a,".split(",").length)
+                    println(",".split(",").length)
+                    println("a,b,".split(",").length)
+                    println("".split(",").length)
+                    println("a,b,c".split(",").length)
+                    println("hello".substring(0, 0).length)
+                    println("hello".substring(2))
+                    println("hello".substring(5).length)
+                }
+                """, "1\n0\n2\n1\n3\n0\nllo\n0", Set.of(), tempDir);
         matrix("concat", """
                 main() {
                     println("n=" + 42)
