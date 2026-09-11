@@ -476,11 +476,8 @@ public final class NativeRiscvAsmRt0 {
                 call kof_bounds_error
 
             # ---- strings ----
-            .globl kof_string_length
-            kof_string_length:
-                # bug 43 (face riscv/aarch): code units UTF-16, não bytes UTF-8
-                # — corpo em B33 (kof_su_length); trampoline p/ não crescer a fatia.
-                j kof_su_length
+            # kof_string_length — MOVIDO p/ B34 (faces UTF-16, bug 43 cross):
+            # contava bytes UTF-8 (café=5 vs JVM 4).
 
             # kof_string_concat(a, b) -> KofStr*
             """;

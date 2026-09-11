@@ -1,4 +1,4 @@
-# char literal em método String com formal String (bug 99)
+# char literal em método String com formal String (bugs 99/100)
 
 **Name:** char literal (ou Int) como argumento de `String` method que espera
 String.
@@ -8,12 +8,16 @@ separado). Métodos String como `indexOf`/`contains`/`lastIndexOf`/
 `startsWith`/`endsWith` esperam **String** no 1º argumento — o registry
 resolve por aridade, então `'c'` atravessava e cada backend quebrou de um
 jeito (JVM `VerifyError`, Native SIGSEGV, JS `-1` silencioso, interpretador
-`ClassCastException`). Agora é erro de compilação.
+`ClassCastException`). Agora é erro de compilação. A rejeição foi
+generalizada (qualquer não-String — Int/Long/Double/coleção — em formal
+String, nos métodos `indexOf`/`lastIndexOf`/`contains`/`startsWith`/
+`endsWith`/`split`/`concat`/`equalsIgnoreCase`/`compareTo`/
+`compareToIgnoreCase`) sob o código dedicado **SEM051**.
 
-**Bad (não compila — SEM025):**
+**Bad (não compila — SEM051):**
 ```kof
 var s = "abc"
-s.indexOf('c')      // ❌ SEM025: 'indexOf' expects a String, got char
+s.indexOf('c')      // ❌ SEM051: "String.indexOf não aceita Char como argumento 1"
 s.contains('b')     // ❌ idem
 s.lastIndexOf('c')  // ❌
 s.startsWith('a')   // ❌

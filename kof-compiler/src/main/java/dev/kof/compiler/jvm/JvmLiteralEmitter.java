@@ -78,14 +78,18 @@ public final class JvmLiteralEmitter {
     }
 
     private static void emitLoadFloat(MethodVisitor mv, float value) {
-        if (value == 0f) mv.visitInsn(FCONST_0);
+        // §110: `value == 0f` também casa -0.0f (IEEE: -0.0 == 0.0) — sem o
+        // guard de raw bits, FCONST_0 colapsava -0.0f em +0.0. O contrato é
+        // o literal (JVM run-time: -z de z=0.0 dá -0.0 corretamente).
+        if (value == 0f && Float.floatToRawIntBits(value) == 0) mv.visitInsn(FCONST_0);
         else if (value == 1f) mv.visitInsn(FCONST_1);
         else if (value == 2f) mv.visitInsn(FCONST_2);
         else mv.visitLdcInsn(value);
     }
 
     private static void emitLoadDouble(MethodVisitor mv, double value) {
-        if (value == 0.0) mv.visitInsn(DCONST_0);
+        // §110 (ver emitLoadFloat): -0.0 literal/foldado virava +0.0.
+        if (value == 0.0 && Double.doubleToRawLongBits(value) == 0L) mv.visitInsn(DCONST_0);
         else if (value == 1.0) mv.visitInsn(DCONST_1);
         else mv.visitLdcInsn(value);
     }

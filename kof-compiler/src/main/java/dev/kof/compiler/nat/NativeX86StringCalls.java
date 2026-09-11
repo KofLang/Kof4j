@@ -41,7 +41,11 @@ public final class NativeX86StringCalls {
             int argCount = kc.parameterTypes().size();
             if (argCount == 1) {
                 sb.append("    popq %rsi\n");
-                sb.append("    xorq %rdx, %rdx\n");
+                // §111: sentinela "até o fim" era 0 — colidia com o end=0
+                // LEGÍTIMO da forma 2-arg ("hello".substring(0,0) devolvia a
+                // string toda). -1 é impossível como índice (bounds já rejeitam
+                // <0) e o helper trata só -1 como toend.
+                sb.append("    movq $-1, %rdx\n");
             } else {
                 sb.append("    popq %rdx\n");
                 sb.append("    popq %rsi\n");
@@ -74,7 +78,12 @@ public final class NativeX86StringCalls {
             }
             sb.append("    popq %rax\n");
             sb.append("    movq %rax, %rdi\n");
-            sb.append("    call kof_string_starts_with\n");
+            // §102: startsWith(prefix, from) — o 2º arg (offset em code units
+            // UTF-16) estava sendo IGNORADO (mesmo helper de 1 arg). Com 2
+            // args, %rdx já vem carregado pelo pop loop acima (regs[i+1]).
+            sb.append("    call ")
+              .append(argCount >= 2
+                      ? "kof_string_starts_with2\n" : "kof_string_starts_with\n");
             sb.append("    pushq %rax\n");
             return true;
         }
@@ -111,7 +120,12 @@ public final class NativeX86StringCalls {
                 sb.append("    popq ").append(regs[i + 1]).append("\n");
             }
             sb.append("    popq %rdi\n");
-            sb.append("    call kof_string_index_of\n");
+            // §102: o 2º arg (from) já está em %rdx quando há 2 parâmetros —
+            // roteia p/ o helper _2 (JVM: clamps UTF-16 + cut de par). 1-arg
+            // segue o helper byte-index (rdx é lixo, ele ignora).
+            sb.append("    call ")
+              .append(kc.parameterTypes().size() >= 2
+                      ? "kof_string_index_of2\n" : "kof_string_index_of\n");
             sb.append("    pushq %rax\n");
             return true;
         }
@@ -122,7 +136,9 @@ public final class NativeX86StringCalls {
                 sb.append("    popq ").append(regs[i + 1]).append("\n");
             }
             sb.append("    popq %rdi\n");
-            sb.append("    call kof_string_last_index_of\n");
+            sb.append("    call ")
+              .append(kc.parameterTypes().size() >= 2
+                      ? "kof_string_last_index_of2\n" : "kof_string_last_index_of\n");
             sb.append("    pushq %rax\n");
             return true;
         }

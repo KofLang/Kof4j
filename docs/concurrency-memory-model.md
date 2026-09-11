@@ -1,9 +1,12 @@
 # Kof Concurrency Memory Model (SG-020)
 
-> **Estado:** PROPOSTA de spec para decisão da mantenedora (Mel Santos).
+> **Estado:** SPEC ADOTADA (decisão 11 da mantenedora, 09/09) — implementada
+> e VALIDADA 10/09: as 5 bordas de HB da §2 têm prova em
+> `KofConcurrency2Test`/`SpawnE2ETest` (verde na suíte). SG-020 FECHADO — o
+> documento saiu de `docs/development/` (não há trabalho pendente aqui).
 > **Origem:** decisão 11 do maintainer sobre os gaps de spec ("implementar
 > modelo de memória concorrente com green threads").
-> **Data:** 09/09/2026 · lane spec-gaps.
+> **Data:** 09/09/2026 · lane spec-gaps · movido p/ docs/ 11/09.
 
 ## 1. O que é especificado
 

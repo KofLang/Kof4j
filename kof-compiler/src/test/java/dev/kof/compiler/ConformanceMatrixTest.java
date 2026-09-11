@@ -159,6 +159,26 @@ class ConformanceMatrixTest {
                     println(66 as Char)
                 }
                 """, "9\n70000\n66", Set.of(), tempDir);
+        // §110 (paridade absoluta, JVM literal-emitter): -0.0 em JVM virava
+        // +0.0 — `emitLoadDouble`/`emitLoadFloat` testavam `value == 0.0`,
+        // e IEEE casa -0.0 == 0.0 → DCONST_0 colapsava o sinal (literal
+        // `-0.0`, fold de `-1.0 * 0.0` e negação de resultado de fold).
+        // Native/Script nunca colapsaram (guard por raw bits). `==` de
+        // signed zero continua true (congelado §94) — a célula imprime os
+        // spellings, não troca o contrato de comparação.
+        matrix("negzero", """
+                main() {
+                    println(0.0)
+                    println(-0.0)
+                    val z = 0.0
+                    println(-z)
+                    val a = -1.0
+                    val b = 0.0
+                    println(a * b)
+                    println(-1.0 * 0.0)
+                    println(0.0 == -0.0)
+                }
+                """, "0.0\n-0.0\n-0.0\n-0.0\n-0.0\ntrue", Set.of("js"), tempDir);
         // bug 44 CORRIGIDO 10/09 (x86_64): kof_print_double/float via snprintf
         // %.16g + append '.0' p/ inteiro-válido + write via syscall (sem
         // printf/reordenação) — Native desbloqueado. KofJS mantém a exclusão:
@@ -170,6 +190,179 @@ class ConformanceMatrixTest {
                     println(7.0 / 2.0)
                 }
                 """, "0.3333333333333333\n5.0\n3.5", Set.of("js"), tempDir);
+        // bug 44 (residual, x86_64, paridade regra 5): o glibc %.16g escreve
+        // 'inf'/'-inf'/'nan' mas o contrato é JDK Double.toString →
+        // 'Infinity'/'-Infinity'/'NaN' (o que JVM/Script imprimem). O println
+        // boxa via kof_double_to_string (RuntimeStringConv); o print sem box via
+        // kof_print_double (RuntimePrintNum). As 2 faces + float + concat
+        // String.valueOf. JS mantém a exclusão (idêntica ao floatprint:
+        // String(5.0) = "5" no JS, "5.0" no JVM — a divergência é o '.0', não
+        // o spelling de inf/nan, que o JS já casa).
+        matrix("infinityprint", """
+                main() {
+                    println(1.0 / 0.0)
+                    println(-1.0 / 0.0)
+                    println(0.0 / 0.0)
+                    println(1e38f * 1e38f)
+                    print(1.0 / 0.0)
+                    print(" ")
+                    print(0.0 / 0.0)
+                    println("")
+                    println("v=" + (0.0 / 0.0))
+                }
+                """, "Infinity\n-Infinity\nNaN\nInfinity\nInfinity NaN\nv=NaN",
+                Set.of("js"), tempDir);
+        // bug 100 (paridade absoluta): `String.equals(não-String)` é `false` em
+        // todo target — o JVM sempre deu false (Objects.equals), mas o Native
+        // CRASHAVA (SIGSEGV/vazio) ao ler o Int-boxado como ponteiro-String.
+        // Agora é constant-fold no lowering (mesmo `false` nos 5). O == de
+        // String-vs-String (conteúdo) segue pelo runtime em todos.
+        // §102 (paridade absoluta): o índice inicial de indexOf/lastIndexOf/
+        // startsWith era IGNORADO no Native (helper de aridade 1 só). JDK 21
+        // é o oracle (clampagens: from<0, from>total, vazia, corte de par).
+        matrix("searchfrom", """
+                main() {
+                    println("aXb".indexOf("X",2))
+                    println("abc".indexOf("",5))
+                    println("aXa".lastIndexOf("a",-1))
+                    println("aXa".lastIndexOf("a",9))
+                    println("aXb".startsWith("X",1))
+                    println("abc".startsWith("",4))
+                }
+                """, "-1\n3\n-1\n2\ntrue\nfalse", Set.of(), tempDir);
+        matrix("equalsfold", """
+                main() {
+                    val s = "abc"
+                    println(s.equals("abc"))
+                    println(s.equals("abd"))
+                    println(s.equals(5))
+                    println(s.equals('x'))
+                }
+                """, "true\nfalse\nfalse\nfalse", Set.of(), tempDir);
+        // §104 (paridade absoluta): record DENTRO de coleção usa equals/
+        // hashCode/toString por CONTEÚDO (oracle = JVM, registro real gera os
+        // 3). Script era identidade (KofObj sem override → §104a CORRIGIDO
+        // 11/09); Native LINK_FAIL em Thing.equals (Object.equals herdado sem
+        // slot na vtable → §104b ABERTO, célula excluída); JS usa identidade
+        // (Map/HashSet nativos + sem wrapper → §104c ABERTO, excluído).
+        matrix("objmethods", """
+                record Point(Int x, Int y)
+                main() {
+                    val p1 = Point(1, 2)
+                    val p2 = Point(1, 2)
+                    println(listOf(p1).contains(p2))
+                    println(setOf(p1).contains(p2))
+                    println(mapOf(p1, 7).get(p2))
+                    println(listOf(p1))
+                }
+                """, "true\ntrue\n7\n[Point[x=1, y=2]]", Set.of("native"), tempDir);
+        // §107-JS (paridade absoluta): `println(coleção)` no JS dava
+        // "1,2" (Array.toString sem colchetes) / "[object Map]" / "[object
+        // Set]" — sem o formato do contêiner JVM ([1, 2] / {k=1}). kofFormat
+        // (JsRuntimeCore) espelha ArrayList/HashMap/HashSet.toString. Roteado
+        // por tipo no valueOf (JsCallEmitter) — só coleção, não toca escalar
+        // (bug 44). Bool-em-lista fica fora daqui: §107 (Script [1,0]).
+        matrix("collprint", """
+                record Point(Int x, Int y)
+                main() {
+                    println(listOf(1, 2))
+                    println(listOf("a", "b"))
+                    println(listOf(1.5, 2.25))
+                    println(mapOf("k", 1))
+                    println(setOf(1))
+                    println(listOf(Point(1,2), Point(3,4)))
+                    println(listOf(listOf(1), listOf(2)))
+                }
+                """, "[1, 2]\n[a, b]\n[1.5, 2.25]\n{k=1}\n[1]\n[Point[x=1, y=2], Point[x=3, y=4]]\n[[1], [2]]",
+                Set.of("native"), tempDir);
+
+        // §109 (paridade absoluta + JVM CRASH): mapOf(k, <primitivo>) e o
+        // GUARD do kof_map_get (Nullable(V) primitivo) chamavam
+        // unboxMethodName com o tipo PRIMITIVO interno — só o ramo ClassType
+        // era tratado, então Bool caía em `intValue` → `Boolean.intValue()Z`
+        // → NoSuchMethodError em runtime no JVM. Fix trata o ramo primitivo
+        // (mesma tabela de boxedClassNameFor). Cobre Int/Long/Double/Bool/Char
+        // pelo mesmo caminho de guard.
+        // §104b-ii FACE char (✅ 11/09, esta célula sem exclusões): JVM
+        // imprimia 97 só p/ `Int`; char caía em `Integer.charValue()C`
+        // inexistente (char é GUARDADO como Integer, a caixa nunca é
+        // Character) — unbox agora é `intValue`/`()I` coerente com a caixa.
+        // Native SIGSEGVava/imprimia o caractere ("a") em println(char-em-
+        // coleção): `ExpressionPrintLowerer` mapeava char→Int p/ valueOf só
+        // com CHAR cru (Nullable(CHAR) vazava p/ o ramo char_to_string do
+        // backend) e o cast `x as Char` pinava Unknown no mapOf (o cache do
+        // SemanticAnalyzer não tinha o repair do ExpressionTyper). 4/4.
+        // JS: `d*2`→`5` vs `5.0` (String(5.0)="5") é o floatprint §44; a
+        // célula usa predicado (`d > 1.0`) p/ exercitar o storage Double sem
+        // colidir com ele.
+        matrix("mapgetprim", """
+                main() {
+                    val b = mapOf("t", true).get("t")
+                    println(b)
+                    println(b == true)
+                    val n = mapOf("i", 7).get("i")
+                    println(n + 1)
+                    val g = mapOf("l", 9000000000L).get("l")
+                    println(g + 1)
+                    val d = mapOf("d", 2.5).get("d")
+                    println(d > 1.0)
+                    val c = mapOf("c", 'a' as Char).get("c")
+                    println(c)
+                    val miss = mapOf("x", true).get("nope")
+                    println(miss)
+                }
+                """, "true\ntrue\n8\n9000000001\ntrue\n97\nfalse", Set.of(), tempDir);
+
+        // §112 (paridade absoluta, 3 superfícies novas achadas no sweep de
+        // coleções): (a) JVM **VerifyError** em `println(m.put(k,v))` com V
+        // primitivo — HashMap.put devolve Object (prev), e o typer declara o
+        // retorno V; o Object entrando em uso primitivo quebrava o verifier.
+        // (b) JVM **NullPointerException** em `println(m.remove(k))` de chave
+        // AUSENTE — remove devolve null e o unbox cru de primitivo estourava.
+        // (c) interpretador (Script) `s.add(1)` de um set que JÁ CONTÉM 1
+        // devolvia true (o código fazia add() e depois contains() — sempre
+        // true) vs JVM false. (d) interpretador os mesmos NPE/VerifyError de
+        // (a)/(b). Fix: emitPrevValueUnbox (guard null→default, espelhando o
+        // guard do kof_map_get) no JvmOpCollections kof_map_put/kof_map_remove
+        // + prevOrDefault no interpretador + s.add corrigido. **Bug extra no
+        // mesmo caminho:** o x86 `kof_map_remove` na rota de MISS fazia
+        // 3 popq para 5 pushq (desequilíbrio de pilha → `ret` para lixo →
+        // **SIGSEGV** em `m.remove(chave-ausente)`) — 5 pops simétricos.
+        matrix("mapmutret", """
+                main() {
+                    var s = setOf(1, 2)
+                    println(s.add(1))
+                    println(s.add(5))
+                    println(s.size)
+                    println(s.remove(1))
+                    println(s.remove(42))
+                    var m = mapOf("a", 1)
+                    println(m.put("a", 2))
+                    println(m.get("a"))
+                    println(m.remove("a"))
+                    println(m.remove("zz"))
+                    println(m.size)
+                }
+                """, "false\ntrue\n3\ntrue\nfalse\n1\n2\n2\n0\n0", Set.of(), tempDir);
+        // §104b-i (Native): `Thing.equals(...)` em classe NÂO-record dava
+        // LINK_FAIL (Object.equals herdado sem símbolo no bare-metal).
+        // Síntese de equals de identidade → oracle JVM (false entre
+        // instâncias novas, true por referência).
+        matrix("classequals", """
+                class Thing {
+                    Int v
+                    public constructor(Int v) { this.v = v }
+                }
+                main() {
+                    val t1 = Thing(5)
+                    val t2 = Thing(5)
+                    val r = t1
+                    println(t1 == t2)
+                    println(r == t1)
+                    println(t1.equals(t2))
+                    println(listOf(t1).contains(t1))
+                }
+                """, "false\ntrue\nfalse\ntrue", Set.of(), tempDir);
         matrix("boollogic", """
                 main() {
                     println(true && false)
@@ -207,7 +400,9 @@ class ConformanceMatrixTest {
                 """, "10\n0\n7\n-1\n3\n8\ntrue\nfalse\ntrue\ntrue\nfalse", Set.of(), tempDir);
         // STDLIB S1b — kof.math.sqrt (PRIMEIRO Double da namespace). Compara-
         // ções Bool (nunca print de double cru — bug 44 no Native). riscv/aarch
-        // = MATH001 (gate em KofMath; a matriz não cobre nativos cross).
+        // = B32 `fsqrt.d` (MATH001 fechado 11/09 — a cobertura cross com
+        // golden byte-idêntico mora em KofMathTest.sqrtCrossArch/
+        // doubleOpsCrossArch sob qemu; esta matriz roda os 4 targets não-cross).
         // PARTIAL script = bug 94 (numEq usa Double.compare → NaN==NaN true,
         // divergindo dos 3 compilados que seguem IEEE NaN!=NaN).
         matrix("stdsqrt", """
@@ -516,6 +711,25 @@ class ConformanceMatrixTest {
                     println("  x  ".trim() + "|")
                 }
                 """, "4\nhello world\nx|", Set.of(), tempDir);
+        // §111 (paridade absoluta): `split` não removía vazios TRAILING no
+        // Native nem no JS. O contrato é o Java: "a,"→["a"], ","→[], "a,b,"→
+        // ["a","b"], EXCETO input ""→[""] (size 1). Native (RuntimeStringEdit
+        // .Lkof_split_done) e JS (helper kofSplit) ganham o trim; JVM/Script
+        // (java.lang.String.split) já eram oracle. Também trava o §111 do
+        // substring: sentinela "até o fim" do 1-arg passou de 0→-1 (end=0 é
+        // valor legítimo do 2-arg — "hello".substring(0,0) era "hello").
+        matrix("strsplit", """
+                main() {
+                    println("a,".split(",").length)
+                    println(",".split(",").length)
+                    println("a,b,".split(",").length)
+                    println("".split(",").length)
+                    println("a,b,c".split(",").length)
+                    println("hello".substring(0, 0).length)
+                    println("hello".substring(2))
+                    println("hello".substring(5).length)
+                }
+                """, "1\n0\n2\n1\n3\n0\nllo\n0", Set.of(), tempDir);
         matrix("concat", """
                 main() {
                     println("n=" + 42)

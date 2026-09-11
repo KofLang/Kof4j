@@ -146,19 +146,9 @@ public final class NativeRiscvAsmRt1 {
                 li   a0, 0
                 ret
 
-            # kof_string_char_at(str, idx) -> Int (char code)
-            .globl kof_string_char_at
-            kof_string_char_at:
-                # bug 43 (face riscv/aarch): code unit UTF-16 (par astral →
-                # high/low), bounds em units — corpo em B33 (trampoline).
-                j kof_su_char_at
-
-            # kof_string_substring(str, start, end) -> KofStr* (end=0 → até o fim)
-            .globl kof_string_substring
-            kof_string_substring:
-                # bug 43 (face riscv/aarch): code units UTF-16 — corpo em B34
-                # (trampoline p/ não crescer a fatia; mesma lição da B33).
-                j kof_su_substring
+            # kof_string_char_at / kof_string_substring — MOVIDOS p/ B34
+            # (faces UTF-16, bug 43 cross): byte-based davam length/charAt
+            # em bytes UTF-8 (a😀b.length=6 vs JVM 4).
 
             # kof_string_contains(a, b) -> 0/1
             .globl kof_string_contains
@@ -287,11 +277,6 @@ public final class NativeRiscvAsmRt1 {
                 addi sp, sp, 48
                 ret
 
-            # kof_string_index_of(a, b) -> Int
-            .globl kof_string_index_of
-            kof_string_index_of:
-                # bug 43 (face riscv/aarch): índice em code units UTF-16 —
-                # corpo em B34 (trampoline; mesma lição da B33).
-                j kof_su_index_of
+            # kof_string_index_of — MOVIDO p/ B35 (UTF-16 code units — §43 cross)
             """;
 }

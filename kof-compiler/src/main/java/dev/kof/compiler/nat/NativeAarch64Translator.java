@@ -13,92 +13,6 @@ public final class NativeAarch64Translator {
 
     private NativeAarch64Translator() {}
 
-    // ---- tradutor riscv -> aarch64 (mesmo usado no probe Python) ----
-    private static long parseImm(String s) {
-        s = s.trim();
-        if (s.startsWith("0x") || s.startsWith("0X")) return Long.parseUnsignedLong(s.substring(2), 16);
-        return Long.parseLong(s);
-    }
-
-    private static String aarch64Reg(String r) {
-        return switch (r) {
-            case "zero" -> "xzr";
-            case "ra" -> "x30";
-            case "sp" -> "sp";
-            case "gp" -> "x3";
-            case "tp" -> "x4";
-            case "t0" -> "x9";
-            case "t1" -> "x10";
-            case "t2" -> "x11";
-            case "t3" -> "x12";
-            case "t4" -> "x13";
-            case "t5" -> "x14";
-            case "t6" -> "x15";
-            case "s0" -> "x19";
-            case "s1" -> "x20";
-            case "s2" -> "x21";
-            case "s3" -> "x22";
-            case "s4" -> "x23";
-            case "s5" -> "x24";
-            case "s6" -> "x25";
-            case "s7" -> "x26";
-            case "s8" -> "x27";
-            case "s9" -> "x28";
-            case "s10" -> "x16";
-            case "s11" -> "x29";
-            case "a0" -> "x0";
-            case "a1" -> "x1";
-            case "a2" -> "x2";
-            case "a3" -> "x3";
-            case "a4" -> "x4";
-            case "a5" -> "x5";
-            case "a6" -> "x6";
-            case "a7" -> "x8";
-            default -> r;
-        };
-    }
-
-    private static List<String> aarch64MovImm(String rd, long imm) {
-        long u = imm;
-        if (u == 0) return List.of("mov " + rd + ", #0");
-        List<String> out = new ArrayList<>();
-        boolean first = true;
-        for (int i = 0; i < 4; i++) {
-            int chunk = (int) ((u >> (16 * i)) & 0xFFFF);
-            if (chunk == 0 && !first) continue;
-            if (chunk == 0 && first) continue;
-            if (first) {
-                // movz aceita lsl; `mov` (alias) NÃO aceita — ex.: 262144
-                // (0x40000) tem primeiro chunk não-zero em i=1.
-                out.add((i != 0 ? "movz " : "mov ") + rd + ", #" + chunk + (i != 0 ? ", lsl #" + (16 * i) : ""));
-                first = false;
-            } else {
-                out.add("movk " + rd + ", #" + chunk + ", lsl #" + (16 * i));
-            }
-        }
-        if (first) out.add("mov " + rd + ", #0");
-        return out;
-    }
-
-    private static List<String> aarch64AddSubImm(String op, String rd, String rs, long imm, String indent) {
-        if (imm >= 0 && imm <= 4095) return List.of(indent + op + " " + rd + ", " + rs + ", #" + imm);
-        if (imm >= -4096 && imm <= -1) {
-            String op2 = op.equals("add") ? "sub" : "add";
-            return List.of(indent + op2 + " " + rd + ", " + rs + ", #" + (-imm));
-        }
-        if (imm == 4096 || imm == 8192 || imm == -4096 || imm == -8192) {
-            long a = Math.abs(imm);
-            long val = a >> 12;
-            String op2 = imm > 0 ? op : (op.equals("add") ? "sub" : "add");
-            return List.of(indent + op2 + " " + rd + ", " + rs + ", #" + val + ", lsl #12");
-        }
-        String tmp = "x17";
-        List<String> out = new ArrayList<>();
-        for (String s : aarch64MovImm(tmp, imm)) out.add(indent + s);
-        out.add(indent + op + " " + rd + ", " + rs + ", " + tmp);
-        return out;
-    }
-
     static List<String> translateRiscvToAarch64(String line) {
         String indent = line.substring(0, line.length() - line.stripLeading().length());
         // strip trailing comment rest-stripped before anything else
@@ -141,7 +55,7 @@ public final class NativeAarch64Translator {
         if (cut == -1) { mn = s; }
         else { mn = s.substring(0, cut); rest = s.substring(cut).strip(); }
         // helpers
-        java.util.function.Function<String,String> R = NativeAarch64Translator::aarch64Reg;
+        java.util.function.Function<String,String> R = NativeAarch64Helpers::aarch64Reg;
         // casos especiais FP antes dos genéricos
         // fcvt.w.s / fcvt.w.d / fcvt.l.s / fcvt.l.d
         if (mn.startsWith("fcvt.")) {
@@ -149,15 +63,12 @@ public final class NativeAarch64Translator {
             String[] parts = mn.split("\\.");
             // parts[0]=fcvt, parts[1]=w/l/s/d, parts[2]=s/d
             if (parts.length == 3 && (parts[1].equals("w") || parts[1].equals("l")) && (parts[2].equals("s") || parts[2].equals("d"))) {
-                // FCVT.FP->INT (destino é registrador INTEIRO). Direção
-                // corrigida 11/09 (raiz que travava MATH001/isInteger e
-                // quebrava silenciosamente `d as Int` no aarch — D2I do
-                // cross-emit emite exatamente fcvt.w.d): fcvt.w/l.s/d ->
-                // fcvtzs w/x (trunc em direção a zero == rtz do riscv ==
-                // cvttsd2si do x86 — paridade mantida).
+                // float->int TRUNCANDO (rv fcvt.w/l.s/d -> aarch fcvtzs). O ramo
+                // antigo emitia scvtf (int->float — o inverso; face nunca
+                // exercitada até MATH001/B32 isInteger usar fcvt.w.d).
                 String[] args = rest.split(",");
-                String rd = args[0].trim();   // t0 (inteiro)
-                String fs = args[1].trim();   // f0 (ponto flutuante)
+                String rd = args[0].trim();           // t0 (integer dest)
+                String fs = args[1].trim();           // f0 (float src)
                 String dst = parts[1].equals("w") ? "w" + R.apply(rd).substring(1) : R.apply(rd);
                 String src = (parts[2].equals("s") ? "s" : "d") + fs.substring(1);
                 return List.of(indent + "fcvtzs " + dst + ", " + src);
@@ -235,16 +146,6 @@ public final class NativeAarch64Translator {
             out.add(indent + "ldr " + fd + ", [x17]");
             return out;
         }
-        if (mn.startsWith("fsqrt.")) {
-            // fsqrt.d f0, f1 -> fsqrt d0, d1  (MATH001 kof_math_sqrt riscv;
-            // o ramo genérico de fadd/fsub/... não casa 'sqrt' — era UNHANDLED).
-            String suffix = mn.substring(6); // s ou d
-            String[] args = rest.split(",");
-            String fd = args[0].trim(), fs = args[1].trim();
-            String rFD = (suffix.equals("s") ? "s" : "d") + fd.substring(1);
-            String rFS = (suffix.equals("s") ? "s" : "d") + fs.substring(1);
-            return List.of(indent + "fsqrt " + rFD + ", " + rFS);
-        }
         if (mn.startsWith("fadd.") || mn.startsWith("fsub.") || mn.startsWith("fmul.") || mn.startsWith("fdiv.")) {
             String op = mn.substring(1, 4); // add, sub, mul, div (sem o '.')
             String suffix = mn.substring(5); // .s ou .d
@@ -254,6 +155,14 @@ public final class NativeAarch64Translator {
             String rFS1 = (suffix.equals(".s") ? "s" : "d") + fs1.substring(1);
             String rFS2 = (suffix.equals(".s") ? "s" : "d") + fs2.substring(1);
             return List.of(indent + "f" + op + " " + rFD + ", " + rFS1 + ", " + rFS2);
+        }
+        if (mn.equals("fsqrt.d") || mn.equals("fsqrt.s")) {
+            // rv fsqrt.<suf> fd, fs -> aarch fsqrt <suf>d, <suf>s (GAS não
+            // aceita o mnemonic concatenado "fsqrtd" — forma separada).
+            String[] args = rest.split(",");
+            String suf = mn.endsWith(".d") ? "d" : "s";
+            return List.of(indent + "fsqrt " + suf + args[0].trim().substring(1)
+                    + ", " + suf + args[1].trim().substring(1));
         }
         if (mn.startsWith("feq.") || mn.startsWith("flt.") || mn.startsWith("fle.") || mn.startsWith("fgt.") || mn.startsWith("fge.")) {
             String condMap = switch (mn.substring(1, 4)) {
@@ -305,13 +214,13 @@ public final class NativeAarch64Translator {
         if (mn.equals("li")) {
             String[] args = rest.split(",");
             String rdRaw = args[0].trim();
-            long imm = parseImm(args[1].trim());
+            long imm = NativeAarch64Helpers.parseImm(args[1].trim());
             if (rdRaw.equals("a7")) {
                 return List.of(indent + "mov x8, #" + imm);
             }
             String rd = R.apply(rdRaw);
             List<String> out = new ArrayList<>();
-            for (String s2 : aarch64MovImm(rd, imm)) out.add(indent + s2);
+            for (String s2 : NativeAarch64Helpers.aarch64MovImm(rd, imm)) out.add(indent + s2);
             return out;
         }
         if (mn.equals("mv")) {
@@ -325,9 +234,9 @@ public final class NativeAarch64Translator {
         if (mn.equals("addi")) {
             String[] args = rest.split(",");
             String rd = R.apply(args[0].trim()), rs = R.apply(args[1].trim());
-            long imm = parseImm(args[2].trim());
+            long imm = NativeAarch64Helpers.parseImm(args[2].trim());
             // _start alignment: andi é o problema, mas addi com sp já é ok; andi sp,sp,-16 é o único andi com sp
-            return aarch64AddSubImm("add", rd, rs, imm, indent);
+            return NativeAarch64Helpers.aarch64AddSubImm("add", rd, rs, imm, indent);
         }
         if (mn.equals("andi") && rest.contains("sp, sp, -16")) {
             return List.of(indent + "// andi sp,sp,-16 (skipped, sp already 16-aligned)");
@@ -336,11 +245,11 @@ public final class NativeAarch64Translator {
             String op = mn.equals("andi") ? "and" : "orr";
             String[] args = rest.split(",");
             String rd = R.apply(args[0].trim()), rs = R.apply(args[1].trim());
-            long imm = parseImm(args[2].trim());
+            long imm = NativeAarch64Helpers.parseImm(args[2].trim());
             // sempre expande via temp x17 para garantir encodabilidade
             String tmp = "x17";
             List<String> out = new ArrayList<>();
-            for (String s2 : aarch64MovImm(tmp, imm)) out.add(indent + s2);
+            for (String s2 : NativeAarch64Helpers.aarch64MovImm(tmp, imm)) out.add(indent + s2);
             out.add(indent + op + " " + rd + ", " + rs + ", " + tmp);
             return out;
         }

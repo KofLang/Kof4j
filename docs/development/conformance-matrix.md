@@ -27,6 +27,16 @@
 | long div/mod | `3333333333` / `4` | DONE | DONE | DONE | DONE | `longdiv` |
 | cast `d as Int` / `L as Int` / `66 as Char` | `9` / `70000` / `66` | DONE | DONE | DONE | DONE | `cast` |
 | float println | `0.3333333333333333` / `5.0` / `3.5` | DONE | DONE (bug 44 ✅ 10/09 x86) | DONE | PARTIAL (doc: `5` vs `5.0`) | `floatprint` |
+| infinity/NaN println+String.valueOf | `Infinity` / `-Infinity` / `NaN` | DONE | DONE (bug 44 residual ✅ 11/09 x86) | DONE | PARTIAL (doc: `5` vs `5.0`) | `infinityprint` |
+| String.equals(não-String) → false | `true` / `false` / `false` / `false` | DONE | DONE (bug 100 ✅ 11/09 x86 — era SIGSEGV/vazio) | DONE | DONE (fold `false`) | `equalsfold` |
+| indexOf/lastIndexOf/startsWith `from` | `-1` / `3` / `-1` / `2` / `true` / `false` | DONE | DONE (bug 102 ✅ 11/09 x86 — era ignorado) | DONE | DONE (nativo) | `searchfrom` |
+| record em coleção (contains/set/map/toString por conteúdo) | `true` / `true` / `7` / `[Point[x=1, y=2]]` | DONE | PARTIAL (bug 104b: LINK_FAIL em `Thing.equals` — vtable sem slot de `Object.equals` herdado) | DONE (bug 104a ✅ 11/09 — KofObj sem override → identidade) | DONE (bug 104c ✅ 11/09 — `kofValEq` conteúdo p/ record via `.equals` sintético; Map/Set/List lookup por conteúdo) | `objmethods` |
+| `println(coleção)` formato do contêiner | `[1, 2]` / `[a, b]` / `[1.5, 2.25]` / `{k=1}` / `[1]` / `[Point[..], Point[..]]` / `[[1], [2]]` | DONE | PARTIAL (bug 107: ponteiro cru — vtable `-1` silencioso em kof.List/Map/Set) | DONE | DONE (bug 107-JS ✅ 11/09 — `kofFormat` espelha ArrayList/HashMap/HashSet.toString) | `collprint` |
+| classe não-record: `equals`/`==` por identidade | `false` / `true` / `false` / `true` | DONE | DONE (bug 104b-i ✅ 11/09 — era LINK_FAIL: `Object.equals` herdado sem símbolo; síntese de identidade) | DONE | DONE (nativo JS) | `classequals` |
+| `map.get` com valor primitivo (guard do unbox) | `true`/`true`/`8`/`9000000001`/`true`/`97`/`false` | DONE (bug 109 ✅ 11/09 — era JVM CRASH: `Boolean.intValue()Z` → `NoSuchMethodError`; `unboxMethodName` só tratava ClassType; §104b-ii JVM 11/09: char guardava `Integer` mas unbox chamava `charValue()/()C` inexistente — unbox agora coerente com a caixa) | DONE (bug 104b-ii ✅ 11/09 — era SIGSEGV/`a`: `println(char-em-coleção)`; `ExpressionPrintLowerer` mapeava char→Int só p/ CHAR cru, nunca `Nullable(CHAR)`; cast `as Char` pinava `Unknown` no `mapOf` — SemExpressionTyper agora espelha o repair do ExpressionTyper) | DONE | DONE (`d*2`→predicado `d>1.0` p/ não colidir com floatprint §44) | `mapgetprim` |
+| signed zero (`-0.0` literal/negado/foldado) | `0.0` / `-0.0` / `-0.0` / `-0.0` / `-0.0` / `true` | DONE (bug 110 ✅ 11/09 — era `0.0`: `emitLoadDouble/Float` colapsava -0.0 em `DCONST_0` via `value == 0.0` IEEE) | DONE (guard raw bits sempre presente) | DONE | PARTIAL (doc §44: JS `String(-0.0)` = `0` sem `.0`) | `negzero` |
+| `split` remove trailing-empties (Java, não JS) + `substring(0,0)` | `1` / `0` / `2` / `1` / `3` / `0` / `llo` / `0` | DONE (oracle Java) | DONE (bug 111 ✅ 11/09 x86 — era `2`/`3`/`3`; trim no `.Lkof_split_done`; substring sentinela 0→-1) | DONE | DONE (bug 111 ✅ 11/09 — era trailing-preserve JS; helper `kofSplit`) | `strsplit` |
+| `put`/`remove` devolvem prev (null-safe p/ primitivo) + `set.add` | `false/true/3/true/false/1/2/2/0/0` | DONE (bug 112 ✅ 11/09 — era **VerifyError** no put e **NPE** no remove-miss; `emitPrevValueUnbox` guard) | DONE (bug 112 ✅ 11/09 — remove-miss **SIGSEGV**: `kof_map_remove` rota de miss dava 3 popq p/ 5 pushq; guard do unbox já existia) | DONE (bug 112 ✅ 11/09 — `s.add` já-presente devolvia **true** (add+contains) e NPE no remove-miss; `prevOrDefault` + `HashSet.add` real) | DONE (bug 112-JS ✅ 11/09 — era `null`: prev ausente embrulhado em `?? default` no handler map + `KofPop` estendido p/ preservar o side-effect embrulhado) | `mapmutret` |
 | string unicode length/charAt | `4` / `233` / `café!` | DONE | DONE (bug 43 ✅ 10/09 x86) | DONE | DONE | `unicode` |
 | string unicode astral (surrogate pair) | `4` / `55357` / `56832` / `98` | DONE | DONE (bug 43 ✅ 10/09 x86) | DONE | DONE | `unicode-astral` |
 | string unicode substring (code units, fronteiras bem-formadas) | `afé` / `é` / `😀` / `3` / `b` | DONE | DONE (bug 43 ✅ 10/09 x86) | DONE | DONE | `unicode-substring` |
@@ -56,8 +66,8 @@
 | lógica booleana + comparação | `false` / `true` / `false` / `true` | DONE | DONE | DONE | DONE | `boollogic` |
 | bitwise & \|\| ^ << >> | `2` / `7` / `5` / `16` / `64` | DONE | DONE | DONE | DONE | `bitwise` |
 | stdlib kof.math (S1: clamp/abs/sign/min/max/isEven/isOdd/isZero + `==true`/`==false` §93) | `10` / `0` / `7` / `-1` / `3` / `8` / `true` / `false` / `true` / `true` / `false` | DONE | DONE | DONE | DONE | `stdmath` |
-| stdlib kof.math (S1b: sqrt — primeiro Double; comparações Bool, NaN em <0 = IEEE; riscv/aarch **MATH001 fechado 11/09** fatia B36 `fsqrt.d`; E2E cross `nativeMathDoubleSeries`) | `true` / `true` / `true` / `true` / `false` / `true` | DONE | DONE | PARTIAL (bug 94: `numEq`→`Double.compare`, `NaN==NaN` true) | DONE | `stdsqrt` |
-| stdlib kof.math (S1b.1: lerp/percentage/isInteger/isDecimal — Double puro, SSE2; subset determinístico, NaN só nos compilados via KofMathTest; riscv/aarch **MATH001 fechado 11/09** fatia B36; E2E cross `nativeMathDoubleSeries`) | `true` ×15 | DONE | DONE | DONE | DONE | `stdmathdouble` |
+| stdlib kof.math (S1b: sqrt — primeiro Double; comparações Bool, NaN em <0 = IEEE; riscv/aarch = B32 `fsqrt.d`, MATH001 fechado 11/09) | `true` / `true` / `true` / `true` / `false` / `true` | DONE | DONE | PARTIAL (bug 94: `numEq`→`Double.compare`, `NaN==NaN` true) | DONE | `stdsqrt` |
+| stdlib kof.math (S1b.1: lerp/percentage/isInteger/isDecimal — Double puro, SSE2; subset determinístico, NaN só nos compilados via KofMathTest; riscv/aarch = B32, MATH001 fechado 11/09) | `true` ×15 | DONE | DONE | DONE | DONE | `stdmathdouble` |
 | stdlib kof.strings (S2a: isAlpha/isNumeric/isAlphaNumeric/isAscii/isUpper/isLower/count + `==true` §93) | `true` / `false` / `false` / `true` / `false` / `false` / `true` / `false` / `true` / `true` / `true` / `false` / `true` / `false` / `2` / `1` / `true` | DONE | DONE | DONE | DONE | `stdstrings` |
 | stdlib kof.strings (S2b: capitalize/reverse/repeat/truncate/pad — ASCII) | `Hello world` / `1abc` / `321cba` / `kayak` / `ababab` / `hello` / `abc` / `007` / `ab---` | DONE | DONE | DONE | DONE | `stdstrings2b` |
 | stdlib kof.validation (S12/S12b: formatCpf/formatCep/formatCnpj — pontuação BR, face leniente; formatPis NÃO entra — máscara ambígua = decisão) | `529.982.247-25` / `123` (no-op) / `01310-100` / `34.546.401/0001-63` | DONE | DONE | DONE | DONE | `formatBr*`/`formatCnpj*` (KofValidationTest; riscv/aarch sob qemu, assert) |
@@ -77,7 +87,7 @@
 | stdlib kof.* (S10–S12b, S3b-ext, S7-ext: paridade kof-script × JVM compilado — fachada random, format BR, uncapitalize, isUuid, isWeekend) | (asserts de contrato + golden; não-determinístico só via fachada) | DONE | DONE | — | — | `KofScriptStdlibParityTest` (kof-script, 5) |
 | stdlib kof.uuid (S3b-ext: isUuid — shape RFC 4122, 8-4-4-4-12 hex, hífens 8/13/18/23; sem checar versão/variante) | `true` / `true`(maj) / `false`(sem traço/tam/g/empty) | DONE | DONE | DONE | DONE | `isUuid*` (KofUuidTest; riscv/aarch assert sob qemu) |
 | stdlib kof.time (S7-ext: isWeekend — dayOfWeek>=6, wrapper nos 5 alvos; data inválida => false) | `true`(sáb) / `false`(qua) / `false`(inválida) | DONE | DONE | DONE | DONE | `calendar*` (KofTimeE2ETest; riscv/aarch assert sob qemu) |
-| stdlib kof.time (S7a/b/c: addDays/diffDays em data ISO String — parse estrito YYYY-MM-DD, inválido => ""/0; JVM/java.time + JS algoritmo civil sem Date + x86 asm `RuntimeTimeIso`) ⁴ | `2024-02-29` / `2023-03-01` / `2025-01-01` / `2023-12-31` / `''` / `''` / `60` / `-60` / `0` | DONE | DONE ⁴ | DONE | DONE | `stdtime2` |
+| stdlib kof.time (S7a/b/c: addDays/diffDays em data ISO String — parse estrito YYYY-MM-DD, inválido => ""/0; JVM/java.time + JS algoritmo civil sem Date + x86 asm `RuntimeTimeIso` + riscv/aarch **B33** (TIME002 fechado 11/09)) ⁴ | `2024-02-29` / `2023-03-01` / `2025-01-01` / `2023-12-31` / `''` / `''` / `60` / `-60` / `0` | DONE | DONE ⁴ | DONE | DONE | `stdtime2` |
 | stdlib kof.encoding (S4: hex + base64 + url + base64url — UTF-8 por bytes) | `4869` / `Hi` / `636166c3a9` / `café` / `TWFu` / `café` / `a%20b` / `café` / `ZmImTy0-Zg` / `fb&O->f` / `E` | DONE | DONE² | DONE | DONE | `stdenc` |
 
 > ¹ **STRN001 FECHADO 09/09:** joinWords portado p/ riscv64 (fatia B15) + aarch64
@@ -85,12 +95,17 @@
 > golden oracle no qemu (16 vetores, incl. delimitadores UTF-8 `>=128`).
 > `KofStringsTest.wordConvertersClosedOnCrossArch`.
 
-> ⁴ **TIME002 FECHADO 11/09 (riscv64/aarch64)**: `addDays`/`diffDays` rodam nos
-> 5 targets — JVM/Script (java.time), JS (algoritmo civil), native x86
-> (`RuntimeTimeIso`) e riscv64/aarch64 (fatia B35 `NativeRiscvAsmRtB35` —
-> transcrição fiel da máquina x86 + tradutor). Prova: golden stdtime2 +
-> 18 vetores byte-a-byte sob qemu (`NativeRiscv64/Aarch64E2ETest#nativeTimeAddDaysDiffDaysIso`).
-
+> ⁴ **TIME002 FECHADO 11/09 (riscv64/aarch64)**: `addDays`/`diffDays` rodam nos 5 alvos —
+> JVM/Script/JS + native **x86** (`RuntimeTimeIso`) + riscv64/aarch64 (fatia
+> **B33**: `.Lu8_parse2`/`.Lu8_civil`/`.Lu8_put*` port 1:1 do spec x86 reusando
+> `kdv_valid`/`kdv_epoch` da B14; aarch via tradutor). Prova:
+> `KofTimeE2ETest.timeAddDaysDiffDaysJvmShapeAndCrossArch` (golden de execução) +
+> `timeAddDaysDiffDaysCompilesOnAllTargets` (gate de compilação sempre-verde, sem qemu) — golden
+> byte-idêntico (9 linhas) sob qemu-riscv64 + qemu-aarch64, invertendo o
+> antigo gate TIME002 (precedente NET001: x86 fecha primeiro, cross depois).
+> LIÇÕES riscv do port: `call` sobrescreve `ra` (jalr, não pilha) — helper
+> que termina em `call h; ret` deve fazer **tail-jmp** `j h`; e `kdv_valid`
+> clobbers `s0` (daysInMonth) — nenhum valor vivo em `s0` entre calls.
 > ³ **NET001 FECHADO 09/09:** `net.*` roda nos 3 nativos — x86 (RuntimeUri) +
 > riscv64 (fatia B24) + aarch64 (mesmo asm traduzido); paridade byte-a-byte
 > nos 17 vetores do oracle (`KofNetTest.netOnCrossArch`, qemu).

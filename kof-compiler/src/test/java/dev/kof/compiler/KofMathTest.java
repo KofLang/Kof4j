@@ -107,8 +107,11 @@ class KofMathTest {
     }
 
     @Test
-    void sqrtGatedOnCrossArch(@TempDir Path tmp) throws Exception {
-        assertGated(tmp, SQRT_SRC, "sqrt");
+    void sqrtCrossArch(@TempDir Path tmp) throws Exception {
+        // MATH001 FECHADO 11/09: kof_math_sqrt na fatia riscv B32
+        // (fsqrt.d) + aarch (fsqrtd no tradutor). Golden BYTE-IDÊNTICO
+        // aos 3 targets (SQRT_OUT), executado sob qemu.
+        forCrossArch(tmp, SQRT_SRC, SQRT_OUT);
     }
 
     // S1b.1: escalares Double puros (lerp/percentage/isInteger/isDecimal) —
@@ -159,22 +162,47 @@ class KofMathTest {
     }
 
     @Test
-    void doubleOpsGatedOnCrossArch(@TempDir Path tmp) throws Exception {
-        assertGated(tmp, DBL_SRC, "lerp");
+    void doubleOpsCrossArch(@TempDir Path tmp) throws Exception {
+        // MATH001 FECHADO 11/09 (lerp/percentage/isInteger/isDecimal — B32).
+        forCrossArch(tmp, DBL_SRC, DBL_OUT);
     }
 
-    private void assertGated(@TempDir Path tmp, String src, String label) throws Exception {
-        // MATH001 FECHADO 11/09 (S1b/S1b.1 cross): os Double ops compilam nos
-        // cross — a PARIDADE byte-idêntica riscv64/aarch64 é provada executando
-        // sob qemu nos E2E cross (NativeRiscv64/Aarch64E2ETest); aqui só
-        // garantimos que o gate R6 antigo não rejeita mais (regressão de wiring).
-        Path gateSrc = tmp.resolve("Gate-" + label + "-" + System.nanoTime() + ".kf");
-        Files.writeString(gateSrc, src);
+    private void forCrossArch(Path tmp, String src, String expected) throws Exception {
+        // golden byte-idêntico ao JVM/x86/JS, executado sob qemu (padrão
+        // STRN001/SECN000 da lane; skipa honesto se toolchain ausente).
         for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
-            CompilationResult r = new CompilerDriver().compile(
-                    gateSrc, tmp.resolve("gate-" + t + "-" + System.nanoTime()), t);
-            assertTrue(r.success(), t + " deve compilar " + label + " (MATH001 fechado): "
-                    + r.diagnostics().getDiagnostics());
+            String qemu = t == Target.NATIVE_RISCV64 ? "qemu-riscv64" : "qemu-aarch64";
+            String[] tools = t == Target.NATIVE_RISCV64
+                    ? new String[]{"riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64"}
+                    : new String[]{"aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"};
+            assumeToolchain(tools);
+            Path file = tmp.resolve("X-" + t + "-" + System.nanoTime() + ".kf");
+            Files.writeString(file, src);
+            Path outDir = tmp.resolve("xout-" + t + "-" + System.nanoTime());
+            CompilationResult result = driver.compile(file, outDir, t);
+            assertTrue(result.success(), t + " compile failed: " + result.diagnostics().getDiagnostics());
+            Process p = new ProcessBuilder(qemu, outDir.resolve("Default/Main").toString())
+                    .redirectErrorStream(true).start();
+            String output = new String(p.getInputStream().readAllBytes(),
+                    java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+            int ec = p.waitFor();
+            assertEquals(0, ec, t + " exit code, output: " + output);
+            assertEquals(expected, output, t + " golden");
+        }
+    }
+
+    private void assumeToolchain(String... tools) {
+        for (String c : tools) {
+            try {
+                Process p = new ProcessBuilder("sh", "-c", "command -v " + c)
+                        .redirectErrorStream(true).start();
+                String out = new String(p.getInputStream().readAllBytes(),
+                        java.nio.charset.StandardCharsets.UTF_8).trim();
+                org.junit.jupiter.api.Assumptions.assumeTrue(
+                        p.waitFor() == 0 && !out.isEmpty(), "toolchain ausente: " + c);
+            } catch (Exception e) {
+                org.junit.jupiter.api.Assumptions.assumeTrue(false, "toolchain ausente: " + c);
+            }
         }
     }
 

@@ -10,7 +10,63 @@ import java.util.List;
  */
 public final class ExpressionInstanceCallLowerer {
 
+    /** Métodos de String cujo parâmetro é String/CharSequence (SEM051 — bug 100). */
+    private static final java.util.Set<String> STRING_ARG_METHODS = java.util.Set.of(
+            "indexOf", "lastIndexOf", "contains", "startsWith", "endsWith",
+            "split", "concat", "equalsIgnoreCase", "compareTo", "compareToIgnoreCase");
+
+    /**
+     * Funções da stdlib {@code strings.*} que NÃO são métodos de instância em
+     * Kof (SEM052 — bug 96). Chamá-las como método era ACEITO e quebrava de
+     * um jeito em cada target (JVM NoSuchMethodError, Native link-fail, JS
+     * roda o nativo do JS, Script roda/quebra por reflexão) — paridade
+     * absoluta JVM=JS=X86=ARM=RISC. O idiom do corpus é só a função
+     * (training/idioms/stdlib.md, learn/39-stdlib.md).
+     */
+    private static final java.util.Set<String> NOT_INSTANCE_METHODS = java.util.Set.of(
+            "repeat", "truncate", "padLeft", "padRight", "padStart", "padEnd",
+            "capitalize", "uncapitalize", "reverse", "count",
+            "isAlpha", "isNumeric", "isAlphaNumeric", "isAscii",
+            "isUpperCase", "isLowerCase", "toCamelCase", "toPascalCase",
+            "toSnakeCase", "toKebabCase", "slugify", "escapeHtml",
+            "unescapeHtml", "escapeJson", "removeWhitespace", "normalizeWhitespace");
+
     private ExpressionInstanceCallLowerer() {}
+
+    /** Nome canônico da função `strings.*` p/ o nome de método errado (SEM052). */
+    private static String padHint(String methodName) {
+        return switch (methodName) {
+            case "padStart" -> "padLeft";
+            case "padEnd" -> "padRight";
+            default -> methodName;
+        };
+    }
+
+    /** SEM051: Char/numérico/array/classe NÃO-Kof-String num formal String. */
+    private static boolean notStringForFormal(Type t) {
+        if (t instanceof Type.NullableType nt) t = nt.inner();
+        if (t instanceof Type.UnknownType) return false;
+        if (BuiltinTypes.isString(t)) return false;
+        return TypeMetrics.isPrimitiveType(t) || t instanceof Type.ClassType
+                || t instanceof Type.ArrayType;
+    }
+
+    private static String typeNameFor(Type t) {
+        if (t instanceof Type.PrimitiveType p) return switch (p.name()) {
+            case "char" -> "Char";
+            case "int" -> "Int";
+            case "long" -> "Long";
+            case "double" -> "Double";
+            case "float" -> "Float";
+            case "bool" -> "Bool";
+            case "byte" -> "Byte";
+            case "short" -> "Short";
+            default -> p.name();
+        };
+        if (t instanceof Type.ArrayType a) return typeNameFor(a.componentType()) + "[]";
+        if (t instanceof Type.ClassType c) return c.name();
+        return String.valueOf(t);
+    }
 
     static int lower(CompilerDriver driver, MethodCallExpr mc, List<KofOperation> ops,
                     String owner, int localIdx, List<IRLocalVariable> locals) {
@@ -297,34 +353,91 @@ public final class ExpressionInstanceCallLowerer {
         methodReturnType = resolvedMethod.returnType();
         methodParamTypes = new ArrayList<>(resolvedMethod.parameterTypes());
     } else if (BuiltinTypes.isString(recvType)) {
+        // paridade absoluta (JVM=JS=X86=ARM=RISC): String.equals(não-String) é
+        // `false` em TODO target (uma String nunca é igual a Int/Char/record/
+        // lista). O Native, porém, CRASHAVA (kof_string_equals lia o Int-boxado
+        // como ponteiro-String → SIGSEGV/saída vazia) enquanto JVM/Script
+        // davam `false` — paridade quebrada em silêncio (R6). Constant-fold:
+        // roda o efeito do arg, descarta os dois, empilha `false` (sem tocar o
+        // contrato/semântica de `equals` de String-vs-String, que segue pro
+        // runtime). Não-fold: arg pode ser String em runtime (Unknown/Nullable).
+        if ("equals".equals(mc.methodName()) && mc.arguments().size() == 1) {
+            Type at = ExpressionTyper.inferExprType(driver, mc.arguments().get(0), locals);
+            if (at instanceof Type.NullableType nnt) at = nnt.inner();
+            // fold seguro SÓ p/ primitivos (Char/Int/Long/Double/Bool/...): o
+            // `kof_string_equals` do Native deref o ponteiro → SIGSEGV com Int;
+            // JVM/Script/JS dariam `false`. Classes/arrays (equals(Object) é
+            // válido e raramente String) seguem pro runtime: lá o KofPop do
+            // fold quebra a pilha JS (stack machine sem o descarte implícito
+            // p/ chamada void — underflow no builder do listOf) e o valor de
+            // uma classe user-defined vs String é `false` correto no runtime
+            // (Objects.equals/===). Unknown/Nullable também não-fold (pode ser
+            // String em runtime).
+            boolean provablyNotString = TypeMetrics.isPrimitiveType(at) && !BuiltinTypes.isString(at);
+            if (provablyNotString) {
+                localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(0), ops, owner, localIdx, locals);
+                ops.add(new KofPop());   // arg
+                ops.add(new KofPop());   // receiver (empilhado no topo do lower)
+                ops.add(new KofLoadLiteral(Type.PrimitiveType.BOOL, 0));
+                return localIdx;
+            }
+        }
+        // bug 96 (paridade absoluta): as funções da stdlib `strings.*` NÃO são
+        // métodos de instância em Kof — chamá-las como método era ACEITO pelo
+        // typer e quebrava de um jeito em CADA target (JVM `NoSuchMethodError`
+        // por descritor Object, Native `undefined reference` no link, JS roda o
+        // nativo `.repeat`/`.padStart` do próprio JS, Script roda/quebra por
+        // reflexão). Opção B (decisão da mantenedora): REJEITAR em compile-time
+        // com SEM052 apontando p/ o idiom real do corpus — o MESMO erro nos 5
+        // backends (este lowering é o frontend único). NÃO confunda com
+        // `toUpperCase`/`toLowerCase`/`trim`/`split`/`replace`/`substring`,
+        // que SÃO métodos de String na registry (e em Kof).
+        if (NOT_INSTANCE_METHODS.contains(mc.methodName()) && driver.currentDiagnostics != null) {
+            var pos = mc.position();
+            driver.currentDiagnostics.error(pos != null ? pos.file() : "",
+                    pos != null ? pos.line() : 0, pos != null ? pos.column() : 0, 0,
+                    "Kof não tem método \"" + mc.methodName() + "\" de String; use a função "
+                            + "da stdlib: strings." + padHint(mc.methodName()) + "(...",
+                    "SEM052");
+        }
+        // bug 100 (R6, paridade absoluta JVM=JS=X86=ARM=RISC): argumento
+        // NÃO-String num parâmetro String/CharSequence (Char, Int, Long, lista…)
+        // era ACEITO e quebrava de um jeito em CADA target (JVM
+        // VerifyError/NoSuchMethodError/ExceptionInInitializer, Native SIGSEGV/
+        // saída vazia, Script `false`/vazio). Opção B (decisão da mantenedora):
+        // REJEITAR em tempo de compilação (SEM051), o MESMO erro nos 5 backends
+        // (este lowering é o frontend único). Checagem POR POSIÇÃO pela formal
+        // da registry (indexOf("a", 2) tem formal String,Int → só a posição 0
+        // é stringy; indexOf('c') pega na 0). compareTo/compareToIgnoreCase não
+        // estão na registry (sig=null) → tratadas TODAS as posições como stringy.
+        // NÃO flaguemos `replace` (formal CHAR quando args são Char — widening
+        // legal) nem `charAt`/`substring` (formal numérico, fora da lista).
+        if (STRING_ARG_METHODS.contains(mc.methodName()) && driver.currentDiagnostics != null) {
+            StringMethodRegistry.Sig sigG = StringMethodRegistry.stringMethodSignature(
+                    mc.methodName(), mc.arguments().size(), methodParamTypes);
+            List<Type> formals = sigG != null ? sigG.parameterTypes() : null;
+            for (int ai = 0; ai < mc.arguments().size(); ai++) {
+                boolean formalIsStringy = formals == null
+                        || (ai < formals.size() && (BuiltinTypes.isString(formals.get(ai))
+                            || (formals.get(ai) instanceof Type.ClassType fc
+                                && "CharSequence".equals(fc.name()))));
+                if (!formalIsStringy) continue;
+                Type at = ExpressionTyper.inferExprType(driver, mc.arguments().get(ai), locals);
+                if (notStringForFormal(at)) {
+                    var pos = mc.position();
+                    driver.currentDiagnostics.error(pos != null ? pos.file() : "",
+                            pos != null ? pos.line() : 0, pos != null ? pos.column() : 0, 0,
+                            "String." + mc.methodName() + " não aceita " + typeNameFor(at)
+                                    + " como argumento " + (ai + 1) + " (o parâmetro é String); "
+                                    + "use um literal String, ex.: " + mc.methodName() + "(\"c\")",
+                            "SEM051");
+                    break;
+                }
+            }
+        }
         StringMethodRegistry.Sig sig = StringMethodRegistry.stringMethodSignature(mc.methodName(), mc.arguments().size(),
                 methodParamTypes);
         if (sig != null) {
-            // bug 99: registry resolve indexOf/contains/… por ARIDADE — o
-            // formal String/CharSequence aceita Int/Char no caminho e cada
-            // backend divergia (JVM VerifyError, Native SIGSEGV, JS -1
-            // silencioso, interpretador CCE). Kof não tem tipo char: 'x' É
-            // Int. Rejeitar no lowering (R6 — nunca o "compila e quebra")
-            // apontando p/ o idiom. replace é intencionalmente (CHAR,CHAR)
-            // quando os args são chars — só formais REF de string guardam.
-            int bad = stringFormalMismatch(sig.parameterTypes(), methodParamTypes);
-            if (bad >= 0) {
-                if (driver.currentDiagnostics != null) {
-                    SourcePosition p = mc.arguments().get(bad).position();
-                    String what = argTypeName(methodParamTypes.get(bad));
-                    driver.currentDiagnostics.error(p != null ? p.file() : "",
-                            p != null ? p.line() : 0, p != null ? p.column() : 0, 0,
-                            "String method '" + mc.methodName() + "' expects a String argument, got "
-                                    + what + " (char literals are Ints in Kof — pass \"c\" not 'c')",
-                            "SEM025");
-                }
-                for (ExpressionNode arg : mc.arguments()) {
-                    localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
-                    ops.add(new KofPop());
-                }
-                ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
-                return localIdx + 1;
-            }
             methodReturnType = sig.returnType();
             methodParamTypes = new ArrayList<>(sig.parameterTypes());
         }
@@ -435,27 +548,7 @@ public final class ExpressionInstanceCallLowerer {
         return localIdx;
     }
 
-    /** Índice do 1º arg cujo tipo (Int/Char) não bate com o formal REF
-     *  (String/CharSequence) do registry; -1 = compatível. Object (equals)
-     *  aceita qualquer coisa. */
-    private static int stringFormalMismatch(List<Type> formals, List<Type> args) {
-        for (int i = 0; i < formals.size() && i < args.size(); i++) {
-            Type f = formals.get(i);
-            Type a = args.get(i);
-            boolean formalIsStringish = f instanceof Type.ClassType ct
-                    && "java.lang".equals(ct.packageName())
-                    && ("String".equals(ct.name()) || "CharSequence".equals(ct.name()));
-            if (formalIsStringish && TypeMetrics.isPrimitiveType(a)) return i;
-        }
-        return -1;
-    }
-
-    private static String argTypeName(Type t) {
-        if (t instanceof Type.PrimitiveType pt) return Type.canonicalPrimitiveName(pt.name());
-        return t.toString();
-    }
-
-    private static Type recvType0(CompilerDriver driver, MethodCallExpr mc, List<IRLocalVariable> locals) {
+        private static Type recvType0(CompilerDriver driver, MethodCallExpr mc, List<IRLocalVariable> locals) {
         if (mc.receiver() == null) return Type.UnknownType.UNKNOWN;
         return ExpressionTyper.inferExprType(driver, mc.receiver(), locals);
     }

@@ -694,6 +694,7 @@ Se você está prestes a escrever algo desta lista, **pare**:
 | `val x = ...` / `var x = ...` no **top-level** | dentro de função; ou campo de `class` |
 | `let x = ...` / `const x = ...` / `async fn` | `var`/`val` em função; `spawn`/`await` (KofScript **não** é JavaScript — roda Kof puro) |
 | `x in [...]` (operador de expressão) | `setOf(...).contains(x)` |
+| `Int.MAX_VALUE` / `Long.MIN_VALUE` / `<primitivo>.<campo>` | literal (`2147483647`) ou `as` — primitivos não têm estáticos (SEM050) |
 | `{"a", "b"}` (literal de conjunto) | `setOf("a", "b")` |
 | `[1, 2, 3]` (literal de array) | `listOf(1, 2, 3)` ou `new Int[n]` |
 | `Option<T>` / `Result<T>` | `String?` + narrowing; `throw` para erro |

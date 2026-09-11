@@ -348,7 +348,6 @@ public final class JvmStringMathRuntime {
                     return kof_encoding_base64Decode(v.replace('-', '+').replace('_', '/'));
                 }
 
-
                 // ── kof.encoding (STDLIB S4.2b) — percent-encoding (RFC 3986) ──
                 // unreserved [A-Za-z0-9-_.~] preservado; todo outro byte UTF-8
                 // vira %XX (hex MAIÚSCULO). Espaço => %20 (não '+'). urlDecode é

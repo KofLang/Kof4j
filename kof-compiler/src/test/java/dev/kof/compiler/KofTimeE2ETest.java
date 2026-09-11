@@ -398,15 +398,12 @@ class KofTimeE2ETest {
     }
 
     /**
-     * STDLIB S7a/S7c-1 — addDays/diffDays em data ISO (String).
-     * Shape travado no JVM (java.time); TIME002 FECHADO no cross 11/09
-     * (fatia B35 riscv64 + tradutor aarch64). O gate era rejeição com
-     * diagnóstico TIME002; agora compila nos 5 targets (prova de execução
-     * riscv/aarch sob qemu em NativeRiscv64/Aarch64E2ETest; golden da
-     * matriz stdtime2 em ConformanceMatrixTest).
+     * STDLIB S7a — addDays/diffDays em data ISO (String).
+     * Shape travado no JVM (java.time); Native/JS = gap honesto TIME002
+     * (erro claro no compile, nunca fallback silencioso — R6).
      */
     @Test
-    void timeAddDaysDiffDaysCompilesOnAllTargets(@TempDir Path tempDir) throws IOException {
+    void timeAddDaysDiffDaysJvmShapeAndCrossArch(@TempDir Path tempDir) throws IOException {
         String src = """
             main() {
                 println(time.addDays("2024-02-28", 1))
@@ -425,12 +422,67 @@ class KofTimeE2ETest {
                         "2024-02-29\n2023-03-01\n2025-01-01\n2023-12-31\n\n\n60\n-60\n0"));
         Path gateSrc = tempDir.resolve("Gate.kf");
         Files.writeString(gateSrc, src);
-        // TIME002 fechado (S7c-1): addDays/diffDays compilam em riscv64/
-        // aarch64 (asm B35; execução provada sob qemu nos E2E cross).
+        // S7b: JS FECHADO; S7c: x86 FECHADO (matriz stdtime2 roda local).
+        // S7d (TIME002 fechado 11/09): riscv64/aarch64 — B33 (.Lu8_parse2/
+        // .Lu8_civil/.Lu8_put*) port 1:1 do RuntimeTimeIso x86 reusando
+        // kdv_valid/kdv_epoch (B14). Golden byte-idêntico sob qemu.
+        String expected = "2024-02-29\n2023-03-01\n2025-01-01\n2023-12-31\n\n\n60\n-60\n0";
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            String qemu = t == Target.NATIVE_RISCV64 ? "qemu-riscv64" : "qemu-aarch64";
+            String[] tools = t == Target.NATIVE_RISCV64
+                    ? new String[]{"riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64"}
+                    : new String[]{"aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"};
+            assumeToolchain(tools);
+            Path file = tempDir.resolve("Ad-" + t + "-" + System.nanoTime() + ".kf");
+            Files.writeString(file, src);
+            Path outDir = tempDir.resolve("ad-" + t + "-" + System.nanoTime());
+            CompilationResult r = new CompilerDriver().compile(file, outDir, t);
+            assertTrue(r.success(), t + " compile: " + r.diagnostics().getDiagnostics());
+            Process p = new ProcessBuilder(qemu, outDir.resolve("Default/Main").toString())
+                    .redirectErrorStream(true).start();
+            String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
+                    .replace("\r\n", "\n").trim();
+            int ec;
+            try {
+                ec = p.waitFor();
+            } catch (InterruptedException e) {
+                throw new IOException("interrupted", e);
+            }
+            assertEquals(0, ec, t + " qemu exit, out: " + out);
+            assertEquals(expected, out, t + " golden addDays/diffDays");
+        }
+    }
+
+    @Test
+    void timeAddDaysDiffDaysCompilesOnAllTargets(@TempDir Path tempDir) throws IOException {
+        // Gate SEMPRE-verde (mesmo sem qemu): o backend cross EMITE o asm; a
+        // EXECUCAO e provada sob qemu no teste acima (S7c-1/TIME002 fechado).
+        String src = """
+            main() {
+                println(time.addDays("2024-02-28", 1))
+                println(time.diffDays("2024-01-01", "2024-03-01"))
+            }
+            """;
+        Path gateSrc = tempDir.resolve("GateTime.kf");
+        Files.writeString(gateSrc, src);
         for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
             CompilationResult r = new CompilerDriver().compile(gateSrc, tempDir.resolve("gate-" + t), t);
             assertTrue(r.success(), t + " deve compilar addDays/diffDays (TIME002 fechado): "
                     + r.diagnostics().getDiagnostics());
+        }
+    }
+
+    private void assumeToolchain(String... tools) {
+        for (String c : tools) {
+            try {
+                Process p = new ProcessBuilder("sh", "-c", "command -v " + c)
+                        .redirectErrorStream(true).start();
+                String o = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+                org.junit.jupiter.api.Assumptions.assumeTrue(
+                        p.waitFor() == 0 && !o.isEmpty(), "toolchain ausente: " + c);
+            } catch (Exception e) {
+                org.junit.jupiter.api.Assumptions.assumeTrue(false, "toolchain ausente: " + c);
+            }
         }
     }
 }

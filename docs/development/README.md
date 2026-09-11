@@ -36,8 +36,8 @@
 | `roadmap-audit.md` | matriz 06/09: 13 itens — 5× `PARTIAL`, 4× `NOT STARTED` | `PARTIAL` |
 | `roadmap-gap-2026-09-03.md` | gap report NATIVE002 + discrepâncias | `PARTIAL` |
 | `ecosystem-coverage.md` | matriz G1–G12: muitos `PARTIAL`/`PLANNED` (events, messaging, OAuth2, batch, AI) | `PARTIAL` |
-| `actual-state.md` | "O que NÃO está implementado" residual 0.2.6-beta | `PARTIAL` |
-| `language-state.md` | snapshot 02/09 desatualizado (SG-E2: 810 testes vs 969 hoje, v0.2.6 vs 0.3.0) | `OUTDATED` |
+| `docs/actual-state.md` | **movido p/ docs/ 11/09** — snapshot histórico 0.2.6-beta (registro, não backlog) | `HISTÓRICO` |
+| `docs/language-state.md` | **movido p/ docs/ 11/09** — snapshot histórico 02/09 (SG-E2; registro, não backlog) | `HISTÓRICO` |
 
 ### 3. Plans de Plataforma
 | Arquivo | Por que está aqui | Estado |
@@ -47,17 +47,17 @@
 | `planning-switch-expr.md` | **movido p/ `docs/planning-switch-expr.md` 10/09** (SYN001 FECHADO — nada pendente; concluído não fica em development/) | `FEITO` |
 | `planning-mutability.md` | **movido p/ `docs/planning-mutability.md` 10/09** (DD-02/SEM037/SEM038 aplicados, #42 fechada) | `FEITO` |
 | `planning-finally-return.md` | **movido p/ `docs/development/future/` 10/09** (PROPOSED — bug 45, zero código, decisão da mantenedora pendente) | `PLANEJADO` |
-| `planning-stdlib-time-design.md` | DD-STDLIB-02: semântica de tempo restante (fuso/today, assinaturas compostas, hoursBetween, formatDate) — libera só todayIso/formatDateIso se D1-A | `PROPOSED` |
-| `planning-stdlib-array-returns.md` | DD-STDLIB-01: retorno Array/objeto na camada de dispatch stdlib (S10c randomBytes/randomChoice) — recomendação: choice via idiom, bytes decide a mantenedora | `PROPOSED` |
+| `planning-stdlib-time-design.md` | **movido p/ `docs/development/future/` 11/09** (DD-STDLIB-02 PROPOSED — zero código em andamento; sem decisão da mantenedora não é trabalho atual) | `PLANEJADO (future)` |
+| `planning-stdlib-array-returns.md` | **movido p/ `docs/development/future/` 11/09** (DD-STDLIB-01 PROPOSED — zero código; trava de dispatch Array/objeto) | `PLANEJADO (future)` |
+| `plan-stdlib-expansion.md` | STDLIB universal S1–S12: S1–S8+S10–S12 ✅ 09–11/09 (TIME002 fechado 11/09 fatia B33; MATH001 fechado 11/09 fatia B32); pendentes: S10c (DD-STDLIB-01) + S7 `format`/`boundaries` (decisão de superfície) — `pow`/`roundTo`-mode ag. mantenedora | `EM CURSO` |
 | `planning-otp-supervision.md` | DD-OTP-01..13: supervisão OTP one_for_one (issue #83) — recomend. stdlib puro-Kof + fábrica + escalate-callback + flag própria (5 alvos grátis) — decide a mantenedora | `PROPOSED` |
-| `plan-stdlib-expansion.md` | STDLIB universal S1–S12: S1–S8+S10–S12 ✅ 09–11/09 (TIME002 fechado 11/09 B35; MATH001 fechado 11/09 B36); pendentes: S10c (DD-STDLIB-01) + S7 `format`/`boundaries` (decisão de superfície) — `pow`/`roundTo`-mode ag. mantenedora | `EM CURSO` |
 | `refactoring/PLAN-SOLID-500.md` | regra ≤500 linhas: Fases 4–8 fechadas, mas F1–3 + 9 com resíduo 502 → 493 | `EM CURSO` |
 
 ### 4. Gaps & Bugs
 | Arquivo | Por que está aqui | Estado |
 |---|---|---|
  | `specification-gaps.md` | 23 entradas (SG-001–020 + E1–E3) — SG-001/007 resolvidos; demais ABERTOS (a maioria decisão de design, regra 6) | `ABERTO` (~21 gaps) |
- | `known-bugs.md` | bugs 1–60: 39 ABERTO (null de Map — decisão de design regra 6); 37/38/40 + CANVAS001 ✅ corrigidos; Native lane 43/44/46/48/50/59 | `ABERTO` (bug 39 + lane Native) |
+ | `known-bugs.md` | fila viva: abertos atacáveis = §45 (finally+return, lowerers) + §104b (Object.equals/record-em-coleção + box primitivo no asm, Native) + §107 (println coleção → lixo Native) + §108 (bool-em-lista Script); congelados/regra 6 = §94/§96/§98/§101/§106 (json.encode Map); corrigidos 08–11/09: 1–8/10–17/19–20/26 + 39/44/46/48/50/59/62–64/96–105 + §104c (JS) + §107-JS + §109–§112 (paridade sweep 11/09) + MATH001/TIME002 | `ABERTO` (fila §45/§104b/§107/§108) |
 | `security-plan.md` | 18 camadas: A ✅ mas B/C/D com ❌ (cookies, middleware, OAuth2, TLS cert próprio) | `PARTIAL` |
 
 ### 5. Native Multiarch
@@ -82,6 +82,7 @@ Estes **não** foram movidos — são prova ou referência estável:
 | `docs/security.md` | auditoria v1 + matriz (G9 fechado) |
 | `docs/stdlib.md` + `docs/stdlib/*.md` | stdlib estável (kof.*) |
 | `docs/concurrency.md` | spawn/await/channel/scheduler (CONC003 fechado) |
+| `docs/concurrency-memory-model.md` | SG-020 — spec SC + 5 bordas HB (ADOTADA 09/09, validada 10/09 — KofConcurrency2Test; movida p/ docs/ 11/09: nada pendente) |
 | `docs/observability.md`, `performance.md`, `philosophy.md` | referência estável |
 | `docs/debugging*.md`, `debug-adapter.md` | DAP MVP (Fase 3) — parcial mas tooling base estável |
 | `docs/http.md`, `docs/stdlib-*.md`, `docs/runtime/*` | runtime models (STRING/ARRAY/INHERITANCE completos) |

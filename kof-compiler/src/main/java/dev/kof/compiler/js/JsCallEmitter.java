@@ -61,6 +61,16 @@ void handleCall(MethodCtx ctx, List<Object> stack,
                 // "h", não o codepoint numérico). Ver known-bugs #27.
                 stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("String.fromCharCode"),
                         List.of(args.get(0))));
+            } else if (!kc.parameterTypes().isEmpty()
+                    && kc.parameterTypes().get(0) instanceof Type.ClassType ct
+                    && "kof".equals(ct.packageName())
+                    && (ct.name().equals("List") || ct.name().equals("Map") || ct.name().equals("Set"))) {
+                // §107-JS: String.valueOf(coleção) = toString do contêiner
+                // (JVM: ArrayList/HashMap/HashSet.toString → "[1, 2]", "{k=1}").
+                // String() do JS dava "1,2" (Array) / "[object Map]" — sem
+                // colchetes/ordem errada. kofFormat espelha o formato JVM.
+                p.lc.registerRuntime("kofFormat");
+                stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofFormat"), List.of(args.get(0))));
             } else if (BuiltinTypes.isString(kc.ownerType())) {
                 stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("String"), List.of(args.get(0))));
             } else if (!kc.parameterTypes().isEmpty()
@@ -192,6 +202,27 @@ boolean isStringOp(KofCall kc) {
 void handleStringOp(MethodCtx ctx, List<Object> stack,
                                 List<JsIr.JsExpression> preambleExprs, KofCall kc,
                                 JsIr.JsExpression receiver, List<JsIr.JsExpression> args) {
+        // §102 (paridade absoluta): com 2 args (needle + from), o
+        // String.prototype do JS diverge do JDK no clamp do `from`
+        // (lastIndexOf(from<0) JS=0 vs JDK=-1; startsWith(from>len) JS=true vs
+        // JDK=false; vazio+from JS difere). Baixa p/ helper top-level com os
+        // clamps do JDK. 1-arg cai no default (nativo, bate o JDK).
+        if (args.size() >= 2) {
+            String s2fn = switch (kc.methodName()) {
+                case "indexOf" -> "kof_string_index_of2";
+                case "lastIndexOf" -> "kof_string_last_index_of2";
+                case "startsWith" -> "kof_string_starts_with2";
+                default -> null;
+            };
+            if (s2fn != null) {
+                ctx.lc.registerRuntime(s2fn);
+                List<JsIr.JsExpression> full = new ArrayList<>();
+                full.add(receiver);
+                full.addAll(args);
+                stack.add(new JsIr.JsCall(new JsIr.JsIdentifier(s2fn), full));
+                return;
+            }
+        }
         switch (kc.methodName()) {
             case "kof_string_concat" -> stack.add(new JsIr.JsBinary(args.get(0), "+", args.get(1)));
             case "kof_string_equals" -> stack.add(new JsIr.JsConditional(
@@ -250,6 +281,16 @@ void handleStringOp(MethodCtx ctx, List<Object> stack,
                 ctx.lc.registerRuntime("kofStringCompareTo");
                 stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofStringCompareTo"),
                         List.of(receiver, args.get(0))));
+            }
+            case "split" -> {
+                // §111: JS String.prototype.split PRESERVA vazios trailing
+                // ("a,".split(",")=["a",""]) mas o contrato é o Java
+                // (remove trailing, exceto input "" → [""]). helper kofSplit.
+                ctx.lc.registerRuntime("kofSplit");
+                List<JsIr.JsExpression> sa = new ArrayList<>();
+                sa.add(receiver);
+                sa.addAll(args);
+                stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofSplit"), sa));
             }
             default -> {
                 // substring, contains, indexOf, trim, toUpperCase, toLowerCase,

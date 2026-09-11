@@ -87,9 +87,18 @@ final class JsExpressionStatementParser {
                 }
                 stack.clear();
                 if (dropped instanceof JsIr.JsCall || dropped instanceof JsIr.JsSequence
-                        || dropped instanceof JsIr.JsAwait) {
+                        || dropped instanceof JsIr.JsAwait
+                        || (dropped instanceof JsIr.JsBinary jb
+                                && (jb.left() instanceof JsIr.JsCall
+                                        || jb.right() instanceof JsIr.JsCall))) {
                     // Side-effecting call, sequence, or await used as statement
                     // (e.g. `await r;` / `await spawn tick();`) must survive POP.
+                    // §112-JS: `m.put(k,v)` como statement tem o prev (null p/
+                    // chave nova) embrulhado em `(call ?? default)` pelo
+                    // JsCollectionOps — o JsBinary NÃO sobrevivia ao POP e o
+                    // side-effect se PERDIA (put não rodava → size errado na
+                    // célula `map`). Uma expressão com JsCall filho é sempre
+                    // side-effecting em Kof (sem short-circuit).
                     return parser.finishExpressionStatement(preamble, preambleExprs,
                             new JsIr.JsExprStmt(dropped));
                 }

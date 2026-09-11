@@ -9,10 +9,8 @@ import java.util.List;
  * {@code math.abs(x)}, {@code math.isEven(x)}. Maps to {@code kof_math_*}
  * runtime functions on each backend. S1 is Int-only (clamp/abs/sign/min/max/
  * isEven/isOdd/isPositive/isNegative/isZero) — all available on JVM / Native /
- * JS / interpreter with byte-identical parity. Double variants (sqrt/lerp/
- * percentage/isInteger/isDecimal) FECHADAS no cross 11/09 (MATH001, fatia
- * B36); pow/roundTo seguem adiados (-lm / modo de arredondamento = decisao
- * da mantenedora).
+ * JS / interpreter with byte-identical parity. Double variants (lerp/roundTo/
+ * percentage/sqrt/pow) are S1b (need FP asm on riscv — FLT001 caution).
  */
 public final class KofMath {
 
@@ -48,8 +46,7 @@ public final class KofMath {
                     ? new MathCall("kof_math_" + name, BOOL, List.of(INT)) : null;
             // S1b wedge: sqrt = PRIMEIRO Double em kof.math (x86 sqrtsd — FLT
             // fechado 31/08 via XMM). NaN em <0 paridade JVM/JS (Math.sqrt).
-            // riscv64/aarch64 = MATH001 (fsqrt.d portável mas a lane não tem
-            // cross-assembler/qemu p/ montar+rodar — regra: nunca asm sem prova).
+            // riscv64/aarch64 = fatia B32 (fsqrt.d) — MATH001 fechado 11/09.
             case "sqrt" -> argc == 1 && isDouble(argTypes.get(0))
                     ? new MathCall("kof_math_sqrt", DOUBLE, List.of(DOUBLE)) : null;
             // S1b.1: escalares Double puros (SSE2 — sem libm, sem floor).
@@ -68,11 +65,8 @@ public final class KofMath {
         };
     }
 
-    /** S1 (Int) + S1b/S1b.1 (Double) em TODOS os targets. MATH001 FECHADO
-     * 11/09: fatia B36 (NativeRiscvAsmRtB36) = transcrição da série SSE2 do
-     * x86 (bits crus via a0..aN / a0 — mesmo modelo "rax cru"; fsqrt.d +
-     * fcvt.l.d/feq.d cobertos no tradutor aarch64; `pow` segue ADIADO — exige
-     * -lm, decisão da mantenedora). */
+    /** S1 (Int) + S1b/S1b.1 (Double) em TODOS os targets (MATH001 fechado
+     * 11/09 — fatia riscv B32 + tradutor aarch fsqrt.d/fcvtzs; prova qemu). */
     static boolean supportedOn(String function, Target target) {
         return true;
     }

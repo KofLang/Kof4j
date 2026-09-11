@@ -147,7 +147,7 @@ public final class RuntimePrintNum {
                 movl $1, %ebx               # inteiro-válido → precisa .0
             .Lkof_dbl_emit_write:
                 testq %rbx, %rbx
-                jz .Lkof_dbl_emit_ok
+                jz .Lkof_dbl_emit_special
                 # append ".0" ao buffer (64 bytes: %.16g de 1 dígito ocupa
                 # no máx ~24 — sempre cabe) — o mesmo buffer é reaproveitado
                 # pelo kof_double_to_string (String) via .Lkof_dbl_str_done
@@ -156,6 +156,75 @@ public final class RuntimePrintNum {
                 movb $0, 2(%rsi)
                 addq $2, %rcx
                 movb $0, (%r12,%rcx)
+                jmp .Lkof_dbl_emit_ok
+            .Lkof_dbl_emit_special:
+                # bug 44 (residual — paridade regra 5, x86_64): o glibc %.16g
+                # escreve 'inf'/'-inf'/'nan' mas o contrato é JDK Double.toString
+                # → 'Infinity'/'-Infinity'/'NaN' (o que JVM/Script imprimem). O
+                # código antigo "passava reto" o spelling do glibc — DIVERGIA do
+                # JVM. Reescreve in-place (buffer tem 64 bytes; os 3 cabem).
+                # Só os 3 spellings EXATOS do glibc casam (verificação char a
+                # char) — decimal/científico/".0" têm dígito na posição e não
+                # reescrevem.
+                testq %rcx, %rcx
+                jz .Lkof_dbl_emit_ok
+                cmpq $3, %rcx
+                je .Lkof_dbl_emit_sp3
+                cmpq $4, %rcx
+                je .Lkof_dbl_emit_sp4
+                jmp .Lkof_dbl_emit_ok
+            .Lkof_dbl_emit_sp3:
+                cmpb $105, (%r12)           # 'i' de inf
+                je .Lkof_dbl_emit_chk3i
+                cmpb $110, (%r12)           # 'n' de nan
+                je .Lkof_dbl_emit_chk3n
+                jmp .Lkof_dbl_emit_ok
+            .Lkof_dbl_emit_chk3i:
+                cmpb $110, 1(%r12)          # 'n'
+                jne .Lkof_dbl_emit_ok
+                cmpb $102, 2(%r12)          # 'f'
+                jne .Lkof_dbl_emit_ok
+                movb $73, (%r12)            # 'I'
+                movb $110, 1(%r12)          # 'n'
+                movb $102, 2(%r12)          # 'f'
+                movb $105, 3(%r12)          # 'i'
+                movb $110, 4(%r12)          # 'n'
+                movb $105, 5(%r12)          # 'i'
+                movb $116, 6(%r12)          # 't'
+                movb $121, 7(%r12)          # 'y'
+                movb $0, 8(%r12)
+                movq $8, %rcx               # "Infinity"
+                jmp .Lkof_dbl_emit_ok
+            .Lkof_dbl_emit_chk3n:
+                cmpb $97, 1(%r12)           # 'a'
+                jne .Lkof_dbl_emit_ok
+                cmpb $110, 2(%r12)          # 'n'
+                jne .Lkof_dbl_emit_ok
+                movb $78, (%r12)            # 'N'
+                movb $97, 1(%r12)           # 'a'
+                movb $78, 2(%r12)           # 'N'
+                movb $0, 3(%r12)
+                movq $3, %rcx               # "NaN"
+                jmp .Lkof_dbl_emit_ok
+            .Lkof_dbl_emit_sp4:
+                cmpb $45, (%r12)            # '-' de -inf
+                jne .Lkof_dbl_emit_ok
+                cmpb $105, 1(%r12)          # 'i'
+                jne .Lkof_dbl_emit_ok
+                cmpb $110, 2(%r12)          # 'n'
+                jne .Lkof_dbl_emit_ok
+                cmpb $102, 3(%r12)          # 'f'
+                jne .Lkof_dbl_emit_ok
+                movb $73, 1(%r12)           # 'I' (buf[0] '-' já está)
+                movb $110, 2(%r12)          # 'n'
+                movb $102, 3(%r12)          # 'f'
+                movb $105, 4(%r12)          # 'i'
+                movb $110, 5(%r12)          # 'n'
+                movb $105, 6(%r12)          # 'i'
+                movb $116, 7(%r12)          # 't'
+                movb $121, 8(%r12)          # 'y'
+                movb $0, 9(%r12)
+                movq $9, %rcx               # "-Infinity"
             .Lkof_dbl_emit_ok:
                 movq $1, %rax               # SYS_write
                 movq $1, %rdi               # stdout

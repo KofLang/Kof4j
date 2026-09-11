@@ -38,12 +38,9 @@ public final class NativeRiscvCrossOps {
                 case MUL -> sb.append("    fmul.").append(s).append(" f0, f0, f1\n");
                 case DIV -> sb.append("    fdiv.").append(s).append(" f0, f0, f1\n");
                 case EQ -> { sb.append("    feq.").append(s).append(" t1, f0, f1\n    mv t0, t1\n"); }
-                // NE corrigido 11/09 (impeditivo MATH001 — golden DBL/SQRT
-                // usam `!=` de NaN): `fle+snez` era !(a<=b) = a>b ASSIMÉTRICO
-                // (2.0 != 1.0 dava false no riscv). IEEE/JVM/x86: a!=b é
-                // !(a==b) — feq casa NaN (NaN!=NaN => true; NaN!=5 => true),
-                // exatamente o `ucomisd+jne+jp` do x86. seqz coberto no
-                // tradutor aarch (cmp/cset eq). Registrado no known-bugs.
+                // NE = NOT(EQ): feq dá 0 p/ NaN (IEEE) e seqz inverte — o
+                // antigo fle+snez dizia NaN != NaN falso (divergia do x86/
+                // JVM/JS = true; achado na prova MATH001 11/09).
                 case NE -> { sb.append("    feq.").append(s).append(" t1, f0, f1\n    seqz t0, t1\n"); }
                 case LT -> { sb.append("    flt.").append(s).append(" t0, f0, f1\n"); }
                 case LE -> { sb.append("    fle.").append(s).append(" t0, f0, f1\n"); }
@@ -201,17 +198,28 @@ public final class NativeRiscvCrossOps {
                 case "toLowerCase" -> "kof_string_to_lower";
                 case "lastIndexOf" -> "kof_string_last_index_of";
                 case "equalsIgnoreCase" -> "kof_string_equals_ignore_case";
-                // bug 97 cross: equals/compareTo/hashCode (guard isString acima
-                // → nunca hijacka método .equals/.hashCode de classe de usuário).
-                case "equals" -> "kof_string_equals";
-                case "compareTo" -> "kof_string_compare_to";
-                case "hashCode" -> "kof_string_hash_code";
+                // §97 cross (B36): métodos declarados no reference (equals/
+                // compareTo/hashCode). Sem entry aqui caíam no fallback
+                // genérico (pop só de a0 → receiver fica na pilha, link-fail
+                // String_equals). O bloco abaixo faz pop a1..aN + pop a0.
+                case "equals" -> "String_equals";
+                case "compareTo" -> "String_compareTo";
+                case "hashCode" -> "String_hashCode";
                 default -> null;
             };
             if (fn != null) {
                 int argCount = kc.parameterTypes().size();
+                // §102 cross (B35): com 2+ args o 2º (from) vive em a2 —
+                // roteia p/ o helper _2 (clamps JDK em code units UTF-16),
+                // idem ao dispatch de aridade do x86 em NativeX86StringCalls.
+                if (argCount >= 2 && (mn.equals("indexOf") || mn.equals("lastIndexOf")
+                        || mn.equals("startsWith"))) {
+                    fn = fn + "2";
+                }
                 if ("substring".equals(mn) && argCount == 1) {
-                    sb.append("    pop a1\n    li a2, 0\n");
+                    // §111 cross: sentinela "até o fim" = -1 (0 colide com o
+                    // 0 legítimo do 2-arg — mesmo fix x86 do maintainer).
+                    sb.append("    pop a1\n    li a2, -1\n");
                 } else {
                     for (int i = argCount - 1; i >= 0; i--) {
                         sb.append("    pop ").append(crossArgReg(i + 1)).append("\n");

@@ -53,10 +53,12 @@ atribuição.
   - primitivo → **valor**
   - referência (outros) → **identidade**
   - ver [type-system.md](type-system.md) §10.
-- `< <= > >=` só fazem sentido em numéricos/char (e string por ordem
-  lexicográfica via `compareTo`? — **Unspecified**; o parser aceita, o lowering
-  usa `if_icmp`/`lcmp`/`fcmpl`/`dcmpl` para numéricos e `if_acmp*` para
-  referências, o que para `<`/`>` em referência é **não suportado**).
+- `< <= > >=` só fazem sentido em numéricos/char. Em **String é rejeitado em
+  tempo de compilação (SEM053)** — a ordem lexicográfica era **Unspecified** e
+  divergia por target (JVM sempre-falso, Native por ponteiro, Script
+  lexicográfico). O idiom para ordem é `a.compareTo(b) < 0` (lexicográfico,
+  paridade absoluta nos 5 backends). `==`/`!=` de String são **conteúdo**
+  (acima) e continuam válidos.
 
 ---
 

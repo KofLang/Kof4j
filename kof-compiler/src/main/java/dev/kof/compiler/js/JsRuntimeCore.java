@@ -96,6 +96,72 @@ public final class JsRuntimeCore {
                 console.log(x);
             }
 
+            // §107-JS: formato de coleção idêntico ao contêiner JVM
+            // (ArrayList/HashMap/HashSet.toString): elementos separados por
+            // ", " dentro de [ ], Map como "{k=v}". Elementos passam por
+            // valueOf de novo (String → toString/record). Não toca no
+            // path de valor primitivo escalar (bug 44 / String(x)).
+            // §104c: igualdade de conteúdo em coleções JS. Primitivos/String
+            // resolvem no caminho nativo (SameValueZero) — o fallback só pega
+            // objeto Kof (record) que traz .equals(other) sintético → 1/0.
+            // Assim `listOf(p1).contains(p2)`, `setOf/mapOf` por conteúdo batem
+            // com o oracle JVM sem alterar o armazenamento nem o kofFormat.
+            function kofValEq(a, b) {
+                if (a === b) return true;
+                if (Number.isNaN(a) && Number.isNaN(b)) return true;
+                if (a === null || b === null || a === undefined || b === undefined) return false;
+                if (typeof a === "object" && typeof a.equals === "function") {
+                    return a.equals(b) ? true : false;
+                }
+                return false;
+            }
+
+            // §111: split com a regra Java (não JS): remove vazios TRAILING,
+            // exceto input "" → [""]. JS nativo preserva trailing ("a,"→["a",""]).
+            export function kofSplit(s, sep) {
+                const parts = String(s).split(sep === undefined ? "" : sep);
+                if (s === "") return [""];
+                let end = parts.length;
+                while (end > 0 && parts[end - 1] === "") end--;
+                return parts.slice(0, end);
+            }
+
+            export function kofFormat(x) {
+                if (x instanceof Map) {
+                    let s = "{";
+                    let first = true;
+                    for (const [k, v] of x) {
+                        if (!first) s += ", ";
+                        first = false;
+                        s += kofElem(k) + "=" + kofElem(v);
+                    }
+                    return s + "}";
+                }
+                if (x instanceof Set) {
+                    let parts = [];
+                    for (const e of x) parts.push(kofElem(e));
+                    return "[" + parts.join(", ") + "]";
+                }
+                if (Array.isArray(x)) {
+                    const parts = x.map(kofElem);
+                    return "[" + parts.join(", ") + "]";
+                }
+                return String(x);
+            }
+            function kofElem(v) {
+                if (v === null || v === undefined) return "null";
+                if (Array.isArray(v)) return kofFormat(v);
+                if (v instanceof Map || v instanceof Set) return kofFormat(v);
+                if (typeof v === "object" && typeof v.toString === "function") {
+                    // §104c: record/objeto Kof sempre ganha toString() sintético
+                    // ("Point[x=1, y=2]", JsClassEmitter.lowerRecordToString).
+                    // Nunca cai em JSON.stringify (que dava o `[object Object]`
+                    // disfarçado). Escalares seguem String(x).
+                    return v.toString();
+                }
+                return String(v);
+            }
+
             // Array multidimensional (bug 71): new T[d1][d2]...[dn].
             // sizes = dims externas→internas; baseFill preenche a folha.
             // JVM: MULTIANEWARRAY cria dims-1 preenchidas com arrays vazios

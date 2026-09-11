@@ -328,7 +328,7 @@ recomendações futuras (regra 14 da tarefa: não alterar comportamento).
 - **Implementação anterior**: `spawn`/`await`/`Channel` funcionavam, mas não
   havia definição de happens-before/visibilidade/atomicidade.
 - **CORRIGIDO 09/09:** spec completa em
-  `docs/development/concurrency-memory-model.md` — SC em todos os targets,
+  `docs/concurrency-memory-model.md` — SC em todos os targets,
   6 regras de happens-before (spawn/await/channel/cancel/locais/race),
   mapeamento por target (JMM virtual threads / x86-TSO futex / riscv-aarch
   fence), non-goals (sem volatile/synchronized na superfície — Channel é a

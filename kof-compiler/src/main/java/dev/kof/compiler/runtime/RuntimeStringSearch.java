@@ -317,4 +317,19 @@ public final class RuntimeStringSearch {
     }
 
 
+    // ── §102 (paridade absoluta JVM=JS=X86=ARM=RISC): os helper _indexOf/
+    // _lastIndexOf/_startsWith de 1 argumento IGNORAVAM o índice inicial —
+    // o roteador empilhava o `from` em %rdx mas só existia a entrada sem-from.
+    // `"aXb".indexOf("X",2)` dava 1 no Native (acha desde 0) vs -1 no JVM.
+    // Semântica travada no JDK 21 (probe Jdk.java/Jdk3.java, 11/09):
+    //   indexOf(s,from):    from<0 → 0; scan começa em max(0,from) units;
+    //                       agulha vazia → min(from, total)
+    //   lastIndexOf(s,from): from<0 → -1 (vazia: -1); teto = min(from,
+    //                       totalH−totalN); vazia → min(from, totalH)
+    //   startsWith(s,from):  from<0 → false; from>total → false (vazia com
+    //                       from==total → true); from no meio de par astral
+    //                       → false, EXCETO agulha vazia
+    // Os 3 reusam .Lkof_substr_walk (unidades UTF-16, cut no ecx) e salvam
+    // `from` em %rbp ANTES dos walks (walk clobbers %rdx). Cortes de par
+    // pulados no scan (needle well-formed nunca casa na 2ª unit — bug 43).
 }
