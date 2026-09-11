@@ -421,6 +421,23 @@ public final class SemExpressionTyper {
                 if (recvType instanceof Type.ArrayType at) {
                     yield at.componentType();
                 }
+                // paridade absoluta (JVM=JS=X86=ARM=RISC, regra 6/R6) — mesmo
+                // padrão do §96/§98/§100: `x[i]` SÓ existe para ARRAY no corpus
+                // (`learn/04:84`, `new Int[n]`). Em String/List/Map/Set o
+                // subscript era ACEITO e quebrava de um jeito em cada target
+                // ("abc"[0]: JVM VerifyError, Native/Script vazios;
+                // listOf(1,2)[0]: JVM VerifyError `aaload` em Object, idem).
+                // Opção B: REJEITAR em compile-time (SEM054) apontando p/ o
+                // idiom da coleção. Unknown/Nullable (ex.: get de map sem pin)
+                // NÃO é flagado — pode ser array em runtime (SG-008).
+                if (sa.diagnostics() != null && isKofCollectionType(recvType)) {
+                    var pos = aa.position();
+                    sa.diagnostics().error(pos != null ? pos.file() : "",
+                            pos != null ? pos.line() : 0, pos != null ? pos.column() : 0, 0,
+                            "`[]` só pega em array em Kof; para esta coleção use "
+                                    + collectionIndexHint(recvType),
+                            "SEM054");
+                }
                 yield Type.UnknownType.UNKNOWN;
             }
             case LambdaExpr le -> {
@@ -507,5 +524,20 @@ public final class SemExpressionTyper {
             }
             default -> Type.UnknownType.UNKNOWN;
         };
+    }
+
+    private static boolean isKofCollectionType(Type t) {
+        if (t instanceof Type.NullableType nt) t = nt.inner();
+        if (t instanceof Type.ArrayType) return false;   // array: [] é válido
+        if (t instanceof Type.UnknownType) return false; // pode ser array em runtime (SG-008)
+        return BuiltinTypes.isString(t) || BuiltinTypes.isList(t)
+                || BuiltinTypes.isMap(t) || BuiltinTypes.isSet(t);
+    }
+
+    private static String collectionIndexHint(Type t) {
+        if (t instanceof Type.NullableType nt) t = nt.inner();
+        if (BuiltinTypes.isString(t)) return "charAt(i) / substring(i)";
+        if (BuiltinTypes.isMap(t)) return "get(k)";
+        return "get(i)";
     }
 }

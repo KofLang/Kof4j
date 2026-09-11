@@ -12,6 +12,7 @@
 > | Abertos, só reproduzíveis no Native | **5** — bugs 46, 48, 50, 59, 61 |
 > | Paridade interpretador × compilados (semântica `==` congelada — regra 6) | **1** — bug 94 (NaN/±0.0 `==` de Double no SCRIPT) |
 > | Operadores relacionais NaN cross (congelados — regra 6) | **1** — bug 101 (`<`/`<=`/`>=` com NaN: riscv IEEE vs x86/JVM quirk `dcmpg`) |
+> | **Corrigidos na sessão de paridade absoluta 11/09** | **6** — bugs 96 (SEM052), 98 (SEM053), 100 (SEM051+fold), 44-residual, 102 (from-idx), 103 (SEM054) — todos com o MESMO comportamento nos 5 alvos |
 > | Verificados corrigidos em 08/09 | **19** — bugs 1–8, 10–17, 19, 20, 26 |
 > | Não reverificados (faltou ambiente/setup) | bugs 9, 18, 21, 22, 23 |
 >
@@ -2482,6 +2483,35 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   byte-based do port (o MESMO bug, com o sub-problema UTF-8 byte-vs-unit do
   §43 cross) — port só com qemu/toolchain (bug 59, lane cross `2b9a483b`).
 - **Descoberto:** 11/09 (sweep §100); **corrigido 11/09** (x86_64 + JS).
+
+
+### 103. Subscript `x[i]` em String/List/Map/Set aceito em silêncio → quebra os 3 targets (VerifyError/vazio) — ✅ CORRIGIDO 11/09 (SEM054, opção B)
+
+- **Sintoma:** `"abc"[0]` e `listOf(10,20)[1]` (e escrita `l[0] = 9`) eram
+  ACEITOS pelo parser/typer e quebravam de um jeito em cada target (R6 +
+  paridade absoluta): **JVM** `VerifyError: Bad type on operand stack in
+  aaload` (o receiver é Object/`kof.List`, não array — a classe nem
+  inicializa), **Native**/Script **saída vazia** (exit=1 silencioso).
+  Achado no sweep de coleções/records (11/09, `/tmp/col1.kf`→`/tmp/rec1.kf`):
+  o programa inteiro morria no JVM pelo último statement.
+- **Corpus:** o `[]` SÓ existe para **array** (`learn/04-variables-and-types.md:84`
+  `numeros[0]`, `training/idioms/control-flow.md:81` `nums[0] = 5` — ambos
+  `new Int[n]`). Coleção tem accessor (`get(i)`, `charAt(i)`, `substring`);
+  `[]` em coleção NUNCA foi documentado nem funciona em algum backend.
+- **✅ CORRIGIDO 11/09 — opção B:** guard no `SemExpressionTyper` (caso
+  `ArrayAccessExpr` — o frontend SEMÂNTICO único dos 5 alvos, casa do
+  §99/SEM050): receiver com tipo **Kof-collection** (String/List/Map/Set,
+  desembrulhando Nullable) → **SEM054** ("`[]` só pega em array em Kof; para
+  esta coleção use charAt(i) / substring(i) | get(i) | get(k)"). Cobertura de
+  LEITURA E ESCRITA (`l[0] = 9` cai no mesmo caso). NÃO flagados:
+  `ArrayType` (legítimo), `UnknownType`/`Nullable(Unknown)` (pode ser array em
+  runtime via get sem pin — SG-008; flagar regridiria código válido).
+- **Prova:** `SemanticResolutionTest.subscriptOnCollectionsRejected` (5 formas
+  × SEM054) + `subscriptOnArraysStillCompiles` (array simples/2D/não regridir);
+  verificado SEM054 idêntico em JVM/NATIVE/JS + `interpret()` lança a mesma
+  mensagem. Suíte completa pós-clean **1473 run / 0 falhas** (12 err=node).
+- **Arquivos:** `SemExpressionTyper.java` (caso ArrayAccessExpr + helpers
+  `isKofCollectionType`/`collectionIndexHint`); `SemanticResolutionTest.java`.
 
 
 ### 99. `Int.MAX_VALUE`/`<primitivo>.<campo>` passa SEM diagnóstico → lixo nos 3 targets + CRASH do compilador — ✅ CORRIGIDO 10/09 (R6; varredura numeric/estático)

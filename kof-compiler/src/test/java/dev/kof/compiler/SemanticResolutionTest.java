@@ -388,4 +388,46 @@ class SemanticResolutionTest {
                 """);
         assertTrue(r.success(), "legítimo deve compilar: " + r.diagnostics().getDiagnostics());
     }
+
+    // ---- subscript `[]`: só existe para ARRAY no corpus (learn/04:84,
+    // control-flow.md:81). Em String/List/Map/Set era ACEITO e quebrava de um
+    // jeito por target (JVM VerifyError aaload, Native/Script vazios). SEM054
+    // rejeita nos 5 alvos (paridade absoluta) — escrita (l[0] = 9) inclusa. ----
+
+    @Test
+    void subscriptOnCollectionsRejected(@TempDir Path tmp) throws IOException {
+        String[] exprs = {
+            "var s = \"abc\"; println(s[0])",
+            "var l = listOf(10, 20); println(l[1])",
+            "var m = mapOf(\"a\", 1); println(m[\"a\"])",
+            "var st = setOf(\"a\"); println(st[\"a\"])",
+            "var l2 = listOf(1); l2[0] = 9" };
+        for (String e : exprs) {
+            CompilationResult r = compile(tmp, "e.kf", "main() { " + e + " }");
+            assertFalse(r.success(), "deve falhar: " + e);
+            boolean found = r.diagnostics().getDiagnostics().stream()
+                    .anyMatch(d -> "SEM054".equals(d.code()) && d.message().contains("array"));
+            assertTrue(found, "esperava SEM054 p/ '" + e + "', foi: "
+                    + r.diagnostics().getDiagnostics());
+        }
+    }
+
+    @Test
+    void subscriptOnArraysStillCompiles(@TempDir Path tmp) throws IOException {
+        // array de verdade (o único [] do corpus) não regride (regra 1).
+        CompilationResult r = compile(tmp, "ok.kf", """
+                main() {
+                    var nums = new Int[3]
+                    nums[0] = 5
+                    println(nums[0])
+                    var words = new String[2]
+                    words[1] = "x"
+                    println(words[1])
+                    var grid = new Int[2][2]
+                    grid[0][1] = 7
+                    println(grid[0][1])
+                }
+                """);
+        assertTrue(r.success(), "array deve compilar: " + r.diagnostics().getDiagnostics());
+    }
 }
