@@ -225,7 +225,7 @@ public class SemanticAnalyzer {
         currentScope = ctorScope;
         boolean prevCtor = inConstructor;
         inConstructor = true;
-        // §110: o laço de 4 passes (inference de return-type) chama isto de novo
+        // §124: o laço de 4 passes (inference de return-type) chama isto de novo
         // no MESMO escopo — sem filho, o 2º pass reclama SEM024 de cada `var`
         // já definido no 1º. Escopo-filho por análise: params/`this`/campos
         // continuam visíveis via resolve() pai-acima; locals não vazam entre
@@ -252,7 +252,7 @@ public class SemanticAnalyzer {
         if (method.body() == null || method.body().isEmpty()) return;
         SymbolTable prevScope = currentScope;
         currentScope = methodScope;
-        // §110: ver analyzeConstructorBody — o laço de 4 passes re-executa o
+        // §124: ver analyzeConstructorBody — o laço de 4 passes re-executa o
         // corpo (quando um `return <expr>` void reinfer o tipo via bug 26) e o
         // MESMO escopo reclamava SEM024 de cada var do pass anterior.
         StatementAnalyzer.analyzeBody(this, method.body(), methodScope.enterScope(), returnType);

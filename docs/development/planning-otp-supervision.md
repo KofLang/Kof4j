@@ -1,6 +1,6 @@
 # planning-otp-supervision.md — supervisão de workers estilo OTP (`one_for_one`) — EM DESENVOLVIMENTO
 
-**Dono:** lane CONC · **Status:** 1ª fatia implementada 11/09 (núcleo em JVM+Script; Native=OTP001 §109, JS=OTP002 §112 — gates honestos). Autorização da mantenedora (issue #83, 11/09): implementar o menor núcleo funcional com testes.
+**Dono:** lane CONC · **Status:** 1ª fatia implementada 11/09 (núcleo em JVM+Script; Native=OTP001 §123, JS=OTP002 §126 — gates honestos). Autorização da mantenedora (issue #83, 11/09): implementar o menor núcleo funcional com testes.
 **Criado:** 10/09 · **Issue:** #83 (ViniciusKoiti)
 
 A issue #83 traz a análise OTP-vs-Kof completa e correta. Este documento
@@ -169,19 +169,19 @@ Native; pequeno e isolado. Não bloqueia OTP (que usa flag própria).
   DD-OTP-01 previa "objeto como kof.mq/scheduler"; a injeção .kf resolve a
   pergunta de distribuição do plano sem backend Java ×5).
 - **Fábrica = interface** (DD-OTP-06 "factory nova sempre"): campo/param de
-  tipo-função está quebrado (§107 cast `as ()->T` → VerifyError; PARSE016 em
+  tipo-função está quebrado (§121 cast `as ()->T` → VerifyError; PARSE016 em
   campo `() -> Int`), e `class X(...)` primário é record imutável. `interface
   KofWorkerFactory { KofWorker novo() }` roda nos alvos viáveis.
 - **Observação por `try{await}catch` num laço `vigiar` POR FILHO** (thread
   dedicada), NÃO polling `done`/`selectAny`: `selectAny` de primitivo quebra no
-  JVM (§108) e o polling de handle-falha é frágil sem preempção (§112 no JS).
+  JVM (§122) e o polling de handle-falha é frágil sem preempção (§126 no JS).
   Isso é a alternativa "thread supervisora por worker" do DD-OTP-03 — a do
-  `selectAny` único ficou para quando §108/§112/§109 fecharem.
-- **Impeditivos que tiveram que ser resolvidos/contornados:** §110 corrigido
+  `selectAny` único ficou para quando §122/§126/§123 fecharem.
+- **Impeditivos que tiveram que ser resolvidos/contornados:** §124 corrigido
   (SEM024 falso em corpo de método re-analisado — travava o builder fluente);
-  §111 contornado (sobrecarga por aridade quebrada → `child` de 3 args único).
+  §125 contornado (sobrecarga por aridade quebrada → `child` de 3 args único).
 - **Paridade honesta:** JVM + Script rodam o núcleo; Native/JS bloqueiam no
-  compile-time (OTP001/OTP002) por §109/§112 — NUNCA binário que trava (regra
+  compile-time (OTP001/OTP002) por §123/§126 — NUNCA binário que trava (regra
   6). **S2 do plano (N workers sem bloquear, selectAny)** continua pendente:
-  exige §108 (unbox selectAny) e, no Native, §109 (unwind por-thread). O
+  exige §122 (unbox selectAny) e, no Native, §123 (unwind por-thread). O
   documento fica em `docs/development/` até o Native fechar.
