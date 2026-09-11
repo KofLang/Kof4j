@@ -100,16 +100,16 @@ public final class NativeRiscvAsmRtB27 {
                 sd   s0, 64(sp)
                 sd   s1, 56(sp)
                 mv   s0, a0              # bound
-                # range = floor(2^64/bound)*bound  (64-bit unsigned):
-                # divu (2^64-1)/bound + 1; rejeição garante x < range e
-                # range*bound <= 2^64 (divu satura overflow p/ 2^64-1 no
-                # bound=1, mas bound=1 => range=2^64-1*1+... remu com s0=1
-                # = 0 — uniforme trivial; sem UB: divu nunca div-by-0
-                # porque blez já desviou bound<=0).
+                # range = floor((2^64-1)/bound)*bound  (64-bit unsigned):
+                # o MAIOR multiplo de bound <= 2^64-1. Rejeitar x >= range
+                # remove apenas a cauda nao-representavel (tamanho < bound)
+                # => uniforme e SEM OVERFLOW. (Fix bug 106: o `addi t1,t1,1`
+                #  antigo calculava floor(2^64/bound) que, quando bound divide
+                #  2^64 (1,2,4,...,1000 via *), embrulha p/ 0/valores diminutos
+                #  -> bgeu rejeita quase sempre -> LACO INFINITO no qemu.)
                 li   t1, -1              # 2^64-1
                 divu t1, t1, s0          # floor((2^64-1)/bound)
-                addi t1, t1, 1           # floor(2^64/bound)
-                mul  s1, t1, s0          # s1 = range
+                mul  s1, t1, s0          # s1 = range (multiplo exato de bound)
             .Lrnd_i_retry:
                 addi a0, sp, 0
                 li   a1, 8

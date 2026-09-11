@@ -2635,3 +2635,66 @@ int de índice) — verificados na varredura.
   suítes cross-ativas 13 classes ~194/0 sob qemu (concorrência/math/net/
   security/time/uuid/validation/string/encoding/mq/random/parse/matrix) +
   `NativeE2ETest` x86 61/0 + suíte completa baseline 0-falhas.
+
+### 104. Tradutor riscv→aarch64: `fcvt.w/l.{s,d}` (FP→INT) traduzido como `scvtf` (direção INVERTIDA) — ✅ CORRIGIDO 11/09 (`fcvtzs`)
+
+- **Sintoma (achado 11/09 ao portar MATH001):** `var e = 2.5; println((e * 2.0) as Int)`
+  dava `0` no aarch64 (riscv/x86/JVM = `5`). Qualquer `Double as Int`/`as Long`
+  no aarch dava lixo (o D2I do cross-emit emite exatamente `fcvt.w.d t0, f0, rtz`).
+- **Causa raiz:** o ramo `fcvt.{w,l}.{s,d}` do `NativeAarch64Translator` emitia
+  `scvtf` (INT→FP, a direção OPOSTA), lendo o registrador FP como se fosse
+  inteiro — ex.: `fcvt.w.d t0, f0` → `scvtf d0, f0` (src FP inválido; `as
+  Int` virava 0/sujeira). O caso int→float correto vive no ramo irmão
+  (`parts[1]=d`, `fcvt.d.l/w` — bug 82) e permanece.
+- **Fix (mínimo, impeditivo MATH001 — `isInteger` precisa de trunc FP→int):**
+  `fcvt.w/l.s/d` → `fcvtzs w/x, s/d` (truncate toward zero == `rtz` do riscv
+  == `cvttsd2si` do x86; paridade preservada). `fsqrt.d` ganhou ramo próprio
+  (`fsqrt d/s`) — era UNHANDLED pass-through (montava as riscv mas travava o
+  aarch; impeditivo p/ `math.sqrt` cross).
+- **Prova:** E2E cross `nativeMathDoubleSeries` (riscv/aarch, golden JVM
+  medido) + sonda `Double as Int` aarch (0→`5`) + suíte completa.
+
+### 105. Cross riscv64/aarch64: `!=` de Double emitia !(a<=b) (ASSIMÉTRICO) — ✅ CORRIGIDO 11/09 (`feq`+`seqz`)
+
+- **Sintoma (achado 11/09 na prova do golden DBL):** `2.0 != 1.0` dava `false`
+  nos 2 cross (deveria `true` — é só !(a==b)); e `NaN != NaN` divergia entre
+  os dois cross. `==` estava certo.
+- **Causa raiz:** `NativeRiscvCrossOps` máquina `NE` = `fle.d + snez` =
+  `a > b` — assimétrica e não-IEEE. O `!=` de qualquer par de Double era
+  ordem-assimétrico: só detectava `a>b`, nunca `a<b`; e NaN não casa `fle`
+  (`NaN != NaN` virava false no riscv).
+- **Fix:** `NE → feq.d + seqz` (= !(a==b), o match exato do `ucomisd`/`jne+jp`
+  do x86 e da semântica IEEE/JVM; `NaN != x` ⇒ true, `x != y` ⇒ !(x==y)).
+  `seqz` já era coberto no tradutor aarch (cmp/cset eq).
+- **Menor repro:** `main() { var a = 2.0; var b = 1.0; println(a != b) }` →
+  cross dava `false` antes, `true` agora (riscv==aarch==x86==JVM).
+- **Prova:** E2E `nativeMathDoubleSeries` (inclui `sqrt(-1) != sqrt(-1)` e
+  `percentage(0,0) != itself`) + suíte completa.
+
+### 106. Native riscv64/aarch64: `random.randomInt(bound)` HANG (laço infinito) — ✅ CORRIGIDO 11/09 (impeditivo do gate de merge com toolchain)
+
+- **Sintoma (achado por varredura 11/09):** `println(random.randomInt(100) >= 0)`
+  sob qemu = hang (exit 124, sem output). `randomBoolean`/`random_double` ok.
+  Não-coberto pelos E2E cross até hoje (a suíte cross não exercita `random`).
+- **Causa raiz (CONFIRMADA por teste):** `NativeRiscvAsmRtB27.kof_random_int`
+  calculava `range = floor(2^64/bound)*bound` via `li t1,-1; divu t1,t1,bound;
+  addi t1,t1,1; mul s1,t1,bound`. Quando `bound` divide 2^64 (potências de 2 —
+  e o `+1` ainda embrulha p/ 1000: floor((2^64-1)/1000)+1 = 2^64/1000, e
+  `2^64/1000*1000` NÃO cabe em 64 bits → embrulha p/ valor diminuto), o `mul`
+  estoura e `s1` fica ~0 → `bgeu t0, s1` rejeita quase sempre → `Lrnd_i_retry`
+  é laço infinito (bound=1: range=0 → rejeição PERPÉTUA; pego pelo loop de
+  500 do contrato com bound=2 e pelo `randomInt(1)`).
+- **Fix:** `range = floor((2^64-1)/bound)*bound` (o maior múltiplo de bound
+  ≤ 2^64-1 — remove SÓ a cauda não-representável <bound, uniforme e SEM
+  overflow). Basta o `addi t1,t1,1` removido. Também destrava
+  `random.randomString` (B28 chama `kof_random_int` p/ o índice do alfabeto).
+- **Menor repro:** `main(){ var i=0; while(i<500){ random.randomInt(1000); i=i+1 } }`
+  → hang (exit 124) antes, `OK` agora (riscv==aarch sob qemu).
+- **Por que corrigi (exceção à regra de não-atacar bugs alheios):** com a
+  toolchain cross no PATH, `KofRandomTest.randomIntCrossArch`/`randomStringCrossArch`
+  deixam de ser skip e PASSAM A EXECUTAR → penduram o fork do surefire para
+  sempre → a suíte (gate de merge da minha mudança MATH001) não completa. É
+  impeditivo direto à validação da unidade em curso.
+- **Prova:** `KofRandomTest` (contrato 500× randomInt(1000)/randomInt(2) +
+  randomString + assert randomInt(1)==0) riscv64+aarch64 sob qemu; suíte completa.
+

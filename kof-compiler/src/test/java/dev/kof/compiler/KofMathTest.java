@@ -164,19 +164,16 @@ class KofMathTest {
     }
 
     private void assertGated(@TempDir Path tmp, String src, String label) throws Exception {
-        // MATH001 (R6 — nunca silencioso): Double ops têm JVM/Script/JS/x86
-        // (sqrtsd + SSE2); riscv64/aarch64 aguardam as rotinas FP montadas e
-        // rodadas (a lane não tem cross-assembler/qemu — regra: nunca asm sem prova).
+        // MATH001 FECHADO 11/09 (S1b/S1b.1 cross): os Double ops compilam nos
+        // cross — a PARIDADE byte-idêntica riscv64/aarch64 é provada executando
+        // sob qemu nos E2E cross (NativeRiscv64/Aarch64E2ETest); aqui só
+        // garantimos que o gate R6 antigo não rejeita mais (regressão de wiring).
         Path gateSrc = tmp.resolve("Gate-" + label + "-" + System.nanoTime() + ".kf");
         Files.writeString(gateSrc, src);
         for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
             CompilationResult r = new CompilerDriver().compile(
                     gateSrc, tmp.resolve("gate-" + t + "-" + System.nanoTime()), t);
-            assertFalse(r.success(), t + " deve rejeitar " + label + " (MATH001)");
-            boolean has = r.diagnostics().getDiagnostics().stream()
-                    .anyMatch(d -> "MATH001".equals(d.code())
-                            || (d.message() != null && d.message().contains("MATH001")));
-            assertTrue(has, t + " deve reportar MATH001, veio: "
+            assertTrue(r.success(), t + " deve compilar " + label + " (MATH001 fechado): "
                     + r.diagnostics().getDiagnostics());
         }
     }

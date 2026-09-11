@@ -38,7 +38,13 @@ public final class NativeRiscvCrossOps {
                 case MUL -> sb.append("    fmul.").append(s).append(" f0, f0, f1\n");
                 case DIV -> sb.append("    fdiv.").append(s).append(" f0, f0, f1\n");
                 case EQ -> { sb.append("    feq.").append(s).append(" t1, f0, f1\n    mv t0, t1\n"); }
-                case NE -> { sb.append("    fle.").append(s).append(" t1, f0, f1\n    snez t0, t1\n"); }
+                // NE corrigido 11/09 (impeditivo MATH001 — golden DBL/SQRT
+                // usam `!=` de NaN): `fle+snez` era !(a<=b) = a>b ASSIMÉTRICO
+                // (2.0 != 1.0 dava false no riscv). IEEE/JVM/x86: a!=b é
+                // !(a==b) — feq casa NaN (NaN!=NaN => true; NaN!=5 => true),
+                // exatamente o `ucomisd+jne+jp` do x86. seqz coberto no
+                // tradutor aarch (cmp/cset eq). Registrado no known-bugs.
+                case NE -> { sb.append("    feq.").append(s).append(" t1, f0, f1\n    seqz t0, t1\n"); }
                 case LT -> { sb.append("    flt.").append(s).append(" t0, f0, f1\n"); }
                 case LE -> { sb.append("    fle.").append(s).append(" t0, f0, f1\n"); }
                 case GT -> { sb.append("    fgt.").append(s).append(" t0, f0, f1\n"); }

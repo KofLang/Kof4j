@@ -50,7 +50,7 @@
 | `planning-stdlib-time-design.md` | DD-STDLIB-02: semântica de tempo restante (fuso/today, assinaturas compostas, hoursBetween, formatDate) — libera só todayIso/formatDateIso se D1-A | `PROPOSED` |
 | `planning-stdlib-array-returns.md` | DD-STDLIB-01: retorno Array/objeto na camada de dispatch stdlib (S10c randomBytes/randomChoice) — recomendação: choice via idiom, bytes decide a mantenedora | `PROPOSED` |
 | `planning-otp-supervision.md` | DD-OTP-01..13: supervisão OTP one_for_one (issue #83) — recomend. stdlib puro-Kof + fábrica + escalate-callback + flag própria (5 alvos grátis) — decide a mantenedora | `PROPOSED` |
-| `plan-stdlib-expansion.md` | STDLIB universal S1–S10: S1–S8+S10/S10a/b ✅ 09-10/09 (S1b sqrt 10/09); S10c (DD-STDLIB-01) + S7 riscv/aarch (TIME002) pendentes | `EM CURSO` |
+| `plan-stdlib-expansion.md` | STDLIB universal S1–S12: S1–S8+S10–S12 ✅ 09–11/09 (TIME002 fechado 11/09 B35; MATH001 fechado 11/09 B36); pendentes: S10c (DD-STDLIB-01) + S7 `format`/`boundaries` (decisão de superfície) — `pow`/`roundTo`-mode ag. mantenedora | `EM CURSO` |
 | `refactoring/PLAN-SOLID-500.md` | regra ≤500 linhas: Fases 4–8 fechadas, mas F1–3 + 9 com resíduo 502 → 493 | `EM CURSO` |
 
 ### 4. Gaps & Bugs

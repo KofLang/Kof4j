@@ -1,6 +1,6 @@
 # Plano — Universal Standard Library (STDLIB)
 
-**Dono:** lane KOFSCRIPT (fixes-for-kofagent) · **Status:** EM CURSO — **S7 add/diff FECHADO 11/09** (TIME002 cross: `addDays`/`diffDays` nos 5 targets — JVM/Script + JS + x86 + riscv/aarch fatia B35); resta em S7 só `format`/`boundaries` (decisão de superfície da mantenedora); S0–S6, S8–S10 FEITOS (auditoria 10/09 vs código: KofMath/KofStrings/KofEncoding/KofUuid/KofValidation/KofNet/KofTime + KofRandomTest); abertos: S10c (DD-STDLIB-01), MATH001 (sqrt/Double riscv/aarch) · **Briefing:** maintainer 08/09 (universal stdlib, multitarget, anti-microdependência)
+**Dono:** lane KOFSCRIPT (fixes-for-kofagent) · **Status:** EM CURSO — **S7 add/diff FECHADO 11/09** (TIME002 cross: `addDays`/`diffDays` nos 5 targets — JVM/Script + JS + x86 + riscv/aarch fatia B35); resta em S7 só `format`/`boundaries` (decisão de superfície da mantenedora); S0–S6, S8–S10 FEITOS (auditoria 10/09 vs código: KofMath/KofStrings/KofEncoding/KofUuid/KofValidation/KofNet/KofTime + KofRandomTest); abertos: S10c (DD-STDLIB-01); **MATH001 FECHADO 11/09** (Double riscv/aarch: fatia B36 — `sqrt`/`lerp`/`percentage`/`isInteger`/`isDecimal` nos 5 targets, golden idêntico sob qemu) · **Briefing:** maintainer 08/09 (universal stdlib, multitarget, anti-microdependência)
 
 ## 0. Arquitetura real (mapeada 08/09 — NÃO inventar paralela)
 
@@ -159,6 +159,28 @@ na   (null-safety + throw são o mecanismo).
 - **S3b-wedge (uuid.v4) + S4 COMPLETO FEITOS 08/09:** uuid shape-verified 3 targets (SECN000 cross-arch fechado 09/09 — B25 getrandom ecall); encoding hex/url/base64/base64url (matriz stdenc 11 campos × 4; gates ENC002 base64* e SECN000 uuid nos cross). LIÇÃO JVM-runtime: nunca checked exceptions no KofRuntime gerado (SecureRandom new, não getInstanceStrong).
 - **S1b.1 FEITO (10/09):** `math.lerp(a,b,t)`/`percentage(part,total)` (Double->Double) + `math.isInteger/isDecimal(DOUBLE)->Bool` — escalares Double **puros** (SSE2 `subsd/mulsd/addsd/divsd` + `cvttsd2si/ucomisd`; 0x7ff exp = NaN/Inf, exp>=0x433 = |v|>=2^52). JVM (`JvmStringMathRuntime`) + SCRIPT (reflexão) + JS (`kofMathLerp/Percentage/IsInteger/IsDecimal` — Bool=1/0, chokepoint §93) + x86 (`RuntimeMath`; arg/ret **bits crus via rax** = cavalga o generic path, zero mudança em NativeX86Calls — ao contrário do sqrt que precisava xmm). Guard de tipo: só Double (Int NÃO alarga em silêncio — SEM025). **`pow`/`roundTo` ADIADOS**: `pow` exige libm (o link nativo é `-lc` só — mudar o link = decisão de contrato da mantenedora — NÃO altero o NativeAssembler sem decisão); `roundTo` exige floor asm (próximo degrau da série SSE2). PROVA: harness C isolado 18/18 (golden = oracle JVM medido, nunca memória — 2.675-style fica fora) + `KofMathTest` doubleOpsJvm/Native/Js + gate MATH001 duplo (sqrtGated + doubleOpsGated, helper `assertGated` novo); matriz `stdmathdouble` (15 saídas, subset determinístico — NaN fica fora: bug 94 só no script; paridade NaN nos compilados em KofMathTest) + doc-gate. KofMathTest 11/11, matriz 11/11.
 - **S1b-wedge FEITO (10/09):** `math.sqrt(DOUBLE)->Double` — PRIMEIRO Double da namespace `math` (abre o caminho p/ lerp/percentage/roundTo/parse*/pow). JVM (`Math.sqrt`) + SCRIPT (reflexão) + JS (`Math.sqrt`) + x86 (`sqrtsd %xmm0`, arg/ret pela convenção de bits `popq %rax; movq %rax, %xmm0; call; movq %xmm0, %rax; pushq %rax` — precedentes `kof_json_encode_double`/`kof_random_double`). NaN em <0 = IEEE (paridade medida nos 3). **MATH001 gate (R6):** riscv64/aarch64 — `fsqrt.d` trivial mas a lane não tem cross-assembler/qemu p/ montar+rodar (mesma condição de parada de UUID001/ENC002; regra: nunca asm sem prova). **ACHADO (bug 94):** o interpretador faz `==` de Double via `numEq`→`Double.compare` → `NaN == NaN` = `true` (divergência dos 3 compilados, IEEE) — semântica `==` congelada (regra 6), registrado em known-bugs + célula PARTIAL na matriz; o wedge NÃO toca no interpretador. ⚠️ Bug 44: matriz/testes usam SOMENTE comparações Bool (`sqrt(9.0)==3.0`), nunca `println` de double cru. Prova: `KofMathTest.sqrtJvm/sqrtNative/sqrtJs` (8 linhas byte-idênticos) + `sqrtGatedOnCrossArch` (MATH001 × 2) + `ConformanceMatrixTest.stdsqrt` (6 outputs; jvm/native/js + doc-gate) + harness C isolado (8 vetores, 0 fails — ANTES da suíte).
+- **S1b.2 FEITO 11/09 — MATH001 fechado no cross (riscv64/aarch64):** fatia
+  `NativeRiscvAsmRtB36` transcreve a série SSE2 da x86 (`sqrt`/`lerp`/
+  `percentage`/`isInteger`/`isDecimal`) para riscv — `fsqrt.d`/`fmul.d`/`fdiv.d`/
+  `fadd.d`/`fcvtzs`/`fcvt.d.l`; arg/ret por **bits crus em a0..aN** (modelo
+  "rax cru" do S1b.1). Aarch64 pelo tradutor. KofMath.supportedOn: gate removido
+  (5 targets). **Bugs pegos na prova (known-bugs §104/§105):** (104) tradutor
+  não conhecia `fsqrt.d` (UNHANDLED no link) e invertia a direção do
+  `fcvt.{w,l}.{s,d}` (emitia `scvtf` = int→float; o correto é `fcvtzs` =
+  float→int — bug latente desde S1b.1, exposto pela B36; conserta `Double as
+  Int` no aarch64 que antes compilava lixo); (105) `!=` de Double cross usava
+  `fle.d+snez` = `!(a<=b)` → **assimétrico** e ≠ do `ucomisd` x86 p/ NaN;
+  trocado por `feq.d+seqz` (IEEE, igual ao x86 — riscv==aarch==x86 medidos).
+  **§106 corrigido junto (impeditivo do gate):** com toolchain no PATH,
+  `KofRandomTest.randomIntCrossArch` passou a EXECUTAR e pendurava (laço
+  infinito no `addi t1,t1,1` do range em `kof_random_int` B27 — overflow p/
+  bound | 2^64; fix: maior múltiplo de bound ≤ 2^64-1, sem overflow;
+  destrava randomInt+randomString cross). ⚠️ Borda não-atacada (anotada):
+  `fcvtzs` satura fora de faixa, x86 `cvttsd2si` dá INT_MIN — só p/ input
+  out-of-range; fora do golden (decisão de contrato se um dia matters).
+  Prova: golden 20 vetores idêntico JVM==x86==riscv==aarch
+  (`nativeMathDoubleSeries` × 2, comparações Bool p/ FLT001) + `KofMathTest`
+  11/11 + `KofRandomTest` 12/12/0 + matriz `stdsqrt`/`stdmathdouble` DONE×5.
 - **S3b.1 FEITO (10/09):** `uuid.isUuid(STR)->Bool` — predicado de **forma** 8-4-4-4-12 (36 chars, traços em 8/13/18/23, hex min/maiúsculo; version/variant NÃO verificadas). JVM+SCRIPT+JS+x86 sem gate (byte-scan plano; x86 validado no harness C isolado — 12 vetores + null, 0 fails — ANTES da suíte, lição S7c). **UUID001 gate (R6):** riscv64/aarch64 = fatia B própria pendente (mesma condição de parada de S7c-1 — sem cross-assembler/qemu na lane; spec x86 pronta em `RuntimeUuid`; NÃO escrever asm sem montar/rodar). Prova: `ConformanceMatrixTest.stduuidform` (7 outputs × 4 targets, doc-gate) + `KofUuidTest.isUuidShapeJvmJsNative` (JVM==JS==x86 byte-idênticos; última linha `isUuid(uuid.v4())` — paridade com o próprio gerador) + `isUuidGatedOnCrossArch` (UUID001 nos 2 alvos).
 - **S3b.2 FEITO (10/09):** `uuid.v7()->String` — RFC 9562 time-ordered UUID (48 bits unix ms timestamp big-endian + version 7 + variant 10xx + entropia criptográfica). JVM (`JvmUuidRuntime`) + JS (`JsRuntimeUiUuid`) + Native x86_64 (`RuntimeUuid` via `kof_now` e `kof_sec_random_hex`). **UUID002 gate (R6):** riscv64/aarch64 rejeitados honestamente no compilador até port dedicado. Prova: `KofUuidTest` (`uuidV7Jvm`, `uuidV7Native`, `uuidV7Js`, `uuidV7MonotonicOrderJvm`, `uuidV7GatedOnCrossArch`, `isUuidShapeJvmJsNative`).
 - **S1–S2b.2 FEITOS 08/09:** math(9) · strings predicados(8: isAlpha/isNumeric/

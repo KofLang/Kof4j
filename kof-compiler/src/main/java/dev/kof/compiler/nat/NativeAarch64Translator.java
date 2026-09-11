@@ -149,15 +149,18 @@ public final class NativeAarch64Translator {
             String[] parts = mn.split("\\.");
             // parts[0]=fcvt, parts[1]=w/l/s/d, parts[2]=s/d
             if (parts.length == 3 && (parts[1].equals("w") || parts[1].equals("l")) && (parts[2].equals("s") || parts[2].equals("d"))) {
-                // fcvt.w.s -> scvtf s0, w9
+                // FCVT.FP->INT (destino é registrador INTEIRO). Direção
+                // corrigida 11/09 (raiz que travava MATH001/isInteger e
+                // quebrava silenciosamente `d as Int` no aarch — D2I do
+                // cross-emit emite exatamente fcvt.w.d): fcvt.w/l.s/d ->
+                // fcvtzs w/x (trunc em direção a zero == rtz do riscv ==
+                // cvttsd2si do x86 — paridade mantida).
                 String[] args = rest.split(",");
-                String fd = args[0].trim(); // f0
-                String rs = args[1].trim(); // t0
-                String dst = parts[2].equals("s") ? "s" + fd.substring(1) : "d" + fd.substring(1);
-                String src = parts[1].equals("w") ? "w" + R.apply(rs).substring(1) : R.apply(rs);
-                // scvtf usa w para 32 e x para 64
-                if (parts[1].equals("w") && R.apply(rs).startsWith("x")) src = "w" + R.apply(rs).substring(1);
-                return List.of(indent + "scvtf " + dst + ", " + src);
+                String rd = args[0].trim();   // t0 (inteiro)
+                String fs = args[1].trim();   // f0 (ponto flutuante)
+                String dst = parts[1].equals("w") ? "w" + R.apply(rd).substring(1) : R.apply(rd);
+                String src = (parts[2].equals("s") ? "s" : "d") + fs.substring(1);
+                return List.of(indent + "fcvtzs " + dst + ", " + src);
             }
             if (parts.length == 3 && parts[1].equals("d") && (parts[2].equals("l") || parts[2].equals("w"))) {
                 String[] a = rest.split(","); // fcvt.d.l/w int->double (bug 82: faltava)
@@ -231,6 +234,16 @@ public final class NativeAarch64Translator {
             out.add(indent + "add x17, " + base + ", #" + off);
             out.add(indent + "ldr " + fd + ", [x17]");
             return out;
+        }
+        if (mn.startsWith("fsqrt.")) {
+            // fsqrt.d f0, f1 -> fsqrt d0, d1  (MATH001 kof_math_sqrt riscv;
+            // o ramo genérico de fadd/fsub/... não casa 'sqrt' — era UNHANDLED).
+            String suffix = mn.substring(6); // s ou d
+            String[] args = rest.split(",");
+            String fd = args[0].trim(), fs = args[1].trim();
+            String rFD = (suffix.equals("s") ? "s" : "d") + fd.substring(1);
+            String rFS = (suffix.equals("s") ? "s" : "d") + fs.substring(1);
+            return List.of(indent + "fsqrt " + rFD + ", " + rFS);
         }
         if (mn.startsWith("fadd.") || mn.startsWith("fsub.") || mn.startsWith("fmul.") || mn.startsWith("fdiv.")) {
             String op = mn.substring(1, 4); // add, sub, mul, div (sem o '.')

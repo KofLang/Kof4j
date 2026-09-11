@@ -9,8 +9,10 @@ import java.util.List;
  * {@code math.abs(x)}, {@code math.isEven(x)}. Maps to {@code kof_math_*}
  * runtime functions on each backend. S1 is Int-only (clamp/abs/sign/min/max/
  * isEven/isOdd/isPositive/isNegative/isZero) — all available on JVM / Native /
- * JS / interpreter with byte-identical parity. Double variants (lerp/roundTo/
- * percentage/sqrt/pow) are S1b (need FP asm on riscv — FLT001 caution).
+ * JS / interpreter with byte-identical parity. Double variants (sqrt/lerp/
+ * percentage/isInteger/isDecimal) FECHADAS no cross 11/09 (MATH001, fatia
+ * B36); pow/roundTo seguem adiados (-lm / modo de arredondamento = decisao
+ * da mantenedora).
  */
 public final class KofMath {
 
@@ -66,16 +68,12 @@ public final class KofMath {
         };
     }
 
-    /** S1 (Int) + S1b (Double) em todos os targets; sqrt/lerp/percentage/
-     * isInteger/isDecimal = JVM/Script/JS/x86, gate MATH001 nos cross
-     * (sem cross-assembler na lane — prova impossível). */
+    /** S1 (Int) + S1b/S1b.1 (Double) em TODOS os targets. MATH001 FECHADO
+     * 11/09: fatia B36 (NativeRiscvAsmRtB36) = transcrição da série SSE2 do
+     * x86 (bits crus via a0..aN / a0 — mesmo modelo "rax cru"; fsqrt.d +
+     * fcvt.l.d/feq.d cobertos no tradutor aarch64; `pow` segue ADIADO — exige
+     * -lm, decisão da mantenedora). */
     static boolean supportedOn(String function, Target target) {
-        boolean fp = function.equals("kof_math_sqrt") || function.equals("kof_math_lerp")
-                || function.equals("kof_math_percentage")
-                || function.equals("kof_math_isInteger") || function.equals("kof_math_isDecimal");
-        if (fp && (target == Target.NATIVE_RISCV64 || target == Target.NATIVE_AARCH64)) {
-            return false;
-        }
         return true;
     }
 
