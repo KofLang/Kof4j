@@ -96,7 +96,7 @@ public final class JsRuntimeCore {
                 console.log(x);
             }
 
-            // §106-JS: formato de coleção idêntico ao contêiner JVM
+            // §107-JS: formato de coleção idêntico ao contêiner JVM
             // (ArrayList/HashMap/HashSet.toString): elementos separados por
             // ", " dentro de [ ], Map como "{k=v}". Elementos passam por
             // valueOf de novo (String → toString/record). Não toca no

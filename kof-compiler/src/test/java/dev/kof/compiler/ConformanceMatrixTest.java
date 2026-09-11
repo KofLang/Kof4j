@@ -236,7 +236,7 @@ class ConformanceMatrixTest {
                     println(listOf(p1))
                 }
                 """, "true\ntrue\n7\n[Point[x=1, y=2]]", Set.of("native", "js"), tempDir);
-        // §106-JS (paridade absoluta): `println(coleção)` no JS dava
+        // §107-JS (paridade absoluta): `println(coleção)` no JS dava
         // "1,2" (Array.toString sem colchetes) / "[object Map]" / "[object
         // Set]" — sem o formato do contêiner JVM ([1, 2] / {k=1}). kofFormat
         // (JsRuntimeCore) espelha ArrayList/HashMap/HashSet.toString. Roteado

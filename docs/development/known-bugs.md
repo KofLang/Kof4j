@@ -2543,39 +2543,6 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   com equals/hashing por conteúdo no emitter JS — unidade própria.
 
 
-### 106. `println(coleção)` sem formato de contêiner — ✅ face JS CORRIGIDA 11/09 (kofFormat); ⏳ Native ABERTO (ponteiro cru)
-
-- **Sintoma (11/09, sweep `/tmp/s3.kf`):** `println(listOf(1,2,3))` → JVM
-  `[1, 2, 3]`, Script `[1, 2, 3]`, **Native = bytes de memória crua**
-  (`\ufffd\ufffdx`); idem Map (`{k=1}` vs vazio/lixo) e Set. `println` de
-  lista de String e lista pós-`map/filter` (`[10, 12, 14]` → lixo/símbolos)
-  mesmo padrão. Código VÁLIDO do corpus (`training/idioms/collections.md`
-  imprime coleções) → saída corrompida = R6 + paridade absoluta.
-- **Causa raiz (diagnosticada 11/09):** `NativeX86Calls.java:180` — no
-  `println`/valueOf de ClassType não-String, o dispatch é
-  `findVirtualMethodIndex(ct.name(), "toString")`; `kof.List`/`kof.Map`/
-  `kof.Set` NÃO são IRClasses com vtable → índice **-1** → o branch
-  **NÃO EMITE NADA** e o handle (ponteiro) cai cru no println. Silencioso:
-  nem LINK_FAIL, nem diagnóstico.
-- **Fix (unidade própria, não iniciada):** helpers asm `kof_list_toString`/
-  `kof_map_toString`/`kof_set_toString` no runtime (formato do oracle JVM:
-  `[a, b]` sem aspas, `{k=1}`, elementos via os conversores primitivos +
-  vtable toString p/ handles) + dispatch quando o tipo é coleção (antes do
-  -1 silencioso). Mesma infraestrutura de dispatch de valor do §104b-ii
-  (contains por conteúdo) — resolver os dois juntos na fatia 4.
-- **Arquivos:** `nat/NativeX86Calls.java` (branch ClassType),
-  `runtime/RuntimeList|RuntimeMap|RuntimeSet.java` (helpers novos).
-- **✅ Face JS CORRIGIDA 11/09 (paralelo do mesmo bug):** o JS dava
-  `1,2` (Array.toString sem colchetes) e `[object Map]`/`[object Set]`.
-  Fix: `kofFormat` em `JsRuntimeCore` espelhando
-  `ArrayList/HashMap/HashSet.toString` (`[a, b]` com `", "`, `{k=v}`,
-  recursivo p/ aninhados, `String(x)` idêntico p/ escalares — não toca
-  bug 44) + roteamento por TIPO no `valueOf` (`JsCallEmitter`; o print
-  lowerer passa o tipo real do arg também no JS). Célula `collprint`
-  (JVM+Script+JS idênticos, Native excluído aqui). Fica §107 para o
-  bool-em-lista do Script (`[1, 0]` vs `[true, false]`).
-
-
 ### 103. Subscript `x[i]` em String/List/Map/Set aceito em silêncio → quebra os 3 targets (VerifyError/vazio) — ✅ CORRIGIDO 11/09 (SEM054, opção B)
 
 - **Sintoma:** `"abc"[0]` e `listOf(10,20)[1]` (e escrita `l[0] = 9`) eram
@@ -2700,6 +2667,29 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 - **Por que ABERTO (não corrijo silencioso):** formato de `encode(Map)` é SEMÂNTICA de superfície (ordem das chaves? insertion vs sorted? null values?) — é decisão da mantenedora (regra 6: JSON surface congelada 0.2.6-beta). A correção tem 3 partes: gate honesto no compile-time até a superfície decidir (diagnóstico `JSN00x` no estilo JSN004 no dispatch de Map em nativos) + decisão de formato + ramos JVM (entries) e nativo. Registra aqui; NÃO vira edição de semântica sem decisão.
 - **Pista de teste faltante (para quem fechar):** `json.encode(mapOf(...))` nos 5 alvos com golden de ordem (provavelmente insertion-order = `LinkedHashMap` semantics, mas é a decisão).
 
+### 108. `println(listOf(bool,...))` — interpretador (Script) imprime `[1, 0]` vs JVM `[true, false]` — ⏳ ABERTO (Script-only; storage boxing)
+
+- **Menor repro (medido 11/09):** `println(listOf(true, false))` → JVM/JS
+  `[true, false]`, **Script `[1, 0]`**. Descoberto junto do `collprint`
+  (KofInterpreter usa `String(v)`/`valueOf` real e o ArrayList já imprime o
+  objeto — mas o interpretador guarda Bool como `Integer 1/0`, perdendo o
+  tipo na fronteira da coleção).
+- **Causa raiz:** no backend compilado, `kof_list_add`/`set`/`contains`
+  fazem `emitBoxIfPrimitive(elemType)` (JvmOpCollections:85,111,124) →
+  `Boolean.valueOf` → o ArrayList guarda `Boolean` e `toString` dá `true`;
+  `get` faz `emitUnboxIfPrimitive`. No `KofInterpreterCollections` o valor
+  entra como `Integer 1/0` (o interpretador não distingue Bool de Int em
+  storage) → o `toString` do ArrayList imprime `1`/`0`.
+- **Correção (Script-only, espelhar o box do JVM, simétrico):** boxing na
+  INCLUSÃO (`list add/set`, `set add`, `map put` — chave E valor) e unboxing
+  na EXTRAÇÃO (`list get`, `set/map contains/remove` — senão o `==` de Bool
+  `Integer 1 vs Boolean true` quebra) pelo tipo do elemento/argumento.
+  Char NÃO precisa (JVM imprime `[97,98]` — já bate). Risco: o unboxing na
+  extração é obrigatório e largo; exige suíte + KofInterpreterParityTest
+  (novo caso bool-in-list) como gate. Unidade própria, não começada.
+- **Arquivos:** `KofInterpreterCollections.java` (listOps/mapOps/setOps +
+  helpers box/unbox por tipo), `KofInterpreterParityTest.java` (gate).
+
 ### 107. `println(<coleção>)` no nativo imprime LIXO de ponteiro (JVM: `[1, 2, 3]`/`{k=9}`) — ❌ ABERTO (backend-only; paridade regra 5; sem gate)
 
 - **Menor repro (medido 11/09, pós-fix §104b-i que liberou o link):**
@@ -2742,6 +2732,17 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   parei pra registrar (regra: unidade coesa c/ prova). Face record-em-coleção
   recursivo depende do §104b-ii (equals/toString de conteúdo — lane
   maintenedor, EM CURSO, não tocar).
+- **✅ Face JS CORRIGIDA 11/09 (mesma raiz — formato de contêiner ausente):**
+  o JS dava `1,2` (Array.toString sem colchetes) e `[object Map]`/`[object
+  Set]`. Fix: `kofFormat` em `JsRuntimeCore` espelhando
+  `ArrayList/HashMap/HashSet.toString` (`[a, b]` com `", "`, `{k=v}`,
+  recursivo p/ aninhados, Map/Set nativos JS; escalares passam por
+  `String(x)` sem mudança — não toca bug 44) + roteamento por TIPO no
+  `valueOf` (`JsCallEmitter`; o `ExpressionPrintLowerer` passa o tipo real do
+  arg no JS como já fazia no Native). Célula `collprint` (JVM+Script+JS
+  byte-idênticos; **Native excluído = o lixo de ponteiro deste bug**). A face
+  Native (esta seção) segue ABERTA — é a mesma infraestrutura de dispatch que
+  o §104b-ii precisa (equals/toString de conteúdo) para o caso record-em-lista.
 - **Nota de teste faltante:** nenhum E2E nativo faz `println(coleçãoInteira)`
   (só `lista.get`/`.size` nos tests/learn) → por isso nunca apareceu.
 
