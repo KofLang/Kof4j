@@ -101,7 +101,7 @@ public final class NativeRiscvAsmRtB27 {
                 sd   s1, 56(sp)
                 mv   s0, a0              # bound
                 # range = floor((2^64-1)/bound)*bound  (64-bit unsigned) —
-                # MESMA fórmula do kof_sec_random_int x86 em 64 bits (bug 102:
+                # MESMA fórmula do kof_sec_random_int x86 em 64 bits (bug 105:
                 # o `+1` de floor(2^64/bound)*bound estourava SEMPRE p/ >2^64
                 # e wraps (b=1000 -> range=384; b=2 -> range=0 = loop eterno).
                 # range <= 2^64-1 garantido: q*b <= (2^64-1). divu nunca por
