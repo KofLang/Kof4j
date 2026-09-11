@@ -11,9 +11,9 @@
 > | Abertos e atacáveis em JVM/JS | **5** — bugs 39, 45, 62, 63, 64 |
 > | Abertos, só reproduzíveis no Native | **5** — bugs 46, 48, 50, 59, 61 |
 > | Paridade interpretador × compilados (semântica `==` congelada — regra 6) | **1** — bug 94 (NaN/±0.0 `==` de Double no SCRIPT) |
-> | Paridade backend-only (regra 5, atacável na lane Native) | **2** — §107 (println coleção → lixo no nativo, sem toString de coleção; §107-JS corrigido 11/09), §104b-ii (equals de conteúdo p/ record + box de primitivo no storage asm — inclui SIGSEGV do `println(l.get)` char achado no §109)
+> | Paridade backend-only (regra 5, atacável na lane Native) | **2** — §107 (println coleção → lixo no nativo, sem toString de coleção; §107-JS corrigido 11/09), §104b-ii (equals de conteúdo p/ record + box de primitivo no storage asm; **face char ✅ FECHADA 11/09** — `mapgetprim` 4/4)
 > | Operadores relacionais NaN cross (congelados — regra 6) | **1** — bug 101 (`<`/`<=`/`>=` com NaN: riscv IEEE vs x86/JVM quirk `dcmpg`) |
-> | **Corrigidos na sessão de paridade absoluta 11/09** | **14** — bugs 96 (SEM052), 98 (SEM053), 100 (SEM051+fold), 44-residual, 102 (from-idx), 103 (SEM054), 104a (KofObj equals/hash/toString no interpretador), 104b-i (LINK_FAIL `Object.equals` herdado no Native), 104c (membership de record por conteúdo no JS — `kofValEq`), 107-JS (`kofFormat` no JS), 109 (CRASH JVM no guard do `map.get` primitivo), 110 (`-0.0` colapsado em `+0.0` no literal emitter JVM), 111 (trailing-empties no `split` Native/JS + sentinela `substring` 0→-1; ✅ cross riscv/aarch B36/B37 11/09 — FECHADO nos 5 targets), 112 (prev de `put`/`remove` p/ primitivo: VerifyError/NPE JVM + SIGSEGV Native por pilha desequilibrada + `set.add` do interpretador + **JS fechado na mesma unidade** — `?? default` + `KofPop` preserva side-effect embrulhado; 4/4 targets) — todos com prova na matrix/suíte |
+> | **Corrigidos na sessão de paridade absoluta 11/09** | **15** — bugs 96 (SEM052), 98 (SEM053), 100 (SEM051+fold), 44-residual, 102 (from-idx), 103 (SEM054), 104a (KofObj equals/hash/toString no interpretador), 104b-i (LINK_FAIL `Object.equals` herdado no Native), 104c (membership de record por conteúdo no JS — `kofValEq`), 107-JS (`kofFormat` no JS), 109 (CRASH JVM no guard do `map.get` primitivo), 110 (`-0.0` colapsado em `+0.0` no literal emitter JVM), 111 (trailing-empties no `split` Native/JS + sentinela `substring` 0→-1; ✅ cross riscv/aarch B36/B37 11/09 — FECHADO nos 5 targets), 112 (prev de `put`/`remove` p/ primitivo: VerifyError/NPE JVM + SIGSEGV Native por pilha desequilibrada + `set.add` do interpretador + **JS fechado na mesma unidade** — `?? default` + `KofPop` preserva side-effect embrulhado; 4/4 targets), **104b-ii FACE CHAR** (SIGSEGV/`a` no `println(char-em-coleção)`; 3 buracos: desembrulhar `Nullable(CHAR)` no print-lowering JVM-coerente `unboxDescriptor` (char→`Integer`, não `Character`/`charValue`) + repair de `as Char` no `SemExpressionTyper` — `mapgetprim` 4/4) — todos com prova na matrix/suíte |
 > | **Corrigidos na prova cross-arch 11/09 (MATH001/TIME002/B33)** | **3** — bugs 101→registrado (relacional NaN, ABERTO regra 6), MATH001 (Double math B32), TIME002 (ISO add/diff B33), 105 (random.int loop — renumerado de 102, colidiu c/ §102 indexOf) |
 > | Verificados corrigidos em 08/09 | **19** — bugs 1–8, 10–17, 19, 20, 26 |
 > | Não reverificados (faltou ambiente/setup) | bugs 9, 18, 21, 22, 23 |
@@ -2551,16 +2551,37 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   hash genérico por vtable nos helpers asm (x86+riscv+aarch) — unidade
   própria, célula `objmethods` mantém Native excluído. Proibido: fallback
   silencioso.
-  - **Face primitivo-em-coleção (repro do §109, mesma raiz asm):** o storage
-    da coleção asm guarda o valor **cru** (sem box). `println(l.get(i))` com
-    char **SIGSEGV (exit=139)**: `kof_list_get` retorna `0x61` e o print
-    dispatcha `kof_println_string` (objeto) sobre um codepoint → deref inválido.
-    Prova (11/09): `mc2.kf` `println('a' as Char)` → `97` ok; `mc.kf`
-    `println(listOf('a' as Char).get(0))` → exit=139; `mc3.kf`
-    `l.get(0) == 'a'` → `true` ok. Só o **print de primitivo em coleção** quebra
-    (a célula `mapgetprim` mantém Native excluído por isto). A correção desta
-    face é a mesma infraestrutura do item (i): box de primitivo no storage asm
-    (ou dispatch de print por tag de tipo) — x86 + riscv + aarch.
+  - **Face primitivo-em-coleção — ✅ CHAR FECHADO 11/09:** o storage da coleção
+    asm guarda o valor **cru** (sem box). `println(l.get(i))` com char **SIGSEGV
+    (exit=139)**: `kof_list_get` retorna `0x61` e o print dispatchava
+    `kof_println_string` (objeto) sobre um codepoint → deref inválido. Prova
+    (11/09): `mc2.kf` `println('a' as Char)` → `97` ok; `mc.kf`
+    `println(listOf('a' as Char).get(0))` → exit=139; `mc3.kf` `l.get(0) == 'a'`
+    → `true` ok. **Não era storage-box**: as outras faces primitivas (int/long/
+    bool/double) já imprimiam corretamente da coleção; só o char tinha
+    três buracos de DISPATCH de print, todos fechados:
+    (1) **Native** `ExpressionPrintLowerer` mapeava `char→Int` (p/ o `valueOf`
+    imprimir o codepoint, contrato congelado `strings.md` "72 (H)") só quando o
+    tipo era `CHAR` CRU — `Nullable(CHAR)` (retorno do `map.get`) não casava e
+    caía no ramo `char_to_string` do backend, que imprime o **caractere** (`a`)
+    ou, com `Unknown`, nada → o raw `0x61` chegava a `kof_println_string`
+    (SIGSEGV). Desembrulha o INNER agora.
+    (2) **JVM** `unboxMethodName(char)→"charValue"` + descriptor
+    `toDescriptor(CHAR)="C"` emitiam `Integer.charValue()C`/`Integer.intValue()C`
+    — inexistentes: char é **guardado como `Integer`** (`boxedClassNameFor`
+    default → `java/lang/Integer`; `emitBoxIfPrimitive` → `valueOf(I)`), a caixa
+    nunca é `Character`. Unbox agora é `intValue` com `unboxDescriptor` coerente
+    com a caixa (novo helper; os 4 sítios de unbox roteiam por ele).
+    (3) **frontend** `x as Char` pinava `Unknown` como V do `mapOf`/elemento do
+    `listOf` (não `char`): o cache do `SemanticAnalyzer`
+    (`SemExpressionTyper`) não tinha o repair de cast que só o
+    `ExpressionTyper:89` (lowering) fazia — e `MethodCallTyper` lê o cache, não
+    o lowering. Mirror do repair no `SemExpressionTyper`.
+    **Prova:** célula `mapgetprim` com a **exclusão Native REMOVIDA** → os 4
+    targets byte-idênticos `true/true/8/9000000001/true/97/false`; varredura
+    `int/long/bool/char/String` lidos de Map e List imprimem idênticos nos 3
+    targets. O `(i)` storage-box genérico (record-em-coleção) e o
+    dispatch por tag continuam ABERTOS (abaixo).
 - **§104c ✅ CORRIGIDO 11/09 (JS):** record em `setOf`/`mapOf`/`listOf().contains`
   usava **identidade** (Map/HashSet JS nativos com objeto por referência):
   `listOf(p1).contains(p2)` = **false** vs JVM **true**; `setOf(p1).contains(p2)`
@@ -2813,16 +2834,16 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   `short→shortValue`, `int→intValue`, `long→longValue`, `float→floatValue`,
   `double→doubleValue` — default `intValue` só permanece para tipos
   genuinamente desconhecidos.
-- **Prova:** célula de matriz `mapgetprim` (JVM+Script+JS byte-idênticos,
-  **Native excluído com ref ao §104b-ii**); esperado
+- **Prova:** célula de matriz `mapgetprim` — desde 11/09 **sem exclusões**
+  (4/4 targets byte-idênticos; a face char do §104b-ii foi fechada na mesma
+  data, ver §104b-ii); esperado
   `true\ntrue\n8\n9000000001\ntrue\n97\nfalse` cobre Bool/Int/Long/Double/Char/miss
   pelo mesmo caminho de guard.
 - **Faces PRÉ-EXISTENTES descobertas pela célula (não são do §109):**
-  - **Native:** `println(l.get(i))` com char-em-coleção → **SIGSEGV (exit=139)**.
-    O guard é só bytecode JVM — o Native usa helpers asm (`kof_list_get`
-    retorna o storage cru; `println` dispatcha `kof_println_string` sobre ele).
-    Mesmo raiz do **§104b-ii** (primitivo no storage asm sem box).
-    `mc3.kf` (`l.get(i) == 'a'`) funciona; só o **print** quebra.
+  - **Native:** `println(l.get(i))` com char-em-coleção → **SIGSEGV (exit=139)**
+    — ✅ **FECHADO 11/09** como face char do **§104b-ii** (não era storage-box:
+    eram 3 buracos de dispatch/digitação do char, detalhados lá; a célula
+    `mapgetprim` não exclui mais Native).
   - **JS:** `println(d * 2)` para `Double` imprime `5` vs `5.0` do JVM — é o
     **floatprint (bug 44)** já registrado (`String(5.0)==="5"`), não regressão.
     A célula usa predicado (`d > 1.0`) para exercitar storage Double sem
@@ -2830,6 +2851,13 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 - **Nota de teste faltante:** nenhum teste cobria `println(map.get(k))` com
   valor primitivo não-Int/Double — Bool e Char eram os gatilhos do default
   silencioso do `unboxMethodName`.
+- **Nota (face JVM do char, corrigida junto com §104b-ii 11/09):** o próprio
+  ramo primitivo que FECHOU o §109 trazia um segundo crash latente para Char:
+  `char→charValue` + descriptor `toDescriptor(CHAR)="C"` emitiam
+  `Integer.charValue()C`, inexistente — char é GUARDADO como `Integer`
+  (`boxedClassNameFor` default), a caixa nunca é `Character`. `mapOf("c",'a')
+  .get("c")` crashava no JVM com `NoSuchMethodError` até o fix de coerência
+  caixa↔unbox (novo `unboxDescriptor`, `char→intValue/()I`).
 
 ### 112. `println(m.put(k,v))` → **VerifyError**; `println(m.remove(chave-ausente))` → **NPE** (JVM) / **SIGSEGV** (Native); `s.add(já-existente)` → `true` no interpretador — ✅ CORRIGIDO 11/09 (3 targets; JS registrado como face restante)
 - **Menor repro (JVM):** `var m = mapOf("a",1); println(m.put("a",2))` →
@@ -2894,6 +2922,65 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   preservar `JsBinary` com operando `JsCall` (expressão com chamada é sempre
   side-effecting em Kof — sem short-circuit de efeitos colaterais). Mesma
   vizinhança do bug 79 (KofPop width-blind).
+
+### 113. Native: `new Int[a][b]` não aloca NADA (op IR sumido) → SIGSEGV em `m[0][0]`/`m.length` — ⏳ ABERTO (backend-only, lane Native)
+
+- **Menor repro (medido 11/09):** `main() { var m = new Int[2][2]; println(m.length) }`
+  → JVM `2`, Script `2`, **Native exit=139 / saída vazia**. Idem
+  `m[0][1] = 7; println(m[0][1])` (vazio/crash). `new Int[2]` (1 dim) funciona.
+- **Causa raiz (parcial — o asm prova):** o lowering frontend EMITE
+  `KofNewMultiArray(baseType, dims)` (ExpressionLowerer:234) para ≥2 dimensões —
+  JVM (`JvmOpEmitter:220` MULTIANEWARRAY), interpretador
+  (`KofInterpreter:308` `newMultiArray`) e JS (`JsExpressionParser:240`) tratam.
+  **O backend Native não tem o caso**: `NativeMethodEmitter` casa
+  `case KofNewArray` mas o `KofNewMultiArray` cai no `default -> { }` — os N
+  `pushq` dos tamanhos ficam na pilha e o assignment pop **um só** (lixo): o
+  slot guarda um endereçamento dos pushes remanescentes → deref → SIGSEGV. O
+  default silencioso é ainda R6-violation (superfície documentada
+  `learn/04-…:84` arrays multi-dim deveria diagnosticar se não implementável).
+- **Fix (não feito — exige qemu p/ riscv/aarch? NÃO: x86 validável aqui, mas o
+  desenho é multi-arch):** alocar recursively n-veis de `kof_array_alloc` com
+  stride 8 (ponteiro) nas dimensões externas e o stride do `baseType` na
+  última, preenchendo cada slot com o sub-array alocado; um helper
+  `kof_multi_array_alloc(nDims, baseSize)` com loop interno (allocs aninhados
+  na ordem de pilha dos tamanhos) nos 3 targets (x86 direto; riscv/aarch via
+  as faces cross ficam skipadas NESTA sessão — port 1:1 quando houver qemu,
+  precedente B35–B37). Alternativa R6-honesta imediata: diagnóstico no typer
+  quando `driver.target.isNative() && dims>=2` (SEMxxx) até o port — mas
+  QUEBRA código multi-target válido; decisão da lane Native com a mantenedora.
+- **Prova esperada:** célula `arr2d` (sem exclusões) `m.length`/store/load/
+  stride-correcto byte-idêntica 4/4 (JS+JVM+Script+Native x86) + faces
+  riscv/aarch sob qemu.
+
+### 114. Native: `equals`/`==` de record com campo de REFERÊNCIA (String ou record aninhado) compara PONTEIRO → `false` — ⏳ ABERTO (sub-face do §104b-ii (i), backend-only)
+
+- **Menor repro (medido 11/09):**
+  `record S(String t)` + `println(S("ab") == S("ab"))` → JVM/Script/JS `true`,
+  **Native `false`**. Idem aninhado: `record W(Pt p, String t)` +
+  `W(Pt(1,2),"z") == W(Pt(1,2),"z")` → Native `false`. `Pt(Int,Int)` só com
+  primitivos funciona (mesmo programa, `true` nos 4).
+- **Causa raiz:** `CompilerRecordSupport.buildRecordEqualsMethod` (síntese
+  Native, gateada a `Target.NATIVE*` — JVM usa `JvmRecordEmitter` com
+  `Objects.equals`, JS usa `lowerRecordEquals`) compara CADA campo com
+  `KofBinary(EQ, f.type())`. Para primitivo o lowering casa (valores crus);
+  para `ClassType` o caminho é `cmpq`/`==` de **ponteiro** — nunca o equals de
+  conteúdo (String: `kof_string_equals`; record: o próprio equals sintético).
+  Top-level `s == t` de String funciona porque passa pelo caminho de
+  comparação de String do typer (`Objects.equals`/`kof_string_equals`), não
+  por aqui.
+- **Fix (não feito):** mesma infra do §104b-ii (i) — nos campos de referência
+  do equals sintetizado, emitir o compare de conteúdo: String →
+  `call kof_string_equals` (helper já existe); record aninhado → dispatch vtable
+  `equals` pelo slot do tipo do campo (`findVirtualMethodIndex(f.type(),
+  "equals")`, o mesmo mecanismo da célula `classequals`/§104b-i). Precisa do
+  hash de conteúdo junto (hoje `buildRecordHashCodeMethod` soma campos — para
+  referência usaria `hashCode()` vtable), e o mesmo port nas 3 faces
+  (riscv/aarch sob qemu — bloqueadas NESTA sessão). NÃO é de superfície:
+  `.equals`/`==` de String é contrato congelado e o oracle JVM é claro
+  (conteúdo), por isso pode ser atacado direto na lane Native.
+- **Prova esperada:** estender célula `objmethods` (hoje Native excluído =
+  §104b-ii) com as variantes `S("ab")==S("ab")` e `W(Pt(1,2),"z")==W(Pt(1,2),"z")`
+  → 4/4 sem exclusões.
 
 ### 111. `split` não removia vazios TRAILING (Native x86 + JS) e `substring(a,0)` devolvia a string toda (Native x86) — ✅ CORRIGIDO 11/09 (x86_64 + JS; residual riscv/aarch)
 - **Menor repro split:** `println("a,".split(",").length)` → JVM/Script **1**,

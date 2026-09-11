@@ -45,9 +45,15 @@ if (("print".equals(mc.methodName()) || "println".equals(mc.methodName())) && mc
             // O dispatch nativo do valueOf decide pelo tipo do
             // parâmetro — aqui mapeia char→Int para imprimir o
             // codepoint sem quebrar String.valueOf(char).
-            Type nativeArg = (argType instanceof Type.PrimitiveType p
-                    && "char".equals(p.name()))
-                    ? Type.PrimitiveType.INT : argType;
+            // §104b-ii (face print): o storage de coleção devolve
+            // Nullable(char) (get de Map) — o INNER é que decide o
+            // dispatch; sem desembrulhar, char-em-coleção caía no
+            // ramo char_to_string ("a") ou, Unknown, em nada
+            // (raw int → println_string → SIGSEGV).
+            Type charCheck = argType instanceof Type.NullableType nt ? nt.inner() : argType;
+            boolean mapCharToInt = charCheck instanceof Type.PrimitiveType p
+                    && "char".equals(Type.canonicalPrimitiveName(p.name()));
+            Type nativeArg = mapCharToInt ? Type.PrimitiveType.INT : argType;
             ops.add(new KofCall(
                     BuiltinTypes.STRING,
                     "valueOf", List.of(nativeArg),

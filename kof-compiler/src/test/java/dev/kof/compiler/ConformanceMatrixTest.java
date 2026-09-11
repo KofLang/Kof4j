@@ -283,13 +283,18 @@ class ConformanceMatrixTest {
         // → NoSuchMethodError em runtime no JVM. Fix trata o ramo primitivo
         // (mesma tabela de boxedClassNameFor). Cobre Int/Long/Double/Bool/Char
         // pelo mesmo caminho de guard.
-        // Faces PRÉ-EXISTENTES fora do §109 (guard é só JVM; Native usa asm):
-        //   - native: SIGSEGV em println(char-em-coleção) → §104b-ii
-        //     (primitivo no storage asm sem box; mc3.kf prova que `==` do
-        //     char funciona, só o print quebra).
-        //   - JS: `d * 2` → `5` vs `5.0` (String(5.0)="5") é o floatprint
-        //     já registrado; a célula usa predicado (`d > 1.0`) para
-        //     exercitar o storage Double sem colidir com ele.
+        // §104b-ii FACE char (✅ 11/09, esta célula sem exclusões): JVM
+        // imprimia 97 só p/ `Int`; char caía em `Integer.charValue()C`
+        // inexistente (char é GUARDADO como Integer, a caixa nunca é
+        // Character) — unbox agora é `intValue`/`()I` coerente com a caixa.
+        // Native SIGSEGVava/imprimia o caractere ("a") em println(char-em-
+        // coleção): `ExpressionPrintLowerer` mapeava char→Int p/ valueOf só
+        // com CHAR cru (Nullable(CHAR) vazava p/ o ramo char_to_string do
+        // backend) e o cast `x as Char` pinava Unknown no mapOf (o cache do
+        // SemanticAnalyzer não tinha o repair do ExpressionTyper). 4/4.
+        // JS: `d*2`→`5` vs `5.0` (String(5.0)="5") é o floatprint §44; a
+        // célula usa predicado (`d > 1.0`) p/ exercitar o storage Double sem
+        // colidir com ele.
         matrix("mapgetprim", """
                 main() {
                     val b = mapOf("t", true).get("t")
@@ -306,7 +311,7 @@ class ConformanceMatrixTest {
                     val miss = mapOf("x", true).get("nope")
                     println(miss)
                 }
-                """, "true\ntrue\n8\n9000000001\ntrue\n97\nfalse", Set.of("native"), tempDir);
+                """, "true\ntrue\n8\n9000000001\ntrue\n97\nfalse", Set.of(), tempDir);
 
         // §112 (paridade absoluta, 3 superfícies novas achadas no sweep de
         // coleções): (a) JVM **VerifyError** em `println(m.put(k,v))` com V

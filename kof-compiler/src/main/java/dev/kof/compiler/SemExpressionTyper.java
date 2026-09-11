@@ -255,6 +255,18 @@ public final class SemExpressionTyper {
                 for (int ci = chain.size() - 1; ci >= 0; ci--) {
                     BinaryExpr be = chain.get(ci);
                     Type rightType = inferType(sa, be.right(), scope);
+                    // "x as Char/Int/…" — o alvo é um identificador de tipo
+                    // (não resolve como valor): scope.resolve dá null →
+                    // rightType=Unknown (mesmo repair do ExpressionTyper:89,
+                    // que só roda no lowering; o cache daqui é o que o
+                    // MethodCallTyper lê para `mapOf(k, v as T)`). Sem isto o
+                    // V do Map pinava Unknown e o unbox/print do char-em-
+                    // coleção (§104b-ii) perdia o tipo.
+                    if ("as".equals(be.operator()) && rightType instanceof Type.UnknownType
+                            && be.right() instanceof dev.kof.compiler.IdentifierExpr rie) {
+                        Type q = CompilerTypes.toType(rie.name(), sa.unit());
+                        if (!(q instanceof Type.UnknownType)) rightType = q;
+                    }
                     accType = TypeChecker.inferBinaryResultType(sa.diagnostics(), be.operator(), accType, rightType);
                 }
                 yield accType;

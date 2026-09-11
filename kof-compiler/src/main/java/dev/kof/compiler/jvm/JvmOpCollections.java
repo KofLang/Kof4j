@@ -50,7 +50,7 @@ public final class JvmOpCollections {
                 mv.visitLabel(notNull);
                 mv.visitTypeInsn(CHECKCAST, boxed);
                 mv.visitMethodInsn(INVOKEVIRTUAL, boxed, unboxMethodName(kc.returnType()),
-                        "()" + JvmTypeMapper.toDescriptor(kc.returnType()), false);
+                        unboxDescriptor(kc.returnType()), false);
                 mv.visitLabel(end);
             } else if (("kof_await".equals(kc.methodName())
                     || "kof_await_timeout".equals(kc.methodName())) && isPrimitiveType(kc.returnType())) {
@@ -233,7 +233,7 @@ public final class JvmOpCollections {
                     mv.visitLabel(notNull);
                     mv.visitTypeInsn(CHECKCAST, boxed);
                     mv.visitMethodInsn(INVOKEVIRTUAL, boxed, unboxMethodName(unboxGuardType),
-                            "()" + JvmTypeMapper.toDescriptor(unboxGuardType), false);
+                            unboxDescriptor(unboxGuardType), false);
                     mv.visitLabel(end);
                 } else if (valueNullable != null) {
                     // valor de referência (String? etc.): só o cast
@@ -355,7 +355,14 @@ public final class JvmOpCollections {
                 case "boolean", "bool", "Bool" -> "booleanValue";
                 case "byte", "Byte" -> "byteValue";
                 case "short", "Short" -> "shortValue";
-                case "char", "Char" -> "charValue";
+                // char é guardado BOXED AS Integer (boxedClassNameFor default →
+                // java/lang/Integer; emitBoxIfPrimitive → valueOf(I)). §104b-ii
+                // face JVM: o unbox derivava method+desc do primitivo DECLARADO
+                // (charValue/()C) → `Integer.charValue()C` inexistente →
+                // NoSuchMethodError em `mapOf(k,'a').get(k)` / `listOf('a').get`.
+                // A caixa é Integer, então o unbox é intValue/()I (char Kof é
+                // int-width no JVM — o print dá o codepoint, oracle 97).
+                case "char", "Char" -> "intValue";
                 default -> "intValue";
             };
         }
@@ -373,6 +380,23 @@ public final class JvmOpCollections {
             };
         }
         return "intValue";
+    }
+
+    /**
+     * Descritor do método de unbox — sempre coerente com a CLASSE boxada real
+     * (`boxedClassNameFor`). Nunca o tipo do primitivo DECLARADO: char é
+     * guardado como `Integer` (não `Character`), e `toDescriptor(CHAR)="C"`
+     * produzia `Integer.charValue()C` / `Integer.intValue()C` inexistentes
+     * (§104b-ii face JVM — NoSuchMethodError). Nullable desembrulha (o guard
+     * faz CHECKCAST na caixa do INNER).
+     */
+    static String unboxDescriptor(Type primitive) {
+        Type prim = primitive instanceof Type.NullableType nt ? nt.inner() : primitive;
+        if (prim instanceof Type.PrimitiveType pt) {
+            String n = Type.canonicalPrimitiveName(pt.name());
+            if ("char".equals(n)) return "()I";
+        }
+        return "()" + JvmTypeMapper.toDescriptor(prim);
     }
 
     static String boxedClassNameFor(Type primitive) {
@@ -445,7 +469,7 @@ public final class JvmOpCollections {
         mv.visitLabel(notNull);
         mv.visitTypeInsn(CHECKCAST, boxed);
         mv.visitMethodInsn(INVOKEVIRTUAL, boxed, unboxMethodName(prim),
-                "()" + JvmTypeMapper.toDescriptor(prim), false);
+                unboxDescriptor(prim), false);
         mv.visitLabel(end);
     }
 
@@ -460,7 +484,7 @@ public final class JvmOpCollections {
                     : boxed.endsWith("Double") ? "doubleValue"
                     : boxed.endsWith("Byte") ? "byteValue"
                     : boxed.endsWith("Short") ? "shortValue" : "intValue";
-            mv.visitMethodInsn(INVOKEVIRTUAL, boxed, method, "()" + JvmTypeMapper.toDescriptor(type), false);
+            mv.visitMethodInsn(INVOKEVIRTUAL, boxed, method, unboxDescriptor(type), false);
         }
     }
 
