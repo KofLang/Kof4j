@@ -11,6 +11,7 @@
 > | Abertos e atacáveis em JVM/JS | **5** — bugs 39, 45, 62, 63, 64 |
 > | Abertos, só reproduzíveis no Native | **5** — bugs 46, 48, 50, 59, 61 |
 > | Paridade interpretador × compilados (semântica `==` congelada — regra 6) | **1** — bug 94 (NaN/±0.0 `==` de Double no SCRIPT) |
+> | Paridade backend-only (regra 5, atacável na lane Native) | **2** — §107 (println coleção → lixo no nativo, sem toString de coleção), §104b-ii (equals de conteúdo p/ record em coleção — maintenedor, EM CURSO)
 > | Operadores relacionais NaN cross (congelados — regra 6) | **1** — bug 101 (`<`/`<=`/`>=` com NaN: riscv IEEE vs x86/JVM quirk `dcmpg`) |
 > | **Corrigidos na sessão de paridade absoluta 11/09** | **6** — bugs 96 (SEM052), 98 (SEM053), 100 (SEM051+fold), 44-residual, 102 (from-idx), 103 (SEM054) — todos com o MESMO comportamento nos 5 alvos  |
 > | **Corrigidos na prova cross-arch 11/09 (MATH001/TIME002/B33)** | **3** — bugs 101→registrado (relacional NaN, ABERTO regra 6), MATH001 (Double math B32), TIME002 (ISO add/diff B33), 105 (random.int loop — renumerado de 102, colidiu c/ §102 indexOf) |
@@ -2665,6 +2666,51 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 - **Causa raiz (2 camadas):** (a) dispatch: `JsonDispatch` não tem ramo `isMap` → genérico inexistente no nativo; (b) JVM: encode de objeto por reflexão não diferencia Map (deveria iterar entries, não `getDeclaredFields`). E (c) UX: failure de link não é diagnóstico R6.
 - **Por que ABERTO (não corrijo silencioso):** formato de `encode(Map)` é SEMÂNTICA de superfície (ordem das chaves? insertion vs sorted? null values?) — é decisão da mantenedora (regra 6: JSON surface congelada 0.2.6-beta). A correção tem 3 partes: gate honesto no compile-time até a superfície decidir (diagnóstico `JSN00x` no estilo JSN004 no dispatch de Map em nativos) + decisão de formato + ramos JVM (entries) e nativo. Registra aqui; NÃO vira edição de semântica sem decisão.
 - **Pista de teste faltante (para quem fechar):** `json.encode(mapOf(...))` nos 5 alvos com golden de ordem (provavelmente insertion-order = `LinkedHashMap` semantics, mas é a decisão).
+
+### 107. `println(<coleção>)` no nativo imprime LIXO de ponteiro (JVM: `[1, 2, 3]`/`{k=9}`) — ❌ ABERTO (backend-only; paridade regra 5; sem gate)
+
+- **Menor repro (medido 11/09, pós-fix §104b-i que liberou o link):**
+  ```kof
+  main() { println(listOf(1, 2, 3)); println(setOf(1, 2)); println(mapOf("k", 9)) }
+  ```
+  - **JVM (oracle)**: `[1, 2, 3]` / `[1, 2]` / `{k=9}` (medido — od -c).
+  - **Script**: idêntico ao JVM (interpretador imprime `toString` real).
+  - **x86_64**: bytes-lixo (`\300\224` / `\240` / \`\`` = ponteiro do objeto reinterpretado
+    como KofString) + `\n`. **riscv64/aarch64**: idem (ponteiro via
+    `kof_println_string`). Exit 0 (silencioso — R6 violada: nunca deveria
+    imprimir lixo).
+  - **JS**: imprime os elementos sem o wrapper `[...]` (via §104c — join sem
+    colchetes). Registrado junto do §104c (face JS é lane do maintenedor).
+- **Causa raiz (x86_64 + riscv/aarch, 1 caminho):** `ExpressionPrintLowerer`
+  baixa `println(obj)` como `valueOf(arg)` STATIC → `NativeX86Calls.java:180`
+  trata `dispatchType instanceof ClassType && !String` procurando `toString`
+  na **vtable** (`findVirtualMethodIndex(ct.name(), "toString")`). Record tem
+  `toString` na vtable (funciona — bug 42/recordhash). **List/Map/Set NÃO
+  têm vtable `toString`** (são tipos de coleção do runtime, não classes Kof)
+  → `tosIdx < 0` → o ramo **não emite NADA** → o ponteiro cru fica na pilha
+  e cai em `kof_println_string` = lixo. Não há `kof_list_to_string`/
+  `kof_set_to_string`/`kof_map_to_string` no runtime nativo (grep = 0).
+- **Correção (backend-only, minha lane Native — NÃO toca o §104b dos
+  records):** emitir `toString` de coleção em asm (B34): `kof_list_to_string`
+  (percorre `24(base)`, elementos `8` bytes, tag no header — reusar
+  `kof_int_to_string`/`kof_long_to_string`/`kof_double_to_string`/
+  `kof_bool_to_string`/`kof_string_*` conforme tag; join `", "`; wrapper
+  `[`/`]`), `kof_set_to_string` (idem wrapper, ordem de inserção),
+  `kof_map_to_string` (wrapper `{`/`}`, `chave=valor`, iteração `0..`
+  bucket). Routing no dispatch valueOf: quando `dispatchType` é
+  List/Map/Set (predicado `isList/isMap/isSet` — já existe em `KofType`?) →
+  `call kof_<coll>_to_string` em vez de vtable. AArch herda via tradutor.
+  **Oracle = formato JVM exato** (medir, não adivinhar — pode ser `[1, 2]`
+  com vírgula+espaço; confirmar `Map` ordem). Elemento record dentro usa o
+  MESMO `toString` (recursão via dispatch) — MAS só depois do §104b fechado
+  (senão aninha lixo); por ora `println(listOf(int/String))` já conserta a
+  maioria (record-em-list fica pro §104b-ii).
+- **Escopo honesto do registro:** NÃO implementei ainda nesta passada —
+  parei pra registrar (regra: unidade coesa c/ prova). Face record-em-coleção
+  recursivo depende do §104b-ii (equals/toString de conteúdo — lane
+  maintenedor, EM CURSO, não tocar).
+- **Nota de teste faltante:** nenhum E2E nativo faz `println(coleçãoInteira)`
+  (só `lista.get`/`.size` nos tests/learn) → por isso nunca apareceu.
 
 ### 105. `random.int(bound)`/`randomInt(bound)` em riscv64/aarch64 entra em LOOP INFINITO para qualquer bound > 1 — ✅ CORRIGIDO 11/09 (aritmética de rejection sampling) [renumerado de 102 — o número foi tomado pelo §102 indexOf(String,from) no remoto na mesma data]
 
