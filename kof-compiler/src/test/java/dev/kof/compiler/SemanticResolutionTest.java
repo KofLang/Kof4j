@@ -296,4 +296,52 @@ class SemanticResolutionTest {
                 """);
         assertTrue(r.success(), "legítimo deve compilar: " + r.diagnostics().getDiagnostics());
     }
+
+    // ---- #96 (paridade absoluta JVM=JS=X86=ARM=RISC): funções da stdlib
+    // `strings.*` chamadas como MÉTODO de String — o typer aceitava e cada
+    // backend quebrava de um jeito (JVM NoSuchMethodError, Native link-fail,
+    // JS roda o nativo do JS, Script roda por reflexão). Opção B: REJEITAR em
+    // compile-time (SEM052) apontando para o idiom real do corpus. ----
+
+    @Test
+    void stringsFunctionsAsInstanceMethodsRejected(@TempDir Path tmp) throws IOException {
+        String[] exprs = {
+            "\"ab\".repeat(3)", "\"ab\".truncate(3)", "\"7\".padStart(5,\"-\")",
+            "\"7\".padEnd(5,\"-\")", "\"7\".padLeft(3,\"0\")", "\"7\".padRight(3,\"0\")",
+            "\"ab\".reverse()", "\"ab\".capitalize()", "\"abc\".count(\"a\")",
+            "\"a\".isAlpha()", "\"a\".isNumeric()", "\"a_b\".toCamelCase()",
+            "\"a\".escapeHtml()", "\"a\".slugify()" };
+        for (String e : exprs) {
+            CompilationResult r = compile(tmp, "e.kf", "main() { println(" + e + ") }");
+            assertFalse(r.success(), "deve falhar: " + e);
+            boolean found = r.diagnostics().getDiagnostics().stream()
+                    .anyMatch(d -> "SEM052".equals(d.code()) && d.message().contains("strings."));
+            assertTrue(found, "esperava SEM052 p/ '" + e + "', foi: "
+                    + r.diagnostics().getDiagnostics());
+        }
+    }
+
+    @Test
+    void stringsFunctionsAndRealStringMethodsStillCompile(@TempDir Path tmp) throws IOException {
+        // não regridir (regra 1): a forma função da stdlib e os métodos QUE
+        // SÃO de String na registry (toUpperCase/trim/split/replace/substring).
+        CompilationResult r = compile(tmp, "ok.kf", """
+                main() {
+                    println(strings.repeat("ab", 3))
+                    println(strings.truncate("abcdef", 3))
+                    println(strings.padLeft("7", 3, "0"))
+                    println(strings.padRight("7", 3, "0"))
+                    println(strings.reverse("ab"))
+                    println(strings.capitalize("ab"))
+                    println(strings.count("abc", "a"))
+                    println(strings.isAlpha("a"))
+                    var s = "ab"
+                    println(s.toUpperCase())
+                    println(s.trim())
+                    println(s.replace("a", "b"))
+                    println(s.substring(1))
+                }
+                """);
+        assertTrue(r.success(), "legítimo deve compilar: " + r.diagnostics().getDiagnostics());
+    }
 }

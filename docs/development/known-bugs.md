@@ -2229,30 +2229,45 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 - **Nota (riscv/aarch):** o backend cross não tem o mesmo ramo inline de split
   com labels fixas (o `kof_string_split` é chamado direto) — não reproduz.
 
-### 96. Native: `String.repeat`/`padStart`/`padEnd` como MÉTODO DE INSTÂNCIA → `undefined reference` no link — ABERTO (fora do corpus; API documentada é a função `strings.repeat(...)`)
+### 96. `String.repeat`/`padStart`/`padEnd` como MÉTODO DE INSTÂNCIA — aceito e quebrado em 3/4 backends — ✅ CORRIGIDO 11/09 (SEM052: rejeitar e apontar p/ o idiom `strings.*`)
 
-- **Sintoma:** `println("ab".repeat(2))` / `"ab".padStart(4,"-")` / `"ab".padEnd(4,"-")`
-  no Native x86_64 falham no link: `undefined reference to
-  'java_lang_String_repeat'` / `_padStart` / `_padEnd` (COMP001). O typer aceita
-  (o método existe no registry — `KofStrings.java:59` reconhece `repeat`), mas
-  nenhum backend emite o intrínseco nem a runtime define o símbolo. JVM/Script
-  executam correto.
-- **Causa:** o typer/registry conhece `repeat` como método de String (a função
-  top-level `strings.repeat` é o idiom CANÔNICO do corpus —
-  `training/idioms/stdlib.md:37`, `learn/39-stdlib.md:63`), mas o emit nativo
-  desses 3 como **método de instância** nunca foi escrito. Não há teste nem doc
-  que pinnem a forma `"ab".repeat(2)` — só a forma `strings.repeat("ab",2)`.
-- **Por que NÃO é "só implementar" (regra 6):** é API de superfície nova
-  (adicionar o emit dos 3 intrínsecos nos nativos) OU decisão de o typer
-  REJEITAR método-de-instância fora do corpus (mudança de contrato p/ quem usa
-  no JVM — bump). Mesma família da decisão §89 (superfície não-pinned).
-- **Ação p/ o dono Native:** (a) implementar `repeat`/`padStart`/`padEnd` no
-  runtime x86 (`kof_string_repeat`/`_pad_start`/`_pad_end`) + rotear em
-  `NativeX86StringCalls` (o emit de método já existe, só falta o symbol); OU
-  (b) diagnosticar no typer apontando p/ `strings.repeat(...)` (o idiom real).
-  Decidir com a mantenedora. **Workaround atual:** `strings.repeat("ab", 3)`
-  (funciona nos targets que têm a função).
-- **Descoberto:** 10/09 na varredura de paridade String (batch `swA.kf`).
+- **Sintoma (paridade absoluta JVM=JS=X86=ARM=RISC quebrada):** `"ab".repeat(3)`,
+  `"ab".padStart(5,"-")`, `"ab".padEnd(5,"-")`, `"abcdef".truncate(3)`,
+  `"7".padLeft(3,"0")`, `"ab".reverse()`, `"abc".count("a")`, `"a".isAlpha()`,
+  `"a".toCamelCase()`, `"a".escapeHtml()`, `"a".slugify()` (toda a superfície
+  `strings.*` chamada como método) eram ACEITOS pelo typer e cada target fazia
+  UMA COISA DIFERENTE:
+  | alvo | `"ab".repeat(3)` | `"ab".padStart(5,"-")` |
+  |---|---|---|
+  | JVM | `NoSuchMethodError String.repeat(I)` (descritor sai Object) | `NoSuchMethodError` idem |
+  | Native x86 | `undefined reference java_lang_String_repeat` (link-fail) | idem (link-fail) |
+  | JS | roda o `.repeat` NATIVO do JavaScript (paridade por acaso) | roda `.padStart` do JS |
+  | Script | `ababab` (reflexão JDK) | vazio + `exit=1` |
+- **Causa raiz:** nenhuma parte do typer lowering conhece esses nomes como
+  métodos de String (a `StringMethodRegistry` não os lista), mas nenhum ponto
+  os REJEITA — o `KofCall` sai com owner `String` e o backend cada um faz o que
+  dá (`JvmTypeMapper` monta descritor Object; Native emite call p/ símbolo que
+  ninguém define; JsCallEmitter cai no método nativo do JS; o interpretador
+  resolve por `Method.invoke` no JDK). O corpus (`training/idioms/stdlib.md:47-50`,
+  `learn/39-stdlib.md:71-74`) só documenta a forma FUNÇÃO:
+  `strings.repeat("ab", 3)` / `strings.padLeft("7", 3, "0")` / `strings.truncate`.
+- **Decisão (opção B da mantenedora, 11/09 — paridade absoluta é a regra):**
+  REJEITAR em compile-time com **SEM052** apontando para o idiom real
+  (`Kof não tem método "repeat" de String; use a função da stdlib:
+  strings.repeat(...` — com `padStart→padLeft`/`padEnd→padRight` no hint).
+  Guard por NOME (`NOT_INSTANCE_METHODS` = toda a superfície de
+  `KofStrings.staticMethod`) no branch `isString(recvType)` do
+  `ExpressionInstanceCallLowerer` — mesmo ponto dos guards §100/SEM051:
+  lowering é o frontend ÚNICO dos 5 alvos, um erro igual em todos por
+  construção. NÃO flaguemos `toUpperCase`/`toLowerCase`/`trim`/`split`/
+  `replace`/`substring`/`equals`/`indexOf`... (SÃO métodos na registry).
+  Verificado: JVM/NATIVE/JS dão SEM052 idêntico; `interpret()` (Script) LANÇA
+  com a mesma mensagem (antes: `ababab`/vazio por reflexão).
+- **Prova:** `SemanticResolutionTest.stringsFunctionsAsInstanceMethodsRejected`
+  (14 formas × SEM052) + `stringsFunctionsAndRealStringMethodsStillCompile`
+  (funções `strings.*` + métodos reais de String não regridem).
+- **Descoberto:** 10/09; **corrigido 11/09** sob a diretriz "paridade entre os
+  targets em primeiro lugar; opção B = rejeitar em tempo de compilação".
 
 ### 97. Native: `String.compareTo`/`String.hashCode` declarados no reference → `undefined reference` no link — ✅ x86_64 CORRIGIDO 10/09 (varredura String parte 2; faces JS + riscv/aarch residuais)
 
@@ -2266,7 +2281,8 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   `docs/language-reference/type-system.md:289` DECLARA a API — "`String`:
   indexOf/length/**compareTo/hashCode**→Int". O typer honra a declaração; os 3
   nativos não. Paridade cross-target quebrada (regra 5) em método *documentado*
-  — família do §96, mas lá o método NÃO está no corpus (design); aqui ESTÁ.
+  — família do §96 (corr. 11/09 com SEM052), mas lá o método NÃO está no
+  corpus (rejeitado); aqui ESTÁ (implementado no x86).
 - **Causa:** nenhum dos 3 backends nativos emite os intrínsecos
   `java_lang_String_compareTo`/`_hashCode`. `NativeX86StringCalls.emit` roteia
   length/charAt/substring/indexOf/… mas não estes dois → caem no `emitCall`

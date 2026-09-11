@@ -15,7 +15,32 @@ public final class ExpressionInstanceCallLowerer {
             "indexOf", "lastIndexOf", "contains", "startsWith", "endsWith",
             "split", "concat", "equalsIgnoreCase", "compareTo", "compareToIgnoreCase");
 
+    /**
+     * Funções da stdlib {@code strings.*} que NÃO são métodos de instância em
+     * Kof (SEM052 — bug 96). Chamá-las como método era ACEITO e quebrava de
+     * um jeito em cada target (JVM NoSuchMethodError, Native link-fail, JS
+     * roda o nativo do JS, Script roda/quebra por reflexão) — paridade
+     * absoluta JVM=JS=X86=ARM=RISC. O idiom do corpus é só a função
+     * (training/idioms/stdlib.md, learn/39-stdlib.md).
+     */
+    private static final java.util.Set<String> NOT_INSTANCE_METHODS = java.util.Set.of(
+            "repeat", "truncate", "padLeft", "padRight", "padStart", "padEnd",
+            "capitalize", "uncapitalize", "reverse", "count",
+            "isAlpha", "isNumeric", "isAlphaNumeric", "isAscii",
+            "isUpperCase", "isLowerCase", "toCamelCase", "toPascalCase",
+            "toSnakeCase", "toKebabCase", "slugify", "escapeHtml",
+            "unescapeHtml", "escapeJson", "removeWhitespace", "normalizeWhitespace");
+
     private ExpressionInstanceCallLowerer() {}
+
+    /** Nome canônico da função `strings.*` p/ o nome de método errado (SEM052). */
+    private static String padHint(String methodName) {
+        return switch (methodName) {
+            case "padStart" -> "padLeft";
+            case "padEnd" -> "padRight";
+            default -> methodName;
+        };
+    }
 
     static int lower(CompilerDriver driver, MethodCallExpr mc, List<KofOperation> ops,
                     String owner, int localIdx, List<IRLocalVariable> locals) {
@@ -302,6 +327,24 @@ public final class ExpressionInstanceCallLowerer {
         methodReturnType = resolvedMethod.returnType();
         methodParamTypes = new ArrayList<>(resolvedMethod.parameterTypes());
     } else if (BuiltinTypes.isString(recvType)) {
+        // bug 96 (paridade absoluta): as funções da stdlib `strings.*` NÃO são
+        // métodos de instância em Kof — chamá-las como método era ACEITO pelo
+        // typer e quebrava de um jeito em CADA target (JVM `NoSuchMethodError`
+        // por descritor Object, Native `undefined reference` no link, JS roda o
+        // nativo `.repeat`/`.padStart` do próprio JS, Script roda/quebra por
+        // reflexão). Opção B (decisão da mantenedora): REJEITAR em compile-time
+        // com SEM052 apontando p/ o idiom real do corpus — o MESMO erro nos 5
+        // backends (este lowering é o frontend único). NÃO confunda com
+        // `toUpperCase`/`toLowerCase`/`trim`/`split`/`replace`/`substring`,
+        // que SÃO métodos de String na registry (e em Kof).
+        if (NOT_INSTANCE_METHODS.contains(mc.methodName()) && driver.currentDiagnostics != null) {
+            var pos = mc.position();
+            driver.currentDiagnostics.error(pos != null ? pos.file() : "",
+                    pos != null ? pos.line() : 0, pos != null ? pos.column() : 0, 0,
+                    "Kof não tem método \"" + mc.methodName() + "\" de String; use a função "
+                            + "da stdlib: strings." + padHint(mc.methodName()) + "(...",
+                    "SEM052");
+        }
         // bug 100 (R6, paridade absoluta JVM=JS=X86=ARM=RISC): argumento Char
         // num método de parâmetro String era ACEITO e quebrava os 3 targets de
         // formas DIFERENTES (JVM VerifyError/IncompatibleClassChangeError/
