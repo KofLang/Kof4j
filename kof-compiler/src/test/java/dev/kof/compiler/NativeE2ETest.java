@@ -1077,4 +1077,38 @@ class NativeE2ETest {
                 """);
         runNative(source, tempDir.resolve("out"), "true\nfalse\ntrue\ntrue\nfalse\ntrue");
     }
+
+    // bug 100: hijack de método de usuário. 14 dos 16 ramos INSTANCE do
+    // NativeX86StringCalls casavam SÓ por nome — `p.trim()` numa classe do
+    // usuário era roteado p/ o intrínseco String (deref do receiver como
+    // KofString) → LIXO silencioso (ex.: -103849952), não crash. JVM despacha
+    // pela classe; JS gateia isStringOp; riscv gateia isString. Fix: guard
+    // BuiltinTypes.isString(ownerType) nos 14 ramos (FUNCTION kof_string_to_*
+    // / kof_json_* não colidem — prefixo não-atingível). Guard isString já
+    // existia só em length/equals (e charAt, meio-guardado).
+    @Test
+    void nativeUserClassMethodsNotHijackedByStringOps(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+                class P {
+                    Int trim() { return 42 }
+                    Int indexOf(Int n) { return n + 1 }
+                    String split(Int n) { return "s" + n }
+                    Int toUpperCase() { return 7 }
+                }
+                main() {
+                    var p = P()
+                    println(p.trim())
+                    println(p.indexOf(1))
+                    println(p.split(9))
+                    println(p.toUpperCase())
+                    println(" x ".trim() + "|")
+                    println("abc".indexOf("c"))
+                    println("a,b".split(",").get(1))
+                    println("ab".toUpperCase())
+                }
+                """);
+        runNative(source, tempDir.resolve("out"),
+                "42\n2\ns9\n7\nx|\n2\nb\nAB");
+    }
 }

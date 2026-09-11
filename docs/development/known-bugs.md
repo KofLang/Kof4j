@@ -2479,3 +2479,33 @@ int de índice) — verificados na varredura.
   genérico (qualquer formal String/CharSequence + primitivo). `indexOf(s, n)`
   (2-arg) com 2º arg não-Int não é tipado pelo registry (o aridade-2 formal já
   é `(String, Int)` — o Int está no formal, ok).
+
+### 100. Native x86: hijack de método de usuário com nome de String-op (`p.trim()` → LIXO silencioso) — ✅ CORRIGIDO 10/09
+
+- **Sintoma:** `class P { Int trim() { 42 } }` + `p.trim()` no x86: JVM e JS
+  dão `42`, o **Native dá lixo** (medido: `-103849952` — o receiver da classe
+  foi dereferenciado como ponteiro `KofString` e a soma de bytes do heap
+  virou "comprimento"). Silencioso (exit 0) — pior classe: paridade quebrada
+  SEM diagnóstico (regra 5). Idem `indexOf`/`split`/`toUpperCase`/… em classe
+  do usuário.
+- **Causa:** dos 16 ramos `INSTANCE` de `NativeX86StringCalls.emit`, só
+  `length` e `equals` checavam `BuiltinTypes.isString(kc.ownerType())`; os
+  outros 14 (`charAt`…`split`) casavam **só por nome** e rodavam ANTES do
+  dispatch virtual genérico (vtable) de `NativeX86Calls.emitCall` → qualquer
+  método de usuário com nome colidente era sequestrado pelo intrínseco.
+- **Corpus:** nada autoriza o hijack — o dispatch de método é por classe
+  (JVM `INVOKEVIRTUAL <owner>`, riscv `isString` no `NativeRiscvCrossOps`,
+  JS `isStringOp` = `ownerType==String`). O x86 era o outlier.
+- **Fix (preserva semântica — regra 3):** guard `isString(ownerType)` nos
+  14 ramos. Os ramos FUNCTION (`kof_string_to_*`, `kof_json_decode_*`) não
+  ganham guard: nome prefixado é inatingível por método de usuário.
+- **Prova:** `NativeE2ETest.nativeUserClassMethodsNotHijackedByStringOps`
+  (classe `P` com `trim`/`indexOf`/`split`/`toUpperCase` de usuário + as
+  MESMAS 4 ops em String real no mesmo programa — golden JVM medido
+  `42 2 s9 7 x| 2 b AB`, x86 idêntico pós-fix; antes o primeiro valor era
+  lixo). Regressão coberta: `recordhash` (matrix, DONE nativo — record.hashCode
+  cai no vtable, intacto) + `nativeStringEqualsVsRecordEquals` (bug 97,
+  lado a lado). Suíte completa **1307+30+5+127 / 0 falhas / 94-skip**.
+- **Nota (riscv/aarch):** o gate já existia em `NativeRiscvCrossOps` —
+  residual da família §97 cross é SÓ a AUSÊNCIA dos 3 símbolos
+  (equals/compareTo/hashCode), não o hijack.
