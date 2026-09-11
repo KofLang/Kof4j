@@ -159,6 +159,26 @@ class ConformanceMatrixTest {
                     println(66 as Char)
                 }
                 """, "9\n70000\n66", Set.of(), tempDir);
+        // §110 (paridade absoluta, JVM literal-emitter): -0.0 em JVM virava
+        // +0.0 — `emitLoadDouble`/`emitLoadFloat` testavam `value == 0.0`,
+        // e IEEE casa -0.0 == 0.0 → DCONST_0 colapsava o sinal (literal
+        // `-0.0`, fold de `-1.0 * 0.0` e negação de resultado de fold).
+        // Native/Script nunca colapsaram (guard por raw bits). `==` de
+        // signed zero continua true (congelado §94) — a célula imprime os
+        // spellings, não troca o contrato de comparação.
+        matrix("negzero", """
+                main() {
+                    println(0.0)
+                    println(-0.0)
+                    val z = 0.0
+                    println(-z)
+                    val a = -1.0
+                    val b = 0.0
+                    println(a * b)
+                    println(-1.0 * 0.0)
+                    println(0.0 == -0.0)
+                }
+                """, "0.0\n-0.0\n-0.0\n-0.0\n-0.0\ntrue", Set.of("js"), tempDir);
         // bug 44 CORRIGIDO 10/09 (x86_64): kof_print_double/float via snprintf
         // %.16g + append '.0' p/ inteiro-válido + write via syscall (sem
         // printf/reordenação) — Native desbloqueado. KofJS mantém a exclusão:

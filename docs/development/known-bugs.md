@@ -13,7 +13,7 @@
 > | Paridade interpretador × compilados (semântica `==` congelada — regra 6) | **1** — bug 94 (NaN/±0.0 `==` de Double no SCRIPT) |
 > | Paridade backend-only (regra 5, atacável na lane Native) | **2** — §107 (println coleção → lixo no nativo, sem toString de coleção; §107-JS corrigido 11/09), §104b-ii (equals de conteúdo p/ record + box de primitivo no storage asm — inclui SIGSEGV do `println(l.get)` char achado no §109)
 > | Operadores relacionais NaN cross (congelados — regra 6) | **1** — bug 101 (`<`/`<=`/`>=` com NaN: riscv IEEE vs x86/JVM quirk `dcmpg`) |
-> | **Corrigidos na sessão de paridade absoluta 11/09** | **11** — bugs 96 (SEM052), 98 (SEM053), 100 (SEM051+fold), 44-residual, 102 (from-idx), 103 (SEM054), 104a (KofObj equals/hash/toString no interpretador), 104b-i (LINK_FAIL `Object.equals` herdado no Native), 104c (membership de record por conteúdo no JS — `kofValEq`), 107-JS (`kofFormat` no JS), 109 (CRASH JVM no guard do `map.get` primitivo) — todos com prova na matrix/suíte |
+> | **Corrigidos na sessão de paridade absoluta 11/09** | **12** — bugs 96 (SEM052), 98 (SEM053), 100 (SEM051+fold), 44-residual, 102 (from-idx), 103 (SEM054), 104a (KofObj equals/hash/toString no interpretador), 104b-i (LINK_FAIL `Object.equals` herdado no Native), 104c (membership de record por conteúdo no JS — `kofValEq`), 107-JS (`kofFormat` no JS), 109 (CRASH JVM no guard do `map.get` primitivo), 110 (`-0.0` colapsado em `+0.0` no literal emitter JVM) — todos com prova na matrix/suíte |
 > | **Corrigidos na prova cross-arch 11/09 (MATH001/TIME002/B33)** | **3** — bugs 101→registrado (relacional NaN, ABERTO regra 6), MATH001 (Double math B32), TIME002 (ISO add/diff B33), 105 (random.int loop — renumerado de 102, colidiu c/ §102 indexOf) |
 > | Verificados corrigidos em 08/09 | **19** — bugs 1–8, 10–17, 19, 20, 26 |
 > | Não reverificados (faltou ambiente/setup) | bugs 9, 18, 21, 22, 23 |
@@ -2802,6 +2802,28 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 - **Nota de teste faltante:** nenhum teste cobria `println(map.get(k))` com
   valor primitivo não-Int/Double — Bool e Char eram os gatilhos do default
   silencioso do `unboxMethodName`.
+
+### 110. Literal/fold `-0.0` vira `+0.0` no JVM (perde o zero com sinal) — ✅ CORRIGIDO 11/09 (guard de raw bits no literal emitter)
+- **Menor repro:** `main() { println(-0.0) }` → JVM **`0.0`**, Native/Script **`-0.0`**.
+  Idem para fold: `println(-1.0 * 0.0)` e negação `val z = 0.0; println(-z)`.
+- **Causa raiz (JVM-only, `JvmLiteralEmitter`):** os atalhos de instrução
+  testavam `value == 0.0` / `value == 0f` — e **em IEEE `-0.0 == 0.0` é true**,
+  então o literal (ou resultado de fold em `OptimizerConstantFold`, que é
+  correto: `av * bv` dá `-0.0`) era emitido como `DCONST_0`/`FCONST_0`, que
+  são sempre **+zero** no bytecode. O run-time estava certo (`a * b` com
+  variáveis → `-0.0`); só o **caminho do literal** colapsava.
+- **Fix:** guard por bits crus — `value == 0.0 && Double.doubleToRawLongBits(value) == 0L`
+  (idem `Float.floatToRawIntBits` para float); `-0.0` cai no `visitLdcInsn`
+  (LDC de double preserva bits). Mesmo bug simétrico em `emitLoadFloat`,
+  corrigido junto (`val f = -0.0 as Float`).
+- **Contrato preservado (não é §94):** `0.0 == -0.0` continua **`true`** —
+  a célula NÃO mexe em comparação de signed zero (congelado), só no SPELLING
+  do literal. Oracle: comportamento de run-time do próprio JVM (que já dava
+  `-0.0` corretamente em `a*b`).
+- **Prova:** célula `negzero` (JVM+Native+Script byte-idênticos; **JS excluído**
+  = `String(-0.0)` → `"0"` sem `.0`, já é o floatprint §44 documentado, não
+  regressão). Face riscv/aarch: sem qemu no ambiente — o fix é JVM-only
+  (emissor de bytecode), as faces nativas nunca tiveram o colapso.
 
 ### 105. `random.int(bound)`/`randomInt(bound)` em riscv64/aarch64 entra em LOOP INFINITO para qualquer bound > 1 — ✅ CORRIGIDO 11/09 (aritmética de rejection sampling) [renumerado de 102 — o número foi tomado pelo §102 indexOf(String,from) no remoto na mesma data]
 
