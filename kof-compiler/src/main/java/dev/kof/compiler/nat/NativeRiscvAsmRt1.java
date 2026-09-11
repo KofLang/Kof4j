@@ -146,74 +146,9 @@ public final class NativeRiscvAsmRt1 {
                 li   a0, 0
                 ret
 
-            # kof_string_char_at(str, idx) -> Int (char code)
-            .globl kof_string_char_at
-            kof_string_char_at:
-                lw   t0, 16(a0)
-                bge  a1, t0, .Lca_bounds
-                blt  a1, zero, .Lca_bounds
-                addi t1, a0, 24
-                add  t1, t1, a1
-                lbu  a0, 0(t1)
-                ret
-            .Lca_bounds:
-                call kof_bounds_error
-
-            # kof_string_substring(str, start, end) -> KofStr* (end=0 → até o fim)
-            .globl kof_string_substring
-            kof_string_substring:
-                addi sp, sp, -64
-                sd   ra, 56(sp)
-                sd   s0, 48(sp)
-                sd   s1, 40(sp)
-                sd   s2, 32(sp)
-                sd   s3, 24(sp)
-                sd   s4, 16(sp)
-                mv   s0, a0
-                mv   s1, a1
-                mv   s2, a2
-                lw   t0, 16(s0)
-                beqz s2, .Lss_endlen
-                j    .Lss_chk
-            .Lss_endlen:
-                mv   s2, t0
-            .Lss_chk:
-                bgt  s2, t0, .Lss_bounds
-                blt  s1, zero, .Lss_bounds
-                bgt  s1, s2, .Lss_bounds
-                sub  s3, s2, s1
-                addi a0, s3, 25
-                addi a0, a0, 15
-                andi a0, a0, -16
-                call kof_alloc
-                mv   s4, a0
-                li   t0, 1
-                sw   t0, 0(s4)
-                li   t0, 0
-                sw   t0, 4(s4)
-                sd   t0, 8(s4)
-                sw   s3, 16(s4)
-                sw   t0, 20(s4)
-                addi a0, s4, 24
-                addi a1, s0, 24
-                add  a1, a1, s1
-                mv   a2, s3
-                call kof_memcpy
-                li   t0, 0
-                addi t1, s4, 24
-                add  t1, t1, s3
-                sb   t0, 0(t1)
-                mv   a0, s4
-                ld   s0, 48(sp)
-                ld   s1, 40(sp)
-                ld   s2, 32(sp)
-                ld   s3, 24(sp)
-                ld   s4, 16(sp)
-                ld   ra, 56(sp)
-                addi sp, sp, 64
-                ret
-            .Lss_bounds:
-                call kof_bounds_error
+            # kof_string_char_at / kof_string_substring — MOVIDOS p/ B34
+            # (faces UTF-16, bug 43 cross): byte-based davam length/charAt
+            # em bytes UTF-8 (a😀b.length=6 vs JVM 4).
 
             # kof_string_contains(a, b) -> 0/1
             .globl kof_string_contains

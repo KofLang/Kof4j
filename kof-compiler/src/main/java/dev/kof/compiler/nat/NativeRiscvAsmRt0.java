@@ -476,10 +476,8 @@ public final class NativeRiscvAsmRt0 {
                 call kof_bounds_error
 
             # ---- strings ----
-            .globl kof_string_length
-            kof_string_length:
-                lw   a0, 16(a0)
-                ret
+            # kof_string_length — MOVIDO p/ B34 (faces UTF-16, bug 43 cross):
+            # contava bytes UTF-8 (café=5 vs JVM 4).
 
             # kof_string_concat(a, b) -> KofStr*
             """;
