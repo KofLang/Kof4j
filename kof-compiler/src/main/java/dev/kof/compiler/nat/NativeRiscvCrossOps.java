@@ -195,6 +195,11 @@ public final class NativeRiscvCrossOps {
                 case "toLowerCase" -> "kof_string_to_lower";
                 case "lastIndexOf" -> "kof_string_last_index_of";
                 case "equalsIgnoreCase" -> "kof_string_equals_ignore_case";
+                // bug 97 cross: equals/compareTo/hashCode (guard isString acima
+                // → nunca hijacka método .equals/.hashCode de classe de usuário).
+                case "equals" -> "kof_string_equals";
+                case "compareTo" -> "kof_string_compare_to";
+                case "hashCode" -> "kof_string_hash_code";
                 default -> null;
             };
             if (fn != null) {

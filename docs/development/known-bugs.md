@@ -2229,7 +2229,7 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   (funciona nos targets que têm a função).
 - **Descoberto:** 10/09 na varredura de paridade String (batch `swA.kf`).
 
-### 97. Native: `String.compareTo`/`String.hashCode` declarados no reference → `undefined reference` no link — ✅ x86_64 CORRIGIDO 10/09 + ✅ JS CORRIGIDO 10/09 (varredura String parte 2; residual só riscv/aarch)
+### 97. Native: `String.compareTo`/`String.hashCode` declarados no reference → `undefined reference` no link — ✅ x86_64 CORRIGIDO 10/09 + ✅ JS CORRIGIDO 10/09 + ✅ riscv64/aarch64 CORRIGIDO 11/09 (todas as faces fechadas; varredura String parte 2)
 
 - **Sintoma:** `a.compareTo("abd")` e `a.hashCode()` falham no link Native
   x86_64: `undefined reference to java_lang_String_compareTo` / `_hashCode`
@@ -2277,10 +2277,32 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   diverge de locale e de astral). Antes caíam no `default` → `texto.compareTo()`
   / `texto.hashCode()` que não existem em `String.prototype` → `TypeError`.
   (node AUSENTE na sessão do bug x86 era a razão do residual; disponível na
-  sessão JS.) **Residual restante: riscv64/aarch64** — os símbolos vivem só no
-  `.s` x86 (`NativeRuntime` é x86-only; o cross tem suas fatias). Ferramenta de
-  cross ausente neste ambiente → portar no env da lane cross (com qemu)
-  reusando o MESMO algoritmo de code-unit. Ver matriz `backend-parity.md`.
+  sessão JS.)
+- **✅ CORRIGIDO 11/09 (face riscv64 + aarch64):** toolchain cross obtida SEM
+  root (`apt-get download qemu-user-static binutils-riscv64-linux-gnu
+  binutils-aarch64-linux-gnu` + `dpkg -x` num prefixo + `PATH`/`LD_LIBRARY_PATH`
+  — os guards `has(...)` dos testes passam; mesma artimanha do agente cross
+  `2b9a483b`). Fatia nova `NativeRiscvAsmRtB32` (B30/B31 já tomados) portando
+  o MESMO algoritmo de code-unit: helper FOLHA `kof_su_next` (cursor 8B:
+  off@0 + pendLow@4 — no x86 o cursor é `rsi`, aqui `a1`; só t-regs) +
+  `kof_string_compare_to` + `kof_string_hash_code`; routing em
+  `NativeRiscvCrossOps` (o guard `isString` do branch já impede hijack de
+  classe de usuário; `equals` → `kof_string_equals` existente, que o dispatcher
+  cross NUNCA roteava — caía no mangling `String_equals` indefinido). aarch64
+  vem do tradutor riscv→aarch (mesma lição do B25 uuid). Dois bugs pegos na
+  prova: (a) `.Lct*`/labels genéricas COLIDIAM com a fatia B2 existente →
+  namespace próprio `.Ls97*` (lição do bug 95, mas em outro eixo); (b) o
+  tradutor faz `lw`→`ldr w` (**zero**-extend) onde o riscv é **sign**-extend —
+  a sentinela `-1` vinda da pilha (`lw t0,16(sp)`) virava `0xFFFFFFFF` no
+  aarch e o diff de prefixo saía `-100`; fix no meu asm: `sext.w` explícito
+  após o `lw` (no-op no riscv, corrige no aarch) — o TRADUTOR fica intacto
+  (mexer nele = risco global; latente em todo `lw` de valor negativo via pilha
+  — registrado como lição, sonda futura da lane). **Prova:** os MESMOS 11
+  vetores golden do x86 nos 2 cross (`NativeRiscv64E2ETest.
+  nativeStringCompareToAndHashCodeUtf16` + `NativeAarch64E2ETest` idem) =
+  `10 1 -1 -1 55260 -10176 10176 96354 3240 1772899 0` em riscv64 E aarch64
+  sob qemu; `equals`/record lado a lado também verde; suítes riscv 31/0 +
+  aarch 31/0 + KofStrings 16 + BackendParity 16 + ConformanceMatrix 11.
 - **Prova face JS:** `KofStringsTest.compareToAndHashCodeJvmJsNative` — MESMOS
   11 vetores do §97-x86 (astral/BMP/prefixo/vazio), golden JVM==JS==x86
   idênticos (`10 1 -1 -1 55260 -10176 10176 96354 3240 1772899 0`).

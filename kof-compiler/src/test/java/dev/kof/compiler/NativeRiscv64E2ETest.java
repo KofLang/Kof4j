@@ -680,4 +680,27 @@ main() {
             """);
         assertEquals("true\nfalse\ntrue\nfalse\ntrue\ntrue\nfalse\ntrue\ntrue\nfalse\ntrue\nfalse\ntrue\nfalse\ntrue\nfalse\na&lt;b&gt;&amp;&quot;&#39;c\ncafé\nab|a b\nhttps|host.io|8443|/p\na%20b%26c%3D1\ntrue\nfalse\n29\n4\n60", out);
     }
+
+    @Test
+    void nativeStringCompareToAndHashCodeUtf16(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        // bug 97 cross: compareTo/hashCode em code units UTF-16 (port do x86,
+        // MESMOS 11 vetores golden do NativeE2ETest) — riscv64.
+        String out = runRiscv64(tempDir, """
+                main() {
+                    println("ab".compareTo("aX"))
+                    println("a\\u00e9".compareTo("a"))
+                    println("abc".compareTo("abd"))
+                    println("ab".compareTo("abc"))
+                    println("\\uD83D\\uDE00".compareTo("a"))
+                    println("a\\uD83D\\uDE00".compareTo("a\\uFFFD"))
+                    println("a\\uFFFD".compareTo("a\\uD83D\\uDE00"))
+                    println("abc".hashCode())
+                    println("a\\u00e9".hashCode())
+                    println("\\uD83D\\uDE00".hashCode())
+                    println("".hashCode())
+                }
+                """);
+        assertEquals("10\n1\n-1\n-1\n55260\n-10176\n10176\n96354\n3240\n1772899\n0", out);
+    }
 }
