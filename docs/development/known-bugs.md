@@ -2509,3 +2509,23 @@ int de índice) — verificados na varredura.
 - **Nota (riscv/aarch):** o gate já existia em `NativeRiscvCrossOps` —
   residual da família §97 cross é SÓ a AUSÊNCIA dos 3 símbolos
   (equals/compareTo/hashCode), não o hijack.
+
+### 101. Native x86: `cancelled()` usa tabela de 256 slots por hash de TID → colisão (cancel de um worker vaza/outro apaga) — ABERTO (registrado da issue #83)
+
+- **Sintoma (potencial, não reproduzido):** o trampoline de spawn
+  (`RuntimeConcurrency.java:20-38`) resolve o slot como
+  `(TID * 0x9E3779B97F4A7C15) >> 56` (0..255) e **limpa o slot na partida**
+  (`movb $0`), assumindo que é "do worker anterior reutilizado". Dois workers
+  VIVOS com colisão no slot: (a) o segundo a largar limpa o flag que o
+  primeiro setou via `cancel` → cancelamento perdido; (b) `cancel(h)` seta o
+  slot do hash → pode cancelar worker alheio. JS/interpretador: `cancelled()`
+  sempre 0 (registrado em `backend-parity.md:84`); riscv/aarch: `CONC001`.
+- **Causa:** tabela fixa 256 indexada por hash sem chave de identidade
+  (pthread_t não é o índice — só o hash truncado).
+- **Fix sugerido (lane Native, pequeno):** slot por **handle** (bloco já
+  tem campo livre) em vez de TID: `cancel(h)` seta `h+24`-adjacente (flag
+  própria do handle), trampoline lê o SEU handle — zero colisão, tabela
+  nem precisa mais. Ou: chave dupla `(slot, pthread_self)` com CAS. Qualquer
+  um: E2E com 2 workers longos + cancel do 2º (harness de 50+ iterações p/
+  pegar colisão). NÃO bloqueia `planning-otp-supervision` (que usa flag
+  própria de stdlib — DD-OTP-08).
