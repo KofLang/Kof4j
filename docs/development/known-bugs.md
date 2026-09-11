@@ -13,7 +13,7 @@
 > | Paridade interpretador × compilados (semântica `==` congelada — regra 6) | **1** — bug 94 (NaN/±0.0 `==` de Double no SCRIPT) |
 > | Paridade backend-only (regra 5, atacável na lane Native) | **2** — §107 (println coleção → lixo no nativo, sem toString de coleção; §107-JS corrigido 11/09), §104b-ii (equals de conteúdo p/ record + box de primitivo no storage asm — inclui SIGSEGV do `println(l.get)` char achado no §109)
 > | Operadores relacionais NaN cross (congelados — regra 6) | **1** — bug 101 (`<`/`<=`/`>=` com NaN: riscv IEEE vs x86/JVM quirk `dcmpg`) |
-> | **Corrigidos na sessão de paridade absoluta 11/09** | **10** — bugs 96 (SEM052), 98 (SEM053), 100 (SEM051+fold), 44-residual, 102 (from-idx), 103 (SEM054), 104a (KofObj equals/hash/toString no interpretador), 104b-i (LINK_FAIL `Object.equals` herdado no Native), 107-JS (`kofFormat` no JS), 109 (CRASH JVM no guard do `map.get` primitivo) — todos com prova na matrix/suíte |
+> | **Corrigidos na sessão de paridade absoluta 11/09** | **11** — bugs 96 (SEM052), 98 (SEM053), 100 (SEM051+fold), 44-residual, 102 (from-idx), 103 (SEM054), 104a (KofObj equals/hash/toString no interpretador), 104b-i (LINK_FAIL `Object.equals` herdado no Native), 104c (membership de record por conteúdo no JS — `kofValEq`), 107-JS (`kofFormat` no JS), 109 (CRASH JVM no guard do `map.get` primitivo) — todos com prova na matrix/suíte |
 > | **Corrigidos na prova cross-arch 11/09 (MATH001/TIME002/B33)** | **3** — bugs 101→registrado (relacional NaN, ABERTO regra 6), MATH001 (Double math B32), TIME002 (ISO add/diff B33), 105 (random.int loop — renumerado de 102, colidiu c/ §102 indexOf) |
 > | Verificados corrigidos em 08/09 | **19** — bugs 1–8, 10–17, 19, 20, 26 |
 > | Não reverificados (faltou ambiente/setup) | bugs 9, 18, 21, 22, 23 |
@@ -2546,12 +2546,22 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
     (a célula `mapgetprim` mantém Native excluído por isto). A correção desta
     face é a mesma infraestrutura do item (i): box de primitivo no storage asm
     (ou dispatch de print por tag de tipo) — x86 + riscv + aarch.
-- **§104c ⏳ ABERTO (JS):** record em `setOf`/`mapOf`/`listOf().contains`
-  usa **identidade** (Map/HashSet JS nativos com objeto por referência) e
-  `println(listOf(p1))` imprime `Point[x=1, y=2]` **sem os colchetes**
-  (join sem wrapper `[...]`). Prova: célula `objmethods` (JS excluída, medido
-  11/09: `false|false|null|Point[x=1, y=2]`). Fix exige wrapper de coleção
-  com equals/hashing por conteúdo no emitter JS — unidade própria.
+- **§104c ✅ CORRIGIDO 11/09 (JS):** record em `setOf`/`mapOf`/`listOf().contains`
+  usava **identidade** (Map/HashSet JS nativos com objeto por referência):
+  `listOf(p1).contains(p2)` = **false** vs JVM **true**; `setOf(p1).contains(p2)`
+  = **false**; `mapOf(p1,7).get(p2)` = **null**. (A face `println(listOf(p1))`
+  sem colchetes era outra coisa — fechada no **§107-JS** com `kofFormat`.)
+  **Fix:** records no JS já ganham `.equals(other)` sintético por conteúdo
+  (`JsClassEmitter.lowerRecordEquals`, bug 11). O runtime JS agora tem
+  `kofValEq(a,b)`: primitivos/String via `===` (NaN=NaN), objeto Kof delega ao
+  `.equals` sintético (1/0). Os helpers `kofListContains`/`kofSetAdd`/
+  `kofSetContains`/`kofSetRemove`/`kofMapPut`/`kofMapGet`/`kofMapRemove`/
+  `kofMapContains` iteram + `kofValEq` em vez de `includes`/`has`/`get`/`delete`
+  (ordem de inserção preservada; primitivos/String seguem o caminho nativo).
+  **Prova:** célula `objmethods` com a **exclusão JS removida** → os 4 targets
+  (JVM/Script/JS; Native excluído = §104b-ii) byte-idênticos `true/true/7/
+  [Point[x=1, y=2]]`. Sem wrapper de coleção/hashing: reuso do `.equals` do
+  record = menor superfície.
 
 
 ### 103. Subscript `x[i]` em String/List/Map/Set aceito em silêncio → quebra os 3 targets (VerifyError/vazio) — ✅ CORRIGIDO 11/09 (SEM054, opção B)
@@ -2713,8 +2723,9 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
     como KofString) + `\n`. **riscv64/aarch64**: idem (ponteiro via
     `kof_println_string`). Exit 0 (silencioso — R6 violada: nunca deveria
     imprimir lixo).
-  - **JS**: imprime os elementos sem o wrapper `[...]` (via §104c — join sem
-    colchetes). Registrado junto do §104c (face JS é lane do maintenedor).
+  - **JS**: ✅ CORRIGIDO (§107-JS, 11/09) — `kofFormat` espelha `ArrayList/HashMap/HashSet.toString`
+    (era join sem colchetes). A face JS deste bug está fechada; o que restava
+    (membership de record por conteúdo) é §104c, também fechado 11/09.
 - **Causa raiz (x86_64 + riscv/aarch, 1 caminho):** `ExpressionPrintLowerer`
   baixa `println(obj)` como `valueOf(arg)` STATIC → `NativeX86Calls.java:180`
   trata `dispatchType instanceof ClassType && !String` procurando `toString`

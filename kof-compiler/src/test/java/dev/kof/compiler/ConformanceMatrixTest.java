@@ -235,7 +235,7 @@ class ConformanceMatrixTest {
                     println(mapOf(p1, 7).get(p2))
                     println(listOf(p1))
                 }
-                """, "true\ntrue\n7\n[Point[x=1, y=2]]", Set.of("native", "js"), tempDir);
+                """, "true\ntrue\n7\n[Point[x=1, y=2]]", Set.of("native"), tempDir);
         // §107-JS (paridade absoluta): `println(coleção)` no JS dava
         // "1,2" (Array.toString sem colchetes) / "[object Map]" / "[object
         // Set]" — sem o formato do contêiner JVM ([1, 2] / {k=1}). kofFormat
