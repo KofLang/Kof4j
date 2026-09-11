@@ -236,6 +236,25 @@ class ConformanceMatrixTest {
                     println(listOf(p1))
                 }
                 """, "true\ntrue\n7\n[Point[x=1, y=2]]", Set.of("native", "js"), tempDir);
+        // §106-JS (paridade absoluta): `println(coleção)` no JS dava
+        // "1,2" (Array.toString sem colchetes) / "[object Map]" / "[object
+        // Set]" — sem o formato do contêiner JVM ([1, 2] / {k=1}). kofFormat
+        // (JsRuntimeCore) espelha ArrayList/HashMap/HashSet.toString. Roteado
+        // por tipo no valueOf (JsCallEmitter) — só coleção, não toca escalar
+        // (bug 44). Bool-em-lista fica fora daqui: §107 (Script [1,0]).
+        matrix("collprint", """
+                record Point(Int x, Int y)
+                main() {
+                    println(listOf(1, 2))
+                    println(listOf("a", "b"))
+                    println(listOf(1.5, 2.25))
+                    println(mapOf("k", 1))
+                    println(setOf(1))
+                    println(listOf(Point(1,2), Point(3,4)))
+                    println(listOf(listOf(1), listOf(2)))
+                }
+                """, "[1, 2]\n[a, b]\n[1.5, 2.25]\n{k=1}\n[1]\n[Point[x=1, y=2], Point[x=3, y=4]]\n[[1], [2]]",
+                Set.of("native"), tempDir);
         // §104b-i (Native): `Thing.equals(...)` em classe NÂO-record dava
         // LINK_FAIL (Object.equals herdado sem símbolo no bare-metal).
         // Síntese de equals de identidade → oracle JVM (false entre

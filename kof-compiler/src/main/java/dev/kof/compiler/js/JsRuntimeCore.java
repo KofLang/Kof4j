@@ -96,6 +96,45 @@ public final class JsRuntimeCore {
                 console.log(x);
             }
 
+            // §106-JS: formato de coleção idêntico ao contêiner JVM
+            // (ArrayList/HashMap/HashSet.toString): elementos separados por
+            // ", " dentro de [ ], Map como "{k=v}". Elementos passam por
+            // valueOf de novo (String → toString/record). Não toca no
+            // path de valor primitivo escalar (bug 44 / String(x)).
+            export function kofFormat(x) {
+                if (x instanceof Map) {
+                    let s = "{";
+                    let first = true;
+                    for (const [k, v] of x) {
+                        if (!first) s += ", ";
+                        first = false;
+                        s += kofElem(k) + "=" + kofElem(v);
+                    }
+                    return s + "}";
+                }
+                if (x instanceof Set) {
+                    let parts = [];
+                    for (const e of x) parts.push(kofElem(e));
+                    return "[" + parts.join(", ") + "]";
+                }
+                if (Array.isArray(x)) {
+                    const parts = x.map(kofElem);
+                    return "[" + parts.join(", ") + "]";
+                }
+                return String(x);
+            }
+            function kofElem(v) {
+                if (v === null || v === undefined) return "null";
+                if (Array.isArray(v)) return kofFormat(v);
+                if (v instanceof Map || v instanceof Set) return kofFormat(v);
+                if (typeof v === "object" && typeof v.toString === "function") {
+                    const t = v.toString();
+                    if (t === "[object Object]") return JSON.stringify(v);
+                    return t;
+                }
+                return String(v);
+            }
+
             // Array multidimensional (bug 71): new T[d1][d2]...[dn].
             // sizes = dims externas→internas; baseFill preenche a folha.
             // JVM: MULTIANEWARRAY cria dims-1 preenchidas com arrays vazios

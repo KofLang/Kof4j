@@ -2543,7 +2543,7 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   com equals/hashing por conteúdo no emitter JS — unidade própria.
 
 
-### 106. Native `println(coleção)` imprime ponteiro como lixo (bytes crus) — ⏳ ABERTO (paridade + R6)
+### 106. `println(coleção)` sem formato de contêiner — ✅ face JS CORRIGIDA 11/09 (kofFormat); ⏳ Native ABERTO (ponteiro cru)
 
 - **Sintoma (11/09, sweep `/tmp/s3.kf`):** `println(listOf(1,2,3))` → JVM
   `[1, 2, 3]`, Script `[1, 2, 3]`, **Native = bytes de memória crua**
@@ -2565,6 +2565,15 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   (contains por conteúdo) — resolver os dois juntos na fatia 4.
 - **Arquivos:** `nat/NativeX86Calls.java` (branch ClassType),
   `runtime/RuntimeList|RuntimeMap|RuntimeSet.java` (helpers novos).
+- **✅ Face JS CORRIGIDA 11/09 (paralelo do mesmo bug):** o JS dava
+  `1,2` (Array.toString sem colchetes) e `[object Map]`/`[object Set]`.
+  Fix: `kofFormat` em `JsRuntimeCore` espelhando
+  `ArrayList/HashMap/HashSet.toString` (`[a, b]` com `", "`, `{k=v}`,
+  recursivo p/ aninhados, `String(x)` idêntico p/ escalares — não toca
+  bug 44) + roteamento por TIPO no `valueOf` (`JsCallEmitter`; o print
+  lowerer passa o tipo real do arg também no JS). Célula `collprint`
+  (JVM+Script+JS idênticos, Native excluído aqui). Fica §107 para o
+  bool-em-lista do Script (`[1, 0]` vs `[true, false]`).
 
 
 ### 103. Subscript `x[i]` em String/List/Map/Set aceito em silêncio → quebra os 3 targets (VerifyError/vazio) — ✅ CORRIGIDO 11/09 (SEM054, opção B)

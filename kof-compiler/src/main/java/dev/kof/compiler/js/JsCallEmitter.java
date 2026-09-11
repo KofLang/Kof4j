@@ -61,6 +61,16 @@ void handleCall(MethodCtx ctx, List<Object> stack,
                 // "h", não o codepoint numérico). Ver known-bugs #27.
                 stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("String.fromCharCode"),
                         List.of(args.get(0))));
+            } else if (!kc.parameterTypes().isEmpty()
+                    && kc.parameterTypes().get(0) instanceof Type.ClassType ct
+                    && "kof".equals(ct.packageName())
+                    && (ct.name().equals("List") || ct.name().equals("Map") || ct.name().equals("Set"))) {
+                // §106-JS: String.valueOf(coleção) = toString do contêiner
+                // (JVM: ArrayList/HashMap/HashSet.toString → "[1, 2]", "{k=1}").
+                // String() do JS dava "1,2" (Array) / "[object Map]" — sem
+                // colchetes/ordem errada. kofFormat espelha o formato JVM.
+                p.lc.registerRuntime("kofFormat");
+                stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofFormat"), List.of(args.get(0))));
             } else if (BuiltinTypes.isString(kc.ownerType())) {
                 stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("String"), List.of(args.get(0))));
             } else if (!kc.parameterTypes().isEmpty()

@@ -60,13 +60,13 @@ if (("print".equals(mc.methodName()) || "println".equals(mc.methodName())) && mc
                     BuiltinTypes.STRING, KofCallKind.STATIC));
         }
     } else {
-        // o tipo REAL do arg só vai para o valueOf NATIVO (para
-        // despachar toString de records). JVM/JS usam Object
-        // (String.valueOf(Object) chama toString; valueOf de um
+        // o tipo REAL do arg só vai para o valueOf NATIVO/JS (para
+        // despachar toString de records e formatar coleções). JVM usa
+        // Object (String.valueOf(Object) chama toString; valueOf de um
         // ClassType específico não existe no JVM).
         ops.add(new KofCall(
                 BuiltinTypes.STRING,
-                "valueOf", List.of(driver.target.isNative()
+                "valueOf", List.of((driver.target.isNative() || driver.target == Target.JS)
                         && !Type.isString(argType) ? argType
                         : Type.UnknownType.UNKNOWN),
                 BuiltinTypes.STRING, KofCallKind.STATIC));
