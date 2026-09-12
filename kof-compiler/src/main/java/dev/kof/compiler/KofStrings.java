@@ -54,10 +54,13 @@ public final class KofStrings {
             // repeat n<=0 ou vazio => ""; truncate n<=0 => "", n>=len => original.
             // S3.1 (STDLIB): HTML escape/unescape (5 entidades nomeadas +
             // numéricos no decode). escapeHtml saída só ASCII (>=128 cópia).
-            case "escapeHtml", "unescapeHtml", "escapeJson", "removeWhitespace", "normalizeWhitespace" -> argc == 1
+            case "escapeHtml", "unescapeHtml", "escapeJson", "removeWhitespace", "normalizeWhitespace",
+                    "dedent" -> argc == 1
                     ? new StringsCall("kof_strings_" + name, STR, List.of(STR)) : null;
             case "repeat", "truncate" -> argc == 2
                     ? new StringsCall("kof_strings_" + name, STR, List.of(STR, INT)) : null;
+            case "indent" -> argc == 2
+                    ? new StringsCall("kof_strings_indent", STR, List.of(STR, INT)) : null;
             // S2b.3: pad(String,Int,String) — pad é a 1ª char do 3º arg (idiom
             // Kof: escreve "*", não o código Int). null=>null; pad vazio/null ou
             // len>=n => original. ASCII travado na matriz (mesma ressalva UTF-8
