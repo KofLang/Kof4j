@@ -165,8 +165,8 @@ na   (null-safety + throw são o mecanismo).
   fatias riscv B7/B8; gap NAT-STR01 p/ reverse UTF-8 no Native). Nota de API:
   `validation.min/max` (binários, G4) ≠ `math.min/max` (aritméticos) — namespaces
   distintos, sem colisão; documentar em learn.
-- **S9** matriz stdlib em docs/stdlib.md + learn/39-stdlib + training/idioms (math/
-  strings/validation) + benchmarks mínimos (clamp/slugify) se aplicável — **FEITO** (matriz `std*` no ConformanceMatrixTest + `docs/stdlib.md` §STDLIB + `learn/39-stdlib.md` + `training/idioms/stdlib.md`/`strings.md`).
+- **S9** matriz stdlib em docs/stdlib/stdlib.md + learn/39-stdlib + training/idioms (math/
+  strings/validation) + benchmarks mínimos (clamp/slugify) se aplicável — **FEITO** (matriz `std*` no ConformanceMatrixTest + `docs/stdlib/stdlib.md` §STDLIB + `learn/39-stdlib.md` + `training/idioms/stdlib.md`/`strings.md`).
 
 Cada S = suíte completa verde (com `-Dmaven.test.failure.ignore=true`) + DOING atualizado.
 

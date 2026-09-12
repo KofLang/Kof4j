@@ -61,7 +61,7 @@ Kof é uma linguagem de programação **geral e estaticamente tipada**, constru�
 > semântica, status de cada feature) está em
 > [`docs/language-reference/`](docs/language-reference/). A arquitetura do
 > compilador (implementação) está em
-> [`docs/compiler-architecture.md`](docs/compiler-architecture.md). A
+> [`docs/architecture/compiler-architecture.md`](docs/architecture/compiler-architecture.md). A
 > distinção **linguagem ≠ compilador ≠ target** é o eixo desses documentos.
 
 Kof possui seu próprio compilador, lexer, parser, sistema de tipos, análise semântica e representação intermediária (Kof IR). A partir dessa IR, diferentes backends transformam o mesmo programa em diferentes formas de execução:
@@ -89,7 +89,7 @@ compilação* da mesma Kof — não dialetos semanticamente diferentes. **KofScr
 frontend e executado pelo interpretador da IR, sem compilar e sem fork de JVM —
 **não é JavaScript** (`let`/`const`/`async`/`fn` não existem). KofC é uma
 ferramenta separada (subconjunto C → ELF), não consome a IR Kof — ver
-[docs/compiler-architecture.md](docs/compiler-architecture.md) §7.)
+[docs/architecture/compiler-architecture.md](docs/architecture/compiler-architecture.md) §7.)
 
 ---
 
@@ -135,7 +135,7 @@ APK). **KofScript** (`.ks`, REPL) é um **target de execução direta**: Kof pur
 no MESMO frontend, executado pelo interpretador da IR (`KofInterpreter`) sem
 emitir bytecode nem fork de JVM. **KofC** (subconjunto C → nativo) é uma
 ferramenta separada, não consome a IR Kof — ver
-[docs/compiler-architecture.md](docs/compiler-architecture.md) §7.
+[docs/architecture/compiler-architecture.md](docs/architecture/compiler-architecture.md) §7.
 
 | Feature | JVM | Native | KofJS |
 |---------|-----|--------|-------|
@@ -163,7 +163,7 @@ ferramenta separada, não consome a IR Kof — ver
 
 **Concorrência**: `spawn tarefa()` / `val r = spawn f(); await r` — virtual
 threads na JVM, `pthread_create` no Native (CONC001 fechado 31/08), sequencial
-no JS (CONC003). Ver [docs/concurrency.md](docs/concurrency.md).
+no JS (CONC003). Ver [docs/language-reference/concurrency.md](docs/language-reference/concurrency.md).
 
 **Null safety**: `String?`/`Int?` + `if (x != null)` narrowing nos 3 targets
 (fix JVM 02/09). `Map.get` devolve `V?` para valores de referência.
@@ -174,7 +174,7 @@ no JS (CONC003). Ver [docs/concurrency.md](docs/concurrency.md).
 
 **Depuração**: `kof debug <file.kf>` — servidor DAP sobre stdio com JDWP cru
 (breakpoints por linha Kof, call stack com funções/linhas Kof, continue,
-disconnect). Ver [docs/debugging.md](docs/debugging.md).
+disconnect). Ver [docs/debugging/debugging.md](docs/debugging/debugging.md).
 
 **Auditoria do ecossistema**: matriz de cobertura da stdlib (inventário,
 gaps G1-G12, prioridade e estratégia) em
@@ -225,7 +225,7 @@ Ver: [learn/35-kof-ui.md](learn/35-kof-ui.md) e
 
 | Pasta | Para quem | O que contém |
 |-------|-----------|--------------|
-| [`docs/`](docs/) | arquitetos, mantenedores, decisões | **Documentação técnica e de projeto**: estado atual (`status.md`, `development/actual-state.md`), arquitetura (`architecture.md`), segurança (`security.md`), performance (`performance.md`), depuração (`debugging*.md`), roadmap (`development/roadmap.md`), stdlib (`stdlib/`, `stdlib-web.md`...), targets (`targets/`), distribuição (`distribution/`), ferramentas (`tooling/`), visões futuras (`development/future/`) e auditorias (`development/ecosystem-coverage.md`, `development/complexity-audit.md`) |
+| [`docs/`](docs/) | arquitetos, mantenedores, decisões | **Documentação técnica e de projeto**: estado atual (`status.md`, `backend-parity.md`; snapshots em `history/`), arquitetura (`architecture/`), filosofia (`philosophy.md`), stdlib e áreas (`stdlib/` — inclui segurança, http, web, config, database, logging, observabilidade), concorrência (`language-reference/`), linguagem (`language-reference/`), depuração (`debugging/`), comparação (`comparison/`), runtime (`runtime/`), roadmap (`development/roadmap.md`), targets (`targets/`), UI (`ui/`), distribuição e licença (`distribution/`), decisões de design consolidadas (`decisions/`), ferramentas (`tooling/`), visões futuras (`development/future/`) e auditorias (`development/ecosystem-coverage.md`, `development/complexity-audit.md`) |
 | [`learn/`](learn/README.md) | humanos aprendendo Kof | **Trilha de aprendizado em capítulos numerados** (00 Introdução → 37 KofJS): linguagem, classes, funções, lambdas, UI, segurança — cada capítulo um guia prático; `learn/native/` para o alvo nativo |
 | [`training/`](training/README.md) | LLMs e ferramentas de IA | **Corpus estruturado otimizado para modelos de linguagem**: fatos por tópico (`language/`), idiomas (`idioms/`), padrões/anti-padrões (`patterns/`, `anti-patterns/`), exemplos compiláveis (`examples/`), referência (`reference/`), migração Java→Kof (`migration/`), tooling e releases |
 
@@ -274,7 +274,7 @@ kof serve app.kf
 ```
 
 Path params, query, headers, body, middleware, JSON tipado e servidor HTTP
-embutido no runtime do programa. Ver: [docs/stdlib-web.md](docs/stdlib-web.md).
+embutido no runtime do programa. Ver: [docs/stdlib/stdlib-web.md](docs/stdlib/stdlib-web.md).
 
 ---
 
@@ -486,7 +486,7 @@ O autor do programa mantém o direito de escolher a licença do próprio softwar
 
 Software proprietário escrito em Kof é permitido, desde que respeite as licenças das dependências que efetivamente incorporar.
 
-Para mais detalhes, consulte [docs/LICENSING.md](docs/LICENSING.md).
+Para mais detalhes, consulte [docs/distribution/LICENSING.md](docs/distribution/LICENSING.md).
 
 ---
 

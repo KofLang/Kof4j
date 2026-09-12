@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * IR statistics for tooling (kof inspect, docs/performance.md §34).
+ * IR statistics for tooling (kof inspect, docs/architecture/performance.md §34).
  *
  * Reports per-method operation counts before and after optimization so
  * tools can show what the optimizer eliminated.

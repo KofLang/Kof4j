@@ -203,7 +203,7 @@ spawn-stmt = "spawn" , expression
 - Fire-and-forget: o programa **aguarda as tarefas spawned antes de sair**
   (join implícito no `main`).
 - `spawn { … }` (bloco) e `spawn f()` (chamada) são válidos.
-- Ver [../concurrency.md](../concurrency.md).
+- Ver [../concurrency.md](concurrency.md).
 
 ---
 

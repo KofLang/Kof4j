@@ -3,7 +3,7 @@ package dev.kof.compiler;
 import java.util.List;
 
 /**
- * Compile-time dispatch table for {@code kof.security} (docs/security.md).
+ * Compile-time dispatch table for {@code kof.security} (docs/stdlib/security.md).
  *
  * The Kof surface is intent-first:
  *

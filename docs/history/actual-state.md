@@ -159,7 +159,7 @@ Content-Type automático (JSON), 404/500, concorrência com virtual threads,
 (handshake RFC 6455 + frame codec com máscara) e **SSE** `sse.send/event/close`
 (30/08, JVM). `kof serve <file.kf>` detecta `main()` e executa apps `web.app()`.
 E2E com sockets reais: `KofWebE2ETest` (9), `KofWebWsE2ETest` (11),
-`KofWebSseE2ETest` (7), `KofWsFrameTest` (7). Ver `docs/stdlib-web.md`.
+`KofWebSseE2ETest` (7), `KofWsFrameTest` (7). Ver `docs/stdlib/stdlib-web.md`.
 
 ### kof.config e kof.log
 
@@ -250,7 +250,7 @@ handles no-ops.
 | Arrays, List\<T\>, generics | ✅ (25/08 `Box<T>` `T` primitivo/Boxed + `println` nativo `kof_int_to_string`) |
 | JSON, strings (API completa), `instanceof`/`as` | ✅ |
 
-### Segurança (kof.security — docs/security.md)
+### Segurança (kof.security — docs/stdlib/security.md)
 
 | Feature | Status |
 |---------|--------|
@@ -329,7 +329,7 @@ handles no-ops.
 - ~~JSON Float/Double: JSN001~~ — ✅ fechado 31/08 (encode/decode/arrays FP XMM + parser fracionário/expoente)
 - ~~Ponto flutuante Native: sem SSE real (FLT001)~~ — ✅ fechado: aritmética FP é XMM; JSON FP fechado no JSN001
 
-### Security (kof.security — docs/security.md)
+### Security (kof.security — docs/stdlib/security.md)
 - v1 + G9 implementado (3 targets).
 - Pendente: OAuth2/OIDC client, audit logging, JWT/passwords fora do JVM completos (SECN001/004 em progresso).
 

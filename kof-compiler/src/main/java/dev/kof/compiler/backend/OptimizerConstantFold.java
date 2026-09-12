@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Constant-folding pass of the IR optimizer (docs/performance.md §8, §12, §14).
+ * Constant-folding pass of the IR optimizer (docs/architecture/performance.md §8, §12, §14).
  *
  * Constant folding of arithmetic/comparisons/unary ops, identity elements
  * (x+0, x*1, ...), and conditional jumps to direct jumps, with position

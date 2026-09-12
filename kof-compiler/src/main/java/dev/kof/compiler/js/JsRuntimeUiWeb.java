@@ -273,7 +273,7 @@ public final class JsRuntimeUiWeb {
                 return def ? 1 : 0;
             }
 
-            // P2 (docs/stdlib-config.md §8.2): interpolação ${key} —
+            // P2 (docs/stdlib/stdlib-config.md §8.2): interpolação ${key} —
             // resolve referências entre chaves; ciclo/missing → literal.
             function kofConfigInterpolate(value) {
                 if (!value || !value.includes('${')) return value;

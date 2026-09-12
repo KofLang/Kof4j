@@ -11,7 +11,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * kof.security tests (docs/security.md §17-§18): hashing, verification,
+ * kof.security tests (docs/stdlib/security.md §17-§18): hashing, verification,
  * timing-safe comparison, JWT, secrets, redaction, target gaps and
  * adversarial cases — on the JVM, Native and JS targets.
  */

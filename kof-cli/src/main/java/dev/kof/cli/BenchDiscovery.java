@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * `kof bench` — descoberta de benchmarks (docs/performance.md §19-§25).
+ * `kof bench` — descoberta de benchmarks (docs/architecture/performance.md §19-§25).
  *
  * Cada benchmark é um diretório com `Main.kf`, `expected.txt` e opcional
  * `meta.json` ({ "targets": [...], "iterations": N }). Extraído de Bench

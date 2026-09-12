@@ -61,7 +61,7 @@ no topo → `PARSE007` (*probe*). Não há `let` (SG-001).
 > da análise (`CompilerDriver.java`, chamadas a `CompilerDesugar.desugarTests`/`desugarApplication`): `desugarTests` (blocos `test` →
 > harness) e `desugarApplication` (blocos `application { onStart/onShutdown }`
 > → funções sintetizadas que envolvem o `main`). Ver
-> [../compiler-architecture.md](../compiler-architecture.md).
+> [../compiler-architecture.md](../architecture/compiler-architecture.md).
 
 ---
 

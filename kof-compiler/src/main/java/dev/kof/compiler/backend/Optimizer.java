@@ -31,7 +31,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * IR optimization passes (docs/performance.md §8, §12, §14).
+ * IR optimization passes (docs/architecture/performance.md §8, §12, §14).
  *
  * The IR is a linear, stack-based op stream with label ops; every backend
  * consumes it in that same order. The optimizer therefore works on the

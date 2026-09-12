@@ -78,7 +78,7 @@ JSN00x, WEB001) — nunca divergência silenciosa.
 
 Formato dos hashes: `pbkdf2$sha256$<iter>$<saltB64>$<hashB64>`;
 AES-GCM: `aesgcm$<ivB64>$<ctB64>` (key 32B, IV 12B).
-Documentação: `docs/security.md`; testes: `KofSecurityTest` (22).
+Documentação: `docs/stdlib/security.md`; testes: `KofSecurityTest` (22).
 
 ## 2.4 kof.web — inventário
 
@@ -99,7 +99,7 @@ Documentação: `docs/security.md`; testes: `KofSecurityTest` (22).
   JS ❌ WEB001.
 - Tests: `KofWebE2ETest` (9, sockets reais), `KofHttpServerTest` (8),
   `KofWebWsE2ETest` (11), `KofWsFrameTest` (7), `KofWebSseE2ETest` (7).
-- Docs: `docs/stdlib-web.md`.
+- Docs: `docs/stdlib/stdlib-web.md`.
 
 ## 2.5 Runtimes
 
@@ -134,8 +134,8 @@ aes-gcm). Tooling: `kof bench` (mediana + RSS + baseline), `kof profile`.
 # 3. MATRIZ DE COBERTURA
 
 Legenda nas colunas de target: `y` = suportado, `~` = parcial, `–` = não.
-`Docs`: `security.md` = `docs/security.md`; `stdlib.md` = `docs/stdlib.md`;
-`web` = `docs/stdlib-web.md`; `concurrency` = `docs/concurrency.md`.
+`Docs`: `security.md` = `docs/stdlib/security.md`; `stdlib.md` = `docs/stdlib/stdlib.md`;
+`web` = `docs/stdlib/stdlib-web.md`; `concurrency` = `docs/language-reference/concurrency.md`.
 
 ## 3.1 Core / Application
 
@@ -484,9 +484,9 @@ módulo externo), cloud integrations, provider adapters.
 4. **JVM primeiro** para módulos com backend pesado (database, TLS);
    Native e JS seguem com as primitivas já existentes (asm, kof_platform);
    gaps com diagnóstico, nunca stubs silenciosos.
-5. **Documentação contínua**: atualizar `docs/stdlib.md` e este documento
+5. **Documentação contínua**: atualizar `docs/stdlib/stdlib.md` e este documento
    a cada módulo entregue; criar `docs/database.md`, `docs/messaging.md`,
-   `docs/observability.md`, `docs/configuration.md`, `docs/testing.md`,
+   `docs/stdlib/observability.md`, `docs/configuration.md`, `docs/testing.md`,
    `docs/platform.md` conforme cada módulo ganha corpo.
 
 ---
@@ -495,7 +495,7 @@ módulo externo), cloud integrations, provider adapters.
 
 - **Sem DI/container**: resolução direta e construções nativas
   (`service`/`component` planejados) — ver `docs/philosophy.md`,
-  `docs/security.md` §2.
+  `docs/stdlib/security.md` §2.
 - **Database SQL-first**: `db.query` + prepared statements como base;
   ORM opcional, nunca obrigatório — `docs/future/DATABASE_VISION.md`.
 - **JWT HS256 fixo** no v1 (sem confusão de algoritmo); rotação e

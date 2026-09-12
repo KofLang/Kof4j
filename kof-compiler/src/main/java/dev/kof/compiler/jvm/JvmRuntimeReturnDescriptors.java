@@ -107,7 +107,7 @@ public final class JvmRuntimeReturnDescriptors {
              case "kof_ui_router_param", "kof_ui_router_current" -> "Ljava/lang/String;";
              case "kof_ui_label_set_font_size", "kof_ui_label_set_bold", "kof_ui_label_set_color",
                      "kof_ui_window_set_theme" -> "V";
-            // ── kof.security (docs/security.md §5) ───────────────────
+            // ── kof.security (docs/stdlib/security.md §5) ───────────────────
             case "kof_sec_sha256", "kof_sec_sha512", "kof_sec_hmac_sha256", "kof_sec_redact",
                     "kof_sec_secret_get", "kof_sec_secret_get_default", "kof_sec_password_hash",
                     "kof_sec_aesgcm_encrypt", "kof_sec_aesgcm_decrypt", "kof_sec_jwt_create",

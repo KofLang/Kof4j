@@ -291,7 +291,7 @@ public final class KofJsRunner {
             }
         });
         platform.put("dirList", (ProxyExecutable) args -> dirList(args));
-        // kof.security platform primitives (docs/security.md §5)
+        // kof.security platform primitives (docs/stdlib/security.md §5)
         platform.put("getenv", (ProxyExecutable) args ->
                 System.getenv(args[0].asString()));
         platform.put("randomBytesHex", (ProxyExecutable) args -> {

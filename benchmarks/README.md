@@ -37,8 +37,8 @@ benchmarks/
 
 - Programas semanticamente equivalentes entre implementações (Java, Kof/JVM, Kof/Native, Kof/JS, Kof/Script).
 - Validar `expected output` antes de coletar métricas.
-- Comparar contra baseline (docs/performance.md seção 25) e sinalizar regressões.
+- Comparar contra baseline (docs/architecture/performance.md seção 25) e sinalizar regressões.
 - Stress tests medem também requests/sec, p50, p95, p99, CPU e memória (HTTP).
-- Long-run tests verificam memory growth bounded, resource usage bounded, throughput e latência estáveis (docs/performance.md seção 24).
+- Long-run tests verificam memory growth bounded, resource usage bounded, throughput e latência estáveis (docs/architecture/performance.md seção 24).
 
-Referência arquitetural completa: docs/performance.md
+Referência arquitetural completa: docs/architecture/performance.md

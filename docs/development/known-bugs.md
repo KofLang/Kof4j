@@ -3204,7 +3204,7 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   do loop de verificação do AGENTS.md era obsoleta e foi removida.
 - **Arquivos:** `MethodCallTyper.java`, `BuiltinCallTyper.java`,
   `JvmRuntimeCallDescriptors.java` (JVM); `JsRuntimeCore.java`,
-  `JsRuntimeUiWidgets.java` (JS). Plano consolidado: `docs/PLAN-CANVAS-WIDGET.md`.
+  `JsRuntimeUiWidgets.java` (JS). Plano consolidado: `docs/ui/PLAN-CANVAS-WIDGET.md`.
 ---
 
 ## Bug 79 — `await` de `Handle<Long>` como statement emite POP de 1 slot → VerifyError

@@ -70,7 +70,7 @@ public final class KofConfig {
             case "bool" -> argTypes.size() == 2
                     ? new ConfigCall("kof_config_bool", BOOL, List.of(STR, BOOL))
                     : null;
-            // P1 (docs/stdlib-config.md §8.2): required — falha no startup se
+            // P1 (docs/stdlib/stdlib-config.md §8.2): required — falha no startup se
             // ausente (nenhum null silencioso em deploy).
             case "required" -> argTypes.size() == 1
                     ? new ConfigCall("kof_config_required", STR, List.of(STR))

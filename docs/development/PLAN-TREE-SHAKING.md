@@ -283,7 +283,7 @@ após o aceite dos §T:
    hello ≤ ~20 KB; `KofJsBrowserE2ETest`/`KofHttpE2ETest`/`SpawnE2ETest` js*
    verdes.
 7. **S-7** docs consolidadas (`docs/stdlib-loading.md` ou seção em
-   `docs/architecture.md`) + mover este doc para `docs/development/` no
+   `docs/architecture/architecture.md`) + mover este doc para `docs/development/` no
    início da S-1 (regra dos três estados: com código em desenvolvimento,
    não é mais `future/`).
 

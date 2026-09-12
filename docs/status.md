@@ -84,7 +84,7 @@ scripts/package.sh   → PASS (layout dist + tar.gz/zip + SHA256SUMS + jars)
 
 ---
 
-## Performance & Benchmarks (docs/performance.md)
+## Performance & Benchmarks (docs/architecture/performance.md)
 
 - **Otimizador de IR** (`Optimizer.java`, sempre ativo): constant folding,
   branch simplification (condições constantes → jumps diretos), dead stack
@@ -108,7 +108,7 @@ scripts/package.sh   → PASS (layout dist + tar.gz/zip + SHA256SUMS + jars)
 - **CI**: `.github/workflows/benchmark.yml` — roda jvm+native com
   `--fail-on-regression --threshold 1.20`.
 - `scripts/run-benchmarks.sh` — suite completa + atualização de baselines.
-- Regra de features novas: docs/performance.md §40-§41 (Definition of Done
+- Regra de features novas: docs/architecture/performance.md §40-§41 (Definition of Done
   inclui benchmark, stress, memory, resource e debug metadata).
 
 ### Correções de backend descobertas pelos benchmarks e E2E
@@ -136,7 +136,7 @@ scripts/package.sh   → PASS (layout dist + tar.gz/zip + SHA256SUMS + jars)
 
 ---
 
-## Segurança (kof.security, docs/security.md)
+## Segurança (kof.security, docs/stdlib/security.md)
 
 - **`kof.security` implementado** (v1): `passwords`, `crypto`, `jwt`,
   `secrets`, `security`, `auth` — secure by default, gaps de target com
@@ -155,8 +155,8 @@ scripts/package.sh   → PASS (layout dist + tar.gz/zip + SHA256SUMS + jars)
   chave errada, issuer/audience).
 - **Benchmarks**: `benchmarks/security/` (password-hash, jwt, hash-speed,
   aes-gcm).
-- **Docs**: `docs/security.md` (auditoria + matriz + arquitetura + estado),
-  `docs/stdlib.md`, `learn/36-security.md`, `training/language/security.md`,
+- **Docs**: `docs/stdlib/security.md` (auditoria + matriz + arquitetura + estado),
+  `docs/stdlib/stdlib.md`, `learn/36-security.md`, `training/language/security.md`,
   `training/examples/security.kf`.
 
 ---
@@ -349,15 +349,15 @@ spawn {
   **fechado de fato 03/09** (a marcação anterior `7402101` era sobre código
   morto no lowering, não a feature; `spawn`/`await`/`channel<T>()` agora
   deferem de verdade via microtask, `KofJsRunner` drena `kofActiveTasks` até
-  todas as tasks terminarem — ver `docs/concurrency.md` seção 4,
+  todas as tasks terminarem — ver `docs/language-reference/concurrency.md` seção 4,
   `docs/targets/KOFJS.md`).
 - Zero API de plataforma exposta (Thread/Runnable são internos do runtime).
 - **Modelo de memória (SG-020)**: spec de happens-before em
-  `docs/concurrency-memory-model.md` — SC em todos os targets,
+  `docs/language-reference/concurrency-memory-model.md` — SC em todos os targets,
   6 bordas de HB (spawn/await/channel/cancel/locais/race), provas
   `staticsAreSequentiallyConsistent`/`noWordTearingOnLong` em
   `KofConcurrency2Test`.
-- Ver: `docs/concurrency.md`.
+- Ver: `docs/language-reference/concurrency.md`.
 
 ### HTTP (`kof serve`)
 
@@ -407,7 +407,7 @@ main() {
   limites configuráveis e contadores SSE/WebSocket.
 - `kof serve <file.kf>` detecta `main()` e executa apps `web.app()`;
   a API legada `handle(...)` continua funcionando.
-- Ver: `docs/stdlib-web.md` e `KofWebE2ETest` (9 testes E2E com sockets reais).
+- Ver: `docs/stdlib/stdlib-web.md` e `KofWebE2ETest` (9 testes E2E com sockets reais).
 
 ### Media (`kof.media`) — arquivos, não strings
 
@@ -487,7 +487,7 @@ main() {
 - Native: implementação asm própria completa — precedência total
   (KOF_CONFIG > env KOF_<KEY> > perfil > kof.config), typed com default
   em valor inválido, trim e comentários (`NativeConfigE2ETest`, 8 testes).
-  JS reporta `CONF001`. Docs: `docs/stdlib-config.md`
+  JS reporta `CONF001`. Docs: `docs/stdlib/stdlib-config.md`
   (`KofConfigE2ETest`, 8 E2E).
 
 ### Logging nativo (`kof.log`)
@@ -503,7 +503,7 @@ log.error("failed: " + message)
   stderr; nível via `KOF_LOG_LEVEL` (debug < info < warn < error < off).
 - Funciona dentro de handlers web. **Native**: implementação asm própria
   (data civil Hinnant, env scan próprio) — timestamp UTC e `KOF_LOG_JSON`
-  sem efeito por enquanto; JS reporta `LOG001`. Docs: `docs/stdlib-logging.md`
+  sem efeito por enquanto; JS reporta `LOG001`. Docs: `docs/stdlib/stdlib-logging.md`
   (`KofLogE2ETest` 10 JVM + `NativeLogE2ETest` 7).
 
 ### Testes da linguagem (G6 — suíte estruturada)
@@ -772,7 +772,7 @@ Docs: `debugger-architecture.md`, `debugging.md`, `debug-adapter.md`,
 ### Em desenvolvimento
 
 - Standard Library (contratos em estabilização)
-- Async / Concurrency: ~~JS async real sobre Promises (CONC003)~~ — ✅ 03/09 (`async`/`await`/`Promise` do GraalJS, coloração async por fixpoint no compilador, `KofJsRunner` drena a fila de microtasks — ver `docs/concurrency.md`); ~~Android `AND001`~~ — ✅ 31/08 (platform threads no ART, fallback quando `Thread.startVirtualThread` ausente); ~~bug pré-existente `spawn→await→spawn`~~ — ✅ resolvido 01/09 (alinhamento de stack no `pthread_create` — ver "Bugs Restantes" #2)
+- Async / Concurrency: ~~JS async real sobre Promises (CONC003)~~ — ✅ 03/09 (`async`/`await`/`Promise` do GraalJS, coloração async por fixpoint no compilador, `KofJsRunner` drena a fila de microtasks — ver `docs/language-reference/concurrency.md`); ~~Android `AND001`~~ — ✅ 31/08 (platform threads no ART, fallback quando `Thread.startVirtualThread` ausente); ~~bug pré-existente `spawn→await→spawn`~~ — ✅ resolvido 01/09 (alinhamento de stack no `pthread_create` — ver "Bugs Restantes" #2)
 - ~~KofAndroid Fase 2~~ — ✅ 31/08 (`--apk` standalone + `--keystore` release signing + label/permissões derivados do programa)
 - ~~`kof.media` residual (31/08)~~ — ✅ 31/08: **video** (`Video.open` + metadados do container + streaming) e **Range requests** (206/416) fechados; restam câmera (MEDIA002 — sem lib externa no JVM) e paridade Native/JS (MEDIA001 — ART sem javax.imageio; app Android roda no WebView KofJS)
 - MySQL/MariaDB nativo — **wire protocol ✅ 31/08** (handshake + scramble SHA-1 + auth-switch + COM_QUERY + resultset; binds `?` via substituição client-side; `nativeMysqlWireProtocol`) + **prepared statements binários ✅ 03/09** (COM_STMT_PREPARE/EXECUTE + binary-rows, `NativeDbPrepared` — ver "Bugs Restantes" #18)

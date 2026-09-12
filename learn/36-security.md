@@ -105,4 +105,4 @@ valores idênticos ao JVM (FIPS 180-4 / RFC 2104):
 Gaps remanescentes (`SECN00x`, diagnóstico em compile-time): o contexto web de
 auth/headers (só JVM — web server é JVM, `WEB002` no Native). AES-GCM no JS
 (`SECN002`) e JWT (`SECN004`) fechados. Testes: `KofSecurityTest` (27; unit +
-E2E nos 3 targets + adversariais). Referência completa: `docs/security.md`.
+E2E nos 3 targets + adversariais). Referência completa: `docs/stdlib/security.md`.

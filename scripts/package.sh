@@ -103,10 +103,10 @@ cp -r "$ROOT/tooling/." "$DIST_DIR/tooling/" 2>/dev/null || true
 # Docs: a compact subset that travels with the distribution.
 cp "$ROOT/README.md" "$DIST_DIR/docs/" 2>/dev/null || true
 cp "$ROOT/LICENSE" "$DIST_DIR/docs/" 2>/dev/null || true
-cp "$ROOT/docs/architecture.md" "$DIST_DIR/docs/" 2>/dev/null || true
+cp "$ROOT/docs/architecture/architecture.md" "$DIST_DIR/docs/" 2>/dev/null || true
 cp -r "$ROOT/docs/tooling/." "$DIST_DIR/docs/tooling/" 2>/dev/null || true
 cp -r "$ROOT/docs/distribution/." "$DIST_DIR/docs/distribution/" 2>/dev/null || true
-cp "$ROOT/docs/LICENSING.md" "$DIST_DIR/docs/" 2>/dev/null || true
+cp "$ROOT/docs/distribution/LICENSING.md" "$DIST_DIR/docs/" 2>/dev/null || true
 
 if [ "$WITH_JDK" = true ]; then
     echo "package: fetching embedded OpenJDK 21 (Temurin) for $TARGET ..."

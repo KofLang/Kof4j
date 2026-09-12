@@ -18,8 +18,8 @@ direto, FFM Vulkan compute, interop Java + GraalJS), `mvn test` 810.
 > **dependência arquitetural futura**, nunca como ação.
 
 Referências (não alteradas): `docs/roadmap.md` (visão), `docs/philosophy.md`
-(intenção), `docs/architecture.md` (ADR multi-target),
-`docs/ecosystem-coverage.md` (matriz de capacidades), `docs/stdlib.md`
+(intenção), `docs/architecture/architecture.md` (ADR multi-target),
+`docs/ecosystem-coverage.md` (matriz de capacidades), `docs/stdlib/stdlib.md`
 (mecanismo de dispatch), `docs/plan-platform-completion.md` (execução atual).
 
 ---

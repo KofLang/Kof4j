@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Long-run test (docs/performance.md §24): run a workload for a fixed
+# Long-run test (docs/architecture/performance.md §24): run a workload for a fixed
 # duration and verify bounded memory growth and stable throughput.
 #
 # The workload allocates in waves (epochs) and relies on the runtime to

@@ -47,7 +47,7 @@ main() {
   `retry`/`circuit` (JVM+JS; Native reporta `HTTP002`);
 - Web: `WEB002` no Native (sem servidor) — a stack web é JVM hoje.
 
-Ver `docs/stdlib-web.md`.
+Ver `docs/stdlib/stdlib-web.md`.
 
 ## A visão de longo prazo: o objetivo
 

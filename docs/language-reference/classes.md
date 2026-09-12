@@ -215,7 +215,7 @@ entity User {
 - Constraints `generated`/`unique` são metadados de schema (compile-time, sem
   reflection).
 - Habilita o **Query DSL**: `User.query(db) { where age > 18; … }`.
-- **Experimental** (domínio ORM). Ver [../stdlib-database.md](../stdlib-database.md).
+- **Experimental** (domínio ORM). Ver [../stdlib-database.md](../stdlib/stdlib-database.md).
 
 ---
 

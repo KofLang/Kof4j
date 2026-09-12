@@ -219,7 +219,7 @@ Target target = Target.JVM;
 
     /**
      * Gera um template `kof.config` a partir das chaves descobertas na
-     * última compilação — para deploy (docs/stdlib-config.md §8.2 P3).
+     * última compilação — para deploy (docs/stdlib/stdlib-config.md §8.2 P3).
      * Chaves com default viram comentário (o programa já tem valor);
      * required/get sem default viram linha ativa.
      */

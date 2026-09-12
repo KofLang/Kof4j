@@ -28,7 +28,7 @@ Princípios:
 ### KofAndroid — Android
 
 Kof compilado para aplicativos Android (APK/AAB). Design completo em
-[docs/targets/KOFANDROID.md](targets/KOFANDROID.md).
+[docs/targets/KOFANDROID.md](../targets/KOFANDROID.md).
 
 Objetivos:
 - mesmo código, mesma intenção: `Window(...)` abre um app de verdade;
@@ -280,7 +280,7 @@ security {
 }
 ```
 
-Estado atual: ✅ implementado (v1, docs/security.md)
+Estado atual: ✅ implementado (v1, docs/stdlib/security.md)
 
 **Implementado (0.2.6-beta, inclui 0.0.5):**
 - `kof.security` com API idiomática: `passwords`, `crypto`, `jwt`,
@@ -294,7 +294,7 @@ Estado atual: ✅ implementado (v1, docs/security.md)
 - Gaps de target com diagnóstico claro (SECN001/002/003/004, HTTP002).
 
 **Pendente:**
-- OAuth2/OIDC client (arquitetura preparada em docs/security.md §2.3);
+- OAuth2/OIDC client (arquitetura preparada em docs/stdlib/security.md §2.3);
 - audit logging;
 - integração com database (planejado).
 
@@ -626,7 +626,7 @@ contratos estabilizarem.
 - `kof serve` com handlers top-level (`handle(...)`) ✅;
 - JSON serialization (`json.encode`/`json.decode`) ✅;
 - 8 testes E2E in-process (sockets reais) ✅;
-- Documentação (`docs/http.md`) ✅;
+- Documentação (`docs/stdlib/http.md`) ✅;
 - Path parameters (`:id`), query, headers, middleware `app.use` ✅
   (stack `web.app()` — Fase 1 do plano Spring independence);
 - WebSocket/SSE + hardening (`app.configure`/`app.stats`, connection cap,
@@ -754,8 +754,8 @@ source location por op, JVM LineNumberTable/SourceFile/LocalVariableTable
 gerados e **`kof debug` MVP funcional** (DAP over stdio + JDWP cru: launch,
 breakpoints por linha Kof, `stopped`, stack trace com funções/linhas Kof,
 continue, disconnect). Fases 4-7 (Kof Editor, Native DWARF, JS source
-maps, avançado) planejadas. Ver: `docs/debugger-architecture.md`,
-`docs/debugging.md`, `docs/debug-adapter.md`.
+maps, avançado) planejadas. Ver: `docs/debugging/debugger-architecture.md`,
+`docs/debugging/debugging.md`, `docs/debugging/debug-adapter.md`.
 
 ## 20. Princípios de Design
 

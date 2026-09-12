@@ -854,7 +854,7 @@ use o harness do projeto ou crie um teste E2E mínimo no pacote da área.
 | `training/anti-patterns/chained-or-membership.md` | Cadeia de `\|\|` → `setOf().contains()` |
 | `training/anti-patterns/java-like-code.md` | Java traduzido → Kof |
 | `learn/` | Tutorials passo a passo (00-introduction → 37-kofjs) |
-| `docs/architecture.md`, `docs/compiler-architecture.md` etc. | Domínios específicos (estáveis) |
+| `docs/architecture/architecture.md`, `docs/architecture/compiler-architecture.md` etc. | Domínios específicos (estáveis) |
 | `docs/development/` | **Backlog vivo — tudo que NÃO está concluído** (planos, roadmaps, audits, gaps, refactors). Ver `docs/development/README.md` para índice completo. |
 | `docs/development/future/` (plans) | Planos futuros: migração legado (decompiler/translator/IR/differential) + plataforma universal (era `docs/future/`) |
 | `docs/development/roadmap.md`, `docs/development/roadmap-audit.md`, `docs/development/ecosystem-coverage.md` | Roadmaps & auditoria de cobertura (fila P0→P5) |

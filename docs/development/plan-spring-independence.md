@@ -93,7 +93,7 @@ Evoluir `kof serve` para a stack web completa. Critérios de aceite:
       `handle(...)` continua funcionando.
 - [x] Testes E2E (subprocesso + sockets reais) verdes; `mvn test` verde
       (810 em 0.2.6-beta; 459/459 na época incluindo os 9 de `KofWebE2ETest`; ver `docs/status.md:10-28`).
-- [x] Docs: `docs/stdlib-web.md`, `docs/status.md`, `docs/http.md`, README.
+- [x] Docs: `docs/stdlib/stdlib-web.md`, `docs/status.md`, `docs/stdlib/http.md`, README.
 
 Implementado em: `KofWeb` (tabela compile-time), `Parser` (lambda trailing),
 `SemanticAnalyzer`/`CompilerDriver` (dispatch `web.*` + contexto de request),
@@ -125,7 +125,7 @@ customizados (`status(201, body)`/`headerSet`), **WebSocket** `app.ws("/chat") {
 - [x] Precedência: arquivo explícito (`KOF_CONFIG`) > env `KOF_<KEY>` >
       profile (`kof.<KOF_PROFILE>.config`) > arquivo padrão (`kof.config`).
 - [x] Suporte a environment variables.
-- [x] Testes (`KofConfigE2ETest`, 8 E2E) + docs `docs/stdlib-config.md`.
+- [x] Testes (`KofConfigE2ETest`, 8 E2E) + docs `docs/stdlib/stdlib-config.md`.
 - [x] Native/JS reportam `CONF001` em compile-time.
 
 ### Fase 4 — Logging + Observabilidade ✅ (parcial — logging concluído em 23/08/2026)
@@ -140,7 +140,7 @@ customizados (`status(201, body)`/`headerSet`), **WebSocket** `app.ws("/chat") {
       counter/increment/gauge, requestId/correlationId — 3 targets).
 - [ ] Tracing hooks + endpoint `/metrics` (Prometheus) + `app.health` — planned.
 - [x] Testes (`KofLogE2ETest`, 11 E2E JVM+JS + `NativeLogE2ETest` 7) + docs
-      `docs/stdlib-logging.md`.
+      `docs/stdlib/stdlib-logging.md`.
 - [x] JS via `console.*` com `KOF_LOG_LEVEL` — LOG001 fechado 01/09.
 
 ### Fase 5 — Database + Transactions ✅ (concluída em 23/08/2026)
@@ -154,7 +154,7 @@ customizados (`status(201, body)`/`headerSet`), **WebSocket** `app.ws("/chat") {
 - [x] Native: SQLite via link direto da `.so` (roundtrip E2E); MySQL wire
       protocol em progresso (auth scramble SHA-1 + parse `user:pass@`, 31/08).
 - [x] Native/JS reportam `DB001` em compile-time.
-- [x] Testes (`KofDbE2ETest`, 9 E2E) + docs `docs/stdlib-database.md`.
+- [x] Testes (`KofDbE2ETest`, 9 E2E) + docs `docs/stdlib/stdlib-database.md`.
 - [x] Migrações versionadas via `kof.orm` (`orm.migrate`, tabela
       `kof_migrations`).
 - [ ] Connection pooling — planned.
@@ -165,7 +165,7 @@ customizados (`status(201, body)`/`headerSet`), **WebSocket** `app.ws("/chat") {
 - [x] `transaction { ... }` com commit/rollback automáticos.
 - [ ] Connection pooling e configuração tipada.
 - [ ] Hibernate suportado como backend opcional via interop (teste).
-- [x] Testes + docs `docs/stdlib-database.md`.
+- [x] Testes + docs `docs/stdlib/stdlib-database.md`.
 
 ### Fase 6 — Concurrency completa
 
@@ -176,9 +176,9 @@ customizados (`status(201, body)`/`headerSet`), **WebSocket** `app.ws("/chat") {
       com async/await/Promise reais (stmt/expr; CONC003 fechado 03/09).
 - [ ] Filas (`kof.concurrent.Queue`), canais, cancellation, timeouts.
 - [ ] Structured concurrency e supervision sem expor Thread/Executor.
-- [ ] Testes + docs `docs/stdlib-concurrency.md`.
+- [ ] Testes + docs `docs/stdlib/concurrency.md`.
 
-### Fase 7 — Security nativa (v1 ✅ 25/08; docs/security.md)
+### Fase 7 — Security nativa (v1 ✅ 25/08; docs/stdlib/security.md)
 
 - [x] Password hashing (PBKDF2-HMAC-SHA256 600k), JWT (HS256, exp/iss/aud),
       crypto (SHA-256/512, HMAC, AES-GCM) — JVM/Native (asm)/JS; gaps com
@@ -189,7 +189,7 @@ customizados (`status(201, body)`/`headerSet`), **WebSocket** `app.ws("/chat") {
 - [x] TLS (`web.listenSecure` JVM — G12).
 - [ ] Auth/authorization declarativa (hoje: `auth.*` no contexto web).
 - [ ] Spring Security como alternativa de interop (teste), nunca requisito.
-- [ ] Testes + docs `docs/stdlib-security.md`.
+- [ ] Testes + docs `docs/stdlib/security.md`.
 
 ### Fase 8 — Validation + Scheduling + Events
 
@@ -251,8 +251,8 @@ arquitetural). Critérios de aceite:
 ### Fase 14 — Documentação e Training
 
 - [ ] README, docs/, learn/, training/ atualizados.
-- [ ] `docs/spring.md`, `docs/stdlib-web.md`, `docs/stdlib-database.md`,
-      `docs/stdlib-security.md`, `docs/stdlib-concurrency.md`.
+- [ ] `docs/spring.md`, `docs/stdlib/stdlib-web.md`, `docs/stdlib/stdlib-database.md`,
+      `docs/stdlib/security.md`, `docs/stdlib/concurrency.md`.
 - [ ] `training/` ensina primeiro Kof-native, depois Kof + Spring.
 - [ ] Declaração explícita: "Spring é suportado pelo Kof, mas não é
       necessário para desenvolver aplicações Kof."

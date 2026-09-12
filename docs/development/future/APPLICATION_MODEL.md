@@ -7,7 +7,7 @@ houver código em desenvolvimento, com status real + "como finalizar")
 **Gap-codes desta RFC:** `APP001`..`APP003` (convenção R6; matriz em
 `docs/backend-parity.md`)
 **Relacionados:** `docs/roadmap.md` §§8–11 (promessas ❌ de 02/09),
-`docs/stdlib-web.md`, `docs/targets/KOFJS.md`,
+`docs/stdlib/stdlib-web.md`, `docs/targets/KOFJS.md`,
 `docs/future/PLAN-UNIVERSAL-PLATFORM.md` (R1/R6/R7/R9/R12)
 
 ---
@@ -150,12 +150,12 @@ plano de target. "KofWasm" neste plano é **futuro**, não premissa.
 - `examples/` contém **1 arquivo** (`orm/Main.kf` — backend-only, `kof.orm`/H2).
   **Zero** exemplos web/full-stack; programas web vivem como fonte inline em
   testes E2E (`KofWebE2ETest`, `KofWebNativeE2ETest`, `KofWebWsE2ETest`,
-  `KofWebSseE2ETest`, `KofJsBrowserE2ETest` — `docs/stdlib-web.md:270-281`).
-- `docs/stdlib-web.md:254-262` está **desatualizado** (diz "Native não possui
+  `KofWebSseE2ETest`, `KofJsBrowserE2ETest` — `docs/stdlib/stdlib-web.md:270-281`).
+- `docs/stdlib/stdlib-web.md:254-262` está **desatualizado** (diz "Native não possui
   servidor web"; o server base existe desde 03/09 — `DOING.md:106`,
   `docs/backend-parity.md:62,85`). Corrigir junto do incremento I2.
-- Inconsistência de numeração WS/SSE entre `docs/security.md:55-56` e
-  `docs/stdlib-web.md:210,258` (WEB003/WEB004) — corrigir no mesmo pass.
+- Inconsistência de numeração WS/SSE entre `docs/stdlib/security.md:55-56` e
+  `docs/stdlib/stdlib-web.md:210,258` (WEB003/WEB004) — corrigir no mesmo pass.
 
 ### 2.6 Síntese: fundação vs lacuna
 
@@ -313,7 +313,7 @@ path = "static"                  # opcional — diretório de arquivos cruos
 
 **Frontend ↔ backend dentro de uma aplicação** (full-stack, seção 7): o
 backend monta o bundle do frontend em uma rota (via `app.serveDir` — **já
-existe no JVM**, `docs/stdlib-web.md:114-142`) e expõe as rotas de API no
+existe no JVM**, `docs/stdlib/stdlib-web.md:114-142`) e expõe as rotas de API no
 mesmo processo. O frontend chama a API **por HTTP** (`kof.http` no target js —
 existe: interop/fetch, `docs/targets/KOFJS.md:174-175`) — **nunca** por
 chamada direta. Consequência importante: o contrato frontend→backend é sempre
@@ -595,7 +595,7 @@ Application ──kof build──▶ Artifact ──▶ Deployment
    aplicação tem entry definido (I3). Sem `kof.toml` → mantém comportamento de
    hoje (pasta de classes) — retrocompatibilidade P5.
 2. **Jar standalone** (jvm): o runtime é **gerado no bytecode** hoje
-   (`KofRuntime` — `docs/LICENSING.md:68`); o jar apenas reúne `.class` +
+   (`KofRuntime` — `docs/distribution/LICENSING.md:68`); o jar apenas reúne `.class` +
    assets + `Main-Class`. Sem runtime separado para distribuir (licensing
    preservado). Deps `kofdeps` (jars externos) **não** entram no jar (R: jar
    fat de deps = decisão de packaging documentada, não default; default =
@@ -624,7 +624,7 @@ Application ──kof build──▶ Artifact ──▶ Deployment
   mudou). **Hot-reload: fora de escopo** (não existe hoje; futuro).
 - **Produção:** o artifact é **imutável**; o runtime lê config por env
   (`kof.config` — existe) e sub-processos por conexão (JVM: virtual threads —
-  `docs/stdlib-web.md:247-252`).
+  `docs/stdlib/stdlib-web.md:247-252`).
 - **Lifecycle:** `application { onStart/onShutdown }` (existe, 3 targets) é o
   único lifecycle de aplicação — o modelo **não inventa** outro (I2 pode
   **usar** onStart para log "app pronto em :port" — convenção, não feature).
@@ -873,7 +873,7 @@ presente (flag > manifesto > default). **Sem manifesto = 1:1 hoje (P5).**
 2. compila o backend (como hoje);
 3. **o app é dono das rotas** (P2): o idiom full-stack é o próprio backend
    chamar `app.serveDir("<out do frontend>")` (idiom existe —
-   `docs/stdlib-web.md:114-142`); a CLI faz o build do frontend e passa o
+   `docs/stdlib/stdlib-web.md:114-142`); a CLI faz o build do frontend e passa o
    path via `-Dkof.web.out=...` (env `KOF_WEB_OUT` no native/futuro); o
    skeleton do `kof new --frontend` já inclui o `serveDir` (exemplo canônico);
 4. rebuild do frontend sob demanda se mudou (hash; sem watcher);
@@ -888,8 +888,8 @@ presente (flag > manifesto > default). **Sem manifesto = 1:1 hoje (P5).**
   APP001 em native, sem-manifesto inalterado. Suíte verde.
 - **Arquivos:** `CmdServe.java` (pipeline frontend + properties),
   `KofCliSupport.java` (hash), `examples/fullstack/**`.
-- **Corrige no caminho:** `docs/stdlib-web.md:254-262` (desatualizado) +
-  numeração WEB003/004 em `docs/security.md:55-56` (§2.5).
+- **Corrige no caminho:** `docs/stdlib/stdlib-web.md:254-262` (desatualizado) +
+  numeração WEB003/004 em `docs/stdlib/security.md:55-56` (§2.5).
 
 ### I3 — Packaging: `kof build` gera artifact (M, 1–2 sessões)
 

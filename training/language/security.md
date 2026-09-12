@@ -49,4 +49,4 @@ app.use {
 | constantTimeEquals | ✅ | ✅ | ✅ |
 | auth web (rateLimit/sessions/apiKeys) | ✅ | ✅ | ✅ |
 
-Referência: docs/security.md (0.2.6-beta), learn/36-security.md.
+Referência: docs/stdlib/security.md (0.2.6-beta), learn/36-security.md.

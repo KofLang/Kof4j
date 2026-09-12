@@ -11,7 +11,7 @@ public final class JvmStringSecurityRuntime {
     static String source() {
         return """
 
-                // ── kof.security (docs/security.md §5) ──────────────────
+                // ── kof.security (docs/stdlib/security.md §5) ──────────────────
 
                 private static final java.security.SecureRandom KOF_SEC_RANDOM = new java.security.SecureRandom();
                 private static volatile String KOF_AUTH_SECRET = System.getenv("KOF_JWT_SECRET");

@@ -21,7 +21,7 @@ public final class JvmConfigRuntime {
                     return kof_config_lookup(key);
                 }
 
-                // P2 (docs/stdlib-config.md §8.2): interpolação ${key} —
+                // P2 (docs/stdlib/stdlib-config.md §8.2): interpolação ${key} —
                 // resolve referências entre chaves do próprio arquivo.
                 // Ciclo → valor literal; chave inexistente → literal inalterado.
                 // O set de chaves "em resolução" vive no lookup (ThreadLocal),

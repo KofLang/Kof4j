@@ -58,7 +58,7 @@ e **não** `Kof JVM` / `Kof Native` / `Kof JS` como linguagens semanticamente
 diferentes. Quando há divergência real entre targets, ela é registrada como
 *limitação de target* ou *comportamento dependente de target* (ver
 [specification-status.md](specification-status.md) e
-[../specification-gaps.md](../specification-gaps.md)), nunca escondida.
+[../specification-gaps.md](specification-gaps.md)), nunca escondida.
 
 ---
 
@@ -81,7 +81,7 @@ diferentes. Quando há divergência real entre targets, ela é registrada como
 | [specification-status.md](specification-status.md) | Classificação de cada feature (Stable/Experimental/…). |
 
 A **implementação do compilador** (pipeline, IR, otimizações, backends) tem
-documento próprio: [../compiler-architecture.md](../compiler-architecture.md).
+documento próprio: [../compiler-architecture.md](../architecture/compiler-architecture.md).
 Detalhes internos de Java, classes do compilador e estruturas de implementação
 **não pertencem** a esta referência — exceto quando são necessários para
 explicar um comportamento observável da linguagem (nesse caso, a referência
@@ -105,7 +105,7 @@ são as que fazem sentido para o estado atual do Kof (beta):
 
 A etiqueta **Unspecified** é preferível a uma regra inventada. Ver
 [specification-status.md](specification-status.md) para a classificação por
-feature e [../specification-gaps.md](../specification-gaps.md) para o catálogo
+feature e [../specification-gaps.md](specification-gaps.md) para o catálogo
 de lacunas (SG-00x) e divergências entre documentação, código e testes.
 
 ---
@@ -123,7 +123,7 @@ Toda afirmação normativa aponta para uma **evidência**:
   dedicado).
 
 Quando código, teste e documentação divergem, a divergência é registrada em
-[../specification-gaps.md](../specification-gaps.md) — nunca resolvida
+[../specification-gaps.md](specification-gaps.md) — nunca resolvida
 silenciosamente a favor de uma das fontes.
 
 ---

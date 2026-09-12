@@ -64,7 +64,7 @@ recomendações futuras (regra 14 da tarefa: não alterar comportamento).
   oficial (vago por definição) — o que vale é a lista de checagens, agora
   completa e testada.
 - **Documentação (histórico)**: `README.md:60` "Kof é uma linguagem
-  **fortemente tipada e estaticamente tipada**"; `docs/architecture.md`
+  **fortemente tipada e estaticamente tipada**"; `docs/architecture/architecture.md`
   "fortemente tipada".
 - **Implementação (histórico)**: o type checker **não** garante subtipagem
   (§SG-009), **não** checa elemento de coleção, **não** impõe
@@ -72,7 +72,7 @@ recomendações futuras (regra 14 da tarefa: não alterar comportamento).
 - **Problema**: "strongly typed" é vago e, lido como "o compilador impede
   operações mal tipadas", é **falso** para Kof hoje.
 - **Recomendação**: substituir por propriedades concretas (já feitas em
-  [language-reference/type-system.md](language-reference/type-system.md)).
+  [language-reference/type-system.md](../language-reference/type-system.md)).
   Manter "estaticamente tipada" (verdadeiro: tipos resolvidos em compile-time).
 
 ---
@@ -126,7 +126,7 @@ recomendações futuras (regra 14 da tarefa: não alterar comportamento).
 - **Problema**: `if (x != null && x.length > 0)` pode NPE no JS mas não no
   JVM/Native. **Divergência de paridade** (regra 5 de congelamento).
 - **Recomendação**: documentar como Target-specific (feito em
-  [expressions.md](language-reference/expressions.md) §5) **e** abrir gap de
+  [expressions.md](../language-reference/expressions.md) §5) **e** abrir gap de
   paridade para corrigir o JS.
 - **NOTA 09/09 (análise de código):** o lowering por labels é `target != JS`,
   mas para `&&`/`||` de bool o JS emite os operadores nativos (`a && b`,
@@ -347,7 +347,7 @@ recomendações futuras (regra 14 da tarefa: não alterar comportamento).
 - **Implementação anterior**: `spawn`/`await`/`Channel` funcionavam, mas não
   havia definição de happens-before/visibilidade/atomicidade.
 - **CORRIGIDO 09/09:** spec completa em
-  `docs/concurrency-memory-model.md` — SC em todos os targets,
+  `docs/language-reference/concurrency-memory-model.md` — SC em todos os targets,
   6 regras de happens-before (spawn/await/channel/cancel/locais/race),
   mapeamento por target (JMM virtual threads / x86-TSO futex / riscv-aarch
   fence), non-goals (sem volatile/synchronized na superfície — Channel é a
@@ -391,7 +391,7 @@ Não duplicados aqui — ver [known-bugs.md](known-bugs.md):
 
 ## Categoria E — Documentação desatualizada (docs ≠ código)
 
-### SG-E1 — `docs/architecture.md` chama riscv64/aarch64 de "placeholder x86_64" — ✅ CORRIGIDO 10/09 (residual)
+### SG-E1 — `docs/architecture/architecture.md` chama riscv64/aarch64 de "placeholder x86_64" — ✅ CORRIGIDO 10/09 (residual)
 
 - **Doc** (`architecture.md:40-46,97-98`): "codegen ainda x86_64 (placeholder)".
 - **Código**: `NativeBackend.emitRiscv` é lowering riscv64 **real**;
@@ -399,10 +399,10 @@ Não duplicados aqui — ver [known-bugs.md](known-bugs.md):
 - **CORRIGIDO 10/09:** o cabeçalho do doc já tinha a nota de correção de
   06/09; os residuais ("codegen x86_64 placeholder via qemu" no enum Target
   e a seção de targets 0.2.6) foram atualizados para lowering real.
-  Verificação: grep "placeholder" em `docs/architecture.md` agora só
+  Verificação: grep "placeholder" em `docs/architecture/architecture.md` agora só
   aparece na nota histórica de correção (que explica o porquê).
 
-### SG-E2 — `docs/language-state.md` data 02/09, versão 0.2.6-beta — ✅ CORRIGIDO 10/09
+### SG-E2 — `docs/history/language-state.md` data 02/09, versão 0.2.6-beta — ✅ CORRIGIDO 10/09
 
 - Contava 810 testes; hoje são **1270** (kof-compiler só). Versão 0.2.6;
   hoje 0.3.0.
@@ -412,15 +412,15 @@ Não duplicados aqui — ver [known-bugs.md](known-bugs.md):
   duplicar o status.md — snapshot honesto é melhor que cópia derivada que
   apodrece.
 
-### SG-E3 — `docs/architecture.md` lista "KofC Backend" como backend da IR — ✅ CORRIGIDO (06/09) / verificado 10/09
+### SG-E3 — `docs/architecture/architecture.md` lista "KofC Backend" como backend da IR — ✅ CORRIGIDO (06/09) / verificado 10/09
 
 - **Doc antigo**: mostrava `KofC Backend` no pipeline consumindo a IR.
 - **Código**: `KofCCompiler` **não** implementa `Backend` nem consome
   `IRModule` — é um compilador C-subset separado (`kof-c-compiler`).
-- **Verificado 10/09:** o diagrama do pipeline em `docs/architecture.md`
+- **Verificado 10/09:** o diagrama do pipeline em `docs/architecture/architecture.md`
   mostra os 3 backends da IR (JvmRuntime/NativeRuntime/JsBackend) e
   `KofCcompiler` está seção própria, sem relação com a IR;
-  `docs/compiler-architecture.md` tabela "É / Não é" já diz explicitamente
+  `docs/architecture/compiler-architecture.md` tabela "É / Não é" já diz explicitamente
   "KofC **não é** backend da IR Kof". Fechado sem código novo.
 
 ---

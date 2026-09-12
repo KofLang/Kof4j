@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * `kof bench` — benchmark harness (docs/performance.md §19-§25, §34).
+ * `kof bench` — benchmark harness (docs/architecture/performance.md §19-§25, §34).
  *
  * Each benchmark is a directory containing `Main.kf`, `expected.txt` and an
  * optional `meta.json` ({ "targets": [...], "iterations": N }). The harness:

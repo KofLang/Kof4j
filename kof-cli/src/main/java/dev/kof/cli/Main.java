@@ -147,7 +147,7 @@ public final class Main {
 
     /**
      * kof config gen <file.kf|dir> [--target jvm|native|js] [--output <arquivo>]
-     * (docs/stdlib-config.md §8.2 P3): compila (JVM, só análise) e gera um
+     * (docs/stdlib/stdlib-config.md §8.2 P3): compila (JVM, só análise) e gera um
      * template kof.config com as chaves descobertas em compile-time.
      * Defaults viram comentário; required sem default vira linha ativa.
      */

@@ -175,7 +175,7 @@ var desc = switch (o) {
 - `await h` → valor `T` (baixado como `__kof_await`).
 - `awaitTimeout(h, ms)` → valor `T` ou lança exceção (função, **não** sintaxe
   `await h withTimeout` — isso dá `PARSE043`, *probe*).
-- Ver [../concurrency.md](../concurrency.md) (documento de stdlib).
+- Ver [../concurrency.md](concurrency.md) (documento de stdlib).
 
 ---
 

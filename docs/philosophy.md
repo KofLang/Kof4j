@@ -217,7 +217,7 @@ Deveria ser algo como:
 var app = web.app()
 app.get("/users") { return users.all() }
 ```
-(implementado no JVM — ver `docs/stdlib-web.md`)
+(implementado no JVM — ver `docs/stdlib/stdlib-web.md`)
 
 ### 13. Performance Sem Sacrificar Ergonomia
 

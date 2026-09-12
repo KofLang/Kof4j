@@ -276,7 +276,7 @@ jwt:         RFC 7519 HS256 (alg fixado, nunca aceito do token)
 1. Implementar `kof.security` (KofSecurity.java + runtimes JVM/Native/JS).
 2. Testes unitários + E2E + adversariais (`KofSecurityTest`).
 3. Benchmarks (`benchmarks/security/`).
-4. Documentação (`docs/security.md`, `learn/`, `training/`).
+4. Documentação (`docs/stdlib/security.md`, `learn/`, `training/`).
 5. Auditoria contínua: `kof.config`, `kof.database`, `kof.messaging`,
    `kof.validation`, `kof.logging`, `kof.observability` (próximas etapas).
 

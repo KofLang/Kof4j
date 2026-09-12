@@ -122,7 +122,7 @@ sistema operacional nunca é usado.
 
 ## Referência
 
-- [docs/stdlib/IO.md](../../docs/stdlib/IO.md)
+- [docs/stdlib/IO.md](../docs/stdlib/IO.md)
 
 ## Próximo passo
 

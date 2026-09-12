@@ -81,7 +81,7 @@ Kof Compiler  (kof-compiler, Java 21 + ASM 9.8)
 
 **Nenhum passo é "type checking" separado** — a checagem de tipos está
 entrelaçada com a resolução de nomes dentro de `inferType` (passo 8). Ver
-[language-reference/type-system.md](language-reference/type-system.md) §2.
+[language-reference/type-system.md](../language-reference/type-system.md) §2.
 
 ---
 
@@ -93,7 +93,7 @@ Hand-written, single-pass, maximal munch com lookahead de 1–3 caracteres.
 Produz `List<Token>`; cada `Token` tem `type, value, file, line, column,
 offset, length`. Erros: `LEX001`–`LEX007`. A gramática léxica (o que a
 linguagem define) está em
-[language-reference/lexical-structure.md](language-reference/lexical-structure.md).
+[language-reference/lexical-structure.md](../language-reference/lexical-structure.md).
 
 ### 3.2 Parser (`Parser.java`)
 
@@ -292,7 +292,7 @@ Um único arquivo `.s` + um binário ELF por módulo.
   — é um tradutor ISA. `amoswap.w`→`swpal`, `amoadd.d`→`ldadd`, `fence`→`dmb
   ish`, `movz` quando `lsl #16`.
 
-**⚠️ `docs/architecture.md` antigo chama riscv64/aarch64 de "placeholder
+**⚠️ `docs/architecture/architecture.md` antigo chama riscv64/aarch64 de "placeholder
 x86_64" — desatualizado** (SG-E1).
 
 ### 5.3 JS (`JsBackend.java`)

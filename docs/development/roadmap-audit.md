@@ -14,7 +14,7 @@
 | 4. Async | **PARTIAL** | JVM vthreads + Handle/await/timeout; JS Promise real (CONC003 ✅); Native pthread | `KofConcurrency2Test` 15/15 | timeout/cancel/select completos; sem select sobre channels |
 | 5. Concurrency G8 | **PARTIAL (bom)** | spawn/await/cancel/selectAny/awaitTimeout/channel/scheduler 3 targets | idem | `scheduler.at` cron = 60s fixo (MVP declarado); cancel por TID%256 |
 | 6. KofAndroid | **DONE (com ressalva)** | `Target.ANDROID`; `--apk` pipeline (d8/aapt2/apksigner); `AndroidProjectWriter` (Maven) | pipeline depende de ANDROID_HOME | lifecycle/ART runtime cobertos na Fase 2; consolidar docs |
-| 7. Debugger | **MVP** | DAP stdio JVM (`KofDebug.java`), breakpoints JDWP reais; DWARF line-only | docs/debug-adapter.md | **locals = placeholder** (`"line N"`); stepping/evaluate; VS Code ext |
+| 7. Debugger | **MVP** | DAP stdio JVM (`KofDebug.java`), breakpoints JDWP reais; DWARF line-only | docs/debugging/debug-adapter.md | **locals = placeholder** (`"line N"`); stepping/evaluate; VS Code ext |
 | 8. KofJS | **PARTIAL (alpha → funcional)** | ESM + source maps V3 + GraalJS + runtimes DOM/UI (9 arquivos) | `KofJsE2ETest`, browser headless | ws/sse stub silencioso no JS (WEB001); serve×JS indireto |
 | 9. LSP | **PARTIAL** | diagnostics reais via CompilerDriver (fonte única); hover/completion/references/rename **textuais** | `LspServerTest` 4/4 | hover/completion/rename devem usar SymbolTable; go-to-definition |
 | 10. KofScript | **PARTIAL (bom)** | interpretador de IR compartilhado (mesma semântica por construção) | `KofScriptTest` 15/15 + gate paridade | globals por regex multiline-fragil; REPL re-avalia tudo |

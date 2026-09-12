@@ -9,7 +9,7 @@ import java.nio.file.Path;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * P3 (docs/stdlib-config.md §8.2): o compilador conhece cada chamada
+ * P3 (docs/stdlib/stdlib-config.md §8.2): o compilador conhece cada chamada
  * config.* com chave literal em compile-time — discoveredConfigKeys() +
  * generateConfigTemplate() alimentam o `kof config gen`.
  */

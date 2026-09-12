@@ -52,7 +52,7 @@ CONC001, JSN00x) — nunca comportamento silenciosamente diferente.
 | `kof.json` | ✅ | encode/decode; objetos/records JVM+Native+JS (JSN002), Float/Double + arrays `Double[]`/`Float[]` (JSN001) e arrays `Int[]/Long[]/Bool[]/String[]` (JSN003) — Native completo 31/08 |
 | `kof.http` | ✅ | `kof serve` (KofHttpServer, thread pool) — JVM; `kof.http` client `http.get/post/put/delete/patch/options/status` — JVM/JS/**Native 03/09** (HTTP/1.1 asm, `NativeHttpRuntime`, IPv4 só; https→throw); retry/circuit/timeout aceitam chamada mas só implementados em JVM/JS (`HTTP003`). **Assíncrono:** `var h = spawn http.get(url); await h` → `Handle<String>` nos 3 targets — no Node/browser é o único caminho real (fetch→Promise, §133; a chamada síncrona lá devolve o Promise cru — face síncrona não existe em JS puro, §133/HTTP003) |
 | `kof.web` | ✅ | `web.app()`, rotas, middleware `app.use`, `listenSecure(port)` TLS, `status(code[, body])`/`headerSet`, `app.ws` (WebSocket RFC 6455) + `app.sse` (SSE) — JVM (Native `WEB001/002`, JS `WEB001`/`WEB003`/`WEB004`) |
-| `kof.security` | ✅ (v1 + G9) | passwords, crypto, jwt, secrets, auth, security, rateLimit, sessions, apiKeys — 3 targets; free-list Native 27/08 — ver `docs/security.md` |
+| `kof.security` | ✅ (v1 + G9) | passwords, crypto, jwt, secrets, auth, security, rateLimit, sessions, apiKeys — 3 targets; free-list Native 27/08 — ver `docs/stdlib/security.md` |
 | `kof.concurrent` | ✅ | `spawn` (statement) + `val r = spawn f()` / `await r` (handle tipado) — JVM (virtual threads) + Native (pthread, 31/08, `CONC001` fechado) + JS sequencial |
 | `kof.test` | ✅ | `kof test` (`test "nome" { }` nos 3 targets) + `assert` — `StructuredTestE2ETest` 11/11; golden 16/16 |
 | `kof.cli` | ✅ | `kof build/run/serve/check/test/bench/debug/info/lsp/install/script/repl/c` (debug DAP, `kof script --watch` SIGPIPE fix 27/08) |
@@ -83,7 +83,7 @@ CONC001, JSN00x) — nunca comportamento silenciosamente diferente.
 3. **Sem cerimônia**: sem injeção de container, sem annotations, sem
    configuração XML/yml obrigatória.
 4. **Sem overhead escondido**: cada abstração precisa responder qual é seu
-   custo em runtime (docs/performance.md §8).
+   custo em runtime (docs/architecture/performance.md §8).
 5. **Diagnósticos claros**: gaps de target nunca silenciosos.
 6. **Java/Spring continuam válidos** como interoperabilidade — nunca como
    dependência arquitetural.

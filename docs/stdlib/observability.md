@@ -118,5 +118,5 @@ Próximos passos (fora do P0-G5): export Prometheus (`/metrics`), `tracing`/`Ope
 - ✅ Testes `KofObservabilityTest` 3/3 + `KofSecurityTest` 25/25 + `KofValidationTest` 3/3 sem regressão
 - ✅ Benchmark não aplicável (operações O(1) / syscall `getrandom`)
 - ✅ Security review: `requestId` usa `SecureRandom` (JVM) / `getrandom` (Native) / `crypto.randomUUID` (JS) — sem vazamento
-- ✅ Docs: este arquivo + `docs/ecosystem-coverage.md` §3.9/§4/§7 + `docs/stdlib.md` §3
+- ✅ Docs: este arquivo + `docs/ecosystem-coverage.md` §3.9/§4/§7 + `docs/stdlib/stdlib.md` §3
 - ✅ Exemplo real: snippet acima roda nos três targets

@@ -407,7 +407,7 @@ public final class RuntimeConfig1 {
             kof_config_get:
                 jmp kof_config_lookup
 
-            # P2 (docs/stdlib-config.md §8.2): interpolação ${key}.
+            # P2 (docs/stdlib/stdlib-config.md §8.2): interpolação ${key}.
             # rdi = valor KofString* -> resolve referências a outras chaves.
             # Ref inexistente ou "${" sem "}" -> valor literal inalterado.
             # Profundidade máxima 16 (quebra ciclos).

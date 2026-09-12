@@ -185,7 +185,7 @@ kof.time/kof.io.
   não pode usar `await`, vira erro de compilação em vez de corromper dado
   silenciosamente via `Array<Promise<T>>`). `cancelled()` sempre `0`
   (limitação conhecida — sem thread-local pra contexto "task atual" em
-  async functions intercaladas). Ver `docs/concurrency.md` seção 4.
+  async functions intercaladas). Ver `docs/language-reference/concurrency.md` seção 4.
 - **kof.ui**: widgets, layout, estilo, eventos — renderização em webview
   nativo (WebKitGTK) e browser (`index.html` estático); **Fase 7 Router**
   (`go/replace/back/forward/param/current/depth` — 31/08)

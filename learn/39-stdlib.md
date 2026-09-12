@@ -327,7 +327,7 @@ executados de verdade (riscv/aarch64 sob qemu).
 ## Próximo passo
 
 - `training/idioms/stdlib.md` — BAD/GOOD/WHY de cada namespace.
-- `docs/stdlib.md` §3 — a matriz de referência com gates.
+- `docs/stdlib/stdlib.md` §3 — a matriz de referência com gates.
 - `docs/development/plan-stdlib-expansion.md` — o que falta: `random` (P0),
   `last4`/`creditCardBrand` (tabela de bandeira = marca registrada — avaliar
   antes) e `math` Double (FLT).

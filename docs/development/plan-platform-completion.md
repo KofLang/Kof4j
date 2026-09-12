@@ -3,7 +3,7 @@
 **Data:** 2 de setembro de 2026
 **Base:** estado real 0.2.6-beta (810 testes: 793 kof-compiler +8 kof-script +5 kof-c-compiler +4 kof-cli, 7 targets: jvm stable, native x86_64 stable (free-list, pthread spawn 31/08, FP XMM), native.risc/native.arm (toolchain + qemu, codegen x86_64 placeholder), js alpha GraalJS (kof.http + retry/circuit), kofc native-only, android Fase 1; pattern matching + null safety básica; KofScriptGlobals; JSON completo nos 3 targets; web ws/sse JVM)
 **Versão:** 0.2.6-beta
-**Filosofia:** [docs/philosophy.md](philosophy.md) · Auditoria: [docs/ecosystem-coverage.md](ecosystem-coverage.md) · Visão: [docs/roadmap.md](roadmap.md) · Status: [docs/status.md](status.md)
+**Filosofia:** [docs/philosophy.md](../philosophy.md) · Auditoria: [docs/ecosystem-coverage.md](ecosystem-coverage.md) · Visão: [docs/roadmap.md](roadmap.md) · Status: [docs/status.md](../status.md)
 
 ---
 
@@ -23,7 +23,7 @@
 
 ## Definition of Done (toda feature, sem exceção)
 
-Seguir `docs/performance.md` §40-§41. Resumo operacional:
+Seguir `docs/architecture/performance.md` §40-§41. Resumo operacional:
 
 - [ ] Compila nos 3 targets **ou** diagnostico de gap com código e entrada
       em `supportedOn` (G7 nunca reabre).

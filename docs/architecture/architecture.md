@@ -22,7 +22,7 @@
  > frontend** (lexer→parser→AST→IR) e executa a IR otimizada no interpretador
  > (target de execução direta, 0.3.0-beta); (c) a IR é uma **máquina de pilha
  > linear** (30 ops), não uma "árvore". Ver SG-E1/SG-E3 em
- > [`specification-gaps.md`](specification-gaps.md).
+ > [`specification-gaps.md`](../language-reference/specification-gaps.md).
 
 ## Context
 
@@ -296,7 +296,7 @@ Implementation:
 ## Standard Library (compile-time dispatch)
 
 A Standard Library do Kof é implementada como **tabelas de dispatch
-compile-time** (docs/stdlib.md): cada módulo é um descriptor no compilador
+compile-time** (docs/stdlib/stdlib.md): cada módulo é um descriptor no compilador
 (`KofIo.java`, `KofWeb.java`, `KofSecurity.java`, `KofUi.java`) que mapeia a
 intenção do programador para funções de runtime `kof_*`:
 
@@ -313,7 +313,7 @@ CompilerDriver     → lowering para KofCall(kof_*)
 Gaps de target produzem **diagnósticos claros em compile-time** (SECN00x,
 CONC001, JSN00x, DB001, CONF001, LOG001) — nunca comportamento silenciosamente diferente.
 
-Módulos (0.2.6-beta, 31/08/2026): `kof.core`, `kof.collections` (`List map/filter/reduce`, `Map/Set`, `Box<T>`), `kof.io`, `kof.time` (scheduler `every` JVM+JS via `setInterval`), `kof.json` (objetos/records + arrays nos 3 targets, 31/08), `kof.http` (JVM+JS via HttpClient; retry/circuit breaker 30/08), `kof.web` (rotas/middleware + WebSocket/SSE JVM, 30/08), `kof.cache` (3 targets, 30/08), `kof.security`, `kof.concurrent` (`spawn` — JVM virtual threads, Native pthread 31/08, JS sequencial), `kof.test`, `kof.cli` (18 comandos: `build/run/serve/check/test/script/repl/c/fmt/config/bench/profile/inspect/debug/info/lsp/install/version`), `kof.db`/`kof.orm` (SQLite nativo `.so` + MySQL wire protocol WIP), `kof.config`/`kof.log`. Estado completo em docs/stdlib.md e docs/status.md:12-26 (810 testes, 16/16 golden, 9/9 integration).
+Módulos (0.2.6-beta, 31/08/2026): `kof.core`, `kof.collections` (`List map/filter/reduce`, `Map/Set`, `Box<T>`), `kof.io`, `kof.time` (scheduler `every` JVM+JS via `setInterval`), `kof.json` (objetos/records + arrays nos 3 targets, 31/08), `kof.http` (JVM+JS via HttpClient; retry/circuit breaker 30/08), `kof.web` (rotas/middleware + WebSocket/SSE JVM, 30/08), `kof.cache` (3 targets, 30/08), `kof.security`, `kof.concurrent` (`spawn` — JVM virtual threads, Native pthread 31/08, JS sequencial), `kof.test`, `kof.cli` (18 comandos: `build/run/serve/check/test/script/repl/c/fmt/config/bench/profile/inspect/debug/info/lsp/install/version`), `kof.db`/`kof.orm` (SQLite nativo `.so` + MySQL wire protocol WIP), `kof.config`/`kof.log`. Estado completo em docs/stdlib/stdlib.md e docs/status.md:12-26 (810 testes, 16/16 golden, 9/9 integration).
 
 ## Diagnostics
 

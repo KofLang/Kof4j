@@ -71,7 +71,7 @@ lista.add(4)              // funciona — a lista é mutável
 ```
 
 Para dados imutáveis de verdade, use `record` + `json.encode`/`json.decode`
-(ver cap. 12 e `docs/stdlib.md`).
+(ver cap. 12 e `docs/stdlib/stdlib.md`).
 
 ## Funções puras
 

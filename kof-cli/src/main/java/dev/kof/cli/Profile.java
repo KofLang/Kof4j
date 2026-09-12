@@ -21,7 +21,7 @@ import java.util.Map;
 
 /**
  * `kof profile` — run a program and report execution metrics
- * (docs/performance.md §34).
+ * (docs/architecture/performance.md §34).
  *
  * JVM: wall time, user/sys CPU, peak RSS, GC pauses (via -Xlog:gc).
  * Native: wall time, user/sys CPU, peak RSS; `perf stat` when available.

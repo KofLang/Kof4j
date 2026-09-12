@@ -177,4 +177,4 @@ O projeto está em 0.2.6-beta (810 testes), funcional:
 
 ## Próximo passo
 
-[Glossário →](glossary.md)
+[Glossário →](learn/glossary.md)

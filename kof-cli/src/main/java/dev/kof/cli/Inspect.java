@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * `kof inspect` — IR and code statistics (docs/performance.md §34).
+ * `kof inspect` — IR and code statistics (docs/architecture/performance.md §34).
  *
  * Compiles the program and reports, per method, the IR operation count
  * before and after optimization (showing what the optimizer eliminated),

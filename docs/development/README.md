@@ -27,7 +27,7 @@
 | `future/TRANSLATOR.md` | translator | `PLANNED` | — |
 | `future/DIFFERENTIAL_TESTING.md` | differential testing | `PLANNED` | — |
 | `future/IMPLEMENTATION_PLAN.md` | plano de implementação legado | `PLANNED` | — |
-| `docs/PLAN-CANVAS-WIDGET.md` | Canvas widget (CANVAS001) — **movido p/ `docs/` 12/09** (`5a9cac46` CANVAS001 FECHADO; `UiE2ETest` 29/29 sem exclusões medido hoje; UI009 drawImage `6e3181f`) | `FEITO` |
+| `docs/ui/PLAN-CANVAS-WIDGET.md` | Canvas widget (CANVAS001) — **movido p/ `docs/` 12/09** (`5a9cac46` CANVAS001 FECHADO; `UiE2ETest` 29/29 sem exclusões medido hoje; UI009 drawImage `6e3181f`) | `FEITO` |
 
 ### 2. Roadmaps & Audits
 | Arquivo | Por que está aqui | Estado |
@@ -36,16 +36,16 @@
 | `roadmap-audit.md` | matriz 06/09: 13 itens — 5× `PARTIAL`, 4× `NOT STARTED` | `PARTIAL` |
 | `roadmap-gap-2026-09-03.md` | gap report NATIVE002 + discrepâncias | `PARTIAL` |
 | `ecosystem-coverage.md` | matriz G1–G12: muitos `PARTIAL`/`PLANNED` (events, messaging, OAuth2, batch, AI) | `PARTIAL` |
-| `docs/actual-state.md` | **movido p/ docs/ 11/09** — snapshot histórico 0.2.6-beta (registro, não backlog) | `HISTÓRICO` |
-| `docs/language-state.md` | **movido p/ docs/ 11/09** — snapshot histórico 02/09 (SG-E2; registro, não backlog) | `HISTÓRICO` |
+| `docs/history/actual-state.md` | **movido p/ docs/ 11/09** — snapshot histórico 0.2.6-beta (registro, não backlog) | `HISTÓRICO` |
+| `docs/history/language-state.md` | **movido p/ docs/ 11/09** — snapshot histórico 02/09 (SG-E2; registro, não backlog) | `HISTÓRICO` |
 
 ### 3. Plans de Plataforma
 | Arquivo | Por que está aqui | Estado |
 |---|---|---|
 | `plan-platform-completion.md` | P0–P5: P3 (query DSL) ✅ mas P4–P5 (health/tracing/LSP/debug) pendentes | `PARTIAL` |
 | `plan-spring-independence.md` | Fases 5–14: web completa + gRPC planejados, GC pending | `PARTIAL` |
-| `planning-switch-expr.md` | **movido p/ `docs/planning-switch-expr.md` 10/09** (SYN001 FECHADO — nada pendente; concluído não fica em development/) | `FEITO` |
-| `planning-mutability.md` | **movido p/ `docs/planning-mutability.md` 10/09** (DD-02/SEM037/SEM038 aplicados, #42 fechada) | `FEITO` |
+| `planning-switch-expr.md` | **movido p/ `docs/decisions/planning-switch-expr.md` 10/09** (SYN001 FECHADO — nada pendente; concluído não fica em development/) | `FEITO` |
+| `planning-mutability.md` | **movido p/ `docs/decisions/planning-mutability.md` 10/09** (DD-02/SEM037/SEM038 aplicados, #42 fechada) | `FEITO` |
 | `planning-finally-return.md` | **movido p/ `docs/development/future/` 10/09** (PROPOSED — bug 45, zero código, decisão da mantenedora pendente) | `PLANEJADO` |
 | `planning-stdlib-time-design.md` | **movido p/ `docs/development/future/` 11/09** (DD-STDLIB-02 PROPOSED — zero código em andamento; sem decisão da mantenedora não é trabalho atual) | `PLANEJADO (future)` |
 | `planning-stdlib-array-returns.md` | **movido p/ `docs/development/future/` 11/09** (DD-STDLIB-01 PROPOSED — zero código; trava de dispatch Array/objeto) | `PLANEJADO (future)` |
@@ -78,18 +78,18 @@ Estes **não** foram movidos — são prova ou referência estável:
 |---|---|
 | `docs/status.md` | gate da suíte (910 testes) + build — fonte de verdade do loop autônomo |
 | `docs/backend-parity.md` | matriz JVM×Native×JS — referência de paridade (gaps com código, mas matriz é estável) |
-| `docs/architecture.md` | ADR multi-target (atualizado 06/09, SG-E1 corrigido) |
-| `docs/compiler-architecture.md` | pipeline real frontend→IR→backends (fonte atual) |
-| `docs/security.md` | auditoria v1 + matriz (G9 fechado) |
-| `docs/stdlib.md` + `docs/stdlib/*.md` | stdlib estável (kof.*) |
-| `docs/concurrency.md` | spawn/await/channel/scheduler (CONC003 fechado) |
-| `docs/concurrency-memory-model.md` | SG-020 — spec SC + 5 bordas HB (ADOTADA 09/09, validada 10/09 — KofConcurrency2Test; movida p/ docs/ 11/09: nada pendente) |
-| `docs/observability.md`, `performance.md`, `philosophy.md` | referência estável |
-| `docs/debugging*.md`, `debug-adapter.md` | DAP MVP (Fase 3) — parcial mas tooling base estável |
-| `docs/http.md`, `docs/stdlib-*.md`, `docs/runtime/*` | runtime models (STRING/ARRAY/INHERITANCE completos) |
+| `docs/architecture/architecture.md` | ADR multi-target (atualizado 06/09, SG-E1 corrigido) |
+| `docs/architecture/compiler-architecture.md` | pipeline real frontend→IR→backends (fonte atual) |
+| `docs/stdlib/security.md` | auditoria v1 + matriz (G9 fechado) |
+| `docs/stdlib/stdlib.md` + `docs/stdlib/*.md` | stdlib estável (kof.*) |
+| `docs/language-reference/concurrency.md` | spawn/await/channel/scheduler (CONC003 fechado) |
+| `docs/language-reference/concurrency-memory-model.md` | SG-020 — spec SC + 5 bordas HB (ADOTADA 09/09, validada 10/09 — KofConcurrency2Test; movida p/ docs/ 11/09: nada pendente) |
+| `docs/stdlib/observability.md`, `docs/architecture/performance.md`, `docs/philosophy.md` | referência estável |
+| `docs/debugging/*` (debugging, debugger-architecture, debug-adapter, faces jvm/native/js) | DAP MVP (Fase 3) — parcial mas tooling base estável |
+| `docs/stdlib/http.md`, `docs/stdlib/stdlib-*.md`, `docs/runtime/*` | runtime models (STRING/ARRAY/INHERITANCE completos) |
 | `docs/language-reference/*` | spec extraída do código + probes (parcial mas separada como linguagem≠compilador) |
 | `docs/targets/*`, `docs/tooling/*`, `docs/ui/*`, `docs/distribution/*` | docs por domínio (estáveis) |
-| `docs/releases.md`, `docs/LICENSING.md`, `docs/kof-vs-java.md` | histórico/licença/comparativo |
+| `docs/distribution/releases.md`, `docs/distribution/LICENSING.md`, `docs/comparison/*` (kof-vs-java, KOF_VS_SPRING) | histórico/licença/comparativo |
 
 > **Critério de aceite seletivo:** um doc foi para `development/` **se** (a) seu título/contéudo declara `PLANNED`/`NOT STARTED`/`PARTIAL`/`EM CURSO`/`EM DESENVOLVIMENTO`/`TODO`/`❌`/`🟡`/`gap` **ou** (b) ele é um **plano/roadmap/audit** cujo propósito é listar o que falta (não o que funciona). Docs que apenas *mencionam* gaps mas cujo corpo é referência estável (ex.: `backend-parity.md` lista gaps mas a matriz é a referência oficial) ficaram em `docs/`.
 

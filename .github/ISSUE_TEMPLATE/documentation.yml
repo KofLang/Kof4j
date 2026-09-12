@@ -7,7 +7,7 @@ body:
     id: location
     attributes:
       label: Affected page or file
-      description: URL or path in the repo (e.g. docs/compiler-architecture.md).
+      description: URL or path in the repo (e.g. docs/architecture/compiler-architecture.md).
     validations:
       required: true
 
