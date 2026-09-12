@@ -4243,7 +4243,7 @@ statement-switch na mesma taxa). Reprodução no próprio teste (kof-cli).
   CHECKLIST obrigatório da lane Native.
 
 
-### 139. JS: `<call-nullable> == null` como operando DIRETO de comparação → COMP002 "expression stack underflow" (JVM/Native/Script aceitam) — ⏳ ABERTO (achado 12/09 na unidade do §125; pré-existente ao §125, medido no HEAD sem as edições)
+### 139. JS: `<call-nullable> == null` como operando DIRETO de comparação → COMP002 "expression stack underflow" (JVM/Native/Script aceitam) — ✅ CORRIGIDO 12/09 (`39da8416`, unidade do §125 — doc sincronizada 12/09, achado na triagem pós-§139)
 
 - **Menor repro (medido 12/09):** `main() { println(mapOf("a",1).get("zz")
   == null) }` → JS: `COMP002: Internal compiler error: KofJS: expression
@@ -4270,4 +4270,13 @@ statement-switch na mesma taxa). Reprodução no próprio teste (kof-cli).
   discard), não encerrar o fragmento — ou o lowering de `==`-com-null não
   emitir `KofPop` para o JS (materializar em temp). Unidade pequena,
   multi-arquivo-por-alvo (só JS), sem decisão de contrato. Sem dono.
+- **✅ CORRIGIDO 12/09 (`39da8416`, unidade do §125) — exatamente a rota
+  "parser consome o POP":** `JsExpressionParser.parseExpressionFragment` trata
+  `KofPop`/`KofPop2` como operação (não mais como FIM de fragmento): popa o
+  topo e, sendo expressão com efeito colateral (`JsCall`/`JsSequence`/`JsAwait`
+  ou binário contendo call), move p/ o `preambleExprs` (o valor é avaliado e
+  descartado — como no statement); só `KofPop` com pilha VAZIA continua
+  encerrando o fragmento. A célula `nullableprint` da matriz (sem exclusões,
+  4 targets) trava os dois repros (`ni() == null`, `mapOf("a",1).get("zz")
+  == null` → `false`); `ConformanceMatrixTest` 11/11 medido 12/09.
 - **Prioridade:** baixa (workaround: slot `val v = ...; v == null`).
