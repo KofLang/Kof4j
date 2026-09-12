@@ -57,7 +57,7 @@
 | Arquivo | Por que está aqui | Estado |
 |---|---|---|
  | `specification-gaps.md` | 23 entradas (SG-001–020 + E1–E3) — SG-001/007 resolvidos; demais ABERTOS (a maioria decisão de design, regra 6) | `ABERTO` (~21 gaps) |
- | `known-bugs.md` | fila viva: abertos atacáveis = §45 (finally+return, lowerers) + §104b (Object.equals/record-em-coleção + box primitivo no asm, Native) + §107 (println coleção → lixo Native) + §108 (bool-em-lista Script); congelados/regra 6 = §94/§96/§98/§101/§106 (json.encode Map); corrigidos 08–11/09: 1–8/10–17/19–20/26 + 39/44/46/48/50/59/62–64/96–105 + §104c (JS) + §107-JS + §109–§112 (paridade sweep 11/09) + MATH001/TIME002 | `ABERTO` (fila §45/§104b/§107/§108) |
+ | `known-bugs.md` | fila viva: abertos atacáveis = §45 (finally+return, lowerers) + §104b-ii (Object.equals/record-em-coleção + storage-box de record no asm, Native); 🟡 PARCIAIS-honestos = §107 (println coleção: face escalar ✅ CORRIGIDA 12/09 nos 3 nativos — `f3b3821c`+cross B39, golden JVM byte-idêntico; restam record/aninhado=`?` e FP-cross=FLT001, ambos recusa visível e ambos pendurados no §104b-ii) ; congelados/regra 6 = §94/§96/§98/§101/§106 (json.encode Map); corrigidos 08–12/09: 1–8/10–17/19–20/26 + 39/44/46/48/50/59/62–64/96–105 + §104c (JS) + §107-JS + §107-escalar (Native x86+riscv+aarch) + §108 + §109–§112 (paridade sweep 11/09) + §138 + MATH001/TIME002 | `ABERTO` (fila §45/§104b-ii; §107/§108/§138 FECHADOS 11–12/09) |
 | `security-plan.md` | 18 camadas: A ✅ mas B/C/D com ❌ (cookies, middleware, OAuth2, TLS cert próprio) | `PARTIAL` |
 
 ### 5. Native Multiarch

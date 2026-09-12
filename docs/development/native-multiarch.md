@@ -1,6 +1,40 @@
 # Kof Native — Multi-Arch (RISC-V 64 e ARM64/AArch64)
 
-> **Status:** `EM DESENVOLVIMENTO (parcial)` — **riscv64 + aarch64 com core completo (03/09)**: classes/arrays/List/strings/instanceof/switch/try-catch/FP/recursão em asm puro nos dois; paridade avançada pendente.
+> **🔄 RE-AUDITORIA 12/09 (medido sob qemu REAL neste host — NÃO memória):**
+> os cabeçalhos 03/09 abaixo estão DESATUALIZADOS e este bloco é a fonte do
+> estado REAL (regra AGENTS "auditar doc contra o código/testes, não contra a
+> memória"; estado-4 "doc contradiz o código" corrigido). As 13 faces "core"
+> de 03/09 são hoje ~30 testes cross (`NativeRiscv64E2ETest` 39/39 +
+> `NativeAarch64E2ETest` 39/39, **executados**, 0 skip neste host). **FECHADO
+> e EXECUTANDO sob qemu (byte-idêntico ao JVM medido), para além do "core":**
+> Map/Set, `println(<coleção>)` (§107 — x86 `f3b3821c` + cross B39 12/09),
+> higher-order `map/filter/reduce` (probe 12/09: `[2,4,6]`/`[2,3]` idêntico
+> JVM), HTTP client (`riscv64HttpGetPostStatus`), `kof.net`, JSON
+> encode/decode int/list/string, spawn/await (`clone`+`futex`), `time` ISO
+> (add/diff), `math` Double (MATH001), `random`, `uuid`, multi-dim array
+> (§113), busca String UTF-16 (§43/§102/§111). **ABERTO — recusa HONESTA em
+> compile-time (NUNCA binário mudo; regra R6 — o stub "exit 0 sem efeito" de
+> 03/09 já NÃO descreve mais o estado, ops desconhecidos dão código de gap):**
+> `kof.db` → **DB001** (`KofDbE2ETest` prova `assertFalse(success)` + diags
+> DB001 nos 6 alvos), `kof.security` crypto-heavy → **SECN000**, os 6
+> construtos de concorrência de mais alta ordem (supervisor/`selectAny`
+> multi/cancel cross …) → **CONC001** (`spawn`/`await`/`sleep`/`interval`
+> VERDES no cross — o gate #91 não os toca), UI (`kof.ui`) **sem port cross
+> algum** (nenhum teste riscv/aarch), `json.decode<List<Record>>` → **JSN004**
+> (asm puro não tem reflection p/ materializar record). **Consequência honesta
+> HOJE:** programa com coleção/HTTP/net/JSON-escalar/spawn/time/math **roda de
+> verdade** no riscv/aarch (a frase 03/09 "não executa a lógica — sai 0 sem
+> efeito" está SUPERADA); o que ainda não roda (DB/segurança/UI/record-decode)
+> é diagnosticado com código de gap em compilação, não silenciosamente.
+> **Gap real `NATIVE002` que sobra:** (1) GC mark-sweep cross (riscv é
+> bump-pointer sem coletor — vazamento em heap longo, não-crash); (2) as
+> recusas DB001/SECN000/CONC001/JSN004 acima; (3) FP-coleção no cross
+> (FLT001 em compilação §107); (4) `backend-parity.md` colunas por-arch
+> ainda por separar; (5) CI cross não existe (toolchain host-dependente).
+> Este doc continua em `development/` (NATIVE002 não fecha enquanto restam
+> (1)–(5)); quando (1)–(5) zerarem → mover para `docs/`.
+>
+> **Status:** `EM DESENVOLVIMENTO (parcial)` — **riscv64 + aarch64 com core completo (03/09)**: classes/arrays/List/strings/instanceof/switch/try-catch/FP/recursão em asm puro nos dois; paridade avançada pendente *(ver re-auditoria 12/09 acima — muito do que estava "pendente" já roda sob qemu; o que falta tem código de gap honesto)*.
 > **Versão:** 0.2.6-beta · **Data:** 2026-09-03
 > **Gap:** `NATIVE002` (riscv64 core ✅ 02/09; aarch64 core ✅ 03/09 via tradução riscv→aarch64; paridade total x86 — JSON/DB/HTTP/concorrência/UI/net — pendente nos dois).
 > **Progresso 03/09:** toolchain cruzada + qemu + **codegen riscv64 + aarch64** (stack machine,
