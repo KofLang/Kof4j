@@ -2922,7 +2922,7 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   side-effecting em Kof — sem short-circuit de efeitos colaterais). Mesma
   vizinhança do bug 79 (KofPop width-blind).
 
-### 113. Native: `new Int[a][b]` não aloca NADA (op IR sumido) → SIGSEGV em `m[0][0]`/`m.length` — ✅ CORRIGIDO 11/09 (x86; faces riscv/aarch port p/ sessão c/ toolchain) [renumerado da fila pós-merge]
+### 113. Native: `new Int[a][b]` não aloca NADA (op IR sumido) → SIGSEGV em `m[0][0]`/`m.length` — ✅ CORRIGIDO 11/09 (x86 `97d54a60`; faces riscv/aarch ✅ fatia B37 + roteio cross, golden JVM sob qemu — 5/5 targets) [renumerado da fila pós-merge]
 
 - **Menor repro (medido 11/09):** `main() { var m = new Int[2][2]; println(m.length) }`
   → JVM `2`, Script `2`, **Native exit=139 / saída vazia**. Idem
