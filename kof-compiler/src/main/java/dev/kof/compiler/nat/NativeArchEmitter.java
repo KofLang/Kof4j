@@ -12,6 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /** F3: emissão de arquivos .s riscv64/aarch64 (emitRiscv/emitAarch64). */
 final class NativeArchEmitter {
@@ -115,7 +116,9 @@ final class NativeArchEmitter {
         sb.append("    li a0, 0\n");
         sb.append("    li a7, 94\n");
         sb.append("    ecall\n");
+        int rtStart = sb.length();
         sb.append(NativeRiscvAsm.RISCV_RUNTIME_ASM).append(NativeRiscvAsm.RISCV_STRN002_ASM).append(NativeRiscvAsm.RISCV_RUNTIME_ASM_B).append(NativeRiscvAsm.RISCV_MAPSET_ASM);
+        int rtEnd = sb.length();
 
         // NATIVE002-stdlib: http.get/post/status riscv64 (asm puro, syscalls
         // asm-generic — mesmos números do aarch64; aarch64 herda via tradutor).
@@ -140,7 +143,7 @@ final class NativeArchEmitter {
         Path asmFile = outputDir.resolve(className + ".s");
         Path binFile = outputDir.resolve(className);
         Files.createDirectories(asmFile.getParent());
-        Files.writeString(asmFile, sb.toString());
+        Files.writeString(asmFile, pruneRiscvRuntime(sb, rtStart, rtEnd, "riscv64"));
         System.err.println("NativeBackend: generated riscv64 " + asmFile);
 
         try {
@@ -243,7 +246,9 @@ final class NativeArchEmitter {
         riscvSb.append("    li a0, 0\n");
         riscvSb.append("    li a7, 93\n");
         riscvSb.append("    ecall\n");
+        int rtStart = riscvSb.length();
         riscvSb.append(NativeRiscvAsm.RISCV_RUNTIME_ASM).append(NativeRiscvAsm.RISCV_STRN002_ASM).append(NativeRiscvAsm.RISCV_RUNTIME_ASM_B).append(NativeRiscvAsm.RISCV_MAPSET_ASM);
+        int rtEnd = riscvSb.length();
 
         // NATIVE002-stdlib: http riscv64 → aarch64 (traduzido). Mesma detecção
         // de uso do emitRiscv; o aarch64 herda linha-a-linha do riscv64.
@@ -264,9 +269,10 @@ final class NativeArchEmitter {
         if (usesHttpA) nb.emitRiscvHttp(riscvSb);
         if (usesSpawnA) nb.emitRiscvSpawn(riscvSb);
 
-        // traduz linha-a-linha
+        // traduz linha-a-linha (runtime já podado — a poda no riscv vale p/ os 2)
+        String prunedRiscv = pruneRiscvRuntime(riscvSb, rtStart, rtEnd, "aarch64");
         StringBuilder sb = new StringBuilder();
-        for (String line : riscvSb.toString().split("\n", -1)) {
+        for (String line : prunedRiscv.split("\n", -1)) {
             List<String> tr = NativeAarch64Translator.translateRiscvToAarch64(line);
             for (String t : tr) sb.append(t).append("\n");
         }
@@ -287,6 +293,46 @@ final class NativeArchEmitter {
             System.err.println("NativeBackend: aarch64 toolchain ausente (NATIVE002), keeping asm: " + e.getMessage());
         }
         // as/ld FALHOU → propaga como erro de compilação (R6).
+    }
+
+    /** S-4.2 (issue #97, T1a.3): poda do runtime riscv64/aarch64 por
+     *  alcançabilidade — o port riscv da S-3 x86. O texto do PROGRAMA (head
+     *  .data/tabelas + métodos + _start + tail http/spawn, tudo fora de
+     *  [rtStart,rtEnd)) é a FONTE DE SEEDS, varrido por `kof_*`/`.L*` raw
+     *  (mesma regra da S-2.5/S-3: call sites reais sempre casam o regex).
+     *  keep = piso obrigatório (print/panic/alloc) ∪ fecho UNIFICADO kof∪.L
+     *  (medido: 33 arestas .L cross-peça no riscv — o fecho kof-only é
+     *  INSEGURO aqui também). A concatenação riscv NÃO tem préâmbulo .text
+     *  global: cada peça abre a própria seção (Rt0 .text, B4 .data/.bss,
+     *  B5+ .text), então o tail — emitido DEPOIS por http/spawn via nb.*,
+     *  já abre a sua; só o bloco mantido precisa fechar em .text para o
+     *  append seguinte não herdar .data/.bss de uma peça podada no fim.
+     *  keep == todas as peças → texto BYTE-IDÊNTICO ao de hoje (fallback
+     *  pré-S-4, zero regressão). Mapa falho → runtime COMPLETO + stderr
+     *  (R6: nunca link quebrado silencioso). aarch64: o chamador poda o
+     *  riscvSb ANTES do tradutor — aarch herda a poda linha-a-linha. */
+    static String pruneRiscvRuntime(StringBuilder sb, int rtStart, int rtEnd, String arch) {
+        String all = sb.toString();
+        try {
+            String programText = all.substring(0, rtStart) + all.substring(rtEnd);
+            java.util.Set<Integer> keep = RiscvSlices.keepForProgramText(programText);
+            java.util.List<RiscvSlices.Piece> pieces = RiscvSlices.pieces();
+            if (keep.size() >= pieces.size()) return all;
+            String subset = RiscvSlices.renderSubset(keep);
+            StringBuilder out = new StringBuilder(all.substring(0, rtStart));
+            out.append(subset);
+            if (!subset.endsWith("\n")) out.append('\n');
+            out.append(".section .text\n");
+            out.append(all.substring(rtEnd));
+            System.err.println("NativeBackend: " + arch + " runtime prune " + keep.size() + "/"
+                    + pieces.size() + " peças mantidas (" + (all.length() - out.length())
+                    + " bytes podados)");
+            return out.toString();
+        } catch (RuntimeException e) {
+            System.err.println("NativeBackend: " + arch + " runtime prune DESABILITADO (" + e
+                    + ") — emitindo runtime completo (fallback seguro).");
+            return all;
+        }
     }
 
 }

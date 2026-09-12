@@ -36,6 +36,8 @@
 | `roadmap-audit.md` | matriz 06/09: 13 itens — 5× `PARTIAL`, 4× `NOT STARTED` | `PARTIAL` |
 | `roadmap-gap-2026-09-03.md` | gap report NATIVE002 + discrepâncias | `PARTIAL` |
 | `ecosystem-coverage.md` | matriz G1–G12: muitos `PARTIAL`/`PLANNED` (events, messaging, OAuth2, batch, AI) | `PARTIAL` |
+| `conformance-matrix.md` | matriz Feature×target (JVM/Native/Script/JS) com exclusões por gap — a célula `collprint` ainda exclui native (record/aninhado = §107/§104b-ii); doc-viva, atualizada a cada gap de paridade | `PARCIAL` (matriz é o registro, não o backlog) |
+| `KOFUI-AUDIT.md` | matriz de gaps `UI00x` do kof.ui — UI001-Native no-op silencioso ABERTO (face R6: kof.ui no Native roda sem diagnóstico); demais UI002–009 ✅/decisão | `ABERTO` (UI001-Native) |
 | `docs/history/actual-state.md` | **movido p/ docs/history/ 12/09** — snapshot histórico 0.2.6-beta (registro, não backlog) | `HISTÓRICO` |
 | `docs/history/language-state.md` | **movido p/ docs/history/ 12/09** — snapshot histórico 02/09 (SG-E2; registro, não backlog) | `HISTÓRICO` |
 

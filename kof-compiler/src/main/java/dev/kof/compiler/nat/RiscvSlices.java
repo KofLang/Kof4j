@@ -49,12 +49,22 @@ public final class RiscvSlices {
                         String text, Set<String> provides, Set<String> needs,
                         Set<String> localProvides, Set<String> localNeeds) {}
 
-    private static final Pattern GLOBL_KOF =
-            Pattern.compile("(?m)^\\s*\\.globl\\s+(kof_\\w+)\\b");
-    private static final Pattern LABEL_KOF =
-            Pattern.compile("(?m)^\\s*(kof_\\w+):");
-    private static final Pattern KOF_REF =
-            Pattern.compile("(?<![\\w.])kof_\\w+");
+    /** S-4.2: o runtime riscv define ALSO símbolos de método sem prefixo kof_
+     *  (String_compareTo/String_hashCode/String_equals, kdv_epoch/kdv_valid,
+     *  _kof_heap/_kof_strings_joinWords) chamados pelo lowering do programa E
+     *  entre peças. O modelo kof-only da S-4.1 ficou CEGO a eles: a poda
+     *  removeu a peça-dona (undefined reference no ld — 4 testes riscv + 4
+     *  aarch pegos na prova). GLOBL_ANY/LABEL_ANY capturam o vocabulário
+     *  completo; IDENT_REF casa tokens do texto e o fecho/seed só aceita um
+     *  token não-kof se ele está no vocabulário (super-inclusão é segura:
+     *  falso-positivo em string-literal do usuário só mantém peça extra;
+     *  falso-negativo de call site real é impossível). */
+    private static final Pattern GLOBL_ANY =
+            Pattern.compile("(?m)^\\s*\\.globl\\s+([A-Za-z_]\\w*)");
+    private static final Pattern LABEL_ANY =
+            Pattern.compile("(?m)^\\s*([A-Za-z_]\\w*):");
+    private static final Pattern IDENT_REF =
+            Pattern.compile("(?<![\\w.])([A-Za-z_]\\w*)");
     private static final Pattern LOCAL_DEF =
             Pattern.compile("(?m)^\\s*(\\.L\\w+):");
     private static final Pattern LOCAL_REF =
@@ -101,11 +111,60 @@ public final class RiscvSlices {
         return sb.toString();
     }
 
-    /** Só as peças em {@code keep}, na mesma ordem (S-4.2). */
-    public static String renderSubset(Set<Integer> keep) {
-        StringBuilder sb = new StringBuilder();
+    private static final Pattern SECTION_DIR =
+            Pattern.compile("^\\.section\\s+(\\S+)|^\\.(text|data|bss|rodata)\\b");
+
+    private static String sectionSwitch(String line) {
+        String t = line.trim();
+        if (t.startsWith("#")) return null;
+        Matcher m = SECTION_DIR.matcher(t);
+        if (!m.find()) return null;
+        return m.group(1) != null ? m.group(1) : "." + m.group(2);
+    }
+
+    /** Última seção deixada pelo texto da peça (ou a entrada, se não troca). */
+    private static String exitSection(Piece p, String entry) {
+        String cur = entry;
+        for (String line : p.text().split("\n", -1)) {
+            String s = sectionSwitch(line);
+            if (s != null) cur = s;
+        }
+        return cur;
+    }
+
+    /** Seção corrente NA ENTRADA de cada peça, derivada do passeio completo
+     *  (o {@code NativeArchEmitter} abre {@code .section .text} antes do
+     *  runtime — linhas 91/225; as peças trocam de seção sozinhas e as
+     *  "carry" ({@code .globl} sem {@code .section}) dependem da anterior).
+     *  S-4.2 usa isto p/ restaurar a seção quando a poda quebra o
+     *  carry-over; no keep-all a seção corrente do subconjunto SEMPRE bate
+     *  com a entrada → nenhuma diretiva extra → byte-idêntico. */
+    public static Map<Integer, String> entrySections() {
+        Map<Integer, String> m = new LinkedHashMap<>();
+        String cur = ".text";
         for (Piece p : pieces()) {
-            if (keep.contains(p.index())) sb.append(p.text());
+            m.put(p.index(), cur);
+            cur = exitSection(p, cur);
+        }
+        return m;
+    }
+
+    /** Só as peças em {@code keep}, na mesma ordem (S-4.2). Quando a poda
+     *  pula uma peça-dona de seção e a próxima keep é "carry", restaura a
+     *  seção de entrada explicitamente (keep-all: zero diretivas extras). */
+    public static String renderSubset(Set<Integer> keep) {
+        Map<Integer, String> entry = entrySections();
+        StringBuilder sb = new StringBuilder();
+        String cur = ".text";
+        for (Piece p : pieces()) {
+            if (!keep.contains(p.index())) continue;
+            String want = entry.get(p.index());
+            if (!want.equals(cur)) {
+                sb.append(".section ").append(want).append("\n");
+                cur = want;
+            }
+            sb.append(p.text());
+            cur = exitSection(p, cur);
         }
         return sb.toString();
     }
@@ -173,10 +232,18 @@ public final class RiscvSlices {
                 Set.of());
     }
 
+    /** S-4.2: seeds do programa = todo token que é símbolo DO RUNTIME
+     *  (globalSymbols) — não só `kof_*`: o lowering chama String_compareTo,
+     *  String_hashCode, kdv_* etc. O filtro por vocabulário fecha o ruído de
+     *  identificar qualquer palavra (registradores, mnemônicos, literais). */
     public static Set<String> textKofSeeds(String programText) {
+        Map<String, Integer> gp = providerIndex();
         Set<String> s = new LinkedHashSet<>();
-        Matcher m = KOF_REF.matcher(ASM_COMMENT.matcher(programText).replaceAll(""));
-        while (m.find()) s.add(m.group());
+        Matcher m = IDENT_REF.matcher(ASM_COMMENT.matcher(programText).replaceAll(""));
+        while (m.find()) {
+            String tok = m.group(1);
+            if (gp.containsKey(tok)) s.add(tok);
+        }
         s.removeAll(programSideSymbols());
         return s;
     }
@@ -203,7 +270,13 @@ public final class RiscvSlices {
 
     private static List<Piece> build() {
         List<String[]> order = readOrderFromSource();
-        List<Piece> out = new ArrayList<>();
+        // passada 1: texto + vocabulário GLOBAL (globls/labels definidos em
+        // qualquer peça) e LOCAL — necessário antes de calcular needs, que é
+        // por interseção com o vocabulário (S-4.2).
+        List<String> texts = new ArrayList<>();
+        List<String> codes = new ArrayList<>();
+        Set<String> globalSymbols = new LinkedHashSet<>();
+        Set<String> allLocalProvides = new LinkedHashSet<>();
         for (int i = 0; i < order.size(); i++) {
             String cls = "dev.kof.compiler.nat.NativeRiscvAsm" + order.get(i)[0];
             String fld = order.get(i)[1];
@@ -218,16 +291,38 @@ public final class RiscvSlices {
                         + " não resolvida por reflexão (mudou visibilidade/nome?)", e);
             }
             String code = ASM_COMMENT.matcher(text).replaceAll("");
+            texts.add(text);
+            codes.add(code);
+            Matcher g = GLOBL_ANY.matcher(code);
+            while (g.find()) globalSymbols.add(g.group(1));
+            Matcher lb = LABEL_ANY.matcher(code);
+            while (lb.find()) globalSymbols.add(lb.group(1));
+            Matcher lg = LOCAL_DEF.matcher(code);
+            while (lg.find()) allLocalProvides.add(lg.group(1));
+        }
+        globalSymbols.removeAll(programSideSymbols()); // definidos pelo programa, não pelo runtime
+        allLocalProvides.removeAll(programSideLocals());
+        // passada 2: provides/needs por interseção com o vocabulário.
+        List<Piece> out = new ArrayList<>();
+        for (int i = 0; i < order.size(); i++) {
+            String cls = "dev.kof.compiler.nat.NativeRiscvAsm" + order.get(i)[0];
+            String fld = order.get(i)[1];
+            String text = texts.get(i);
+            String code = codes.get(i);
             Set<String> provides = new LinkedHashSet<>();
-            Matcher g = GLOBL_KOF.matcher(code);
-            while (g.find()) provides.add(g.group(1));
-            Matcher lb = LABEL_KOF.matcher(code);
-            while (lb.find()) provides.add(lb.group(1));
+            Matcher g = GLOBL_ANY.matcher(code);
+            while (g.find()) {
+                if (globalSymbols.contains(g.group(1))) provides.add(g.group(1));
+            }
+            Matcher lb = LABEL_ANY.matcher(code);
+            while (lb.find()) {
+                if (globalSymbols.contains(lb.group(1))) provides.add(lb.group(1));
+            }
             Set<String> needs = new LinkedHashSet<>();
-            Matcher r = KOF_REF.matcher(code);
+            Matcher r = IDENT_REF.matcher(code);
             while (r.find()) {
-                String sym = r.group();
-                if (!provides.contains(sym)) needs.add(sym);
+                String sym = r.group(1);
+                if (globalSymbols.contains(sym) && !provides.contains(sym)) needs.add(sym);
             }
             Set<String> localProvides = new LinkedHashSet<>();
             Matcher lg = LOCAL_DEF.matcher(code);
@@ -236,7 +331,7 @@ public final class RiscvSlices {
             Matcher lr = LOCAL_REF.matcher(code);
             while (lr.find()) {
                 String l = lr.group(1);
-                if (!localProvides.contains(l)) localNeeds.add(l);
+                if (allLocalProvides.contains(l) && !localProvides.contains(l)) localNeeds.add(l);
             }
             out.add(new Piece(i, cls, fld, text,
                     Collections.unmodifiableSet(provides),

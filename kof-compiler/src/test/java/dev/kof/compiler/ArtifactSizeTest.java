@@ -39,8 +39,8 @@ class ArtifactSizeTest {
     // Runtime JS integral copiado no hello (kof-runtime.mjs + io).
     private static final long HELLO_JS_BYTES = 177_412L;
     // Hello riscv64 (cross — só medido onde há toolchain).
-    private static final long HELLO_RV_BYTES = 144_000L;
-    private static final int HELLO_RV_SYMS = 258;
+    private static final long HELLO_RV_BYTES = 136_792L;
+    private static final int HELLO_RV_SYMS = 103;
 
     private static final double TOL = 0.05; // gate de inchaço >5%
 
@@ -121,6 +121,36 @@ class ArtifactSizeTest {
         return ArtifactSize.elf(out.resolve("Default/Main"));
     }
 
+    /** T1a.4 (issue #97 S-4.2): família-ausência NO RISCV (port do gate x86).
+     *  crypto sha256 NÃO existe no runtime riscv (0 símbolos medidos), então as
+     *  famílias reais aqui são json/mq/vk/random. Programa só-json puxa a
+     *  família json (anti-vácuo: nome real que entra) e as outras ficam PODADAS.
+     *  Mesmo mecanismo da S-3: seed por TEXTO → o fecho traz só json ∪ piso. */
+    @Test
+    void riscvFamilyAbsenceAfterPrune(@TempDir Path tmp) throws IOException {
+        assumeCross("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64");
+        ArtifactSize.ElfSizes jsn = elfOfTarget(tmp, "rvjsn", Target.NATIVE_RISCV64,
+                "main() {\n    println(json.encode(listOf(1, 2, 3)))\n}\n");
+        assertTrue(jsn.definedKof().contains("kof_json_encode_int"),
+                "json.encode deve puxar kof_json_encode_int no riscv; syms=" + jsn.definedKof());
+        assertTrue(jsn.definedKof().stream().noneMatch(s -> s.startsWith("kof_mq")),
+                "mq deve estar PODADO num programa só-json no riscv: " + jsn.definedKof());
+        assertTrue(jsn.definedKof().stream().noneMatch(s -> s.startsWith("kof_vk")),
+                "vk deve estar PODADO num programa só-json no riscv: " + jsn.definedKof());
+        assertTrue(jsn.definedKof().stream().noneMatch(s -> s.startsWith("kof_random")),
+                "random deve estar PODADO num programa só-json no riscv: " + jsn.definedKof());
+    }
+
+    private ArtifactSize.ElfSizes elfOfTarget(Path tmp, String tag, Target t, String source) throws IOException {
+        Path src = tmp.resolve(tag + "/Main.kf");
+        Files.createDirectories(src.getParent());
+        Files.writeString(src, source);
+        Path out = tmp.resolve("out-" + tag);
+        CompilationResult r = driver.compile(src, out, t);
+        assertTrue(r.success(), tag + " deve compilar p/ " + t + ": " + r.diagnostics().getDiagnostics());
+        return ArtifactSize.elf(out.resolve("Default/Main"));
+    }
+
     @Test
     void helloJsRuntimeSizeWithinBaseline(@TempDir Path tmp) throws IOException {
         Path src = tmp.resolve("Main.kf");
@@ -142,6 +172,11 @@ class ArtifactSizeTest {
         // riscv não tem GC mark-sweep: o inchaço é .data (fatias) + .bss (heap).
         assertTrue(e.sectionBytes(".bss") > 100_000,
                 "riscv reserva heap/statik por fatia no .bss (~260KB) — bss=" + e.sectionBytes(".bss"));
+        // Pós-S-4.2: a poda derrubou 258→103 syms. Os bytes só caem 144k→137k
+        // porque o heap bump em .bss é FIXO sem mark-sweep — a queda real do
+        // riscv está em SÍMBOLOS, não em bytes (≠ x86, onde o gate trava os
+        // dois). O baseline unilateral abaixo é o guard: re-emitir runtime
+        // inteiro leva syms p/ ~258 > 103*1.05 → estoura.
         assertNoBloat(e.fileBytes(), e.kofSymbols(), HELLO_RV_BYTES, HELLO_RV_SYMS, "hello riscv64");
     }
 

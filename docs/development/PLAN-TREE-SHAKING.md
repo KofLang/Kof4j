@@ -1,6 +1,6 @@
 # PLAN-TREE-SHAKING.md — stdlib por alcançabilidade: o compilador inclui só o que o programa usa
 
-**Dono:** lane PLATAFORMA (frente designada pela mantenedora 11/09; execução na lane development) · **Status:** EM CURSO — **S-1 (T0) ✅ FEITA 12/09** (`ArtifactSize` parser ELF64 puro-Java + `ArtifactSizeTest` com gate anti-inchaço 5% travado nos números medidos + `kof build --print-sizes`; movido de `future/` p/ cá pela regra dos três estados — S-7 manda, "quando S-1 começar") · **Criado:** 12/09 · **Issue:** #97
+**Dono:** lane PLATAFORMA (frente designada pela mantenedora 11/09; execução na lane development) · **Status:** EM CURSO — **S-1 (T0) ✅ 12/09 · S-2/S-2.5 ✅ 12/09 · S-3 (T1a.2, poda x86) ✅ 12/09 · S-4 (T1a.3, poda riscv64 + aarch herda) ✅ 12/09** (`RiscvSlices` 48 peças + `pruneRiscvRuntime` nos 2 write-points; hello riscv 258→103 syms; riscv/aarch 39/39 sob qemu; family-absence cross travado) · restam S-5 (T1b `--gc-sections`) / S-6 (T2 JS) / S-7 (consolidar doc p/ `docs/`) · **Criado:** 12/09 · **Issue:** #97
 
 > **Regra fundamental:** o desenvolvedor declara o que pretende utilizar; o
 > compilador inclui **somente** o que for realmente necessário para executar
@@ -273,8 +273,31 @@ após o aceite dos §T:
  2. **S-2 (T1a.1)** ✅ **FEITA 12/09** — mapa de fatias por **REFLEXÃO derivada do fonte de produção** (implementação da lane livre, §7.1: o mapa não é `const` transcrito à mão — `dev.kof.compiler.nat.RuntimeSlices` lê o corpo de `NativeRuntime.generateRuntimeAssembly` e extrai a ordem das 113 chamadas `RuntimeXxx.emitYyy(sb)`; reordenar/inserir/remover no fonte sem atualizar NADA → o teste de paridade quebra. `provides` = `.globl`/labels `kof_*` (comentários `#` riscados), `needs` = referências externas; símbolos não-fatia modelados: préâmbulo GC + `programSideSymbols()` (`kof_super_table`, emitido pelo Main.s). Prova: `NativeRuntimeSliceRegistryTest` 5/5 — concatenação **byte-idêntica** ao `generateRuntimeAssembly()` de produção (mais forte que "bins idênticos": zero mudança no `.s`), 1 dona por símbolo, needs fechados no mapa, e o número que abre S-3: **fechamento do hello (kof-only) = 6 fatias / 14 de 611 símbolos; o precursor `.L`-aware (12/09) unifica as 119 arestas locais e leva o piso real a 10 fatias / 18 símbolos — provando que o kof-only é inseguro** — os ~600 restantes (crypto/web/mq/vk/security…) são exatamente o que a poda tem de alcançar.
  3. **S-3 (T1a.2)** ✅ **FEITA 12/09** — poda x86 por alcançabilidade, **seed por TEXTO do programa** (a correção da cautela medida: `instanceof`/`checkcast`/array emitem `call kof_*` como texto raw em `NativeMethodEmitter:303`, NÃO via `KofCall` — varrer só a IR perderia seeds reais e quebraria o link). `RuntimeSlices.textKofSeeds/textLocalSeeds/keepForProgramText` + `renderSubset(keep)`; `NativeBackend.pruneRuntime` (marca `rtStart/rtEnd` na região da concatenação; no write do `.s` reconstrói: head + subset na MESMA ordem da S-2 + `.section .text` + tail). keep = `mandatoryRoots()` (piso unificado 10/18, da S-2.5) ∪ fecho `.L`-aware. **Propriedades de segurança:** (a) keep-all → texto ORIGINAL byte-idêntico (fallback = pré-S-3); (b) exceção no mapa → runtime completo + aviso (nunca link quebrado silencioso); (c) seed por texto erra só p/ MAIS (literal de usuário contendo `kof_mq_...` super-inclui — binário maior, link válido); falso-negativo de call site real é impossível; (d) tail (init/DB/HTTP/Web/métodos/start) NUNCA é podado — é o programa, não o runtime. **Números medidos:** hello **13/113 fatias, 627→37 syms, 138.928B→32.520B (−77% binário, −94% símbolos)**; só-crypto 15/113 (traz `kof_sec_sha256*`, ZERO json/mq/vk/random); só-json 20/113 (13 `kof_json_*`, ZERO `kof_sec_sha256`); `coll` 23/113. **Prova:** `NativeE2ETest` 64/64 byte-idêntico COM a poda ligada (rodar > medir: os MESMOS ouros x86 saem dos binários podados) + `ArtifactSizeTest` 4/4 com baseline NOVO travado (unilateral; volta a proteger contra regressão a partir de 32.520B/37; floor virou `<100`) + `nativeFamilyAbsenceAfterPrune` (T1a.4: nomes REAIS do mapa — anti-vácuo: sabotado com poda off FAILA, provado) + riscv/aarch 39/39 intactos (o `emit()` deles retorna antes do sítio x86 — S-4 cuida do cross). Suíte 4-módulos **1569/0** (+2 testes). check_500 sem violador novo (NativeBackend já era violador de base, 621→664: extrair `pruneRuntime` p/ classe da poda fica na fila ≤500).
    - **⚠️ DESCOBERTA 12/09 (medida — muda o desenho da BFS):** o runtime tem **119 referências cruzadas a rótulos LOCAIS `.L*`** entre fatias que só funcionam hoje porque tudo é concatenado num único `.s` (ex.: `emit_alloc`/`emit_gc` — fatias 20/22 — referenciam `.Lkof_alloc_count`/`.Lkof_free_*` DEFINIDOS na fatia `memstats` (62); `string_to_long/double` (5/6) + `json_encode` (14) usam `.Lfmt_float/.Lfmt_double` da fatia 3; `string_base` (39) usa `.Lkof_null_str` da 34; as fatias json-decode 16/17 compartilham `.Ljad_f64_*`). O `needs[]` da S-2 rastreia só `kof_*` (globl) → **uma BFS puramente-kof pode podar a fatia-dona de um `.L` lido por fatia viva → `as` quebra (undefined label). SOLUÇÃO (implementada no próprio S-3, precursor já codado em `RuntimeSlices`): a BFS de alcançabilidade opera no grafo UNIDO kof-needs ∪ local-needs** (`localNeeds()` = `.L` referenciados, `localProvides()` = `.L` definidos por linha; `closureFrom(seeds, includeLocal=true)`) — uma fatia que lê um `.L` doutro depende dele mesmo sem chamar um `kof_` seu. O teste-pilar (S-3) EXIGE: para todo conjunto de sementes IR, o fecho .L-aware é sempre um SUPERCONJUNTO do fecho kof — e um caso real (alloc sem memstats) prova que o kof-only é INSUFICIENTE (ver `NativeRuntimeSliceRegistryTest.localLabelEdgesExistAndKofOnlyClosureIsUnsafe`). Agrupar em super-fatias seria a alternativa, mas perde granularidade — a BFS .L-aware é o caminho.
-4. **S-4 (T1a.3)** idem riscv64 (aarch64 herda pelo tradutor) + golden dos
-   E2E cross existentes (riscv/aarch 34/34) intacto.
+4. **S-4 (T1a.3)** ✅ **FEITA 12/09** (S-4.1 registro `RiscvSlices` + S-4.2 poda
+   riscv64, aarch64 herda pelo tradutor) — o port riscv da S-3: marca `rtStart/rtEnd`
+   na concatenação do runtime (depois de `_start`, antes do tail http/spawn), e no
+   write do `.s` reconstrói head + `RiscvSlices.renderSubset(keep)` + `.section .text`
+   + tail; o aarch poda o `riscvSb` **antes** do tradutor (uma poda → os dois arch).
+   keep = piso print/panic/alloc (7/48) ∪ fecho UNIFICADO kof∪.L (33 arestas
+   cross-peça). **Achado da prova (a lição do port):** o modelo kof-only da S-4.1
+   era CEGO a 7 símbolos de método sem prefixo (`String_compareTo`/`String_hashCode`/
+   `String_equals`, `kdv_epoch`/`kdv_valid`, `_kof_heap`/`_kof_strings_joinWords`)
+   chamados pelo lowering do programa E entre peças → undefined reference no ld
+   (4 testes riscv + 4 aarch pegos na primeira rodada). Generalizado p/ vocabulário
+   completo em 2 passadas (coleta globls/labels de TODAS as peças, depois needs/seed
+   por interseção com o vocabulário — super-inclusão segura, falso-negativo de call
+   site real impossível). Byte-idêntico quando keep-all (fallback pré-S-4).
+   **Números medidos:** hello riscv 258→**103 syms** (−60%); bytes só caem
+   144.000→136.792 (−5%) porque o heap bump em `.bss` (~260KB) é FIXO sem GC
+   mark-sweep — a queda real do riscv é em SÍMBOLOS (≠ x86, onde caiu os dois).
+   **Prova:** `NativeRiscv64E2ETest`+`NativeAarch64E2ETest` 39/39+39/39 sob qemu
+   REAL com a poda ligada (os MESMOS ouros cross saem dos binários podados) +
+   `NativeRiscvRuntimeSliceRegistryTest` 6/6 (paridade byte-idêntica do modelo
+   ampliado; piso ≤10) + `ArtifactSizeTest` 5/5 com baseline riscv NOVO travado
+   (136792B/103, unilateral) + `riscvFamilyAbsenceAfterPrune` (T1a.4 cross: só-json
+   puxa `kof_json_encode_int` e mq/vk/random ficam PODADOS; SABOTAGEM com poda off
+   → FAIL provado, lista real de ~230 syms). Suíte cross + gate 4/4→5/5 verde.
+   check_500 sem violador novo (NativeArchEmitter 337, RiscvSlices 375 — ambos <500).
 5. **S-5 (T1b)** seções por função + `--gc-sections` + proteção do
    root-scan do GC; gate: suíte cross sob qemu + `ArtifactSizeTest` com
    metas novas (hello x86 ≤ 45 KB — **JÁ BATEU na S-3: 32.520B**; o degrau
