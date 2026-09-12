@@ -121,7 +121,7 @@ credenciais, e DB001 no JS (Native SQLite ✅).
 ## 9. `kof.orm` (resumo)
 
 O ORM da própria linguagem (`entity` na linguagem → DDL + CRUD). Full API,
-backends e testes em `docs/DATABASE_VISION.md`.
+backends e testes em `docs/development/DATABASE_VISION.md`.
 
 ```kof
 entity User {

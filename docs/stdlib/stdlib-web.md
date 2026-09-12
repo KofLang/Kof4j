@@ -303,6 +303,6 @@ HTTP.
 
 ## 8. Referências
 
-- Plano: `docs/plan-spring-independence.md` (Fase 1)
+- Plano: `docs/development/plan-spring-independence.md` (Fase 1)
 - Status: `docs/status.md`
-- Roadmap: `docs/roadmap.md` (Fase 3 — Web Platform)
+- Roadmap: `docs/development/roadmap.md` (Fase 3 — Web Platform)

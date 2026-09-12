@@ -60,7 +60,7 @@ CONC001, JSN00x) — nunca comportamento silenciosamente diferente.
 | `kof.c` | ✅ | `KofCcompiler` C subset (`int` globals, `void` funcs, `if`/`while`/`*(int*)`/`&`) → native x86_64 (5 testes kof-c-compiler, 27/08) |
 | `kof.metrics` | ✅ | `kof bench`/`kof profile` (harness + baseline, 37 benchmarks, `benchmark.yml` threshold 1.20) |
 | `kof.rest` | ⏳ | planejado |
-| `kof.database` | ✅ | `kof.db` (JVM JDBC: H2/MySQL/MariaDB/PostgreSQL; Native SQLite via `.so` direto + MySQL wire protocol WIP — auth scramble SHA-1; JS `DB001`) + `kof.orm` (entity, create/save/saveAll/find/where/count/page/delete/deleteAll/migrate; **coluna tipada em where/count: literal não-campo → `ORM003` em compile-time**; JVM + MongoDB; Native/JS `ORM001`) — ver `docs/DATABASE_VISION.md` |
+| `kof.database` | ✅ | `kof.db` (JVM JDBC: H2/MySQL/MariaDB/PostgreSQL; Native SQLite via `.so` direto + MySQL wire protocol WIP — auth scramble SHA-1; JS `DB001`) + `kof.orm` (entity, create/save/saveAll/find/where/count/page/delete/deleteAll/migrate; **coluna tipada em where/count: literal não-campo → `ORM003` em compile-time**; JVM + MongoDB; Native/JS `ORM001`) — ver `docs/development/DATABASE_VISION.md` |
 | `kof.messaging` | ✅ | `kof.mq` publish/subscribe/queue — **3 targets** (JVM in-memory; Native asm 01/09; JS in-process) — `KofMqE2ETest` 4/4 |
 | `kof.supervisor` | ✅ | Núcleo OTP (issue #83): `supervisor(name).child(id,fabrica,politica)`+`restartLimit`+`escalate`+`start`/`stop`/`stats` — host **puro-Kof** injetado por `import kof.supervisor` (mecanismo android-host). **JVM+Script ✅ 11/09**; NATIVE=OTP001 (§129), JS=OTP002 (§132) bloqueados no compile-time (R6). `KofSupervisorE2ETest` 6/6 |
 | `kof.validation` | ✅ | `validation.required/notBlank/minLength/maxLength/lengthBetween/isEmail/isUrl/matches/isInt/isLong/inRange/min/max` — JVM/Native/JS (`KofValidationTest` 3/3) |
@@ -93,7 +93,7 @@ CONC001, JSN00x) — nunca comportamento silenciosamente diferente.
 # 5. AUDITORIA DO ECOSSISTEMA
 
 A matriz completa de cobertura (inventário, gaps, dependências,
-arquitetura, prioridade e estratégia) vive em **`docs/ecosystem-coverage.md`**
+arquitetura, prioridade e estratégia) vive em **`docs/development/ecosystem-coverage.md`**
 — resultado da auditoria da stdlib contra as capacidades de uma
 plataforma moderna (checklist derivado do ecossistema Spring, usado como
 matriz de capacidades, não como especificação de API).
@@ -123,4 +123,4 @@ Resumo executivo (0.2.6-beta, 31/08):
 
 Histórico fechado: G7 SECN004, G6 `kof.test` estruturado, G3 `kof.config` (JVM+Native), G2 `kof.http` (JVM+JS), G1 `kof.db`/`kof.orm` (SQLite + MySQL scramble), G4 `kof.validation`, G5 `kof.observability`, G8 `kof.time sleep/interval`, G10 security Native, G9 rateLimit/session/apiKey, G12 TLS, 0.2.0 pattern matching + `String?` + `List map/filter/reduce`.
 
-Prioridades e estratégia completas: `docs/ecosystem-coverage.md` §7-§8.
+Prioridades e estratégia completas: `docs/development/ecosystem-coverage.md` §7-§8.
