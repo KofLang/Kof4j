@@ -36,7 +36,7 @@ final class CmdTest {
         CompilerDriver driver = new CompilerDriver();
         int passed = 0;
         int failed = 0;
-        // per-file (docs/ecosystem-coverage.md §3.11): cada .kf é um programa
+        // per-file (docs/development/ecosystem-coverage.md §3.11): cada .kf é um programa
         // independente com seu próprio main() — NUNCA agrupar irmãos num
         // módulo só (PKG002: 2 main()). Cross-file é domínio de kof build.
         for (Path f : files) {

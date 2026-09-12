@@ -284,7 +284,7 @@ class KofScriptTest {
      * semântica do bytecode em superfícies além dos 16 casos do gate.
      *
      * GRUPO B (complementar): casos onde o caminho COMPILADO tem bug
-     * pré-existente registrado em docs/known-bugs.md (VerifyError do
+     * pré-existente registrado em docs/development/known-bugs.md (VerifyError do
      * emitter/lowering) — aqui o interpretador é o oráculo e o teste trava
      * a saída CORRETA dele, documentando o bug do compilado.
      */
@@ -345,7 +345,7 @@ class KofScriptTest {
     /**
      * Grupo B (estrutura pronta p/ regressões): casos onde o caminho
      * COMPILADO tem bug pré-existente (VerifyError do emitter/lowering,
-     * docs/known-bugs.md) e o interpretador é o oráculo — trava a saída
+     * docs/development/known-bugs.md) e o interpretador é o oráculo — trava a saída
      * correta enquanto o compilado espera correção. VAZIO desde 06/09:
      * empty-list (bug 35) e null-eq (bug 36) foram CORRIGIDOS no compilado
      * e promovidos ao grupo A (paridade total).

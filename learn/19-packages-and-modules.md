@@ -68,11 +68,11 @@ kof build src --target=js      # Default.mjs com import C
 > ⚠️ **Native (x86_64) quebra com classe importada de outro pacote** — o
 > mangling do construtor usa o nome simples (`C_init_0`) em vez do internal
 > name (`a_b_C_init_0`) → `undefined reference`. Bug 22 em
-> `docs/known-bugs.md`. Use `--target=jvm`/`js` enquanto isso, ou corrija o
+> `docs/development/known-bugs.md`. Use `--target=jvm`/`js` enquanto isso, ou corrija o
 > `NativeBackend.java:1725`.
 
 > ⚠️ **Nomes iguais em pacotes diferentes são rejeitados** (PKG005) — `pkgA.Data`
-> + `pkgB.Data` não compilam juntos. Bug 21 em `docs/known-bugs.md`.
+> + `pkgB.Data` não compilam juntos. Bug 21 em `docs/development/known-bugs.md`.
 
 ### Import estático (planejado)
 
