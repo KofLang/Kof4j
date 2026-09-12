@@ -63,8 +63,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 
 public class NativeBackend implements Backend {
@@ -331,7 +333,9 @@ public class NativeBackend implements Backend {
             emitMethodTable(sb, clazz);
         }
         sb.append("\n.section .text\n");
+        int rtStart = sb.length();
         sb.append(NativeRuntime.generateRuntimeAssembly());
+        int rtEnd = sb.length();
         RuntimeMemory.emitInitObject(sb);
         // kof.db on the native target: link the DB client library directly
         // (no JDBC driver) — the same direct-.so pattern as kof-webview.
@@ -406,10 +410,49 @@ public class NativeBackend implements Backend {
         Path asmFile = outputDir.resolve(mainClassName + ".s");
         Path binFile = outputDir.resolve(mainClassName);
         Files.createDirectories(asmFile.getParent());
-        Files.writeString(asmFile, sb.toString());
-        try { Files.writeString(java.nio.file.Path.of("/tmp/kof_asm_debug.s"), sb.toString(), java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.TRUNCATE_EXISTING); } catch(Exception ignore){}
+        String fullAsm = pruneRuntime(sb, rtStart, rtEnd);
+        Files.writeString(asmFile, fullAsm);
+        try { Files.writeString(java.nio.file.Path.of("/tmp/kof_asm_debug.s"), fullAsm, java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.TRUNCATE_EXISTING); } catch(Exception ignore){}
         System.err.println("NativeBackend: Generated " + asmFile + " (" + Files.size(asmFile) + " bytes)");
         assemble(asmFile, binFile);
+    }
+
+    /** S-3 (issue #97, T1a.2): poda do runtime x86 por alcançabilidade. O texto
+     *  do PROGRAMA (head+tail, sem a região do runtime que vai [rtStart,rtEnd))
+     *  é a FONTE DE SEEDS — varrido por `kof_*`/`.L*` raw (a correção da S-2.5:
+     *  instanceof/array/cast emitem `call kof_...` como TEXTO, não KofCall). O
+     *  keep = piso obrigatório ∪ fecho UNIFICADO (kof∪.L). Se keep == todas as
+     *  fatias (nada podável, ex.: keep-all / fallback) retorna o texto original
+     *  BYTE-IDÊNTICO (zero risco de regressão). Quando poda, injeta
+     *  `.section .text` após o subset p/ garantir que o tail (emitInitObject/
+     *  DB/HTTP/Web/métodos/emitStart) não caia na última seção de um `.data`.
+     *  SEED POR TEXTO ERRA NO LADO SEGURO: um falso-positivo (literal do usuário
+     *  com o texto `kof_mq_...`) SÓ super-inclui (binário maior, link válido);
+     *  um falso-negativo é impossível p/ call sites reais (`call kof_X` /
+     *  `.quad kof_X` sempre casam o regex) — o pior caso da poda nunca é `.s`
+     *  quebrado, é o runtime-completo de antes. */
+    static String pruneRuntime(StringBuilder sb, int rtStart, int rtEnd) {
+        String all = sb.toString();
+        try {
+            String programText = all.substring(0, rtStart) + all.substring(rtEnd);
+            Set<Integer> keep = RuntimeSlices.keepForProgramText(programText);
+            List<RuntimeSlices.Slice> slices = RuntimeSlices.slices();
+            if (keep.size() >= slices.size()) return all; // nada podável — byte-idêntico
+            StringBuilder out = new StringBuilder(all.substring(0, rtStart));
+            out.append(RuntimeSlices.renderSubset(keep));
+            out.append("            .section .text\n");
+            out.append(all.substring(rtEnd));
+            System.err.println("NativeBackend: runtime prune " + keep.size() + "/"
+                    + slices.size() + " fatias mantidas (" + (all.length() - out.length())
+                    + " bytes podados)");
+            return out.toString();
+        } catch (RuntimeException e) {
+            // R6: nunca podar silenciosamente errado — se o mapa falhar, emite
+            // o runtime COMPLETO (o comportamento pré-S-3). Registra o motivo.
+            System.err.println("NativeBackend: runtime prune DESABILITADO (" + e
+                    + ") — emitindo runtime completo (fallback seguro).");
+            return all;
+        }
     }
 
     void collectStrings(IRClass clazz) {

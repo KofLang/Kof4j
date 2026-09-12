@@ -28,8 +28,12 @@ public final class ArtifactSize {
 
     private ArtifactSize() {}
 
-    /** Resultado da leitura de um binário ELF. */
-    public record ElfSizes(long fileBytes, Map<String, Long> sections, int kofSymbols) {
+    /** Resultado da leitura de um binário ELF. `definedKof` = nomes dos
+     *  símbolos `kof_*` DEFINIDOS (mesmo critério da contagem) — T1a.4: o
+     *  teste "programa que usa X ⇒ família Y ausente" precisa dos NOMBRES,
+     *  não só do total. */
+    public record ElfSizes(long fileBytes, Map<String, Long> sections, int kofSymbols,
+                           java.util.Set<String> definedKof) {
         public long sectionBytes(String name) {
             Long v = sections.get(name);
             return v == null ? 0L : v;
@@ -68,15 +72,16 @@ public final class ArtifactSize {
             }
         }
         int kof = 0;
+        java.util.Set<String> names = new java.util.LinkedHashSet<>();
         if (symtabName != null && symEnt > 0) {
             for (long off = symOff; off + symEnt <= symOff + symSize; off += symEnt) {
                 int stShndx = u16(b, off + 6);
                 if (stShndx == 0) continue; // SHN_UNDEF (import)
                 String nm = cstr(b, (int) (strOffForSym + u32(b, off)));
-                if (nm.startsWith("kof_")) kof++;
+                if (nm.startsWith("kof_")) { kof++; names.add(nm); }
             }
         }
-        return new ElfSizes(b.length, sections, kof);
+        return new ElfSizes(b.length, sections, kof, names);
     }
 
     /** Artefatos JS do build: soma de bytes de todos os *.mjs (o runtime

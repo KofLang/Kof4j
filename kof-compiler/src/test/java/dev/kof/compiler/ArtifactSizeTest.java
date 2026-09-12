@@ -30,9 +30,12 @@ class ArtifactSizeTest {
 
     private final CompilerDriver driver = new CompilerDriver();
 
-    // Baseline MEDIDO neste host (12/09). fileBytes/kofSymbols do hello x86_64.
-    private static final long HELLO_X86_BYTES = 138_928L;
-    private static final int HELLO_X86_SYMS = 627;
+    // Baseline MEDIDO neste host. Pré-S-3 (12/09 manhã): 138.928B/627 syms —
+    // o hello carregava o runtime INTEIRO. Pós-S-3 (poda x86, esta sessão):
+    // o gate trava o número NOVO (encolher foi a meta; o gate unilateral
+    // volta a proteger de regressão a partir daqui).
+    private static final long HELLO_X86_BYTES = 32_520L;
+    private static final int HELLO_X86_SYMS = 37;
     // Runtime JS integral copiado no hello (kof-runtime.mjs + io).
     private static final long HELLO_JS_BYTES = 177_412L;
     // Hello riscv64 (cross — só medido onde há toolchain).
@@ -67,9 +70,55 @@ class ArtifactSizeTest {
         // o runtime é .text + .bss (heap bump/roots); o hello NÃO deve ser minúsculo
         // (a meta T1a é derrubar isso — hoje é o inchaço que o gate registra).
         assertTrue(e.sectionBytes(".text") > 0, "deve haver .text de runtime");
-        assertTrue(e.kofSymbols() > 100,
-                "hoje o hello carrega o runtime inteiro (T1a vai derrubar) — symbs=" + e.kofSymbols());
+        // Pós-S-3: o hello NÃO carrega mais o runtime inteiro — a poda por
+        // alcançabilidade derrubou 627→~37 símbolos. O gate agora exige o
+        // número BAIXO (era o inverso, pré-poda). Se alguém re-introduzir
+        // emissão incondicional, isso estoura.
+        assertTrue(e.kofSymbols() < 100,
+                "S-3 podou o hello a <100 syms; se estourou, alguém voltou a emitir runtime inteiro — symbs=" + e.kofSymbols());
         assertNoBloat(e.fileBytes(), e.kofSymbols(), HELLO_X86_BYTES, HELLO_X86_SYMS, "hello x86_64");
+    }
+
+    /**
+     * T1a.4 (issue #97 S-3): "programa que usa X ⇒ família Y ausente". Prova
+     * NÃO-vaciosa: os nomes abaixo são símbolos REAIS do mapa da S-2 (verificados
+     * presentes no `.symtab` de um bin que usa a família) — não strings
+     * inventadas que passariam por nunca existirem. Dois programas mínimos:
+     * um puxa crypto (e NÃO deve trazer json/mq/vk/random), outro puxa json
+     * (e NÃO deve trazer crypto). O seed é por TEXTO do programa (S-3), então
+     * `crypto.sha256` → kof_sec_sha256_* entra e o resto fica fora.
+     */
+    @Test
+    void nativeFamilyAbsenceAfterPrune(@TempDir Path tmp) throws IOException {
+        ArtifactSize.ElfSizes sec = elfOf(tmp, "sec", "main() {\n    println(crypto.sha256(\"abc\"))\n}\n");
+        // família chamada PRESENTE (anti-vácuo: o nome é real e entra)
+        assertTrue(sec.definedKof().contains("kof_sec_sha256"),
+                "crypto.sha256 deve puxar kof_sec_sha256; syms=" + sec.definedKof());
+        // famílias NÃO-chamadas AUSENTES (a poda)
+        assertTrue(sec.definedKof().stream().noneMatch(s -> s.startsWith("kof_json")),
+                "json deve estar PODADO num programa só-crypto: " + sec.definedKof());
+        assertTrue(sec.definedKof().stream().noneMatch(s -> s.startsWith("kof_mq")),
+                "mq deve estar PODADO num programa só-crypto: " + sec.definedKof());
+        assertTrue(sec.definedKof().stream().noneMatch(s -> s.startsWith("kof_vk")),
+                "vk deve estar PODADO num programa só-crypto: " + sec.definedKof());
+        assertTrue(sec.definedKof().stream().noneMatch(s -> s.startsWith("kof_random")),
+                "random deve estar PODADO num programa só-crypto: " + sec.definedKof());
+
+        ArtifactSize.ElfSizes jsn = elfOf(tmp, "jsn", "main() {\n    println(json.encode(listOf(1, 2)))\n}\n");
+        assertTrue(jsn.definedKof().contains("kof_json_encode_int"),
+                "json.encode deve puxar kof_json_encode_int; syms=" + jsn.definedKof());
+        assertTrue(jsn.definedKof().stream().noneMatch(s -> s.startsWith("kof_sec_sha256")),
+                "sha256 deve estar PODADO num programa só-json: " + jsn.definedKof());
+    }
+
+    private ArtifactSize.ElfSizes elfOf(Path tmp, String tag, String source) throws IOException {
+        Path src = tmp.resolve(tag + "/Main.kf");
+        Files.createDirectories(src.getParent());
+        Files.writeString(src, source);
+        Path out = tmp.resolve("out-" + tag);
+        CompilationResult r = driver.compile(src, out, Target.NATIVE);
+        assertTrue(r.success(), tag + " deve compilar p/ native: " + r.diagnostics().getDiagnostics());
+        return ArtifactSize.elf(out.resolve("Default/Main"));
     }
 
     @Test

@@ -137,6 +137,59 @@ public final class RuntimeSlices {
         return sb.toString();
     }
 
+    /** S-3 (T1a.2): préâmbulo + SÓ as fatias em {@code keep}, na MESMA ordem
+     *  da lista da S-2 (derivada do fonte de produção). {@code keep} = todas
+     *  → byte-idêntico a {@link #renderRuntime()} (guardado por teste). O
+     *  chamador é responsável por manter o estado de seção coerente p/ o tail
+     *  (o {@code .section .text} pós-subset é injetado no backend). */
+    public static String renderSubset(Set<Integer> keep) {
+        StringBuilder sb = new StringBuilder(PREAMBLE);
+        for (Slice sl : slices()) {
+            if (keep.contains(sl.index())) sb.append(sl.text());
+        }
+        return sb.toString();
+    }
+
+    /** Seeds de TEXTO do programa (a correção de soundness da S-3): o programa
+     *  emitido referencia símbolos do runtime como texto raw —
+     *  {@code call kof_instanceof} (NativeMethodEmitter:303), arrays, casts —
+     *  NÃO só via {@code KofCall}. Varre o texto do programa (head+tail, sem a
+     *  região do runtime) por {@code kof_*} (globl) e {@code .L*} (locais, já
+     *  filtrando os que o PRÓPRIO programa define e os do programa-side
+     *  declarados). Um seed que não existe no mapa (símbolo do próprio
+     *  programa, mangle de usuário, {@code kof_db_*} do tail) é ignorado pela
+     *  BFS — só os definidos por fatia puxam. */
+    public static Set<String> textKofSeeds(String programText) {
+        Set<String> s = new LinkedHashSet<>();
+        Matcher m = KOF_REF.matcher(ASM_COMMENT.matcher(programText).replaceAll(""));
+        while (m.find()) s.add(m.group());
+        s.removeAll(programSideSymbols());
+        return s;
+    }
+
+    /** Seeds `.L` do programa: rótulos locais REFERENCIADOS pelo texto do
+     *  programa que são DEFINIDOS por alguma fatia (o programa também define
+     *  os seus — e.g. labels de dados — e só os cross-slice importam). */
+    public static Set<String> textLocalSeeds(String programText) {
+        Map<String, Integer> lp = localProviderIndex();
+        Set<String> s = new LinkedHashSet<>();
+        Matcher m = LOCAL_REF.matcher(ASM_COMMENT.matcher(programText).replaceAll(""));
+        while (m.find()) {
+            String l = m.group(1);
+            if (lp.containsKey(l)) s.add(l);
+        }
+        s.removeAll(programSideLocals());
+        return s;
+    }
+
+    /** KEEP FINAL da poda (S-3): piso obrigatório ∪ fecho unificado dos seeds
+     *  de texto do programa. Entrada do {@link #renderSubset}. */
+    public static Set<Integer> keepForProgramText(String programText) {
+        Set<Integer> keep = new LinkedHashSet<>(mandatoryRoots());
+        keep.addAll(reachableFrom(textKofSeeds(programText), textLocalSeeds(programText)));
+        return keep;
+    }
+
     /** Símbolos definidos pelo PRÉÂMBULO (raiz do GC) — sempre emitidos,
      *  donos de needs que os referenciam. */
     public static Set<String> preambleProvides() {
