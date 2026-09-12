@@ -127,17 +127,23 @@ JVM/Native/Script; célula `wrongkey` sem exclusão JS (11/11 matrix) +
 `ConformanceMatrixDocTest` (matriz atualizada). **Residual NÃO-§127
 registrado:** Double-miss imprime `0` (não `0.0`) no JS — divergência de
 IMPRESSÃO de Number (§44/família `String(5.0)="5"`, célula floatprint), o
-VALOR está correto; fica fora. **ACHADO COLATERAL (lane #88, NÃO corrigi —
-colisão de lane, condição 2):** `KofStringsIndentDedentTest#indentDedentJs`
-vermelho por 2 causas pré-existentes à minha mudança (provado com `git stash`
-da minha lane → falha igual): (a) o teste chama `node` direto (ausente neste
-host; os outros 34 testes JS usam `KofJsRunner`/GraalJS); (b) mesmo com
-runner, o `kof-runtime.mjs` gerado **NÃO exporta `kofStringsIndent/Dedent`**
-(0 ocorrências) embora `Default.mjs` importe — a string `WS_RUNTIME`
-(`JsRuntimeUiWs`) existe mas **não é roteada no dispatch `kof_strings_*`
-do `JsRuntimeOps`** (só cai por prefixo; o `registerRuntime` nunca mapeia
-`kof_strings_indent`→`kofStringsIndent`) → import vazio = SyntaxError. É o
-#88 que declarou "5 targets" sem o caminho GraalJS fechar. Não é gate meu.
+VALOR está correto; fica fora. **ACHADO COLATERAL RETIFICADO (lane #88 —
+a 1ª leitura desta linha estava ERRADA; retificada com build limpo):**
+`KofStringsIndentDedentTest#indentDedentJs` vermelho tem UMA causa só: o
+teste chama `node` direto (ausente neste host; os outros 34 testes JS usam
+`KofJsRunner`/GraalJS). A "causa (b)" que eu registrei — runtime gerado sem
+`kofStringsIndent/Dedent` — era **artefato do MEU build incremental**:
+`WS_RUNTIME` é `static final String` e o javac **inlinou o valor PRÉ-#88**
+dentro de `JsArtifactWriter.class` (Maven não recompilou o writer quando o
+#88 só tocou `JsRuntimeUiWs.java`). Prova da retificação: `touch
+JsArtifactWriter.java && mvn compile` → exportações presentes; `mvn clean`
++ rebuild → `strings.indent("a\nb",2)` via KofJsRunner imprime `"  a\n  b"`
+byte-idêntico ao oracle. **Lição (registrada para os agentes):** sonda com
+build incremental PODE servir código inlinado antigo em constantes
+`static final` compartilhadas entre classes — antes de registrar causa
+raiz de runtime gerado, `mvn -o clean` na sonda. A suíte completa (surefire)
+compila tudo do zero, então o #88 NÃO quebrou o gate JS; o node-trio
+(#74/#79/#80 e o novo do #88) é puramente o host sem node. Não é gate meu.
 
 **PRÓXIMO PASSO (bugfix):** (1) **§125** — `println(<primitivo>? null)`:
 crasha JVM/Script, Native dá `0`; ORACLE em conflito (map-miss imprime `0`
