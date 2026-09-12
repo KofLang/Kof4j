@@ -3876,3 +3876,54 @@ int de índice) — verificados na varredura.
   `CompilerDriverTest#duplicateTopLevelFunctionFails` SEM047, pré-existente
   no HEAD `a95ffa49` — verificado com stash, NÃO é desta unidade).
 
+
+### 135. CONFLITO DE CONTRATO (não é bug de código — é regra 6): `duplicateTopLevelFunctionFails` SEM047 vs SG-011B sobrecarga — ⏳ ABERTO (decisão da mantenedora)
+
+**Medido 12/09** (suíte do HEAD `eae16c46`, toolchain cross ativa): 1367+31+5+136 testes,
+**2 falhas**, uma delas esta. As duas são PRÉ-EXISTENTES às merges desta sessão
+(gate CONC001 `0bf899a3` + indent/dedent `c14c1808` — reproduzidas no base sem
+os patches).
+
+**O choque, nos fatos:**
+
+- `40abd0ed` (09/09, **decisão explícita da mantenedora**): *"top-level sem
+  overload"* — duas funções homônimas = SEM047 em compile-time. Prova: o teste
+  `CompilerDriverTest.duplicateTopLevelFunctionFails` ("overload top-level deve
+  falhar"). Suíte da época: 1238/0.
+- `b55c24c0` (11/09, "implement top-level function overloading resolution",
+  SG-011B): **inverte o contrato** — seleção por assinatura via
+  `TopLevelOverload.pick` nos 4 frontends (typer/analyzer/lowerer). O teste de
+  09/09 NÃO foi atualizado nem removido, o doc SEM047/specification-gaps não
+  menciona a mudança, e não houve bump de versão. Consequência: o teste que
+  era a PROVA da decisão da mantenedora agora FALHA — a suíte está vermelha no
+  `beta-0.4.0` (e estava antes desta sessão).
+
+**Menor repro (JVM, 2 decls):**
+
+```kof
+Int f(Int x) { return x }
+Int f(String x) { return 0 }
+main() { println(f(1)) }
+```
+
+09/09 esperava: erro SEM047 nomeando o conflito. Hoje: compila e roda
+(`1`). O teste do repo (`duplicateTopLevelFunctionFails`) ainda espera o erro.
+
+**Por que não corrijo (nem do lado A nem do B):** mudança de contrato
+congelado é decisão da mantenedora (regra 6). Os dois lados têm prova e
+intenção documentada. O que PRECISA acontecer, qualquer que seja o lado:
+
+1. **Se sobrecarga vence (SG-011B ratificado):** atualizar/remover
+   `duplicateTopLevelFunctionFails` (deixa de ser contrato), registrar a
+   inversão em `specification-gaps.md`/`AGENTS.md` (SEM047 → semântica nova),
+   bump de versão (contrato de 09/09 era explícito: "erro de compilação"),
+   e fechar o gap §131 correlato (aridade na MESMA classe ainda quebra).
+2. **Se SEM047 vence (decisão de 09/09 restaurada):** reverter o
+   `TopLevelOverload` do frontend (b55c24c0) a erro, e mover a feature p/
+   `planning-*` — o OTP (§131) não depende dela.
+
+Terceira falha correlata no MESMO HEAD, também pré-existente e de lane
+alheia: `DecompileTest.recoversStatementSwitchAndRunsIt` (nascida em
+`487287fb` "switch recovery" — o decompiler do CLI não recovery-ou o
+statement-switch na mesma taxa). Reprodução no próprio teste (kof-cli).
+Registrada sem decisão porque a lane switch é outra e o gate é de merge.
