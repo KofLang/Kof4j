@@ -177,8 +177,9 @@ scripts/auto-loop.sh status           # confirmar que está ativo
   um **processo headless novo** que só compartilha o histórico: você vê "outra
   sessão" rodando em paralelo, dois agentes competindo pela mesma sessão (o
   tick das 00:00 de 06/09 deixou um `run` vivo 20 min disputando com o TUI).
-  O servidor TUI da sessão aberta escuta em **`http://127.0.0.1:9092`**
-  (porta fixa do modo autônomo; sobres com `OPENCODE_SERVER_URL`). O `tick`
+  O servidor TUI da sessão aberta escuta em **`http://127.0.0.1:9093`**
+  (porta da sessão do modo autônomo — confira `ss -tlnp | grep opencode` e a
+  sessão viva; sobrescreva com `OPENCODE_SERVER_URL`). O `tick`
   faz health-check na porta antes de disparar: servidor fora do ar → tick
   pulado e logado (não adianta injetar numa sessão que não existe).
 - `flock` no `tick` impede run sobreposto: se o turno anterior ainda está
@@ -190,6 +191,14 @@ scripts/auto-loop.sh status           # confirmar que está ativo
   continuada do heartbeat.
 - O re-disparo chega como turno normal: vale a regra 6 (responder com tool
   call, não com "ok") e o contrato do `PRÓXIMO PASSO` no `DOING.md`.
+- **Watchers de issue (12/09):** `scripts/issue-watcher.sh start <issue> <min>
+  <sessão>` vigia comentários novos de uma issue a cada N minutos (aceita horas
+  divisíveis de 60: 60/120) e injeta um turno na sessão viva (mesmo
+  `--attach` obrigatório do heartbeat; `seen` só avança após injeção bem
+  sucedida). Em uso: **#97 a cada 2h** — quando a frente tree-shaking recebe
+  comentário externo (review/parceiro), o agente LÊ, responde na issue se
+  procedente, ajusta o plano/DOING e segue a fila. Interagir com issue que
+  impacta o trabalho EM CURSO é parte do loop, não distração.
 
 
 ---
