@@ -56,6 +56,23 @@ public final class BuiltinTypes {
         return Type.UnknownType.UNKNOWN;
     }
 
+    /** §107: elemento de List/Set (typeArgs = [elem]); Unknown se ausente. */
+    public static Type listElement(Type type) {
+        if (type instanceof Type.ClassType ct && "List".equals(ct.name())
+                && !ct.typeArguments().isEmpty()) {
+            return ct.typeArguments().get(0);
+        }
+        return Type.UnknownType.UNKNOWN;
+    }
+
+    public static Type setElement(Type type) {
+        if (type instanceof Type.ClassType ct && "Set".equals(ct.name())
+                && !ct.typeArguments().isEmpty()) {
+            return ct.typeArguments().get(0);
+        }
+        return Type.UnknownType.UNKNOWN;
+    }
+
     public static Type mapValue(Type type) {
         if (type instanceof Type.ClassType ct && "Map".equals(ct.name())
                 && ct.typeArguments().size() == 2) {

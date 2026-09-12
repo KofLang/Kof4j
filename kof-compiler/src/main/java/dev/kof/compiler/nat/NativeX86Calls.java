@@ -13,6 +13,25 @@ import dev.kof.compiler.Type;
  */
 public final class NativeX86Calls {
 
+    /** §107: tag de elemento/vetor de coleção → argumento do
+     *  kof_{list,set,map}_to_string. 0=int/char/short/byte, 1=String, 2=Long,
+     *  3=Bool, 4=Double, 5=Float, 6=desconhecido/record/aninhado (→ "?",
+     *  face do §104b-ii). SEM056 garante homogeneidade, então UMA tag basta. */
+    static int collectionTag(Type t) {
+        Type e = t instanceof Type.NullableType nt ? nt.inner() : t;
+        if (e instanceof Type.PrimitiveType pt) {
+            switch (pt.name()) {
+                case "int", "char", "short", "byte": return 0;
+                case "long": return 2;
+                case "bool": return 3;
+                case "float": return 5;
+                default: return NativeTypeKinds.isDoubleType(pt) ? 4 : 6;
+            }
+        }
+        if (BuiltinTypes.isString(e)) return 1;
+        return 6;
+    }
+
     private final NativeBackend nb;
 
     NativeX86Calls(NativeBackend nb) { this.nb = nb; }
@@ -176,6 +195,30 @@ public final class NativeX86Calls {
                 sb.append("    popq %rdi\n");
                 sb.append("    movq %rdi, %xmm0\n");
                 sb.append("    call kof_double_to_string\n");
+                sb.append("    pushq %rax\n");
+            } else if (dispatchType instanceof Type.ClassType ct && BuiltinTypes.isList(ct)) {
+                // §107: List/Map/Set são tipos de RUNTIME (sem vtable) — o
+                // ramo genérico abaixo achava tosIdx=-1 e NÃO EMITIA NADA:
+                // o ponteiro cru caía em kof_println_string = lixo (R6).
+                // A tag do elemento vem do typer (SEM056: homogênea).
+                sb.append("    popq %rdi\n");
+                sb.append("    movl $").append(collectionTag(BuiltinTypes.listElement(ct)))
+                  .append(", %esi\n");
+                sb.append("    call kof_list_to_string\n");
+                sb.append("    pushq %rax\n");
+            } else if (dispatchType instanceof Type.ClassType ct && BuiltinTypes.isSet(ct)) {
+                sb.append("    popq %rdi\n");
+                sb.append("    movl $").append(collectionTag(BuiltinTypes.setElement(ct)))
+                  .append(", %esi\n");
+                sb.append("    call kof_set_to_string\n");
+                sb.append("    pushq %rax\n");
+            } else if (dispatchType instanceof Type.ClassType ct && BuiltinTypes.isMap(ct)) {
+                sb.append("    popq %rdi\n");
+                sb.append("    movl $").append(collectionTag(BuiltinTypes.mapKey(ct)))
+                  .append(", %esi\n");
+                sb.append("    movl $").append(collectionTag(BuiltinTypes.mapValue(ct)))
+                  .append(", %edx\n");
+                sb.append("    call kof_map_to_string\n");
                 sb.append("    pushq %rax\n");
             } else if (dispatchType instanceof Type.ClassType ct && !BuiltinTypes.isString(dispatchType)) {
                 // valueOf(objeto) → obj.toString() via vtable (records têm

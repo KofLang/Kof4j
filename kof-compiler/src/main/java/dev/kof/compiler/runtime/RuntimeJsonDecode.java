@@ -216,7 +216,7 @@ public final class RuntimeJsonDecode {
                 movq $60, %rax             # syscall exit
                 syscall
             .Ljson_rec_list_msg:
-                .asciz "json.decode: List<Record> not supported on the Native target yet (JSN004)\n"
+                .asciz "json.decode: List<Record> not supported on the Native target yet (JSN004)\\n"
 
             .globl kof_json_decode_bool
             .type kof_json_decode_bool, @function

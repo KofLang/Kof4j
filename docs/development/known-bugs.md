@@ -11,7 +11,7 @@
 > | Abertos e atacáveis em JVM/JS | **5** — bugs 39, 45, 62, 63, 64 |
 > | Abertos, só reproduzíveis no Native | **5** — bugs 46, 48, 50, 59, 61 |
 > | Paridade interpretador × compilados (semântica `==` congelada — regra 6) | **1** — bug 94 (NaN/±0.0 `==` de Double no SCRIPT) |
-> | Paridade backend-only (regra 5, atacável na lane Native) | **2** — §107 (println coleção → lixo no nativo, sem toString de coleção; §107-JS corrigido 11/09), §104b-ii (equals de conteúdo p/ record + box de primitivo no storage asm; **face char ✅ FECHADA 11/09** — `mapgetprim` 4/4)
+> | Paridade backend-only (regra 5, atacável na lane Native) | **2** — §107 (**face escalar x86 ✅ CORRIGIDA 12/09** — `kof_{list,set,map}_to_string` + tag compile-time; restam riscv/aarch + record/aninhado = `?` honesto; §107-JS corrigido 11/09), §104b-ii (equals de conteúdo p/ record + box de primitivo no storage asm; **face char ✅ FECHADA 11/09** — `mapgetprim` 4/4)
 > | Operadores relacionais NaN cross (congelados — regra 6) | **1** — bug 101 (`<`/`<=`/`>=` com NaN: riscv IEEE vs x86/JVM quirk `dcmpg`) |
 > | **Corrigidos na sessão de paridade absoluta 11/09** | **15** — bugs 96 (SEM052), 98 (SEM053), 100 (SEM051+fold), 44-residual, 102 (from-idx), 103 (SEM054), 104a (KofObj equals/hash/toString no interpretador), 104b-i (LINK_FAIL `Object.equals` herdado no Native), 104c (membership de record por conteúdo no JS — `kofValEq`), 107-JS (`kofFormat` no JS), 109 (CRASH JVM no guard do `map.get` primitivo), 110 (`-0.0` colapsado em `+0.0` no literal emitter JVM), 111 (trailing-empties no `split` Native/JS + sentinela `substring` 0→-1; ✅ cross riscv/aarch B36/B37 11/09 — FECHADO nos 5 targets), 112 (prev de `put`/`remove` p/ primitivo: VerifyError/NPE JVM + SIGSEGV Native por pilha desequilibrada + `set.add` do interpretador + **JS fechado na mesma unidade** — `?? default` + `KofPop` preserva side-effect embrulhado; 4/4 targets), **104b-ii FACE CHAR** (SIGSEGV/`a` no `println(char-em-coleção)`; 3 buracos: desembrulhar `Nullable(CHAR)` no print-lowering JVM-coerente `unboxDescriptor` (char→`Integer`, não `Character`/`charValue`) + repair de `as Char` no `SemExpressionTyper` — `mapgetprim` 4/4) — todos com prova na matrix/suíte |
 > | **Corrigidos na prova cross-arch 11/09 (MATH001/TIME002/B33)** | **3** — bugs 101→registrado (relacional NaN, ABERTO regra 6), MATH001 (Double math B32), TIME002 (ISO add/diff B33), 105 (random.int loop — renumerado de 102, colidiu c/ §102 indexOf) |
@@ -2747,7 +2747,7 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   (célula `mapmutret` do §112 intocada) + suíte completa 1292/0 (5 skip)
   + script/c-compiler/cli BUILD SUCCESS. Gate: `boolInCollectionsPrintsLikeJvm`.
 
-### 107. `println(<coleção>)` no nativo imprime LIXO de ponteiro (JVM: `[1, 2, 3]`/`{k=9}`) — ❌ ABERTO (backend-only; paridade regra 5; sem gate)
+### 107. `println(<coleção>)` no nativo imprime LIXO de ponteiro (JVM: `[1, 2, 3]`/`{k=9}`) — 🟡 PARCIAL: face escalar x86 CORRIGIDA 12/09; riscv/aarch + record/nested pendentes
 
 - **Menor repro (medido 11/09, pós-fix §104b-i que liberou o link):**
   ```kof
@@ -2790,6 +2790,31 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   parei pra registrar (regra: unidade coesa c/ prova). Face record-em-coleção
   recursivo depende do §104b-ii (equals/toString de conteúdo — lane
   maintenedor, EM CURSO, não tocar).
+- **✅ Face ESCALAR x86_64 CORRIGIDA 12/09 (runtime asm B34 + dispatch):**
+  novo `RuntimeCollectionToString` (registrado em `NativeRuntime` logo após
+  `RuntimeList`) emite `kof_list_to_string`/`kof_set_to_string`/
+  `kof_map_to_string` + `kof_elem_to_string`. O dispatch `valueOf` em
+  `NativeX86Calls` (ramos `isList/isMap/isSet`) passou a chamar esses helpers
+  passando, **em tempo de compilação**, a TAG do elemento
+  (`collectionTag`: 0=int/char/short/byte, 1=String, 2=Long, 3=Bool,
+  4=Double, 5=Float, 6=desconhecido/record/aninhado). Nenhum mutador ou
+  header de container é tocado (lição §104b-ii). O acumulador e as Strings
+  temporárias vivem **ancoradas em `%rbp`** (os `pushq` dos `call` caem
+  ABAIXO dos locais; `rsp`-relativo foi o primeiro bug — o retorno do
+  `call` pisava o slot do acumulador, SIGSEGV). Provas:
+  `NativeE2ETest#execCollectionPrintMatchesJvmGolden` (golden = oracle JVM
+  MEDIDO, escalares; sabotagem do separador → FAIL confirmado) e os
+  escalares da célula `collprint` agora batem no nativo.
+- **Faces que FICAM ABERTAS neste bug (paridade parcial, diagnosticada R6):**
+  - **`?` honesto (não lixo):** elemento **record** ou **coleção aninhada**
+    (tag 6) imprime `?` — é a recusa visível, nunca lixo de ponteiro. Fecha
+    junto com o §104b-ii (equals/toString de conteúdo) + tag recursiva.
+  - **riscv64/aarch64:** ainda imprimem lixo (não têm os helpers — os
+    asm port-espelhados `NativeRiscvAsmMapset*` precisam do mesmo B34).
+  - **Map/Set multi-entry:** ordem de ARMAZENAMENTO (inserção) no nativo vs
+    hash-order do `HashMap`/`HashSet` do JVM — divergência de arquitetura,
+    single-entry é idêntico. Teste multi-entry fica fora do golden nativo.
+
 - **✅ Face JS CORRIGIDA 11/09 (mesma raiz — formato de contêiner ausente):**
   o JS dava `1,2` (Array.toString sem colchetes) e `[object Map]`/`[object
   Set]`. Fix: `kofFormat` em `JsRuntimeCore` espelhando
@@ -4113,5 +4138,42 @@ statement-switch na mesma taxa). Reprodução no próprio teste (kof-cli).
   (`struct`) compartilha `declared` entre branches DA MESMA forma — mesma
   família, NÃO testado por execução aqui (fica registrado: se algum dia um
   teste executar if/else com local 1º-storeado num ramo e lido fora, o mesmo
-  hoist se aplica). O teste que faltava ("nenhum E2E executa decompilado")
-  agora existe — é o que pegou o bug.
+   hoist se aplica). O teste que faltava ("nenhum E2E executa decompilado")
+   agora existe — é o que pegou o bug.
+
+### 138. `RuntimeJsonDecode` panic-msg com `\n` cru em text block → `.asciz` quebrado que só montava por equilíbrio acidental de aspas — ✅ CORRIGIDO 12/09 (revelado pelo §107-x86)
+
+- **Menor repro (medido 12/09):** compilar QUALQUER programa nativo cujo
+  runtime assembly passa pela área `Ljson_rec_list_msg` (isto é, todo build
+  Native — a string é emitida incondicionalmente) **com linhas asm adicionadas
+  antes dela**: `as: linha não terminada` + `missing closing '"'` +
+  `invalid character (0xa) in mnemonic`. Sem as linhas extras, monta
+  silenciosamente. A armadilha é esta: o output do backend é byte-idêntico
+  na região em causa nos dois casos — só o que VEM ANTES muda.
+- **Causa raiz:** em `RuntimeJsonDecode.java:219` a mensagem de panic do gap
+  JSN004 foi escrita como `.asciz "...(JSN004)\n"` **dentro de um text block
+  Java** — num text block, `\n` é NOVA LINHA REAL, não escape: o `as` recebe
+  `.asciz "...(JSN004)` + quebra de linha + `"`. A string fica ABERTA na
+  linha 1 e "fecha" na aspas da linha 2 (`"`), com o texto do meio
+  (vazio) virando lixo engolido pelo lexer — a armação só não explodiu no
+  HEAD porque o equilíbrio par/ímpar de aspas ACADÊNTICO do resto do arquivo
+  (todos os `#` comentários fora de string) fazia o `as` re-entrar em estado
+  normal justo antes da região crítica. Qualquer adição de linhas com aspas
+  (o §107-x86 emitiu `.ascii "["`/`"?"/...`) desloca o deslocamento e a
+  montagem falha — em código NON-MINE. Convenção correta do próprio repo
+  (lição já escrita em `docs/development/plan-spring-independence.md`
+  §"Pegadinha de text block", e usada em `RuntimeMemory.java:228`,
+  `RuntimeObservability3.java:35-42`, `RuntimeValidation.java:356-359`):
+  para emitir `\n` no asm a partir de um text block, escrever `\\n`.
+- **Fix (1 byte, backend-only):** `\\n` na linha 219 (o resto da string fica
+  em linha única). A mensagem em runtime não muda (o `as` continua
+  interpretando `\n` → newline). Prova estrutural: a suíte inteira (1553
+  testes com qemu rodando os cross-arch) passa SEM linhas removidas; e o
+  §107-x86 (que EMITE novas strings) agora monta verde.
+- **Nota (regra 3, transparência cirúrgica):** o bug existia desde
+  `954cca89` (bug 48, 07/09); 5 dias de CI verde o cobriram porque NENHUM
+  build com linhas com aspas antes da região existia. Não é regressão — é
+  latente que o §107 revelou. Lição: text blocks que EMITEM asm/string têm
+  que ser revistos contra a pegadinha do escape (double backslash), e a
+  pegadinha está documentada em `plan-spring-independence.md` mas não era
+  CHECKLIST obrigatório da lane Native.
