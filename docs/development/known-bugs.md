@@ -3160,7 +3160,7 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   `Int i() = 42`; `Float f()`/`Double d()` → stub, sem "= 3.5" vazando);
   DecompileTest 21/21; suíte 1226/0/64-skip.
 
-### CANVAS001 — ClassFormatError com arc() (Double params) — JVM CORRIGIDO 06/09
+### CANVAS001 — ClassFormatError com arc() (Double params) — ✅ FECHADO (JVM 06/09; JS 06/09 `5a9cac46` — reprovado verde 12/09: `UiE2ETest` 29/29 sem exclusões)
 
 - **Sintoma (original):** `Canvas(400,300)` + `c.arc(200,150,100,0.0,3.14)` compila, mas
   o JVM lança `ClassFormatError: Illegal class name "" in class file`.
@@ -3193,15 +3193,14 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   prepended pelo caminho UI-call). Prova: `Main.class` agora emite
   `invokestatic KofRuntime.kof_ui_canvas_arc:(IIIIDD)V`; programa completo do
   `UiE2ETest.canvasCreation` roda limpo no JVM e no Native.
-- **O que falta (metade JS do teste):** `canvasCreation` ainda falha em
-  `assertNotNull(html)` — o canvas nunca é anexado ao `kof-root` nem dispara
-  `kofUiSerializeHtml` (só `Window.show()` serializa; o plano
-  `docs/future/PLAN-CANVAS-WIDGET.md` desenha Canvas montado dentro de uma
-  `Window`, mas o teste não usa Window). Timing de serialização para widgets
-  sem janela é decisão de design do autor do recurso (lane Canvas).
+- **Face JS — FECHADA 06/09 (`5a9cac46`):** shim `getContext` +
+  `attach` ao `kof-root` + snapshot em ops de renderização (Canvas serializa
+  sem `Window.show()`). **Reprovado 12/09:** `UiE2ETest` completo 29/29 sem
+  exclusões (incluindo `canvasCreation`) — a flag `!UiE2ETest#canvasCreation`
+  do loop de verificação do AGENTS.md era obsoleta e foi removida.
 - **Arquivos:** `MethodCallTyper.java`, `BuiltinCallTyper.java`,
-  `JvmRuntimeCallDescriptors.java` (corrigidos); `JsRuntimeUiWidgets.java`,
-  `UiE2ETest.java` (pendentes, lane Canvas).
+  `JvmRuntimeCallDescriptors.java` (JVM); `JsRuntimeCore.java`,
+  `JsRuntimeUiWidgets.java` (JS). Plano consolidado: `docs/PLAN-CANVAS-WIDGET.md`.
 ---
 
 ## Bug 79 — `await` de `Handle<Long>` como statement emite POP de 1 slot → VerifyError

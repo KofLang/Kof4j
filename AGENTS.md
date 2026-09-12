@@ -786,7 +786,7 @@ mvn test -o -pl kof-compiler -am -Dtest='KofAreaTest' -Dsurefire.failIfNoSpecifi
 
 # 3. Suíte completa antes de commit
 mvn test -o -pl kof-compiler,kof-script,kof-c-compiler,kof-cli -am \
-    -Dtest='!UiE2ETest#canvasCreation' -Dsurefire.failIfNoSpecifiedTests=false \
+    -Dsurefire.failIfNoSpecifiedTests=false \
     -Dmaven.test.failure.ignore=true
 ```
 

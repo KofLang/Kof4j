@@ -1,6 +1,6 @@
 # PLAN-CANVAS-WIDGET — Canvas 2D para kof.ui
 
-> **Versão:** 0.1.0 · **Data:** 06/09/2026 · **Status:** Implementado
+> **Versão:** 0.1.0 · **Data:** 06/09/2026 · **Status:** Implementado · consolidado em `docs/` 12/09 (CANVAS001 FECHADO `5a9cac46`; reprovado verde 12/09)
 > **Branch:** beta-0.3.0
 
 ---

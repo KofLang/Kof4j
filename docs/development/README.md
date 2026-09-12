@@ -27,7 +27,7 @@
 | `future/TRANSLATOR.md` | translator | `PLANNED` | — |
 | `future/DIFFERENTIAL_TESTING.md` | differential testing | `PLANNED` | — |
 | `future/IMPLEMENTATION_PLAN.md` | plano de implementação legado | `PLANNED` | — |
- | `future/PLAN-CANVAS-WIDGET.md` | Canvas widget (CANVAS001) | `FEITO` (`5a9cac4` — 3 targets; UI009 drawImage `6e3181f`) | — |
+| `docs/PLAN-CANVAS-WIDGET.md` | Canvas widget (CANVAS001) — **movido p/ `docs/` 12/09** (`5a9cac46` CANVAS001 FECHADO; `UiE2ETest` 29/29 sem exclusões medido hoje; UI009 drawImage `6e3181f`) | `FEITO` |
 
 ### 2. Roadmaps & Audits
 | Arquivo | Por que está aqui | Estado |
