@@ -154,32 +154,15 @@ final class BytecodeSwitch {
 
         List<String> out = new ArrayList<>();
         Set<Integer> declared = new HashSet<>();
-        // Hoist (bug 134): cases Kof são blocos EXCLUDENTES — um `var`
-        // 1º-storeado dentro de um braço não alcança os irmãos nem o epílogo
-        // (SEM011; probe 11/09). Todo slot NÃO-parâmetro storeado numa região
-        // de braço é pré-declarado ANTES do switch como `var` sem init
-        // (executa e aceita atribuição de tipos diferentes — probe JVM).
-        List<Integer> hoist = new ArrayList<>();
-        for (int slot : localSlotsStoredIn(insns, bounds.first(), end)) {
-            if (frame.isNamedSlot(slot)) continue;   // parâmetro/`this` — nunca hoista
-            if (!hoist.contains(slot)) hoist.add(slot);
-        }
-        for (int slot : localSlotsStoredIn(insns, end, maxOff)) {
-            if (frame.isNamedSlot(slot)) continue;
-            if (!hoist.contains(slot)) hoist.add(slot);
-        }
-        for (int slot : hoist) {
-            declared.add(slot);
-            out.add("var " + BytecodeDecoder.slotName(slot, frame));
-        }
-        out.add("switch (" + expr + ") {");
+        List<String> body = new ArrayList<>();
+        body.add("switch (" + expr + ") {");
         // cases em ordem crescente de valor (determinístico); default por último.
         for (int oi = 0; oi < order.length; oi++) {
             int t = si.targets[order[oi]];
-            if (!emitCase(code, insns, cp, frame, out, declared, si, t, false, end, maxOff, bounds))
+            if (!emitCase(code, insns, cp, frame, body, declared, si, t, false, end, maxOff, bounds))
                 return null;
         }
-        if (!emitCase(code, insns, cp, frame, out, declared, si, si.dflt, true, end, maxOff, bounds))
+        if (!emitCase(code, insns, cp, frame, body, declared, si, si.dflt, true, end, maxOff, bounds))
             return null;
 
         // epílogo APÓS `}` (os braços saem via `break`; cair aqui de dentro
@@ -189,32 +172,79 @@ final class BytecodeSwitch {
             tail = emitBody(code, insns, cp, frame, declared, end, maxOff);
             if (tail == null) return null;
         }
-        out.add("}");
+        body.add("}");
+        List<String> pre = hoistEscapeVars(body, tail);
+        if (pre == null) return null;   // local escape com init não-literal → recusar
+        out.addAll(pre);
+        out.addAll(body);
         if (tail != null) out.addAll(tail);
         return out;
     }
 
-    /** Slots (não-parâmetro, não-`this`) storeados na região [from,to) — a
-     *  lista de candidatos ao hoist do bug 134. Mesma decodificação de
-     *  opcode que `BytecodeStatements.storeSlot` (mantida local: o util de
-     *  statements é privado e a fórmula é estável do JVMS 6.5). */
-    static List<Integer> localSlotsStoredIn(List<BytecodeReader.Insn> insns, int from, int to) {
-        List<Integer> slots = new ArrayList<>();
-        for (BytecodeReader.Insn in : insns) {
-            int off = in.offset();
-            if (off < from || off >= to) continue;
-            int op = in.opcode();
-            int slot;
-            if (op >= 0x36 && op <= 0x3a) slot = in.operands()[0];            // istore..astore idx
-            else if (op >= 0x3b && op <= 0x3e) slot = op - 0x3b;              // istore_0..3
-            else if (op >= 0x3f && op <= 0x42) slot = op - 0x3f;              // lstore_0..3
-            else if (op >= 0x43 && op <= 0x46) slot = op - 0x43;              // fstore_0..3
-            else if (op >= 0x47 && op <= 0x4a) slot = op - 0x47;              // dstore_0..3
-            else if (op >= 0x4b && op <= 0x4e) slot = op - 0x4b;              // astore_0..3
-            else continue;
-            slots.add(slot);
+    /**
+     * §137 — escopo de `case`: em Kof, `var` declarado dentro de um braço
+     * NÃO é visível depois do switch (nem nos outros braços). O javac declara
+     * o local fora do switch (sem inicializador) e cada braço só faz store —
+     * o `emitLinear` shared-`declared` traduz o PRIMEIRO store em `var name =
+     * init`, que cai dentro do case 1 e some p/ o epílogo (`return v1` →
+     * SEM011, o DecompileTest do statement-switch). Hoist: se um nome `var`
+     * declarado num braço ESCAPE da região (usado noutro braço ou no
+     * epílogo), mover a declaração p/ antes do `switch` e deixar um simples
+     * `name = init` no braço (semântica idêntica: o init é literal — sem
+     * side-effects nem ordem observável). Init não-literal (chamada/new) não
+     * pode subir (executaria no caminho errado) → recusar o recovery (R6:
+     * stub honesto, nunca código SEM011). Retorna as linhas `pre` (vazio se
+     * nada escapa); null = recusar.
+     */
+    private static List<String> hoistEscapeVars(List<String> body, List<String> tail) {
+        int close = body.size() - 1;           // índice do `}` final
+        List<String> pre = new ArrayList<>();
+        java.util.LinkedHashSet<String> done = new java.util.LinkedHashSet<>();
+        for (int i = 1; i < close; i++) {
+            String ln = body.get(i);
+            if (!ln.startsWith("var ")) continue;
+            int eq = ln.indexOf(" = ");
+            if (eq < 0) continue;
+            String name = ln.substring(4, eq);
+            String init = ln.substring(eq + 3);
+            boolean escapes = tail != null && mentions(tail.toString(), name);
+            if (!escapes) {
+                for (int j = i + 1; j < close; j++) {
+                    if (mentions(body.get(j), name)) { escapes = true; break; }
+                }
+            }
+            if (!escapes) continue;
+            if (!isLiteral(init)) return null;
+            if (done.add(name)) {
+                pre.add(ln);
+                body.set(i, name + " = " + init);
+            }
         }
-        return slots;
+        return pre;
+    }
+
+    /** Menção por LIMITE de token (v1 não casa dentro de v12). */
+    private static boolean mentions(String line, String name) {
+        int from = 0;
+        while (true) {
+            int k = line.indexOf(name, from);
+            if (k < 0) return false;
+            char before = k == 0 ? ' ' : line.charAt(k - 1);
+            int e = k + name.length();
+            char after = e < line.length() ? line.charAt(e) : ' ';
+            if (!Character.isLetterOrDigit(before) && before != '_'
+                    && !Character.isLetterOrDigit(after) && after != '_') return true;
+            from = k + 1;
+        }
+    }
+
+    /** Literal puro (string/numérico/booleano/null): um token, sem chamada. */
+    private static boolean isLiteral(String init) {
+        if (init.isEmpty() || init.contains(" ") || init.contains("(")
+                || init.contains("+")) return false;
+        char c = init.charAt(0);
+        if (c == '"') return init.length() > 1 && init.endsWith("\"");
+        return c == '-' || (c >= '0' && c <= '9') || c == 't' || c == 'f' || c == 'n'; // true/false/null
     }
 
     /**

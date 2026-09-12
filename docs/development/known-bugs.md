@@ -4015,7 +4015,7 @@ Terceira falha correlata no MESMO HEAD, também pré-existente e de lane
 alheia: `DecompileTest.recoversStatementSwitchAndRunsIt` (nascida em
 `487287fb` "switch recovery" — o decompiler do CLI não recovery-ou o
 statement-switch na mesma taxa). Reprodução no próprio teste (kof-cli).
-**FECHADA 12/09 (§137)** — lane decompilação órfã, assumida na lane dev.
+**FECHADA 12/09 (§137, abaixo)** — lane decompilação órfã, assumida na lane dev.
 ### 136. Native/JS/Script: sobrecarga top-level e wrapper de default colidiam no símbolo único (as: `symbol is already defined`; JS: `SyntaxError: Identifier already declared`) — ✅ CORRIGIDO 11/09 (unidade SG-011B)
 - **Menor repro (nativo x86_64, medido 11/09):** `Int d(Int x, Int y = 2) {
   return x + y }` → o lowering de default gera o wrapper `d/1` com o MESMO
@@ -4054,6 +4054,13 @@ statement-switch na mesma taxa). Reprodução no próprio teste (kof-cli).
   (SG-011B). Sobrecarga de MÉTODO de classe (SEM013/colisão `Supervisor_child`
   do §131, espelho OTP) permanece ABERTA — outra máquina (symtable de classe,
   dispatch virtual, vtable real), repro e workaround lá documentados.
+
+### 137. Decompiler (kof-cli): statement-switch quebrava o round-trip — `var` do case morria no escopo do braço (SEM011), `static` se perdia e o `main` Java não virava entry point — ✅ CORRIGIDO 12/09 (lane dev, assumida órfã)
+- **Menor repro (teste `DecompileTest.recoversStatementSwitchAndRunsIt`, vermelha desde `487287fb`):** `javac` de `String r; switch(v){case 1: r="one"; break; ...}` → `kof decompile` produzia `var v1 = "one"` DENTRO de `case 1:` e o epílogo `return v1` fora do switch → `SEM011 Undefined variable or type: 'v1'` (3×) na recompilação. O recovery da Fase C não sabia que Kof escopa `var` de case no braço (Java escopa no método).
+- **Causa (3 camadas, mesma família round-trip):** (i) `emitLinear` shared-`declared` traduz o PRIMEIRO store do slot em `var name = init` — dentro da região do braço; nomes que ESCAPAM da região (outro braço, epílogo) precisam ser declarados ANTES do `switch`; (ii) o emitidor de métodos descartava o flag `ACC_STATIC` — `S.grade(1)` (invokestatic recuperado no corpo) passava a chamar método de INSTÂNCIA; (iii) o entry point: Kof executa `Default.Main` do `main()` TOP-LEVEL; o `public static void main(String[])` recuperado como método de classe não gerava entry nenhum (`ClassNotFoundException: Default.Main`).
+- **Correção:** (i) `BytecodeSwitch.hoistEscapeVars` — pós-montagem, `var` declarado num braço cujo nome é mencionado LATERALMENTE (outro braço/epílogo, match por limite de token — `v1`≠`v12`) sobe p/ antes do `switch` virando `name = init` no braço; só com init LITERAL (side-effect-free — subir chamada/new mudaria a ordem de execução; senão recusa o recovery → stub honesto, R6). (ii) prefixo `static` nos 4 ramos de emissão. (iii) forwarder `main() { S.main(new String[0]) }` top-level SÓ em modo 1-arquivo (no modo tree N classes dariam N `main()` = SEM047).
+- **Prova:** `DecompileTest` 45/45 (era 44/1); o out-kf do probe roda `one/two/other` idêntico ao Java; as 44 saídas anteriores byte-idênticas (o hoist só dispara em escape; static/forwarder só alteram classes com esses casos — os testes existentes cobrem ambos os lados).
+
 
 
 ### 137. `kof decompile`: `switch`-statement recuperava código INCOMPILÁVEL (locals sem hoist) + `static` perdido na assinatura — ✅ CORRIGIDO 11/09 (achado pelo gate do HEAD; lane migração-legado, sem dono)
