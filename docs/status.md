@@ -1,8 +1,24 @@
 # Status do Projeto Kof
 
-**Última atualização:** 11 de setembro de 2026
-**Versão:** 0.3.0-beta
+**Última atualização:** 12 de setembro de 2026
+**Versão:** 0.3.22-beta (pom `revision`)
 
+> **12/09 — §107 face ESCALAR FECHADA nos 3 alvos nativos** (`println(<coleção>)`
+> imprimia lixo de ponteiro; `kof_{list,set,map}_to_string` + tag compile-time
+> x86 `f3b3821c` + cross riscv/aarch B39 `411e9ce5`, golden JVM byte-idêntico
+> sob qemu; record/aninhado fica `?` HONESTO até §104b-ii, FP-coleção no cross
+> FLT001 em compilação — nunca silêncio; bug colateral §138 destravou o build
+> cross). **12/09 — issue #97 (tree-shaking, frente da mantenedora): S-1/T0
+> FEITA** `a3996600` — `ArtifactSize` (parser ELF64 puro-Java) + `ArtifactSizeTest`
+> (gate anti-inchaço 5% travado nos números medidos: hello x86 138.928B/627
+> símbolos inalcançáveis, runtime JS 177KB, riscv .bss 260KB) + `kof build
+> --print-sizes`; plano `PLAN-TREE-SHAKING.md` promovido `future/`→`development/`
+> (S-2 = mapa provides/needs por fatia, próximo degrau). **12/09 —
+> re-auditorias doc-vs-realidade:** `native-multiarch.md` dizia "JSON/HTTP/net/
+> collections só x86" (falso — todos rodam sob qemu, medido `8caa14c1`);
+> tabela-topo de `known-bugs.md` trazia varredura apócrifa de 08/09 (39/62/63/
+> 64 já ✅) — corrigida com fila real de 16 abertas, cada uma com bloqueio
+> mensurável (decisão/lane/congelado) `42c716ed`.
 > **11/09 — OTP núcleo (issue #83) entregue em JVM+Script:** pacote virtual
 > `kof.supervisor` (host puro-Kof, `import kof.supervisor`), com observar-falha,
 > reinício individual (fábrica nova), limite de reinícios + escalate e stop
@@ -519,7 +535,7 @@ main() { /* ignorado pelo kof test */ }
 
 ---
 
-## Testes (1249 = 1112 kof-compiler + 25 kof-script + 5 kof-c-compiler + 107 kof-cli — suíte completa verde, 64 skips condicionais de qemu/Chrome; medição 08/09)
+## Testes (1560 = 1388 kof-compiler + 31 kof-script + 5 kof-c-compiler + 136 kof-cli — suíte completa verde, 5 skips condicionais; medição 12/09 **com toolchain cross real neste host** — riscv/aarch EXECUTAM, não skipam: `ArtifactSizeTest` 3/3 + E2E cross 39/39 cada. Host sem qemu: cross → skip honesto, total ~1500)
 
 | Suíte | Quantidade | Cobertura |
 |-------|-----------|-----------|
