@@ -176,12 +176,14 @@ por `TID % 256` — dois workers podem herdar o cancel um do outro).
 
 Em **riscv64/aarch64** esses auxiliares não existem:
 `nat/NativeRiscvSpawn.java` emite apenas `kof_spawn_result`, `kof_spawn`,
-`kof_await` e `kof_spawn_join_all`. ⚠️ Hoje a ausência **não** é um gap R6:
-não há gate de compile-time — `NativeRiscvCrossOps.resolveCalleeNameRiscv`
-(`:305`) cai no `sanitizeName` genérico e emite a `call` mesmo assim, de
-modo que o erro aparece só no **link**, como símbolo indefinido (mesmo
-padrão do bug 59). Registrar um diagnóstico honesto é trabalho pendente da
-lane Native.
+`kof_await` e `kof_spawn_join_all`. Desde 11/09 a ausência é um gap R6
+honesto: `ExpressionStaticCallLowerer` detecta `poll`/`done`/`cancel`/
+`cancelled`/`selectAny`/`awaitTimeout` nesses alvos e emite **`CONC001` em
+compile-time** (antes caía no `sanitizeName` genérico de
+`NativeRiscvCrossOps.resolveCalleeNameRiscv` e o erro só aparecia no
+**link**, como símbolo indefinido — mesmo padrão do bug 59). Prova:
+`KofConcurrency2Test.crossMissingConcurrencyHelpersReportConc001` (issue
+#91). O que falta para fechar de vez é portar os símbolos, não o diagnóstico.
 
 > **Esta tabela é travada por teste.** `ConcurrencyGapsDocTest` (em
 > `kof-compiler/src/test/java/dev/kof/compiler/`) quebra o build se uma
