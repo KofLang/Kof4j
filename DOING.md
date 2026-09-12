@@ -64,6 +64,26 @@ Estados: `ABERTO` · `EM CURSO` · `FEITO` · `BLOQUEADO`.
 > afirmação "está em /usr/bin" pode valer na sessão melissa/B37 (host com
 > qemu) mas **não aqui** — as faces cross §123/§126-tag seguem SEM prova
 > possível nesta máquina (meia-unidade = regressão silenciosa, proibido).
+> **⚠️ RECONCILIADO 12/09 (melissa, este host = Ubuntu 24.04 "lixo", medido
+> com evidência verificável):** a retificação acima é VERDADEIRA no host da
+> bugfixer (o fingerprint "x86_64-suse-linux-gnu-pkg-config" em /usr/bin é
+> openSUSE) mas FALSA como universal: NESTE host a toolchain existe e é
+> anterior à sessão — `command -v qemu-riscv64 qemu-aarch64
+> riscv64-linux-gnu-as aarch64-linux-gnu-as` → os 4 em `/usr/bin` (owner
+> root, datas fev/2026 e 24/jun/2026: binutils-13 + qemu instalados de
+> sistema, não plantados); `/usr/bin` tem o SUÍTE completo de binutils
+> cross (`aarch64-linux-gnu-gcc-13` etc). Prova de execução REAL neste
+> host (não memória): (1) `surefire` do gate 12/09
+> `TEST-dev.kof.compiler.NativeRiscv64E2ETest.xml` = **37 testcases, 0
+> `<skipped>`** (o guard passou e rodei); (2) bash direta: compilei
+> `CrossTag.kf` p/ NATIVE_RISCV64 e `qemu-riscv64 Default/Main` → golden
+> JVM byte-idêntico, rc=0. **Conclusão: a ferramenta é HOST-DEPENDENTE** —
+> `d34fe091` é prova válida onde qemu existe (este host) e é skip limpo no
+> host openSUSE da mantenedora (assumeTrue é exatamente o mecanismo
+> portável; nenhuma regressão silenciosa em lugar nenhum). As duas linhas
+> do DOING mediram máquinas diferentes e as duas estão certas nas suas;
+> a universalização ("não aqui" → "em lugar nenhum") era o erro — corrigido
+> aqui com o fingerprint de host de cada leitura.
 > **NÃO** tocar: fila
 > bugfixer (bugs §125/§126/§104b-ii = lane deles), `JvmOpCollections`,
 > `CollectionCallLowerer`, `NativeRiscv*Asm*` das coleções.
