@@ -2,6 +2,7 @@ package dev.kof.compiler.nat;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -50,9 +51,17 @@ public final class RuntimeSlices {
 
     private RuntimeSlices() {}
 
-    /** Uma fatia: classe emissora + método + texto renderizado isolado. */
+    /** Uma fatia: classe emissora + método + texto renderizado isolado.
+     *  `provides/needs` = símbolos globais `kof_*` (o contrato público);
+     *  `localProvides/localNeeds` = rótulos locais `.L*` definidos/referencia-
+     *  dos — a descoberta da S-3: existem 119 arestas `.L` entre fatias que só
+     *  funcionam porque tudo é concatenado hoje; a BFS de alcançabilidade PRECISA
+     *  uni-las, senão podar a fatia-dona de um `.L` lido por fatia viva quebra
+     *  o `as` (undefined label). `localNeeds` já exclui os `localProvides` da
+     *  própria fatia (rótulo interno não é aresta). */
     public record Slice(int index, String className, String method,
-                        String text, Set<String> provides, Set<String> needs) {}
+                        String text, Set<String> provides, Set<String> needs,
+                        Set<String> localProvides, Set<String> localNeeds) {}
 
     private static final Pattern GLOBL_KOF =
             Pattern.compile("(?m)^\\s*\\.globl\\s+(kof_\\w+)\\b");
@@ -63,6 +72,10 @@ public final class RuntimeSlices {
             Pattern.compile("(?m)^\\s*(kof_\\w+):");
     private static final Pattern KOF_REF =
             Pattern.compile("(?<![\\w.])kof_\\w+");
+    private static final Pattern LOCAL_DEF =
+            Pattern.compile("(?m)^\\s*(\\.L\\w+):");
+    private static final Pattern LOCAL_REF =
+            Pattern.compile("(?<![\\w.])(\\.L\\w+)\\b");
     /** Comentário asm (#...) — NÃO é código; precisa ser riscado antes do
      *  scan de needs/provides (senão `# reusa kof_b64_*_internal` vira uma
      *  aresta falsa). O ; de fim-de-linha não é usado aqui como comentário. */
@@ -76,6 +89,16 @@ public final class RuntimeSlices {
      *  Fonte: grep por rótulos definidos fora do conjunto Runtime*. */
     public static Set<String> programSideSymbols() {
         return Set.of("kof_super_table");
+    }
+
+    /** Rótulos locais `.L*` definidos pelo CAMINHO DE PROGRAMA (Main.s) e
+     *  referenciados pelo runtime asm — o programa SEMPRE os emite (raízes de
+     *  dados que o runtime consome), então um localNeeds que aponta p/ eles não
+     *  é órfão nem aresta de fatia p/ fatia. Medido 12/09 (localNeeds órfãos =
+     *  exatamente estes 3, definidos em `NativeClassMeta`): `.Lnewline`,
+     *  `.Lkof_str_true`, `.Lkof_str_false`. */
+    public static Set<String> programSideLocals() {
+        return Set.of(".Lnewline", ".Lkof_str_true", ".Lkof_str_false");
     }
     private static final Pattern SLICE_CALL =
             Pattern.compile("([A-Za-z][A-Za-z0-9_.]*)\\.([A-Za-z0-9_]+)\\(sb\\)");
@@ -123,7 +146,7 @@ public final class RuntimeSlices {
         return s;
     }
 
-    /** Mapa símbolo → fatia (índice) que o define (falha se duplicado). */
+    /** Mapa `kof_*` → fatia (índice) que o define (falha se duplicado). */
     public static Map<String, Integer> providerIndex() {
         Map<String, Integer> m = new LinkedHashMap<>();
         // -1 = dono é o préâmbulo (raiz do GC), não uma fatia podável
@@ -140,29 +163,93 @@ public final class RuntimeSlices {
         return m;
     }
 
-    /** ÍNDICES de fatia = entrypoints obrigatórios de T1a.2 (o plano §T1a:
-     *  runtime de suporte que SEMPRE entra, não importa a IR). Derivado do
-     *  grafo: fechamento transitivo a partir dos símbolos de print/alloc/
-     *  panic — o piso de qualquer programa Kof compilável. */
-    public static Set<Integer> mandatoryRoots() {
-        Set<Integer> roots = new LinkedHashSet<>();
-        Map<String, Slice> bySym = new LinkedHashMap<>();
-        for (Slice sl : slices()) for (String p : sl.provides()) bySym.put(p, sl);
-        for (String seed : new String[]{"kof_panic", "kof_alloc", "kof_print",
-                "kof_println", "kof_print_string", "kof_println_string"}) {
-            Slice s = bySym.get(seed);
-            if (s != null) closure(s, bySym, roots);
+    /** Mapa `.L*` → fatia (índice) que o define. Rótulos locais definidos em
+     *  MAIS de uma fatia retornam dono = o da PRIMEIRA definição (verdade em
+     *  cada fatia: um `.L` só pode ser definido uma vez por TU, mas pode haver
+     *  homônimos entre fatias — por isso o assemblador só reclama em runtime se
+     *  AMBOS forem emitidos no mesmo `.s`; a BFS cuida disso). */
+    public static Map<String, Integer> localProviderIndex() {
+        Map<String, Integer> m = new LinkedHashMap<>();
+        for (Slice sl : slices()) {
+            for (String p : sl.localProvides()) m.putIfAbsent(p, sl.index());
         }
-        return roots;
+        return m;
     }
 
-    private static void closure(Slice s, Map<String, Slice> bySym, Set<Integer> seen) {
-        if (!seen.add(s.index())) return;
-        for (String n : s.needs()) {
-            Slice d = bySym.get(n);
-            if (d != null) closure(d, bySym, seen);
+    /** Total de arestas `.L` cross-slice (referência a um `.L` definido em OUTRA
+     *  fatia). O número da descoberta S-3: não é zero → o fecho puramente-kof
+     *  seria inseguro. */
+    public static int crossSliceLocalEdgeCount() {
+        Map<String, Integer> lp = localProviderIndex();
+        int n = 0;
+        for (Slice sl : slices()) {
+            for (String l : sl.localNeeds()) {
+                Integer d = lp.get(l);
+                if (d != null && d != sl.index()) n++;
+            }
         }
+        return n;
     }
+
+    /** Fechamento de alcançabilidade UNIFICADO (a correção da S-3): parte dos
+     *  seeds (`kof_*` e/ou `.L*`) e fecha transitivamente sobre AMBOS os tipos
+     *  de aresta (kof-needs ∪ local-needs). É o fecho que a poda de S-3 deve
+     *  usar — o kof-only IGNORA as arestas `.L` e cortaria fatia-dona de um
+     *  `.L` lido por fatia viva. */
+    public static Set<Integer> reachableFrom(Set<String> kofSeeds, Set<String> localSeeds) {
+        Map<String, Integer> gp = providerIndex();
+        Map<String, Integer> lp = localProviderIndex();
+        Set<Integer> seen = new LinkedHashSet<>();
+        ArrayDeque<String> kofQ = new ArrayDeque<>(kofSeeds);
+        ArrayDeque<String> locQ = new ArrayDeque<>(localSeeds);
+        while (!kofQ.isEmpty() || !locQ.isEmpty()) {
+            while (!kofQ.isEmpty()) {
+                Integer idx = gp.get(kofQ.poll());
+                if (idx == null || idx < 0) continue; // préâmbulo/externo
+                if (seen.add(idx)) expand(slices().get(idx), kofQ, locQ);
+            }
+            while (!locQ.isEmpty()) {
+                Integer idx = lp.get(locQ.poll());
+                if (idx == null) continue;
+                if (seen.add(idx)) expand(slices().get(idx), kofQ, locQ);
+            }
+        }
+        return seen;
+    }
+
+    private static void expand(Slice s, ArrayDeque<String> kofQ, ArrayDeque<String> locQ) {
+        kofQ.addAll(s.needs());
+        locQ.addAll(s.localNeeds());
+    }
+
+    /** O FECHO kof-only (sem arestas `.L`) — serve só para PROVAR (no teste) que
+     *  ele é ESTRITAMENTE menor que {@link #reachableFrom}: a diferença são as
+     *  fatias que só dependem de `.L` compartilhado. NÃO usar na poda real. */
+    public static Set<Integer> reachableKofOnly(Set<String> kofSeeds) {
+        Map<String, Integer> gp = providerIndex();
+        Set<Integer> seen = new LinkedHashSet<>();
+        ArrayDeque<String> q = new ArrayDeque<>(kofSeeds);
+        while (!q.isEmpty()) {
+            Integer idx = gp.get(q.poll());
+            if (idx == null || idx < 0) continue;
+            if (seen.add(idx)) q.addAll(slices().get(idx).needs());
+        }
+        return seen;
+    }
+
+    /** ÍNDICES de fatia = entrypoints obrigatórios de T1a.2 (o plano §T1a:
+      *  runtime de suporte que SEMPRE entra, não importa a IR). Derivado do
+      *  grafo UNIFICADO (kof-needs ∪ local-needs) a partir dos símbolos de
+      *  print/alloc/panic — o piso de qualquer programa Kof compilável. Usa o
+      *  fecho .L-aware de propósito: `kof_alloc` referencia o `.Lkof_alloc_count`
+      *  definido na fatia memstats, e PODAR memstats emitindo alloc quebra o `as`
+      *  (a descoberta S-3; kof-only seria INSEGURO — ver o teste). */
+     public static Set<Integer> mandatoryRoots() {
+         return reachableFrom(
+                 Set.of("kof_panic", "kof_alloc", "kof_print", "kof_println",
+                         "kof_print_string", "kof_println_string"),
+                 Set.of());
+     }
 
     // ── construção ─────────────────────────────────────────────────────
 
@@ -211,9 +298,20 @@ public final class RuntimeSlices {
                 String sym = r.group();
                 if (!provides.contains(sym)) needs.add(sym);
             }
+            Set<String> localProvides = new LinkedHashSet<>();
+            Matcher lg = LOCAL_DEF.matcher(code);
+            while (lg.find()) localProvides.add(lg.group(1));
+            Set<String> localNeeds = new LinkedHashSet<>();
+            Matcher lr = LOCAL_REF.matcher(code);
+            while (lr.find()) {
+                String l = lr.group(1);
+                if (!localProvides.contains(l)) localNeeds.add(l);
+            }
             out.add(new Slice(i, fq, meth,
                     sb.toString(), Collections.unmodifiableSet(provides),
-                    Collections.unmodifiableSet(needs)));
+                    Collections.unmodifiableSet(needs),
+                    Collections.unmodifiableSet(localProvides),
+                    Collections.unmodifiableSet(localNeeds)));
         }
         return Collections.unmodifiableList(out);
     }

@@ -107,6 +107,46 @@ class NativeRuntimeSliceRegistryTest {
     }
 
     @Test
+    void localLabelEdgesExistAndKofOnlyClosureIsUnsafe() {
+        // A DESCOBERTA S-3: existem arestas `.L` entre fatias que só funcionam
+        // porque o runtime é concatenado hoje. Provar que são REAIS e que o
+        // fecho puramente-kof seria INSEGURO (poda a fatia-dona de um `.L` que
+        // uma fatia viva lê → `as`: undefined label). O `mandatoryRoots` usa o
+        // fecho UNIFICADO; este teste trava que ele é estritamente maior.
+        assertTrue(RuntimeSlices.crossSliceLocalEdgeCount() > 0,
+                "sem arestas .L cross-slice? então a poda kof-only bastaria — "
+                        + "mas existem; se sumiram, este teste avisa.");
+        Set<String> hello = Set.of("kof_panic", "kof_alloc", "kof_print",
+                "kof_println", "kof_print_string", "kof_println_string");
+        Set<Integer> unified = RuntimeSlices.reachableFrom(hello, new HashSet<>());
+        Set<Integer> kofOnly = RuntimeSlices.reachableKofOnly(hello);
+        assertTrue(unified.containsAll(kofOnly),
+                "unificado deve conter o kof-only (mais arestas)");
+        assertTrue(unified.size() > kofOnly.size(),
+                "o fecho .L-aware deve ser ESTRITAMENTE maior que o kof-only "
+                        + "(senão as 119 arestas não puxam fatias extras e a "
+                        + "descoberta S-3 não se sustenta) — unificado=" + unified.size()
+                        + " kofOnly=" + kofOnly.size());
+        // E o mandatoryRoots (usado de verdade pela poda) É o unificado:
+        assertEquals(unified, RuntimeSlices.mandatoryRoots(),
+                "mandatoryRoots deve ser o fecho .L-aware, não o kof-only");
+    }
+
+    @Test
+    void everyLocalNeedResolvesToADefinedLocalOrIsProgramSide() {
+        Map<String, Integer> lp = RuntimeSlices.localProviderIndex();
+        Set<String> extern = new HashSet<>(RuntimeSlices.programSideLocals());
+        for (RuntimeSlices.Slice s : RuntimeSlices.slices()) {
+            for (String l : s.localNeeds()) {
+                assertTrue(lp.containsKey(l) || extern.contains(l),
+                        "fatia " + s.className() + "." + s.method()
+                                + " referencia .L " + l + " que nenhuma fatia define "
+                                + "nem é do programa (localNeeds órfão = o fecho não pode fechar essa aresta)");
+            }
+        }
+    }
+
+    @Test
     void sliceCountMatchesProductionParse() {
         // O parse do fonte exige >=100 chamadas (RuntimeSlices); a contagem de
         // hoje é 113. A FIEL-renderização (outro teste) é o guard de conteúdo —
