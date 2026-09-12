@@ -923,6 +923,88 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 
   - implementar uuid.v7() ordenado no tempo conforme RFC 9562
 
+## [0.3.22-beta] - 2026-09-11
+
+### Features
+
+  - math.lerp/percentage/isInteger/isDecimal (Double) em JVM/Script/JS/x86
+  - add lerp, percentage, isInteger, and isDecimal functions for pure Double operations
+  - add sqrt function for Double type with IEEE NaN handling; update conformance matrix and documentation
+  - SG-009 — subtipagem nominal em isAssignable (SEM021)
+  - SG-005/SEM049 — deref de T? sem narrowing é erro compile-time
+  - SG-008/bug 87 — null safety: ban de literal null (SEM048) + Map.get()->V? sempre + T?==null sem NPE
+  - S12b — validation.formatCnpj nos 5 alvos (pontuação BR)
+  - S3b-ext — uuid.isUuid nos 5 alvos (shape RFC 4122)
+  - S7-ext — time.isWeekend nos 5 alvos (wrapper dayOfWeek>=6)
+  - S12 — validation.formatCpf/formatCep nos 5 alvos (pontuação BR)
+  - S11 — strings.uncapitalize nos 5 alvos (espelho byte-a-byte do capitalize)
+  - S10b — randomString(n, alphabet) nos 5 alvos + fix paridade B27
+  - SEM047 — sobrecarga top-level homonima da erro (SG-011B)
+  - SG-002 — remove tokens mortos (decisao do maintainer: se nao tem uso, remove)
+  - SG-020 — modelo de memoria concorrente SC + fix bug 79 (POP de long)
+  - S10a — kof.random (randomInt/randomBoolean) nos 5 alvos
+  - SG-014 — guardas em pattern matching (case T v if cond)
+  - SG-011 — funcao aninhada com hoisting (inner primeiro, outer chama e aguarda)
+  - SG-012 — inferencia contextual de lambda em map/filter/reduce
+  - SEM046 — private/protected checados em compile-time (SG-013)
+  - SEM045 — clausula throw validada, nao mais decorativa (SG-019)
+  - SEM044 — Int main() rejeitado, entry point e so main() (SG-018)
+  - SEM043 — implements sem cobrir metodos da interface da erro (SG-015)
+  - SEM042 — tipo aninhado (class dentro de class) vira erro (SG-016)
+  - SEM041 — new de classe abstrata vira erro de compilacao (SG-017)
+
+### Bugfixes
+
+  - bug 99 — String method com formal String recebia Int/Char → 4 backends divergiam (JVM VerifyError / x86 SIGSEGV / JS -1 silencioso / interp CCE)
+  - bug 97 face JS — String.compareTo/hashCode (JsCallEmitter roteava p/ String.prototype, que não tem — TypeError)
+  - bug 97 (cont.) — String.equals roteado p/ kof_string_equals (x86_64)
+  - bug 97 — String.compareTo/hashCode emite nos nativos (x86_64)
+  - bug 95 — 2+ split no mesmo programa quebrou o assembler (x86_64)
+  - bug 43 faces indexOf/lastIndexOf — code units UTF-16 (x86_64)
+  - bug 43 face substring — code units UTF-16 (x86_64)
+  - bug 78 — transaction aninhada participa da tx externa (x86_64)
+  - bug 43 residual — charAt UTF-16 code units (x86_64) + bug 44 reconciliado
+  - bug 82 (face cross) — toDouble/toFloat riscv64/aarch64 (parser FP novo + tradutor aarch FP)
+  - bug 88 — riscv/aarch valueOf(T?) despacha pelo INNER (regressão SG-008 cross)
+  - bug 44 — println(double)/toString(double) com o contrato do JDK
+  - bug 82 (x86) — toDouble/toFloat no contrato do JDK (parser reescrito)
+  - bug 80 — println(Long.MIN) riscv/aarch correto (magnitude negativa, técnica JDK)
+  - bug 79 (x86) — toInt/toLong alinhados ao contrato JVM (trim+dígito+overflow+throw)
+
+### Documentation
+
+  - merges beta-0.4.0 + main(uuid.v7) resolvidos — PRÓXIMO PASSO lane Native JS §97
+  - NAT-STR01 estendido p/ toUpperCase/toLowerCase de instância (varredura String parte 2)
+  - §97/§98 — String.compareTo/hashCode link-fail + `<`/`>` Unspecified (varredura String parte 2)
+  - merge main→beta pushado 082784cb — PRÓXIMO PASSO atualizado (fila da lane; nunca pushar main sem pedido)
+  - §79 fechado — header stale; 3 faces corrigidas verificadas na menor repro
+  - §89 registrado — conversão numérica de PRIMITIVO (.toDouble()/.toInt()) quebra link nos 3 nativos
+  - bugs 82-face-cross + 88 fechados; PRÓXIMO PASSO atualizado (gap boxing toDouble / FLT001 print / DD-*)
+  - varredura final spec-gaps — §39 (bug 87 corrigiu), SG-E1/E2/E3 fechados, resumo atualizado
+  - validação doc↔código do modelo de memória concorrente
+  - §82 registrado — toDouble/toFloat nativos fora do contrato (matriz medida)
+  - bug 81 — JS toLong = Number/double (overflow ±2^53 não lança); DOING atualizado
+  - §79 corrigido — riscv/aarch ' -42 '->42 (sinal perdido), não -42
+  - STDLIB — bug 79 reivindicado; PRÓXIMO PASSO = U2 fix x86 (RuntimeStringParse)
+  - bug 79 — toInt/toLong nativos divergem do contrato JVM em entrada inválida (R6)
+  - STDLIB — corpus fechado; PRÓXIMO PASSO = checar resposta da mantenedora às notas de design
+  - corpus em dia — idioms/stdlib cobre as entregas da sessão
+  - DD-STDLIB-02 — semântica de tempo restante (fuso/assinaturas/format) é decisão, não edição
+  - S3b-ext feito — PRÓXIMO PASSO exato = formatCnpj (formatPis ambíguo -> nota)
+  - DD-STDLIB-01 — retorno Array na camada de dispatch (S10c) é decisão, não edição
+  - lane spec-gaps COMPLETA — 11 decisões do maintainer aplicadas
+  - SG-003/SG-011 a SG-019 — registra decisões do maintainer aplicadas
+  - STDLIB — gate restaurado pelo autor (dd8a91fd fecha 53264c9f); lição 3ª vez do inlining (rm -rf target pós-pull de constante embutida); lane retoma p/ random S10
+
+### Tests
+
+  - STDLIB — paridade cross de validation/net/time/escape em qemu (auditoria R6 parte 2)
+  - STDLIB — paridade cross (riscv/aarch) do core stdlib em qemu
+  - varredura R6 completa — +5 namespaces (security/orm/config/cache/log)
+  - varredura R6 estendida a db/http/cache/mq (4 famílias de outras lanes)
+  - varredura R6 — 8 namespaces stdlib nunca são silenciosos
+  - paridade kof-script × JVM compilado da stdlib nova (S10–S12b)
+
 <!-- NEXT-RELEASE -->
 
 ## [0.2.7-beta] - 2026-09-04

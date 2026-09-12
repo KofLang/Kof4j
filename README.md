@@ -349,7 +349,7 @@ completo com cada sistema, checksum e solução de problemas) e
 kof build <dir> [--target jvm|native|native.risc|native.arm|js|android] [--output <dir>] [--release]
 kof run <file.kf> [--target jvm|native|native.risc|native.arm|js] [args...]
 kof serve <file.kf> [--port <port>] [--host <host>]
-kof check <file.kf|dir>
+kof check <file.kf|dir> [--json]
 kof test <file.kf|dir> [--target jvm|native|js]
 kof script | repl | c | fmt | config
 kof bench | profile | inspect | debug
