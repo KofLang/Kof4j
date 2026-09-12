@@ -145,6 +145,26 @@ raiz de runtime gerado, `mvn -o clean` na sonda. A suíte completa (surefire)
 compila tudo do zero, então o #88 NÃO quebrou o gate JS; o node-trio
 (#74/#79/#80 e o novo do #88) é puramente o host sem node. Não é gate meu.
 
+**FEITO (12/09, lane JVM — §128 CORRIGIDO, spike OTP #83):** `selectAny(a,b)`
+de `Handle<Int>` atribuído a `var` e usado como Int → **VerifyError** no JVM
+("Type 'java/lang/Object' is not assignable to integer" no `istore` do
+`kof_select_any`). Causa: `JvmOpCollections.emitRuntimeCall` roteava
+`emitUnboxIfPrimitive` p/ `kof_await`/`kof_await_timeout` com retorno
+primitivo, mas **NÃO p/ `kof_select_any`** — mesmo retorno `Object` do
+runtime, mesma assimetria (o `await h` de Int já caía no unbox; o selectAny
+não). Typer já dava o inner `Int` (`BuiltinCallTyper:304`), então só faltava
+a 1 condição no guard. Fix: `kof_select_any` adicionado ao ramo. Prova:
+`KofConcurrency2Test#selectAnyPrimitiveJvm` (spawn Int, `selectAny(a,b)+1`→`8`;
+vermelho antes, verde depois) + `selectAnyJvm` (String) + await+arit `4`
+sem regressão; classe 33/0 (1 skip). Paridade medida JVM==Native==JS=`8`.
+Script = caminho interp (`KofInterpreterConcurrency:111`, sem descritor).
+Suíte completa 1548/0/13err(node-env)/142skip. Docs: known-bugs §128 ✅.
+**Nota: as 2 falhas que eram "pré-existentes" no baseline (SEM047
+duplicateTopLevelFunctionFails + §128-DecompileTest) FORAM FECHADAS pelo
+remoto hoje** (`a2d6c140` sobrecarga top-level + `982f53f0` bug 134 switch
+decompilado) — a única fonte de falha na lane agora é o node ausente (13
+erros `*Js()`, todos pré-existentes/environmentais, NÃO corrigíveis sem node).
+
 **PRÓXIMO PASSO (bugfix):** (1) **§125** — `println(<primitivo>? null)`:
 crasha JVM/Script, Native dá `0`; ORACLE em conflito (map-miss imprime `0`
 vs print-boxed `null`) → AGUARDANDO decisão da mantenedora (condição 1, já

@@ -3690,7 +3690,18 @@ int de índice) — verificados na varredura.
   tipo-valor declarado.
 
 
-### 128. JVM: resultado de `selectAny`/`await` de Handle<Int> atribuído a var e usado como Int → VerifyError — 🔴 ABERTO (spike OTP #83 11/09)
+### 128. JVM: resultado de `selectAny`/`await` de Handle<Int> atribuído a var e usado como Int → VerifyError — ✅ CORRIGIDO 12/09 (JVM; await já caía no unbox, selectAny não) (spike OTP #83 11/09)
+- **Correção (12/09, lane bugfix):** em `JvmOpCollections.emitRuntimeCall`, o
+  ramo que chama `emitUnboxIfPrimitive` para `kof_await`/`kof_await_timeout` com
+  retorno primitivo foi estendido a `kof_select_any` (mesmo destino `Object` do
+  runtime, mesma assimetria). Uma condição. Typer já devolvia o inner `Int`
+  (`BuiltinCallTyper:304`), então `isPrimitiveType(kc.returnType())` casa e o
+  `Integer.intValue()` entra antes do `istore` — o VerifyError desaparece.
+  **Prova:** `KofConcurrency2Test#selectAnyPrimitiveJvm` (spawn de `Int`,
+  `selectAny(a,b)+1` → `8`) — vermelho antes (VerifyError), verde depois;
+  `selectAnyJvm` (String) e `await`+aritmética intactos (sem regressão);
+  classe 33/0 (1 skip). Paridade medida: JVM `8`==Native `8`==JS `8`. Script
+  é outro caminho (interp `KofInterpreterConcurrency:111`, sem descritor).
 - **Menor repro:** `Int um(){return 1}; Int dois(){return 2}; main(){ var a=spawn
   um(); var b=spawn dois(); var v=selectAny(a,b); println(v==1||v==2) }` →
   compila ok, roda: `VerifyError: Bad type on operand stack … Type

@@ -81,6 +81,25 @@ class KofConcurrency2Test {
     }
 
     @Test
+    void selectAnyPrimitiveJvm(@TempDir Path tmp) throws Exception {
+        // §128-JVM: selectAny de Handle<Int> atribuído a var e usado como Int
+        // dava VerifyError "Type 'java/lang/Object' is not assignable to
+        // integer" no istore — o lowerer roteava await/awaitTimeout p/ unbox
+        // mas NÃO selectAny (mesmo retorno Object do runtime). O caso String
+        // (selectAnyJvm) não pegava: referência não precisa de unbox.
+        runJvm(tmp, """
+                Int um() { return 7 }
+                Int outro() { time.sleep(200); return 9 }
+                main() {
+                    val a = spawn um()
+                    val b = spawn outro()
+                    val v = selectAny(a, b)
+                    println(v + 1)
+                }
+                """, "8");
+    }
+
+    @Test
     void selectAnyNative(@TempDir Path tmp) throws Exception {
         // CONC001 residual fechado: selectAny nativo (polling 1ms sobre o handle).
         // Os handles são criados JUNTOS (spawn-all-up-front) e o selectAny vem

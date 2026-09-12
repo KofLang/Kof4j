@@ -53,8 +53,12 @@ public final class JvmOpCollections {
                         unboxDescriptor(kc.returnType()), false);
                 mv.visitLabel(end);
             } else if (("kof_await".equals(kc.methodName())
-                    || "kof_await_timeout".equals(kc.methodName())) && isPrimitiveType(kc.returnType())) {
-                // await/awaitTimeout com resultado primitivo: reflexão devolve boxed.
+                    || "kof_await_timeout".equals(kc.methodName())
+                    || "kof_select_any".equals(kc.methodName())) && isPrimitiveType(kc.returnType())) {
+                // await/awaitTimeout/selectAny com resultado primitivo: o runtime
+                // devolve Object (boxed, do CompletableFuture). §128-JVM: selectAny
+                // compartilhava o destino primitivo de await mas NÃO era roteado
+                // aqui → istore de Object → VerifyError "not assignable to integer".
                 emitUnboxIfPrimitive(mv, kc.returnType());
             } else if ("kof_list_reduce".equals(kc.methodName()) && isPrimitiveType(kc.returnType())) {
                 emitUnboxIfPrimitive(mv, kc.returnType());
