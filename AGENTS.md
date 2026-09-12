@@ -3,7 +3,7 @@
 Este é o guia **obrigatório** para qualquer agente de IA (ou humano) que
 escreva código Kof neste repositório. Leia antes de gerar qualquer `.kf`.
 
-**Versão:** 0.3.0-beta · Última atualização: 05/09/2026 (modo autônomo definido; linha 0.3.0 + REFACTOR-500 em curso)
+**Versão:** 0.4.0-beta · Última atualização: 11/09/2026 (modo autônomo + condição de ESTABILIDADE com recusa de re-disparo; branch ativa = `beta-0.4.0`)
 
 ---
 
