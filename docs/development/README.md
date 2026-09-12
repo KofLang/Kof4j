@@ -51,6 +51,7 @@
 | `planning-stdlib-array-returns.md` | **movido p/ `docs/development/future/` 11/09** (DD-STDLIB-01 PROPOSED — zero código; trava de dispatch Array/objeto) | `PLANEJADO (future)` |
 | `plan-stdlib-expansion.md` | STDLIB universal S1–S12: S1–S8+S10–S12 ✅ 09–11/09 (TIME002 fechado 11/09 fatia B33; MATH001 fechado 11/09 fatia B32); pendentes: S10c (DD-STDLIB-01) + S7 `format`/`boundaries` (decisão de superfície) — `pow`/`roundTo`-mode ag. mantenedora | `EM CURSO` |
 | `planning-otp-supervision.md` | DD-OTP-01..13: supervisão OTP one_for_one (issue #83) — recomend. stdlib puro-Kof + fábrica + escalate-callback + flag própria (5 alvos grátis) — decide a mantenedora | `PROPOSED` |
+| `PLAN-TREE-SHAKING.md` | **movido de `future/` 12/09** — stdlib por alcançabilidade (issue #97, frente designada pela mantenedora): S-1 (T0) ✅ 12/09 (`ArtifactSize` parser ELF64 + `ArtifactSizeTest` gate 5% + `kof build --print-sizes` — números da §1 do plano travados por teste); S-2..S-5 (T1a/T1b poda de fatias x86→riscv) + S-6 (T2 JS por família) + S-7 (docs consolidadas) pendentes | `EM CURSO` |
 | `refactoring/PLAN-SOLID-500.md` | regra ≤500 linhas: Fases 4–8 fechadas, mas F1–3 + 9 com resíduo 502 → 493 | `EM CURSO` |
 
 ### 4. Gaps & Bugs

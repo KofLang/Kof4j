@@ -1,6 +1,6 @@
 # PLAN-TREE-SHAKING.md — stdlib por alcançabilidade: o compilador inclui só o que o programa usa
 
-**Dono:** lane PLATAFORMA (frente designada pela mantenedora 11/09) · **Status:** PLANO (zero código nesta fase) · **Criado:** 12/09 · **Issue:** #97
+**Dono:** lane PLATAFORMA (frente designada pela mantenedora 11/09; execução na lane development) · **Status:** EM CURSO — **S-1 (T0) ✅ FEITA 12/09** (`ArtifactSize` parser ELF64 puro-Java + `ArtifactSizeTest` com gate anti-inchaço 5% travado nos números medidos + `kof build --print-sizes`; movido de `future/` p/ cá pela regra dos três estados — S-7 manda, "quando S-1 começar") · **Criado:** 12/09 · **Issue:** #97
 
 > **Regra fundamental:** o desenvolvedor declara o que pretende utilizar; o
 > compilador inclui **somente** o que for realmente necessário para executar
@@ -9,9 +9,10 @@
 
 Este plano é **análise medida** (código + binários desta sessão, toolchain
 cross ativa), não memória. Cada afirmação abaixo tem evidência reproduzível.
-A implementação começa **depois** da decisão da mantenedora sobre os tiers
-(§7); os degraus T0/T1a/T1b não mudam contrato de linguagem e podem ser
-executados na sequência do aceite.
+**Aceite dado pela mantenedora via issue #97 (12/09)** — o briefing "planejar
+ANTES de implementar" foi cumprido (este doc + números medidos) e a issue
+aberta com o plano no escopo É o aceite; degraus T0–T1b não mudam contrato de
+linguagem (aditivos). **S-1 (T0) ✅ FEITA 12/09 (S-2 em diante, fila abaixo).**
 
 ---
 
@@ -268,9 +269,7 @@ mínimo-jar; registra como fora-de-escopo com justificativa.
 flag `failure.ignore` da regra de verificação). Ordem de execução da fila
 após o aceite dos §T:
 
-1. **S-1 (T0)** harness `ArtifactSizeTest` + `--print-sizes` — prova: números
-   deste doc reproduzidos por teste automatizado; gate de regressão ativo
-   (tolerância 5% sobre o *baseline atual*, que será a linha de largada).
+1. **S-1 (T0)** ✅ **FEITA 12/09** — `dev.kof.compiler.ArtifactSize` (parser ELF64 puro-Java: mapa seção→bytes + contagem de símbolos `kof_*` DEFINIDOS no `.symtab`; `jsBytes` soma os `.mjs`), teste `ArtifactSizeTest` (3 gates: hello x86 138.928B/627 syms; runtime JS 177.412B; hello riscv 144.000B/258 syms `assumeToolchain`; tolerância +5% UNILATERAL p/ inchaço — encolher é a meta, sabotagem do baseline → FAIL provado) e `kof build --print-sizes` (JSON estável, aditivo — sem flag, build inalterado). Números deste doc reproduzidos por teste automatizado ✔ (651 vs 627: o issue contou `nm` com imports; o harness define "DEFINIDOS no symtab", o que T1a vai derrubar — gate travado na medida do harness).
 2. **S-2 (T1a.1)** mapa `provides/needs` declarado por fatia (refactor
    mecânico, comportamento-idêntico — prova: bins byte-ident antes/depois).
 3. **S-3 (T1a.2)** `Reachability` + poda no x86 (a face com mais símbolos:

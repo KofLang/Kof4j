@@ -23,9 +23,9 @@ final class CmdBuild {
     }
 
     static void run(String[] args) {
-        if (args.length < 2) { System.err.println("usage: kof build <source-dir> [--target jvm|native|js|android] [--backend <t>] [--frontend <t>] [--output <dir>] [--release] [--apk] [--classpath <jars>] [--keystore <ks> [--storepass <p>] [--keypass <p>] [--alias <a>]]");
+        if (args.length < 2) { System.err.println("usage: kof build <source-dir> [--target jvm|native|js|android] [--backend <t>] [--frontend <t>] [--output <dir>] [--release] [--apk] [--print-sizes] [--classpath <jars>] [--keystore <ks> [--storepass <p>] [--keypass <p>] [--alias <a>]]");
         if ("--help".equals(args[1]) || "-h".equals(args[1]) || "--version".equals(args[1])) {
-            System.out.println("usage: kof build <source-dir> [--target jvm|native|js|android] [--backend <t>] [--frontend <t>] [--output <dir>] [--release] [--apk] [--classpath <jars>] [--keystore <ks> [--storepass <p>] [--keypass <p>] [--alias <a>]]");
+            System.out.println("usage: kof build <source-dir> [--target jvm|native|js|android] [--backend <t>] [--frontend <t>] [--output <dir>] [--release] [--apk] [--print-sizes] [--classpath <jars>] [--keystore <ks> [--storepass <p>] [--keypass <p>] [--alias <a>]]");
             return;
         } return; }
         Path src = Path.of(args[1]);
@@ -44,6 +44,7 @@ final class CmdBuild {
         String keypass = null;
         String keyalias = null;
         boolean useDeps = false;
+        boolean printSizes = false;
         for (int i = 2; i < args.length; i++) {
             String arg = args[i];
             if (arg.startsWith("--target=")) {
@@ -74,6 +75,8 @@ final class CmdBuild {
                 apk = true;
             } else if (arg.equals("--deps")) {
                 useDeps = true;
+            } else if (arg.equals("--print-sizes")) {
+                printSizes = true;
             } else if (arg.startsWith("--classpath=")) {
                 classpath = arg.substring("--classpath=".length());
             } else if (arg.equals("--classpath") && i + 1 < args.length) {
@@ -162,6 +165,7 @@ final class CmdBuild {
                 backendDir.toAbsolutePath().normalize());
         for (Diagnostic d : module.diagnostics().getDiagnostics()) System.out.println(d.format());
         if (!module.success()) System.exit(1);
+        if (printSizes) printSizes(target, backendOut);
         if (layout.fullStack()) {
             if (frontendTarget == null) frontendTarget = Target.JS;
             KofCliSupport.buildFrontend(driver, layout, frontendTarget, outFlagged ? out : Path.of("build"));
@@ -171,6 +175,34 @@ final class CmdBuild {
         // (full-stack: as classes do backend saíram em backendOut)
         if (target == Target.ANDROID && apk) {
             runApkPipeline(backendOut, keystore, storepass, keypass, keyalias);
+        }
+    }
+
+    /** Issue #97 / T0: imprime o tamanho medido do artefato (bytes por seção
+     *  + contagem de símbolos `kof_*` definidos) em JSON. Parser ELF64 puro
+     *  (sem `nm`/`readelf` — host-dependentes); JS soma os .mjs. Aditivo: só
+     *  roda com --print-sizes, nunca muda o build de hoje. */
+    private static void printSizes(Target target, Path out) {
+        try {
+            if (target.isNative()) {
+                Path bin = out.resolve("Default/Main");
+                if (!Files.exists(bin)) {
+                    try (var s = Files.walk(out)) {
+                        bin = s.filter(p -> p.getFileName().toString().equals("Main")
+                                && Files.isExecutable(p)).findFirst().orElse(null);
+                    }
+                }
+                if (bin == null || !Files.exists(bin)) { System.err.println("print-sizes: binário nativo não encontrado em " + out); return; }
+                System.out.println("# " + target + " " + bin);
+                System.out.println(dev.kof.compiler.ArtifactSize.toJson(
+                        dev.kof.compiler.ArtifactSize.elf(bin)));
+            } else if (target == Target.JS) {
+                System.out.println("{\"jsBytes\":" + dev.kof.compiler.ArtifactSize.jsBytes(out) + "}");
+            } else {
+                System.out.println("# print-sizes: " + target + " é lazy/on-demand — sem artefato único (JVM classes separadas)");
+            }
+        } catch (IOException e) {
+            System.err.println("print-sizes: " + e.getMessage());
         }
     }
 
