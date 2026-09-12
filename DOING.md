@@ -19,6 +19,27 @@ Estados: `ABERTO` · `EM CURSO` · `FEITO` · `BLOQUEADO`.
 
 ---
 
+## 📢 AVISO A TODOS OS AGENTES (11/09, diretriz da mantenedora)
+
+1. **Foco 100% da lane development**: concluir as pendências de
+   `docs/development/` e **estabilizar a linguagem** — esta `beta-0.4.0` é a
+   próxima release. Nada de frentes novas fora do backlog de development.
+2. **Regra de ESTABILIDADE nova no `AGENTS.md`** (§"Estabilidade: quando parar
+   o loop"): quando (a) todos os bugs de `known-bugs.md` estiverem resolvidos,
+   (b) todo `docs/development/` estiver concluído (docs movidas p/ `docs/`) e
+   (c) todo `docs/development/future/` estiver desenvolvido — cada re-disparo
+   do modo autônomo DEVE avaliar: **regressão ou doc nova → assume a tarefa;
+   nada novo → RECUSA o re-disparo** (não inventa trabalho), registra aqui,
+   para o cron (`scripts/auto-loop.sh stop`) e **informa à mantenedora que o
+   desenvolvimento está estável**. Suíte verde + matriz 5/5 = prova.
+3. **Estado atual: NÃO estamos estáveis** — pendências reais: fila de bugs
+   (§125/§126/§104b-ii, mesa do agente de bugs), SG-011B sobrecarga top-level
+   (lane development, EM CURSO nesta sessão), faces cross sem prova qemu de
+   §123/§126-tag. O loop continua; a recusa só vale quando as 3 condições
+   fecharem.
+
+---
+
 ## PRÓXIMO PASSO (re-dispacho lê isto)
 **FEITO (11/09, lane Native cross — §113 FACES riscv64+aarch64 FECHADAS — `kof_multi_alloc` recursivo cross):** o maintainer corrigiu o x86 e deixou "faces riscv/aarch = port p/ sessão c/ toolchain" — a toolchain ESTÁ neste host (`/usr/bin/qemu-riscv64|aarch64` + binutils), então o port é o degrau óbvio da fila. Fatia nova `NativeRiscvAsmRtB37` (0 colisões .L/.globl verificadas vs vencedora): `kof_multi_alloc(a0=dimsBase, a1=n, a2=i, a3=leafStride)` recursivo espelhando o x86 — MESMA fórmula de offset `d_i = base + 8*(n-i)`; ABI própria: o chamador passa o PRÓPRIO sp como base (dimensões já empilhadas, d_n no topo) e sÓ AVANÇA o sp depois (sem pilha dinâmica — frame fixo do helper salva ra+s0..s6, 112B); nó interno = elemSize 8 (ponteiros), folha = stride do baseType com payload ZEROED byte-a-byte via laço `sb` (paridade MULTIANEWARRAY — kof_alloc é bump-pointer sem zero). Roteio `KofNewMultiArray` em `NativeRiscvCrossEmit` (antes caía no default-comentário NATIVE002); aarch herda 100% via tradutor (verificado: `sb zero`→`strb wzr`, `bge`/`bne`/`mul`/`slli` todos cobertos, 0 UNHANDLED). **Prova:** `riscv64MultiDimArray`/`aarch64MultiDimArray` (10 saídas golden = oracle JVM medido: lengths 2/3 + zero-fill + store/load + 3-D completo `2 3 0 7 2 2 9 0`); sabotagem → FAIL com saída real (não-vazio provado). Docs: célula `array2d` da matriz (faces cross ✅) + §113. **PRÓXIMO PASSO (re-dispacho):** (1) §113 PUSHADO `d2a4dc0a`+docs `edb86c34` (suíte do HEAD pré-rebase 1477/0/5skip; gate no HEAD exato rodando `push-gate.log` — se vermelho, é meu para corrigir antes da próxima unidade); (2) fila lane Native com toolchain real: §107 Native println(coleção) — ABERTO, backend-only, sem gate, R6 violada hoje (imprime lixo de ponteiro); fix = helpers toString recursivos dos 3 tipos de coleção (espelho `kofFormat` do JS §107-JS, x86 primeiro + fatia riscv + tradutor); §114 hash/coleção fica ATRELADO à infra storage-box do §104b-ii(i) (grande, avaliar antes); NÃO tocar §101/§94/§44 (congelados), §45/§106/DD-STDLIB (decisão mantenedora), lane §104/interp (outros agentes). NUNCA pushar main sem pedido do humano.
 
