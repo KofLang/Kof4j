@@ -3486,11 +3486,25 @@ int de índice) — verificados na varredura.
   overload errado (char[] vs Object); aqui `println(Nullable(INT))` faz
   `boxPrimitive` → `valueOf(INT)` e o caminho do null no boxing/choice
   falha em outros pontos (JVM bytecode inválido + reflect sem alvo).
-- **Oracle ANTES de corrigir (regra 4):** corpus decide `null` vs `0`.
-  `training/idioms/errors.md`/null-safety ainda não coberto por esta
-  varredura — DEFINIR o oracle (medir `println(x)` onde `Int? x = miss`
-  no interpretador-vs-JVM com narrowing ausente) e SÓ ENTÃO editar; se
-  ambíguo, aguarda decisão da mantenedora (condição de parada 1).
+- **Oracle (regra 4) — o PRECEDENTE CONGELADO já responde, mas há
+  inconsistência entre caminhos do MESMO tipo (aqui está o bug):**
+  (a) `println(mapOf("a",1).get("zz"))` — `Nullable(INT)` vindo do
+  MAP-miss — imprime **`0` nos 4 targets** (guard SG-008/bug-87:
+  "uso espera primitivo → null vira default do primitivo"; PN3 medido
+  11/09). (b) `println(String? null)` imprime **`null`** (§124).
+  (c) `println(ni())` com `Int? ni() { return null }` — MESMO tipo
+  `Nullable(INT)` de (a) — crasha JVM/Script e dá `0` no Native.
+  O comportamento de fato congelado é (a): **`0`** — escolher `"null"`
+  aqui CONTRADIZIRIA o map-miss. §125 = alinhar o caminho (c) ao
+  precedente (a): o guard `Nullable(primitivo)→default` vive só na
+  lowering de coleções (`JvmOpCollections`/`prevOrDefault`), nunca no
+  return de FUNÇÃO de usuário; o println(boxed) do null → boxing
+  `valueOf/1` inexistente (Script) e stack int-vs-ref inválida (JVM).
+  Correção provável: o guard no `boxPrimitive` do print-lowering
+  (Nullable(primitive) com null → default ANTES do box), um ponto só,
+  e a célula fecha 4/4 = `0`. Se a mantenedora preferir `"null"` como
+  oracle universal de nullable-print, (a) tem de mudar junto — bump +
+  migração; registrado nas duas leituras, execução aguarda (condição 1).
 - **Prova esperada:** PN2 com o valor do oracle nos 4 targets (célula na
   matriz 4/4) + `KofInterpreterParityTest`; hoje crash/crash/0.
 - **Prioridade:** média-baixa (crash ruidoso; workaround `if (x != null)`
