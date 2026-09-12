@@ -359,7 +359,13 @@ public final class BuiltinCallTyper {
                 && !"storesLive".equals(mc.methodName())) {
             List<Type> argTypes = new ArrayList<>();
             for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
+            // SG-011B: junta TODOS os candidatos homônimos ELIGÍVEIS (mesmo
+            // predicado de antes: sem type params próprios, e com args cobrindo
+            // os parâmetros quando há defaults) e resolve por assinatura. Um
+            // único candidato → caminho idêntico ao antigo (zero regressão);
+            // ≥2 → TopLevelOverload.pick (oracle JVM); ambíguo → SEM056.
             boolean found = false;
+            List<TopLevelOverload.Candidate> cands = new ArrayList<>();
             for (AstNode d : sa.unit().declarations()) {
                 if (d instanceof FunctionDeclarationNode fn && fn.name().equals(mc.methodName())) {
                     found = true;
@@ -369,17 +375,8 @@ public final class BuiltinCallTyper {
                             || mc.arguments().size() >= fn.parameters().size())) {
                         List<Type> paramTypes = new ArrayList<>();
                         for (FormalParameterNode p : fn.parameters()) paramTypes.add(MemberResolver.resolveType(sa, p.type(), scope));
-                        TypeChecker.checkArgTypes(sa.diagnostics(), mc.methodName(), argTypes, paramTypes);
-                        // registra o tipo de retorno da função top-level
-                        // para o var local inferir (evita Unknown que
-                        // quebra a resolução de métodos do receiver)
-                        Type fnRet = MemberResolver.resolveType(sa, fn.returnType(), scope);
-                        if (!Type.isVoid(fnRet)) {
-                            sa.expressionTypes().put(mc, fnRet);
-                            return fnRet;
-                        }
+                        cands.add(new TopLevelOverload.Candidate(fn, paramTypes, paramTypes.size()));
                     }
-                    break;
                 } else if (d instanceof ExternalFunctionNode ext && ext.name().equals(mc.methodName())) {
                     // FFI (TIER 2.1): chamada a `extern` declarado resolve pelo
                     // contrato (tipo de retorno), nunca SEM015 — o binding real é
@@ -389,6 +386,32 @@ public final class BuiltinCallTyper {
                     if (!Type.isVoid(extRet)) {
                         sa.expressionTypes().put(mc, extRet);
                         return extRet;
+                    }
+                }
+            }
+            if (!cands.isEmpty()) {
+                TopLevelOverload.Status[] st = new TopLevelOverload.Status[1];
+                int sel = TopLevelOverload.pick(cands, argTypes, st);
+                if (sel < 0 && st[0] == TopLevelOverload.Status.AMBIGUOUS) {
+                    if (sa.diagnostics() != null) {
+                        sa.diagnostics().error(mc.position() != null ? mc.position().file() : "",
+                                mc.position() != null ? mc.position().line() : 0,
+                                mc.position() != null ? mc.position().column() : 0, 0,
+                                "call to '" + mc.methodName() + "' is ambiguous between "
+                                        + cands.size() + " overloads — add a cast to pick one",
+                                "SEM056");
+                    }
+                } else {
+                    if (sel < 0) sel = 0; // NO_MATCH → reporta SEM013/SEM014 no candidato 0, como antes
+                    TopLevelOverload.Candidate chosen = cands.get(sel);
+                    TypeChecker.checkArgTypes(sa.diagnostics(), mc.methodName(), argTypes, chosen.paramTypes());
+                    // registra o tipo de retorno da função top-level para o var
+                    // local inferir (evita Unknown que quebra a resolução de
+                    // métodos do receiver)
+                    Type fnRet = MemberResolver.resolveType(sa, chosen.fn().returnType(), scope);
+                    if (!Type.isVoid(fnRet)) {
+                        sa.expressionTypes().put(mc, fnRet);
+                        return fnRet;
                     }
                 }
             }

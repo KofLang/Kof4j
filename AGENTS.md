@@ -3,7 +3,7 @@
 Este é o guia **obrigatório** para qualquer agente de IA (ou humano) que
 escreva código Kof neste repositório. Leia antes de gerar qualquer `.kf`.
 
-**Versão:** 0.3.0-beta · Última atualização: 05/09/2026 (modo autônomo definido; linha 0.3.0 + REFACTOR-500 em curso)
+**Versão:** 0.4.0-beta · Última atualização: 11/09/2026 (modo autônomo + condição de ESTABILIDADE com recusa de re-disparo; branch ativa = `beta-0.4.0`)
 
 ---
 
@@ -109,6 +109,44 @@ deixe trabalho grande não-commitado — é assim que se perde uma sessão.
 4. **Requisito genuinamente ausente do corpus** — nem `training/`, nem
    `learn/`, nem o compilador respondem: escreva a pergunta no DOING.md na
    linha do item e siga para outra tarefa (não trave o loop).
+5. **Desenvolvimento estável (condição de ESTABILIDADE — para o re-disparo)**
+   — ver a seção seguinte: o loop só tem trabalho se houver trabalho real.
+
+### Estabilidade: quando parar o loop e como avaliar cada re-disparo (obrigatório)
+
+> **O desenvolvimento está estável quando as três condições abaixo valem ao
+> mesmo tempo:**
+>
+> 1. **Todos os bugs resolvidos** — `docs/development/known-bugs.md` sem item
+>    aberto (tudo `CORRIGIDO`/`FECHADO` com prova).
+> 2. **Todo `docs/development/` concluído** — nenhuma doc com desenvolvimento
+>    pendente (as concluídas já foram movidas para `docs/`, as não-iniciadas
+>    movidas para `docs/development/future/`).
+> 3. **Todo `docs/development/future/` desenvolvido** — os planos de futuro
+>    implementados e validados (ou promovidos/promovidos a `docs/` conforme a
+>    regra dos três estados).
+>
+> Sob essas três condições, **a suíte completa verde + a matriz de conformidade
+> 5/5 são a prova da estabilidade** — ela é um ESTADO a verificar, não uma
+> opinião a declarar.
+>
+> **A cada mensagem do modo autônomo (heartbeat/re-disparo), o agente DEVE
+> avaliar antes de agir:**
+>
+> - **Surgiu regressão** (suíte vermelha, teste novo falhando, bug reintroduzido,
+>   documento novo adicionado a `docs/development/` com trabalho pendente)?
+>   → **assuma a tarefa**: reivindique no DOING.md e execute o loop normal.
+> - **Não surgiu nada** (as três condições de estabilidade continuam valendo e
+>   a suíte está verde)? → **RECUSE o pedido do modo autônomo**: não invente
+>   trabalho, não edite "para parecer ocupado", não rode suíte de novo só para
+>   consumir turno. A recusa honesta É a resposta correta: registre no DOING.md
+>   ("estável — re-disparo recusado em <data>, nada pendente"), **pare o cron**
+>   (`scripts/auto-loop.sh stop`) e informe a estabilidade à mantenedora.
+>
+> Rejeitar o re-disparo não quebrado é **tão obrigatório quanto executar o
+> re-disparo legítimo**: o heartbeat existe para cobrir o intervalo entre
+> trabalhos reais, não para gerar trabalho artificial. Loop que não encontra
+> trabalho quando o trabalho acabou está funcionando corretamente ao recusar.
 
 **O que o modo autônomo NÃO relaxa (nada):** todas as regras deste arquivo
 continuam valendo — zero regressão, retrocompatibilidade aditiva, ≤500

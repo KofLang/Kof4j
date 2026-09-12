@@ -470,19 +470,34 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
             for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
             Type returnType = Type.UnknownType.UNKNOWN;
             if (driver.currentUnit != null) {
+                // SG-011B: mesmo veredicto do typer (frontend único). Único
+                // candidato → caminho idêntico ao antigo; ≥2 → assinatura.
+                List<FunctionDeclarationNode> ovlFns = new ArrayList<>();
                 for (AstNode d : driver.currentUnit.declarations()) {
-                    if (d instanceof FunctionDeclarationNode fn && fn.name().equals(mc.methodName())) {
-                        returnType = CompilerTypes.resolveWithTypeParams(fn.returnType(), fn.typeParameters(), driver.currentUnit, driver.semanticAnalyzer);
-                        List<Type> fnTypes = fn.parameters().stream()
-                                .map(p -> CompilerTypes.resolveWithTypeParams(p.type(), fn.typeParameters(), driver.currentUnit, driver.semanticAnalyzer)).toList();
-                        boolean hasDefaults = fn.parameters().stream()
-                                .anyMatch(p -> p.defaultExpression() != null);
-                        if (hasDefaults && mc.arguments().size() < fnTypes.size()) {
-                            argTypes = fnTypes.subList(0, mc.arguments().size());
-                        } else {
-                            argTypes = fnTypes;
-                        }
-                        break;
+                    if (d instanceof FunctionDeclarationNode fn && fn.name().equals(mc.methodName())) ovlFns.add(fn);
+                }
+                FunctionDeclarationNode chosen = ovlFns.isEmpty() ? null : ovlFns.get(0);
+                if (ovlFns.size() > 1) {
+                    List<TopLevelOverload.Candidate> ovlCands = new ArrayList<>();
+                    for (FunctionDeclarationNode fn : ovlFns) {
+                        List<Type> pt = fn.parameters().stream()
+                                .map(pp -> CompilerTypes.resolveWithTypeParams(pp.type(), fn.typeParameters(), driver.currentUnit, driver.semanticAnalyzer)).toList();
+                        ovlCands.add(new TopLevelOverload.Candidate(fn, pt, pt.size()));
+                    }
+                    TopLevelOverload.Status[] st = new TopLevelOverload.Status[1];
+                    int sel = TopLevelOverload.pick(ovlCands, argTypes, st);
+                    if (sel >= 0) chosen = ovlCands.get(sel).fn();
+                }
+                if (chosen != null) {
+                    returnType = CompilerTypes.resolveWithTypeParams(chosen.returnType(), chosen.typeParameters(), driver.currentUnit, driver.semanticAnalyzer);
+                    List<Type> fnTypes = new ArrayList<>();
+                    for (var pp : chosen.parameters()) fnTypes.add(CompilerTypes.resolveWithTypeParams(pp.type(), chosen.typeParameters(), driver.currentUnit, driver.semanticAnalyzer));
+                    boolean hasDefaults = chosen.parameters().stream()
+                            .anyMatch(p -> p.defaultExpression() != null);
+                    if (hasDefaults && mc.arguments().size() < fnTypes.size()) {
+                        argTypes = fnTypes.subList(0, mc.arguments().size());
+                    } else {
+                        argTypes = fnTypes;
                     }
                 }
             }

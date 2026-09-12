@@ -456,8 +456,33 @@ if (mc.receiver() != null) {
     if (lambdaVar != null && lambdaVar.type() instanceof Type.FunctionType lft) {
         return lft.returnType();
     }
+    // SG-011B: coletar candidatos homônimos; único → caminho original
+    // (genéricos incluídos); ≥2 → seleção por assinatura (mesmo veredicto do
+    // BuiltinCallTyper/lowering — frontend único, mesma mensagem nos 5 targets).
+    List<FunctionDeclarationNode> tloFns = new ArrayList<>();
     for (AstNode d : driver.currentUnit.declarations()) {
-        if (d instanceof FunctionDeclarationNode fn && fn.name().equals(mc.methodName())) {
+        if (d instanceof FunctionDeclarationNode fn && fn.name().equals(mc.methodName())) tloFns.add(fn);
+    }
+    List<TopLevelOverload.Candidate> tloCands = new ArrayList<>();
+    if (tloFns.size() > 1) {
+        List<Type> tloArgTypes = new ArrayList<>();
+        for (ExpressionNode arg : mc.arguments()) tloArgTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
+        for (FunctionDeclarationNode fn : tloFns) {
+            if (!fn.typeParameters().isEmpty()) continue;
+            List<Type> pt = new ArrayList<>();
+            boolean seenDefault = false;
+            for (var p : fn.parameters()) {
+                pt.add(CompilerTypes.toType(p.type(), driver.currentUnit));
+                if (p.defaultExpression() != null) seenDefault = true;
+            }
+            tloCands.add(new TopLevelOverload.Candidate(fn, pt, pt.size()));
+        }
+        TopLevelOverload.Status[] st = new TopLevelOverload.Status[1];
+        int sel = TopLevelOverload.pick(tloCands, tloArgTypes, st);
+        if (sel >= 0) tloFns = List.of(tloCands.get(sel).fn());
+        else tloFns = List.of(tloFns.get(0)); // erro já reportado no typer semântico (SEM013/14/56)
+    }
+    for (FunctionDeclarationNode fn : tloFns) {
             Type returnType = CompilerTypes.toType(fn.returnType(), driver.currentUnit);
             if (fn.typeParameters().contains(fn.returnType())) {
                 returnType = new Type.TypeVariable(fn.returnType());
@@ -471,7 +496,6 @@ if (mc.receiver() != null) {
                 return Type.UnknownType.UNKNOWN;
             }
             return returnType;
-        }
     }
 }
 SymbolTable.MethodSymbol resolvedMethod = driver.semanticAnalyzer.getResolvedMethod(mc);
