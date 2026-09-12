@@ -826,6 +826,82 @@ class KofConcurrency2Test {
         }
     }
 
+    @Test
+    void crossMissingConcurrencyHelpersReportConc001(@TempDir Path tmp) throws Exception {
+        // #91 (R6): nat/NativeRiscvSpawn.java só emite kof_spawn_result/kof_spawn/
+        // kof_await/kof_spawn_join_all. Antes do gate, selectAny/poll/done/cancel/
+        // cancelled/awaitTimeout compilavam e só falhavam no LINK como símbolo
+        // indefinido. Agora: diagnóstico CONC001 em compile-time nos 6 construtos.
+        Path f = tmp.resolve("M.kf");
+        Files.writeString(f, """
+                Int trabalho() { return 1 }
+                main() {
+                    val a = spawn trabalho()
+                    val b = spawn trabalho()
+                    println(selectAny(a, b))
+                    println(done(a))
+                    println(poll(b))
+                    cancel(a)
+                    println(cancelled())
+                    println(awaitTimeout(a, 10))
+                }
+                """);
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            CompilationResult r = driver.compile(f, tmp.resolve("cross-" + t), t);
+            assertFalse(r.success(), t + " deve reportar CONC001");
+            String diags = r.diagnostics().getDiagnostics().toString();
+            assertTrue(diags.contains("CONC001"), t + ": " + diags);
+            for (String m : new String[]{"selectAny", "done", "poll", "cancel", "cancelled", "awaitTimeout"}) {
+                assertTrue(diags.contains(m + ":"), t + ": falta diagnóstico para " + m + " em " + diags);
+            }
+        }
+    }
+
+    @Test
+    void spawnAwaitStillGreenOnCrossTargets(@TempDir Path tmp) throws Exception {
+        // O gate #91 não pode tocar spawn/await (existem em riscv/aarch via
+        // clone+futex) nem pode silenciar o que já funcionava: programa só com
+        // spawn/await/join continua compilando nos alvos cruzados.
+        Path f = tmp.resolve("M.kf");
+        Files.writeString(f, """
+                Int trabalho() { return 42 }
+                main() {
+                    val r = spawn trabalho()
+                    println(await r)
+                }
+                """);
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            CompilationResult r = driver.compile(f, tmp.resolve("cross-ok-" + t), t);
+            assertTrue(r.success(), t + " não deve reportar CONC001: " + r.diagnostics().getDiagnostics());
+        }
+    }
+
+    @Test
+    void crossNativeHelpersUnchangedOnX86JvmJs(@TempDir Path tmp) throws Exception {
+        // Retroscompatibilidade (regra 2): o gate é só dos alvos cruzados.
+        // O mesmo programa que falha em riscv/aarch continua compilando em
+        // x86/JVM (helpers reais, provados por selectAnyNative/cancelCooperative
+        // /awaitTimeout acima).
+        Path f = tmp.resolve("M.kf");
+        Files.writeString(f, """
+                Int trabalho() { return 1 }
+                main() {
+                    val a = spawn trabalho()
+                    val b = spawn trabalho()
+                    println(selectAny(a, b))
+                    println(done(a))
+                    println(poll(b))
+                    cancel(a)
+                    println(cancelled())
+                    println(awaitTimeout(a, 10))
+                }
+                """);
+        for (Target t : new Target[]{Target.NATIVE, Target.JVM}) {
+            CompilationResult r = driver.compile(f, tmp.resolve("x-" + t), t);
+            assertTrue(r.success(), t + " não deve reportar CONC001: " + r.diagnostics().getDiagnostics());
+        }
+    }
+
     private static Path findJsEntry(Path dir) throws java.io.IOException {
         try (var s = Files.walk(dir)) {
             var opt = s.filter(p -> p.getFileName().toString().equals("Default.mjs")).findFirst();

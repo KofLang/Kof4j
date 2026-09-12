@@ -164,7 +164,7 @@ A mesma semântica Kof utiliza implementações diferentes:
 |--------|---------------|--------|
 | JVM 21+ | Virtual Threads (scheduler da JVM) | ✅ `await`/`Handle<T>` + `kof.mq` |
 | Native x86_64 | OS threads: `pthread_create` + trampoline + `await`/`pthread_join` + `done`/`poll`/`cancel`/`cancelled`/`selectAny` + allocator thread-safe (futex) | ✅ 31/08 (`CONC001` fechado) |
-| Native riscv64/aarch64 | OS threads: `clone(220)` + stack por `mmap` + espera por futex em `handle->done` (`nat/NativeRiscvSpawn.java`) — **só** `spawn`/`await`/join implícito | ⚠️ parcial: `poll`/`done`/`cancel`/`cancelled`/`selectAny`/`awaitTimeout` **ausentes** (sem gate — ver nota abaixo) |
+| Native riscv64/aarch64 | OS threads: `clone(220)` + stack por `mmap` + espera por futex em `handle->done` (`nat/NativeRiscvSpawn.java`) — **só** `spawn`/`await`/join implícito | ⚠️ parcial: `poll`/`done`/`cancel`/`cancelled`/`selectAny`/`awaitTimeout` **ausentes** (gate `CONC001` em compile-time desde 11/09 — ver nota abaixo) |
 | JS (GraalJS) | `async`/`await`/`Promise` nativos — coloração async por fixpoint no compilador (`JsBackend.computeAsyncColoring`), handle `{done,value,error,promise}`, canais com fila de resolvers pendentes, `KofJsRunner` drena a fila de microtasks (`kofActiveTasks`) | ✅ 03/09 (`CONC003` fechado) |
 | KofScript | JVM via KofScriptGlobals | ✅ |
 
@@ -172,13 +172,15 @@ O código Kof não muda entre targets; no x86_64 não há mais gap de
 `spawn`/`await` nem dos auxiliares (`poll`/`done`/`cancel`/`cancelled`/
 `selectAny`/`awaitTimeout` — `CONC001` fechado, incluindo o residual), nem
 no JS (`CONC003` fechado). Em riscv64/aarch64 o `spawn`/`await` existe
-(`clone` 220 + futex), mas os auxiliares **não** — e hoje essa ausência não
-produz diagnóstico: não há gate de compile-time para
-`kof_select_any`/`kof_poll`/`kof_done`/`kof_cancel`/`kof_await_timeout`, e
-`NativeRiscvCrossOps.resolveCalleeNameRiscv` (`:305`) cai no `sanitizeName`
-genérico e emite a `call` assim mesmo — então o erro aparece só no **link**,
-como símbolo indefinido, não como gap honesto. Corrigir isso é pendência da
-lane Native (R6).
+(`clone` 220 + futex), mas os auxiliares **não** — e essa ausência é
+diagnosticada em compile-time: `ExpressionStaticCallLowerer` emite
+**`CONC001`** para `poll`/`done`/`cancel`/`cancelled`/`selectAny`/
+`awaitTimeout` nesses alvos (issue #91, 11/09; antes não havia gate —
+`NativeRiscvCrossOps.resolveCalleeNameRiscv` caía no `sanitizeName`
+genérico e o erro aparecia só no **link**, como símbolo indefinido, o
+mesmo padrão do bug 59). Prova:
+`KofConcurrency2Test.crossMissingConcurrencyHelpersReportConc001`. O que
+resta é portar os símbolos, não o diagnóstico (lane Native).
 
 No JS especificamente: só lambdas criadas direto num site de `spawn`
 ("task-lambdas") podem virar `async function`; ver restrição

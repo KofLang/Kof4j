@@ -161,6 +161,9 @@ if ("listOf".equals(mc.methodName()) && mc.receiver() == null) {
     }
     return localIdx;
 }
+if (isCrossMissingConcurrencyBuiltin(driver, mc, locals)) {
+    return localIdx;
+}
 if (mc.receiver() == null && ("cancel".equals(mc.methodName())
         || "cancelled".equals(mc.methodName()) || "selectAny".equals(mc.methodName()))
         && driver.findLocalVar(mc.methodName(), locals) == null) {
@@ -385,5 +388,35 @@ if ("setOf".equals(mc.methodName()) && mc.receiver() == null) {
         return ExpressionPrintLowerer.lower(driver, mc, ops, owner, localIdx, locals);
     }
     return -1;
+    }
+
+    // #91 (R6): nat/NativeRiscvSpawn.java emite apenas kof_spawn_result,
+    // kof_spawn, kof_await e kof_spawn_join_all. Os auxiliares de concorrência
+    // (poll/done/cancel/cancelled/selectAny/awaitTimeout) não existem nos
+    // alvos cruzados — sem gate, a call era emitida e o erro só aparecia no
+    // link como símbolo indefinido (mesmo padrão do bug 59). Diagnóstico
+    // CONC001 em compile-time, nunca link silencioso.
+    private static boolean isCrossMissingConcurrencyBuiltin(CompilerDriver driver,
+            MethodCallExpr mc, List<IRLocalVariable> locals) {
+        if (driver.target != Target.NATIVE_RISCV64 && driver.target != Target.NATIVE_AARCH64) {
+            return false;
+        }
+        if (mc.receiver() != null) return false;
+        String mn = mc.methodName();
+        boolean builtin = switch (mn) {
+            case "poll", "done", "cancel", "cancelled", "selectAny", "awaitTimeout" -> true;
+            default -> false;
+        };
+        if (!builtin || driver.findLocalVar(mn, locals) != null) return false;
+        if (driver.currentDiagnostics != null) {
+            driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
+                    mc.position() != null ? mc.position().line() : 0,
+                    mc.position() != null ? mc.position().column() : 0,
+                    0,
+                    mn + ": concurrency helpers are not available on the "
+                            + driver.target.nativeArch() + " native target yet (CONC001)",
+                    "CONC001");
+        }
+        return true;
     }
 }
