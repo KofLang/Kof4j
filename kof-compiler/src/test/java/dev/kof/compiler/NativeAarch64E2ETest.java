@@ -216,6 +216,33 @@ class NativeAarch64E2ETest {
         assertEquals("1\n2\ntrue\n1\n1\n1\n2\ntrue\nfalse\ntrue\n1", out);
     }
 
+    // §123/§126 faces CROSS (aarch64): a tag de chave (off 40) é herdada do
+    // emissor riscv64 via tradutor — `li t0,<tag>`→`mov wN,#tag` e
+    // `sw t0,40(a0)`→`str wN,[x8,#40]` (registrador base via add quando o
+    // offset escapa do [-256,255]? não: 40 cabe no immediato). Prova o MESMO
+    // golden JVM medido que `riscv64MapKeyTagCross` — chave Int (raw-cmp) e
+    // chave tipo-errado (miss seguro), os dois que `aarch64MapSet` não toca.
+    @Test
+    void aarch64MapKeyTagCross(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runAarch64(tempDir, """
+            main() {
+                var m = mapOf(1, "a", 2, "b")
+                println(m.get(1))
+                println(m.get("x"))
+                println(m.contains(2))
+                println(m.get(99))
+                var s = setOf("a", "b")
+                println(s.contains(5))
+                println(s.contains("a"))
+                var n = mapOf("k", 7)
+                println(n.get(5))
+                println(n.get("k"))
+            }
+            """);
+        assertEquals("a\nnull\ntrue\nnull\nfalse\ntrue\n0\n7", out);
+    }
+
     // NATIVE002-stdlib: higher-order herdado do riscv64 (closure ABI igual mq).
     @Test
     void aarch64HigherOrder(@TempDir Path tempDir) throws IOException {

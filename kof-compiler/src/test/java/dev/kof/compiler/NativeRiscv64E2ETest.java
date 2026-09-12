@@ -513,6 +513,35 @@ class NativeRiscv64E2ETest {
         assertEquals("1\n2\ntrue\n1\n1\n1\n2\ntrue\nfalse\ntrue\n1", out);
     }
 
+    // §123/§126 faces CROSS: tag de chave no header do map (off 40) precisa
+    // valer em riscv64 também (o emissor `NativeRiscvCrossOps.java:270-294`
+    // escreve `li t0,<tag>; sw t0,40(a0)` — espelho do x86). Cobre os dois
+    // casos que o `riscv64MapSet` (só String-key, default tag=1) NÃO toca:
+    // (a) chave INT → tag=0 raw-cmp (senão o scan deref um Int cru = SIGSEGV);
+    // (b) chave de TIPO ERRADO (String-arg num map Int / Int-arg num map
+    // String) → miss seguro (null/0 como o JVM), nunca SIGSEGV nem lixo.
+    // Golden = oracle JVM medido 12/09 (`java Default.Main`).
+    @Test
+    void riscv64MapKeyTagCross(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runRiscv64(tempDir, """
+            main() {
+                var m = mapOf(1, "a", 2, "b")
+                println(m.get(1))
+                println(m.get("x"))
+                println(m.contains(2))
+                println(m.get(99))
+                var s = setOf("a", "b")
+                println(s.contains(5))
+                println(s.contains("a"))
+                var n = mapOf("k", 7)
+                println(n.get(5))
+                println(n.get("k"))
+            }
+            """);
+        assertEquals("a\nnull\ntrue\nnull\nfalse\ntrue\n0\n7", out);
+    }
+
     // NATIVE002-stdlib: higher-order (map/filter/reduce) no cross — closure
     // ABI igual mq (a0=fn, a1..=args, invoke via vtable[0]).
     @Test

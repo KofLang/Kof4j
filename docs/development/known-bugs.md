@@ -3403,6 +3403,14 @@ int de índice) — verificados na varredura.
 - **Prova:** célula `mapint` 4/4 sem exclusão (put/get/size/containsKey/
   remove Int-key String-val) + probes D1/C1/C2/D4/A1/A3/MP2 nativos
   ec=0; suíte completa 4 módulos verde (1501/0/12err-node/136skip).
+- **Prova CROSS dedicada (12/09, qemu real):** `riscv64MapKeyTagCross`
+  (NativeRiscv64E2ETest) + `aarch64MapKeyTagCross` (NativeAarch64E2ETest)
+  rodam `mapOf(1,"a",2,"b").get(1)` (chave Int → tag=0 raw-cmp, o caso que
+  SIGSEGVava), `.get("x")`/`.contains` tipo-errado (miss seguro, família
+  §126) — golden = oracle JVM medido (`a\nnull\ntrue\nnull\nfalse\ntrue\n0\n7`),
+  Skipped=0 (toolchain presente: qemu-riscv64/qemu-aarch64 + binutils cruzados).
+  Confirma o emissor `NativeRiscvCrossOps.java:270-294` (`li t0,<tag>;
+  sw t0,40(a0)`) e sua tradução aarch (off 40 cabe no immediato `str`).
 - **Fora daqui (registrados):** chave do TIPO ERRADO (Int em Map<String,V>
   e vizinhos) → família §122 (SEM05x, rejeitar em compile-time) — A2
   ainda SIGSEGVa até a guarda de Map/Set; §124 novo (abaixo) foi achado
@@ -3612,7 +3620,11 @@ int de índice) — verificados na varredura.
   `false`; Int-arg em String-list-contains → `false`; Int em String-map →
   `0`, como o JVM); A1/A2/MP2/ST1/ST2/E1 nativos ec=0; zero regressão
   (String-String continua no equals de conteúdo — mapa/células `map`/
-  `mapint`/`set` verdes). SEM rejeição: o reject em alvo único seria
+  `mapint`/`set` verdes). **Prova CROSS dedicada 12/09 (qemu real, golden
+  JVM):** `riscv64MapKeyTagCross` + `aarch64MapKeyTagCross` exercitam
+  justamente o miss-seguro do lado-arg no riscv/aarch (String-arg em
+  `mapOf(1,..)` → `null`; Int-arg em `setOf("a","b")` → `false`; Int-arg em
+  `mapOf("k",7)` → `0`) — Skipped=0, os 2 E2E rodam de fato. SEM rejeição: o reject em alvo único seria
   fallback silencioso proibido, e em todos os-alvos mudaria comportamento
   que roda hoje no JVM (regra 2).
 - **✅ LADO CANDIDATO CORRIGIDO (11/09, decisão da mantenedora = opção ii,
