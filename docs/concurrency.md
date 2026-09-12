@@ -164,13 +164,22 @@ A mesma semântica Kof utiliza implementações diferentes:
 |--------|---------------|--------|
 | JVM 21+ | Virtual Threads (scheduler da JVM) | ✅ `await`/`Handle<T>` + `kof.mq` |
 | Native x86_64 | OS threads: `pthread_create` + trampoline + `await`/`pthread_join` + `done`/`poll`/`cancel`/`cancelled`/`selectAny` + allocator thread-safe (futex) | ✅ 31/08 (`CONC001` fechado) |
-| Native riscv64/aarch64 | OS threads futuro (target ainda placeholder) | `CONC001` (placeholder) |
+| Native riscv64/aarch64 | OS threads: `clone(220)` + stack por `mmap` + espera por futex em `handle->done` (`nat/NativeRiscvSpawn.java`) — **só** `spawn`/`await`/join implícito | ⚠️ parcial: `poll`/`done`/`cancel`/`cancelled`/`selectAny`/`awaitTimeout` **ausentes** (sem gate — ver nota abaixo) |
 | JS (GraalJS) | `async`/`await`/`Promise` nativos — coloração async por fixpoint no compilador (`JsBackend.computeAsyncColoring`), handle `{done,value,error,promise}`, canais com fila de resolvers pendentes, `KofJsRunner` drena a fila de microtasks (`kofActiveTasks`) | ✅ 03/09 (`CONC003` fechado) |
 | KofScript | JVM via KofScriptGlobals | ✅ |
 
 O código Kof não muda entre targets; no x86_64 não há mais gap de
-`spawn`/`await` (`CONC001` fechado) nem no JS (`CONC003` fechado) — o
-restante do `CONC001` se aplica só aos targets riscv64/aarch64 (placeholder).
+`spawn`/`await` nem dos auxiliares (`poll`/`done`/`cancel`/`cancelled`/
+`selectAny`/`awaitTimeout` — `CONC001` fechado, incluindo o residual), nem
+no JS (`CONC003` fechado). Em riscv64/aarch64 o `spawn`/`await` existe
+(`clone` 220 + futex), mas os auxiliares **não** — e hoje essa ausência não
+produz diagnóstico: não há gate de compile-time para
+`kof_select_any`/`kof_poll`/`kof_done`/`kof_cancel`/`kof_await_timeout`, e
+`NativeRiscvCrossOps.resolveCalleeNameRiscv` (`:305`) cai no `sanitizeName`
+genérico e emite a `call` assim mesmo — então o erro aparece só no **link**,
+como símbolo indefinido, não como gap honesto. Corrigir isso é pendência da
+lane Native (R6).
+
 No JS especificamente: só lambdas criadas direto num site de `spawn`
 ("task-lambdas") podem virar `async function`; ver restrição
 `CONC003-JS-01` na seção 3. `cancelled()` no JS sempre retorna `0`
