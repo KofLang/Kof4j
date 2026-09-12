@@ -780,7 +780,9 @@ class DecompileTest {
         CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(kf),
                 dir.resolve("o"), Target.JVM, out);
         assertTrue(r.success(), "switch decompilado deve compilar:\n" + kof + "\n" + r.diagnostics().getDiagnostics());
-        ProcessBuilder pb = new ProcessBuilder("java", "-cp", dir.resolve("o").toString(), "Default.Main");
+        // Entry = a classe decompilada (main estático dentro de `class S`),
+        // não `Default.Main` (que só existe p/ programa Kof de main top-level).
+        ProcessBuilder pb = new ProcessBuilder("java", "-cp", dir.resolve("o").toString(), "S");
         pb.redirectErrorStream(true);
         Process p = pb.start();
         String o = new String(p.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)

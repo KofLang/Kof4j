@@ -154,6 +154,24 @@ final class BytecodeSwitch {
 
         List<String> out = new ArrayList<>();
         Set<Integer> declared = new HashSet<>();
+        // Hoist (bug 134): cases Kof são blocos EXCLUDENTES — um `var`
+        // 1º-storeado dentro de um braço não alcança os irmãos nem o epílogo
+        // (SEM011; probe 11/09). Todo slot NÃO-parâmetro storeado numa região
+        // de braço é pré-declarado ANTES do switch como `var` sem init
+        // (executa e aceita atribuição de tipos diferentes — probe JVM).
+        List<Integer> hoist = new ArrayList<>();
+        for (int slot : localSlotsStoredIn(insns, bounds.first(), end)) {
+            if (frame.isNamedSlot(slot)) continue;   // parâmetro/`this` — nunca hoista
+            if (!hoist.contains(slot)) hoist.add(slot);
+        }
+        for (int slot : localSlotsStoredIn(insns, end, maxOff)) {
+            if (frame.isNamedSlot(slot)) continue;
+            if (!hoist.contains(slot)) hoist.add(slot);
+        }
+        for (int slot : hoist) {
+            declared.add(slot);
+            out.add("var " + BytecodeDecoder.slotName(slot, frame));
+        }
         out.add("switch (" + expr + ") {");
         // cases em ordem crescente de valor (determinístico); default por último.
         for (int oi = 0; oi < order.length; oi++) {
@@ -174,6 +192,29 @@ final class BytecodeSwitch {
         out.add("}");
         if (tail != null) out.addAll(tail);
         return out;
+    }
+
+    /** Slots (não-parâmetro, não-`this`) storeados na região [from,to) — a
+     *  lista de candidatos ao hoist do bug 134. Mesma decodificação de
+     *  opcode que `BytecodeStatements.storeSlot` (mantida local: o util de
+     *  statements é privado e a fórmula é estável do JVMS 6.5). */
+    static List<Integer> localSlotsStoredIn(List<BytecodeReader.Insn> insns, int from, int to) {
+        List<Integer> slots = new ArrayList<>();
+        for (BytecodeReader.Insn in : insns) {
+            int off = in.offset();
+            if (off < from || off >= to) continue;
+            int op = in.opcode();
+            int slot;
+            if (op >= 0x36 && op <= 0x3a) slot = in.operands()[0];            // istore..astore idx
+            else if (op >= 0x3b && op <= 0x3e) slot = op - 0x3b;              // istore_0..3
+            else if (op >= 0x3f && op <= 0x42) slot = op - 0x3f;              // lstore_0..3
+            else if (op >= 0x43 && op <= 0x46) slot = op - 0x43;              // fstore_0..3
+            else if (op >= 0x47 && op <= 0x4a) slot = op - 0x47;              // dstore_0..3
+            else if (op >= 0x4b && op <= 0x4e) slot = op - 0x4b;              // astore_0..3
+            else continue;
+            slots.add(slot);
+        }
+        return slots;
     }
 
     /**

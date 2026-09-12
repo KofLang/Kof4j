@@ -1674,18 +1674,6 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   não a comparação).
 
 
-
-
-
-
-
-
-
-
-
-
-
-
   (`println(if (c) true else 5)` → script `1` vs JVM `true`); lado JVM
   inalterado pela mudança (mesmo `Boolean.valueOf` antes e depois) —
   divergência do backend script, lane KOFSCRIPT se quiser.
@@ -3469,7 +3457,7 @@ int de índice) — verificados na varredura.
 - **Prova:** SR1/SR2/SR3 nativos = JVM byte-a-byte; célula `setdedup`
   expandida (10 linhas de saída); suíte completa abaixo.
 
-### 128. kof-cli `DecompileTest#recoversStatementSwitchAndRunsIt` VERMELHO — decompilador emite statement-switch com `var` só no 1º case → SEM011 no recompile — ⏳ ABERTO (não-introduzido pela lane §123/§126; triagem 11/09)
+### 128. kof-cli `DecompileTest#recoversStatementSwitchAndRunsIt` VERMELHO — decompilador emite statement-switch com `var` só no 1º case → SEM011 no recompile — ✅ CORRIGIDO 11/09 (consolidado no §135 — fix com hoist de locals + `static` na assinatura + teste executando o decompilado; DecompileTest 45/45)
 
 - **Reprodução (exata, medida 11/09):** em `94c4a1fb` LIMPO (working tree
   sem nenhuma edição da lane collections): `mvn -o -pl kof-cli -am test
@@ -4044,3 +4032,51 @@ statement-switch na mesma taxa). Reprodução no próprio teste (kof-cli).
   dispatch virtual, vtable real), repro e workaround lá documentados.
 
 
+### 137. `kof decompile`: `switch`-statement recuperava código INCOMPILÁVEL (locals sem hoist) + `static` perdido na assinatura — ✅ CORRIGIDO 11/09 (achado pelo gate do HEAD; lane migração-legado, sem dono)
+
+- **Menor repro (medido 11/09 — veio vermelho no gate do HEAD, NÃO é do
+  §113/port: já falhava no próprio commit do autor `487287fb`):**
+  ```java
+  class S { static String grade(int x){ String r;
+    switch(x){ case 1: r="one"; break; case 2: r="two"; break; default: r="other"; }
+    return r; }
+    static void main(String[] a){ System.out.println(grade(1)); } }
+  ```
+  `kof decompile S.class` → o `var r` (`v1`) era emitido DENTRO de `case 1:` e
+  usado em `case 2:`/`return` → **SEM011 'Undefined variable or type: v1'** (o
+  `switch` Kof tem cases como blocos EXCLUDENTES — probe 11/09: `var` de um
+  case não alcança irmãos; idêntico ao if/else, que também recusa SEM011).
+  2º bug (latente, revelado pelo 1º teste que EXECUTA saída decompilada):
+  o decompiler calculava `isStatic` só p/ o frame e **nunca emitia o
+  modificador** → `S.grade(1)` baixava como método de instância →
+  `ClassNotFoundException`/`NoSuchMethodError` em runtime. 3º: o teste do
+  autor rodava `Default.Main`, mas a classe decompilada sem pacote é `S`.
+- **Causa raiz:** `BytecodeSwitch.recoverSwitchStmt` compartilhava um `declared`
+  entre cases+epílogo assumindo escopo de método; `Decompile.decompile` só
+  emitia `static p/ campos` (skip de `static`) e nunca na assinatura de método.
+- **Fix (backend-only, 3 arquivos):** (a) **hoist** — todo slot NÃO-parâmetro
+  storeado nas regiões dos braços/epílogo é pré-declarado ANTES do `switch`
+  como `var` sem init (probe: `var v` sem init compila, roda e aceita
+  atribuição de tipos diferentes; `Int v`/`String v`/`Object v` idem — escolhi
+  `var` por não precisar mapear descriptor→tipo e aceitar qualquer valor);
+  helper `localSlotsStoredIn` (decodificação de opcode de store = JVMS 6.5,
+  espelha `BytecodeStatements.storeSlot`) + `BytecodeFrame.isNamedSlot`
+  (nunca hoistar parâmetro/`this`); (b) `isStatic` movido p/ o topo do laço e
+  prefixado nas 4 assinaturas (`stat = isStatic ? "static " : ""`); (c) alvo
+  de execução do teste → `S` (a classe decompilada). **Prova:**
+  `DecompileTest.recoversStatementSwitchAndRunsIt` — não só compila de volta:
+  EXECUTA os 3 caminhos (`one/two/other` sob JVM); Decompilar S.class real →
+  `var v1` antes do `switch`, `static` nas duas assinaturas; `java S` →
+  `one\ntwo\nother`. DecompileTest **45/45** (era 45/1). NÃO regride: os
+  asserts `.contains("Int add")` etc. são de substring — `static Int add` passa.
+- **Consolida o §128** (mesmo teste/sintoma/raiz, registrado ABERTO pela lane
+  collections; minha triagem acrescentou a 2ª causa que ele não tinha medido —
+  o `static` ausente na assinatura, que só aparece quando o teste EXECUTA o
+  decompilado, não só recompila).
+- **Alcance honesto:** o hoist cobre o statement-switch do §128/§137 (região por
+  braço = straight-line sem merge, onde `simDepth` já valida); o if/else
+  (`struct`) compartilha `declared` entre branches DA MESMA forma — mesma
+  família, NÃO testado por execução aqui (fica registrado: se algum dia um
+  teste executar if/else com local 1º-storeado num ramo e lido fora, o mesmo
+  hoist se aplica). O teste que faltava ("nenhum E2E executa decompilado")
+  agora existe — é o que pegou o bug.

@@ -53,6 +53,12 @@ final class BytecodeFrame {
         return "v" + slot;
     }
 
+    /** true se o slot é parâmetro/`this` (tem nome do descriptor) — um local
+     *  hoistável é justamente o oposto (slot "v+n"), p/ o prelude do bug 134. */
+    boolean isNamedSlot(int slot) {
+        return slot >= 0 && slot < names.length && names[slot] != null;
+    }
+
     /** Tipo JVM do retorno ('I','J','F','D','L','[','V'); null se descriptor quebrado. */
     String retType() { return ret; }
 

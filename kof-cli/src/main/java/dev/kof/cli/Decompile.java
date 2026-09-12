@@ -242,10 +242,14 @@ public final class Decompile {
             }
             String ret = methodKofType(m.returnTypeName());
             String params = paramList(m.parameterTypeNames());
+            // bug 134: o modificador `static` era computado só p/ o frame e
+            // NUNCA emitido → `S.staticMethod(x)` baixava como chamada de
+            // instância → crash no 1º teste que EXECUTA saída decompilada.
+            boolean isStatic = (m.accessFlags & 0x0008) != 0;
+            String stat = isStatic ? "static " : "";
             String body = null;
             List<String> stmts = null;
             if (m.code != null) {
-                boolean isStatic = (m.accessFlags & 0x0008) != 0;
                 BytecodeFrame frame = new BytecodeFrame(m.descriptor, isStatic);
                 frame.treeScope = scope;
                 boolean hasHandlers = m.code.exceptionHandlers != null && !m.code.exceptionHandlers.isEmpty();
@@ -263,18 +267,18 @@ public final class Decompile {
                 }
             }
             if (body == null && stmts == null) {
-                sb.append("    ").append(ret).append(' ').append(m.name)
+                sb.append("    ").append(stat).append(ret).append(' ').append(m.name)
                   .append('(').append(params).append(") {\n");
                 sb.append("        throw \"body not recovered\"   // ").append(Confidence.UNKNOWN.label()).append('\n');
                 sb.append("    }\n");
             } else if (stmts != null) {
-                sb.append("    ").append(ret).append(' ').append(m.name).append('(').append(params).append(") {\n");
+                sb.append("    ").append(stat).append(ret).append(' ').append(m.name).append('(').append(params).append(") {\n");
                 for (String s : stmts) sb.append("        ").append(s).append('\n');
                 sb.append("    }\n");
             } else if (body.isEmpty()) {
-                sb.append("    ").append(ret).append(' ').append(m.name).append('(').append(params).append(") {\n    }\n");
+                sb.append("    ").append(stat).append(ret).append(' ').append(m.name).append('(').append(params).append(") {\n    }\n");
             } else {
-                sb.append("    ").append(ret).append(' ').append(m.name).append('(').append(params)
+                sb.append("    ").append(stat).append(ret).append(' ').append(m.name).append('(').append(params)
                   .append(") = ").append(body).append('\n');
             }
         }
