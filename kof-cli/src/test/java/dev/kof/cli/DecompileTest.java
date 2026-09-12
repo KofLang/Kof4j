@@ -742,6 +742,81 @@ class DecompileTest {
     }
 
     @Test
+    void recoversStatementSwitchAndRunsIt(@TempDir Path dir) throws Exception {
+        // Fase C: switch-statement (cases com side-effect + break). Prova
+        // FORTE: não basta compilar — executa os 3 caminhos (braço errado
+        // silencioso é a pior falha). `break` sai do switch (probe) e o
+        // epílogo vai após `}` (dentro executaria o próximo braço).
+        Path src = dir.resolve("classes");
+        Files.createDirectories(src);
+        Path s = src.resolve("S.java");
+        Files.writeString(s, """
+                public class S {
+                    public static String grade(int v) {
+                        String r;
+                        switch (v) {
+                            case 1: r = "one"; break;
+                            case 2: r = "two"; break;
+                            default: r = "other"; break;
+                        }
+                        return r;
+                    }
+                    public static void main(String[] a) {
+                        System.out.println(grade(1));
+                        System.out.println(grade(2));
+                        System.out.println(grade(9));
+                    }
+                }
+                """);
+        runJavac(java.util.List.of(s), src);
+        String kof = Decompile.decompile(src.resolve("S.class"));
+        assertTrue(kof.contains("switch (arg0) {"), "switch deve recuperar:\n" + kof);
+        assertTrue(kof.contains("case 1:") && kof.contains("break"),
+                "cases com break explícito:\n" + kof);
+        Path out = dir.resolve("gen");
+        Files.createDirectories(out);
+        Path kf = out.resolve("S.kf");
+        Files.writeString(kf, kof);
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(kf),
+                dir.resolve("o"), Target.JVM, out);
+        assertTrue(r.success(), "switch decompilado deve compilar:\n" + kof + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder("java", "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process p = pb.start();
+        String o = new String(p.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)
+                .replace("\r\n", "\n").trim();
+        assertEquals(0, p.waitFor(), "run: " + o);
+        assertEquals("one\ntwo\nother", o, "os 3 caminhos devem executar certo:\n" + kof);
+    }
+
+    @Test
+    void switchFallthroughStaysHonestStub(@TempDir Path dir) throws Exception {
+        // Kof não tem fallthrough: case sem `break` caindo no próximo braço
+        // NÃO tem forma válida → stub honesto (nunca código errado).
+        Path src = dir.resolve("classes");
+        Files.createDirectories(src);
+        Path s = src.resolve("F.java");
+        Files.writeString(s, """
+                public class F {
+                    public static String grade(int v) {
+                        String r;
+                        switch (v) {
+                            case 1: r = "one";
+                            case 2: r = "two"; break;
+                            default: r = "other"; break;
+                        }
+                        return r;
+                    }
+                }
+                """);
+        runJavac(java.util.List.of(s), src);
+        String kof = Decompile.decompile(src.resolve("F.class"));
+        assertTrue(kof.contains("body not recovered"),
+                "fallthrough (case 1 sem break) deve ficar stub:\n" + kof);
+        assertTrue(!kof.contains("switch ("), "nenhum switch parcial:\n" + kof);
+    }
+
+    @Test
     void escapesStringConstantsInDecompiledSource(@TempDir Path dir) throws Exception {
         // R6 (prova de drift 09/09): o ldc emitia a string do CP CRUA — `\b`,
         // newline real e `"` estouravam o lexer do .kf (LEX002/LEX004). Agora

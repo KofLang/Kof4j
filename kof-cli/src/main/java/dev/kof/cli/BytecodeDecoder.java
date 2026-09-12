@@ -41,10 +41,35 @@ import java.util.Set;
         return ifElseReturn(insns, cp, frame);
     }
 
+    /**
+     * Expressão pura da pilha (Fase C, discriminante de switch): texto do topo
+     * se restar EXATAMENTE 1 valor, senão null. Sem checagem contra o tipo de
+     * retorno (o discriminante raramente tem o tipo do retorno — usar
+     * `linearReturn` aqui recusava todo switch não-String-em-String).
+     * `return`/`throw` no prefixo = switch inalcançável → recusar.
+     */
+    static String linearExpr(List<BytecodeReader.Insn> insns, String[] cp, BytecodeFrame frame) {
+        for (BytecodeReader.Insn in : insns) {
+            int op = in.opcode();
+            if ((op >= 0xac && op <= 0xb1) || op == 0xbf) return null;
+        }
+        return linearReturn(insns, cp, frame, true);
+    }
+
     // ── linear: pilha simbólica → value no return ────────────────────────
 
     static String linearReturn(List<BytecodeReader.Insn> insns, String[] cp,
                                        BytecodeFrame frame) {
+        return linearReturn(insns, cp, frame, false);
+    }
+
+    /**
+     * @param laxType true = ignora o tipo de retorno no final (só exige 1
+     * valor na pilha); usado SÓ pelo `linearExpr` (discriminante). Chamadores
+     * existentes usam o modo estrito — comportamento byte-idêntico.
+     */
+    static String linearReturn(List<BytecodeReader.Insn> insns, String[] cp,
+                                       BytecodeFrame frame, boolean laxType) {
         BytecodeTypes.TStack stack = new BytecodeTypes.TStack();
         for (BytecodeReader.Insn in : insns) {
             int op = in.opcode();
@@ -199,6 +224,10 @@ import java.util.Set;
             }
         }
         // fim sem return: devolve o topo da pilha (região protegida de try)
+        if (laxType) {
+            String top = stack.topExpr();
+            return stack.size() == 1 ? top : null;
+        }
         return stack.size() == 1 ? stack.retTyped(frame.retType()) : null;
     }
 
