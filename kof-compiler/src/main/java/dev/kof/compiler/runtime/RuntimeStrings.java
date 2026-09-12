@@ -280,5 +280,6 @@ public final class RuntimeStrings {
         RuntimeStringsEsc.emit(sb);
         RuntimeStringWs.emit(sb);
         RuntimeStringsEscJson.emit(sb);
+        RuntimeStringIndent.emit(sb);
     }
 }
