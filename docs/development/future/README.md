@@ -22,6 +22,7 @@ documento de arquitetura/visão **sem código implementado** (ou com código que
 |-----|------|---------------------------|
 | `APPLICATION_MODEL.md` | Kof Application Model (monólito ↔ distribuído, `kof.toml`, packaging, System) | RFC auditada — implementa nos incrementos I1–I4 (§23); move para `docs/` no I1 |
 | `PLAN-UNIVERSAL-PLATFORM.md` | visão de longo prazo (Kof como plataforma universal) | 100% visão/estratégia — não é ordem de implementação |
+| `PLAN-TREE-SHAKING.md` | stdlib por alcançabilidade (import ≠ incluído; fatia viva no Native, famílias no JS) | plano com análise MEDIDA (12/09: hello nativo = 138 KB / 605 símbolos) e fila S-1..S-7; zero código até aceite dos §T; move p/ `docs/development/` quando S-1 começar |
 | `DECOMPILER.md` | Kof Decompiler (bytecode/asm → Kof) | não há código de decompiler |
 | `DIFFERENTIAL_TESTING.md` | teste diferencial de migrações | não há código |
 | `LEGACY_IR.md` | Legacy Semantic IR | não há código (o "legacy" no `CompilerDriver` é genérico, não este) |
