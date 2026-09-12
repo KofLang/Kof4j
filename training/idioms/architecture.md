@@ -1,6 +1,6 @@
 # Idioms — Architecture
 
-**Status:** available · **Introduced:** 0.0.4-alpha · **Updated:** 0.2.6-beta
+**Status:** available · **Introduced:** 0.0.4-alpha · **Updated:** 0.3.22-beta (Sep 2026)
 
 ## What it is
 
@@ -29,7 +29,7 @@ class Http {
 }
 ```
 
-## GOOD — plataforma (0.2.6-beta)
+## GOOD — plataforma (0.3.22-beta)
 
 ```kof
 var j = json.encode(user)
@@ -113,13 +113,13 @@ Double total(Cart cart) {
 }
 ```
 
-## 4. Módulos (0.2.6-beta)
+## 4. Módulos (0.3.22-beta)
 
 `package`/`import` existem. `import a.b.C` file-specific fixado 27/08 — projetos grandes com `a/b/C.kf` agora compilam corretamente (CompilerDriver). `import a.b.*` para diretório. Targets: `jvm`, `native`, `native.risc`/`native.arm` (placeholder), `js`, `kofc`, `KofScript` (`.ks` com `let`).
 
 Para programas pequenos, um único arquivo `.kf` é suficiente — o `main()` no topo.
 
-## 5. Construções de intenção (0.2.6-beta)
+## 5. Construções de intenção (0.3.22-beta)
 
 O compilador reduz construções de intenção a código normal (mesmo padrão de
 `entity`/`test "nome" {}`): a sintaxe expressa *o quê*, o lowering decide *o

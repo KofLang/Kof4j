@@ -5,7 +5,7 @@
 Frame crash COMP002 com `list.add(...)` como statement seguido de `while` —
 e por que NÃO é mais um problema.
 
-## Problem (0.2.6-beta ≤ 31/08)
+## Problem (≤ 31/08, pré-0.3)
 
 ```kof
 f(List<Box> cache, Int n): Int {

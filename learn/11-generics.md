@@ -1,6 +1,6 @@
 # 11 — Generics
 
-> **Status: implementado (JVM / Native / JS) — 0.2.6-beta — erasure + `Box<T>` com `T` primitivo**
+> **Status: implementado (JVM / Native / JS) — 0.3.22-beta — erasure + `Box<T>` com `T` primitivo**
 >
 > Generics por erasure funcionam nos três targets; `Box<Int>` com `substituteTypeVariable` + `kof_int_to_string` nativo já está em 0.2.0.
 

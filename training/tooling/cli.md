@@ -3,7 +3,7 @@
 Fatos sobre a CLI oficial do Kof. Use para responder perguntas sobre
 comandos, tooling e editor support.
 
-**Version:** 0.2.6-beta (02 Sep 2026) — 810 tests
+**Version:** 0.3.22-beta (Sep 2026) — 810 tests
 
 ## Comandos oficiais (18)
 
@@ -23,12 +23,12 @@ comandos, tooling e editor support.
 | `kof info [--json]` | Relatório do ambiente (inclui native.risc/arm, kofc) |
 | `kof lsp` | Language Server (stdio, LSP 3.x) — hover/completion + .ks preprocess |
 | `kof editor <list\|detect\|status\|setup\|install\|uninstall\|update>` | Integração de editores (EDI001): detecta VS Code/Vim/Neovim/IntelliJ/Geany/Nano/Emacs e instala a integração oficial (grammar + `kof lsp`), com consentimento. `install <editor>` escreve só no HOME; `uninstall` remove só o que o Kof escreveu. Docs: `docs/editors/` |
-| `kof version` | Versão da plataforma (0.2.6-beta) |
+| `kof version` | Versão da plataforma (0.3.22-beta) |
 | `kof bench [...]` | Benchmark harness com baselines |
 | `kof debug <file.kf>` | DAP MVP no JVM |
 
 `kof fmt` (parser real, idempotente) e `kof config gen` são implementados
-(0.2.6-beta). Não existe comando `kof doctor` — o diagnóstico oficial é
+(0.3.22-beta). Não existe comando `kof doctor` — o diagnóstico oficial é
 `kof info`.
 
 ## KofScript
@@ -77,7 +77,7 @@ kof c app.c
 
 ## `kof info`
 
-Informa: versão do Kof (0.2.6-beta), versão do compiler/runtime/stdlib, tooling API level, target/arquitetura, SO, JVM embutida, versão da
+Informa: versão do Kof (0.3.22-beta), versão do compiler/runtime/stdlib, tooling API level, target/arquitetura, SO, JVM embutida, versão da
 JVM, targets disponíveis (jvm, native, native.risc, native.arm, js, kofc) e localização da instalação.
 Legível por humanos; `--json` para formato estruturado.
 

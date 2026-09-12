@@ -46,10 +46,10 @@ Int findIndex(String key) {
 
 O consumidor trata com `try/catch` e recebe a informação do erro.
 
-## Preferred approach (ausência como dado — 0.2.6-beta)
+## Preferred approach (ausência como dado)
 
 ```kof
-// ✅ 0.2.6-beta — String? / Int? com narrowing é o idiom
+// ✅ String? / Int? com narrowing é o idiom
 String? find(String key) {
     for (var e in entries) {
         if (e.key == key) return e.value

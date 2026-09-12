@@ -33,7 +33,7 @@ Bool isQueryOperation(String operation) {
 }
 ```
 
-## Preferred approach (IDIOMÁTICO — verificado nos 3 targets, 0.2.6-beta)
+## Preferred approach (IDIOMÁTICO — verificado nos 3 targets)
 
 `Set<T>` + `setOf(...)` variádico + `.contains(...)`:
 

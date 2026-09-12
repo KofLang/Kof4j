@@ -1,6 +1,6 @@
 # Kof String Reference
 
-**Version:** 0.2.6-beta
+**Version:** 0.3.22-beta (Sep 2026)
 
 ## Creation
 
@@ -61,7 +61,7 @@ println(a == b)  // true (byte-level comparison)
 
 Strings are immutable. Operations like `concat` create new strings.
 
-## Null safety (0.2.6-beta)
+## Null safety (0.3.22-beta)
 
 ```kof
 String? s = null

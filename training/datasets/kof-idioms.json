@@ -1,10 +1,10 @@
 {
   "language": "kof",
-  "version": "0.2.6-beta",
-  "updated": "02 Sep 2026",
-  "tests": 771,
+  "version": "0.3.22-beta",
+  "updated": "12 Sep 2026",
+  "tests": 1571,
   "targets": ["jvm", "native", "native.risc", "native.arm", "js", "kofc"],
-  "description": "Pares BAD/GOOD/WHY para treinamento de modelos. Cada entrada representa um erro de estilo, não necessariamente um erro de sintaxe. Atualizado para 0.2.6-beta (02/09): null-safety com narrowing no JVM corrigido, Map.get V? para valores de referência, File.size sem sentinela -1, Set<T> como tipo declarado nos 3 targets.",
+  "description": "Pares BAD/GOOD/WHY para treinamento de modelos. Cada entrada representa um erro de estilo, não necessariamente um erro de sintaxe. Atualizado para 0.3.22-beta (12/09): sobrecarga top-level de função (SG-011B), `time.sleep`, println de coleções no Native (face escalar), semântica de conteúdo `==` congelada; histórico: null-safety com narrowing no JVM, Map.get V? para valores de referência, File.size sem sentinela -1, Set<T> como tipo declarado nos 3 targets.",
   "entries": [
     {
       "id": "kof-001",

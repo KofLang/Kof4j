@@ -1,7 +1,7 @@
 # KOF — PERFORMANCE, BENCHMARKS, RESOURCE SAFETY E GUIDELINES ARQUITETURAIS
 
-**Última atualização:** 2 de setembro de 2026
-**Versão:** 0.2.6-beta (810 testes; 37 benchmarks; `kof bench` + `benchmark.yml` threshold 1.20)
+**Última atualização:** 12 de setembro de 2026
+**Versão:** 0.3.22-beta (37 benchmarks; `kof bench` + `benchmark.yml` threshold 1.20)
 
 > Este documento define princípios arquiteturais permanentes do Kof.
 >

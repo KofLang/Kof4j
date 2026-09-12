@@ -1,6 +1,6 @@
 # Idioms — Errors
 
-**Status:** available (JVM, Native, JS) · **Introduced:** 0.0.4-alpha · **Updated:** 0.2.6-beta
+**Status:** available (JVM, Native, JS) · **Introduced:** 0.0.4-alpha · **Updated:** 0.3.22-beta (Sep 2026)
 
 ## What it is
 
@@ -27,7 +27,7 @@ try {
 
 - Fluxo normal de controle — use `if`.
 - Validação simples — `if` + retorno.
-- Ausência como valor (não erro) — use `String?` + `if (x != null)` (0.2.6-beta) em vez de sentinela. `Option<T>` genérico ainda é planned.
+- Ausência como valor (não erro) — use `String?` + `if (x != null)` (0.3.22-beta) em vez de sentinela. `Option<T>` genérico ainda é planned.
 
 ## BAD — sentinela
 
@@ -73,7 +73,7 @@ try {
 A exceção carrega a informação do erro no próprio mecanismo de erros da
 linguagem. A sentinela espalha a convenção por todos os consumidores.
 
-> **0.2.6-beta:** ausência como valor agora usa `String?`/`Int?` com narrowing (`if (x != null)`).
+> **Desde 0.2.6-beta:** ausência como valor usa `String?`/`Int?` com narrowing (`if (x != null)`).
 > `Option<T>`/`Result<T>` genéricos ainda são planned — só então sentinela marcada `WORKAROUND` é aceitável.
 
 ## Propagation

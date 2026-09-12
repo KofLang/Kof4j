@@ -11,22 +11,22 @@ O modelo pode inventar `users.map(...)`, `Option<T>`, `async/await`,
 porque existem em outras linguagens. Código assim **não compila** ou
 **compila por acidente** com semântica errada.
 
-## Status real (verificado no compilador — 0.2.6-beta, 02 Sep 2026, 810 testes)
+## Status real (verificado no compilador — 0.3.22-beta, Sep 2026)
 
 | Feature | Status |
 |---|---|
 | `List<T>` (add/get/set/size/contains/isEmpty/remove/clear/listOf) | ✅ Implemented (3 targets, free-list GC no Native) |
 | `for (var x in coll)` | ✅ Implemented |
 | `Map<K,V>` / `Set<T>` + `mapOf`/`setOf` | ✅ Implemented (JVM HashMap, Native asm, JS Map/Set desde 0.1.0) |
-| Higher-order `list.map/filter/reduce` | ✅ Implemented (0.2.6-beta, 3 targets) |
+| Higher-order `list.map/filter/reduce` | ✅ Implemented (desde 0.2.6-beta, 3 targets) |
 | `Box<T>` generics com `T` primitivo (ex.: `Box<Int>`) | ✅ Implemented (fix substituteTypeVariable 25/08) |
 | Lambdas `(x: Int) -> expr` com captura mutável (via box sintético Box0) | ✅ Implemented |
 | If-expr `if (c) a else b` | ✅ Implemented |
 | `json.encode` / `json.decode<T>` | ✅ Implemented (3 targets; JSN001/002/003 fechados 31/08 — objetos/records/arrays, FP XMM no Native) |
 | `throw "msg"` / `try/catch/finally` | ✅ Implemented (JVM + Native unwinding) |
-| `String?` / `Int?` null safety + `if (x != null)` narrowing | ✅ Implemented (0.2.6-beta, NullableType + isAssignable) |
+| `String?` / `Int?` null safety + `if (x != null)` narrowing | ✅ Implemented (desde 0.2.6-beta, NullableType + isAssignable) |
 | Pattern matching `switch (x) { case String s: ... }` + `instanceof`/`as` | ✅ Implemented |
-| Pattern record destructuring `case Point(x, y):` | ✅ Implemented (Parser PatternExpr fieldVars, 0.2.6-beta) |
+| Pattern record destructuring `case Point(x, y):` | ✅ Implemented (Parser PatternExpr fieldVars, desde 0.2.6-beta) |
 | Switch como expressão `var r = switch (x) { case A -> b; default -> c }` | ✅ Implemented (SYN001, 03/09 — 3 targets + riscv64/aarch64; `default` obrigatório ou exaustividade de enum, senão `SEM032`) |
 | `spawn` / `await` com `Handle<T>` e unboxing | ✅ 3 targets (JVM virtual threads; Native pthread — CONC001 fechado 31/08; JS sequencial — CONC003 parcial) |
 | Primary constructor `class X(...)` / `record` | ✅ Implemented (record-style desde 0.0.5) |
@@ -61,7 +61,7 @@ var maybe = Option.of(x)
 for (user in users) { }
 ```
 
-## Good example — o que existe em 0.2.6-beta
+## Good example — o que existe hoje
 
 ```kof
 // map/filter/reduce — implementado
@@ -114,7 +114,7 @@ var u = User("Mel", 30)
 
 Um modelo que "aprende" features inexistentes produz código que o compilador
 rejeita — ou pior, código que compila com outra semântica. O corpus deve
-ensinar a fronteira exata do que existe em 0.2.6-beta.
+ensinar a fronteira exata do que existe.
 
 ## Regra
 

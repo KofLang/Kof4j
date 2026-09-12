@@ -1,6 +1,6 @@
 # Arquitetura do KofNative
 
-> **Kof 0.2.6-beta — 810 testes — Target separation + free-list GC + kof_db MySQL**
+> **Kof 0.3.22-beta — Target separation + free-list GC + kof_db MySQL**
 
 ## Visão geral
 

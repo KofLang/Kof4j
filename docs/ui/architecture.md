@@ -3,7 +3,7 @@
 > **Status:** Fase 1 (inspeção) concluída; Fases 2-7 implementadas (Component
 > Core + Navegação/Router — `go/replace/back/forward/param/current/depth`,
 > real no JS, no-op no JVM — 30-31/08); Fases 8-11 em progresso.
-> **Última atualização:** 2 de setembro de 2026
+> **Última atualização:** 12 de setembro de 2026
 > **Versão:** 0.2.6-beta
 
 Este documento é o mapa da arquitetura do `kof.ui`: o estado real encontrado na

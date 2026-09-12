@@ -1,13 +1,13 @@
 # 31 — Distribuição
 
-> **Kof 0.2.6-beta — 02 set 2026 — targets jvm/native/native.risc/native.arm/js/android + kofc**
+> **Kof 0.3.22-beta — set 2026 — targets jvm/native/native.risc/native.arm/js/android + kofc**
 
 ## Kof é uma plataforma, não apenas um JAR
 
 A partir do 0.2.x-beta, o Kof se comporta como uma linguagem distribuível:
 
 ```text
-Kof 0.2.6-beta
+Kof 0.3.22-beta
         ├── Compiler
         ├── CLI (build/run/serve/check/test/script/repl/c/fmt/config gen/bench/
         │    profile/inspect/debug/info/lsp/install/version)
@@ -38,7 +38,7 @@ kof/
 ├── tooling/         # definições consumidas por editores
 ├── editor/          # grammar TextMate oficial
 ├── docs/
-└── VERSION          # 0.2.6-beta (fonte única)
+└── VERSION          # `revision` (fonte única)
 ```
 
 O `kof-webview` é compilado por `scripts/build-webview.sh` (Linux, requer
@@ -58,7 +58,7 @@ Verificação:
 
 ```bash
 kof info
-# Kof 0.2.6-beta
+# Kof 0.3.22-beta
 # Targets: jvm, native, js (alpha)
 # JVM: Eclipse Temurin 21.0.x (embedded)
 ```

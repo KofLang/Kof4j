@@ -1,6 +1,6 @@
 # 17 — Programação Funcional
 
-> **Status: implementado — `map/filter/reduce` em `List<T>` (0.2.6-beta) — JVM/Native/JS — exemplos verificados no compilador**
+> **Status: implementado — `map/filter/reduce` em `List<T>` (0.3.22-beta) — JVM/Native/JS — exemplos verificados no compilador**
 >
 > Kof não é uma linguagem funcional, mas `List<T>` oferece
 > `map/filter/reduce` idiomáticos — a transformação é uma expressão, não um

@@ -1,6 +1,6 @@
 # Idioms — Control Flow
 
-**Status:** available · **Introduced:** 0.0.4-alpha · **Updated:** 0.2.6-beta
+**Status:** available · **Introduced:** 0.0.4-alpha · **Updated:** 0.3.22-beta (Sep 2026)
 
 ## What it is
 
@@ -84,7 +84,7 @@ for (var n in nums) {
 }
 ```
 
-## switch (0.2.6-beta: pattern matching)
+## switch (pattern matching — desde 0.2.6-beta)
 
 ```kof
 switch (x) {
@@ -139,7 +139,7 @@ switch (x) {
 > obrigatório — verificado no compilador que é **opcional** (auto-termina).
 > `break`/`continue` continuam obrigatórios em loops (para sair/pular).
 
-## switch como expressão (0.2.6-beta: SYN001 — `case ... ->`)
+## switch como expressão (SYN001 — `case ... ->`; implementado, verificado no compilador)
 
 Quando o `switch` **produz um valor**, use a forma expressão (`->`), não a
 statement (`:`). Cada caso é uma única expressão; não há `break`, não há

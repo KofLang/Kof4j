@@ -1,6 +1,6 @@
 # Idioms — Strings
 
-**Status:** available · **Introduced:** 0.0.4-alpha · **Updated:** 0.2.6-beta
+**Status:** available · **Introduced:** 0.0.4-alpha · **Updated:** 0.3.22-beta (Sep 2026)
 
 ## What it is
 
@@ -30,7 +30,7 @@ a == b                      // comparação de CONTEÚDO (não referência)
 a + "!"                     // concatenação
 ```
 
-## String.valueOf + concat (0.2.6-beta corrigido 01/09)
+## String.valueOf + concat (corrigido 01/09)
 
 ```kof
 // ✅ receiver estático de tipo builtin funciona (String/Integer/Long/
@@ -109,7 +109,7 @@ Para strings com acentos/emoji os valores divergem (`"Olá".length` = 4 no Nativ
 `docs/backend-parity.md`): use `length` para tamanho bruto; não assuma contagem
 de caracteres quando o target importa.
 
-## Null safety (0.2.6-beta)
+## Null safety (0.3.22-beta)
 
 ```kof
 String? s = null
@@ -131,4 +131,4 @@ if (s != null) {
 
 ## Anti-patterns relacionados
 
-- `sentinel-values.md` — use `String?` em vez de `""` para "não encontrado" (0.2.6-beta)
+- `sentinel-values.md` — use `String?` em vez de `""` para "não encontrado" (0.3.22-beta)

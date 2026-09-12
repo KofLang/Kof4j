@@ -1,6 +1,6 @@
 # Idioms — Classes
 
-**Status:** available · **Introduced:** 0.0.4-alpha · **Updated:** 0.2.6-beta
+**Status:** available · **Introduced:** 0.0.4-alpha · **Updated:** 0.3.22-beta (Sep 2026)
 
 ## What it is
 
@@ -137,7 +137,7 @@ class Dog extends Animal {
 - Override é implícito (mesmo nome de método).
 - Dispatch é virtual em ambos os targets.
 
-## Generics Box<T> (0.2.6-beta)
+## Generics Box<T> (0.3.22-beta)
 
 ```kof
 class Box<T>(T value) {

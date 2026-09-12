@@ -1,6 +1,6 @@
 # 15 — Pattern Matching
 
-> **Status: implementado (JVM / Native / JS) — 0.2.6-beta**
+> **Status: implementado (JVM / Native / JS) — 0.3.22-beta**
 >
 > `switch case String s` (type pattern) e destructuring de records `case Point(x, y):` funcionam nos três targets. Parser + Semantic + CompilerDriver com `Native rbx→rcx` fix e `JS typeof`.
 >
@@ -56,7 +56,7 @@ main() {
 }
 ```
 
-> **Duas formas (0.2.6-beta):**
+> **Duas formas:**
 > - **Statement** — `case Tipo var:` com corpo de statements (efeitos colaterais).
 > - **Expressão (SYN001, 03/09)** — `case Tipo var ->` produzindo **valor**:
 >   `var desc = switch (forma) { case Circulo c -> "raio " + c.raio(); default -> "?" }`.

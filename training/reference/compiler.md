@@ -1,6 +1,6 @@
 # Kof Compiler Reference
 
-**Version:** 0.2.6-beta (02 Sep 2026) — 810 tests
+**Version:** 0.3.22-beta (Sep 2026) — 810 tests
 
 ## Compilation Pipeline
 
@@ -45,9 +45,9 @@ Kof IR (backend-agnostic) → Optimizer (constant folding, branch simplification
 | `kof info [--json]` | Environment report |
 | `kof install <dir>` | Instala este build como distribuição |
 | `kof lsp` | Language Server (stdio, LSP 3.x) |
-| `kof version` | Show version (0.2.6-beta) |
+| `kof version` | Show version (0.3.22-beta) |
 
-18 comandos. `kof fmt` e `kof config gen` implementados (0.2.6-beta).
+18 comandos. `kof fmt` e `kof config gen` implementados (0.3.22-beta).
 
 Fixes 27/08:
 - `CompilerDriver.expandKofImports` trata `import a.b.C` (arquivo) além de `a.b.*` (pasta) — projetos grandes com `a/b/C.kf` agora geram ambos os `.class`.

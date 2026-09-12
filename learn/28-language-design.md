@@ -1,6 +1,6 @@
 # 28 — Design da Linguagem
 
-> **Kof 0.2.6-beta — 02 set 2026 — 810 testes — `intention->Kof->frontend->IR->backend->runtime`**
+> **Kof 0.3.22-beta — set 2026 — `intention->Kof->frontend->IR->backend->runtime`**
 
 ## Filosofia
 
@@ -58,7 +58,7 @@ Kof não é apenas uma linguagem para a JVM. É uma linguagem que pode compilar 
 
 **A linguagem não muda. O target muda.**
 
-Isso é uma decisão de design fundamental. A mesma fonte Kof pode gerar (0.2.6-beta, 810 testes):
+Isso é uma decisão de design fundamental. A mesma fonte Kof pode gerar (0.3.22-beta):
 - Bytecode JVM para aplicações que precisam do ecossistema Java
 - Executáveis nativos x86-64 / riscv64 (`native.risc`) / aarch64 (`native.arm`) para ferramentas CLI e sistemas (Target separation)
 - ES Modules para o navegador/webview via KofJS (ver [capítulo 37](37-kofjs.md))

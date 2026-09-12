@@ -10,12 +10,12 @@ Quando uma feature ainda não existe, o código precisa de um desvio.
 O desvio é legítimo — mas **não é idiom**. O corpus deve marcar
 explicitamente `WORKAROUND` e `NOT IDIOMATIC`.
 
-## Workarounds atuais (0.2.6-beta, 02 Sep 2026)
+## Workarounds atuais (histórico 0.2.6-beta; fronteira atual em fake-idioms.md)
 
 ### 1. Null safety parcial
 
 ```kof
-// ✅ 0.2.6-beta — String? / Int? implementado com narrowing
+// ✅ String? / Int? implementado com narrowing
 String? s = null
 if (s != null) {
     println(s.length)   // OK — narrowing via isAssignable
@@ -40,7 +40,7 @@ var l = json.decode<Int[]>("[1,2,3]")
 Não use mais workaround de JSON (não codificar objeto no Native, trocar
 Double por Int) — a feature fechou.
 
-### 3. Construtor com argumentos — RESOLVIDO (0.2.6-beta)
+### 3. Construtor com argumentos — RESOLVIDO (0.3.22-beta)
 
 ```kof
 // ✅ Primary constructor é a forma idiomática desde 0.0.5
@@ -51,7 +51,7 @@ var u = User("Mel", 30)   // sem new também OK
 
 Não use `// WORKAROUND` para construtor — é feature estável.
 
-### 4. Captura em lambdas — RESOLVIDO (0.2.6-beta)
+### 4. Captura em lambdas — RESOLVIDO (0.3.22-beta)
 
 ```kof
 var offset = 10

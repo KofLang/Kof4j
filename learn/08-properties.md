@@ -1,6 +1,6 @@
 # 08 — Campos e Acesso a Dados ("Propriedades")
 
-> **Status: implementado — acesso direto a campo, sem getters/setters (0.2.6-beta, exemplos verificados no compilador)**
+> **Status: implementado — acesso direto a campo, sem getters/setters (0.3.22-beta, exemplos verificados no compilador)**
 >
 > Kof **não** tem JavaBeans: não há getter/setter de convenção nem reflexão de
 > framework. Um campo é acessado direto: `u.name` (leitura) e `u.name = "Mel"`

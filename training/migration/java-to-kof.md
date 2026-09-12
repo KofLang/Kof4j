@@ -1,6 +1,6 @@
 # Java to Kof Migration
 
-**Version:** 0.2.6-beta (02 Sep 2026)
+**Version:** 0.3.22-beta (Sep 2026)
 
 ## Classes
 
@@ -20,7 +20,7 @@ public class User {
 }
 ```
 
-### Kof (0.2.6-beta — record-style para dados imutáveis)
+### Kof (record-style para dados imutáveis)
 ```kof
 // class X(...) == record X(...): imutável, accessors, leitura u.name ok
 class User(String name, Int age) {
@@ -58,7 +58,7 @@ public record Point(int x, int y) {}
 record Point(Int x, Int y)
 var p = Point(10, 20)
 switch (p) {
-    case Point(var x, var y): println(x + "," + y) // 0.2.6-beta destructuring
+    case Point(var x, var y): println(x + "," + y) // destructuring
 }
 ```
 
@@ -116,7 +116,7 @@ map.put("a", 1);
 Set<String> set = new HashSet<>();
 ```
 
-### Kof (0.2.6-beta — 3 targets)
+### Kof (3 targets)
 ```kof
 var list = listOf("hello")
 list.add("world")
@@ -131,7 +131,7 @@ var v = map.get("a")
 var set = setOf(1, 2, 3)
 set.add(4)
 
-// Higher-order (0.2.6-beta)
+// Higher-order
 var nomes = users.map((u: User) -> u.name)
 var pares = nums.filter((x: Int) -> x % 2 == 0)
 var soma = nums.reduce((a: Int, b: Int) -> a + b, 0)
@@ -150,7 +150,7 @@ Optional<String> maybe = Optional.of("hi");
 String nullable = null;
 ```
 
-### Kof (0.2.6-beta)
+### Kof (0.3.22-beta)
 ```kof
 String? maybe = null
 if (maybe != null) {
@@ -174,7 +174,7 @@ public class UserController {
 }
 ```
 
-### Kof (0.2.6-beta)
+### Kof (0.3.22-beta)
 ```kof
 // kof.http client — JVM + JS (Java HttpClient interop), Native HTTP002
 // verbos: get/post/put/delete/patch/options
@@ -203,7 +203,7 @@ import java.util.List;
 import java.util.*;
 ```
 
-### Kof (0.2.6-beta fix 27/08)
+### Kof (fix 27/08)
 ```kof
 import a.b.C          // file-specific — projetos grandes agora OK
 import a.b.*
@@ -213,7 +213,7 @@ import a.b.*
 
 ### Java — não aplicável
 
-### Kof (0.2.6-beta)
+### Kof (0.3.22-beta)
 ```kof
 let x = 5            // top-level let → KofScriptGlobals
 const y: Int = 10

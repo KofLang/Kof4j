@@ -1,6 +1,6 @@
 # Multiplatform — Uma Linguagem, Múltiplos Mundos
 
-> **Kof 0.2.6-beta — 02 set 2026 — 810 testes — targets jvm/native/native.risc/native.arm/js/kofc — `intention->Kof->frontend->IR->backend->runtime`**
+> **Kof 0.3.22-beta — set 2026 — targets jvm/native/native.risc/native.arm/js/kofc — `intention->Kof->frontend->IR->backend->runtime`**
 
 ## A visão
 
@@ -66,7 +66,7 @@ kof build main.kf --target=native
 - Distribuição simples (apenas o binário)
 - Ideal para ferramentas CLI e sistemas
 
-### KofScript (0.2.6-beta)
+### KofScript (0.3.22-beta)
 
 `kof script` / `kof repl` — `let`/`const` no topo viram `KofScriptGlobals` persistentes, `--watch` re-executa; targets jvm/native/js.
 

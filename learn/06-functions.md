@@ -1,6 +1,6 @@
 # 06 — Funções
 
-> **Status: implementado (JVM / Native / JS) — 0.2.6-beta — exemplos verificados no compilador**
+> **Status: implementado (JVM / Native / JS) — 0.3.22-beta — exemplos verificados no compilador**
 >
 > Funções de nível superior, métodos, expression bodies, default parameters,
 > recursão e funções como valores (lambdas) funcionam nos targets JVM, Native

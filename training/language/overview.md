@@ -2,7 +2,7 @@
 
 Kof is a compiled, statically-typed, object-oriented programming language targeting JVM, Native (x86_64, riscv64, aarch64) and KofJS (ES Modules), plus Android (Fase 1, APK via backend JVM), KofScript and KofC.
 
-**Version:** 0.2.6-beta (02 Sep 2026) — 810 tests (793 kof-compiler + 8 kof-script + 5 kof-c-compiler + 4 kof-cli, 0 failures).
+**Version:** 0.3.22-beta (Sep 2026) — 810 tests (793 kof-compiler + 8 kof-script + 5 kof-c-compiler + 4 kof-cli, 0 failures).
 
 ## Key Characteristics
 
@@ -44,7 +44,7 @@ Kof IR (backend-agnostic, KofOperation)
  * riscv64 real (02/09, asm puro, qemu); aarch64 placeholder
 ```
 
-## Current Features (0.2.6-beta)
+## Current Features (0.3.22-beta)
 
 | Feature | JVM | Native | JS | Notes |
 |---------|-----|--------|----|-------|
@@ -52,14 +52,14 @@ Kof IR (backend-agnostic, KofOperation)
 | Constructors (`constructor(...)`, primary `class X(...)`) | ✅ | ✅ | ✅ | desde 0.0.5 |
 | Functions (all forms, no `fun`, expression body) | ✅ | ✅ | ✅ | |
 | Enums (`enum Color { Red }` + values/valueOf/name + exhaustive switch SEM031) | ✅ | ✅ | ✅ | 3 targets |
-| Lambdas com captura mutável (Box0) | ✅ | ✅ | ✅ | 0.2.6-beta |
+| Lambdas com captura mutável (Box0) | ✅ | ✅ | ✅ | desde 0.2.6-beta |
 | If-expressions `var x = if (c) a else b` | ✅ | ✅ | ✅ | |
 | `List<T>` + `listOf` + `map/filter/reduce` | ✅ | ✅ | ✅ | higher-order 27/08 |
 | `Map<K,V>` + `mapOf` (put/get/remove/contains/size/keys/values/clear/isEmpty) | ✅ | ✅ | ✅ | desde 0.1.0 |
 | `Set<T>` + `setOf` (add/contains/remove/size/clear/isEmpty) | ✅ | ✅ | ✅ | desde 0.1.0 |
 | `Box<T>` generics com `T` primitivo | ✅ | ✅ | ✅ | fix substituteTypeVariable 25/08 |
-| Null safety `String?` / `Int?` + narrowing `if (x != null)` | ✅ | ✅ | ✅ | 0.2.6-beta |
-| Pattern matching `case String s` + `instanceof`/`as` | ✅ | ✅ | ✅ | 0.2.6-beta |
+| Null safety `String?` / `Int?` + narrowing `if (x != null)` | ✅ | ✅ | ✅ | desde 0.2.6-beta |
+| Pattern matching `case String s` + `instanceof`/`as` | ✅ | ✅ | ✅ | desde 0.2.6-beta |
 | Record destructuring `case Point(x, y)` | ✅ | ✅ | ✅ | Parser fieldVars |
 | Concorrência: `spawn` / `Handle<T>` / `await` | ✅ | ✅ (pthread, 31/08) | ✅ (sequencial) | CONC001 fechado; JS CONC003 parcial |
 | Strings (`+`, `==`, indexOf, trim, split, ...) | ✅ | ✅ | ✅ | |
@@ -80,7 +80,7 @@ Kof IR (backend-agnostic, KofOperation)
 | KofScript `let` top-level + repl --watch --inspect | ✅ | ✅ | ✅ | KofScriptGlobals |
 | KofC C subset → ELF x86_64 | — | ✅ | — | nativo-only |
 
-## Planned / Unavailable (0.2.6-beta)
+## Planned / Unavailable (0.3.22-beta)
 
 | Feature | Status |
 |---------|--------|

@@ -1,6 +1,6 @@
 # Kof Target Reference
 
-**Version:** 0.2.6-beta (02 Sep 2026) — 810 tests
+**Version:** 0.3.22-beta (Sep 2026) — 810 tests
 
 ## JVM Target
 
@@ -46,7 +46,7 @@ kof build --target native.risc   # riscv64 ELF via riscv64-linux-gnu-as/ld + qem
 kof build --target native.arm    # aarch64 via aarch64-linux-gnu-as/ld + qemu
 ```
 
-- Target separation `Target.NATIVE_RISCV64` / `NATIVE_AARCH64` feito em 0.2.6-beta
+- Target separation `Target.NATIVE_RISCV64` / `NATIVE_AARCH64` (desde 0.2.6-beta)
 - **riscv64 com codegen real (02/09)** — `NATIVE002` parcial (caminho feliz):
   stack machine riscv64 (raw syscalls; runtime em **asm puro**, sem C) +
   `NativeRiscv64E2ETest 4/4` via `qemu-riscv64` (println String/Int, `var`,

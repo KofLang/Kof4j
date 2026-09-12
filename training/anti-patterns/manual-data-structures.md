@@ -8,7 +8,7 @@ Implementar estruturas de dados que a linguagem já fornece.
 
 Linked lists manuais (`Node` + `next`), arrays dinâmicos manuais, hashmaps
 manuais, string builders manuais — quando `List<T>`, `Map<K,V>`, `Set<T>` e `+`
-já resolvem o problema (0.2.6-beta, 3 targets).
+já resolvem o problema (3 targets).
 
 ## Bad example
 
@@ -37,7 +37,7 @@ A implementação manual carrega: alocação, encadeamento, contagem, bounds,
 iteração — tudo que o programador teria que manter e testar. O domínio é
 "uma coleção", não "nós encadeados".
 
-## Preferred approach (0.2.6-beta)
+## Preferred approach (0.3.22-beta)
 
 ```kof
 class Registry {
@@ -62,7 +62,7 @@ var nomes = users.map((u: User) -> u.name)
 var pares = nums.filter((x: Int) -> x % 2 == 0)
 ```
 
-## Estruturas manuais comuns → alternativa (0.2.6-beta)
+## Estruturas manuais comuns → alternativa (0.3.22-beta)
 
 | Manual | Alternativa Kof |
 |---|---|

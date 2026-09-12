@@ -3,7 +3,7 @@
 Fatos sobre o modelo de versionamento e release do Kof. Use para responder
 perguntas sobre versões, releases e o processo de publicação.
 
-**Version:** 0.2.6-beta (30 Aug 2026)
+**Version:** 0.3.22-beta (Sep 2026)
 
 ## Formato de versão
 
@@ -19,7 +19,7 @@ MAJOR.MINOR.PATCH[-suffix]
 
 ## Estágio atual
 
-- O Kof está em `0.2.6-beta` (30 Aug 2026, commit `b4339c8`).
+- O Kof está em `0.3.22-beta` (branch `beta-0.4.0`, set 2026).
 - Evolução: `0.0.5-alpha` → `0.1.0` → `0.2.6-beta` → Beta → Release Candidate → Stable.
 - A versão de componente (compiler/runtime/stdlib) é `0.2.0`; o sufixo
   `-beta` pertence ao release.
@@ -27,9 +27,9 @@ MAJOR.MINOR.PATCH[-suffix]
 
 ## Fonte única de verdade
 
-- A versão vive no arquivo `VERSION` na raiz do repositório (`0.2.6-beta`).
+- A versão vive no arquivo `VERSION` na raiz do repositório (`0.3.22-beta`).
 - `scripts/bump-version.sh` sincroniza `VERSION` → `pom.xml` (`<revision>`)
-  → `kof-compiler/src/main/resources/dev/kof/version.properties` (`kof.version=0.2.6-beta`).
+  → `kof-compiler/src/main/resources/dev/kof/version.properties` (`kof.version` acompanha o `revision`).
 - A pipeline atualiza automaticamente: compiler, CLI, runtime, artefatos,
   pacote, GitHub Release, changelog.
 - Não editar versões manualmente em vários arquivos.
@@ -58,10 +58,10 @@ MAJOR.MINOR.PATCH[-suffix]
  ## Artefatos
 
  ```text
- kof-0.2.6-beta-linux-x86_64.tar.gz
- kof-0.2.6-beta-windows-x86_64.zip
- kof-0.2.6-beta-macos-arm64.tar.gz
- kof-cli-0.2.6-beta.jar
+ kof-0.3.22-beta-linux-x86_64.tar.gz
+ kof-0.3.22-beta-windows-x86_64.zip
+ kof-0.3.22-beta-macos-arm64.tar.gz
+ kof-cli-0.3.22-beta.jar
  SHA256SUMS
  ```
 
@@ -77,7 +77,7 @@ JDK embutido (Temurin 21, Tooling API Level 21).
 
 ## Tags
 
-- Tags seguem `kof-<versão>` (ex.: `kof-0.2.6-beta`).
+- Tags seguem `kof-<versão>` (ex.: `kof-0.3.22-beta`).
 - O commit de bump usa `[skip ci]` para não re-disparar a pipeline.
 
 ## Regras importantes

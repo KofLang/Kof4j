@@ -1,10 +1,10 @@
 # Opções de Backend Native
 
-> **0.2.6-beta — Native free-list GC, Target separation (native.risc/arm), kof_db SQLite+MySQL**
+> **0.3.22-beta — Native free-list GC, Target separation (native.risc/arm), kof_db SQLite+MySQL**
 
 ## Status atual
 
-O backend nativo já está implementado e funcional (0.2.6-beta, 810 testes). Ele gera assembly x86-64 / riscv64 / aarch64 diretamente (Target separation), com free-list GC no x86-64 e `kof_db` MySQL WIP, sem usar LLVM ou outras bibliotecas externas.
+O backend nativo já está implementado e funcional (0.3.22-beta). Ele gera assembly x86-64 / riscv64 / aarch64 diretamente (Target separation), com free-list GC no x86-64 e `kof_db` MySQL WIP, sem usar LLVM ou outras bibliotecas externas.
 
 ## Abordagem implementada: Assembly direto
 

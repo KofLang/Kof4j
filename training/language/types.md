@@ -1,6 +1,6 @@
 # Kof Types
 
-**Version:** 0.2.6-beta (02 Sep 2026)
+**Version:** 0.3.22-beta (Sep 2026)
 
 ## Primitive Types
 
@@ -17,7 +17,7 @@
 | `string` | reference | KofString |
 | `void` | — | No return |
 
-Nullable: suffix `?` → `String?`, `Int?`, `Point?` (NullableType, 0.2.6-beta). `if (x != null)` narrows para non-null via `isAssignable`.
+Nullable: suffix `?` → `String?`, `Int?`, `Point?` (NullableType — desde 0.2.6-beta). `if (x != null)` narrows para non-null via `isAssignable`.
 
 ## Reference Types
 
@@ -56,7 +56,7 @@ var strings = new String[5]
 var bigs = new Long[10]    // ✅ Long[] real (JVM long[]; Native/JS idem)
 ```
 
-### Casts primitivos (`as`) — 0.2.6-beta (01/09)
+### Casts primitivos (`as`) — desde 0.2.6-beta (01/09)
 
 ```kof
 var c = 104 as Char          // ✅ I2C real — Char do codepoint

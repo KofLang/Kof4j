@@ -1,6 +1,6 @@
 # Idioms — Records
 
-**Status:** available · **Introduced:** 0.0.4-alpha · **Updated:** 0.2.6-beta
+**Status:** available · **Introduced:** 0.0.4-alpha · **Updated:** 0.3.22-beta (Sep 2026)
 
 ## What it is
 
@@ -80,7 +80,7 @@ var b = new Point(3, 4)    // também aceito
 > de um record é erro de compilação **SEM038** ("record is immutable"). Para
 > estado mutável use `class` com campos + `constructor(...)`.
 
-## Pattern matching — record destructuring (0.2.6-beta)
+## Pattern matching — record destructuring (0.3.22-beta)
 
 ```kof
 record Point(Int x, Int y)
@@ -152,7 +152,7 @@ var d = json.decode<Point>("{\"x\": 10, \"y\": 20}")
 **Native:** JSN002/JSN001/JSN003 fechados 31/08 — `json.encode`/`json.decode<T>` de
 objetos/records/arrays funciona também no Native (composição compile-time; FP em XMM).
 
-## Null safety com records (0.2.6-beta)
+## Null safety com records (0.3.22-beta)
 
 ```kof
 Point? maybe = null

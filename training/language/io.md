@@ -99,7 +99,7 @@ println(file.readBytes().length)
   inexistente — o `-1` sentinela foi removido (era anti-pattern do corpus).
 - Operações booleanas retornam `true`/`false`.
 
-## Limitações atuais (0.2.6-beta)
+## Limitações atuais (0.3.22-beta)
 
 - Native: Linux x86_64 (syscalls POSIX) + riscv64/aarch64 placeholder via qemu; GC free-list aplica-se a buffers de arquivo.
 - Symlinks, timestamps e permissões são futuros.

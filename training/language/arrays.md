@@ -1,6 +1,6 @@
 # Kof Array Reference
 
-**Version:** 0.2.6-beta
+**Version:** 0.3.22-beta (Sep 2026)
 
 ## Creation
 
@@ -8,7 +8,7 @@
 var arr = new Int[10]      // array of 10 integers
 var strings = new String[5] // array of 5 strings
 var empty = new Int[0]      // empty array
-var bigs = new Long[10]    // ✅ Long[] real (0.2.6-beta, 01/09)
+var bigs = new Long[10]    // ✅ Long[] real (desde 0.2.6-beta, 01/09)
 var rows = new Long[n * k] // tamanho por expressão ok
 ```
 

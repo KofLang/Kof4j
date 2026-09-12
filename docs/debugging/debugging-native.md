@@ -5,7 +5,7 @@ emite `.file 1 "<fonte.kf>"` + `.loc 1 <linha> 0` quando debug enabled; `objdump
 --dwarf=decodedline` mostra o arquivo Kof e a linha de cada instrução
 (`NativeDwarfLineInfoTest`). Variáveis locais, DAP no nativo e stepping pendentes.
 **Data:** 2 de setembro de 2026
-**Versão:** 0.2.6-beta (810 testes; 7 targets)
+**Versão:** 0.3.22-beta (7 targets)
 
 ---
 

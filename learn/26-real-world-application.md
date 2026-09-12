@@ -1,6 +1,6 @@
 # 26 — Aplicação Real
 
-> **Status: futuro (pós 0.2.6-beta — `kof.web` + `kof_db` já cobrem o caso sem Spring)**
+> **Status: futuro (pós 0.2 — `kof.web` + `kof_db` já cobrem o caso sem Spring)**
 >
 > Este capítulo mostra como construir uma aplicação completa em Kof com Spring Boot.
 

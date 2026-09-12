@@ -49,7 +49,7 @@ justificável com medição.
 2. Meça (se houver requisito de performance).
 3. Otimize apenas o ponto medido, com comentário explicando por quê.
 
-## Performance real conhecida (0.2.6-beta — 02 Sep 2026)
+## Performance real conhecida (medida 02 Sep 2026)
 
 - Native: free-list `kof_free_head` first-fit thread-safe (lock futex) + `kof_gc_collect` mark-sweep conservador (27/08). Auto-GC desligado — memória só é devolvida no `munmap` fallback; GC mark-sweep automático pendente. `kof_free` push sem syscall. GC ainda não é completo — programas muito longos devem evitar vazamento.
 - Native strings: UTF-8 bytes; concatenação aloca nova string.

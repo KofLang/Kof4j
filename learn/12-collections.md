@@ -1,6 +1,6 @@
 # 12 — Collections
 
-> **Status: implementado (JVM / Native / JS) — 0.2.6-beta**
+> **Status: implementado (JVM / Native / JS) — 0.3.22-beta**
 >
 > `List<T>`, `Map<K,V>` e `Set<T>` são coleções nativas de Kof. `List` agora tem `map/filter/reduce` idiomáticos (0.2.0) além das operações base. O tipo dos
 > elementos é preservado pela pipeline inteira (inferência, for-in, `get`,

@@ -1,6 +1,6 @@
 # Kof Classes
 
-**Version:** 0.2.6-beta (02 Sep 2026)
+**Version:** 0.3.22-beta (Sep 2026)
 
 ## Basic Class — dois modelos (verificado 02/09)
 
@@ -35,7 +35,7 @@ u2.age = 31           // ok — campo público mutável
 record Point(Int x, Int y)
 // Auto-generates: constructor, accessors x(), y(), toString()
 switch (p) {
-    case Point(var x, var y): println(x + "," + y) // 0.2.6-beta destructuring
+    case Point(var x, var y): println(x + "," + y) // destructuring
 }
 ```
 

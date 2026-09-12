@@ -1,6 +1,6 @@
 # 32 — CLI e Tooling
 
-> **Kof 0.2.6-beta — 02 set 2026 — 810 testes — targets jvm/native/native.risc/native.arm/js/android + kofc**
+> **Kof 0.3.22-beta — set 2026 — targets jvm/native/native.risc/native.arm/js/android + kofc**
 
 A CLI é a ferramenta central da plataforma Kof.
 
@@ -30,7 +30,7 @@ A CLI é a ferramenta central da plataforma Kof.
 | `kof info [--json]` | Relatório do ambiente |
 | `kof lsp` | Language Server (stdio, LSP 3.x) |
 | `kof install <dir>` | Instala este build como distribuição (launcher + `kof.jar`) |
-| `kof version` | Versão da plataforma (`0.2.6-beta`) |
+| `kof version` | Versão da plataforma (`<revision>`) |
 
 Todos os comandos seguem `intention->Kof->frontend->IR->backend->runtime`.
 
@@ -39,16 +39,16 @@ Todos os comandos seguem `intention->Kof->frontend->IR->backend->runtime`.
 Diagnóstico oficial do ambiente — para usuários e suporte:
 
 ```text
-Kof 0.2.6-beta
+Kof 0.3.22-beta
 Release channel: beta
 Tooling API: 21
 OS: linux
 Arch: x86_64
 Target: linux-x86_64
 JVM: Eclipse Adoptium 25.0.4 (embedded)
-Compiler: 0.2.6-beta
-Runtime: 0.2.6-beta
-Stdlib: 0.2.6-beta
+Compiler: 0.3.22-beta
+Runtime: 0.3.22-beta
+Stdlib: 0.3.22-beta
 Targets: jvm, native, js (alpha)
 LSP: available
 Editor support: available

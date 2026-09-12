@@ -1,6 +1,6 @@
 # Roadmap KofNative
 
-> **0.2.6-beta — 02 set 2026 — 810 testes — free-list GC done, Target separation done, MySQL via kof_db WIP**
+> **0.3.22-beta — set 2026 — free-list GC done, Target separation done, MySQL via kof_db WIP**
 
 ## Princípios
 

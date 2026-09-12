@@ -73,7 +73,7 @@ Navegação por troca de componente raiz: `Router` é namespace (não tipo).
 - Real no target JS (KofJS); JVM/Native: no-op handles.
 - Ver `docs/ui/architecture.md` §2.9 e `RouterE2ETest`.
 
-## Idioma KofScript (0.2.6-beta)
+## Idioma KofScript (0.3.22-beta)
 
 ```kof
 let x = 5
@@ -83,4 +83,4 @@ var app = Window("Hi", Label("Olá"))
 ## Referência
 
 - `learn/35-kof-ui.md`
-- `kof-compiler/src/test/java/dev/kof/compiler/UiE2ETest.java` (14 testes, 0.2.6-beta)
+- `kof-compiler/src/test/java/dev/kof/compiler/UiE2ETest.java` (29 testes)

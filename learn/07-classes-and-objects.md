@@ -1,6 +1,6 @@
 # 07 — Classes e Objetos
 
-> **Kof 0.2.6-beta — exemplos verificados no compilador (02/09)**
+> **Kof 0.3.22-beta — exemplos verificados no compilador (02/09)**
 >
 > Kof tem **dois** modelos de "dado com parâmetros": `record`/`class X(...)`
 > (imutável, accessors) e classe com campos + `constructor(...)` (mutável,

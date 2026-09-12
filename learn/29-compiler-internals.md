@@ -1,6 +1,6 @@
 # 29 — Internals do Compilador
 
-> **Kof 0.2.6-beta — 810 testes — targets jvm/native/native.risc/native.arm/js/kofc — `intention->Kof->frontend->IR->backend->runtime`**
+> **Kof 0.3.22-beta — targets jvm/native/native.risc/native.arm/js/kofc — `intention->Kof->frontend->IR->backend->runtime`**
 
 ## Arquitetura
 
@@ -219,7 +219,7 @@ error: type mismatch
 | Symbol table | ⚠️ Definido mas não usado completamente |
 | IR | ✅ Definido, lowering funcional (`intention->Kof->frontend->IR->backend->runtime`) |
 | Optimizer | ✅ Passes sempre ativos (constant folding, dead code, branch simplification) |
-| JVM Backend | ✅ Funcional (via ASM, bytecode V21, exception table, virtual threads; 810 testes) |
+| JVM Backend | ✅ Funcional (via ASM, bytecode V21, exception table, virtual threads; ) |
 | Native Backend | ✅ Funcional (x86-64 free-list GC + spawn/pthread + FP XMM; riscv/arm placeholders via qemu) |
 | Diagnostics | ✅ Funcional |
 | KofScript (`KofScriptGlobals`) | ✅ `let`/`const` topo, repl, --watch |
