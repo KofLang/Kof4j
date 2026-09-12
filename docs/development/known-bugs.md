@@ -3553,7 +3553,7 @@ int de índice) — verificados na varredura.
   (`retType` do `CollectionCallLowerer`), não no runtime export.
 - **Fix provável:** no lowerer JS (ou no wrapper da chamada), quando
   `retType` é primitivo/`Nullable(primitivo)`, `get`/`remove` de miss →
-  default (`0`/`0.0`/`false`/` `) — espelhando o padrão JVM/Script; a
+  default (`0`/`0.0`/`false`/`\0`) — espelhando o padrão JVM/Script; a
   célula `mapgetprim` (valores primitivos String-key HIT) não cobre o MISS.
 - **Prova esperada:** `mapOf("a",1).get("zz")` = `0` nos 4 (extensão da
   célula `wrongkey` tirando a exclusão JS) + paridade `map-miss-primitive`
