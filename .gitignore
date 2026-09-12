@@ -14,3 +14,4 @@ build/
 dist/
 *.env
 dependency-reduced-pom.xml
+.issue*-reply-pending.md

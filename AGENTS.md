@@ -225,6 +225,25 @@ conceitual nem decide arquitetura/rumo. Consequências práticas para o agente:
 6. **Toda PR vem acompanhada de uma issue relacionada.** PR "solta" não entra.
    Toda mudança proposta referencia uma issue aberta que a justifica —
    rastreabilidade é lei, não preferência.
+7. **Identidade em commits e issues/PRs (12/09, mecanismo DESVENDADO e
+   medido).** Agente publica pela identidade da organização/agente, **nunca**
+   pelo perfil pessoal visível da mantenedora. **Não é App nem PAT** — é
+   atribuição do GitHub por **e-mail de autor**: commit com
+   `user.email = aminadojava@gmail.com` (e-mail verificado pelo usuário
+   `temmcode`, id 214545180) aparece no painel de contributors como
+   **`temmcode`** — 268 commits no Kof4j provados (`git log | grep -c` ==
+   `contributors API` == 268, zero ocorrências de "temm" em qualquer autor).
+   Por isso nenhuma máquina tem token `temmcode`. Setup por clone (uma vez):
+   `git config user.name "temmcode"` +
+   `git config user.email "aminadojava@gmail.com"` — o nome `Kof-agent-worker`
+   da org fica para quando a org ganhar verificação de e-mail própria; o
+   truque hoje é o e-mail. Para issues/PRs via `gh`, o token ativo resolve
+   (`gh api user --jq .login`): sem credencial do worker, **NÃO comentar como
+   melmonfre** — salvar o corpo em `.issue<N>-reply-pending.md` (gitignored),
+   registrar a pendência no `DOING.md` e seguir com o código. Verificação da
+   sessão: `git config user.email` = o e-mail da identidade ANTES do primeiro
+   commit. (Histórico: um comentário na #97 saiu como melmonfre 12/09 e foi
+   APAGADO; re-postagem quando a identidade de issue existir.)
 
 > Em resumo: a IA roda **sob as regras estritas da computação de verdade** —
 > documentação cirúrgica, zero alucinação, sem o hype do mercado.
