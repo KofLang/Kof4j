@@ -60,25 +60,32 @@ public class SemanticAnalyzer {
         this.currentPackage = unit.packageName();
         this.currentScope = new SymbolTable();
         this.currentUnit = unit;
-        // SG-011B (SEM047): sobrecarga top-level não existe em Kof — duas
-        // funções homônimas eram sobrescritas silenciosamente (a última
-        // vencia); agora é erro de compilação nomeando ambas as aridades.
+        // SG-011B (SEM047): sobrecarga de função top-level É permitida (oracle
+        // JVM): nomes iguais com ASSINATURAS diferentes coexistem e a chamada
+        // resolve o candidato no typer (TopLevelOverload). O que continua ERRO é
+        // DUPLICATA EXATA — mesmo nome e mesmos tipos de parâmetro (a JVM também
+        // rejeita; retorno diferente não conta como assinatura, igual ao JVM).
+        // Antes (≤11/09) QUALQUER par homônimo era SEM047; afrouxar não regride
+        // nada porque todo programa compilável tinha no máximo um candidato por
+        // nome (a seleção multi-candidato só roda em código novo).
         if (diagnostics != null) {
-            Map<String, String> fnNames = new HashMap<>();
+            Map<String, SourcePosition> fnSigs = new HashMap<>();
             for (AstNode decl : unit.declarations()) {
                 if (decl instanceof FunctionDeclarationNode f) {
-                    String prev = fnNames.get(f.name());
+                    List<String> pt = new ArrayList<>();
+                    for (var p : f.parameters()) pt.add(p.type() != null ? p.type() : "?");
+                    String sig = f.name() + "(" + String.join(",", pt) + ")";
+                    SourcePosition prev = fnSigs.get(sig);
                     if (prev != null) {
                         diagnostics.error(f.position().file(), f.position().line(),
                                 f.position().column(), 0,
-                                "function '" + f.name() + "' is already defined (" + prev
-                                        + "); top-level functions cannot be overloaded"
-                                        + " — use a different name",
+                                "function '" + f.name() + "' with parameters ("
+                                        + String.join(", ", pt) + ") is already defined at line "
+                                        + prev.line() + "; duplicate signatures are not allowed"
+                                        + " — overload requires a DIFFERENT parameter list",
                                 "SEM047");
                     } else {
-                        List<String> arities = new ArrayList<>();
-                        for (var p : f.parameters()) arities.add(p.type() != null ? p.type() : "?");
-                        fnNames.put(f.name(), "with parameters (" + String.join(", ", arities) + ")");
+                        fnSigs.put(sig, f.position());
                     }
                 }
             }

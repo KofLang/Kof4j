@@ -124,6 +124,57 @@ public class NativeBackend implements Backend {
                 .replace("<", "").replace(">", "");
     }
 
+    // ---- SG-011B: mangling de FUNÇÃO TOP-LEVEL por assinatura (oracle JVM) ----
+    // Só funções do recipiente sintético Main (não-<init>, não-`main`) recebem
+    // sufixo de assinatura. Métodos de instância, construtores (<init>_n) e a
+    // entrada `main` continuam byte-idênticos ao antes — vtables referenciam
+    // esses símbolos e não podem mudar. Um programa com um único candidato por
+    // nome ganha sufixo nos DOIS lados (registro e call site) igualmente, então
+    // só o NOME DO SÍMBOLO muda, nunca a semântica (e isso DE-DUPLICAPAR as
+    // wrappers de default-arg que antes colidiam no `as` — bug latente).
+    static boolean isTopLevelOwner(String className) {
+        return "Main".equals(className) || className.endsWith("/Main");
+    }
+    /** true quando (clazz,name) é uma função top-level sobrecarregável. */
+    static boolean sigMangles(String className, String name) {
+        return isTopLevelOwner(className) && !"<init>".equals(name) && !"main".equals(name);
+    }
+    static String sigTag(java.util.List<Type> ps) {
+        StringBuilder s = new StringBuilder();
+        for (Type t : ps) s.append('_').append(typeTag(t));
+        return s.toString();
+    }
+    static String typeTag(Type t) {
+        if (t instanceof Type.PrimitiveType pt) return switch (Type.canonicalPrimitiveName(pt.name())) {
+            case "int" -> "I"; case "long" -> "J"; case "double" -> "D"; case "float" -> "F";
+            case "boolean" -> "Z"; case "byte" -> "B"; case "char" -> "C"; case "short" -> "S";
+            default -> "V"; };
+        if (t instanceof Type.NullableType nt) return typeTag(nt.inner()) + "q";
+        if (t instanceof Type.ArrayType at) return "A" + typeTag(at.componentType());
+        if (t instanceof Type.FunctionType) return "L";
+        if (t instanceof Type.ClassType ct) {
+            String n = ct.name().replace("/", "_").replace(".", "_").replace("-", "_");
+            return n.isEmpty() ? "O" : n;
+        }
+        return "O";
+    }
+    /** Chave do functionMangleMap para (clazz,name,pts): com assinatura só p/
+     *  funções top-level; caso contrário o nome cru (comportamento antigo). */
+    static String fnKey(String className, String name, java.util.List<Type> pts) {
+        return sigMangles(className, name) ? name + "#" + sigTag(pts) : name;
+    }
+    /** Símbolo assembly de (clazz,name,pts). */
+    static String fnSymbol(String className, String name, java.util.List<Type> pts) {
+        String m = sanitizeNameStatic(className) + "_" + sanitizeNameStatic(name);
+        if ("<init>".equals(name)) m += "_" + pts.size();
+        else if (sigMangles(className, name)) m += sigTag(pts);
+        return m;
+    }
+    static String sanitizeNameStatic(String name) {
+        return name.replace("/", "_").replace(".", "_").replace("-", "_")
+                .replace("<", "").replace(">", "");
+    }
+
 
 
     String internString(String value) {
