@@ -22,8 +22,20 @@ STATE="$STATE_DIR/state"
 LOG="$STATE_DIR/loop.log"
 LOCK="$STATE_DIR/lock"
 
-# Servidor TUI vivo da sessão aberta (porta fixa do modo autônomo).
-SERVER="${OPENCODE_SERVER_URL:-http://127.0.0.1:9092}"
+# Servidor TUI vivo da sessão aberta. A porta NÃO é fixa: cada sessão do TUI
+# escolhe a sua (9092 pode ser outra sessão — o heartbeat dela não é o nosso).
+# OPENCODE_SERVER_URL sobrescreve; senão o tick resolve dinamicamente a porta
+# que realmente hospeda $session (probe /session/<id> em cada servidor vivo).
+SERVER="${OPENCODE_SERVER_URL:-}"
+
+resolve_server() {
+    local sid="$1" port body
+    for port in 9091 9092 9093 9094 9095; do
+        body=$(curl -s -m 3 "http://127.0.0.1:$port/session/$sid" 2>/dev/null) || continue
+        case "$body" in *'"id":"'"$sid"'"'*) echo "http://127.0.0.1:$port"; return 0;; esac
+    done
+    return 1
+}
 
 OPENCODE="${OPENCODE_BIN:-}"
 if [ -z "$OPENCODE" ]; then
@@ -93,6 +105,12 @@ cmd_tick() {
     . "$STATE"
     # INJETAR na sessão aberta via servidor TUI vivo (--attach) — nunca
     # spawnar agente headless concorrente (isso criava "outra sessão").
+    # OPENCODE_SERVER_URL força uma porta; senão resolve qual servidor vivo
+    # hospeda a sessão (a porta do TUI não é fixa — 9092 costuma ser OUTRA
+    # sessão, e injetar nela dava "Session not found" a cada tick).
+    if [ -z "$SERVER" ]; then
+        SERVER=$(resolve_server "$session") || SERVER="http://127.0.0.1:9093"
+    fi
     local args=(run --session "$session" --dir "$repo" --attach "$SERVER" --auto "${prompt:-$DEFAULT_PROMPT}")
     if [ "${1:-}" = "--dry-run" ]; then
         echo "[dry-run] $OPENCODE ${args[*]}"
