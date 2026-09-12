@@ -269,13 +269,27 @@ public final class NativeRiscvCrossOps {
             sb.append("    pop a0\n");
             // §123: tag de chave no header do map (off 40) — 1=String
             // (kof_string_equals), 0=raw cmpq (Int/Long/... senão chave Int
-            // vira PONTEIRO → SIGSEGV). Unknown NÃO toca (mantém default 1;
-            // chave Int chega concreta pelo pinning). Espelha o x86.
-            if (mn.startsWith("kof_map_") && argCount >= 1) {
-                Type kt = kc.parameterTypes().get(0);
-                if (kt instanceof Type.NullableType nt) kt = nt.inner();
-                if (!(kt instanceof Type.UnknownType)) {
-                    sb.append("    li t0, ").append(BuiltinTypes.isString(kt) ? 1 : 0).append("\n");
+            // vira PONTEIRO → SIGSEGV). Unknown NÃO toca (mantém default 1).
+            // §126(a): CONJUNÇÃO receptor×arg (espelha o x86) — equals só
+            // quando ambos String; tipos errados em qualquer direção viram
+            // raw cmpq = miss seguro (0/null como o JVM), nunca SIGSEGV.
+            if (mn.startsWith("kof_map_")) {
+                Type mkt = BuiltinTypes.mapKey(kc.ownerType());
+                Type mat = argCount >= 1 ? kc.parameterTypes().get(0) : null;
+                if (mkt instanceof Type.NullableType nt) mkt = nt.inner();
+                if (mat instanceof Type.NullableType nt) mat = nt.inner();
+                boolean ktKnown = mkt != null && !(mkt instanceof Type.UnknownType);
+                boolean atKnown = mat != null && !(mat instanceof Type.UnknownType);
+                int tag = -1;
+                if (ktKnown && atKnown) {
+                    tag = BuiltinTypes.isString(mkt) && BuiltinTypes.isString(mat) ? 1 : 0;
+                } else if (ktKnown) {
+                    tag = BuiltinTypes.isString(mkt) ? 1 : 0;
+                } else if (atKnown) {
+                    tag = BuiltinTypes.isString(mat) ? 1 : 0;
+                }
+                if (tag >= 0) {
+                    sb.append("    li t0, ").append(tag).append("\n");
                     sb.append("    sw t0, 40(a0)\n");
                 }
             }

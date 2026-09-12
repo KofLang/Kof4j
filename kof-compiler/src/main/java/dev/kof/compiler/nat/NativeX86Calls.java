@@ -250,13 +250,29 @@ public final class NativeX86Calls {
                 sb.append("    movq %rax, %rdi\n");
                 // §123: tag de chave no header do map (off 40). 1=String
                 // (kof_string_equals), 0=raw cmpq. Unknown NÃO toca (mantém o
-                // default 1 — String é o caso histórico; chave Int chega
-                // SEMPRE com tipo concreto pelo pinning do put/mapOf).
-                if (collFn.startsWith("kof_map_") && argCount >= 1) {
-                    Type kt = kc.parameterTypes().get(0);
-                    if (kt instanceof Type.NullableType nt) kt = nt.inner();
-                    if (!(kt instanceof Type.UnknownType)) {
-                        sb.append("    movl $").append(BuiltinTypes.isString(kt) ? 1 : 0)
+                // default 1 — String é o caso histórico).
+                // §126(a): CONJUNÇÃO receptor×arg — equals de String só quando
+                // AMBOS os tipos conhecidos são String. Qualquer outro par
+                // (tipos errados em qualquer direção: A1 Int-arg em String-map,
+                // A2 String-arg em Int-map) cai no raw cmpq, que NUNCA deref e
+                // produz exatamente o miss do JVM (0/null) — sem SIGSEGV, sem
+                // rejeição, sem regressão dos targets que já rodavam.
+                if (collFn.startsWith("kof_map_")) {
+                    Type mkt = BuiltinTypes.mapKey(kc.ownerType());
+                    Type mat = argCount >= 1 ? kc.parameterTypes().get(0) : null;
+                    if (mkt instanceof Type.NullableType nt) mkt = nt.inner();
+                    if (mat instanceof Type.NullableType nt) mat = nt.inner();
+                    boolean ktKnown = mkt != null && !(mkt instanceof Type.UnknownType);
+                    boolean atKnown = mat != null && !(mat instanceof Type.UnknownType);
+                    if (ktKnown && atKnown) {
+                        sb.append("    movl $").append(
+                                BuiltinTypes.isString(mkt) && BuiltinTypes.isString(mat) ? 1 : 0)
+                          .append(", 40(%rdi)\n");
+                    } else if (ktKnown) {
+                        sb.append("    movl $").append(BuiltinTypes.isString(mkt) ? 1 : 0)
+                          .append(", 40(%rdi)\n");
+                    } else if (atKnown) {
+                        sb.append("    movl $").append(BuiltinTypes.isString(mat) ? 1 : 0)
                           .append(", 40(%rdi)\n");
                     }
                 }

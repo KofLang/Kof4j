@@ -3429,6 +3429,51 @@ int de índice) — verificados na varredura.
   → JVM **VerifyError** e Script `Integer.valueOf/1` (NoSuchMethod) —
   §125. `println(char)` congelado numérico (strings.md) continua intocado.
 
+### 128. kof-cli `DecompileTest#recoversStatementSwitchAndRunsIt` VERMELHO — decompilador emite statement-switch com `var` só no 1º case → SEM011 no recompile — ⏳ ABERTO (não-introduzido pela lane §123/§126; triagem 11/09)
+
+- **Reprodução (exata, medida 11/09):** em `94c4a1fb` LIMPO (working tree
+  sem nenhuma edição da lane collections): `mvn -o -pl kof-cli -am test
+  -Dtest='DecompileTest#recoversStatementSwitchAndRunsIt'` → falha.
+  Reproduz também na suíte completa da lane (§126) com os edits em stash.
+  **Comportamento ordem-dependente**: na suíte completa de 11/09 mais
+  cedo (1501–1502, HEADs anteriores) passava; isolado, falha — método
+  isolado não herda o warm-up/state compartilhado dos 44 vizinhos.
+- **Sintoma:** o esqueleto decompilado de um `switch` statement com
+  variável local compartilhada declara `var v1` APENAS no `case 1` e o
+  referencia nos cases seguintes + no `return` → o recompile do output
+  cospe SEM011 "Undefined variable or type: 'v1'" (3×).
+- **Causa provável:** recuperação de bodies do decompiler (Fase E) não
+  hoista as declarações de locals usados além do case em que aparecem;
+  o recovery por bytecode precisa declarar a variável ANTES do switch
+  (o slot existe desde o primeiro write, mas o escopo Kof é textual).
+- **Não é da lane §123/§126:** nenhum arquivo tocado (kof-cli/decompiler
+  × kof-compiler/collections); a prova é o reproduz-no-HEAD-limpo.
+- **Ação:** lane do decompilador (KOFSCRIPT/legacy) precisa hoistar a
+  declaração; até lá, quem rodar a suíte completa pode ver 1 fail além do
+  node-trio — não "corrigir" o teste (regra: gate quebrado = registrar).
+- **Prioridade:** média (vermelho em teste de gate; sem produto afetado
+  além do round-trip switch-statement).
+
+### 127. JS: `map.get/remove` de MISS com VALOR primitivo devolve `null` (JVM/Native/Script devolvem o default `0`/`false`) — ⏳ ABERTO (pré-existente; achado 11/09 pela célula `wrongkey` do §126)
+
+- **Menor repro (medido 11/09):** `mapOf("a", 1).get("zz")` → **JS `null`**,
+  JVM/Native/Script **`0`**. Célula `wrongkey` divergiu só na última linha
+  (as três anteriores — String-value null, contains false — casam).
+- **Causa:** `kofMapGet`/`kofMapRemove` (JsRuntimeUiLayout:184-197)
+  devolvem `null` fixo no miss; o SG-008/bug-87 (default do primitivo em
+  `Nullable(primitive)` no uso) foi implementado no JVM
+  (`JvmOpCollections.emitPrevValueUnbox`) e no interpretador
+  (`KofInterpreterCollections` guard §112) mas **nunca no JS** — o guard
+  precisa do tipo de retorno do call, que só existe no lowering
+  (`retType` do `CollectionCallLowerer`), não no runtime export.
+- **Fix provável:** no lowerer JS (ou no wrapper da chamada), quando
+  `retType` é primitivo/`Nullable(primitivo)`, `get`/`remove` de miss →
+  default (`0`/`0.0`/`false`/` `) — espelhando o padrão JVM/Script; a
+  célula `mapgetprim` (valores primitivos String-key HIT) não cobre o MISS.
+- **Prova esperada:** `mapOf("a",1).get("zz")` = `0` nos 4 (extensão da
+  célula `wrongkey` tirando a exclusão JS) + paridade `map-miss-primitive`
+  no harness JS.
+
 ### 125. `println(<primitivo>? null)` (Int?/Bool?/... null): JVM **VerifyError** na carga + Script **NoSuchMethodError `Integer.valueOf/1`**; Native imprime `0` — ⏳ ABERTO (achado 11/09 ao fixar o §124)
 
 - **Menor repro (PN2, medido 11/09):** `Int? ni() { return null }` +
@@ -3451,7 +3496,7 @@ int de índice) — verificados na varredura.
 - **Prioridade:** média-baixa (crash ruidoso; workaround `if (x != null)`
   ou `println(x == null ? "null" : x)`).
 
-### 126. Chave do TIPO ERRADO em Map/Set/`contains`-de-List pinados → Native SIGSEGV (JVM tolera com miss/false) — ⏳ ABERTO (família §122, opção B; design fechado 11/09)
+### 126. Chave do TIPO ERRADO em Map/Set/`contains`-de-List pinados → Native SIGSEGV (JVM tolera com miss/false) — ◐ PARCIAL 11/09 (lado ARG ✅ conjunção; lado CANDIDATO = decisão de contrato pendente)
 
 - **Matriz medida 11/09 (probes A1/A2/MP2/ST1/ST2/E1):**
   | programa | JVM | Native (hoje) |
@@ -3479,9 +3524,35 @@ int de índice) — verificados na varredura.
 - **Prova esperada:** A1/A2/MP2/ST1/ST2/E1 viram células 4/4 (com SEM056
   onde rejeição; null/false onde miss) + `listIndexNonIntRejected`-style
   no SemanticResolutionTest.
-- **Nota:** tentativa de meia-implementação revertida 11/09 (fim de
-  contexto; verde é lei). A metade (a) é 3 linhas; (b) copia o padrão do
-  SEM055 já no arquivo.
+- **◐ PARCIAL (11/09, lado ARG corrigido):** o tag do Native (map: header
+  off 40 escrito pelo emitter x86+riscv; set/list: literal no lowering) é
+  agora **CONJUNÇÃO elem-receptor × tipo-do-arg**: `1` (kof_string_equals)
+  só quando AMBOS conhecidos String; qualquer outro par → `0` raw cmpq,
+  que nunca deref e produz exatamente o miss do JVM. Provas: E2 e célula
+  `wrongkey` 4/4 (String-arg em Int-map → `null`; Int-arg em String-set →
+  `false`; Int-arg em String-list-contains → `false`; Int em String-map →
+  `0`, como o JVM); A1/A2/MP2/ST1/ST2/E1 nativos ec=0; zero regressão
+  (String-String continua no equals de conteúdo — mapa/células `map`/
+  `mapint`/`set` verdes). SEM rejeição: o reject em alvo único seria
+  fallback silencioso proibido, e em todos os-alvos mudaria comportamento
+  que roda hoje no JVM (regra 2).
+- **⏳ LADO CANDIDATO (residual, ABRIGADO p/ decisão de contrato):**
+  container POLUÍDO — `setOf("a"); s.add(5); s.contains("zz")` (H3) e
+  `mapOf("a",1); m.put(5,"b"); m.get("zz")` (H4): o scan com tag=1 chama
+  `kof_string_equals` no CANDIDATO 5-como-ponteiro → SIGSEGV. O JVM dá
+  `false`/`0` (HashMap heterogêneo tolerante). Dois caminhos possíveis:
+  (i) **guard de range no asm**: antes de equals, validar que o candidato
+  cai no arena do heap (símbolos de base/limit do `kof_alloc`) — mantém
+  o programa rodando, paridade exata com o JVM, mas exige expor os
+  limites do heap p/ runtime asm nos 3 targets + port riscv e teste de
+  candidatos nullos; (ii) **SEM056 em compile-time (opção B, família
+  §122)**: rejeitar `add`/`put` de tipo ≠ elemType PINADO — alinha com a
+  diretriz "Kof estático", mas faz programa que HOJE roda no JVM/JS/
+  Script passar a não compilar (mudança de contrato → condição de
+  parada 1: decisão da mantenedora). Recomendação técnica: (ii) é mais
+  simples e honesto com o tipo da linguagem; (i) é mais permissivo.
+  Registrado aguardando decisão; enquanto isso H3/H4 SIGSEGVam (raro:
+  exige stored-then-full-scan-miss).
 
 ### 120. Tradutor riscv→aarch64: `fcvt.w/l.{s,d}` (FP→INT) traduzido como `scvtf` (direção INVERTIDA) — ✅ CORRIGIDO 11/09 (`fcvtzs`)  *(renumerado de §104 na reconciliação do merge 11/09 — colidiu com o record-equals §104 da série ativa)*
 
