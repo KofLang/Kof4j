@@ -262,6 +262,18 @@ class ConformanceMatrixTest {
         // (JsRuntimeCore) espelha ArrayList/HashMap/HashSet.toString. Roteado
         // por tipo no valueOf (JsCallEmitter) — só coleção, não toca escalar
         // (bug 44). Bool-em-lista fica fora daqui: §107 (Script [1,0]).
+        // §107 (Native, CORRIGIDO 12/09 p/ escalares): o println(<coleção>)
+        // nativo imprimia LIXO de ponteiro; agora kof_{list,set,map}_to_string
+        // (x86 f3b3821c + cross B39) reproduzem o formato JVM p/ elementos
+        // escalares. A célula CONTINUA com native excluído porque os golden
+        // aqui exigem o que os nativos ainda NÃO têm: (a) record-em-lista →
+        // os nativos dão `?` (recusa honesta, cara do §104b-ii — face dos
+        // records, lane alheia), (b) `listOf(1.5, 2.25)` → o cross levanta
+        // FLT001 em compilação (recusa honesta, R6). Escalares int/string/
+        // bool/long/char aninhado=`?`/Map-single estão provados por exec
+        // em NativeE2ETest#execCollectionPrintMatchesJvmGolden +
+        // Native{Riscv64,Aarch64}E2ETest#nativeCollectionPrintMatchesJvmGolden
+        // (golden = oracle JVM medido, byte-idêntico nos 3 targets nativos).
         matrix("collprint", """
                 record Point(Int x, Int y)
                 main() {

@@ -11,7 +11,7 @@
 > | Abertos e atacáveis em JVM/JS | **5** — bugs 39, 45, 62, 63, 64 |
 > | Abertos, só reproduzíveis no Native | **5** — bugs 46, 48, 50, 59, 61 |
 > | Paridade interpretador × compilados (semântica `==` congelada — regra 6) | **1** — bug 94 (NaN/±0.0 `==` de Double no SCRIPT) |
-> | Paridade backend-only (regra 5, atacável na lane Native) | **2** — §107 (**face escalar x86 ✅ CORRIGIDA 12/09** — `kof_{list,set,map}_to_string` + tag compile-time; restam riscv/aarch + record/aninhado = `?` honesto; §107-JS corrigido 11/09), §104b-ii (equals de conteúdo p/ record + box de primitivo no storage asm; **face char ✅ FECHADA 11/09** — `mapgetprim` 4/4)
+> | Paridade backend-only (regra 5, atacável na lane Native) | **2** — §107 (println coleção → lixo; **face escalar ✅ CORRIGIDA 12/09 nos 3 targets nativos** — x86 `f3b3821c` + cross B39, golden JVM byte-idêntico; restam record/aninhado=`?` honesto até §104b-ii, FP-cross=FLT001; §107-JS 11/09), §104b-ii (equals de conteúdo p/ record + box de primitivo no storage asm; **face char ✅ FECHADA 11/09** — `mapgetprim` 4/4)
 > | Operadores relacionais NaN cross (congelados — regra 6) | **1** — bug 101 (`<`/`<=`/`>=` com NaN: riscv IEEE vs x86/JVM quirk `dcmpg`) |
 > | **Corrigidos na sessão de paridade absoluta 11/09** | **15** — bugs 96 (SEM052), 98 (SEM053), 100 (SEM051+fold), 44-residual, 102 (from-idx), 103 (SEM054), 104a (KofObj equals/hash/toString no interpretador), 104b-i (LINK_FAIL `Object.equals` herdado no Native), 104c (membership de record por conteúdo no JS — `kofValEq`), 107-JS (`kofFormat` no JS), 109 (CRASH JVM no guard do `map.get` primitivo), 110 (`-0.0` colapsado em `+0.0` no literal emitter JVM), 111 (trailing-empties no `split` Native/JS + sentinela `substring` 0→-1; ✅ cross riscv/aarch B36/B37 11/09 — FECHADO nos 5 targets), 112 (prev de `put`/`remove` p/ primitivo: VerifyError/NPE JVM + SIGSEGV Native por pilha desequilibrada + `set.add` do interpretador + **JS fechado na mesma unidade** — `?? default` + `KofPop` preserva side-effect embrulhado; 4/4 targets), **104b-ii FACE CHAR** (SIGSEGV/`a` no `println(char-em-coleção)`; 3 buracos: desembrulhar `Nullable(CHAR)` no print-lowering JVM-coerente `unboxDescriptor` (char→`Integer`, não `Character`/`charValue`) + repair de `as Char` no `SemExpressionTyper` — `mapgetprim` 4/4) — todos com prova na matrix/suíte |
 > | **Corrigidos na prova cross-arch 11/09 (MATH001/TIME002/B33)** | **3** — bugs 101→registrado (relacional NaN, ABERTO regra 6), MATH001 (Double math B32), TIME002 (ISO add/diff B33), 105 (random.int loop — renumerado de 102, colidiu c/ §102 indexOf) |
@@ -2747,7 +2747,7 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   (célula `mapmutret` do §112 intocada) + suíte completa 1292/0 (5 skip)
   + script/c-compiler/cli BUILD SUCCESS. Gate: `boolInCollectionsPrintsLikeJvm`.
 
-### 107. `println(<coleção>)` no nativo imprime LIXO de ponteiro (JVM: `[1, 2, 3]`/`{k=9}`) — 🟡 PARCIAL: face escalar x86 CORRIGIDA 12/09; riscv/aarch + record/nested pendentes
+### 107. `println(<coleção>)` no nativo imprime LIXO de ponteiro (JVM: `[1, 2, 3]`/`{k=9}`) — 🟡 PARCIAL: face escalar x86+riscv/aarch CORRIGIDA 12/09; só record/aninhado fica `?` (até §104b-ii)
 
 - **Menor repro (medido 11/09, pós-fix §104b-i que liberou o link):**
   ```kof
@@ -2790,7 +2790,7 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   parei pra registrar (regra: unidade coesa c/ prova). Face record-em-coleção
   recursivo depende do §104b-ii (equals/toString de conteúdo — lane
   maintenedor, EM CURSO, não tocar).
-- **✅ Face ESCALAR x86_64 CORRIGIDA 12/09 (runtime asm B34 + dispatch):**
+- **✅ Face ESCALAR CORRIGIDA 12/09 (x86 runtime asm + dispatch; cross B39):**
   novo `RuntimeCollectionToString` (registrado em `NativeRuntime` logo após
   `RuntimeList`) emite `kof_list_to_string`/`kof_set_to_string`/
   `kof_map_to_string` + `kof_elem_to_string`. O dispatch `valueOf` em
@@ -2801,19 +2801,40 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   header de container é tocado (lição §104b-ii). O acumulador e as Strings
   temporárias vivem **ancoradas em `%rbp`** (os `pushq` dos `call` caem
   ABAIXO dos locais; `rsp`-relativo foi o primeiro bug — o retorno do
-  `call` pisava o slot do acumulador, SIGSEGV). Provas:
-  `NativeE2ETest#execCollectionPrintMatchesJvmGolden` (golden = oracle JVM
-  MEDIDO, escalares; sabotagem do separador → FAIL confirmado) e os
-  escalares da célula `collprint` agora batem no nativo.
+  `call` pisava o slot do acumulador, SIGSEGV).
+  **Cross (riscv64 + aarch64):** fatia nova `NativeRiscvAsmRtB39`
+  (0 colisões .L/.globl) com os MESMOS helpers e a MESMA semântica de tag;
+  o dispatcher `NativeRiscvCrossOps` (ramos `valueOf` List/Map/Set) levanta
+  **FLT001 em tempo de compilação** para coleção de Double/Float (mesma
+  recusa do valueOf escalar cross — R6/R7: diagnóstico, nunca `?` silencioso
+  nem lixo). Disciplina: **todo estado do laço vive em SLOT do frame**
+  (registrador nenhum sobrevive aos `call` — cada helper do runtime riscv
+  salva um SUBCONJUNTO INCONSISTENTE dos s-regs: `from_literal` preserva
+  s0/s1/s3, `int_to_string` preserva s0/s1/s3/s4/s5, `bool_to_string` só
+  ra — e os t-regs são todos free-for-all; bug capturado no qemu: ra clobber
+  no `kof_elem_to_string` sem save → hang). Long: `kof_long_to_string`
+  riscv é `j kof_int_to_string` e o `div` riscv é 64-bit → 100000000000L
+  CORRETO no cross (idêntico x86 `divq`/JVM). aarch64 herda 100% via
+  tradutor (todos os mnemônicos novos cobertos; diretivas passam verbatim).
+  Provas: `NativeE2ETest#execCollectionPrintMatchesJvmGolden` +
+  `NativeRiscv64E2ETest`/`NativeAarch64E2ETest#nativeCollectionPrintMatchesJvmGolden`
+  (golden = oracle JVM MEDIDO, byte-idêntico nos 3 targets; sabotagem do
+  separador → FAIL); `nativeCollectionPrintFloatDoubleRefusedHonest` (riscv
+  + aarch) prova que a recusa FLT001 de coleção FP acontece em COMPILAÇÃO
+  com a mensagem FLT001.
 - **Faces que FICAM ABERTAS neste bug (paridade parcial, diagnosticada R6):**
   - **`?` honesto (não lixo):** elemento **record** ou **coleção aninhada**
-    (tag 6) imprime `?` — é a recusa visível, nunca lixo de ponteiro. Fecha
-    junto com o §104b-ii (equals/toString de conteúdo) + tag recursiva.
-  - **riscv64/aarch64:** ainda imprimem lixo (não têm os helpers — os
-    asm port-espelhados `NativeRiscvAsmMapset*` precisam do mesmo B34).
-  - **Map/Set multi-entry:** ordem de ARMAZENAMENTO (inserção) no nativo vs
-    hash-order do `HashMap`/`HashSet` do JVM — divergência de arquitetura,
-    single-entry é idêntico. Teste multi-entry fica fora do golden nativo.
+    (tag 6) imprime `?` nos 3 targets nativos — é a recusa visível, nunca
+    lixo de ponteiro. Fecha junto com o §104b-ii (equals/toString de
+    conteúdo) + propagação de tag recursiva na emissão (dispatch-time hoje
+    só conhece o tipo estático do elem; record/nested precisa vtable
+    `toString` + sub-tag).
+  - **Double/Float no cross:** compilam FLT001 (recusa honesta); só o x86
+    tem FP (RuntimeStringConv tem kof_double_to_string x86).
+  - **Map/Set multi-entry:** ordem de ARMAZENAMENTO (inserção) nos nativos
+    vs hash-order do `HashMap`/`HashSet` do JVM — divergência de
+    arquitetura, single-entry é idêntico. Teste multi-entry fica fora do
+    golden nativo.
 
 - **✅ Face JS CORRIGIDA 11/09 (mesma raiz — formato de contêiner ausente):**
   o JS dava `1,2` (Array.toString sem colchetes) e `[object Map]`/`[object

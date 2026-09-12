@@ -171,6 +171,40 @@ public final class NativeRiscvCrossOps {
                     sb.append("    pop a0\n    call kof_bool_to_string\n");
                     other.pushRiscv(sb, "a0");
                 }
+            } else if (vArgType instanceof Type.ClassType ct && (BuiltinTypes.isList(ct)
+                    || BuiltinTypes.isSet(ct) || BuiltinTypes.isMap(ct))) {
+                // §107-cross: List/Map/Set são tipos de runtime (sem vtable
+                // toString) — o ramo genérico não emitia nada e o ponteiro cru
+                // caía em kof_println_string = lixo (`@` medido no qemu). A tag
+                // do elemento vem do typer (SEM056: homogênea), igual x86.
+                // FP-em-coleção: MESMA recusa honesta do valueOf escalar
+                // (FLT001, sem snprintf no runtime asm-puro) — nunca `[?, ?]`
+                // silencioso nem lixo (R6/R7). Record/aninhado (tag 6) fica
+                // `?` no helper (cara do §104b-ii, idêntico ao x86).
+                Type elem = BuiltinTypes.isMap(ct) ? null
+                        : BuiltinTypes.isList(ct) ? BuiltinTypes.listElement(ct)
+                        : BuiltinTypes.setElement(ct);
+                int ktag = NativeX86Calls.collectionTag(BuiltinTypes.isMap(ct) ? BuiltinTypes.mapKey(ct) : elem);
+                int vtag = BuiltinTypes.isMap(ct) ? NativeX86Calls.collectionTag(BuiltinTypes.mapValue(ct)) : -1;
+                if (ktag == 4 || ktag == 5 || vtag == 4 || vtag == 5) {
+                    throw new IllegalStateException("FLT001: " + mn
+                            + "(coleção de float/double) não é suportada no runtime riscv64/aarch64"
+                            + " (asm puro, sem libc/snprintf) — use JVM/Native x86_64"
+                            + " ou converta (d as Int)");
+                }
+                sb.append("    pop a0\n");
+                if (BuiltinTypes.isList(ct)) {
+                    sb.append("    li a1, ").append(ktag).append("\n");
+                    sb.append("    call kof_list_to_string\n");
+                } else if (BuiltinTypes.isSet(ct)) {
+                    sb.append("    li a1, ").append(ktag).append("\n");
+                    sb.append("    call kof_set_to_string\n");
+                } else {
+                    sb.append("    li a1, ").append(ktag).append("\n");
+                    sb.append("    li a2, ").append(vtag).append("\n");
+                    sb.append("    call kof_map_to_string\n");
+                }
+                other.pushRiscv(sb, "a0");
             }
             return;
         }

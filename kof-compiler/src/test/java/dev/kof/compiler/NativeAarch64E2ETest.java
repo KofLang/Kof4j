@@ -857,4 +857,43 @@ main() {
         assertEquals("true\ntrue\ntrue\ntrue\nfalse\ntrue\ntrue\ntrue\ntrue\ntrue"
                 + "\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue", out);
     }
+
+    @Test
+    void nativeCollectionPrintMatchesJvmGolden(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        // §107-cross (B39, aarch64 herda 100% do riscv via tradutor): os
+        // mesmos helpers/semântica do riscv — golden idêntico ao riscv/x86
+        // (= oracle JVM medido), sem a linha Double (FLT001 barrado em
+        // compilação). A prova aqui É o teste do tradutor (li/mv/sd/ld/
+        // beqz/blt/j/call/ret/la das novas rotinas todos cobertos).
+        String out = runAarch64(tempDir, """
+                main() {
+                    println(listOf(1, 2, 3))
+                    println(setOf(1, 2))
+                    println(mapOf("k", 9))
+                    println(listOf("a", "b"))
+                    println(listOf(true, false))
+                    println(listOf(100000000000L, 2L))
+                    println(listOf('a', 'b'))
+                    println(listOf())
+                    println(listOf(listOf(1), listOf(2)))
+                    println(mapOf("a", 1, "b", 2))
+                }
+                """);
+        assertEquals("[1, 2, 3]\n[1, 2]\n{k=9}\n[a, b]\n[true, false]\n"
+                + "[100000000000, 2]\n[97, 98]\n[]\n[?, ?]\n{a=1, b=2}", out);
+    }
+
+    @Test
+    void nativeCollectionPrintFloatDoubleRefusedHonest(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        // §107-cross: coleção de Double/Float recusada FLT001 em compilação
+        // (nunca `?` silencioso nem lixo — R6/R7), igual riscv/x86-escalar.
+        Path src = tempDir.resolve("Main.kf");
+        Files.writeString(src, "main() {\n    println(listOf(1.5, 2.0))\n}\n");
+        CompilationResult result = driver.compile(src, tempDir.resolve("out"), Target.NATIVE_AARCH64);
+        assertFalse(result.success(), "Double-em-lista deve ser recusado (FLT001)");
+        assertTrue(result.diagnostics().getDiagnostics().toString().contains("FLT001"),
+                "recusa deve ser FLT001");
+    }
 }

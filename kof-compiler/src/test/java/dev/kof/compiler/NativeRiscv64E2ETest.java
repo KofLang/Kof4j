@@ -873,4 +873,49 @@ main() {
         assertEquals("true\ntrue\ntrue\ntrue\nfalse\ntrue\ntrue\ntrue\ntrue\ntrue"
                 + "\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue", out);
     }
+
+    @Test
+    void nativeCollectionPrintMatchesJvmGolden(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        // §107-cross (fatia B39): println(<coleção>) imprimia LIXO de ponteiro
+        // (`@` medido no qemu antes do fix) — o valueOf cross não tinha ramo
+        // List/Map/Set e caía em kof_println_string sobre o ponteiro cru. Os
+        // helpers riscv kof_{list,set,map}_to_string espelham o x86 (mesma
+        // tag compile-time 0/1/2/3/6, `?` p/ record/aninhado). Golden = MESMA
+        // string do execCollectionPrintMatchesJvmGolden x86 (= oracle JVM
+        // medido) — sem a linha de Double (tag 4/5), barrada por FLT001 em
+        // tempo de compilação no cross (recusa honesta, ver outro teste).
+        String out = runRiscv64(tempDir, """
+                main() {
+                    println(listOf(1, 2, 3))
+                    println(setOf(1, 2))
+                    println(mapOf("k", 9))
+                    println(listOf("a", "b"))
+                    println(listOf(true, false))
+                    println(listOf(100000000000L, 2L))
+                    println(listOf('a', 'b'))
+                    println(listOf())
+                    println(listOf(listOf(1), listOf(2)))
+                    println(mapOf("a", 1, "b", 2))
+                }
+                """);
+        assertEquals("[1, 2, 3]\n[1, 2]\n{k=9}\n[a, b]\n[true, false]\n"
+                + "[100000000000, 2]\n[97, 98]\n[]\n[?, ?]\n{a=1, b=2}", out);
+    }
+
+    @Test
+    void nativeCollectionPrintFloatDoubleRefusedHonest(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        // §107-cross: coleção de Double/Float NÃO pode virar `?` silencioso
+        // nem lixo — mesma recusa FLT001 do valueOf escalar cross (sem
+        // snprintf no asm puro). A falha é em TEMPO DE COMPILAÇÃO (R6/R7:
+        // diagnóstico claro, nunca output errado). `listOf(1.5, 2.0)` deve
+        // diagnosticar FLT001, não compilar.
+        Path src = tempDir.resolve("Main.kf");
+        Files.writeString(src, "main() {\n    println(listOf(1.5, 2.0))\n}\n");
+        CompilationResult result = driver.compile(src, tempDir.resolve("out"), Target.NATIVE_RISCV64);
+        assertFalse(result.success(), "Double-em-lista deve ser recusado (FLT001)");
+        String diags = result.diagnostics().getDiagnostics().toString();
+        assertTrue(diags.contains("FLT001"), "recusa deve ser FLT001, foi: " + diags);
+    }
 }
