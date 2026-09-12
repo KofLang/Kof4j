@@ -46,7 +46,7 @@
 
 ``` 
 mvn clean package    → PASSA
-mvn test             → 910 testes 889 kof-compiler +8 kof-script +5 kof-c-compiler +8 kof-cli, 0 falhas (03/09 SYN001 switch-expr + fix PKG005)
+mvn test             → 1576 testes (1404 kof-compiler + 31 kof-script + 5 kof-c-compiler + 136 kof-cli), 0 falhas, 126 skip (guardas de toolchain/node — 12/09)
 kof build            → PASS (--target jvm|native|js|native.risc|native.arm) [--release]
 kof run              → PASS (jvm|native|js|native.risc|native.arm) [--release]
 kof serve            → PASS (web.app() nativo + API legada handle())
@@ -668,7 +668,7 @@ a sessão compila com metadata de debug, lança o JVM com JDWP e responde a
 para na linha Kof e o call stack mostra funções e linhas Kof.
 
 Docs: `debugger-architecture.md`, `debugging.md`, `debug-adapter.md`,
-`debugging-jvm.md`, `debugging-native.md`, `debugging-js.md`.
+`debugging/debugging-jvm.md`, `debugging/debugging-native.md`, `debugging/debugging-js.md`.
 
 ---
 

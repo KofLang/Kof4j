@@ -22,7 +22,7 @@ import java.util.Map;
  * before and after optimization (showing what the optimizer eliminated),
  * plus module totals and emitted class sizes.
  * 
- * Also supports inspecting compiled .class files (docs/future/LEGACY_IR.md).
+ * Also supports inspecting compiled .class files (docs/development/future/LEGACY_IR.md).
  */
 public final class Inspect {
 

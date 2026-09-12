@@ -23,7 +23,7 @@
 | `EXTERNAL` | fora da stdlib (interoperabilidade ou ferramenta externa) |
 
 Colunas de target: `JVM` / `Native` / `JS` = suporte da capacidade naquele
-backend. `Docs` = referência em `docs/`. `Tests` = arquivo(s) de teste em
+backend. `Docs` = caminho relativo a `docs/` (ou `—`). `Tests` = arquivo(s) de teste em
 `kof-compiler/src/test/java/dev/kof/compiler/`.
 
 ---
@@ -141,55 +141,55 @@ Legenda nas colunas de target: `y` = suportado, `~` = parcial, `–` = não.
 
 | Capacidade | Kof | JVM | Native | JS | Tests | Docs |
 |-----------|-----|-----|--------|----|-------|------|
-| application lifecycle | `main()`/`args` | y | y (args vazios) | y | UiE2ETest | language-state.md |
-| configuration model | `config.get/str/int/long/bool/has` (arquivo + env + profiles) | y | y (CONFIG001 fechado) | – CONF001 | KofConfigE2ETest | stdlib.md |
+| application lifecycle | `main()`/`args` | y | y (args vazios) | y | UiE2ETest | history/language-state.md |
+| configuration model | `config.get/str/int/long/bool/has` (arquivo + env + profiles) | y | y (CONFIG001 fechado) | – CONF001 | KofConfigE2ETest | stdlib/stdlib.md |
 | dependency injection | `NA` (sem container; resolução direta) | — | — | — | — | philosophy.md |
-| events | `PLANNED` (event bus) | — | — | — | — | roadmap.md |
-| validation | ✅ `kof.validation` (required/notBlank/minLength/maxLength/lengthBetween/isEmail/isUrl/matches/isInt/isLong/inRange/min/max) — JVM/Native/JS | y | y | y | KofValidationTest | stdlib.md |
-| scheduling | ✅ `kof.time` now/sleep (JVM/Native/JS) + interval/cancel (JVM) | y | y (now/sleep) | y (now/sleep) | KofTimeE2ETest | stdlib.md |
-| caching | ✅ `kof.cache` (get/set/ttl/delete/clear; 30/08) | y | y (asm) | y | KofCacheE2ETest (5, x3) | roadmap.md |
-| transactions | ✅ `transaction {}` (JVM; commit/rollback real) | y | – DB001 | – DB001 | KofDbE2ETest | future/DATABASE_VISION.md |
-| resource management | `PARTIAL` (try/finally real) | y | y | — | ExceptionsE2ETest | language-state.md |
+| events | `PLANNED` (event bus) | — | — | — | — | development/roadmap.md |
+| validation | ✅ `kof.validation` (required/notBlank/minLength/maxLength/lengthBetween/isEmail/isUrl/matches/isInt/isLong/inRange/min/max) — JVM/Native/JS | y | y | y | KofValidationTest | stdlib/stdlib.md |
+| scheduling | ✅ `kof.time` now/sleep (JVM/Native/JS) + interval/cancel (JVM) | y | y (now/sleep) | y (now/sleep) | KofTimeE2ETest | stdlib/stdlib.md |
+| caching | ✅ `kof.cache` (get/set/ttl/delete/clear; 30/08) | y | y (asm) | y | KofCacheE2ETest (5, x3) | development/roadmap.md |
+| transactions | ✅ `transaction {}` (JVM; commit/rollback real) | y | – DB001 | – DB001 | KofDbE2ETest | development/DATABASE_VISION.md |
+| resource management | `PARTIAL` (try/finally real) | y | y | — | ExceptionsE2ETest | history/language-state.md |
 | profiles/environments | `PARTIAL` (profile file + env; o resto em kof.config) | y | – CONFIG001 | – CONFIG001 | KofConfigE2ETest | — |
 
 ## 3.2 Web / HTTP / REST
 
 | Capacidade | Kof | JVM | Native | JS | Tests | Docs |
 |-----------|-----|-----|--------|----|-------|------|
-| HTTP server | `web.app()` | y | – WEB002 | – WEB001 | KofWebE2ETest | web |
-| routing (path params, query, headers) | `app.get("/users/:id")` | y | – | – | KofWebE2ETest | web |
-| REST verbs | get/post/put/delete/patch/options | y | – | – | KofWebE2ETest | web |
-| JSON body | automático (Content-Type) | y | – | – | KofWebE2ETest | web |
-| middleware | `app.use` | y | – | – | KofWebE2ETest | web |
-| HTTP client | ✅ `kof.http` (get/post/put/delete/patch/options/status; 3 targets — Native via HTTP/1.1 asm, https/retry) | y | y (asm `NativeHttpRuntime`) | y (GraalJS `Java HttpClient` + fetch) | KofHttpE2ETest (6) + KofHttpResilienceE2ETest (3, JVM+JS) | http.md |
-| typed path/query/body | `PLANNED` (hoje strings) | — | — | — | — | web |
-| status codes custom | ✅ `status(201, body)` (27/08) | y | – WEB002 | – WEB001 | KofWebE2ETest | web |
-| headers de resposta custom | ✅ `headerSet("X","y")` (27/08) | y | – WEB002 | – WEB001 | KofWebE2ETest | web |
-| cookies | `PLANNED` | — | — | — | — | roadmap.md |
+| HTTP server | `web.app()` | y | – WEB002 | – WEB001 | KofWebE2ETest | stdlib/stdlib-web.md |
+| routing (path params, query, headers) | `app.get("/users/:id")` | y | – | – | KofWebE2ETest | stdlib/stdlib-web.md |
+| REST verbs | get/post/put/delete/patch/options | y | – | – | KofWebE2ETest | stdlib/stdlib-web.md |
+| JSON body | automático (Content-Type) | y | – | – | KofWebE2ETest | stdlib/stdlib-web.md |
+| middleware | `app.use` | y | – | – | KofWebE2ETest | stdlib/stdlib-web.md |
+| HTTP client | ✅ `kof.http` (get/post/put/delete/patch/options/status; 3 targets — Native via HTTP/1.1 asm, https/retry) | y | y (asm `NativeHttpRuntime`) | y (GraalJS `Java HttpClient` + fetch) | KofHttpE2ETest (6) + KofHttpResilienceE2ETest (3, JVM+JS) | stdlib/http.md |
+| typed path/query/body | `PLANNED` (hoje strings) | — | — | — | — | stdlib/stdlib-web.md |
+| status codes custom | ✅ `status(201, body)` (27/08) | y | – WEB002 | – WEB001 | KofWebE2ETest | stdlib/stdlib-web.md |
+| headers de resposta custom | ✅ `headerSet("X","y")` (27/08) | y | – WEB002 | – WEB001 | KofWebE2ETest | stdlib/stdlib-web.md |
+| cookies | `PLANNED` | — | — | — | — | development/roadmap.md |
 | multipart | `PLANNED` | — | — | — | — | — |
 | content negotiation | `PLANNED` | — | — | — | — | — |
-| error handling | 404/500 + mensagem | y | – | – | KofWebE2ETest | web |
-| WebSocket | ✅ `app.ws("/chat") { }` (JVM, 30/08 — handshake RFC 6455 + frame codec/máscara) | y | – WEB002 | – WEB001 | KofWebWsE2ETest (11) + KofWsFrameTest (7) | web |
-| SSE | ✅ `sse.send/event/close` (JVM, 30/08) | y | – WEB002 | – WEB001 | KofWebSseE2ETest (7) | web |
-| web limits/observability | ✅ `app.configure`/`app.stats` (JVM, 04/09) | y | – | – | KofWebHardeningTest (6) | web |
-| gRPC / GraphQL / SOAP | `EXTERNAL`/`PLANNED` (interop) | — | — | — | — | roadmap.md |
-| REST documentation (OpenAPI) | `PLANNED` | — | — | — | — | roadmap.md |
+| error handling | 404/500 + mensagem | y | – | – | KofWebE2ETest | stdlib/stdlib-web.md |
+| WebSocket | ✅ `app.ws("/chat") { }` (JVM, 30/08 — handshake RFC 6455 + frame codec/máscara) | y | – WEB002 | – WEB001 | KofWebWsE2ETest (11) + KofWsFrameTest (7) | stdlib/stdlib-web.md |
+| SSE | ✅ `sse.send/event/close` (JVM, 30/08) | y | – WEB002 | – WEB001 | KofWebSseE2ETest (7) | stdlib/stdlib-web.md |
+| web limits/observability | ✅ `app.configure`/`app.stats` (JVM, 04/09) | y | – | – | KofWebHardeningTest (6) | stdlib/stdlib-web.md |
+| gRPC / GraphQL / SOAP | `EXTERNAL`/`PLANNED` (interop) | — | — | — | — | development/roadmap.md |
+| REST documentation (OpenAPI) | `PLANNED` | — | — | — | — | development/roadmap.md |
 | HATEOAS | `NA` (sem framework pesado) | — | — | — | — | — |
 
 ## 3.3 Data / Database
 
 | Capacidade | Kof | JVM | Native | JS | Tests | Docs |
 |-----------|-----|-----|--------|----|-------|------|
-| SQL / JDBC | ✅ `kof.db` (SQL-first) + SQLite nativo via `.so` direto + MySQL wire protocol (handshake+scramble+auth-switch+COM_QUERY+resultset, 31/08) | y | y (SQLite + MySQL wire) | – DB001 | KofDbE2ETest | DATABASE_VISION.md |
-| `db.connect/query/transaction` | ✅ (+ `query<T>` tipado) | y | y | – DB001 | KofDbE2ETest | DATABASE_VISION.md |
+| SQL / JDBC | ✅ `kof.db` (SQL-first) + SQLite nativo via `.so` direto + MySQL wire protocol (handshake+scramble+auth-switch+COM_QUERY+resultset, 31/08) | y | y (SQLite + MySQL wire) | – DB001 | KofDbE2ETest | development/DATABASE_VISION.md |
+| `db.connect/query/transaction` | ✅ (+ `query<T>` tipado) | y | y | – DB001 | KofDbE2ETest | development/DATABASE_VISION.md |
 | prepared statements | ✅ (binds `?`) | y | y | – DB001 | KofDbE2ETest | — |
 | connection pools | `PLANNED` | — | — | — | — | — |
-| migrations | ✅ `orm.migrate` versionado (`kof_migrations`) | y | – ORM001 | – ORM001 | KofOrmE2ETest | future/DATABASE_VISION.md |
-| repositories/ORM | ✅ `kof.orm`: `entity` + create/save/find/all/where/delete/count | y | – ORM001 | – ORM001 | KofOrmE2ETest | future/DATABASE_VISION.md |
-| NoSQL (MongoDB) | ✅ driver oficial via reflexão compatível | y | — | — | KofOrmE2ETest (E2E, skip condicional) | future/DATABASE_VISION.md |
+| migrations | ✅ `orm.migrate` versionado (`kof_migrations`) | y | – ORM001 | – ORM001 | KofOrmE2ETest | development/DATABASE_VISION.md |
+| repositories/ORM | ✅ `kof.orm`: `entity` + create/save/find/all/where/delete/count | y | – ORM001 | – ORM001 | KofOrmE2ETest | development/DATABASE_VISION.md |
+| NoSQL (MongoDB) | ✅ driver oficial via reflexão compatível | y | — | — | KofOrmE2ETest (E2E, skip condicional) | development/DATABASE_VISION.md |
 | mapping | ✅ entity → linha/documento por schema de compile-time | y | – | y | JsonE2ETest, KofOrmE2ETest | — |
-| query DSL tipada (`User.query { where ... }`) | `PLANNED` (nível 3 da visão) | — | — | — | — | future/DATABASE_VISION.md |
-| pagination | ✅ `orm.page(page, size[, where])` | y | – | – | KofOrmE2ETest | future/DATABASE_VISION.md |
+| query DSL tipada (`User.query { where ... }`) | `PLANNED` (nível 3 da visão) | — | — | — | — | development/DATABASE_VISION.md |
+| pagination | ✅ `orm.page(page, size[, where])` | y | – | – | KofOrmE2ETest | development/DATABASE_VISION.md |
 | PostgreSQL / MySQL / SQLite / MongoDB / Redis | `PLANNED` (adapters) | — | — | — | — | — |
 | transactions | `PLANNED` | — | — | — | — | — |
 | optimistic/pessimistic locking | `PLANNED` | — | — | — | — | — |
@@ -200,7 +200,7 @@ Legenda nas colunas de target: `y` = suportado, `~` = parcial, `–` = não.
 |-----------|-----|-----|--------|----|-------|------|
 | event bus / pub-sub | ✅ `kof.mq` (publish/subscribe/unsubscribe + queue/push/pop) — JVM + Native + JS (MQ001 fechado 01/09) | y | – | y | KofMqE2ETest (4, x3 targets) | concurrency |
 | queues (`kof.concurrent.Queue`) | `PLANNED` | — | — | — | — | concurrency |
-| Kafka / AMQP / Pulsar | `PLANNED` (adapters externos) | — | — | — | — | roadmap.md |
+| Kafka / AMQP / Pulsar | `PLANNED` (adapters externos) | — | — | — | — | development/roadmap.md |
 | retry / dead-letter / backpressure | `PLANNED` | — | — | — | — | — |
 | consumer groups | `PLANNED` | — | — | — | — | — |
 
@@ -208,37 +208,37 @@ Legenda nas colunas de target: `y` = suportado, `~` = parcial, `–` = não.
 
 | Capacidade | Kof | JVM | Native | JS | Tests | Docs |
 |-----------|-----|-----|--------|----|-------|------|
-| password hashing (PBKDF2 600k) | `DONE` | y | y (asm, G10) | y | KofSecurityTest | security.md |
-| SHA-256 / SHA-512 / HMAC | `DONE` | y | y (asm, G10) | y | KofSecurityTest | security.md |
-| AES-GCM | `DONE` (JVM) | y (asm, G10) | – SECN002 | KofSecurityTest | security.md |
-| SecureRandom | `DONE` | y | y (getrandom) | y | KofSecurityTest | security.md |
-| JWT (HS256, exp/iss/aud) | `DONE` | y | y (asm, G10) | y | KofSecurityTest | security.md |
-| secrets (`secrets.get`, env) | `DONE` | y | y | y | KofSecurityTest | security.md |
-| constant-time comparison | `DONE` | y | y | y | KofSecurityTest | security.md |
-| redaction | `DONE` | y | y | y | KofSecurityTest | security.md |
-| CSRF | `DONE` (JVM) | y | – | – | — | security.md |
-| CORS | `DONE` (JVM) | y | – | – | — | security.md |
-| security headers (CSP/HSTS/nosniff/Frame/Referrer) | `DONE` (JVM) | y | – | – | — | security.md |
-| auth web (Bearer JWT + roles/permissions) | `DONE` (JVM) | y | – | – | — | security.md |
-| RBAC / ABAC | `PARTIAL` (auth.hasRole/hasPermission JVM) | y | – | – | — | security.md |
-| API keys | `PLANNED` | — | — | — | — | security.md |
-| rate limiting | ✅ `security.rateLimit(key, limit, window)` — JVM/Native/JS | y | y | y | KofSecurityG9Test | security.md |
-| sessions | ✅ `security.sessionCreate/sessionGet/sessionDestroy` — JVM/Native/JS | y | y | y | KofSecurityG9Test | security.md |
-| API keys | ✅ `security.apiKeyGenerate/apiKeyValid` — JVM/Native/JS | y | y | y | KofSecurityG9Test | security.md |
-| OAuth2 / OIDC (client, resource server, provider) | `PLANNED` | — | — | — | — | security.md |
-| TLS / certificates / HTTPS | ✅ `web.listenSecure(port)` + `kof.http` HTTPS — JVM (self-signed via keytool) | y | — WEB002 | — WEB002 | KofWebTlsTest | http.md |
+| password hashing (PBKDF2 600k) | `DONE` | y | y (asm, G10) | y | KofSecurityTest | stdlib/security.md |
+| SHA-256 / SHA-512 / HMAC | `DONE` | y | y (asm, G10) | y | KofSecurityTest | stdlib/security.md |
+| AES-GCM | `DONE` (JVM) | y (asm, G10) | – SECN002 | KofSecurityTest | stdlib/security.md |
+| SecureRandom | `DONE` | y | y (getrandom) | y | KofSecurityTest | stdlib/security.md |
+| JWT (HS256, exp/iss/aud) | `DONE` | y | y (asm, G10) | y | KofSecurityTest | stdlib/security.md |
+| secrets (`secrets.get`, env) | `DONE` | y | y | y | KofSecurityTest | stdlib/security.md |
+| constant-time comparison | `DONE` | y | y | y | KofSecurityTest | stdlib/security.md |
+| redaction | `DONE` | y | y | y | KofSecurityTest | stdlib/security.md |
+| CSRF | `DONE` (JVM) | y | – | – | — | stdlib/security.md |
+| CORS | `DONE` (JVM) | y | – | – | — | stdlib/security.md |
+| security headers (CSP/HSTS/nosniff/Frame/Referrer) | `DONE` (JVM) | y | – | – | — | stdlib/security.md |
+| auth web (Bearer JWT + roles/permissions) | `DONE` (JVM) | y | – | – | — | stdlib/security.md |
+| RBAC / ABAC | `PARTIAL` (auth.hasRole/hasPermission JVM) | y | – | – | — | stdlib/security.md |
+| API keys | `PLANNED` | — | — | — | — | stdlib/security.md |
+| rate limiting | ✅ `security.rateLimit(key, limit, window)` — JVM/Native/JS | y | y | y | KofSecurityG9Test | stdlib/security.md |
+| sessions | ✅ `security.sessionCreate/sessionGet/sessionDestroy` — JVM/Native/JS | y | y | y | KofSecurityG9Test | stdlib/security.md |
+| API keys | ✅ `security.apiKeyGenerate/apiKeyValid` — JVM/Native/JS | y | y | y | KofSecurityG9Test | stdlib/security.md |
+| OAuth2 / OIDC (client, resource server, provider) | `PLANNED` | — | — | — | — | stdlib/security.md |
+| TLS / certificates / HTTPS | ✅ `web.listenSecure(port)` + `kof.http` HTTPS — JVM (self-signed via keytool) | y | — WEB002 | — WEB002 | KofWebTlsTest | stdlib/http.md |
 | secure cookies | `PLANNED` | — | — | — | — | — |
 | token rotation / replay protection | `PLANNED` | — | — | — | — | — |
 | audit logging | `PLANNED` | — | — | — | — | — |
 | request signing | `PLANNED` | — | — | — | — | — |
 | service-to-service auth | `PLANNED` | — | — | — | — | — |
-| key management | `PLANNED` (hoje: env `KOF_*`) | y | y | y | — | security.md |
+| key management | `PLANNED` (hoje: env `KOF_*`) | y | y | y | — | stdlib/security.md |
 
 ## 3.6 Identity
 
 | Capacidade | Kof | JVM | Native | JS | Tests | Docs |
 |-----------|-----|-----|--------|----|-------|------|
-| OAuth2 client / resource server / authorization server | `PLANNED` | — | — | — | — | security.md |
+| OAuth2 client / resource server / authorization server | `PLANNED` | — | — | — | — | stdlib/security.md |
 | OIDC provider | `PLANNED` | — | — | — | — | — |
 | session management | `PLANNED` | — | — | — | — | — |
 | LDAP / Kerberos | `EXTERNAL` | — | — | — | — | — |
@@ -248,10 +248,10 @@ Legenda nas colunas de target: `y` = suportado, `~` = parcial, `–` = não.
 
 | Capacidade | Kof | JVM | Native | JS | Tests | Docs |
 |-----------|-----|-----|--------|----|-------|------|
-| HTTP integrations | ✅ `kof.http` client (3 targets — Native asm HTTP/1.1) | y | y | y | KofHttpE2ETest | http.md |
+| HTTP integrations | ✅ `kof.http` client (3 targets — Native asm HTTP/1.1) | y | y | y | KofHttpE2ETest | stdlib/http.md |
 | file adapters | `DONE` (kof.io) | y | y | y | IoE2ETest | stdlib/IO.md |
-| retry / timeout / circuit | ✅ `kof.http` `retry`/`timeout`/`circuit` (JVM+JS, 30/08); Native aceita como no-op (gap HTTP003 — não silencioso: debug `syserr`) | y | no-op | y | KofHttpResilienceE2ETest | http.md |
-| circuit breaker / bulkhead | ✅ circuit breaker `kof.http` (30/08, 30s window, fail-fast); bulkhead `PLANNED` | y | – HTTP002 | y | KofHttpResilienceE2ETest | http.md |
+| retry / timeout / circuit | ✅ `kof.http` `retry`/`timeout`/`circuit` (JVM+JS, 30/08); Native aceita como no-op (gap HTTP003 — não silencioso: debug `syserr`) | y | no-op | y | KofHttpResilienceE2ETest | stdlib/http.md |
+| circuit breaker / bulkhead | ✅ circuit breaker `kof.http` (30/08, 30s window, fail-fast); bulkhead `PLANNED` | y | – HTTP002 | y | KofHttpResilienceE2ETest | stdlib/http.md |
 | idempotency | `PLANNED` | — | — | — | — | — |
 
 ## 3.8 Batch
@@ -266,22 +266,22 @@ Legenda nas colunas de target: `y` = suportado, `~` = parcial, `–` = não.
 
 | Capacidade | Kof | JVM | Native | JS | Tests | Docs |
 |-----------|-----|-----|--------|----|-------|------|
-| metrics (runtime API) | ✅ `kof.observability.counter/increment/gauge` — JVM/Native/JS | y | y | y | KofObservabilityTest | observability.md |
-| health checks / readiness / liveness | ✅ `kof.observability.health/readiness/liveness` — JVM/Native/JS | y | y | y | KofObservabilityTest | observability.md |
+| metrics (runtime API) | ✅ `kof.observability.counter/increment/gauge` — JVM/Native/JS | y | y | y | KofObservabilityTest | stdlib/observability.md |
+| health checks / readiness / liveness | ✅ `kof.observability.health/readiness/liveness` — JVM/Native/JS | y | y | y | KofObservabilityTest | stdlib/observability.md |
 | tracing / OpenTelemetry | `PLANNED` | — | — | — | — | — |
 | structured logging | `log.debug/info/warn/error` (níveis, stderr) | y | y (asm, UTC) | y (console.*, 01/09) | KofLogE2ETest, NativeLogE2ETest | — |
-| correlation IDs / request IDs | ✅ `kof.observability.requestId/correlationId` — JVM/Native/JS | y | y | y | KofObservabilityTest | observability.md |
-| request IDs | ✅ `kof.observability.requestId` — JVM/Native/JS | y | y | y | KofObservabilityTest | observability.md |
-| profiling / runtime diagnostics | `PARTIAL` (`kof profile`) | y | y | – | — | performance.md |
-| resource monitoring | `PARTIAL` (memstats nativo, RSS no bench) | – | y | – | Bench | performance.md |
+| correlation IDs / request IDs | ✅ `kof.observability.requestId/correlationId` — JVM/Native/JS | y | y | y | KofObservabilityTest | stdlib/observability.md |
+| request IDs | ✅ `kof.observability.requestId` — JVM/Native/JS | y | y | y | KofObservabilityTest | stdlib/observability.md |
+| profiling / runtime diagnostics | `PARTIAL` (`kof profile`) | y | y | – | — | architecture/performance.md |
+| resource monitoring | `PARTIAL` (memstats nativo, RSS no bench) | – | y | – | Bench | architecture/performance.md |
 
 ## 3.10 Configuration
 
 | Capacidade | Kof | JVM | Native | JS | Tests | Docs |
 |-----------|-----|-----|--------|----|-------|------|
-| environment variables | `DONE` (`secrets.get`, `KOF_*`, `config.env`) | y | y | y | KofSecurityTest, KofConfigE2ETest | security.md |
-| command-line arguments | `DONE` (`main(args)`) | y | y (vazio) | y (vazio) | UiE2ETest | language-state.md |
-| config files / profiles / precedence | `DONE` (JVM/Native: arquivo explícito > env > profile > default; JS: env) | y | y | y | KofConfigE2ETest | stdlib.md |
+| environment variables | `DONE` (`secrets.get`, `KOF_*`, `config.env`) | y | y | y | KofSecurityTest, KofConfigE2ETest | stdlib/security.md |
+| command-line arguments | `DONE` (`main(args)`) | y | y (vazio) | y (vazio) | UiE2ETest | history/language-state.md |
+| config files / profiles / precedence | `DONE` (JVM/Native: arquivo explícito > env > profile > default; JS: env) | y | y | y | KofConfigE2ETest | stdlib/stdlib.md |
 | typed configuration | `DONE` (`config.str/int/long/bool`) | y | y | y | KofConfigE2ETest | — |
 | hot reload | `PLANNED`/`NA` | — | — | — | — | — |
 
@@ -289,12 +289,12 @@ Legenda nas colunas de target: `y` = suportado, `~` = parcial, `–` = não.
 
 | Capacidade | Kof | JVM | Native | JS | Tests | Docs |
 |-----------|-----|-----|--------|----|-------|------|
-| `assert(cond[, msg])` | `DONE` | y | y (free-list) | y | AssertE2ETest | language-state.md |
-| `kof test` (per-file, exit code) | `DONE` | y | y | y | — | roadmap.md |
-| suíte estruturada `test "nome" { }` | `DONE` (`test "nome" { }` + `kof test` nos 3 targets, `CompilerDriver.java:1`) | y | y | y | StructuredTestE2ETest | roadmap.md |
-| HTTP testing | `DONE` (E2E com sockets) | y | — | — | KofWebE2ETest | web |
+| `assert(cond[, msg])` | `DONE` | y | y (free-list) | y | AssertE2ETest | history/language-state.md |
+| `kof test` (per-file, exit code) | `DONE` | y | y | y | — | development/roadmap.md |
+| suíte estruturada `test "nome" { }` | `DONE` (`test "nome" { }` + `kof test` nos 3 targets, `CompilerDriver.java:1`) | y | y | y | StructuredTestE2ETest | development/roadmap.md |
+| HTTP testing | `DONE` (E2E com sockets) | y | — | — | KofWebE2ETest | stdlib/stdlib-web.md |
 | mocks / fixtures | `PLANNED` | — | — | — | — | — |
-| property testing / stress | `PARTIAL` (benchmarks stress) | y | y | – | Bench | performance.md |
+| property testing / stress | `PARTIAL` (benchmarks stress) | y | y | – | Bench | architecture/performance.md |
 | test containers | `NA`/`EXTERNAL` | — | — | — | — | — |
 | golden tests | `DONE` | y | y | — | tests/golden | — |
 
@@ -303,16 +303,16 @@ Legenda nas colunas de target: `y` = suportado, `~` = parcial, `–` = não.
 | Capacidade | Kof | JVM | Native | JS | Tests | Docs |
 |-----------|-----|-----|--------|----|-------|------|
 | `kof` CLI completo | `DONE` (18 comandos: build/run/serve/check/test/script/repl/c/fmt/config/bench/profile/inspect/debug/info/lsp/install/version — `fmt` + `config gen` 31/08) | y (native.risc/native.arm) | y (free-list + pthread) | y (GraalJS) | — | tooling/ |
-| `kof script` / `kof repl` | `DONE` (top-level `let` → `KofScriptGlobals`, `--watch`, SIGPIPE fix) | y | y | y | KofScript | stdlib.md |
-| `kof c` (KofCcompiler) | `DONE` (C subset `while/if/deref &/*` → ELF x86_64) | — | y x86_64 native-only | — | KofCCompilerTest | architecture.md |
-| command parsing (em Kof) | `PLANNED` (`kof.cli` como lib) | — | — | — | — | roadmap.md |
+| `kof script` / `kof repl` | `DONE` (top-level `let` → `KofScriptGlobals`, `--watch`, SIGPIPE fix) | y | y | y | KofScript | stdlib/stdlib.md |
+| `kof c` (KofCcompiler) | `DONE` (C subset `while/if/deref &/*` → ELF x86_64) | — | y x86_64 native-only | — | KofCCompilerTest | architecture/architecture.md |
+| command parsing (em Kof) | `PLANNED` (`kof.cli` como lib) | — | — | — | — | development/roadmap.md |
 | interactive CLI / prompts / progress | `PLANNED` | — | — | — | — | — |
 
 ## 3.13 Modular Architecture
 
 | Capacidade | Kof | JVM | Native | JS | Tests | Docs |
 |-----------|-----|-----|--------|----|-------|------|
-| módulos multi-arquivo | `PLANNED` | — | — | — | — | roadmap.md |
+| módulos multi-arquivo | `PLANNED` | — | — | — | — | development/roadmap.md |
 | módulos de domínio / boundaries | `PLANNED` | — | — | — | — | — |
 | módulos como construção nativa (`service UserService { }`) | `PLANNED` | — | — | — | — | — |
 | architecture tests | `PLANNED` | — | — | — | — | — |
@@ -327,10 +327,10 @@ Legenda nas colunas de target: `y` = suportado, `~` = parcial, `–` = não.
 
 | Capacidade | Kof | JVM | Native | JS | Tests | Docs |
 |-----------|-----|-----|--------|----|-------|------|
-| chamar Java | `DONE` (interop direta) | y | – | – | CompilerDriverTest | architecture.md |
-| Spring | `EXTERNAL` (`kof spring starter` planejado — start.spring.io) | — | — | — | — | plan-spring-independence.md |
+| chamar Java | `DONE` (interop direta) | y | – | – | CompilerDriverTest | architecture/architecture.md |
+| Spring | `EXTERNAL` (`kof spring starter` planejado — start.spring.io) | — | — | — | — | development/plan-spring-independence.md |
 | JS (Node/browser) | `PARTIAL` (GraalJS embarcado, `kof_platform`) | — | — | y | KofJsE2ETest | targets/KOFJS.md |
-| libc | `NA` (native sem libc) | — | — | — | — | architecture.md |
+| libc | `NA` (native sem libc) | — | — | — | — | architecture/architecture.md |
 
 ---
 

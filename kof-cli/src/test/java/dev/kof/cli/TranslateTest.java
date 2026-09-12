@@ -12,7 +12,7 @@ import java.nio.file.Path;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * kof translate — Java subset → Kof (docs/future/TRANSLATOR.md, Fase F).
+ * kof translate — Java subset → Kof (docs/development/future/TRANSLATOR.md, Fase F).
  * Static main becomes a top-level main(); println/equals map to idiomatic Kof.
  */
 class TranslateTest {

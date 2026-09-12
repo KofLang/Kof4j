@@ -11,7 +11,7 @@ import java.nio.file.Path;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * kof compare — differential testing (docs/future/DIFFERENTIAL_TESTING.md).
+ * kof compare — differential testing (docs/development/future/DIFFERENTIAL_TESTING.md).
  * Runs legacy (.class) and Kof (.kf) with identical inputs and compares
  * stdout/exit code/stderr.
  */

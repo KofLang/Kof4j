@@ -11,7 +11,7 @@ import java.util.List;
  * do TOML: seções {@code [nome]} e pares {@code chave = valor} (string
  * entre aspas ou número). Sem dependência nova.
  *
- * Seções conhecidas (docs/future/PLATFORM-PLAN.md):
+ * Seções conhecidas (docs/development/future/PLATFORM-PLAN.md):
  * <pre>
  * [project]  name = "my-app"
  * [backend]  target = "jvm" | "native" | "script" | ...

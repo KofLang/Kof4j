@@ -9,7 +9,7 @@ import java.nio.file.Path;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * kof migrate — migration report with traceability (docs/future/LEGACY_MIGRATION.md,
+ * kof migrate — migration report with traceability (docs/development/future/LEGACY_MIGRATION.md,
  * Fase H). Verifies the report is honest about what was recovered (structure)
  * vs. what needs manual review (method bodies).
  */

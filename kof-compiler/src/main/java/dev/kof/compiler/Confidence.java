@@ -1,7 +1,7 @@
 package dev.kof.compiler;
 
 /**
- * Conceptual confidence of a recovered element (docs/future/LEGACY_IR.md §4).
+ * Conceptual confidence of a recovered element (docs/development/future/LEGACY_IR.md §4).
  * The migration platform distinguishes information observed directly from the
  * artifact from that which is inferred — it never fabricates behavior
  * silently, and everything that cannot be recovered is marked UNKNOWN.

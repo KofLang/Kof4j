@@ -27,7 +27,7 @@
 | `future/TRANSLATOR.md` | translator | `PLANNED` | — |
 | `future/DIFFERENTIAL_TESTING.md` | differential testing | `PLANNED` | — |
 | `future/IMPLEMENTATION_PLAN.md` | plano de implementação legado | `PLANNED` | — |
-| `docs/ui/PLAN-CANVAS-WIDGET.md` | Canvas widget (CANVAS001) — **movido p/ `docs/` 12/09** (`5a9cac46` CANVAS001 FECHADO; `UiE2ETest` 29/29 sem exclusões medido hoje; UI009 drawImage `6e3181f`) | `FEITO` |
+| `docs/ui/PLAN-CANVAS-WIDGET.md` | Canvas widget (CANVAS001) — **consolidado; movido p/ `docs/ui/` 12/09** (`5a9cac46` CANVAS001 FECHADO; `UiE2ETest` 29/29 sem exclusões medido hoje; UI009 drawImage `6e3181f`) | `FEITO` |
 
 ### 2. Roadmaps & Audits
 | Arquivo | Por que está aqui | Estado |
@@ -36,8 +36,8 @@
 | `roadmap-audit.md` | matriz 06/09: 13 itens — 5× `PARTIAL`, 4× `NOT STARTED` | `PARTIAL` |
 | `roadmap-gap-2026-09-03.md` | gap report NATIVE002 + discrepâncias | `PARTIAL` |
 | `ecosystem-coverage.md` | matriz G1–G12: muitos `PARTIAL`/`PLANNED` (events, messaging, OAuth2, batch, AI) | `PARTIAL` |
-| `docs/history/actual-state.md` | **movido p/ docs/ 11/09** — snapshot histórico 0.2.6-beta (registro, não backlog) | `HISTÓRICO` |
-| `docs/history/language-state.md` | **movido p/ docs/ 11/09** — snapshot histórico 02/09 (SG-E2; registro, não backlog) | `HISTÓRICO` |
+| `docs/history/actual-state.md` | **movido p/ docs/history/ 12/09** — snapshot histórico 0.2.6-beta (registro, não backlog) | `HISTÓRICO` |
+| `docs/history/language-state.md` | **movido p/ docs/history/ 12/09** — snapshot histórico 02/09 (SG-E2; registro, não backlog) | `HISTÓRICO` |
 
 ### 3. Plans de Plataforma
 | Arquivo | Por que está aqui | Estado |

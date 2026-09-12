@@ -11,7 +11,7 @@ import java.util.List;
 
 /**
  * `kof decompile` — structural decompilation of a JVM {@code .class} into
- * idiomatic Kof source (docs/future/DECOMPILER.md, Fase E).
+ * idiomatic Kof source (docs/development/future/DECOMPILER.md, Fase E).
  *
  * This is a structural skeleton: class name, superclass, interfaces, fields
  * and method signatures are recovered exactly from the class file. Method

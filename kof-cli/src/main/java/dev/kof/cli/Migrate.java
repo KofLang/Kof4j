@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * `kof migrate` — full migration with a traceable report (docs/future/
+ * `kof migrate` — full migration with a traceable report (docs/development/future/
  * LEGACY_MIGRATION.md, Fase H).
  *
  * Inputs: a {@code .class} (decompiled to a structural Kof skeleton) or a

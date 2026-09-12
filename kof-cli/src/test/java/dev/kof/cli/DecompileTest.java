@@ -14,7 +14,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * kof decompile — structural skeleton .class → .kf (docs/future/DECOMPILER.md).
+ * kof decompile — structural skeleton .class → .kf (docs/development/future/DECOMPILER.md).
  * Round-trips a javac-compiled class into Kof source that itself compiles.
  */
 class DecompileTest {

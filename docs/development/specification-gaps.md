@@ -228,7 +228,7 @@ recomendações futuras (regra 14 da tarefa: não alterar comportamento).
 - **CORRIGIDO 09/09 (DD-02, bug 62a):** `val` agora é imutável — reatribuir
   (incl. compound `+=`) emite **SEM037** ("cannot assign to immutable 'val'"). O
   parser carrega `type="val"` (antes sempre "var"); `LocalVariableSymbol` ganhou
-  `isVal`; `analyzeAssignmentStatement` checa. Ver `planning-mutability.md`.
+  `isVal`; `analyzeAssignmentStatement` checa. Ver `docs/decisions/planning-mutability.md`.
 
 ### SG-011 — Função aninhada e sobrecarga top-level
 

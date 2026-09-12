@@ -8,7 +8,7 @@ import java.util.List;
 
 /**
  * `kof translate` — translate a subset of Java source into idiomatic Kof
- * (docs/future/TRANSLATOR.md, Fase F).
+ * (docs/development/future/TRANSLATOR.md, Fase F).
  *
  * Understands structure (classes, fields, methods, control flow) rather than
  * doing textual substitution. Static methods become top-level functions;
