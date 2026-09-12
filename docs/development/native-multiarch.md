@@ -30,7 +30,12 @@
 > bump-pointer sem coletor — vazamento em heap longo, não-crash); (2) as
 > recusas DB001/SECN000/CONC001/JSN004 acima; (3) FP-coleção no cross
 > (FLT001 em compilação §107); (4) `backend-parity.md` colunas por-arch
-> ainda por separar; (5) CI cross não existe (toolchain host-dependente).
+> ainda por separar; (5) CI cross não existe (toolchain host-dependente) —
+> **face (5) FECHADA 12/09**: job `cross-native` em `.github/workflows/ci.yml`
+> instala `binutils-riscv64/aarch64-linux-gnu` + `qemu-user-static` e roda
+> `NativeRiscv64E2ETest,NativeAarch64E2ETest` (executam sob qemu, não skipam —
+> o job EXISTE para provar; nomes dos binários batem com `NativeArchEmitter:151
+> -282`; local: riscv 39/39 + aarch 39/39 verdes neste host com qemu).
 > Este doc continua em `development/` (NATIVE002 não fecha enquanto restam
 > (1)–(5)); quando (1)–(5) zerarem → mover para `docs/`.
 >

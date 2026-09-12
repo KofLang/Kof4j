@@ -72,3 +72,34 @@ jobs:
       - name: kof.io E2E over the real filesystem
         shell: bash
         run: mvn test -pl kof-compiler -am -Dtest=IoE2ETest -Dsurefire.failIfNoSpecifiedTests=false
+
+  # NATIVE002 face (5): CI cross não existia (native-multiarch.md §5 passo 7).
+  # As duas suites cross (riscv64/aarch64) têm `assumeToolchain()` que PULA
+  # sem toolchain — num runner sem binutils/qemu o job verde seria falso.
+  # Este job INSTALA a toolchain, então os 39+39 testes EXECUTAM sob qemu:
+  # é a prova real da paridade cross no pipeline, não um skip maquiado.
+  cross-native:
+    name: Native cross (riscv64 + aarch64 sob qemu)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install cross toolchains + qemu
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            binutils-riscv64-linux-gnu binutils-aarch64-linux-gnu \
+            qemu-user-static
+
+      - name: riscv64 + aarch64 E2E (executam sob qemu; falha se o codegen regredir)
+        run: >
+          mvn -B test -pl kof-compiler -am
+          -Dtest='NativeRiscv64E2ETest,NativeAarch64E2ETest'
+          -Dsurefire.failIfNoSpecifiedTests=false
