@@ -91,6 +91,20 @@ public final class CompilerComparisons {
     }
 
     /**
+     * §125 (decisão da mantenedora 12/09, opção A): `return null` em função
+     * Nullable(primitivo) vale o DEFAULT do primitivo — mesmo precedente do
+     * map-miss (SG-008/bug-87). `StatementLowerer` cai no `else` do ReturnStmt
+     * (defaultValueOp, que já desempacota Nullable(primitivo)) em vez de
+     * emitir aconst_null + unbox-de-Unknown → Object.intValue (VerifyError
+     * no JVM, NoSuchMethodError Integer.valueOf/1 no interpretador).
+     */
+    static boolean isNullablePrimNullReturn(ReturnStmt ret, Type returnType) {
+        return ret.value() != null && isNullLiteral(ret.value())
+                && returnType instanceof Type.NullableType nt
+                && nt.inner() instanceof Type.PrimitiveType;
+    }
+
+    /**
      * Emits both operands of a comparison-shortcut condition, widening each
      * to the common numeric type (e.g. `longExpr < 2000` must widen the
      * literal before the compare).

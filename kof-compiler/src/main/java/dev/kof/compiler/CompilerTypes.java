@@ -313,6 +313,15 @@ public final class CompilerTypes {
         return CompilerTypes.toType(typeName, currentUnit, sa);
     }
     static KofLoadLiteral defaultValueOp(Type type) {
+        // §125 (decisão da mantenedora 12/09, opção A): default de
+        // Nullable(primitivo) é o default do primitivo (`0`/`0.0`/`false`),
+        // NUNCA null — mesmo princípio do map-miss SG-008/bug-87
+        // (null se perde em transitos de primitivo). Nullable(ref) mantém
+        // null (precedente §124).
+        if (type instanceof Type.NullableType nt
+                && nt.inner() instanceof Type.PrimitiveType) {
+            type = nt.inner();
+        }
         if (type instanceof Type.PrimitiveType pt) {
             return switch (Type.canonicalPrimitiveName(pt.name())) {
                 case "long" -> new KofLoadLiteral(Type.PrimitiveType.LONG, 0L);

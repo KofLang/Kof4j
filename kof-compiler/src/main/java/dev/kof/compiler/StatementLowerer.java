@@ -15,7 +15,7 @@ public final class StatementLowerer {
                                    List<IRLocalVariable> locals, Type returnType) {
         return switch (stmt) {
             case ReturnStmt ret -> {
-                if (ret.value() != null) {
+                if (ret.value() != null && !CompilerComparisons.isNullablePrimNullReturn(ret, returnType)) {
                     localIdx = ExpressionLowerer.emitExpression(driver, ret.value(), ops, owner, localIdx, locals);
                     driver.emitWideningIfNeeded(ops, ExpressionTyper.inferExprType(driver, ret.value(), locals), returnType);
                     ops.add(new KofReturn(returnType));

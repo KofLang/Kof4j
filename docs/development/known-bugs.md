@@ -8,7 +8,7 @@
 >
 > | | |
 > |---|---|
-> | **Fila ABERTA (varredura 12/09 — todas as seções sem ✅ no próprio cabeçalho)** | **15** — §45 (finally+return: exige mudança de IR 4-backend + decisão DD-01, mantenedora), §65 (UI/Chrome — lane UI), §81 (KofJS Long>2^53 — decisão de precisão/contrato), §89 (n.toDouble()/toInt() cross — contrato de conversão), §94/§101 (congelados regra 6), §104b-ii (record-em-coleção + storage-box asm — **lane bugfixer**, unidade GRANDE), §106 (json.encode Map — decisão mantenedora), §107 🟡 (restam record/aninhado=`?` até §104b-ii + FP-cross=FLT001; face escalar ✅ 12/09 nos 3 nativos `f3b3821c`+B39), §117 (cancelled() colisão — design TLS, congelado), §125 (primitivo? null — decisão de representação multi-alvo), §127-JVM (cast p/ tipo-função → mudança de erasure no `JvmTypeMapper`, **infra de tipos**; workaround interface verificado), §129-TLS (congelado), §131 (sobrecarga de MÉTODO — semântica, mantenedora), §132 (OTP JS gate). **Conclusão honesta (12/09, ecoa a mesa do bugfixer `4d51defe` = "0 itens desbloqueados"):** nenhum de código-puro-sem-decisão-na-minha-lane; cada um está pendurado em decisão da mantenedora, congelamento regra-6, ou lane alheia (UI/bugfixer). O trabalho REAL sem-colisão-aceito da sessão é a **frente #97 tree-shaking** (S-1 ✅ `a3996600`; S-2→ em `docs/development/PLAN-TREE-SHAKING.md`). |
+> | **Fila ABERTA (varredura 12/09 — todas as seções sem ✅ no próprio cabeçalho)** | **14** — §45 (finally+return: exige mudança de IR 4-backend + decisão DD-01, mantenedora), §65 (UI/Chrome — lane UI), §81 (KofJS Long>2^53 — decisão de precisão/contrato), §89 (n.toDouble()/toInt() cross — contrato de conversão), §94/§101 (congelados regra 6), §104b-ii (record-em-coleção + storage-box asm — **lane bugfixer**, unidade GRANDE), §106 (json.encode Map — decisão mantenedora), §107 🟡 (restam record/aninhado=`?` até §104b-ii + FP-cross=FLT001; face escalar ✅ 12/09 nos 3 nativos `f3b3821c`+B39), §117 (cancelled() colisão — design TLS, congelado), §127-JVM (cast p/ tipo-função → mudança de erasure no `JvmTypeMapper`, **infra de tipos**; workaround interface verificado), §129-TLS (congelado), §131 (sobrecarga de MÉTODO — semântica, mantenedora), §132 (OTP JS gate). **§125 ✅ CORRIGIDO 12/09** (decisão A: return Nullable(primitivo) apaga p/ default — 3 pontos no IR compartilhado, célula `nullableprint` 4/4 sem exclusão). **§139 ✅ CORRIGIDO 12/09** (mesma unidade: JS fold `f()==null` → COMP002 underflow; parser JS ganha o descarte mid-expression com preservação de side-effect). **§90 ✅ CORRIGIDO 12/09 (lane web, remoto).** **Conclusão honesta (12/09, atualiza a mesa do bugfixer `4d51defe`): nenhum item de código-puro-sem-decisão na lane restou nesta máquina** — os 14 abertos estão pendurados em decisão da mantenedora, congelamento regra-6, ou lane alheia (UI/bugfixer). O trabalho REAL sem-colisão-aceito da sessão é a **frente #97 tree-shaking** (S-1 ✅ `a3996600`; S-2→ em `docs/development/PLAN-TREE-SHAKING.md`). |
 > | Antiga "varredura 08/09" (apócrifa — corrigida 12/09) | os "abertos" 39/62/63/64/46/48/50/59/61 estão ✅ CORRIGIDO nos próprios cabeçalhos (39/62/63/64 JVM/JS; 46/50/59 Native; 48/61 gap honesto JSN004/FFI001); contagem real na linha acima. |
 > | Paridade interpretador × compilados (semântica `==` congelada — regra 6) | **1** — bug 94 (NaN/±0.0 `==` de Double no SCRIPT) |
 > | Paridade backend-only (regra 5, atacável na lane Native) | **2** — §107 (println coleção → lixo; **face escalar ✅ CORRIGIDA 12/09 nos 3 targets nativos** — x86 `f3b3821c` + cross B39, golden JVM byte-idêntico; restam record/aninhado=`?` honesto até §104b-ii, FP-cross=FLT001; §107-JS 11/09), §104b-ii (equals de conteúdo p/ record + box de primitivo no storage asm; **face char ✅ FECHADA 11/09** — `mapgetprim` 4/4)
@@ -3578,7 +3578,7 @@ int de índice) — verificados na varredura.
   cobertos (mesmo ramo, agora com `get`).
   no harness JS.
 
-### 125. `println(<primitivo>? null)` (Int?/Bool?/... null): JVM **VerifyError** na carga + Script **NoSuchMethodError `Integer.valueOf/1`**; Native imprime `0` — ⏳ ABERTO (achado 11/09 ao fixar o §124)
+### 125. `println(<primitivo>? null)` (Int?/Bool?/... null): JVM **VerifyError** na carga + Script **NoSuchMethodError `Integer.valueOf/1`**; Native imprime `0` — ✅ CORRIGIDO 12/09 (decisão da mantenedora: opção A — alinhar ao precedente do map-miss, `0`)
 
 - **Menor repro (PN2, medido 11/09):** `Int? ni() { return null }` +
   `println(ni())` → **JVM**: VerifyError na inicialização da classe
@@ -3631,6 +3631,46 @@ int de índice) — verificados na varredura.
   primitivo" documentado SG-008). Registrado aguardando (condição 1).
 - **Prioridade:** média-baixa (crash ruidoso; workaround `if (x != null)`
   ou `println(x == null ? "null" : x)`).
+- **RESOLUÇÃO 12/09 (opção A da mantenedora — alinhar (c) ao precedente (b)):**
+  três pontos no IR compartilhado (todos os 4 targets baixam por aqui — mesma
+  forma do §124/§127, um ponto por alvo-alavanca):
+  1. `JvmLiteralEmitter.returnOpcode` — desempacota `Nullable(primitivo)`
+     para o primitivo. O descritor já o fazia (`JvmTypeMapper.toDescriptor`
+     caso `NullableType → inner`); a ASSIMETRIA (descritor `I` + opcode
+     `ARETURN`) era o VerifyError de qualquer `Int? f(){...}` — inclusive com
+     corpo não-nulo.
+  2. `StatementLowerer` caso `ReturnStmt` — `return null` em função
+     `Nullable(primitivo)` emite `defaultValueOp` direto (o default do
+     primitivo), nunca `aconst_null` + unbox-de-Unknown (o `Object.intValue`
+     ilegal que o `emitWideningIfNeeded`/erasure-unbox produzia; e o
+     `Integer.valueOf/1` reflectido do interpretador).
+  3. `CompilerTypes.defaultValueOp` — default de `Nullable(primitivo)` é o
+     default do primitivo (SG-008/bug-87: "null se perde em transitos de
+     primitivo"), NUNCA null; `Nullable(ref)` mantém null (§124 intocado).
+  4. `TypeMetrics.isDoubleWidth` — desempacota `Nullable` (mesma assimetria
+     do (1)): `Long? f()`/`Double? f()` retorna categoria-2 (2 slots) na
+     signatura apagada, então descartar seu valor (o fold `f() == null`, ou
+     statement `f()`) exige **POP2**, não POP — o `isDoubleWidth(Nullable)`
+     cru devolvia false → POP sobre long → VerifyError "long_2nd" (SG-020/
+     bug-79 reaparecendo só no wrapper nullable). Prova: `nullableprint`
+     estendida com `println(nl()==null)`/`println(nd()==null)` (width 2).
+  `null` não-observável em primitivo é o CONTRATO da opção A:
+  `ni() == null` é `false` (medido JVM/Native/Script/JS — o fold do
+  primitivo-vs-null, mesma regra 44-47 do `==` de primitivo).
+  - **Prova:** célula nova `nullableprint` na matriz 4/4 SEM exclusão
+    (`0/false/0/6` + `a == null → false` na forma-slot);
+    `KofInterpreterParityTest#printNullablePrimitiveNull` (4 paridades);
+    suíte completa no HEAD: compiler 1394/0-fail (13 err = `node` ausente,
+    ambiente), script 31/0, kof-c 5/0, cli 136/0.
+  - **ACHADO COLATERAL (pré-existente, NÃO-§125, registrado como §139):**
+    `println(mapOf("a",1).get("zz") == null)` com a chamada DIRETA como
+    operando do `==` (sem slot) quebra o parser JS com COMP002 "expression
+    stack underflow" no HEAD (medido com `git stash` — bug antigo, a célula
+    `wrongkey` usa a forma-slot e por isso nunca pegou). JVM/Native/Script
+    aceitam e imprimem `false`. Causa: o fold `KofCall; KofPop;
+    KofLoadLiteral` dentro de expressão — o parser JS
+    (`JsExpressionParser.parseExpressionFragment:311`) quebra no `KofPop`
+    sem nunca ter empilhado nada daquela sub-expressão.
 
 ### 126. Chave do TIPO ERRADO em Map/Set/`contains`-de-List pinados → Native SIGSEGV (JVM tolera com miss/false) — ✅ CORRIGIDO 11/09 (decisão da mantenedora: opção ii — SEM056 em compile-time)
 
@@ -4201,3 +4241,33 @@ statement-switch na mesma taxa). Reprodução no próprio teste (kof-cli).
   que ser revistos contra a pegadinha do escape (double backslash), e a
   pegadinha está documentada em `plan-spring-independence.md` mas não era
   CHECKLIST obrigatório da lane Native.
+
+
+### 139. JS: `<call-nullable> == null` como operando DIRETO de comparação → COMP002 "expression stack underflow" (JVM/Native/Script aceitam) — ⏳ ABERTO (achado 12/09 na unidade do §125; pré-existente ao §125, medido no HEAD sem as edições)
+
+- **Menor repro (medido 12/09):** `main() { println(mapOf("a",1).get("zz")
+  == null) }` → JS: `COMP002: Internal compiler error: KofJS: expression
+  stack underflow`; com `Int? ni(){return null}` + `println(ni() == null)`
+  idem. A forma-SLOT (`val v = ...; println(v == null)`) funciona nos 4
+  targets — é o que a matriz cobre (`wrongkey`, `nulleq`).
+- **Causa (pinada no dump do próprio erro):** `== null` com lado primitivo
+  dobra em `KofPop; KofLoadLiteral(BOOL)` (ExpressionBinaryLowerer:184 —
+  "primitivo nunca é null"); o lado oposto (a call nullable) é emitido ANTES
+  e descartado. O parser JS de fragmentos de expressão
+  (`JsExpressionParser.parseExpressionFragment`) sai no `KofPop` (linha 311
+  trata `KofPop` como FIM de fragmento, não como operação a consumir) e o
+  `JsReturn`/`println` externo encontra a pilha vazia → underflow. O JVM
+  emite tudo reto (pop+push é bytecode válido); o JS não tem stack — a
+  lowering de "descartar operando" não tem contrapartida no parser.
+- **Oracle (já congelado, sem decisão pendente):** `false` nos 4 targets
+  (`f()==null` com `f` primitivo/Nullable(primitivo) — o fold do
+  primitivo; `get`-miss é Unknown→comparação de referência boxed → `null
+  == Integer(0)`... medido: JVM/Script imprimem `false` também). A célula
+  `nulleqshortcut` cobre o caminho dos dois lados; falta o JS aceitar o
+  fold/pop.
+- **Correção provável:** no parser JS, `KofPop`/`KofPop2` DENTRO de
+  fragmento de expressão deve consumir o topo (equivalente funcional do
+  discard), não encerrar o fragmento — ou o lowering de `==`-com-null não
+  emitir `KofPop` para o JS (materializar em temp). Unidade pequena,
+  multi-arquivo-por-alvo (só JS), sem decisão de contrato. Sem dono.
+- **Prioridade:** baixa (workaround: slot `val v = ...; v == null`).

@@ -325,6 +325,35 @@ class ConformanceMatrixTest {
                 }
                 """, "true\ntrue\n8\n9000000001\ntrue\n97\nfalse", Set.of(), tempDir);
 
+        // §125 (decisão da mantenedora 12/09, opção A): println de função
+        // Nullable(primitivo) que RETORNA null imprime o DEFAULT do primitivo
+        // (0/false) — precedente congelado do map-miss (SG-008/bug-87), não
+        // "null" (§124 é Nullable(REF)). Antes: JVM VerifyError em QUALQUER
+        // `Int? f(){...}` (descritor `I` + ARETURN + aconst_null.intValue),
+        // Script NoSuchMethodError `Integer.valueOf/1`; Native imprimia 0
+        // (só ele acertava). Célula sem exclusão = os 4 targets travados.
+        // A forma-DIRETA `f() == null` (fold KofCall;KofPop;false) era o
+        // COMP002 "stack underflow" do JS (§139, corrigido na mesma unidade).
+        matrix("nullableprint", """
+                Int? ni() { return null }
+                Bool? nb() { return null }
+                Long? nl() { return null }
+                Double? nd() { return null }
+                Int? five() { return 5 }
+                main() {
+                    println(ni())
+                    println(nb())
+                    println(nl())
+                    println(five() + 1)
+                    println(ni() == null)
+                    println(nl() == null)
+                    println(nd() == null)
+                    println(mapOf("a", 1).get("zz") == null)
+                    val a = ni()
+                    println(a == null)
+                }
+                """, "0\nfalse\n0\n6\nfalse\nfalse\nfalse\nfalse\nfalse", Set.of(), tempDir);
+
         // §112 (paridade absoluta, 3 superfícies novas achadas no sweep de
         // coleções): (a) JVM **VerifyError** em `println(m.put(k,v))` com V
         // primitivo — HashMap.put devolve Object (prev), e o typer declara o

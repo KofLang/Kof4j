@@ -106,6 +106,10 @@ public final class TypeMetrics {
     }
 
     static boolean isDoubleWidth(Type type) {
+        // §125: Nullable(primitivo) apaga p/ o primitivo na SIGNATURA
+        // (toDescriptor/returnOpcode) — a categoria-2 também: `Long? f()`
+        // retorna long (2 slots) e descartar exige POP2 (SG-020/bug-79).
+        if (type instanceof Type.NullableType nt) return isDoubleWidth(nt.inner());
         if (type instanceof Type.PrimitiveType pt) {
             return "long".equals(pt.name()) || "Long".equals(pt.name())
                     || "double".equals(pt.name()) || "Double".equals(pt.name());

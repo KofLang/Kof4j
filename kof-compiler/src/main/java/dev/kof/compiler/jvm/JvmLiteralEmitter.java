@@ -107,6 +107,11 @@ public final class JvmLiteralEmitter {
     }
 
     static int returnOpcode(Type type) {
+        // §125 (decisão da mantenedora 12/09, opção A): Nullable(primitivo)
+        // apaga para o primitivo na SIGNATURA — exatamente como
+        // JvmTypeMapper.toDescriptor (que já desempacota Nullable). A
+        // assimetria (descritor `I` + opcode ARETURN) era o VerifyError.
+        if (type instanceof Type.NullableType nt) type = nt.inner();
         if (type instanceof Type.PrimitiveType pt) {
             return switch (pt.name()) {
                 case "void" -> RETURN;

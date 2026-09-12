@@ -246,35 +246,46 @@ remoto hoje** (`a2d6c140` sobrecarga top-level + `982f53f0` bug 134 switch
 decompilado) — a única fonte de falha na lane agora é o node ausente (13
 erros `*Js()`, todos pré-existentes/environmentais, NÃO corrigíveis sem node).
 
-**MESA DO BUGFIXER 12/09 = SEM ITEM DESBLOQUEADO nesta máquina** (não é
-estabilidade: há trabalho real, só não-executável aqui). FECHADOS 12/09 nesta
-sessão (todos com suíte verde no HEAD exato, gate `bc45aaf9`): **§127-JS**
+**MESA DO BUGFIXER 12/09 (2ª rodada) = §125+§139 FECHADOS; fila da lane = 0 desbloqueados nesta máquina.** (não é
+estabilidade: há trabalho real em `development/`+`future/`, só não na lane bugfix
+deste host). FECHADOS 12/09 nesta sessão (todos com suíte verde no HEAD exato,
+gate medido `bc45aaf9` + re-medida nesta unidade): **§127-JS**
 (`f85ffadd`, map get/remove miss primitivo → default; wrongkey 5/5), **§128-JVM**
 (`6e68cb36`, selectAny Int unbox), **§134-wildcard** (`6e147824`, `import ext.*`
-qualifica pelo cp). Baseline mudada 12/09: SEM047 + DecompileTest fechados pelo
-remoto (`a2d6c140`/`982f53f0`); única fonte de falha na lane = node ausente
-(13 err `*Js()`, ambientais). **O que resta (todos BLOQUEADOS, por quê):**
-(1) **§125** — `println(<primitivo>? null)` crasha JVM/Script, Native `0`;
-ORACLE em conflito (map-miss `0` vs print-boxed `null`) → AGUARDANDO decisão da
-mantenedora (condição 1; re-medido 12/09: literal `null` direto é SEM048, só há
-DOIS caminhos — retorno `Int?` (crash) e map-miss (`0`, precedente congelado) →
-strengthen opção A=0; NÃO é edição minha). (2) **§107-x86 println(<coleção>)** —
-**CEDIDO à lane development pelo humano 12/09 (linha 55 deste arquivo, editada
-por `92b01b2b`): "x86 primeiro, cross depois" + "NÃO tocar fila bugfixer =
-lane deles"** → recíproco: §107 é DELES agora, mexer = colisão de lane
-(condição 2). Medido 12/09: célula `collprint`/`objmethods`/`jsondec-record`
-mantêm `Set.of("native")`; fix = valueOf recursivo em asm puro detectando kind
-**em runtime** (lista/mapa/set têm header `typeId`=100, String`=1`, record
-dispatch vtable — `NativeX86Calls:179` já faz vtable p/ toString, mas a caixa
-do elemento Int/Double na lista é crua → precisa storage-box ou typeArg
-carregado; multi-backend). (3) §114-nested/§104b-ii(i) = MESMA infra storage-box
-de (2). (4) faces cross §123/§126-tag/§127-JS: emissores escritos, falta PROVA
-sob qemu — **toolchain AUSENTE neste host** (retificado `bc45aaf9`; rodar na
-sessão melissa/B37). NÃO tocar: §101/§94/§44 (congelados), §45/§117/§81/§106/
-§127-cast-função (decisão mantenedora), §68a/§68b/§70 var-slot primitivo
-(decisão de contrato, medido 12/09: H2 `var x = if(c) 3 else 4.0` → VerifyError
-= status quo documentado, "não fix silencioso"). NUNCA pushar main sem pedido
-do humano.
+qualifica pelo cp), **§125** (decisão A da mantenedora: `println(<primitivo>?
+null)` → default do primitivo — 4 pontos no IR compartilhado
+(`returnOpcode`/`ReturnStmt`-fold/`defaultValueOp`/`isDoubleWidth` POP2), célula
+`nullableprint` 4/4 sem exclusão (9 saídas incl. `Long?`/`Double?`) +
+`KofInterpreterParityTest#printNullablePrimitiveNull`; StatementLowerer de volta a
+506 = baseline do gate ≤500 (o fold virou predicado em `CompilerComparisons`)), **§139** (mesma
+unidade, JS-only: fold `f()==null` → COMP002 underflow; parser JS ganha descarte
+mid-expression com preservação de side-effect). Baseline do remoto já trazia
+§107-face-escalar-x86+cross (`f3b3821c`/B39), #97 S-1..S-3 (`a3996600`→),
+SEM047/DecompileTest (`a2d6c140`/`982f53f0`). Única fonte de falha na lane agora
+= node ausente (13 err `*Js()`, ambientais) + cross sem qemu NESTE host
+(149 skip; toolchain existe no host melissa/B37, reconciliado `696b74e6`).
+**O que resta na lane (todos BLOQUEADOS, por quê):** (1) **§107 record/aninhado
+= `?` + FP-coleção cross** — face escalar x86+riscv/aarch já FECHADA pelo remoto
+(`f3b3821c` + B39, reconciliado `696b74e6`); o resto depende da infra storage-box
+do §104b-ii (lane bugfixer, unidade GRANDE multi-backend — não cabe numa sessão).
+(2) §114-nested/§104b-ii(i) = MESMA infra storage-box. (3) faces cross §123/§126-
+tag/§127-JS: emissores escritos, falta PROVA sob qemu — **toolchain AUSENTE NESTE
+host** (medido de novo nesta sessão: `command -v qemu-*` → rc=1; host melissa/B37
+tem). NÃO tocar: §101/§94/§44 (congelados), §45/§117/§81/§106/§127-cast-função
+(decisão mantenedora), §129/§131/§132 (congelado/semântica/gate), §68a/§68b/§70
+var-slot primitivo (decisão de contrato, medido: H2 `var x = if(c) 3 else 4.0`
+→ VerifyError = status quo documentado, "não fix silencioso"). NUNCA pushar main
+sem pedido do humano.
+**PRÓXIMO PASSO (bugfixer, re-dispacho):** a mesa da lane está VAZIA de unidades
+pequenas desbloqueadas neste host. Re-disparo desta lane só assume se: (a) surgir
+REGRESSÃO na suíte (gate: `mvn test -o -pl kof-compiler,kof-script,kof-c-compiler,
+kof-cli -am -Dtest='!UiE2ETest#canvasCreation' -Dsurefire.failIfNoSpecifiedTests=
+false -Dmaven.test.failure.ignore=true -q`; única falha esperada = 13 err `node`
++ skips cross), (b) a mantenedora decidir §127-cast-função/§106/§45/§89 (saiem da
+"mesa de decisões"), (c) este host ganhar qemu (destrava provas §123/§126/§127-
+JS cross), ou (d) a lane dev liberar a infra storage-box (destrava §107-record/
+§104b-ii). Caso contrário, o trabalho real sem-colisão está na **frente #97**
+(lane development, S-4 em diante) — NÃO é desta lane.
 
 **FEITO (11/09, lane Native cross — §113 FACES riscv64+aarch64 FECHADAS — `kof_multi_alloc` recursivo cross):** o maintainer corrigiu o x86 e deixou "faces riscv/aarch = port p/ sessão c/ toolchain" — a toolchain ESTÁ neste host (`/usr/bin/qemu-riscv64|aarch64` + binutils), então o port é o degrau óbvio da fila. Fatia nova `NativeRiscvAsmRtB37` (0 colisões .L/.globl verificadas vs vencedora): `kof_multi_alloc(a0=dimsBase, a1=n, a2=i, a3=leafStride)` recursivo espelhando o x86 — MESMA fórmula de offset `d_i = base + 8*(n-i)`; ABI própria: o chamador passa o PRÓPRIO sp como base (dimensões já empilhadas, d_n no topo) e sÓ AVANÇA o sp depois (sem pilha dinâmica — frame fixo do helper salva ra+s0..s6, 112B); nó interno = elemSize 8 (ponteiros), folha = stride do baseType com payload ZEROED byte-a-byte via laço `sb` (paridade MULTIANEWARRAY — kof_alloc é bump-pointer sem zero). Roteio `KofNewMultiArray` em `NativeRiscvCrossEmit` (antes caía no default-comentário NATIVE002); aarch herda 100% via tradutor (verificado: `sb zero`→`strb wzr`, `bge`/`bne`/`mul`/`slli` todos cobertos, 0 UNHANDLED). **Prova:** `riscv64MultiDimArray`/`aarch64MultiDimArray` (10 saídas golden = oracle JVM medido: lengths 2/3 + zero-fill + store/load + 3-D completo `2 3 0 7 2 2 9 0`); sabotagem → FAIL com saída real (não-vazio provado). Docs: célula `array2d` da matriz (faces cross ✅) + §113. **PRÓXIMO PASSO (re-dispacho):** (1) §113 PUSHADO `d2a4dc0a`+docs `edb86c34` (suíte do HEAD pré-rebase 1477/0/5skip; gate no HEAD exato rodando `push-gate.log` — se vermelho, é meu para corrigir antes da próxima unidade); (2) fila lane Native com toolchain real: §107 Native println(coleção) — ABERTO, backend-only, sem gate, R6 violada hoje (imprime lixo de ponteiro); fix = helpers toString recursivos dos 3 tipos de coleção (espelho `kofFormat` do JS §107-JS, x86 primeiro + fatia riscv + tradutor); §114 hash/coleção fica ATRELADO à infra storage-box do §104b-ii(i) (grande, avaliar antes); NÃO tocar §101/§94/§44 (congelados), §45/§106/DD-STDLIB (decisão mantenedora), lane §104/interp (outros agentes). NUNCA pushar main sem pedido do humano.
 

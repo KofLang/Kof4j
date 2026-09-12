@@ -4,6 +4,7 @@ import dev.kof.compiler.KofConditionalJump;
 import dev.kof.compiler.KofLabel;
 import dev.kof.compiler.KofOperation;
 import dev.kof.compiler.KofPop;
+import dev.kof.compiler.KofPop2;
 import dev.kof.compiler.KofPutStatic;
 import dev.kof.compiler.KofReturn;
 import dev.kof.compiler.KofStoreField;
@@ -79,18 +80,29 @@ final class JsExpressionStatementParser {
                 preamble.add(stmt);
                 continue;
             }
-            if (op instanceof KofPop) {
+            if (op instanceof KofPop || op instanceof KofPop2) {
                 pos[0]++;
                 JsIr.JsExpression dropped = null;
                 if (!stack.isEmpty()) {
                     dropped = parser.pop(stack);
                 }
-                stack.clear();
-                if (dropped instanceof JsIr.JsCall || dropped instanceof JsIr.JsSequence
+                boolean sideEffecting = dropped instanceof JsIr.JsCall
+                        || dropped instanceof JsIr.JsSequence
                         || dropped instanceof JsIr.JsAwait
                         || (dropped instanceof JsIr.JsBinary jb
                                 && (jb.left() instanceof JsIr.JsCall
-                                        || jb.right() instanceof JsIr.JsCall))) {
+                                        || jb.right() instanceof JsIr.JsCall));
+                if (!stack.isEmpty()) {
+                    // §139: POP no MEIO de uma expressão (o fold `f() == null`
+                    // emite call;POP;false com o receiver $kofOut embaixo na
+                    // pilha). Descartar o topo, preservar o efeito colateral no
+                    // preamble e CONTINUAR a statement — antes o clear()+return
+                    // perdia o receiver e quebrava o merge de frames (COMP002).
+                    if (sideEffecting) preambleExprs.add(dropped);
+                    continue;
+                }
+                stack.clear();
+                if (sideEffecting) {
                     // Side-effecting call, sequence, or await used as statement
                     // (e.g. `await r;` / `await spawn tick();`) must survive POP.
                     // §112-JS: `m.put(k,v)` como statement tem o prev (null p/

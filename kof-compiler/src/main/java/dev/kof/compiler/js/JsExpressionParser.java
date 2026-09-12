@@ -25,6 +25,7 @@ import dev.kof.compiler.KofNewMultiArray;
 import dev.kof.compiler.KofNewObject;
 import dev.kof.compiler.KofOperation;
 import dev.kof.compiler.KofPop;
+import dev.kof.compiler.KofPop2;
 import dev.kof.compiler.KofPutStatic;
 import dev.kof.compiler.KofReturn;
 import dev.kof.compiler.KofReturnVoid;
@@ -124,7 +125,8 @@ boolean isExpressionOp(KofOperation op) {
                 || op instanceof KofNewMultiArray
                 || op instanceof KofArrayLoad || op instanceof KofArrayLength
                 || op instanceof KofInstanceOf || op instanceof KofCheckCast
-                || op instanceof KofStoreLocal;
+                || op instanceof KofStoreLocal
+                || op instanceof KofPop || op instanceof KofPop2;
     }
 
 void consumeExpressionOp(MethodCtx ctx, int[] pos, List<Object> stack,
@@ -293,6 +295,21 @@ void consumeExpressionOp(MethodCtx ctx, int[] pos, List<Object> stack,
             stack.add(ifExpr);
         } else if (op instanceof KofCall kc) {
             p.calls.handleCall(ctx, stack, preambleExprs, kc);
+        } else if (op instanceof KofPop || op instanceof KofPop2) {
+            // §139: descarte de operando no MEIO de um fragmento de expressão
+            // (o fold `f() == null` emite `KofCall; KofPop; KofLoadLiteral`).
+            // JS não tem pilha: o valor é avaliado e o resultado é jogado fora.
+            // Um KofCall filho é sempre side-effecting em Kof (sem
+            // short-circuit) → preserva no preamble, como o handler de
+            // statement faz.
+            JsIr.JsExpression dropped = pop(stack);
+            if (dropped instanceof JsIr.JsCall || dropped instanceof JsIr.JsSequence
+                    || dropped instanceof JsIr.JsAwait
+                    || (dropped instanceof JsIr.JsBinary jb
+                            && (jb.left() instanceof JsIr.JsCall
+                                    || jb.right() instanceof JsIr.JsCall))) {
+                preambleExprs.add(dropped);
+            }
         } else {
             throw new IllegalStateException("KofJS: unhandled IR op " + op);
         }
@@ -308,7 +325,9 @@ JsIr.JsExpression parseExpressionFragment(MethodCtx ctx, int[] pos) {
         List<JsIr.JsExpression> preambleExprs = new ArrayList<>();
         while (pos[0] < ctx.ops.size()) {
             KofOperation op = ctx.ops.get(pos[0]);
-            if (op instanceof KofJump || op instanceof KofLabel || op instanceof KofPop
+            if (op instanceof KofJump || op instanceof KofLabel
+                    || (op instanceof KofPop && stack.isEmpty())
+                    || (op instanceof KofPop2 && stack.isEmpty())
                     || (op instanceof KofStoreLocal && stack.isEmpty()) || op instanceof KofStoreField
                     || op instanceof KofPutStatic || op instanceof KofArrayStore
                     || op instanceof KofReturn || op instanceof KofReturnVoid

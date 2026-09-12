@@ -461,4 +461,37 @@ class KofInterpreterParityTest {
                 }
                 """);
     }
+
+    @Test
+    void printNullablePrimitiveNull() throws IOException {
+        // §125 (decisão da mantenedora 12/09, opção A): println(<primitivo>?
+        // null) imprime o DEFAULT do primitivo (precedente do map-miss,
+        // SG-008), nunca "null". Antes o return de Int? crashava o bytecode
+        // (VerifyError no JVM) e o interpretador (NoSuchMethodError
+        // Integer.valueOf/1); agora o IR emite o default direto no return-site.
+        parity("print-null-int", """
+                Int? ni() { return null }
+                main() {
+                    println(ni())
+                }
+                """);
+        parity("print-null-bool", """
+                Bool? nb() { return null }
+                main() {
+                    println(nb())
+                }
+                """);
+        parity("print-null-double", """
+                Double? nd() { return null }
+                main() {
+                    println(nd())
+                }
+                """);
+        parity("print-int-nullable-value", """
+                Int? ni() { return 5 }
+                main() {
+                    println(ni() + 1)
+                }
+                """);
+    }
 }
