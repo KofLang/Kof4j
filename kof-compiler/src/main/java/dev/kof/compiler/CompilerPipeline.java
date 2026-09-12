@@ -427,6 +427,8 @@ public final class CompilerPipeline {
         CompilationUnitNode merged = new CompilationUnitNode(
                 parsedUnits.get(0).position(), "",
                 mergedImports, mergedDecls);
+        merged = CompilerSupervisor.injectHostIfNeeded(driver, merged, diagnostics);
+        if (merged == null) return null;
         merged = CompilerImports.expandKofImports(merged, driver.moduleRoot, diagnostics, driver.declarationPackages);
         if (diagnostics.hasErrors()) return null;
         return merged;

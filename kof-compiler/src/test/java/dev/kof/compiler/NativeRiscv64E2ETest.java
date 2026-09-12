@@ -175,6 +175,30 @@ class NativeRiscv64E2ETest {
     }
 
     @Test
+    void riscv64MultiDimArray(@TempDir Path tempDir) throws IOException {
+        // §113 faces riscv: kof_multi_alloc recursivo (fatia B37). Golden =
+        // oracle JVM medido (mesmo programa da célula array2d da matriz).
+        assumeToolchain();
+        String out = runRiscv64(tempDir, """
+            main() {
+                var m = new Int[2][3]
+                println(m.length)
+                println(m[1].length)
+                println(m[0][2])
+                m[1][2] = 7
+                println(m[1][2])
+                var c = new Int[2][2][2]
+                println(c.length)
+                println(c[0][1].length)
+                c[1][0][1] = 9
+                println(c[1][0][1])
+                println(c[0][0][0])
+            }
+            """);
+        assertEquals("2\n3\n0\n7\n2\n2\n9\n0", out);
+    }
+
+    @Test
     void riscv64List(@TempDir Path tempDir) throws IOException {
         assumeToolchain();
         String out = runRiscv64(tempDir, """

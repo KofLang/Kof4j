@@ -177,8 +177,11 @@ public final class CollectionCallLowerer {
             };
             if ("kof_list_contains".equals(listFn)) {
 
-                int tag = BuiltinTypes.isString(elemType) ? 1 : 0;
-                ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, tag));
+                // §126: equals de String só quando AMBOS elemType e arg são
+                // String conhecidos; senão raw cmpq (nunca deref → miss seguro
+                // = false do JVM). Int-arg em String-list era SIGSEGV (E1).
+                ops.add(new KofLoadLiteral(Type.PrimitiveType.INT,
+                        stringTag(elemType, argTypes, 0)));
                 argTypes = new ArrayList<>(argTypes);
                 argTypes.add(Type.PrimitiveType.INT);
             }
@@ -289,7 +292,9 @@ public final class CollectionCallLowerer {
                     && ("kof_set_add".equals(setFn) || "kof_set_contains".equals(setFn)
                         || "kof_set_remove".equals(setFn))) {
                 // tag de tipo só no Native (HashSet usa equals no JVM)
-                int tag = BuiltinTypes.isString(elemType) ? 1 : 0;
+                // §126: conjunção elem×arg — senão raw cmpq, que nunca deref
+                // (Int-arg em String-set era SIGSEGV: ST1/ST2).
+                int tag = stringTag(elemType, argTypes, 0);
                 ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, tag));
                 argTypes = new ArrayList<>(argTypes);
                 argTypes.add(Type.PrimitiveType.INT);
@@ -342,6 +347,29 @@ public final class CollectionCallLowerer {
         if (TypeMetrics.isPrimitiveType(t)) return false;
         return t instanceof Type.ClassType || t instanceof Type.ArrayType
                 || t instanceof Type.TypeVariable;
+    }
+
+    /**
+     * §126: tag de comparação do Native (1 = kof_string_equals, 0 = raw
+     * cmpq). O equals de String só é SEGURO quando ambos os lados são
+     * String conhecidos: o lado desconhecido pode ser um Int cru que o
+     * kof_string_equals trataria como ponteiro → SIGSEGV (A1/E1/ST1).
+     * Qualquer outro par cai no raw cmpq, que nunca deref e devolve o
+     * miss silencioso (false/null) — exatamente o que o JVM faz com
+     * tipos incompatíveis no HashMap/HashSet/ArrayList reais.
+     */
+    static int stringTag(Type elemType, List<Type> argTypes, int argIdx) {
+        Type at = argIdx < argTypes.size() ? argTypes.get(argIdx) : null;
+        if (at instanceof Type.NullableType nt) at = nt.inner();
+        Type et = elemType instanceof Type.NullableType ent ? ent.inner() : elemType;
+        boolean etKnown = et != null && !(et instanceof Type.UnknownType);
+        boolean atKnown = at != null && !(at instanceof Type.UnknownType);
+        if (etKnown && atKnown) {
+            return BuiltinTypes.isString(et) && BuiltinTypes.isString(at) ? 1 : 0;
+        }
+        if (etKnown) return BuiltinTypes.isString(et) ? 1 : 0;
+        if (atKnown) return BuiltinTypes.isString(at) ? 1 : 0;
+        return 1;
     }
 
     private static String typeNameFor(Type t) {

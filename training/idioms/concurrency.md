@@ -93,6 +93,74 @@ plataforma — a decisão de como executar pertence ao runtime.
 - filas produtor/consumidor: `kof.mq` — 3 targets (Native 01/09, MQ001 fechado; pub/sub + `mq.queue()`/`push`/`pop`);
 - lambdas com captura funcionam em spawn (BoxN).
 
+## GOOD — kof.supervisor: reinício supervisionado (OTP, issue #83)
+
+```kof
+// Falha de worker NÃO mata o sistema: o supervisor observa, reinicia com
+// uma fábrica NOVA, respeita o limite, e escala quando estoura.
+import kof.supervisor
+
+class Conecta implements KofWorkerFactory {
+    KofWorker novo() { return WorkerConexao() }   // objeto novo por reinício
+}
+class WorkerConexao implements KofWorker {
+    Object run() {
+        // lança (exceção é String) → o supervisor captura a falha
+        throw "conexao caiu"
+    }
+}
+main() {
+    var s = supervisor("net")
+        .child("conn", Conecta(), "permanent")   // permanent: cai → reinicia
+        .restartLimit(5)
+    s.start()
+    // ... s.stop(2000) para encerrar controlado; s.stats() observa ...
+}
+```
+
+A fábrica (`KofWorkerFactory.novo()`) retorna um `KofWorker` **novo** a cada
+reinicio — não se reinicia o objeto que falhou, re-fabrica-se (isolamento de
+estado). As três politicas: `permanent` (cai → sempre reinicia), `transient`
+(termina normal → para; só reinicia se falhar), `temporary` (nunca reinicia —
+conta como descartado). `escalate(cb)` chama `disparou(id, motivo, reinicios)`
+no limite (sem `escalate` o supervisor **para de reiniciar e avisa** — nunca
+silencioso).
+
+Paridade honesta: **JVM + Script** (interpretador) entregam o núcleo. NATIVE =
+`OTP001` (o `throw` em task no backend nativo atual cai no handler chain global
+— §129), JS = `OTP002` (event-loop single-thread não agenda task-de-task —
+§132). Nos dois o `import kof.supervisor` falha no compile-time com
+diagnóstico claro, nunca um binário que trava.
+
+## WHY
+
+Supervisão é **intenção**, não mecanismo: o usuário declara o *quê* vigiar
+(fábrica + política + limite), não *como* reaplicar threads. A plataforma
+(`spawn`/`await`/`try-catch`) já existe; o supervisor é código Kof por cima.
+
+## GOOD — fetch assíncrono: `var h = spawn http.get(url); await h`
+
+```kof
+// ❌ BAD — "paralelo" com threads/futures de outra linguagem, ou síncrono no JS
+val a = http.get(urlA)            // bloqueia a thread inteira até responder
+val b = http.get(urlB)            // sequencial: soma as latências
+
+// ✅ GOOD — a linguagem já tem Handle: spawn dá concorrência, await pega o valor
+var ha = spawn http.get(urlA)
+var hb = spawn http.get(urlB)
+val a = await ha                  // dispara antes de esperar; latência = max(a,b)
+val b = await hb
+
+// ✅ GOOD — "qualquer um primeiro"
+val first = await selectAny(spawn http.get(a), spawn http.get(b))
+```
+
+Em JVM/Script/Native a thread do worker faz o I/O; no **Node/browser** o
+`http.*` é `fetch` de verdade — o `Handle` carrega a Promise, e o `await`
+resolve o corpo (`spawn`+`await` é o ÚNICO caminho que transporta em JS puro;
+chamada síncrona lá devolve o Promise cru — §133). Nunca `Thread`/`Future`/
+`async`/`await` de outra linguagem: `spawn`/`await` cobrem os três.
+
 ## Anti-patterns relacionados
 
 - `fake-idioms.md` — `async`/`await`/Thread não existem (use `spawn`/`await`)

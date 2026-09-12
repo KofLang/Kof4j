@@ -26,6 +26,7 @@ import dev.kof.compiler.KofLoadField;
 import dev.kof.compiler.KofLoadLiteral;
 import dev.kof.compiler.KofLoadLocal;
 import dev.kof.compiler.KofNewArray;
+import dev.kof.compiler.KofNewMultiArray;
 import dev.kof.compiler.KofNewObject;
 import dev.kof.compiler.KofOperation;
 import dev.kof.compiler.KofPop;
@@ -214,6 +215,19 @@ public final class NativeRiscvCrossEmit {
                 sb.append("    pop a0\n");
                 sb.append("    li a1, ").append(nb.elementTypeSize(na.elementType())).append("\n");
                 sb.append("    call kof_array_alloc\n");
+                pushRiscv(sb, "a0");
+            }
+            // §113 (port beta-0.3.0 → 0.4.0): n-D (≥2). Os dims JÁ estão na
+            // pilha (d_n no topo); sp é a base dos offsets do helper — o
+            // chamador NUNCA os popa, só avança o sp (frame fixo, sem
+            // pilha-dinâmica do x86).
+            case KofNewMultiArray ma -> {
+                sb.append("    mv a0, sp\n");
+                sb.append("    li a1, ").append(ma.dims()).append("\n");
+                sb.append("    li a2, 1\n");
+                sb.append("    li a3, ").append(nb.elementTypeSize(ma.baseType())).append("\n");
+                sb.append("    call kof_multi_alloc\n");
+                sb.append("    addi sp, sp, ").append(8 * ma.dims()).append("\n");
                 pushRiscv(sb, "a0");
             }
             case KofArrayLoad al -> {

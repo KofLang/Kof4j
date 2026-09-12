@@ -1,7 +1,21 @@
 # Status do Projeto Kof
 
-**Última atualização:** 3 de setembro de 2026
+**Última atualização:** 11 de setembro de 2026
 **Versão:** 0.3.0-beta
+
+> **11/09 — OTP núcleo (issue #83) entregue em JVM+Script:** pacote virtual
+> `kof.supervisor` (host puro-Kof, `import kof.supervisor`), com observar-falha,
+> reinício individual (fábrica nova), limite de reinícios + escalate e stop
+> controlado (`KofSupervisorE2ETest` 6/6). Native/JS bloqueados no compile-time
+> com diagnóstico claro (`OTP001`/`OTP002`, §129/§132 — nunca silêncio). Impeditivo
+> §130 (SEM024 falso em método re-analisado) corrigido junto.
+> **11/09 — fetch assíncrono no KofJS (§133):** `spawn http.get(url)` + `await`
+> agora resolve corpo real no Node/browser (fetch→Promise pela máquina
+> `Handle<T>` existente; zero AST novo). O fallback `return ""` silencioso do
+> runtime JS acabou — face síncrona em JS puro fica honesta (Promise cru,
+> HTTP003); GraalJS/KofJsRunner intacto. Prova: `KofHttpE2ETest` 8/8.
+> **11/09 — MATH001 fechado** (`kof.math` Double nos 5 targets; §120 + §105 na série remota).
+> **11/09 — TIME002 fechado** (`addDays`/`diffDays` nos 5 targets).
 
 ---
 

@@ -749,6 +749,29 @@ class ConformanceMatrixTest {
                     println(m.size)
                 }
                 """, "1\n2", Set.of(), tempDir);
+        matrix("mapint", """
+                main() {
+                    var m = mapOf(1, "um")
+                    m.put(2, "dois")
+                    println(m.get(1))
+                    println(m.get(2))
+                    println(m.size)
+                    println(m.remove(1))
+                    println(m.get(1))
+                }
+                """, "um\ndois\n2\num\nnull", Set.of(), tempDir);
+        matrix("wrongkey", """
+                main() {
+                    var m = mapOf(1, "a")
+                    println(m.get("x"))
+                    var s = setOf("a", "b")
+                    println(s.contains(5))
+                    var l = listOf("a", "b")
+                    println(l.contains(5))
+                    var n = mapOf("a", 1)
+                    println(n.get(5))
+                }
+                """, "null\nfalse\nfalse\n0", Set.of("js"), tempDir);
         matrix("emptylist", """
                 main() {
                     var l = listOf()

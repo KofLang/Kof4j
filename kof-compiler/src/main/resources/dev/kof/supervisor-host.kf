@@ -1,0 +1,171 @@
+interface KofWorker {
+    Object run()
+}
+
+interface KofWorkerFactory {
+    KofWorker novo()
+}
+
+interface KofEscalate {
+    Void disparou(String id, String motivo, Int reinicios)
+}
+
+class KofSupStats {
+    Int started
+    Int restarts
+    Int dropped
+    Int vivos
+}
+
+class KofSupNode {
+    String id
+    KofWorkerFactory fabrica
+    String politica
+    Handle<Object> h = null
+    Bool running = false
+    Int reinicios = 0
+}
+
+class Supervisor {
+    String nome
+    List<KofSupNode> filhos
+    Int maxReinicios = 0
+    Bool vivo = false
+    Bool drenando = false
+    KofEscalate escalar = null
+
+    public constructor(String nome) {
+        this.nome = nome
+        this.filhos = listOf()
+    }
+
+    Supervisor child(String id, KofWorkerFactory fabrica, String politica) {
+        if (vivo) { throw "supervisor '" + nome + "': child() depois de start()" }
+        if (fabrica == null) { throw "supervisor '" + nome + "': fabrica nula" }
+        if (!(politica == "permanent" || politica == "transient" || politica == "temporary")) {
+            throw "supervisor '" + nome + "': politica desconhecida '" + politica + "'"
+        }
+        var n = KofSupNode()
+        n.id = id
+        n.fabrica = fabrica
+        n.politica = politica
+        filhos.add(n)
+        return this
+    }
+
+    Supervisor restartLimit(Int max) {
+        if (vivo) { throw "supervisor '" + nome + "': restartLimit() depois de start()" }
+        if (max < 0) { throw "supervisor '" + nome + "': maxReinicios negativo" }
+        maxReinicios = max
+        return this
+    }
+
+    Supervisor escalate(KofEscalate callback) {
+        escalar = callback
+        return this
+    }
+
+    Void start() {
+        if (vivo) { return }
+        if (filhos.size == 0) { throw "supervisor '" + nome + "': sem children" }
+        vivo = true
+        drenando = false
+        var self = this
+        for (var n in filhos) {
+            n.running = true
+            spawn { self.vigiar(n) }
+        }
+    }
+
+    Void vigiar(KofSupNode n) {
+        while (n.running) {
+            var w = n.fabrica.novo()
+            n.reinicios = n.reinicios + 1
+            n.h = spawn { w.run() }
+            var motivo = "normal"
+            var falhou = false
+            try {
+                var r = await n.h
+            } catch (String e) {
+                motivo = e
+                falhou = true
+            }
+            if (drenando) { n.running = false; return }
+            if (!falhou && n.politica != "permanent") {
+                n.running = false
+                return
+            }
+            var reiniciosUsados = n.reinicios - 1
+            if (n.politica == "temporary") {
+                relatar(n, motivo, reiniciosUsados, true)
+                n.running = false
+                return
+            }
+            if (maxReinicios > 0 && reiniciosUsados >= maxReinicios) {
+                relatar(n, motivo, reiniciosUsados, true)
+                n.running = false
+                return
+            }
+            relatar(n, motivo, reiniciosUsados, false)
+            time.sleep(1)
+        }
+    }
+
+    Void relatar(KofSupNode n, String motivo, Int reinicios, Bool excedeu) {
+        if (escalar != null) {
+            escalar.disparou(n.id, motivo, reinicios)
+            return
+        }
+        var extra = ""
+        if (excedeu) { extra = " — limite excedido, nao reinicia (R6)" }
+        println("supervisor '" + nome + "': child '" + n.id + "' (" + motivo
+            + ", reinicios=" + reinicios + extra + ")")
+    }
+
+    Void stop(Int deadlineMs) {
+        if (!vivo) { return }
+        drenando = true
+        for (var c in filhos) {
+            if (c.running && c.h != null) { cancel(c.h) }
+        }
+        var limites = time.now() + deadlineMs
+        while (temVivo() && time.now() < limites) {
+            time.sleep(2)
+        }
+        for (var e2 in filhos) {
+            if (e2.running) {
+                println("supervisor '" + nome + "': child '" + e2.id
+                    + "' nao parou em " + deadlineMs + "ms (cancel cooperativo)")
+                e2.running = false
+            }
+        }
+        vivo = false
+        drenando = false
+    }
+
+    Bool temVivo() {
+        var t = false
+        for (var n in filhos) {
+            if (n.running) { t = true }
+        }
+        return t
+    }
+
+    KofSupStats stats() {
+        var s = KofSupStats()
+        s.started = filhos.size
+        s.restarts = 0
+        s.dropped = 0
+        s.vivos = 0
+        for (var n in filhos) {
+            if (n.reinicios > 0) { s.restarts = s.restarts + n.reinicios - 1 }
+            if (n.running) { s.vivos = s.vivos + 1 }
+            if (n.politica == "temporary") { s.dropped = s.dropped + 1 }
+        }
+        return s
+    }
+}
+
+Supervisor supervisor(String nome) {
+    return Supervisor(nome)
+}

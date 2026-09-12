@@ -23,6 +23,10 @@ final class BytecodeStatements {
         List<BytecodeReader.Insn> insns = BytecodeReader.decode(code);
         List<String> sw = recoverSwitch(code, insns, cp, frame);
         if (sw != null) return sw;
+        // Fase C (statement-switch): só tenta se o de expressão recusou
+        // (saída do de expressão preservada byte-idêntica onde aceitava).
+        List<String> sws = BytecodeSwitch.recoverSwitchStmt(code, insns, cp, frame);
+        if (sws != null) return sws;
         if (handlers != null && handlers.length > 0) {
             List<String> fin = recoverFinally(insns, cp, frame, handlers);
             if (fin != null) return fin;
@@ -49,8 +53,8 @@ final class BytecodeStatements {
         int start = handlers[0][0];
         int end = handlers[0][1];
         int handler = handlers[0][2];
-        List<BytecodeReader.Insn> trySeq = range(insns, start, end);
-        List<BytecodeReader.Insn> handlerSeq = range(insns, handler, Integer.MAX_VALUE);
+        List<BytecodeReader.Insn> trySeq = BytecodeSwitch.range(insns, start, end);
+        List<BytecodeReader.Insn> handlerSeq = BytecodeSwitch.range(insns, handler, Integer.MAX_VALUE);
         // handler começa com astore/astore_N (exceção → bind implícito no catch)
         if (!handlerSeq.isEmpty()) {
             int op = handlerSeq.get(0).opcode();
@@ -76,14 +80,6 @@ final class BytecodeStatements {
         return out;
     }
 
-    private static List<BytecodeReader.Insn> range(List<BytecodeReader.Insn> insns, int from, int to) {
-        List<BytecodeReader.Insn> out = new ArrayList<>();
-        for (BytecodeReader.Insn in : insns) {
-            if (in.offset() >= from && in.offset() < to) out.add(in);
-        }
-        return out;
-    }
-
     // ── try/finally (bloco duplicado + handler catch-all) ────────────────
 
     private static List<String> recoverFinally(List<BytecodeReader.Insn> insns, String[] cp,
@@ -91,7 +87,7 @@ final class BytecodeStatements {
         if (handlers.length != 1 || handlers[0].length < 4 || handlers[0][3] != 1) return null;
         int start = handlers[0][0];
         int to = handlers[0][1];
-        List<BytecodeReader.Insn> tryInsns = range(insns, start, to);
+        List<BytecodeReader.Insn> tryInsns = BytecodeSwitch.range(insns, start, to);
         // último store da região try guarda o resultado num temp
         int lastStoreIdx = -1;
         int tempSlot = -1;
@@ -113,7 +109,7 @@ final class BytecodeStatements {
             if (op >= 0x2a && op <= 0x2d && (op - 0x2a) == tempSlot) { retOff = in.offset(); break; }
         }
         if (retOff < 0) return null;
-        List<String> finStmts = emitLinear(range(insns, to, retOff), cp, frame, new HashSet<>());
+        List<String> finStmts = emitLinear(BytecodeSwitch.range(insns, to, retOff), cp, frame, new HashSet<>());
         if (finStmts == null) return null;
 
         List<String> out = new ArrayList<>();
@@ -141,48 +137,6 @@ final class BytecodeStatements {
 
     // ── switch (tableswitch/lookupswitch) ─────────────────────────────────
 
-    private record SwitchInfo(int dflt, int[] values, int[] targets) {
-    }
-
-    private static SwitchInfo parseSwitch(byte[] code, int pc) {
-        int op = code[pc] & 0xFF;
-        if (op != 0xaa && op != 0xab) return null;
-        int pad = (4 - ((pc + 1) % 4)) % 4;
-        int p = pc + 1 + pad;
-        if (p + 4 > code.length) return null;
-        int dflt = pc + readInt4(code, p);
-        p += 4;
-        if (op == 0xaa) {
-            int low = readInt4(code, p); p += 4;
-            int high = readInt4(code, p); p += 4;
-            int n = high - low + 1;
-            if (n < 0 || p + n * 4 > code.length) return null;
-            int[] values = new int[n];
-            int[] targets = new int[n];
-            for (int i = 0; i < n; i++) {
-                values[i] = low + i;
-                targets[i] = pc + readInt4(code, p);
-                p += 4;
-            }
-            return new SwitchInfo(dflt, values, targets);
-        }
-        int npairs = readInt4(code, p); p += 4;
-        if (npairs < 0 || p + npairs * 8 > code.length) return null;
-        int[] values = new int[npairs];
-        int[] targets = new int[npairs];
-        for (int i = 0; i < npairs; i++) {
-            values[i] = readInt4(code, p); p += 4;
-            targets[i] = pc + readInt4(code, p);
-            p += 4;
-        }
-        return new SwitchInfo(dflt, values, targets);
-    }
-
-    private static int readInt4(byte[] code, int pc) {
-        return (code[pc] << 24) | ((code[pc + 1] & 0xFF) << 16)
-             | ((code[pc + 2] & 0xFF) << 8) | (code[pc + 3] & 0xFF);
-    }
-
     private static List<String> recoverSwitch(byte[] code, List<BytecodeReader.Insn> insns,
                                               String[] cp, BytecodeFrame frame) {
         // localiza o switch
@@ -195,11 +149,11 @@ final class BytecodeStatements {
             pc += (l == -1) ? 1 : l;
         }
         if (swOff < 0) return null;
-        SwitchInfo si = parseSwitch(code, swOff);
+        BytecodeSwitch.SwitchInfo si = BytecodeSwitch.parseSwitch(code, swOff);
         if (si == null) return null;
 
         // expressão do switch = topo da pilha antes do switch
-        String expr = BytecodeDecoder.linearReturn(range(insns, 0, swOff), cp, frame);
+        String expr = BytecodeDecoder.linearReturn(BytecodeSwitch.range(insns, 0, swOff), cp, frame);
         if (expr == null) return null;
 
         // limites (targets ordenados) p/ reconstruir cada corpo
@@ -211,13 +165,13 @@ final class BytecodeStatements {
         List<String> out = new ArrayList<>();
         out.add("switch (" + expr + ") {");
         for (int i = 0; i < si.targets.length; i++) {
-            int bodyEnd = nextBound(bounds, si.targets[i], maxOff);
-            String val = BytecodeDecoder.linearReturn(range(insns, si.targets[i], bodyEnd), cp, frame);
+            int bodyEnd = BytecodeSwitch.nextBound(bounds, si.targets[i], maxOff);
+            String val = BytecodeDecoder.linearReturn(BytecodeSwitch.range(insns, si.targets[i], bodyEnd), cp, frame);
             if (val == null) return null;
             out.add("case " + si.values[i] + ": return " + val);
         }
-        int dfltEnd = nextBound(bounds, si.dflt, maxOff);
-        String dfltVal = BytecodeDecoder.linearReturn(range(insns, si.dflt, dfltEnd), cp, frame);
+        int dfltEnd = BytecodeSwitch.nextBound(bounds, si.dflt, maxOff);
+        String dfltVal = BytecodeDecoder.linearReturn(BytecodeSwitch.range(insns, si.dflt, dfltEnd), cp, frame);
         if (dfltVal == null) return null;
         out.add("default: return " + dfltVal);
         out.add("}");
@@ -233,11 +187,6 @@ final class BytecodeStatements {
             case 0xa2 -> ">="; case 0xa3 -> ">"; case 0xa4 -> "<=";
             default -> null;
         };
-    }
-
-    private static int nextBound(java.util.TreeSet<Integer> bounds, int start, int maxOff) {
-        Integer higher = bounds.higher(start);
-        return higher == null ? maxOff : higher;
     }
 
     private static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
@@ -338,7 +287,7 @@ final class BytecodeStatements {
     }
 
     /** Emite statements lineares de um bloco (para em branch/goto/return). */
-    private static List<String> emitLinear(List<BytecodeReader.Insn> seq,
+    static List<String> emitLinear(List<BytecodeReader.Insn> seq,
                                            String[] cp, BytecodeFrame frame,
                                            Set<Integer> declared) {
         List<String> stmts = new ArrayList<>();

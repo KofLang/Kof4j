@@ -2922,7 +2922,7 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   side-effecting em Kof — sem short-circuit de efeitos colaterais). Mesma
   vizinhança do bug 79 (KofPop width-blind).
 
-### 113. Native: `new Int[a][b]` não aloca NADA (op IR sumido) → SIGSEGV em `m[0][0]`/`m.length` — ✅ CORRIGIDO 11/09 (x86; faces riscv/aarch port p/ sessão c/ toolchain) [renumerado da fila pós-merge]
+### 113. Native: `new Int[a][b]` não aloca NADA (op IR sumido) → SIGSEGV em `m[0][0]`/`m.length` — ✅ CORRIGIDO 11/09 (x86 `97d54a60`; faces riscv/aarch ✅ fatia B37 + roteio cross, golden JVM sob qemu — 5/5 targets) [renumerado da fila pós-merge]
 
 - **Menor repro (medido 11/09):** `main() { var m = new Int[2][2]; println(m.length) }`
   → JVM `2`, Script `2`, **Native exit=139 / saída vazia**. Idem
@@ -3371,6 +3371,203 @@ int de índice) — verificados na varredura.
 - **Corpus:** `training/idioms/collections.md` (comentário no remove) +
   `fake-idioms.md` (linha nova).
 
+### 123. Native: `Map<Int,*>` SIGSEGVa em qualquer get/put — `kof_map_find` hardcoded `kof_string_equals` (chave Int vira PONTEIRO) — ✅ CORRIGIDO 11/09 (x86+riscv; aarch por tradução)
+
+- **Menor repro (medido 11/09, probes C1/D1):** `var m = mapOf(1, 2);
+  println(m.get(1))` → **Native ec=139** (SIGSEGV), JVM `2`. Não é o caso
+  de tipo-errado (§122): com os tipos CERTOS (Int key, Int/String val) o
+  programa morria. `m.put(3,4)` idem; `m.size` passava (não chama find).
+- **Causa raiz:** o Map nativo foi escrito para a fase P1 como
+  **`Map<String,V>`** (literal no header do arquivo: "kof.collections:
+  Map<String,V> nativo (P1)") — `kof_map_find` chama `kof_string_equals`
+  SEMPRE; com chave Int o inteiro cru é interpretado como ponteiro →
+  leitura em endereço inválido. O Set já tinha tag de tipo (1=String →
+  `kof_string_equals`, 0 → `cmpq`); o Map nunca recebeu.
+- **✅ Fix (mesma tag, no HEADER do map — off 40, dentro dos 64B já
+  alocados; sem mudar assinatura nem IR):** `kof_map_new` inicializa
+  tag=1 (String = o caso histórico → **zero regressão p/ Unknown**);
+  `kof_map_find` lê a tag do struct (String → equals; senão `cmpq` — chave
+  0 é legítima no modo raw, por isso o skip de null só vale p/ String);
+  o EMITTER (x86 `NativeX86Calls` + riscv `NativeRiscvCrossOps`; aarch
+  traduz o x86) escreve a tag a partir do tipo do 1º arg do put/get/
+  remove/contains (Unknown NÃO toca). O `KofCall` original do mapOf já
+  carregava key Int como INT no slot (mapOf(1,2) funcionava em size) —
+  o modo raw compara exatamente esses words.
+- **Prova:** célula `mapint` 4/4 sem exclusão (put/get/size/containsKey/
+  remove Int-key String-val) + probes D1/C1/C2/D4/A1/A3/MP2 nativos
+  ec=0; suíte completa 4 módulos verde (1501/0/12err-node/136skip).
+- **Fora daqui (registrados):** chave do TIPO ERRADO (Int em Map<String,V>
+  e vizinhos) → família §122 (SEM05x, rejeitar em compile-time) — A2
+  ainda SIGSEGVa até a guarda de Map/Set; §124 novo (abaixo) foi achado
+  pela célula.
+
+### 124. Script/interpretador: `println` de `String?` null → NPE "Cannot read the array length because \"value\" is null" (JVM/Native/JS imprimem `null`) — ✅ CORRIGIDO 11/09
+
+- **Menor repro (medido 11/09, MI5):** `String? nd() { return null }` +
+  `println(nd())` → **Script ec=1** com a mensagem em stderr; **JVM/Native
+  imprimem `null`**. Confirmado PRÉ-EXISTENTE (roda igual com a árvore do
+  §123 em stash) — não é regressão da tag do map. `map.get` de MISS com
+  valor String no interpretador cai no mesmo caminho (MI1: out=[um] então
+  ec=1) e `m.remove` de chave inexistente idem (MI6/MI3).
+- **Causa raiz (stack via `-Dkof.interp.trace=1`):** o `println(arg)`
+  não-escalar baixa `String.valueOf(arg)` como chamada EXTERNA
+  (ExpressionPrintLowerer: `List.of(Unknown)` nos targets não-nativos). No
+  interpretador, `KofInterpreterRuntime.invokeExternal` pontua os overloads
+  com `signatureScore`: arg null nunca passa em `p.isInstance(args[i])`,
+  e `valueOf(char[])`/`valueOf(Object)` empatam em score → a ordem de
+  `c.getMethods()` escolhia o ARRAY → o JDK NPE ("Cannot read the array
+  length because "value" is null" = `new String(char[])` null).
+- **✅ Fix:** no scorer, arg `null` desqualifica parâmetro ARRAY (score
+  −1) a menos que o IR declare `ArrayType` de verdade (guarda por IR, não
+  por sorteio de reflection). `valueOf(Object)` vence → `String.valueOf(
+  null)` = "null", como JVM/Native.
+- **Prova:** `KofInterpreterParityTest.printNullableStringNull` (2 paridades
+  interp≡JVM: `println(nd())` e map-get-miss) + célula `mapint` da matriz
+  4/4 imprimindo `null` no get-miss (antes contornava a terra-minada);
+  suíte completa 4 módulos.
+- **Achas irmãs (registradas, NÃO corrigidas aqui):** `println(Int? null)`
+  → JVM **VerifyError** e Script `Integer.valueOf/1` (NoSuchMethod) —
+  §125. `println(char)` congelado numérico (strings.md) continua intocado.
+
+### 128. kof-cli `DecompileTest#recoversStatementSwitchAndRunsIt` VERMELHO — decompilador emite statement-switch com `var` só no 1º case → SEM011 no recompile — ⏳ ABERTO (não-introduzido pela lane §123/§126; triagem 11/09)
+
+- **Reprodução (exata, medida 11/09):** em `94c4a1fb` LIMPO (working tree
+  sem nenhuma edição da lane collections): `mvn -o -pl kof-cli -am test
+  -Dtest='DecompileTest#recoversStatementSwitchAndRunsIt'` → falha.
+  Reproduz também na suíte completa da lane (§126) com os edits em stash.
+  **Comportamento ordem-dependente**: na suíte completa de 11/09 mais
+  cedo (1501–1502, HEADs anteriores) passava; isolado, falha — método
+  isolado não herda o warm-up/state compartilhado dos 44 vizinhos.
+- **Sintoma:** o esqueleto decompilado de um `switch` statement com
+  variável local compartilhada declara `var v1` APENAS no `case 1` e o
+  referencia nos cases seguintes + no `return` → o recompile do output
+  cospe SEM011 "Undefined variable or type: 'v1'" (3×).
+- **Causa provável:** recuperação de bodies do decompiler (Fase E) não
+  hoista as declarações de locals usados além do case em que aparecem;
+  o recovery por bytecode precisa declarar a variável ANTES do switch
+  (o slot existe desde o primeiro write, mas o escopo Kof é textual).
+- **Não é da lane §123/§126:** nenhum arquivo tocado (kof-cli/decompiler
+  × kof-compiler/collections); a prova é o reproduz-no-HEAD-limpo.
+- **Ação:** lane do decompilador (KOFSCRIPT/legacy) precisa hoistar a
+  declaração; até lá, quem rodar a suíte completa pode ver 1 fail além do
+  node-trio — não "corrigir" o teste (regra: gate quebrado = registrar).
+- **Prioridade:** média (vermelho em teste de gate; sem produto afetado
+  além do round-trip switch-statement).
+
+### 127. JS: `map.get/remove` de MISS com VALOR primitivo devolve `null` (JVM/Native/Script devolvem o default `0`/`false`) — ⏳ ABERTO (pré-existente; achado 11/09 pela célula `wrongkey` do §126)
+
+- **Menor repro (medido 11/09):** `mapOf("a", 1).get("zz")` → **JS `null`**,
+  JVM/Native/Script **`0`**. Célula `wrongkey` divergiu só na última linha
+  (as três anteriores — String-value null, contains false — casam).
+- **Causa:** `kofMapGet`/`kofMapRemove` (JsRuntimeUiLayout:184-197)
+  devolvem `null` fixo no miss; o SG-008/bug-87 (default do primitivo em
+  `Nullable(primitive)` no uso) foi implementado no JVM
+  (`JvmOpCollections.emitPrevValueUnbox`) e no interpretador
+  (`KofInterpreterCollections` guard §112) mas **nunca no JS** — o guard
+  precisa do tipo de retorno do call, que só existe no lowering
+  (`retType` do `CollectionCallLowerer`), não no runtime export.
+- **Fix provável:** no lowerer JS (ou no wrapper da chamada), quando
+  `retType` é primitivo/`Nullable(primitivo)`, `get`/`remove` de miss →
+  default (`0`/`0.0`/`false`/` `) — espelhando o padrão JVM/Script; a
+  célula `mapgetprim` (valores primitivos String-key HIT) não cobre o MISS.
+- **Prova esperada:** `mapOf("a",1).get("zz")` = `0` nos 4 (extensão da
+  célula `wrongkey` tirando a exclusão JS) + paridade `map-miss-primitive`
+  no harness JS.
+
+### 125. `println(<primitivo>? null)` (Int?/Bool?/... null): JVM **VerifyError** na carga + Script **NoSuchMethodError `Integer.valueOf/1`**; Native imprime `0` — ⏳ ABERTO (achado 11/09 ao fixar o §124)
+
+- **Menor repro (PN2, medido 11/09):** `Int? ni() { return null }` +
+  `println(ni())` → **JVM**: VerifyError na inicialização da classe
+  (operand stack — boxing do null); **Script**: `java.lang.Integer.valueOf/1`
+  NoSuchMethodError (o MESMO `invokeExternal` do §124 — agora escolhendo o
+  overload certo, mas o boxing do null não resolve p/ `Integer.valueOf/1`);
+  **Native**: imprime `0` (default do primitivo, SG-008). Os 3 divergem.
+- **Por que é DIVERSO do §124:** lá o arg null do `String?` batia no
+  overload errado (char[] vs Object); aqui `println(Nullable(INT))` faz
+  `boxPrimitive` → `valueOf(INT)` e o caminho do null no boxing/choice
+  falha em outros pontos (JVM bytecode inválido + reflect sem alvo).
+- **Oracle (regra 4) — o PRECEDENTE CONGELADO já responde, mas há
+  inconsistência entre caminhos do MESMO tipo (aqui está o bug):**
+  (a) `println(mapOf("a",1).get("zz"))` — `Nullable(INT)` vindo do
+  MAP-miss — imprime **`0` nos 4 targets** (guard SG-008/bug-87:
+  "uso espera primitivo → null vira default do primitivo"; PN3 medido
+  11/09). (b) `println(String? null)` imprime **`null`** (§124).
+  (c) `println(ni())` com `Int? ni() { return null }` — MESMO tipo
+  `Nullable(INT)` de (a) — crasha JVM/Script e dá `0` no Native.
+  O comportamento de fato congelado é (a): **`0`** — escolher `"null"`
+  aqui CONTRADIZIRIA o map-miss. §125 = alinhar o caminho (c) ao
+  precedente (a): o guard `Nullable(primitivo)→default` vive só na
+  lowering de coleções (`JvmOpCollections`/`prevOrDefault`), nunca no
+  return de FUNÇÃO de usuário; o println(boxed) do null → boxing
+  `valueOf/1` inexistente (Script) e stack int-vs-ref inválida (JVM).
+  Correção provável: o guard no `boxPrimitive` do print-lowering
+  (Nullable(primitive) com null → default ANTES do box), um ponto só,
+  e a célula fecha 4/4 = `0`. Se a mantenedora preferir `"null"` como
+  oracle universal de nullable-print, (a) tem de mudar junto — bump +
+  migração; registrado nas duas leituras, execução aguarda (condição 1).
+- **Prova esperada:** PN2 com o valor do oracle nos 4 targets (célula na
+  matriz 4/4) + `KofInterpreterParityTest`; hoje crash/crash/0.
+- **Prioridade:** média-baixa (crash ruidoso; workaround `if (x != null)`
+  ou `println(x == null ? "null" : x)`).
+
+### 126. Chave do TIPO ERRADO em Map/Set/`contains`-de-List pinados → Native SIGSEGV (JVM tolera com miss/false) — ◐ PARCIAL 11/09 (lado ARG ✅ conjunção; lado CANDIDATO = decisão de contrato pendente)
+
+- **Matriz medida 11/09 (probes A1/A2/MP2/ST1/ST2/E1):**
+  | programa | JVM | Native (hoje) |
+  |---|---|---|
+  | `mapOf("a",1).get(5)` (Int em String-map) | `0` | ✅ `0` (tag §123 resolve: raw cmpq) |
+  | `mapOf(1,"a").get("x")` (String em Int-map) | `null` | ❌ **SIGSEGV** (A2) |
+  | `setOf("a","b").add(5)` / `.contains(5)` / `.remove(5)` | `true/false` | ❌ **SIGSEGV** (ST1/ST2) |
+  | `listOf("a","b").contains(5)` | `false` | ❌ **SIGSEGV** (E1) |
+  | `mapOf(1,"um").put/get(String)` | — | ❌ SIGSEGV (A2 path) |
+- **Causa:** onde existe COMPARAÇÃO por conteúdo o tag 0/1 decide String↔raw,
+  mas o tag vem do tipo do ARG/elemento, não do conteúdo PINADO: em
+  `set.add(5)` num set String o tag sai 1 (String-elem) e o Int cru vira
+  ponteiro no `kof_string_equals`; no Map, o caso simétrico. JVM usa
+  HashMap/HashSet reais (equals por classe → miss silencioso).
+- **Fix (duas metades, mesma família SEM055):**
+  (a) **Map:** o tag do native deve vir do **keyType do receptor**
+      (pinning já garante concreto), não do arg → A2 vira `raw cmpq` e
+      dá `null` como o JVM (seguro, sem rejeição). O emitter já lê
+      `kc.parameterTypes().get(0)` — mudar para o keyType do `ownerType`
+      no lowering (o call carrega Map<K,V> no ownerType).
+  (b) **Set/List-contains:** String-pinned + arg conhecido NÃO-String →
+      **SEM056** (rejeitar; análogo §122; Unknown passa). Int-pinned + arg
+      String: raw-cmp é SEGURO (sem deref) → pode devolver false/null
+      como o JVM sem rejeição. Não rejeitar o que é apenas "miss".
+- **Prova esperada:** A1/A2/MP2/ST1/ST2/E1 viram células 4/4 (com SEM056
+  onde rejeição; null/false onde miss) + `listIndexNonIntRejected`-style
+  no SemanticResolutionTest.
+- **◐ PARCIAL (11/09, lado ARG corrigido):** o tag do Native (map: header
+  off 40 escrito pelo emitter x86+riscv; set/list: literal no lowering) é
+  agora **CONJUNÇÃO elem-receptor × tipo-do-arg**: `1` (kof_string_equals)
+  só quando AMBOS conhecidos String; qualquer outro par → `0` raw cmpq,
+  que nunca deref e produz exatamente o miss do JVM. Provas: E2 e célula
+  `wrongkey` 4/4 (String-arg em Int-map → `null`; Int-arg em String-set →
+  `false`; Int-arg em String-list-contains → `false`; Int em String-map →
+  `0`, como o JVM); A1/A2/MP2/ST1/ST2/E1 nativos ec=0; zero regressão
+  (String-String continua no equals de conteúdo — mapa/células `map`/
+  `mapint`/`set` verdes). SEM rejeição: o reject em alvo único seria
+  fallback silencioso proibido, e em todos os-alvos mudaria comportamento
+  que roda hoje no JVM (regra 2).
+- **⏳ LADO CANDIDATO (residual, ABRIGADO p/ decisão de contrato):**
+  container POLUÍDO — `setOf("a"); s.add(5); s.contains("zz")` (H3) e
+  `mapOf("a",1); m.put(5,"b"); m.get("zz")` (H4): o scan com tag=1 chama
+  `kof_string_equals` no CANDIDATO 5-como-ponteiro → SIGSEGV. O JVM dá
+  `false`/`0` (HashMap heterogêneo tolerante). Dois caminhos possíveis:
+  (i) **guard de range no asm**: antes de equals, validar que o candidato
+  cai no arena do heap (símbolos de base/limit do `kof_alloc`) — mantém
+  o programa rodando, paridade exata com o JVM, mas exige expor os
+  limites do heap p/ runtime asm nos 3 targets + port riscv e teste de
+  candidatos nullos; (ii) **SEM056 em compile-time (opção B, família
+  §122)**: rejeitar `add`/`put` de tipo ≠ elemType PINADO — alinha com a
+  diretriz "Kof estático", mas faz programa que HOJE roda no JVM/JS/
+  Script passar a não compilar (mudança de contrato → condição de
+  parada 1: decisão da mantenedora). Recomendação técnica: (ii) é mais
+  simples e honesto com o tipo da linguagem; (i) é mais permissivo.
+  Registrado aguardando decisão; enquanto isso H3/H4 SIGSEGVam (raro:
+  exige stored-then-full-scan-miss).
+
 ### 120. Tradutor riscv→aarch64: `fcvt.w/l.{s,d}` (FP→INT) traduzido como `scvtf` (direção INVERTIDA) — ✅ CORRIGIDO 11/09 (`fcvtzs`)  *(renumerado de §104 na reconciliação do merge 11/09 — colidiu com o record-equals §104 da série ativa)*
 
 - **Sintoma (achado 11/09 ao portar MATH001):** `var e = 2.5; println((e * 2.0) as Int)`
@@ -3389,3 +3586,187 @@ int de índice) — verificados na varredura.
 - **Prova:** E2E cross `nativeMathDoubleSeries` (riscv/aarch, golden JVM
   medido) + sonda `Double as Int` aarch (0→`5`) + suíte completa.
 
+
+### 127. JVM: cast para tipo de função (`x as () -> Int`) gera bytecode inválido (VerifyError) — 🔴 ABERTO (achado no spike OTP #83 11/09)
+- **Reprodução:** `var o: Object = (Object)(() -> 5)`… em Kof puro:
+  `fun(Int x) { var g = x as () -> Int; return g() }` — `fun(() -> 9)` →
+  **compila ok** mas ao rodar: `VerifyError: Operand stack underflow` /
+  `checkcast // class "?"` (checkcast para classe INEXISTENTE — o tipo de
+  função não tem erasure mapeado no cast).
+- **Menor repro:** `main(){ var l = listOf(() -> 5); var g = l.get(0) as () -> Int; println(g()==5) }` (out_B107).
+- **Impacto OTP:** DD-OTP-02 propunha `child(id, factory, ...)` com `factory`
+  como tipo de função. O cast `as () -> T` está quebrado no JVM, então a forma
+  "Object/qualquer + cast p/ função" NÃO é utilizável hoje.
+- **Workaround verificado (forma que RODA nos targets):** usar **interface** como
+  contrato da fábrica (DD-OTP-06 "factory nova sempre"): `interface Worker { Int
+  criar() }` + `class W implements Worker { criar(){...} }` — dispatch virtual de
+  interface funciona nos 5 targets (spike S2/S4: supervisor puro-Kof com campo
+  `Worker` + `spawn { w.criar() }` + try/await/catch = captura/limit/restart tudo
+  verde no JVM). O campo tipado como `() -> Int` dá PARSE016 (parser de corpo de
+  classe não aceita LPAREN como início de campo — `ClassMemberParser`), e como
+  `Object`+cast dá este §127.
+- **Por que NÃO corrigi agora:** consertar o erasure do cast de tipo-função no
+  `JvmTypeMapper` é mudança de infraestrutura de tipos (afeta `mapOf<String,
+  ()->T>` etc.) — fora do escopo OTP (a interface resolve o caso de uso do
+  supervisor). Registrado como pré-requisito se um dia a API quiser closure como
+  tipo-valor declarado.
+
+
+### 128. JVM: resultado de `selectAny`/`await` de Handle<Int> atribuído a var e usado como Int → VerifyError — 🔴 ABERTO (spike OTP #83 11/09)
+- **Menor repro:** `Int um(){return 1}; Int dois(){return 2}; main(){ var a=spawn
+  um(); var b=spawn dois(); var v=selectAny(a,b); println(v==1||v==2) }` →
+  compila ok, roda: `VerifyError: Bad type on operand stack … Type
+  'java/lang/Object' is not assignable to integer` no `istore` do resultado de
+  `kof_select_any` (que retorna `Object`).
+- **Causa:** o typer sabe o elemento (`selectAny`→typeArg do Handle,
+  `BuiltinCallTyper:304`), mas o lowerer emite `kof_select_any`→`Object` e **não
+  insere o unbox** (`Integer.intValue`) quando o destino é primitivo. `await h`
+  de Handle<Int> seguido de uso Int (`var v=await h; v==1`) NÃO trava no JVM
+  (B108/A1 verdinhos), mas `selectAny` sim. Divergência entre os dois builtins no
+  mesmo lowerer.
+- **Impacto OTP:** DD-OTP-03 propunha `selectAny(handles)` como coração do
+  supervisor N-workers. No JVM o resultado primitivo é inutilizável hoje.
+  Contorno do spike: supervisor JVM usa `poll`/`done` por filho no laço (verificados
+  — `KofConcurrency2Test`) OU um `await` por filho com a thread supervisora por
+  worker; a decisão final depende de fechar este §128 ou fixar o unbox.
+- **Fix mínimo provável (NÃO aplicado — fora do escopo da unidade, para a lane
+  CONC/native):** no `ExpressionStaticCallLowerer` ramo `selectAny`, inserir o
+  mesmo unbox que `await` já faz quando o tipo-destino é primitivo. Reproduzível
+  e pequeno; mas como `await h` de Int já funciona, a assimetria é só de
+  `selectAny` → deixo para o dono da lane CONC (regra dos bugs não-impeditivos: o
+  supervisor consegue viver sem selectAny no núcleo 1ª fatia).
+
+
+### 129. Native x86_64: `throw` dentro de worker `spawn` → unwinder faz longjmp no handler da THREAD MAIN (crash/hang cross-thread) — 🔴 ABERTO (impeditivo do OTP no Native; spike #83 11/09, evidência GDB)
+- **Reprodução (M2, deterministicamente travado/crashado no native):**
+  `main(){ var i=0; while(i<3){ var h=spawn { throw "x" }; try { await h }
+  catch(String e){println("cap")} i=i+1 } println("fim3") }` → imprime
+  `cap 0 cap 1 cap 2 fim3` e o **processo nunca sai** (exit 124 no timeout).
+  Sem try no worker (V1/V3: `spawn { 5 }` + await, sem throw) → sai limpo.
+- **Evidência (GDB, não hipótese):** sob timing variável o processo dá SIGSEGV
+  com `rip=0x0` na main **e** a thread-3 (worker) aparece com stack frames de
+  `kof_spawn_handle_new` nos endereços de STACK DA MAIN (`0x7fffffffd580`,
+  `0x7fffffffd5a0` = locals do `main`). I.e.: o `throw` do worker não
+  encapsula a falha na thread do worker — o **handler chain global
+  (`kof_exc_chain`, bss compartilhada entre threads — `NativeMethodEmitter:238`)
+  faz o longjmp do worker saltar para o handler `try` registrado pela main**
+  (o `try { await h }` da main), corrompendo o stack da main / deixando a
+  task sem join → o epílogo `kof_spawn_join_all` pendura ou a main já se foi.
+- **Comportamento PREVISTO (JVM/interpretador/JS):** `spawn { throw }` faz a
+  task completar excepcionalmente; `await` na main re-lança a causa no
+  CONSUMIDOR (JvmRuntimeCore:202 / KofInterpreterConcurrency:172). A task que
+  falha NUNCA executa código na thread da main. O Native diverge (regra 5 —
+  paridade cross-target).
+- **Impacto OTP (por que é impeditivo, não "bug alheio adiado"):** o núcleo do
+  supervisor #83 É "worker falha → supervisor observa → reinicia". Na forma
+  puro-Kof (spawn+await+try/catch, que é a recomendada no DD-OTP-01-A), isso
+  cai exatamente no caminho do §129 → no Native o supervisor crasha/hanga ao
+  reiniciar UM worker que lança. Sem resolver §129, o gate de paridade da
+  feature (E2E nos nativos) é inalcançável — seria `OTP001` no Native (gap
+  honesto R6), não implementação.
+- **Não corrigi nesta sessão (motivo):** o fix exige dar ao unwinder do Native
+  **isolamento por thread** de `kof_exc_chain` (chain thread-local, como o
+  `cancelled()` por TID já é) + garantir que um `throw` sem handler no worker
+  marque o handle como excepcionalmente-completo em vez de longjmpar para fora
+  da thread. É mudança do MECANISMO de exceção no Native (não um bug pontual) —
+  superfície congelada-adjacente (regra 6/§). Precisa de decisão da mantenedora
+  sobre a convenção de unwind no Native (chain TLS por TID vs frame por thread).
+  Escopo grande (afeta RuntimeDb4/Gc que compartilham o chain). **Ação:**
+  registrar §129 + na 1ª fatia OTP, o gate Native é `OTP001` honesto (R6) até
+  §129 fechado; JVM+Script+JS entregam o núcleo.
+
+
+### 130. Frontend: re-análise do corpo de método no mesmo escopo → SEM024 falso ("variable already defined") — ✅ CORRIGIDO 11/09 (impeditivo do host OTP puro-Kof)
+- **Sintoma:** classe cujo método **sem tipo de retorno declarado** termina em
+  `return <expr>` (ou **chama outro método da mesma classe** que faz isso) →
+  `SEM024: variable 'q' is already defined in this scope` apontando para um `var`
+  que aparece UMA só vez no corpo. Bypassava todo construtor/builder encadeado
+  (`child(id,f)` → `return child(id,f,pol)`), forma canônica de API fluente.
+- **Menor repro (título `S18`):** `class C { a(Int x) { var q = x; return q } }`
+  → SEM024 em `q`. Com `Int a(Int x)` (tipo declarado) → compila. Duas funções
+  de topo com o mesmo `var q` → compila (não é colisão entre unidades).
+- **Causa raiz (`SemanticAnalyzer`):** o corpo de método/constructor passa por um
+  **laço de 4 passes** para inferir return-type (bug 26). No pass 1 o
+  `analyzeBody` `define` cada `var` no `methodScope` (IdentityHashMap criado em
+  `SymbolTableBuilder.defineMethodSymbol`). Quando um `return <expr>` num método
+  void dispara a reinferência (`ms.setReturnType`, l.257-263), `changed=true` e o
+  laço **re-executa `analyzeBody` no MESMO `methodScope`** → o SC5
+  (`scope.hasLocal`, `StatementAnalyzer:136`) reclama de cada `var` do pass
+  anterior. Por isso a suíte estava verde: todo o corpus usa tipos declarados.
+- **Fix (mínimo, sem tocar semântica):** cada análise de corpo ganha um
+  **escopo-filho** (`methodScope.enterScope()` / `ctorScope.enterScope()`) em
+  `analyzeMethodBody`/`analyzeConstructorBody`. `resolve()` anda pai-acima, então
+  params/`this`/campos continuam visíveis; apenas os `var`s deixam de vazar entre
+  passes (o pinning de tipo SG-008 é por-pass e o codegen lê `expressionTypes`,
+  não estes escopos — verificado: nenhum leitor de `methodScopes()`/`ctorScopes()`
+  fora do próprio builder). Redeclaração genuína **no mesmo corpo** continua
+  SEM024 (coberto pelo teste).
+- **Prova:** `SemanticResolutionTest#redeclarationFalsePositiveEmMetodoDeClasse`
+  (repro + run com valor encadeado correto `total==3`) e
+  `#redeclaracaoMesmoCorpoAindaErro` (borda SC5); os 5 mini-repro do spike
+  (T15/T16/T18/T19/T21) viram `ok=true`; bloco `*Class*,*Method*,*Semantic*,*E2E*`
+  = 679/0.
+- **Por que corrigi (regra dos bugs impeditivos):** o núcleo OTP #83 na forma
+  **puro-Kof** (DD-OTP-01-A, recomendada no plano) exige API fluente com método
+  sem tipo declarado encadeando `return`; §130 travava a compilação do host no
+  passo ZERO. É impeditivo direto da unidade assumida, não auditoria geral.
+
+
+### 131. Frontend/Backend: sobrecarga de método por ARIDADE na mesma classe quebra (SEM013 no JVM; colisão de símbolo no NATIVE) — 🔴 ABERTO (achado no spike OTP #83 11/09; contornado)
+- **Reprodução:** `class B { Int m(Int a){ return this.m(a,1) } Int m(Int a, Int
+  b){ return a+b } }` → no JVM: `SEM013: Wrong number of arguments for 'm':
+  expected 2 but got 1` na chamada `b.m(5)` — a seleção de overload ignora o
+  1º método e só "vê" o último definido. Default de parâmetro (`m(Int a, String
+  p = "def")`) também não existe no parser. No NATIVE: quando a resolução passa,
+  a emissão colide (`as: symbol 'Supervisor_child' is already defined`).
+- **Causa provável (JVM):** `defineMethodSymbol` faz `classScope.define(methodSym)`
+  sobreescrevendo o `Symbol` homônimo (um slot por NOME, não por assinatura) →
+  só a última aridade sobrevive no mapa de membros. NÃO investigado a fundo
+  (fora do escopo da unidade — workaround adotado).
+- **Contorno no host OTP:** API usa **assinatura única** `child(id, fabrica,
+  politica)` (sem overload `child/2`). Zero impacto no caso de uso.
+- **Por que NÃO corrigi:** seleção de overload é mudança na **resolução de
+  membros** (afeta toda dispatch, testada por centenas de casos). Impeditivo?
+  NÃO — contornado com 1 assinatura. Deixado para a lane de tipos/overload com
+  este menor repro.
+
+
+### 132. KofJS: task spawnada DE DENTRO de outra task nunca roda sem ceder o event-loop (worker do supervisor nunca dispara) — 🔴 ABERTO (impeditivo JS do OTP #83; gate OTP002 aplicado)
+- **Reprodução (host_u1, target JS, node v20):** `main(){ var h = spawn { 42 }; var t=0; while(t<50 && !done(h)){ time.sleep(10); t=t+1 }; println(done(h)) }` → `done=false` sempre; e no supervisor: `spawn { self.vigiar(n) }` (thread supervisora) faz `n.h = spawn { w.run() }` de DENTRO da task `vigiar` — a fábrica NUNCA é chamada (`fabrica=0`; no JVM a mesma saída é `fabrica=3`).
+- **Causa:** o backend JS é single-thread (modelo de event-loop; `kofSpawnResult` cria Promise). Um `await`/loop numa task agenda continuations como micro/macro-tasks — mas o `time.sleep` do backend JS é síncrono/busy-wait (fila cooperativa de timers, TIME001) e **cede o loop só para timers, não para as promises pendentes da task-mãe** no ponto do `while(!done)` — e o `spawn` filho dentro de uma task-filha pode nunca ser agendado enquanto a mãe segura o loop. `done(h)` num handle rejeitado também reportou `false` no probe J1 (reject marca `done=true` no `.catch` do runtime, mas a visibilidade ao laço spin depende de ceder — mesmo sintoma raiz).
+- **Por que NÃO corrigi:** consertar = redesenhar `time.sleep` JS para ceder o loop (await-style) OU exigir CPS no lowering — mudança de **contrato de execução do backend JS** (concorrência single-thread é decisão documentada, regra 6). Não é mineira nem impeditiva para a UNIDADE: a issue #83 pediu "o menor núcleo funcional"; o gate honesto (OTP002 em compile-time, R6) está aplicado e testado (`KofSupervisorE2ETest#jsGateOtp002`).
+- **Prova do contorno:** mesma semântica verde em JVM e no interpretador (KofScript) via o MESMO frontend + MESMO host .kf — paridade por construção nos dois alvos; os demais bloqueados com diagnóstico, nunca silêncio.
+
+### 133. KofJS (Node/browser): `http.*` sem interop Java devolvia `""` silencioso; fetch era stub — ✅ CORRIGIDO 11/09
+- **Menor repro (node v20):** `main(){ println(http.get("http://127.0.0.1:P/x")) }`
+  → imprimia linha VAZIA (sem erro); `spawn http.get(...)` + `await h` idem → o
+  supervisor/consumidor lia `""` como "resposta vazia" legítima (R6-violation:
+  silêncio onde deveria haver transporte ou erro).
+- **Causa:** `JsRuntimeUiLayout.kofHttpRequest` só implementava o caminho
+  síncrono `Java.type('java.net.http.HttpClient')` (funciona no GraalJS
+  embutido — `KofJsRunner`); no Node/browser o fallback tinha o comentário
+  literal "synchronous fallback not possible … return empty" e `return ""`.
+  O fetch real nunca existiu. `kofHttpStatus` idem (catch → `return 0`).
+- **Por que a face era "impossível":** HTTP é inherently async em JS; a API
+  `http.get(...)` é síncrona por contrato nos outros targets. Resolver
+  async→sync no thread principal não existe (Atomics.wait trava o próprio loop).
+- **Fix:** fallback Node/browser agora usa `fetch` REAL e devolve **Promise**
+  (headers `\n`-split, `AbortController` com `http.timeout(sec)`, ≥500 →
+  falha + circuit-record, como o ramo Java). `kofSpawnResult` já roda
+  `task.invoke()` dentro de `Promise.resolve().then(...)` — a Promise do fetch
+  encadeia NATURALMENTE e `await h` resolve o corpo: **`spawn http.get(url)`
+  + `await` vira a forma assíncrona idiomática no JS** (zero mudança de AST,
+  a máquina Handle<T> existente é o carrier). `await http.get(...)` de valor
+  já-resolvido continua ok; o `await` do `main` JS precisa ceder o loop (§132 —
+  task-de-TASK segue gateada; aqui não há task-de-task: o fetch é o proprio
+  worker do handle). Face SÍNCRONA no Node fica honesta: `http.get(...)` sem
+  spawn/await devolve o Promise cru (`[object Promise]` no println) — NÃO
+  retrói para `""`; registro HTTP004 na matriz de paridade como borda do
+  backend (sync http não existe em JS puro; a linguagem entrega async).
+  `kofHttpStatus` ganhou fallback HEAD via fetch (Promise→status).
+  Caminho GraalJS (KofJsRunner) INTACTO — `jsHttpGet`/`jsHttpServerRoundtrip`
+  continuam síncronos e verdes.
+- **Prova:** `KofHttpE2ETest.jsNodeSpawnAwaitHttpResolvesBody` (node v20;
+  `spawn get` + `spawn post` + awaits → `"Hello from Kof|got:xyz"` byte-a-byte;
+  sabotagem do fallback → fail) + harness medindo `spawn/await/selectAny` no
+  Node (`ola-async|ola-async`, `any=true`) e status `200` via `spawn`+`await`.

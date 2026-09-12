@@ -420,7 +420,18 @@ public final class JsRuntimeUiLayout {
                     let req = builder.build();
                     let resp = client.send(req, Java.type('java.net.http.HttpResponse$BodyHandlers').discarding());
                     return resp.statusCode();
-                } catch(e) { return 0; }
+                } catch (e) {
+                    // sem interop Java (Node/Browser): HEAD via fetch → Promise
+                    // (resolve no await; HTTP004 — face síncrona JS não existe).
+                    if (typeof fetch !== 'undefined') {
+                        const ac = new AbortController();
+                        const timer = setTimeout(() => ac.abort(), (kofHttpTimeoutSec || 30) * 1000);
+                        return fetch(url, { method: "HEAD", signal: ac.signal })
+                            .then(r => { clearTimeout(timer); return r.status; },
+                                  err => { clearTimeout(timer); throw err; });
+                    }
+                    throw new Error("kof.http.status: no transport (sem Java interop nem fetch): " + url);
+                }
             }
             function kofHttpRequest(url, method, headers, body) {
                 if (kofHttpCircuitOpen()) {
@@ -457,15 +468,34 @@ public final class JsRuntimeUiLayout {
                             kofHttpCircuitRecordSuccess();
                             return resp.body() != null ? resp.body() : "";
                         }
-                        // Fallback to fetch if Java interop not available (Node/Browser)
+                        // Fallback assíncrono real (Node/Browser): fetch devolve
+                        // Promise — propaga pelo kofSpawnResult (.then encadeia)
+                        // e resolve no await. Chamada síncrona sem await recebe o
+                        // Promise cru (face síncrona JS não existe: HTTP004).
                         if (typeof fetch !== 'undefined') {
-                            // synchronous fallback not possible - use deasync via Atomics if available
-                            // For MVP, do blocking via fetch sync is not supported; return empty
-                            kofHttpCircuitRecordSuccess();
-                            return "";
+                            const h = {};
+                            if (headers) {
+                                const lines = headers.split("\\n");
+                                for (const line of lines) {
+                                    const i = line.indexOf(":");
+                                    if (i > 0) h[line.substring(0, i).trim()] = line.substring(i + 1).trim();
+                                }
+                            }
+                            const ac = new AbortController();
+                            const timer = setTimeout(() => ac.abort(), (kofHttpTimeoutSec || 30) * 1000);
+                            return fetch(url, { method, headers: h, body: body != null ? body : undefined, signal: ac.signal })
+                                .then(r => r.text().then(b => [r.status, b]))
+                                .then(([status, bodyText]) => {
+                                    clearTimeout(timer);
+                                    if (status >= 500) {
+                                        kofHttpCircuitRecordFailure();
+                                        throw new Error("HTTP " + status + " from " + url);
+                                    }
+                                    kofHttpCircuitRecordSuccess();
+                                    return bodyText;
+                                }, err => { clearTimeout(timer); kofHttpCircuitRecordFailure(); throw err; });
                         }
-                        kofHttpCircuitRecordSuccess();
-                        return "";
+                        throw new Error("kof.http: no transport (sem Java interop nem fetch)");
                     } catch(e) {
                         lastErr = e;
                         kofHttpCircuitRecordFailure();

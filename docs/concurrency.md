@@ -164,13 +164,22 @@ A mesma semântica Kof utiliza implementações diferentes:
 |--------|---------------|--------|
 | JVM 21+ | Virtual Threads (scheduler da JVM) | ✅ `await`/`Handle<T>` + `kof.mq` |
 | Native x86_64 | OS threads: `pthread_create` + trampoline + `await`/`pthread_join` + `done`/`poll`/`cancel`/`cancelled`/`selectAny` + allocator thread-safe (futex) | ✅ 31/08 (`CONC001` fechado) |
-| Native riscv64/aarch64 | OS threads futuro (target ainda placeholder) | `CONC001` (placeholder) |
+| Native riscv64/aarch64 | OS threads: `clone(220)` + stack por `mmap` + espera por futex em `handle->done` (`nat/NativeRiscvSpawn.java`) — **só** `spawn`/`await`/join implícito | ⚠️ parcial: `poll`/`done`/`cancel`/`cancelled`/`selectAny`/`awaitTimeout` **ausentes** (sem gate — ver nota abaixo) |
 | JS (GraalJS) | `async`/`await`/`Promise` nativos — coloração async por fixpoint no compilador (`JsBackend.computeAsyncColoring`), handle `{done,value,error,promise}`, canais com fila de resolvers pendentes, `KofJsRunner` drena a fila de microtasks (`kofActiveTasks`) | ✅ 03/09 (`CONC003` fechado) |
 | KofScript | JVM via KofScriptGlobals | ✅ |
 
 O código Kof não muda entre targets; no x86_64 não há mais gap de
-`spawn`/`await` (`CONC001` fechado) nem no JS (`CONC003` fechado) — o
-restante do `CONC001` se aplica só aos targets riscv64/aarch64 (placeholder).
+`spawn`/`await` nem dos auxiliares (`poll`/`done`/`cancel`/`cancelled`/
+`selectAny`/`awaitTimeout` — `CONC001` fechado, incluindo o residual), nem
+no JS (`CONC003` fechado). Em riscv64/aarch64 o `spawn`/`await` existe
+(`clone` 220 + futex), mas os auxiliares **não** — e hoje essa ausência não
+produz diagnóstico: não há gate de compile-time para
+`kof_select_any`/`kof_poll`/`kof_done`/`kof_cancel`/`kof_await_timeout`, e
+`NativeRiscvCrossOps.resolveCalleeNameRiscv` (`:305`) cai no `sanitizeName`
+genérico e emite a `call` assim mesmo — então o erro aparece só no **link**,
+como símbolo indefinido, não como gap honesto. Corrigir isso é pendência da
+lane Native (R6).
+
 No JS especificamente: só lambdas criadas direto num site de `spawn`
 ("task-lambdas") podem virar `async function`; ver restrição
 `CONC003-JS-01` na seção 3. `cancelled()` no JS sempre retorna `0`
@@ -178,6 +187,43 @@ No JS especificamente: só lambdas criadas direto num site de `spawn`
 async functions intercaladas no GraalJS embutido).
 
 ---
+
+## 4.5 Supervisor (kof.supervisor — issue #83, 11/09, experimental)
+
+Núcleo de supervisão OTP escrito **em Kof** (host injetado pelo
+`import kof.supervisor` — mecanismo do `android-host`, zero mudança de VM):
+
+```kof
+import kof.supervisor
+
+supervisor("net")                       // objeto novo por sistema
+    .child("conn", Fabrica(), "permanent")  // permanent|transient|temporary
+    .restartLimit(5)                    // máximo de reinícios antes de escalar
+    .escalate(Handler)                  // callback KofEscalate (opcional)
+    .start()                            // dispara os workers
+    .stop(2000)                         // encerra controlado (cancel + deadline)
+    .stats()                            // KofSupStats(started,restarts,dropped,vivos)
+```
+
+- **Observação de falha:** um laço `vigiar` por filho (`spawn` dedicado) faz
+  `await` do handle do worker dentro de `try/catch (String)` — a causa original
+  chega ao supervisor (`done()`+poll não é usado: polling de handle-falha é
+  frágil nos alvos sem preempção).
+- **Reinício individual com estado limpo:** a `KofWorkerFactory` fabrica um
+  `KofWorker` **novo** a cada reinício (DD-OTP-06) — nunca re-corre o objeto que
+  falhou.
+- **Políticas (DD-OTP-04):** `permanent` cai→sempre reinicia (terminar normal é
+  anomalia); `transient` termina-normal→para, falha→reinicia; `temporary`
+  nunca reinicia (descartado).
+- **Limite + escala (DD-OTP-07/08):** `restartLimit(max)` → ao estourar, chama
+  `escalate.disparou(id,motivo,reinicios)`; sem handler, PARA de reiniciar e
+  avisa no stdout (R6 — nunca loop infinito silencioso).
+- **Encerramento controlado:** `stop(deadlineMs)` cancela cooperativamente
+  (flag `cancelled()` nos targets com threads) e espera o deadline; filhos que
+  ignoram o cancel são reportados.
+- **Paridade (regra 6):** JVM ✅ · KofScript ✅ · Native = `OTP001` (§129: throw
+  em task longjmpa no handler chain global) · JS = `OTP002` (§132: event-loop
+  não agenda task-de-task) — ambos bloqueados no compile-time com diagnóstico.
 
 ## 5. I/O Concorrente
 

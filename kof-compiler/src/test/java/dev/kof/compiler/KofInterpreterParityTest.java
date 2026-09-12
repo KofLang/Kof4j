@@ -440,4 +440,25 @@ class KofInterpreterParityTest {
                 }
                 """);
     }
+
+    @Test
+    void printNullableStringNull() throws IOException {
+        // §124: println(String? null) NPEava no interpretador (o scorer de
+        // assinatura do invokeExternal empatava valueOf(char[]) com
+        // valueOf(Object) p/ arg null e a ordem do getMethods() escolhia o
+        // array). JVM/Native imprimem "null" — o interpretador tem de imprimir.
+        parity("print-null-str", """
+                String? nd() { return null }
+                main() {
+                    println(nd())
+                }
+                """);
+        parity("map-miss-print", """
+                main() {
+                    var m = mapOf(1, "um")
+                    m.remove(1)
+                    println(m.get(1))
+                }
+                """);
+    }
 }

@@ -43,6 +43,8 @@
 | string unicode indexOf/lastIndexOf (code units) | `6` / `-1` / `4` / `3` | DONE | DONE (bug 43 ✅ 10/09 x86) | DONE | DONE | `unicode-indexof` |
 | string ops split/toLowerCase/trim | `4` / `hello world` / `x\|` | DONE | DONE | DONE | DONE | `strops` |
 | map put/get/size | `1` / `2` | DONE | DONE | DONE | DONE | `map` |
+| `Map<Int,V>` put/get/remove + get-miss `null` | `um`/`dois`/`2`/`um`/`null` | DONE | DONE (bug 123 ✅ 11/09 — era **SIGSEGV**: `kof_map_find` com `kof_string_equals` no chave Int → ponteiro; tag de chave no header off 40, espelhando o Set) | DONE (bug 124 ✅ 11/09 — era NPE "value is null": `println` do miss baixava `valueOf(Unknown)`, o scorer do `invokeExternal` empatava `valueOf(char[])`/`valueOf(Object)` e pegava o array) | DONE | `mapint` |
+| chave errada como ARG de query (Map/Set/List) | `null`/`false`/`false`/`0` | DONE | DONE (bug 126 ✅ parcial 11/09 — era SIGSEGV no arg do tipo errado; tag é CONJUNÇÃO elem×arg: String-equals só quando ambos String, senão raw cmpq = miss como o JVM) | DONE | **PARTIAL** (JS divergência PRÉ-EXISTENTE: `mapOf("a",1).get(5)` → `null` no JS vs `0` nos outros; bug 127 §126 residual) | `wrongkey` |
 | list empty/isEmpty/contains | `true` / `0` / `false` | DONE | DONE | DONE | DONE | `emptylist` |
 | `null == null` / `!=` | `true` / `false` | DONE | DONE | DONE | DONE | `nulleq` |
 | if-expr curto-circuito null | `iguais` / `nao-ne` | DONE | DONE | DONE | DONE | `nulleqshortcut` |
@@ -60,7 +62,7 @@
 | record com campo String `==` por conteúdo (null-safe) | `true` / `false` / `true` / `false` | DONE | DONE (bug 114 ✅ 11/09 Native — era **ponteiro** (`S("ab")==S("ab")` false); campo String agora via `kof_string_equals`; campo record aninhado/hash-ref/coleção ficam §104b-ii) | DONE | DONE | `recordstrfield` |
 | lambda filter/map/reduce | `90` | DONE | DONE | DONE | DONE | `lambdachain` |
 | lambda captura mutável | `3` | DONE | DONE | DONE | DONE | `lambdacapture` |
-| array 2D/3D: alloc + length + store/load + zero-fill | `60`/`3`/`2`/`3`/`0`/`7`/`2`/`2`/`9`/`0` | DONE | DONE (bug 113 ✅ 11/09 x86 — `new Int[a][b]` NÃO alocava nada: `KofNewMultiArray` caía no `default->{}` → SIGSEGV; agora `kof_multi_alloc` recursivo; faces riscv/aarch = port c/ toolchain) | DONE | DONE | `array2d` |
+| array 2D/3D: alloc + length + store/load + zero-fill | `60`/`3`/`2`/`3`/`0`/`7`/`2`/`2`/`9`/`0` | DONE | DONE (bug 113 ✅ 11/09 x86 — `new Int[a][b]` NÃO alocava nada: `KofNewMultiArray` caía no `default->{}` → SIGSEGV; agora `kof_multi_alloc` recursivo; faces riscv/aarch ✅ 11/09 — fatia B37 + roteio cross, golden JVM sob qemu) | DONE (B37, port 0.3.0→0.4.0 ✅) | DONE (tradutor, ✅) | `array2d` |
 | store `Int` em slot `Long[]` (widening, 1-D e 2-D) | `9` / `3` / `0` | DONE (bug 121 ✅ 11/09 — era **frame crash** no `COMPUTE_FRAMES`: o bloco de conversão do `ExpressionAssignmentLowerer` era um `if {}` que só comentava a promessa, nunca emitia `I2L`) | DONE | DONE | DONE | `arrlongstore` |
 | campo estático + bump | `1` / `2` / `2` | DONE | DONE (bug 41 corrigido 07/09) | DONE | DONE | `staticfield` |
 | campo estático `+=` | `2` / `4` / `4` | DONE | DONE (bug 41) | DONE | DONE | `staticpluseq` |
