@@ -60,8 +60,7 @@ public final class NativeRiscvCrossEmit {
 
     void emitCrossMethodRiscv(StringBuilder sb, IRClass clazz, IRMethod method, boolean joinMain) {
         // Mangle idêntico ao x86_64 (vtables referenciam esses símbolos).
-        String mangled = nb.sanitizeName(clazz.name()) + "_" + nb.sanitizeName(method.name());
-        if ("<init>".equals(method.name())) mangled += "_" + method.parameterTypes().size();
+        String mangled = nb.fnSymbol(clazz.name(), method.name(), method.parameterTypes());
         int maxSlot = method.localVariables().stream().mapToInt(IRLocalVariable::index).max().orElse(0);
         int frameSize = Math.max((maxSlot + 1) * 8 + 16, 32);
         frameSize = (frameSize + 15) & ~15;

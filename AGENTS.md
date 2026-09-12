@@ -562,6 +562,12 @@ despedida(): String { return "tchau" }       // tipo depois dos parênteses
 void fazIsso() { println("x") }              // void explícito
 Bool positivo(Int x) = x > 0                 // expression body
 Int dobro(Int x) { return x * 2 }
+
+Int g(Int x) { return x }                    // sobrecarga top-level (0.4.0,
+Int g(Int x, Int y) { return x + y }         // oracle JVM): assinatura difere
+// ❌ duplicata EXATA → SEM047; só trocar o RETORNO NÃO é sobrecarga (SEM047)
+// chamada ambígua → SEM057 (dê tipo ao argumento p/ escolher)
+// sobrecarga de MÉTODO de classe ainda NÃO existe (§131, aberto)
 ```
 
 ### Variáveis (só dentro de funções/corpos — **não existe top-level `val`/`var`/`let`**)

@@ -96,7 +96,10 @@ public final class JsMethodParser {
         String name = method.name();
         if ("<init>".equals(name)) name = "constructor";
         if (isTopLevel) {
-            name = this.lc.jsFunctionName(name, method.parameterTypes().size());
+            // SG-011B: resolve pela ASSINATURA (twice(String) vs twice(Int) têm
+            // a mesma aridade — por aridade colidiriam); não-sobrecarregadas
+            // caem no caminho antigo (nome cru / $d de defaults).
+            name = this.lc.jsFunctionName(name, method.parameterTypes(), method.parameterTypes().size());
         }
         return new JsIr.JsFunction(name, parameterNames(ctx), parseMethodBody(ctx), isStatic, false, isTopLevel,
                 ctx.isAsync, firstKofLine(method));

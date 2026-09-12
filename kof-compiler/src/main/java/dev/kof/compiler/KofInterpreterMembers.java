@@ -85,6 +85,25 @@ public final class KofInterpreterMembers {
         return internal == null ? null : kofClasses.get(internal);
     }
 
+    // SG-011B: com a assinatura do KofCall (mesma fonte do descritor JVM) o
+    // dispatch é EXATO — twice(Int) vs twice(String) (mesma aridade) deixam de
+    // colidir. Sem correspondência exata (ou sem sig), cai no nome+aridade de
+    // sempre (zero regressão p/ classes e p/ calls de um único candidato).
+    IRMethod findKofMethod(IRClass c, String name, int argc, List<Type> sig) {
+        if (sig != null && sig.size() == argc) {
+            String want = TopLevelOverload.sigTag(sig);
+            for (IRMethod m : c.methods()) {
+                if (m.name().equals(name) && m.parameterTypes().size() == argc
+                        && TopLevelOverload.sigTag(m.parameterTypes()).equals(want)) return m;
+            }
+        }
+        for (IRMethod m : c.methods()) {
+            if (m.name().equals(name) && m.parameterTypes().size() == argc) return m;
+        }
+        IRClass sup = c.superName() == null ? null : classByInternal(c.superName());
+        return sup == null ? null : findKofMethod(sup, name, argc, sig);
+    }
+
     Object loadField(KofLoadField lf, Object recv) {
         if (BuiltinTypes.isString(lf.ownerType()) && "length".equals(lf.name())) {
             return ((String) recv).length();

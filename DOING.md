@@ -42,6 +42,18 @@ Estados: `ABERTO` · `EM CURSO` · `FEITO` · `BLOQUEADO`.
 
 ## PRÓXIMO PASSO (re-dispacho lê isto)
 
+> **LANE development (humano 11/09, mais recente):** foco **100% nas pendências
+> de `docs/development/` + estabilização da `beta-0.4.0`** (ver AVISO no topo).
+> Ordem da fila dev (sem dono, sem colisão com a lane bugfix §125/§126/§104b-ii):
+> **PRÓXIMO = SG-002** (tokens mortos do lexer viram diagnóstico reservado
+> explícito — frontend simples, sem mudança de contrato congelado), depois faces
+> cross §123/§126-tag com qemu (emissores escritos, falta só a prova na sessão
+> com toolchain) e §107 `println(<coleção>)` nativo. **NÃO** tocar: fila
+> bugfixer (bugs §125/§126/§104b-ii = lane deles), `JvmOpCollections`,
+> `CollectionCallLowerer`, `NativeRiscv*Asm*` das coleções.
+
+**FEITO (11/09, lane development — SG-011B SOBRECARGA TOP-LEVEL, oracle JVM — §135):** liberada a sobrecarga de **função top-level** por assinatura (era SEM047 p/ QUALQUER homônimo; agora só duplicata EXATA e colisão só-de-retorno). Seleção no frontend (`TopLevelOverload.pick`: aplicável + mais específico, igualdade exata > subtipagem — medido `w(Animal)/w(Dog)` → JVM-consistentes `2 1`), ambígua → **SEM057** (novo código; SEM056 já era o da escrita heterogênea §126 deles — NÃO colidir). Cada backend referencia o candidato pela **assinatura** (mesma fonte do descritor JVM que já viajava em `KofCall.parameterTypes`): **Native** = símbolo asm sufixado (`Default_Main_g_I`/`_I_I`) nos 4 sítios (pré-registro forward-ref, `emitMethod` x86, `resolveCalleeName` x86+riscv, vtable do recipiente Main; aarch herda tradutor) + de-duplica wrapper de default-arg (`d/1` vs `d/2` colidiam no `as` ANTES disto); **JS** = nome sufixado por assinatura quando ≥2 sob o nome + chave de coloração async leva a tag (senão Promise vaza p/ valor = divergência silenciosa); **interpretador** = `findKofMethod` casa tag exata antes do fallback nome+aridade. Programa de candidato único = byte-idêntico ao antes (não-regressão). **Prova:** `TopLevelOverloadE2ETest` 6/6 (JVM/Script/JS/x86 + riscv64/aarch64 sob qemu EXECUTADOS: `5 11 abab 42` / defaults `7 11` / subtype `2 1`) + `CompilerDriverTest` (distinct compila; dup-exata e só-retorno SEM047). Docs: `specification-gaps.md` SG-011B→APLICADO, known-bugs **§135** novo + nota no §131 (método de classe segue ABERTO — outra máquina), status.md, `training/idioms/functions.md` (novo idiom). `KofInterpreter` voltado a 495 (≤500) movendo `findKofMethod` p/ `KofInterpreterMembers`. Renumerei p/ SEM057 e §135 APÓS pull (reclaimed §134/SEM056 dos bugs). **PRÓXIMO PASSO (dev):** confirmar suíte 4-módulos verde no SHA do commit; depois SG-002 (tokens mortos → diagnóstico reservado).
+
 > **LANE 11/09 (humano):** este agente = **agente bugfixer**, foco **100% em
 > corrigir bugs e estabilizar a `beta-0.4.0`** (será a nova beta). Ordem:
 > reproduzir → causa raiz → fix mínimo → teste de regressão → suíte verde na

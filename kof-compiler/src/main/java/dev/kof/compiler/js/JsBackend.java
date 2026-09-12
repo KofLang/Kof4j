@@ -6,6 +6,7 @@ import dev.kof.compiler.IRModule;
 import dev.kof.compiler.KofCall;
 import dev.kof.compiler.KofCallKind;
 import dev.kof.compiler.KofOperation;
+import dev.kof.compiler.TopLevelOverload;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -99,12 +100,16 @@ public class JsBackend implements Backend {
         // overloading, so wrappers are mangled by dropped-arity and calls
         // are routed by (name, arity).
         this.lc.fnArityNames = new HashMap<>();
+        this.lc.fnSigNames = new HashMap<>();
         for (IRClass clazz : module.classes()) {
             if (JsLoweringContext.skipClass(clazz) || !JsLoweringContext.isMainClass(clazz)) continue;
             Map<String, Integer> maxArity = new HashMap<>();
+            Map<String, Set<String>> sigsByName = new HashMap<>();
             for (IRMethod method : clazz.methods()) {
                 if ("<init>".equals(method.name())) continue;
                 maxArity.merge(method.name(), method.parameterTypes().size(), Math::max);
+                sigsByName.computeIfAbsent(method.name(), k -> new LinkedHashSet<>())
+                        .add(TopLevelOverload.sigTag(method.parameterTypes()));
             }
             for (IRMethod method : clazz.methods()) {
                 if ("<init>".equals(method.name())) continue;
@@ -113,8 +118,17 @@ public class JsBackend implements Backend {
                 String jsName = arity == max
                         ? method.name()
                         : method.name() + "$d" + (max - arity);
+                // SG-011B: duas assinaturas distintas sob o mesmo nome → sufixo
+                // de assinatura no NOME JS (JavaScript não tem sobrecarga). Um
+                // único candidato por nome mantém o nome cru (zero regressão).
+                boolean overloaded = sigsByName.get(method.name()).size() > 1;
+                if (overloaded) jsName += TopLevelOverload.sigTag(method.parameterTypes()).replace('_', '$');
                 lc.fnArityNames.computeIfAbsent(method.name(), k -> new HashMap<>())
                         .put(arity, jsName);
+                if (overloaded) {
+                    lc.fnSigNames.computeIfAbsent(method.name(), k -> new HashMap<>())
+                            .put(TopLevelOverload.sigTag(method.parameterTypes()), jsName);
+                }
             }
         }
         computeAsyncColoring(module);

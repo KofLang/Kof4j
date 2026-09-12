@@ -4563,21 +4563,50 @@ class CompilerDriverTest {
                 + result.diagnostics().getDiagnostics());
     }
 
-    // SG-011B (SEM047) — sobrecarga top-level não existe: função homônima é
-    // erro de compilação (antes a última sobrescrevia silenciosamente).
+    // SG-011B — sobrecarga top-level com assinatura DIFERENTE É permitida (oracle
+    // JVM): f(Int) e f(String) coexistem e resolvem no call site. O que SEM047
+    // continua rejeitando é DUPLICATA EXATA (mesmo nome + mesmos parâmetros) e a
+    // colisão só-de-retorno (JVM também rejeita — retorno não é assinatura).
     @Test
-    void duplicateTopLevelFunctionFails(@TempDir Path tempDir) throws IOException {
+    void distinctSignatureOverloadCompiles(@TempDir Path tempDir) throws IOException {
         Path source = tempDir.resolve("D.kf");
         Files.writeString(source, """
             Int f(Int x) { return x + 1 }
             Int f(String s) { return 2 }
+            main() { println(f(1)) println(f("z")) }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertTrue(result.success(), "assinaturas distintas devem sobrecarregar: "
+                + result.diagnostics().getDiagnostics());
+    }
+
+    @Test
+    void duplicateExactSignatureFails(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("D.kf");
+        Files.writeString(source, """
+            Int f(Int x) { return x + 1 }
+            Int f(Int x) { return x + 2 }
             main() { println(f(1)) }
             """);
         CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
-        assertFalse(result.success(), "overload top-level deve falhar");
+        assertFalse(result.success(), "duplicata exata de assinatura deve falhar");
         String diags = result.diagnostics().getDiagnostics().toString();
         assertTrue(diags.contains("SEM047"), "should be SEM047, got: " + diags);
         assertTrue(diags.contains("already defined"), "deve nomear o conflito: " + diags);
+    }
+
+    @Test
+    void returnOnlyCollisionFails(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("D.kf");
+        Files.writeString(source, """
+            Int h(Int x) { return x }
+            String h(Int x) { return "s" }
+            main() { println(h(1)) }
+            """);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "mesma assinatura com retorno diferente deve falhar (JVM)");
+        assertTrue(result.diagnostics().getDiagnostics().toString().contains("SEM047"),
+                "should be SEM047, got: " + result.diagnostics().getDiagnostics());
     }
 
     // SG-002 — tokens mortos removidos: `~`, `=>`, `|>`, `::`, `...`, `_`,

@@ -114,7 +114,7 @@ void handleCall(MethodCtx ctx, List<Object> stack,
         if (kc.kind() == KofCallKind.FUNCTION) {
             // top-level function call (arity routes default-parameter wrappers)
             finishCall(stack, kc, new JsIr.JsCall(
-                    new JsIr.JsIdentifier(p.lc.jsFunctionName(kc.methodName(), kc.parameterTypes().size())),
+                    new JsIr.JsIdentifier(p.lc.jsFunctionName(kc.methodName(), kc.parameterTypes(), kc.parameterTypes().size())),
                     args));
             return;
         }

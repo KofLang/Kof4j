@@ -47,6 +47,7 @@ public final class MethodCtx {
         this.recordClass = clazz != null && "java/lang/Record".equals(clazz.superName());
         String asyncKey = clazz == null
                 ? "#" + method.name() + "/" + method.parameterTypes().size()
+                        + dev.kof.compiler.TopLevelOverload.sigTag(method.parameterTypes())
                 : JsLoweringContext.asyncMethodKey(clazz, method);
         this.isAsync = lc.asyncMethods.getOrDefault(asyncKey, false);
         // lambda synthetic classes hold captured locals as private final

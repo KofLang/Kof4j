@@ -59,12 +59,16 @@ final class NativeClassMeta {
         for (IRMethod m : clazz.methods()) {
             if (!"<init>".equals(m.name()) && !"<clinit>".equals(m.name())
                     && !m.name().startsWith("kof_")) {
+                // SG-011B: fnSymbol == sanitize+"_"+name p/ classes reais (vtable
+                // idêntica); só o recipiente Main leva sufixo de assinatura — o
+                // MESMO da .globl, então cada slot referencia um símbolo definido.
+                String sym = nb.fnSymbol(clazz.name(), m.name(), m.parameterTypes());
                 int idx = methodNames.indexOf(m.name());
                 if (idx >= 0) {
-                    methods.set(idx, nb.sanitizeName(clazz.name()) + "_" + nb.sanitizeName(m.name()));
+                    methods.set(idx, sym);
                 } else {
                     methodNames.add(m.name());
-                    methods.add(nb.sanitizeName(clazz.name()) + "_" + nb.sanitizeName(m.name()));
+                    methods.add(sym);
                 }
             }
         }

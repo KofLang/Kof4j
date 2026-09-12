@@ -4,6 +4,7 @@ import dev.kof.compiler.IRClass;
 import dev.kof.compiler.IRMethod;
 import dev.kof.compiler.KofCall;
 import dev.kof.compiler.KofOperation;
+import dev.kof.compiler.TopLevelOverload;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -25,6 +26,8 @@ public class JsLoweringContext {
     final Set<String> recordClassNames = new HashSet<>();
     Map<String, Set<String>> classMethodNames = Map.of();
     Map<String, Map<Integer, String>> fnArityNames = Map.of();
+    /** SG-011B: nome JS quando há ≥2 assinaturas sob o mesmo nome (chave = sigTag). */
+    Map<String, Map<String, String>> fnSigNames = Map.of();
     Map<String, Boolean> asyncMethods = Map.of();
     Set<String> asyncMethodNamesAnywhere = Set.of();
     /** ops do método em lowering — usado na mensagem de underflow da pilha */
@@ -49,6 +52,18 @@ public class JsLoweringContext {
         return name;
     }
 
+    /** SG-011B: com assinatura (os tipos do KofCall — a mesma fonte do
+     *  descritor JVM) resolve o nome exato quando o nome está sobrecarregado;
+     *  senão cai no caminho antigo por (nome, aridade). */
+    String jsFunctionName(String name, List<dev.kof.compiler.Type> sig, int arity) {
+        Map<String, String> bySig = fnSigNames.get(name);
+        if (bySig != null) {
+            String resolved = bySig.get(dev.kof.compiler.TopLevelOverload.sigTag(sig));
+            if (resolved != null) return resolved;
+        }
+        return jsFunctionName(name, arity);
+    }
+
     void registerRuntime(String fn) {
         if (!runtimeImports.contains(fn)) runtimeImports.add(fn);
     }
@@ -66,14 +81,22 @@ public class JsLoweringContext {
 
     static String asyncMethodKey(IRClass clazz, IRMethod method) {
         int arity = method.parameterTypes().size();
-        if (isMainClass(clazz)) return "#" + method.name() + "/" + arity;
+        // SG-011B: top-level leva a assinatura na chave — duas sobrecargas de
+        // mesma aridade (twice(String)/twice(Int)) não podem herdar a cor
+        // async uma da outra (await em função não-async = Promise vazando p/
+        // valor = divergência silenciosa).
+        if (isMainClass(clazz)) return "#" + method.name() + "/" + arity
+                + TopLevelOverload.sigTag(method.parameterTypes());
         return clazz.name() + "#" + method.name() + "/" + arity;
     }
 
     static String calleeKeyFromCall(KofCall kc) {
         int arity = kc.parameterTypes().size();
         String owner = JsTypeMapper.ownerInternalName(kc.ownerType());
-        if (owner.isEmpty() || isMainInternalName(owner)) return "#" + kc.methodName() + "/" + arity;
+        if (owner.isEmpty() || isMainInternalName(owner)) {
+            return "#" + kc.methodName() + "/" + arity
+                    + TopLevelOverload.sigTag(kc.parameterTypes());
+        }
         return owner + "#" + kc.methodName() + "/" + arity;
     }
 

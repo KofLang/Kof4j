@@ -3763,6 +3763,12 @@ int de índice) — verificados na varredura.
   membros** (afeta toda dispatch, testada por centenas de casos). Impeditivo?
   NÃO — contornado com 1 assinatura. Deixado para a lane de tipos/overload com
   este menor repro.
+- **Nota (12/09, §136):** a parte **top-level** da sobrecarga foi fechada na
+  unidade SG-011B (símbolo sufixado por assinatura no Native). Isto NÃO resolve
+  sobrecarga de **método de classe** (o `class B { m/1; m/2 }` acima): a causa
+  é outra (`defineMethodSymbol` sobreescreve o Symbol homônimo na symtable da
+  classe + vtable por índice), e o `as: symbol 'Supervisor_child' is already
+  defined` ali é `<init>`/método, não função top-level. Continua ABERTO.
 
 
 ### 132. KofJS: task spawnada DE DENTRO de outra task nunca roda sem ceder o event-loop (worker do supervisor nunca dispara) — 🔴 ABERTO (impeditivo JS do OTP #83; gate OTP002 aplicado)
@@ -3877,7 +3883,7 @@ int de índice) — verificados na varredura.
   no HEAD `a95ffa49` — verificado com stash, NÃO é desta unidade).
 
 
-### 135. CONFLITO DE CONTRATO (não é bug de código — é regra 6): `duplicateTopLevelFunctionFails` SEM047 vs SG-011B sobrecarga — ⏳ ABERTO (decisão da mantenedora)
+### 135. CONFLITO DE CONTRATO (não é bug de código — é regra 6): `duplicateTopLevelFunctionFails` SEM047 vs SG-011B sobrecarga — ✅ RESOLVIDO 12/09 (opção 1 RATIFICADA pela mantenedora na sessão de 11/09)
 
 **Medido 12/09** (suíte do HEAD `eae16c46`, toolchain cross ativa): 1367+31+5+136 testes,
 **2 falhas**, uma delas esta. As duas são PRÉ-EXISTENTES às merges desta sessão
@@ -3922,8 +3928,63 @@ intenção documentada. O que PRECISA acontecer, qualquer que seja o lado:
    `TopLevelOverload` do frontend (b55c24c0) a erro, e mover a feature p/
    `planning-*` — o OTP (§131) não depende dela.
 
+**RESOLUÇÃO (12/09, commit `84794127` — opção 1):** a mantenedora ratificou a
+sobrecarga nesta sessão com a diretiva do **oráculo JVM** ("assuma o padrão JVM e
+replique nos outros 4; a semântica tem que ser a MESMA nos 5") — a JVM permite
+sobrecarga top-level, então o contrato de 09/09 ("não existe overload") foi
+emitido antes dessa diretriz e está **substituído** por ela. Checklist da opção 1
+fechado: (1) `duplicateTopLevelFunctionFails` substituído pelos 3 testes do
+contrato novo (`distinctSignatureOverloadCompiles` + `duplicateExactSignatureFails`
++ `returnOnlyCollisionFails`); (2) inversão registrada em `specification-gaps.md`
+(SG-011B → APLICADO) e em `AGENTS.md` (lista congelada + tabela SEM047); (3) bump
+NÃO se aplica — o contrato de 09/09 viveu só nesta branch dev, nunca foi
+liberado em tag de release (a última é `kof-0.3.1-beta`); a 0.4.0-beta nasce com
+a semântica nova e documentada; (4) §131 (método de classe) fica ABERTO com
+nota de alcance na §136. Paridade 6/6 provada por `TopLevelOverloadE2ETest`
+(JVM/Script/JS/x86/riscv64/aarch64 sob qemu + especificidade por subtipagem).
+
 Terceira falha correlata no MESMO HEAD, também pré-existente e de lane
 alheia: `DecompileTest.recoversStatementSwitchAndRunsIt` (nascida em
 `487287fb` "switch recovery" — o decompiler do CLI não recovery-ou o
 statement-switch na mesma taxa). Reprodução no próprio teste (kof-cli).
-Registrada sem decisão porque a lane switch é outra e o gate é de merge.
+**FECHADA 12/09 (§137)** — lane decompilação órfã, assumida na lane dev.
+### 136. Native/JS/Script: sobrecarga top-level e wrapper de default colidiam no símbolo único (as: `symbol is already defined`; JS: `SyntaxError: Identifier already declared`) — ✅ CORRIGIDO 11/09 (unidade SG-011B)
+- **Menor repro (nativo x86_64, medido 11/09):** `Int d(Int x, Int y = 2) {
+  return x + y }` → o lowering de default gera o wrapper `d/1` com o MESMO
+  símbolo asm do canônico `d/2` (`Default_Main_d`) → `as` falha
+  (`symbol Default_Main_d is already defined`). ANTES da SG-011B a colisão só
+  aparecia com defaults; com a sobrecarga liberada no frontend (assinaturas
+  diferentes coexistem), dois candidatos de mesma aridade (`twice(String)` /
+  `twice(Int)`) colidiam também no JS (node: `SyntaxError: Identifier 'twice'
+  has already been declared` — compilava e MORRIA em runtime, R6-violation) e
+  no interpretador (dispatch por nome+aridade escolhia o candidato errado em
+  silêncio — `twice(21)` chamava a versão String).
+- **Causa raiz (comum aos 3):** os backends nomeiam símbolos por NOME (+
+  aridade p/ `<init>`), nunca por ASSINATURA — inofensivo enquanto o frontend
+  garantia 1 candidato por nome (SEM047 antigo); liberada a sobrecarga, o
+  nome deixa de ser chave única.
+- **Correção (oracle JVM em todos):** chave de símbolo = assinatura, calculada
+  no MESMO lugar da seleção (frontend) e replicada por tag determinística
+  (`TopLevelOverload.sigTag`): Native = `.globl Default_Main_d_I_I` /
+  `..._g_I` (definição, pré-registro de forward-ref, call-site
+  `resolveCalleeName` x86+riscv, vtable do recipiente Main — aarch herda do
+  tradutor); JS = nome `twice$I`/`twice$Ljava_lang_String` (só quando ≥2
+  assinaturas sob o nome; `fnArityNames` intacto p/ defaults; chave de
+  coloração async ganha a tag — sem isso duas sobrecargas de mesma aridade
+  herdavam `async` uma da outra e vazavam Promise p/ valor = divergência
+  silenciosa); interpretador = `findKofMethod` tenta igualdade EXATA de
+  assinatura (tag) antes do fallback nome+aridade. Programa de candidato
+  único por nome: byte-idêntico ao antes nos 5 targets (invariante).
+- **Prova:** `TopLevelOverloadE2ETest` 5/5 — `ov.kf` (g/1+g/2, twice(String)
+  +twice(Int)) e `defarg.kf` rodam `5 11 abab 42` / `7 11` byte-idênticos em
+  JVM+Script+JS+x86 e riscv64/aarch64 sob qemu; `CompilerDriverTest`
+  `distinctSignatureOverloadCompiles` (compila) /
+  `duplicateExactSignatureFails`+`returnOnlyCollisionFails` (SEM047). O teste
+  antigo `duplicateTopLevelFunctionFails` (que ALEGAVA contrato "sobrecarga
+  não existe" e pendurou a lane §134) foi substituído pelo contrato novo.
+- **Alcance honesto:** isto fecha a sobrecarga de **função TOP-LEVEL**
+  (SG-011B). Sobrecarga de MÉTODO de classe (SEM013/colisão `Supervisor_child`
+  do §131, espelho OTP) permanece ABERTA — outra máquina (symtable de classe,
+  dispatch virtual, vtable real), repro e workaround lá documentados.
+
+

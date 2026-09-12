@@ -408,7 +408,7 @@ public final class KofInterpreter {
             return null;
         }
         if (owner != null) {
-            IRMethod m = findKofMethod(owner, name, args.length);
+            IRMethod m = findKofMethod(owner, name, args.length, kc.parameterTypes());
             if (m == null && "<init>".equals(name)) return null; // construtor padrão
             if (m == null) throw new NoSuchMethodError(owner.name() + "." + name);
             members.ensureInit(owner);
@@ -437,11 +437,11 @@ public final class KofInterpreter {
     }
 
     IRMethod findKofMethod(IRClass c, String name, int argc) {
-        for (IRMethod m : c.methods()) {
-            if (m.name().equals(name) && m.parameterTypes().size() == argc) return m;
-        }
-        IRClass sup = c.superName() == null ? null : members.classByInternal(c.superName());
-        return sup == null ? null : findKofMethod(sup, name, argc);
+        return members.findKofMethod(c, name, argc, null);
+    }
+
+    IRMethod findKofMethod(IRClass c, String name, int argc, List<Type> sig) {
+        return members.findKofMethod(c, name, argc, sig);
     }
 
     IRClass kofClassOf(Type t) { return members.kofClassOf(t); }

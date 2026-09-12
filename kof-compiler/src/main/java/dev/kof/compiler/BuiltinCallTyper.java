@@ -363,7 +363,7 @@ public final class BuiltinCallTyper {
             // predicado de antes: sem type params próprios, e com args cobrindo
             // os parâmetros quando há defaults) e resolve por assinatura. Um
             // único candidato → caminho idêntico ao antigo (zero regressão);
-            // ≥2 → TopLevelOverload.pick (oracle JVM); ambíguo → SEM056.
+            // ≥2 → TopLevelOverload.pick (oracle JVM); ambíguo → SEM057.
             boolean found = false;
             List<TopLevelOverload.Candidate> cands = new ArrayList<>();
             for (AstNode d : sa.unit().declarations()) {
@@ -399,7 +399,7 @@ public final class BuiltinCallTyper {
                                 mc.position() != null ? mc.position().column() : 0, 0,
                                 "call to '" + mc.methodName() + "' is ambiguous between "
                                         + cands.size() + " overloads — add a cast to pick one",
-                                "SEM056");
+                                "SEM057");
                     }
                 } else {
                     if (sel < 0) sel = 0; // NO_MATCH → reporta SEM013/SEM014 no candidato 0, como antes

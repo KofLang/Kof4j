@@ -16,6 +16,13 @@
 > HTTP003); GraalJS/KofJsRunner intacto. Prova: `KofHttpE2ETest` 8/8.
 > **11/09 — MATH001 fechado** (`kof.math` Double nos 5 targets; §120 + §105 na série remota).
 > **11/09 — TIME002 fechado** (`addDays`/`diffDays` nos 5 targets).
+> **11/09 — SG-011B fechado (sobrecarga top-level, oracle JVM):** funções
+> homônimas de assinaturas diferentes coexistem e resolvem no call site;
+> duplicata exata/colisão só-de-retorno → SEM047, ambígua → SEM057. Cada
+> backend referencia o candidato pela ASSINATURA (descritor JVM, símbolo
+> sufixado no Native, nome sufixado no JS, dispatch por tipo no interpretador)
+> — saída byte-idêntica nos 6 targets (`TopLevelOverloadE2ETest` 5/5; §136,
+> contrato ratificado na §135). Sobrecarga de MÉTODO de classe (§131) segue aberta — outra máquina.
 
 ---
 

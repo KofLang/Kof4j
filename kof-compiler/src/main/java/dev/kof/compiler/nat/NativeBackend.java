@@ -140,23 +140,15 @@ public class NativeBackend implements Backend {
         return isTopLevelOwner(className) && !"<init>".equals(name) && !"main".equals(name);
     }
     static String sigTag(java.util.List<Type> ps) {
-        StringBuilder s = new StringBuilder();
-        for (Type t : ps) s.append('_').append(typeTag(t));
-        return s.toString();
+        return dev.kof.compiler.TopLevelOverload.sigTag(ps);
     }
-    static String typeTag(Type t) {
-        if (t instanceof Type.PrimitiveType pt) return switch (Type.canonicalPrimitiveName(pt.name())) {
-            case "int" -> "I"; case "long" -> "J"; case "double" -> "D"; case "float" -> "F";
-            case "boolean" -> "Z"; case "byte" -> "B"; case "char" -> "C"; case "short" -> "S";
-            default -> "V"; };
-        if (t instanceof Type.NullableType nt) return typeTag(nt.inner()) + "q";
-        if (t instanceof Type.ArrayType at) return "A" + typeTag(at.componentType());
-        if (t instanceof Type.FunctionType) return "L";
-        if (t instanceof Type.ClassType ct) {
-            String n = ct.name().replace("/", "_").replace(".", "_").replace("-", "_");
-            return n.isEmpty() ? "O" : n;
+    /** internal name (pkg/Name) do dono de um KofCall, ou "" se não-Classe. */
+    static String internalOwner(Type owner) {
+        if (owner instanceof Type.ClassType ct) {
+            return ct.packageName() != null && !ct.packageName().isEmpty()
+                    ? ct.packageName().replace('.', '/') + "/" + ct.name() : ct.name();
         }
-        return "O";
+        return "";
     }
     /** Chave do functionMangleMap para (clazz,name,pts): com assinatura só p/
      *  funções top-level; caso contrário o nome cru (comportamento antigo). */
@@ -387,11 +379,8 @@ public class NativeBackend implements Backend {
         for (IRClass clazz : module.classes()) {
             for (IRMethod method : clazz.methods()) {
                 if ("<clinit>".equals(method.name())) continue;
-                String mangled = sanitizeName(clazz.name()) + "_" + sanitizeName(method.name());
-                if ("<init>".equals(method.name())) {
-                    mangled += "_" + method.parameterTypes().size();
-                }
-                functionMangleMap.putIfAbsent(method.name(), mangled);
+                String mangled = fnSymbol(clazz.name(), method.name(), method.parameterTypes());
+                functionMangleMap.putIfAbsent(fnKey(clazz.name(), method.name(), method.parameterTypes()), mangled);
             }
         }
         for (IRClass clazz : module.classes()) {

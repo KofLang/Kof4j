@@ -54,6 +54,36 @@ int dobro(int x) {
 - Dados + comportamento → classe ou record.
 - `main()` é a única função sem tipo explícito e sem retorno.
 
+## Sobrecarga de função top-level (0.4.0-beta — oracle JVM)
+
+Funções top-level homônimas com **assinaturas diferentes** coexistem; a
+chamada resolve o candidato aplicável mais específico, como a JVM.
+
+```kof
+Int g(Int x) { return x }
+Int g(Int x, Int y) { return x + y }        // ✅ aridade diferente
+String twice(String s) { return s + s }
+Int twice(Int n) { return n * 2 }            // ✅ tipo de parâmetro diferente
+
+main() {
+    println(g(5))          // 5   → g/Int
+    println(g(5, 6))       // 11  → g/Int,Int
+    println(twice("ab"))   // abab
+    println(twice(21))     // 42
+}
+```
+
+- **Duplicata exata é erro** (SEM047): mesmo nome + mesmos parâmetros.
+- **Só trocar o retorno NÃO é sobrecarga** (SEM047, como na JVM): `Int h(Int)`
+  e `String h(Int)` colidem.
+- **Chamada ambígua é erro** (SEM057): quando dois candidatos aplicáveis
+  empatam (ex.: argumento `Unknown` que caberia em ambos), dê um tipo ao
+  argumento (cast ou variável declarada) para escolher.
+- Mesma saída nos 5 targets (JVM/Script/JS/Native): a resolução é do frontend;
+  cada backend referencia o candidato pela assinatura.
+- **Sobrecarga de MÉTODO de classe ainda não existe** (§131, aberto) — isto é
+  só função top-level.
+
 ## BAD — utility class
 
 ```kof

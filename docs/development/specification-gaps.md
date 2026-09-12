@@ -239,8 +239,27 @@ recomendações futuras (regra 14 da tarefa: não alterar comportamento).
   primeiro"); chamadas `inner(...)` reescritas para `outer__inner(...)`.
   Semântica: inner definida antes do corpo executar; outer chama e aguarda o
   retorno. Prova: `JvmE2ETest.execNestedFunction` (42) +
-  `execNestedFunctionWithCondition`. Sobrecarga top-level homônima segue
-  aberta (parte B do gap).
+  `execNestedFunctionWithCondition`.
+- **APLICADO (11/09, parte B — sobrecarga top-level, oracle JVM):** funções
+  homônimas com ASSINATURAS diferentes coexistem e o call site resolve o
+  candidato aplicável mais específico (`TopLevelOverload.pick` — igualdade
+  exata > subtipagem; a JVM é o oráculo). O que continua ERRO: duplicata
+  EXATA de assinatura (SEM047) e colisão só-de-retorno (retorno não é
+  assinatura, como na JVM); chamada ambígua entre candidatos aplicáveis →
+  SEM057 com hint do cast (R6: nunca escolha silenciosa). Paridade por
+  construção: a seleção acontece no frontend e cada backend referencia o
+  candidato pela assinatura — JVM = descritor do `invokestatic` (já levava os
+  `argTypes` do escolhido), Native = símbolo sufixado por tag de assinatura
+  (`Default_Main_g_I` vs `_I_I`; x86/riscv, aarch traduz; wrappers de
+  default-arg param o sufixo próprio — de-duplica colisão latente no `as`),
+  JS = nome sufixado quando há ≥2 assinaturas sob o nome (chave async por
+  assinatura), interpretador = `findKofMethod` casa `KofCall.parameterTypes`
+  com fallback nome+aridade. Programa com um único candidato por nome é
+  byte-idêntico ao antes em todos os targets (invariante de não-regressão).
+  Prova: `TopLevelOverloadE2ETest` (saída idêntica nos 6: JVM/Script/JS/x86/
+  riscv64/aarch64 sob qemu — `5 11 abab 42` + defaults `7 11`),
+  `CompilerDriverTest` (assinaturas distintas compilam; duplicata e
+  só-retorno SEM047).
 - **Implementação (histórico)**: função dentro de função não era parseada como
   declaração (SG-011); duas funções top-level homônimas colidem sem
   diagnóstico claro (o `define` sobrescreve).

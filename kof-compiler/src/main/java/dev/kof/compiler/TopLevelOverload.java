@@ -16,10 +16,39 @@ import java.util.List;
  * item tinha NO MÁXIMO UMA função homônima (≥2 era SEM047). Quando há um único
  * candidato a seleção retorna-o sempre ({@link #pick} devolve índice 0) e cada
  * chamador segue seu caminho original (default-params, generics) inalterado.
+ *
+ * <p>{@link #sigTag} é também a base do mangling de símbolo nos backends que
+ * não têm sobrecarga nativa (Native: símbolo asm sufixado por assinatura;
+ * JS: nome de função sufixado) — os 3 targets compilados passam a usar a
+ * MESMA chave de assinatura que o descritor JVM usa, o que é exatamente a
+ * paridade pedida (oracle JVM).
  */
-final class TopLevelOverload {
+public final class TopLevelOverload {
 
     private TopLevelOverload() {}
+
+    /** Sufixo estável derivado dos tipos de parâmetro (ex.: {@code _I_J}).
+     *  Usado como chave de mangle no Native e (quando ambíguo) no JS. */
+    public static String sigTag(List<Type> ps) {
+        StringBuilder s = new StringBuilder();
+        for (Type t : ps) s.append('_').append(typeTag(t));
+        return s.toString();
+    }
+
+    static String typeTag(Type t) {
+        if (t instanceof Type.PrimitiveType pt) return switch (Type.canonicalPrimitiveName(pt.name())) {
+            case "int" -> "I"; case "long" -> "J"; case "double" -> "D"; case "float" -> "F";
+            case "boolean" -> "Z"; case "byte" -> "B"; case "char" -> "C"; case "short" -> "S";
+            default -> "V"; };
+        if (t instanceof Type.NullableType nt) return typeTag(nt.inner()) + "q";
+        if (t instanceof Type.ArrayType at) return "A" + typeTag(at.componentType());
+        if (t instanceof Type.FunctionType) return "L";
+        if (t instanceof Type.ClassType ct) {
+            String n = ct.name().replace("/", "_").replace(".", "_").replace("-", "_");
+            return n.isEmpty() ? "O" : n;
+        }
+        return "O";
+    }
 
     /** Um candidato: a declaração + seus tipos de parâmetro já resolvidos pelo
      *  chamador (cada sítio resolve à sua maneira) + aridade mínima (parâmetros
@@ -40,7 +69,7 @@ final class TopLevelOverload {
      *   <li>{@code -1} com {@code out[0] = NO_MATCH} — nenhum aplicável (o
      *       chamador reporta SEM013/SEM014 como antes, sobre o candidato 0);</li>
      *   <li>{@code -1} com {@code out[0] = AMBIGUOUS} — empate entre aplicáveis
-     *       (o chamador reporta SEM056).</li>
+     *       (o chamador reporta SEM057).</li>
      * </ul>
      * Candidato é aplicável quando {@code requiredArity <= nArgs <= totalArity}
      * e cada argumento casa (assignable) com o parâmetro correspondente. Entre
