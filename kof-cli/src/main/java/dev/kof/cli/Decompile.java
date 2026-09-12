@@ -242,14 +242,14 @@ public final class Decompile {
             }
             String ret = methodKofType(m.returnTypeName());
             String params = paramList(m.parameterTypeNames());
-            // §137: `static` precisa sobreviver à ida-e-volta — sem o prefixo,
-            // o `S.grade(1)` (invokestatic) emitido noutro corpo chamaria um
-            // método de INSTÂNCIA e o round-trip não reproduz o programa.
-            String mods = (m.accessFlags & 0x0008) != 0 ? "static " : "";
+            // bug 134: o modificador `static` era computado só p/ o frame e
+            // NUNCA emitido → `S.staticMethod(x)` baixava como chamada de
+            // instância → crash no 1º teste que EXECUTA saída decompilada.
+            boolean isStatic = (m.accessFlags & 0x0008) != 0;
+            String stat = isStatic ? "static " : "";
             String body = null;
             List<String> stmts = null;
             if (m.code != null) {
-                boolean isStatic = (m.accessFlags & 0x0008) != 0;
                 BytecodeFrame frame = new BytecodeFrame(m.descriptor, isStatic);
                 frame.treeScope = scope;
                 boolean hasHandlers = m.code.exceptionHandlers != null && !m.code.exceptionHandlers.isEmpty();
@@ -267,33 +267,23 @@ public final class Decompile {
                 }
             }
             if (body == null && stmts == null) {
-                sb.append("    ").append(mods).append(ret).append(' ').append(m.name)
+                sb.append("    ").append(stat).append(ret).append(' ').append(m.name)
                   .append('(').append(params).append(") {\n");
                 sb.append("        throw \"body not recovered\"   // ").append(Confidence.UNKNOWN.label()).append('\n');
                 sb.append("    }\n");
             } else if (stmts != null) {
-                sb.append("    ").append(mods).append(ret).append(' ').append(m.name).append('(').append(params).append(") {\n");
+                sb.append("    ").append(stat).append(ret).append(' ').append(m.name).append('(').append(params).append(") {\n");
                 for (String s : stmts) sb.append("        ").append(s).append('\n');
                 sb.append("    }\n");
             } else if (body.isEmpty()) {
-                sb.append("    ").append(mods).append(ret).append(' ').append(m.name).append('(').append(params).append(") {\n    }\n");
+                sb.append("    ").append(stat).append(ret).append(' ').append(m.name).append('(').append(params).append(") {\n    }\n");
             } else {
-                sb.append("    ").append(mods).append(ret).append(' ').append(m.name).append('(').append(params)
+                sb.append("    ").append(stat).append(ret).append(' ').append(m.name).append('(').append(params)
                   .append(") = ").append(body).append('\n');
             }
         }
 
         sb.append("}\n");
-        // §137: `public static void main(String[])` (ou `main()`) precisa virar
-        // um `main()` TOP-LEVEL — o executável da Kof é `Default.Main` gerado a
-        // partir do main top-level, nunca de um método de classe. Em modo 1-
-        // arquivo (scope==null) emito um forwarder `main() { S.main(...) }`; no
-        // modo tree N classes podem ter main → cada arquivo já é compilado
-        // junto e o forwarder duplicaria `main()` (SEM047), então não emito.
-        if (scope == null) {
-            String fwd = topLevelMainForwarder(ir, simpleName);
-            if (fwd != null) sb.append(fwd);
-        }
         // §7 degrau 3: imports usados (só modo tree; escopo null = sem imports
         // = bytes idênticos ao anterior). Inserção no ponto marcado p/ ficarem
         // entre package e classe (`package p\nimport q.B\n\nclass ...`).
@@ -316,23 +306,8 @@ public final class Decompile {
         return sb.toString();
     }
 
-    /**
-     * §137: forwarder `main()` top-level chamando o `main(String[])`/`main()`
-     * estático da classe (se houver). null = nenhum candidato.
-     */
-    private static String topLevelMainForwarder(ClassFileParser.ClassFile ir, String simpleName) {
-        boolean has = false;
-        for (var m : ir.methods) {
-            if (!"main".equals(m.name) || (m.accessFlags & 0x0008) == 0) continue;
-            if ("([Ljava/lang/String;)V".equals(m.descriptor) || "()V".equals(m.descriptor)) {
-                has = true;
-                break;
-            }
-        }
-        return has ? "\nmain() {\n    " + simpleName + ".main(new String[0])\n}\n" : null;
-    }
-
-    static String simpleName(String internalName) {        if (internalName == null || internalName.isEmpty()) return "Object";
+    static String simpleName(String internalName) {
+        if (internalName == null || internalName.isEmpty()) return "Object";
         int slash = internalName.lastIndexOf('/');
         return slash >= 0 ? internalName.substring(slash + 1) : internalName;
     }
