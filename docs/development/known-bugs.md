@@ -8,7 +8,7 @@
 >
 > | | |
 > |---|---|
-> | **Fila ABERTA (varredura 12/09 — todas as seções sem ✅ no próprio cabeçalho)** | **16** — §45 (finally+return: exige mudança de IR 4-backend + decisão DD-01, mantenedora), §65 (UI/Chrome — lane UI), §81 (KofJS Long>2^53 — decisão de precisão/contrato), §89 (n.toDouble()/toInt() cross — contrato de conversão), §90 (SSE flaky — **lane web**, causa raiz do despacho não identificada), §94/§101 (congelados regra 6), §104b-ii (record-em-coleção + storage-box asm — **lane bugfixer**, unidade GRANDE), §106 (json.encode Map — decisão mantenedora), §107 🟡 (restam record/aninhado=`?` até §104b-ii + FP-cross=FLT001; face escalar ✅ 12/09 nos 3 nativos `f3b3821c`+B39), §117 (cancelled() colisão — design TLS, congelado), §125 (primitivo? null — decisão de representação multi-alvo), §127-JVM (cast p/ tipo-função → mudança de erasure no `JvmTypeMapper`, **infra de tipos**; workaround interface verificado), §129-TLS (congelado), §131 (sobrecarga de MÉTODO — semântica, mantenedora), §132 (OTP JS gate). **Conclusão honesta (12/09, ecoa a mesa do bugfixer `4d51defe` = "0 itens desbloqueados"):** nenhum de código-puro-sem-decisão-na-minha-lane; cada um está pendurado em decisão da mantenedora, congelamento regra-6, ou lane alheia (UI/web/bugfixer). O trabalho REAL sem-colisão-aceito da sessão é a **frente #97 tree-shaking** (S-1 ✅ `a3996600`; S-2→ em `docs/development/PLAN-TREE-SHAKING.md`). |
+> | **Fila ABERTA (varredura 12/09 — todas as seções sem ✅ no próprio cabeçalho)** | **15** — §45 (finally+return: exige mudança de IR 4-backend + decisão DD-01, mantenedora), §65 (UI/Chrome — lane UI), §81 (KofJS Long>2^53 — decisão de precisão/contrato), §89 (n.toDouble()/toInt() cross — contrato de conversão), §94/§101 (congelados regra 6), §104b-ii (record-em-coleção + storage-box asm — **lane bugfixer**, unidade GRANDE), §106 (json.encode Map — decisão mantenedora), §107 🟡 (restam record/aninhado=`?` até §104b-ii + FP-cross=FLT001; face escalar ✅ 12/09 nos 3 nativos `f3b3821c`+B39), §117 (cancelled() colisão — design TLS, congelado), §125 (primitivo? null — decisão de representação multi-alvo), §127-JVM (cast p/ tipo-função → mudança de erasure no `JvmTypeMapper`, **infra de tipos**; workaround interface verificado), §129-TLS (congelado), §131 (sobrecarga de MÉTODO — semântica, mantenedora), §132 (OTP JS gate). **Conclusão honesta (12/09, ecoa a mesa do bugfixer `4d51defe` = "0 itens desbloqueados"):** nenhum de código-puro-sem-decisão-na-minha-lane; cada um está pendurado em decisão da mantenedora, congelamento regra-6, ou lane alheia (UI/bugfixer). O trabalho REAL sem-colisão-aceito da sessão é a **frente #97 tree-shaking** (S-1 ✅ `a3996600`; S-2→ em `docs/development/PLAN-TREE-SHAKING.md`). |
 > | Antiga "varredura 08/09" (apócrifa — corrigida 12/09) | os "abertos" 39/62/63/64/46/48/50/59/61 estão ✅ CORRIGIDO nos próprios cabeçalhos (39/62/63/64 JVM/JS; 46/50/59 Native; 48/61 gap honesto JSN004/FFI001); contagem real na linha acima. |
 > | Paridade interpretador × compilados (semântica `==` congelada — regra 6) | **1** — bug 94 (NaN/±0.0 `==` de Double no SCRIPT) |
 > | Paridade backend-only (regra 5, atacável na lane Native) | **2** — §107 (println coleção → lixo; **face escalar ✅ CORRIGIDA 12/09 nos 3 targets nativos** — x86 `f3b3821c` + cross B39, golden JVM byte-idêntico; restam record/aninhado=`?` honesto até §104b-ii, FP-cross=FLT001; §107-JS 11/09), §104b-ii (equals de conteúdo p/ record + box de primitivo no storage asm; **face char ✅ FECHADA 11/09** — `mapgetprim` 4/4)
@@ -2173,29 +2173,33 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
   atinge TODOS os targets — código de usuário que usa `5.toDouble()` no JVM
   pararia de compilar → é mudança de contrato, bump).
 
-### 90. `KofWebHardeningTest.sse_events_sent_counter_tracks_calls` é FLAKY sob carga da suíte completa (espera 3, obtém 2) — ABERTO (lane web; não-correlacionado com a varredura STDLIB, achado 10/09)
+### 90. `KofWebHardeningTest.sse_events_sent_counter_tracks_calls` é FLAKY sob carga da suíte completa (espera 3, obtém 2) — ✅ CORRIGIDO 12/09 (lane web)
 
 - **Sintoma:** na suíte completa (`mvn test` 4 módulos, ~1281 testes rodando
   juntos) o caso `sse_events_sent_counter_tracks_calls` (KofWebHardeningTest
-  linha ~395) falha `expected: <3> but was: <2>` — o contador de eventos SSE
-  enviados fica 1 atrás no momento da asserção. **Passa 3/3 quando rodado
-  isolado** (`-Dtest='KofWebHardeningTest#sse_events_sent_counter_tracks_calls'`,
-  8–9s cada) — medido 10/09.
-- **Diagnóstico:** não-correlacionado com a varredura STDLIB (uuid/parse
-  string/asm cross — nenhum toca web/SSE). O padrão "espera 3 obtém 2, verde
-  isolado, vermelho sob carga" é corrida de despacho/contagem do servidor SSE
-  no teste: a asserção lê o contador antes do último write ter sido
-  contabilizado sob contenção de CPU da suíte paralela. (Investigação da causa
-  raiz exata = lane web.)
-- **Menor repro:** roda a suíte completa com qemu (carga alta) → o caso cai
-  com 2; roda isolado → verde. Não consegui reproduzir isolado em 3 tentativas
-  (10/09).
-- **Não corrigido aqui (regra 3):** não "conserto o teste para passar" (não
-  é minha lane nem tenho a causa raiz do despacho SSE); registrado com
-  evidência p/ a lane web. Suspeito de asserção sem sincronização — provável
-  fix = esperar o contador convergir (poll com timeout) em vez de ler 1x, OU
-  eliminar a corrida no contador do handler. Se a causa raiz for um undercount
-  real (evento perdido), aí é bug de funcionalidade da lane web.
+  linha ~395) falhava `expected: <3> but was: <2>` — o contador de eventos SSE
+  enviados ficava 1 atrás no momento da asserção. Passava isolado.
+- **Causa raiz:** assimetria em relação ao fix do Bug 28 (WebSocket). No
+  `JvmRuntimeWebDispatch.java:218`, `kof_web_ws_send` já incrementava
+  `WS_MESSAGES_SENT.incrementAndGet()` *antes* de despachar o texto para o
+  socket, garantindo que um cliente que leia o frame e chame `/stats` veja o
+  contador já incrementado. Em `JvmWebCoreRuntime.java` (`SseConnection.send` e
+  `event`), o incremento `SSE_EVENTS_SENT.incrementAndGet()` estava sendo feito
+  *após* `writeData(data)` (após o flush TCP). Sob contenção de CPU, o cliente
+  lia o 3º evento, fechava o socket e consultava `/stats` antes de a thread do
+  handler SSE voltar de `writeData` e executar o incremento.
+- **✅ CORRIGIDO 12/09:**
+  1. `JvmWebCoreRuntime.java`: `SseConnection.send` e `event` verificam
+     `if (!open.get()) return;` e incrementam `SSE_EVENTS_SENT.incrementAndGet()`
+     *antes* de emitir os frames para o socket (mesmo padrão do Bug 28).
+  2. `KofWebHardeningTest.java`: `sse_events_sent_counter_tracks_calls` passa a
+     utilizar o helper de polling `awaitStats(port, "3", 2000)` para garantir
+     convergência determinística mesmo sob concorrência extrema de suíte.
+- **Prova:** `KofWebHardeningTest` 6/6 verde + suíte completa web `KofWeb*Test`
+  49/49 verde (`KofWebWsE2ETest`, `KofWebE2ETest`, `KofWebHardeningTest`,
+  `KofWebTlsTest`, `KofWebSseE2ETest`, `KofWebNativeE2ETest`, `KofWebStreamE2ETest`).
+  Check 500 linhas sem violações novas (`JvmWebCoreRuntime.java` 480 linhas,
+  `KofWebHardeningTest.java` 463 linhas).
 
 
 ### 95. Native: 2+ `String.split` no mesmo programa → assembler "already defined" (COMP001) — ✅ CORRIGIDO 10/09 (x86_64; varredura de paridade String)

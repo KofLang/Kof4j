@@ -162,14 +162,16 @@ public final class JvmWebCoreRuntime {
                     }
 
                     public void send(String data) {
-                        writeData(data);
+                        if (!open.get()) return;
                         SSE_EVENTS_SENT.incrementAndGet();
+                        writeData(data);
                     }
 
                     public void event(String name, String data) {
+                        if (!open.get()) return;
+                        SSE_EVENTS_SENT.incrementAndGet();
                         writeFrame("event: " + name + "\\n");
                         writeData(data);
-                        SSE_EVENTS_SENT.incrementAndGet();
                     }
 
                     public void close() {

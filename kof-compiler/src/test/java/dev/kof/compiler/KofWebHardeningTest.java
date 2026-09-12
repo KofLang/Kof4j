@@ -127,6 +127,22 @@ class KofWebHardeningTest {
         return bodyOf(response);
     }
 
+    private void awaitStats(int port, String expected, long timeoutMs) throws Exception {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        String current = "";
+        while (System.currentTimeMillis() < deadline) {
+            try {
+                current = stats(port);
+                if (expected.equals(current)) {
+                    return;
+                }
+            } catch (IOException ignored) {
+            }
+            Thread.sleep(20);
+        }
+        assertEquals(expected, current);
+    }
+
     private static final class SseClient implements AutoCloseable {
         private final Socket socket;
         private final BufferedReader in;
@@ -392,7 +408,7 @@ class KofWebHardeningTest {
             assertEquals("data: two", client.readEvent());
             assertEquals("data: three", client.readEvent());
         }
-        assertEquals("3", stats(port));
+        awaitStats(port, "3", 2000);
     }
 
     @Test
