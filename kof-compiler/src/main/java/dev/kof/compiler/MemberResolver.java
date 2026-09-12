@@ -61,12 +61,35 @@ public final class MemberResolver {
      * JVM quebra.
      */
     static Type qualifyViaImports(CompilationUnitNode unit, String name) {
+        return qualifyViaImports(unit, name, null);
+    }
+
+    /**
+     * §134 residual: com um `ExternalClasspath` (--classpath/--deps), o
+     * WILDCARD `import a.b.*` passa a qualificar o nome simples quando a
+     * classe `a/b/<name>` REALMENTE existe num entry carregado. Sem o cp
+     * (targets Native/JS — `externalClasspath == null`) o comportamento é
+     * o antigo: wildcard nunca qualifica, cai em SEM011/PKG006. Aditivo:
+     * só casa o que existe; nome inexistente segue o fluxo de erro normal.
+     */
+    static Type qualifyViaImports(CompilationUnitNode unit, String name,
+                                  ExternalClasspath external) {
         if (name == null || name.contains(".") || name.contains("<") || name.endsWith("[]")) return null;
         if (unit == null) return null;
         for (String imp : unit.imports()) {
             if (!imp.endsWith("*") && imp.endsWith("." + name)) {
                 String pkg = imp.substring(0, imp.lastIndexOf('.'));
                 return new Type.ClassType(pkg, name, List.of());
+            }
+        }
+        if (external != null) {
+            for (String imp : unit.imports()) {
+                if (imp.endsWith(".*")) {
+                    String pkg = imp.substring(0, imp.length() - 2);
+                    if (external.knows(pkg.replace('.', '/') + "/" + name)) {
+                        return new Type.ClassType(pkg, name, List.of());
+                    }
+                }
             }
         }
         return null;
@@ -96,7 +119,7 @@ public final class MemberResolver {
         if (name == null) return Type.UnknownType.UNKNOWN;
         SymbolTable.Symbol sym = scope != null ? scope.resolve(name) : null;
         if (sym instanceof SymbolTable.TypeParameterSymbol) return sym.type();
-        Type viaImports = qualifyViaImports(sa.unit(), name);
+        Type viaImports = qualifyViaImports(sa.unit(), name, sa.externalTypes());
         if (viaImports != null) return viaImports;
         // qualifyDeep: recursa nos type-arguments — `List<NodeUI>` com
         // `import com.dev.NodeUI` precisa do pacote no ARG (senão o receiver

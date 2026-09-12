@@ -326,7 +326,8 @@ public final class SemExpressionTyper {
                 // perde o tipo
                 String qname = ne.typeName();
                 if (!qname.contains(".")) {
-                    Type viaImport = MemberResolver.qualifyViaImports(sa.unit(), qname);
+                    Type viaImport = MemberResolver.qualifyViaImports(sa.unit(), qname,
+                            sa.externalTypes());
                     if (viaImport != null) qname = viaImport instanceof Type.ClassType qt
                             ? qt.packageName() + "." + qt.name() : qname;
                 }
@@ -554,7 +555,7 @@ public final class SemExpressionTyper {
      */
     private static boolean isExternalImportedClass(SemanticAnalyzer sa, String name) {
         if (sa.externalTypes() == null || sa.unit() == null) return false;
-        Type t = MemberResolver.qualifyViaImports(sa.unit(), name);
+        Type t = MemberResolver.qualifyViaImports(sa.unit(), name, sa.externalTypes());
         return t instanceof Type.ClassType ct && !ct.packageName().isEmpty()
                 && sa.externalTypes().knows(ct.internalName());
     }

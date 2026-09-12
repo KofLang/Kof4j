@@ -11,20 +11,29 @@ public final class CompilerTypes {
 
     private CompilerTypes() {}
 
-    static Type toType(String typeName, CompilationUnitNode currentUnit) {
-        // SG-012: param de lambda sem anotação — Unknown (nunca Object)
-        if (typeName == null) return Type.UnknownType.UNKNOWN;
-        if ("List".equals(typeName) || "ArrayList".equals(typeName)) return BuiltinTypes.LIST;
-        if ("Channel".equals(typeName)) return BuiltinTypes.CHANNEL;
-        Type viaImports = qualifyViaImports(typeName, currentUnit);
-        if (viaImports != null) return viaImports;
-        int lastDot = typeName.lastIndexOf('.');
-        if (lastDot > 0 && !typeName.contains("<") && !typeName.contains("/")) {
-            return new Type.ClassType(typeName.substring(0, lastDot),
-                    typeName.substring(lastDot + 1), List.of());
-        }
-        return Type.of(typeName);
-    }
+     static Type toType(String typeName, CompilationUnitNode currentUnit) {
+         return toType(typeName, currentUnit, (ExternalClasspath) null);
+     }
+
+     /** §134 residual: wildcard `import a.b.*` qualifica o nome simples de um
+      *  `new` externo quando a classe existe num entry carregado (sem isso o
+      *  `new Greeter()` de `import ext.*` descia sem pacote → NoClassDefFound
+      *  silencioso em runtime). Aditivo: sem cp, comportamento antigo. */
+     static Type toType(String typeName, CompilationUnitNode currentUnit,
+                        ExternalClasspath external) {
+         // SG-012: param de lambda sem anotação — Unknown (nunca Object)
+         if (typeName == null) return Type.UnknownType.UNKNOWN;
+         if ("List".equals(typeName) || "ArrayList".equals(typeName)) return BuiltinTypes.LIST;
+         if ("Channel".equals(typeName)) return BuiltinTypes.CHANNEL;
+         Type viaImports = qualifyViaImports(typeName, currentUnit, external);
+         if (viaImports != null) return viaImports;
+         int lastDot = typeName.lastIndexOf('.');
+         if (lastDot > 0 && !typeName.contains("<") && !typeName.contains("/")) {
+             return new Type.ClassType(typeName.substring(0, lastDot),
+                     typeName.substring(lastDot + 1), List.of());
+         }
+         return Type.of(typeName);
+     }
 
     /**
      * toType com o contexto semântico completo: além de imports, resolve tipos
@@ -125,6 +134,13 @@ public final class CompilerTypes {
 
     /** Espelho driver-side do qualifyViaImports do SemanticAnalyzer. */
     static Type qualifyViaImports(String name, CompilationUnitNode currentUnit) {
+        return qualifyViaImports(name, currentUnit, null);
+    }
+
+    /** §134 residual: wildcard `import a.b.*` qualifica pelo ExternalClasspath
+     *  quando a classe existe num entry. Sem cp, comportamento antigo. */
+    static Type qualifyViaImports(String name, CompilationUnitNode currentUnit,
+                                  ExternalClasspath external) {
         if (name.contains(".") || name.contains("<") || name.endsWith("[]")) return null;
         if (currentUnit == null) return null;
         if (System.getProperty("kof.trace") != null && name.equals("WebView")) {
@@ -134,6 +150,16 @@ public final class CompilerTypes {
             if (!imp.endsWith("*") && imp.endsWith("." + name)) {
                 String pkg = imp.substring(0, imp.lastIndexOf('.'));
                 return new Type.ClassType(pkg, name, List.of());
+            }
+        }
+        if (external != null) {
+            for (String imp : currentUnit.imports()) {
+                if (imp.endsWith(".*")) {
+                    String pkg = imp.substring(0, imp.length() - 2);
+                    if (external.knows(pkg.replace('.', '/') + "/" + name)) {
+                        return new Type.ClassType(pkg, name, List.of());
+                    }
+                }
             }
         }
         return null;

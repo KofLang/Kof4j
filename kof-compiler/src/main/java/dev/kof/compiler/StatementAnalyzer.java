@@ -125,7 +125,8 @@ public final class StatementAnalyzer {
                 // o tipo real vem do initializer (ou do type explícito após ':').
                 if (vds.type() != null && !vds.type().isEmpty()
                         && !"var".equals(vds.type()) && !"val".equals(vds.type())) {
-                    Type viaImports = MemberResolver.qualifyViaImports(sa.unit(), vds.type());
+                    Type viaImports = MemberResolver.qualifyViaImports(sa.unit(), vds.type(),
+                            sa.externalTypes());
                     varType = viaImports != null ? viaImports : Type.of(vds.type());
                 } else if (vds.initializer() != null) {
                     varType = SemExpressionTyper.inferType(sa, vds.initializer(), scope);

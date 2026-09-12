@@ -67,7 +67,8 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
     }
     return localIdx;
 } else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
-        && CompilerTypes.qualifyViaImports(rid.name(), driver.currentUnit) instanceof Type.ClassType extQ
+        && CompilerTypes.qualifyViaImports(rid.name(), driver.currentUnit,
+                driver.externalClasspath) instanceof Type.ClassType extQ
         && !extQ.packageName().isEmpty()
         && driver.externalClasspath != null
         && driver.externalClasspath.knows(extQ.internalName())

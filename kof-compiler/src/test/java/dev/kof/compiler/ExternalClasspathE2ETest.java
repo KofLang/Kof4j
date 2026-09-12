@@ -89,6 +89,38 @@ class ExternalClasspathE2ETest {
     }
 
     @Test
+    void wildcardStaticCallOnExternalClassFromJarCompilesAndRuns(@TempDir Path tempDir) throws Exception {
+        // §134 residual: `import ext.*` (wildcard de pacote FORA da whitelist)
+        // qualifica o nome simples quando a classe existe num entry. Antes só
+        // o import pontual resolvia; o wildcard dava SEM011.
+        Path jar = buildJar(tempDir);
+        compileAndRun(tempDir, jar, """
+            import ext.*
+            main() { println(Greeter.hello("mel")) }
+            """, "hi mel");
+    }
+
+    @Test
+    void wildcardUnknownNameStillRejectedNotSilent(@TempDir Path tempDir) throws Exception {
+        // R6: o wildcard não pode virar bypass — um nome do pacote que NÃO
+        // existe no jar continua SEM011 (sem baixar o descritor p/ um .class
+        // fantasma e crashar em runtime).
+        Path jar = buildJar(tempDir);
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+            import ext.*
+            main() { println(Absent.hello("mel")) }
+            """);
+        CompilerDriver d = new CompilerDriver();
+        d.setExternalClasspath(List.of(jar));
+        CompilationResult r = d.compile(source, tempDir.resolve("out"), Target.JVM);
+        assertFalse(r.success(), "wildcard com nome inexistente não pode compilar");
+        assertTrue(r.diagnostics().getDiagnostics().stream()
+                .anyMatch(x -> x.code().equals("SEM011")),
+                "esperado SEM011, veio: " + r.diagnostics().getDiagnostics());
+    }
+
+    @Test
     void unknownImportOutsideClasspathStillFailsPKG006(@TempDir Path tempDir) throws Exception {
         // R6: a correção não pode virar silêncio — import que NÃO está na
         // whitelist nem nos entries continua PKG006.

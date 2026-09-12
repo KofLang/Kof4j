@@ -151,6 +151,31 @@ raiz de runtime gerado, `mvn -o clean` na sonda. A suíte completa (surefire)
 compila tudo do zero, então o #88 NÃO quebrou o gate JS; o node-trio
 (#74/#79/#80 e o novo do #88) é puramente o host sem node. Não é gate meu.
 
+**FEITO (12/09, lane JVM/ANDROID — §134 residual: WILDCARD externo resolvido):**
+`import ext.*` (wildcard de pacote FORA da whitelist, com `--classpath`/`--deps`)
+dava **SEM011** no nome simples (`Greeter.hello`), só `import ext.Greeter`
+pontual resolvia (gap "escopo honesto" que EU deixei aberto no §134 — fechado
+agora). Causa: `MemberResolver.qualifyViaImports`/espelho `CompilerTypes`
+linhas `!imp.endsWith("*")` descartavam o wildcard SEMPRE, sem consultar o
+`ExternalClasspath`. Fix: overload `qualifyViaImports(unit,name,external)` +
+`toType(name,unit,external)` (aditivo: casa o wildcard SÓ se
+`external.knows(pkg/Name)`; sem cp comportamento antigo); plumbeado nos 5
+sítios com contexto (receiver estático `MemberCallTyper:53`, receiver
+identificador `SemExpressionTyper.isExternalImportedClass:557`, `new`
+`SemExpressionTyper:329` + `ExpressionLowerer:139`, type-anotação de var
+`StatementAnalyzer:128`). **Target-aware preservado:** NATIVE/JS dão `cp==null`
+no import gate (§134) → wildcard cai em PKG006/SEM011 como hoje, NÃO vaza;
+nome que não existe no jar → SEM011 (R6, não-bypass). Prova:
+`ExternalClasspathE2ETest` 6/6 (+wildcard static roda `hi mel`, +wildcard nome
+inexistente SEM011). Medido fora da suíte: `var p: Point2 = new Point2(42);
+p.getX()` → `42` (var anotada + construtor + método instância via wildcard).
+Edges NÃO cobertos (raro, aberto): `extends` externa POR wildcard
+(`SymbolTableBuilder:22` não plumbado) + anotação `@` wildcard
+(`CompilerAnnotations:38`) — ambos ok com pontual. check_500: SemExprTyper/
+ExprMethodCallLowerer já >500 no HEAD (pré-existente; +1 linha de pass-through
+cada, sem violação nova). Docs: known-bugs §134 "escopo honesto" riscado+
+atualizado. Suíte 1550/0/13err(node-env)/142skip.
+
 **FEITO (12/09, lane JVM — §128 CORRIGIDO, spike OTP #83):** `selectAny(a,b)`
 de `Handle<Int>` atribuído a `var` e usado como Int → **VerifyError** no JVM
 ("Type 'java/lang/Object' is not assignable to integer" no `istore` do
@@ -174,12 +199,17 @@ erros `*Js()`, todos pré-existentes/environmentais, NÃO corrigíveis sem node)
 **PRÓXIMO PASSO (bugfix):** (1) **§125** — `println(<primitivo>? null)`:
 crasha JVM/Script, Native dá `0`; ORACLE em conflito (map-miss imprime `0`
 vs print-boxed `null`) → AGUARDANDO decisão da mantenedora (condição 1, já
-registrado nas duas leituras — não é edição minha). (2) §104b-ii record-em-
-coleção nativo via vtable (grande, avaliar antes). (3) §131 sobrecarga por
-aridade + `duplicateTopLevelFunctionFails`/SEM047 + §128 DecompileTest =
-pré-existentes na lane SEMÂNTICA/decompilador, NÃO bugfix de runtime — medir
-se caem na minha mesa antes de tocar. NÃO tocar §101/§94/§44 (congelados).
-NUNCA pushar main sem pedido do humano.
+registrado nas duas leituras + re-medição 12/09: literal `null` direto é
+SEM048, logo só há DOIS caminhos — retorno `Int?` (crash) e map-miss (`0`,
+precedente congelado) — strengthen opção A; NÃO é edição minha). (2) frente
+NATIVA-storage/vtable UNIFICADA §107-x86 + §114-nested + §104b-ii(i) (medido
+12/09: `NEST.kf`/`OBJ.kf` Native `false`/lixo vs JVM `true`; é uma só infra —
+detecção de kind em runtime + null-guard + port riscv/aarch SEM qemu neste
+host = meia-unidade proibida; exige sessão COM toolchain cross). (3) faces
+cross §123/§126/§127-JS prováveis emissor-escrito-sem-qemu (portar sob qemu na
+sessão melissa/B37). §131 sobrecarga por ARIDADE = lane SEMÂNTICA (pré-existente,
+não runtime). NÃO tocar §101/§94/§44 (congelados), §45/§117/§81/§106/§127-cast-
+função (decisão mantenedora). NUNCA pushar main sem pedido do humano.
 
 **FEITO (11/09, lane Native cross — §113 FACES riscv64+aarch64 FECHADAS — `kof_multi_alloc` recursivo cross):** o maintainer corrigiu o x86 e deixou "faces riscv/aarch = port p/ sessão c/ toolchain" — a toolchain ESTÁ neste host (`/usr/bin/qemu-riscv64|aarch64` + binutils), então o port é o degrau óbvio da fila. Fatia nova `NativeRiscvAsmRtB37` (0 colisões .L/.globl verificadas vs vencedora): `kof_multi_alloc(a0=dimsBase, a1=n, a2=i, a3=leafStride)` recursivo espelhando o x86 — MESMA fórmula de offset `d_i = base + 8*(n-i)`; ABI própria: o chamador passa o PRÓPRIO sp como base (dimensões já empilhadas, d_n no topo) e sÓ AVANÇA o sp depois (sem pilha dinâmica — frame fixo do helper salva ra+s0..s6, 112B); nó interno = elemSize 8 (ponteiros), folha = stride do baseType com payload ZEROED byte-a-byte via laço `sb` (paridade MULTIANEWARRAY — kof_alloc é bump-pointer sem zero). Roteio `KofNewMultiArray` em `NativeRiscvCrossEmit` (antes caía no default-comentário NATIVE002); aarch herda 100% via tradutor (verificado: `sb zero`→`strb wzr`, `bge`/`bne`/`mul`/`slli` todos cobertos, 0 UNHANDLED). **Prova:** `riscv64MultiDimArray`/`aarch64MultiDimArray` (10 saídas golden = oracle JVM medido: lengths 2/3 + zero-fill + store/load + 3-D completo `2 3 0 7 2 2 9 0`); sabotagem → FAIL com saída real (não-vazio provado). Docs: célula `array2d` da matriz (faces cross ✅) + §113. **PRÓXIMO PASSO (re-dispacho):** (1) §113 PUSHADO `d2a4dc0a`+docs `edb86c34` (suíte do HEAD pré-rebase 1477/0/5skip; gate no HEAD exato rodando `push-gate.log` — se vermelho, é meu para corrigir antes da próxima unidade); (2) fila lane Native com toolchain real: §107 Native println(coleção) — ABERTO, backend-only, sem gate, R6 violada hoje (imprime lixo de ponteiro); fix = helpers toString recursivos dos 3 tipos de coleção (espelho `kofFormat` do JS §107-JS, x86 primeiro + fatia riscv + tradutor); §114 hash/coleção fica ATRELADO à infra storage-box do §104b-ii(i) (grande, avaliar antes); NÃO tocar §101/§94/§44 (congelados), §45/§106/DD-STDLIB (decisão mantenedora), lane §104/interp (outros agentes). NUNCA pushar main sem pedido do humano.
 

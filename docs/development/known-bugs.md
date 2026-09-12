@@ -3920,19 +3920,32 @@ int de índice) — verificados na varredura.
   NATIVE só falhava no LINK (`undefined reference to 'ext_Greeter_hello'`),
   não em compile-time. `driver.externalClasspath` só chega ao import gate
   nos targets onde faz sentido.
-- **Escopo honesto:** NÃO resolvo wildcard `import ext.*` (o lowering JS
-  continua pendurado; em JVM/ANDROID o `MemberResolver.qualifyViaImports`
-  não tem a classe para wildcard — fica SEM011). A whitelist de prefixos
-  continua cobrindo `java.*`/`android.*` sem precisar de jar. Não conserto
-  o `Integer.toString` sem-import (caminho `java.lang` implícito é outro
-  gap — documentado em §134-adjacente como "qualquer classe java.* precisa
-  do import"). NÃO toco `--classpath` (funciona) nem `--deps` (mesmo caminho,
-  coberto pelo fix).
-- **Prova:** `ExternalClasspathE2ETest` (4/4): (1) chamada ESTÁTICA em
+- **Escopo honesto:** ~~NÃO resolvo wildcard `import ext.*`~~ — **RESOLVIDO
+  12/09 (esta linha, JVM/ANDROID):** o wildcard agora qualifica o nome simples
+  quando a classe EXISTE num entry carregado — `MemberResolver.qualifyViaImports`
+  e o espelho `CompilerTypes.qualifyViaImports`/`toType` ganharam overload com
+  `ExternalClasspath`; os sítios com contexto (receiver estático
+  `MemberCallTyper:53`, identificador `SemExpressionTyper.isExternalImportedClass`,
+  `new` `SemExpressionTyper:329`+`ExpressionLowerer:139`, type-anotação
+  `StatementAnalyzer:128`) passam `sa.externalTypes()`/`driver.externalClasspath`.
+  Aditivo e target-aware: sem cp (NATIVE/JS) o wildcard segue PKG006/SEM011
+  (não vaza); nome que NÃO existe no jar continua SEM011 (R6, testado). Edge
+  NÃO coberto (raro, fica aberto): `extends` de classe externa POR WILDCARD
+  (`SymbolTableBuilder:22` não plumbado) e anotação `@` com wildcard
+  (`CompilerAnnotations:38`) — ambos funcionam com import pontual. A whitelist
+  de prefixos continua cobrindo `java.*`/`android.*` sem precisar de jar. Não
+  conserto o `Integer.toString` sem-import (caminho `java.lang` implícito é
+  outro gap — documentado em §134-adjacente como "qualquer classe java.*
+  precisa do import"). NÃO toco `--classpath` (funciona) nem `--deps` (mesmo
+  caminho, coberto pelo fix).
+- **Prova:** `ExternalClasspathE2ETest` (6/6): (1) chamada ESTÁTICA em
   classe externa (o caso do bug) → compila + roda `hi mel`; (2) caminho
   `new`/instância continua verde; (3) import fora do classpath → PKG006
   (R6: não virou silêncio); (4) NATIVE e JS com o MESMO jar → PKG006
-  (paridade honesta cross-target). Suíte: 1361 run / 0 falha na lane (12
+  (paridade honesta cross-target); (5) WILDCARD `import ext.*` estática →
+  roda `hi mel`; (6) WILDCARD nome inexistente → SEM011 (não-bypass).
+  Medido fora da suíte: var anotada + construtor + método de instância via
+  wildcard (`var p: Point2 = new Point2(42); p.getX()` → `42`). Suíte: 1361 run / 0 falha na lane (12
   err = node ausente neste host = trio pre-existente; 1 fail =
   `CompilerDriverTest#duplicateTopLevelFunctionFails` SEM047, pré-existente
   no HEAD `a95ffa49` — verificado com stash, NÃO é desta unidade).

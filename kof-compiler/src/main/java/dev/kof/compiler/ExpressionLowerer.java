@@ -136,7 +136,8 @@ public final class ExpressionLowerer {
                 yield ExpressionAssignmentLowerer.lower(driver, ae, ops, owner, localIdx, locals);
             }
             case NewExpr ne -> {
-                Type type = CompilerTypes.toType(ne.typeName(), driver.currentUnit);
+                Type type = CompilerTypes.toType(ne.typeName(), driver.currentUnit,
+                        driver.externalClasspath);
                 if ("List".equals(ne.typeName()) || "ArrayList".equals(ne.typeName())) {
                     type = BuiltinTypes.LIST;
                 }

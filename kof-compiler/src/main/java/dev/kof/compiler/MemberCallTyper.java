@@ -50,7 +50,7 @@ public final class MemberCallTyper {
         // — resolve pelo classpath antes dos namespaces builtin
         // (Button também é widget do kof.ui; o import decide)
         if (mc.receiver() instanceof IdentifierExpr rid) {
-            Type q = MemberResolver.qualifyViaImports(sa.unit(), rid.name());
+            Type q = MemberResolver.qualifyViaImports(sa.unit(), rid.name(), sa.externalTypes());
             if (q == null && rid.name().contains(".")) {
                 q = MemberResolver.qualifiedType(Type.of(rid.name()));
             }
