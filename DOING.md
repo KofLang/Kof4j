@@ -109,6 +109,36 @@ classe; ConformanceMatrix 11/11 (wrongkey/mapint/set intactos). Corpus:
 fake-idioms.md + collections.md. Suíte 1363/0 na lane (+2 novos; falhas = as
 mesmas pré-existentes de sempre, zero regressão). Docs: known-bugs §126 ✅.
 
+**FEITO (12/09, lane JS — §127 CORRIGIDO):** `map.get/remove` de MISS com
+VALOR primitivo devolvia `null` no JS (JVM/Native/Script dão `0`/`0.0`/
+`false`). Causa dupla na lowering (`JsCollectionOps.handleMapOp`): (i) o
+ramo do §112-JS que embrulha `?? default` só casava `put`/`remove` com
+`returnType` **`PrimitiveType` PURO** — mas `kof_map_get` declara
+`Nullable(V)`, então o **get nunca era coercitado** e o `null` do runtime
+vazava; (ii) `JsTypeMapper.defaultForType(Bool)` devolvia `JsNumber("0")`
+(não `false`) e nem desempacotava `Nullable` (a célula `wrongkey` nunca
+exercitou Bool-miss e `mapgetprim` é só HIT → bug invisível). Fix: `get`
+entra no ramo; o guard aceita `Nullable(Primitivo)`; `defaultForType`
+desempacota `Nullable` + Bool→`false` (correto nos 3 consumidores:
+field-default, put/remove, poll — verificado field `Bool` sem init →
+`false` no JS==JVM). Prova medida via **KofJsRunner/GraalJS** (não node):
+`mapOf("a",<T>).get("zz")` → `0/0/0.0/false` + String-miss `null` == oracle
+JVM/Native/Script; célula `wrongkey` sem exclusão JS (11/11 matrix) +
+`ConformanceMatrixDocTest` (matriz atualizada). **Residual NÃO-§127
+registrado:** Double-miss imprime `0` (não `0.0`) no JS — divergência de
+IMPRESSÃO de Number (§44/família `String(5.0)="5"`, célula floatprint), o
+VALOR está correto; fica fora. **ACHADO COLATERAL (lane #88, NÃO corrigi —
+colisão de lane, condição 2):** `KofStringsIndentDedentTest#indentDedentJs`
+vermelho por 2 causas pré-existentes à minha mudança (provado com `git stash`
+da minha lane → falha igual): (a) o teste chama `node` direto (ausente neste
+host; os outros 34 testes JS usam `KofJsRunner`/GraalJS); (b) mesmo com
+runner, o `kof-runtime.mjs` gerado **NÃO exporta `kofStringsIndent/Dedent`**
+(0 ocorrências) embora `Default.mjs` importe — a string `WS_RUNTIME`
+(`JsRuntimeUiWs`) existe mas **não é roteada no dispatch `kof_strings_*`
+do `JsRuntimeOps`** (só cai por prefixo; o `registerRuntime` nunca mapeia
+`kof_strings_indent`→`kofStringsIndent`) → import vazio = SyntaxError. É o
+#88 que declarou "5 targets" sem o caminho GraalJS fechar. Não é gate meu.
+
 **PRÓXIMO PASSO (bugfix):** (1) **§125** — `println(<primitivo>? null)`:
 crasha JVM/Script, Native dá `0`; ORACLE em conflito (map-miss imprime `0`
 vs print-boxed `null`) → AGUARDANDO decisão da mantenedora (condição 1, já

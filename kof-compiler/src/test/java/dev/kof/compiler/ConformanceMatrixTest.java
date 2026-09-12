@@ -771,7 +771,7 @@ class ConformanceMatrixTest {
                     var n = mapOf("a", 1)
                     println(n.get(5))
                 }
-                """, "null\nfalse\nfalse\n0", Set.of("js"), tempDir);
+                """, "null\nfalse\nfalse\n0", Set.of(), tempDir);
         matrix("emptylist", """
                 main() {
                     var l = listOf()

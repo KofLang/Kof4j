@@ -144,8 +144,17 @@ void handleMapOp(MethodCtx ctx, List<Object> stack,
         // p/ uso primitivo (JS imprimia "null" onde JVM dá 0/false). Mesmo
         // padrão do kof_poll (?? default do primitivo). O KofPop do statement
         // parser foi estendido p/ preservar o side-effect embrulhado.
-        if (("kof_map_put".equals(kc.methodName()) || "kof_map_remove".equals(kc.methodName()))
-                && kc.returnType() instanceof Type.PrimitiveType) {
+        // §127: o get-de-miss também. kof_map_get declara Nullable(V); o
+        // runtime devolve `null` no miss (marcador), e o uso primitivo
+        // (println/aritmética) precisa do default do primitivo — o MESMO
+        // guard dos §112/§122 no outro lado do `??` (defaultForType desempacota
+        // o Nullable; String/não-primitivo fica JsNull, o oracle do JVM miss).
+        boolean primitiveReturn = kc.returnType() instanceof Type.PrimitiveType
+                || (kc.returnType() instanceof Type.NullableType nt
+                    && nt.inner() instanceof Type.PrimitiveType);
+        if (primitiveReturn && ("kof_map_put".equals(kc.methodName())
+                || "kof_map_remove".equals(kc.methodName())
+                || "kof_map_get".equals(kc.methodName()))) {
             call = new JsIr.JsBinary(call, "??", JsTypeMapper.defaultForType(kc.returnType()));
         }
         if (Type.isVoid(kc.returnType())) {

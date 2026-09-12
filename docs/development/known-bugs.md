@@ -3004,6 +3004,25 @@ EXTERNA produz lixo — ✅ CORRIGIDO (teste `NativeE2ETest.nativeLambdaMutableC
 - **Prova esperada:** estender célula `objmethods` (hoje Native excluído =
   §104b-ii) com as variantes `S("ab")==S("ab")` e `W(Pt(1,2),"z")==W(Pt(1,2),"z")`
   → 4/4 sem exclusões.
+- **RE-DIMENSIONADO 12/09 (medido, sem edição de código):** `record Outer(Inner
+  i, String s)` aninhado → JVM `true`, **Native x86 `false`** (confirmado hoje,
+  `NEST.kf`). O dispatch-vtable de `equals` **JÁ EXISTE e funciona** (o
+  top-level `a==b` no x86 devolve `true` via `ExpressionBinaryLowerer:191`
+  → `KofCall INSTANCE equals` → `NativeX86Calls:322` `findVirtualMethodIndex`).
+  O delta do campo aninhado é só: (a) trocar o `KofBinary(EQ, f.type())` do
+  record-não-String por `KofCall(f.type(),"equals",[Object],BOOL,INSTANCE)`,
+  (b) **null-guard** (field pode ser null → `Objects.equals` = `a==b || (a!=null
+  && a.equals(b))` — exige `KofConditionalJump`/`KofLabel` dentro do equals
+  sintetizado, que hoje é um bloco linear sem jumps), (c) o MESMO port no riscv
+  (`NativeRiscvCrossOps`) + aarch tradutor + reconstructor JS (o JS já dá true
+  por `lowerRecordEquals` nativo do objeto — mas o reconstructor lê a IR do
+  Native, precisa aceitar os jumps novos), (d) hash de conteúdo coerente. NÃO é
+  trivial-x86-só: sem qemu aqui, (c)+(d) ficam sem prova → meia-unidade.
+  **Recomendação:** agrupar §114-nested + §107-x86 + §104b-ii(i) numa só frente
+  NATIVE-storage/vtable (mesma infra de "conhecer o tipo do conteúdo em
+  runtime"), planejada em `docs/development/` e executada numa sessão COM toolchain
+  riscv/aarch (valida as 3 faces de uma vez). Rodar fora disso = regressão
+  silenciosa cross-target (proibido).
 
 ### 111. `split` não removia vazios TRAILING (Native x86 + JS) e `substring(a,0)` devolvia a string toda (Native x86) — ✅ CORRIGIDO 11/09 (x86_64 + JS; residual riscv/aarch)
 - **Menor repro split:** `println("a,".split(",").length)` → JVM/Script **1**,
@@ -3475,7 +3494,7 @@ int de índice) — verificados na varredura.
 - **Prioridade:** média (vermelho em teste de gate; sem produto afetado
   além do round-trip switch-statement).
 
-### 127. JS: `map.get/remove` de MISS com VALOR primitivo devolve `null` (JVM/Native/Script devolvem o default `0`/`false`) — ⏳ ABERTO (pré-existente; achado 11/09 pela célula `wrongkey` do §126)
+### 127. JS: `map.get/remove` de MISS com VALOR primitivo devolve `null` (JVM/Native/Script devolvem o default `0`/`false`) — ✅ CORRIGIDO 12/09 (célula `wrongkey` 5/5 sem exclusões)
 
 - **Menor repro (medido 11/09):** `mapOf("a", 1).get("zz")` → **JS `null`**,
   JVM/Native/Script **`0`**. Célula `wrongkey` divergiu só na última linha
@@ -3493,6 +3512,25 @@ int de índice) — verificados na varredura.
   célula `mapgetprim` (valores primitivos String-key HIT) não cobre o MISS.
 - **Prova esperada:** `mapOf("a",1).get("zz")` = `0` nos 4 (extensão da
   célula `wrongkey` tirando a exclusão JS) + paridade `map-miss-primitive`
+  (Int/Long/Double/Bool → `0`/`0`/`0.0`/`false`, String → `null`).
+- **✅ CORRIGIDO 12/09 (célula `wrongkey` sem exclusão JS — 5/5).** Causa
+  dupla na lowering JS (`JsCollectionOps.handleMapOp`): (i) o ramo do §112-JS
+  que embrulha `?? default` só casava `put`/`remove` com `returnType`
+  `PrimitiveType` PURO — mas `kof_map_get` declara `Nullable(V)`, então o
+  get-miss **nunca** era coercitado e o `null` do runtime vazava; (ii)
+  `defaultForType(Bool)` devolvia `JsNumber("0")` (não `false`) e NEM
+  desempacotava `Nullable` (a célula `wrongkey` nunca exercitou Bool-miss, e
+  `mapgetprim` é só HIT — por isso o bug de Bool passava invisível). Fix:
+  `get` adicionado ao ramo; o guard agora aceita `Nullable(Primitivo)`;
+  `defaultForType` desempacota `Nullable` e devolve `false` p/ Bool (correto
+  p/ os 3 consumidores: field-default de Bool, put/remove, poll). Prova
+  medida JS (KofJsRunner/GraalJS): `0|0|0.0|false|null` = oracle JVM/Native/
+  Script (Int/Long/Double/Bool-miss + String-miss). **Residual NÃO-§127:**
+  o DOUBLE-miss imprime `0` (não `0.0`) no JS — é a divergência de
+  IMPRESSÃO de Number do JS (`String(5.0)="5"`, célula `floatprint`, §44/
+  família), o VALOR armazenado está correto; fica fora daqui (decisão de
+  formatação). `remove`/`put`-first de chave-ausente com valor primitivo já
+  cobertos (mesmo ramo, agora com `get`).
   no harness JS.
 
 ### 125. `println(<primitivo>? null)` (Int?/Bool?/... null): JVM **VerifyError** na carga + Script **NoSuchMethodError `Integer.valueOf/1`**; Native imprime `0` — ⏳ ABERTO (achado 11/09 ao fixar o §124)
@@ -3528,6 +3566,24 @@ int de índice) — verificados na varredura.
   migração; registrado nas duas leituras, execução aguarda (condição 1).
 - **Prova esperada:** PN2 com o valor do oracle nos 4 targets (célula na
   matriz 4/4) + `KofInterpreterParityTest`; hoje crash/crash/0.
+- **Estado medido 12/09 (re-avaliação da mesa de decisões, sem edição de
+  código):** (a) `var x: Int? = null` (literal null DIRETO) é REJEITADO pelo
+  **SEM048** ("null safety works by narrowing") — logo os ÚNICOS caminhos que
+  produzem `Int?`==null observável são: **(b)** `println(mapOf("a",1).get("zz"))`
+  → `0` nos 4 targets (caminho runtime, sem descritor de função), e **(c)**
+  `Int? ni() { return null }` + `println(ni())` → crash JVM/Script (descritor
+  `int` com null → VerifyError — a CAUSA RAIZ já pinada 11/09). (d) `String?`
+  null (não-primitivo) → `null` (§124, intocado). O fix do **CRASH (c)** é
+  independente do oracle (crash nunca é oracle: boxar o retorno `Int?` em
+  `Integer` no JVM = descritor + unbox-guard nos callers; Native/Script
+  idem) — mas o VALOR que o println imprime depois (`0` de (b) OU `null`
+  estilo (d)) É a decisão da mantenedora que trava a unidade: (A) alinha (c)
+  ao precedente (b) = `0` (sem bump, guard de null→default no use-site —
+  mesmo `prevOrDefault` do map-miss, estendido ao retorno de função);
+  (B) oracle `null` universal de nullable-print → muda (b) de `0` p/ `null`
+  (bump + migração + corpus). Com o SEM048, a leitura (A) fica MAIS natural
+  (a linguagem já obriga narrowing; o `0` do map-miss é o "default do
+  primitivo" documentado SG-008). Registrado aguardando (condição 1).
 - **Prioridade:** média-baixa (crash ruidoso; workaround `if (x != null)`
   ou `println(x == null ? "null" : x)`).
 
