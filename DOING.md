@@ -54,7 +54,17 @@ Estados: `ABERTO` · `EM CURSO` · `FEITO` · `BLOQUEADO`.
 > faces cross §123/§126-tag com qemu (emissores escritos, falta só a prova na
 > sessão com toolchain — **a toolchain ESTÁ neste host**: `qemu-riscv64`,
 > `qemu-aarch64`, `riscv64/aarch64-linux-gnu-as` em `/usr/bin`) e §107
-> `println(<coleção>)` nativo (x86 primeiro, cross depois). **NÃO** tocar: fila
+> `println(<coleção>)` nativo (x86 primeiro, cross depois). **⚠️ RETIFICADO
+> 12/09 (bugfixer, medido — audit doc vs reality):** a toolchain **NÃO está
+> neste host**: `command -v qemu-riscv64 qemu-aarch64 riscv64/aarch64-linux-gnu-as`
+> → todos ausentes; `find / -name qemu-riscv64/riscv*as` → vazio;
+> `/usr/bin` só tem `x86_64-suse-linux-gnu-pkg-config`. Prova viva:
+> `NativeRiscv64E2ETest#*MultiArray*` roda **36/36 SKIPPED** (0 executed) —
+> o guard `assumeTrue` (`4408eb6`) pula exatamente por toolchain ausente. A
+> afirmação "está em /usr/bin" pode valer na sessão melissa/B37 (host com
+> qemu) mas **não aqui** — as faces cross §123/§126-tag seguem SEM prova
+> possível nesta máquina (meia-unidade = regressão silenciosa, proibido).
+> **NÃO** tocar: fila
 > bugfixer (bugs §125/§126/§104b-ii = lane deles), `JvmOpCollections`,
 > `CollectionCallLowerer`, `NativeRiscv*Asm*` das coleções.
 
