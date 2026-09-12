@@ -85,8 +85,9 @@ public final class RuntimeSet {
                 jmp .LKSR_scan
             .LKSR_found:
                 movq %rbx, %rdi
-                movq %r13, %rsi
-                call kof_list_remove        # remove por índice
+                movq %r14, %rsi             # §129: ÍNDICE (r14), não a tag
+                call kof_list_remove        # (r13): com tag o remove apagava
+                                            # o elemento do índice == tag
                 movl $1, %eax
                 popq %r14
                 popq %r13

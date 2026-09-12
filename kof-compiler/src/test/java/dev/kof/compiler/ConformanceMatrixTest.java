@@ -786,8 +786,16 @@ class ConformanceMatrixTest {
                     println(s.size)
                     println(s.contains(2))
                     println(s.contains(9))
+                    println(s.remove(2))
+                    println(s.contains(2))
+                    println(s.remove(2))
+                    println(s.size)
+                    var t = setOf("a", "b", "c")
+                    println(t.remove("a"))
+                    println(t.contains("b"))
+                    println(t.contains("a"))
                 }
-                """, "3\ntrue\nfalse", Set.of(), tempDir);
+                """, "3\ntrue\nfalse\ntrue\nfalse\nfalse\n2\ntrue\ntrue\nfalse", Set.of(), tempDir);
         matrix("listops", """
                 main() {
                     var l = listOf(1, 2, 3)

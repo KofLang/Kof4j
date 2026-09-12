@@ -3429,6 +3429,27 @@ int de índice) — verificados na varredura.
   → JVM **VerifyError** e Script `Integer.valueOf/1` (NoSuchMethod) —
   §125. `println(char)` congelado numérico (strings.md) continua intocado.
 
+### 129. Native `Set.remove(x)` deletava o elemento no ÍNDICE == tag, não o encontrado — silent data corruption (pior que crash) — ✅ CORRIGIDO 11/09 (x86; riscv já estava certo; aarch traduz)
+
+- **Menor repro (SR1, medido 11/09):** `setOf("a","b","c")`:
+  `s.remove("a")` → retornava `true` mas removia **"b"**. `s.contains("b")`
+  = false, `s.contains("a")` = true (JVM: o inverso). Corrupção SILENCIOSA
+  — remove() dizia sucesso e apagava o vizinho errado.
+- **Causa raiz (x86 `RuntimeSet.kof_set_remove`):** no `.LKSR_found` o
+  caminho fazia `movq %r13, %rsi` para o `kof_list_remove` — **r13 é a
+  TAG** (1=String), não o índice. O índice do loop (achado) vivia em
+  **r14**, nunca usado no remove. `remove("a")` (hit no índice 0, tag 1)
+  passava 1 → apagava o índice 1. Só escapava quando tag==índice.
+- **✅ Fix:** `movq %r14, %rsi` (r13/r14 são callee-saved → sobrevivem ao
+  `call kof_string_equals` no meio do loop). riscv (`Mapset0.Lksr_found:
+  mv a1, s3`) já passava o índice correto — bug era x86-only; aarch64
+  traduz o x86 → coberto.
+- **Por que não foi pego:** a célula `setdedup` nunca chamava `remove`;
+  os probes §126 só mediam `add`/`contains`. Estendida agora (remove
+  Int-hit, remove-miss, remove String no índice 0) → `setdedup` 4/4.
+- **Prova:** SR1/SR2/SR3 nativos = JVM byte-a-byte; célula `setdedup`
+  expandida (10 linhas de saída); suíte completa abaixo.
+
 ### 128. kof-cli `DecompileTest#recoversStatementSwitchAndRunsIt` VERMELHO — decompilador emite statement-switch com `var` só no 1º case → SEM011 no recompile — ⏳ ABERTO (não-introduzido pela lane §123/§126; triagem 11/09)
 
 - **Reprodução (exata, medida 11/09):** em `94c4a1fb` LIMPO (working tree
