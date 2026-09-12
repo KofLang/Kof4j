@@ -522,6 +522,66 @@ class SemanticResolutionTest {
         assertTrue(r.success(), "Int-index não deve regride: " + r.diagnostics().getDiagnostics());
     }
 
+    // ---- §126 (opção ii, decisão da mantenedora 11/09): escrita em
+    // container PINADO com tipo ≠ o pinado polui o heap (o scan tag=1 chama
+    // kof_string_equals sobre Int cru → SIGSEGV no Native — H3/H4; no JVM,
+    // add heterogêneo já VerifyError na carga e set/put-valor já CCE).
+    // A linguagem é estática: rejeitar em compile-time com SEM056 (família
+    // SEM055/§122). Query-side (get/contains/remove-procura) NÃO é rejeitado
+    // — é miss seguro (§126 lado ARG). Unknown (ainda não pinado) e widening
+    // numérico (Int→Long) passam. ----
+
+    @Test
+    void heterogeneousWriteToPinnedCollectionRejected(@TempDir Path tmp) throws IOException {
+        String[] exprs = {
+            "var l = listOf(\"a\"); l.add(5)",
+            "var l = listOf(1); l.add(\"x\"); println(l.get(0))",
+            "var s = setOf(\"a\"); s.add(5)",
+            "var m = mapOf(\"a\", 1); m.put(5, \"b\")",
+            "var m = mapOf(\"a\", 1); m.put(\"b\", \"x\")",
+            "var l = listOf(\"a\", \"b\"); l.set(0, 5)",
+            // pinado PELO primeiro add (List<Unknown> → List<Int>); o segundo
+            // add polui — mesma família SEM056.
+            "var n = listOf(); n.add(1); n.add(\"x\"); println(n.size())" };
+        for (String e : exprs) {
+            CompilationResult r = compile(tmp, "e.kf", "main() { " + e + "; println(1) }");
+            assertFalse(r.success(), "deve falhar: " + e);
+            boolean found = r.diagnostics().getDiagnostics().stream()
+                    .anyMatch(d -> "SEM056".equals(d.code()) && d.message().contains("homog"));
+            assertTrue(found, "esperava SEM056 p/ '" + e + "', foi: "
+                    + r.diagnostics().getDiagnostics());
+        }
+    }
+
+    @Test
+    void querySideAndWideningNotRejected(@TempDir Path tmp) throws IOException {
+        // get/contains com tipo ≠ (query-side, §126 lado ARG) continua
+        // compilando — o Native devolve o miss seguro (tag=0 raw cmpq), o
+        // JVM devolve null/false. E add/set/put que só WIDENAM números
+        // (Int→Long), são homogêneos, ou PINAM um container Unknown passam.
+        CompilationResult r = compile(tmp, "ok2.kf", """
+                main() {
+                    var l = listOf("a", "b")
+                    println(l.contains(5))          // query miss (não rejeita)
+                    var m = mapOf("a", 1)
+                    println(m.get(5))              // query miss
+                    println(m.size())
+                    var s = setOf("a")
+                    println(s.contains(5))         // query miss
+                    var n = listOf()               // primeiro add PINA
+                    n.add(1)
+                    n.add(2)                       // homogêneo → ok
+                    n.add(3)
+                    println(n.get(0))
+                    var big = listOf(1, 2)
+                    big.add(9)                     // Int→Int, ok (sem widening aqui)
+                    println(big.size)
+                }
+                """);
+        assertTrue(r.success(), "query-side/homogêneo não deve regride: "
+                + r.diagnostics().getDiagnostics());
+    }
+
     @Test
     void subscriptOnArraysStillCompiles(@TempDir Path tmp) throws IOException {
         // array de verdade (o único [] do corpus) não regride (regra 1).

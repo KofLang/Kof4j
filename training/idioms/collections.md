@@ -37,6 +37,12 @@ var v = m.get("a")
 var s = setOf(1, 2, 3)
 s.add(4)
 s.contains(2)
+// Coleções Kof são HOMOGÊNEAS: depois que o tipo PINA, add/put/set com tipo ≠
+// é rejeitado em compile-time (SEM056, bug 126 — não é só o Native que quebrava:
+// no JVM o add heterogêneo já dava VerifyError). Widening numérico (Int em
+// List<Long>) e o PRIMEIRO add (que pina um listOf()) passam. Buscar por tipo ≠
+// (m.get(5) num Map<String,Int>, s.contains("x") num Set<Int>) é MISS SEGURO
+// (null/false), nunca erro — só a ESCRITA é checada.
 
 // Como campo de classe, param de construtor e retorno de método (3 targets — 01/09)
 class Bag(Set<Int> tags) {

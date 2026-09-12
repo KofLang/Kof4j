@@ -3531,7 +3531,7 @@ int de índice) — verificados na varredura.
 - **Prioridade:** média-baixa (crash ruidoso; workaround `if (x != null)`
   ou `println(x == null ? "null" : x)`).
 
-### 126. Chave do TIPO ERRADO em Map/Set/`contains`-de-List pinados → Native SIGSEGV (JVM tolera com miss/false) — ◐ PARCIAL 11/09 (lado ARG ✅ conjunção; lado CANDIDATO = decisão de contrato pendente)
+### 126. Chave do TIPO ERRADO em Map/Set/`contains`-de-List pinados → Native SIGSEGV (JVM tolera com miss/false) — ✅ CORRIGIDO 11/09 (decisão da mantenedora: opção ii — SEM056 em compile-time)
 
 - **Matriz medida 11/09 (probes A1/A2/MP2/ST1/ST2/E1):**
   | programa | JVM | Native (hoje) |
@@ -3571,23 +3571,36 @@ int de índice) — verificados na varredura.
   `mapint`/`set` verdes). SEM rejeição: o reject em alvo único seria
   fallback silencioso proibido, e em todos os-alvos mudaria comportamento
   que roda hoje no JVM (regra 2).
-- **⏳ LADO CANDIDATO (residual, ABRIGADO p/ decisão de contrato):**
-  container POLUÍDO — `setOf("a"); s.add(5); s.contains("zz")` (H3) e
-  `mapOf("a",1); m.put(5,"b"); m.get("zz")` (H4): o scan com tag=1 chama
-  `kof_string_equals` no CANDIDATO 5-como-ponteiro → SIGSEGV. O JVM dá
-  `false`/`0` (HashMap heterogêneo tolerante). Dois caminhos possíveis:
-  (i) **guard de range no asm**: antes de equals, validar que o candidato
-  cai no arena do heap (símbolos de base/limit do `kof_alloc`) — mantém
-  o programa rodando, paridade exata com o JVM, mas exige expor os
-  limites do heap p/ runtime asm nos 3 targets + port riscv e teste de
-  candidatos nullos; (ii) **SEM056 em compile-time (opção B, família
-  §122)**: rejeitar `add`/`put` de tipo ≠ elemType PINADO — alinha com a
-  diretriz "Kof estático", mas faz programa que HOJE roda no JVM/JS/
-  Script passar a não compilar (mudança de contrato → condição de
-  parada 1: decisão da mantenedora). Recomendação técnica: (ii) é mais
-  simples e honesto com o tipo da linguagem; (i) é mais permissivo.
-  Registrado aguardando decisão; enquanto isso H3/H4 SIGSEGVam (raro:
-  exige stored-then-full-scan-miss).
+- **✅ LADO CANDIDATO CORRIGIDO (11/09, decisão da mantenedora = opção ii,
+  "Kof estático"):** SEM056 em compile-time rejeitando a ESCRITA que polui o
+  container pinado (família SEM055/§122). Medido antes de decidir: `List.add`
+  heterogêneo JÁ crasha no JVM (VerifyError na carga); `List.set` com valor
+  errado idem; `Map.put` com valor errado → ClassCastException no get/unbox;
+  só Set.add/Map.put-chave são tolerados pelo JVM — mas SIGSEGVam no Native.
+  A rejeição é universal (erro de tipo é erro de tipo em todo alvo — rejeitar
+  só no Native seria o "fallback silencioso por alvo" proibido, e aceitar só
+  no JVM manteria o SIGSEGV). `pollutesPinned` (CollectionCallLowerer) é
+  CIRÚRGICO: rejeita só quando AMBOS os lados são conhecidos, concretos e
+  divergem na família String↔não-String (é exatamente o par que vira tag=1
+  sobre um Int). Passam: widening numérico (Int→Long, §121), Unknown/
+  TypeVariable (SG-008), query-side (get/contains/remove-procura → miss
+  seguro do lado ARG), o add que PINA um List<Unknown> (define o tipo, não
+  polui), e Map.put com VALUE em mapa de valor Unknown. Sítios: `List.add/
+  set(valor)`, `Set.add`, `Map.put(chave|valor)`. **Prova:**
+  `SemanticResolutionTest.heterogeneousWriteToPinnedCollectionRejected`
+  (7 programas, todos SEM056 com dica "coleções Kof são homogêneas") +
+  `querySideAndWideningNotRejected` (o que NÃO deve regredir) + Conformance
+  Matrix intacta 11/11 (wrongkey/mapint/set continuam 4/4 — o query-side não
+  mudou). Suíte: 1363/0 na lane (+2 testes novos; as 2 falhas + 12 errors
+  são as pré-existentes de sempre — node ausente, §128, SEM047).
+  **MUDANÇA DE CONTRATO deliberada (regra 1, única exceção):** código que
+  HOJE roda no JVM (`setOf("a").add(5)` → size 2) passa a NÃO compilar.
+  Justificativa: a alternativa era manter SIGSEGV no Native (imprestável) ou
+  guard de arena no asm dos 3 targets + port riscv (complexidade alta,
+  comportamento "comporta lixo"); a mantenedora escolheu a linha estática.
+  Bump de versão: o 0.4.0 ainda é beta — a breaking-change entra na própria
+  linha 0.4.0 (não exige release anterior estável).
+
 
 ### 120. Tradutor riscv→aarch64: `fcvt.w/l.{s,d}` (FP→INT) traduzido como `scvtf` (direção INVERTIDA) — ✅ CORRIGIDO 11/09 (`fcvtzs`)  *(renumerado de §104 na reconciliação do merge 11/09 — colidiu com o record-equals §104 da série ativa)*
 

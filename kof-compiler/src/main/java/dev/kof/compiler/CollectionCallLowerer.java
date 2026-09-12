@@ -150,10 +150,31 @@ public final class CollectionCallLowerer {
                     return localIdx;
                 }
             }
-            // listOf() with no type argument produces
+                // listOf() with no type argument produces
             // List<Unknown>; the first add() pins the element
             // type on the local so later get() calls are
             // typed (records, classes) instead of Object.
+            if ("kof_list_add".equals(listFn) || "kof_list_set".equals(listFn)) {
+                // §126 (ii): add/set de tipo ≠ elemType PINADA polui o heap —
+                // o JVM já VerifyError no get/unbox, o Native SIGSEGV no
+                // scan com tag String. Rejeitar em compile-time (SEM056).
+                // Só quando elemType já é concreto (o add que PINA um
+                // List<Unknown> não é poluição — é a definição do tipo).
+                // set: o VALOR é o arg 1 (o índice já foi checado em SEM055).
+                int valIdx = "kof_list_set".equals(listFn) ? 1 : 0;
+                if (argTypes.size() > valIdx && pollutesPinned(elemType, argTypes.get(valIdx))
+                        && driver.currentDiagnostics != null) {
+                    var pos = mc.position();
+                    driver.currentDiagnostics.error(pos != null ? pos.file() : "",
+                            pos != null ? pos.line() : 0,
+                            pos != null ? pos.column() : 0, 0,
+                            "List." + mc.methodName() + ": elemento " + typeNameFor(argTypes.get(valIdx))
+                                    + " não casa com o tipo da lista (" + typeNameFor(elemType)
+                                    + ") — coleções Kof são homogêneas",
+                            "SEM056");
+                    return localIdx;
+                }
+            }
             if ("kof_list_add".equals(listFn)
                     && Type.UnknownType.UNKNOWN.equals(elemType)
                     && !argTypes.isEmpty()
@@ -237,6 +258,29 @@ public final class CollectionCallLowerer {
                     }
                 }
             }
+            // §126 (ii): put CHAVE ou VALOR de tipo ≠ pinado polui o mapa.
+            // Chave errada = scan tag=1 sobre Int cru → SIGSEGV no Native
+            // (A2/H4); valor errado = ClassCastException no JVM no get/unbox.
+            // Rejeição cobre os dois lados (decisão "put heterogêneo").
+            if ("kof_map_put".equals(mapFn) && driver.currentDiagnostics != null) {
+                String badSlot = null; Type badType = null, slotType = null;
+                if (argTypes.size() >= 1 && pollutesPinned(keyType, argTypes.get(0))) {
+                    badSlot = "chave"; badType = argTypes.get(0); slotType = keyType;
+                } else if (argTypes.size() >= 2 && pollutesPinned(valueType, argTypes.get(1))) {
+                    badSlot = "valor"; badType = argTypes.get(1); slotType = valueType;
+                }
+                if (badSlot != null) {
+                    var pos = mc.position();
+                    driver.currentDiagnostics.error(pos != null ? pos.file() : "",
+                            pos != null ? pos.line() : 0,
+                            pos != null ? pos.column() : 0, 0,
+                            "Map.put: " + badSlot + " " + typeNameFor(badType)
+                                    + " não casa com o tipo do mapa (" + typeNameFor(slotType)
+                                    + ") — coleções Kof são homogêneas",
+                            "SEM056");
+                    return localIdx;
+                }
+            }
             Type retType = switch (mapFn) {
                 case "kof_map_put", "kof_map_remove" -> valueType;
                 // get() devolve V? (SG-008/bug 87): ausência é null comparável
@@ -280,6 +324,22 @@ public final class CollectionCallLowerer {
             for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
             Type elemType = Type.UnknownType.UNKNOWN;
             if (recvType instanceof Type.ClassType ct && !ct.typeArguments().isEmpty()) elemType = ct.typeArguments().get(0);
+            // §126 (ii): Set.add com tipo ≠ elemType pinada = heap poluído
+            // (o scan tag=1 chama kof_string_equals sobre Int cru → SIGSEGV
+            // no Native — ST1/H3). JVM tolera; a linguagem NÃO (homogênea).
+            if ("kof_set_add".equals(setFn) && !argTypes.isEmpty()
+                    && pollutesPinned(elemType, argTypes.get(0))
+                    && driver.currentDiagnostics != null) {
+                var pos = mc.position();
+                driver.currentDiagnostics.error(pos != null ? pos.file() : "",
+                        pos != null ? pos.line() : 0,
+                        pos != null ? pos.column() : 0, 0,
+                        "Set.add: elemento " + typeNameFor(argTypes.get(0))
+                                + " não casa com o tipo do set (" + typeNameFor(elemType)
+                                + ") — coleções Kof são homogêneas",
+                        "SEM056");
+                return localIdx;
+            }
             Type retType = switch (setFn) {
                 case "kof_set_add", "kof_set_remove" -> Type.PrimitiveType.BOOL;
                 case "kof_set_contains", "kof_set_is_empty" -> Type.PrimitiveType.BOOL;
@@ -350,6 +410,31 @@ public final class CollectionCallLowerer {
     }
 
     /**
+     * §126 (opção ii — decisão da mantenedora 11/09): um add/put cujo valor é
+     * do TIPO ERRADO para o elemento/chave PINADA do container polui o heap —
+     * uma futura varredura com tag String (elem String) chama kof_string_equals
+     * sobre o candidato não-String e o trata como ponteiro → SIGSEGV no Native
+     * (H3/H4; JVM tolera com HashMap heterogêneo). A correção é ESTÁTICA:
+     * rejeitar em compile-time (SEM056), família SEM055/§122 — "Kof estático".
+     *
+     * Rejeita APENAS a família que quebra de verdade: ambos os lados conhecidos
+     * e concretos, e um é String enquanto o outro NÃO é (é isto que vira tag=1
+     * sobre um inteiro). Casos apenas de "miss" (non-String-pinned recebe
+     * String → raw cmpq, nunca deref → false/null como o JVM) e widening
+     * numérico (Int em Long) e Unknown/TypeVariable (SG-008: pode casar em
+     * runtime) PASSAM — não rejeitar o que não é perigoso.
+     */
+    private static boolean pollutesPinned(Type pinned, Type arg) {
+        if (pinned == null || arg == null) return false;
+        Type p = pinned instanceof Type.NullableType pn ? pn.inner() : pinned;
+        Type a = arg instanceof Type.NullableType an ? an.inner() : arg;
+        if (p instanceof Type.UnknownType || a instanceof Type.UnknownType) return false;
+        if (p instanceof Type.TypeVariable || a instanceof Type.TypeVariable) return false;
+        if (BuiltinTypes.isString(p) == BuiltinTypes.isString(a)) return false;
+        return true;
+    }
+
+    /**
      * §126: tag de comparação do Native (1 = kof_string_equals, 0 = raw
      * cmpq). O equals de String só é SEGURO quando ambos os lados são
      * String conhecidos: o lado desconhecido pode ser um Int cru que o
@@ -374,6 +459,13 @@ public final class CollectionCallLowerer {
 
     private static String typeNameFor(Type t) {
         if (t instanceof Type.NullableType nt) return typeNameFor(nt.inner()) + "?";
+        if (t instanceof Type.PrimitiveType pt) {
+            return switch (Type.canonicalPrimitiveName(pt.name())) {
+                case "int" -> "Int"; case "long" -> "Long"; case "double" -> "Double";
+                case "float" -> "Float"; case "bool" -> "Bool"; case "char" -> "Char";
+                case "byte" -> "Byte"; case "short" -> "Short"; default -> pt.name();
+            };
+        }
         if (t instanceof Type.ClassType ct) return ct.name();
         if (t instanceof Type.ArrayType a) return typeNameFor(a.componentType()) + "[]";
         return String.valueOf(t);

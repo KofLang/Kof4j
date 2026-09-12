@@ -74,15 +74,38 @@ PKG006 (não virou silêncio); NATIVE+JS com jar → PKG006 (paridade honesta).
 Suíte compiler 1361 run / 0 na lane (12 err = node ausente = trio pré-existente;
 1 fail = `CompilerDriverTest#duplicateTopLevelFunctionFails` SEM047, **pré-
 existente no HEAD `a95ffa49`** — verificado com stash, NÃO é desta unidade;
-§131-adjacente, lane semântica). **PRÓXIMO PASSO (bugfix):** (1) **§126 SEM056**
-— decisão HUMANA TOMADA (opção ii): rejeitar `add`/`put` de tipo ≠ pinado em
-compile-time; unidade em `CollectionCallLowerer` (conferir widening numérico
-Int→Long p/ não rejeitar `List<Long>.add(5)`; SEM055 já cobre índice); (2)
-§128 `DecompileTest#recoversStatementSwitchAndRunsIt` vermelho ordem-dependente
-no HEAD limpo (decompilador emite `var v1` só no `case 1` → SEM011) — NÃO é da
-lane bugfix de código (é decompilador), mas é bug real: registrar/medir; (3)
-restante §126 (H3/H4) fecha com o SEM056. NÃO tocar §125 (aguardando oracle),
-§104b-ii (grande, infra storage-box). NUNCA pushar main sem pedido do humano.
+§131-adjacente, lane semântica).
+
+**FEITO (11/09, lane bugfix — §126 SEM056 CORRIGIDO — decisão humana opção ii):**
+"container poluído" (`listOf("a").add(5)`, `setOf("a").add(5)`,
+`mapOf("a",1).put(5,"b")`) SIGSEGVava no NATIVE (scan tag=1 → kof_string_equals
+sobre Int cru = ponteiro; H3/H4). Medido antes de codar: o mesmo programa JÁ
+quebra no JVM (List.add hetero → VerifyError na carga; set-valor → VerifyError;
+Map.put-valor → ClassCastException no get) e só o JS "roda" com lixo. Fix =
+rejeição em compile-time (família SEM055/§122): `pollutesPinned` em
+CollectionCallLowerer — CIRÚRGICO, só quando AMBOS conhecidos+concretos e
+divergem String↔não-String. Sítios: List.add/set(valor), Set.add, Map.put
+(chave|valor). PASSAM: query-side (get/contains/remove → miss seguro, lado ARG
+intocado), widening numérico (Int→Long, §121), add que PINA um Unknown, TypeVariable.
+**Mudança de contrato deliberada (regra 1, única exceção):** código que hoje
+roda no JVM (Set.add/Map.put-chave hetero → size 2) passa a NÃO compilar — a
+mantenedora escolheu a linha estática sobre o guard-de-arena-no-asm (opção i,
+que manteria o lixo). Universal em todos os alvos (nunca silencioso por alvo).
+**Prova:** `SemanticResolutionTest.heterogeneousWriteToPinnedCollectionRejected`
+(7 casos SEM056) + `querySideAndWideningNotRejected` (não-regra) — 25/25 na
+classe; ConformanceMatrix 11/11 (wrongkey/mapint/set intactos). Corpus:
+fake-idioms.md + collections.md. Suíte 1363/0 na lane (+2 novos; falhas = as
+mesmas pré-existentes de sempre, zero regressão). Docs: known-bugs §126 ✅.
+
+**PRÓXIMO PASSO (bugfix):** (1) **§125** — `println(<primitivo>? null)`:
+crasha JVM/Script, Native dá `0`; ORACLE em conflito (map-miss imprime `0`
+vs print-boxed `null`) → AGUARDANDO decisão da mantenedora (condição 1, já
+registrado nas duas leituras — não é edição minha). (2) §104b-ii record-em-
+coleção nativo via vtable (grande, avaliar antes). (3) §131 sobrecarga por
+aridade + `duplicateTopLevelFunctionFails`/SEM047 + §128 DecompileTest =
+pré-existentes na lane SEMÂNTICA/decompilador, NÃO bugfix de runtime — medir
+se caem na minha mesa antes de tocar. NÃO tocar §101/§94/§44 (congelados).
+NUNCA pushar main sem pedido do humano.
 
 **FEITO (11/09, lane Native cross — §113 FACES riscv64+aarch64 FECHADAS — `kof_multi_alloc` recursivo cross):** o maintainer corrigiu o x86 e deixou "faces riscv/aarch = port p/ sessão c/ toolchain" — a toolchain ESTÁ neste host (`/usr/bin/qemu-riscv64|aarch64` + binutils), então o port é o degrau óbvio da fila. Fatia nova `NativeRiscvAsmRtB37` (0 colisões .L/.globl verificadas vs vencedora): `kof_multi_alloc(a0=dimsBase, a1=n, a2=i, a3=leafStride)` recursivo espelhando o x86 — MESMA fórmula de offset `d_i = base + 8*(n-i)`; ABI própria: o chamador passa o PRÓPRIO sp como base (dimensões já empilhadas, d_n no topo) e sÓ AVANÇA o sp depois (sem pilha dinâmica — frame fixo do helper salva ra+s0..s6, 112B); nó interno = elemSize 8 (ponteiros), folha = stride do baseType com payload ZEROED byte-a-byte via laço `sb` (paridade MULTIANEWARRAY — kof_alloc é bump-pointer sem zero). Roteio `KofNewMultiArray` em `NativeRiscvCrossEmit` (antes caía no default-comentário NATIVE002); aarch herda 100% via tradutor (verificado: `sb zero`→`strb wzr`, `bge`/`bne`/`mul`/`slli` todos cobertos, 0 UNHANDLED). **Prova:** `riscv64MultiDimArray`/`aarch64MultiDimArray` (10 saídas golden = oracle JVM medido: lengths 2/3 + zero-fill + store/load + 3-D completo `2 3 0 7 2 2 9 0`); sabotagem → FAIL com saída real (não-vazio provado). Docs: célula `array2d` da matriz (faces cross ✅) + §113. **PRÓXIMO PASSO (re-dispacho):** (1) §113 PUSHADO `d2a4dc0a`+docs `edb86c34` (suíte do HEAD pré-rebase 1477/0/5skip; gate no HEAD exato rodando `push-gate.log` — se vermelho, é meu para corrigir antes da próxima unidade); (2) fila lane Native com toolchain real: §107 Native println(coleção) — ABERTO, backend-only, sem gate, R6 violada hoje (imprime lixo de ponteiro); fix = helpers toString recursivos dos 3 tipos de coleção (espelho `kofFormat` do JS §107-JS, x86 primeiro + fatia riscv + tradutor); §114 hash/coleção fica ATRELADO à infra storage-box do §104b-ii(i) (grande, avaliar antes); NÃO tocar §101/§94/§44 (congelados), §45/§106/DD-STDLIB (decisão mantenedora), lane §104/interp (outros agentes). NUNCA pushar main sem pedido do humano.
 
@@ -103,10 +126,10 @@ restante §126 (H3/H4) fecha com o SEM056. NÃO tocar §125 (aguardando oracle),
 **FEITO (11/09, lane Native/frontend — §126 lado ARG CORRIGIDO):** chave/elemento do tipo errado como ARG de query (mapOf(1,"a").get("x"), setOf("a").contains(5), listOf("a").contains(5)) SIGSEGVava no native — o tag String↔raw vinha só do elemType. Regra nova: tag = **conjunção** elem-receptor × tipo-do-arg (String-equals só quando ambos String; senão raw cmpq = miss seguro EXATAMENTE como o JVM — sem rejeição em alvo único = proibido, sem regressão nos que rodam hoje). Helper `CollectionCallLowerer.stringTag` + emissores x86/riscv (aarch traduz). Prova: E2 e célula `wrongkey` 4/4 + A1/A2/MP2/ST1/ST2/E1 ec=0 + `map`/`mapint`/`set` verdes (zero regressão).
 
 **PRÓXIMO PASSO (minha unidade na fila — na ordem):**
-1. **§125 (causa pinada = retorno `Nullable(primitivo)` de função):** NO JVM, o menor fix honesto: função com retorno `T?` primitivo emite descritor `Ljava/lang/Integer;` e `return null` fica ARETURN válido; callers do resultado SEMPRE em contexto boxed → `println(String.valueOf(Object))` = "null" OU default — DEFINIR: com o descritor boxed, o println do null sai `null` (não 0), e o guard map-miss (0) é caminho separado (runtime, sem descritor). Isso ALINHA (c) com `null`-por-print mas o map-miss continua `0` — CONTRADIÇÃO de oracle entre caminhos do mesmo `Nullable(INT)`: decisão da mantenedora pendente (bump); NÃO editar até lá (condição de parada 1).
-2. **§126 lado CANDIDATO (H3/H4):** decisão (i) guard de heap-range no asm vs (ii) SEM056 add/put heterogêneo — aguardando mantenedora (mesmo motivo).
-3. **§104b-ii** (record-em-coleção nativo via vtable nos helpers asm) — unidade GRANDE, GC-safe (mark conservadora); começar removendo exclusão `native` da célula `objmethods` e medir o que falta após §129 (a busca por conteúdo de String JÁ funciona; falta record).
-4. Faces riscv/aarch do §123/§126-tag: EMISSOR riscv escrito, SEM prova qemu neste host (assumeTrue pula) — rodar na sessão com toolchain (melissa/B37 tem).
+ 1. ~~**§126 lado CANDIDATO (H3/H4):** decisão (i) guard de heap-range no asm vs (ii) SEM056 add/put heterogêneo~~ ✅ **FEITO 11/09** — mantenedora escolheu (ii); SEM056 implementado (commit 0fe04ae2, `pollutesPinned` + 4 sítios + SemanticResolutionTest 2 novos). Ver FEITO §126 acima.
+ 2. **§125 (causa pinada = retorno `Nullable(primitivo)` de função):** AGUARDANDO decisão da mantenedora (condição 1) — oráculo `0`-por-map-miss vs `null`-por-print-boxed em conflito; NÃO editar até lá.
+ 3. **§104b-ii** (record-em-coleção nativo via vtable nos helpers asm) — unidade GRANDE, GC-safe (mark conservadora); começar removendo exclusão `native` da célula `objmethods` e medir o que falta após §129 (a busca por conteúdo de String JÁ funciona; falta record).
+ 4. Faces riscv/aarch do §123/§126-tag: EMISSOR riscv escrito, SEM prova qemu neste host (assumeTrue pula) — rodar na sessão com toolchain (melissa/B37 tem).
 
 **FEITO (11/09, lane Native — §129 CORRIGIDO, silent corruption):** `setOf("a","b","c").remove("a")` removia **"b"** e dizia `true` (SR1). Causa: `RuntimeSet.LKSR_found` passava `%r13` (a TAG) como ÍNDICE ao `kof_list_remove` — o índice real (r14) nunca era usado. Fix: r13→r14 (1 registrador; callee-saved sobrevive ao string-equals do loop). riscv já estava correto (`mv a1,s3`); aarch traduz. Escapou do crivo porque `setdedup` nunca chamava remove. Prova: SR1/SR2/SR3 = JVM byte-a-byte; `setdedup` expandida 4/4; suíte 1525/0 na lane.
 
