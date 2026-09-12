@@ -3791,3 +3791,75 @@ int de índice) — verificados na varredura.
   `spawn get` + `spawn post` + awaits → `"Hello from Kof|got:xyz"` byte-a-byte;
   sabotagem do fallback → fail) + harness medindo `spawn/await/selectAny` no
   Node (`ola-async|ola-async`, `any=true`) e status `200` via `spawn`+`await`.
+
+### 134. External classpath quebrado: `--classpath`/`--deps` com pacote FORA da whitelist (gson, postgres, lib interna) → import virava PKG006; chamada estática externa (jar legítimo) era rejeitada — ✅ CORRIGIDO 11/09 (bugbugfix 0.3.1→0.4.x)
+
+- **Relato:** "a 0.3.7 quebrou external classpath". A data do relato está
+  errada; a regressão é ANTIGA: o commit `e7005c69` (Fase 1 — PKG006,
+  07/09) já é ancestral da tag `kof-0.3.1-beta`, então TODO release de
+  0.3.1 em diante (incluindo a 0.3.7) quebra o caso. O `git log` da 0.3.7
+  inteira (2 commits: #69 if/switch-underflow) NÃO toca classpath — a
+  0.3.7 não quebrou nada; ela apenas HERDOU a quebra da Fase 1.
+- **Menor repro (medido 11/09):** `jar` com `ext/Greeter.class` (pacote
+  FORA da whitelist de prefixos) + `--classpath` apontando pra ele +
+  `import ext.Greeter; Greeter.hello("mel")` → `:0:0: error: import
+  'ext.Greeter' não encontrado no módulo [...] [PKG006]`,
+  `success=false`. Antes da Fase 1: import era SILENCIOSAMENTE ignorado
+  (`// import externo (android.* etc.) — ignora`) e a chamada resolve via
+  lowering; com o commit, o import é REJEITADO antes de qualquer resolução.
+- **Causa raiz (camada 1 — PKG006):** `CompilerImports.expandKofImports`
+  (linha ~152) decide `!isExternalImport(imp)` → PKG006. `isExternalImport`
+  (linha ~244) é uma lista FIXA de prefixos (`kof./android./androidx./java./
+  jakarta./javax./kotlin./scala.`) que NÃO consulta `ExternalClasspath`.
+  Um jar `--classpath` com `com.google.gson`/`org.postgresql`/`ext.*` (qualquer
+  pacote fora da lista) apanha PKG006 mesmo com o `ExternalClasspath` tendo
+  carregado a classe. Prova: `ExternalClasspath.knows("ext/Greeter")=true`
+  + `resolveMethod("ext/Greeter","hello",1)` retornando assinatura — a única
+  barreira era o gate do import, não a resolução.
+- **Causa raiz (camada 2 — SEM011 no receiver externo):** com o gate
+  afrouxado, `Greeter.hello("mel")` (identifier como receiver) ainda
+  morria em `SemExpressionTyper.inferTypeInternal` (~linha 175): o bloco
+  de "undefined variable/type" só isenta names builtins + namespaces stdlib;
+  o receiver de uma classe externa importada (identifier) não passa por
+  `ClassInstanceExpr` nem por `FieldAccessExpr` (que têm `knows(ct)`) — ele
+  chega aqui como `IdentifierExpr` puro. `ExpressionMethodCallLowerer`
+  resolve correctly (camada 3, que já estava pronta), MAS a análise semântica
+  rodava antes e bloqueava. Prova: `java.lang.Integer.toString(5)` (mesmo
+  whitelisted!) → `SEM011 Undefined variable or type: 'Integer'` no HEAD
+  (a forma `new ArrayList<String>()`/`lista.get(0)` do learn/21 é FieldAccess
+  e passa; o caminho estático-via-import é o que quebrava).
+- **Correção (mínima, target-aware):** (i) `ExternalClasspath` ganha
+  `knowsImport(String dotted, boolean wildcard)` que consulta os entries
+  carregados (prefixo do dir interno p/ `ext.*`, chave exata p/ `ext.Greeter`).
+  (ii) `CompilerImports.expandKofImports` recebe o `ExternalClasspath`
+  (sobrecarga nova; a antiga passa `null` p/ compat) e o PKG006 agora é
+  `!isExternalImport(imp) && (extCp == null || !extCp.knowsImport(imp,
+  wildcard))` — o import de dependência real deixa de ser rejeitado.
+  (iii) `SemExpressionTyper` isenta SEM011 quando o identifier é uma
+  classe externa importada presente nos entries (`isExternalImportedClass`
+  → `qualifyViaImports` + `externalTypes().knows(internalName)`), espelhando
+  o `knows(ct)` que FieldAccess/`new`/assignment já têm. (iv) **Target-aware:**
+  o gate de entries só vale em `Target.JVM`/`ANDROID` (interop .class JVM só
+  existe nos targets JVM-family). Em NATIVE/JS, passa `null` → PKG006
+  honesto (R6): sem isso eu introduziria uma NOVA regressão — JS emitia
+  `ext_Greeter` pendurado com `success=true` (NoClassDefFound em runtime) e
+  NATIVE só falhava no LINK (`undefined reference to 'ext_Greeter_hello'`),
+  não em compile-time. `driver.externalClasspath` só chega ao import gate
+  nos targets onde faz sentido.
+- **Escopo honesto:** NÃO resolvo wildcard `import ext.*` (o lowering JS
+  continua pendurado; em JVM/ANDROID o `MemberResolver.qualifyViaImports`
+  não tem a classe para wildcard — fica SEM011). A whitelist de prefixos
+  continua cobrindo `java.*`/`android.*` sem precisar de jar. Não conserto
+  o `Integer.toString` sem-import (caminho `java.lang` implícito é outro
+  gap — documentado em §134-adjacente como "qualquer classe java.* precisa
+  do import"). NÃO toco `--classpath` (funciona) nem `--deps` (mesmo caminho,
+  coberto pelo fix).
+- **Prova:** `ExternalClasspathE2ETest` (4/4): (1) chamada ESTÁTICA em
+  classe externa (o caso do bug) → compila + roda `hi mel`; (2) caminho
+  `new`/instância continua verde; (3) import fora do classpath → PKG006
+  (R6: não virou silêncio); (4) NATIVE e JS com o MESMO jar → PKG006
+  (paridade honesta cross-target). Suíte: 1361 run / 0 falha na lane (12
+  err = node ausente neste host = trio pre-existente; 1 fail =
+  `CompilerDriverTest#duplicateTopLevelFunctionFails` SEM047, pré-existente
+  no HEAD `a95ffa49` — verificado com stash, NÃO é desta unidade).
+

@@ -171,7 +171,15 @@ public final class SemExpressionTyper {
                         && !KofUi.isRouterNamespace(ie.name())
                         && !"Theme".equals(ie.name())
                         && !MemberResolver.isBuiltinTypeName(ie.name())
-                        && !sa.allClasses().containsKey(ie.name())) {
+                        && !sa.allClasses().containsKey(ie.name())
+                        // §134: nome de classe EXTERNA (Button.inflate,
+                        // Greeter.hello) — o lowering (ExpressionMethodCall
+                        // Lowerer) resolve via ExternalClasspath; sem este
+                        // passe a análise semântica marcava SEM011 e a
+                        // chamada estática com receiver identificador nunca
+                        // chegava ao lowering (só `new X()` e instância
+                        // funcionavam).
+                        && !isExternalImportedClass(sa, ie.name())) {
                     sa.diagnostics().error("", 0, 0, 0,
                             "Undefined variable or type: '" + ie.name() + "'", "SEM011");
                 }
@@ -536,6 +544,19 @@ public final class SemExpressionTyper {
             }
             default -> Type.UnknownType.UNKNOWN;
         };
+    }
+
+    /**
+     * §134: o nome simples é uma classe EXTERNA importada cujo .class está
+     * nos entries do ExternalClasspath (--classpath/--deps)? Usado para não
+     * marcar SEM011 no receiver de chamada estática externa (Greeter.hello),
+     * que o lowering resolve via knows()/resolveMethod().
+     */
+    private static boolean isExternalImportedClass(SemanticAnalyzer sa, String name) {
+        if (sa.externalTypes() == null || sa.unit() == null) return false;
+        Type t = MemberResolver.qualifyViaImports(sa.unit(), name);
+        return t instanceof Type.ClassType ct && !ct.packageName().isEmpty()
+                && sa.externalTypes().knows(ct.internalName());
     }
 
     private static boolean isKofCollectionType(Type t) {

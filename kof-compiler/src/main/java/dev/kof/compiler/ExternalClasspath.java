@@ -154,6 +154,28 @@ public final class ExternalClasspath {
         return loaded && internalName != null && classBytes.containsKey(internalName);
     }
 
+    /**
+     * §134: um import pontual (a.b.C) ou wildcard de pacote (a.b.*) resolve
+     * em um dos entries carregados? É a pergunta que o PKG006 precisa fazer
+     * antes de reclamar: `--classpath`/`--deps` trazem jars de qualquer pacote
+     * (ex.: com.google.gson, org.postgresql), e a whitelist de prefixos do
+     * CompilerImports (java./android./...) não alcança esses nomes — sem esta
+     * consulta o import legítimo virava PKG006 e a classe externa nunca era
+     * vista pelos lowering (que já resolvem via knows()/resolveMethod()).
+     */
+    public synchronized boolean knowsImport(String dottedImport, boolean wildcard) {
+        if (!loaded || dottedImport == null || dottedImport.isEmpty()) return false;
+        String internal = dottedImport.replace('.', '/');
+        if (wildcard) {
+            String dir = internal + "/";
+            for (String key : classBytes.keySet()) {
+                if (key.startsWith(dir)) return true;
+            }
+            return false;
+        }
+        return classBytes.containsKey(internal);
+    }
+
     /** A classe externa é enum? */
     public synchronized boolean isEnum(String internalName) {
         byte[] bytes = internalName != null ? classBytes.get(internalName) : null;

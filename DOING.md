@@ -41,6 +41,49 @@ Estados: `ABERTO` · `EM CURSO` · `FEITO` · `BLOQUEADO`.
 ---
 
 ## PRÓXIMO PASSO (re-dispacho lê isto)
+
+> **LANE 11/09 (humano):** este agente = **agente bugfixer**, foco **100% em
+> corrigir bugs e estabilizar a `beta-0.4.0`** (será a nova beta). Ordem:
+> reproduzir → causa raiz → fix mínimo → teste de regressão → suíte verde na
+> lane → commit + DOING.md no MESMO commit. Decisões de contrato/semântica
+> congelada (regra 6) NÃO são minhas: registro e sigo.
+
+**FEITO (11/09, lane bugfix — §134 EXTERNAL CLASSPATH CORRIGIDO):** "a 0.3.7
+quebrou external classpath". **Verdade, mas a data do relato está errada:** a
+regressão vem do `e7005c69` (Fase 1 — PKG006, 07/09), ancestral da tag
+`kof-0.3.1-beta` — TODO release ≥0.3.1 quebra o caso; a 0.3.7 inteira (só 2
+commits, #69 if/switch-underflow) não toca classpath. **Repro medido:** jar com
+`ext/Greeter.class` (pacote FORA da whitelist de prefixos) + `--classpath` +
+`import ext.Greeter; Greeter.hello(...)` → `PKG006` mesmo com a classe
+carregada (`ExternalClasspath.knows('ext/Greeter')=true`). **Causa (2 camadas):**
+(i) `isExternalImport` é lista FIXA de prefixos (`java./android./...`) que NÃO
+consulta os entries → import de dependência real (gson/postgres/lib interna)
+vira PKG006; (ii) afrouxando (i), `Greeter.hello` (receiver identifier estático)
+apanhava SEM011 no `SemExpressionTyper` (FieldAccess/`new` já têm `knows(ct)`;
+o caminho estático-via-import não). **Fix:** `ExternalClasspath.knowsImport()`
+nova; `expandKofImports` recebe o ExternalClasspath (sobrecarga, antiga passa
+null); PKG006 agora consulta os entries; SEM011 isento p/ classe externa
+importada (isExternalImportedClass). **Target-aware (R6):** o gate só vale em
+JVM/ANDROID — em NATIVE/JS passa null → PKG006 honesto (senão eu introduziria
+regra: JS emitia `ext_Greeter` pendurado com success=true; NATIVE só falhava no
+LINK `undefined reference`). **Escopo honesto:** wildcard `import ext.*` ainda
+SEM011 (gap adjacente, idêntico ao pré-Fase 1); `Integer.toString` sem-import
+(java.lang implícito) é outro gap. **Prova:** `ExternalClasspathE2ETest` 4/4 —
+estática externa compila+roda `hi mel`; `new`/instância verde; import ausente →
+PKG006 (não virou silêncio); NATIVE+JS com jar → PKG006 (paridade honesta).
+Suíte compiler 1361 run / 0 na lane (12 err = node ausente = trio pré-existente;
+1 fail = `CompilerDriverTest#duplicateTopLevelFunctionFails` SEM047, **pré-
+existente no HEAD `a95ffa49`** — verificado com stash, NÃO é desta unidade;
+§131-adjacente, lane semântica). **PRÓXIMO PASSO (bugfix):** (1) **§126 SEM056**
+— decisão HUMANA TOMADA (opção ii): rejeitar `add`/`put` de tipo ≠ pinado em
+compile-time; unidade em `CollectionCallLowerer` (conferir widening numérico
+Int→Long p/ não rejeitar `List<Long>.add(5)`; SEM055 já cobre índice); (2)
+§128 `DecompileTest#recoversStatementSwitchAndRunsIt` vermelho ordem-dependente
+no HEAD limpo (decompilador emite `var v1` só no `case 1` → SEM011) — NÃO é da
+lane bugfix de código (é decompilador), mas é bug real: registrar/medir; (3)
+restante §126 (H3/H4) fecha com o SEM056. NÃO tocar §125 (aguardando oracle),
+§104b-ii (grande, infra storage-box). NUNCA pushar main sem pedido do humano.
+
 **FEITO (11/09, lane Native cross — §113 FACES riscv64+aarch64 FECHADAS — `kof_multi_alloc` recursivo cross):** o maintainer corrigiu o x86 e deixou "faces riscv/aarch = port p/ sessão c/ toolchain" — a toolchain ESTÁ neste host (`/usr/bin/qemu-riscv64|aarch64` + binutils), então o port é o degrau óbvio da fila. Fatia nova `NativeRiscvAsmRtB37` (0 colisões .L/.globl verificadas vs vencedora): `kof_multi_alloc(a0=dimsBase, a1=n, a2=i, a3=leafStride)` recursivo espelhando o x86 — MESMA fórmula de offset `d_i = base + 8*(n-i)`; ABI própria: o chamador passa o PRÓPRIO sp como base (dimensões já empilhadas, d_n no topo) e sÓ AVANÇA o sp depois (sem pilha dinâmica — frame fixo do helper salva ra+s0..s6, 112B); nó interno = elemSize 8 (ponteiros), folha = stride do baseType com payload ZEROED byte-a-byte via laço `sb` (paridade MULTIANEWARRAY — kof_alloc é bump-pointer sem zero). Roteio `KofNewMultiArray` em `NativeRiscvCrossEmit` (antes caía no default-comentário NATIVE002); aarch herda 100% via tradutor (verificado: `sb zero`→`strb wzr`, `bge`/`bne`/`mul`/`slli` todos cobertos, 0 UNHANDLED). **Prova:** `riscv64MultiDimArray`/`aarch64MultiDimArray` (10 saídas golden = oracle JVM medido: lengths 2/3 + zero-fill + store/load + 3-D completo `2 3 0 7 2 2 9 0`); sabotagem → FAIL com saída real (não-vazio provado). Docs: célula `array2d` da matriz (faces cross ✅) + §113. **PRÓXIMO PASSO (re-dispacho):** (1) §113 PUSHADO `d2a4dc0a`+docs `edb86c34` (suíte do HEAD pré-rebase 1477/0/5skip; gate no HEAD exato rodando `push-gate.log` — se vermelho, é meu para corrigir antes da próxima unidade); (2) fila lane Native com toolchain real: §107 Native println(coleção) — ABERTO, backend-only, sem gate, R6 violada hoje (imprime lixo de ponteiro); fix = helpers toString recursivos dos 3 tipos de coleção (espelho `kofFormat` do JS §107-JS, x86 primeiro + fatia riscv + tradutor); §114 hash/coleção fica ATRELADO à infra storage-box do §104b-ii(i) (grande, avaliar antes); NÃO tocar §101/§94/§44 (congelados), §45/§106/DD-STDLIB (decisão mantenedora), lane §104/interp (outros agentes). NUNCA pushar main sem pedido do humano.
 
 **✅ MOVE 0.3.0→0.4.0 FECHADO (11/09, pushed):** `4ea29a6a` em `beta-0.4.0` = merged das duas branches (merge 1 `8b9f6707` 28 conflitos + merge 2 absorvendo a ponta `2266f323` — MATH001 re-implementado nela = redundante com a B32 da 0.3.0; colisão `B36` resolvida B32=math + B36=String; docs renumeradas §120 fcvt, NE/random = notas no §101/§105). SUÍTE VERDE no pushed: compiler 1334/0/12err(node)/134skip + script 30/0 + kof-c 5/0 + cli 127/0. `HEAD..origin/beta-0.3.0` vazio → 0.3.0 MORTA (não-pushar mais nela; branch local `test-merge-040` é a mesma de `beta-0.4.0`, pode sumir). A diretriz humana está cumprida.

@@ -21,6 +21,14 @@ public final class CompilerImports {
                                             Path moduleRoot,
                                             DiagnosticCollector currentDiagnostics,
                                             java.util.Map<AstNode, String> declarationPackages) {
+        return expandKofImports(unit, moduleRoot, currentDiagnostics, declarationPackages, null);
+    }
+
+    static CompilationUnitNode expandKofImports(CompilationUnitNode unit,
+                                            Path moduleRoot,
+                                            DiagnosticCollector currentDiagnostics,
+                                            java.util.Map<AstNode, String> declarationPackages,
+                                            ExternalClasspath externalClasspath) {
         java.util.Set<String> visitedDirs = new java.util.HashSet<>();
         // Fase 1 (PKG007): grafo import → imports do arquivo (fechado após
         // a expansão; ciclos detectados globalmente ao fim do loop).
@@ -31,7 +39,8 @@ public final class CompilerImports {
         int rounds = 0;
         while (!queue.isEmpty() && rounds++ < 256) {
             String imp = queue.poll();
-            if (imp.endsWith(".*")) {
+            boolean wildcard = imp.endsWith(".*");
+            if (wildcard) {
                 imp = imp.substring(0, imp.length() - 2);
             }
             Path pkgDir = moduleRoot != null
@@ -142,7 +151,15 @@ public final class CompilerImports {
             // Fase 1 (plataforma): import que não é externo (std/interop)
             // e não resolveu nem em diretório nem em arquivo → PKG006
             // (antes era silencioso e o erro só aparecia como SEM011).
-            if (!isExternalImport(imp) && currentDiagnostics != null) {
+            // §134: EXTERNO de verdade inclui o que está nos entries do
+            // ExternalClasspath (--classpath/--deps: qualquer pacote — gson,
+            // postgres, lib interna). A whitelist de prefixos abaixo só cobre
+            // os namespaces estáticos; sem consultar os jars carregados, um
+            // import legítimo de dependência virava PKG006.
+            if (!isExternalImport(imp)
+                    && (externalClasspath == null
+                        || !externalClasspath.knowsImport(imp, wildcard))
+                    && currentDiagnostics != null) {
                 currentDiagnostics.error("", 0, 0, 0,
                         "import '" + imp + "' não encontrado no módulo"
                                 + " (esperado " + imp.replace('.', '/') + "/ ou "

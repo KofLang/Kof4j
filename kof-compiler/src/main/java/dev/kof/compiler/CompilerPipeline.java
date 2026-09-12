@@ -429,7 +429,9 @@ public final class CompilerPipeline {
                 mergedImports, mergedDecls);
         merged = CompilerSupervisor.injectHostIfNeeded(driver, merged, diagnostics);
         if (merged == null) return null;
-        merged = CompilerImports.expandKofImports(merged, driver.moduleRoot, diagnostics, driver.declarationPackages);
+        ExternalClasspath extCp = (driver.target == Target.JVM || driver.target == Target.ANDROID)
+                ? driver.externalClasspath : null;
+        merged = CompilerImports.expandKofImports(merged, driver.moduleRoot, diagnostics, driver.declarationPackages, extCp);
         if (diagnostics.hasErrors()) return null;
         return merged;
     }
