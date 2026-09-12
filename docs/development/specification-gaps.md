@@ -39,18 +39,18 @@ recomendações futuras (regra 14 da tarefa: não alterar comportamento).
 
 ### SG-002 — Tokens e keywords que a gramática não usa
 
-- **Implementação**: o lexer produz `TILDE` (`~`), `COLON_COLON` (`::`),
-  `ELLIPSIS` (`...`), `DOUBLE_ARROW` (`=>`), `PIPE_LINE` (`|>`),
-  `UNDERSCORE` (`_` isolado) e as keywords `sealed`/`permits`, mas **nenhum**
-  aparece em produção do parser (grep: 0 usos em `Parser.java`).
-- **Consequência observável**: `~5`→`PARSE041`, `a => b`→`PARSE041`,
-  `sealed class X{}`→`PARSE007` (todos *probe*).
-- **Problema**: tokens mortos dão a impressão de feature planejada que não
-  existe. `sealed`/`permits` sugerem hierarquia selada (Java 17) que **não é
-  implementada**.
-- **Recomendação**: remover os tokens do lexer **ou** implementar as features
-  **ou** documentar explicitamente como "reservado, não implementado". Hoje é
-  **Unspecified**.
+- **APLICADO (opção 1 da recomendação — tokens REMOVIDOS do lexer; provado
+  12/09):** `~`, `::`, `...`, `=>`, `|>`, `_` isolado e as keywords
+  `sealed`/`permits` não existem mais como tokens — grep 0 em
+  `TokenType.java`/`Token.java`/`parser/Lexer.java` (a lista acima deste
+  parágrafo descrevia o estado PRÉ-fix). `~5` agora é **LEX005** ("Unexpected
+  character", `Lexer.java:467`); `a => b`/`xs |> f`/`A::b` caem no parse com
+  `PARSE041`; `sealed class S {}` vê `sealed` como IDENTIFIER comum →
+  `PARSE010` (declaração sem tipo). Sem diagnóstico de "feature reservada":
+  a gramática simplesmente nunca os usou, e agora o lexer também não.
+- **Prova:** `CompilerDriverTest.deadTokensGiveCleanLexerError` (5 casos com
+  código exato esperado, 1/1 verde 12/09) — o teste que TRAVA a remoção
+  (regressão de qualquer token morto que ressurgir).
 
 ### SG-003 — Termos de marketing vs definição técnica
 

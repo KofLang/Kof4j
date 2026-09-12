@@ -45,10 +45,16 @@ Estados: `ABERTO` · `EM CURSO` · `FEITO` · `BLOQUEADO`.
 > **LANE development (humano 11/09, mais recente):** foco **100% nas pendências
 > de `docs/development/` + estabilização da `beta-0.4.0`** (ver AVISO no topo).
 > Ordem da fila dev (sem dono, sem colisão com a lane bugfix §125/§126/§104b-ii):
-> **PRÓXIMO = SG-002** (tokens mortos do lexer viram diagnóstico reservado
-> explícito — frontend simples, sem mudança de contrato congelado), depois faces
-> cross §123/§126-tag com qemu (emissores escritos, falta só a prova na sessão
-> com toolchain) e §107 `println(<coleção>)` nativo. **NÃO** tocar: fila
+> ~~**PRÓXIMO = SG-002**~~ **✅ FEITO/VALIDADO 12/09** — o trabalho JÁ ESTAVA
+> NO CÓDIGO (tokens removidos do lexer: grep 0 em `TokenType/Token/Lexer`;
+> `deadTokensGiveCleanLexerError` 1/1 verde), mas o `specification-gaps.md`
+> ainda descrevia o estado PRÉ-fix ("o lexer produz TILDE..."). Correção =
+> doc sincronizada ao que o teste prova (lição: auditar doc contra o código,
+> não contra a memória — mesma raiz da lição `bda06e81` de hoje). Próximo:
+> faces cross §123/§126-tag com qemu (emissores escritos, falta só a prova na
+> sessão com toolchain — **a toolchain ESTÁ neste host**: `qemu-riscv64`,
+> `qemu-aarch64`, `riscv64/aarch64-linux-gnu-as` em `/usr/bin`) e §107
+> `println(<coleção>)` nativo (x86 primeiro, cross depois). **NÃO** tocar: fila
 > bugfixer (bugs §125/§126/§104b-ii = lane deles), `JvmOpCollections`,
 > `CollectionCallLowerer`, `NativeRiscv*Asm*` das coleções.
 
