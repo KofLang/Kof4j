@@ -8,7 +8,7 @@
 >
 > | | |
 > |---|---|
-> | **Fila ABERTA (varredura 13/09 — todas as seções sem ✅ no próprio cabeçalho)** | **13** — §149 (regressão JS do fix `isEmpty` `718ae5cf` — `ReferenceError: i/k is not defined` + matriz dessincronizada; lane bugfix-101), §45 (finally+return: exige mudança de IR 4-backend + decisão DD-01, mantenedora), §65 (UI/Chrome — lane UI), §81 (KofJS Long>2^53 — decisão de precisão/contrato), §89 (n.toDouble()/toInt() cross — contrato de conversão), §94/§101 (congelados regra 6), §104b-ii (record-em-coleção + storage-box asm — **lane bugfixer**, unidade GRANDE), §106 (json.encode Map — decisão mantenedora), §107 🟡 (restam record/aninhado=`?` até §104b-ii + FP-cross=FLT001; face escalar ✅ 12/09 nos 3 nativos `f3b3821c`+B39), §117 (cancelled() colisão — design TLS, congelado), §127-JVM (cast p/ tipo-função → mudança de erasure no `JvmTypeMapper`, **infra de tipos**; workaround interface verificado), §129-TLS (congelado), §131 (sobrecarga de MÉTODO — semântica, mantenedora), §132 (OTP JS gate). **§125 ✅ CORRIGIDO 12/09** (decisão A: return Nullable(primitivo) apaga p/ default — 3 pontos no IR compartilhado, célula `nullableprint` 4/4 sem exclusão). **§139 ✅ CORRIGIDO 12/09** (mesma unidade: JS fold `f()==null` → COMP002 underflow; parser JS ganha o descarte mid-expression com preservação de side-effect). **§140 ✅ CORRIGIDO 12/09** (processual: gate ≤500 virou ratchet com baseline de dívida e entrou no CI — 17 violadores travados de crescer, split continua no PLAN-SOLID-500). **§90 ✅ CORRIGIDO 12/09 (lane web, remoto).** **§145/§146/§147 ✅ CORRIGIDOS 12/09 (`440730c8`, issue #101: `isEmpty` no registry 3-targets; `kof_double_mod` riscv64 B40 + dispatcher MOD float/double; `JsIfThrowElse` else-pós-throw — prova qemu 42+42).** **Conclusão honesta (13/09): nenhum item de código-puro-sem-decisão na lane restou nesta máquina** — os 13 abertos estão pendurados em decisão da mantenedora, congelamento regra-6, ou lane alheia (UI/bugfixer — §149 é da lane bugfix-101, que continua EM CURSO no `DOING.md:47`). O trabalho REAL sem-colisão-aceito da sessão é a **frente #97 tree-shaking** (S-1..S-6.1 ✅, S-7 ✅ `eabf814b` — plano movido p/ `docs/stdlib/PLAN-TREE-SHAKING.md`). |
+> | **Fila ABERTA (varredura 13/09 — todas as seções sem ✅ no próprio cabeçalho)** | **12** — §149 (regressão JS do fix `isEmpty` `718ae5cf` — `ReferenceError: i/k is not defined` + matriz dessincronizada; lane bugfix-101), §45 (finally+return: exige mudança de IR 4-backend + decisão DD-01, mantenedora), §81 (KofJS Long>2^53 — decisão de precisão/contrato), §89 (n.toDouble()/toInt() cross — contrato de conversão), §94/§101 (congelados regra 6), §104b-ii (record-em-coleção + storage-box asm — **lane bugfixer**, unidade GRANDE), §106 (json.encode Map — decisão mantenedora), §107 🟡 (restam record/aninhado=`?` até §104b-ii + FP-cross=FLT001; face escalar ✅ 12/09 nos 3 nativos `f3b3821c`+B39), §117 (cancelled() colisão — design TLS, congelado), §127-JVM (cast p/ tipo-função → mudança de erasure no `JvmTypeMapper`, **infra de tipos**; workaround interface verificado), §129-TLS (congelado), §131 (sobrecarga de MÉTODO — semântica, mantenedora), §132 (OTP JS gate). **§125 ✅ CORRIGIDO 12/09** (decisão A: return Nullable(primitivo) apaga p/ default — 3 pontos no IR compartilhado, célula `nullableprint` 4/4 sem exclusão). **§139 ✅ CORRIGIDO 12/09** (mesma unidade: JS fold `f()==null` → COMP002 underflow; parser JS ganha o descarte mid-expression com preservação de side-effect). **§140 ✅ CORRIGIDO 12/09** (processual: gate ≤500 virou ratchet com baseline de dívida e entrou no CI — 17 violadores travados de crescer, split continua no PLAN-SOLID-500). **§90 ✅ CORRIGIDO 12/09 (lane web, remoto).** **§145/§146/§147 ✅ CORRIGIDOS 12/09 (`440730c8`, issue #101: `isEmpty` no registry 3-targets; `kof_double_mod` riscv64 B40 + dispatcher MOD float/double; `JsIfThrowElse` else-pós-throw — prova qemu 42+42).** **Conclusão honesta (13/09): nenhum item de código-puro-sem-decisão na lane restou nesta máquina** — os 13 abertos estão pendurados em decisão da mantenedora, congelamento regra-6, ou lane alheia (UI/bugfixer — §149 é da lane bugfix-101, que continua EM CURSO no `DOING.md:47`). O trabalho REAL sem-colisão-aceito da sessão é a **frente #97 tree-shaking** (S-1..S-6.1 ✅, S-7 ✅ `eabf814b` — plano movido p/ `docs/stdlib/PLAN-TREE-SHAKING.md`). |
 > | Antiga "varredura 08/09" (apócrifa — corrigida 12/09) | os "abertos" 39/62/63/64/46/48/50/59/61 estão ✅ CORRIGIDO nos próprios cabeçalhos (39/62/63/64 JVM/JS; 46/50/59 Native; 48/61 gap honesto JSN004/FFI001); contagem real na linha acima. |
 > | Paridade interpretador × compilados (semântica `==` congelada — regra 6) | **1** — bug 94 (NaN/±0.0 `==` de Double no SCRIPT) |
 > | Paridade backend-only (regra 5, atacável na lane Native) | **2** — §107 (println coleção → lixo; **face escalar ✅ CORRIGIDA 12/09 nos 3 targets nativos** — x86 `f3b3821c` + cross B39, golden JVM byte-idêntico; restam record/aninhado=`?` honesto até §104b-ii, FP-cross=FLT001; §107-JS 11/09), §104b-ii (equals de conteúdo p/ record + box de primitivo no storage asm; **face char ✅ FECHADA 11/09** — `mapgetprim` 4/4)
@@ -1227,7 +1227,7 @@ EXTERNA produzia lixo (JVM correto) — a causa era o prólogo tratando captura 
 
 ---
 
-### 65. Frontend JS/browser: `Audio`/`Video` em `Window.show()` não chegam ao DOM real (Chrome) — ABERTO (lane UI)
+### 65. Frontend JS/browser: `Audio`/`Video` em `Window.show()` não chegam ao DOM real (Chrome) — ✅ NÃO REPRODUZ (reverificado 12/09)
 
 - **Introduzido por:** merge da PR #39 (`kof-ui-media-widgets`) em beta-0.3.0
   (08/09) — não é regressão de outra lane (confirmado: falha no HEAD limpo,
@@ -1269,9 +1269,26 @@ EXTERNA produzia lixo (JVM correto) — a causa era o prólogo tratando captura 
   → A falha é de TEMPO DE RUNTIME/ordem de montagem no browser (requer depurar
   com Chrome devtools), não de codegen. O teste `dumpDom` usa `--dump-dom
   --virtual-time-budget=8000`.
-- **Impacto na gate:** 2 testes vermelhos fora do par riscv/aarch (bug 59)
-  para qualquer agente que rode a suíte completa com Chrome instalado.
-  Quem corrigir: UI lane (dono da PR #39).
+- **Impacto na gate (não se confirmou — ver reverificação abaixo):** 2 testes
+  vermelhos fora do par riscv/aarch (bug 59) para qualquer agente que rode a
+  suíte completa com Chrome instalado. Quem corrigir: UI lane (dono da PR #39).
+- **Reverificado 12/09 — não reproduz em nenhum ponto testado, inclusive no
+  commit que registrou esta entrada.** Os dois testes do sintoma rodam com
+  Chrome real (não são pulados) e passam:
+  - **macOS arm64 + Google Chrome 152:** `audioRendersInRealBrowserDom` e
+    `videoRendersInRealBrowserDom` verdes na `beta-0.4.0` (`6cd36cd5`) e no
+    próprio `d090ca7f`, o commit que abriu esta entrada.
+  - **CI `ci.yml` (ubuntu-latest, `google-chrome` no PATH):**
+    `KofJsBrowserE2ETest` com 22 testes / 0 falhas / 0 pulados em `dcf76388`
+    e `e84a04cc`; já em 09/09, horas depois do registro, a classe rodava
+    21 / 0 / 0 (`a6ba64d0`), e das 218 execuções da CI entre 09/09 e 11/09
+    nenhuma falhou nesses dois testes.
+
+  Não há commit que "corrigiu" o sintoma: ele não aparece nem no ponto de
+  registro. A falha original veio do ambiente de quem a observou, sem causa
+  identificada. Se reaparecer, reabrir com versão do Chrome, SO e a saída do
+  `--dump-dom`. No macOS os testes de navegador só rodam de fato quando o
+  Chrome do bundle é encontrado (issue #110).
 
 ### 66. `record` com construtor explícito canônico → `<init>` duplicado (ClassFormatError no JVM) — ✅ CORRIGIDO 09/09
 
