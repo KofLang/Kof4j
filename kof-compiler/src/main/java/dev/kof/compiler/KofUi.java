@@ -32,6 +32,7 @@ public final class KofUi {
     static final Type ROW = new Type.ClassType("kof.ui", "Row", List.of());
     static final Type FORM = new Type.ClassType("kof.ui", "Form", List.of());
     static final Type VIEW = new Type.ClassType("kof.ui", "View", List.of());
+    static final Type RAW_VIEW = new Type.ClassType("kof.ui", "RawView", List.of());
     static final Type STYLE = new Type.ClassType("kof.ui", "Style", List.of());
     static final Type WINDOW = new Type.ClassType("kof.ui", "Window", List.of());
     static final Type LINK = new Type.ClassType("kof.ui", "Link", List.of());
@@ -71,7 +72,13 @@ public final class KofUi {
     static boolean isColumn(Type t) { return COLUMN.equals(t); }
     static boolean isRow(Type t) { return ROW.equals(t); }
     static boolean isForm(Type t) { return FORM.equals(t); }
-    static boolean isView(Type t) { return VIEW.equals(t); }
+    static boolean isView(Type t) {
+        return t != null && t.equals(VIEW);
+    }
+
+    static boolean isRawView(Type t) {
+        return t != null && t.equals(RAW_VIEW);
+    }
     static boolean isStyle(Type t) { return STYLE.equals(t); }
     static boolean isWindow(Type t) { return WINDOW.equals(t); }
     static boolean isLink(Type t) { return LINK.equals(t); }
@@ -110,9 +117,10 @@ public final class KofUi {
     static boolean isDomWidget(Type t) {
         return isLabel(t) || isButton(t) || isInput(t) || isTextarea(t) || isSelect(t)
                 || isUl(t) || isOl(t) || isTable(t)
-                || isView(t) || isLink(t)
+                || isView(t) || isRawView(t) || isLink(t)
                 || isImage(t) || isIcon(t) || isForm(t) || isColumn(t) || isRow(t)
-                || isFieldset(t) || isIframe(t) || isVideo(t) || isAudio(t) || isHr(t);
+                || isFieldset(t) || isIframe(t) || isVideo(t) || isAudio(t) || isHr(t)
+                || isBox(t) || isStack(t) || isWrap(t) || isGrid(t) || isCenter(t) || isAlign(t);
     }
 
     static public boolean isUiType(Type t) {
@@ -130,7 +138,7 @@ public final class KofUi {
                 || "Label".equals(name) || "Button".equals(name) || "Input".equals(name)
                 || "Textarea".equals(name) || "Select".equals(name)
                 || "Ul".equals(name) || "Ol".equals(name) || "Table".equals(name)
-                || "Column".equals(name) || "Row".equals(name) || "Form".equals(name) || "View".equals(name)
+                || "Column".equals(name) || "Row".equals(name) || "Form".equals(name) || "View".equals(name) || "RawView".equals(name)
                 || "Style".equals(name) || "Window".equals(name)
                 || "Link".equals(name) || "Image".equals(name)
                 || "Icon".equals(name) || "Font".equals(name)
@@ -380,6 +388,14 @@ public final class KofUi {
                 default -> null;
             };
         }
+        if (isRawView(receiver)) {
+            return switch (name) {
+                case "bind" -> argCount == 1 ? new UiCall("kof_ui_view_bind", Type.PrimitiveType.VOID, List.of(INT)) : null;
+                case "setCss" -> argCount == 1 ? new UiCall("kof_ui_raw_view_set_css", Type.PrimitiveType.VOID, List.of(STR)) : null;
+                case "setHtml" -> argCount == 1 ? new UiCall("kof_ui_raw_view_set_html", Type.PrimitiveType.VOID, List.of(STR)) : null;
+                default -> null;
+            };
+        }
         if (isTheme(receiver)) {
             return switch (name) {
                 case "background" -> argCount == 0 ? new UiCall("kof_ui_theme_background", COLOR, List.of()) : null;
@@ -389,6 +405,7 @@ public final class KofUi {
                 case "text" -> argCount == 0 ? new UiCall("kof_ui_theme_text", COLOR, List.of()) : null;
                 case "error" -> argCount == 0 ? new UiCall("kof_ui_theme_error", COLOR, List.of()) : null;
                 case "isDark" -> argCount == 0 ? new UiCall("kof_ui_theme_is_dark", BOOL, List.of()) : null;
+                case "loadFontUrl" -> argCount == 1 ? new UiCall("kof_ui_theme_load_font_url", Type.PrimitiveType.VOID, List.of(STR)) : null;
                 default -> null;
             };
         }

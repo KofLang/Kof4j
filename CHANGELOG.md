@@ -1505,6 +1505,332 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     JVM 21+ (`KofVersion.TOOLING_API=21` unchanged). Layers: build the repo /
     run the CLI = JDK 25; your compiled `.kf` = JVM 21+.
 
+## [0.4.1-beta] - 2026-09-15
+
+### Features
+
+  - add support for heterogeneous print in if/switch expressions with distinct branches
+  - validation.isNis on all 4 targets (S12c)
+  - NATIVE002 face 1 — riscv G-1 free-list + kof_free + kof_memstats
+  - §129 — per-thread exception frame closes cross-thread unwind (DECISIONS §2 option B)
+  - DD-OTP-08 — stop cooperativo por FLAG no host (S4)
+  - supervisorStats + janela deslizante restartLimitWindow + .clock() injetável + temporary drop — host puro-Kof (planning-otp)
+  - app.security() Spring model — CSRF on by default + permitAll alias (DECISIONS §5)
+  - Fase C passo 3 pre-requisito — PostDominator.java (pos-dominador imediato puro, dual bit-set Cooper-Harvey-Kennedy) + 5 oraculos caminho-ate-EXIT — lane docs/development exclusiva
+  - S1b.3 math.roundTo(Double, Int) — 5 targets (DECISIONS §3)
+  - §101 IEEE NaN em todos os alvos + §179 tipo UI/media declarado
+  - upgrade Java target de 21 para 25
+  - add comprehensive plan for Universal Standard Library expansion in Portuguese
+  - OAuth2 resource server — auth.resourceServer (D-SEC camada 16, JVM)
+  - app.security() — middleware composto (D-SEC C18, JVM)
+  - TLS com certificado próprio (D-SEC) + fix kof_json_bind (Number cru)
+  - implement app.security() middleware with fixed order for rate-limiting, CORS, headers, session, and CSRF validation
+  - enhance editor integration providers with additional metadata and version patterns fix: improve BytecodeReader to handle truncated bytecode safely test: add comprehensive tests for BytecodeReader and update KofBlogE2ETest for id type
+  - add security policies and workflows for vulnerability reporting, secret scanning, and code quality
+  - blog E2E (D-SPRING F12) + --fat (D-APP I3); fix body UTF-8 e CLOB no web/db JVM
+  - implement cookie management with secure defaults (C11) — includes cookieSet/cookieGet methods for JVM and JS
+  - crypto.chacha20Encrypt/Decrypt (RFC 8439) — JVM+JS; gap SECN002 honesto no Native (§D-SEC)
+  - kof new — esqueletos por tipo (D-APP I1 + D-SPRING F11) com APP003 honesto
+
+### Bugfixes
+
+  - unused-container #394/#395/#396 fixados na RAIZ — os 3 dismisses 'false positive' estavam ERRADOS (Q5)
+  - §251 — whitelist dos type-params de INTERFACE generica (falso-positivo Q4)
+  - #153 (face 1 de §216) — Char.toString() agora e o caractere ("A"), nao o code point ("65")
+  - §251 — wiring (SemanticAnalyzer + MemberResolver) + docs + DOING
+  - §251 — tipos DECLARADOS nunca validados agora sao SEM011 (classe incarregavel R6)
+  - #160 — interface generica parseia agora (eram PARSE007) e o superinterface e emitido APAGADO (senao NoClassDefFoundError: Mapper<String>)
+  - §249 — tipo declarado desconhecido em VarDeclStmt agora e SEM011 (era aceito em SILENCIO)
+  - KofJsWebQueue.handle NAO descarta exchange em silencio (offer false -> 503, R6)
+  - #266(c) — null literal em param primitivo nao-nullable agora e SEM048 no compile, nunca VerifyError silencioso no load
+  - fecha os 5 input-resource-leak na RAIZ (373-377) — close dos readers, nao dismiss
+  - guards null-safe 'owner' (#725 #726) + re-check dominado removido (#716) + toString/TempDir em testes (#686 #733)
+  - §245/#268/#269 — generic field type substitution + nullable-receiver write guard
+  - §245 — stop-flag spin-reader budget raised to Long 5B (500M-Int loop closed by C2 before the 100ms writer)
+  - §244/#267 — '+' on erased-generic operands concatenates instead of iadd
+  - §243/#261 — user class shadows builtin alias (List/Set/Map/String)
+  - #264 — dois metodos com MESMA assinatura JVM na classe eram ACEITOS em silencio → ClassFormatError: Duplicate method name ao carregar; agora rejeitados na DECLARACAO com SEM061 (espelha o SEM047 de funcao top-level)
+  - §242 — abstract-override check matches by signature, not arity
+  - SG-020 regra 5 — campo mutável de classe Kof emite ACC_VOLATILE (padrão stop-flag observável) + DD-OTP-08 destravada
+  - §241 — revert the half-landed boxed Nullable(primitive) contract to the honest gap (R6)
+  - #258 — Calc.instanceMethod(x) emitia invokestatic sem this → IncompatibleClassChangeError; dispatcher agora baixa como INSTANCE sobre this dentro de método de instância da MESMA classe, e SEM060 honesto fora (R6)
+  - §240 — separate Kof builtin JDK types from interop in knows() (#237/#231 regression)
+  - fix concatenated-command-line warnings in test files by extracting java command into variable
+  - §180 println(double/float) = JDK Double/Float.toString on x86_64 (DECISIONS §6)
+  - suppress ProcessBuilderCommandInjection false positives in test files (java.home is safe)
+  - add @SuppressWarnings to supportedOn methods to suppress unused-parameter warnings
+  - generic method return erasure + checkcast at call-site (#161)
+  - normalize inferred local var types for primitive NullableType (#252)
+  - enhance handling of nullable primitive types in emission and assignment
+  - reject concrete class missing abstract method implementations (#256)
+  - resolve field access to field when method has same name (#219)
+  - face sipush da unidade 2c — loadValue espelha machineRun (0x11->short): `if (a == 30000)` (const > bipush-range) stubava porque loadValue nao tratava sipush ENQUANTO o machineRun ja dobrava = DIVERGENCIA de passada; o pre-requisito era o hoist §238 (sem ele, o int r escapante viraria saida NAO-compilavel — medido pre-fix: big/neg/edge todos em throw "body not recovered" = prova Q0 do teste novo; a re-medida Roi3 de 18:20 marcou §238 como prerequisite, nao um afterthought). COM o hoist no lugar, a forma sai COMPILAVEL+EXECUTAVEL: teste sipushConstantInTestIsRecoveredAndRuns (recompila + roda 3 caminhos, golden JVM MEDIDO 1|2|2 do Java original). DecompileTest 67/67 + PostDom 6/6 + check_500 exit 0 (BytecodeDecoder 412). Docs: known-bugs §238 nota follow-up (EN+PT), DECOMPILER atualizacao 3 (EN+PT), DOING 2c-(4) + reescrita do PROXIMO PASSO da lane (recusa-DA-LANE != STABILITY do repo: 32 abertas na fila + 3 reds de gate de OUTRAS lanes = cron NAO para) — dono = 192.168.100.17
+  - parse if-expression branches with braces as expression (#228)
+  - resolve JDK method signatures with formal parameter and return types (#237, #231)
+  - §238 (unidade 2c) — hoist de var de local ESCAPANTE antes do if no pureIfElse: primeira escrita dentro do ramo + leitura pos-join virava `var v2` escopado no ramo -> SEM000 saida NAO-compilavel (anti-R6, a 2a emitia e nenhum teste pegava — E.java pre-inicializa); StructWalker.java NOVA (84 linhas, regra 7) com hoistEscapingLocals: pre-scan de xstores dos 2 ramos, slot sem declaracao previa -> var + default por opcode (istore 0, lstore 0L, dstore 0.0); fstore/astore -> RECUSAR p/ stub honesto (float drifta — licao 62 — e tipo de ref desconhecido; null inventaria semantica); pureIfThen intocado; pre-declarados byte-identicos. PROVA Q0: 2 testes novos FALHAM 2/2 com o wiring revertido, passam com o fix (golden de execucao MEDIDO no oracle JVM: both(0,1,2)=10/21/12 + face String=stub honesto no lugar de saida quebrada — diff antes/depois medido). SUITE: DecompileTest 66/66 + PostDom 6/6 + kof-cli COMPLETO 251/251 BUILD SUCCESS; check_500 exit 0 (BytecodeStatements 537->547 TOLERADA); lei do diamante VERDE. Docs: known-bugs §238 FIXED (fila 33->32 EN+PT), DECOMPILER atualizacao 2 (2c ✅; lane volta a parada genuina — resto = regra 6/lanes alheias), DOING proximo passo = re-varrer docs/development + STABILITY — dono = 192.168.100.17
+  - implement enum ordinal() and compareTo() across all targets (#232)
+  - String.format varargs — pack args into Object[] + real descriptor (#156/#216)
+  - add NumberFormatException handling + bounds checks in BytecodeReader, KofWsFrameTest, NativeAarch64Helpers, FieldConstantFolder, ExpressionLowerer, tests
+  - improve error handling for integer parsing in various classes
+  - README.txt tinha 5o arg de format nunca referenciado (#357)
+  - issue #248 covariant return override missing bridge method
+  - §236 — comparisonReturn portava shape AMBIGUO cmp/iconst1/goto/iconst0/ireturn sempre p/ Bool cru; num corpo Int (`return a<b?1:0` do javac, MESMO bytecode de `return x>0` Bool) a saida decompilada virava Bool→Int e o typer SEM010 rejeitava (nao-compilavel, anti-R6); porta agora por frame.retType(): Z→cru (byte-identico ao que ja passava), I→if-expr `= if (c) 1 else 0`, outro→recusar stub honesto. PINO: wideParamsMapToCorrectSlots:1213 assertava o TEXTO ERRADO (`= arg1 < arg2`) que a linha de recompile nao pegava — bug latent do fold, typer mais estrito puxado hoje expôs; corrigido p/ o texto certo + teste novo comparisonReturnRespectsBoolVsIntReturnType (Bool+Int cmp+Int unario, RECOMPILA — string so escondia). PROVA: DecompileTest 64/64 + PostDom 6/6 VERDES frescos 20:55; exec V decompilado (slots empurrados por long)=1|0|0==oracle JVM, compile=true. CAUSA DO 5o-RED: nao e o 602dcbc0 — o wideParams era outro red, agora verde. §237 (stringValueOfCharParity, computeStack depth<0→NegativeArraySizeException COMPUTE_FRAMES) = 6o-red, PRE-EXISTENTE lane .22 (confessado no 8e4b34d3, vindo com f49ef89b Char→String), catalogado NAO-atacado. §235 catalogada + DOING/doc atualizados: proxima unidade 2c = fix do var-inside-branch do pureIfElse (nao-compila, minha lane, sem colidir c/ a lei). — dono = 192.168.100.17
+  - issue #249 assigning to static field via instance reference emits putfield instead of putstatic
+  - KofCParser.error() era stub que engolia diagnostico -> AST lixo binarizada em silencio (#485, R6/Q7)
+  - #199 — switch-EXPR com padrão guardado omitia o store da var bound (VerifyError)
+  - restore wrapper-static calls dropped by 1e88309b — String.valueOf(char) frame crash
+  - #141 — spawn { expr } / await perdia o valor (Handle<Void> falso + SEM033)
+  - else-if chain swallow (regressão 1e88309b) + feature REAL #233 Double/Float isNaN/isInfinite/isFinite
+  - issue #246 extending a generic class writes angle-bracketed name as super_class
+  - issue #247 Boolean overload resolution selects Int overload
+  - issue #241 catch clause with qualified exception name
+  - #241 — catch com nome QUALIFICADO gerava exception table ilegal (ClassFormatError)
+  - overloaded static methods call instruction omitted from IR (issue #235)
+  - static boolean-returning methods on Double and Float in bytecode (issue #233)
+  - suppress unused-parameter false positives + index bounds comments (BytecodeReader, KofWsFrameTest, CompilerTypeSupport, NativeOpHelpers, KofValidation, KofUuid, KofStrings, KofRandom, KofObservability, KofNet, KofEncoding, KofInterpreterConcurrency, SemExpressionTyper, BytecodeReader, KofWsFrameTest, Translate)
+  - suppress false-positive unused-parameter in multiple files + index bounds comments
+  - #205 — as-cast p/ primitivo vindo de referencia unboxa apos checkcast
+  - register and emit interface static fields as ACC_PUBLIC | ACC_STATIC | ACC_FINAL (fixes #238)
+  - parameterTypes() retorna view unmodifiable (#266) + matriz: nota fora da coluna-id
+  - omit ACC_ABSTRACT and emit InterfaceMethodref for static interface methods (fixes #230)
+  - support type-annotated loop variables in for-in statements (fixes #234)
+  - ClassFileParser nao derrama NFE em .class corrompido (#247/#248)
+  - guardas PARSE084 para hex INT >16 digitos e float malformado (raiz da familia NFE)
+  - offsets aarch64 e pbkdf2Hex sem NFE crua (CodeQL #244-246/#255)
+  - reject List subscript write (SEM054) — compiles but cannot load
+  - resolve super() constructor in single or overloaded parent constructors (fixes #226)
+  - reject abstract methods declared inside non-abstract classes (fixes #224)
+  - --port e Content-Length com diagnostico limpo (R6) + kof serve sem args nao AIOOBE
+  - deref-null #380 — guarda defensiva no 'return' void do machineRun (frame)
+  - do not shadow instance methods matching print or println when receiver is present (fixes #225)
+  - emit correct operand type constant in for-loop update (fixes #223)
+  - support function type syntax as return type and class field type (fixes #218)
+  - support extends and implements on classes with constructor parameters (fixes #217)
+  - register and lower fields declared in constructor-param classes (fixes #215)
+  - map standard collection names to builtins in new and typing (fixes #214)
+  - static field ++ / -- emits getstatic/putstatic (fixes #210)
+  - §203 — restaura análise do ELSE do if-statement (frame crash Supervisor)
+  - coerce Char to String in calls expecting String (fixes #154)
+  - type EnumType.values() as List<EnumType> and support toString/name (fixes #165)
+  - §201 JS ReferenceError from loop-variable rename (fixes #182 regression)
+  - compute common supertype (LCA) for if-expression branches (fixes #206)
+  - accept exhaustive true/false switch expression on Boolean (fixes #208)
+  - allow switch expression as RHS of assignment statement (fixes #200)
+  - map primitive types to boxed classes in instanceof and checkcast (fixes #167)
+  - infer void return type for block lambdas without return (fixes #180)
+  - restore outer variable visibility on block exit (fixes #203)
+  - parse unsigned Long hex literals with high bit set (fixes #201)
+  - unshadow loop variable names in locals after for/for-in loop (fixes #182)
+  - #192 — compound em variável capturada faltava o objectref (KofDup) antes do putfield
+  - remove unread-variable em StatementAnalyzer (condType) + StatementLowerer (ignored bindings)
+  - #183 — inferExprType de IfExpr/SwitchExpr retorna Object quando os ramos diferem
+  - update executable path for Java and enhance table parsing in tests
+  - #187 — destructuring de record com Double/Long aloca slots de categoria 2
+  - #188 — == direto em if/ternário compara conteúdo de Record via .equals() + #142/#157/#164 ctor nomeado
+  - #150 — map[key] resolve tipo da chave em vez de forçar Int no descritor
+  - #139/#150 — new Set<T>() e new Map<K,V>() mapeados para coleções kof_set_new/kof_map_new + teste
+  - §194 for-in não-iterável → SEM058 + §196 guard de doc EN/PT
+  - #149/#152 — List[i] roteado p/ kof_list_get (fim do aaload/VerifyError) + testes + remove DBG vazado
+  - remove unread-variable mortos em tooling (JdwpClient/Fmt/BytecodeReader) — degrau-6 health priority
+  - update Java version to 25 across workflows and documentation
+  - overlay_one com hash-check (diff cego com skip-worktree apagava edição viva) + convivência DOING
+  - Bench — parseInt/parseDouble de opções com diagnóstico limpo (R6)
+  - overlay_one nunca pisa edição viva + pre-commit RECUSA commit de canônico sobreposto divergente — dono = 192.168.100.17
+  - remove containers write-only (JdwpClient/SymbolTable/CollectionCallLowerer) + DOING degrau-4 + issue #185
+  - Compare exige valor em --stdin/--arg (CodeQL index-out-of-bounds) + teste Q0 + DOING degrau-3
+  - segurança main — comparison-with-wider-type ×2 + random-used-once ×2
+  - secret-scan via engine OSS docker (gitleaks-action@v3 exige GITLEAKS_LICENSE em orgs)
+  - remove ramos mortos (CodeQL contradictory-type-checks) + golden do-while
+  - BytecodeReader.skipVariable com bounds (CodeQL index-out-of-bounds) + teste + DOING degrau-1
+  - hooks no-op durante rebase/merge/cherry-pick
+  - §191 paridade de case em cookieSet + teste-oracle RFC 8439 do ChaCha20
+  - update mariadb-java-client to 3.5.3 and postgresql to 42.7.7
+  - update index access handling for List/Map types and add error for Set indexing
+  - §186/#133 — <clinit> sintetizado nos 4 targets + bug irmão static-call
+  - §189 assinatura genérica de campo nullable + §187 narrowing de Char[] no Native
+  - inicializador static de expressão constante nos 4 targets (§186, UIW052)
+  - §176 fechado (causa raiz: constant-fold stale) + §176b morto + §188 catalogado — dono = 192.168.100.17
+
+### Documentation
+
+  - D-NULL-INTENT — nullability by EXPLICIT INTENT (maintainer 15/09); §125 option A REVOKED; §205 PARTIAL (slice 1 landed)
+  - §175 — remove stale OPEN status contradicting its own FIXED heading
+  - annotate §218/#148 in the header queue (OPEN, deferred to 0.4.1)
+  - gate re-measured 15/09 ~19:30 — 1847 run / 1 fail (§205 alien) / 16 err (node)
+  - §218/#148 re-measured + maintainer deferral to 0.4.1 recorded
+  - registra diretiva bare-metal/bootável (MCU, BIOS legado, UEFI)
+  - registra o follow-up Q4 (whitelist de type-params de interface generica) EN+PT
+  - §211/#207 — enum identity overclaim; issue REOPENED with javap proof
+  - reconcile §216 face 1 + §219/is + #160 closures on the tip
+  - reconcile §249/§251 FIXED upstream + §252 flake in DOING next-step
+  - §252 — intermittent Native flake in the §129 selectAny test
+  - §251 — declared types are never validated (silent NoClassDefFoundError)
+  - D-NULL — SOFTENING do registro da emenda (a fila destravada foi overreach da lane; mantenedora 15/09: "so registrar a correcao")
+  - EMENDA §125/SEM048 (DECISIONS D-NULL 15/09, mantenedora pessoal) — "null pra primitivo" foi LEITURA ERRADA + §250 #266(c) FIXED
+  - README §3 awaits refresh — §101/§106 stale rows marked fixed (queue §7 empty)
+  - D-BACKEND-SEMANTICS queue closed 6/6 (§129 the last) — section is now record, not backlog
+  - lane bugs-and-gaps — gate re-measured (1 fail = §205) + stability refusal
+  - §249 — `<ident> <ident>` at statement start is silently a typed decl
+  - §219/#151 overclaim — `is` is SILENT outside `if` (statement loss)
+  - §206/§212/§214/§215 body said "reproduces" while the header said FIXED
+  - correct the ab50eeb1 note — node is absent on this host
+  - reconcile 23 catalogued sections whose fix had landed (3-states audit)
+  - audit-catalog entry for the §179 reconciliation (amends 0756383e)
+  - §179 was fixed 14/09 (DECISIONS §4) but the catalog still said OPEN
+  - fix 3 stale headers contradicting the code (3-states audit)
+  - reconcile §246/§247 FIXED upstream + gate re-measured on 7b0bfbe0
+  - §248 — cross-target gap of §209/#213 (interface default methods: JS TypeError, Native null) + §209 JVM ✅
+  - gate re-measured on abc908ee — still 1 fail, only §205
+  - next-step after the #268/#269 wave — §246/§247 catalogued, gate still 1 fail (§205)
+  - §246 (#268) + §247 (#269) — erased-generic / nullable receivers reach the JVM emitter
+  - lane bugs-and-gaps stable — gate 1 fail (§205 other lane), issue sweep closed
+  - release gate re-measured on fresh tip c48006b1 — 1 fail, only §205
+  - onda #258/#264/#265 da minha lane + portão RE-MEDIDO pós-revert §241 (1769/2 — ambos §205, confirmados no tip limpo d776e9c1); #259 re-medida (VerifyError sumiu, gap congelado §125 — regra 6); rejeito #261 ABANDONADO (DECISIONS §4 manda o oposto — nunca pushou)
+  - triage of the #266/#267 wave — #266 = §241 parameter face, #267 -> §244
+  - §244 — `+` on two erased-generic operands emits iadd (VerifyError); #266 folded into §241
+  - §241 — reconcile the stale OPEN status with the compiler lane's REVERT resolution
+  - wave #259-#263 triage closed — #260/#262/#263 closed with proof, #243 is a bug against the ratified DECISIONS §4 shadowing contract
+  - §243 — the shadowing ruling already exists (DECISIONS §4), so #261 is a bug not an open question
+  - §243 — triage of collaborator wave #259-#263 at the release-gate tip
+  - §240 closed at the release gate (5e996312) — §241 is the sole remaining red (lane compiler)
+  - §242 — aresta residual do #256: checagem de override abstrato casa por nome+aridade, nao assinatura (sobrecarga mesma-aridade/tipo-diferente satisfaz abstrato -> AbstractMethodError em runtime volta); apontada na issue 256; fix = frente lane compiler (sigTag ja existe p/ dispatch)
+  - onda #247-#256 fechada — re-varredura com jar do TIP fechou +2 (#213 default-method em 59e2403b + InterfaceDefaultMethodE2ETest 5/5; #207 enum values em 479506e1 + KofEnumTest); fila restante = regra 6/lane alheia; 10/12 da onda ja vinham prontas (licao: repro no jar do TIP ANTES de atacar)
+  - §241 — regressão meio-implementada c0cf805e (#252 boxed): Int? method-return VerifyError + 14 vermelhos de suíte (bisect set-exato) + Script/JS/Native unboxed (paridade regra 5); triagem da onda #247-#256 no DOING (8/10 já feitas por outras lanes — lição: repro no jar do TIP antes de atacar)
+  - §216 (Char) — split into two faces (toString bug vs frozen println)
+  - §216 (Char) measured + rule-6 escalation; next-step unblocked
+  - §216 (Char boxed as Integer) — measured root cause + rule-6 escalation
+  - catalog §240 — regression from 8935c8a7 (#237/#231) breaks 39 suite tests
+  - mark §217 FIXED — generic method return erasure + checkcast (#161)
+  - recusa da lane docs/development apos re-varredura (protocolo do bloco 6, EN+PT sincronizados) — remoto == tip local, fixes das outras lanes NAO tocam nenhum doc da lane (grep objetivo), guardas de doc 13/13 VERDES no HEAD real (ConformanceMatrixDoc/ConcurrencyGaps/TargetMatrix), fila-13 32=32 conferida por parse do corpo; repo NAO esta stable (32 abertas + reds de gate alheios) = cron NAO para; PRÓXIMO PASSO = repetir o protocolo p/ o proximo tick — dono = 192.168.100.17
+  - lane CodeQL — fechamento TOTAL da fila (os 8 alerts em main dismissados mitigated+evidencia; API em 0 open; beta auto-confirma no merge)
+  - TRANSLATOR.md EN+PT — header ainda dizia "subset pendente" sem apontar a diretriz da mantenedora 13/09 ~21:00 (lane DESPRIORIZADA, gaps=regra 6); nota sincroniza o registro vivo com a decisao (nao e fila atual; retoma so por nova decisao) + DOING (5) fechando o resumo de resyncs da sessao (fila-13 EN+PT, README §2, DECOMPILER ATUALIZACAO 3) e registrando LANE EXAUSTA p/ re-varredura a cada re-disparo — dono = 192.168.100.17
+  - fila-13 PT sincronizada com EN (onda §2xx faltava no PT — registro vivo da lane docs) — §201–§239 com status + notas de renumeracao/collisao (233/234, 232 implicit-this, 235 lane .18, 239 COMP002) + §236/§238 ✅ desta lane; contagem real re-verificada 32=32 EN+PT; nenhuma outra mudanca de estado (header-por-header no arquivo, nao memoria) — dono = 192.168.100.17
+  - README §2 ressincronizado EN+PT (lane docs — registro vivo) — triagem 13/09 dizia "8 itens, ZERO codigo-puro"; fila real = 32 e o "ZERO" foi REFUTADO pela onda 14/09: §236+§238 eram codigo-puro do decompiler e foram FECHADOS na lane (8719e304+f2371212, prova suíte 67/67+exec oracle); correcao de contagem + nota §129-[collection] ✅ 11/09 (colisao de numero com o §129 OTP ainda aberto); nenhum outro item da lista mudou de estado sem dono (verificado header-por-header no codigo, nao memoria: §101 regra-6, §104b-ii/§107/§114/§129-OTP/§132/§161/§165 = lanes .18/.22/compiler/decision) — dono = 192.168.100.17
+  - #156/#216 FEITAS — varargs fix pushed, issues closed, §239 catalogued
+  - mark §210 (String.format varargs) FIXED — closes #156/#216
+  - lane CodeQL 14/09 — fila esgotada (chained×21→0, unused-param triado c/ bug real #485, dismissals c/ evidencia, tail #125/#127/#300/#301/#357/#361/#362/#606/#610/#613/#225); 8 abertos = fix no HEAD aguardam scan; NEXT STEP = re-contar no proximo scan
+  - unidade #233-JS/§236-reconciliação registrada + RuntimeDtoa órfão catalogado (aguardando dono lane nat)
+  - PLANO da unidade 2c fechado (hoist de var por pre-scan de xstore em pureIfElse/pureIfThen; default por opcode istore/lstore/dstore, fstore/astore=recusar; StructWalker.java NOVA; contFor intocado; prova Runner2+CallM+64+6) — contexto do turno no fim, NAO iniciado para nao deixar meio-edit (regra 7 item 7) — dono = 192.168.100.17
+  - lição — editar DOING.md só a partir do blob do TIP (git show origin:DOING.md); working copy de worktree c/ sparse+skip-worktree vem CORTADO e dropou bloco alheio em 8e5ccd8a (restaurado em 84831344)
+  - #199 FEITA (1f56ee3a) c/ nota + RESTAURA bloco CodeQL da lane .22 que o commit anterior dropou por engano (sparse-checkout smudge); stringValueOfCharParity já verde via 5ad494b7
+  - #199 FEITA (1f56ee3a) + nota: stringValueOfCharParity red pré-existente RESOLVIDA pelo 5ad494b7 upstream
+  - batch 2 lane .15 14/09 — #155/#221/#236/#241/#242/#243/#220/#245/#141 FECHADAS c/ prova (fix #141 spawn{expr} Handle<Void> nos 3 typers); REGRESSÃO pré-ex stringValueOfCharParity registrada (lane .22, stop-cond 3); PRÓXIMO = #156/#216 varargs + #161 + #153/#168 Char + #199 guard
+  - RE-MEDICAO da ROI do walker (unidade 2b) — o proxy "1098" supercontou: o caminho prologue da 2a (5c944709) ja recupera o fundido nao-loop c/ temp (computed/cmp medidos = if/else sai hoje); classificando os stubs por CAUSA REAL (harness Roi2/Roi3): 646 invoke-interop (lane compiler, familia 234/224/225) + 453 loop-header continue (COLISAO com a lei vinculante: recuperar cond do contFor faz while (v2 < voltar — CFG medido B9/P22; Kof nao tem continue = regra 6) + 8+2 nits de opcode no loadValue (sipush/lcmp). VEREDITO: walker como escopado = DESCARTADO (sem alvo liquido); PostDominator+pathOracle (1/2a) ficam como fundacao confiada NAO ligada; DECOMPILER em parada genuina p/ decisao da mantenedora (destino Fase C); cross-ref "superseded" na linha da decisao antiga. PROVA: 63 DecompileTest + 6 PostDom VERDES FRESCOS 19:39, fonte intocada (StructWalker rascunho deletado ANTES de commitar — opcodes por memoria eram o bug dele mesmo) — dono = 192.168.100.17
+  - reconciliacao de COLISAO de numeros pos-rebase — minha §231 (StringCompareCross, 17:28) renumerada §233 (a do .18 tomou §231 as 17:20 em ea0d5ae3); minha §228 (String.join interop, 15:21) renumerada §234 (a List[i]=v da lane .15 tem o direito de anterioridade 15:07 em 93b5ec26); fatias renumeradas por recorte exato header→header (refs internas contidas: 0 ponteiros quebrados) + PT §223 (minha, par faltante de 7214e674) + PT §232 (par do EN bebf0200 lane .18) + contagem da fila EN/PT = 30/30 conjuntos identicos + clausula new EN com nota da renumeracao — dono = 192.168.100.17
+  - batch 192.168.100.15 — #211/#204/#205/#193/#198 FECHADAS c/ prova; PRÓXIMO = #156/#216 String.format varargs + regra do jar fresco e test em arquivo dedicado (lição worktree #193/#198)
+  - 5o red do portao catalogado (7214e674 §231, fix mecânico pronto p/ dono certo) + estado do gate visto no sweep 16:45 — unidade 2b (walker) fica como PROX PASSO exato ja travado em 67840573 — dono = 192.168.100.17
+  - §231 — 5o RED do portao de release: NativeStringCompareCrossTest (lane nat §111, fechado 11/09) NAO foi migrado p/ contrato split()->String[] do 602dcbc0 (§202, 12:03) — SPLIT_PROGRAM:119/122/127/131 usa a.get(N) e agora da erro de compilacao no cross riscv+aarch. Catalogado com FIX PRONTO E PROVADO (mesmo programa c/ subscrito a[N] roda ec=0 e bate o golden SPLIT_GOLDEN EXATO — medido 16:40 splitfull.kf); NAO editado (lane alheia; diretriz 14/09 = docs/development exclusiva, issues/bugs pros outros; owner do contrato = quem deve o blast-radius). Fila 25->26 — dono = 192.168.100.17
+  - limpa marcador de conflito residual no registro S3 (2/2)
+  - limpa marcador de conflito residual no registro S3
+  - §231 catalogada (EN+PT) — overload top-level com default: requiredArity ignora defaults → SEM014 em chamada curta
+  - unidade 2a registrada (pathOracle zero divergencia 220064fc + auditoria machineRun b9996938) + UNIDADE 2b travada com arquivo/linha/classe-nova/prova — StructWalker.java (BytecodeStatements em 538 = TOLERADA, nao crescer), ramo cond==null && !loop0, guardas idom(then)==idom(senao)==P, P nao-header, back-edges nao cruzam P; prova = diamante VERDE + golden contFor + re-contagem ROI + 69/69; qualquer falha = REVERT da fatia (lei do diamante) — dono = 192.168.100.17
+  - PT — nota de corretude pathOracle sincronizada c/ EN (faltou no commit anterior: assert PT falhou por wrap e o commit saiu so com EN; agora par equilibrado, simbolo ⟺ corrigido) — dono = 192.168.100.17
+  - AUDITORIA doc-vs-codigo — frase "machineRun kept in branch history, not in the tree" estava OBSOLETA: a extracao entrou no tree em 158c174b (13/09 19:52) DEPOIS da sessao do doc reverter; hoje BytecodeDecoder.machineRun:97 esta VIVA e e o corpo de linearReturn:73. Pre-requisito do passo 3 presente e provado — correcao registro EN+PT (regra da lane: combater docs contra o estado real, nao memoria) — dono = 192.168.100.17
+  - ROI do walker passo 3 MEDIDO (unidade 2 passo 1) — corpus real 699 classes/3899 metodos/2628 stubs; 1098 stubs tem forma bloco-teste-com-computacao succ==2 cond==null = teto do pos-dominador; ROI >> 30 -> DECIDIDO construir; escopo da fatia travado no DECOMPILER.md (par EN/PT) + DOING atualizado — dono = 192.168.100.17
+  - lane docs/development — UNIDADE 1 (PostDominator 7dc2e03d) registrada + PRÓXIMO PASSO = unidade 2 (harness ROI nos 851 .class antes do walker; so ligar immediatePostDom se ROI>~30; lei do diamante vinculante) — conserta regra 3 violada na unidade 1 (DOING nao foi no mesmo commit) — dono = 192.168.100.17
+  - DIRETRIZ — lane 192.168.100.17 = exclusiva docs/development (evoluir a linguagem); triagem de issues PAUSADA (comentarios em issues correram com outras lanes — corrigindo); gatilhos 1/3 suspensos, gate cross-arch vira guarda nao-atacar; proximo passo = auditar pendente real dos 5 docs soltos e implementar unidades ate cada um virar docs/ — dono = 192.168.100.17
+  - ciclo 15:10-15:38 — #237 retificada p/ §228 propria (param concreto + retorno fabricado = raiz parcial distinta; prova publica corrigida na issue), #238→§230/#239→§229 catalogadas, fila=27 sync; regra nova: ler titulo COMPLETO do body antes de atribuir familia a bug; gate nat ainda sem fix desde 08:50 — dono = 192.168.100.17
+  - §229-§230 catalogadas na triagem #238/#239 (classes frescas 15:25, HEAD fa8d23f5): #239 estatico-chamado-por-instancia emite invokevirtual → IncompatibleClassChangeError (espeho do §223, javap invokevirtual Util.square cravado); #238 campo static de interface SEM025 irresolvivel (tabela de membros da interface no SEM no recebe fields estaticos) — dono = 192.168.100.17
+  - §226/§227 PT refinadas c/ códigos exatos dos bodies (SEM011+variantes; COMP002 AIOOBE + dump IR KofStoreLocal sem KofCall) — par do 2ad39775 que ficou sem PT por script quebrado antes de escrever; dono = 192.168.100.17
+  - §226/§227 refinadas c/ códigos exatos dos bodies (#234: SEM011 + variantes String/Object/Color todas falham = sistêmico; #235: COMP002 AIOOBE Index -1 + dump IR do relator KofStoreLocal sem KofCall = bug de lowering ANTES do ASM) — re-leitura completa dos bodies pós-erro-de-atribuição-da-#237 (checagem sistemática); dono = 192.168.100.17
+  - #237 → §228 NOVA (não face do §225 como eu anotei antes — RETIFICADO) + controle listOf() reproduz igual
+  - ciclo 15:00-15:10 — faces anexadas §214(#236 invokevirtual "")/§225(#237 String.join Object fabricado), prova postada; fila=24; vigiar fix alheio 23bf99bd (super overloaded) na prox re-medição — dono = 192.168.100.17
+  - faces novas anexadas a raizes abertas — §214+2ª face (issue #236: get(0)() inline pula o SEM015 e emite invokevirtual ""->ClassFormatError owner vazio) e §225+2ª face (issue #237: String.join estatico fora da tabela → retorno Object fabricado; 3a ocorrencia da familia §224/§225/#237 = um fix fecha as tres); prova javap 15:05 no 1f4ca5c9 c/ classes frescas — dono = 192.168.100.17
+  - célula methodoverload anotada honesta — golden cobre apenas overload de INSTÂNCIA; a face ESTÁTICA (§227/#235, invokestatic omitido do IR) não é coberta pelo golden — precedente S13b (matriz não pode overclaim face aberta); dono = 192.168.100.17
+  - ciclo 14:42-15:00 — #234/#235→§226/§227 catalogadas (prova javap postada), re-medição: §190/§195/§220/§221 FIXED alheios processados, §213/§216/§217 re-confirmadas abertas (reflexão anti-JavaFX); fila=24 sync — dono = 192.168.100.17
+  - acentuação PT nas seções §226-§227 (resíduo=0 na minha seção; os outros 28 hits são de seções de outras lanes, fora do escopo desta lane) — dono = 192.168.100.17
+  - §226-§227 catalogadas na triagem #234/#235 (classes frescas 14:38, HEAD 7f9eb015): #234 for-in anotado culpa a palavra-chave in (SEM falso, variante sem-anotacao verde no mesmo build); #235 overload estatico perde o invokestatic do IR (javap: so valueOf+println; c/ store vira VerifyError stack-underflow, COMPUTE_FRAMES crash) — dono = 192.168.100.17
+  - ciclo 14:20-14:42 registrado — §190/§195/§220 FIXED re-medidos c/ fix alheio (gatilho 1 funcionou 3×), fila=22 sync, audito docs/development/ concluído (5 docs soltos corretamente classificados IN DEVELOPMENT) — dono = 192.168.100.17
+  - §220 → ✅ FIXED 14/09 re-medida c/ fix 8a38faa4 da lane analyzer (diagnostico compile-time no lugar do AbstractMethodError; prova postada na #224) — gatilho 1 do contrato de novo; fila=22 — dono = 192.168.100.17
+  - §190+§195 → ✅ FIXED 14/09 — KofBlogE2ETest verde re-medido 14:35 no b7fdcb7e (fix test-side a689cbd2 lane .18 pôs Content-Length; o único método cobre GETs+POSTs, fecha as duas faces); fila=23 (varredura) — dono = 192.168.100.17
+  - fila 24 + #232→§211(sub-face ordinal)/#233→§225 processadas com prova postada — dono = 192.168.100.17
+  - §225 catalogada na triagem #233 (Double.isNaN emite retorno String inventado — mesma raiz tabela-miss do §224, um fix fecha os dois; javap (D)Ljava/lang/String;, build fresco 14:09) — dono = 192.168.100.17
+  - PRÓXIMO PASSO 14:20 — §221 FIXED re-medida (769371c2, prova postada na #225), #230/#231→§223/§224 catalogadas c/ javap e comentadas, fila=23; gatilho nat (3 cross-arch) segue vermelho 13:51 sem fix na lane — dono = 192.168.100.17
+  - §221 → ✅ FIXED 14/09 re-medida c/ fix 769371c2 da lane compiler (build fresco 14:09: [LOG] test + invokevirtual Logger.print) — gatilho 1 do contrato; dono = 192.168.100.17
+  - conserta linha da OPEN Queue — contagem real por varredura (24) + cláusula new lista §214-§224 (replaces silentes das ultimas 3 sessoes nao achavam o alvo) — dono = 192.168.100.17
+  - §223-§224 catalogadas na triagem #230/#231 (classes frescas 14:02, HEAD de38f7b5): static-em-interface carrega ACC_ABSTRACT p/ ClassFormatError 0x409 (#230); interop sem tabela inventa retorno Object p/ sb.append → NoSuchMethodError (#231) — dono = 192.168.100.17
+  - PRÓXIMO PASSO pós-triagem-completa da fila (#200-#229 toda medida; 12 catalogadas §212-§222 + 15 GREEN postados; gatilhos = re-medir fixes alheios c/ classes frescas, portão de release 3 cross-arch, issues novas do watcher) — dono = 192.168.100.17
+  - §220-§222 catalogadas na triagem #223-#229 (classes frescas 13:40, HEAD cdda27d9): #224 abstract-em-classe-concreta (AbstractMethodError, §220), #225 built-in print engole Logger.print (receiver descartado, §221), #228 if-expr com chaves vira Lambda0 (valor lixo impresso, §222) — dono = 192.168.100.17
+  - §208 retificada p/ FIXED (fix da768386 12:32, re-medido verde 12:57) + comentario de RETIFICACAO na #218 + licao da armadilha gemea no weak-green-proof (falso VERMELHO de classe obsoleta) — dono = 192.168.100.17
+  - §202 → FIXED (registry sync with 602dcbc0) + relocate misplaced §203 note
+  - deixa as 3 camadas do Java explicitas em todo lugar
+  - §216-§219 catalogadas na triagem das issues antigas (#168/#153 Char-boxed-Integer uma raiz; #161 generic T sem checkcast de erasure; #148 "".toHexString owner vazio; #151/#155/#159/#160/#141 batch de falsos-diagnosticos em compile-time) — dono = 192.168.100.17
+  - update bilingual documentation to include guidelines for living documents and translation management
+  - §214/§215 catalogadas — triagem #193/#199 com classes frescas (mvn -o compile ANTES, lição aplicada): #193 SEM015 em List<() -> Int>.get(0) + familia Function<> como param (e204c de hoje); #199 VerifyError "Bad local variable type" — case String s if guarda omisso store da vinculacao (javap: sem checkcast/astore 3) — dono = 192.168.100.17
+  - PRÓXIMO re-disparo pontuado na ordem (triagem das issues antigas 1-para-1 com known-bugs; #199/#193 primeiro — a face Function<() -> Void> do e204c de hoje pode ser a #193) — dono = 192.168.100.17
+  - PRÓXIMO PASSO 12:50 — reconciliacao pos-fixes da manha com classes FRESCAS + licao: harness de triagem exige `mvn -o compile` antes de provar (a 1a medicao da #217 era classe obsoleta; c57431b9 ja consertara) — dono = 192.168.100.17
+  - reconcilia 12:40 — §203/§206/§207 marcadas FIXED pelos fixes de hoje (8af810c5/6f7f55bc/c57431b9, RE-MEDIDOS com classes frescas); §213 catalogada (as Object sem boxing, VerifyError @checkcast) — dono = 192.168.100.17
+  - §212 catalogado — triagem #219-#222 com prova javap/exec: #219 REPRODUZ (b.size -> invokevirtual, campo engolido pelo método homônimo) §212; #220/#221/#222 GREEN (boxing valueOf cl / <clinit> executa 100|8|foobar|100 / <init>(II) real) — dono = 192.168.100.17
+  - §211 catalogado — #207 REABERTA com razão; RETIFICO meu GREEN anterior (era superficial: provou não-crash, não identidade). enum values emitem ldc String, nenhum Dir.class; Dir.N.getClass()==java.lang.String; Dir.N=="N" é true — dono = 192.168.100.17
+  - triagem #205-#218 FECHADA (5 GREEN com prova, 5 catalogadas §206-§210, 1 já fixada) — próximo re-disparo = vigiar novos vermelhos + Q4 em novas issues — dono = 192.168.100.17
+  - §209/§210 catalogados — triagem #213 (default method de interface descartado → SEM043 falso) e #216 (varargs interop sem Object[] → NoSuchMethodError), ambos REPRODUZ no 2d3b8fdf; #207 GREEN com prova — dono = 192.168.100.17
+  - §206/§207/§208 catalogados — triagem #215/#217/#218 REPRODUZ no 1c13d982 com prova (SEM011/SEM025 corpo de ctor-param; PARSE007 extends em ctor-param; PARSE007 tipo-função como retorno) — dono = 192.168.100.17
+  - workflow diagram do compiler-architecture consertado — referência image.png resolvia p/ docs/architecture/ (inexistente); agora ../image.png (o asset que existe) + alt-text descritivo (era "alt text" literal) — dono = 192.168.100.17
+  - TRIAGEM #200-#214 cravada com prova de execução no 75455529 — 5 GREEN (comentários nas issues), #202 regra 6 (SEM058 honesto), #205 catalogado §203; fila p/ o próximo re-disparo = #207/#209/#210/#213/#215-#218 — dono = 192.168.100.17
+  - renumera §203 (supervisor) → §204 e §204 (ifexpr) → §205
+  - §203 catalogado — issue #205 "as Int" emite CHECKCAST "?" + istore sem unboxing (VerifyError, javap cravei) + contagem da fila coerente (25) — dono = 192.168.100.17
+  - §201/§202 regressos de lanes alheias com bissecao provada em worktree limpo
+  - LINHA DE BASE da estabilização registrada (gate de release) — 1819/3/0/7, as 3 vermelhas catalogadas com repro+causa (§181 residual -inf, §192 B41 aliasing) + PRÓXIMO PASSO do DOING atualizado ao estado medido — dono = 192.168.100.17
+  - traduz os 6 meta-vivos para EN (canonico) + par PT + switcher
+  - residual re-confirmado no HEAD pós-67db6c50 — diff exato: ÚNICA linha divergente é idx 4 (-inf as Int = 0 vs MIN); lanes nat viva (fix 22:42 ontem) — dono = 192.168.100.17
+  - linha S13b honesta p/ §192 — DONE = JVM/x86/JS/Script; riscv/aarch PENDURA na 1ª parseDoubleOrDefault pós-throw (repro 2 linhas + PC do loop no known-bugs) — dono = 192.168.100.17
+  - linha S13b honesta — DONE é JVM/x86/JS/Script; cross riscv/aarch PENDURA (§192, repro 2 linhas + PC do loop no known-bugs) — dono = 192.168.100.17
+  - menor repro CRAVADO (throw-OrDefault antes de parseDouble = hang; tabela 5 casos) + PC do loop infinito (escalação de expoente, s5≈2^63) + fix de 2 frentes p/ lane nat — dono = 192.168.100.17
+  - convivência + linha CodeQL health (PT+EN juntos pro overlay)
+  - reconcilia colisão tripla de §189 — parseOrDefault→§192 (minha), E2E blog→§193 (lane compiler, conteúdo intocado); §192 honestidade atualizada (determinística cravada 2/2 + cache desbloqueado) — dono = 192.168.100.17
+  - unifica C18 (lane .22 × .18) no merge + descriptor kof_web_security_opts
+  - causa raiz parcial lida do código — aliasing de slot no TEMPLATE B41 (default sobrescreve chain@24(sp)) — dono = 192.168.100.17
+  - status i18n medido 14/09 — par 214/214 (100%), switcher pendente só nos 6 meta-vivos, plano pós-release — dono = 192.168.100.17
+  - CodeQL 495→270 — paths-ignore+132 dismissals testes (804a03ea); seg main ×4 (c669990f); bloqueio unnamed-pattern no release-21; fila por arquivo livre
+  - lote i18n switcher preservado do working tree
+  - switcher EN|PT na 1a linha dos canônicos EN de learn/training/tooling — dono = 192.168.100.17
+  - §189 provado determinístico (riscv TRAVA em parseDoubleOrDefault) + resgate honesto do working tree compartilhado — dono = 192.168.100.17
+  - lote 6 — learn 07-39/glossary/native + training em EN
+  - lote 5 — stdlib/targets/tooling/ui + learn 00-06 em EN
+  - FEITO degrau-2 CodeQL (commit imediato)
+  - lote 4 — language-reference/runtime/stdlib parcial em EN
+  - PACTO DE AGREGAÇÃO (ordem da mantenedora) + resguardo claim C18 lane development (conteúdo intacto)
+  - lote 3 — development/distribution/editors/history em EN
+  - lote 2 — architecture/audits/debugging/decisions/development + backend-parity/philosophy em EN
+  - linha de base do gate de release (1819/3-FAIL/7-skip) + §181 residual (-inf) + §189 parseOrDefault cross catalogados — dono = 192.168.100.17
+  - sec-pack — push protection + dependabot-security-updates ativados (opt-in dela)
+  - sync bidirecional FEITO — 7 dependabot PRs + main<->beta (#179, main=851e514b)
+  - lote 1 — raiz + benchmark traduzidos para EN (canonico)
+  - sec-pack — AI findings on_push ativado (pedido da mantenedora)
+  - infraestrutura de documentacao bilingue EN/PT
+  - sec-pack FEITO — merge na main (9e289d84) + APIs ativas + issue #170 fechada
+  - sec-pack — limpa marcadores residuais do rebase + notas p/ lane .18 (blog add/add) + registro do replay
+  - sec-pack — Code Quality + secret scanning + private reporting ativados via API; missão merge-na-main sem bump (D-RELEASE mantido)
+  - registra commit 8eb156f4 do blog E2E + --fat
+  - lane development reivindica blog E2E (D-SPRING F12) — ChaCha20 já entregue pelo colega (3e1d1ff7), duplicata descartada com diff preservado
+  - ressalva da mantenedora — janela de patch NAO descarta nem congela features
+  - trava a regra da mantenedora — gatilho de patch 0.4.1 em 100-150 commits frente a main
+
+### Tests
+
+  - §233 — migração 4x .get(N)->[N] no SPLIT_PROGRAM de NativeStringCompareCrossTest (blast-radius do contrato §202/602dcbc0 split()->String[] esquecido no arquivo cross ha ~1 dia; nem o 5e996312 migrou): PROVA MEDIDA — no remoto PURO 3a0826df o cross estava 2/2 VERMELHO (compile fail SEM "array nao tem metodo get()"), com a migracao 2/2 VERDE sob qemu riscv64+aarch64 e o golden SPLIT_GOLDEN BYTE-IDENTICO (nao relaxado, Q5 — e exatamente o programa que roda na JVM com ec=0 e mesma saida, medido 14/09 ~16:40). Takeover legitimo: lane nat encerrada (11/09), lane .15 registry NAO migrou o arquivo, e o red bloqueia o gate de release. Docs: §233 ✅ FIXED EN+PT, §237 ✅ registro com credit ao 8935c8a7 (medido 1/1 verde no remoto puro — nao e fix desta lane), fila-13 32->30 (delta = §233/§237; contagem base da lane .15 respeitada), DOING com a auto-correcao honesta da campanha (guard §240 no typer = REDUNDANTE apos o 5e996312 na raiz — commits locais descartados ANTES de publicar; migracao §241-enfraquecedora DESCARTADA apos medir que Throwable real volta a lancar no remoto; lição: bisect+medicao no tip ANTES de entregar) — dono = 192.168.100.17
+  - add tests for guarded pattern switch expressions to fix issue #199
+  - #243/#220 — prova de boxing em atribuição de primitivo a campo T
+  - #221 — prova de static field com inicializador de expressao (10*10, "foo"+"bar")
+  - #155 — prova de segunda interface com retorno primitivo (Boolean/Int)
+  - #229 — prova de switch-expr em atribuicao composta (+=/-=) e reatribuicao
+  - #193/#198 — prova de tipo-funcao como type-arg de new List<() -> T>()
+  - unidade 2a — pathOracle brute-force (DEFINICAO caminho-a-caminho) vs passada rapida em CFGs REAIS do corpus (300 classes, blocos<=40) = divergencia zero bloco a bloco, 6/6 fresco 4.28s; DECOMPILER.md EN/PT atualizado. Correctness da passada provada ANTES de ligar o walker (de-risk imediatoPostDom em struct() na unidade 2b) — dono = 192.168.100.17
+  - #204 — prova de no-arg () -> void para block-lambda sem return
+  - prova de regressao do deref-null em CompilerImports (NPE L67 sem guard)
+  - subscript em List e VALIDO desde #149/#152 — so String/Map/Set dao SEM054
+  - corpus alinhado ao contrato — split() retorna String[]; acesso e arr[i], nao .get(i)
+  - add §204 regression test for else-branch analysis (Q1 gap)
+  - add regression test for issue #163
+  - add setAndMapConstruction test case for #139/#150
+  - regressao #128 — json.decode<Record> com campo List<Record>? aninhado
+  - regressao #127 — record com Int? (equals/hashCode/toString)
+
+### Build
+
+  - prepend JDK compilador ao PATH dos E2E (D-BASELINE, release 25)
+  - baseline da toolchain 21 -> 25 (D-BASELINE, decisão da mantenedora)
+
 <!-- NEXT-RELEASE -->
 
 ## [0.2.7-beta] - 2026-09-04
