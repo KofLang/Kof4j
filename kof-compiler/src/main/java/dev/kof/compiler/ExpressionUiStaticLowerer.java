@@ -179,6 +179,15 @@ if (mc.receiver() == null && "View".equals(mc.methodName()) && mc.arguments().si
             Type.PrimitiveType.INT, KofCallKind.FUNCTION));
     return localIdx;
 }
+        if (mc.receiver() == null && "RawView".equals(mc.methodName()) && mc.arguments().size() == 4) {
+            for (ExpressionNode arg : mc.arguments()) {
+                localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
+            }
+            ops.add(new KofCall(new Type.ClassType("kof.ui", "Ui", List.of()),
+                    "kof_ui_raw_view_new", List.of(Type.PrimitiveType.STR, Type.PrimitiveType.STR, Type.PrimitiveType.STR, Type.PrimitiveType.STR),
+                    Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+            return localIdx;
+        }
 // ── UI003 (restante): Fieldset/Iframe/Video/Audio/Hr — widgets DOM simples
 if (mc.receiver() == null && "Fieldset".equals(mc.methodName())
         && (mc.arguments().size() == 1 || mc.arguments().size() == 2)) {
@@ -279,3 +288,4 @@ if (mc.receiver() == null && "Image".equals(mc.methodName()) && mc.arguments().s
         return -1;
     }
 }
+
