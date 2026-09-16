@@ -469,15 +469,13 @@ public final class CompilerTypes {
         return CompilerTypes.toType(typeName, currentUnit, sa);
     }
     static KofLoadLiteral defaultValueOp(Type type) {
-        // §125 (decisão da mantenedora 12/09, opção A): default de
-        // Nullable(primitivo) é o default do primitivo (`0`/`0.0`/`false`),
-        // NUNCA null — mesmo princípio do map-miss SG-008/bug-87
-        // (null se perde em transitos de primitivo). Nullable(ref) mantém
-        // null (precedente §124).
-        if (type instanceof Type.NullableType nt
-                && nt.inner() instanceof Type.PrimitiveType) {
-            type = nt.inner();
-        }
+        // D-NULL-INTENT/N1 (mantenedora 15/09, e04f10ff): §125 opção A
+        // REVOGADA — Nullable(primitivo) agora é boxed e o "default" de um
+        // `return null`/switch-fallback é null de verdade (aconst_null),
+        // igual a Nullable(ref) (precedente §124). NÃO desempacotar mais
+        // para o primitivo. (3 call sites, todos em StatementLowerer/
+        // SwitchExprLowerer — zero overlap com o default do map-miss, que
+        // vive em JvmOpCollections/KofInterpreterCollections/JsCollectionOps.)
         if (type instanceof Type.PrimitiveType pt) {
             return switch (Type.canonicalPrimitiveName(pt.name())) {
                 case "long" -> new KofLoadLiteral(Type.PrimitiveType.LONG, 0L);

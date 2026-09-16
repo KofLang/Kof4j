@@ -106,10 +106,10 @@ public final class TypeMetrics {
     }
 
     static boolean isDoubleWidth(Type type) {
-        // §125: Nullable(primitivo) apaga p/ o primitivo na SIGNATURA
-        // (toDescriptor/returnOpcode) — a categoria-2 também: `Long? f()`
-        // retorna long (2 slots) e descartar exige POP2 (SG-020/bug-79).
-        if (type instanceof Type.NullableType nt) return isDoubleWidth(nt.inner());
+        // D-NULL-INTENT/N1 (mantenedora 15/09): Nullable(Long)/Nullable(Double)
+        // agora são boxed (Ljava/lang/Long;/Ljava/lang/Double;) — 1 slot de
+        // referência, não mais categoria-2. NÃO desempacotar Nullable aqui
+        // (o `return false` final já é a resposta certa p/ qualquer Nullable).
         if (type instanceof Type.PrimitiveType pt) {
             return "long".equals(pt.name()) || "Long".equals(pt.name())
                     || "double".equals(pt.name()) || "Double".equals(pt.name());

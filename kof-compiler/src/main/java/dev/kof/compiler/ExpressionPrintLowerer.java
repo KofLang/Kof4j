@@ -49,6 +49,14 @@ if (("print".equals(mc.methodName()) || "println".equals(mc.methodName())) && mc
             "out", new Type.ClassType("java.io", "PrintStream", List.of())));
     localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(0), ops, owner, localIdx, locals);
     Type argType = ExpressionTyper.inferExprType(driver, mc.arguments().get(0), locals);
+    // D-NULL-INTENT/N1: Nullable(primitivo) GENUÍNO (ex. `println(en(-7))`)
+    // já chega aqui boxed de verdade — boxar de novo é Integer.valueOf(int)
+    // sobre uma referência (VerifyError no JVM, NoSuchMethodError
+    // Integer.valueOf/1 no interpretador, §0). Só o valor CRU do map-miss
+    // (SG-008) ainda precisa do box abaixo — por forma de chamada, não tipo.
+    boolean argGenuineNullablePrim = argType instanceof Type.NullableType pnt
+            && pnt.inner() instanceof Type.PrimitiveType
+            && !CompilerComparisons.isCollectionMissSource(driver, mc.arguments().get(0), locals);
     // (#57: IfExpr/switch heterogêneo já boxeou in-branch → pular o box)
     if (CompilerTypes.isEnumType(argType, driver.currentUnit)) {
         // D-ENUM207: enum é instância real; imprime o NOME via toString()
@@ -56,7 +64,7 @@ if (("print".equals(mc.methodName()) || "println".equals(mc.methodName())) && mc
         // o JS não stringificam um objeto custom por valueOf(Object)).
         ops.add(new KofCall(argType, "toString", List.of(), BuiltinTypes.STRING,
                 KofCallKind.INSTANCE));
-    } else if (TypeMetrics.isPrimitiveType(argType)
+    } else if (TypeMetrics.isPrimitiveType(argType) && !argGenuineNullablePrim
             && !ExpressionTyper.boxesOwnBranches(driver, mc.arguments().get(0), locals)) {
         if (driver.target.isNative()) {
             // println(char) é NUMÉRICO (congelado: strings.md

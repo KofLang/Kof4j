@@ -40,7 +40,7 @@ public final class JvmRecordEmitter {
             }
             mv.visitLdcInsn(f.name() + "=");
             mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/StringBuilder", "append", "(Ljava/lang/String;)Ljava/lang/StringBuilder;", false);
-            Type ft = erased(f.type());
+            Type ft = f.type();
             mv.visitVarInsn(ALOAD, 0);
             mv.visitFieldInsn(GETFIELD, cn, f.name(), JvmTypeMapper.toDescriptor(ft));
             mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/StringBuilder", "append", appendDescriptor(ft), false);
@@ -103,19 +103,12 @@ public final class JvmRecordEmitter {
         mv.visitEnd();
     }
 
-    private static Type erased(Type type) {
-        // #127: Nullable(primitivo) apaga para o primitivo na STORE (ver
-        // JvmTypeMapper.toDescriptor) — o campo do record é `int`, não
-        // `Integer`. As emissões de equals/hashCode/toString precisam ver o
-        // tipo apagado, senão o `instanceof PrimitiveType` falha e cai no
-        // ramo `Objects.equals(Object,Object)` com um `int` na pilha
-        // (VerifyError: "integer not assignable to java/lang/Object").
-        if (type instanceof Type.NullableType nt) return nt.inner();
-        return type;
-    }
-
     private static void emitEqualsComparison(MethodVisitor mv, Type type, String cn) {
-        type = erased(type);
+        // D-NULL-INTENT/N1: Nullable(primitivo) agora é boxed no campo (ver
+        // JvmTypeMapper.toDescriptor) — NÃO desempacotar mais (#127 revogado
+        // pelo boxing). Um `Nullable(primitivo)` não-erased cai no ramo
+        // `else` (Objects.equals/Objects.hashCode/append(Object)), que já é
+        // null-safe e correto para a referência boxed real no campo.
         // UIW050: handle de UI/mídia é int no bytecode (JvmTypeMapper) —
         // Objects.equals sobre int é inválido. Trata como primitivo int.
         if (JvmTypeMapper.isHandleErasedToInt(type)) {
@@ -170,7 +163,6 @@ public final class JvmRecordEmitter {
     }
 
     private static void emitHashContribution(MethodVisitor mv, Type type) {
-        type = erased(type);
         // UIW050: handle apagado para int — contribui o próprio valor, sem
         // Objects.hashCode (que receberia int e rejeitaria no verifier).
         if (JvmTypeMapper.isHandleErasedToInt(type)) {

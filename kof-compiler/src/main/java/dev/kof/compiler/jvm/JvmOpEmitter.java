@@ -449,7 +449,13 @@ public final class JvmOpEmitter {
      * tratá-lo como ref emitia if_acmp* sobre int e o verifier rejeitava.
      */
     private static boolean isRefOperand(Type t) {
-        if (t instanceof Type.NullableType nt) return isRefOperand(nt.inner());
+        // D-NULL-INTENT/N1: Nullable(primitivo) é boxed agora — é referência
+        // (IF_ACMPEQ/NE). Só chega aqui como Nullable(primitivo) o caso
+        // GENUÍNO (o fold de map-miss em ExpressionBinaryLowerer intercepta
+        // e resolve o caso cru ANTES de operandType chegar neste ponto).
+        if (t instanceof Type.NullableType nt) {
+            return nt.inner() instanceof Type.PrimitiveType || isRefOperand(nt.inner());
+        }
         if (JvmTypeMapper.isHandleErasedToInt(t)) return false;
         return t instanceof Type.ClassType || t instanceof Type.ArrayType || t instanceof Type.TypeVariable;
     }

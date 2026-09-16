@@ -23,7 +23,15 @@ public final class JvmTypeMapper {
             case Type.FunctionType ft -> ft.className() != null
                     ? "L" + ft.className() + ";" : "Ljava/lang/Object;";
             case Type.UnknownType _ -> "Ljava/lang/Object;";
-            case Type.NullableType n -> toDescriptor(n.inner());
+            // D-NULL-INTENT/N1 (mantenedora 15/09, e04f10ff): Nullable(primitivo)
+            // precisa carregar null de verdade — apagar para o descritor primitivo
+            // (opção A/§125, revogada) tornava `null` inrepresentável no slot/retorno.
+            // O boxed é o único jeito de um valor de tipo primitivo carregar uma
+            // referência null na JVM (JVMS §2.3/§4.3.2: slot primitivo não é
+            // referência). Nullable(referência) já é o próprio inner (inalterado).
+            case Type.NullableType n -> n.inner() instanceof Type.PrimitiveType pt
+                    ? "L" + boxedInternalName(pt.name()) + ";"
+                    : toDescriptor(n.inner());
             default -> "Ljava/lang/Object;";
         };
     }

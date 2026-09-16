@@ -27,10 +27,12 @@ public final class StatementLowerer {
                         Type rvType = ExpressionTyper.inferExprType(driver, rv, locals);
                         driver.emitWideningIfNeeded(ops, rvType, returnType);
                         // Issue #169: retorno de primitivo de função tipo Object
-                        if (driver.erasesToReference(returnType)
-                                && TypeMetrics.isPrimitiveType(rvType)
-                                && !ExpressionTyper.boxesOwnBranches(driver, rv, locals)) {
-                            driver.emitErasureBox(ops, rvType);
+                        if (!ExpressionTyper.boxesOwnBranches(driver, rv, locals)) {
+                            if (driver.erasesToReference(returnType) && TypeMetrics.isPrimitiveType(rvType)) {
+                                driver.emitErasureBox(ops, rvType);
+                            } else if (needsNullablePrimBoxOnReturn(driver, rv, returnType, rvType, locals)) {
+                                driver.emitErasureBox(ops, rawPrimOf(rvType));
+                            }
                         }
                         ops.add(new KofStoreLocal(returnType, f.slotValor()));
                     } else if (!Type.isVoid(returnType)) {
@@ -41,18 +43,21 @@ public final class StatementLowerer {
                     yield localIdx;
                 }
                 if (ret.value() != null && !CompilerComparisons.isNullablePrimNullReturn(ret, returnType)) {
-                    // §125(A) extensão: ramo null de if/switch em retorno
-                    // Nullable(primitivo) colapsa p/ o default (evita o join
-                    // heterogêneo que boxia e quebra o ireturn).
+                    // D-NULL-INTENT/N1: ramo null de if/switch em retorno
+                    // Nullable(primitivo) NÃO colapsa mais p/ o default — o
+                    // join heterogêneo já boxeia o ramo primitivo in-branch
+                    // (ExpressionTyper.branchTypeOrNullAsRef/boxesOwnBranches).
                     ExpressionNode rv = CompilerComparisons.foldNullablePrimBranches(ret.value(), returnType);
                     localIdx = ExpressionLowerer.emitExpression(driver, rv, ops, owner, localIdx, locals);
                     Type rvType = ExpressionTyper.inferExprType(driver, rv, locals);
                     driver.emitWideningIfNeeded(ops, rvType, returnType);
                     // Issue #169: retorno de primitivo de função tipo Object
-                    if (driver.erasesToReference(returnType)
-                            && TypeMetrics.isPrimitiveType(rvType)
-                            && !ExpressionTyper.boxesOwnBranches(driver, rv, locals)) {
-                        driver.emitErasureBox(ops, rvType);
+                    if (!ExpressionTyper.boxesOwnBranches(driver, rv, locals)) {
+                        if (driver.erasesToReference(returnType) && TypeMetrics.isPrimitiveType(rvType)) {
+                            driver.emitErasureBox(ops, rvType);
+                        } else if (needsNullablePrimBoxOnReturn(driver, rv, returnType, rvType, locals)) {
+                            driver.emitErasureBox(ops, rawPrimOf(rvType));
+                        }
                     }
                     ops.add(new KofReturn(returnType));
                 } else if (Type.isVoid(returnType)) {
@@ -98,9 +103,11 @@ public final class StatementLowerer {
                 // `var`/`val` inferido INTocado (§68a: alargar slot = decisão
                 // de contrato).
                 ExpressionNode vdInit = CompilerComparisons.foldNullablePrimBranches(vds.initializer(), varType);
-                // nullable é constraint de compile-time: o storage é o inner
-                // (a referência já pode ser null na JVM/Native/JS)
-                if (varType instanceof Type.NullableType nt) {
+                // D-NULL-INTENT/N1 (mantenedora 15/09): Nullable(primitivo) NÃO
+                // desempacota mais — o slot vira referência boxed p/ carregar
+                // null de verdade. Nullable(referência) continua desempacotando
+                // (o storage já era o inner: `String?`==`String` em runtime).
+                if (varType instanceof Type.NullableType nt && !(nt.inner() instanceof Type.PrimitiveType)) {
                     varType = nt.inner();
                 }
                 if (driver.mutatedCapturedNames.contains(vds.name())) {
@@ -157,16 +164,29 @@ public final class StatementLowerer {
                 // boxa no JVM (JS/Native já são untyped). Sem isso o store de
                 // int num slot Object invalidava o bytecode.
                 // (#57: IfExpr/switch heterogêneo já boxeou in-branch → pular)
-                if (driver.erasesToReference(varType)
-                        && vdInit != null
-                        && TypeMetrics.isPrimitiveType(ExpressionTyper.inferExprType(driver, vdInit, locals))
-                        && !ExpressionTyper.boxesOwnBranches(driver, vdInit, locals)) {
-                    driver.emitErasureBox(ops, ExpressionTyper.inferExprType(driver, vdInit, locals));
+                boolean nullablePrimTarget = varType instanceof Type.NullableType vnt
+                        && vnt.inner() instanceof Type.PrimitiveType;
+                if (vdInit != null && !ExpressionTyper.boxesOwnBranches(driver, vdInit, locals)) {
+                    Type vdInitType = ExpressionTyper.inferExprType(driver, vdInit, locals);
+                    if (driver.erasesToReference(varType) && TypeMetrics.isPrimitiveType(vdInitType)) {
+                        driver.emitErasureBox(ops, vdInitType);
+                    } else if (nullablePrimTarget
+                            && (vdInitType instanceof Type.PrimitiveType
+                                || CompilerComparisons.isCollectionMissSource(driver, vdInit, locals))) {
+                        // D-NULL-INTENT/N1: valor CRU chegando num slot
+                        // Nullable(primitivo) — literal/expressão primitiva OU
+                        // Map.get() (SG-008: sempre cru, default-on-miss, nunca
+                        // boxed) — precisa boxar. Um Nullable(primitivo)
+                        // GENUÍNO (ex.: retorno de outra função, já boxed pelo
+                        // descritor) NÃO cai aqui — evita double-box (§0).
+                        Type rawPrim = vdInitType instanceof Type.NullableType nt2 ? nt2.inner() : vdInitType;
+                        driver.emitErasureBox(ops, rawPrim);
+                    }
                 }
                 // declaração sem inicializador: default (0 primitivo / null
                 // referência) — antes o store saía de pilha vazia (frame crash)
                 if (vdInit == null) {
-                    ops.add(driver.erasesToReference(varType)
+                    ops.add(driver.erasesToReference(varType) || nullablePrimTarget
                             ? new KofLoadLiteral(varType, null)
                             : new KofLoadLiteral(varType, 0));
                 }
@@ -197,6 +217,7 @@ public final class StatementLowerer {
                     ops.add(new KofConditionalJump(driver.mapComparison(bin.operator()), driver.comparisonOperandType(bin, locals), thenLabel, elseLabel));
                 } else {
                     localIdx = ExpressionLowerer.emitExpression(driver, ifStmt.condition(), ops, owner, localIdx, locals);
+                    unboxGenuineNullableBoolCondition(driver, ifStmt.condition(), ops, locals);
                     ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
                     ops.add(new KofConditionalJump(KofComparison.NE, thenLabel, elseLabel));
                 }
@@ -220,6 +241,7 @@ public final class StatementLowerer {
                     ops.add(new KofConditionalJump(driver.mapComparison(bin.operator()), driver.comparisonOperandType(bin, locals), bodyLabel, endLabel));
                 } else {
                     localIdx = ExpressionLowerer.emitExpression(driver, ws.condition(), ops, owner, localIdx, locals);
+                    unboxGenuineNullableBoolCondition(driver, ws.condition(), ops, locals);
                     ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
                     ops.add(new KofConditionalJump(KofComparison.NE, bodyLabel, endLabel));
                 }
@@ -589,5 +611,41 @@ public final class StatementLowerer {
             }
             default -> localIdx;
         };
+    }
+
+    /**
+     * D-NULL-INTENT/N1: `return 5` (ou `return mapOf(...).get(k)`) numa
+     * função `Int? f()` chega com um valor CRU (não erasesToReference) mas o
+     * slot de retorno agora é boxed — precisa de box explícito. Um retorno
+     * GENUÍNO `Nullable(primitivo)` (chamada a outra função `T?`, já boxed
+     * pelo descritor) tem `rvType` já `Nullable(primitivo)` e NÃO deve boxar
+     * de novo (double-box, §0 do plano N1) — só o map-miss (SG-008, sempre
+     * cru) é a exceção reconhecida por forma de chamada.
+     */
+    private static boolean needsNullablePrimBoxOnReturn(CompilerDriver driver, ExpressionNode rv,
+            Type returnType, Type rvType, List<IRLocalVariable> locals) {
+        if (!(returnType instanceof Type.NullableType nt) || !(nt.inner() instanceof Type.PrimitiveType)) {
+            return false;
+        }
+        return rvType instanceof Type.PrimitiveType
+                || CompilerComparisons.isCollectionMissSource(driver, rv, locals);
+    }
+
+    private static Type rawPrimOf(Type t) {
+        return t instanceof Type.NullableType nt ? nt.inner() : t;
+    }
+
+    /**
+     * D-NULL-INTENT/N1: uma condição `if`/`while` de tipo `Nullable(primitivo)`
+     * GENUÍNO (ex. `Boolean? flag` usado como `if (flag)`) chega BOXED —
+     * desembrulha antes do `KofConditionalJump` (que espera int/boolean cru
+     * na pilha, não referência). Map-miss (SG-008) fica de fora (§0).
+     */
+    private static void unboxGenuineNullableBoolCondition(CompilerDriver driver, ExpressionNode cond,
+            List<KofOperation> ops, List<IRLocalVariable> locals) {
+        Type condType = ExpressionTyper.inferExprType(driver, cond, locals);
+        if (CompilerComparisons.isGenuineNullablePrimitive(driver, cond, condType, locals)) {
+            driver.emitErasureUnbox(ops, ((Type.NullableType) condType).inner());
+        }
     }
 }

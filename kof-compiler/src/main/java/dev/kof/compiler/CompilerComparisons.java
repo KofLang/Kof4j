@@ -48,6 +48,17 @@ public final class CompilerComparisons {
     static Type comparisonOperandType(CompilerDriver driver, BinaryExpr bin, List<IRLocalVariable> locals) {
         Type left = ExpressionTyper.inferExprType(driver, bin.left(), locals);
         Type right = ExpressionTyper.inferExprType(driver, bin.right(), locals);
+        // D-NULL-INTENT/N1: `==`/`!=` entre Nullable(primitivo) GENUÍNO (não
+        // map-miss — ex. `a == b` com `a`/`b` vindos de retorno `T?`) é
+        // comparação de REFERÊNCIA — o valor já chega boxed de verdade, não
+        // pode desembrulhar p/ numérico (o `if (a==b)` shortcut emitiria
+        // if_icmpeq sobre uma referência → VerifyError).
+        boolean eqNe = "==".equals(bin.operator()) || "!=".equals(bin.operator());
+        boolean leftGenuine = isGenuineNullablePrimitive(driver, bin.left(), left, locals);
+        boolean rightGenuine = isGenuineNullablePrimitive(driver, bin.right(), right, locals);
+        if (eqNe && (leftGenuine || rightGenuine)) {
+            return leftGenuine ? left : right;
+        }
         // T? desembrulha: Nullable(primitivo) é numérico (unbox com guard
         // do kof_map_get), Nullable(referência) é referência (SG-008/bug 87)
         if (left instanceof Type.NullableType nl) left = nl.inner();
@@ -129,15 +140,48 @@ public final class CompilerComparisons {
      * semântica de expressão standalone, intocada: zero regressão).
      */
     static ExpressionNode foldNullablePrimBranches(ExpressionNode e, Type destType) {
+        // D-NULL-INTENT/N1 (mantenedora 15/09, e04f10ff): §125 opção A
+        // REVOGADA — Nullable(primitivo) agora é boxed e carrega null de
+        // verdade, então um ramo `null` de if/switch NÃO colapsa mais para o
+        // default quando o destino é Nullable(primitivo) (o join heterogêneo
+        // já é tratado por ExpressionTyper.branchTypeOrNullAsRef/boxesOwnBranches
+        // — cada ramo primitivo é boxeado in-branch, o ramo null já é
+        // referência). Destino NÃO-nullable (`Int f() = if(c) x else null`)
+        // continua colapsando — gap pré-existente fora do escopo desta unidade.
         if (e == null) return e;
-        Type.PrimitiveType prim = null;
-        if (destType instanceof Type.NullableType nt && nt.inner() instanceof Type.PrimitiveType p) {
-            prim = p;
-        } else if (destType instanceof Type.PrimitiveType p && !Type.isVoid(p)) {
-            prim = p;
+        if (!(destType instanceof Type.PrimitiveType p) || Type.isVoid(p)) return e;
+        return foldNullBranches(e, p);
+    }
+
+    /**
+     * D-NULL-INTENT/N1: distingue um `Nullable(primitivo)` GENUÍNO (retorno/
+     * local/param — boxed, null real) de um `Nullable(primitivo)` vindo de
+     * `Map.get()` (SG-008/bug-87 — valor SEMPRE cru, default-on-miss, jamais
+     * boxed, congelado/fora de escopo). Só `get()` produz esse shape
+     * (CollectionMethodTyper: `put`/`remove` devolvem o valueType NU, não
+     * Nullable) — dispatch por FORMA da chamada, não por tipo, para não
+     * confundir os dois em nenhum guard de boxing/comparação.
+     */
+    static boolean isCollectionMissSource(CompilerDriver driver, ExpressionNode e, List<IRLocalVariable> locals) {
+        if (!(e instanceof MethodCallExpr mc) || mc.receiver() == null || !"get".equals(mc.methodName())) {
+            return false;
         }
-        if (prim == null) return e;
-        return foldNullBranches(e, prim);
+        Type recvType = ExpressionTyper.inferExprType(driver, mc.receiver(), locals);
+        return BuiltinTypes.isMap(recvType);
+    }
+
+    /**
+     * D-NULL-INTENT/N1: `t` é um `Nullable(primitivo)` já BOXED de verdade
+     * (retorno de função, local, param — nunca precisa de box de novo) — a
+     * negação exata do gap que `isCollectionMissSource` cobre. Usar em todo
+     * guard `TypeMetrics.isPrimitiveType(t)`/`isMaybeNullType(t)` que decide
+     * "preciso boxar isto" — nunca em guards de largura/opcode (esses já
+     * tratam Nullable(primitivo) como referência incondicionalmente, §0).
+     */
+    static boolean isGenuineNullablePrimitive(CompilerDriver driver, ExpressionNode e, Type t,
+            List<IRLocalVariable> locals) {
+        return t instanceof Type.NullableType nt && nt.inner() instanceof Type.PrimitiveType
+                && !isCollectionMissSource(driver, e, locals);
     }
 
     private static ExpressionNode foldNullBranches(ExpressionNode e, Type.PrimitiveType prim) {

@@ -60,6 +60,81 @@ Estados: `ABERTO` · `EM CURSO` · `FEITO` · `BLOQUEADO`.
 
 ---
 
+> **✅ FEITO (15-16/09, dono = 192.168.1.2, lane compiler): N1 do D-NULL-INTENT
+> (e04f10ff) — `Nullable(primitivo)` boxed com null real em JVM+Script+JS,
+> fecha #259/#266.** Arquivos tocados (lockstep, 1 commit): `JvmTypeMapper`
+> (descritor boxed), `JvmLiteralEmitter` (returnOpcode/loadVarOpcode/
+> storeVarOpcode/isDoubleWidth), `JvmOpEmitter` (isRefOperand),
+> `TypeMetrics.isDoubleWidth`, `StatementLowerer` (VarDeclStmt/ReturnStmt —
+> local não desempacota mais, unbox de condição bool em if/while),
+> `CompilerComparisons` (remove fold null→default; +`isCollectionMissSource`/
+> `isGenuineNullablePrimitive`, o guard que distingue por FORMA de chamada um
+> `Nullable(primitivo)` genuíno de um valor cru de `Map.get()` — SG-008
+> intocado), `CompilerTypes.defaultValueOp`, `ExpressionBinaryLowerer`
+> (fold `==null` não dispara mais p/ genuíno; unbox antes de aritmética;
+> stringify sem double-box), `CompilerEmission2` (box de argumento p/
+> parâmetro `Nullable(primitivo)`), `ExpressionPrintLowerer` (println sem
+> double-box). **Achados não previstos no plano original:** `loadVarOpcode`/
+> `storeVarOpcode` tinham o MESMO unwrap do `returnOpcode` (irmã não
+> catalogada); a aritmética (`five()+1`) e a condição booleana (`if (flag)`
+> com `Boolean?`) precisavam de unbox explícito — só apareceram rodando a
+> suíte de verdade. **Prova:** `NullablePrimitiveE2ETest` (novo, 3 casos
+> cross-target JVM+Script+JS) + `ConformanceMatrixTest#nullableprint`
+> (oráculo reescrito, `Set.of("native")` — N2 ainda não implementado) — os
+> repros exatos de #259/#266 rodam `true/null` e `was null/true/false` nos 3
+> targets, `mvn -pl kof-compiler compile` limpo. **Rebase feito sobre
+> `origin/main` 5b3defb8** (D-VALUE-RECORD + D-ENUM207 chegaram durante a
+> unidade) — 1 conflito textual em `ExpressionPrintLowerer` (guard de enum
+> vs. guard de nullable-primitivo genuíno, mesma linha), resolvido combinando
+> os dois. **NÃO tocado (fora de escopo, documentado no plano):** Native/N2,
+> `Map`/`List`/`Set` get/put/remove (SG-008 congelado), default de campo
+> não-inicializado (N4), intenção em não-nullable (N3).
+> `JvmRecordEmitter.erased()` (unwrap de Nullable(primitivo) em
+> equals/hashCode/toString de record) TAMBÉM removido (cai no ramo
+> `Objects.equals`/`Objects.hashCode`/`append(Object)` já null-safe).
+>
+> **ATUALIZAÇÃO (mesma unidade, após suíte-alvo):** 2 pontos de lockstep
+> adicionais achados só rodando a suíte de verdade (nenhum dos dois estava no
+> plano original): (1) `CompilerEmissionHelpers.emitWideningIfNeeded` fazia
+> `emitErasureUnbox` sempre que o valor de origem era um `Object` apagado
+> (join heterogêneo de if/switch com ramo null) indo para um destino
+> `Nullable(primitivo)` — emitia `CHECKCAST Object` + `invokevirtual
+> Object.intValue()Integer` (`NoSuchMethodError`, já que Object não tem
+> `intValue`); fix: novo ramo ANTES do unbox — destino `Nullable(primitivo)`
+> + origem apagada → só `CHECKCAST` pro boxed, nunca unbox (quebrava
+> `Int? sw(x) = switch(x){...default->null}`). (2)
+> `CompilerComparisons.comparisonOperandType`/`emitComparisonShortcut` — o
+> caminho de `if (a == b)`/`while` é uma lowering PARALELA à de
+> `ExpressionBinaryLowerer` (otimização que pula o bool intermediário) e
+> ainda desembrulhava Nullable(primitivo) pra numérico incondicionalmente;
+> `a == b` com `a`/`b` genuínos virava `if_icmpeq` sobre referência
+> (VerifyError mascarado de "JavaFX runtime missing" — mesma armadilha de
+> §0). Fix: mesmo guard `isGenuineNullablePrimitive`, devolve o tipo
+> Nullable (referência) em vez de desembrulhar quando `==`/`!=` e pelo
+> menos um lado é genuíno. Achados via suíte-alvo (`BackendParityTest`
+> `null-eq-shortcut`, `KofInterpreterParityTest`
+> `expr-body-switch-null-branch`) — ambos agora testes permanentes em
+> `NullablePrimitiveE2ETest`.
+>
+> **Suíte-alvo final (2 execuções idênticas, os 234-239 testes historicamente
+> ligados ao §241):** `KofInterpreterParityTest`/`JvmE2ETest`/
+> `CodegenKitchenSinkTest`/`NullArgPrimitiveParamE2ETest`/
+> `NullablePrimitiveE2ETest` 100% verdes; únicas falhas remanescentes
+> (`BackendParityTest` unicode-charset console Windows,
+> `CoreRegressionE2ETest.processRun` `echo` inexistente no Windows,
+> `JsonE2ETest`/`KofMapSetTest`/`NullSafetyE2ETest` Native `as` ausente) —
+> todas ambientais, pré-existentes, sem relação com Nullable(primitivo)
+> (confirmado idênticas em 2 execuções). Suíte COMPLETA (1890 testes) não
+> confirmada 100% neste ambiente — um processo de fundo do editor
+> (Language Support for Java, JRE 21 próprio) recompila em paralelo e
+> corrompe `target/classes` intermitentemente (`'_' is a keyword` — ECJ
+> stale-class, não relacionado ao código); a suíte-alvo acima roda limpa
+> quando isolada dessa interferência.
+>
+> Branch local `feature/sbd-002-nullable-primitive-n1`
+> — **NÃO pushado, sem PR** (aguardando revisão humana antes de qualquer
+> push/PR ao upstream).
+
 > **NOVA FRENTE — documentacao bilingue EN/PT (14/09, pedido da mantenedora):
 > dono = 192.168.100.17 (lane docs/i18n).** Convencao: `X.md` = INGLES canonico
 > (padrao do GitHub e de qualquer maquina nao-portuguesa) + `X.pt_BR.md` =

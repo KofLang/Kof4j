@@ -16,6 +16,18 @@ public final class ExpressionBinaryLowerer {
                 || (t instanceof Type.NullableType nt && nt.inner() instanceof Type.UnknownType);
     }
 
+    /**
+     * D-NULL-INTENT/N1: primitivo NÃO-nullable nunca é null (fold de sempre);
+     * `Nullable(primitivo)` só entra aqui quando o valor é CRU por natureza
+     * (map-miss, SG-008 — nunca é o `T?` boxed genuíno de uma função/local).
+     */
+    private static boolean isFoldableNeverNullPrim(CompilerDriver driver, ExpressionNode e, Type t,
+            List<IRLocalVariable> locals) {
+        if (t instanceof Type.PrimitiveType pt && !Type.isVoid(pt)) return true;
+        return t instanceof Type.NullableType nt && nt.inner() instanceof Type.PrimitiveType
+                && CompilerComparisons.isCollectionMissSource(driver, e, locals);
+    }
+
     /** Int (ou Nullable(Int)) — alvo de cast que handle de UI/mídia satisfaz. */
     private static boolean isIntPrimitive(Type t) {
         if (t instanceof Type.NullableType nt) return isIntPrimitive(nt.inner());
@@ -197,8 +209,18 @@ for (int ci = chain.size() - 1; ci >= 0; ci--) {
         if (!driver.fpSupportedOnNative(commonType, be.position())) {
             return localIdx;
         }
+        // D-NULL-INTENT/N1: `five() + 1` — accType/rightType Nullable(primitivo)
+        // GENUÍNO (isNumeric desempacota) já está na pilha como referência
+        // boxed; desembrulha ANTES de widen/operar (§0 — Map.get() cru fica de
+        // fora via isGenuineNullablePrimitive).
+        if (CompilerComparisons.isGenuineNullablePrimitive(driver, cursor, accType, locals)) {
+            driver.emitErasureUnbox(ops, ((Type.NullableType) accType).inner());
+        }
         driver.emitWideningIfNeeded(ops, accType, commonType);
         localIdx = ExpressionLowerer.emitExpression(driver, be.right(), ops, owner, localIdx, locals);
+        if (CompilerComparisons.isGenuineNullablePrimitive(driver, be.right(), rightType, locals)) {
+            driver.emitErasureUnbox(ops, ((Type.NullableType) rightType).inner());
+        }
         driver.emitWideningIfNeeded(ops, rightType, commonType);
         ops.add(new KofBinary(TypeMetrics.mapArithmeticOp(be.operator()), commonType));
         accType = commonType;
@@ -265,7 +287,16 @@ for (int ci = chain.size() - 1; ci >= 0; ci--) {
         // stringuificava DE NOVO o ponteiro da String = lixo. Mesmo guard
         // nos dois lados: se o box já rodou, o valueOf externo é no-op
         // (UNKNOWN).
-        boolean accStringified = !Type.isString(accType) && TypeMetrics.isPrimitiveType(accType);
+        // D-NULL-INTENT/N1: `Nullable(primitivo)` GENUÍNO (ex. `ni()`) já
+        // chega AQUI boxed de verdade (Integer/Long/...) — boxar de novo é
+        // `Integer.valueOf(int)` sobre uma referência = VerifyError. Só o
+        // valor CRU do map-miss (SG-008, mesmo shape de tipo) ainda precisa
+        // do box aqui — distinguido por forma de chamada, não por tipo (§0).
+        boolean accGenuineNullablePrim = accType instanceof Type.NullableType antNt
+                && antNt.inner() instanceof Type.PrimitiveType
+                && !CompilerComparisons.isCollectionMissSource(driver, be.left(), locals);
+        boolean accStringified = !Type.isString(accType) && TypeMetrics.isPrimitiveType(accType)
+                && !accGenuineNullablePrim;
         if (accStringified) TypeEmitter.boxPrimitive(ops, accType);
         ops.add(new KofCall(BuiltinTypes.STRING, "valueOf",
                 List.of(driver.target.isNative() && !accStringified && !Type.isString(accType)
@@ -273,7 +304,11 @@ for (int ci = chain.size() - 1; ci >= 0; ci--) {
                         ? accType : Type.UnknownType.UNKNOWN),
                 BuiltinTypes.STRING, KofCallKind.STATIC));
         localIdx = ExpressionLowerer.emitExpression(driver, be.right(), ops, owner, localIdx, locals);
-        boolean rightStringified = !Type.isString(rightType) && TypeMetrics.isPrimitiveType(rightType);
+        boolean rightGenuineNullablePrim = rightType instanceof Type.NullableType rntNt
+                && rntNt.inner() instanceof Type.PrimitiveType
+                && !CompilerComparisons.isCollectionMissSource(driver, be.right(), locals);
+        boolean rightStringified = !Type.isString(rightType) && TypeMetrics.isPrimitiveType(rightType)
+                && !rightGenuineNullablePrim;
         if (rightStringified) TypeEmitter.boxPrimitive(ops, rightType);
         ops.add(new KofCall(BuiltinTypes.STRING, "valueOf",
                 List.of(driver.target.isNative() && !rightStringified && !Type.isString(rightType)
@@ -287,11 +322,16 @@ for (int ci = chain.size() - 1; ci >= 0; ci--) {
     } else if (("==".equals(be.operator()) || "!=".equals(be.operator()))
             && ((be.right() instanceof LiteralExpr rl
                     && rl.kind() == ConcreteLiteralKind.NULL
-                    && TypeMetrics.isPrimitiveType(accType))
+                    && isFoldableNeverNullPrim(driver, be.left(), accType, locals))
                 || (be.left() instanceof LiteralExpr ll
                     && ll.kind() == ConcreteLiteralKind.NULL
-                    && TypeMetrics.isPrimitiveType(rightType)))) {
-        // primitivo nunca é null: == → false, != → true
+                    && isFoldableNeverNullPrim(driver, be.right(), rightType, locals)))) {
+        // primitivo (não-nullable, ou Nullable(primitivo) vindo de map-miss —
+        // SG-008, sempre cru/default-on-miss) nunca é null: == → false,
+        // != → true. D-NULL-INTENT/N1: um Nullable(primitivo) GENUÍNO (ex.
+        // `ni()`) NÃO entra mais aqui — cai no ramo geral abaixo, que faz
+        // comparação de referência de verdade (§0: distinção por forma de
+        // chamada, não por tipo).
         // (o lado não-nulo já está na pilha — descarta; 2 slots = POP2,
         //  SG-020/bug 79 — POP de Double/Long deixa o 2º slot e o
         //  verificador rejeita: VerifyError mascarado de "JavaFX")
@@ -333,11 +373,31 @@ for (int ci = chain.size() - 1; ci >= 0; ci--) {
         // com o primitivo boxado (SG-008/bug 87; espelha Objects.equals).
         // O box do lado primitivo acontece ANTES do emit do lado oposto
         // (boxa o valor no topo da pilha, na ordem certa).
-        boolean boxLeftNow = ("==".equals(be.operator()) || "!=".equals(be.operator()))
-                && isMaybeNullType(rightType) && TypeMetrics.isPrimitiveType(accType);
-        if (boxLeftNow) TypeEmitter.boxPrimitive(ops, accType);
+        boolean isEqNe = "==".equals(be.operator()) || "!=".equals(be.operator());
+        boolean boxLeftNow = isEqNe
+                && isMaybeNullType(rightType) && TypeMetrics.isPrimitiveType(accType)
+                && !CompilerComparisons.isGenuineNullablePrimitive(driver, be.left(), accType, locals);
+        // D-NULL-INTENT/N1: `five() + 1` — operador aritmético/relacional
+        // (NÃO ==/!=, que compara por referência) sobre um Nullable(primitivo)
+        // GENUÍNO precisa desembrulhar ANTES do operador — o valor na pilha já
+        // é referência boxed, não o primitivo cru que ADD/SUB/etc. esperam.
+        boolean leftGenuineNullablePrim = !isEqNe
+                && CompilerComparisons.isGenuineNullablePrimitive(driver, be.left(), accType, locals);
+        if (boxLeftNow) {
+            TypeEmitter.boxPrimitive(ops, accType);
+        } else if (leftGenuineNullablePrim) {
+            driver.emitErasureUnbox(ops, ((Type.NullableType) accType).inner());
+        }
         localIdx = ExpressionLowerer.emitExpression(driver, be.right(), ops, owner, localIdx, locals);
-        Type operandType = accType;
+        boolean rightGenuineNullablePrim = !isEqNe
+                && CompilerComparisons.isGenuineNullablePrimitive(driver, be.right(), rightType, locals);
+        if (rightGenuineNullablePrim) {
+            driver.emitErasureUnbox(ops, ((Type.NullableType) rightType).inner());
+        }
+        Type operandType = leftGenuineNullablePrim ? ((Type.NullableType) accType).inner() : accType;
+        if (rightGenuineNullablePrim && !leftGenuineNullablePrim) {
+            operandType = ((Type.NullableType) rightType).inner();
+        }
         if (("==".equals(be.operator()) || "!=".equals(be.operator()))
                 && (driver.isNullLiteral(be.left()) || driver.isNullLiteral(be.right()))) {
             Type other = driver.isNullLiteral(be.left()) ? rightType : accType;

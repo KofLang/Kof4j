@@ -71,6 +71,20 @@ public final class CompilerEmission2 {
                     && !ExpressionTyper.boxesOwnBranches(driver, args.get(i), locals)) {
                 driver.emitErasureBox(ops, argType);
             }
+            // D-NULL-INTENT/N1: parâmetro `Nullable(primitivo)` (ex. `Boolean?`)
+            // agora é boxed no descritor — um argumento CRU (literal/expr
+            // primitiva, ou Map.get() SG-008) precisa boxar antes da chamada.
+            // Um argumento GENUÍNO já `Nullable(primitivo)` (ex. outra `T?`)
+            // já chega como referência — não boxar de novo (§0).
+            if (formal instanceof Type.NullableType fnt && fnt.inner() instanceof Type.PrimitiveType
+                    && !ExpressionTyper.boxesOwnBranches(driver, args.get(i), locals)) {
+                if (argType instanceof Type.PrimitiveType) {
+                    driver.emitWideningIfNeeded(ops, argType, fnt.inner());
+                    driver.emitErasureBox(ops, fnt.inner());
+                } else if (CompilerComparisons.isCollectionMissSource(driver, args.get(i), locals)) {
+                    driver.emitErasureBox(ops, argType instanceof Type.NullableType ant ? ant.inner() : argType);
+                }
+            }
             if (formal != null && BuiltinTypes.isString(formal)
                     && argType instanceof Type.PrimitiveType pt
                     && "char".equals(Type.canonicalPrimitiveName(pt.name()))) {

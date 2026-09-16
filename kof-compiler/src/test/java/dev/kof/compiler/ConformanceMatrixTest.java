@@ -376,15 +376,16 @@ class ConformanceMatrixTest {
                 }
                 """, "true\ntrue\n8\n9000000001\ntrue\n97\nfalse", Set.of(), tempDir);
 
-        // §125 (decisão da mantenedora 12/09, opção A): println de função
-        // Nullable(primitivo) que RETORNA null imprime o DEFAULT do primitivo
-        // (0/false) — precedente congelado do map-miss (SG-008/bug-87), não
-        // "null" (§124 é Nullable(REF)). Antes: JVM VerifyError em QUALQUER
-        // `Int? f(){...}` (descritor `I` + ARETURN + aconst_null.intValue),
-        // Script NoSuchMethodError `Integer.valueOf/1`; Native imprimia 0
-        // (só ele acertava). Célula sem exclusão = os 4 targets travados.
-        // A forma-DIRETA `f() == null` (fold KofCall;KofPop;false) era o
-        // COMP002 "stack underflow" do JS (§139, corrigido na mesma unidade).
+        // D-NULL-INTENT/N1 (mantenedora 15/09, e04f10ff): §125 opção A
+        // REVOGADA — Nullable(primitivo) agora é boxed nos 3 targets
+        // implementados (JVM/Script/JS) e carrega null de verdade: println de
+        // função Nullable(primitivo) que RETORNA null imprime "null" (mesmo
+        // precedente de Nullable(REF), §124), `== null`/`!= null` responde de
+        // verdade, e o valor NUNCA se confunde com 0/false (`five()+1`→`6`,
+        // `en(7)`→`7`). `mapOf(...).get("zz") == null`→`false` continua
+        // INALTERADO (map-miss, SG-008/bug-87, congelado — fora do escopo do
+        // N1, distinguido por FORMA de chamada, não por tipo). Native (N2)
+        // ainda não implementa o boxed — excluído até lá (fecha #259/#266).
         matrix("nullableprint", """
                 Int? ni() { return null }
                 Bool? nb() { return null }
@@ -412,7 +413,8 @@ class ConformanceMatrixTest {
                     println("a" + ni())
                     println(ni() + "b")
                 }
-                 """, "0\nfalse\n0\n6\nfalse\nfalse\nfalse\nfalse\nfalse\n7\n0\n0\nfalse\na0\n0b", Set.of(), tempDir);
+                 """, "null\nnull\nnull\n6\ntrue\ntrue\ntrue\nfalse\ntrue\n7\nnull\nnull\nnull\nanull\nnullb",
+                Set.of("native"), tempDir);
 
         // §143 (B1, 12/09): widening numérico ABENÇOADO pelo §126 ("Int em
         // Long passa") em escrita de coleção PINADA dava VerifyError/CCE no

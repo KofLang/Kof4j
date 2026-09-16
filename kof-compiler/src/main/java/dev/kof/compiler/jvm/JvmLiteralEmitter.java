@@ -128,11 +128,15 @@ public final class JvmLiteralEmitter {
     }
 
     static int returnOpcode(Type type) {
-        // §125 (decisão da mantenedora 12/09, opção A): Nullable(primitivo)
-        // apaga para o primitivo na SIGNATURA — exatamente como
-        // JvmTypeMapper.toDescriptor (que já desempacota Nullable). A
-        // assimetria (descritor `I` + opcode ARETURN) era o VerifyError.
-        if (type instanceof Type.NullableType nt) type = nt.inner();
+        // D-NULL-INTENT/N1 (mantenedora 15/09): Nullable(primitivo) agora é
+        // BOXED no descritor (JvmTypeMapper.toDescriptor) para poder carregar
+        // null de verdade — o retorno é sempre referência (ARETURN). Manter a
+        // simetria descritor/opcode é o que evita o VerifyError do §241/#259.
+        // Nullable(não-primitivo, ex. handle UI/media) continua apagando p/ o inner.
+        if (type instanceof Type.NullableType nt) {
+            if (nt.inner() instanceof Type.PrimitiveType) return ARETURN;
+            type = nt.inner();
+        }
         // §176: handles kof.ui/kof.media são Int em runtime — o descriptor
         // apaga para "I" (JvmTypeMapper). Sem isto, `return label` emitia
         // ARETURN com um int na pilha → VerifyError (Bad type on operand stack).
@@ -266,7 +270,12 @@ public final class JvmLiteralEmitter {
     }
 
     static int loadVarOpcode(Type type) {
-        if (type instanceof Type.NullableType nt) return loadVarOpcode(nt.inner());
+        // D-NULL-INTENT/N1: Nullable(primitivo) é slot de REFERÊNCIA (boxed) —
+        // mesma simetria descritor/opcode do returnOpcode acima.
+        if (type instanceof Type.NullableType nt) {
+            if (nt.inner() instanceof Type.PrimitiveType) return ALOAD;
+            return loadVarOpcode(nt.inner());
+        }
         if (KofUi.isUiType(type) || KofMedia.isHandleType(type)) return ILOAD;
         if (type instanceof Type.PrimitiveType pt) {
             return switch (pt.name()) {
@@ -281,7 +290,10 @@ public final class JvmLiteralEmitter {
     }
 
     static int storeVarOpcode(Type type) {
-        if (type instanceof Type.NullableType nt) return storeVarOpcode(nt.inner());
+        if (type instanceof Type.NullableType nt) {
+            if (nt.inner() instanceof Type.PrimitiveType) return ASTORE;
+            return storeVarOpcode(nt.inner());
+        }
         if (KofUi.isUiType(type) || KofMedia.isHandleType(type)) return ISTORE;
         if (type instanceof Type.PrimitiveType pt) {
             return switch (pt.name()) {
@@ -296,7 +308,10 @@ public final class JvmLiteralEmitter {
     }
 
     static boolean isDoubleWidth(Type type) {
-        if (type instanceof Type.NullableType nt) return isDoubleWidth(nt.inner());
+        // D-NULL-INTENT/N1: Nullable(Long)/Nullable(Double) agora são
+        // referência boxed (1 slot) — NÃO desempacotar mais para o primitivo
+        // categoria-2. Nullable(qualquer coisa) cai no `return false` abaixo
+        // (nunca é PrimitiveType), que é a resposta certa nos dois casos.
         if (type instanceof Type.PrimitiveType pt) {
             return "long".equals(pt.name()) || "Long".equals(pt.name()) ||
                    "double".equals(pt.name()) || "Double".equals(pt.name());

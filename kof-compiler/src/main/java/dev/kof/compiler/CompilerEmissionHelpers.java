@@ -21,16 +21,27 @@ public final class CompilerEmissionHelpers {
         if (from.equals(to)) return;
         String fn = TypeMetrics.primitiveName(from);
         String tn = TypeMetrics.primitiveName(to);
+        boolean fromIsErasedRef = !TypeMetrics.isPrimitiveType(from)
+                && (from instanceof Type.UnknownType
+                    || from instanceof Type.TypeVariable
+                    || (from instanceof Type.ClassType ct && "java.lang".equals(ct.packageName())
+                        && "Object".equals(ct.name())));
+        // D-NULL-INTENT/N1: `to` Nullable(primitivo) é BOXED — um valor
+        // apagado (Object, ex.: join heterogêneo de if/switch com ramo null)
+        // já É a referência certa (Integer/null); precisa só de CHECKCAST,
+        // NUNCA desembrulhar (unbox tentaria `Object.intValue()` — método
+        // inexistente, NoSuchMethodError). `tn` desempacota Nullable, então
+        // este caso tem que ser checado ANTES do ramo unbox abaixo.
+        if (fromIsErasedRef && to instanceof Type.NullableType nt && nt.inner() instanceof Type.PrimitiveType) {
+            ops.add(new KofCheckCast(nt.inner()));
+            return;
+        }
         // slot declarado primitivo + valor de tipo APAGADO (Unknown/Object/
         // TypeVariable): o valor real chega boxed (ex.: `await` sobre um
         // handle que perdeu o Handle<Int> ao passar por um parâmetro Object —
         // kof_await devolve Object). Sem o unbox aqui, o return emitia
         // ireturn sobre referência → VerifyError (GitHub #31).
-        if (!tn.isEmpty() && !TypeMetrics.isPrimitiveType(from)
-                && (from instanceof Type.UnknownType
-                    || from instanceof Type.TypeVariable
-                    || (from instanceof Type.ClassType ct && "java.lang".equals(ct.packageName())
-                        && "Object".equals(ct.name())))) {
+        if (!tn.isEmpty() && fromIsErasedRef) {
             emitErasureUnbox(driver, ops, to);
             return;
         }
