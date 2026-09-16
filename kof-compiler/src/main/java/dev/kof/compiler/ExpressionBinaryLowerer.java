@@ -374,9 +374,18 @@ for (int ci = chain.size() - 1; ci >= 0; ci--) {
         // O box do lado primitivo acontece ANTES do emit do lado oposto
         // (boxa o valor no topo da pilha, na ordem certa).
         boolean isEqNe = "==".equals(be.operator()) || "!=".equals(be.operator());
+        // D-NULL-INTENT/N1: `b == true` com `b` Nullable(primitivo) GENUÍNO
+        // (ex. `val b = mapOf(...).get(k)` — a própria VarDeclStmt já boxou
+        // `b` no slot) e o outro lado um primitivo CRU (`true`): a comparação
+        // vira referência (isRefOperand), mas o lado cru precisa boxar
+        // também — senão o ACMP compara Boolean com um int puro (VerifyError
+        // "integer not assignable to reference type").
+        boolean rightGenuineForBoxLeft = isEqNe && accType instanceof Type.PrimitiveType
+                && CompilerComparisons.isGenuineNullablePrimitive(driver, be.right(), rightType, locals);
         boolean boxLeftNow = isEqNe
-                && isMaybeNullType(rightType) && TypeMetrics.isPrimitiveType(accType)
-                && !CompilerComparisons.isGenuineNullablePrimitive(driver, be.left(), accType, locals);
+                && ((isMaybeNullType(rightType) && TypeMetrics.isPrimitiveType(accType)
+                        && !CompilerComparisons.isGenuineNullablePrimitive(driver, be.left(), accType, locals))
+                    || rightGenuineForBoxLeft);
         // D-NULL-INTENT/N1: `five() + 1` — operador aritmético/relacional
         // (NÃO ==/!=, que compara por referência) sobre um Nullable(primitivo)
         // GENUÍNO precisa desembrulhar ANTES do operador — o valor na pilha já
@@ -388,7 +397,12 @@ for (int ci = chain.size() - 1; ci >= 0; ci--) {
         } else if (leftGenuineNullablePrim) {
             driver.emitErasureUnbox(ops, ((Type.NullableType) accType).inner());
         }
+        boolean leftGenuineForBoxRight = isEqNe && rightType instanceof Type.PrimitiveType
+                && CompilerComparisons.isGenuineNullablePrimitive(driver, be.left(), accType, locals);
         localIdx = ExpressionLowerer.emitExpression(driver, be.right(), ops, owner, localIdx, locals);
+        if (leftGenuineForBoxRight) {
+            TypeEmitter.boxPrimitive(ops, rightType);
+        }
         boolean rightGenuineNullablePrim = !isEqNe
                 && CompilerComparisons.isGenuineNullablePrimitive(driver, be.right(), rightType, locals);
         if (rightGenuineNullablePrim) {

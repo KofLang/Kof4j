@@ -225,22 +225,31 @@ public final class CompilerComparisons {
         }
         Type leftT = ExpressionTyper.inferExprType(driver, bin.left(), locals);
         Type rightT = ExpressionTyper.inferExprType(driver, bin.right(), locals);
+        boolean eqNe = "==".equals(bin.operator()) || "!=".equals(bin.operator());
         // lado "Unknown-ou-Nullable(Unknown)" pode conter null (get de
         // mapOf() sem pin) — o primitivo oposto é boxado (comparação vira
         // referência; espelha o interpretador, Objects.equals)
         boolean leftMaybeNull = isMaybeNullType(leftT);
         boolean rightMaybeNull = isMaybeNullType(rightT);
+        // D-NULL-INTENT/N1: `if (b == true)` com `b` Nullable(primitivo)
+        // GENUÍNO — o outro lado primitivo CRU precisa boxar também (mesma
+        // armadilha de ExpressionBinaryLowerer: ACMP entre Boolean e um int
+        // puro é VerifyError).
+        boolean rightGenuine = eqNe && isGenuineNullablePrimitive(driver, bin.right(), rightT, locals);
+        boolean leftGenuine = eqNe && isGenuineNullablePrimitive(driver, bin.left(), leftT, locals);
         localIdx = ExpressionLowerer.emitExpression(driver, bin.left(), ops, owner, localIdx, locals);
-        // rightMaybeNull: o left (na pilha) é primitivo → boxa ele AGORA
-        // (antes do emit do right, que empilha por cima)
-        if (rightMaybeNull && TypeMetrics.isPrimitiveType(leftT)) {
+        // rightMaybeNull/rightGenuine: o left (na pilha) é primitivo → boxa
+        // ele AGORA (antes do emit do right, que empilha por cima)
+        if ((rightMaybeNull || (rightGenuine && leftT instanceof Type.PrimitiveType))
+                && TypeMetrics.isPrimitiveType(leftT)) {
             TypeEmitter.boxPrimitive(ops, leftT);
         }
         driver.emitWideningIfNeeded(ops, leftT, common);
         localIdx = ExpressionLowerer.emitExpression(driver, bin.right(), ops, owner, localIdx, locals);
-        // leftMaybeNull: o right (acabou de emitir, topo da pilha) é primitivo
-        // → boxa ele DEPOIS do emit
-        if (leftMaybeNull && TypeMetrics.isPrimitiveType(rightT)) {
+        // leftMaybeNull/leftGenuine: o right (acabou de emitir, topo da
+        // pilha) é primitivo → boxa ele DEPOIS do emit
+        if ((leftMaybeNull || (leftGenuine && rightT instanceof Type.PrimitiveType))
+                && TypeMetrics.isPrimitiveType(rightT)) {
             TypeEmitter.boxPrimitive(ops, rightT);
         }
         driver.emitWideningIfNeeded(ops, rightT, common);

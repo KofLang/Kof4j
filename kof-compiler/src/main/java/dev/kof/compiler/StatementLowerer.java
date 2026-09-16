@@ -129,6 +129,22 @@ public final class StatementLowerer {
                     localIdx = ExpressionLowerer.emitExpression(driver, vdInit, ops, owner, localIdx, locals);
                     if ("var".equals(vds.type()) || "val".equals(vds.type())) {
                         varType = ExpressionTyper.inferExprType(driver, vdInit, locals);
+                        // D-NULL-INTENT/N1: `val b = mapOf(...).get(k)` — o
+                        // valor É cru/default-on-miss (SG-008, congelado) em
+                        // TODOS os 4 targets (só JVM boxaria — os outros são
+                        // gateados por needsErasureBoxing). Se `b` ficasse
+                        // Nullable(primitivo) aqui, uma referência LATER a
+                        // `b` (ex. `b == true`) seria tratada como GENUÍNA
+                        // (isGenuineNullablePrimitive só enxerga a FORMA da
+                        // expressão imediata, não atravessa o binding) e
+                        // Native/Script comparariam/imprimiriam errado (o
+                        // valor real deles continua cru). Desempacota para o
+                        // primitivo AQUI — mesmo contrato pré-N1 para este
+                        // caso específico, consistente nos 4 targets.
+                        if (varType instanceof Type.NullableType vmt && vmt.inner() instanceof Type.PrimitiveType
+                                && CompilerComparisons.isCollectionMissSource(driver, vdInit, locals)) {
+                            varType = vmt.inner();
+                        }
                         // spawn-expr: pina Handle<T> com T do corpo (a inferência genérica pode ter perdido o typeArgument)
                         if (vdInit instanceof MethodCallExpr sm && "__kof_spawn_expr".equals(sm.methodName())
                                 && varType instanceof Type.ClassType hct && "kof.concurrent".equals(hct.packageName())
