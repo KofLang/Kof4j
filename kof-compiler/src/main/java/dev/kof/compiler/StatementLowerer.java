@@ -31,7 +31,14 @@ public final class StatementLowerer {
                             if (driver.erasesToReference(returnType) && TypeMetrics.isPrimitiveType(rvType)) {
                                 driver.emitErasureBox(ops, rvType);
                             } else if (needsNullablePrimBoxOnReturn(driver, rv, returnType, rvType, locals)) {
-                                driver.emitErasureBox(ops, rawPrimOf(rvType));
+                                // D-NULL-INTENT/N1: o boxer vem do inner do tipo
+                                // ALVO, não do tipo da expressão de origem.
+                                // emitWideningIfNeeded logo acima já alargou o
+                                // valor na pilha para o inner do alvo; boxar
+                                // pelo tipo da origem emitia `Integer.valueOf`
+                                // para um `long` na pilha -> VerifyError
+                                // (Long?/Float? com literal de outro tipo).
+                                driver.emitErasureBox(ops, rawPrimOf(returnType));
                             }
                         }
                         ops.add(new KofStoreLocal(returnType, f.slotValor()));
@@ -56,7 +63,9 @@ public final class StatementLowerer {
                         if (driver.erasesToReference(returnType) && TypeMetrics.isPrimitiveType(rvType)) {
                             driver.emitErasureBox(ops, rvType);
                         } else if (needsNullablePrimBoxOnReturn(driver, rv, returnType, rvType, locals)) {
-                            driver.emitErasureBox(ops, rawPrimOf(rvType));
+                            // D-NULL-INTENT/N1: boxer do inner do ALVO (ver
+                            // comentário no ramo gêmeo acima).
+                            driver.emitErasureBox(ops, rawPrimOf(returnType));
                         }
                     }
                     ops.add(new KofReturn(returnType));

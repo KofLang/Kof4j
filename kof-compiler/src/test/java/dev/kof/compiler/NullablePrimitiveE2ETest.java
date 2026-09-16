@@ -2,6 +2,10 @@ package dev.kof.compiler;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.ClassVisitor;
+import org.objectweb.asm.MethodVisitor;
+import org.objectweb.asm.Opcodes;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -10,6 +14,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -164,5 +169,98 @@ class NullablePrimitiveE2ETest {
                     h.handle(false)
                 }
                 """, "was null\ntrue\nfalse", tempDir);
+    }
+
+    /**
+     * Guarda de atomicidade (§3 da issue de follow-up): o boxer tem de seguir o
+     * inner do tipo ALVO, nunca o tipo da EXPRESSÃO de origem.
+     *
+     * <p>Antes do fix, `Long? f() { return 2 }` boxava com
+     * {@code Integer.valueOf(I)} e deixava um {@code long} na pilha ->
+     * {@code VerifyError: Bad type on operand stack} — que o launcher `java`
+     * ainda mascarava como "JavaFX runtime missing". O gatilho é o literal ter
+     * tipo DIFERENTE do inner do alvo: `Int?`/`Boolean?`/`Double?` escapavam
+     * por coincidência, então o caso de teste precisa cobrir os cinco tipos.
+     */
+    @Test
+    void boxerFollowsTargetTypeNotSourceExpression(@TempDir Path tempDir) throws IOException {
+        assertAllTargets("boxer", """
+                Long?    l(Boolean x) { if (x) { return null } return 2 }
+                Float?   f(Boolean x) { if (x) { return null } return 3.5 }
+                Double?  d(Boolean x) { if (x) { return null } return 4.5 }
+                Int?     i(Boolean x) { if (x) { return null } return 1 }
+
+                main() {
+                    println(l(true) == null)
+                    println(l(false))
+                    println(f(true) == null)
+                    println(f(false))
+                    println(d(true) == null)
+                    println(d(false))
+                    println(i(true) == null)
+                    println(i(false))
+                }
+                """, "true\n2\ntrue\n3.5\ntrue\n4.5\ntrue\n1", tempDir);
+    }
+
+    /**
+     * Face estrutural da mesma guarda: para todo método cujo descritor promete
+     * um wrapper, a chamada de boxing emitida tem de ser o {@code valueOf}
+     * DAQUELE wrapper. Pega um pouso meio-lancado (descritor boxed + boxer
+     * trocado) mesmo que o exemplo semântico mude de forma depois.
+     */
+    @Test
+    void boxerOwnerMatchesDescriptorWrapper(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+                Long?    l(Boolean x) { if (x) { return null } return 2 }
+                Float?   f(Boolean x) { if (x) { return null } return 3.5 }
+                Double?  d(Boolean x) { if (x) { return null } return 4.5 }
+                Int?     i(Boolean x) { if (x) { return null } return 1 }
+                Boolean? b(Boolean x) { if (x) { return null } return true }
+
+                main() { println(l(false)) }
+                """);
+        Path out = tempDir.resolve("classes");
+        CompilationResult r = new CompilerDriver().compile(source, out, Target.JVM);
+        assertTrue(r.success(), "JVM compile: " + r.diagnostics().getDiagnostics());
+
+        byte[] bytes = Files.readAllBytes(out.resolve("Default").resolve("Main.class"));
+        List<String> mismatches = new ArrayList<>();
+        new ClassReader(bytes).accept(new ClassVisitor(Opcodes.ASM9) {
+            @Override
+            public MethodVisitor visitMethod(int access, String name, String desc,
+                                             String signature, String[] exceptions) {
+                String wrapper = wrapperOfDescriptor(desc);
+                if (wrapper == null) return null;
+                return new MethodVisitor(Opcodes.ASM9) {
+                    @Override
+                    public void visitMethodInsn(int opcode, String owner, String mName,
+                                                String mDesc, boolean isInterface) {
+                        if ("valueOf".equals(mName) && owner.startsWith("java/lang/")
+                                && !owner.equals(wrapper)) {
+                            mismatches.add(name + " " + desc + " boxa com " + owner
+                                    + " mas o descritor promete " + wrapper);
+                        }
+                    }
+                };
+            }
+        }, 0);
+        assertEquals(List.of(), mismatches,
+                "boxer incoerente com o descritor (pouso meio-lancado): " + mismatches);
+    }
+
+    /** {@code "(Z)Ljava/lang/Long;"} -> {@code "java/lang/Long"}; senão null. */
+    private static String wrapperOfDescriptor(String desc) {
+        int close = desc.indexOf(')');
+        if (close < 0) return null;
+        String ret = desc.substring(close + 1);
+        if (!ret.startsWith("Ljava/lang/") || !ret.endsWith(";")) return null;
+        String w = ret.substring(1, ret.length() - 1);
+        return switch (w) {
+            case "java/lang/Integer", "java/lang/Long", "java/lang/Float",
+                 "java/lang/Double", "java/lang/Boolean" -> w;
+            default -> null;
+        };
     }
 }
