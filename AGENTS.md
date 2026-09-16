@@ -1107,6 +1107,21 @@ grep -rl "FAILURE" */target/surefire-reports/*.txt
 > **0 failures** in both scenarios (the §149 JS was fixed 09/13); the 13 errors
 > are only missing `node`. What matters remains no FAILURE outside
 > them and the guards.
+>
+> **Running on a plain Windows dev host (no Linux/WSL):** EVERY Native test
+> (x86_64 included, not just the riscv/aarch pair above) fails with
+> `as not available` (COMP001) — the Linux assembler/linker is missing
+> (`as`/`ld`, real ELF + `libc.so.6`; a MinGW `as` won't do, it emits
+> PE/COFF). This is neither a compiler bug nor a new failure of yours.
+> `ConformanceMatrixTest` is the clearest case: **11/11 fail on Windows,
+> 11/11 pass under WSL** — the two measurements together are what separates
+> an environmental failure from a code one. See
+> [`docs/native-windows-toolchain.md`](docs/native-windows-toolchain.md) for
+> running via WSL (installs nothing on Windows). It also documents two
+> `wsl.exe` footguns that bite silently: arguments re-parsed by an extra
+> shell without `-e`/`--exec`, and background processes dying with the
+> `wsl.exe` session. The first is reported upstream as
+> [microsoft/WSL#41598](https://github.com/microsoft/WSL/issues/41598).
 
 To validate an isolated snippet (e.g., confirm whether an idiom compiles),
 use the project harness or create a minimal E2E test in the area's package.
