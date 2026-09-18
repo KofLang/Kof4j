@@ -7,11 +7,13 @@ import dev.kof.compiler.Target;
 import dev.kof.compiler.TargetMatrix;
 import dev.kof.compiler.backend.AndroidProjectWriter;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 
 /**
  * kof build — compila um diretório (Go-like: todos os .kf do diretório
@@ -234,7 +236,7 @@ final class CmdBuild {
         // ExternalClasspath — separadas por ':' ou ';'
         List<Path> externalEntries = new ArrayList<>();
         if (classpath != null && !classpath.isBlank()) {
-            for (String part : classpath.split("[:;]")) {
+            for (String part : classpath.split(Pattern.quote(File.pathSeparator))) {
                 if (!part.isBlank()) externalEntries.add(Path.of(part));
             }
             driver.setExternalClasspath(externalEntries);
