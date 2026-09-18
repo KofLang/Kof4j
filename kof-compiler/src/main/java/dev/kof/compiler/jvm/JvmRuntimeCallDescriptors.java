@@ -99,6 +99,9 @@ public final class JvmRuntimeCallDescriptors {
                     "kof_ui_iframe_remove", "kof_ui_video_remove", "kof_ui_audio_remove",
                     "kof_ui_hr_remove" -> "(I)V";
             case "kof_ui_view_new" -> "(I)I";
+            case "kof_ui_raw_view_new"
+                    -> "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)I";
+            case "kof_ui_raw_view_set_css", "kof_ui_raw_view_set_html" -> "(ILjava/lang/String;)V";
             case "kof_ui_style_new" -> "(IIII)I";
             case "kof_ui_window_set_theme", "kof_ui_label_set_font_size", "kof_ui_label_set_bold",
                     "kof_ui_label_set_color" -> "(II)V";

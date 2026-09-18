@@ -32,6 +32,7 @@ public final class KofUi {
     static final Type ROW = new Type.ClassType("kof.ui", "Row", List.of());
     static final Type FORM = new Type.ClassType("kof.ui", "Form", List.of());
     static final Type VIEW = new Type.ClassType("kof.ui", "View", List.of());
+    static final Type RAW_VIEW = new Type.ClassType("kof.ui", "RawView", List.of());
     static final Type STYLE = new Type.ClassType("kof.ui", "Style", List.of());
     static final Type WINDOW = new Type.ClassType("kof.ui", "Window", List.of());
     static final Type LINK = new Type.ClassType("kof.ui", "Link", List.of());
@@ -72,6 +73,7 @@ public final class KofUi {
     static boolean isRow(Type t) { return ROW.equals(t); }
     static boolean isForm(Type t) { return FORM.equals(t); }
     static boolean isView(Type t) { return VIEW.equals(t); }
+    static boolean isRawView(Type t) { return RAW_VIEW.equals(t); }
     static boolean isStyle(Type t) { return STYLE.equals(t); }
     static boolean isWindow(Type t) { return WINDOW.equals(t); }
     static boolean isLink(Type t) { return LINK.equals(t); }
@@ -110,7 +112,7 @@ public final class KofUi {
     static boolean isDomWidget(Type t) {
         return isLabel(t) || isButton(t) || isInput(t) || isTextarea(t) || isSelect(t)
                 || isUl(t) || isOl(t) || isTable(t)
-                || isView(t) || isLink(t)
+                || isView(t) || isRawView(t) || isLink(t)
                 || isImage(t) || isIcon(t) || isForm(t) || isColumn(t) || isRow(t)
                 || isFieldset(t) || isIframe(t) || isVideo(t) || isAudio(t) || isHr(t);
     }
@@ -118,7 +120,7 @@ public final class KofUi {
     static public boolean isUiType(Type t) {
         return isColor(t) || isTheme(t) || isLabel(t) || isButton(t) || isInput(t)
                 || isTextarea(t) || isSelect(t) || isUl(t) || isOl(t) || isTable(t)
-                || isColumn(t) || isRow(t) || isForm(t) || isView(t) || isStyle(t) || isWindow(t)
+                || isColumn(t) || isRow(t) || isForm(t) || isView(t) || isRawView(t) || isStyle(t) || isWindow(t)
                 || isLink(t) || isImage(t) || isIcon(t) || isFont(t)
                 || isComponent(t) || isEvent(t)
                 || isLayoutType(t) || isStore(t) || isCanvas(t)
@@ -131,6 +133,7 @@ public final class KofUi {
                 || "Textarea".equals(name) || "Select".equals(name)
                 || "Ul".equals(name) || "Ol".equals(name) || "Table".equals(name)
                 || "Column".equals(name) || "Row".equals(name) || "Form".equals(name) || "View".equals(name)
+                || "RawView".equals(name)
                 || "Style".equals(name) || "Window".equals(name)
                 || "Link".equals(name) || "Image".equals(name)
                 || "Icon".equals(name) || "Font".equals(name)
@@ -377,6 +380,14 @@ public final class KofUi {
             return switch (name) {
                 case "bind" -> argCount == 1 ? new UiCall("kof_ui_view_bind", Type.PrimitiveType.VOID, List.of(INT)) : null;
                 case "remove" -> argCount == 0 ? new UiCall("kof_ui_view_remove", Type.PrimitiveType.VOID, List.of()) : null;
+                default -> null;
+            };
+        }
+        if (isRawView(receiver)) {
+            return switch (name) {
+                case "bind" -> argCount == 1 ? new UiCall("kof_ui_view_bind", Type.PrimitiveType.VOID, List.of(INT)) : null;
+                case "setCss" -> argCount == 1 ? new UiCall("kof_ui_raw_view_set_css", Type.PrimitiveType.VOID, List.of(STR)) : null;
+                case "setHtml" -> argCount == 1 ? new UiCall("kof_ui_raw_view_set_html", Type.PrimitiveType.VOID, List.of(STR)) : null;
                 default -> null;
             };
         }

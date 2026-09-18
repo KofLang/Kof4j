@@ -1,0 +1,6 @@
+main() {
+    var rv = RawView("div", "raw", "color: red;", "<b>oi</b>")
+    rv.setCss("color: blue;")
+    rv.setHtml("<i>tchau</i>")
+    println("ok")
+}
