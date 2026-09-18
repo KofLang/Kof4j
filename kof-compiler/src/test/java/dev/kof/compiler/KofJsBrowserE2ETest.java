@@ -722,6 +722,39 @@ class KofJsBrowserE2ETest {
     }
 
     @Test
+    void rawViewRendersInRealBrowserDom(@TempDir Path tempDir) throws IOException {
+        Browser browser = findBrowser();
+        assumeTrue(browser != null, "nenhum browser real (Chrome/Chromium/Safari) — pulando E2E de browser");
+
+        String program = """
+            main() {
+                var rv = RawView("section", "meu-raw", "color: red;", "<b>oi</b>")
+                var w = Window("RawViewTest")
+                w.bind(rv)
+                w.show()
+            }
+            """;
+        Path source = tempDir.resolve("App.kf");
+        Files.writeString(source, program);
+
+        Path outDir = tempDir.resolve("out");
+        CompilationResult result = driver.compile(source, outDir, Target.JS);
+        assertTrue(result.success(), "compilação JS deve passar: " + result.diagnostics().getDiagnostics());
+
+        HttpServer server = serve(outDir);
+        int port = server.getAddress().getPort();
+        try {
+            String dom = browser.dump("http://127.0.0.1:" + port + "/index.html");
+            assertTrue(dom.contains("<section"), "elemento <section> ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("meu-raw"), "classe custom ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("color: red"), "CSS inline ausente no DOM: " + excerpt(dom));
+            assertTrue(dom.contains("<b>oi</b>"), "innerHTML ausente no DOM: " + excerpt(dom));
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void videoRendersInRealBrowserDom(@TempDir Path tempDir) throws IOException {
         Browser browser = findBrowser();
         assumeTrue(browser != null, "nenhum browser real (Chrome/Chromium/Safari) — pulando E2E de browser");

@@ -199,6 +199,18 @@ class UiE2ETest {
     }
 
     @Test
+    void rawViewLinksOnAllTargets(@TempDir Path tempDir) throws IOException {
+        both(tempDir, "rawview", """
+            main() {
+                var rv = RawView("div", "raw", "color: red;", "<b>oi</b>")
+                rv.setCss("color: blue;")
+                rv.setHtml("<i>tchau</i>")
+                println("ok")
+            }
+            """, "ok");
+    }
+
+    @Test
     void ui006EventAccessorsLinkOnAllTargets(@TempDir Path tempDir) throws IOException {
         // UI006: Event key/value/x/y + target/relatedTarget — no-op JVM/Native
         // (key="" / target=""), DOM real em KofJS (KofJsBrowserE2ETest).

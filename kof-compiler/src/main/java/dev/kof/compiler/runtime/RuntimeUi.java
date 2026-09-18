@@ -388,6 +388,12 @@ public final class RuntimeUi {
                 ret
             kof_ui_view_remove:
                 ret
+            kof_ui_raw_view_new:
+                movl $1, %eax
+                ret
+            kof_ui_raw_view_set_css:
+            kof_ui_raw_view_set_html:
+                ret
             // ── Fase 4: primitivas de layout (no-ops) ──
             kof_ui_box_new:
                 movl $1, %eax

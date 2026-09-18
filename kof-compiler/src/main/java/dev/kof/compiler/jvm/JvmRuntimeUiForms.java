@@ -179,6 +179,16 @@ public final class JvmRuntimeUiForms {
 
                 public static void kof_ui_hr_remove(int hr) {
                 }
+
+                public static int kof_ui_raw_view_new(String tag, String className, String cssText, String innerHtml) {
+                    return 1;
+                }
+
+                public static void kof_ui_raw_view_set_css(int view, String cssText) {
+                }
+
+                public static void kof_ui_raw_view_set_html(int view, String innerHtml) {
+                }
                 """;
     }
 }

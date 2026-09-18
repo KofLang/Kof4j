@@ -195,6 +195,9 @@ if (mc.receiver() == null && ("Column".equals(mc.methodName()) || "Row".equals(m
 if (mc.receiver() == null && "View".equals(mc.methodName()) && mc.arguments().size() == 1) {
     return KofUi.VIEW;
 }
+if (mc.receiver() == null && "RawView".equals(mc.methodName()) && mc.arguments().size() == 4) {
+    return KofUi.RAW_VIEW;
+}
 if (mc.receiver() == null && "Iframe".equals(mc.methodName()) && mc.arguments().size() == 1) {
     return KofUi.IFRAME;
 }

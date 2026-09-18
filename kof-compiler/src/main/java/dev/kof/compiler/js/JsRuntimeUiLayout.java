@@ -526,6 +526,25 @@ public final class JsRuntimeUiLayout {
             }
             export function kofSchedulerCancel(id) { kofTimeCancel(id); }
 
+            export function kofUiRawViewNew(tag, className, cssText, innerHtml) {
+                const id = kofUiCreateNode(tag || "div", className || "kof-raw-view");
+                if (id < 0) return -1;
+                const n = window.__kofNodes[id];
+                if (cssText) n.style.cssText = cssText;
+                if (innerHtml) n.innerHTML = innerHtml;
+                return id;
+            }
+
+            export function kofUiRawViewSetCss(view, cssText) {
+                const n = window.__kofNodes && window.__kofNodes[view];
+                if (n) n.style.cssText = cssText;
+            }
+
+            export function kofUiRawViewSetHtml(view, innerHtml) {
+                const n = window.__kofNodes && window.__kofNodes[view];
+                if (n) n.innerHTML = innerHtml;
+            }
+
             """;
 
 }
