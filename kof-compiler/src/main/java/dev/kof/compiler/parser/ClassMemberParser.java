@@ -61,6 +61,18 @@ public class ClassMemberParser {
             return new FieldDeclarationNode(f.position(), f.modifiers(), f.type(), f.name(),
                     f.initializer(), annos);
         }
+        // #500: `name: Type` colon-style field declaration (parallel to lambda/function param syntax).
+        // Condition: IDENTIFIER followed by COLON — unambiguous because `name(` is a method/ctor
+        // and `TypeName name` has IDENTIFIER followed by another IDENTIFIER.
+        if (ctx.check(TokenType.IDENTIFIER) && ctx.checkNext(TokenType.COLON)) {
+            SourcePosition declPos = ctx.pos();
+            String name = ctx.advance().value();
+            ctx.advance(); // consume COLON
+            String type = TypeParser.parseTypeRef(ctx);
+            FieldDeclarationNode f = (FieldDeclarationNode) parseField(ctx, mods, type, name);
+            return new FieldDeclarationNode(f.position(), f.modifiers(), f.type(), f.name(),
+                    f.initializer(), annos);
+        }
         if ((ctx.check(TokenType.IDENTIFIER) || ctx.check(TokenType.AWAIT) || ctx.check(TokenType.SPAWN)) && ctx.checkNext(TokenType.LPAREN)) {
             // #142/#157/#164: construtor com o NOME DA CLASSE (forma Java,
             // sem a keyword `constructor`). A gramática torna `constructor`
