@@ -98,7 +98,10 @@ public final class CompilerTypes {
             "Throwable", "Exception", "RuntimeException", "IllegalArgumentException",
             "IllegalStateException", "IndexOutOfBoundsException", "NumberFormatException",
             "ArithmeticException", "NullPointerException", "UnsupportedOperationException",
-            "ClassCastException", "Error", "OutOfMemoryError", "StackOverflowError");
+            "ClassCastException", "Error", "OutOfMemoryError", "StackOverflowError",
+            // #493: ArrayIndexOutOfBoundsException is a direct subclass of IndexOutOfBoundsException
+            // (which IS in the list); missing it caused SEM011 on any catch clause using it.
+            "ArrayIndexOutOfBoundsException");
 
     static Type exceptionType(String typeName, CompilationUnitNode currentUnit) {
         // §243: a exceção de Kof é String — mas um `class String` do usuário
