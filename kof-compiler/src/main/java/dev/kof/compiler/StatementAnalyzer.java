@@ -23,12 +23,24 @@ public final class StatementAnalyzer {
      */
     static Type analyzeAssignmentStatement(SemanticAnalyzer sa, AssignmentExpr ae, SymbolTable scope) {
         Type valueType = SemExpressionTyper.inferType(sa, ae.value(), scope);
-        // SG-005/008 (SEM048): `x = null` é erro — null nunca é atribuível
+        // SG-005/008 (SEM048): `x = null` é erro, SALVO quando o alvo é T? (NullableType).
+        // #482: `var x: String? = "hello"; x = null` deve ser permitido — o `?` já
+        // declara que o slot aceita null; emitir SEM048 aqui era falso-positivo.
         if (CompilerComparisons.isNullLiteral(ae.value()) && sa.diagnostics() != null) {
-            sa.diagnostics().error("", 0, 0, 0,
-                    "null cannot be assigned: null safety works by narrowing"
-                            + " (if (x != null)), never by direct null literals",
-                    "SEM048");
+            boolean targetIsNullable = false;
+            if (ae.target() instanceof IdentifierExpr ie) {
+                SymbolTable.Symbol sym = scope.resolve(ie.name());
+                if (sym != null) {
+                    SymbolTable.Symbol effective = Narrowing.assignTarget(scope, ie.name(), sym);
+                    targetIsNullable = effective.type() instanceof Type.NullableType;
+                }
+            }
+            if (!targetIsNullable) {
+                sa.diagnostics().error("", 0, 0, 0,
+                        "null cannot be assigned: null safety works by narrowing"
+                                + " (if (x != null)), never by direct null literals",
+                        "SEM048");
+            }
         }
         Type targetType = Type.UnknownType.UNKNOWN;
         if (ae.target() instanceof IdentifierExpr ie) {
@@ -170,8 +182,11 @@ public final class StatementAnalyzer {
                 // null safety é por narrowing (`if (x != null)`), nunca por
                 // atribuição direta (o próprio nome já diz). APIs devolvem T?;
                 // o programador não fabrica null.
+                // #482: `var x: String? = null` deve ser permitido — tipo declarado com `?`
+                // já indica nullable; SEM048 só se aplica a tipos não-nullable.
                 if (vds.initializer() != null && CompilerComparisons.isNullLiteral(vds.initializer())
-                        && sa.diagnostics() != null) {
+                        && sa.diagnostics() != null
+                        && (vds.type() == null || !vds.type().endsWith("?"))) {
                     sa.diagnostics().error("", 0, 0, 0,
                             "null cannot be assigned: null safety works by narrowing"
                                     + " (if (x != null)), never by direct null literals"
