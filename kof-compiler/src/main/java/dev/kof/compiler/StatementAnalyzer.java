@@ -300,6 +300,13 @@ public final class StatementAnalyzer {
                     // frames inválidos (Supervisor.lacoUnico: AIOOBE em
                     // COMPUTE_FRAMES). Restaurado (fix-forward, regra 8).
                     if (ifStmt.elseBranch() != null) analyzeStatement(sa, ifStmt.elseBranch(), scope, returnType);
+                    // Post-if null narrowing: if then-branch always exits (return/
+                    // throw), the else-narrowings apply to the enclosing scope —
+                    // e.g. `if (s == null) { return "null" }; return s` → s: T here.
+                    if (!elseNarrow.isEmpty() && ifStmt.elseBranch() == null
+                            && branchAlwaysExits(ifStmt.thenBranch())) {
+                        for (SymbolTable.LocalVariableSymbol s : elseNarrow) scope.define(s);
+                    }
                 }
             }
             case WhileStmt ws -> {
@@ -468,6 +475,17 @@ public final class StatementAnalyzer {
             }
             default -> {}
         }
+    }
+
+    /** True when a statement always exits (return/throw), never falls through. */
+    private static boolean branchAlwaysExits(StatementNode stmt) {
+        return switch (stmt) {
+            case ReturnStmt _ -> true;
+            case ThrowStmt _ -> true;
+            case BlockStmt bs -> !bs.statements().isEmpty()
+                    && branchAlwaysExits(bs.statements().get(bs.statements().size() - 1));
+            default -> false;
+        };
     }
 
     /**
