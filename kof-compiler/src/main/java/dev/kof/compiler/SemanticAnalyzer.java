@@ -384,10 +384,17 @@ public class SemanticAnalyzer {
         // §130: ver analyzeConstructorBody — o laço de 4 passes re-executa o
         // corpo (quando um `return <expr>` void reinfer o tipo via bug 26) e o
         // MESMO escopo reclamava SEM024 de cada var do pass anterior.
+        // #468: método com `void` EXPLÍCITO nunca deve aceitar `return <expr>`.
+        boolean explicitVoid = "void".equals(method.returnType());
+        boolean prevEv = currentExplicitVoid;
+        currentExplicitVoid = explicitVoid;
         StatementAnalyzer.analyzeBody(this, method.body(), methodScope.enterScope(), returnType);
+        currentExplicitVoid = prevEv;
         currentMethodStatic = prevStatic;
         currentScope = prevScope;
-        if (Type.isVoid(returnType) && method.body().getLast() instanceof ReturnStmt ret
+        // Re-inferência do tipo de retorno (bug 26) só se o `void` não foi
+        // declarado explicitamente — quando é explícito, SEM093 já foi emitido.
+        if (!explicitVoid && Type.isVoid(returnType) && method.body().getLast() instanceof ReturnStmt ret
                 && ret.value() != null) {
             Type inferred = inferType(ret.value(), methodScope);
             SymbolTable.MethodSymbol ms = methodSymbols.get(method);
