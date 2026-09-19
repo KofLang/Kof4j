@@ -83,7 +83,10 @@ public class ClassMemberParser {
             }
             ctx.expect(TokenType.RPAREN, "Expected ')'", "PARSE012");
             String returnType = "void";
-            if (ctx.check(TokenType.COLON)) {
+            // #483: accept both `: Type` and `-> Type` as return-type annotations
+            // on methods declared without an explicit prefix return type (e.g.
+            // `speak() -> String` inside an interface or class body).
+            if (ctx.check(TokenType.COLON) || ctx.check(TokenType.ARROW)) {
                 ctx.advance();
                 returnType = TypeParser.parseTypeRef(ctx);
             }
