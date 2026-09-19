@@ -312,13 +312,22 @@ public class StatementParser {
             if (ctx.check(TokenType.CASE)) {
                 SourcePosition cp = ctx.pos();
                 ctx.advance();
-                ExpressionNode value = StatementParser.parseSwitchCasePatternOrValue(ctx, cp);
+                // #537: collect comma-separated labels before ':' or '->'
+                List<ExpressionNode> labels = new ArrayList<>();
+                labels.add(StatementParser.parseSwitchCasePatternOrValue(ctx, cp));
+                while (ctx.check(TokenType.COMMA)) {
+                    ctx.advance();
+                    labels.add(StatementParser.parseSwitchCasePatternOrValue(ctx, cp));
+                }
                 ctx.expect(TokenType.COLON, "expected ':' (switch statement) or '->' (switch expression)", "PARSE073");
                 List<StatementNode> caseBody = new ArrayList<>();
                 while (!ctx.check(TokenType.CASE) && !ctx.check(TokenType.DEFAULT) && !ctx.check(TokenType.RBRACE) && !ctx.atEnd()) {
                     caseBody.add(StatementParser.parseStatement(ctx));
                 }
-                cases.add(new SwitchCase(cp, value, caseBody));
+                // expand each label into its own SwitchCase with a shared body
+                for (ExpressionNode lv : labels) {
+                    cases.add(new SwitchCase(cp, lv, caseBody));
+                }
             } else if (ctx.check(TokenType.DEFAULT)) {
                 ctx.advance();
                 ctx.expect(TokenType.COLON, "Expected ':'", "PARSE074");

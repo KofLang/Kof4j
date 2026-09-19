@@ -450,12 +450,21 @@ public class ExpressionParser {
             if (ctx.check(TokenType.CASE)) {
                 SourcePosition cp = ctx.pos();
                 ctx.advance();
-                ExpressionNode value = StatementParser.parseSwitchCasePatternOrValue(ctx, cp);
+                // #537: collect comma-separated labels before '->'
+                List<ExpressionNode> labels = new ArrayList<>();
+                labels.add(StatementParser.parseSwitchCasePatternOrValue(ctx, cp));
+                while (ctx.check(TokenType.COMMA)) {
+                    ctx.advance();
+                    labels.add(StatementParser.parseSwitchCasePatternOrValue(ctx, cp));
+                }
                 ctx.expect(TokenType.ARROW,
                         "switch expression requires '->' (the statement form uses ':')", "PARSE076");
                 rejectBlockCaseBody(ctx);
                 ExpressionNode body = ExpressionParser.parseExpression(ctx);
-                cases.add(new SwitchExprCase(cp, value, body));
+                // expand each label into its own SwitchExprCase with the same body
+                for (ExpressionNode lv : labels) {
+                    cases.add(new SwitchExprCase(cp, lv, body));
+                }
             } else if (ctx.check(TokenType.DEFAULT)) {
                 ctx.advance();
                 ctx.expect(TokenType.ARROW, "Expected '->' after 'default'", "PARSE077");
