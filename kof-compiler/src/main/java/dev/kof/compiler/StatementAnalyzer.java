@@ -48,8 +48,11 @@ public final class StatementAnalyzer {
                             "cannot assign to immutable 'val' variable '" + ie.name() + "'",
                             "SEM037");
                 }
+                // String += <any> is always valid: the lowerer converts via valueOf+kof_string_concat
+                boolean stringConcat = "+=".equals(ae.operator()) && BuiltinTypes.isString(targetType);
                 if (sa.diagnostics() != null && !Type.isUnknown(targetType)
                         && !Type.isUnknown(valueType)
+                        && !stringConcat
                         && !TypeChecker.isAssignable(sa, valueType, targetType)) {
                     sa.diagnostics().error("", 0, 0, 0,
                             "Type mismatch: cannot assign " + valueType + " to " + targetType,

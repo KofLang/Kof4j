@@ -172,7 +172,9 @@ public final class SemExpressionTyper {
                     }
                     if (sym != null) {
                         targetType = Narrowing.assignTarget(scope, ie.name(), sym).type();
+                        boolean strConcat = "+=".equals(ae.operator()) && BuiltinTypes.isString(targetType);
                         if (sa.diagnostics() != null && !Type.isUnknown(targetType) && !Type.isUnknown(valueType)
+                                && !strConcat
                                 && !TypeChecker.isAssignable(sa, valueType, targetType)) {
                             sa.diagnostics().error("", 0, 0, 0,
                                     "Type mismatch: cannot assign " + valueType + " to " + targetType, "SEM012");
