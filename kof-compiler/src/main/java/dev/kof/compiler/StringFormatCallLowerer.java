@@ -28,7 +28,10 @@ final class StringFormatCallLowerer {
             String owner, int localIdx, List<IRLocalVariable> locals) {
         Type object = new Type.ClassType("java.lang", "Object", List.of());
         Type objectArray = new Type.ArrayType(object);
+        Type localeType = new Type.ClassType("java.util", "Locale", List.of());
         List<ExpressionNode> args = mc.arguments();
+        // Push Locale.ROOT so format output is locale-independent (e.g. '.' not ',' for decimals)
+        ops.add(new KofGetStatic(localeType, "ROOT", localeType));
         localIdx = ExpressionLowerer.emitExpression(driver, args.get(0), ops, owner, localIdx, locals);
         int extra = args.size() - 1;
         ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, extra));
@@ -45,7 +48,7 @@ final class StringFormatCallLowerer {
             ops.add(new KofArrayStore(object));
         }
         ops.add(new KofCall(BuiltinTypes.STRING, "format",
-                List.of(BuiltinTypes.STRING, objectArray), BuiltinTypes.STRING, KofCallKind.STATIC));
+                List.of(localeType, BuiltinTypes.STRING, objectArray), BuiltinTypes.STRING, KofCallKind.STATIC));
         return localIdx;
     }
 }
