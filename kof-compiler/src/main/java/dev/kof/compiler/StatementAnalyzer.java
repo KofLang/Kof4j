@@ -262,7 +262,12 @@ public final class StatementAnalyzer {
                     }
                     if (sa.diagnostics() != null && !Type.isUnknown(returnType) && !Type.isVoid(returnType)
                             && !Type.isUnknown(valueType) && !TypeChecker.isAssignable(sa, valueType, returnType)) {
-                        sa.diagnostics().error("", 0, 0, 0,
+                        // #502: use the return statement's own position so the error points at the
+                        // offending `return` line rather than emitting the useless 0:0 default.
+                        SourcePosition rp = ret.position();
+                        sa.diagnostics().error(rp != null ? rp.file() : "",
+                                rp != null ? rp.line() : 0,
+                                rp != null ? rp.column() : 0, 0,
                                 "Return type mismatch: expected '" + Type.display(returnType) + "' but got '" + Type.display(valueType) + "'", "SEM010");
                     }
                 }
