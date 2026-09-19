@@ -54,17 +54,26 @@ public final class SwitchExprLowerer {
             Type patType = CompilerTypes.toType(pe.typeName(), driver.currentUnit);
             if (patType instanceof Type.UnknownType) patType = BuiltinTypes.STRING;
             if (TypeMetrics.isPrimitiveType(patType)) {
-                // case de PRIMITIVO é ilegal no JVM (instanceof sobre int):
-                // diagnóstico em compile-time, nunca VerifyError (bug 37).
-                if (driver.currentDiagnostics != null) {
-                    SourcePosition pp = pe.position();
-                    driver.currentDiagnostics.error(pp != null ? pp.file() : "",
-                            pp != null ? pp.line() : 0, pp != null ? pp.column() : 0, 0,
-                            "case of primitive type is not supported in pattern matching "
-                                    + "(use a reference type or the value directly)",
-                            "SEM035");
+                // #538: when the switch target is a reference type (e.g. Object), a Kof
+                // primitive pattern like `case Int n ->` is valid — the value arrives boxed
+                // at runtime, so lower as instanceof <BoxedType>.  Only reject when the
+                // switch target itself is also a primitive (JVM cannot instanceof primitive).
+                if (!TypeMetrics.isPrimitiveType(switchType)) {
+                    Type boxed = TypeMetrics.boxedTypeFor(patType);
+                    if (!(boxed instanceof Type.UnknownType)) {
+                        patType = boxed;
+                    }
+                } else {
+                    if (driver.currentDiagnostics != null) {
+                        SourcePosition pp = pe.position();
+                        driver.currentDiagnostics.error(pp != null ? pp.file() : "",
+                                pp != null ? pp.line() : 0, pp != null ? pp.column() : 0, 0,
+                                "case of primitive type is not supported in pattern matching "
+                                        + "(use a reference type or the value directly)",
+                                "SEM035");
+                    }
+                    return localIdx;
                 }
-                return localIdx;
             }
             ops.add(new KofLoadLocal(switchType, switchTmp));
             ops.add(new KofInstanceOf(patType));
