@@ -118,6 +118,23 @@ public class ClassMemberParser {
             return new FieldDeclarationNode(f.position(), f.modifiers(), f.type(), f.name(),
                     f.initializer(), annos);
         }
+        if (ctx.check(TokenType.VAL)) {
+            SourcePosition p = ctx.pos();
+            ctx.advance();
+            String name = ctx.expectId("Expected field name", "PARSE018");
+            String type = "Object";
+            if (ctx.check(TokenType.COLON)) {
+                ctx.advance();
+                type = TypeParser.parseTypeRef(ctx);
+            }
+            ExpressionNode init = null;
+            if (ctx.check(TokenType.EQUAL)) {
+                ctx.advance();
+                init = ExpressionParser.parseExpression(ctx);
+            }
+            ctx.expectSemicolon();
+            return new FieldDeclarationNode(p, mods, type, name, init, annos);
+        }
         if (ctx.check(TokenType.CLASS, TokenType.INTERFACE, TokenType.RECORD, TokenType.ENTITY)) {
             // SG-016 (SEM042): tipo aninhado dentro de tipo não existe em Kof —
             // erro de parse imediato (antes aceitava silenciosamente).
