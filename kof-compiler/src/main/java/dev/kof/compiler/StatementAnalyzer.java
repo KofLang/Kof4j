@@ -253,7 +253,16 @@ public final class StatementAnalyzer {
             }
             case ReturnStmt ret -> {
                 if (ret.value() != null) {
-                    Type valueType = SemExpressionTyper.inferType(sa, ret.value(), scope);
+                    // #529: lambda returned from a function whose return type is
+                    // FunctionType — use context-aware inference so untyped params
+                    // are resolved from the declared return type instead of Object.
+                    Type valueType;
+                    if (ret.value() instanceof LambdaExpr le
+                            && returnType instanceof Type.FunctionType ft) {
+                        valueType = SemExpressionTyper.inferLambdaWithContext(sa, le, scope, ft);
+                    } else {
+                        valueType = SemExpressionTyper.inferType(sa, ret.value(), scope);
+                    }
                     sa.putExpressionType(ret.value(), valueType);
                     if (sa.currentExplicitVoid && sa.diagnostics() != null) {
                         sa.diagnostics().error(ret.position() != null ? ret.position().file() : "", 0, 0, 0,
