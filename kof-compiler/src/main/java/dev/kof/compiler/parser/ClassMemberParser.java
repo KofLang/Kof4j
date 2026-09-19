@@ -61,6 +61,20 @@ public class ClassMemberParser {
             return new FieldDeclarationNode(f.position(), f.modifiers(), f.type(), f.name(),
                     f.initializer(), annos);
         }
+        // #528: `var name = init` or `var name: Type = init` in class body.
+        // The method body already handles var-decl with type inference; the
+        // class-level parser had no VAR branch and fell through to PARSE016.
+        if (ctx.check(TokenType.VAR)) {
+            SourcePosition p = ctx.pos();
+            ctx.advance(); // consume 'var'
+            String name = ctx.expectId("Expected field name", "PARSE018");
+            String type = "Object";
+            if (ctx.check(TokenType.COLON)) { ctx.advance(); type = TypeParser.parseTypeRef(ctx); }
+            ExpressionNode init = null;
+            if (ctx.check(TokenType.EQUAL)) { ctx.advance(); init = ExpressionParser.parseExpression(ctx); }
+            ctx.expectSemicolon();
+            return new FieldDeclarationNode(p, mods, type, name, init, annos);
+        }
         if ((ctx.check(TokenType.IDENTIFIER) || ctx.check(TokenType.AWAIT) || ctx.check(TokenType.SPAWN)) && ctx.checkNext(TokenType.LPAREN)) {
             // #142/#157/#164: construtor com o NOME DA CLASSE (forma Java,
             // sem a keyword `constructor`). A gramática torna `constructor`
