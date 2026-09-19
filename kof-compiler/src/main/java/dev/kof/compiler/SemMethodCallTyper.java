@@ -43,7 +43,9 @@ public final class SemMethodCallTyper {
             // bytecode inválido (ClassFormatError no JVM, undefined
             // reference no Native).
             if (recv instanceof Type.ArrayType && sa.diagnostics() != null) {
-                sa.diagnostics().error("", 0, 0, 0,
+                SourcePosition arrPos = mc.position();
+                sa.diagnostics().error(arrPos != null ? arrPos.file() : "",
+                        arrPos != null ? arrPos.line() : 0, arrPos != null ? arrPos.column() : 0, 0,
                         "array has no method '" + mc.methodName()
                                 + "()'; use the operator arr[i] / arr[i] = v",
                         "SEM028");
