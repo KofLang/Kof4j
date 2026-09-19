@@ -440,6 +440,17 @@ public final class ExpressionLowerer {
                 // enum constant access: Color.Red — instância de enum real
                 if (recvType instanceof Type.ClassType ct
                         && CompilerTypes.isEnumName(ct.name(), driver.currentUnit)) { // #445: pkg real aceito
+                    // #535: name/ordinal are built-in java.lang.Enum properties — lower as method calls
+                    if ("name".equals(fa.fieldName()) || "toString".equals(fa.fieldName())) {
+                        localIdx = ExpressionLowerer.emitExpression(driver, fa.receiver(), ops, owner, localIdx, locals);
+                        ops.add(new KofCall(recvType, fa.fieldName(), List.of(), BuiltinTypes.STRING, KofCallKind.INSTANCE));
+                        yield localIdx;
+                    }
+                    if ("ordinal".equals(fa.fieldName())) {
+                        localIdx = ExpressionLowerer.emitExpression(driver, fa.receiver(), ops, owner, localIdx, locals);
+                        ops.add(new KofCall(recvType, "ordinal", List.of(), Type.PrimitiveType.INT, KofCallKind.INSTANCE));
+                        yield localIdx;
+                    }
                     if (!CompilerTypes.enumConstantsOf(ct.name(), driver.currentUnit).contains(fa.fieldName())) {
                         if (driver.currentDiagnostics != null) {
                             driver.currentDiagnostics.error(fa.position() != null ? fa.position().file() : "",

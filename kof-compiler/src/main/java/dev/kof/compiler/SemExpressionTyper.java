@@ -386,6 +386,11 @@ public final class SemExpressionTyper {
                     yield BuiltinTypes.STRING;
                 }
                 if (recvType instanceof Type.ClassType ct) {
+                    // #535: name/ordinal are built-in java.lang.Enum properties on every enum type.
+                    if (CompilerTypes.isEnumName(ct.name(), sa.unit())) {
+                        if ("name".equals(fa.fieldName())) yield BuiltinTypes.STRING;
+                        if ("ordinal".equals(fa.fieldName())) yield Type.PrimitiveType.INT;
+                    }
                     SymbolTable.Symbol field = MemberResolver.resolveFieldInHierarchy(sa, ct.name(), fa.fieldName());
                     if (field != null) {
                         // #331/#327 (espelha SEM046 dos metodos): acesso a

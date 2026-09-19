@@ -233,6 +233,9 @@ public final class ExpressionTyper {
                 }
                 if (recvType instanceof Type.ClassType ct
                         && CompilerTypes.isEnumName(ct.name(), driver.currentUnit)) { // #445: pkg real
+                    // #535: name/ordinal are built-in java.lang.Enum properties, not constants.
+                    if ("name".equals(fa.fieldName())) yield BuiltinTypes.STRING;
+                    if ("ordinal".equals(fa.fieldName())) yield Type.PrimitiveType.INT;
                     if (!CompilerTypes.enumConstantsOf(ct.name(), driver.currentUnit).contains(fa.fieldName()) && driver.currentDiagnostics != null) {
                         driver.currentDiagnostics.error("", 0, 0, 0,
                                 "enum '" + ct.name() + "' has no constant '" + fa.fieldName() + "'",
