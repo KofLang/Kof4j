@@ -119,12 +119,19 @@ public class LambdaParser {
 
     static FormalParameterNode parseLambdaParameter(ParseContext ctx) {
         SourcePosition p = ctx.pos();
+        // #492: accept `(Int x) -> ...` typed form — if the current token is a
+        // type keyword or identifier AND the next token is also an identifier,
+        // the first token is a type annotation, not the parameter name.
+        String type = "Object";
+        if ((ctx.check(TokenType.IDENTIFIER) || TypeParser.isPrimitiveTypeToken(ctx.peek().type()))
+                && ctx.checkNext(TokenType.IDENTIFIER)) {
+            type = TypeParser.parseTypeRef(ctx);
+        }
         String name = ctx.expectId("Expected parameter name", "PARSE010");
         // SG-012: sem anotação fica "Object" (compatível com o gate SEM001 da
         // aritmética sobre referência); a inferência contextual do typer
         // reescreve para o tipo do elemento nos métodos de coleção
         // (map/filter/reduce) — nunca mascara, nunca Object silencioso no emit.
-        String type = "Object";
         if (ctx.check(TokenType.COLON)) {
             ctx.advance();
             type = TypeParser.parseTypeRef(ctx);
