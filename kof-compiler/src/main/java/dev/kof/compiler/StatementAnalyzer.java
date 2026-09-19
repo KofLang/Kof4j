@@ -233,7 +233,13 @@ public final class StatementAnalyzer {
                             "variable '" + vds.name() + "' is already defined in this scope",
                             "SEM024");
                 }
-                if (vds.initializer() != null) SemExpressionTyper.inferType(sa, vds.initializer(), scope);
+                if (vds.initializer() != null) {
+                    if (varType instanceof Type.FunctionType ft && vds.initializer() instanceof LambdaExpr le) {
+                        SemExpressionTyper.inferLambdaWithContext(sa, le, scope, ft);
+                    } else {
+                        SemExpressionTyper.inferType(sa, vds.initializer(), scope);
+                    }
+                }
                 // SC2: tipo explícito ≠ tipo do inicializador
                 if (sa.diagnostics() != null && vds.initializer() != null
                         && !varType.equals(Type.UnknownType.UNKNOWN)) {
