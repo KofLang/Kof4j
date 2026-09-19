@@ -362,7 +362,20 @@ public final class StatementAnalyzer {
                 analyzeStatement(sa, fis.body(), forScope, returnType);
             }
             case SwitchStmt ss -> {
-                SemExpressionTyper.inferType(sa, ss.expression(), scope);
+                Type switchSubjectType = SemExpressionTyper.inferType(sa, ss.expression(), scope);
+                // #473/#474: JVM switch only supports int/char/String/enum.
+                // Long/Double/Float produce an ASM COMPUTE_FRAMES ICE or VerifyError.
+                if (switchSubjectType != null && sa.diagnostics() != null) {
+                    String sn = TypeMetrics.primitiveName(switchSubjectType);
+                    if ("long".equals(sn) || "Long".equals(sn)
+                            || "double".equals(sn) || "Double".equals(sn)
+                            || "float".equals(sn) || "Float".equals(sn)) {
+                        sa.diagnostics().error("", 0, 0, 0,
+                                "`switch` subject must be `Int`, `Char`, `String`, or an enum — "
+                                        + "`" + sn + "` is not supported",
+                                "SEM094");
+                    }
+                }
                 SymbolTable switchScope = scope.enterScope();
                 for (SwitchCase sc : ss.cases()) {
                     if (sc.value() instanceof PatternExpr pe) {

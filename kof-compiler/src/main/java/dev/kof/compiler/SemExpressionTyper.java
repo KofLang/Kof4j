@@ -513,6 +513,18 @@ public final class SemExpressionTyper {
             }
             case SwitchExpr se -> {
                 Type subjectType = inferType(sa, se.expression(), scope);
+                // #473/#474: same guard as SwitchStmt — Long/Double/Float crash JVM backend
+                if (subjectType != null && sa.diagnostics() != null) {
+                    String sn = TypeMetrics.primitiveName(subjectType);
+                    if ("long".equals(sn) || "Long".equals(sn)
+                            || "double".equals(sn) || "Double".equals(sn)
+                            || "float".equals(sn) || "Float".equals(sn)) {
+                        sa.diagnostics().error("", 0, 0, 0,
+                                "`switch` subject must be `Int`, `Char`, `String`, or an enum — "
+                                        + "`" + sn + "` is not supported",
+                                "SEM094");
+                    }
+                }
                 Type result = Type.UnknownType.UNKNOWN;
                 int armCount = 0;
                 for (SwitchExprCase sc : se.cases()) {
