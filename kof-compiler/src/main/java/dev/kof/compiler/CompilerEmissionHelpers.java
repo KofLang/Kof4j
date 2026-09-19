@@ -143,6 +143,10 @@ public final class CompilerEmissionHelpers {
                 case "double", "Double" -> KofUnaryOp.D2L;
                 default -> null;
             };
+            // #471: as Byte / as Short must emit i2b / i2s before Byte/Short.valueOf
+            // so the value is truncated to the correct range before boxing
+            case "byte", "Byte" -> KofUnaryOp.I2B;
+            case "short", "Short" -> KofUnaryOp.I2S;
             default -> null;
         };
         if (conv != null) {

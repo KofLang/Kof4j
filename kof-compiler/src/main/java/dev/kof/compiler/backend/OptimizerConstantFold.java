@@ -269,6 +269,8 @@ public final class OptimizerConstantFold {
             case NOT -> v instanceof Integer i ? KofLoadLiteral.ofInt(i == 0 ? 1 : 0) : null;
             case I2L -> v instanceof Integer i ? KofLoadLiteral.ofLong(i.longValue()) : null;
             case I2C -> v instanceof Integer i ? KofLoadLiteral.ofInt(i & 0xFFFF) : null;
+            case I2B -> v instanceof Integer i ? KofLoadLiteral.ofInt((byte) (int) i) : null;
+            case I2S -> v instanceof Integer i ? KofLoadLiteral.ofInt((short) (int) i) : null;
             case L2I -> v instanceof Long l ? KofLoadLiteral.ofInt(l.intValue()) : null;
             case I2F -> v instanceof Integer i ? KofLoadLiteral.ofFloat(i.floatValue()) : null;
             case I2D -> v instanceof Integer i ? KofLoadLiteral.ofDouble(i.doubleValue()) : null;

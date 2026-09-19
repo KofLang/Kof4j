@@ -150,6 +150,8 @@ public final class KofInterpreterOps {
             case I2F -> ((Number) v).floatValue();
             case I2D -> ((Number) v).doubleValue();
             case I2C -> (char) KofInterpreter.unboxInt(v);
+            case I2B -> (byte) KofInterpreter.unboxInt(v);
+            case I2S -> (short) KofInterpreter.unboxInt(v);
             case L2I -> ((Number) v).intValue();
             case L2F -> ((Number) v).floatValue();
             case L2D -> ((Number) v).doubleValue();

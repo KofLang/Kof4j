@@ -548,6 +548,16 @@ JsIr.JsExpression unaryExpr(KofUnary ku, JsIr.JsExpression operand) {
                     : new JsIr.JsUnary("-", operand);
             case NOT -> new JsIr.JsConditional(operand, new JsIr.JsNumber("0"), new JsIr.JsNumber("1"));
             case I2F, I2D, I2C, L2F, L2D, F2D, D2F -> operand;
+            case I2B -> new JsIr.JsCall(new JsIr.JsIdentifier("Number"),
+                    List.of(new JsIr.JsCall(
+                            new JsIr.JsMember(new JsIr.JsIdentifier("Int8Array"),
+                                    "of"),
+                            List.of(operand))));
+            case I2S -> new JsIr.JsCall(new JsIr.JsIdentifier("Number"),
+                    List.of(new JsIr.JsCall(
+                            new JsIr.JsMember(new JsIr.JsIdentifier("Int16Array"),
+                                    "of"),
+                            List.of(operand))));
             case I2L -> new JsIr.JsCall(new JsIr.JsIdentifier("BigInt"), List.of(operand));   // §81
             // §81/§167: Long(BigInt)->Int — truncamento EXATO sobre BigInt
             // (BigInt.asIntN(32,...) faz o wrap signed do JVM; Number() direto

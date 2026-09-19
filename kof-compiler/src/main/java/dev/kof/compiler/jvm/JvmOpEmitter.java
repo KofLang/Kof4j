@@ -383,6 +383,10 @@ public final class JvmOpEmitter {
             mv.visitInsn(I2D);
         } else if (ku.op() == KofUnaryOp.I2C) {
             mv.visitInsn(I2C);
+        } else if (ku.op() == KofUnaryOp.I2B) {
+            mv.visitInsn(I2B);
+        } else if (ku.op() == KofUnaryOp.I2S) {
+            mv.visitInsn(I2S);
         } else if (ku.op() == KofUnaryOp.L2I) {
             mv.visitInsn(L2I);
         } else if (ku.op() == KofUnaryOp.L2F) {
