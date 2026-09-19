@@ -90,6 +90,19 @@ public class ClassMemberParser {
             List<String> thrown = TypeParser.parseThrows(ctx);
             return finishMethod(ctx, mods, annos, name, params, returnType, thrown);
         }
+        // #527: colon-style field `name: Type = init` without any modifier.
+        // Must be tested before the generic IDENTIFIER/type-name branch below,
+        // which would consume the identifier as a return type and then fail on ':'.
+        if (ctx.check(TokenType.IDENTIFIER) && ctx.checkNext(TokenType.COLON)) {
+            SourcePosition p = ctx.pos();
+            String name = ctx.advance().value();
+            ctx.advance(); // consume ':'
+            String type = TypeParser.parseTypeRef(ctx);
+            ExpressionNode init = null;
+            if (ctx.check(TokenType.EQUAL)) { ctx.advance(); init = ExpressionParser.parseExpression(ctx); }
+            ctx.expectSemicolon();
+            return new FieldDeclarationNode(p, mods, type, name, init, annos);
+        }
         if (ctx.check(TokenType.IDENTIFIER, TokenType.BOOL_TYPE, TokenType.BYTE_TYPE, TokenType.SHORT_TYPE,
                 TokenType.INT_TYPE, TokenType.LONG_TYPE, TokenType.FLOAT_TYPE, TokenType.DOUBLE_TYPE,
                 TokenType.CHAR_TYPE, TokenType.STRING_TYPE, TokenType.VOID)) {
