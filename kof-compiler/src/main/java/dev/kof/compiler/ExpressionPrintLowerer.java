@@ -11,6 +11,16 @@ public final class ExpressionPrintLowerer {
 
     static int lower(CompilerDriver driver, MethodCallExpr mc, List<KofOperation> ops,
                       String owner, int localIdx, List<IRLocalVariable> locals) {
+// #495: println() with no args prints a blank line via System.out.println()
+if ("println".equals(mc.methodName()) && mc.arguments().isEmpty()) {
+    ops.add(new KofGetStatic(
+            new Type.ClassType("java.lang", "System", List.of()),
+            "out", new Type.ClassType("java.io", "PrintStream", List.of())));
+    ops.add(new KofCall(
+            new Type.ClassType("java.io", "PrintStream", List.of()),
+            "println", List.of(), Type.PrimitiveType.VOID, KofCallKind.INSTANCE));
+    return localIdx;
+}
 if (("print".equals(mc.methodName()) || "println".equals(mc.methodName())) && mc.arguments().size() == 1) {
     Type printedType = ExpressionTyper.inferExprType(driver, mc.arguments().get(0), locals);
     if (Type.isVoid(printedType)) {
