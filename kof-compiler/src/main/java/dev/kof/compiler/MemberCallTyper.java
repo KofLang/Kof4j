@@ -387,7 +387,7 @@ public final class MemberCallTyper {
     }
 
     /** Nome de tipo fonte para um Type (usado pela reescrita da lambda). */
-    private static String paramTypeToSource(Type t) {
+    static String paramTypeToSource(Type t) {
         if (t == Type.PrimitiveType.INT) return "Int";
         if (t == Type.PrimitiveType.LONG) return "Long";
         if (t == Type.PrimitiveType.DOUBLE) return "Double";

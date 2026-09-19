@@ -478,6 +478,39 @@ public final class BuiltinCallTyper {
                 }
             }
             if (!cands.isEmpty()) {
+                // #501: propagate FunctionType formal param types into untyped lambda
+                // arguments. When exactly one candidate matches by arity, use its
+                // parameter types to contextually retype lambda args before inferring
+                // their body types (mirrors MemberCallTyper.contextualLambda for
+                // map/filter/reduce, but for user-defined function-type parameters).
+                TopLevelOverload.Candidate sole = cands.size() == 1 ? cands.get(0)
+                        : cands.stream().filter(c -> c.paramTypes().size() == mc.arguments().size()).findFirst().orElse(null);
+                if (sole != null) {
+                    List<Type> formalTypes = sole.paramTypes();
+                    for (int i = 0; i < mc.arguments().size() && i < formalTypes.size(); i++) {
+                        if (mc.arguments().get(i) instanceof LambdaExpr le
+                                && formalTypes.get(i) instanceof Type.FunctionType ft
+                                && !ft.parameterTypes().isEmpty()) {
+                            List<FormalParameterNode> newParams = new ArrayList<>();
+                            boolean changed = false;
+                            List<Type> ftPts = ft.parameterTypes();
+                            for (int j = 0; j < le.parameters().size() && j < ftPts.size(); j++) {
+                                FormalParameterNode p = le.parameters().get(j);
+                                if ("Object".equals(p.type()) || p.type() == null) {
+                                    String tn = MemberCallTyper.paramTypeToSource(ftPts.get(j));
+                                    if (tn != null) {
+                                        newParams.add(new FormalParameterNode(p.position(), p.modifiers(), tn, p.name(), p.defaultExpression(), p.annotations()));
+                                        changed = true;
+                                    } else newParams.add(p);
+                                } else newParams.add(p);
+                            }
+                            if (changed) {
+                                mc.arguments().set(i, new LambdaExpr(le.position(), newParams, le.body()));
+                                argTypes.set(i, SemExpressionTyper.inferType(sa, mc.arguments().get(i), scope));
+                            }
+                        }
+                    }
+                }
                 TopLevelOverload.Status[] st = new TopLevelOverload.Status[1];
                 int sel = TopLevelOverload.pick(cands, argTypes, st);
                 if (sel < 0 && st[0] == TopLevelOverload.Status.AMBIGUOUS) {
