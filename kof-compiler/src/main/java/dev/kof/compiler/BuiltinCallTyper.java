@@ -319,8 +319,18 @@ public final class BuiltinCallTyper {
                 SymbolTable.Symbol m = MemberResolver.resolveInHierarchy(sa, sa.currentClassName(), mc.methodName());
                 if (m instanceof SymbolTable.MethodSymbol ms) {
                     List<Type> argTypes = new ArrayList<>();
-                    for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
-                    TypeChecker.checkArgTypes(sa.diagnostics(), mc.methodName(), argTypes, ms.parameterTypes());
+                    List<Type> formalTypes = ms.parameterTypes();
+                    for (int i = 0; i < mc.arguments().size(); i++) {
+                        ExpressionNode arg = mc.arguments().get(i);
+                        // #530: lambda arg with untyped params — use formal FunctionType as context
+                        if (arg instanceof LambdaExpr le && i < formalTypes.size()
+                                && formalTypes.get(i) instanceof Type.FunctionType ft) {
+                            argTypes.add(SemExpressionTyper.inferLambdaWithContext(sa, le, scope, ft));
+                        } else {
+                            argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
+                        }
+                    }
+                    TypeChecker.checkArgTypes(sa.diagnostics(), mc.methodName(), argTypes, formalTypes);
                     sa.putResolvedMethod(mc, ms);
                     return ms.returnType();
                 }

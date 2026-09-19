@@ -569,4 +569,39 @@ public final class SemExpressionTyper {
         if (BuiltinTypes.isMap(t)) return "get(k)";
         return "get(i)";
     }
+
+    // #530: infer a lambda argument's parameter types from the callee's formal
+    // FunctionType parameter when the lambda's parameters would otherwise default
+    // to Object.  Also used by #529 (return-statement context).
+    static Type inferLambdaWithContext(SemanticAnalyzer sa, LambdaExpr le,
+                                       SymbolTable scope, Type.FunctionType expectedType) {
+        SymbolTable lambdaScope = scope.enterScope();
+        List<Type> paramTypes = new ArrayList<>();
+        List<Type> contextParams = expectedType.parameterTypes();
+        int idx = 0;
+        for (FormalParameterNode p : le.parameters()) {
+            Type paramType = MemberResolver.resolveType(sa, p.type(), scope);
+            if ((paramType instanceof Type.ClassType ct && "Object".equals(ct.name()))
+                    || Type.isUnknown(paramType)) {
+                if (idx < contextParams.size()) paramType = contextParams.get(idx);
+            }
+            paramTypes.add(paramType);
+            lambdaScope.define(new SymbolTable.ParameterSymbol(p.name(), paramType, idx));
+            idx++;
+        }
+        boolean prevEv = sa.currentExplicitVoid;
+        sa.currentExplicitVoid = false;
+        StatementAnalyzer.analyzeBody(sa, le.body(), lambdaScope, Type.UnknownType.UNKNOWN);
+        sa.currentExplicitVoid = prevEv;
+        Type returnType = expectedType.returnType();
+        for (StatementNode s : le.body()) {
+            if (s instanceof ReturnStmt rs && rs.value() != null) {
+                returnType = inferType(sa, rs.value(), lambdaScope);
+                break;
+            }
+        }
+        Type result = new Type.FunctionType(paramTypes, returnType);
+        sa.putExpressionType(le, result);
+        return result;
+    }
 }
