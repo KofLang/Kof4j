@@ -441,6 +441,7 @@ public class Lexer {
                 case '=' -> { advance(); yield TokenType.PERCENT_EQUAL; }
                 default -> TokenType.PERCENT;
             };
+            case '~' -> TokenType.TILDE;
             case '!' -> switch (peek()) {
                 case '=' -> { advance(); yield TokenType.BANG_EQUAL; }
                 default -> TokenType.BANG;

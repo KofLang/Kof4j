@@ -375,6 +375,14 @@ public final class JvmOpEmitter {
             mv.visitLabel(trueLabel);
             mv.visitInsn(ICONST_1);
             mv.visitLabel(endLabel);
+        } else if (ku.op() == KofUnaryOp.BITNOT) {
+            if (ku.operandType() == Type.PrimitiveType.LONG) {
+                mv.visitLdcInsn(-1L);
+                mv.visitInsn(LXOR);
+            } else {
+                mv.visitInsn(ICONST_M1);
+                mv.visitInsn(IXOR);
+            }
         } else if (ku.op() == KofUnaryOp.I2L) {
             mv.visitInsn(I2L);
         } else if (ku.op() == KofUnaryOp.I2F) {

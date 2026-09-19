@@ -129,6 +129,12 @@ public class ExpressionParser {
             ExpressionNode e = ExpressionParser.parseUnary(ctx);
             return new MethodCallExpr(p, null, "__kof_await", List.of(), List.of(e));
         }
+        if (ctx.check(TokenType.TILDE)) {
+            SourcePosition p = ctx.pos();
+            ctx.advance();
+            ExpressionNode operand = ExpressionParser.parseUnary(ctx);
+            return new UnaryExpr(p, "~", operand, true);
+        }
         if (ctx.check(TokenType.BANG)) {
             SourcePosition p = ctx.pos();
             ctx.advance();

@@ -127,4 +127,5 @@ public enum TokenType {
     COLON,
     QUESTION,
     AT,
+    TILDE,
 }

@@ -547,6 +547,9 @@ JsIr.JsExpression unaryExpr(KofUnary ku, JsIr.JsExpression operand) {
                     ? JsLongEmitter.wrap64(new JsIr.JsUnary("-", JsLongEmitter.longOperand(operand)))
                     : new JsIr.JsUnary("-", operand);
             case NOT -> new JsIr.JsConditional(operand, new JsIr.JsNumber("0"), new JsIr.JsNumber("1"));
+            case BITNOT -> JsTypeMapper.isLongType(ku.operandType())
+                    ? JsLongEmitter.wrap64(new JsIr.JsUnary("~", JsLongEmitter.longOperand(operand)))
+                    : new JsIr.JsUnary("~", operand);
             case I2F, I2D, I2C, L2F, L2D, F2D, D2F -> operand;
             case I2L -> new JsIr.JsCall(new JsIr.JsIdentifier("BigInt"), List.of(operand));   // §81
             // §81/§167: Long(BigInt)->Int — truncamento EXATO sobre BigInt

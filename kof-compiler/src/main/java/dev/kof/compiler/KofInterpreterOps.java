@@ -146,6 +146,7 @@ public final class KofInterpreterOps {
                     : KofInterpreterValues.isDoubleType(t) ? -((Number) v).doubleValue()
                     : -KofInterpreter.unboxInt(v);
             case NOT -> KofInterpreter.unboxInt(v) == 0 ? 1 : 0;
+            case BITNOT -> KofInterpreterValues.isLongType(t) ? ~((Number) v).longValue() : ~KofInterpreter.unboxInt(v);
             case I2L -> ((Number) v).longValue();
             case I2F -> ((Number) v).floatValue();
             case I2D -> ((Number) v).doubleValue();

@@ -135,6 +135,8 @@ public final class ExpressionLowerer {
                     ops.add(new KofUnary(KofUnaryOp.NEG, operandType));
                 } else if ("!".equals(ue.operator())) {
                     ops.add(new KofUnary(KofUnaryOp.NOT, operandType));
+                } else if ("~".equals(ue.operator())) {
+                    ops.add(new KofUnary(KofUnaryOp.BITNOT, operandType));
                 }
                 yield localIdx;
             }
