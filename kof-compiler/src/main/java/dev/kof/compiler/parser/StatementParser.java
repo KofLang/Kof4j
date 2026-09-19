@@ -212,6 +212,18 @@ public class StatementParser {
         SourcePosition p = ctx.pos();
         ctx.advance();
         ctx.expect(TokenType.LPAREN, "Expected '(' after 'for'", "PARSE032");
+        // #536: for (name in collection) — omitted var/val keyword
+        if (ctx.check(TokenType.IDENTIFIER)
+                && ctx.pos + 1 < ctx.tokens.size()
+                && ctx.tokens.get(ctx.pos + 1).is(TokenType.IDENTIFIER)
+                && "in".equals(ctx.tokens.get(ctx.pos + 1).value())) {
+            String varName = ctx.advance().value();
+            ctx.advance(); // consume 'in'
+            ExpressionNode collection = ExpressionParser.parseExpression(ctx);
+            ctx.expect(TokenType.RPAREN, "Expected ')'", "PARSE035");
+            StatementNode body = StatementParser.parseStatement(ctx);
+            return new ForInStmt(p, varName, collection, body);
+        }
         if (ctx.check(TokenType.VAR, TokenType.VAL) && ctx.checkNext(TokenType.IDENTIFIER)) {
             int inPos = -1;
             if (ctx.pos + 2 < ctx.tokens.size() && ctx.tokens.get(ctx.pos + 2).is(TokenType.IDENTIFIER)
