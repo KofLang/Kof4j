@@ -137,6 +137,15 @@ public final class TypeChecker {
                         return Type.UnknownType.UNKNOWN;
                     }
                 }
+            // #484: Char arithmetic (+, -, *, /, %) promotes to Int on the JVM
+            // (char is always widened to int before arithmetic opcodes).
+            // Without this, `Char + Int` and `Char - Char` returned Char and
+            // println printed the code-point as a character instead of a number.
+            if (isArithmeticOp(operator)
+                    && ("char".equals(lp.name()) || "Char".equals(lp.name())
+                        || "char".equals(rp.name()) || "Char".equals(rp.name()))) {
+                return Type.PrimitiveType.INT;
+            }
             return left;
         }
         if (left instanceof Type.ArrayType || right instanceof Type.ArrayType) {
