@@ -127,6 +127,20 @@ public class ClassMemberParser {
             ctx.advance();
             return TypeDeclarations.parseTypeDeclaration(ctx, annos);
         }
+        if (ctx.check(TokenType.VAR)) {
+            // #494: `var name = expr` type-inferred field in class body.
+            // Emit a FieldDeclarationNode with type "var"; the type-inference
+            // pass resolves it from the initializer the same way local vars work.
+            ctx.advance();
+            String name = ctx.expectId("Expected field name", "PARSE018");
+            ExpressionNode init = null;
+            if (ctx.check(TokenType.EQUAL)) {
+                ctx.advance();
+                init = ExpressionParser.parseExpression(ctx);
+            }
+            ctx.expectSemicolon();
+            return new FieldDeclarationNode(ctx.pos(), mods, "var", name, init, annos);
+        }
         if (ctx.check(TokenType.LBRACE)) {
             ConstructorDeclarationNode ctor = parseConstructor(ctx, mods);
             return new ConstructorDeclarationNode(ctor.position(), ctor.modifiers(), ctor.name(),
