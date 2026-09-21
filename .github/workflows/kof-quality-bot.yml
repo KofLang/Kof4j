@@ -23,7 +23,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -56,7 +56,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # Automation da frente dev: o bot PERGUNTA ao gate (mesmo
       # scripts/codeql-gate.sh do pre-push) quais alertas estao abertos na
