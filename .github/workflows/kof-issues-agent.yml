@@ -124,7 +124,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Mark stale issues/PRs
-        uses: actions/stale@v9
+        uses: actions/stale@v11
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           stale-issue-message: 'Esta issue está inativa há 60 dias. Será fechada em 7 dias se não houver atividade. Comente para manter aberta.'
