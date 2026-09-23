@@ -109,6 +109,97 @@ final class ImplementationChecker {
     private record ClassDeclIfaces(List<String> ifaces, String via) {}
 
     /**
+     * #603: duas interfaces SEM relação de ancestralidade entre si, ambas
+     * declarando um `default` de MESMO nome+aridade — a classe que as
+     * implementa e não sobrescreve o método fica ambígua (qual default
+     * vence?). O checker de #322/SEM043 acima passa batido por design
+     * (`if (!ABSTRACT) continue` — default já tem corpo, "não precisa
+     * declarar"), então esse diamond nunca era pego em compile-time: o JVM
+     * só recusa no LOAD da classe, `IncompatibleClassChangeError: Conflicting
+     * default methods` (mesmo contrato do javac, JLS 9.4.1.3 — mas javac
+     * pega isso no CHECK, nunca deixa a classe carregar). Rejeitar cedo,
+     * como o resto do freeze exige (R6: nunca silencioso até o load).
+     */
+    static void checkDefaultMethodDiamond(SemanticAnalyzer sa,
+            ClassDeclarationNode cls, SymbolTable classScope) {
+        DiagnosticCollector diagnostics = sa.diagnostics();
+        if (diagnostics == null) return;
+        Map<String, SymbolTable.ClassSymbol> knownClasses = sa.allClasses();
+        java.util.Set<String> interfaceNames = sa.interfaceNames();
+        List<String> directIfaces = cls.interfaces();
+        for (int i = 0; i < directIfaces.size(); i++) {
+            for (int j = i + 1; j < directIfaces.size(); j++) {
+                String nameA = bareName(directIfaces.get(i));
+                String nameB = bareName(directIfaces.get(j));
+                if (nameA.equals(nameB)) continue;
+                SymbolTable.ClassSymbol symA = knownClasses.get(nameA);
+                SymbolTable.ClassSymbol symB = knownClasses.get(nameB);
+                if (symA == null || symB == null) continue;
+                if (!interfaceNames.contains(nameA) || !interfaceNames.contains(nameB)) continue;
+                // Relacionadas (uma extends a outra) — o default mais
+                // específico vence, sem ambiguidade (JLS 9.4.1.3 caso 1).
+                if (isInterfaceAncestor(knownClasses, nameA, nameB)
+                        || isInterfaceAncestor(knownClasses, nameB, nameA)) continue;
+                for (Map.Entry<String, SymbolTable.Symbol> e : symA.members().localSymbols().entrySet()) {
+                    if (!(e.getValue() instanceof SymbolTable.MethodSymbol dmA)) continue;
+                    if ((dmA.accessFlags() & AccessFlags.ABSTRACT) != 0) continue; // só default
+                    SymbolTable.Symbol other = symB.members().resolve(dmA.name());
+                    List<SymbolTable.MethodSymbol> candidatesB = new ArrayList<>();
+                    if (other instanceof SymbolTable.MethodSymbol ms) candidatesB.add(ms);
+                    else if (other instanceof SymbolTable.MethodSet mset) candidatesB.addAll(mset.methods());
+                    for (SymbolTable.MethodSymbol dmB : candidatesB) {
+                        if ((dmB.accessFlags() & AccessFlags.ABSTRACT) != 0) continue; // só default
+                        if (dmA.parameterTypes().size() != dmB.parameterTypes().size()) continue;
+                        if (classOwnMethodOverrides(classScope, dmA.name(), dmA.parameterTypes().size())) continue;
+                        diagnostics.error(cls,
+                                "class '" + cls.name() + "' inherits unrelated default methods '"
+                                        + nameA + "." + dmA.name() + "' and '" + nameB + "." + dmB.name()
+                                        + "' with the same signature — override '" + dmA.name()
+                                        + "' explicitly to resolve the conflict",
+                                "SEM101");
+                    }
+                }
+            }
+        }
+    }
+
+    private static String bareName(String ifaceRef) {
+        String s = ifaceRef.contains("/") ? ifaceRef.substring(ifaceRef.lastIndexOf('/') + 1) : ifaceRef;
+        return s.contains("<") ? s.substring(0, s.indexOf('<')) : s;
+    }
+
+    private static boolean isInterfaceAncestor(Map<String, SymbolTable.ClassSymbol> knownClasses,
+            String ancestor, String start) {
+        java.util.Set<String> visited = new java.util.HashSet<>();
+        java.util.Deque<String> stack = new java.util.ArrayDeque<>();
+        stack.push(start);
+        while (!stack.isEmpty()) {
+            String cur = stack.pop();
+            if (!visited.add(cur)) continue;
+            SymbolTable.ClassSymbol sym = knownClasses.get(cur);
+            if (sym == null) continue;
+            for (String parent : sym.interfaces()) {
+                String simple = bareName(parent);
+                if (simple.equals(ancestor)) return true;
+                stack.push(simple);
+            }
+        }
+        return false;
+    }
+
+    private static boolean classOwnMethodOverrides(SymbolTable classScope, String name, int arity) {
+        SymbolTable.Symbol local = classScope.localSymbols().get(name);
+        List<SymbolTable.MethodSymbol> candidates = new ArrayList<>();
+        if (local instanceof SymbolTable.MethodSymbol ms) candidates.add(ms);
+        else if (local instanceof SymbolTable.MethodSet mset) candidates.addAll(mset.methods());
+        for (SymbolTable.MethodSymbol cm : candidates) {
+            if ((cm.accessFlags() & AccessFlags.ABSTRACT) != 0) continue;
+            if (cm.parameterTypes().size() == arity) return true;
+        }
+        return false;
+    }
+
+    /**
      * #326: overriding method deve ter retorno COMPATIVEL com o do
      * sobrescrito (JLS 8.4.8.3 / JVM invokevdispatch). Retorno COVARIANTE
      * (subtipo) e legal — gerado como bridge por

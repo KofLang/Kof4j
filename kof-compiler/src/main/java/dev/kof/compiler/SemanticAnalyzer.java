@@ -304,6 +304,7 @@ public class SemanticAnalyzer {
         }
         ImplementationChecker.checkInterfaceImplementation(this, cls, classScope);
         ImplementationChecker.checkOverrideReturnCompatibility(this, cls);
+        ImplementationChecker.checkDefaultMethodDiamond(this, cls, classScope);
         MemberResolver.checkAbstractClassImplementation(this, cls);
         currentScope = prevScope;
         currentClassName = prevClass;
