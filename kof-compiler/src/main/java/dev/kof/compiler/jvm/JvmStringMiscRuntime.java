@@ -73,7 +73,17 @@ public final class JvmStringMiscRuntime {
                         if (!m.getName().equals("invoke")) continue;
                         if (m.getParameterCount() != args.length) continue;
                         if (m.isSynthetic()) continue;
-                        try { return m.invoke(lambda, args); } catch (IllegalArgumentException ignored) {}
+                        try {
+                            return m.invoke(lambda, args);
+                        } catch (IllegalArgumentException ignored) {
+                        } catch (java.lang.reflect.InvocationTargetException ite) {
+                            // #594: reflection wraps the lambda's own throw; unwrap it
+                            // so try/catch (String e) sees the real RuntimeException.
+                            Throwable cause = ite.getCause();
+                            if (cause instanceof RuntimeException re) throw re;
+                            if (cause instanceof Error e) throw e;
+                            throw ite;
+                        }
                     }
                     throw new IllegalStateException("lambda invoke not found (" + args.length + " args)");
                 }

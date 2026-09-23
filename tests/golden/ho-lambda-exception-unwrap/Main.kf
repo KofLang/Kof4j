@@ -1,0 +1,20 @@
+main() {
+    var nums = listOf(1, 2, 3)
+    try {
+        var doubled = nums.map((x: Int) -> {
+            if (x == 2) { throw "bad value" }
+            return x * 2
+        })
+        println("no throw")
+    } catch (String e) {
+        println("caught: " + e)
+    }
+
+    var more = listOf(1, 2, 3, 4)
+    var doubled2 = more.map((x: Int) -> x * 2)
+    var evens = more.filter((x: Int) -> x % 2 == 0)
+    var total = more.reduce((a: Int, b: Int) -> a + b, 0)
+    for (var n in doubled2) { println(n) }
+    for (var n in evens) { println(n) }
+    println(total)
+}
