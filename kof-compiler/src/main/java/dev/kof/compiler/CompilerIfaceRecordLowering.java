@@ -114,6 +114,27 @@ public final class CompilerIfaceRecordLowering {
             methods.add(CompilerRecordSupport.buildRecordEqualsMethod(driver, internalName, fields, typeParams));
             methods.add(CompilerRecordSupport.buildRecordHashCodeMethod(driver, internalName, fields, typeParams));
         }
+        if (driver.target == Target.JVM) {
+            // #603 (mesma face do §356, nunca portada pra record): um record
+            // que `implements` uma interface genérica (ou qualquer interface
+            // cujo método apagado difira do concreto) nunca ganhava o bridge
+            // de erasure — só `CompilerClassLowering.lowerClass` chamava
+            // `generateCovariantReturnBridges`. O invokeinterface do call site
+            // usa o descritor APAGADO da interface; sem o bridge, o slot fica
+            // sem implementação → AbstractMethodError no load/1ª chamada.
+            //
+            // Escopo: JVM apenas. O Native já tinha um comportamento diferente
+            // e pré-existente aqui (saída silenciosamente vazia, não medi a
+            // causa) — estender `generateCovariantReturnBridges` pra records
+            // no Native colide o símbolo mangled do bridge com o método
+            // concreto (`IntBox_get` duplicado: o backend nativo não separa
+            // por descritor como o JVM faz). Esse mangling é um problema
+            // separado do backend nativo, não desta lacuna de lowering —
+            // fica para uma issue própria.
+            List<IRMethod> bridges = CompilerRecordSupport.generateCovariantReturnBridges(
+                    driver, internalName, superName, ifaces, methods);
+            methods.addAll(bridges);
+        }
         return new IRClass(internalName, superName, ifaces, access, fields, methods, List.of(), null,
                 typeId, CompilerAnnotations.lowerAnnotations(driver, rec.annotations()));
     }
