@@ -115,7 +115,7 @@ public final class CompilerIfaceRecordLowering {
             methods.add(CompilerRecordSupport.buildRecordHashCodeMethod(driver, internalName, fields, typeParams));
         }
         if (driver.target == Target.JVM) {
-            // #603 (mesma face do §356, nunca portada pra record): um record
+            // #608 (mesma face do §356, nunca portada pra record): um record
             // que `implements` uma interface genérica (ou qualquer interface
             // cujo método apagado difira do concreto) nunca ganhava o bridge
             // de erasure — só `CompilerClassLowering.lowerClass` chamava

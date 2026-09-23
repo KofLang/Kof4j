@@ -197,7 +197,7 @@ class GenericIfaceEmitE2ETest {
         assertEquals("5\nx", out, "bridges por erasure de parâmetros, não por nome+aridade");
     }
 
-    // ---- #603: record (não class) implementando interface genérica também precisa da bridge ----
+    // ---- #608: record (não class) implementando interface genérica também precisa da bridge ----
 
     @Test
     void recordImplementingGenericInterfaceGetsErasureBridge(@TempDir Path tmp) throws IOException {
@@ -220,7 +220,7 @@ class GenericIfaceEmitE2ETest {
                     println(IntBox(42).describe())
                 }
                 """);
-        assertEquals("Box: 42", out, "#603: record implementando interface genérica sem bridge de erasure");
+        assertEquals("Box: 42", out, "#608: record implementando interface genérica sem bridge de erasure");
     }
 
     @Test
