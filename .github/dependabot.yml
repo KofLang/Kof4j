@@ -1,10 +1,27 @@
 # Dependabot — Kof4j
 # Mantém pom.xml (Maven) e .github/workflows (*-actions) atualizados.
 # Alerts em: https://github.com/KofLang/Kof4j/security/dependabot
+#
+# ATENÇÃO — de onde esta configuração é lida (e o que `target-branch` faz):
+#   * O GitHub lê este arquivo da DEFAULT BRANCH (`main`), nunca da branch
+#     ativa. Alterá-lo aqui (beta-0.5.0) NÃO redireciona nada enquanto a
+#     mudança não chegar a `main` pelo processo de release/codeowner
+#     (`.github/workflows/pr-base-guard.yml` bloqueia PR de não-codeowner
+#     contra `main`).
+#   * `target-branch` redireciona apenas atualizações DE VERSÃO. Atualizações
+#     de SEGURANÇA continuam sendo abertas contra a default branch — limitação
+#     do GitHub, não configurável aqui.
+#   * Ao trocar a branch ativa no futuro, atualizar `target-branch` nos dois
+#     blocos junto com a decisão (ver `D-BRANCH-0.5.0` em
+#     docs/development/DECISIONS.md).
+#   * Aberto para decisão de manutenção: o rótulo `dependencies` (nos dois
+#     blocos) NÃO existe no repositório — ou criar o rótulo, ou remover a
+#     chave `labels`. Não alterado por esta PR.
 version: 2
 updates:
   - package-ecosystem: "maven"
     directory: "/"
+    target-branch: "beta-0.5.0"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -25,6 +42,7 @@ updates:
 
   - package-ecosystem: "github-actions"
     directory: "/"
+    target-branch: "beta-0.5.0"
     schedule:
       interval: "weekly"
       day: "monday"
