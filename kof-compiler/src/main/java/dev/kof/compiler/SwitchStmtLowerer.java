@@ -103,11 +103,17 @@ if (hasPattern) {
             ops.add(new KofConditionalJump(KofComparison.EQ, nextTest, bodyLabels.get(i)));
         }
     }
-    ops.add(new KofLabel(defaultLabelPat));
+    // #588: defaultLabelPat IS endLabelPat when the default body is empty -
+    // marking it here too (as well as at the method's true end below) gives
+    // endLabelPat two KofLabel sites for one LabelId, so a KofJump(endLabelPat)
+    // resolves to this EARLIER site instead of the true end - a self-jump.
+    if (defaultLabelPat != endLabelPat) {
+        ops.add(new KofLabel(defaultLabelPat));
+    }
     if (!ss.defaultBody().isEmpty()) {
         localIdx = driver.emitStatement(new BlockStmt(ss.defaultBody().get(0).position(), ss.defaultBody()), ops, owner, localIdx, locals, returnType);
+        ops.add(new KofJump(endLabelPat));
     }
-    ops.add(new KofJump(endLabelPat));
     for (int i = 0; i < ss.cases().size(); i++) {
         SwitchCase sc = ss.cases().get(i);
         ops.add(new KofLabel(bodyLabels.get(i)));

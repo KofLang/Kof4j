@@ -1,0 +1,12 @@
+record Point(Int x, Int y)
+
+main() {
+    var p = Point(1, 2)
+    var total = 0
+    switch (p) {
+        case Point(var x, var y):
+            total = total + x + y
+        default:
+    }
+    println(total)
+}
