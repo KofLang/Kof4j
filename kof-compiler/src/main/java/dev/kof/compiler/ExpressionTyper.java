@@ -322,14 +322,21 @@ public final class ExpressionTyper {
                 yield thenType;
             }            case SwitchExpr se -> {
                 if (!se.cases().isEmpty()) {
-                    List<Type> bts = switchBranchTypes(driver, se.cases(), se.defaultValue(),
-                            inferExprType(driver, se.cases().get(0).body(), locals), locals);
+                    // #601: o case 0 pode ser um pattern (`case Lit(var v) -> v`)
+                    // cuja var ainda não existe em `locals` aqui — a inferência
+                    // roda ANTES do lowering/binding. Sem projetar o binding num
+                    // locals descartável, o lookup do corpo falhava (UnknownType),
+                    // que vazava pro fallback sintético do switch como um default
+                    // de REFERÊNCIA (checkcast Integer) contra ramos que empilham
+                    // int puro → VerifyError no merge do stack map.
+                    List<IRLocalVariable> case0Locals = localsWithPatternBinding(driver, se.cases().get(0), locals);
+                    Type case0Body = inferExprType(driver, se.cases().get(0).body(), case0Locals);
+                    List<Type> bts = switchBranchTypes(driver, se.cases(), se.defaultValue(), case0Body, locals);
                     if (branchTypesDiffer(bts)) {
                         yield new Type.ClassType("java.lang", "Object", List.of());
                     }
                     // §284-map: mesmo contrato nullable do if-expr.
-                    var sbody = inferExprType(driver, se.cases().get(0).body(), locals);
-                    yield nullableIfNullBranch(sbody, se.cases().get(0).body(),
+                    yield nullableIfNullBranch(case0Body, se.cases().get(0).body(),
                             se.defaultValue() != null ? se.defaultValue() : se.cases().get(0).body());
                 }
                 yield se.defaultValue() != null ? inferExprType(driver, se.defaultValue(), locals)
@@ -337,6 +344,44 @@ public final class ExpressionTyper {
             }
             default -> Type.UnknownType.UNKNOWN;
         };
+    }
+
+    /**
+     * #601: projeta o(s) binding(s) de pattern de UM case num locals-escopo
+     * descartável (cópia — nunca muta `locals`), só para type-inference. Se
+     * `c.value()` não for pattern, devolve `locals` como veio. Espelha o
+     * cálculo de tipo de campo de `SwitchExprLowerer.emitPatternBinding` (sem
+     * emitir bytecode, índice de slot é irrelevante aqui — a busca de
+     * identificador em `inferExprType` é por NOME).
+     */
+    static List<IRLocalVariable> localsWithPatternBinding(CompilerDriver driver, SwitchExprCase c,
+                                                           List<IRLocalVariable> locals) {
+        if (!(c.value() instanceof PatternExpr pe)) return locals;
+        Type patType = CompilerTypes.toType(pe.typeName(), driver.currentUnit);
+        if (patType instanceof Type.UnknownType) patType = BuiltinTypes.STRING;
+        List<IRLocalVariable> extended = new ArrayList<>(locals);
+        if (pe.varName() != null) {
+            extended.add(new IRLocalVariable(locals.size(), pe.varName(), patType));
+            return extended;
+        }
+        String simple = patType instanceof Type.ClassType ct ? ct.name() : pe.typeName();
+        for (int fi = 0; fi < pe.fieldVars().size(); fi++) {
+            String fieldVar = pe.fieldVars().get(fi);
+            Type fieldType = Type.UnknownType.UNKNOWN;
+            if (driver.currentUnit != null) {
+                for (AstNode d : driver.currentUnit.declarations()) {
+                    if (d instanceof RecordDeclarationNode rec && rec.name().equals(simple)) {
+                        if (fi < rec.components().size()) {
+                            fieldType = CompilerTypes.toType(rec.components().get(fi).type(), driver.currentUnit);
+                        }
+                        break;
+                    }
+                }
+            }
+            if (fieldType instanceof Type.UnknownType) fieldType = BuiltinTypes.STRING;
+            extended.add(new IRLocalVariable(extended.size(), fieldVar, fieldType));
+        }
+        return extended;
     }
 
     /**

@@ -1,0 +1,15 @@
+sealed interface Expr
+
+record Lit(Int value) implements Expr
+record Neg(Expr inner) implements Expr
+
+Int eval(Expr e) {
+    return switch (e) {
+        case Lit(var v) -> v
+        case Neg(var i) -> 0 - eval(i)
+    }
+}
+
+main() {
+    println(eval(Neg(Lit(5))))
+}
