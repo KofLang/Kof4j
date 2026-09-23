@@ -1,0 +1,11 @@
+interface Shape
+
+record Circle(Int r) implements Shape
+record Square(Int s) implements Shape
+
+main() {
+    var shapes = listOf(Circle(1), Square(2), Circle(3))
+    for (var sh in shapes) {
+        println(sh)
+    }
+}

@@ -1,0 +1,3 @@
+Circle[r=1]
+Square[s=2]
+Circle[r=3]

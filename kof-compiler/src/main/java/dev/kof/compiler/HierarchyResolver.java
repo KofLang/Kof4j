@@ -161,7 +161,7 @@ public final class HierarchyResolver {
         visited.add(from);
         SymbolTable.ClassSymbol start = sa.getClass(from);
         if (start == null) return null;
-        if (start.superClass() != null && !"Object".equals(start.superClass())) {
+        if (isNamedAncestor(start.superClass())) {
             queue.add(simpleOfStored(start.superClass()));
         }
         for (String iface : start.interfaces()) queue.add(simpleOfStored(iface));
@@ -173,7 +173,7 @@ public final class HierarchyResolver {
             if (TypeChecker.isAssignable(sa, other, curType)) return curType;
             SymbolTable.ClassSymbol cs = sa.getClass(cur);
             if (cs != null) {
-                if (cs.superClass() != null && !"Object".equals(cs.superClass())) {
+                if (isNamedAncestor(cs.superClass())) {
                     queue.add(simpleOfStored(cs.superClass()));
                 }
                 for (String iface : cs.interfaces()) queue.add(simpleOfStored(iface));
@@ -185,6 +185,13 @@ public final class HierarchyResolver {
     private static Type ancestorType(SemanticAnalyzer sa, String simpleName) {
         SymbolTable.ClassSymbol cs = sa.getClass(simpleName);
         return cs != null ? cs.type() : new Type.ClassType("", simpleName, java.util.List.of());
+    }
+
+    // #596: "Record" (implicit JVM superclass of every record) isn't
+    // user-declared - queueing it as a widening candidate resolves to an
+    // unqualified, unloadable ClassType instead of a shared interface.
+    private static boolean isNamedAncestor(String superClass) {
+        return superClass != null && !"Object".equals(superClass) && !"Record".equals(superClass);
     }
 
     private static String stripGenerics(String declared) {
