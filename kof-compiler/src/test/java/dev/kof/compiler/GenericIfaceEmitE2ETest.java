@@ -197,6 +197,32 @@ class GenericIfaceEmitE2ETest {
         assertEquals("5\nx", out, "bridges por erasure de parâmetros, não por nome+aridade");
     }
 
+    // ---- #603: record (não class) implementando interface genérica também precisa da bridge ----
+
+    @Test
+    void recordImplementingGenericInterfaceGetsErasureBridge(@TempDir Path tmp) throws IOException {
+        // generateCovariantReturnBridges (§356/#248) só era chamada de
+        // CompilerClassLowering.lowerClass — CompilerIfaceRecordLowering.lowerRecord
+        // nunca chamava. Um record implementando Box<Int> nunca ganhava o
+        // bridge Object get() apagado da interface: AbstractMethodError no
+        // invokeinterface do default describe() (que chama get() por `this`).
+        String out = runJvm(tmp, """
+                interface Box<T> {
+                    T get()
+                    default String describe() {
+                        return "Box: " + get()
+                    }
+                }
+                record IntBox(Int value) implements Box<Int> {
+                    Int get() { return value }
+                }
+                main() {
+                    println(IntBox(42).describe())
+                }
+                """);
+        assertEquals("Box: 42", out, "#603: record implementando interface genérica sem bridge de erasure");
+    }
+
     @Test
     void interfaceGenericsRunOnScript(@TempDir Path tmp) throws IOException {
         Path file = tmp.resolve("S-" + System.nanoTime() + ".kf");
