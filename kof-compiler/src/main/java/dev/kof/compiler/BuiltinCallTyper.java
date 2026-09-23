@@ -13,6 +13,28 @@ public final class BuiltinCallTyper {
 
     private BuiltinCallTyper() {}
 
+    /**
+     * Implicit construction (`Box<Point>(...)`, no `new`) discarded the
+     * call-site type-argument witness (`<Point>`) and always typed the
+     * result as the class's RAW ClassType (`List.of()`), never `[Point]`.
+     * With no type argument recorded, every later `T`-return call on the
+     * constructed value (`Box<Point>(...).get()`) can't resolve `T` via
+     * CompilerTypes.substituteTypeVariable, stays an unsubstituted
+     * TypeVariable, and the caller-side checkcast/owner ends up emitted
+     * against `java.lang.Object` — NoSuchMethodError at runtime (measured:
+     * `class Box<T>(T value) { get(): T {...} }`, #585). Resolved through
+     * the same sa/scope-aware MemberResolver.resolveType already used for
+     * `channel<T>()`/`listOf<T>()` above, not a bare toType, so a
+     * user-declared reference type argument carries a proper internal
+     * name in the checkcast.
+     */
+    private static List<Type> implicitCtorTypeArgs(SemanticAnalyzer sa, MethodCallExpr mc, SymbolTable scope) {
+        if (mc.typeArguments().isEmpty()) return List.of();
+        List<Type> args = new ArrayList<>();
+        for (String n : mc.typeArguments()) args.add(MemberResolver.resolveType(sa, n, scope));
+        return args;
+    }
+
     static Type infer(SemanticAnalyzer sa, MethodCallExpr mc, SymbolTable scope) {
         if (mc.receiver() == null && "channel".equals(mc.methodName())
                 && mc.arguments().isEmpty()) {
@@ -130,7 +152,8 @@ public final class BuiltinCallTyper {
                 // else e continua legal (`Z()` com `class Z {}` e o contrato).
                 reportNoCtorArity(sa, ctorClass, mc);
             }
-            return new Type.ClassType(ctorClass.packageName(), ctorClass.name(), List.of());
+            return new Type.ClassType(ctorClass.packageName(), ctorClass.name(),
+                    implicitCtorTypeArgs(sa, mc, scope));
         }
         if (mc.receiver() == null && ("println".equals(mc.methodName()) || "print".equals(mc.methodName()))) {
             // #495 (maintainer 19/09: "empty println should not compile"): o
@@ -425,7 +448,8 @@ public final class BuiltinCallTyper {
                 // `Class(args)` sem `new`), fase/visitor irmão.
                 reportNoCtorArity(sa, ctorClass, mc);
             }
-            return new Type.ClassType(ctorClass.packageName(), ctorClass.name(), List.of());
+            return new Type.ClassType(ctorClass.packageName(), ctorClass.name(),
+                    implicitCtorTypeArgs(sa, mc, scope));
         }
         for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
         // String API: métodos que devolvem Int (indexOf, lastIndexOf,
