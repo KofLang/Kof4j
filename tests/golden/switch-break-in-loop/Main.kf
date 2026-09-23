@@ -1,0 +1,30 @@
+record Point(Int x, Int y)
+
+main() {
+    var nums = listOf(1, 2, 3)
+    var total = 0
+    for (var n in nums) {
+        switch (n) {
+            case 1:
+                total = total + 10
+                break
+            default:
+                total = total + 99
+                break
+        }
+    }
+    println(total)
+
+    var pts = listOf(Point(1, 2), Point(3, 4), Point(5, 6))
+    var sum = 0
+    for (var p in pts) {
+        switch (p) {
+            case Point(var x, var y):
+                sum = sum + x + y
+                break
+            default:
+                break
+        }
+    }
+    println(sum)
+}

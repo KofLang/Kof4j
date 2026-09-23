@@ -105,7 +105,10 @@ if (hasPattern) {
     }
     ops.add(new KofLabel(defaultLabelPat));
     if (!ss.defaultBody().isEmpty()) {
+        // #587: break must target the switch's own end, not the enclosing loop's.
+        driver.breakLabels.push(endLabelPat);
         localIdx = driver.emitStatement(new BlockStmt(ss.defaultBody().get(0).position(), ss.defaultBody()), ops, owner, localIdx, locals, returnType);
+        driver.breakLabels.pop();
     }
     ops.add(new KofJump(endLabelPat));
     for (int i = 0; i < ss.cases().size(); i++) {
@@ -166,7 +169,10 @@ if (hasPattern) {
                 }
             }
         }
+        // #587: break must target the switch's own end, not the enclosing loop's.
+        driver.breakLabels.push(endLabelPat);
         localIdx = driver.emitStatement(new BlockStmt(sc.position(), sc.body()), ops, owner, localIdx, locals, returnType);
+        driver.breakLabels.pop();
         ops.add(new KofJump(endLabelPat));
     }
     ops.add(new KofLabel(endLabelPat));
@@ -228,12 +234,18 @@ for (int i = 0; i < ss.cases().size(); i++) {
 for (int i = 0; i < ss.cases().size(); i++) {
     SwitchCase sc = ss.cases().get(i);
     ops.add(new KofLabel(bodyLabels.get(i)));
+    // #587: break must target the switch's own end, not the enclosing loop's.
+    driver.breakLabels.push(endLabel);
     localIdx = driver.emitStatement(new BlockStmt(sc.position(), sc.body()), ops, owner, localIdx, locals, returnType);
+    driver.breakLabels.pop();
     ops.add(new KofJump(endLabel));
 }
 ops.add(new KofLabel(defaultLabel));
 if (!ss.defaultBody().isEmpty()) {
+    // #587: break must target the switch's own end, not the enclosing loop's.
+    driver.breakLabels.push(endLabel);
     localIdx = driver.emitStatement(new BlockStmt(ss.defaultBody().get(0).position(), ss.defaultBody()), ops, owner, localIdx, locals, returnType);
+    driver.breakLabels.pop();
 }
 ops.add(new KofLabel(endLabel));
         return localIdx;
