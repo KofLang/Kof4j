@@ -1,0 +1,9 @@
+record Point(Int x, Int y)
+
+T idf<T>(T x) { return x }
+
+main() {
+    println(idf<Int>(7))
+    var p = idf<Point>(Point(5, 6))
+    println(p.x() + "," + p.y())
+}

@@ -208,10 +208,9 @@ public final class ExpressionBareCallLowerer {
                 }
                 localIdx = driver.emitArgumentsWithFormalTypes(mc.arguments(), argTypes, ops, owner, localIdx, locals);
                 ops.add(new KofCall(CompilerTypes.mainClassType(driver.currentModule), mc.methodName(), argTypes, returnType, KofCallKind.FUNCTION));
-                Type effective = ExpressionTyper.inferExprType(driver, mc, locals);
-                if (returnType instanceof Type.TypeVariable && TypeMetrics.isPrimitiveType(effective)) {
-                    driver.emitErasureUnbox(ops, effective);
-                }
+                // #592: only unboxed a primitive T; a reference T got no checkcast.
+                // GenericReturnAdapter already covers both cases for instance calls.
+                GenericReturnAdapter.emit(driver, mc, ops, locals, returnType);
             }
         }
         return localIdx;
