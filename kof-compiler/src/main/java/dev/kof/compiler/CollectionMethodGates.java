@@ -90,7 +90,10 @@ public final class CollectionMethodGates {
      * Unknown-value = mapa vazio, false sempre) — 6 = mapa de valor Object
      * (§352 NAT002 fechado 21/09): o compile não sabe o que a expressão
      * carrega (caixa/String/ponteiro/bit cru), então o runtime classifica
-     * arg e entradas com kof_value_kind e compara no caminho do kind.
+     * arg e entradas com kof_value_kind e compara no caminho do kind) —
+     * 7 = record/classe Kof (§104b-ii nunca portado pro VALOR do map,
+     * só pra CHAVE — {@link CollectionWrites#mapKeyTag}; {@code
+     * kof_obj_equals}, o mesmo runtime content-equality de hoje).
      */
     static int valueCmpTag(Type valueType, Type argType) {
         Type vt = unwrap(valueType);
@@ -104,6 +107,7 @@ public final class CollectionMethodGates {
         boolean aBox = at != null && CollectionCallLowerer.mapBoxablePrim(at);
         if (vBox) return aBox ? 2 : 3;
         if (aStr || aBox) return 3;
+        if (CollectionWrites.isKofObject(vt)) return 7;
         return 0;
     }
 }

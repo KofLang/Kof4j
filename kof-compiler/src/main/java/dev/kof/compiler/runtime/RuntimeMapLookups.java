@@ -85,6 +85,8 @@ public final class RuntimeMapLookups {
                 je .LKMCV_str
                 cmpl $2, %r13d
                 je .LKMCV_box
+                cmpl $7, %r13d
+                je .LKMCV_obj
                 cmpq %r12, %r15
                 je .LKMCV_yes
                 jmp .LKMCV_next
@@ -99,6 +101,15 @@ public final class RuntimeMapLookups {
                 movq %r15, %rdi
                 movq %r12, %rsi
                 call kof_box_equals
+                testl %eax, %eax
+                jnz .LKMCV_yes
+                jmp .LKMCV_next
+            .LKMCV_obj:
+                # #604 (§104b-ii, face VALOR): mesma sonda de conteúdo que
+                # get/containsKey/remove já usam pra CHAVE desde hoje.
+                movq %r15, %rdi
+                movq %r12, %rsi
+                call kof_obj_equals
                 testl %eax, %eax
                 jnz .LKMCV_yes
                 jmp .LKMCV_next

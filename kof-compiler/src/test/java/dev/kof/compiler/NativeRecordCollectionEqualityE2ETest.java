@@ -89,6 +89,12 @@ class NativeRecordCollectionEqualityE2ETest {
                 println(mapOf(1, 2).get(1))
                 println(mapOf(1, 2).containsKey(3))
 
+                // #604 — containsValue com valor de tipo record/classe: face
+                // do §104b-ii nunca portada pro VALOR (só a CHAVE tinha).
+                var mv = mapOf("a", Point(1, 2), "b", Point(3, 4))
+                println(mv.containsValue(Point(1, 2)))
+                println(mv.containsValue(Point(9, 9)))
+
                 println(listOf(1, 2, 3).contains(2))
                 println(listOf(1, 2, 3).indexOf(7))
 

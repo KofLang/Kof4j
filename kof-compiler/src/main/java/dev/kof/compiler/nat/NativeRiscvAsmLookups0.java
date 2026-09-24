@@ -78,6 +78,8 @@ public final class NativeRiscvAsmLookups0 {
                 beq  s2, t0, .Lmlcv_str
                 li   t0, 2
                 beq  s2, t0, .Lmlcv_box
+                li   t0, 7
+                beq  s2, t0, .Lmlcv_obj
                 bne  s4, s1, .Lmlcv_next
                 j    .Lmlcv_yes
             .Lmlcv_str:
@@ -90,6 +92,14 @@ public final class NativeRiscvAsmLookups0 {
                 mv   a0, s4
                 mv   a1, s1
                 call kof_box_equals
+                bnez a0, .Lmlcv_yes
+                j    .Lmlcv_next
+            .Lmlcv_obj:
+                # #604 (§104b-ii, face VALOR): mesma sonda de conteúdo que
+                # get/containsKey/remove já usam pra CHAVE desde hoje.
+                mv   a0, s4
+                mv   a1, s1
+                call kof_obj_equals
                 bnez a0, .Lmlcv_yes
             .Lmlcv_next:
                 addi s3, s3, 1

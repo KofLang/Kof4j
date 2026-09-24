@@ -151,7 +151,7 @@ public final class CollectionWrites {
         return -1;
     }
 
-    private static boolean isKofObject(Type t) {
+    static boolean isKofObject(Type t) {
         if (t instanceof Type.NullableType nt) t = nt.inner();
         if (!(t instanceof Type.ClassType)) return false;
         return !BuiltinTypes.isString(t) && !BuiltinTypes.isObject(t);
