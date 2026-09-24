@@ -280,9 +280,17 @@ public class Parser {
         for (int i = 1; i + 1 < ctx.tokens.size() - ctx.pos; i++) {
             TokenType t = ctx.tokens.get(ctx.pos + i).type();
             if (t == TokenType.LESS) depth++;
-            else if (t == TokenType.GREATER) {
-                depth--;
-                if (depth == 0) {
+            else if (t == TokenType.GREATER || t == TokenType.GREATER_GREATER
+                    || t == TokenType.GREATER_GREATER_GREATER) {
+                // #617: `List<List<Int>>` — o lexer emite `>>` como UM token
+                // (maximal munch); sem contar seu fechamento duplo, esta
+                // varredura nunca via depth chegar a 0 e devolvia false —
+                // `List<List<Int>> nest()` era mal-interpretado como
+                // função chamada "List" com type-params `<List<Int>>`,
+                // que também não fecha (mesma classe de bug em
+                // parseTypeParameters), cascata de PARSE075/PARSE011/...
+                depth -= t == TokenType.GREATER ? 1 : t == TokenType.GREATER_GREATER ? 2 : 3;
+                if (depth <= 0) {
                     return ctx.tokens.get(ctx.pos + i + 1).type() == TokenType.IDENTIFIER
                             && ctx.tokens.get(ctx.pos + i + 2).type() == TokenType.LPAREN;
                 }

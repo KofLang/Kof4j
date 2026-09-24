@@ -1,0 +1,20 @@
+List<List<Int>> nest() {
+    return listOf(listOf(1, 2), listOf(3, 4))
+}
+
+Map<String, List<Int>> lookup() {
+    return mapOf("a", listOf(1, 2, 3))
+}
+
+class Repo {
+    List<List<Int>> grid() {
+        return listOf(listOf(5, 6), listOf(7, 8))
+    }
+}
+
+main() {
+    println(nest().get(1).get(0))
+    var m = lookup()
+    println(m.containsKey("a"))
+    println(Repo().grid().get(0).get(1))
+}

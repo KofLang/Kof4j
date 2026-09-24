@@ -24,6 +24,13 @@ public class TypeParser {
         StringBuilder sb = new StringBuilder();
         int depth = 0;
         while (!ctx.atEnd()) {
+            // #617: `>>`/`>>>` fecham DOIS/TRÊS níveis de generics aninhados
+            // (`List<List<Int>>`), mas o lexer emite um único token
+            // GREATER_GREATER/GREATER_GREATER_GREATER (maximal munch) — sem
+            // separar antes de checar TokenType.GREATER, o depth nunca
+            // zerava aqui (só `parseTypeRef` já fazia isso). Mesmo split que
+            // ExpressionParser/parseTypeRef usam.
+            Parser.splitShiftRight(ctx);
             Token t = ctx.advance();
             sb.append(t.value());
             // X5.4 (D-X5-SURFACE): `out`/`in` num type-argument (`List<out Animal>`)
