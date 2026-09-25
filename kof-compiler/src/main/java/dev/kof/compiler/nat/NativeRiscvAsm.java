@@ -311,6 +311,10 @@ public final class NativeRiscvAsm {
                 // D-FULL-PARITY-050 (row 9, lane parity, 26/09): kof.log extraído
                 // de RtB0 (que estava ≥600 linhas) para NativeRiscvAsmLog.
                 .append(NativeRiscvAsmLog.RISCV_RUNTIME_ASM_LOG)
+                // D-FULL-PARITY-050 (row 6, lane parity, 26/09): kof.gpu no cross
+                // — fallback honesto (available=false, dispatch=-1/-6), mesmo
+                // contrato do JvmVkStubRuntime/x86. Antes não linkava.
+                .append(NativeRiscvAsmGpu.RISCV_RUNTIME_ASM_GPU)
                 .toString();
     }
     static final String RISCV_MAPSET_ASM = runtimeMapset();

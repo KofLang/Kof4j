@@ -30,7 +30,6 @@
 | 2 | `shell.cmd`/`run`/`runWith`/`pipeline`/`ok` | ✅ | ✅ x86 `run`/`cmd`/`ok`/`runWith` 25/09 (`pipeline` = slice B; runWith x86 = contrato pleno: chdir + setenv aditivo no hook do filho, goldens T1–T14; fix §503 `.balign 8`) | ✅ cross `run`/`cmd`/`ok`/`runWith`/`pipeline` 26/09 (runWith cwd/env não-vazio = Result honesto) | ✅ (host runner) | `PROC001` (x86 `pipeline`) | native-cross lane (x86 ✅ 25/09, cross ✅ 26/09) |
 | 3 | `ssh.cmd`/`run`/`ok` | ✅ | ✅ x86 + riscv64/aarch64 26/09 | ❌ | ❌ | `PROC001` (MCU/riscv32; JS sem dispatch) | native-cross lane (nativo ✅ 26/09) |
 | 4 | media: `Image.open`/`Audio.openWav`/`Video.open`/`Mic.record`/`list` | ✅ | ❌ | ❌ | ❌ | `MEDIA001`/`MEDIA003` | media front |
-| 6 | `gpu.*` (JS face) + cross golden | ✅ | ✅ | ⏳ golden | ❌ `GPU001` | `GPU001` | gpu/native lanes |
 | 10 | `math.pow` cross (static, no libc) | ✅ | ✅ (libm `-lm`) | ❌ `MATH001` | ✅ | `MATH001` | native cross lane |
 | 11 | `strings.reverse` non-ASCII (UTF-16 vs byte) + `String.matches`/`replaceAll`/`replaceFirst`/`compareToIgnoreCase` | ✅ | ❌ `NAT-STR01`/`STR003` | ❌ `STR003` | ❌ `STR003` | `NAT-STR01`/`STR003` | native/js lanes |
 | 12 | web T1 (`kof.http.server` faces) on native/cross | ✅ | ⏳ | ❌ `WEB002`–`WEB006` | ✅ | `WEB00x` | web lane |
@@ -77,6 +76,22 @@ regression re-opens the row (zero regression, freeze rule 1).
 
 ## Closed (proof recorded here when a row empties)
 
+- **Row 6 — `gpu.*` (JS face) + cross golden** — closed 26/09 (lane parity).
+  The row hid a REAL gap, not a stale golden: `KofGpu.supportedOn` already
+  returned true for the native targets, but the riscv64/aarch64 emit path never
+  emitted any `kof_vk_*`/`kof_mv64_*` runtime, so `gpu.available()` failed to
+  **link** (`ld: undefined reference to 'kof_vk_available'`). New
+  `NativeRiscvAsmGpu` defines the 13 entry points with the honest fallback
+  contract of `JvmVkStubRuntime` (available=false, dispatch −1, the `32`/`sp`
+  mv faces −6, `failReason` a real KofString), and JS/Script are no longer
+  gated by `GPU001` (a declared gap is a tracking state, never an acceptance
+  state, `D-FULL-PARITY-050`): `KofGpu.supportedOn` now returns true everywhere,
+  JS gets `JsRuntimeGpuSupport` (camelCase fallback exports wired into the
+  runtime slicer), and Script degrades through the interpreter's real FFM
+  runtime (available=false/dispatch −1 without `libvkchain.so`). Proof:
+  `KofGpuCrossTest` **4/4** (riscv64 + aarch64 under qemu, JS embedded runner,
+  Script interpreter) + `ConformanceMatrixTest` 14/14 + `KofJsE2ETest` 40/40;
+  `StdParityGapAuditTest#gpuUngatedOnAllTargets` pins the removal of `GPU001`.
 - **Row 5 — `mq.*` cross + JS golden (riscv64/aarch64)** — closed 26/09 (lane
   parity). The row was STALE: `KofMq.supportedOn` returns `true` for every
   target (the `MQ001` code is a retained record, not a live gate —

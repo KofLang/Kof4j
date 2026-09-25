@@ -35,8 +35,11 @@ public final class KofGpu {
         //   (java.lang.foreign) -> o runtime injetado e o stub sem FFM
         //   (JvmVkStubRuntime: available=false, CPU fallback), como os nativos.
         //   O front nao muda; a paridade do Main.class e byte-a-byte com o JVM.
-        // JS: sem suporte (GPU001).
-        return target.isNative() || target == Target.JVM || target == Target.ANDROID;
+        // JS/Script (D-FULL-PARITY-050, row 6, 26/09): sem Vulkan, degrada
+        //   honestamente pelo gate de runtime (available=false, dispatch=-1/-6,
+        //   JsRuntimeGpuSupport/interpreter) — nunca mais GPU001: uma lacuna
+        //   declarada e estado de rastreio, nunca de aceitacao.
+        return true;
     }
 
 /** X10 fatia 3: nomes aceitos pelo dispatch real (catálogo p/ LSP).

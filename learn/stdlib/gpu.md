@@ -2,8 +2,10 @@
 
 # kof.gpu — GPU dispatch, measured or refused
 
-> **Status: JVM ✅ (matrix backend) · Native x86-64 ✅ (measured) · cross
-> golden ⏳ · JS = `GPU001` (compile-time — no BLAS promise on the web, R7).**
+> **Status: JVM ✅ (matrix backend) · Native x86-64 ✅ (measured) ·
+> riscv64/aarch64 ✅ (honest CPU fallback: `available=false`, dispatch `-1`) ·
+> JS/Script ✅ (same fallback via the runtime; `GPU001` retired —
+> D-FULL-PARITY-050 row 6).**
 
 | Function | Form |
 |----------|------|

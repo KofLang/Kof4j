@@ -320,8 +320,8 @@ if (gpu.available()) {
 PORQUE: computacao pesada e dominio de **pacote oficial** (R1) — `kof.gpu` expoe so o que a
 plataforma ja roda (kernels de forma fixa + as faces `mv*` int8/long do caminho on-device);
 frameworks de ML ficam em interop (R9). Gates honestos (medidos 19/09): JVM + Native x86 ✅;
-**JS = `GPU001`** em tempo de compilacao (nenhuma promessa de BLAS na web — R7); golden
-riscv/aarch ⏳.
+riscv64/aarch64 ✅ e JS/Script ✅ desde 26/09 (linha 6 fechada, `D-FULL-PARITY-050`) — todos
+degradam pelo fallback CPU honesto (`available=false`, dispatch `-1`), nunca `GPU001`.
 
 ## media — Image/Audio/Video/Mic sao namespaces, nao widgets de UI (8.5 fatia 3, 19/09)
 
@@ -360,12 +360,12 @@ legada, nao o modelo do que sera promovido.
 | math.pow (S1b.2 — libm `pow@PLT` + `-lm` no x86) | ✅ | ✅ | ❌ `MATH001` (cross estático sem libc) | ✅ |
 | random.randomInt/randomBoolean/randomString (face beta S10a/b) | ✅ | ✅ | ✅ (B27/B28, getrandom/lemire) | ✅ |
 | random.double/boolean/int/hex (face main S10) | ✅ | ✅ | ✅ (B27) | ✅ |
-| faces novas de `time.*` (todayIso/addDays/diffDays/hoursBetween/iso parse-format/sleep/now/interval) | ✅ JVM (medido 19/09, `StdlibIdiomsCompileTest`); interpretador: datas ✅ (paridade X8), relógio ⏳ | ✅ x86 (medido 19/09) | ⏳ golden cross não medido | ✅ (medido 19/09) |
-| `cache.*` / `config.*` / `log.*` (8.5) | ✅ JVM (medido 19/09); cache+config ✅ paridade no interpretador 19/09 (`KofScriptStdlibParityTest`); log ⏳ interpretador | ✅ x86 (medido 19/09) | ⏳ golden cross não medido | ✅ (medido 19/09) |
+| faces novas de `time.*` (todayIso/addDays/diffDays/hoursBetween/iso parse-format/sleep/now/interval) | ✅ JVM (medido 19/09, `StdlibIdiomsCompileTest`); interpretador: datas ✅ (paridade X8), relógio ⏳ | ✅ x86 (medido 19/09) | ✅ cross (B33; linha 8 fechada 25/09 — `KofTimeE2ETest` 44/44) | ✅ (medido 19/09) |
+| `cache.*` / `config.*` / `log.*` (8.5) | ✅ JVM (medido 19/09); cache+config ✅ paridade no interpretador 19/09 (`KofScriptStdlibParityTest`); log ⏳ interpretador | ✅ x86 (medido 19/09) | ✅ cross (linha 9 fechada 26/09 — `KofCacheCrossTest`/`KofConfigCrossTest`/`NativeLogCrossTest`) | ✅ (medido 19/09) |
 | `process.run`/`exit` (varargs) | ✅ | ❌ `PROC001` (tempo de compilação, travado em `DomainGapCodesTest`) | ❌ `PROC001` | ✅ |
 | `process.spawn` | ✅ | ❌ `PROC001` | ❌ `PROC001` | ✅ host Kof JS (`KofJsRunner`); node puro = diagnostico honesto |
-| `observability.*` (spans 01/09 + metrics/health 8.5 19/09) | ✅ (medido 19/09) | ✅ x86 (medido 19/09) | ⏳ golden cross não medida | ✅ (medido 19/09) |
-| `gpu.available`/`failReason`/`dispatchMatmul(Int)` | ✅ | ✅ (medido 19/09) | ⏳ golden cross não medida | ❌ `GPU001` (tempo de compilação) |
+| `observability.*` (spans 01/09 + metrics/health 8.5 19/09) | ✅ (medido 19/09) | ✅ x86 (medido 19/09) | ✅ cross (linha 7 fechada 26/09 — `KofObservabilityTest` 12/12) | ✅ (medido 19/09) |
+| `gpu.available`/`failReason`/`dispatchMatmul(Int)` | ✅ | ✅ (medido 19/09) | ✅ cross (linha 6 fechada 26/09 — fallback CPU honesto) | ✅ fallback JS/Script (linha 6; `GPU001` aposentado) |
 | `Image.open`/`Audio.openWav`/`Video.open`/`Mic.record/list` | ✅ (medido 19/09) | ❌ `MEDIA001` (tempo de compilação) | ❌ `MEDIA001` | ❌ `MEDIA001` |
 | shell.cmd/run/ok (v1) | ✅ | ❌ `PROC001` (tempo de compilação) | ❌ `PROC001` | ✅ paridade byte |
 | shell.pipeline (v1) | ✅ | ❌ `PROC001` | ❌ `PROC001` | ✅ host Kof JS (chain + pump, 20/09 `081a48f8`; node puro = diagnostico honesto) |

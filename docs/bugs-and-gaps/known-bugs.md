@@ -10681,6 +10681,15 @@ targets: it runs, degrades, and never lies (R6). Proof: `GpuAndroidE2ETest`
 3/3 + `DomainGapCodesTest.androidCompilesDbCryptoAndGpuLikeJvm` +
 `StdParityGapAuditTest` (`GPU001` now JS/SCRIPT only).
 
+**UPDATE 26/09 (lane parity, `D-FULL-PARITY-050` row 6):** the JS/Script half is
+closed too — `KofGpu.supportedOn` now returns true everywhere, so `GPU001` is no
+longer emitted on any target. The riscv64/aarch64 emit path gained
+`NativeRiscvAsmGpu` (it previously **failed to link**: `ld: undefined reference
+to 'kof_vk_available'`) and JS gained `JsRuntimeGpuSupport`; all degrade through
+the same honest fallback (`available=false`, dispatch `-1`/`-6`). Proof:
+`KofGpuCrossTest` 4/4; the audit test is now
+`StdParityGapAuditTest#gpuUngatedOnAllTargets`.
+
 ### §279 — KofJS: an `if` on a **nullable primitive** whose condition the optimizer folds leaves the §267 `KofStatementIf` marker orphaned → `COMP002 unexpected op in expression statement` (ICE) — ✅ FIXED (found 18/09 in the `.22` ISSUE-LANE triage, re-measured by lane bugs-and-gaps `.15`; fix owner = KofJS lane `.18` — regression of the §267 marker; JS ICE gone since #278 `495445cd`, re-measured + pinned 18/09 by `.18`)
 
 - **Symptom (measured 18/09 on tip `a35067b9`; re-measured ~08:00 UTC on tip `c4dbefff` after the §281/§285 trio — BOTH verbatims unchanged, still OPEN):** a JS compile of an `if` whose condition is a **nullable-primitive** null-check aborts with an internal compiler error instead of compiling:

@@ -32,6 +32,7 @@ final class JsRuntimeSlices {
             new Block("ui-web", JsRuntimeUiWeb.UI_WEB_RUNTIME + JsRuntimeUiWebSse.uiWebSseRuntime(), false),
             new Block("ui-config", JsRuntimeUiConfig.CONFIG_RUNTIME, false),
             new Block("ui-support", JsRuntimeUiSupport.UI_SUPPORT_RUNTIME, false),
+            new Block("gpu", JsRuntimeGpuSupport.GPU_RUNTIME, false),
             new Block("security", JsRuntimeUiSecurity.UI_SECURITY_RUNTIME, false),
             new Block("crypto", JsRuntimeUiCrypto.UI_CRYPTO_RUNTIME + JsRuntimeUiChacha.UI_CHACHA_RUNTIME, false),
             new Block("validation", JsRuntimeUiValidation.UI_VALIDATION_RUNTIME, false),

@@ -10163,6 +10163,15 @@ degrada e nunca mente (R6). Prova: `GpuAndroidE2ETest` 3/3 +
 `DomainGapCodesTest.androidCompilesDbCryptoAndGpuLikeJvm` +
 `StdParityGapAuditTest` (`GPU001` agora só JS/SCRIPT).
 
+**UPDATE 26/09 (lane parity, `D-FULL-PARITY-050` linha 6):** a metade JS/Script
+também fechou — `KofGpu.supportedOn` agora devolve true em todo alvo, então
+`GPU001` deixa de ser emitido em qualquer target. O caminho de emissão
+riscv64/aarch64 ganhou `NativeRiscvAsmGpu` (antes **falhava no link**: `ld:
+undefined reference to 'kof_vk_available'`) e o JS ganhou
+`JsRuntimeGpuSupport`; todos degradam pelo mesmo fallback honesto
+(`available=false`, dispatch `-1`/`-6`). Prova: `KofGpuCrossTest` 4/4; o teste de
+auditoria agora é `StdParityGapAuditTest#gpuUngatedOnAllTargets`.
+
 ### §279 — KofJS: um `if` sobre **primitivo nulável** cuja condição o otimizador dobra deixa o marcador `KofStatementIf` do §267 órfão → `COMP002 unexpected op in expression statement` (ICE) — ✅ CORREGIDO (achado 18/09 na triagem da ISSUE-LANE `.22`, re-medido pela lane bugs-and-gaps `.15`; dono do fix = lane KofJS `.18` — regressão do marcador do §267; ICE do JS sumiu desde o #278 `495445cd`, re-medido + travado 18/09 pela `.18`)
 
 - **Sintoma (medido 18/09 no tip `a35067b9`; re-medido ~08:00 UTC no tip `c4dbefff` apos o trio §281/§285 — os DOIS verbatim inalterados, segue ABERTO):** a compilação para JS de um `if` cuja condição é um null-check de **primitivo nulável** aborta com erro interno do compilador em vez de compilar:

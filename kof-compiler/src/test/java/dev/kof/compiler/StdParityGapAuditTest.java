@@ -83,10 +83,13 @@ class StdParityGapAuditTest {
     }
 
     @Test
-    @DisplayName("gpu: JS + SCRIPT gated (GPU001 emitido no call-site); ANDROID compila (§278)")
-    void gpuGatesJsAndScript() {
-        assertEquals(Set.of(Target.JS, Target.SCRIPT),
-                unsupported(KofGpu::supportedOn));
+    @DisplayName("gpu: paridade 4 alvos (D-FULL-PARITY-050 row 6) — GPU001 deixou de ser emitido")
+    void gpuUngatedOnAllTargets() {
+        // Antes: JS+SCRIPT gated por GPU001. Agora o nativo/cross/x86 tem o
+        // fallback real e o JS/Script degradam pelo runtime (JsRuntimeGpuSupport
+        // /interpretador): available=false, dispatch -1/-6 — nunca GPU001.
+        assertTrue(unsupported(KofGpu::supportedOn).isEmpty(),
+                "gpu deve ser aceito em todos os alvos (row 6)");
     }
 
     @Test

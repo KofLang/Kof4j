@@ -55,6 +55,7 @@ boolean isRuntimeOp(KofCall kc) {
                 || name.startsWith("kof_time_")
                 || name.startsWith("kof_scheduler_")
                 || name.startsWith("kof_mq_")
+                || name.startsWith("kof_vk_") || name.startsWith("kof_mv64_")
                 || name.startsWith("kof_log_")
                 || name.equals("kof_ui_color_to_css")
                 || name.equals("kof_now") || name.equals("kof_read_line")

@@ -30,7 +30,6 @@
 | 2 | `shell.cmd`/`run`/`runWith`/`pipeline`/`ok` | ✅ | ✅ x86 `run`/`cmd`/`ok`/`runWith` 25/09 (`pipeline` = fatia B; runWith x86 = contrato pleno: chdir + setenv aditivo no hook do filho, goldens T1–T14; fix §503 `.balign 8`) | ✅ cross `run`/`cmd`/`ok`/`runWith`/`pipeline` 26/09 (runWith cwd/env não-vazio = Result honesto) | ✅ (host runner) | `PROC001` (x86 `pipeline`) | lane native-cross (x86 ✅ 25/09, cross ✅ 26/09) |
 | 3 | `ssh.cmd`/`run`/`ok` | ✅ | ✅ x86 + riscv64/aarch64 26/09 | ❌ | ❌ | `PROC001` (MCU/riscv32; JS sem dispatch) | lane native-cross (nativo ✅ 26/09) |
 | 4 | media: `Image.open`/`Audio.openWav`/`Video.open`/`Mic.record`/`list` | ✅ | ❌ | ❌ | ❌ | `MEDIA001`/`MEDIA003` | frente media |
-| 5 | `mq.*` | ✅ | parcial (faces `MQ001`) | ⏳ golden | ⏳ | 6 | `gpu.*` (face JS) + golden cross | ✅ | ✅ | ⏳ golden | ❌ `GPU001` | `GPU001` | lanes gpu/native |
 | 10 | `math.pow` cross (estático, sem libc) | ✅ | ✅ (libm `-lm`) | ❌ `MATH001` | ✅ | `MATH001` | lane native cross |
 | 11 | `strings.reverse` não-ASCII (UTF-16 vs byte) + `String.matches`/`replaceAll`/`replaceFirst`/`compareToIgnoreCase` | ✅ | ❌ `NAT-STR01`/`STR003` | ❌ `STR003` | ❌ `STR003` | `NAT-STR01`/`STR003` | lanes native/js |
 | 12 | web T1 (faces do `kof.http.server`) no native/cross | ✅ | ⏳ | ❌ `WEB002`–`WEB006` | ✅ | `WEB00x` | lane web |
@@ -80,6 +79,22 @@ do freeze).
 
 ## Fechados (prova registrada aqui quando a linha esvazia)
 
+- **Linha 6 — `gpu.*` (face JS) + golden cross** — fechada 26/09 (lane parity).
+  A linha escondia um gap REAL, não um golden stale: `KofGpu.supportedOn` já
+  devolvia true para os alvos nativos, mas o caminho de emissão riscv64/aarch64
+  nunca emitia runtime `kof_vk_*`/`kof_mv64_*`, então `gpu.available()` falhava no
+  **link** (`ld: undefined reference to 'kof_vk_available'`). O novo
+  `NativeRiscvAsmGpu` define as 13 entry points com o contrato de fallback
+  honesto do `JvmVkStubRuntime` (available=false, dispatch −1, as faces mv
+  `32`/`sp` −6, `failReason` um KofString real), e JS/Script deixaram de ser
+  gateados por `GPU001` (lacuna declarada é estado de rastreio, nunca de
+  aceitação, `D-FULL-PARITY-050`): `KofGpu.supportedOn` agora devolve true em
+  todo alvo, o JS ganha `JsRuntimeGpuSupport` (exports de fallback camelCase
+  ligados ao slicer do runtime) e o Script degrada pelo runtime FFM real do
+  interpretador (available=false/dispatch −1 sem `libvkchain.so`). Prova:
+  `KofGpuCrossTest` **4/4** (riscv64 + aarch64 sob qemu, runner JS embutido,
+  interpretador Script) + `ConformanceMatrixTest` 14/14 + `KofJsE2ETest` 40/40;
+  `StdParityGapAuditTest#gpuUngatedOnAllTargets` trava a remoção do `GPU001`.
 - **Linha 5 — `mq.*` golden cross + JS (riscv64/aarch64)** — fechada 26/09
   (lane parity). A linha estava STALE: `KofMq.supportedOn` devolve `true` para
   todo alvo (o código `MQ001` é registro retido, não gate vivo —
