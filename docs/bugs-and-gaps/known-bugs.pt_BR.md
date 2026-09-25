@@ -12591,7 +12591,31 @@ println(Directory("probe").delete())   // JVM: true (recursivo); x86-64: false (
 
 **Repro (verbatim):** `import java.util.Arrays` + `main() { println(Arrays.bogus(1)) }` → `kof check` limpo; build → `invokevirtual "".bogus`; a classe falha no load. Idem `Arrays.asList(1,2)` (válido) e `System.bogusField`.
 
-**Status:** 🟡 ABERTO — catalogado (Q7).
+**Fatia A — ✅ CORRIGIDO (26/09, commit `35aca27fd`):** a face MÉTODO. Causa-raiz
+(corrigida na raiz, Q0): `MethodSignature` não tinha flag de varargs e
+`findDeclared`/`JdkReflectionResolver` casavam nome+aridade FIXA apenas. Agora
+ACC_VARARGS/`isVarArgs` viaja na assinatura; os resolvedores aceitam candidatos
+varargs `argc >= fixo` (a aridade exata ainda vence, penalidade −5 nos varargs,
+os args finais são pontuados contra o TIPO COMPONENTE do array); o
+`VarargsArrayPacker` é o caminho único de packing (fixos pela via coercitiva do
+driver, finais gravados em `new KofNewArray(component)` com primitivos boxados),
+ligado nos DOIS sites de chamada estática — nome de classe externa importada
+(`Arrays.asList(1,2)` → `invokestatic java/util/Arrays.asList:([Ljava/lang/Object;)...`
+real) e nome de tipo builtin (`String.join(", ","a","b")` → o descritor real
+`(Ljava/lang/CharSequence;[Ljava/lang/CharSequence;)`, a receita #156/#216
+generalizada). A face membro-inexistente (`Arrays.bogus(1)`) agora falha com
+`SEM025` nomeando classe e método em vez de emitir bytecode de owner vazio (R6).
+**Prova (Q0/Q1/Q3):** RED 3/4 medido com o fix em stash (owner vazio + descritor
+fabricado + bogus compilando limpo) → GREEN `ExternalVarargsStaticE2ETest` 4/4
+(goldens MEDIDOS contra o JVM cru: `[1, 2]`, `[]` edge zero-extra, `a, b`, `x`
+controle fixo-aridade) + bateria interop de 96 testes 0F (StringFormat* 9+3,
+Android, ExternalClasspath/Ctors E2E, BuiltinUnknownMethodGuardTest).
+
+**Ainda aberto (fatia B):** a face CAMPO ESTÁTICO — `System.bogusField` / campos
+estáticos externos válidos em receivers de nome-de-classe ainda não têm resolução
+getstatic + guarda de existência de campo em `SemExpressionTyper`/lowerer.
+
+**Status:** 🟡 ABERTO — catalogado (Q7). — fatia A (métodos) CORRIGIDA 26/09 `35aca27fd`; fatia B (campos estáticos) pendente.
 
 **Dono:** sessão 9092 (lane compiler), `SemMethodCallTyper`/`MemberCallTyper` + `ExternalClasspath` (ciente de varargs/campos estáticos); família do §491/§495/§496/§499.
 <!-- en-switch --> **EN:** [§500](known-bugs.md#500--static-methodfield-on-an-imported-external-class-name-that-does-not-resolve-emits-an-empty-owner-call-invokevirtual-aslist--bogus--class-load-failure---open-catalogued)

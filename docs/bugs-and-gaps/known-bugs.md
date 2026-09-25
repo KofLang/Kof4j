@@ -15058,7 +15058,32 @@ println(Directory("probe").delete())   // JVM: true (recursive); x86-64: false (
 
 **Repro (verbatim):** `import java.util.Arrays` + `main() { println(Arrays.bogus(1)) }` → `kof check` clean; build → `invokevirtual "".bogus`; class fails to load. Same for `Arrays.asList(1,2)` (valid) and `System.bogusField`.
 
-**Status:** 🟡 OPEN — catalogued (Q7).
+**Slice A — ✅ FIXED (26/09, commit `35aca27fd`):** the METHOD face. Root
+cause (fixed at the root, Q0): `MethodSignature` had no varargs flag and
+`findDeclared`/`JdkReflectionResolver` matched name+FIXED arity only. Now
+ACC_VARARGS/`isVarArgs` is carried in the signature; the resolvers accept
+`argc >= fixed` varargs candidates (exact-arity still preferred, varargs
+penalty −5, trailing args scored against the ARRAY COMPONENT type);
+`VarargsArrayPacker` is the single packing path (fixed args via the coercing
+driver call, trailing args stored into `new KofNewArray(component)` with
+primitives boxed) wired into BOTH static sites — imported external class name
+(`Arrays.asList(1,2)` → real `invokestatic java/util/Arrays.asList:([Ljava/lang/Object;)...`)
+and builtin type name (`String.join(", ","a","b")` → real
+`(Ljava/lang/CharSequence;[Ljava/lang/CharSequence;)`, the #156/#216 recipe
+generalized). The nonexistent-member face (`Arrays.bogus(1)`) now fails with
+`SEM025` naming the class and method instead of emitting empty-owner bytecode
+(R6). **Proof (Q0/Q1/Q3):** RED 3/4 measured with the fix stashed (empty owner
++ fabricated descriptor + bogus compiled clean) → GREEN
+`ExternalVarargsStaticE2ETest` 4/4 (goldens MEASURED against the bare JVM:
+`[1, 2]`, `[]` zero-extra edge, `a, b`, `x` fixed-arity control) + 96-test
+interop battery 0F (StringFormat* 9+3, Android, ExternalClasspath/Ctors E2E,
+BuiltinUnknownMethodGuardTest).
+
+**Still open (slice B):** the STATIC FIELD face — `System.bogusField` / valid
+external static fields on class-name receivers still lack getstatic resolution
++ field-existence guard in `SemExpressionTyper`/lowerer.
+
+**Status:** 🟡 OPEN — catalogued (Q7). — slice A (métodos) FIXED 26/09 `35aca27fd`; slice B (campos estáticos) pending.
 
 **Owner:** session 9092 (lane compiler), `SemMethodCallTyper`/`MemberCallTyper` + `ExternalClasspath` (varargs/static-field awareness); family of §491/§495/§496/§499.
 <!-- pt-switch --> **PT:** [§500 (pt_BR)](known-bugs.pt_BR.md#500--metodocampo-estatico-em-nome-de-classe-externa-importada-que-nao-resolve-emite-chamada-de-owner-vazio-invokevirtual-aslist--bogus--falha-de-load-da-classe---aberto-catalogado)
