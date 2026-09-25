@@ -105,5 +105,34 @@
                 </plugin>
             </plugins>
         </pluginManagement>
+        <plugins>
+            <!-- CI-friendly ${revision} (0.5.0-beta): sem o flatten, o `install`
+                 grava poms com parent `<version>${revision}</version>` LITERAL —
+                 pom podre no ~/.m2 que quebra todo `-pl <modulo>` offline
+                 ("Failed to read artifact descriptor ... :${revision}") e faz o
+                 shade do kof-cli desviar p/ artifacts velhos do repo local.
+                 resolveCiFriendliesOnly = só reescreve os placeholders de
+                 versão no pom instalado; o grafo de build não muda. -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>flatten-maven-plugin</artifactId>
+                <version>1.7.0</version>
+                <configuration>
+                    <flattenMode>resolveCiFriendliesOnly</flattenMode>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>flatten</id>
+                        <phase>process-resources</phase>
+                        <goals><goal>flatten</goal></goals>
+                    </execution>
+                    <execution>
+                        <id>flatten.clean</id>
+                        <phase>clean</phase>
+                        <goals><goal>clean</goal></goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
     </build>
 </project>

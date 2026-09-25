@@ -27,3 +27,7 @@ scripts/debt-scout/detectors/__pycache__/
 # scan.py run output (see .debt-scout.yml, which IS tracked — that's config,
 # this is a local run artifact, contract §90 "avoid committing candidates.json")
 .debt-scout/
+
+# flatten-maven-plugin (resolveCiFriendliesOnly) — artefato de build
+.flattened-pom.xml
+**/.flattened-pom.xml

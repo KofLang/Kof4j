@@ -24,6 +24,12 @@ JAR="$ROOT/lib/kof.jar"
 
 if [ "$SKIP" = false ]; then
     echo "build-kof-jar: mvn -o -pl kof-cli -am package -DskipTests"
+    # O shade 3.6 tem checagem up-to-date ("Archive ... is uptodate") que
+    # PULA o re-empacotamento quando o jar sombra é mais novo que os inputs —
+    # preservando conteúdo VELHO do kof-compiler (medido 25/09: jar saía com
+    # a classe antiga mesmo com reactor+~/.m2 frescos). Remover os jars força
+    # o shade sempre; o custo é segundos.
+    rm -f "$ROOT"/kof-cli/target/kof-cli-*.jar
     mvn -o -q -pl kof-cli -am package -DskipTests || { echo "build-kof-jar: build falhou" >&2; exit 1; }
 fi
 

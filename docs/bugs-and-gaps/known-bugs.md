@@ -15084,3 +15084,27 @@ println(Directory("probe").delete())   // JVM: true (recursive); x86-64: false (
 
 **Owner:** session 9092 (lane compiler), `SemMethodCallTyper`; family of §490/§499/§500.
 <!-- pt-switch --> **PT:** [§502 (pt_BR)](known-bugs.pt_BR.md#502--metodo-desconhecido-num-handlet-de-spawn-compilava-limpo-e-emitia-completablefuturebogus--nosuchmethoderror---corrigido)
+
+## §503 — Misaligned `.quad` global in `.data` is invisible to the GC static-roots scan → sweep frees live drain buffers → outbuf == errbuf == chunk — ✅ FIXED
+
+**Symptom:** `shell.runWith` on Native x86-64 produced corrupted `Result` streams whenever **both** stdout and stderr carried data (T7 crash; T13 stderr `"\nad substituBad substituBad "`; T14 stdout `"/bin/"` = the first 5 bytes of the **stderr** message — the two drain buffers were the same memory). Every test with an **empty stderr was byte-parity** (T1/T9/T10/T11/T12), which masked the bug for the whole slice-B diagnosis.
+
+**Root cause (measured, gdb + strace + objdump):** the runtime's new `.data` globals (`kof_proc_bufs_ready/outbuf/errbuf/chunk`, `kof_runwith_ctx`) were emitted **without `.balign 8`** after `.asciz` literals → landed at unaligned addresses (`kof_proc_outbuf` = `0x4080f5`, 5 mod 8). `kof_gc_mark` scans static roots by **8-byte steps** from `kof_heap_root_start` (`0x408038`) to `_end` — it reads `0x4080f0`/`0x4080f8` and **never `0x4080f5`** → the outbuf pointer is not a root → the sweep at `kof_alloc`'s pre-mmap `collect_now` (2nd 1 MiB alloc) freed the **live** 1 MiB outbuf node → the freelist first-fit handed **the same node** to errbuf (and chunk): gdb showed `OUT == ERR == CHUNK == 0x7ffff7e9e020` with `kof_gc_head` unchanged and **a single `mmap(NULL, 1048608)`** in strace. The allocator behaved correctly per its rules — the bug was invisible roots, not the freelist. The same disease explains the earlier slice-B symptom ("2nd runWith lost a rest-list item": the unrooted `kof_runwith_env` map was swept mid-call and its memory reused). **Fix:** `.balign 8` before every runtime `.quad` global (the house style already used by RuntimeMemory/Gc/Concurrency/Random/Freestanding — the new RuntimeProcess/RuntimeShell blocks violated it). The drain buffers stay as once-allocated globals (no per-call free) — correct design, now correctly rooted. `kof_runwith_ctx` itself holds a **stack** address (fork copies the stack; the conservative stack scan covers it) and is immune by construction.
+
+**Lesson:** any runtime `.data` `.quad` that can hold a heap pointer **must** be `.balign 8` — the static-roots scan cannot see unaligned slots, silently, by construction.
+
+**Status:** ✅ FIXED (25/09) — slice B `shell.runWith` x86-64 (RuntimeShell wrapper + RuntimeProcess child hook + `.balign 8`). Proof: T7/T13/T14 byte-parity with the JVM oracle; `ShellE2ETest` 20/20 (incl. `runWithOnNativeMatchesJvmGolden`), `ShellCrossE2ETest` 7/7, `ProcessRun*` 6/6+6/6.
+
+**Owner:** session parity lane (RuntimeShell/RuntimeProcess); family: GC conservador (§260 G-6b stack scan, #113 static-roots range).
+<!-- pt-switch --> **PT:** [§503 (pt_BR)](known-bugs.pt_BR.md#503--global-quad-desalinhado-no-data-invisivel-ao-scan-de-raizes-estaticas-do-gc--sweep-libera-buffers-de-dreno-vivos--outbuf--errbuf--chunk---corrigido)
+
+## §504 — `${revision}` poms poisoned `~/.m2` offline `-pl` builds; maven-shade up-to-date check preserved a stale compiler inside `lib/kof.jar` — ✅ FIXED
+
+**Symptom (two independent build traps, both measured):** (1) `mvn test -o -pl kof-compiler` (single module, **without** `-am`) failed with `Failed to read artifact descriptor for dev.kof:kof-parent:pom:${revision}` — every module built with `-am` worked, so the poison was invisible in normal builds. (2) after fixing the compiler and rebuilding, `lib/kof.jar` still shipped the **old** runtime: fresh `.class` in `kof-compiler/target/classes`, stale copy inside the shaded jar (T-tests kept failing with a rebuilt tree).
+
+**Root cause:** (1) the project uses the CI-friendly `${revision}` (0.5.0-beta) but had **no flatten-maven-plugin** → `mvn install` wrote poms to `~/.m2` with the literal `<version>${revision}</version>` parent reference, which no offline resolver can read. Fix: `flatten-maven-plugin` 1.7.0 `flattenMode=resolveCiFriendliesOnly` in the parent `pom.xml` (installed poms now clean: `grep revision ~/.m2/.../kof-parent/*.pom` = 0 hits). (2) maven-shade-plugin 3.6.2 has an **up-to-date check** ("Archive ... is uptodate") that skips re-shading when the shaded jar is newer than its inputs — the jar can be a full release behind the reactor. Fix: `scripts/build-kof-jar.sh` removes `kof-cli/target/kof-cli-*.jar` before `mvn package`. Verification habit: `unzip -p lib/kof.jar <Class> | md5sum` vs `kof-compiler/target/classes/<Class>` before blaming the compiler for a stale-runtime symptom.
+
+**Status:** ✅ FIXED (25/09) — parent `pom.xml` (flatten) + `scripts/build-kof-jar.sh` (shade skip) + `.gitignore` (`.flattened-pom.xml` artifacts).
+
+**Owner:** session parity lane; class: toolchain/build (cost: ~2 h of misdiagnosis as compiler bugs).
+<!-- pt-switch --> **PT:** [§504 (pt_BR)](known-bugs.pt_BR.md#504--poms-com-revision-envenenaram-o-m2-offline--checagem-uptodate-do-maven-shade-preserved-um-compilador-velho-dentro-do-libkofjar---corrigido)

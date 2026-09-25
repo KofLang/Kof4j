@@ -37,23 +37,23 @@ public final class ExpressionShellCallLowerer {
         if (driver.target.isNative()) {
             boolean cross = driver.target == Target.NATIVE_RISCV64
                     || driver.target == Target.NATIVE_AARCH64;
-            // D-FULL-PARITY-050 row 2: run/cmd/ok emit for real on the x86-64
-            // native target and, since row 1 slice C landed process.run on the
-            // cross, also on riscv64/aarch64. Slice B: runWith landed on the
-            // cross (NativeRiscvAsmShell, argv-first; inherited cwd/env are
-            // byte-parity, a non-empty cwd/env is an honest Result failure) —
-            // x86-64 runWith and pipeline everywhere are still slice B. Every
-            // refusal names the face that landed, never a raw call that ends in
-            // an ld error (R6).
+            // D-FULL-PARITY-050 row 2: run/cmd/ok/runWith emit for real on the
+            // x86-64 native target and on riscv64/aarch64 (runWith cross =
+            // NativeRiscvAsmShell, argv-first; inherited cwd/env byte-parity,
+            // a non-empty cwd/env is an honest Result failure; runWith x86-64 =
+            // kof_shell_runwith: argv split + chdir + additive setenv in the
+            // child hook — JVM-parity, T10–T14 goldens). pipeline landed on
+            // the cross and is still slice B on x86-64. Every refusal names
+            // the face that landed, never a raw call that ends in an ld
+            // error (R6).
             boolean pipeline = mc.methodName().equals("pipeline");
-            boolean runWith = mc.methodName().equals("runWith");
-            if ((pipeline && !cross) || (runWith && !cross)) {
+            if (pipeline && !cross) {
                 if (driver.currentDiagnostics != null) {
                     driver.currentDiagnostics.error(posFile(mc), posLine(mc), posCol(mc), 0,
-                            "shell." + mc.methodName() + ": on the x86-64 native target is slice B"
+                            "shell.pipeline: chained pipes on the x86-64 native target are slice B"
                                     + " (JVM and JS support the full shell surface; Native x86-64"
-                                    + " landed run/cmd/ok; the cross landed run/cmd/ok/runWith/pipeline)",
-                            "PROC001");
+                                    + " landed run/cmd/ok/runWith; the cross landed run/cmd/ok/runWith/pipeline)",
+                                    "PROC001");
                 }
                 return localIdx;
             }
