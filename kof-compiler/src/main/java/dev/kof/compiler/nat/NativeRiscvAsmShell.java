@@ -21,7 +21,7 @@ public final class NativeRiscvAsmShell {
     private NativeRiscvAsmShell() {
     }
 
-    public static final String RISCV_RUNTIME_ASM_SHELL = """
+    public static String RISCV_RUNTIME_ASM_SHELL = """
             # ── kof.shell (D-FULL-PARITY-050 row 2) — cross riscv64/aarch64 ──
             .section .rodata
             .Lkof_shell_empty: .asciz ""
