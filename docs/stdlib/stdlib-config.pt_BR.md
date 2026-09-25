@@ -86,8 +86,8 @@ main() {
 |--------|--------|-------|
 | JVM | ✅ completo | `KofRuntime` gerado |
 | Native x86_64 | ✅ completo (asm próprio, 27/08) | `/proc/self/environ` scan, trim, comentários, free-list `kof_free_head`, interpolação `kof_config_interpolate` |
-| Native riscv64/aarch64 | **CONF001** (gap honesto) | sem runtime de lookup `kof_config_*` no cross (o stub asm ecoava o default); `KofConfig.supportedOn` é false → `CONF001` em compile-time desde §425 (21/09), nunca valores errados |
-| JS | ✅ completo | `kof_platform` (`kofConfigLookup`/`kofConfigStr/Int/Bool/Long/Required` + `kofConfigInterpolate`); `KofConfig.supportedOn` = JVM/x86_64/JS (reais); riscv64/aarch64 = gap honesto CONF001 (§425) |
+| Native riscv64/aarch64 | ✅ completo (asm próprio, 26/09) | `NativeRiscvAsmConfig1/2/3` — scan de `/proc/self/environ`, find de arquivo `chave=valor`, lookup `KOF_CONFIG` → env `KOF_<KEY>` → perfil `kof.<KOF_PROFILE>.config`/`kof.config`, interpolação `${key}`, wrappers tipados; o gate `CONF001` foi removido (`KofConfig.supportedOn` true; D-FULL-PARITY-050 linha 9); prova `KofConfigCrossTest` |
+| JS | ✅ completo | `kof_platform` (`kofConfigLookup`/`kofConfigStr/Int/Bool/Long/Required` + `kofConfigInterpolate`) |
 
 ## 6. Testes
 

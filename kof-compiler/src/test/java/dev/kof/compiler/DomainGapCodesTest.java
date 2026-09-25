@@ -120,16 +120,20 @@ class DomainGapCodesTest {
     }
 
     @Test
-    void configOnCrossIsConf001(@TempDir Path tmp) throws Exception {
-        // §425: riscv64/aarch64 have no kof_config_* runtime (the asm stub
-        // echoes the default) — honest compile-time refusal, never wrong
-        // values on the cross; JVM/x86/JS keep the real implementation.
+    void configOnCrossHasNoGap(@TempDir Path tmp) throws Exception {
+        // D-FULL-PARITY-050 row 9 (26/09): the cross kof_config_* runtime is
+        // real (NativeRiscvAsmConfig1/2/3) — the old CONF001 gate is closed.
+        // Execution parity is proven in KofConfigCrossTest (riscv64+aarch64).
         for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
-            assertGap(tmp, t, "CONF001", """
+            Path file = tmp.resolve("Main-" + t + "-" + System.nanoTime() + ".kf");
+            Files.writeString(file, """
                 main() {
                     println(config.str("server.port", "8080"))
                 }
                 """);
+            CompilationResult r = driver.compile(file, tmp.resolve("out-" + t), t);
+            assertTrue(r.success(), t + " config.str must compile (own cross asm): "
+                    + r.diagnostics().getDiagnostics());
         }
     }
 

@@ -300,6 +300,16 @@ public final class NativeRiscvAsm {
                 .append(NativeRiscvAsmProcess.RISCV_RUNTIME_ASM_PROCESS)
                 .append(NativeRiscvAsmShell.RISCV_RUNTIME_ASM_SHELL)
                 .append(NativeRiscvAsmSsh.RISCV_RUNTIME_ASM_SSH)
+                // D-FULL-PARITY-050 (row 9, lane parity, 26/09): kof.config real
+                // no cross — environ (3a) + lookup por arquivo/env/perfil (3b) +
+                // interpolação ${key} e wrappers tipados (3c). Substitui os
+                // stubs de B0 (antes CONF001 em KofConfig).
+                .append(NativeRiscvAsmConfig1.RISCV_RUNTIME_ASM_CONFIG_1)
+                .append(NativeRiscvAsmConfig2.RISCV_RUNTIME_ASM_CONFIG_2)
+                .append(NativeRiscvAsmConfig3.RISCV_RUNTIME_ASM_CONFIG_3)
+                // D-FULL-PARITY-050 (row 9, lane parity, 26/09): kof.log extraído
+                // de RtB0 (que estava ≥600 linhas) para NativeRiscvAsmLog.
+                .append(NativeRiscvAsmLog.RISCV_RUNTIME_ASM_LOG)
                 .toString();
     }
     static final String RISCV_MAPSET_ASM = runtimeMapset();

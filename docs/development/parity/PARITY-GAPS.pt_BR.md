@@ -33,7 +33,6 @@
 | 5 | `mq.*` | ✅ | parcial (faces `MQ001`) | ⏳ golden | ⏳ | `MQ001` | lane infra |
 | 6 | `gpu.*` (face JS) + golden cross | ✅ | ✅ | ⏳ golden | ❌ `GPU001` | `GPU001` | lanes gpu/native |
 | 7 | `observability.*` golden cross + `OBS003` | ✅ | ✅ x86 | ⏳ golden | ⏳ (spans ✅, OBS003 travado) | `OBS003` | lane obs |
-| 9 | `cache.*`/`config.*`/`log.*` golden cross; `log` interpretador | ✅ (log ⏳ interp) | ✅ x86 | `cache.*` ✅ 26/09 (`KofCacheCrossTest`, riscv64+aarch64 — `cache.ttl` −1 paridade corrigida, §501); `log` ✅ timestamp+nível+rótulo JVM 26/09 (`NativeLogCrossTest` 7/7); `config` ❌ `CONF001` | ✅ | `CONF001` | lane parity (cache ✅ 26/09) / lane stdlib |
 | 10 | `math.pow` cross (estático, sem libc) | ✅ | ✅ (libm `-lm`) | ❌ `MATH001` | ✅ | `MATH001` | lane native cross |
 | 11 | `strings.reverse` não-ASCII (UTF-16 vs byte) + `String.matches`/`replaceAll`/`replaceFirst`/`compareToIgnoreCase` | ✅ | ❌ `NAT-STR01`/`STR003` | ❌ `STR003` | ❌ `STR003` | `NAT-STR01`/`STR003` | lanes native/js |
 | 12 | web T1 (faces do `kof.http.server`) no native/cross | ✅ | ⏳ | ❌ `WEB002`–`WEB006` | ✅ | `WEB00x` | lane web |
@@ -83,6 +82,26 @@ do freeze).
 
 ## Fechados (prova registrada aqui quando a linha esvazia)
 
+- **Linha 9 — `cache.*`/`config.*`/`log.*` cross (riscv64/aarch64)** — fechada
+  26/09 (lane parity). Três faces cross estavam abertas: **`cache`** —
+  `cache.ttl` devolvia 0 para chave ausente/sem-TTL/expirada onde o oracle
+  JVM/x86 devolve -1 (`NativeRiscvAsmRtB2` `.Lct_miss`; §501), corrigido com
+  `KofCacheCrossTest` (4/4); **`log`** — o cross não tinha o interpretador de
+  nível nem o contrato de linha JVM (fatia 2a: `.Llog_parse_level` lê
+  `KOF_LOG_LEVEL`, threshold lazy, rótulos JVM `DEBUG`/`INFO`/`WARN`/`ERROR`) e
+  nem o timestamp UTC `yyyy-MM-dd HH:mm:ss.SSS` (fatia 2b: `.Llog_format_ts`
+  porta a conversão civil Hinnant + `kof_time_now()`), com `NativeLogCrossTest`
+  (7/7); **`config`** — a última face, recusada em compile-time `CONF001`: agora
+  é runtime cross real (`NativeRiscvAsmConfig1/2/3` — `kof_env_getc`
+  /`/proc/self/environ`, find de arquivo `chave=valor`, lookup `KOF_CONFIG` →
+  env `KOF_<KEY>` → perfil `kof.<KOF_PROFILE>.config`/`kof.config`, interpolação
+  `${key}`, wrappers tipados `get`/`env`/`has`/`str`/`int`/`long`/`bool`/
+  `required`), com `KofConfigCrossTest` (3/3, env+arquivo+perfil+interpolação+
+  panic) e o gate `CONF001` removido (`KofConfig.supportedOn` true;
+  `DomainGapCodesTest` `configOnCrossHasNoGap`). Prova: os três testes cross
+  14/14 + as suítes E2E dos 4 alvos
+  (`NativeRiscv64E2ETest`/`NativeAarch64E2ETest` 110/110, 2 skips de ambiente) +
+  `KofCacheE2ETest`/`KofLogE2ETest`/`KofConfigE2ETest`/`NativeConfigE2ETest`.
 - **Linha 8 — `time.*` (faces novas + `addDays`/`diffDays` + `collect`)** —
   fechada 25/09 (lane parity). A célula cross estava OBSOLETA:
   `addDays`/`diffDays` já tinham sido portados para riscv64/aarch64 em 11/09

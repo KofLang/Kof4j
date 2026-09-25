@@ -22,10 +22,9 @@ import java.util.List;
  * Sources, in precedence order: explicit file ({@code KOF_CONFIG} env var),
  * environment variable {@code KOF_<KEY>}, profile file
  * ({@code kof.<KOF_PROFILE>.config} or {@code kof.config} in the working
- * directory). Real implementations exist on JVM, Native x86_64 (own asm) and
- * JS ({@code kof_platform}); the riscv64/aarch64 cross targets have no lookup
- * runtime yet (the asm stubs echo the default), so they report {@code CONF001}
- * at compile time — an honest gap, never a silent wrong value (§425).
+ * directory). Real implementations exist on JVM, Native x86_64 (own asm),
+ * riscv64/aarch64 cross (own asm, D-FULL-PARITY-050 row 9, 26/09) and JS
+ * ({@code kof_platform}).
  */
 public final class KofConfig {
 
@@ -43,13 +42,12 @@ public final class KofConfig {
     }
 
     /**
-     * kof.config: JVM + Native x86_64 + JS have real implementations.
-     * riscv64/aarch64 have no lookup runtime (the asm stub echoes the default /
-     * 0 / false), so they refuse with {@code CONF001} at compile time (§425) —
-     * an honest gap, never wrong values on the cross.
+     * kof.config: real on all targets. riscv64/aarch64 gained their own lookup
+     * runtime (environ + file/env/profile + interpolation) on 26/09, closing
+     * the {@code CONF001} gap (D-FULL-PARITY-050 row 9).
      */
     static boolean supportedOn(Target target) {
-        return target != Target.NATIVE_RISCV64 && target != Target.NATIVE_AARCH64;
+        return true;
     }
 
     record ConfigCall(String function, Type returnType, List<Type> parameterTypes) {}

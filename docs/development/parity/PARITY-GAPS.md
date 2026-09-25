@@ -33,7 +33,6 @@
 | 5 | `mq.*` | ✅ | partial (`MQ001` faces) | ⏳ golden | ⏳ | `MQ001` | infra lane |
 | 6 | `gpu.*` (JS face) + cross golden | ✅ | ✅ | ⏳ golden | ❌ `GPU001` | `GPU001` | gpu/native lanes |
 | 7 | `observability.*` cross golden + `OBS003` | ✅ | ✅ x86 | ⏳ golden | ⏳ (spans ✅, OBS003 pinned) | `OBS003` | obs lane |
-| 9 | `cache.*`/`config.*`/`log.*` cross golden; `log` interpreter | ✅ (log ⏳ interp) | ✅ x86 | `cache.*` ✅ 26/09 (`KofCacheCrossTest`, riscv64+aarch64 — `cache.ttl` −1 parity fixed, §501); `log` ✅ timestamp+nível+rótulo JVM 26/09 (`NativeLogCrossTest` 7/7); `config` ❌ `CONF001` | ✅ | `CONF001` | lane parity (cache ✅ 26/09) / stdlib lane |
 | 10 | `math.pow` cross (static, no libc) | ✅ | ✅ (libm `-lm`) | ❌ `MATH001` | ✅ | `MATH001` | native cross lane |
 | 11 | `strings.reverse` non-ASCII (UTF-16 vs byte) + `String.matches`/`replaceAll`/`replaceFirst`/`compareToIgnoreCase` | ✅ | ❌ `NAT-STR01`/`STR003` | ❌ `STR003` | ❌ `STR003` | `NAT-STR01`/`STR003` | native/js lanes |
 | 12 | web T1 (`kof.http.server` faces) on native/cross | ✅ | ⏳ | ❌ `WEB002`–`WEB006` | ✅ | `WEB00x` | web lane |
@@ -80,6 +79,25 @@ regression re-opens the row (zero regression, freeze rule 1).
 
 ## Closed (proof recorded here when a row empties)
 
+- **Row 9 — `cache.*`/`config.*`/`log.*` cross (riscv64/aarch64)** — closed
+  26/09 (lane parity). Three cross faces were open: **`cache`** — `cache.ttl`
+  returned 0 for a missing/no-TTL/expired key where the JVM/x86 oracle returns
+  -1 (`NativeRiscvAsmRtB2` `.Lct_miss`; §501), fixed with `KofCacheCrossTest`
+  (4/4); **`log`** — the cross lacked the level interpreter and the JVM line
+  contract (fatia 2a: `.Llog_parse_level` reads `KOF_LOG_LEVEL`, lazy
+  threshold, JVM labels `DEBUG`/`INFO`/`WARN`/`ERROR`) and the UTC timestamp
+  `yyyy-MM-dd HH:mm:ss.SSS` (fatia 2b: `.Llog_format_ts` ports the Hinnant civil
+  conversion + `kof_time_now()`), with `NativeLogCrossTest` (7/7); **`config`**
+  — the last face, compile-refused `CONF001`: now a real cross runtime
+  (`NativeRiscvAsmConfig1/2/3` — `kof_env_getc`/`/proc/self/environ`, file
+  `key=value` find, lookup `KOF_CONFIG` → env `KOF_<KEY>` → profile
+  `kof.<KOF_PROFILE>.config`/`kof.config`, `${key}` interpolation, typed
+  `get`/`env`/`has`/`str`/`int`/`long`/`bool`/`required`), with
+  `KofConfigCrossTest` (3/3, env+file+profile+interpolation+panic) and the
+  `CONF001` gate removed (`KofConfig.supportedOn` true; `DomainGapCodesTest`
+  `configOnCrossHasNoGap`). Proof: the three cross tests 14/14 + the four-target
+  E2E suites (`NativeRiscv64E2ETest`/`NativeAarch64E2ETest` 110/110, 2 env
+  skips) + `KofCacheE2ETest`/`KofLogE2ETest`/`KofConfigE2ETest`/`NativeConfigE2ETest`.
 - **Row 8 — `time.*` (new faces + `addDays`/`diffDays` + `collect`)** — closed
   25/09 (lane parity). The cross cell was STALE: `addDays`/`diffDays` were
   already ported to riscv64/aarch64 on 11/09 (`NativeRiscvAsmRtB33`, fatia B33,

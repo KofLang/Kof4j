@@ -171,10 +171,9 @@ class StdParityGapAuditTest {
     }
 
     @Test
-    @DisplayName("kof.config: riscv64/aarch64 gated (CONF001); x86/JS/JVM reais (§425)")
-    void configGatedOnCross() {
-        assertEquals(Set.of(Target.NATIVE_RISCV64, Target.NATIVE_AARCH64),
-                unsupported(t -> KofConfig.supportedOn(t)));
+    @DisplayName("kof.config: real em todos os alvos (row 9 fechado 26/09)")
+    void configUngatedOnAllTargets() {
+        assertTrue(unsupported(t -> KofConfig.supportedOn(t)).isEmpty());
     }
 
     @Test
