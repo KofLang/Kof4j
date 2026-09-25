@@ -29,7 +29,8 @@ class NativeMcuE2ETest {
 
     private static final String HELLO = "main() { println(\"KO-MCU OK\") }";
     private static final String MULTI = "main() { print(\"a\"); println(\"b\"); print(\"c\") }";
-    private static final String UNSUPPORTED = "main() { println(42) }";
+    private static final String INT_LIT = "main() { println(42) }";
+    private static final String UNSUPPORTED = "main() { val xs = listOf(1, 2) }";
 
     @Test
     void mcuRiscv32PrintsOverUart(@TempDir Path tempDir) throws Exception {
@@ -108,10 +109,32 @@ class NativeMcuE2ETest {
         Files.writeString(source, UNSUPPORTED);
         CompilationResult result = driver.compile(source, tempDir.resolve("out"),
                 Target.NATIVE_RISCV32, NativeProfile.FREESTANDING);
-        assertTrue(!result.success(), "print de Int ainda não é suportado no MCU — deve recusar");
+        assertTrue(!result.success(), "list lowering ainda não gera código no MCU — deve recusar");
         String diags = result.diagnostics().getDiagnostics().toString();
         assertTrue(diags.contains("NATIVE002"),
                 "recusa deve citar NATIVE002, veio: " + diags);
+    }
+
+    // §506 (regressão 396ff7de4 fechada): o println de literal Int COMPILE-TIME
+    // agora é código real (literal na .rodata + kof_plat_write); o payload do
+    // println(String) carrega o '\n' EXATO em bytes UTF-8 (antes liam 1 byte
+    // além do literal — lixo do vizinho de .ascii).
+    @Test
+    void mcuPrintsCompileTimeIntLiteral(@TempDir Path tempDir) throws Exception {
+        assumeTrue(hasAs(), "binutils riscv64 ausente");
+        byte[] img = Files.readAllBytes(build(tempDir, INT_LIT, true));
+        String raw = new String(img, StandardCharsets.ISO_8859_1);
+        assertTrue(raw.contains("42\n"),
+                "payload '42\\n' deve estar na .rodata da imagem (emissão real, não facade)");
+    }
+
+    @Test
+    void mcuImageCarriesExactStringPayload(@TempDir Path tempDir) throws Exception {
+        assumeTrue(hasAs(), "binutils riscv64 ausente");
+        byte[] img = Files.readAllBytes(build(tempDir, HELLO, true));
+        String raw = new String(img, StandardCharsets.ISO_8859_1);
+        assertTrue(raw.contains("KO-MCU OK\n"),
+                "payload com newline exato deve estar na imagem (fim da leitura de byte estranho)");
     }
 
     private Path build(Path tempDir, String program, boolean expectSuccess) throws IOException {

@@ -11,6 +11,16 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
 
+  - **§506 — the MCU riscv32 emitter lost the `.rodata` payloads, left the GC
+    roots undefined and swallowed `ld` failures ([FIXED](docs/bugs-and-gaps/known-bugs.md#506--mcu-riscv32-emitter-lost-the-rodata-payloads-left-gc-roots-undefined-and-swallowed-ld-failures-success-with-no-image---fixed))** (26/09):
+    `396ff7de4` left `NativeMcuE2ETest` red on tip — `renderAsm` opened
+    `.rodata` with an empty loop (literals undefined at link), the GC mark's
+    `.Lkof_heap_root_*` were defined only in the lane's raw-asm harnesses, and
+    `emit()` mapped `ld` exit≠0 to "toolchain missing" → `success()` with no
+    image (R6). Also fixed the `println` payload (`len+1` read a byte past the
+    literal; UTF-8 length instead of `s.length()`) and re-gated the
+    code-less list/local lowering facades behind honest `NATIVE002`.
+    GREEN `NativeMcuE2ETest` 9/9 + MCU battery + neighbors 0F/0E.
   - **§505 — an unknown field on `Channel<T>`/`Handle<T>` is now `SEM102`
     ([FECHADO](docs/bugs-and-gaps/known-bugs.md#505--unknown-field-on-channelt-handlet-compiled-clean-and-emitted-getfield-linkedblockingqueuecompletablefuturebogusfield--nosuchfielderror---fixed))** (26/09): `channel<Int>().bogusField` and `(spawn {...}).bogusField` compiled clean and
     emitted `getfield .../LinkedBlockingQueue.bogusField` → `NoSuchFieldError`.

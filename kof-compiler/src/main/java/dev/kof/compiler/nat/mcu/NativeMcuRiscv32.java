@@ -148,14 +148,11 @@ public final class NativeMcuRiscv32 {
                 if (op instanceof dev.kof.compiler.KofLoadLiteral lit) {
                     Object val = lit.value();
                     if (val instanceof String s) {
-                        int idx = r.literalCounter++;
-                        r.rodata.append(".Lmcu_str_").append(idx).append(":\n");
-                        r.rodata.append("    .ascii ").append(asmBytes(s)).append('\n');
-                        stack.add(new StackSlot(StackType.LIT_STR, s, idx));
+                        stack.add(new StackSlot(StackType.LIT_STR, s, -1));
                     } else if (val instanceof Integer i) {
                         stack.add(new StackSlot(StackType.INT_VAL, i, -1));
                     } else if (val instanceof Boolean b) {
-                        stack.add(new StackSlot(StackType.LIT_STR, b ? "true" : "false", -2));
+                        stack.add(new StackSlot(StackType.LIT_STR, b ? "true" : "false", -1));
                     } else {
                         throw unsupported("literal " + lit.type());
                     }
@@ -171,15 +168,12 @@ public final class NativeMcuRiscv32 {
                         StackSlot top = pop(stack);
                         if (top.type == StackType.LIT_STR) {
                             stack.add(top);
-                        } else if (top.type == StackType.INT_VAL) {
-                            Integer iv = (Integer) top.value;
-                            int idx = r.literalCounter++;
-                            r.rodata.append(".Lmcu_str_").append(idx).append(":\n");
-                            r.rodata.append("    .ascii ").append(asmBytes(iv.toString())).append('\n');
-                            stack.add(new StackSlot(StackType.LIT_STR, iv.toString(), idx));
+                        } else if (top.type == StackType.INT_VAL && top.value != null) {
+                            stack.add(new StackSlot(StackType.LIT_STR, top.value.toString(), -1));
                         } else {
-                            // runtime int -> emit call to kof_string_of_int at codegen
-                            stack.add(new StackSlot(StackType.RUNTIME_STR, null, -1));
+                            // runtime int -> kof_string_of_int precisa do pipeline
+                            // de valores (estack, B-4.2); sem ele é facade.
+                            throw unsupported("valueOf of runtime value");
                         }
                         continue;
                     }
@@ -192,27 +186,13 @@ public final class NativeMcuRiscv32 {
                         continue;
                     }
 
-                    // kof_list_new: FUNCTION
-                    if ("kof_list_new".equals(name) && kind == dev.kof.compiler.KofCallKind.FUNCTION) {
-                        stack.add(new StackSlot(StackType.LIST_PTR, null, -1));
-                        continue;
-                    }
-
-                    // kof_list_add: INSTANCE (receiver=list, arg=value)
-                    if ("kof_list_add".equals(name) && kind == dev.kof.compiler.KofCallKind.INSTANCE) {
-                        StackSlot val = pop(stack);
-                        StackSlot list = pop(stack);
-                        if (list.type != StackType.LIST_PTR) throw unsupported("list_add receiver");
-                        stack.add(new StackSlot(StackType.LIST_PTR, null, -1));
-                        continue;
-                    }
-
-                    // kof_list_size: INSTANCE, 0 args
-                    if ("kof_list_size".equals(name) && kind == dev.kof.compiler.KofCallKind.INSTANCE) {
-                        StackSlot list = pop(stack);
-                        if (list.type != StackType.LIST_PTR) throw unsupported("list_size receiver");
-                        stack.add(new StackSlot(StackType.INT_VAL, null, -1));
-                        continue;
+                    // kof_list_new/add/size: o RUNTIME existe e é provado por
+                    // harness cru (NativeMcuList/GcTest), mas o LOWERING não
+                    // emite nenhuma chamada nem liga argumentos — sem o
+                    // pipeline estack (B-4.2) é facade (Q7): recusar honesto.
+                    if ("kof_list_new".equals(name) || "kof_list_add".equals(name)
+                            || "kof_list_size".equals(name)) {
+                        throw unsupported(name + " lowering (runtime is proven; IR pipeline pending B-4.2)");
                     }
 
                     // Concurrency check
@@ -224,17 +204,12 @@ public final class NativeMcuRiscv32 {
                     throw unsupported("call " + name + " " + kind);
                 }
 
-                // KofLoadLocal
-                if (op instanceof dev.kof.compiler.KofLoadLocal ll) {
-                    stack.add(new StackSlot(StackType.UNKNOWN, ll.index(), -1));
-                    continue;
+                // KofLoadLocal / KofStoreLocal: sem lowering de valores (B-4.2)
+                if (op instanceof dev.kof.compiler.KofLoadLocal) {
+                    throw unsupported("local variable load");
                 }
-
-                // KofStoreLocal
-                if (op instanceof dev.kof.compiler.KofStoreLocal sl) {
-                    StackSlot val = pop(stack);
-                    r.localCount = Math.max(r.localCount, sl.index() + 1);
-                    continue;
+                if (op instanceof dev.kof.compiler.KofStoreLocal) {
+                    throw unsupported("local variable store");
                 }
 
                 // Return
@@ -261,25 +236,30 @@ public final class NativeMcuRiscv32 {
     }
 
     private static void emitPrint(EmitResult r, StackSlot slot, boolean newline) {
-        if (slot.type == StackType.LIT_STR) {
-            int idx = slot.literalIndex;
-            if (idx == -2) {
-                // boolean literal
-                String s = (String) slot.value;
-                int idx2 = r.literalCounter++;
-                r.rodata.append(".Lmcu_str_").append(idx2).append(":\n");
-                r.rodata.append("    .ascii ").append(asmBytes(s + (newline ? "\n" : ""))).append('\n');
-            } else {
-                r.body.append("    la a0, .Lmcu_str_").append(slot.literalIndex).append('\n');
-                String s = (String) slot.value;
-                r.body.append("    li a1, ").append(s.length() + (newline ? 1 : 0)).append('\n');
+        String text;
+        if (slot.type == StackType.LIT_STR || slot.type == StackType.INT_VAL) {
+            if (slot.value == null) {
+                // runtime value (list size, local): no stack-machine pipeline
+                // yet (B-4.2) — honest rejection, never a call with unset a0.
+                throw unsupported("println of runtime value");
             }
-            r.body.append("    call kof_plat_write\n");
+            text = String.valueOf(slot.value);
+        } else if (slot.type == StackType.RUNTIME_STR) {
+            throw unsupported("println of runtime String");
         } else {
-            // Runtime string - handled in codegen phase
-            r.body.append("    # dynamic print/println\n");
-            r.body.append("    call kof_println_string\n");
+            throw unsupported("println of " + slot.type);
         }
+        // Payload EXATO no .rodata (incluindo o '\n' do println): o tamanho
+        // baixado é o de BYTES UTF-8 (não s.length() — multi-byte leria lixo),
+        // e o byte extra nunca vem "depois" do literal (o vizinho de .ascii é
+        // o próximo literal, medido: "ab\nc" virava "abcc" sob qemu).
+        String payload = newline ? text + "\n" : text;
+        int idx = r.literalCounter++;
+        r.rodata.append(".Lmcu_str_").append(idx).append(":\n");
+        r.rodata.append("    .ascii ").append(asmBytes(payload)).append('\n');
+        r.body.append("    la a0, .Lmcu_str_").append(idx).append('\n');
+        r.body.append("    li a1, ").append(payload.getBytes(StandardCharsets.UTF_8).length).append('\n');
+        r.body.append("    call kof_plat_write\n");
     }
 
     // ---------- ASM Rendering ----------
@@ -361,10 +341,16 @@ public final class NativeMcuRiscv32 {
         sb.append(".align 2\n");
         sb.append(".Lmcu_estack: .space 1024\n");
         sb.append(".Lmcu_locals: .space 256\n");
+        // Região de raízes estáticas do kof_gc_mark: VAZIA — o lowering de
+        // statics/locals (B-4.2) ainda não deposita ponteiros em memória, e
+        // um range adjacente (start==end) é no-op honesto; engolir a .data do
+        // runtime (kof_alloc_ptr = cursor do bump, não objeto) marcar lixo.
+        sb.append(".section .data\n");
+        sb.append(".align 2\n");
+        sb.append(".Lkof_heap_root_start:\n");
+        sb.append(".Lkof_heap_root_end:\n");
         sb.append(".section .rodata\n");
-        for (int i = 0; i < r.literalCounter; i++) {
-            // literals already added to rodata during lowering
-        }
+        sb.append(r.rodata);
         return sb.toString();
     }
 
@@ -386,12 +372,19 @@ public final class NativeMcuRiscv32 {
     }
 
     private static void run(String[] cmd, String what) throws IOException {
+        // IOException SOMENTE quando o processo não parte (toolchain ausente —
+        // guard honesto de ambiente). Exit != 0 = ASM RUIM gerada pelo
+        // compilador: falha NATIVE002 visível (R6), nunca "toolchain missing"
+        // engolido com success=true sem imagem (§506, medida no link).
         Process p = new ProcessBuilder(cmd).redirectErrorStream(true).start();
         String out;
         try {
             out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-            if (!p.waitFor(30, java.util.concurrent.TimeUnit.SECONDS) || p.exitValue() != 0) {
-                throw new IOException(what + " failed: " + out);
+            if (!p.waitFor(30, java.util.concurrent.TimeUnit.SECONDS)) {
+                throw new IllegalStateException("NATIVE002: " + what + " timeout");
+            }
+            if (p.exitValue() != 0) {
+                throw new IllegalStateException("NATIVE002: " + what + " failed: " + out);
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

@@ -11,6 +11,17 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
 
+  - **§506 — o emissor MCU riscv32 perdia os payloads da `.rodata`, deixava as
+    raízes do GC indefinidas e engolia falha do `ld` ([CORRIGIDO](docs/bugs-and-gaps/known-bugs.pt_BR.md#506--emissor-mcu-riscv32-perdia-os-payloads-da-rodata-deixava-as-raizes-do-gc-indefinidas-e-engolia-falha-do-ld-success-sem-imagem---corrigido))** (26/09):
+    `396ff7de4` deixou `NativeMcuE2ETest` vermelho no tip — `renderAsm` abria a
+    `.rodata` com um loop vazio (literais indefinidos no link), os
+    `.Lkof_heap_root_*` do mark só existiam nos harnesses asm-ruído da lane, e
+    o `emit()` mapeava exit≠0 do `ld` como "toolchain missing" → `success()`
+    sem imagem (R6). Corrigidos também o payload do `println` (`len+1` lia um
+    byte além do literal; tamanho em bytes UTF-8, não `s.length()`) e as
+    facades de lowering de lista/local sem código de volta para recusa
+    `NATIVE002` honesta. GREEN `NativeMcuE2ETest` 9/9 + bateria MCU + vizinhos
+    0F/0E.
   - **§505 — campo desconhecido em `Channel<T>`/`Handle<T>` agora é `SEM102`
     ([FECHADO](docs/bugs-and-gaps/known-bugs.pt_BR.md#503--campo-desconhecido-em-channelt-handlet-compilava-limpo-e-emitia-getfield-linkedblockingqueuecompletablefuturebogusfield--nosuchfielderror---corrigido))** (26/09): `channel<Int>().bogusField` e `(spawn {...}).bogusField` compilavam limpo
     e emitiam `getfield .../LinkedBlockingQueue.bogusField` → `NoSuchFieldError`.

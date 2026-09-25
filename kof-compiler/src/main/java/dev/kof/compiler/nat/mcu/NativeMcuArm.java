@@ -302,12 +302,17 @@ public final class NativeMcuArm {
     }
 
     private static void run(String[] cmd, String what) throws IOException {
+        // §506 (espelho do riscv32): exit != 0 = ASM ruim do compilador →
+        // NATIVE002 visível; IOException só quando o processo não parte.
         Process p = new ProcessBuilder(cmd).redirectErrorStream(true).start();
         String out;
         try {
             out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-            if (!p.waitFor(30, java.util.concurrent.TimeUnit.SECONDS) || p.exitValue() != 0) {
-                throw new IOException(what + " failed: " + out);
+            if (!p.waitFor(30, java.util.concurrent.TimeUnit.SECONDS)) {
+                throw new IllegalStateException("NATIVE002: " + what + " timeout");
+            }
+            if (p.exitValue() != 0) {
+                throw new IllegalStateException("NATIVE002: " + what + " failed: " + out);
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
