@@ -3627,7 +3627,7 @@ paraphrase):**
    verifying it fits Kof's semantic model (rule 10: KOF-first,
    external-second — external sources contribute principles, never syntax).
 3. **Architecture before code** — Phase 0 produces
-   `docs/development/memory-safety-investigation.md` (current state, risks,
+   `docs/spec/memory-safety-investigation.md` (current state, risks,
    implicit lifetime model, fragile points, proposal, alternatives, backend
    impact, compatibility impact, incremental plan) BEFORE any compiler edit.
    Phase 1 produces the formal spec `docs/spec/memory-safety.md`

@@ -3,10 +3,11 @@
 # Memory safety — ownership, lifetime, borrowing, aliasing (D-MEMORY-SAFETY)
 
 > **Status: ACTIVE front, owned by the parity lane (maintainer 25/09,
-> `DECISIONS.md` §`D-MEMORY-SAFETY`).** The semantic work (Phases 0–1) is
-> current work; compiler/core edits (Phases 2+) wait for the current
-> development queue to close (the brief's final constraint). Zero premature
-> core edits in the meantime.
+> `DECISIONS.md` §`D-MEMORY-SAFETY`).** Fase 0 (investigation) **CLOSED 25/09** —
+> `docs/spec/memory-safety-investigation.md` accepted. Fase 1 (specification)
+> **IN PROGRESS** — `docs/spec/memory-safety.md` being written. Compiler/core
+> edits (Phases 2+) wait for the current development queue to close (brief's
+> final constraint). Zero premature core edits.
 
 **Goal:** define a serious memory semantics for Kof so that entire classes of
 memory bugs are impossible — or live behind an explicit boundary the
@@ -42,8 +43,8 @@ escape, unsafe mutable aliasing, unexpected null, accidental data race).
 
 | Phase | Deliverable | Gate |
 |---|---|---|
-| **0 — Investigation** | `docs/development/memory-safety-investigation.md` (EN+PT): current state (parser/AST/semantics/types/IR/symbol resolution/mutability/closures/scope/implicit lifetime per backend: JVM/Native/JS/WASM-infrastructure/FFI/pointers/collections/async), risks found, existing related bugs (§ ledger sweep), fragile points, proposal, alternatives considered, compatibility impact, incremental plan | investigation doc accepted (maintainer review); 20 questions of §1 answered with file:line evidence |
-| **1 — Specification** | `docs/spec/memory-safety.md` (EN+PT): Ownership, Lifetime, Borrowing, Aliasing, Mutability, Move, Copy, Clone, Drop/Destruction, Escape, Closure Capture, Concurrency, FFI, Unsafe Boundaries — each with: allowed / forbidden / sync-required / compile-time / runtime / type-dependent | spec accepted; the safety matrix (§22 of the brief) written against REAL Kof syntax |
+| **0 — Investigation** ✅ | `docs/spec/memory-safety-investigation.md` (EN+PT): current state (parser/AST/semantics/types/IR/symbol resolution/mutability/closures/scope/implicit lifetime per backend: JVM/Native/JS/WASM-infrastructure/FFI/pointers/collections/async), risks found, existing related bugs (§ ledger sweep), fragile points, proposal, alternatives considered, compatibility impact, incremental plan | investigation doc accepted (maintainer review); 20 questions of §1 answered with file:line evidence — **CLOSED 25/09** |
+| **1 — Specification** 🔄 | `docs/spec/memory-safety.md` (EN+PT): Ownership, Lifetime, Borrowing, Aliasing, Mutability, Move, Copy, Clone, Drop/Destruction, Escape, Closure Capture, Concurrency, FFI, Unsafe Boundaries — each with: allowed / forbidden / sync-required / compile-time / runtime / type-dependent | spec accepted; the safety matrix (§22 of the brief) written against REAL Kof syntax |
 | **2 — Compiler infrastructure** | internal representations for ownership/lifetime/borrow/alias/mutability/escape/resource-state | structures compile; NO behavior change yet (suite byte-green) |
 | **3 — First guarantees** | use-after-move; dangling references; invalid escapes; mutable aliasing; double ownership/destruction | per-rule: valid case compiles, invalid case gets the NAMED diagnostic, regression test, per-backend proof |
 | **4 — Closures & async** | closure capture semantics; callbacks; async/futures; iterators/generators | same proof shape |
@@ -52,12 +53,14 @@ escape, unsafe mutable aliasing, unexpected null, accidental data race).
 
 ## Immediate next step (this lane)
 
-**Fase 0** — sweep the compiler for the 20 answers of §1 (variable
-representation, value vs reference, copy vs share, escape awareness,
-mutability in the type system, closure capture, FFI ownership, Native
-freeing, per-backend representation) and sweep `known-bugs.md` for existing
-reference/aliasing/lifetime/resource/pattern bugs (§503's GC-root class is
-already one entry). Produce the investigation doc. **No compiler edits.**
+**Fase 1** — write `docs/spec/memory-safety.md` (EN+PT) formalizing
+Ownership, Lifetime, Borrowing, Aliasing, Mutability, Move, Copy, Clone,
+Drop/Destruction, Escape, Closure Capture, Concurrency, FFI, Unsafe
+Boundaries against the real Kof surface documented in
+`docs/spec/memory-safety-investigation.md`. Each rule with
+allowed/forbidden/sync-required/compile-time/runtime/type-dependent
+classification. Safety matrix (§22 of the brief) against REAL Kof syntax.
+**No compiler edits.**
 
 ## Definition of done (whole front)
 
