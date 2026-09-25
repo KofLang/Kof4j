@@ -10,6 +10,16 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `scripts/changelog.sh` and inserted by the pipeline at this marker:
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
+  - **§507 — the release-candidate T3 test measured the wrong leg of the
+    version gate when the CI runner exported its branch ([FIXED](docs/bugs-and-gaps/known-bugs.md#507--the-release-candidate-t3-test-measured-the-wrong-leg-of-the-version-gate-when-the-ci-runner-exported-its-branch-structural-quality-gates-red---fixed-2609-lane-paridade-qualidade))** (26/09):
+    `validate-release-candidate.sh:72` skips the "is newer" gate on any
+    `GITHUB_REF_NAME != main` (production pre-release leg); the test inherited
+    the runner's branch (`beta-0.5.0`) and T3 asserted the comparison leg →
+    job "Structural quality gates" red on CI, green locally (the §390
+    hermeticity class). Harness now pins `GITHUB_REF_NAME=main` for T1–T10 and
+    the pre-release leg got its own interface-anchored scenario T3b. Proof:
+    RED reproduced with the CI env leaked in, full `run-agent-tests.sh` VERDE
+    under the same leak.
 
   - **§506 — the MCU riscv32 emitter lost the `.rodata` payloads, left the GC
     roots undefined and swallowed `ld` failures ([FIXED](docs/bugs-and-gaps/known-bugs.md#506--mcu-riscv32-emitter-lost-the-rodata-payloads-left-gc-roots-undefined-and-swallowed-ld-failures-success-with-no-image---fixed))** (26/09):

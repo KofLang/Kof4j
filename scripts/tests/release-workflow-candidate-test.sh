@@ -104,6 +104,16 @@ else
 
     T="$(mktemp -d)"; trap 'rm -rf "$T"' EXIT
 
+    # Hermeticidade ao ambiente do runner (licao §390): o script sob teste pula
+    # o "newer gate" quando GITHUB_REF_NAME != main (perna pre-release, que e
+    # comportamento de producao correto). No job "Structural quality gates" o
+    # CI exporta GITHUB_REF_NAME=beta-0.5.0 e T3 passou a medir a outra perna
+    # (rc=0 no lugar de rc=1 — vermelho por ambiente, nao por logica). Fixar
+    # a perna main para os cenarios de comparacao; a perna pre-release passa a
+    # ter cenario proprio (T3b), ancorada explicitamente.
+    GITHUB_REF_NAME=main
+    export GITHUB_REF_NAME
+
     # newrepo <dir>: git repo novo e vazio, pronto para commits.
     newrepo() {
         rm -rf "$1"; mkdir -p "$1"
@@ -148,6 +158,17 @@ else
     out="$(cd "$T/t3" && bash "$OLDPWD/$V" "$NEW_SHA" 2>&1)"; rc=$?
     expect "T3 current < last -> FAIL" 1 "$rc"
     has "T3" "not newer than last release" "$out"
+
+    # T3b: a OUTRA perna do mesmo gate (validate-release-candidate.sh:72) —
+    # em branch de pre-release o "is newer" e pulado por design. O fixture e o
+    # MESMO downgrade de T3; o que muda e so GITHUB_REF_NAME. Ancorar as duas
+    # pernas na INTERFACE (rc + mensagem) torna a suite imune ao ambiente do
+    # runner — o vermelho de CI (job "Structural quality gates", step 7, run
+    # 36192220794) foi exatamente o vazamento de GITHUB_REF_NAME=beta-0.5.0 no
+    # T3 (mesma aula do §390/EG-2 no codeql-gate-test).
+    out="$(cd "$T/t3" && GITHUB_REF_NAME=beta-9.9.9 bash "$OLDPWD/$V" "$NEW_SHA" 2>&1)"; rc=$?
+    expect "T3b pre-release branch -> skip newer gate -> PASS" 0 "$rc"
+    has "T3b" "skip newer gate" "$out"
 
     # T4/T5/T6: tag do alvo atual ja existe -> FAIL
     for TARGET in linux-x86_64 windows-x86_64 macos-arm64; do

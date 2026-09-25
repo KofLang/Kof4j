@@ -10,6 +10,16 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `scripts/changelog.sh` e inserida pela pipeline neste marcador:
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
+  - **§507 — o teste T3 do release-candidate media a perna errada do gate de
+    versão quando o runner do CI exportava a branch dele ([CORRIGIDO](docs/bugs-and-gaps/known-bugs.pt_BR.md#507--o-teste-t3-do-release-candidate-media-a-perna-errada-do-gate-de-versao-quando-o-runner-do-ci-exportava-a-branch-dele-structural-quality-gates-vermelho---corrigido-2609-lane-paridade-qualidade))** (26/09):
+    o `validate-release-candidate.sh:72` pula o gate "is newer" com qualquer
+    `GITHUB_REF_NAME != main` (perna pre-release de produção); o teste herdava
+    a branch do runner (`beta-0.5.0`) e o T3 media a perna de comparação →
+    job "Structural quality gates" vermelho no CI, verde no local (mesma
+    classe de hermeticidade do §390). O harness agora pina `GITHUB_REF_NAME=main`
+    para T1–T10 e a perna pre-release ganhou cenário próprio ancorado na
+    interface, o T3b. Prova: RED reproduzido com o ambiente do CI vazado,
+    `run-agent-tests.sh` completa VERDE sob o mesmo vazamento.
 
   - **§506 — o emissor MCU riscv32 perdia os payloads da `.rodata`, deixava as
     raízes do GC indefinidas e engolia falha do `ld` ([CORRIGIDO](docs/bugs-and-gaps/known-bugs.pt_BR.md#506--emissor-mcu-riscv32-perdia-os-payloads-da-rodata-deixava-as-raizes-do-gc-indefinidas-e-engolia-falha-do-ld-success-sem-imagem---corrigido))** (26/09):

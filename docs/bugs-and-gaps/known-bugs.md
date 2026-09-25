@@ -15154,3 +15154,16 @@ println(Directory("probe").delete())   // JVM: true (recursive); x86-64: false (
 
 **Owner:** session 9092 (lane parity/quality), `NativeMcuRiscv32`/`NativeMcuArm` (repair of `396ff7de4`'s landing; B-4.2 IR pipeline remains with the native-cross lane).
 <!-- pt-switch --> **PT:** [§506 (pt_BR)](known-bugs.pt_BR.md#506--emissor-mcu-riscv32-perdia-os-payloads-da-rodata-deixava-as-raizes-do-gc-indefinidas-e-engolia-falha-do-ld-success-sem-imagem---corrigido)
+
+## §507 — the release-candidate T3 test measured the wrong leg of the version gate when the CI runner exported its branch: Structural quality gates red — ✅ FIXED 26/09 (lane paridade, qualidade)
+
+**Symptom (CI run `36192220794`, job `108265341901`, step 7):** `bash scripts/tests/run-agent-tests.sh` went `SUÍTE DE AGENTES: VERMELHA` on tip — a single red test: `release-workflow-candidate-test.sh` T3 `current < last -> FAIL` expected rc=1, came rc=0, and the assertion output lacked `not newer than last release`. Every local run was green, so the test was environment-dependent.
+
+**Root cause (hermeticity, same class as §390/EG-2):** `validate-release-candidate.sh:72` skips the "is newer" gate whenever `GITHUB_REF_NAME != main` — the production pre-release leg (branch pushes carry `+DATE` tags and must not entangle in version comparison). The test invoked the script with whatever `GITHUB_REF_NAME` the environment held: locally unset (default `main` → comparison leg → rc=1), on the CI runner `beta-0.5.0` (skip leg → rc=0). The suite inherited the runner's branch and measured the wrong leg.
+
+**Fix (harness side — the script's two legs are correct by design):** the scenario block pins `GITHUB_REF_NAME=main` before T1–T10 (deterministic comparison leg), and the pre-release leg got its OWN scenario, **T3b**: same fixture, same downgrade, `GITHUB_REF_NAME=beta-9.9.9` inline → must PASS rc=0 naming `skip newer gate` (interface-anchored, not just rc). Both legs now survive any runner environment.
+
+**Proof (Q0–Q5):** RED reproduced deterministically — with the pin stashed and `GITHUB_ACTIONS=true GITHUB_REF_NAME=beta-0.5.0` exported, T3 fails with EXACTLY the CI signature; with the fix, the same leak run passes. Full `run-agent-tests.sh` VERDE under a complete simulated CI env (JDK 25 PATH + GITHUB_ACTIONS/GITHUB_REF_NAME/GITHUB_REF/GITHUB_SHA/GITHUB_OUTPUT/GITHUB_RUN_ID). Honest environment note: `test-android-gate-test.sh` needs `jar` on PATH (the gate's own preflight names the missing tool and SKIPs with rc=3 — never a fake green).
+
+**Owner:** lane paridade/qualidade (heartbeat), `scripts/tests/release-workflow-candidate-test.sh`.
+<!-- pt-switch --> **PT:** [§507 (pt_BR)](known-bugs.pt_BR.md#507--o-teste-t3-do-release-candidate-media-a-perna-errada-do-gate-de-versao-quando-o-runner-do-ci-exportava-a-branch-dele-structural-quality-gates-vermelho---corrigido-2609-lane-paridade-qualidade)
