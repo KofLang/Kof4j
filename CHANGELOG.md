@@ -11,6 +11,15 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
 
+  - **§502 — an unknown method on a `spawn` `Handle<T>` is now `SEM025`
+    ([FECHADO](docs/bugs-and-gaps/known-bugs.md#502--unknown-method-on-a-spawn-handlet-compiled-clean-and-emitted-completablefuturebogus--nosuchmethoderror---fixed))** (26/09): `val h = spawn { ... }` + `h.bogus()` compiled clean and
+    emitted `invokevirtual .../CompletableFuture.bogus` → `NoSuchMethodError`. A
+    Handle has no instance method in Kof; the typer now refuses with the
+    `await h` hint. RED 1/1 → GREEN `BuiltinUnknownMethodGuardTest` 16/16.
+  - **`RISCV_RUNTIME_ASM_SHELL` no longer a compile-time constant (§257 guard)**
+    (26/09): `bf5e3e03` left `public static final String` + text block, which
+    javac inlines into consumers; `RuntimeConstantInliningGuardTest` was red.
+    Dropped `final` (runtime field). 2/2 green.
   - **`ssh.cmd`/`run`/`ok` on x86-64 (`D-FULL-PARITY-050` row 3 slice A)**
     (26/09): new `RuntimeSsh` emits `kof_ssh_argv` (exact JVM oracle
     `[ssh,-o,BatchMode=yes,-o,ConnectTimeout=5,host,command]`) and

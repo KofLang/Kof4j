@@ -11,6 +11,15 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
 
+  - **§502 — método desconhecido num `Handle<T>` de `spawn` agora é `SEM025`
+    ([FECHADO](docs/bugs-and-gaps/known-bugs.pt_BR.md#502--metodo-desconhecido-num-handlet-de-spawn-compilava-limpo-e-emitia-completablefuturebogus--nosuchmethoderror---corrigido))** (26/09): `val h = spawn { ... }` + `h.bogus()` compilava limpo e
+    emitia `invokevirtual .../CompletableFuture.bogus` → `NoSuchMethodError`. Um
+    Handle não tem método de instância em Kof; o typer agora recusa com o hint
+    `await h`. RED 1/1 → GREEN `BuiltinUnknownMethodGuardTest` 16/16.
+  - **`RISCV_RUNTIME_ASM_SHELL` deixou de ser constante de compile-time (§257 guard)**
+    (26/09): `bf5e3e03` deixou `public static final String` + text block, que o
+    javac inlina nos consumidores; `RuntimeConstantInliningGuardTest` estava
+    vermelho. Removido o `final` (campo de runtime). 2/2 verde.
   - **`ssh.cmd`/`run`/`ok` no x86-64 (`D-FULL-PARITY-050` linha 3 fatia A)**
     (26/09): nova `RuntimeSsh` emite `kof_ssh_argv` (oraculo JVM exato
     `[ssh,-o,BatchMode=yes,-o,ConnectTimeout=5,host,command]`) e `kof_ssh_run`
