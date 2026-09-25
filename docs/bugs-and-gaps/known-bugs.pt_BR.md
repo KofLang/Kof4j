@@ -12613,7 +12613,7 @@ println(Directory("probe").delete())   // JVM: true (recursivo); x86-64: false (
 
 **Repro:** `main() { val h = spawn { return 42 }\n println(h.bogus()) }` → agora `SEM025` no compile (antes: limpo + `NoSuchMethodError`).
 
-**Status:** ✅ CORRIGIDO (26/09) — commit `7d8b07ad`.
+**Status:** ✅ CORRIGIDO (26/09) — commit `40ed2a1a5`.
 
 **Dono:** sessão 9092 (lane compiler), `SemMethodCallTyper`; família do §490/§499/§500.
 <!-- en-switch --> **EN:** [§502](known-bugs.md#502--unknown-method-on-a-spawn-handlet-compiled-clean-and-emitted-completablefuturebogus--nosuchmethoderror---fixed)
