@@ -22,7 +22,10 @@ public final class NativeRiscvAsmPipeline {
     private NativeRiscvAsmPipeline() {
     }
 
-    public static final String RISCV_RUNTIME_ASM_PIPELINE = """
+    // §257: NAO `final` — um literal `static final String` vira ConstantValue
+    // no bytecode e o javac INLINEIA a peca inteira nos consumidores
+    // (RuntimeConstantInliningGuardTest). Campo de runtime, atribuido 1x.
+    public static String RISCV_RUNTIME_ASM_PIPELINE = """
             # ── kof.shell pipeline (D-FULL-PARITY-050 row 2 slice B2) — cross ──
             .section .rodata
             .Lkof_pl_devnull:       .asciz "/dev/null"

@@ -16,10 +16,12 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     emitted `invokevirtual .../CompletableFuture.bogus` → `NoSuchMethodError`. A
     Handle has no instance method in Kof; the typer now refuses with the
     `await h` hint. RED 1/1 → GREEN `BuiltinUnknownMethodGuardTest` 16/16.
-  - **`RISCV_RUNTIME_ASM_SHELL`/`RISCV_RUNTIME_ASM_SSH` no longer compile-time constants (§257 guard)**
-    (26/09): `bf5e3e03` left `public static final String` + text block, which
-    javac inlines into consumers; `RuntimeConstantInliningGuardTest` was red.
-    Dropped `final` (runtime field). 2/2 green.
+  - **`RISCV_RUNTIME_ASM_SHELL`/`RISCV_RUNTIME_ASM_SSH`/`RISCV_RUNTIME_ASM_PIPELINE` no longer compile-time constants (§257 guard)**
+    (26/09): `bf5e3e03` (SHELL/SSH) and the row-2 slice B2 `NativeRiscvAsmPipeline`
+    (PIPELINE, `RISCV_RUNTIME_ASM_PIPELINE`) left `public static final String` +
+    text block, which javac inlines into consumers;
+    `RuntimeConstantInliningGuardTest` was red. Dropped `final` (runtime field).
+    2/2 green.
 
   - **`process.spawn` + handle ops on Native x86-64 (`D-FULL-PARITY-050` row 1
     slice B)** (26/09): new `RuntimeProcessSpawn` implements

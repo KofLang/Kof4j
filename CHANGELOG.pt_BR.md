@@ -16,10 +16,12 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     emitia `invokevirtual .../CompletableFuture.bogus` → `NoSuchMethodError`. Um
     Handle não tem método de instância em Kof; o typer agora recusa com o hint
     `await h`. RED 1/1 → GREEN `BuiltinUnknownMethodGuardTest` 16/16.
-  - **`RISCV_RUNTIME_ASM_SHELL`/`RISCV_RUNTIME_ASM_SSH` deixaram de ser constantes de compile-time (§257 guard)**
-    (26/09): `bf5e3e03` deixou `public static final String` + text block, que o
-    javac inlina nos consumidores; `RuntimeConstantInliningGuardTest` estava
-    vermelho. Removido o `final` (campo de runtime). 2/2 verde.
+  - **`RISCV_RUNTIME_ASM_SHELL`/`RISCV_RUNTIME_ASM_SSH`/`RISCV_RUNTIME_ASM_PIPELINE` deixaram de ser constantes de compile-time (§257 guard)**
+    (26/09): o `bf5e3e03` (SHELL/SSH) e a `NativeRiscvAsmPipeline` da fatia B2
+    da linha 2 (PIPELINE, `RISCV_RUNTIME_ASM_PIPELINE`) deixaram
+    `public static final String` + text block, que o javac inlina nos
+    consumidores; `RuntimeConstantInliningGuardTest` estava vermelho. Removido
+    o `final` (campo de runtime). 2/2 verde.
 
   - **`process.spawn` + ops de handle no Native x86-64 (`D-FULL-PARITY-050`
     linha 1 fatia B)** (26/09): nova `RuntimeProcessSpawn` implementa
