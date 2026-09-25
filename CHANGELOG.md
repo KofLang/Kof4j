@@ -11,6 +11,11 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
 
+  - **§505 — an unknown field on `Channel<T>`/`Handle<T>` is now `SEM102`
+    ([FECHADO](docs/bugs-and-gaps/known-bugs.md#505--unknown-field-on-channelt-handlet-compiled-clean-and-emitted-getfield-linkedblockingqueuecompletablefuturebogusfield--nosuchfielderror---fixed))** (26/09): `channel<Int>().bogusField` and `(spawn {...}).bogusField` compiled clean and
+    emitted `getfield .../LinkedBlockingQueue.bogusField` → `NoSuchFieldError`.
+    Neither has a property; the field guard now covers the `kof.concurrent`
+    pair. RED 2/2 → GREEN `BuiltinUnknownFieldGuardTest` 26/26.
   - **§503 — misaligned `.quad` globals in `.data` are invisible to the GC
     static-roots scan ([FECHADO](docs/bugs-and-gaps/known-bugs.md#503--misaligned-quad-global-in-data-is-invisible-to-the-gc-static-roots-scan--sweep-frees-live-drain-buffers--outbuf--errbuf--chunk---fixed))** (26/09):
     `RuntimeProcess`/`RuntimeShell` `.quad` globals were not 8-aligned, so the

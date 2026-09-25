@@ -11,6 +11,11 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
 
+  - **§505 — campo desconhecido em `Channel<T>`/`Handle<T>` agora é `SEM102`
+    ([FECHADO](docs/bugs-and-gaps/known-bugs.pt_BR.md#503--campo-desconhecido-em-channelt-handlet-compilava-limpo-e-emitia-getfield-linkedblockingqueuecompletablefuturebogusfield--nosuchfielderror---corrigido))** (26/09): `channel<Int>().bogusField` e `(spawn {...}).bogusField` compilavam limpo
+    e emitiam `getfield .../LinkedBlockingQueue.bogusField` → `NoSuchFieldError`.
+    Nenhum tem propriedade; a guarda de campo agora cobre o par `kof.concurrent`.
+    RED 2/2 → GREEN `BuiltinUnknownFieldGuardTest` 26/26.
   - **§503 — globals `.quad` desalinhados em `.data` são invisíveis ao scan de
     raízes estáticas do GC ([FECHADO](docs/bugs-and-gaps/known-bugs.pt_BR.md#503--global-quad-desalinhado-no-data-e-invisivel-ao-scan-de-raizes-estaticas-do-gc--sweep-libera-buffers-de-dreno-vivos--outbuf--errbuf--chunk---corrigido))** (26/09):
     os globals `.quad` de `RuntimeProcess`/`RuntimeShell` não estavam alinhados
