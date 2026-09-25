@@ -84,6 +84,20 @@ public final class SemMethodCallTyper {
                 KofProcess.ProcessCall hm = KofProcess.handleMethod(mc.methodName(), argTypes);
                 if (hm != null) return hm.returnType();
             }
+            // §502 (SEM025): Handle<T> do `spawn` não tem método de instância —
+            // o idioma é `await h` (ou `awaitTimeout(h, ms)`). Sem este gate,
+            // `h.bogus()` compilava limpo e o emit caía no CompletableFuture
+            // com `invokevirtual ...bogus` → NoSuchMethodError.
+            if (TypeChecker.isConcurrentHandle(recv) && sa.diagnostics() != null) {
+                for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
+                SourcePosition mcPos = mc.position();
+                sa.diagnostics().error(mcPos != null ? mcPos.file() : "",
+                        mcPos != null ? mcPos.line() : 0, mcPos != null ? mcPos.column() : 0, 0,
+                        "Handle<T> has no method '" + mc.methodName()
+                                + "()'; use `await h` to get the value",
+                        "SEM025");
+                return Type.UnknownType.UNKNOWN;
+            }
             // Canais tipados: c.send(v) / c.receive() -> T
             if (BuiltinTypes.isChannel(recv)) {
                 for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);

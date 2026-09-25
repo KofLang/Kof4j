@@ -198,6 +198,33 @@ class BuiltinUnknownMethodGuardTest {
                 + result.diagnostics().getDiagnostics());
     }
 
+    // ---- §502: unknown method on a `spawn` Handle<T> ----
+
+    @Test
+    void unknownConcurrencyHandleMethodFailsWithSem025(@TempDir Path tempDir) throws IOException {
+        // symptom: `val h = spawn { ... }` + `h.bogus()` compiled clean and
+        // emitted `invokevirtual java/util/concurrent/CompletableFuture.bogus`
+        // → NoSuchMethodError at runtime.
+        assertSem025(compile("""
+            main() {
+                val h = spawn { return 42 }
+                println(h.bogus())
+            }
+            """, tempDir), "bogus", "Handle");
+    }
+
+    @Test
+    void validHandleAwaitStillCompiles(@TempDir Path tempDir) throws IOException {
+        CompilationResult result = compile("""
+            main() {
+                val h = spawn { return 42 }
+                println(await h)
+            }
+            """, tempDir);
+        assertTrue(result.success(), "await on a Handle must still compile: "
+                + result.diagnostics().getDiagnostics());
+    }
+
     // ---- control: the live tables still compile ----
 
     @Test
