@@ -305,6 +305,112 @@ public final class NativeMcuGcRiscv32 {
                     mv   a1, t1
                     ret
 
+# kof_string_of_int(a0:int) -> a0:ptr to String(len+bytes).
+                # Stub: not yet implemented for RV32I. Returns empty string.
+                .globl kof_string_of_int
+                kof_string_of_int:
+                    li   a0, 16
+                    call kof_alloc
+                    mv   s1, a0
+                    li   s0, 0
+                    sw   s0, 0(s1)               # len = 0
+                    mv   a0, s1
+                    ret
+
+                # kof_println_string(a0:String ptr) -> escreve via kof_plat_write + newline
+                .globl kof_println_string
+                kof_println_string:
+                    addi sp, sp, -32
+                    sw   ra, 28(sp)
+                    sw   s0, 24(sp)
+                    sw   s1, 20(sp)
+                    sw   s2, 16(sp)
+                    mv   s0, a0
+                    lw   s1, 0(s0)               # len
+                    addi s2, s0, 4               # ptr bytes
+                    mv   a0, s2
+                    mv   a1, s1
+                    call kof_plat_write
+                    # escreve newline
+                    li   a0, 10
+                    sb   a0, -1(sp)              # usa 1 byte da pilha
+                    addi a0, sp, -1
+                    li   a1, 1
+                    call kof_plat_write
+                    lw   s2, 16(sp)
+                    lw   s1, 20(sp)
+                    lw   s0, 24(sp)
+                    lw   ra, 28(sp)
+                    addi sp, sp, 32
+                    ret
+
+                # --- LIST RUNTIME ---
+                # Layout do List: [len:word][cap:word][data...]
+                # kof_list_new() -> a0:ptr List
+                .globl kof_list_new
+                kof_list_new:
+                    addi sp, sp, -32
+                    sw   ra, 28(sp)
+                    sw   s0, 24(sp)
+                    sw   s1, 20(sp)
+                    # cap fixa 8 para fatia vertical (evita realloc)
+                    li   a0, 40                  # 2 words header + 8*4 data = 40 bytes
+                    call kof_alloc
+                    li   s0, 0
+                    sw   s0, 0(a0)               # len = 0
+                    li   s0, 8
+                    sw   s0, 4(a0)               # cap = 8
+                    lw   s1, 20(sp)
+                    lw   s0, 24(sp)
+                    lw   ra, 28(sp)
+                    addi sp, sp, 32
+                    ret
+
+                # kof_list_add(a0:List, a1:int) -> void (expande se cheio = panic)
+                .globl kof_list_add
+                kof_list_add:
+                    addi sp, sp, -48
+                    sw   ra, 44(sp)
+                    sw   s0, 40(sp)
+                    sw   s1, 36(sp)
+                    sw   s2, 32(sp)
+                    sw   s3, 28(sp)
+                    mv   s0, a0                  # List ptr
+                    mv   s1, a1                  # value
+                    lw   s2, 0(s0)               # len
+                    lw   s3, 4(s0)               # cap
+                    beq  s2, s3, .Lla_panic
+                    # data[ len ] = value
+                    addi s3, s0, 8
+                    slli s3, s2, 2
+                    add  s3, s3, s0
+                    addi s3, s3, 8
+                    sw   s1, 0(s3)
+                    addi s2, s2, 1
+                    sw   s2, 0(s0)               # len++
+                    j    .Lla_done
+                .Lla_panic:
+                    la   a0, .Lla_msg
+                    li   a1, 15
+                    call kof_plat_write
+                    li   a0, 1
+                    call kof_plat_exit
+                .Lla_done:
+                    lw   s3, 28(sp)
+                    lw   s2, 32(sp)
+                    lw   s1, 36(sp)
+                    lw   s0, 40(sp)
+                    lw   ra, 44(sp)
+                    addi sp, sp, 48
+                    ret
+                .Lla_msg: .asciz "list overflow"
+
+                # kof_list_size(a0:List) -> a0:int
+                .globl kof_list_size
+                kof_list_size:
+                    lw   a0, 0(a0)
+                    ret
+
                 # --- B4-GC-2: mark conservador (port do G-3 p/ RV32I) ---
                 # kof_gc_try_mark(ptr@a0): se ptr cai no PAYLOAD de um bloco da
                 # gc-list e está no heap, seta bit0 (mark). Sem clobber de s*.
