@@ -291,8 +291,28 @@ public class Parser {
                 // parseTypeParameters), cascata de PARSE075/PARSE011/...
                 depth -= t == TokenType.GREATER ? 1 : t == TokenType.GREATER_GREATER ? 2 : 3;
                 if (depth <= 0) {
-                    return ctx.tokens.get(ctx.pos + i + 1).type() == TokenType.IDENTIFIER
-                            && ctx.tokens.get(ctx.pos + i + 2).type() == TokenType.LPAREN;
+                    // #622: o retorno aceita sufixo `?` e/ou `[]` repetido
+                    // depois do fecho do generic (`List<Int>? f()`,
+                    // `List<Int>[] f()` — mesmas regras de
+                    // parseFunctionDeclaration). Sem pular isso aqui, o
+                    // lookahead exigia IDENTIFIER+LPAREN IMEDIATAMENTE após
+                    // o `>`/`>>`/`>>>` — `List<Int>? maybeList()` (sem
+                    // aninhamento nenhum) já falhava por essa lacuna, não
+                    // só o caso aninhado do #617.
+                    int j = i + 1;
+                    while (j + 1 < ctx.tokens.size() - ctx.pos) {
+                        TokenType nt = ctx.tokens.get(ctx.pos + j).type();
+                        if (nt == TokenType.QUESTION) {
+                            j++;
+                        } else if (nt == TokenType.LBRACKET
+                                && ctx.tokens.get(ctx.pos + j + 1).type() == TokenType.RBRACKET) {
+                            j += 2;
+                        } else {
+                            break;
+                        }
+                    }
+                    return ctx.tokens.get(ctx.pos + j).type() == TokenType.IDENTIFIER
+                            && ctx.tokens.get(ctx.pos + j + 1).type() == TokenType.LPAREN;
                 }
             } else if (t == TokenType.EOF) {
                 return false;

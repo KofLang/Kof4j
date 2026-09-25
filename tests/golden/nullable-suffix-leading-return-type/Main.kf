@@ -1,0 +1,21 @@
+List<Int>? maybeList(Bool ok) {
+    if (ok) { return listOf(1, 2) }
+    return null
+}
+
+List<List<Int>>? maybeGrid(Bool ok) {
+    if (ok) { return listOf(listOf(1, 2)) }
+    return null
+}
+
+main() {
+    var g = maybeList(true)
+    println(g != null)
+    var n = maybeList(false)
+    println(n == null)
+
+    var grid = maybeGrid(true)
+    if (grid != null) {
+        println(grid.get(0).get(1))
+    }
+}
