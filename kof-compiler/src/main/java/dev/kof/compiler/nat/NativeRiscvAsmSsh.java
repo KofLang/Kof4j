@@ -16,7 +16,7 @@ public final class NativeRiscvAsmSsh {
     private NativeRiscvAsmSsh() {
     }
 
-    public static final String RISCV_RUNTIME_ASM_SSH = """
+    public static String RISCV_RUNTIME_ASM_SSH = """
             # ── kof.ssh (D-FULL-PARITY-050 row 3 slice B) — cross riscv64/aarch64 ──
             .section .rodata
             .Lkof_ssh_lit_ssh:       .asciz "ssh"
