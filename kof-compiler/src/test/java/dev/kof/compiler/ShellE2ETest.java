@@ -242,20 +242,16 @@ class ShellE2ETest {
     }
 
     @Test
-    void pipelineOnCrossIsHonestProc001() throws Exception {
-        // pipeline (chained pipes) stays gated on the cross — never an ld undefined.
-        assertGap(Target.NATIVE_RISCV64, "PROC001", """
-            main() {
-                var p = shell.pipeline(listOf(listOf("echo", "hi"), listOf("wc", "-l")))
-                println(p.stdout)
-            }
-            """);
-        assertGap(Target.NATIVE_AARCH64, "PROC001", """
-            main() {
-                var p = shell.pipeline(listOf(listOf("echo", "hi"), listOf("wc", "-l")))
-                println(p.stdout)
-            }
-            """);
+    void pipelineLandedOnCross() throws Exception {
+        // slice B2 — pipeline emits on the cross (kernel pipe-chaining).
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            assertCompiles(t, """
+                main() {
+                    var p = shell.pipeline(listOf(listOf("echo", "hi"), listOf("wc", "-l")))
+                    println(p.stdout)
+                }
+                """);
+        }
     }
 
     @Test

@@ -47,14 +47,12 @@ public final class ExpressionShellCallLowerer {
             // an ld error (R6).
             boolean pipeline = mc.methodName().equals("pipeline");
             boolean runWith = mc.methodName().equals("runWith");
-            if (pipeline || (runWith && !cross)) {
+            if ((pipeline && !cross) || (runWith && !cross)) {
                 if (driver.currentDiagnostics != null) {
                     driver.currentDiagnostics.error(posFile(mc), posLine(mc), posCol(mc), 0,
-                            "shell." + mc.methodName() + ": " + (pipeline
-                                    ? "chained pipes are slice B"
-                                    : "runWith on the x86-64 native target is slice B")
+                            "shell." + mc.methodName() + ": on the x86-64 native target is slice B"
                                     + " (JVM and JS support the full shell surface; Native x86-64"
-                                    + " and riscv64/aarch64 landed run/cmd/ok; the cross landed runWith)",
+                                    + " landed run/cmd/ok; the cross landed run/cmd/ok/runWith/pipeline)",
                             "PROC001");
                 }
                 return localIdx;

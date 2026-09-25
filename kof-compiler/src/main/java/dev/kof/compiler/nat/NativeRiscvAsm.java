@@ -299,6 +299,7 @@ public final class NativeRiscvAsm {
                 .append(NativeRiscvAsmIoCopy.RISCV_RUNTIME_ASM_IO_COPY)
                 .append(NativeRiscvAsmProcess.RISCV_RUNTIME_ASM_PROCESS)
                 .append(NativeRiscvAsmShell.RISCV_RUNTIME_ASM_SHELL)
+                .append(NativeRiscvAsmPipeline.RISCV_RUNTIME_ASM_PIPELINE)
                 .append(NativeRiscvAsmSsh.RISCV_RUNTIME_ASM_SSH)
                 // D-FULL-PARITY-050 (row 9, lane parity, 26/09): kof.config real
                 // no cross — environ (3a) + lookup por arquivo/env/perfil (3b) +

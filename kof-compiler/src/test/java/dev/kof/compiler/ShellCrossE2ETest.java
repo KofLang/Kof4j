@@ -138,6 +138,34 @@ class ShellCrossE2ETest {
             """, "vivo\n\n0\n");
     }
 
+    /** Slice B2: `pipeline` chains the stages with real OS pipes on the cross —
+     *  the kernel pipes stage i stdout into stage i+1 stdin; only the last
+     *  stage's stdout/stderr/exit are captured (JVM oracle byte-parity). */
+    @Test
+    void pipelineTwoStagesMatchesJvm(@TempDir Path tmp) throws IOException {
+        assertAllTargets(tmp, "pl2", """
+            main() {
+                var p = shell.pipeline(listOf(listOf("echo", "one two three"), listOf("wc", "-w")))
+                println(p.stdout)
+                println(p.exitCode)
+            }
+            """, "3\n\n0\n");
+    }
+
+    @Test
+    void pipelineThreeStagesMatchesJvm(@TempDir Path tmp) throws IOException {
+        assertAllTargets(tmp, "pl3", """
+            main() {
+                var p = shell.pipeline(listOf(
+                    listOf("echo", "a b c d"),
+                    listOf("tr", " ", "\\n"),
+                    listOf("wc", "-l")))
+                println(p.stdout)
+                println(p.exitCode)
+            }
+            """, "4\n\n0\n");
+    }
+
     /** Slice B1: a NON-EMPTY cwd (or env) is never silently ignored (R6) — the
      *  cross returns an honest Result failure (exitCode -1, stderr message).
      *  The JVM honors cwd/env, so this is a documented cross-only gap. */
