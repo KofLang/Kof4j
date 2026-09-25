@@ -35,6 +35,14 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     byte-a-byte nos 3 nativos e host inalcancavel = `Result` honesto
     (exitCode != 0), nunca crash.
 
+  - **`shell.runWith` no cross riscv64/aarch64 (`D-FULL-PARITY-050` linha 2
+    fatia B1)** (26/09): nova `NativeRiscvAsmShell.kof_shell_runwith` spawna
+    argv-first (`argv[0]` = programa, o resto = args) via `kof_process_run`;
+    o caso herdado (`cwd=""/null` + env vazio) e byte-paridade com o JVM.
+    `cwd`/`env` NAO-VAZIOS nunca sao ignorados (R6): devolvem `Result` honesto
+    (exitCode -1, mensagem no stderr). `pipeline` segue `PROC001`.
+    `ShellCrossE2ETest` 5/5 + `ShellE2ETest` 19/19.
+
   - **`shell.run`/`cmd`/`ok` no CROSS nativo riscv64/aarch64 (`D-FULL-PARITY-050` linha 2)**
     (26/09): `shell.run` reusa `kof_process_run` (linha 1 fatia C), `shell.ok` e
     IR puro sobre o acesso `exitCode` e `shell.cmd` usa a peca nova

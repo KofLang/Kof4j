@@ -35,6 +35,14 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     argv byte-identical to the JVM oracle on all three natives and an
     unreachable host is an honest `Result` (exitCode != 0), never a crash.
 
+  - **`shell.runWith` on cross riscv64/aarch64 (`D-FULL-PARITY-050` row 2
+    slice B1)** (26/09): new `NativeRiscvAsmShell.kof_shell_runwith` spawns
+    argv-first (`argv[0]` = program, the rest = args) via `kof_process_run`;
+    the inherited `cwd=""/null` + empty env path is byte-parity with the JVM
+    oracle. A non-empty cwd/env is never silently ignored (R6): it returns an
+    honest `Result` failure (exitCode -1, stderr message). `pipeline` stays
+    `PROC001`. `ShellCrossE2ETest` 5/5 + `ShellE2ETest` 19/19.
+
   - **`shell.run`/`cmd`/`ok` on the riscv64/aarch64 native CROSS (`D-FULL-PARITY-050` row 2)**
     (26/09): `shell.run` reuses `kof_process_run` (row 1 slice C), `shell.ok` is
     pure IR over the `exitCode` accessor and `shell.cmd` uses the new
