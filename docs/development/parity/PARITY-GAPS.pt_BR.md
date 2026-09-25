@@ -32,7 +32,6 @@
 | 4 | media: `Image.open`/`Audio.openWav`/`Video.open`/`Mic.record`/`list` | ✅ | ❌ | ❌ | ❌ | `MEDIA001`/`MEDIA003` | frente media |
 | 5 | `mq.*` | ✅ | parcial (faces `MQ001`) | ⏳ golden | ⏳ | `MQ001` | lane infra |
 | 6 | `gpu.*` (face JS) + golden cross | ✅ | ✅ | ⏳ golden | ❌ `GPU001` | `GPU001` | lanes gpu/native |
-| 7 | `observability.*` golden cross + `OBS003` | ✅ | ✅ x86 | ⏳ golden | ⏳ (spans ✅, OBS003 travado) | `OBS003` | lane obs |
 | 10 | `math.pow` cross (estático, sem libc) | ✅ | ✅ (libm `-lm`) | ❌ `MATH001` | ✅ | `MATH001` | lane native cross |
 | 11 | `strings.reverse` não-ASCII (UTF-16 vs byte) + `String.matches`/`replaceAll`/`replaceFirst`/`compareToIgnoreCase` | ✅ | ❌ `NAT-STR01`/`STR003` | ❌ `STR003` | ❌ `STR003` | `NAT-STR01`/`STR003` | lanes native/js |
 | 12 | web T1 (faces do `kof.http.server`) no native/cross | ✅ | ⏳ | ❌ `WEB002`–`WEB006` | ✅ | `WEB00x` | lane web |
@@ -82,6 +81,20 @@ do freeze).
 
 ## Fechados (prova registrada aqui quando a linha esvazia)
 
+- **Linha 7 — `observability.*` golden cross + `OBS003`** — fechada 26/09
+  (lane parity). As células cross estavam STALE/parcialmente medidas: o golden
+  de span/trace/request-id já executava sob qemu
+  (`KofObservabilityTest#spansCrossArchRiscv64`/`#spansCrossArchAarch64`), e a
+  última célula aberta era o **golden de métricas/health no cross**. Estendido
+  o `runCross` (`KofObservabilityTest`) com o contrato dos 4 alvos:
+  `health()=="UP"`, `readiness()`/`liveness()`, `counter`/`increment`
+  (`1`/`2`/`7`), `gauge 99`, `histogram` (`_count 2`/`_sum 25`) — medido
+  byte a byte em riscv64 **e** aarch64 sob qemu (2/2, `x-ok`). `OBS003`
+  (`observability.exportSpans` no native) segue um gap **declarado, intencional**
+  R7 JVM-first — travado por
+  `StdParityGapAuditTest#observabilityExportSpansGatedOnNative` +
+  `DomainGapCodesTest` (OBS003), nunca um stub silencioso. Prova:
+  `KofObservabilityTest` (golden JVM/x86/JS/cross) + `KofJsE2ETest`.
 - **Linha 9 — `cache.*`/`config.*`/`log.*` cross (riscv64/aarch64)** — fechada
   26/09 (lane parity). Três faces cross estavam abertas: **`cache`** —
   `cache.ttl` devolvia 0 para chave ausente/sem-TTL/expirada onde o oracle
