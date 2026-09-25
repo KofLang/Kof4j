@@ -18,9 +18,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.EnumMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * B-4.1 + follow-up (b): MCU RV32I emitter with GC runtime and list/string lowering.
@@ -63,7 +61,7 @@ public final class NativeMcuRiscv32 {
         Path objFile = outputDir.resolve(className + ".o");
         Files.createDirectories(asmFile.getParent());
 
-        long heapBytes = Long.parseLong(
+        long heapBytes = parseHeap(
                 System.getenv().getOrDefault("KOF_MCU_HEAP", String.valueOf(DEFAULT_HEAP_BYTES)));
 
         Files.writeString(asmFile, renderAsm(result), StandardCharsets.UTF_8);
@@ -82,6 +80,19 @@ public final class NativeMcuRiscv32 {
             System.err.println("NativeBackend: riscv32 MCU toolchain missing (NATIVE002),"
                     + " keeping asm: " + e.getMessage());
         }
+    }
+
+    static long parseHeap(String v) {
+        long n;
+        try {
+            n = Long.parseLong(v);
+        } catch (NumberFormatException e) {
+            throw new IllegalStateException("NATIVE002: KOF_MCU_HEAP is not a number: '" + v + "'", e);
+        }
+        if (n <= 0) {
+            throw new IllegalStateException("NATIVE002: KOF_MCU_HEAP must be positive: " + n);
+        }
+        return n;
     }
 
     private static IRClass findMainClass(IRModule module) {
@@ -123,7 +134,6 @@ public final class NativeMcuRiscv32 {
     private static EmitResult lowerMain(IRMethod main) {
         EmitResult r = new EmitResult();
         List<StackSlot> stack = new ArrayList<>();
-        Map<Integer, String> localNames = new java.util.HashMap<>();
 
         // Pre-scan: concurrency & unsupported
         for (IRBasicBlock bb : main.basicBlocks()) {
@@ -216,12 +226,6 @@ public final class NativeMcuRiscv32 {
                 if (op instanceof dev.kof.compiler.KofReturnVoid
                         || op instanceof dev.kof.compiler.KofReturn) {
                     continue;
-                }
-
-                // Concurrency check
-                if (op instanceof dev.kof.compiler.KofCall conc && isConcurrency(conc.methodName())) {
-                    throw new IllegalStateException("CONC003: '" + conc.methodName()
-                            + "' is absent on the single-core MCU");
                 }
 
                 throw unsupported(op.getClass().getSimpleName());
