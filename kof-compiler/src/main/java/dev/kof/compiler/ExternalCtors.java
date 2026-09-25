@@ -52,7 +52,8 @@ final class ExternalCtors {
                             params.add(t.getDescriptor());
                         }
                         hit[0] = new ExternalClasspath.MethodSignature(params,
-                                mt.getReturnType().getDescriptor(), false, false);
+                                mt.getReturnType().getDescriptor(), false, false,
+                                (access & org.objectweb.asm.Opcodes.ACC_VARARGS) != 0);
                     }
                     return null;
                 }

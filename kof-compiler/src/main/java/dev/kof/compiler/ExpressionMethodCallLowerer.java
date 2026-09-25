@@ -206,14 +206,15 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
     // estático, interface externa ou instância — resolve pelo
     // classpath ANTES dos namespaces builtin (Button também é
     // widget do kof.ui; o import decide). Local sombreia.
+    // §500: resolveMethod agora enxerga ACC_VARARGS e o packing é
+    // único (VarargsArrayPacker) — `Arrays.asList(1,2)` empacota
+    // Object[] e sai invokestatic com o descritor REAL, nunca mais
+    // o dono vazio `"".asList:(II)`.
     ExternalClasspath.MethodSignature extSig = driver.externalClasspath.resolveMethod(
             extQ.internalName(), mc.methodName(), mc.arguments().size());
-    List<Type> extFormal = new ArrayList<>();
-    for (String d : extSig.parameterDescriptors()) {
-        extFormal.add(ExternalClasspath.typeFromDescriptor(d));
-    }
+    List<Type> extFormal = VarargsArrayPacker.formalTypes(extSig);
     Type extRet = ExternalClasspath.typeFromDescriptor(extSig.returnDescriptor());
-    localIdx = driver.emitArgumentsWithFormalTypes(mc.arguments(), extFormal,
+    localIdx = VarargsArrayPacker.lower(driver, mc.arguments(), extSig,
             ops, owner, localIdx, locals);
     KofCallKind extKind = extSig.isStatic() ? KofCallKind.STATIC
             : (extSig.ownerIsInterface() ? KofCallKind.INTERFACE
@@ -247,12 +248,13 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
     ExternalClasspath.MethodSignature extSig = driver.externalClasspath
             .resolveMethodWithArgs(javaClass, mc.methodName(), mc.arguments().size(), actualArgTypes);
     if (extSig != null) {
-        List<Type> extFormal = new ArrayList<>();
-        for (String d : extSig.parameterDescriptors()) {
-            extFormal.add(ExternalClasspath.typeFromDescriptor(d));
-        }
+        List<Type> extFormal = VarargsArrayPacker.formalTypes(extSig);
         Type extRet = ExternalClasspath.typeFromDescriptor(extSig.returnDescriptor());
-        localIdx = driver.emitArgumentsWithFormalTypes(mc.arguments(), extFormal, ops, owner, localIdx, locals);
+        // §500: `String.join(CharSequence, CharSequence...)` etc. — os args
+        // finais empacotam no array do tipo componente (descritor REAL),
+        // não 3 strings cruas contra 2 formais (VerifyError).
+        localIdx = VarargsArrayPacker.lower(driver, mc.arguments(), extSig,
+                ops, owner, localIdx, locals);
         KofCallKind extKind = extSig.isStatic() ? KofCallKind.STATIC : KofCallKind.INSTANCE;
         ops.add(new KofCall(new Type.ClassType("java.lang", javaClass.substring(javaClass.lastIndexOf('/') + 1), List.of()),
                 mc.methodName(), extFormal, extRet, extKind));

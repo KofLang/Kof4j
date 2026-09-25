@@ -30,9 +30,13 @@ import java.util.zip.ZipFile;
  */
 public final class ExternalClasspath {
 
-    /** Assinatura resolvida: descritores formais de params, retorno e flags. */
+    /** Assinatura resolvida: descritores formais de params, retorno e flags.
+     *  §500: {@code isVarargs} (ACC_VARARGS / reflexão) é o que autoriza o
+     *  packing dos args extras no componente do último param — sem a flag o
+     *  respositor casava só aridade fixa e `Arrays.asList(1,2)` caía no
+     *  emit de owner vazio. */
     record MethodSignature(List<String> parameterDescriptors, String returnDescriptor,
-                           boolean isStatic, boolean ownerIsInterface) {
+                           boolean isStatic, boolean ownerIsInterface, boolean isVarargs) {
     }
 
     private final Map<String, byte[]> classBytes = new HashMap<>();
@@ -280,7 +284,7 @@ public final class ExternalClasspath {
                     boolean isStatic = (access & org.objectweb.asm.Opcodes.ACC_STATIC) != 0;
                     if (isAbstract && !isStatic) {
                         out.add(new Sam(name,
-                                toSignature(descriptor, false, true)));
+                                toSignature(descriptor, false, true, false)));
                     }
                     return null;
                 }
@@ -398,6 +402,7 @@ public final class ExternalClasspath {
         try {
             ClassReader reader = new ClassReader(bytes);
             MethodSignature[] hit = new MethodSignature[1];
+            MethodSignature[] varHit = new MethodSignature[1];
             boolean[] iface = new boolean[1];
             reader.accept(new ClassVisitor(org.objectweb.asm.Opcodes.ASM9) {
                 @Override
@@ -409,18 +414,29 @@ public final class ExternalClasspath {
                 @Override
                 public MethodVisitor visitMethod(int access, String name, String descriptor,
                                                  String signature, String[] exceptions) {
-                    if (name.equals(methodName)
-                            && org.objectweb.asm.Type.getMethodType(descriptor)
-                                    .getArgumentTypes().length == argumentCount
-                            && hit[0] == null) {
+                    if (!name.equals(methodName) || hit[0] != null) return null;
+                    boolean varargs =
+                            (access & org.objectweb.asm.Opcodes.ACC_VARARGS) != 0;
+                    int nargs = org.objectweb.asm.Type.getMethodType(descriptor)
+                            .getArgumentTypes().length;
+                    if (nargs == argumentCount) {
                         hit[0] = toSignature(descriptor,
                                 (access & org.objectweb.asm.Opcodes.ACC_STATIC) != 0,
-                                iface[0]);
+                                iface[0], varargs);
+                    } else if (varargs && argumentCount >= nargs - 1) {
+                        // §500: candidato VARARGS (Java prefere o fixo — só
+                        // vale quando o fixo não existe). Aridade mínima e
+                        // exata já bateram acima; aqui N >= nargs-1 empacota.
+                        if (varHit[0] == null) {
+                            varHit[0] = toSignature(descriptor,
+                                    (access & org.objectweb.asm.Opcodes.ACC_STATIC) != 0,
+                                    iface[0], varargs);
+                        }
                     }
                     return null;
                 }
             }, ClassReader.SKIP_CODE | ClassReader.SKIP_FRAMES);
-            return hit[0];
+            return hit[0] != null ? hit[0] : varHit[0];
         } catch (Exception e) {
             // bytecode além do suportado pelo ASM embutido (ex.: major novo)
             // — registrado como warning, nunca falha silenciosa
@@ -449,14 +465,14 @@ public final class ExternalClasspath {
     }
 
     private static MethodSignature toSignature(String methodDescriptor, boolean isStatic,
-                                                boolean ownerIsInterface) {
+                                                boolean ownerIsInterface, boolean isVarargs) {
         org.objectweb.asm.Type[] args =
                 org.objectweb.asm.Type.getMethodType(methodDescriptor).getArgumentTypes();
         List<String> params = new ArrayList<>();
         for (org.objectweb.asm.Type t : args) params.add(t.getDescriptor());
         return new MethodSignature(params,
                 org.objectweb.asm.Type.getMethodType(methodDescriptor).getReturnType().getDescriptor(),
-                isStatic, ownerIsInterface);
+                isStatic, ownerIsInterface, isVarargs);
     }
 
     /**

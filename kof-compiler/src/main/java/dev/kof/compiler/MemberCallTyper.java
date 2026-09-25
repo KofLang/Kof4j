@@ -94,6 +94,21 @@ public final class MemberCallTyper {
                             SymbolTable.DispatchKind.STATIC));
                     return ret;
                 }
+                // §500 (face método inexistente): nome de classe importada que
+                // NÃO tem o método nem por nome+aridade (o lowerer também não
+                // resolveria) caía em UNKNOWN e o emit fabricava
+                // `invokevirtual "".bogus` — classe morta no load (R6/Q7).
+                // Diagnóstico honesto, SEM025 da família #617/§490.
+                if (sa.diagnostics() != null
+                        && sa.externalTypes().resolveMethod(
+                                qt.internalName(), mc.methodName(),
+                                mc.arguments().size()) == null) {
+                    sa.diagnostics().error(mc,
+                            "Cannot resolve static method '" + mc.methodName()
+                                    + "' on imported class '" + rid.name() + "'",
+                            "SEM025");
+                    return Type.UnknownType.UNKNOWN;
+                }
             }
         }
         if (mc.receiver() instanceof IdentifierExpr rid && "super".equals(rid.name())) {

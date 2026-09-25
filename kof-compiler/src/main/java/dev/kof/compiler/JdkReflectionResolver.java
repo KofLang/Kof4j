@@ -47,18 +47,28 @@ final class JdkReflectionResolver {
 
             for (Method m : cls.getMethods()) {
                 if (!m.getName().equals(methodName)) continue;
-                if (m.getParameterCount() != argumentCount) continue;
+                // §500: aridade fixa OU varargs com N >= fixo. O candidato
+                // exato ainda vence (penalidade -5 nos varargs).
+                int pc = m.getParameterCount();
+                boolean varargs = m.isVarArgs();
+                if (pc != argumentCount && !(varargs && argumentCount >= pc - 1)) continue;
 
                 int score = 0;
                 if (!m.isBridge()) {
                     score += 100;
                 }
+                if (varargs) {
+                    score -= 5;
+                }
 
                 if (argumentTypes != null && argumentTypes.size() == argumentCount) {
                     Class<?>[] paramTypes = m.getParameterTypes();
+                    int fixed = varargs ? pc - 1 : pc;
+                    Class<?> varComp = varargs
+                            ? paramTypes[pc - 1].getComponentType() : null;
                     boolean compatible = true;
                     for (int i = 0; i < argumentCount; i++) {
-                        Class<?> p = paramTypes[i];
+                        Class<?> p = i < fixed ? paramTypes[i] : varComp;
                         Type argT = argumentTypes.get(i);
                         Class<?> a = toJavaClass(argT);
                         if (a != null) {
@@ -93,7 +103,8 @@ final class JdkReflectionResolver {
                 String retDesc = org.objectweb.asm.Type.getDescriptor(best.getReturnType());
                 boolean isStatic = Modifier.isStatic(best.getModifiers());
                 boolean isInterface = cls.isInterface();
-                return new ExternalClasspath.MethodSignature(paramDescs, retDesc, isStatic, isInterface);
+                return new ExternalClasspath.MethodSignature(paramDescs, retDesc, isStatic,
+                        isInterface, best.isVarArgs());
             }
         } catch (Throwable t) {
             // Se a classe não puder ser carregada, retorna null
@@ -141,7 +152,7 @@ final class JdkReflectionResolver {
                     paramDescs.add(org.objectweb.asm.Type.getDescriptor(p));
                 }
                 return new ExternalClasspath.MethodSignature(paramDescs, "V", false,
-                        cls.isInterface());
+                        cls.isInterface(), c.isVarArgs());
             }
         } catch (Throwable t) {
             // Classe nao carregavel: sem construtor (mesma politica do resolveJdkMethod)
