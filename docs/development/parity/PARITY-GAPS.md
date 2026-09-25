@@ -30,7 +30,6 @@
 | 2 | `shell.cmd`/`run`/`runWith`/`pipeline`/`ok` | ✅ | ✅ x86 `run`/`cmd`/`ok` (`runWith`/`pipeline` = slice B) | ✅ cross `run`/`cmd`/`ok`/`runWith`/`pipeline` 26/09 (runWith cwd/env não-vazio = Result honesto) | ✅ (host runner) | `PROC001` (x86 `runWith`/`pipeline`) | native-cross lane (x86 ✅ 25/09, cross ✅ 26/09) |
 | 3 | `ssh.cmd`/`run`/`ok` | ✅ | ✅ x86 + riscv64/aarch64 26/09 | ❌ | ❌ | `PROC001` (MCU/riscv32; JS sem dispatch) | native-cross lane (nativo ✅ 26/09) |
 | 4 | media: `Image.open`/`Audio.openWav`/`Video.open`/`Mic.record`/`list` | ✅ | ❌ | ❌ | ❌ | `MEDIA001`/`MEDIA003` | media front |
-| 5 | `mq.*` | ✅ | partial (`MQ001` faces) | ⏳ golden | ⏳ | `MQ001` | infra lane |
 | 6 | `gpu.*` (JS face) + cross golden | ✅ | ✅ | ⏳ golden | ❌ `GPU001` | `GPU001` | gpu/native lanes |
 | 10 | `math.pow` cross (static, no libc) | ✅ | ✅ (libm `-lm`) | ❌ `MATH001` | ✅ | `MATH001` | native cross lane |
 | 11 | `strings.reverse` non-ASCII (UTF-16 vs byte) + `String.matches`/`replaceAll`/`replaceFirst`/`compareToIgnoreCase` | ✅ | ❌ `NAT-STR01`/`STR003` | ❌ `STR003` | ❌ `STR003` | `NAT-STR01`/`STR003` | native/js lanes |
@@ -78,6 +77,17 @@ regression re-opens the row (zero regression, freeze rule 1).
 
 ## Closed (proof recorded here when a row empties)
 
+- **Row 5 — `mq.*` cross + JS golden (riscv64/aarch64)** — closed 26/09 (lane
+  parity). The row was STALE: `KofMq.supportedOn` returns `true` for every
+  target (the `MQ001` code is a retained record, not a live gate —
+  `StdParityGapAuditTest` asserts the unsupported set is empty) and the cross
+  golden already executed (`KofMqE2ETest#crossNativeMqQueueAndPubsub`:
+  queue/push/pop/queueSize + pub/sub + unsubscribe on riscv64 **and** aarch64
+  under qemu, byte-parity with x86-64). The one face with no named proof was
+  the **JS queue** (the existing test covered only JS pub/sub), now added:
+  `KofMqE2ETest#jsQueuePushPopAndSize` asserts `2\njob-1\njob-2\nnull` on the
+  embedded GraalJS runner. Proof: `KofMqE2ETest` **6/6, 0 skipped**
+  (JVM/x86/riscv64/aarch64/JS).
 - **Row 7 — `observability.*` cross golden + `OBS003`** — closed 26/09 (lane
   parity). The cross cells were STALE/partially measured: the span/trace/
   request-id golden already executed under qemu

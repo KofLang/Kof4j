@@ -30,8 +30,7 @@
 | 2 | `shell.cmd`/`run`/`runWith`/`pipeline`/`ok` | ✅ | ✅ x86 `run`/`cmd`/`ok` (`runWith`/`pipeline` = fatia B) | ✅ cross `run`/`cmd`/`ok`/`runWith`/`pipeline` 26/09 (runWith cwd/env não-vazio = Result honesto) | ✅ (host runner) | `PROC001` (x86 `runWith`/`pipeline`) | lane native-cross (x86 ✅ 25/09, cross ✅ 26/09) |
 | 3 | `ssh.cmd`/`run`/`ok` | ✅ | ✅ x86 + riscv64/aarch64 26/09 | ❌ | ❌ | `PROC001` (MCU/riscv32; JS sem dispatch) | lane native-cross (nativo ✅ 26/09) |
 | 4 | media: `Image.open`/`Audio.openWav`/`Video.open`/`Mic.record`/`list` | ✅ | ❌ | ❌ | ❌ | `MEDIA001`/`MEDIA003` | frente media |
-| 5 | `mq.*` | ✅ | parcial (faces `MQ001`) | ⏳ golden | ⏳ | `MQ001` | lane infra |
-| 6 | `gpu.*` (face JS) + golden cross | ✅ | ✅ | ⏳ golden | ❌ `GPU001` | `GPU001` | lanes gpu/native |
+| 5 | `mq.*` | ✅ | parcial (faces `MQ001`) | ⏳ golden | ⏳ | 6 | `gpu.*` (face JS) + golden cross | ✅ | ✅ | ⏳ golden | ❌ `GPU001` | `GPU001` | lanes gpu/native |
 | 10 | `math.pow` cross (estático, sem libc) | ✅ | ✅ (libm `-lm`) | ❌ `MATH001` | ✅ | `MATH001` | lane native cross |
 | 11 | `strings.reverse` não-ASCII (UTF-16 vs byte) + `String.matches`/`replaceAll`/`replaceFirst`/`compareToIgnoreCase` | ✅ | ❌ `NAT-STR01`/`STR003` | ❌ `STR003` | ❌ `STR003` | `NAT-STR01`/`STR003` | lanes native/js |
 | 12 | web T1 (faces do `kof.http.server`) no native/cross | ✅ | ⏳ | ❌ `WEB002`–`WEB006` | ✅ | `WEB00x` | lane web |
@@ -81,6 +80,17 @@ do freeze).
 
 ## Fechados (prova registrada aqui quando a linha esvazia)
 
+- **Linha 5 — `mq.*` golden cross + JS (riscv64/aarch64)** — fechada 26/09
+  (lane parity). A linha estava STALE: `KofMq.supportedOn` devolve `true` para
+  todo alvo (o código `MQ001` é registro retido, não gate vivo —
+  `StdParityGapAuditTest` afirma que o conjunto de não-suportados é vazio) e o
+  golden cross já executava (`KofMqE2ETest#crossNativeMqQueueAndPubsub`:
+  queue/push/pop/queueSize + pub/sub + unsubscribe em riscv64 **e** aarch64 sob
+  qemu, byte-paridade com x86-64). A única face sem prova nomeada era a
+  **fila no JS** (o teste existente cobria só pub/sub JS), agora adicionada:
+  `KofMqE2ETest#jsQueuePushPopAndSize` afirma `2\njob-1\njob-2\nnull` no runner
+  GraalJS embutido. Prova: `KofMqE2ETest` **6/6, 0 skipped**
+  (JVM/x86/riscv64/aarch64/JS).
 - **Linha 7 — `observability.*` golden cross + `OBS003`** — fechada 26/09
   (lane parity). As células cross estavam STALE/parcialmente medidas: o golden
   de span/trace/request-id já executava sob qemu

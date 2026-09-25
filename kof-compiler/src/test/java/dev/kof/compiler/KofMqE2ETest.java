@@ -141,6 +141,31 @@ class KofMqE2ETest {
                         + nativeResult.diagnostics().getDiagnostics());
     }
 
+    @Test
+    void jsQueuePushPopAndSize(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+                main() {
+                    var q = mq.queue()
+                    mq.push(q, "job-1")
+                    mq.push(q, "job-2")
+                    println(mq.queueSize(q))
+                    println(mq.pop(q))
+                    println(mq.pop(q))
+                    println(mq.pop(q))
+                }
+                """);
+        CompilationResult r = driver.compile(source, tempDir.resolve("js"), Target.JS);
+        assertTrue(r.success(), "JS should support mq.queue: " + r.diagnostics().getDiagnostics());
+        try (java.io.ByteArrayOutputStream buf = new java.io.ByteArrayOutputStream()) {
+            int ec = dev.kof.runtime.KofJsRunner.run(findJsEntry(tempDir.resolve("js")), buf,
+                    java.io.InputStream.nullInputStream(), new java.io.ByteArrayOutputStream());
+            String out = buf.toString(java.nio.charset.StandardCharsets.UTF_8).trim();
+            assertEquals(0, ec, "JS exit code, output: " + out);
+            assertEquals("2\njob-1\njob-2\nnull", out, "JS queue output");
+        }
+    }
+
     private static Path findJsEntry(Path dir) throws IOException {
         try (var s = Files.walk(dir)) {
             var opt = s.filter(p -> p.getFileName().toString().equals("Default.mjs")).findFirst();
