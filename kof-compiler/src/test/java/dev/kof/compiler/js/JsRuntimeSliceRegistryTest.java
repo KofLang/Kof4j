@@ -26,6 +26,7 @@ class JsRuntimeSliceRegistryTest {
                 .append(JsRuntimeUiWebSse.uiWebSseRuntime())
                 .append(JsRuntimeUiConfig.CONFIG_RUNTIME)
                 .append(JsRuntimeUiSupport.UI_SUPPORT_RUNTIME)
+                .append(JsRuntimeGpuSupport.GPU_RUNTIME)  // e8d67f104: bloco "gpu" (linha 6 D-FULL-PARITY-050)
                 .append(JsRuntimeUiSecurity.UI_SECURITY_RUNTIME)
                 .append(JsRuntimeUiCrypto.UI_CRYPTO_RUNTIME)
                 .append(JsRuntimeUiChacha.UI_CHACHA_RUNTIME)
