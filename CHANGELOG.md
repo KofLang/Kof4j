@@ -20,6 +20,19 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     (26/09): `bf5e3e03` left `public static final String` + text block, which
     javac inlines into consumers; `RuntimeConstantInliningGuardTest` was red.
     Dropped `final` (runtime field). 2/2 green.
+
+  - **`process.spawn` + handle ops on Native x86-64 (`D-FULL-PARITY-050` row 1
+    slice B)** (26/09): new `RuntimeProcessSpawn` implements
+    `kof_process_spawn` (persistent 64-slot `.bss` table, handle = index;
+    `pipe2` + `fork` + libc `execvp`; child stdin/stderr `/dev/null`; failed
+    exec = `-1`), `kof_spawn_read_line` (line without the newline, `""` at
+    EOF), `kof_spawn_exit_code` (`Integer.MIN_VALUE` alive, `-1` dead/killed),
+    `kof_spawn_alive`, `kof_spawn_kill` (SIGKILL + reap + forget) and
+    `kof_spawn_write` (honest no-op — stdin is `/dev/null` on both targets;
+    live input piping is a rule-6 contract change). `ExpressionProcessCallLowerer`
+    now emits spawn on x86-64 and keeps the honest `PROC001` on cross/MCU. New
+    `ProcessSpawnNativeE2ETest` 4/4 (JVM≡x86-64 byte parity);
+    `DomainGapCodesTest` repointed (x86 compiles, cross `PROC001`).
   - **`ssh.cmd`/`run`/`ok` on x86-64 (`D-FULL-PARITY-050` row 3 slice A)**
     (26/09): new `RuntimeSsh` emits `kof_ssh_argv` (exact JVM oracle
     `[ssh,-o,BatchMode=yes,-o,ConnectTimeout=5,host,command]`) and

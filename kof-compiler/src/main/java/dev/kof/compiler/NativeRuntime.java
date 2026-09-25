@@ -1,6 +1,7 @@
 package dev.kof.compiler;
 import dev.kof.compiler.runtime.RuntimeArray;
 import dev.kof.compiler.runtime.RuntimeProcess;
+import dev.kof.compiler.runtime.RuntimeProcessSpawn;
 import dev.kof.compiler.runtime.RuntimeShell;
 import dev.kof.compiler.runtime.RuntimeSsh;
 import dev.kof.compiler.runtime.RuntimeCache;
@@ -141,6 +142,7 @@ public final class NativeRuntime {
         RuntimeConcurrency.emitConcurrency(sb);
         RuntimeChannel.emitChannel(sb);
         RuntimeProcess.emit(sb);
+        RuntimeProcessSpawn.emit(sb);
         RuntimeShell.emit(sb);
         RuntimeSsh.emit(sb);
         RuntimeScheduler.emitScheduler(sb);

@@ -35,9 +35,9 @@ class DomainGapCodesTest {
 
     @Test
     void processRunOnNativeCompiles(@TempDir Path tmp) throws Exception {
-        // D-FULL-PARITY-050 linha 1 (RuntimeProcess): process.run agora tem
-        // paridade JVM=NATIVE x86-64 (golden em ProcessRunNativeE2ETest).
-        // O spawn continua PROC001 (slice B: handles interativos).
+        // D-FULL-PARITY-050 linha 1 (RuntimeProcess): process.run tem
+        // paridade JVM=NATIVE x86-64; spawn (fatia B, RuntimeProcessSpawn)
+        // também no x86-64 — cross/MCU seguem PROC001.
         Path file = tmp.resolve("Main-" + System.nanoTime() + ".kf");
         Files.writeString(file, """
             main() {
@@ -51,8 +51,27 @@ class DomainGapCodesTest {
     }
 
     @Test
-    void processSpawnOnNativeIsProc001(@TempDir Path tmp) throws Exception {
-        assertGap(tmp, Target.NATIVE, "PROC001", """
+    void processSpawnOnNativeCompiles(@TempDir Path tmp) throws Exception {
+        // D-FULL-PARITY-050 linha 1, fatia B (RuntimeProcessSpawn): spawn +
+        // handle ops agora têm paridade JVM≡NATIVE x86-64 (golden em
+        // ProcessSpawnNativeE2ETest). Cross/MCU continuam PROC001 (abaixo).
+        Path file = tmp.resolve("Main-" + System.nanoTime() + ".kf");
+        Files.writeString(file, """
+            main() {
+                val h = process.spawn("echo", "hi")
+                println(if (h.alive()) "alive" else "dead")
+            }
+            """);
+        CompilationResult result = driver.compile(file, tmp.resolve("out"), Target.NATIVE);
+        assertTrue(result.success(), "NATIVE x86-64 process.spawn must compile: "
+                + result.diagnostics().getDiagnostics());
+    }
+
+    @Test
+    void processSpawnOnCrossIsProc001(@TempDir Path tmp) throws Exception {
+        // A fatia de handles (tabela + fork/exec/pipe) é x86-64-only por ora;
+        // riscv64/aarch64 mantêm o gap honesto (R6).
+        assertGap(tmp, Target.NATIVE_RISCV64, "PROC001", """
             main() {
                 val h = process.spawn("echo", "hi")
                 println(if (h.alive()) "alive" else "dead")
@@ -64,8 +83,8 @@ class DomainGapCodesTest {
     void processSpawnOnJsHasNoGap(@TempDir Path tmp) throws Exception {
         // JS face landed 19/09 (KofJsProcessBridge host binding, F10 parity):
         // process.spawn must compile on JS now — the E2E parity lives in
-        // ProcessSpawnE2ETest. Native keeps the PROC001 pin above (run ja
-        // fechou a linha 1 do ledger; spawn e slice B).
+        // ProcessSpawnE2ETest. Native x86-64 landed 26/09 (slice B); cross/MCU
+        // keep the PROC001 pin above.
         Path file = tmp.resolve("Main-" + System.nanoTime() + ".kf");
         Files.writeString(file, """
             main() {

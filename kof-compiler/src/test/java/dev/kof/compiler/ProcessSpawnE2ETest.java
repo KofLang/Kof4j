@@ -22,8 +22,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * stdin is redirected from {@code /dev/null}, so {@code write} is an honest
  * no-op on both targets today — turning input into a live pipe is a contract
  * change (rule 6), not a parity bug. Native keeps the honest compile-time
- * PROC001 (pinned in {@code DomainGapCodesTest}). This is also the platform
- * prerequisite the shell plan names for JS {@code pipeline}.
+ * PROC001 on the Native cross/MCU (the x86-64 native face landed 26/09 —
+ * {@code ProcessSpawnNativeE2ETest}; pinned in {@code DomainGapCodesTest}).
+ * This is also the platform prerequisite the shell plan names for JS
+ * {@code pipeline}.
  */
 class ProcessSpawnE2ETest {
 
