@@ -383,17 +383,27 @@ public final class SemExpressionTyper {
                 // de #617/§490, agora a face FIELD. O acesso válido é o método
                 // (`File("x").path()`, `.size()`, `buffer.alloc(n).bytes()`,
                 // `secret.reveal()`).
+                // §503: Channel<T>/Handle<T> (kof.concurrent) entram na mesma
+                // família — nenhum dos dois tem PROPRIEDADE: `c.bogusField` /
+                // `h.bogusField` compilavam limpos e o emit emitia
+                // `getfield LinkedBlockingQueue.bogusField` / `CompletableFuture...`
+                // → NoSuchFieldError no runtime (Handle: o idioma é `await h`).
                 if ((KofIo.isIoType(recvType) || KofBuffer.isBufferType(recvType)
-                        || KofSecurity.isSecretType(recvType) || KofSecurity.isKeyHandleType(recvType))
+                        || KofSecurity.isSecretType(recvType) || KofSecurity.isKeyHandleType(recvType)
+                        || BuiltinTypes.isChannel(recvType) || TypeChecker.isConcurrentHandle(recvType))
                         && sa.diagnostics() != null) {
+                    boolean handle = TypeChecker.isConcurrentHandle(recvType);
                     String builtinName = KofIo.isDirectory(recvType) ? "Directory"
                             : KofIo.isPath(recvType) ? "Path"
                             : KofIo.isFile(recvType) ? "File"
                             : KofBuffer.isBufferType(recvType) ? "Buffer"
-                            : (KofSecurity.isSecretType(recvType) ? "Secret" : "KeyHandle");
+                            : (KofSecurity.isSecretType(recvType) ? "Secret"
+                            : BuiltinTypes.isChannel(recvType) ? "Channel"
+                            : (KofSecurity.isKeyHandleType(recvType) ? "KeyHandle" : "Handle"));
                     sa.diagnostics().error(fa,
-                            "'" + builtinName + "' has no field '" + fa.fieldName()
-                                    + "' (this builtin exposes methods, not properties)",
+                            "'" + builtinName + "' has no field '" + fa.fieldName() + "'"
+                                    + (handle ? "; use `await h` to get the value"
+                                            : " (this builtin exposes methods, not properties)"),
                             "SEM102");
                     yield Type.UnknownType.UNKNOWN;
                 }

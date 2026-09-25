@@ -277,6 +277,48 @@ class BuiltinUnknownFieldGuardTest {
                 + result.diagnostics().getDiagnostics());
     }
 
+    // ---- §503: unknown field on Channel<T>/Handle<T> (kof.concurrent) ----
+
+    @Test
+    void unknownChannelFieldIsSem102(@TempDir Path tempDir) throws IOException {
+        // `c.bogusField` compiled clean and emitted
+        // `getfield java/util/concurrent/LinkedBlockingQueue.bogusField`
+        // → NoSuchFieldError.
+        assertSem102Field(compile("""
+            main() {
+                val c = channel<Int>()
+                println(c.bogusField)
+            }
+            """, tempDir), "bogusField", "Channel");
+    }
+
+    @Test
+    void unknownHandleFieldIsSem102(@TempDir Path tempDir) throws IOException {
+        // `h.bogusField` compiled clean and emitted a getfield on the
+        // backing CompletableFuture → NoSuchFieldError.
+        assertSem102Field(compile("""
+            main() {
+                val h = spawn { return 1 }
+                println(h.bogusField)
+            }
+            """, tempDir), "bogusField", "Handle");
+    }
+
+    @Test
+    void validChannelAndHandleFacesStillCompile(@TempDir Path tempDir) throws IOException {
+        CompilationResult result = compile("""
+            main() {
+                val c = channel<Int>()
+                c.send(1)
+                println(c.receive())
+                val h = spawn { return 42 }
+                println(await h)
+            }
+            """, tempDir);
+        assertTrue(result.success(), "Valid Channel send/receive and await must compile: "
+                + result.diagnostics().getDiagnostics());
+    }
+
     // ---- diagnosis: the kof.ui field face (§498) also becomes SEM079 ----
 
     private void assertUiFieldIsSem079(CompilationResult result, String field, String type) {
