@@ -66,7 +66,7 @@ R050_SPEC_GAPS_FILE="${R050_SPEC_GAPS_FILE:-}"
 # the 6 live §NNN all ✅ in known-bugs, size gate green) — tooling removed.
 # The two ratified PROPOSALs were promoted out of development/ the same day
 # (exit-gate -> docs/, versioning record -> docs/distribution/).
-ALLOWLIST="DECISIONS.md DECISIONS.pt_BR.md README.md README.pt_BR.md roadmap.md roadmap.pt_BR.md release-beta-0.5.0-prep.md release-beta-0.5.0-prep.pt_BR.md"
+ALLOWLIST="DECISIONS.md DECISIONS.pt_BR.md README.md README.pt_BR.md roadmap.md roadmap.pt_BR.md release-beta-0.5.0-prep.md release-beta-0.5.0-prep.pt_BR.md memory-safety-plan.md memory-safety-plan.pt_BR.md"
 # D-RELEASE-0.5.0-SCOPE (maintainer 21/09/2026): the in-flight OWNED plans
 # still loose are allowlisted — 0.5.0 does not wait for db to conclude;
 # each keeps its owner and stays tracked in the README queue.
