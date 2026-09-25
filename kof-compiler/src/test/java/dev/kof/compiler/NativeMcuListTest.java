@@ -80,11 +80,23 @@ class NativeMcuListTest {
                 call kof_string_of_int
                 call kof_println_string
 
+                li   a0, -7
+                call kof_string_of_int
+                call kof_println_string
+
+                li   a0, 0x80000000
+                call kof_string_of_int
+                call kof_println_string
+
                 li   a0, 0
                 call kof_plat_exit
                 """), HEAP);
         assertTrue(out.contains("42"),
                 "kof_string_of_int(42) deve imprimir 42: " + out);
+        assertTrue(out.contains("-7"),
+                "negativo deve imprimir -7: " + out);
+        assertTrue(out.contains("-2147483648"),
+                "INT_MIN (magnitude unsigned) deve imprimir -2147483648: " + out);
     }
 
     @Test

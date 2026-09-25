@@ -32,6 +32,18 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     facades de lowering de lista/local sem código de volta para recusa
     `NATIVE002` honesta. GREEN `NativeMcuE2ETest` 9/9 + bateria MCU + vizinhos
     0F/0E.
+
+  - **MCU riscv32 fatia F — `listOf`/`.size`/`println(Int)` end-to-end no bare metal** (25/09): `NativeMcuRiscv32.lowerMain`
+    agora emite um programa real de pilha de avaliação (s10) — `kof_list_new`/`kof_list_add` (lista growable de
+    header estável `[len][cap][data]`, realloc por dobragem), `kof_list_size`, `KofLoad/KofStoreLocal` via
+    `.Lmcu_locals`, `KofDup`, e `kof_string_of_int` implementado de verdade (decimal RV32I puro: divisão longa
+    binária u32/10, sem extensão M; magnitude do INT_MIN correta), por cima do reparo do §506 (as correções de
+    raiz do `renderAsm`/`emitPrint`/silêncio do link são creditadas lá). O STUB do `kof_string_of_int` catalogado
+    no §506 morre: conversão decimal real; edges 0/-7/INT_MIN goldenados. A recusa honesta `NATIVE002` do §506
+    para lista/Int de runtime é aposentada — `mapOf` e loops continuam recusados (sem stub). Prova:
+    `NativeMcuE2ETest` (novo `mcuSpikeListOfPrintlnSizeAndIntOverUart` — UART byte-exata `3\n42` MEDIDA sob
+    `qemu-system-riscv32 -M virt` neste host; a recusa retargetada para `mapOf`) + `NativeMcuListTest` 4/4 +
+    suíte `NativeMcu*` inteira 38/0. Split para o gate ≤500: `NativeMcuListStringRiscv32` (222 linhas). Ledger §506 atualizado.
   - **§505 — campo desconhecido em `Channel<T>`/`Handle<T>` agora é `SEM102`
     ([FECHADO](docs/bugs-and-gaps/known-bugs.pt_BR.md#503--campo-desconhecido-em-channelt-handlet-compilava-limpo-e-emitia-getfield-linkedblockingqueuecompletablefuturebogusfield--nosuchfielderror---corrigido))** (26/09): `channel<Int>().bogusField` e `(spawn {...}).bogusField` compilavam limpo
     e emitiam `getfield .../LinkedBlockingQueue.bogusField` → `NoSuchFieldError`.

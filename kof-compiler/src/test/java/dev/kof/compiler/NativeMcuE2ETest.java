@@ -30,7 +30,9 @@ class NativeMcuE2ETest {
     private static final String HELLO = "main() { println(\"KO-MCU OK\") }";
     private static final String MULTI = "main() { print(\"a\"); println(\"b\"); print(\"c\") }";
     private static final String INT_LIT = "main() { println(42) }";
-    private static final String UNSUPPORTED = "main() { val xs = listOf(1, 2) }";
+    private static final String UNSUPPORTED = "main() { var m = mapOf(\"a\", 1) }";
+    private static final String LIST_SPIKE =
+            "main() { var xs = listOf(1, 2, 3)\n    println(xs.size)\n    println(42)\n}";
 
     @Test
     void mcuRiscv32PrintsOverUart(@TempDir Path tempDir) throws Exception {
@@ -103,13 +105,22 @@ class NativeMcuE2ETest {
     }
 
     @Test
+    void mcuSpikeListOfPrintlnSizeAndIntOverUart(@TempDir Path tempDir) throws Exception {
+        assumeToolchain();
+        Path bin = build(tempDir, LIST_SPIKE, true);
+        String text = serialText(boot(tempDir, bin));
+        assertEquals("3\n42", text.strip(),
+                "fatia F: listOf(1,2,3).size e println(42) byte-exatos: [" + text + "]");
+    }
+
+    @Test
     void mcuRejectsUnsupportedOpWithDiagnostic(@TempDir Path tempDir) throws Exception {
         CompilerDriver driver = new CompilerDriver();
         Path source = tempDir.resolve("Main.kf");
         Files.writeString(source, UNSUPPORTED);
         CompilationResult result = driver.compile(source, tempDir.resolve("out"),
                 Target.NATIVE_RISCV32, NativeProfile.FREESTANDING);
-        assertTrue(!result.success(), "list lowering ainda não gera código no MCU — deve recusar");
+        assertTrue(!result.success(), "mapOf no MCU deve ser recusado honesto (sem stub)");
         String diags = result.diagnostics().getDiagnostics().toString();
         assertTrue(diags.contains("NATIVE002"),
                 "recusa deve citar NATIVE002, veio: " + diags);

@@ -18,6 +18,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Map;
 import java.util.List;
 
 /**
@@ -134,6 +135,7 @@ public final class NativeMcuRiscv32 {
     private static EmitResult lowerMain(IRMethod main) {
         EmitResult r = new EmitResult();
         List<StackSlot> stack = new ArrayList<>();
+        Map<Integer, StackType> localTypes = new java.util.HashMap<>();
 
         // Pre-scan: concurrency & unsupported
         for (IRBasicBlock bb : main.basicBlocks()) {
@@ -160,6 +162,8 @@ public final class NativeMcuRiscv32 {
                     if (val instanceof String s) {
                         stack.add(new StackSlot(StackType.LIT_STR, s, -1));
                     } else if (val instanceof Integer i) {
+                        r.body.append("    li a0, ").append(i).append('\n');
+                        rtPush(r);
                         stack.add(new StackSlot(StackType.INT_VAL, i, -1));
                     } else if (val instanceof Boolean b) {
                         stack.add(new StackSlot(StackType.LIT_STR, b ? "true" : "false", -1));
@@ -179,11 +183,16 @@ public final class NativeMcuRiscv32 {
                         if (top.type == StackType.LIT_STR) {
                             stack.add(top);
                         } else if (top.type == StackType.INT_VAL && top.value != null) {
+                            rtPopTo(r, "t0");
                             stack.add(new StackSlot(StackType.LIT_STR, top.value.toString(), -1));
+                        } else if (top.type == StackType.INT_VAL) {
+                            // int runtime (ex.: xs.size) -> kof_string_of_int (B-4.2 LANDADA)
+                            rtPopTo(r, "a0");
+                            r.body.append("    call kof_string_of_int\n");
+                            rtPush(r);
+                            stack.add(new StackSlot(StackType.RUNTIME_STR, null, -1));
                         } else {
-                            // runtime int -> kof_string_of_int precisa do pipeline
-                            // de valores (estack, B-4.2); sem ele é facade.
-                            throw unsupported("valueOf of runtime value");
+                            throw unsupported("valueOf of " + top.type);
                         }
                         continue;
                     }
@@ -196,13 +205,37 @@ public final class NativeMcuRiscv32 {
                         continue;
                     }
 
-                    // kof_list_new/add/size: o RUNTIME existe e é provado por
-                    // harness cru (NativeMcuList/GcTest), mas o LOWERING não
-                    // emite nenhuma chamada nem liga argumentos — sem o
-                    // pipeline estack (B-4.2) é facade (Q7): recusar honesto.
-                    if ("kof_list_new".equals(name) || "kof_list_add".equals(name)
-                            || "kof_list_size".equals(name)) {
-                        throw unsupported(name + " lowering (runtime is proven; IR pipeline pending B-4.2)");
+                    // kof_list_new/add/size — B-4.2 LANDADA (opção F, mantenedora 25/09):
+                    // pilha de avaliação s10 liga argumentos de verdade; o runtime é o
+                    // provado por NativeMcuListTest (growable, header estável).
+                    if ("kof_list_new".equals(name) && kind == dev.kof.compiler.KofCallKind.FUNCTION) {
+                        r.body.append("    call kof_list_new\n");
+                        rtPush(r);
+                        stack.add(new StackSlot(StackType.LIST_PTR, null, -1));
+                        continue;
+                    }
+                    if ("kof_list_add".equals(name) && kind == dev.kof.compiler.KofCallKind.INSTANCE) {
+                        StackSlot val = pop(stack);
+                        StackSlot list = pop(stack);
+                        if (list.type != StackType.LIST_PTR) throw unsupported("list_add receiver");
+                        if (val.type != StackType.INT_VAL || val.value == null) {
+                            throw unsupported("list_add element (so int literal na fatia F)");
+                        }
+                        rtPopTo(r, "a1");
+                        rtPopTo(r, "a0");
+                        r.body.append("    call kof_list_add\n");
+                        rtPush(r);
+                        stack.add(new StackSlot(StackType.LIST_PTR, null, -1));
+                        continue;
+                    }
+                    if ("kof_list_size".equals(name) && kind == dev.kof.compiler.KofCallKind.INSTANCE) {
+                        StackSlot list = pop(stack);
+                        if (list.type != StackType.LIST_PTR) throw unsupported("list_size receiver");
+                        rtPopTo(r, "a0");
+                        r.body.append("    call kof_list_size\n");
+                        rtPush(r);
+                        stack.add(new StackSlot(StackType.INT_VAL, null, -1));
+                        continue;
                     }
 
                     // Concurrency check
@@ -214,12 +247,35 @@ public final class NativeMcuRiscv32 {
                     throw unsupported("call " + name + " " + kind);
                 }
 
-                // KofLoadLocal / KofStoreLocal: sem lowering de valores (B-4.2)
-                if (op instanceof dev.kof.compiler.KofLoadLocal) {
-                    throw unsupported("local variable load");
+                // KofLoadLocal: .Lmcu_locals[i] -> pilha de avaliação (B-4.2 LANDADA)
+                if (op instanceof dev.kof.compiler.KofLoadLocal ll) {
+                    r.body.append("    la t0, .Lmcu_locals\n");
+                    r.body.append("    lw a0, ").append(4 * ll.index()).append("(t0)\n");
+                    rtPush(r);
+                    stack.add(new StackSlot(localTypes.getOrDefault(ll.index(), StackType.UNKNOWN), null, -1));
+                    continue;
                 }
-                if (op instanceof dev.kof.compiler.KofStoreLocal) {
-                    throw unsupported("local variable store");
+                if (op instanceof dev.kof.compiler.KofStoreLocal sl) {
+                    StackSlot val = pop(stack);
+                    rtPopTo(r, "t1");
+                    r.body.append("    la t0, .Lmcu_locals\n");
+                    r.body.append("    sw t1, ").append(4 * sl.index()).append("(t0)\n");
+                    localTypes.put(sl.index(), val.type);
+                    continue;
+                }
+
+                // KofDup: copia o topo da pilha de avaliação (runtime + modelo)
+                if (op instanceof dev.kof.compiler.KofDup) {
+                    if (stack.isEmpty()) throw unsupported("dup em pilha vazia");
+                    StackSlot top = stack.get(stack.size() - 1);
+                    if (top.type != StackType.LIST_PTR && top.type != StackType.RUNTIME_STR
+                            && top.type != StackType.INT_VAL) {
+                        throw unsupported("dup de " + top.type);
+                    }
+                    r.body.append("    lw a0, -4(s10)\n");
+                    rtPush(r);
+                    stack.add(top);
+                    continue;
                 }
 
                 // Return
@@ -240,16 +296,26 @@ public final class NativeMcuRiscv32 {
     }
 
     private static void emitPrint(EmitResult r, StackSlot slot, boolean newline) {
+        if (slot.type == StackType.INT_VAL && slot.value == null) {
+            // int runtime (ex.: xs.size) — B-4.2 LANDADA: string_of_int + println
+            if (!newline) throw unsupported("print sem newline de valor dinamico");
+            rtPopTo(r, "a0");
+            r.body.append("    call kof_string_of_int\n");
+            r.body.append("    call kof_println_string\n");
+            return;
+        }
+        if (slot.type == StackType.RUNTIME_STR) {
+            if (!newline) throw unsupported("print sem newline de String dinamica");
+            rtPopTo(r, "a0");
+            r.body.append("    call kof_println_string\n");
+            return;
+        }
         String text;
         if (slot.type == StackType.LIT_STR || slot.type == StackType.INT_VAL) {
-            if (slot.value == null) {
-                // runtime value (list size, local): no stack-machine pipeline
-                // yet (B-4.2) — honest rejection, never a call with unset a0.
-                throw unsupported("println of runtime value");
+            if (slot.type == StackType.INT_VAL) {
+                rtPopTo(r, "t0");
             }
             text = String.valueOf(slot.value);
-        } else if (slot.type == StackType.RUNTIME_STR) {
-            throw unsupported("println of runtime String");
         } else {
             throw unsupported("println of " + slot.type);
         }
@@ -264,6 +330,14 @@ public final class NativeMcuRiscv32 {
         r.body.append("    la a0, .Lmcu_str_").append(idx).append('\n');
         r.body.append("    li a1, ").append(payload.getBytes(StandardCharsets.UTF_8).length).append('\n');
         r.body.append("    call kof_plat_write\n");
+    }
+
+    private static void rtPush(EmitResult r) {
+        r.body.append("    sw a0, 0(s10)\n    addi s10, s10, 4\n");
+    }
+
+    private static void rtPopTo(EmitResult r, String reg) {
+        r.body.append("    addi s10, s10, -4\n    lw ").append(reg).append(", 0(s10)\n");
     }
 
     // ---------- ASM Rendering ----------

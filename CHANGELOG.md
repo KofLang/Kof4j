@@ -31,6 +31,19 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     literal; UTF-8 length instead of `s.length()`) and re-gated the
     code-less list/local lowering facades behind honest `NATIVE002`.
     GREEN `NativeMcuE2ETest` 9/9 + MCU battery + neighbors 0F/0E.
+
+  - **MCU riscv32 fatia F — `listOf`/`.size`/`println(Int)` end-to-end on bare metal** (25/09,
+    maintainer option F): on top of the §506 repair (root fixes to `renderAsm`/`emitPrint`/link
+    silence credited there), `NativeMcuRiscv32.lowerMain` now emits a real eval-stack (s10)
+    program — `kof_list_new`/`kof_list_add` (growable list, stable header `[len][cap][data]`,
+    doubling realloc), `kof_list_size`, `KofLoad/KofStoreLocal` via `.Lmcu_locals`, `KofDup` — and
+    the §506-catalogued STUB `kof_string_of_int` is replaced by a real RV32I decimal conversion
+    (binary long-division u32/10, no M-extension; INT_MIN magnitude correct; edges 0/-7/INT_MIN
+    goldened). The §506 honest refusal of runtime list/Int (`NATIVE002`) is retired — `mapOf` and
+    loops stay refused (no stub). Proof: `NativeMcuE2ETest` (new `mcuSpikeListOfPrintlnSizeAndIntOverUart`
+    — UART byte-exact `3\n42` measured under `qemu-system-riscv32 -M virt` on this host; the
+    rejection test retargeted to `mapOf`) + `NativeMcuListTest` 4/4 + whole `NativeMcu*` suite
+    38/0. Split for the ≤500 gate: `NativeMcuListStringRiscv32` (222 lines). §506 ledger updated.
   - **§505 — an unknown field on `Channel<T>`/`Handle<T>` is now `SEM102`
     ([FECHADO](docs/bugs-and-gaps/known-bugs.md#505--unknown-field-on-channelt-handlet-compiled-clean-and-emitted-getfield-linkedblockingqueuecompletablefuturebogusfield--nosuchfielderror---fixed))** (26/09): `channel<Int>().bogusField` and `(spawn {...}).bogusField` compiled clean and
     emitted `getfield .../LinkedBlockingQueue.bogusField` → `NoSuchFieldError`.
