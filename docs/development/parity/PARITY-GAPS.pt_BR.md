@@ -27,7 +27,6 @@
 | # | Superfície | JVM/Script | Native x86-64 | Native riscv64/aarch64 | JS | Código | Fila / lane dona |
 |---|------------|------------|----------------|--------------------------|----|--------|------------------|
 | 1 | `process.run`/`spawn`/`exit` | ✅ | ✅ x86 `run`/`exit`/`spawn` 26/09 (whole-record `println(r)`/`"x"+r` = `PROC001`, acesso `.stdout`/`.stderr`/`.exitCode`; handle: `readLine`/`write`/`exitCode`/`kill`/`alive`) | ✅ cross `run` 26/09 (`spawn` = `PROC001`) | ✅ (KofJsRunner) | `PROC001` (cross `spawn` + whole-record print) | lane native-cross (`run` x86 ✅ 25/09, cross ✅ 26/09; `spawn` x86 ✅ 26/09) |
-| 2 | `shell.cmd`/`run`/`runWith`/`pipeline`/`ok` | ✅ | ✅ x86 `run`/`cmd`/`ok`/`runWith` 25/09 (`pipeline` = fatia B; runWith x86 = contrato pleno: chdir + setenv aditivo no hook do filho, goldens T1–T14; fix §503 `.balign 8`) | ✅ cross `run`/`cmd`/`ok`/`runWith`/`pipeline` 26/09 (runWith cwd/env não-vazio = Result honesto) | ✅ (host runner) | `PROC001` (x86 `pipeline`) | lane native-cross (x86 ✅ 25/09, cross ✅ 26/09) |
 | 3 | `ssh.cmd`/`run`/`ok` | ✅ | ✅ x86 + riscv64/aarch64 26/09 | ❌ | ❌ | `PROC001` (MCU/riscv32; JS sem dispatch) | lane native-cross (nativo ✅ 26/09) |
 | 4 | media: `Image.open`/`Audio.openWav`/`Video.open`/`Mic.record`/`list` | ✅ | ❌ | ❌ | ❌ | `MEDIA001`/`MEDIA003` | frente media |
 | 10 | `math.pow` cross (estático, sem libc) | ✅ | ✅ (libm `-lm`) | ❌ `MATH001` | ✅ | `MATH001` | lane native cross |
@@ -79,6 +78,28 @@ do freeze).
 
 ## Fechados (prova registrada aqui quando a linha esvazia)
 
+- **Linha 2 — `shell.cmd`/`run`/`runWith`/`pipeline`/`ok` (as 5 faces, os 4 alvos)** —
+  fechada 25/09 (lane paridade + lane native-cross). x86-64: fatia A pousou
+  `run`/`cmd`/`ok` (25/09), fatia B pousou `runWith` (contrato pleno: split do
+  argv + chdir + `setenv` aditivo no hook do filho; contexto na pilha do
+  wrapper — o fork copia, o scan de pilha do GC enraíza) e `pipeline`
+  (`kof_shell_pipeline`: encadeamento de pipes do kernel, stdin `/dev/null` no
+  estágio 0, captura só do ÚLTIMO estágio, exitCode = último; oráculo JVM
+  `JvmRuntimeCore:446`). Cross: `run` (linha 1 fatia C), `cmd`/`ok` (B2),
+  `runWith` (B1: cwd/env herdados byte-parity, não-vazio = `Result` honesto),
+  `pipeline` (B2 cadeia de kernel) — tudo da lane native-cross 26/09.
+  Micro-divergências declaradas (R7, no cabeçalho do runtime + fixadas aqui):
+  o `pipeline` nativo limita a 64 estágios com `Result` honesto (o JVM não tem
+  cap) e o stderr intermediário vai a `/dev/null` (o JVM pipa-e-nunca-lê, o que
+  deadlocka acima de 64 KiB — intestável por contrato). A fatia runWith x86
+  também corrigiu o §503 (`.quad` desalinhado em `.data` = raiz estática
+  invisível ao GC → sweep liberava o buffer de dreno de 1 MiB vivo →
+  OUT==ERR==CHUNK; `.balign 8` agora é obrigatório em todo global de runtime
+  que guarda ponteiro de heap). Prova: `ShellE2ETest`
+  `pipelineOnNativeMatchesJvmGolden`/`pipelineHonestFailuresOnNative`/
+  `runWithOnNativeMatchesJvmGolden`/`runWithHonestFailuresOnNative` (JVM ==
+  nativo byte a byte), `ShellCrossE2ETest` 7/7, `ProcessRun*E2ETest` 6/6+6/6,
+  bateria T1–T14; nenhuma face do shell segue gateada nos alvos do ledger.
 - **Linha 6 — `gpu.*` (face JS) + golden cross** — fechada 26/09 (lane parity).
   A linha escondia um gap REAL, não um golden stale: `KofGpu.supportedOn` já
   devolvia true para os alvos nativos, mas o caminho de emissão riscv64/aarch64

@@ -34,30 +34,17 @@ public final class ExpressionShellCallLowerer {
             }
             return localIdx;
         }
-        if (driver.target.isNative()) {
-            boolean cross = driver.target == Target.NATIVE_RISCV64
-                    || driver.target == Target.NATIVE_AARCH64;
-            // D-FULL-PARITY-050 row 2: run/cmd/ok/runWith emit for real on the
-            // x86-64 native target and on riscv64/aarch64 (runWith cross =
-            // NativeRiscvAsmShell, argv-first; inherited cwd/env byte-parity,
-            // a non-empty cwd/env is an honest Result failure; runWith x86-64 =
-            // kof_shell_runwith: argv split + chdir + additive setenv in the
-            // child hook — JVM-parity, T10–T14 goldens). pipeline landed on
-            // the cross and is still slice B on x86-64. Every refusal names
-            // the face that landed, never a raw call that ends in an ld
-            // error (R6).
-            boolean pipeline = mc.methodName().equals("pipeline");
-            if (pipeline && !cross) {
-                if (driver.currentDiagnostics != null) {
-                    driver.currentDiagnostics.error(posFile(mc), posLine(mc), posCol(mc), 0,
-                            "shell.pipeline: chained pipes on the x86-64 native target are slice B"
-                                    + " (JVM and JS support the full shell surface; Native x86-64"
-                                    + " landed run/cmd/ok/runWith; the cross landed run/cmd/ok/runWith/pipeline)",
-                                    "PROC001");
-                }
-                return localIdx;
-            }
-        }
+        // D-FULL-PARITY-050 row 2 CLOSED on native: run/cmd/ok/runWith/
+        // pipeline emit for real on the x86-64 native target and on
+        // riscv64/aarch64 (runWith cross = NativeRiscvAsmShell, argv-first;
+        // inherited cwd/env byte-parity, a non-empty cwd/env is an honest
+        // Result failure; runWith x86-64 = kof_shell_runwith: argv split +
+        // chdir + additive setenv in the child hook; pipeline x86-64 =
+        // kof_shell_pipeline: kernel pipe-chaining, last-stage capture —
+        // JVM-parity goldens; pipeline cross = NativeRiscvAsmPipeline).
+        // Every face landed; no shell call is gated on the supported native
+        // targets anymore. When a new target (MCU/riscv32) needs per-face
+        // gates, they come back here — refusals name the face that landed (R6).
         switch (mc.methodName()) {
             case "run" -> {
                 localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(0),

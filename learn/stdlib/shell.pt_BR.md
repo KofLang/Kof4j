@@ -2,12 +2,12 @@
 
 # kof.shell — argv dinâmico e pipelines
 
-> **Status: JVM + JS ✅ (paridade byte a byte via `runWith`) · Native x86-64:
-> `run`/`cmd`/`ok`/`runWith` ✅ — `runWith` = contrato pleno (split do argv +
-> chdir + `setenv` aditivo no hook do filho; D-FULL-PARITY-050 linha 2 fatia B,
-> goldens em paridade com o JVM), `pipeline` = `PROC001` · cross
-> riscv64/aarch64: `run`/`cmd`/`ok`/`runWith`/`pipeline` ✅ (runWith: cwd/env
-> herdados em paridade byte a byte; cwd/env não-vazio = `Result` honesto).**
+> **Status: JVM + JS ✅ (paridade byte a byte via `runWith`) · Native x86-64 ✅
+> superfície completa (`run`/`cmd`/`ok`/`runWith`/`pipeline` — D-FULL-PARITY-050
+> linha 2 fechada; runWith = split do argv + chdir + `setenv` aditivo; pipeline
+> = encadeamento de pipes do kernel, captura do último estágio, goldens em
+> paridade com o JVM) · cross riscv64/aarch64 ✅ superfície completa (runWith:
+> cwd/env herdados byte a byte; cwd/env não-vazio = `Result` honesto).**
 
 | Função | Forma |
 |--------|-------|

@@ -296,7 +296,8 @@ public class NativeBackend implements Backend {
                         }
                         if (op instanceof KofCall kc && (kc.methodName().equals("kof_process_run")
                                     || kc.methodName().equals("kof_process_spawn")
-                                    || kc.methodName().equals("kof_shell_runwith"))) {
+                                    || kc.methodName().equals("kof_shell_runwith")
+                                    || kc.methodName().equals("kof_shell_pipeline"))) {
                             usesProcess = true;
                         }
                         if (op instanceof KofCall kc && kc.methodName().equals("kof_math_pow")) {

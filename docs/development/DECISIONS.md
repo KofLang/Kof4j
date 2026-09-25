@@ -3604,3 +3604,75 @@ in `scripts/check_release_050_gate.sh` (`full_parity`).
 
 - **Relationships:** `Related: D-UNIVERSAL, D-RELEASE-0.5.0-SCOPE, D-DB-GAPS,
   D-GRAFICOS-GAMING, R6, R7, Q5, rule 6`.
+
+## D-MEMORY-SAFETY — Memory safety front (ownership/lifetime/borrowing/aliasing/FFI) opened in `docs/development/`, owned by the parity lane; investigation first, core untouched until the current queue closes (maintainer 25/09/2026)
+
+**Decision (maintainer, 25/09/2026, chat):** the memory-safety brief
+(ownership, lifetime, borrowing, mutable/shared aliasing, use-after-free,
+double-free, dangling references, escape analysis, closure capture, move
+semantics, resource destruction, data races, native pointers, FFI/C-C++/Rust
+boundaries, JVM/Native/JS/WASM differences) enters `docs/development/` as a
+LIVE front — not `future/` — and the parity lane **owns** it
+("pode botar em docs/development e ja assumir essa frente").
+
+**Constraints locked by the brief (verbatim constraints, not agent
+paraphrase):**
+
+1. **Kof already HAS null safety** — values are non-null by default and
+   `null` exists only where the type/semantics allow it. The investigation
+   must NOT reinvent, replace, or duplicate that system; it only studies the
+   nullability × ownership × lifetime × borrowing interaction.
+2. **Investigate Kof-first** — never assume the compiler works like Rust,
+   C++, Java, Kotlin, Swift or Zig; no borrowing/copied solution without
+   verifying it fits Kof's semantic model (rule 10: KOF-first,
+   external-second — external sources contribute principles, never syntax).
+3. **Architecture before code** — Phase 0 produces
+   `docs/development/memory-safety-investigation.md` (current state, risks,
+   implicit lifetime model, fragile points, proposal, alternatives, backend
+   impact, compatibility impact, incremental plan) BEFORE any compiler edit.
+   Phase 1 produces the formal spec `docs/spec/memory-safety.md`
+   (Ownership, Lifetime, Borrowing, Aliasing, Mutability, Move, Copy, Clone,
+   Drop/Destruction, Escape, Closure Capture, Concurrency, FFI, Unsafe
+   Boundaries). The semantics exist before the implementation.
+4. **The implementation phase only starts after the current queue closes**
+   (the brief's final line: "Esse trabalho só começa depois que a fila atual
+   estiver concluída") — until then: investigation, spec drafts and
+   compiler-internal infrastructure studies only, ZERO premature core edits.
+5. **No accidental complexity on the language surface** (rule 11): the model
+   must be strong enough to make whole bug classes impossible without
+   turning Kof into an endless chain of lifetime annotations; success =
+   the compiler can say "this program cannot produce this class of error"
+   (use-after-free, double-free, dangling reference, invalid lifetime
+   escape, unsafe mutable aliasing, unexpected null, accidental data race)
+   with an explicit boundary where a proof is impossible.
+6. **Cross-target by construction** — JVM, Native, JS and the planned WASM
+   backend must express the SAME Kof semantics (GC on JVM/JS never excuses
+   aliasing/mutability/lifetime divergence); FFI boundaries must define
+   owner/keeper/free-writer/guardian for every crossing kind.
+7. **Diagnostics are part of the feature** — every rule lands with
+   valid/invalid/expected-diagnostic/regression/per-backend tests (small
+   suites per domain, adapted to the real test tree, no giant suite).
+8. **Forbidden:** copying Rust's borrow checker, inventing syntax (`let`,
+   `const`, foreign move markers), a null-safety rewrite, a big-bang
+   compiler refactor, single-backend ownership, hiding ownership problems
+   in the runtime.
+
+**Phase plan (from the brief, machine-checkable order):** Fase 0
+investigation doc → Fase 1 spec (`docs/spec/memory-safety.md`) → Fase 2
+compiler-internal structures (ownership/lifetime/borrow/alias/mutability/
+escape/resource-state representations) → Fase 3 first guarantees
+(use-after-move, dangling refs, invalid escapes, mutable aliasing, double
+ownership/destruction) → Fase 4 closures/async → Fase 5 Native+FFI →
+Fase 6 JVM/JS/WASM parity of the semantics. Each phase gates the next; a
+phase without its proof tests does not close.
+
+**Evidence:** maintainer messages 25/09/2026 (chat, this session): the full
+brief (sections 1–27) + "pode botar em docs/development e ja assumir essa
+frente"; plan doc created in the same commit
+(`docs/development/memory-safety-plan.md` EN+PT).
+
+- **Relationships:** `Related: D-KOF-FIRST, D-FULL-PARITY-050 (the memory
+  front runs AFTER the parity blocker unless the maintainer says otherwise),
+  rule 6 (frozen semantics — ownership semantics that change evaluation
+  order/operator contracts go through the maintainer), rule 8 (Kof is not
+  Java/Rust), rule 11 (Simplicity Law), SG/D-KOF-AS-CLOUD, R6, R7`.
