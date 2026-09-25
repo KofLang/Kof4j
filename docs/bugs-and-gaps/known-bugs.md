@@ -15167,3 +15167,16 @@ println(Directory("probe").delete())   // JVM: true (recursive); x86-64: false (
 
 **Owner:** lane paridade/qualidade (heartbeat), `scripts/tests/release-workflow-candidate-test.sh`.
 <!-- pt-switch --> **PT:** [§507 (pt_BR)](known-bugs.pt_BR.md#507--o-teste-t3-do-release-candidate-media-a-perna-errada-do-gate-de-versao-quando-o-runner-do-ci-exportava-a-branch-dele-structural-quality-gates-vermelho---corrigido-2609-lane-paridade-qualidade)
+
+## §508 — CodeQL PR-mode reports an ERROR "array access might be out of bounds" on `RuntimeDtoaSchubfach.java:90` — provably false-positive across `gTable()` (length is a multiple of 2 by construction); the fix is a dismiss or a one-character loop guard, and it belongs to the baremetal lane — 🟡 OPEN (catalogued for the owner)
+
+**Symptom (measured 26/09, tip `8f9ef858f`):** every push to `beta-0.5.0` also runs CodeQL in **pull-request mode** against the diff of open PR #619 (`beta-0.5.0` → `main`); the umbrella `CodeQL` check reports "18 new alerts including 1 error". The error annotation: `This array access might be out of bounds, as the index might be equal to the array length` at `RuntimeDtoaSchubfach.java:90` — `g[i + 1]` inside `for (int i = 0; i < g.length; i += 2)`.
+
+**Analysis (NOT a runtime bug):** `gTable()` returns `new long[(K_MAX - K_MIN + 1) * 2]` = `(292+324+1)*2` = `1234` — even by construction; with step 2 from 0 the last index touched is `length-1`. The engine cannot see the evenness across the `gTable()` call, hence the false positive. The five accompanying warnings (TypeChecker:367, SealedTypeChecks:46, ExpressionBareCallLowerer:278, KofCEmitterBase:91/92) are the same class of PR-mode-only quality notes. **The branch's own gates are NOT red from this**: `scripts/codeql-gate.sh` / the `CodeQL Gate (alerts API)` job read the push-analysis alert set (emulated: zero open alerts outside the baseline), and PR #619 is the maintainer's to merge (rule 10) — nobody should "fix" this by touching the PR.
+
+**Action for the owner (baremetal lane, file landed in `7742436f5`/`232801ace`/`a598cb06f`):** either dismiss the alert with `state_reason=false_positive` (a justified dismiss, not a silent one) or write the trivially-equivalent `for (int i = 0; i + 1 < g.length; i += 2)` — one character of intent that also self-documents the even-length invariant; either way the PR-mode check goes green for the release train.
+
+**Status:** 🟡 OPEN — catalogued (owner: baremetal lane). Not claimed here (rule: never two agents on another lane's file; the lane is active on tip).
+
+**Owner:** baremetal lane, `RuntimeDtoaSchubfach.emitTables`.
+<!-- pt-switch --> **PT:** [§508 (pt_BR)](known-bugs.pt_BR.md#508--codeql-em-modo-pr-reporta-um-erro-array-access-might-be-out-of-bounds-em-runtimedtoaschubfachjava90--fp-provavel-atraves-de-gtable-comprimento-multiplo-de-2-por-construcao-a-correcao-e-dismiss-ou-um-guard-de-loop-de-um-caractere-e-pertence-a-lane-baremetal---aberto-catalogado-para-a-dona)

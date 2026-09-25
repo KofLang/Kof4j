@@ -12700,3 +12700,16 @@ println(Directory("probe").delete())   // JVM: true (recursivo); x86-64: false (
 
 **Dono:** lane paridade/qualidade (heartbeat), `scripts/tests/release-workflow-candidate-test.sh`.
 <!-- en-switch --> **EN:** [§507](known-bugs.md#507--the-release-candidate-t3-test-measured-the-wrong-leg-of-the-version-gate-when-the-ci-runner-exported-its-branch-structural-quality-gates-red---fixed-2609-lane-paridade-qualidade)
+
+## §508 — CodeQL em modo PR reporta um ERRO "array access might be out of bounds" em `RuntimeDtoaSchubfach.java:90` — FP provável através de `gTable()` (comprimento múltiplo de 2 por construção); a correção é dismiss ou um guard de loop de um caractere, e pertence à lane baremetal — 🟡 ABERTO (catalogado para a dona)
+
+**Sintoma (medido 26/09, tip `8f9ef858f`):** todo push em `beta-0.5.0` também roda o CodeQL em **modo pull-request** contra o diff do PR aberto #619 (`beta-0.5.0` → `main`); o check-ônibus `CodeQL` reporta "18 new alerts including 1 error". O erro: `This array access might be out of bounds, as the index might be equal to the array length` em `RuntimeDtoaSchubfach.java:90` — `g[i + 1]` dentro de `for (int i = 0; i < g.length; i += 2)`.
+
+**Análise (NÃO é bug de runtime):** `gTable()` retorna `new long[(K_MAX - K_MIN + 1) * 2]` = `(292+324+1)*2` = `1234` — par por construção; com passo 2 desde 0, o último índice tocado é `length-1`. O motor não vê a paridade através da chamada `gTable()`, daí o falso-positivo. Os cinco avisos acompanhantes (TypeChecker:367, SealedTypeChecks:46, ExpressionBareCallLowerer:278, KofCEmitterBase:91/92) são a mesma classe de notes de qualidade só do modo PR. **Os gates próprios da branch NÃO ficam vermelhos por isso**: `scripts/codeql-gate.sh` / o job `CodeQL Gate (alerts API)` leem o conjunto de alertas da análise de push (emulado: zero alertas abertos fora do baseline), e o PR #619 é de merge da mantenedora (regra 10) — ninguém deve "corrigir" isto mexendo no PR.
+
+**Ação para a dona (lane baremetal, arquivo pousado em `7742436f5`/`232801ace`/`a598cb06f`):** ou dismiss do alerta com `state_reason=false_positive` (dismiss justificado, nunca silencioso), ou o guard trivialmente equivalente `for (int i = 0; i + 1 < g.length; i += 2)` — um caractere de intenção que ainda auto-documenta o invariante de comprimento par; nos dois caminhos o check do modo PR fica verde para o trem de release.
+
+**Status:** 🟡 ABERTO — catalogado (dona: lane baremetal). Não reivindicado aqui (regra: nunca dois agentes no arquivo de outra lane; a lane está ativa no tip).
+
+**Dono:** lane baremetal, `RuntimeDtoaSchubfach.emitTables`.
+<!-- en-switch --> **EN:** [§508](known-bugs.md#508--codeql-pr-mode-reports-an-error-array-access-might-be-out-of-bounds-on-runtimedtoaschubfachjava90--provably-false-positive-across-gtable-length-is-a-multiple-of-2-by-construction-the-fix-is-a-dismiss-or-a-one-character-loop-guard-and-it-belongs-to-the-baremetal-lane---open-catalogued-for-the-owner)
