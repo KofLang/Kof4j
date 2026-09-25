@@ -399,6 +399,52 @@ class KofMediaE2ETest {
         return out;
     }
 
+    /** Box ISO-BMFF na forma de tamanho ESTENDIDO (size==1, ISO/IEC
+     *  14496-12 §4.2 — comum em 'free'/'wide'/'mdat' de arquivo grande):
+     *  size32=1, depois 8 bytes de largesize (big-endian) com o tamanho
+     *  real. #623: antes do fix, QUALQUER box nessa forma antes de 'moov'
+     *  desalinhava o scanner e durationMs() voltava 0 silenciosamente. */
+    private static byte[] mp4Box64(String type, byte[] payload) {
+        long total = 16L + payload.length;
+        byte[] out = new byte[(int) total];
+        out[0] = 0; out[1] = 0; out[2] = 0; out[3] = 1; // size32 == 1 (extended)
+        System.arraycopy(type.getBytes(StandardCharsets.ISO_8859_1), 0, out, 4, 4);
+        for (int i = 0; i < 8; i++) {
+            out[8 + i] = (byte) (total >>> (8 * (7 - i)));
+        }
+        System.arraycopy(payload, 0, out, 16, payload.length);
+        return out;
+    }
+
+    /** Igual a {@link #makeMp4()}, mas com um box 'free' de tamanho
+     *  ESTENDIDO (size==1) entre 'ftyp' e 'moov' — #623. */
+    private static byte[] makeMp4WithExtendedSizeBoxBeforeMoov() {
+        byte[] mvhdPayload = new byte[100];
+        mvhdPayload[0] = 0;
+        mvhdPayload[14] = (byte) 0x03; mvhdPayload[15] = (byte) 0xE8; // timescale 1000
+        mvhdPayload[18] = (byte) 0x0B; mvhdPayload[19] = (byte) 0xB8; // duration 3000
+        byte[] mvhd = mp4Box("mvhd", mvhdPayload);
+        byte[] moov = mp4Box("moov", mvhd);
+        byte[] head = mp4Box("ftyp", "isom".getBytes(StandardCharsets.ISO_8859_1));
+        byte[] free = mp4Box64("free", new byte[8]);
+        byte[] out = new byte[head.length + free.length + moov.length];
+        System.arraycopy(head, 0, out, 0, head.length);
+        System.arraycopy(free, 0, out, head.length, free.length);
+        System.arraycopy(moov, 0, out, head.length + free.length, moov.length);
+        return out;
+    }
+
+    @Test
+    void videoDurationSkipsExtendedSizeBoxBeforeMoov() throws IOException {
+        byte[] mp4 = makeMp4WithExtendedSizeBoxBeforeMoov();
+        Files.write(appDir.resolve("assets/clip.mp4"), mp4);
+        int port = startServer(appDir, VIDEO_APP);
+        String r = request(port, "GET /info HTTP/1.1\r\nHost: x\r\n\r\n");
+        String body = r.substring(r.indexOf("\r\n\r\n") + 4).trim();
+        assertEquals("fmt=mp4 size=" + mp4.length + " ms=3000 path=assets/clip.mp4",
+                body, "#623: extended-size box before moov must not blind durationMs(): " + body);
+    }
+
     private static final String VIDEO_APP = """
             main() {
                 var app = web.app()
