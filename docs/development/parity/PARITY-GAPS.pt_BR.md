@@ -27,7 +27,7 @@
 | # | Superfície | JVM/Script | Native x86-64 | Native riscv64/aarch64 | JS | Código | Fila / lane dona |
 |---|------------|------------|----------------|--------------------------|----|--------|------------------|
 | 1 | `process.run`/`spawn`/`exit` | ✅ | ✅ x86 `run`/`exit` (`spawn` = fatia B, `PROC001`; whole-record `println(r)`/`"x"+r` = `PROC001`, acesso `.stdout`/`.stderr`/`.exitCode`) | ✅ cross `run` 26/09 (`spawn` = fatia B, `PROC001`) | ✅ (KofJsRunner) | `PROC001` (spawn + whole-record print) | lane native-cross (`run` x86 ✅ 25/09, cross ✅ 26/09; `spawn` = fatia B) |
-| 2 | `shell.cmd`/`run`/`runWith`/`pipeline`/`ok` | ✅ | ✅ x86 `run`/`cmd`/`ok` (`runWith`/`pipeline` = fatia B) | ✅ cross `run`/`cmd`/`ok`/`runWith` 26/09 (`pipeline` = fatia B, `PROC001`; runWith cwd/env não-vazio = Result honesto) | ✅ (host runner) | `PROC001` (pipeline + x86 runWith) | lane native-cross (x86 ✅ 25/09, cross ✅ 26/09) |
+| 2 | `shell.cmd`/`run`/`runWith`/`pipeline`/`ok` | ✅ | ✅ x86 `run`/`cmd`/`ok` (`runWith`/`pipeline` = fatia B) | ✅ cross `run`/`cmd`/`ok`/`runWith`/`pipeline` 26/09 (runWith cwd/env não-vazio = Result honesto) | ✅ (host runner) | `PROC001` (x86 `runWith`/`pipeline`) | lane native-cross (x86 ✅ 25/09, cross ✅ 26/09) |
 | 3 | `ssh.cmd`/`run`/`ok` | ✅ | ✅ x86 + riscv64/aarch64 26/09 | ❌ | ❌ | `PROC001` (MCU/riscv32; JS sem dispatch) | lane native-cross (nativo ✅ 26/09) |
 | 4 | media: `Image.open`/`Audio.openWav`/`Video.open`/`Mic.record`/`list` | ✅ | ❌ | ❌ | ❌ | `MEDIA001`/`MEDIA003` | frente media |
 | 5 | `mq.*` | ✅ | parcial (faces `MQ001`) | ⏳ golden | ⏳ | `MQ001` | lane infra |

@@ -27,7 +27,7 @@
 | # | Surface | JVM/Script | Native x86-64 | Native riscv64/aarch64 | JS | Gap code | Tracker / owner lane |
 |---|---------|------------|----------------|--------------------------|----|----------|----------------------|
 | 1 | `process.run`/`spawn`/`exit` | ✅ | ✅ x86 `run`/`exit` (`spawn` = slice B, `PROC001`; whole-record `println(r)`/`"x"+r` = `PROC001`, access `.stdout`/`.stderr`/`.exitCode`) | ✅ cross `run` 26/09 (`spawn` = slice B, `PROC001`) | ✅ (KofJsRunner) | `PROC001` (spawn + whole-record print) | native-cross lane (run x86 ✅ 25/09, cross ✅ 26/09; `spawn` = slice B) |
-| 2 | `shell.cmd`/`run`/`runWith`/`pipeline`/`ok` | ✅ | ✅ x86 `run`/`cmd`/`ok` (`runWith`/`pipeline` = slice B) | ✅ cross `run`/`cmd`/`ok`/`runWith` 26/09 (`pipeline` = slice B, `PROC001`; runWith cwd/env não-vazio = Result honesto) | ✅ (host runner) | `PROC001` (pipeline + x86 runWith) | native-cross lane (x86 ✅ 25/09, cross ✅ 26/09) |
+| 2 | `shell.cmd`/`run`/`runWith`/`pipeline`/`ok` | ✅ | ✅ x86 `run`/`cmd`/`ok` (`runWith`/`pipeline` = slice B) | ✅ cross `run`/`cmd`/`ok`/`runWith`/`pipeline` 26/09 (runWith cwd/env não-vazio = Result honesto) | ✅ (host runner) | `PROC001` (x86 `runWith`/`pipeline`) | native-cross lane (x86 ✅ 25/09, cross ✅ 26/09) |
 | 3 | `ssh.cmd`/`run`/`ok` | ✅ | ✅ x86 + riscv64/aarch64 26/09 | ❌ | ❌ | `PROC001` (MCU/riscv32; JS sem dispatch) | native-cross lane (nativo ✅ 26/09) |
 | 4 | media: `Image.open`/`Audio.openWav`/`Video.open`/`Mic.record`/`list` | ✅ | ❌ | ❌ | ❌ | `MEDIA001`/`MEDIA003` | media front |
 | 5 | `mq.*` | ✅ | partial (`MQ001` faces) | ⏳ golden | ⏳ | `MQ001` | infra lane |

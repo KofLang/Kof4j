@@ -43,6 +43,15 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     honest `Result` failure (exitCode -1, stderr message). `pipeline` stays
     `PROC001`. `ShellCrossE2ETest` 5/5 + `ShellE2ETest` 19/19.
 
+  - **`shell.pipeline` on cross riscv64/aarch64 (`D-FULL-PARITY-050` row 2
+    slice B2)** (26/09): new `NativeRiscvAsmPipeline.kof_shell_pipeline`
+    chains stages with real OS pipes (stage 0 stdin `/dev/null`, stage i
+    stdout -> stage i+1 stdin, intermediate stderr discarded, only the last
+    stage captured) via `clone`+`dup3`+`execvp`, no threads — byte-parity with
+    the JVM oracle; empty/no-stage/>16 are honest Results. Merge fix: the child
+    argv duplicated `argv[0]` (`cat` ran as `[cat,cat]`). `ShellCrossE2ETest`
+    7/7 (2- and 3-stage) + `ShellE2ETest` 19/19.
+
   - **`shell.run`/`cmd`/`ok` on the riscv64/aarch64 native CROSS (`D-FULL-PARITY-050` row 2)**
     (26/09): `shell.run` reuses `kof_process_run` (row 1 slice C), `shell.ok` is
     pure IR over the `exitCode` accessor and `shell.cmd` uses the new

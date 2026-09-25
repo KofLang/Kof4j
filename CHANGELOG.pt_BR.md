@@ -43,6 +43,14 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     (exitCode -1, mensagem no stderr). `pipeline` segue `PROC001`.
     `ShellCrossE2ETest` 5/5 + `ShellE2ETest` 19/19.
 
+  - **`shell.pipeline` no cross riscv64/aarch64 (`D-FULL-PARITY-050` linha 2
+    fatia B2)** (26/09): nova `NativeRiscvAsmPipeline.kof_shell_pipeline`
+    encadeia os estagios com pipes reais do SO (estagio 0 stdin `/dev/null`,
+    stdout do i -> stdin do i+1, stderr intermediario descartado, so o ultimo
+    capturado) via `clone`+`dup3`+`execvp`, sem threads — byte-paridade com o
+    JVM; vazio/sem estagio/>16 = Results honestos. Corrigido o argv do filho
+    (`cat` rodava `[cat,cat]`). `ShellCrossE2ETest` 7/7 + `ShellE2ETest` 19/19.
+
   - **`shell.run`/`cmd`/`ok` no CROSS nativo riscv64/aarch64 (`D-FULL-PARITY-050` linha 2)**
     (26/09): `shell.run` reusa `kof_process_run` (linha 1 fatia C), `shell.ok` e
     IR puro sobre o acesso `exitCode` e `shell.cmd` usa a peca nova
