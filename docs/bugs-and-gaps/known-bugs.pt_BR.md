@@ -12667,4 +12667,4 @@ println(Directory("probe").delete())   // JVM: true (recursivo); x86-64: false (
 **Status:** ✅ CORRIGIDO (26/09) — commit `5779b1072`.
 
 **Dono:** sessão 9092 (lane compiler), `SemExpressionTyper`; família do §491/§496/§498/§502.
-<!-- en-switch --> **EN:** [§503](known-bugs.md#503--unknown-field-on-channelthandlet-compiled-clean-and-emitted-getfield-linkedblockingqueuecompletablefuturebogusfield--nosuchfielderror---fixed)
+<!-- en-switch --> **EN:** [§505](known-bugs.md#505--unknown-field-on-channelthandlet-compiled-clean-and-emitted-getfield-linkedblockingqueuecompletablefuturebogusfield--nosuchfielderror---fixed)
