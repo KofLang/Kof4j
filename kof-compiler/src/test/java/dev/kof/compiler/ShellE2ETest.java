@@ -243,7 +243,7 @@ class ShellE2ETest {
 
     @Test
     void pipelineOnCrossIsHonestProc001() throws Exception {
-        // slice B faces stay gated on the cross too — never an ld undefined.
+        // pipeline (chained pipes) stays gated on the cross — never an ld undefined.
         assertGap(Target.NATIVE_RISCV64, "PROC001", """
             main() {
                 var p = shell.pipeline(listOf(listOf("echo", "hi"), listOf("wc", "-l")))
@@ -252,10 +252,24 @@ class ShellE2ETest {
             """);
         assertGap(Target.NATIVE_AARCH64, "PROC001", """
             main() {
-                var p = shell.runWith(listOf("pwd"), "/tmp", mapOf())
+                var p = shell.pipeline(listOf(listOf("echo", "hi"), listOf("wc", "-l")))
                 println(p.stdout)
             }
             """);
+    }
+
+    @Test
+    void runWithLandedOnCross() throws Exception {
+        // slice B1 — runWith(argv, cwd, env) emits on the cross (inherited
+        // cwd/env is the byte-parity path; non-empty cwd/env is an honest Result).
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            assertCompiles(t, """
+                main() {
+                    var r = shell.runWith(shell.cmd("echo", listOf("hi")), "", mapOf())
+                    println(r.stdout)
+                }
+                """);
+        }
     }
 
     @Test

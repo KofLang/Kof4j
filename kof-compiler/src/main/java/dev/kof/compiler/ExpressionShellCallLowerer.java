@@ -38,22 +38,23 @@ public final class ExpressionShellCallLowerer {
             boolean cross = driver.target == Target.NATIVE_RISCV64
                     || driver.target == Target.NATIVE_AARCH64;
             // D-FULL-PARITY-050 row 2: run/cmd/ok emit for real on the x86-64
-            // native target (run reuses kof_process_run, ok is pure IR, cmd is
-            // the argv prepend) and, since row 1 slice C landed process.run on
-            // the cross, also on riscv64/aarch64 (NativeRiscvAsmShell provides
-            // kof_shell_argv). pipeline/runWith are slice B (chained pipes /
-            // cwd+env) everywhere — every refusal names the face that landed,
-            // never a raw call that ends in an ld error (R6).
-            boolean sliceB = mc.methodName().equals("pipeline")
-                    || mc.methodName().equals("runWith");
-            if (sliceB) {
+            // native target and, since row 1 slice C landed process.run on the
+            // cross, also on riscv64/aarch64. Slice B: runWith landed on the
+            // cross (NativeRiscvAsmShell, argv-first; inherited cwd/env are
+            // byte-parity, a non-empty cwd/env is an honest Result failure) —
+            // x86-64 runWith and pipeline everywhere are still slice B. Every
+            // refusal names the face that landed, never a raw call that ends in
+            // an ld error (R6).
+            boolean pipeline = mc.methodName().equals("pipeline");
+            boolean runWith = mc.methodName().equals("runWith");
+            if (pipeline || (runWith && !cross)) {
                 if (driver.currentDiagnostics != null) {
                     driver.currentDiagnostics.error(posFile(mc), posLine(mc), posCol(mc), 0,
-                            "shell." + mc.methodName() + ": " + (cross
-                                    ? "not available on the riscv64/aarch64 native targets yet"
-                                    : "chained-pipes/cwd+env faces are slice B")
-                                    + " (JVM and JS support the full shell surface;"
-                                    + " Native x86-64 and riscv64/aarch64 landed run/cmd/ok)",
+                            "shell." + mc.methodName() + ": " + (pipeline
+                                    ? "chained pipes are slice B"
+                                    : "runWith on the x86-64 native target is slice B")
+                                    + " (JVM and JS support the full shell surface; Native x86-64"
+                                    + " and riscv64/aarch64 landed run/cmd/ok; the cross landed runWith)",
                             "PROC001");
                 }
                 return localIdx;

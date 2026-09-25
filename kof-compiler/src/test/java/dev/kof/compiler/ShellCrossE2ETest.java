@@ -124,4 +124,44 @@ class ShellCrossE2ETest {
             }
             """, "true\nfalse\n");
     }
+
+    /** Slice B1: runWith with the inherited cwd ("") + empty env is the argv-first
+     *  spawn — byte-parity with the JVM oracle. */
+    @Test
+    void runWithInheritedCwdEnvMatchesJvm(@TempDir Path tmp) throws IOException {
+        assertAllTargets(tmp, "rw", """
+            main() {
+                var r = shell.runWith(shell.cmd("echo", listOf("vivo")), "", mapOf())
+                println(r.stdout)
+                println(r.exitCode)
+            }
+            """, "vivo\n\n0\n");
+    }
+
+    /** Slice B1: a NON-EMPTY cwd (or env) is never silently ignored (R6) — the
+     *  cross returns an honest Result failure (exitCode -1, stderr message).
+     *  The JVM honors cwd/env, so this is a documented cross-only gap. */
+    @Test
+    void runWithNonEmptyCwdIsHonestResultOnCross(@TempDir Path tmp) throws IOException {
+        Path src = tmp.resolve("Main-rw-gap.kf");
+        Files.writeString(src, """
+            main() {
+                var r = shell.runWith(shell.cmd("echo", listOf("hi")), "/tmp", mapOf())
+                println(r.exitCode)
+                println(r.stderr != "")
+            }
+            """);
+        Assumptions.assumeTrue(
+                has("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64")
+                        && NativeRiscv64E2ETest.qemuPrefix("riscv64") != null,
+                "cross riscv64 toolchain/sysroot ausente — pulando (NATIVE002)");
+        assertEquals("-1\ntrue\n", runCross(src, tmp.resolve("rw-gap-rv"),
+                "riscv64", Target.NATIVE_RISCV64), "riscv64 honest cwd gap");
+        Assumptions.assumeTrue(
+                has("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64")
+                        && NativeRiscv64E2ETest.qemuPrefix("aarch64") != null,
+                "cross aarch64 toolchain/sysroot ausente — pulando (NATIVE002)");
+        assertEquals("-1\ntrue\n", runCross(src, tmp.resolve("rw-gap-aa"),
+                "aarch64", Target.NATIVE_AARCH64), "aarch64 honest cwd gap");
+    }
 }
