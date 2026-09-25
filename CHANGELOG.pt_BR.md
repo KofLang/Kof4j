@@ -11,6 +11,27 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
 
+  - **§503 — globals `.quad` desalinhados em `.data` são invisíveis ao scan de
+    raízes estáticas do GC ([FECHADO](docs/bugs-and-gaps/known-bugs.pt_BR.md#503--global-quad-desalinhado-no-data-e-invisivel-ao-scan-de-raizes-estaticas-do-gc--sweep-libera-buffers-de-dreno-vivos--outbuf--errbuf--chunk---corrigido))** (26/09):
+    os globals `.quad` de `RuntimeProcess`/`RuntimeShell` não estavam alinhados
+    a 8 bytes, então o scan de raízes (passos de 8 a partir de
+    `kof_heap_root_start`) os pulava e o sweep liberava o buffer de dreno vivo →
+    `outbuf == errbuf == chunk`. Fix com `.balign 8` nos quatro globals;
+    byte-paridade T1–T14 (`ShellE2ETest` 20/20).
+  - **§504 — poms achatados com `${revision}` envenenaram builds offline `-pl` e
+    o maven-shade manteve um compilador velho ([FECHADO](docs/bugs-and-gaps/known-bugs.pt_BR.md#504--poms-com-revision-envenenaram-o-m2-build-offline--pl-checagem-up-to-date-do-maven-shade-preservou-um-compilador-velho-dentro-do-libkofjar---corrigido))**
+    (26/09): `flatten-maven-plugin` no pai (`${revision}` não quebra mais o
+    `~/.m2` offline `-pl` sem `-am`), `build-kof-jar.sh` remove o jar shaded
+    velho (a checagem up-to-date do shade preservava um compilador velho dentro
+    do `lib/kof.jar`) e `.gitignore` ignora `.flattened-pom.xml`.
+  - **`kof.gpu` paridade total no Native cross + JS/Script (`D-FULL-PARITY-050`
+    linha 6)** (26/09): o caminho riscv64/aarch64 nunca emitia o runtime
+    `kof_vk_*`/`kof_mv64_*`, então `gpu.available()` falhava no **link** (`ld:
+    undefined reference to 'kof_vk_available'`). Novo `NativeRiscvAsmGpu`
+    materializa o mesmo fallback honesto do `JvmVkStubRuntime` (`available=false`,
+    dispatch `-1`/`-6`); `GPU001` aposentado no JS/Script (`JsRuntimeGpuSupport`).
+    Prova: `KofGpuCrossTest` 4/4.
+
   - **§502 — método desconhecido num `Handle<T>` de `spawn` agora é `SEM025`
     ([FECHADO](docs/bugs-and-gaps/known-bugs.pt_BR.md#502--metodo-desconhecido-num-handlet-de-spawn-compilava-limpo-e-emitia-completablefuturebogus--nosuchmethoderror---corrigido))** (26/09): `val h = spawn { ... }` + `h.bogus()` compilava limpo e
     emitia `invokevirtual .../CompletableFuture.bogus` → `NoSuchMethodError`. Um

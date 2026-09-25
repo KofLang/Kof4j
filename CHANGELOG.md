@@ -11,6 +11,27 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
 
+  - **§503 — misaligned `.quad` globals in `.data` are invisible to the GC
+    static-roots scan ([FECHADO](docs/bugs-and-gaps/known-bugs.md#503--misaligned-quad-global-in-data-is-invisible-to-the-gc-static-roots-scan--sweep-frees-live-drain-buffers--outbuf--errbuf--chunk---fixed))** (26/09):
+    `RuntimeProcess`/`RuntimeShell` `.quad` globals were not 8-aligned, so the
+    GC root scan (8-byte steps from `kof_heap_root_start`) skipped them and the
+    sweep freed the live drain buffer → `outbuf == errbuf == chunk`. Fixed with
+    `.balign 8` on the four globals; T1–T14 byte-parity (`ShellE2ETest` 20/20).
+  - **§504 — `${revision}` flattened poms poisoned offline `-pl` builds and
+    maven-shade kept a stale compiler ([FECHADO](docs/bugs-and-gaps/known-bugs.md#504--revision-poms-poisoned-m2-offline--pl-builds-maven-shade-up-to-date-check-preserved-a-stale-compiler-inside-libkofjar---fixed))**
+    (26/09): added the `flatten-maven-plugin` to the parent
+    (`${revision}` no longer breaks `~/.m2` offline `-pl` without `-am`),
+    `build-kof-jar.sh` now removes the stale shaded jar (shade's up-to-date
+    check kept an old compiler inside `lib/kof.jar`) and `.gitignore` ignores
+    `.flattened-pom.xml`.
+  - **`kof.gpu` full parity on Native cross + JS/Script (`D-FULL-PARITY-050`
+    row 6)** (26/09): the riscv64/aarch64 path never emitted the `kof_vk_*`/
+    `kof_mv64_*` runtime, so `gpu.available()` failed at the **link** (`ld:
+    undefined reference to 'kof_vk_available'`). New `NativeRiscvAsmGpu`
+    materializes the same honest fallback as `JvmVkStubRuntime` (`available=false`,
+    dispatch `-1`/`-6`); `GPU001` is retired on JS/Script (`JsRuntimeGpuSupport`).
+    Proof: `KofGpuCrossTest` 4/4.
+
   - **§502 — an unknown method on a `spawn` `Handle<T>` is now `SEM025`
     ([FECHADO](docs/bugs-and-gaps/known-bugs.md#502--unknown-method-on-a-spawn-handlet-compiled-clean-and-emitted-completablefuturebogus--nosuchmethoderror---fixed))** (26/09): `val h = spawn { ... }` + `h.bogus()` compiled clean and
     emitted `invokevirtual .../CompletableFuture.bogus` → `NoSuchMethodError`. A

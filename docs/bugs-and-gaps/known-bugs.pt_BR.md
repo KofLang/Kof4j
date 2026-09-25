@@ -12649,4 +12649,4 @@ println(Directory("probe").delete())   // JVM: true (recursivo); x86-64: false (
 **Status:** ✅ CORRIGIDO (25/09) — `pom.xml` pai (flatten) + `scripts/build-kof-jar.sh` (shade skip) + `.gitignore` (artefatos `.flattened-pom.xml`).
 
 **Dono:** sessão lane paridade; classe: toolchain/build (custo: ~2 h de diagnóstico errado como bug de compilador).
-<!-- en-switch --> **EN:** [§504](known-bugs.md#504--revision-poms-poisoned-m2-offline--pl-builds--maven-shade-uptodate-check-preserved-a-stale-compiler-inside-libkofjar---fixed)
+<!-- en-switch --> **EN:** [§504](known-bugs.md#504--revision-poms-poisoned-m2-offline--pl-builds-maven-shade-up-to-date-check-preserved-a-stale-compiler-inside-libkofjar---fixed)

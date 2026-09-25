@@ -15105,7 +15105,7 @@ println(Directory("probe").delete())   // JVM: true (recursive); x86-64: false (
 **Status:** ✅ FIXED (25/09) — slice B `shell.runWith` x86-64 (RuntimeShell wrapper + RuntimeProcess child hook + `.balign 8`). Proof: T7/T13/T14 byte-parity with the JVM oracle; `ShellE2ETest` 20/20 (incl. `runWithOnNativeMatchesJvmGolden`), `ShellCrossE2ETest` 7/7, `ProcessRun*` 6/6+6/6.
 
 **Owner:** session parity lane (RuntimeShell/RuntimeProcess); family: GC conservador (§260 G-6b stack scan, #113 static-roots range).
-<!-- pt-switch --> **PT:** [§503 (pt_BR)](known-bugs.pt_BR.md#503--global-quad-desalinhado-no-data-invisivel-ao-scan-de-raizes-estaticas-do-gc--sweep-libera-buffers-de-dreno-vivos--outbuf--errbuf--chunk---corrigido)
+<!-- pt-switch --> **PT:** [§503 (pt_BR)](known-bugs.pt_BR.md#503--global-quad-desalinhado-no-data-e-invisivel-ao-scan-de-raizes-estaticas-do-gc--sweep-libera-buffers-de-dreno-vivos--outbuf--errbuf--chunk---corrigido)
 
 ## §504 — `${revision}` poms poisoned `~/.m2` offline `-pl` builds; maven-shade up-to-date check preserved a stale compiler inside `lib/kof.jar` — ✅ FIXED
 
@@ -15116,4 +15116,4 @@ println(Directory("probe").delete())   // JVM: true (recursive); x86-64: false (
 **Status:** ✅ FIXED (25/09) — parent `pom.xml` (flatten) + `scripts/build-kof-jar.sh` (shade skip) + `.gitignore` (`.flattened-pom.xml` artifacts).
 
 **Owner:** session parity lane; class: toolchain/build (cost: ~2 h of misdiagnosis as compiler bugs).
-<!-- pt-switch --> **PT:** [§504 (pt_BR)](known-bugs.pt_BR.md#504--poms-com-revision-envenenaram-o-m2-offline--checagem-uptodate-do-maven-shade-preserved-um-compilador-velho-dentro-do-libkofjar---corrigido)
+<!-- pt-switch --> **PT:** [§504 (pt_BR)](known-bugs.pt_BR.md#504--poms-com-revision-envenenaram-o-m2-build-offline--pl-checagem-up-to-date-do-maven-shade-preservou-um-compilador-velho-dentro-do-libkofjar---corrigido)
