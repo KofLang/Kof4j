@@ -5,9 +5,10 @@
 > **Status: ACTIVE front, owned by the parity lane (maintainer 25/09,
 > `DECISIONS.md` §`D-MEMORY-SAFETY`).** Fase 0 (investigation) **CLOSED 25/09** —
 > `docs/spec/memory-safety-investigation.md` accepted. Fase 1 (specification)
-> **IN PROGRESS** — `docs/spec/memory-safety.md` being written. Compiler/core
-> edits (Phases 2+) wait for the current development queue to close (brief's
-> final constraint). Zero premature core edits.
+> **CLOSED 25/09 — maintainer chose "review and close" (option A of the
+> decision list)**: `docs/spec/memory-safety.md`(+PT) is the accepted spec.
+> Compiler/core edits (Phases 2+) wait for the current development queue to
+> close (brief's final constraint; option J — ZERO premature core edits).
 
 **Goal:** define a serious memory semantics for Kof so that entire classes of
 memory bugs are impossible — or live behind an explicit boundary the
@@ -53,7 +54,8 @@ escape, unsafe mutable aliasing, unexpected null, accidental data race).
 
 ## Immediate next step (this lane)
 
-**Fase 1** — write `docs/spec/memory-safety.md` (EN+PT) formalizing
+**Fase 1 CLOSED 25/09** — `docs/spec/memory-safety.md` (EN+PT) written and
+accepted by the maintainer (option A). It formalizes
 Ownership, Lifetime, Borrowing, Aliasing, Mutability, Move, Copy, Clone,
 Drop/Destruction, Escape, Closure Capture, Concurrency, FFI, Unsafe
 Boundaries against the real Kof surface documented in

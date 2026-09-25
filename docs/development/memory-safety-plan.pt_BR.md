@@ -3,10 +3,13 @@
 # Memory safety — ownership, lifetime, borrowing, aliasing (D-MEMORY-SAFETY)
 
 > **Status: frente ATIVA, dono = lane paridade (mantenedora 25/09,
-> `DECISIONS.md` §`D-MEMORY-SAFETY`).** O trabalho semântico (Fases 0–1) é
-> trabalho corrente; edições no core (Fases 2+) esperam a fila de
-> desenvolvimento atual fechar (restrição final do brief). Zero edições
-> prematuras no core até lá.
+> `DECISIONS.md` §`D-MEMORY-SAFETY`).** Fase 0 (investigação) **CLOSED
+> 25/09** — `docs/spec/memory-safety-investigation.md` aceita. Fase 1 (spec)
+> **CLOSED 25/09 — a mantenedora escolheu "revisar e fechar" (opção A da
+> lista de decisões)**: `docs/spec/memory-safety.md`(+PT) é a spec aceita.
+> Edições no core (Fases 2+) esperam a fila de
+> desenvolvimento atual fechar (restrição final do brief; opção J — ZERO
+> edições prematuras no core até lá).
 
 **Objetivo:** definir uma semântica de memória séria para o Kof, de forma que
 classes inteiras de bugs de memória sejam impossíveis — ou vivam atrás de uma
