@@ -31,3 +31,4 @@ sha	cc12f4d0	pre-repair git (21/09): prova nao verificavel
 path	docs/development/tech-debt.md	KILLED 24/09 (mantenedora: dívida zerada); citado como história nas decisões D-TECHDEBT/D-DEBT-SCOUT dos DECISIONS
 path	docs/development/tech-debt.pt_BR.md	KILLED 24/09 (mantenedora: dívida zerada); citado como história nos DECISIONS PT
 path	docs/development/technical-debt/DEBT_SCOUT_CONTRACT.md	KILLED 24/09 com o debt-scout por ordem da mantenedora; citado nas decisões D-DEBT-SCOUT-W2 dos DECISIONS
+path	docs/spec/memory-safety.md	Fase 1 deliverable of D-MEMORY-SAFETY (maintainer 25/09) - planned target path, doc not created yet
