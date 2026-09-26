@@ -3709,6 +3709,7 @@ Quatro decisões tomadas de uma vez pelo prompt multipla-escolha da sessao
    (`docs/spec/memory-safety.md` pousado 25/09); a Fase 3+ continua gateada
    pelos testes de prova da Fase 2.
 
+<<<<<<< Updated upstream
 ## D-QUALITY-PIPELINE-2609 — esteira de branches = pipeline de qualidade (lab → testing → prerelease → stable → release/x.y.z → tag); lab sem CI por push; gates de promoção 80%/100%/100%+CLOSEALL; migração ATÔMICA pós-0.5.0 com `release/0.5.0` de piloto (mantenedora 26/09/2026)
 
 **Evidência:** issue #626 (proposta da mantenedora, 26/09 04:52Z) +
@@ -3744,3 +3745,39 @@ pipeline").
 - **Até lá NADA muda:** `beta-0.5.0` segue a branch ativa
   (`D-BRANCH-0.5.0` em vigor); agentes seguem empurrando para ela; #619
   segue HELD (regra 10). Fila: roadmap §23 `TIER 14`.
+=======
+## D-QUALITY-PIPELINE — DESIGN da esteira de branches APROVADO como esteira de qualidade (lab → testing ≥80% → prerelease 100% → stable 100%+CLOSEALL → release/x.y.z); EXECUÇÃO ADIADA para DEPOIS do ciclo 0.5.0, de forma atômica (mantenedora 26/09/2026, issue #626)
+
+A mantenedora revisou a análise técnica da lane de paridade na #626 e
+fechou o desenho conceitualmente (comentário 26/09 ~05:53Z):
+
+1. **`lab`** = lane de experimentação; **sem CI/CD a cada push** (o custo de
+   ~25–35 min do `Build + Tests` não paga ali). O primeiro gate formal é a
+   **promoção `lab → testing`** (a suíte de validação completa roda lá).
+2. **`testing`** = integração/QA; precisa de **≥ 80% dos checks obrigatórios
+   verdes** para promover a `prerelease`.
+3. **`prerelease`** = **100% verde**; nenhuma feature entra direto (só
+   promoções de `testing`). Isso mata a patologia do #619: prerelease que
+   continua recebendo desenvolvimento por baixo de PR de release aberto.
+4. **`stable`** = **100% verde + critérios de fechamento da versão**
+   (CLOSEALL, docs/training sincronizados); hotfix só por **PR com backport
+   explícito e revalidação** — nunca uma segunda branch de desenvolvimento
+   disfarçada.
+5. **`release/x.y.z`** = branch temporária de empacotamento a partir de
+   `stable` → tag → GitHub Release; `release/0.5.0` **serve de piloto** do
+   último estágio.
+6. **Timing (ABSOLUTO):** troca nenhuma no meio do 0.5.0. O ciclo atual
+   termina na esteira presente; a migração depois é **atômica** — branches +
+   CI + scripts + `AGENTS.md` + `DOING.md` + `DECISIONS.md` + automações na
+   mesma mudança, porque o repo resolve a branch ativa dinamicamente hoje
+   (metade em `beta`/metade em `prerelease` é como agente publica lixo em
+   produção).
+
+Ponto técnico aberto levantado na issue: o "≥ 80%" precisa de denominador
+objetivamente enumerável — branch protection mede checks como booleanos, e
+um percentual que tolera vermelhos precisa classificar QUAIS vermelhos
+(guardas de ambiente/toolchain vs funcionais), senão conflita com a regra 8
+("nenhuma branch quebrável"). O commit da migração deve codificar o
+percentual como lista fixa de checks enumerável por script + classificação
+documentada de vermelho.
+>>>>>>> Stashed changes
