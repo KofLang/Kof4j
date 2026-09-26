@@ -105,4 +105,16 @@ class MemoryModelTest {
         assertSame(CaptureMode.SHARED_BOX, CaptureMode.valueOf("SHARED_BOX"));
     }
 
+
+    @Test
+    void moveTransferIsTheO02Fact() {
+        var m = new MoveTransfer("a", "b");
+        assertEquals("a", m.destination());
+        assertEquals("b", m.source());
+        assertTrue(m.requiresSourceNulling(), "O-02: sem nular a origem nao e move");
+        assertThrows(IllegalArgumentException.class, () -> new MoveTransfer("a", "a"), "auto-move nao transfere");
+        assertThrows(IllegalArgumentException.class, () -> new MoveTransfer("", "b"));
+        assertThrows(IllegalArgumentException.class, () -> new MoveTransfer("a", null));
+    }
+
 }
