@@ -48,13 +48,19 @@
 > (saiu da beirada do crítico; baseline limpo no mesmo commit, 66 dívidas).
 > Prova: diff 2+/225− no dispatcher + bateria da face 68/68 (field/UI/enum/
 > external) + SUÍTE COMPLETA no tip mesclado **4126/0F/0E**.
+> (D) SPLIT #3 POUSADO (mesma costura, família fechada): a face `FieldAccessExpr`
+> do `ExpressionTyper` saiu VERBATIM (só `yield`→`return` + prefixo nos calls
+> recursivos) para `ExpressionFieldAccessTyper` 93ln — 559→482, SAIU do baseline
+> (65 dívidas). Os 3 gêmeos do campo agora vivem em arquivos próprios
+> (Sem/Type/Emit). Prova: diff 1+/78− + bateria da face 68/68 + SUÍTE COMPLETA
+> **4127/0F/0E**.
 > Observação honesta (não §NNN ainda): `RingPrivilegeE2ETest` falhou 1× no
 > suite-run da push anterior (timeout 120s sob contenção; standalone 5/5 em
 > 17s, duas vezes) — flake de timing de uma ocorrência registrado aqui para a
 > dona baremetal; re-incidência vira §NNN com repro. **NEXT STEP (o re-trigger
 > lê isto):** (1) conferir `Build + Tests` VERDE no tip deste commit; (2)
 > dívida ≤500 restante da minha fila (banda tolerada, sem pressão de gate):
-> `ExpressionTyper` 559, `ExternalClasspath` 558, `MemberCallTyper` 545,
+> `ExternalClasspath` 558, `MemberCallTyper` 545,
 > `ExpressionMethodCallLowerer` 528; (3) sem unidade sem dono na lane (§493 = gaps-db
 > pela decisão D-DECISION-BATCH-2609; §494 segue regra 6; memory-safety Fase 2
 > = dona 3426ecab6). **PR #619 INTOCÁVEL (regra 10 + decisão SEGURAR)**.
