@@ -15052,7 +15052,7 @@ println(Directory("probe").delete())   // JVM: true (recursive); x86-64: false (
 <!-- pt-switch --> **PT:** [§499 (pt_BR)](known-bugs.pt_BR.md#499--metodo-estatico-desconhecido-em-nome-de-tipo-builtin-stringbogus-intbogus--compilava-limpo-e-emitia-invokestatic-ownerbogus--nosuchmethoderror---corrigido)
 ---
 
-## §500 — Static method/field on an imported external class name that does not resolve emits an empty-owner call (`invokevirtual "".asList` / `"".bogus`) → class-load failure — 🟡 OPEN (catalogued)
+## §500 — Static method/field on an imported external class name that does not resolve emits an empty-owner call (`invokevirtual "".asList` / `"".bogus`) → class-load failure — ✅ FIXED 26/09
 
 **Symptom (measured 26/09, lane compiler 9092):** with `import java.util.Arrays`, `Arrays.bogus(1)` AND the valid `Arrays.asList(1, 2)` compile clean and emit `invokevirtual "".asList:(II)Ljava/lang/Object;` / `"".bogus:(I)` — empty owner and `invokevirtual` (not `invokestatic`). The artifact then fails at load (`Default.Main` not found / `ClassFormatError: Illegal class name ""`). A static FIELD does the same: `import java.lang.System` + `System.bogusField` compiles clean. Contrast (the path is not wholly broken): `Objects.requireNonNull("x")` resolves correctly (`invokestatic java/util/Objects.requireNonNull`), and an unknown INSTANCE method (`ArrayList().bogus()`) is already `SEM025`.
 
@@ -15087,10 +15087,35 @@ BuiltinUnknownMethodGuardTest).
 external static fields on class-name receivers still lack getstatic resolution
 + field-existence guard in `SemExpressionTyper`/lowerer.
 
-**Status:** 🟡 OPEN — catalogued (Q7). — slice A (métodos) FIXED 26/09 `35aca27fd`; slice B (campos estáticos) pending.
+**Slice B — ✅ FIXED (26/09, lane compiler 9092):** the FIELD face (getstatic,
+R6). With the receiver being the CLASS NAME (`Integer.MAX_VALUE`,
+`TimeUnit.SECONDS`), the field inferred UNKNOWN and the lowering emitted
+`getfield "?".<field>` → `NoClassDefFoundError: "?"` (the §500 signature); an
+unknown name (`Integer.bogusField`) compiled to the same dead bytecode; a write
+(`Integer.MAX_VALUE = 1`) crashed the frame (COMP002 — R6 violation). Root fix:
+`StaticClassReceiver` maps the receiver name to its ClassType using REAL JDK
+class names only (Kof primitive type names `String`/`Long`/`Double`/`Boolean`
+keep SEM050 by the bug-99 contract; `Int.MAX_VALUE` stays a fake-idiom);
+`ExternalClasspath.resolveStaticFieldType` answers PUBLIC STATIC fields only
+(`ACC_STATIC` scan of classpath entries + JDK reflection); `SemExpressionTyper`
+yields the real type or fails with `SEM025` (existence gate — never dead
+bytecode); `ExpressionLowerer` emits a real `KofGetStatic`; `ExpressionTyper`
+mirrors the type so the `println` dispatch boxes the primitive (discovered
+during the work: correct getstatic + raw int into `String.valueOf(Object)` =
+VerifyError at load — fixed in the same unit); the WRITE face is an honest
+`SEM025` refusal (external statics are read-only), never COMP002. **Proof
+(Q0/Q1/Q3):** RED 4/8 measured with the fix off (`getfield "?"`, missing
+SEM025, VerifyError, COMP002) → GREEN `ExternalStaticFieldE2ETest` 8/8 with
+goldens MEASURED against the bare JVM (`Integer.MAX_VALUE`→2147483647,
+`TimeUnit.SECONDS`→SECONDS + chained `name()`→SECONDS, SEM050 faces kept);
+full reactor suite 4099/0F/0E.
+
+**Status:** ✅ FIXED 26/09 — slice A (methods) `35aca27fd` + slice B (static
+fields) this lane; both faces of the empty-owner emit are gone (SEM025 is the
+honest diagnostic).
 
 **Owner:** session 9092 (lane compiler), `SemMethodCallTyper`/`MemberCallTyper` + `ExternalClasspath` (varargs/static-field awareness); family of §491/§495/§496/§499.
-<!-- pt-switch --> **PT:** [§500 (pt_BR)](known-bugs.pt_BR.md#500--metodocampo-estatico-em-nome-de-classe-externa-importada-que-nao-resolve-emite-chamada-de-owner-vazio-invokevirtual-aslist--bogus--falha-de-load-da-classe---aberto-catalogado)
+<!-- pt-switch --> **PT:** [§500 (pt_BR)](known-bugs.pt_BR.md#500--metodocampo-estatico-em-nome-de-classe-externa-importada-que-nao-resolve-emite-chamada-de-owner-vazio-invokevirtual-aslist--bogus--falha-de-load-da-classe---corrigido-2609)
 
 ## §501 — Native riscv64/aarch64 `cache.ttl` returned 0 where the JVM/x86-64 oracle returns -1 (missing key, no TTL, expired) — ✅ FIXED 26/09
 

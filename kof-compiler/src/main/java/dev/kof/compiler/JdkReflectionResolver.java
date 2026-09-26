@@ -113,6 +113,28 @@ final class JdkReflectionResolver {
     }
 
     /**
+     * §500 slice B: descritor de um campo PUBLIC STATIC do JDK via reflexão
+     * (`Integer.MAX_VALUE` → "I", `TimeUnit.SECONDS` → "Ljava/util/concurrent/
+     * TimeUnit;"). Só `getFields()` (públicos) + `Modifier.isStatic` — campo de
+     * instância pelo NOME da classe não existe como acesso, e a recusa é o
+     * diagnóstico (SEM025 no typer), nunca o `getfield "?"` de antes.
+     */
+    static String resolveStaticJdkFieldType(String ownerInternalName, String fieldName) {
+        if (!isJdkClass(ownerInternalName)) return null;
+        try {
+            Class<?> cls = Class.forName(ownerInternalName.replace('/', '.'));
+            for (java.lang.reflect.Field f : cls.getFields()) {
+                if (f.getName().equals(fieldName) && Modifier.isStatic(f.getModifiers())) {
+                    return org.objectweb.asm.Type.getDescriptor(f.getType());
+                }
+            }
+        } catch (Throwable t) {
+            return null;
+        }
+        return null;
+    }
+
+    /**
      * §499: existe método público do JDK com este nome e aridade, ciente de
      * varargs (`String.format(String, Object...)` casa com 1..N argumentos)?
      * É a pergunta que o gate de método estático desconhecido em nome de tipo

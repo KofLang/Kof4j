@@ -180,6 +180,25 @@ static int lowerField(CompilerDriver driver, AssignmentExpr ae, FieldAccessExpr 
                 Type.PrimitiveType.VOID, KofCallKind.FUNCTION));
         return localIdx;
     }
+    // §500 slice B (R6): ESCREVER num campo estático de classe EXTERNA
+    // (`Integer.MAX_VALUE = 1`) caía no caminho genérico do receiver
+    // identificador e crashava o frame (COMP002 — internal error, proibido
+    // por R6/Q0). O emit de putstatic para uma classe que o Kof não possui
+    // não existe; a recusa é um diagnóstico SEM025 na hora, nunca um crash.
+    if (driver.semanticAnalyzer != null
+            && fa.receiver() instanceof IdentifierExpr wid
+            && !driver.isLocalVarName(wid.name(), locals)
+            && StaticClassReceiver.classTypeOf(driver.semanticAnalyzer, wid.name())
+                    instanceof Type.ClassType wct
+            && !wct.packageName().isEmpty()
+            && driver.externalClasspath.knows(wct.internalName())
+            && driver.currentDiagnostics != null) {
+        driver.currentDiagnostics.error(fa,
+                "cannot assign to external static field '" + wid.name()
+                        + "." + fa.fieldName() + "' (external class fields are read-only)",
+                "SEM025");
+        return localIdx;
+    }
     Type recvType = ExpressionTyper.inferExprType(driver, fa.receiver(), locals);
     // §246/#269: o emit-path não conhece o narrowing (que vive no escopo
     // semântico) — um receiver já validado como não-nulo chega aqui ainda

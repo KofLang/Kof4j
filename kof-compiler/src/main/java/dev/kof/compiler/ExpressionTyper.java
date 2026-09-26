@@ -260,6 +260,12 @@ public final class ExpressionTyper {
                 if (Type.isString(recvType) && ("name".equals(fa.fieldName()) || "path".equals(fa.fieldName()))) {
                     yield BuiltinTypes.STRING;
                 }
+                // §500 slice B: tipo real do campo estático externo pelo NOME
+                // da classe — sem isto o dispatch do `println` escolhia
+                // `String.valueOf(Object)` e o int cru do getstatic entrava
+                // sem box → VerifyError no load.
+                Type s500e = StaticClassReceiver.emitType(driver, fa, locals);
+                if (s500e != null) yield s500e;
                 if (recvType instanceof Type.ClassType ct
                         && CompilerTypes.isEnumName(ct.name(), driver.currentUnit)) { // #445: pkg real
                     if (!CompilerTypes.enumConstantsOf(ct.name(), driver.currentUnit).contains(fa.fieldName()) && driver.currentDiagnostics != null) {

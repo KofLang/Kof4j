@@ -415,6 +415,12 @@ public final class SemExpressionTyper {
                 if (recvType instanceof Type.TypeVariable tv && tv.bound() != null) {
                     recvType = tv.bound();
                 }
+                // §500 slice B: campo ESTÁTICO externo pelo NOME da classe
+                // (`Integer.MAX_VALUE`/`TimeUnit.SECONDS`; SEM025 honesto,
+                // nunca `getfield "?"` morto) — a face vive em
+                // StaticClassReceiver (gate ≤500, R6).
+                Type s500 = StaticClassReceiver.semInfer(sa, fa, recvType);
+                if (s500 != null) yield s500;
                 if (recvType instanceof Type.ClassType ct) {
                     SymbolTable.Symbol field = MemberResolver.resolveFieldInHierarchy(sa, ct.name(), fa.fieldName());
                     if (field != null) {

@@ -372,6 +372,55 @@ public final class ExternalClasspath {
         return null;
     }
 
+    /**
+     * §500 slice B: campo PUBLIC STATIC acessível pelo NOME da classe
+     * (`Integer.MAX_VALUE`, `TimeUnit.SECONDS`). Varre os entries com filtro
+     * ACC_STATIC e cai na reflexão JDK — sem isto o typer NÃO sabia o tipo do
+     * campo e o lowering emitia `getfield "?".MAX_VALUE` → NoClassDefFoundError
+     * "?". Campo de instância NUNCA resolve por aqui (é outro acesso, já
+     * suportado pelo bloco externo de receiver-valor).
+     */
+    public synchronized String resolveStaticFieldType(String ownerInternalName, String fieldName) {
+        if (ownerInternalName == null) return null;
+        if (loaded) {
+            String direct = findFieldDeclaredStatic(ownerInternalName, fieldName, 0);
+            if (direct != null) return direct;
+            String sup = declaredSuperclassOf(ownerInternalName);
+            int hops = 0;
+            while (sup != null && !sup.equals("java/lang/Object") && hops++ < 32) {
+                if (!classBytes.containsKey(sup)) break;
+                String inherited = findFieldDeclaredStatic(sup, fieldName, 0);
+                if (inherited != null) return inherited;
+                sup = declaredSuperclassOf(sup);
+            }
+        }
+        return JdkReflectionResolver.resolveStaticJdkFieldType(ownerInternalName, fieldName);
+    }
+
+    private String findFieldDeclaredStatic(String internalName, String fieldName, int depth) {
+        if (depth > 64) return null;
+        byte[] bytes = classBytes.get(internalName);
+        if (bytes == null) return null;
+        final String[] hit = new String[1];
+        try {
+            new ClassReader(bytes).accept(new ClassVisitor(org.objectweb.asm.Opcodes.ASM9) {
+                @Override
+                public org.objectweb.asm.FieldVisitor visitField(int access, String name,
+                                                                 String descriptor,
+                                                                 String signature, Object value) {
+                    if (name.equals(fieldName) && hit[0] == null
+                            && (access & org.objectweb.asm.Opcodes.ACC_STATIC) != 0) {
+                        hit[0] = descriptor;
+                    }
+                    return null;
+                }
+            }, ClassReader.SKIP_CODE | ClassReader.SKIP_FRAMES);
+            return hit[0];
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     private String findFieldDeclared(String internalName, String fieldName, int depth) {
         if (depth > 64) return null;
         byte[] bytes = classBytes.get(internalName);

@@ -345,6 +345,11 @@ public final class ExpressionLowerer {
                     ops.add(new KofLoadField(superType, fa.fieldName(), fieldType));
                     yield localIdx;
                 }
+                // §500 slice B: `KofGetStatic` real do campo estático externo
+                // pelo nome da classe (antes: getfield de owner vazio → "?").
+                if (StaticClassReceiver.emitStatic(driver, fa, locals, ops)) {
+                    yield localIdx;
+                }
                 {
                     // campo de classe EXTERNA: owner e tipo vêm do classpath
                     Type extRecv = ExpressionTyper.inferExprType(driver, fa.receiver(), locals);

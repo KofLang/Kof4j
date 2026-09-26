@@ -10,6 +10,22 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `scripts/changelog.sh` e inserida pela pipeline neste marcador:
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
+  - **§500 — método/campo estático em nome de classe externa não emite mais bytecode de owner vazio nem `getfield "?"` morto ([CORRIGIDO](docs/bugs-and-gaps/known-bugs.pt_BR.md#500--metodocampo-estatico-em-nome-de-classe-externa-importada-que-nao-resolve-emite-chamada-de-owner-vazio-invokevirtual-aslist--bogus--falha-de-load-da-classe---corrigido-2609))** (26/09):
+    fatia A (`35aca27fd`, métodos): `ACC_VARARGS` na assinatura +
+    `VarargsArrayPacker` — o válido `Arrays.asList(1, 2)` e
+    `String.join(", ", ...)` emitem os descritores REAIS do JDK e
+    `Arrays.bogus(1)` falha com `SEM025` em vez de `invokevirtual "".bogus`.
+    Fatia B (campos): `StaticClassReceiver` + `resolveStaticFieldType`
+    (PUBLIC STATIC via `ACC_STATIC` no classpath + reflexão JDK) —
+    `Integer.MAX_VALUE`/`TimeUnit.SECONDS` emitem `KofGetStatic` de verdade
+    com goldens medidos na JVM, o dispatch do `println` dá box ao primitivo (o
+    VerifyError do `String.valueOf(Object)` fechou na mesma unidade), nomes
+    inexistentes falham `SEM025`, e escritas em estáticos externos são recusadas
+    com `SEM025` (era crash de frame COMP002 — R6). Os nomes de tipo primitivo
+    do Kof mantêm SEM050 (contrato bug-99: `String`/`Long`/`Double`/
+    `Boolean.<campo>` e `Int.MAX_VALUE` seguem fake-idioms). Prova: RED→GREEN
+    `ExternalVarargsStaticE2ETest` 4/4 + `ExternalStaticFieldE2ETest` 8/8;
+    suíte reactor completa 4099/0F/0E.
   - **§509 — `kof fmt` e o LSP não apagam mais comentários — o formatter costura cada `//` e `/* */`
     de volta pela linha de origem e a heurística de 50% que decidia POR ACIDENTE qual formatter rodava
     foi extinta ([CORRIGIDO](docs/bugs-and-gaps/known-bugs.pt_BR.md#509--kof-fmtlsp-deletava-comentarios-em-silencio--o-formatter-ast-reimprimia-sem-eles-e-a-heuristica-de-50-em-kofformatterjava39-decidia-por-acidente-qual-caminho-rodava-pouco-comentario--perda-muito--o-fallback-token-preservava-o-lsp-sem-null-handling-morria-de-npe---corrigido-2609-issue-625))** (26/09, issue #625 de

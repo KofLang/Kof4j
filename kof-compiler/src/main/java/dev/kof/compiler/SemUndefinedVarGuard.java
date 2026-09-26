@@ -54,7 +54,11 @@ final class SemUndefinedVarGuard {
                 // chamada estática com receiver identificador nunca
                 // chegava ao lowering (só `new X()` e instância
                 // funcionavam).
-                && !isExternalImportedClass(sa, name);
+                && !isExternalImportedClass(sa, name)
+                // §500 slice B: `Integer.MAX_VALUE` sem import (o caminho de
+                // método já aceita o nome do JDK desde o §499); o campo é
+                // tipado/emitido pelo bloco estático do typer/lowerer.
+                && !StaticClassReceiver.isJdkFieldOwnerName(name);
     }
 
     /**

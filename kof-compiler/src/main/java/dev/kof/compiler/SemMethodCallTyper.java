@@ -274,7 +274,7 @@ public final class SemMethodCallTyper {
      * que ele mapeia e estende Char/Byte/Short/Object — todos os nomes de tipo
      * builtin, para que o gate valide o membro estático em qualquer um deles.
      */
-    private static String jdkStaticOwner(String name) {
+    static String jdkStaticOwner(String name) {
         return switch (name) {
             case "String", "string" -> "java/lang/String";
             case "Int", "int", "Integer" -> "java/lang/Integer";

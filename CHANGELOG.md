@@ -10,6 +10,22 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `scripts/changelog.sh` and inserted by the pipeline at this marker:
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
+  - **§500 — static method/field on an external class name no longer emits empty-owner bytecode or dead `getfield "?"` ([FIXED](docs/bugs-and-gaps/known-bugs.md#500--static-methodfield-on-an-imported-external-class-name-that-does-not-resolve-emits-an-empty-owner-call-invokevirtual-aslist--bogus--class-load-failure---fixed-2609))** (26/09):
+    slice A (`35aca27fd`, methods): `ACC_VARARGS` carried in the signature +
+    `VarargsArrayPacker` — the valid `Arrays.asList(1, 2)` and
+    `String.join(", ", ...)` emit the REAL JDK descriptors and
+    `Arrays.bogus(1)` fails `SEM025` instead of `invokevirtual "".bogus`.
+    Slice B (fields): `StaticClassReceiver` + `resolveStaticFieldType`
+    (PUBLIC STATIC via classpath `ACC_STATIC` + JDK reflection) —
+    `Integer.MAX_VALUE`/`TimeUnit.SECONDS` emit a real `KofGetStatic` with
+    JVM-measured goldens, the `println` dispatch boxes the primitive (the
+    `String.valueOf(Object)` VerifyError closed in the same unit), unknown
+    names fail `SEM025`, and writes to external statics refuse with `SEM025`
+    (was a COMP002 frame crash — R6). Kof primitive type names keep SEM050
+    (bug-99 contract: `String`/`Long`/`Double`/`Boolean.<field>` and
+    `Int.MAX_VALUE` stay fake-idioms). Proof: RED→GREEN
+    `ExternalVarargsStaticE2ETest` 4/4 + `ExternalStaticFieldE2ETest` 8/8;
+    full reactor suite 4099/0F/0E.
   - **§509 — `kof fmt` and the LSP no longer delete comments — the formatter sews every `//` and `/* */`
     back by source line and the 50% size heuristic that decided BY ACCIDENT which formatter ran is
     deleted ([FIXED](docs/bugs-and-gaps/known-bugs.md#509--kof-fmtlsp-silently-deleted-comments--the-ast-formatter-re-printed-without-them-and-the-50-size-heuristic-at-kofformatterjava39-decided-by-accident-which-path-ran-few-comments--loss-many--the-token-fallback-preserved-the-lsp-had-no-null-handling-and-died-with-npe---fixed-2609-issue-625))** (26/09, issue #625 by @ETieppo): the AST
