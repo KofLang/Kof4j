@@ -74,6 +74,36 @@ erros nomeados `INTEROP00x`, E2E por alvo, corpus sincronizado. Nasce
   congelados na fatia 1 junto da linha do training; a Lei da Simplicidade
   vale no commit da superfície.
 
+## RECON da fatia 2 — FEITO 26/09 (sonda compilada+executada nos tres alvos de compilacao)
+
+Fatos medidos (oraculo JVM `[{"x":1,"y":2}]\n5\n6`):
+- `json.encode(listOf(record))`: JVM ✓, JS ✓, **x86 QUEBRADO — despeja o ponteiro
+  cru do objeto** (§516, catalogado ABERTO, dona = esta lane/fatia 2). O SCRIPT
+  interpreta o mesmo runtime gerado (paridade por construcao — remedir no E2E).
+- `json.decode<Record>` ESCALAR: funciona em todo lugar PORQUE o compilador ja
+  dobra em compile-time (JSN002 em `ExpressionJsonCallLowerer`: por campo
+  `kof_json_find_value` + decoders escalares + construtor canonico). O
+  `json.encode(record)` escalar tambem e dobrou (concat de string + leitura de campo).
+- A maquina do conserto do §516 ja existe sem uso: `NativeJsonSchema` emite
+  `.Lsch_<Name>` (token, offset, typeCode, aux) + `.Lsch_registry` +
+  `kof_json_schema_find` — ZERO consumidores hoje.
+
+Superficie congelada da fatia 2 (gate regra 11 — nenhuma superficie nova de compilador):
+- Args `List<record>`: o host mantem `json.encode(args)`; exige o §516 consertado
+  primeiro (tag 4 + walker `kof_json_encode_object` ~40 linhas, mesmo patch no
+  walker de map).
+- Retorno `record`: face `String KofPy.callJson(fn, args)` (a linha crua do payload —
+  INTEROP004/006 identicos) + o usuario compoe o idiom JA EXISTENTE
+  `json.decode<MyRecord>(payload)` (uma linha, Kof puro, dobra por-campo = zero
+  reflexao em runtime, saida identica nos 4 alvos). Um `callRecord<R>` tipado dentro
+  do host e impossivel sem face nova de compilador (o type-var apagado nao seleciona
+  a dobra) = regra 6 — NAO improvisar.
+- Plano de prova: `JsonNativeRecordListE2ETest` (oraculo JVM + JVM≡x86, RED pre-fix
+  no §516) + `InteropPyRecordE2ETest` (round-trip record-arg + record-resultado via
+  callJson+decode<record>, goldens medidos JVM/x86/JS/SCRIPT; edges Q3: campo String
+  com aspas/\n, campos Bool/Double, args lista-vazia, INTEROP006 com funcao que
+  retorna record).
+
 ## Fatias (cada uma um corte vertical COMPLETO com prova — nunca fachada)
 
 | # | Fatia | Escopo da entrega COMPLETA | Prova |

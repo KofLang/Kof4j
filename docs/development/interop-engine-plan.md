@@ -71,6 +71,35 @@ management (spawn, stdin/stdout, timeout, exit, cancel), session state, named
   reader loops in user code). Exact names are frozen in fatia 1 with the
   training row; the Simplicity Law applies at the surface commit.
 
+## Fatia 2 RECON — DONE 26/09 (measured, scratch probe compiled+run on the three compile targets)
+
+Facts measured (JVM oracle `[{"x":1,"y":2}]\n5\n6`):
+- `json.encode(listOf(record))`: JVM ✓, JS ✓, **x86 BROKEN — dumps the raw object
+  pointer** (§516, catalogued OPEN, owner = this lane/fatia 2). SCRIPT interprets the
+  same generated runtime (parity by construction — to re-measure in the E2E).
+- `json.decode<Record>` SCALAR: works everywhere BECAUSE the compiler already folds
+  it at compile-time (JSN002 in `ExpressionJsonCallLowerer`: per-field
+  `kof_json_find_value` + scalar decoders + canonical constructor). Scalar
+  `json.encode(record)` is likewise folded (string-concat + field reads).
+- The fix machinery for §516 already exists unused: `NativeJsonSchema` emits
+  `.Lsch_<Name>` (token, offset, typeCode, aux) + `.Lsch_registry` +
+  `kof_json_schema_find` — zero consumers today.
+
+Frozen surface for fatia 2 (rule 11 gate — no new compiler surface):
+- Args `List<record>`: host keeps `json.encode(args)`; needs §516 fixed first
+  (tag 4 + `kof_json_encode_object` walker ~40 lines, map walker same patch).
+- Result `record`: face `String KofPy.callJson(fn, args)` (the raw payload line —
+  INTEROP004/006 identical) + the user composes the EXISTING idiom
+  `json.decode<MyRecord>(payload)` (one line, pure Kof, per-field fold = zero
+  runtime reflection, output identical on the 4 targets). A typed `callRecord<R>`
+  inside the host is impossible without a new compiler face (erased type-var cannot
+  select the fold) = rule 6 — NOT improvised.
+- Proof plan: `JsonNativeRecordListE2ETest` (JVM oracle + JVM≡x86, RED pre-fix on
+  §516) + `InteropPyRecordE2ETest` (round-trip record arg + record result via
+  callJson+decode<record>, goldens measured JVM/x86/JS/SCRIPT; Q3 edges: String
+  field with quotes/newlines, Bool/Double fields, empty list args, INTEROP006 on
+  remote error with a record-returning function).
+
 ## Slices (each a complete vertical cut with proof — never a facade)
 
 | # | Slice | Scope of COMPLETE delivery | Proof |

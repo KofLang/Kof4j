@@ -15496,3 +15496,38 @@ jsondec row), `JsonCompleteE2ETest` 10/10, `PackagesE2ETest` 12/12,
 its organizing axis (here: package), not one lucky instance.
 
 <!-- pt-switch --> **PT:** [§515 (pt_BR)](#515--jsondecoderecord-de-record-em-pacote-morria-em-runtime-com-nosuchmethoderror-kof_json_decode_nomesimples-o-runtime-define-o-decoder-pelo-nome-completo-mangado---fixed-2609-lane-paridademedia-627)
+
+## §516 — `json.encode` de uma `List<Record>` no x86 despejava o ponteiro cru do objeto (`encode_int`) porque o walker de lista não tem tag de elemento-objeto — a dobra JSN002 só cobre o record ESCALAR — 🟡 OPEN (owner = lane compiler; fatia 2 X2)
+
+**Sintoma (medido 26/09, recon da fatia 2 X2):** no NATIVE x86,
+```
+record Point(Int x, Int y)
+println(json.encode(listOf(Point(1, 2))))
+```
+imprime `[-974860256]` — o ponteiro de heap do objeto formatado como Int.
+No JVM e no JS o mesmo programa imprime `[{"x":1,"y":2}]` (oracle medido).
+O `json.decode<Point>("{\"x\":5,\"y\":6}")` ESCALAR funciona nos três
+(dobra JSN002 por-campo no compile-time).
+
+**Root cause (lido no código):** `JsonDispatch.listTag` devolve 0 (int) para
+`Type.ClassType` e o loop `.Lkof_json_el_loop` de `RuntimeJsonEncode` chama
+`kof_json_encode_int` sobre o slot cru — o ponteiro vira número. A máquina
+para o conserto JÁ EXISTE: `NativeJsonSchema` emite `.Lsch_<Name>` (token
+`"\"campo\":"`, offset, typeCode, aux) + `.Lsch_registry` +
+`kof_json_schema_find` — infra SEM consumidor (escrita para exatamente este
+caso; o record escalar dobrou por outro caminho).
+
+**Conserto (design, fatia 2):** tag 4 (`elemType instanceof ClassType`) em
+`listTag` + ramo `.Lkof_json_el_object` que chama um `kof_json_encode_object`
+NOVO (asm genérico: schema_find pelo nome da classe do header do objeto →
+walk dos campos → builder; ~40 linhas no padrão dos walkers de §512) + o
+mesmo no walker de MAP (valores record). riscv64/aarch64: mesmo port do
+§514 (a face da lista de objetos cross entra junto). Prova:
+`JsonNativeRecordListE2ETest` com oracle JVM medido, JVM≡x86, e o round-trip
+`listOf(record)` no spec do motor X2 (args de `KofPy`).
+
+**Repro mínimo:** o snippet acima compilado com `-t native` neste host
+(`as`/`ld` presentes). Não é regressão de §512: §512 cobriu Double/Long
+crus; objeto-elemento nunca teve tag.
+
+<!-- pt-switch --> **PT:** [§516 (pt_BR)](known-bugs.pt_BR.md#516--o-jsonencode-de-uma-listrecord-no-x86-despejava-o-ponteiro-cru-do-objeto-encode_int-porque-o-walker-de-lista-nao-tem-tag-de-elemento-objeto--a-dobra-jsn002-so-cobre-o-record-escalar---open-dona--lane-compiler-fatia-2-x2)
