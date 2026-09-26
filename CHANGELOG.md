@@ -91,6 +91,16 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     CI caught it; the scan (docs/ + DOING + AGENTS×2 + CHANGELOG×2, 307
     files measured clean) runs in the main gate and the capture is
     mutation-proved in `--selftest`.
+  - **Process parity row 1 slice E — whole `process.Result` printing on native
+    x86-64/riscv64/aarch64** (26/09): `println(r)` and `"text" + r` now render
+    `ProcessResult[exitCode=N, stdout=S, stderr=E]` by content, with only the
+    trailing CR/LF of each stream trimmed — the same §367 JVM contract. New
+    `RuntimeProcessResult` and `NativeRiscvAsmProcessResult` implement the
+    helper `kof_process_result_to_string`; `ProcessResultPrintGuard` now refuses
+    only the freestanding MCU/riscv32 target. Proof:
+    `ProcessResultWholePrintE2ETest` compares the same source byte-for-byte on
+    JVM/x86-64/riscv64/aarch64 (echo, concatenation, non-zero exit, stdout +
+     stderr, and multi-line output); MCU remains pinned to `PROC001`.
   - **Media parity slice 1 — Native x86-64 `Video`/`Audio` byte-for-byte with
     the JVM (`D-FULL-PARITY-050` row 4 slice 1)** (26/09): new `RuntimeMedia`/
     `RuntimeMediaMp4`/`RuntimeMediaWav` emit the MP4 moov/mvhd scanner (incl.

@@ -2382,6 +2382,8 @@ class KofOrmE2ETest {
             assumeTrue(has(as, ld, "qemu-" + arch), "cross toolchain " + arch + " ausente — pulando");
             assumeTrue(dev.kof.compiler.nat.NativeCrossLink.sysrootOrNull(arch) != null,
                     "sysroot cross " + arch + " ausente — pulando");
+            assumeTrue(dev.kof.compiler.nat.NativeCrossLink.sqliteAvailable(arch),
+                    "libsqlite3 " + arch + " ausente no sysroot — pulando");
             Path out = tempDir.resolve("out-" + t);
             CompilationResult r = driver.compile(source, out, t);
             assertTrue(r.success(), t + " deveria compilar orm.count mysql cross: "
@@ -2454,6 +2456,8 @@ class KofOrmE2ETest {
             assumeTrue(has(as, ld, "qemu-" + arch), "cross toolchain " + arch + " ausente — pulando");
             assumeTrue(dev.kof.compiler.nat.NativeCrossLink.sysrootOrNull(arch) != null,
                     "sysroot cross " + arch + " ausente — pulando");
+            assumeTrue(dev.kof.compiler.nat.NativeCrossLink.sqliteAvailable(arch),
+                    "libsqlite3 " + arch + " ausente no sysroot — pulando");
             Path out = tempDir.resolve("out-" + t);
             CompilationResult r = driver.compile(source, out, t);
             assertTrue(r.success(), t + " deveria compilar orm.count_where mysql cross: "
@@ -2527,6 +2531,8 @@ class KofOrmE2ETest {
             assumeTrue(has(as, ld, "qemu-" + arch), "cross toolchain " + arch + " ausente — pulando");
             assumeTrue(dev.kof.compiler.nat.NativeCrossLink.sysrootOrNull(arch) != null,
                     "sysroot cross " + arch + " ausente — pulando");
+            assumeTrue(dev.kof.compiler.nat.NativeCrossLink.sqliteAvailable(arch),
+                    "libsqlite3 " + arch + " ausente no sysroot — pulando");
             Path out = tempDir.resolve("out-" + t);
             CompilationResult r = driver.compile(source, out, t);
             assertTrue(r.success(), t + " deveria compilar orm.delete/deleteAll mysql cross: "
@@ -2576,6 +2582,8 @@ class KofOrmE2ETest {
             assumeTrue(has(as, ld, "qemu-" + arch), "cross toolchain " + arch + " ausente — pulando");
             assumeTrue(dev.kof.compiler.nat.NativeCrossLink.sysrootOrNull(arch) != null,
                     "sysroot cross " + arch + " ausente — pulando");
+            assumeTrue(dev.kof.compiler.nat.NativeCrossLink.sqliteAvailable(arch),
+                    "libsqlite3 " + arch + " ausente no sysroot — pulando");
             Path out = tempDir.resolve("out-" + t);
             CompilationResult r = driver.compile(source, out, t);
             assertTrue(r.success(), t + " deveria compilar o erro mysql cross: "
@@ -2649,6 +2657,8 @@ class KofOrmE2ETest {
             assumeTrue(has(as, ld, "qemu-" + arch), "cross toolchain " + arch + " ausente — pulando");
             assumeTrue(dev.kof.compiler.nat.NativeCrossLink.sysrootOrNull(arch) != null,
                     "sysroot cross " + arch + " ausente — pulando");
+            assumeTrue(dev.kof.compiler.nat.NativeCrossLink.sqliteAvailable(arch),
+                    "libsqlite3 " + arch + " ausente no sysroot — pulando");
             Path out = tempDir.resolve("out-" + t);
             CompilationResult r = driver.compile(source, out, t);
             assertTrue(r.success(), t + " deveria compilar orm.save mysql cross: "
@@ -2727,6 +2737,8 @@ class KofOrmE2ETest {
             assumeTrue(has(as, ld, "qemu-" + arch), "cross toolchain " + arch + " ausente — pulando");
             assumeTrue(dev.kof.compiler.nat.NativeCrossLink.sysrootOrNull(arch) != null,
                     "sysroot cross " + arch + " ausente — pulando");
+            assumeTrue(dev.kof.compiler.nat.NativeCrossLink.sqliteAvailable(arch),
+                    "libsqlite3 " + arch + " ausente no sysroot — pulando");
             Path out = tempDir.resolve("out-" + t);
             CompilationResult r = driver.compile(source, out, t);
             assertTrue(r.success(), t + " deveria compilar orm.saveAll mysql cross: "
@@ -2807,6 +2819,8 @@ class KofOrmE2ETest {
             assumeTrue(has(as, ld, "qemu-" + arch), "cross toolchain " + arch + " ausente — pulando");
             assumeTrue(dev.kof.compiler.nat.NativeCrossLink.sysrootOrNull(arch) != null,
                     "sysroot cross " + arch + " ausente — pulando");
+            assumeTrue(dev.kof.compiler.nat.NativeCrossLink.sqliteAvailable(arch),
+                    "libsqlite3 " + arch + " ausente no sysroot — pulando");
             Path out = tempDir.resolve("out-" + t);
             CompilationResult r = driver.compile(source, out, t);
             assertTrue(r.success(), t + " deveria compilar orm.find mysql cross: "
@@ -2884,6 +2898,8 @@ class KofOrmE2ETest {
             assumeTrue(has(as, ld, "qemu-" + arch), "cross toolchain " + arch + " ausente — pulando");
             assumeTrue(dev.kof.compiler.nat.NativeCrossLink.sysrootOrNull(arch) != null,
                     "sysroot cross " + arch + " ausente — pulando");
+            assumeTrue(dev.kof.compiler.nat.NativeCrossLink.sqliteAvailable(arch),
+                    "libsqlite3 " + arch + " ausente no sysroot — pulando");
             Path out = tempDir.resolve("out-" + t);
             CompilationResult r = driver.compile(source, out, t);
             assertTrue(r.success(), t + " deveria compilar orm.all mysql cross: "
@@ -2965,6 +2981,8 @@ class KofOrmE2ETest {
             assumeTrue(has(as, ld, "qemu-" + arch), "cross toolchain " + arch + " ausente — pulando");
             assumeTrue(dev.kof.compiler.nat.NativeCrossLink.sysrootOrNull(arch) != null,
                     "sysroot cross " + arch + " ausente — pulando");
+            assumeTrue(dev.kof.compiler.nat.NativeCrossLink.sqliteAvailable(arch),
+                    "libsqlite3 " + arch + " ausente no sysroot — pulando");
             Path out = tempDir.resolve("out-" + t);
             CompilationResult r = driver.compile(source, out, t);
             assertTrue(r.success(), t + " deveria compilar orm.where mysql cross: "
@@ -3039,6 +3057,8 @@ class KofOrmE2ETest {
             assumeTrue(has(as, ld, "qemu-" + arch), "cross toolchain " + arch + " ausente — pulando");
             assumeTrue(dev.kof.compiler.nat.NativeCrossLink.sysrootOrNull(arch) != null,
                     "sysroot cross " + arch + " ausente — pulando");
+            assumeTrue(dev.kof.compiler.nat.NativeCrossLink.sqliteAvailable(arch),
+                    "libsqlite3 " + arch + " ausente no sysroot — pulando");
             Path out = tempDir.resolve("out-" + t);
             CompilationResult r = driver.compile(source, out, t);
             assertTrue(r.success(), t + " deveria compilar orm.page mysql cross: "
@@ -3088,6 +3108,8 @@ class KofOrmE2ETest {
             assumeTrue(has(as, ld, "qemu-" + arch), "cross toolchain " + arch + " ausente — pulando");
             assumeTrue(dev.kof.compiler.nat.NativeCrossLink.sysrootOrNull(arch) != null,
                     "sysroot cross " + arch + " ausente — pulando");
+            assumeTrue(dev.kof.compiler.nat.NativeCrossLink.sqliteAvailable(arch),
+                    "libsqlite3 " + arch + " ausente no sysroot — pulando");
             Path out = tempDir.resolve("out-" + t);
             CompilationResult r = driver.compile(source, out, t);
             assertTrue(r.success(), t + " deveria compilar o erro save mysql cross: "

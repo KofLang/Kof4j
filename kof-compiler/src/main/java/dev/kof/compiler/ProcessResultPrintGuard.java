@@ -25,12 +25,14 @@ final class ProcessResultPrintGuard {
      */
     static boolean refuseWholeResult(CompilerDriver driver, Type type,
                                      String file, int line, int column) {
-        if (!driver.target.isNative() || !KofProcess.isResult(type)) return false;
+        boolean mcu = driver.target == Target.NATIVE_RISCV32
+                || driver.target == Target.NATIVE_MCU_ARM;
+        if (!mcu || !KofProcess.isResult(type)) return false;
         if (driver.currentDiagnostics != null) {
             driver.currentDiagnostics.error(file, line, column, 0,
                     "printing/concatenating a whole process result is not supported on the"
-                            + " Native target — access .stdout/.stderr/.exitCode"
-                            + " (JVM/JS have content toString)",
+                            + " freestanding MCU target — access .stdout/.stderr/.exitCode"
+                            + " (JVM/JS and the host native targets have content toString)",
                     "PROC001");
         }
         return true;

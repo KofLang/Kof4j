@@ -12,16 +12,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * D-FULL-PARITY-050 linha 1 (fatia A {@code process.run} no Native x86-64):
- * imprimir/concatenar o record {@code Result} INTEIRO no Native é um gap
- * honesto {@code PROC001} no compile-time.
- *
- * <p>Medido no tip que pousou a fatia A: {@code println(r)} compilava LIMPO e
- * o binário morria com SIGSEGV (exit 139) sem imprimir nada (valueOf lia o
- * header de um objeto opaco sem vtable/typeId). O guard
- * ({@code ProcessResultPrintGuard}) transforma isso no diagnóstico honesto;
- * no JVM o conteúdo continua imprimível (§367). A superfície suportada no
- * Native é o acesso a {@code .stdout}/{@code .stderr}/{@code .exitCode}.
+ * D-FULL-PARITY-050 linha 1: o {@code Result} inteiro imprime por conteúdo no
+ * JVM, x86-64 e cross (fatias §367/E). Nos MCU freestanding, onde o runtime
+ * {@code kof_process_result_to_string} não existe, o guard
+ * {@code ProcessResultPrintGuard} mantém o diagnóstico honesto {@code PROC001}
+ * em vez de emitir um binário que SIGSEGV.
  */
 class ProcessResultWholePrintGuardTest {
 
@@ -47,12 +42,12 @@ class ProcessResultWholePrintGuardTest {
     }
 
     @Test
-    void wholeResultPrintIsHonestProc001OnNative(@TempDir Path dir) throws Exception {
+    void wholeResultPrintIsHonestProc001OnMcu(@TempDir Path dir) throws Exception {
         String[] programs = {PRINT_WHOLE, CONCAT_WHOLE};
         for (int i = 0; i < programs.length; i++) {
-            CompilationResult result = compile(dir.resolve("n" + i), programs[i], Target.NATIVE);
+            CompilationResult result = compile(dir.resolve("n" + i), programs[i], Target.NATIVE_RISCV32);
             assertFalse(result.success(),
-                    "record inteiro no Native deve recusar em compile-time: " + programs[i]);
+                    "record inteiro no MCU freestanding deve recusar em compile-time: " + programs[i]);
             String diags = result.diagnostics().getDiagnostics().toString();
             assertTrue(diags.contains("PROC001"),
                     "diagnostico honesto PROC001 esperado, veio: " + diags);

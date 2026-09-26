@@ -20,10 +20,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * superficie do usuario), violando o golden do corpus (record é impresso
  * {@code P[x=1, y=2]}) e a regra 8 ("Kof nao e Java").
  *
- * <p>Prova 4-alvos: JVM (compilado), Script (interpretador), JS (host runner
- * — shim + bridge) e Native: o alvo nativo nao emite process.run (gap
- * PROC001 honesto, coberto em outro sitio) — aqui so se registra que nao ha
- * regressao por construcao. Os acessos a campos ({@code r.stdout},
+ * <p>Prova 3-alvos de conteudo: JVM (compilado), Script (interpretador) e JS
+ * (host runner — shim + bridge). A paridade do registro inteiro nos alvos
+ * nativos e coberta por {@link ProcessResultWholePrintE2ETest}; aqui ficam os
+ * acessos a campos ({@code r.stdout},
  * {@code r.exitCode}) nao mudam (additive, freeze 2).
  */
 class ProcessResultContentE2ETest {

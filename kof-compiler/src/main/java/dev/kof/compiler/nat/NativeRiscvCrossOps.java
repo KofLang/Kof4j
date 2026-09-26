@@ -251,6 +251,12 @@ public final class NativeRiscvCrossOps {
             // valueOf no NativeX86Calls (9436da12 corrigiu x86 mas esqueceu o
             // cross aqui — mesma familia, lane paridade R5).
             Type vArgType = argType instanceof Type.NullableType nt ? nt.inner() : argType;
+            if (dev.kof.compiler.KofProcess.isResult(argType)) {
+                sb.append("    pop a0\n");
+                sb.append("    call kof_process_result_to_string\n");
+                other.pushRiscv(sb, "a0");
+                return;
+            }
             if (argType instanceof Type.NullableType nnt3
                     && nnt3.inner() instanceof Type.PrimitiveType ipt3
                     && NativeBoxTags.unboxFn(ipt3.name()) != null) {

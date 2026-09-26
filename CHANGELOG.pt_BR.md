@@ -90,7 +90,17 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     Updated upstream` / `=======` / `>>>>>>>` entrou cru nos dois DECISIONS
     e nada na CI pegou; a varredura (docs/ + DOING + AGENTS×2 + CHANGELOG×2,
     307 arquivos medidos limpos) roda no gate principal e a captura é provada
-    por mutação no `--selftest`.
+     por mutação no `--selftest`.
+  - **Paridade linha 1 do process, fatia E — impressao do `process.Result`
+    inteiro no Native x86-64/riscv64/aarch64** (26/09): `println(r)` e
+    `"texto" + r` agora imprimem `ProcessResult[exitCode=N, stdout=S, stderr=E]`
+    por conteudo, removendo apenas os CR/LF finais de cada stream — o mesmo
+    contrato §367 da JVM. As novas pecas `RuntimeProcessResult` e
+    `NativeRiscvAsmProcessResult` implementam o helper
+    `kof_process_result_to_string`; `ProcessResultPrintGuard` passa a recusar
+    apenas MCU/riscv32 freestanding. Prova:
+    `ProcessResultWholePrintE2ETest` compara JVM, x86-64, riscv64 e aarch64 com
+     happy path, concat, exit 3, stdout+stderr e multiline/trimming.
   - **Paridade media fatia 1 — `Video`/`Audio` no Native x86-64 byte-for-byte
     com o JVM (`D-FULL-PARITY-050` linha 4 fatia 1)** (26/09): os novos
     `RuntimeMedia`/`RuntimeMediaMp4`/`RuntimeMediaWav` emitem o scanner MP4

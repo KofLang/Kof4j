@@ -2,6 +2,7 @@ package dev.kof.compiler.nat;
 import dev.kof.compiler.BuiltinTypes;
 import dev.kof.compiler.KofCall;
 import dev.kof.compiler.KofCallKind;
+import dev.kof.compiler.KofProcess;
 import dev.kof.compiler.Type;
 
 /**
@@ -19,6 +20,12 @@ final class NativeX86ValueOf {
             return false;
         }
             Type argType = kc.parameterTypes().isEmpty() ? Type.UnknownType.UNKNOWN : kc.parameterTypes().get(0);
+            if (KofProcess.isResult(argType)) {
+                sb.append("    popq %rdi\n");
+                sb.append("    call kof_process_result_to_string\n");
+                sb.append("    pushq %rax\n");
+                return true;
+            }
             // T? (get de Map, SG-008): o despacho usa o INNER — sem isso o
             // Nullable(primitivo) não casava nenhum branch e o raw int
             // seguia para println_string (SIGSEGV, bug 87)
