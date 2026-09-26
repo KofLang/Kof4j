@@ -3657,7 +3657,7 @@ ligado no `scripts/check_release_050_gate.sh` (`full_parity`).
 ### Atualização 26/09 — Fase 1 CLOSED, Fase 2 DESTRAVADA (mantenedora, chat)
 
 **Fase 1 FECHADA 25/09** (opção A — spec aceita; espelhos pousados em
-`3afe82601`/`0670f2312`). Em 25/09 a mantenedora escolheu a opção `J` (a
+`8d5634216`/`0670f2312`). Em 25/09 a mantenedora escolheu a opção `J` (a
 fila espera a fila atual); em 26/09 ela destravou — palavras dela:
 **"fase 2 destravada"**. **Fase 2 (infraestrutura de compilador) = EM
 DESENVOLVIMENTO**, dona = lane paridade (claim desta lane no `DOING.md`

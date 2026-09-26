@@ -3680,7 +3680,7 @@ frente"; plan doc created in the same commit
 ### Update 26/09 — Fase 1 CLOSED, Fase 2 UNLOCKED (maintainer, chat)
 
 **Phase 1 CLOSED 25/09** (option A — spec accepted; mirrors landed at
-`3afe82601`/`0670f2312`). At 25/09 the maintainer chose option `J` (the
+`8d5634216`/`0670f2312`). At 25/09 the maintainer chose option `J` (the
 front queues behind the current queue); on 26/09 she unlocked it — her
 words: **"fase 2 destravada"**. **Phase 2 (compiler infrastructure) = IN
 DEVELOPMENT**, owner = parity lane (this lane's claim in `DOING.md` EN+PT,
