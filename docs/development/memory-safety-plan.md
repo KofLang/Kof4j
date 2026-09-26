@@ -71,6 +71,20 @@ mutability/escape/resource-state models + the `MEMxxx` diagnostic-code enum
 from the spec (§1–§10). Structures + tests only; **zero behavior change**
 (suite byte-green). Emission/wiring of the diagnostics is Fase 3.
 
+**Fase 2 LANDED 26/09 (slices 1–4, tip `9bcddfe90`):** `OwnerKind` (§2.1),
+`MemRule` (as 31 regras O/L/B/M/E/C/N com diagnostico ou permissivas),
+`ManagedResource` (§9), `CaptureMode` (§6.1), `MoveDetector`+`MoveTransfer`
+(O-02, read-only, sem emissao) — `MemoryModelTest` 8/8, zero mudanca de
+comportamento. A fila de representacao esta EXAUSTA.
+
+> **DECISION REQUEST (rule 6 — gates Fase 3 for O-02/MEM002):** the move
+> pattern `var a = b; b = null` is not a legal Kof program today — the
+> "source nulled" face collides with N-02/SEM048 (null literals forbidden).
+> Options: (a) a dedicated transfer API; (b) allow `x = null` only as the
+> second statement of a detected transfer; (c) re-express O-02 without a
+> null literal. Maintainer decides; O-02 emission must not start before
+> that decision.
+
 ## Definition of done (whole front)
 
 The 12 questions of §27 answered in the spec, the impossible-bug-classes list

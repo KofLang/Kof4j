@@ -72,6 +72,20 @@ aliasing/mutability/escape/resource-state + o enum de códigos de diagnóstico
 comportamento** (suite byte-green). Emissão/encaminhamento dos diagnósticos
 é da Fase 3.
 
+**Fase 2 POUSADA 26/09 (fatias 1–4, tip `9bcddfe90`):** `OwnerKind` (§2.1),
+`MemRule` (as 31 regras O/L/B/M/E/C/N com diagnóstico ou permissivas),
+`ManagedResource` (§9), `CaptureMode` (§6.1), `MoveDetector`+`MoveTransfer`
+(O-02, somente-leitura, sem emissão) — `MemoryModelTest` 8/8, zero mudança de
+comportamento. A fila de representação está EXAUSTA.
+
+> **PEDIDO DE DECISÃO (regra 6 — trava a Fase 3 para O-02/MEM002):** o padrão
+> de move `var a = b; b = null` não é um programa Kof legal hoje — a face
+> "origem nula" colide com N-02/SEM048 (literais null vedados). Opções:
+> (a) API dedicada de transferência; (b) permitir `x = null` somente como
+> segundo statement
+> do transfer detectado; (c) re-expressar O-02 sem literal null.
+> A mantenedora decide; a emissão de O-02 não começa antes disso.
+
 ## Definition of done (a frente inteira)
 
 As 12 perguntas do §27 respondidas na spec, a lista de classes de bugs
