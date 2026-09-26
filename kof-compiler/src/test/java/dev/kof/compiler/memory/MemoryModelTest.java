@@ -117,4 +117,36 @@ class MemoryModelTest {
         assertThrows(IllegalArgumentException.class, () -> new MoveTransfer("a", null));
     }
 
+
+    @Test
+    void moveDetectorRecognizesO02PatternAndOnlyIt() {
+        var pos = new dev.kof.compiler.SourcePosition("t.kf", 1, 1, 1, 1);
+        var decl = new dev.kof.compiler.VarDeclStmt(pos, "", "a",
+                new dev.kof.compiler.IdentifierExpr(pos, "b"));
+        var nulling = new dev.kof.compiler.ExpressionStmt(pos,
+                new dev.kof.compiler.AssignmentExpr(pos,
+                        new dev.kof.compiler.IdentifierExpr(pos, "b"), "=",
+                        new dev.kof.compiler.LiteralExpr(pos, dev.kof.compiler.ConcreteLiteralKind.NULL, "null")));
+        var bare = new dev.kof.compiler.VarDeclStmt(pos, "", "c",
+                new dev.kof.compiler.IdentifierExpr(pos, "d"));
+        var selfDecl = new dev.kof.compiler.VarDeclStmt(pos, "", "b",
+                new dev.kof.compiler.IdentifierExpr(pos, "b"));
+        var otherNull = new dev.kof.compiler.ExpressionStmt(pos,
+                new dev.kof.compiler.AssignmentExpr(pos,
+                        new dev.kof.compiler.IdentifierExpr(pos, "z"), "=",
+                        new dev.kof.compiler.LiteralExpr(pos, dev.kof.compiler.ConcreteLiteralKind.NULL, "null")));
+        var full = java.util.List.<dev.kof.compiler.StatementNode>of(decl, nulling);
+        var moves = MoveDetector.detect(full);
+        assertEquals(1, moves.size(), "var a = b; b = null = move O-02");
+        assertEquals(0, moves.get(0).index());
+        assertEquals("a", moves.get(0).move().destination());
+        assertEquals("b", moves.get(0).move().source());
+
+        assertEquals(0, MoveDetector.detect(java.util.List.of(bare, nulling)).size(), "nula outros: nao e move");
+        assertEquals(0, MoveDetector.detect(java.util.List.of(decl, otherNull)).size(), "null no alvo errado: nao e move");
+        assertEquals(0, MoveDetector.detect(java.util.List.of(selfDecl, nulling)).size(), "auto-move nao transfere");
+        assertEquals(0, MoveDetector.detect(java.util.List.<dev.kof.compiler.StatementNode>of()).size());
+        assertEquals(0, MoveDetector.detect(null).size(), "null list = zero moves, nunca excecao");
+    }
+
 }
