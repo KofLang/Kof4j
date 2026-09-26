@@ -249,13 +249,38 @@ public final class JvmMediaCoreRuntime {
                     return kof_media_video(id).durationMs;
                 }
 
+                /** Tamanho ISO-BMFF do box em `pos`, honrando o largesize de
+                 *  64 bits (size==1, ISO/IEC 14496-12 §4.2 — comum em 'free'/
+                 *  'wide'/'mdat' de arquivo grande) e size==0 (box vai até o
+                 *  fim do container-pai, `limit`); o campo de 32 bits cru
+                 *  também é lido como UNSIGNED (>= 2GiB vira negativo em
+                 *  `int`, e um `boxSize < 8` cru derrubava o scan como se o
+                 *  box fosse inválido). Sem isto, QUALQUER box comum usando a
+                 *  forma estendida antes de 'moov' desalinhava todo o resto
+                 *  do scan — 'moov'/'mvhd' nunca eram achados e
+                 *  durationMs() voltava 0 silenciosamente mesmo num MP4
+                 *  válido e bem formado (nenhum crash — o loop só nunca
+                 *  encontrava o box certo). -1 = header truncado.
+                 */
+                private static long kof_media_box_size(byte[] b, int pos, long limit) {
+                    long size = kof_media_be32(b, pos) & 0xFFFFFFFFL;
+                    if (size == 1) {
+                        if (pos + 16 > limit) return -1;
+                        long large = 0;
+                        for (int i = 0; i < 8; i++) large = (large << 8) | (b[pos + 8 + i] & 0xFFL);
+                        return large;
+                    }
+                    if (size == 0) return limit - pos;
+                    return size;
+                }
+
                 /** Duração de MP4/MOV: varre os boxes até 'mvhd' e lê
                  *  duration/timescale (v0 32-bit e v1 64-bit). */
                 static int kof_media_mp4_duration_ms(byte[] b) {
                     long size = b.length;
                     long pos = 0;
                     while (pos + 8 <= size) {
-                        long boxSize = kof_media_be32(b, (int) pos);
+                        long boxSize = kof_media_box_size(b, (int) pos, size);
                         if (boxSize < 8) break;
                         String type = new String(b, (int) pos + 4, 4, java.nio.charset.StandardCharsets.ISO_8859_1);
                         if ("moov".equals(type)) {
@@ -269,7 +294,7 @@ public final class JvmMediaCoreRuntime {
                 private static int kof_media_mp4_mvhd_duration(byte[] b, int from, int to) {
                     int pos = from;
                     while (pos + 8 <= to) {
-                        long boxSize = kof_media_be32(b, pos);
+                        long boxSize = kof_media_box_size(b, pos, to);
                         if (boxSize < 8) break;
                         String type = new String(b, pos + 4, 4, java.nio.charset.StandardCharsets.ISO_8859_1);
                         if ("mvhd".equals(type)) {
