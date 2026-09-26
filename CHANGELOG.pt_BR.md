@@ -38,6 +38,21 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     `try{r.close()} finally{if(x) r.close()}`). Achado de parser no caminho:
     `{` nu depois de statement-expressa liga como trailing-lambda — contrato
     estabelecido do Kof, nao bug; o teste de bloco segue um `}` por isso.
+
+- **feat: memory-safety Fase 3 fatia 3.1b — aviso de vida de recurso
+  `MEM014` (L-05) pousa no compilador (26/09)**: o novo `ResourceLeakAnalysis`
+  encaixa no mesmo frontend compartilhado do `OwnershipPass`
+  (`StatementAnalyzer.analyzeBody`): handle de `web.app()` nunca fechado em
+  QUALQUER depth e nunca devolvido, aliado ou passado recebe WARNING de compile
+  no sitio de criacao; qualquer close em qualquer ponto ou qualquer escape
+  silencia (zero falso-positivo por construcao; uso em posicao de receiver como
+  `app.port()` nao e escape). `DiagnosticCollector.warning(AstNode, ...)` entra
+  na API publica. Complementa a fatia 3.1 (`c23dcb30d`) e o mapeamento corrigido
+  la (uso do proprio claimer apos o close e L-02/MEM011, runtime). Prova:
+  `ResourceLeakE2ETest` 5 — MEM014 byte-identico em JVM×Native×JS, run Script
+  verde, guardado/aliado/ciclo valido silentes; reator completo verde. db/file
+  esperam superficies de close medidas (§9).
+
   - **Memory-safety Fase 3 fatia 1 — passe de ownership com emissao real:
     `MEM001`/`MEM002` ardem no compilador (26/09)** (D-MEMORY-SAFETY,
     destravada pela `D-COMPLETE-FIRST` no mesmo dia): o novo `OwnershipPass`

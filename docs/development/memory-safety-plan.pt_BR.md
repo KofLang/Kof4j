@@ -95,7 +95,7 @@ comportamento. A fila de representação está EXAUSTA.
 | **2** Cruzamento de fluxo | claim/leitura condicionais (if/while/try/switch) — snapshot herdado pelo braco, resultado NAO propaga (anti-falso-positivo por construcao); `BlockStmt` incondicional propaga | POUSADA 26/09 |
 | **3** Escape/dangling | L-04/`MEM013` (captura estende vida) e faces de dangling da tabela §3 | pendente |
 | **4** Aliasing mutavel em fronteiras | B-03/`MEM020` (buffer FFI escrevivel unico) + B-04/`MEM021` em `spawn` | pendente |
-| **5** Containers & nao fechados | O-03/`MEM003` (clear libera) + L-05/`MEM014` (§9: web/db sem close) | pendente |
+| **5** Containers & nao fechados | O-03/`MEM003` (clear libera) + L-05/`MEM014` (§9: web/db sem close) | **parte web FEITA 26/09 (fatia 3.1b)**; containers + db/file pendentes |
 
 ## Fase 3 — design (DESTRAVADA 26/09 por `D-COMPLETE-FIRST`; pacote = passe + emissão + prova por alvo)
 
@@ -108,16 +108,23 @@ A superfície de emissão é o que EXISTE na superfície do usuário (medido
   copiados na fronteira em todo alvo. A fatia 3.3 documenta isso como a face
   compile de O-05 — NENHUM diagnóstico duplicado será inventado para um
   caminho já honesto (regra 11).
-- **MEM001/MEM002 (ownership/dangling no release) — fatia 3.1**: o único
-  release real na superfície é `.close()` (close de `web` medido em
-  `KofWeb.java:54`; db/catálogo). Passe `MemoryReleaseAnalysis` em
-  `dev.kof.compiler.memory`: após `x.close()` num caminho sensível a
-  ramificação, QUALQUER uso posterior de `x` = MEM001 (dono já liberou) com
-  posição; o passe é NA FRENTE do compilador, logo os 4 alvos emitem o MESMO
-  diagnóstico por construção (prova de paridade = um E2E por alvo
-  compilando as MESMAS fontes). Programas válidos ficam byte-verdes (nunca
-  usam handle fechado); o caso nunca-fechado é WARNING (MEM014) — servidores
-  legitimamente rodam até o fim do processo — nunca erro.
+- **MEM001/MEM002 (claim/release) — fatia 3.1**: ✅ **POUSADA 26/09 (`c23dcb30d`,
+  `OwnershipPass`, encaixada em `StatementAnalyzer.analyzeBody`)** — o mapeamento
+  da spec e a lei: O-01/MEM001 = dupla reivindicacao no mesmo grupo de recurso
+  (segundo `x.close()`); O-02/MEM002 = leitura de irmao nao-reivindicante depois
+  do claim; ler o PROPRIO claimer apos o seu close e L-02/MEM011 (RUNTIME — nao
+  e diagnostico de compile; uma linha de design anterior aqui confundia isso com
+  MEM001 e foi corrigida contra as linhas 84/87 da spec §3 quando o passe pousou).
+  Faces retilineas; fluxo cruzado/containers sao as filas nomeadas acima.
+- **MEM014 (vida do recurso, L-05) — fatia 3.1b**: ✅ **POUSADA 26/09**
+  (`ResourceLeakAnalysis`, mesmo hook do frontend compartilhado): handle de
+  `web.app()` nunca fechado em nenhum ponto do corpo e nunca devolvido/aliado/
+  passado recebe WARNING no sitio de criacao; qualquer close em qualquer depth
+  ou qualquer escape silencia (conservador, zero falso-positivo por construcao).
+  Mesmo diagnostico em JVM/Native/JS fixado por `ResourceLeakE2ETest` 5/5; ciclos
+  validos permanecem silentes e byte-green. Criadores db/file entram aqui quando
+  suas superficies de close forem medidas.
+
 - **MEM021 (aliasing mutável em spawn) — fatia 3.2**: `spawn` capturando
   objeto MUTÁVEL que o pai também muta depois do spawn (e vice-versa), sem
   `await`/`join_all` entre os dois, é a face proibida B-04/C-03 da spec;

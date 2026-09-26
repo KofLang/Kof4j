@@ -17,6 +17,9 @@ public final class StatementAnalyzer {
         // D-MEMORY-SAFETY Fase 3 fatia 1 (D-COMPLETE-FIRST): faces retilineas
         // O-01/MEM001 + O-02/MEM002 — analise de claim/close, conservadora.
         dev.kof.compiler.memory.OwnershipPass.analyze(sa.diagnostics(), body);
+        // Fatia 3.1b: L-05/MEM014 — handle criado e nunca fechado/entregue
+        // (WARNING; paridade por construcao no frontend compartilhado).
+        dev.kof.compiler.memory.ResourceLeakAnalysis.analyze(sa.diagnostics(), body);
     }
 
     static void analyzeStatement(SemanticAnalyzer sa, StatementNode stmt, SymbolTable scope, Type returnType) {

@@ -94,7 +94,7 @@ comportamento. A fila de representacao esta EXAUSTA.
 | **2** Cruzamento de fluxo | claim/leitura condicionais (if/while/try/switch) — snapshot herdado pelo braco, resultado NAO propaga (anti-falso-positivo por construcao); `BlockStmt` incondicional propaga | LANDED 26/09 |
 | **3** Escape/dangling | L-04/`MEM013` (captura estende vida) e faces de dangling da tabela §3 | pendente |
 | **4** Aliasing mutavel em fronteiras | B-03/`MEM020` (buffer FFI escrevivel unico) + B-04/`MEM021` em `spawn` | pendente |
-| **5** Containers & unclosed | O-03/`MEM003` (clear libera) + L-05/`MEM014` (§9: web/db sem close) | pendente |
+| **5** Containers & unclosed | O-03/`MEM003` (clear libera) + L-05/`MEM014` (§9: web/db sem close) | **web parte FEITA 26/09 (fatia 3.1b)**; containers + db/file pendentes |
 
 ## Fase 3 — design (UNLOCKED 26/09 by `D-COMPLETE-FIRST`; package = pass + emission + per-target proof)
 
@@ -107,16 +107,23 @@ not assumed):
   boundary-copied everywhere. Fatia 3.3 documents this as O-05's compile
   face — NO duplicate diagnostic will be invented for a path already honest
   (rule 11).
-- **MEM001/MEM002 (ownership/dangling at release) — fatia 3.1**: the only
-  real release in the surface is `.close()` (`web` close measured at
-  `KofWeb.java:54`; db/catalog close). Analysis pass `MemoryReleaseAnalysis`
-  in `dev.kof.compiler.memory`: after `x.close()` in a straight-line/branch
-  aware walk, ANY further use of `x` = MEM001 (owner already released) with
-  source position; the pass is FRONT-LEVEL so all 4 targets emit the same
-  diagnostic by construction (parity proof = one E2E per target compiling
-  the SAME sources). Valid programs stay byte-green (they never use a closed
-  handle); the never-closed case is a WARNING (MEM014) — servers legitimately
-  run to end-of-process — never an error.
+- **MEM001/MEM002 (claim/release) — fatia 3.1**: ✅ **LANDED 26/09 (`c23dcb30d`,
+  `OwnershipPass`, wired in `StatementAnalyzer.analyzeBody`)** — the spec
+  mapping is the law: O-01/MEM001 = double claim on the same resource group
+  (second `x.close()`); O-02/MEM002 = read of a non-claiming sibling after the
+  claim; reading the CLAIMER itself after its own close is L-02/MEM011
+  (RUNTIME — GC-free native, not a compile-time diagnostic; an earlier design
+  line here conflated it with MEM001 and was corrected against spec §3 rows
+  84/87 when the pass landed). Straight-line faces; cross-flow/containers are
+  the named queue rows above.
+- **MEM014 (resource lifetime, L-05) — fatia 3.1b**: ✅ **LANDED 26/09**
+  (`ResourceLeakAnalysis`, same shared-frontend hook): a `web.app()` handle
+  never closed anywhere in the body and never returned/aliased/passed gets a
+  WARNING at the creation site; any close at any depth or any escape silences
+  it (conservative, zero-FP by construction). Same diagnostic on JVM/Native/JS
+  pinned by `ResourceLeakE2ETest` 5/5; valid lifecycles stay silent and
+  byte-green. db/file creators join here when their close surfaces are measured.
+
 - **MEM021 (spawn mutable aliasing) — fatia 3.2**: `spawn` capturing a
   MUTABLE object that the parent also mutates after the spawn (and vice
   versa), with no `await`/`join_all` between, is the spec's forbidden face

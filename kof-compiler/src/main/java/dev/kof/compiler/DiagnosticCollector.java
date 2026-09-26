@@ -46,6 +46,16 @@ public class DiagnosticCollector {
         report(Diagnostic.warning(file, line, column, length, message, code));
     }
 
+    public void warning(AstNode node, String message, String code) {
+        SourcePosition pos = node == null ? null : node.position();
+        if (pos == null) {
+            report(Diagnostic.warning("", 0, 0, 0, message, code));
+        } else {
+            report(Diagnostic.warning(pos.file() == null ? "" : pos.file(), pos.line(), pos.column(),
+                    pos.length(), message, code));
+        }
+    }
+
     public List<Diagnostic> getDiagnostics() {
         return Collections.unmodifiableList(diagnostics);
     }

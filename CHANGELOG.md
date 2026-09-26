@@ -39,6 +39,20 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     surfaced by the work: a bare `{` after an expression statement binds as
     a trailing lambda — established Kof contract, not a bug; the block test
     follows a `}` accordingly.
+
+- **feat: memory-safety Fase 3 fatia 3.1b — resource-lifetime warning
+  `MEM014` (L-05) lands in the compiler (26/09)**: new `ResourceLeakAnalysis`
+  hooks the same shared front as `OwnershipPass` (`StatementAnalyzer.analyzeBody`):
+  a `web.app()` handle never closed at ANY depth and never returned, aliased or
+  passed gets a compile-time WARNING at the creation site; any close anywhere or
+  any escape silences it (zero false positives by construction; receiver-position
+  use like `app.port()` is not an escape). `DiagnosticCollector.warning(AstNode,
+  ...)` joins the public API. Complements fatia 3.1 (`c23dcb30d`) and the spec
+  mapping corrected there (use-after-close of the claimer itself is L-02/MEM011,
+  runtime). Proof: `ResourceLeakE2ETest` 5 — MEM014 byte-identical across
+  JVM×Native×JS, Script run green, guarded/aliased/valid lifecycle silent; full
+  reactor green. db/file creators wait for measured close surfaces (§9).
+
   - **Memory-safety Fase 3 fatia 1 — ownership pass with real emissions:
     `MEM001`/`MEM002` burn in the compiler (26/09)** (D-MEMORY-SAFETY,
     unlocked by `D-COMPLETE-FIRST` the same day): new `OwnershipPass` runs on
