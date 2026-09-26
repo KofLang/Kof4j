@@ -2,7 +2,9 @@
 
 # Memory Safety Specification — Ownership, Lifetime, Borrowing, Aliasing (D-MEMORY-SAFETY)
 
-> **Status: Fase 2 IN DEVELOPMENT** — Fase 1 CLOSED/accepted 25/09 (option A); Fase 2
+> **Status: Fase 2 CLOSED 26/09** (slices 1–4, `dev.kof.compiler.memory`, model test 8/8,
+> BT success `9bcddfe90`) — **Fase 3 GATED** by the O-02×N-02 decision request in
+> `docs/development/memory-safety-plan.md`. Fase 1 CLOSED/accepted 25/09 (option A); Fase 2
 > unlocked by the maintainer 26/09 (chat: "fase 2 destravada"). `DECISIONS.md` §`D-MEMORY-SAFETY`.
 > Based on `docs/spec/memory-safety-investigation.md` (Fase 0, CLOSED 25/09).
 > This document formalizes the memory model against the REAL Kof surface.
@@ -242,7 +244,7 @@ The following matrix maps each bug class to its prevention mechanism:
 |---|---|---|
 | **0** Investigation | `docs/spec/memory-safety-investigation.md` | ✅ CLOSED 25/09 |
 | **1** Specification | `docs/spec/memory-safety.md` (this doc) | ✅ CLOSED 25/09 (accepted, option A) |
-| **2** Compiler infrastructure | Ownership/Lifetime/Borrow/Escape internal representations (`dev.kof.compiler.memory`) | 🔄 IN DEVELOPMENT 26/09 |
+| **2** Compiler infrastructure | Ownership/Lifetime/Borrow/Escape internal representations (`dev.kof.compiler.memory`) | ✅ CLOSED 26/09 (slices 1–4; BT success `9bcddfe90`; emission = Fase 3, gated O-02×N-02) |
 | **3** First guarantees | Use-after-move, dangling, escape, mutable aliasing | ⏳ WAITING |
 | **4** Closures & async | Capture semantics, async boundaries | ⏳ WAITING |
 | **5** Native & FFI | Pointer/alloc/free, C ABI ownership table | ⏳ WAITING |
