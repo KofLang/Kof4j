@@ -275,7 +275,7 @@ public final class OwnershipPass {
                         readExpr(ae.value());
                     }
                 }
-                case LambdaExpr lambda -> {
+                case LambdaExpr _ -> {
                     // Capturas = faces E-/C- (fatias subsequentes da fase);
                     // o corpo do lambda e regiao propria, nunca lida aqui.
                 }
