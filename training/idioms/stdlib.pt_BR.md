@@ -366,7 +366,7 @@ legada, nao o modelo do que sera promovido.
 | `process.spawn` | ✅ | ❌ `PROC001` | ❌ `PROC001` | ✅ host Kof JS (`KofJsRunner`); node puro = diagnostico honesto |
 | `observability.*` (spans 01/09 + metrics/health 8.5 19/09) | ✅ (medido 19/09) | ✅ x86 (medido 19/09) | ✅ cross (linha 7 fechada 26/09 — `KofObservabilityTest` 12/12) | ✅ (medido 19/09) |
 | `gpu.available`/`failReason`/`dispatchMatmul(Int)` | ✅ | ✅ (medido 19/09) | ✅ cross (linha 6 fechada 26/09 — fallback CPU honesto) | ✅ fallback JS/Script (linha 6; `GPU001` aposentado) |
-| `Image.open`/`Audio.openWav`/`Video.open`/`Mic.record/list` | ✅ (medido 19/09) | ❌ `MEDIA001` (tempo de compilação) | ❌ `MEDIA001` | ❌ `MEDIA001` |
+| `Image.open`/`Audio.openWav`/`Video.open`/`Mic.record/list` | ✅ (medido 19/09) | `Video`+`Audio` ✅ (26/09 fatia 1 — `MediaNativeE2ETest` byte-for-byte vs JVM); `Image`/`Mic` ❌ `MEDIA001` | `Video` ✅ (26/09 fatia 2A — `MediaCrossE2ETest` riscv64/aarch64 byte-for-byte sob qemu); `Audio`/`Image`/`Mic` ❌ `MEDIA001` | ❌ `MEDIA001` |
 | shell.cmd/run/ok (v1) | ✅ | ❌ `PROC001` (tempo de compilação) | ❌ `PROC001` | ✅ paridade byte |
 | shell.pipeline (v1) | ✅ | ❌ `PROC001` | ❌ `PROC001` | ✅ host Kof JS (chain + pump, 20/09 `081a48f8`; node puro = diagnostico honesto) |
 

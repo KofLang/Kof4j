@@ -319,6 +319,12 @@ public final class NativeRiscvAsm {
                 // — fallback honesto (available=false, dispatch=-1/-6), mesmo
                 // contrato do JvmVkStubRuntime/x86. Antes não linkava.
                 .append(NativeRiscvAsmGpu.RISCV_RUNTIME_ASM_GPU)
+                // D-FULL-PARITY-050 linha 4 FATIA 2A (26/09): Video do
+                // kof.media no cross — port de RuntimeMedia+RuntimeMediaMp4
+                // (aarch64 herda via tradutor); Audio/Image/Mic seguem
+                // MEDIA001 declarado ate as fatias seguintes.
+                .append(NativeRiscvAsmMedia.RISCV_ASM_MEDIA)
+                .append(NativeRiscvAsmMediaMp4.RISCV_ASM_MEDIA_MP4)
                 .toString();
     }
     static final String RISCV_MAPSET_ASM = runtimeMapset();

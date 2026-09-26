@@ -10,6 +10,34 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `scripts/changelog.sh` e inserida pela pipeline neste marcador:
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
+  - **Media cross fatia 2A — `Video` em riscv64/aarch64, byte a byte com o
+    JVM** (26/09): `NativeRiscvAsmMedia` + `NativeRiscvAsmMediaMp4` novos
+    portam as seis faces `kof_media_video_*` para o asm riscv64 (aarch64
+    herda via tradutor, provado sob qemu). Tabela de handles cap-64 com as
+    strings exatas (`file not found:`, `Video.open failed:`,
+    `invalid video: <id>`), formato por extensao, fatia de bytes e o scanner
+    MP4 moov/mvhd (constantes hex, largesize 64-bit, timescale v0+v1)
+    replicam o oracle JVM byte a byte. `KofMedia.mediaFaceReady` abre Video
+    em `NATIVE_RISCV64`/`NATIVE_AARCH64` por entrada de tabela; Audio segue
+    `MEDIA001` ate a fatia 2B. Prova: `MediaCrossE2ETest` (novo, golden
+    JVM≡riscv≡aarch) + `MediaNativeE2ETest` 3/3 (cross Video compila, Audio
+    ainda recusado) + registros de fatias 9/9 e 7/7 + `KofMediaE2ETest`
+    17/17 + `StdlibIdiomsCompileTest` 20/20. Linha 4 do ledger e corpus
+    training/learn atualizados EN+PT.
+  - **Memory-safety Fase 3 fatia 2 — faces de fluxo cruzado sem falso-
+    positivo** (26/09): o `OwnershipPass` desce em if/else, while/do/for,
+    try/catch/finally e switch — cada braco roda num SNAPSHOT herdado do
+    estado da regiao e o resultado NAO volta para a mae (um `close()`
+    condicional nao pode tornar ilegal o `close()` retilineo seguinte — a
+    trava verde virou teste), `BlockStmt` incondicional propaga, os bracos de
+    `try/catch/finally` partem do snapshot PRE-try, e uma dupla reivindicacao
+    SEQUENCIAL dentro do MESMO braco ainda arde `MEM001` (dois claims na
+    mesma iteracao) como leitura de irmao em ramo depois de claim certo
+    externo arde `MEM002`. Prova: `MemorySafetyE2ETest` 15/15 (7 faces novas
+    de fluxo, incl. propagacao de bloco e a trava verde do idiom legado
+    `try{r.close()} finally{if(x) r.close()}`). Achado de parser no caminho:
+    `{` nu depois de statement-expressa liga como trailing-lambda — contrato
+    estabelecido do Kof, nao bug; o teste de bloco segue um `}` por isso.
   - **Memory-safety Fase 3 fatia 1 — passe de ownership com emissao real:
     `MEM001`/`MEM002` ardem no compilador (26/09)** (D-MEMORY-SAFETY,
     destravada pela `D-COMPLETE-FIRST` no mesmo dia): o novo `OwnershipPass`

@@ -165,11 +165,14 @@ public final class KofMedia {
      */
     static boolean mediaFaceReady(Target target, String function) {
         if (function == null) return false;
-        if (!function.startsWith("kof_media_video_")
-                && !function.startsWith("kof_media_audio_")) {
-            return false;
+        if (function.startsWith("kof_media_video_")) {
+            // FATIA 2A (26/09): o Video cross (riscv64; aarch64 herda pelo
+            // tradutor) pousou em NativeRiscvAsmMedia/Mp4 — E2E byte a byte
+            // vs oraculo JVM (MediaCrossE2ETest).
+            return target == Target.NATIVE || target == Target.NATIVE_RISCV64
+                    || target == Target.NATIVE_AARCH64;
         }
-        return target == Target.NATIVE;
+        return function.startsWith("kof_media_audio_") && target == Target.NATIVE;
     }
 
     static String gapCode(String function) {

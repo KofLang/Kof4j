@@ -10,6 +10,35 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `scripts/changelog.sh` and inserted by the pipeline at this marker:
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
+  - **Media cross fatia 2A — `Video` on riscv64/aarch64, byte-for-byte
+    with the JVM** (26/09): new `NativeRiscvAsmMedia` + `NativeRiscvAsmMediaMp4`
+    port the six `kof_media_video_*` faces to riscv64 asm (aarch64 inherits
+    via the translator, proven under qemu). Handle table cap-64 with the
+    exact runtime strings (`file not found:`, `Video.open failed:`,
+    `invalid video: <id>`), extension-based format, byte-slice and the MP4
+    moov/mvhd scanner (be32/hex constants, largesize 64-bit, v0+v1 timescale)
+    replicate the JVM oracle byte-for-byte. `KofMedia.mediaFaceReady` opens
+    Video on `NATIVE_RISCV64`/`NATIVE_AARCH64` by table entry; Audio stays
+    `MEDIA001` until fatia 2B. Proof: `MediaCrossE2ETest` (new, JVM≡riscv≡aarch
+    golden) + `MediaNativeE2ETest` 3/3 (cross Video now compiles, Audio still
+    refused) + slice registries 9/9 and 7/7 + `KofMediaE2ETest` 17/17 +
+    `StdlibIdiomsCompileTest` 20/20. Ledger §4 row and training/learn corpus
+    updated EN+PT.
+  - **Memory-safety Fase 3 fatia 2 — cross-flow faces without false
+    positives** (26/09): `OwnershipPass` now descends if/else, while/do/for,
+    try/catch/finally and switch — each branch runs on an inherited
+    SNAPSHOT of the region state and its result never propagates back
+    (a conditional `close()` cannot make the next straight-line `close()`
+    illegal — the green guard is pinned as a test), unconditional `BlockStmt`
+    propagates, `try/catch/finally` arms start from the pre-`try` snapshot,
+    and a SEQUENTIAL double claim inside one arm still burns `MEM001` (two
+    claims in the same iteration) as does a sibling read in a branch after a
+    certain outer claim (`MEM002`). Proof: `MemorySafetyE2ETest` 15/15 (7
+    new flow faces incl. the block-propagation and the legacy
+    `try{r.close()} finally{if(x) r.close()}` green guard). A parser note
+    surfaced by the work: a bare `{` after an expression statement binds as
+    a trailing lambda — established Kof contract, not a bug; the block test
+    follows a `}` accordingly.
   - **Memory-safety Fase 3 fatia 1 — ownership pass with real emissions:
     `MEM001`/`MEM002` burn in the compiler (26/09)** (D-MEMORY-SAFETY,
     unlocked by `D-COMPLETE-FIRST` the same day): new `OwnershipPass` runs on
