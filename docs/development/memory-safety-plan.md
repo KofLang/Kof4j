@@ -77,13 +77,14 @@ from the spec (§1–§10). Structures + tests only; **zero behavior change**
 (O-02, read-only, sem emissao) — `MemoryModelTest` 8/8, zero mudanca de
 comportamento. A fila de representacao esta EXAUSTA.
 
-> **DECISION REQUEST (rule 6 — gates Fase 3 for O-02/MEM002):** the move
-> pattern `var a = b; b = null` is not a legal Kof program today — the
-> "source nulled" face collides with N-02/SEM048 (null literals forbidden).
-> Options: (a) a dedicated transfer API; (b) allow `x = null` only as the
-> second statement of a detected transfer; (c) re-express O-02 without a
-> null literal. Maintainer decides; O-02 emission must not start before
-> that decision.
+> **DECISION REQUEST — RESOLVIDO 26/09 por D-COMPLETE-FIRST (DECISIONS.md):**
+> the move pattern `var a = b; b = null` collided with N-02/SEM048 (null
+> literals forbidden). The maintainer's rule (26/09, chat) makes the complete
+> idiomatic form the decision: **re-express O-02 without a null literal (c)** —
+> the ownership/lifetime analysis pass in the compiler pipeline, with
+> MEM001/MEM002/MEM005 emission and the interaction cases across the 4
+> targets, landed as one complete package (pass + emission + per-target proof;
+> no lone diagnostic, no stub, no gap accepted). **Fase 3 UNLOCKED.**
 
 ## Definition of done (whole front)
 

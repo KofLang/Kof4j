@@ -78,13 +78,14 @@ comportamento** (suite byte-green). Emissão/encaminhamento dos diagnósticos
 (O-02, somente-leitura, sem emissão) — `MemoryModelTest` 8/8, zero mudança de
 comportamento. A fila de representação está EXAUSTA.
 
-> **PEDIDO DE DECISÃO (regra 6 — trava a Fase 3 para O-02/MEM002):** o padrão
-> de move `var a = b; b = null` não é um programa Kof legal hoje — a face
-> "origem nula" colide com N-02/SEM048 (literais null vedados). Opções:
-> (a) API dedicada de transferência; (b) permitir `x = null` somente como
-> segundo statement
-> do transfer detectado; (c) re-expressar O-02 sem literal null.
-> A mantenedora decide; a emissão de O-02 não começa antes disso.
+> **PEDIDO DE DECISÃO — RESOLVIDO 26/09 por D-COMPLETE-FIRST (DECISIONS.md):**
+> o padrão de move `var a = b; b = null` colidia com N-02/SEM048 (literais
+> null vedados). A regra da mantenedora (26/09, chat) torna a forma completa
+> idiomatica a decisão: **re-expressar O-02 sem literal null (c)** — o passe
+> de análise de ownership/lifetime no pipeline do compilador, com emissão
+> MEM001/MEM002/MEM005 e os casos de interação nos 4 alvos, pousando como um
+> pacote completo (passe + emissão + prova por alvo; sem diagnóstico solto,
+> sem stub, sem aceitar gap). **Fase 3 DESTRAVADA.**
 
 ## Definition of done (a frente inteira)
 

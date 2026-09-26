@@ -3,8 +3,9 @@
 # Especificação de Segurança de Memória — Propriedade, Tempo de Vida, Empréstimo, Aliasing (D-MEMORY-SAFETY)
 
 > **Status: Fase 2 FECHADA 26/09** (fatias 1–4, `dev.kof.compiler.memory`, teste do modelo 8/8,
-> BT success `9bcddfe90`) — **Fase 3 GATADA** pelo pedido de decisão O-02×N-02 em
-> `docs/development/memory-safety-plan.pt_BR.md`. Fase 1 FECHADA/aceita 25/09 (opção A); Fase 2
+> BT success `9bcddfe90`) — **Fase 3 DESTRAVADA 26/09**: o pedido de decisão O-02×N-02
+> foi resolvido por `D-COMPLETE-FIRST` (re-expressar O-02 sem literal null — passe de
+> análise + emissão nos 4 alvos como um pacote completo). Fase 1 FECHADA/aceita 25/09 (opção A); Fase 2
 > destravada pela mantenedora 26/09 (chat: "fase 2 destravada"). `DECISIONS.md` §`D-MEMORY-SAFETY`.
 > Baseado em `docs/spec/memory-safety-investigation.md` (Fase 0, FECHADA 25/09).
 > Este documento formaliza o modelo de memória contra a superfície REAL do Kof.
@@ -246,8 +247,8 @@ A matriz abaixo mapeia cada classe de bug ao seu mecanismo de prevenção:
 |---|---|---|
 | **0** Investigação | `docs/spec/memory-safety-investigation.md` | ✅ FECHADA 25/09 |
 | **1** Especificação | `docs/spec/memory-safety.md` (este doc) | ✅ FECHADA 25/09 (aceita, opção A) |
-| **2** Infraestrutura do compilador | Representações internas de Ownership/Lifetime/Borrow/Escape (`dev.kof.compiler.memory`) | ✅ FECHADA 26/09 (fatias 1–4; BT success `9bcddfe90`; emissão = Fase 3, gatada O-02×N-02) |
-| **3** Primeiras garantias | Use-after-move, dangling, escape, aliasing mutável | ⏳ AGUARDANDO |
+| **2** Infraestrutura do compilador | Representações internas de Ownership/Lifetime/Borrow/Escape (`dev.kof.compiler.memory`) | ✅ FECHADA 26/09 (fatias 1–4; BT success `9bcddfe90`; emissão = Fase 3, destravada) |
+| **3** Primeiras garantias | Use-after-move, dangling, escape, aliasing mutável | 🔓 DESTRAVADA 26/09 (`D-COMPLETE-FIRST`) |
 | **4** Closures & async | Semântica de captura, fronteiras async | ⏳ AGUARDANDO |
 | **5** Native & FFI | Ponteiro/alloc/free, tabela de propriedade C ABI | ⏳ AGUARDANDO |
 | **6** Cross-target | Matriz de paridade JVM/JS/WASM | ⏳ AGUARDANDO |

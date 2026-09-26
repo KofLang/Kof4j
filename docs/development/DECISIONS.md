@@ -3780,3 +3780,73 @@ stash-pop conflict markers; `e29ba47b3` merged both sides into this entry.)
   measurable ≈80%); `prerelease -> stable` = 100% on the same enumeration.
   Natural generalization of `check_release_050_gate.sh` (already this shape
   for the release). Answered on the issue (lane comment).
+
+## D-COMPLETE-FIRST — choice rule for automatic decisions: the solution that is idiomatic AND complete (no stub, no giving up, no accepting a gap, full parity) is THE option the lanes follow; thin/stub/gap-accept alternatives are not options (maintainer 26/09/2026)
+
+**Date:** 2026-09-26 · **State:** `DECIDED` (maintainer, chat, this session)
+
+**Decision (maintainer's words, in order):** "me da soluções idiomaticas,
+nada de desistir ou assumir gap" → "muito menos stub" → "percebe que depois
+das minhas reclamações vc me deu só uma opção? **é ela q vc segue**".
+
+**The rule, operative:** when a rule-6 front is triaged, the **complete
+idiomatic form** — the one that would be presented as the real contract
+(analysis pass, not a lone diagnostic; the full engine, not an `eval`-returns-
+String facade; the runner wired end to end, not a half flag; deterministic
+lifecycle release, not a GC hope) — **is the decision the lane follows**,
+without sending it back to a vote. What is NOT a choice: giving up,
+"accepting a gap" as the answer to a legitimate need, stubs/facades/thin
+APIs, or a slice that pretends the rest exists. Legitimate target scope
+(R7: JVM-first with a NAMED diagnostic on the impossible-in-this-target
+path) is not a gap — it is complete delivery of its declared scope. When
+two or more genuinely complete options exist (different full contracts),
+the maintainer still votes among them; the default when exactly one is
+complete is to follow it immediately.
+
+**Operative consequences — the four open rule-6 questions of 26/09 resolve
+as the full option of each** (each lands as a complete package, never a
+stub, with proof per target before closing):
+
+1. **O-02 × N-02 (memory-safety Fase 3):** resolved **without null
+   literal** — the ownership/lifetime analysis pass in the compiler pipeline
+   with MEM001/MEM002/MEM005 emission and interaction cases across the 4
+   targets. The plan's DECISION REQUEST is CLOSED by this rule; Fase 3 is
+   UNLOCKED.
+2. **X2 (Python/R interop):** the full `interop` official package — typed
+   bidirectional marshalling (Int/Double/Bool/String/List/Map/record↔JSON),
+   real process management (spawn, stdin/stdout, timeout, exit, cancel),
+   session state, named `INTEROP00x` errors, E2E per target, corpus
+   (`training/idioms/interop.md` + `learn/` + parity matrix) synchronized.
+   Born `experimental` per R5.
+3. **X8 fatia 3 (named suites):** the `test` primitive's optional tag
+   flowing parser→typer→IR→runner catalog (single source), `kof test --tag`
+   with real filtering, conditional setup/teardown as functions (failing
+   setup skips its tests, named), E2E CLI goldens, honest refusal where the
+   runner does not exist.
+4. **`kof.ui` auto-unsubscribe:** deterministic release at component
+   **unmount** (the path that already walks the tree), leak locks
+   (`subscriptionsLive()`/`storesLive()` = 0 after mount/unmount × N),
+   subscription outside a component stays ownerless and manual by design,
+   JVM/Native keep the documented UI=KofJS no-op parity.
+
+**How to apply:** present rule-6 questions as multiple choice ONLY when the
+choices are genuinely complete alternatives; when the lane knows the one
+complete idiomatic form, it implements it under this rule and records the
+evidence here — it does not stall the loop asking "which variant?". The
+rule never overrides rule 6 on contracts that change frozen semantics:
+changing existing behavior still goes through an explicit maintainer vote
+(this record IS the explicit authorization for items 1–4).
+
+**Evidence:** maintainer messages 26/09/2026 (chat, autonomous session):
+"vamo destravar rule 6, me da as duvidas" / "multipla escolha" / "não gostei
+das opções" / "me explica MELHOR e me da soluções idiomaticas, nada de
+desistir ou assumir gap" / "muito menos stub" / "percebe que depois das
+minhas reclamações vc me deu só uma opção? é ela q vc segue" / "defina isso
+como regra de escolha pra decisões automaticas. idiomatico, de acordo com a
+filosofia kof, não assumir gap mas sempre desenvolver por completo, paridade
+total e nunca stub".
+
+- **Relationships:** `Related: rule 6, rule 8, rule 10 (D-KOF-FIRST), rule 11
+  (Simplicity Law), Q7 (no stubs), R1/R5 (interop = official package,
+  experimental), R7 (honest target scope ≠ gap), D-MEMORY-SAFETY (Fase 3
+  unblocked here), D-FULL-PARITY-050`.
