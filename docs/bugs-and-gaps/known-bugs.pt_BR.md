@@ -12738,3 +12738,40 @@ getstatic + guarda de existência de campo em `SemExpressionTyper`/lowerer.
 
 **Dono:** lane baremetal, `RuntimeDtoaSchubfach.emitTables`.
 <!-- en-switch --> **EN:** [§508](known-bugs.md#508--codeql-pr-mode-reports-an-error-array-access-might-be-out-of-bounds-on-runtimedtoaschubfachjava90--provably-false-positive-across-gtable-length-is-a-multiple-of-2-by-construction-the-fix-is-a-dismiss-or-a-one-character-loop-guard-and-it-belongs-to-the-baremetal-lane---fixed-2609)
+
+## §509 — `kof fmt`/LSP deletava comentários em silêncio — o formatter AST reimprimia sem eles e a heurística de 50% em `KofFormatter.java:39` decidia POR ACIDENTE qual caminho rodava (pouco comentário = perda; muito = o fallback token preservava); o LSP sem null-handling morria de NPE — ✅ CORRIGIDO (26/09, issue #625)
+
+**Sintoma (issue #625, reportada 26/09 por @ETieppo, medida na fonte):** `kof fmt main.kf` sobre o
+reproducer da issue apaga `// soma os valores` sem aviso; com `-w` a perda vai ao disco. O MESMO
+programa com 3+ comentários longos sai PRESERVADO — não-determinismo acidental. Via LSP
+(`textDocument/formatting` / format-on-save): o caso leve entrega o edit que apaga o comentário; o
+caso pesado mata o server com `NullPointerException` (`KofFormatter.format` devolve `null` no
+fallback e `formatEdit` chamava `formatted.equals(...)` sem guarda).
+
+**Causa-raiz (três camadas, lidas na fonte):** (1) o Lexer descarta comentários POR CONTRATO e o
+`KofFormatter` reimprime da AST — todo comentário que a AST não carrega é apagado por construção;
+(2) `KofFormatter.java:39` devolvia `null` quando a saída da AST era menor que 50% do fonte, e o
+`Fmt` caía no formatter token-based (que preserva `//`) — a QUANTIDADE de comentários escolhia o
+caminho, não qualquer propriedade do código; (3) o `LspServer.formatEdit` chamava o `KofFormatter`
+sem null-handling (violação R6: perda silenciosa de dados) nem guarda de crash.
+
+**Correção (determinística, um contrato só, sem stub — Q7):** nova `KofFormatterComments` (122
+linhas, nomeada pela responsabilidade; mantém `KofFormatter` na banda tolerada) — scanner ciente de
+strings que coleta cada comentário `//` e `/* */` com sua linha de origem (nunca casa dentro de
+string/char) + cursor `Pending` que COSTURA os comentários na saída antes de cada construção, em
+ordem de fonte (comentário inline da mesma linha sai como linha própria logo acima — conteúdo e
+ordem são o contrato; o placement inline exato fica registrado como passo futuro de design, regra
+6). A heurística de 50% foi APAGADA: `null` agora significa só falha de parse. O
+`LspServer.formatEdit` ganhou a guarda `null` (responde "sem edit" em vez de matar o server).
+
+**Prova (RED→GREEN, mesmo commit — Q0/Q1):** `KofFormatterTest` +5 casos
+(`bug625LineCommentSurvivesAstFormat` — o snippet exato da issue; bloco `/* */`; o teste de
+determinismo FEW-vs-MANY que é a não-determinismo em si; comentário final no EOF; string que parece
+comentário não é tratada como comentário): RED 5/5 medido pré-fix (`Tests run: 17, Failures: 5`) →
+GREEN 17/17 pós-fix, os 12 casos de precedência #52 intactos. CLI: `FmtTest` + `LspServerTest`
+verdes (`rc=0`). Suíte do compilador: `3516 run, 0 Failures, 32 Errors` — os 32 medidos como
+`Cannot run program "node"`/`node not found on PATH` (host sem node — a classe ambiental
+documentada; CI com node os executa). `check_500` rc=0 (`KofFormatter` 499→508 na banda tolerada
+500–599; a máquina foi extraída justamente para a dívida não crescer rumo a 600).
+
+<!-- pt-switch --> **EN:** [§509 (en)](known-bugs.md#509--kof-fmtlsp-silently-deleted-comments--the-ast-formatter-re-printed-without-them-and-the-50-size-heuristic-at-kofformatterjava39-decided-by-accident-which-path-ran-few-comments--loss-many--the-token-fallback-preserved-the-lsp-had-no-null-handling-and-died-with-npe---fixed-2609-issue-625)

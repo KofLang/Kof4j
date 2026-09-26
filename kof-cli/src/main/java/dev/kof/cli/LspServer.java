@@ -430,7 +430,9 @@ final class LspServer {
         } catch (RuntimeException e) {
             return null;
         }
-        if (formatted.equals(text)) return null;
+        // §625: com parse-error ou fonte não-fechável o formatter devolve null —
+        // responder null (sem edit) ao cliente, e NAO dar NPE no equals derrubando o server.
+        if (formatted == null || formatted.equals(text)) return null;
         Map<String, Object> edit = new LinkedHashMap<>();
         edit.put("range", rangeOf(text, 0, text.length()));
         edit.put("newText", formatted);

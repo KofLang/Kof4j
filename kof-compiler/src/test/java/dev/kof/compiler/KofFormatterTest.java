@@ -137,4 +137,82 @@ class KofFormatterTest {
         String expected = "main() {\n    do {\n        println(i)\n    }\n    while (i < 3)\n}\n";
         assertEquals(expected, out, "do-while sai pelo ramo formatBody:\n" + out);
     }
+
+    // §625 — `kof fmt` deletava comentarios em silencio: o caminho AST
+    // reimprime sem comentarios e a heuristica de 50% decidia POR ACIDENTE
+    // qual formatter rodava (pouco comentario = perda; muito = fallback
+    // preserva). Aceitacao do bug: comentarios preservados SEMPRE e o mesmo
+    // programa produce o mesmo resultado independentemente de quantos
+    // comentarios tem.
+    private static final String BUG_625_SRC = """
+            main() {
+                val a = 1
+                val b = 2
+                // soma os valores
+                val c = a + b
+                println(c)
+            }
+            """;
+
+    @Test
+    void bug625LineCommentSurvivesAstFormat() {
+        String out = KofFormatter.format(BUG_625_SRC, "Main.kf");
+        assertNotNull(out, "format() deve fechar o parse do reproducer da issue");
+        assertTrue(out.contains("// soma os valores"),
+                "§625: comentario de linha nao pode ser deletado — saida foi:\n" + out);
+    }
+
+    @Test
+    void bug625BlockCommentSurvivesAstFormat() {
+        String src = "/* cabecalho do modulo */\nmain() {\n    println(1)\n}\n";
+        String out = KofFormatter.format(src, "Main.kf");
+        assertNotNull(out);
+        assertTrue(out.contains("cabecalho do modulo"),
+                "§625: comentario de bloco nao pode ser deletado — saida foi:\n" + out);
+    }
+
+    @Test
+    void bug625FewVsManyCommentsSameCodeOut() {
+        String many = """
+                main() {
+                    val a = 1
+                    // comentario um, este aqui e bem maior do que o anterior de proposito
+                    // comentario dois, tambem longo, para empurrar o ratio de tamanho
+                    // comentario tres, mais um bloco de texto pra passar de qualquer metade
+                    val b = 2
+                    val c = a + b
+                    println(c)
+                }
+                """;
+        String outFew = KofFormatter.format(BUG_625_SRC, "Main.kf");
+        String outMany = KofFormatter.format(many, "Main.kf");
+        assertNotNull(outFew, "pouco comentario: sem null (heuristica 50% extinta)");
+        assertNotNull(outMany);
+        String codeFew = outFew.replaceAll("//[^\\n]*", "").replaceAll("\\s+", " ").trim();
+        String codeMany = outMany.replaceAll("//[^\\n]*", "").replaceAll("\\s+", " ").trim();
+        assertEquals(codeFew, codeMany,
+                "§625: o MESMO codigo deve sair igual com 1 ou 4 comentarios (determinismo)");
+        assertTrue(outFew.contains("// soma os valores"));
+        assertTrue(outMany.contains("// comentario tres, mais um bloco de texto pra passar de qualquer metade"));
+    }
+
+    @Test
+    void bug625TrailingCommentAtFileEndKept() {
+        String src = "main() {\n    println(1)\n}\n// fim do arquivo\n";
+        String out = KofFormatter.format(src, "Main.kf");
+        assertNotNull(out);
+        assertTrue(out.contains("// fim do arquivo"),
+                "§625: comentario final nao pode ser deletado — saida foi:\n" + out);
+    }
+
+    @Test
+    void bug625CommentInsideStringIsNotTreatedAsComment() {
+        String src = "main() {\n    println(\"// nao sou comentario\")\n    // sou comentario\n}\n";
+        String out = KofFormatter.format(src, "Main.kf");
+        assertNotNull(out);
+        assertTrue(out.contains("\"// nao sou comentario\""),
+                "§625: o conteudo da string deve sobreviver intacto — saida foi:\n" + out);
+        assertTrue(out.contains("// sou comentario"),
+                "§625: comentario real deve sobreviver — saida foi:\n" + out);
+    }
 }

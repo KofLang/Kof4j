@@ -10,6 +10,15 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `scripts/changelog.sh` and inserted by the pipeline at this marker:
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
+  - **§509 — `kof fmt` and the LSP no longer delete comments — the formatter sews every `//` and `/* */`
+    back by source line and the 50% size heuristic that decided BY ACCIDENT which formatter ran is
+    deleted ([FIXED](docs/bugs-and-gaps/known-bugs.md#509--kof-fmtlsp-silently-deleted-comments--the-ast-formatter-re-printed-without-them-and-the-50-size-heuristic-at-kofformatterjava39-decided-by-accident-which-path-ran-few-comments--loss-many--the-token-fallback-preserved-the-lsp-had-no-null-handling-and-died-with-npe---fixed-2609-issue-625))** (26/09, issue #625 by @ETieppo): the AST
+    re-printer silently dropped comments (few = loss, many = accidental fallback), and the LSP NPE'd on
+    the fallback `null`, killing the server on format-on-save. New `KofFormatterComments` (string-aware
+    scanner + `Pending` sewing cursor) + `null` guard in `LspServer.formatEdit`; `null` now means parse
+    failure only. Proof: RED 5/5 -> GREEN `KofFormatterTest` 17/17 (the issue's exact snippet, the
+    FEW-vs-MANY determinism check, block comments, trailing-at-EOF, comment-looking strings); CLI
+    `FmtTest`+`LspServerTest` green; compiler suite 0F (32 node-absent errors = host environmental).
   - **media #623 — `Video.durationMs()` now reads MP4/MOV boxes with the 64-bit extended-size form** (26/09, PR
     #624 by @PublioSantos, merged as `995f0dc36` under maintainer authorization `D-DECISION-BATCH-2609`): a valid
     file whose container box carries the extended size (size field = 1 + 64-bit payload) reported duration 0 —

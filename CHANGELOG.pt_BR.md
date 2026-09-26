@@ -10,6 +10,16 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `scripts/changelog.sh` e inserida pela pipeline neste marcador:
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
+  - **§509 — `kof fmt` e o LSP não apagam mais comentários — o formatter costura cada `//` e `/* */`
+    de volta pela linha de origem e a heurística de 50% que decidia POR ACIDENTE qual formatter rodava
+    foi extinta ([CORRIGIDO](docs/bugs-and-gaps/known-bugs.pt_BR.md#509--kof-fmtlsp-deletava-comentarios-em-silencio--o-formatter-ast-reimprimia-sem-eles-e-a-heuristica-de-50-em-kofformatterjava39-decidia-por-acidente-qual-caminho-rodava-pouco-comentario--perda-muito--o-fallback-token-preservava-o-lsp-sem-null-handling-morria-de-npe---corrigido-2609-issue-625))** (26/09, issue #625 de
+    @ETieppo): o reimpressor da AST descartava comentários em silêncio (pouco = perda, muito = fallback
+    acidental), e o LSP morria de NPE no `null` do fallback no format-on-save. Nova
+    `KofFormatterComments` (scanner ciente de strings + cursor de costura `Pending`) + guarda `null` no
+    `LspServer.formatEdit`; `null` agora significa só falha de parse. Prova: RED 5/5 → GREEN
+    `KofFormatterTest` 17/17 (o snippet exato da issue, o teste FEW-vs-MANY de determinismo, blocos
+    `/* */`, final de arquivo, strings que parecem comentário); CLI `FmtTest`+`LspServerTest` verdes;
+    suíte do compilador 0F (32 erros = host sem node, classe ambiental).
   - **media #623 — `Video.durationMs()` agora le boxes MP4/MOV com a forma estendida de tamanho 64-bit** (26/09,
     PR #624 de @PublioSantos, mergeado como `995f0dc36` sob autorizacao da mantenedora em
     `D-DECISION-BATCH-2609`): um arquivo valido cujo box de container usa o tamanho estendido (campo size = 1 +

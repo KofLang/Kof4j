@@ -9,6 +9,9 @@ import java.util.List;
  * Usado por kof fmt (kof-cli). Se o parse falhar, retorna null para fallback token-based.
  */
 public final class KofFormatter {
+    private static final KofFormatterComments.Pending KOF_PENDING_VOID =
+            new KofFormatterComments.Pending(java.util.List.of());
+
     private KofFormatter() {}
 
     public static String format(String src, String fileName) {
@@ -31,19 +34,24 @@ public final class KofFormatter {
                 else out.append("import ").append(imp).append("\n");
             }
             if (!unit.imports().isEmpty()) out.append("\n");
+            var pending = new KofFormatterComments.Pending(KofFormatterComments.scan(src));
             for (AstNode decl : unit.declarations()) {
-                formatDecl(decl, out, indent);
+                if (decl != null && decl.position() != null) {
+                    pending.flushUpTo(out, indent, decl.position().line());
+                }
+                formatDecl(decl, out, indent, pending);
                 out.append("\n");
             }
+            pending.flushAll(out, 0);
             String result = out.toString().trim() + "\n";
-            if (result.length() < src.length() * 0.5) return null;
             return result;
         } catch (Exception e) {
             return null;
         }
     }
 
-    static void formatDecl(AstNode decl, StringBuilder out, int indent) {
+    static void formatDecl(AstNode decl, StringBuilder out, int indent, KofFormatterComments.Pending pending) {
+        if (decl != null && decl.position() != null) pending.flushUpTo(out, indent, decl.position().line());
         String pad = "    ".repeat(indent);
         switch (decl) {
             case FunctionDeclarationNode fn -> {
@@ -66,7 +74,7 @@ public final class KofFormatter {
                     out.append(" = ").append(formatExpr(rs.value())).append("\n");
                 } else {
                     out.append(" {\n");
-                    for (StatementNode st : fn.body()) formatStmt(st, out, indent + 1);
+                    for (StatementNode st : fn.body()) formatStmt(st, out, indent + 1, pending);
                     out.append(pad).append("}\n");
                 }
             }
@@ -104,7 +112,7 @@ public final class KofFormatter {
                             out.append(" = ").append(formatExpr(rs.value())).append("\n");
                         } else {
                             out.append(" {\n");
-                            for (StatementNode st : md.body()) formatStmt(st, out, indent + 2);
+                            for (StatementNode st : md.body()) formatStmt(st, out, indent + 2, pending);
                             out.append("    ".repeat(indent + 1)).append("}\n");
                         }
                     } else if (m instanceof ConstructorDeclarationNode ctor) {
@@ -121,7 +129,7 @@ public final class KofFormatter {
                         if (ctor.body().isEmpty()) out.append(" {}\n");
                         else {
                             out.append(" {\n");
-                            for (StatementNode st : ctor.body()) formatStmt(st, out, indent + 2);
+                            for (StatementNode st : ctor.body()) formatStmt(st, out, indent + 2, pending);
                             out.append("    ".repeat(indent + 1)).append("}\n");
                         }
                     }
@@ -147,7 +155,7 @@ public final class KofFormatter {
                 if (rec.members().isEmpty()) out.append("\n");
                 else {
                     out.append(" {\n");
-                    for (AstNode m : rec.members()) formatDecl(m, out, indent + 1);
+                    for (AstNode m : rec.members()) formatDecl(m, out, indent + 1, pending);
                     out.append(pad).append("}\n");
                 }
             }
@@ -178,7 +186,7 @@ public final class KofFormatter {
             }
             case TestDeclarationNode t -> {
                 out.append(pad).append("test \"").append(t.name()).append("\" {\n");
-                for (StatementNode st : t.body()) formatStmt(st, out, indent + 1);
+                for (StatementNode st : t.body()) formatStmt(st, out, indent + 1, pending);
                 out.append(pad).append("}\n");
             }
             case null, default -> {  // null cai aqui (como no if-else: instanceof null == false)
@@ -215,7 +223,8 @@ public final class KofFormatter {
         return sb.toString().trim();
     }
 
-    static void formatStmt(StatementNode st, StringBuilder out, int indent) {
+    static void formatStmt(StatementNode st, StringBuilder out, int indent, KofFormatterComments.Pending pending) {
+        if (st != null && st.position() != null) pending.flushUpTo(out, indent, st.position().line());
         String pad = "    ".repeat(indent);
         switch (st) {
             case ExpressionStmt es -> {
@@ -228,26 +237,26 @@ public final class KofFormatter {
             }
             case BlockStmt bs -> {
                 out.append(pad).append("{\n");
-                for (StatementNode s : bs.statements()) formatStmt(s, out, indent + 1);
+                for (StatementNode s : bs.statements()) formatStmt(s, out, indent + 1, pending);
                 out.append(pad).append("}\n");
             }
             case IfStmt is -> {
                 out.append(pad).append("if (").append(formatExpr(is.condition())).append(") ");
-                formatBody(is.thenBranch(), out, indent);
+                formatBody(is.thenBranch(), out, indent, pending);
                 if (is.elseBranch() != null) {
                     out.append(pad).append("else ");
-                    formatBody(is.elseBranch(), out, indent);
+                    formatBody(is.elseBranch(), out, indent, pending);
                 }
             }
             case WhileStmt ws -> {
                 out.append(pad).append("while (").append(formatExpr(ws.condition())).append(") ");
-                formatBody(ws.body(), out, indent);
+                formatBody(ws.body(), out, indent, pending);
             }
             case ForStmt fs -> {
                 out.append(pad).append("for (");
                 if (fs.init() != null) {
                     StringBuilder tmp = new StringBuilder();
-                    formatStmt(fs.init(), tmp, 0);
+                    formatStmt(fs.init(), tmp, 0, KOF_PENDING_VOID);
                     out.append(tmp.toString().trim().replace(";", "").trim());
                 }
                 out.append("; ");
@@ -255,15 +264,15 @@ public final class KofFormatter {
                 out.append("; ");
                 if (fs.update() != null) out.append(formatExpr(fs.update()));
                 out.append(") ");
-                formatBody(fs.body(), out, indent);
+                formatBody(fs.body(), out, indent, pending);
             }
             case ForInStmt fis -> {
                 out.append(pad).append("for (var ").append(fis.varName()).append(" in ").append(formatExpr(fis.collection())).append(") ");
-                formatBody(fis.body(), out, indent);
+                formatBody(fis.body(), out, indent, pending);
             }
             case DoWhileStmt dws -> {
                 out.append(pad).append("do ");
-                formatBody(dws.body(), out, indent);
+                formatBody(dws.body(), out, indent, pending);
                 out.append(pad).append("while (").append(formatExpr(dws.condition())).append(")\n");
             }
             case VarDeclStmt vds -> {
@@ -295,26 +304,26 @@ public final class KofFormatter {
                 out.append(pad).append("switch (").append(formatExpr(sw.expression())).append(") {\n");
                 for (SwitchCase c : sw.cases()) {
                     out.append("    ".repeat(indent + 1)).append("case ").append(formatExpr(c.value())).append(":\n");
-                    for (StatementNode s : c.body()) formatStmt(s, out, indent + 2);
+                    for (StatementNode s : c.body()) formatStmt(s, out, indent + 2, pending);
                 }
                 if (!sw.defaultBody().isEmpty()) {
                     out.append("    ".repeat(indent + 1)).append("default:\n");
-                    for (StatementNode s : sw.defaultBody()) formatStmt(s, out, indent + 2);
+                    for (StatementNode s : sw.defaultBody()) formatStmt(s, out, indent + 2, pending);
                 }
                 out.append(pad).append("}\n");
             }
             case TryStmt ts -> {
                 out.append(pad).append("try {\n");
-                for (StatementNode s : ts.tryBody()) formatStmt(s, out, indent + 1);
+                for (StatementNode s : ts.tryBody()) formatStmt(s, out, indent + 1, pending);
                 out.append(pad).append("}");
                 for (CatchClause cc : ts.catchClauses()) {
                     out.append(" catch (").append(cc.exceptionType()).append(" ").append(cc.exceptionName()).append(") {\n");
-                    for (StatementNode s : cc.body()) formatStmt(s, out, indent + 1);
+                    for (StatementNode s : cc.body()) formatStmt(s, out, indent + 1, pending);
                     out.append(pad).append("}");
                 }
                 if (!ts.finallyBody().isEmpty()) {
                     out.append(" finally {\n");
-                    for (StatementNode s : ts.finallyBody()) formatStmt(s, out, indent + 1);
+                    for (StatementNode s : ts.finallyBody()) formatStmt(s, out, indent + 1, pending);
                     out.append(pad).append("}");
                 }
                 out.append("\n");
@@ -326,14 +335,14 @@ public final class KofFormatter {
     }
 
     /** Corpo de if/while/for/do: bloco inline ou statement indentado. */
-    static void formatBody(StatementNode body, StringBuilder out, int indent) {
+    static void formatBody(StatementNode body, StringBuilder out, int indent, KofFormatterComments.Pending pending) {
         if (body instanceof BlockStmt bs) {
             out.append("{\n");
-            for (StatementNode s : bs.statements()) formatStmt(s, out, indent + 1);
+            for (StatementNode s : bs.statements()) formatStmt(s, out, indent + 1, pending);
             out.append("    ".repeat(indent)).append("}\n");
         } else {
             out.append("\n");
-            formatStmt(body, out, indent + 1);
+            formatStmt(body, out, indent + 1, pending);
         }
     }
 
@@ -468,7 +477,7 @@ public final class KofFormatter {
             if (le.body().size() == 1 && le.body().get(0) instanceof ReturnStmt rs && rs.value() != null) sb.append(formatExpr(rs.value()));
             else {
                 sb.append("{\n");
-                for (StatementNode s : le.body()) formatStmt(s, sb, 1);
+                for (StatementNode s : le.body()) formatStmt(s, sb, 1, new KofFormatterComments.Pending(java.util.List.of()));
                 sb.append("}");
             }
             return sb.toString();
