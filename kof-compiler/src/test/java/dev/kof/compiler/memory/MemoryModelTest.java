@@ -97,4 +97,12 @@ class MemoryModelTest {
         assertFalse(ManagedResource.FILE.closeRequired(), "§9: File fecha por chamada — nunca MEM014");
         assertNull(ManagedResource.FILE.diagnostic());
     }
+
+    @Test
+    void captureModesMatchSectionSix() {
+        assertEquals(2, CaptureMode.values().length, "§6.1: apenas SNAPSHOT (E-01) e SHARED_BOX (E-02)");
+        assertSame(CaptureMode.SNAPSHOT, CaptureMode.valueOf("SNAPSHOT"));
+        assertSame(CaptureMode.SHARED_BOX, CaptureMode.valueOf("SHARED_BOX"));
+    }
+
 }
