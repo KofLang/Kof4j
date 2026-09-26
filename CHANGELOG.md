@@ -10,6 +10,12 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `scripts/changelog.sh` and inserted by the pipeline at this marker:
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
+  - **Gate — committed conflict markers now fail `check_live_records` part J**
+    (26/09): `794aa4721` stashed-and-popped `<<<<<<< Updated upstream` /
+    `=======` / `>>>>>>>` straight into both DECISIONS files and nothing in
+    CI caught it; the scan (docs/ + DOING + AGENTS×2 + CHANGELOG×2, 307
+    files measured clean) runs in the main gate and the capture is
+    mutation-proved in `--selftest`.
   - **Media parity slice 1 — Native x86-64 `Video`/`Audio` byte-for-byte with
     the JVM (`D-FULL-PARITY-050` row 4 slice 1)** (26/09): new `RuntimeMedia`/
     `RuntimeMediaMp4`/`RuntimeMediaWav` emit the MP4 moov/mvhd scanner (incl.
