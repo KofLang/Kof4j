@@ -3716,6 +3716,11 @@ resposta da mantenedora 26/09 05:53Z aceitando a revisão técnica da lane
 paridade/qualidade ("desenho fechado conceitualmente como uma quality
 pipeline").
 
+(O comentário da lane irmã na #626 registrou o mesmo desenho sob o nome
+`D-QUALITY-PIPELINE`; é a MESMA decisão e esta entrada datada é o registro
+único — uma representação por afirmação. `794aa4721` havia commitado os
+marcadores de conflito do stash-pop; `e29ba47b3` mesclou os dois lados
+nesta entrada.)
 **Decisão (opção: pipeline de qualidade por estágios, não ambientes soltos):**
 
 | Estágio | Papel | CI | Quebra? | Publicável? |

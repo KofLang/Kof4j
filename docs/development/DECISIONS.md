@@ -3737,6 +3737,10 @@ maintainer's reply 26/09 05:53Z accepting the technical review of the
 parity/quality lane ("desenho fechado conceitualmente como uma quality
 pipeline").
 
+(The sister-lane comment on #626 recorded the same design under the name
+`D-QUALITY-PIPELINE`; it is the SAME decision and this dated entry is the
+single record — one representation per claim. `794aa4721` had committed the
+stash-pop conflict markers; `e29ba47b3` merged both sides into this entry.)
 **Decision (option: staged quality pipeline, not per-environment branches):**
 
 | Stage | Role | CI | Break? | Publishable? |
