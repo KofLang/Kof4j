@@ -10,6 +10,12 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `scripts/changelog.sh` e inserida pela pipeline neste marcador:
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
+  - **Gate — marcadores de conflito commitados agora reprovam a parte J do
+    `check_live_records`** (26/09): o `794aa4721` stash-pop de `<<<<<<<
+    Updated upstream` / `=======` / `>>>>>>>` entrou cru nos dois DECISIONS
+    e nada na CI pegou; a varredura (docs/ + DOING + AGENTS×2 + CHANGELOG×2,
+    307 arquivos medidos limpos) roda no gate principal e a captura é provada
+    por mutação no `--selftest`.
   - **Paridade media fatia 1 — `Video`/`Audio` no Native x86-64 byte-for-byte
     com o JVM (`D-FULL-PARITY-050` linha 4 fatia 1)** (26/09): os novos
     `RuntimeMedia`/`RuntimeMediaMp4`/`RuntimeMediaWav` emitem o scanner MP4
