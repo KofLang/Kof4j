@@ -301,6 +301,10 @@ public final class NativeRiscvAsm {
                 .append(NativeRiscvAsmShell.RISCV_RUNTIME_ASM_SHELL)
                 .append(NativeRiscvAsmPipeline.RISCV_RUNTIME_ASM_PIPELINE)
                 .append(NativeRiscvAsmSsh.RISCV_RUNTIME_ASM_SSH)
+                // D-FULL-PARITY-050 row 1 slice D (native-cross lane, 26/09):
+                // process.spawn + handle ops no cross — porta o
+                // RuntimeProcessSpawn x86 (clone SIGCHLD, sem fork no riscv).
+                .append(NativeRiscvAsmProcessSpawn.RISCV_RUNTIME_ASM_PROCESS_SPAWN)
                 // D-FULL-PARITY-050 (row 9, lane parity, 26/09): kof.config real
                 // no cross — environ (3a) + lookup por arquivo/env/perfil (3b) +
                 // interpolação ${key} e wrappers tipados (3c). Substitui os

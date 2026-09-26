@@ -16,24 +16,20 @@ public final class ExpressionProcessCallLowerer {
     for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
     KofProcess.ProcessCall procCall = KofProcess.entryCall(mc.methodName(), argTypes);
     if (procCall != null && "kof_process_spawn".equals(procCall.function())) {
-        // D-FULL-PARITY-050 row 1, slice B: spawn + handle ops emit for real
-        // on the Native x86-64 host (RuntimeProcessSpawn, 26/09). The cross
-        // (riscv64/aarch64) and the MCU (riscv32/cortex-m) keep the honest
-        // PROC001 gap — the handle table + fork/exec/pipe live slice is
-        // x86-64-only for now (R6, never a silent fallback).
-        boolean spawnCross = driver.target == Target.NATIVE_RISCV64
-                || driver.target == Target.NATIVE_AARCH64;
+        // D-FULL-PARITY-050 row 1, slices B + D: spawn + handle ops emit for
+        // real on the Native x86-64 host (RuntimeProcessSpawn, 26/09) AND on
+        // the riscv64/aarch64 cross (NativeRiscvAsmProcessSpawn, slice D,
+        // 26/09). Only the MCU (riscv32/cortex-m) keeps the honest PROC001 gap
+        // — the process model there is bare-metal (R6, never a silent fallback).
         boolean spawnMcu = driver.target == Target.NATIVE_RISCV32
                 || driver.target == Target.NATIVE_MCU_ARM;
-        if (spawnCross || spawnMcu) {
+        if (spawnMcu) {
             if (driver.currentDiagnostics != null) {
                 driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
                         mc.position() != null ? mc.position().line() : 0,
                         mc.position() != null ? mc.position().column() : 0,
                         0,
-                        spawnCross
-                                ? "process.spawn on the riscv64/aarch64 native targets: not landed yet (PROC001); process.run IS landed (slice C)"
-                                : "process.spawn: interactive stdin/stdout is supported on the JVM, JS and Native x86-64 targets; this target is an honest PROC001 gap",
+                        "process.spawn: interactive stdin/stdout is supported on the JVM, JS and Native x86-64/riscv64/aarch64 targets; this target is an honest PROC001 gap",
                         "PROC001");
             }
             return localIdx;

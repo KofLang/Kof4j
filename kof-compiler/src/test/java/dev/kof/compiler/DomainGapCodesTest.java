@@ -54,7 +54,8 @@ class DomainGapCodesTest {
     void processSpawnOnNativeCompiles(@TempDir Path tmp) throws Exception {
         // D-FULL-PARITY-050 linha 1, fatia B (RuntimeProcessSpawn): spawn +
         // handle ops agora têm paridade JVM≡NATIVE x86-64 (golden em
-        // ProcessSpawnNativeE2ETest). Cross/MCU continuam PROC001 (abaixo).
+        // ProcessSpawnNativeE2ETest). Cross (fatia D) compila sem gap; só o
+        // MCU continua PROC001.
         Path file = tmp.resolve("Main-" + System.nanoTime() + ".kf");
         Files.writeString(file, """
             main() {
@@ -68,15 +69,20 @@ class DomainGapCodesTest {
     }
 
     @Test
-    void processSpawnOnCrossIsProc001(@TempDir Path tmp) throws Exception {
-        // A fatia de handles (tabela + fork/exec/pipe) é x86-64-only por ora;
-        // riscv64/aarch64 mantêm o gap honesto (R6).
-        assertGap(tmp, Target.NATIVE_RISCV64, "PROC001", """
+    void processSpawnOnCrossHasNoGap(@TempDir Path tmp) throws Exception {
+        // D-FULL-PARITY-050 linha 1, fatia D (NativeRiscvAsmProcessSpawn):
+        // spawn + handle ops agora emitem de verdade no cross riscv64/aarch64
+        // (golden em ProcessSpawnCrossE2ETest). Só o MCU/riscv32 segue PROC001.
+        Path file = tmp.resolve("Main-" + System.nanoTime() + ".kf");
+        Files.writeString(file, """
             main() {
                 val h = process.spawn("echo", "hi")
                 println(if (h.alive()) "alive" else "dead")
             }
             """);
+        CompilationResult result = driver.compile(file, tmp.resolve("out"), Target.NATIVE_RISCV64);
+        assertTrue(result.success(), "riscv64 process.spawn must compile: "
+                + result.diagnostics().getDiagnostics());
     }
 
     @Test

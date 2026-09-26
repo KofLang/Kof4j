@@ -121,6 +121,22 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     `RuntimeConstantInliningGuardTest` was red. Dropped `final` (runtime field).
     2/2 green.
 
+  - **`process.spawn` + handle ops on Native cross riscv64/aarch64
+    (`D-FULL-PARITY-050` row 1 slice D)** (26/09): the last host/cross face of
+    row 1. New
+    `NativeRiscvAsmProcessSpawn` (aarch64 inherits via the translator) is a
+    faithful port of the x86-64 `RuntimeProcessSpawn`: `clone(flags=SIGCHLD)`
+    (riscv has no `fork`), a persistent 64-slot `.bss` table (handle = index),
+    live stdout pipe, child stdin/stderr `/dev/null`, failed exec = `-1` via a
+    `CLOEXEC` pipe, and LAZY reaping (`wait4 WNOHANG`) in `alive`/`exitCode`/
+    `kill`; `write` stays an honest no-op. `ExpressionProcessCallLowerer` now
+    emits spawn on the cross — only the freestanding MCU/riscv32 keeps
+    `PROC001`. New `ProcessSpawnCrossE2ETest` 4/4 (byte parity JVM≡riscv64≡
+    aarch64 under qemu); `DomainGapCodesTest.processSpawnOnCross` flipped to
+    no-gap. Two measured bugs: the `Integer.MIN_VALUE` alive-sentinel needed a
+    32→64-bit sign-extension (`slli/srai` — the Kof `Int` lives in a 64-bit
+    register on riscv), and a `#` comment on a `.space` directive line was not
+    stripped by the translator, breaking `aarch64-as` (moved to its own line).
   - **`process.spawn` + handle ops on Native x86-64 (`D-FULL-PARITY-050` row 1
     slice B)** (26/09): new `RuntimeProcessSpawn` implements
     `kof_process_spawn` (persistent 64-slot `.bss` table, handle = index;

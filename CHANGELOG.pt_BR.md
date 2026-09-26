@@ -123,6 +123,22 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     consumidores; `RuntimeConstantInliningGuardTest` estava vermelho. Removido
     o `final` (campo de runtime). 2/2 verde.
 
+  - **`process.spawn` + ops de handle no Native cross riscv64/aarch64
+    (`D-FULL-PARITY-050` linha 1 fatia D)** (26/09): a ultima face host/cross
+    da linha 1.
+    Nova `NativeRiscvAsmProcessSpawn` (aarch64 herda pelo tradutor), porta fiel
+    do `RuntimeProcessSpawn` x86-64: `clone(flags=SIGCHLD)` (riscv nao tem
+    `fork`), tabela `.bss` de 64 slots (handle = indice), stdout vivo no pipe,
+    stdin/stderr do filho `/dev/null`, exec falho = `-1` via pipe `CLOEXEC`, e
+    reap preguiçoso (`wait4 WNOHANG`) em `alive`/`exitCode`/`kill`; `write`
+    segue no-op honesto. `ExpressionProcessCallLowerer` agora emite `spawn` no
+    cross — so o MCU/riscv32 freestanding mantem `PROC001`. Nova
+    `ProcessSpawnCrossE2ETest` 4/4 (paridade de bytes JVM≡riscv64≡aarch64 sob
+    qemu); `DomainGapCodesTest.processSpawnOnCross` virou no-gap. Dois bugs
+    medidos: o sentinela `Integer.MIN_VALUE` vivo precisou de extensao de sinal
+    32→64 (`slli/srai` — no riscv o `Int` mora no registrador de 64 bits), e um
+    comentario `#` numa linha de diretiva `.space` nao era removido pelo
+    tradutor, quebrando o `aarch64-as` (movido para linha propria).
   - **`process.spawn` + ops de handle no Native x86-64 (`D-FULL-PARITY-050`
     linha 1 fatia B)** (26/09): nova `RuntimeProcessSpawn` implementa
     `kof_process_spawn` (tabela persistente de 64 slots no `.bss`, handle =
