@@ -168,3 +168,38 @@ kof test src/test/ --target native        # target
 ## Next step
 
 [Build Tools →](24-build-tools.md)
+
+## Tags and fixtures (fatia 3, 26/09)
+
+A test carries **optional tags** — plain extra string literals after the
+name, no new syntax:
+
+```kof
+test "login feliz", "smoke", "auth" {
+    assert(loginOk("mel", "kof"))
+}
+```
+
+`kof test --tag smoke` keeps only the tests carrying that tag. The filter is
+decided at **compile time**, so JVM, Native, JS and Script execute the very
+same filtered catalog (parity by construction, rule 5):
+
+```bash
+kof test Suite.kf --tag smoke
+```
+
+```text
+kof test: tag 'smoke' (1 of 2)
+PASS login feliz
+0 failed of 1 tests
+```
+
+If nothing matches, the runner says so and passes (`no tests with tag 'x'
+(of 2)`) — an empty selection is reported, never silent.
+
+`setup`/`teardown` are **ordinary zero-argument functions** in the same file.
+When they exist, the runner wraps every test: a `setup` that throws **skips
+its test** (`SKIP <name>: setup failed: <msg>` — not a failure), and
+`teardown` runs after every test that setup let run — including failing ones
+(it is the `finally` of the test block). No new blocks, no convention file
+(SG-023 kept the surface; the runner gained the semantics).

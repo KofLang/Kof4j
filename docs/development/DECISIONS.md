@@ -3823,6 +3823,14 @@ stub, with proof per target before closing):
    with real filtering, conditional setup/teardown as functions (failing
    setup skips its tests, named), E2E CLI goldens, honest refusal where the
    runner does not exist.
+   **LANDED (26/09):** the tag = extra string literals in the declaration
+   (`test "n", "smoke" { }`) — zero new syntax (rule 11; SG-023 iii surface
+   kept); the filter is decided at COMPILE time in `TestHarnessBuilder`, so all
+   four targets execute the identical filtered catalog (rule 5 by construction);
+   `setup`/`teardown` are ordinary zero-arg functions (setup that throws = named
+   SKIP; teardown runs via `finally` even on failing tests). Evidence:
+   `TestTagsE2ETest` 10/10 + `CmdTestTagTest` 4/4 + legacy `StructuredTestE2ETest`
+   unchanged + corpus (`learn/23-testing` EN+PT, `training/tooling/cli` EN+PT).
 4. **`kof.ui` auto-unsubscribe:** deterministic release at component
    **unmount** (the path that already walks the tree), leak locks
    (`subscriptionsLive()`/`storesLive()` = 0 after mount/unmount × N),

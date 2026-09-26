@@ -15314,3 +15314,42 @@ battery — the target matrix is part of the acceptance, and D-KOF-FIRST gate 4 
 behavior on every relevant target) is cheap and catches exactly this.
 
 <!-- pt-switch --> **PT:** [§510 (pt_BR)](known-bugs.pt_BR.md#510--a-face-de-campos-estaticos-de-classe-externa-do-500-b-vazou-para-jsnative-integermax_value-compilava-limpo-e-morria-em-runtime-referenceerror-java_lang_integer--a-correcao-honesta-e-a-recusa-em-compile-time-interop003-nos-alvos-sem-jvm-por-tras---corrigido-2609)
+
+## §511 — `RingPrivilegeE2ETest.ring1PrivilegedInstructionAndSabotageProveEnforcement` flakes under full-suite load: the OVMF boot freezes past the 120s bound (recurrence ≥2 of the flake noted when §510 closed) — 🟡 OPEN (owner = lane baremetal)
+
+**Symptom (recurrence, measured):** the test times out at the 120s bound with the serial output
+frozen at the first byte — the same `bootOvmf` "prints K and stalls" mode the test's own harness
+comment documents. Occurrences: (1) 26/09 — the §510 push-suite run (noted in DOING.md as
+"one-occurrence, recurrence becomes §NNN with repro"); (2) 26/09 — the X8-fatia-3 suite run
+(4148 tests, this was the only red). During that unit the fire rate under full-suite contention
+was measured ≈1/4 of runs.
+
+**Not a regression (controlled evidence, 26/09):** with the X8 working tree stashed the test ran
+5/5 green twice back-to-back while the SAME machine was loaded by the sibling suite; with the X8
+tree applied it went 3F → 1F → 5/5 green twice once the host quieted. The ring sources do not use
+`test` declarations, so the X8 desugar branch is a no-op on them — the correlation is with
+qemu/OVMF scheduling under load, not with any commit.
+
+**Repro:** run the full reactor suite (`bash scripts/safe-suite.sh`) and observe the red under
+load, or hammer `-Dtest='RingPrivilegeE2ETest'` while a second reactor run is active; re-run in
+isolation on a quiet host → green.
+
+**Fix path (owner = lane baremetal, author of `084cb7eb4`):** bound the boot wait with retry +
+child kill instead of a fixed 120s (precedent: §418 riscv harness `hangingChildIsKilledByTheBoundedWait`), or isolate the qemu boot from suite load. Catalogued by the compiler lane under the Q4
+hunt-posture rule — a flake found twice with controlled evidence gets a ledger number, never a
+"known noise" shrug.
+
+**Same family (measured 26/09, merged tip `2d1ef5804`):** the second full-suite re-run went red
+on the SIBLING method `RingPrivilegeE2ETest.ringProfileBootsAndProvesOwnedIdtUnderOvmf` (boot
+passed the ring self-tests, `main` never ran — OVMF stall under load; green in isolation), and
+the first re-run went red on `NativeUefiE2ETest.uefiMonoSpanDuration` (a 60ms mono sleep read
+206us under suite load; green in isolation 4.7s). The guard of this § therefore reads at CLASS
+level: any red in `RingPrivilegeE2ETest`/`NativeUefiE2ETest` under full-suite load is this flake
+until proven otherwise — re-run in isolation on a quiet host; a clean-host red is a new bug and
+gets its own §.
+
+**Reading policy (all lanes + CI):** a red on this test under suite load is a TEST flake, not a
+code regression — re-run it in isolation on a quiet host BEFORE blaming a commit; a green
+isolation does not close this §.
+
+<!-- pt-switch --> **PT:** [§511 (pt_BR)](known-bugs.pt_BR.md#511--ringprivilegee2etestring1privilegedinstructionandsabotageproveenforcement-da-flake-sob-carga-da-suite-completa-o-boot-ovmf-congela-alem-do-limite-de-120s-re-incidencia-2-da-flake-anotada-no-fechamento-do-510---open-dona--lane-baremetal)

@@ -95,8 +95,18 @@ public class Parser {
         SourcePosition p = ctx.pos();
         ctx.advance(); // consome 'test'
         Token nameToken = ctx.expect(TokenType.STRING_LITERAL, "Expected test name string", "PARSE010");
+        java.util.List<String> tags = new java.util.ArrayList<>();
+        while (ctx.peek().type() == TokenType.COMMA) {
+            ctx.advance();
+            Token tag = ctx.expect(TokenType.STRING_LITERAL,
+                    "Expected tag string after ',' in test declaration", "PARSE010");
+            if (tag.value().isEmpty()) {
+                ctx.error("test tag must not be empty", "PARSE010");
+            }
+            tags.add(tag.value());
+        }
         List<StatementNode> body = StatementParser.parseBlock(ctx);
-        return new TestDeclarationNode(p, nameToken.value(), body);
+        return new TestDeclarationNode(p, nameToken.value(), tags, body);
     }
 
     /**

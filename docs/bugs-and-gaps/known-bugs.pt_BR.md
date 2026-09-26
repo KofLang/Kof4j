@@ -12834,3 +12834,44 @@ alvo — a matriz de alvos é parte do aceite, e o gate 4 do D-KOF-FIRST (medir 
 real em todo alvo relevante) é barato e pega exatamente isso.
 
 <!-- en-switch --> **EN:** [§510 (en)](known-bugs.md#510--the-500-b-external-class-static-field-face-leaked-to-jsnative-integermax_value-compiled-clean-there-and-died-at-runtime-referenceerror-java_lang_integer--the-honest-fix-is-the-compile-time-refusal-interop003-on-non-jvm-backed-targets---fixed-2609)
+
+## §511 — `RingPrivilegeE2ETest.ring1PrivilegedInstructionAndSabotageProveEnforcement` dá flake sob carga da suíte completa: o boot OVMF congela além do limite de 120s (re-incidência ≥2 da flake anotada no fechamento do §510) — 🟡 OPEN (dona = lane baremetal)
+
+**Sintoma (re-incidência, medido):** o teste estoura o limite de 120s com a saída serial congelada
+no primeiro byte — o mesmo modo "imprime K e estanca" do `bootOvmf` que o próprio comentário do
+harness documenta. Ocorrências: (1) 26/09 — a corrida da suíte do push do §510 (anotada no
+DOING.md como "de uma ocorrência; re-incidência vira §NNN com repro"); (2) 26/09 — a suíte da
+unidade X8-fatia-3 (4148 testes, foi o único vermelho). Durante essa unidade a taxa sob contenção
+da suíte completa foi medida ≈1/4 das corridas.
+
+**Não é regressão (evidência controlada, 26/09):** com a árvore X8 em stash o teste rodou 5/5
+verde duas vezes seguidas enquanto a MESMA máquina estava carregada pela suíte da irmã; com a
+árvore X8 aplicada foi 3F → 1F → 5/5 verde duas vezes quando o host aquietou. As fontes do ring
+não usam declarações `test`, então o ramo do desugar da X8 é no-op nelas — a correlação é com o
+agendamento qemu/OVMF sob carga, não com commit algum.
+
+**Repro:** rode a suíte completa do reactor (`bash scripts/safe-suite.sh`) e observe o vermelho sob
+carga, ou martele `-Dtest='RingPrivilegeE2ETest'` com uma segunda corrida do reactor ativa; re-ronde
+em isolamento com o host quieto → verde.
+
+**Caminho do fix (dona = lane baremetal, autora de `084cb7eb4`):** limitar a espera do boot com
+retry + kill do filho em vez do 120s fixo (precedente: harness riscv da §418
+`hangingChildIsKilledByTheBoundedWait`), ou isolar o boot qemu da carga da suíte. Catalogado pela
+lane compilador sob a postura Q4 — flake achada 2× com evidência controlada ganha número no ledger,
+nunca um ombro de "ruído conhecido".
+
+**Mesma família (medido 26/09, tip mesclado `2d1ef5804`):** a segunda re-corrida da suíte foi
+vermelha no método IRMÃO `RingPrivilegeE2ETest.ringProfileBootsAndProvesOwnedIdtUnderOvmf` (o
+boot passou os self-tests dos aneis, o `main` nunca rodou — stall de OVMF sob carga; verde em
+isolamento), e a primeira re-corrida foi vermelha em `NativeUefiE2ETest.uefiMonoSpanDuration`
+(sleep de 60ms do mono lido como 206us sob carga da suíte; verde em isolamento, 4.7s). A trava
+deste § le portanto em nivel de CLASSE: qualquer vermelho em
+`RingPrivilegeE2ETest`/`NativeUefiE2ETest` sob carga da suite completa e esta flake ate prova em
+contrario — re-ronde em isolamento com o host quieto; um vermelho em host limpo e bug novo e
+ganha § proprio.
+
+**Política de leitura (todas as lanes + CI):** vermelho neste teste sob carga da suíte é flake de
+TESTE, não regressão de código — re-ronde em isolamento com o host quieto ANTES de acusar um
+commit; verde em isolamento NÃO fecha este §.
+
+<!-- pt-switch --> **EN:** [§511 (known-bugs)](known-bugs.md#511--ringprivilegee2etestring1privilegedinstructionandsabotageproveenforcement-flakes-under-full-suite-load-the-ovmf-boot-freezes-past-the-120s-bound-recurrence-2-of-the-flake-noted-when-510-closed---open-owner--lane-baremetal)

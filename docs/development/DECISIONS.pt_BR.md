@@ -3800,7 +3800,15 @@ completo, nunca stub, com prova por alvo antes de fechar):
    fluindo parser→typer→IR→catalogo do runner (fonte unica), `kof test --tag`
    com filtragem real, setup/teardown condicionais como funcoes (setup que
    falha pula os testes do grupo, nomeados), goldens E2E no CLI, recusa
-   honesta onde o runner ainda nao existe.
+   runner does not exist.
+   **POUSADA (26/09):** a tag = literais extras de string na declaracao
+   (`test "n", "smoke" { }`) — sintaxe nova zero (rule 11; a superficie SG-023 iii
+   mantida); o filtro e decidido no COMPILE-TIME no `TestHarnessBuilder`, entao os
+   quatro alvos executam o mesmo catalogo filtrado (rule 5 por construcao);
+   `setup`/`teardown` sao funcoes comuns sem argumentos (setup que lanca = SKIP
+   nomeado; teardown roda via `finally` ate em teste que falha). Provas:
+   `TestTagsE2ETest` 10/10 + `CmdTestTagTest` 4/4 + `StructuredTestE2ETest` legado
+   intacto + corpus (`learn/23-testing` EN+PT, `training/tooling/cli` EN+PT).
 4. **auto-unsubscribe do `kof.ui`:** liberacao deterministica no **unmount**
    do componente (o caminho que ja anda a arvore), travas de leak
    (`subscriptionsLive()`/`storesLive()` = 0 apos mount/unmount × N),

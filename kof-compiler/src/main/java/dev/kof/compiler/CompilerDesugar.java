@@ -18,15 +18,23 @@ public final class CompilerDesugar {
                                             String currentSourceName) {
         discoveredTests.clear();
         java.util.List<AstNode> decls = new ArrayList<>();
+        java.util.List<TestHarnessBuilder.Entry> harnessEntries = new ArrayList<>();
+        boolean hasSetup = false, hasTeardown = false;
         int ti = 0;
         for (AstNode d : unit.declarations()) {
             if (d instanceof TestDeclarationNode t) {
                 String fn = "kof_test_" + ti++;
                 discoveredTests.add(new CompilerDriver.TestInfo(t.name(), fn));
+                harnessEntries.add(new TestHarnessBuilder.Entry(t.name(), fn, t.tags()));
                 decls.add(new FunctionDeclarationNode(t.position(), List.of(), "void", fn,
                         List.of(), List.of(), List.of(), t.body()));
             } else {
                 decls.add(d);
+            }
+            if (d instanceof FunctionDeclarationNode f && f.parameters().isEmpty()
+                    && "void".equals(f.returnType())) {
+                if ("setup".equals(f.name())) hasSetup = true;
+                if ("teardown".equals(f.name())) hasTeardown = true;
             }
         }
         if (testHarnessMode && !discoveredTests.isEmpty()) {
@@ -37,7 +45,8 @@ public final class CompilerDesugar {
                 }
                 withHarness.add(d);
             }
-            withHarness.add(buildTestHarnessMain(discoveredTests, currentSourceName));
+            withHarness.add(TestHarnessBuilder.build(harnessEntries, currentSourceName,
+                    hasSetup, hasTeardown, System.getProperty("kof.test.tag")));
             decls = withHarness;
         }
         return new CompilationUnitNode(unit.position(), unit.packageName(), unit.imports(),
@@ -330,63 +339,5 @@ public final class CompilerDesugar {
         body.add(new ReturnStmt(p, new IdentifierExpr(p, "__infra")));
         return new FunctionDeclarationNode(p, List.of(), "Infrastructure", "design",
                 List.of(), List.of(), List.of(), body);
-    }
-
-    static FunctionDeclarationNode buildTestHarnessMain(
-        List<CompilerDriver.TestInfo> discoveredTests, String currentSourceName) {
-        SourcePosition p = new SourcePosition(currentSourceName != null ? currentSourceName : "", 0, 0, 0, 0);
-        List<StatementNode> body = new ArrayList<>();
-        ExpressionNode failedVar = new IdentifierExpr(p, "__kof_failed");
-        body.add(new VarDeclStmt(p, "Int", "__kof_failed",
-                new LiteralExpr(p, ConcreteLiteralKind.INT, "0")));
-        for (int i = 0; i < discoveredTests.size(); i++) {
-            CompilerDriver.TestInfo test = discoveredTests.get(i);
-            ExpressionNode nameLit = new LiteralExpr(p, ConcreteLiteralKind.STRING, test.name());
-            List<StatementNode> tryBody = new ArrayList<>();
-            tryBody.add(new ExpressionStmt(p, new MethodCallExpr(p, null,
-                    test.functionName(), List.of(), List.of())));
-            tryBody.add(new ExpressionStmt(p, callPrintln(p, concat(p,
-                    new LiteralExpr(p, ConcreteLiteralKind.STRING, "PASS "), nameLit))));
-            ExpressionNode failMsg = concat(p,
-                    new LiteralExpr(p, ConcreteLiteralKind.STRING, "FAIL "), nameLit,
-                    new LiteralExpr(p, ConcreteLiteralKind.STRING, ": "),
-                    new IdentifierExpr(p, "e"));
-            List<StatementNode> catchBody = new ArrayList<>();
-            catchBody.add(new ExpressionStmt(p, callPrintln(p, failMsg)));
-            catchBody.add(new ExpressionStmt(p, new AssignmentExpr(p, failedVar, "=",
-                    new BinaryExpr(p, "+", failedVar,
-                            new LiteralExpr(p, ConcreteLiteralKind.INT, "1")))));
-            body.add(new TryStmt(p, tryBody,
-                    List.of(new CatchClause(p, "String", "e", catchBody)), List.of()));
-        }
-        body.add(new ExpressionStmt(p, callPrintln(p,
-                new LiteralExpr(p, ConcreteLiteralKind.STRING, "────────"))));
-        ExpressionNode summary = concat(p,
-                failedVar,
-                new LiteralExpr(p, ConcreteLiteralKind.STRING, " failed of "
-                        + discoveredTests.size() + " tests"));
-        body.add(new ExpressionStmt(p, callPrintln(p, summary)));
-        // falha = exit code != 0 em todos os targets, sem stack trace:
-        // JVM System.exit / Native syscall exit / JS sentinel no runner
-        body.add(new IfStmt(p,
-                new BinaryExpr(p, ">", failedVar, new LiteralExpr(p, ConcreteLiteralKind.INT, "0")),
-                new BlockStmt(p, List.of(new ExpressionStmt(p, new MethodCallExpr(p,
-                        new IdentifierExpr(p, "process"), "exit", List.of(),
-                        List.of(new LiteralExpr(p, ConcreteLiteralKind.INT, "1")))))),
-                null));
-        return new FunctionDeclarationNode(p, List.of(), "void", "main",
-                List.of(), List.of(), List.of(), List.copyOf(body));
-    }
-
-    static ExpressionNode concat(SourcePosition p, ExpressionNode... parts) {
-        ExpressionNode acc = parts[0];
-        for (int i = 1; i < parts.length; i++) {
-            acc = new BinaryExpr(p, "+", acc, parts[i]);
-        }
-        return acc;
-    }
-
-    static ExpressionNode callPrintln(SourcePosition p, ExpressionNode arg) {
-        return new MethodCallExpr(p, null, "println", List.of(), List.of(arg));
     }
 }

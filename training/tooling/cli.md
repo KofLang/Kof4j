@@ -15,7 +15,7 @@ commands, tooling and editor support.
 | `kof run <file.kf\|dir> [--target jvm\|native\|native.risc\|native.arm\|js\|android] [args...]` | Compiles and runs |
 | `kof serve <file.kf> [--port <port>] [--host <host>]` | Basic HTTP web server. `--port`/`--host` apply only in legacy mode (`handle`); a kof-native app (`app.listen`) sets its own port and the CLI warns (#35.3) |
 | `kof check <file.kf\|dir> [--target <t>]` | Type-check without emitting code (target-aware gaps) |
-| `kof test <file.kf\|dir> [--target jvm\|native\|js]` | Structured suite `test "name" { }`: PASS/FAIL per test; files without tests run whole (PASS = exit 0); a dir recurses into **named suites** (one per directory) |
+| `kof test <file.kf\|dir> [--target jvm\|native\|js] [--timeout <sec>] [--tag <tag>]` | Structured suite `test "name", "tag" { }`: PASS/FAIL per test; `--tag` filters the catalog at compile time (same harness on every target); `setup`/`teardown` functions skip (named) or finalize tests; files without tests run whole (PASS = exit 0); a dir recurses into **named suites** (one per directory) |
 | `kof script <file.ks> [--target jvm\|native\|js] [--watch] [--inspect] [args...]` | KofScript: JIT with top-level `var`/`val` → KofScriptGlobals, repl, 64 LRU cache |
 | `kof repl` | Alias for interactive `kof script` |
 | `kof c <file.c> [-o outDir]` | KofCcompiler: native-only C subset → x86_64 ELF |

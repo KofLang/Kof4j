@@ -10,6 +10,21 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `scripts/changelog.sh` and inserted by the pipeline at this marker:
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
+  - **Feature — X8 fatia 3 (D-COMPLETE-FIRST item 3, 26/09): tags in the `test` primitive and `kof test --tag`** —
+    `test "nome", "smoke", "auth" { }`: the tags are plain extra string literals
+    (zero new syntax, rule 11 — the surface SG-023 refused to grow stays as it
+    is; the runner gains the semantics). `--tag` filters at COMPILE time inside
+    the harness builder, so JVM/Script/Native/JS all execute the identical
+    filtered catalog (rule 5 by construction); an unmatched tag says
+    `no tests with tag 'x' (of N)` and passes — never silent (R6).
+    `setup`/`teardown` are ordinary zero-arg functions: a setup that throws
+    SKIPS its test by name; teardown runs via `finally` even for failing tests.
+    Harness synthesis moved to `TestHarnessBuilder` (rule 7). Proof:
+    `TestTagsE2ETest` 10/10 (legacy output byte-identical without the flag —
+    rule 2 —, JS parity golden, parse-time refusals), `CmdTestTagTest` 4/4 real
+    CLI goldens, `StructuredTestE2ETest`/`KofFormatterTest` untouched and green;
+    corpus: `learn/23-testing`(+PT), `training/tooling/cli`(+PT),
+    `DECISIONS.md`(+PT) evidence note under item 3.
   - **Media cross fatia 2A — `Video` on riscv64/aarch64, byte-for-byte
     with the JVM** (26/09): new `NativeRiscvAsmMedia` + `NativeRiscvAsmMediaMp4`
     port the six `kof_media_video_*` faces to riscv64 asm (aarch64 inherits

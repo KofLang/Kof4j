@@ -10,6 +10,21 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `scripts/changelog.sh` e inserida pela pipeline neste marcador:
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
+  - **Feature — X8 fatia 3 (item 3 do D-COMPLETE-FIRST, 26/09): tags no primitivo `test` e `kof test --tag`** —
+    `test "nome", "smoke", "auth" { }`: as tags sao literais extras de string
+    (zero sintaxe nova, rule 11 — a superficie que o SG-023 recusou crescer fica
+    como esta; o runner ganha a semantica). `--tag` filtra no COMPILE-TIME dentro
+    do construtor do harness, entao JVM/Script/Native/JS executam exatamente o
+    mesmo catalogo filtrado (rule 5 por construcao); tag sem match diz
+    `no tests with tag 'x' (de N)` e passa — nunca silencio (R6). `setup`/`teardown`
+    sao funcoes comuns sem argumentos: setup que lanca PULA o teste pelo nome;
+    teardown roda via `finally` ate em teste que falha. A sintetise do harness
+    saiu para `TestHarnessBuilder` (rule 7). Provas: `TestTagsE2ETest` 10/10
+    (saida legada byte-identica sem a flag — rule 2 —, golden de paridade JS,
+    recusas no parse), `CmdTestTagTest` 4/4 goldens do CLI real,
+    `StructuredTestE2ETest`/`KofFormatterTest` intactos e verdes; corpus:
+    `learn/23-testing`(+PT), `training/tooling/cli`(+PT), nota de evidencia em
+    `DECISIONS.md`(+PT) sob o item 3.
   - **Media cross fatia 2A — `Video` em riscv64/aarch64, byte a byte com o
     JVM** (26/09): `NativeRiscvAsmMedia` + `NativeRiscvAsmMediaMp4` novos
     portam as seis faces `kof_media_video_*` para o asm riscv64 (aarch64

@@ -185,7 +185,9 @@ public final class KofFormatter {
                 out.append(pad).append("}\n");
             }
             case TestDeclarationNode t -> {
-                out.append(pad).append("test \"").append(t.name()).append("\" {\n");
+                out.append(pad).append("test \"").append(t.name()).append("\"");
+                for (String tag : t.tags()) out.append(", \"").append(tag).append("\"");
+                out.append(" {\n");
                 for (StatementNode st : t.body()) formatStmt(st, out, indent + 1, pending);
                 out.append(pad).append("}\n");
             }
