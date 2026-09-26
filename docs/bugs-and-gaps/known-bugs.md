@@ -15354,7 +15354,6 @@ isolation does not close this §.
 
 <!-- pt-switch --> **PT:** [§511 (pt_BR)](known-bugs.pt_BR.md#511--ringprivilegee2etestring1privilegedinstructionandsabotageproveenforcement-da-flake-sob-carga-da-suite-completa-o-boot-ovmf-congela-alem-do-limite-de-120s-re-incidencia-2-da-flake-anotada-no-fechamento-do-510---open-dona--lane-baremetal)
 
-<<<<<<< Updated upstream
 ## §512 — multi-package `List<Record>` lost its package when the consumer file was compiled first: the record/class type-inference fixpoint globally erased sibling expression types, making lowering emit `checkcast Rotulo` instead of `dominio/Rotulo` (GitHub #628) — ✅ FIXED 26/09
 
 **Symptom (measured):** a package-local `record Rotulo` + top-level
@@ -15400,9 +15399,8 @@ exits 0 with the same golden output; full reactor on tip after rebase:
 **Files:** `CompilerImports.java`, `CompilerPipeline.java`, `SemanticAnalyzer.java`,
 `SemDeclarationAnalyzer.java`, `PackageRecordGenericListE2ETest.java`.
 
-<!-- pt-switch --> **PT:** [§512 (pt_BR)](known-bugs.pt_BR.md#512--listrecord-de-multipacote-perdia-o-pacote-quando-o-arquivo-consumidor-era-compilado-primeiro-o-fixpoint-de-registroclasse-apagava-os-tipos-de-irmaos-e-o-lowering-emitia-checkcast-rotulo-em-vez-de-dominiorotulo-github-628--fixed-2609)
-=======
-## §512 — `json.encode` element dispatch collapsed raw Double/Long slots to `encode_int` on x86 (deterministic garbage) and JVM `List<Bool>` cast `Boolean`→`Integer` (ClassCastException) — ✅ FIXED (26/09, same commit)
+<!-- pt-switch --> **PT:** [§512 (pt_BR)](known-bugs.pt_BR.md#512--listrecord-de-multiplos-pacotes-perdia-o-pacote-quando-o-arquivo-consumidor-era-compilado-primeiro-o-fixpoint-de-tipo-da-classeregistro-apagava-os-tipos-dos-irmaos-fazendo-o-lowering-emitir-checkcast-rotulo-em-vez-de-dominiorotulo-github-628---corrigido-2609)
+## §513 — `json.encode` element dispatch collapsed raw Double/Long slots to `encode_int` on x86 (deterministic garbage) and JVM `List<Bool>` cast `Boolean`→`Integer` (ClassCastException) — ✅ FIXED (26/09, same commit)
 
 **Symptom (measured, 26/09 — surfaced by the X2 Python engine):** on NATIVE
 `json.encode(listOf(1.5, 2.25))` emitted `[<int-garbage>,...]` (the engine then
@@ -15426,24 +15424,24 @@ loop dispatches tag 3 as `movq %rdi,%xmm0; call kof_json_encode_double` and tag 
 as `call kof_json_encode_long`; the x86 map walker gained the tag-3 branch (map
 long already rode the box-7 path); JVM tag-2 reads `((Boolean) e)` (mirroring its
 own `encodeByTag`). `Float` lists/maps stay tag-0 garbage — catalogued, NOT
-silently kept: see §513's OPEN list.
+silently kept: see §514's OPEN list.
 
 **Proof (would fail on old code):** `JsonNativeEncodeFpE2ETest` 1/1 — oracle
 `[1.5,2.25] / [7,8] / {"x":1.5} / [1,2] / ["a","b"] / [true]` measured on the JVM,
 JVM≡x86 asserted; plus `InteropPyE2ETest` 5/5 whose engine round-trips
 `List<Double>` end-to-end. Full JSON batteries re-run green.
 
-<!-- pt-switch --> **PT:** [§512 (pt_BR)](known-bugs.pt_BR.md#512--dispatch-de-elemento-do-jsonencode-colapsava-slots-crus-doublelong-para-encode_int-no-x86-lixo-deterministico-e-o-listbool-do-jvm-castava-booleaninteger-classcastexception---fixed-2609-mesmo-commit)
+<!-- pt-switch --> **PT:** [§513 (pt_BR)](known-bugs.pt_BR.md#513--dispatch-de-elemento-do-jsonencode-colapsava-slots-crus-doublelong-para-encode_int-no-x86-lixo-deterministico-e-o-listbool-do-jvm-castava-booleaninteger-classcastexception---fixed-2609-mesmo-commit)
 
-## §513 — cross riscv64/aarch64 never received the JSON FP/long element encoders (`kof_json_encode_double` absent from the riscv asm; the translated loop falls to `encode_int` for the new tags 3/5) — 🟡 OPEN (owner = lane native)
+## §514 — cross riscv64/aarch64 never received the JSON FP/long element encoders (`kof_json_encode_double` absent from the riscv asm; the translated loop falls to `encode_int` for the new tags 3/5) — 🟡 OPEN (owner = lane native)
 
 **Measured (26/09, static):** `grep .globl kof_json_encode_double` across
 `nat/NativeRiscv*.java`/`nat/*Aarch*` returns nothing — scalar
 `json.encode(<Double>)` on cross lowers to a call to an undefined symbol (link
-failure), and after §512's tag table, `List<Double>`/`List<Long>` on riscv reach
+failure), and after §513's tag table, `List<Double>`/`List<Long>` on riscv reach
 `kof_json_enc_elem` with tags 3/5 which its dispatch (1/2/else-int) still routes
-to `encode_int` — same class of garbage as §512 had on x86. `Float` (kept tag 0
-by §512's decision) is broken on ALL native targets for lists/maps until a 4-byte
+to `encode_int` — same class of garbage as §513 had on x86. `Float` (kept tag 0
+by §513's decision) is broken on ALL native targets for lists/maps until a 4-byte
 raw-slot convention exists.
 
 **Interim honesty (this commit):** the X2 Python engine (which marshalls Double)
@@ -15458,5 +15456,4 @@ define the raw-slot convention for `Float` (4B in an 8B slot), extend
 `JsonNativeEncodeFpE2ETest` + `ProcessSpawnCrossE2ETest`-style harness to
 riscv64/aarch64, and flip `PY_ENGINE_TARGETS`.
 
-<!-- pt-switch --> **PT:** [§513 (pt_BR)](known-bugs.pt_BR.md#513--cross-riscv64aarch64-nunca-recebeu-os-encoders-json-fplong-de-elemento-kof_json_encode_double-ausente-do-asm-riscv-o-loop-traduzido-cai-em-encode_int-para-as-novas-tags-35---open-dona--lane-native)
->>>>>>> Stashed changes
+<!-- pt-switch --> **PT:** [§514 (pt_BR)](known-bugs.pt_BR.md#514--cross-riscv64aarch64-nunca-recebeu-os-encoders-json-fplong-de-elemento-kof_json_encode_double-ausente-do-asm-riscv-o-loop-traduzido-cai-em-encode_int-para-as-novas-tags-35---open-dona--lane-native)

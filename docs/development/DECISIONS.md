@@ -3823,13 +3823,13 @@ stub, with proof per target before closing):
    over `process.spawn` + typed `json.decode<T>` — surface `var py = KofPy(src)`
    + `py.callInt/callDouble/callBool/callString(fn, listOf(...))`, goldens
    JVM≡x86≡JS≡SCRIPT measured byte-identical, named `INTEROP004`/`INTEROP006`,
-   `INTEROP005` refusal where the face is unproven (cross blocked by §513,
+   `INTEROP005` refusal where the face is unproven (cross blocked by §514,
    OPEN — lane native; ANDROID/MCU/RISCV32 by R7). The session-is-the-source
    replay contract replaces long-lived `python -` (measured impossible without
    EOF); a live-session surface needs a named handle type = rule 6 future slice.
-   The engine's Double args exposed and FIXED §512 (json element tag collapse)
+   The engine's Double args exposed and FIXED §513 (json element tag collapse)
    at the root with a JVM-oracle regression. Remaining: records↔JSON + R engine
-   (fatia 2), timeout/cancel (fatia 3), cross re-entry with §513 (fatia 4),
+   (fatia 2), timeout/cancel (fatia 3), cross re-entry with §514 (fatia 4),
    corpus DoD + promotion (fatia 5).
 3. **X8 fatia 3 (named suites):** the `test` primitive's optional tag
    flowing parser→typer→IR→runner catalog (single source), `kof test --tag`

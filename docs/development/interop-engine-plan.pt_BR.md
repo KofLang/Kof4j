@@ -22,13 +22,13 @@ toda face que chega na superfície da linguagem).
    MESMO `KofRuntime` gerado (paridade de construção, medido:
    `InteropPyScriptE2ETest` golden ≡ JVM). riscv64/aarch64 recusam `INTEROP005`
    porque o asm cross nunca recebeu `kof_json_encode_double`/`encode_long` (JSN001
-   fechou só x86 — catalogado §513, ABERTO, dona lane native); ANDROID/MCU/RISCV32
+   fechou só x86 — catalogado §514, ABERTO, dona lane native); ANDROID/MCU/RISCV32
    recusam até a face de processo ser EXECUTADA e provada (R7).
-3. **§512 achado e corrigido na raiz no mesmo commit:** o arg `List<Double>` do
+3. **§513 achado e corrigido na raiz no mesmo commit:** o arg `List<Double>` do
    motor expôs que o `json.encode` colapsava slots crus Double/Long em `encode_int`
    (walkers x86 de lista+map) e que o `List<Bool>` do JVM castava
    `Boolean`→`Integer`. Prova: `JsonNativeEncodeFpE2ETest` (oráculo JVM + JVM≡x86,
-   falharia no código pré-fix). Listas de `Float` ficam tag-0 — catalogado no §512.
+   falharia no código pré-fix). Listas de `Float` ficam tag-0 — catalogado no §513.
 4. **Superfície como pousou (gate regra 11):** `var py = KofPy(fonte)` +
    `py.callInt("sq", listOf(5))` / `callDouble` / `callBool` / `callString` — o
    tipo do RESULTADO é o nome do método, os args são uma lista Kof tipada

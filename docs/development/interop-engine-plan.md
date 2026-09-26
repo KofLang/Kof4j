@@ -23,13 +23,13 @@ measured while building:
    reflection in the same generated `KofRuntime` (construction-parity, measured:
    `InteropPyScriptE2ETest` golden ≡ JVM). riscv64/aarch64 refuse `INTEROP005`
    because the cross asm never received `kof_json_encode_double`/`encode_long`
-   (JSN001 closed x86-only — catalogued §513, OPEN, owner lane native);
+   (JSN001 closed x86-only — catalogued §514, OPEN, owner lane native);
    ANDROID/MCU/RISCV32 refuse until their process face is EXECUTED and proven (R7).
-3. **§512 found and fixed at the root in the same commit:** the engine's
+3. **§513 found and fixed at the root in the same commit:** the engine's
    `List<Double>` arg exposed that `json.encode` collapsed raw Double/Long slots
    to `encode_int` (x86 list+map walkers) and that JVM `List<Bool>` cast
    `Boolean`→`Integer`. Proof: `JsonNativeEncodeFpE2ETest` (JVM oracle + JVM≡x86,
-   would fail on pre-fix code). `Float` lists stay tag-0 — catalogued in §512.
+   would fail on pre-fix code). `Float` lists stay tag-0 — catalogued in §513.
 4. **Surface as shipped (rule 11 gate):** `var py = KofPy(source)` +
    `py.callInt("sq", listOf(5))` / `callDouble` / `callBool` / `callString` —
    the type of the RESULT is the method name, the args are a homogeneous typed

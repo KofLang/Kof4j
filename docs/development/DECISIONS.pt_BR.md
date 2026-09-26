@@ -3801,14 +3801,14 @@ completo, nunca stub, com prova por alvo antes de fechar):
    sobre `process.spawn` + `json.decode<T>` tipado — superficie `var py = KofPy(src)`
    + `py.callInt/callDouble/callBool/callString(fn, listOf(...))`, goldens
    JVM≡x86≡JS≡SCRIPT medidos byte-identicos, `INTEROP004`/`INTEROP006` nomeados,
-   recusa `INTEROP005` onde a face nao esta provada (cross travado pelo §513,
+   recusa `INTEROP005` onde a face nao esta provada (cross travado pelo §514,
    ABERTO — lane native; ANDROID/MCU/RISCV32 pela R7). O contrato replay
    "a sessao E a fonte" substitui o `python -` de vida longa (medido impossivel
    sem EOF); uma superficie de sessao viva exige tipo de handle nomeado =
-   regra 6, fatia futura. Os args Double do motor expuseram e CORRIGIRAM o §512
+   regra 6, fatia futura. Os args Double do motor expuseram e CORRIGIRAM o §513
    (colapso da tag de elemento do json) na raiz, com regressao oraculo-JVM.
    Restante: records↔JSON + motor R (fatia 2), timeout/cancel (fatia 3),
-   re-entrada cross com o §513 (fatia 4), DoD de corpus + promocao (fatia 5).
+   re-entrada cross com o §514 (fatia 4), DoD de corpus + promocao (fatia 5).
 3. **X8 fatia 3 (suites nomeadas):** a tag opcional do primitivo `test`
    fluindo parser→typer→IR→catalogo do runner (fonte unica), `kof test --tag`
    com filtragem real, setup/teardown condicionais como funcoes (setup que

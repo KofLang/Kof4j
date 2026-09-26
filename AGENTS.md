@@ -5,7 +5,7 @@
 This is the **mandatory** guide for any AI agent (or human) who
 writes Kof code in this repository. Read it before generating any `.kf`.
 
-**Version:** 0.5.0-beta · Last update: 09/18/2026 (autonomous mode + STABILITY condition with refusal to re-trigger + **Quality gate: no bug ships** + rule 8 **Kof is not Java** as ABSOLUTE (18/09) + rule 9 **docs-first gate** for philosophy-violating issues (#449) (18/09) + **mechanical push via `scripts/sync-push.sh` + conflict policy "preserve both sides, redo yours on top" (19/09)** + R1 stdlib-boundary machine gate (17/09) + §NNN shared-claim rule for multi-agent ledgers (18/09) + rule 10 **KOF-first, external-second** (`D-KOF-FIRST`, DECIDED 19/09) + rule 11 **Simplicity Law — anything that reaches the language surface** as ABSOLUTE (20/09) + `D-MAKEALIVE`/`D-KOF-AS-CLOUD`/`D-BOOTSTRAP`/`D-DB-GAPS` (20/09); active branch = **`beta-0.5.0`** (`D-BRANCH-0.5.0`, 09/20 — `beta-0.4.0` only for in-flight landings + release prep); see rule 9)
+**Version:** 0.5.0-beta · Last update: 09/18/2026 (autonomous mode + STABILITY condition with refusal to re-trigger + **Quality gate: no bug ships** + rule 8 **Kof is not Java** as ABSOLUTE (18/09) + rule 9 **docs-first gate** for philosophy-violating issues (#449) (18/09) + **mechanical push via `scripts/sync-push.sh` + conflict policy "preserve both sides, redo yours on top" (19/09) + **autostash trap: markers can survive a successful rebase — grep + gates on the POST-REBASE tree, §NNN re-checked against the remote tip (26/09)** + R1 stdlib-boundary machine gate (17/09) + §NNN shared-claim rule for multi-agent ledgers (18/09) + rule 10 **KOF-first, external-second** (`D-KOF-FIRST`, DECIDED 19/09) + rule 11 **Simplicity Law — anything that reaches the language surface** as ABSOLUTE (20/09) + `D-MAKEALIVE`/`D-KOF-AS-CLOUD`/`D-BOOTSTRAP`/`D-DB-GAPS` (20/09); active branch = **`beta-0.5.0`** (`D-BRANCH-0.5.0`, 09/20 — `beta-0.4.0` only for in-flight landings + release prep); see rule 9)
 
 > **PRIORITY No. 1: QUALITY.** Before any feature, read the
 > **Quality gate — "no bug ships"** (§ below), **universal for
@@ -389,6 +389,16 @@ interval.
 > content, not garbage**: **redo your own edit** on top of the new version
 > (re-apply your change against it), never revert the other's edit "because
 > mine was written later".
+>
+> **The autostash trap (26/09, own violation).** `pull --rebase --autostash`
+> can leave **conflict markers inside the dirty tree WITHOUT failing the
+> rebase** (it completes, prints "Successfully rebased", and stashes the
+> residue) — a `git add -A` right after commits the markers (my `c87dcfa32`
+> shipped markers in 4 files + a §NNN collision the rebase had surfaced).
+> Mandatory after ANY rebase, before ANY commit: `grep -rn '^<<<<<<<' <touched
+> files>` and run the gate battery **on the post-rebase tree** (gates run
+> BEFORE the rebase prove nothing). And re-check §NNN against the REMOTE tip
+> after the pull — numbers claimed in-flight collide exactly like files.
 
 ### Lesson learned (09/04) — ALWAYS work in small parts
 

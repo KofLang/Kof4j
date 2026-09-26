@@ -5,7 +5,7 @@
 Este é o guia **obrigatório** para qualquer agente de IA (ou humano) que
 escreva código Kof neste repositório. Leia antes de gerar qualquer `.kf`.
 
-**Versão:** 0.5.0-beta · Última atualização: 18/09/2026 (modo autônomo + condição de ESTABILIDADE com recusa de re-disparo + **Portão de qualidade: nenhum bug sobe** + regra 8 **Kof não é Java** como ABSOLUTA (18/09) + regra 9 **portão docs-first** para issues fora da filosofia (#449) (18/09) + **push mecânico via `scripts/sync-push.sh` + política de conflito "preserve os dois lados, refaça o seu em cima" (19/09)** + gate de máquina da fronteira stdlib R1 (17/09) + regra de claim compartilhada §NNN para ledgers multi-agente (18/09) + regra 10 **KOF-primeiro, externo-depois** (`D-KOF-FIRST`, DECIDED 19/09) + regra 11 **Lei da Simplicidade — tudo que chega à superfície da linguagem** como ABSOLUTO (20/09) + `D-MAKEALIVE`/`D-KOF-AS-CLOUD`/`D-BOOTSTRAP`/`D-DB-GAPS` (20/09); branch ativa = **`beta-0.5.0`** (`D-BRANCH-0.5.0`, 20/09 — `beta-0.4.0` só para pousos em voo + preparo de release); veja a regra 9)
+**Versão:** 0.5.0-beta · Última atualização: 18/09/2026 (modo autônomo + condição de ESTABILIDADE com recusa de re-disparo + **Portão de qualidade: nenhum bug sobe** + regra 8 **Kof não é Java** como ABSOLUTA (18/09) + regra 9 **portão docs-first** para issues fora da filosofia (#449) (18/09) + **push mecânico via `scripts/sync-push.sh` + política de conflito "preserve os dois lados, refaça o seu em cima" (19/09) + **armadilha do autostash: marcadores podem sobreviver a um rebase bem-sucedido — grep + gates na árvore PÓS-REBASE, §NNN reconferido contra o tip remoto (26/09)** + gate de máquina da fronteira stdlib R1 (17/09) + regra de claim compartilhada §NNN para ledgers multi-agente (18/09) + regra 10 **KOF-primeiro, externo-depois** (`D-KOF-FIRST`, DECIDED 19/09) + regra 11 **Lei da Simplicidade — tudo que chega à superfície da linguagem** como ABSOLUTO (20/09) + `D-MAKEALIVE`/`D-KOF-AS-CLOUD`/`D-BOOTSTRAP`/`D-DB-GAPS` (20/09); branch ativa = **`beta-0.5.0`** (`D-BRANCH-0.5.0`, 20/09 — `beta-0.4.0` só para pousos em voo + preparo de release); veja a regra 9)
 
 > **PRIORIDADE Nº 1: QUALIDADE.** Antes de qualquer feature, leia o
 > **Portão de qualidade — "nenhum bug sobe"** (§ abaixo), **universal para
@@ -389,6 +389,17 @@ intervalo.
 > rebase/merge de outro agente é **conteúdo atualizado, não lixo**: **refaça o
 > seu edit em cima da versão nova** (re-aplique sua mudança contra ela), nunca
 > reverta o edit do outro "porque o meu foi escrito depois".
+>
+> **A armadilha do autostash (26/09, violação própria).** O
+> `pull --rebase --autostash` pode deixar **marcadores de conflito na árvore
+> suja SEM falhar o rebase** (ele completa, imprime "Successfully rebased" e
+> guarda o resíduo no stash) — um `git add -A` logo depois commita os
+> marcadores (meu `c87dcfa32` subiu marcadores em 4 arquivos + uma colisão de
+> §NNN que o rebase havia surfaced). Obrigatório após QUALQUER rebase, antes
+> de QUALQUER commit: `grep -rn '^<<<<<<<' <arquivos tocados>` e rodar a
+> bateria de gates **na árvore pós-rebase** (gate rodado ANTES do rebase não
+> prova nada). E re-conferir o §NNN contra o tip REMOTO depois do pull —
+> números reivindicados em voo colidem exatamente como arquivos.
 
 ### Lição aprendida (04/09) — trabalhe SEMPRE em partes pequenas
 

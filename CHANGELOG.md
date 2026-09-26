@@ -10,7 +10,6 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `scripts/changelog.sh` and inserted by the pipeline at this marker:
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
-<<<<<<< Updated upstream
   - **Fix — #628 (26/09): package records inside `List<T>` no longer depend on
     source order** — a package-local `record` returned through a top-level
     `List<Rotulo>` emitted `checkcast Rotulo` and aborted at JVM load with
@@ -21,7 +20,6 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     new `PackageRecordGenericListE2ETest` (JVM/Script/Native goldens; JS runs
     when `node` is available) plus the exact CLI reproducer; reactor
     4161/0F/32E(node)/507-skip. Catalog: `known-bugs.md` §512 (+PT).
-=======
   - **Feature — X2 fatia 1 (D-COMPLETE-FIRST item 2, 26/09): the Python engine `KofPy` in `kof.interop` — a Kof-written host, not a compiler face** —
     `import kof.interop` now injects a real engine over the platform it needs:
     `var py = KofPy(source)` + `py.callInt/callDouble/callBool/callString(fn, listOf(args))`
@@ -34,17 +32,16 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     interpreters are impossible over the current handle (measured: `python -` on a
     pipe never runs before stdin EOF). Named errors: `INTEROP004` (interpreter
     missing/dead — never an empty line), `INTEROP006` (remote failure with the
-    traceback), `INTEROP005` (target refusal — riscv64/aarch64 until §513 lands,
+    traceback), `INTEROP005` (target refusal — riscv64/aarch64 until §514 lands,
     ANDROID/MCU/RISCV32 unproven). SCRIPT runs the REAL engine by construction-parity
     (measured surprise — the interpreter reflects `kof_process_spawn` into the same
     generated `KofRuntime`). Along the way the engine's `List<Double>` arg exposed
-    §512 (`json.encode` collapsed raw Double/Long slots to `encode_int` on x86, and
+    §513 (`json.encode` collapsed raw Double/Long slots to `encode_int` on x86, and
     JVM `List<Bool>` cast `Boolean`→`Integer`) — fixed at the root in the same commit
     with a JVM-oracle + JVM≡x86 regression. Proof: `InteropPyE2ETest` 5/5 (golden
     measured; JVM≡x86≡JS byte-identical; 004/006 edges; Android shape refusal),
     `InteropPyScriptE2ETest` 1/1 (interpretado ≡ compilado), `JsonNativeEncodeFpE2ETest`
-    1/1. Matrix rows EN+PT; §512 FIXED / §513 OPEN ([§512](docs/bugs-and-gaps/known-bugs.md#512--jsonencode-element-dispatch-collapsed-raw-doublelong-slots-to-encode_int-on-x86-deterministic-garbage-and-jvm-listbool-cast-booleaninteger-classcastexception---fixed-2609-same-commit)).
->>>>>>> Stashed changes
+    1/1. Matrix rows EN+PT; §513 FIXED / §514 OPEN ([§513](docs/bugs-and-gaps/known-bugs.md#513--jsonencode-element-dispatch-collapsed-raw-doublelong-slots-to-encode_int-on-x86-deterministic-garbage-and-jvm-listbool-cast-booleaninteger-classcastexception---fixed-2609-same-commit)).
   - **Feature — D-COMPLETE-FIRST item 4: kof.ui deterministic release is a
     lifecycle contract with leak locks** (26/09): a `Store` created DURING a
     component's lifecycle (view render / `onMount` / `effect`) now belongs to
