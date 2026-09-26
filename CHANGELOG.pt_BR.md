@@ -10,6 +10,24 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `scripts/changelog.sh` e inserida pela pipeline neste marcador:
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
+  - **Paridade media fatia 1 — `Video`/`Audio` no Native x86-64 byte-for-byte
+    com o JVM (`D-FULL-PARITY-050` linha 4 fatia 1)** (26/09): os novos
+    `RuntimeMedia`/`RuntimeMediaMp4`/`RuntimeMediaWav` emitem o scanner MP4
+    moov/mvhd (incl. o extended-size de 64 bits do #624 — caso `size==1` e o
+    `size==0`-até-o-limite) e o parser + writer WAV PCM-16 (com o `mkdirs`
+    recursivo do `saveWav`), reaproveitando os syscalls de io já existentes —
+    nenhuma aresta libc nova. O gate do lowerer abre as DUAS faces portadas
+    só no `Target.NATIVE` (x86-64): cross/JS seguem `MEDIA001`, `Image`/`Mic`
+    ficam `MEDIA001`/`MEDIA003` em todo nativo (decoder/encoder = regra 6) —
+    travado por `MediaNativeE2ETest.imageMicStayGapAndCrossNeverLeaks`.
+    Prova: `MediaNativeE2ETest` 3/3 — stdout JVM≡nativo byte a byte em
+    fixtures de bytes medidos (duração 3000 ms, codecs float/24bit/ruim
+    honestos, arquivo `saveWav` bit-idêntico nos dois alvos, cap-64 com o
+    throw exato); cegueira do registry corrigida no mesmo commit
+    (`RuntimeSlices` agora reconhece locais definidos por `.set` — as
+    `localNeeds` da fatia apareciam como arestas órfãs). Divergências
+    declaradas (R7): cap de 64 handles (JVM sem limite), mensagem de io-fail
+    embute o path, base de resolução de path relativo.
   - **§500 — método/campo estático em nome de classe externa não emite mais bytecode de owner vazio nem `getfield "?"` morto ([CORRIGIDO](docs/bugs-and-gaps/known-bugs.pt_BR.md#500--metodocampo-estatico-em-nome-de-classe-externa-importada-que-nao-resolve-emite-chamada-de-owner-vazio-invokevirtual-aslist--bogus--falha-de-load-da-classe---corrigido-2609))** (26/09):
     fatia A (`35aca27fd`, métodos): `ACC_VARARGS` na assinatura +
     `VarargsArrayPacker` — o válido `Arrays.asList(1, 2)` e

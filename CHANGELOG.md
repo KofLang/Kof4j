@@ -10,6 +10,24 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `scripts/changelog.sh` and inserted by the pipeline at this marker:
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
+  - **Media parity slice 1 — Native x86-64 `Video`/`Audio` byte-for-byte with
+    the JVM (`D-FULL-PARITY-050` row 4 slice 1)** (26/09): new `RuntimeMedia`/
+    `RuntimeMediaMp4`/`RuntimeMediaWav` emit the MP4 moov/mvhd scanner (incl.
+    the #624 64-bit extended size — `size==1` and the `size==0`-to-limit
+    case) and the WAV PCM-16 parser + writer (with the recursive `mkdirs` of
+    `saveWav`), reusing the existing io syscalls — no new libc edges. The
+    lowerer gate opens the two ported faces ONLY on `Target.NATIVE` (x86-64):
+    cross/JS keep `MEDIA001`, `Image`/`Mic` stay `MEDIA001`/`MEDIA003` on
+    every native target (decoder/encoder = rule 6) — pinned by
+    `MediaNativeE2ETest.imageMicStayGapAndCrossNeverLeaks`. Proof:
+    `MediaNativeE2ETest` 3/3 — JVM≡native stdout byte-for-byte on
+    measured-byte fixtures (duration 3000 ms, float/24bit/bad codecs
+    honest, the `saveWav` file bit-identical on both targets, cap-64 with
+    the exact throw); a registry blind spot fixed in the same commit
+    (`RuntimeSlices` now recognizes `.set`-defined locals — the slice's
+    `localNeeds` appeared as orphan edges). Declared divergences (R7): the
+    64-handle cap (JVM is unlimited), io-fail messages embedding the path,
+    and the relative-path resolution base.
   - **§500 — static method/field on an external class name no longer emits empty-owner bytecode or dead `getfield "?"` ([FIXED](docs/bugs-and-gaps/known-bugs.md#500--static-methodfield-on-an-imported-external-class-name-that-does-not-resolve-emits-an-empty-owner-call-invokevirtual-aslist--bogus--class-load-failure---fixed-2609))** (26/09):
     slice A (`35aca27fd`, methods): `ACC_VARARGS` carried in the signature +
     `VarargsArrayPacker` — the valid `Arrays.asList(1, 2)` and

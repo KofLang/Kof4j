@@ -2,7 +2,8 @@
 
 # kof.media — Image/Audio/Video/Mic como I/O de mídia
 
-> **Status: JVM ✅ · JS e Native = `MEDIA001` (compile-time, honesto) —
+> **Status: JVM ✅ · Native x86-64: `Video`+`Audio` ✅ (26/09, byte-for-byte
+> vs JVM); `Image`/`Mic` e cross/JS = `MEDIA001` (compile-time, honesto) —
 > linha 4 do ledger de paridade.**
 
 | Face | Membros (medidos) |

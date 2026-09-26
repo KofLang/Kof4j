@@ -169,6 +169,26 @@ final class ExpressionBuiltinInstanceCalls {
         KofMedia.MediaCall mediaCall =
                 KofMedia.handleMethod(recvType, mc.methodName(), mc.arguments().size());
         if (mediaCall != null) {
+            // §509-era/linha-4 parity: as faces de handle seguiam sem gate de
+            // target (buraco latente — só não era alcançado porque o OPEN
+            // estático era MEDIA001 nos demais alvos). Agora espelham o gate
+            // do ExpressionUiMediaCallLowerer: JVM/ANDROID sim; NATIVE para
+            // Video/Audio (asm em RuntimeMedia/RuntimeMediaWav); demais = gap.
+            if (driver.target != Target.JVM && driver.target != Target.ANDROID
+                    && !(driver.target == Target.NATIVE
+                            && ExpressionUiMediaCallLowerer.nativeMediaReady(mediaCall.function()))) {
+                String code = KofMedia.gapCode(mediaCall.function());
+                if (driver.currentDiagnostics != null) {
+                    driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
+                            mc.position() != null ? mc.position().line() : 0,
+                            mc.position() != null ? mc.position().column() : 0,
+                            0,
+                            mc.methodName() + ": not available on the "
+                                    + driver.target + " driver.target yet (" + code + ")",
+                            code);
+                }
+                return localIdx;
+            }
             List<Type> mediaParams = new ArrayList<>();
             mediaParams.add(Type.PrimitiveType.INT);      // handle (receiver)
             for (ExpressionNode arg : mc.arguments()) {
