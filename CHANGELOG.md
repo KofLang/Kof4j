@@ -10,6 +10,12 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `scripts/changelog.sh` and inserted by the pipeline at this marker:
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
+  - **media #623 — `Video.durationMs()` now reads MP4/MOV boxes with the 64-bit extended-size form** (26/09, PR
+    #624 by @PublioSantos, merged as `995f0dc36` under maintainer authorization `D-DECISION-BATCH-2609`): a valid
+    file whose container box carries the extended size (size field = 1 + 64-bit payload) reported duration 0 —
+    the parser skipped only the 32-bit form. JVM fix in `JvmMediaCoreRuntime` + regression in
+    `KofMediaE2ETest`; pre-merge proof: structural suite VERDE + media battery 17/0F/0E on a simulated merge
+    over tip `c298406e2`.
   - **§508 — the PR-mode CodeQL ERROR on `RuntimeDtoaSchubfach.emitTables` is gone — one-character loop guard,
     even-length invariant pinned by test ([FIXED](docs/bugs-and-gaps/known-bugs.md#508--codeql-pr-mode-reports-an-error-array-access-might-be-out-of-bounds-on-runtimedtoaschubfachjava90--provably-false-positive-across-gtable-length-is-a-multiple-of-2-by-construction-the-fix-is-a-dismiss-or-a-one-character-loop-guard-and-it-belongs-to-the-baremetal-lane---fixed-2609))** (26/09): every push also runs
     CodeQL PR-mode against #619's diff and annotated `g[i + 1]` as "might be out of bounds" — provably false

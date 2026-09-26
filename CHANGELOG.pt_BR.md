@@ -10,6 +10,12 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `scripts/changelog.sh` e inserida pela pipeline neste marcador:
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
+  - **media #623 — `Video.durationMs()` agora le boxes MP4/MOV com a forma estendida de tamanho 64-bit** (26/09,
+    PR #624 de @PublioSantos, mergeado como `995f0dc36` sob autorizacao da mantenedora em
+    `D-DECISION-BATCH-2609`): um arquivo valido cujo box de container usa o tamanho estendido (campo size = 1 +
+    payload de 64 bits) reportava duracao 0 — o parser so pulava a forma de 32 bits. Fix JVM em
+    `JvmMediaCoreRuntime` + regressao em `KofMediaE2ETest`; prova pre-merge: suite estrutural VERDE + bateria de
+    media 17/0F/0E num merge simulado sobre o tip `c298406e2`.
   - **§508 — o ERROR do CodeQL modo-PR em `RuntimeDtoaSchubfach.emitTables` morreu — guard de loop de um
     caractere, invariante de comprimento par fixada por teste ([CORRIGIDO](docs/bugs-and-gaps/known-bugs.pt_BR.md#508--codeql-em-modo-pr-reporta-um-erro-array-access-might-be-out-of-bounds-em-runtimedtoaschubfachjava90--fp-provavel-atraves-de-gtable-comprimento-multiplo-de-2-por-construcao-a-correcao-e-dismiss-ou-um-guard-de-loop-de-um-caractere-e-pertence-a-lane-baremetal---corrigido-2609))** (26/09):
     cada push roda também o CodeQL modo-PR contra o diff do #619 e anotava `g[i + 1]` como "possivelmente fora
