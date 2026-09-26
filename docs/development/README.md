@@ -43,12 +43,15 @@ surface**).
 
 ## 0. What is live here (read first)
 
-- **Pending (the release gate's condition 3):** none — the two in-flight
+- **Pending (the release gate's condition 3):** none — the in-flight
   OWNED plans still loose (`db-parity-plan`,
-  `PLAN-BAREMETAL-BOOT`) are **allowlisted** by
+  `PLAN-BAREMETAL-BOOT`, and since 26/09 `interop-engine-plan` — X2, owned by
+  the compiler lane per `D-COMPLETE-FIRST` item 2, same treatment as
+  `memory-safety-plan`) are **allowlisted** by
   `D-RELEASE-0.5.0-SCOPE` (maintainer 21/09/2026) + `D-BAREMETAL-BOOT`
-  (maintainer 22/09/2026): they keep owner + queue in §1 and conclude on their
-  own fronts; they do not gate the 0.5.0 cut.
+  (maintainer 22/09/2026) + the `D-COMPLETE-FIRST` ownership record: they keep
+  owner + queue in §1 and conclude on their own fronts; they do not gate the
+  0.5.0 cut.
   `IMPLEMENTATION-UNIVERSAL-PLATFORM`, `makealive-plan` and `secrets-plan`
   concluded and moved to `docs/architecture/` (21/09); the type-system plan
   (X5+X6) concluded and moved to `docs/` (22/09); `kof-c-cross` (C1–C4 +
@@ -88,6 +91,7 @@ surface**).
 | 12 | ~~`secrets-plan.md` (+PT)~~ → `docs/architecture/secrets-plan.md` — `D-SECRETS`, Stage 5/tracker 3.6 | ✅ **CONCLUDED + MOVED 21/09** — all faces LANDED `04473bbe` (`Secret` `32285136`; P1-remainder `fromBytes`/identity `hashCode`; P2 runtime+lint redaction; P3 `KeyHandle`/`rotate` `SECN010`); `SecretE2ETest` 7/7 + `KeyHandleE2ETest` 5/5 | — (3-state rule) |
 | — | ~~`ffi-abi-structs.md` (+PT)~~ → `docs/ffi-abi-structs.md` — FFI struct/array ABI (D6) | ✅ **CONCLUDED + MOVED 23/09** — all slices landed (3.8a `AbiLayout`; 3.8b JVM param+return+array+buffer; JS param+return+array+buffer; 3.7 x86-64 param+return+sret+`T[]` copy-in + cross INTEGER struct return+param); proof FFI battery **60/60 green 23/09** | moved to `docs/` (3-state rule) | — |
 | — | `memory-safety-investigation.md` (+PT) — Fase 0 deliverable | `DELIVERED 25/09 — awaiting maintainer review` — 14-point sweep with file:line evidence (variable repr, copy/share, no escape analysis, val=binding-only, capture-by-value+box-on-mutation, conservative GC roots, worker-stacks-never-rooted, FFI copy rules, nullability two-repr divergence, untracked aliasing, explicit-close-only resources, spawn shares refs), §503/§260/§292/§252 memory-bug family mapped, 8 fragile points, preliminary answers to the front's core questions | parity lane (Fase 0 gate = maintainer review) | Fase 1: `docs/spec/memory-safety.md` |
+| — | `interop-engine-plan.md` (+PT) — `D-COMPLETE-FIRST` item 2, 26/09 | `UNDER DEVELOPMENT` — X2 Python/R engine as the FULL package over the EXISTING `kof.interop` HOST_IMPORT (zero new namespaces; boundary ledger unchanged); engine written in Kof (`interop-py-host.kf`) on `kof.process`+`kof.json`; named diagnostics from `INTEROP004` (001–003 measured taken); rule 11: user surface = intention (`py.call`), never mechanism | **lane compiler 9092** (claim 26/09) · fatia 1 = Python engine on JVM — RECON: measure `kof.process` stdin-write surface first; E2E guarded by python3 (present on host; `Rscript` absent → fatia 2 `assumeTrue`) | fatias 1–5 per the plan table; closure = LANDED note in DECISIONS + row 2.8.6 flips ✅ + doc moves to `docs/` |
 | — | `memory-safety-plan.md` (+PT) — `D-MEMORY-SAFETY` 25/09 | `IN DEVELOPMENT` — maintainer 25/09: memory-safety front (ownership/lifetime/borrowing/aliasing/FFI) **opened and owned by the parity lane**; Phases 0–1 (investigation + spec) are current work, compiler/core edits wait for the current queue (brief constraint); Kof-first: no copied borrow checker, null safety untouchable, rule 11 Simplicity Law | **parity lane** (D-MEMORY-SAFETY) · Phase 0 = sweep the 20 §1 questions + `known-bugs.md` reference/aliasing/lifetime bugs, produce `memory-safety-investigation.md` (EN+PT) — ZERO core edits | Fase 1 spec `docs/spec/memory-safety.md`; Fases 2–6 gated per the plan table |
 | — | `db-parity-plan.md` (+PT) — `D-DB-GAPS` addendum 21/09 | `IN DEVELOPMENT` — maintainer 21/09: **total DB parity** (every target accepts mariadb/mysql/sqlite/mongodb); measured matrix + slices S0–S4 | **`gaps-db` lane** (handed over 21/09 by order of the maintainer; docs/plataforma keeps the record) · **S0 ✅ DONE 21/09 (session 9092: `DB001` named refusal + link-by-use)** (`D-DB-PARITY-OWNER`) | S1 `mariadb://` = mysql-wire alias (Native); S2 JDBC scheme parity JVM/JS/Android; S3 `mongodb://` interop-first (R9); S4 oracle |
 | — | ~~`codegen-step-2.2.3-assessment.md`~~ → `docs/architecture/codegen-step-2.2.3-assessment.md` (+PT) — roadmap 2.2.3 | ✅ **CONCLUDED + MOVED 21/09** — option B (`D-DESUGAR-STEP`) **implemented** (`85779f20`: `DesugarStepPipeline` + `DesugarSteps.defaults()` with the four desugars; `CompilerPipeline:303`) | measured 21/09: **phase mismatch** (hook = optimized IR; DDL = lowering; runner = AST desugar) → the DDL stays in lowering | — (doc in `docs/architecture/`; 3-state rule) |
