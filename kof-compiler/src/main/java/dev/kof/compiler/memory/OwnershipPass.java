@@ -47,6 +47,9 @@ import java.util.Map;
  *   <li>{@code MEM002} (O-02, use-after-move): leitura de {@code y} (binding
  *       do grupo que NAO foi o reivindicante) depois de {@code x.close()} —
  *       transferencia implicita sem o face explicita da spec.</li>
+ *   <li>{@code MEM013} (L-04, fatia 3): escape por {@code return} do proprio
+ *       reivindicante depois do close — o handle morto escaparia ao chamador
+ *       (escape analysis na fronteira de saida da regiao).</li>
  * </ul>
  *
  * <p><b>Fatia 2 (26/09) — cruzamento de fluxo sem propagar, anti-falso-
@@ -140,6 +143,7 @@ public final class OwnershipPass {
                 case ReturnStmt ret -> {
                     if (ret.value() != null) {
                         readExpr(ret.value());
+                        escapeCheck(ret.value());
                     }
                 }
                 case BlockStmt blk -> {
@@ -239,6 +243,29 @@ public final class OwnershipPass {
                         + "; Kof has no implicit transfer, and the source binding '"
                         + name + "' is still read",
                         "MEM002");
+            }
+        }
+
+        /**
+         * L-04/MEM013 (fatia 3) — escape por {@code return} do binding
+         * REIVINDICANTE de um grupo ja reivindicado: a vida do recurso
+         * terminou no close e o valor escaparia ao chamador como handle morto.
+         * O retorno de um IRMAO nao-reivindicante ja arde O-02/MEM002 (face
+         * mais precisa, emitida pelo readExpr antes desta checagem). Escapes
+         * por campo, container, closure/spawn (Fase 4) e ponteiro interior de
+         * FFI (Fase 5) seguem fatias nomeadas do plano — nada heuristico aqui.
+         */
+        private void escapeCheck(ExpressionNode value) {
+            if (!(value instanceof IdentifierExpr id)) {
+                return;
+            }
+            Group g = groups.get(base(id.name()));
+            if (g != null && g.claimed && id.name().equals(g.claimer)) {
+                diag.error(stmt, "L-04: invalid lifetime escape — '" + id.name()
+                        + "' is returned after its resource was released via close()"
+                        + (g.claimSite != null ? " at line " + g.claimSite.line() : "")
+                        + "; the caller receives a dead handle",
+                        "MEM013");
             }
         }
 

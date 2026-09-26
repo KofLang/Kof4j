@@ -92,7 +92,7 @@ comportamento. A fila de representacao esta EXAUSTA.
 |---|---|---|
 | **1** Regiao retilinea | O-01/`MEM001` dupla reivindicacao + O-02/`MEM002` use-after-claim via alias — `OwnershipPass` ligado no `StatementAnalyzer.analyzeBody` (frontend compartilhado = mesma analise nos 4 alvos), `MemorySafetyE2ETest` (invalidos nos 4, validos byte-green com golden JVM/Script) | LANDED 26/09 |
 | **2** Cruzamento de fluxo | claim/leitura condicionais (if/while/try/switch) — snapshot herdado pelo braco, resultado NAO propaga (anti-falso-positivo por construcao); `BlockStmt` incondicional propaga | LANDED 26/09 |
-| **3** Escape/dangling | L-04/`MEM013` (captura estende vida) e faces de dangling da tabela §3 | pendente |
+| **3** Escape/dangling | L-04/`MEM013` (captura estende vida) e faces de dangling da tabela §3 | LANDED 26/09 |
 | **4** Aliasing mutavel em fronteiras | B-03/`MEM020` (buffer FFI escrevivel unico) + B-04/`MEM021` em `spawn` | pendente |
 | **5** Containers & unclosed | O-03/`MEM003` (clear libera) + L-05/`MEM014` (§9: web/db sem close) | **web parte FEITA 26/09 (fatia 3.1b)**; containers + db/file pendentes |
 

@@ -276,6 +276,107 @@ class MemorySafetyE2ETest {
         assertTrue(diagText(r).contains("MEM002"), "esperado MEM002 — " + diagText(r));
     }
 
+
+    // ---- FASE 3 FATIA 3: escape/dangling (L-04/MEM013, escape por return) ----
+
+    @Test
+    void returnClaimerAfterCloseFailsMem013OnAllTargets(@TempDir Path tempDir) throws IOException {
+        String src = HANDLE + """
+                Handle make() {
+                    var h = Handle(20)
+                    h.close()
+                    return h
+                }
+                main() {
+                    var x = make()
+                    println(x.id)
+                }
+                """;
+        for (Target t : new Target[]{Target.JVM, Target.NATIVE, Target.JS}) {
+            CompilationResult r = compile(tempDir, "mem013-" + t, src, t);
+            assertFalse(r.success(), t + ": escape do handle fechado deve falhar — " + diagText(r));
+            assertTrue(diagText(r).contains("MEM013"), t + ": esperado MEM013 — " + diagText(r));
+        }
+        assertScriptDiag(tempDir, "mem013-script", src, "MEM013");
+    }
+
+    @Test
+    void returnClaimerBeforeCloseStaysGreen(@TempDir Path tempDir) throws IOException {
+        String src = HANDLE + """
+                Handle make() {
+                    var h = Handle(21)
+                    return h
+                }
+                main() {
+                    var x = make()
+                    println(x.id)
+                }
+                """;
+        CompilationResult r = compile(tempDir, "green-return", src, Target.JVM);
+        assertTrue(r.success(), "retorno antes do close e legal: " + diagText(r));
+    }
+
+    @Test
+    void returnSiblingAfterCloseStaysMem002NotMem013(@TempDir Path tempDir) throws IOException {
+        // Face mais precisa: irmao nao-reivindicante = use-after-move (O-02).
+        String src = HANDLE + """
+                Handle make() {
+                    var h = Handle(22)
+                    var a = h
+                    a.close()
+                    return h
+                }
+                main() {
+                    var x = make()
+                    println(x.id)
+                }
+                """;
+        CompilationResult r = compile(tempDir, "mem002-return", src, Target.JVM);
+        assertFalse(r.success(), "retorno de irmao pos-close arde — " + diagText(r));
+        assertTrue(diagText(r).contains("MEM002"), "esperado MEM002 — " + diagText(r));
+        assertFalse(diagText(r).contains("MEM013"), "MEM013 so no reivindicante — " + diagText(r));
+    }
+
+    @Test
+    void returnClaimerInsideBranchAfterOuterClaimFailsMem013(@TempDir Path tempDir) throws IOException {
+        String src = HANDLE + """
+                Handle make() {
+                    var h = Handle(23)
+                    var flag = true
+                    h.close()
+                    if (flag) {
+                        return h
+                    }
+                    return h
+                }
+                main() {
+                    var x = make()
+                    println(x.id)
+                }
+                """;
+        CompilationResult r = compile(tempDir, "mem013-branch", src, Target.JVM);
+        assertFalse(r.success(), "escape condicional pos-claim certo arde — " + diagText(r));
+        assertTrue(diagText(r).contains("MEM013"), "esperado MEM013 — " + diagText(r));
+    }
+
+    @Test
+    void singleClaimNoReturnDoesNotEmitMem013(@TempDir Path tempDir) throws IOException {
+        // Claim + reuso local (sem escape) segue verde: MEM013 e so fronteira.
+        String src = HANDLE + """
+                Handle make() {
+                    var h = Handle(24)
+                    h.close()
+                    return h
+                }
+                main() {
+                    println("ok")
+                }
+                """;
+        CompilationResult r = compile(tempDir, "mem013-only", src, Target.JVM);
+        assertFalse(r.success(), "ha escape: deve emitir MEM013 — " + diagText(r));
+        assertTrue(diagText(r).contains("MEM013"), "esperado MEM013 — " + diagText(r));
+    }
+
     // ---- faces VALIDAS: byte-green (zero mudanca de comportamento) ----
 
     @Test
