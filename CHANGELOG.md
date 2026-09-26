@@ -34,6 +34,11 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     `localNeeds` appeared as orphan edges). Declared divergences (R7): the
     64-handle cap (JVM is unlimited), io-fail messages embedding the path,
     and the relative-path resolution base.
+  - **§510 — the §500-B external static-field face is now honestly gated: JS/Native refuse at compile time with `INTEROP003` instead of leaking a `getstatic` nothing backs ([FIXED](docs/bugs-and-gaps/known-bugs.md#510--the-500-b-external-class-static-field-face-leaked-to-jsnative-integermax_value-compiled-clean-there-and-died-at-runtime-referenceerror-java_lang_integer--the-honest-fix-is-the-compile-time-refusal-interop003-on-non-jvm-backed-targets---fixed-2609))** (26/09):
+    probe measured the divergence after the §500 close (JS artifact died `ReferenceError:
+    java_lang_Integer`; Native emitted dead code). Fix in the single seam
+    `StaticClassReceiver.emitStatic`; JVM/SCRIPT/ANDROID keep the real face (golden measured).
+    Battery +3 (11/11) + gap-code pin + matrix rows EN+PT.
   - **§500 — static method/field on an external class name no longer emits empty-owner bytecode or dead `getfield "?"` ([FIXED](docs/bugs-and-gaps/known-bugs.md#500--static-methodfield-on-an-imported-external-class-name-that-does-not-resolve-emits-an-empty-owner-call-invokevirtual-aslist--bogus--class-load-failure---fixed-2609))** (26/09):
     slice A (`35aca27fd`, methods): `ACC_VARARGS` carried in the signature +
     `VarargsArrayPacker` — the valid `Arrays.asList(1, 2)` and

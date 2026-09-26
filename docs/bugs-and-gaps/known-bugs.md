@@ -15281,3 +15281,36 @@ them). `check_500` rc=0 (`KofFormatter` 499→508 in the 500–599 tolerated ban
 precisely so the debt does not grow toward 600).
 
 <!-- pt-switch --> **PT:** [§509 (pt_BR)](known-bugs.pt_BR.md#509--kof-fmtlsp-deletava-comentarios-em-silencio--o-formatter-ast-reimprimia-sem-eles-e-a-heuristica-de-50-em-kofformatterjava39-decidia-por-acidente-qual-caminho-rodava-pouco-comentario--perda-muito--o-fallback-token-preservava-o-lsp-sem-null-handling-morria-de-npe---corrigido-2609-issue-625)
+
+## §510 — the §500-B external-class static-field face leaked to JS/Native: `Integer.MAX_VALUE` compiled clean there and died at runtime (`ReferenceError: java_lang_Integer`) — the honest fix is the compile-time refusal `INTEROP003` on non-JVM-backed targets — ✅ FIXED (26/09)
+
+**Symptom (measured 26/09, cross-target probe run AFTER the §500-B close):** the §500-B face
+(JDK/external-class static fields by class name) resolved and emitted `KofGetStatic` on EVERY
+target. `Integer.MAX_VALUE` + `TimeUnit.SECONDS` compiled clean for `Target.JS` and
+`Target.NATIVE`; the JS artifact died at first print — `ReferenceError: java_lang_Integer is
+not defined` — and Native emitted a binary whose symbol had nothing behind it. Rule-5/R6
+violation (silent cross-target divergence). The §500-B acceptance battery covered JVM only —
+that is the acceptance hole, recorded here so it does not repeat.
+
+**Root cause:** `StaticClassReceiver.emitStatic` (the single seam added in §500-B) resolved the
+field via external-classpath/JDK reflection — resources that exist ONLY on JVM-backed targets —
+with no target gate; JS and the asm backends faithfully consumed the `KofGetStatic` op and
+referenced a class-world that does not exist there.
+
+**Fix (root cause, single seam, not the symptom):** `emitStatic` now refuses non-JVM-backed
+targets at compile time with the named code **`INTEROP003`** (message names `Class.FIELD` and
+the target); JVM keeps the real `getstatic`, SCRIPT keeps host-JVM reflection (golden measured:
+`2147483647\nSECONDS`), ANDROID reuses `JvmBackend` and stays ✅. Parity or diagnostic — never
+silent divergence (rule 5).
+
+**Proof (RED→GREEN, same commit — Q0/Q1/Q3):** the probe measured RED pre-fix (JS
+`ReferenceError`, Native dead); `ExternalStaticFieldE2ETest` +3 = **11/11** (JS and NATIVE
+refuse with `INTEROP003` naming the fields; SCRIPT golden); `DomainGapCodesTest.
+externalStaticFieldOnNonJvmBackedTargetsIsInterop003` pins the code; matrix row added EN+PT;
+full reactor suite green on this commit.
+
+**Lesson (Q3, for every lane):** a cross-target feature cannot CLOSE with a single-target
+battery — the target matrix is part of the acceptance, and D-KOF-FIRST gate 4 (measure the real
+behavior on every relevant target) is cheap and catches exactly this.
+
+<!-- pt-switch --> **PT:** [§510 (pt_BR)](known-bugs.pt_BR.md#510--a-face-de-campos-estaticos-de-classe-externa-do-500-b-vazou-para-jsnative-integermax_value-compilava-limpo-e-morria-em-runtime-referenceerror-java_lang_integer--a-correcao-honesta-e-a-recusa-em-compile-time-interop003-nos-alvos-sem-jvm-por-tras---corrigido-2609)

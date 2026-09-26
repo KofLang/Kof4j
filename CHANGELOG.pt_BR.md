@@ -34,6 +34,11 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     `localNeeds` da fatia apareciam como arestas órfãs). Divergências
     declaradas (R7): cap de 64 handles (JVM sem limite), mensagem de io-fail
     embute o path, base de resolução de path relativo.
+  - **§510 — a face de campos estáticos do §500-B agora é gateada com honestidade: JS/Native recusam em compile-time com `INTEROP003` em vez de vazar um `getstatic` sem nada por trás ([CORRIGIDO](docs/bugs-and-gaps/known-bugs.pt_BR.md#510--a-face-de-campos-estaticos-de-classe-externa-do-500-b-vazou-para-jsnative-integermax_value-compilava-limpo-e-morria-em-runtime-referenceerror-java_lang_integer--a-correcao-honesta-e-a-recusa-em-compile-time-interop003-nos-alvos-sem-jvm-por-tras---corrigido-2609))** (26/09):
+    o probe mediu a divergência após o fechamento do §500 (JS morria
+    `ReferenceError: java_lang_Integer`; Native emitia código morto). Correção na costura
+    única `StaticClassReceiver.emitStatic`; JVM/SCRIPT/ANDROID mantêm a face real (golden
+    medido). Bateria +3 (11/11) + pin do gap-code + linhas da matriz EN+PT.
   - **§500 — método/campo estático em nome de classe externa não emite mais bytecode de owner vazio nem `getfield "?"` morto ([CORRIGIDO](docs/bugs-and-gaps/known-bugs.pt_BR.md#500--metodocampo-estatico-em-nome-de-classe-externa-importada-que-nao-resolve-emite-chamada-de-owner-vazio-invokevirtual-aslist--bogus--falha-de-load-da-classe---corrigido-2609))** (26/09):
     fatia A (`35aca27fd`, métodos): `ACC_VARARGS` na assinatura +
     `VarargsArrayPacker` — o válido `Arrays.asList(1, 2)` e

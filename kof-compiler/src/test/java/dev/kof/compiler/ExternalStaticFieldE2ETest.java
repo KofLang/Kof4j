@@ -6,6 +6,7 @@ import org.junit.jupiter.api.io.TempDir;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -178,5 +179,55 @@ public class ExternalStaticFieldE2ETest {
             """);
         assertFalse(r.success(),
                 "Int.MAX_VALUE is a fake-idiom (AGENTS): primitives have no statics");
+    }
+
+    // ---- §510: a face §500-B é JVM-backed (JVM/Script/Android). JS e Native
+    // NÃO têm o JVM por trás da classe externa: compile deve falhar com o
+    // código INTEROP003 nomeando campo+alvo (R6/rule 5 — nunca o
+    // `ReferenceError: java_lang_Integer` silencioso medido no probe).
+
+    private static final String STATIC_TWO = """
+            import java.util.concurrent.TimeUnit
+            main() {
+                println(Integer.MAX_VALUE)
+                println(TimeUnit.SECONDS)
+            }
+            """;
+
+    private String compileOnly(String code, Target target) throws Exception {
+        Files.writeString(tmp.resolve("S.kf"), code);
+        Path out = Files.createTempDirectory(tmp, "o");
+        CompilationResult r = new CompilerDriver().compile(tmp.resolve("S.kf"), out, target);
+        StringBuilder diags = new StringBuilder();
+        r.diagnostics().getDiagnostics().forEach(d -> diags.append(d.code()).append(' ')
+                .append(d.message()).append('\n'));
+        return (r.success() ? "SUCCESS " : "FAILED ") + diags;
+    }
+
+    @Test
+    void externalStaticFieldOnJsFailsWithInterop003() throws Exception {
+        String diags = compileOnly(STATIC_TWO, Target.JS);
+        assertTrue(diags.startsWith("FAILED"), "JS must reject, was: " + diags);
+        assertTrue(diags.contains("INTEROP003") && diags.contains("Integer.MAX_VALUE")
+                && diags.contains("TimeUnit.SECONDS"),
+                "INTEROP003 must name both fields, was: " + diags);
+    }
+
+    @Test
+    void externalStaticFieldOnNativeFailsWithInterop003AtCompileTime() throws Exception {
+        String diags = compileOnly(STATIC_TWO, Target.NATIVE);
+        assertTrue(diags.startsWith("FAILED"), "Native must reject at compile time, was: " + diags);
+        assertTrue(diags.contains("INTEROP003"), "expected INTEROP003, was: " + diags);
+    }
+
+    @Test
+    void externalStaticFieldOnScriptMatchesJvmGolden() throws Exception {
+        Files.writeString(tmp.resolve("S.kf"), STATIC_TWO);
+        CompilerDriver driver = new CompilerDriver();
+        KofInterpreter.Result ir = driver.interpret(java.util.List.of(tmp.resolve("S.kf")),
+                tmp, new String[0]);
+        assertEquals(0, ir.exitCode(), "script stderr: " + ir.stderr());
+        assertEquals("2147483647\nSECONDS", ir.stdout().trim(),
+                "KofScript roda no host JVM — golden medido no probe");
     }
 }

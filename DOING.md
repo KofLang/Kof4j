@@ -71,6 +71,20 @@
 > lock `synchronized` continua nos wrappers públicos da classe) para
 > `ExternalFieldResolver` 105ln — 558→482, SAIU do baseline (64 dívidas).
 > Prova: bateria da face 38/38 + SUÍTE COMPLETA **4130/0F/0E**.
+> (F) §510 FECHADA NA RAIZ (26/09, este turno — caçada Q4/D-KOF-FIRST na face
+> que EU fechei ontem): probe cross-target mediu que a fatia B do §500 VAZAVA
+> `KofGetStatic` p/ JS e Native (JS morria `ReferenceError: java_lang_Integer`;
+> Native emitia binário morto) — rule-5/R6 violada por bateria que aceitei só no
+> JVM. Fix no seam único `StaticClassReceiver.emitStatic`: alvo não-JVM-backed
+> recusa em compile-time com código nomeado `INTEROP003` (JVM/SCRIPT/ANDROID
+> mantêm a face real; golden SCRIPT medido `2147483647\nSECONDS`). Prova no
+> mesmo commit: RED medido antes (probe), +3 casos = `ExternalStaticFieldE2ETest`
+> 11/11 + pino `DomainGapCodesTest.externalStaticFieldOnNonJvmBackedTargetsIsInterop003`
+> + matriz `INTEROP003` EN+PT + CHANGELOG EN+PT + ledger §510 EN+PT (âncoras
+> recalculadas). Suíte completa **4134/0F/0E**. LIMPEZA COLATERAL: purgei os
+> marcadores de conflito que o `1fc4e79ab` commitou no DOING (linhas 3/1803/1804;
+> lado stash VAZIO — conteúdo preservado 100%, política dos dois lados; o gate
+> parte-J avisou e tinha razão).
 > Observação honesta (não §NNN ainda): `RingPrivilegeE2ETest` falhou 1× no
 > suite-run da push anterior (timeout 120s sob contenção; standalone 5/5 em
 > 17s, duas vezes) — flake de timing de uma ocorrência registrado aqui para a

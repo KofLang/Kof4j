@@ -475,6 +475,20 @@ class DomainGapCodesTest {
      * check cannot rot: adding a pin without a matrix row fails here.
      */
     @Test
+    void externalStaticFieldOnNonJvmBackedTargetsIsInterop003(@TempDir Path tmp) throws Exception {
+        assertGap(tmp, Target.JS, "INTEROP003", """
+            main() {
+                println(Integer.MAX_VALUE)
+            }
+            """);
+        assertGap(tmp, Target.NATIVE, "INTEROP003", """
+            main() {
+                println(Integer.MAX_VALUE)
+            }
+            """);
+    }
+
+    @Test
     void everyPinnedGapIsDocumentedInTheParityMatrix() throws IOException {
         Path root = repoRoot();
         Set<String> pinned = new LinkedHashSet<>();
