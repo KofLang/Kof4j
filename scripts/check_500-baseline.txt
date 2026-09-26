@@ -16,7 +16,6 @@
 507	kof-compiler/src/main/java/dev/kof/compiler/ExpressionInstanceCallLowerer.java
 528	kof-compiler/src/main/java/dev/kof/compiler/ExpressionMethodCallLowerer.java
 526	kof-compiler/src/main/java/dev/kof/compiler/ExpressionStaticCallLowerer.java
-558	kof-compiler/src/main/java/dev/kof/compiler/ExternalClasspath.java
 551	kof-compiler/src/main/java/dev/kof/compiler/js/JsRuntimeCore.java
 561	kof-compiler/src/main/java/dev/kof/compiler/js/JsRuntimeOps.java
 530	kof-compiler/src/main/java/dev/kof/compiler/js/JsRuntimeUiComponents.java
