@@ -33,7 +33,8 @@ final class TopLevelCallTyper {
                 && !"transaction".equals(mc.methodName())
                 && !"uiNodesLive".equals(mc.methodName())
                 && !"emit".equals(mc.methodName())
-                && !"storesLive".equals(mc.methodName());
+                && !"storesLive".equals(mc.methodName())
+                && !"subscriptionsLive".equals(mc.methodName());
     }
 
     /**

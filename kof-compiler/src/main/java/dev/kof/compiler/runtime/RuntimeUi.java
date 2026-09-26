@@ -505,6 +505,9 @@ public final class RuntimeUi {
             kof_ui_stores_live:
                 xorl %eax, %eax
                 ret
+            kof_ui_subscriptions_live:
+                xorl %eax, %eax
+                ret
             .globl Store_get
             Store_get:
                 xorl %eax, %eax

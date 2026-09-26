@@ -10,6 +10,25 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `scripts/changelog.sh` and inserted by the pipeline at this marker:
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
+  - **Feature — D-COMPLETE-FIRST item 4: kof.ui deterministic release is a
+    lifecycle contract with leak locks** (26/09): a `Store` created DURING a
+    component's lifecycle (view render / `onMount` / `effect`) now belongs to
+    that component and is released deterministically at unmount — deleting the
+    entry takes its value and every subscription it carried (`_autoStores`,
+    the same context rule as `D-UI-AUTOUNSUB`); `AppState` is never attributed
+    (app by definition); app-scope stores and subscriptions stay ownerless and
+    manual by design (control-locked). New leak probe `subscriptionsLive()`
+    wired through typer/lowerer/JS-whitelist/JVM descriptors — the JVM face
+    honestly returns 0 (JVM subscribe discards: no subscription exists there),
+    Native asm 0, Script inherits the UI002 no-op. Proof: `UiLeakLockE2ETest`
+    6/6 (measured goldens: component-owned dies `1,1`→`0,0`; app-scope
+    survives; AppState survives; manual unsubscribe counts exactly 2→1→0;
+    10k mount/unmount cycles leave 0 nodes, 0 stores, 0 subscriptions on the
+    three executable faces) + the existing UI battery 83/83 untouched
+    (rule 2). Corpus: stale §279 claims fixed in `training/idioms/ui`(+PT)
+    with a new leak-lock idiom, `learn/35-kof-ui`(+PT),
+    `docs/ui/architecture`(+PT) §2.6/§2.7, `KOFUI-AUDIT`(+PT) rule-6 line
+    closed as shipped.
   - **Feature — X8 fatia 3 (D-COMPLETE-FIRST item 3, 26/09): tags in the `test` primitive and `kof test --tag`** —
     `test "nome", "smoke", "auth" { }`: the tags are plain extra string literals
     (zero new syntax, rule 11 — the surface SG-023 refused to grow stays as it

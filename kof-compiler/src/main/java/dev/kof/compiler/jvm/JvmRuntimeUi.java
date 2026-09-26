@@ -279,6 +279,13 @@ public final class JvmRuntimeUi {
                     return kofUiStoreLive.size();
                 }
 
+                public static int kof_ui_subscriptions_live() {
+                    // D-COMPLETE-FIRST item 4: honesto — o subscribe do JVM
+                    // descarta a fn (nenhuma machinery de entrega roda aqui),
+                    // logo nenhuma subscription existe. A face real é KofJS.
+                    return 0;
+                }
+
                 private static int kofUiAppStateId = 0;
 
                 public static int kof_ui_app_state(int initial) {

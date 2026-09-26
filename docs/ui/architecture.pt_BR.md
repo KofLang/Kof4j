@@ -179,7 +179,11 @@ Regras que o core garante:
 - **Lifecycle determinístico.** mount (view + `onMount`), update (reconcile),
   unmount (`onDispose` + **efeitos em ordem reversa** + remoção do DOM).
 - **Cleanup automático.** listener/timer/subscription registrados via `effect`
-  são liberados no unmount — nenhum vazamento, sem o usuário lembrar.
+  são liberados no unmount — nenhum vazamento, sem o usuário lembrar. O mesmo
+  determinismo cobre subscriptions e stores do componente (`D-COMPLETE-FIRST`
+  item 4, 26/09): as travas de leak `uiNodesLive()` / `storesLive()` /
+  `subscriptionsLive()` voltam a 0 após ciclos de mount/unmount (prova de 10k
+  ciclos: `UiLeakLockE2ETest`).
 - **Eventos com propagação.** `on(type, handler)` centralizado; base para
   bubbling/stopPropagation (Fase 5).
 
@@ -229,7 +233,10 @@ Três escopos (Fase 8 — entregue 18/09: `D-UI-APPSTATE` + §301):
 
 - **Local de componente:** `state`/`text`/`flag` no `Component` (entregue).
 - **Compartilhado:** um `Store` observável entre componentes (entregue;
-  `unsubscribe` do JS corrigido §301).
+  `unsubscribe` do JS corrigido §301). Um store CRIADO durante o ciclo de vida
+  de um componente pertence a ele e é liberado no unmount (`D-COMPLETE-FIRST`
+  item 4, 26/09); stores criados no escopo da app — e o `AppState`, app por
+  definição — seguem sem dono e manuais.
 - **Aplicação:** `AppState(initial)` — singleton create-or-get sobre a
   máquina do Store, alcançável de qualquer lugar (entregue, `D-UI-APPSTATE`).
 

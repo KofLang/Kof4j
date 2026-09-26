@@ -76,6 +76,12 @@ if (mc.receiver() == null && "storesLive".equals(mc.methodName()) && mc.argument
             "kof_ui_stores_live", List.of(), Type.PrimitiveType.INT, KofCallKind.FUNCTION));
     return localIdx;
 }
+if (mc.receiver() == null && "subscriptionsLive".equals(mc.methodName()) && mc.arguments().isEmpty()) {
+    // D-COMPLETE-FIRST item 4: leak probe de subscriptions vivas.
+    ops.add(new KofCall(new Type.ClassType("kof.ui", "Ui", List.of()),
+            "kof_ui_subscriptions_live", List.of(), Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+    return localIdx;
+}
 if (mc.receiver() == null && "emit".equals(mc.methodName()) && mc.arguments().size() == 2) {
     // Fase 5: dispara um evento num componente (bubbling).
     localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(0), ops, owner, localIdx, locals);

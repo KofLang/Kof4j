@@ -133,9 +133,18 @@ public final class JsRuntimeUiEvents {
             const kofUiStores = new Map();
             let kofUiStoreSeq = 0;
 
-            export function kofUiStoreNew(initial) {
+            export function kofUiStoreNew(initial, ownerless) {
                 const id = ++kofUiStoreSeq;
                 kofUiStores.set(id, { value: initial, subs: [] });
+                // D-COMPLETE-FIRST item 4: a store CREATED during a component's
+                // lifecycle belongs to it (same context rule as the
+                // D-UI-AUTOUNSUB subscriptions) and dies deterministically at
+                // unmount. Created outside a component (or via kofUiAppState,
+                // app by definition) it stays ownerless and manual by design.
+                if (!ownerless && kofUiCurrentComponent) {
+                    const comp = kofUiCurrentComponent;
+                    (comp._autoStores = comp._autoStores || []).push(id);
+                }
                 return id;
             }
 
@@ -187,12 +196,22 @@ public final class JsRuntimeUiEvents {
                 return kofUiStores.size;
             }
 
+            export function kofUiSubscriptionsLive() {
+                // Leak lock probe (D-COMPLETE-FIRST item 4): every subscriber
+                // registered on a live store. Manual unsubscribe, auto
+                // unsubscribe and component store death all flow through here
+                // — the lock is this number hitting 0.
+                let n = 0;
+                for (const st of kofUiStores.values()) n += st.subs.length;
+                return n;
+            }
+
             // Fase 8 §2.6 / D-UI-APPSTATE: application-scoped root store —
             // create-or-get singleton over the Store machinery (one slot per
             // process; the `initial` of later calls is ignored by design).
             let kofUiAppStateId = null;
             export function kofUiAppState(initial) {
-                if (kofUiAppStateId === null) kofUiAppStateId = kofUiStoreNew(initial);
+                if (kofUiAppStateId === null) kofUiAppStateId = kofUiStoreNew(initial, true);
                 return kofUiAppStateId;
             }
 

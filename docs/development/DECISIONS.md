@@ -3836,6 +3836,20 @@ stub, with proof per target before closing):
    (`subscriptionsLive()`/`storesLive()` = 0 after mount/unmount × N),
    subscription outside a component stays ownerless and manual by design,
    JVM/Native keep the documented UI=KofJS no-op parity.
+   **LANDED (26/09):** the subscription half had already shipped as
+   `D-UI-AUTOUNSUB` (A); this item completed the lifecycle — a **Store created
+   during a component's lifecycle is owned by it and dies at unmount** (entry
+   deleted: value + carried subscriptions go together; `AppState` never
+   attributed, app by definition), and the probe trio `uiNodesLive()` /
+   `storesLive()` / **`subscriptionsLive()`** (new — 7 wiring points, JVM face
+   honestly 0, Native asm 0, Script inherits UI002) locks it. Evidence:
+   `UiLeakLockE2ETest` 6/6 (component-owned store + sub die measured
+   `1,1→0,0`; app-scope control survives `1,1`; AppState survives; manual
+   unsubscribe counts exactly `2→1→0`; 10k-cycle stress `0\n0\n0` on
+   JVM/Native/JS) + existing UI battery 83/83 untouched (rule 2). Corpus:
+   `training/idioms/ui`(+PT) stale §279 claim fixed + leak-lock idiom,
+   `learn/35-kof-ui`(+PT), `docs/ui/architecture`(+PT) §2.6/§2.7,
+   `KOFUI-AUDIT`(+PT) rule-6 line closed as shipped.
 
 **How to apply:** present rule-6 questions as multiple choice ONLY when the
 choices are genuinely complete alternatives; when the lane knows the one

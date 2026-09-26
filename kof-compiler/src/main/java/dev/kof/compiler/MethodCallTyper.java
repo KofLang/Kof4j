@@ -146,6 +146,9 @@ if ("emit".equals(mc.methodName()) && mc.receiver() == null && mc.arguments().si
 if ("storesLive".equals(mc.methodName()) && mc.receiver() == null && mc.arguments().isEmpty()) {
     return Type.PrimitiveType.INT;
 }
+if ("subscriptionsLive".equals(mc.methodName()) && mc.receiver() == null && mc.arguments().isEmpty()) {
+    return Type.PrimitiveType.INT;
+}
 if (mc.receiver() == null && "transaction".equals(mc.methodName()) && mc.arguments().size() == 1) {
     return Type.PrimitiveType.VOID;
 }

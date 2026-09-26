@@ -146,7 +146,7 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_ui_store_get" -> "(I)I";
             case "kof_ui_store_set" -> "(II)V";
             case "kof_ui_store_subscribe", "kof_ui_store_unsubscribe" -> "(ILjava/lang/Object;)V";
-            case "kof_ui_stores_live" -> "()I";
+            case "kof_ui_stores_live", "kof_ui_subscriptions_live" -> "()I";
             // Fase 7: Router (no-ops JVM — UI é KofJS)
             case "kof_ui_route_register" -> "(Ljava/lang/String;I)V";
             case "kof_ui_router_go1" -> "(Ljava/lang/String;)Z";

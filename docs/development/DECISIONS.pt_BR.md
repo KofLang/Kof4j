@@ -3814,6 +3814,21 @@ completo, nunca stub, com prova por alvo antes de fechar):
    (`subscriptionsLive()`/`storesLive()` = 0 apos mount/unmount × N),
    subscription fora de componente segue sem dono e manual por design,
    JVM/Native mantem o no-op documentado da paridade UI=KofJS.
+   **POUSADO (26/09):** a metade das subscriptions ja havia pousado como
+   `D-UI-AUTOUNSUB` (A); este item completou o ciclo — um **Store criado
+   durante o ciclo de vida de um componente pertence a ele e morre no
+   unmount** (a entrada e deletada: valor + subscriptions carregadas vao
+   junto; `AppState` nunca e atribuido, app por definicao), e a trinca de
+   sondas `uiNodesLive()` / `storesLive()` / **`subscriptionsLive()`** (nova
+   — 7 pontos de wiring, face JVM honestamente 0, asm Native 0, Script herda
+   UI002) trava isso. Evidencia: `UiLeakLockE2ETest` 6/6 (store + sub do
+   componente morrem, medido `1,1→0,0`; controle app-scope sobrevive `1,1`;
+   AppState sobrevive; unsubscribe manual conta exato `2→1→0`; stress 10k
+   ciclos `0\n0\n0` em JVM/Native/JS) + bateria UI existente 83/83 intacta
+   (regra 2). Corpus: claim §279 stale corrigido + idiom de trava de leak em
+   `training/idioms/ui`(+PT), `learn/35-kof-ui`(+PT),
+   `docs/ui/architecture`(+PT) §2.6/§2.7, linha regra-6 do `KOFUI-AUDIT`(+PT)
+   fechada como entregue.
 
 **Como aplicar:** perguntas rule-6 viram escolha multipla SOMENTE quando as
 escolhas forem alternativas genuinamente completas; quando a lane conhece a

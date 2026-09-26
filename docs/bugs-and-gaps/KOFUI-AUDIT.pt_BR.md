@@ -225,9 +225,14 @@ create-or-get sobre a máquina do Store, alcançável de qualquer lugar sem
 prop-drilling (`D-UI-APPSTATE`). Prova: `appStateIsCreateOrGetSingleton` +
 `appStateDrivesComponentsWithoutPropDrilling` (golden medido por target;
 JVM/Native mantêm os no-ops documentados do Store; o singleton JVM ainda conta
-em `storesLive()`), `ComponentCoreE2ETest` 24/24. Atribuir inscrições
-automaticamente ao ciclo de vida dos components segue questão aberta regra 6
-(o `unsubscribe` manual é o primitivo funcional hoje).
+em `storesLive()`), `ComponentCoreE2ETest` 24/24. ATUALIZAÇÃO (26/09): a questão
+regra-6 FECHADA como entregue — a opção (A) da `D-UI-AUTOUNSUB` (18/09) prende
+as subscriptions feitas no ciclo de vida do componente e as solta no unmount;
+o item 4 da `D-COMPLETE-FIRST` (26/09) completou o ciclo com os stores do
+componente (liberados no unmount; `AppState` isento — app por definição) e as
+sondas de trava de leak `uiNodesLive()/storesLive()/subscriptionsLive()`
+(`UiLeakLockE2ETest`, 10k ciclos). O `unsubscribe` manual segue o primitivo de
+escopo app.
 
 ### Fase 11 (estrutura de módulos) — AUDITADA/CONCLUÍDA (18/09, sem código)
 

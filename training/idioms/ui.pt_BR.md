@@ -466,6 +466,56 @@ Label buildLogo() {
 singleton create-or-get sobre a máquina do `Store` (`D-UI-APPSTATE`): a
 primeira chamada cria com `initial`, as seguintes devolvem o mesmo handle.
 Components leem onde precisam, sem carregar handles por camadas. Os métodos
-são exatamente os do Store; `unsubscribe` é real desde o §279 (cleanup manual
-hoje — auto-atribuição ao ciclo de vida do component é regra 6, indecisa). O
-observable vive no KofJS; JVM/Native são no-ops documentados.
+são exatamente os do Store; `unsubscribe` é real desde o §279, e a
+auto-atribuição ao ciclo de vida pousou: subscriptions (`D-UI-AUTOUNSUB`,
+18/09) e stores do componente (`D-COMPLETE-FIRST` item 4, 26/09) são liberados
+automaticamente no unmount — `AppState` nunca é atribuído (app por definição).
+O observable vive no KofJS; JVM/Native são no-ops documentados.
+
+## Deixe o componente possuir suas subscriptions e stores (travas de leak)
+
+**RUIM (lembrete manual — o leak que nunca aparece em um único ciclo):**
+
+```kof
+main() {
+    var win = Window("App")
+    var store = Store(0)
+    var i = 0
+    while (i < 1000) {
+        var page = Component(i)
+        page.view((s: Int) -> {
+            store.subscribe((v: Int) -> {})   // acumula a cada re-render;
+            return Label("x")                 // ninguém nunca unsubscribe
+        })
+        win.bind(page)
+        page.remove()
+        i = i + 1
+    }
+}
+```
+
+**PREFERIDO (crie no ciclo de vida, e o ciclo de vida libera):**
+
+```kof
+main() {
+    var win = Window("App")
+    var page = Component(0)
+    page.view((s: Int) -> {
+        var inner = Store(s)                   // dono: ESTE componente
+        inner.subscribe((v: Int) -> {})        // preso A ESTE ciclo de vida
+        return Label("x")
+    })
+    win.bind(page)
+    page.remove()                              // store + subscription morrem aqui
+}
+```
+
+**Por quê:** um store ou subscription criado **durante o ciclo de vida de um
+componente** (render da view / `onMount` / `effect`) fica preso àquele
+componente e é liberado deterministicamente no unmount — sem lembrete de
+`unsubscribe`, sem esperança de GC (`D-UI-AUTOUNSUB` + `D-COMPLETE-FIRST`
+item 4). Criado **fora** de qualquer componente é escopo de app e continua
+manual por design; `AppState` é sempre escopo de app. Três sondas travam isso:
+`uiNodesLive()`, `storesLive()`, `subscriptionsLive()` devem voltar a 0 após
+mount/unmount × N (`UiLeakLockE2ETest`, 10k ciclos). Real no KofJS; JVM/Native
+mantêm as faces no-op documentadas.

@@ -128,15 +128,35 @@
 > esta flake; vermelho em host limpo = § novo). Portão de merge honesto:
 > 4164/1F ×2, o 1F é SEMPRE o guard §511 documentado (precedente §252/§418:
 > read as TEST red, não regressão) — CI dos bots pode roubar a mesma roleta.
+> (H) ITEM 4 DO D-COMPLETE-FIRST POUSADO (26/09, lane compiler 9092 —
+> liberacao deterministica do kof.ui com travas de leak, zero stub): store
+> criado DURANTE o ciclo de vida do componente (view/onMount/effect) agora
+> PERTENCE a ele e morre no unmount (`_autoStores` no JS, mesma regra de
+> contexto da D-UI-AUTOUNSUB; deletar a entrada leva valor + subscriptions
+> carregadas); `AppState` NUNCA atribuido (app por definicao); escopo-app
+> segue manual por design (controles travados no teste). Sonda nova
+> `subscriptionsLive()` — 7 pontos de wiring espelhando `storesLive()`; face
+> JVM 0 honesto (subscribe JVM descarta), asm Native 0, Script herda UI002.
+> ZERO mudança em CompilerDriver/NativeRuntime; baterias irmas intactas
+> (ComponentCore 29 + Router 4 + Window 4 + Ui 29 + StyleCss 10 + Tokens 7 =
+> 83/83 ANTES do teste novo — regra 2 medida). Prova: `UiLeakLockE2ETest`
+> 6/6 goldens MEDIDOS (owned-store `1,1→0,0`; controles; contagem exata
+> `2→1→0`; stress 10k ciclos `0\n0\n0`×3 faces). Corpus EN+PT: claims §279
+> stale corrigidos (ui.md + KOFUI-AUDIT fecham a "questao aberta regra 6"
+> como entregue), idiom novo de trava de leak, learn/35, architecture §2.6/
+> §2.7, DECISIONS item 4 LANDED, CHANGELOG. Pitfall medido no caminho: probe
+> JS que re-importa simbolo ja importado pelo main compilado → SyntaxError
+> "already declared" — a sonda so importa o que o programa nao usa.
 > **NEXT STEP (o re-trigger lê isto):** (1) suíte completa na árvore final +
-> commit único (X8 fatia 3 + §511) + gates + `scripts/sync-push.sh` (conflito
-> no topo do DOING = manter os dois lados, política 19/09); (2) conferir
-> `Build + Tests` VERDE nos tips pushados (fila dos bots); (3) dívida ≤500
-> restante da minha fila (banda tolerada, sem pressão de gate):
-> `MemberCallTyper` 545, `ExpressionMethodCallLowerer` 528; (4) fila
-> D-COMPLETE-FIRST restante (X2 interop, UI auto-unsub) segue listada como
-> "fila" pela lane paridade no topo — não claimo sem ela largar ou sem dono.
-> **PR #619 INTOCÁVEL (regra 10 + decisão SEGURAR)**.
+> commit único (claim deste item incluído) + `scripts/sync-push.sh`
+> (conflito no topo do DOING = manter os dois lados, política 19/09);
+> (2) conferir `Build + Tests` VERDE no tip (fila dos bots); (3) dívida ≤500
+> da minha fila (banda tolerada, sem pressão de gate): `MemberCallTyper` 545,
+> `ExpressionMethodCallLowerer` 528 — só split com seam natural (regra 7);
+> (4) da fila D-COMPLETE-FIRST so resta X2 interop (pacote oficial `interop`
+> completo; frente multi-sessao — abrir como fatia 1 com claim no 1º commit);
+> kof.ui = FEITO por mim; §493/§494 = rule 6/decisao da mantenedora; §511 =
+> dona baremetal. **PR #619 INTOCÁVEL (regra 10 + decisão SEGURAR)**.
 
 > **✅ FEITO (26/09, heartbeat — CI COMPLETO VERDE no tip mesclado `01fa2f48c` + espelhos de contagem sincronizados após §508).** `run watch` rc=0: `Build + Tests` ✓ 23m29s (a SUÍTE COMPLETA que prova juntas a fatia F `cdf09f190`, §500-fatia-A `83d7aab86`, §506, §507), `Structural quality gates` ✓ 1m14s, `Native cross` ✓, kof.io ✓×3. Duas correções de registro feitas por mim no caminho: (1) o §508 subiu a contagem viva 3→4 e o gate `live-records` pegou a drift — sincronizados os 4 espelhos com nota datada (`01fa2f48c`: prep cond.7 EN+PT + README §0/§2 EN+PT; precedente cond.2 22/09); (2) verificado pós-rebase: autoridade continua 4 (493/494/500/508 — §500 vira PARTIAL fatia-B, continua contando), `live-records-test` ok, `run-agent-tests` rc=0. **NEXT STEP (o re-trigger lê isto):** (1) quando o scan agendado do CodeQL fechar os alertas `1050/1051/1054` (ainda `state=null` no push), PODAR as 3 linhas de `scripts/codeql-baseline.txt` (um commit docs; gate volta a contar zero tolerados-vivos para esses SHAs) **[medido 26/09 +3 ticks: os três estão `inst=fixed` na análise do tip `01fa2f48c` (23:55Z) mas o agregado continua `state=null`/`fixed_at=null` — GitHub faz best-effort e pode demorar dias; NÃO PODAR com agregado null: a emulação do gate (state==null E sem dates) reconta os 3 como abertos → red; podar SOMENTE quando `.state` do alerta virar `fixed`]** — ticks 27/09+5 (até `5ad0e2f8d`…`2d880fcba`; **ritmo decidido no tick 10: sem evento novo = medição local SEM push; registro sai em (a) flip do agregado + poda, (b) evento real, ou (c) lote ~5 ticks — cada push de docs acende run de ~25min na fila, que é o gargalo**. ticks 11-15 (lote fechado aqui, sem push por tick): agregado inalterado nos 5 (`agg=null`/`fixed_at=null`, instâncias `fixed`), zero commits remotos, zero issues novas (só #623), única falha nos tips = umbrella `CodeQL` do modo-PR = EXATAMENTE o set do §508 re-medido anotação-a-anotação 2x (erro FP `RuntimeDtoaSchubfach:90` + 5 warn + 12 notes pré-existentes; dona baremetal; Gate push-mode segue verde no Structural) — premissa da poda REVISTA no código do gate (codeql-gate.sh:100-102: agregado `null` sem datas conta aberto; instância não é consultada → não podar corretíssimo): agregado inalterado, zero commits remotos novos, zero issues novas (só #623), CI sem falha nos tips docs-only — **recusa registrada: sem unidade sem dono na lane**; fila da poda = próximo tick quando `.state==fixed`; conferir `Build + Tests` concluído verde em `aed3558cf`/`6b34b2841` (docs-only, mesmo conteúdo já verde em `01fa2f48c`; em execução no último tick, `Structural` ✓). [27/09 ticks 5-6: red do umbrella `CodeQL` no `aed3558cf` RE-MEDIDO anotação por anotação = exatamente o set do §508 (1 error FP `RuntimeDtoaSchubfach:90` + 5 warnings + 12 notes, todos pré-existentes ao diff do #619) — nada novo; `Build + Tests` ✓ no tip mesclado `01fa2f48c` (prova da suíte inteira), tips docs-only apenas na fila de runners; audit de drift da lane feito e LIMPO; ticks 7-8 re-medem: agregado CodeQL segue null (poda em espera), fila de CI saudável (workflows dos tips docs-only concluindo em success; congestão = muitos jobs/push, não trava), `check_500` sem crítico e `SemExpressionTyper` 590 JÁ REIVINDICADO pela lane compiler 9092 (NEXT STEP §500 fatia-B = getstatic externo naquele arquivo) — não tocar (regra multi-agente), dívida tolerada `ExternalClasspath` 509 é da mesma lane; fatia F já sincronizou roadmap+known-bugs EN+PT; espelhos de contagem ok com §500-A fixado pela lane compiler (autoridade 4 inalterada); nenhuma unidade sem dono na lane] (2) sem outro trabalho sem dono na lane (parada legítima medida continua: regra 6 nas 10/11/13; 12/14 multi-sessão; §500-B = lane compiler; §508 = lane baremetal; B-4.2 restante = fila native-cross com a fatia F dela landada). **PR #619 INTOCÁVEL (regra 10)**; watcher de issues.
 > **✅ FEITO (26/09, heartbeat — #625 CORRIGIDO: §509 no ledger, fmt/LSP nunca mais perdem comentario).** Rede de seguranca do formatter: `KofFormatter.format` reimprimia da AST sem comentarios e a heuristica de 50% (`KofFormatter.java:39`) escolhia o caminho POR ACIDENTE (pouco=perda, muito=fallback token preserva); o LSP chamava direto e morria de NPE no `null`. **Fix:** `KofFormatterComments` (122 linhas — scanner ciente de string/char + cursor `Pending` que costura cada comentario pela linha de origem, ordem preservada; placement inline exato = passo futuro, regra 6) costurada no `formatDecl`/`formatStmt`/`formatBody`; heuristica EXTINTA (`null` = so falha de parse); guarda `null` no `LspServer.formatEdit` (responde sem-edit, nunca mata o server). **Prova Q0/Q1 no MESMO commit:** RED 5/5 medido (`Tests run: 17, Failures: 5`) → GREEN 17/17 `KofFormatterTest` (+o snippet exato da issue + FEW-vs-MANY determinismo + bloco + EOF + string-parece-comentario), os 12 casos #52 intactos; `FmtTest`+`LspServerTest` rc=0; suíte compiler 3516/0F (32E = host sem node, classe ambiental medida); `check_500` rc=0 (`KofFormatter` 499→508 banda tolerada — maquina extraida p/ nao rumar a 600). Docs: §509 EN+PT (anchors ✓), CHANGELOG EN+PT ✓, gates 4/4.

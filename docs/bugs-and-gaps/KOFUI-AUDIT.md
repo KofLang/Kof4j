@@ -222,9 +222,14 @@ singleton over the Store machinery reachable from anywhere without
 prop-drilling (`D-UI-APPSTATE`). Proof: `appStateIsCreateOrGetSingleton` +
 `appStateDrivesComponentsWithoutPropDrilling` (golden measured per target;
 JVM/Native keep the documented Store no-ops; JVM singleton still counts in
-`storesLive()`), `ComponentCoreE2ETest` 24/24. Auto-attributing subscriptions
-to component lifecycles remains a rule-6 open question (manual
-`unsubscribe` is the working primitive today).
+`storesLive()`), `ComponentCoreE2ETest` 24/24. UPDATE (26/09): the rule-6
+question CLOSED as shipped — `D-UI-AUTOUNSUB` option (A) (18/09) binds
+subscriptions made during a component's lifecycle and drops them at unmount;
+`D-COMPLETE-FIRST` item 4 (26/09) completed the lifecycle with component-owned
+stores (released at unmount; `AppState` exempt — app by definition) and the
+leak-lock probes `uiNodesLive()/storesLive()/subscriptionsLive()`
+(`UiLeakLockE2ETest`, 10k cycles). Manual `unsubscribe` remains the app-scope
+primitive.
 
 ### Phase 11 (module structure) — AUDITED DONE (18/09, no code)
 

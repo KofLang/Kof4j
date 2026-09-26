@@ -10,6 +10,25 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `scripts/changelog.sh` e inserida pela pipeline neste marcador:
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
+  - **Feature — item 4 do D-COMPLETE-FIRST: a liberacao deterministica do
+    kof.ui vira contrato de ciclo de vida com travas de leak** (26/09): um
+    `Store` criado DURANTE o ciclo de vida de um componente (render da view /
+    `onMount` / `effect`) pertence a ele e e liberado deterministicamente no
+    unmount — deletar a entrada leva o valor e cada subscription carregada
+    (`_autoStores`, a mesma regra de contexto da `D-UI-AUTOUNSUB`); `AppState`
+    nunca e atribuido (app por definicao); stores e subscriptions de escopo
+    app seguem sem dono e manuais por design (trava com controle). Nova sonda
+    de leak `subscriptionsLive()` ligada em typer/lowerer/whitelist-JS/
+    descritores-JVM — a face JVM devolve 0 honesto (o subscribe do JVM
+    descarta: nenhuma subscription existe la), asm Native 0, Script herda o
+    no-op UI002. Prova: `UiLeakLockE2ETest` 6/6 (goldens medidos: o que e do
+    componente morre `1,1`→`0,0`; escopo app sobrevive; AppState sobrevive;
+    unsubscribe manual conta exato 2→1→0; 10k ciclos mount/unmount deixam 0
+    nos, 0 stores, 0 subscriptions nas tres faces executaveis) + bateria UI
+    existente 83/83 intacta (regra 2). Corpus: claims §279 stale corrigidos em
+    `training/idioms/ui`(+PT) com novo idiom de trava de leak,
+    `learn/35-kof-ui`(+PT), `docs/ui/architecture`(+PT) §2.6/§2.7, linha
+    regra-6 do `KOFUI-AUDIT`(+PT) fechada como entregue.
   - **Feature — X8 fatia 3 (item 3 do D-COMPLETE-FIRST, 26/09): tags no primitivo `test` e `kof test --tag`** —
     `test "nome", "smoke", "auth" { }`: as tags sao literais extras de string
     (zero sintaxe nova, rule 11 — a superficie que o SG-023 recusou crescer fica

@@ -230,7 +230,10 @@ Three scopes (Phase 8 — delivered 18/09: `D-UI-APPSTATE` + §301):
 
 - **Component local:** `state`/`text`/`flag` on the `Component` (delivered).
 - **Shared:** an observable `Store` between components (delivered;
-  JS `unsubscribe` fixed §301).
+  JS `unsubscribe` fixed §301). A store CREATED during a component's
+  lifecycle is owned by it and released at unmount (`D-COMPLETE-FIRST` item 4,
+  26/09); stores created at app scope — and `AppState`, app by definition —
+  stay ownerless and manual.
 - **Application:** `AppState(initial)` — create-or-get singleton over the
   Store machinery, reachable from anywhere (delivered, `D-UI-APPSTATE`).
 
@@ -247,7 +250,11 @@ unmount: onDispose() -> effects() in REVERSE order -> remove DOM
 ```
 
 Effects (listener/timer/subscription/stream/task) registered via `effect` are
-**released automatically** on unmount. No leak, no manual reminder.
+**released automatically** on unmount. No leak, no manual reminder. The same
+determinism covers subscriptions and component-owned stores (`D-COMPLETE-FIRST`
+item 4, 26/09): the leak locks `uiNodesLive()` / `storesLive()` /
+`subscriptionsLive()` all return to 0 after mount/unmount cycles (10k-cycle
+proof: `UiLeakLockE2ETest`).
 
 ### 2.8 Layout (Phase 4 details it; the core already brings primitives)
 

@@ -356,6 +356,19 @@ public final class JsRuntimeUiComponents {
                 n.effects.push(result);
             }
 
+            function kofUiDropAutoStores(n) {
+                // D-COMPLETE-FIRST item 4: a store created inside the
+                // component's lifecycle dies with it — deleting the entry
+                // frees the value AND every subscription it still carried
+                // (subscriptionsLive() drops with it). Deterministic release
+                // at unmount, not a GC hope. App-scope stores and AppState
+                // never land in _autoStores (ownerless, manual by design).
+                const ids = n._autoStores;
+                if (!ids || ids.length === 0) return;
+                for (const id of ids) kofUiStores.delete(id);
+                n._autoStores = [];
+            }
+
             function kofUiDropAutoSubs(n) {
                 // (A): subscriptions made in this component's lifecycle die with
                 // it. Manual (outside-component) subscriptions are untouched —
@@ -414,6 +427,7 @@ public final class JsRuntimeUiComponents {
                 n.effectFns.length = 0;
                 n.disposed = true;
                 kofUiDropAutoSubs(n);
+                kofUiDropAutoStores(n);
             }
 
             export function kofUiComponentBind(c, child) {
@@ -448,6 +462,7 @@ public final class JsRuntimeUiComponents {
                 } else {
                     n.disposed = true;
                     kofUiDropAutoSubs(n);
+                    kofUiDropAutoStores(n);
                     kofUiDetachDom(c);
                     kofUiComponents.delete(c);
                 }

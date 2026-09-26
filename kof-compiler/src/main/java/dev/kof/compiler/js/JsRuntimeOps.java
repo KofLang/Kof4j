@@ -229,6 +229,7 @@ void handleRuntimeOp(MethodCtx ctx, List<Object> stack,
                 || name.equals("kof_ui_store_new") || name.equals("kof_ui_app_state") || name.equals("kof_ui_store_get")
                 || name.equals("kof_ui_store_set") || name.equals("kof_ui_store_subscribe")
                 || name.equals("kof_ui_store_unsubscribe") || name.equals("kof_ui_stores_live")
+                || name.equals("kof_ui_subscriptions_live")
                 || name.equals("kof_ui_route_register") || name.equals("kof_ui_router_go1")
                 || name.equals("kof_ui_router_go2") || name.equals("kof_ui_router_replace1")
                 || name.equals("kof_ui_router_replace2") || name.equals("kof_ui_router_back")

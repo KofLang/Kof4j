@@ -235,6 +235,11 @@ public final class BuiltinCallTyper {
             // kof.ui probe de leak de stores.
             return Type.PrimitiveType.INT;
         }
+        if (mc.receiver() == null && "subscriptionsLive".equals(mc.methodName())
+                && mc.arguments().isEmpty()) {
+            // kof.ui probe de leak de subscriptions (D-COMPLETE-FIRST item 4).
+            return Type.PrimitiveType.INT;
+        }
         if (mc.receiver() == null && "readFile".equals(mc.methodName()) && mc.arguments().size() == 1) {
             SemExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
             return BuiltinTypes.STRING;

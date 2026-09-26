@@ -118,7 +118,7 @@ public final class JvmRuntimeReturnDescriptors {
                      "kof_ui_component_unmount", "kof_ui_flush_ui", "kof_ui_emit",
                      "kof_ui_event_stop", "kof_ui_store_set", "kof_ui_store_subscribe",
                      "kof_ui_store_unsubscribe" -> "V";
-             case "kof_ui_store_get", "kof_ui_store_new", "kof_ui_stores_live", "kof_ui_app_state" -> "I";
+             case "kof_ui_store_get", "kof_ui_store_new", "kof_ui_stores_live", "kof_ui_subscriptions_live", "kof_ui_app_state" -> "I";
              case "kof_ui_router_go1", "kof_ui_router_go2", "kof_ui_router_replace1",
                      "kof_ui_router_replace2", "kof_ui_router_back", "kof_ui_router_forward" -> "Z";
              case "kof_ui_router_param", "kof_ui_router_current" -> "Ljava/lang/String;";

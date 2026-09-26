@@ -73,6 +73,15 @@ exactly the Store's (`get`/`set`/`subscribe`/`unsubscribe`) — decision
 `D-UI-APPSTATE`. The observable lives in KofJS; on JVM/Native the operations
 are documented no-ops (UI is KofJS).
 
+**Ownership is part of the lifecycle.** A store or subscription created
+*during* a component's lifecycle (view render / `onMount` / `effect`) belongs
+to that component and is released automatically at unmount — no `unsubscribe`
+reminder (`D-UI-AUTOUNSUB` + `D-COMPLETE-FIRST` item 4). Created outside any
+component it is app-scoped and manual by design; `AppState` is always
+app-scoped. Three probes are the leak locks — `uiNodesLive()`,
+`storesLive()`, `subscriptionsLive()` must return to 0 after mount/unmount
+cycles (locked at 10k cycles in `UiLeakLockE2ETest`).
+
 ## Windows and Widgets
 
 ```kof

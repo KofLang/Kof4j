@@ -73,6 +73,15 @@ métodos são exatamente os do Store (`get`/`set`/`subscribe`/`unsubscribe`) —
 decisão `D-UI-APPSTATE`. O observable vive no KofJS; em JVM/Native as
 operações são no-ops documentados (UI é KofJS).
 
+**Posse faz parte do ciclo de vida.** Um store ou subscription criado
+*durante* o ciclo de vida de um componente (render da view / `onMount` /
+`effect`) pertence àquele componente e é liberado automaticamente no unmount
+— sem lembrete de `unsubscribe` (`D-UI-AUTOUNSUB` + `D-COMPLETE-FIRST` item 4).
+Criado fora de qualquer componente é escopo de app e continua manual por
+design; `AppState` é sempre escopo de app. Três sondas são as travas de leak
+— `uiNodesLive()`, `storesLive()`, `subscriptionsLive()` devem voltar a 0 após
+ciclos de mount/unmount (travado em 10k ciclos em `UiLeakLockE2ETest`).
+
 ## Janelas e Widgets
 
 ```kof
