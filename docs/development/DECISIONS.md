@@ -3730,7 +3730,6 @@ Four decisions taken in one pass via the session's multiple-choice prompt
    resource-state. Fase 1 gates stay satisfied (`docs/spec/memory-safety.md`
    landed 25/09); Fase 3+ remain gated by Fase 2's proof tests.
 
-<<<<<<< Updated upstream
 ## D-QUALITY-PIPELINE-2609 — branch pipeline = quality pipeline (lab → testing → prerelease → stable → release/x.y.z → tag); lab sem CI por push; gates de promoção 80%/100%/100%+CLOSEALL; migração ATÔMICA pós-0.5.0 com `release/0.5.0` de piloto (maintainer 26/09/2026)
 
 **Evidence:** issue #626 (proposal by the maintainer, 26/09 04:52Z) +
@@ -3766,36 +3765,14 @@ pipeline").
 - **Until then NOTHING changes:** `beta-0.5.0` remains the active branch
   (`D-BRANCH-0.5.0` in force); agents keep pushing to it; #619 stays HELD
   (rule 10). Queue: roadmap §23 `TIER 14`.
-=======
-## D-QUALITY-PIPELINE — branch pipeline DESIGN APPROVED as a quality pipeline (lab → testing ≥80% → prerelease 100% → stable 100%+CLOSEALL → release/x.y.z); EXECUTION deferred to AFTER the 0.5.0 cycle, atomically (maintainer 26/09/2026, issue #626)
-
-The maintainer reviewed the parity lane's technical analysis on #626 and
-closed the design conceptually (comment 26/09 ~05:53Z):
-
-1. **`lab`** = experimentation lane; **no CI/CD per push** (the ~25–35 min
-   `Build + Tests` cost doesn't pay there). The first formal gate is the
-   **promotion `lab → testing`** (full validation suite runs there).
-2. **`testing`** = integration/QA; must reach **≥ 80% of the required
-   checks green** to promote to `prerelease`.
-3. **`prerelease`** = **100% green**; no feature enters directly (only
-   promotions from `testing`). This kills the #619 pathology: a prerelease
-   that keeps receiving development underneath an open release PR.
-4. **`stable`** = **100% green + the version-closing criteria** (CLOSEALL,
-   docs/training synced); hotfixes only via **PR with explicit backport and
-   revalidation** — never a disguised second development branch.
-5. **`release/x.y.z`** = temporary packaging branch from `stable` → tag →
-   GitHub Release; `release/0.5.0` **pilots** the last stage.
-6. **Timing (ABSOLUTE):** no pipeline swap in the middle of 0.5.0. The
-   current cycle ends on the present track; the migration is then
-   **atomic** — branches + CI + scripts + `AGENTS.md` + `DOING.md` +
-   `DECISIONS.md` + automations in one change, because the repo resolves
-   the active branch dynamically today (half-on-`beta`/half-on-`prerelease`
-   is how an agent ships garbage to production).
-
-Open technical point raised on the issue: the "≥ 80%" needs an objectively
-enumerable denominator — branch protection measures checks as booleans, and
-a percentage that tolerates reds must classify WHICH reds (environment/
-toolchain guards vs functional), or it conflicts with rule 8 ("no ship
-breaks a branch"). The migration commit should encode the percentage as a
-fixed, script-enumerable list of checks + a documented red-classification.
->>>>>>> Stashed changes
+- **OPEN POINT #2 (the ≥80% denominator):** branch protection measures
+  checks as booleans — a percentage cannot be enforced by protection; it must
+  live in a promotion script over a FIXED, enumerable list of checks
+  (Build+Tests, Native cross, Structural, kof.io x3, CodeQL Gate, bots), and
+  an "80% that tolerates reds" must classify WHICH reds: functional (always
+  block — rule 8) vs documented environment/toolchain (named whitelist).
+  Proposed formula for the migration commit: `testing -> prerelease` = zero
+  functional reds + at most N named environment-reds in the whitelist (the
+  measurable ≈80%); `prerelease -> stable` = 100% on the same enumeration.
+  Natural generalization of `check_release_050_gate.sh` (already this shape
+  for the release). Answered on the issue (lane comment).
