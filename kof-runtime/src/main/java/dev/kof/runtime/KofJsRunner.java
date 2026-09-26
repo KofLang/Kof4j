@@ -234,9 +234,9 @@ public final class KofJsRunner {
                 return -1;
             }
         });
-        platform.put("fileExists", (ProxyExecutable) args -> Files.exists(Path.of(args[0].asString())) ? 1 : 0);
-        platform.put("fileIsFile", (ProxyExecutable) args -> Files.isRegularFile(Path.of(args[0].asString())) ? 1 : 0);
-        platform.put("fileIsDir", (ProxyExecutable) args -> Files.isDirectory(Path.of(args[0].asString())) ? 1 : 0);
+        platform.put("fileExists", (ProxyExecutable) args -> Files.exists(Path.of(args[0].asString())));
+        platform.put("fileIsFile", (ProxyExecutable) args -> Files.isRegularFile(Path.of(args[0].asString())));
+        platform.put("fileIsDir", (ProxyExecutable) args -> Files.isDirectory(Path.of(args[0].asString())));
         platform.put("readText", (ProxyExecutable) args -> readFileText(args));
         platform.put("writeText", (ProxyExecutable) args -> writeFileText(args, false));
         platform.put("appendText", (ProxyExecutable) args -> writeFileText(args, true));
@@ -277,7 +277,7 @@ public final class KofJsRunner {
         });
         platform.put("pathNormalize", (ProxyExecutable) args -> Path.of(args[0].asString()).normalize().toString());
         platform.put("pathResolve", (ProxyExecutable) args -> Path.of(args[0].asString()).resolve(args[1].asString()).toString());
-        platform.put("pathIsAbsolute", (ProxyExecutable) args -> Path.of(args[0].asString()).isAbsolute() ? 1 : 0);
+        platform.put("pathIsAbsolute", (ProxyExecutable) args -> Path.of(args[0].asString()).isAbsolute());
         platform.put("pathToAbsolute", (ProxyExecutable) args -> Path.of(args[0].asString()).toAbsolutePath().toString());
         platform.put("dirCreate", (ProxyExecutable) args -> dirCreate(args, false));
         platform.put("dirCreateDirs", (ProxyExecutable) args -> dirCreate(args, true));
@@ -526,7 +526,7 @@ public final class KofJsRunner {
     private static Object dirList(Value[] args) {
         try (var stream = Files.list(Path.of(args[0].asString()))) {
             List<String> names = new ArrayList<>();
-            stream.map(p -> p.toString()).sorted().forEach(names::add);
+            stream.map(p -> p.getFileName().toString()).sorted().forEach(names::add);
             return names.toArray(new String[0]);
         } catch (IOException e) {
             return null;

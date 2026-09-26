@@ -10,6 +10,20 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `scripts/changelog.sh` and inserted by the pipeline at this marker:
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
+  - **Fix — #631 (26/09): `Directory.list()` no JS devolvia o caminho COMPLETO de
+    cada entrada em vez do NOME — `pasta + "/" + entrada` (o uso natural, o que a
+    doc sugere) saia duplicado/malformado e so explodia no open, sem erro de
+    compilacao** — o host JS espelha o oraculo JVM (`Path::getFileName`). Prova:
+    `IoDirListNamesE2ETest` (JVM+Script golden medidos; JS RED pre-fix / GREEN
+    post). Catalog: known-bugs.md §518 (+PT).
+  - **Fix — #630 (26/09): predicados do kof.io tipados BOOL (`File.exists`/
+    `isFile`, `Directory.isDirectory`, `Path.isAbsolute`) devolviam o numero
+    `1`/`0` no alvo JS — `String.valueOf` dava `"1"` e `List<Bool>.contains(true)`
+    dava `false` em silencio (contexto `if` funcionava; a OBSERVACAO divergia da
+    JVM/Native/Script)** — as 4 pontes restantes da familia §382 no `KofJsRunner`
+    agora devolvem o booleano real. Prova: `IoPredicateFacesJsE2ETest` (oraculo
+    JVM+Script medido, JS byte a byte; RED pre-fix / GREEN post). Catalog:
+    known-bugs.md §517 (+PT).
   - **Memory-safety Fase 3 fatia 3 — escape by `return` burns `MEM013`**
     (26/09): L-04's first compile-time face on the real surface — a function
     that closes a resource and then returns the SAME claiming binding (direct

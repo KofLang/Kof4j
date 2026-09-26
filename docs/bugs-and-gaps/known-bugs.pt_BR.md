@@ -13014,7 +13014,7 @@ linha), `JsonCompleteE2ETest` 10/10, `PackagesE2ETest` 12/12,
 102/102. Licao (Q3): linha de conformidade exercita o RECURSO no eixo de
 organizacao dele (aqui: pacote), nao uma instancia sortuda.
 
-<!-- pt-switch --> **EN:** [§515 (EN)](#515--jsondecoderecord-on-a-packaged-record-died-at-runtime-with-nosuchmethoderror-kof_json_decode_simplename-the-runtime-defines-the-decoder-under-the-mangled-fully-qualified-name---fixed-2609-paritymedia-lane-627)
+<!-- pt-switch --> **EN:** [§515 (EN)](known-bugs.md#515--jsondecoderecord-on-a-packaged-record-died-at-runtime-with-nosuchmethoderror-kof_json_decode_simplename-the-runtime-defines-the-decoder-under-the-mangled-fully-qualified-name---fixed-2609-paritymedia-lane-627)
 
 ## §516 — o `json.encode` de uma `List<Record>` no x86 despejava o ponteiro cru do objeto (`encode_int`) porque o walker de lista não tem tag de elemento-objeto — a dobra JSN002 só cobre o record ESCALAR — 🟡 OPEN (dona = lane compiler; fatia 2 X2)
 
@@ -13050,3 +13050,62 @@ round-trip `listOf(record)` no spec do motor X2 (args de `KofPy`).
 crus; objeto-elemento nunca teve tag.
 
 <!-- pt-switch --> **EN:** [§516 (EN)](known-bugs.md#516--jsonencode-de-uma-listrecord-no-x86-despejava-o-ponteiro-cru-do-objeto-encode_int-porque-o-walker-de-lista-nao-tem-tag-de-elemento-objeto--a-dobra-jsn002-so-cobre-o-record-escalar---open-owner--lane-compiler-fatia-2-x2)
+
+## §517 — os PREDICADOS BOOL do kof.io no host JS devolviam o número 1/0 em vez de Bool (String.valueOf → "1", List<Bool>.contains(true) → false) — ✅ FIXED 26/09 (lane paridade/media, #630)
+**Sintoma (medido 26/09, issue #630, host Windows):** no alvo JS os
+predicados do `kof.io` tipados `BOOL` pelo typer (`KofIo`: `file_exists`,
+`file_is_file`, `file_is_dir`, `path_is_absolute`) imprimiam `1`/`0`. O
+CONTEXTO booleano funcionava (`if (f.exists())` tomava o ramo certo), mas
+toda OBSERVAÇÃO do valor divergia em silêncio entre alvos:
+`String.valueOf(f.exists())` → `"true"` na JVM, `"1"` no JS;
+`listOf(f.exists()).contains(true)` → `true` na JVM, `false` no JS.
+
+**Causa raiz (lida no código):** as pontes do host Graal em `KofJsRunner`
+(`platform.put("fileExists", ... ? 1 : 0)` — 4 costuras) devolviam o NUMERO
+onde o §382 já tinha convertido as outras faces BOOL (writeText/appendText/
+writeBytes/appendBytes/delete/dirDelete/create*) em booleanos reais — o §517
+é a cauda que faltava naquela mesma família, não um bug novo.
+
+**Correção:** as 4 pontes devolvem o booleano Java real (o Graal faz marshal
+como `true`/`false` JS), espelhando exatamente o precedente §382.
+Aditivo/compatível: a semântica truthy do `if` não muda; só o valor
+OBSERVADO passa a bater com o contrato `Bool` declarado (JVM/Native/Script
+já eram Bool-reais).
+
+**Prova:** `IoPredicateFacesJsE2ETest` (novo) — oráculo JVM+Script medido
+26/09, JS comparado byte a byte: RED no tip pré-fix (face JS), GREEN depois;
+vizinhos verdes (IoBoolFacesE2ETest §382 1/1, KofJsE2ETest 40/40,
+ScriptTargetTest 7/7, MakealiveFsProviderE2ETest 1/1 — o mesmo host, nenhum
+consumidor do 1/0 antigo). Lição (Q3): os arquivos de ponte do host são uma
+superfície de paridade — todo `? 1 : 0` numa costura tipada BOOL é este bug;
+o grep é `platform.put.*(1 : 0)` em `KofJsRunner` (vazio p/ faces BOOL agora).
+
+
+<!-- pt-switch --> **EN:** [§517 (EN)](known-bugs.md#517--kofio-bool-predicates-on-the-js-host-returned-the-number-10-instead-of-bool-stringvalueof--1-listboolcontainstrue--false---fixed-2609-paritymedia-lane-630)
+
+## §518 — Directory.list() no host JS devolvia o CAMINHO COMPLETO de cada entrada em vez do nome — o padrão natural pasta + "/" + entrada construía caminho quebrado em silêncio — ✅ FIXED 26/09 (lane paridade/media, #631)
+**Sintoma (medido 26/09, issue #631, host Windows):**
+`Directory(p).list()` no alvo JS entregava o CAMINHO COMPLETO de cada
+entrada (`D:\_app\clientes\11222333000181`), enquanto o runtime JVM
+(`JvmRuntimeIo.kof_io_dir_list`) e o contrato documentado ("the names")
+entregam o NOME. A composição natural `pasta + "/" + entrada` — exatamente o
+que a documentação sugere — funciona na JVM e no JS produz um caminho
+duplicado e malformado que só explode no open (`Illegal char <:> at index
+24`), sem erro de compilação nem aviso.
+
+**Causa raiz (lida no código):** o `KofJsRunner.dirList` mapeava
+`p -> p.toString()`; o oráculo JVM mapeia `Path::getFileName` antes do
+`toString`. O guest (JsRuntimeIo `kofIoDirList`) só repassa o array do host.
+
+**Correção:** o host JS agora espelha o oráculo (`p.getFileName().toString()`).
+Ordenação/contrato (`String[]`) inalterados; aditivo para consumidores por
+nome (nenhum usuário JS de io do repo dependia do caminho completo — o
+cluster prova).
+
+**Prova:** `IoDirListNamesE2ETest` (novo) — cria dois arquivos, imprime cada
+entrada e `File(pasta + "/" + entrada).exists()`: oráculo JVM+Script (nomes,
+`true`) medido 26/09; JS RED pré-fix (caminho completo + `false`), GREEN
+depois. A mesma corrida cobre as faces de diretório com conteúdo conhecido.
+
+
+<!-- pt-switch --> **EN:** [§518 (EN)](known-bugs.md#518--directorylist-on-the-js-host-returned-the-full-path-of-each-entry-instead-of-the-name--the-natural-pasta----entrada-pattern-silently-built-a-broken-path---fixed-2609-paritymedia-lane-631)
