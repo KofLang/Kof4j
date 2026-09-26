@@ -155,6 +155,23 @@ public final class KofMedia {
         return null;
     }
 
+    /**
+     * D-FULL-PARITY-050 linha 4 — a UNICA fonte de verdade de "que face de
+     * media tem runtime em que target". Os dois gates de lowerer
+     * ({@code ExpressionUiMediaCallLowerer} estatico,
+     * {@code ExpressionBuiltinInstanceCalls} face de handle) delegam aqui;
+     * a fatia 2 (cross riscv64/aarch64) abre por ENTRADA DE TABELA, nao por
+     * reescrita de gate. JS nunca abre sem decisao de engine (regra 6).
+     */
+    static boolean mediaFaceReady(Target target, String function) {
+        if (function == null) return false;
+        if (!function.startsWith("kof_media_video_")
+                && !function.startsWith("kof_media_audio_")) {
+            return false;
+        }
+        return target == Target.NATIVE;
+    }
+
     static String gapCode(String function) {
         // `app.serveDir` NÃO passa por aqui — é método de instância do app
         // (KofWeb.instanceMethod → kof_web_serve_dir) e o gap WEB005 é

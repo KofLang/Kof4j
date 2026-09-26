@@ -172,11 +172,10 @@ final class ExpressionBuiltinInstanceCalls {
             // §509-era/linha-4 parity: as faces de handle seguiam sem gate de
             // target (buraco latente — só não era alcançado porque o OPEN
             // estático era MEDIA001 nos demais alvos). Agora espelham o gate
-            // do ExpressionUiMediaCallLowerer: JVM/ANDROID sim; NATIVE para
-            // Video/Audio (asm em RuntimeMedia/RuntimeMediaWav); demais = gap.
+            // do ExpressionUiMediaCallLowerer via a tabela KofMedia.mediaFaceReady
+            // (JVM/ANDROID sim; x86-64 Video/Audio; demais = gap honesto).
             if (driver.target != Target.JVM && driver.target != Target.ANDROID
-                    && !(driver.target == Target.NATIVE
-                            && ExpressionUiMediaCallLowerer.nativeMediaReady(mediaCall.function()))) {
+                    && !KofMedia.mediaFaceReady(driver.target, mediaCall.function())) {
                 String code = KofMedia.gapCode(mediaCall.function());
                 if (driver.currentDiagnostics != null) {
                     driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
