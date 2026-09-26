@@ -3653,3 +3653,36 @@ ligado no `scripts/check_release_050_gate.sh` (`full_parity`).
 **Evidência:** mensagens da mantenedora 25/09/2026 (chat, esta sessão): o brief completo (seções 1–27) + "pode botar em docs/development e ja assumir essa frente"; plan doc criado no mesmo commit (`docs/development/memory-safety-plan.md` EN+PT).
 
 - **Relacionamentos:** `Relaciona: D-FULL-PARITY-050, D-UNIVERSAL, D-RELEASE-0.5.0-SCOPE, D-DECOMPILER, D-BOOTSTRAP, D-DB-GAPS, D-GRAFICOS-GAMING, D-MAKEALIVE, D-MAKEALIVE-CLI, D-KOF-AS-CLOUD, D-KOF-FIRST, D-RELEASE-0.5.0-GATE, D-BRANCH-0.5.0, D-BAREMETAL-BOOT, D-BAREMETAL-BODIES, D-BAREMETAL-MCU-GC, D-GRAFICOS-GAMING, D-UNIVERSAL, D-DB-GAPS, rule 6, rule 11, R6, R7, D-MEMORY-SAFETY`.
+
+
+## D-DECISION-BATCH-2609 — lote de quatro decisões da mantenedora: §493 Native lança como a JVM; merge do #619 SEGURA; merge do #624 SAI; Fase 2 memory-safety DESTRABA (mantenedora 26/09/2026)
+
+Quatro decisões tomadas de uma vez pelo prompt multipla-escolha da sessao
+(26/09/2026, ~02:40):
+
+1. **§493 — a lei e o comportamento da JVM**: `orm.delete`/`deleteAll` sobre
+   MySQL com conexao morta/invalida deve LANCAR a string de erro em todo
+   target. O Native x86-64 e o cross (riscv64/aarch64) hoje devolvem `true`
+   — esse e o bug (caminhos de erro de RuntimeDb5/`RtB75`/`RtB54`). Coerente
+   com "excecoes sao Strings", R6 (nunca silenciar) e a Acceptance do
+   db-parity-plan (sem divergencia silenciosa). **Fila:** fechar §493 no
+   ledger com prova RED→GREEN cross-target (fixture server-down); ai a regra
+   de conclusao move `db-parity-plan` para `docs/stdlib/`. O codigo e da
+   lane gaps-db/native-runtime; esta entrada e o gate.
+2. **PR #619 (beta-0.5.0 → main) — merge SEGURADO.** A branch segue
+   recebendo trabalho; o ato de release e exclusivo da mantenedora (regra
+   10). Nenhuma acao para agentes alem de manter `beta-0.5.0` verde.
+3. **PR #624 (#623, box de tamanho estendido MP4) — merge LIBERADO.**
+   Verificado antes de pousar: commit unico `d7f0745fc` de
+   `PublioSantos/Kof4j`, APROVADO; os dois vermelhos eram artefato de base
+   antiga (branch de 25/09 10:42, anterior aos fixes §506/§507/§508). Merge
+   simulado em ramo descartavel sobre o tip `c298406e2`: `run-agent-tests.sh`
+   VERDE + bateria de media 17/0F/0E. Mergeado como merge commit
+   preservando o SHA do autor.
+4. **memory-safety Fase 2 — AUTORIZADA agora.** A trava da "opcao J" (zero
+   edits prematuros no core) foi levantada pela mantenedora: a lane parity
+   (dona da frente por `D-MEMORY-SAFETY`) segue para a Fase 2 — estruturas
+   internas do compilador de ownership/lifetime/borrow/alias/mutabilidade/
+   escape/resource-state. Os gates da Fase 1 seguem satisfeitos
+   (`docs/spec/memory-safety.md` pousado 25/09); a Fase 3+ continua gateada
+   pelos testes de prova da Fase 2.

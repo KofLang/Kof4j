@@ -3676,3 +3676,34 @@ frente"; plan doc created in the same commit
   rule 6 (frozen semantics — ownership semantics that change evaluation
   order/operator contracts go through the maintainer), rule 8 (Kof is not
   Java/Rust), rule 11 (Simplicity Law), SG/D-KOF-AS-CLOUD, R6, R7`.
+
+
+## D-DECISION-BATCH-2609 — maintainer's four-call batch: §493 Native throws like JVM; #619 merge HELD; #624 merge GO; memory-safety Fase 2 UNLOCKED (maintainer 26/09/2026)
+
+Four decisions taken in one pass via the session's multiple-choice prompt
+(26/09/2026, ~02:40):
+
+1. **§493 — the law is the JVM behavior**: a failed `orm.delete`/`deleteAll`
+   over MySQL (dead/invalid connection) must THROW the error string on every
+   target. Native x86-64 and the cross (riscv64/aarch64) currently return
+   `true` — that is the bug to fix (RuntimeDb5/`RtB75`/`RtB54` error paths).
+   Consistent with "exceptions are Strings", R6 (never silent) and the
+   db-parity-plan's Acceptance (no silent divergence). **Queue:** close §493
+   in the ledger with RED→GREEN cross-target proof (server-down fixture),
+   then the plan's conclusion rule moves `db-parity-plan` to `docs/stdlib/`.
+   The lane for the code is gaps-db/native-runtime; this entry is the gate.
+2. **PR #619 (beta-0.5.0 → main) — merge HELD.** The branch keeps receiving
+   work; the release act stays with the maintainer (rule 10). No action for
+   any agent beyond keeping `beta-0.5.0` green.
+3. **PR #624 (#623, MP4 extended-size box) — merge GO.** Verified before
+   landing: single commit `d7f0745fc` from `PublioSantos/Kof4j`,
+   APPROVED; its two red checks were stale-base artifacts (branch at
+   25/09 10:42, before §506/§507/§508 fixes). Merge simulated on a throwaway
+   branch over tip `c298406e2`: `run-agent-tests.sh` VERDE + media battery
+   17/0F/0E. Merged as a merge commit preserving the author's SHA.
+4. **memory-safety Fase 2 — AUTHORIZED now.** The "opção J" hold (zero
+   premature core edits) is lifted by the maintainer: the parity lane (owner
+   of the front per `D-MEMORY-SAFETY`) proceeds to Fase 2 — compiler-internal
+   structures for ownership/lifetime/borrow/alias/mutability/escape/
+   resource-state. Fase 1 gates stay satisfied (`docs/spec/memory-safety.md`
+   landed 25/09); Fase 3+ remain gated by Fase 2's proof tests.
