@@ -100,6 +100,17 @@ if [ "${1:-}" = "--selftest" ]; then
     mk d_en.md '# 1. X'; mk d_pt.md '## 1. X'   # mesmo numero, nivel divergente
     if LR_EN="$T/r_en.md" LR_PT="$T/r_pt.md" DEC_EN="$T/d_en.md" DEC_PT="$T/d_pt.md" LR_COUNT=19 bash "$0" >/dev/null 2>&1; then
         echo "SELFTEST FALHOU: nivel de secao divergente passou"; exit 1; fi
+    # J) marcador de conflito plantado deve ser capturado (parte J roda
+    # com LR_MARKER_ROOTS apontando so para o fixture, com o resto do
+    # ambiente do caso bom ja montado)
+    mk c_ruim.md 'intro
+<<<<<<< Updated upstream
+a
+=======
+b
+>>>>>>> Stashed changes'
+    mk c_bom.md 'intro limpo'
+
     # D) README sec.0 pending <-> loose do gate (docdir/allowlist controlados)
     D="$T/dd"; mkdir -p "$D"
     printf 'ALLOWLIST="README.md README.pt_BR.md"\n' > "$T/gate.sh"
@@ -216,7 +227,23 @@ EOF
     if LR_EN="$QI/README.md" LR_PT="$QI/README.pt_BR.md" LR_DOCDIR="$QI" LR_GATE="$T/gate_i.sh" \
          LR_QUEUE_ON=1 DEC_EN="$T/d_en.md" DEC_PT="$T/d_pt.md" LR_COUNT=19 bash "$0" >/dev/null 2>&1; then
         echo "SELFTEST FALHOU: README sem a fila sec.1 passou (neutering)"; exit 1; fi
-    echo "SELFTEST OK: contagem + paridade + duplicata + numeracao + pending<->gate + EG + pares + prep(G/H) + fila(I)"
+    cat > "$QI/README.pt_BR.md" << 'EOF'
+x **19 itens na fila aberta**
+- **Pendentes (condição 3 do gate de release):** `work.md`
+## 1. Ordem de execução dos planos
+| 1 | `work.md` | EM DEV |
+EOF
+    # J) marcador de conflito plantado deve ser SEMPRE capturado; fixture
+    #    limpo deve passar (mut-test da classe 794aa4721: markers commitados)
+    if LR_EN="$QI/README.md" LR_PT="$QI/README.pt_BR.md" LR_DOCDIR="$QI" LR_GATE="$T/gate_i.sh" \
+         LR_QUEUE_ON=1 DEC_EN="$T/d_en.md" DEC_PT="$T/d_pt.md" LR_COUNT=19 \
+         LR_MARKER_ROOTS="$T/c_ruim.md" bash "$0" >/dev/null 2>&1; then
+        echo "SELFTEST FALHOU: marcador de conflito plantado passou (parte J cega)"; exit 1; fi
+    if ! LR_EN="$QI/README.md" LR_PT="$QI/README.pt_BR.md" LR_DOCDIR="$QI" LR_GATE="$T/gate_i.sh" \
+         LR_QUEUE_ON=1 DEC_EN="$T/d_en.md" DEC_PT="$T/d_pt.md" LR_COUNT=19 \
+         LR_MARKER_ROOTS="$T/c_bom.md" bash "$0" >/dev/null 2>&1; then
+        echo "SELFTEST FALHOU: fixture limpo reprovado pela parte J"; exit 1; fi
+    echo "SELFTEST OK: contagem + paridade + duplicata + numeracao + pending<->gate + EG + pares + prep(G/H) + fila(I) + marcadores(J)"
     exit 0
 fi
 
@@ -470,6 +497,41 @@ if lq_on and docdir:
                       f"do README: {missing_i}")
                 bad = 1
 
+# ---- J) NENHUM arquivo de registro pode conter marcadores de conflito ------
+# (794aa4721 commitou '<<<<<<< Updated upstream' nos dois DECISIONS e nenhum
+# gate pegou; a politica da casa exige resolver conflito na hora, nunca
+# commitar por cima - este bloco e a trava permanente dessa classe.)
+import re as _re
+_MARKER = _re.compile(r'^(<{7,}|>{7,}|={7,})', _re.M)
+_roots = [x for x in os.environ.get("LR_MARKER_ROOTS", "").split(":") if x]
+if not _roots:
+    _roots = ["docs", "DOING.md", "AGENTS.md", "AGENTS.pt_BR.md",
+              "CHANGELOG.md", "CHANGELOG.pt_BR.md"]
+_scanned = 0
+for root in _roots:
+    if os.path.isdir(root):
+        for dirpath, _d, files in os.walk(root):
+            for f in sorted(files):
+                if f.endswith(".md"):
+                    _scanned += 1
+                    fp = os.path.join(dirpath, f)
+                    try:
+                        txt = open(fp, encoding="utf-8", errors="replace").read()
+                    except OSError:
+                        print(f"FALHA: nao consigo ler {fp} (parte J)"); bad = 1; continue
+                    for mm in _MARKER.finditer(txt):
+                        ln = txt.count("\n", 0, mm.start()) + 1
+                        print(f"FALHA: marcador de conflito commitado em {fp}:{ln} "
+                              f"('{mm.group(1)}') - resolva preservando os dois lados")
+                        bad = 1
+    elif os.path.isfile(root):
+        _scanned += 1
+        txt = open(root, encoding="utf-8", errors="replace").read()
+        for mm in _MARKER.finditer(txt):
+            ln = txt.count("\n", 0, mm.start()) + 1
+            print(f"FALHA: marcador de conflito em {root}:{ln} - politica da casa")
+            bad = 1
+
 if not bad:
     print(f"OK: contagem viva {count} consistente ({seen} declaracoes); "
           f"DECISIONS EN<->PT com {len(sets.get('EN', ()))} IDs em paridade, 0 duplicatas, "
@@ -478,6 +540,7 @@ if not bad:
           + ("; fila sec.1 cobre todo loose doc do gate" if (lq_on and docdir) else "")
           + ("; roadmap EG EN<->PT em paridade" if rmon else "")
           + ("; numeracao/nivel de todos os pares EN<->PT" if mdp else "")
-          + ("; prep cond.7 == autoridade + travel § aberta" if prep_on else ""))
+          + ("; prep cond.7 == autoridade + travel § aberta" if prep_on else "")
+          + f"; 0 marcadores de conflito em {_scanned} arquivos")
 sys.exit(1 if bad else 0)
 PYEOF
