@@ -12725,7 +12725,7 @@ getstatic + guarda de existência de campo em `SemExpressionTyper`/lowerer.
 **Dono:** lane paridade/qualidade (heartbeat), `scripts/tests/release-workflow-candidate-test.sh`.
 <!-- en-switch --> **EN:** [§507](known-bugs.md#507--the-release-candidate-t3-test-measured-the-wrong-leg-of-the-version-gate-when-the-ci-runner-exported-its-branch-structural-quality-gates-red---fixed-2609-lane-paridade-qualidade)
 
-## §508 — CodeQL em modo PR reporta um ERRO "array access might be out of bounds" em `RuntimeDtoaSchubfach.java:90` — FP provável através de `gTable()` (comprimento múltiplo de 2 por construção); a correção é dismiss ou um guard de loop de um caractere, e pertence à lane baremetal — 🟡 ABERTO (catalogado para a dona)
+## §508 — CodeQL em modo PR reporta um ERRO "array access might be out of bounds" em `RuntimeDtoaSchubfach.java:90` — FP provável através de `gTable()` (comprimento múltiplo de 2 por construção); a correção é dismiss ou um guard de loop de um caractere, e pertence à lane baremetal — ✅ CORRIGIDO (26/09)
 
 **Sintoma (medido 26/09, tip `8f9ef858f`):** todo push em `beta-0.5.0` também roda o CodeQL em **modo pull-request** contra o diff do PR aberto #619 (`beta-0.5.0` → `main`); o check-ônibus `CodeQL` reporta "18 new alerts including 1 error". O erro: `This array access might be out of bounds, as the index might be equal to the array length` em `RuntimeDtoaSchubfach.java:90` — `g[i + 1]` dentro de `for (int i = 0; i < g.length; i += 2)`.
 
@@ -12733,7 +12733,7 @@ getstatic + guarda de existência de campo em `SemExpressionTyper`/lowerer.
 
 **Ação para a dona (lane baremetal, arquivo pousado em `7742436f5`/`232801ace`/`a598cb06f`):** ou dismiss do alerta com `state_reason=false_positive` (dismiss justificado, nunca silencioso), ou o guard trivialmente equivalente `for (int i = 0; i + 1 < g.length; i += 2)` — um caractere de intenção que ainda auto-documenta o invariante de comprimento par; nos dois caminhos o check do modo PR fica verde para o trem de release.
 
-**Status:** 🟡 ABERTO — catalogado (dona: lane baremetal). Não reivindicado aqui (regra: nunca dois agentes no arquivo de outra lane; a lane está ativa no tip).
+**Status:** ✅ CORRIGIDO (26/09, lane baremetal — a dona catalogada, o fix pousou aqui): o guard de loop de um caractere `for (int i = 0; i + 1 < g.length; i += 2)` pousou em `RuntimeDtoaSchubfach.emitTables` — trivialmente equivalente (comprimento par por construção) E auto-documentando; a invariante agora está FIXADA por asserção nova em `SchubfachTableGeneratorTest.emittedTablesAreWellFormed`. Prova: `SchubfachTableGeneratorTest` 3/3 + `NativeRiscvDtoaTest` 4/4 + `DtoaParityE2ETest` 3/3 (10/10, comportamento idêntico — tabelas golden inalteradas). O ERROR do modo-PR morre para o trem de release (#619 intocado — regra 10).
 
 **Dono:** lane baremetal, `RuntimeDtoaSchubfach.emitTables`.
-<!-- en-switch --> **EN:** [§508](known-bugs.md#508--codeql-pr-mode-reports-an-error-array-access-might-be-out-of-bounds-on-runtimedtoaschubfachjava90--provably-false-positive-across-gtable-length-is-a-multiple-of-2-by-construction-the-fix-is-a-dismiss-or-a-one-character-loop-guard-and-it-belongs-to-the-baremetal-lane---open-catalogued-for-the-owner)
+<!-- en-switch --> **EN:** [§508](known-bugs.md#508--codeql-pr-mode-reports-an-error-array-access-might-be-out-of-bounds-on-runtimedtoaschubfachjava90--provably-false-positive-across-gtable-length-is-a-multiple-of-2-by-construction-the-fix-is-a-dismiss-or-a-one-character-loop-guard-and-it-belongs-to-the-baremetal-lane---fixed-2609)

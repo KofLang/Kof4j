@@ -85,7 +85,10 @@ public final class RuntimeDtoaSchubfach {
         sb.append("            .align 8\n");
         sb.append(".Lschub_g:\n");
         long[] g = gTable();
-        for (int i = 0; i < g.length; i += 2) {
+        // §508: o guard i+1 < length e trivialmente equivalente ao i < length —
+        // gTable() tem comprimento PAR por construcao ((K_MAX-K_MIN+1)*2); o
+        // assert em SchubfachTableGeneratorTest fixa a invariante.
+        for (int i = 0; i + 1 < g.length; i += 2) {
             sb.append("            .quad 0x").append(Long.toHexString(g[i]))
                     .append(", 0x").append(Long.toHexString(g[i + 1])).append('\n');
         }

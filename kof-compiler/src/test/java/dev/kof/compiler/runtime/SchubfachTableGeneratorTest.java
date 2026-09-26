@@ -60,5 +60,9 @@ class SchubfachTableGeneratorTest {
         int gPairs = RuntimeDtoaSchubfach.K_MAX - RuntimeDtoaSchubfach.K_MIN + 1;
         assertEquals(gPairs + 18, s.split("\\.quad", -1).length - 1,
                 "617 linhas g + 18 pow10 = 635 linhas .quad");
+        // §508: comprimento PAR por construcao — a invariante que torna o guard
+        // i+1 < g.length do emitTables trivialmente equivalente ao antigo.
+        assertEquals(0, RuntimeDtoaSchubfach.gTable().length % 2,
+                "tabela g com comprimento par (invariante do guard §508)");
     }
 }

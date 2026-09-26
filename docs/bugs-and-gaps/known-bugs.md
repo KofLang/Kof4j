@@ -15193,7 +15193,7 @@ external static fields on class-name receivers still lack getstatic resolution
 **Owner:** lane paridade/qualidade (heartbeat), `scripts/tests/release-workflow-candidate-test.sh`.
 <!-- pt-switch --> **PT:** [§507 (pt_BR)](known-bugs.pt_BR.md#507--o-teste-t3-do-release-candidate-media-a-perna-errada-do-gate-de-versao-quando-o-runner-do-ci-exportava-a-branch-dele-structural-quality-gates-vermelho---corrigido-2609-lane-paridade-qualidade)
 
-## §508 — CodeQL PR-mode reports an ERROR "array access might be out of bounds" on `RuntimeDtoaSchubfach.java:90` — provably false-positive across `gTable()` (length is a multiple of 2 by construction); the fix is a dismiss or a one-character loop guard, and it belongs to the baremetal lane — 🟡 OPEN (catalogued for the owner)
+## §508 — CodeQL PR-mode reports an ERROR "array access might be out of bounds" on `RuntimeDtoaSchubfach.java:90` — provably false-positive across `gTable()` (length is a multiple of 2 by construction); the fix is a dismiss or a one-character loop guard, and it belongs to the baremetal lane — ✅ FIXED (26/09)
 
 **Symptom (measured 26/09, tip `8f9ef858f`):** every push to `beta-0.5.0` also runs CodeQL in **pull-request mode** against the diff of open PR #619 (`beta-0.5.0` → `main`); the umbrella `CodeQL` check reports "18 new alerts including 1 error". The error annotation: `This array access might be out of bounds, as the index might be equal to the array length` at `RuntimeDtoaSchubfach.java:90` — `g[i + 1]` inside `for (int i = 0; i < g.length; i += 2)`.
 
@@ -15201,7 +15201,7 @@ external static fields on class-name receivers still lack getstatic resolution
 
 **Action for the owner (baremetal lane, file landed in `7742436f5`/`232801ace`/`a598cb06f`):** either dismiss the alert with `state_reason=false_positive` (a justified dismiss, not a silent one) or write the trivially-equivalent `for (int i = 0; i + 1 < g.length; i += 2)` — one character of intent that also self-documents the even-length invariant; either way the PR-mode check goes green for the release train.
 
-**Status:** 🟡 OPEN — catalogued (owner: baremetal lane). Not claimed here (rule: never two agents on another lane's file; the lane is active on tip).
+**Status:** ✅ FIXED (26/09, baremetal lane — the catalogued owner, fix landed here): the one-character loop guard `for (int i = 0; i + 1 < g.length; i += 2)` landed in `RuntimeDtoaSchubfach.emitTables` — trivially equivalent (length even by construction) AND self-documenting; the invariant is now PINNED by a new assertion in `SchubfachTableGeneratorTest.emittedTablesAreWellFormed`. Proof: `SchubfachTableGeneratorTest` 3/3 + `NativeRiscvDtoaTest` 4/4 + `DtoaParityE2ETest` 3/3 (10/10, behavior identical — golden tables unchanged). PR-mode ERROR retired for the release train (#619 untouched — rule 10).
 
 **Owner:** baremetal lane, `RuntimeDtoaSchubfach.emitTables`.
-<!-- pt-switch --> **PT:** [§508 (pt_BR)](known-bugs.pt_BR.md#508--codeql-em-modo-pr-reporta-um-erro-array-access-might-be-out-of-bounds-em-runtimedtoaschubfachjava90--fp-provavel-atraves-de-gtable-comprimento-multiplo-de-2-por-construcao-a-correcao-e-dismiss-ou-um-guard-de-loop-de-um-caractere-e-pertence-a-lane-baremetal---aberto-catalogado-para-a-dona)
+<!-- pt-switch --> **PT:** [§508 (pt_BR)](known-bugs.pt_BR.md#508--codeql-em-modo-pr-reporta-um-erro-array-access-might-be-out-of-bounds-em-runtimedtoaschubfachjava90--fp-provavel-atraves-de-gtable-comprimento-multiplo-de-2-por-construcao-a-correcao-e-dismiss-ou-um-guard-de-loop-de-um-caractere-e-pertence-a-lane-baremetal---corrigido-2609)

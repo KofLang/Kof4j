@@ -10,6 +10,15 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `scripts/changelog.sh` e inserida pela pipeline neste marcador:
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
+  - **§508 — o ERROR do CodeQL modo-PR em `RuntimeDtoaSchubfach.emitTables` morreu — guard de loop de um
+    caractere, invariante de comprimento par fixada por teste ([CORRIGIDO](docs/bugs-and-gaps/known-bugs.pt_BR.md#508--codeql-em-modo-pr-reporta-um-erro-array-access-might-be-out-of-bounds-em-runtimedtoaschubfachjava90--fp-provavel-atraves-de-gtable-comprimento-multiplo-de-2-por-construcao-a-correcao-e-dismiss-ou-um-guard-de-loop-de-um-caractere-e-pertence-a-lane-baremetal---corrigido-2609))** (26/09):
+    cada push roda também o CodeQL modo-PR contra o diff do #619 e anotava `g[i + 1]` como "possivelmente fora
+    do limite" — FP provável (o comprimento da tabela é `(K_MAX-K_MIN+1)*2`, par por construção). O catalogador
+    deixou com a dona; a lane baremetal assumiu: `i + 1 < g.length` (trivialmente equivalente, auto-documentando)
+    + asserção de paridade nova no `SchubfachTableGeneratorTest`. Comportamento idêntico —
+    `SchubfachTableGeneratorTest` 3/3 + `NativeRiscvDtoaTest` 4/4 + `DtoaParityE2ETest` 3/3. Contagem viva 4→3
+    (READMEs EN+PT x2 sites, mesmo commit).
+
   - **§507 — o teste T3 do release-candidate media a perna errada do gate de
     versão quando o runner do CI exportava a branch dele ([CORRIGIDO](docs/bugs-and-gaps/known-bugs.pt_BR.md#507--o-teste-t3-do-release-candidate-media-a-perna-errada-do-gate-de-versao-quando-o-runner-do-ci-exportava-a-branch-dele-structural-quality-gates-vermelho---corrigido-2609-lane-paridade-qualidade))** (26/09):
     o `validate-release-candidate.sh:72` pula o gate "is newer" com qualquer

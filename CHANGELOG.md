@@ -10,6 +10,14 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `scripts/changelog.sh` and inserted by the pipeline at this marker:
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
+  - **§508 — the PR-mode CodeQL ERROR on `RuntimeDtoaSchubfach.emitTables` is gone — one-character loop guard,
+    even-length invariant pinned by test ([FIXED](docs/bugs-and-gaps/known-bugs.md#508--codeql-pr-mode-reports-an-error-array-access-might-be-out-of-bounds-on-runtimedtoaschubfachjava90--provably-false-positive-across-gtable-length-is-a-multiple-of-2-by-construction-the-fix-is-a-dismiss-or-a-one-character-loop-guard-and-it-belongs-to-the-baremetal-lane---fixed-2609))** (26/09): every push also runs
+    CodeQL PR-mode against #619's diff and annotated `g[i + 1]` as "might be out of bounds" — provably false
+    (the table length is `(K_MAX-K_MIN+1)*2`, even by construction). The cataloguer left it to its owner; the
+    baremetal lane took it: `i + 1 < g.length` (trivially equivalent, self-documenting) + a new evenness
+    assertion in `SchubfachTableGeneratorTest`. Behavior identical — `SchubfachTableGeneratorTest` 3/3 +
+    `NativeRiscvDtoaTest` 4/4 + `DtoaParityE2ETest` 3/3. Live count 4→3 (README EN+PT x2 sites, same commit).
+
   - **§507 — the release-candidate T3 test measured the wrong leg of the
     version gate when the CI runner exported its branch ([FIXED](docs/bugs-and-gaps/known-bugs.md#507--the-release-candidate-t3-test-measured-the-wrong-leg-of-the-version-gate-when-the-ci-runner-exported-its-branch-structural-quality-gates-red---fixed-2609-lane-paridade-qualidade))** (26/09):
     `validate-release-candidate.sh:72` skips the "is newer" gate on any
