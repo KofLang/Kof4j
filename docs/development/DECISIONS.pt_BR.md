@@ -3708,3 +3708,39 @@ Quatro decisões tomadas de uma vez pelo prompt multipla-escolha da sessao
    escape/resource-state. Os gates da Fase 1 seguem satisfeitos
    (`docs/spec/memory-safety.md` pousado 25/09); a Fase 3+ continua gateada
    pelos testes de prova da Fase 2.
+
+## D-QUALITY-PIPELINE-2609 — esteira de branches = pipeline de qualidade (lab → testing → prerelease → stable → release/x.y.z → tag); lab sem CI por push; gates de promoção 80%/100%/100%+CLOSEALL; migração ATÔMICA pós-0.5.0 com `release/0.5.0` de piloto (mantenedora 26/09/2026)
+
+**Evidência:** issue #626 (proposta da mantenedora, 26/09 04:52Z) +
+resposta da mantenedora 26/09 05:53Z aceitando a revisão técnica da lane
+paridade/qualidade ("desenho fechado conceitualmente como uma quality
+pipeline").
+
+**Decisão (opção: pipeline de qualidade por estágios, não ambientes soltos):**
+
+| Estágio | Papel | CI | Quebra? | Publicável? |
+|---|---|---|---|---|
+| `lab` | experimentação | **SEM CI por push** (validação pesada vai para a promoção) | contrato pode mudar (ver ponto em aberto abaixo) | não |
+| `testing` | integração/QA | suíte completa na promoção `lab→testing` (primeiro gate formal) | idealmente não | potencialmente |
+| `prerelease` | candidato público | **≥80% verde para entrar de `testing`; 100% para avançar** | sem features | sim |
+| `stable` | contrato fechado | 100% + critérios de fechamento da versão (CLOSEALL+docs) | não | sim |
+| `release/x.y.z` | só empacotamento (temporária, de `stable`) | validações finais | não | sim |
+| tag | o contrato público | — | — | — |
+
+- **Hotfix em `stable`:** PR + backport explícito + revalidação antes de
+  voltar ao `stable` — nunca porta dos fundos para desenvolvimento.
+- **Prova de promoção é objetiva:** o checklist de
+  `release-beta-0.5.0-prep.md` (cond.7 = `check_known_bugs_status.sh`
+  live-vazio + matriz de conformidade) vira a definition-of-promotion.
+- **Timing (rígido):** a migração acontece SÓ depois que o ciclo do 0.5.0
+  fechar no modelo atual; `release/0.5.0` serve de piloto do último estágio.
+  O corte é UMA mudança atômica: branches + CI + scripts + `AGENTS.md` +
+  `DOING.md` + `DECISIONS.md` + automações (migração parcial = agente
+  empurrando no lugar errado — palavras da mantenedora).
+- **PONTO EM ABERTO (não decidido):** se o `lab` mantém o piso de
+  zero-regression (regra 8) mesmo sem CI por push — levantado na review
+  da lane ("não quebrável", precedentes `7f174a6f`); a resposta da
+  mantenedora não tocou nisso; decidir no plano de corte, não assumir.
+- **Até lá NADA muda:** `beta-0.5.0` segue a branch ativa
+  (`D-BRANCH-0.5.0` em vigor); agentes seguem empurrando para ela; #619
+  segue HELD (regra 10). Fila: roadmap §23 `TIER 14`.

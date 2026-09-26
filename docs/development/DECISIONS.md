@@ -3729,3 +3729,39 @@ Four decisions taken in one pass via the session's multiple-choice prompt
    structures for ownership/lifetime/borrow/alias/mutability/escape/
    resource-state. Fase 1 gates stay satisfied (`docs/spec/memory-safety.md`
    landed 25/09); Fase 3+ remain gated by Fase 2's proof tests.
+
+## D-QUALITY-PIPELINE-2609 — branch pipeline = quality pipeline (lab → testing → prerelease → stable → release/x.y.z → tag); lab sem CI por push; gates de promoção 80%/100%/100%+CLOSEALL; migração ATÔMICA pós-0.5.0 com `release/0.5.0` de piloto (maintainer 26/09/2026)
+
+**Evidence:** issue #626 (proposal by the maintainer, 26/09 04:52Z) +
+maintainer's reply 26/09 05:53Z accepting the technical review of the
+parity/quality lane ("desenho fechado conceitualmente como uma quality
+pipeline").
+
+**Decision (option: staged quality pipeline, not per-environment branches):**
+
+| Stage | Role | CI | Break? | Publishable? |
+|---|---|---|---|---|
+| `lab` | experimentation | **NO CI per push** (heavy validation moves to the promotion) | contract may change (see open point below) | no |
+| `testing` | integration/QA | full suite at `lab→testing` promotion (first formal gate) | ideally no | potentially |
+| `prerelease` | public candidate | **≥80% green to enter from `testing`; 100% green to advance** | no features | yes |
+| `stable` | closed contract | 100% + version closing criteria (CLOSEALL+docs) | no | yes |
+| `release/x.y.z` | packaging only (temporary, from `stable`) | final validations | no | yes |
+| tag | the public contract | — | — | — |
+
+- **Hotfix on `stable`:** PR + explicit backport + re-validation before it
+  returns to `stable` — never a side door for development.
+- **Promotion proof is objective:** the `release-beta-0.5.0-prep.md`
+  checklist (cond.7 = `check_known_bugs_status.sh` live-empty + conformance
+  matrix) becomes the definition-of-promotion.
+- **Timing (hard):** migration happens ONLY after the 0.5.0 cycle closes on
+  the current branch model; `release/0.5.0` serves as the pilot of the last
+  stage. The cutover itself is ONE atomic change: branches + CI + scripts +
+  `AGENTS.md` + `DOING.md` + `DECISIONS.md` + automations (partial migration
+  = agents pushing to the wrong place — maintainer's words).
+- **OPEN POINT (not decided):** whether `lab` keeps the zero-regression
+  floor (rule 8) even without per-push CI — raised by the lane review
+  ("no quebrável", precedents `7f174a6f`); the maintainer's reply did not
+  touch it; settle it in the cutover plan, do not assume either way.
+- **Until then NOTHING changes:** `beta-0.5.0` remains the active branch
+  (`D-BRANCH-0.5.0` in force); agents keep pushing to it; #619 stays HELD
+  (rule 10). Queue: roadmap §23 `TIER 14`.

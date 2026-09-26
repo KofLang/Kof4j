@@ -1101,3 +1101,18 @@ all loose `docs/development/*.md` concluded and moved out; total stability;
 0 open bug issues; all edges closed; nothing pending in bugs-and-gaps. Queue +
 current state: `release-beta-0.5.0-prep.md` §"Release gate". Mechanized by
 `scripts/check_release_050_gate.sh`.
+
+### TIER 14 — Quality-pipeline migration (DECIDED 26/09 `D-QUALITY-PIPELINE-2609`; execution gated POST-0.5.0)
+
+The `lab → testing → prerelease → stable → release/x.y.z → tag` esteira is
+design-closed. **NO unit may start before the 0.5.0 cycle closes** — today's
+work keeps landing on `beta-0.5.0` (`D-BRANCH-0.5.0` in force). When the
+maintainer opens the front, the units are:
+
+| # | Unit | Gate/proof |
+|---|---|---|
+| 14.1 | Pilot: `release/0.5.0` temporary branch (version bump, changelog, artifacts, checksums) cut from stable-candidate; publish; end branch | GitHub Release + tag `v0.5.0`; nothing new added mid-pilot |
+| 14.2 | Atomic cutover (ONE change): create `lab`/`testing`/`prerelease`/`stable`; CI workflows (`codeql.yml` branches+schedule, gates, cross jobs) re-pointed; `scripts/sync-push.sh` + §NNN-tip gate + heartbeat/watcher crons re-pointed; `AGENTS.md` (`D-BRANCH` superseded), `DOING.md`, `DECISIONS.md` updated | build after cutover: every automation resolves the same stage; zero agent left pushing to a retired branch |
+| 14.3 | Promotion tooling: `lab→testing` runs the full suite as first formal gate; promotion checks encode 80% (testing→prerelease) / 100% (prerelease→stable + CLOSEALL/docs) mechanically (extend `check_release_050_gate.sh` per stage) | scripted proof per promotion, not opinion |
+| 14.4 | Branch protections: no force-push + required checks on `testing`/`prerelease`/`stable`; hotfix path (PR + backport + revalidation) documented in `AGENTS.md` | GitHub settings + docs mirror |
+| 14.5 | Open point to settle with the maintainer in this plan: does `lab` keep the zero-regression floor (rule 8) without per-push CI? | recorded in `D-QUALITY-PIPELINE-2609` §OPEN POINT |
