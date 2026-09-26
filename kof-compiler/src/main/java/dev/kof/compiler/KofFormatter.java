@@ -36,8 +36,8 @@ public final class KofFormatter {
             if (!unit.imports().isEmpty()) out.append("\n");
             var pending = new KofFormatterComments.Pending(KofFormatterComments.scan(src));
             for (AstNode decl : unit.declarations()) {
-                if (decl != null && decl.position() != null) {
-                    pending.flushUpTo(out, indent, decl.position().line());
+                if (decl != null) {
+                    pending.flushUpTo(out, indent, decl.position());
                 }
                 formatDecl(decl, out, indent, pending);
                 out.append("\n");
@@ -51,7 +51,7 @@ public final class KofFormatter {
     }
 
     static void formatDecl(AstNode decl, StringBuilder out, int indent, KofFormatterComments.Pending pending) {
-        if (decl != null && decl.position() != null) pending.flushUpTo(out, indent, decl.position().line());
+        if (decl != null) pending.flushUpTo(out, indent, decl.position());
         String pad = "    ".repeat(indent);
         switch (decl) {
             case FunctionDeclarationNode fn -> {
@@ -224,7 +224,7 @@ public final class KofFormatter {
     }
 
     static void formatStmt(StatementNode st, StringBuilder out, int indent, KofFormatterComments.Pending pending) {
-        if (st != null && st.position() != null) pending.flushUpTo(out, indent, st.position().line());
+        if (st != null) pending.flushUpTo(out, indent, st.position());
         String pad = "    ".repeat(indent);
         switch (st) {
             case ExpressionStmt es -> {

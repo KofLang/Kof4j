@@ -86,19 +86,21 @@ final class KofFormatterComments {
             this.comments = comments;
         }
 
-        /** Escreve os comentarios pendentes cuja linha e < line, com indent. */
-        void flushBefore(StringBuilder out, int indent, int line) {
+        /** Escreve os pendentes cuja linha e < line (posicao ausente = sem costura). */
+        void flushBefore(StringBuilder out, int indent, SourcePosition pos) {
+            if (pos == null) return;
             String pad = "    ".repeat(indent);
-            while (idx < comments.size() && comments.get(idx).line() < line) {
+            while (idx < comments.size() && comments.get(idx).line() < pos.line()) {
                 emit(out, pad, comments.get(idx).text());
                 idx++;
             }
         }
 
         /** Escreve os pendentes cuja linha e <= line (uso p/ linha da construcao). */
-        void flushUpTo(StringBuilder out, int indent, int line) {
+        void flushUpTo(StringBuilder out, int indent, SourcePosition pos) {
+            if (pos == null) return;
             String pad = "    ".repeat(indent);
-            while (idx < comments.size() && comments.get(idx).line() <= line) {
+            while (idx < comments.size() && comments.get(idx).line() <= pos.line()) {
                 emit(out, pad, comments.get(idx).text());
                 idx++;
             }
