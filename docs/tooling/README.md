@@ -102,6 +102,16 @@ canonical formatting. With no parsing implementation of its own — the
 formatter consumes the official parser's output, ensuring that `kof fmt`
 never changes the program's semantics.
 
+Comments are preserved ALWAYS (§509/#625): the lexer drops them by
+contract, so the AST formatter now re-sews every scanned comment
+(string/char-aware — `"http://x"` is not a comment) back into the
+output in source order; the old 50%-size heuristic that picked the path
+BY ACCIDENT is gone (null now means parse failure only). When parsing
+fails the token-based fallback still preserves line and full-line block
+comments verbatim. The LSP (`textDocument/formatting`) runs the same
+engine and answers "no edit" instead of crashing on unformattable
+buffers: editor and CLI never lose a comment.
+
 ---
 
 ## 7. Diagnostics

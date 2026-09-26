@@ -102,6 +102,17 @@ formatação canônica. Sem implementação própria de parsing — o formatter
 consome a saída do parser oficial, garantindo que `kof fmt` nunca altere a
 semântica do programa.
 
+Comentários são preservados SEMPRE (§509/#625): o lexer os descarta por
+contrato, então o formatter AST costura de volta cada comentário
+escaneado (ciente de string/char — `"http://x"` não é comentário) na
+saída, em ordem de origem; a heurística de 50% que escolhia o caminho
+por ACIDENTE morreu (null agora significa apenas falha de parse).
+Quando o parse falha, o fallback token-based ainda preserva comentários
+de linha e de bloco de linha inteira verbatim. O LSP
+(`textDocument/formatting`) roda o MESMO motor e responde "sem edição"
+em vez de crashar num buffer não-formatável: editor e CLI nunca perdem
+um comentário.
+
 ---
 
 ## 7. Diagnostics

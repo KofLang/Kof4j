@@ -51,7 +51,7 @@ diagnostics produced are published to the editor via
 | `textDocument/completion` | trigger `.`: **domain-aware stdlib members** from `StdCatalog` — the 31 real typer namespaces (math, strings, rng, json, log, db, http, Image/Audio/Video/Mic, ...), locked against the typer sources (X10 fatias 1–3); non-stdlib prefix = zero invention |
 | `textDocument/references` | word-boundary, in the buffer **and in the project's sibling `.kf` files** (read-only; X10 fatia 5) |
 | `textDocument/rename` | **cross-file rename (LSP-A ✅ 19/09, `LspRename`)**: word-boundary edits over the open buffer + every project `.kf` (same textual convention as `references`); keywords and stdlib namespaces refuse with null (never rewrite the language) |
-| `textDocument/formatting` | formats via the `kof fmt` formatter (same engine, no parallel writer) |
+| `textDocument/formatting` | formats via the `kof fmt` formatter (same engine, no parallel writer; comments always preserved, §509) |
 | `textDocument/documentSymbol` | outline of the buffer (types + functions, textual scan) |
 | `workspace/symbol` | symbols of the **whole project**: open buffers (source of truth) + unopened `.kf` siblings; substring filter, prefix→substring→name→uri order (X10 fatia 6) |
 | `shutdown` | responds `null` |

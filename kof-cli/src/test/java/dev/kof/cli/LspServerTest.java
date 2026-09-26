@@ -397,6 +397,45 @@ class LspServerTest {
         assertTrue(edits.isEmpty(), "já formatado → nenhum edit, foi: " + edits);
     }
 
+    // ---- §509 / issue #625: formatting nunca perde comentario, nunca NPE --
+
+    private static final String REPRO_625 = "main() {\n    val a = 1\n    val b = 2\n"
+            + "    // soma os valores\n    val c = a + b\n    println(c)\n}\n";
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void formattingPreservesCommentsIssue625() throws Exception {
+        // antes: o edit de documento inteiro DELETAVA a linha do comentario
+        // (AST vencia pelo heuristica de 50%) — o format-on-save do editor
+        // destrua trabalho do usuario em silencio (R6).
+        String unformatted = "main(){\nval a=1\n// soma os valores\nprintln( a )\n}\n";
+        List<Object> edits = formattingEdits(unformatted);
+        assertEquals(1, edits.size(), "um edit de substituição total");
+        String newText = (String) ((Map<String, Object>) edits.get(0)).get("newText");
+        assertTrue(newText.contains("// soma os valores"),
+                "comentario preservado no newText: " + newText);
+        assertTrue(newText.contains("println(a)"), "e o codigo formata: " + newText);
+    }
+
+    @Test
+    void formattingCanonicalWithCommentsProposesNoEdit() throws Exception {
+        // o fonte do issue ja esta na forma canonica do formatador de
+        // comentarios (token-based) — o servidor NAO pode propor reescrita
+        // lossy (era exatamente isso que o bug fazia: edit "limpando" a
+        // linha do comentario)
+        List<Object> edits = formattingEdits(REPRO_625);
+        assertTrue(edits.isEmpty(), "ja canonico com comentario → nenhum edit, foi: " + edits);
+    }
+
+    @Test
+    void formattingUnformattableSourceNeverCrashesServer() throws Exception {
+        // antes: KofFormatter devolvia null (fonte nao-parseavel) e o
+        // formatEdit fazia formatted.equals(text) → NPE matava o servidor
+        // (LspServer.java:433). Agora: resposta valida, servidor vivo.
+        List<Object> edits = formattingEdits("main( {\n// nota\n");
+        assertNotNull(edits, "servidor responde (edits ou vazio), nao morre");
+    }
+
     // ---- EDI001 §15: textDocument/documentSymbol (outline) ---------------
 
     @SuppressWarnings("unchecked")
