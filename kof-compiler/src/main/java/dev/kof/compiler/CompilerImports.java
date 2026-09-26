@@ -39,7 +39,26 @@ public final class CompilerImports {
                                             java.util.Map<AstNode, String> declarationPackages,
                                             ExternalClasspath externalClasspath,
                                             List<Path> dependencySourceRoots) {
+        return expandKofImports(unit, moduleRoot, currentDiagnostics, declarationPackages,
+                externalClasspath, dependencySourceRoots, List.of());
+    }
+
+    static CompilationUnitNode expandKofImports(CompilationUnitNode unit,
+                                            Path moduleRoot,
+                                            DiagnosticCollector currentDiagnostics,
+                                            java.util.Map<AstNode, String> declarationPackages,
+                                            ExternalClasspath externalClasspath,
+                                            List<Path> dependencySourceRoots,
+                                            List<Path> compiledSources) {
         java.util.Set<String> visitedDirs = new java.util.HashSet<>();
+        // #628 (root cause): a file already compiled in `sources` must NEVER be
+        // re-parsed through an import — the import copy loses the package
+        // (a class constant `Rotulo` instead of `dominio/Rotulo` -> the JVM
+        // aborts with NoClassDefFoundError at load) and re-registers top-level
+        // functions (SEM047/SEM057). Seed the per-path dedup with them.
+        for (Path compiled : compiledSources) {
+            visitedDirs.add(compiled.toAbsolutePath().normalize().toString());
+        }
         // Raízes de biblioteca depois do módulo local: stdlib oficial PRIMEIRO, depois as fontes
         // de dependências (#566 opção b) — uma dependência nunca sombreia a stdlib.
         List<Path> libraryRoots = new ArrayList<>();
@@ -89,6 +108,9 @@ public final class CompilerImports {
                     for (Path kf : stream.filter(p -> p.toString().endsWith(".kf"))
                             .sorted(java.util.Comparator.comparing(p -> p.getFileName().toString()))
                             .toList()) {
+                        if (!visitedDirs.add(kf.toAbsolutePath().normalize().toString())) {
+                            continue; // #628: file already compiled or already imported
+                        }
                         String code = Files.readString(kf);
                         String fileName = kf.getFileName().toString();
                         DiagnosticCollector silent = new DiagnosticCollector();

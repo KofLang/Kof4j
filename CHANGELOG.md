@@ -10,6 +10,16 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `scripts/changelog.sh` and inserted by the pipeline at this marker:
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
+  - **Fix — #628 (26/09): package records inside `List<T>` no longer depend on
+    source order** — a package-local `record` returned through a top-level
+    `List<Rotulo>` emitted `checkcast Rotulo` and aborted at JVM load with
+    `NoClassDefFoundError: Rotulo` when `Main.kf` was compiled before the
+    package file. The import expander no longer re-parses files already in
+    `sources`, and the record/class inference fixpoint clears only the current
+    identity group instead of globally erasing sibling expression types. Proof:
+    new `PackageRecordGenericListE2ETest` (JVM/Script/Native goldens; JS runs
+    when `node` is available) plus the exact CLI reproducer; reactor
+    4161/0F/32E(node)/507-skip. Catalog: `known-bugs.md` §512 (+PT).
   - **Feature — D-COMPLETE-FIRST item 4: kof.ui deterministic release is a
     lifecycle contract with leak locks** (26/09): a `Store` created DURING a
     component's lifecycle (view render / `onMount` / `effect`) now belongs to

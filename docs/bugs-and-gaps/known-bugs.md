@@ -15353,3 +15353,50 @@ code regression — re-run it in isolation on a quiet host BEFORE blaming a comm
 isolation does not close this §.
 
 <!-- pt-switch --> **PT:** [§511 (pt_BR)](known-bugs.pt_BR.md#511--ringprivilegee2etestring1privilegedinstructionandsabotageproveenforcement-da-flake-sob-carga-da-suite-completa-o-boot-ovmf-congela-alem-do-limite-de-120s-re-incidencia-2-da-flake-anotada-no-fechamento-do-510---open-dona--lane-baremetal)
+
+## §512 — multi-package `List<Record>` lost its package when the consumer file was compiled first: the record/class type-inference fixpoint globally erased sibling expression types, making lowering emit `checkcast Rotulo` instead of `dominio/Rotulo` (GitHub #628) — ✅ FIXED 26/09
+
+**Symptom (measured):** a package-local `record Rotulo` + top-level
+`rotulos(): List<Rotulo>` in `dominio/Rotulo.kf`, consumed by `Main.kf`, compiled
+clean but the JVM aborted at class load with `NoClassDefFoundError: Rotulo` (the
+`kof run` launcher masked it with the JavaFX-runtime message). `javap` showed
+`checkcast Rotulo` on `lista.get(i)`. With source order `[dominio/Rotulo.kf,
+Main.kf]` the program ran; `[Main.kf, dominio/Rotulo.kf]` failed — order dependence.
+
+**Two layers at the root:**
+
+1. `CompilerImports.expandKofImports` re-parsed a file that was already present in
+   `sources`. The imported copy registered an unqualified class symbol and duplicated
+   top-level functions. Fix: seed the import deduplication set with the absolute
+   normalized path of every compiled source and pass `sources` from
+   `CompilerPipeline.parseAndMerge`.
+2. Even after layer 1, the analyzer still lost the type of `rotulos()` when `Main.kf`
+   was analyzed before `Rotulo.kf`. The record/class 4-pass fixpoint called
+   `expressionTypes.clear()`, which erased inference for ALL sibling declarations,
+   not just the member being re-analyzed. The JVM typer then re-inferred the bare
+   receiver from the stale, unqualified declaration type and produced
+   `ClassType("", "Rotulo")` for the collection's element.
+
+**Fix (no contract change):** `SemanticAnalyzer` now tracks the expressions typed by
+the current record/class/interface pass (`beginExpressionTypeGroup`,
+`discardExpressionTypeGroup`) and clears only that identity group on a re-pass. The
+final pass's types are preserved. This keeps the bug-26 return-type reinference
+behavior for the declaration being analyzed while making type resolution
+order-independent across packages and files.
+
+**Reproduction pinned:** `PackageRecordGenericListE2ETest` compiles the exact two-file
+module in the red source order and checks Script/JVM/Native execution plus JS
+execution when `node` is present. Pre-fix it failed with `NoClassDefFoundError:
+Rotulo`; post-fix the JVM/Script/Native cases print `indexado: UF`, `cnpj`, `uf`
+(the JS case was honestly skipped on a host without `node`).
+
+**Proof (same commit):** `PackageRecordGenericListE2ETest` 4 tests, 0F/0E/1 skip
+(node environment); `PackagesE2ETest`, `CoreRegressionE2ETest`, `MemorySafetyE2ETest`
+and `ResourceLeakE2ETest` focused battery 141/0F/0E; `/tmp/k628` CLI reproducer now
+exits 0 with the same golden output; full reactor on tip after rebase:
+4161 tests, 0F, 32 environmental node Errors, 507 skips.
+
+**Files:** `CompilerImports.java`, `CompilerPipeline.java`, `SemanticAnalyzer.java`,
+`SemDeclarationAnalyzer.java`, `PackageRecordGenericListE2ETest.java`.
+
+<!-- pt-switch --> **PT:** [§512 (pt_BR)](known-bugs.pt_BR.md#512--listrecord-de-multipacote-perdia-o-pacote-quando-o-arquivo-consumidor-era-compilado-primeiro-o-fixpoint-de-registroclasse-apagava-os-tipos-de-irmaos-e-o-lowering-emitia-checkcast-rotulo-em-vez-de-dominiorotulo-github-628--fixed-2609)

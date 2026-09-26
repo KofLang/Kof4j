@@ -55,6 +55,8 @@ public class SemanticAnalyzer {
     private final Map<MethodCallExpr, SymbolTable.MethodSymbol> resolvedMethods = new IdentityHashMap<>();
     private final Map<NewExpr, SymbolTable.ConstructorSymbol> resolvedConstructors = new IdentityHashMap<>();
     private final Map<String, SymbolTable> classMemberScopes = new HashMap<>();
+    /** #628: expressões tipadas pelo grupo de análise em andamento. */
+    private java.util.Set<ExpressionNode> trackedExpressionTypes;
     private String currentClassName;
     private boolean currentMethodStatic;
 
@@ -273,7 +275,7 @@ public class SemanticAnalyzer {
         }
         for (int pass = 0; pass < 4; pass++) {
             boolean changed = false;
-            expressionTypes.clear();
+            beginExpressionTypeGroup();
             for (AstNode member : cls.members()) {
                 if (member instanceof ConstructorDeclarationNode ctor) {
                     analyzeConstructorBody(ctor);
@@ -287,7 +289,11 @@ public class SemanticAnalyzer {
                     }
                 }
             }
-            if (!changed) break;
+            if (!changed) {
+                discardExpressionTypeGroup();
+                break;
+            }
+            clearExpressionTypes();
         }
         for (AstNode member : cls.members()) {
             if (member instanceof MethodDeclarationNode method && method.modifiers().contains("abstract")
@@ -342,7 +348,10 @@ public class SemanticAnalyzer {
     // NÃO expõem a coleção interna (CodeQL `java/internal-representation-exposure`):
     // a mutação acontece AQUI, dentro do dono do estado. Os leitores usam os
     // getters read-only (`unmodifiable*`) acima.
-    void putExpressionType(ExpressionNode expr, Type type) { expressionTypes.put(expr, type); }
+    void putExpressionType(ExpressionNode expr, Type type) {
+        expressionTypes.put(expr, type);
+        if (trackedExpressionTypes != null) trackedExpressionTypes.add(expr);
+    }
     void putResolvedMethod(MethodCallExpr call, SymbolTable.MethodSymbol sym) { resolvedMethods.put(call, sym); }
     void putResolvedConstructor(NewExpr expr, SymbolTable.ConstructorSymbol sym) { resolvedConstructors.put(expr, sym); }
     void putClassMemberScope(String className, SymbolTable scope) { classMemberScopes.put(className, scope); }
@@ -379,7 +388,23 @@ public class SemanticAnalyzer {
     void setCurrentScope(SymbolTable scope) { this.currentScope = scope; }
     void setCurrentClassName(String name) { this.currentClassName = name; }
     void setCurrentFunctionName(String name) { this.currentFunctionName = name; }
-    void clearExpressionTypes() { expressionTypes.clear(); }
+    /** Remove apenas o grupo atual (bug 26); preserva tipos de outras declarações (#628). */
+    void clearExpressionTypes() {
+        if (trackedExpressionTypes == null) return;
+        for (ExpressionNode expr : trackedExpressionTypes) expressionTypes.remove(expr);
+        trackedExpressionTypes = null;
+    }
+
+    /** Marca o início de uma reanálise; só as expressões dela podem ser descartadas. */
+    void beginExpressionTypeGroup() {
+        trackedExpressionTypes = java.util.Collections.newSetFromMap(new IdentityHashMap<>());
+    }
+
+    /** Mantém os tipos do grupo e para de rastreá-los (última passada). */
+    void discardExpressionTypeGroup() {
+        trackedExpressionTypes = null;
+    }
+
     boolean knowsClass(String name) { return knownClasses.containsKey(name); }
 
     private void analyzeConstructorBody(ConstructorDeclarationNode ctor) {

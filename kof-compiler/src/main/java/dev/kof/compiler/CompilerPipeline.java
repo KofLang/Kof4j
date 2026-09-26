@@ -471,7 +471,7 @@ public final class CompilerPipeline {
         ExternalClasspath extCp = (driver.target == Target.JVM || driver.target == Target.ANDROID)
                 ? driver.externalClasspath : null;
         merged = CompilerImports.expandKofImports(merged, driver.moduleRoot, diagnostics, driver.declarationPackages, extCp,
-                driver.dependencySourceRoots);
+                driver.dependencySourceRoots, sources);
         if (diagnostics.hasErrors()) return null;
         return merged;
     }

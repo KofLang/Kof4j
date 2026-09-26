@@ -10,6 +10,15 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `scripts/changelog.sh` e inserida pela pipeline neste marcador:
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
+  - **Correção — #628 (26/09): records de pacote dentro de `List<T>` deixam de
+    depender da ordem das fontes** — um `record` local ao pacote, devolvido por
+    uma função top-level, era perdido se o consumidor fosse analisado primeiro.
+    O fixpoint de classe/registro só limpa agora as expressões da própria
+    passada, e o expansor de importações para de reanalisar arquivos já
+    presentes em `sources`. Prova: `PackageRecordGenericListE2ETest` dourado
+    em Script/JVM/Native (JS pula honestamente sem `node`) e o CLI original de
+    #628 volta a imprimir `indexado: UF`, `cnpj`, `uf`. Catálogo:
+    `known-bugs.pt_BR.md` §512.
   - **Feature — item 4 do D-COMPLETE-FIRST: a liberacao deterministica do
     kof.ui vira contrato de ciclo de vida com travas de leak** (26/09): um
     `Store` criado DURANTE o ciclo de vida de um componente (render da view /

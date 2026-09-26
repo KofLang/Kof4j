@@ -12875,3 +12875,49 @@ TESTE, não regressão de código — re-ronde em isolamento com o host quieto A
 commit; verde em isolamento NÃO fecha este §.
 
 <!-- pt-switch --> **EN:** [§511 (known-bugs)](known-bugs.md#511--ringprivilegee2etestring1privilegedinstructionandsabotageproveenforcement-flakes-under-full-suite-load-the-ovmf-boot-freezes-past-the-120s-bound-recurrence-2-of-the-flake-noted-when-510-closed---open-owner--lane-baremetal)
+
+## §512 — `List<Record>` de múltiplos pacotes perdia o pacote quando o arquivo consumidor era compilado primeiro: o fixpoint de tipo da classe/registro apagava os tipos dos irmãos, fazendo o lowering emitir `checkcast Rotulo` em vez de `dominio/Rotulo` (GitHub #628) — ✅ CORRIGIDO 26/09
+
+**Sintoma (medido):** `record Rotulo` e `rotulos(): List<Rotulo>` em
+`dominio/Rotulo.kf`, consumidos por `Main.kf`, compilavam limpo, mas a JVM abortava
+no carregamento da classe com `NoClassDefFoundError: Rotulo` (o `kof run` mascarava
+com a mensagem do JavaFX). O `javap` mostrava `checkcast Rotulo` em `lista.get(i)`.
+Com a ordem `[dominio/Rotulo.kf, Main.kf]` o programa rodava; com `[Main.kf,
+dominio/Rotulo.kf]` falhava — dependência de ordem.
+
+**Duas camadas na raiz:**
+
+1. `CompilerImports.expandKofImports` reanalisava um arquivo que já estava em
+   `sources`. A cópia importada registrava a classe sem pacote e duplicava funções
+   top-level. Correção: semear o dedup das importações com o caminho absoluto
+   normalizado de toda fonte compilada e passar `sources` de
+   `CompilerPipeline.parseAndMerge`.
+2. Mesmo após a camada 1, o analisador perdia o tipo de `rotulos()` quando `Main.kf`
+   era analisado antes de `Rotulo.kf`. O fixpoint de 4 passadas chamava
+   `expressionTypes.clear()` globalmente, apagando a inferência de TODAS as
+   declarações irmãs. O typer do JVM reinferia o receiver nu a partir do tipo cru e
+   gerava `ClassType("", "Rotulo")` no elemento da coleção.
+
+**Correção (sem mudar contrato):** `SemanticAnalyzer` passou a rastrear as expressões
+tipadas pela passada atual de classe/registro/interface (`beginExpressionTypeGroup`,
+`discardExpressionTypeGroup`) e limpa somente esse grupo de identidade em reanálise.
+A última passada preserva seus tipos. O bug-26 de reinferência de retorno continua
+restrito à declaração analisada, enquanto a resolução de tipos fica independente da
+ordem entre pacotes e arquivos.
+
+**Reprodução travada:** `PackageRecordGenericListE2ETest` compila o módulo exato de
+dois arquivos na ordem vermelha e valida execução Script/JVM/Native, além de JS
+quando `node` existe. Antes do fix, falhava com `NoClassDefFoundError: Rotulo`;
+depois, JVM/Script/Native imprimem `indexado: UF`, `cnpj`, `uf` (JS foi pulado de
+forma honesta por ausência de `node`).
+
+**Prova (mesmo commit):** `PackageRecordGenericListE2ETest` 4 testes, 0F/0E/1 skip
+(ambiente sem node); bateria focada com `PackagesE2ETest`, `CoreRegressionE2ETest`,
+`MemorySafetyE2ETest` e `ResourceLeakE2ETest` = 141/0F/0E; o reprodutor CLI em
+`/tmp/k628` sai 0 com o mesmo golden; reactor completo após rebase: 4161 testes,
+0F, 32 erros ambientais do `node`, 507 skips.
+
+**Arquivos:** `CompilerImports.java`, `CompilerPipeline.java`, `SemanticAnalyzer.java`,
+`SemDeclarationAnalyzer.java`, `PackageRecordGenericListE2ETest.java`.
+
+<!-- pt-switch --> **EN:** [§512 (known-bugs)](known-bugs.md#512--multipackage-listrecord-lost-its-package-when-the-consumer-file-was-compiled-first-the-recordclass-type-inference-fixpoint-globally-erased-sibling-expression-types-making-lowering-emit-checkcast-rotulo-instead-of-dominiorotulo-github-628--fixed-2609)

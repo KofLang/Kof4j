@@ -47,7 +47,7 @@ final class SemDeclarationAnalyzer {
         }
         for (int pass = 0; pass < 4; pass++) {
             boolean changed = false;
-            sa.clearExpressionTypes();
+            sa.beginExpressionTypeGroup();
             for (AstNode member : rec.members()) {
                 if (member instanceof MethodDeclarationNode method) {
                     SymbolTable.MethodSymbol ms = sa.methodSymbols().get(method);
@@ -59,7 +59,11 @@ final class SemDeclarationAnalyzer {
                     }
                 }
             }
-            if (!changed) break;
+            if (!changed) {
+                sa.discardExpressionTypeGroup();
+                break;
+            }
+            sa.clearExpressionTypes();
         }
         sa.setCurrentScope(prevScope);
         sa.setCurrentClassName(prevClass);
@@ -98,7 +102,7 @@ final class SemDeclarationAnalyzer {
         // eram ignorados e a chamada nua virava função hoisted.
         for (int pass = 0; pass < 4; pass++) {
             boolean changed = false;
-            sa.clearExpressionTypes();
+            sa.beginExpressionTypeGroup();
             for (AstNode member : iface.members()) {
                 if (member instanceof MethodDeclarationNode method
                         && method.body() != null && !method.body().isEmpty()) {
@@ -109,7 +113,11 @@ final class SemDeclarationAnalyzer {
                     if (before != null && after != null && !before.equals(after)) changed = true;
                 }
             }
-            if (!changed) break;
+            if (!changed) {
+                sa.discardExpressionTypeGroup();
+                break;
+            }
+            sa.clearExpressionTypes();
         }
         sa.setCurrentScope(prevScope);
         sa.setCurrentClassName(prevClass);
