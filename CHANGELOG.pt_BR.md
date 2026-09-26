@@ -10,6 +10,18 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `scripts/changelog.sh` e inserida pela pipeline neste marcador:
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
+  - **Memory-safety Fase 3 fatia 3 — escape por `return` arde `MEM013`**
+    (26/09): a primeira face compile-time da L-04 na superfície real — uma
+    funcao que fecha um recurso e depois devolve o MESMO binding reivindicante
+    (`return h` direto) escapa um handle morto ao chamador e agora arde L-04/
+    `MEM013`; devolver um irmao nao-reivindicante mantem o O-02/`MEM002` mais
+    preciso, devolver antes do close segue verde, e a face tambem arde de
+    dentro de um ramo que herda claim certo externo. As faces de dangling de
+    runtime (`MEM010`/`MEM011`/`MEM012`) permanecem runtime pela classificação
+    da propria spec; escape por campo, container, closure/spawn (Fase 4) e
+    ponteiro interior de FFI (Fase 5, exige a superfície de contrato de vida)
+    sao fatias declaradas. Prova: `MemorySafetyE2ETest` 20/20 (5 faces novas —
+    invalidas em JVM/Native/JS + Script, precisao e travas verdes).
   - **Correcao — #627 (26/09): `json.decode<Record>` funciona para records
     declarados dentro de um `package`** — o call-site mangava o nome SIMPLES
     da classe enquanto o `KofRuntime` gerado define o decoder por record sob

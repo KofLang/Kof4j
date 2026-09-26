@@ -10,6 +10,18 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `scripts/changelog.sh` and inserted by the pipeline at this marker:
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
+  - **Memory-safety Fase 3 fatia 3 — escape by `return` burns `MEM013`**
+    (26/09): L-04's first compile-time face on the real surface — a function
+    that closes a resource and then returns the SAME claiming binding (direct
+    `return h`) is escaping a dead handle to the caller and now burns L-04/
+    `MEM013`; returning a non-claiming sibling keeps the more precise
+    O-02/`MEM002`, returning before the close stays green, and the face also
+    fires from inside a branch that inherits a certain outer claim. Runtime
+    dangling faces (`MEM010`/`MEM011`/`MEM012`) stay runtime by the spec's own
+    classification; escape through fields, containers, closures/spawn (Fase 4)
+    and FFI interior pointers (Fase 5, needs the lifetime-contract surface)
+    are declared slices. Proof: `MemorySafetyE2ETest` 20/20 (5 new faces —
+    invalid on JVM/Native/JS + Script, precision and green guards).
   - **Fix — #627 (26/09): `json.decode<Record>` works for records declared
     inside a `package`** — the call-site mangled the SIMPLE class name while
     the generated `KofRuntime` defines the per-record decoder under the
