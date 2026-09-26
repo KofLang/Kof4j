@@ -1,11 +1,14 @@
 package dev.kof.compiler;
 
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.net.URLClassLoader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashSet;
@@ -78,6 +81,42 @@ class SshE2ETest {
         StringBuilder sb = new StringBuilder();
         r.diagnostics().getDiagnostics().forEach(d -> sb.append(d.message()).append("\n"));
         return sb.toString();
+    }
+
+    private static boolean has(String... cmds) {
+        for (String c : cmds) {
+            try {
+                Process p = new ProcessBuilder("sh", "-c", "command -v " + c)
+                        .redirectErrorStream(true).start();
+                if (p.waitFor() != 0) return false;
+            } catch (Exception e) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static String captureNative(Process p) throws IOException, InterruptedException {
+        String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertEquals(0, p.waitFor(), "native program exit code, output: " + out);
+        return out;
+    }
+
+    private String runNative(Path src, Path out, Target target) throws IOException {
+        CompilationResult r = driver.compile(src, out, target);
+        assertTrue(r.success(), target + " deve compilar ssh.*: " + diags(r));
+        Path bin = out.resolve("Default/Main");
+        assertTrue(Files.exists(bin), target + " binario deve existir");
+        ProcessBuilder pb = target == Target.NATIVE
+                ? new ProcessBuilder(bin.toString())
+                : NativeRiscv64E2ETest.qemu(target.nativeArch(), bin);
+        pb.redirectErrorStream(true);
+        try {
+            return captureNative(pb.start());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("interrupted", e);
+        }
     }
 
     /** Both targets must run the same Kof source to the SAME output. */
@@ -245,6 +284,57 @@ class SshE2ETest {
         String nat = new String(p.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
         assertEquals(0, p.waitFor(), "native exit, output: " + nat);
         assertEquals(jvm.output(), nat, "x86 ssh.cmd argv must match the JVM golden byte-for-byte");
+    }
+
+    @Test
+    void sshRunIsHonestResultOnJvmAndJs() throws Exception {
+        assertJvmJsParity("""
+            main() {
+                var r = ssh.run("ssh.invalid", "true")
+                println(r.exitCode != 0)
+                println(ssh.ok(r))
+            }
+            """, "true", "false");
+    }
+
+    @Test
+    void allSshFacesMatchJvmAcrossAllTargets() throws Exception {
+        String source = """
+            main() {
+                var c = ssh.cmd("user@host", "uname -a")
+                println(c.size)
+                println(c.get(0))
+                println(c.get(6))
+                var r = ssh.run("ssh.invalid", "true")
+                println(r.exitCode != 0)
+                println(ssh.ok(r))
+            }
+            """;
+        Files.writeString(tmp.resolve("All.kf"), source);
+        Run jvm = runJvm(tmp.resolve("All.kf"), tmp.resolve("o-all-jvm"));
+        assertTrue(jvm.ok(), () -> "JVM failed: " + jvm.output());
+        assertEquals("7\nssh\nuname -a\ntrue\nfalse\n", jvm.output(), "JVM golden ssh.*");
+
+        Run js = runJs(tmp.resolve("All.kf"), tmp.resolve("o-all-js"));
+        assertTrue(js.ok(), () -> "JS failed: " + js.output());
+        assertEquals(jvm.output(), js.output(), "JS ssh.* deve bater o golden JVM");
+
+        String x86 = runNative(tmp.resolve("All.kf"), tmp.resolve("o-all-x86"), Target.NATIVE);
+        assertEquals(jvm.output(), x86, "x86-64 ssh.* deve bater o golden JVM");
+
+        Assumptions.assumeTrue(
+                has("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64")
+                        && NativeRiscv64E2ETest.qemuPrefix("riscv64") != null,
+                "cross riscv64 toolchain/sysroot ausente — pulando");
+        String riscv = runNative(tmp.resolve("All.kf"), tmp.resolve("o-all-riscv"), Target.NATIVE_RISCV64);
+        assertEquals(jvm.output(), riscv, "riscv64 ssh.* deve bater o golden JVM");
+
+        Assumptions.assumeTrue(
+                has("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64")
+                        && NativeRiscv64E2ETest.qemuPrefix("aarch64") != null,
+                "cross aarch64 toolchain/sysroot ausente — pulando");
+        String aarch = runNative(tmp.resolve("All.kf"), tmp.resolve("o-all-aarch"), Target.NATIVE_AARCH64);
+        assertEquals(jvm.output(), aarch, "aarch64 ssh.* deve bater o golden JVM");
     }
 
     @Test

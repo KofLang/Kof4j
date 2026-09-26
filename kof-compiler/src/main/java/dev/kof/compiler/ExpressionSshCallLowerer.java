@@ -7,8 +7,9 @@ import java.util.List;
  * Lowering of the ssh namespace (ssh.*) in emitExpression.
  *
  * <p>Sugar over kof.process: {@code cmd}/{@code run} lower onto the runtime
- * bindings {@code kof_ssh_argv}/{@code kof_ssh_run} (JVM+JS real; Native gated
- * PROC001 — the same honest gap as {@code process.run}/{@code shell.run}),
+ * bindings {@code kof_ssh_argv}/{@code kof_ssh_run} (JVM, JS, Native x86-64 and
+ * cross riscv64/aarch64; only freestanding MCU/riscv32 keep PROC001 — the same
+ * honest process-layer gap as {@code process.run}/{@code shell.run}),
  * {@code ok} is pure field/compare IR on the shared Result. Never a raw call that
  * would ReferenceError (the §235 lesson).
  */

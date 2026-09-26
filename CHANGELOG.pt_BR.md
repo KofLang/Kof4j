@@ -63,6 +63,12 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     `training/idioms/ui`(+PT) com novo idiom de trava de leak,
     `learn/35-kof-ui`(+PT), `docs/ui/architecture`(+PT) §2.6/§2.7, linha
     regra-6 do `KOFUI-AUDIT`(+PT) fechada como entregue.
+  - **Paridade SSH linha 3 dos alvos principais fechada — `cmd`/`run`/`ok` agora
+    golden JVM≡JS≡x86-64≡riscv64≡aarch64** (26/09): o dispatch JS ja existia em
+    `JsRuntimeProcessShellOps`/`JsRuntimeIo`; `SshE2ETest` ganha a prova faltante
+    de `run` no JS e um golden unico de todas as faces nos quatro alvos, enquanto
+    `SshCrossE2ETest` fixa argv e Result honesto no cross. MCU/riscv32 seguem
+    `PROC001` (sem camada de processo).
   - **Feature — X8 fatia 3 (item 3 do D-COMPLETE-FIRST, 26/09): tags no primitivo `test` e `kof test --tag`** —
     `test "nome", "smoke", "auth" { }`: as tags sao literais extras de string
     (zero sintaxe nova, rule 11 — a superficie que o SG-023 recusou crescer fica

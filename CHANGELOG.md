@@ -64,6 +64,12 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     with a new leak-lock idiom, `learn/35-kof-ui`(+PT),
     `docs/ui/architecture`(+PT) §2.6/§2.7, `KOFUI-AUDIT`(+PT) rule-6 line
     closed as shipped.
+  - **SSH parity row 3 main targets closed — `cmd`/`run`/`ok` are now golden
+    JVM≡JS≡x86-64≡riscv64≡aarch64** (26/09): JS dispatch already existed in
+    `JsRuntimeProcessShellOps`/`JsRuntimeIo`; `SshE2ETest` adds the missing
+    JS `run` proof plus one all-target golden for `cmd`/`run`/`ok`, and
+    `SshCrossE2ETest` pins the cross argv/honest-result behavior. Only the
+    freestanding MCU/riscv32 targets remain `PROC001` (no process layer).
   - **Feature — X8 fatia 3 (D-COMPLETE-FIRST item 3, 26/09): tags in the `test` primitive and `kof test --tag`** —
     `test "nome", "smoke", "auth" { }`: the tags are plain extra string literals
     (zero new syntax, rule 11 — the surface SG-023 refused to grow stays as it
