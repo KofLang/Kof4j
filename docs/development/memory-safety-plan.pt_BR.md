@@ -92,7 +92,7 @@ comportamento. A fila de representação está EXAUSTA.
 | Fatia | Face | Estado |
 |---|---|---|
 | **1** Regiao retilinea | O-01/`MEM001` dupla reivindicacao + O-02/`MEM002` uso-apos-claim via alias — `OwnershipPass` ligado no `StatementAnalyzer.analyzeBody` (frontend compartilhado = mesma analise nos 4 alvos), `MemorySafetyE2ETest` (invalidos nos 4, validos byte-green com golden JVM/Script) | POUSADA 26/09 |
-| **2** Cruzamento de fluxo | claim/leitura condicionais (if/while/try/switch) com merge de estado por ramo | pendente |
+| **2** Cruzamento de fluxo | claim/leitura condicionais (if/while/try/switch) — snapshot herdado pelo braco, resultado NAO propaga (anti-falso-positivo por construcao); `BlockStmt` incondicional propaga | POUSADA 26/09 |
 | **3** Escape/dangling | L-04/`MEM013` (captura estende vida) e faces de dangling da tabela §3 | pendente |
 | **4** Aliasing mutavel em fronteiras | B-03/`MEM020` (buffer FFI escrevivel unico) + B-04/`MEM021` em `spawn` | pendente |
 | **5** Containers & nao fechados | O-03/`MEM003` (clear libera) + L-05/`MEM014` (§9: web/db sem close) | pendente |

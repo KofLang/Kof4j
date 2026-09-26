@@ -3,7 +3,16 @@ package dev.kof.compiler.memory;
 import dev.kof.compiler.ArrayAccessExpr;
 import dev.kof.compiler.AssignmentExpr;
 import dev.kof.compiler.BinaryExpr;
+import dev.kof.compiler.BlockStmt;
+import dev.kof.compiler.CatchClause;
 import dev.kof.compiler.DiagnosticCollector;
+import dev.kof.compiler.DoWhileStmt;
+import dev.kof.compiler.ForStmt;
+import dev.kof.compiler.IfStmt;
+import dev.kof.compiler.SwitchCase;
+import dev.kof.compiler.SwitchStmt;
+import dev.kof.compiler.TryStmt;
+import dev.kof.compiler.WhileStmt;
 import dev.kof.compiler.ExpressionNode;
 import dev.kof.compiler.ExpressionStmt;
 import dev.kof.compiler.FieldAccessExpr;
@@ -40,15 +49,20 @@ import java.util.Map;
  *       transferencia implicita sem o face explicita da spec.</li>
  * </ul>
  *
- * <p><b>Escopo honesto (R6/21/09, fatias subsequentes da MESMA fase):</b> o
- * passe analisa a regiao retilinea do corpo (declarações, expressions e
- * returns de topo). Faces que cruzam controle de fluxo (if/while/try/switch/
- * spawn), closures (E-/C-), containers (O-03) e fronteiras FFI (O-05/MEM005)
- * sao fatias nomeadas do plano — NADA aqui heuristica sobre elas: estados
- * fora da regiao permanecem intocados, portanto zero falso-positivo e
- * zero mudanca de comportamento para programas que nao reivindicam close.
- * O binding reivindicante continua utilisavel (leitura de si mesmo nao e
- * face O-01/O-02; use-after-close do proprio handle e L-02/MEM011, runtime).
+ * <p><b>Fatia 2 (26/09) — cruzamento de fluxo sem propagar, anti-falso-
+ * positivo por construcao:</b> claim/leitura dentro de braco (then/else, corpo
+ * de loop, try/catch/finally, case de switch) vivem uma COPIA snapshot do
+ * estado da regiao-mae e o resultado do braco NUNCA volta para a mae — um
+ * {@code close} condicional nao pode tornar ilegal o {@code close} seguinte
+ * no fluxo retilineo (legitimo hoje). O oposto vale: claim ja CERTO na mae
+ * arde MEM002 na leitura de irmao dentro de qualquer braco, e dupla
+ * reivindicacao SEQUENCIAL dentro do MESMO braco arde MEM001 (executa duas
+ * vezes na mesma iteracao). {@code BlockStmt} e incondicional: propaga.
+ * try/catch/finally partem do snapshot PRE-try (o fluxo que abriu o braco de
+ * exceção não é determinável no ponto de entrada). spawn/closures (E-/C-),
+ * containers (O-03) e fronteiras FFI (O-05/MEM005) seguem fatias nomeadas do
+ * plano. O binding reivindicante continua utilisavel (leitura de si mesmo nao
+ * e face O-01/O-02; use-after-close do proprio handle e L-02/MEM011, runtime).
  *
  * <p>Nomes: grupos sao raiz-de-cadeia de aliases ({@code var a = r;} amarra
  * {@code a} na cadeia de {@code r}); o estado do recurso vive na raiz. Alias
@@ -81,40 +95,114 @@ public final class OwnershipPass {
 
     private static final class Region {
         private final DiagnosticCollector diag;
-        private final Map<String, Group> groups = new HashMap<>();
-        private final Map<String, String> aliasOf = new HashMap<>();
+        private final Map<String, Group> groups;
+        private final Map<String, String> aliasOf;
         private StatementNode stmt;
 
         Region(DiagnosticCollector diag) {
             this.diag = diag;
+            this.groups = new HashMap<>();
+            this.aliasOf = new HashMap<>();
+        }
+
+        /** Copia snapshot do estado da mae (braços/loops/try veem so o CERTO). */
+        Region(Region parent) {
+            this.diag = parent.diag;
+            this.groups = new HashMap<>(parent.groups);
+            this.aliasOf = new HashMap<>(parent.aliasOf);
         }
 
         void walkBody(List<StatementNode> body) {
+            if (body == null) {
+                return;
+            }
             for (StatementNode s : body) {
-                stmt = s;
-                switch (s) {
-                    case VarDeclStmt vds -> {
-                        ExpressionNode init = vds.initializer();
-                        if (init instanceof IdentifierExpr id) {
-                            readName(id.name());
-                            aliasOf.put(vds.name(), id.name());
-                        } else if (init != null) {
-                            readExpr(init);
-                        }
-                    }
-                    case ExpressionStmt es -> readExpr(es.expression());
-                    case ReturnStmt ret -> {
-                        if (ret.value() != null) {
-                            readExpr(ret.value());
-                        }
-                    }
-                    default -> {
-                        // Regiao retilinea apenas: faces de controle de fluxo
-                        // pertencem as fatias subsequentes da Fase 3 (escopo
-                        // declarado acima — nunca heuristica silenciosa).
+                step(s);
+            }
+        }
+
+        void step(StatementNode s) {
+            if (s == null) {
+                return;
+            }
+            stmt = s;
+            switch (s) {
+                case VarDeclStmt vds -> {
+                    ExpressionNode init = vds.initializer();
+                    if (init instanceof IdentifierExpr id) {
+                        readName(id.name());
+                        aliasOf.put(vds.name(), id.name());
+                    } else if (init != null) {
+                        readExpr(init);
                     }
                 }
+                case ExpressionStmt es -> readExpr(es.expression());
+                case ReturnStmt ret -> {
+                    if (ret.value() != null) {
+                        readExpr(ret.value());
+                    }
+                }
+                case BlockStmt blk -> {
+                    // bloco e incondicional: propaga
+                    Region sub = new Region(this);
+                    sub.walkBody(blk.statements());
+                    groups.clear();
+                    groups.putAll(sub.groups);
+                    aliasOf.clear();
+                    aliasOf.putAll(sub.aliasOf);
+                }
+                case IfStmt iff -> {
+                    readExpr(iff.condition());
+                    branch(iff.thenBranch());
+                    branch(iff.elseBranch());
+                }
+                case WhileStmt w -> {
+                    readExpr(w.condition());
+                    branch(w.body());
+                }
+                case DoWhileStmt dw -> {
+                    branch(dw.body());
+                    readExpr(dw.condition());
+                }
+                case ForStmt fr -> {
+                    step(fr.init());
+                    readExpr(fr.condition());
+                    branch(fr.body());
+                    readExpr(fr.update());
+                }
+                case TryStmt tr -> {
+                    // try/catch/finally partem do snapshot PRE-try (face
+                    // conservadora sem falso-positivo; claims condicionais nao
+                    // voltam para a mae — ver javadoc)
+                    Region snap = new Region(this);
+                    snap.walkBody(tr.tryBody());
+                    if (tr.catchClauses() != null) {
+                        for (CatchClause cc : tr.catchClauses()) {
+                            new Region(this).walkBody(cc.body());
+                        }
+                    }
+                    new Region(this).walkBody(tr.finallyBody());
+                }
+                case SwitchStmt sw -> {
+                    readExpr(sw.expression());
+                    if (sw.cases() != null) {
+                        for (SwitchCase c : sw.cases()) {
+                            new Region(this).walkBody(c.body());
+                        }
+                    }
+                    new Region(this).walkBody(sw.defaultBody());
+                }
+                default -> {
+                    // statements sem leitura/claim proprio (print lowering etc.)
+                    // ou cujo formato este passe ainda nao conhece:
+                    // conservador — nada a fazer (nunca heuristica silenciosa).
+                }
             }
+        }
+
+        /** Regiao de braco: snapshot herdado, resultado NAO propaga. */
+        private void branch(StatementNode body) {
+            new Region(this).step(body);
         }
 
         /** Raiz da cadeia de aliases de {@code name} (sem cadeia = name). */

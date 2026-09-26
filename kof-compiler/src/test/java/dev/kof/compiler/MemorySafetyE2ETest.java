@@ -137,6 +137,145 @@ class MemorySafetyE2ETest {
         assertTrue(diagText(r).contains("MEM001"), "esperado MEM001 — " + diagText(r));
     }
 
+
+    // ---- FASE 3 FATIA 2: cruzamento de fluxo (snapshot sem propagar) ----
+
+    @Test
+    void claimThenSiblingReadInsideBranchFailsMem002(@TempDir Path tempDir) throws IOException {
+        String src = HANDLE + """
+                main() {
+                    var h = Handle(10)
+                    var flag = true
+                    var a = h
+                    a.close()
+                    if (flag) {
+                        println(h.get())
+                    }
+                }
+                """;
+        CompilationResult r = compile(tempDir, "mem002-branch", src, Target.JVM);
+        assertFalse(r.success(), "leitura condicionada pos-claim deve arder — " + diagText(r));
+        assertTrue(diagText(r).contains("MEM002"), "esperado MEM002 — " + diagText(r));
+    }
+
+    @Test
+    void sequentialDoubleClaimInsideBranchFailsMem001(@TempDir Path tempDir) throws IOException {
+        String src = HANDLE + """
+                main() {
+                    var h = Handle(11)
+                    var flag = true
+                    var a = h
+                    if (flag) {
+                        a.close()
+                        h.close()
+                    }
+                }
+                """;
+        CompilationResult r = compile(tempDir, "mem001-branch", src, Target.JVM);
+        assertFalse(r.success(), "dupla reivindicacao no MESMO ramo arde — " + diagText(r));
+        assertTrue(diagText(r).contains("MEM001"), "esperado MEM001 — " + diagText(r));
+    }
+
+    @Test
+    void conditionalClaimDoesNotMakeStraightClaimIllegal(@TempDir Path tempDir) throws IOException {
+        // Anti-falso-positivo POR CONSTRUCAO: close condicional NAO propaga —
+        // o close retilineo seguinte e programa legitimo hoje.
+        String src = HANDLE + """
+                main() {
+                    var h = Handle(12)
+                    var flag = true
+                    if (flag) {
+                        h.close()
+                    }
+                    h.close()
+                }
+                """;
+        CompilationResult r = compile(tempDir, "green-branch", src, Target.JVM);
+        assertTrue(r.success(), "ramo nao propaga: " + diagText(r));
+    }
+
+    @Test
+    void tryBodyClaimThenStraightClaimStayGreen(@TempDir Path tempDir) throws IOException {
+        // try/catch/finally partem do snapshot PRE-try: o idiom legado
+        // `try { r.close() } finally { if (x) r.close() }` + close externo nao
+        // pode virar erro por decisao de fatia — nenhuma face CERTA foi violada.
+        String src = HANDLE + """
+                main() {
+                    var h = Handle(13)
+                    var flag = false
+                    try {
+                        h.close()
+                    } finally {
+                        if (flag) {
+                            h.close()
+                        }
+                    }
+                    h.close()
+                }
+                """;
+        CompilationResult r = compile(tempDir, "green-try", src, Target.JVM);
+        assertTrue(r.success(), "faces condicionais nao propagam: " + diagText(r));
+    }
+
+    @Test
+    void loopBodySequentialDoubleClaimFailsMem001(@TempDir Path tempDir) throws IOException {
+        String src = HANDLE + """
+                main() {
+                    var h = Handle(14)
+                    var flag = true
+                    while (flag) {
+                        h.close()
+                        h.close()
+                    }
+                }
+                """;
+        CompilationResult r = compile(tempDir, "mem001-loop", src, Target.JVM);
+        assertFalse(r.success(), "duplo close na MESMA iteracao arde — " + diagText(r));
+        assertTrue(diagText(r).contains("MEM001"), "esperado MEM001 — " + diagText(r));
+    }
+
+    @Test
+    void switchCaseReadAfterOuterClaimFailsMem002(@TempDir Path tempDir) throws IOException {
+        String src = HANDLE + """
+                main() {
+                    var h = Handle(15)
+                    var a = h
+                    var k = 1
+                    a.close()
+                    switch (k) {
+                        case 1: println(h.get()); break
+                        default: println(0)
+                    }
+                }
+                """;
+        CompilationResult r = compile(tempDir, "mem002-switch", src, Target.JVM);
+        assertFalse(r.success(), "leitura em case pos-claim CERTO arde — " + diagText(r));
+        assertTrue(diagText(r).contains("MEM002"), "esperado MEM002 — " + diagText(r));
+    }
+
+    @Test
+    void blockClaimPropagatesAndSiblingUseAfterBlockFailsMem002(@TempDir Path tempDir) throws IOException {
+        // bloco e incondicional: o claim CERTO dentro dele vale depois dele.
+        // (bloco nu depois de `var a = h` ligaria como trailing-lambda —
+        // contrato do parser; entao o bloco proposital segue um `}`.)
+        String src = HANDLE + """
+                main() {
+                    var h = Handle(16)
+                    var a = h
+                    if (true) {
+                        println(0)
+                    }
+                    {
+                        a.close()
+                    }
+                    println(h.get())
+                }
+                """;
+        CompilationResult r = compile(tempDir, "mem002-block", src, Target.JVM);
+        assertFalse(r.success(), "bloco propaga claim certo — " + diagText(r));
+        assertTrue(diagText(r).contains("MEM002"), "esperado MEM002 — " + diagText(r));
+    }
+
     // ---- faces VALIDAS: byte-green (zero mudanca de comportamento) ----
 
     @Test
