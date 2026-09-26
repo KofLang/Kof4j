@@ -1,7 +1,7 @@
 504	kof-c-compiler/src/main/java/dev/kof/c/KofCParser.java
 547	kof-cli/src/main/java/dev/kof/cli/BytecodeStatements.java
 516	kof-cli/src/main/java/dev/kof/cli/KofDebugJvmSession.java
-582	kof-cli/src/main/java/dev/kof/cli/LspServer.java
+584	kof-cli/src/main/java/dev/kof/cli/LspServer.java
 506	kof-cli/src/main/java/dev/kof/cli/TranslateExpr.java
 501	kof-cli/src/main/java/dev/kof/cli/Translate.java
 548	kof-compiler/src/main/java/dev/kof/compiler/BuiltinCallTyper.java
@@ -14,10 +14,11 @@
 581	kof-compiler/src/main/java/dev/kof/compiler/CompilerTypes.java
 577	kof-compiler/src/main/java/dev/kof/compiler/ExpressionBinaryLowerer.java
 507	kof-compiler/src/main/java/dev/kof/compiler/ExpressionInstanceCallLowerer.java
-594	kof-compiler/src/main/java/dev/kof/compiler/ExpressionLowerer.java
-526	kof-compiler/src/main/java/dev/kof/compiler/ExpressionMethodCallLowerer.java
+599	kof-compiler/src/main/java/dev/kof/compiler/ExpressionLowerer.java
+528	kof-compiler/src/main/java/dev/kof/compiler/ExpressionMethodCallLowerer.java
 526	kof-compiler/src/main/java/dev/kof/compiler/ExpressionStaticCallLowerer.java
-553	kof-compiler/src/main/java/dev/kof/compiler/ExpressionTyper.java
+559	kof-compiler/src/main/java/dev/kof/compiler/ExpressionTyper.java
+558	kof-compiler/src/main/java/dev/kof/compiler/ExternalClasspath.java
 551	kof-compiler/src/main/java/dev/kof/compiler/js/JsRuntimeCore.java
 561	kof-compiler/src/main/java/dev/kof/compiler/js/JsRuntimeOps.java
 530	kof-compiler/src/main/java/dev/kof/compiler/js/JsRuntimeUiComponents.java
@@ -34,9 +35,10 @@
 519	kof-compiler/src/main/java/dev/kof/compiler/jvm/JvmRuntimeWebDispatch.java
 524	kof-compiler/src/main/java/dev/kof/compiler/jvm/JvmTimeRuntime.java
 513	kof-compiler/src/main/java/dev/kof/compiler/jvm/JvmWebCoreRuntime.java
+508	kof-compiler/src/main/java/dev/kof/compiler/KofFormatter.java
 565	kof-compiler/src/main/java/dev/kof/compiler/KofInterpreter.java
 573	kof-compiler/src/main/java/dev/kof/compiler/KofUi.java
-530	kof-compiler/src/main/java/dev/kof/compiler/MemberCallTyper.java
+545	kof-compiler/src/main/java/dev/kof/compiler/MemberCallTyper.java
 522	kof-compiler/src/main/java/dev/kof/compiler/MemberResolver.java
 522	kof-compiler/src/main/java/dev/kof/compiler/MethodCallTyper.java
 564	kof-compiler/src/main/java/dev/kof/compiler/nat/NativeBackend.java
@@ -62,5 +64,4 @@
 504	kof-compiler/src/main/java/dev/kof/compiler/runtime/RuntimeOrm8.java
 579	kof-compiler/src/main/java/dev/kof/compiler/runtime/RuntimeTimeIso.java
 566	kof-compiler/src/main/java/dev/kof/compiler/runtime/RuntimeUi.java
-590	kof-compiler/src/main/java/dev/kof/compiler/SemExpressionTyper.java
 581	kof-runtime/src/main/java/dev/kof/runtime/KofJsRunner.java
