@@ -14,7 +14,6 @@
 581	kof-compiler/src/main/java/dev/kof/compiler/CompilerTypes.java
 577	kof-compiler/src/main/java/dev/kof/compiler/ExpressionBinaryLowerer.java
 507	kof-compiler/src/main/java/dev/kof/compiler/ExpressionInstanceCallLowerer.java
-599	kof-compiler/src/main/java/dev/kof/compiler/ExpressionLowerer.java
 528	kof-compiler/src/main/java/dev/kof/compiler/ExpressionMethodCallLowerer.java
 526	kof-compiler/src/main/java/dev/kof/compiler/ExpressionStaticCallLowerer.java
 559	kof-compiler/src/main/java/dev/kof/compiler/ExpressionTyper.java
