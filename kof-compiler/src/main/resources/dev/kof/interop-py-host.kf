@@ -1,0 +1,73 @@
+// Motor Python do kof.interop (X2, D-COMPLETE-FIRST item 2 — plano
+// docs/development/interop-engine-plan.md). KOF-first (rule 10): o motor é
+// código Kof PURO sobre a plataforma já medida — `process.spawn` (F10,
+// full-duplex: write/readLine/alive/exitCode) + `json.encode`/`json.decode`
+// tipado — sem face nova de compilador (padrão do host do workflow).
+//
+// Sessão = a FONTE (modelo replay, contrato honesto): cada chamada executa
+// `source` num `python3 -u -` novo e chama `globals()[fn](*args)`. Definições
+// do `source` sobrevivem entre chamadas (são reaplicadas); mutações de
+// globals entre chamadas NÃO (sessão viva = fatia futura com superfície de
+// handle nomeada, decidida na mantenedora — regra 6).
+//
+// Protocolo de 2 linhas, SEM parser de string no lado Kof (D0 medido — o
+// `.kf` puro não tem split/substring): status ("KOFOK" / "KOFERR" / "") e o
+// payload JSON, decodado PELO TIPO da face (`callInt` → `json.decode<Int>`).
+// O spec da chamada viaja em `sys.argv[1]` (não no stdin, que é o script).
+// Erros nomeados (R6, nunca silêncio): INTEROP004 interpretador ausente ou
+// morto sem responder; INTEROP006 falha remota (traceback nomeado).
+class KofPy {
+    String source
+
+    public constructor(String source) {
+        this.source = source
+    }
+
+    String kofPyPrelude() {
+        return "import json,sys,traceback\n" +
+            "def _kof_rpc():\n" +
+            "    s=json.loads(sys.argv[1])\n" +
+            "    try:\n" +
+            "        r=globals()[s[\"fn\"]](*s[\"args\"])\n" +
+            "        sys.stdout.write(\"KOFOK\\n\"+json.dumps(r,default=str)+\"\\n\")\n" +
+            "    except Exception:\n" +
+            "        sys.stdout.write(\"KOFERR\\n\"+traceback.format_exc().replace(\"\\n\",\" | \")+\"\\n\")\n" +
+            "    sys.stdout.flush()\n" +
+            "_kof_rpc()\n"
+    }
+
+    String kofPyLine(String funcName, String argsJson) {
+        val spec = "{\"fn\":\"" + funcName + "\",\"args\":" + argsJson + "}"
+        val code = this.source + "\n" + this.kofPyPrelude()
+        // `-c` (não stdin): medido que `python3 -` num pipe NÃO executa nada
+        // até EOF do stdin — sem closeStdin no handle F10 a sessão ao vivo é
+        // intransponível hoje; o modelo replay roda o programa inteiro no
+        // argv e lê as 2 linhas de resposta do stdout. Fonte grande > ARG_MAX
+        // cai no INTEROP004 (handle morto), nunca silêncio.
+        val h = process.spawn("python3", "-u", "-c", code, spec)
+        val status = h.readLine()
+        if (status == "") {
+            throw "INTEROP004: python3 exited without responding (interpreter missing or fatal startup error, exit " + h.exitCode() + ")"
+        }
+        if (status == "KOFOK") {
+            return h.readLine()
+        }
+        throw "INTEROP006: " + funcName + " failed: " + h.readLine()
+    }
+
+    Int callInt(String funcName, List<Int> args) {
+        return json.decode<Int>(this.kofPyLine(funcName, json.encode(args)))
+    }
+
+    Double callDouble(String funcName, List<Double> args) {
+        return json.decode<Double>(this.kofPyLine(funcName, json.encode(args)))
+    }
+
+    Bool callBool(String funcName, List<Bool> args) {
+        return json.decode<Bool>(this.kofPyLine(funcName, json.encode(args)))
+    }
+
+    String callString(String funcName, List<String> args) {
+        return json.decode<String>(this.kofPyLine(funcName, json.encode(args)))
+    }
+}

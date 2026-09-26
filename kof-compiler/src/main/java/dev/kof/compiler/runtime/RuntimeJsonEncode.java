@@ -165,6 +165,10 @@ public final class RuntimeJsonEncode {
                 je .Lkof_json_el_string
                 cmpl $2, %r15d
                 je .Lkof_json_el_bool
+                cmpl $3, %r15d
+                je .Lkof_json_el_double
+                cmpl $5, %r15d
+                je .Lkof_json_el_long
                 call kof_json_encode_int
                 jmp .Lkof_json_el_appended
             .Lkof_json_el_string:
@@ -172,6 +176,13 @@ public final class RuntimeJsonEncode {
                 jmp .Lkof_json_el_appended
             .Lkof_json_el_bool:
                 call kof_json_encode_bool
+                jmp .Lkof_json_el_appended
+            .Lkof_json_el_double:
+                movq %rdi, %xmm0
+                call kof_json_encode_double
+                jmp .Lkof_json_el_appended
+            .Lkof_json_el_long:
+                call kof_json_encode_long
             .Lkof_json_el_appended:
                 movq %r12, %rdi
                 movq %rax, %rsi
@@ -371,10 +382,17 @@ public final class RuntimeJsonEncode {
                 je .Lkjm_valstr
                 cmpl $2, 0(%rsp)
                 je .Lkjm_valbool
+                cmpl $3, 0(%rsp)
+                je .Lkjm_valdouble
                 cmpl $7, 0(%rsp)
                 je .Lkjm_valbox
                 movq %rax, %rdi
                 call kof_json_encode_int
+                jmp .Lkjm_vapp
+            .Lkjm_valdouble:
+                movq %rax, %rdi
+                movq %rdi, %xmm0
+                call kof_json_encode_double
                 jmp .Lkjm_vapp
             .Lkjm_valbox:
                 testq %rax, %rax

@@ -113,6 +113,7 @@ path.
 | reusing `Byte[]`/`String` for a C out-buffer | declare the nominal **`Buffer(U8)`** in the `extern` and create it with `buffer.alloc(n)` (D-R3-BUFFER/D6-3) | an out-buffer is mutable and bidirectional (copy-in + copy-back); `T[]` is copy-in read-only and `String`/`char*` is read-only — distinct ABI kinds |
 | hand-emitting bytecode for a struct/array/out-buffer call | declare the `record`/`new T[n]`/`Buffer(U8)` in the `extern`; the compiler classifies the ABI (`AbiLayout`) | complexity belongs to the compiler (iron rule 2); a hand-rolled ABI is a silent bug on the next target |
 | hand-writing a per-record mapper/schema (field names + types duplicated in a string) | derive it from `interop.schema(R)` at the boundary | the compiler already knows the record structure — zero runtime reflection, identical output on the 4 targets |
+| hand-rolling `process.spawn("python3","-c",...)` + manual JSON per call | `import kof.interop` + `var py = KofPy(source)` + `py.callInt("sq", listOf(5))` | the engine is stdlib (fatia 1 X2 26/09): typed result is the METHOD name, args are a homogeneous typed Kof list; RPC lines, spec quoting and traceback naming (`INTEROP004`/`INTEROP006`) belong to the platform — session = the source (definitions persist; mutated globals do not), and the face refuses with `INTEROP005` where the process runtime is unproven (cross §513, ANDROID/MCU) |
 
 ## See also
 

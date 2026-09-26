@@ -6,6 +6,37 @@ mesmo commit desta doc). **Autoridade da decisão:** `D-COMPLETE-FIRST` item 2
 decisão; stubs, fachadas e "gaps aceitos" não são opções (a regra 11 se aplica a
 toda face que chega na superfície da linguagem).
 
+## Landing log (deltas medidos contra a tabela — a tabela fica como o claim; isto é o que pousou)
+
+**Fatia 1 POUSADA 26/09 (testes no mesmo commit).** Deltas medidos ao construir:
+1. **Modelo = replay sem estado sobre `-c`, não um `python -` de vida longa.**
+   Medido: `python3 -` num pipe NÃO executa nada antes do EOF do stdin, e o handle
+   F10 não tem `closeStdin` — o RPC-por-stdin estava fisicamente morto. O motor
+   roda o programa inteiro por chamada: `process.spawn("python3", "-u", "-c",
+   fonte + prelude, spec)` — a sessão É a fonte (definições persistem entre
+   chamadas; mutações de globals não — contrato declarado, não stub escondido).
+   Uma face de sessão viva exige tipo de handle nomeado = superfície nova de
+   compilador = regra 6, registrada como fatia futura, não improvisada.
+2. **Alvos = {JVM, NATIVE x86, JS, SCRIPT}.** O SCRIPT era esperado recusar e roda
+   o motor REAL — o interpretador resolve `kof_process_spawn` por reflexão no
+   MESMO `KofRuntime` gerado (paridade de construção, medido:
+   `InteropPyScriptE2ETest` golden ≡ JVM). riscv64/aarch64 recusam `INTEROP005`
+   porque o asm cross nunca recebeu `kof_json_encode_double`/`encode_long` (JSN001
+   fechou só x86 — catalogado §513, ABERTO, dona lane native); ANDROID/MCU/RISCV32
+   recusam até a face de processo ser EXECUTADA e provada (R7).
+3. **§512 achado e corrigido na raiz no mesmo commit:** o arg `List<Double>` do
+   motor expôs que o `json.encode` colapsava slots crus Double/Long em `encode_int`
+   (walkers x86 de lista+map) e que o `List<Bool>` do JVM castava
+   `Boolean`→`Integer`. Prova: `JsonNativeEncodeFpE2ETest` (oráculo JVM + JVM≡x86,
+   falharia no código pré-fix). Listas de `Float` ficam tag-0 — catalogado no §512.
+4. **Superfície como pousou (gate regra 11):** `var py = KofPy(fonte)` +
+   `py.callInt("sq", listOf(5))` / `callDouble` / `callBool` / `callString` — o
+   tipo do RESULTADO é o nome do método, os args são uma lista Kof tipada
+   homogênea; sem argv manual, sem JSON manual, sem loops de leitura no código do
+   usuário. Args/retornos record = fatia 2 (sinergia dobra X6 — caminhos
+   `json.decode<Record>` escalares já existem no lado JVM, medido em
+   `JsonCompleteE2ETest`).
+
 **Contrato (verbatim da decisão):** marshalling bidirecional tipado
 (`Int`/`Double`/`Bool`/`String`/`List`/`Map`/`record` ↔ JSON), gerenciamento real
 de processo (spawn, stdin/stdout, timeout, exit, cancel), estado de sessão,

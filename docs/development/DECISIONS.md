@@ -3818,6 +3818,19 @@ stub, with proof per target before closing):
    session state, named `INTEROP00x` errors, E2E per target, corpus
    (`training/idioms/interop.md` + `learn/` + parity matrix) synchronized.
    Born `experimental` per R5.
+   **Progress 26/09 — fatia 1 LANDED (item still open, fatias 2+ pending):**
+   the Python engine `KofPy` shipped as a Kof-written host (`interop-py-host.kf`)
+   over `process.spawn` + typed `json.decode<T>` — surface `var py = KofPy(src)`
+   + `py.callInt/callDouble/callBool/callString(fn, listOf(...))`, goldens
+   JVM≡x86≡JS≡SCRIPT measured byte-identical, named `INTEROP004`/`INTEROP006`,
+   `INTEROP005` refusal where the face is unproven (cross blocked by §513,
+   OPEN — lane native; ANDROID/MCU/RISCV32 by R7). The session-is-the-source
+   replay contract replaces long-lived `python -` (measured impossible without
+   EOF); a live-session surface needs a named handle type = rule 6 future slice.
+   The engine's Double args exposed and FIXED §512 (json element tag collapse)
+   at the root with a JVM-oracle regression. Remaining: records↔JSON + R engine
+   (fatia 2), timeout/cancel (fatia 3), cross re-entry with §513 (fatia 4),
+   corpus DoD + promotion (fatia 5).
 3. **X8 fatia 3 (named suites):** the `test` primitive's optional tag
    flowing parser→typer→IR→runner catalog (single source), `kof test --tag`
    with real filtering, conditional setup/teardown as functions (failing

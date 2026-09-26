@@ -12876,6 +12876,7 @@ commit; verde em isolamento NÃO fecha este §.
 
 <!-- pt-switch --> **EN:** [§511 (known-bugs)](known-bugs.md#511--ringprivilegee2etestring1privilegedinstructionandsabotageproveenforcement-flakes-under-full-suite-load-the-ovmf-boot-freezes-past-the-120s-bound-recurrence-2-of-the-flake-noted-when-510-closed---open-owner--lane-baremetal)
 
+<<<<<<< Updated upstream
 ## §512 — `List<Record>` de múltiplos pacotes perdia o pacote quando o arquivo consumidor era compilado primeiro: o fixpoint de tipo da classe/registro apagava os tipos dos irmãos, fazendo o lowering emitir `checkcast Rotulo` em vez de `dominio/Rotulo` (GitHub #628) — ✅ CORRIGIDO 26/09
 
 **Sintoma (medido):** `record Rotulo` e `rotulos(): List<Rotulo>` em
@@ -12921,3 +12922,60 @@ forma honesta por ausência de `node`).
 `SemDeclarationAnalyzer.java`, `PackageRecordGenericListE2ETest.java`.
 
 <!-- pt-switch --> **EN:** [§512 (known-bugs)](known-bugs.md#512--multipackage-listrecord-lost-its-package-when-the-consumer-file-was-compiled-first-the-recordclass-type-inference-fixpoint-globally-erased-sibling-expression-types-making-lowering-emit-checkcast-rotulo-instead-of-dominiorotulo-github-628--fixed-2609)
+=======
+## §512 — dispatch de elemento do `json.encode` colapsava slots crus Double/Long para `encode_int` no x86 (lixo determinístico) e o `List<Bool>` do JVM castava `Boolean`→`Integer` (ClassCastException) — ✅ FIXED (26/09, mesmo commit)
+
+**Sintoma (medido, 26/09 — cutucado pelo motor Python da X2):** no NATIVE,
+`json.encode(listOf(1.5, 2.25))` emitia `[<lixo-int>,...]` (bits IEEE crus de 1.5
+despejados em `kof_json_encode_int` — o motor observava `add(0)`-like);
+`json.encode(listOf(7L))` truncava pelo mesmo caminho; `Map<String,Double>`
+compartilhava o bug (mesma tabela de tags, walker caindo em `encode_int`). No JVM,
+`json.encode(listOf(true))` estourava `ClassCastException: Boolean cannot be cast
+to Integer` no `KofRuntime.kof_json_encode_list` gerado — o ramo tag-2 assumia o
+slot bruto 0/1 do x86 enquanto o JVM guarda `Boolean` boxed. Nenhum teste anterior
+havia codificado uma LISTA de Bool/Double/Long em alvo algum (só int/string — por
+isso o buraco sobreviveu).
+
+**Causa raiz:** `JsonDispatch.listTag` mapeava tudo não-string/não-bool para tag 0
+(= int) — Double/Long nunca receberam tag; os loops x86 (el_loop de
+`kof_json_encode_list` + dispatch de valor de `kof_json_encode_map`) só tinham
+ramos 1/2/7. E o cast tag-2 do JVM precedia qualquer chamador de lista Boolean.
+
+**Correção (raiz, não máscara):** `listTag` ganhou `double→3`, `long→5`; o loop de
+lista x86 despacha tag 3 como `movq %rdi,%xmm0; call kof_json_encode_double` e 5
+como `call kof_json_encode_long`; o walker de map x86 ganhou o ramo tag-3 (long de
+map já ia pela caixa 7); o tag-2 do JVM lê `((Boolean) e)` (espelhando o próprio
+`encodeByTag`). Listas/maps de `Float` seguem tag-0 quebrados — catalogado, não
+escondido: ver §513.
+
+**Prova (falharia no código antigo):** `JsonNativeEncodeFpE2ETest` 1/1 — oráculo
+`[1.5,2.25] / [7,8] / {"x":1.5} / [1,2] / ["a","b"] / [true]` medido no JVM, com
+JVM≡x86 assertado; mais `InteropPyE2ETest` 5/5 cujo motor round-tripa
+`List<Double>` ponta a ponta. Baterias JSON completas re-rodadas verdes.
+
+<!-- pt-switch --> **EN:** [§512 (EN)](known-bugs.md#512--jsonencode-element-dispatch-collapsed-raw-doublelong-slots-to-encode_int-on-x86-deterministic-garbage-and-jvm-listbool-cast-booleaninteger-classcastexception---fixed-2609-same-commit)
+
+## §513 — cross riscv64/aarch64 nunca recebeu os encoders JSON FP/long de elemento (`kof_json_encode_double` ausente do asm riscv; o loop traduzido cai em `encode_int` para as novas tags 3/5) — 🟡 OPEN (dona = lane native)
+
+**Medido (26/09, estático):** `grep .globl kof_json_encode_double` em
+`nat/NativeRiscv*.java`/`nat/*Aarch*` não retorna nada — o
+`json.encode(<Double>)` escalar no cross baixa para chamada a símbolo inexistente
+(falha de link), e após a tabela do §512 as tags 3/5 de `List<Double>`/`List<Long>`
+chegam ao `kof_json_enc_elem` riscv (dispatch 1/2/else-int) e caem em
+`encode_int` — mesma classe de lixo do §512 no x86. `Float` (mantido tag-0 pela
+decisão do §512) está quebrado em TODO native para listas/maps até existir
+convenção de slot cru de 4B.
+
+**Honestidade provisória (este commit):** o motor Python da X2 (que marshalla
+Double) lista `{JVM, NATIVE, JS, SCRIPT}` em `CompilerInterop.PY_ENGINE_TARGETS`
+(SCRIPT roda o motor real por paridade de construção — medido 26/09); riscv64/aarch64/ANDROID/MCU recebem o host de recusa (`INTEROP005`, nomeado,
+R6). O motor entra no cross quando os encoders pousarem aqui.
+
+**Escopo da lane native:** portar `encode_double`/`encode_long` ao asm riscv
+(`fa0` via `fmv.d.x`), ensinar tags 3/4/5 ao `kof_json_enc_elem` + walker de map
+riscv, definir a convenção do slot cru de `Float` (4B num slot de 8B), estender
+`JsonNativeEncodeFpE2ETest` com harness estilo `ProcessSpawnCrossE2ETest` para
+riscv64/aarch64 e virar `PY_ENGINE_TARGETS`.
+
+<!-- pt-switch --> **EN:** [§513 (EN)](known-bugs.md#513--cross-riscv64aarch64-never-received-the-json-fplong-element-encoders-kof_json_encode_double-absent-from-the-riscv-asm-the-translated-loop-falls-to-encode_int-for-the-new-tags-35---open-owner--lane-native)
+>>>>>>> Stashed changes

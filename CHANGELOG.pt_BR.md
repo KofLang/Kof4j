@@ -10,6 +10,7 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `scripts/changelog.sh` e inserida pela pipeline neste marcador:
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
+<<<<<<< Updated upstream
   - **Correção — #628 (26/09): records de pacote dentro de `List<T>` deixam de
     depender da ordem das fontes** — um `record` local ao pacote, devolvido por
     uma função top-level, era perdido se o consumidor fosse analisado primeiro.
@@ -19,6 +20,30 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
     em Script/JVM/Native (JS pula honestamente sem `node`) e o CLI original de
     #628 volta a imprimir `indexado: UF`, `cnpj`, `uf`. Catálogo:
     `known-bugs.pt_BR.md` §512.
+=======
+  - **Feature — X2 fatia 1 (D-COMPLETE-FIRST item 2, 26/09): o motor Python `KofPy` no `kof.interop` — um host escrito em Kof, não uma face de compilador** —
+    `import kof.interop` agora injeta um motor real sobre a plataforma que ele precisa:
+    `var py = KofPy(source)` + `py.callInt/callDouble/callBool/callString(fn, listOf(args))`
+    rodam `python3 -u -c <source+prelude> <spec>` via `process.spawn` (F10) com RPC de
+    2 linhas (status + payload) decodado pelo TIPO da face (`json.decode<T>`).
+    KOF-first (regra 10): o motor de marshalling é código `.kf` (`interop-py-host.kf`),
+    o mesmo padrão do host do workflow — zero face nova de compilador além da injeção
+    com gate de alvo em `CompilerInterop`. Sessão = a fonte (replay sem estado, o
+    contrato honesto até existir um tipo de handle nomeado — regra 6); interpretar um
+    interpretador vivo é impossível no handle atual (medido: `python -` num pipe não
+    executa nada antes do EOF do stdin). Erros nomeados: `INTEROP004` (interpretador
+    ausente/morto — nunca linha vazia), `INTEROP006` (falha remota com traceback),
+    `INTEROP005` (recusa de alvo — riscv64/aarch64 até o §513 pousar, ANDROID/MCU/RISCV32
+    sem face provada). O SCRIPT roda o motor REAL por paridade de construção (surpresa
+    medida — o interpretador reflete `kof_process_spawn` no MESMO `KofRuntime` gerado).
+    No caminho, o arg `List<Double>` do motor expôs o §512 (o `json.encode` colapsava
+    slots crus Double/Long em `encode_int` no x86, e o `List<Bool>` do JVM castava
+    `Boolean`→`Integer`) — corrigido na raiz no mesmo commit com regressão oráculo-JVM +
+    JVM≡x86. Prova: `InteropPyE2ETest` 5/5 (golden medido; JVM≡x86≡JS byte-idêntico;
+    arestas 004/006; recusa de shape no Android), `InteropPyScriptE2ETest` 1/1
+    (interpretado ≡ compilado), `JsonNativeEncodeFpE2ETest` 1/1. Linhas de matriz EN+PT;
+    §512 CORRIGIDO / §513 ABERTO ([§512](docs/bugs-and-gaps/known-bugs.pt_BR.md#512--dispatch-de-elemento-do-jsonencode-colapsava-slots-crus-doublelong-para-encode_int-no-x86-lixo-deterministico-e-o-listbool-do-jvm-castava-booleaninteger-classcastexception---fixed-2609-mesmo-commit)).
+>>>>>>> Stashed changes
   - **Feature — item 4 do D-COMPLETE-FIRST: a liberacao deterministica do
     kof.ui vira contrato de ciclo de vida com travas de leak** (26/09): um
     `Store` criado DURANTE o ciclo de vida de um componente (render da view /

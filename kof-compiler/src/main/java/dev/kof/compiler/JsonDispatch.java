@@ -11,6 +11,12 @@ public final class JsonDispatch {
     static int listTag(Type elemType) {
         if (BuiltinTypes.isString(elemType)) return 1;
         if (elemType instanceof Type.PrimitiveType pt && "bool".equals(pt.name())) return 2;
+        // §512 (26/09): Double/Long crus no slot eram colapsados no tag 0 e o
+        // encoder x86 despejava `encode_int` sobre os bits IEEE (List<Double>
+        // virava lixo). float continua cru no slot de 4B — ainda tag 0
+        // (dívida catalogada no mesmo §512).
+        if (elemType instanceof Type.PrimitiveType pt && "double".equals(pt.name())) return 3;
+        if (elemType instanceof Type.PrimitiveType pt && "long".equals(pt.name())) return 5;
         return 0;
     }
 

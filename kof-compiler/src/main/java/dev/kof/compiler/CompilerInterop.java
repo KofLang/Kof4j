@@ -27,6 +27,15 @@ final class CompilerInterop {
 
     static final String HOST_IMPORT = "kof.interop";
     static final String FIELD = "Field";
+    // §513 (OPEN, lane native): riscv64/aarch64 não têm kof_json_encode_double
+    // (JSN001 fechou só x86 — medido 26/09), então o motor py — que marshalla
+    // Double — é recusado neles até lá pelo mesmo host INTEROP005. SCRIPT entra
+    // por paridade de construção: o interpretador resolve `kof_*` por reflexão
+    // no MESMO `KofRuntime` gerado — `KofPy` roda de verdade lá (medido 26/09:
+    // `InteropPyScriptE2ETest`). ANDROID/MCU/RISCV32 ficam na recusa até terem
+    // a face de processo executada e provada (R7, honestidade por alvo).
+    static final java.util.Set<Target> PY_ENGINE_TARGETS = java.util.EnumSet.of(
+            Target.JVM, Target.NATIVE, Target.JS, Target.SCRIPT);
 
     private CompilerInterop() {}
 
@@ -185,6 +194,31 @@ final class CompilerInterop {
                 pos != null ? pos.line() : 0, pos != null ? pos.column() : 0, 0, message, code);
     }
 
+    private static CompilationUnitNode parseHostResource(String resource,
+                                                         DiagnosticCollector diagnostics) {
+        try (var in = CompilerDriver.class.getResourceAsStream(resource)) {
+            if (in == null) {
+                diagnostics.error("", 0, 0, 0, "interop host resource " + resource + " missing", "PKG003");
+                return null;
+            }
+            String hostSource = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            String file = resource.substring(resource.lastIndexOf('/') + 1);
+            DiagnosticCollector silent = new DiagnosticCollector();
+            Lexer lexer = new Lexer(hostSource, file, silent);
+            Parser parser = new Parser(lexer.tokenize(), silent, file);
+            CompilationUnitNode hostUnit = parser.parse();
+            if (silent.hasErrors() || hostUnit == null) {
+                for (Diagnostic d : silent.getDiagnostics()) diagnostics.report(d);
+                diagnostics.error("", 0, 0, 0, "interop host did not parse: " + file, "PKG003");
+                return null;
+            }
+            return hostUnit;
+        } catch (IOException e) {
+            diagnostics.error("", 0, 0, 0, "interop host could not be loaded: " + e.getMessage(), "PKG003");
+            return null;
+        }
+    }
+
     static CompilationUnitNode injectHostIfNeeded(CompilerDriver driver,
                                                   CompilationUnitNode unit,
                                                   DiagnosticCollector diagnostics) {
@@ -199,22 +233,8 @@ final class CompilerInterop {
         boolean collision = unit.declarations().stream()
                 .anyMatch(d -> d instanceof TypeDeclarationNode t && FIELD.equals(t.name()));
         if (collision) return unit;
-        try (var in = CompilerDriver.class.getResourceAsStream("/dev/kof/interop-host.kf")) {
-            if (in == null) {
-                diagnostics.error("", 0, 0, 0,
-                        "interop host resource /dev/kof/interop-host.kf missing", "PKG003");
-                return null;
-            }
-            String hostSource = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
-            DiagnosticCollector silent = new DiagnosticCollector();
-            Lexer lexer = new Lexer(hostSource, "interop-host.kf", silent);
-            Parser parser = new Parser(lexer.tokenize(), silent, "interop-host.kf");
-            CompilationUnitNode hostUnit = parser.parse();
-            if (silent.hasErrors() || hostUnit == null) {
-                for (Diagnostic d : silent.getDiagnostics()) diagnostics.report(d);
-                diagnostics.error("", 0, 0, 0, "interop host did not parse", "PKG003");
-                return null;
-            }
+        CompilationUnitNode hostUnit = parseHostResource("/dev/kof/interop-host.kf", diagnostics);
+        if (hostUnit == null) return null;
             List<String> imports = new ArrayList<>();
             for (String imp : unit.imports()) {
                 String base = imp.endsWith(".*") ? imp.substring(0, imp.length() - 2) : imp;
@@ -226,11 +246,20 @@ final class CompilerInterop {
                 driver.declarationPackages.put(d, "");
                 decls.add(d);
             }
+            // Motor Python (X2, D-COMPLETE-FIRST item 2): host real nos alvos onde
+            // `process.spawn` é MEDIDO (F10); nos demais o host de recusa define a
+            // mesma classe e o construtor falha com o código nomeado INTEROP005
+            // (R6 — nunca silêncio). O schema (`interop-host.kf` acima) é
+            // compile-time e segue em todos os alvos.
+            String engineRes = PY_ENGINE_TARGETS.contains(driver.target)
+                    ? "/dev/kof/interop-py-host.kf" : "/dev/kof/interop-py-refusal.kf";
+            CompilationUnitNode engineUnit = parseHostResource(engineRes, diagnostics);
+            if (engineUnit != null) {
+                for (AstNode d : engineUnit.declarations()) {
+                    driver.declarationPackages.put(d, "");
+                    decls.add(d);
+                }
+            }
             return new CompilationUnitNode(unit.position(), unit.packageName(), imports, decls);
-        } catch (IOException e) {
-            diagnostics.error("", 0, 0, 0,
-                    "interop host could not be loaded: " + e.getMessage(), "PKG003");
-            return null;
-        }
     }
 }

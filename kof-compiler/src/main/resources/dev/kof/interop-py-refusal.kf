@@ -1,0 +1,30 @@
+// Alvos SEM o runtime de processo do motor (X2, plano
+// docs/development/interop-engine-plan.md): o `KofPy` real não é injetado
+// aqui — a mesma classe é definida com o MESMO shape público para o
+// programa compilar, e toda entrada (construtor e chamadas) falha com o
+// código NOMEADO INTEROP005 (R6 — nunca silêncio nem método desconhecido).
+// `import kof.interop` continua funcionando para o que o alvo suporta
+// (ex.: `interop.schema`, dobra em compile-time, e o `Field` do host).
+class KofPy {
+    String source
+
+    public constructor(String source) {
+        throw "INTEROP005: the kof.interop engine needs a process runtime (process.spawn); not available on this target"
+    }
+
+    Int callInt(String funcName, List<Int> args) {
+        throw "INTEROP005: the kof.interop engine needs a process runtime (process.spawn); not available on this target"
+    }
+
+    Double callDouble(String funcName, List<Double> args) {
+        throw "INTEROP005: the kof.interop engine needs a process runtime (process.spawn); not available on this target"
+    }
+
+    Bool callBool(String funcName, List<Bool> args) {
+        throw "INTEROP005: the kof.interop engine needs a process runtime (process.spawn); not available on this target"
+    }
+
+    String callString(String funcName, List<String> args) {
+        throw "INTEROP005: the kof.interop engine needs a process runtime (process.spawn); not available on this target"
+    }
+}

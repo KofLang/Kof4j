@@ -87,7 +87,9 @@ public final class JvmRuntimeJson {
                         Object e = list.get(i);
                         switch (tag) {
                             case 1 -> sb.append(kof_json_encode_string((String) e));
-                            case 2 -> sb.append(kof_json_encode_bool(((Integer) e).intValue()));
+                            // §512 (26/09): o slot JVM de List<Bool> guarda BOOLEAN
+                            // (não Integer) — o cast antigo estourava CCE; x86 lê 0/1 cru.
+                            case 2 -> sb.append(kof_json_encode_bool(((Boolean) e).booleanValue() ? 1 : 0));
                             default -> sb.append(kof_json_encode(e));
                         }
                     }
