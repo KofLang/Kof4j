@@ -86,6 +86,38 @@ comportamento. A fila de representacao esta EXAUSTA.
 > targets, landed as one complete package (pass + emission + per-target proof;
 > no lone diagnostic, no stub, no gap accepted). **Fase 3 UNLOCKED.**
 
+## Fase 3 — design (UNLOCKED 26/09 by `D-COMPLETE-FIRST`; package = pass + emission + per-target proof)
+
+The emission surface is what EXISTS in the user surface (measured 26/09,
+not assumed):
+
+- **MEM005 (FFI ownership) — ALREADY SATISFIED at the boundary**: Native
+  rejects record/array/out-buffer externs with `FFI001` AT THE DECL LINE
+  (`interop.md`, measured); JVM/JS copy-back works; String returns are
+  boundary-copied everywhere. Fatia 3.3 documents this as O-05's compile
+  face — NO duplicate diagnostic will be invented for a path already honest
+  (rule 11).
+- **MEM001/MEM002 (ownership/dangling at release) — fatia 3.1**: the only
+  real release in the surface is `.close()` (`web` close measured at
+  `KofWeb.java:54`; db/catalog close). Analysis pass `MemoryReleaseAnalysis`
+  in `dev.kof.compiler.memory`: after `x.close()` in a straight-line/branch
+  aware walk, ANY further use of `x` = MEM001 (owner already released) with
+  source position; the pass is FRONT-LEVEL so all 4 targets emit the same
+  diagnostic by construction (parity proof = one E2E per target compiling
+  the SAME sources). Valid programs stay byte-green (they never use a closed
+  handle); the never-closed case is a WARNING (MEM014) — servers legitimately
+  run to end-of-process — never an error.
+- **MEM021 (spawn mutable aliasing) — fatia 3.2**: `spawn` capturing a
+  MUTABLE object that the parent also mutates after the spawn (and vice
+  versa), with no `await`/`join_all` between, is the spec's forbidden face
+  B-04/C-03; computable on the same pass; ERROR on the clear race pattern,
+  silent elsewhere — zero false positives required for landing.
+
+Package DoD: pass + wiring + `MemorySafetyE2ETest` per target (JVM/Script/
+JS/Native same sources, same diagnostics) + corpus note in
+`training/idioms/concurrency.md`+`interop.md` when emission lands; each
+fatia lands complete or does not land (`D-COMPLETE-FIRST`).
+
 ## Definition of done (whole front)
 
 The 12 questions of §27 answered in the spec, the impossible-bug-classes list

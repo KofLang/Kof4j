@@ -87,6 +87,38 @@ comportamento. A fila de representação está EXAUSTA.
 > pacote completo (passe + emissão + prova por alvo; sem diagnóstico solto,
 > sem stub, sem aceitar gap). **Fase 3 DESTRAVADA.**
 
+## Fase 3 — design (DESTRAVADA 26/09 por `D-COMPLETE-FIRST`; pacote = passe + emissão + prova por alvo)
+
+A superfície de emissão é o que EXISTE na superfície do usuário (medido
+26/09, não assumido):
+
+- **MEM005 (ownership FFI) — JÁ SATISFEITA na fronteira**: o Native recusa
+  externs record/array/out-buffer com `FFI001` NA LINHA DA DECLARAÇÃO
+  (`interop.md`, medido); JVM/JS fazem copy-back; retornos String são
+  copiados na fronteira em todo alvo. A fatia 3.3 documenta isso como a face
+  compile de O-05 — NENHUM diagnóstico duplicado será inventado para um
+  caminho já honesto (regra 11).
+- **MEM001/MEM002 (ownership/dangling no release) — fatia 3.1**: o único
+  release real na superfície é `.close()` (close de `web` medido em
+  `KofWeb.java:54`; db/catálogo). Passe `MemoryReleaseAnalysis` em
+  `dev.kof.compiler.memory`: após `x.close()` num caminho sensível a
+  ramificação, QUALQUER uso posterior de `x` = MEM001 (dono já liberou) com
+  posição; o passe é NA FRENTE do compilador, logo os 4 alvos emitem o MESMO
+  diagnóstico por construção (prova de paridade = um E2E por alvo
+  compilando as MESMAS fontes). Programas válidos ficam byte-verdes (nunca
+  usam handle fechado); o caso nunca-fechado é WARNING (MEM014) — servidores
+  legitimamente rodam até o fim do processo — nunca erro.
+- **MEM021 (aliasing mutável em spawn) — fatia 3.2**: `spawn` capturando
+  objeto MUTÁVEL que o pai também muta depois do spawn (e vice-versa), sem
+  `await`/`join_all` entre os dois, é a face proibida B-04/C-03 da spec;
+  computável no mesmo passe; ERRO no padrão claro de corrida, silêncio fora
+  dele — zero falso-positivo é pré-requisito de pouso.
+
+DoD do pacote: passe + wiring + `MemorySafetyE2ETest` por alvo (JVM/Script/
+JS/Native com as mesmas fontes e os mesmos diagnósticos) + nota de corpus em
+`training/idioms/concurrency.md`+`interop.md` quando a emissão pousar; cada
+fatia pousa completa ou não pousa (`D-COMPLETE-FIRST`).
+
 ## Definition of done (a frente inteira)
 
 As 12 perguntas do §27 respondidas na spec, a lista de classes de bugs
