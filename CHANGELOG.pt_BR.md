@@ -10,6 +10,34 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `scripts/changelog.sh` e inserida pela pipeline neste marcador:
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
+  - **Correcao — #627 (26/09): `json.decode<Record>` funciona para records
+    declarados dentro de um `package`** — o call-site mangava o nome SIMPLES
+    da classe enquanto o `KofRuntime` gerado define o decoder por record sob
+    o nome COMPLETO (`NoSuchMethodError: kof_json_decode_Ponto` no JVM run
+    para `dominio.Ponto`). O chamador agora monta `package.name` antes de
+    sanitizar (pacote default inalterado); o laco da definicao deduplica o
+    nome mangado (a compilacao multi-arquivo trazia a classe empacotada
+    duas vezes — `already defined` no helper gerado); o casamento de nome do
+    decoder no interpretador passa pelo sufixo FQ primeiro. JS medido
+    inalterado (os dois lados compartilham `jsClassName(internalName)`).
+    Prova: `JsonDecodePackagedRecordE2ETest` 2/2 (VERMELHO pre-fix no JVM e
+    no Script; verbatim da issue + controle default-package) + cluster
+    matrix/json/packages/js/script/core 185/185. Catalogo:
+    `known-bugs.md` §515 (+PT).
+  - **Correcao — #627 (26/09): `json.decode<Record>` funciona para records
+    declarados dentro de um `package`** — o call-site mangava o nome SIMPLES
+    da classe enquanto o `KofRuntime` gerado define o decoder por record sob
+    o nome COMPLETO (`NoSuchMethodError: kof_json_decode_Ponto` no JVM run
+    para `dominio.Ponto`). O chamador agora monta `package.name` antes de
+    sanitizar (pacote default inalterado); o laco da definicao deduplica o
+    nome mangado (a compilacao multi-arquivo trazia a classe empacotada
+    duas vezes — `already defined` no helper gerado); o casamento de nome do
+    decoder no interpretador passa pelo sufixo FQ primeiro. JS medido
+    inalterado (os dois lados compartilham `jsClassName(internalName)`).
+    Prova: `JsonDecodePackagedRecordE2ETest` 2/2 (VERMELHO pre-fix no JVM e
+    no Script; verbatim da issue + controle default-package) + cluster
+    matrix/json/packages/js/script/core 185/185. Catalogo:
+    `known-bugs.md` §515 (+PT).
   - **Correção — #628 (26/09): records de pacote dentro de `List<T>` deixam de
     depender da ordem das fontes** — um `record` local ao pacote, devolvido por
     uma função top-level, era perdido se o consumidor fosse analisado primeiro.

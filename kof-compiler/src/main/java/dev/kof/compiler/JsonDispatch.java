@@ -72,7 +72,15 @@ public final class JsonDispatch {
             }
             return "kof_json_decode_list";
         }
-        if (type instanceof Type.ClassType ct) return "kof_json_decode_" + sanitize(ct.name());
+        if (type instanceof Type.ClassType ct) {
+            // #627: the runtime defines the per-record decoder under the
+            // mangled FULLY-QUALIFIED name (JvmRuntime.source); using the
+            // simple name worked only for default-package records and died
+            // with NoSuchMethodError for packaged ones.
+            String qn = ct.packageName().isEmpty()
+                    ? ct.name() : ct.packageName() + "." + ct.name();
+            return "kof_json_decode_" + sanitize(qn);
+        }
         return "kof_json_decode_string";
     }
 

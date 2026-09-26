@@ -15457,3 +15457,42 @@ define the raw-slot convention for `Float` (4B in an 8B slot), extend
 riscv64/aarch64, and flip `PY_ENGINE_TARGETS`.
 
 <!-- pt-switch --> **PT:** [§514 (pt_BR)](known-bugs.pt_BR.md#514--cross-riscv64aarch64-nunca-recebeu-os-encoders-json-fplong-de-elemento-kof_json_encode_double-ausente-do-asm-riscv-o-loop-traduzido-cai-em-encode_int-para-as-novas-tags-35---open-dona--lane-native)
+
+## §515 — `json.decode<Record>` on a PACKAGED record died at runtime with `NoSuchMethodError kof_json_decode_<SimpleName>` (the runtime defines the decoder under the mangled fully-qualified name) — ✅ FIXED 26/09 (parity/media lane, #627)
+
+**Symptom (measured — #627, external report):** `record Ponto` inside
+`package dominio` + `json.decode<dominio.Ponto>(...)` compiled clean and
+died at JVM run with `NoSuchMethodError: KofRuntime.kof_json_decode_Ponto`.
+The same program with the record in the default package worked — so the
+conformance row `jsondec-record` (default package only) never exercised it.
+
+**Root cause (three faces, same family):**
+1. Caller — `JsonDispatch.decodeFunction` mangled `ct.name()` (SIMPLE name)
+   while `JvmRuntime.source` defines the per-record decoder from the
+   IRClass internal name (FULLY-QUALIFIED, dots→underscores). The List/Map
+   faces already passed the FQN class-name string; the scalar face didn't.
+2. Definition — `JvmRuntime.source` had no dedupe: multi-file compilation
+   can surface the same packaged class twice (slash/dot spellings mangle
+   identically) → javac `method kof_json_decode_dominio_Ponto is already
+   defined` on the generated helper (reproduced in this repo's harness).
+3. Interpreter — `KofInterpreterRuntime.kofClassByDecodeName` matched only
+   the simple name, so the Script target died with `dominio.Ponto` on stderr.
+
+**Fix (root, additive):** caller builds `packageName + "." + name` before
+sanitizing (default package unchanged — backward compatible); definition
+loop dedupes by mangled name (first-wins, identical `Class.forName` target);
+interpreter matches the FQ-sanitized suffix first, simple name kept as
+fallback. JS was measured unaffected (emitter and helper share
+`jsClassName(internalName)` on BOTH sides); Native routes scalar records
+through JSN002 with the FQ name already.
+
+**Proof:** `JsonDecodePackagedRecordE2ETest` **2/2** (RED on the pre-fix
+tip: NoSuchMethodError on JVM, `dominio.Ponto` on Script; GREEN after —
+issue verbatim + default-package control + round-trip through
+`json.encode`). Neighbors: `ConformanceMatrixTest` 14/14 (all 4 targets per
+jsondec row), `JsonCompleteE2ETest` 10/10, `PackagesE2ETest` 12/12,
+`ScriptTargetTest` 7/7, `KofJsE2ETest` 40/40, `CoreRegressionE2ETest`
+102/102. Lesson (Q3): a conformance row must exercise the FEATURE across
+its organizing axis (here: package), not one lucky instance.
+
+<!-- pt-switch --> **PT:** [§515 (pt_BR)](#515--jsondecoderecord-de-record-em-pacote-morria-em-runtime-com-nosuchmethoderror-kof_json_decode_nomesimples-o-runtime-define-o-decoder-pelo-nome-completo-mangado---fixed-2609-lane-paridademedia-627)

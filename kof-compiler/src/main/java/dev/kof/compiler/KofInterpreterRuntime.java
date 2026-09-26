@@ -186,7 +186,11 @@ public final class KofInterpreterRuntime {
     private IRClass kofClassByDecodeName(String name) {
         String suffix = name.substring("kof_json_decode_".length());
         for (IRClass c : interp.module().classes()) {
-            if (JsonDispatch.sanitize(KofInterpreterValues.simpleOf(c.name())).equals(suffix)) return c;
+            // #627: the call-site now sends the mangled FULLY-QUALIFIED name
+            // (same as the generated KofRuntime); the simple-name match stays
+            // for backward compatibility with default-package classes.
+            if (JsonDispatch.sanitize(c.name().replace('/', '.')).equals(suffix)
+                    || JsonDispatch.sanitize(KofInterpreterValues.simpleOf(c.name())).equals(suffix)) return c;
         }
         return null;
     }

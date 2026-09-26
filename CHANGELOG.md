@@ -10,6 +10,19 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `scripts/changelog.sh` and inserted by the pipeline at this marker:
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
+  - **Fix — #627 (26/09): `json.decode<Record>` works for records declared
+    inside a `package`** — the call-site mangled the SIMPLE class name while
+    the generated `KofRuntime` defines the per-record decoder under the
+    FULLY-QUALIFIED name (`NoSuchMethodError: kof_json_decode_Ponto` at JVM
+    run for `dominio.Ponto`). Caller now builds `package.name` before
+    sanitizing (default package unchanged); the definition loop dedupes the
+    mangled name (multi-file compilation surfaced the packaged class twice —
+    `already defined` in the generated helper); the interpreter's
+    decode-name matcher takes the FQ suffix first. JS measured unaffected
+    (both sides share `jsClassName(internalName)`). Proof:
+    `JsonDecodePackagedRecordE2ETest` 2/2 (RED pre-fix on JVM and Script;
+    issue verbatim + default-package control) + matrix/json/packages/js/
+    script/core cluster 185/185. Catalog: `known-bugs.md` §515 (+PT).
   - **Fix — #628 (26/09): package records inside `List<T>` no longer depend on
     source order** — a package-local `record` returned through a top-level
     `List<Rotulo>` emitted `checkcast Rotulo` and aborted at JVM load with

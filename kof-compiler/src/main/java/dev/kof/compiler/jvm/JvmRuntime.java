@@ -132,12 +132,18 @@ public static boolean hasRuntimeFn(String methodName) {
 
     private static String source(List<IRClass> classes, boolean usesVk, boolean usesExtern, Target target) {
         StringBuilder decoders = new StringBuilder();
+        java.util.Set<String> emitted = new java.util.HashSet<>();
         for (IRClass clazz : classes) {
             String internal = clazz.name();
             if (internal == null || internal.isBlank() || internal.equals("java/lang/Object")) continue;
             if ("Main".equals(internal) || internal.endsWith("/Main")) continue;
             String javaName = internal.replace('/', '.');
             String mangle = javaName.replace('.', '_');
+            // #627: multi-file compilation can surface the same packaged
+            // class twice under slash/dot spellings of its internal name —
+            // both mangle identically, so a second copy was a javac
+            // "already defined" compile error of the generated KofRuntime.
+            if (!emitted.add(mangle)) continue;
             decoders.append("""
                         public static Object kof_json_decode_%s(String json) throws Exception {
                             return kof_json_decode_object(json, Class.forName("%s"));

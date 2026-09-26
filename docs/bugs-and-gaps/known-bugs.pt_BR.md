@@ -12976,3 +12976,42 @@ riscv, definir a convenção do slot cru de `Float` (4B num slot de 8B), estende
 riscv64/aarch64 e virar `PY_ENGINE_TARGETS`.
 
 <!-- pt-switch --> **EN:** [§514 (EN)](known-bugs.md#514--cross-riscv64aarch64-never-received-the-json-fplong-element-encoders-kof_json_encode_double-absent-from-the-riscv-asm-the-translated-loop-falls-to-encode_int-for-the-new-tags-35---open-owner--lane-native)
+
+## §515 — `json.decode<Record>` de record EM PACOTE morria em runtime com `NoSuchMethodError kof_json_decode_<NomeSimples>` (o runtime define o decoder pelo nome completo mangado) — ✅ FIXED 26/09 (lane paridade/media, #627)
+
+**Sintoma (medido — #627, relato externo):** `record Ponto` dentro de
+`package dominio` + `json.decode<dominio.Ponto>(...)` compilava limpo e
+morria no JVM com `NoSuchMethodError: KofRuntime.kof_json_decode_Ponto`.
+O mesmo programa com o record no pacote default funcionava — a linha
+`jsondec-record` da matriz (so pacote default) nunca exerceu o caso.
+
+**Causa raiz (tres faces, mesma familia):**
+1. Chamador — `JsonDispatch.decodeFunction` mangava `ct.name()` (nome
+   SIMPLES) enquanto `JvmRuntime.source` define o decoder por record a
+   partir do nome interno do IRClass (COMPLETO, pontos→underscores). As
+   faces List/Map ja passavam a string FQN; a face escalar nao.
+2. Definicao — o laco de `JvmRuntime.source` nao deduplicava: a compilacao
+   multi-arquivo pode trazer a mesma classe empacotada duas vezes (soletras
+   barra/ponto mangam igual) → `method kof_json_decode_dominio_Ponto is
+   already defined` no helper gerado (reproduzido no harness do repo).
+3. Interpretador — `KofInterpreterRuntime.kofClassByDecodeName` casava so o
+   nome simples; o alvo Script morria com `dominio.Ponto` no stderr.
+
+**Correcao (raiz, aditiva):** o chamador monta
+`packageName + "." + name` antes de sanitizar (pacote default inalterado —
+retrocompativel); o laco da definicao deduplica pelo nome mangado
+(first-wins, MESMO alvo `Class.forName`); o interpretador casa o sufixo
+FQ-sanitizado primeiro e mantem o nome simples como fallback. JS medido
+inalterado (emissor e helper compartilham `jsClassName(internalName)` dos
+DOIS lados); Native ja roteava records escalares via JSN002 com o FQ.
+
+**Prova:** `JsonDecodePackagedRecordE2ETest` **2/2** (VERMELHO no tip
+pre-fix: NoSuchMethodError no JVM, `dominio.Ponto` no Script; VERDE apos o
+fix — verbatim da issue + controle default-package + round-trip pelo
+`json.encode`). Vizinhos: `ConformanceMatrixTest` 14/14 (4 alvos por
+linha), `JsonCompleteE2ETest` 10/10, `PackagesE2ETest` 12/12,
+`ScriptTargetTest` 7/7, `KofJsE2ETest` 40/40, `CoreRegressionE2ETest`
+102/102. Licao (Q3): linha de conformidade exercita o RECURSO no eixo de
+organizacao dele (aqui: pacote), nao uma instancia sortuda.
+
+<!-- pt-switch --> **EN:** [§515 (EN)](#515--jsondecoderecord-on-a-packaged-record-died-at-runtime-with-nosuchmethoderror-kof_json_decode_simplename-the-runtime-defines-the-decoder-under-the-mangled-fully-qualified-name---fixed-2609-paritymedia-lane-627)
