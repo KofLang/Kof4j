@@ -3654,6 +3654,28 @@ ligado no `scripts/check_release_050_gate.sh` (`full_parity`).
 
 - **Relacionamentos:** `Relaciona: D-FULL-PARITY-050, D-UNIVERSAL, D-RELEASE-0.5.0-SCOPE, D-DECOMPILER, D-BOOTSTRAP, D-DB-GAPS, D-GRAFICOS-GAMING, D-MAKEALIVE, D-MAKEALIVE-CLI, D-KOF-AS-CLOUD, D-KOF-FIRST, D-RELEASE-0.5.0-GATE, D-BRANCH-0.5.0, D-BAREMETAL-BOOT, D-BAREMETAL-BODIES, D-BAREMETAL-MCU-GC, D-GRAFICOS-GAMING, D-UNIVERSAL, D-DB-GAPS, rule 6, rule 11, R6, R7, D-MEMORY-SAFETY`.
 
+### Atualização 26/09 — Fase 1 CLOSED, Fase 2 DESTRAVADA (mantenedora, chat)
+
+**Fase 1 FECHADA 25/09** (opção A — spec aceita; espelhos pousados em
+`3afe82601`/`0670f2312`). Em 25/09 a mantenedora escolheu a opção `J` (a
+fila espera a fila atual); em 26/09 ela destravou — palavras dela:
+**"fase 2 destravada"**. **Fase 2 (infraestrutura de compilador) = EM
+DESENVOLVIMENTO**, dona = lane paridade (claim desta lane no `DOING.md`
+EN+PT, mesmo commit). Escopo travado: representações internas do compilador
+no pacote `dev.kof.compiler.memory` — ownership/lifetime/borrowing/
+aliasing/mutability/escape/resource-state + o enum de códigos de diagnóstico
+`MEMxxx` dos §1–§10 da spec — SOMENTE estruturas e testes; **zero mudança de
+comportamento (suite byte-green)**; emissão/encaminhamento dos diagnósticos é
+da Fase 3. As proibições do brief continuam valendo (nada de copiar o
+borrow-checker, nenhuma sintaxe nova, nenhuma reescrita do null-safety).
+
+**Evidência:** mensagem da mantenedora 26/09/2026 (chat, sessão autônoma);
+viradas do plano+spec EN+PT no mesmo commit.
+
+**Ver também:** chamada (4) de `D-DECISION-BATCH-2609` — a mesma decisao da
+mantenedora registrada em lote pela lane do watcher; este bloco trava o
+escopo da implementacao, nao e uma segunda decisao.
+
 
 ## D-DECISION-BATCH-2609 — lote de quatro decisões da mantenedora: §493 Native lança como a JVM; merge do #619 SEGURA; merge do #624 SAI; Fase 2 memory-safety DESTRABA (mantenedora 26/09/2026)
 

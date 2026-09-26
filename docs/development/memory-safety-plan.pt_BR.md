@@ -48,7 +48,7 @@ null inesperado, data race acidental).
 |---|---|---|
 | **0 — Investigação** ✅ | `docs/spec/memory-safety-investigation.md` (EN+PT): estado atual (parser/AST/semântica/tipos/IR/resolução de símbolos/mutabilidade/closures/escopo/lifetime implícito por backend: JVM/Native/JS/infra-WASM/FFI/ponteiros/collections/async), riscos encontrados, bugs existentes relacionados (varredura do § ledger), pontos frágeis, proposta, alternativas consideradas, impacto de compatibilidade, plano incremental | doc de investigação aceito (revisão da mantenedora); as 20 perguntas do §1 respondidas com evidência file:line — **FECHADA 25/09** |
 | **1 — Especificação** | `docs/spec/memory-safety.md` (EN+PT): Ownership, Lifetime, Borrowing, Aliasing, Mutability, Move, Copy, Clone, Drop/Destruction, Escape, Closure Capture, Concurrency, FFI, Unsafe Boundaries — cada um com: permitido / proibido / requer-sync / compile-time / runtime / dependente-de-tipo | spec aceita; a matriz de segurança (§22 do brief) escrita na sintaxe REAL do Kof |
-| **2 — Infraestrutura do compilador** | representações internas de ownership/lifetime/borrow/alias/mutabilidade/escape/resource-state | estruturas compilam; NENHUMA mudança de comportamento (suíte byte-green) |
+| **2 — Infraestrutura do compilador** 🔄 | representações internas de ownership/lifetime/borrow/alias/mutability/escape/resource-state — **EM DESENVOLVIMENTO 26/09 (destravamento da mantenedora, chat: "fase 2 destravada")**; pacote `dev.kof.compiler.memory` | estruturas compilam; NENHUMA mudança de comportamento ainda (suite byte-green) |
 | **3 — Primeiras garantias** | use-after-move; referências pendentes; escapes inválidos; mutable aliasing; dupla ownership/destruição | por regra: caso válido compila, caso inválido recebe o diagnóstico NOMEADO, teste de regressão, prova por backend |
 | **4 — Closures & async** | semântica de captura de closure; callbacks; async/futures; iteradores/geradores | mesma forma de prova |
 | **5 — Native & FFI** | ponteiros/alocação/destruição/C ABI/demais conectores; a tabela de ownership Kof↔C↔Rust↔JVM↔Python | todo tipo de fronteira tem decisão de dono/quem-libera/quem-guarda + teste |
@@ -63,6 +63,14 @@ liberação no Native, representação por backend) e varrer o `known-bugs.md`
 por bugs existentes de referência/aliasing/lifetime/recurso/padrões (a classe
 do §503 GC-root já é uma entrada). Produzir o doc de investigação.
 **Nenhuma edição no compilador.**
+
+**Fase 2 DESTRAVADA 26/09 pela mantenedora (chat: "fase 2 destravada").**
+A lane agora constrói as representações internas do compilador — pacote
+`dev.kof.compiler.memory` com modelos de ownership/lifetime/borrowing/
+aliasing/mutability/escape/resource-state + o enum de códigos de diagnóstico
+`MEMxxx` da spec (§1–§10). Somente estruturas + testes; **zero mudança de
+comportamento** (suite byte-green). Emissão/encaminhamento dos diagnósticos
+é da Fase 3.
 
 ## Definition of done (a frente inteira)
 

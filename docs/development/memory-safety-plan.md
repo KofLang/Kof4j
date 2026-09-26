@@ -46,7 +46,7 @@ escape, unsafe mutable aliasing, unexpected null, accidental data race).
 |---|---|---|
 | **0 — Investigation** ✅ | `docs/spec/memory-safety-investigation.md` (EN+PT): current state (parser/AST/semantics/types/IR/symbol resolution/mutability/closures/scope/implicit lifetime per backend: JVM/Native/JS/WASM-infrastructure/FFI/pointers/collections/async), risks found, existing related bugs (§ ledger sweep), fragile points, proposal, alternatives considered, compatibility impact, incremental plan | investigation doc accepted (maintainer review); 20 questions of §1 answered with file:line evidence — **CLOSED 25/09** |
 | **1 — Specification** 🔄 | `docs/spec/memory-safety.md` (EN+PT): Ownership, Lifetime, Borrowing, Aliasing, Mutability, Move, Copy, Clone, Drop/Destruction, Escape, Closure Capture, Concurrency, FFI, Unsafe Boundaries — each with: allowed / forbidden / sync-required / compile-time / runtime / type-dependent | spec accepted; the safety matrix (§22 of the brief) written against REAL Kof syntax |
-| **2 — Compiler infrastructure** | internal representations for ownership/lifetime/borrow/alias/mutability/escape/resource-state | structures compile; NO behavior change yet (suite byte-green) |
+| **2 — Compiler infrastructure** 🔄 | internal representations for ownership/lifetime/borrow/alias/mutability/escape/resource-state — **IN DEVELOPMENT 26/09 (maintainer unlock, chat: "fase 2 destravada")**; package `dev.kof.compiler.memory` | structures compile; NO behavior change yet (suite byte-green) |
 | **3 — First guarantees** | use-after-move; dangling references; invalid escapes; mutable aliasing; double ownership/destruction | per-rule: valid case compiles, invalid case gets the NAMED diagnostic, regression test, per-backend proof |
 | **4 — Closures & async** | closure capture semantics; callbacks; async/futures; iterators/generators | same proof shape |
 | **5 — Native & FFI** | pointers/allocation/destruction/C ABI/other connectors; the Kof↔C↔Rust↔JVM↔Python ownership table | every boundary kind has an owner/free-writer/guardian decision + test |
@@ -63,6 +63,13 @@ Boundaries against the real Kof surface documented in
 allowed/forbidden/sync-required/compile-time/runtime/type-dependent
 classification. Safety matrix (§22 of the brief) against REAL Kof syntax.
 **No compiler edits.**
+
+**Fase 2 UNLOCKED 26/09 by the maintainer (chat: "fase 2 destravada").**
+The lane now builds the compiler-internal representations — package
+`dev.kof.compiler.memory` with ownership/lifetime/borrowing/aliasing/
+mutability/escape/resource-state models + the `MEMxxx` diagnostic-code enum
+from the spec (§1–§10). Structures + tests only; **zero behavior change**
+(suite byte-green). Emission/wiring of the diagnostics is Fase 3.
 
 ## Definition of done (whole front)
 

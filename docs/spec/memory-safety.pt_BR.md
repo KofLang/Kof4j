@@ -2,7 +2,8 @@
 
 # Especificação de Segurança de Memória — Propriedade, Tempo de Vida, Empréstimo, Aliasing (D-MEMORY-SAFETY)
 
-> **Status: Fase 1 EM ANDAMENTO** (mantenedora 25/09, `DECISIONS.md` §`D-MEMORY-SAFETY`).
+> **Status: Fase 2 EM DESENVOLVIMENTO** — Fase 1 FECHADA/aceita 25/09 (opção A); Fase 2
+> destravada pela mantenedora 26/09 (chat: "fase 2 destravada"). `DECISIONS.md` §`D-MEMORY-SAFETY`.
 > Baseado em `docs/spec/memory-safety-investigation.md` (Fase 0, FECHADA 25/09).
 > Este documento formaliza o modelo de memória contra a superfície REAL do Kof.
 
@@ -242,8 +243,8 @@ A matriz abaixo mapeia cada classe de bug ao seu mecanismo de prevenção:
 | Fase | Trabalho | Status |
 |---|---|---|
 | **0** Investigação | `docs/spec/memory-safety-investigation.md` | ✅ FECHADA 25/09 |
-| **1** Especificação | `docs/spec/memory-safety.md` (este doc) | 🔄 EM ANDAMENTO |
-| **2** Infraestrutura do compilador | Nós IR de Ownership/Lifetime/Borrow/Escape | ⏳ AGUARDANDO (fila) |
+| **1** Especificação | `docs/spec/memory-safety.md` (este doc) | ✅ FECHADA 25/09 (aceita, opção A) |
+| **2** Infraestrutura do compilador | Representações internas de Ownership/Lifetime/Borrow/Escape (`dev.kof.compiler.memory`) | 🔄 EM DESENVOLVIMENTO 26/09 |
 | **3** Primeiras garantias | Use-after-move, dangling, escape, aliasing mutável | ⏳ AGUARDANDO |
 | **4** Closures & async | Semântica de captura, fronteiras async | ⏳ AGUARDANDO |
 | **5** Native & FFI | Ponteiro/alloc/free, tabela de propriedade C ABI | ⏳ AGUARDANDO |

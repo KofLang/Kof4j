@@ -3677,6 +3677,28 @@ frente"; plan doc created in the same commit
   order/operator contracts go through the maintainer), rule 8 (Kof is not
   Java/Rust), rule 11 (Simplicity Law), SG/D-KOF-AS-CLOUD, R6, R7`.
 
+### Update 26/09 — Fase 1 CLOSED, Fase 2 UNLOCKED (maintainer, chat)
+
+**Phase 1 CLOSED 25/09** (option A — spec accepted; mirrors landed at
+`3afe82601`/`0670f2312`). At 25/09 the maintainer chose option `J` (the
+front queues behind the current queue); on 26/09 she unlocked it — her
+words: **"fase 2 destravada"**. **Phase 2 (compiler infrastructure) = IN
+DEVELOPMENT**, owner = parity lane (this lane's claim in `DOING.md` EN+PT,
+same commit). Scope locked: compiler-internal representations in package
+`dev.kof.compiler.memory` — ownership/lifetime/borrowing/aliasing/
+mutability/escape/resource-state + the `MEMxxx` diagnostic-code enum from
+the spec §1–§10 — structures and tests ONLY; **zero behavior change (suite
+byte-green)**; emission/wiring of diagnostics belongs to Phase 3. Forbidden
+by the brief still holds (no borrow-checker copy, no new syntax, no
+null-safety rewrite).
+
+**Evidence:** maintainer message 26/09/2026 (chat, autonomous session);
+plan+spec flips EN+PT in the same commit.
+
+**See also:** `D-DECISION-BATCH-2609` call (4) — the same maintainer decision
+recorded in batch by the watcher lane; this block is the scope-lock for the
+implementation, not a second decision.
+
 
 ## D-DECISION-BATCH-2609 — maintainer's four-call batch: §493 Native throws like JVM; #619 merge HELD; #624 merge GO; memory-safety Fase 2 UNLOCKED (maintainer 26/09/2026)
 
