@@ -10,6 +10,23 @@ commit convention (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `scripts/changelog.sh` and inserted by the pipeline at this marker:
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
+  - **Memory-safety Fase 3 fatia 1 — ownership pass with real emissions:
+    `MEM001`/`MEM002` burn in the compiler (26/09)** (D-MEMORY-SAFETY,
+    unlocked by `D-COMPLETE-FIRST` the same day): new `OwnershipPass` runs on
+    every body through the shared `StatementAnalyzer.analyzeBody` front —
+    straight-line faces first: double `close()` claim on one resource emits
+    O-01/`MEM001`; reading a non-claiming alias binding after the claim emits
+    O-02/`MEM002` (the transfer re-expressed WITHOUT the forbidden null
+    literal). Aliases join by chain (`var b = a; a.close(); b.close()` →
+    MEM001); the claiming binding stays readable (use-after-close of the
+    owner itself is L-02, runtime — not this face); un-claimed aliasing stays
+    B-01 green. Proof: `MemorySafetyE2ETest` 8 — invalid faces assert the
+    code (and only the code) on JVM/Native/JS via the driver and on Script
+    via `interpret()` (analysis precedes every backend, so no toolchain
+    dependency); valid faces are byte-green with JVM golden output and the
+    Script interpret run. Slices 2–5 (cross-flow merge, escape/dangling,
+    boundary aliasing, containers/MEM014) are the declared queue in
+    `memory-safety-plan.md`.
   - **Gate — committed conflict markers now fail `check_live_records` part J**
     (26/09): `794aa4721` stashed-and-popped `<<<<<<< Updated upstream` /
     `=======` / `>>>>>>>` straight into both DECISIONS files and nothing in

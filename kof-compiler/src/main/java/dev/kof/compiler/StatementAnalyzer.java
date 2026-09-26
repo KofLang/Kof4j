@@ -14,6 +14,9 @@ public final class StatementAnalyzer {
         for (StatementNode stmt : body) {
             analyzeStatement(sa, stmt, scope, returnType);
         }
+        // D-MEMORY-SAFETY Fase 3 fatia 1 (D-COMPLETE-FIRST): faces retilineas
+        // O-01/MEM001 + O-02/MEM002 — analise de claim/close, conservadora.
+        dev.kof.compiler.memory.OwnershipPass.analyze(sa.diagnostics(), body);
     }
 
     static void analyzeStatement(SemanticAnalyzer sa, StatementNode stmt, SymbolTable scope, Type returnType) {

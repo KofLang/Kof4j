@@ -86,6 +86,16 @@ comportamento. A fila de representacao esta EXAUSTA.
 > targets, landed as one complete package (pass + emission + per-target proof;
 > no lone diagnostic, no stub, no gap accepted). **Fase 3 UNLOCKED.**
 
+**Fase 3 — fila de fatias (cada uma entrega completa do seu escopo declarado):**
+
+| Fatia | Face | Estado |
+|---|---|---|
+| **1** Regiao retilinea | O-01/`MEM001` dupla reivindicacao + O-02/`MEM002` use-after-claim via alias — `OwnershipPass` ligado no `StatementAnalyzer.analyzeBody` (frontend compartilhado = mesma analise nos 4 alvos), `MemorySafetyE2ETest` (invalidos nos 4, validos byte-green com golden JVM/Script) | LANDED 26/09 |
+| **2** Cruzamento de fluxo | claim/leitura condicionais (if/while/try/switch) com merge de estado por ramo | pendente |
+| **3** Escape/dangling | L-04/`MEM013` (captura estende vida) e faces de dangling da tabela §3 | pendente |
+| **4** Aliasing mutavel em fronteiras | B-03/`MEM020` (buffer FFI escrevivel unico) + B-04/`MEM021` em `spawn` | pendente |
+| **5** Containers & unclosed | O-03/`MEM003` (clear libera) + L-05/`MEM014` (§9: web/db sem close) | pendente |
+
 ## Fase 3 — design (UNLOCKED 26/09 by `D-COMPLETE-FIRST`; package = pass + emission + per-target proof)
 
 The emission surface is what EXISTS in the user surface (measured 26/09,

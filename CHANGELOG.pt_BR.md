@@ -10,6 +10,23 @@ de commits do projeto (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
 `scripts/changelog.sh` e inserida pela pipeline neste marcador:
 
 ## [0.5.0-beta] - unreleased (branch `beta-0.5.0`)
+  - **Memory-safety Fase 3 fatia 1 — passe de ownership com emissao real:
+    `MEM001`/`MEM002` ardem no compilador (26/09)** (D-MEMORY-SAFETY,
+    destravada pela `D-COMPLETE-FIRST` no mesmo dia): o novo `OwnershipPass`
+    roda em todo corpo pelo frontend compartilhado `StatementAnalyzer.analyzeBody`
+    — faces retilineas primeiro: dupla reivindicacao `close()` no mesmo recurso
+    emite O-01/`MEM001`; ler um binding-irmao NAO reivindicante depois do claim
+    emite O-02/`MEM002` (a transferencia re-expressa SEM o literal null
+    vedado). Aliases entram por cadeia (`var b = a; a.close(); b.close()` →
+    MEM001); o binding reivindicante continua utilisavel (use-after-close do
+    proprio dono e L-02, runtime — nao esta face); aliasing sem claim segue
+    B-01 verde. Prova: `MemorySafetyE2ETest` 8 — faces invalidas afirmam o
+    codigo (e so ele) em JVM/Native/JS pelo driver e em Script via
+    `interpret()` (a analise antecede todo backend, sem dependencia de
+    toolchain); faces validas byte-green com golden JVM e o run do interpret
+    Script. Fatias 2–5 (merge de fluxo, escape/dangling, aliasing de
+    fronteira, containers/MEM014) sao a fila declarada em
+    `memory-safety-plan.pt_BR.md`.
   - **Gate — marcadores de conflito commitados agora reprovam a parte J do
     `check_live_records`** (26/09): o `794aa4721` stash-pop de `<<<<<<<
     Updated upstream` / `=======` / `>>>>>>>` entrou cru nos dois DECISIONS
