@@ -105,7 +105,7 @@ Autoridade = `scripts/check_known_bugs_status.sh` (EN×PT consistentes), nunca u
 | ~~`ecosystem-coverage.md`~~ → `docs/bugs-and-gaps/` | G1–G12 com `PARTIAL`/`PLANNED` | referência de cobertura |
 | `roadmap.md` | §§8–11 ❌ (frontend same-project, monólito→micro) | longo prazo |
 | ~~`roadmap-audit.md`~~ → `docs/audits/roadmap-audit.md` | matriz 06/09 + fila P0→P5 | re-audit a cada fechamento |
-| ~~`KOFUI-AUDIT.md`~~ → `docs/bugs-and-gaps/` | UI001-Native (no-op silencioso) ABERTO | lane UI |
+| ~~`KOFUI-AUDIT.md`~~ → `docs/bugs-and-gaps/` | UI001-Native WARNING compile-time ✅ (#683) | lane UI |
 | ~~`known-bugs.md`~~ → `docs/bugs-and-gaps/` | **1 vivo** (autoridade = `scripts/check_known_bugs_status.sh`) | fila viva |
 | ~~`refactoring/PLAN-SOLID-500.md`~~ → `docs/architecture/PLAN-SOLID-500.md` | ✅ FEITO + MOVIDO 13/09 (F1–F9) | ratchet `check_500-baseline.txt` no CI |
 | `IMPLEMENTATION-UNIVERSAL-PLATFORM.md` (→ `docs/architecture/`, **CONCLUÍDO** — Estágios 1–3 + R + Estágio 8; fases futuras em `development/future/`) | promovido 17/09 (`D-UNIVERSAL`, R12 sobreposto) | arquitetura dos Tiers 6–12 |

@@ -15,12 +15,12 @@
 > Style, Window, Link, Image, Icon, Font, Component, Event, o conjunto de
 > layout (Box, Stack, Spacer, Wrap, Grid, Center, Align) e Store, Canvas,
 > Fieldset, Iframe, Video, Audio, Hr. A matriz `UI00x` e a convenção R6
-> continuam válidas. **Recontagem `UI001/UI002` (17/09):** `UI002` ✅
-> confirmado FEITO 08/09 (o interpretador imprime o warning uma vez via
-> `ui002Warned`); `UI001` **segue aberto** — os erros de link de 07/09 estão
-> corrigidos (`RuntimeUi` carrega os stubs no-op, `COMP001` sumiu) mas o Native
-> continua um no-op **silencioso** (sem diagnóstico em compile-time), então
-> UI001 permanece como a única face de no-op silencioso.
+> continuam válidas. **Recontagem `UI001/UI002` (29/09):** `UI002` ✅ FEITO
+> 08/09 (o interpretador imprime o warning uma vez via `ui002Warned`);
+> `UI001` ✅ FEITO (#683) — WARNING em compile-time uma vez quando o IR
+> Native contém `kof_ui_*` (`Ui001NativeWarn` + `Ui001NativeWarnTest`),
+> apontando `--target=js`; stubs no-op preservados (aditivo; `success()`
+> intacto).
 
 **Tipos (24 na varredura de 07/09):** Color, Theme, Label, Button, Input, Column, Row, View, Style,
 Window, Link, Image, Icon, Font, Component, Event, Box, Stack, Spacer, Wrap,
@@ -48,8 +48,8 @@ Grid, Center, Align, Store, Canvas + namespace `Router`.
 |---|---|---|---|
 | **KofJS (browser)** | DOM real | `JsRuntimeUi*.java` + `JsRuntimeOps` — createElement + `window.__kofNodes`; router real (31/08) | `KofJsBrowserE2ETest` (Chrome headless; pula se ausente), `KofUi*Test` |
 | **JVM** | no-op (por design) | `JvmRuntimeUi.java` — todos `kof_ui_*` vazios (compila, "roda", não renderiza) | `docs/backend-parity.md` ("JVM no-op"); `RouterE2ETest` |
-| **Native** | **no-op SILENCIOSO** | `RuntimeUi.java` emite stubs no-op em asm (113); **07/09: 21 stubs ausentes (Image/Link/Icon/Font) causavam link-error `undefined reference [COMP001]` — CORRIGIDO** (paridade com JVM). Sem diagnóstico p/ o no-op (R6 residual) | E2E manual 07/09 + `UiE2ETest.mediaWidgetsLinkOnAllTargets` (JVM+Native) |
-| **Script (interprete)** | **no-op SILENCIOSO** | `kof-script/` não conhece `kof.ui`; interpreta e executa sem efeito (R6 ❌) | E2E manual 07/09: `run --target script` → "feito" rc=0 |
+| **Native** | no-op + WARNING `UI001` | `RuntimeUi.java` emite stubs no-op em asm (113); stubs de link ✅ 07/09. **#683 (29/09):** WARNING `UI001` em compile-time uma vez quando o IR baixado tem `kof_ui_*` (`Ui001NativeWarn` antes do emit Native; aponta `--target=js`); aditivo — `success()` intacto | `Ui001NativeWarnTest` 5/5 + `UiE2ETest.mediaWidgetsLinkOnAllTargets` (JVM+Native) |
+| **Script (interprete)** | no-op + WARNING `UI002` | Interprete resolve `kof_ui_*` sem renderizar; **FEITO 08/09:** WARNING `UI002` uma vez no stderr (`KofInterpreter.warnUi002`; aponta `--target=js`); aditivo | `KofScriptTest.ui002WarnsOnceOnUiCalls` |
 | **Android** | via WebView (KofJS) | `AndroidProjectWriter.java` — sai KofJS p/ `assets/kof/`, renderiza em WebView | docs `backend-parity.md` Fase 7 |
 
 ## 3. KofJS — o que o DOM real cobre hoje
@@ -75,7 +75,7 @@ Grid, Center, Align, Store, Canvas + namespace `Router`.
 
 | Gap | Descrição | Target | Prioridade |
 |---|---|---|---|
-| **UI001** | `kof.ui` no Native = no-op silencioso (binário roda sem diagnóstico). **PARCIALMENTE CORRIGIDO 07/09**: `Image/Link/Icon/Font` **não linkavam** (`undefined reference [COMP001]` — 21 stubs ausentes em `RuntimeUi`); adicionados (paridade no-op com JVM). Resta: diagnóstico p/ o no-op silencioso dos demais = decisão de design (regra 6) | Native | **P0 (R6)** → P2 (residual) |
+| **UI001** | `kof.ui` no Native = no-op. Stubs de link ✅ 07/09. **FEITO (#683, 29/09):** WARNING `UI001` em compile-time **uma vez** quando o IR baixado tem `kof_ui_*` (`Ui001NativeWarn` antes do emit Native; mensagem aponta `--target=js`); aditivo — no-op preservado, `success()` ignora warnings (espelho do UI002 Script). Prova: `Ui001NativeWarnTest` 5/5 | Native | **P0 (R6)** → **FEITO** |
 | **UI002** | `kof.ui` no Script = no-op silencioso (interprete executa sem efeito). **FEITO 08/09** (`7081551`): warning `UI002` **uma única vez** no stderr quando `KofInterpreter` resolve função `kof_ui_*` (mensagem aponta `--target=js`); aditivo — no-op preservado (retrocompat), sem erro (regra 6); teste `KofScriptTest.ui002WarnsOnceOnUiCalls` (verifica presença + contagem == 1) | Script | **P0 (R6)** → **FEITO** |
 | **UI003** | Elementos: textarea ✅ FEITO 07/09 (`Textarea`); table/tr/td ✅ FEITO 07/09 (`Table(header, rows)` data-driven); select/option ✅ (`Select`); ul/ol/li ✅ (`Ul`/`Ol` data-driven); fieldset/legend ✅, iframe ✅, video/audio ✅, hr ✅ (08/09, `358ec80` — `Fieldset(children[, legend])`/`Iframe(url)`/`Video(url)`/`Audio(url)`/`Hr()` + remove; DOM real provado no Chrome headless; `kofSerialize` ganhou `src` + void-tags) | KofJS | P1 **FEITO** |
 | **UI004** | Forms: `<form>` ✅ + submit handler ✅ FEITO 07/09 (`Form(children)`, `onSubmit`, `submit()` — handler roda no browser, prova por mutação de DOM); fieldset ✅ FEITO 08/09 (`Fieldset(children[, legend])`, `358ec80`). `Input` tipos ✅ (`setType`); checkbox/radio estado ✅ (`setChecked`/`checked`); select ✅ (`Select`/`setOptions`/`selected`/`setSelected`) | KofJS | P1 **FEITO** |
@@ -180,8 +180,8 @@ em todo widget DOM. Prova: `UiStyleCssE2ETest` 10/10
   29/29 sem exclusões). Nada a corrigir.
 - JVM no-op (UI008) é decisão de design documentada (backend-parity), não bug
   — mas R6 sugere diagnóstico em log (low prio).
-- Native/Script no-op silencioso **não** é decisão documentada — é omissão
-  (R6 exige diagnóstico): UI001/UI002.
+- Native/Script no-op documentado com diagnóstico (R6): UI001 ✅ /
+  UI002 ✅.
 
 ### Fase 9 (Renderização) — poda no re-render (18/09)
 
