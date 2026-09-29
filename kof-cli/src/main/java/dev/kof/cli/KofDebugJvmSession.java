@@ -383,6 +383,7 @@ final class KofDebugJvmSession {
         }
         List<String> cmd = new ArrayList<>();
         cmd.add(KofDebug.javaExecutable());
+        cmd.addAll(DebuggeeOutput.encodingFlags(System.err));
         cmd.add("-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=" + port);
         cmd.add("-cp");
         cmd.add(classesDir.toString());
@@ -390,17 +391,7 @@ final class KofDebugJvmSession {
         ProcessBuilder pb = new ProcessBuilder(cmd);
         pb.redirectErrorStream(true);
         jvmProcess = pb.start();
-        Thread sink = new Thread(() -> {
-            try {
-                byte[] buf = new byte[1024];
-                while (jvmProcess.getInputStream().read(buf) != -1) {
-                    System.err.print(new String(buf, 0, buf.length).trim());
-                }
-            } catch (IOException ignored) {
-            }
-        }, "debuggee-sink");
-        sink.setDaemon(true);
-        sink.start();
+        DebuggeeOutput.relay(jvmProcess.getInputStream(), System.err);
 
         jdwp = new JdwpClient("127.0.0.1", port);
         jdwp.connect();

@@ -1,6 +1,6 @@
 504	kof-c-compiler/src/main/java/dev/kof/c/KofCParser.java
 547	kof-cli/src/main/java/dev/kof/cli/BytecodeStatements.java
-516	kof-cli/src/main/java/dev/kof/cli/KofDebugJvmSession.java
+507	kof-cli/src/main/java/dev/kof/cli/KofDebugJvmSession.java
 582	kof-cli/src/main/java/dev/kof/cli/LspServer.java
 506	kof-cli/src/main/java/dev/kof/cli/TranslateExpr.java
 501	kof-cli/src/main/java/dev/kof/cli/Translate.java

@@ -3,6 +3,8 @@ package dev.kof.cli;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
@@ -29,8 +31,13 @@ class KofDebugJvmTest {
     }
 
     private static Cli cli(Path dir, String... args) throws Exception {
+        return cli(dir, List.of(), args);
+    }
+
+    private static Cli cli(Path dir, List<String> jvmFlags, String... args) throws Exception {
         List<String> cmd = new ArrayList<>();
         cmd.add(Path.of(System.getProperty("java.home"), "bin", "java").toString());
+        cmd.addAll(jvmFlags);
         cmd.add("-cp");
         cmd.add(System.getProperty("java.class.path"));
         cmd.add("dev.kof.cli.Main");
@@ -116,6 +123,62 @@ class KofDebugJvmTest {
             await(c, "\"command\":\"disconnect\"", "disconnect");
             assertTrue(c.p().waitFor(30, TimeUnit.SECONDS));
             assertEquals(0, c.p().exitValue());
+        } finally {
+            CliProcessTree.terminate(c.p());
+        }
+    }
+
+    /**
+     * §541: a saida do debuggee chega ao stderr do adaptador EXATAMENTE como o
+     * programa a escreveu — sem bytes velhos de uma leitura anterior maior, sem
+     * perder as quebras de linha, e no charset do proprio stderr do adaptador
+     * (ISO-8859-1 aqui, para o acento provar o byte E1 em qualquer SO). O
+     * breakpoint na linha 3 separa a 1a linha (longa) das seguintes (curtas):
+     * duas leituras do pipe, a segunda menor que a primeira.
+     */
+    @Test
+    void debuggeeOutputReachesAdapterStderrByteExact(@TempDir Path dir) throws Exception {
+        Files.writeString(dir.resolve("Main.kf"),
+                "main() {\n"
+                + "    println(\"primeira linha do debuggee, mais longa que o resto\")\n"
+                + "    println(\"Bye\")\n"
+                + "    println(\"Olá, café\")\n"
+                + "    println(\"fim\")\n"
+                + "}\n");
+        String expected = "primeira linha do debuggee, mais longa que o resto\nBye\nOlá, café\nfim\n";
+        Cli c = cli(dir, List.of("-Dstderr.encoding=ISO-8859-1"), "debug", "--dap", "Main.kf");
+        ByteArrayOutputStream err = new ByteArrayOutputStream();
+        Thread drain = new Thread(() -> {
+            try {
+                c.p().getErrorStream().transferTo(err);
+            } catch (IOException ignored) {
+            }
+        });
+        drain.setDaemon(true);
+        drain.start();
+        try {
+            String main = dir.resolve("Main.kf").toString().replace("\\", "/");
+            send(c, 1, "initialize", "");
+            await(c, "\"command\":\"initialize\"", "initialize");
+            send(c, 2, "launch", "\"program\":\"" + main + "\"");
+            assertTrue(await(c, "\"command\":\"launch\"", "launch").contains("\"success\":true"), "launch");
+            send(c, 3, "setBreakpoints", "\"source\":{\"path\":\"" + main + "\"},\"breakpoints\":[{\"line\":3}]");
+            assertTrue(await(c, "\"command\":\"setBreakpoints\"", "setBreakpoints").contains("\"verified\""));
+            send(c, 4, "configurationDone", "");
+            assertTrue(await(c, "\"event\":\"stopped\"", "stopped na linha 3").contains("breakpoint"));
+            send(c, 5, "continue", "");
+            await(c, "\"command\":\"continue\"", "continue");
+
+            String seen = "";
+            long deadline = System.currentTimeMillis() + 30_000;
+            while (System.currentTimeMillis() < deadline && !seen.contains(expected)) {
+                Thread.sleep(100);
+                seen = new String(err.toByteArray(), StandardCharsets.ISO_8859_1).replace("\r\n", "\n");
+            }
+            assertTrue(seen.contains(expected),
+                    "stderr do adaptador = saida do debuggee byte a byte; visto: "
+                            + seen.replace("\n", "\\n").replace("\0", "\\0"));
+            send(c, 6, "disconnect", "");
         } finally {
             CliProcessTree.terminate(c.p());
         }
