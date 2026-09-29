@@ -132,7 +132,7 @@ public final class CollectionCallLowerer {
             // errada. Float×native era NAT001; FECHADO 21/09 (§352): o runtime
             // alarga os 32 bits crus do slot para Double e reusa o compare.
             if ("kof_list_sort".equals(listFn) && driver.currentDiagnostics != null
-                    && !CollectionMethodGates.naturalOrderType(elemType)) {
+                    && !CollectionMethodGates.naturalOrderType(elemType, driver.currentUnit)) {
                 var pos = mc.position();
                 driver.currentDiagnostics.error(pos != null ? pos.file() : "",
                         pos != null ? pos.line() : 0, pos != null ? pos.column() : 0, 0,

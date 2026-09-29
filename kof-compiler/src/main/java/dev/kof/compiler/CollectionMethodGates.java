@@ -38,7 +38,7 @@ public final class CollectionMethodGates {
      * (ClassCastException no JVM, ponteiro no Native, no-op estável no JS)
      * — rejeição universal, mesmo gate de SEM056.
      */
-    static boolean naturalOrderType(Type t) {
+    static boolean naturalOrderType(Type t, CompilationUnitNode currentUnit) {
         Type inner = t instanceof Type.NullableType nt ? nt.inner() : t;
         if (inner instanceof Type.UnknownType) return true; // lista vazia / pré-pin
         if (BuiltinTypes.isString(inner)) return true;
@@ -47,6 +47,12 @@ public final class CollectionMethodGates {
                 case "int", "long", "double", "float", "boolean", "bool", "char" -> true;
                 default -> false;
             };
+        }
+        // D-ENUM207: enums are real classes with a real, deterministic,
+        // ordinal-based compareTo() — cross-target safe, since ordinal() is
+        // a plain int compared the same way on JVM/Native/JS/interpreter.
+        if (CompilerTypes.isEnumType(inner, currentUnit)) {
+            return true;
         }
         return false;
     }
