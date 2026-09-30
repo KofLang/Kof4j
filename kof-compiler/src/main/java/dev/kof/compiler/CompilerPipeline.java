@@ -293,6 +293,8 @@ public final class CompilerPipeline {
         if (irModule == null) {
             return;
         }
+        // UI001 (R6, #683): kof.ui on Native is a no-op — warn once, never silent.
+        Ui001NativeWarn.warnOnce(irModule, target, diagnostics);
         Files.createDirectories(outputDir);
         Backend backend = CompilerPipeline.selectBackend(driver, target);
         backend.emit(irModule, outputDir, driver.debugInfoEnabled);

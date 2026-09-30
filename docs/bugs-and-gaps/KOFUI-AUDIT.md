@@ -20,6 +20,10 @@
 > open** — the 07/09 link errors are fixed (`RuntimeUi` carries the no-op
 > stubs, `COMP001` gone) but Native is still a **silent** no-op (no
 > compile-time diagnostic), so UI001 stands as the only silent-no-op face.
+> **UPDATE 30/09 (#683):** UI001 ✅ CLOSED — `CompilerPipeline.lowerAndEmit`
+> reports one WARNING `[UI001]` (first `kof_ui_*` fn + `--target=js` pointer)
+> when the target is native; additive (success counts ERRORs only). Proof:
+> `Ui001NativeWarnTest` 7/7.
 
 **Types (24 in the 07/09 scan):** Color, Theme, Label, Button, Input, Column, Row, View, Style,
 Window, Link, Image, Icon, Font, Component, Event, Box, Stack, Spacer, Wrap,
@@ -74,7 +78,7 @@ Grid, Center, Align, Store, Canvas + namespace `Router`.
 
 | Gap | Description | Target | Priority |
 |---|---|---|---|
-| **UI001** | `kof.ui` on Native = silent no-op (binary runs with no diagnostic). **PARTIALLY FIXED 07/09**: `Image/Link/Icon/Font` **did not link** (`undefined reference [COMP001]` — 21 missing stubs in `RuntimeUi`); added (no-op parity with JVM). Remaining: diagnostic for the silent no-op of the others = design decision (rule 6) | Native | **P0 (R6)** → P2 (residual) |
+| **UI001** | `kof.ui` on Native = silent no-op (binary runs with no diagnostic). **PARTIALLY FIXED 07/09**: `Image/Link/Icon/Font` **did not link** (`undefined reference [COMP001]` — 21 missing stubs in `RuntimeUi`); added (no-op parity with JVM). Remaining: diagnostic for the silent no-op of the others = design decision (rule 6). **DONE 30/09 (#683)**: `Ui001NativeWarn.warnOnce` in `lowerAndEmit` — one WARNING `[UI001]` naming the first `kof_ui_*` fn, pointing at `--target=js`; additive (no build break, binary unchanged); proof `Ui001NativeWarnTest` 7/7 (synthetic IR + all 5 native flavors + JVM/JS/Android-negative + real native link) | Native | **P0 (R6)** → **DONE** |
 | **UI002** | `kof.ui` on Script = silent no-op (interpreter executes with no effect). **DONE 08/09** (`7081551`): warning `UI002` **only once** on stderr when `KofInterpreter` resolves a `kof_ui_*` function (message points to `--target=js`); additive — no-op preserved (backward compat), no error (rule 6); test `KofScriptTest.ui002WarnsOnceOnUiCalls` (checks presence + count == 1) | Script | **P0 (R6)** → **DONE** |
 | **UI003** | Elements: textarea ✅ DONE 07/09 (`Textarea`); table/tr/td ✅ DONE 07/09 (`Table(header, rows)` data-driven); select/option ✅ (`Select`); ul/ol/li ✅ (`Ul`/`Ol` data-driven); fieldset/legend ✅, iframe ✅, video/audio ✅, hr ✅ (08/09, `358ec80` — `Fieldset(children[, legend])`/`Iframe(url)`/`Video(url)`/`Audio(url)`/`Hr()` + remove; real DOM proven in headless Chrome; `kofSerialize` gained `src` + void-tags) | KofJS | P1 **DONE** |
 | **UI004** | Forms: `<form>` ✅ + submit handler ✅ DONE 07/09 (`Form(children)`, `onSubmit`, `submit()` — handler runs in the browser, proof by DOM mutation); fieldset ✅ DONE 08/09 (`Fieldset(children[, legend])`, `358ec80`). `Input` types ✅ (`setType`); checkbox/radio state ✅ (`setChecked`/`checked`); select ✅ (`Select`/`setOptions`/`selected`/`setSelected`) | KofJS | P1 **DONE** |
