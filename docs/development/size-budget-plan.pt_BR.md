@@ -27,7 +27,7 @@ constraint:
 | 1.2 | `scripts/size/measure-dependencies.sh` — contagem e bytes diretos/transitivos por artefato, `kof-cli` shaded dividido por origem | `--selftest`; soma dos bytes atribuídos == entradas do jar shaded (não atribuído aparece, nunca some) |
 | 1.3 | `scripts/size/measure-generated.sh` — `hello-world` por target (JVM, Native x86-64/riscv64/aarch64, JS, Script) | `--selftest`; toolchain ausente (as/ld/qemu) = linha `UNKNOWN`, não falha |
 | 1.4 | `scripts/size/compare-size.sh A B` — size diff entre duas medições, agrupado core / opcional / gerado | `--selftest` com dois TSVs plantados (cresceu, encolheu, novo, removido) |
-| 1.5 | `docs/audits/size-baseline.md` (+PT) — primeira baseline: commit, ambiente, as três tabelas, top 20 consumidores | produzida por 1.1–1.3 num SHA nomeado; nova execução reproduz os números |
+| 1.5 | nova auditoria `size-baseline` (EN+PT) em `docs/audits/` — primeira baseline: commit, ambiente, as três tabelas, top 20 consumidores | produzida por 1.1–1.3 num SHA nomeado; nova execução reproduz os números |
 
 ## 2. Depois da Fase 1
 
