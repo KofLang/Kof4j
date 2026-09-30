@@ -200,7 +200,13 @@ public class ExpressionParser {
                     break;
                 }
                 List<ExpressionNode> args = ExpressionParser.parseArguments(ctx);
-                if (ctx.check(TokenType.LBRACE)) {
+                // Mesma prevencao do guard '(' acima, agora para o '{' do trailing
+                // lambda: sem isto, um bloco solto que so por acaso comeca na
+                // linha seguinte a uma chamada (`f(1)` \n `{ ... }` de outra
+                // instrucao) e engolido como argumento extra dessa chamada.
+                Token afterArgs = ctx.pos > 0 ? ctx.tokens.get(ctx.pos - 1) : null;
+                if (ctx.check(TokenType.LBRACE)
+                        && (afterArgs == null || afterArgs.line() == ctx.peek().line())) {
                     // Query DSL tipada: `Entity.query(db) { where ...; }` — o `{`
                     // é o token atual; parseQueryDsl consome o bloco.
                     if (expr instanceof FieldAccessExpr fa && "query".equals(fa.fieldName())
