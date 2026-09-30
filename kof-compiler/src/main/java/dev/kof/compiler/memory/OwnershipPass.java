@@ -185,6 +185,12 @@ public final class OwnershipPass {
                     groups.putAll(sub.groups);
                     aliasOf.clear();
                     aliasOf.putAll(sub.aliasOf);
+                    // MEM021 follow-up: `racy` is the same kind of unconditional
+                    // state as groups/aliasOf above (a bare block is straight-line,
+                    // not a branch) — a spawn registered inside the block must
+                    // still be visible to a mutation right after it.
+                    racy.clear();
+                    racy.putAll(sub.racy);
                 }
                 case IfStmt iff -> {
                     readExpr(iff.condition());
