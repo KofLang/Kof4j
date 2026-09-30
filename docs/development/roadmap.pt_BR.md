@@ -972,6 +972,9 @@ ciência) **sem** destruir a simplicidade da linguagem.
 > [`graphics-gaming-plan.md`](graphics-gaming-plan.md); fatia **3.0 = spike+infra** (guarda JavaFX-ausente
 > `scripts/check_javafx_absent.sh` + self-test + relatório medido, **sem API**). Próximo = escolha de stack
 > da mantenedora (`D-*`), depois a fatia 3.1 (window/frame/input).
+> **ABERTA (9ª frente):** `size-budget` — aberta por `D-SIZE-BUDGET` (merge da mantenedora, #704) em
+> [`size-budget-plan.md`](size-budget-plan.md); Fase 1 = só medição (toolchain, dependências,
+> `hello-world` gerado por target, size diff, baseline). Próximo = fatia 1.1.
 > Todos os planos restantes de `future/` estão autorizados com suas
 > questões de design resolvidas (`D-FUTURE-BATCH-2809B`); a promoção segue
 > uma-por-vez (`D-FUTURE-PROMOTION`).

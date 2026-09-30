@@ -4511,3 +4511,12 @@ individuais:
 - **Questão:** o Native x86-64 liga externs escalares, `T[]` escalar→`ptr`, struct por valor e `Buffer(U8)` INOUT, enquanto o cross riscv64/aarch64 ainda recusa `String[]`, structs memory-path, callbacks e out-buffer com `FFI001`/`FFI002`.
 - **Decisão:** implementar essas quatro faces nos runtimes cross (`NativeFfiCallRiscv` + o binding/ABI FFI compartilhado) com a mesma ABI do x86-64, e exigir prova **byte-idêntica** JVM ≡ riscv64 ≡ aarch64 para cada face antes de declarar memory-safety concluída. Nada é aceito como gap permanente.
 - **Relações:** `Related: D-MEMORY-SAFETY, D-BUFFER-INOUT-NATIVE, D-MEM020-COMPILE, D-R3-BUFFER, D-FFI-STRUCT, rule 6, rule 12`; tracker `#651`.
+
+## D-SIZE-BUDGET — o tamanho do KOF é um recurso arquitetural governado; a Fase 1 só mede (mantenedora, ao mergear a PR que abre `docs/development/size-budget-plan.md`)
+
+**State:** DECIDED no merge (mantenedora) — tracker `#704` (motivação, opções A/B/C; A escolhida pelo merge).
+
+- **Decisão:** o toolchain, suas dependências e os artefatos gerados são medidos e comparados a cada mudança. A Fase 1 é só observabilidade (plano §1).
+- **Regras:** nenhum budget absoluto antes da baseline; capacidade opcional não aumenta o footprint mínimo quando pode viver em official package; nenhuma mudança de tamanho reduz targets, segurança, diagnósticos, debugging, offline, reprodutibilidade, testes ou compatibilidade; toda redução estrutural traz medição antes/depois; fases seguintes exigem decisão própria.
+- **Não autorizado:** remover GraalJS, `minimizeJar`, mudar o packaging padrão, PDFBox no core, limites absolutos em MB.
+- **Relações:** `Related: D-KOF-FIRST-IMPL, D-APP, D-KOF-FILE-GO, D-FUTURE-PROMOTION, R1, R9, rule 6`; caso `#629`.

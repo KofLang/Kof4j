@@ -4522,3 +4522,12 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 - **Decision:** implement those four faces on the cross runtimes (`NativeFfiCallRiscv` + the shared FFI binding/ABI) with the same ABI as x86-64, and require **byte-identical** proof JVM ≡ riscv64 ≡ aarch64 for each face before memory-safety is declared done. Nothing is accepted as a permanent gap.
 - **Relationships:** `Related: D-MEMORY-SAFETY, D-BUFFER-INOUT-NATIVE, D-MEM020-COMPILE, D-R3-BUFFER, D-FFI-STRUCT, rule 6, rule 12`; tracker `#651`.
 - **State 30/09 (this lane) — face 1 of 4 LANDED (arrays):** the cross **scalar `T[]`→`ptr`** face landed: gate `CompilerFfiBinding` no longer restricts arrays to x86-64 (`String[]` still `FFI001`), `FfiStructLayout.crossBindable` counts an array-ptr as one INTEGER ordinal, `NativeFfiCallRiscv` packs per call via the new `kof_ffi_pack_array` riscv helper (per-program, `NativeArchEmitter`). Proof: `FfiNativeArrayE2ETest#scalarArrayCrossBindsAndMatchesJvm` (JVM == riscv64 == aarch64 byte-identical through a real cross `.so`; 5 element widths) + `FfiNativeCrossE2ETest#riscv64ScalarArrayBindsStringArrayStaysFfi001` (gate pin). Out-buffer (`Buffer(U8)`) was already cross-bound by `#651` fatia B. **Remaining faces:** `String[]`, memory-path structs and callbacks still refuse with `FFI001`/`FFI002`.
+
+## D-SIZE-BUDGET — KOF size is a governed architectural resource; Phase 1 measures only (maintainer, by merging the PR that opens `docs/development/size-budget-plan.md`)
+
+**State:** DECIDED on merge (maintainer) — tracker `#704` (motivation, options A/B/C; A chosen by the merge).
+
+- **Decision:** the toolchain, its dependencies and the generated artifacts are measured and compared per change. Phase 1 is observability only (plan §1).
+- **Rules:** no absolute budget before the baseline; an optional capability must not raise the minimal footprint when it can live in an official package; no size change may reduce targets, security, diagnostics, debugging, offline, reproducibility, tests or compatibility; every structural reduction carries before/after measurement; later phases need their own decision.
+- **Not authorized:** removing GraalJS, `minimizeJar`, changing default packaging, PDFBox in the core, absolute MB limits.
+- **Relationships:** `Related: D-KOF-FIRST-IMPL, D-APP, D-KOF-FILE-GO, D-FUTURE-PROMOTION, R1, R9, rule 6`; case `#629`.

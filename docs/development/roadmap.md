@@ -968,6 +968,9 @@ science) **without** destroying the language's simplicity.
 > [`graphics-gaming-plan.md`](graphics-gaming-plan.md); slice **3.0 = spike+infra** (JavaFX-absent guard
 > `scripts/check_javafx_absent.sh` + self-test + measured report, **no API**). Next = the maintainer's stack
 > pick (`D-*`), then slice 3.1 (window/frame/input).
+> **OPEN (9th front):** `size-budget` — opened by `D-SIZE-BUDGET` (maintainer merge, #704) in
+> [`size-budget-plan.md`](size-budget-plan.md); Phase 1 = measurement only (toolchain, dependencies,
+> generated `hello-world` per target, size diff, baseline). Next = slice 1.1.
 > All remaining `future/` plans are authorized with their
 > design questions resolved (`D-FUTURE-BATCH-2809B`); promotion stays
 > one-at-a-time (`D-FUTURE-PROMOTION`).
