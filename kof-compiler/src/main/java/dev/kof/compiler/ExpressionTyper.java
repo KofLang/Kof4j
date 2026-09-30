@@ -214,7 +214,7 @@ public final class ExpressionTyper {
                 List<IRLocalVariable> extended = new ArrayList<>(locals);
                 int pidx = 0;
                 for (FormalParameterNode p : le.parameters()) {
-                    Type pt = CompilerTypes.toType(p.type(), driver.currentUnit);
+                    Type pt = LambdaParameterTypes.resolve(driver, p.type());
                     paramTypes.add(pt);
                     extended.add(new IRLocalVariable(pidx++, p.name(), pt));
                 }
@@ -392,7 +392,7 @@ public final class ExpressionTyper {
         List<IRLocalVariable> extended = new ArrayList<>(locals);
         int pidx = 0;
         for (FormalParameterNode p : le.parameters()) {
-            Type pt = CompilerTypes.toType(p.type(), driver.currentUnit);
+            Type pt = LambdaParameterTypes.resolve(driver, p.type());
             extended.add(new IRLocalVariable(pidx++, p.name(), pt));
         }
         Type t = firstReturnValueType(driver, le.body(), extended);

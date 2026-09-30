@@ -90,7 +90,7 @@ public final class CompilerLambdaClass {
                 : CompilerTypes.toType(CompilerTypes.typeToString(ft.returnType()), driver.currentUnit);
         List<FormalParameterNode> params = le.parameters();
         List<Type> paramTypes = new ArrayList<>();
-        for (FormalParameterNode p : params) paramTypes.add(CompilerTypes.toType(p.type(), driver.currentUnit));
+        for (FormalParameterNode p : params) paramTypes.add(LambdaParameterTypes.resolve(driver, p.type()));
 
         List<IRField> fields = new ArrayList<>();
         List<Type> captureTypes = new ArrayList<>();
