@@ -22,6 +22,18 @@ final class JsRuntimeUiStdlib {
             export function kofMathIsNegative(v) { return v < 0 ? 1 : 0; }
             export function kofMathIsZero(v) { return v === 0 ? 1 : 0; }
             export function kofMathSqrt(v) { return Math.sqrt(v); }
+            export function kofMathSin(v) { return Math.sin(v); }
+            export function kofMathCos(v) { return Math.cos(v); }
+            export function kofMathTan(v) { return Math.tan(v); }
+            export function kofMathAsin(v) { return Math.asin(v); }
+            export function kofMathAcos(v) { return Math.acos(v); }
+            export function kofMathAtan(v) { return Math.atan(v); }
+            export function kofMathAtan2(y, x) { return Math.atan2(y, x); }
+            export function kofMathToRadians(v) { return v * Math.PI / 180; }
+            export function kofMathToDegrees(v) { return v * 180 / Math.PI; }
+            export function kofMathPi() { return Math.PI; }
+            export function kofMathE() { return Math.E; }
+            export function kofMathTau() { return 2 * Math.PI; }
 
             // ── kof.strings (STDLIB S2a) — predicados de char ───────────
             export function kofStringsIsAlpha(v) {

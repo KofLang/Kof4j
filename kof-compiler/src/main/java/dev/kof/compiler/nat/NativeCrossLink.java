@@ -46,6 +46,12 @@ public final class NativeCrossLink {
             "fopen", "fclose", "fwrite", "fread", "memcpy", "memset",
             "strlen", "strcmp", "strncmp", "open", "read", "write", "execvp");
 
+   static final Set<String> LIBM_SYMBOLS = Set.of(
+            "sin", "cos", "tan", "asin", "acos", "atan", "atan2",
+            "sinh", "cosh", "tanh", "log", "log10", "exp",
+            "floor", "ceil", "round", "hypot"
+    );
+
     /** true se o texto asm (pós-poda) chama algum símbolo de libc. */
     static boolean needsLibc(String asmText) {
         for (String line : asmText.split("\n", -1)) {
@@ -89,7 +95,8 @@ public final class NativeCrossLink {
             if (t.startsWith("#")) continue;
             int hash = t.indexOf('#');
             if (hash > 0) t = t.substring(0, hash).stripTrailing();
-            if (t.startsWith("call ") && t.substring(5).strip().equals("pow")) return true;
+            String sym = t.substring(5).strip();
+    return LIBM_SYMBOLS.contains(sym);
         }
         return false;
     }

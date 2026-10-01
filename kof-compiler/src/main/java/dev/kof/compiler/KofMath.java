@@ -38,7 +38,9 @@ public final class KofMath {
     // "isInteger","isDecimal" bindam os 5/2 — a lista so tinha o primeiro
     // literal de cada (drift do tipo db/process/net; lock novo segue virgulas).
     static List<String> functions() { return List.of("abs", "sign", "clamp", "min", "max",
-            "isEven", "isOdd", "isPositive", "isNegative", "isZero", "sqrt", "lerp", "percentage", "isInteger", "isDecimal", "roundTo", "pow", "parseInt", "parseLong", "parseDouble", "parseIntOrDefault", "parseLongOrDefault", "parseDoubleOrDefault"); }
+            "isEven", "isOdd", "isPositive", "isNegative", "isZero", "sqrt", "lerp", "percentage", "isInteger", "isDecimal",
+      "sin", "cos", "tan", "asin", "acos", "atan", "atan2",
+      "toRadians", "toDegrees", "pi", "e", "tau", "roundTo", "pow", "parseInt", "parseLong", "parseDouble", "parseIntOrDefault", "parseLongOrDefault", "parseDoubleOrDefault"); }
     static MathCall staticMethod(String namespace, String name, List<Type> argTypes) {
         if (!"math".equals(namespace)) return null;
         int argc = argTypes.size();
@@ -60,6 +62,16 @@ public final class KofMath {
             // riscv64/aarch64 = fatia B32 (fsqrt.d) — MATH001 fechado 11/09.
             case "sqrt" -> argc == 1 && isDouble(argTypes.get(0))
                     ? new MathCall("kof_math_sqrt", DOUBLE, List.of(DOUBLE)) : null;
+            // Trigonometric functions
+            case "sin", "cos", "tan", "asin", "acos", "atan" -> argc == 1 && isDouble(argTypes.get(0))
+                    ? new MathCall("kof_math_" + name, DOUBLE, List.of(DOUBLE)) : null;
+            case "atan2" -> argc == 2 && isDouble(argTypes.get(0)) && isDouble(argTypes.get(1))
+                    ? new MathCall("kof_math_atan2", DOUBLE, List.of(DOUBLE, DOUBLE)) : null;
+            case "toRadians", "toDegrees" -> argc == 1 && isDouble(argTypes.get(0))
+                    ? new MathCall("kof_math_" + name, DOUBLE, List.of(DOUBLE)) : null;
+            // Mathematical constants (zero-arg functions)
+            case "pi", "e", "tau" -> argc == 0
+                    ? new MathCall("kof_math_" + name, DOUBLE, List.of()) : null;
             // S1b.1: escalares Double puros (SSE2 — sem libm, sem floor).
             // lerp/percentage: sub/mul/add/divsd. isInteger/isDecimal:
             // NaN→false, Inf→false, |x|>=2^52→true (finite big = integer),
