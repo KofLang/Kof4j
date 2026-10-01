@@ -116,6 +116,21 @@ public final class CompilerUiEmitter {
         return localIdx;
     }
 
+    private static int refuseUnknownUiMethod(CompilerDriver driver, Type recvType, MethodCallExpr mc,
+                                             List<KofOperation> ops, int localIdx) {
+        if (driver.currentDiagnostics != null) {
+            SourcePosition p = mc.position();
+            String typeName = recvType instanceof Type.ClassType ct ? ct.name() : String.valueOf(recvType);
+            driver.currentDiagnostics.error(p != null ? p.file() : "",
+                    p != null ? p.line() : 0, p != null ? p.column() : 0, 0,
+                    "'" + typeName + "' does not have method '" + mc.methodName() + "' with "
+                            + mc.arguments().size() + " argument(s)",
+                    "SEM025");
+        }
+        ops.add(new KofPop());
+        return localIdx;
+    }
+
     static int emitUiInstance(CompilerDriver driver, Type recvType, MethodCallExpr mc, List<KofOperation> ops,
                                 String owner, int localIdx, List<IRLocalVariable> locals) {
         if (KofUi.isComponent(recvType) || KofUi.isStore(recvType)) {
@@ -131,7 +146,7 @@ public final class CompilerUiEmitter {
                         cc.function(), ccParams, cc.returnType(), KofCallKind.FUNCTION));
                 return localIdx;
             }
-            return localIdx;
+            return refuseUnknownUiMethod(driver, recvType, mc, ops, localIdx);
         }
         if (KofUi.isEvent(recvType)) {
             // UIW050: acessores de `e: Event` (e.value()/e.key()/e.x()/e.y()/
@@ -151,7 +166,7 @@ public final class CompilerUiEmitter {
                         ec.function(), ecParams, ec.returnType(), KofCallKind.FUNCTION));
                 return localIdx;
             }
-            return localIdx;
+            return refuseUnknownUiMethod(driver, recvType, mc, ops, localIdx);
         }
         if (KofUi.isDomWidget(recvType) || KofUi.isWindow(recvType) || KofUi.isCanvas(recvType)) {
             // bug 118 (renumerado do §102 na reconciliação do merge 11/09): a
@@ -170,7 +185,7 @@ public final class CompilerUiEmitter {
                         uiCall.function(), uiParams, uiCall.returnType(), KofCallKind.FUNCTION));
                 return localIdx;
             }
-            return localIdx;
+            return refuseUnknownUiMethod(driver, recvType, mc, ops, localIdx);
         }
         if (KofUi.isColor(recvType)) {
             switch (mc.methodName()) {

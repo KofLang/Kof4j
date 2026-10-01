@@ -455,9 +455,9 @@ public final class KofUi {
                 default -> null;
             };
         }
-        if (isHr(receiver)) {
+        if (isHr(receiver) || isFieldset(receiver)) {
             return switch (name) {
-                case "remove" -> argCount == 0 ? new UiCall("kof_ui_hr_remove", Type.PrimitiveType.VOID, List.of()) : null;
+                case "remove" -> argCount == 0 ? new UiCall(isHr(receiver) ? "kof_ui_hr_remove" : "kof_ui_fieldset_remove", Type.PrimitiveType.VOID, List.of()) : null;
                 default -> null;
             };
         }
@@ -474,6 +474,7 @@ public final class KofUi {
                 case "on" -> argCount == 2 ? new UiCall("kof_ui_component_on", Type.PrimitiveType.VOID, List.of(STR, Type.UnknownType.UNKNOWN)) : null;
                 case "bind" -> argCount == 1 ? new UiCall("kof_ui_component_bind", Type.PrimitiveType.VOID, List.of(INT)) : null;
                 case "remove" -> argCount == 0 ? new UiCall("kof_ui_component_remove", Type.PrimitiveType.VOID, List.of()) : null;
+                case "mount" -> argCount == 0 ? new UiCall("kof_ui_component_mount", Type.PrimitiveType.VOID, List.of()) : null;
                 default -> null;
             };
         }
