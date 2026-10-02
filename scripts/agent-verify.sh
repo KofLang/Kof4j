@@ -102,7 +102,7 @@ cmd_independent() {
         echo "- NÃO PODE: editar código de produção, alterar decisão de linguagem, transformar CONTRACT AMBIGUITY em decisão, fechar issue."
         echo
         echo "## Saída obrigatória"
-        echo "Escreva \`$D/verdict.json\`: {\"sha\",\"risk\",\"verdict\":\"PASS|BLOCK|NEEDS_MAINTAINER\",\"findings\":[],\"adversarial_commands\":[],\"verified_at\",\"verifier_session\"} — \`verifier_session\` DIFERENTE da sessão do worker."
+        echo "Escreva \`$D/verdict.json\`: {\"sha\",\"risk\",\"verdict\":\"PASS|BLOCK|NEEDS_MAINTAINER\",\"findings\":[],\"adversarial_commands\":[],\"verified_at\",\"verifier_session\"} — \`verifier_session\` DIFERENTE da sessão do worker e id de sessão real (prefixo \`ses_\`)."
     } > "$P/brief.md"
 
     if [ -z "${AGENT_VERIFIER_CMD:-}" ]; then
@@ -132,6 +132,10 @@ cmd_independent() {
     if [ -z "$vs" ] || [ "$vs" = "$wsession" ]; then
         write_verdict BLOCK "NAO_INDEPENDENTE: verifier_session ausente ou igual à do worker ($vs)"; echo "BLOCK: verifier não independente"; return 1
     fi
+    # sid tem que parecer id de sessão real do opencode — o próprio wrapper do
+    # worker já gravou "PENDING" uma vez (#659): string qualquer não prova nada.
+    case "$vs" in ses_[A-Za-z0-9]*) ;; *)
+        write_verdict BLOCK "NAO_INDEPENDENTE_FORMATO: verifier_session '$vs' não é um id de sessão real (prefixo ses_ esperado)"; echo "BLOCK: sid do verifier com formato falso"; return 1;; esac
     echo "verdict=$v (verifier_session=$vs)"
     case "$v" in PASS) return 0;; BLOCK) return 1;; *) return 4;; esac
 }
@@ -142,7 +146,14 @@ VAL="$(bash "$EVID" validate --repo "$repo" --run-id "$run_id" 2>&1)"; VAL_RC=$?
 printf '%s\n' "$VAL" > "$D/validation.txt"
 
 # --- 2) gates baratos aplicáveis ao que mudou ------------------------------------------------
-changed="$(python3 -c "import json;print('\n'.join(json.load(open('$EJ'))['changed_files']))")"
+# Falha FECHADA (#655): se o manifesto nao puder ser lido (path que o python
+# nativo nao abre, arquivo ausente/corrompido), NAO tratamos como "nada mudou"
+# — isso rodaria zero gates e daria PASS falso. BLOCK imediato.
+if ! changed="$(python3 -c "import json;print('\n'.join(json.load(open('$EJ'))['changed_files']))" 2>/dev/null)"; then
+    echo "verdict=BLOCK risk=${risk_arg} sha=?"
+    echo "  BLOCK: EVIDENCE_MANIFEST_ILEGIVEL: nao foi possivel ler $EJ (path/arquivo)"
+    exit 1
+fi
 touches() { printf '%s\n' "$changed" | grep -qE "$1"; }
 GATES="$D/gates.tsv"; : > "$GATES"
 run_gate() { # nome comando-shell
@@ -156,6 +167,10 @@ if touches '\.java$|^scripts/|^kof-.*/src/main/'; then
 fi
 if touches '\.md$'; then
     run_gate docs_lang "${AGENT_VERIFY_DOCSLANG:-bash scripts/docs-lang.sh check}"
+fi
+if touches '^docs/|^learn/|^training/|^CONTRIBUTING|^\.github/|\.md$'; then
+    _bi="$(python3 -c "import json;print(json.load(open('$EJ')).get('base') or '')" 2>/dev/null)"
+    run_gate doc_impact "${AGENT_VERIFY_DOCIMPACT:-bash scripts/check_doc_impact.sh ${_bi:+--base $_bi}}"
 fi
 if touches '^CHANGELOG\.|^docs/bugs-and-gaps/known-bugs|^scripts/changelog-ledger-waivers'; then
     run_gate changelog_ledger "${AGENT_VERIFY_CHGLEDGER:-bash scripts/check_changelog_ledger.sh}"

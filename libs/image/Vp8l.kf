@@ -1,0 +1,489 @@
+package image
+
+import image.Image
+import image.Vp8lTransforms
+
+// kof.image — VP8L (WebP lossless) decoder.
+//
+// Decodes VP8L entirely in Kof: the **predictor / color / SUBTRACT_GREEN /
+// color-indexing transforms**, **color cache**, **normal (code-length) and
+// simple Huffman codes**, **LZ77 backward references** and **meta-Huffman
+// groups** (one prefix-code group per spatial block, selected by an entropy
+// image). Malformed input is refused with an explicit `IMAGE:` diagnostic
+// (never a silent wrong image):
+//
+//   decodeRaster("shot.webp")   // lossless VP8L is routed here from Raster.kf
+//
+// Only `VP8L` (lossless) is handled here; `VP8 ` (lossy) and `VP8X` are handled
+// by the metadata slice but not decoded. Full parity across targets (pure Kof).
+//
+// Bit order: VP8L reads bits LSB-first and canonical Huffman codes are stored
+// most-significant-code-bit first (RFC 9649 §3.7.2.1), so `code` is assembled
+// by shifting left and the canonical code is compared against `firstCode`.
+
+class Vp8lBits {
+    Int[] data
+    Int pos
+    Int buf
+    Int cnt
+
+    constructor(Int[] data) {
+        this.data = data
+        this.pos = 0
+        this.buf = 0
+        this.cnt = 0
+    }
+
+    Int bit() {
+        if (this.cnt == 0) {
+            if (this.pos >= this.data.length) {
+                throw "IMAGE: truncated WebP bitstream"
+            }
+            this.buf = this.data[this.pos] & 255
+            this.pos = this.pos + 1
+            this.cnt = 8
+        }
+        var v = this.buf & 1
+        this.buf = this.buf >> 1
+        this.cnt = this.cnt - 1
+        return v
+    }
+
+    Int bits(Int n) {
+        var v = 0
+        var i = 0
+        while (i < n) {
+            v = v | (bit() << i)
+            i = i + 1
+        }
+        return v
+    }
+}
+
+// A VP8L prefix code: either a canonical tree from code lengths, or 1/2 explicit
+// symbols (the "simple" form). A single symbol consumes 0 bits.
+class Vp8lHuff {
+    Int[] count
+    Int[] firstCode
+    Int[] firstSym
+    Int[] symbols
+    Int single
+
+    constructor(Int[] lengths) {
+        this.single = -1
+        this.count = new Int[16]
+        var total = 0
+        var i = 0
+        while (i < lengths.length) {
+            var l = lengths[i]
+            if (l > 0) {
+                this.count[l] = this.count[l] + 1
+                total = total + 1
+            }
+            i = i + 1
+        }
+        if (total == 0) {
+            throw "IMAGE: empty WebP prefix code"
+        }
+        this.symbols = new Int[total]
+        this.firstSym = new Int[16]
+        var idx = 0
+        var len = 1
+        while (len <= 15) {
+            this.firstSym[len] = idx
+            var sym = 0
+            while (sym < lengths.length) {
+                if (lengths[sym] == len) {
+                    this.symbols[idx] = sym
+                    idx = idx + 1
+                }
+                sym = sym + 1
+            }
+            len = len + 1
+        }
+        this.firstCode = new Int[16]
+        var code = 0
+        var bits = 1
+        while (bits <= 15) {
+            code = (code + this.count[bits - 1]) << 1
+            this.firstCode[bits] = code
+            bits = bits + 1
+        }
+        if (total == 1) {
+            this.single = this.symbols[0]
+        }
+    }
+
+    constructor(Int sym0, Int sym1, Int count) {
+        this.single = -1
+        this.count = new Int[16]
+        this.firstCode = new Int[16]
+        this.firstSym = new Int[16]
+        if (count == 1) {
+            this.symbols = new Int[1]
+            this.symbols[0] = sym0
+            this.single = sym0
+        } else {
+            this.count[1] = 2
+            this.firstCode[1] = 0
+            this.firstSym[1] = 0
+            this.symbols = new Int[2]
+            this.symbols[0] = sym0
+            this.symbols[1] = sym1
+        }
+    }
+
+    Int decode(Vp8lBits r) {
+        if (this.single >= 0) {
+            return this.single
+        }
+        var code = 0
+        var len = 1
+        while (len <= 15) {
+            code = (code << 1) | r.bit()
+            if (this.count[len] > 0 && code - this.firstCode[len] < this.count[len]) {
+                return this.symbols[this.firstSym[len] + (code - this.firstCode[len])]
+            }
+            len = len + 1
+        }
+        throw "IMAGE: bad WebP Huffman code"
+    }
+}
+
+List<Int> vp8lCodeLengthOrder() {
+    return listOf(17, 18, 0, 1, 2, 3, 4, 5, 16, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15)
+}
+
+List<Int> vp8lDistanceMap() {
+    return listOf(
+        0, 1, 1, 0, 1, 1, -1, 1, 0, 2, 2, 0, 1, 2, -1, 2, 2, 1, -2, 1, 2, 2, -2, 2,
+        0, 3, 3, 0, 1, 3, -1, 3, 3, 1, -3, 1, 2, 3, -2, 3, 3, 2, -3, 2, 0, 4, 4, 0,
+        1, 4, -1, 4, 4, 1, -4, 1, 3, 3, -3, 3, 2, 4, -2, 4, 4, 2, -4, 2, 0, 5, 3, 4,
+        -3, 4, 4, 3, -4, 3, 5, 0, 1, 5, -1, 5, 5, 1, -5, 1, 2, 5, -2, 5, 5, 2, -5, 2,
+        4, 4, -4, 4, 3, 5, -3, 5, 5, 3, -5, 3, 0, 6, 6, 0, 1, 6, -1, 6, 6, 1, -6, 1,
+        2, 6, -2, 6, 6, 2, -6, 2, 4, 5, -4, 5, 5, 4, -5, 4, 3, 6, -3, 6, 6, 3, -6, 3,
+        0, 7, 7, 0, 1, 7, -1, 7, 5, 5, -5, 5, 7, 1, -7, 1, 4, 6, -4, 6, 6, 4, -6, 4,
+        2, 7, -2, 7, 7, 2, -7, 2, 3, 7, -3, 7, 7, 3, -7, 3, 5, 6, -5, 6, 6, 5, -6, 5,
+        8, 0, 4, 7, -4, 7, 7, 4, -7, 4, 8, 1, 8, 2, 6, 6, -6, 6, 8, 3, 5, 7, -5, 7,
+        7, 5, -7, 5, 8, 4, 6, 7, -6, 7, 7, 6, -7, 6, 8, 5, 7, 7, -7, 7, 8, 6, 8, 7)
+}
+
+Vp8lHuff vp8lReadSimple(Vp8lBits r, Int alphabet) {
+    var count = r.bit() + 1
+    var wide = r.bit()
+    var sym0 = 0
+    if (wide == 1) {
+        sym0 = r.bits(8)
+    } else {
+        sym0 = r.bit()
+    }
+    var sym1 = 0
+    if (count == 2) {
+        sym1 = r.bits(8)
+    }
+    if (sym0 >= alphabet || sym1 >= alphabet) {
+        throw "IMAGE: bad WebP simple prefix code"
+    }
+    return Vp8lHuff(sym0, sym1, count)
+}
+
+Vp8lHuff vp8lReadNormal(Vp8lBits r, Int alphabet) {
+    var numCodeLengths = 4 + r.bits(4)
+    var order = vp8lCodeLengthOrder()
+    var clcl = new Int[19]
+    var i = 0
+    while (i < numCodeLengths) {
+        clcl[order.get(i)] = r.bits(3)
+        i = i + 1
+    }
+    var clHuff = Vp8lHuff(clcl)
+    var maxSymbol = alphabet
+    if (r.bit() == 1) {
+        var nbits = 2 + 2 * r.bits(3)
+        maxSymbol = 2 + r.bits(nbits)
+    }
+    if (maxSymbol > alphabet) {
+        throw "IMAGE: bad WebP max_symbol"
+    }
+    var lens = new Int[alphabet]
+    var n = 0
+    var prev = 8
+    var remaining = maxSymbol
+    while (n < alphabet) {
+        if (remaining == 0) {
+            break
+        }
+        remaining = remaining - 1
+        var sym = clHuff.decode(r)
+        if (sym < 16) {
+            lens[n] = sym
+            prev = sym
+            n = n + 1
+        } else if (sym == 16) {
+            n = vp8lFill(lens, n, r.bits(2) + 3, prev, alphabet)
+        } else if (sym == 17) {
+            n = vp8lFill(lens, n, r.bits(3) + 3, 0, alphabet)
+        } else if (sym == 18) {
+            n = vp8lFill(lens, n, r.bits(7) + 11, 0, alphabet)
+        } else {
+            throw "IMAGE: bad WebP code-length code"
+        }
+    }
+    return Vp8lHuff(lens)
+}
+
+Int vp8lFill(Int[] lens, Int n, Int rep, Int value, Int alphabet) {
+    var k = 0
+    while (k < rep) {
+        if (n >= alphabet) {
+            throw "IMAGE: bad WebP code-length repeat"
+        }
+        lens[n] = value
+        n = n + 1
+        k = k + 1
+    }
+    return n
+}
+
+Vp8lHuff vp8lReadHuffman(Vp8lBits r, Int alphabet) {
+    if (r.bit() == 1) {
+        return vp8lReadSimple(r, alphabet)
+    }
+    return vp8lReadNormal(r, alphabet)
+}
+
+Int vp8lPrefixValue(Vp8lBits r, Int prefix) {
+    if (prefix < 4) {
+        return prefix + 1
+    }
+    var extra = (prefix - 2) >> 1
+    var offset = (2 + (prefix & 1)) << extra
+    return offset + r.bits(extra) + 1
+}
+
+Int vp8lDistance(Int code, Int width) {
+    if (code > 120) {
+        return code - 120
+    }
+    var map = vp8lDistanceMap()
+    var idx = (code - 1) * 2
+    var dist = map.get(idx) + map.get(idx + 1) * width
+    if (dist < 1) {
+        dist = 1
+    }
+    return dist
+}
+
+// Insert one ARGB pixel into the VP8L color cache. The slot is
+// `(0x1e35a7bd * argb) >> (32 - bits)` (RFC 9649 §3.6.2.3); the multiply is
+// done in 64-bit so the low 32 bits are exact (Int is 32-bit).
+vp8lCachePut(Long[] cache, Int bits, Int size, Int a, Int r, Int g, Int b) {
+    var argb = (((a & 255) as Long) << 24) | (((r & 255) as Long) << 16)
+    argb = argb | (((g & 255) as Long) << 8)
+    argb = argb | ((b & 255) as Long)
+    var key = ((argb * 0x1e35a7bd) >>> (32 - bits)) & (size - 1)
+    cache[key as Int] = argb
+}
+
+Raster vp8lRaster(String path) {
+    var b = File(path).readBytes()
+    if (b.length < 21 || !matchesAscii(b, 0, "RIFF") || !matchesAscii(b, 8, "WEBP")) {
+        throw "IMAGE: bad WebP container"
+    }
+    if (!matchesAscii(b, 12, "VP8L")) {
+        throw "IMAGE: WebP is not lossless (VP8L)"
+    }
+    var size = le32(b, 16)
+    var payload = new Int[size]
+    var i = 0
+    while (i < size && 20 + i < b.length) {
+        payload[i] = b[20 + i] & 255
+        i = i + 1
+    }
+    var r = Vp8lBits(payload)
+    var sig = r.bits(8)
+    if (sig != 47) {
+        throw "IMAGE: bad VP8L signature"
+    }
+    var width = r.bits(14) + 1
+    var height = r.bits(14) + 1
+    var alphaUsed = r.bit()
+    var version = r.bits(3)
+    if (version != 0) {
+        throw "IMAGE: unsupported VP8L version"
+    }
+    var transforms = listOf<Vp8lTransform>()
+    var curW = width
+    var bundled = false
+    var widthBits = 0
+    var palette = new Int[0]
+    while (r.bit() == 1) {
+        var t = r.bits(2)
+        if (t == 0) {
+            var sb = r.bits(3) + 2
+            var tw = vp8lDivRoundUp(curW, 1 << sb)
+            var th = vp8lDivRoundUp(height, 1 << sb)
+            transforms.add(Vp8lTransform(0, sb, tw, vp8lDecodeImage(r, tw, th, false), curW, height))
+        } else if (t == 1) {
+            var sb = r.bits(3) + 2
+            var tw = vp8lDivRoundUp(curW, 1 << sb)
+            var th = vp8lDivRoundUp(height, 1 << sb)
+            transforms.add(Vp8lTransform(1, sb, tw, vp8lDecodeImage(r, tw, th, false), curW, height))
+        } else if (t == 2) {
+            transforms.add(Vp8lTransform(2, 0, 0, new Int[0], curW, height))
+        } else {
+            var cts = r.bits(8) + 1
+            palette = vp8lDecodeImage(r, cts, 1, false)
+            var wb = 0
+            if (cts <= 2) {
+                wb = 3
+            } else if (cts <= 4) {
+                wb = 2
+            } else if (cts <= 16) {
+                wb = 1
+            }
+            bundled = true
+            widthBits = wb
+            curW = vp8lDivRoundUp(curW, 1 << wb)
+            transforms.add(Vp8lTransform(3, wb, 0, palette, curW, height))
+        }
+    }
+    var rgba = vp8lDecodeImage(r, curW, height, true)
+    rgba = vp8lApplyTransforms(rgba, transforms)
+    if (bundled) {
+        rgba = vp8lApplyColorIndexing(rgba, width, height, widthBits, palette)
+    }
+    var channels = 3
+    if (alphaUsed == 1) {
+        channels = 4
+    }
+    var count = width * height * channels
+    guardRaster(count)
+    var samples = new Int[count]
+    var p = 0
+    while (p < width * height) {
+        var s = p * 4
+        var d = p * channels
+        samples[d] = rgba[s]
+        samples[d + 1] = rgba[s + 1]
+        samples[d + 2] = rgba[s + 2]
+        if (channels == 4) {
+            samples[d + 3] = rgba[s + 3]
+        }
+        p = p + 1
+    }
+    return Raster("WEBP", width, height, channels, samples)
+}
+
+Int vp8lDivRoundUp(Int n, Int d) {
+    return (n + d - 1) / d
+}
+
+// Decodes one entropy-coded image (RFC 9649 §3.7.2.3) to flat RGBA. Used both
+// for the ARGB image and for the transform subresolution images; only the ARGB
+// image carries a meta-prefix-codes bit (RFC 9649 §3.8.3).
+Int[] vp8lDecodeImage(Vp8lBits r, Int width, Int height, Bool metaAllowed) {
+    var cacheBits = 0
+    var cacheSize = 0
+    if (r.bit() == 1) {
+        cacheBits = r.bits(4)
+        if (cacheBits < 1 || cacheBits > 11) {
+            throw "IMAGE: bad WebP color cache size"
+        }
+        cacheSize = 1 << cacheBits
+    }
+    var entropy = new Int[0]
+    var metaBits = 0
+    var metaW = 1
+    var groupCount = 1
+    if (metaAllowed && r.bit() == 1) {
+        metaBits = r.bits(3) + 2
+        metaW = vp8lDivRoundUp(width, 1 << metaBits)
+        var metaH = vp8lDivRoundUp(height, 1 << metaBits)
+        entropy = vp8lDecodeImage(r, metaW, metaH, false)
+        groupCount = 0
+        var pi = 0
+        while (pi < metaW * metaH) {
+            var gv = ((entropy[pi * 4] & 255) << 8) | (entropy[pi * 4 + 1] & 255)
+            if (gv + 1 > groupCount) {
+                groupCount = gv + 1
+            }
+            pi = pi + 1
+        }
+    }
+    var greens = listOf<Vp8lHuff>()
+    var reds = listOf<Vp8lHuff>()
+    var blues = listOf<Vp8lHuff>()
+    var alphas = listOf<Vp8lHuff>()
+    var dists = listOf<Vp8lHuff>()
+    var gi = 0
+    while (gi < groupCount) {
+        greens.add(vp8lReadHuffman(r, 256 + 24 + cacheSize))
+        reds.add(vp8lReadHuffman(r, 256))
+        blues.add(vp8lReadHuffman(r, 256))
+        alphas.add(vp8lReadHuffman(r, 256))
+        dists.add(vp8lReadHuffman(r, 40))
+        gi = gi + 1
+    }
+    var pixels = width * height
+    guardRaster(pixels * 4)
+    var rgba = new Int[pixels * 4]
+    var cache = new Long[cacheSize]
+    var px = 0
+    while (px < pixels) {
+        var gy = px / width
+        var gx = px - gy * width
+        var gidx = 0
+        if (metaBits > 0) {
+            gidx = ((entropy[((gy >> metaBits) * metaW + (gx >> metaBits)) * 4] & 255) << 8)
+            gidx = gidx | (entropy[((gy >> metaBits) * metaW + (gx >> metaBits)) * 4 + 1] & 255)
+        }
+        var g = greens.get(gidx).decode(r)
+        if (g >= 256 && g < 256 + 24) {
+            var length = vp8lPrefixValue(r, g - 256)
+            var dcode = vp8lPrefixValue(r, dists.get(gidx).decode(r))
+            var distance = vp8lDistance(dcode, width)
+            if (distance < 1 || distance > px) {
+                throw "IMAGE: bad WebP backward reference"
+            }
+            var k = 0
+            while (k < length && px < pixels) {
+                var src = (px - distance) * 4
+                var at = px * 4
+                var c = 0
+                while (c < 4) {
+                    rgba[at + c] = rgba[src + c]
+                    c = c + 1
+                }
+                if (cacheSize > 0) {
+                    vp8lCachePut(cache, cacheBits, cacheSize, rgba[at + 3], rgba[at], rgba[at + 1], rgba[at + 2])
+                }
+                px = px + 1
+                k = k + 1
+            }
+        } else if (g < 256) {
+            var rr = reds.get(gidx).decode(r)
+            var bb = blues.get(gidx).decode(r)
+            var aa = alphas.get(gidx).decode(r)
+            var base = px * 4
+            rgba[base] = rr & 255
+            rgba[base + 1] = g & 255
+            rgba[base + 2] = bb & 255
+            rgba[base + 3] = aa & 255
+            if (cacheSize > 0) {
+                vp8lCachePut(cache, cacheBits, cacheSize, aa & 255, rr & 255, g & 255, bb & 255)
+            }
+            px = px + 1
+        } else {
+            var idx = g - (256 + 24)
+            var argb = cache[idx]
+            var base2 = px * 4
+            rgba[base2] = (((argb >> 16) & 255)) as Int
+            rgba[base2 + 1] = (((argb >> 8) & 255)) as Int
+            rgba[base2 + 2] = ((argb & 255)) as Int
+            rgba[base2 + 3] = (((argb >> 24) & 255)) as Int
+            px = px + 1
+        }
+    }
+    return rgba
+}

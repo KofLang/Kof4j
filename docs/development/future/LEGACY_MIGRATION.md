@@ -2,9 +2,9 @@
 
 # LEGACY_MIGRATION.md — Legacy Software Migration Platform
 
-**Status:** **DEPRIORITIZED by the maintainer (15/09) — moved back to
-`future/` together with its work-logs (`DECOMPILER.md`, `TRANSLATOR.md`).
-Not current work; promotion needs her explicit decision.** The code already
+**Status:** **REOPENED by the maintainer (`D-DEPRIORITIZED-REOPEN`, 28/09 batch)** —
+still plan-only here; promotion to current work is one-at-a-time per
+`D-FUTURE-PROMOTION`. The code already
 in the repo stays. — **central and single doc of the migration
 platform** (dropped from `future/` on 12/09; MERGED `LEGACY_IR.md` into §4 and
 `DIFFERENTIAL_TESTING.md` into §8 on 13/09 — duplicated concepts, zero

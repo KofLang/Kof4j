@@ -24,6 +24,23 @@ final class JdkReflectionResolver {
     }
 
     /**
+     * §557: a classe JDK deste nome interno é uma INTERFACE? O dispatch de
+     * chamada instance precisa da flag para emitir {@code invokeinterface}
+     * (o JVM exige) em vez de {@code invokevirtual} — que morre com
+     * {@code IncompatibleClassChangeError: Found interface ..., but class was
+     * expected}. Espelha {@link #isJdkClass}: só nome interno de pacote JDK
+     * entra; classe não carregável devolve false (nunca inventa interface).
+     */
+    static boolean isJdkInterface(String internalName) {
+        if (!isJdkClass(internalName)) return false;
+        try {
+            return Class.forName(internalName.replace('/', '.')).isInterface();
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    /**
      * Resolve a assinatura real do método no JDK usando reflexão.
      */
     static ExternalClasspath.MethodSignature resolveJdkMethod(String ownerInternalName,

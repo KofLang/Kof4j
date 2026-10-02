@@ -74,4 +74,35 @@ class BenchTest {
         assertEquals(1, r.code);
         assertTrue(r.err.contains("benchmark"), "passa pelo parse e cai no discovery: " + r.err);
     }
+
+    /**
+     * Regressão (unidade): `wallNanos` é nanossegundos, mas a métrica publicada
+     * (`ms`, baseline JSON, guarda absoluta de 10 ms) é milissegundos. Antes, o
+     * valor cru em ns era gravado sob a chave `ms` — a coluna imprimia ~10^6× o
+     * tempo real. Prova medível: 500_000_000 ns = 500 ms.
+     */
+    @Test
+    void wallTimeIsPublishedInMillisecondsNotNanoseconds() {
+        assertEquals(0L, Bench.medianMs(java.util.List.of()), "sem amostras = 0 ms");
+        assertEquals(500L, Bench.medianMs(java.util.List.of(500_000_000L)), "500 ms");
+        assertEquals(1L, Bench.medianMs(java.util.List.of(1_000_000L)), "1 ms");
+        // mediana par: média das duas centrais, ainda em ms
+        assertEquals(15L, Bench.medianMs(java.util.List.of(20_000_000L, 10_000_000L)), "(20+10)/2 ms");
+    }
+
+    /**
+     * Regressão (unidade + estatística): `cpu_ms` é a mediana do CPU time
+     * (user+system) de UMA iteração, em ms — não o acumulado das iterações.
+     * Antes o somatório era gravado, então `--iterations 3` inflava a coluna
+     * por 3 (700→2240 no `pipelines/map`) enquanto `ms` já era mediana.
+     */
+    @Test
+    void cpuTimeIsMeanPerIterationInMilliseconds() {
+        assertEquals(0L, Bench.medianCpuMs(java.util.List.of()), "sem amostras = 0 ms");
+        assertEquals(700L, Bench.medianCpuMs(java.util.List.of(700_000L)), "700 ms de uma iteração");
+        // 3 iterações de ~700ms NÃO podem virar 2100 (o bug antigo somava)
+        assertEquals(700L, Bench.medianCpuMs(java.util.List.of(700_000L, 710_000L, 690_000L)),
+                "mediana por iteração, não soma");
+        assertEquals(15L, Bench.medianCpuMs(java.util.List.of(20_000L, 10_000L)), "(20+10)/2 ms");
+    }
 }

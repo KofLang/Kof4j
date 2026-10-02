@@ -1,0 +1,241 @@
+package file
+
+// kof.file — streaming text (slice 2.1).
+//
+// Incremental UTF-8 text reading over the existing `kof.io.readRange`
+// primitive (JVM + Native + Script). The programmer drives it with a
+// `while` loop over `nextLine()` (lines) or `nextCode()` (UTF-16 code units);
+// memory stays bounded by one chunk plus the current line, so multi-gigabyte
+// logs/CSV are read without loading the file.
+//
+// UTF-8 is decoded here, in Kof: a multi-byte sequence split across two chunks
+// is reassembled (never emitted as broken bytes), and an unterminated sequence
+// at EOF becomes U+FFFD. Line endings `\n` and `\r\n` are both accepted; `\r`
+// is stripped from the returned line.
+//
+// No new syntax: built exclusively on `kof.io.readRange` and Kof strings.
+// JS has no host binding for `readRange` (compile-time gap `IOJS001`), so
+// importing this library there is an honest gap, never a whole-file fallback.
+//
+// Exact for the BMP on JVM, Native and Script. Non-BMP (astral) code points
+// are decoded to a surrogate pair: exact on JVM/Script, but Native stores
+// strings as well-formed UTF-8 with no WTF-8 surrogate representation, so
+// astral output there is a measured divergence (§537, owner = native lane).
+
+class TextStream {
+    String path
+    Int chunkSize
+    Long offset
+    Bool finished
+    String pending
+    Int pos
+    Int need
+    Int codepoint
+
+    constructor(String path) {
+        this.path = path
+        this.chunkSize = 8192
+        this.offset = 0
+        this.finished = false
+        this.pending = ""
+        this.pos = 0
+        this.need = 0
+        this.codepoint = 0
+    }
+
+    constructor(String path, Int chunkSize) {
+        this.path = path
+        this.chunkSize = chunkSize
+        this.offset = 0
+        this.finished = false
+        this.pending = ""
+        this.pos = 0
+        this.need = 0
+        this.codepoint = 0
+    }
+
+    // Next line without its terminator, or null at end of file. A final line
+    // without a trailing newline is returned once (the empty file yields null).
+    String? nextLine() {
+        var idx = indexOfNewlineFrom(pos)
+        while (idx < 0 && !finished) {
+            if (pos > 0) {
+                compact()
+            }
+            pull()
+            idx = indexOfNewlineFrom(pos)
+        }
+        if (idx < 0) {
+            if (pos >= pending.length) {
+                return null
+            }
+            var tail = slice(pos, pending.length)
+            pos = pending.length
+            return stripCarriageReturn(tail)
+        }
+        var line = slice(pos, idx)
+        pos = idx + 1
+        return stripCarriageReturn(line)
+    }
+
+    // Next UTF-16 code unit as an Int (0..65535), or -1 at end of file. An
+    // astral code point is returned as two units (high then low surrogate).
+    // Int + -1 avoids boxing a nullable Char across backends.
+    Int nextCode() {
+        ensure()
+        if (pos >= pending.length) {
+            return -1
+        }
+        var c = pending.charAt(pos)
+        pos = pos + 1
+        return c as Int
+    }
+
+    // Next code unit without consuming it (Int, -1 at end of file).
+    Int peekCode() {
+        ensure()
+        if (pos >= pending.length) {
+            return -1
+        }
+        return pending.charAt(pos) as Int
+    }
+
+    Bool done(): Bool {
+        return finished && pos >= pending.length
+    }
+
+    Long position(): Long {
+        return offset
+    }
+
+    ensure() {
+        if (pos >= pending.length && !finished) {
+            if (pos > 0) {
+                compact()
+            }
+            pull()
+        }
+    }
+
+    // Drop the already-consumed prefix so memory stays bounded.
+    compact() {
+        if (pos <= 0) {
+            return
+        }
+        pending = slice(pos, pending.length)
+        pos = 0
+    }
+
+    Int indexOfNewlineFrom(Int start) {
+        var i = start
+        while (i < pending.length) {
+            if (pending.charAt(i) == '\n') {
+                return i
+            }
+            i = i + 1
+        }
+        return -1
+    }
+
+    String slice(Int from, Int to) {
+        var out = ""
+        var i = from
+        while (i < to) {
+            out = out + pending.charAt(i)
+            i = i + 1
+        }
+        return out
+    }
+
+    String stripCarriageReturn(String s) {
+        if (s.length > 0 && s.charAt(s.length - 1) == '\r') {
+            var out = ""
+            var i = 0
+            while (i < s.length - 1) {
+                out = out + s.charAt(i)
+                i = i + 1
+            }
+            return out
+        }
+        return s
+    }
+
+    pull() {
+        var chunk = File(path).readRange(offset, chunkSize)
+        if (chunk.length == 0) {
+            finished = true
+            flushIncomplete()
+            return
+        }
+        offset = offset + chunk.length
+        var i = 0
+        while (i < chunk.length) {
+            feed(chunk[i])
+            i = i + 1
+        }
+        if (chunk.length < chunkSize) {
+            finished = true
+            flushIncomplete()
+        }
+    }
+
+    // One byte of the UTF-8 state machine; incomplete sequences persist across
+    // chunk boundaries through `need`/`codepoint`.
+    feed(Int b) {
+        if (need == 0) {
+            if (b < 128) {
+                appendCodePoint(b)
+                return
+            }
+            if (b < 192) {
+                appendCodePoint(65533)
+                return
+            }
+            if (b < 224) {
+                codepoint = b & 31
+                need = 1
+                return
+            }
+            if (b < 240) {
+                codepoint = b & 15
+                need = 2
+                return
+            }
+            if (b < 248) {
+                codepoint = b & 7
+                need = 3
+                return
+            }
+            appendCodePoint(65533)
+            return
+        }
+        if ((b & 192) == 128) {
+            codepoint = (codepoint << 6) | (b & 63)
+            need = need - 1
+            if (need == 0) {
+                appendCodePoint(codepoint)
+            }
+            return
+        }
+        need = 0
+        appendCodePoint(65533)
+        feed(b)
+    }
+
+    // Append a Unicode code point as UTF-16 (surrogate pair above the BMP).
+    appendCodePoint(Int cp) {
+        if (cp > 65535) {
+            var x = cp - 65536
+            pending = pending + ((55296 + (x >> 10)) as Char) + ((56320 + (x & 1023)) as Char)
+        } else {
+            pending = pending + (cp as Char)
+        }
+    }
+
+    flushIncomplete() {
+        if (need > 0) {
+            need = 0
+            appendCodePoint(65533)
+        }
+    }
+}

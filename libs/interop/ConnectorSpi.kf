@@ -1,0 +1,64 @@
+package interop
+
+// kof.interop — connector SPI hook vocabulary (fatia 12 of the Kof Connector
+// Ecosystem plan, `D-CONNECTORS-GO`). It covers the plan §4.1 seam: "each
+// connector implements only the adapters the Core does not provide, behind a
+// stable service interface". This library names those adapter hooks in pure Kof
+// so a connector declares which it provides, and the Core/manifest can validate
+// the declaration — adding a connector must not change the compiler core.
+//
+//   marshalling · lifecycle · error-mapping · callback-bridging ·
+//   symbol-resolution · abi-declaration
+//
+// (the plan's own list: marshalling hooks, lifecycle, error mapping, callback
+// bridging, symbol resolution, ABI declaration.)
+//
+// Honest by construction (R6): an unknown hook throws `INTEROP: unknown SPI hook
+// <x>`, never a silent accept. No compiler change; target-neutral (no IO).
+
+class ConnectorSpi {
+
+    // The adapter hooks a connector may provide (plan §4.1).
+    List<String> hooks() {
+        return listOf("marshalling", "lifecycle", "error-mapping",
+                "callback-bridging", "symbol-resolution", "abi-declaration")
+    }
+
+    Bool isKnownHook(String hook) {
+        return hooks().contains(hook)
+    }
+
+    String describe(String hook) {
+        if (hook == "marshalling") {
+            return "marshalling: convert values across the boundary"
+        }
+        if (hook == "lifecycle") {
+            return "lifecycle: load/open/close the foreign module"
+        }
+        if (hook == "error-mapping") {
+            return "error-mapping: map a foreign error to a Kof interop error"
+        }
+        if (hook == "callback-bridging") {
+            return "callback-bridging: bridge a Kof function into the foreign runtime"
+        }
+        if (hook == "symbol-resolution") {
+            return "symbol-resolution: resolve a foreign symbol by name"
+        }
+        if (hook == "abi-declaration") {
+            return "abi-declaration: declare the connector's ABI"
+        }
+        throw "INTEROP: unknown SPI hook " + hook
+    }
+
+    // Honest validation (R6): every declared hook must belong to the Core SPI.
+    void validate(List<String> declared) {
+        var i = 0
+        while (i < declared.size()) {
+            var h = declared.get(i)
+            if (!isKnownHook(h)) {
+                throw "INTEROP: unknown SPI hook " + h
+            }
+            i = i + 1
+        }
+    }
+}

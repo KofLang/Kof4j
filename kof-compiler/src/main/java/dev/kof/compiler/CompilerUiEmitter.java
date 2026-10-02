@@ -131,7 +131,7 @@ public final class CompilerUiEmitter {
                         cc.function(), ccParams, cc.returnType(), KofCallKind.FUNCTION));
                 return localIdx;
             }
-            return localIdx;
+            return unknownUiMethod(driver, mc, recvType, ops, localIdx);
         }
         if (KofUi.isEvent(recvType)) {
             // UIW050: acessores de `e: Event` (e.value()/e.key()/e.x()/e.y()/
@@ -151,7 +151,7 @@ public final class CompilerUiEmitter {
                         ec.function(), ecParams, ec.returnType(), KofCallKind.FUNCTION));
                 return localIdx;
             }
-            return localIdx;
+            return unknownUiMethod(driver, mc, recvType, ops, localIdx);
         }
         if (KofUi.isDomWidget(recvType) || KofUi.isWindow(recvType) || KofUi.isCanvas(recvType)) {
             // bug 118 (renumerado do §102 na reconciliação do merge 11/09): a
@@ -170,7 +170,7 @@ public final class CompilerUiEmitter {
                         uiCall.function(), uiParams, uiCall.returnType(), KofCallKind.FUNCTION));
                 return localIdx;
             }
-            return localIdx;
+            return unknownUiMethod(driver, mc, recvType, ops, localIdx);
         }
         if (KofUi.isColor(recvType)) {
             switch (mc.methodName()) {
@@ -255,10 +255,32 @@ public final class CompilerUiEmitter {
                     return localIdx;
                 }
                 default -> {
-                    return localIdx;
+                    return unknownUiMethod(driver, mc, recvType, ops, localIdx);
                 }
             }
         }
+        return unknownUiMethod(driver, mc, recvType, ops, localIdx);
+    }
+
+    /**
+     * issue #711: um método que não existe numa instância {@code kof.ui} era
+     * DROPADO silenciosamente — o receiver ficava na pilha (JS emitia
+     * `(c, kofUiWindowBind(w, root))`, JVM deixava o valor pendurado) e
+     * `kof check` não reportava nada (viola R6). Reporta SEM025 (a mesma
+     * família do método-desconhecido em arrays/§168) e POPa o receiver para
+     * manter a pilha balanceada; não adiciona nenhum método novo ao surface
+     * (suportar `canvas.on` seria decisão da mantenedora).
+     */
+    private static int unknownUiMethod(CompilerDriver driver, MethodCallExpr mc, Type recvType,
+                                       List<KofOperation> ops, int localIdx) {
+        if (driver.currentDiagnostics != null) {
+            driver.currentDiagnostics.error(mc,
+                    "'" + CollectionWrites.typeNameFor(recvType)
+                            + "' does not have method '" + mc.methodName()
+                            + "' with " + mc.arguments().size() + " argument(s)",
+                    "SEM025");
+        }
+        ops.add(new KofPop());
         return localIdx;
     }
 }

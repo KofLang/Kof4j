@@ -1,0 +1,84 @@
+package kfvm.github
+
+import kof.http
+import kof.json
+import kfvm.system
+
+class GitHubClient {
+    String repo
+    String platform
+    String token
+
+    constructor(String repo, String platform, String token) {
+        this.repo = repo
+        this.platform = platform
+        this.token = token
+    }
+
+    List<RemoteRelease> releases() {
+        var out = listOf<RemoteRelease>()
+        var page = 1
+        var pageSize = 100
+        var more = true
+
+        while (more && page <= 10) {
+            var releases = fetchPage(page, pageSize)
+            for (var r in releases) {
+                if (matchesPlatform(r.tag_name())) {
+                    out.add(toRemote(r))
+                }
+            }
+
+            more = releases.size == pageSize
+            page = page + 1
+        }
+
+        return out
+    }
+
+    String downloadUrl(RemoteRelease release, String file) {
+        var tag = encode(release.name())
+        return "https://github.com/" + repo + "/releases/download/" + tag + "/" + encode(file)
+    }
+
+    List<Release> fetchPage(Int page, Int pageSize) {
+        var url = "https://api.github.com/repos/" + repo + "/releases?per_page=" + pageSize + "&page=" + page
+        var body = get(url).trim()
+        if (!body.startsWith("[")) {
+            throw "GitHub API: " + body + " (rate limit? set GITHUB_TOKEN)"
+        }
+
+        return json.decode<List<kfvm.github.Release>>(body)
+    }
+
+    String get(String url) {
+        if (token == "") return http.get(url)
+        return Shell.run("curl", listOf("-fsSL", "-H", "Authorization: Bearer " + token, url))
+    }
+
+    Bool matchesPlatform(String tag) {
+        return tag.startsWith("kof-") && tag.endsWith("-" + platform)
+    }
+
+    RemoteRelease toRemote(Release r) {
+        var tag = r.tag_name()
+        var version = tag.substring(4, tag.length - platform.length - 1)
+        var archive = ""
+        var size = 0L
+
+        for (var a in r.assets()) {
+            if (isArchive(tag, a.name())) {
+                archive = a.name()
+                size = a.size()
+            }
+        }
+
+        return RemoteRelease(version, r.prerelease(), size, tag, archive)
+    }
+
+    Bool isArchive(String tag, String file) {
+        return file == tag + ".tar.gz" || file == tag + ".zip"
+    }
+
+    String encode(String s) { return s.replace("+", "%2B") }
+}

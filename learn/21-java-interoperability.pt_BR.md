@@ -3,13 +3,24 @@
 # 21 — Java Interoperability
 
 > **Status: parcial — bytecode JVM compatível; chamada Java direta funciona
-> para o que está no classpath (verificado 02/09)**
+> para o que está no classpath (verificado 02/09; corrigido 01/10, §558)**
 >
 > O compilador gera bytecode JVM padrão (V21). **Antes de assumir que uma API
 > Java funciona, compile e rode.** Verificado em 02/09: `java.util` collections
 > ✅; `java.time`/`java.util.stream` ❌ (tipos não resolvem sem classpath
 > externo); `java.io.FileWriter.write` ❌ (resolução de overload errada →
 > `NoSuchMethodError`).
+>
+> **Re-medido 01/10 (jar do tip fresco, sondas do KofShare):** tipos do JDK
+> resolvem via `import` **SEM** classpath externo — `import java.time.LocalDate;` +
+> `LocalDate.now()` é ✅ (o ❌ de 02/09 era a face sem-import/receiver-qualificado).
+> O nome qualificado NÃO é um receiver genérico: `java.X.Y.call(...)` cru é
+> SEM011; ✅ posições são `import` + nome simples, `var x = java.X.Y.staticCall(...)`
+> (inicializador) e `new java.X.Y(...)`. Streams não são caminho de interop —
+> `jl.stream()` é honestamente `SEM025` (`List` do Kof é a coleção da própria
+> linguagem; `new ArrayList<T>()` é tipado como `List`). Jars de terceiros chegam via
+> `kof deps` + `--deps` (BouncyCastle `import`/ctor/cast/chamada de instância medidos
+> verdes 01/10). Ver `known-bugs` §558 (EN+PT).
 
 ## A premissa
 
@@ -170,7 +181,7 @@ try {
 O `cancel()` (de uma task `spawn`, por exemplo) para a chamada viva —
 `INTEROP008` nos dois motores: o python se autopará e reporta `KOFCANCEL`; o R
 morre no SIGINT e o pai NOMEIA a morte (resposta que chegou primeiro vence).
-Records cruzam com o JSON da propria plataforma: `callJson` + `json.decode[T]`.
+Records cruzam com o JSON da propria plataforma: `callJson` + `json.decode<T>`.
 Nomes no lugar do chute: `INTEROP004` interpretador ausente/morto,
 `INTEROP005` o alvo nao tem runtime de processo provado (cross §514, ANDROID,
 MCU — recusa em compile-time que mantem a face), `INTEROP006` erro remoto com

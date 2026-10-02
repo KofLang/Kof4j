@@ -182,7 +182,7 @@ final class SemFieldAccessTyper {
                         if (field instanceof SymbolTable.FieldSymbol fs) {
                             MemberCallTyper.checkFieldAccess(sa, fs);
                         }
-                        return CompilerTypes.substituteTypeVariableIn(field.type(), recvType, sa.unit());
+                        return TypeSubstitution.substituteTypeVariableIn(field.type(), recvType, sa.unit());
                     }
                     if (sa.isExternal(ct)) {
                         String desc = sa.externalTypes().resolveFieldType(ct.internalName(), fa.fieldName());

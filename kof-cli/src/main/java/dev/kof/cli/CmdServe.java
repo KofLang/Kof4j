@@ -213,9 +213,12 @@ final class CmdServe {
                     System.out.println("kof serve: using [server] port = " + manifestPort
                             + " from kof.toml");
                 }
-                KofCliSupport.executeProcess(List.of(KofCliSupport.javaExecutable(),
-                        "-Dkof.root=" + file.toAbsolutePath().normalize().getParent(),
-                        "-cp", tempDir.toString(), className), tempDir, appEnv);
+                List<String> serveCmd = new java.util.ArrayList<>();
+                serveCmd.add(KofCliSupport.javaExecutable());
+                serveCmd.addAll(KofStdio.inheritedJvmFlags());
+                serveCmd.addAll(List.of("-Dkof.root=" + file.toAbsolutePath().normalize().getParent(),
+                        "-cp", tempDir.toString(), className));
+                KofCliSupport.executeProcess(serveCmd, tempDir, appEnv);
                 return;
             }
             dev.kof.compiler.KofHttpServer server = new dev.kof.compiler.KofHttpServer(

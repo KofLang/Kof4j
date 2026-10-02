@@ -360,6 +360,10 @@ public final class JvmRuntimeUi {
                     return 1;
                 }
 
+                public static int kof_ui_scroll_new(java.util.ArrayList ids) {
+                    return 1;
+                }
+
                 public static int kof_ui_align_new(int horizontal, int vertical, java.util.ArrayList ids) {
                     return 1;
                 }

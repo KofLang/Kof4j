@@ -55,7 +55,18 @@ instance through the canonical constructor (coercing `Long`→`BigInt` etc.;
 parity with the reflective `kof_ffi_read_struct`). Proof:
 `structReturnByValueJsParity` (`Point`/`Big`/`Mix`/`ParamMix` — register and
 sret paths, plus a `Long` field) byte-for-byte JVM==JS. **The whole JS param +
-return surface is done**; the only remaining D6 gap is Native (3.7).
+return surface is done.**
+**Landed 29/09 (#651 fatia A2 · D6-3 · native `Buffer(U8)` INOUT x86-64):** the
+native x86-64 extern now binds `Buffer(U8)` as an INOUT parameter. Unlike the
+JVM/JS arena copy-in/copy-back, the native Kof Buffer is already contiguous
+memory, so the emitter passes the payload address (`obj+24`) straight to the C —
+the C write **is** the copy-back (one INTEGER register, like a `char*`). Proof:
+`BufferFfiE2ETest#bufferInoutCopyInCopyBackNativeParity` with a real `.so`
+(`20/[10, 10]/40/[20, 20]`, the +10 accumulating across calls) byte-for-byte
+JVM==Native; `InteropIdiomsCompileTest#nativeShapeExamplesBindOnX86` proves the
+documented shapes no longer emit `FFI001`. The cross riscv64/aarch64 `B` face
+landed in fatia B (`#651`) — the same payload pointer `obj+24`, byte-for-byte
+JVM==riscv64==aarch64 (`BufferFfiE2ETest#bufferParamCrossBindsAndMatchesJvm`).
 **Landed 21/09 (3.7 fatia 1 · native struct param, register path):** the
 x86-64 SysV backend now binds a `record` scalar-fields struct **by value as an
 argument** — `FfiStructLayout` classifies via `AbiLayout` and the call-site
@@ -101,7 +112,9 @@ compiler for a fixture `.so`, §365). Proof:
 `FfiNativeCrossE2ETest` `riscv64StructReturnViaLibcDiv`/`aarch64StructReturnViaLibcDiv`/
 `crossStructReturnAgreesBetweenArchs` (qemu, golden `3\n1` = the JVM oracle) +
 `FfiStructLayoutTest.crossIntReturnIsBindableOnlyForIntegerRegisterPath`.
-`T[]`/`Buffer` and the remaining riscv64/aarch64 struct shapes stay 3.7 (FFI001).
+`T[]`/`Buffer` (faces 1–2, `D-MEM-FFI-CROSS-FULL`) and the memory-path struct
+RETURN (face 3, below) have since landed; a >16 B by-value struct **param** and
+callbacks stay an honest `FFI001`/`FFI002`.
 **Landed 22/09 (3.7 fatia 4 · cross struct PARAM, INTEGER register path):** the
 riscv64/aarch64 emitters now bind a `record` scalar-INTEGER-fields struct **by
 value as an argument** — gate `nativeExternBound` accepts struct params on the
@@ -113,6 +126,24 @@ cross only via `FfiStructLayout.crossIntRegisterOnly`/`crossBindable`, and
 cross `as`, called under qemu on both archs, golden `42/2/6` + negative field +
 3×int=12 B/2 words + struct+scalar mix, plus 2 gate rejections without
 toolchain).
+**Landed 30/09 (`D-MEM-FFI-CROSS-FULL` face 3 · cross memory-path struct
+return/sret):** the riscv64/aarch64 emitters now bind a `record` **returned by
+value** in the memory path (> 16 B). This is arch-aware, unlike faces 1–2: the
+indirect-result pointer is **`a0` on RISC-V LP64** (the first real argument
+shifts to `a1`) but **`x8` on AAPCS64** (first real argument stays `x0`) —
+measured with cross-gcc. Gate `FfiStructLayout.crossMemoryReturn` accepts a
+`byMemory()` return and `crossBindable(List,int)` reserves the RISC-V sret
+register; `NativeFfiCallRiscv` allocates the C buffer at the call prologue,
+keeps its pointer in a reserved frame scratch slot across the call, loads it
+into `a0`/`a7`→`x8` and reconstructs each field from its C offset. Proof:
+`FfiNativeStructReturnE2ETest` 2/2 — a real cross `.so` returning
+`Big{long,long,long}` (24 B), byte-for-byte JVM (FFM oracle) == x86-64 ==
+riscv64(qemu) == aarch64(qemu); `FfiStructLayoutTest#crossMemoryReturnIsSretOnlyForLargeStructs`.
+The same face also binds the **>16 B by-value parameter**: measured with
+cross-gcc, both archs pass it as a pointer (`a0`/`x0`), so the emitter passes
+the object payload `obj+16` as one INTEGER (`FfiStructLayout.crossByMemory`).
+Proof `FfiCrossStructParamE2ETest` 8/8 (`bigsum(Big,long)` → `142` under qemu on
+both archs); `FfiStructLayoutTest#crossByMemoryStructParamCountsAsOnePointer`.
 
 
 ## 1. What exists today (measured 19/09, not remembered)
@@ -130,9 +161,9 @@ the nested token `(<ret><params>)`. Anything the map does not cover is a
 | scalar downcall | ✅ `kof_ffi` FFM (`JvmFfiRuntime.java:142+`) | ✅ **direct `call sym@PLT` on x86-64/riscv64/aarch64** (#431 slices 1–2, 20/09, §369 — link-by-use, no `dlopen`) | ✅ host bridge `KofJsFfiBridge` (browser degrades honestly, R7) |
 | callbacks/upcalls (3.4) | ✅ `Linker.upcallStub` | ❌ `FFI001` (no mechanism) | ✅ host |
 | String = `char*` | ✅ in + out | ✅ in (payload off 24) + out (boundary copy) | ✅ |
-| **struct (record, scalar fields)** | ✅ **by value in + out** (`@` token, 3.8b fatias 1–2, 20–21/09) | ◐ **by value param + return, register path *and* sret x86-64** (3.7 fatias 1–2b, 21/09); cross **return** INTEGER ≤ 16 B binds (fatia 3, 22/09); struct param/float/HFA/array/`Buffer` on riscv64/aarch64 → `FFI001` (3.7) | ✅ **by value IN + OUT** (IN: `@<n><chars>` + `__kof_ffi_fields`; OUT: `@<n><chars>` return + `__kof_ffi_from`; bridges 21/09) |
-| **scalar array `T[]`→`ptr`** | ✅ **copy-in per call** (`p<elem>` token, 3.8b fatia 3, 21/09; no write-back) | ◐ **copy-in x86-64** for `Long[]`/`Double[]`/`Int[]`/`Float[]`/`Bool[]` (`FfiNativeArrayE2ETest`, 3.7 steps 1–2, 22/09); `String[]` and cross → `FFI001` | ✅ **copy-in per call** (`packArray` bridge, 21/09; no write-back) |
-| **out-buffer `Buffer(U8)` INOUT** | ✅ **copy-in / call / copy-back** (`B` token + `buffer.alloc`/`Buffer.bytes()`, D6-3, 21/09) | ❌ FFI001 | ✅ **copy-in / call / copy-back** (`B` token + `packBuffer`/copy-back after the downcall, bridge 21/09) |
+| **struct (record, scalar fields)** | ✅ **by value in + out** (`@` token, 3.8b fatias 1–2, 20–21/09) | ◐ **by value param + return, register path *and* sret x86-64** (3.7 fatias 1–2b, 21/09); cross **return** INTEGER ≤ 16 B binds (fatia 3, 22/09) and **memory-path return/sret** binds (30/09 face 3, `D-MEM-FFI-CROSS-FULL`); cross `T[]`/`String[]`/`Buffer` bind (faces 1–2 + `#651` B) and the >16 B by-value **param** binds (30/09 face 3, BYREF pointer `a0`/`x0`, `FfiCrossStructParamE2ETest`); float/HFA on riscv64/aarch64 → `FFI001` (3.7) | ✅ **by value IN + OUT** (IN: `@<n><chars>` + `__kof_ffi_fields`; OUT: `@<n><chars>` return + `__kof_ffi_from`; bridges 21/09) |
+| **scalar array `T[]`→`ptr`** | ✅ **copy-in per call** (`p<elem>` token, 3.8b fatia 3, 21/09; no write-back) | ✅ **copy-in** for `Long[]`/`Double[]`/`Int[]`/`Float[]`/`Bool[]` — x86-64 (3.7 steps 1–2, 22/09) AND cross riscv64/aarch64 (30/09, `D-MEM-FFI-CROSS-FULL` face 1, `kof_ffi_pack_array`); `FfiNativeArrayE2ETest` (JVM==riscv64==aarch64); `String[]` (array of pointers) still `FFI001` | ✅ **copy-in per call** (`packArray` bridge, 21/09; no write-back) |
+| **out-buffer `Buffer(U8)` INOUT** | ✅ **copy-in / call / copy-back** (`B` token + `buffer.alloc`/`Buffer.bytes()`, D6-3, 21/09) | ✅ **payload pointer `obj+24` (the C write is the copy-back)** on x86-64 (#651 fatia A2, 29/09); cross riscv64/aarch64 → `FFI001` | ✅ **copy-in / call / copy-back** (`B` token + `packBuffer`/copy-back after the downcall, bridge 21/09) |
 | non-scalar array / opaque (e.g. `String[]`/`List<T>`/`Handle`) | ❌ FFI001 | ❌ FFI001 | ❌ FFI002 |
 
 JVM scalar→FFM mapping (measured): `i→JAVA_INT, j→JAVA_LONG, f→JAVA_FLOAT,
@@ -209,12 +240,16 @@ Three worked examples the implementation tests must reproduce bit-exactly:
   **Landed 21/09 (D-R3-BUFFER/D-R3-HANDLE-LIFETIME):** the nominal spelling is
   **`Buffer(U8)`** (not a reuse of `Byte[]`), created with
   **`buffer.alloc(Int) : Buffer(U8)`** — the programmer never allocates/frees
-  (lifetime language-managed; `Handle` follows the same automatic rule). Slices
-  (JVM): `buffer.alloc` + `Buffer.bytes() : Byte[]` (`BufferE2ETest` 4/4) and
+  (lifetime language-managed; `Handle` follows the same automatic rule).   Slices
+  (JVM + x86-64 Native surface, #651 fatia A1): `buffer.alloc` + `Buffer.bytes() : Byte[]` (`BufferE2ETest` JVM/JS/x86 parity) and
   `Buffer(U8)` as an `extern` INOUT parameter — **copy-in / call / copy-back**
   (`BufferFfiE2ETest` 4/4 with a real C shim: writes accumulate across calls,
-  proving copy-in reads and copy-back writes). Native/JS stay `FFI001`/
-  `FFI002` (R6-SCOPE: incremental, declared gaps).
+  proving copy-in reads and copy-back writes). The Native x86-64 namespace/print
+  surface landed in #651 fatia A1 (28/09) and the Native FFI `B` token landed in
+  #651 fatia A2 (29/09) — the emitter passes `obj+24` (payload) directly on
+  x86-64, proven by `BufferFfiE2ETest#bufferInoutCopyInCopyBackNativeParity`;
+  cross riscv64/aarch64 remains honest until fatia B (R6-SCOPE: incremental,
+  declared gaps).
 - **D6-4 · return-by-value > 16 B.** SysV hidden-pointer (sret) / AAPCS64
   hidden-x8 / LP64 reference — the *JVM* Linker hides this; the *asm*
   backend must implement sret explicitly. Flag: this is the single biggest
@@ -252,8 +287,9 @@ until decided — no silent partial binding.
    landed 21/09 for struct **param** (D6-5 host pack), scalar array
    **`T[]`→`ptr` copy-in** (D6-2, `packArray`), `Buffer(U8)` INOUT (D6-3,
    `packBuffer` + copy-back) and struct **return** (`__kof_ffi_from`). The JS
-   FFI surface (param + return) is complete; the only D6 work left is Native
-   (3.7: struct/array/sret).
+   FFI surface (param + return) is complete; the remaining D6 work is the Native
+   cross faces (3.7 fatia B) — the x86-64 struct/array/`Buffer(U8)` faces landed
+   (3.7 D6-2 + #651 fatia A2).
   3. **3.7** native asm: classification by hand per target. **✅ ALL SLICES
     LANDED — x86-64 struct param + return (register path *and* sret > 16 B,
     21/09) + x86-64 scalar `T[]`→`ptr` copy-in (22/09, steps 1–2) +
@@ -261,8 +297,10 @@ until decided — no silent partial binding.
     cross struct PARAM INTEGER register path (22/09, fatia 4)** —
     `FfiStructLayout` + call-site pack/materialise, golden JVM==Native.
     Remaining: cross float/HFA/> 16 B, `T[]`/`Buffer(U8)` on cross,
-    `String[]`→`char**`, `Buffer(U8)` native (all honest `FFI001`, R6 —
-    future work, not this spec).
+    `String[]`→`char**` (all honest `FFI001`, R6 — future work, not this spec).
+    The x86-64 `Buffer(U8)` FFI token `B` **landed in #651 fatia A2 (29/09)** —
+    the payload pointer (`obj+24`) is passed directly and the C write is the
+    copy-back (`BufferFfiE2ETest#bufferInoutCopyInCopyBackNativeParity`).
   4. **JS**: ✅ **COMPLETE 21/09** — struct param + return, scalar array
     copy-in, `Buffer(U8)` INOUT (bridges `structParamByValueJsParity`,
     `structReturnByValueJsParity`, `arrayParamByValueJsParity`,
@@ -270,8 +308,9 @@ until decided — no silent partial binding.
   5. **DoD (R5) ✅ 23/09**: per-target golden E2E matrix measured
     (`FfiStructE2ETest` 12/12, `FfiNativeCrossE2ETest` 10/10,
     `FfiCrossStructParamE2ETest` 5/5, `FfiNativeArrayE2ETest` 2/2,
-    `FfiArrayE2ETest` 5/5, `BufferFfiE2ETest` 4/4, `FfiStructLayoutTest` 5/5,
-    `FfiE2ETest` 17/17 — **60/60 green 23/09**); FFI00x unchanged for
+    `FfiArrayE2ETest` 5/5, `BufferFfiE2ETest` 5/5 (x86-64 Buffer INOUT, A2 29/09),
+    `FfiStructLayoutTest` 5/5,
+    `FfiE2ETest` 17/17 — **61/61 green 29/09**); FFI00x unchanged for
     everything not covered; `training/idioms/interop.md` carries the D6
     shapes (record by value, `T[]`→`ptr`, `Buffer(U8)` INOUT). **This doc
     is CONCLUDED — promote to `docs/` per the three-states rule.**
@@ -323,3 +362,4 @@ complete vertical (no half-bound path, R6):
     passed in `%rsi` from the call-site. Gate accepts all scalar element chars on
     x86-64 (`String[]` and cross stay `FFI001`).
   3. **✅ DONE (23/09) — `String[]`/`Buffer(U8)` native: honest gap `FFI001` (R6).** Both require nominal `Buffer` runtime on Native and a distinct `char**` array-of-pointers ABI — not part of the D6-2/D6-3 vertical slice (scalar `T[]` copy-in). They stay `FFI001` with diagnostic, never silent; promotion of this spec is not blocked by them (they live as future work under `docs/development/future/`). No code change in this promotion.
+  4. **✅ DONE (30/09) — scalar `T[]`→`ptr` on the CROSS (riscv64/aarch64), `D-MEM-FFI-CROSS-FULL` face 1.** The x86-64 pack path is ported: `CompilerFfiBinding` no longer restricts scalar arrays to x86-64, `FfiStructLayout.crossBindable` counts an array-ptr as one INTEGER ordinal, and `NativeFfiCallRiscv` packs using the new `kof_ffi_pack_array` riscv helper (per-program, `NativeArchEmitter`, aarch64 via the line-by-line translator). `String[]` (array of pointers) stays `FFI001`. Proof: `FfiNativeArrayE2ETest#scalarArrayCrossBindsAndMatchesJvm` — a cross-compiled `.so` shim, golden JVM == riscv64 == aarch64 byte-identical for all 5 element widths; gate pinned by `FfiNativeCrossE2ETest#riscv64ScalarArrayBindsStringArrayStaysFfi001`. Remaining `D-MEM-FFI-CROSS-FULL` faces: `String[]`, memory-path structs, callbacks.

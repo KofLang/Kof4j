@@ -1,14 +1,14 @@
 [English](TRANSLATOR.md) | [Português](TRANSLATOR.pt_BR.md)
 
-# TRANSLATOR.md — Tradutor Kof (DESPRIORIZADO 15/09 — de volta a future/)
+# TRANSLATOR.md — Tradutor Kof (DESPRIORIZADO 15/09 → REABERTO 28/09, ainda em future/)
 
 > **Dono:** 192.168.100.22 (reivindicado 13/09 ~10:05 — órfão: sem dono com IP
 > no header; último código há 6 dias `84c48041`; regra dono-sem-IP=órfão da
 > mantenedora).
 
-**Status:** **DESPRIORIZADO pela mantenedora (15/09) — movido de volta a
-`future/`. Não é trabalho atual; promoção exige decisão explícita dela.**
-O código já no repo fica (`Translate.java` + `TranslateLexer`/`TranslateExpr`,
+**Status:** **REABERTO pela mantenedora (`D-DEPRIORITIZED-REOPEN`, lote 28/09)** —
+ainda só-plano aqui; a promoção a trabalho corrente é uma-por-vez por
+`D-FUTURE-PROMOTION`. O código já no repo fica (`Translate.java` + `TranslateLexer`/`TranslateExpr`,
 `TranslateTest` 61/61) — só a *fila* para aqui. Fase F
 implementada: `Translate.java` + `TranslateLexer`/`TranslateExpr`;
 prova: `TranslateTest` **61/61** (re-medido 15/09 no tip `7b0bfbe0`;

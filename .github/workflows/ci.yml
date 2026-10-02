@@ -6,6 +6,9 @@ on:
     branches:
       - '**'
       - '!main'
+      # D-QUALITY-PIPELINE-2609: `lab` is the experimentation stage — NO heavy
+      # CI per push. Validation happens at the `lab → testing` promotion.
+      - '!lab'
 
 permissions:
   contents: read

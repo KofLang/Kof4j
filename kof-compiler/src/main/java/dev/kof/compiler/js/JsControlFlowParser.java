@@ -109,6 +109,12 @@ List<JsIr.JsStatement> parseStatements(MethodCtx ctx, int[] pos,
                 // fim da região do try — o dono (parseTryStatement) consome
                 return out;
             }
+            if (op instanceof dev.kof.compiler.KofExcUnlink) {
+                // §549: pop de handler do caminho normal — o JS reconstrói a
+                // estrutura try/catch/finally; nada a emitir.
+                pos[0]++;
+                continue;
+            }
             out.addAll(parseStatement(ctx, pos));
         }
         return out;

@@ -1,0 +1,91 @@
+package interop
+
+// kof.interop — visible interop costs (fatia 7 of the Kof Connector Ecosystem
+// plan, `D-CONNECTORS-GO`). It answers the plan §3.10 rule: convenient interop
+// may NOT mean invisible, unpredictable behavior. Every crossing must make its
+// cost visible:
+//
+//   copy            value duplicated across the boundary
+//   conversion      representation converted (e.g. encoding/charset)
+//   allocation      memory allocated on one side
+//   crossing        runtime boundary crossed
+//   thread-switch   execution moves to another thread
+//   serialization   value serialized to a byte form
+//   boxing          value boxed into a heap object
+//   gc              garbage collector may run / object becomes GC-managed
+//
+// A connector reports the costs it incurs; tooling can then show them instead
+// of hiding them. Honest by construction (R6): an unknown cost is never
+// guessed — `isKnown` is false and `describe`/`summary`/`validate` throw
+// `INTEROP: unknown cost <x>`. No compiler change; target-neutral (no IO), so it
+// runs on every target without a gap.
+
+class InteropCost {
+
+    // The Core's visible-cost vocabulary (plan §3.10).
+    List<String> costs() {
+        return listOf("copy", "conversion", "allocation", "crossing",
+                "thread-switch", "serialization", "boxing", "gc")
+    }
+
+    Bool isKnown(String cost) {
+        return costs().contains(cost)
+    }
+
+    // What a cost means, or an explicit diagnostic — never a silent fallback (R6).
+    String describe(String cost) {
+        if (cost == "copy") {
+            return "copy: value duplicated across the boundary"
+        }
+        if (cost == "conversion") {
+            return "conversion: representation converted (e.g. encoding/charset)"
+        }
+        if (cost == "allocation") {
+            return "allocation: memory allocated on one side"
+        }
+        if (cost == "crossing") {
+            return "crossing: runtime boundary crossed"
+        }
+        if (cost == "thread-switch") {
+            return "thread-switch: execution moves to another thread"
+        }
+        if (cost == "serialization") {
+            return "serialization: value serialized to a byte form"
+        }
+        if (cost == "boxing") {
+            return "boxing: value boxed into a heap object"
+        }
+        if (cost == "gc") {
+            return "gc: garbage collector may run / object becomes GC-managed"
+        }
+        throw "INTEROP: unknown cost " + cost
+    }
+
+    // A canonical, human-visible summary of a set of costs ("none" when empty).
+    // Validates every token first: an unknown cost throws (R6).
+    String summary(List<String> costs) {
+        validate(costs)
+        if (costs.size() == 0) {
+            return "none"
+        }
+        var out = costs.get(0)
+        var i = 1
+        while (i < costs.size()) {
+            out = out + ", " + costs.get(i)
+            i = i + 1
+        }
+        return out
+    }
+
+    // Honest validation (R6): every token must be a known cost.
+    void validate(List<String> costs) {
+        var i = 0
+        while (i < costs.size()) {
+            var c = costs.get(i)
+            if (!isKnown(c)) {
+                throw "INTEROP: unknown cost " + c
+            }
+            i = i + 1
+        }
+    }
+}

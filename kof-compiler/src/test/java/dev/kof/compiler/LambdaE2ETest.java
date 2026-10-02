@@ -6,51 +6,13 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 
-class LambdaE2ETest {
+class LambdaE2ETest extends LambdaSupport {
 
-    private final CompilerDriver driver = new CompilerDriver();
-
-    private String runJvm(Path source, Path outDir, String expected) throws IOException {
-        CompilationResult result = driver.compile(source, outDir, Target.JVM);
-        assertTrue(result.success(), "Compilation should succeed: " + result.diagnostics().getDiagnostics());
-        try {
-            ProcessBuilder pb = new ProcessBuilder("java", "-cp", outDir.toString(), "Default.Main");
-            pb.redirectErrorStream(true);
-            Process p = pb.start();
-            String output = new String(p.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)
-                .replace("\r\n", "\n").trim();
-            int ec = p.waitFor();
-            assertEquals(0, ec, "Exit code should be 0, output: '" + output + "'");
-            assertEquals(expected, output, "Unexpected output");
-            return output;
-        } catch (InterruptedException e) {
-            throw new IOException("Interrupted while running JVM class", e);
-        }
-    }
-
-    private String runNative(Path source, Path outDir, String expected) throws IOException {
-        CompilationResult result = driver.compile(source, outDir, Target.NATIVE);
-        assertTrue(result.success(), "Compilation should succeed: " + result.diagnostics().getDiagnostics());
-        Path binFile = outDir.resolve("Default/Main");
-        assertTrue(Files.exists(binFile), "Binary should exist");
-        try {
-            ProcessBuilder pb = new ProcessBuilder(binFile.toString());
-            pb.redirectErrorStream(true);
-            Process p = pb.start();
-            String output = new String(p.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)
-                .replace("\r\n", "\n").trim();
-            int ec = p.waitFor();
-            assertEquals(0, ec, "Exit code should be 0, output: '" + output + "'");
-            assertEquals(expected, output, "Unexpected output");
-            return output;
-        } catch (InterruptedException e) {
-            throw new IOException("Interrupted while running native binary", e);
-        }
-    }
 
     private static final String LAMBDAS = """
             main() {
@@ -203,6 +165,78 @@ class LambdaE2ETest {
         Path source = tempDir.resolve("Main.kf");
         Files.writeString(source, TRIPLE_NESTED);
         runNative(source, tempDir.resolve("out"), "18");
+    }
+
+    // ---- fase 4.1: faces acima tambem em Script e JS (paridade B-06) ----
+
+    @Test
+    void lambdasScript(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, LAMBDAS);
+        runScript(source, "42\n7\n99\nola kof");
+    }
+
+    @Test
+    void lambdasJs(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, LAMBDAS);
+        runJs(source, tempDir.resolve("jsout"), "42\n7\n99\nola kof");
+    }
+
+    @Test
+    void mutableCaptureOuterMutationScript(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, MUTABLE_OUTER);
+        runScript(source, "15\n25");
+    }
+
+    @Test
+    void mutableCaptureOuterMutationJs(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, MUTABLE_OUTER);
+        runJs(source, tempDir.resolve("jsout"), "15\n25");
+    }
+
+    @Test
+    void mutableCaptureLambdaWritesScript(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, MUTABLE_LAMBDA_WRITES);
+        runScript(source, "2");
+    }
+
+    @Test
+    void mutableCaptureLambdaWritesJs(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, MUTABLE_LAMBDA_WRITES);
+        runJs(source, tempDir.resolve("jsout"), "2");
+    }
+
+    @Test
+    void lambdaReturnsLambdaCaptureScript(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, LAMBDA_RETURNS_LAMBDA_CAPTURE);
+        runScript(source, "8");
+    }
+
+    @Test
+    void lambdaReturnsLambdaCaptureJs(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, LAMBDA_RETURNS_LAMBDA_CAPTURE);
+        runJs(source, tempDir.resolve("jsout"), "8");
+    }
+
+    @Test
+    void tripleNestedScript(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, TRIPLE_NESTED);
+        runScript(source, "18");
+    }
+
+    @Test
+    void tripleNestedJs(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, TRIPLE_NESTED);
+        runJs(source, tempDir.resolve("jsout"), "18");
     }
 
     // Inline triple-nested (make(5)(3)(10) sem variáveis intermediárias):

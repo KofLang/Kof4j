@@ -64,6 +64,20 @@ public class ParseContext {
         return t == TokenType.CLASS || t == TokenType.RECORD || t == TokenType.INTERFACE;
     }
 
+    /**
+     * Connector ecosystem (plan §9.16 slice A): {@code foreign module <name> {}
+     * — `foreign`/`module` são keywords CONTEXTUAIS (IDENTIFIER), como `sealed`.
+     * Só é um bloco de módulo quando IDENTIFIER("foreign") precede IDENTIFIER e
+     * um `{`; em qualquer outro lugar `foreign`/`module` seguem identificadores.
+     */
+    public boolean foreignModuleAhead() {
+        if (!check(TokenType.IDENTIFIER) || !"foreign".equals(peek().value())) return false;
+        if (pos + 3 >= tokens.size()) return false;
+        return tokens.get(pos + 1).type() == TokenType.IDENTIFIER
+                && tokens.get(pos + 2).type() == TokenType.IDENTIFIER
+                && tokens.get(pos + 3).type() == TokenType.LBRACE;
+    }
+
     boolean atEnd() {
         return pos >= tokens.size() || peek().type() == TokenType.EOF;
     }

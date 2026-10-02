@@ -87,8 +87,9 @@ class FfiArrayE2ETest {
     }
 
     @Test
-    void stringArrayStaysFfi001(@TempDir Path dir) throws IOException {
-        // `String[]` é array de ponteiros — fora do v1 (D6-2): FFI001 honesto.
+    void stringArrayBindsJvm(@TempDir Path dir) throws IOException {
+        // D-MEM-FFI-CROSS-FULL face 2 (30/09): `String[]`→`char**` binda no JVM
+        // (FFM). A prova por execução está em FfiNativeStringArrayE2ETest.
         Path src = dir.resolve("strarr.kf");
         Files.writeString(src, """
                 extern "libc.so.6" f(String[] xs): Int
@@ -98,13 +99,11 @@ class FfiArrayE2ETest {
                 }
                 """);
         CompilationResult r = driver.compile(src, dir.resolve("out-strarr"), Target.JVM);
-        assertFalse(r.success(), "String[] must not bind in v1");
-        assertTrue(r.diagnostics().getDiagnostics().toString().contains("FFI001"),
-                "expected FFI001, got: " + r.diagnostics().getDiagnostics());
+        assertTrue(r.success(), "String[] must bind on JVM: " + r.diagnostics().getDiagnostics());
     }
 
     @Test
-    void stringArrayParamNativeStaysFfi001(@TempDir Path dir) throws IOException {
+    void stringArrayBindsNative(@TempDir Path dir) throws IOException {
         Path src = dir.resolve("arrnat.kf");
         Files.writeString(src, """
                 extern "libc.so.6" sumn(String[] xs, Int n): Int
@@ -114,9 +113,7 @@ class FfiArrayE2ETest {
                 }
                 """);
         CompilationResult r = driver.compile(src, dir.resolve("out-arrnat"), Target.NATIVE);
-        assertFalse(r.success(), "String[] (array de ponteiros) segue não-bindável no Native");
-        assertTrue(r.diagnostics().getDiagnostics().toString().contains("FFI001"),
-                "expected FFI001 on Native, got: " + r.diagnostics().getDiagnostics());
+        assertTrue(r.success(), "String[] must bind on Native: " + r.diagnostics().getDiagnostics());
     }
 
     @Test

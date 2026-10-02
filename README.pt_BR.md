@@ -56,6 +56,7 @@ Obrigado a essas pessoas maravilhosas (o selo da Kof é a marca delas):
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/matheusdgdcampos"><img src="https://github.com/matheusdgdcampos.png?s=100" width="100px;" alt="matheusdgdcampos"/><br /><sub><b>matheusdgdcampos</b></sub></a><br /><img src="kof-badge.png" width="16" alt="kof original contributor" title="kof original contributor"/> <a href="https://github.com///commits?author=matheusdgdcampos" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/lunalully"><img src="https://github.com/lunalully.png?s=100" width="100px;" alt="lunalully"/><br /><sub><b>lunalully</b></sub></a><br /><img src="kof-badge.png" width="16" alt="kof original contributor" title="kof original contributor"/> <a href="https://github.com///commits?author=lunalully" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/ronald2329"><img src="https://github.com/ronald2329.png?s=100" width="100px;" alt="ronald2329"/><br /><sub><b>ronald2329</b></sub></a><br /><img src="kof-badge.png" width="16" alt="kof original contributor" title="kof original contributor"/> <a href="https://github.com///commits?author=ronald2329" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/ThiagoLange"><img src="https://github.com/ThiagoLange.png?s=100" width="100px;" alt="ThiagoLange"/><br /><sub><b>ThiagoLange</b></sub></a><br /><img src="kof-badge.png" width="16" alt="kof original contributor" title="kof original contributor"/> <a href="#ideas-ThiagoLange" title="Ideas, Planning, & Feedback">🤔</a> <a href="https://github.com///commits?author=ThiagoLange" title="Documentation">📖</a></td>
     </tr>
   </tbody>
 </table>
@@ -269,7 +270,7 @@ Ver: [learn/35-kof-ui.md](learn/35-kof-ui.md) e
 
 | Pasta | Para quem | O que contém |
 |-------|-----------|--------------|
-| [`docs/`](docs/) | arquitetos, mantenedores, decisões | **Documentação técnica e de projeto**: estado atual (`status.md`, `backend-parity.md`; snapshots em `history/`), arquitetura (`architecture/`), filosofia (`philosophy.md`), stdlib e áreas (`stdlib/` — inclui segurança, http, web, config, database, logging, observabilidade), concorrência (`language-reference/`), linguagem (`language-reference/`), depuração (`debugging/`), comparação (`comparison/`), runtime (`runtime/`), roadmap (`development/roadmap.md`), targets (`targets/`), UI (`ui/`), distribuição e licença (`distribution/`), decisões de design consolidadas (`decisions/`), ferramentas (`tooling/`), visões futuras (`development/future/`) e auditorias (`development/ecosystem-coverage.md`, `architecture/complexity-audit.md`) |
+| [`docs/`](docs/) | arquitetos, mantenedores, decisões | **Documentação técnica e de projeto**: estado atual (`status.md`, `backend-parity.md`; snapshots em `history/`), arquitetura (`architecture/`), filosofia (`philosophy.md`), stdlib e áreas (`stdlib/` — inclui segurança, http, web, config, database, logging, observabilidade), concorrência (`language-reference/`), linguagem (`language-reference/`), depuração (`debugging/`), comparação (`comparison/`), runtime (`runtime/`), roadmap (`development/roadmap.md`), targets (`targets/`), UI (`ui/`), distribuição e licença (`distribution/`), decisões de design consolidadas (`decisions/`), ferramentas (`tooling/`), visões futuras (`development/future/`) e auditorias (`bugs-and-gaps/ecosystem-coverage.md`, `audits/complexity-audit.md`) |
 | [`learn/`](learn/README.md) | humanos aprendendo Kof | **Trilha de aprendizado em capítulos numerados** (00 Introdução → 39 stdlib): linguagem, classes, funções, lambdas, UI, segurança — cada capítulo um guia prático; `learn/native/` para o alvo nativo |
 | [`training/`](training/README.md) | LLMs e ferramentas de IA | **Corpus estruturado otimizado para modelos de linguagem**: fatos por tópico (`language/`), idiomas (`idioms/`), padrões/anti-padrões (`patterns/`, `anti-patterns/`), exemplos compiláveis (`examples/`), referência (`reference/`), migração Java→Kof (`migration/`), tooling e releases |
 
@@ -539,6 +540,12 @@ Kof é uma linguagem. Um compilador. Uma IR. Vários backends.
 
 ---
 
+## Feito com Kof
+
+| Projeto | O que é | Alvos |
+|---|---|---|
+| [KOOKIE](https://github.com/rufl/KOOKIE) | Engine experimental de tiro 3D construída sobre Kof (boomer shooters / ARPG FPS). A simulação e as regras da engine moram em `.kf`; adaptadores nativos pequenos ficam apenas nas fronteiras SDL3/SDL_GPU e ABI. | Native Linux x86-64 (primeiro alvo suportado); JVM como alvo diferencial/comparação — incluindo um arquivo JVM Windows com JDK Windows embutido e launcher PE. Execução nativa em PE Windows ainda não existe no target native do Kof, e o KOOKIE fecha essa porta com honestidade. |
+
 # Licença
 
 Kof é software livre distribuído sob a licença **GNU General Public License v3.0**.
@@ -552,6 +559,10 @@ O autor do programa mantém o direito de escolher a licença do próprio softwar
 Software proprietário escrito em Kof é permitido, desde que respeite as licenças das dependências que efetivamente incorporar.
 
 Para mais detalhes, consulte [docs/distribution/LICENSING.md](docs/distribution/LICENSING.md).
+
+O logotipo, a mascote e a identidade visual do **Kof** / **Kof4j** estão
+disponíveis para uso comercial e comunitário livre sob CC BY 4.0 — veja
+[TRADEMARK.pt_BR.md](TRADEMARK.pt_BR.md).
 
 ---
 

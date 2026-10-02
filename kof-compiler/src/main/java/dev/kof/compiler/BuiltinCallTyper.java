@@ -317,7 +317,7 @@ public final class BuiltinCallTyper {
             if (localSym != null && localSym.type() instanceof Type.FunctionType lft) {
                 List<Type> argTypes = new ArrayList<>();
                 for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
-                TypeChecker.checkArgTypes(sa.diagnostics(), mc.methodName(), argTypes, lft.parameterTypes(), mc.arguments());
+                TypeChecker.checkArgTypes(sa, sa.diagnostics(), mc.methodName(), argTypes, lft.parameterTypes(), mc.arguments());
                 return lft.returnType();
             }
             if (localSym instanceof SymbolTable.LocalVariableSymbol
@@ -342,7 +342,7 @@ public final class BuiltinCallTyper {
                 if (m instanceof SymbolTable.MethodSymbol ms) {
                     List<Type> argTypes = new ArrayList<>();
                     for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
-                    TypeChecker.checkArgTypes(sa.diagnostics(), mc.methodName(), argTypes, ms.parameterTypes(), mc.arguments());
+                    TypeChecker.checkArgTypes(sa, sa.diagnostics(), mc.methodName(), argTypes, ms.parameterTypes(), mc.arguments());
                     sa.putResolvedMethod(mc, ms);
                     return ms.returnType();
                 }

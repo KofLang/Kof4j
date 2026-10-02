@@ -299,19 +299,7 @@ class NativeRiscvDbWireTest {
         // link estático: o harness não usa libc (só o runtime puro).
         runCapture(ld, "--no-relax", "-o", bin.toString(), obj.toString());
         bin.toFile().setExecutable(true);
-        ProcessBuilder pb = new ProcessBuilder("qemu-" + arch, bin.toString());
-        Process p = pb.start();
-        String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
-                .replace("\r\n", "\n").trim();
-        int ec;
-        try {
-            ec = p.waitFor();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IOException(e);
-        }
-        assertEquals(0, ec, "qemu " + arch + " falhou (" + ec + "): " + out);
-        return out;
+        return QemuRun.runExpect0("qemu-" + arch, bin.toString());
     }
 
     /** Variante que ESPERA o throw nao-capturado (ec 1 + mensagem) — §523:
@@ -330,9 +318,10 @@ class NativeRiscvDbWireTest {
         }
         runCapture(ld, "--no-relax", "-o", bin.toString(), obj.toString());
         bin.toFile().setExecutable(true);
-        String[] run = runAllowFail("qemu-" + arch, bin.toString());
-        assertEquals("1", run[1], "qemu " + arch + " deveria abortar com o throw (ec 1): " + run[0]);
-        return run[0];
+        QemuRun.Exit run = QemuRun.run("qemu-" + arch, bin.toString());
+        assertEquals(1, run.exitCode(),
+                "qemu " + arch + " deveria abortar com o throw (ec 1): " + run.output());
+        return run.output();
     }
 
     @Test

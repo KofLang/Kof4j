@@ -4,10 +4,10 @@
 
 **Status:** proposal, zero code — `docs/development/future/`
 **Requested by:** maintainer (26/09/2026)
-**Rule 6 gate:** the declaration surface and the query surface proposed here are
-**design decisions**. Before any code, the maintainer locks a `DECISIONS.md`
-entry (`D-ENTITY-HISTORY`) with the chosen surface. This document is a
-proposal, not an authorization.
+**Rule 6 gate:** the declaration/query surfaces were **resolved** by the maintainer
+in `DECISIONS.md` §`D-ENTITY-HISTORY` (28/09, authorized; Q1–Q15 answered in
+`D-FUTURE-BATCH-2809B`). This document is the specification; promotion to
+current work is one-at-a-time per `D-FUTURE-PROMOTION`.
 **Snapshot:** branch `beta-0.5.0`, tip `12bacc39e`. Every `file:line` below was
 measured on that tip.
 
@@ -834,7 +834,7 @@ document is `entity-history-plan.md`. "Revision", "audit record" and
 - `kof-compiler/src/main/java/dev/kof/compiler/CompilerInterop.java:17-19` —
   `interop.schema(R)` compile-time, no runtime reflection.
 - `docs/stdlib/observability.md:134` — the only "future audit logging" mention.
-- Related plans: `docs/development/pagination-plan` (windowing),
+- Related plans: `docs/stdlib/pagination-plan` (windowing),
   `docs/development/memory-safety-plan.md`, `docs/stdlib/db-parity-plan.md`,
   `docs/stdlib/DATABASE_VISION.md`, `DECISIONS.md` §`D-DB-GAPS`.
 

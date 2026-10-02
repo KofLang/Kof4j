@@ -227,6 +227,40 @@ class TypeVarianceE2ETest {
                 "SEM082 esperado, veio: " + result.diagnostics().getDiagnostics());
     }
 
+    // ---------- #689: o cheque vale igual no lado RECORD ----------
+
+    @Test
+    void outInRecordMethodParameterIsSem082(@TempDir Path tmp) throws Exception {
+        // #689: sem super explícito, o record pulava o cheque de variância.
+        Path f = write(tmp, "Ninho.kf", """
+                record Ninho<out T>(T ocupante) {
+                    void substituir(T novo) { }
+                }
+
+                main() { println("no") }
+                """);
+        CompilationResult result = driver.compileSources(List.of(f), tmp.resolve("out-rec"), Target.JVM, tmp);
+        assertFalse(result.success(), "out T em parâmetro de MÉTODO de record deve falhar (solidez)");
+        assertTrue(result.diagnostics().getDiagnostics().stream()
+                        .anyMatch(d -> "SEM082".equals(d.code())),
+                "SEM082 esperado, veio: " + result.diagnostics().getDiagnostics());
+    }
+
+    @Test
+    void outInRecordReturnPositionStaysValid(@TempDir Path tmp) throws Exception {
+        // Controle: `T` em posição de saída (retorno) é legítimo para `out T`.
+        Path f = write(tmp, "Ninho.kf", """
+                record Ninho<out T>(T ocupante) {
+                    verOcupante(): T { return ocupante }
+                }
+
+                main() { println("ok") }
+                """);
+        CompilationResult result = driver.compileSources(List.of(f), tmp.resolve("out-rec-ok"), Target.JVM, tmp);
+        assertTrue(result.success(), "out T em retorno deve compilar, veio: "
+                + result.diagnostics().getDiagnostics());
+    }
+
     // ---------- compatibilidade: `out`/`in` seguem identificadores ----------
 
     @Test

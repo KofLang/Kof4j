@@ -39,6 +39,25 @@ class SecretE2ETest {
     }
 
     @Test
+    void secretThroughGenericContainerErasureJvm(@TempDir Path dir) throws IOException {
+        // Erasure family (JvmTypeMapper.toInternalName): a Secret read back out
+        // of a `List` (checkcast in OWNER position) must map to KofRuntime$Secret,
+        // not the non-existent `kof/Secret` (NoClassDefFoundError).
+        Path src = dir.resolve("sec-erasure.kf");
+        Files.writeString(src, """
+                main() {
+                    val s = secrets.of("topsecret")
+                    val box = listOf(s)
+                    println(box.get(0))
+                }
+                """);
+        CompilationResult r = driver.compile(src, dir.resolve("out-sec-erasure"), Target.JVM);
+        assertTrue(r.success(), "Secret through a List must compile: " + r.diagnostics().getDiagnostics());
+        assertEquals("Secret(*** )", runJvm(dir.resolve("out-sec-erasure")),
+                "Secret read out of a generic container still redacts (erasure owner maps to the runtime type)");
+    }
+
+    @Test
     void concatenationAndEqualityNeverLeakJvm(@TempDir Path dir) throws IOException {
         Path src = dir.resolve("sec2.kf");
         Files.writeString(src, """

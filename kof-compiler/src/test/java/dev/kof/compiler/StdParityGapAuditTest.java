@@ -41,14 +41,18 @@ class StdParityGapAuditTest {
     }
 
     @Test
-    @DisplayName("buffer: gate JVM+JS (D-R3-BUFFER) + FFI001 nos demais")
+    @DisplayName("buffer: gate JVM+JS+x86 Native (D-R3-BUFFER/A1) + FFI001 nos demais")
     void bufferGatesToJvmWithFfiCodes() {
-        // R57/R58: the `kof.buffer` namespace + Buffer(U8) INOUT bind on the JS
-        // target too (KofBuffer.supportedOn = JVM||JS) — JS is no longer gated.
-        assertEquals(Set.of(Target.NATIVE, Target.NATIVE_RISCV64, Target.NATIVE_AARCH64,
-                Target.ANDROID, Target.SCRIPT), unsupported(KofBuffer::supportedOn));
+        // R57/R58: JS landed (KofBuffer.supportedOn = JVM||JS). #651 fatia A1:
+        // x86-64 native surface (alloc/bytes/println). #651 fatia B (29/09):
+        // cross riscv64/aarch64 surface + FFI `B` land (NativeRiscvAsmBuffer).
+        // Android, riscv32 and Script remain honest gaps.
+        assertEquals(Set.of(Target.ANDROID, Target.SCRIPT), unsupported(KofBuffer::supportedOn));
         assertTrue(KofBuffer.supportedOn(Target.JS));
-        assertEquals("FFI001", KofBuffer.gapCode(Target.NATIVE));
+        assertTrue(KofBuffer.supportedOn(Target.NATIVE));
+        assertTrue(KofBuffer.supportedOn(Target.NATIVE_RISCV64));
+        assertTrue(KofBuffer.supportedOn(Target.NATIVE_AARCH64));
+        assertEquals("FFI001", KofBuffer.gapCode(Target.ANDROID));
     }
 
     @Test

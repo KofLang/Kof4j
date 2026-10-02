@@ -11,7 +11,7 @@
 559	kof-compiler/src/main/java/dev/kof/compiler/CompilerComparisons.java
 501	kof-compiler/src/main/java/dev/kof/compiler/CompilerDriver.java
 528	kof-compiler/src/main/java/dev/kof/compiler/CompilerDriverState.java
-581	kof-compiler/src/main/java/dev/kof/compiler/CompilerTypes.java
+545	kof-compiler/src/main/java/dev/kof/compiler/CompilerTypes.java
 577	kof-compiler/src/main/java/dev/kof/compiler/ExpressionBinaryLowerer.java
 507	kof-compiler/src/main/java/dev/kof/compiler/ExpressionInstanceCallLowerer.java
 528	kof-compiler/src/main/java/dev/kof/compiler/ExpressionMethodCallLowerer.java
@@ -51,7 +51,7 @@
 575	kof-compiler/src/main/java/dev/kof/compiler/nat/NativeRiscvAsmRtB77.java
 503	kof-compiler/src/main/java/dev/kof/compiler/nat/NativeRiscvAsmRtB80.java
 517	kof-compiler/src/main/java/dev/kof/compiler/nat/NativeRiscvCrossEmit.java
-582	kof-compiler/src/main/java/dev/kof/compiler/nat/NativeRiscvCrossOps.java
+541	kof-compiler/src/main/java/dev/kof/compiler/nat/NativeRiscvCrossOps.java
 554	kof-compiler/src/main/java/dev/kof/compiler/parser/ExpressionParser.java
 509	kof-compiler/src/main/java/dev/kof/compiler/parser/Lexer.java
 549	kof-compiler/src/main/java/dev/kof/compiler/parser/StatementParser.java

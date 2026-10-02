@@ -48,6 +48,16 @@ public final class KofOrm {
         return "orm".equals(name);
     }
 
+    /** P4 (D-PAGINATION-P4-LOWERING): o tipo `Window<T>` do host virtual
+     *  `kof.pagination` (record injetado por-programa). Devolve {@code null}
+     *  quando o host nao esta importado — `orm.window` entao nao resolve
+     *  (exige `import kof.pagination`, nunca uma janela fantasma). */
+    static Type windowType(SemanticAnalyzer sa, Type entityType) {
+        SymbolTable.ClassSymbol win = sa == null ? null : sa.getClass("Window");
+        if (win == null) return null;
+        return new Type.ClassType(win.packageName(), "Window", List.of(entityType));
+    }
+
     /** JVM/ANDROID: JDBC via kof.db (ANDROID fecha 20/09, D-DB-GAPS DB-2 —
      *  mesmo JvmBackend, paridade por construção). JS: KofJsOrmBridge (18/09,
      *  ORM001). Native x86-64: SQL-puro (F1) + row-object completo (F2,

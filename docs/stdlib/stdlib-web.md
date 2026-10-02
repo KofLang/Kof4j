@@ -107,6 +107,7 @@ Return `null` → continues; return `String` → immediate response (200).
 |------|-------------|
 | `app.security()` | Composite middleware with secure defaults (hardening headers) |
 | `app.security(opts)` | Same, with overrides via `Map` |
+| `app.policy(prefix, opts)` | Resource policy — same opts, applied to every route under `prefix` (D-HTTP-POLICIES, F2) |
 
 Applies the **fixed order** rate-limit → CORS → headers → cookies/session → csrf →
 auth → RBAC → route (D-SEC). Replaces the manual `app.use` chain.
@@ -126,12 +127,21 @@ Documented opts (`Map` keys; any other is ignored):
 |-----|------|---------|--------|
 | `headers` | `Bool` | `true` | Enables/disables the headers above |
 | `cors` / `corsOrigin` | `String` | off | Allowed origin, CSV or `*`. Origin not listed → 403; `OPTIONS` preflight → 204 |
-| `rateLimit` | `String` or `Number` | off | `"limit/windowSeconds"` (e.g. `"100/60"`) or just the limit. Per remote IP; exceeded → 429 + `Retry-After` |
+| `rateLimit` | `String` or `Number` | off | `"limit/windowSeconds"` (e.g. `"100/60"`) or just the limit. Per remote IP **+ route pattern**; exceeded → 429 + `Retry-After` |
 | `csrf` | `Bool` | `true` | Double-submit cookie: emits `csrf` (SameSite=Lax) on safe methods; requires `X-CSRF-Token` matching the cookie on POST/PUT/PATCH/DELETE, otherwise 403. `csrf:false` disables |
 | `sessionHeader` | `String` | off | Session header name. Outside `publicPaths`, **every** request (GET included) requires a valid session; missing/invalid → 401 |
 | `publicPaths` / `permitAll` | `String` CSV | — | Allow-list of public matchers (e.g. `"/register,/login"`); everything else requires authentication |
 | `auth` | `Bool` | `false` | Requires a valid `Authorization: Bearer` JWT (secret via `auth.secret`); missing/invalid → 401 + `WWW-Authenticate` |
 | `roles` | `String` CSV or `List` | — | Requires all roles (claims `roles`); missing → 403 (implies auth) |
+| `responses` | `Map` | off | Declarative bodies for the pipeline's synthetic rejections: `unauthorized` (401), `forbidden` (403), `tooManyRequests` (429), `notFound` (404). Value = literal body (JSON auto-detected). Missing keys keep the built-in bodies (backward compatible) |
+
+**Declarative rejection payloads (D-HTTP-POLICIES):** `responses` overrides the
+built-in JSON of the pipeline rejections — e.g.
+`o.put("responses", mapOf("unauthorized", "{\"error\":\"nope\"}"))` makes every
+401 answer that body. Absent keys keep today's bodies, so adding `responses` is
+additive and never changes an undeclared status. With scopes/endpoints the
+payload comes from the **effective** policy, and `notFound` also feeds both 404
+paths (`return null` and unknown route).
 
 **Auth-if-present:** even without `auth: true`, a request that **carries**
 `Authorization` with an invalid token never passes (401) — avoids "bad token
@@ -154,6 +164,38 @@ main() {
 
 **Security by default:** `listen`/`listenSecure` with `KOF_ENV=production`
 without `app.security()` warns on `stderr` (never fails silently).
+
+**Resource policies (D-HTTP-POLICIES, F2):** `app.policy(prefix, opts)` scopes
+the same opts to routes under a plain path prefix (`/admin`, `/api/v1`); `"*"`
+(or `""`) means every request. The global `app.security(opts)` stays the default.
+For a request the **effective** policy is the global merged with every matching
+scope, **shortest prefix first** (longest wins) — the merge law:
+
+- **scalars** (all keys except the lists): **deepest wins** — an undeclared key
+  is inherited, never reset to its default;
+- **lists** (`publicPaths`, `roles`): **union** — allow-lists only grow, the
+  deepest scope adds, never removes.
+
+```kof
+app.security(mapOf("rateLimit", "200/60"))
+app.policy("/admin", mapOf("roles", "admin"))       // 20/60 + admin
+app.policy("*", mapOf("publicPaths", "/health"))    // public regardless of scope
+```
+
+Prefix-only in v1 (no globs/regex, no path params). Same JVM-only rule as
+`app.security`: Native/JS report `WEB006`.
+
+**Endpoint policy (F3):** a route may carry its own opts as the second argument
+(`app.get(path, opts) { … }`, same opt keys). It is the **deepest** scope, so it
+wins over the resource policy for that exact route; a route without opts inherits
+the resource/global policy. It only applies after the route matches — an unknown
+path is still protected by the path scopes/global.
+
+```kof
+app.policy("/api", mapOf("headers", false))
+app.get("/api/show", mapOf("headers", true)) { return "show" }  // hardening back on
+app.get("/api/hide") { return "hide" }                          // inherits off
+```
 
 **JVM-only** — Native/JS report `WEB006` (honest gap, same precedent
 `WEB002`/`WEB005`).
@@ -311,6 +353,32 @@ The context is per-request (ThreadLocal at runtime) — handlers can be
 concurrent without shared state. `status(code, body)` and
 `headerSet(name, value)` allow rich responses (custom status + headers) —
 previously handlers only produced automatic 200/404.
+
+### Pagination helper (`import kof.web`)
+
+`pageRequest(defaultLimit[, maxLimit]): PageRequest` (`D-PAGINATION` P5) reads
+`?page/limit/offset` from the current request and returns the core record
+`PageRequest(page, limit, offset)` — no HTTP type leaks into the handler. `page`
+is 1-based (`offset = (page-1)*limit`); `limit` defaults to `defaultLimit` and is
+clamped to `maxLimit` when `maxLimit > 0`; an explicit `?offset=` wins. Bad input
+(non-integer, `page < 1`, `limit < 1`, `offset < 0`) throws a named
+`PAGINATION:` error — map it to 400 in the handler:
+
+```kof
+import kof.web
+
+app.get("/users") {
+    try {
+        val p = pageRequest(20, 100)
+        return json.encode(orm.window<User>(db, p.limit(), p.offset()))
+    } catch (String e) {
+        return status(400, e)
+    }
+}
+```
+
+Native targets have no web context, so a `pageRequest` call there is a `WEB001`
+gap (declared, never silent).
 
 ## 4. Concurrency
 

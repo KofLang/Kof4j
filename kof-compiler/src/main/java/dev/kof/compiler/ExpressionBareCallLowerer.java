@@ -96,6 +96,12 @@ public final class ExpressionBareCallLowerer {
             String selfOwner = selfMethod.ownerClass();
             if (selfOwner.contains("/")) selfOwner = selfOwner.substring(selfOwner.lastIndexOf('/') + 1);
             if (driver.semanticAnalyzer.isInterfaceType(selfOwner)) selfKind = KofCallKind.INTERFACE;
+            // §557: o typer carimba INTERFACE para owner externo/JDK
+            // (interfaceNames é só Kof-local) — mesma regra do #213 acima.
+            if (selfKind == KofCallKind.INSTANCE
+                    && selfMethod.dispatchKind() == SymbolTable.DispatchKind.INTERFACE) {
+                selfKind = KofCallKind.INTERFACE;
+            }
             ops.add(new KofCall(ownerType, mc.methodName(), selfMethod.parameterTypes(),
                     selfMethod.returnType(), selfKind));
             // §479: mesma adaptação do ramo STATIC acima (retorno `T` do

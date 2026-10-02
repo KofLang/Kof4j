@@ -8,6 +8,15 @@
 > R12). Esta spec **não muda nada**: nenhum `Target`, backend, runtime ou
 > semântica de linguagem.
 
+> **Atualização de decisão (28/09/2026):** as questões técnicas que esta spec
+> deixou TBD/DECISION REQUIRED foram **resolvidas** pela mantenedora em
+> `DECISIONS.md` §`D-WASM-GO` (`D-WASM-01..09`: backend direto, `Int`=i64,
+> unwinding por string lançada, handles+tabela de handles, GC mark-sweep do
+> design nativo, env de closure explícito, WASI preview1, wasmtime primeiro,
+> concorrência cooperativa). A spec continua **future/zero-código**; a promoção
+> é uma-por-vez por `D-FUTURE-PROMOTION`. Não leia os marcadores TBD inline como
+> decisões ainda abertas.
+>
 ## Como ler este documento
 
 Toda afirmação carrega exatamente uma marca:

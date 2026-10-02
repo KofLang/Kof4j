@@ -12,22 +12,23 @@ Releases**. Siga o passo a passo do **seu sistema** e pronto.
 ## Instalação automatizada (recomendado — Linux/macOS)
 
 O jeito mais rápido: rode o instalador direto do cURL disponibilizado
-pelo script de instalação contido no repositório (URL pinada na branch ativa
-`beta-0.4.0` — `main` dá 404 para este script até o merge do release; medido 19/09):
+pelo script de instalação contido no repositório (URL na branch `main` de release;
+medido 30/09 — a antiga branch `beta-0.4.0` não existe mais e o `main` agora carrega
+`scripts/install.sh`):
 
 ```bash
 # instale uma versão específica com variáveis de ambiente
 # e sem argumentos
-curl -fsSL https://raw.githubusercontent.com/KofLang/Kof4j/beta-0.4.0/scripts/install.sh \
-  | KOF_INSTALL_VERSION=0.4.5-beta bash
+curl -fsSL https://raw.githubusercontent.com/KofLang/Kof4j/main/scripts/install.sh \
+  | KOF_INSTALL_VERSION=0.5.0-beta bash
 ```
 
 ou
 
 ```bash
 # instale uma versão específica com argumentos
-curl -fsSL https://raw.githubusercontent.com/KofLang/Kof4j/beta-0.4.0/scripts/install.sh \
-  | bash -s -- --version 0.4.5-beta --yes
+curl -fsSL https://raw.githubusercontent.com/KofLang/Kof4j/main/scripts/install.sh \
+  | bash -s -- --version 0.5.0-beta --yes
 ```
 
 O que ele faz automaticamente:

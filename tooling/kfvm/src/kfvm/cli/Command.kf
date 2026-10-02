@@ -1,0 +1,6 @@
+package kfvm.cli
+
+interface Command {
+    List<String> names()
+    void run(List<String> args)
+}

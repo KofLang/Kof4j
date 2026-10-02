@@ -1,0 +1,9 @@
+main() {
+    var nums = new List<Int>()
+    for (var i = 0; i < 50000; i++) {
+        nums.add(i)
+    }
+    var doubled = nums.map((x: Int) -> x * 2)
+    println(doubled.size)
+    println(doubled.get(49999))
+}

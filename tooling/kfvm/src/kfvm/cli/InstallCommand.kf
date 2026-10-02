@@ -1,0 +1,36 @@
+package kfvm.cli
+
+import kfvm.system
+import kfvm.store
+
+class InstallCommand implements kfvm.cli.Command {
+    RemoteVersions remote
+    Store store
+    VersionActivator activator
+    Logger logger
+
+    constructor(RemoteVersions remote, Store store, VersionActivator activator, Logger logger) {
+        this.remote = remote
+        this.store = store
+        this.activator = activator
+        this.logger = logger
+    }
+
+    List<String> names() { return listOf("i", "install") }
+
+    void run(List<String> args) {
+        if (args.size == 0) throw "usage: kfvm i <ver|lts|nightly>"
+        var releases = remote.releases()
+        var version = remote.resolve(args.get(0), releases)
+        var current;
+
+        remote.ensureInstalled(version, releases)
+        current = store.current()
+
+        if (current == "" || current == version)
+            activator.activate(version)
+        else 
+            logger.info("run 'kfvm u " + version + "' to activate it")
+        
+    }
+}

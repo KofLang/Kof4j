@@ -27,7 +27,7 @@ import org.junit.jupiter.api.io.TempDir;
  * setores é a B-3b). A imagem é flat: o setor começa em 0x7C00 e fecha com a
  * assinatura em 0x1FE.
  */
-class BiosBootE2ETest {
+class BiosBootE2ETest extends BiosBootSupport {
 
     private static final String HELLO = """
             main() {
@@ -41,87 +41,6 @@ class BiosBootE2ETest {
 
     private static final String LM_MARKER = "KO-BIOS LM64 OK";
 
-    private static boolean hasTool(String tool, String... args) {
-        String[] cmd = new String[args.length + 1];
-        cmd[0] = tool;
-        System.arraycopy(args, 0, cmd, 1, args.length);
-        try {
-            Process p = new ProcessBuilder(cmd).start();
-            return p.waitFor(10, TimeUnit.SECONDS) && p.exitValue() == 0;
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    private static Path ovmfPrefix() {
-        String env = System.getenv("KOF_OVMF_HOME");
-        if (env != null && Files.isRegularFile(Path.of(env, "usr/bin/qemu-system-x86_64"))) {
-            return Path.of(env);
-        }
-        Path home = Path.of(System.getProperty("user.home"), ".local/share/kof-ovmf");
-        if (Files.isRegularFile(home.resolve("usr/bin/qemu-system-x86_64"))) {
-            return home;
-        }
-        return null;
-    }
-
-    private static Path findQemu() {
-        if (hasTool("qemu-system-x86_64", "--version")) return Path.of("qemu-system-x86_64");
-        Path p = ovmfPrefix();
-        return p == null ? null : p.resolve("usr/bin/qemu-system-x86_64");
-    }
-
-    private Path build(Path tempDir, String program) throws IOException {
-        CompilerDriver driver = new CompilerDriver();
-        Path source = tempDir.resolve("Main.kf");
-        Files.writeString(source, program);
-        Path outDir = tempDir.resolve("out");
-        CompilationResult result = driver.compile(source, outDir, Target.NATIVE, NativeProfile.BIOS);
-        assertTrue(result.success(),
-                "compile BIOS inesperado: " + result.diagnostics().getDiagnostics());
-        return outDir.resolve("Default/Main");
-    }
-
-    private static java.util.List<String> qemuCmd(Path qemu, Path img, Path ser) {
-        java.util.List<String> cmd = new java.util.ArrayList<>();
-        Path prefix = ovmfPrefix();
-        boolean prefixQemu = prefix != null && qemu.startsWith(prefix);
-        if (prefixQemu) {
-            cmd.add(prefix.resolve("usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2").toString());
-            cmd.add("--library-path");
-            cmd.add(prefix.resolve("usr/lib/x86_64-linux-gnu").toString());
-        }
-        cmd.add(qemu.toString());
-        if (prefix != null) {
-            // B-3: o firmware do boot legado é o SeaBIOS (debian: share/seabios),
-            // NÃO o OVMF (share/qemu só traz os dtbs/roms). Sem o -L certo o qemu
-            // morre em "could not load PC BIOS 'bios-256k.bin'" e nada boota.
-            Path seabios = prefix.resolve("usr/share/seabios");
-            Path datadir = Files.isDirectory(seabios) ? seabios : prefix.resolve("usr/share/qemu");
-            cmd.addAll(java.util.List.of("-L", datadir.toString()));
-        }
-        cmd.addAll(java.util.List.of(
-                "-machine", "pc", "-m", "128",
-                "-display", "none", "-net", "none", "-no-reboot",
-                "-serial", "file:" + ser,
-                "-drive", "format=raw,file=" + img + ",if=ide"));
-        return cmd;
-    }
-
-    private String serialText(Path log) throws IOException {
-        return Files.readString(log, StandardCharsets.ISO_8859_1).replace("\0", "");
-    }
-
-    /** B-3b-3: localiza a magia do header do payload ({@code KOFPAYLD}) na imagem flat. */
-    private static int findMagic(byte[] img) {
-        for (int i = 0; i + 8 <= img.length; i++) {
-            if (img[i] == 'K' && img[i + 1] == 'O' && img[i + 2] == 'F' && img[i + 3] == 'P'
-                    && img[i + 4] == 'A' && img[i + 5] == 'Y' && img[i + 6] == 'L' && img[i + 7] == 'D') {
-                return i;
-            }
-        }
-        return -1;
-    }
 
     @Test
     void biosArtifactIsBootableMbr(@TempDir Path tempDir) throws IOException {

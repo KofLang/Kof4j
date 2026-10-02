@@ -1,7 +1,8 @@
 name: PR base guard
 
-# Política de branches do KofLang / Kof4j:
-# - Todo desenvolvimento entra via branch `beta-*` (ex.: `beta-0.4.0`).
+# Política de branches do KofLang / Kof4j (D-QUALITY-PIPELINE-2609):
+# - Todo desenvolvimento entra via `lab` (branches de trabalho nascem dela).
+# - A esteira é explícita: lab → testing → prerelease → stable → release/x.y.z.
 # - PRs com base em `main` são reservados aos codeowners (.github/CODEOWNERS).
 # - Este guard FALHA o check de qualquer PR aberto contra `main`
 #   por autor que não esteja no CODEOWNERS, com mensagem explicativa.
@@ -32,7 +33,8 @@ jobs:
             const base = pr.base.ref;
             const author = pr.user.login;
 
-            // PRs para beta-* (ou qualquer base que não seja main): sempre permitidos.
+            // PRs para qualquer base que não seja main: sempre permitidos
+            // (a esteira é lab/testing/prerelease/stable; main é codeowner-only).
             if (base !== 'main') {
               core.info(`Base '${base}' — permitido (só 'main' é restrita).`);
               return;
@@ -80,8 +82,9 @@ jobs:
             const body = [
               `⛔ @${author}, este PR mira a branch \`main\`, que é restrita aos codeowners.`,
               ``,
-              `**O que fazer:** feche este PR e reabra com base na branch \`beta-*\` ativa`,
-              `(ex.: \`beta-0.4.0\`). Todo desenvolvimento entra pela beta;`,
+              `**O que fazer:** feche este PR e reabra com base na branch \`lab\` ativa`,
+              `(ou no estágio da esteira correspondente: \`testing\`/\`prerelease\`/\`stable\`).`,
+              `Todo desenvolvimento entra por \`lab\`;`,
               `a \`main\` só recebe releases controladas pela mantenedora.`,
             ].join('\n');
 
@@ -103,5 +106,5 @@ jobs:
 
             core.setFailed(
               `PR #${pr.number} de @${author} mira 'main' e o autor não está no CODEOWNERS. ` +
-              `Reabra o PR contra a branch beta-* ativa.`
+              `Reabra o PR contra a branch lab (ou o estágio correspondente).`
             );

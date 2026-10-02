@@ -1,0 +1,402 @@
+package image
+
+// kof.image — image metadata, first slice of the image-vision front.
+//
+// A pure-Kof, header-level reader: from the leading bytes of a file it
+// reports the image **format** and its **pixel dimensions** — no pixel
+// decoding, no external codec. Pixel data, resizing and the codecs remain
+// interop-first (R9) in later slices.
+//
+//   var img = Image("photo.png")
+//   println(img.format() + " " + img.width() + "x" + img.height())
+//
+// Documented subset (never a silent wrong parse):
+//   * PNG  — width/height from the `IHDR` chunk;
+//   * GIF  — logical screen descriptor (GIF87a/GIF89a);
+//   * BMP  — `BITMAPCOREHEADER` (12) and `BITMAPINFOHEADER`+ (width/height,
+//     top-down negative height normalized to positive);
+//   * JPEG — first `SOF0..SOF15` frame header (baseline/progressive);
+//   * WEBP — `VP8 ` (lossy), `VP8L` (lossless) and `VP8X` (extended canvas);
+//   * TIFF — first IFD `ImageWidth`/`ImageLength` tags (`II`/`MM`, LE/BE);
+//   * ICO/CUR — first directory entry (0 means 256);
+//   * PNM — `PBM`/`PGM`/`PPM` (P1–P6) width/height tokens (comments allowed);
+//   * QOI — `qoif` header width/height;
+//   * PSD (`8BPS`), DDS (`DDS `) and farbfeld — width/height fields;
+//   * AVIF/HEIF — `ftyp` brand + the `ispe` dimensions box.
+// A `Bool isImage(path)` helper answers "is this a supported image?" without
+// throwing. Any other format, a truncated header or an unreadable structure
+// throws a `String` beginning with `IMAGE:`.
+//
+// Built on the existing `kof.io` `File(path).readRange(...)`: the reader
+// fetches one bounded 4 KiB prefix (all supported headers live in the first
+// bytes; a JPEG with more than 4 KiB of metadata before its frame header is
+// not covered), so memory stays constant. JS inherits the compile-time gap
+// `IOJS001` (`readRange` is absent there).
+
+record ImageMetadata(String format, Int width, Int height)
+
+class Image {
+    ImageMetadata meta
+
+    constructor(String path) {
+        this.meta = readImageMetadata(path)
+    }
+
+    String format() {
+        return this.meta.format
+    }
+
+    Int width() {
+        return this.meta.width
+    }
+
+    Int height() {
+        return this.meta.height
+    }
+}
+
+ImageMetadata readImageMetadata(String path) {
+    var head = File(path).readRange(0, 4096)
+    if (head.length < 8) {
+        throw "IMAGE: file too short for a valid header"
+    }
+    if (matchesAscii(head, 1, "PNG")) {
+        return pngMetadata(head)
+    }
+    if (matchesAscii(head, 0, "GIF87a") || matchesAscii(head, 0, "GIF89a")) {
+        return gifMetadata(head)
+    }
+    if (head[0] == 66 && head[1] == 77) {
+        return bmpMetadata(head)
+    }
+    if (head[0] == 255 && head[1] == 216) {
+        return jpegMetadata(head)
+    }
+    if (matchesAscii(head, 0, "RIFF") && matchesAscii(head, 8, "WEBP")) {
+        return webpMetadata(head)
+    }
+    if ((head[0] == 73 && head[1] == 73) || (head[0] == 77 && head[1] == 77)) {
+        return tiffMetadata(head)
+    }
+    if (head[0] == 0 && head[1] == 0 && head[3] == 0 && (head[2] == 1 || head[2] == 2)) {
+        return icoMetadata(head)
+    }
+    if (head[0] == 80 && head[1] >= 49 && head[1] <= 54) {
+        return pnmMetadata(head)
+    }
+    if (matchesAscii(head, 0, "qoif")) {
+        need(head, 12, "QOI")
+        return ImageMetadata("QOI", be32(head, 4), be32(head, 8))
+    }
+    if (matchesAscii(head, 0, "8BPS")) {
+        return psdMetadata(head)
+    }
+    if (matchesAscii(head, 0, "DDS ")) {
+        return ddsMetadata(head)
+    }
+    if (matchesAscii(head, 0, "farbfeld")) {
+        return farbfeldMetadata(head)
+    }
+    if (matchesAscii(head, 4, "ftyp")) {
+        if (matchesAscii(head, 8, "avif") || matchesAscii(head, 8, "avis")) {
+            return isobmffMetadata(head, "AVIF")
+        }
+        if (matchesAscii(head, 8, "heic") || matchesAscii(head, 8, "heix")
+            || matchesAscii(head, 8, "hevc") || matchesAscii(head, 8, "hevx")
+            || matchesAscii(head, 8, "mif1") || matchesAscii(head, 8, "msf1")) {
+            return isobmffMetadata(head, "HEIF")
+        }
+    }
+    throw "IMAGE: unsupported image format"
+}
+
+// True when the file is a supported image; never throws.
+Bool isImage(String path): Bool {
+    try {
+        var m = readImageMetadata(path)
+        return true
+    } catch (String e) {
+        return false
+    }
+}
+
+ImageMetadata pngMetadata(Int[] b) {
+    need(b, 24, "PNG")
+    if (b[0] != 137 || b[1] != 80 || b[2] != 78 || b[3] != 71
+        || b[4] != 13 || b[5] != 10 || b[6] != 26 || b[7] != 10) {
+        throw "IMAGE: bad PNG signature"
+    }
+    return ImageMetadata("PNG", be32(b, 16), be32(b, 20))
+}
+
+ImageMetadata gifMetadata(Int[] b) {
+    need(b, 10, "GIF")
+    return ImageMetadata("GIF", le16(b, 6), le16(b, 8))
+}
+
+ImageMetadata bmpMetadata(Int[] b) {
+    need(b, 26, "BMP")
+    var headerSize = le32(b, 14)
+    if (headerSize == 12) {
+        return ImageMetadata("BMP", le16(b, 18), le16(b, 20))
+    }
+    var w = le32(b, 18)
+    var h = le32(b, 22)
+    if (h < 0) {
+        h = 0 - h
+    }
+    if (w <= 0 || h <= 0) {
+        throw "IMAGE: invalid BMP dimensions"
+    }
+    return ImageMetadata("BMP", w, h)
+}
+
+ImageMetadata jpegMetadata(Int[] b) {
+    var i = 2
+    while (i + 3 < b.length) {
+        if (b[i] != 255) {
+            throw "IMAGE: malformed JPEG marker"
+        }
+        var marker = b[i + 1]
+        if (marker == 216 || marker == 217 || (marker >= 208 && marker <= 215) || marker == 1) {
+            i = i + 2
+        } else {
+            need(b, i + 4, "JPEG")
+            var segLen = be16(b, i + 2)
+            if (segLen < 2) {
+                throw "IMAGE: malformed JPEG segment"
+            }
+            if (marker >= 192 && marker <= 207 && marker != 196 && marker != 200 && marker != 204) {
+                need(b, i + 9, "JPEG")
+                return ImageMetadata("JPEG", be16(b, i + 7), be16(b, i + 5))
+            }
+            i = i + 2 + segLen
+        }
+    }
+    throw "IMAGE: no JPEG frame header found"
+}
+
+ImageMetadata webpMetadata(Int[] b) {
+    if (matchesAscii(b, 12, "VP8 ")) {
+        need(b, 30, "WEBP")
+        return ImageMetadata("WEBP", le16(b, 26) & 16383, le16(b, 28) & 16383)
+    }
+    if (matchesAscii(b, 12, "VP8L")) {
+        need(b, 25, "WEBP")
+        if (b[20] != 47) {
+            throw "IMAGE: bad WEBP lossless signature"
+        }
+        var bits = le32(b, 21)
+        var w = (bits & 16383) + 1
+        var h = ((bits >> 14) & 16383) + 1
+        return ImageMetadata("WEBP", w, h)
+    }
+    if (matchesAscii(b, 12, "VP8X")) {
+        need(b, 30, "WEBP")
+        var w = le24(b, 24) + 1
+        var h = le24(b, 27) + 1
+        return ImageMetadata("WEBP", w, h)
+    }
+    throw "IMAGE: unsupported WEBP variant"
+}
+
+ImageMetadata tiffMetadata(Int[] b) {
+    var le = b[0] == 73 && b[1] == 73
+    var be = b[0] == 77 && b[1] == 77
+    if (!le && !be) {
+        throw "IMAGE: bad TIFF byte order"
+    }
+    var magic = 0
+    if (le) {
+        magic = le16(b, 2)
+    } else {
+        magic = be16(b, 2)
+    }
+    if (magic != 42) {
+        throw "IMAGE: bad TIFF magic"
+    }
+    var off = 0
+    if (le) {
+        off = le32(b, 4)
+    } else {
+        off = be32(b, 4)
+    }
+    need(b, off + 2, "TIFF")
+    var count = 0
+    if (le) {
+        count = le16(b, off)
+    } else {
+        count = be16(b, off)
+    }
+    var w = 0
+    var h = 0
+    var i = 0
+    while (i < count) {
+        var p = off + 2 + i * 12
+        need(b, p + 12, "TIFF")
+        var tag = 0
+        var typ = 0
+        var raw = 0
+        if (le) {
+            tag = le16(b, p)
+            typ = le16(b, p + 2)
+            raw = le32(b, p + 8)
+        } else {
+            tag = be16(b, p)
+            typ = be16(b, p + 2)
+            raw = be32(b, p + 8)
+        }
+        if (tag == 256) {
+            w = tiffValue(typ, raw, le)
+        } else if (tag == 257) {
+            h = tiffValue(typ, raw, le)
+        }
+        i = i + 1
+    }
+    if (w <= 0 || h <= 0) {
+        throw "IMAGE: TIFF dimensions not found"
+    }
+    return ImageMetadata("TIFF", w, h)
+}
+
+Int tiffValue(Int typ, Int raw, Bool le) {
+    if (typ == 3) {
+        if (le) {
+            return raw & 65535
+        }
+        return (raw >> 16) & 65535
+    }
+    return raw
+}
+
+ImageMetadata icoMetadata(Int[] b) {
+    need(b, 8, "ICO")
+    var w = b[6]
+    var h = b[7]
+    if (w == 0) {
+        w = 256
+    }
+    if (h == 0) {
+        h = 256
+    }
+    return ImageMetadata("ICO", w, h)
+}
+
+ImageMetadata pnmMetadata(Int[] b) {
+    need(b, 3, "PNM")
+    var kind = "PNM"
+    if (b[1] == 49 || b[1] == 52) {
+        kind = "PBM"
+    } else if (b[1] == 50 || b[1] == 53) {
+        kind = "PGM"
+    } else if (b[1] == 51 || b[1] == 54) {
+        kind = "PPM"
+    }
+    var i = pnmSkip(b, 2)
+    var w = 0
+    while (i < b.length && b[i] >= 48 && b[i] <= 57) {
+        w = w * 10 + (b[i] - 48)
+        i = i + 1
+    }
+    i = pnmSkip(b, i)
+    var h = 0
+    while (i < b.length && b[i] >= 48 && b[i] <= 57) {
+        h = h * 10 + (b[i] - 48)
+        i = i + 1
+    }
+    if (w <= 0 || h <= 0) {
+        throw "IMAGE: invalid PNM dimensions"
+    }
+    return ImageMetadata(kind, w, h)
+}
+
+ImageMetadata psdMetadata(Int[] b) {
+    need(b, 22, "PSD")
+    return ImageMetadata("PSD", be32(b, 18), be32(b, 14))
+}
+
+ImageMetadata ddsMetadata(Int[] b) {
+    need(b, 20, "DDS")
+    return ImageMetadata("DDS", le32(b, 16), le32(b, 12))
+}
+
+ImageMetadata farbfeldMetadata(Int[] b) {
+    need(b, 16, "farbfeld")
+    return ImageMetadata("farbfeld", be32(b, 8), be32(b, 12))
+}
+
+// ISOBMFF (AVIF/HEIF) stores pixel dimensions in the `ispe` box; scan the
+// prefix for it (a documented heuristic, explicit failure when absent).
+ImageMetadata isobmffMetadata(Int[] b, String format) {
+    var k = 0
+    while (k + 16 <= b.length) {
+        if (matchesAscii(b, k, "ispe")) {
+            return ImageMetadata(format, be32(b, k + 8), be32(b, k + 12))
+        }
+        k = k + 1
+    }
+    throw "IMAGE: no ispe dimensions box found"
+}
+
+// Skip PNM whitespace and `#` comments, returning the next payload index.
+Int pnmSkip(Int[] b, Int from) {
+    var p = from
+    while (p < b.length) {
+        var c = b[p]
+        if (c == 32 || c == 9 || c == 10 || c == 13) {
+            p = p + 1
+        } else if (c == 35) {
+            while (p < b.length && b[p] != 10) {
+                p = p + 1
+            }
+        } else {
+            return p
+        }
+    }
+    return p
+}
+
+Bool matchesAscii(Int[] b, Int at, String s) {
+    if (at < 0 || at + s.length > b.length) {
+        return false
+    }
+    var i = 0
+    while (i < s.length) {
+        if (b[at + i] != (s.charAt(i) as Int)) {
+            return false
+        }
+        i = i + 1
+    }
+    return true
+}
+
+need(Int[] b, Int n, String what) {
+    if (b.length < n) {
+        throw "IMAGE: truncated " + what + " header"
+    }
+}
+
+Int u8(Int[] b, Int i) {
+    need(b, i + 1, "header")
+    return b[i] & 255
+}
+
+Int be16(Int[] b, Int i) {
+    return (u8(b, i) << 8) | u8(b, i + 1)
+}
+
+Int le16(Int[] b, Int i) {
+    return u8(b, i) | (u8(b, i + 1) << 8)
+}
+
+Int be32(Int[] b, Int i) {
+    return (u8(b, i) << 24) | (u8(b, i + 1) << 16) | (u8(b, i + 2) << 8) | u8(b, i + 3)
+}
+
+Int le32(Int[] b, Int i) {
+    return u8(b, i) | (u8(b, i + 1) << 8) | (u8(b, i + 2) << 16) | (u8(b, i + 3) << 24)
+}
+
+Int le24(Int[] b, Int i) {
+    return u8(b, i) | (u8(b, i + 1) << 8) | (u8(b, i + 2) << 16)
+}

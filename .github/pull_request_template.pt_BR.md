@@ -1,19 +1,15 @@
 [English](pull_request_template.md) | [Português](pull_request_template.pt_BR.md)
 
 <!--
-  POLÍTICA DE PULL REQUESTS DO KOFLANG / KOF4J
-
-  ⚠️ ATENÇÃO: NUNCA ABRA PULL REQUESTS DIRETAMENTE CONTRA A BRANCH `main`!
-  A branch `main` é reservada para releases estáveis e controladas pela mantenedora.
-  Todo desenvolvimento, correções e contribuições devem ser abertos contra a
-  branch `beta` ativa (exemplo atual: `beta-0.4.0`).
-  
-  PRs abertos contra a branch `main` por contas não-autorizadas serão
-  bloqueados automaticamente pela action de guarda do repositório.
+  Esteira de branches (autoritativa: `AGENTS.md` §Autoridade/D-BRANCH-PIPELINE e
+  `docs/development/DECISIONS.pt_BR.md` §D-QUALITY-PIPELINE-2609):
+  lab → testing → prerelease → stable → release/x.y.z → tag.
+  Desenvolvimento e correções entram SEMPRE por `lab`; os demais estágios são
+  protegidos e a guarda do repositório fecha qualquer PR mirando `main`.
 -->
 
-## 🎯 Branch Base de Destino
-- [ ] Confirmo que este PR está apontando para uma branch **`beta-*`** (ex: `beta-0.4.0`) e **NÃO** para a `main`.
+## 🎯 Branch Base Alvo
+- [ ] Confirmo que este PR aponta para o estágio ativo **`lab`** e **NÃO** para um estágio protegido (`main`/`testing`/`prerelease`/`stable`).
 
 ---
 

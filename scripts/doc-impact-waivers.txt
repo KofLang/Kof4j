@@ -1,0 +1,7 @@
+# doc-impact waivers (#648). Formato: `<token|*><TAB><prefixo-do-consumidor>`.
+# Registros IMUTAVEIS de historia — paragrafo "State, not history" do Kofmd:
+*	CHANGELOG.md
+*	CHANGELOG.pt_BR.md
+*	DOING.md
+*	DOING.pt_BR.md
+*	docs/history/

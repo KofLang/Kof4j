@@ -32,7 +32,12 @@ class IRStatisticsTest {
         assertTrue(stats[0].opsAfter() < stats[0].opsBefore(), "optimizer should remove ops");
         assertTrue(stats[0].opsRemoved() > 0);
         assertTrue(stats[0].reductionPct() > 0);
-        assertEquals(1, stats[0].classes());
+        // 2, not 1: `CompilerPairs.injectHostIfNeeded` (D-MULTIPARADIGMA-ZIP,
+        // slice 1i) injects the `Pair` host record + `zipPairs` FLAT into every
+        // program, so the IR module holds `Main` + `Pair`. Pinned to the measured
+        // value (cross-lane landing, re-measured 30/09 with this lane's diff
+        // stashed: 2 at the tip before the memory-safety B-03 work).
+        assertEquals(2, stats[0].classes());
         assertTrue(stats[0].methods().stream()
                 .anyMatch(m -> "main".equals(m.methodName()) && m.opsAfter() < m.opsBefore()));
     }

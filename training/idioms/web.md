@@ -47,6 +47,77 @@ inferred from ALL the body's returns, not just the top).
   diagnostic, R6).
 - A non-200/404 response (e.g. 301, 401) → `status(code)` + return.
 
+## GOOD — declarative rejection bodies (`app.security`)
+
+```kof
+main() {
+    var app = web.app()
+    var r = mapOf()
+    r.put("unauthorized", "{\"error\":\"sign in first\"}")
+    val rObj: Object = r
+    val o: Map<String, Object> = mapOf()
+    val h: Object = "authorization"
+    o.put("sessionHeader", h)
+    o.put("responses", rObj)
+    app.security(o)
+    app.get("/me") { return "ok" }
+    app.listen(8080)
+}
+```
+
+`responses` (`Map`) replaces the pipeline's built-in JSON for the synthetic
+`401`/`403`/`429` (keys `unauthorized`/`forbidden`/`tooManyRequests`). Omitted
+keys keep the built-in bodies, so it is additive.
+
+## BAD — re-checking the path inside every handler
+
+```kof
+app.get("/admin/users") {
+    if (path() == "/admin/users" || path().startsWith("/admin")) {
+        if (!auth.hasRole("admin")) { return status(403, "nope") }
+    }
+    return users()
+}
+app.get("/admin/logs") {
+    if (path().startsWith("/admin")) {          // repeated in every handler…
+        if (!auth.hasRole("admin")) { return status(403, "nope") }
+    }
+    return logs()
+}
+```
+
+## GOOD — declare the resource policy once (`app.policy`)
+
+```kof
+app.security(mapOf("rateLimit", "200/60"))
+app.policy("/admin", mapOf("roles", "admin"))   // every route under /admin
+app.get("/admin/users") { return users() }      // inherits the policy
+app.get("/admin/logs") { return logs() }        // inherits the policy
+```
+
+`app.policy(prefix, opts)` scopes the same `app.security` opts to a path prefix.
+Scalars (e.g. `rateLimit`, `auth`) are deepest-wins; lists (`publicPaths`,
+`roles`) accumulate. The handler never re-checks what the policy declares.
+
+## GOOD — read pagination from the request (`pageRequest`)
+
+```kof
+import kof.web
+
+app.get("/users") {
+    try {
+        val p = pageRequest(20, 100)   // ?page/limit/offset; default 20, cap 100
+        return json.encode(orm.window<User>(db, p.limit(), p.offset()))
+    } catch (String e) {
+        return status(400, e)          // named PAGINATION: error → 400
+    }
+}
+```
+
+`pageRequest` returns a core `PageRequest(page, limit, offset)` — no HTTP type
+leaks out. `page` is 1-based, `limit` is clamped to the cap, `?offset=` wins.
+Native has no web context, so this is a `WEB001` gap there.
+
 ## Notes
 
 - `app.listen` accepts ONLY Int (`app.listen(8080)` — #102.2 13/09: a String

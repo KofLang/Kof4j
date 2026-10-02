@@ -142,7 +142,7 @@ class NativeRiscvGcMarkTest {
         runCapture("aarch64-linux-gnu-as", "-o", obj.toString(), asm.toString());
         runCapture("aarch64-linux-gnu-ld", "--gc-sections", "-o", bin.toString(), obj.toString());
         bin.toFile().setExecutable(true);
-        return runCapture("qemu-aarch64", bin.toString());
+        return QemuRun.runExpect0("qemu-aarch64", bin.toString());
     }
 
     private void assertMark(String out) {

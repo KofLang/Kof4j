@@ -53,6 +53,112 @@ class KofScriptStdlibParityTest {
             """, "1\n0\nfb");
     }
 
+    @Test
+    void paginationSliceParity() throws Exception {
+        // pagination P1 — take/drop/slice: interpretador e JVM concordam
+        // (clamping honesto + erro nomeado; o E2E cobre JVM/JS/native).
+        parity("""
+            main() {
+                val l: List<Int> = listOf(10, 20, 30, 40, 50)
+                println(l.take(2).size)
+                println(l.take(0).size)
+                println(l.take(9).size)
+                println(l.take(2).get(1))
+                println(l.drop(2).size)
+                println(l.drop(9).size)
+                println(l.drop(2).get(0))
+                val a = l.slice(1, 2)
+                println(a.size)
+                println(a.get(1))
+                println(l.slice(4, 10).size)
+                println(l.slice(9, 3).size)
+                println(l.slice(0, 0).size)
+                val t = l.take(2)
+                t.add(99)
+                println(l.size)
+                val s: List<String> = listOf("a", "b", "c")
+                println(s.take(2).get(1))
+                println(s.drop(1).get(0))
+                println(s.slice(1, 1).get(0))
+            }
+            """, "2\n0\n5\n20\n3\n0\n30\n2\n30\n1\n0\n0\n5\nb\nb\nb");
+    }
+
+    @Test
+    void quantifiersParity() throws Exception {
+        // D-MULTIPARADIGMA-PHASE1A slice 1a — any/all/none: interpretador e
+        // JVM concordam (vácuos + match; println de Bool rende igual nos dois
+        // lados, medido; o E2E cobre JVM/JS/native/cross + short-circuit).
+        parity("""
+            main() {
+                var xs = listOf(1, 2, 3)
+                var empty = listOf()
+                println(xs.any((x) -> x > 2))
+                println(xs.all((x) -> x > 0))
+                println(xs.none((x) -> x > 9))
+                println(empty.any((x) -> true))
+                println(empty.all((x) -> false))
+                println(empty.none((x) -> true))
+            }
+            """, "true\ntrue\ntrue\nfalse\ntrue\ntrue");
+    }
+
+    @Test
+    void findCountParity() throws Exception {
+        // D-MULTIPARADIGMA-PHASE1A slice 1b — find/count: interpretador e JVM
+        // concordam (match/valor, ausência, contagens, count nu).
+        parity("""
+            main() {
+                var xs = listOf(1, 2, 3)
+                println(xs.find((x) -> x > 1))
+                println(xs.find((x) -> x > 9))
+                println(xs.count((x) -> x > 1))
+                println(xs.count())
+            }
+            """, "2\nnull\n2\n3");
+    }
+
+    @Test
+    void forEachParity() throws Exception {
+        // D-MULTIPARADIGMA-PHASE1A slice 1c — forEach: efeito + vácuo.
+        parity("""
+            main() {
+                var xs = listOf(1, 2, 3)
+                xs.forEach((x) -> println(x * 10))
+                listOf().forEach((x) -> println("never"))
+                println("done")
+            }
+            """, "10\n20\n30\ndone");
+    }
+
+    @Test
+    void flatMapParity() throws Exception {
+        // D-MULTIPARADIGMA-PHASE1A slice 1d — flatMap concatena em ordem.
+        parity("""
+            main() {
+                var xs = listOf(1, 2, 3)
+                var ys = xs.flatMap((x) -> listOf(x, x * 10))
+                println(ys.size)
+                println(ys.get(0))
+                println(ys.get(5))
+            }
+            """, "6\n1\n30");
+    }
+
+    @Test
+    void distinctParity() throws Exception {
+        // D-MULTIPARADIGMA-PHASE1A slice 1e — distinct primeira-ocorrência.
+        parity("""
+            main() {
+                var xs = listOf(3, 1, 2, 1, 3)
+                var d = xs.distinct()
+                println(d.size)
+                println(d.get(0))
+                println(d.get(2))
+            }
+            """, "3\n3\n2");
+    }
+
     // #386 slice 2 + #382: containsValue/putIfAbsent e a família de List
     // (indexOf/lastIndexOf/subList/addAll/sort) — interpretador e JVM
     // compilado concordam com o oráculo medido (java.util no dois lados).

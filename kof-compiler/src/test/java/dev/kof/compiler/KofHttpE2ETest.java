@@ -72,27 +72,8 @@ class KofHttpE2ETest {
         ProcessBuilder pb = new ProcessBuilder(JAVA_BIN, "-cp", outDir.toString(), "Default.Main");
         pb.redirectErrorStream(true);
         serverProcess = pb.start();
-        int attempt = 0;
-        while (attempt < 40) {
-            if (!serverProcess.isAlive()) {
-                String out = new String(serverProcess.getInputStream().readAllBytes(),
-                        StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
-                throw new IOException("server exited early: " + out);
-            }
-            try (Socket probe = new Socket()) {
-                probe.connect(new java.net.InetSocketAddress("127.0.0.1", port), 200);
-                return port;
-            } catch (IOException e) {
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                }
-            }
-            attempt++;
-        }
-        serverProcess.destroyForcibly();
-        throw new IOException("server did not come up on port " + port);
+        TestServerFixture.awaitListening(serverProcess, port);
+        return port;
     }
 
     private static int freePort() throws IOException {

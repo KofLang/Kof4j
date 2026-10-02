@@ -1,0 +1,31 @@
+package kfvm.cli
+
+class Usage {
+    final String home
+    final String version
+    final Logger logger
+
+    constructor(home: String, version: String, logger: Logger) {
+        this.home = home
+        this.version = version
+        this.logger = logger
+    }
+
+    logUsage() {
+        TermColor headColor = BRIGHT_CYAN
+
+        logger.logWithKind("kfvm version", BLUE, version + " - Kof Version Manager\n")
+        logger.logColorfulLine(headColor, "Usage:")
+        logger.log("  kfvm ls,  list [-r, --remote]          list installed versions (or available ones)")
+        logger.log("  kfvm i,   install <ver|lts|nightly>    install a version")
+        logger.log("  kfvm u,   use <ver|lts|nightly>        switch the active version (installs it if needed)")
+        logger.log("  kfvm uni, uninstall <ver|lts|nightly>  remove an installed version\n")
+        logger.logColorfulLine(headColor, "Versions:")
+        logger.log("  <ver>      exact version, or the newest one starting with it")
+        logger.log("             (0.4 -> 0.4.10-beta, 0.4.9 -> 0.4.9-beta, 0.5 -> newest 0.5.0-beta+<date>)")
+        logger.log("  lts        latest stable release (aliases: lts, latest)")
+        logger.log("  nightly    latest pre-release (e.g. 0.5.0-beta+2026.09.25)\n")
+        logger.logColorfulLine(headColor, "Install dir:")
+        logger.log("  " + home)
+    }
+}

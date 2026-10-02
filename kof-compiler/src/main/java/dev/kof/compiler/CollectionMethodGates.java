@@ -15,7 +15,27 @@ public final class CollectionMethodGates {
         return switch (opFn) {
             case "kof_list_index_of", "kof_list_last_index_of", "kof_list_add_all" -> 1;
             case "kof_list_sub_list" -> 2;
+            case "kof_list_take", "kof_list_drop" -> 1;
+            case "kof_list_slice" -> 2;
+            // D-MULTIPARADIGMA-PHASE1A — quantifiers take exactly one lambda.
+            case "kof_list_any", "kof_list_all", "kof_list_none" -> 1;
+            // D-MULTIPARADIGMA-PHASE1A slice 1b — find takes one lambda;
+            // count with a lambda counts matches (bare count keeps size).
+            // Slice 1c — forEach takes one lambda. Slice 1d — flatMap too.
+            // Slice 1e — distinct takes no arguments.
+            case "kof_list_find", "kof_list_count_pred", "kof_list_foreach",
+                    "kof_list_flatmap" -> 1;
+            // Slice 1e — distinct takes no arguments.
+            case "kof_list_distinct" -> 0;
             case "kof_list_sort" -> 0;
+            // D-MULTIPARADIGMA-PHASE1A slice 1g — sorted: natural takes no
+            // arguments; with comparator it takes exactly one lambda
+            // (D-MULTIPARADIGMA-SORTED).
+            case "kof_list_sorted" -> 0;
+            case "kof_list_sorted_cmp" -> 1;
+            // D-MULTIPARADIGMA-PHASE1A slice 1h — groupBy takes exactly one
+            // lambda (D-MULTIPARADIGMA-GROUPBY).
+            case "kof_list_groupby" -> 1;
             case "kof_map_contains_value" -> 1;
             case "kof_map_put_if_absent" -> 2;
             default -> -1;
@@ -28,7 +48,7 @@ public final class CollectionMethodGates {
         if (want < 0 || got == want) return null;
         return kind + "." + mn + " takes exactly " + want + " argument(s)"
                 + ("kof_list_sort".equals(opFn)
-                        ? " — sort() uses the natural order (Kof has no Comparator yet)" : "");
+                        ? " — sort() uses the natural order (for a custom order use sorted((a, b) -> Int))" : "");
     }
 
     /**
@@ -53,9 +73,9 @@ public final class CollectionMethodGates {
 
     static String sortDomainError(Type elemType) {
         Type inner = elemType instanceof Type.NullableType nt ? nt.inner() : elemType;
-        return "List.sort needs elements with a natural order (Int/Long/Double/Float/Bool/Char/String);"
+        return "List.sort/sorted needs elements with a natural order (Int/Long/Double/Float/Bool/Char/String);"
                 + " '" + CollectionWrites.typeNameFor(inner) + "' has none"
-                + " (Kof has no Comparator/Comparable — sort the projected key list instead)";
+                + " — use sorted((a, b) -> Int) with an explicit comparator instead";
     }
 
     /** Tag de comparação do sort: 0=raw signed qword, 1=String, 2=Double,
@@ -75,6 +95,53 @@ public final class CollectionMethodGates {
 
     private static Type unwrap(Type t) {
         return t instanceof Type.NullableType nt ? nt.inner() : t;
+    }
+
+    /**
+     * D-MULTIPARADIGMA-PHASE1A slice 1b — box tag for {@code find} on Native:
+     * Native list slots hold RAW primitives but {@code T?} consumers expect
+     * boxed values (like {@code Map.get}, whose slots are boxed) — the hit
+     * path must box. Numbering mirrors {@code NativeBoxTags} collection tags
+     * (0=int/char/short/byte, 1=String/passthrough, 2=long, 3=bool, 4=double,
+     * 5=float, 6=unknown/record/passthrough); the asm maps each to its
+     * {@code kof_box_*} (or passthrough). Unknown passes through — homogeneous
+     * lists (SEM056) never hide a raw primitive behind Unknown in practice.
+     */
+    static int findBoxTag(Type elemType) {
+        Type e = unwrap(elemType);
+        if (e instanceof Type.PrimitiveType pt) {
+            switch (Type.canonicalPrimitiveName(pt.name())) {
+                case "int", "char", "short", "byte": return 0;
+                case "long": return 2;
+                case "bool", "boolean": return 3;
+                case "double": return 4;
+                case "float": return 5;
+                default: return 6;
+            }
+        }
+        return 6;
+    }
+
+    /** §122: tipos que NUNCA são um índice/count válido (Int é o contrato). */
+    static boolean isReferenceIndexType(Type t) {
+        if (t == null || Type.UnknownType.UNKNOWN.equals(t)) return false;
+        if (t instanceof Type.NullableType nt) return isReferenceIndexType(nt.inner());
+        if (TypeMetrics.isPrimitiveType(t)) return false;
+        return t instanceof Type.ClassType || t instanceof Type.ArrayType
+                || t instanceof Type.TypeVariable;
+    }
+
+    /** pagination P1 — take/drop/slice exigem Int count; null = ok. */
+    static String countDomainError(String opFn, String mn, java.util.List<Type> argTypes) {
+        if (!("kof_list_take".equals(opFn) || "kof_list_drop".equals(opFn)
+                || "kof_list_slice".equals(opFn))) return null;
+        for (int i = 0; i < argTypes.size() && i < 2; i++) {
+            if (isReferenceIndexType(argTypes.get(i))) {
+                return "List." + mn + " takes an Int count; "
+                        + CollectionWrites.typeNameFor(argTypes.get(i)) + " is not a count";
+            }
+        }
+        return null;
     }
 
     /**
@@ -103,8 +170,8 @@ public final class CollectionMethodGates {
         if (vt == null || vt instanceof Type.UnknownType) return 3;
         if (BuiltinTypes.isObject(vt)) return 6;
         if (vStr) return aStr ? 1 : 3;
-        boolean vBox = CollectionCallLowerer.mapBoxablePrim(vt);
-        boolean aBox = at != null && CollectionCallLowerer.mapBoxablePrim(at);
+        boolean vBox = CollectionLoweringSupport.mapBoxablePrim(vt);
+        boolean aBox = at != null && CollectionLoweringSupport.mapBoxablePrim(at);
         if (vBox) return aBox ? 2 : 3;
         if (aStr || aBox) return 3;
         if (CollectionWrites.isKofObject(vt)) return 7;

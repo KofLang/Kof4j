@@ -16,9 +16,21 @@ final class JsRuntimeBuffer {
             // ── kof.buffer — Buffer(U8) (D-R3-BUFFER) no alvo JS ──────────
             // Espelha KofRuntime$Buffer do JVM: um byte-container opaco. Nome
             // interno (KofBufferBox) p/ não sombrear o `Buffer` global do Node.
+            // D-MEM030-BORROW-RUNTIME: estado de borrow gravável exclusivo
+            // (B-03/MEM020). O JS é cooperativo (spawn = async/Promise), então a
+            // corrida negativa é estruturalmente inalcançável; a primitiva
+            // existe para uniformidade com os backends preemptivos e o
+            // caso positivo (escritor único limpo) é provado.
             class KofBufferBox {
-                constructor(n) { this.data = new Uint8Array(n < 0 ? 0 : n); }
+                constructor(n) { this.data = new Uint8Array(n < 0 ? 0 : n); this.borrowed = false; }
                 toString() { return "Buffer[" + this.data.length + "]"; }
+                __kofBorrowAcquire() {
+                    if (this.borrowed) {
+                        throw new Error("MEM020: Buffer(U8) writable borrow already held by another task");
+                    }
+                    this.borrowed = true;
+                }
+                __kofBorrowRelease() { this.borrowed = false; }
             }
             export function kof_buffer_alloc(n) {
                 return new KofBufferBox(Number(n));

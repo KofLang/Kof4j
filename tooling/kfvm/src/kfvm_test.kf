@@ -1,0 +1,113 @@
+import kfvm.versions
+import kfvm.platform
+import kfvm.github
+import kfvm.installer
+
+test "compare orders numeric fields" {
+    assert(Versions.compare("0.4.10-beta", "0.4.9-beta") > 0)
+    assert(Versions.compare("0.10.0", "0.9.9") > 0)
+    assert(Versions.compare("1.0.0", "1.0.0") == 0)
+}
+
+test "compare breaks ties by suffix" {
+    assert(Versions.compare("0.5.0-beta", "0.5.0-beta+2026.09.25") < 0)
+}
+
+test "sortAscending" {
+    var sorted = Versions.sortAscending(listOf("0.10.0", "0.4.10-beta", "0.4.9-beta", "0.5.0-beta"))
+    assert(sorted.get(0) == "0.4.9-beta")
+    assert(sorted.get(1) == "0.4.10-beta")
+    assert(sorted.get(2) == "0.5.0-beta")
+    assert(sorted.get(3) == "0.10.0")
+}
+
+test "compare puts a release after its pre-releases" {
+    assert(Versions.compare("0.4.9", "0.4.9-beta") > 0)
+    assert(Versions.compare("0.4.9-beta", "0.4.9") < 0)
+}
+
+List<Candidate> remote() {
+    return listOf(
+        Candidate("0.5.0-beta+2026.09.25", true),
+        Candidate("0.5.0-beta+2026.09.26", true),
+        Candidate("0.4.9-beta", false),
+        Candidate("0.4.10-beta", false),
+        Candidate("0.4.8-beta", false),
+        Candidate("0.3.9-beta", false),
+        Candidate("0.3.20-beta", false))
+}
+
+test "select channels" {
+    assert(Selector.select("lts", remote()) == "0.4.10-beta")
+    assert(Selector.select("latest", remote()) == "0.4.10-beta")
+    assert(Selector.select("nightly", remote()) == "0.5.0-beta+2026.09.26")
+    assert(Selector.isChannel("lts"))
+}
+
+test "select exact version" {
+    assert(Selector.select("0.4.9-beta", remote()) == "0.4.9-beta")
+    assert(Selector.select("0.5.0-beta+2026.09.25", remote()) == "0.5.0-beta+2026.09.25")
+    var cs = remote()
+    cs.add(Candidate("0.4.9", false))
+    assert(Selector.select("0.4.9", cs) == "0.4.9")
+}
+
+test "select newest version matching a prefix" {
+    assert(Selector.select("0.4", remote()) == "0.4.10-beta")
+    assert(Selector.select("v0.4", remote()) == "0.4.10-beta")
+    assert(Selector.select("0.4.9", remote()) == "0.4.9-beta")
+    assert(Selector.select("0.3", remote()) == "0.3.20-beta")
+    assert(Selector.select("0.5", remote()) == "0.5.0-beta+2026.09.26")
+    assert(Selector.select("0.5.0", remote()) == "0.5.0-beta+2026.09.26")
+    assert(Selector.select("0.5.0-beta", remote()) == "0.5.0-beta+2026.09.26")
+}
+
+test "select prefers a release over its pre-releases" {
+    var cs = remote()
+    cs.add(Candidate("0.4.10", false))
+    assert(Selector.select("0.4", cs) == "0.4.10")
+}
+
+test "select rejects unknown versions and partial numbers" {
+    assert(Selector.select("9.9.9", remote()) == "")
+    assert(Selector.select("0.4.1", remote()) == "")
+    assert(Selector.select("0.", remote()) == "")
+    assert(Selector.select("", remote()) == "")
+}
+
+test "normalize platform names" {
+    assert(Platforms.normalizeOs("Linux") == "linux")
+    assert(Platforms.normalizeOs("Darwin") == "macos")
+    assert(Platforms.normalizeArch("x86_64") == "x86_64")
+    assert(Platforms.normalizeArch("AMD64") == "x86_64")
+    assert(Platforms.normalizeArch("ARM64") == "arm64")
+    assert(Platforms.normalizeArch("aarch64") == "arm64")
+}
+
+test "windows platform" {
+    var windows = Platform("windows", "x86_64")
+    assert(windows.id() == "windows-x86_64")
+    assert(windows.isWindows())
+    assert(!Platform("linux", "x86_64").isWindows())
+}
+
+test "release archive per platform" {
+    var zip = Release("kof-0.5.0-beta-windows-x86_64", false, listOf(
+        Asset("kof-cli-0.5.0-beta.jar", 1L),
+        Asset("kof-0.5.0-beta-windows-x86_64.zip", 7L),
+        Asset("SHA256SUMS", 1L)))
+    var remote = GitHubClient("KofLang/Kof4j", "windows-x86_64", "").toRemote(zip)
+    assert(remote.version() == "0.5.0-beta")
+    assert(remote.archive() == "kof-0.5.0-beta-windows-x86_64.zip")
+    assert(remote.size() == 7L)
+    var tar = Release("kof-0.5.0-beta-linux-x86_64", false, listOf(Asset("kof-0.5.0-beta-linux-x86_64.tar.gz", 9L)))
+    assert(GitHubClient("KofLang/Kof4j", "linux-x86_64", "").toRemote(tar).archive() == "kof-0.5.0-beta-linux-x86_64.tar.gz")
+}
+
+test "checksum lookup" {
+    var sums = "09CD  *kof-a-windows-x86_64.zip\r\nab12  kof-a-linux-x86_64.tar.gz\n"
+    assert(Checksums.of(sums, "kof-a-windows-x86_64.zip") == "09cd")
+    assert(Checksums.of(sums, "kof-a-linux-x86_64.tar.gz") == "ab12")
+    assert(Checksums.of(sums, "kof-a-macos-arm64.tar.gz") == "")
+    assert(Checksums.of(null, "kof-a-windows-x86_64.zip") == "")
+}

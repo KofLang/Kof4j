@@ -1,0 +1,69 @@
+// Pacote virtual kof.pagination (D-PAGINATION, 28/09/2026).
+//
+// record Window<T> + funcoes window(...) escritas EM KOF (D-KOF-FIRST
+// item 12): o compilador injeta FLAT no `import kof.pagination` EXPLICITO,
+// mesmo mecanismo de kof.supervisor/kof.workflow/kof.interop. Nada de
+// runtime por backend: reaproveita List.slice (P1, ja nos 4 alvos) e apenas
+// constroi o valor de metadados. O core (Window<T>/window) nao sabe de SQL
+// nem de HTTP (plano §7.2).
+//
+// Semantica (§8): limit/offset < 0 = erro nomeado; offset > size = janela
+// vazia (hasPrevious=true, sem erro); limit==0 = janela vazia; hasNext e
+// exato com total, otimista (page.size == limit) sem ele; total e null
+// salvo quando pedido (`window(items, limit, offset, true)`), nunca COUNT
+// implicito.
+
+record Window<T>(List<T> items, Int offset, Int limit, Bool hasPrevious, Bool hasNext, Long? total)
+
+// Sem total: hasNext otimista (`page.size == limit`), total = null.
+window<T>(List<T> items, Int limit, Int offset): Window<T> {
+    if (limit < 0 || offset < 0) {
+        throw "PAGINATION: limit/offset must be >= 0"
+    }
+    val page = items.slice(offset, limit)
+    return Window<T>(page, offset, limit, offset > 0, page.size == limit, null)
+}
+
+// Com total: hasNext exato (`offset + page.size < total`), total = size local.
+window<T>(List<T> items, Int limit, Int offset, Bool withTotal): Window<T> {
+    if (limit < 0 || offset < 0) {
+        throw "PAGINATION: limit/offset must be >= 0"
+    }
+    val page = items.slice(offset, limit)
+    if (!withTotal) {
+        return Window<T>(page, offset, limit, offset > 0, page.size == limit, null)
+    }
+    val total = items.size.toLong()
+    val seen = (offset + page.size).toLong()
+    return Window<T>(page, offset, limit, offset > 0, seen < total, total)
+}
+
+// Face DB (`orm.window`, D-PAGINATION P4): valida limit/offset ANTES de tocar
+// o SQL (um LIMIT negativo no `orm.page` viraria erro de driver, nao o erro
+// nomeado da Kof) e devolve o limit ja validado para o `orm.page`.
+windowBounds(Int limit, Int offset): Int {
+    if (limit < 0 || offset < 0) {
+        throw "PAGINATION: limit/offset must be >= 0"
+    }
+    return limit
+}
+
+// Face DB (`orm.window`, D-PAGINATION P4): a lista JA vem paginada pelo
+// `orm.page` (LIMIT/OFFSET no SQL) — o helper apenas constroi os METADADOS,
+// sem re-fatiar (um `slice(offset, limit)` aqui seria duplo paginacao). Sem
+// total: hasNext otimista (`page.size == limit`), total = null.
+windowPage<T>(List<T> page, Int limit, Int offset): Window<T> {
+    if (limit < 0 || offset < 0) {
+        throw "PAGINATION: limit/offset must be >= 0"
+    }
+    return Window<T>(page, offset, limit, offset > 0, page.size == limit, null)
+}
+
+// Face DB com total ja contabilizado (`orm.count`): hasNext exato.
+windowPage<T>(List<T> page, Int limit, Int offset, Long total): Window<T> {
+    if (limit < 0 || offset < 0) {
+        throw "PAGINATION: limit/offset must be >= 0"
+    }
+    val seen = (offset + page.size).toLong()
+    return Window<T>(page, offset, limit, offset > 0, seen < total, total)
+}

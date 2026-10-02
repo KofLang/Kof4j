@@ -103,6 +103,9 @@ public final class RuntimeGc {
                 cmpq %rbx, %r12
                 jae .Ltry_done_pop
             .Ltry_heap_ok:
+                movq kof_arena_base(%rip), %rax
+                testq %rax, %rax
+                jne .Ltry_bm             # §542 host: bitmap O(1)
                 movq kof_gc_head(%rip), %rbx
                 movq $10000, %r10
             .Ltry_loop:
@@ -139,6 +142,28 @@ public final class RuntimeGc {
                 popq %r12
                 popq %rbx
                 ret
+            .Ltry_bm:
+                # §542 host: O(1) pelo bitmap de inícios-de-bloco (mmap'd; ver
+                # _kof_bm_ptr). Só marca se r12-32 for um início de bloco real
+                # (mesma semântica exata do bitmap cross).
+                movq _kof_bm_ptr(%rip), %rdx
+                movq %r12, %rcx
+                subq %rax, %rcx          # ptr - arena_base
+                subq $32, %rcx           # offset do header
+                js .Ltry_done_pop
+                shrq $4, %rcx
+                movq %rcx, %rax
+                shrq $6, %rax
+                movq (%rdx,%rax,8), %rdx
+                andl $63, %ecx
+                shrq %cl, %rdx
+                andl $1, %edx
+                je .Ltry_done_pop
+                leaq -32(%r12), %rbx
+                cmpb $0, 24(%rbx)
+                jne .Ltry_done
+                movb $1, 24(%rbx)
+                jmp .Ltry_done
 
             .globl kof_gc_mark_transitive
             .type kof_gc_mark_transitive, @function
@@ -163,6 +188,9 @@ public final class RuntimeGc {
                 cmpq %rbx, %r12
                 jae .Lmtrans_ret
             .Lmtrans_heap_ok:
+                movq kof_arena_base(%rip), %rax
+                testq %rax, %rax
+                jne .Lmtrans_bm          # §542 host: bitmap O(1)
                 movq kof_gc_head(%rip), %rbx
                 movq $10000, %r10
             .Lmtrans_loop:
@@ -209,6 +237,24 @@ public final class RuntimeGc {
             .Lmtrans_next:
                 movq 16(%rbx), %rbx
                 jmp .Lmtrans_loop
+            .Lmtrans_bm:
+                # §542 host: O(1) pelo bitmap; achando o início, entra no
+                # `.Lmtrans_found` (marca + varre campos).
+                movq _kof_bm_ptr(%rip), %rdx
+                movq %r12, %rcx
+                subq %rax, %rcx
+                subq $32, %rcx
+                js .Lmtrans_ret
+                shrq $4, %rcx
+                movq %rcx, %rax
+                shrq $6, %rax
+                movq (%rdx,%rax,8), %rdx
+                andl $63, %ecx
+                shrq %cl, %rdx
+                andl $1, %edx
+                je .Lmtrans_ret
+                leaq -32(%r12), %rbx
+                jmp .Lmtrans_found
             .Lmtrans_ret:
                 popq %r15
                 popq %r14

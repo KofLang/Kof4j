@@ -151,6 +151,7 @@ public final class Profile {
         if (target == Target.JVM) {
             Path gcLog = outDir.resolve("gc.log");
             command.add(System.getProperty("java.home") + "/bin/java");
+            command.addAll(KofStdio.capturedJvmFlags());
             command.add("-Xlog:gc:" + gcLog);
             if (methods) {
                 // In-house method-level sampling: the JVM's own JFR records

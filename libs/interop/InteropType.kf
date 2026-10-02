@@ -1,0 +1,98 @@
+package interop
+
+// kof.interop — interop type model (fatia 3 of the Kof Connector Ecosystem plan,
+// `D-CONNECTORS-GO`). It answers, in pure Kof, the plan §3.1 question: for a Kof
+// type, what is its INTEROP KIND? It maps the plan's own table, never the
+// target-specific ABI widths (those stay with `AbiLayout`/`FfiSignature`):
+//
+//   Int/Long/Byte/Short -> integer      Float/Double -> float
+//   Bool                -> boolean      Char         -> char
+//   String              -> string       Buffer       -> buffer
+//   List                -> array        record/class -> struct-or-handle
+//   enum                -> enum         function     -> function-pointer
+//   lambda              -> callback     Handle       -> opaque
+//   nullable            -> nullable     error        -> result
+//   object              -> object-handle
+//
+// Honest by construction (R6): an unknown type is NOT interoperable —
+// `kindOf` returns null, `describe` throws `INTEROP: unsupported type <name>`
+// instead of guessing. No compiler change; usable on every target (no file IO).
+
+class InteropType {
+
+    // The interop kind of a simple Kof type name, or null if it is not
+    // interoperable (never a silent guess).
+    String? kindOf(String kofType) {
+        if (kofType == "Int" || kofType == "Long" || kofType == "Byte" || kofType == "Short") {
+            return "integer"
+        }
+        if (kofType == "Float" || kofType == "Double") {
+            return "float"
+        }
+        if (kofType == "Bool") {
+            return "boolean"
+        }
+        if (kofType == "Char") {
+            return "char"
+        }
+        if (kofType == "String") {
+            return "string"
+        }
+        if (kofType == "Buffer") {
+            return "buffer"
+        }
+        if (kofType == "List") {
+            return "array"
+        }
+        if (kofType == "record" || kofType == "class") {
+            return "struct-or-handle"
+        }
+        if (kofType == "enum") {
+            return "enum"
+        }
+        if (kofType == "function") {
+            return "function-pointer"
+        }
+        if (kofType == "lambda") {
+            return "callback"
+        }
+        if (kofType == "Handle") {
+            return "opaque"
+        }
+        if (kofType == "nullable") {
+            return "nullable"
+        }
+        if (kofType == "error") {
+            return "result"
+        }
+        if (kofType == "object") {
+            return "object-handle"
+        }
+        return null
+    }
+
+    Bool isInteroperable(String kofType) {
+        return kindOf(kofType) != null
+    }
+
+    // The kind, or an explicit diagnostic — never a fallback (R6).
+    String describe(String kofType) {
+        var kind = kindOf(kofType)
+        if (kind == null) {
+            throw "INTEROP: unsupported type " + kofType
+        }
+        return kofType + " -> " + kind
+    }
+
+    // The full interop vocabulary, for tooling and for a connector to declare
+    // what it supports (mirrors the plan §3.1 kinds).
+    List<String> kinds() {
+        return listOf("integer", "float", "boolean", "char", "string", "buffer",
+                "array", "struct-or-handle", "enum", "function-pointer",
+                "callback", "opaque", "nullable", "result", "object-handle")
+    }
+
+    Bool isKnownKind(String kind) {
+        return kinds().contains(kind)
+    }
+}

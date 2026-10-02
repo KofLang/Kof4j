@@ -407,6 +407,9 @@ public final class RuntimeUi {
             kof_ui_center_new:
                 movl $1, %eax
                 ret
+            kof_ui_scroll_new:
+                movl $1, %eax
+                ret
             kof_ui_align_new:
                 movl $1, %eax
                 ret

@@ -388,6 +388,6 @@ actually executed (riscv/aarch64 under qemu).
 
 - `training/idioms/stdlib.md` — BAD/GOOD/WHY for each namespace.
 - `docs/stdlib/stdlib.md` §3 — the reference matrix with gates.
-- `docs/development/plan-stdlib-expansion.md` — what is missing: `random` (P0),
+- `docs/stdlib/PLAN-STDLIB-EXPANSION.md` — what is missing: `random` (P0),
   `last4`/`creditCardBrand` (brand table = trademark — evaluate
   first) and `math` Double (FLT).

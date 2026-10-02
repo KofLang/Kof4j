@@ -1,0 +1,21 @@
+package kfvm.system
+
+import kof.shell
+
+class Shell {
+    static String run(String program, List<String> args) {
+        return Shell.run(program, args, mapOf())
+    }
+
+    static String run(String program, List<String> args, Map<String, String> env) {
+        var r = shell.runWith(shell.cmd(program, args), "", env)
+        if (!shell.ok(r))
+            throw program + " failed: " + r.stderr.trim()
+        return r.stdout
+    }
+
+    static Bool available(String program) {
+        var r = shell.run("which", listOf(program))
+        return shell.ok(r)
+    }
+}

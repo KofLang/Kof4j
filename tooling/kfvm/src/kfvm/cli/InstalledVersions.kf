@@ -1,0 +1,44 @@
+package kfvm.cli
+
+import kfvm.github
+import kfvm.store
+import kfvm.versions
+
+class InstalledVersions {
+    GitHubClient github
+    Store store
+
+    constructor(GitHubClient github, Store store) {
+        this.github = github
+        this.store = store
+    }
+
+    String resolve(String query) {
+        var version = if (Selector.isChannel(query))
+            Selector.select(query, RemoteCandidates.of(github.releases()))
+        else
+            Selector.select(query, store.installedNewestFirst())
+
+        if (version == "") 
+            throw "version '" + query + "' not found (see: kfvm ls)"
+        if (!store.isInstalled(version))
+            throw "kof " + version + " is not installed (run: kfvm i " + query + ")"
+
+        return version
+    }
+
+    Bool isInstalled(String version) {
+        return !Selector.isChannel(version) && version != "" && store.isInstalled(version)
+    }
+
+    String resolveLocal(String query) {
+        if (Selector.isChannel(query))
+            throw "'" + query + "' needs GitHub to be resolved (try again, or pass a version)"
+
+        var version = Selector.select(query, store.installedNewestFirst())
+        if (version == "")
+            throw "version '" + query + "' not found (see: kfvm ls)"
+
+        return version
+    }
+}

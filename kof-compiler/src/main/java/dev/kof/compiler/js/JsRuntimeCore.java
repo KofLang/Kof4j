@@ -376,6 +376,36 @@ public final class JsRuntimeCore {
                 return la - lb;
             }
 
+            // String.compareToIgnoreCase: espelha o JVM (CASE_INSENSITIVE_ORDER)
+            // — walk de code units UTF-16 com fold SIMPLES por unit: upper,
+            // senão lower; prefixo -> contagem de units A−B. O "fold simples"
+            // evita as expansões que o JVM NAO usa aqui (ex.: "ß".toUpperCase()
+            // = "SS" no JS, mas Character.toUpperCase('ß')='ß' no JVM): se o
+            // built-in devolve mais de 1 unidade, mantem a unit original.
+            function kofSimpleUpper(c) {
+                const s = String.fromCharCode(c).toUpperCase();
+                return s.length === 1 ? s.charCodeAt(0) : c;
+            }
+            function kofSimpleLower(c) {
+                if (c === 0x0130) return 0x0069; // İ: lower SIMPLES = i (JVM)
+                const s = String.fromCharCode(c).toLowerCase();
+                return s.length === 1 ? s.charCodeAt(0) : c;
+            }
+            export function kofStringCompareToIgnoreCase(a, b) {
+                const la = a.length, lb = b.length;
+                const n = la < lb ? la : lb;
+                for (let i = 0; i < n; i++) {
+                    const c1 = a.charCodeAt(i), c2 = b.charCodeAt(i);
+                    if (c1 === c2) continue;
+                    const u1 = kofSimpleUpper(c1), u2 = kofSimpleUpper(c2);
+                    if (u1 !== u2) {
+                        const l1 = kofSimpleLower(u1), l2 = kofSimpleLower(u2);
+                        if (l1 !== l2) return l1 - l2;
+                    }
+                }
+                return la - lb;
+            }
+
             // String.toCharArray: espelha o JVM — array de code units UTF-16
             // (charCodeAt por índice; array de números = Char[] no JS). NAO
             // Array.from(s)/spread, que separa por code POINT e fundiria o par

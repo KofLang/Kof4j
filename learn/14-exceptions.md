@@ -34,6 +34,25 @@ main() {
 }
 ```
 
+## `using` (managed resources)
+
+When a value needs cleanup, `using` guarantees the closer runs — on success
+AND on throw — without a hand-written `try/finally`:
+
+```kf
+main() {
+    using (conn = db.connect("jdbc:h2:mem:demo"), db.close(conn)) {
+        db.execute(conn, "CREATE TABLE t (id INT PRIMARY KEY)")
+        println("table ready")
+    } // db.close(conn) runs here, even if the body throws
+}
+```
+
+Rules: the closer is explicit — write the real close idiom of the type
+(`db.close(conn)`, `conn.close()`, `sse.close()`); the binding lives only
+inside the block; nest `using` for multiple resources (inner closes first).
+(The H2 URL above is JVM-hermetic; other targets use their own `db` DSN.)
+
 ## Throwing contextualized values
 
 The "identity" of the failure comes from the message itself:

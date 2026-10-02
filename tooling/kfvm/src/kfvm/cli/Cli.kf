@@ -1,0 +1,46 @@
+package kfvm.cli
+
+import kfvm.system
+
+class Cli {
+    List<kfvm.cli.Command> commands
+    Logger logger
+    String home
+    Usage usage
+
+    constructor(commands: List<kfvm.cli.Command>, logger: Logger, home: String, usage: Usage) {
+        this.commands = commands
+        this.logger = logger
+        this.home = home
+        this.usage = usage
+    }
+
+    Int run(args: List<String>) {
+        var name = if (args.size > 0) args.get(0) else ""
+        var rest = args.subList(if (args.size > 0) 1 else 0, args.size)
+
+        for (var c in commands) {
+            if (c.names().contains(name)) 
+                return execute(c, rest)
+        }
+
+        usage.logUsage()
+        logUnknownCmd(name)
+
+        return 1
+    }
+
+    Int execute(command: kfvm.cli.Command, args: List<String>) {
+        try {
+            command.run(args)
+            return 0
+        } catch (String err) {
+            logger.error(err)
+            return 1
+        }
+    }
+
+    logUnknownCmd(name: String) {
+        logger.error("unknown command " + name)
+    }
+}

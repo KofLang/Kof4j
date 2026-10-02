@@ -9,7 +9,9 @@
 #
 # Uso:
 #   agent-evidence.sh init --issue N --classification "BUG REAL" [--risk auto|low|medium|high]
-#                          [--base SHA] [--session S] [--text "..."] [--repo DIR]   # imprime o run-id
+#                          [--base SHA | --commits SHA[,SHA…]] [--session S] [--text "..."] [--repo DIR]   # imprime o run-id
+#   --commits: janela por-commit (changed_files = união dos commits listados; o último DEVE ser HEAD).
+#              Evita absorver produção de lanes irmãs no meio de um range base..head (#659/#664).
 #   agent-evidence.sh run  --run-id ID --label L [--kind test|gate|smoke|cross|adversarial] [--cwd DIR] -- CMD...
 #   agent-evidence.sh mark --run-id ID --name N --status FAIL|NOT_RUN [--reason R] [--section cross_target|structural_gates]
 #   agent-evidence.sh verdict --run-id ID --worker pass|fail
@@ -26,7 +28,7 @@ HERE="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 RISK="$HERE/agent-risk.sh"
 
 sub="${1:-}"; shift || true
-run_id=""; issue=""; classification=""; risk="auto"; base=""; session=""; text=""; repo="."
+run_id=""; issue=""; classification=""; risk="auto"; base=""; session=""; text=""; repo="."; commits=""
 label=""; kind="test"; name=""; status=""; reason=""; section="cross_target"; worker=""; cwd=""
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -46,6 +48,7 @@ while [ $# -gt 0 ]; do
         --section) section="${2:-cross_target}"; shift 2;;
         --worker) worker="${2:-}"; shift 2;;
         --cwd) cwd="${2:-}"; shift 2;;
+        --commits) commits="${2:-}"; shift 2;;
         --) shift; break;;
         *) echo "argumento desconhecido: $1" >&2; exit 2;;
     esac
@@ -122,6 +125,25 @@ init)
     [ -n "$base" ] || base="$(git -C "$repo" merge-base HEAD "origin/$branch" 2>/dev/null || git -C "$repo" rev-parse HEAD~1 2>/dev/null || echo "$head")"
     dirty=false; [ -n "$(git -C "$repo" status --porcelain 2>/dev/null)" ] && dirty=true
     files="$( { git -C "$repo" diff --name-only "$base..$head" 2>/dev/null; git -C "$repo" status --porcelain 2>/dev/null | sed 's/^...//'; } | sort -u )"
+    # --commits: janela EXATA por commit (lição #659: range base..head absorve
+    # produção de lanes irmãs no meio). changed_files = união dos listados;
+    # o último listado DEVE ser o HEAD (senão o validate ficaria mentindo).
+    if [ -n "$commits" ]; then
+        IFS=',' read -r -a CL <<< "$commits"
+        last_c="${CL[$(( ${#CL[@]} - 1 ))]}"
+        last_full="$(git -C "$repo" rev-parse "$last_c" 2>/dev/null)" \
+            || { echo "--commits: commit inexistente: $last_c" >&2; exit 2; }
+        [ "$last_full" = "$head" ] || { echo "--commits: o último listado ($last_full) deve ser HEAD ($head)" >&2; exit 2; }
+        files=""
+        for c in "${CL[@]}"; do
+            git -C "$repo" cat-file -e "$c^{commit}" 2>/dev/null \
+                || { echo "--commits: commit inexistente: $c" >&2; exit 2; }
+            files="$(printf '%s\n%s\n' "$files" "$(git -C "$repo" show --name-only --format= "$c" 2>/dev/null)")"
+        done
+        files="$(printf '%s\n' "$files" | grep -v '^$' | sort -u)"
+        first_full="$(git -C "$repo" rev-parse "${CL[0]}")"
+        base="$(git -C "$repo" rev-parse "$first_full^" 2>/dev/null || echo "$first_full")"
+    fi
     declared=""; case "$risk" in low|medium|high) declared="--declared $risk";; esac
     # shellcheck disable=SC2086
     rk="$(printf '%s\n' "$files" | bash "$RISK" --stdin --text "$text $classification" $declared)"

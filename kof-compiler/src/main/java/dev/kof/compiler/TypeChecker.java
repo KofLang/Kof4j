@@ -49,6 +49,22 @@ public final class TypeChecker {
     static void checkArgTypes(DiagnosticCollector diagnostics, String methodName,
                               List<Type> argTypes, List<Type> paramTypes,
                               List<ExpressionNode> argNodes) {
+        checkArgTypes(null, diagnostics, methodName, argTypes, paramTypes, argNodes);
+    }
+
+    /**
+     * #688: a checagem de argumento de CHAMADA usava o `isAssignable` de 2
+     * args (estrutural), que aceita quaisquer dois ClassType e ignora os
+     * type-args — então `tentaEscrever(Caixa<Cachorro>)` em parâmetro
+     * `Caixa<Animal>` (ou `List<Dog>`→`List<Animal>`) compilava e corrompia
+     * em runtime. Aqui passamos o `sa` para o `isAssignable` nominal (mesmo
+     * caminho de declarações/atribuições): hierarquia nominal + args de
+     * genérico (invariante por padrão, out/in por variância). `sa == null`
+     * preserva o comportamento antigo (overload legado).
+     */
+    static void checkArgTypes(SemanticAnalyzer sa, DiagnosticCollector diagnostics, String methodName,
+                              List<Type> argTypes, List<Type> paramTypes,
+                              List<ExpressionNode> argNodes) {
         if (diagnostics == null || paramTypes.isEmpty() && !argTypes.isEmpty()) return;
         if (argTypes.size() != paramTypes.size()) {
             diagnostics.error(argNodeAt(argNodes, 0),
@@ -58,7 +74,7 @@ public final class TypeChecker {
         }
         for (int i = 0; i < argTypes.size(); i++) {
             if (!Type.isUnknown(argTypes.get(i)) && !Type.isUnknown(paramTypes.get(i))
-                    && !isAssignable(argTypes.get(i), paramTypes.get(i))) {
+                    && !isAssignable(sa, argTypes.get(i), paramTypes.get(i))) {
                 diagnostics.error(argNodeAt(argNodes, i),
                         "Argument " + (i + 1) + " of '" + methodName + "': expected '" + Type.display(paramTypes.get(i))
                                 + "' but got '" + Type.display(argTypes.get(i)) + "'", "SEM014");
@@ -334,6 +350,8 @@ public final class TypeChecker {
     }
 
     static boolean isAssignable(SemanticAnalyzer sa, Type from, Type to) {
+        // sem analisador não há hierarquia nominal: cai no estrutural legado.
+        if (sa == null) return isAssignable(from, to);
         // caminhos não-nominais primeiro (primitivos, nullability, Unknown):
         if (!isReferenceCandidate(from, to)) return isAssignable(from, to);
         if (!(from instanceof Type.ClassType fc) || !(to instanceof Type.ClassType tc)) {

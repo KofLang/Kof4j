@@ -22,6 +22,7 @@ import dev.kof.compiler.LambdaExpr;
 import dev.kof.compiler.MethodCallExpr;
 import dev.kof.compiler.ReturnStmt;
 import dev.kof.compiler.SourcePosition;
+import dev.kof.compiler.SpawnStmt;
 import dev.kof.compiler.StatementNode;
 import dev.kof.compiler.UnaryExpr;
 import dev.kof.compiler.VarDeclStmt;
@@ -29,6 +30,7 @@ import dev.kof.compiler.VarDeclStmt;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * D-MEMORY-SAFETY Fase 3 (fatia 1) — primeiro passe de ANALISE de ownership
@@ -55,6 +57,22 @@ import java.util.Map;
  *       propria colecao iterada por um {@code for-in} ({@code add}/
  *       {@code remove}/{@code clear}/{@code addAll}) — o loop por indice
  *       reavalia {@code size} a cada iteracao; WARNING de postura zero-FP.</li>
+ *   <li>{@code MEM021} (B-04/C-03, fatia 3.2): data race — o corpo de um
+ *       {@code spawn} chama MUTADOR direto ({@code add}/{@code remove}/
+ *       {@code clear}/{@code addAll} do mesmo set da B-05) sobre um binding
+ *       compartilhado E o corpo-mae (ou um segundo spawn) muta a MESMA raiz
+ *       de aliases sem nenhum {@code await} retilineo entre os dois pontos.
+ *       ERROR na mutacao-tarde (ou no segundo spawn, worker×worker) — a
+ *       corrida clara da spec. Postura zero-FP por construcao: {@code await}
+ *       de QUALQUER handle limpa o pending (sub-reporta, nunca sobre-reporta);
+ *       spawn condicional (dentro de braco) e interprocedural
+ *       ({@code spawn f()}) ficam silenciosos — faces nomeadas do plano;
+ *       leitura compartilhada sem escrita nao e a corrida B-04 da spec.
+ *       Fatia 4.3/#660 (`D-MEM021-SCALAR`, decisao da mantenedora): a escrita
+ *       do worker passa a incluir a REATRIBUICAO/incremento de um binding
+ *       capturado (face ESCALAR, {@code n = ...}/{@code n++}) e a escrita da
+ *       mae inclui reatribuicao/incremento do MESMO binding — ERROR, mesma
+ *       postura zero-FP (leitura pura capturada baixa por valor, sem corrida).</li>
  * </ul>
  *
  * <p><b>Fatia 2 (26/09) — cruzamento de fluxo sem propagar, anti-falso-
@@ -83,10 +101,20 @@ public final class OwnershipPass {
 
     /** Analisa a regiao retilinea de um corpo; {@code null} diag = no-op. */
     public static void analyze(DiagnosticCollector diag, List<StatementNode> body) {
+        analyze(diag, body, Map.of());
+    }
+
+    /**
+     * @param ffiWriteArgs extern cujo nome mapeia os indices de argumento
+     *                     {@code Buffer(U8)} INOUT — a escrita FFI B-03/MEM020
+     *                     (#668). Vazio quando o modulo nao declara tais externs.
+     */
+    public static void analyze(DiagnosticCollector diag, List<StatementNode> body,
+                               Map<String, Set<Integer>> ffiWriteArgs) {
         if (diag == null || body == null || body.isEmpty()) {
             return;
         }
-        new Region(diag).walkBody(body);
+        new Region(diag, ffiWriteArgs).walkBody(body);
     }
 
     /** Grupo de posse: um recurso, seus bindings e a ultima reivindicacao. */
@@ -102,9 +130,8 @@ public final class OwnershipPass {
     }
 
     private static final class Region {
-        /** Mutadores de tamanho/indices da List que disparam B-05/MEM022. */
-        private static final java.util.Set<String> MUTATORS =
-                java.util.Set.of("add", "remove", "clear", "addAll");
+        /** Mutadores de tamanho/indice — MESMA fonte da B-05 (SpawnCaptureScanner). */
+        private static final java.util.Set<String> MUTATORS = SpawnCaptureScanner.MUTATORS;
 
         private final DiagnosticCollector diag;
         private final Map<String, Group> groups;
@@ -112,11 +139,32 @@ public final class OwnershipPass {
         private StatementNode stmt;
         /** B-05/MEM022: raiz da colecao de um {@code for-in} que envolve este ponto. */
         private String iteratedBase;
+        /**
+         * B-04/C-03/MEM021 (fatia 3.2): raizes de bindings com MUTADOR direto
+         * dentro de um spawn ainda nao sincronizado por {@code await} retilineo.
+         * Qualquer {@code await} no fluxo retilineo limpa o mapa (postura
+         * conservadora: sub-reporta, nunca sobre-reporta).
+         */
+        private final Map<String, SourcePosition> racy = new HashMap<>();
+        /**
+         * B-03/MEM020 (#668) — raizes de bindings {@code Buffer(U8)} escritos
+         * por um {@code extern} dentro de um spawn ainda nao sincronizado por
+         * {@code await}. Mapa separado de {@link #racy} para que a face FFI
+         * carregue o codigo {@code MEM020} (B-03) e nao o {@code MEM021}.
+         */
+        private final Map<String, SourcePosition> racyFfi = new HashMap<>();
+        /** extern → indices de argumento Buffer(U8) INOUT (B-03/MEM020). */
+        private final Map<String, Set<Integer>> ffiWriteArgs;
 
         Region(DiagnosticCollector diag) {
+            this(diag, Map.of());
+        }
+
+        Region(DiagnosticCollector diag, Map<String, Set<Integer>> ffiWriteArgs) {
             this.diag = diag;
             this.groups = new HashMap<>();
             this.aliasOf = new HashMap<>();
+            this.ffiWriteArgs = ffiWriteArgs;
         }
 
         /** Copia snapshot do estado da mae (braços/loops/try veem so o CERTO). */
@@ -125,6 +173,9 @@ public final class OwnershipPass {
             this.groups = new HashMap<>(parent.groups);
             this.aliasOf = new HashMap<>(parent.aliasOf);
             this.iteratedBase = parent.iteratedBase;
+            this.racy.putAll(parent.racy);
+            this.racyFfi.putAll(parent.racyFfi);
+            this.ffiWriteArgs = parent.ffiWriteArgs;
         }
 
         void walkBody(List<StatementNode> body) {
@@ -159,13 +210,17 @@ public final class OwnershipPass {
                     }
                 }
                 case BlockStmt blk -> {
-                    // bloco e incondicional: propaga
+                    // bloco nu e retilineo: propaga grupos, aliases E racy/racyFfi (#693)
                     Region sub = new Region(this);
                     sub.walkBody(blk.statements());
                     groups.clear();
                     groups.putAll(sub.groups);
                     aliasOf.clear();
                     aliasOf.putAll(sub.aliasOf);
+                    racy.clear();
+                    racy.putAll(sub.racy);
+                    racyFfi.clear();
+                    racyFfi.putAll(sub.racyFfi);
                 }
                 case IfStmt iff -> {
                     readExpr(iff.condition());
@@ -200,6 +255,14 @@ public final class OwnershipPass {
                         loop.iteratedBase = base(cid.name());
                     }
                     loop.step(fi.body());
+                }
+                case SpawnStmt ss -> {
+                    // B-04/C-03/MEM021 (fatia 3.2): `spawn <expr>` na posicao
+                    // de statement — o corpo (LambdaExpr ou chamada) e uma
+                    // EXECUCO_CONCORRENTE; nao e lido como regiao de ownership
+                    // (capturas = faces E- do plano), mas o scan de mutadores
+                    // diretos registra a corrida potencial no binding-mae.
+                    registerSpawn(ss.position(), ss.expression());
                 }
                 case TryStmt tr -> {
                     // try/catch/finally partem do snapshot PRE-try (face
@@ -327,6 +390,131 @@ public final class OwnershipPass {
                     "MEM022");
         }
 
+        /**
+         * B-04/C-03/MEM021 (fatia 3.2) — varre o corpo de um {@code spawn} e
+         * marca cada binding capturado cujo MUTADOR direto (set B-05) aparece
+         * la dentro. Se o MESMO binding ja estava pendente de outro spawn nao
+         * sincronizado (worker×worker), arde MEM021 no segundo spawn; senao
+         * entra no mapa como corrida em espera (a mae pode acender depois).
+         * Corpo do lambda NAO vira regiao de ownership (capturas = faces E-).
+         */
+        private void registerSpawn(SourcePosition pos, ExpressionNode spawnBody) {
+            SpawnCaptureScanner.Captures caps =
+                    SpawnCaptureScanner.captured(spawnBody, ffiWriteArgs);
+            for (String name : caps.mutated()) {
+                String root = base(name);
+                SourcePosition prior = racy.get(root);
+                if (prior != null) {
+                    diag.error(stmt, "C-03: data race — '" + root + "' is mutated by two"
+                            + " unsynchronized spawns (line "
+                            + (prior.line()) + " and here); join the first (await) before"
+                            + " a second worker writes the same object (MEM021)",
+                            "MEM021");
+                    racy.remove(root);
+                } else {
+                    racy.put(root, pos);
+                }
+            }
+            // B-03/MEM020 (#668): um extern com Buffer(U8) INOUT escreve o
+            // buffer capturado; dois workers que escrevem o MESMO buffer sem
+            // sincronizacao sao a corrida clara (distinta da MEM021: a escrita
+            // vem da C, nao de um mutador Kof).
+            for (String name : caps.ffiBuffers()) {
+                String root = base(name);
+                SourcePosition prior = racyFfi.get(root);
+                if (prior != null) {
+                    diag.error(stmt, "B-03: data race — '" + root + "' is written by an"
+                            + " 'extern' in two unsynchronized spawns (line "
+                            + (prior.line()) + " and here); join the first (await) before"
+                            + " a second worker writes the same buffer (MEM020)",
+                            "MEM020");
+                    racyFfi.remove(root);
+                } else {
+                    racyFfi.put(root, pos);
+                }
+            }
+        }
+
+        /**
+         * M-021 face da MAE: um MUTADOR no corpo de fora sobre um binding com
+         * spawn pendente, sem {@code await} entre os dois, e a corrida clara —
+         * arde MEM021 e remove do mapa (um erro por binding, sem spam).
+         */
+        private void mutationRacesSpawn(MethodCallExpr mc) {
+            if (!MUTATORS.contains(mc.methodName())) {
+                return;
+            }
+            if (!(mc.receiver() instanceof IdentifierExpr recv)) {
+                return;
+            }
+            String root = base(recv.name());
+            SourcePosition sp = racy.get(root);
+            if (sp != null) {
+                diag.error(stmt, "B-04: data race — '" + root + "." + mc.methodName()
+                        + "(...)' mutates a shared object the spawn at line "
+                        + sp.line() + " also writes, with no 'await' in between;"
+                        + " synchronize (await the handle) before the parent write"
+                        + " (MEM021)",
+                        "MEM021");
+                racy.remove(root);
+            }
+        }
+
+        /**
+         * B-03/MEM020 (#668) — face da MAE da escrita FFI: um {@code extern}
+         * com parametro {@code Buffer(U8)} INOUT sobre um binding com spawn
+         * pendente que TAMBEM escreveu o mesmo buffer, sem {@code await} entre,
+         * e a corrida clara. Arde MEM020 e remove do mapa (um erro por binding).
+         */
+        private void ffiMutationRacesSpawn(MethodCallExpr mc) {
+            if (mc.receiver() != null) {
+                return;
+            }
+            Set<Integer> idxs = ffiWriteArgs.get(mc.methodName());
+            if (idxs == null) {
+                return;
+            }
+            for (int i : idxs) {
+                if (i >= mc.arguments().size()
+                        || !(mc.arguments().get(i) instanceof IdentifierExpr buf)) {
+                    continue;
+                }
+                String root = base(buf.name());
+                SourcePosition sp = racyFfi.get(root);
+                if (sp != null) {
+                    diag.error(stmt, "B-03: data race — the 'extern' " + mc.methodName()
+                            + "(...) writes '" + root + "' here, and the spawn at line "
+                            + sp.line() + " also writes it, with no 'await' in between;"
+                            + " synchronize (await the handle) before the parent write"
+                            + " (MEM020)",
+                            "MEM020");
+                    racyFfi.remove(root);
+                }
+            }
+        }
+
+        /**
+         * B-04/C-03/MEM021 (fatia 4.3/#660) — face ESCALAR da MAE: uma ESCRITA
+         * do corpo-mae sobre um binding com spawn pendente (reatribuicao
+         * {@code n = ...} ou {@code n++}/{@code n--}), sem {@code await}
+         * retilineo entre, e a corrida clara — o worker que escreve o binding
+         * forca o box de representacao, entao mae e worker compartilham o slot
+         * (medido: {@code 202}/{@code 101}). Arde MEM021 e remove do mapa (um
+         * erro por binding, sem spam).
+         */
+        private void writeRacesSpawn(String name) {
+            String root = base(name);
+            SourcePosition sp = racy.get(root);
+            if (sp != null) {
+                diag.error(stmt, "B-04: data race — '" + root + "' is written by the parent"
+                        + " after the spawn at line " + sp.line() + " also writes it, with no"
+                        + " 'await' in between; synchronize (await the handle) before the parent"
+                        + " write (MEM021)",
+                        "MEM021");
+                racy.remove(root);
+            }
+        }
+
         private void readExpr(ExpressionNode e) {
             switch (e) {
                 case IdentifierExpr id -> readName(id.name());
@@ -337,7 +525,25 @@ public final class OwnershipPass {
                         claim(recv.name());
                         return;
                     }
+                    // B-04/C-03/MEM021 (fatia 3.2): `spawn { ... }` e `await h`
+                    // em posicao de expressao baixam para chamadas sinteticas
+                    // __kof_spawn_expr(lambda) / __kof_await(handle) — SEM
+                    // receiver. O primeiro registra mutadores capturados; o
+                    // segundo SINCRONIZA e limpa o pending conservador.
+                    if (mc.receiver() == null && "__kof_spawn_expr".equals(mc.methodName())) {
+                        for (ExpressionNode arg : mc.arguments()) {
+                            registerSpawn(mc.position(), arg);
+                        }
+                        return;
+                    }
+                    if (mc.receiver() == null && "__kof_await".equals(mc.methodName())) {
+                        racy.clear();
+                        racyFfi.clear();
+                        return;
+                    }
                     mutationDuringIteration(mc);
+                    mutationRacesSpawn(mc);
+                    ffiMutationRacesSpawn(mc);
                     if (mc.receiver() != null) {
                         readExpr(mc.receiver());
                     }
@@ -354,9 +560,24 @@ public final class OwnershipPass {
                     readExpr(be.left());
                     readExpr(be.right());
                 }
-                case UnaryExpr ue -> readExpr(ue.operand());
+                case UnaryExpr ue -> {
+                    // B-04/MEM021 (fatia 4.3/#660): `n++`/`n--` da MAE sobre um
+                    // escalar com spawn pendente e escrita concorrente.
+                    if (("++".equals(ue.operator()) || "--".equals(ue.operator()))
+                            && ue.operand() instanceof IdentifierExpr t) {
+                        writeRacesSpawn(t.name());
+                    }
+                    readExpr(ue.operand());
+                }
                 case AssignmentExpr ae -> {
-                    // alvo = escrita (rebinding nao transfere posse nesta fatia)
+                    // B-04/MEM021 (fatia 4.3/#660): reatribuicao da MAE sobre um
+                    // binding com spawn pendente, sem await entre, e corrida
+                    // clara (o worker que escreve força o box; mae e worker
+                    // compartilham o slot). Alvo nao-identifier (campo/indice) e
+                    // face E- nomeada do plano. Rebinding nao transfere posse.
+                    if (ae.target() instanceof IdentifierExpr t) {
+                        writeRacesSpawn(t.name());
+                    }
                     if (ae.value() != null) {
                         readExpr(ae.value());
                     }

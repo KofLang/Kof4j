@@ -341,7 +341,7 @@ fatia 2B, byte a byte sob qemu); **JS = `MEDIA001`** e `Image`/`Mic` = `MEDIA001
 Nota de escopo: esta e a **face de dados** atual de `kof.media`. A superficie futura
 de graficos/jogos/midia e **engine propria da Kof**, com paridade TOTAL nos 4 alvos
 como criterio de aceite (`DECISIONS.md` §D-GRAPHICS-GAMING adendos 2+4; plano
-`docs/development/future/graphics-gaming-plan.md`) — `MEDIA001` e honesto para a face
+`docs/development/graphics-gaming-plan.md`) — `MEDIA001` e honesto para a face
 legada, nao o modelo do que sera promovido.
 
 ## Nota por target (gates honestos)
@@ -371,10 +371,11 @@ legada, nao o modelo do que sera promovido.
 | shell.cmd/run/ok (v1) | ✅ | ❌ `PROC001` (tempo de compilação) | ❌ `PROC001` | ✅ paridade byte |
 | shell.pipeline (v1) | ✅ | ❌ `PROC001` | ❌ `PROC001` | ✅ host Kof JS (chain + pump, 20/09 `081a48f8`; node puro = diagnostico honesto) |
 
-`strings.reverse` em não-ASCII: corrigido 27/09 — inverte por CODE POINT UTF-8
-no Native (x86/riscv/aarch), igual ao JVM/JS (célula `stdstrings2b2` +
-`NativeStringsReverseCrossTest`). Os demais conversores de caixa/palavra seguem
-**NAT-STR01** (paridade travada em ASCII na matriz).
+`strings.reverse`, `toUpperCase`/`toLowerCase` e `compareToIgnoreCase` em
+não-ASCII: corretos em todos os targets desde 27/09 (`D-STR-UNICODE`, linha 11) —
+`compareToIgnoreCase` casa com o `CASE_INSENSITIVE_ORDER` do JVM (fold SIMPLES por
+code unit); `capitalize`/conversores de palavra seguem ASCII-only no Native, gap
+**NAT-STR01**.
 
 ## Limitações
 

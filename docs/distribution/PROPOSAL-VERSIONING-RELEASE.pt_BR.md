@@ -39,7 +39,7 @@ Revalidado no tip `6c9aeb847f167e97ed48c21a9e4453028198da63` (branch `beta-0.5.0
 2. `docs/development/DECISIONS.md` e `.pt_BR.md` — lidos; `D-RELEASE` (§, 2026-09-14), `D-BRANCH-0.5.0`, `D-VERSION-BUMP-0.5.0`, `D-RELEASE-0.5.0-GATE` (+ condition 2 + `D-RELEASE-0.5.0-SCOPE`), `D-RELEASE-1.0`, `D-1.0-EDGES` confirmados presentes e `DECIDED`/`RATIFIED` conforme citado abaixo.
 3. `docs/distribution/VERSIONING.md` e `.pt_BR.md` — lidos; confirma o drift descrito na §2.1: a seção "Current stage" ainda afirma `0.0.x` / Alpha e "every commit on main generates the next Alpha version (PATCH increment)", que não descreve o estado medido (`VERSION` = `0.5.0-beta`, branch dedicada `beta-0.5.0`).
 4. `docs/distribution/release-naming.md` e `.pt_BR.md` — lidos; já usa `MAJOR.MINOR.PATCH-<stage>` e a tabela de codenames; nenhuma contradição normativa com a proposta.
-5. `docs/development/release-beta-0.5.0-prep.md` e `.pt_BR.md` — lidos; checklist de preparação do corte 0.5.0, ortogonal a esta proposta (não é alterado aqui).
+5. `docs/distribution/release-beta-0.5.0.md` e `.pt_BR.md` — registro de aceitação do corte 0.5.0 (FECHADO 28/09); ortogonal a esta proposta.
 6. `docs/PROPOSAL-1.0-EXIT-GATE.md` e `.pt_BR.md` — lido; `D-RELEASE-1.0`/EXIT GATE confirmado `RATIFIED`, tratado como intocável por esta proposta (§6).
 7. `DOING.md` — nenhuma claim ativa (`EM CURSO`) sobre os arquivos desta frente na medição feita.
 8. `VERSION` — `0.5.0-beta` no tip acima.

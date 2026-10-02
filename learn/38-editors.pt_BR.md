@@ -162,5 +162,5 @@ kof serve
 ## Próximo passo
 
 - Referência completa: `docs/editors/overview.md`
-- Plano/arquitetura: `docs/development/plan-editor-integration.md` (EDI001)
+- Plano/arquitetura: `docs/tooling/PLAN-EDITOR-INTEGRATION.pt_BR.md` (EDI001)
 - LSP: `docs/tooling/LSP.md`

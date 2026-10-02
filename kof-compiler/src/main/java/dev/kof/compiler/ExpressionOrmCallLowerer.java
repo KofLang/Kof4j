@@ -13,6 +13,9 @@ public final class ExpressionOrmCallLowerer {
 
     static int lower(CompilerDriver driver, MethodCallExpr mc, List<KofOperation> ops,
                     String owner, int localIdx, List<IRLocalVariable> locals) {
+    if ("window".equals(mc.methodName())) {
+        return lowerOrmWindow(driver, mc, ops, owner, localIdx, locals);
+    }
     IdentifierExpr rid = (IdentifierExpr) mc.receiver();
     List<Type> argTypes = new ArrayList<>();
     for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
@@ -118,5 +121,123 @@ public final class ExpressionOrmCallLowerer {
                 ormCall.function(), params, retType, KofCallKind.FUNCTION));
     }
     return localIdx;
+    }
+
+    /**
+     * P4 (D-PAGINATION-P4-LOWERING): {@code orm.window<T>(db, limit,
+     * offset[, true])} dessuga no ORM lowerer para o helper Kof {@code
+     * windowPage(...)} injetado ({@code kof.pagination}) sobre {@code orm.page}/
+     * {@code orm.count} ({@code windowPage} NAO re-fatiar: a pagina ja vem
+     * LIMIT/OFFSET do SQL). Nenhum runtime por alvo constroi o record {@code
+     * Window<T>} (ele e por-programa, sem reflection). Os argumentos do usuario
+     * sao avaliados UMA vez (temps {@code $kw*}); a forma de 4 args so roda
+     * {@code orm.count} no ramo {@code withTotal} (opt-in COUNT(*), lazy — a
+     * forma de 3 args nunca conta). Semantica identica a face em memoria (P2):
+     * {@code hasPrevious = offset > 0}; {@code hasNext} otimista
+     * ({@code page.size == limit}) sem total, exato com ele.
+     */
+    private static int lowerOrmWindow(CompilerDriver driver, MethodCallExpr mc, List<KofOperation> ops,
+                                      String owner, int localIdx, List<IRLocalVariable> locals) {
+        SourcePosition pos = mc.position();
+        boolean typed = !mc.typeArguments().isEmpty();
+        String entityName = typed ? mc.typeArguments().get(0) : null;
+        int nArgs = mc.arguments().size();
+        if (!typed || entityName == null || nArgs < 3 || nArgs > 4) {
+            if (driver.currentDiagnostics != null) {
+                driver.currentDiagnostics.error(pos != null ? pos.file() : "",
+                        pos != null ? pos.line() : 0, pos != null ? pos.column() : 0, 0,
+                        "orm.window<T>(db, limit, offset[, true]) requires a type argument and 3 or 4 arguments",
+                        "ORM002");
+            }
+            return localIdx;
+        }
+        if (driver.entitySchemas.get(entityName) == null) {
+            if (driver.currentDiagnostics != null) {
+                driver.currentDiagnostics.error(pos != null ? pos.file() : "",
+                        pos != null ? pos.line() : 0, pos != null ? pos.column() : 0, 0,
+                        "orm.window: unknown entity '" + entityName + "' (ORM002)", "ORM002");
+            }
+            return localIdx;
+        }
+        if (!KofOrm.fnSupportedOn(driver.target, "kof_orm_page")) {
+            if (driver.currentDiagnostics != null) {
+                driver.currentDiagnostics.error(pos != null ? pos.file() : "",
+                        pos != null ? pos.line() : 0, pos != null ? pos.column() : 0, 0,
+                        "orm.window: not available on the " + driver.target
+                                + " driver.target yet (" + KofOrm.gapCode() + ")",
+                        KofOrm.gapCode());
+            }
+            return localIdx;
+        }
+        // Avalia cada argumento UMA vez num temp ($kw*): o page consome
+        // db/limit/offset e o helper precisa de limit/offset de novo.
+        Type dbType = ExpressionTyper.inferExprType(driver, mc.arguments().get(0), locals);
+        localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(0), ops, owner, localIdx, locals);
+        int dbIdx = localIdx++;
+        locals.add(new IRLocalVariable(dbIdx, "$kwdb" + dbIdx, dbType));
+        ops.add(new KofStoreLocal(dbType, dbIdx));
+
+        Type limitType = ExpressionTyper.inferExprType(driver, mc.arguments().get(1), locals);
+        localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(1), ops, owner, localIdx, locals);
+        int limitIdx = localIdx++;
+        locals.add(new IRLocalVariable(limitIdx, "$kwlim" + limitIdx, limitType));
+        ops.add(new KofStoreLocal(limitType, limitIdx));
+
+        Type offsetType = ExpressionTyper.inferExprType(driver, mc.arguments().get(2), locals);
+        localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(2), ops, owner, localIdx, locals);
+        int offsetIdx = localIdx++;
+        locals.add(new IRLocalVariable(offsetIdx, "$kwoff" + offsetIdx, offsetType));
+        ops.add(new KofStoreLocal(offsetType, offsetIdx));
+
+        int flagIdx = -1;
+        if (nArgs == 4) {
+            Type flagType = ExpressionTyper.inferExprType(driver, mc.arguments().get(3), locals);
+            localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(3), ops, owner, localIdx, locals);
+            flagIdx = localIdx++;
+            locals.add(new IRLocalVariable(flagIdx, "$kwflag" + flagIdx, flagType));
+            ops.add(new KofStoreLocal(flagType, flagIdx));
+        }
+
+        Type entityType = CompilerTypes.toType(mc.typeArguments().get(0), driver.currentUnit);
+        Type listType = new Type.ClassType("kof", "List", List.of(entityType));
+        IdentifierExpr ormRecv = new IdentifierExpr(pos, "orm");
+        // orm.page<T>(db, windowBounds(limit, offset), offset) -> List<T>;
+        // guarda num temp (avaliado UMA vez, mesmo quando os dois ramos do
+        // total o consultam). O windowBounds no arg do limit valida ANTES do
+        // SQL: um limit/offset negativo vira o erro nomeado Kof, nao erro de
+        // driver.
+        ExpressionNode validatedLimit = new MethodCallExpr(pos, null, "windowBounds", List.of(),
+                List.of(new IdentifierExpr(pos, "$kwlim" + limitIdx),
+                        new IdentifierExpr(pos, "$kwoff" + offsetIdx)));
+        MethodCallExpr pageCall = new MethodCallExpr(pos, ormRecv, "page", mc.typeArguments(),
+                List.of(new IdentifierExpr(pos, "$kwdb" + dbIdx),
+                        validatedLimit,
+                        new IdentifierExpr(pos, "$kwoff" + offsetIdx)));
+        localIdx = ExpressionLowerer.emitExpression(driver, pageCall, ops, owner, localIdx, locals);
+        int pageIdx = localIdx++;
+        locals.add(new IRLocalVariable(pageIdx, "$kwpage" + pageIdx, listType));
+        ops.add(new KofStoreLocal(listType, pageIdx));
+        ExpressionNode pageId = new IdentifierExpr(pos, "$kwpage" + pageIdx);
+
+        ExpressionNode result;
+        if (nArgs == 3) {
+            result = new MethodCallExpr(pos, null, "windowPage", List.of(),
+                    List.of(pageId,
+                            new IdentifierExpr(pos, "$kwlim" + limitIdx),
+                            new IdentifierExpr(pos, "$kwoff" + offsetIdx)));
+        } else {
+            MethodCallExpr withTotal = new MethodCallExpr(pos, null, "windowPage", List.of(),
+                    List.of(pageId,
+                            new IdentifierExpr(pos, "$kwlim" + limitIdx),
+                            new IdentifierExpr(pos, "$kwoff" + offsetIdx),
+                            new MethodCallExpr(pos, ormRecv, "count", mc.typeArguments(),
+                                    List.of(new IdentifierExpr(pos, "$kwdb" + dbIdx)))));
+            MethodCallExpr without = new MethodCallExpr(pos, null, "windowPage", List.of(),
+                    List.of(pageId,
+                            new IdentifierExpr(pos, "$kwlim" + limitIdx),
+                            new IdentifierExpr(pos, "$kwoff" + offsetIdx)));
+            result = new IfExpr(pos, new IdentifierExpr(pos, "$kwflag" + flagIdx), withTotal, without);
+        }
+        return ExpressionLowerer.emitExpression(driver, result, ops, owner, localIdx, locals);
     }
 }

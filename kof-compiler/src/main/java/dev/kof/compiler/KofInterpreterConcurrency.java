@@ -55,6 +55,129 @@ public final class KofInterpreterConcurrency {
                 for (Object o : src) acc = interp.invokeLambda(args[2], new Object[]{acc, o});
                 return acc;
             }
+            // D-MULTIPARADIGMA-PHASE1A — eager short-circuit quantifiers;
+            // truthiness reuses the filter rule; vacuous: all=true,
+            // any/none=false. Lambdas throw through (short-circuit proof).
+            case "kof_list_any": {
+                @SuppressWarnings("unchecked")
+                ArrayList<Object> src = (ArrayList<Object>) args[0];
+                for (Object o : src) {
+                    Object r = interp.invokeLambda(args[1], new Object[]{o});
+                    if (Boolean.TRUE.equals(r) || Integer.valueOf(1).equals(r)) return 1;
+                }
+                return 0;
+            }
+            case "kof_list_all": {
+                @SuppressWarnings("unchecked")
+                ArrayList<Object> src = (ArrayList<Object>) args[0];
+                for (Object o : src) {
+                    Object r = interp.invokeLambda(args[1], new Object[]{o});
+                    if (!(Boolean.TRUE.equals(r) || Integer.valueOf(1).equals(r))) return 0;
+                }
+                return 1;
+            }
+            case "kof_list_none": {
+                @SuppressWarnings("unchecked")
+                ArrayList<Object> src = (ArrayList<Object>) args[0];
+                for (Object o : src) {
+                    Object r = interp.invokeLambda(args[1], new Object[]{o});
+                    if (Boolean.TRUE.equals(r) || Integer.valueOf(1).equals(r)) return 0;
+                }
+                return 1;
+            }
+            // D-MULTIPARADIGMA-PHASE1A slice 1b — find returns the match or
+            // null (Map.get-missing contract); count(pred) counts matches.
+            case "kof_list_find": {
+                @SuppressWarnings("unchecked")
+                ArrayList<Object> src = (ArrayList<Object>) args[0];
+                for (Object o : src) {
+                    Object r = interp.invokeLambda(args[1], new Object[]{o});
+                    if (Boolean.TRUE.equals(r) || Integer.valueOf(1).equals(r)) return o;
+                }
+                return null;
+            }
+            case "kof_list_count_pred": {
+                @SuppressWarnings("unchecked")
+                ArrayList<Object> src = (ArrayList<Object>) args[0];
+                int n = 0;
+                for (Object o : src) {
+                    Object r = interp.invokeLambda(args[1], new Object[]{o});
+                    if (Boolean.TRUE.equals(r) || Integer.valueOf(1).equals(r)) n++;
+                }
+                return n;
+            }
+            // D-MULTIPARADIGMA-PHASE1A slice 1c — forEach runs for effect.
+            case "kof_list_foreach": {
+                @SuppressWarnings("unchecked")
+                ArrayList<Object> src = (ArrayList<Object>) args[0];
+                for (Object o : src) interp.invokeLambda(args[1], new Object[]{o});
+                return null;
+            }
+            // D-MULTIPARADIGMA-PHASE1A slice 1g — sorted(cmp): cópia ordenada
+            // pelo comparador (negativo/zero/positivo); insertion sort estável
+            // para comparadores puros. Chamada INSTANCE: receiver é a lista,
+            // args[0] é a lambda (forma diferente dos FUNCTION acima).
+            case "kof_list_sorted_cmp": {
+                @SuppressWarnings("unchecked")
+                ArrayList<Object> src = (ArrayList<Object>) recv;
+                ArrayList<Object> out = new ArrayList<>(src);
+                Object cmp = args[0];
+                for (int i = 1; i < out.size(); i++) {
+                    Object key = out.get(i);
+                    int j = i - 1;
+                    while (j >= 0 && ((Number) interp.invokeLambda(cmp,
+                            new Object[]{out.get(j), key})).intValue() > 0) {
+                        out.set(j + 1, out.get(j));
+                        j--;
+                    }
+                    out.set(j + 1, key);
+                }
+                return out;
+            }
+            // #685 — enum sort(): in-place insertion via the synthesized
+            // comparator (a.compareTo(b)); mutates the receiver list.
+            case "kof_list_sort_cmp": {
+                @SuppressWarnings("unchecked")
+                ArrayList<Object> src = (ArrayList<Object>) recv;
+                Object cmp = args[0];
+                for (int i = 1; i < src.size(); i++) {
+                    Object key = src.get(i);
+                    int j = i - 1;
+                    while (j >= 0 && ((Number) interp.invokeLambda(cmp,
+                            new Object[]{src.get(j), key})).intValue() > 0) {
+                        src.set(j + 1, src.get(j));
+                        j--;
+                    }
+                    src.set(j + 1, key);
+                }
+                return null;
+            }
+            // D-MULTIPARADIGMA-PHASE1A slice 1d — flatMap concatenates each
+            // element's List in order (non-List lambda result fails loudly).
+            case "kof_list_flatmap": {
+                @SuppressWarnings("unchecked")
+                ArrayList<Object> src = (ArrayList<Object>) args[0];
+                ArrayList<Object> out = new ArrayList<>();
+                for (Object o : src) {
+                    Object tmp = interp.invokeLambda(args[1], new Object[]{o});
+                    out.addAll((java.util.List<?>) tmp);
+                }
+                return out;
+            }
+            // D-MULTIPARADIGMA-PHASE1A slice 1h — groupBy buckets by the
+            // lambda key (LinkedHashMap = insertion order). INSTANCE shape:
+            // caller emits user args first: recv is the list, args[0] the
+            // lambda, args[1] the Native-only tag (same as kof_list_find).
+            case "kof_list_groupby": {
+                @SuppressWarnings("unchecked")
+                ArrayList<Object> src = (ArrayList<Object>) recv;
+                var out = new java.util.LinkedHashMap<Object, Object>();
+                for (Object o : src) {
+                    Object key = interp.invokeLambda(args[0], new Object[]{o});
+                    groupBucket(out, key).add(o);
+                }
+                return out;
+            }
             case "kof_spawn_result": {
                 CompletableFuture<Object> future = new CompletableFuture<>();
                 startTask(future, () -> future.complete(interp.invokeLambda(args[0], new Object[0])));
@@ -158,8 +281,19 @@ public final class KofInterpreterConcurrency {
         return new RuntimeException(cause);
     }
 
-    private void startTask(Object handle, ThrowingRunnable body) {
-        Runnable wrapped = () -> {
+    // D-MULTIPARADIGMA-PHASE1A slice 1h — bucket list for a groupBy key
+    // (fresh list on first encounter, insertion order preserved).
+    @SuppressWarnings("unchecked")
+    private static ArrayList<Object> groupBucket(Map<Object, Object> out, Object key) {
+        Object bucket = out.get(key);
+        if (!(bucket instanceof ArrayList)) {
+            bucket = new ArrayList<Object>();
+            out.put(key, bucket);
+        }
+        return (ArrayList<Object>) bucket;
+    }
+
+    private void startTask(Object handle, ThrowingRunnable body) {        Runnable wrapped = () -> {
             try {
                 body.run();
             } catch (Throwable e) {

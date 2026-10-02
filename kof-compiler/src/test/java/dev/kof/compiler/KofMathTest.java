@@ -10,8 +10,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * O interpretador (Target.SCRIPT) herda via reflexão no KofRuntime gerado
  * (mesmo source de JVMStringMathRuntime) — a matriz cobre a paridade 4-target.
  */
-class KofMathTest {
-    private final CompilerDriver driver = new CompilerDriver();
+class KofMathTest extends KofMathSupport {
 
     @Test
     void mathJvm(@TempDir Path tmp) throws Exception {
@@ -414,101 +413,34 @@ class KofMathTest {
         assertFalse(result.success(), "math.roundTo(2.0, 2.0) deve ser rejeitado no typer (SEM025)");
     }
 
-    private void forCrossArch(Path tmp, String src, String expected) throws Exception {
-        // golden byte-idêntico ao JVM/x86/JS, executado sob qemu (padrão
-        // STRN001/SECN000 da lane; skipa honesto se toolchain ausente).
-        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
-            String qemu = t == Target.NATIVE_RISCV64 ? "qemu-riscv64" : "qemu-aarch64";
-            String[] tools = t == Target.NATIVE_RISCV64
-                    ? new String[]{"riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64"}
-                    : new String[]{"aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"};
-            assumeToolchain(tools);
-            Path file = tmp.resolve("X-" + t + "-" + System.nanoTime() + ".kf");
-            Files.writeString(file, src);
-            Path outDir = tmp.resolve("xout-" + t + "-" + System.nanoTime());
-            CompilationResult result = driver.compile(file, outDir, t);
-            assertTrue(result.success(), t + " compile failed: " + result.diagnostics().getDiagnostics());
-            Process p = NativeRiscv64E2ETest.qemu(qemu.substring(5), outDir.resolve("Default/Main"))
-                    .redirectErrorStream(true).start();
-            String output = new String(p.getInputStream().readAllBytes(),
-                    java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
-            int ec = p.waitFor();
-            assertEquals(0, ec, t + " exit code, output: " + output);
-            assertEquals(expected, output, t + " golden");
+    private static final String TRIG_SRC = """
+        main() {
+            println(math.sin(0.0) == 0.0)
+            println(math.cos(0.0) == 1.0)
+            println(math.tan(0.0) == 0.0)
+            println(math.asin(0.0) == 0.0)
+            println(math.acos(1.0) == 0.0)
+            println(math.atan(0.0) == 0.0)
+            println(math.atan2(0.0, 1.0) == 0.0)
+            println(math.toRadians(180.0) == math.pi())
+            println(math.toDegrees(math.pi()) == 180.0)
+            println(math.pi() > 3.14 && math.pi() < 3.15)
+            println(math.e() > 2.71 && math.e() < 2.72)
+            println(math.tau() == 2.0 * math.pi())
         }
+        """;
+
+    private static final String TRIG_OUT =
+            "true\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue";
+
+    @Test
+    void trigJvm(@TempDir Path tmp) throws Exception {
+        runJvm(tmp, TRIG_SRC, TRIG_OUT);
     }
 
-    private void assumeToolchain(String... tools) {
-        for (String c : tools) {
-            try {
-                Process p = new ProcessBuilder("sh", "-c", "command -v " + c)
-                        .redirectErrorStream(true).start();
-                String out = new String(p.getInputStream().readAllBytes(),
-                        java.nio.charset.StandardCharsets.UTF_8).trim();
-                org.junit.jupiter.api.Assumptions.assumeTrue(
-                        p.waitFor() == 0 && !out.isEmpty(), "toolchain ausente: " + c);
-            } catch (Exception e) {
-                org.junit.jupiter.api.Assumptions.assumeTrue(false, "toolchain ausente: " + c);
-            }
-        }
+    @Test
+    void trigJs(@TempDir Path tmp) throws Exception {
+        runJs(tmp, TRIG_SRC, TRIG_OUT);
     }
 
-    private String runJvm(Path tempDir, String source, String expected) throws Exception {
-        Path file = tempDir.resolve("Main-" + System.nanoTime() + ".kf");
-        Files.writeString(file, source);
-        Path outDir = tempDir.resolve("out-" + System.nanoTime());
-        CompilationResult result = driver.compile(file, outDir, Target.JVM);
-        assertTrue(result.success(), "JVM compile failed: " + result.diagnostics().getDiagnostics());
-        Process p = new ProcessBuilder(System.getProperty("java.home") + "/bin/java",
-                "-cp", outDir.toString(), "Default.Main").redirectErrorStream(true).start();
-        String output = new String(p.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)
-            .replace("\r\n", "\n").trim();
-        int ec = p.waitFor();
-        assertEquals(0, ec, "JVM exit code, output: " + output);
-        assertEquals(expected, output, "JVM output");
-        return output;
-    }
-
-    private String runNative(Path tempDir, String source, String expected) throws Exception {
-        Path file = tempDir.resolve("Main-" + System.nanoTime() + ".kf");
-        Files.writeString(file, source);
-        Path outDir = tempDir.resolve("out-" + System.nanoTime());
-        CompilationResult result = driver.compile(file, outDir, Target.NATIVE);
-        assertTrue(result.success(), "Native compile failed: " + result.diagnostics().getDiagnostics());
-        Path bin = outDir.resolve("Default/Main");
-        Process p = new ProcessBuilder(bin.toString()).redirectErrorStream(true).start();
-        String output = new String(p.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)
-            .replace("\r\n", "\n").trim();
-        int ec = p.waitFor();
-        assertEquals(0, ec, "Native exit code, output: " + output);
-        assertEquals(expected, output, "Native output");
-        return output;
-    }
-
-    private String runJs(Path tempDir, String source, String expected) throws java.io.IOException {
-        Path file = tempDir.resolve("Main-" + System.nanoTime() + ".kf");
-        Files.writeString(file, source);
-        Path outDir = tempDir.resolve("out-" + System.nanoTime());
-        CompilationResult result = driver.compile(file, outDir, Target.JS);
-        assertTrue(result.success(), "JS compile failed: " + result.diagnostics().getDiagnostics());
-        try (java.io.ByteArrayOutputStream buf = new java.io.ByteArrayOutputStream();
-             java.io.ByteArrayOutputStream err = new java.io.ByteArrayOutputStream()) {
-            int ec = dev.kof.runtime.KofJsRunner.run(findJsEntry(outDir), buf,
-                    java.io.InputStream.nullInputStream(), err);
-            String output = buf.toString(java.nio.charset.StandardCharsets.UTF_8).trim();
-            assertEquals(0, ec, "JS exit code, output: " + output + " err: " + err.toString(java.nio.charset.StandardCharsets.UTF_8).trim());
-            assertEquals(expected, output, "JS output");
-            return output;
-        }
-    }
-
-    private static Path findJsEntry(Path dir) throws java.io.IOException {
-        try (var s = Files.walk(dir)) {
-            var opt = s.filter(p -> p.getFileName().toString().equals("Default.mjs")).findFirst();
-            if (opt.isPresent()) return opt.get();
-        }
-        return Files.walk(dir).flatMap(p -> java.util.stream.Stream.of(p))
-                .filter(p -> p.toString().endsWith(".mjs"))
-                .findFirst().orElseThrow(() -> new java.io.IOException("no .mjs in " + dir));
-    }
 }

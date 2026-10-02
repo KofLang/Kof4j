@@ -1,0 +1,24 @@
+// D-MULTIPARADIGMA-ZIP — nominal pair + zip helper, written in Kof
+// (library-first, D-KOF-FIRST-IMPL): the compiler rewrites `xs.zip(ys)`
+// into `zipPairs(xs, ys)`; no per-target runtime, no new ABI, no syntax.
+// Truncates at the shorter list (never an error); the receiver is never
+// mutated; empty in, empty out.
+//
+// NOTE: the helper uses the type-after-params function syntax because
+// only it accepts type parameters (`window<T>` precedent); the
+// type-before-name form does not parse `<A, B>` (measured 30/09).
+record Pair<A, B>(A first, B second)
+
+zipPairs<A, B>(List<A> xs, List<B> ys): List<Pair<A, B>> {
+    var out = listOf<Pair<A, B>>()
+    var n = xs.size
+    if (ys.size < n) {
+        n = ys.size
+    }
+    var i = 0
+    while (i < n) {
+        out.add(Pair<A, B>(xs.get(i), ys.get(i)))
+        i = i + 1
+    }
+    return out
+}

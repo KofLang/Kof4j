@@ -86,14 +86,24 @@ public final class JvmRuntimeReturnDescriptors {
                     "kof_mq_push", "kof_time_sleep", "kof_time_cancel", "kof_scheduler_cancel" -> "V";
             case "kof_time_now" -> "J";
             case "kof_gc_collect_now" -> "V";
-            case "kof_time_isLeapYear", "kof_time_daysInMonth", "kof_time_dayOfWeek", "kof_time_daysBetween", "kof_time_isWeekend", "kof_time_diffDays" -> "I";
-            case "kof_time_interval", "kof_time_addDays" -> "Ljava/lang/String;";
+            case "kof_time_isLeapYear", "kof_time_daysInMonth", "kof_time_dayOfWeek", "kof_time_daysBetween", "kof_time_age", "kof_time_isWeekend", "kof_time_diffDays" -> "I";
+            case "kof_time_interval", "kof_time_addDays", "kof_time_addMonths", "kof_time_addYears", "kof_time_startOf", "kof_time_endOf" -> "Ljava/lang/String;";
             case "kof_config_int", "kof_config_bool", "kof_config_has" -> "I";
             case "kof_config_long" -> "J";
             case "kof_web_configure" -> "V";
             case "kof_web_stats" -> "Ljava/lang/String;";
             case "kof_log_debug", "kof_log_info", "kof_log_warn", "kof_log_error" -> "V";
             case "kof_db_connect", "kof_db_connect2" -> "Ljava/lang/String;";
+            // D-KOF-NET front — returns espelhando JvmRuntimeCallDescriptors.
+            case "kof_net_listen" -> "Ldev/kof/runtime/KofRuntime$NetListener;";
+            case "kof_net_accept" -> "Ldev/kof/runtime/KofRuntime$NetConn;";
+            case "kof_net_connect" -> "Ldev/kof/runtime/KofRuntime$NetConn;";
+            case "kof_net_bind" -> "Ldev/kof/runtime/KofRuntime$NetEndpoint;";
+            case "kof_net_send" -> "I";
+            case "kof_net_receive", "kof_net_receiveFrom" -> "[B";
+            case "kof_net_sendTo" -> "I";
+            case "kof_net_peer" -> "Ljava/lang/String;";
+            case "kof_net_close" -> "V";
             case "kof_db_close", "kof_db_transaction" -> "V";
             case "kof_db_execute", "kof_db_execute1", "kof_db_execute2", "kof_db_execute3", "kof_db_execute4" -> "I";
             case "kof_db_query0", "kof_db_query1", "kof_db_query2", "kof_db_query3", "kof_db_query4",
@@ -154,6 +164,10 @@ public final class JvmRuntimeReturnDescriptors {
                     "kof_math_max", "kof_math_isEven", "kof_math_isOdd", "kof_math_isPositive",
                     "kof_math_isNegative", "kof_math_isZero", "kof_strings_isAlpha", "kof_strings_isNumeric", "kof_strings_isAlphaNumeric", "kof_strings_isAscii" -> "I";
             case "kof_math_sqrt" -> "D";
+            case "kof_math_sin", "kof_math_cos", "kof_math_tan",
+                    "kof_math_asin", "kof_math_acos", "kof_math_atan",
+                    "kof_math_atan2", "kof_math_toRadians", "kof_math_toDegrees",
+                    "kof_math_pi", "kof_math_e", "kof_math_tau" -> "D";
             case "kof_math_lerp", "kof_math_percentage" -> "D";
             case "kof_math_pow" -> "D";
             case "kof_math_sinh", "kof_math_cosh", "kof_math_tanh",
@@ -172,7 +186,8 @@ public final class JvmRuntimeReturnDescriptors {
                     "kof_strings_slugify", "kof_strings_escapeHtml", "kof_strings_unescapeHtml",
                     "kof_strings_escapeJson", "kof_strings_removeWhitespace",
                     "kof_strings_normalizeWhitespace", "kof_strings_dedent",
-                    "kof_validation_formatCnpj", "kof_validation_formatCpf", "kof_validation_formatCep" -> "Ljava/lang/String;";
+                    "kof_validation_formatCnpj", "kof_validation_formatCpf", "kof_validation_formatCep",
+                    "kof_validation_creditCardBrand", "kof_validation_last4" -> "Ljava/lang/String;";
             case "kof_strings_repeat", "kof_strings_truncate", "kof_strings_indent" -> "Ljava/lang/String;";
             case "kof_strings_padLeft", "kof_strings_padRight" -> "Ljava/lang/String;";
             case "kof_net_scheme", "kof_net_host", "kof_net_port",
@@ -206,11 +221,23 @@ public final class JvmRuntimeReturnDescriptors {
             case "kof_media_image_format", "kof_media_image_data_uri",
                     "kof_media_video_path", "kof_media_video_format" -> "Ljava/lang/String;";
             case "kof_media_image_bytes", "kof_media_image_bytes_fmt",
-                    "kof_media_audio_pcm_bytes", "kof_media_video_bytes" -> "[I";
+                    "kof_media_audio_pcm_bytes", "kof_media_video_bytes",
+                    "kof_image_decode" -> "[I";
             case "kof_media_image_close", "kof_media_video_close", "kof_web_serve_dir",
-                    "kof_web_use", "kof_web_security", "kof_web_security_opts" -> "V";
+                    "kof_web_use", "kof_web_security", "kof_web_security_opts",
+                    "kof_web_policy", "kof_web_route_opts" -> "V";
             case "kof_media_mic_list" -> "Ljava/util/ArrayList;";
             case "kof_list_map", "kof_list_filter" -> "Ljava/util/ArrayList;";
+            case "kof_list_any", "kof_list_all", "kof_list_none" -> "Z";
+            case "kof_list_find" -> "Ljava/lang/Object;";
+            case "kof_list_count_pred" -> "I";
+            case "kof_list_foreach" -> "V";
+            case "kof_list_flatmap" -> "Ljava/util/ArrayList;";
+            case "kof_list_distinct" -> "Ljava/util/ArrayList;";
+            case "kof_list_sorted", "kof_list_sorted_cmp" -> "Ljava/util/ArrayList;";
+            case "kof_list_sort_cmp" -> "V";
+            case "kof_list_groupby" -> "Ljava/util/Map;";
+            case "kof_list_take", "kof_list_drop", "kof_list_slice" -> "Ljava/util/ArrayList;";
             case "kof_list_reduce" -> "Ljava/lang/Object;";
             // ── kof.security G9 (rate limiting / sessions / API keys) ──
             case "kof_sec_session_create", "kof_sec_api_key_generate" -> "Ljava/lang/String;";

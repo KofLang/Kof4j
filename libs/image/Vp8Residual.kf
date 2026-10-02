@@ -1,0 +1,309 @@
+package image
+
+import image.Vp8Frame
+import image.Vp8Coeffs
+import image.Vp8
+
+// kof.image — VP8 (lossy WebP) dequantization + inverse transforms (RFC 6386 §14).
+//
+// `Vp8Residual(frame)` turns the quantized DCT/WHT coefficients decoded by
+// `Vp8Coeffs` into the residue signal of every macroblock: it dequantizes each
+// coefficient with the frame/segment factors (§14.1), inverts the Y2 block with
+// the Walsh-Hadamard transform and feeds its 4x4 output into the DC coefficient
+// of the 16 luma subblocks, then inverts every luma/chroma subblock with the
+// inverse DCT (§14.2–§14.4). Results are stored per macroblock: `y` is 16x16,
+// `u`/`v` are 8x8 (all signed sums of prediction-free residue, §14.5).
+//
+// Pure Kof, all targets; slice 5 of the pure-Kof VP8 chain
+// (`D-WEBP-LOSSY-PURE-KOF`). It produces the residue, it does not yet add the
+// intra prediction or emit pixels.
+
+class Vp8Residual {
+    Int[] y
+    Int[] u
+    Int[] v
+    Int[] ydc
+    Vp8QuantTables quant
+
+    constructor(Vp8Frame f) {
+        var c = Vp8Coeffs(f)
+        this.quant = Vp8QuantTables()
+        var n = f.mbCount()
+        this.y = new Int[n * 256]
+        this.u = new Int[n * 64]
+        this.v = new Int[n * 64]
+        this.ydc = new Int[16]
+        var mb = 0
+        while (mb < n) {
+            this.buildMb(c, f, mb)
+            mb = mb + 1
+        }
+    }
+
+    // Dequantizes and inversely transforms one macroblock's residue.
+    void buildMb(Vp8Coeffs c, Vp8Frame f, Int mb) {
+        var dq = vp8DequantFor(f, mb, this.quant)
+        var mode = f.yMode(mb)
+        if (mode != 4) {
+            this.ydc = this.buildY2(c, mb, dq)
+        } else {
+            this.ydc = new Int[16]
+        }
+        this.buildLuma(c, mb, dq, mode)
+        this.buildChroma(c, mb, dq, 0)
+        this.buildChroma(c, mb, dq, 1)
+    }
+
+    // Inverts the Y2 block (inverse WHT); the result feeds the luma DC terms.
+    Int[] buildY2(Vp8Coeffs c, Int mb, Vp8Dequant dq) {
+        var q = new Int[16]
+        var i = 0
+        while (i < 16) {
+            var f = dq.y2Ac
+            if (i == 0) {
+                f = dq.y2Dc
+            }
+            q[i] = c.coeffAt(mb, 24, i) * f
+            i = i + 1
+        }
+        return vp8Wht4x4(q)
+    }
+
+    // Inverts the sixteen luma subblocks into this.y.
+    void buildLuma(Vp8Coeffs c, Int mb, Vp8Dequant dq, Int mode) {
+        var s = 0
+        while (s < 16) {
+            var blk = new Int[16]
+            var i = 0
+            while (i < 16) {
+                if (i == 0 && mode != 4) {
+                    blk[0] = this.ydc[s]
+                } else {
+                    var f = dq.yAc
+                    if (i == 0) {
+                        f = dq.yDc
+                    }
+                    blk[i] = c.coeffAt(mb, s, i) * f
+                }
+                i = i + 1
+            }
+            var out = vp8Idct4x4(blk)
+            var r0 = (s >> 2) * 4
+            var c0 = (s & 3) * 4
+            var k = 0
+            while (k < 16) {
+                this.y[mb * 256 + (r0 + (k >> 2)) * 16 + c0 + (k & 3)] = out[k]
+                k = k + 1
+            }
+            s = s + 1
+        }
+    }
+
+    // Inverts the four chroma subblocks of plane `plane` (0 = U, 1 = V).
+    void buildChroma(Vp8Coeffs c, Int mb, Vp8Dequant dq, Int plane) {
+        var k = 0
+        while (k < 4) {
+            var ci = 16 + plane * 4 + k
+            var blk = new Int[16]
+            var i = 0
+            while (i < 16) {
+                var f = dq.uvAc
+                if (i == 0) {
+                    f = dq.uvDc
+                }
+                blk[i] = c.coeffAt(mb, ci, i) * f
+                i = i + 1
+            }
+            var out = vp8Idct4x4(blk)
+            var r0 = (k >> 1) * 4
+            var c0 = (k & 1) * 4
+            var j = 0
+            while (j < 16) {
+                var idx = (r0 + (j >> 2)) * 8 + c0 + (j & 3)
+                if (plane == 0) {
+                    this.u[mb * 64 + idx] = out[j]
+                } else {
+                    this.v[mb * 64 + idx] = out[j]
+                }
+                j = j + 1
+            }
+            k = k + 1
+        }
+    }
+
+    Int[] y() { return this.y }
+    Int[] u() { return this.u }
+    Int[] v() { return this.v }
+    Int count() { return this.y.length / 256 }
+}
+
+// The six dequantization factors of one macroblock (RFC 6386 §14.1).
+class Vp8Dequant {
+    Int yDc
+    Int yAc
+    Int y2Dc
+    Int y2Ac
+    Int uvDc
+    Int uvAc
+
+    constructor(Int yDc, Int yAc, Int y2Dc, Int y2Ac, Int uvDc, Int uvAc) {
+        this.yDc = yDc
+        this.yAc = yAc
+        this.y2Dc = y2Dc
+        this.y2Ac = y2Ac
+        this.uvDc = uvDc
+        this.uvAc = uvAc
+    }
+}
+
+// The `dc_qlookup`/`ac_qlookup` tables (RFC 6386 §14.1), built once per decode
+// and shared across every macroblock.
+class Vp8QuantTables {
+    List<Int> dc
+    List<Int> ac
+
+    constructor() {
+        this.dc = vp8DcLookup()
+        this.ac = vp8AcLookup()
+    }
+
+    Int dcAt(Int q) { return this.dc.get(vp8ClampQ(q)) }
+    Int acAt(Int q) { return this.ac.get(vp8ClampQ(q)) }
+}
+
+// Computes the dequantization factors of macroblock `mb`, applying its segment
+// quantizer when segmentation is enabled (RFC 6386 §10, §14.1).
+Vp8Dequant vp8DequantFor(Vp8Frame f, Int mb, Vp8QuantTables t) {
+    var q = f.yAcQi()
+    if (f.segmentEnabled() == 1) {
+        var d = f.segmentQuant()[f.segmentId(mb)]
+        if (f.segmentAbs() == 1) {
+            q = d
+        } else {
+            q = q + d
+        }
+    }
+    var y2ac = t.acAt(q + f.y2AcDelta()) * 155 / 100
+    if (y2ac < 8) {
+        y2ac = 8
+    }
+    var uvdc = t.dcAt(q + f.uvDcDelta())
+    if (uvdc > 132) {
+        uvdc = 132
+    }
+    return Vp8Dequant(
+        t.dcAt(q + f.yDcDelta()),
+        t.acAt(q),
+        t.dcAt(q + f.y2DcDelta()) * 2,
+        y2ac,
+        uvdc,
+        t.acAt(q + f.uvAcDelta()))
+}
+
+Int vp8ClampQ(Int q) {
+    if (q < 0) { return 0 }
+    if (q > 127) { return 127 }
+    return q
+}
+
+// `dc_qlookup` (RFC 6386 §14.1, `dequant_data.h`).
+List<Int> vp8DcLookup() {
+    return listOf(
+        4, 5, 6, 7, 8, 9, 10, 10, 11, 12, 13, 14, 15, 16, 17, 17, 18, 19, 20, 20,
+        21, 21, 22, 22, 23, 23, 24, 25, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35,
+        36, 37, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 46, 47, 48, 49, 50, 51, 52,
+        53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71,
+        72, 73, 74, 75, 76, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89,
+        91, 93, 95, 96, 98, 100, 101, 102, 104, 106, 108, 110, 112, 114, 116, 118,
+        122, 124, 126, 128, 130, 132, 134, 136, 138, 140, 143, 145, 148, 151, 154, 157)
+}
+
+// `ac_qlookup` (RFC 6386 §14.1, `dequant_data.h`).
+List<Int> vp8AcLookup() {
+    return listOf(
+        4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+        24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42,
+        43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 60, 62, 64,
+        66, 68, 70, 72, 74, 76, 78, 80, 82, 84, 86, 88, 90, 92, 94, 96, 98, 100,
+        102, 104, 106, 108, 110, 112, 114, 116, 119, 122, 125, 128, 131, 134, 137,
+        140, 143, 146, 149, 152, 155, 158, 161, 164, 167, 170, 173, 177, 181, 185,
+        189, 193, 197, 201, 205, 209, 213, 217, 221, 225, 229, 234, 239, 245, 249,
+        254, 259, 264, 269, 274, 279, 284)
+}
+
+// Inverse Walsh-Hadamard transform (`vp8_short_inv_walsh4x4_c`, RFC 6386 §14.3).
+Int[] vp8Wht4x4(Int[] input) {
+    var tmp = new Int[16]
+    var i = 0
+    while (i < 4) {
+        var a1 = input[i] + input[i + 12]
+        var b1 = input[i + 4] + input[i + 8]
+        var c1 = input[i + 4] - input[i + 8]
+        var d1 = input[i] - input[i + 12]
+        tmp[i] = a1 + b1
+        tmp[i + 4] = c1 + d1
+        tmp[i + 8] = a1 - b1
+        tmp[i + 12] = d1 - c1
+        i = i + 1
+    }
+    var op = new Int[16]
+    var r = 0
+    while (r < 4) {
+        var base = r * 4
+        var a1 = tmp[base] + tmp[base + 3]
+        var b1 = tmp[base + 1] + tmp[base + 2]
+        var c1 = tmp[base + 1] - tmp[base + 2]
+        var d1 = tmp[base] - tmp[base + 3]
+        var a2 = a1 + b1
+        var b2 = c1 + d1
+        var c2 = a1 - b1
+        var d2 = d1 - c1
+        op[base] = (a2 + 3) >> 3
+        op[base + 1] = (b2 + 3) >> 3
+        op[base + 2] = (c2 + 3) >> 3
+        op[base + 3] = (d2 + 3) >> 3
+        r = r + 1
+    }
+    return op
+}
+
+// Inverse DCT (`short_idct4x4llm_c`, RFC 6386 §14.4). The fixed-point constants
+// are `sqrt(2)*cos(pi/8)-1` and `sqrt(2)*sin(pi/8)`.
+Int[] vp8Idct4x4(Int[] input) {
+    var mid = new Int[16]
+    var i = 0
+    while (i < 4) {
+        var a1 = input[i] + input[i + 8]
+        var b1 = input[i] - input[i + 8]
+        var t1 = (input[i + 4] * 35468) >> 16
+        var t2 = input[i + 12] + ((input[i + 12] * 20091) >> 16)
+        var c1 = t1 - t2
+        var t3 = input[i + 4] + ((input[i + 4] * 20091) >> 16)
+        var t4 = (input[i + 12] * 35468) >> 16
+        var d1 = t3 + t4
+        mid[i] = a1 + d1
+        mid[i + 12] = a1 - d1
+        mid[i + 4] = b1 + c1
+        mid[i + 8] = b1 - c1
+        i = i + 1
+    }
+    var op = new Int[16]
+    var r = 0
+    while (r < 4) {
+        var base = r * 4
+        var a1 = mid[base] + mid[base + 2]
+        var b1 = mid[base] - mid[base + 2]
+        var t1 = (mid[base + 1] * 35468) >> 16
+        var t2 = mid[base + 3] + ((mid[base + 3] * 20091) >> 16)
+        var c1 = t1 - t2
+        var t3 = mid[base + 1] + ((mid[base + 1] * 20091) >> 16)
+        var t4 = (mid[base + 3] * 35468) >> 16
+        var d1 = t3 + t4
+        op[base] = (a1 + d1 + 4) >> 3
+        op[base + 3] = (a1 - d1 + 4) >> 3
+        op[base + 1] = (b1 + c1 + 4) >> 3
+        op[base + 2] = (b1 - c1 + 4) >> 3
+        r = r + 1
+    }
+    return op
+}

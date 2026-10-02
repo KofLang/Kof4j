@@ -177,6 +177,78 @@ class TestTagsE2ETest {
     }
 
     @Test
+    void beforeAllRunsOnceBeforeAnyTest() throws Exception {
+        Run r = compileAndRunJvm("""
+            void beforeAll() {
+                println("before-all")
+            }
+            test "a" {
+                println("test-a")
+            }
+            test "b" {
+                println("test-b")
+            }
+            """);
+        assertTrue(r.success(), "must compile: " + r.diags());
+        assertEquals("before-all\ntest-a\nPASS a\ntest-b\nPASS b\n────────\n0 failed of 2 tests",
+                r.output().trim(), "beforeAll runs once before the first test");
+    }
+
+    @Test
+    void afterAllRunsOnceAfterAllTests() throws Exception {
+        Run r = compileAndRunJvm("""
+            void afterAll() {
+                println("after-all")
+            }
+            test "a" {
+                println("test-a")
+            }
+            test "b" {
+                println("test-b")
+            }
+            """);
+        assertTrue(r.success(), "must compile: " + r.diags());
+        assertEquals("test-a\nPASS a\ntest-b\nPASS b\nafter-all\n────────\n0 failed of 2 tests",
+                r.output().trim(), "afterAll runs once after the last test");
+    }
+
+    @Test
+    void beforeEachAliasRunsBeforeEveryTest() throws Exception {
+        Run r = compileAndRunJvm("""
+            void beforeEach() {
+                println("before-each")
+            }
+            test "a" {
+                println("test-a")
+            }
+            test "b" {
+                println("test-b")
+            }
+            """);
+        assertTrue(r.success(), "must compile: " + r.diags());
+        assertEquals("before-each\ntest-a\nPASS a\nbefore-each\ntest-b\nPASS b\n────────\n0 failed of 2 tests",
+                r.output().trim(), "beforeEach is the §4.2 alias of setup (runs per test)");
+    }
+
+    @Test
+    void afterEachAliasRunsAfterEveryTest() throws Exception {
+        Run r = compileAndRunJvm("""
+            void afterEach() {
+                println("after-each")
+            }
+            test "a" {
+                println("test-a")
+            }
+            test "b" {
+                println("test-b")
+            }
+            """);
+        assertTrue(r.success(), "must compile: " + r.diags());
+        assertEquals("test-a\nPASS a\nafter-each\ntest-b\nPASS b\nafter-each\n────────\n0 failed of 2 tests",
+                r.output().trim(), "afterEach is the §4.2 alias of teardown (runs per test)");
+    }
+
+    @Test
     void formatterKeepsTagsIdempotently() throws Exception {
         String src = "test \"a\", \"smoke\", \"ui\" {\n    assert(true)\n}\n";
         String once = KofFormatter.format(src, "T.kf");
@@ -207,5 +279,47 @@ class TestTagsE2ETest {
         } finally {
             clearTag();
         }
+    }
+
+    @Test
+    void beforeAllFailureSkipsTestsAndExitsNonZero() throws Exception {
+        Run r = compileAndRunJvm("""
+            void beforeAll() {
+                throw "db connection failed"
+            }
+            test "a" {
+                println("should-not-run-a")
+            }
+            test "b" {
+                println("should-not-run-b")
+            }
+            """);
+        assertFalse(r.success(), "must fail when beforeAll throws: " + r.diags());
+        assertTrue(r.diags().contains("exit=1"), "must exit with code 1");
+        assertFalse(r.output().contains("should-not-run-a"), "test a must NOT run when beforeAll fails");
+        assertFalse(r.output().contains("should-not-run-b"), "test b must NOT run when beforeAll fails");
+        assertTrue(r.output().contains("beforeAll failed: db connection failed"), "must report beforeAll failure");
+        assertTrue(r.output().contains("SKIP a: beforeAll failed"), "test a must be marked SKIP");
+        assertTrue(r.output().contains("SKIP b: beforeAll failed"), "test b must be marked SKIP");
+        assertTrue(r.output().contains("1 failed of 2 tests"), "must report 1 failed of 2 tests");
+        assertFalse(r.output().contains("0 failed of 2 tests"), "must NOT report 0 failed");
+    }
+
+    @Test
+    void afterAllFailureRecordsFailureAndPrintsSummary() throws Exception {
+        Run r = compileAndRunJvm("""
+            void afterAll() {
+                throw "cleanup failed"
+            }
+            test "a" {
+                println("test-a")
+            }
+            """);
+        assertFalse(r.success(), "must fail when afterAll throws: " + r.diags());
+        assertTrue(r.diags().contains("exit=1"), "must exit with code 1");
+        assertTrue(r.output().contains("test-a"), "test a must run before afterAll");
+        assertTrue(r.output().contains("PASS a"), "test a passes");
+        assertTrue(r.output().contains("afterAll failed: cleanup failed"), "must report afterAll failure");
+        assertTrue(r.output().contains("1 failed of 1 tests"), "must count afterAll as failed");
     }
 }

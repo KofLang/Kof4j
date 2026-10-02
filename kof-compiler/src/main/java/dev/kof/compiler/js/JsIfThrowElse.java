@@ -74,6 +74,13 @@ public final class JsIfThrowElse {
                 pos[0]++;
                 return out;
             }
+            if (op instanceof dev.kof.compiler.KofExcUnlink) {
+                // §549/§551: pop de handler do caminho normal (ou de um desvio
+                // que atravessa a região try) — o JS reconstrói a estrutura
+                // try/catch/finally; nada a emitir.
+                pos[0]++;
+                continue;
+            }
             if (op instanceof KofReturnVoid && pos[0] == ctx.ops.size() - 1) {
                 return out;
             }

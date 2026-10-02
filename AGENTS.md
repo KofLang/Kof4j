@@ -1,8 +1,8 @@
 # AGENTS.md
 
 last: 0.5.0-beta
-doing: autonomous-development
-next: execute-unowned-work
+doing: #651-COMPLETE (Buffer(U8) surface + FFI token B on x86-64 AND cross riscv64/aarch64; fatia B 29/09) + #678-D-SCRIPT-WARN-SURFACE-landed (Script surfaces frontend WARNING diagnostics) + phase-5-unit-3-pinned (Buffer(U8) INOUT × spawn/await runtime parity) + phase-5-unit-2-landed (#667 Script×extern FFI001 at decl line + #668 MEM020 compile face) + memory-safety-phase-4-CLOSED (#658/#659/#662) + #660-D-MEM021-SCALAR-landed (c65f9ba18, maintainer A/ERROR) + evidence-chain-hardened (#664/#665/#669) + phase-5-unit-1-pinned (#666) + ownership-table-landed (#670) + stale-cells-purged (#671) + ledger-selftest-pt-proven (#672) + living-records-registered (#673)
+next: phase-5 unit 4 (measure-first) / promotion-sweep (lane pipeline) / 14.4-rulesets (mantenedora)
 location: repository
 state: active
 
@@ -29,7 +29,7 @@ constraint:
 
 decision:
 
-* D-BRANCH-0.5.0: beta-0.5.0 is the active development branch
+* D-BRANCH-PIPELINE: active branch = `lab`; promotion is explicit and one-way `lab → testing → prerelease → stable → release/x.y.z → tag` (`D-QUALITY-PIPELINE-2609`)
 * D-KOF-FIRST: Kof contract precedes external language behavior
 * D-KOF-FIRST-IMPL: post-0.5.0 features are library-first
 * D-MAKEALIVE
@@ -38,6 +38,8 @@ decision:
 * D-DB-GAPS
 * D-GRAPHICS-GAMING
 * D-KOFMD-ON-EDIT: every document an agent edits is Kofmd-compressed in the same commit
+* D-KOFMD-OPERATING-STANDARD: every agent thinks, reasons, responds, executes and documents in Kofmd — uniform, no per-agent variant
+* D-FUTURE-PROMOTION: before starting new work, migrate to `lab` with all current work, then promote the EASIEST-to-implement plan from `docs/development/future/` to `docs/development/` and implement it — never the most interesting, never a frozen-semantics plan
 
 ---
 
@@ -51,11 +53,13 @@ loop:
 * read DOING.md
 * read docs/status.md
 * inspect git log and suite
+* ensure the active branch is `lab` — migrate all current work to `lab` BEFORE starting; `beta-*` is frozen (`D-BRANCH-PIPELINE`)
+* if no live unowned task, promote the lowest-cost implementable plan from `docs/development/future/` (see Future promotion, `D-FUTURE-PROMOTION`)
 * choose highest-value unowned task
-* claim it in DOING.md
+* claim it in DOING.md with `owner = <local-ipv4>:<opencode-port>` (EN) / `dona = <local-ipv4>:<opencode-port>` (PT) — the **absolute identity rule** (`D-AGENT-IDENTITY-IPPORT`, 01/10); a claim without IP:PORT is INVALID (gate `scripts/check_owner_identity.sh`)
 * execute one complete scope
 * test
-* commit with DOING.md
+* commit with DOING.md (every commit updates the claim's `owner = <ip>:<port>`)
 * push through scripts/sync-push.sh
 * re-read DOING.md
 * continue
@@ -142,17 +146,27 @@ rule:
 * AI accelerates implementation
 * AI does not define architecture
 * AI does not redefine Kof semantics
-* AI does not merge beta-0.5.0 into main
+* AI does not merge any stage into main
 * every change requires an issue
 * every delivery requires proof
 
 identity:
 preferred: kof-agent-worker
+by: local-ipv4 + opencode-port (absolute, mandatory — 01/10 amendment, `D-AGENT-IDENTITY-IPPORT`)
 fallback: maintainer-default
 forbidden:
 - synthetic email
 - Co-authored-by
 - identity tricks
+- owner = <ipv4> WITHOUT :<port> — the gate rejects it
+- owner = <ipv4> WITHOUT :<port> — the gate rejects it
+
+rule:
+
+* identify by the **local IPv4** (`hostname -I`) AND the **opencode server port** the session attaches to (`ss -tln | grep opencode` / the running `opencode -s ... --port <N>` or `--attach http://127.0.0.1:<N>` / `ps -o args= -C opencode`) — DOING §Operating-loop rule 9
+* every `IN PROGRESS`/`DONE`/`FIXED`/`STOP` claim carries `owner = <local-ipv4>:<port>` (EN) / `dona = <local-ipv4>:<port>` (PT), never just "this session" and never bare IPv4 (a bare IP is ambiguous when the same host runs more than one session/lane; 110 historical lines recorded `owner: this session` with no lane attributable)
+* the enforcement gate is `scripts/check_owner_identity.sh` — rc=1 on any claim dated ≥ `01/10` whose IPv4 lacks `:<port>`
+* never act on another owner's lane on IP alone — confirm by session + lane + commit SHA + IP:PORT (routers/DHCP change both)
 
 ---
 
@@ -170,6 +184,7 @@ claim:
 * read DOING.md before work
 * existing IN PROGRESS item is not yours
 * claim before implementation
+* **absolute identity rule (`D-AGENT-IDENTITY-IPPORT`, 01/10): every claim is `owner = <local-ipv4>:<opencode-port>` (EN) / `dona = <local-ipv4>:<opencode-port>` (PT) — a bare IPv4 or "this session" is INVALID and the gate `scripts/check_owner_identity.sh` rejects it (rc=1)**
 * claim and first change share a commit
 * every commit updates your DOING.md line
 * DONE requires date + SHA + proof
@@ -262,6 +277,50 @@ kofmd:
 * never duplicate fields in prose
 * mandatory on edit: any doc an agent touches is compressed in the same commit
 * learn/ and training/ are excluded from Kofmd compression
+* operating standard: every agent thinks, reasons, responds, executes and documents in Kofmd — uniform, no per-agent variant (`D-KOFMD-OPERATING-STANDARD`)
+* evidence before inference; `unknown` over `probably`; never fabricate api/syntax/behavior/decision/result/contract
+* `implemented` != `verified`; claim a result only with executed proof
+* `last` = immediately relevant prior state; `next` = next intention, not backlog
+* prose only where structure cannot carry the information
+* coordination: claim before work; on lane collision wait for the owner or stop, never race the shared worktree; never end a turn with an uncommitted unit; push only via `scripts/sync-push.sh`
+
+---
+
+## Future promotion
+
+intent: future-is-not-current-work-without-promotion
+
+rule:
+
+* before starting new work: migrate to `lab` with ALL current work first; never start on `beta-*` or a detached checkout (`D-BRANCH-PIPELINE`)
+* promote exactly ONE plan from `docs/development/future/` to `docs/development/` and implement it
+* choose the EASIEST to implement (lowest cost) — never the most interesting, never the largest
+
+easiest (highest wins):
+
+* no `D-*` decision required: not frozen-semantics, not a missing core primitive
+* additive and library-first: Kof can express it without changing the language surface (`D-KOF-FIRST`)
+* dependencies already measured in code (the plan names real files/lines)
+* single cohesive scope for one lane (one responsibility)
+* a clear test path exists now (RED-first proof is definable)
+
+ineligible:
+
+* needs a frozen-semantics or `D-*` maintainer decision first
+* needs a new core primitive or syntax
+* accepts a gap, ships a stub, or weakens an assertion
+* rationale is "it would be nice" instead of "it is the cheapest complete increment"
+
+flow:
+
+* rewrite the plan with status `UNDER DEVELOPMENT` + real state + how-to-finish
+* move it to `docs/development/<plan>.md` (+PT) in the SAME commit that claims it
+* queue it in `roadmap.md` §23 and point `docs/status.md` at it
+* claim in DOING.md (task + file + expected proof), implement, test, commit, push
+
+fallback:
+
+* if NO plan is implementable without a maintainer decision, do NOT invent one — record the finding and stop
 
 ---
 
@@ -723,9 +782,9 @@ push:
 
 release:
 
-* agents may push beta-0.5.0
-* agents never merge beta-0.5.0 → main
-* maintainer performs release merge
+* agents may push the active development branch (`lab`)
+* agents never promote/merge a stage into the next (promotion is maintainer-gated until `14.3`)
+* maintainer performs the release merge
 
 ---
 
@@ -760,7 +819,7 @@ ready:
 * no unnecessary infrastructure
 * Kof abstraction preferred
 * test and change share commit
-* DOING.md current
+* DOING.md current — every claim carries `owner = <ipv4>:<port>` (`D-AGENT-IDENTITY-IPPORT`, gate `scripts/check_owner_identity.sh`)
 * remote synchronized
 
 if_any_false:

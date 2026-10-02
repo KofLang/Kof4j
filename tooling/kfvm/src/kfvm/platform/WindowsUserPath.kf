@@ -1,0 +1,19 @@
+package kfvm.platform
+
+class WindowsUserPath implements kfvm.platform.UserPath {
+    Bool include(String dir) {
+        var result = PowerShell.run("$key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $true); " +
+            "try { " +
+            "$current = $key.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames); " +
+            "$entries = @($current -split ';' | Where-Object { $_ }); " +
+            "$missing = $entries -notcontains $env:KFVM_DIR; " +
+            "if ($missing) { $key.SetValue('Path', (@($env:KFVM_DIR) + $entries) -join ';', [Microsoft.Win32.RegistryValueKind]::ExpandString) } " +
+            "} finally { $key.Close() }; " +
+            "if ($missing) { " +
+            "[Environment]::SetEnvironmentVariable('KFVM_REFRESH', '1', 'User'); " +
+            "[Environment]::SetEnvironmentVariable('KFVM_REFRESH', $null, 'User'); " +
+            "'added' }",
+            mapOf("KFVM_DIR", PowerShell.windowsPath(dir)))
+        return result.trim() == "added"
+    }
+}

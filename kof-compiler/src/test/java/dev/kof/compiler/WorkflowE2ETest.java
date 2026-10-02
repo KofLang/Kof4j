@@ -29,7 +29,7 @@ exponential/Report.retries). checkpoint/deadLetter/schedule stay in the bundle).
  * Native (compile-pinned below; the honest PROC001/CRON001/ORM001 gaps of §4
  * live in the job BODIES the user writes, not in this layer).
  */
-class WorkflowE2ETest {
+class WorkflowE2ETest extends WorkflowPrograms {
 
     private final CompilerDriver driver = new CompilerDriver();
 
@@ -206,22 +206,7 @@ class WorkflowE2ETest {
      *  reason in errors; Report.retries records actual attempt counts. */
     @Test
     void retryFacesBothOutcomes() throws Exception {
-        assertJvmJsParity("""
-            import kof.workflow
-            main() {
-                var tries = 0
-                var flaky = job("flaky", () -> { tries = tries + 1; return tries >= 3 })
-                var boom = job("boom", () -> { if (true) { throw "sempre" } return false })
-                var flow = dag(listOf(flaky, boom))
-                flow.retry(flaky, 2, exponential(1, 2))
-                flow.retryFixed(boom, 1)
-                var rep = flow.run()
-                println(rep.summary())
-                println(rep.retries.get(0))
-                println(rep.retries.get(1))
-                println(rep.errors.get(0))
-            }
-            """, "ok=flaky failed=boom skipped=", "flaky: tentativas=3",
+        assertJvmJsParity(SRC_RETRY_FACES_BOTH_OUTCOMES, "ok=flaky failed=boom skipped=", "flaky: tentativas=3",
                 "boom: tentativas=2", "boom: sempre");
     }
 
@@ -230,19 +215,7 @@ class WorkflowE2ETest {
      *  sem depender de sink; jobs bem-sucedidos nunca entram. */
     @Test
     void deadLetterInMemoryFaceCollectsDeadJobs() throws Exception {
-        assertJvmJsParity("""
-            import kof.workflow
-            main() {
-                var boom = job("boom", () -> { if (true) { throw "estourou" } return false })
-                var falsey = job("falsey", () -> false)
-                var ok = job("ok", () -> true)
-                var rep = dag(listOf(boom, falsey, ok)).run()
-                println(rep.summary())
-                println(rep.dead.get(0))
-                println(rep.dead.get(1))
-                println(rep.dead.size)
-            }
-            """, "ok=ok failed=boom,falsey skipped=", "boom: estourou", "falsey: false", "2");
+        assertJvmJsParity(SRC_DEAD_LETTER_IN_MEMORY_FACE_COLLECTS_DEAD_JOBS, "ok=ok failed=boom,falsey skipped=", "boom: estourou", "falsey: false", "2");
     }
 
     /** 2.1.3 face 2 (Q4): deadLetter DURÁVEL — sink `(nome, motivo) -> Bool`
@@ -250,33 +223,8 @@ class WorkflowE2ETest {
      *  kof.orm); recusa (false) falha ALTO com o nome do job (R6). */
     @Test
     void deadLetterDurableSinkReceivesFailuresAndRefusalIsLoud() throws Exception {
-        assertJvmJsParity("""
-            import kof.workflow
-            main() {
-                var log = listOf()
-                var boom = job("boom", () -> { if (true) { throw "persiste-me" } return false })
-                var flow = dag(listOf(boom))
-                flow.deadLetter(boom, (n: String, m: String) -> { log.add(n + "/" + m); return true })
-                var rep = flow.run()
-                println(rep.dead.get(0))
-                println(log.get(0))
-                println(log.size)
-            }
-            """, "boom: persiste-me", "boom/persiste-me", "1");
-        assertJvmJsParity("""
-            import kof.workflow
-            main() {
-                var boom = job("boom", () -> { if (true) { throw "x" } return false })
-                var flow = dag(listOf(boom))
-                flow.deadLetter(boom, (n: String, m: String) -> false)
-                try {
-                    flow.run()
-                    println("no-throw")
-                } catch (String e) {
-                    println(e)
-                }
-            }
-            """, "workflow: deadLetter sink recusou 'boom'");
+        assertJvmJsParity(SRC_DEAD_LETTER_DURABLE_SINK_RECEIVES_FAILURES_AND_REFUSAL_IS_LOUD, "boom: persiste-me", "boom/persiste-me", "1");
+        assertJvmJsParity(SRC_DEAD_LETTER_DURABLE_SINK_RECEIVES_FAILURES_AND_REFUSAL_IS_LOUD_2, "workflow: deadLetter sink recusou 'boom'");
     }
 
     /** 2.1.3 face 3: `flow.schedule(expr, dag)` DELEGA ao scheduler.at
@@ -321,22 +269,7 @@ class WorkflowE2ETest {
      *  the store is H2; JS orm bridge parity is that lane's surface. */
     @Test
     void checkpointRestoresCompletedJobsAcrossRuns() throws Exception {
-        Files.writeString(tmp.resolve("C.kf"), """
-            import kof.workflow
-            main() {
-                var runs = 0
-                var a = job("a", () -> { runs = runs + 1; return true })
-                var b = job("b", () -> { runs = runs + 1; return true }).after(a)
-                var d = dag(listOf(b, a))
-                checkpoint(d, "jdbc:h2:mem:wfck1;DB_CLOSE_DELAY=-1", "pipelinha")
-                var rep1 = d.run()
-                println(rep1.summary())
-                println(runs)
-                var rep2 = d.run()
-                println(rep2.summary())
-                println(runs)
-            }
-            """);
+        Files.writeString(tmp.resolve("C.kf"), SRC_CHECKPOINT_RESTORES_COMPLETED_JOBS_ACROSS_RUNS);
         CompilationResult result = driver.compile(tmp.resolve("C.kf"), tmp.resolve("c-jvm"), Target.JVM);
         assertTrue(result.success(), () -> "JVM compile: " + diags(result));
         String h2 = null;
@@ -401,21 +334,7 @@ class WorkflowE2ETest {
      *  JVM/JS. The acc list proves which bodies actually ran. */
     @Test
     void orderAndRunJobIntrospectWithoutRunningEverything() throws Exception {
-        assertJvmJsParity("""
-            import kof.workflow
-            main() {
-                var acc = listOf()
-                var a = job("a", () -> { acc.add("a"); return true })
-                var b = job("b", () -> { acc.add("b"); return true }).after(a)
-                var c = job("c", () -> { acc.add("c"); return true }).after(b)
-                var d = dag(listOf(c, b, a))
-                println(kofWfJoin(d.order(), ","))
-                println(acc.size)
-                var rep = d.runJob("b")
-                println(rep.summary())
-                println(kofWfJoin(acc, ","))
-            }
-            """, "a,b,c", "0", "ok=a,b failed= skipped=", "a,b");
+        assertJvmJsParity(SRC_ORDER_AND_RUN_JOB_INTROSPECT_WITHOUT_RUNNING_EVERYTHING, "a,b,c", "0", "ok=a,b failed= skipped=", "a,b");
     }
 
     /** `runJob` on an unknown name is loud (R6), never a silent empty run. */
@@ -493,20 +412,7 @@ class WorkflowE2ETest {
      *  para sempre (R6). */
     @Test
     void supervisedLimitExceededDropsAndSkipsDependents() throws Exception {
-        assertJvmJsParity("""
-            import kof.workflow
-            main() {
-                var boom = job("boom", () -> { if (true) { throw "sempre" } return false })
-                var depois = job("depois", () -> true).after(boom)
-                var okjob = job("okjob", () -> true)
-                var rep = runSupervised(dag(listOf(boom, depois, okjob)), "s3", 1)
-                println(rep.summary())
-                println(rep.errors.get(0))
-                println(rep.dead.get(0))
-                println(rep.retries.get(0))
-                println(rep.allOk())
-            }
-            """, "ok=okjob failed=boom skipped=depois", "boom: sempre", "boom: sempre",
+        assertJvmJsParity(SRC_SUPERVISED_LIMIT_EXCEEDED_DROPS_AND_SKIPS_DEPENDENTS, "ok=okjob failed=boom skipped=depois", "boom: sempre", "boom: sempre",
                 "boom: tentativas=2", "false");
     }
 

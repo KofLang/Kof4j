@@ -13,3 +13,4 @@ allow kof-quality-bot.yml code-quality security-events upload do SARIF filtrado 
 allow kof-quality-bot.yml security-gate pull-requests comentario do codeql-gate no PR (best-effort; 403 em fork nao falha)
 allow kof-security-bot.yml codeql-security security-events upload do SARIF filtrado (#563) da suite security-extended
 allow pr-base-guard.yml guard-main pull-requests comenta uma vez no PR que mira main sem ser codeowner
+allow promote.yml gate pull-requests abre o PR de promocao auditavel (idempotente) quando o Promotion Gate passa; nunca faz push direto em estagio protegido

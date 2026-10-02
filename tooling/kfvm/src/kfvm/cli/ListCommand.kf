@@ -1,0 +1,65 @@
+package kfvm.cli
+
+import kfvm.system
+import kfvm.github
+import kfvm.store
+
+class ListCommand implements kfvm.cli.Command {
+    GitHubClient github
+    Store store
+    Logger logger
+
+    constructor(GitHubClient github, Store store, Logger logger) {
+        this.github = github
+        this.store = store
+        this.logger = logger
+    }
+
+    List<String> names() { return listOf("ls", "list") }
+
+    void run(List<String> args) {
+        if (args.size == 0) {
+            listInstalled()
+            return
+        }
+
+        var option = args.get(0)
+        if (option != "-r" && option != "--remote")
+            throw "unknown option for ls: " + option
+
+        listRemote()
+    }
+
+    void listInstalled() {
+        var installed = store.installed()
+        if (installed.size == 0) {
+            logger.info("no versions installed (try: kfvm i lts)")
+            return
+        }
+
+        var current = store.current()
+        for (var v in installed) {
+            if (v == current) logger.logWithKind("current", GREEN, "* " + v) else logger.log("  " + v)
+        }
+    }
+
+    void listRemote() {
+        var current = store.current()
+        var installed = store.installed()
+        var rels = github.releases()
+
+        for (var i = rels.size() - 1; i >= 0; i--) { 
+            var r = rels.get(i)
+            var marker = if (r.version() == current) "* " else "  "
+            var channel = if (r.nightly()) "nightly" else "stable"
+            var status = if (installed.contains(r.version())) " installed" else ""
+            logger.log(marker + pad(r.version(), 28) + " " + pad(channel, 8) + status)
+        }
+    }
+
+    String pad(String s, Int width) {
+        var out = s
+        while (out.length < width) { out = out + " " }
+        return out
+    }
+}

@@ -15,6 +15,15 @@ final class CompilerFfiBinding {
 
     // ── FFI (TIER 2.1.4) — binding suportado por target ──
     static boolean isExternBound(CompilerDriver driver, ExternalFunctionNode ext) {
+        // #667 / D-SCRIPT-EXTERN-REFUSE (decisão da mantenedora, 28/09): o alvo
+        // Script não tem runtime FFI. A interpretação roda o frontend com
+        // `driver.target = JVM` + `driver.interpreting`, então um `extern` de
+        // usuário compilava LIMPO e morria cru em runtime com
+        // `KofRuntime.kof_ffi/4` (sem gap code, sem linha na matriz — R6).
+        // Recusa agora na LINHA DA DECLARAÇÃO reusando `FFI001` (§350).
+        if (driver.interpreting) {
+            return false;
+        }
         // JVM e JS (runner) compartilham a MESMA ABI escalar + callbacks (3.4-C3): o
         // KofJS roda no host GraalJS/node, que É uma JVM com java.lang.foreign (bridge
         // `KofJsFfiBridge` idêntico ao `kof_ffi` do target JVM; o browser não tem host e
@@ -36,6 +45,12 @@ final class CompilerFfiBinding {
                 // no JVM E no runner JS (copy-in 21/09: o Marshal lê o array JS e
                 // copia para a arena da chamada). Native fica no gap code (R6).
                 if (FfiSignature.arrayElemChar(param.type()) != null) continue;
+                // D-MEM-FFI-CROSS-FULL face 2 (30/09): `String[]`→`char**` binda no
+                // JVM (FFM). O runner JS ainda não tem o marshal de `char**`
+                // (host bridge) — segue FFI002 honesto (R6); o nativo tem o seu
+                // próprio caminho abaixo.
+                if (driver.target == Target.JVM
+                        && FfiSignature.isStringArray(param.type())) continue;
                 // D6-3 / D-R3-BUFFER: `Buffer(U8)` como param INOUT binda no JVM E
                 // no runner JS (bridge de buffer 21/09: `packBuffer` copia in e o
                 // copy-back pós-chamada devolve ao `Uint8Array` do guest, paridade
@@ -74,8 +89,9 @@ final class CompilerFfiBinding {
         // O caller só entra aqui com `driver.target.isNative()`.
         boolean x86 = driver.target == Target.NATIVE;
         // Retorno: escalar/void, struct por valor no register path (≤ 16 B) OU
-        // sret (> 16 B, ponteiro escondido — D6-4).
+        // sret (> 16 B, ponteiro escondido — D6-4 / face 3 cross).
         boolean sret = false;
+        boolean crossMemRet = false;
         if (FfiSignature.returnChar(ext.returnType()) == null) {
             String retFields = FfiSignature.structFieldChars(ext.returnType(), driver);
             if (retFields == null) return false;
@@ -88,9 +104,15 @@ final class CompilerFfiBinding {
                 } else {
                     return false;
                 }
+            } else if (FfiStructLayout.crossMemoryReturn(driver.target, retStruct)) {
+                // D-MEM-FFI-CROSS-FULL face 3: memory-path (sret) no cross — o
+                // ponteiro do resultado é `a0` no riscv64 e `x8` no aarch64
+                // (arch-aware na emissão, medidas divergem). Consome 1 registrador
+                // INTEGER no riscv64 (ver crossBindable abaixo).
+                crossMemRet = true;
             } else if (!FfiStructLayout.crossIntRegisterOnly(driver.target, retStruct)) {
-                // 3.7 fatia 3: cross struct return = INTEGER register path only;
-                // floats/HFA/byref segue FFI001 honesto (R6).
+                // register path (≤ 16 B, INTEGER-only); HFA/registradores
+                // insuficientes segue FFI001 honesto (R6).
                 return false;
             }
         }
@@ -103,26 +125,48 @@ final class CompilerFfiBinding {
             // D6-2/3.7: array escalar `T[]`→`ptr` no x86-64. A largura de slot
             // do elemento Kof == largura C (Long/Double 8 B, Int/Float 4 B,
             // Bool 1 B), então o pack é um memcpy com o tamanho do elemento.
-            // Cross e `String[]` (array de ponteiros) seguem FFI001 (R6).
+            // D-MEM-FFI-CROSS-FULL (30/09): mesma forma no cross (pack em
+            // `kof_ffi_pack_array` riscv). `String[]` (array de ponteiros)
+            // segue FFI001 (R6).
             Character ae = FfiSignature.arrayElemChar(param.type());
             if (ae != null) {
-                if (!x86) return false;
                 paramTypes.add(FfiStructLayout.arrayPtrType(ae));
+                continue;
+            }
+            // D-MEM-FFI-CROSS-FULL face 2 (30/09): `String[]`→`char**` — um
+            // ponteiro INTEGER (como o array-ptr escalar) em x86-64 e no cross;
+            // o call-site empacota o payload de cada String (offset 24).
+            if (FfiSignature.isStringArray(param.type())) {
+                paramTypes.add(FfiStructLayout.arrayPtrType('S'));
+                continue;
+            }
+            // D6-3/D-R3-BUFFER (fatias A2 + B): `Buffer(U8)` INOUT atravessa como
+            // `unsigned char*` para o payload (obj+24); o buffer Kof nativo é
+            // memória contígua, então a escrita da C já é o copy-back. Fatia A2
+            // abriu o x86-64; fatia B (29/09) abre o cross riscv64/aarch64 com o
+            // mesmo layout e o shim `NativeRiscvAsmBuffer`.
+            if (FfiSignature.isBufferParam(param.type())) {
+                paramTypes.add(FfiStructLayout.bufferPtrType());
                 continue;
             }
             // D6-1(A)/3.7: `record` de campos escalares por valor (register path) — x86-64.
             String fc = FfiSignature.structFieldChars(param.type(), driver);
             if (fc == null) return false;
             Type st = FfiStructLayout.structTypeOfChars(fc);
-            // 3.7 fatia 4: no cross o struct por valor binda só no register path
-            // INTEGER (≤ 16 B) — float/HFA/byref segue FFI001 honesto (R6).
-            if (!x86 && !FfiStructLayout.crossIntRegisterOnly(driver.target, st)) return false;
+            // 3.7 fatia 4 + D-MEM-FFI-CROSS-FULL face 3 estendida: no cross o
+            // struct por valor binda no register path INTEGER (≤ 16 B) OU no
+            // memory path (> 16 B → BYREF, um ponteiro em `a0`/`x0`; medido
+            // 30/09). float/HFA segue FFI001 honesto (R6).
+            if (!x86 && !FfiStructLayout.crossIntRegisterOnly(driver.target, st)
+                    && !FfiStructLayout.crossByMemory(driver.target, st)) {
+                return false;
+            }
             paramTypes.add(st);
         }
         // Chamada puramente escalar: binda em todo nativo (o layout x86 não se
         // aplica). sret consome 1 registrador INTEGER (o ponteiro escondido) —
         // os parâmetros deslocam uma posição (rdi vira rsi…).
         if (x86) return FfiStructLayout.x86Bindable(paramTypes, sret ? 1 : 0);
-        return FfiStructLayout.crossBindable(paramTypes);
+        return FfiStructLayout.crossBindable(paramTypes, crossMemRet ? 1 : 0);
     }
 }

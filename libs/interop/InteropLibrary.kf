@@ -1,0 +1,87 @@
+package interop
+
+// kof.interop — foreign library naming (fatia 10 of the Kof Connector Ecosystem
+// plan, `D-CONNECTORS-GO`). It covers the plan §3.8 library-loading face that can
+// be expressed in pure Kof: the concrete file name a logical library maps to on
+// each library format, and the candidate paths to look under.
+//
+//   .so  ·  .dylib  ·  .dll   (+ static libraries where applicable)
+//
+// The key is the FORMAT SUFFIX itself (the plan's own list), supplied by the
+// caller — this library never guesses an OS name (no OS vocabulary is invented
+// here). It is the reusable naming seam the Core loader and every connector share.
+//
+//   var lib = InteropLibrary("kofcc")
+//   lib.fileName("so")        // "libkofcc.so"
+//   lib.fileName("dylib")     // "libkofcc.dylib"
+//   lib.fileName("dll")       // "kofcc.dll"
+//   lib.staticFileName("a")   // "libkofcc.a"
+//   lib.staticFileName("lib") // "kofcc.lib"
+//   lib.candidates("so", listOf("/opt/kof/lib"))
+//
+// Honest by construction (R6): an unknown format kind is never guessed —
+// `isKnownKind` is false and `fileName`/`staticFileName`/`describe` throw
+// `INTEROP: unknown library kind <x>`. No compiler change; target-neutral (no IO).
+
+class InteropLibrary {
+    String libraryName
+
+    constructor(String libraryName) {
+        this.libraryName = libraryName
+    }
+
+    // The dynamic library formats named by the plan §3.8.
+    List<String> kinds() {
+        return listOf("so", "dylib", "dll")
+    }
+
+    // The static library formats (plan §3.8, "where applicable").
+    List<String> staticKinds() {
+        return listOf("a", "lib")
+    }
+
+    Bool isKnownKind(String kind) {
+        return kinds().contains(kind) || staticKinds().contains(kind)
+    }
+
+    // The concrete file name for a dynamic format, or an explicit diagnostic (R6).
+    String fileName(String kind) {
+        if (kind == "so") {
+            return "lib" + this.libraryName + ".so"
+        }
+        if (kind == "dylib") {
+            return "lib" + this.libraryName + ".dylib"
+        }
+        if (kind == "dll") {
+            return this.libraryName + ".dll"
+        }
+        throw "INTEROP: unknown library kind " + kind
+    }
+
+    // The concrete file name for a static format, or an explicit diagnostic (R6).
+    String staticFileName(String kind) {
+        if (kind == "a") {
+            return "lib" + this.libraryName + ".a"
+        }
+        if (kind == "lib") {
+            return this.libraryName + ".lib"
+        }
+        throw "INTEROP: unknown library kind " + kind
+    }
+
+    // Candidate paths to look the library up under, in the given roots.
+    List<String> candidates(String kind, List<String> roots) {
+        var fileName = fileName(kind)
+        var out = new List<String>()
+        var i = 0
+        while (i < roots.size()) {
+            out.add(roots.get(i) + "/" + fileName)
+            i = i + 1
+        }
+        return out
+    }
+
+    String describe(String kind) {
+        return "library " + this.libraryName + " file=" + fileName(kind)
+    }
+}

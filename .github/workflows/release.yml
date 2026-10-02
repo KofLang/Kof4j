@@ -4,7 +4,7 @@ name: Release
 # is the exact SHA that gets tested, packaged, and published — no self-bump,
 # no second commit, no push back to the repo (D-ARTIFACT-TRUST, queue (b),
 # R1). VERSION and CHANGELOG.md are prepared and committed BEFORE the
-# dispatch (docs/development/release-beta-0.5.0-prep.md); this workflow only
+# dispatch (docs/distribution/release-beta-0.5.0.md, acceptance record); this workflow only
 # validates that prepared candidate, tests it, and ships it.
 #
 # Invariant this workflow enforces: source SHA tested == source SHA

@@ -14,59 +14,8 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * kof.ui foundation end-to-end: Color (32-bit RGBA), Palette and Theme.
  * JVM and Native must observe identical semantics.
  */
-class UiE2ETest {
+class UiE2ETest extends UiSupport {
 
-    private final CompilerDriver driver = new CompilerDriver();
-
-    private static boolean isLinux() {
-        return System.getProperty("os.name", "").toLowerCase().contains("linux");
-    }
-
-    private String runJvm(Path source, Path outDir, String expected) throws IOException {
-        CompilationResult result = driver.compile(source, outDir, Target.JVM);
-        assertTrue(result.success(), "Compilation should succeed: " + result.diagnostics().getDiagnostics());
-        try {
-            ProcessBuilder pb = new ProcessBuilder("java", "-cp", outDir.toString(), "Default.Main");
-            pb.redirectErrorStream(true);
-            Process p = pb.start();
-            String output = new String(p.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)
-                .replace("\r\n", "\n").trim();
-            int ec = p.waitFor();
-            assertEquals(0, ec, "Exit code should be 0, output: '" + output + "'");
-            assertEquals(expected, output, "Unexpected output");
-            return output;
-        } catch (InterruptedException e) {
-            throw new IOException("Interrupted while running JVM class", e);
-        }
-    }
-
-    private String runNative(Path source, Path outDir, String expected) throws IOException {
-        assumeTrue(isLinux(), "Native target runs on Linux");
-        CompilationResult result = driver.compile(source, outDir, Target.NATIVE);
-        assertTrue(result.success(), "Compilation should succeed: " + result.diagnostics().getDiagnostics());
-        Path binFile = outDir.resolve("Default/Main");
-        assertTrue(Files.exists(binFile), "Binary should exist");
-        try {
-            ProcessBuilder pb = new ProcessBuilder(binFile.toString());
-            pb.redirectErrorStream(true);
-            Process p = pb.start();
-            String output = new String(p.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)
-                .replace("\r\n", "\n").trim();
-            int ec = p.waitFor();
-            assertEquals(0, ec, "Exit code should be 0, output: '" + output + "'");
-            assertEquals(expected, output, "Unexpected output");
-            return output;
-        } catch (InterruptedException e) {
-            throw new IOException("Interrupted while running native binary", e);
-        }
-    }
-
-    private void both(Path tempDir, String name, String program, String expected) throws IOException {
-        Path source = tempDir.resolve(name + ".kf");
-        Files.writeString(source, program);
-        runJvm(source, tempDir.resolve("jvm"), expected);
-        runNative(source, tempDir.resolve("native"), expected);
-    }
 
     @Test
     void colorChannels(@TempDir Path tempDir) throws IOException {
@@ -181,55 +130,21 @@ class UiE2ETest {
     void ui003RemainingLinksOnAllTargets(@TempDir Path tempDir) throws IOException {
         // UI003 (restante): Fieldset/Iframe/Video/Audio/Hr — no-op JVM/Native,
         // DOM real (<fieldset>/<legend>/<iframe>/<video>/<audio>/<hr>) em KofJS.
-        both(tempDir, "ui003rest", """
-            main() {
-                var fs = Fieldset(listOf(Label("dentro")), "credenciais")
-                var fr = Iframe("https://example.org")
-                var v = Video("clip.mp4")
-                var a = Audio("som.mp3")
-                var h = Hr()
-                fs.remove()
-                fr.remove()
-                v.remove()
-                a.remove()
-                h.remove()
-                println("ok")
-            }
-            """, "ok");
+        both(tempDir, "ui003rest", SRC_UI003_REMAINING_LINKS_ON_ALL_TARGETS, "ok");
     }
 
     @Test
     void ui006EventAccessorsLinkOnAllTargets(@TempDir Path tempDir) throws IOException {
         // UI006: Event key/value/x/y + target/relatedTarget — no-op JVM/Native
         // (key="" / target=""), DOM real em KofJS (KofJsBrowserE2ETest).
-        both(tempDir, "ui006", """
-            main() {
-                var campo = Input("")
-                campo.on("keydown", (e: Event) -> { println(e.key()) })
-                campo.on("input", (e: Event) -> { println(e.value()) })
-                campo.on("click", (e: Event) -> { println(e.x()) })
-                campo.on("click", (e: Event) -> { println(e.target()) })
-                campo.on("focus", (e: Event) -> { println(e.relatedTarget()) })
-                println("ok")
-            }
-            """, "ok");
+        both(tempDir, "ui006", SRC_UI006_EVENT_ACCESSORS_LINK_ON_ALL_TARGETS, "ok");
     }
 
     @Test
     void inputAttrsLinksOnAllTargets(@TempDir Path tempDir) throws IOException {
         // UI005: Input/Textarea setName + setReadonly — no-op JVM/Native,
         // atributos reais (name/readonly) no DOM do browser em KofJS.
-        both(tempDir, "inputattrs", """
-            main() {
-                var i = Input("oi")
-                i.setName("usuario")
-                i.setReadonly(true)
-                var t = Textarea("x")
-                t.setName("bio")
-                t.setReadonly(true)
-                println("ok")
-            }
-            """, "ok");
+        both(tempDir, "inputattrs", SRC_INPUT_ATTRS_LINKS_ON_ALL_TARGETS, "ok");
     }
 
     @Test
@@ -266,17 +181,7 @@ class UiE2ETest {
     void widgetVisualPrimitivesLinkOnAllTargets(@TempDir Path tempDir) throws IOException {
         // issue #78: setBorder/setShadow/setGradient/setFlexBasis/setMaxWidth —
         // aditivo; no-op JVM/Native, DOM real em KofJS (KofJsBrowserE2ETest).
-        both(tempDir, "widgetvisual", """
-            main() {
-                var card = Column(listOf(Label("x")))
-                card.setBorder(Color(255, 0, 0), 2)
-                card.setShadow(Color(0, 0, 0), 4, 12)
-                card.setGradient(Color(255, 0, 0), Color(0, 0, 255), 90)
-                card.setFlexBasis(300)
-                card.setMaxWidth(600)
-                println("ok")
-            }
-            """, "ok");
+        both(tempDir, "widgetvisual", SRC_WIDGET_VISUAL_PRIMITIVES_LINK_ON_ALL_TARGETS, "ok");
     }
 
     @Test
@@ -297,31 +202,7 @@ class UiE2ETest {
     void fieldsetIframeMediaHrLinkOnAllTargets(@TempDir Path tempDir) throws IOException {
         // UI003: Fieldset/Iframe/Video/Audio/Hr — widgets de primeira
         // classe; no-op JVM/Native, DOM real em KofJS (KofJsBrowserE2ETest).
-        both(tempDir, "fieldsetiframemediahr", """
-            main() {
-                var campo = Input("")
-                var fs = Fieldset(listOf(campo))
-                fs.setDisabled(true)
-
-                var iframe = Iframe("https://kof.dev")
-                iframe.setSrc("https://kof.dev/docs")
-
-                var video = Video("movie.mp4")
-                video.setControls(true)
-                video.play()
-                video.pause()
-
-                var audio = Audio("song.mp3")
-                audio.setControls(true)
-                audio.play()
-                audio.pause()
-
-                var hr = Hr()
-                hr.setClass("divisor")
-
-                println("ok")
-            }
-            """, "ok");
+        both(tempDir, "fieldsetiframemediahr", SRC_FIELDSET_IFRAME_MEDIA_HR_LINK_ON_ALL_TARGETS, "ok");
     }
 
     @Test
@@ -342,18 +223,7 @@ class UiE2ETest {
 
     @Test
     void themes(@TempDir Path tempDir) throws IOException {
-        both(tempDir, "themes", """
-            main() {
-                var dark = Theme.dark()
-                println(dark.isDark())
-                println(dark.background().toCss())
-                println(dark.text().toCss())
-                var light = Theme.light()
-                println(light.isDark())
-                println(light.background().toCss())
-                println(light.text().toCss())
-            }
-            """, "true\nrgb(18, 18, 18)\nrgb(255, 255, 255)\nfalse\nrgb(255, 255, 255)\nrgb(0, 0, 0)");
+        both(tempDir, "themes", SRC_THEMES, "true\nrgb(18, 18, 18)\nrgb(255, 255, 255)\nfalse\nrgb(255, 255, 255)\nrgb(0, 0, 0)");
     }
 
     @Test
@@ -385,17 +255,7 @@ class UiE2ETest {
 
     @Test
     void buttonOperations(@TempDir Path tempDir) throws IOException {
-        String program = """
-            main() {
-                var b = Button("Salvar")
-                println(b.text)
-                b.text = "Salvando..."
-                println(b.text)
-                b.remove()
-                var c = Button("Ok", () -> println("acabou"))
-                println(c.text)
-            }
-            """;
+        String program = SRC_BUTTON_OPERATIONS;
         // JVM/Native handles are no-ops: the text getter returns "" there
         // (rendering is KofJS) — the program must still compile and run.
         Path src = tempDir.resolve("button.kf");
@@ -510,21 +370,7 @@ class UiE2ETest {
 
     @Test
     void layoutContainers(@TempDir Path tempDir) throws IOException {
-        String program = """
-            main() {
-                var l1 = Label("a")
-                var l2 = Label("b")
-                var col = Column(listOf(l1, l2))
-                var row = Row(listOf(l1, l2))
-                var style = Style(Palette.black, Palette.white, 16, 8)
-                var view = View(style)
-                view.bind(col)
-                view.bind(row)
-                var w = Window("Layout")
-                w.bind(view)
-                w.show()
-            }
-            """;
+        String program = SRC_LAYOUT_CONTAINERS;
         Path src = tempDir.resolve("layout.kf");
         Files.writeString(src, program);
         runJvm(src, tempDir.resolve("jvm"), "");
@@ -602,20 +448,7 @@ class UiE2ETest {
 
     @Test
     void windowBehavior(@TempDir Path tempDir) throws IOException {
-        String program = """
-            main() {
-                var w1 = Window("Primeira")
-                var w2 = Window("Segunda")
-                var l1 = Label("a")
-                var l2 = Label("b")
-                w1.bind(l1)
-                w2.bind(l2)
-                w1.size(640, 480)
-                w1.show()
-                w2.show()
-                w1.close()
-            }
-            """;
+        String program = SRC_WINDOW_BEHAVIOR;
         Path src = tempDir.resolve("wins.kf");
         Files.writeString(src, program);
         runJvm(src, tempDir.resolve("jvm"), "");
@@ -636,22 +469,7 @@ class UiE2ETest {
 
     @Test
     void canvasCreation(@TempDir Path tempDir) throws IOException {
-        String program = """
-            main() {
-                var c = Canvas(400, 300)
-                c.setFill(Palette.blue)
-                c.setStroke(Palette.red)
-                c.setLineWidth(2)
-                c.beginPath()
-                c.moveTo(200, 150)
-                c.arc(200, 150, 100, 0.0, 3.14159)
-                c.closePath()
-                c.fill()
-                c.stroke()
-                c.clearRect(0, 0, 400, 300)
-                c.remove()
-            }
-            """;
+        String program = SRC_CANVAS_CREATION;
         Path src = tempDir.resolve("canvas.kf");
         Files.writeString(src, program);
         runJvm(src, tempDir.resolve("jvm"), "");
@@ -672,19 +490,6 @@ class UiE2ETest {
     void canvasUi009LinksOnAllTargets(@TempDir Path tempDir) throws IOException {
         // UI009: save/restore/setGlobalAlpha/fillText/measureText/transform —
         // no-op JVM/Native (mede o link), DOM real em KofJS.
-        both(tempDir, "canvas-ui009", """
-            main() {
-                var c = Canvas(400, 300)
-                c.save()
-                c.setGlobalAlpha(0.5)
-                c.transform(1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
-                c.fillText("oi", 10, 20)
-                println("w=" + (c.measureText("oi") >= 0.0))
-                var img = Image("x.png")
-                c.drawImage(img, 5, 5)
-                c.restore()
-                println("ok")
-            }
-            """, "w=true\nok");
+        both(tempDir, "canvas-ui009", SRC_CANVAS_UI009_LINKS_ON_ALL_TARGETS, "w=true\nok");
     }
 }

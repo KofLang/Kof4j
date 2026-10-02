@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Fase H). Verifies the report is honest about what was recovered (structure)
  * vs. what needs manual review (method bodies).
  */
-class MigrateTest {
+class MigrateTest extends CliJavacSupport {
 
     @Test
     void classReportFlagsUnrecoveredBodies(@TempDir Path dir) throws Exception {
@@ -67,12 +67,4 @@ class MigrateTest {
         assertTrue(Files.exists(dir.resolve("Hello.kf")), "output file created");
     }
 
-    private void javac(Path javaFile, Path dir) throws Exception {
-        Path javac = Path.of(System.getProperty("java.home"), "bin", "javac");
-        ProcessBuilder pb = new ProcessBuilder(javac.toString(), "-d", dir.toString(), javaFile.toString());
-        pb.redirectErrorStream(true);
-        Process p = pb.start();
-        int rc = p.waitFor();
-        if (rc != 0) throw new RuntimeException("javac: " + new String(p.getInputStream().readAllBytes()));
-    }
 }

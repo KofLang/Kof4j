@@ -40,37 +40,39 @@ public final class NativeRiscvAsmRtB43 {
             # Nenhum callee-saved clobberado. Restrito a [_kof_heap,_kof_heap_end).
             .globl kof_gc_try_mark
             kof_gc_try_mark:
+                # §540: lookup O(1) pelo bitmap de inícios-de-bloco
+                # (_kof_block_bm) em vez da varredura LINEAR da gc-list (era
+                # O(N) por ponte e capada em 10000 -> blocos vivos além disso
+                # não eram marcados e o sweep os liberava: use-after-free).
+                # Um objeto Kof aponta SEMPRE p/ o início do payload; o início
+                # do bloco é a0-32, e o bit confirma que a0 é payload de fato.
                 li   t0, 4096
                 bltu a0, t0, .Ltm_done
                 andi t0, a0, 7
                 bnez t0, .Ltm_done
                 la   t1, _kof_heap
-                bltu a0, t1, .Ltm_done
+                addi t0, t1, 32
+                bltu a0, t0, .Ltm_done
                 la   t1, _kof_heap_end
                 bgeu a0, t1, .Ltm_done
-                la   t1, .Lkof_gc_head
-                ld   t1, 0(t1)
-                li   t2, 10000
-            .Ltm_loop:
-                beqz t1, .Ltm_done
-                addi t2, t2, -1
-                beqz t2, .Ltm_done
-                addi t3, t1, 32          # payload start
-                ld   t4, 0(t1)           # size TOTAL (incl. header)
-                addi t4, t4, -32         # payload size
-                bltu a0, t3, .Ltm_next
-                add  t3, t3, t4          # payload end (exclusivo)
-                bgeu a0, t3, .Ltm_next
-                j    .Ltm_found
-            .Ltm_next:
-                ld   t1, 16(t1)          # gc_next
-                j    .Ltm_loop
-            .Ltm_found:
-                lbu  t0, 24(t1)
-                andi t0, t0, 1
-                bnez t0, .Ltm_done
-                li   t0, 1
-                sb   t0, 24(t1)
+                addi t2, a0, -32         # header
+                la   t0, _kof_heap
+                sub  t3, t2, t0
+                srli t4, t3, 10
+                slli t4, t4, 3
+                la   t5, _kof_block_bm
+                add  t5, t5, t4
+                ld   t6, 0(t5)
+                srli t1, t3, 4
+                andi t1, t1, 63
+                srl  t6, t6, t1
+                andi t6, t6, 1
+                beqz t6, .Ltm_done
+                lbu  t0, 24(t2)
+                andi t1, t0, 1
+                bnez t1, .Ltm_done
+                ori  t0, t0, 1
+                sb   t0, 24(t2)
             .Ltm_done:
                 ret
 
@@ -84,39 +86,36 @@ public final class NativeRiscvAsmRtB43 {
                 sd   s0, 32(sp)
                 sd   s1, 24(sp)
                 sd   s2, 16(sp)
+                # §540: bitmap O(1) idêntico ao try_mark (a varredura linear da
+                # gc-list capada em 10000 foi removida).
                 li   t0, 4096
                 bltu a0, t0, .Lmt_done
                 andi t0, a0, 7
                 bnez t0, .Lmt_done
-                la   t0, _kof_heap
+                la   t1, _kof_heap
+                addi t0, t1, 32
                 bltu a0, t0, .Lmt_done
-                la   t0, _kof_heap_end
-                bgeu a0, t0, .Lmt_done
-                la   t1, .Lkof_gc_head
-                ld   t1, 0(t1)
-                li   t2, 10000
-            .Lmt_loop:
-                beqz t1, .Lmt_done
-                addi t2, t2, -1
-                beqz t2, .Lmt_done
-                addi t3, t1, 32
-                ld   t4, 0(t1)
-                addi t4, t4, -32
-                bltu a0, t3, .Lmt_next
-                add  t3, t3, t4
-                bgeu a0, t3, .Lmt_next
-                j    .Lmt_found
-            .Lmt_next:
-                ld   t1, 16(t1)
-                j    .Lmt_loop
-            .Lmt_found:
-                lbu  t0, 24(t1)
-                andi t0, t0, 1
-                bnez t0, .Lmt_done       # já marcado (ou sendo) — pára fecho
-                li   t0, 1
-                sb   t0, 24(t1)
+                la   t1, _kof_heap_end
+                bgeu a0, t1, .Lmt_done
+                addi s0, a0, -32         # header
+                la   t0, _kof_heap
+                sub  t1, s0, t0
+                srli t2, t1, 10
+                slli t2, t2, 3
+                la   t3, _kof_block_bm
+                add  t3, t3, t2
+                ld   t4, 0(t3)
+                srli t5, t1, 4
+                andi t5, t5, 63
+                srl  t4, t4, t5
+                andi t4, t4, 1
+                beqz t4, .Lmt_done       # a0 não é payload de um bloco real
+                lbu  t0, 24(s0)
+                andi t1, t0, 1
+                bnez t1, .Lmt_done       # já marcado (ou sendo) — pára fecho
+                ori  t0, t0, 1
+                sb   t0, 24(s0)
                 # varre os campos do bloco recém-marcado.
-                mv   s0, t1
                 ld   t0, 0(s0)           # size total
                 addi t0, t0, -32         # payload size
                 addi s1, s0, 32          # cur = payload start

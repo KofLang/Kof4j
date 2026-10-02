@@ -1,0 +1,194 @@
+package interop
+
+import file.Toml
+import interop.InteropType
+import interop.InteropOwnership
+import interop.ConnectorSpi
+import interop.InteropCompatibility
+
+// kof.interop — connector manifest reader (fatia 1 of the Kof Connector
+// Ecosystem plan, `D-CONNECTORS-GO`, promoted 29/09/2026).
+//
+// A connector declares itself with a declarative manifest in the EXISTING
+// `kof.toml` format (plan §4.2 — never a new format invented here). This
+// library reads that manifest and exposes it typed; it is the declarative seam
+// every connector shares, and the base the Interop Core (Phase 1) and the C-ABI
+// connector (Phase 2) build on.
+//
+//   var m = ConnectorManifest("kof-connector.toml")
+//   m.name()        // "kof-java"        (required; missing → throws)
+//   m.language()    // "java"
+//   m.version()     // "0.5.0"
+//   m.abi()         // "jni"
+//   m.runtime()     // "jvm"
+//   m.platforms()   // List<String>  (empty when absent)
+//   m.hasCapability("callbacks")
+//   m.describe()
+//
+// Honest by construction (R6): a missing REQUIRED field throws an explicit
+// `CONNECTOR: missing <field>`, never a silent default. Optional list fields
+// return an empty `List<String>`. Built on `libs/file/Toml.kf`; JS inherits the
+// compile-time gap `IOJS001`.
+
+class ConnectorManifest {
+    Toml toml
+
+    constructor(String path) {
+        this.toml = Toml(path)
+    }
+
+    constructor(String path, Int chunkSize) {
+        this.toml = Toml(path, chunkSize)
+    }
+
+    String name() {
+        return required("name")
+    }
+
+    String language() {
+        return required("language")
+    }
+
+    String version() {
+        return required("version")
+    }
+
+    String abi() {
+        return required("abi")
+    }
+
+    String runtime() {
+        return required("runtime")
+    }
+
+    List<String> platforms() {
+        return optionalList("platforms")
+    }
+
+    List<String> dependencies() {
+        return optionalList("dependencies")
+    }
+
+    List<String> capabilities() {
+        return optionalList("capabilities")
+    }
+
+    List<String> ownership() {
+        return optionalList("ownership")
+    }
+
+    // Interop kinds this connector supports (plan §4.2 "supported types"),
+    // validated against the Core's type model (`InteropType`, plan §3.1).
+    List<String> supportedTypes() {
+        return optionalList("types")
+    }
+
+    // The SPI adapter hooks this connector provides (plan §4.1), validated
+    // against the Core's SPI vocabulary (`ConnectorSpi`).
+    List<String> spi() {
+        return optionalList("spi")
+    }
+
+    // The connector's stability tier (plan §3.9), validated against the Core's
+    // tier vocabulary (`InteropCompatibility`). Optional (null when absent); the
+    // policy of WHICH tier an interface gets stays a rule-6 decision.
+    String? stability() {
+        return this.toml.getString("stability")
+    }
+
+    Bool hasCapability(String capability) {
+        return capabilities().contains(capability)
+    }
+
+    // The catalogue of capabilities every connector may declare, from the plan's
+    // cross-language test suite (plan §10): the operations the ecosystem tests.
+    List<String> knownCapabilities() {
+        return listOf("primitives", "strings", "arrays", "structs", "enums",
+                "pointers", "callbacks", "errors", "ownership", "threads",
+                "async", "opaque")
+    }
+
+    // The Core's ownership vocabulary (plan §3.2) — a connector declares which
+    // concepts it supports; it never invents its own rule. Single source of
+    // truth: `InteropOwnership` (fatia 6), never duplicated here.
+    List<String> knownOwnership() {
+        return InteropOwnership().concepts()
+    }
+
+    // Honest validation (R6): every declared capability and ownership concept
+    // must belong to the Core vocabulary; an unknown token throws an explicit
+    // diagnostic instead of being silently accepted.
+    void validate() {
+        var caps = capabilities()
+        var i = 0
+        while (i < caps.size()) {
+            var c = caps.get(i)
+            if (!knownCapabilities().contains(c)) {
+                throw "CONNECTOR: unknown capability " + c
+            }
+            i = i + 1
+        }
+        var owns = ownership()
+        var j = 0
+        while (j < owns.size()) {
+            var o = owns.get(j)
+            if (!knownOwnership().contains(o)) {
+                throw "CONNECTOR: unknown ownership " + o
+            }
+            j = j + 1
+        }
+        // Declared supported types must belong to the Core's interop type model
+        // (§3.1) — validated through `InteropType`, never accepted blindly.
+        var typeModel = InteropType()
+        var types = supportedTypes()
+        var k = 0
+        while (k < types.size()) {
+            var t = types.get(k)
+            if (!typeModel.isKnownKind(t)) {
+                throw "CONNECTOR: unknown type " + t
+            }
+            k = k + 1
+        }
+        // Declared SPI hooks must belong to the Core SPI (§4.1) — validated
+        // through `ConnectorSpi`, never accepted blindly.
+        var spiModel = ConnectorSpi()
+        var declared = spi()
+        var m = 0
+        while (m < declared.size()) {
+            var h = declared.get(m)
+            if (!spiModel.isKnownHook(h)) {
+                throw "CONNECTOR: unknown SPI hook " + h
+            }
+            m = m + 1
+        }
+        // A declared stability tier must belong to the Core's tiers (§3.9) —
+        // validated through `InteropCompatibility`, never accepted blindly.
+        var tier = stability()
+        if (tier != null && !InteropCompatibility().isKnownTier(tier)) {
+            throw "CONNECTOR: unknown stability " + tier
+        }
+    }
+
+    String describe() {
+        return name() + " " + version() + " (" + language() + ", abi " + abi() + ", runtime " + runtime() + ")"
+    }
+
+    // A required scalar field. Absent → explicit diagnostic, never a default.
+    String required(String key) {
+        var value = this.toml.getString(key)
+        if (value == null) {
+            throw "CONNECTOR: missing " + key
+        }
+        return value
+    }
+
+    // An optional list field. Absent → empty list (not null).
+    List<String> optionalList(String key) {
+        var value = this.toml.getArray(key)
+        if (value == null) {
+            var empty: List<String> = listOf()
+            return empty
+        }
+        return value
+    }
+}

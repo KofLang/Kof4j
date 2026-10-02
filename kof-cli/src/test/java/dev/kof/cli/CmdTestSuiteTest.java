@@ -56,6 +56,25 @@ class CmdTestSuiteTest {
     }
 
     @Test
+    void packageInSubdirectoryUnderSeparateTestRootCompiles(@TempDir Path dir) throws Exception {
+        // #708: `kof test src/test/kof` with the source in a package directory
+        // (exemplo/CalculoTest.kf, `package exemplo`) must resolve PKG004
+        // against the TEST ROOT, not the file's immediate directory (which
+        // would make the expected package "").
+        Path tests = dir.resolve("src/test/kof");
+        Files.createDirectories(tests.resolve("exemplo"));
+        Files.writeString(tests.resolve("exemplo/CalculoTest.kf"), """
+                package exemplo
+                test "soma" {
+                    assert(2 + 3 == 5)
+                }
+                """);
+        Cli r = cli(dir, "test", tests.toString(), "--target", "jvm");
+        assertEquals(0, r.exit(), "pacote deve casar com a raiz de testes:\n" + r.out());
+        assertTrue(r.out().contains("1 passed, 0 failed"), r.out());
+    }
+
+    @Test
     void aFailingSuiteIsCountedPerSuiteAndFailsTheRun(@TempDir Path dir) throws Exception {
         Path tests = dir.resolve("tests");
         Files.createDirectories(tests.resolve("ok"));

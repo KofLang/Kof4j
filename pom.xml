@@ -38,7 +38,7 @@
         <project.build.outputTimestamp>2020-01-01T00:00:00Z</project.build.outputTimestamp>
         <asm.version>9.10.1</asm.version>
         <junit.version>6.1.3</junit.version>
-        <graaljs.version>25.3.4.1</graaljs.version>
+        <graaljs.version>25.4.4.1.1</graaljs.version>
     </properties>
 
     <dependencyManagement>
@@ -116,7 +116,7 @@
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>flatten-maven-plugin</artifactId>
-                <version>1.7.0</version>
+                <version>1.8.0</version>
                 <configuration>
                     <flattenMode>resolveCiFriendliesOnly</flattenMode>
                 </configuration>

@@ -35,7 +35,14 @@ public final class KofFormatter {
             }
             if (!unit.imports().isEmpty()) out.append("\n");
             var pending = new KofFormatterComments.Pending(KofFormatterComments.scan(src));
+            // O `ForeignModuleNode` (fatia A, `D-CONNECTORS`) nao emite codigo: o
+            // parser ja o desdobrou nos `extern` que ele continha, cada um
+            // carregando a `library` do cabecalho. Formata-lo como no produz
+            // uma linha em branco que sobe no `format()`, quebra o round-trip
+            // e polui a saida — entao ele e simplesmente IGNORADO aqui (o
+            // `formatDecl` ainda tem o caso, defensivo).
             for (AstNode decl : unit.declarations()) {
+                if (decl instanceof ForeignModuleNode) continue;
                 if (decl != null) {
                     pending.flushUpTo(out, indent, decl.position());
                 }
@@ -190,6 +197,32 @@ public final class KofFormatter {
                 out.append(" {\n");
                 for (StatementNode st : t.body()) formatStmt(st, out, indent + 1, pending);
                 out.append(pad).append("}\n");
+            }
+            // #719: `extern` e o bloco `foreign module` (fatia A, `D-CONNECTORS`)
+            // NAO tinham caso aqui, entao caiam no `default` e eram
+            // reimprimidos com `decl.toString()` — um blob
+            // `ExternalFunctionNode[position=SourcePosition[...]]` no lugar da
+            // declaracao. Com `-w` o CLI escrevia esse blob no arquivo e ainda
+            // reportava `1 file(s) reformatted`: perda silenciosa de codigo.
+            // Imprimir a declaracao de verdade (a forma e obvia, sem decisao).
+            case ExternalFunctionNode ext -> {
+                out.append(pad).append("extern");
+                if (ext.library() != null) out.append(" \"").append(ext.library()).append("\"");
+                out.append(" ").append(ext.name()).append("(");
+                for (int i = 0; i < ext.parameters().size(); i++) {
+                    if (i > 0) out.append(", ");
+                    out.append(formatParam(ext.parameters().get(i)));
+                }
+                out.append(")");
+                if (!"void".equals(ext.returnType())) out.append(": ").append(ext.returnType());
+                out.append(";\n");
+            }
+            // O bloco so tem utilidade com os `extern` que ele contem (o parser
+            // ja o desdobrou em `ExternalFunctionNode` herdando a library do
+            // cabecalho) — entao nao ha nada a imprimir alem dos `extern`.
+            case ForeignModuleNode mod -> {
+                // bloco vazio (sem `extern`) nao produz codigo util: o no e
+                // informativo e o arquivo segue igual (round-trip estavel).
             }
             case null, default -> {  // null cai aqui (como no if-else: instanceof null == false)
                 out.append(pad).append(decl.toString()).append("\n");

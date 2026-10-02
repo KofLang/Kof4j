@@ -37,6 +37,7 @@ import dev.kof.compiler.KofStoreLocal;
 import dev.kof.compiler.KofThrow;
 import dev.kof.compiler.KofContinueLabel;
 import dev.kof.compiler.KofStatementIf;
+import dev.kof.compiler.KofExcUnlink;
 import dev.kof.compiler.KofTryEnd;
 import dev.kof.compiler.KofTryStart;
 import dev.kof.compiler.KofUi;
@@ -263,6 +264,11 @@ public final class JvmOpEmitter {
             }
             case KofContinueLabel _ -> {
                 // §266: marcador estrutural (fronteira corpo/update do for) — no-op
+            }
+            case KofExcUnlink _ -> {
+                // §549: só os backends nativos vinculam handler em runtime; no
+                // JVM a tabela de exceções é estática (KofTryStart/TryEnd não
+                // emitem nada de handler) — no-op.
             }
             case KofTryEnd _ -> {
                 ctx.popTryRegion();

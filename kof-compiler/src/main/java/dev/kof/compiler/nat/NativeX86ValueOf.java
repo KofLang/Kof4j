@@ -1,5 +1,6 @@
 package dev.kof.compiler.nat;
 import dev.kof.compiler.BuiltinTypes;
+import dev.kof.compiler.KofBuffer;
 import dev.kof.compiler.KofCall;
 import dev.kof.compiler.KofCallKind;
 import dev.kof.compiler.KofProcess;
@@ -71,6 +72,13 @@ final class NativeX86ValueOf {
                 sb.append("    popq %rdi\n");
                 sb.append("    movq %rdi, %xmm0\n");
                 sb.append("    call kof_double_to_string\n");
+                sb.append("    pushq %rax\n");
+            } else if (KofBuffer.isBufferType(dispatchType)) {
+                // #651 fatia A1: Buffer nominal é impresso pelo seu contrato
+                // de valor ("Buffer[cap]"), não como ponteiro cru nem via
+                // vtable (a classe não existe no native class-metadata).
+                sb.append("    popq %rdi\n");
+                sb.append("    call kof_buffer_to_string\n");
                 sb.append("    pushq %rax\n");
             } else if (dispatchType instanceof Type.ArrayType at) {
                 // §388-B (voto mantenedora 21/09): println de array cru no
@@ -153,11 +161,11 @@ final class NativeX86ValueOf {
                     sb.append("    pushq %rax\n");
                     sb.append("    testq %rax, %rax\n");
                     sb.append("    je .Lstr_nullv").append(psn).append("\n");
-                    sb.append("    movq 8(%rax), %rbx\n");
-                    sb.append("    addq $").append(tosIdx * 8).append(", %rbx\n");
-                    sb.append("    movq (%rbx), %rbx\n");
+                    sb.append("    movq 8(%rax), %r11\n");
+                    sb.append("    addq $").append(tosIdx * 8).append(", %r11\n");
+                    sb.append("    movq (%r11), %r11\n");
                     sb.append("    popq %rdi\n");
-                    sb.append("    call *%rbx\n");
+                    sb.append("    call *%r11\n");
                     sb.append("    pushq %rax\n");
                     sb.append("    jmp .Lstr_nullv_e").append(psn).append("\n");
                     sb.append(".Lstr_nullv").append(psn).append(":\n");

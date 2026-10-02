@@ -1,0 +1,43 @@
+package kfvm.cli
+
+import kfvm.system
+import kfvm.github
+
+class UseCommand implements kfvm.cli.Command {
+    RemoteVersions remote
+    InstalledVersions installed
+    VersionActivator activator
+    Logger logger
+
+    constructor(RemoteVersions remote, InstalledVersions installed, VersionActivator activator, Logger logger) {
+        this.remote = remote
+        this.installed = installed
+        this.activator = activator
+        this.logger = logger
+    }
+
+    List<String> names() { return listOf("u", "use") }
+
+    void run(List<String> args) {
+        if (args.size == 0) {
+            throw "usage: kfvm u <ver|lts|nightly>"
+        }
+        var query = args.get(0)
+        var exact = if (query.startsWith("v")) query.substring(1) else query
+        if (installed.isInstalled(exact)) {
+            activator.activate(exact)
+            return
+        }
+        var releases = listOf<RemoteRelease>()
+        try {
+            releases = remote.releases()
+        } catch (String e) {
+            logger.info("could not reach GitHub (" + e + "), using installed versions")
+            activator.activate(installed.resolveLocal(query))
+            return
+        }
+        var version = remote.resolve(query, releases)
+        remote.ensureInstalled(version, releases)
+        activator.activate(version)
+    }
+}

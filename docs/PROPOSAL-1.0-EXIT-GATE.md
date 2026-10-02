@@ -7,7 +7,7 @@
 **Location:** `docs/development/` — promoted from `future/` by the ratification: normative plan with its §23 queue now binding development meta.  
 **Revision:** v3.1 — v3 corrected after the 09/20/2026 revalidation (section 24); aligned with the repository state, the maintainer's decisions/publications and a weighted (non-normative) external benchmark  
 **Repository:** `KofLang/Kof4j`  
-**Current active branch:** `beta-0.5.0`  
+**Current active branch:** `lab` (`D-BRANCH-PIPELINE`; `beta-0.5.0`/`D-BRANCH-0.5.0` `SUPERSEDED` by the 28/09 cutover)  
 **Previous branch:** `beta-0.4.0` — only in-flight landings + release prep, per the maintainer's decision  
 **Reviewer / required decision authority:** **Mel (`melmonfre`)**  
 **Nature:** exit contract for a future KOF 1.0; it is NOT authorization to cut 1.0 now.
@@ -172,7 +172,7 @@ CONTRACT SOURCE:
 - docs/distribution/release-naming.md;
 - docs/distribution/VERSIONING.md;
 - AGENTS.md — Quality Gate / no bug ships / zero regression / suite as gate;
-- docs/development/release-beta-0.5.0-prep.md.
+- docs/distribution/release-beta-0.5.0.md (acceptance record, CLOSED 28/09).
 
 CURRENT KOF IDIOM:
 Beta → RC → Stable is already the official progression.

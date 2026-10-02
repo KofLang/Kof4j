@@ -127,11 +127,25 @@ public final class CompilerPipeline {
         }
     }
 
+    static CompilationResult compileForTests(CompilerDriver driver, Path sourceFile, Path outputDir,
+                                             Target target, Path moduleRoot) {
+        driver.testHarnessMode = true;
+        try {
+            // #708: raiz de testes explícita — compila o arquivo sozinho
+            // (per-file, um main por arquivo) mas resolve o pacote contra a
+            // raiz de testes, não contra o diretório imediato do arquivo.
+            return CompilerPipeline.compileSources(driver, java.util.List.of(sourceFile),
+                    outputDir, target, moduleRoot);
+        } finally {
+            driver.testHarnessMode = false;
+        }
+    }
+
     static CompilationResult compileForTestsSources(CompilerDriver driver, java.util.List<Path> sources,
                                                     Path outputDir, Target target, Path moduleRoot) {
         driver.testHarnessMode = true;
         try {
-            return CompilerPipeline.compileSources(driver, sources, outputDir, target, driver.moduleRoot);
+            return CompilerPipeline.compileSources(driver, sources, outputDir, target, moduleRoot);
         } finally {
             driver.testHarnessMode = false;
         }
@@ -248,11 +262,15 @@ public final class CompilerPipeline {
                     if (diagnostics != null && !CompilerFfiBinding.isExternBound(driver, ext)) {
                         SourcePosition sp = ext.position();
                         String lib = ext.library() != null ? " in " + ext.library() : "";
-                        String code = driver.target == Target.JS ? "FFI002" : "FFI001";
-                        String msg = driver.target == Target.JS
+                        // #667: a interpretação (Script) roda com target=JVM, então
+                        // o rótulo/mensagem precisam nomear o alvo REAL (script).
+                        boolean jsTarget = driver.target == Target.JS && !driver.interpreting;
+                        String code = jsTarget ? "FFI002" : "FFI001";
+                        String targetName = driver.interpreting ? "script" : String.valueOf(driver.target);
+                        String msg = jsTarget
                                 ? "extern '" + ext.name() + "'" + lib + ": FFI signature not bound on the JS target yet (FFI002)"
                                 : "extern '" + ext.name() + "'" + lib + ": FFI binding not implemented on the "
-                                        + driver.target + " target yet (FFI001)";
+                                        + targetName + " target yet (FFI001)";
                         diagnostics.error(sp != null ? sp.file() : "", sp != null ? sp.line() : 0,
                                 sp != null ? sp.column() : 0, 0, msg, code);
                     }
@@ -293,6 +311,8 @@ public final class CompilerPipeline {
         if (irModule == null) {
             return;
         }
+        // UI001 (R6): kof.ui é no-op no Native — avisa UMA vez (aditivo, §KOFUI-AUDIT).
+        UiTargetDiagnostics.warnIfNative(driver, irModule, diagnostics);
         Files.createDirectories(outputDir);
         Backend backend = CompilerPipeline.selectBackend(driver, target);
         backend.emit(irModule, outputDir, driver.debugInfoEnabled);
@@ -370,6 +390,7 @@ public final class CompilerPipeline {
         boolean prevInterpreting = driver.interpreting;
         driver.interpreting = true;
         driver.currentDiagnostics = diagnostics;
+        driver.interpreterWarnings = java.util.List.of();
         CompilerPipeline.flushClasspathWarnings(driver);
         driver.entitySchemas.clear();
         try {
@@ -382,6 +403,11 @@ public final class CompilerPipeline {
             if (ir == null) {
                 throw new KofInterpretException(diagnostics);
             }
+            // #678: o JVM/JS/Native imprimem os WARNING do frontend; o Script
+            // não tinha canal. Expõe-os para o chamador (paridade de diagnósticos).
+            driver.interpreterWarnings = diagnostics.getDiagnostics().stream()
+                    .filter(d -> d.severity() == Diagnostic.Severity.WARNING)
+                    .toList();
             return ir;
         } catch (IOException e) {
             diagnostics.error(sources.get(0).toString(), 0, 0, 0,
@@ -400,7 +426,9 @@ public final class CompilerPipeline {
     static KofInterpreter.Result interpret(CompilerDriver driver, java.util.List<Path> sources,
                                            Path moduleRoot, String[] args) {
         IRModule ir = prepareForInterpretation(driver, sources, moduleRoot);
-        return KofInterpreter.run(ir, args);
+        // #678: anexa os WARNING do frontend ao resultado (paridade com o
+        // compile, onde o CLI imprime os diagnósticos do Result).
+        return KofInterpreter.run(ir, args, driver.interpreterWarnings);
     }
 
     /** Parse + merge multi-arquivo + expansão de imports (extraído de compileSources). */
@@ -467,6 +495,14 @@ public final class CompilerPipeline {
         merged = CompilerMakealive.injectHostIfNeeded(driver, merged, diagnostics);
         if (merged == null) return null;
         merged = CompilerInterop.injectHostIfNeeded(driver, merged, diagnostics);
+        if (merged == null) return null;
+        merged = CompilerPagination.injectHostIfNeeded(driver, merged, diagnostics);
+        if (merged == null) return null;
+        merged = CompilerPairs.injectHostIfNeeded(driver, merged, diagnostics);
+        if (merged == null) return null;
+        merged = CompilerTesting.injectHostIfNeeded(driver, merged, diagnostics);
+        if (merged == null) return null;
+        merged = CompilerWeb.injectHostIfNeeded(driver, merged, diagnostics);
         if (merged == null) return null;
         ExternalClasspath extCp = (driver.target == Target.JVM || driver.target == Target.ANDROID)
                 ? driver.externalClasspath : null;

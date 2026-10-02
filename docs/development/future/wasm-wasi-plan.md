@@ -10,6 +10,15 @@
 > **PLANNED** (proposed here) or **TBD / DECISION REQUIRED** (not decided —
 > never presented as decided).
 >
+> **Decision update (28/09/2026):** the technical questions this spec left
+> TBD/DECISION REQUIRED were **resolved** by the maintainer in `DECISIONS.md`
+> §`D-WASM-GO` (`D-WASM-01..09`: direct backend, `Int`=i64, thrown-string
+> unwinding, handles+handle table, native mark-sweep GC design, explicit
+> closure env, WASI preview1, wasmtime first, cooperative concurrency). The
+> spec is still **future/zero-code**; promotion is one-at-a-time per
+> `D-FUTURE-PROMOTION`. Do not read the inline TBD markers as still-open
+> decisions.
+>
 > **Sibling docs:** `qrcode-wasm-plan.md` PART 2 (the frontend strategy: JS ×
 > WASM coexistence — this spec is its implementation detail for the compiler
 > side); `DECOMPILER.md` / `TRANSLATOR.md` (reverse direction: WASM→Kof — a

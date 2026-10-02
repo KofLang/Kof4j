@@ -221,13 +221,14 @@ if (mc.receiver() == null && "Hr".equals(mc.methodName()) && mc.arguments().size
 // ── Fase 4: primitivas de layout (docs/ui/architecture.md §2.8)
 if (mc.receiver() == null && ("Box".equals(mc.methodName())
         || "Stack".equals(mc.methodName()) || "Wrap".equals(mc.methodName())
-        || "Center".equals(mc.methodName()))
+        || "Center".equals(mc.methodName()) || "Scroll".equals(mc.methodName()))
         && mc.arguments().size() == 1) {
     localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(0), ops, owner, localIdx, locals);
     String fn = switch (mc.methodName()) {
         case "Box" -> "kof_ui_box_new";
         case "Stack" -> "kof_ui_stack_new";
         case "Wrap" -> "kof_ui_wrap_new";
+        case "Scroll" -> "kof_ui_scroll_new";
         default -> "kof_ui_center_new";
     };
     ops.add(new KofCall(new Type.ClassType("kof.ui", "Ui", List.of()),

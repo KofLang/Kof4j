@@ -69,18 +69,30 @@ final class NativeFfiCall {
         return false;
     }
 
+    /** true se algum parâmetro é `String[]` (marker `arrayPtrType('S')`) — pede
+     *  o helper `kof_ffi_pack_str_array` (D-MEM-FFI-CROSS-FULL face 2). */
+    static boolean usesStrArrayParam(KofCall kc) {
+        for (Type t : kc.parameterTypes()) {
+            Character e = FfiStructLayout.arrayPtrElem(t);
+            if (e != null && e.charValue() == 'S') return true;
+        }
+        return false;
+    }
+
     /** #431: registra um extern no backend (biblioteca p/ o ld + flags dos
      *  helpers). Extraído do `NativeBackend` (gate ≤500 regra 7). */
     static void noteExtern(NativeBackend nb, KofCall kc) {
         nb.ffiLibs.add(libOf(kc));
         if (returnsCstr(kc)) nb.ffiUsesCstr = true;
         if (usesArrayParam(kc)) nb.ffiUsesArray = true;
+        if (usesStrArrayParam(kc)) nb.ffiUsesStrArray = true;
     }
 
     /** Emite os helpers de runtime dos extern x86-64 (uma vez por programa). */
     static void emitHelpers(NativeBackend nb, StringBuilder sb) {
-        if (nb.ffiUsesCstr) emitX86CstrHelper(sb);
-        if (nb.ffiUsesArray) emitX86ArrayPackHelper(sb);
+        if (nb.ffiUsesCstr) NativeFfiAsmHelpers.emitX86CstrHelper(sb);
+        if (nb.ffiUsesArray) NativeFfiAsmHelpers.emitX86ArrayPackHelper(sb);
+        if (nb.ffiUsesStrArray) NativeFfiAsmHelpers.emitX86StrArrayPackHelper(sb);
     }
 
     /** #431 fatia 2 / D6-2: link-by-use dos externs no cross (mesmo scan do
@@ -89,6 +101,7 @@ final class NativeFfiCall {
         nb.ffiLibs.clear();
         nb.ffiUsesCstr = false;
         nb.ffiUsesArray = false;
+        nb.ffiUsesStrArray = false;
         for (IRClass c : module.classes()) {
             for (IRMethod m : c.methods()) {
                 for (IRBasicBlock b : m.basicBlocks()) {
@@ -111,11 +124,14 @@ final class NativeFfiCall {
         Type[] structTypes = new Type[n];
         boolean[] isArray = new boolean[n];
         char[] arrayElem = new char[n];
+        boolean[] isBufPtr = new boolean[n];
         for (int i = 0; i < n; i++) {
             Type pt = kc.parameterTypes().get(i);
             if (FfiStructLayout.isArrayPtr(pt)) {
                 isArray[i] = true;
                 arrayElem[i] = FfiStructLayout.arrayPtrElem(pt);
+            } else if (FfiStructLayout.isBufferPtr(pt)) {
+                isBufPtr[i] = true;
             } else if (FfiStructLayout.isStructType(pt)) {
                 isStruct[i] = true;
                 structTypes[i] = pt;
@@ -160,6 +176,8 @@ final class NativeFfiCall {
                 }
             } else if (isArray[i]) {
                 ord[i] = nInt++;   // T[]→ptr: um ponteiro INTEGER (D6-2)
+            } else if (isBufPtr[i]) {
+                ord[i] = nInt++;   // Buffer(U8)→ptr: um ponteiro INTEGER (A2)
             } else if (isFloatClass(cls[i])) {
                 ord[i] = nFlt++;
             } else {
@@ -182,16 +200,52 @@ final class NativeFfiCall {
         for (int i = 0; i < n; i++) {
             if (!isArray[i]) continue;
             sb.append("    movq ").append(8 * (n - 1 - i)).append("(%rsp), %rdi\n");
-            sb.append("    movq $").append(arrayElemSize(arrayElem[i])).append(", %rsi\n");
-            sb.append("    call kof_ffi_pack_array\n");
-            sb.append("    movq %rax, -").append(256 + i * 8).append("(%rbp)\n");
+            if (arrayElem[i] == 'S') {
+                // D-MEM-FFI-CROSS-FULL face 2: `String[]`→`char**` (payload de
+                // cada String; sem tamanho de elemento).
+                sb.append("    call kof_ffi_pack_str_array\n");
+            } else {
+                sb.append("    movq $").append(arrayElemSize(arrayElem[i])).append(", %rsi\n");
+                sb.append("    call kof_ffi_pack_array\n");
+            }
+            sb.append("    movq %rax, -").append(nb.scratchOffset(i)).append("(%rbp)\n");
+        }
+        // D-MEM030-BORROW-RUNTIME (B-03): cada `Buffer(U8)` INOUT adquire um
+        // borrow gravável exclusivo ANTES de carregar os registradores (o
+        // acquire é um call e clobberaria os args). O objeto fica no slot de
+        // rascunho; o release após o downcall lê-o de lá.
+        for (int i = 0; i < n; i++) {
+            if (!isBufPtr[i]) continue;
+            sb.append("    movq ").append(8 * (n - 1 - i)).append("(%rsp), %r10\n");
+            sb.append("    movq %r10, -").append(nb.scratchOffset(i)).append("(%rbp)\n");
+            sb.append("    movq %r10, %rdi\n");
+            sb.append("    call kof_buffer_borrow_acquire\n");
         }
         for (int i = n - 1; i >= 0; i--) {
             if (isArray[i]) {
                 sb.append("    popq %r10\n");   // descarta o objeto; o buffer está no temp
                 if (ord[i] < 6) {
-                    sb.append("    movq -").append(256 + i * 8).append("(%rbp), ")
+                    sb.append("    movq -").append(nb.scratchOffset(i)).append("(%rbp), ")
                       .append(intRegs[ord[i]]).append("\n");
+                }
+                continue;
+            }
+            if (isBufPtr[i]) {
+                // D6-3/A2: objeto Kof Buffer → ponteiro do payload (obj+24). O
+                // Buffer é não-nulo; o guard mantém um null honesto (0), nunca
+                // obj+24 sobre ponteiro nulo. ord>=6 (buf derramado): guarda o
+                // OBJ no rascunho (o passo 2 deriva o payload ao empilhar) para
+                // que o release pós-call ainda encontre o objeto (B-03).
+                sb.append("    popq %r10\n");
+                if (ord[i] < 6) {
+                    String lbl = ".Lffi_b" + seq + "_" + i;
+                    sb.append("    testq %r10, %r10\n");
+                    sb.append("    je ").append(lbl).append("\n");
+                    sb.append("    leaq 24(%r10), %r10\n");
+                    sb.append(lbl).append(":\n");
+                    sb.append("    movq %r10, ").append(intRegs[ord[i]]).append("\n");
+                } else {
+                    sb.append("    movq %r10, -").append(nb.scratchOffset(i)).append("(%rbp)\n");
                 }
                 continue;
             }
@@ -213,7 +267,7 @@ final class NativeFfiCall {
                     sb.append(c == 'f' ? "    movd %r11d, %xmm" : "    movq %r11, %xmm")
                       .append(ord[i]).append("\n");
                 } else {
-                    sb.append("    movq %r11, -").append(256 + i * 8).append("(%rbp)\n");
+                    sb.append("    movq %r11, -").append(nb.scratchOffset(i)).append("(%rbp)\n");
                 }
             } else if (ord[i] < 6) {
                 sb.append("    popq ").append(intRegs[ord[i]]).append("\n");
@@ -234,7 +288,7 @@ final class NativeFfiCall {
                     sb.append("    leaq 24(%r11), %r11\n");
                     sb.append(lbl).append(":\n");
                 }
-                sb.append("    movq %r11, -").append(256 + i * 8).append("(%rbp)\n");
+                sb.append("    movq %r11, -").append(nb.scratchOffset(i)).append("(%rbp)\n");
             }
         }
         // 2) pilha SysV: salva o topo da pilha de operandos, alinha 16,
@@ -251,8 +305,23 @@ final class NativeFfiCall {
         }
         if (spill % 2 != 0) sb.append("    subq $8, %rsp\n");
         for (int i = n - 1; i >= 0; i--) {
-            if (!isStruct[i] && (isFloatClass(cls[i]) ? ord[i] >= 8 : ord[i] >= 6)) {
-                sb.append("    pushq -").append(256 + i * 8).append("(%rbp)\n");
+            if (isStruct[i]) continue;
+            if (isBufPtr[i]) {
+                // B-03: rascunho guarda o OBJ (não o payload) p/ o release; deriva
+                // o payload ao empilhar, com o mesmo guard de null do caminho reg.
+                if (ord[i] >= 6) {
+                    String lbl = ".Lffi_b" + seq + "_" + i;
+                    sb.append("    movq -").append(nb.scratchOffset(i)).append("(%rbp), %r11\n");
+                    sb.append("    testq %r11, %r11\n");
+                    sb.append("    je ").append(lbl).append("\n");
+                    sb.append("    leaq 24(%r11), %r11\n");
+                    sb.append(lbl).append(":\n");
+                    sb.append("    pushq %r11\n");
+                }
+                continue;
+            }
+            if (isFloatClass(cls[i]) ? ord[i] >= 8 : ord[i] >= 6) {
+                sb.append("    pushq -").append(nb.scratchOffset(i)).append("(%rbp)\n");
             }
         }
         if (sret) sb.append("    movq %r13, %rdi\n");   // ponteiro escondido (D6-4)
@@ -263,8 +332,14 @@ final class NativeFfiCall {
         //    sret); caso contrário, o escalar/void de sempre → slot de 8 bytes.
         if (structRet) {
             emitX86StructReturn(nb, sb, retResolved, retLayout, sret);
+            // B-03: libera os borrows depois de o objeto de retorno já estar
+            // empilhado (o resultado em %rax/%r10 fica intocado).
+            emitBufferReleases(nb, sb, isBufPtr);
             return;
         }
+        // B-03: libera os borrows ANTES de materializar o retorno (o escalar
+        // ainda não está na pilha; o release preserva %rax/%rdx).
+        emitBufferReleases(nb, sb, isBufPtr);
         switch (ret) {
             case 'v': return;
             case 'i': sb.append("    movslq %eax, %rax\n"); break;
@@ -355,6 +430,20 @@ final class NativeFfiCall {
         sb.append("    pushq %r10\n");
     }
 
+    /**
+     * D-MEM030-BORROW-RUNTIME (B-03, x86-64): libera o borrow gravável de cada
+     * {@code Buffer(U8)} INOUT, lendo o OBJ do slot de rascunho. Chamado depois
+     * do downcall e depois de o valor de retorno já estar preservado na pilha;
+     * {@code kof_buffer_borrow_release} é null-safe e preserva %rax/%rdx.
+     */
+    private static void emitBufferReleases(NativeBackend nb, StringBuilder sb, boolean[] isBufPtr) {
+        for (int i = 0; i < isBufPtr.length; i++) {
+            if (!isBufPtr[i]) continue;
+            sb.append("    movq -").append(nb.scratchOffset(i)).append("(%rbp), %rdi\n");
+            sb.append("    call kof_buffer_borrow_release\n");
+        }
+    }
+
     private static int ordinal(List<AbiLayout.ArgClass> classes, int e, boolean sse) {
         int n = 0;
         for (int i = 0; i < e; i++) {
@@ -365,107 +454,14 @@ final class NativeFfiCall {
     }
 
 
-    /** Helper char*→String (cópia UTF-8 crua na fronteira — o buffer C nunca é
-     *  liberado; NULL → 0 = null Kof). Definido UMA vez por programa quando um
-     *  extern retorna String; o PRÓPRIO call-site o referencia (a poda de
-     *  runtime é por texto do programa — o helper vive no texto do programa). */
-    static void emitX86CstrHelper(StringBuilder sb) {
-        sb.append("""
-                kof_ffi_from_cstr:
-                    testq %rdi, %rdi
-                    je .Lffc_null
-                    pushq %r12
-                    pushq %r13
-                    pushq %r14
-                    movq %rdi, %r12
-                    xorq %rcx, %rcx
-                .Lffc_scan:
-                    cmpb $0, (%r12,%rcx)
-                    je .Lffc_got
-                    incq %rcx
-                    jmp .Lffc_scan
-                .Lffc_got:
-                    movq %rcx, %r13
-                    leal 25(%r13), %edi
-                    call kof_alloc
-                    movq %rax, %r14
-                    movl $1, 0(%r14)
-                    movl $0, 4(%r14)
-                    movq $0, 8(%r14)
-                    movl %r13d, 16(%r14)
-                    movl $0, 20(%r14)
-                    leaq 24(%r14), %rdi
-                    movq %r12, %rsi
-                    movl %r13d, %edx
-                    call kof_memcpy
-                    movb $0, 24(%r14,%r13)
-                    movq %r14, %rax
-                    popq %r14
-                    popq %r13
-                    popq %r12
-                    ret
-                .Lffc_null:
-                    xorl %eax, %eax
-                    ret
-                """);
-    }
-
     /** Largura (bytes) do elemento de um array escalar — igual à largura C do
      *  char ('b'→1, 'i'/'f'→4, 'j'/'d'→8), então o pack é um memcpy direto. */
-    private static int arrayElemSize(char elem) {
+    static int arrayElemSize(char elem) {
         return switch (elem) {
             case 'b' -> 1;
             case 'i', 'f' -> 4;
             default -> 8;
         };
-    }
-
-    /**
-     * D6-2/3.7: empacota um array Kof de escalares num buffer C contíguo —
-     * copy-in por chamada, paridade com o JVM (o array Kof nunca é mutado pela
-     * C; escritas são descartadas). {@code %rdi} = objeto array, {@code %rsi} =
-     * tamanho do elemento em bytes; retorno {@code %rax} = buffer
-     * ({@code kof_alloc}). Layout Kof do array: len em 16(obj), payload em 24.
-     * Definido uma vez por programa quando um extern recebe array (o call-site o
-     * referencia).
-     */
-    static void emitX86ArrayPackHelper(StringBuilder sb) {
-        sb.append("""
-                .globl kof_ffi_pack_array
-                .type kof_ffi_pack_array, @function
-                kof_ffi_pack_array:
-                    pushq %rbx
-                    pushq %r12
-                    pushq %r13
-                    pushq %r14
-                    subq $8, %rsp
-                    movq %rdi, %rbx
-                    movq %rsi, %r13
-                    movl 16(%rbx), %r12d
-                    movq %r12, %rdi
-                    imulq %r13, %rdi
-                    testq %rdi, %rdi
-                    jne .Lfpa_alloc
-                    movq $8, %rdi
-                .Lfpa_alloc:
-                    call kof_alloc
-                    movq %rax, %r14
-                    leaq 24(%rbx), %rsi
-                    movq %r14, %rdi
-                    movq %r12, %rdx
-                    imulq %r13, %rdx
-                    testq %rdx, %rdx
-                    je .Lfpa_done
-                    call kof_memcpy
-                .Lfpa_done:
-                    movq %r14, %rax
-                    addq $8, %rsp
-                    popq %r14
-                    popq %r13
-                    popq %r12
-                    popq %rbx
-                    ret
-                """);
     }
 
 }

@@ -68,7 +68,7 @@ public final class MemberCallTyper {
                             kms.name(), kt.internalName(), kms.returnType(),
                             kms.parameterTypes(), kms.accessFlags(),
                             SymbolTable.DispatchKind.STATIC));
-                    TypeChecker.checkArgTypes(sa.diagnostics(), mc.methodName(), argTypes0, kms.parameterTypes(), mc.arguments());
+                    TypeChecker.checkArgTypes(sa, sa.diagnostics(), mc.methodName(), argTypes0, kms.parameterTypes(), mc.arguments());
                     return kms.returnType();
                 }
             }
@@ -80,7 +80,7 @@ public final class MemberCallTyper {
                         kms.parameterTypes(), kms.accessFlags(),
                         SymbolTable.DispatchKind.STATIC));
                 for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
-                TypeChecker.checkArgTypes(sa.diagnostics(), mc.methodName(), inferArgTypes(sa, mc, scope), kms.parameterTypes(), mc.arguments());
+                TypeChecker.checkArgTypes(sa, sa.diagnostics(), mc.methodName(), inferArgTypes(sa, mc, scope), kms.parameterTypes(), mc.arguments());
                 return kms.returnType();
             }
         }
@@ -141,7 +141,7 @@ public final class MemberCallTyper {
             for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
             SymbolTable.Symbol m = MemberResolver.resolveInHierarchy(sa, superName, mc.methodName());
             if (m instanceof SymbolTable.MethodSymbol ms) {
-                TypeChecker.checkArgTypes(sa.diagnostics(), mc.methodName(), argTypes, ms.parameterTypes(), mc.arguments());
+                TypeChecker.checkArgTypes(sa, sa.diagnostics(), mc.methodName(), argTypes, ms.parameterTypes(), mc.arguments());
                 return ms.returnType();
             }
             // P0 #6: super.metodoInexistente() — mesma regra da classe:
@@ -171,7 +171,13 @@ public final class MemberCallTyper {
             // SG-012 (inferência contextual): lambda de map/filter/reduce sem
             // anotação herda o tipo do ELEMENTO da lista — antes caía em
             // Object/Unknown e forçava `(x: Int)` mesmo com contexto óbvio.
-            if (("map".equals(mn) || "filter".equals(mn) || "reduce".equals(mn))
+            // D-MULTIPARADIGMA-PHASE1A: any/all/none/find/count/forEach herdam igual.
+            // Slice 1g/1h — sorted/sorted_cmp/groupBy herdam igual (senao a
+            // lambda sem anotacao cai em Object/Unknown).
+            if (("map".equals(mn) || "filter".equals(mn) || "reduce".equals(mn)
+                    || "any".equals(mn) || "all".equals(mn) || "none".equals(mn)
+                    || "find".equals(mn) || "count".equals(mn) || "forEach".equals(mn)
+                    || "flatMap".equals(mn) || "sorted".equals(mn) || "groupBy".equals(mn))
                     && !(elemType instanceof Type.UnknownType)) {
                 for (int i = 0; i < mc.arguments().size(); i++) {
                     if (mc.arguments().get(i) instanceof LambdaExpr le) {
@@ -223,40 +229,60 @@ public final class MemberCallTyper {
                 return Type.PrimitiveType.INT;
             if ("addAll".equals(mn)) return Type.PrimitiveType.BOOL;
             if ("subList".equals(mn)) return recvType;
+            // pagination P1 — take/drop/slice devolvem List<E> do mesmo tipo
+            // (janela materializada; clamping no runtime, negativos = erro nomeado).
+            if ("take".equals(mn) || "drop".equals(mn) || "slice".equals(mn)) return recvType;
+            // D-MULTIPARADIGMA-PHASE1A slice 1e — distinct returns List<E> (copy).
+            if ("distinct".equals(mn)) return recvType;
+            // D-MULTIPARADIGMA-PHASE1A slice 1g — sorted/sorted_cmp return
+            // List<E> (fresh copy; arity/domain gates live in the lowerer).
+            if ("sorted".equals(mn)) return recvType;
+            // D-MULTIPARADIGMA-PHASE1A slice 1i — zip returns List<Pair<A,B>>
+            // (library-first: the lowerer rewrites into injected zipPairs).
+            // The Pair package is "" (default): CompilerPairs injects FLAT
+            // with declarationPackages "" and the backends emit Pair.class
+            // at the output root (javap-measured 30/09). Unknown here
+            // poisoned downstream owners ("?" → NoClassDefFoundError).
+            if ("zip".equals(mn)) {
+                Type argElem = Type.UnknownType.UNKNOWN;
+                if (!mc.arguments().isEmpty()
+                        && sa.expressionTypes().get(mc.arguments().get(0)) instanceof Type.ClassType act
+                        && "List".equals(act.name()) && !act.typeArguments().isEmpty()) {
+                    argElem = act.typeArguments().get(0);
+                }
+                return CollectionMultiparadigmaLowerer.zipPairListType(elemType, argElem);
+            }
+            // D-MULTIPARADIGMA-PHASE1A slice 1h — groupBy returns
+            // Map<K,List<E>> (K = lambda return, from the already-inferred
+            // arg types — lambdas inferred just above, like flatMap).
+            if ("groupBy".equals(mn)) {
+                Type keyType = CollectionMultiparadigmaLowerer.groupByKeyType(
+                        mc.arguments().stream()
+                                .map(a -> sa.expressionTypes().get(a))
+                                .toList());
+                return new Type.ClassType("kof", "Map", List.of(keyType,
+                        new Type.ClassType("kof", "List", List.of(elemType))));
+            }
+            // D-MULTIPARADIGMA-PHASE1A — quantifiers always return Bool.
+            if ("any".equals(mn) || "all".equals(mn) || "none".equals(mn))
+                return Type.PrimitiveType.BOOL;
+            // D-MULTIPARADIGMA-PHASE1A slice 1b — find returns T?.
+            if ("find".equals(mn)) return new Type.NullableType(
+                    recvType instanceof Type.ClassType ct && !ct.typeArguments().isEmpty()
+                            ? ct.typeArguments().get(0) : Type.UnknownType.UNKNOWN);
+            // D-MULTIPARADIGMA-PHASE1A slice 1c — forEach always returns Void.
+            if ("forEach".equals(mn)) return Type.PrimitiveType.VOID;
             if ("add".equals(mn) || "push".equals(mn) || "append".equals(mn)
                     || "set".equals(mn) || "clear".equals(mn) || "sort".equals(mn))
                 return Type.PrimitiveType.VOID;
-            // #334 — `map` devolvia recvType (ELEMENTO-FONTE) e `reduce`
-            // devolvia elemType: a expressao era cacheada com o tipo errado
-            // (inferType guarda o resultado no no), entao `strs.get(0)`
-            // emitia checkcast do tipo FONTE sobre o valor real da lambda →
-            // ClassCastException silenciosa. Agora espelha o EMIT
-            // (`MethodCallTyper` #149 / `CollectionMethodTyper`): map →
-            // List<retorno-da-lambda>, reduce → retorno, filter → recvType
-            // (mesmo elemento, correto). Lambda sem retorno inferido =
-            // UNKNOWN honesto (o emit trata igual) — nunca mentir com o
-            // tipo da fonte.
-            if ("map".equals(mn) || "filter".equals(mn) || "reduce".equals(mn)) {
-                Type lamRet = Type.UnknownType.UNKNOWN;
-                for (ExpressionNode arg : mc.arguments()) {
-                    if (arg instanceof LambdaExpr || !(arg instanceof MethodCallExpr)) {
-                        if (sa.expressionTypes().get(arg) instanceof Type.FunctionType ft) {
-                            lamRet = ft.returnType();
-                            break;
-                        }
-                    }
-                }
-                if ("filter".equals(mn)) return recvType;
-                if (lamRet instanceof Type.UnknownType) return Type.UnknownType.UNKNOWN;
-                if ("map".equals(mn)) {
-                    return new Type.ClassType("kof", "List", List.of(lamRet));
-                }
-                return lamRet;
-            }
+            // #334 + higher-orders no typer dedicado (gate 500).
+            Type hoType = CollectionMultiparadigmaTyper.inferHigherOrder(
+                    elemType, recvType, mc, sa);
+            if (hoType != null) return hoType;
             if (!"toArray".equals(mn) && !"sublist".equals(mn) && !"subSet".equals(mn)) {
                 if (sa.diagnostics() != null) {
                     sa.diagnostics().error(mc,
-                            "Cannot resolve method '" + mn + "' on type 'List' (valid: add/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/sort)",
+                            "Cannot resolve method '" + mn + "' on type 'List' (valid: add/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/find/forEach/flatMap/distinct/sorted/groupBy/zip)",
                             "SEM025");
                 }
             }
@@ -326,7 +352,7 @@ public final class MemberCallTyper {
         if (recvType instanceof Type.FunctionType ft) {
             List<Type> argTypes = new ArrayList<>();
             for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
-            TypeChecker.checkArgTypes(sa.diagnostics(), "function call", argTypes, ft.parameterTypes(), mc.arguments());
+            TypeChecker.checkArgTypes(sa, sa.diagnostics(), "function call", argTypes, ft.parameterTypes(), mc.arguments());
             return ft.returnType();
         }
         if (recvType instanceof Type.ClassType ct) {
@@ -355,7 +381,7 @@ public final class MemberCallTyper {
                     checkMemberAccess(sa, ms.accessFlags(), ms.ownerClass(),
                             "'" + ct.name() + "." + mc.methodName() + "'");
                     sa.putResolvedMethod(mc, ms);
-                    TypeChecker.checkArgTypes(sa.diagnostics(), mc.methodName(), argTypes0, ms.parameterTypes(), mc.arguments());
+                    TypeChecker.checkArgTypes(sa, sa.diagnostics(), mc.methodName(), argTypes0, ms.parameterTypes(), mc.arguments());
                     return ms.returnType();
                 }
             }
@@ -368,7 +394,7 @@ public final class MemberCallTyper {
                 sa.putResolvedMethod(mc, ms);
                 List<Type> argTypes = new ArrayList<>();
                 for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
-                TypeChecker.checkArgTypes(sa.diagnostics(), mc.methodName(), argTypes, ms.parameterTypes(), mc.arguments());
+                TypeChecker.checkArgTypes(sa, sa.diagnostics(), mc.methodName(), argTypes, ms.parameterTypes(), mc.arguments());
                 return ms.returnType();
             }
             // receiver de classe EXTERNA (android.* etc.): assinatura
@@ -385,9 +411,12 @@ public final class MemberCallTyper {
                         params.add(ExternalClasspath.typeFromDescriptor(d));
                     }
                     Type ret = ExternalClasspath.typeFromDescriptor(sig.returnDescriptor());
+                    // §557: a flag ownerIsInterface() do MethodSignature é o que
+                    // decide INVOKEINTERFACE vs INVOKEVIRTUAL — ver
+                    // ExternalDispatchKind.of (InterfaceCalls).
                     sa.putResolvedMethod(mc, new SymbolTable.MethodSymbol(mc.methodName(),
                             ct.internalName(), ret, params, 1,
-                            SymbolTable.DispatchKind.INSTANCE));
+                            ExternalDispatchKind.of(sig.ownerIsInterface())));
                     return ret;
                 }
             }

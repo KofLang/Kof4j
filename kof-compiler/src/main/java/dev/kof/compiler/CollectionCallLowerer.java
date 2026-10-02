@@ -13,47 +13,10 @@ public final class CollectionCallLowerer {
 
     static int lower(CompilerDriver driver, Type recvType, MethodCallExpr mc, List<KofOperation> ops,
                       String owner, int localIdx, List<IRLocalVariable> locals) {
-    if (BuiltinTypes.isList(recvType)
-            && ("map".equals(mc.methodName()) || "filter".equals(mc.methodName())
-                || "reduce".equals(mc.methodName()))) {
-        String hoFn = "kof_list_" + mc.methodName();
-        // receiver já empilhado acima (3396) — não duplicar
-        Type lambdaT = Type.UnknownType.UNKNOWN;
-        // reduce: init antes; lambda por último
-        for (ExpressionNode arg : mc.arguments()) {
-            if (!(arg instanceof LambdaExpr)) {
-                Type argT = ExpressionTyper.inferExprType(driver, arg, locals);
-                localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
-                // (#57: IfExpr/switch heterogêneo já boxeou in-branch → pular)
-                if (TypeMetrics.isPrimitiveType(argT) && driver.target == Target.JVM
-                        && !ExpressionTyper.boxesOwnBranches(driver, arg, locals)) {
-                    Type boxed = TypeMetrics.boxedTypeFor(argT);
-                    ops.add(new KofCall(boxed, "kof_box", List.of(argT), boxed, KofCallKind.FUNCTION));
-                }
-            }
-        }
-        for (ExpressionNode arg : mc.arguments()) {
-            if (arg instanceof LambdaExpr lam) {
-                lambdaT = ExpressionTyper.inferExprType(driver, lam, locals);
-                localIdx = ExpressionLowerer.emitExpression(driver, lam, ops, owner, localIdx, locals);
-            }
-        }
-        List<Type> callParams = new ArrayList<>();
-        callParams.add(new Type.ClassType("java.util", "ArrayList", List.of()));
-        if ("reduce".equals(mc.methodName())) callParams.add(new Type.ClassType("java.lang", "Object", List.of()));
-        callParams.add(new Type.ClassType("java.lang", "Object", List.of()));
-        Type ret;
-        if ("filter".equals(mc.methodName())) ret = recvType;
-        else if ("map".equals(mc.methodName())) {
-            Type elem = (lambdaT instanceof Type.FunctionType ft && !(ft.returnType() instanceof Type.UnknownType)) ? ft.returnType() : Type.UnknownType.UNKNOWN;
-            ret = new Type.ClassType("kof", "List", List.of(elem));
-        } else {
-            ret = (lambdaT instanceof Type.FunctionType ft) ? ft.returnType() : Type.UnknownType.UNKNOWN;
-        }
-        ops.add(new KofCall(new Type.ClassType("dev.kof.runtime", "KofRuntime", List.of()), hoFn, callParams, ret,
-                KofCallKind.FUNCTION));
-        return localIdx;
-    }
+    // Higher-orders de List moram em CollectionHigherOrderLowerer (split do
+    // gate 500 — o bloco cruzou a linha com os quantificadores any/all/none).
+    int ho = CollectionHigherOrderLowerer.lowerHo(driver, recvType, mc, ops, owner, localIdx, locals);
+    if (ho >= 0) return ho;
     if (KofProcess.isHandle(recvType)) {
         // F10: h.write/readLine/exitCode/kill/alive — o handle
         // empilhado entra como 1º parâmetro do call estático
@@ -80,6 +43,11 @@ public final class CollectionCallLowerer {
         if (chIdx >= 0) return chIdx;
     }
     if (BuiltinTypes.isList(recvType)) {
+        // D-MULTIPARADIGMA-PHASE1A slice 1i — zip lives in CollectionZipLowerer
+        // (split do gate 500: o bloco cruzou a linha vermelha de 600).
+        if ("zip".equals(mc.methodName())) {
+            return CollectionZipLowerer.lower(driver, recvType, mc, ops, owner, localIdx, locals);
+        }
         String listFn = switch (mc.methodName()) {
             case "add", "push", "append" -> "kof_list_add";
             case "get" -> "kof_list_get";
@@ -94,7 +62,15 @@ public final class CollectionCallLowerer {
             case "lastIndexOf" -> "kof_list_last_index_of";
             case "addAll" -> "kof_list_add_all";
             case "subList" -> "kof_list_sub_list";
+            // pagination P1 — in-memory window ops (janela materializada).
+            case "take" -> "kof_list_take";
+            case "drop" -> "kof_list_drop";
+            case "slice" -> "kof_list_slice";
             case "sort" -> "kof_list_sort";
+            case "sorted" -> CollectionMultiparadigmaLowerer.sortedFn(mc);
+            // D-MULTIPARADIGMA-PHASE1A slice 1e — distinct (dedup copy).
+            case "distinct" -> "kof_list_distinct";
+            case "groupBy" -> "kof_list_groupby";
             default -> null;
         };
         // R6: método desconhecido em List não pode ser silencioso (bug Set.first)
@@ -106,7 +82,7 @@ public final class CollectionCallLowerer {
             driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
                     mc.position() != null ? mc.position().line() : 0,
                     mc.position() != null ? mc.position().column() : 0, 0,
-                    "Cannot resolve method '" + m + "' on type 'List' (valid: add/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/sort)",
+                    "Cannot resolve method '" + m + "' on type 'List' (valid: add/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/find/forEach/flatMap/distinct/sorted/groupBy/zip)",
                     "SEM025");
             return localIdx;
         }
@@ -128,17 +104,45 @@ public final class CollectionCallLowerer {
             List<Type> argTypes = new ArrayList<>();
             for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
             Type elemType = driver.listElementType(recvType);
-            // SEM097 (domínio natural do sort) — nunca ordem silenciosa
+            // SEM097 (domínio natural do sort/sorted) — nunca ordem silenciosa
             // errada. Float×native era NAT001; FECHADO 21/09 (§352): o runtime
             // alarga os 32 bits crus do slot para Double e reusa o compare.
-            if ("kof_list_sort".equals(listFn) && driver.currentDiagnostics != null
-                    && !CollectionMethodGates.naturalOrderType(elemType)) {
-                var pos = mc.position();
-                driver.currentDiagnostics.error(pos != null ? pos.file() : "",
-                        pos != null ? pos.line() : 0, pos != null ? pos.column() : 0, 0,
-                        CollectionMethodGates.sortDomainError(elemType), "SEM097");
-                return localIdx;
+            // Só a forma natural (aridade 0): com comparador, a ordem vem da
+            // lambda (D-MULTIPARADIGMA-SORTED) — sem gate de domínio.
+            // #685: enum TAMBÉM tem ordem natural REAL (D-ENUM207: ordinal/
+            // compareTo determinísticos cross-target), então entra no domínio —
+            // a forma natural é rebaixada abaixo para o comparador `a.compareTo(b)`
+            // (kof_list_sort_cmp/sorted_cmp), nunca para o tag de primitivo.
+            boolean enumNatural = false;
+            if ("kof_list_sort".equals(listFn) || "kof_list_sorted".equals(listFn)) {
+                enumNatural = CompilerTypes.isEnumType(
+                        elemType instanceof Type.NullableType nt0 ? nt0.inner() : elemType,
+                        driver.currentUnit);
+                if (!enumNatural && driver.currentDiagnostics != null
+                        && !CollectionMethodGates.naturalOrderType(elemType)) {
+                    var pos = mc.position();
+                    driver.currentDiagnostics.error(pos != null ? pos.file() : "",
+                            pos != null ? pos.line() : 0, pos != null ? pos.column() : 0, 0,
+                            CollectionMethodGates.sortDomainError(elemType), "SEM097");
+                    return localIdx;
+                }
             }
+            if (enumNatural) {
+                // Rewrite the natural form into the comparator form: the
+                // in-place sort calls kof_list_sort_cmp, the copy sorted calls
+                // kof_list_sorted_cmp — both order by the enum's ordinal via
+                // compareTo (the SAME method the user/test would call).
+                boolean inPlace = "kof_list_sort".equals(listFn);
+                ExpressionNode cmp = CollectionLoweringSupport.enumOrderLambda(driver, mc, elemType);
+                mc = new MethodCallExpr(mc.position(), mc.receiver(), mc.methodName(),
+                        mc.typeArguments(), List.of(cmp));
+                listFn = inPlace ? "kof_list_sort_cmp" : "kof_list_sorted_cmp";
+                argTypes = new ArrayList<>();
+                argTypes.add(new Type.FunctionType(List.of(elemType, elemType),
+                        Type.PrimitiveType.INT, null));
+            }
+            // Slices 1g/1h — gates de forma lambda em CollectionMultiparadigmaLowerer.
+            if (CollectionMultiparadigmaLowerer.checkLambdaForm(driver, listFn, mc)) return localIdx;
             // §122 (opção B, família SEM051/052/053/054): o índice de
             // get/set/remove é Int (learn/12: remove(0) devolve o elemento);
             // String/record/array no índice era ACEITO em silêncio e quebrava
@@ -151,7 +155,7 @@ public final class CollectionCallLowerer {
                     || "kof_list_remove".equals(listFn) || "kof_list_sub_list".equals(listFn))
                     && !argTypes.isEmpty() && driver.currentDiagnostics != null) {
                 Type idxT = argTypes.get(0);
-                if (isReferenceIndexType(idxT)) {
+                if (CollectionMethodGates.isReferenceIndexType(idxT)) {
                     var pos = mc.position();
                     driver.currentDiagnostics.error(pos != null ? pos.file() : "",
                             pos != null ? pos.line() : 0, pos != null ? pos.column() : 0, 0,
@@ -162,7 +166,7 @@ public final class CollectionCallLowerer {
                 }
                 // #382: subList tem DOIS índices — o segundo também é Int.
                 if ("kof_list_sub_list".equals(listFn) && argTypes.size() > 1
-                        && isReferenceIndexType(argTypes.get(1))) {
+                        && CollectionMethodGates.isReferenceIndexType(argTypes.get(1))) {
                     var pos = mc.position();
                     driver.currentDiagnostics.error(pos != null ? pos.file() : "",
                             pos != null ? pos.line() : 0, pos != null ? pos.column() : 0, 0,
@@ -171,6 +175,15 @@ public final class CollectionCallLowerer {
                             "SEM055");
                     return localIdx;
                 }
+            }
+            // pagination P1 — take/drop/slice exigem Int count (SEM055).
+            String countMsg = CollectionMethodGates.countDomainError(listFn, mc.methodName(), argTypes);
+            if (countMsg != null && driver.currentDiagnostics != null) {
+                var pos = mc.position();
+                driver.currentDiagnostics.error(pos != null ? pos.file() : "",
+                        pos != null ? pos.line() : 0, pos != null ? pos.column() : 0, 0,
+                        countMsg, "SEM055");
+                return localIdx;
             }
                 // listOf() with no type argument produces
             // List<Unknown>; the first add() pins the element
@@ -243,12 +256,18 @@ public final class CollectionCallLowerer {
                     // (Map/Set toleram heterogeneidade pelo consenso 3/4).
                     "kof_list_add".equals(listFn) || "kof_list_set".equals(listFn));
             Type retType = switch (listFn) {
-                case "kof_list_add", "kof_list_set", "kof_list_clear", "kof_list_sort" -> Type.PrimitiveType.VOID;
+                case "kof_list_add", "kof_list_set", "kof_list_clear", "kof_list_sort",
+                        "kof_list_sort_cmp" -> Type.PrimitiveType.VOID;
                 case "kof_list_contains", "kof_list_is_empty", "kof_list_add_all" -> Type.PrimitiveType.BOOL;
                 // #382 — indexOf/lastIndexOf: Int (-1 ausente, oracle java.util);
                 // subList: List do mesmo tipo de elemento.
                 case "kof_list_index_of", "kof_list_last_index_of" -> Type.PrimitiveType.INT;
-                case "kof_list_sub_list" -> recvType;
+                case "kof_list_sub_list", "kof_list_take", "kof_list_drop", "kof_list_slice" -> recvType;
+                // D-MULTIPARADIGMA-PHASE1A slice 1e — distinct returns List<E> (copy).
+                // Slice 1g — sorted/sorted_cmp return List<E> (fresh copy).
+                // Slice 1h — groupBy returns Map<K,List<E>> (K = lambda return).
+                case "kof_list_distinct", "kof_list_sorted", "kof_list_sorted_cmp" -> recvType;
+                case "kof_list_groupby" -> CollectionMultiparadigmaLowerer.groupReturnType(elemType, argTypes);
                 case "kof_list_remove" -> elemType;
                 default -> elemType;
             };
@@ -263,12 +282,31 @@ public final class CollectionCallLowerer {
                 argTypes = new ArrayList<>(argTypes);
                 argTypes.add(Type.PrimitiveType.INT);
             }
+            // D-MULTIPARADIGMA-PHASE1A slice 1e — distinct: tag derivada só do
+            // elemType (sem arg), mesma taxonomia do contains (0=raw, 1=String
+            // content, 2=object via kof_obj_equals); Unknown herda o default 1
+            // da família (listas vazias nunca comparam — tag sem uso).
+            if ("kof_list_distinct".equals(listFn)) {
+                ops.add(new KofLoadLiteral(Type.PrimitiveType.INT,
+                        CollectionWrites.stringTag(elemType, List.of(), 0)));
+                argTypes = new ArrayList<>(argTypes);
+                argTypes.add(Type.PrimitiveType.INT);
+            }
             // #382 — sort: tag derivada só do elemType (sem arg):
             // 0=raw signed qword (Int/Long/Bool/Char/Unknown-vazio),
             // 1=String (kof_string_compare_to), 2=Double (ucomisd/fld+flt.d).
-            if ("kof_list_sort".equals(listFn)) {
+            // Slice 1g — a forma natural de sorted() carrega o mesmo tag
+            // (reusa kof_list_cmp); a forma com comparador não precisa de
+            // tag (a ordem vem da lambda — slots crus como em map/filter).
+            if ("kof_list_sort".equals(listFn) || "kof_list_sorted".equals(listFn)) {
                 ops.add(new KofLoadLiteral(Type.PrimitiveType.INT,
                         CollectionMethodGates.sortTag(elemType)));
+                argTypes = new ArrayList<>(argTypes);
+                argTypes.add(Type.PrimitiveType.INT);
+            }
+            if ("kof_list_groupby".equals(listFn)) {
+                ops.add(new KofLoadLiteral(Type.PrimitiveType.INT,
+                        CollectionMultiparadigmaLowerer.groupKeyTag(argTypes)));
                 argTypes = new ArrayList<>(argTypes);
                 argTypes.add(Type.PrimitiveType.INT);
             }
@@ -423,9 +461,9 @@ public final class CollectionCallLowerer {
             if (("kof_map_put".equals(mapFn) || "kof_map_get_or_default".equals(mapFn)
                     || "kof_map_put_if_absent".equals(mapFn))
                     && argTypes.size() > 1 && driver.target.isNative()
-                    && driver.needsErasureBoxing() && mapSlotAcceptsBox(valueType)
-                    && (mapBoxablePrim(argTypes.get(1))
-                            || referenceSlotPrim(valueType, argTypes.get(1)))
+                    && driver.needsErasureBoxing() && CollectionLoweringSupport.mapSlotAcceptsBox(valueType)
+                    && (CollectionLoweringSupport.mapBoxablePrim(argTypes.get(1))
+                            || CollectionLoweringSupport.referenceSlotPrim(valueType, argTypes.get(1)))
                     && !ExpressionTyper.boxesOwnBranches(driver, mc.arguments().get(1), locals)) {
                 CompilerEmissionHelpers.emitErasureBox(driver, ops, argTypes.get(1));
             }
@@ -543,43 +581,5 @@ public final class CollectionCallLowerer {
         return -1;
     }
 
-    // §284-map (18/09): slot que comporta caixa — concreto na familia
-    // Int/Long OU apagado (Unknown/Object — mapOf() sem pin, Map<_,Object>).
-    private static boolean mapSlotAcceptsBox(Type t) {
-        Type inner = t instanceof Type.NullableType nt ? nt.inner() : t;
-        if (inner instanceof Type.UnknownType || BuiltinTypes.isObject(inner)) return true;
-        return mapBoxablePrim(inner);
-    }
-
-    // ...e o dominio exato de unboxFn no nativo (int/char/short/byte/long).
-    // Double/Float/Bool ficam crus la e ca: sem kof_unbox para eles, o par
-    // cru × no-op que existia antes do §284 permanece casado (zero regressao).
-    static boolean mapBoxablePrim(Type t) {
-        if (!(t instanceof Type.PrimitiveType pt)) return false;
-        return switch (pt.name()) {
-            case "int", "char", "short", "byte", "long" -> true;
-            default -> false;
-        };
-    }
-
-    /** §352 NAT002 — slot de valor REFERÊNCIA (Object): TODO primitivo é
-     *  normalizado como caixa no put nativo (kof_box_* existe para
-     *  Double/Float/Bool também). O runtime classifica as caixas/Strings/
-     *  ponteiros no scan de containsValue (tag 6 dinâmico) — sem kind
-     *  estático, sem deref cega. */
-    static boolean referenceSlotPrim(Type slot, Type arg) {
-        if (!(arg instanceof Type.PrimitiveType)) return false;
-        Type s = slot instanceof Type.NullableType nt ? nt.inner() : slot;
-        return BuiltinTypes.isObject(s);
-    }
-
-    /** §122: tipos que NUNCA são um índice válido p/ get/set/remove de List. */
-    private static boolean isReferenceIndexType(Type t) {
-        if (t == null || Type.UnknownType.UNKNOWN.equals(t)) return false;
-        if (t instanceof Type.NullableType nt) return isReferenceIndexType(nt.inner());
-        if (TypeMetrics.isPrimitiveType(t)) return false;
-        return t instanceof Type.ClassType || t instanceof Type.ArrayType
-                || t instanceof Type.TypeVariable;
-    }
 
 }

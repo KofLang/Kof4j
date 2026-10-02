@@ -158,21 +158,10 @@ class NativeRiscvDtoaTest {
         String sysroot = NativeCrossLink.sysrootFor(arch);
         runCapture(NativeCrossLink.ldArgs(ld, bin, obj, arch, true, sysroot));
         bin.toFile().setExecutable(true);
-        ProcessBuilder pb = new ProcessBuilder("qemu-" + arch, bin.toString());
         String prefix = NativeCrossLink.qemuPrefixFor(arch);
-        if (prefix != null) pb.environment().put("QEMU_LD_PREFIX", prefix);
-        Process p = pb.start();
-        String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
-                .replace("\r\n", "\n").trim();
-        int ec;
-        try {
-            ec = p.waitFor();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IOException(e);
-        }
-        assertEquals(0, ec, "qemu " + arch + " falhou (" + ec + "): " + out);
-        return out;
+        java.util.Map<String, String> env = prefix == null ? java.util.Map.of()
+                : java.util.Map.of("QEMU_LD_PREFIX", prefix);
+        return QemuRun.runExpect0(env, "qemu-" + arch, bin.toString());
     }
 
     @Test

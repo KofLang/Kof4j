@@ -3,13 +3,24 @@
 # 21 — Java Interoperability
 
 > **Status: partial — compatible JVM bytecode; direct Java call works
-> for what is on the classpath (verified 02/09)**
+> for what is on the classpath (verified 02/09; corrected 01/10, §558)**
 >
 > The compiler generates standard JVM bytecode (V21). **Before assuming that a Java
 > API works, compile and run.** Verified on 02/09: `java.util` collections
-> ✅; `java.time`/`java.util.stream` ❌ (types do not resolve without an external
+> ✅; `java.time`/`java.util.stream` ❌ (types do not resolve without an
 > classpath); `java.io.FileWriter.write` ❌ (wrong overload resolution →
 > `NoSuchMethodError`).
+>
+> **Re-measured 01/10 (fresh tip jar, KofShare probes):** JDK types resolve through
+> `import` with **NO** external classpath — `import java.time.LocalDate;` +
+> `LocalDate.now()` is ✅ (the 02/09 ❌ was the no-import/qualified-receiver face).
+> The qualified name is NOT a general receiver: a bare `java.X.Y.call(...)` is
+> SEM011; ✅ positions are `import` + plain name, `var x = java.X.Y.staticCall(...)`
+> (initializer) and `new java.X.Y(...)`. Streams are not an interop path —
+> `jl.stream()` is honestly `SEM025` (Kof `List` is the language's own collection;
+> `new ArrayList<T>()` types as `List`). Third-party jars reach via `kof deps` +
+> `--deps` (BouncyCastle `import`/ctor/cast/instance-calls measured green 01/10).
+> See `known-bugs` §558 (EN+PT).
 
 ## The premise
 
@@ -169,7 +180,7 @@ try {
 `cancel()` (from a `spawn` task, for example) stops the live call —
 `INTEROP008` on both engines: python self-reports `KOFCANCEL`; R dies on the
 SIGINT and the parent NAMES the death (a reply that landed first wins).
-Records cross with the platform's own JSON: `callJson` + `json.decode[T]`.
+Records cross with the platform's own JSON: `callJson` + `json.decode<T>`.
 Names that replace guessing: `INTEROP004` interpreter missing/died,
 `INTEROP005` the target has no proven process runtime (cross §514, ANDROID,
 MCU — compile-time refusal that keeps the face), `INTEROP006` remote error

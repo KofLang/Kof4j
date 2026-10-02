@@ -45,7 +45,7 @@ Marshalling bidirecional tipado (`Int`/`Double`/`Bool`/`String`/`List`/`Map`/`re
 
 ## Relacao com o ecossistema
 
-- `future/kof-connector-ecosystem-plan.md` NÃO é puxado para development — abri-lo precisa da decisão explícita `D-CONNECTORS` (regra 6). Os motores X2 SÃO a forma processo dos conectores §5.5 (Python) / §5.6 (R) do catálogo; a rota embedding/CPython-C-API/R-C-API segue não-implementada e não é do X2. Se `D-CONNECTORS` abrir, o wire + as faces do X2 seguem como o adaptador do connector de processo; `INTEROP00x`, goldens e testes permanecem. Fatias 3–5 não afetadas.
+- `kof-connector-ecosystem-plan.md` NÃO é puxado para development — abri-lo precisa da decisão explícita `D-CONNECTORS` (regra 6). Os motores X2 SÃO a forma processo dos conectores §5.5 (Python) / §5.6 (R) do catálogo; a rota embedding/CPython-C-API/R-C-API segue não-implementada e não é do X2. Se `D-CONNECTORS` abrir, o wire + as faces do X2 seguem como o adaptador do connector de processo; `INTEROP00x`, goldens e testes permanecem. Fatias 3–5 não afetadas.
 
 ## Fechamento
 

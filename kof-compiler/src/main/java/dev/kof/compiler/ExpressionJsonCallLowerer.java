@@ -37,7 +37,7 @@ public final class ExpressionJsonCallLowerer {
             // (desembale via kof_box_to_string, mesma tabela do println) para
             // nao JSONificar o PONTEIRO da caixa. List/Set seguem crus.
             if (driver.target.isNative()
-                    && CollectionCallLowerer.mapBoxablePrim(
+                    && CollectionLoweringSupport.mapBoxablePrim(
                         mv2 instanceof Type.NullableType nt ? nt.inner() : mv2)) {
                 tag = 7;
             }
@@ -124,6 +124,24 @@ public final class ExpressionJsonCallLowerer {
                 BuiltinTypes.STRING, KofCallKind.FUNCTION));
     } else if ("decode".equals(mc.methodName()) && mc.arguments().size() == 1
             && !mc.typeArguments().isEmpty()) {
+        // §538: um type-argument que é um PARÂMETRO DE TIPO ABERTO do escopo
+        // (`json.decode<T>` dentro de `f<T>`) não tem token de tipo em runtime.
+        // Antes o lowerer escrevia o NOME do type-var no símbolo e no cast
+        // (`kof_json_decode_T` + `checkcast T`) → bytecode inválido. Recusa
+        // explícita em compile-time (R6), nunca emitir símbolo inexistente.
+        Type openCheck = CompilerTypes.resolveWithTypeParams(mc.typeArguments().get(0),
+                driver.currentTypeParams, driver.currentUnit, driver.semanticAnalyzer);
+        if (hasOpenTypeParam(openCheck)) {
+            if (driver.currentDiagnostics != null) {
+                SourcePosition p = mc.position();
+                driver.currentDiagnostics.error(p != null ? p.file() : "",
+                        p != null ? p.line() : 0, p != null ? p.column() : 0, 0,
+                        "json.decode: an open type parameter has no runtime type token"
+                                + " — use a concrete type (the decoder needs a Class to build the value)",
+                        "JSN005");
+            }
+            return localIdx;
+        }
         Type targetType = CompilerTypes.toType(mc.typeArguments().get(0), driver.currentUnit);
         if (!driver.jsonSupported(targetType, true)) {
             return localIdx;
@@ -267,5 +285,20 @@ public final class ExpressionJsonCallLowerer {
                 targetType, KofCallKind.FUNCTION));
     }
     return localIdx;
+    }
+
+    /** §538: o tipo (recursivo, inclui args de `ClassType`) carrega um
+     *  type-param aberto ({@link Type.TypeVariable}/{@link Type.WildcardType})? */
+    private static boolean hasOpenTypeParam(Type t) {
+        if (t == null) return false;
+        if (t instanceof Type.NullableType n) return hasOpenTypeParam(n.inner());
+        if (t instanceof Type.TypeVariable || t instanceof Type.WildcardType) return true;
+        if (t instanceof Type.ArrayType a) return hasOpenTypeParam(a.componentType());
+        if (t instanceof Type.ClassType ct) {
+            for (Type arg : ct.typeArguments()) {
+                if (hasOpenTypeParam(arg)) return true;
+            }
+        }
+        return false;
     }
 }

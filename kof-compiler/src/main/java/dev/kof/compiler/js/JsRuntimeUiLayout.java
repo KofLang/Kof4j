@@ -60,6 +60,11 @@ public final class JsRuntimeUiLayout {
                         { display: "flex", alignItems: "center", justifyContent: "center" });
             }
 
+            export function kofUiScrollNew(ids) {
+                return kofUiLayoutContainerNew("div", "kof-scroll", ids,
+                        { overflow: "auto" });
+            }
+
             export function kofUiAlignNew(horizontal, vertical, ids) {
                 // horizontal/vertical: 0=start, 1=center, 2=end
                 const justify = horizontal === 1 ? "center" : horizontal === 2 ? "flex-end" : "flex-start";

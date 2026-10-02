@@ -30,7 +30,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * familia no nativo; (4) path relativo resolve por CWD no nativo e por
  * kof.root na JVM — por isso o app so usa caminhos absolutos.
  */
-class MediaNativeE2ETest {
+class MediaNativeE2ETest extends MediaByteSupport {
 
     private final CompilerDriver driver = new CompilerDriver();
 
@@ -49,56 +49,11 @@ class MediaNativeE2ETest {
 
     // ── fixtures (bytes EXATOS, escritos por Java — nunca por memoria) ────
 
-    private static int be32(byte[] b, int off, long v) {
-        b[off] = (byte) (v >> 24); b[off + 1] = (byte) (v >> 16);
-        b[off + 2] = (byte) (v >> 8); b[off + 3] = (byte) v;
-        return off + 4;
-    }
 
-    private static void type4(byte[] b, int off, String t) {
-        for (int i = 0; i < 4; i++) b[off + i] = (byte) t.charAt(i);
-    }
 
-    private static byte[] clipMp4() {
-        // ftyp(20) + free EXTENDIDO (size=1 + largesize=32, payload com bytes
-        // >0x7F p/ exercitar o SIGNED no bytes()) + moov(108)/mvhd v0
-        // (timescale=1000, duration=3000 -> 3000ms)
-        byte[] b = new byte[20 + 32 + 108];
-        be32(b, 0, 20); type4(b, 4, "ftyp"); type4(b, 8, "isom");
-        be32(b, 20, 1); type4(b, 24, "free"); be32(b, 28, 0); be32(b, 32, 32);
-        b[36] = (byte) 0xB8; b[37] = (byte) 0xFE; b[38] = 0x01; b[39] = (byte) 0x80;
-        be32(b, 52, 108); type4(b, 56, "moov");
-        be32(b, 60, 100); type4(b, 64, "mvhd");
-        b[68] = 0;                                // version 0, flags 0
-        be32(b, 80, 1000);                        // timescale
-        be32(b, 84, 3000);                        // duration
-        return b;
-    }
 
-    private static byte[] clipZeroSizeMp4() {
-        // free com size==0 (box ate o fim do container) ANTES do moov: o scan
-        // consome o resto do arquivo e NUNCA ve o moov -> dur 0 nos dois lados
-        byte[] b = new byte[16 + 108];
-        be32(b, 0, 0); type4(b, 4, "free");
-        be32(b, 16, 108); type4(b, 20, "moov");
-        be32(b, 24, 100); type4(b, 28, "mvhd");
-        be32(b, 44, 1000); be32(b, 48, 3000);
-        return b;
-    }
 
-    private static byte[] wav(int format, int channels, int rate, int bits, byte[] data) {
-        byte[] b = new byte[44 + data.length];
-        type4(b, 0, "RIFF"); be32le(b, 4, 36 + data.length); type4(b, 8, "WAVE");
-        type4(b, 12, "fmt "); be32le(b, 16, 16);
-        le16(b, 20, format); le16(b, 22, channels); le32(b, 24, rate);
-        le32(b, 28, rate * channels * 2); le16(b, 32, channels * 2); le16(b, 34, bits);
-        type4(b, 36, "data"); be32le(b, 40, data.length);
-        System.arraycopy(data, 0, b, 44, data.length);
-        return b;
-    }
 
-    private static void le16(byte[] b, int off, int v) { b[off] = (byte) v; b[off + 1] = (byte) (v >> 8); }
-    private static void le32(byte[] b, int off, int v) { le16(b, off, v & 0xFFFF); le16(b, off + 2, v >> 16); }
     private static void be32le(byte[] b, int off, int v) { le32(b, off, v); } // LE 32 no header WAV
 
     // ── runners ───────────────────────────────────────────────────────────

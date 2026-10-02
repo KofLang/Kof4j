@@ -160,7 +160,7 @@ class FullStackE2ETest {
                 try {
                     if (get(port, "/api/ping").code == 200) up = true;
                 } catch (IOException e) {
-                    Thread.sleep(500);
+                    CliAwaitFixture.pause(500);
                 }
             }
             assertTrue(up, "servidor não subiu na porta " + port);

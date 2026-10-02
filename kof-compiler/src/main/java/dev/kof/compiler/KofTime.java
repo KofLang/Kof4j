@@ -39,7 +39,7 @@ public final class KofTime {
 
 /** X10 fatia 2: nomes aceitos pelo dispatch real (catálogo p/ LSP).
      *  GUARDA: StdCatalogTest exige == case-literals da fonte abaixo. */
-    static List<String> functions() { return List.of("sleep", "now", "interval", "cancel", "collect", "isLeapYear", "daysInMonth", "dayOfWeek", "daysBetween", "isWeekend", "addDays", "diffDays", "todayIso", "formatDateIso", "isToday", "hoursBetween", "parseDateIso", "tzOffsetSeconds"); }
+    static List<String> functions() { return List.of("sleep", "now", "interval", "cancel", "collect", "isLeapYear", "daysInMonth", "dayOfWeek", "daysBetween", "age", "isWeekend", "addDays", "addMonths", "addYears", "startOf", "endOf", "diffDays", "todayIso", "formatDateIso", "isToday", "hoursBetween", "parseDateIso", "tzOffsetSeconds"); }
 
     static boolean isTimeMethod(String name) {
         return switch (name) {
@@ -48,11 +48,11 @@ public final class KofTime {
                     "collect",
                     // STDLIB S7-wedge: calendário civil (escalares puros —
                     // dias entre datas e dia-da-semana chegam no próximo degrau)
-                    "isLeapYear", "daysInMonth", "dayOfWeek", "daysBetween",
+                    "isLeapYear", "daysInMonth", "dayOfWeek", "daysBetween", "age",
                     // S7-ext: fim de semana (dayOfWeek >= 6)
                     "isWeekend",
                     // STDLIB S7a: add/diff sobre data ISO (STR->STR/Int)
-                    "addDays", "diffDays",
+                    "addDays", "addMonths", "addYears", "startOf", "endOf", "diffDays",
                     // S7e (D-STDLIB ratificado 13/09): hoje/formato UTC-only
                     "todayIso", "formatDateIso", "isToday",
                     // S7f (D3): diferença de horas entre dois instantes
@@ -158,6 +158,13 @@ public final class KofTime {
             case "daysBetween" -> argTypes.size() == 6
                     ? new TimeCall("kof_time_daysBetween", INT,
                             List.of(INT, INT, INT, INT, INT, INT)) : null;
+            // S7-wedge ext — idade: anos COMPLETOS entre a data de nascimento e a
+            // data de referência (subtrai 1 quando o aniversário ainda não ocorreu
+            // na referência). Mesma política "data inválida => 0" do wedge; aritmética
+            // 100% inteira => paridade byte-a-byte nos 5 alvos (sem asm de String).
+            case "age" -> argTypes.size() == 6
+                    ? new TimeCall("kof_time_age", INT,
+                            List.of(INT, INT, INT, INT, INT, INT)) : null;
             // STDLIB S7a — data ISO (String) add/diff. JVM/SCRIPT via
             // java.time; x86 (RuntimeTimeIso), riscv64/aarch64 (NativeRiscvAsmRtB33)
             // e JS (JsRuntimeUiWeb) fecham TIME002 (11/09). Inválido => ""/0
@@ -165,6 +172,29 @@ public final class KofTime {
             case "addDays" -> argTypes.size() == 2 && argTypes.get(0) == STR
                     && argTypes.get(1) == INT
                     ? new TimeCall("kof_time_addDays", STR, List.of(STR, INT)) : null;
+            // S7a-ext (STDLIB front #1) — data ISO + N meses. Mesmo contrato de
+            // addDays (parse estrito, inválido/out-of-range => ""). clamp de fim
+            // de mês (dia=min(dia, daysInMonth)) => paridade com java.time.
+            case "addMonths" -> argTypes.size() == 2 && argTypes.get(0) == STR
+                    && argTypes.get(1) == INT
+                    ? new TimeCall("kof_time_addMonths", STR, List.of(STR, INT)) : null;
+            // S7a-ext2 (STDLIB front #1) — data ISO + N anos. clamp de fim de
+            // mês em 29/fev (ano destino não-bissexto => 28/fev); inválida /
+            // resultado fora de 1..9999 => "". Aritmética inteira pura.
+            case "addYears" -> argTypes.size() == 2 && argTypes.get(0) == STR
+                    && argTypes.get(1) == INT
+                    ? new TimeCall("kof_time_addYears", STR, List.of(STR, INT)) : null;
+            // S7a-ext3 (STDLIB front #1) — inicio/fim do período de uma data ISO.
+            // unit = day|week|month|year (semana = segunda..domingo, dayOfWeek ISO).
+            // Composta dos primitivos já com paridade provada (dayOfWeek/addDays/
+            // daysInMonth) => byte-idêntica por construção. Data inválida / unit
+            // desconhecida / resultado fora de 1..9999 => "".
+            case "startOf" -> argTypes.size() == 2 && argTypes.get(0) == STR
+                    && argTypes.get(1) == STR
+                    ? new TimeCall("kof_time_startOf", STR, List.of(STR, STR)) : null;
+            case "endOf" -> argTypes.size() == 2 && argTypes.get(0) == STR
+                    && argTypes.get(1) == STR
+                    ? new TimeCall("kof_time_endOf", STR, List.of(STR, STR)) : null;
             case "diffDays" -> argTypes.size() == 2 && argTypes.get(0) == STR
                     && argTypes.get(1) == STR
                     ? new TimeCall("kof_time_diffDays", INT, List.of(STR, STR)) : null;

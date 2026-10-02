@@ -308,4 +308,178 @@ class SpawnE2ETest {
         assertEquals(0, p.waitFor(), "exit code, output: " + output);
         assertTrue(output.contains("42"), "await devolve o valor da lambda: " + output);
     }
+
+    // ---- fase 4.2 (#659, D-MEMORY-SAFETY): a face do §46 com CAPTURA so era
+    // travada no Native; a alegacao "interpreter/JVM/JS -> 42" vivia so na
+    // prose. Mesma fonte, mesma saida, nos outros tres alvos — paridade
+    // provada por bateria, nao por memoria de prosa.
+
+    private static final String SPAWN_RETURN_CAPTURE = """
+            main() {
+                var n = 21
+                var h = spawn { return n * 2 }
+                println(await h)
+            }
+            """;
+
+    @Test
+    void jvmSpawnExprAwaitLambdaReturn(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main-jvm42.kf");
+        Files.writeString(source, SPAWN_RETURN_CAPTURE);
+        assertEquals("42", runJvm(source, tempDir.resolve("out-jvm42")));
+    }
+
+    @Test
+    void scriptSpawnExprAwaitLambdaReturn(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main-script42.kf");
+        Files.writeString(source, SPAWN_RETURN_CAPTURE);
+        KofInterpreter.Result r = new CompilerDriver().interpret(List.of(source),
+                tempDir.resolve("out-script42"), new String[0]);
+        String output = r.stdout().replace("\r\n", "\n").trim();
+        assertEquals(0, r.exitCode(), "SCRIPT exit, output: '" + output + "'");
+        assertEquals("42", output, "await no interpretador devolve a captura");
+    }
+
+    @Test
+    void jsSpawnExprAwaitLambdaReturn(@TempDir Path tempDir) throws Exception {
+        Path source = tempDir.resolve("Main-js42.kf");
+        Files.writeString(source, SPAWN_RETURN_CAPTURE);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out-js42"), Target.JS);
+        assertTrue(result.success(), "JS spawn-expr lambda return: " + result.diagnostics().getDiagnostics());
+        try (java.io.ByteArrayOutputStream buf = new java.io.ByteArrayOutputStream()) {
+            int ec = dev.kof.runtime.KofJsRunner.run(findJsEntry(tempDir.resolve("out-js42")), buf,
+                    java.io.InputStream.nullInputStream(), new java.io.ByteArrayOutputStream());
+            String output = buf.toString(java.nio.charset.StandardCharsets.UTF_8).trim();
+            assertEquals(0, ec, "JS exit, output: " + output);
+            assertEquals("42", output, "await no JS devolve a captura");
+        }
+    }
+
+    // Face MUTADA da captura em spawn (verifier independente #659): as faces
+    // acima leem a captura so — e no JVM leitura sem mutacao NAO passa por
+    // CapturedVarBox (LambdaTask0.<init>(I), medido). Esta face sim: o corpo
+    // do spawn MUTA o local capturado antes do return. Escopo honesto do
+    // diagnostico: o scanner MEM021 lista MUTATORS de OBJETO (add/remove/
+    // clear/addAll); reatribuicao ESCALAR fica silenciosa em qualquer lado —
+    // corrida escalar mutacao-durante-async e ambiguidade de contrato
+    // (issue aberta; regra 6), nao escolha deste teste.
+    private static final String SPAWN_MUTATED_CAPTURE = """
+            main() {
+                var n = 21
+                var h = spawn { n = n + 1; return n * 2 }
+                println(await h)
+            }
+            """;
+
+    @Test
+    void jvmSpawnExprAwaitMutatedCapture(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main-jvm44.kf");
+        Files.writeString(source, SPAWN_MUTATED_CAPTURE);
+        assertEquals("44", runJvm(source, tempDir.resolve("out-jvm44")));
+    }
+
+    @Test
+    void scriptSpawnExprAwaitMutatedCapture(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main-script44.kf");
+        Files.writeString(source, SPAWN_MUTATED_CAPTURE);
+        KofInterpreter.Result r = new CompilerDriver().interpret(List.of(source),
+                tempDir.resolve("out-script44"), new String[0]);
+        String output = r.stdout().replace("\r\n", "\n").trim();
+        assertEquals(0, r.exitCode(), "SCRIPT exit, output: '" + output + "'");
+        assertEquals("44", output, "mutacao da captura no corpo do spawn (SCRIPT)");
+    }
+
+    @Test
+    void jsSpawnExprAwaitMutatedCapture(@TempDir Path tempDir) throws Exception {
+        Path source = tempDir.resolve("Main-js44.kf");
+        Files.writeString(source, SPAWN_MUTATED_CAPTURE);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out-js44"), Target.JS);
+        assertTrue(result.success(), "JS spawn mutated-capture: " + result.diagnostics().getDiagnostics());
+        try (java.io.ByteArrayOutputStream buf = new java.io.ByteArrayOutputStream()) {
+            int ec = dev.kof.runtime.KofJsRunner.run(findJsEntry(tempDir.resolve("out-js44")), buf,
+                    java.io.InputStream.nullInputStream(), new java.io.ByteArrayOutputStream());
+            String output = buf.toString(java.nio.charset.StandardCharsets.UTF_8).trim();
+            assertEquals(0, ec, "JS exit, output: " + output);
+            assertEquals("44", output, "mutacao da captura no corpo do spawn (JS)");
+        }
+    }
+
+    @Test
+    void nativeSpawnExprAwaitMutatedCapture(@TempDir Path tempDir) throws IOException, InterruptedException {
+        Path source = tempDir.resolve("Main-native44.kf");
+        Files.writeString(source, SPAWN_MUTATED_CAPTURE);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out-native44"), Target.NATIVE);
+        assertTrue(result.success(), "Native spawn mutated-capture: " + result.diagnostics().getDiagnostics());
+        Path bin = tempDir.resolve("out-native44").resolve("Default/Main");
+        ProcessBuilder pb = new ProcessBuilder(bin.toString()).redirectErrorStream(true);
+        Process p = pb.start();
+        String output = new String(p.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).trim();
+        assertEquals(0, p.waitFor(), "exit, output: " + output);
+        assertEquals("44", output, "mutacao da captura no corpo do spawn (Native)");
+    }
+
+    // Visibilidade FILHO->PAI da caixa (verifier independente #659, 2a
+    // passada): as faces 44 acima so observam o ponto de vista do FILHO —
+    // um lowering por SNAPSHOT tambem daria 44. Aqui o PAI le `n` depois do
+    // `await`: 44\n22 so passa se a mutacao do filho for visivel ao pai via
+    // caixa + join. Sem este pino, regressao para captura-por-valor no spawn
+    // passaria 17/17+36/36 verdes.
+
+    private static final String SPAWN_MUTATED_CAPTURE_SHARE = """
+            main() {
+                var n = 21
+                var h = spawn { n = n + 1; return n * 2 }
+                println(await h)
+                println(n)
+            }
+            """;
+
+    private static final String SHARE_GOLDEN = "44\n22";
+
+    @Test
+    void jvmSpawnMutatedCaptureVisibleToParent(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main-share-jvm.kf");
+        Files.writeString(source, SPAWN_MUTATED_CAPTURE_SHARE);
+        assertEquals(SHARE_GOLDEN, runJvm(source, tempDir.resolve("out-share-jvm")));
+    }
+
+    @Test
+    void scriptSpawnMutatedCaptureVisibleToParent(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main-share-script.kf");
+        Files.writeString(source, SPAWN_MUTATED_CAPTURE_SHARE);
+        KofInterpreter.Result r = new CompilerDriver().interpret(List.of(source),
+                tempDir.resolve("out-share-script"), new String[0]);
+        String output = r.stdout().replace("\r\n", "\n").trim();
+        assertEquals(0, r.exitCode(), "SCRIPT exit, output: '" + output + "'");
+        assertEquals(SHARE_GOLDEN, output, "visibilidade filho->pai no interpretador");
+    }
+
+    @Test
+    void jsSpawnMutatedCaptureVisibleToParent(@TempDir Path tempDir) throws Exception {
+        Path source = tempDir.resolve("Main-share-js.kf");
+        Files.writeString(source, SPAWN_MUTATED_CAPTURE_SHARE);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out-share-js"), Target.JS);
+        assertTrue(result.success(), "JS share-face: " + result.diagnostics().getDiagnostics());
+        try (java.io.ByteArrayOutputStream buf = new java.io.ByteArrayOutputStream()) {
+            int ec = dev.kof.runtime.KofJsRunner.run(findJsEntry(tempDir.resolve("out-share-js")), buf,
+                    java.io.InputStream.nullInputStream(), new java.io.ByteArrayOutputStream());
+            String output = buf.toString(java.nio.charset.StandardCharsets.UTF_8).trim();
+            assertEquals(0, ec, "JS exit, output: " + output);
+            assertEquals(SHARE_GOLDEN, output, "visibilidade filho->pai no JS");
+        }
+    }
+
+    @Test
+    void nativeSpawnMutatedCaptureVisibleToParent(@TempDir Path tempDir) throws IOException, InterruptedException {
+        Path source = tempDir.resolve("Main-share-native.kf");
+        Files.writeString(source, SPAWN_MUTATED_CAPTURE_SHARE);
+        CompilationResult result = driver.compile(source, tempDir.resolve("out-share-native"), Target.NATIVE);
+        assertTrue(result.success(), "Native share-face: " + result.diagnostics().getDiagnostics());
+        Path bin = tempDir.resolve("out-share-native").resolve("Default/Main");
+        ProcessBuilder pb = new ProcessBuilder(bin.toString()).redirectErrorStream(true);
+        Process p = pb.start();
+        String output = new String(p.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).trim();
+        assertEquals(0, p.waitFor(), "exit, output: " + output);
+        assertEquals(SHARE_GOLDEN, output, "visibilidade filho->pai no Native");
+    }
 }

@@ -84,8 +84,13 @@ public final class JvmOpMap {
                 emitNullablyBoxedMapResult(mv, valueType);
             }
             case "kof_map_get_or_default" -> {
-                JvmOpCollections.emitBoxIfPrimitive(mv, keyType);
-                JvmOpCollections.emitBoxIfPrimitive(mv, writtenValueType);   // §432: box do DEFAULT pelo tipo escrito
+                // stack: map, key, default — o DEFAULT está no topo e a CHAVE
+                // embaixo: boxa o default primeiro e a chave depois (§441,
+                // mesmo helper do put/putIfAbsent). A ordem anterior
+                // (chave→default) empilhava Integer.valueOf DEPOIS do default,
+                // consumindo o default como int → VerifyError quando a chave
+                // era primitiva.
+                emitBoxValueUnderKey(ctx, mv, writtenValueType, keyType);
                 mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map", "getOrDefault",
                         "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;", true);
                 if (!JvmOpCollections.isPrimitiveType(valueType) && !KofUi.isUiType(valueType) && !KofMedia.isHandleType(valueType) && !(valueType instanceof Type.UnknownType)) {

@@ -30,16 +30,23 @@ final class KofJsFfiMarshal {
     private KofJsFfiMarshal() {
     }
 
-    /** Buffer INOUT: liga o `Uint8Array` do guest ao segmento da chamada. */
-    private record OutBuf(Value data, MemorySegment seg, int len) {}
+    /** Buffer INOUT: liga o `Uint8Array` do guest ao segmento da chamada. `obj`
+     *  é o próprio `KofBufferBox` (dono do estado de borrow — B-03). */
+    private record OutBuf(Value obj, Value data, MemorySegment seg, int len) {}
 
     /** Downcall com retorno: abre a arena confined dos stubs e chama o bridge. */
     static Object ffi(String lib, String name, String sig, Value jsArgs) {
         try (Arena stubArena = Arena.ofConfined()) {
             java.util.List<OutBuf> outs = new java.util.ArrayList<>();
-            Object r = KofJsFfiBridge.call(lib, name, sig, args(sig, jsArgs, stubArena, outs));
-            copyBack(outs);
-            return r;
+            Object[] real = args(sig, jsArgs, stubArena, outs);
+            acquireBorrows(outs);
+            try {
+                Object r = KofJsFfiBridge.call(lib, name, sig, real);
+                copyBack(outs);
+                return r;
+            } finally {
+                releaseBorrows(outs);
+            }
         }
     }
 
@@ -47,8 +54,33 @@ final class KofJsFfiMarshal {
     static void ffiVoid(String lib, String name, String sig, Value jsArgs) {
         try (Arena stubArena = Arena.ofConfined()) {
             java.util.List<OutBuf> outs = new java.util.ArrayList<>();
-            KofJsFfiBridge.callVoid(lib, name, sig, args(sig, jsArgs, stubArena, outs));
-            copyBack(outs);
+            Object[] real = args(sig, jsArgs, stubArena, outs);
+            acquireBorrows(outs);
+            try {
+                KofJsFfiBridge.callVoid(lib, name, sig, real);
+                copyBack(outs);
+            } finally {
+                releaseBorrows(outs);
+            }
+        }
+    }
+
+    /**
+     * D-MEM030-BORROW-RUNTIME (JS face): o JS é cooperativo (spawn = async/Promise),
+     * então dois downcalls nunca se sobrepõem — a corrida negativa é
+     * estruturalmente inalcançável. Ainda assim a primitiva é aplicada para
+     * uniformidade: um borrow gravável é adquirido para cada `Buffer(U8)` INOUT
+     * e liberado depois do downcall (o guest lança `MEM020` se já houver um).
+     */
+    private static void acquireBorrows(java.util.List<OutBuf> outs) {
+        for (int i = 0; i < outs.size(); i++) {
+            outs.get(i).obj().invokeMember("__kofBorrowAcquire");
+        }
+    }
+
+    private static void releaseBorrows(java.util.List<OutBuf> outs) {
+        for (int i = outs.size() - 1; i >= 0; i--) {
+            outs.get(i).obj().invokeMember("__kofBorrowRelease");
         }
     }
 
@@ -202,7 +234,7 @@ final class KofJsFfiMarshal {
         for (int k = 0; k < n; k++) {
             seg.setAtIndex(ValueLayout.JAVA_BYTE, k, (byte) data.getArrayElement(k).asInt());
         }
-        outs.add(new OutBuf(data, seg, n));
+        outs.add(new OutBuf(v, data, seg, n));
         return seg;
     }
 

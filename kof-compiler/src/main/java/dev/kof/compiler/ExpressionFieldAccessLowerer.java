@@ -226,7 +226,7 @@ final class ExpressionFieldAccessLowerer {
                 // primitivo → unbox. Sem o ajuste o próximo acesso
                 // recebia Object na pilha → VerifyError.
                 if (fieldType instanceof Type.TypeVariable && recvType instanceof Type.ClassType) {
-                    Type eff = CompilerTypes.substituteTypeVariableIn(fieldType, recvType, driver.currentUnit);
+                    Type eff = TypeSubstitution.substituteTypeVariableIn(fieldType, recvType, driver.currentUnit);
                     Type ref = eff instanceof Type.NullableType nt2 ? nt2.inner() : eff;
                     if (TypeMetrics.isPrimitiveType(ref)) {
                         driver.emitErasureUnbox(ops, ref);

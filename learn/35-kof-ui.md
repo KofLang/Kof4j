@@ -197,7 +197,7 @@ Real in KofJS; documented no-op on JVM/Native/Script (like the 4-Int form).
 
 Canvas allows free 2D drawing — graphics, visualizations. A full game
 surface (frame loop, sprites, sound, video) is Kof's **own engine**, still
-plan-only — `docs/development/future/graphics-gaming-plan.md`
+plan-only — `docs/development/graphics-gaming-plan.md`
 (`DECISIONS.md` §D-GRAPHICS-GAMING + addenda); none of that surface compiles
 today.
 It renders into `<canvas>` in the DOM (KofJS). JVM/Native are no-ops.

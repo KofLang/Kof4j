@@ -263,8 +263,8 @@ public final class Bench {
             }
 
             List<Long> times = new ArrayList<>();
+            List<Long> cpuMicros = new ArrayList<>();
             long rssKb = 0;
-            long cpuMicros = 0;
             boolean validated = true;
             for (int i = 0; i < iterations; i++) {
                 BenchRunners.RunResult rr = BenchRunners.runOnce(target, outDir, spec, verbose);
@@ -274,7 +274,7 @@ public final class Bench {
                 }
                 times.add(rr.wallNanos);
                 rssKb = Math.max(rssKb, rr.rssKb);
-                cpuMicros += rr.userMicros + rr.systemMicros;
+                cpuMicros.add(rr.userMicros + rr.systemMicros);
                 if (!rr.output.equals(expected)) {
                     validated = false;
                     System.err.println("kof bench: " + spec.name + ": output mismatch"
@@ -285,9 +285,10 @@ public final class Bench {
             }
 
             Map<String, Object> row = new LinkedHashMap<>();
-            row.put("ms", median(times));
+            row.put("ms", medianMs(times));
+            long cpuMs = medianCpuMs(cpuMicros);
             if (rssKb > 0) row.put("rss_kb", rssKb);
-            if (cpuMicros > 0) row.put("cpu_ms", cpuMicros / 1_000);
+            if (cpuMs > 0) row.put("cpu_ms", cpuMs);
             row.put("compile_ms", compileMs);
             row.put("validated", validated);
             if (!validated) row.put("status", "FAILED");
@@ -323,5 +324,26 @@ public final class Bench {
         int mid = sorted.size() / 2;
         if (sorted.size() % 2 == 1) return sorted.get(mid);
         return (sorted.get(mid - 1) + sorted.get(mid)) / 2;
+    }
+
+    /**
+     * Mediana do tempo de parede em milissegundos. {@link BenchRunners.RunResult#wallNanos}
+     * vem em nanossegundos; o relatório, o baseline JSON e a guarda absoluta de 10 ms
+     * comparam em ms — a conversão fica AQUI, uma vez só (antes o valor em ns era
+     * gravado sob a chave {@code "ms"}, inflando a métrica por 10^6).
+     */
+    static long medianMs(List<Long> wallNanos) {
+        return Math.round(median(wallNanos) / 1_000_000.0);
+    }
+
+    /**
+     * Mediana do CPU time (user+system) das iterações, em milissegundos. As
+     * amostras chegam em microssegundos por iteração; a conversão e a
+     * estatística ficam AQUI para a coluna `cpu_ms` ser comparável à `ms`
+     * (antes o acumulado de todas as iterações era gravado, e `--iterations N`
+     * inflava a coluna por N).
+     */
+    static long medianCpuMs(List<Long> cpuMicrosPerRun) {
+        return Math.round(median(cpuMicrosPerRun) / 1_000.0);
     }
 }

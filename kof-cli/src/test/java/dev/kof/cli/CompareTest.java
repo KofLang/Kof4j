@@ -15,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Runs legacy (.class) and Kof (.kf) with identical inputs and compares
  * stdout/exit code/stderr.
  */
-class CompareTest {
+class CompareTest extends CliJavacSupport {
 
     @Test
     void helpWorks() {
@@ -143,14 +143,6 @@ class CompareTest {
         assertFalse(Compare.compare(legacy, kofD).equivalent(), "conteúdo diferente deve divergir");
     }
 
-    private void javac(Path javaFile, Path dir) throws Exception {
-        Path javac = Path.of(System.getProperty("java.home"), "bin", "javac");
-        ProcessBuilder pb = new ProcessBuilder(javac.toString(), "-d", dir.toString(), javaFile.toString());
-        pb.redirectErrorStream(true);
-        Process p = pb.start();
-        int rc = p.waitFor();
-        if (rc != 0) throw new RuntimeException("javac: " + new String(p.getInputStream().readAllBytes()));
-    }
 
     /** Small helper to assert, without static imports, that stdout diverged. */
     private static final class Verify {

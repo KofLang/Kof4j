@@ -83,13 +83,30 @@ class NativeErasureBoxE2ETest {
                 var e = mapOf("x", 1)
                 println(e.get("x") + 41)
                 println(e.get("q") == e.get("r"))
+                var b = mapOf("t", true)
+                println(b.get("t"))
+                println(b.get("t") == true)
+                println(b)
+                var d = mapOf("d", 2.5)
+                println(d.get("d"))
+                println(d.get("d") > 1.0)
+                println(d)
+                var bm = mapOf()
+                bm.put("k", true)
+                println(bm.get("k") == true)
+                println(bm)
+                var dm = mapOf()
+                dm.put("k", 3.5)
+                println(dm.get("k"))
             }
             """;
 
     private static String goldenMap() {
         return String.join("\n",
                 "1", "true", "5000000000", "true", "null", "9", "{a=1, b=2}",
-                "[1, 2]", "true", "42", "true");
+                "[1, 2]", "true", "42", "true",
+                "true", "true", "{t=true}", "2.5", "true", "{d=2.5}",
+                "true", "{k=true}", "3.5");
     }
 
     private static String golden() {

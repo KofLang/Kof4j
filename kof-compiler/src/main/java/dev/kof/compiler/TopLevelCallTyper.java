@@ -137,7 +137,7 @@ final class TopLevelCallTyper {
                             && argTypes.size() >= chosen.requiredArity()) {
                         chosenFormals = chosenFormals.subList(0, argTypes.size());
                     }
-                    TypeChecker.checkArgTypes(sa.diagnostics(), mc.methodName(), argTypes, chosenFormals, mc.arguments());
+                    TypeChecker.checkArgTypes(sa, sa.diagnostics(), mc.methodName(), argTypes, chosenFormals, mc.arguments());
                     // #266 (c) — DECISIONS §7: `null` literal em parâmetro
                     // primitivo NÃO-nullable é SEM048 em compile-time, nunca
                     // VerifyError silencioso no load (a chamada top-level não

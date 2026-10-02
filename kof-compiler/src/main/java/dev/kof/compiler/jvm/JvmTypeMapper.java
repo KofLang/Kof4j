@@ -210,6 +210,13 @@ public final class JvmTypeMapper {
         if ("kof.concurrent".equals(packageName) && "Channel".equals(simpleName)) return "java/util/concurrent/LinkedBlockingQueue";
         if ("kof.concurrent".equals(packageName) && "Handle".equals(simpleName)) return "java/util/concurrent/CompletableFuture";
         if ("kof.process".equals(packageName) && "Result".equals(simpleName)) return "dev/kof/runtime/KofRuntime$ProcessResult";
+        // Same erasure family as `classDescriptor`: these nominal runtime types
+        // must map in OWNER position (checkcast/anewarray/getfield) too, or a
+        // value crossing a generic container emits the non-existent class
+        // (`kof/Buffer`, `kof/Secret`, `kof/KeyHandle`) → NoClassDefFoundError.
+        if ("kof".equals(packageName) && "Buffer".equals(simpleName)) return "dev/kof/runtime/KofRuntime$Buffer";
+        if ("kof".equals(packageName) && "Secret".equals(simpleName)) return "dev/kof/runtime/KofRuntime$Secret";
+        if ("kof".equals(packageName) && "KeyHandle".equals(simpleName)) return "dev/kof/runtime/KofRuntime$KeyHandle";
         if (packageName.isEmpty()) return simpleName;
         return packageName.replace('.', '/') + "/" + simpleName;
     }

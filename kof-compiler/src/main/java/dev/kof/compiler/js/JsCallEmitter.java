@@ -448,6 +448,14 @@ void handleStringOp(MethodCtx ctx, List<Object> stack,
                 stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofStringCompareTo"),
                         List.of(receiver, args.get(0))));
             }
+            // D-FULL-PARITY-050 row 11: compareToIgnoreCase baixa para helper
+            // kofStringCompareToIgnoreCase (CASE_INSENSITIVE_ORDER do JVM: fold
+            // SIMPLES por code unit — upper, senão lower; expandir nao cabe).
+            case "compareToIgnoreCase" -> {
+                ctx.lc.registerRuntime("kofStringCompareToIgnoreCase");
+                stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofStringCompareToIgnoreCase"),
+                        List.of(receiver, args.get(0))));
+            }
             // D-FULL-PARITY-050 row 11: String.prototype NÃO tem toCharArray →
             // o default gerava TypeError. Helper kofToCharArray (array de code
             // units UTF-16, igual ao JVM).

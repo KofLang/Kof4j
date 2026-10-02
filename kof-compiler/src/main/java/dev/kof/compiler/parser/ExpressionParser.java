@@ -142,10 +142,23 @@ public class ExpressionParser {
         return ExpressionParser.parsePostfix(ctx);
     }
 
+    /**
+     * #692 — a trailing lambda's `{` must start on the SAME line as the token
+     * that closes the call (`closures.md` §6 EBNF: `"(" [args] ")" block`).
+     * Without this guard a bare `{ … }` block statement on the next line is
+     * silently swallowed as a fabricated extra lambda argument (the `(` sibling
+     * case at the LPAREN branch already had the equivalent guard).
+     */
+    private static boolean trailingLambdaSameLine(ParseContext ctx) {
+        if (!ctx.check(TokenType.LBRACE)) return false;
+        Token prev = ctx.pos > 0 ? ctx.tokens.get(ctx.pos - 1) : null;
+        return prev != null && prev.line() == ctx.peek().line();
+    }
+
     static ExpressionNode parsePostfix(ParseContext ctx) {
         ExpressionNode expr = ExpressionParser.parsePrimary(ctx);
         while (true) {
-            if (ctx.check(TokenType.LBRACE) && expr instanceof IdentifierExpr ie) {
+            if (trailingLambdaSameLine(ctx) && expr instanceof IdentifierExpr ie) {
                 // trailing lambda call: identifier { ... } (transaction { ... })
                 expr = new MethodCallExpr(ctx.pos(), null, ie.name(), List.of(),
                         List.of(new LambdaExpr(ctx.pos(), List.of(), StatementParser.parseBlock(ctx))));
@@ -161,7 +174,7 @@ public class ExpressionParser {
                 } else {
                     field = ctx.expectId("Expected field name", "PARSE039");
                 }
-                if (ctx.check(TokenType.LBRACE)) {
+                if (trailingLambdaSameLine(ctx)) {
                     // trailing lambda call: receiver.method { ... } — the
                     // block is the final argument of the method call.
                     // With explicit parameters (receiver.method { s -> ... }
@@ -200,7 +213,7 @@ public class ExpressionParser {
                     break;
                 }
                 List<ExpressionNode> args = ExpressionParser.parseArguments(ctx);
-                if (ctx.check(TokenType.LBRACE)) {
+                if (trailingLambdaSameLine(ctx)) {
                     // Query DSL tipada: `Entity.query(db) { where ...; }` — o `{`
                     // é o token atual; parseQueryDsl consome o bloco.
                     if (expr instanceof FieldAccessExpr fa && "query".equals(fa.fieldName())
@@ -221,7 +234,7 @@ public class ExpressionParser {
                     && ExpressionParser.looksLikeGenericCall(ctx)) {
                 List<String> typeArgs = ExpressionParser.parseCallTypeArguments(ctx);
                 List<ExpressionNode> args = ExpressionParser.parseArguments(ctx);
-                if (ctx.check(TokenType.LBRACE)) {
+                if (trailingLambdaSameLine(ctx)) {
                     args.add(new LambdaExpr(ctx.pos(), List.of(), StatementParser.parseBlock(ctx)));
                 }
                 if (expr instanceof IdentifierExpr ie3) {

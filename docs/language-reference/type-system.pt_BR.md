@@ -283,8 +283,10 @@ bytes de execução não mudam. `out`/`in` num type-argument continuam contextua
 **Garantia do type checker:** chamada a função/método **inexistente em tipo
 conhecido** é erro (`SEM015`/`SEM025`); aridade de argumentos/construtores é
 checada (`SEM013`/`SEM023`); tipo de retorno incompatível é erro (`SEM010`);
-`throw` só aceita `String` (`SEM026`); atribuição respeita `isAssignable`
-(`SEM012`/`SEM021`); redeclaração no mesmo escopo é erro (`SEM024`); switch-
+`throw` só aceita `String` (`SEM026`); atribuição **e argumento de chamada**
+respeitam o `isAssignable` nominal — hierarquia + args de genérico (invariante
+por padrão, `out`/`in` por variância declaration-site; #688) — (`SEM012`/`SEM014`/
+`SEM021`); redeclaração no mesmo escopo é erro (`SEM024`); switch-
 expressão exige default/exaustividade (`SEM032`); enum exaustivo em switch
 (`SEM031`).
 
@@ -397,7 +399,7 @@ retorno do lambda (*probe*: map/filter/reduce corretos).
 | `SEM011` | variável/tipo indefinido | `SemExpressionTyper` (case `IdentifierExpr`) |
 | `SEM012` | atribuição incompatível (statement) | `StatementAnalyzer` (case `AssignStmt`) |
 | `SEM013` | nº de argumentos ≠ parâmetros | `TypeChecker.checkArgTypes` |
-| `SEM014` | argumento com tipo incompatível | `TypeChecker.checkArgTypes` |
+| `SEM014` | argumento com tipo incompatível — hierarquia nominal + args de genérico (#688) | `TypeChecker.checkArgTypes` |
 | `SEM015` | função indefinida / não-função chamada | `BuiltinCallTyper` |
 | `SEM020` | atribuição a variável nunca declarada | `SemExpressionTyper` (case `AssignExpr`) |
 | `SEM021` | tipo explícito ≠ tipo do inicializador | `StatementAnalyzer` (case `VarDeclStmt`) |
@@ -410,7 +412,7 @@ retorno do lambda (*probe*: map/filter/reduce corretos).
 | `SEM029` | `toArray()` em List/Set | driver:4052 |
 | `SEM030` | enum sem a constante acessada | driver:4859 |
 | `SEM031` | switch-statement sobre enum não exaustivo | SwitchStmtLowerer:32 |
-| `SEM032` | switch-expressão sem default | `SemExpressionTyper` (case `SwitchExpr`) |
+| `SEM032` | switch `Bool`/enum não exaustivo (expression ou **statement**, §686) sem default | `MemberResolver` / `SemExpressionTyper` |
 | `SEM033` | valor `void` usado como expressão | driver:2675 |
 | `SEM034` | `sublist()`/`subSet()` | driver:4067 |
 | `SEM037` | reatribuição de `val` | parser (`type="val"`) + `StatementAnalyzer` |
@@ -442,7 +444,7 @@ retorno do lambda (*probe*: map/filter/reduce corretos).
 | `SEM078` | `Style("<declarações>")` com valor inválido para propriedade conhecida | `KofStyleParser` (D-UI-STYLE/UI007) |
 | `SEM079` | uso errado de token do design system: membro inexistente de `Spacing`/`Radius`/`Border`/`Elevation`/`Typography`, ou chamada de método num namespace de token | `KofUiTokens` (Fase 10) |
 | `SEM080` | subtipo (`extends`/`implements`) de tipo `sealed` declarado fora de sua unidade de compilação (o conjunto de subtipos selado é fechado) | `SealedTypeChecks` (X5.1/D-X5-SURFACE) |
-| `SEM081` | `switch` expressão sobre sujeito `sealed` sem um caso de subtipo direto (sem `default`) | `MemberResolver` (X5.2/D-X5-SURFACE) |
+| `SEM081` | `switch` (expressão ou **statement**, §686) sobre sujeito `sealed` sem um caso de subtipo direto (sem `default`) | `MemberResolver` (X5.2/D-X5-SURFACE) |
 | `SEM082` | type-param `out` usado em posição de entrada (parâmetro/campo gravável) ou type-param `in` usado em posição de saída (retorno/campo/componente de record) — solidez da variância declaration-site | `VarianceChecks` (X5.3/D-TYPE-VARIANCE) |
 | `SEM083` | type-param `out`/`in` passado a um parâmetro de supertipo com variância incompatível (ou invariante) em `extends`/`implements` — solidez da variância em posição de herança | `VarianceChecks` (X5.3b/D-TYPE-VARIANCE) |
 | `ARITH001` | divisão/resto por zero **constante** | `ExpressionBinaryLowerer` (guarda de zero constante) |

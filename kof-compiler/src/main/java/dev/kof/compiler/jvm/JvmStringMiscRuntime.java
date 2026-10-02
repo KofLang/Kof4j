@@ -106,11 +106,201 @@ public final class JvmStringMiscRuntime {
                     return out;
                 }
 
+                // ── D-MULTIPARADIGMA-PHASE1A — eager short-circuit quantifiers.
+                // Truthiness reuses the filter rule (TRUE or 1); vacuous:
+                // all=true, any/none=false on empty. Lambdas throw through.
+
+                public static boolean kof_list_any(
+                        java.util.ArrayList<?> list, Object lambda) throws Exception {
+                    for (Object o : list) {
+                        Object r = kof_ho_invoke(lambda, new Object[]{o});
+                        if (Boolean.TRUE.equals(r) || Integer.valueOf(1).equals(r)) return true;
+                    }
+                    return false;
+                }
+
+                public static boolean kof_list_all(
+                        java.util.ArrayList<?> list, Object lambda) throws Exception {
+                    for (Object o : list) {
+                        Object r = kof_ho_invoke(lambda, new Object[]{o});
+                        if (!(Boolean.TRUE.equals(r) || Integer.valueOf(1).equals(r))) return false;
+                    }
+                    return true;
+                }
+
+                public static boolean kof_list_none(
+                        java.util.ArrayList<?> list, Object lambda) throws Exception {
+                    for (Object o : list) {
+                        Object r = kof_ho_invoke(lambda, new Object[]{o});
+                        if (Boolean.TRUE.equals(r) || Integer.valueOf(1).equals(r)) return false;
+                    }
+                    return true;
+                }
+
+                // ── D-MULTIPARADIGMA-PHASE1A slice 1b — find returns the first
+                // match or null (mirrors Map.get-missing); count(pred) counts
+                // matches with the filter truthiness rule.
+
+                public static Object kof_list_find(
+                        java.util.ArrayList<?> list, Object lambda, int tag) throws Exception {
+                    // tag is Native-only (box kind); JVM slots are already
+                    // objects, null is null — ignored here.
+                    for (Object o : list) {
+                        Object r = kof_ho_invoke(lambda, new Object[]{o});
+                        if (Boolean.TRUE.equals(r) || Integer.valueOf(1).equals(r)) return o;
+                    }
+                    return null;
+                }
+
+                public static int kof_list_count_pred(
+                        java.util.ArrayList<?> list, Object lambda) throws Exception {
+                    int n = 0;
+                    for (Object o : list) {
+                        Object r = kof_ho_invoke(lambda, new Object[]{o});
+                        if (Boolean.TRUE.equals(r) || Integer.valueOf(1).equals(r)) n++;
+                    }
+                    return n;
+                }
+
+                // ── D-MULTIPARADIGMA-PHASE1A slice 1e — distinct dedups by
+                // Java equals (String content, numbers by value — the same
+                // rule as kof_list_contains on the JVM); the tag is Native-only.
+
+                public static java.util.ArrayList<Object> kof_list_distinct(
+                        java.util.ArrayList<?> list, int tag) {
+                    var out = new java.util.ArrayList<Object>();
+                    for (Object o : list) {
+                        if (!out.contains(o)) out.add(o);
+                    }
+                    return out;
+                }
+
+                // ── D-MULTIPARADIGMA-PHASE1A slice 1g — sorted returns a
+                // fresh copy (never mutates the receiver): natural order via
+                // TimSort (stable); the tag is Native-only. With a comparator
+                // the order comes from the lambda (negative/zero/positive);
+                // insertion sort keeps it stable for pure comparators.
+
+                public static java.util.ArrayList<Object> kof_list_sorted(
+                        java.util.ArrayList<?> list, int tag) {
+                    var out = new java.util.ArrayList<Object>(list);
+                    out.sort(null);
+                    return out;
+                }
+
+                // #685 — enum sort(): in-place insertion via the synthesized
+                // comparator (a.compareTo(b)); mirrors kof_list_sorted_cmp but
+                // mutates the receiver (sort is in-place, D-ENUM207 ordinal).
+                public static void kof_list_sort_cmp(
+                        java.util.ArrayList<Object> list, Object cmp) throws Exception {
+                    for (int i = 1; i < list.size(); i++) {
+                        Object key = list.get(i);
+                        int j = i - 1;
+                        while (j >= 0
+                                && ((Number) kof_ho_invoke(cmp,
+                                        new Object[]{list.get(j), key})).intValue() > 0) {
+                            list.set(j + 1, list.get(j));
+                            j--;
+                        }
+                        list.set(j + 1, key);
+                    }
+                }
+
+                public static java.util.ArrayList<Object> kof_list_sorted_cmp(
+                        java.util.ArrayList<?> list, Object cmp) throws Exception {
+                    var out = new java.util.ArrayList<Object>(list);
+                    for (int i = 1; i < out.size(); i++) {
+                        Object key = out.get(i);
+                        int j = i - 1;
+                        while (j >= 0
+                                && ((Number) kof_ho_invoke(cmp,
+                                        new Object[]{out.get(j), key})).intValue() > 0) {
+                            out.set(j + 1, out.get(j));
+                            j--;
+                        }
+                        out.set(j + 1, key);
+                    }
+                    return out;
+                }
+
+                // ── D-MULTIPARADIGMA-PHASE1A slice 1h — groupBy buckets by
+                // the lambda key (LinkedHashMap = insertion order, plan
+                // §230); the tag rides LAST (caller emits user args first —
+                // same shape as kof_list_find) and is Native-only.
+                public static java.util.Map<Object, Object> kof_list_groupby(
+                        java.util.ArrayList<?> list, Object fn, int tag) throws Exception {
+                    var out = new java.util.LinkedHashMap<Object, Object>();
+                    for (Object o : list) {
+                        Object key = kof_ho_invoke(fn, new Object[]{o});
+                        Object bucket = out.get(key);
+                        if (!(bucket instanceof java.util.ArrayList)) {
+                            bucket = new java.util.ArrayList<Object>();
+                            out.put(key, bucket);
+                        }
+                        ((java.util.ArrayList<Object>) bucket).add(o);
+                    }
+                    return out;
+                }
+
+                // ── D-MULTIPARADIGMA-PHASE1A slice 1c — forEach runs the
+                // lambda per element for effect and returns nothing.
+
+                public static void kof_list_foreach(
+                        java.util.ArrayList<?> list, Object lambda) throws Exception {
+                    for (Object o : list) kof_ho_invoke(lambda, new Object[]{o});
+                }
+
+                // ── D-MULTIPARADIGMA-PHASE1A slice 1d — flatMap concatenates
+                // each element's List in order (a non-List lambda result
+                // fails loudly on the cast, never silently).
+
+                public static java.util.ArrayList<Object> kof_list_flatmap(
+                        java.util.ArrayList<?> list, Object lambda) throws Exception {
+                    var out = new java.util.ArrayList<Object>();
+                    for (Object o : list) {
+                        Object tmp = kof_ho_invoke(lambda, new Object[]{o});
+                        out.addAll((java.util.List<?>) tmp);
+                    }
+                    return out;
+                }
+
                 public static Object kof_list_reduce(
                         java.util.ArrayList<?> list, Object initial, Object lambda) throws Exception {
                     Object acc = initial;
                     for (Object o : list) acc = kof_ho_invoke(lambda, new Object[]{acc, o});
                     return acc;
+                }
+
+                // ── pagination P1 — List.take/drop/slice (in-memory) ──
+                // Janela materializada; clamping honesto (nunca erro por
+                // excesso); negativo = erro nomeado PAGINATION.
+
+                public static java.util.ArrayList<Object> kof_list_take(
+                        java.util.ArrayList<?> list, int n) {
+                    if (n < 0) throw new RuntimeException("PAGINATION: count must be >= 0");
+                    int size = list.size();
+                    int end = n < size ? n : size;
+                    return new java.util.ArrayList<Object>(list.subList(0, end));
+                }
+
+                public static java.util.ArrayList<Object> kof_list_drop(
+                        java.util.ArrayList<?> list, int n) {
+                    if (n < 0) throw new RuntimeException("PAGINATION: count must be >= 0");
+                    int size = list.size();
+                    int start = n < size ? n : size;
+                    return new java.util.ArrayList<Object>(list.subList(start, size));
+                }
+
+                public static java.util.ArrayList<Object> kof_list_slice(
+                        java.util.ArrayList<?> list, int offset, int limit) {
+                    if (offset < 0 || limit < 0) {
+                        throw new RuntimeException("PAGINATION: limit/offset must be >= 0");
+                    }
+                    int size = list.size();
+                    int start = offset < size ? offset : size;
+                    int remaining = size - start;
+                    int end = start + (limit < remaining ? limit : remaining);
+                    return new java.util.ArrayList<Object>(list.subList(start, end));
                 }
 
                 // ── kof.enum (P1) ──────────────────────────────────────

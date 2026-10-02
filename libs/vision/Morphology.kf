@@ -1,0 +1,83 @@
+package vision
+
+import image.Raster
+import vision.Vision
+
+// kof.vision — processing slice: morphological erode/dilate (plan §Processing).
+//
+// A 3x3 square structuring element over every channel (alpha preserved on a
+// 4-channel raster, as in `image.threshold`), borders clamped like
+// `image.boxBlur` (neighbours outside the raster are skipped). `erode` keeps
+// the minimum, `dilate` the maximum; `openRaster` is erode-then-dilate and
+// `closeRaster` is dilate-then-erode. Pure Kof, deterministic, no interop.
+//
+//   var mask = otsuBinarize(decodeRaster("scan.pgm"))
+//   var clean = openRaster(mask)     // remove specks, keep blobs
+
+Raster erode(Raster r) {
+    return rankRaster(r, false)
+}
+
+Raster dilate(Raster r) {
+    return rankRaster(r, true)
+}
+
+// Opening: erode then dilate (removes small foreground specks).
+Raster openRaster(Raster r) {
+    return dilate(erode(r))
+}
+
+// Closing: dilate then erode (fills small background holes).
+Raster closeRaster(Raster r) {
+    return erode(dilate(r))
+}
+
+Raster rankRaster(Raster r, Bool maximum) {
+    guardVision(r)
+    var out = new Int[r.samples.length]
+    var row = 0
+    while (row < r.height) {
+        var col = 0
+        while (col < r.width) {
+            var c = 0
+            while (c < r.channels) {
+                if (r.channels == 4 && c == 3) {
+                    out[(row * r.width + col) * r.channels + c] = r.samples[(row * r.width + col) * r.channels + c]
+                } else {
+                    out[(row * r.width + col) * r.channels + c] = rankAt(r, row, col, c, maximum)
+                }
+                c = c + 1
+            }
+            col = col + 1
+        }
+        row = row + 1
+    }
+    return Raster(r.format, r.width, r.height, r.channels, out)
+}
+
+Int rankAt(Raster r, Int row, Int col, Int channel, Bool maximum) {
+    var best = r.samples[(row * r.width + col) * r.channels + channel]
+    var dy = -1
+    while (dy <= 1) {
+        var dx = -1
+        while (dx <= 1) {
+            var yy = row + dy
+            var xx = col + dx
+            if (yy >= 0 && yy < r.height && xx >= 0 && xx < r.width) {
+                var v = r.samples[(yy * r.width + xx) * r.channels + channel]
+                if (maximum) {
+                    if (v > best) {
+                        best = v
+                    }
+                } else {
+                    if (v < best) {
+                        best = v
+                    }
+                }
+            }
+            dx = dx + 1
+        }
+        dy = dy + 1
+    }
+    return best
+}

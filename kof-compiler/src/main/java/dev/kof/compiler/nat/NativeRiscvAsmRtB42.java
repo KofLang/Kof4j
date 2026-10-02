@@ -76,6 +76,8 @@ public final class NativeRiscvAsmRtB42 {
                 sd   t3, 0(s2)
             .Lkof_alloc_found:
                 sd   zero, 24(s3)        # fora da free list (flags=0)
+                mv   a0, s3              # §540: registra início-de-bloco
+                call kof_bm_set          #        no bitmap O(1) do GC
                 la   t4, .Lkof_alloc_count
                 ld   t2, 0(t4)
                 addi t2, t2, 1
@@ -117,6 +119,9 @@ public final class NativeRiscvAsmRtB42 {
             .Lkof_alloc_bok:
                 sd   s0, 0(t0)           # size total
                 sd   zero, 8(t0)         # free_next = 0
+                mv   a0, t0              # §540: registra início-de-bloco
+                call kof_bm_set          #        no bitmap O(1) do GC
+                mv   t0, a0              # a0 preservado por kof_bm_set
                 # G-2: entra na gc-list global (LIFO) com flags=0.
                 la   t2, .Lkof_gc_head
                 ld   t3, 0(t2)
@@ -141,6 +146,28 @@ public final class NativeRiscvAsmRtB42 {
                 ld   s4, 16(sp)
                 ld   ra, 56(sp)
                 addi sp, sp, 64
+                ret
+
+            # §540: kof_bm_set(block_start@a0) — seta o bit de início-de-bloco
+            # no bitmap global (_kof_block_bm, 1 bit por 16B), para o GC achar
+            # um bloco em O(1) (antes: varredura linear da gc-list capada em
+            # 10000 -> use-after-free). Não escreve a0 (o chamador o recupera).
+            # Clobbers apenas t0-t6.
+            .globl kof_bm_set
+            kof_bm_set:
+                la   t0, _kof_heap
+                sub  t1, a0, t0
+                srli t2, t1, 10          # índice da palavra do bitmap
+                slli t2, t2, 3
+                la   t3, _kof_block_bm
+                add  t3, t3, t2
+                ld   t4, 0(t3)
+                srli t5, t1, 4
+                andi t5, t5, 63          # bit na palavra
+                li   t6, 1
+                sll  t6, t6, t5
+                or   t4, t4, t6
+                sd   t4, 0(t3)
                 ret
 
             # kof_free(ptr@a0) — devolve o bloco à free list (LIFO), marca

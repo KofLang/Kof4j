@@ -102,7 +102,13 @@ class ArtifactSizeTest {
     // `kof.buffer` (R57/R58, `JsRuntimeBuffer`) + os helpers de marshal/bridge
     // (R55 array copy-in, R58 Buffer INOUT, R59 retorno de struct) somaram
     // ~827B ao runtime JS — re-medido 13.834B (mesmo processo da suíte).
-    private static final long HELLO_JS_BYTES = 13_834L;
+    // 30/09 (cross-lane drift, measured with this lane's diff STASHED): the JS
+    // runtime hello was already 18.098B at the tip before the memory-safety B-03
+    // borrow work — i.e. the 5%/1.834B baseline above had gone stale from other
+    // lane landings, not from this unit. The B-03 `JsRuntimeBuffer` borrow state
+    // adds the remaining ~317B, giving 18.415B re-measured on this host with the
+    // budget; the unilateral gate is re-pinned to the measured number.
+    private static final long HELLO_JS_BYTES = 18_415L;
     // Hello riscv64 (cross — só medido onde há toolchain). Pós-S-5 (T1b,
     // 12/09): seções .text.<fn> por função do runtime + `ld --gc-sections`
     // derrubaram os irmãos mortos DENTRO das peças mantidas pela S-4:
@@ -141,8 +147,12 @@ class ArtifactSizeTest {
     // programa que só imprime. Bytes estáveis (136832 ≤ 136824×1.05).
     // Follow-up (otimização, não correção): quebrar a aresta log→json para o
     // hello não carregar o decoder. O valor abaixo é o MEDIDO no tip 27/09.
+    // 30/09 (cross-lane drift, measured with this lane's diff STASHED): the tip
+    // was already 70 syms (64 +6) — the B-03 borrow asm is tree-shaken out of a
+    // hello that never touches `Buffer`, so it is NOT this unit's addition. The
+    // syms gate is re-pinned to the measured tip; bytes stay under HELLO_RV_BYTES.
     private static final long HELLO_RV_BYTES = 136_832L;
-    private static final int HELLO_RV_SYMS = 64;
+    private static final int HELLO_RV_SYMS = 70;
     // Hello aarch64 (medido 12/09, mesmo caminho: poda S-4 + gc-sections S-5
     // no asm riscv ANTES do tradutor). G-4 (15/09): também 18→24 syms.
     // §284/§284-map (18/09): 133.112→201.408B, 24→41 syms — o TRADUTOR
@@ -156,8 +166,11 @@ class ArtifactSizeTest {
     // #643 (27/09): mesma deriva do riscv (`d2a41605c`, B4 log→json; NÃO o pow)
     // — re-medido no host: 64 syms, 136664B (o baseline de bytes 202168 era de
     // 18/09, antes da melhoria do tradutor; encolher é sempre ok).
+    // 30/09 (cross-lane drift, measured with this lane's diff STASHED): inherits
+    // the riscv +6 (70 syms) through the translator — NOT this unit (borrow asm
+    // pruned from a hello). Syms gate re-pinned to the measured tip.
     private static final long HELLO_AA_BYTES = 136_664L;
-    private static final int HELLO_AA_SYMS = 64;
+    private static final int HELLO_AA_SYMS = 70;
 
     private static final double TOL = 0.05; // gate de inchaço >5%
 

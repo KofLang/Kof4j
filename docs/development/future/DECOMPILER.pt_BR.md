@@ -1,10 +1,10 @@
 [English](DECOMPILER.md) | [Português](DECOMPILER.pt_BR.md)
 
-# DECOMPILER.md — Decompilador Kof (DESPRIORIZADO 15/09 — de volta a future/)
+# DECOMPILER.md — Decompilador Kof (DESPRIORIZADO 15/09 → REABERTO 28/09, ainda em future/)
 
-**Status:** **DESPRIORIZADO pela mantenedora (15/09) — movido de volta a
-`future/`. Não é trabalho atual; promoção exige decisão explícita dela**
-(regra dos três estados). O código já no repo fica (kof-cli `Decompile.java` +
+**Status:** **REABERTO pela mantenedora (`D-DEPRIORITIZED-REOPEN`, lote 28/09)** —
+ainda só-plano aqui; a promoção a trabalho corrente é uma-por-vez por
+`D-FUTURE-PROMOTION` (regra dos três estados). O código já no repo fica (kof-cli `Decompile.java` +
 decoders, `DecompileTest` 67/67) — só a *fila* para aqui; o work-log completo
 abaixo permanece como registro para uma sessão futura. Implementado:
 `Decompile.java` + decoders de bytecode, Fases A–E com código; prova:

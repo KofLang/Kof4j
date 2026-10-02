@@ -183,6 +183,7 @@ construto neste corpus/docs e o compilador *discorda da própria doc*.
 | `l.sort()` / `l.indexOf(x)` num `List` (API Java) | a API de `List` do Kof é `add/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce`; ache a posição com `for` + `get(i)` (medido: `idx=2`); ordene fora da lista (interop) — não há promessa de `sort`/`indexOf` |
 | `m.containsValue(v)` num `Map` (API Java) | `m.values()` + `contains` — a API de `Map` do Kof e `put/get/remove/containsKey/size/keys/values` (**`getOrDefault(k, d)` era fake ate 0.4.0 e virou REAL em 18/09 (`62bd455e`) — use-a**)
 | `this(args)` auto-delegação de construtor (Java/C#) | o Kof promete só **`super(args)`** (classe-base, primeira instrução — `learn/07`); compartilhe o init via um método auxiliar que os dois construtores chamam (workaround medido `0/3`) |
+| `File.exists(p)` / `File.readText(p)` / `File.readRange(p, o, n)` estáticos (as "formas estáticas" do `kof.io`) | ❌ **Não implementadas** — medido 28/09 em todos os alvos: o typer rejeita o receptor com `SEM011 Undefined variable or type: 'File'`. Use a **forma de instância**: `File(p).exists()`, `File(p).readText()`, `File(p).readRange(0, 4)`. (o `docs/stdlib/IO.md` listava "formas estáticas" como se existissem — corrigido 28/09; a tabela `KofIo.staticMethod` do compilador é inalcançável porque o typer nunca resolve o tipo como receptor estático) |
 
 > Cruzamento: se o reproducer compilaria em **Kotlin/Java** por ser
 > *traduzido*, é esta regra — rejeite. A família de bugs é só sobre código que

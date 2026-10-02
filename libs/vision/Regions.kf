@@ -1,0 +1,107 @@
+package vision
+
+import image.Raster
+import vision.Components
+import vision.Vision
+
+// kof.vision — slice 2c: connected-component regions.
+//
+// The reusable region descriptors of §12 ("regions") and §14 ("contour
+// extraction"): `componentBoxes(labels, width)` returns one axis-aligned
+// bounding box per label produced by `componentLabels` (the label includes
+// every pixel of its 4-connected region, so the box is exact), and
+// `componentAreas(labels)` returns the pixel count of each label (index 0 is
+// the background). `boxes.get(label)` reads the box of a label; `labelComponents`
+// is the object form — a `List<Component>` in label order, each carrying its
+// bounding box and area — for callers that iterate regions directly.
+//
+// Pure Kof, deterministic, no interop, all targets.
+//
+//   var labels = componentLabels(otsuBinarize(decodeRaster("scan.ppm")))
+//   for (var c in labelComponents(labels, r.width)) {
+//       println(c.label + "@" + c.box.minX + "," + c.box.minY + " area " + c.area)
+//   }
+
+record ComponentBox(Int minX, Int minY, Int maxX, Int maxY)
+
+record Component(Int label, ComponentBox box, Int area)
+
+// One bounding box per label, index 0 being the (empty) background box.
+List<ComponentBox> componentBoxes(Int[] labels, Int width) {
+    guardRegions(labels, width)
+    var count = componentCount(labels)
+    var minX = new Int[count + 1]
+    var minY = new Int[count + 1]
+    var maxX = new Int[count + 1]
+    var maxY = new Int[count + 1]
+    var seen = new Int[count + 1]
+    var i = 0
+    while (i < labels.length) {
+        var l = labels[i]
+        if (l > 0) {
+            var x = i % width
+            var y = i / width
+            if (seen[l] == 0) {
+                seen[l] = 1
+                minX[l] = x
+                maxX[l] = x
+                minY[l] = y
+                maxY[l] = y
+            } else {
+                if (x < minX[l]) { minX[l] = x }
+                if (x > maxX[l]) { maxX[l] = x }
+                if (y < minY[l]) { minY[l] = y }
+                if (y > maxY[l]) { maxY[l] = y }
+            }
+        }
+        i = i + 1
+    }
+    var boxes = listOf<ComponentBox>()
+    var label = 0
+    while (label <= count) {
+        boxes.add(ComponentBox(minX[label], minY[label], maxX[label], maxY[label]))
+        label = label + 1
+    }
+    return boxes
+}
+
+// Pixel count of each label (`areas[0]` counts the background).
+Int[] componentAreas(Int[] labels) {
+    var count = componentCount(labels)
+    var areas = new Int[count + 1]
+    var i = 0
+    while (i < labels.length) {
+        var l = labels[i]
+        if (l > 0) {
+            areas[l] = areas[l] + 1
+        }
+        i = i + 1
+    }
+    return areas
+}
+
+// The region objects in label order (label 1..k), each with its box and area.
+List<Component> labelComponents(Int[] labels, Int width) {
+    guardRegions(labels, width)
+    var boxes = componentBoxes(labels, width)
+    var areas = componentAreas(labels)
+    var out = listOf<Component>()
+    var label = 1
+    var count = areas.length - 1
+    while (label <= count) {
+        out.add(Component(label, boxes.get(label), areas[label]))
+        label = label + 1
+    }
+    return out
+}
+
+// `labels` is a flat `width * height` raster of component ids; `width` must be
+// positive and divide the label count.
+guardRegions(Int[] labels, Int width) {
+    if (width <= 0) {
+        throw "IMAGE: region width must be positive"
+    }
+    if (labels.length % width != 0) {
+        throw "IMAGE: label count is not a multiple of the width"
+    }
+}

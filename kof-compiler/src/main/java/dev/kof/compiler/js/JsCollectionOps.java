@@ -143,7 +143,38 @@ void handleListOp(MethodCtx ctx, List<Object> stack,
             case "kof_list_last_index_of" -> "kofListLastIndexOf";
             case "kof_list_add_all" -> "kofListAddAll";
             case "kof_list_sub_list" -> "kofListSubList";
+            // pagination P1 — take/drop/slice
+            case "kof_list_take" -> "kofListTake";
+            case "kof_list_drop" -> "kofListDrop";
+            case "kof_list_slice" -> "kofListSlice";
+            // D-MULTIPARADIGMA-PHASE1A — any/all/none (lambda rides as arg).
+            case "kof_list_any" -> "kofListAny";
+            case "kof_list_all" -> "kofListAll";
+            case "kof_list_none" -> "kofListNone";
+            // D-MULTIPARADIGMA-PHASE1A slice 1b — find (null when missing,
+            // like kofMapGet) + count with predicate.
+            case "kof_list_find" -> "kofListFind";
+            case "kof_list_count_pred" -> "kofListCountPred";
+            // D-MULTIPARADIGMA-PHASE1A slice 1c — forEach (effect only; the
+            // void path below carries it as a statement). Name follows the
+            // generic runtimeJsName mapping (kof_list_foreach → kofListForeach).
+            case "kof_list_foreach" -> "kofListForeach";
+            // D-MULTIPARADIGMA-PHASE1A slice 1d — flatMap (native concat).
+            case "kof_list_flatmap" -> "kofListFlatmap";
+            // D-MULTIPARADIGMA-PHASE1A slice 1e — distinct (tag ignored here;
+            // the prelude mirrors contains: kofValEq per element).
+            case "kof_list_distinct" -> "kofListDistinct";
             case "kof_list_sort" -> "kofListSort";
+            // D-MULTIPARADIGMA-PHASE1A slice 1g — sorted returns a fresh
+            // copy (natural via kofNaturalCmp, comparator via the lambda);
+            // insertion sort keeps both stable.
+            case "kof_list_sorted" -> "kofListSorted";
+            case "kof_list_sorted_cmp" -> "kofListSortedCmp";
+            // #685 — enum sort(): in-place insertion via the comparator.
+            case "kof_list_sort_cmp" -> "kofListSortCmp";
+            // D-MULTIPARADIGMA-PHASE1A slice 1h — groupBy (insertion-ordered
+            // Map of fresh lists; the tag rides along ignored like distinct).
+            case "kof_list_groupby" -> "kofListGroupBy";
             default -> throw new IllegalStateException("KofJS: unknown list op " + kc.methodName());
         };
         p.lc.registerRuntime(fn);

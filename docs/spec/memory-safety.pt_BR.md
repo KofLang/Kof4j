@@ -48,7 +48,7 @@ ou entidade responsável pelo fim da vida do objeto (desalocação).
 | **Raiz do GC** | Quando a raiz se torna inalcançável (conservativo no Native; preciso na JVM/JS) | Campos estáticos, slots de pilha, GPRs |
 | **Container** | Quando o container é coletado / limpo | `List<T>` possui seus elementos; `Buffer` possui seu array de backing |
 | **Closure** | Quando a closure é coletada | Variáveis capturadas (boxed se mutadas) |
-| **FFI** | Explícito via `kof_ffi_release` / fechamento de arena | `Arena.ofConfined()` na JVM; buffers copiados no Native |
+| **FFI** | JVM/JS: a arena confined fecha no fim da chamada; Native: sem superfície de liberação hoje (recusa `FFI001`, rota #651) | `Arena.ofConfined()` na JVM; ponte do host por chamada no JS |
 
 ### 2.2 Regras de Propriedade
 
@@ -118,12 +118,21 @@ O modelo:
 | **B-02** Mutação através de alias | `b.add(2)` visível em `a` | — | — | — |
 | **B-03** Empréstimo FFI | `kof_ffi_call(ptr)` onde C pode escrever | Passar mesmo `Buffer` a duas chamadas FFI concorrentes sem sync | `MEM020` | Compile-time + Runtime |
 | **B-04** Alias em spawn | `spawn { a.add(1) }` + `a.add(2)` no main | Mutação concorrente não sincronizada sem `join_all` | `MEM021` | Compile-time + Runtime |
-| **B-06** Captura de closure | Por valor (snapshot imutável) ou boxed (mutado) | Capturar local mutável sem box quando escapa | `MEM023` | Compile-time |
+| **B-06** Captura de closure | Por valor (snapshot imutável) ou boxed (mutado) | Capturar local mutável sem box quando escapa | `MEM023` | Compile-time (inconstruível — ver nota 28/09) |
 
 > **Nota**: Sem empréstimo exclusivo não há garantia de ausência de data race
 > no nível de tipo. Data races são prevenidos por disciplina + `join_all` +
 > primitivas de sincronização explícitas (canais, futures). O compilador emite
 > `MEM020`/`MEM021` nas fronteiras sensíveis a aliasing (stdlib/FFI/spawn).
+
+> **B-04 escalar (28/09, #660/`D-MEM021-SCALAR`):** `MEM021` cobre também a
+> captura ESCALAR — o pai reatribuindo/incrementando um local capturado após o
+> `spawn`, sem `await`/`join_all` entre, é ERROR de compilação (a escrita do
+> worker força o box de representação, então pai e worker compartilham o slot;
+> corrida silenciosa medida `202`/`101` antes do fix). Captura só-leitura segue
+> silenciosa (por valor, sem box). `MemorySafetyE2ETest` 46/46.
+
+> **Verificação B-06 (28/09, #658/#659):** o lowering caixa toda captura mutada por construcao (`mutatedCapturedNames` → `CapturedVarBox`), entao a forma proibida (captura mutada sem caixa escapando) e inconstruivel — `MEM023` NAO tem face de compilacao hoje (precedente O-03/`D-MEMORY-CLEAR`: a garantia e provada por teste, nenhum diagnostico inventado). Travado pelas baterias de 4 alvos: `LambdaE2ETest` (faces de closure) + `SpawnE2ETest` (faces async/retorno, INCLUINDO captura MUTADA (`spawn { n = n + 1; return n * 2 }` → `44`) e visibilidade filho→pai via join (`println(await h); println(n)` → `44/22`), adicionadas 28/09 depois que o verifier independente mediu que captura read-only nunca exercita a caixa: o JVM rebaixa `LambdaTask0.<init>(I)`, por valor; `44` sozinho passaria ate num snapshot por valor).
 
 ---
 
@@ -167,17 +176,24 @@ O modelo:
 
 ---
 
-## 7. Fronteiras de Propriedade FFI
+## 7. Fronteiras de Propriedade FFI (tabela de ownership da fase 5, `D-MEMORY-SAFETY`; EN×PT em par)
 
-| Fronteira | JVM | Native |
-|---|---|---|
-| **String in** | Copy para JVM `String` | Copy para Kof String |
-| **String out** | Copy de JVM String | Copy de C string (owned por Kof) |
-| **Buffer in** | `Arena.ofConfined()` copy-in | Copy-in para Kof buffer |
-| **Buffer out (INOUT)** | Copy-in + copy-back no close da arena | **Descartado no native** (divergência, `MEM005`) |
-| **Array writes** | Copy-in + copy-back | **Descartado no native** (divergência documentada) |
-| **Owned pointer return** | Copiado antes do close da arena | Copiado para Kof String/Buffer |
-| **Transferência de propriedade** | `Arena.ofConfined()` lifetime explícito | `kof_ffi_release` explícito |
+Tudo que cruza uma fronteira de linguagem é CÓPIA DE VALOR com lifetime confined — Kof nunca transfere a propriedade do seu heap para um runtime externo, e memória externa nunca é retida além da chamada a menos que o lado Kof a copie. As células são MEDIDAS contra a árvore e travadas pela matriz de comportamento (`docs/backend-parity.md` linha C-FFI, 165), não lembradas. A tabela de duas colunas que isto substitui carregava duas alegações defasadas — "Buffer INOUT descartado no native" (a face publicada do FFI era recusa `FFI001` na linha da declaração; a fatia A1 do #651 pousou a superfície `Buffer(U8)` de namespace/print no x86-64 e a fatia A2 pousou a face `extern` `B` no x86-64 — cross segue `FFI001`) e "Native: `kof_ffi_release` explícito" (o símbolo existe só como conceito do modelo, `OwnerKind.java:29-30`, sem superfície na árvore — medido 28/09) — corrigidas aqui pela prática de verdade documental do #665 e pela issue #670.
+
+| Fronteira | JVM | Native | JS host runner | Python (`kof.interop`) |
+|---|---|---|---|---|
+| **Escalar (Int/Long/Float/Double/Bool)** | por valor via FFM (`FfiE2ETest`) | por valor, `call sym@PLT` direto, link-by-use — sem dlopen, sem ownership (#431, §369) | por valor via ponte do host, byte a byte com o JVM (`KofJsFfiBridge`, `FfiE2ETest` JVM↔JS) | valor JSON tipado novo por chamada (`interop-py-host.kf`, `json.decode` pelo tipo da face) |
+| **String** | cópia na fronteira, nas duas direções | cópia na fronteira; retorno = boundary copy (`kof_ffi_from_cstr`, payload off 24, NULL→NULL) | cópia | valor string JSON |
+| **Buffer(U8) in/INOUT** | copy-in + copy-back no close da `Arena.ofConfined()` confined (`BufferFfiE2ETest` 5/5) | **o `extern` `B` binda no x86-64 desde a fatia A2 do #651** — ponteiro do payload `obj+24`, a escrita do C é o copy-back (`BufferFfiE2ETest#bufferInoutCopyInCopyBackNativeParity`); a superfície de namespace/print binda pela fatia A1 (`BufferE2ETest#allocBytesAndPrintlnNativeParity`); cross riscv64/aarch64 **também binda desde a fatia B do #651** (`BufferFfiE2ETest#bufferParamCrossBindsAndMatchesJvm`, JVM==riscv64==aarch64) | paridade copy-in + copy-back (`BufferFfiE2ETest#bufferInoutCopyInCopyBackJsParity`, `JsRuntimeBuffer`) | sem buffer compartilhado — só valores |
+| **record / array escalar** | por valor: `record` arg + return, `T[]`→ptr copy-in, out-buffer (`FfiStructE2ETest` 10/10, `FfiArrayE2ETest` 5/5, 3.8b) | x86-64: struct param/return por valor incl. sret (> 16 B), `T[]` copy-in SEM write-back (`FfiNativeArrayE2ETest`); cross: `T[]` copy-in (30/09, face 1, `kof_ffi_pack_array`), `String[]`→`char**` copy-in (face 2, `kof_ffi_pack_str_array`) retorno de struct por memória (face 3, sret; ponteiro de resultado ciente da arch `a0` riscv64 / `x8` aarch64) e o **param** struct by-value >16 B (face 3, ponteiro BYREF `a0`/`x0`) — todos JVM==x86-64==riscv64==aarch64 (`FfiNativeArrayE2ETest`/`FfiNativeStringArrayE2ETest`/`FfiNativeStructReturnE2ETest`/`FfiCrossStructParamE2ETest`); callbacks no cross → `FFI001` na declaração | não-escalar → `FFI002` (ponte struct JS pendente, `CompilerFfiBinding`) | n/a (só face JSON tipada) |
+| **Callback (upcall)** | ponteiro de função C real, síncrono/não-escapante, contrato confined-arena (R3.4, `JvmFfiCallbackE2ETest`) | `FFI001` — remainder honesto do §369 | a ponte do host constrói o mesmo upcall, byte a byte (`upcallStub`, R3.4-C3) | n/a |
+| **Ponteiro próprio retornado por C / handle opaco** | copiado antes do close da arena; nunca retido | `FFI001` na linha da declaração (handles opacos fora de escopo, remainder §61) | copiado (ponte do host) | n/a |
+| **Liberação explícita** | nenhuma — `Arena.ofConfined()` confined fecha no fim da chamada | **nenhuma superfície de liberação existe**: `kof_ffi_release` é conceito do modelo (`OwnerKind.java:29-30`) e proposta D6-5 (`docs/ffi-abi-structs.md`), nunca implementado — medido 28/09, declarado aqui em vez de alegado | nenhuma — a ponte do host aloca por chamada (R3.4) | nenhuma — cada chamada é uma sessão-filha nova; globals do Python não sobrevivem entre chamadas |
+
+- **Kof↔Python NÃO é memória compartilhada.** O motor é Kof puro sobre `process.spawn` + `json.decode` tipado (protocolo de 3 linhas, header do `interop-py-host.kf`): cada valor cruza como payload JSON novo, logo não há o que possuir ou liberar; falhas são nomeadas `INTEROP004/006/007/008`, nunca silêncio; sessão viva com handle nomeado é território da regra 6, indeciso.
+- **Kof↔Rust NÃO tem superfície hoje — é AUSÊNCIA, não gap.** O `kof-c-compiler` é um compilador de subconjunto p/ fixtures (header do `KofCCompiler`: "native-only C subset compiler... no JVM target"), não um exportador; Kof não emite ABI de biblioteca consumível e nenhum doc alega o contrário. Uma coluna Rust entra nesta tabela quando uma necessidade real pousar — inventar suporte aqui seria contrato alucinado.
+- **POUSADO 29/09 (unidade 2 da fase 5, decisões `#667`/`#668` A).** A face de **compilação** do `MEM020` (B-03) agora tem forma: um `extern` cujo parâmetro é `Buffer(U8)` INOUT escreve esse buffer, então duas escritas sem sincronização (worker×pai ou worker×worker) viram `MEM020` ERROR em compile-time sobre o `OwnershipPass` existente (`FfiCaptureSpawnE2ETest#concurrentFfiBufferWriteParentAndSpawnIsMem020` + `#concurrentFfiBufferWriteTwoSpawnsIsMem020`; a escrita única com `await` segue limpa — `#singleAwaitedFfiBufferWriteIsNotMem020`). `Script × extern` não morre mais cru no runtime com `KofRuntime.kof_ffi/4`: é recusado na linha da declaração reusando `FFI001` (`ScriptTargetTest#externIsRefusedOnScriptFfi001`, integração `FfiCaptureSpawnE2ETest#ffiRefusedOnScriptEvenInsideSpawn`). Como a recusa precede qualquer lowering, a face `MEM020` é **inalcançável no Script por construção** (sem `extern` ⇒ sem escrita FFI) — o pin correto no Script é `FFI001`, nunca `MEM020`.
+- **POUSADO 30/09 (unidade 4 da fase 5, `D-MEM030-BORROW-RUNTIME`).** A metade de **runtime** do `MEM020` (B-03) agora tem forma: o objeto de runtime `Buffer(U8)` carrega um flag de **borrow gravável** exclusivo; uma escrita INOUT de `extern` o adquire e o libera após a downcall, então um **segundo borrow gravável concorrente** levanta `MEM020` em runtime enquanto escritor único/aguardado segue limpo. A primitiva está nas **seis** faces (JVM, JS, Native x86-64, riscv64, aarch64, Script). Pela decisão de acompanhamento da mantenedora, o caso **negativo** é provado por execução onde há preempção (JVM virtual threads; pthreads native x86-64/riscv64/aarch64) e por **inalcançabilidade estrutural** documentada em JS (seu `spawn` é `async`/`await` — cooperativo, single-threaded) e Script (sem superfície `Buffer`/`extern`: `FFI001`). Prova: `BufferRuntimeBorrowE2ETest` (controles positivos em todas as faces; o negativo x86-64 levanta exatamente um `MEM020`; a corrida negativa cross está temporariamente bloqueada pelo `known-bugs §545`, um SIGSEGV pré-existente do `spawn × extern` native/cross independente desta frente).
 
 ---
 
@@ -200,7 +216,7 @@ O modelo:
 | `Web` server | Processo ou `kof_web_close` explícito | Sim | `MEM014` |
 | `DB` conexão | Processo ou `kof_db_close` explícito | Sim | `MEM014` |
 | `File` handle | Por chamada (arquivo inteiro) | Auto por chamada | — |
-| `FFI` buffer | Arena explícita / `kof_ffi_release` | Sim | `MEM005` |
+| `FFI` buffer | Arena confined (JVM/JS); Native ainda não tem face de buffer (`FFI001`, §7) | Sim | `MEM005` |
 
 > Nenhum finalizer, nenhum `Cleaner`, nenhum finalizador. Vazar `close()` vaza o
 > recurso de SO subjacente pelo tempo de vida do processo.
@@ -229,11 +245,13 @@ A matriz abaixo mapeia cada classe de bug ao seu mecanismo de prevenção:
 | Dangling reference | GC (conservativo) | `MEM010` (runtime) | Todos |
 | Escape de tempo de vida inválido | Análise de escape nas fronteiras | `MEM013` (compile-time) | Todos |
 | Use-after-move | Nulagem explícita na transferência | `MEM002` (compile-time) | Todos |
-| Data race por aliasing mutável | Disciplina do programador + `MEM020/021` | `MEM020/021` (compile + runtime) | Todos |
+| Data race por aliasing mutável | Disciplina do programador + `MEM020/021` | `MEM021` compile (D-MEM021-SCALAR) + `MEM020` compile (#668) **e runtime** (#668 + `D-MEM030-BORROW-RUNTIME`, 30/09) | Todos alcançáveis (Script: `extern`/`Buffer` recusado `FFI001`; JS: `spawn` cooperativo ⇒ negativo N/A estrutural) |
 | Null deref | Nulabilidade + estreitamento | `SEM049` (compile-time) | Todos |
-| Resource leak | Close explícito | `MEM014` (compile-time) | Todos |
-| Confusão de propriedade FFI | Arena/release explícito | `MEM005` (compile + runtime) | JVM + Native |
-| Resource leak (DB/Web) | Close explícito | `MEM014` (compile-time) | Todos |
+| Resource leak | Close explícito | `MEM014` (compile-time; WARNING) | Todos (o Script o expõe via `Result.warnings()`, `D-SCRIPT-WARN-SURFACE`) |
+| Confusão de propriedade FFI | Arena confinada por chamada (não existe superfície de release — `kof_ffi_release` é conceito do modelo, spec §7, medido 28/09) | `MEM005` — regra do modelo, sem superfície de emissão hoje | JVM + Native |
+| Resource leak (DB/Web) | Close explícito | `MEM014` (compile-time; WARNING) | Todos (o Script o expõe via `Result.warnings()`, `D-SCRIPT-WARN-SURFACE`) |
+
+> **Diagnósticos de classe WARNING no Script:** `MEM014`/`MEM022` disparam no frontend compartilhado em todos os alvos. No Script, o `interpret()` descartava WARNINGs (só ERRORS escapavam) — medido 29/09, pedido de decisão #678; **RESOLVIDO 29/09 (`D-SCRIPT-WARN-SURFACE`, opção A): o interpretador agora os expõe via `KofInterpreter.Result.warnings()` e o CLI/`KofScript` os imprimem em stderr como o caminho de compilação.**
 
 > **Verificação Lei da Simplicidade**: Nenhuma anotação de lifetime no código do
 > usuário. Todas as regras disparam nas fronteiras de superfície existentes
@@ -248,10 +266,12 @@ A matriz abaixo mapeia cada classe de bug ao seu mecanismo de prevenção:
 | **0** Investigação | `docs/spec/memory-safety-investigation.md` | ✅ FECHADA 25/09 |
 | **1** Especificação | `docs/spec/memory-safety.md` (este doc) | ✅ FECHADA 25/09 (aceita, opção A) |
 | **2** Infraestrutura do compilador | Representações internas de Ownership/Lifetime/Borrow/Escape (`dev.kof.compiler.memory`) | ✅ FECHADA 26/09 (fatias 1–4; BT success `9bcddfe90`; emissão = Fase 3, destravada) |
-| **3** Primeiras garantias | Use-after-move, dangling, escape, aliasing mutável | 🔓 DESTRAVADA 26/09 (`D-COMPLETE-FIRST`) |
-| **4** Closures & async | Semântica de captura, fronteiras async | ⏳ AGUARDANDO |
-| **5** Native & FFI | Ponteiro/alloc/free, tabela de propriedade C ABI | ⏳ AGUARDANDO |
-| **6** Cross-target | Matriz de paridade JVM/JS/WASM | ⏳ AGUARDANDO |
+| **3** Primeiras garantias | Use-after-move, dangling, escape, aliasing mutável | ✅ FECHADA — fatias 3.1→4 pousadas (MEM001/002/013/014/021/022); ver `memory-safety-plan.md` |
+| **4** Closures & async | Semântica de captura, fronteiras async | ✅ FECHADA 28/09 — 4.1 captura (#658), 4.2 async/futures (#659), 4.3 callbacks (#662); iteradores/geradores = ausência medida |
+| **5** Native & FFI | Ponteiro/alloc/free, tabela de propriedade C ABI | 🔓 EM PROGRESSO — tabela de ownership pousada (#670); unidade 1 pinada (#666); unidade 2 pousada (#667/#668); unidade 3 pinada (`Buffer(U8)` INOUT × spawn/await); `#651` B cross pendente |
+| **6** Cross-target | mesma semântica de memory-safety nos **quatro backends que existem** — JVM, Native (x86-64 + cross riscv64/aarch64), JS, Script. WASM não é gap desta frente: só reentra no contrato quando um backend WASM real pousar (`D-MEM-PHASE6-4BACKENDS`, 30/09) | ⏳ AGUARDANDO |
+
+> **Escopo da fase 6 (corrigido 30/09, `D-MEM-PHASE6-4BACKENDS`):** o roadmap original nomeava "JVM / JS / WASM", mas a árvore **não tem backend WASM** (`docs/backend-parity.md` = JVM × Native × KofJS; ausência medida 28/09, #671). A paridade da fase 6 define-se, portanto, sobre os backends que existem (os quatro acima). WASM sai do contrato até um backend real pousar — **não** é gap aceito desta frente.
 
 ---
 
@@ -263,7 +283,7 @@ A matriz abaixo mapeia cada classe de bug ao seu mecanismo de prevenção:
 | `val`/`var` mutabilidade | Compile-time | Compile-time | Compile-time | Compile-time |
 | Nulabilidade estreitamento | Sim | Sim | Sim | Sim |
 | FFI string return | Copy (arena) | Copy (Kof-owned) | Copy (JS string) | Copy |
-| FFI Buffer INOUT | Copy-in + copy-back | **Descartado** (divergência) | Copy-back | Copy-back |
+| FFI Buffer INOUT | Copy-in + copy-back (`JvmFfiRuntime`) | **Binda no x86-64 e no riscv64/aarch64** (`#651` A2/B: o emissor passa o ponteiro do payload `obj+24`; a escrita do C é o copy-back — cross via `NativeFfiCallRiscv`) | Copy-back (bridge do host) | **Recusado na linha da declaração `FFI001`** (`#667` — Script não tem runtime FFI) |
 | Worker stack roots | Sim (virtual threads) | **Nunca** (desabilitado após spawn) | N/A (event loop) | Pilha do interpretador |
 
 ---

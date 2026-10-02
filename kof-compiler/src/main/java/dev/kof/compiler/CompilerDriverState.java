@@ -50,6 +50,22 @@ IRModule currentModule;
     final java.util.Deque<LabelId> continueLabels = new java.util.ArrayDeque<>();
 
     /**
+     * §551: nº de regiões `try` lexicamente ativas durante o lowering de UMA
+     * função. `break`/`continue`/`return` que SAEM de uma região precisam
+     * desvincular o handler nativo em runtime (`KofExcUnlink` por região
+     * atravessada) — antes, saltavam sem desvincular (frame pendurado →
+     * over-catch ou UAF no próximo `throw`). Resetado no início de cada
+     * função/lambda/ctor.
+     */
+    int tryDepth;
+
+    /** Profundidade de `tryDepth` no alvo de cada `break` (paralelo a breakLabels). */
+    final java.util.Deque<Integer> breakDepths = new java.util.ArrayDeque<>();
+
+    /** Profundidade de `tryDepth` no alvo de cada `continue` (paralelo a continueLabels). */
+    final java.util.Deque<Integer> continueDepths = new java.util.ArrayDeque<>();
+
+    /**
      * DD-01 (bug 45, opção 4a ratificada 13/09): pilha de try/finally ativos
      * durante o lowering de UMA função. `ReturnStmt` com frame ativo não faz
      * return direto — store do valor no slot do frame + jump p/ o epílogo
@@ -57,7 +73,8 @@ IRModule currentModule;
      * Lambda/class-body lowering salva e zera esta pilha (mesmo padrão de
      * savedMutated) p/ não vazar frame do método externo.
      */
-    record FinallyFrame(LabelId returnFinallyLabel, LabelId rethrowLabel, int slotValor, Type returnType) {
+    record FinallyFrame(LabelId returnFinallyLabel, LabelId rethrowLabel, int slotValor, Type returnType,
+                        int tryDepthSelf) {
     }
 
     final java.util.Deque<FinallyFrame> finallyFrames = new java.util.ArrayDeque<>();
@@ -152,6 +169,14 @@ IRModule currentModule;
     /** FFI (TIER 2.1): declarações {@code extern} por nome (preenchido no lowering). */
     final java.util.Map<String, ExternalFunctionNode> externSignatures = new java.util.LinkedHashMap<>();
 
+    /**
+     * #678 (`D-SCRIPT-WARN-SURFACE`): diagnósticos WARNING do frontend na
+     * última preparação para interpretação. O JVM/JS/Native imprimem os
+     * warnings do compile; o Script os expõe em {@code KofInterpreter.Result}
+     * para paridade. Limpo a cada {@code interpret()}.
+     */
+    List<Diagnostic> interpreterWarnings = java.util.List.of();
+
     /** Pontes super.metodo() geradas para lambdas: dono interno → método. */
     final Map<String, List<IRMethod>> pendingSuperBridges = new java.util.LinkedHashMap<>();
 
@@ -226,6 +251,15 @@ IRModule currentModule;
 
     public CompilationResult compileForTests(Path sourceFile, Path outputDir, Target target) {
         return CompilerPipeline.compileForTests((CompilerDriver) this, sourceFile, outputDir, target);
+    }
+
+    /**
+     * #708: variante com module root EXPLÍCITO — uma raiz de testes separada
+     * (ex.: {@code src/test/kof}) deixa fontes em subdiretórios-pacote
+     * ({@code exemplo/CalcTest.kf}) resolverem a correspondência PKG004.
+     */
+    public CompilationResult compileForTests(Path sourceFile, Path outputDir, Target target, Path moduleRoot) {
+        return CompilerPipeline.compileForTests((CompilerDriver) this, sourceFile, outputDir, target, moduleRoot);
     }
 
     public CompilationResult compile(Path sourceFile, Path outputDir, Target target) {
@@ -519,6 +553,9 @@ IRModule currentModule;
         lambdaCounter = 0;
         breakLabels.clear();
         continueLabels.clear();
+        breakDepths.clear();
+        continueDepths.clear();
+        tryDepth = 0;
         currentModule = null;
         currentUnit = null;
     }

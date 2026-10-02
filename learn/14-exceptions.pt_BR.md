@@ -34,6 +34,25 @@ main() {
 }
 ```
 
+## `using` (recursos gerenciados)
+
+Quando um valor precisa de cleanup, o `using` garante que o closer roda — no
+sucesso E na exceção — sem `try/finally` escrito à mão:
+
+```kf
+main() {
+    using (conn = db.connect("jdbc:h2:mem:demo"), db.close(conn)) {
+        db.execute(conn, "CREATE TABLE t (id INT PRIMARY KEY)")
+        println("table ready")
+    } // db.close(conn) roda aqui, mesmo se o corpo lançar
+}
+```
+
+Regras: o closer é explícito — escreva o idioma de close real do tipo
+(`db.close(conn)`, `conn.close()`, `sse.close()`); o vínculo vive só dentro do
+bloco; aninhe `using` para múltiplos recursos (o interno fecha primeiro).
+(A URL H2 acima é JVM-hermética; outros alvos usam seu próprio DSN `db`.)
+
 ## Lançando valores contextualizados
 
 A "identidade" da falha vem da própria mensagem:

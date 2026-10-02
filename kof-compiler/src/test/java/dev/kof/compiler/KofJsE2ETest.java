@@ -19,42 +19,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * (dev.kof.runtime.KofJsRunner) — no Node.js or external runtime is required.
  * The tests assert on stdout and exit code.
  */
-class KofJsE2ETest {
+class KofJsE2ETest extends KofJsSupport {
 
-    private final CompilerDriver driver = new CompilerDriver();
-
-    private String runJs(Path source, Path outDir, String expected) throws IOException {
-        CompilationResult result = driver.compile(source, outDir, Target.JS);
-        assertTrue(result.success(), "Compilation should succeed: " + result.diagnostics().getDiagnostics());
-        Path jsFile = outDir.resolve("Default.mjs");
-        assertTrue(Files.exists(jsFile), "Generated JS module should exist");
-        ExecResult exec = execModule(jsFile, "");
-        assertEquals(0, exec.exitCode(), "Exit code should be 0, output: '" + exec.output() + "'");
-        assertEquals(expected, exec.output(), "Unexpected output");
-        return exec.output();
-    }
-
-    private String runJsWithStdin(Path source, Path outDir, String stdin, String expected) throws IOException {
-        CompilationResult result = driver.compile(source, outDir, Target.JS);
-        assertTrue(result.success(), "Compilation should succeed: " + result.diagnostics().getDiagnostics());
-        Path jsFile = outDir.resolve("Default.mjs");
-        ExecResult exec = execModule(jsFile, stdin);
-        assertEquals(0, exec.exitCode(), "Exit code should be 0, output: '" + exec.output() + "'");
-        assertEquals(expected, exec.output(), "Unexpected output");
-        return exec.output();
-    }
-
-    private record ExecResult(int exitCode, String output) {
-    }
-
-    private ExecResult execModule(Path jsFile, String stdin) throws IOException {
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        int exitCode = dev.kof.runtime.KofJsRunner.run(jsFile, out,
-                new ByteArrayInputStream(stdin.getBytes()), out);
-        return new ExecResult(exitCode, out.toString().trim());
-    }
-
-    // 1. Hello World ─────────────────────────────────────────────────
 
     @Test
     void execHelloWorld(@TempDir Path tempDir) throws IOException {
@@ -96,18 +62,7 @@ class KofJsE2ETest {
     @Test
     void execVariables(@TempDir Path tempDir) throws IOException {
         Path source = tempDir.resolve("Main.kf");
-        Files.writeString(source, """
-            main() {
-                Int x = 10
-                String name = "Mel"
-                Bool active = true
-                var y = x * 2
-                println(x)
-                println(name)
-                println(active)
-                println(y)
-            }
-            """);
+        Files.writeString(source, SRC_EXEC_VARIABLES);
         runJs(source, tempDir.resolve("out"), "10\nMel\ntrue\n20");
     }
 
@@ -130,42 +85,14 @@ class KofJsE2ETest {
     @Test
     void execIfElse(@TempDir Path tempDir) throws IOException {
         Path source = tempDir.resolve("Main.kf");
-        Files.writeString(source, """
-            main() {
-                var x = 10
-                if (x > 5) {
-                    println("greater")
-                } else {
-                    println("smaller")
-                }
-                var y = 1
-                if (y > 5) {
-                    println("greater2")
-                } else {
-                    println("smaller2")
-                }
-            }
-            """);
+        Files.writeString(source, SRC_EXEC_IF_ELSE);
         runJs(source, tempDir.resolve("out"), "greater\nsmaller2");
     }
 
     @Test
     void execIfElseNested(@TempDir Path tempDir) throws IOException {
         Path source = tempDir.resolve("Main.kf");
-        Files.writeString(source, """
-            main() {
-                var x = 7
-                if (x > 5) {
-                    if (x > 8) {
-                        println("high")
-                    } else {
-                        println("mid")
-                    }
-                } else {
-                    println("low")
-                }
-            }
-            """);
+        Files.writeString(source, SRC_EXEC_IF_ELSE_NESTED);
         runJs(source, tempDir.resolve("out"), "mid");
     }
 
@@ -185,26 +112,7 @@ class KofJsE2ETest {
     @Test
     void execBooleanConditions(@TempDir Path tempDir) throws IOException {
         Path source = tempDir.resolve("Main.kf");
-        Files.writeString(source, """
-            main() {
-                var a = true
-                var b = false
-                if (a) {
-                    println("a")
-                }
-                if (a && b) {
-                    println("both")
-                }
-                if (a || b) {
-                    println("either")
-                }
-                if (!b) {
-                    println("not b")
-                }
-                println(a == b)
-                println(a != b)
-            }
-            """);
+        Files.writeString(source, SRC_EXEC_BOOLEAN_CONDITIONS);
         runJs(source, tempDir.resolve("out"), "a\neither\nnot b\nfalse\ntrue");
     }
 
@@ -213,17 +121,7 @@ class KofJsE2ETest {
     @Test
     void execWhileLoop(@TempDir Path tempDir) throws IOException {
         Path source = tempDir.resolve("Main.kf");
-        Files.writeString(source, """
-            main() {
-                var i = 0
-                var sum = 0
-                while (i < 5) {
-                    sum = sum + i
-                    i = i + 1
-                }
-                println(sum)
-            }
-            """);
+        Files.writeString(source, SRC_EXEC_WHILE_LOOP);
         runJs(source, tempDir.resolve("out"), "10");
     }
 
@@ -274,21 +172,7 @@ class KofJsE2ETest {
     @Test
     void execBreakContinue(@TempDir Path tempDir) throws IOException {
         Path source = tempDir.resolve("Main.kf");
-        Files.writeString(source, """
-            main() {
-                var i = 0
-                while (true) {
-                    i = i + 1
-                    if (i == 2) {
-                        continue
-                    }
-                    if (i > 4) {
-                        break
-                    }
-                    println(i)
-                }
-            }
-            """);
+        Files.writeString(source, SRC_EXEC_BREAK_CONTINUE);
         runJs(source, tempDir.resolve("out"), "1\n3\n4");
     }
 
@@ -297,39 +181,14 @@ class KofJsE2ETest {
     @Test
     void execFunctions(@TempDir Path tempDir) throws IOException {
         Path source = tempDir.resolve("Main.kf");
-        Files.writeString(source, """
-            Int add(Int a, Int b) {
-                return a + b
-            }
-
-            String shout(String s) {
-                return s + "!"
-            }
-
-            main() {
-                println(add(2, 3))
-                println(shout("hey"))
-                println(add(add(1, 2), add(3, 4)))
-            }
-            """);
+        Files.writeString(source, SRC_EXEC_FUNCTIONS);
         runJs(source, tempDir.resolve("out"), "5\nhey!\n10");
     }
 
     @Test
     void execRecursion(@TempDir Path tempDir) throws IOException {
         Path source = tempDir.resolve("Main.kf");
-        Files.writeString(source, """
-            Int factorial(Int n) {
-                if (n <= 1) {
-                    return 1
-                }
-                return n * factorial(n - 1)
-            }
-
-            main() {
-                println(factorial(5))
-            }
-            """);
+        Files.writeString(source, SRC_EXEC_RECURSION);
         runJs(source, tempDir.resolve("out"), "120");
     }
 
@@ -350,49 +209,14 @@ class KofJsE2ETest {
     @Test
     void execClasses(@TempDir Path tempDir) throws IOException {
         Path source = tempDir.resolve("Main.kf");
-        Files.writeString(source, """
-            class User {
-                String name
-                Int age
-
-                constructor(String name, Int age) {
-                    this.name = name
-                    this.age = age
-                }
-
-                String greeting() {
-                    return "Hello " + this.name
-                }
-            }
-
-            main() {
-                var u = User("Mel", 30)
-                println(u.greeting())
-                println(u.age)
-            }
-            """);
+        Files.writeString(source, SRC_EXEC_CLASSES);
         runJs(source, tempDir.resolve("out"), "Hello Mel\n30");
     }
 
     @Test
     void execClassFields(@TempDir Path tempDir) throws IOException {
         Path source = tempDir.resolve("Main.kf");
-        Files.writeString(source, """
-            class Counter {
-                Int count
-
-                void increment() {
-                    this.count = this.count + 1
-                }
-            }
-
-            main() {
-                var c = Counter()
-                c.increment()
-                c.increment()
-                println(c.count)
-            }
-            """);
+        Files.writeString(source, SRC_EXEC_CLASS_FIELDS);
         runJs(source, tempDir.resolve("out"), "2");
     }
 
@@ -401,23 +225,7 @@ class KofJsE2ETest {
     @Test
     void execConstructors(@TempDir Path tempDir) throws IOException {
         Path source = tempDir.resolve("Main.kf");
-        Files.writeString(source, """
-            class Point {
-                Int x
-                Int y
-
-                constructor(Int x, Int y) {
-                    this.x = x
-                    this.y = y
-                }
-            }
-
-            main() {
-                var p = Point(3, 4)
-                println(p.x)
-                println(p.y)
-            }
-            """);
+        Files.writeString(source, SRC_EXEC_CONSTRUCTORS);
         runJs(source, tempDir.resolve("out"), "3\n4");
     }
 
@@ -429,16 +237,7 @@ class KofJsE2ETest {
     @Test
     void recordWithExplicitConstructorRunsOnJs(@TempDir Path tempDir) throws IOException {
         Path source = tempDir.resolve("Main.kf");
-        Files.writeString(source, """
-            record Q(Int x) {
-                constructor(Int x) {
-                    this.x = x
-                }
-            }
-            main() {
-                println(Q(1).x())
-            }
-            """);
+        Files.writeString(source, SRC_RECORD_WITH_EXPLICIT_CONSTRUCTOR_RUNS_ON_JS);
         runJs(source, tempDir.resolve("out"), "1");
     }
 
@@ -447,37 +246,7 @@ class KofJsE2ETest {
     @Test
     void execInheritance(@TempDir Path tempDir) throws IOException {
         Path source = tempDir.resolve("Main.kf");
-        Files.writeString(source, """
-            class Animal {
-                String name
-
-                constructor(String name) {
-                    this.name = name
-                }
-
-                String speak() {
-                    return "..."
-                }
-            }
-
-            class Dog extends Animal {
-                constructor(String name) {
-                    super(name)
-                }
-
-                String speak() {
-                    return "Au au"
-                }
-            }
-
-            main() {
-                var a = Animal("bicho")
-                var d = Dog("Rex")
-                println(a.speak())
-                println(d.speak())
-                println(d.name)
-            }
-            """);
+        Files.writeString(source, SRC_EXEC_INHERITANCE);
         runJs(source, tempDir.resolve("out"), "...\nAu au\nRex");
     }
 
@@ -486,28 +255,7 @@ class KofJsE2ETest {
     @Test
     void execInterfaces(@TempDir Path tempDir) throws IOException {
         Path source = tempDir.resolve("Main.kf");
-        Files.writeString(source, """
-            interface Greeter {
-                String greet()
-            }
-
-            class Person implements Greeter {
-                String name
-
-                constructor(String name) {
-                    this.name = name
-                }
-
-                String greet() {
-                    return "Hi " + this.name
-                }
-            }
-
-            main() {
-                var g = Person("Mel")
-                println(g.greet())
-            }
-            """);
+        Files.writeString(source, SRC_EXEC_INTERFACES);
         runJs(source, tempDir.resolve("out"), "Hi Mel");
     }
 
@@ -516,17 +264,7 @@ class KofJsE2ETest {
     @Test
     void execGenerics(@TempDir Path tempDir) throws IOException {
         Path source = tempDir.resolve("Main.kf");
-        Files.writeString(source, """
-            List<Int> ints() {
-                return listOf(1, 2, 3)
-            }
-
-            main() {
-                var xs = ints()
-                println(xs.size)
-                println(xs.get(1))
-            }
-            """);
+        Files.writeString(source, SRC_EXEC_GENERICS);
         runJs(source, tempDir.resolve("out"), "3\n2");
     }
 
@@ -535,29 +273,7 @@ class KofJsE2ETest {
     @Test
     void execList(@TempDir Path tempDir) throws IOException {
         Path source = tempDir.resolve("Main.kf");
-        Files.writeString(source, """
-            main() {
-                var users = listOf("Mel", "Kof")
-
-                println(users.get(0))
-                println(users.size)
-
-                users.add("Kotlin")
-                println(users.size)
-                println(users.contains("Kof"))
-                println(users.contains("Java"))
-                println(users.isEmpty())
-
-                users.set(1, "Kof2")
-                println(users.get(1))
-
-                users.remove(0)
-                println(users.size)
-
-                users.clear()
-                println(users.isEmpty())
-            }
-            """);
+        Files.writeString(source, SRC_EXEC_LIST);
         runJs(source, tempDir.resolve("out"), "Mel\n2\n3\ntrue\nfalse\nfalse\nKof2\n2\ntrue");
     }
 
@@ -566,48 +282,8 @@ class KofJsE2ETest {
     @Test
     void execStringApi(@TempDir Path tempDir) throws IOException {
         Path source = tempDir.resolve("Main.kf");
-        Files.writeString(source, """
-            main() {
-                var s = "Hello World"
-
-                println(s.length)
-                println(s.toUpperCase())
-                println(s.toLowerCase())
-                println(s.substring(6))
-                println(s.substring(0, 5))
-                println(s.indexOf("World"))
-                println(s.contains("ello"))
-                println(s.startsWith("He"))
-                println(s.endsWith("ld"))
-                println(s.replace('l', 'L'))
-                println(s.trim())
-                println("a" + "b" + 1)
-                println("abc" == "abc")
-                println("abc" != "abd")
-                println(s.charAt(1))
-                var parts = s.split(" ")
-                println(parts.length)
-                println(parts[1])
-            }
-            """);
-        runJs(source, tempDir.resolve("out"), """
-            11
-            HELLO WORLD
-            hello world
-            World
-            Hello
-            6
-            true
-            true
-            true
-            HeLLo WorLd
-            Hello World
-            ab1
-            true
-            true
-            e
-            2
-            World""");
+        Files.writeString(source, SRC_EXEC_STRING_API);
+        runJs(source, tempDir.resolve("out"), SRC_EXEC_STRING_API_2);
     }
 
     // String→número (github #51): toInt/toLong/toDouble/toFloat não existiam no
@@ -616,19 +292,7 @@ class KofJsE2ETest {
     @Test
     void execStringToNumberConversion(@TempDir Path tempDir) throws IOException {
         Path source = tempDir.resolve("Main.kf");
-        Files.writeString(source, """
-            main() {
-                println("120000".toInt())
-                println("7".toLong())
-                println("2.5".toDouble())
-                println("-12".toInt())
-                try {
-                    println("abc".toInt())
-                } catch (String e) {
-                    println("ERR")
-                }
-            }
-            """);
+        Files.writeString(source, SRC_EXEC_STRING_TO_NUMBER_CONVERSION);
         runJs(source, tempDir.resolve("out"), """
             120000
             7
@@ -642,17 +306,7 @@ class KofJsE2ETest {
     @Test
     void execArrays(@TempDir Path tempDir) throws IOException {
         Path source = tempDir.resolve("Main.kf");
-        Files.writeString(source, """
-            main() {
-                var arr = new Int[5]
-                arr[0] = 10
-                arr[1] = 20
-                println(arr.length)
-                println(arr[0])
-                println(arr[1])
-                println(arr[4])
-            }
-            """);
+        Files.writeString(source, SRC_EXEC_ARRAYS);
         runJs(source, tempDir.resolve("out"), "5\n10\n20\n0");
     }
 
@@ -661,40 +315,14 @@ class KofJsE2ETest {
     @Test
     void execJson(@TempDir Path tempDir) throws IOException {
         Path source = tempDir.resolve("Main.kf");
-        Files.writeString(source, """
-            main() {
-                println(json.encode(42))
-                println(json.encode("text"))
-                println(json.encode(true))
-                println(json.encode(listOf(1, 2, 3)))
-                println(json.encode(listOf("a", "b")))
-
-                var n = json.decode<Int>("123")
-                println(n + 1)
-                var s = json.decode<String>("\\"ok\\"")
-                println(s)
-                var xs = json.decode<List<Int>>("[10, 20]")
-                println(xs.get(0))
-            }
-            """);
+        Files.writeString(source, SRC_EXEC_JSON);
         runJs(source, tempDir.resolve("out"), "42\n\"text\"\ntrue\n[1,2,3]\n[\"a\",\"b\"]\n124\nok\n10");
     }
 
     @Test
     void execJsonObjects(@TempDir Path tempDir) throws IOException {
         Path source = tempDir.resolve("Main.kf");
-        Files.writeString(source, """
-            class User(
-                String name
-            )
-
-            main() {
-                var users = listOf(User("Mel"), User("Kof"))
-                println(json.encode(users))
-                var u = json.decode<User>("{\\"name\\":\\"Mel\\"}")
-                println(u.name)
-            }
-            """);
+        Files.writeString(source, SRC_EXEC_JSON_OBJECTS);
         runJs(source, tempDir.resolve("out"), "[{\"name\":\"Mel\"},{\"name\":\"Kof\"}]\nMel");
     }
 
@@ -735,18 +363,7 @@ class KofJsE2ETest {
     @Test
     void execTryCatchFinally(@TempDir Path tempDir) throws IOException {
         Path source = tempDir.resolve("Main.kf");
-        Files.writeString(source, """
-            main() {
-                try {
-                    throw "x"
-                } catch (String e) {
-                    println("caught")
-                } finally {
-                    println("finally")
-                }
-                println("end")
-            }
-            """);
+        Files.writeString(source, SRC_EXEC_TRY_CATCH_FINALLY);
         runJs(source, tempDir.resolve("out"), "caught\nfinally\nend");
     }
 
@@ -858,22 +475,7 @@ class KofJsE2ETest {
         // avaliado). Antes o backend emitia & / | bitwise → os dois lados
         // eram sempre avaliados (f-rodou aparecia 3x em vez de 0x).
         Path source = tempDir.resolve("Main.kf");
-        Files.writeString(source, """
-            Int f() {
-                println("f-rodou")
-                return 1
-            }
-            main() {
-                if (false && f() > 0) {
-                    println("x")
-                }
-                if (true || f() > 0) {
-                    println("y")
-                }
-                var r = false && f() > 0
-                println(r)
-            }
-            """);
+        Files.writeString(source, SRC_LOGICAL_AND_OR_SHORT_CIRCUIT);
         runJs(source, tempDir.resolve("out"), "y\nfalse");
     }
 

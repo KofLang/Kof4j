@@ -482,7 +482,7 @@ if ("mapOf".equals(mc.methodName()) && mc.receiver() == null) {
         // literal boxea igual ao m.put() (CollectionCallLowerer), senão o
         // tag-7 do formatador leria cru × caixa mistos no mesmo mapa.
         if (driver.target.isNative() && driver.needsErasureBoxing()
-                && CollectionCallLowerer.mapBoxablePrim(vType)
+                && CollectionLoweringSupport.mapBoxablePrim(vType)
                 && !ExpressionTyper.boxesOwnBranches(driver, mc.arguments().get(ai + 1), locals)) {
             CompilerEmissionHelpers.emitErasureBox(driver, ops, vType);
         }

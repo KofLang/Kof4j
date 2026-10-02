@@ -35,8 +35,18 @@ import java.util.Map;
  */
 public final class KofInterpreter {
 
-    /** Resultado de uma execução interpretada. */
-    public record Result(int exitCode, String stdout, String stderr) {}
+    /**
+     * Resultado de uma execução interpretada. {@code warnings} carrega os
+     * diagnósticos de severidade WARNING do frontend compartilhado (ex.
+     * MEM014/MEM022) — no JVM/JS/Native o CLI os imprime; o Script os expõe
+     * aqui para paridade (#678, `D-SCRIPT-WARN-SURFACE`).
+     */
+    public record Result(int exitCode, String stdout, String stderr, List<Diagnostic> warnings) {
+        /** Compat: consumidores que só querem a saída do programa. */
+        public Result(int exitCode, String stdout, String stderr) {
+            this(exitCode, stdout, stderr, List.of());
+        }
+    }
 
     /** Objeto de classe Kof na pilha do interpretador. */
     static final class KofObj {
@@ -104,6 +114,11 @@ public final class KofInterpreter {
      * emissão de bytecode e sem fork de JVM — é o target KofScript.
      */
     public static Result run(IRModule module, String[] args) {
+        return run(module, args, List.of());
+    }
+
+    /** Como {@link #run(IRModule, String[])}, mas anexa os warnings do frontend. */
+    public static Result run(IRModule module, String[] args, List<Diagnostic> warnings) {
         ByteArrayOutputStream so = new ByteArrayOutputStream();
         ByteArrayOutputStream se = new ByteArrayOutputStream();
         PrintStream po = new PrintStream(so, true);
@@ -121,7 +136,8 @@ public final class KofInterpreter {
             po.flush();
             pe.flush();
         }
-        return new Result(code, so.toString(), se.toString());
+        return new Result(code, so.toString(), se.toString(),
+                warnings == null ? List.of() : warnings);
     }
 
     /**
@@ -357,6 +373,11 @@ public final class KofInterpreter {
                     }
                     case KofContinueLabel _ -> {
                         // §266: marcador estrutural (fronteira corpo/update do for) — no-op
+                    }
+                    case KofExcUnlink _ -> {
+                        // §549: pop no caminho normal — o match por intervalo de
+                        // pc já tornava o frame inerte, isto é higiene de pilha.
+                        if (!f.tryStack.isEmpty()) f.tryStack.pop();
                     }
                     case KofTryEnd _ -> {
                         if (!f.tryStack.isEmpty()) f.tryStack.pop();

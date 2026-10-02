@@ -340,7 +340,7 @@ aarch64 ✅ (`Video` fatia 2A + `Audio` fatia 2B, byte-for-byte under qemu);
 Scope note: this is today's **data face** of `kof.media`. The
 future graphics/gaming/media surface is **Kof's own engine** with FULL 4-target
 parity as its acceptance criterion (`DECISIONS.md` §D-GRAPHICS-GAMING addenda 2+4;
-plan `docs/development/future/graphics-gaming-plan.md`) — `MEDIA001` is honest for
+plan `docs/development/graphics-gaming-plan.md`) — `MEDIA001` is honest for
 the legacy face, not the model for what gets promoted.
 
 ## Note per target (honest gates)
@@ -370,8 +370,11 @@ the legacy face, not the model for what gets promoted.
 | shell.cmd/run/ok (v1) | ✅ | ❌ `PROC001` (compile-time) | ❌ `PROC001` | ✅ byte-parity |
 | shell.pipeline (v1) | ✅ | ❌ `PROC001` | ❌ `PROC001` | ✅ Kof JS host (chain + pump, 20/09 `081a48f8`; bare node = honest diagnostic) |
 
-`strings.reverse` on non-ASCII: byte-reverse on Native vs UTF-16 on JVM/JS —
-gap **NAT-STR01** (parity only locked on ASCII in the matrix).
+`strings.reverse`, `toUpperCase`/`toLowerCase` and `compareToIgnoreCase` on
+non-ASCII: correct on all targets since 27/09 (`D-STR-UNICODE`, row 11) —
+`compareToIgnoreCase` matches the JVM `CASE_INSENSITIVE_ORDER` (simple fold per
+code unit); `capitalize`/word-converters remain ASCII-only in Native, gap
+**NAT-STR01**.
 
 ## Limitations
 

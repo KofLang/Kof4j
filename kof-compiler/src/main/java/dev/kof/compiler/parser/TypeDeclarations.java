@@ -69,6 +69,22 @@ final class TypeDeclarations {
         ctx.expect(TokenType.ENUM, "Expected 'enum'", "PARSE030");
         String name = ctx.expectId("Expected enum name", "PARSE031");
         java.util.List<String> constants = new ArrayList<>();
+        if (!ctx.check(TokenType.LBRACE)) {
+            // §687: qualquer token entre o nome e '{' (ex.: `extends X`,
+            // `implements Y`) era SILENCIOSAMENTE ignorado — o enum saía com 0
+            // constantes e os tokens vazavam para o resto do parse, virando uma
+            // cascata de erros enganosos. Agora: UM diagnóstico (PARSE034) +
+            // recuperação LIMITADA (para em '{', ';', fim ou início de nova
+            // declaração — nunca engole a declaração seguinte, R6).
+            ctx.error("Expected '{' after enum name (enums are constants-only)", "PARSE034");
+            while (!ctx.atEnd()
+                    && !ctx.check(TokenType.LBRACE, TokenType.SEMICOLON, TokenType.CLASS,
+                            TokenType.INTERFACE, TokenType.RECORD, TokenType.ENUM,
+                            TokenType.ENTITY, TokenType.AT)) {
+                ctx.advance();
+            }
+            if (ctx.check(TokenType.SEMICOLON)) ctx.advance();
+        }
         if (ctx.check(TokenType.LBRACE)) {
             ctx.advance();
             while (!ctx.check(TokenType.RBRACE) && !ctx.check(TokenType.EOF)) {

@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 #
 # fetch-open-issues.sh — lista as issues ABERTAS no formato `numero<TAB>labels`,
-# exatamente o que o `check_release_050_gate.sh` consome via `OPEN_ISSUES_TSV`
-# (condicao 5 / bug_issues).
+# consumido pela triagem e pela esteira de release (`OPEN_ISSUES_TSV`).
 #
 # Por que existe: neste host o `gh` nao esta instalado e o `gh-as-agent.sh` exige
 # um GitHub App configurado. A condicao 5 ficava `UNKNOWN` (= "nao medido") nao

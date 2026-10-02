@@ -1,0 +1,483 @@
+package image
+
+import image.Image
+import image.Png
+import image.Gif
+import image.Vp8l
+import image.Vp8Raster
+
+// kof.image — raw raster decode, first pixel slice (provisional surface).
+//
+// `decodeRaster(path)` returns the pixel samples of an image. The Kof-first
+// half of the pixel slice decodes every supported format in pure Kof; JPEG
+// stays interop-first (JVM `imageio`, R9) behind a later maintainer-decided
+// `kof.image` surface.
+//
+//   var r = decodeRaster("shot.ppm")
+//   println(r.width + "x" + r.height + " ch=" + r.channels)
+//   var red = r.samples[0]                 // row-major, channels interleaved, 0..255
+//
+// Supported now (pure Kof, all targets): **PNM** `P5`/`P6` 8-bit, **farbfeld**
+// (16-bit RGBA downsampled to 8-bit), **BMP** 24/32-bit uncompressed (BGR rows
+// padded to 4 bytes; alpha dropped), **QOI**, **PNG** (deflate), **GIF** (first
+// frame) and **WebP** — `VP8 ` (lossy, the full RFC 6386 key-frame chain) and
+// `VP8L` (lossless). Documented bounds: the
+// sample count must be <= 262144 (one bounded read; the single array fits the
+// cross-native 16 MiB arena landed with `known-bugs` §540, and the x86-64
+// contiguous arena of §542) and the value must fit an 8-bit sample. Anything else (an unsupported format, a larger raster, a
+// 16-bit PNM, comments in the pixel area) throws a `String` beginning with
+// `IMAGE:` — never a silent wrong decode. `cropRaster`, `resizeNearest`,
+// `flipHorizontal`/`flipVertical`, `rotate90`, `grayscale`, `threshold` and
+// `boxBlur` operate on a `Raster` in pure Kof (nearest-neighbour; smooth
+// filtering rides the interop slice); their output is bounded by the same cap.
+//
+// The final `Image`/`Pixel`/`Color` value surface and the imageio bindings are
+// a rule-6 decision (see the plan); this `Raster` view is provisional and
+// additive. Built on `kof.io.readRange`; JS inherits the `IOJS001` gap.
+
+record Raster(String format, Int width, Int height, Int channels, Int[] samples)
+
+Raster decodeRaster(String path) {
+    var img = Image(path)
+    var fmt = img.format()
+    if (fmt == "farbfeld") {
+        return farbfeldRaster(path, img.width(), img.height())
+    }
+    if (fmt == "PPM" || fmt == "PGM") {
+        return pnmRaster(path, img.width(), img.height(), fmt == "PPM")
+    }
+    if (fmt == "BMP") {
+        return bmpRaster(path)
+    }
+    if (fmt == "QOI") {
+        return qoiRaster(path, img.width(), img.height())
+    }
+    if (fmt == "PNG") {
+        return pngRaster(path)
+    }
+    if (fmt == "GIF") {
+        return gifRaster(path, img.width(), img.height())
+    }
+    if (fmt == "WEBP") {
+        return webpRaster(path)
+    }
+    throw "IMAGE: raster decode is not supported for " + fmt
+}
+
+// WebP container: `VP8 ` (lossy) rides the pure-Kof VP8 chain
+// (`libs/image/Vp8Raster.kf`); `VP8L` (lossless) its own decoder. Any other
+// chunk is refused by `vp8lRaster` with an explicit `IMAGE:` diagnostic.
+Raster webpRaster(String path) {
+    var head = File(path).readRange(0, 16)
+    if (matchesAscii(head, 12, "VP8 ")) {
+        return vp8Raster(path)
+    }
+    return vp8lRaster(path)
+}
+
+// QOI ("Quite OK Image") — pure Kof, all targets: the chunks are decoded here
+// (RGB/RGBA/diff/luma/run/index), so there is no codec dependency.
+Raster qoiRaster(String path, Int w, Int h) {
+    var header = File(path).readRange(0, 14)
+    if (header.length < 14 || !matchesAscii(header, 0, "qoif")) {
+        throw "IMAGE: bad QOI header"
+    }
+    var channels = header[12] & 255
+    if (channels != 3 && channels != 4) {
+        throw "IMAGE: unsupported QOI channel count " + channels
+    }
+    var count = w * h * channels
+    guardRaster(count)
+    var pixelCount = w * h
+    var data = File(path).readRange(14, pixelCount * 5 + 8)
+    var samples = new Int[count]
+    var idxR = new Int[64]
+    var idxG = new Int[64]
+    var idxB = new Int[64]
+    var idxA = new Int[64]
+    var r = 0
+    var g = 0
+    var b = 0
+    var a = 255
+    var run = 0
+    var p = 0
+    var px = 0
+    while (px < pixelCount) {
+        if (run > 0) {
+            run = run - 1
+        } else {
+            var b1 = data[p] & 255
+            p = p + 1
+            if (b1 == 254) {
+                r = data[p] & 255
+                g = data[p + 1] & 255
+                b = data[p + 2] & 255
+                p = p + 3
+            } else if (b1 == 255) {
+                r = data[p] & 255
+                g = data[p + 1] & 255
+                b = data[p + 2] & 255
+                a = data[p + 3] & 255
+                p = p + 4
+            } else if ((b1 & 192) == 0) {
+                r = idxR[b1]
+                g = idxG[b1]
+                b = idxB[b1]
+                a = idxA[b1]
+            } else if ((b1 & 192) == 64) {
+                r = r + (((b1 >> 4) & 3) - 2)
+                g = g + (((b1 >> 2) & 3) - 2)
+                b = b + ((b1 & 3) - 2)
+            } else if ((b1 & 192) == 128) {
+                var b2 = data[p] & 255
+                p = p + 1
+                var dg = (b1 & 63) - 32
+                r = r + (((b2 >> 4) & 15) - 8 + dg)
+                g = g + dg
+                b = b + ((b2 & 15) - 8 + dg)
+            } else {
+                run = b1 & 63
+            }
+            var slot = (r * 3 + g * 5 + b * 7 + a * 11) % 64
+            idxR[slot] = r
+            idxG[slot] = g
+            idxB[slot] = b
+            idxA[slot] = a
+        }
+        var base = px * channels
+        samples[base] = r & 255
+        samples[base + 1] = g & 255
+        samples[base + 2] = b & 255
+        if (channels == 4) {
+            samples[base + 3] = a & 255
+        }
+        px = px + 1
+    }
+    return Raster("QOI", w, h, channels, samples)
+}
+
+Raster pnmRaster(String path, Int w, Int h, Bool color) {
+    var channels = 1
+    if (color) {
+        channels = 3
+    }
+    var count = w * h * channels
+    guardRaster(count)
+    var head = File(path).readRange(0, count + 64)
+    var start = rasterDataStart(head)
+    var samples = new Int[count]
+    var i = 0
+    while (i < count) {
+        samples[i] = head[start + i] & 255
+        i = i + 1
+    }
+    return Raster(buildPnmName(color), w, h, channels, samples)
+}
+
+// Uncompressed BMP (24/32-bit, no palette): rows padded to 4 bytes, stored
+// bottom-up unless the height is negative (top-down); BGR(A) -> RGB.
+Raster bmpRaster(String path) {
+    var head = File(path).readRange(0, 64)
+    var offset = le32(head, 10)
+    var w = le32(head, 18)
+    var h = le32(head, 22)
+    var topDown = false
+    if (h < 0) {
+        h = 0 - h
+        topDown = true
+    }
+    var bpp = le16(head, 28)
+    if (w <= 0 || h <= 0) {
+        throw "IMAGE: invalid BMP dimensions"
+    }
+    if (bpp != 24 && bpp != 32) {
+        throw "IMAGE: unsupported BMP bit depth " + bpp
+    }
+    var channels = 3
+    var count = w * h * channels
+    guardRaster(count)
+    var rowBytes = ((w * bpp / 8 + 3) / 4) * 4
+    var data = File(path).readRange(offset, rowBytes * h)
+    var samples = new Int[count]
+    var row = 0
+    while (row < h) {
+        var srcRow = row
+        if (!topDown) {
+            srcRow = h - 1 - row
+        }
+        var col = 0
+        while (col < w) {
+            var p = srcRow * rowBytes + col * (bpp / 8)
+            samples[(row * w + col) * channels] = data[p + 2] & 255
+            samples[(row * w + col) * channels + 1] = data[p + 1] & 255
+            samples[(row * w + col) * channels + 2] = data[p] & 255
+            col = col + 1
+        }
+        row = row + 1
+    }
+    return Raster("BMP", w, h, channels, samples)
+}
+
+Raster farbfeldRaster(String path, Int w, Int h) {
+    var count = w * h * 4
+    guardRaster(count)
+    var bytes = File(path).readRange(16, count * 2)
+    var samples = new Int[count]
+    var i = 0
+    while (i < count) {
+        samples[i] = bytes[i * 2] & 255
+        i = i + 1
+    }
+    return Raster("farbfeld", w, h, 4, samples)
+}
+
+guardRaster(Int count) {
+    if (count <= 0) {
+        throw "IMAGE: empty raster"
+    }
+    if (count > 262144) {
+        throw "IMAGE: raster too large for this slice (max 262144 samples)"
+    }
+}
+
+Raster cropRaster(Raster r, Int x, Int y, Int w, Int h) {
+    if (x < 0 || y < 0 || w <= 0 || h <= 0 || x + w > r.width || y + h > r.height) {
+        throw "IMAGE: crop rectangle out of bounds"
+    }
+    var count = w * h * r.channels
+    guardRaster(count)
+    var out = new Int[count]
+    var row = 0
+    while (row < h) {
+        var srcRow = (y + row) * r.width
+        var dstRow = row * w
+        var col = 0
+        while (col < w) {
+            var c = 0
+            while (c < r.channels) {
+                out[(dstRow + col) * r.channels + c] = r.samples[(srcRow + x + col) * r.channels + c]
+                c = c + 1
+            }
+            col = col + 1
+        }
+        row = row + 1
+    }
+    return Raster(r.format, w, h, r.channels, out)
+}
+
+Raster resizeNearest(Raster r, Int w, Int h) {
+    if (w <= 0 || h <= 0) {
+        throw "IMAGE: invalid resize size"
+    }
+    var count = w * h * r.channels
+    guardRaster(count)
+    var out = new Int[count]
+    var row = 0
+    while (row < h) {
+        var srcRow = row * r.height / h
+        var col = 0
+        while (col < w) {
+            var srcCol = col * r.width / w
+            var c = 0
+            while (c < r.channels) {
+                out[(row * w + col) * r.channels + c] = r.samples[(srcRow * r.width + srcCol) * r.channels + c]
+                c = c + 1
+            }
+            col = col + 1
+        }
+        row = row + 1
+    }
+    return Raster(r.format, w, h, r.channels, out)
+}
+
+Raster flipHorizontal(Raster r) {
+    guardRaster(r.samples.length)
+    var out = new Int[r.samples.length]
+    var row = 0
+    while (row < r.height) {
+        var col = 0
+        while (col < r.width) {
+            var c = 0
+            while (c < r.channels) {
+                var src = (row * r.width + (r.width - 1 - col)) * r.channels + c
+                out[(row * r.width + col) * r.channels + c] = r.samples[src]
+                c = c + 1
+            }
+            col = col + 1
+        }
+        row = row + 1
+    }
+    return Raster(r.format, r.width, r.height, r.channels, out)
+}
+
+Raster flipVertical(Raster r) {
+    guardRaster(r.samples.length)
+    var out = new Int[r.samples.length]
+    var row = 0
+    while (row < r.height) {
+        var col = 0
+        while (col < r.width) {
+            var c = 0
+            while (c < r.channels) {
+                var src = ((r.height - 1 - row) * r.width + col) * r.channels + c
+                out[(row * r.width + col) * r.channels + c] = r.samples[src]
+                c = c + 1
+            }
+            col = col + 1
+        }
+        row = row + 1
+    }
+    return Raster(r.format, r.width, r.height, r.channels, out)
+}
+
+// Clockwise 90 degrees; the dimensions swap (`W'=H`, `H'=W`).
+Raster rotate90(Raster r) {
+    guardRaster(r.samples.length)
+    var out = new Int[r.samples.length]
+    var y = 0
+    while (y < r.width) {
+        var x = 0
+        while (x < r.height) {
+            var c = 0
+            while (c < r.channels) {
+                var src = ((r.height - 1 - x) * r.width + y) * r.channels + c
+                out[(y * r.height + x) * r.channels + c] = r.samples[src]
+                c = c + 1
+            }
+            x = x + 1
+        }
+        y = y + 1
+    }
+    return Raster(r.format, r.height, r.width, r.channels, out)
+}
+
+// Luminance grayscale (BT.601 `0.299R+0.587G+0.114B`), alpha kept; a 1-channel
+// raster is returned unchanged.
+Raster grayscale(Raster r) {
+    guardRaster(r.samples.length)
+    var out = new Int[r.samples.length]
+    if (r.channels < 3) {
+        var k = 0
+        while (k < out.length) {
+            out[k] = r.samples[k]
+            k = k + 1
+        }
+        return Raster(r.format, r.width, r.height, r.channels, out)
+    }
+    var px = 0
+    while (px < r.width * r.height) {
+        var base = px * r.channels
+        var y = (r.samples[base] * 299 + r.samples[base + 1] * 587 + r.samples[base + 2] * 114) / 1000
+        out[base] = y
+        out[base + 1] = y
+        out[base + 2] = y
+        if (r.channels == 4) {
+            out[base + 3] = r.samples[base + 3]
+        }
+        px = px + 1
+    }
+    return Raster(r.format, r.width, r.height, r.channels, out)
+}
+
+// Binary threshold: a colour sample becomes 255 when >= `level`, else 0; alpha
+// (4-channel) is preserved.
+Raster threshold(Raster r, Int level) {
+    guardRaster(r.samples.length)
+    var out = new Int[r.samples.length]
+    var px = 0
+    while (px < r.width * r.height) {
+        var base = px * r.channels
+        var c = 0
+        while (c < r.channels) {
+            if (r.channels == 4 && c == 3) {
+                out[base + c] = r.samples[base + c]
+            } else if (r.samples[base + c] >= level) {
+                out[base + c] = 255
+            } else {
+                out[base + c] = 0
+            }
+            c = c + 1
+        }
+        px = px + 1
+    }
+    return Raster(r.format, r.width, r.height, r.channels, out)
+}
+
+// 3x3 box blur, borders clamped (edge cells average fewer neighbours).
+Raster boxBlur(Raster r) {
+    guardRaster(r.samples.length)
+    var out = new Int[r.samples.length]
+    var row = 0
+    while (row < r.height) {
+        var col = 0
+        while (col < r.width) {
+            var c = 0
+            while (c < r.channels) {
+                var sum = 0
+                var n = 0
+                var dy = -1
+                while (dy <= 1) {
+                    var dx = -1
+                    while (dx <= 1) {
+                        var yy = row + dy
+                        var xx = col + dx
+                        if (yy >= 0 && yy < r.height && xx >= 0 && xx < r.width) {
+                            sum = sum + r.samples[(yy * r.width + xx) * r.channels + c]
+                            n = n + 1
+                        }
+                        dx = dx + 1
+                    }
+                    dy = dy + 1
+                }
+                out[(row * r.width + col) * r.channels + c] = sum / n
+                c = c + 1
+            }
+            col = col + 1
+        }
+        row = row + 1
+    }
+    return Raster(r.format, r.width, r.height, r.channels, out)
+}
+
+String buildPnmName(Bool color) {
+    if (color) {
+        return "PPM"
+    }
+    return "PGM"
+}
+
+// Offset of the first raster byte in a P5/P6 header (`P5/P6`, width, height,
+// maxval, one whitespace, data). Comments are not allowed inside the data.
+Int rasterDataStart(Int[] b) {
+    var i = 2
+    i = rasterSkip(b, i)
+    i = rasterDigits(b, i)
+    i = rasterSkip(b, i)
+    i = rasterDigits(b, i)
+    i = rasterSkip(b, i)
+    i = rasterDigits(b, i)
+    if (i < b.length && rasterIsSpace(b[i])) {
+        i = i + 1
+    }
+    return i
+}
+
+Int rasterSkip(Int[] b, Int from) {
+    var p = from
+    while (p < b.length && rasterIsSpace(b[p])) {
+        p = p + 1
+    }
+    return p
+}
+
+Int rasterDigits(Int[] b, Int from) {
+    var p = from
+    while (p < b.length && b[p] >= 48 && b[p] <= 57) {
+        p = p + 1
+    }
+    return p
+}
+
+Bool rasterIsSpace(Int c) {
+    return c == 32 || c == 9 || c == 10 || c == 13
+}

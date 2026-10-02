@@ -24,7 +24,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * memória. Ferramenta ausente → {@code assumeTrue} (skip honesto, sem
  * falso-verde).
  */
-class KofCCrossCompilerTest {
+class KofCCrossCompilerTest extends KofCSupport {
 
     /** Programa que cobre o subconjunto inteiro: globais, atribuição, laço,
      *  desvio, endereço/deref e binárias (aritmética + comparação). */
@@ -86,50 +86,9 @@ class KofCCrossCompilerTest {
 
     private static final String COMPARISONS_GOLDEN = "0\n1\n0\n1\n0\n1\n56\n0";
 
-    private static boolean has(String... cmds) {
-        String path = System.getenv("PATH");
-        if (path == null) return false;
-        String[] dirs = path.split(File.pathSeparator);
-        for (String c : cmds) {
-            if (c == null) continue;
-            boolean found = false;
-            for (String d : dirs) {
-                if (Files.isExecutable(Path.of(d, c))) { found = true; break; }
-            }
-            if (!found) return false;
-        }
-        return true;
-    }
 
-    private static void requireTools(KofCTarget t) {
-        assumeTrue(has(t.assembler().get(0), t.linker(), t.qemu()),
-                "toolchain cross " + t + " + qemu ausente — pulando (NATIVE002)");
-    }
 
     /** Compila e roda no alvo (sob qemu quando cross), devolvendo o stdout. */
-    private static String run(KofCTarget target, Path tmp, String source) throws Exception {
-        Files.createDirectories(tmp);
-        Path c = tmp.resolve("prog.c");
-        Files.writeString(c, source);
-        KofCCompiler.CompileResult res = KofCCompiler.compile(c, tmp.resolve("out"), target);
-        assertTrue(res.success(), "compile " + target + " falhou: " + res.diagnostics());
-        assertTrue(Files.exists(res.binary()), "binário ausente para " + target);
-
-        List<String> cmd = new ArrayList<>();
-        if (target.qemu() != null) cmd.add(target.qemu());
-        cmd.add(res.binary().toString());
-        ProcessBuilder pb = new ProcessBuilder(cmd);
-        pb.redirectErrorStream(true);
-        Process p = pb.start();
-        String output = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
-                .replace("\r\n", "\n").trim();
-        if (!p.waitFor(30, TimeUnit.SECONDS)) {
-            p.destroyForcibly();
-            throw new AssertionError(target + " não terminou em 30s (saída: '" + output + "')");
-        }
-        assertEquals(0, p.exitValue(), "exit != 0 em " + target + " (saída: '" + output + "')");
-        return output;
-    }
 
     @Test
     void riscv64FullSubsetMatchesGolden(@TempDir Path tmp) throws Exception {

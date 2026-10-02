@@ -3,11 +3,11 @@ package dev.kof.compiler;
 import java.util.List;
 
 /**
- * The four built-in AST desugars as {@link DesugarStep}s (2.2.3,
- * `DECISIONS.md` §D-DESUGAR-STEP 21/09).
+ * The five built-in AST desugars as {@link DesugarStep}s (2.2.3,
+ * `DECISIONS.md` §D-DESUGAR-STEP 21/09 + `D-SCOPED-RESOURCES-GO` slice 1).
  *
  * <p>The order is significant and mirrors the historical call order in the
- * pipeline: tests, application, infra, nested functions. Each step delegates to
+ * pipeline: using, tests, application, infra, nested functions. Each step delegates to
  * the existing {@link CompilerDesugar} routine, so the transformation is
  * behavior-free (freeze rule 3).
  */
@@ -18,6 +18,17 @@ final class DesugarSteps {
 
     static List<DesugarStep> defaults() {
         return List.of(
+                new DesugarStep() {
+                    @Override
+                    public String name() {
+                        return "using";
+                    }
+
+                    @Override
+                    public CompilationUnitNode apply(CompilationUnitNode unit, CompilerDriver driver) {
+                        return CompilerDesugar.desugarUsing(unit);
+                    }
+                },
                 new DesugarStep() {
                     @Override
                     public String name() {

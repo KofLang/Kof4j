@@ -144,6 +144,8 @@ final class NativeArchEmitter {
         // no texto do PROGRAMA (a poda só alcança o blob do runtime), em
         // plena seção .text; o aarch64 o recebe pela tradução linha-a-linha.
         if (nb.ffiUsesCstr) NativeFfiCallRiscv.emitRiscvCstrHelper(sb);
+        if (nb.ffiUsesArray) NativeFfiCallRiscv.emitRiscvArrayPackHelper(sb);
+        if (nb.ffiUsesStrArray) NativeFfiCallRiscv.emitRiscvStrArrayPackHelper(sb);
 
         // Ponto de entrada: chama <mainClass>_main e sai via exit_group(94).
         // O runtime é asm puro — binário estático. exit_group (não exit/93)
@@ -206,7 +208,9 @@ final class NativeArchEmitter {
         // DB001) e força o dinâmico (sem ela o `call sym` não resolve).
         boolean ffi = !nb.ffiLibs.isEmpty();
         boolean libm = NativeCrossLink.needsLibm(prunedRiscv);
-        boolean dynamic = sqlite || ffi || NativeCrossLink.needsLibc(prunedRiscv);
+        // §545: spawn usa `_dl_allocate_tls` (loader) para o tp do worker —
+        // só existe no link dinâmico, então um programa com spawn força -lc.
+        boolean dynamic = sqlite || ffi || usesSpawn || NativeCrossLink.needsLibc(prunedRiscv);
         String sysroot = NativeCrossLink.sysrootFor("riscv64");
         if (dynamic && sysroot == null) {
             // R6: sem libc-cross não há como ligar dinâmico — segue estático,
@@ -346,6 +350,8 @@ final class NativeArchEmitter {
         // #431 fatia 2: idem riscv — o helper entra ANTES da tradução p/ o
         // ARM (linhas todas cobertas pelo tradutor: beqz/lbu/j/mv/li/sd/ld/call/ret).
         if (nb.ffiUsesCstr) NativeFfiCallRiscv.emitRiscvCstrHelper(riscvSb);
+        if (nb.ffiUsesArray) NativeFfiCallRiscv.emitRiscvArrayPackHelper(riscvSb);
+        if (nb.ffiUsesStrArray) NativeFfiCallRiscv.emitRiscvStrArrayPackHelper(riscvSb);
         String mainEntry = mainClass != null ? nb.sanitizeName(mainClass.name()) + "_main" : "kof_main";
         riscvSb.append("\n.globl _start\n");
         riscvSb.append("_start:\n");
@@ -408,7 +414,8 @@ final class NativeArchEmitter {
         boolean sqlite = NativeCrossLink.needsSqlite(prunedRiscv);
         boolean ffi = !nb.ffiLibs.isEmpty();
         boolean libm = NativeCrossLink.needsLibm(prunedRiscv);
-        boolean dynamic = sqlite || ffi || NativeCrossLink.needsLibc(prunedRiscv);
+        // §545: idem riscv — spawn usa `_dl_allocate_tls`, só no dinâmico.
+        boolean dynamic = sqlite || ffi || usesSpawnA || NativeCrossLink.needsLibc(prunedRiscv);
         String sysroot = NativeCrossLink.sysrootFor("aarch64");
         if (sqlite && !NativeCrossLink.sqliteAvailable("aarch64")) {
             System.err.println("NativeBackend: aarch64 uses kof.db but libsqlite3.so is not in the " +

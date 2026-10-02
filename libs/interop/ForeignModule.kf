@@ -1,0 +1,97 @@
+package interop
+
+import interop.InteropOwnership
+
+// kof.interop — foreign module descriptor (fatia 9 of the Kof Connector Ecosystem
+// plan, `D-CONNECTORS-GO`). It models the plan §3.5 abstraction the Core consumes
+// and connectors populate:
+//
+//   foreign module = library + symbols + types + functions + ownership + ABI
+//
+// This slice covers the module identity (name, library, ABI) and its declared
+// symbols (Kof name -> foreign name + signature), with the module's ownership
+// concept validated by the Core (`InteropOwnership`, §3.2). It is the seam every
+// connector populates, built in pure Kof — no `foreign module` grammar (that is a
+// rule-6 decision, plan §13).
+//
+//   var m = ForeignModule("kof-cc", "libkofcc", "c", "borrowed")
+//   m.declare("add", "kof_add", "(Int,Int)->Int")
+//   m.symbolCount()          // 1
+//   m.hasSymbol("add")       // true
+//   m.signatureOf("add")     // "(Int,Int)->Int"
+//   m.describe()
+//
+// Honest by construction (R6): an unknown ownership throws through
+// `InteropOwnership`; an undeclared symbol throws `FOREIGN: unknown symbol <x>`,
+// never a null/empty facade. No compiler change; target-neutral (no IO).
+
+class ForeignModule {
+    String moduleName
+    String library
+    String abi
+    String ownership
+    List<String> kofNames
+    List<String> foreignNames
+    List<String> signatures
+
+    constructor(String moduleName, String library, String abi, String ownership) {
+        // Validate the ownership concept through the Core, never accept it blindly.
+        InteropOwnership().contract(ownership)
+        this.moduleName = moduleName
+        this.library = library
+        this.abi = abi
+        this.ownership = ownership
+        this.kofNames = new List<String>()
+        this.foreignNames = new List<String>()
+        this.signatures = new List<String>()
+    }
+
+    // Declare a foreign symbol: its Kof name, the foreign symbol name and the
+    // signature (in the connector's declared notation).
+    void declare(String kofName, String foreignName, String signature) {
+        this.kofNames.add(kofName)
+        this.foreignNames.add(foreignName)
+        this.signatures.add(signature)
+    }
+
+    Int symbolCount() {
+        return this.kofNames.size()
+    }
+
+    Bool hasSymbol(String kofName) {
+        return indexOf(kofName) >= 0
+    }
+
+    String foreignNameOf(String kofName) {
+        var i = indexOf(kofName)
+        if (i < 0) {
+            throw "FOREIGN: unknown symbol " + kofName
+        }
+        return this.foreignNames.get(i)
+    }
+
+    String signatureOf(String kofName) {
+        var i = indexOf(kofName)
+        if (i < 0) {
+            throw "FOREIGN: unknown symbol " + kofName
+        }
+        return this.signatures.get(i)
+    }
+
+    String describe() {
+        return "foreign module " + this.moduleName + " library=" + this.library
+                + " abi=" + this.abi + " ownership=" + this.ownership
+                + " symbols=" + symbolCount()
+    }
+
+    Int indexOf(String kofName) {
+        var i = 0
+        while (i < this.kofNames.size()) {
+            if (this.kofNames.get(i) == kofName) {
+                return i
+            }
+            i = i + 1
+        }
+        return -1
+    }
+}

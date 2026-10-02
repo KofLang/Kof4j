@@ -1,0 +1,389 @@
+package image
+
+import image.Vp8Frame
+import image.Vp8Coeffs
+
+// kof.image — VP8 (lossy WebP) loop filter (RFC 6386 §15).
+//
+// `vp8LoopFilter(frame, pixels, coeffs)` applies the in-loop deblocking filter
+// to the three reconstructed planes of `Vp8Reconstruct` (slice 5). It is the
+// last stage of key-frame reconstruction: without it the decoded planes differ
+// from libwebp's output; with it the full decoder is byte-identical.
+//
+// The frame header selects the filter (`filter_type`: 0 normal, 1 simple) and
+// its strength (`loop_filter_level`, `sharpness_level`), optionally overridden
+// per macroblock segment (§9.4/§10). Filtering is skipped entirely when the
+// level is 0. The complex ("normal") filter is the default and the one every
+// libwebp fixture uses; the simple filter only touches luma. Both are
+// implemented here from the reference source. Pure Kof, deterministic, all
+// targets; slice 6 of the pure-Kof VP8 chain (`D-WEBP-LOSSY-PURE-KOF`).
+
+// One macroblock's precomputed filter parameters (RFC 6386 §15.4).
+record Vp8FilterParams(Int limit, Int ilevel, Int hev, Int inner)
+
+// The deblocking filter of one frame.
+class Vp8LoopFilter {
+    Vp8Frame frame
+    Vp8Coeffs coeffs
+    Int mbCols
+    Int mbRows
+    Int yStride
+    Int uvStride
+    Int[] y
+    Int[] u
+    Int[] v
+    Int simple
+    Int level
+    Int sharpness
+
+    constructor(Vp8Frame f, Vp8Pixels p, Vp8Coeffs c) {
+        this.frame = f
+        this.coeffs = c
+        this.mbCols = f.mbCols()
+        this.mbRows = f.mbRows()
+        this.yStride = this.mbCols * 16 + 1
+        this.uvStride = this.mbCols * 8 + 1
+        this.y = p.y()
+        this.u = p.u()
+        this.v = p.v()
+        this.simple = f.filterType()
+        this.level = f.loopFilterLevel()
+        this.sharpness = f.sharpnessLevel()
+    }
+
+    // Applies the loop filter to every macroblock in raster order. Returns the
+    // same pixel buffers, mutated in place so callers can compare against them.
+    void run() {
+        if (this.level == 0) {
+            return
+        }
+        var mby = 0
+        while (mby < this.mbRows) {
+            var mbx = 0
+            while (mbx < this.mbCols) {
+                this.filterMb(mby, mbx)
+                mbx = mbx + 1
+            }
+            mby = mby + 1
+        }
+    }
+
+    void filterMb(Int mby, Int mbx) {
+        var mb = mby * this.mbCols + mbx
+        var params = vp8FilterParams(this.frame, this.coeffs, mb, this.simple, this.level, this.sharpness)
+        if (params.limit() == 0) {
+            return
+        }
+        // `Vp8Pixels` carries a one-pixel top/left border, so the first actual
+        // sample of the macroblock is at buffer offset +1.
+        var y0 = mby * 16 + 1
+        var x0 = mbx * 16 + 1
+        var uy = mby * 8 + 1
+        var ux = mbx * 8 + 1
+        // Step 1: the left (vertical) inter-macroblock edge. Chroma is only
+        // filtered by the normal filter.
+        if (mbx > 0) {
+            this.edge(this.y, this.yStride, y0, x0, 16, true, params, params.limit() + 4, params.ilevel(), false)
+            if (this.simple == 0) {
+                this.edge(this.u, this.uvStride, uy, ux, 8, true, params, params.limit() + 4, params.ilevel(), false)
+                this.edge(this.v, this.uvStride, uy, ux, 8, true, params, params.limit() + 4, params.ilevel(), false)
+            }
+        }
+        // Steps 2 and 4: the internal sub-block edges, skipped for a
+        // macroblock that is neither B_PRED nor carries coefficients (§15.1).
+        if (params.inner() != 0) {
+            if (this.simple == 0) {
+                this.edge(this.u, this.uvStride, uy, ux + 4, 8, true, params, params.limit(), params.ilevel(), true)
+                this.edge(this.v, this.uvStride, uy, ux + 4, 8, true, params, params.limit(), params.ilevel(), true)
+            }
+            this.edge(this.y, this.yStride, y0, x0 + 4, 16, true, params, params.limit(), params.ilevel(), true)
+            this.edge(this.y, this.yStride, y0, x0 + 8, 16, true, params, params.limit(), params.ilevel(), true)
+            this.edge(this.y, this.yStride, y0, x0 + 12, 16, true, params, params.limit(), params.ilevel(), true)
+        }
+        // Step 3: the top (horizontal) inter-macroblock edge.
+        if (mby > 0) {
+            this.edge(this.y, this.yStride, y0, x0, 16, false, params, params.limit() + 4, params.ilevel(), false)
+            if (this.simple == 0) {
+                this.edge(this.u, this.uvStride, uy, ux, 8, false, params, params.limit() + 4, params.ilevel(), false)
+                this.edge(this.v, this.uvStride, uy, ux, 8, false, params, params.limit() + 4, params.ilevel(), false)
+            }
+        }
+        // Step 4 (continued): the internal horizontal sub-block edges.
+        if (params.inner() != 0) {
+            if (this.simple == 0) {
+                this.edge(this.u, this.uvStride, uy + 4, ux, 8, false, params, params.limit(), params.ilevel(), true)
+                this.edge(this.v, this.uvStride, uy + 4, ux, 8, false, params, params.limit(), params.ilevel(), true)
+            }
+            this.edge(this.y, this.yStride, y0 + 4, x0, 16, false, params, params.limit(), params.ilevel(), true)
+            this.edge(this.y, this.yStride, y0 + 8, x0, 16, false, params, params.limit(), params.ilevel(), true)
+            this.edge(this.y, this.yStride, y0 + 12, x0, 16, false, params, params.limit(), params.ilevel(), true)
+        }
+    }
+
+    // Filters one edge: `vertical` selects a vertical edge (segments run down)
+    // or a horizontal edge (segments run across). `row`/`col` are the plane
+    // coordinates of the segment start, `seg` its length, `thr` the edge limit,
+    // `ithr` the interior limit and `blockEdge` true for an inter-sub-block edge
+    // (the 4-tap `DoFilter4`) versus an inter-macroblock edge (the 6-tap
+    // `DoFilter6`).
+    void edge(Int[] plane, Int stride, Int row, Int col, Int seg, Bool vertical, Vp8FilterParams p, Int thr, Int ithr, Bool blockEdge) {
+        var k = 0
+        while (k < seg) {
+            if (vertical) {
+                this.filterV(plane, stride, row + k, col, p, thr, ithr, blockEdge)
+            } else {
+                this.filterH(plane, stride, row, col + k, p, thr, ithr, blockEdge)
+            }
+            k = k + 1
+        }
+    }
+
+    // A single vertical edge at (row, col): P is (row, col-1), Q is (row, col).
+    void filterV(Int[] a, Int stride, Int row, Int col, Vp8FilterParams p, Int thr, Int ithr, Bool blockEdge) {
+        var base = row * stride + col
+        if (this.simple == 1) {
+            if (vp8NeedsFilter(a[base - 2], a[base - 1], a[base], a[base + 1], 2 * thr + 1)) {
+                vp8DoFilter2(a, base - 1, 1)
+            }
+        } else if (vp8NeedsFilter2(a[base - 4], a[base - 3], a[base - 2], a[base - 1], a[base], a[base + 1], a[base + 2], a[base + 3], 2 * thr + 1, ithr)) {
+            if (vp8Hev(a[base - 2], a[base - 1], a[base], a[base + 1], p.hev())) {
+                vp8DoFilter2(a, base - 1, 1)
+            } else if (blockEdge) {
+                vp8DoFilter4(a, base - 1, 1)
+            } else {
+                vp8DoFilter6(a, base - 1, 1)
+            }
+        }
+    }
+
+    // A single horizontal edge at (row, col): P is (row-1, col), Q is (row, col).
+    void filterH(Int[] a, Int stride, Int row, Int col, Vp8FilterParams p, Int thr, Int ithr, Bool blockEdge) {
+        var base = row * stride + col
+        if (this.simple == 1) {
+            if (vp8NeedsFilter(a[base - 2 * stride], a[base - stride], a[base], a[base + stride], 2 * thr + 1)) {
+                vp8DoFilter2(a, base - stride, stride)
+            }
+        } else if (vp8NeedsFilter2(a[base - 4 * stride], a[base - 3 * stride], a[base - 2 * stride], a[base - stride], a[base], a[base + stride], a[base + 2 * stride], a[base + 3 * stride], 2 * thr + 1, ithr)) {
+            if (vp8Hev(a[base - 2 * stride], a[base - stride], a[base], a[base + stride], p.hev())) {
+                vp8DoFilter2(a, base - stride, stride)
+            } else if (blockEdge) {
+                vp8DoFilter4(a, base - stride, stride)
+            } else {
+                vp8DoFilter6(a, base - stride, stride)
+            }
+        }
+    }
+}
+
+// Computes one macroblock's filter parameters (RFC 6386 §15.4; libwebp
+// `PrecomputeFilterStrengths` + the per-MB `f_inner` promotion). `simple` and
+// `level`/`sharpness` come from the frame header.
+Vp8FilterParams vp8FilterParams(Vp8Frame f, Vp8Coeffs c, Int mb, Int simple, Int level, Int sharpness) {
+    var seg = f.segmentId(mb)
+    // The filter strength is absolute when segment_abs is set, else a delta.
+    var base = level
+    if (f.segmentEnabled() == 1) {
+        var s = f.segmentFilter()[seg]
+        if (f.segmentAbs() == 1) {
+            base = s
+        } else {
+            base = level + s
+        }
+    }
+    if (f.loopFilterDeltaEnabled() == 1) {
+        base = base + f.refLfDelta()[0]
+    }
+    var i4x4 = f.yMode(mb) == 4
+    if (f.loopFilterDeltaEnabled() == 1 && i4x4) {
+        base = base + f.modeLfDelta()[0]
+    }
+    if (base < 0) {
+        base = 0
+    }
+    if (base > 63) {
+        base = 63
+    }
+    var limit = 0
+    var ilevel = 0
+    var hev = 0
+    if (base > 0) {
+        ilevel = base
+        if (sharpness > 0) {
+            if (sharpness > 4) {
+                ilevel = ilevel >> 2
+            } else {
+                ilevel = ilevel >> 1
+            }
+            if (ilevel > 9 - sharpness) {
+                ilevel = 9 - sharpness
+            }
+        }
+        if (ilevel < 1) {
+            ilevel = 1
+        }
+        limit = 2 * base + ilevel
+        if (base >= 40) {
+            hev = 2
+        } else if (base >= 15) {
+            hev = 1
+        }
+    }
+    var inner = 0
+    if (i4x4) {
+        inner = 1
+    } else if (vp8MbHasCoeffs(c, mb)) {
+        inner = 1
+    }
+    return Vp8FilterParams(limit, ilevel, hev, inner)
+}
+
+// Whether a macroblock carries any non-zero coefficient (libwebp's
+// `f_inner |= !skip`): true unless every block's end-of-block position is 0.
+Bool vp8MbHasCoeffs(Vp8Coeffs c, Int mb) {
+    var ci = 0
+    while (ci < 25) {
+        if (c.eobAt(mb, ci) > 0) {
+            return true
+        }
+        ci = ci + 1
+    }
+    return false
+}
+
+Int vp8Abs(Int v) {
+    if (v < 0) {
+        return -v
+    }
+    return v
+}
+
+// `NeedsFilter_C` (RFC 6386 §15.2): 4*|p0-q0| + |p1-q1| <= t.
+Bool vp8NeedsFilter(Int p1, Int p0, Int q0, Int q1, Int t) {
+    return 4 * vp8Abs(p0 - q0) + vp8Abs(p1 - q1) <= t
+}
+
+// `NeedsFilter2_C` (RFC 6386 §15.3): the edge test above plus every interior
+// difference within `it`.
+Bool vp8NeedsFilter2(Int p3, Int p2, Int p1, Int p0, Int q0, Int q1, Int q2, Int q3, Int t, Int it) {
+    if (!vp8NeedsFilter(p1, p0, q0, q1, t)) {
+        return false
+    }
+    return vp8Abs(p3 - p2) <= it && vp8Abs(p2 - p1) <= it && vp8Abs(p1 - p0) <= it
+        && vp8Abs(q3 - q2) <= it && vp8Abs(q2 - q1) <= it && vp8Abs(q1 - q0) <= it
+}
+
+// `Hev` (RFC 6386 §15.3): high edge variance between the inner pairs.
+Bool vp8Hev(Int p1, Int p0, Int q0, Int q1, Int thresh) {
+    return vp8Abs(p1 - p0) > thresh || vp8Abs(q1 - q0) > thresh
+}
+
+// `common_adjust` with outer taps (RFC 6386 §15.2), in place: adjusts the two
+// pixels straddling the edge (`p0` at `base`, `q0` at `base+step`).
+void vp8DoFilter2(Int[] a, Int base, Int step) {
+    var p1 = a[base - step]
+    var p0 = a[base]
+    var q0 = a[base + step]
+    var q1 = a[base + 2 * step]
+    var d = p1 - q1
+    if (d < -128) {
+        d = -128
+    } else if (d > 127) {
+        d = 127
+    }
+    var av = 3 * (q0 - p0) + d
+    if (av < -128) {
+        av = -128
+    } else if (av > 127) {
+        av = 127
+    }
+    var a1 = (av + 4) >> 3
+    if (a1 < -16) {
+        a1 = -16
+    } else if (a1 > 15) {
+        a1 = 15
+    }
+    var a2 = (av + 3) >> 3
+    if (a2 < -16) {
+        a2 = -16
+    } else if (a2 > 15) {
+        a2 = 15
+    }
+    a[base] = vp8Clip255(p0 + a2)
+    a[base + step] = vp8Clip255(q0 - a1)
+}
+
+// The normal inter-sub-block adjustment (RFC 6386 §15.3 `subblock_filter`,
+// libwebp `DoFilter4_C`): the simple adjustment without outer taps, plus the
+// two pixels one step in from the edge adjusted by roughly half as much.
+void vp8DoFilter4(Int[] a, Int base, Int step) {
+    var p1 = a[base - step]
+    var p0 = a[base]
+    var q0 = a[base + step]
+    var q1 = a[base + 2 * step]
+    var av = 3 * (q0 - p0)
+    var a1 = (av + 4) >> 3
+    if (a1 < -16) {
+        a1 = -16
+    } else if (a1 > 15) {
+        a1 = 15
+    }
+    var a2 = (av + 3) >> 3
+    if (a2 < -16) {
+        a2 = -16
+    } else if (a2 > 15) {
+        a2 = 15
+    }
+    var a3 = (a1 + 1) >> 1
+    a[base - step] = vp8Clip255(p1 + a3)
+    a[base] = vp8Clip255(p0 + a2)
+    a[base + step] = vp8Clip255(q0 - a1)
+    a[base + 2 * step] = vp8Clip255(q1 - a3)
+}
+
+// The normal inter-macroblock adjustment (RFC 6386 §15.3 `MBfilter`).
+void vp8DoFilter6(Int[] a, Int base, Int step) {
+    var p2 = a[base - 2 * step]
+    var p1 = a[base - step]
+    var p0 = a[base]
+    var q0 = a[base + step]
+    var q1 = a[base + 2 * step]
+    var q2 = a[base + 3 * step]
+    var d = p1 - q1
+    if (d < -128) {
+        d = -128
+    } else if (d > 127) {
+        d = 127
+    }
+    var w = 3 * (q0 - p0) + d
+    if (w < -128) {
+        w = -128
+    } else if (w > 127) {
+        w = 127
+    }
+    var a1 = (27 * w + 63) >> 7
+    var a2 = (18 * w + 63) >> 7
+    var a3 = (9 * w + 63) >> 7
+    a[base - 2 * step] = vp8Clip255(p2 + a3)
+    a[base - step] = vp8Clip255(p1 + a2)
+    a[base] = vp8Clip255(p0 + a1)
+    a[base + step] = vp8Clip255(q0 - a1)
+    a[base + 2 * step] = vp8Clip255(q1 - a2)
+    a[base + 3 * step] = vp8Clip255(q2 - a3)
+}
+
+Int vp8Clip255(Int v) {
+    if (v < 0) {
+        return 0
+    }
+    if (v > 255) {
+        return 255
+    }
+    return v
+}
+
+// Applies the loop filter in place and returns the same planes.
+Vp8Pixels vp8LoopFilter(Vp8Frame frame, Vp8Pixels pixels, Vp8Coeffs coeffs) {
+    var f = Vp8LoopFilter(frame, pixels, coeffs)
+    f.run()
+    return pixels
+}

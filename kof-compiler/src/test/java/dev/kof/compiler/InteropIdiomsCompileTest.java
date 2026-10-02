@@ -11,9 +11,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Locks the code in {@code training/idioms/interop.md} section (d): the D6
- * struct/array/out-buffer shapes must compile on the JVM and on JS (the JS FFI
- * surface is complete since R54/R55/R57/R58/R59), and must stay an honest gap
- * (FFI001) on Native — which still lacks the struct/array/out-buffer ABI.
+ * struct/array/out-buffer shapes must compile on the JVM, on JS (the JS FFI
+ * surface is complete since R54/R55/R57/R58/R59) and on Native x86-64 (struct
+ * by value 3.7 + array copy-in D6-2 + {@code Buffer(U8)} INOUT, #651 fatia A2).
+ * The cross riscv64/aarch64 buffer face keeps the honest FFI001 gap (R6).
  * Same discipline as {@link StdlibIdiomsCompileTest} for `stdlib.md`.
  */
 class InteropIdiomsCompileTest {
@@ -48,13 +49,18 @@ class InteropIdiomsCompileTest {
     }
 
     @Test
-    void nativeShapeExamplesStayHonest(@TempDir Path dir) throws Exception {
+    void nativeShapeExamplesBindOnX86(@TempDir Path dir) throws Exception {
+        // 3.7 (struct by value) + D6-2 (array copy-in) + #651 fatia A2
+        // (Buffer(U8) INOUT) closed the x86-64 surface for the documented shapes:
+        // no FFI001 must appear on the declaration lines. The final `ld` step
+        // fails because `libshapes.so` is a documentation placeholder — that is
+        // an environment/link condition, not a binding gap (asserted separately).
         Path src = dir.resolve("interopnat.kf");
         Files.writeString(src, DOC_SHAPES);
         CompilationResult r = driver.compile(src, dir.resolve("out-nat"), Target.NATIVE);
-        assertFalse(r.success(), "record/array/buffer externs must not bind on Native (R6/R7)");
-        assertTrue(r.diagnostics().getDiagnostics().toString().contains("FFI001"),
-                "expected FFI001 on Native, got: " + r.diagnostics().getDiagnostics());
+        assertFalse(r.diagnostics().getDiagnostics().toString().contains("FFI001"),
+                "documented D6 shapes must bind on Native x86-64 (no FFI001): "
+                        + r.diagnostics().getDiagnostics());
     }
 
     @Test

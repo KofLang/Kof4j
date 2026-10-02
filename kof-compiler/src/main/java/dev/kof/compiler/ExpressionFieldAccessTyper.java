@@ -83,10 +83,10 @@ final class ExpressionFieldAccessTyper {
         if (recvType instanceof Type.ClassType ct && driver.semanticAnalyzer != null) {
             SymbolTable.Symbol s = HierarchyResolver.resolveFieldInHierarchy(ct.name(), fa.fieldName(), driver.semanticAnalyzer);
             if (s instanceof SymbolTable.FieldSymbol fs) {
-                return CompilerTypes.substituteTypeVariableIn(fs.type(), recvType, driver.currentUnit);
+                return TypeSubstitution.substituteTypeVariableIn(fs.type(), recvType, driver.currentUnit);
             }
             if (s instanceof SymbolTable.MethodSymbol ms && ms.parameterTypes().isEmpty()) {
-                return CompilerTypes.substituteTypeVariableIn(ms.returnType(), recvType, driver.currentUnit);
+                return TypeSubstitution.substituteTypeVariableIn(ms.returnType(), recvType, driver.currentUnit);
             }
         }
         return Type.UnknownType.UNKNOWN;

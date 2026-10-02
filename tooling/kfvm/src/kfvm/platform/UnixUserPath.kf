@@ -1,0 +1,5 @@
+package kfvm.platform
+
+class UnixUserPath implements kfvm.platform.UserPath {
+    Bool include(String dir) { return false }
+}

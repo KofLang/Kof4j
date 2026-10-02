@@ -1,0 +1,32 @@
+package kfvm.system
+
+class Logger {
+    info(message: String) {
+        logIo(BLUE, message, "INFO")
+    }
+
+    error(message: String) {
+        logIo(RED, message, "ERR")
+    }
+
+    success(message: String) {
+        logIo(GREEN, message, "OK")
+    }
+
+    log(message: String) {
+        logIo(WHITE, message, null)
+    }
+
+    logWithKind(kind: String, kindColor: TermColor, message: String) {
+        println(ansi(kindColor) + "(" + kind + ") " + ansi(RESET) + message)
+    }
+
+    logColorfulLine(color: TermColor, message: String) {
+        println(ansi(color) + message + ansi(RESET))
+    }
+
+    private logIo(color: TermColor, message: String, messageKind: String?) {
+        String kind = if (messageKind instanceof String) ansi(color) + "\n[" + messageKind + "]: " + ansi(RESET) else ""
+        println(kind + message)
+    }
+}

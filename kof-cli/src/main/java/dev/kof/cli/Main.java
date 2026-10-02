@@ -13,6 +13,7 @@ import java.util.List;
 
 public final class Main {
     public static void main(String[] args) {
+        KofStdio.install();
         if (args.length == 0) { printUsage(); return; }
         switch (args[0]) {
             case "build" -> CmdBuild.run(args);

@@ -1,0 +1,8 @@
+main() {
+    var nums = new List<Int>()
+    for (var i = 0; i < 4000; i++) {
+        nums.add(i % 1000)
+    }
+    var uniq = nums.distinct()
+    println(uniq.size)
+}

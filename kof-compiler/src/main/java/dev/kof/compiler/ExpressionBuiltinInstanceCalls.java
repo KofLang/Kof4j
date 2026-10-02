@@ -30,6 +30,18 @@ final class ExpressionBuiltinInstanceCalls {
             "kof_io_path_parent", "kof_io_path_extension", "kof_io_path_is_absolute",
             "kof_io_path_resolve", "kof_io_path_normalize", "kof_io_path_to_absolute", "kof_io_dir_delete", "kof_io_file_modified_time", "kof_io_file_is_symlink", "kof_io_file_move_to", "kof_io_file_copy_to");
 
+    /**
+     * Faces de kof.io sem binding no runtime JS ({@code kof-runtime-io.mjs}
+     * não exporta estes símbolos). Emitir a chamada compilava e quebrava no
+     * runtime com {@code SyntaxError}: ... does not provide an export named
+     * 'kofIoReadRange' — um fallback silencioso (R6). Sem host primitivo para
+     * leitura parcial, o lowering recusa no compile time com IOJS001.
+     */
+    private static final Set<String> JS_MISSING_IO = Set.of(
+            "kof_io_read_range", "kof_io_read_range_path",
+            "kof_io_file_copy_to", "kof_io_file_move_to",
+            "kof_io_file_modified_time", "kof_io_file_is_symlink");
+
     /** Diagnóstico de gap honesto (R6) numa chamada kof.web. */
     private static void webGap(CompilerDriver driver, MethodCallExpr mc, String msg, String code) {
         if (driver.currentDiagnostics == null) return;
@@ -201,6 +213,46 @@ final class ExpressionBuiltinInstanceCalls {
         return localIdx;
     }
 
+
+    /** D-KOF-NET fatia 1: membros de handle `net` (Listener/Conn/Endpoint). O
+     *  handle é o receiver (carregado a montante, padrão buffer/media). Fora de
+     *  JVM/ANDROID = recusa honesta NET002 (fatias 3–5 do plano portam os alvos). */
+    static int lowerNet(CompilerDriver driver, MethodCallExpr mc, List<KofOperation> ops,
+                        String owner, int localIdx, List<IRLocalVariable> locals, Type recvType) {
+        List<Type> netArgTypes = new ArrayList<>();
+        netArgTypes.add(recvType);
+        for (ExpressionNode arg : mc.arguments()) {
+            netArgTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
+        }
+        KofNet.NetCall netCall = KofNet.instanceMethod(mc.methodName(), netArgTypes);
+        if (netCall != null) {
+            // Fatia 1 (Q5): recusa em TODO alvo ate KofNet.socketRuntimeReady
+            // virar JVM-only na fatia 2 (corpo java.net real no runtime gerado).
+            if (!KofNet.socketRuntimeReady(driver.target)) {
+                if (driver.currentDiagnostics != null) {
+                    driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
+                            mc.position() != null ? mc.position().line() : 0,
+                            mc.position() != null ? mc.position().column() : 0,
+                            0,
+                            mc.methodName() + ": kof.net sockets are not available on the "
+                                    + driver.target + " target yet (NET002) — plan network-kofnet",
+                            "NET002");
+                }
+                return localIdx;
+            }
+            List<Type> netParams = new ArrayList<>();
+            netParams.add(recvType); // handle (receiver) first — JvmTypeMapper maps it
+            for (ExpressionNode arg : mc.arguments()) {
+                netParams.add(ExpressionTyper.inferExprType(driver, arg, locals));
+                localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
+            }
+            ops.add(new KofCall(new Type.ClassType("dev.kof.runtime", "KofRuntime", List.of()),
+                    netCall.function(), netParams,
+                    netCall.returnType(), KofCallKind.FUNCTION));
+        }
+        return localIdx;
+    }
+
     static int lowerBuffer(CompilerDriver driver, MethodCallExpr mc, List<KofOperation> ops,
                            String owner, int localIdx, List<IRLocalVariable> locals, Type recvType) {
         KofBuffer.BufferCall bufferCall =
@@ -266,6 +318,24 @@ final class ExpressionBuiltinInstanceCalls {
                                     + "isDirectory are ported); use --target native or the"
                                     + " JVM/JS/Script drivers",
                             "NAT006");
+                }
+                return localIdx;
+            }
+            // R6: JS has no binding for these kof.io faces — the guest module
+            // import was undefined and only failed at runtime (SyntaxError).
+            // Refuse at compile time (IOJS001), never a silent runtime break.
+            if (driver.target == Target.JS && JS_MISSING_IO.contains(ioCall.function())) {
+                if (driver.currentDiagnostics != null) {
+                    SourcePosition ioPos = mc.position();
+                    driver.currentDiagnostics.error(
+                            ioPos != null ? ioPos.file() : "",
+                            ioPos != null ? ioPos.line() : 0,
+                            ioPos != null ? ioPos.column() : 0, 0,
+                            "kof.io: '" + mc.methodName() + "' is not available on the"
+                                    + " JS target yet (IOJS001) — the JS runtime has no"
+                                    + " partial-read/host binding for it; use --target"
+                                    + " jvm/native (or the Script driver)",
+                            "IOJS001");
                 }
                 return localIdx;
             }

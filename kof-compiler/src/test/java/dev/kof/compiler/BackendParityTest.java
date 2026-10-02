@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Native is added when the toolchain is available and the compiled binary
  * runs (see NativeDebugTest conventions).
  */
-class BackendParityTest {
+class BackendParityTest extends BackendParityPrograms {
 
     private final CompilerDriver driver = new CompilerDriver();
 
@@ -103,27 +103,7 @@ class BackendParityTest {
 
     @Test
     void parityControlFlow(@TempDir Path tempDir) throws IOException {
-        runParity("""
-                main() {
-                    var sum = 0
-                    for (var i = 0; i < 5; i++) {
-                        if (i == 2) {
-                            continue
-                        }
-                        sum = sum + i
-                    }
-                    println(sum)
-                    var i = 0
-                    while (i < 3) {
-                        i = i + 1
-                    }
-                    println(i)
-                    do {
-                        i = i - 1
-                    } while (i > 0)
-                    println(i)
-                }
-                """, "8\n3\n0", tempDir, "flow");
+        runParity(SRC_PARITY_CONTROL_FLOW, "8\n3\n0", tempDir, "flow");
     }
 
     // SG-006 — short-circuit de &&/||: `x != null && x.length > 0` NÃO pode
@@ -169,26 +149,7 @@ class BackendParityTest {
 
     @Test
     void parityClassesAndList(@TempDir Path tempDir) throws IOException {
-        runParity("""
-                class User {
-                    String name
-                    Int age
-
-                    constructor(String name, Int age) {
-                        this.name = name
-                        this.age = age
-                    }
-                }
-
-                main() {
-                    var users = listOf(User("Mel", 30), User("Kof", 25))
-                    for (var i = 0; i < users.size; i++) {
-                        println(users.get(i).name)
-                        println(users.get(i).age)
-                    }
-                    println(users.size)
-                }
-                """, "Mel\n30\nKof\n25\n2", tempDir, "classes");
+        runParity(SRC_PARITY_CLASSES_AND_LIST, "Mel\n30\nKof\n25\n2", tempDir, "classes");
     }
 
     @Test
@@ -241,63 +202,12 @@ class BackendParityTest {
     @Test
     void parityColor32Bit(@TempDir Path tempDir) throws IOException {
         // 32-bit ARGB color type + named palette — no hex/ANSI conversion by hand
-        runParity("""
-                class Color {
-                    Int value
-
-                    constructor(Int value) {
-                        this.value = value
-                    }
-
-                    Int red() { return (this.value >> 16) & 0xFF }
-                    Int green() { return (this.value >> 8) & 0xFF }
-                    Int blue() { return this.value & 0xFF }
-                    Int alpha() { return (this.value >> 24) & 0xFF }
-                    String ansi() {
-                        return "\\u001b[38;2;" + this.red() + ";" + this.green() + ";" + this.blue() + "m"
-                    }
-                }
-
-                class Colors {
-                    static Int primary = 0xFF6750A4
-                    static Int success = 0xFF4CAF50
-                }
-
-                main() {
-                    var c = Color(Colors.primary)
-                    println(c.red())
-                    println(c.green())
-                    println(c.blue())
-                    println(c.alpha())
-                    var s = Color(Colors.success)
-                    println(s.red())
-                    println(s.green())
-                    println(s.blue())
-                    println(c.ansi() == "\\u001b[38;2;103;80;164m")
-                }
-                """, "103\n80\n164\n255\n76\n175\n80\ntrue", tempDir, "color");
+        runParity(SRC_PARITY_COLOR32_BIT, "103\n80\n164\n255\n76\n175\n80\ntrue", tempDir, "color");
     }
 
     @Test
     void parityArrayAndSwitch(@TempDir Path tempDir) throws IOException {
-        runParity("""
-                main() {
-                    var arr = new Int[4]
-                    arr[0] = 7
-                    arr[1] = 3
-                    println(arr.length)
-                    println(arr[0] + arr[1])
-                    var x = 2
-                    switch (x) {
-                        case 1:
-                            println("one")
-                        case 2:
-                            println("two")
-                        default:
-                            println("other")
-                    }
-                }
-                """, "4\n10\ntwo", tempDir, "array");
+        runParity(SRC_PARITY_ARRAY_AND_SWITCH, "4\n10\ntwo", tempDir, "array");
     }
 
     // ── paridade cross-target dos bugs corrigidos na varredura do
@@ -426,26 +336,7 @@ class BackendParityTest {
         // §101 (D-BACKEND-SEMANTICS #1, 14/09): IEEE 754 puro — todo relacional
         // com NaN é false, `!=` é true (JLS 15.20.1). riscv é a referência;
         // JVM (dcmpg/dcmpl) e x86 foram alinhados. Golden do oracle Java.
-        runParity("""
-                Double nan(Double zero) {
-                    return zero / zero
-                }
-                main() {
-                    var n = nan(0.0)
-                    println(n < 1.0)
-                    println(n <= 1.0)
-                    println(n > 1.0)
-                    println(n >= 1.0)
-                    println(n == 1.0)
-                    println(n != 1.0)
-                    println(n == n)
-                    println(n != n)
-                    println(1.0 < n)
-                    println(1.0 <= n)
-                    println(1.0 > n)
-                    println(1.0 >= n)
-                }
-                """, "false\nfalse\nfalse\nfalse\nfalse\ntrue\nfalse\ntrue\nfalse\nfalse\nfalse\nfalse",
+        runParity(SRC_PARITY_NAN_RELATIONAL_IEEE, "false\nfalse\nfalse\nfalse\nfalse\ntrue\nfalse\ntrue\nfalse\nfalse\nfalse\nfalse",
                 tempDir, "nanrel");
     }
 

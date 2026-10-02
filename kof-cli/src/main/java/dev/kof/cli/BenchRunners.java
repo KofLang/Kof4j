@@ -107,6 +107,7 @@ final class BenchRunners {
             if (className == null) return null;
             List<String> cmd = new ArrayList<>();
             cmd.add(System.getProperty("java.home") + "/bin/java");
+            cmd.addAll(KofStdio.capturedJvmFlags());
             cmd.add("-cp");
             cmd.add(outDir.toString());
             cmd.add(className);

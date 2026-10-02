@@ -72,11 +72,105 @@ public final class NativeRiscvAsmRt1 {
                 addi a1, s1, 24
                 lw   a2, 16(s1)
                 call kof_memcpy
-                j    .Lcc_done
+                j    .Lcc_merge
             .Lcc_copy_b_null:
                 la   a1, .Lstr_null
                 li   a2, 4
                 call kof_memcpy
+            .Lcc_merge:
+            # §537: paridade JVM (UTF-16) — high surrogate no fim de `a` +
+            # low surrogate no inicio de `b` = UM 4-byte UTF-8 (em vez de dois
+            # 3-byte WTF-8). Aarch64 herda via o tradutor riscv->aarch64.
+                beqz s0, .Lcc_done
+                beqz s1, .Lcc_done
+                lw   t0, 16(s0)        # aLen
+                lw   t1, 16(s1)        # bLen
+                li   t6, 3
+                blt  t0, t6, .Lcc_done
+                blt  t1, t6, .Lcc_done
+                addi t2, s4, 24        # p
+                add  t3, t2, t0
+                addi t3, t3, -3        # a3 = p+aLen-3
+                lbu  t5, 0(t3)
+                li   t6, 0xED
+                bne  t5, t6, .Lcc_done
+                lbu  t5, 1(t3)
+                andi t5, t5, 0xF0
+                li   t6, 0xA0
+                bne  t5, t6, .Lcc_done
+                lbu  t5, 2(t3)
+                andi t5, t5, 0xC0
+                li   t6, 0x80
+                bne  t5, t6, .Lcc_done
+                add  t4, t2, t0        # b0 = p+aLen
+                lbu  t5, 0(t4)
+                li   t6, 0xED
+                bne  t5, t6, .Lcc_done
+                lbu  t5, 1(t4)
+                andi t5, t5, 0xF0
+                li   t6, 0xB0
+                bne  t5, t6, .Lcc_done
+                lbu  t5, 2(t4)
+                andi t5, t5, 0xC0
+                li   t6, 0x80
+                bne  t5, t6, .Lcc_done
+                # hi = 0xD800 | ((a3[1]&0x3F)<<6) | (a3[2]&0x3F)
+                lbu  t5, 1(t3)
+                andi t5, t5, 0x3F
+                slli t5, t5, 6
+                lbu  t6, 2(t3)
+                andi t6, t6, 0x3F
+                or   t5, t5, t6
+                li   t6, 0xD800
+                or   t5, t5, t6
+                # lo = 0xDC00 | ((b0[1]&0x3F)<<6) | (b0[2]&0x3F)
+                lbu  a4, 1(t4)
+                andi a4, a4, 0x3F
+                slli a4, a4, 6
+                lbu  a5, 2(t4)
+                andi a5, a5, 0x3F
+                or   a4, a4, a5
+                li   a5, 0xDC00
+                or   a4, a4, a5
+                # cp = 0x10000 + ((hi-0xD800)<<10) + (lo-0xDC00)
+                li   a5, 0xD800
+                sub  t5, t5, a5
+                slli t5, t5, 10
+                li   a5, 0xDC00
+                sub  a4, a4, a5
+                add  t5, t5, a4
+                li   a5, 0x10000
+                add  a3, t5, a5        # cp
+                # shift b[3..bLen) 2 bytes left
+                addi a0, t4, 3
+                addi a1, t4, 1
+                addi a2, t1, -3
+                li   a4, 0
+            .Lcc_shift:
+                bge  a4, a2, .Lcc_shift_done
+                add  t5, a0, a4
+                lbu  t6, 0(t5)
+                add  t5, a1, a4
+                sb   t6, 0(t5)
+                addi a4, a4, 1
+                j    .Lcc_shift
+            .Lcc_shift_done:
+                addi s2, s2, -2
+                sw   s2, 16(s4)
+                srli t5, a3, 18
+                ori  t5, t5, 0xF0
+                sb   t5, 0(t3)
+                srli t5, a3, 12
+                andi t5, t5, 0x3F
+                ori  t5, t5, 0x80
+                sb   t5, 1(t3)
+                srli t5, a3, 6
+                andi t5, t5, 0x3F
+                ori  t5, t5, 0x80
+                sb   t5, 2(t3)
+                andi t5, a3, 0x3F
+                ori  t5, t5, 0x80
+                sb   t5, 3(t3)
             .Lcc_done:
                 li   t0, 0
                 addi t1, s4, 24

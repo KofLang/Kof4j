@@ -1,0 +1,5 @@
+package kfvm.github
+
+record RemoteRelease(String version, Bool nightly, Long size, String name, String archive) {
+    Long sizeInMb() { return size / 1048576L }
+}

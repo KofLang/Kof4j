@@ -1,0 +1,76 @@
+package vision
+
+import image.Raster
+import vision.Vision
+
+// kof.vision — slice 2b: connected-component labeling.
+//
+// The classic two-value labeling primitive (§14 "connected components").
+// `componentLabels(r)` treats every non-zero luminance pixel as foreground and
+// assigns each 4-connected region a label `1..k` (0 = background), scanning
+// row-major with an iterative LIFO flood fill (no recursion, bounded by the
+// pixel count). `componentCount(labels)` returns the number of regions (the
+// largest label). Deterministic and pure Kof on every target.
+//
+//   var labels = componentLabels(otsuBinarize(decodeRaster("scan.ppm")))
+//   var n = componentCount(labels)      // number of blobs
+
+Int[] componentLabels(Raster r) {
+    guardVision(r)
+    var n = r.width * r.height
+    var labels = new Int[n]
+    var stack = new Int[n]
+    var next = 0
+    var p = 0
+    while (p < n) {
+        if (labels[p] == 0 && luminanceAt(r, p) > 0) {
+            next = next + 1
+            var top = 0
+            stack[0] = p
+            labels[p] = next
+            while (top >= 0) {
+                var idx = stack[top]
+                top = top - 1
+                var row = idx / r.width
+                var col = idx - row * r.width
+                if (col > 0) {
+                    top = pushForeground(r, labels, stack, top, idx - 1, next)
+                }
+                if (col < r.width - 1) {
+                    top = pushForeground(r, labels, stack, top, idx + 1, next)
+                }
+                if (row > 0) {
+                    top = pushForeground(r, labels, stack, top, idx - r.width, next)
+                }
+                if (row < r.height - 1) {
+                    top = pushForeground(r, labels, stack, top, idx + r.width, next)
+                }
+            }
+        }
+        p = p + 1
+    }
+    return labels
+}
+
+Int componentCount(Int[] labels) {
+    var max = 0
+    var i = 0
+    while (i < labels.length) {
+        if (labels[i] > max) {
+            max = labels[i]
+        }
+        i = i + 1
+    }
+    return max
+}
+
+// Pushes `neighbour` on the stack (and labels it) when it is still unlabeled
+// foreground; returns the new stack top.
+Int pushForeground(Raster r, Int[] labels, Int[] stack, Int top, Int neighbour, Int label) {
+    if (labels[neighbour] == 0 && luminanceAt(r, neighbour) > 0) {
+        labels[neighbour] = label
+        top = top + 1
+        stack[top] = neighbour
+    }
+    return top
+}

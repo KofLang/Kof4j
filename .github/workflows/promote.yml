@@ -1,0 +1,169 @@
+name: promote
+
+# Promotion Gate — the executable policy of the branch pipeline
+# (D-QUALITY-PIPELINE-2609 / D-BRANCH-PIPELINE).
+#
+# `lab → testing → prerelease → stable → release/x.y.z → tag` is unidirectional.
+# This workflow never pushes to a protected stage: it evaluates the gate and,
+# only when it PASSES, opens an AUDITABLE promotion PR (idempotently). The
+# protected stages require the PR + status checks (ruleset `pipeline-stages`),
+# and `lab` is the single development entry point. Any failure returns work to
+# `lab`; there is no side door.
+#
+# `workflow_dispatch`-only: GitHub requires a dispatched workflow to exist on
+# the default branch, so this becomes dispatchable once the promotion tooling
+# lands on `main` (maintainer-gated). Triggers beyond that are a later decision.
+
+on:
+  workflow_dispatch:
+    inputs:
+      from_stage:
+        description: "source stage"
+        type: choice
+        required: true
+        options: [lab, testing, prerelease, stable]
+      to_stage:
+        description: "target stage"
+        type: choice
+        required: true
+        options: [testing, prerelease, stable]
+      promoted_at:
+        description: "ISO timestamp the pre-release entered observation (prerelease→stable only)"
+        type: string
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: promote-${{ inputs.to_stage }}
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: read
+      issues: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.from_stage }}
+          fetch-depth: 0
+
+      - name: Set up JDK 25 (Tooling API baseline)
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: validate the transition (state machine)
+        run: |
+          set -euo pipefail
+          python3 scripts/pipeline/pipeline_state.py promote \
+            "${{ inputs.from_stage }}" "${{ inputs.to_stage }}"
+
+      - name: full suite on the exact dispatched tip (14.3 — first formal gate)
+        timeout-minutes: 360
+        env:
+          SAFE_SUITE_LOG: ${{ runner.temp }}/suite.log
+        run: |
+          set -uo pipefail
+          # A suite e a MEDICAO do check `Build + Tests` — o veredito quem da e o
+          # stability-report (rc 0/1/3) consumido pelo promotion_evidence abaixo;
+          # aqui o exit do mvn NUNCA decide o gate (fail-closed vem do log).
+          bash scripts/safe-suite.sh || true
+
+      - name: collect check results for the source tip
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          sha="$(git rev-parse HEAD)"
+          echo "tip=$sha" >> "$GITHUB_ENV"
+          gh api "repos/${{ github.repository }}/commits/$sha/check-runs?per_page=100" \
+            --paginate --jq '.check_runs[] | "\(.name)\t\(.conclusion)"' \
+            > "$RUNNER_TEMP/check-runs.tsv" || true
+
+      - name: count blocking/related issues (measured, never assumed)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PROMOTED_AT: ${{ inputs.promoted_at }}
+        run: |
+          set -euo pipefail
+          blocking="$(gh issue list --repo "${{ github.repository }}" --state open \
+            --label bug --limit 1000 --json number --jq 'length')"
+          related=0
+          if [ -n "${PROMOTED_AT:-}" ]; then
+            since="$(date -u -d "${PROMOTED_AT}" +%Y-%m-%d)"
+            related="$(gh issue list --repo "${{ github.repository }}" --state open \
+              --search "updated:>=${since}" --limit 1000 --json number --jq 'length')"
+          fi
+          echo "blocking=$blocking" >> "$GITHUB_ENV"
+          echo "related=$related" >> "$GITHUB_ENV"
+
+      - name: build the evidence (suite verdict + check-runs + counts -> checks.json)
+        run: |
+          set -euo pipefail
+          python3 scripts/pipeline/promotion_evidence.py \
+            --sha "$tip" \
+            --check-runs "$RUNNER_TEMP/check-runs.tsv" \
+            --suite-log "$RUNNER_TEMP/suite.log" \
+            --blocking-issues "$blocking" \
+            --related-issues "$related" \
+            --checks-out "$RUNNER_TEMP/checks.json" \
+            --report-out "$GITHUB_STEP_SUMMARY"
+
+      - name: evaluate the promotion gate
+        id: gate
+        run: |
+          set -euo pipefail
+          rc=0
+          python3 scripts/pipeline/promotion_gate.py \
+            --from-stage "${{ inputs.from_stage }}" \
+            --to-stage "${{ inputs.to_stage }}" \
+            --commit "$tip" \
+            --checks "$RUNNER_TEMP/checks.json" \
+            --blocking-issues "$blocking" \
+            --related-issues "$related" \
+            --timestamp "$(date -u +%FT%TZ)" \
+            --promoted-at "${{ inputs.promoted_at }}" \
+            --json > "$RUNNER_TEMP/gate.json" || rc=$?
+          python3 scripts/pipeline/promotion_gate.py \
+            --from-stage "${{ inputs.from_stage }}" \
+            --to-stage "${{ inputs.to_stage }}" \
+            --commit "$tip" \
+            --checks "$RUNNER_TEMP/checks.json" \
+            --blocking-issues "$blocking" \
+            --related-issues "$related" \
+            --timestamp "$(date -u +%FT%TZ)" \
+            --promoted-at "${{ inputs.promoted_at }}" \
+            > "$RUNNER_TEMP/gate.txt" || true
+          {
+            echo "## Promotion Gate"
+            echo '```'
+            cat "$RUNNER_TEMP/gate.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "passed=$([ "$rc" = 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          [ "$rc" = 0 ]
+
+      - name: open the auditable promotion PR (idempotent)
+        if: steps.gate.outputs.passed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          head="${{ inputs.from_stage }}"
+          base="${{ inputs.to_stage }}"
+          if [ -n "$(gh pr list --repo "${{ github.repository }}" --head "$head" --base "$base" --state open --json number --jq '.[].number')" ]; then
+            echo "promotion PR $head -> $base already open — idempotent no-op" | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          gh pr create --repo "${{ github.repository }}" \
+            --head "$head" --base "$base" \
+            --title "promote: $head → $base" \
+            --body-file "$RUNNER_TEMP/gate.txt"

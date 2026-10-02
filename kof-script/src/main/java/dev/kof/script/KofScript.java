@@ -292,8 +292,12 @@ public final class KofScript {
                     // o default histórico — ambos rodam a IR no interpretador.
                     try {
                         KofInterpreter.Result ir = driver.interpret(mat.sources, mat.root, programArgs);
-                        RunResult rr = new RunResult(ir.exitCode(), ir.stdout(), ir.stderr(),
-                                ir.exitCode() == 0);
+                        // #678: os WARNING do frontend vão ao stderr (paridade com
+                        // o compile, onde o CLI imprime os diagnósticos).
+                        StringBuilder warn = new StringBuilder();
+                        ir.warnings().forEach(d -> warn.append(d.format()).append("\n"));
+                        RunResult rr = new RunResult(ir.exitCode(), ir.stdout(),
+                                warn + ir.stderr(), ir.exitCode() == 0);
                         cacheFile(rr, abs, fkey, fhash, fileLm, sz);
                         return rr;
                     } catch (KofInterpretException e) {

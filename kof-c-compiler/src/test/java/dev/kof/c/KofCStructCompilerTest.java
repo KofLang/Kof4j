@@ -24,9 +24,12 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * do {@code div_t} da libc. Oráculo x86_64 + concordância riscv64/aarch64 sob
  * qemu; golden de medição real (REGRA 5).
  */
-class KofCStructCompilerTest {
+class KofCStructCompilerTest extends KofCGoldenSupport {
 
-    private record Prog(String name, String src, String golden) {}
+    @Override
+    protected List<Prog> programs() {
+        return PROGRAMS;
+    }
 
     private static final List<Prog> PROGRAMS = List.of(
             new Prog("local struct field round trip", """
@@ -103,78 +106,6 @@ class KofCStructCompilerTest {
                     struct Triple bump(struct Triple t, int k) { struct Triple r; r.a = t.a + k; r.b = t.b + k; r.c = t.c + k; return r; }
                     void main() { struct Triple t; t.a = 1; t.b = 2; t.c = 3; struct Triple u; u = bump(t, 10); print_arg = (u.a + u.b) + u.c; print(); }
                     """, "36"));
-
-    private static boolean has(String... cmds) {
-        String path = System.getenv("PATH");
-        if (path == null) return false;
-        for (String c : cmds) {
-            boolean found = false;
-            for (String d : path.split(File.pathSeparator)) {
-                if (Files.isExecutable(Path.of(d, c))) { found = true; break; }
-            }
-            if (!found) return false;
-        }
-        return true;
-    }
-
-    private static void requireTools(KofCTarget t) {
-        assumeTrue(has(t.assembler().get(0), t.linker()) && (t.qemu() == null || has(t.qemu())),
-                "toolchain " + t + " + qemu ausente — pulando (NATIVE002)");
-    }
-
-    private static String run(KofCTarget target, Path tmp, String source) throws Exception {
-        Files.createDirectories(tmp);
-        Path c = tmp.resolve("prog.c");
-        Files.writeString(c, source);
-        KofCCompiler.CompileResult res = KofCCompiler.compile(c, tmp.resolve("out"), target);
-        assertTrue(res.success(), "compile " + target + " falhou: " + res.diagnostics());
-        List<String> cmd = new ArrayList<>();
-        if (target.qemu() != null) cmd.add(target.qemu());
-        cmd.add(res.binary().toString());
-        ProcessBuilder pb = new ProcessBuilder(cmd);
-        pb.redirectErrorStream(true);
-        Process p = pb.start();
-        String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
-                .replace("\r\n", "\n").trim();
-        if (!p.waitFor(30, TimeUnit.SECONDS)) {
-            p.destroyForcibly();
-            throw new AssertionError(target + " não terminou em 30s (saída: '" + out + "')");
-        }
-        assertEquals(0, p.exitValue(), "exit != 0 em " + target + " (saída: '" + out + "')");
-        return out;
-    }
-
-    private static void assertAllPrograms(KofCTarget target, Path tmp) throws Exception {
-        for (Prog p : PROGRAMS) {
-            assertEquals(p.golden(), run(target, tmp.resolve(p.name().replace(' ', '_')), p.src()),
-                    target + " / " + p.name());
-        }
-    }
-
-    @Test
-    void x86OracleMatchesEveryGolden(@TempDir Path tmp) throws Exception {
-        requireTools(KofCTarget.X86_64);
-        assertAllPrograms(KofCTarget.X86_64, tmp);
-    }
-
-    @Test
-    void riscv64MatchesEveryGolden(@TempDir Path tmp) throws Exception {
-        requireTools(KofCTarget.RISCV64);
-        assertAllPrograms(KofCTarget.RISCV64, tmp);
-    }
-
-    @Test
-    void aarch64MatchesEveryGolden(@TempDir Path tmp) throws Exception {
-        requireTools(KofCTarget.AARCH64);
-        assertAllPrograms(KofCTarget.AARCH64, tmp);
-    }
-
-    private static KofCCompiler.CompileResult compile(Path tmp, String source) throws Exception {
-        Files.createDirectories(tmp);
-        Path c = tmp.resolve("bad.c");
-        Files.writeString(c, source);
-        return KofCCompiler.compile(c, tmp.resolve("out"), KofCTarget.X86_64);
-    }
 
     @Test
     void structParamAboveSixEightbytesIsRejected(@TempDir Path tmp) throws Exception {

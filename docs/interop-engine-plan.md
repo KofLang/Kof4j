@@ -45,7 +45,7 @@ Typed bidirectional marshalling (`Int`/`Double`/`Bool`/`String`/`List`/`Map`/`re
 
 ## Ecosystem relation
 
-- `future/kof-connector-ecosystem-plan.md` is NOT pulled into development — opening it needs an explicit `D-CONNECTORS` (rule 6). The X2 engines ARE the process form of the catalogue §5.5 (Python) / §5.6 (R); the embedding/CPython-C-API/R-C-API path remains unbuilt and is not X2. If `D-CONNECTORS` opens, the X2 wire + faces continue as the process connector's adapter; `INTEROP00x`, goldens and tests carry over. Slices 3–5 unaffected.
+- `kof-connector-ecosystem-plan.md` is NOT pulled into development — opening it needs an explicit `D-CONNECTORS` (rule 6). The X2 engines ARE the process form of the catalogue §5.5 (Python) / §5.6 (R); the embedding/CPython-C-API/R-C-API path remains unbuilt and is not X2. If `D-CONNECTORS` opens, the X2 wire + faces continue as the process connector's adapter; `INTEROP00x`, goldens and tests carry over. Slices 3–5 unaffected.
 
 ## Closure
 

@@ -2,8 +2,7 @@
 
 # Value Records — first-class value types (design plan · TIER 2.7)
 
-**Status:** Plan (design only) — **zero code**; gated by R12 (the SYSTEMS stage
-closes first) **and** an explicit maintainer authorization to open the front
+**Status:** Plan (design only) — **zero code**; the front is **authorized** (`D-VALUE-RECORD` 16/09 accepted; `D-VALUE-RECORDS-GO` 28/09 opens it, design resolved in `D-FUTURE-BATCH-2809B`), gated by R12 (the SYSTEMS stage closes first) + one-at-a-time promotion per `D-FUTURE-PROMOTION`
 **Source:** `DECISIONS.md` §D-VALUE-RECORD (16/09, accepted) · issue #275 ·
 `../roadmap.md` §23 TIER 2.7 (step queue 2.7.1–2.7.5)
 

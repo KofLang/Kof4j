@@ -1,0 +1,166 @@
+package file
+
+import file.TextStream
+
+// kof.file — INI configuration reader (slice 3.1).
+//
+// Parses the common INI subset into an ordered entry list (flat, because the
+// data is config-sized). The reader streams the file line by line over
+// `TextStream`, so a large generated INI is not loaded whole.
+//
+// Subset, documented honestly:
+//   * `[section]` headers; keys before the first header are global (section "");
+//   * `key = value` and `key: value`; the key and the value are trimmed;
+//   * a value wrapped in matching single or double quotes is unquoted;
+//   * full-line comments start with `;` or `#` (inline comments are data);
+//   * a duplicate `section`+`key` keeps the LAST value;
+//   * a blank line, an empty key, a malformed header or a line without a
+//     separator throws a String (never a silent skip).
+//
+// No new syntax, built on `libs/file/TextStream.kf`. JS inherits the
+// compile-time gap `IOJS001` (`readRange`); non-BMP text is the Native
+// divergence `§537`.
+//
+// Author note: an explicit local annotation of a same-package record
+// (`List<IniEntry> xs = listOf<IniEntry>()`) mis-resolves and fails with
+// SEM021 (the annotation drops the package while the constructor keeps it);
+// inference (`var xs = listOf<IniEntry>()`) resolves it — measured, not a
+// syntax choice.
+
+record IniEntry(String section, String key, String value)
+
+class Ini {
+    List<IniEntry> entries
+
+    constructor(String path) {
+        this.entries = parseIni(path, 8192)
+    }
+
+    constructor(String path, Int chunkSize) {
+        this.entries = parseIni(path, chunkSize)
+    }
+
+    // Value for `section`+`key`, or null. Section "" is the global scope; a
+    // duplicate key yields the last value.
+    String? get(String section, String key) {
+        var i = this.entries.size() - 1
+        while (i >= 0) {
+            var e = this.entries.get(i)
+            if (e.section == section && e.key == key) {
+                return e.value
+            }
+            i = i - 1
+        }
+        return null
+    }
+
+    Bool has(String section, String key) {
+        var v = get(section, key)
+        return v != null
+    }
+
+    // Keys declared in `section`, in first-appearance order (no duplicates).
+    List<String> keysOf(String section) {
+        var out: List<String> = listOf<String>()
+        var i = 0
+        while (i < this.entries.size()) {
+            var e = this.entries.get(i)
+            if (e.section == section && !out.contains(e.key)) {
+                out.add(e.key)
+            }
+            i = i + 1
+        }
+        return out
+    }
+}
+
+List<IniEntry> parseIni(String path, Int chunkSize) {
+    var entries = listOf<IniEntry>()
+    var stream = TextStream(path, chunkSize)
+    var section = ""
+    var lineNo = 0
+    var line = stream.nextLine()
+    while (line != null) {
+        if (line != null) {
+            lineNo = lineNo + 1
+            var content = line
+            if (lineNo == 1 && content.length > 0 && content.charAt(0) == (65279 as Char)) {
+                content = iniSlice(content, 1, content.length)
+            }
+            var t = iniTrim(content)
+            if (t.length > 0) {
+                var first = t.charAt(0)
+                if (first != ';' && first != '#') {
+                    if (first == '[') {
+                        if (t.charAt(t.length - 1) != ']') {
+                            throw "INI: malformed section header at line " + lineNo
+                        }
+                        section = iniTrim(iniSlice(t, 1, t.length - 1))
+                    } else {
+                        var sep = iniSeparator(t)
+                        if (sep < 0) {
+                            throw "INI: malformed line " + lineNo + ": " + t
+                        }
+                        var key = iniTrim(iniSlice(t, 0, sep))
+                        var value = iniTrim(iniSlice(t, sep + 1, t.length))
+                        if (key.length == 0) {
+                            throw "INI: empty key at line " + lineNo
+                        }
+                        entries.add(IniEntry(section, key, iniUnquote(value)))
+                    }
+                }
+            }
+        }
+        line = stream.nextLine()
+    }
+    return entries
+}
+
+Int iniSeparator(String s) {
+    var i = 0
+    while (i < s.length) {
+        var ch = s.charAt(i)
+        if (ch == '=' || ch == ':') {
+            return i
+        }
+        i = i + 1
+    }
+    return -1
+}
+
+String iniUnquote(String s) {
+    if (s.length >= 2) {
+        var a = s.charAt(0)
+        var b = s.charAt(s.length - 1)
+        if ((a == '"' && b == '"') || (a == '\'' && b == '\'')) {
+            return iniSlice(s, 1, s.length - 1)
+        }
+    }
+    return s
+}
+
+String iniTrim(String s) {
+    var start = 0
+    var end = s.length
+    while (start < end && iniIsSpace(s.charAt(start))) {
+        start = start + 1
+    }
+    while (end > start && iniIsSpace(s.charAt(end - 1))) {
+        end = end - 1
+    }
+    return iniSlice(s, start, end)
+}
+
+Bool iniIsSpace(Char ch) {
+    return ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r'
+}
+
+String iniSlice(String s, Int from, Int to) {
+    var out = ""
+    var i = from
+    while (i < to) {
+        out = out + s.charAt(i)
+        i = i + 1
+    }
+    return out
+}

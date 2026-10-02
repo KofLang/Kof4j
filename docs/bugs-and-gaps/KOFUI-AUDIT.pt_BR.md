@@ -10,21 +10,30 @@
 ## 1. Registry do compilador (`KofUi.java`, 539 linhas — era 383 na auditoria de 07/09)
 
 > **⚠️ Snapshot 07/09 — inventário abaixo é histórico.** Recontagem 17/09:
-> `isUiType` cobre **36 tipos** (o texto lista 24) — Color, Theme, Label,
+> `isUiType` cobre **37 tipos** (o texto lista 24) — Color, Theme, Label,
 > Button, Input, Textarea, Select, Ul, Ol, Table, Column, Row, Form, View,
 > Style, Window, Link, Image, Icon, Font, Component, Event, o conjunto de
-> layout (Box, Stack, Spacer, Wrap, Grid, Center, Align) e Store, Canvas,
-> Fieldset, Iframe, Video, Audio, Hr. A matriz `UI00x` e a convenção R6
-> continuam válidas. **Recontagem `UI001/UI002` (17/09):** `UI002` ✅
+> layout (Box, Stack, Spacer, Wrap, Grid, Center, Align, **Scroll**) e Store,
+> Canvas, Fieldset, Iframe, Video, Audio, Hr. A matriz `UI00x` e a convenção R6
+> continuam válidas.
+> **Recontagem `Scroll` (30/09):** ✅ **POUSOU** — #702. `Scroll(children)`
+> (1 arg `List`, como `Box`) entra no conjunto de layout: o KofJS renderiza
+> `div.kof-scroll` com `overflow:auto`, JVM/Native são handles no-op (o mesmo
+> contrato CSS-first). Prova: `UiLayoutRenderE2ETest#scrollRendersScrollableContainer`
+> + bateria UI 74/74. **Recontagem `UI001/UI002` (17/09):** `UI002` ✅
 > confirmado FEITO 08/09 (o interpretador imprime o warning uma vez via
-> `ui002Warned`); `UI001` **segue aberto** — os erros de link de 07/09 estão
-> corrigidos (`RuntimeUi` carrega os stubs no-op, `COMP001` sumiu) mas o Native
-> continua um no-op **silencioso** (sem diagnóstico em compile-time), então
-> UI001 permanece como a única face de no-op silencioso.
+> `ui002Warned`).
+> **Recontagem `UI001` (29/09):** ✅ **FEITO** — #683. `kof.ui` no Native não é
+> mais no-op silencioso: `UiTargetDiagnostics` emite **um** WARNING aditivo em
+> compile-time `UI001` quando o alvo é Native e a IR rebaixada contém chamada
+> `kof.ui` (mensagem aponta `--target=js`); espelha o padrão UI002 já aceito,
+> então `success()` não muda (não quebra o build). Prova: `Ui001NativeWarnTest`
+> 5/5 (unit de IR sintética + JVM-negativo + Native-positivo gated em as/ld +
+> não-UI-negativo).
 
 **Tipos (24 na varredura de 07/09):** Color, Theme, Label, Button, Input, Column, Row, View, Style,
 Window, Link, Image, Icon, Font, Component, Event, Box, Stack, Spacer, Wrap,
-Grid, Center, Align, Store, Canvas + namespace `Router`.
+Grid, Center, Align, Scroll, Store, Canvas + namespace `Router`.
 
 **Métodos por tipo (resumo):**
 - `Color`: rgba, red/green/blue/alpha, toCss, withAlpha, isOpaque
@@ -40,7 +49,7 @@ Grid, Center, Align, Store, Canvas + namespace `Router`.
 - `Store`: get, set, subscribe, unsubscribe
 - `Canvas`: beginPath, closePath, moveTo, lineTo, arc, fill, stroke, setFill, setStroke, setLineWidth, clearRect, remove
 - `Router` (namespace): route, go, replace, back, forward, param, current, depth
-- Layout: Box/Stack/Spacer/Wrap/Grid/Center/Align (ctores) · `Palette.<name>` (15 cores)
+- Layout: Box/Stack/Spacer/Wrap/Grid/Center/Align/Scroll (ctores) · `Palette.<name>` (15 cores)
 
 ## 2. Implementação por target
 
@@ -75,7 +84,7 @@ Grid, Center, Align, Store, Canvas + namespace `Router`.
 
 | Gap | Descrição | Target | Prioridade |
 |---|---|---|---|
-| **UI001** | `kof.ui` no Native = no-op silencioso (binário roda sem diagnóstico). **PARCIALMENTE CORRIGIDO 07/09**: `Image/Link/Icon/Font` **não linkavam** (`undefined reference [COMP001]` — 21 stubs ausentes em `RuntimeUi`); adicionados (paridade no-op com JVM). Resta: diagnóstico p/ o no-op silencioso dos demais = decisão de design (regra 6) | Native | **P0 (R6)** → P2 (residual) |
+| **UI001** | `kof.ui` no Native = no-op **diagnosticado** (binário segue rodando, mas emite um WARNING). **PARCIALMENTE CORRIGIDO 07/09**: `Image/Link/Icon/Font` **não linkavam** (`undefined reference [COMP001]` — 21 stubs ausentes em `RuntimeUi`); adicionados (paridade no-op com JVM). **CORRIGIDO 29/09** (#683): `UiTargetDiagnostics` emite um WARNING aditivo `UI001` em compile-time quando o alvo é Native e a IR usa `kof.ui` (aponta `--target=js`); espelha o padrão UI002 já aceito. Prova: `Ui001NativeWarnTest` 5/5 | Native | **P0 (R6)** → **FEITO** |
 | **UI002** | `kof.ui` no Script = no-op silencioso (interprete executa sem efeito). **FEITO 08/09** (`7081551`): warning `UI002` **uma única vez** no stderr quando `KofInterpreter` resolve função `kof_ui_*` (mensagem aponta `--target=js`); aditivo — no-op preservado (retrocompat), sem erro (regra 6); teste `KofScriptTest.ui002WarnsOnceOnUiCalls` (verifica presença + contagem == 1) | Script | **P0 (R6)** → **FEITO** |
 | **UI003** | Elementos: textarea ✅ FEITO 07/09 (`Textarea`); table/tr/td ✅ FEITO 07/09 (`Table(header, rows)` data-driven); select/option ✅ (`Select`); ul/ol/li ✅ (`Ul`/`Ol` data-driven); fieldset/legend ✅, iframe ✅, video/audio ✅, hr ✅ (08/09, `358ec80` — `Fieldset(children[, legend])`/`Iframe(url)`/`Video(url)`/`Audio(url)`/`Hr()` + remove; DOM real provado no Chrome headless; `kofSerialize` ganhou `src` + void-tags) | KofJS | P1 **FEITO** |
 | **UI004** | Forms: `<form>` ✅ + submit handler ✅ FEITO 07/09 (`Form(children)`, `onSubmit`, `submit()` — handler roda no browser, prova por mutação de DOM); fieldset ✅ FEITO 08/09 (`Fieldset(children[, legend])`, `358ec80`). `Input` tipos ✅ (`setType`); checkbox/radio estado ✅ (`setChecked`/`checked`); select ✅ (`Select`/`setOptions`/`selected`/`setSelected`) | KofJS | P1 **FEITO** |

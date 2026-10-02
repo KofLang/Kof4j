@@ -435,6 +435,47 @@ final class JsRuntimeUiStdlib {
                 return sum % 10 === 0 ? 1 : 0;
             }
 
+            function kofValidationCardDigits(s) {
+                if (s == null) return null;
+                const d = [];
+                for (let i = 0; i < s.length; i++) {
+                    const c = s.charCodeAt(i);
+                    if (c >= 48 && c <= 57) {
+                        if (d.length === 19) return null;
+                        d.push(c - 48);
+                    }
+                }
+                return d;
+            }
+
+            export function kofValidationCreditCardBrand(s) {
+                const d = kofValidationCardDigits(s);
+                if (d === null) return "";
+                const n = d.length;
+                if (n < 13) return "";
+                let sum = 0;
+                for (let j = 0; j < n; j++) {
+                    let v = d[j];
+                    if (((n - 1 - j) & 1) === 1) { v *= 2; if (v > 9) v -= 9; }
+                    sum += v;
+                }
+                if (sum % 10 !== 0) return "";
+                const p = d[0], q = d[1];
+                if (p === 4) return "Visa";
+                if (p === 5 && q >= 1 && q <= 5) return "Mastercard";
+                if (p === 3 && (q === 4 || q === 7)) return "Amex";
+                if (p === 6 && ((q === 0 && d[2] === 1 && d[3] === 1) || q === 5)) return "Discover";
+                return "";
+            }
+
+            export function kofValidationLast4(s) {
+                const d = kofValidationCardDigits(s);
+                if (d === null) return "";
+                const n = d.length;
+                if (n < 4) return "";
+                return "" + d[n - 4] + d[n - 3] + d[n - 2] + d[n - 1];
+            }
+
 
             function kofIsHexC(c) {
                 return (c >= 48 && c <= 57) || ((c | 32) >= 97 && (c | 32) <= 102);

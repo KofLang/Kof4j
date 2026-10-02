@@ -488,49 +488,6 @@ public final class CompilerTypes {
         return "Object";
     }
 
-    static Type substituteTypeVariable(String tvName, Type recvType, CompilationUnitNode currentUnit) {
-        if (!(recvType instanceof Type.ClassType ct) || ct.typeArguments().isEmpty()) return null;
-        if (currentUnit != null) {
-            for (AstNode d : currentUnit.declarations()) {
-                // §355/#385: qualquer declaração com type-params é fonte de
-                // substituição — classe, INTERFACE genérica e record. Antes só
-                // ClassDeclarationNode era varrida, e `Wrapper<String>.get()`
-                // (interface) não substituia T → o efetivo saía TypeVariable.
-                List<String> tps = switch (d) {
-                    case ClassDeclarationNode cls when cls.name().equals(ct.name()) -> cls.typeParameters();
-                    case InterfaceDeclarationNode it when it.name().equals(ct.name()) -> it.typeParameters();
-                    case RecordDeclarationNode rc when rc.name().equals(ct.name()) -> rc.typeParameters();
-                    default -> null;
-                };
-                if (tps == null) continue;
-                for (int i = 0; i < tps.size(); i++) {
-                    // §355: a entrada pode carregar bound ("T: Animal") —
-                    // compara pelo NOME limpo, nunca pela crua.
-                    if (i < ct.typeArguments().size()
-                            && TypeParams.name(tps.get(i)).equals(tvName)) {
-                        return ct.typeArguments().get(i);
-                    }
-                }
-            }
-        }
-        return null;
-    }
-
-    /**
-     * §245/#268: tipo de um campo/método cujo tipo declarado é um parâmetro
-     * genérico (`T wrapped`) — substitui o type-variable pelo argumento real do
-     * RECEIVER (`Wrapper<Point>.wrapped` → `Point`). Sem isto o tipo ficava
-     * `TypeVariable(T)`/erased e o próximo acesso (`.x`) emitia owner `?`/`""`
-     * (`NoClassDefFoundError`/`ClassFormatError`). Não muda nada quando o tipo
-     * não é um type-variable ou o receiver não traz argumentos.
-     */
-    static Type substituteTypeVariableIn(Type memberType, Type recvType, CompilationUnitNode currentUnit) {
-        if (memberType instanceof Type.TypeVariable tv) {
-            Type sub = substituteTypeVariable(tv.name(), recvType, currentUnit);
-            if (sub != null) return sub;
-        }
-        return memberType;
-    }
     static Type resolveWithTypeParams(String typeName, List<String> typeParams, CompilationUnitNode currentUnit) {
         Type tv = TypeParams.variable(typeName, typeParams, currentUnit, null);
         if (tv != null) return tv;

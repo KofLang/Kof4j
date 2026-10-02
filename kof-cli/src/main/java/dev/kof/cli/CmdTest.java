@@ -3,6 +3,7 @@ package dev.kof.cli;
 import dev.kof.compiler.CompilationResult;
 import dev.kof.compiler.Diagnostic;
 import dev.kof.compiler.CompilerDriver;
+import dev.kof.compiler.KofProjectConfig;
 import dev.kof.compiler.Target;
 
 import java.io.IOException;
@@ -26,16 +27,41 @@ final class CmdTest {
             + " [--tag <tag>]";
 
     static void run(String[] args) {
-        if (args.length < 2) { System.err.println(USAGE); System.exit(1); return; }
-        if (args[1].equals("--help") || args[1].equals("-h")) {
+        if (args.length >= 2 && (args[1].equals("--help") || args[1].equals("-h"))) {
             System.out.println(USAGE);
             return;
         }
-        Path src = Path.of(args[1]);
+        // #708: raiz de testes declarada em [sources] test permite `kof test`
+        // sem argumento posicional; a raiz de app ([sources] app, ou o pai do
+        // diretório do teste) entra como source path para resolver imports.
+        boolean flagMode = args.length < 2 || args[1].startsWith("-");
+        Path src = null;
+        Path appRoot = null;
+        int argStart = 2;
+        if (flagMode) {
+            Path projectRoot = KofCliSupport.projectRootOf(Path.of("."));
+            KofProjectConfig cfg = KofCliSupport.configOf(projectRoot);
+            // src pode ficar ausente (sem [sources] test): o erro é decidido
+            // DEPOIS de parsear as flags, para que um typo de flag seja
+            // reportado como flag desconhecida (R6), não como "sem raiz".
+            src = KofProjectConfig.resolveSourceRoot(projectRoot, cfg.sourceTest(), null);
+            appRoot = KofProjectConfig.resolveSourceRoot(projectRoot, cfg.sourceApp(), null);
+            argStart = 1;
+        } else {
+            src = Path.of(args[1]);
+            // Sem [sources]: se o teste vive sob um kof.toml, a raiz do app
+            // (se declarada) ainda é oferecida como source path — aditivo, o
+            // modo posicional de hoje não tinha imports cross-root.
+            Path projectRoot = KofCliSupport.projectRootOf(src);
+            if (projectRoot != null) {
+                KofProjectConfig cfg = KofCliSupport.configOf(projectRoot);
+                appRoot = KofProjectConfig.resolveSourceRoot(projectRoot, cfg.sourceApp(), null);
+            }
+        }
         Target target = Target.JVM;
         long timeoutSec = 0;   // 0 = sem limite (comportamento histórico, aditivo)
         String tag = null;     // X8 fatia 3: filtro por tag (compile-time, único p/ 4 alvos)
-        for (int i = 2; i < args.length; i++) {
+        for (int i = argStart; i < args.length; i++) {
             if (args[i].startsWith("--target=")) {
                 target = KofCliSupport.parseTarget(args[i].substring("--target=".length()));
             } else if (args[i].equals("--target") && i + 1 < args.length) {
@@ -74,6 +100,12 @@ final class CmdTest {
                 return;
             }
         }
+        if (src == null) {
+            System.err.println("test: no test root given and no [sources] test"
+                    + " declared in kof.toml (see 'kof test --help')");
+            System.exit(1);
+            return;
+        }
         if (!Files.exists(src)) { System.err.println("not found: " + src); System.exit(1); return; }
         // android é empacotamento (APK/AAB), não um alvo de execução: `kof test`
         // não produz binário standalone. Recusa honesta e cedo (R6) em vez do
@@ -88,8 +120,22 @@ final class CmdTest {
         }
         boolean dirMode = Files.isDirectory(src);
         List<Path> files = dirMode ? collectTests(src) : List.of(src);
-        if (files.isEmpty()) { System.out.println("no .kf/.kof files found"); return; }
+        if (files.isEmpty()) {
+            // R6 (#708): a test root with no Kof source used to print this and
+            // exit 0 — indistinguishable from "all tests passed". Fail
+            // explicitly (zero discovered tests is not a success).
+            System.err.println("test: no .kf/.kof files found in " + src
+                    + " (discovery is recursive; run from the directory that"
+                    + " holds the test sources)");
+            System.exit(1);
+            return;
+        }
         CompilerDriver driver = new CompilerDriver();
+        // #708: a raiz de app entra como source path — `import exemplo.Calculo`
+        // resolve de src/main/kof sem cópia nem arquivo de entrada gerado.
+        if (appRoot != null && Files.isDirectory(appRoot)) {
+            driver.setDependencySourceRoots(java.util.List.of(appRoot));
+        }
         int passed = 0;
         int failed = 0;
         // X8 fatia 3 ("named suites by directory"): em modo diretório cada
@@ -100,13 +146,17 @@ final class CmdTest {
         // independente com seu próprio main() — NUNCA agrupar irmãos num
         // módulo só (PKG002: 2 main()). Cross-file é domínio de kof build.
         if (tag != null) System.setProperty("kof.test.tag", tag);
+        // #708: a raiz de testes é a base dos pacotes por diretório. Em modo
+        // diretório é o próprio `src` (fonte em exemplo/CalcTest.kf declara
+        // `package exemplo`); em modo arquivo, o diretório do arquivo.
+        Path testsRoot = dirMode ? src : src.getParent();
         for (Path f : files) {
             Path tmp;
             try { tmp = Files.createTempDirectory("kof-test-"); }
             catch (IOException e) { System.err.println("failed to create temp dir: " + e.getMessage()); System.exit(1); return; }
             // modo harness: `test "nome" { }` vira função + runner sintetizado;
             // arquivos sem testes compilam idênticos ao modo normal
-            CompilationResult result = driver.compileForTests(f, tmp, target);
+            CompilationResult result = driver.compileForTests(f, tmp, target, testsRoot);
             boolean ok = result.success();
             StringBuilder output = new StringBuilder();
             if (ok) {
@@ -121,7 +171,11 @@ final class CmdTest {
                         output.append("no main class found\n");
                     } else {
                         try {
-                            ProcessBuilder pb = new ProcessBuilder(KofCliSupport.javaExecutable(), "-cp", tmp.toString(), className);
+                            List<String> cmd = new java.util.ArrayList<>();
+                            cmd.add(KofCliSupport.javaExecutable());
+                            cmd.addAll(KofStdio.capturedJvmFlags());
+                            cmd.addAll(List.of("-cp", tmp.toString(), className));
+                            ProcessBuilder pb = new ProcessBuilder(cmd);
                             pb.redirectErrorStream(true);
                             Integer ec = boundedRun(pb, timeoutSec, output);
                             if (ec == null) {
@@ -151,7 +205,8 @@ final class CmdTest {
                             Thread js = new Thread(() -> {
                                 try {
                                     code[0] = dev.kof.runtime.KofJsRunner.run(java.nio.file.Path.of(entry),
-                                            System.out, System.in, System.err, false, new String[0]);
+                                            KofStdio.fromUtf8(System.out), System.in,
+                                            KofStdio.fromUtf8(System.err), false, new String[0]);
                                 } catch (IOException e) {
                                     code[0] = 1;
                                 }

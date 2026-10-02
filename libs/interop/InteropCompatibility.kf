@@ -1,0 +1,94 @@
+package interop
+
+// kof.interop — stability tiers and ABI-compatibility aspects (fatia 11 of the
+// Kof Connector Ecosystem plan, `D-CONNECTORS-GO`). It supplies the MECHANISM of
+// plan §3.9, not the policy: the vocabulary for classifying an interface and for
+// the aspects a compatibility test must validate.
+//
+//   tiers:   stable · experimental · internal
+//   aspects: symbol-names · calling-convention · type-layout · alignment ·
+//            struct-layout · binary-compat · ownership
+//
+// Which interface gets which tier, and the first stable ABI version, are a
+// rule-6 decision (plan §13) — this library only names the vocabulary and never
+// assigns a policy. Honest by construction (R6): an unknown tier/aspect throws
+// `INTEROP: unknown stability <x>` / `INTEROP: unknown compatibility aspect <x>`.
+// No compiler change; target-neutral (no IO).
+
+class InteropCompatibility {
+
+    // The stability tiers (plan §3.9).
+    List<String> tiers() {
+        return listOf("stable", "experimental", "internal")
+    }
+
+    Bool isKnownTier(String tier) {
+        return tiers().contains(tier)
+    }
+
+    // Only a `stable` interface promises ABI stability (§3.9) — and only once
+    // compatibility tests exist; this says nothing about whether they do.
+    Bool promisesStability(String tier) {
+        return tier == "stable"
+    }
+
+    String describeTier(String tier) {
+        if (tier == "stable") {
+            return "stable: interface guarantees ABI stability"
+        }
+        if (tier == "experimental") {
+            return "experimental: interface may change without notice"
+        }
+        if (tier == "internal") {
+            return "internal: not part of the public ABI; may change freely"
+        }
+        throw "INTEROP: unknown stability " + tier
+    }
+
+    // What a compatibility test must validate (plan §3.9).
+    List<String> aspects() {
+        return listOf("symbol-names", "calling-convention", "type-layout", "alignment",
+                "struct-layout", "binary-compat", "ownership")
+    }
+
+    Bool isKnownAspect(String aspect) {
+        return aspects().contains(aspect)
+    }
+
+    String describeAspect(String aspect) {
+        if (aspect == "symbol-names") {
+            return "symbol-names: exported/imported symbol names match"
+        }
+        if (aspect == "calling-convention") {
+            return "calling-convention: the ABI calling convention matches"
+        }
+        if (aspect == "type-layout") {
+            return "type-layout: primitive widths/signedness match"
+        }
+        if (aspect == "alignment") {
+            return "alignment: struct/field alignment is part of the contract"
+        }
+        if (aspect == "struct-layout") {
+            return "struct-layout: field order, padding and offsets match"
+        }
+        if (aspect == "binary-compat") {
+            return "binary-compat: binaries stay link-compatible"
+        }
+        if (aspect == "ownership") {
+            return "ownership: the §3.2 ownership contract is honoured"
+        }
+        throw "INTEROP: unknown compatibility aspect " + aspect
+    }
+
+    // Honest validation (R6): every token must be a known tier.
+    void validateTiers(List<String> tiers) {
+        var i = 0
+        while (i < tiers.size()) {
+            var t = tiers.get(i)
+            if (!isKnownTier(t)) {
+                throw "INTEROP: unknown stability " + t
+            }
+            i = i + 1
+        }
+    }
+}

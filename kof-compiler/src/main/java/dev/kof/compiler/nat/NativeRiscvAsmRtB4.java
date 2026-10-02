@@ -436,8 +436,16 @@ public final class NativeRiscvAsmRtB4 {
             # .bss (zero init = tid 0 vazio): em .data os 4KB contavam no
             # binário (ArtifactSizeTest) sem necessidade.
             kof_exc_slots: .space 4096
-            _kof_heap: .space 262144
+            # §540: arena cross = 16 MiB (paridade com o teto do heap x86-64,
+            # que cresce por mmap). A arena precisa de uma estrutura O(1) p/ o
+            # GC achar o bloco de um ponteiro (a varredura linear antiga era
+            # capada em 10000 -> use-after-free acima disso): bitmap de
+            # inícios-de-bloco a granularidade de 16B (`_kof_block_bm`), 1 bit
+            # por 16B => HEAP/128 bytes.
+            _kof_heap: .space 16777216
             _kof_heap_end:                 # label do fim (não consome byte) — guard OOM do kof_alloc
+            .align 3
+            _kof_block_bm: .space 131072   # 16 MiB / 16B / 8 bits = 128 KiB
             .Lmq_subs:    .space 1024
             .Lmq_queues:  .space 1024
             .Lmq_seq:     .space 8

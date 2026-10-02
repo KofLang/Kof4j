@@ -81,6 +81,13 @@ public final class StringMethodRegistry {
             case "replaceAll", "replaceFirst" -> argCount == 2 ? sig(str, List.of(str, str)) : null;
             case "matches" -> argCount == 1 ? sig(BOOL, List.of(str)) : null;
             case "toCharArray" -> argCount == 0 ? sig(new Type.ArrayType(CHAR), List.of()) : null;
+            // #719: getBytes() is a real java.lang.String method, so
+            // StringReceiverGuards deliberately lets it through — but it was
+            // absent here, so the return type fell to Unknown and the JVM
+            // emitter built `()Ljava/lang/Object;` (NoSuchMethodError) or, when
+            // the value was stored, an empty internal name (ClassFormatError).
+            // Registering the real signature makes JvmTypeMapper emit `()[B`.
+            case "getBytes" -> argCount == 0 ? sig(new Type.ArrayType(Type.PrimitiveType.BYTE), List.of()) : null;
             case "compareTo" -> argCount == 1 ? sig(INT, List.of(str)) : null;
             case "compareToIgnoreCase" -> argCount == 1 ? sig(INT, List.of(str)) : null;
             case "split" -> argCount == 1 ? sig(strArray, List.of(str))

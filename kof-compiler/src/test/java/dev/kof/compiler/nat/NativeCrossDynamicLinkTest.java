@@ -128,12 +128,22 @@ class NativeCrossDynamicLinkTest {
     void ldArgsSqliteAddsLsqlite3() {
         Path bin = Path.of("/tmp/x");
         Path obj = Path.of("/tmp/x.o");
+        // The sqlite link arg is a function of the sysroot the host resolves
+        // (sqliteLinkArg reads sysrootFor, not the ldArgs sysroot param):
+        // `-lsqlite3` when a dev `.so` is present, else `-l:libsqlite3.so.0`
+        // when only the soname is installed (#699). Asserting one hardcoded
+        // form makes the test host-dependent, so derive the expected arg from
+        // the impl helper and assert BOTH forms are absent without a consumer.
+        String expectedArg = NativeCrossLink.sqliteLinkArg("riscv64");
         String[] plain = NativeCrossLink.ldArgs("riscv64-linux-gnu-ld", bin, obj, "riscv64", true, "/tmp/opencode/x");
         assertFalse(List.of(plain).contains("-lsqlite3"),
                 "sem consumidor sqlite não leva -lsqlite3: " + List.of(plain));
+        assertFalse(List.of(plain).contains("-l:libsqlite3.so.0"),
+                "sem consumidor sqlite não leva -l:libsqlite3.so.0: " + List.of(plain));
         String[] sq = NativeCrossLink.ldArgs("riscv64-linux-gnu-ld", bin, obj, "riscv64", true, "/tmp/opencode/x", true);
         assertTrue(List.of(sq).contains("-lc"), "sqlite implica libc: " + List.of(sq));
-        assertTrue(List.of(sq).contains("-lsqlite3"), "consumidor sqlite leva -lsqlite3: " + List.of(sq));
+        assertTrue(List.of(sq).contains(expectedArg),
+                "consumidor sqlite leva o arg sysroot-appropriate " + expectedArg + ": " + List.of(sq));
     }
 
     // ---- E2E: o binário dinâmico roda sob qemu e imprime via libc ----

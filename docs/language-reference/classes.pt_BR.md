@@ -146,6 +146,9 @@ println(c.name())         // "Red" (probe)
 
 - **Só constantes** — sem métodos, campos, construtores, corpo (`enum E { A
   String f(){…} }` → `PARSE032`, *probe*).
+- **Nenhuma cláusula entre o nome e `{`** — `enum Cor extends Tudo { A, B }`
+  (ou `implements …`) não é Kof válido e produz **um** `PARSE034`; a lista de
+  constantes nunca é descartada em silêncio (§687).
 - **Um valor de enum é uma INSTÂNCIA real (D-ENUM207, issue #207)** — o
   compilador emite uma classe enum real (`Dir.class`) com as constantes como
   instâncias `static final` criadas no `<clinit>`; `Dir.N` compila para

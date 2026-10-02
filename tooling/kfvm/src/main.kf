@@ -1,0 +1,48 @@
+import kfvm.system
+import kfvm.platform
+import kfvm.github
+import kfvm.store
+import kfvm.installer
+import kfvm.cli
+
+main(args: List<String>) {
+    val VERSION = "0.3.0"
+    val logger = Logger()
+    val home = Env.getOr("KFVM_HOME", Env.userHome() + "/.local/share/kof")
+    val first = if (args.size > 0) args.get(0) else ""
+    val usage = Usage(home, VERSION, logger)
+
+    if (first == "" || first == "-h" || first == "--help" || first == "help") {
+        usage.logUsage()
+        return
+    }
+
+    if (first == "-v" || first == "--version" || first == "version") {
+        logger.logWithKind("version", BRIGHT_CYAN, VERSION)
+        return
+    }
+
+    try {
+        var platform = Platforms.detect()
+        if (platform.isWindows()) NullDevice.ensure()
+
+        var fs = platform.fileSystem()
+        var github = GitHubClient("KofLang/Kof4j", platform.id(), Env.get("GITHUB_TOKEN"))
+        var store = Store(home, platform.id(), fs)
+        var installer = Installer(github, store, fs, logger)
+        var installed = InstalledVersions(github, store)
+        var remote = RemoteVersions(github, store, installer, logger)
+        var activator = VersionActivator(store, platform.userPath(), logger)
+        var commands = listOf<kfvm.cli.Command>()
+
+        commands.add(ListCommand(github, store, logger))
+        commands.add(InstallCommand(remote, store, activator, logger))
+        commands.add(UseCommand(remote, installed, activator, logger))
+        commands.add(UninstallCommand(installed, store, logger))
+
+        process.exit(Cli(commands, logger, home, usage).run(args))
+    } catch (String err) {
+        logger.error(err)
+        process.exit(1)
+    }
+}

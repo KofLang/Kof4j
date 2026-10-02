@@ -108,12 +108,8 @@ class ServePortTest {
             assertTrue(out.contains("--port " + cliPort + " is ignored"),
                     "CLI deve avisar que --port é ignorado no app kof-native:\n" + out);
             // a porta REAL é a do app.listen, não a da CLI
-            boolean up = false;
-            for (int i = 0; i < 40 && !up; i++) {
-                if (code(appPort, "/ping") == 200) up = true;
-                else Thread.sleep(500);
-            }
-            assertTrue(up, "app deve responder na porta do app.listen(" + appPort + ")");
+            assertTrue(CliAwaitFixture.awaitTrue(40, 500, () -> code(appPort, "/ping") == 200),
+                    "app deve responder na porta do app.listen(" + appPort + ")");
             assertTrue(code(cliPort, "/ping") != 200,
                     "a porta --port da CLI NUNCA deve responder neste modo");
             served = p.descendants().toList();
@@ -125,9 +121,8 @@ class ServePortTest {
         }
         // §390 (RED-first): o filho NÃO pode sobreviver ao teardown.
         for (ProcessHandle h : served) {
-            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
-            while (h.isAlive() && System.nanoTime() < deadline) Thread.sleep(50);
-            assertFalse(h.isAlive(), "§390: o app servido ficou órfão após o teste");
+            assertTrue(CliAwaitFixture.awaitExit(h, 5000),
+                    "§390: o app servido ficou órfão após o teste");
         }
     }
 
@@ -145,12 +140,8 @@ class ServePortTest {
             String out = readUntil(p, "listening on", 30_000);
             assertTrue(out.contains("http://0.0.0.0:" + cliPort),
                     "banner legacy deve reportar a porta real da CLI:\n" + out);
-            boolean up = false;
-            for (int i = 0; i < 40 && !up; i++) {
-                if (code(cliPort, "/") == 200) up = true;
-                else Thread.sleep(500);
-            }
-            assertTrue(up, "legacy deve responder na porta --port");
+            assertTrue(CliAwaitFixture.awaitTrue(40, 500, () -> code(cliPort, "/") == 200),
+                    "legacy deve responder na porta --port");
         } finally {
             p.destroyForcibly();
         }

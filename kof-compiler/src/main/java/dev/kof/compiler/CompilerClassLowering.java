@@ -230,6 +230,7 @@ public final class CompilerClassLowering {
             driver.mutatedCapturedNames = new java.util.HashSet<>();
             java.util.Deque<CompilerDriverState.FinallyFrame> savedFrames = driver.finallyFrames;
             driver.finallyFrames.clear(); // DD-01: frame do finally externo não vaza p/ dentro
+            driver.tryDepth = 0; // §551: profundidade de try é por método
             CompilerCaptureScanner.collectMutatedCaptures(driver, method.body(), localVars);
             for (StatementNode stmt : method.body()) localIdx = driver.emitStatement(stmt, ops, owner, localIdx, localVars, returnType);
             driver.mutatedCapturedNames = savedMutated;
@@ -387,6 +388,7 @@ public final class CompilerClassLowering {
             localIdx = ExpressionLowerer.emitExpression(driver, entry.getValue(), ops, owner, localIdx, localVars);
             ops.add(new KofStoreField(ownerType, entry.getKey(), fieldType));
         }
+        driver.tryDepth = 0; // §551: profundidade de try é por método
         for (StatementNode stmt : ctor.body()) localIdx = driver.emitStatement(stmt, ops, owner, localIdx, localVars, Type.PrimitiveType.VOID);
         ops.add(new KofReturnVoid());
         return new IRMethod("<init>", Type.PrimitiveType.VOID, paramTypes, access, ctor.thrownExceptions(),

@@ -47,6 +47,7 @@ public final class KofUi {
     static final Type GRID = new Type.ClassType("kof.ui", "Grid", List.of());
     static final Type CENTER = new Type.ClassType("kof.ui", "Center", List.of());
     static final Type ALIGN = new Type.ClassType("kof.ui", "Align", List.of());
+    static final Type SCROLL = new Type.ClassType("kof.ui", "Scroll", List.of());
     static final Type STORE = new Type.ClassType("kof.ui", "Store", List.of());
     static final Type CANVAS = new Type.ClassType("kof.ui", "Canvas", List.of());
     static final Type FIELDSET = new Type.ClassType("kof.ui", "Fieldset", List.of());
@@ -87,6 +88,7 @@ public final class KofUi {
     static boolean isGrid(Type t) { return GRID.equals(t); }
     static boolean isCenter(Type t) { return CENTER.equals(t); }
     static boolean isAlign(Type t) { return ALIGN.equals(t); }
+    static boolean isScroll(Type t) { return SCROLL.equals(t); }
     static boolean isStore(Type t) { return STORE.equals(t); }
     static boolean isCanvas(Type t) { return CANVAS.equals(t); }
     static boolean isFieldset(Type t) { return FIELDSET.equals(t); }
@@ -98,7 +100,7 @@ public final class KofUi {
     /** Primitivas de layout da Fase 4 (docs/ui/architecture.md §2.8). */
     static boolean isLayoutType(Type t) {
         return isBox(t) || isStack(t) || isSpacer(t) || isWrap(t)
-                || isGrid(t) || isCenter(t) || isAlign(t);
+                || isGrid(t) || isCenter(t) || isAlign(t) || isScroll(t);
     }
     /** Widget que aceita .setFont(font)/.font */
     static boolean acceptsFont(Type t) {
@@ -137,7 +139,8 @@ public final class KofUi {
                 || "Component".equals(name)
                 || "Box".equals(name) || "Stack".equals(name) || "Spacer".equals(name)
                 || "Wrap".equals(name) || "Grid".equals(name) || "Center".equals(name)
-                || "Align".equals(name) || "Store".equals(name) || "AppState".equals(name)
+                || "Align".equals(name) || "Scroll".equals(name)
+                || "Store".equals(name) || "AppState".equals(name)
                 || "Canvas".equals(name)
                 || "Fieldset".equals(name) || "Iframe".equals(name)
                 || "Video".equals(name) || "Audio".equals(name) || "Hr".equals(name);
@@ -162,7 +165,8 @@ public final class KofUi {
             case "Icon" -> ICON; case "Font" -> FONT; case "Component" -> COMPONENT;
             case "Event" -> EVENT; case "Box" -> BOX; case "Stack" -> STACK;
             case "Spacer" -> SPACER; case "Wrap" -> WRAP; case "Grid" -> GRID;
-            case "Center" -> CENTER; case "Align" -> ALIGN; case "Store" -> STORE;
+            case "Center" -> CENTER; case "Align" -> ALIGN; case "Scroll" -> SCROLL;
+            case "Store" -> STORE;
             case "Canvas" -> CANVAS; case "Fieldset" -> FIELDSET;
             case "Iframe" -> IFRAME; case "Video" -> VIDEO; case "Audio" -> AUDIO;
             case "Hr" -> HR;
@@ -184,6 +188,7 @@ public final class KofUi {
         if ("Grid".equals(name)) return GRID;
         if ("Center".equals(name)) return CENTER;
         if ("Align".equals(name)) return ALIGN;
+        if ("Scroll".equals(name)) return SCROLL;
         if ("Store".equals(name)) return STORE;
         // Fase 8 (§2.6): AppState(initial) is the app-scoped root store —
         // SAME handle type as Store (get/set/subscribe/unsubscribe); only the
@@ -461,6 +466,14 @@ public final class KofUi {
                 default -> null;
             };
         }
+        if (isFieldset(receiver)) {
+            // issue #711: `remove` existia no runtime (JVM/Native/JS) mas nunca
+            // era mapeado — a chamada era DROPADA em silêncio.
+            return switch (name) {
+                case "remove" -> argCount == 0 ? new UiCall("kof_ui_fieldset_remove", Type.PrimitiveType.VOID, List.of()) : null;
+                default -> null;
+            };
+        }
         if (isComponent(receiver)) {
             // Component Core (docs/ui/architecture.md): estado reativo +
             // invalidação + render + lifecycle + effects + events.
@@ -472,6 +485,9 @@ public final class KofUi {
                 case "onDispose" -> argCount == 1 ? new UiCall("kof_ui_component_on_dispose", Type.PrimitiveType.VOID, List.of(Type.UnknownType.UNKNOWN)) : null;
                 case "effect" -> argCount == 1 ? new UiCall("kof_ui_component_effect", Type.PrimitiveType.VOID, List.of(Type.UnknownType.UNKNOWN)) : null;
                 case "on" -> argCount == 2 ? new UiCall("kof_ui_component_on", Type.PrimitiveType.VOID, List.of(STR, Type.UnknownType.UNKNOWN)) : null;
+                // issue #711: `mount()` existia no runtime (JVM/Native/JS) mas
+                // nunca era mapeado — a chamada era DROPADA em silêncio.
+                case "mount" -> argCount == 0 ? new UiCall("kof_ui_component_mount", Type.PrimitiveType.VOID, List.of()) : null;
                 case "bind" -> argCount == 1 ? new UiCall("kof_ui_component_bind", Type.PrimitiveType.VOID, List.of(INT)) : null;
                 case "remove" -> argCount == 0 ? new UiCall("kof_ui_component_remove", Type.PrimitiveType.VOID, List.of()) : null;
                 default -> null;

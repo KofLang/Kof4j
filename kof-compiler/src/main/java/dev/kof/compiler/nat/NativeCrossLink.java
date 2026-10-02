@@ -1,11 +1,9 @@
 package dev.kof.compiler.nat;
-
 import java.io.File;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
-
 /**
  * Link dinâmico SOB DEMANDA (link-by-use) dos alvos cross riscv64/aarch64.
  *
@@ -35,9 +33,7 @@ import java.util.Set;
  * silencioso).
  */
 public final class NativeCrossLink {
-
     private NativeCrossLink() {}
-
     /** Símbolos de libc cuja presença num `call` torna o link dinâmico. Lista
      *  CURADA (não heurística): cresce só quando um consumidor novo entra. */
     static final Set<String> LIBC_SYMBOLS = Set.of(
@@ -45,16 +41,12 @@ public final class NativeCrossLink {
             "pow", "sqrt", "fmod", "dlopen", "dlsym", "dlclose",
             "fopen", "fclose", "fwrite", "fread", "memcpy", "memset",
             "strlen", "strcmp", "strncmp", "open", "read", "write", "execvp");
-
-   static final Set<String> LIBM_SYMBOLS = Set.of(
-            "sin", "cos", "tan", "asin", "acos", "atan", "atan2",
-            "log", "log10", "exp",
-            "floor", "ceil", "round", "hypot",
-            "sinh", "cosh", "tanh",
-            "asinh", "acosh", "atanh",
-            "expm1", "log1p", "cbrt"
-   );
-
+    static final Set<String> LIBM_SYMBOLS = Set.of(
+            "pow", "sin", "cos", "tan", "asin", "acos", "atan", "atan2",
+            "sinh", "cosh", "tanh", "asinh", "acosh", "atanh",
+            "log", "log10", "exp", "expm1", "log1p", "cbrt",
+            "floor", "ceil", "round", "hypot"
+    );
     /** true se o texto asm (pós-poda) chama algum símbolo de libc. */
     static boolean needsLibc(String asmText) {
         for (String line : asmText.split("\n", -1)) {
@@ -69,11 +61,9 @@ public final class NativeCrossLink {
         }
         return false;
     }
-
     /** Símbolos da libsqlite3 (DB001). Prefixo (não lista curada): a API é
      *  grande e estável; qualquer `call sqlite3_*` implica o consumidor DB. */
     static final String SQLITE_PREFIX = "sqlite3_";
-
     /** true se o texto asm (pós-poda) chama algum símbolo da libsqlite3. */
     static boolean needsSqlite(String asmText) {
         for (String line : asmText.split("\n", -1)) {
@@ -88,7 +78,6 @@ public final class NativeCrossLink {
         }
         return false;
     }
-
     /** row 10 (27/09, D-DECISION-BATCH-2709B #3): `call pow` (shim
      *  kof_math_pow, peça própria) torna o link cross dinâmico COM `-lm`
      *  POR USO — quem não chama pow não tem a peça, logo não liga libm. */
@@ -98,12 +87,11 @@ public final class NativeCrossLink {
             if (t.startsWith("#")) continue;
             int hash = t.indexOf('#');
             if (hash > 0) t = t.substring(0, hash).stripTrailing();
-            String sym = t.substring(5).strip();
-    return LIBM_SYMBOLS.contains(sym);
+            if (!t.startsWith("call ")) continue;
+            if (LIBM_SYMBOLS.contains(t.substring(5).strip())) return true;
         }
         return false;
     }
-
     /** Caminho do `libsqlite3.so*` no sysroot resolvido para a arch, ou null
      *  se não houver libsqlite3-cross (CI instala só `libc6-*-cross`). */
     static String sqliteLibFor(String arch) {
@@ -113,18 +101,15 @@ public final class NativeCrossLink {
         String base = sysroot.isEmpty() ? "" : sysroot;
         return base + "/usr/" + arch + "-linux-gnu/lib/" + name;
     }
-
     /** true se dá para ligar `-lsqlite3` no alvo (sysroot com a lib). */
     public static boolean sqliteAvailable(String arch) {
         return sqliteLibFor(arch) != null;
     }
-
     /** Sysroot cross resolvido (null se não há libc-cross) — bridge de leitura
      *  p/ os E2E de outros pacotes (KofDbE2ETest). */
     public static String sysrootOrNull(String arch) {
         return sysrootFor(arch);
     }
-
     /** Arquivo `libsqlite3.so*` disponível no sysroot (dev symlink ou soname),
      *  ou null. Preferência pelo `.so` (o ld acha via `-lsqlite3`). */
     static String sqliteLibFile(String arch) {
@@ -137,14 +122,12 @@ public final class NativeCrossLink {
         }
         return null;
     }
-
     /** Arg de link da libsqlite3: `-lsqlite3` quando há `libsqlite3.so`, senão
      *  `-l:libsqlite3.so.0` (o soname que `libsqlite3-0` instala no CI). */
     static String sqliteLinkArg(String arch) {
         String f = sqliteLibFile(arch);
         return (f != null && f.endsWith(".so.0")) ? "-l:libsqlite3.so.0" : "-lsqlite3";
     }
-
     static String loaderBase(String arch) {
         return switch (arch) {
             case "riscv64" -> "ld-linux-riscv64-lp64d.so.1";
@@ -152,13 +135,11 @@ public final class NativeCrossLink {
             default -> throw new IllegalArgumentException("arch cross: " + arch);
         };
     }
-
     /** Caminho do loader COMO VISTO PELO BINÁRIO EM TEMPO DE EXECUÇÃO (layout
      *  Debian: `/lib/<loader>`). É o arg de `-dynamic-linker`. */
     static String ldPathFor(String arch) {
         return "/lib/" + loaderBase(arch);
     }
-
     /** Prefixo para `QEMU_LD_PREFIX` ao rodar o binário dinâmico: o loader
      *  resolve-se em {@code <prefix>/lib/<loader>} (layout Debian). É a pasta
      *  {@code <arch>-linux-gnu} do sysroot, ou {@code null} se não há libc. */
@@ -179,14 +160,12 @@ public final class NativeCrossLink {
         if (new File("/tmp/opencode/x/usr/" + arch + "-linux-gnu/lib/" + loader).exists()) return "/tmp/opencode/x";
         return null;
     }
-
     /** Monta os args do ld. Estático → só os args de hoje + gc-sections.
      *  Dinâmico → + `--dynamic-linker` + `--sysroot` (se houver) + `-lc`. */
     static String[] ldArgs(String ld, Path binFile, Path objFile, String arch,
                            boolean dynamic, String sysroot) {
         return ldArgs(ld, binFile, objFile, arch, dynamic, sysroot, false);
     }
-
     /** Igual, mas com {@code -lsqlite3} quando {@code sqlite} (DB001). O
      *  consumidor SQLite implica libc (a libsqlite3 depende da libc) — o
      *  chamador passa {@code dynamic=true} nesse caso. */
@@ -194,7 +173,6 @@ public final class NativeCrossLink {
                            boolean dynamic, String sysroot, boolean sqlite) {
         return ldArgs(ld, binFile, objFile, arch, dynamic, sysroot, sqlite, java.util.List.of());
     }
-
     /** #431: arg de link p/ uma `library()` de extern no cross. Caminho
      *  absoluto NÃO é cross-arch (é host) — só o basename vale no sysroot:
      *  `libX.so[.N]` → `-l:libX.so.N` (igual x86), nome cru `X` → `-lX`.
@@ -206,7 +184,6 @@ public final class NativeCrossLink {
         String base = lib.startsWith("/") ? lib.substring(lib.lastIndexOf('/') + 1) : lib;
         return base.contains(".so") ? "-l:" + base : "-l" + base;
     }
-
     /** Igual, mas com os `library()` dos externs (#431) apos `-lc`/sqlite —
      *  ordem de resolucao: objeto primeiro, libs depois. */
     static String[] ldArgs(String ld, Path binFile, Path objFile, String arch,
@@ -214,7 +191,6 @@ public final class NativeCrossLink {
                            java.util.Collection<String> ffiLibs) {
         return ldArgs(ld, binFile, objFile, arch, dynamic, sysroot, sqlite, ffiLibs, false);
     }
-
     /** row 10 (27/09): {@code libm} acrescenta {@code -lm} (POR USO, quando o
      *  texto podado contém {@code call pow}). O chamador já passa
      *  {@code dynamic=true}` nesse caso (pow ∈ LIBC_SYMBOLS). */
@@ -243,7 +219,17 @@ public final class NativeCrossLink {
         a.add("-lc");
         if (sqlite) a.add(sqliteLinkArg(arch));
         if (libm) a.add("-lm");
-        for (String lib : ffiLibs) a.add(ffiLinkArg(lib));
+        for (String lib : ffiLibs) {
+            // Um caminho absoluto precisa do seu diretório no search path: o
+            // `ffiLinkArg` reduz ao basename (`-l:<base>`), então sem o `-L` o
+            // ld do sysroot não acha a lib. Libs relativas (ex. `libc.so.6`)
+            // seguem inalteradas — aditivo.
+            if (lib.startsWith("/")) {
+                int slash = lib.lastIndexOf('/');
+                if (slash > 0) a.add("-L" + lib.substring(0, slash));
+            }
+            a.add(ffiLinkArg(lib));
+        }
         return a.toArray(new String[0]);
     }
 }

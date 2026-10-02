@@ -17,6 +17,7 @@ Diagnostics).
 | Language Server | `kof lsp` (LSP 3.x, stdio) | qualquer editor com cliente LSP |
 | Type-check | `kof check` | CLI |
 | Diagnóstico de ambiente | `kof info [--json]` | CLI / suporte |
+| Version manager | `tooling/kfvm` (`kfvm ls\|i\|u\|uni`, só JVM) | instalar e alternar versões do Kof |
 
 ## Arquivos de referência
 

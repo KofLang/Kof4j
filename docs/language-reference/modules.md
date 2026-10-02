@@ -107,7 +107,7 @@ recognized by the analyzer (`SemExpressionTyper`/`MemberResolver`, builtin names
 `text
 json  process  KofWeb  KofConfig  KofCache  KofGpu  KofDb  KofOrm
 KofLog  KofSecurity  KofValidation  KofObservability  KofHttp  KofMq
-KofTime  KofScheduler  KofTetris  KofMedia  KofUi  Theme
+KofTime  KofScheduler  KofTetris  KofMedia  KofImage  KofUi  Theme
 rng
 `
 

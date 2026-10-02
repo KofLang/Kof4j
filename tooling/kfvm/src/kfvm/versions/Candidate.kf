@@ -1,0 +1,3 @@
+package kfvm.versions
+
+record Candidate(String version, Bool nightly)

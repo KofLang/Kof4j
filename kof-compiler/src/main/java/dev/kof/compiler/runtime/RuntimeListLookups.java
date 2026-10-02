@@ -152,6 +152,93 @@ public final class RuntimeListLookups {
                 popq %rbx
                 ret
 
+            # kof_list_sorted(rdi=list, esi=tag) -> rax new List, insertion
+            # order via kof_list_cmp (stable: equal elements keep their
+            # relative order; the receiver is never mutated). Slice 1g.
+            .globl kof_list_sorted
+            .type kof_list_sorted, @function
+            kof_list_sorted:
+                pushq %rbx
+                pushq %rbp
+                pushq %r12
+                pushq %r13
+                pushq %r14
+                pushq %r15
+                subq $8, %rsp
+                movq %rdi, %r12             # src
+                movl %esi, %ebp             # tag (32-bit)
+                movl 16(%r12), %ebx         # n
+                call kof_list_new
+                movq %rax, %r15             # out
+                xorl %r13d, %r13d           # i = 0 (copy)
+            .Llsorted_copy:
+                cmpl %ebx, %r13d
+                jge .Llsorted_isort
+                movq %r12, %rdi
+                movslq %r13d, %rsi
+                call kof_list_get
+                movq %rax, %rsi
+                movq %r15, %rdi
+                call kof_list_add
+                incl %r13d
+                jmp .Llsorted_copy
+            .Llsorted_isort:
+                movl $1, %r13d              # i = 1
+            .Llsorted_outer:
+                cmpl %ebx, %r13d
+                jge .Llsorted_done
+                movq %r15, %rdi
+                movslq %r13d, %rsi
+                call kof_list_get
+                movq %rax, %r14             # key
+                movl %r13d, %eax
+                decl %eax
+                movl %eax, 0(%rsp)          # j = i - 1 (no stack: calls matam rcx)
+            .Llsorted_inner:
+                movl 0(%rsp), %ecx
+                cmpl $0, %ecx
+                jl .Llsorted_insert
+                movq %r15, %rdi
+                movslq %ecx, %rsi
+                call kof_list_get           # rax = b = get(j)
+                movq %rax, %rsi
+                movq %r14, %rdi             # key
+                movl %ebp, %edx
+                call kof_list_cmp           # eax = cmp(key, b)
+                testl %eax, %eax
+                jge .Llsorted_insert        # key >= b: para (estável)
+                movq %r15, %rdi
+                movl 0(%rsp), %esi
+                movslq %esi, %rsi
+                call kof_list_get           # rax = v = get(j)
+                movq %rax, %rdx
+                movq %r15, %rdi
+                movl 0(%rsp), %esi
+                addl $1, %esi
+                movslq %esi, %rsi
+                call kof_list_set           # set(j+1, v)
+                decl 0(%rsp)                # j--
+                jmp .Llsorted_inner
+            .Llsorted_insert:
+                movq %r15, %rdi
+                movl 0(%rsp), %esi
+                addl $1, %esi
+                movslq %esi, %rsi
+                movq %r14, %rdx
+                call kof_list_set           # set(j+1, key)
+                incl %r13d
+                jmp .Llsorted_outer
+            .Llsorted_done:
+                movq %r15, %rax
+                addq $8, %rsp
+                popq %r15
+                popq %r14
+                popq %r13
+                popq %r12
+                popq %rbp
+                popq %rbx
+                ret
+
             # kof_list_index_of(rdi=list, rsi=elem, edx=tag) -> idx | -1
             .globl kof_list_index_of
             .type kof_list_index_of, @function
@@ -356,6 +443,118 @@ public final class RuntimeListLookups {
             .Llsl_bidx:
                 movl 16(%rbx), %esi
                 call kof_bounds_error
+
+            # pagination P1 — kof_list_take(rdi=list, esi=n) -> nova List com
+            # os primeiros min(n,size) (clamp honesto); n<0 -> erro nomeado
+            # PAGINATION (nunca índice negativo lido).
+            .globl kof_list_take
+            .type kof_list_take, @function
+            kof_list_take:
+                pushq %rbx
+                movq %rdi, %rbx
+                testl %esi, %esi
+                js .Ltk_bad
+                movl 16(%rbx), %edx         # size
+                cmpl %edx, %esi             # n <= size?
+                jle .Ltk_ok
+                movl %edx, %esi             # n>size -> n=size (clamp)
+            .Ltk_ok:
+                movl %esi, %edx             # end = n
+                xorl %esi, %esi             # begin = 0
+                movq %rbx, %rdi
+                call kof_list_sub_list
+                popq %rbx
+                ret
+            .Ltk_bad:
+                leaq .Lpag_count_msg(%rip), %rdi
+                call kof_throw_string
+                ud2
+
+            # pagination P1 — kof_list_drop(rdi=list, esi=n) -> nova List a
+            # partir de min(n,size) (clamp honesto); n<0 -> PAGINATION.
+            .globl kof_list_drop
+            .type kof_list_drop, @function
+            kof_list_drop:
+                pushq %rbx
+                movq %rdi, %rbx
+                testl %esi, %esi
+                js .Ldp_bad
+                movl 16(%rbx), %edx         # size (= end)
+                cmpl %edx, %esi             # n <= size?
+                jle .Ldp_ok
+                movl %edx, %esi             # n>size -> begin=size (vazio)
+            .Ldp_ok:
+                movq %rbx, %rdi
+                call kof_list_sub_list
+                popq %rbx
+                ret
+            .Ldp_bad:
+                leaq .Lpag_count_msg(%rip), %rdi
+                call kof_throw_string
+                ud2
+
+            # pagination P1 — kof_list_slice(rdi=list, esi=offset, edx=limit)
+            # -> nova List [start, start+min(limit,size-start)); offset<0 ||
+            # limit<0 -> PAGINATION; offset>size -> vazia (sem erro).
+            .globl kof_list_slice
+            .type kof_list_slice, @function
+            kof_list_slice:
+                pushq %rbx
+                pushq %r12
+                pushq %r13
+                movq %rdi, %rbx
+                testl %esi, %esi
+                js .Lsc_bad
+                testl %edx, %edx
+                js .Lsc_bad
+                movl 16(%rbx), %r12d        # size
+                movl %esi, %r13d            # start = min(offset,size)
+                cmpl %r12d, %r13d
+                jle .Lsc_ok
+                movl %r12d, %r13d
+            .Lsc_ok:
+                movl %r12d, %eax
+                subl %r13d, %eax            # remaining = size - start
+                movl %edx, %ecx             # end = start + min(limit,remaining)
+                cmpl %eax, %ecx
+                jle .Lsc_sum
+                movl %eax, %ecx
+            .Lsc_sum:
+                addl %r13d, %ecx
+                movq %rbx, %rdi
+                movl %r13d, %esi
+                movl %ecx, %edx
+                call kof_list_sub_list
+                popq %r13
+                popq %r12
+                popq %rbx
+                ret
+            .Lsc_bad:
+                leaq .Lpag_ol_msg(%rip), %rdi
+                call kof_throw_string
+                ud2
+
+            # ---------------------- literais PAGINATION --------------------
+            .Lpag_count_msg:
+                .long 1
+                .long 0
+                .quad 0
+                .long .Lpag_count_len
+                .long 0
+            .Lpag_count_body:
+                .ascii "PAGINATION: count must be >= 0"
+                .byte 0
+                .set .Lpag_count_len, . - .Lpag_count_body - 1
+            .Lpag_ol_msg:
+                .long 1
+                .long 0
+                .quad 0
+                .long .Lpag_ol_len
+                .long 0
+            .Lpag_ol_body:
+                .ascii "PAGINATION: limit/offset must be >= 0"
+                .byte 0
+                .set .Lpag_ol_len, . - .Lpag_ol_body - 1
             """);
     }
 }

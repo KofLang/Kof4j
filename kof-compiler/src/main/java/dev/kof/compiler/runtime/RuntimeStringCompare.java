@@ -277,5 +277,190 @@ public final class RuntimeStringCompare {
                 xorl %eax, %eax
                 ret
             """);
+        String cic = """
+            # compareToIgnoreCase: rdi=A, rsi=B -> eax = JVM CASE_INSENSITIVE_ORDER
+            # (fold SIMPLES por code unit: upper; se ainda difere, lower; prefixo
+            # -> unitsA-unitsB). Reusa .Lksu_next e as tabelas .Lkof_cu_*_tab.
+            .globl kof_string_compare_to_ignore_case
+            .type kof_string_compare_to_ignore_case, @function
+            kof_string_compare_to_ignore_case:
+                pushq %rbx
+                pushq %r12
+                pushq %r13
+                pushq %r14
+                pushq %r15
+                subq $48, %rsp
+                movq %rdi, %rbx
+                movq %rsi, %r12
+                movl 16(%rbx), %r13d
+                movl 16(%r12), %r14d
+                xorl %r15d, %r15d
+                movl %r15d, (%rsp)
+                movl %r15d, 4(%rsp)
+                movl %r15d, 8(%rsp)
+                movl %r15d, 12(%rsp)
+            .Lcic_ca:
+                leaq 24(%rbx), %rdi
+                movq %rsp, %rsi
+                movl %r13d, %edx
+                call .Lksu_next
+                cmpl $-1, %eax
+                je .Lcic_cad
+                incl %r15d
+                jmp .Lcic_ca
+            .Lcic_cad:
+                movl %r15d, 28(%rsp)
+                xorl %r15d, %r15d
+                movl %r15d, 8(%rsp)
+                movl %r15d, 12(%rsp)
+            .Lcic_cb:
+                leaq 24(%r12), %rdi
+                leaq 8(%rsp), %rsi
+                movl %r14d, %edx
+                call .Lksu_next
+                cmpl $-1, %eax
+                je .Lcic_cbd
+                incl %r15d
+                jmp .Lcic_cb
+            .Lcic_cbd:
+                movl %r15d, 32(%rsp)
+                movl $0, (%rsp)
+                movl $0, 4(%rsp)
+                movl $0, 8(%rsp)
+                movl $0, 12(%rsp)
+            .Lcic_loop:
+                leaq 24(%rbx), %rdi
+                movq %rsp, %rsi
+                movl %r13d, %edx
+                call .Lksu_next
+                movl %eax, 16(%rsp)
+                leaq 24(%r12), %rdi
+                leaq 8(%rsp), %rsi
+                movl %r14d, %edx
+                call .Lksu_next
+                movl %eax, 20(%rsp)
+                movl 16(%rsp), %ecx
+                cmpl 20(%rsp), %ecx
+                jne .Lcic_diff
+                cmpl $-1, %ecx
+                je .Lcic_same
+                jmp .Lcic_loop
+            .Lcic_diff:
+                cmpl $-1, 16(%rsp)
+                je .Lcic_length
+                cmpl $-1, 20(%rsp)
+                je .Lcic_length
+                movl 16(%rsp), %eax
+                call .Lcic_fup
+                movl %eax, 16(%rsp)
+                movl 20(%rsp), %eax
+                call .Lcic_fup
+                movl %eax, 20(%rsp)
+                movl 16(%rsp), %ecx
+                cmpl 20(%rsp), %ecx
+                je .Lcic_loop
+                movl 16(%rsp), %eax
+                call .Lcic_flo
+                movl %eax, 16(%rsp)
+                movl 20(%rsp), %eax
+                call .Lcic_flo
+                movl %eax, 20(%rsp)
+                movl 16(%rsp), %ecx
+                cmpl 20(%rsp), %ecx
+                je .Lcic_loop
+                movl 16(%rsp), %eax
+                subl 20(%rsp), %eax
+                jmp .Lcic_ret
+            .Lcic_same:
+            .Lcic_length:
+                movl 28(%rsp), %eax
+                subl 32(%rsp), %eax
+            .Lcic_ret:
+                movslq %eax, %rax
+                addq $48, %rsp
+                popq %r15
+                popq %r14
+                popq %r13
+                popq %r12
+                popq %rbx
+                ret
+            # fold simple upper: eax=unit -> eax (ASCII inline; BMP por tabela).
+            .Lcic_fup:
+                cmpl $0x80, %eax
+                jae .Lcic_fup_tab
+                cmpl $97, %eax
+                jb .Lcic_fup_r
+                cmpl $122, %eax
+                ja .Lcic_fup_r
+                subl $32, %eax
+            .Lcic_fup_r:
+                ret
+            .Lcic_fup_tab:
+                movl %eax, %r9d
+                leaq .Lkof_cu_up_tab(%rip), %r10
+                xorl %esi, %esi
+                movl $@UPN@, %edi
+                decl %edi
+            .Lcic_fup_bs:
+                cmpl %edi, %esi
+                jg .Lcic_fup_nf
+                leal (%rsi,%rdi), %eax
+                shrl $1, %eax
+                movzwl (%r10,%rax,4), %edx
+                cmpl %edx, %r9d
+                je .Lcic_fup_f
+                jl .Lcic_fup_hi
+                leal 1(%rax), %esi
+                jmp .Lcic_fup_bs
+            .Lcic_fup_hi:
+                leal -1(%rax), %edi
+                jmp .Lcic_fup_bs
+            .Lcic_fup_f:
+                movzwl 2(%r10,%rax,4), %eax
+                ret
+            .Lcic_fup_nf:
+                movl %r9d, %eax
+                ret
+            # fold simple lower: eax=unit -> eax.
+            .Lcic_flo:
+                cmpl $0x80, %eax
+                jae .Lcic_flo_tab
+                cmpl $65, %eax
+                jb .Lcic_flo_r
+                cmpl $90, %eax
+                ja .Lcic_flo_r
+                addl $32, %eax
+            .Lcic_flo_r:
+                ret
+            .Lcic_flo_tab:
+                movl %eax, %r9d
+                leaq .Lkof_cu_lo_tab(%rip), %r10
+                xorl %esi, %esi
+                movl $@LON@, %edi
+                decl %edi
+            .Lcic_flo_bs:
+                cmpl %edi, %esi
+                jg .Lcic_flo_nf
+                leal (%rsi,%rdi), %eax
+                shrl $1, %eax
+                movzwl (%r10,%rax,4), %edx
+                cmpl %edx, %r9d
+                je .Lcic_flo_f
+                jl .Lcic_flo_hi
+                leal 1(%rax), %esi
+                jmp .Lcic_flo_bs
+            .Lcic_flo_hi:
+                leal -1(%rax), %edi
+                jmp .Lcic_flo_bs
+            .Lcic_flo_f:
+                movzwl 2(%r10,%rax,4), %eax
+                ret
+            .Lcic_flo_nf:
+                movl %r9d, %eax
+                ret
+            """;
+        cic = cic.replace("@UPN@", Integer.toString(RuntimeStringCase.count(true)))
+                 .replace("@LON@", Integer.toString(RuntimeStringCase.count(false)));
+        sb.append(cic);
     }
 }

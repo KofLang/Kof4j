@@ -48,11 +48,12 @@ public final class NativeRiscvSpawn {
             # kof_spawn_result(task@a0) -> handle@a0
             .globl kof_spawn_result
             kof_spawn_result:
-                addi sp, sp, -32
-                sd   ra, 24(sp)
-                sd   s0, 16(sp)
-                sd   s1, 8(sp)
-                sd   s2, 0(sp)
+                addi sp, sp, -48
+                sd   ra, 40(sp)
+                sd   s0, 32(sp)
+                sd   s1, 24(sp)
+                sd   s2, 16(sp)
+                sd   s3, 8(sp)              # §545: bloco TLS do worker
                 mv   s0, a0                 # task
                 li   a0, 64                 # §286: +8 p/ pending@56
                 call kof_alloc
@@ -78,6 +79,13 @@ public final class NativeRiscvSpawn {
                 li   t1, 1048576
                 add  s2, a0, t1             # stack TOP
                 sd   s2, 24(s1)             # stack top no handle (filho lê)
+                # §545: bloco TLS do worker via `_dl_allocate_tls(NULL)` do
+                # loader — spawn FORÇA o link dinâmico, então o símbolo resolve
+                # sempre (nunca weak: --gc-sections o relaxaria a 0). aarch64
+                # herda esta sequência pelo tradutor linha-a-linha.
+                li   a0, 0
+                call _dl_allocate_tls
+                mv   s3, a0
                 # clone(flags, stack_top, ptid=&tid, tls=0, ctid=0) — filho
                 # herda s0,s1; o KERNEL grava o TID do filho em &handle->tid
                 # (ctid), que kof_cancel (B48) usa p/ achar a entry de flag.
@@ -87,7 +95,7 @@ public final class NativeRiscvSpawn {
                 li   a0, 0x3D0F00
                 mv   a1, s2
                 addi a2, s1, 32
-                li   a3, 0
+                mv   a3, s3                 # §545: tls = bloco do loader (tp)
                 li   a4, 0
                 call kof_plat_thread_create
                 bltz a0, .Lsp_inline
@@ -120,11 +128,12 @@ public final class NativeRiscvSpawn {
                 sd   t1, 0(t0)
             .Lsp_ret:
                 mv   a0, s1
-                ld   s2, 0(sp)
-                ld   s1, 8(sp)
-                ld   s0, 16(sp)
-                ld   ra, 24(sp)
-                addi sp, sp, 32
+                ld   s3, 8(sp)
+                ld   s2, 16(sp)
+                ld   s1, 24(sp)
+                ld   s0, 32(sp)
+                ld   ra, 40(sp)
+                addi sp, sp, 48
                 ret
             # kof_spawn(task@a0) -> handle registrado (join implícito no fim do main)
             .globl kof_spawn

@@ -68,6 +68,15 @@ final class MemberCallNamespaces {
             for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
             boolean typed = !mc.typeArguments().isEmpty();
             String entityName = typed ? mc.typeArguments().get(0) : null;
+            // P4 (D-PAGINATION-P4-LOWERING): `orm.window<T>` devolve Window<T>,
+            // nao List<T> — a face e dessugada no ORM lowerer sobre
+            // orm.page/orm.count + o helper Kof window(...). Exige o host
+            // kof.pagination importado (Window existe); sem ele nao resolve.
+            if ("window".equals(mc.methodName()) && typed) {
+                Type ent = MemberResolver.resolveType(sa, mc.typeArguments().get(0), scope);
+                Type win = KofOrm.windowType(sa, ent);
+                if (win != null) return win;
+            }
             KofOrm.OrmCall ormCall = KofOrm.staticCall(mc.methodName(), argTypes, typed, entityName);
             if (ormCall != null) {
                 if ("save".equals(mc.methodName()) && !argTypes.isEmpty()) {
@@ -209,6 +218,15 @@ final class MemberCallNamespaces {
             }
             return unknown(sa, rid.name(), mc.methodName());
         }
+        if (mc.receiver() instanceof IdentifierExpr rid && !SemExpressionTyper.isLocalName(scope, rid.name()) && KofImage.isImageNamespace(rid.name())) {
+            KofImage.ImageCall imageCall = KofImage.staticMethod(rid.name(), mc.methodName(),
+                    mc.arguments().size());
+            if (imageCall != null) {
+                for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
+                return imageCall.returnType();
+            }
+            return unknown(sa, rid.name(), mc.methodName());
+        }
         if (mc.receiver() instanceof IdentifierExpr rid && !SemExpressionTyper.isLocalName(scope, rid.name()) && KofMedia.isStaticNamespace(rid.name())) {
             KofMedia.MediaCall mediaCall = KofMedia.staticCall(rid.name(), mc.methodName(),
                     mc.arguments().size());
@@ -243,6 +261,19 @@ final class MemberCallNamespaces {
                 return KofWeb.APP;
             }
             return unknown(sa, "web", mc.methodName());
+        }
+        // D-KOF-NET (fatia 1): membros de handle `net` (Listener/Conn/Endpoint).
+        // Sem braço próprio caíam em webInstance → null silencioso (a família
+        // R6 do §498). Handle é o 1º argumento na rota de membros (padrão web/db).
+        if (KofNet.isNetHandleType(recvType)) {
+            java.util.List<Type> netArgTypes = new java.util.ArrayList<>();
+            netArgTypes.add(recvType);
+            for (ExpressionNode arg : mc.arguments()) {
+                netArgTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
+            }
+            KofNet.NetCall netCall = KofNet.instanceMethod(mc.methodName(), netArgTypes);
+            if (netCall != null) return netCall.returnType();
+            return unknown(sa, "net", mc.methodName());
         }
         return webInstance(sa, mc, scope, recvType);
     }

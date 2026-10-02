@@ -204,6 +204,33 @@ class StructuredTestE2ETest {
     }
 
     @Test
+    void testSourcesHonorExplicitModuleRoot(@TempDir Path tempDir) throws IOException {
+        // #708: compileForTestsSources must use the moduleRoot ARGUMENT, not a
+        // stale/null driver.moduleRoot. With a fresh driver the package-dir
+        // correspondence (PKG004) only holds when the explicit root is used.
+        Path root = tempDir.resolve("app");
+        Files.createDirectories(root.resolve("exemplo"));
+        Files.writeString(root.resolve("exemplo/Calculo.kf"), """
+                package exemplo
+                Int somar(Int a, Int b) { return a + b }
+                """);
+        Files.writeString(root.resolve("exemplo/CalculoTest.kf"), """
+                package exemplo
+                import exemplo.Calculo
+                test "soma" { assert(somar(2, 3) == 5) }
+                """);
+        List<Path> sources = List.of(
+                root.resolve("exemplo/Calculo.kf"),
+                root.resolve("exemplo/CalculoTest.kf"));
+        CompilationResult r = driver.compileForTestsSources(
+                sources, tempDir.resolve("out"), Target.JVM, root);
+        assertTrue(r.success(),
+                "explicit moduleRoot must satisfy PKG004: " + r.diagnostics().getDiagnostics());
+        assertEquals(1, driver.discoveredTests().size(),
+                "the suite must be discovered from the explicit root: " + driver.discoveredTests());
+    }
+
+    @Test
     void processExitSetsCodeOnJvm(@TempDir Path tempDir) throws IOException {
         Path source = tempDir.resolve("Main.kf");
         Files.writeString(source, """

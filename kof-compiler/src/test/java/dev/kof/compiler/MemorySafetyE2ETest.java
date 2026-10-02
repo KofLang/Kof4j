@@ -486,6 +486,35 @@ class MemorySafetyE2ETest {
         assertMutationWarnsOnAllTargets(tempDir, "mem022-add", src);
     }
 
+    /**
+     * #678 (`D-SCRIPT-WARN-SURFACE`, opção A): o alvo Script engolia os
+     * WARNING do frontend — o JVM/JS/Native imprimem MEM022, mas
+     * {@code driver.interpret} devolvia {@code stderr=[]} e descartava o
+     * {@code DiagnosticCollector}. Agora o {@code Result} carrega os warnings
+     * (paridade de diagnósticos, DoD do plano). RED medido 29/09: antes,
+     * {@code warnings()} era vazio para esta mesma fonte. Usa mutação
+     * TERMINANTE (`remove(0)`) — `add` é loop runaway no interpretador.
+     */
+    @Test
+    void mutationDuringIterationWarnsMem022OnScript(@TempDir Path tempDir) throws IOException {
+        Path kf = tempDir.resolve("mem022-script-" + System.nanoTime() + ".kf");
+        Files.writeString(kf, """
+                main() {
+                    var list = listOf(1, 2, 3)
+                    for (var x in list) {
+                        list.remove(0)
+                    }
+                    println("done")
+                }
+                """);
+        KofInterpreter.Result ir = driver.interpret(java.util.List.of(kf), tempDir, new String[0]);
+        assertEquals(0, ir.exitCode(), "programa terminante roda: " + ir.stderr());
+        String warnings = ir.warnings().stream()
+                .map(Diagnostic::format).reduce("", (a, b) -> a + b + "\n");
+        assertTrue(warnings.contains("MEM022"),
+                "SCRIPT deveria expor MEM022 como os demais alvos, veio: [" + warnings + "]");
+    }
+
     @Test
     void removeClearAndAddAllDuringIterationWarnMem022(@TempDir Path tempDir) throws IOException {
         assertMutationWarnsOnAllTargets(tempDir, "mem022-remove", """
@@ -632,5 +661,249 @@ class MemorySafetyE2ETest {
                 .replace("\r\n", "\n").trim();
         assertEquals(0, p.waitFor(), "saida: " + out);
         assertEquals("6", out, "JVM golden");
+    }
+
+    // ---- fatia 3.2: B-04/C-03/MEM021 data race spawn x binding capturado ----
+
+    private void assertMem021FailsOnAllTargets(Path tempDir, String name, String src) throws IOException {
+        for (Target t : new Target[]{Target.JVM, Target.NATIVE, Target.JS}) {
+            CompilationResult r = compile(tempDir, name + "-" + t, src, t);
+            assertFalse(r.success(), t + ": corrida clara spawn/mae deve falhar — " + diagText(r));
+            assertTrue(diagText(r).contains("MEM021"), t + ": esperado MEM021 — " + diagText(r));
+        }
+        assertScriptDiag(tempDir, name + "-script", src, "MEM021");
+    }
+
+    private void assertNoMem021Green(Path tempDir, String name, String src) throws IOException {
+        for (Target t : new Target[]{Target.JVM, Target.NATIVE, Target.JS}) {
+            CompilationResult r = compile(tempDir, name + "-" + t, src, t);
+            assertTrue(r.success(), t + ": deve compilar (silencioso fora da corrida) — " + diagText(r));
+            assertFalse(diagText(r).contains("MEM021"), t + ": falso-positivo MEM021 — " + diagText(r));
+        }
+    }
+
+    @Test
+    void spawnMutatesSharedListThenParentMutatesFailsMem021(@TempDir Path tempDir) throws IOException {
+        assertMem021FailsOnAllTargets(tempDir, "mem021-race", """
+                main() {
+                    var a = listOf(1)
+                    spawn { a.add(2) }
+                    a.add(3)
+                }
+                """);
+    }
+
+    @Test
+    void spawnInsideBareBlockThenParentMutatesFailsMem021(@TempDir Path tempDir) throws IOException {
+        // #693 — a bare `{ ... }` is unconditional/straight-line, so a spawn's
+        // pending race must propagate out of the block (like groups/aliasOf);
+        // before the fix the block boundary dropped `racy` and the clear race
+        // after it compiled clean.
+        assertMem021FailsOnAllTargets(tempDir, "mem021-block", """
+                main() {
+                    var a = listOf(1)
+                    {
+                        spawn { a.add(2) }
+                    }
+                    a.add(3)
+                }
+                """);
+    }
+
+    @Test
+    void handleFormSpawnWithoutAwaitFailsMem021(@TempDir Path tempDir) throws IOException {
+        assertMem021FailsOnAllTargets(tempDir, "mem021-handle", """
+                main() {
+                    var a = listOf(1)
+                    var h = spawn { a.add(2) }
+                    a.add(3)
+                    await h
+                }
+                """);
+    }
+
+    @Test
+    void twoSpawnsMutatingSameListWithoutAwaitFailsMem021(@TempDir Path tempDir) throws IOException {
+        assertMem021FailsOnAllTargets(tempDir, "mem021-workers", """
+                main() {
+                    var a = listOf(1)
+                    spawn { a.add(2) }
+                    spawn { a.remove(0) }
+                }
+                """);
+    }
+
+    @Test
+    void awaitBeforeParentMutationStaysGreen(@TempDir Path tempDir) throws IOException {
+        assertNoMem021Green(tempDir, "mem021-synced", """
+                main() {
+                    var a = listOf(1)
+                    var h = spawn { a.add(2) }
+                    await h
+                    a.add(3)
+                }
+                """);
+    }
+
+    @Test
+    void spawnAloneWithoutParentMutationStaysGreen(@TempDir Path tempDir) throws IOException {
+        assertNoMem021Green(tempDir, "mem021-solo", """
+                main() {
+                    var a = listOf(1)
+                    spawn { a.add(2) }
+                }
+                """);
+    }
+
+    @Test
+    void parentMutationOnlyBeforeSpawnStaysGreen(@TempDir Path tempDir) throws IOException {
+        assertNoMem021Green(tempDir, "mem021-before", """
+                main() {
+                    var a = listOf(1)
+                    a.add(2)
+                    spawn { a.add(3) }
+                }
+                """);
+    }
+
+    @Test
+    void spawnReadingSharedListParentMutatingStaysGreen(@TempDir Path tempDir) throws IOException {
+        assertNoMem021Green(tempDir, "mem021-read", """
+                main() {
+                    var a = listOf(1)
+                    spawn { println(a.size()) }
+                    a.add(2)
+                }
+                """);
+    }
+
+    @Test
+    void distinctBindingsSpawnAndParentStayGreen(@TempDir Path tempDir) throws IOException {
+        assertNoMem021Green(tempDir, "mem021-distinct", """
+                main() {
+                    var a = listOf(1)
+                    var b = listOf(2)
+                    spawn { a.add(3) }
+                    b.add(4)
+                }
+                """);
+    }
+
+    @Test
+    void awaitOfOtherHandleSuppressesRaceStaysGreen(@TempDir Path tempDir) throws IOException {
+        assertNoMem021Green(tempDir, "mem021-other-await", """
+                Int other() {
+                    return 1
+                }
+
+                main() {
+                    var a = listOf(1)
+                    var h = spawn { a.add(2) }
+                    var g = spawn other()
+                    await g
+                    a.add(3)
+                    await h
+                }
+                """);
+    }
+
+    @Test
+    void mutationThroughAliasOfCapturedListFailsMem021(@TempDir Path tempDir) throws IOException {
+        assertMem021FailsOnAllTargets(tempDir, "mem021-alias", """
+                main() {
+                    var a = listOf(1)
+                    var alias = a
+                    spawn { a.add(2) }
+                    alias.add(3)
+                }
+                """);
+    }
+
+    @Test
+    void branchMutationAfterRacingSpawnFailsMem021(@TempDir Path tempDir) throws IOException {
+        assertMem021FailsOnAllTargets(tempDir, "mem021-branch", """
+                main() {
+                    var a = listOf(1)
+                    spawn { a.add(2) }
+                    if (a.size() > 0) {
+                        a.clear()
+                    }
+                }
+                """);
+    }
+
+    // ---- fatia 4.3/#660 (D-MEM021-SCALAR): reatribuicao ESCALAR capturada ----
+
+    @Test
+    void spawnScalarReassignAfterSpawnFailsMem021(@TempDir Path tempDir) throws IOException {
+        // reprodutor exato do #660 (medido 202/101, corrida silenciosa nos 4 alvos)
+        assertMem021FailsOnAllTargets(tempDir, "mem021-scalar", """
+                main() {
+                    var n = 21
+                    var h = spawn { n = n + 1; return n * 2 }
+                    n = 100
+                    println(await h)
+                    println(n)
+                }
+                """);
+    }
+
+    @Test
+    void parentIncrementOfCapturedScalarFailsMem021(@TempDir Path tempDir) throws IOException {
+        assertMem021FailsOnAllTargets(tempDir, "mem021-scalar-inc", """
+                main() {
+                    var n = 21
+                    var h = spawn { n = n + 1 }
+                    n++
+                    await h
+                }
+                """);
+    }
+
+    @Test
+    void twoSpawnsWritingSameScalarWithoutAwaitFailsMem021(@TempDir Path tempDir) throws IOException {
+        assertMem021FailsOnAllTargets(tempDir, "mem021-scalar-workers", """
+                main() {
+                    var n = 21
+                    spawn { n = n + 1 }
+                    spawn { n = n + 2 }
+                }
+                """);
+    }
+
+    @Test
+    void parentScalarReassignAfterAwaitStaysGreen(@TempDir Path tempDir) throws IOException {
+        assertNoMem021Green(tempDir, "mem021-scalar-synced", """
+                main() {
+                    var n = 21
+                    var h = spawn { n = n + 1; return n }
+                    await h
+                    n = 100
+                }
+                """);
+    }
+
+    @Test
+    void spawnReadingScalarParentReassignStaysGreen(@TempDir Path tempDir) throws IOException {
+        // captura read-only baixa por VALOR (sem box): escrita da mae nao corre
+        assertNoMem021Green(tempDir, "mem021-scalar-read", """
+                main() {
+                    var n = 21
+                    spawn { println(n) }
+                    n = 100
+                }
+                """);
+    }
+
+    @Test
+    void workerLocalShadowDoesNotRaceParentScalarStaysGreen(@TempDir Path tempDir) throws IOException {
+        // `n` local do worker nao e a captura `n` da mae — zero falso-positivo
+        assertNoMem021Green(tempDir, "mem021-scalar-shadow", """
+                main() {
+                    var n = 1
+                    spawn { var n = 5; n = n + 1; println(n) }
+                    n = 100
+                }
+                """);
     }
 }

@@ -181,7 +181,7 @@ Method: every backticked `*Test` token in `docs/` checked against the tree
 | `KofChannelTest`, `ChannelStdlibE2ETest` | `known-bugs.md` §374 neighbor proof | **broken evidence** — never existed; annotated inline, real channel neighbor = `KofConcurrency2Test` 48/48 |
 | `AarchSchedSmokeTest`, `GenericFieldChainE2ETest`, `NullableReceiverFieldWriteE2ETest`, `KofCharCrossE2ETest`, `ProcessRunE2ETest` | open pointers / fix sketches | proposed name (test to be written) — not drift |
 | `NullablePrimitiveFieldsE2ETest` | §243 revert note | historical (existed when the half-landed face was pinned) — not drift |
-| `SequenceE2ETest`, `ChannelE2ETest` | `future/PLAN-MULTIPARADIGMA.md` | future plan — not drift |
+| `SequenceE2ETest`, `ChannelE2ETest` | `docs/stdlib/PLAN-MULTIPARADIGMA.md` | concluded plan, moved to `docs/stdlib/` (3-state rule) — not drift |
 | `KofSemanticTest` | `decisions/planning-mutability.md` | proposed — not drift |
 
 Result: **2 phantom references used as proof** (both already flagged

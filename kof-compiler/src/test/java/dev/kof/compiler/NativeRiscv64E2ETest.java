@@ -50,6 +50,15 @@ class NativeRiscv64E2ETest {
         return has(arch + "-linux-gnu-as", arch + "-linux-gnu-ld", "qemu-" + arch);
     }
 
+    /** Como {@link #hasToolchain} mas exige TAMBÉM o compilador C cross
+     *  (`<arch>-linux-gnu-gcc`). #714: testes que compilam um shim C
+     *  (`compileCrossLib`) precisam do `gcc`; sem ele o `hasToolchain` (só
+     *  as/ld/qemu) devolvia {@code true} e o teste morria em ERROR em vez de
+     *  pular. Use este guard em qualquer teste que invoque o gcc cross. */
+    static boolean hasToolchainWithGcc(String arch) {
+        return has(arch + "-linux-gnu-as", arch + "-linux-gnu-ld", arch + "-linux-gnu-gcc", "qemu-" + arch);
+    }
+
     /** Roda o binário sob qemu (QEMU_LD_PREFIX do sysroot resolvido) e
      *  devolve o stdout normalizado; falha o teste em exit != 0. */
     static String runQemu(String arch, Path binFile) throws IOException {
@@ -126,6 +135,33 @@ class NativeRiscv64E2ETest {
         assertTrue(ms < 30_000, "deveria desistir dentro do bound, levou " + ms + "ms");
         p.waitFor(10, TimeUnit.SECONDS);
         assertFalse(p.isAlive(), "§418: o filho pendurado tem de morrer (destroyForcibly)");
+    }
+
+    /** #714 (regra 1 — teste de regressão do fix): o guarda de toolchain com
+     *  gcc cruzado NUNCA lança e concorda com a sonda {@code command -v}. Era a
+     *  causa-raiz do falso-vermelho: os testes de fixture C chamavam
+     *  {@code ProcessBuilder("<arch>-linux-gnu-gcc")} direto com guarda só em
+     *  {@link #hasToolchain} (as/ld/qemu), então num host sem o gcc cruzado o
+     *  filho estourava {@code IOException} (ERROR) em vez de pular. O
+     *  {@link #hasToolchainWithGcc} devolve boolean e acrescenta o {@code gcc}
+     *  ao conjunto exigido. Prova: arch inexistente ⇒ false sem exceção; e para
+     *  riscv64/aarch64 o resultado bate com a sonda {@code command -v} do host —
+     *  true na CI (gcc presente), false num host que só tem as/ld/qemu. */
+    @Test
+    void gccToolchainGuardIsANonThrowingPredicateMatchingCommandProbe() {
+        assertFalse(hasToolchainWithGcc("nonexistent-arch"),
+                "arch inexistente deve dar false (nunca lançar)");
+        for (String arch : new String[]{"riscv64", "aarch64"}) {
+            boolean viaGuard = hasToolchainWithGcc(arch);
+            boolean allPresent = has(arch + "-linux-gnu-as", arch + "-linux-gnu-ld",
+                    arch + "-linux-gnu-gcc", "qemu-" + arch);
+            assertEquals(allPresent, viaGuard,
+                    arch + ": o guarda deve refletir exatamente o conjunto exigido (command -v)");
+            // direcional e robusto: se falta o C cross compiler, o guarda é SEMPRE false
+            if (!has(arch + "-linux-gnu-gcc")) {
+                assertFalse(viaGuard, arch + ": sem o gcc cruzado o guarda não pode dar true");
+            }
+        }
     }
 
     private String runRiscv64(Path tempDir, String source) throws IOException {
@@ -556,6 +592,23 @@ class NativeRiscv64E2ETest {
         assertTrue(lines.contains("inicio"), "inicio primeiro: " + lines);
         assertTrue(lines.contains("bg"), "join implícito espera o worker: " + lines);
         assertTrue(lines.contains("fim"), "main não bloqueia no spawn: " + lines);
+    }
+
+    // §545: um worker de `spawn` que chama um `extern` precisa de `tp` válido
+    // (TLS da libc). Antes do fix o clone cru começava com tls=0 → SIGSEGV no
+    // primeiro acesso TLS/PLT (`-1888(tp)`). Regressão: sem fallback, worker
+    // chama abs() e o resultado dobra. aarch64 tem o gêmeo em NativeAarch64.
+    @Test
+    void riscv64SpawnExtern(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runRiscv64(tempDir, """
+            extern "libc.so.6" abs(Int x): Int
+            main() {
+                val r = spawn { return abs(-5) + abs(3) }
+                println(await r)
+            }
+            """);
+        assertEquals("8", out);
     }
 
     // NATIVE002-stdlib: métodos String riscv64 (trim/toUpper/toLowerCase/

@@ -20,6 +20,7 @@ import dev.kof.compiler.KofReturnVoid;
 import dev.kof.compiler.KofThrow;
 import dev.kof.compiler.KofContinueLabel;
 import dev.kof.compiler.KofStatementIf;
+import dev.kof.compiler.KofExcUnlink;
 import dev.kof.compiler.KofTryEnd;
 import dev.kof.compiler.KofTryStart;
 import dev.kof.compiler.KofUnary;
@@ -76,19 +77,26 @@ final class NativeMethodEmitter {
 
         int maxSlot = method.localVariables().stream()
                 .mapToInt(IRLocalVariable::index).max().orElse(0);
-        // Scan for CONSTRUCTOR calls with stack args to reserve frame space
-        int maxCtorStackArgs = 0;
+        // §541/§542: reserva o rascunho dos args de pilha para TODO call com
+        // stack args (não só construtores) — o call-site x86 guarda os args
+        // 6+/7+ em slots do frame ANTES de re-empurrá-los. A base do rascunho
+        // é logo abaixo dos locais (nb.scratchOffset), então os locais reais
+        // nunca são sobrescritos. Antes: offset fixo -256-s*8 colidia com
+        // locais >32 slots (corrupção silenciosa no x86).
+        int maxCallStackArgs = 0;
         for (IRBasicBlock bb : method.basicBlocks()) {
             for (KofOperation op : bb.operations()) {
-                if (op instanceof KofCall kc && kc.kind() == KofCallKind.CONSTRUCTOR
-                        && "<init>".equals(kc.methodName())) {
-                    int sa = Math.max(0, kc.parameterTypes().size() - 5);
-                    maxCtorStackArgs = Math.max(maxCtorStackArgs, sa);
+                if (op instanceof KofCall kc) {
+                    // reserva n slots de rascunho (cobre o spill genérico
+                    // n-5 e os temporários por-arg do FFI, indexados por i).
+                    maxCallStackArgs = Math.max(maxCallStackArgs, kc.parameterTypes().size());
                 }
             }
         }
-        int extraFrame = maxCtorStackArgs > 0 ? 256 + maxCtorStackArgs * 8 : 0;
-        int frameSize = Math.max((maxSlot + 1) * 8, 16) + extraFrame;
+        int localsBytes = (maxSlot + 1) * 8;
+        nb.frameLocalsBytes = localsBytes;
+        int extraFrame = maxCallStackArgs > 0 ? maxCallStackArgs * 8 : 0;
+        int frameSize = Math.max(localsBytes, 16) + extraFrame;
         frameSize = (frameSize + 15) & ~15;
         if (frameSize > 0) {
             sb.append("    subq $").append(frameSize).append(", %rsp\n");
@@ -304,6 +312,18 @@ final class NativeMethodEmitter {
             case KofContinueLabel _ -> {
                 // §266: marcador estrutural (fronteira corpo/update do for) — no-op
             }
+            case KofExcUnlink _ -> {
+                // §549/§551: pop de handler control-flow (caminho normal do try,
+                // break/continue/return que atravessam região). A base do frame
+                // NÃO é necessariamente `rsp` — lê do TOPO da cadeia (o TLS
+                // kof_exc_chain guarda a base salva no KofTryStart), religa o
+                // prev e restaura rsp antes de transferir o controle.
+                sb.append("    movq %fs:kof_exc_chain@tpoff, %rax\n");
+                sb.append("    movq 24(%rax), %rcx\n");
+                sb.append("    movq %rcx, %fs:kof_exc_chain@tpoff\n");
+                sb.append("    movq %rax, %rsp\n");
+                sb.append("    addq $32, %rsp\n");
+            }
             case KofTryEnd _ -> {
                 sb.append("    movq 24(%rsp), %rcx\n");
                 sb.append("    movq %rcx, %fs:kof_exc_chain@tpoff\n");
@@ -317,24 +337,24 @@ final class NativeMethodEmitter {
             case KofDup _ -> sb.append("    movq (%rsp), %rax\n    pushq %rax\n");
             case KofDup2 _ -> sb.append("""
                     movq (%rsp), %rax
-                    movq 8(%rsp), %rbx
-                    pushq %rbx
+                    movq 8(%rsp), %r11
+                    pushq %r11
                     pushq %rax
                     """);
             case KofDupX1 _ -> sb.append("""
                     movq (%rsp), %rax
-                    movq 8(%rsp), %rbx
+                    movq 8(%rsp), %r11
                     pushq %rax
-                    pushq %rbx
+                    pushq %r11
                     pushq %rax
                 """.stripIndent());
             case KofDupX2 _ -> sb.append("""
                     movq (%rsp), %rax
-                    movq 8(%rsp), %rbx
+                    movq 8(%rsp), %r11
                     movq 16(%rsp), %rcx
                     pushq %rax
                     pushq %rcx
-                    pushq %rbx
+                    pushq %r11
                     pushq %rax
                 """.stripIndent());
             case KofPop _ -> sb.append("    addq $8, %rsp\n");

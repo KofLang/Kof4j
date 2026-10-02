@@ -3,6 +3,7 @@ package dev.kof.cli;
 import dev.kof.compiler.CompilationResult;
 import dev.kof.compiler.Diagnostic;
 import dev.kof.compiler.CompilerDriver;
+import dev.kof.compiler.KofProjectConfig;
 import dev.kof.compiler.Target;
 import dev.kof.compiler.TargetMatrix;
 import dev.kof.compiler.backend.AndroidProjectWriter;
@@ -26,40 +27,32 @@ final class CmdBuild {
     private static final String USAGE = "usage: kof build <source-dir|file.kf> [--target jvm|native|js|native.risc|native.arm|android] [--profile host|freestanding] [--backend <t>] [--frontend <t>] [--output <dir>] [--release] [--apk] [--aab] [--fat] [--print-sizes] [--classpath <jars>] [--keystore <ks> [--storepass <p>] [--keypass <p>] [--alias <a>]] [--min-sdk <n>] [--target-sdk <n>]";
 
     static void run(String[] args) {
-        if (args.length < 2) { System.err.println(USAGE); return; }
-        if ("--help".equals(args[1]) || "-h".equals(args[1]) || "--version".equals(args[1])) {
+        if (args.length >= 2
+                && ("--help".equals(args[1]) || "-h".equals(args[1]) || "--version".equals(args[1]))) {
             System.out.println(USAGE);
             return;
         }
-        if (args[1].startsWith("-")) {
-            // R6: a flag in the source position was treated as a directory name
-            // and exited 0 with "no .kf/.kof files found" — a typo'd flag looked
-            // like an empty project.
-            System.err.println("build: unknown flag: " + args[1]
-                    + " (see 'kof build --help')");
-            System.exit(1);
-            return;
-        }
-        Path src = Path.of(args[1]);
-        if (!Files.exists(src)) {
-            // R6: a nonexistent source dir exited 0 (same silent-success class);
-            // check/test/run already refuse with "not found".
-            System.err.println("not found: " + src);
-            System.exit(1);
-            return;
-        }
-        // Convenience (Go-like: the directory is the module): a single source
-        // file resolves to its containing directory. Documented as
-        // `kof build app.kf`, it previously exited 0 with "no .kf/.kof files
-        // found" — a silent no-op (R6).
-        if (Files.isRegularFile(src)) {
-            Path parent = src.toAbsolutePath().normalize().getParent();
-            if (parent == null) {
-                System.err.println("build: cannot resolve the module directory of " + src);
-                System.exit(1);
-                return;
-            }
-            src = parent;
+        // #708: uma source root declarada em [sources] app permite `kof build`
+        // sem argumento posicional (projetos com kof.toml). Se o arg imediato
+        // já é uma flag, ou não há raiz declarada, o modo é decidido abaixo.
+        boolean flagMode = args.length < 2 || args[1].startsWith("-");
+        Path src = null;
+        KofProjectConfig cfg = KofProjectConfig.empty();
+        Path projectRoot = null;
+        int argStart = 2;
+        boolean declaredRoot = false;
+        if (flagMode) {
+            // Manifesto descoberto a partir do diretório de trabalho.
+            projectRoot = KofCliSupport.projectRootOf(Path.of("."));
+            cfg = KofCliSupport.configOf(projectRoot);
+            // Sem [sources] app a raiz fica ausente e o erro é decidido DEPOIS
+            // de parsear as flags — assim um typo de flag (`--bogus`) é
+            // reportado como flag desconhecida (R6), não como "sem raiz".
+            src = KofProjectConfig.resolveSourceRoot(projectRoot, cfg.sourceApp(), null);
+            argStart = 1;
+            declaredRoot = src != null;
+        } else {
+            src = Path.of(args[1]);
         }
         Target target = Target.JVM;
         Target frontendTarget = null;
@@ -82,7 +75,7 @@ final class CmdBuild {
         String profileArg = null;
         boolean useDeps = false;
         boolean printSizes = false;
-        for (int i = 2; i < args.length; i++) {
+        for (int i = argStart; i < args.length; i++) {
             String arg = args[i];
             if (arg.startsWith("--target=")) {
                 target = KofCliSupport.parseTarget(arg.substring("--target=".length()));
@@ -167,6 +160,36 @@ final class CmdBuild {
                 System.exit(1);
                 return;
             }
+        }
+        if (src == null) {
+            // R6: nenhuma raiz declarada e nenhum posicional — não compilar um
+            // projeto inexistente; dizer o que fazer (decidido após as flags
+            // para um typo de flag ser reportado como tal).
+            System.err.println("build: no source root given and no [sources] app"
+                    + " declared in kof.toml (see 'kof build --help')");
+            System.exit(1);
+            return;
+        }
+        if (!Files.exists(src)) {
+            // R6: a nonexistent source dir exited 0 (same silent-success class);
+            // check/test/run already refuse with "not found".
+            System.err.println("not found: " + src);
+            System.exit(1);
+            return;
+        }
+        // Convenience (Go-like: the directory is the module): a single source
+        // file resolves to its containing directory. Documented as
+        // `kof build app.kf`, it previously exited 0 with "no .kf/.kof files
+        // found" — a silent no-op (R6).
+        if (Files.isRegularFile(src)) {
+            Path parent = src.toAbsolutePath().normalize().getParent();
+            if (parent == null) {
+                System.err.println("build: cannot resolve the module directory of " + src);
+                System.exit(1);
+                return;
+            }
+            src = parent;
+            declaredRoot = false;   // a source root declarada é sempre um diretório
         }
         // F2-parte-4 (plataforma): --backend/--frontend sobrepõem o kof.toml.
         // --target (contrato legado, congelado) tem precedência; sem ele, o
@@ -277,9 +300,28 @@ final class CmdBuild {
         Path backendDir = layout.backendDir();
         String app001 = KofCliSupport.app001(target, layout.fullStack());
         if (app001 != null) { System.err.println("build: " + app001); System.exit(1); return; }
-        List<Path> files = KofCliSupport.collect(backendDir);
-        if (files.isEmpty()) { System.out.println("no .kf/.kof files found"); return; }
-        files.sort(java.util.Comparator.comparing(p -> p.getFileName().toString()));
+        // #708: a raiz declarada ([sources] app) é a base dos pacotes e a
+        // coleta é recursiva (subdiretório = pacote); o modo posicional
+        // histórico segue "um diretório = um pacote" (não-recursivo).
+        List<Path> files = declaredRoot
+                ? KofCliSupport.collectRecursive(backendDir)
+                : KofCliSupport.collect(backendDir);
+        if (files.isEmpty()) {
+            // R6 (#708): a directory with no Kof source used to print this and
+            // exit 0 — a silent no-op that looked like a successful build. The
+            // positional discovery is non-recursive (one directory = one
+            // package), so a tree like src/main/kof/exemplo/ yields nothing
+            // here; fail explicitly instead, and point at the expected layout.
+            System.err.println("build: no .kf/.kof files found in " + backendDir
+                    + (declaredRoot
+                            ? " ([sources] app from kof.toml; discovery is recursive)"
+                            : " (discovery is one directory = one package; run from the"
+                                    + " directory that holds the sources)"));
+            System.exit(1);
+            return;
+        }
+        if (declaredRoot) files.sort(java.util.Comparator.comparing(Path::toString));
+        else files.sort(java.util.Comparator.comparing(p -> p.getFileName().toString()));
         // D-DB-ZERODRIVER (a): mesmos drivers auto no build JVM (cp de
         // compilação + embed no --fat via externalEntries, que o
         // buildFatJar empacota). Native/JS não embarcam driver (R7).

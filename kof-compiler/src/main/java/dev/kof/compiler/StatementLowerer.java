@@ -21,6 +21,12 @@ public final class StatementLowerer {
                 // "finally roda no caminho normal, no capturado e na propagação").
                 if (!driver.finallyFrames.isEmpty()) {
                     CompilerDriverState.FinallyFrame f = driver.finallyFrames.peek();
+                    // §551: region(is) try aninhadas DENTRO do corpo do try-com-
+                    // finally (catch-only ou finally mais interno já resolvido)
+                    // ficam vinculadas no ponto do return — desvincula até a
+                    // profundidade de entrada deste frame antes de saltar p/ o
+                    // epílogo (que desvincula o próprio finally).
+                    for (int i = 0; i < driver.tryDepth - f.tryDepthSelf(); i++) ops.add(new KofExcUnlink());
                     if (ret.value() != null) {
                         localIdx = ReturnValueLowerer.emitCoerced(driver, ret, returnType, ops, owner, localIdx, locals);
                         ops.add(new KofStoreLocal(returnType, f.slotValor()));
@@ -31,6 +37,12 @@ public final class StatementLowerer {
                     ops.add(new KofJump(f.returnFinallyLabel()));
                     yield localIdx;
                 }
+                // §551: return de dentro de região(is) try — desvincula o
+                // handler nativo de cada região atravessada antes de sair da
+                // função (sem isto o frame fica pendurado e o próximo throw
+                // da cadeia dá UAF). O caso com finally ativo é tratado no
+                // epílogo (frame empilhado), não aqui.
+                for (int i = 0; i < driver.tryDepth; i++) ops.add(new KofExcUnlink());
                 if (ret.value() != null) {
                     localIdx = ReturnValueLowerer.emitCoerced(driver, ret, returnType, ops, owner, localIdx, locals);
                     ops.add(new KofReturn(returnType));
@@ -43,11 +55,21 @@ public final class StatementLowerer {
                 yield localIdx;
             }
             case BreakStmt _ -> {
-                if (!driver.breakLabels.isEmpty()) ops.add(new KofJump(driver.breakLabels.peek()));
+                if (!driver.breakLabels.isEmpty()) {
+                    // §551: sair de N regiões try leva o handler nativo junto —
+                    // desvincula da mais interna primeiro (delta = profundidade).
+                    int delta = driver.tryDepth - driver.breakDepths.peek();
+                    for (int i = 0; i < delta; i++) ops.add(new KofExcUnlink());
+                    ops.add(new KofJump(driver.breakLabels.peek()));
+                }
                 yield localIdx;
             }
             case ContinueStmt _ -> {
-                if (!driver.continueLabels.isEmpty()) ops.add(new KofJump(driver.continueLabels.peek()));
+                if (!driver.continueLabels.isEmpty()) {
+                    int delta = driver.tryDepth - driver.continueDepths.peek();
+                    for (int i = 0; i < delta; i++) ops.add(new KofExcUnlink());
+                    ops.add(new KofJump(driver.continueLabels.peek()));
+                }
                 yield localIdx;
             }
             case ExpressionStmt es -> {
@@ -118,9 +140,13 @@ public final class StatementLowerer {
                 ops.add(new KofLabel(bodyLabel));
                 driver.breakLabels.push(endLabel);
                 driver.continueLabels.push(startLabel);
+                driver.breakDepths.push(driver.tryDepth);
+                driver.continueDepths.push(driver.tryDepth);
                 localIdx = driver.emitStatement(ws.body(), ops, owner, localIdx, locals, returnType);
                 driver.breakLabels.pop();
                 driver.continueLabels.pop();
+                driver.breakDepths.pop();
+                driver.continueDepths.pop();
                 ops.add(new KofJump(startLabel));
                 ops.add(new KofLabel(endLabel));
                 yield localIdx;
@@ -131,9 +157,13 @@ public final class StatementLowerer {
                 ops.add(new KofLabel(startLabel));
                 driver.breakLabels.push(endLabel);
                 driver.continueLabels.push(startLabel);
+                driver.breakDepths.push(driver.tryDepth);
+                driver.continueDepths.push(driver.tryDepth);
                 localIdx = driver.emitStatement(dws.body(), ops, owner, localIdx, locals, returnType);
                 driver.breakLabels.pop();
                 driver.continueLabels.pop();
+                driver.breakDepths.pop();
+                driver.continueDepths.pop();
                 if (dws.condition() instanceof BinaryExpr bin && driver.isComparisonShortcut(bin, locals)) {
                     localIdx = driver.emitComparisonShortcut(bin, ops, owner, localIdx, locals);
                     ops.add(new KofConditionalJump(driver.mapComparison(bin.operator()), driver.comparisonOperandType(bin, locals), startLabel, endLabel));
@@ -167,9 +197,13 @@ public final class StatementLowerer {
                 ops.add(new KofLabel(bodyLabel));
                 driver.breakLabels.push(endLabel);
                 driver.continueLabels.push(continueLabel);
+                driver.breakDepths.push(driver.tryDepth);
+                driver.continueDepths.push(driver.tryDepth);
                 localIdx = driver.emitStatement(fs.body(), ops, owner, localIdx, locals, returnType);
                 driver.breakLabels.pop();
                 driver.continueLabels.pop();
+                driver.breakDepths.pop();
+                driver.continueDepths.pop();
                 ops.add(new KofContinueLabel(continueLabel, startLabel)); // §266
                 ops.add(new KofLabel(continueLabel));
                 if (fs.update() != null) {
@@ -252,9 +286,13 @@ public final class StatementLowerer {
                 ops.add(new KofStoreLocal(elemType, varIdx));
                 driver.breakLabels.push(endLabel);
                 driver.continueLabels.push(continueLabel);
+                driver.breakDepths.push(driver.tryDepth);
+                driver.continueDepths.push(driver.tryDepth);
                 localIdx = driver.emitStatement(fis.body(), ops, owner, localIdx, locals, returnType);
                 driver.breakLabels.pop();
                 driver.continueLabels.pop();
+                driver.breakDepths.pop();
+                driver.continueDepths.pop();
                 ops.add(new KofContinueLabel(continueLabel, startLabel)); // §266
                 ops.add(new KofLabel(continueLabel));
                 ops.add(new KofLoadLocal(Type.PrimitiveType.INT, idxIdx));
@@ -387,6 +425,11 @@ public final class StatementLowerer {
                 }
                 ops.add(new KofTryStart(tryStart, tryEnd,
                         hasCatch ? primaryHandler : catchAllLabel, primaryExcType, primaryExcLocal));
+                // §551: o corpo do try tem o handler VIVO em runtime (o pop é o
+                // KofExcUnlink do caminho normal abaixo); os corpos de catch e
+                // finally rodam JÁ desvinculados (kof_throw_string desempilha
+                // antes de saltar para o handler).
+                driver.tryDepth++;
                 // DD-01 (bug 45): o frame entra ANTES do corpo do try — o
                 // ReturnStmt do corpo precisa vê-lo (store+jump p/ epílogo).
                 LabelId returnFinallyLabel = null;
@@ -398,13 +441,21 @@ public final class StatementLowerer {
                         locals.add(new IRLocalVariable(retSlot, "#retVal", returnType));
                     }
                     driver.finallyFrames.push(new CompilerDriverState.FinallyFrame(
-                            returnFinallyLabel, rethrowLabel, retSlot, returnType));
+                            returnFinallyLabel, rethrowLabel, retSlot, returnType, driver.tryDepth));
                 }
                 for (StatementNode s : ts.tryBody()) {
                     localIdx = driver.emitStatement(s, ops, owner, localIdx, locals, returnType);
                 }
+                // §549: o caminho normal salta por cima do KofTryEnd (que fica
+                // no ramo else, inalcançável) — sem este pop o handler nativo
+                // continuava vinculado e capturava o throw SEGUINTE ao try.
+                ops.add(new KofExcUnlink());
                 ops.add(new KofJump(finallyLabel));
                 ops.add(new KofLabel(tryEnd));
+                // §551: a partir daqui (catch/finally) o handler já foi
+                // desvinculado pelo throw — um break/continue/return daqui não
+                // desvincula esta região (só as envolventes).
+                driver.tryDepth--;
                 for (int ci = 0; ci < ts.catchClauses().size(); ci++) {
                     CatchClause cc = ts.catchClauses().get(ci);
                     LabelId handlerLabel = ci == 0 ? primaryHandler : LabelId.create();
@@ -457,6 +508,11 @@ public final class StatementLowerer {
                     for (StatementNode s : ts.finallyBody()) {
                         localIdx = driver.emitStatement(s, ops, owner, localIdx, locals, returnType);
                     }
+                    // §551: o return atravessou o corpo do try com o handler
+                    // deste finally ainda vinculado — desvincula-o antes de
+                    // retornar/encadear. (Nos caminhos normal e de rethrow o
+                    // handler já foi desempilhado antes de chegar ao epílogo.)
+                    ops.add(new KofExcUnlink());
                     if (!driver.finallyFrames.isEmpty()) {
                         CompilerDriverState.FinallyFrame outer = driver.finallyFrames.peek();
                         if (retSlot >= 0) {

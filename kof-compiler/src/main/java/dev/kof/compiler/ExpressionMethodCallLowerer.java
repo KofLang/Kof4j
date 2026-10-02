@@ -78,7 +78,19 @@ if (mc.receiver() == null && driver.externSignatures.containsKey(mc.methodName()
                     } else {
                         // D6-2/3.7: array escalar `T[]`→`ptr` (marker kof.ffi/array).
                         Character ae = FfiSignature.arrayElemChar(p.type());
-                        ffiParams.add(ae != null ? FfiStructLayout.arrayPtrType(ae) : null);
+                        if (ae != null) {
+                            ffiParams.add(FfiStructLayout.arrayPtrType(ae));
+                        } else if (FfiSignature.isStringArray(p.type())) {
+                            // D-MEM-FFI-CROSS-FULL face 2: `String[]`→`char**`
+                            // (marker arrayPtrType('S')).
+                            ffiParams.add(FfiStructLayout.arrayPtrType('S'));
+                        } else if (FfiSignature.isBufferParam(p.type())) {
+                            // D6-3/D-R3-BUFFER (fatia A2): Buffer(U8) INOUT — o
+                            // backend x86-64 passa o payload (obj+24) direto.
+                            ffiParams.add(FfiStructLayout.bufferPtrType());
+                        } else {
+                            ffiParams.add(null);
+                        }
                     }
                 }
             }
@@ -480,6 +492,24 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
         localIdx = emitArgs(driver, mc, ops, owner, localIdx, locals);
         ops.add(new KofCall(new Type.ClassType("kof.tetris", "Tetris", List.of()),
                 tetrisCall.function(), tetrisCall.parameterTypes(), tetrisCall.returnType(),
+                KofCallKind.FUNCTION));
+    }
+    return localIdx;
+} else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
+        && KofImage.isImageNamespace(rid.name())) {
+    KofImage.ImageCall imageCall = KofImage.staticMethod(rid.name(), mc.methodName(),
+            mc.arguments().size());
+    if (imageCall != null) {
+        if (!KofImage.supportedOn(driver.target)) {
+            gapError(driver, mc, rid.name() + "." + mc.methodName()
+                    + ": no image codec runtime on the " + driver.target
+                    + " target yet (" + KofImage.gapCode() + ")",
+                    KofImage.gapCode());
+            return localIdx;
+        }
+        localIdx = emitArgs(driver, mc, ops, owner, localIdx, locals);
+        ops.add(new KofCall(new Type.ClassType("kof.image", "Image", List.of()),
+                imageCall.function(), imageCall.parameterTypes(), imageCall.returnType(),
                 KofCallKind.FUNCTION));
     }
     return localIdx;

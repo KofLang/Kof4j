@@ -89,6 +89,54 @@ class FfiStructLayoutTest {
     }
 
     @Test
+    void crossMemoryReturnIsSretOnlyForLargeStructs() {
+        // D-MEM-FFI-CROSS-FULL face 3: > 16 B → BYREF/MEMORY → sret nas duas archs.
+        assertTrue(FfiStructLayout.crossMemoryReturn(Target.NATIVE_RISCV64,
+                        struct('j', 'j', 'j')),
+                "{Long,Long,Long} = 24 B → BYREF no riscv64 (sret em a0)");
+        assertTrue(FfiStructLayout.crossMemoryReturn(Target.NATIVE_AARCH64,
+                        struct('j', 'j', 'j')),
+                "{Long,Long,Long} = 24 B → BYREF no aarch64 (sret em x8)");
+        assertTrue(FfiStructLayout.crossMemoryReturn(Target.NATIVE_RISCV64,
+                        struct('i', 'i', 'i', 'i', 'i')),
+                "5×Int = 20 B → BYREF no riscv64");
+        // ≤ 16 B continua register path (não é sret).
+        assertFalse(FfiStructLayout.crossMemoryReturn(Target.NATIVE_RISCV64, struct('i', 'i')),
+                "div_t = 8 B → registrador, não sret");
+        assertFalse(FfiStructLayout.crossMemoryReturn(Target.NATIVE_AARCH64, struct('j', 'j')),
+                "{Long,Long} = 16 B → registrador, não sret");
+        // O sret do riscv consome 1 registrador INTEGER (a0): um struct param que
+        // cabia sem o sret deixa de caber.
+        List<Type> sevenInts = List.of(Type.PrimitiveType.INT, Type.PrimitiveType.INT,
+                Type.PrimitiveType.INT, Type.PrimitiveType.INT, Type.PrimitiveType.INT,
+                Type.PrimitiveType.INT, Type.PrimitiveType.INT);
+        List<Type> plusPair = new java.util.ArrayList<>(sevenInts);
+        plusPair.add(struct('i', 'i'));
+        assertTrue(FfiStructLayout.crossBindable(plusPair, 0),
+                "7 ints + Point: o struct cai no 8º registrador sem sret");
+        assertFalse(FfiStructLayout.crossBindable(plusPair, 1),
+                "com o ponteiro sret reservando 1 INTEGER, o struct iria à memória → não-bindável");
+    }
+
+    @Test
+    void crossByMemoryStructParamCountsAsOnePointer() {
+        // D-MEM-FFI-CROSS-FULL face 3 estendida: struct > 16 B como PARÂMETRO
+        // viaja como UM ponteiro INTEGER (BYREF, medido riscv64+aarch64).
+        Type big = struct('j', 'j', 'j');
+        assertTrue(FfiStructLayout.crossByMemory(Target.NATIVE_RISCV64, big),
+                "{Long,Long,Long} = 24 B → BYREF no riscv64");
+        assertTrue(FfiStructLayout.crossByMemory(Target.NATIVE_AARCH64, big),
+                "{Long,Long,Long} = 24 B → BYREF no aarch64");
+        assertTrue(FfiStructLayout.crossBindable(List.of(big, Type.PrimitiveType.LONG)),
+                "um struct > 16 B + um Long cabem (2 ordinais INTEGER)");
+        assertFalse(FfiStructLayout.crossBindable(List.of(
+                        Type.PrimitiveType.INT, Type.PrimitiveType.INT, Type.PrimitiveType.INT,
+                        Type.PrimitiveType.INT, Type.PrimitiveType.INT, Type.PrimitiveType.INT,
+                        Type.PrimitiveType.INT, Type.PrimitiveType.INT, big)),
+                "8 ints já consomem os registradores → o ponteiro do struct derrama → não-bindável");
+    }
+
+    @Test
     void abiForMapsTargets() {
         assertEquals(AbiLayout.Abi.SYSV_X86_64, FfiStructLayout.abiFor(Target.NATIVE));
         assertEquals(AbiLayout.Abi.RISCV64, FfiStructLayout.abiFor(Target.NATIVE_RISCV64));

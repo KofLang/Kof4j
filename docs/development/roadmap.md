@@ -2,14 +2,17 @@
 
 # Kof — Long-Term Roadmap
 
-last: native-record-equality
-doing: 0.5.0-release-prep
-next: 1.0-exit-gate
+last: 0.5.0-release-cut
+doing: 1.0-exit-gate
+next: promotion-sweep
 location: roadmap
 state: active
-constraint: pr619-maintainer-only
+constraint: maintainer-gated-promotion
 
-**Last updated:** September 20, 2026 (§0 "read first" index added; active branch
+**Last updated:** September 30, 2026 (active branch corrected to `lab`
+(`D-BRANCH-PIPELINE`); the 0.5.0 cut recorded closed by
+`D-RELEASE-0.5.0-CLOSED` — PR #619 merged, `D-BRANCH-0.5.0` `SUPERSEDED`; the
+`pr619-maintainer-only` constraint is retired). (older: September 20, 2026 — §0 "read first" index added; active branch
 corrected to `beta-0.5.0`/`D-BRANCH-0.5.0`). (older: September 15, 2026 — §23
 gains 2.6 = D-NULL-INTENT queue N1→N4 [compiler lane, maintainer decision 15/09];
 TIER 3–5 marked DEPRIORITIZED by the maintainer 15/09 — trio back to `future/`).
@@ -17,7 +20,7 @@ TIER 3–5 marked DEPRIORITIZED by the maintainer 15/09 — trio back to `future
 implementation plan (ex-`ACTION_PLAN`+`IMPLEMENTATION_PLAN`);
 migration cluster consolidated — `LEGACY_IR`+`DIFFERENTIAL_TESTING` merged into
 `LEGACY_MIGRATION.md`)
-**Version:** 0.5.0-beta (active branch `beta-0.5.0`)
+**Version:** 0.5.0-beta (active development branch `lab`)
 
 ---
 
@@ -218,6 +221,7 @@ Do not reimplement Spring. Instead, transform recurring capabilities into Kof Ru
 Future objectives:
 - HTTP / REST / WebSocket / SSE (WebSocket/SSE + JVM hardening completed 04/09; JS/Native follow-up);
 - HTTP client;
+- **Unified `kof.net` network front (TCP + UDP)** — DECIDED 01/10/2026 (`D-KOF-NET`, maintainer rule-6 votes; subsumes `D-UDP` from the 01/10 maintainer directive): plan promoted to [`network-kofnet-plan.md`](network-kofnet-plan.md) UNDER DEVELOPMENT (slice 1 = JVM surface probe); the `future/network-udp-plan.md` is superseded;
 - JSON;
 - RPC;
 - events / queues / pub/sub;
@@ -711,6 +715,10 @@ contracts stabilize.
 - sessions / policies / rate limiting;
 - security defaults / audit.
 
+> Declarative HTTP policies (`app.security` / `app.policy` / endpoint opts /
+> `responses` / per-route rate-limit keying) landed 28/09 — `D-HTTP-POLICIES`,
+> [`docs/stdlib/http-policies-plan.md`](../stdlib/http-policies-plan.md).
+
 > Ecosystem audit: the coverage matrix, gaps (G1-G12),
 > priorities and strategy live in `docs/bugs-and-gaps/ecosystem-coverage.md`.
 > P0 implementation order: target diagnostics (G7) → structured `kof.test`
@@ -857,7 +865,8 @@ legacy systems into Kof — **outside the 0.0.x scope**.
 - Central document: `future/LEGACY_MIGRATION.md` (§4 = Legacy Semantic
   IR/Confidence; §8 = differential test + migration report) — **DEPRIORITIZED
   by the maintainer 15/09: the trio + work-logs went back to `future/`; code in
-  kof-cli stays, promotion needs her explicit decision**
+  kof-cli stays. REOPENED 28/09 by `D-DEPRIORITIZED-REOPEN` (maintainer batch):
+  still plan-only in `future/`, promotion one-at-a-time per `D-FUTURE-PROMOTION`**
 - Planned components: `kof inspect`, `kof decompile`, `kof translate`,
   `kof migrate`, `kof compare`
 - Architecture: `Legacy Input → Legacy Semantic IR → Kof AST → Kof IR → Backend`
@@ -927,6 +936,46 @@ science) **without** destroying the language's simplicity.
 > type-classes, ownership, effect system, homemade crypto, reimplementing
 > Arrow/BLAS/ML; no "Kali in Kof"; no own SQL engine.
 
+### Promotion queue (`D-FUTURE-PROMOTION`, maintainer 28/09)
+
+> Before new work: migrate everything to `lab`, then promote exactly ONE plan
+> from `future/` and implement it (cheapest first). **CONCLUDED:** `http-policies`
+> — promoted 28/09 (`D-HTTP-POLICIES`), all slices F0–F6 landed 28/09
+> (`KofHttpPoliciesE2ETest` 10/10), moved to
+> [`docs/stdlib/http-policies-plan.md`](../stdlib/http-policies-plan.md). **CONCLUDED:** `scoped-resources`
+> — promoted 28/09 (`D-SCOPED-RESOURCES-GO`, batch `D-FUTURE-BATCH-2809`),
+> slices 1–6 landed (`UsingDesugarE2ETest` 18/18) → moved to
+> [`docs/scoped-resources-plan.md`](../scoped-resources-plan.md).
+> **OPEN (3rd front):** `test-architecture` — promoted 28/09
+> (`D-TEST-ARCHITECTURE-GO`, `D-FUTURE-BATCH-2809`) to
+> [`test-architecture-plan.md`](test-architecture-plan.md); first slice = Phase 1
+> profiling (`scripts/test-suite-profile.sh` → `docs/testing/TEST-PERFORMANCE.md`),
+> pure test infrastructure. **OPEN (4th front):** `pagination` — promoted 28/09
+> (`D-PAGINATION`, `D-FUTURE-BATCH-2809B`) to
+> [`pagination-plan.md`](../stdlib/pagination-plan.md); P0→P6 LANDED 29/09
+> (in-memory `slice`/`take`/`drop` + `Window<T>`/`window` + `orm.window` +
+> `pageRequest` + docs sync; P3-DSL-offset out-of-scope). — plan CONCLUDED 29/09, moved to `docs/stdlib/pagination-plan.md` (3-state rule). **OPEN (5th front):** `kof-file` — promoted 28/09
+> (`D-KOF-FILE-GO`, `D-FUTURE-BATCH-2809`) to
+> [`kof-file-plan.md`](../stdlib/kof-file-plan.md); re-scoped on promotion (Phase 1
+> File/Path/Text/Binary already exists as `kof.io`); streaming slices 1–2.5 +
+> config slices 3.1–3.3 landed (Phase 3 configuration COMPLETE: Ini/Toml/Yaml;
+> goldens JVM/Native/Script + JS gap `IOJS001`). — plan CONCLUDED 28/09, moved to `docs/stdlib/kof-file-plan.md` (3-state rule; documents/archives deferred).
+> **Phase 1 + Phase 2 COMPLETE 30/09 (6th front, plan CONCLUDED + MOVED to `docs/stdlib/`):** `multiparadigma` — promoted 28/09
+> (`D-MULTIPARADIGMA-PHASE1A`, `D-FUTURE-PROMOTION`) to
+> [`PLAN-MULTIPARADIGMA.md`](../stdlib/PLAN-MULTIPARADIGMA.md); the promoted scope is complete, so the plan
+> **moved to `docs/`** (3-state rule) — Phases 5–7 (DATA/INFRA: query/SQL/stream) stay **design-only**,
+> gated by R12 + a maintainer decision. Slices 1a+1b+1c+1d+1e+1f+1g+1h+1i LANDED (`any`/`all`/`none` + `find`/`count(pred)` + `forEach` + `flatMap` + `distinct` + script-parity pins + `sorted`/`sorted(cmp)` + `groupBy` + `zip`; E2E + `KofScriptStdlibParityTest` 22/22); `zip` landed 30/09 (`D-MULTIPARADIGMA-ZIP` record `Pair` + `D-MULTIPARADIGMA-ZIP-NATIVE` — native reference-elements GREEN, primitive elements refused `NAT008`).
+> **OPEN (7th front):** `image-vision` — promoted 29/09 (`D-IMAGE-VISION-GO`, `D-FUTURE-PROMOTION`) to
+> [`image-vision-plan.md`](image-vision-plan.md); slice 1 = pure-Kof `libs/image/` metadata (format + dimensions,
+> PNG/GIF/BMP/JPEG/WEBP; `ImageMetadataE2ETest` 7/7 on JVM + Native x86-64/riscv64 + Script, JS `IOJS001`).
+> **OPEN (8th front):** `graphics-gaming` — promoted 30/09 (`D-GRAPHICS-SPIKE`, `D-FUTURE-PROMOTION`) to
+> [`graphics-gaming-plan.md`](graphics-gaming-plan.md); slice **3.0 = spike+infra** (JavaFX-absent guard
+> `scripts/check_javafx_absent.sh` + self-test + measured report, **no API**). Next = the maintainer's stack
+> pick (`D-*`), then slice 3.1 (window/frame/input).
+> All remaining `future/` plans are authorized with their
+> design questions resolved (`D-FUTURE-BATCH-2809B`); promotion stays
+> one-at-a-time (`D-FUTURE-PROMOTION`).
+
 ### TIER 0 — Guardrails and processes (E, ≈ zero) ✅ 01/09
 
 R1/R5/R6/R7/R9–R12 as invariants (AGENTS.md + §22); gap convention per
@@ -962,7 +1011,7 @@ domain (`INFRA00x`/`DATA00x`/`SCI00x`/`BIO00x`/`SECPQ`) + parity matrix;
 | 2.2.4 | `infra "prod" {}` base (codegen over records) | ✅ **LANDED 21/09 (`D-MAKEALIVE-SYNTAX`, `966c86a4`)**: pure sugar over `design()` (no HCL; `infra` = IDENTIFIER, lowered to `design(): Infrastructure`) — proof `InfraSyntaxE2ETest`; R4 ✅ was the hook |
 | 2.3.1 | Constant-folding of domain constants | ✅ `"a"+"b"→"ab"` (`OptimizerConstantFold:100`) |
 | 2.3.2 | Cycle detection in the `infra` graph at compile-time | ✅ **CLOSED 21/09 as runtime-only** (`D-MAKEALIVE-SYNTAX` addendum, `5759b9bd`): 2.2.4 is pure sugar, so the compiler sees only generic calls — a static graph would give the block its own semantics (§7/rule 11); the 3.1 runtime refusal names the cycle members |
-| 2.4.1 | Scoped resources (lightweight RAII over `try/finally`) | 🟡 design only (`future/scoped-resources-plan.md`); `using` syntax gated by bump |
+| 2.4.1 | Scoped resources (lightweight RAII over `try/finally`) | ✅ CONCLUDED 28/09 — slices 1–6, plan → [`docs/scoped-resources-plan.md`](../scoped-resources-plan.md) (`D-SCOPED-RESOURCES-GO`); cross-`db` explicitly out (db lane's matrix) |
 
 | 2.5 | Variance / sealed | ⏫ **SUPERSEDED 21/09 by §2.8.4** (`D-TYPE-VARIANCE`): `sealed` + variance opened as the **X5** slices (X5.1–X5.4 ✅ DONE 21/09); the old "postpone" is void |
 
@@ -1033,7 +1082,7 @@ since the `.22` lane closed it). Method body recovery still partial
 number is stale, the pure if-then join sub-case already recovered). The
 detailed technical history lives in `future/LEGACY_MIGRATION.md` +
 `future/DECOMPILER.md` (§7) — **do not duplicate here**; this table only gives
-the order. **DEPRIORITIZED 15/09 (maintainer): TIER 3–5 is not current work.**
+the order. **DEPRIORITIZED 15/09 (maintainer): TIER 3–5 is not current work. REOPENED 28/09 by `D-DEPRIORITIZED-REOPEN` — still not promoted; promotion is one-at-a-time per `D-FUTURE-PROMOTION`.**
 
 ### TIER 6–12 — Universal platform (architecture **UNDER DEVELOPMENT** 17/09 — R12 overridden; governed by `docs/architecture/IMPLEMENTATION-UNIVERSAL-PLATFORM.md`)
 
@@ -1055,7 +1104,7 @@ the order. **DEPRIORITIZED 15/09 (maintainer): TIER 3–5 is not current work.**
 FFI) · `2.2 codegen hook` → `infra`/gRPC stubs · **TIER 1 (SYSTEMS) closes
 before ANY Tier 6+ (R12).**
 
-### TIER 14 — Tech-debt ledger queue (OPEN 23/09, `D-TECHDEBT-23/09`; **LEDGER KILLED 24/09** — debt measured zeroed)
+### TIER 14 (retired) — Tech-debt ledger queue (OPEN 23/09, `D-TECHDEBT-23/09`; **LEDGER KILLED 24/09** — debt measured zeroed)
 
 Ordered queue from the maintainer's multiple-choice rulings 23/09. **24/09,
 maintainer order: the `tech-debt.md` ledger is KILLED** — every live §NNN it
@@ -1115,14 +1164,17 @@ seven conditions hold, each measured — 100% target parity; no pending decision
 all loose `docs/development/*.md` concluded and moved out; total stability;
 0 open bug issues; all edges closed; nothing pending in bugs-and-gaps. Queue +
 current state: `release-beta-0.5.0-prep.md` §"Release gate". Mechanized by
-`scripts/check_release_050_gate.sh`.
+`scripts/check_release_050_gate.sh`. **CLOSED 28/09 (`D-RELEASE-0.5.0-CLOSED`):**
+the cut landed (`main` merged `#619`, tags `kof-0.5.0-beta*`); the acceptance
+record moved to `docs/distribution/release-beta-0.5.0.md` and the gate was
+retired — promotion is now governed by TIER 14 (`D-QUALITY-PIPELINE-2609`).
 
 ### TIER 14 — Quality-pipeline migration (DECIDED 26/09 `D-QUALITY-PIPELINE-2609`; execution gated POST-0.5.0)
 
-The `lab → testing → prerelease → stable → release/x.y.z → tag` esteira is
-design-closed. **NO unit may start before the 0.5.0 cycle closes** — today's
-work keeps landing on `beta-0.5.0` (`D-BRANCH-0.5.0` in force). When the
-maintainer opens the front, the units are:
+The `lab → testing → prerelease → stable → release/x.y.z → tag` pipeline is
+design-closed. **The 0.5.0 cycle closed 28/09 (`D-RELEASE-0.5.0-CLOSED`) and
+`D-BRANCH-0.5.0` is `SUPERSEDED` — the active development branch is `lab`
+(`D-BRANCH-PIPELINE`).** When the maintainer opens this front, the units are:
 
 | # | Unit | Gate/proof |
 |---|---|---|

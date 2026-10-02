@@ -1,6 +1,7 @@
 package dev.kof.compiler.nat;
 import dev.kof.compiler.BuiltinTypes;
 import dev.kof.compiler.ClassLayout;
+import dev.kof.compiler.FfiStructLayout;
 import dev.kof.compiler.SourcePosition;
 import dev.kof.compiler.CompilerClassLowering;
 import dev.kof.compiler.IRBasicBlock;
@@ -40,6 +41,7 @@ import dev.kof.compiler.KofStoreLocal;
 import dev.kof.compiler.KofThrow;
 import dev.kof.compiler.KofContinueLabel;
 import dev.kof.compiler.KofStatementIf;
+import dev.kof.compiler.KofExcUnlink;
 import dev.kof.compiler.KofTryEnd;
 import dev.kof.compiler.KofTryStart;
 import dev.kof.compiler.KofUnary;
@@ -70,8 +72,29 @@ public final class NativeRiscvCrossEmit {
         // Mangle idêntico ao x86_64 (vtables referenciam esses símbolos).
         String mangled = NativeSymbolMangling.fnSymbol(clazz.name(), method, nb.allClassesMap);
         int maxSlot = method.localVariables().stream().mapToInt(IRLocalVariable::index).max().orElse(0);
-        int frameSize = Math.max((maxSlot + 1) * 8 + 16, 32);
+        // §546: o call-site de um extern com `Buffer(U8)` INOUT guarda o OBJ de
+        // cada buffer num slot de rascunho do frame (para o release reler sem
+        // depender do bloco de args, que o C pode sobrescrever). Reserva o pior
+        // caso dos calls do método ABAIXO dos locais (crossScratchOff). Args de
+        // pilha (>8) NÃO precisam de rascunho — o emitCrossArgLoads os acessa
+        // por offset direto.
+        int maxFfiBuf = 0;
+        for (IRBasicBlock prec : method.basicBlocks()) {
+            for (KofOperation pop : prec.operations()) {
+                if (pop instanceof KofCall pkc && NativeFfiCall.isExternCall(pkc)) {
+                    int b = 0;
+                    for (Type t : pkc.parameterTypes()) if (FfiStructLayout.isBufferPtr(t)) b++;
+                    // D-MEM-FFI-CROSS-FULL face 3: um extern com retorno struct
+                    // por memória (sret) reserva o slot 0 ao ponteiro do buffer C
+                    // (os borrow buffers usam a partir do slot 1 — ver bufBase).
+                    if (NativeFfiCallRiscv.usesMemStructReturn(nb, pkc)) b++;
+                    maxFfiBuf = Math.max(maxFfiBuf, b);
+                }
+            }
+        }
+        int frameSize = Math.max((maxSlot + 1) * 8 + 16, 32) + maxFfiBuf * 8;
         frameSize = (frameSize + 15) & ~15;
+        nb.crossFrameSize = frameSize;
         sb.append(".globl ").append(mangled).append("\n");
         sb.append(mangled).append(":\n");
         // Modelo idêntico ao x86_64: `sp` É a pilha de operandos (cresce p/
@@ -81,10 +104,25 @@ public final class NativeRiscvCrossEmit {
         sb.append("    sd s11, 0(sp)\n");
         sb.append("    sd ra, 8(sp)\n");
         sb.append("    addi s11, sp, 16\n");
-        sb.append("    addi sp, sp, -").append(frameSize).append("\n");
+        // §546: frames grandes estouram o imediato de 12 bits do `addi`; usa
+        // li+sub (o tradutor aarch64 cobre ambos).
+        if (frameSize <= 2032) {
+            sb.append("    addi sp, sp, -").append(frameSize).append("\n");
+        } else {
+            sb.append("    li t0, ").append(frameSize).append("\n");
+            sb.append("    sub sp, sp, t0\n");
+        }
         // salva args de entrada (this + params) nos slots locais — ABI riscv:
         // a0=this/arg0, a1..a7 = demais args (até 8 registradores).
         String[] argRegs = {"a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7"};
+        // NOTA (§546): o laço percorre TODOS os locais na ordem de índice; os
+        // primeiros ocupam os registradores de ABI e os locais ≥ 8 leem a pilha
+        // do caller. Locais que NÃO são args de entrada (temporários de índice
+        // alto) acabam recebendo um valor de pilha — inofensivo, pois são
+        // sempre escritos antes de lidos; reduzir o laço a
+        // `parameterTypes().size()` quebra funções geradas com args ocultos
+        // (ex.: `zipPairs<A,B>` recebe mais registradores que params Kof). A
+        // correção §546 é a LEITURA da pilha (antes: clamp em a7).
         int argIdx = 0;
         for (IRLocalVariable lv : method.localVariables()) {
             if (lv.name().equals("this")) {
@@ -95,6 +133,10 @@ public final class NativeRiscvCrossEmit {
             if (argIdx < argRegs.length) {
                 sb.append("    sd ").append(argRegs[argIdx]).append(", ")
                   .append(crossLocalOffRiscv(lv.index())).append("(s11)\n");
+            } else {
+                int stackOff = 8 * (argIdx - argRegs.length);
+                sb.append("    ld t0, ").append(stackOff).append("(s11)\n");
+                sb.append("    sd t0, ").append(crossLocalOffRiscv(lv.index())).append("(s11)\n");
             }
             argIdx++;
         }
@@ -295,6 +337,20 @@ public final class NativeRiscvCrossEmit {
             }
             case KofContinueLabel _ -> {
                 // §266: marcador estrutural (fronteira corpo/update do for) — no-op
+            }
+            case KofExcUnlink _ -> {
+                // §549/§551: pop de handler control-flow (caminho normal do try,
+                // break/continue/return que atravessam região). A base do frame
+                // NÃO é necessariamente `sp` — há emissões (ex.: println cross)
+                // que deixam temporário empilhado. Lê a base do TOPO da cadeia
+                // (0(a0) = frame base salva no KofTryStart), religa o prev e
+                // restaura sp antes de transferir o controle.
+                sb.append("    call kof_exc_slot\n");
+                sb.append("    ld t2, 0(a0)\n");
+                sb.append("    ld t3, 24(t2)\n");
+                sb.append("    sd t3, 0(a0)\n");
+                sb.append("    mv sp, t2\n");
+                sb.append("    addi sp, sp, 32\n");
             }
             case KofTryEnd _ -> {
                 sb.append("    call kof_exc_slot\n");

@@ -406,11 +406,52 @@ class KofTimeE2ETest {
                     println(time.isWeekend(2024, 2, 25))
                     println(time.isWeekend(2024, 2, 29))
                 }
-                """, "true\nfalse\ntrue\nfalse\n29\n28\n30\n31\n0\ntrue\nfalse");
-    }
+                 """, "true\nfalse\ntrue\nfalse\n29\n28\n30\n31\n0\ntrue\nfalse");
+     }
 
-    @Test
-    void calendarCrossArchRuntimes(@TempDir Path tempDir) throws IOException {
+     @Test
+     void calendarAgeJvm(@TempDir Path tempDir) throws IOException {
+         runJvm(tempDir, ageProgram(), ageGolden());
+     }
+
+     @Test
+     void calendarAgeJs(@TempDir Path tempDir) throws IOException {
+         runJs(tempDir, ageProgram(), ageGolden());
+     }
+
+     @Test
+     void calendarAgeNative(@TempDir Path tempDir) throws IOException {
+         runNative(tempDir, ageProgram(), ageGolden());
+     }
+
+     private static String ageProgram() {
+         return """
+                 main() {
+                     println(time.age(2000, 5, 15, 2025, 5, 14))
+                     println(time.age(2000, 5, 15, 2025, 5, 15))
+                     println(time.age(2000, 5, 15, 2025, 5, 16))
+                     println(time.age(2000, 5, 15, 2026, 1, 1))
+                     println(time.age(2000, 2, 29, 2001, 2, 28))
+                     println(time.age(2000, 2, 29, 2004, 2, 29))
+                     println(time.age(2000, 2, 29, 2000, 2, 29))
+                     println(time.age(2025, 12, 31, 2026, 1, 1))
+                     println(time.age(2020, 1, 1, 2015, 1, 1))
+                     println(time.age(2000, 13, 1, 2025, 1, 1))
+                     println(time.age(2000, 1, 1, 2025, 1, 32))
+                     println(time.age(0, 1, 1, 2025, 1, 1))
+                     println(time.age(1925, 1, 1, 2025, 1, 1))
+                 }
+                 """;
+     }
+
+     private static String ageGolden() {
+         // anos completos: não-reached / exato / after / mês-anterior / Feb29->nonleap
+         // / Feb29 leap / same-date / virada / ref<birth(neg) / invalidas(0) / 100anos
+         return "24\n25\n25\n25\n0\n4\n0\n0\n-5\n0\n0\n0\n100";
+     }
+
+     @Test
+     void calendarCrossArchRuntimes(@TempDir Path tempDir) throws IOException {
         // PRIMEIRO teste de calendário que EXECUTA riscv/aarch (assert-only +
         // qemu; bug 59 é só no link do println).
         String src = """
@@ -442,9 +483,22 @@ class KofTimeE2ETest {
                     assert(!time.isWeekend(2026, 9, 9))
                     assert(!time.isWeekend(2026, 9, 7))
                     assert(!time.isWeekend(2026, 2, 30))
-                    assert(time.isWeekend(2024, 2, 25))
-                    assert(!time.isWeekend(2024, 2, 29))
-                }
+                     assert(time.isWeekend(2024, 2, 25))
+                     assert(!time.isWeekend(2024, 2, 29))
+                     assert(time.age(2000, 5, 15, 2025, 5, 14) == 24)
+                     assert(time.age(2000, 5, 15, 2025, 5, 15) == 25)
+                     assert(time.age(2000, 5, 15, 2025, 5, 16) == 25)
+                     assert(time.age(2000, 5, 15, 2026, 1, 1) == 25)
+                     assert(time.age(2000, 2, 29, 2001, 2, 28) == 0)
+                     assert(time.age(2000, 2, 29, 2004, 2, 29) == 4)
+                     assert(time.age(2000, 2, 29, 2000, 2, 29) == 0)
+                     assert(time.age(2025, 12, 31, 2026, 1, 1) == 0)
+                     assert(time.age(2020, 1, 1, 2015, 1, 1) == -5)
+                     assert(time.age(2000, 13, 1, 2025, 1, 1) == 0)
+                     assert(time.age(2000, 1, 1, 2025, 1, 32) == 0)
+                     assert(time.age(0, 1, 1, 2025, 1, 1) == 0)
+                     assert(time.age(1925, 1, 1, 2025, 1, 1) == 100)
+                 }
                 """;
         if (has("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64")) {
             runQemu(tempDir, Target.NATIVE_RISCV64, "qemu-riscv64", src);
@@ -697,6 +751,287 @@ class KofTimeE2ETest {
             assertTrue(r.success(), t + " deve compilar addDays/diffDays (TIME002 fechado): "
                     + r.diagnostics().getDiagnostics());
         }
+    }
+
+    // STDLIB S7a-ext (front #1 da stdlib, D-DEV-PRIORITY): time.addMonths(iso, n)
+    // -> String. clamp de fim de mês (dia=min(d, daysInMonth)), rolo de ano/mês,
+    // bissexto 29/fev, n=0, n negativo, out-of-range e inválida => "" (a MESMA
+    // política do addDays). Algoritmo inteiro puro (t=y*12+(m-1)+n; y1=t/12;
+    // m1=t%12+1; d1=min(d,dim)), pré-guarda t em [12,119999] => byte-idêntico nos
+    // 5 alvos. Oráculo: java.time (3M+ casos fuzz 0 mismatch).
+    @Test
+    void timeAddMonthsJvm(@TempDir Path tempDir) throws IOException {
+        runJvm(tempDir, addMonthsSrc(), addMonthsGolden());
+    }
+
+    @Test
+    void timeAddMonthsJs(@TempDir Path tempDir) throws IOException {
+        runJs(tempDir, addMonthsSrc(), addMonthsGolden());
+    }
+
+    @Test
+    void timeAddMonthsNative(@TempDir Path tempDir) throws IOException {
+        runNative(tempDir, addMonthsSrc(), addMonthsGolden());
+    }
+
+    @Test
+    void timeAddMonthsCrossArch(@TempDir Path tempDir) throws IOException {
+        String src = addMonthsSrc();
+        String expected = addMonthsGolden();
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            String qemu = t == Target.NATIVE_RISCV64 ? "qemu-riscv64" : "qemu-aarch64";
+            String[] tools = t == Target.NATIVE_RISCV64
+                    ? new String[]{"riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64"}
+                    : new String[]{"aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"};
+            assumeToolchain(tools);
+            Path file = tempDir.resolve("Am-" + t + "-" + System.nanoTime() + ".kf");
+            Files.writeString(file, src);
+            Path outDir = tempDir.resolve("am-" + t + "-" + System.nanoTime());
+            CompilationResult r = new CompilerDriver().compile(file, outDir, t);
+            assertTrue(r.success(), t + " compile: " + r.diagnostics().getDiagnostics());
+            Process p = NativeRiscv64E2ETest.qemu(qemu.substring(5), outDir.resolve("Default/Main"))
+                    .redirectErrorStream(true).start();
+            String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
+                    .replace("\r\n", "\n").trim();
+            int ec;
+            try {
+                ec = p.waitFor();
+            } catch (InterruptedException e) {
+                throw new IOException("interrupted", e);
+            }
+            assertEquals(0, ec, t + " qemu exit, out: " + out);
+            assertEquals(expected, out, t + " golden addMonths");
+        }
+    }
+
+    @Test
+    void timeAddMonthsCompilesOnAllTargets(@TempDir Path tempDir) throws IOException {
+        String src = """
+            main() {
+                println(time.addMonths("2024-01-31", 1))
+            }
+            """;
+        Path gateSrc = tempDir.resolve("GateAddMonths.kf");
+        Files.writeString(gateSrc, src);
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            CompilationResult r = new CompilerDriver().compile(gateSrc, tempDir.resolve("gate-am-" + t), t);
+            assertTrue(r.success(), t + " deve compilar addMonths: " + r.diagnostics().getDiagnostics());
+        }
+    }
+
+    private static String addMonthsSrc() {
+        return """
+            main() {
+                println(time.addMonths("2024-02-28", 1))
+                println(time.addMonths("2024-01-31", 1))
+                println(time.addMonths("2023-01-31", 1))
+                println(time.addMonths("2024-02-29", 12))
+                println(time.addMonths("2024-12-31", 1))
+                println(time.addMonths("2024-03-31", -1))
+                println(time.addMonths("2024-01-15", 13))
+                println(time.addMonths("2024-05-31", 1))
+                println(time.addMonths("2024-06-15", 0))
+                println(time.addMonths("2024-02-29", 0))
+                println(time.addMonths("2023-01-01", -1))
+                println(time.addMonths("2024-01-31", 999999))
+                println(time.addMonths("2024-01-31", -999999))
+                println(time.addMonths("2024-02-30", 1))
+                println(time.addMonths("garbage", 1))
+                println(time.addMonths("2023-02-28", 1))
+            }
+            """;
+    }
+
+    private static String addMonthsGolden() {
+        return "2024-03-28\n2024-02-29\n2023-02-28\n2025-02-28\n2025-01-31\n2024-02-29"
+                + "\n2025-02-15\n2024-06-30\n2024-06-15\n2024-02-29\n2022-12-01\n\n\n\n\n2023-03-28";
+    }
+
+    // STDLIB S7a-ext2 (front #1 da stdlib, D-DEV-PRIORITY): time.addYears(iso, n)
+    // -> String. Anos em aritmética inteira simples (y1 = y + n; clamp de fim de
+    // mês => dia=min(d, daysInMonth(y1, m))); inválida/out-of-range => "". Oráculo:
+    // java.time (mesma política).
+    @Test
+    void timeAddYearsJvm(@TempDir Path tempDir) throws IOException {
+        runJvm(tempDir, addYearsSrc(), addYearsGolden());
+    }
+
+    @Test
+    void timeAddYearsJs(@TempDir Path tempDir) throws IOException {
+        runJs(tempDir, addYearsSrc(), addYearsGolden());
+    }
+
+    @Test
+    void timeAddYearsNative(@TempDir Path tempDir) throws IOException {
+        runNative(tempDir, addYearsSrc(), addYearsGolden());
+    }
+
+    @Test
+    void timeAddYearsCrossArch(@TempDir Path tempDir) throws IOException {
+        String src = addYearsSrc();
+        String expected = addYearsGolden();
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            String qemu = t == Target.NATIVE_RISCV64 ? "qemu-riscv64" : "qemu-aarch64";
+            String[] tools = t == Target.NATIVE_RISCV64
+                    ? new String[]{"riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64"}
+                    : new String[]{"aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"};
+            assumeToolchain(tools);
+            Path file = tempDir.resolve("Ay-" + t + "-" + System.nanoTime() + ".kf");
+            Files.writeString(file, src);
+            Path outDir = tempDir.resolve("ay-" + t + "-" + System.nanoTime());
+            CompilationResult r = new CompilerDriver().compile(file, outDir, t);
+            assertTrue(r.success(), t + " compile: " + r.diagnostics().getDiagnostics());
+            Process p = NativeRiscv64E2ETest.qemu(qemu.substring(5), outDir.resolve("Default/Main"))
+                    .redirectErrorStream(true).start();
+            String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
+                    .replace("\r\n", "\n").trim();
+            int ec;
+            try {
+                ec = p.waitFor();
+            } catch (InterruptedException e) {
+                throw new IOException("interrupted", e);
+            }
+            assertEquals(0, ec, t + " qemu exit, out: " + out);
+            assertEquals(expected, out, t + " golden addYears");
+        }
+    }
+
+    @Test
+    void timeAddYearsCompilesOnAllTargets(@TempDir Path tempDir) throws IOException {
+        String src = """
+            main() {
+                println(time.addYears("2024-02-29", 1))
+            }
+            """;
+        Path gateSrc = tempDir.resolve("GateAddYears.kf");
+        Files.writeString(gateSrc, src);
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            CompilationResult r = new CompilerDriver().compile(gateSrc, tempDir.resolve("gate-ay-" + t), t);
+            assertTrue(r.success(), t + " deve compilar addYears: " + r.diagnostics().getDiagnostics());
+        }
+    }
+
+    private static String addYearsSrc() {
+        return """
+            main() {
+                println(time.addYears("2024-02-29", 1))
+                println(time.addYears("2024-02-29", 4))
+                println(time.addYears("2024-12-31", 1))
+                println(time.addYears("2023-06-15", -1))
+                println(time.addYears("2024-02-29", 0))
+                println(time.addYears("2100-02-29", 0))
+                println(time.addYears("0001-01-01", -1))
+                println(time.addYears("9999-12-31", 1))
+                println(time.addYears("0001-01-01", 9998))
+                println(time.addYears("2024-02-29", 100))
+                println(time.addYears("2024-02-29", -4))
+                println(time.addYears("2024-02-30", 1))
+                println(time.addYears("garbage", 1))
+                println(time.addYears("2024-05-31", 8))
+            }
+            """;
+    }
+
+    private static String addYearsGolden() {
+        return "2025-02-28\n2028-02-29\n2025-12-31\n2022-06-15\n2024-02-29\n\n\n\n"
+                + "9999-01-01\n2124-02-29\n2020-02-29\n\n\n2032-05-31";
+    }
+
+    // STDLIB S7a-ext3 (front #1 da stdlib, D-DEV-PRIORITY): time.startOf(iso,unit)
+    // / time.endOf(iso,unit) -> String, unit = day|week|month|year. Semana =
+    // segunda..domingo (dayOfWeek ISO 1=seg..7=dom). Composta dos primitivos já
+    // com paridade provada (dayOfWeek/addDays/daysInMonth) => byte-idêntica por
+    // construção. Data inválida / unit desconhecida / resultado fora de
+    // 1..9999 => "". Oráculo: java.time (validado caso a caso).
+    @Test
+    void timeStartEndOfJvm(@TempDir Path tempDir) throws IOException {
+        runJvm(tempDir, startEndOfSrc(), startEndOfGolden());
+    }
+
+    @Test
+    void timeStartEndOfJs(@TempDir Path tempDir) throws IOException {
+        runJs(tempDir, startEndOfSrc(), startEndOfGolden());
+    }
+
+    @Test
+    void timeStartEndOfNative(@TempDir Path tempDir) throws IOException {
+        runNative(tempDir, startEndOfSrc(), startEndOfGolden());
+    }
+
+    @Test
+    void timeStartEndOfCrossArch(@TempDir Path tempDir) throws IOException {
+        String src = startEndOfSrc();
+        String expected = startEndOfGolden();
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            String qemu = t == Target.NATIVE_RISCV64 ? "qemu-riscv64" : "qemu-aarch64";
+            String[] tools = t == Target.NATIVE_RISCV64
+                    ? new String[]{"riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64"}
+                    : new String[]{"aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"};
+            assumeToolchain(tools);
+            Path file = tempDir.resolve("Se-" + t + "-" + System.nanoTime() + ".kf");
+            Files.writeString(file, src);
+            Path outDir = tempDir.resolve("se-" + t + "-" + System.nanoTime());
+            CompilationResult r = new CompilerDriver().compile(file, outDir, t);
+            assertTrue(r.success(), t + " compile: " + r.diagnostics().getDiagnostics());
+            Process p = NativeRiscv64E2ETest.qemu(qemu.substring(5), outDir.resolve("Default/Main"))
+                    .redirectErrorStream(true).start();
+            String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
+                    .replace("\r\n", "\n").trim();
+            int ec;
+            try {
+                ec = p.waitFor();
+            } catch (InterruptedException e) {
+                throw new IOException("interrupted", e);
+            }
+            assertEquals(0, ec, t + " qemu exit, out: " + out);
+            assertEquals(expected, out, t + " golden startOf/endOf");
+        }
+    }
+
+    @Test
+    void timeStartEndOfCompilesOnAllTargets(@TempDir Path tempDir) throws IOException {
+        String src = """
+            main() {
+                println(time.startOf("2026-10-01", "week"))
+                println(time.endOf("2026-10-01", "month"))
+            }
+            """;
+        Path gateSrc = tempDir.resolve("GateStartEnd.kf");
+        Files.writeString(gateSrc, src);
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            CompilationResult r = new CompilerDriver().compile(gateSrc, tempDir.resolve("gate-se-" + t), t);
+            assertTrue(r.success(), t + " deve compilar startOf/endOf: " + r.diagnostics().getDiagnostics());
+        }
+    }
+
+    private static String startEndOfSrc() {
+        return """
+            main() {
+                println(time.startOf("2026-10-01", "day"))
+                println(time.startOf("2026-10-01", "week"))
+                println(time.endOf("2026-10-01", "week"))
+                println(time.startOf("2026-09-28", "week"))
+                println(time.startOf("2024-02-15", "month"))
+                println(time.endOf("2024-02-15", "month"))
+                println(time.endOf("2023-02-15", "month"))
+                println(time.startOf("2024-07-04", "year"))
+                println(time.endOf("2024-07-04", "year"))
+                println(time.startOf("0001-01-01", "week"))
+                println(time.endOf("0001-01-01", "week"))
+                println(time.startOf("9999-12-31", "week"))
+                println(time.endOf("9999-12-31", "week"))
+                println(time.startOf("2024-02-30", "month"))
+                println(time.startOf("garbage", "day"))
+                println(time.startOf("2026-10-01", "decade"))
+                println(time.endOf("2026-12-31", "month"))
+            }
+            """;
+    }
+
+    private static String startEndOfGolden() {
+        return "2026-10-01\n2026-09-28\n2026-10-04\n2026-09-28\n2024-02-01\n2024-02-29"
+                + "\n2023-02-28\n2024-01-01\n2024-12-31\n0001-01-01\n0001-01-07\n9999-12-27"
+                + "\n\n\n\n\n2026-12-31";
     }
 
     /**
@@ -1343,12 +1678,12 @@ class KofTimeE2ETest {
             java.lang.reflect.Method cancel = rt.getMethod("kof_scheduler_cancel", String.class);
             TickCounter fn = new TickCounter();
             Object id = at.invoke(null, "20ms", fn);
-            Thread.sleep(150);
+            assertTrue(TestServerFixture.awaitTrue(200, 5, () -> fn.n >= 3),
+                    "esperava >= 3 disparos em 20ms, tivemos " + fn.n);
             cancel.invoke(null, id);
             int afterCancel = fn.n;
-            assertTrue(fn.n >= 3, "esperava >= 3 disparos em 150ms de 20ms, tivemos " + fn.n);
-            Thread.sleep(80);
-            assertEquals(afterCancel, fn.n, "cancel deve parar os disparos");
+            assertFalse(TestServerFixture.awaitTrue(16, 5, () -> fn.n != afterCancel),
+                    "cancel deve parar os disparos");
         }
     }
 
@@ -1360,7 +1695,7 @@ class KofTimeE2ETest {
      *  via getMethod("invoke") membros de classe pública — classes anônimas
      *  e lambdas Java são package-private/hidden (IllegalAccessException). */
     public static class TickCounter implements Tick {
-        public int n = 0;
+        public volatile int n = 0;
         @Override
         public void invoke() { n++; }
     }

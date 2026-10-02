@@ -188,6 +188,22 @@ class NativeAarch64E2ETest {
         assertTrue(lines.contains("fim"), "main não bloqueia no spawn: " + lines);
     }
 
+    // §545: gêmeo aarch64 do riscv64SpawnExtern — o worker precisa de TLS
+    // (tp) antes de chamar libc; herda a sequência `_dl_allocate_tls` via
+    // translateRiscvToAarch64. Sem o fix: SIGSEGV no primeiro acesso TLS.
+    @Test
+    void aarch64SpawnExtern(@TempDir Path tempDir) throws IOException {
+        assumeToolchain();
+        String out = runAarch64(tempDir, """
+            extern "libc.so.6" abs(Int x): Int
+            main() {
+                val r = spawn { return abs(-5) + abs(3) }
+                println(await r)
+            }
+            """);
+        assertEquals("8", out);
+    }
+
     // NATIVE002-stdlib: métodos String aarch64 (herdado via translateRiscvToAarch64).
     @Test
     void aarch64StringTrimCaseReplaceSplit(@TempDir Path tempDir) throws IOException {

@@ -25,7 +25,7 @@ public final class ProjectLocator {
      * Sobe a partir de {@code startDir} (inclusive) até a raiz do filesystem
      * procurando kof.toml. Retorna o diretório que o contém, ou null.
      */
-    static Path locate(Path startDir) {
+    public static Path locate(Path startDir) {
         if (startDir == null) return null;
         Path dir;
         try {

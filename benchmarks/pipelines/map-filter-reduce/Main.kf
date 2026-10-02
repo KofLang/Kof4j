@@ -1,0 +1,8 @@
+main() {
+    var nums = new List<Int>()
+    for (var i = 0; i < 20000; i++) {
+        nums.add(i)
+    }
+    var total = nums.map((x: Int) -> x * 3).filter((x: Int) -> x > 30000).reduce((a: Int, b: Int) -> a + b, 0)
+    println(total)
+}

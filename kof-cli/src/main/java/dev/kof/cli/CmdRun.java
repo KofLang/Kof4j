@@ -203,6 +203,10 @@ final class CmdRun {
             try {
                 dev.kof.compiler.KofInterpreter.Result ir =
                         driver.interpret(sources, runRoot, programArgs);
+                // #678: paridade com o compile — os WARNING do frontend vão ao
+                // stderr como no alvo JVM (linha abaixo do bloco compile),
+                // nunca engolidos.
+                for (Diagnostic d : ir.warnings()) System.err.println(d.format());
                 if (!ir.stdout().isEmpty()) System.out.print(ir.stdout());
                 if (!ir.stderr().isEmpty()) System.err.print(ir.stderr());
                 KofCliSupport.cleanup(tempDir);
@@ -261,6 +265,52 @@ final class CmdRun {
                 System.exit(1);
                 return;
             }
+            // §534 (#534, D-DB-ZERODRIVER): the KofJS guest runs IN-PROCESS on
+            // THIS JVM's classpath and reaches JDBC through DriverManager
+            // (KofJsDbBridge), whose caller-classloader check defeats a child
+            // URLClassLoader — so provisioned/declared drivers must be on the
+            // app classpath. The JVM path appends them to its child classpath;
+            // here the only robust way is to re-exec this JVM with the jars
+            // appended (same java binary, same Main args). The re-exec child is
+            // marked by kof.js.driver.cp so it never recurses.
+            List<Path> driverJars;
+            try {
+                driverJars = jsDriverJars(useDeps, file);
+            } catch (IOException e) {
+                System.err.println("run: cannot provision db driver: " + e.getMessage());
+                KofCliSupport.cleanup(tempDir);
+                System.exit(1);
+                return;
+            }
+            boolean reExecChild = System.getProperty("kof.js.driver.cp") != null;
+            if (!driverJars.isEmpty() && !reExecChild && cliReExecCapable()) {
+                String driverCp = joinPaths(driverJars);
+                List<String> cmd = new ArrayList<>();
+                cmd.add(KofCliSupport.javaExecutable());
+                for (String key : new java.util.TreeSet<>(System.getProperties().stringPropertyNames())) {
+                    if (key.startsWith("kof.") && !"kof.js.driver.cp".equals(key)) {
+                        cmd.add("-D" + key + "=" + System.getProperty(key));
+                    }
+                }
+                cmd.add("-Dkof.js.driver.cp=" + driverCp);
+                cmd.add("-cp");
+                cmd.add(System.getProperty("java.class.path") + java.io.File.pathSeparator + driverCp);
+                cmd.add("dev.kof.cli.Main");
+                cmd.addAll(java.util.Arrays.asList(args));
+                KofCliSupport.cleanup(tempDir);
+                KofCliSupport.executeProcess(cmd, null);
+                return;
+            }
+            if (!driverJars.isEmpty() && !reExecChild && !cliReExecCapable()) {
+                // Honest fallback (never silent, R6): we cannot re-exec (e.g. a
+                // reflection/IDE runner whose java.class.path holds a booter jar
+                // without the CLI classes). The in-process guest will likely
+                // name DB001; the message says why the fix could not apply.
+                System.err.println("run: JS target needs the provisioned JDBC driver jar(s) on"
+                        + " the classpath, but this JVM cannot re-exec itself (dev.kof.cli.Main"
+                        + " is not on java.class.path); the in-process KofJS guest may fail with"
+                        + " DB001 until the driver is on the classpath");
+            }
             // The KofJS target executes the generated module with the embedded
             // JavaScript engine — no Node.js or external runtime required.
             // Windows created with kof.ui open in the system webview.
@@ -271,7 +321,8 @@ final class CmdRun {
             }
             try {
                 exitCode = dev.kof.runtime.KofJsRunner.run(java.nio.file.Path.of(entry),
-                        System.out, System.in, System.err, true, programArgs);
+                        KofStdio.fromUtf8(System.out), System.in, KofStdio.fromUtf8(System.err),
+                        true, programArgs);
             } catch (IOException e) {
                 System.err.println("failed to execute: " + e.getMessage());
                 KofCliSupport.cleanup(tempDir);
@@ -323,6 +374,7 @@ final class CmdRun {
         }
         List<String> javaArgs = new ArrayList<>();
         javaArgs.add(KofCliSupport.javaExecutable());
+        javaArgs.addAll(KofStdio.inheritedJvmFlags());
         javaArgs.add("-Dkof.root=" + file.toAbsolutePath().normalize().getParent());
         javaArgs.add("-cp");
         String jvmCp = tempDir.toString();
@@ -338,5 +390,61 @@ final class CmdRun {
         javaArgs.add(className);
         for (int i = argStart; i < args.length; i++) javaArgs.add(args[i]);
         KofCliSupport.executeProcess(javaArgs, tempDir, appEnv);
+    }
+
+    /** §534: existing jar files a `--target js` run must put on the JVM
+     *  classpath so the in-process KofJS guest can reach JDBC via
+     *  DriverManager — declared deps (`--deps`) plus the auto-provisioned
+     *  driver for the scheme(s) used in the program, exactly like the JVM
+     *  path builds for its child. Deduplicated; non-existent entries dropped. */
+    private static List<Path> jsDriverJars(boolean useDeps, Path file) throws IOException {
+        java.util.LinkedHashSet<Path> seen = new java.util.LinkedHashSet<>();
+        if (useDeps) {
+            addJarEntries(seen, Deps.classpath());
+        }
+        addJarEntries(seen, DbDrivers.provision(Path.of("."), file));
+        return new ArrayList<>(seen);
+    }
+
+    private static void addJarEntries(java.util.Set<Path> out, String classpath) {
+        if (classpath == null || classpath.isBlank()) return;
+        for (String part : classpath.split(java.util.regex.Pattern.quote(java.io.File.pathSeparator))) {
+            if (part.isBlank()) continue;
+            Path p = Path.of(part);
+            if (Files.isRegularFile(p)) out.add(p.toAbsolutePath().normalize());
+        }
+    }
+
+    private static String joinPaths(List<Path> paths) {
+        StringBuilder sb = new StringBuilder();
+        for (Path p : paths) {
+            if (sb.length() > 0) sb.append(java.io.File.pathSeparator);
+            sb.append(p);
+        }
+        return sb.toString();
+    }
+
+    /** §534: re-exec is only safe when `dev.kof.cli.Main` resolves from
+     *  `java.class.path` (true from the distribution/`-cp`; some
+     *  reflection/IDE runners hand the JVM a booter jar instead). The guard
+     *  property `kof.js.driver.cp` marks the re-exec child so it never loops. */
+    private static boolean cliReExecCapable() {
+        if (System.getProperty("kof.js.driver.cp") != null) return false;
+        String cp = System.getProperty("java.class.path", "");
+        if (cp.isBlank()) return false;
+        try {
+            java.security.CodeSource cs = CmdRun.class.getProtectionDomain().getCodeSource();
+            if (cs == null || cs.getLocation() == null) return false;
+            Path loc = Path.of(cs.getLocation().toURI()).toAbsolutePath().normalize();
+            for (String part : cp.split(java.util.regex.Pattern.quote(java.io.File.pathSeparator))) {
+                if (part.isBlank()) continue;
+                try {
+                    if (Path.of(part).toAbsolutePath().normalize().equals(loc)) return true;
+                } catch (RuntimeException ignored) {
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return false;
     }
 }

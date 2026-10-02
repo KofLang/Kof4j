@@ -11,299 +11,108 @@ import static org.junit.jupiter.api.Assertions.*;
  * statement ({@code case X:}) continua válido (KofPatternMatchingTest é o
  * gate de retrocompatibilidade).
  */
-class KofSwitchExprE2ETest {
-    private final CompilerDriver driver = new CompilerDriver();
+class KofSwitchExprE2ETest extends KofSwitchExprSupport {
 
     // ── valor: Int ─────────────────────────────────────────────────
 
     @Test
     void intJvm(@TempDir Path tmp) throws Exception {
-        runJvm(tmp, """
-                main() {
-                    var n = 2
-                    var r = switch (n) {
-                        case 1 -> "um"
-                        case 2 -> "dois"
-                        default -> "outro"
-                    }
-                    println(r)
-                }
-                """, "dois");
+        runJvm(tmp, SRC_INT_JVM, "dois");
     }
 
     @Test
     void intNative(@TempDir Path tmp) throws Exception {
-        runNative(tmp, """
-                main() {
-                    var n = 2
-                    var r = switch (n) {
-                        case 1 -> "um"
-                        case 2 -> "dois"
-                        default -> "outro"
-                    }
-                    println(r)
-                }
-                """, "dois");
+        runNative(tmp, SRC_INT_NATIVE, "dois");
     }
 
     @Test
     void intJs(@TempDir Path tmp) throws Exception {
-        runJs(tmp, """
-                main() {
-                    var n = 2
-                    var r = switch (n) {
-                        case 1 -> "um"
-                        case 2 -> "dois"
-                        default -> "outro"
-                    }
-                    println(r)
-                }
-                """, "dois");
+        runJs(tmp, SRC_INT_JS, "dois");
     }
 
     @Test
     void intDefaultJvm(@TempDir Path tmp) throws Exception {
-        runJvm(tmp, """
-                main() {
-                    var n = 99
-                    var r = switch (n) {
-                        case 1 -> "um"
-                        case 2 -> "dois"
-                        default -> "outro"
-                    }
-                    println(r)
-                }
-                """, "outro");
+        runJvm(tmp, SRC_INT_DEFAULT_JVM, "outro");
     }
 
     // ── valor: String (igualdade por conteúdo — bug 4) ──────────────
 
     @Test
     void stringJvm(@TempDir Path tmp) throws Exception {
-        runJvm(tmp, """
-                main() {
-                    var op = "GET"
-                    var r = switch (op) {
-                        case "GET" -> "buscar"
-                        case "POST" -> "criar"
-                        default -> "desconhecido"
-                    }
-                    println(r)
-                }
-                """, "buscar");
+        runJvm(tmp, SRC_STRING_JVM, "buscar");
     }
 
     @Test
     void stringNative(@TempDir Path tmp) throws Exception {
-        runNative(tmp, """
-                main() {
-                    var op = "GET"
-                    var r = switch (op) {
-                        case "GET" -> "buscar"
-                        case "POST" -> "criar"
-                        default -> "desconhecido"
-                    }
-                    println(r)
-                }
-                """, "buscar");
+        runNative(tmp, SRC_STRING_NATIVE, "buscar");
     }
 
     @Test
     void stringJs(@TempDir Path tmp) throws Exception {
-        runJs(tmp, """
-                main() {
-                    var op = "GET"
-                    var r = switch (op) {
-                        case "GET" -> "buscar"
-                        case "POST" -> "criar"
-                        default -> "desconhecido"
-                    }
-                    println(r)
-                }
-                """, "buscar");
+        runJs(tmp, SRC_STRING_JS, "buscar");
     }
 
     // ── pattern: case String s -> ───────────────────────────────────
 
     @Test
     void patternSimpleJvm(@TempDir Path tmp) throws Exception {
-        runJvm(tmp, """
-                main() {
-                    var x: Object = "hello"
-                    var r = switch (x) {
-                        case String s -> "str:" + s
-                        default -> "other"
-                    }
-                    println(r)
-                }
-                """, "str:hello");
+        runJvm(tmp, SRC_PATTERN_SIMPLE_JVM, "str:hello");
     }
 
     @Test
     void patternSimpleNative(@TempDir Path tmp) throws Exception {
-        runNative(tmp, """
-                main() {
-                    var x: Object = "hello"
-                    var r = switch (x) {
-                        case String s -> "str:" + s
-                        default -> "other"
-                    }
-                    println(r)
-                }
-                """, "str:hello");
+        runNative(tmp, SRC_PATTERN_SIMPLE_NATIVE, "str:hello");
     }
 
     @Test
     void patternSimpleJs(@TempDir Path tmp) throws Exception {
-        runJs(tmp, """
-                main() {
-                    var x: Object = "hello"
-                    var r = switch (x) {
-                        case String s -> "str:" + s
-                        default -> "other"
-                    }
-                    println(r)
-                }
-                """, "str:hello");
+        runJs(tmp, SRC_PATTERN_SIMPLE_JS, "str:hello");
     }
 
     // ── pattern: destructuring case Point(var x, var y) -> ─────────
 
     @Test
     void destructureJvm(@TempDir Path tmp) throws Exception {
-        runJvm(tmp, """
-                record Point(Int x, Int y)
-                main() {
-                    var p = Point(3, 4)
-                    var r = switch (p) {
-                        case Point(var x, var y) -> "pt:" + x + "," + y
-                        default -> "other"
-                    }
-                    println(r)
-                }
-                """, "pt:3,4");
+        runJvm(tmp, SRC_DESTRUCTURE_JVM, "pt:3,4");
     }
 
     @Test
     void destructureNative(@TempDir Path tmp) throws Exception {
-        runNative(tmp, """
-                record Point(Int x, Int y)
-                main() {
-                    var p = Point(3, 4)
-                    var r = switch (p) {
-                        case Point(var x, var y) -> "pt:" + x + "," + y
-                        default -> "other"
-                    }
-                    println(r)
-                }
-                """, "pt:3,4");
+        runNative(tmp, SRC_DESTRUCTURE_NATIVE, "pt:3,4");
     }
 
     @Test
     void destructureJs(@TempDir Path tmp) throws Exception {
-        runJs(tmp, """
-                record Point(Int x, Int y)
-                main() {
-                    var p = Point(3, 4)
-                    var r = switch (p) {
-                        case Point(var x, var y) -> "pt:" + x + "," + y
-                        default -> "other"
-                    }
-                    println(r)
-                }
-                """, "pt:3,4");
+        runJs(tmp, SRC_DESTRUCTURE_JS, "pt:3,4");
     }
 
     // ── como return + aninhado ─────────────────────────────────────
 
     @Test
     void asReturnJvm(@TempDir Path tmp) throws Exception {
-        runJvm(tmp, """
-                String nome(Int n) {
-                    return switch (n) {
-                        case 0 -> "zero"
-                        case 1 -> "um"
-                        default -> "muitos"
-                    }
-                }
-                main() {
-                    println(nome(1))
-                    println(nome(7))
-                }
-                """, "um\nmuitos");
+        runJvm(tmp, SRC_AS_RETURN_JVM, "um\nmuitos");
     }
 
     @Test
     void nestedJvm(@TempDir Path tmp) throws Exception {
-        runJvm(tmp, """
-                main() {
-                    var a = 1
-                    var b = 2
-                    var r = switch (a) {
-                        case 1 -> switch (b) {
-                            case 2 -> "a1b2"
-                            default -> "a1"
-                        }
-                        default -> "outro"
-                    }
-                    println(r)
-                }
-                """, "a1b2");
+        runJvm(tmp, SRC_NESTED_JVM, "a1b2");
     }
 
     @Test
     void nestedJs(@TempDir Path tmp) throws Exception {
-        runJs(tmp, """
-                main() {
-                    var a = 1
-                    var b = 2
-                    var r = switch (a) {
-                        case 1 -> switch (b) {
-                            case 2 -> "a1b2"
-                            default -> "a1"
-                        }
-                        default -> "outro"
-                    }
-                    println(r)
-                }
-                """, "a1b2");
+        runJs(tmp, SRC_NESTED_JS, "a1b2");
     }
 
     // ── retrocompatibilidade: statement segue funcionando ───────────
 
     @Test
     void statementStillWorksJvm(@TempDir Path tmp) throws Exception {
-        runJvm(tmp, """
-                main() {
-                    var op = "GET"
-                    switch (op) {
-                        case "GET":
-                            println("buscar")
-                        default:
-                            println("x")
-                    }
-                }
-                """, "buscar");
+        runJvm(tmp, SRC_STATEMENT_STILL_WORKS_JVM, "buscar");
     }
 
     @Test
     void mixedStatementAndExprJvm(@TempDir Path tmp) throws Exception {
-        runJvm(tmp, """
-                main() {
-                    var n = 2
-                    var r = switch (n) {
-                        case 2 -> "dois"
-                        default -> "outro"
-                    }
-                    switch (n) {
-                        case 2:
-                            println("stmt-dois")
-                        default:
-                            println("stmt-x")
-                    }
-                    println(r)
-                }
-                """, "stmt-dois\ndois");
+        runJvm(tmp, SRC_MIXED_STATEMENT_AND_EXPR_JVM, "stmt-dois\ndois");
     }
 
     // ── sem default nem exaustão → erro SEM032 ─────────────────────
@@ -311,15 +120,7 @@ class KofSwitchExprE2ETest {
     @Test
     void missingDefaultFailsToCompile(@TempDir Path tmp) throws Exception {
         Path file = tmp.resolve("Main.kf");
-        Files.writeString(file, """
-                main() {
-                    var n = 1
-                    var r = switch (n) {
-                        case 1 -> "um"
-                    }
-                    println(r)
-                }
-                """);
+        Files.writeString(file, SRC_MISSING_DEFAULT_FAILS_TO_COMPILE);
         Path outDir = tmp.resolve("out");
         CompilationResult result = driver.compile(file, outDir, Target.JVM);
         assertFalse(result.success(), "deveria falhar sem default");
@@ -338,17 +139,7 @@ class KofSwitchExprE2ETest {
     @Test
     void blockCaseBodyFailsWithDiagnostic(@TempDir Path tmp) throws Exception {
         Path file = tmp.resolve("Main.kf");
-        Files.writeString(file, """
-                enum E { A, B }
-                main() {
-                    var e = E.A
-                    var x = switch (e) {
-                        case A -> { println("a"); "aa" }
-                        default -> "other"
-                    }
-                    println(x)
-                }
-                """);
+        Files.writeString(file, SRC_BLOCK_CASE_BODY_FAILS_WITH_DIAGNOSTIC);
         CompilationResult result = driver.compile(file, tmp.resolve("out"), Target.JVM);
         assertFalse(result.success(), "case -> { } deve ser rejeitado (sem escopo de bloco)");
         assertTrue(result.diagnostics().getDiagnostics().toString().contains("PARSE094"),
@@ -358,21 +149,7 @@ class KofSwitchExprE2ETest {
     // ── enum: exaustivo sem default (SEM031/SEM032) ─────────────────
     @Test
     void enumExhaustiveJvm(@TempDir Path tmp) throws Exception {
-        runJvm(tmp, """
-                enum Color { Red, Green, Blue }
-                String cor(Color c) {
-                    return switch (c) {
-                        case Color.Red -> "vermelho"
-                        case Color.Green -> "verde"
-                        case Color.Blue -> "azul"
-                    }
-                }
-                main() {
-                    println(cor(Color.Red))
-                    println(cor(Color.Green))
-                    println(cor(Color.Blue))
-                }
-                """, "vermelho\nverde\nazul");
+        runJvm(tmp, SRC_ENUM_EXHAUSTIVE_JVM, "vermelho\nverde\nazul");
     }
 
     // bug 145: `Color.Red` como EXPRESSÃO (enum constante) tipava UNKNOWN → o
@@ -381,49 +158,17 @@ class KofSwitchExprE2ETest {
 
     @Test
     void enumExhaustiveVarSubjectJvm(@TempDir Path tmp) throws Exception {
-        runJvm(tmp, """
-                enum Color { Red, Green, Blue }
-                main() {
-                    var c = Color.Blue
-                    var r = switch (c) {
-                        case Color.Red -> "vermelho"
-                        case Color.Green -> "verde"
-                        case Color.Blue -> "azul"
-                    }
-                    println(r)
-                }
-                """, "azul");
+        runJvm(tmp, SRC_ENUM_EXHAUSTIVE_VAR_SUBJECT_JVM, "azul");
     }
 
     @Test
     void enumExhaustiveLiteralSubjectJvm(@TempDir Path tmp) throws Exception {
-        runJvm(tmp, """
-                enum Color { Red, Green, Blue }
-                main() {
-                    var r = switch (Color.Green) {
-                        case Color.Red -> "vermelho"
-                        case Color.Green -> "verde"
-                        case Color.Blue -> "azul"
-                    }
-                    println(r)
-                }
-                """, "verde");
+        runJvm(tmp, SRC_ENUM_EXHAUSTIVE_LITERAL_SUBJECT_JVM, "verde");
     }
 
     @Test
     void enumExhaustiveVarSubjectNative(@TempDir Path tmp) throws Exception {
-        runNative(tmp, """
-                enum Color { Red, Green, Blue }
-                main() {
-                    var c = Color.Red
-                    var r = switch (c) {
-                        case Color.Red -> "vermelho"
-                        case Color.Green -> "verde"
-                        case Color.Blue -> "azul"
-                    }
-                    println(r)
-                }
-                """, "vermelho");
+        runNative(tmp, SRC_ENUM_EXHAUSTIVE_VAR_SUBJECT_NATIVE, "vermelho");
     }
 
     // §149: switch-expr EXAUSTIVO sobre enum (sem default) com corpo PRIMITIVO.
@@ -434,131 +179,43 @@ class KofSwitchExprE2ETest {
 
     @Test
     void enumExhaustiveIntBodyJvm(@TempDir Path tmp) throws Exception {
-        runJvm(tmp, """
-                enum Color { Red, Green, Blue }
-                main() {
-                    var c = Color.Blue
-                    var r = switch (c) {
-                        case Color.Red -> 1
-                        case Color.Green -> 2
-                        case Color.Blue -> 3
-                    }
-                    println(r)
-                }
-                """, "3");
+        runJvm(tmp, SRC_ENUM_EXHAUSTIVE_INT_BODY_JVM, "3");
     }
 
     @Test
     void enumExhaustiveDoubleBodyJvm(@TempDir Path tmp) throws Exception {
-        runJvm(tmp, """
-                enum Color { Red, Green, Blue }
-                main() {
-                    var c = Color.Blue
-                    var r = switch (c) {
-                        case Color.Red -> 1.5
-                        case Color.Green -> 2.5
-                        case Color.Blue -> 3.5
-                    }
-                    println(r)
-                }
-                """, "3.5");
+        runJvm(tmp, SRC_ENUM_EXHAUSTIVE_DOUBLE_BODY_JVM, "3.5");
     }
 
     @Test
     void enumExhaustiveLongBodyJvm(@TempDir Path tmp) throws Exception {
-        runJvm(tmp, """
-                enum Color { Red, Green, Blue }
-                main() {
-                    var c = Color.Blue
-                    var r = switch (c) {
-                        case Color.Red -> 1L
-                        case Color.Green -> 2L
-                        case Color.Blue -> 3L
-                    }
-                    println(r)
-                }
-                """, "3");
+        runJvm(tmp, SRC_ENUM_EXHAUSTIVE_LONG_BODY_JVM, "3");
     }
 
     @Test
     void enumExhaustiveBoolBodyJvm(@TempDir Path tmp) throws Exception {
-        runJvm(tmp, """
-                enum Color { Red, Green, Blue }
-                main() {
-                    var c = Color.Green
-                    var r = switch (c) {
-                        case Color.Red -> true
-                        case Color.Green -> false
-                        case Color.Blue -> true
-                    }
-                    println(r)
-                }
-                """, "false");
+        runJvm(tmp, SRC_ENUM_EXHAUSTIVE_BOOL_BODY_JVM, "false");
     }
 
     @Test
     void enumExhaustiveIntBodyNative(@TempDir Path tmp) throws Exception {
-        runNative(tmp, """
-                enum Color { Red, Green, Blue }
-                main() {
-                    var c = Color.Green
-                    var r = switch (c) {
-                        case Color.Red -> 1
-                        case Color.Green -> 2
-                        case Color.Blue -> 3
-                    }
-                    println(r)
-                }
-                """, "2");
+        runNative(tmp, SRC_ENUM_EXHAUSTIVE_INT_BODY_NATIVE, "2");
     }
 
     @Test
     void enumExhaustiveNative(@TempDir Path tmp) throws Exception {
-        runNative(tmp, """
-                enum Color { Red, Green, Blue }
-                String cor(Color c) {
-                    return switch (c) {
-                        case Color.Red -> "vermelho"
-                        case Color.Green -> "verde"
-                        case Color.Blue -> "azul"
-                    }
-                }
-                main() {
-                    println(cor(Color.Green))
-                }
-                """, "verde");
+        runNative(tmp, SRC_ENUM_EXHAUSTIVE_NATIVE, "verde");
     }
 
     @Test
     void enumExhaustiveJs(@TempDir Path tmp) throws Exception {
-        runJs(tmp, """
-                enum Color { Red, Green, Blue }
-                String cor(Color c) {
-                    return switch (c) {
-                        case Color.Red -> "vermelho"
-                        case Color.Green -> "verde"
-                        case Color.Blue -> "azul"
-                    }
-                }
-                main() {
-                    println(cor(Color.Blue))
-                }
-                """, "azul");
+        runJs(tmp, SRC_ENUM_EXHAUSTIVE_JS, "azul");
     }
 
     @Test
     void enumNonExhaustiveFailsToCompile(@TempDir Path tmp) throws Exception {
         Path file = tmp.resolve("Main.kf");
-        Files.writeString(file, """
-                enum Color { Red, Green, Blue }
-                main() {
-                    var c = Color.Red
-                    var r = switch (c) {
-                        case Color.Red -> "vermelho"
-                    }
-                    println(r)
-                }
-                """);
+        Files.writeString(file, SRC_ENUM_NON_EXHAUSTIVE_FAILS_TO_COMPILE);
         CompilationResult result = driver.compile(file, tmp.resolve("out"), Target.JVM);
         assertFalse(result.success(), "deveria falhar sem cobrir Green/Blue");
         assertTrue(result.diagnostics().getDiagnostics().toString().contains("SEM032"),
@@ -566,52 +223,4 @@ class KofSwitchExprE2ETest {
     }
 
     // ── harness ────────────────────────────────────────────────────
-    private String runJvm(Path tempDir, String source, String expected) throws Exception {
-        Path file = tempDir.resolve("Main-" + System.nanoTime() + ".kf");
-        Files.writeString(file, source);
-        Path outDir = tempDir.resolve("out-" + System.nanoTime());
-        CompilationResult result = driver.compile(file, outDir, Target.JVM);
-        assertTrue(result.success(), "JVM compile failed: " + result.diagnostics().getDiagnostics());
-        Process p = new ProcessBuilder(System.getProperty("java.home") + "/bin/java",
-                "-cp", outDir.toString() + ":kof-runtime/target/classes", "Default.Main")
-                .redirectErrorStream(true).start();
-        String output = new String(p.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)
-                .replace("\r\n", "\n").trim();
-        int ec = p.waitFor();
-        assertEquals(0, ec, "JVM exit code, output: " + output);
-        assertEquals(expected, output, "JVM output");
-        return output;
-    }
-
-    private String runNative(Path tempDir, String source, String expected) throws Exception {
-        Path file = tempDir.resolve("Main-" + System.nanoTime() + ".kf");
-        Files.writeString(file, source);
-        Path outDir = tempDir.resolve("out-" + System.nanoTime());
-        CompilationResult result = driver.compile(file, outDir, Target.NATIVE);
-        assertTrue(result.success(), "Native compile failed: " + result.diagnostics().getDiagnostics());
-        Path bin = outDir.resolve("Default/Main");
-        Process p = new ProcessBuilder(bin.toString()).redirectErrorStream(true).start();
-        String output = new String(p.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)
-                .replace("\r\n", "\n").trim();
-        int ec = p.waitFor();
-        assertEquals(0, ec, "Native exit code, output: " + output);
-        assertEquals(expected, output, "Native output");
-        return output;
-    }
-
-    private String runJs(Path tempDir, String source, String expected) throws Exception {
-        Path file = tempDir.resolve("Main-" + System.nanoTime() + ".kf");
-        Files.writeString(file, source);
-        Path outDir = tempDir.resolve("out-" + System.nanoTime());
-        CompilationResult result = driver.compile(file, outDir, Target.JS);
-        assertTrue(result.success(), "JS compile failed: " + result.diagnostics().getDiagnostics());
-        Path mjs = outDir.resolve("Default.mjs");
-        Process p = new ProcessBuilder("node", mjs.toString()).redirectErrorStream(true).start();
-        String output = new String(p.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)
-                .replace("\r\n", "\n").trim();
-        int ec = p.waitFor();
-        assertEquals(0, ec, "JS exit code, output: " + output);
-        assertEquals(expected, output, "JS output");
-        return output;
-    }
 }

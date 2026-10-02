@@ -32,3 +32,7 @@ path	docs/development/tech-debt.md	KILLED 24/09 (mantenedora: dívida zerada); c
 path	docs/development/tech-debt.pt_BR.md	KILLED 24/09 (mantenedora: dívida zerada); citado como história nos DECISIONS PT
 path	docs/development/technical-debt/DEBT_SCOUT_CONTRACT.md	KILLED 24/09 com o debt-scout por ordem da mantenedora; citado nas decisões D-DEBT-SCOUT-W2 dos DECISIONS
 path	docs/spec/memory-safety.md	Fase 1 deliverable of D-MEMORY-SAFETY (maintainer 25/09) - planned target path, doc not created yet
+path	future/graphics-gaming-plan.md	nota historica nos DECISIONS (D-GRAPHICS-GAMING addendum 4): o plano foi promovido (docs/development/)
+path	future/secrets-plan.md	nota historica nos DECISIONS (D-SECRETS): o plano foi promovido (docs/architecture/)
+path	future/type-system-extensions-plan.md	nota historica nos DECISIONS (D-PROPERTY): o plano foi promovido (docs/)
+path	future/BOOTSTRAP-GAPS.md	artefato PROSPECTIVO do PLAN-BOOTSTRAP (output planejado, ainda nao criado)

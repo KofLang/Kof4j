@@ -42,6 +42,21 @@ while [ $# -gt 0 ]; do
     shift
 done
 
+# ── escopo da matriz (D-PARITY-050-SCOPE) ──────────────────────────────────
+# Fonte UNICA dos alvos core: os lacos da matriz real e o --selftest leem as
+# MESMAS listas. O selftest congela o conjunto em SEIS alvos; mudar o conjunto
+# exige nova decisao da mantenedora (MCU/riscv32 ficam fora deste gate).
+DIRECT_CORE_TARGETS=(script js native)
+CROSS_CORE_ARCHES=(riscv64 aarch64)
+
+release_050_targets() {
+    printf '%s\n' jvm "${DIRECT_CORE_TARGETS[@]}"
+    local arch
+    for arch in "${CROSS_CORE_ARCHES[@]}"; do
+        printf 'native.%s\n' "$arch"
+    done
+}
+
 # ── utilidades de veredito ─────────────────────────────────────────────────
 FAILURES=""; SKIPS=""
 note() { echo "matrix: $*"; }
@@ -118,6 +133,13 @@ jar_stale() {
 # ── selftest RED-first (offline: sem compilar, sem tocar a árvore) ─────────
 if [ "$SELFTEST" = true ]; then
     ST="$(mktemp -d)"; trap 'rm -rf "$ST"' EXIT
+    # D-PARITY-050-SCOPE: o conjunto de alvos core e exatamente estes seis
+    expected_targets="jvm script js native native.riscv64 native.aarch64"
+    actual_targets="$(release_050_targets | tr '\n' ' ' | sed 's/ $//')"
+    [ "$actual_targets" = "$expected_targets" ] || {
+        echo "SELFTEST FAIL: D-PARITY-050-SCOPE drift: expected [$expected_targets], got [$actual_targets]"; exit 1
+    }
+    target_count="$(release_050_targets | wc -l | tr -d ' ')"
     printf 'a\nb\n' > "$ST/oracle"; printf 'a\nb\n' > "$ST/same"; printf 'a\nX\n' > "$ST/diff"
     FAILURES=""
     if ! parity "controle-igual" "$ST/oracle" "$ST/same" >/dev/null 2>&1; then
@@ -152,7 +174,7 @@ if [ "$SELFTEST" = true ]; then
     stamp_w "$ST/jar" "$ST/src"; sleep 1; touch "$ST/jar"
     [ -n "$(jar_stale "$ST/jar" "$ST/src")" ] || { echo "SELFTEST FAIL: jar refeito sem atualizar o stamp nao foi detectado"; exit 1; }
     rm -f "$(jar_stamp "$ST/jar")"
-    echo "SELFTEST: ok — comparador reprova divergencia, aceita igualdade, sem prefixo falso, staleness por mtime e por stamp (rebase nao acusa falso)"
+    echo "SELFTEST: ok — D-PARITY-050-SCOPE=$target_count targets; comparador reprova divergencia, aceita igualdade, sem prefixo falso, staleness por mtime e por stamp (rebase nao acusa falso)"
     exit 0
 fi
 
@@ -215,7 +237,7 @@ ORACLE="jvm.out"
 if ! run_core jvm "$ORACLE"; then fail "jvm (oraculo): $(tail -2 "$ORACLE.err" | tr '\n' ' ')"; fi
 if ! grep -q "matrix:end" "$ORACLE"; then fail "jvm: oraculo sem o marcador final (saida: $(tr '\n' ' ' <"$ORACLE"))"; fi
 
-for t in script js native; do
+for t in "${DIRECT_CORE_TARGETS[@]}"; do
     case "$t" in
         js)     command -v node >/dev/null 2>&1 || { fail "js: sem node no PATH"; continue; } ;;
         native) { command -v as >/dev/null 2>&1 && command -v ld >/dev/null 2>&1; } || { fail "native(x86_64): sem as/ld no PATH"; continue; } ;;
@@ -228,7 +250,7 @@ for t in script js native; do
 done
 
 # cross: build com a toolchain; exec sob qemu (paridade) ou skip honesto.
-for arch in riscv64 aarch64; do
+for arch in "${CROSS_CORE_ARCHES[@]}"; do
     t="native.$arch"; tc="${arch}-linux-gnu-as"
     if ! command -v "$tc" >/dev/null 2>&1; then fail "$t: sem $tc (toolchain de build obrigatoria)"; continue; fi
     if ! "$KOF" build "$GOLDEN" --target "$t" >"$t.build" 2>&1; then

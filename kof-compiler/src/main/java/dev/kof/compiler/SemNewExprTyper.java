@@ -23,8 +23,14 @@ final class SemNewExprTyper {
             // SEM015 (#193) e o call-chainado `get(0)()` emitia Methodref
             // vazio (ClassFormatError, #198).
             if (!ne.typeArguments().isEmpty() && coll instanceof Type.ClassType ct) {
+                // #697: o ramo classe abaixo já qualificava os type-args via
+                // toType(…, sa); o ramo coleção usava `Type::of` cru — o arg
+                // `pkg.Rotulo`/`Rotulo` de mesmo pacote ficava
+                // ClassType("", "dominio.Rotulo") e divergia do tipo declarado
+                // (SEM021 espúrio). Mesmo caminho analisador-ciente.
                 coll = new Type.ClassType(ct.packageName(), ct.name(),
-                        ne.typeArguments().stream().map(Type::of).toList());
+                        ne.typeArguments().stream()
+                                .map(n -> CompilerTypes.toType(n, sa.unit(), sa)).toList());
             }
             return coll;
         }

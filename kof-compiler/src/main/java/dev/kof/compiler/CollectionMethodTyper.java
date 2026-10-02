@@ -13,7 +13,10 @@ public final class CollectionMethodTyper {
                                      List<IRLocalVariable> locals) {
     if (BuiltinTypes.isList(recvType)) {
         String mn = mc.methodName();
-        if (("map".equals(mn) || "filter".equals(mn) || "reduce".equals(mn))
+        if (("map".equals(mn) || "filter".equals(mn) || "reduce".equals(mn)
+                || "any".equals(mn) || "all".equals(mn) || "none".equals(mn)
+                || "find".equals(mn) || "count".equals(mn) || "forEach".equals(mn)
+                || "flatMap".equals(mn))
                 && mc.arguments().stream().anyMatch(a -> a instanceof LambdaExpr)) {
             Type lambdaT = null;
             for (ExpressionNode arg : mc.arguments()) {
@@ -30,6 +33,30 @@ public final class CollectionMethodTyper {
                 }
                 if ("filter".equals(mn)) return recvType;
                 if ("reduce".equals(mn)) return ft.returnType();
+                // D-MULTIPARADIGMA-PHASE1A — quantifiers always return Bool.
+                if ("any".equals(mn) || "all".equals(mn) || "none".equals(mn))
+                    return Type.PrimitiveType.BOOL;
+                // D-MULTIPARADIGMA-PHASE1A slice 1b — find returns the element
+                // type as nullable (missing = null per target, like Map.get).
+                if ("find".equals(mn))
+                    return new Type.NullableType(driver.listElementType(recvType));
+                // D-MULTIPARADIGMA-PHASE1A slice 1c — forEach always returns
+                // Void, whatever the lambda yields.
+                if ("forEach".equals(mn)) return Type.PrimitiveType.VOID;
+                // D-MULTIPARADIGMA-PHASE1A slice 1d — flatMap returns the
+                // lambda's List<R> itself (no re-wrap); non-List lambda
+                // result is UNKNOWN honest (the runtime cast fails loudly).
+                if ("flatMap".equals(mn)) {
+                    if (ft.returnType() instanceof Type.ClassType ct
+                            && "List".equals(ct.name())) return ft.returnType();
+                    return Type.UnknownType.UNKNOWN;
+                }
+                // D-MULTIPARADIGMA-PHASE1A slice 1h — groupBy returns
+                // Map<K,List<E>> (K = lambda return).
+                if ("groupBy".equals(mn))
+                    return new Type.ClassType("kof", "Map", List.of(ft.returnType(),
+                            new Type.ClassType("kof", "List",
+                                    List.of(driver.listElementType(recvType)))));
             }
             return Type.UnknownType.UNKNOWN;
         }
@@ -42,6 +69,26 @@ public final class CollectionMethodTyper {
         if ("indexOf".equals(mn) || "lastIndexOf".equals(mn)) return Type.PrimitiveType.INT;
         if ("addAll".equals(mn)) return Type.PrimitiveType.BOOL;
         if ("subList".equals(mn)) return recvType;
+        // pagination P1 — take/drop/slice: List<E> do mesmo tipo.
+        if ("take".equals(mn) || "drop".equals(mn) || "slice".equals(mn)) return recvType;
+        // D-MULTIPARADIGMA-PHASE1A slice 1e — distinct returns List<E> (copy).
+        if ("distinct".equals(mn)) return recvType;
+        // D-MULTIPARADIGMA-PHASE1A slice 1g — sorted/sorted_cmp: List<E>.
+        if ("sorted".equals(mn)) return recvType;
+        // D-MULTIPARADIGMA-PHASE1A slice 1i — zip: List<Pair<A,B>>
+        // (package "" per MemberCallTyper rationale above).
+        if ("zip".equals(mn)) {
+            Type argElem = Type.UnknownType.UNKNOWN;
+            if (!mc.arguments().isEmpty()) {
+                Type at = ExpressionTyper.inferExprType(driver, mc.arguments().get(0), locals);
+                if (at instanceof Type.ClassType act
+                        && "List".equals(act.name()) && !act.typeArguments().isEmpty()) {
+                    argElem = act.typeArguments().get(0);
+                }
+            }
+            return CollectionMultiparadigmaLowerer.zipPairListType(
+                    driver.listElementType(recvType), argElem);
+        }
         if ("add".equals(mn) || "push".equals(mn) || "append".equals(mn)
                 || "set".equals(mn) || "clear".equals(mn) || "sort".equals(mn)) {
             return Type.PrimitiveType.VOID;

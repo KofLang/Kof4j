@@ -141,11 +141,11 @@ public final class Compare {
         Path sandbox = Files.createTempDirectory("kof-compare-legacy-");
         try {
             if (file.endsWith(".jar")) {
-                return exec(List.of(Paths.java(), "-jar", legacy.toString()), args, stdin, sandbox);
+                return exec(Paths.java("-jar", legacy.toString()), args, stdin, sandbox);
             }
             if (file.endsWith(".class")) {
                 String className = file.substring(0, file.length() - ".class".length());
-                List<String> cmd = List.of(Paths.java(), "-cp", legacy.getParent().toString(), className);
+                List<String> cmd = Paths.java("-cp", legacy.getParent().toString(), className);
                 return exec(cmd, args, stdin, sandbox);
             }
             throw new IOException("legacy must be a .class or .jar file");
@@ -163,7 +163,7 @@ public final class Compare {
             throw new IOException("Kof compile failed: " + result.diagnostics().getDiagnostics());
         }
         try {
-            return exec(List.of(Paths.java(), "-cp", outDir.toString(), "Default.Main"), args, stdin, sandbox);
+            return exec(Paths.java("-cp", outDir.toString(), "Default.Main"), args, stdin, sandbox);
         } finally {
             cleanup(outDir);
             cleanup(sandbox);
@@ -240,8 +240,13 @@ public final class Compare {
     }
 
     private static final class Paths {
-        static String java() {
-            return Path.of(System.getProperty("java.home"), "bin", "java").toString();
+        /** java + saída UTF-8: exec() lê stdout/stderr como UTF-8 (KofStdio). */
+        static List<String> java(String... args) {
+            List<String> cmd = new ArrayList<>();
+            cmd.add(Path.of(System.getProperty("java.home"), "bin", "java").toString());
+            cmd.addAll(KofStdio.capturedJvmFlags());
+            cmd.addAll(List.of(args));
+            return cmd;
         }
     }
 }

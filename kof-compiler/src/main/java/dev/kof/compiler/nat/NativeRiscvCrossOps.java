@@ -4,6 +4,7 @@ import dev.kof.compiler.CollectionWrites;
 import dev.kof.compiler.CompilerClassLowering;
 import dev.kof.compiler.KofBinary;
 import dev.kof.compiler.KofBinaryOp;
+import dev.kof.compiler.KofBuffer;
 import dev.kof.compiler.KofCall;
 import dev.kof.compiler.KofCallKind;
 import dev.kof.compiler.KofConditionalJump;
@@ -176,64 +177,8 @@ public final class NativeRiscvCrossOps {
             return;
         }
 
-        // println / print (PrintStream)
-        if (kc.kind() == KofCallKind.INSTANCE && ("println".equals(mn) || "print".equals(mn))) {
-            boolean nl = "println".equals(mn);
-            sb.append("    pop a0\n");
-            // T? (get de Map, SG-008/bug 87): despacho pelo INNER — sem isso
-            // Nullable(primitivo) caía no println_string sobre raw int (segv)
-            Type dispatchType = argType instanceof Type.NullableType nt ? nt.inner() : argType;
-            if (argType instanceof Type.NullableType nnt2
-                    && nnt2.inner() instanceof Type.PrimitiveType ipt2
-                    && NativeBoxTags.unboxFn(ipt2.name()) != null) {
-                // §284-map: Nullable(Int/Short/Byte/Long) = caixa fisica do
-                // slot de Map (escrita no lowerer). Despacha pela caixa; o
-                // Nullable(Char) ja chega DESEMBALADO do lowerer (ramo char,
-                // valueOf(CHAR)) e nunca passa por aqui.
-                sb.append("    call kof_box_to_string\n");
-                sb.append(nl ? "    call kof_println_string\n" : "    call kof_print_string\n");
-            } else if (dispatchType instanceof Type.PrimitiveType pt) {
-                String cn = Type.canonicalPrimitiveName(pt.name());
-                switch (cn) {
-                    case "char" -> {
-                        // §333/#259: Char imprime o CARACTERE (D-PRINT/§216),
-                        // não o codepoint — paridade com JVM e x86.
-                        sb.append("    call kof_char_to_string\n");
-                        sb.append(nl ? "    call kof_println_string\n" : "    call kof_print_string\n");
-                    }
-                    case "int", "short", "byte" -> {
-                        sb.append(nl ? "    call kof_println_int\n" : "    call kof_print_int\n");
-                    }
-                    case "long" -> sb.append(nl ? "    call kof_println_int\n" : "    call kof_print_int\n");
-                    case "bool", "boolean" -> {
-                        sb.append("    call kof_bool_to_string\n");
-                        sb.append(nl ? "    call kof_println_string\n" : "    call kof_print_string\n");
-                    }
-                    case "float" -> {
-                        // FLT001 (fechado 15/09): println(double/float) direto
-                        // de System.out (não passa pelo valueOf do sugar).
-                        sb.append("    call kof_float_to_string\n");
-                        sb.append(nl ? "    call kof_println_string\n" : "    call kof_print_string\n");
-                    }
-                    case "double" -> {
-                        sb.append("    call kof_double_to_string\n");
-                        sb.append(nl ? "    call kof_println_string\n" : "    call kof_print_string\n");
-                    }
-                    default -> sb.append(nl ? "    call kof_println_string\n" : "    call kof_print_string\n");
-                }
-            } else {
-                // §284: pode chegar um BOX de erasure aqui (println de um
-                // Object direto, sem sugar) — kof_box_to_string normaliza
-                // box→string e passa nao-box cru (o caminho antigo roda
-                // inalterado p/ String/objeto real).
-                sb.append("    call kof_box_to_string\n");
-                sb.append(nl ? "    call kof_println_string\n" : "    call kof_print_string\n");
-            }
-            // o receiver (System.out via KofGetStatic) é descartado — o
-            // runtime nativo não usa o PrintStream.
-            sb.append("    addi sp, sp, 8\n");
-            sb.append("    li a0, 0\n");
-            other.pushRiscv(sb, "a0");
+        // println / print (PrintStream) — extraído ≤600 (NativeRiscvPrintDispatch)
+        if (NativeRiscvPrintDispatch.emit(sb, kc, argType, other)) {
             return;
         }
 
@@ -254,6 +199,13 @@ public final class NativeRiscvCrossOps {
             if (dev.kof.compiler.KofProcess.isResult(argType)) {
                 sb.append("    pop a0\n");
                 sb.append("    call kof_process_result_to_string\n");
+                other.pushRiscv(sb, "a0");
+                return;
+            }
+            if (KofBuffer.isBufferType(vArgType)) {
+                // #651 fatia B: valueOf(Buffer) usa o contrato "Buffer[cap]".
+                sb.append("    pop a0\n");
+                sb.append("    call kof_buffer_to_string\n");
                 other.pushRiscv(sb, "a0");
                 return;
             }
@@ -420,6 +372,7 @@ public final class NativeRiscvCrossOps {
                 // String_equals). O bloco abaixo faz pop a1..aN + pop a0.
                 case "equals" -> "String_equals";
                 case "compareTo" -> "String_compareTo";
+                case "compareToIgnoreCase" -> "String_compareToIgnoreCase";
                 case "hashCode" -> "String_hashCode";
                 default -> null;
             };
@@ -436,13 +389,12 @@ public final class NativeRiscvCrossOps {
                     // §111 cross: sentinela "até o fim" = -1 (0 colide com o
                     // 0 legítimo do 2-arg — mesmo fix x86 do maintainer).
                     sb.append("    pop a1\n    li a2, -1\n");
+                    sb.append("    pop a0\n");
                 } else {
-                    for (int i = argCount - 1; i >= 0; i--) {
-                        sb.append("    pop ").append(crossArgReg(i + 1)).append("\n");
-                    }
+                    emitCrossArgLoads(sb, 1 + argCount);   // a1.. = args; a0 = receiver
                 }
-                sb.append("    pop a0\n");
                 sb.append("    call ").append(fn).append("\n");
+                emitCrossStackCleanup(sb, 1 + argCount);
                 if (!Type.isVoid(kc.returnType())) other.pushRiscv(sb, "a0");
                 return;
             }
@@ -467,11 +419,9 @@ public final class NativeRiscvCrossOps {
 
         // kof_string_equals / concat como FUNCTION (frontend emite assim)
         if (kc.kind() == KofCallKind.FUNCTION && ("kof_string_equals".equals(mn) || "kof_string_concat".equals(mn))) {
-            int argCount = kc.parameterTypes().size();
-            for (int i = argCount - 1; i >= 0; i--) {
-                sb.append("    pop ").append(crossArgReg(i)).append("\n");
-            }
+            emitCrossArgLoads(sb, kc.parameterTypes().size());
             sb.append("    call ").append(mn).append("\n");
+            emitCrossStackCleanup(sb, kc.parameterTypes().size());
             if (!Type.isVoid(kc.returnType())) other.pushRiscv(sb, "a0");
             return;
         }
@@ -479,10 +429,7 @@ public final class NativeRiscvCrossOps {
         // coleções (List/Map/Set) — kof_list_*/kof_map_*/kof_set_*
         if (kc.kind() == KofCallKind.INSTANCE && mn.startsWith("kof_")) {
             int argCount = kc.parameterTypes().size();
-            for (int i = argCount - 1; i >= 0; i--) {
-                sb.append("    pop ").append(crossArgReg(i + 1)).append("\n");
-            }
-            sb.append("    pop a0\n");
+            emitCrossArgLoads(sb, 1 + argCount);   // a1.. = args; a0 = receiver
             // §123: tag de chave no header do map (off 40) — 1=String
             // (kof_string_equals), 0=raw cmpq (Int/Long/... senão chave Int
             // vira PONTEIRO → SIGSEGV). Unknown NÃO toca (mantém default 1).
@@ -503,6 +450,7 @@ public final class NativeRiscvCrossOps {
                 }
             }
             sb.append("    call ").append(mn).append("\n");
+            emitCrossStackCleanup(sb, 1 + argCount);
             if (!Type.isVoid(kc.returnType())) {
                 // §284-map (18/09): leitura de Map com retorno PRIMITIVO
                 // declarado (get/getOrDefault com V pinado) recebe a caixa do
@@ -520,12 +468,9 @@ public final class NativeRiscvCrossOps {
 
         // construtor: obj (dup) + args
         if (kc.kind() == KofCallKind.CONSTRUCTOR && "<init>".equals(mn)) {
-            int argCount = kc.parameterTypes().size();
-            for (int i = argCount - 1; i >= 0; i--) {
-                sb.append("    pop ").append(crossArgReg(i + 1)).append("\n");
-            }
-            sb.append("    pop a0\n");
+            emitCrossArgLoads(sb, 1 + kc.parameterTypes().size());   // a1.. = args; a0 = obj
             sb.append("    call ").append(resolveCalleeNameRiscv(kc)).append("\n");
+            emitCrossStackCleanup(sb, 1 + kc.parameterTypes().size());
             return;
         }
 
@@ -535,31 +480,75 @@ public final class NativeRiscvCrossOps {
             int argCount = kc.parameterTypes().size();
             int vtableIdx = nb.findVirtualMethodIndex(ct.name(), mn, kc.parameterTypes());
             if (vtableIdx >= 0) {
-                for (int i = argCount - 1; i >= 0; i--) {
-                    sb.append("    pop ").append(crossArgReg(i + 1)).append("\n");
-                }
-                sb.append("    pop a0\n");
+                emitCrossArgLoads(sb, 1 + argCount);   // a1.. = args; a0 = receiver
                 sb.append("    ld t0, 8(a0)\n");
                 sb.append("    addi t0, t0, ").append(vtableIdx * 8).append("\n");
                 sb.append("    ld t0, 0(t0)\n");
                 sb.append("    jalr t0\n");
+                emitCrossStackCleanup(sb, 1 + argCount);
                 if (!Type.isVoid(kc.returnType())) other.pushRiscv(sb, "a0");
                 return;
             }
         }
 
         // chamada direta (FUNCTION/STATIC de usuário — args em a0..aN, sem receiver)
-        int argCount = kc.parameterTypes().size();
-        for (int i = argCount - 1; i >= 0; i--) {
-            sb.append("    pop ").append(crossArgReg(i)).append("\n");
-        }
+        emitCrossArgLoads(sb, kc.parameterTypes().size());
         sb.append("    call ").append(resolveCalleeNameRiscv(kc)).append("\n");
+        emitCrossStackCleanup(sb, kc.parameterTypes().size());
         if (!Type.isVoid(kc.returnType())) other.pushRiscv(sb, "a0");
     }
 
-    String crossArgReg(int i) {
+    /**
+     * §546: carrega os {@code count} args do topo da pilha de operandos para a
+     * ABI (a0..a7) — os args 9+ (índice ≥ 8, LP64/AAPCS64) vão à pilha do
+     * callee. O arg {@code count-1} é o topo (0(sp)) e o arg {@code r} está em
+     * {@code 8*(count-1-r)(sp)}. Para ≤8 args usa pops diretos (caminho
+     * histórico, zero drift); para 9+, lê a0..a7 por offset e aloca/mirrora os
+     * stack args abaixo, deixando arg8 no menor endereço (lido em 0(s11)).
+     */
+    void emitCrossArgLoads(StringBuilder sb, int count) {
+        if (count <= 0) return;
         String[] regs = {"a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7"};
-        return i < regs.length ? regs[i] : "a7";
+        if (count <= regs.length) {
+            for (int r = count - 1; r >= 0; r--) {
+                sb.append("    pop ").append(regs[r]).append("\n");
+            }
+            return;
+        }
+        // §546: LP64/AAPCS64 só tem a0..a7. A pilha de operandos tem o arg
+        // `count-1` no topo (0(sp)) e o arg `r` em `8*(count-1-r)(sp)`.
+        // (a) carrega a0..a7 por OFFSET (sem tocar sp), então o bloco de args
+        //     baixos fica intacto até lermos a0;
+        // (b) aloca o bloco de stack args ABAIXO do sp atual e o espelha na
+        //     ordem reversa (arg8 no menor endereço, como o callee lê 0(s11));
+        // (c) o cleanup pós-call só devolve 8*stackArgs a sp.
+        int stackArgs = count - regs.length;
+        for (int r = regs.length - 1; r >= 0; r--) {
+            sb.append("    ld ").append(regs[r]).append(", ")
+              .append(8 * (count - 1 - r)).append("(sp)\n");
+        }
+        if (stackArgs > 0) {
+            sb.append("    addi sp, sp, ").append(-8 * stackArgs).append("\n");
+            // arg(8+k) estava em 8*(count-1-(8+k)) = 8*(2*stackArgs-1-k) do
+            // novo sp; vai para o slot k (arg8 no menor endereço).
+            for (int k = 0; k < stackArgs; k++) {
+                sb.append("    ld t0, ").append(8 * (2 * stackArgs - 1 - k)).append("(sp)\n");
+                sb.append("    sd t0, ").append(8 * k).append("(sp)\n");
+            }
+        }
+    }
+
+    /**
+     * §546: limpa a pilha após o {@code call} de uma aridade com stack args.
+     * Para ≤8 args o {@link #emitCrossArgLoads} já consumiu exatamente `count`
+     * slots via pop (sp volta ao nível pré-args) → no-op. Para 9+, nada foi
+     * popado: sp caiu 8*stackArgs (bloco novo) e o bloco de args original
+     * (count slots) ainda está lá → devolve 8*(count+stackArgs).
+     */
+    void emitCrossStackCleanup(StringBuilder sb, int count) {
+        int stackArgs = Math.max(0, count - 8);
+        if (stackArgs == 0) return;
+        sb.append("    addi sp, sp, ").append(8 * (count + stackArgs)).append("\n");
     }
 
     String resolveCalleeNameRiscv(KofCall kc) {

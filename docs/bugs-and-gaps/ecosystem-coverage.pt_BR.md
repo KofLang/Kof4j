@@ -272,8 +272,8 @@ Legenda nas colunas de target: `y` = suportado, `~` = parcial, `–` = não.
 |-----------|-----|-----|--------|----|-------|------|
 | HTTP integrations | ✅ `kof.http` client (3 targets — Native asm HTTP/1.1) | y | y | y | KofHttpE2ETest | stdlib/http.md |
 | file adapters | `DONE` (kof.io) | y | y | y | IoE2ETest | stdlib/IO.md |
-| retry / timeout / circuit | ✅ `kof.http` `retry`/`timeout`/`circuit` (JVM+JS, 30/08); Native aceita como no-op SILENCIOSO (compila OK, `ret` puro — ver §259; `HTTP002` é o único código HTTP Native emitido) | y | no-op | y | KofHttpResilienceE2ETest | stdlib/http.md |
-| circuit breaker / bulkhead | ✅ circuit breaker `kof.http` (30/08, 30s window, fail-fast); bulkhead `PLANNED` | y | – HTTP002 | y | KofHttpResilienceE2ETest | stdlib/http.md |
+| retry / timeout / circuit | ✅ `kof.http` `retry`/`timeout`/`circuit` (JVM+JS, 30/08; **Native x86_64+riscv64+aarch64 17/09 — §259 CLOSED: real nonblock+ppoll-deadline+SO_RCVTIMEO / N+1 attempts / fail-fast janela 30s, mensagens com paridade cross**) | y | ✅ §259 | y | KofHttpResilienceE2ETest | stdlib/http.md |
+| circuit breaker / bulkhead | ✅ circuit breaker `kof.http` (30/08, 30s window, fail-fast; **§259 CLOSED — real em JVM/JS e nos 4 alvos nativos**); bulkhead `PLANNED` | y | y | y | KofHttpResilienceE2ETest | stdlib/http.md |
 | idempotency | `PLANNED` | — | — | — | — | — |
 
 ## 3.8 Batch
@@ -361,7 +361,7 @@ Legenda nas colunas de target: `y` = suportado, `~` = parcial, `–` = não.
 | # | Gap | Impacto | Local proposto |
 |---|-----|---------|----------------|
 | G1 | ~~**Database/SQL** inexistente~~ — ✅ **nível 0 implementado**: `kof.db` (JDBC JVM, SQLite nativo, MySQL wire x86-64 real) + `kof.orm` (entity, CRUD, where, migrate, MongoDB) | apps reais com persistência no JVM/Native-SQLite | ✅ query DSL tipada (01/09) + kof.db no JS (16/09) + `kof.orm` no JS (18/09, `ORM001` fechado); resta: pools; ORM no **Native** x86-64 ✅ 22/09 (13/13 faces, F2d1–F2d7), `ORM001` só em riscv64/aarch64 |
-| G2 | ~~**HTTP client** inexistente~~ — ✅ **implementado**: `kof.http` client (get/post/put/delete/patch/options/status/timeout + retry/circuit 30/08, headers; HTTP002 no Native) | integrações, testes, frontend | ✅ fechado — `KofHttpE2ETest` (4, JVM+JS) + `KofHttpResilienceE2ETest` (3) |
+| G2 | ~~**HTTP client** inexistente~~ — ✅ **implementado**: `kof.http` client (get/post/put/delete/patch/options/status/timeout + retry/circuit 30/08, headers; Native HTTP/1.1 asm, §259 resiliência real nos 4 nativos) | integrações, testes, frontend | ✅ fechado — `KofHttpE2ETest` (4, JVM+JS) + `KofHttpResilienceE2ETest` (3) |
 | G3 | ~~Configuration~~ — ✅ `kof.config` implementado (arquivo > env > profile > default, typed `str/int/long/bool`); **CONF001 nativo fechado** (asm `/proc/self/environ`); JS: CONF001 fechado 16/09 | — | — |
 | G4 | ~~**Validation** inexistente~~ — ✅ **implementado**: `kof.validation` (13 predicados nos 3 targets) | — | `KofValidationTest` (3/3) |
 | G5 | ~~**Observabilidade runtime parcial**~~ — ✅ **implementado**: `kof.observability` (health/readiness/liveness, counter/increment/gauge, requestId/correlationId — JVM/Native/JS; `KofObservabilityTest` 10/10 incl. OBS003) | — | `KofObservabilityTest` |
@@ -472,7 +472,7 @@ Princípios mantidos:
 
 messaging (`kof.concurrent.Queue`, event bus, adapters Kafka/AMQP),
 ~~caching~~ — ✅ `kof.cache` (30/08, 3 targets),
-~~resilience (retry/timeout/circuit breaker)~~ — ✅ `kof.http` (30/08, JVM+JS; HTTP002 no Native),
+~~resilience (retry/timeout/circuit breaker)~~ — ✅ `kof.http` (30/08, JVM+JS; **§259 CLOSED 17/09 — real nos 4 alvos nativos**),
 ~~WebSocket/SSE~~ — ✅ JVM (30/08; `KofWebWsE2ETest`/`KofWebSseE2ETest`); hardening/limites/observabilidade `app.configure`/`app.stats` (04/09),
 GraphQL/gRPC (interop), HTTP/2.
 

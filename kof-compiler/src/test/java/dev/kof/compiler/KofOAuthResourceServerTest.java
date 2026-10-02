@@ -226,24 +226,10 @@ class KofOAuthResourceServerTest {
     }
 
     private void waitListening(int port) throws IOException {
-        for (int attempt = 0; attempt < 40; attempt++) {
-            if (serverProcess != null && !serverProcess.isAlive()) {
-                String out = new String(serverProcess.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-                throw new IOException("server exited early: " + out);
-            }
-            try (Socket probe = new Socket()) {
-                probe.connect(new InetSocketAddress("127.0.0.1", port), 200);
-                return;
-            } catch (IOException e) {
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    break;
-                }
-            }
+        if (serverProcess == null) {
+            throw new IOException("server process was not started");
         }
-        throw new IOException("server did not start listening");
+        TestServerFixture.awaitListening(serverProcess, port);
     }
 
     private int freePort() throws IOException {

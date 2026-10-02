@@ -172,11 +172,103 @@ public final class RuntimeStringBase {
                 leaq 24(%r12), %rsi
                 movl 16(%r12), %edx
                 call kof_memcpy
-                jmp .Lkof_concat_done
+                jmp .Lkof_concat_after_b
             .Lkof_concat_copy_null_r12:
                 leaq .Lkof_null_str(%rip), %rsi
                 movl $4, %edx
                 call kof_memcpy
+            .Lkof_concat_after_b:
+            # §537: paridade com a JVM (UTF-16) — se `a` termina num high
+            # surrogate e `b` comeca num low surrogate, os dois 3-byte WTF-8
+            # viram UM 4-byte UTF-8. Sem isto `"" + (55357 as Char) + (56832
+            # as Char)` nao bate com o literal `😀`.
+            testq %rbx, %rbx
+            jz .Lkof_concat_done
+            testq %r12, %r12
+            jz .Lkof_concat_done
+            movl 16(%rbx), %eax        # aLen
+            movl 16(%r12), %edx        # bLen
+            cmpl $3, %eax
+            jl .Lkof_concat_done
+            cmpl $3, %edx
+            jl .Lkof_concat_done
+            leaq 24(%r14), %rsi        # p = destino
+            leaq -3(%rsi,%rax), %rcx   # a3 = p + aLen - 3
+            cmpb $0xED, 0(%rcx)
+            jne .Lkof_concat_done
+            movzbl 1(%rcx), %r8d
+            andl $0xF0, %r8d
+            cmpl $0xA0, %r8d
+            jne .Lkof_concat_done
+            movzbl 2(%rcx), %r9d
+            andl $0xC0, %r9d
+            cmpl $0x80, %r9d
+            jne .Lkof_concat_done
+            addq %rax, %rsi            # b0 = p + aLen
+            cmpb $0xED, 0(%rsi)
+            jne .Lkof_concat_done
+            movzbl 1(%rsi), %r8d
+            andl $0xF0, %r8d
+            cmpl $0xB0, %r8d
+            jne .Lkof_concat_done
+            movzbl 2(%rsi), %r9d
+            andl $0xC0, %r9d
+            cmpl $0x80, %r9d
+            jne .Lkof_concat_done
+            # codepoint = 0x10000 + ((hi-0xD800)<<10) + (lo-0xDC00)
+            movzbl 1(%rcx), %r8d
+            andl $0x3F, %r8d
+            shll $6, %r8d
+            movzbl 2(%rcx), %r9d
+            andl $0x3F, %r9d
+            orl %r9d, %r8d
+            orl $0xD800, %r8d          # hi
+            movzbl 1(%rsi), %r9d
+            andl $0x3F, %r9d
+            shll $6, %r9d
+            movzbl 2(%rsi), %r10d
+            andl $0x3F, %r10d
+            orl %r10d, %r9d
+            orl $0xDC00, %r9d          # lo
+            subl $0xD800, %r8d
+            shll $10, %r8d
+            subl $0xDC00, %r9d
+            addl %r9d, %r8d
+            addl $0x10000, %r8d        # cp
+            # shift b[3..bLen) 2 bytes left (dest b+1)
+            leaq 3(%rsi), %r10         # src
+            leaq 1(%rsi), %r11         # dst
+            subl $3, %edx              # count = bLen-3
+            xorl %edi, %edi
+        .Lkof_concat_shift_loop:
+            cmpl %edx, %edi
+            jge .Lkof_concat_shift_done
+            movb (%r10,%rdi), %al
+            movb %al, (%r11,%rdi)
+            incl %edi
+            jmp .Lkof_concat_shift_loop
+        .Lkof_concat_shift_done:
+            subl $2, %r13d
+            movl %r13d, 16(%r14)
+            # escreve os 4 bytes UTF-8 de cp em a3 (rcx)
+            movl %r8d, %r9d
+            shrl $18, %r9d
+            orl $0xF0, %r9d
+            movb %r9b, 0(%rcx)
+            movl %r8d, %r9d
+            shrl $12, %r9d
+            andl $0x3F, %r9d
+            orl $0x80, %r9d
+            movb %r9b, 1(%rcx)
+            movl %r8d, %r9d
+            shrl $6, %r9d
+            andl $0x3F, %r9d
+            orl $0x80, %r9d
+            movb %r9b, 2(%rcx)
+            movl %r8d, %r9d
+            andl $0x3F, %r9d
+            orl $0x80, %r9d
+            movb %r9b, 3(%rcx)
             .Lkof_concat_done:
                 movb $0, 24(%r14,%r13)
                 movq %r14, %rax

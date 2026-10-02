@@ -50,6 +50,12 @@ public class StatementParser {
     }
 
     static StatementNode parseStatement(ParseContext ctx) {
+        // D-SCOPED-RESOURCES-GO: contextual `using (name = init, closer) { }`
+        // (only `using` + `(` takes this branch; +4 lines, ratchet intact).
+        if (ctx.check(TokenType.IDENTIFIER) && "using".equals(ctx.peek().value())
+                && ctx.checkNext(TokenType.LPAREN)) {
+            return UsingParser.parseUsingStatement(ctx);
+        }
         if (ctx.check(TokenType.LBRACE)) {
             return new BlockStmt(ctx.pos(), StatementParser.parseBlock(ctx));
         }
@@ -308,6 +314,7 @@ public class StatementParser {
         ctx.expect(TokenType.LBRACE, "Expected '{'", "PARSE072");
         List<SwitchCase> cases = new ArrayList<>();
         List<StatementNode> defaultBody = List.of();
+        boolean hasDefault = false;
         while (!ctx.check(TokenType.RBRACE) && !ctx.atEnd()) {
             if (ctx.check(TokenType.CASE)) {
                 SourcePosition cp = ctx.pos();
@@ -322,6 +329,7 @@ public class StatementParser {
             } else if (ctx.check(TokenType.DEFAULT)) {
                 ctx.advance();
                 ctx.expect(TokenType.COLON, "Expected ':'", "PARSE074");
+                hasDefault = true;                       // #686: `default: }` conta
                 defaultBody = new ArrayList<>();
                 while (!ctx.check(TokenType.CASE) && !ctx.check(TokenType.DEFAULT) && !ctx.check(TokenType.RBRACE) && !ctx.atEnd()) {
                     defaultBody.add(StatementParser.parseStatement(ctx));
@@ -331,7 +339,7 @@ public class StatementParser {
             }
         }
         ctx.expect(TokenType.RBRACE, "Expected '}'", "PARSE075");
-        return new SwitchStmt(p, expr, cases, defaultBody);
+        return new SwitchStmt(p, expr, cases, defaultBody, hasDefault);
     }
 
     /**

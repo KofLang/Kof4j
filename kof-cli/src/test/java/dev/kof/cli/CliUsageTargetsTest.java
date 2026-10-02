@@ -1,10 +1,15 @@
 package dev.kof.cli;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -70,20 +75,32 @@ class CliUsageTargetsTest {
         assertFalse(line.contains("android"), "test nao aceita android — usage: " + line);
     }
 
+    /**
+     * Regressao #715 (a face fatal do teste introduzido em 5aa776881): aquele
+     * teste chamava {@code CmdBuild.run({"build"})} IN-PROCESS; apos #708 esse
+     * caminho faz {@code System.exit(1)}, matando o JVM do surefire ("forked
+     * VM terminated without properly saying goodbye") e derrubando o modulo
+     * kof-cli antes de qualquer teste rodar. O CLI tem de ser exercitado em
+     * SUBPROCESSO (como {@code TwoRootsCliE2ETest}) para o exit ser contido e
+     * observavel, e a assercao do texto mudou (o caminho sem fonte agora diz
+     * explicitamente o que falta, nao o usage generico).
+     */
     @Test
-    void buildWithoutSourcePrintsUsageInsteadOfCrashing() {
-        // Regressao: `CmdBuild.run` acessava args[1] depois de checar so
-        // length < 2 — `kof build` (sem fonte) estourava
-        // ArrayIndexOutOfBoundsException em vez de imprimir o usage (exit 1).
-        PrintStream realErr = System.err;
-        ByteArrayOutputStream err = new ByteArrayOutputStream();
-        System.setErr(new PrintStream(err, true, StandardCharsets.UTF_8));
-        try {
-            assertDoesNotThrow(() -> CmdBuild.run(new String[] { "build" }));
-        } finally {
-            System.setErr(realErr);
-        }
-        assertTrue(err.toString(StandardCharsets.UTF_8).contains("usage: kof build"),
-                "deve imprimir o usage, nao estourar AIOOBE");
+    void buildWithoutSourceFailsExplicitlyInSubprocess(@TempDir Path dir) throws Exception {
+        List<String> cmd = new ArrayList<>();
+        cmd.add(Path.of(System.getProperty("java.home"), "bin", "java").toString());
+        cmd.add("-cp");
+        cmd.add(System.getProperty("java.class.path"));
+        cmd.add("dev.kof.cli.Main");
+        cmd.add("build");
+        ProcessBuilder pb = new ProcessBuilder(cmd).directory(dir.toFile());
+        pb.redirectErrorStream(true);
+        Process p = pb.start();
+        String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertTrue(p.waitFor(300, TimeUnit.SECONDS), "o CLI nao pode hangar\n" + out);
+        assertEquals(1, p.exitValue(), "`kof build` sem raiz deve exit 1 (nunca crashar):\n" + out);
+        assertTrue(out.contains("no source root given"),
+                "deve dizer o que falta (nao um AIOOBE/stacktrace):\n" + out);
     }
+
 }

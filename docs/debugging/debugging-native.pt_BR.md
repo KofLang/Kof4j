@@ -244,10 +244,12 @@ O `NativeCrossLink` aceita o override `KOF_CROSS_SYSROOT` para o sysroot cross
 **auto-consistente para os testes que linkam E executam pelo mesmo override**
 (ex.: a prova cross §493 do ORM), mas envenena classes não relacionadas: os
 harnesses `NativeRiscvGc*/Dtoa/DbWire` de aarch64 que linkam com o override e
-executam sob o loader do sistema dão SIGSEGV (139) no qemu, e
-`NativeCrossDynamicLinkTest.ldArgsSqliteAddsLsqlite3` trava o ramo de sysroot
-padrão (`-lsqlite3`) e falha quando o override troca para
-`-l:libsqlite3.so.0`. **Regra:** rodar a suíte reactor completa SEM
+executam sob o loader do sistema dão SIGSEGV (139) no qemu.
+(`NativeCrossDynamicLinkTest.ldArgsSqliteAddsLsqlite3` travava o ramo de
+sysroot padrão (`-lsqlite3`) e falhava quando o override trocava para
+`-l:libsqlite3.so.0`; desde a **#699** deriva o arg esperado de
+`NativeCrossLink.sqliteLinkArg`, então é agnóstico de host e não é mais
+vítima do override.) **Regra:** rodar a suíte reactor completa SEM
 `KOF_CROSS_SYSROOT` (o canônico é `/usr/<arch>-linux-gnu`; os testes cross que
 exigem sqlite pulam honestos pelo guard `sqliteAvailable`), e usar o override
 só em provas cross focadas onde link+exec o compartilham. Para um sysroot

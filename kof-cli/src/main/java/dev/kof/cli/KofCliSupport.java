@@ -4,6 +4,7 @@ import dev.kof.compiler.CompilationResult;
 import dev.kof.compiler.CompilerDriver;
 import dev.kof.compiler.Diagnostic;
 import dev.kof.compiler.KofProjectConfig;
+import dev.kof.compiler.ProjectLocator;
 import dev.kof.compiler.Target;
 import dev.kof.compiler.TargetMatrix;
 
@@ -259,6 +260,32 @@ final class KofCliSupport {
         catch (IOException e) { System.err.println("error: " + e.getMessage()); }
         files.sort(java.util.Comparator.comparing(Path::toString));
         return files;
+    }
+
+    /**
+     * #708: descoberta recursiva de uma source root declarada
+     * ({@code [sources] app/test} do kof.toml). Cada subdiretório é um
+     * diretório-pacote — a raiz dada é a base dos pacotes; portanto a coleta
+     * desce (diferente de {@link #collect}, em que um diretório = um pacote).
+     * Ordenada por caminho para saída determinística.
+     */
+    static List<Path> collectRecursive(Path root) {
+        List<Path> files = new ArrayList<>();
+        try (var s = Files.walk(root)) {
+            s.filter(KofCliSupport::isKofSource).forEach(files::add);
+        } catch (IOException e) { System.err.println("error: " + e.getMessage()); }
+        files.sort(java.util.Comparator.comparing(Path::toString));
+        return files;
+    }
+
+    /** #708: raiz do projeto (kof.toml em um ancestral), ou null. */
+    static Path projectRootOf(Path start) {
+        return ProjectLocator.locate(start);
+    }
+
+    /** #708: manifesto do projeto, ou vazio quando não há kof.toml. */
+    static KofProjectConfig configOf(Path projectRoot) {
+        return projectRoot != null ? KofProjectConfig.load(projectRoot) : KofProjectConfig.empty();
     }
 
     static void cleanup(Path dir) {

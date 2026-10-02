@@ -163,18 +163,11 @@ class KofBlogE2ETest {
         appProcesses.put(tempDir, p);
         // espera o listen abrir a porta (até 30s; o fork do surefire sob o
         // load do CI pode atrasar o boot do child)
-        for (int i = 0; i < 300; i++) {
-            try (Socket probe = new Socket("127.0.0.1", port)) {
-                return port;
-            } catch (IOException e) {
-                if (!p.isAlive()) {
-                    throw new IOException("app died; output: " + Files.readString(outLog));
-                }
-                Thread.sleep(100);
-            }
+        if (!TestServerFixture.awaitPort(port, 300, 100)) {
+            throw new IOException("app did not listen on port " + port
+                    + "; alive=" + p.isAlive() + "; output=" + Files.readString(outLog));
         }
-        throw new IOException("app did not listen on port " + port
-                + "; alive=" + p.isAlive() + "; output: " + Files.readString(outLog));
+        return port;
     }
 
     private static Path testClassesDir() throws Exception {

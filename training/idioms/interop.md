@@ -2,7 +2,7 @@
 
 # Idioms — Interop (JVM types and C FFI)
 
-**Status:** partial (whitelist) · **Introduced:** 0.3.x (TIER 2.1) · **Updated:** 21/09 (D6 struct/array/out-buffer shapes LAND on the JVM — record by value in/out, scalar `T[]`→`ptr` copy-in, `Buffer(U8)` INOUT; see the FFI front in `IMPLEMENTATION-UNIVERSAL-PLATFORM.md` 3.8b)
+**Status:** partial (whitelist) · **Introduced:** 0.3.x (TIER 2.1) · **Updated:** 29/09 (D6 struct/array/out-buffer shapes LAND on the JVM — record by value in/out, scalar `T[]`→`ptr` copy-in, `Buffer(U8)` INOUT; the same shapes bind on **Native x86-64** since 3.7 + D6-2 + `#651` fatia A2; see the FFI front in `IMPLEMENTATION-UNIVERSAL-PLATFORM.md` 3.8b)
 
 ## What it is
 
@@ -13,8 +13,14 @@ Two surfaces, one rule: the platform already exists — do not rebuild it.
 ## Real API (measured in the compiler — 0.5.0-beta)
 
 ```kof
-// (a) JVM interop — qualified name, no wrapper
-var now = java.time.Instant.now()
+// (a) JVM interop — import first; the qualified name is NOT a general receiver
+// (measured 01/10, §558): `import java.X.Y;` + the plain name works on JDK
+// `java.*`/`javax.*` with NO external classpath; a bare-qualified CALL
+// (`java.time.Instant.now()` as a statement/argument) is SEM011 at every
+// position except var-decl initializer and `new java.X.Y(...)`.
+import java.time.Instant
+
+var now = Instant.now()
 println(now.toString())
 
 // (b) C FFI — the JVM binds any SCALAR signature (R3 generalized 18/09):
@@ -39,6 +45,23 @@ extern "/lib/x86_64-linux-gnu/libc.so.6" getenv(String n): String // ok — Stri
 //     result on JVM, Native and JS host; `sqrt(9)` (Int->Double slot) and `labs(i)` likewise.
 //     What Kof does not convert (String/Bool in a numeric slot, Double->Int narrowing) is SEM014
 //     at the call site — never bits reinterpreted by the slot class.
+
+// (b2) FOREIGN MODULE (connector ecosystem, `D-CONNECTORS`, plan §9.16 slice A —
+//   landed 01/10): a block grouping several `extern` under ONE library, so a
+//   connector declares its symbols once instead of repeating the path. It is
+//   sugar over the SAME FFI path — no new ABI engine (rule 54):
+foreign module libm {
+    library "libm.so.6"       // required (else PARSE097)
+    abi c                     // declared ABI (plan §3.9)
+    ownership borrowed        // Core vocabulary: owned/borrowed/shared/opaque/immutable/mutable (else PARSE099)
+    extern fmod(Double a, Double b): Double
+    extern sqrt(Double x): Double
+    extern pow(Double x, Double y): Double
+}
+// `foreign`/`module` are CONTEXTUAL keywords (like `sealed`): outside this
+// header they stay ordinary identifiers. An `extern "..."` inside the block
+// may still carry its own library (it overrides the header). Binding/ABI is
+// exactly the existing CompilerFfiBinding (FFI001/FFI002 per target).
 
 // (c) CALLBACKS (C2 ✅ + JS parity C3.2/C3.3 ✅, 18/09): a Kof function handed to C as a
 // function pointer. Function-typed parameter + lambda at the call site;
@@ -69,9 +92,11 @@ var b = buffer.alloc(4)                               // Buffer(U8) — lifetime
 fill(b, 4)                                            // C writes into the buffer
 println(b.bytes())                                    // Byte[] clone (read it back)
 println(ptlen(Pt(1, 2)))                              // 2 (record passed by value)
-// Native: record/array/buffer externs = FFI001 (honest gap, R6 — the Native
-// struct/sret ABI is 3.7). JS binds the same D6 shapes since R54/R55/R57/R58/R59
-// (byte-for-byte JVM==JS). The scalar ABI binds on every target.
+// Native x86-64 binds the same D6 shapes: record by value (3.7), scalar
+// `T[]`→`ptr` copy-in (D6-2) and `Buffer(U8)` INOUT (#651 fatia A2 — the C
+// receives the buffer payload at obj+24, so the C write is already the
+// copy-back). Cross riscv64/aarch64 keeps the buffer face at FFI001 (R6).
+// JS binds the same D6 shapes since R54/R55/R57/R58/R59 (byte-for-byte JVM==JS).
 ```
 
 ## Reflection at the boundary — `interop.schema(R)` (X6, `D-INTEROP-REFLECT`)
@@ -114,7 +139,7 @@ println(r.callInt("sq", listOf(5)))                    // 25 — byte-identical 
 
 // records through the boundary: composition is the platform's own JSON
 var wire = py.callJson("norm", json.encode(listOf(p)))
-var back = json.decode[Point](wire)
+var back = json.decode<Point>(wire)
 
 // the call can never hang (fatia 3) — the DEADLINE RUNS IN THE CHILD:
 py.timeout(2000)              // default 30000; 0 = no limit (declared, never silent)
@@ -158,4 +183,4 @@ on the runner, `InteropTimeoutE2ETest` 4/4, `InteropTimeoutScriptE2ETest` 1/1).
 
 `docs/language-reference/syntax.md` (§FFI to C), `grammar.md`
 (`extern-declaration`), `modules.md` §6; gaps `FFI001`/`FFI002`;
-R3 landed: JVM arbitrary scalar (arity/void/String-return, 18/09) + JS host parity (3.6.F2/F3 ✅ 18/09) + **callbacks bind on JVM AND the JS host runner, byte-for-byte parity (C2 ✅ + C3.2/C3.3/C3.4 ✅ 18/09 — primitive + `String`-arg callbacks; `JvmFfiCallbackE2ETest` incl. `jvmAndJsCallbacksMatchByteForByte` and `stringCallbackArgsBindAndMatchJvmJs`)** + **D6 struct/array/out-buffer shapes on the JVM (3.8b fatias 1–4 ✅ 20–21/09: record by value in/out, scalar `T[]`→`ptr` copy-in, `Buffer(U8)` INOUT; `FfiStructE2ETest` 10/10, `FfiArrayE2ETest` 5/5, `BufferE2ETest` 4/4, `BufferFfiE2ETest` 4/4)** + **the same D6 shapes on the JS target (3.8b bridge ✅ 21/09 — R54 record arg, R55 scalar `T[]`→ptr copy-in, R57 `kof.buffer` namespace, R58 `Buffer(U8)` INOUT, R59 record return by value; byte-for-byte JVM==JS: `FfiStructE2ETest#structReturnByValueJsParity`, `FfiArrayE2ETest#arrayParamByValueJsParity`, `BufferE2ETest#allocAndBytesJsParity`, `BufferFfiE2ETest#bufferInoutCopyInCopyBackJsParity`)** + **the Native scalar ABI binds on all 3 archs (fatias 1–2 ✅ 20/09 — §369, §61 CLOSED: `FfiNativeE2ETest` 16/16 x86-64 + `FfiNativeCrossE2ETest` 6/6 riscv64×aarch64 byte-identical under qemu)**; **decided 21/09:** variadics = none (`D-R3-3.5`), opaque `Handle` + `Buffer(U8,INOUT)` (`D-R3-3.3` — Buffer landed, `Handle` waits on the RAII front). Remaining (cross-lane/later): Native struct/sret (3.7), callbacks/upcalls on Native (no mechanism — `FFI001`), `Handle` lifetimes (`future/scoped-resources-plan.md`).
+R3 landed: JVM arbitrary scalar (arity/void/String-return, 18/09) + JS host parity (3.6.F2/F3 ✅ 18/09) + **callbacks bind on JVM AND the JS host runner, byte-for-byte parity (C2 ✅ + C3.2/C3.3/C3.4 ✅ 18/09 — primitive + `String`-arg callbacks; `JvmFfiCallbackE2ETest` incl. `jvmAndJsCallbacksMatchByteForByte` and `stringCallbackArgsBindAndMatchJvmJs`)** + **D6 struct/array/out-buffer shapes on the JVM (3.8b fatias 1–4 ✅ 20–21/09: record by value in/out, scalar `T[]`→`ptr` copy-in, `Buffer(U8)` INOUT; `FfiStructE2ETest` 10/10, `FfiArrayE2ETest` 5/5, `BufferE2ETest` 4/4, `BufferFfiE2ETest` 4/4)** + **the same D6 shapes on the JS target (3.8b bridge ✅ 21/09 — R54 record arg, R55 scalar `T[]`→ptr copy-in, R57 `kof.buffer` namespace, R58 `Buffer(U8)` INOUT, R59 record return by value; byte-for-byte JVM==JS: `FfiStructE2ETest#structReturnByValueJsParity`, `FfiArrayE2ETest#arrayParamByValueJsParity`, `BufferE2ETest#allocAndBytesJsParity`, `BufferFfiE2ETest#bufferInoutCopyInCopyBackJsParity`)** + **the Native scalar ABI binds on all 3 archs (fatias 1–2 ✅ 20/09 — §369, §61 CLOSED: `FfiNativeE2ETest` 16/16 x86-64 + `FfiNativeCrossE2ETest` 6/6 riscv64×aarch64 byte-identical under qemu)**; **decided 21/09:** variadics = none (`D-R3-3.5`), opaque `Handle` + `Buffer(U8,INOUT)` (`D-R3-3.3` — Buffer landed, `Handle` waits on the RAII front). Remaining (cross-lane/later): cross riscv64/aarch64 struct float/HFA/byref and the `Buffer(U8)` face (`#651` fatia B), callbacks/upcalls on Native (no mechanism — `FFI001`), `Handle` lifetimes (`docs/scoped-resources-plan.md`).
