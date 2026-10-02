@@ -393,6 +393,14 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_math_lerp" -> "(DDD)D";
             case "kof_math_percentage" -> "(DD)D";
             case "kof_math_pow" -> "(DD)D";
+            case "kof_math_sinh", "kof_math_cosh", "kof_math_tanh",
+                 "kof_math_asinh", "kof_math_acosh", "kof_math_atanh",
+                 "kof_math_exp", "kof_math_expm1", "kof_math_log",
+                 "kof_math_log1p", "kof_math_log10", "kof_math_cbrt",
+                 "kof_math_ceil", "kof_math_floor", "kof_math_rint",
+                 "kof_math_signum" -> "(D)D";
+            case "kof_math_hypot" -> "(DD)D";
+            case "kof_math_round" -> "(D)J";
             case "kof_math_isInteger", "kof_math_isDecimal" -> "(D)Z";
             case "kof_math_roundTo" -> "(DI)D";
             // ── kof.strings (STDLIB S2a) ────────────────────────────────────

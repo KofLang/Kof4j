@@ -32,6 +32,237 @@ public final class NativeRiscvAsmRtB32 {
                 fmv.d.x f0, a0
                 fsqrt.d f0, f0
                 fmv.x.d a0, f0
+
+            # === Stage 2 — libm shims RISC-V ===
+            # kof_math_sinh(a0=x) -> a0=bits
+            .globl kof_math_sinh
+            kof_math_sinh:
+                fmv.d.x f0, a0
+                addi    sp, sp, -16
+                fsd     f0, 0(sp)
+                call    sinh
+                fld     f0, 0(sp)
+                addi    sp, sp, 16
+                fmv.x.d a0, f0
+                ret
+
+            # kof_math_cosh(a0=x) -> a0=bits
+            .globl kof_math_cosh
+            kof_math_cosh:
+                fmv.d.x f0, a0
+                addi    sp, sp, -16
+                fsd     f0, 0(sp)
+                call    cosh
+                fld     f0, 0(sp)
+                addi    sp, sp, 16
+                fmv.x.d a0, f0
+                ret
+
+            # kof_math_tanh(a0=x) -> a0=bits
+            .globl kof_math_tanh
+            kof_math_tanh:
+                fmv.d.x f0, a0
+                addi    sp, sp, -16
+                fsd     f0, 0(sp)
+                call    tanh
+                fld     f0, 0(sp)
+                addi    sp, sp, 16
+                fmv.x.d a0, f0
+                ret
+
+            # kof_math_asinh(a0=x) -> a0=bits
+            .globl kof_math_asinh
+            kof_math_asinh:
+                fmv.d.x f0, a0
+                addi    sp, sp, -16
+                fsd     f0, 0(sp)
+                call    asinh
+                fld     f0, 0(sp)
+                addi    sp, sp, 16
+                fmv.x.d a0, f0
+                ret
+
+            # kof_math_acosh(a0=x) -> a0=bits
+            .globl kof_math_acosh
+            kof_math_acosh:
+                fmv.d.x f0, a0
+                addi    sp, sp, -16
+                fsd     f0, 0(sp)
+                call    acosh
+                fld     f0, 0(sp)
+                addi    sp, sp, 16
+                fmv.x.d a0, f0
+                ret
+
+            # kof_math_atanh(a0=x) -> a0=bits
+            .globl kof_math_atanh
+            kof_math_atanh:
+                fmv.d.x f0, a0
+                addi    sp, sp, -16
+                fsd     f0, 0(sp)
+                call    atanh
+                fld     f0, 0(sp)
+                addi    sp, sp, 16
+                fmv.x.d a0, f0
+                ret
+
+            # kof_math_exp(a0=x) -> a0=bits
+            .globl kof_math_exp
+            kof_math_exp:
+                fmv.d.x f0, a0
+                addi    sp, sp, -16
+                fsd     f0, 0(sp)
+                call    exp
+                fld     f0, 0(sp)
+                addi    sp, sp, 16
+                fmv.x.d a0, f0
+                ret
+
+            # kof_math_expm1(a0=x) -> a0=bits
+            .globl kof_math_expm1
+            kof_math_expm1:
+                fmv.d.x f0, a0
+                addi    sp, sp, -16
+                fsd     f0, 0(sp)
+                call    expm1
+                fld     f0, 0(sp)
+                addi    sp, sp, 16
+                fmv.x.d a0, f0
+                ret
+
+            # kof_math_log(a0=x) -> a0=bits
+            .globl kof_math_log
+            kof_math_log:
+                fmv.d.x f0, a0
+                addi    sp, sp, -16
+                fsd     f0, 0(sp)
+                call    log
+                fld     f0, 0(sp)
+                addi    sp, sp, 16
+                fmv.x.d a0, f0
+                ret
+
+            # kof_math_log1p(a0=x) -> a0=bits
+            .globl kof_math_log1p
+            kof_math_log1p:
+                fmv.d.x f0, a0
+                addi    sp, sp, -16
+                fsd     f0, 0(sp)
+                call    log1p
+                fld     f0, 0(sp)
+                addi    sp, sp, 16
+                fmv.x.d a0, f0
+                ret
+
+            # kof_math_log10(a0=x) -> a0=bits
+            .globl kof_math_log10
+            kof_math_log10:
+                fmv.d.x f0, a0
+                addi    sp, sp, -16
+                fsd     f0, 0(sp)
+                call    log10
+                fld     f0, 0(sp)
+                addi    sp, sp, 16
+                fmv.x.d a0, f0
+                ret
+
+            # kof_math_cbrt(a0=x) -> a0=bits
+            .globl kof_math_cbrt
+            kof_math_cbrt:
+                fmv.d.x f0, a0
+                addi    sp, sp, -16
+                fsd     f0, 0(sp)
+                call    cbrt
+                fld     f0, 0(sp)
+                addi    sp, sp, 16
+                fmv.x.d a0, f0
+                ret
+
+            # kof_math_hypot(a0=x, a1=y) -> a0=bits
+            .globl kof_math_hypot
+            kof_math_hypot:
+                fmv.d.x f0, a0
+                fmv.d.x f1, a1
+                addi    sp, sp, -32
+                fsd     f0, 0(sp)
+                fsd     f1, 8(sp)
+                call    hypot
+                fld     f0, 0(sp)
+                addi    sp, sp, 32
+                fmv.x.d a0, f0
+                ret
+
+            # kof_math_ceil(a0=x) -> a0=bits
+            .globl kof_math_ceil
+            kof_math_ceil:
+                fmv.d.x f0, a0
+                addi    sp, sp, -16
+                fsd     f0, 0(sp)
+                call    ceil
+                fld     f0, 0(sp)
+                addi    sp, sp, 16
+                fmv.x.d a0, f0
+                ret
+
+            # kof_math_floor(a0=x) -> a0=bits
+            .globl kof_math_floor
+            kof_math_floor:
+                fmv.d.x f0, a0
+                addi    sp, sp, -16
+                fsd     f0, 0(sp)
+                call    floor
+                fld     f0, 0(sp)
+                addi    sp, sp, 16
+                fmv.x.d a0, f0
+                ret
+
+            # kof_math_rint(a0=x) -> a0=bits
+            .globl kof_math_rint
+            kof_math_rint:
+                fmv.d.x f0, a0
+                addi    sp, sp, -16
+                fsd     f0, 0(sp)
+                call    rint
+                fld     f0, 0(sp)
+                addi    sp, sp, 16
+                fmv.x.d a0, f0
+                ret
+
+            # kof_math_round(a0=x) -> a0=long
+            .globl kof_math_round
+            kof_math_round:
+                fmv.d.x f0, a0
+                addi    sp, sp, -16
+                fsd     f0, 0(sp)
+                call    round
+                fld     f0, 0(sp)
+                fcvt.l.d a0, f0
+                addi    sp, sp, 16
+                ret
+
+            # kof_math_signum(a0=x) -> a0=bits
+            .globl kof_math_signum
+            kof_math_signum:
+                fmv.d.x f0, a0
+                fld.d   ft0, .p1
+                fld.d   ft1, .n1
+                flt.d   t0, f0, ft1
+                bne     t0, zero, .signum_neg
+                flt.d   t0, ft0, f0
+                bne     t0, zero, .signum_pos
+                fmv.d   f0, ft0
+                fmv.x.d a0, f0
+                ret
+            .signum_pos:
+                fmv.d   f0, ft0
+                fmv.x.d a0, f0
+                ret
+            .signum_neg:
+                fmv.d   f0, ft1
+                fmv.x.d a0, f0
+                ret
+            .p1: .double 1.0
+            .n1: .double -1.0
                 ret
 
             # kof_math_lerp(a0=a, a1=b, a2=t) -> a0=bits de a+(b-a)*t

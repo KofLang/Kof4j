@@ -87,8 +87,65 @@ public final class JvmStringMathRuntime {
                 // S1b.2 (decisão 7a): pow = Math.pow — exato JVM==JS==native
                 // glibc nos finitos (mesma fórmula IEEE 754, travado em teste).
                 public static double kof_math_pow(double base, double exp) {
+
+                public static double kof_math_sinh(double x) { return Math.sinh(x); }
+                public static double kof_math_cosh(double x) { return Math.cosh(x); }
+                public static double kof_math_tanh(double x) { return Math.tanh(x); }
+                public static double kof_math_asinh(double x) { return Math.asinh(x); }
+                public static double kof_math_acosh(double x) { return Math.acosh(x); }
+                public static double kof_math_atanh(double x) { return Math.atanh(x); }
+                public static double kof_math_exp(double x) { return Math.exp(x); }
+                public static double kof_math_expm1(double x) { return Math.expm1(x); }
+                public static double kof_math_log(double x) { return Math.log(x); }
+                public static double kof_math_log1p(double x) { return Math.log1p(x); }
+                public static double kof_math_log10(double x) { return Math.log10(x); }
+                public static double kof_math_cbrt(double x) { return Math.cbrt(x); }
+                public static double kof_math_hypot(double x, double y) { return Math.hypot(x, y); }
+                public static double kof_math_ceil(double x) { return Math.ceil(x); }
+                public static double kof_math_floor(double x) { return Math.floor(x); }
+                public static double kof_math_rint(double x) { return Math.rint(x); }
+                public static long kof_math_round(double x) { return Math.round(x); }
+                public static double kof_math_signum(double x) { return Math.signum(x); }
                     return Math.pow(base, exp);
+
+                public static double kof_math_sinh(double x) { return Math.sinh(x); }
+                public static double kof_math_cosh(double x) { return Math.cosh(x); }
+                public static double kof_math_tanh(double x) { return Math.tanh(x); }
+                public static double kof_math_asinh(double x) { return Math.asinh(x); }
+                public static double kof_math_acosh(double x) { return Math.acosh(x); }
+                public static double kof_math_atanh(double x) { return Math.atanh(x); }
+                public static double kof_math_exp(double x) { return Math.exp(x); }
+                public static double kof_math_expm1(double x) { return Math.expm1(x); }
+                public static double kof_math_log(double x) { return Math.log(x); }
+                public static double kof_math_log1p(double x) { return Math.log1p(x); }
+                public static double kof_math_log10(double x) { return Math.log10(x); }
+                public static double kof_math_cbrt(double x) { return Math.cbrt(x); }
+                public static double kof_math_hypot(double x, double y) { return Math.hypot(x, y); }
+                public static double kof_math_ceil(double x) { return Math.ceil(x); }
+                public static double kof_math_floor(double x) { return Math.floor(x); }
+                public static double kof_math_rint(double x) { return Math.rint(x); }
+                public static long kof_math_round(double x) { return Math.round(x); }
+                public static double kof_math_signum(double x) { return Math.signum(x); }
                 }
+
+                public static double kof_math_sinh(double x) { return Math.sinh(x); }
+                public static double kof_math_cosh(double x) { return Math.cosh(x); }
+                public static double kof_math_tanh(double x) { return Math.tanh(x); }
+                public static double kof_math_asinh(double x) { return Math.asinh(x); }
+                public static double kof_math_acosh(double x) { return Math.acosh(x); }
+                public static double kof_math_atanh(double x) { return Math.atanh(x); }
+                public static double kof_math_exp(double x) { return Math.exp(x); }
+                public static double kof_math_expm1(double x) { return Math.expm1(x); }
+                public static double kof_math_log(double x) { return Math.log(x); }
+                public static double kof_math_log1p(double x) { return Math.log1p(x); }
+                public static double kof_math_log10(double x) { return Math.log10(x); }
+                public static double kof_math_cbrt(double x) { return Math.cbrt(x); }
+                public static double kof_math_hypot(double x, double y) { return Math.hypot(x, y); }
+                public static double kof_math_ceil(double x) { return Math.ceil(x); }
+                public static double kof_math_floor(double x) { return Math.floor(x); }
+                public static double kof_math_rint(double x) { return Math.rint(x); }
+                public static long kof_math_round(double x) { return Math.round(x); }
+                public static double kof_math_signum(double x) { return Math.signum(x); }
 
                 public static boolean kof_math_isInteger(double v) {
                     return v == Math.floor(v) && !Double.isInfinite(v);

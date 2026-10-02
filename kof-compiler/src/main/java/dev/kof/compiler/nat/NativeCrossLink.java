@@ -48,9 +48,12 @@ public final class NativeCrossLink {
 
    static final Set<String> LIBM_SYMBOLS = Set.of(
             "sin", "cos", "tan", "asin", "acos", "atan", "atan2",
-            "sinh", "cosh", "tanh", "log", "log10", "exp",
-            "floor", "ceil", "round", "hypot"
-    );
+            "log", "log10", "exp",
+            "floor", "ceil", "round", "hypot",
+            "sinh", "cosh", "tanh",
+            "asinh", "acosh", "atanh",
+            "expm1", "log1p", "cbrt"
+   );
 
     /** true se o texto asm (pós-poda) chama algum símbolo de libc. */
     static boolean needsLibc(String asmText) {

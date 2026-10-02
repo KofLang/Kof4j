@@ -170,6 +170,144 @@ public final class RuntimeMath {
                 movq %rbx, %rsp
                 movq %xmm0, %rax
                 ret
+            ret
+
+            # === Stage 2 — libm shims x86_64 ===
+            .globl kof_math_sinh; .type kof_math_sinh, @function
+            kof_math_sinh:
+                subq $8, %rsp
+                call sinh@PLT
+                addq $8, %rsp
+                ret
+
+            .globl kof_math_cosh; .type kof_math_cosh, @function
+            kof_math_cosh:
+                subq $8, %rsp
+                call cosh@PLT
+                addq $8, %rsp
+                ret
+
+            .globl kof_math_tanh; .type kof_math_tanh, @function
+            kof_math_tanh:
+                subq $8, %rsp
+                call tanh@PLT
+                addq $8, %rsp
+                ret
+
+            .globl kof_math_asinh; .type kof_math_asinh, @function
+            kof_math_asinh:
+                subq $8, %rsp
+                call asinh@PLT
+                addq $8, %rsp
+                ret
+
+            .globl kof_math_acosh; .type kof_math_acosh, @function
+            kof_math_acosh:
+                subq $8, %rsp
+                call acosh@PLT
+                addq $8, %rsp
+                ret
+
+            .globl kof_math_atanh; .type kof_math_atanh, @function
+            kof_math_atanh:
+                subq $8, %rsp
+                call atanh@PLT
+                addq $8, %rsp
+                ret
+
+            .globl kof_math_exp; .type kof_math_exp, @function
+            kof_math_exp:
+                subq $8, %rsp
+                call exp@PLT
+                addq $8, %rsp
+                ret
+
+            .globl kof_math_expm1; .type kof_math_expm1, @function
+            kof_math_expm1:
+                subq $8, %rsp
+                call expm1@PLT
+                addq $8, %rsp
+                ret
+
+            .globl kof_math_log; .type kof_math_log, @function
+            kof_math_log:
+                subq $8, %rsp
+                call log@PLT
+                addq $8, %rsp
+                ret
+
+            .globl kof_math_log1p; .type kof_math_log1p, @function
+            kof_math_log1p:
+                subq $8, %rsp
+                call log1p@PLT
+                addq $8, %rsp
+                ret
+
+            .globl kof_math_log10; .type kof_math_log10, @function
+            kof_math_log10:
+                subq $8, %rsp
+                call log10@PLT
+                addq $8, %rsp
+                ret
+
+            .globl kof_math_cbrt; .type kof_math_cbrt, @function
+            kof_math_cbrt:
+                subq $8, %rsp
+                call cbrt@PLT
+                addq $8, %rsp
+                ret
+
+            .globl kof_math_hypot; .type kof_math_hypot, @function
+            kof_math_hypot:
+                subq $8, %rsp
+                call hypot@PLT
+                addq $8, %rsp
+                ret
+
+            .globl kof_math_ceil; .type kof_math_ceil, @function
+            kof_math_ceil:
+                subq $8, %rsp
+                call ceil@PLT
+                addq $8, %rsp
+                ret
+
+            .globl kof_math_floor; .type kof_math_floor, @function
+            kof_math_floor:
+                subq $8, %rsp
+                call floor@PLT
+                addq $8, %rsp
+                ret
+
+            .globl kof_math_rint; .type kof_math_rint, @function
+            kof_math_rint:
+                subq $8, %rsp
+                call rint@PLT
+                addq $8, %rsp
+                ret
+
+            .globl kof_math_round; .type kof_math_round, @function
+            kof_math_round:
+                subq $8, %rsp
+                call round@PLT
+                addq $8, %rsp
+                ret
+
+            .globl kof_math_signum; .type kof_math_signum, @function
+            kof_math_signum:
+                cmpq $0, %xmm0
+                jb .signum_neg
+                ja .signum_pos
+                movl $0x3FF00000, %eax
+                movq %rax, %xmm0
+                ret
+            .signum_pos:
+                movl $0x3FF00000, %eax
+                movq %rax, %xmm0
+                ret
+            .signum_neg:
+                movl $0xBFF00000, %eax
+                movq %rax, %xmm0
+                ret
 
             # S1b.1: escalares Double puros (SSE2 — sem libm). Args chegam
             # como 8 bits crus em rdi/rsi/rdx (pilha 1-slot do generic path);

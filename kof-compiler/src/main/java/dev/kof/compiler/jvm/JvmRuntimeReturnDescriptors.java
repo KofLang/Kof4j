@@ -156,6 +156,13 @@ public final class JvmRuntimeReturnDescriptors {
             case "kof_math_sqrt" -> "D";
             case "kof_math_lerp", "kof_math_percentage" -> "D";
             case "kof_math_pow" -> "D";
+            case "kof_math_sinh", "kof_math_cosh", "kof_math_tanh",
+                 "kof_math_asinh", "kof_math_acosh", "kof_math_atanh",
+                 "kof_math_exp", "kof_math_expm1", "kof_math_log",
+                 "kof_math_log1p", "kof_math_log10", "kof_math_cbrt",
+                 "kof_math_hypot", "kof_math_ceil", "kof_math_floor",
+                 "kof_math_rint", "kof_math_signum" -> "D";
+            case "kof_math_round" -> "J";
             case "kof_math_isInteger", "kof_math_isDecimal" -> "I";
             case "kof_math_roundTo" -> "D";
             case "kof_strings_isUpperCase", "kof_strings_isLowerCase",
