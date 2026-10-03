@@ -125,7 +125,12 @@ void handleRuntimeOp(MethodCtx ctx, List<Object> stack,
                             new JsIr.JsMember(parsed, "map"),
                             List.of(new JsIr.JsArrow(List.of("o"), mapper))));
                 } else {
-                    stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("JSON.parse"), List.of(value)));
+                    JsIr.JsExpression raw = new JsIr.JsCall(new JsIr.JsIdentifier("JSON.parse"), List.of(value));
+                    if (BuiltinTypes.isObject(elem) || BuiltinTypes.isMap(elem) || BuiltinTypes.isList(elem)) {
+                        p.lc.registerRuntime("kofJsonDeep");
+                        raw = new JsIr.JsCall(new JsIr.JsIdentifier("kofJsonDeep"), List.of(raw));
+                    }
+                    stack.add(raw);
                 }
             } else if (name.startsWith("kof_json_decode_")
                     && BuiltinTypes.isMap(kc.ownerType())) {
