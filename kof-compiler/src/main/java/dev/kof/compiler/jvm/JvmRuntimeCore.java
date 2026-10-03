@@ -266,7 +266,7 @@ public final class JvmRuntimeCore {
                         cmd.addAll(args);
                         Process p = new ProcessBuilder(cmd)
                                 .redirectErrorStream(false)
-                                .redirectInput(java.lang.ProcessBuilder.Redirect.from(new java.io.File("/dev/null")))
+                                .redirectInput(java.lang.ProcessBuilder.Redirect.from(new java.io.File(System.getProperty("os.name").startsWith("Windows") ? "NUL" : "/dev/null")))
                                 .start();
                         java.util.concurrent.FutureTask<String> outTask = new java.util.concurrent.FutureTask<>(
                                 () -> new String(p.getInputStream().readAllBytes(),
@@ -301,7 +301,7 @@ public final class JvmRuntimeCore {
                         cmd.addAll(args);
                         Process p = new ProcessBuilder(cmd)
                                 .redirectErrorStream(false)
-                                .redirectInput(java.lang.ProcessBuilder.Redirect.from(new java.io.File("/dev/null")))
+                                .redirectInput(java.lang.ProcessBuilder.Redirect.from(new java.io.File(System.getProperty("os.name").startsWith("Windows") ? "NUL" : "/dev/null")))
                                 .start();
                         long id;
                         synchronized (KofRuntime.class) { id = ++SPAWN_SEQ; }
@@ -395,7 +395,7 @@ public final class JvmRuntimeCore {
                         }
                         ProcessBuilder pb = new ProcessBuilder(argv)
                                 .redirectErrorStream(false)
-                                .redirectInput(java.lang.ProcessBuilder.Redirect.from(new java.io.File("/dev/null")));
+                                .redirectInput(java.lang.ProcessBuilder.Redirect.from(new java.io.File(System.getProperty("os.name").startsWith("Windows") ? "NUL" : "/dev/null")));
                         if (cwd != null && !cwd.isEmpty()) {
                             pb.directory(new java.io.File(cwd));
                         }
@@ -455,7 +455,7 @@ public final class JvmRuntimeCore {
                             }
                             ProcessBuilder pb = new ProcessBuilder(argv).redirectErrorStream(false);
                             pb.redirectInput(procs.isEmpty()
-                                    ? java.lang.ProcessBuilder.Redirect.from(new java.io.File("/dev/null"))
+                                    ? java.lang.ProcessBuilder.Redirect.from(new java.io.File(System.getProperty("os.name").startsWith("Windows") ? "NUL" : "/dev/null"))
                                     : java.lang.ProcessBuilder.Redirect.PIPE);
                             procs.add(pb.start());
                         }
