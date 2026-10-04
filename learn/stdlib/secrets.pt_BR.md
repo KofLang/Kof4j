@@ -18,7 +18,7 @@
 
 ```kf
 var token = secrets.of(rawToken)          // Secret — println mostra [REDACTED]
-var dbPass = secrets.get("db_password")   // env KOF_DB_PASSWORD > config
+var dbPass = secrets.get("db_password")   // env var "db_password" literal (getenv cru)
 var k = secrets.keyFromPem("key.pem")     // KeyHandle para crypto.*
 log.info("token=" + redact(header))      // redação explícita para strings puras
 ```
@@ -27,6 +27,10 @@ log.info("token=" + redact(header))      // redação explícita para strings pu
   a classe de vazamento acidental morre no tipo.
 - `KeyHandle` é a forma apagável que o crypto.* prefere a strings de chave
   cruas.
+- `get` e `secret` leem a variável de ambiente pelo nome **exato** — não há
+  prefixo `KOF_` nem fallback de config (`secrets.get("db_password")` lê env
+  `db_password`, não `KOF_DB_PASSWORD`). `get` é o `String` cru legado; use
+  `secret`/`of` para o `Secret` tipado.
 
 **Veja também:** [kof.crypto](crypto.pt_BR.md) — as cifras que recebem esses
 handles.
