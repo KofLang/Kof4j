@@ -4,7 +4,6 @@ import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -14,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * line-carrying vocabulary diagnostics (§14) resolved per construct line so
  * publishDiagnostics can place a range without re-scanning the buffer.
  */
-class KofmdLspSupportE2ETest extends KofmdRunSupport {
+class KofmdLspSupportE2ETest extends KofmdRunSupport implements LibraryInstallSupport {
 
 
 
@@ -106,27 +105,16 @@ class KofmdLspSupportE2ETest extends KofmdRunSupport {
     }
 
     
+
+
     @Override
-    protected void copyLibrary(Path destinationRoot) throws Exception {
-        Path sourceRoot = findLibraryRoot();
-        try (var files = Files.walk(sourceRoot)) {
-            for (Path source : files.filter(Files::isRegularFile).toList()) {
-                Path destination = destinationRoot.resolve("kofmd")
-                        .resolve(sourceRoot.relativize(source));
-                Files.createDirectories(destination.getParent());
-                Files.copy(source, destination, StandardCopyOption.REPLACE_EXISTING);
-            }
-        }
+    public String libraryName() {
+        return "kofmd";
     }
 
-    private static Path findLibraryRoot() {
-        Path workingDirectory = Path.of("").toAbsolutePath().normalize();
-        Path fromRepository = workingDirectory.resolve("libs/kofmd");
-        if (Files.isRegularFile(fromRepository.resolve("Kofmd.kf"))) return fromRepository;
-
-        Path fromModule = workingDirectory.resolve("../libs/kofmd").normalize();
-        if (Files.isRegularFile(fromModule.resolve("Kofmd.kf"))) return fromModule;
-
-        throw new IllegalStateException("libs/kofmd not found from " + workingDirectory);
+    @Override
+    public java.util.List<String> libraryMarkers() {
+        return java.util.List.of("Kofmd.kf");
     }
+
 }

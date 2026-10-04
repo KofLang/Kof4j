@@ -6,7 +6,6 @@ import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -14,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /** End-to-end coverage for the pure-Kof PDF library in {@code libs/pdf}. */
-class PdfLibraryE2ETest extends KofmdRunSupport {
+class PdfLibraryE2ETest extends KofmdRunSupport implements LibraryInstallSupport {
 
     @Test
     void createsPdfWithAccentsAndUserDefinedGrid() throws Exception {
@@ -298,27 +297,16 @@ class PdfLibraryE2ETest extends KofmdRunSupport {
         return "pdf-out-";
     }
 
+
+
     @Override
-    protected void copyLibrary(Path destinationRoot) throws Exception {
-        Path sourceRoot = findLibraryRoot();
-        try (var files = Files.walk(sourceRoot)) {
-            for (Path source : files.filter(Files::isRegularFile).toList()) {
-                Path destination = destinationRoot.resolve("pdf")
-                        .resolve(sourceRoot.relativize(source));
-                Files.createDirectories(destination.getParent());
-                Files.copy(source, destination, StandardCopyOption.REPLACE_EXISTING);
-            }
-        }
+    public String libraryName() {
+        return "pdf";
     }
 
-    private static Path findLibraryRoot() {
-        Path workingDirectory = Path.of("").toAbsolutePath().normalize();
-        Path fromRepository = workingDirectory.resolve("libs/pdf");
-        if (Files.isRegularFile(fromRepository.resolve("PdfDocument.kf"))) return fromRepository;
-
-        Path fromModule = workingDirectory.resolve("../libs/pdf").normalize();
-        if (Files.isRegularFile(fromModule.resolve("PdfDocument.kf"))) return fromModule;
-
-        throw new IllegalStateException("libs/pdf not found from " + workingDirectory);
+    @Override
+    public java.util.List<String> libraryMarkers() {
+        return java.util.List.of("PdfDocument.kf");
     }
+
 }

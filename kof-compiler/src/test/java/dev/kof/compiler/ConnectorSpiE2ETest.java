@@ -8,7 +8,6 @@ import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -24,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <x>}. Sem mudança no compilador; sem IO → roda em JVM + Script + JS + Native
  * x86-64.
  */
-class ConnectorSpiE2ETest {
+class ConnectorSpiE2ETest implements LibraryInstallSupport {
 
     private final CompilerDriver driver = new CompilerDriver();
 
@@ -192,26 +191,16 @@ class ConnectorSpiE2ETest {
         T get() throws Exception;
     }
 
-    private static void copyLibrary(Path destinationRoot) throws Exception {
-        Path sourceRoot = findLibraryRoot();
-        try (var files = Files.walk(sourceRoot)) {
-            for (Path source : files.filter(Files::isRegularFile).toList()) {
-                Path destination = destinationRoot.resolve("interop")
-                        .resolve(sourceRoot.relativize(source));
-                Files.createDirectories(destination.getParent());
-                Files.copy(source, destination, StandardCopyOption.REPLACE_EXISTING);
-            }
-        }
+
+
+    @Override
+    public String libraryName() {
+        return "interop";
     }
 
-    private static Path findLibraryRoot() {
-        Path workingDirectory = Path.of("").toAbsolutePath().normalize();
-        for (Path candidate : List.of(workingDirectory.resolve("libs/interop"),
-                workingDirectory.resolve("../libs/interop").normalize())) {
-            if (Files.isRegularFile(candidate.resolve("ConnectorManifest.kf"))) {
-                return candidate;
-            }
-        }
-        throw new IllegalStateException("libs/interop not found from " + workingDirectory);
+    @Override
+    public java.util.List<String> libraryMarkers() {
+        return java.util.List.of("ConnectorManifest.kf");
     }
+
 }

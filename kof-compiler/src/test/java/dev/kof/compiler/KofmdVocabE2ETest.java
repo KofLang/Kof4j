@@ -4,7 +4,6 @@ import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -17,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * are predicates only — enforcement deferred by §9, so {@code validateVocabulary}
  * never flags them. JVM-first (other targets: honest {@code MD001}).
  */
-class KofmdVocabE2ETest extends KofmdRunSupport {
+class KofmdVocabE2ETest extends KofmdRunSupport implements LibraryInstallSupport {
 
 
 
@@ -147,34 +146,17 @@ class KofmdVocabE2ETest extends KofmdRunSupport {
     }
 
     
+
+
+
     @Override
-    protected void copyLibrary(Path destinationRoot) throws Exception {
-        Path sourceRoot = findLibraryRoot();
-        try (var files = Files.walk(sourceRoot)) {
-            for (Path source : files.filter(Files::isRegularFile).toList()) {
-                Path destination = destinationRoot.resolve("kofmd")
-                        .resolve(sourceRoot.relativize(source));
-                Files.createDirectories(destination.getParent());
-                Files.copy(source, destination, StandardCopyOption.REPLACE_EXISTING);
-            }
-        }
+    public String libraryName() {
+        return "kofmd";
     }
 
-    private static Path findLibraryRoot() {
-        Path workingDirectory = Path.of("").toAbsolutePath().normalize();
-        Path fromRepository = workingDirectory.resolve("libs/kofmd");
-        if (isKofmdLibraryDir(fromRepository)) return fromRepository;
-
-        Path fromModule = workingDirectory.resolve("../libs/kofmd").normalize();
-        if (isKofmdLibraryDir(fromModule)) return fromModule;
-
-        throw new IllegalStateException("libs/kofmd not found from " + workingDirectory);
+    @Override
+    public java.util.List<String> libraryMarkers() {
+        return java.util.List.of("Kofmd.kf", "KofmdTypes.kf");
     }
 
-    private static boolean isKofmdLibraryDir(Path dir) {
-        // Accepts both layouts: the monolith (Kofmd.kf alone) and the split
-        // (KofmdTypes.kf + sibling responsibility files + Kofmd.kf facade).
-        return Files.isRegularFile(dir.resolve("Kofmd.kf"))
-                || Files.isRegularFile(dir.resolve("KofmdTypes.kf"));
-    }
 }

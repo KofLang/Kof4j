@@ -17,7 +17,6 @@ dupname	assumeToolchain
 dupname	both
 dupname	close
 dupname	compileAndRun
-dupname	copyLibrary
 dupname	debugLevelShowsDebug
 dupname	defaultLevelIsInfo
 dupname	emptyRegistryIsIdentity

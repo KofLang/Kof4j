@@ -9,7 +9,6 @@ import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.List;
 
 import static dev.kof.compiler.AvifMetaSupport.errorFixtures;
@@ -34,7 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * encoder exists on the host — measured); METADATA ONLY —
  * {@code decodeRaster} keeps refusing AVIF.
  */
-class AvifMetaE2ETest {
+class AvifMetaE2ETest implements LibraryInstallSupport {
 
     @TempDir
     Path tmp;
@@ -250,26 +249,16 @@ class AvifMetaE2ETest {
         T get() throws Exception;
     }
 
-    private static void copyLibrary(Path destinationRoot) throws Exception {
-        Path sourceRoot = findLibraryRoot();
-        try (var files = Files.walk(sourceRoot)) {
-            for (Path source : files.filter(Files::isRegularFile).toList()) {
-                Path destination = destinationRoot.resolve("image")
-                        .resolve(sourceRoot.relativize(source));
-                Files.createDirectories(destination.getParent());
-                Files.copy(source, destination, StandardCopyOption.REPLACE_EXISTING);
-            }
-        }
+
+
+    @Override
+    public String libraryName() {
+        return "image";
     }
 
-    private static Path findLibraryRoot() {
-        Path workingDirectory = Path.of("").toAbsolutePath().normalize();
-        Path fromRepository = workingDirectory.resolve("libs/image");
-        if (Files.isRegularFile(fromRepository.resolve("Avif.kf"))) return fromRepository;
-
-        Path fromModule = workingDirectory.resolve("../libs/image").normalize();
-        if (Files.isRegularFile(fromModule.resolve("Avif.kf"))) return fromModule;
-
-        throw new IllegalStateException("libs/image not found from " + workingDirectory);
+    @Override
+    public java.util.List<String> libraryMarkers() {
+        return java.util.List.of("Avif.kf");
     }
+
 }

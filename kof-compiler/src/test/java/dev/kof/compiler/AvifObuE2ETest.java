@@ -9,7 +9,6 @@ import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.List;
 
 import static dev.kof.compiler.AvifObuSupport.errorFixtures;
@@ -30,7 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * hand-built byte-exactly to the spec (no AVIF encoder exists on the host —
  * measured); ENUMERATION only — {@code decodeRaster} keeps refusing AVIF.
  */
-class AvifObuE2ETest {
+class AvifObuE2ETest implements LibraryInstallSupport {
 
     private final CompilerDriver driver = new CompilerDriver();
 
@@ -227,26 +226,16 @@ class AvifObuE2ETest {
         T get() throws Exception;
     }
 
-    private static void copyLibrary(Path destinationRoot) throws Exception {
-        Path sourceRoot = findLibraryRoot();
-        try (var files = Files.walk(sourceRoot)) {
-            for (Path source : files.filter(Files::isRegularFile).toList()) {
-                Path destination = destinationRoot.resolve("image")
-                        .resolve(sourceRoot.relativize(source));
-                Files.createDirectories(destination.getParent());
-                Files.copy(source, destination, StandardCopyOption.REPLACE_EXISTING);
-            }
-        }
+
+
+    @Override
+    public String libraryName() {
+        return "image";
     }
 
-    private static Path findLibraryRoot() {
-        Path workingDirectory = Path.of("").toAbsolutePath().normalize();
-        Path fromRepository = workingDirectory.resolve("libs/image");
-        if (Files.isRegularFile(fromRepository.resolve("Avif.kf"))) return fromRepository;
-
-        Path fromModule = workingDirectory.resolve("../libs/image").normalize();
-        if (Files.isRegularFile(fromModule.resolve("Avif.kf"))) return fromModule;
-
-        throw new IllegalStateException("libs/image not found from " + workingDirectory);
+    @Override
+    public java.util.List<String> libraryMarkers() {
+        return java.util.List.of("Avif.kf");
     }
+
 }

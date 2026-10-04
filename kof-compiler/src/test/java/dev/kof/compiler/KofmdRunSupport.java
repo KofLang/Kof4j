@@ -15,16 +15,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * por reflexão) era byte-idêntico em 6 classes Kofmd + {@code PdfLibraryE2ETest}.
  * Vive fora delas (Fase 5/harness, {@code D-TEST-ARCHITECTURE-PHASES}); os testes
  * e os nomes das classes seguem nos arquivos — zero drift de citação. A subclasse
- * fornece {@code copyLibrary} (e mantém o seu {@code findLibraryRoot}).
+ * fornece {@code libraryName}/{@code libraryMarkers} (via {@link LibraryInstallSupport});
+ * o {@code copyLibrary}/{@code findLibraryRoot} vive uma vez na base.
  */
-abstract class KofmdRunSupport {
+abstract class KofmdRunSupport implements LibraryInstallSupport {
 
     protected final CompilerDriver driver = new CompilerDriver();
 
     @TempDir
     protected Path tmp;
-
-    protected abstract void copyLibrary(Path destinationRoot) throws Exception;
 
     /** Prefixo do diretório temporário de saída; a subclasse pode trocar. */
     protected String outPrefix() {
