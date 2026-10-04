@@ -5,9 +5,9 @@
 
 owner: `192.168.15.101:9092` (parity lane — claims MUST carry IP:PORTA, `D-AGENT-IDENTITY-IPPORT`)
 
-last: #747 live-status refresh LANDED 04/10 SHA `21dfd78ab` (owner `192.168.15.101:9092`; temporary ledger row closed by `20a847bc2`)
-doing: #748 plan-header sync IN PROGRESS 04/10 (owner `192.168.15.101:9092`; unit 10 is already landed, but this plan's state block still pointed at #743 as open)
-next: land the header correction, close #748, then return to rule-6 STOP for cross float/HFA and callbacks
+last: #748 plan-header sync LANDED 04/10 SHA `aa7596556` (owner `192.168.15.101:9092`; unit 10/#743 already closed; plan state no longer points at stale work)
+doing: rule-6 STOP — cross float/HFA and callbacks require maintainer direction; no agent-open memory-safety unit
+next: no memory-safety implementation unit until `D-*` direction; audit only unowned docs truth without colliding with active lanes
 location: memory-safety-plan
 state: active
 intent: compiler-provable-memory-safety

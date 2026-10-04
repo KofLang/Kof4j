@@ -5,9 +5,9 @@
 
 dona: `192.168.15.101:9092` (parity lane — claims DEVEM levar IP:PORTA, `D-AGENT-IDENTITY-IPPORT`)
 
-last: atualização do status vivo #747 POUSADA 04/10 SHA `21dfd78ab` (dona `192.168.15.101:9092`; linha temporária do ledger fechada por `20a847bc2`)
-doing: sincronização do cabeçalho do plano #748 EM PROGRESSO 04/10 (dona `192.168.15.101:9092`; a unidade 10 já pousou, mas o bloco de estado deste plano ainda apontava #743 como aberto)
-next: pousar a correção do cabeçalho, fechar #748 e devolver a lane ao STOP rule-6 para float/HFA cross e callbacks
+last: sincronização do cabeçalho #748 POUSADA 04/10 SHA `aa7596556` (dona `192.168.15.101:9092`; unidade 10/#743 já estava fechada; o estado do plano não aponta mais para trabalho obsoleto)
+doing: STOP rule-6 — float/HFA cross e callbacks exigem direção da mantenedora; nenhuma unidade de memory-safety aberta a agente
+next: nenhuma unidade de implementação de memory-safety até haver `D-*`; auditar apenas verdades de doc sem dono sem colidir com lanes ativas
 location: memory-safety-plan
 state: active
 intent: compiler-provable-memory-safety
