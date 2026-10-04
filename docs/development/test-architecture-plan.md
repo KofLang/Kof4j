@@ -10,8 +10,8 @@
 Phase 1 profiling (`scripts/test-suite-profile.sh` + permanent
 `docs/testing/TEST-PERFORMANCE.md`), Phase 2 discovery audit
 (`scripts/test-suite-audit.sh`) and Phase 2 **ratchet** (`scripts/check_test_hygiene.sh`
-over the frozen `scripts/test-hygiene-baseline.txt`, **124 keys, rc=0** — 132 at the
-30/09 measurement, tightened by the 02/10 Phase-3 extraction and the 03/10 Phase-5 slices (`jvmOracle` 131→130, `stopServer` 130→129, `assertRuns` 129→128, `runScript` 128→127, `runKof` 127→126, `assertBoth` 126→125, `copyLibrary` 125→124); the 0-citation Phase-3 head is exhausted, next candidate has 10 doc
+over the frozen `scripts/test-hygiene-baseline.txt`, **123 keys, rc=0** — 132 at the
+30/09 measurement, tightened by the 02/10 Phase-3 extraction and the 03/10 Phase-5 slices (`jvmOracle` 131→130, `stopServer` 130→129, `assertRuns` 129→128, `runScript` 128→127, `runKof` 127→126, `assertBoth` 126→125, `copyLibrary` 125→124, `runBoth` 124→123); the 0-citation Phase-3 head is exhausted, next candidate has 10 doc
 citations, and the remaining `dupname` cluster needs the Phase-5 harness). **Quick-win slice 1
 (28/09):** removed the false-positive `Thread.sleep` key (comment-only mention in
 `AsyncSleepJsE2ETest`) and the redundant post-`startServer` settle in
@@ -710,6 +710,15 @@ Follow-up **#750** caught the ratchet still RED after the concurrent TIFF landin
 was the 37th class with its own `void copyLibrary`. It now implements the same interface (`image` +
 `Tiff.kf`) and its local install helpers were deleted; `check_test_hygiene` measures **124 keys, rc=0**.
 
+**Phase 5 slice 10 LANDED (04/10):** the JVM+JS helper suite `runJvm`/`runJs`/`runBoth` was identical
+across `ArrayBoundsSafetyE2ETest`, `CoreRegressionE2ETest` and `WrapperStaticCallsE2ETest` (the
+`runJvm` body differed only by two-space indentation). It now lives once in a new `JvmJsRunSupport` base
+(which also owns the shared `driver`), which the 3 classes extend. `WrapperStaticCallsE2ETest` keeps its
+own `runNativeX86`. The new `TiffDecodeE2ETest` (image lane) was migrated onto `LibraryInstallSupport` so
+the `copyLibrary` key stays eliminated. No test body, target or assertion moved. Proof: the 4 affected
+batteries **126/126** green; the `dupname runBoth` ratchet key is **eliminated** — baseline re-frozen
+124→**123**.
+
 ### Phase 6 — Conformance
 
 Build the official equivalence suite.
@@ -808,7 +817,7 @@ Before any deep refactoring, the path is:
 3. look for duplication (Phase 2 — discovery + ratchet LANDED:
    `scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`; work =
    shrink `scripts/test-hygiene-baseline.txt` via quick-win removals — current
-   authority = **124** non-comment keys, per `scripts/test-hygiene-baseline.txt`);
+   authority = **123** non-comment keys, per `scripts/test-hygiene-baseline.txt`);
 4. propose the modularization (Phase 3 — started: `--citations` measures the split cost per
    oversized class and the drift rule is fixed; four splits landed = `KofSetEqualitySupport`
    out of `KofSetEqualityTest` (21/21 kept), `KofMathSupport` out of `KofMathTest` (29/29 kept),
@@ -834,4 +843,4 @@ Before any deep refactoring, the path is:
 
 **Important:** this refactoring must not interfere with anything in the
 compiler. It is purely test infrastructure (golden rule). The front is open
-(`D-TEST-ARCHITECTURE-GO`); Phases 1–4 are CONCLUDED (oversized 43→18; harness ratchet 146→124, zero identical pairs remain). **Phase 5 is now AUTHORIZED and nine slices LANDED** (`D-TEST-ARCHITECTURE-PHASES`, maintainer 03/10 — `NativeCrossSupport` 54/54, `NativeIoJvmOracleSupport` (jvmOracle key eliminated), `TargetGapRefusalSupport`, `ServerProcessSupport` (stopServer key eliminated, 118/118), `JvmRunSupport` (assertRuns key eliminated, 38/38), `MultiSourceRunSupport` (runScript key eliminated, 47/47), `KofmdRunSupport` (runKof key eliminated, 19/19), `JsParityRunSupport` (assertBoth key eliminated, 18/18), and `LibraryInstallSupport` (copyLibrary key eliminated, 268/268)); Phases 5–7 remain open work, with the remaining Phase 5 families (`main`, `assumeToolchain`) as the next increment.
+(`D-TEST-ARCHITECTURE-GO`); Phases 1–4 are CONCLUDED (oversized 43→18; harness ratchet 146→123, zero identical pairs remain). **Phase 5 is now AUTHORIZED and ten slices LANDED** (`D-TEST-ARCHITECTURE-PHASES`, maintainer 03/10 — `NativeCrossSupport` 54/54, `NativeIoJvmOracleSupport` (jvmOracle key eliminated), `TargetGapRefusalSupport`, `ServerProcessSupport` (stopServer key eliminated, 118/118), `JvmRunSupport` (assertRuns key eliminated, 38/38), `MultiSourceRunSupport` (runScript key eliminated, 47/47), `KofmdRunSupport` (runKof key eliminated, 19/19), `JsParityRunSupport` (assertBoth key eliminated, 18/18), `LibraryInstallSupport` (copyLibrary key eliminated, 268/268), and `JvmJsRunSupport` (runBoth key eliminated, 126/126)); Phases 5–7 remain open work, with the remaining Phase 5 families (`main`, `assumeToolchain`) as the next increment.

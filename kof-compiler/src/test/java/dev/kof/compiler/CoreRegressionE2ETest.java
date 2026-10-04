@@ -3,8 +3,6 @@ package dev.kof.compiler;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -18,44 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Every case is compiled to JVM and KofJS and executed; the observable
  * behavior must match on both targets.
  */
-class CoreRegressionE2ETest {
-
-    private final CompilerDriver driver = new CompilerDriver();
-
-    private String runJvm(Path outDir) throws IOException {
-        try {
-            ProcessBuilder pb = new ProcessBuilder("java", "-cp", outDir.toString(), "Default.Main");
-            pb.redirectErrorStream(true);
-            Process p = pb.start();
-            String output = new String(p.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)
-                .replace("\r\n", "\n").trim();
-            assertEquals(0, p.waitFor(), "JVM exit code, output: " + output);
-            return output;
-        } catch (InterruptedException e) {
-            throw new IOException("Interrupted", e);
-        }
-    }
-
-    private String runJs(Path outDir) throws IOException {
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        int exitCode = dev.kof.runtime.KofJsRunner.run(outDir.resolve("Default.mjs"), out,
-                new ByteArrayInputStream(new byte[0]), out);
-        assertEquals(0, exitCode, "JS exit code, output: " + out);
-        return out.toString().trim();
-    }
-
-    private void runBoth(String source, String expected, Path tempDir, String name) throws IOException {
-        Path src = tempDir.resolve(name + ".kf");
-        Files.writeString(src, source);
-        Path outJvm = tempDir.resolve(name + "-jvm");
-        Path outJs = tempDir.resolve(name + "-js");
-        CompilationResult rjvm = driver.compile(src, outJvm, Target.JVM);
-        assertTrue(rjvm.success(), "JVM compile failed: " + rjvm.diagnostics().getDiagnostics());
-        CompilationResult rjs = driver.compile(src, outJs, Target.JS);
-        assertTrue(rjs.success(), "JS compile failed: " + rjs.diagnostics().getDiagnostics());
-        assertEquals(expected, runJvm(outJvm), name + " JVM output mismatch");
-        assertEquals(expected, runJs(outJs), name + " JS output mismatch");
-    }
+class CoreRegressionE2ETest extends JvmJsRunSupport {
 
     // #133 — inicializador de campo static NÃO-constante era descartado
     // silenciosamente: nenhum <clinit> era sintetizado, então

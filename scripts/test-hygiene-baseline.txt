@@ -74,7 +74,6 @@ dupname	requirePython3
 dupname	restore
 dupname	run
 dupname	runAll3
-dupname	runBoth
 dupname	runCross
 dupname	runEchoPathResolutionAndArgs
 dupname	runJavac

@@ -10,9 +10,9 @@ arquivos `*Test.java` sem camadas/harness; o plano está em andamento. **Pousado
 Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`),
 Fase 2 auditoria de descoberta (`scripts/test-suite-audit.sh`) e Fase 2 **ratchet**
 (`scripts/check_test_hygiene.sh` sobre o baseline congelado
-`scripts/test-hygiene-baseline.txt`, **124 chaves, rc=0** — 132 na medição de
+`scripts/test-hygiene-baseline.txt`, **123 chaves, rc=0** — 132 na medição de
 30/09, apertado pela extração da Fase 3 de 02/10; a cabeça da Fase 3 com 0 citações está esgotada, o próximo candidato tem 10 citações
-de doc, e o cluster `dupname` restante exige o harness da Fase 5; as fatias da Fase 5 de 03/10 apertaram `jvmOracle` 131→130, `stopServer` 130→129, `assertRuns` 129→128, `runScript` 128→127, `runKof` 127→126, `assertBoth` 126→125 e `copyLibrary` 125→124). **Fatia quick-win 1 (28/09):**
+de doc, e o cluster `dupname` restante exige o harness da Fase 5; as fatias da Fase 5 de 03/10 apertaram `jvmOracle` 131→130, `stopServer` 130→129, `assertRuns` 129→128, `runScript` 128→127, `runKof` 127→126, `assertBoth` 126→125 e `copyLibrary` 125→124 e `runBoth` 124→123). **Fatia quick-win 1 (28/09):**
 removida a chave `Thread.sleep` falso-positiva (menção só em comentário no
 `AsyncSleepJsE2ETest`) e o settle redundante pós-`startServer` no
 `KofWebHardeningTest` (o probe de readiness de porta já garante o bind).
@@ -710,6 +710,15 @@ Follow-up **#750** pegou o ratchet ainda VERMELHO após o pouso concorrente do T
 era a 37ª classe com `void copyLibrary` próprio. Agora implementa a mesma interface (`image` +
 `Tiff.kf`) e os helpers locais de instalação foram removidos; `check_test_hygiene` mede **124 chaves, rc=0**.
 
+**Fatia 10 da Fase 5 ENTREGUE (04/10):** a suíte de helpers JVM+JS `runJvm`/`runJs`/`runBoth` era
+idêntica em `ArrayBoundsSafetyE2ETest`, `CoreRegressionE2ETest` e `WrapperStaticCallsE2ETest` (o corpo de
+`runJvm` diferia só por dois espaços de indentação). Agora vive uma vez numa nova base `JvmJsRunSupport`
+(que também possui o `driver` compartilhado), que as 3 classes estendem. `WrapperStaticCallsE2ETest`
+mantém o seu `runNativeX86`. O novo `TiffDecodeE2ETest` (lane de imagem) foi migrado para
+`LibraryInstallSupport` para a chave `copyLibrary` seguir eliminada. Nenhum corpo de teste, alvo ou
+asserção mudou. Prova: as 4 baterias afetadas **126/126** verdes; a chave `dupname runBoth` foi
+**eliminada** — baseline re-congelada 124→**123**.
+
 ### Fase 6 — Conformance
 
 Criar suíte oficial de equivalência.
@@ -807,7 +816,7 @@ Antes de qualquer refatoração profunda, o caminho é:
 3. procurar duplicações (Fase 2 — descoberta + ratchet POUSADAS:
    `scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`; trabalho =
    encolher `scripts/test-hygiene-baseline.txt` via remoções quick-win — autoridade
-   atual = **124** chaves não-comentário, por `scripts/test-hygiene-baseline.txt`);
+   atual = **123** chaves não-comentário, por `scripts/test-hygiene-baseline.txt`);
 4. propor modularização (Fase 3 — iniciada: `--citations` mede o custo de divisão por classe
    oversized e a regra de drift está fixada; quatro divisões landadas = `KofSetEqualitySupport`
    do `KofSetEqualityTest` (21/21 mantidos), `KofMathSupport` do `KofMathTest` (29/29 mantidos),
@@ -832,4 +841,4 @@ Antes de qualquer refatoração profunda, o caminho é:
 
 **Importante:** essa refatoração não deve interferir em nada no compilador. É
 puramente de infraestrutura de testes (regra de ouro). A frente está aberta
-(`D-TEST-ARCHITECTURE-GO`); as Fases 1–4 estão CONCLUÍDAS (oversized 43→18; ratchet do harness 146→124, zero pares idênticos restantes). **A Fase 5 agora está AUTORIZADA e nove fatias ENTREGUES** (`D-TEST-ARCHITECTURE-PHASES`, mantenedora 03/10 — `NativeCrossSupport` 54/54, `NativeIoJvmOracleSupport` (chave `jvmOracle` eliminada), `TargetGapRefusalSupport`, `ServerProcessSupport` (chave `stopServer` eliminada, 118/118), `JvmRunSupport` (chave `assertRuns` eliminada, 38/38), `MultiSourceRunSupport` (chave `runScript` eliminada, 47/47) `KofmdRunSupport` (chave `runKof` eliminada, 19/19) `JsParityRunSupport` (chave `assertBoth` eliminada, 18/18) e `LibraryInstallSupport` (chave `copyLibrary` eliminada, 268/268)); as Fases 5–7 seguem trabalho aberto, com as famílias restantes da Fase 5 (`main`, `assumeToolchain`) como o próximo incremento.
+(`D-TEST-ARCHITECTURE-GO`); as Fases 1–4 estão CONCLUÍDAS (oversized 43→18; ratchet do harness 146→123, zero pares idênticos restantes). **A Fase 5 agora está AUTORIZADA e dez fatias ENTREGUES** (`D-TEST-ARCHITECTURE-PHASES`, mantenedora 03/10 — `NativeCrossSupport` 54/54, `NativeIoJvmOracleSupport` (chave `jvmOracle` eliminada), `TargetGapRefusalSupport`, `ServerProcessSupport` (chave `stopServer` eliminada, 118/118), `JvmRunSupport` (chave `assertRuns` eliminada, 38/38), `MultiSourceRunSupport` (chave `runScript` eliminada, 47/47) `KofmdRunSupport` (chave `runKof` eliminada, 19/19) `JsParityRunSupport` (chave `assertBoth` eliminada, 18/18) `LibraryInstallSupport` (chave `copyLibrary` eliminada, 268/268) e `JvmJsRunSupport` (chave `runBoth` eliminada, 126/126)); as Fases 5–7 seguem trabalho aberto, com as famílias restantes da Fase 5 (`main`, `assumeToolchain`) como o próximo incremento.
