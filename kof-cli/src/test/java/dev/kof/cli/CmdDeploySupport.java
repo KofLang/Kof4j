@@ -102,8 +102,19 @@ abstract class CmdDeploySupport {
         return new CliResult(p.exitValue(), out);
     }
 
+    /**
+     * §592: the guard must honor the SAME resolution as the product
+     * ({@code NativeArchEmitter.crossTool}): with {@code KOF_CROSS_PREFIX} set
+     * the deploy invokes {@code <prefix>/<tool>}, so a prefix-only host HAS the
+     * toolchain even when the Debian-triplet names are not on PATH. Presence =
+     * executable file under the prefix, else the bare name must run (PATH).
+     */
     protected static boolean hasCrossToolchain() {
+        String prefix = System.getenv("KOF_CROSS_PREFIX");
         for (String tool : new String[]{"riscv64-linux-gnu-as", "aarch64-linux-gnu-as"}) {
+            if (prefix != null && !prefix.isBlank() && Files.isExecutable(Path.of(prefix, tool))) {
+                return true;
+            }
             try {
                 if (new ProcessBuilder(tool, "--version").start().waitFor() == 0) return true;
             } catch (Exception ignored) { }
