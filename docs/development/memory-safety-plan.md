@@ -5,9 +5,9 @@
 
 owner: `192.168.15.101:9092` (parity lane — claims MUST carry IP:PORTA, `D-AGENT-IDENTITY-IPPORT`)
 
-last: unit-9 follow-through LANDED 04/10 SHA `c196d9b2d` issue #742 (owner `192.168.15.101:9092`; README authority `b51babe2a`, issue comment corrected to the post-rebase SHAs)
-doing: unit-10 phase-state doc truth IN PROGRESS 04/10 issue #743 (plan/spec Phase 3/5/6 rows)
-next: land unit 10 + close #743; return to rule-6 STOP for cross float/HFA and callbacks
+last: #747 live-status refresh LANDED 04/10 SHA `21dfd78ab` (owner `192.168.15.101:9092`; temporary ledger row closed by `20a847bc2`)
+doing: #748 plan-header sync IN PROGRESS 04/10 (owner `192.168.15.101:9092`; unit 10 is already landed, but this plan's state block still pointed at #743 as open)
+next: land the header correction, close #748, then return to rule-6 STOP for cross float/HFA and callbacks
 location: memory-safety-plan
 state: active
 intent: compiler-provable-memory-safety
