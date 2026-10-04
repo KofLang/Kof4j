@@ -706,6 +706,9 @@ methods, so the non-void providers add no key. `KofmdRunSupport` also implements
 abstract `copyLibrary` was dropped. No test body, target or assertion moved. Proof: the 36 affected
 batteries **268/268** green (1 honest toolchain skip); the `dupname copyLibrary` ratchet key is
 **eliminated** — baseline re-frozen 125→**124**.
+Follow-up **#750** caught the ratchet still RED after the concurrent TIFF landing: `TiffDecodeE2ETest`
+was the 37th class with its own `void copyLibrary`. It now implements the same interface (`image` +
+`Tiff.kf`) and its local install helpers were deleted; `check_test_hygiene` measures **124 keys, rc=0**.
 
 ### Phase 6 — Conformance
 

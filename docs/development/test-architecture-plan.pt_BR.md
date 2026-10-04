@@ -706,6 +706,9 @@ métodos `void`, então os provedores não-void não adicionam chave. `KofmdRunS
 interface e o `copyLibrary` abstrato foi removido. Nenhum corpo de teste, alvo ou asserção mudou. Prova:
 as 36 baterias afetadas **268/268** verdes (1 skip honesto de toolchain); a chave `dupname copyLibrary`
 foi **eliminada** — baseline re-congelada 125→**124**.
+Follow-up **#750** pegou o ratchet ainda VERMELHO após o pouso concorrente do TIFF: `TiffDecodeE2ETest`
+era a 37ª classe com `void copyLibrary` próprio. Agora implementa a mesma interface (`image` +
+`Tiff.kf`) e os helpers locais de instalação foram removidos; `check_test_hygiene` mede **124 chaves, rc=0**.
 
 ### Fase 6 — Conformance
 

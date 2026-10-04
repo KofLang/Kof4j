@@ -9,7 +9,6 @@ import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.List;
 
 import static dev.kof.compiler.TiffDecodeFixtures.REFUSALS;
@@ -40,7 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * riscv64(qemu) + aarch64(qemu) + Script; JS refuses {@code IOJS001} (the
  * library reads files through {@code kof.io}). No compiler change.
  */
-class TiffDecodeE2ETest {
+class TiffDecodeE2ETest implements LibraryInstallSupport {
 
     private final CompilerDriver driver = new CompilerDriver();
 
@@ -241,26 +240,13 @@ class TiffDecodeE2ETest {
         T get() throws Exception;
     }
 
-    private static void copyLibrary(Path destinationRoot) throws Exception {
-        Path sourceRoot = findLibraryRoot();
-        try (var files = Files.walk(sourceRoot)) {
-            for (Path source : files.filter(Files::isRegularFile).toList()) {
-                Path destination = destinationRoot.resolve("image")
-                        .resolve(sourceRoot.relativize(source));
-                Files.createDirectories(destination.getParent());
-                Files.copy(source, destination, StandardCopyOption.REPLACE_EXISTING);
-            }
-        }
+    @Override
+    public String libraryName() {
+        return "image";
     }
 
-    private static Path findLibraryRoot() {
-        Path workingDirectory = Path.of("").toAbsolutePath().normalize();
-        Path fromRepository = workingDirectory.resolve("libs/image");
-        if (Files.isRegularFile(fromRepository.resolve("Tiff.kf"))) return fromRepository;
-
-        Path fromModule = workingDirectory.resolve("../libs/image").normalize();
-        if (Files.isRegularFile(fromModule.resolve("Tiff.kf"))) return fromModule;
-
-        throw new IllegalStateException("libs/image not found from " + workingDirectory);
+    @Override
+    public List<String> libraryMarkers() {
+        return List.of("Tiff.kf");
     }
 }
