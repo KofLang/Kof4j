@@ -1,6 +1,6 @@
-last: sincronização do cabeçalho da memory-safety #748 POUSADA 04/10 SHA `aa7596556`; decode TIFF LANDADO 04/10 SHA `f18a8febd` na lane image-vision.
-doing: reparo de verdade de doc do status #749 EM PROGRESSO 04/10 (dona `192.168.15.101:9092`): o estado do topo estava obsoleto após #747/#748 e o pouso remoto do TIFF, e o registro histórico da fatia 3a do AVIF estava malformado como um título solto.
-next: pousar o reparo do status, fechar #749 e seguir com protocolo de release / gaps de docs sem dono sem tocar lanes ativas.
+last: reparo de verdade de doc do status #749 LANDADO 04/10 SHA `c9618f92f`; o estado do topo agora bate com #747/#748 e o pouso remoto do TIFF, e o registro histórico da fatia 3a do AVIF carrega sua prova.
+doing: protocolo de release + frente bugs-and-gaps; a fila mecânica de bugs abertos contém somente §554; os planos em andamento continuam pertencendo às suas lanes sob `D-PLAN-ONE-OWNER`.
+next: cortar o próximo minor estável apenas a partir de um `lab` verde (`D-RELEASE-CADENCE` + `D-LAB-STABILITY`); a promoção de `docs/development/future/` segue congelada (`D-FUTURE-FREEZE`).
 location: repository
 state: active
 last: unidade 10 da fase 6 de memory-safety POUSADA 04/10 issue #743 (lane `192.168.15.101:9092`) — verdade de doc dos estados de fase: Fase 3 do plano FECHADA; Fase 5 do plano/spec marcada STOP rule-6 com todas as faces decididas pousadas e float/HFA/callbacks sem decisão; Fase 6 da spec FECHADA com unidades 1–4 + gate de inventário da matriz. Só docs; nenhuma mudança de comportamento. Prova: Q2 + gates docs/governança na árvore pós-rebase.

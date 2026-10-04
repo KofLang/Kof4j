@@ -1,6 +1,6 @@
-last: #748 memory-safety plan-header sync LANDED 04/10 SHA `aa7596556`; TIFF decode LANDED 04/10 SHA `f18a8febd` on the image-vision lane.
-doing: #749 status doc-truth repair IN PROGRESS 04/10 (owner `192.168.15.101:9092`): the top state was stale after #747/#748 and the remote TIFF landing, and the AVIF slice 3a history entry was malformed to a bare title.
-next: land the status repair, close #749, then continue release protocol / unowned docs gaps without touching active lanes.
+last: #749 status doc-truth repair LANDED 04/10 SHA `c9618f92f`; the top state now matches #747/#748 and the remote TIFF landing, and the AVIF slice 3a history entry carries its proof.
+doing: release protocol + bugs-and-gaps front; the mechanical live-bug queue contains §554 only; in-flight plans stay owned by their lanes under `D-PLAN-ONE-OWNER`.
+next: cut the next stable minor only from a green `lab` (`D-RELEASE-CADENCE` + `D-LAB-STABILITY`); `docs/development/future/` promotion remains frozen (`D-FUTURE-FREEZE`).
 location: repository
 state: active
 last: memory-safety phase-6 unit 10 LANDED 04/10 issue #743 (lane `192.168.15.101:9092`) — phase-state doc truth: plan Phase 3 CLOSED; Phase 5 plan/spec marked STOP rule-6 with all decided faces landed and float/HFA/callbacks un-decided; spec Phase 6 CLOSED with units 1–4 + matrix inventory gate. Docs only; no behavior change. Proved: Q2 + doc/governance gates on the post-rebase tree.
