@@ -16887,3 +16887,17 @@ MEASURED 03/10 (lane memory-safety/native-cross): the shape is stable RED at onl
 **Boundary:** test hygiene only — no production code, no parser/typer/codegen/runtime change. The same fix pattern applies to any future `assumeTrue(compile.success())`; `scripts/audit-stubs.sh` §12 keeps it visible.
 
 <!-- pt-switch --> **PT:** [§589 (pt_BR)](known-bugs.pt_BR.md#589--13-testes-e2e-crossorm-escondiam-uma-regressao-de-codegen-nativo-x86-64-atras-de-assumetruecompilesuccess-falso-verde-e-uma-tautologia-asserttruetrue---corrigido-0410-dona--19216815159092-lane-securityconnectors-frente-bugs-and-gaps-recorrencia-do-430)
+
+## §590 — `KofWebHardeningTest.connection_cap_returns_503_when_exceeded` was a deterministic race (the readiness probe could take the single connection slot), not a "load flake" — ✅ FIXED 04/10 (owner = 192.168.15.15:9092; lane security/connectors, bugs-and-gaps front; breaks `lab` STABILITY / `D-LAB-STABILITY`)
+
+**Symptom (measured 04/10, tip `bb43f73a6`):** the full suite (`scripts/safe-suite.sh`) showed `KofWebHardeningTest` 1 failure at the tip; isolated, `connection_cap_returns_503_when_exceeded` failed **5/12** runs (previous notes dismissed it as a "load flake, green isolated 6/6" — that was luck, not isolation).
+
+**Root (measured, not inferred):** the server increments `app.activeConnections` when the HANDLER thread starts (`JvmRuntimeWebServer.java:185`), NOT at `accept()`. `startServer()` calls `TestServerFixture.awaitListening`, whose readiness probe opens a TCP connection; that probe's handler increments the counter and only releases it when its `readRequest` hits EOF ("connection closed before headers"). If `held` connects while the probe is still counted, `held` is itself rejected with 503 — so it never holds the slot, and every subsequent probe gets 200. Instrumenting the generated runtime (`KOF_WEB_DEBUG`) showed exactly this: `enter now=2 max=1` on the `held` socket (503), then `enter now=1` on every probe (200). The old test's 3-second poll cannot recover, because no further connection ever exceeds the cap.
+
+**Fix (04/10, test-only):** wrap the hold-and-probe in a bounded retry (≤10 attempts): each attempt opens `held`, sends the partial request, polls for the 503; a 503 while `held` is open proves the cap is enforced with `held` occupying the slot. A 200 means a lingering readiness probe took the slot, so the attempt is retried (the `held` socket is closed by try-with-resources). Assertion text is preserved; the unused `fail` import is removed.
+
+**Proof (RED-first):** original test **5/12 RED** (7 pass / 5 fail) with the instrumented trace confirming the mechanism; fixed test **20/20 GREEN**, and `KofWebHardeningTest` **6/6** for the whole class. This removes the only non-environmental red in the full suite at the tip, so `lab` is stable again (`D-LAB-STABILITY`).
+
+**Boundary:** test hygiene only — no production code, no parser/typer/codegen/runtime change. The server's increment-on-handler behavior is unchanged (it is a separate design question, not this bug).
+
+<!-- pt-switch --> **PT:** [§590 (pt_BR)](known-bugs.pt_BR.md#590--kofwebhardeningtestconnection_cap_returns_503_when_exceeded-era-uma-corrida-deterministica-a-sonda-de-readiness-podia-tomar-o-unico-slot-de-conexao-nao-um-flake-de-carga---corrigido-0410-dona--19216815159092-lane-securityconnectors-frente-bugs-and-gaps-quebra-a-estabilidade-de-lab--d-lab-stability)

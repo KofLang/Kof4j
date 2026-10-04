@@ -29,6 +29,14 @@ bounded poll (it was flaky: 1/3 green) → baseline 182→179 keys. **Honest
 correction:** slice 1's "redundant" settle in `KofWebHardeningTest` was part of
 that race's timing — the test now waits for the 503 instead of guessing. The visible cost is
 feedback latency, not correctness (the reactor suite is green).
+**Honest correction 04/10 (`known-bugs` §590):** the slice-3/5 bounded poll did NOT de-flake
+`connection_cap_returns_503_when_exceeded` — measured **5/12 RED** isolated at tip `bb43f73a6`
+and the only non-environmental red in the full suite. The server increments `activeConnections`
+when the HANDLER starts (`JvmRuntimeWebServer:185`), not at `accept()`, so `startServer()`'s
+readiness probe could still occupy the single slot when `held` connected: `held` was then the
+rejected connection and every later probe saw 200 (the 3s poll can never recover). Fixed at the
+root in the test: a bounded retry re-opens `held` until a probe observes the 503 while `held`
+is open (fixed **20/20**). Test-only.
 **Quick-win slice 4 (28/09):** `TestServerFixture` gained a TCP-only
 `awaitPort(port, attempts, interval)` and an explicit-budget
 `awaitListening(process, port, attempts, interval)`; the remaining pure readiness

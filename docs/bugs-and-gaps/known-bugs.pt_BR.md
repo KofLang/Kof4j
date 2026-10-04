@@ -14434,3 +14434,17 @@ entrada do ledger apenas registra a divergência garantia-declarada × árvore.
 **Fronteira:** só higiene de teste — sem código de produção, sem mudança de parser/typer/codegen/runtime. O mesmo padrão vale para qualquer `assumeTrue(compile.success())` futuro; o §12 do `scripts/audit-stubs.sh` o mantém visível.
 
 <!-- en-switch --> **EN:** [§589 (EN)](known-bugs.md#589--13-crossorm-e2e-tests-hid-an-x86-64-native-codegen-regression-behind-assumetruecompilesuccess-false-green-and-one-asserttruetrue-tautology---fixed-0410-owner--19216815159092-lane-securityconnectors-bugs-and-gaps-front-430-recurrence)
+
+## §590 — `KofWebHardeningTest.connection_cap_returns_503_when_exceeded` era uma corrida determinística (a sonda de readiness podia tomar o único slot de conexão), não um "flake de carga" — ✅ CORRIGIDO 04/10 (dona = 192.168.15.15:9092; lane security/connectors, frente bugs-and-gaps; quebra a estabilidade de `lab` / `D-LAB-STABILITY`)
+
+**Sintoma (medido 04/10, tip `bb43f73a6`):** a suíte completa (`scripts/safe-suite.sh`) mostrou 1 falha em `KofWebHardeningTest` no tip; isolado, `connection_cap_returns_503_when_exceeded` falhou **5/12** execuções (notas anteriores o descartavam como "flake de carga, verde isolado 6/6" — era sorte, não isolamento).
+
+**Raiz (medida, não inferida):** o servidor incrementa `app.activeConnections` quando a thread do HANDLER inicia (`JvmRuntimeWebServer.java:185`), NÃO no `accept()`. O `startServer()` chama `TestServerFixture.awaitListening`, cuja sonda de readiness abre uma conexão TCP; o handler dessa sonda incrementa o contador e só o libera quando o `readRequest` encontra EOF ("connection closed before headers"). Se o `held` conecta enquanto a sonda ainda está contada, o próprio `held` é rejeitado com 503 — então ele nunca segura o slot, e toda sonda seguinte recebe 200. Instrumentar o runtime gerado (`KOF_WEB_DEBUG`) mostrou exatamente isso: `enter now=2 max=1` no socket `held` (503), depois `enter now=1` em toda sonda (200). O poll de 3 segundos do teste antigo não recupera, porque nenhuma conexão seguinte excede o cap.
+
+**Correção (04/10, só teste):** envolver o segurar-e-sondar num retry limitado (≤10 tentativas): cada tentativa abre o `held`, envia a requisição parcial e sonda o 503; um 503 com o `held` aberto prova que o cap é aplicado com o `held` ocupando o slot. Um 200 significa que uma sonda de readiness retardatária tomou o slot, então a tentativa é repetida (o socket `held` é fechado pelo try-with-resources). O texto da asserção é preservado; o import `fail` sem uso é removido.
+
+**Prova (RED-first):** teste original **5/12 VERMELHO** (7 passa / 5 falha) com o trace instrumentado confirmando o mecanismo; teste corrigido **20/20 VERDE**, e `KofWebHardeningTest` **6/6** para a classe toda. Isto remove o único vermelho não-ambiental da suíte completa no tip, então `lab` volta a ser estável (`D-LAB-STABILITY`).
+
+**Fronteira:** só higiene de teste — sem código de produção, sem mudança de parser/typer/codegen/runtime. O comportamento de incrementar-no-handler do servidor fica inalterado (é uma questão de design separada, não este bug).
+
+<!-- en-switch --> **EN:** [§590 (EN)](known-bugs.md#590--kofwebhardeningtestconnection_cap_returns_503_when_exceeded-was-a-deterministic-race-the-readiness-probe-could-take-the-single-connection-slot-not-a-load-flake---fixed-0410-owner--19216815159092-lane-securityconnectors-bugs-and-gaps-front-breaks-lab-stability--d-lab-stability)

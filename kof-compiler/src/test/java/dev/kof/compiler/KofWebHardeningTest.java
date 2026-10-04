@@ -19,7 +19,6 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * PR6 hardening E2E: connection cap, mutable limits, counters and SSE timeout.
@@ -256,17 +255,30 @@ class KofWebHardeningTest extends WsFrameSupport {
                     app.listen(PORT)
                 }
                 """);
-        try (Socket held = new Socket("127.0.0.1", port)) {
-            held.setSoTimeout(2000);
-            held.getOutputStream().write("GET /hello HTTP/1.1\r\nHost: x\r\n".getBytes(StandardCharsets.UTF_8));
-            held.getOutputStream().flush();
-            String probe = "GET /hello HTTP/1.1\r\nHost: x\r\n\r\n";
-            boolean unavailable = TestServerFixture.awaitTrue(60, 50,
-                    () -> request(port, probe).startsWith("HTTP/1.1 503 Service Unavailable"));
-            if (!unavailable) {
-                fail("expected 503, got: " + request(port, probe));
+        String probe = "GET /hello HTTP/1.1\r\nHost: x\r\n\r\n";
+        // The server increments the connection counter when the HANDLER starts
+        // (JvmRuntimeWebServer:185), not at accept(), so startServer()'s
+        // readiness probe can still occupy the single slot when `held` connects
+        // — then `held` is the connection rejected with 503 and every later
+        // probe sees 200 (measured flake ~1/5, "green isolated 6/6" was luck).
+        // Retry until `held` is the counted connection: a probe returning 503
+        // while `held` is open proves the cap enforces with `held` holding the
+        // slot; a 200 means the lingering probe took the slot, so retry.
+        String last = "";
+        boolean established = false;
+        for (int attempt = 0; attempt < 10 && !established; attempt++) {
+            try (Socket held = new Socket("127.0.0.1", port)) {
+                held.setSoTimeout(2000);
+                held.getOutputStream().write("GET /hello HTTP/1.1\r\nHost: x\r\n".getBytes(StandardCharsets.UTF_8));
+                held.getOutputStream().flush();
+                established = TestServerFixture.awaitTrue(40, 50,
+                        () -> request(port, probe).startsWith("HTTP/1.1 503 Service Unavailable"));
+                if (!established) {
+                    last = request(port, probe).split("\r\n")[0];
+                }
             }
         }
+        assertTrue(established, "expected 503 with the held connection, got: " + last);
     }
 
     @Test
