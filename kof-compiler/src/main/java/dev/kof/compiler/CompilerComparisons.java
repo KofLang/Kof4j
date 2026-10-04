@@ -517,7 +517,13 @@ public final class CompilerComparisons {
                 // dos checks genéricos (o "delete" também é rota do web)
                 return true;
             }
-            if (mc.receiver() != null) {
+            // #755: the web-route table is receiver-gated on `kof.web.App`
+            // (MethodCallTyper does the same); without the gate ANY user
+            // method named get/post/put/patch/delete/options was treated as a
+            // void route here, so a statement `b.post(...)` returning String
+            // skipped its POP and the JVM class failed VerifyError.
+            if (mc.receiver() != null
+                    && KofWeb.isAppType(ExpressionTyper.inferExprType(driver, mc.receiver(), locals))) {
                 List<Type> webArgTypes = new ArrayList<>();
                 for (ExpressionNode arg : mc.arguments()) webArgTypes.add(ExpressionTyper.inferExprType(driver, arg, List.of()));
                 KofWeb.WebCall webCall = KofWeb.instanceMethod(mc.methodName(), webArgTypes);
