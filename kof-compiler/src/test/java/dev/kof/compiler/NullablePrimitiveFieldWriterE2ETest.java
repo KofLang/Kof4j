@@ -102,7 +102,7 @@ class NullablePrimitiveFieldWriterE2ETest {
         return output;
     }
 
-    private void runAll3(Path tempDir, String source, String expected) throws IOException {
+    private void runAll4Targets(Path tempDir, String source, String expected) throws IOException {
         runJvm(tempDir, source, expected);
         runScript(tempDir, source, expected);
         runJs(tempDir, source, expected);
@@ -143,7 +143,7 @@ class NullablePrimitiveFieldWriterE2ETest {
 
     @Test
     void intNullableFieldWriteRead(@TempDir Path tempDir) throws IOException {
-        runAll3(tempDir, BOX + """
+        runAll4Targets(tempDir, BOX + """
             main() {
                 var b = Box()
                 b.n = 42
@@ -154,7 +154,7 @@ class NullablePrimitiveFieldWriterE2ETest {
 
     @Test
     void longNullableFieldWriteRead(@TempDir Path tempDir) throws IOException {
-        runAll3(tempDir, "class Box { Long? n }\n" + """
+        runAll4Targets(tempDir, "class Box { Long? n }\n" + """
             main() {
                 var b = Box()
                 b.n = 7
@@ -165,7 +165,7 @@ class NullablePrimitiveFieldWriterE2ETest {
 
     @Test
     void doubleNullableFieldWriteRead(@TempDir Path tempDir) throws IOException {
-        runAll3(tempDir, "class Box { Double? v }\n" + """
+        runAll4Targets(tempDir, "class Box { Double? v }\n" + """
             main() {
                 var b = Box()
                 b.v = 2.5
@@ -176,7 +176,7 @@ class NullablePrimitiveFieldWriterE2ETest {
 
     @Test
     void charNullableFieldWriteRead(@TempDir Path tempDir) throws IOException {
-        runAll3(tempDir, "class Box { Char? c }\n" + """
+        runAll4Targets(tempDir, "class Box { Char? c }\n" + """
             main() {
                 var b = Box()
                 b.c = 'x'
@@ -187,7 +187,7 @@ class NullablePrimitiveFieldWriterE2ETest {
 
     @Test
     void compoundPlusEqualsOnNullableField(@TempDir Path tempDir) throws IOException {
-        runAll3(tempDir, BOX + """
+        runAll4Targets(tempDir, BOX + """
             main() {
                 var b = Box()
                 b.n = 40
@@ -199,7 +199,7 @@ class NullablePrimitiveFieldWriterE2ETest {
 
     @Test
     void staticNullableFieldWriteRead(@TempDir Path tempDir) throws IOException {
-        runAll3(tempDir, "class Holder { static Int? n }\n" + """
+        runAll4Targets(tempDir, "class Holder { static Int? n }\n" + """
             main() {
                 Holder.n = 9
                 println(Holder.n)
@@ -209,7 +209,7 @@ class NullablePrimitiveFieldWriterE2ETest {
 
     @Test
     void controlPlainIntFieldStillWorks(@TempDir Path tempDir) throws IOException {
-        runAll3(tempDir, "class Box { Int n }\n" + """
+        runAll4Targets(tempDir, "class Box { Int n }\n" + """
             main() {
                 var b = Box()
                 b.n = 42
@@ -220,7 +220,7 @@ class NullablePrimitiveFieldWriterE2ETest {
 
     @Test
     void controlNeverWrittenNullableFieldReadsNull(@TempDir Path tempDir) throws IOException {
-        runAll3(tempDir, BOX + """
+        runAll4Targets(tempDir, BOX + """
             main() {
                 var b = Box()
                 println(b.n)

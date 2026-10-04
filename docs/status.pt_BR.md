@@ -1,4 +1,4 @@
-last: fatia 10 da Fase 5 de test-architecture (`JvmJsRunSupport`, chave `dupname runBoth` eliminada) LANDADA 04/10 — `check_test_hygiene` agora mede **123 chaves / rc=0** (autoridade `scripts/test-hygiene-baseline.txt`); a migração TIFF de `LibraryInstallSupport` + #750 da fatia 9 e o conserto de status #749 acompanham a mesma janela (`e7f1f5c4f`, `c9618f92f`).
+last: fatia 11 da Fase 5 de test-architecture (`runAll3` consolidado em `NullablePrimitiveContractSupport`, chave `dupname runAll3` eliminada) LANDADA 04/10 — `check_test_hygiene` agora mede **122 chaves / rc=0** (autoridade `scripts/test-hygiene-baseline.txt`); as fatias 9–10 (`LibraryInstallSupport`, `JvmJsRunSupport`) e a migração TIFF #750 acompanham a mesma janela (`093eda193`, `a8b2000a4`).
 doing: protocolo de release + frente bugs-and-gaps; a fila mecânica de bugs abertos contém somente §554; os planos em andamento continuam pertencendo às suas lanes sob `D-PLAN-ONE-OWNER`.
 next: cortar o próximo minor estável apenas a partir de um `lab` verde (`D-RELEASE-CADENCE` + `D-LAB-STABILITY`); a promoção de `docs/development/future/` segue congelada (`D-FUTURE-FREEZE`).
 location: repository

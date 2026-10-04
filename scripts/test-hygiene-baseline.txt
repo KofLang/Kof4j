@@ -73,7 +73,6 @@ dupname	registeredStepRunsDuringCompile
 dupname	requirePython3
 dupname	restore
 dupname	run
-dupname	runAll3
 dupname	runCross
 dupname	runEchoPathResolutionAndArgs
 dupname	runJavac
