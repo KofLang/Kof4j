@@ -101,6 +101,15 @@ public final class BuiltinTypes {
      */
     public static final Type CHANNEL = new Type.ClassType("kof.concurrent", "Channel", List.of());
 
+    /**
+     * #753: {@code Handle} sem type-args (a forma nua que {@code baseTypeName}
+     * já reconhece no guard de tipo não resolvido). Sem o pin, a forma nua
+     * caía num {@code ClassType("", "Handle")} e o JVM emitia {@code LHandle;}
+     * (classe inexistente) → {@code NoClassDefFoundError: Handle} no load; a
+     * forma parametrizada {@code Handle<T>} já era mapeada em {@code Type.of}.
+     */
+    public static final Type HANDLE = new Type.ClassType("kof.concurrent", "Handle", List.of());
+
     public static boolean isChannel(Type type) {
         if (type instanceof Type.ClassType ct) {
             return "kof.concurrent".equals(ct.packageName()) && "Channel".equals(ct.name());
@@ -179,6 +188,7 @@ public final class BuiltinTypes {
             case "Set" -> SET;
             case "Map" -> MAP;
             case "Channel" -> CHANNEL;
+            case "Handle" -> HANDLE;
             default -> null;
         };
     }
