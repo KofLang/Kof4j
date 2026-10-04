@@ -1,5 +1,6 @@
 package dev.kof.compiler;
 
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -47,7 +48,12 @@ class SurrogateConcatE2ETest extends KofStringsSupport {
 
     @Test
     void crossArch(@TempDir Path t) throws Exception {
-        assumeToolchain("qemu-riscv64", "qemu-aarch64");
+        // §591 (#714 pattern): o build cross invoca as+ld, não só qemu — sem
+        // o trio a porta honesta é SKIP (NATIVE002), não FAIL de ambiente.
+        Assumptions.assumeTrue(
+                NativeRiscv64E2ETest.hasToolchain("riscv64")
+                        && NativeRiscv64E2ETest.hasToolchain("aarch64"),
+                "cross toolchain riscv64+aarch64 (as/ld/qemu) ausente — pulando (NATIVE002)");
         surrogateRunQemuExpect(t, Target.NATIVE_RISCV64, "qemu-riscv64", PROG, "ok");
         surrogateRunQemuExpect(t, Target.NATIVE_AARCH64, "qemu-aarch64", PROG, "ok");
     }

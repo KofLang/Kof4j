@@ -27,6 +27,13 @@ class NativeAarch64E2ETest {
 
     private static boolean has(String... cmds) {
         for (String c : cmds) {
+            // §591: prefix-aware — KOF_CROSS_PREFIX/<tool> vence quando existe
+            // (cross rootless de scripts/setup-cross-toolchain.sh); senão o PATH.
+            String prefix = System.getenv("KOF_CROSS_PREFIX");
+            if (prefix != null && !prefix.isBlank()
+                    && new java.io.File(prefix, c).canExecute()) {
+                continue;
+            }
             try {
                 Process p = new ProcessBuilder("sh", "-c", "command -v " + c).redirectErrorStream(true).start();
                 String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
