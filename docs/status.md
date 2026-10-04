@@ -1,4 +1,4 @@
-last: #750 TIFF `LibraryInstallSupport` migration LANDED 04/10 SHA `e7f1f5c4f`, restoring `check_test_hygiene` to 124 keys / rc=0 after the concurrent TIFF landing; #749 status doc truth landed in `c9618f92f`.
+last: test-architecture Phase 5 slice 10 (`JvmJsRunSupport`, `dupname runBoth` eliminated) LANDED 04/10 — `check_test_hygiene` now measures **123 keys / rc=0** (authority `scripts/test-hygiene-baseline.txt`); slice 9's `LibraryInstallSupport` + TIFF `#750` migration and the `#749` status repair ride the same window (`e7f1f5c4f`, `c9618f92f`).
 doing: release protocol + bugs-and-gaps front; the mechanical live-bug queue contains §554 only; in-flight plans stay owned by their lanes under `D-PLAN-ONE-OWNER`.
 next: cut the next stable minor only from a green `lab` (`D-RELEASE-CADENCE` + `D-LAB-STABILITY`); `docs/development/future/` promotion remains frozen (`D-FUTURE-FREEZE`).
 location: repository

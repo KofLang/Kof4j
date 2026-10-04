@@ -1,4 +1,4 @@
-last: migração TIFF para `LibraryInstallSupport` #750 LANDADA 04/10 SHA `e7f1f5c4f`, restaurando `check_test_hygiene` a 124 chaves / rc=0 após o pouso concorrente do TIFF; a verdade de doc do status #749 pousou em `c9618f92f`.
+last: fatia 10 da Fase 5 de test-architecture (`JvmJsRunSupport`, chave `dupname runBoth` eliminada) LANDADA 04/10 — `check_test_hygiene` agora mede **123 chaves / rc=0** (autoridade `scripts/test-hygiene-baseline.txt`); a migração TIFF de `LibraryInstallSupport` + #750 da fatia 9 e o conserto de status #749 acompanham a mesma janela (`e7f1f5c4f`, `c9618f92f`).
 doing: protocolo de release + frente bugs-and-gaps; a fila mecânica de bugs abertos contém somente §554; os planos em andamento continuam pertencendo às suas lanes sob `D-PLAN-ONE-OWNER`.
 next: cortar o próximo minor estável apenas a partir de um `lab` verde (`D-RELEASE-CADENCE` + `D-LAB-STABILITY`); a promoção de `docs/development/future/` segue congelada (`D-FUTURE-FREEZE`).
 location: repository
