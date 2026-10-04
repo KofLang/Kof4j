@@ -1,4 +1,4 @@
-last: #749 status doc-truth repair LANDED 04/10 SHA `c9618f92f`; the top state now matches #747/#748 and the remote TIFF landing, and the AVIF slice 3a history entry carries its proof.
+last: #750 TIFF `LibraryInstallSupport` migration LANDED 04/10 SHA `e7f1f5c4f`, restoring `check_test_hygiene` to 124 keys / rc=0 after the concurrent TIFF landing; #749 status doc truth landed in `c9618f92f`.
 doing: release protocol + bugs-and-gaps front; the mechanical live-bug queue contains §554 only; in-flight plans stay owned by their lanes under `D-PLAN-ONE-OWNER`.
 next: cut the next stable minor only from a green `lab` (`D-RELEASE-CADENCE` + `D-LAB-STABILITY`); `docs/development/future/` promotion remains frozen (`D-FUTURE-FREEZE`).
 location: repository

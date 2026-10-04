@@ -1,4 +1,4 @@
-last: reparo de verdade de doc do status #749 LANDADO 04/10 SHA `c9618f92f`; o estado do topo agora bate com #747/#748 e o pouso remoto do TIFF, e o registro histórico da fatia 3a do AVIF carrega sua prova.
+last: migração TIFF para `LibraryInstallSupport` #750 LANDADA 04/10 SHA `e7f1f5c4f`, restaurando `check_test_hygiene` a 124 chaves / rc=0 após o pouso concorrente do TIFF; a verdade de doc do status #749 pousou em `c9618f92f`.
 doing: protocolo de release + frente bugs-and-gaps; a fila mecânica de bugs abertos contém somente §554; os planos em andamento continuam pertencendo às suas lanes sob `D-PLAN-ONE-OWNER`.
 next: cortar o próximo minor estável apenas a partir de um `lab` verde (`D-RELEASE-CADENCE` + `D-LAB-STABILITY`); a promoção de `docs/development/future/` segue congelada (`D-FUTURE-FREEZE`).
 location: repository
