@@ -2,8 +2,9 @@
 
 # kof.process — comandos externos, one-shot
 
-> **Status: JVM + JS ✅ · Native = `PROC001` (gap honesto em compile-time,
-> travado no `DomainGapCodesTest`).**
+> **Status: JVM + JS ✅ · Native x86-64/riscv64/aarch64 ✅ (`run`, `spawn` +
+> ops de handle, impressão do `Result` inteiro) · Native MCU/riscv32 = `PROC001`
+> (gap honesto em compile-time, travado no `DomainGapCodesTest`).**
 
 | Função | Forma |
 |--------|-------|

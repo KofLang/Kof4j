@@ -4,7 +4,7 @@
 
 **Status:** v1 implementado (21/09, `2cd4257a`, plano universal Estágio 2 linha 2.3) ·
 **Fonte:** `KofSsh.java` (despacho) + `ExpressionSshCallLowerer` (gates/lowering) ·
-**Testes:** `SshE2ETest` (8) · **Registro de design:**
+**Testes:** `SshE2ETest` (12) + `SshCrossE2ETest` (2) · **Registro de design:**
 `docs/architecture/UNIVERSAL-PLATFORM-VISION.md` §6.1 (opção **B** — "sobre
 `kof.process`/FFI"; este é o caminho de processo, `libssh` não é necessário no MVP)
 
@@ -56,11 +56,12 @@ concatena numa string de shell.
 
 | Face | JVM | JS | Native |
 |---|---|---|---|
-| `cmd` / `run` / `ok` | ✅ real (rebaixa para `kof_ssh_argv`/`kof_ssh_run` → `kof_process_run`) | ✅ real (paridade byte com JVM) | ❌ `PROC001` honesto em compile-time (herda a face Native de `process.run`) |
+| `cmd` / `run` / `ok` | ✅ real (rebaixa para `kof_ssh_argv`/`kof_ssh_run` → `kof_process_run`) | ✅ real (paridade byte com JVM) | ✅ real em x86-64 (`RuntimeSsh`) e riscv64/aarch64 (`NativeRiscvAsmSsh`), 26/09 — paridade byte com JVM; só o MCU/riscv32 freestanding mantém `PROC001` |
 | membro inválido (`ssh.foo`) | ✅ `SEM025` | — | — |
 
-O Native aguarda o `process.run`/spawn da lane nativa em asm — a mesma célula de
-`kof.process`/`kof.shell` (R7 escopo honesto), nunca um stub silencioso (R6).
+O Native é real nos alvos hospedeiros x86-64/riscv64/aarch64 (26/09, `SshE2ETest` 12 +
+`SshCrossE2ETest` 2); o `PROC001` agora é só o MCU/riscv32 freestanding — a mesma
+célula de `kof.process`/`kof.shell` (R7 escopo honesto), nunca um stub silencioso (R6).
 
 ## RUIM → BOM
 
