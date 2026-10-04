@@ -160,4 +160,27 @@ class ProcessSpawnE2ETest {
             }
             """, "ok 7");
     }
+
+    /**
+     * #753 (04/10): the same bare-{@code Handle} gap on a DECLARED PARAMETER
+     * (a distinct descriptor path from the return type). `declaredCollectionType`
+     * did not pin `Handle`, so the parameter erased to `LHandle;` and the class
+     * failed at LOAD with {@code NoClassDefFoundError: Handle}.
+     */
+    @Test
+    void bareHandleDeclaredParameterTypeIsNameableAndRuns() throws Exception {
+        assertJvmJsParity("""
+            Handle start() {
+                return spawn { 7 }
+            }
+
+            Int use(Handle h) {
+                return await h
+            }
+
+            main() {
+                println("ok " + use(start()))
+            }
+            """, "ok 7");
+    }
 }
