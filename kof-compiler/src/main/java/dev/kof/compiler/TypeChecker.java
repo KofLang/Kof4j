@@ -109,9 +109,13 @@ public final class TypeChecker {
     }
 
     static boolean ctorAccepts(SymbolTable.ConstructorSymbol c, List<Type> argTypes) {
-        if (c.parameterTypes().size() != argTypes.size()) return false;
+        return ctorAccepts(c, c.parameterTypes(), argTypes);
+    }
+
+    static boolean ctorAccepts(SymbolTable.ConstructorSymbol c, List<Type> formalTypes, List<Type> argTypes) {
+        if (formalTypes.size() != argTypes.size()) return false;
         for (int i = 0; i < argTypes.size(); i++) {
-            if (!emitCtorPairCompatible(c.parameterTypes().get(i), argTypes.get(i))) {
+            if (!emitCtorPairCompatible(formalTypes.get(i), argTypes.get(i))) {
                 return false;
             }
         }
@@ -137,18 +141,22 @@ public final class TypeChecker {
         else if (init instanceof SymbolTable.ConstructorSet set) ctors.addAll(set.constructors());
         boolean hasSameArity = false;
         for (SymbolTable.ConstructorSymbol c : ctors) {
-            if (c.parameterTypes().size() != argTypes.size()) continue;
+            if (!c.acceptsArgumentCount(argTypes.size())) {
+                continue;
+            }
+            List<Type> effective = c.effectiveParameterTypes(argTypes.size());
             hasSameArity = true;
-            if (ctorAccepts(c, argTypes)) return; // o emit pega este irmao
+            if (ctorAccepts(c, effective, argTypes)) return; // o emit pega este irmao
         }
         if (!hasSameArity) return; // aridade: SEM023 do chamador, nao nosso caso
-        // o emit caí no fallback "primeiro de mesma aridade" e inventa o
-        // descritor: reporta o primeiro par realmente incompatível.
-        SymbolTable.ConstructorSymbol firstArity = ctors.stream()
-                .filter(c -> c.parameterTypes().size() == argTypes.size())
-                .findFirst().orElse(null);
+        // o emit cai no fallback "primeiro de mesma aridade" e inventa o
+        // descritor: reporta o primeiro par realmente incompativel.
+        List<Type> firstEffective = ctors.stream()
+                .filter(c -> c.acceptsArgumentCount(argTypes.size()))
+                .findFirst().map(c -> c.effectiveParameterTypes(argTypes.size()))
+                .orElse(List.of());
         for (int i = 0; i < argTypes.size(); i++) {
-            Type formal = firstArity.parameterTypes().get(i);
+            Type formal = firstEffective.get(i);
             Type arg = argTypes.get(i);
             if (!emitCtorPairCompatible(formal, arg)) {
                 sa.diagnostics().error(node,

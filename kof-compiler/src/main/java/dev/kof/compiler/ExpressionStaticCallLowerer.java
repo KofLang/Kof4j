@@ -30,39 +30,10 @@ if (mc.receiver() == null && driver.semanticAnalyzer != null) {
 if (userCtor != null) {
     List<Type> argTypes = new ArrayList<>();
     for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
-    SymbolTable.ConstructorSymbol ctor = null;
-    SymbolTable.Symbol ctorSym = userCtor.members().resolve("<init>");
-    if (ctorSym instanceof SymbolTable.ConstructorSymbol ctorSingle) ctor = ctorSingle;
-    List<Type> ctorParamTypes = (ctor != null
-            && ctor.parameterTypes().size() == mc.arguments().size())
-            ? ctor.parameterTypes() : null;
-    if (ctorParamTypes == null && ctorSym instanceof SymbolTable.ConstructorSet set) {
-        // resolve por assignability: arg pode ser subtipo do
-        // formal (ex.: FixedClock onde TimeSource esperado)
-        for (SymbolTable.ConstructorSymbol c : set.constructors()) {
-            if (c.parameterTypes().size() != argTypes.size()) continue;
-            boolean compatible = true;
-            for (int ai = 0; ai < argTypes.size(); ai++) {
-                Type formalP = c.parameterTypes().get(ai);
-                Type argP = argTypes.get(ai);
-                if (!(formalP.equals(argP) || Type.isUnknown(argP)
-                        || (formalP instanceof Type.ClassType
-                            && argP instanceof Type.ClassType))) {
-                    compatible = false;
-                    break;
-                }
-            }
-            if (compatible) { ctorParamTypes = c.parameterTypes(); break; }
-        }
-        if (ctorParamTypes == null) {
-            for (SymbolTable.ConstructorSymbol c2 : set.constructors()) {
-                if (c2.parameterTypes().size() == argTypes.size()) {
-                    ctorParamTypes = c2.parameterTypes();
-                    break;
-                }
-            }
-        }
-    }
+    SymbolTable.ConstructorSymbol ctor = SymbolTable.constructorFor(
+            userCtor.members(), mc.arguments().size(), argTypes);
+    List<Type> ctorParamTypes = ctor != null && ctor.acceptsArgumentCount(mc.arguments().size())
+            ? ctor.effectiveParameterTypes(mc.arguments().size()) : null;
     if (ctorParamTypes == null) ctorParamTypes = argTypes;
     ops.add(new KofNewObject(userCtor.type(), argTypes));
     ops.add(new KofDup());

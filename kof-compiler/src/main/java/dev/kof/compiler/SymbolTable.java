@@ -64,16 +64,60 @@ public class SymbolTable {
 
     /** Construtor com exatamente {@param argumentCount} parâmetros, ou null. */
     static ConstructorSymbol constructorFor(SymbolTable members, int argumentCount) {
+        return constructorFor(members, argumentCount, null);
+    }
+
+    /**
+     * Construtor aplicável a {@param argumentCount} argumentos, respeitando
+     * parâmetros default (#766). Primeiro procura a assinatura exata; depois o
+     * wrapper de prefixo válido. Sem {@param argTypes}, a ambiguidade por tipos
+     * é decidida pela ordem de declaração.
+     */
+    static ConstructorSymbol constructorFor(SymbolTable members, int argumentCount, List<Type> argTypes) {
         Symbol s = members != null ? members.resolve("<init>") : null;
+        List<ConstructorSymbol> ctors = new ArrayList<>();
         if (s instanceof ConstructorSymbol c) {
-            return c.parameterTypes().size() == argumentCount ? c : null;
+            ctors.add(c);
+        } else if (s instanceof ConstructorSet set) {
+            ctors.addAll(set.constructors());
         }
-        if (s instanceof ConstructorSet set) {
-            for (ConstructorSymbol c : set.constructors()) {
-                if (c.parameterTypes().size() == argumentCount) return c;
+        ConstructorSymbol exactFallback = null;
+        for (ConstructorSymbol c : ctors) {
+            if (c.parameterTypes().size() != argumentCount) {
+                continue;
+            }
+            if (exactFallback == null) {
+                exactFallback = c;
+            }
+            if (argTypes == null || TypeChecker.ctorAccepts(c, argTypes)) {
+                return c;
             }
         }
-        return null;
+        if (exactFallback != null) {
+            return exactFallback;
+        }
+        ConstructorSymbol compatibleDefault = null;
+        ConstructorSymbol arityDefault = null;
+        for (ConstructorSymbol c : ctors) {
+            if (!c.acceptsArgumentCount(argumentCount)) {
+                continue;
+            }
+            if (arityDefault == null) arityDefault = c;
+            List<Type> effective = c.effectiveParameterTypes(argumentCount);
+            if (argTypes == null || TypeChecker.ctorAccepts(new ConstructorSymbol(
+                    c.ownerClass(), effective, c.accessFlags()), argTypes)) {
+                compatibleDefault = c;
+                break;
+            }
+        }
+        return compatibleDefault != null ? compatibleDefault : arityDefault;
+    }
+
+    static String describeExpectedConstructorArity(ConstructorSymbol ctor) {
+        int full = ctor.parameterTypes().size();
+        int required = ctor.requiredArity();
+        if (required == full) return String.valueOf(full);
+        return required + ".." + full;
     }
 
     Symbol resolve(String name) {
@@ -280,7 +324,12 @@ public class SymbolTable {
         }
     }
 
-    record ConstructorSymbol(String ownerClass, List<Type> parameterTypes, int accessFlags) implements Symbol {
+    record ConstructorSymbol(String ownerClass, List<Type> parameterTypes, int accessFlags,
+                             int requiredArity) implements Symbol {
+        ConstructorSymbol(String ownerClass, List<Type> parameterTypes, int accessFlags) {
+            this(ownerClass, parameterTypes, accessFlags, parameterTypes.size());
+        }
+
         @Override
         public String name() {
             return "<init>";
@@ -289,6 +338,17 @@ public class SymbolTable {
         @Override
         public Type type() {
             return new Type.ClassType("", ownerClass, List.of());
+        }
+
+        List<Type> effectiveParameterTypes(int argumentCount) {
+            if (argumentCount < requiredArity || argumentCount > parameterTypes.size()) {
+                return List.of();
+            }
+            return List.copyOf(parameterTypes.subList(0, argumentCount));
+        }
+
+        boolean acceptsArgumentCount(int argumentCount) {
+            return argumentCount >= requiredArity && argumentCount <= parameterTypes.size();
         }
     }
 

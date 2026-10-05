@@ -32,14 +32,14 @@ public final class ExpressionBareCallLowerer {
             Type targetType = CompilerTypes.ownerTypeFromInternal(targetInternal, driver.semanticAnalyzer);
             SymbolTable.ClassSymbol targetCs = driver.semanticAnalyzer.getClass(
                     targetInternal.substring(targetInternal.lastIndexOf('/') + 1));
-            SymbolTable.ConstructorSymbol ctor = targetCs != null
-                    ? SymbolTable.constructorFor(targetCs.members(), mc.arguments().size()) : null;
             List<Type> argTypes = new ArrayList<>();
             for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
+            SymbolTable.ConstructorSymbol ctor = targetCs != null
+                    ? SymbolTable.constructorFor(targetCs.members(), mc.arguments().size(), argTypes) : null;
             ops.add(new KofLoadLocal(CompilerTypes.ownerTypeFromInternal(owner, driver.semanticAnalyzer), 0));
             List<Type> ctorParamTypes;
-            if (ctor != null && ctor.parameterTypes().size() == mc.arguments().size()) {
-                ctorParamTypes = ctor.parameterTypes();
+            if (ctor != null && ctor.acceptsArgumentCount(mc.arguments().size())) {
+                ctorParamTypes = ctor.effectiveParameterTypes(mc.arguments().size());
             } else {
                 if (targetCs != null && driver.currentDiagnostics != null) {
                     // classe conhecida e nenhum construtor com essa
@@ -120,14 +120,13 @@ public final class ExpressionBareCallLowerer {
         if (cs != null) {
             List<Type> argTypes = new ArrayList<>();
             for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
-            SymbolTable.ConstructorSymbol ctor = null;
-            SymbolTable.Symbol ctorSym = cs.members().resolve("<init>");
-            if (ctorSym instanceof SymbolTable.ConstructorSymbol ctorSingle) ctor = ctorSingle;
+            SymbolTable.ConstructorSymbol ctor = SymbolTable.constructorFor(
+                    cs.members(), mc.arguments().size(), argTypes);
             ops.add(new KofNewObject(cs.type(), argTypes));
             ops.add(new KofDup());
-            List<Type> ctorParamTypes = (ctor != null
-                    && ctor.parameterTypes().size() == mc.arguments().size())
-                    ? ctor.parameterTypes() : argTypes;
+            List<Type> ctorParamTypes = ctor != null && ctor.acceptsArgumentCount(mc.arguments().size())
+                    ? ctor.effectiveParameterTypes(mc.arguments().size())
+                    : argTypes;
             localIdx = driver.emitArgumentsWithFormalTypes(mc.arguments(), ctorParamTypes, ops, owner, localIdx, locals);
             ops.add(new KofCall(cs.type(), "<init>", ctorParamTypes, Type.PrimitiveType.VOID, KofCallKind.CONSTRUCTOR));
         } else {
