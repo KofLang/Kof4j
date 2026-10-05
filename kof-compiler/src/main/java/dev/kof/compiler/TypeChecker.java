@@ -231,10 +231,63 @@ public final class TypeChecker {
             // decimais (1000.0) não atribuem a campos Float
             return true;
         }
-        if (to instanceof Type.ClassType) {
+        if (to instanceof Type.ClassType tc) {
+            if (from instanceof Type.ClassType fc) {
+                // D-MAINT-BATCH-0510/TY1 (#753 residual): o fallback
+                // "todo ClassType atribui a todo ClassType" aceitava
+                // `process.spawn(...)` (um handle `java.lang.Long`) numa
+                // função declarada `Handle` (que apaga para
+                // `CompletableFuture`) — `kof check` limpo e a classe morria
+                // no load com `VerifyError: Bad return type`. Os builtins com
+                // ERASÃO JVM conhecida são comparados pelo runtime REAL: o
+                // descritor de `JvmTypeMapper.classDescriptor` é carregado e
+                // a hierarquia do JDK decide. Só RECUSA quando as duas classes
+                // carregam e não há relação; qualquer lado sintético
+                // (kof.ui.*, kof.io.*, ...) ou externo não-carregável
+                // permanece conservador (nunca quebrar interop legítima, R6).
+                Boolean runtime = runtimeClassRelation(fc, tc);
+                if (runtime != null) return runtime;
+            }
             return from instanceof Type.ClassType;
         }
         return false;
+    }
+
+    /**
+     * D-MAINT-BATCH-0510/TY1 (#753 residual): relação real de duas classes
+     * builtin pelo seu descritor de ERASÃO JVM (`JvmTypeMapper.classDescriptor`
+     * — o mesmo chokepoint que resolve `kof.List`→`ArrayList`,
+     * `kof.concurrent.Handle`→`CompletableFuture`, `kof.Secret`→
+     * `KofRuntime$Secret`). Devolve {@code null} quando a decisão não é
+     * segura: qualquer descritor não-carregável (tipo sintético/fantasma),
+     * primitivo/array ou erro de link. Assim a recusa do TY1 nunca inventa
+     * hierarquia para os tipos que o compilador apenas emite por convenção.
+     */
+    private static Boolean runtimeClassRelation(Type.ClassType from, Type.ClassType to) {
+        Class<?> f = loadRuntimeClass(from);
+        Class<?> t = loadRuntimeClass(to);
+        if (f == null || t == null) return null;
+        return t.isAssignableFrom(f);
+    }
+
+    private static Class<?> loadRuntimeClass(Type.ClassType ct) {
+        String descriptor;
+        try {
+            descriptor = dev.kof.compiler.jvm.JvmTypeMapper.classDescriptor(ct);
+        } catch (Throwable t) {
+            return null;
+        }
+        if (descriptor == null || descriptor.length() < 3
+                || descriptor.charAt(0) != 'L' || descriptor.charAt(descriptor.length() - 1) != ';') {
+            return null;
+        }
+        String internal = descriptor.substring(1, descriptor.length() - 1);
+        try {
+            return Class.forName(internal.replace('/', '.'), false,
+                    TypeChecker.class.getClassLoader());
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     /**

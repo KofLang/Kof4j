@@ -59,7 +59,7 @@ public final class JvmTypeMapper {
         };
     }
 
-    static String classDescriptor(Type.ClassType c) {
+    public static String classDescriptor(Type.ClassType c) {
         String internalName = c.internalName();
         if ("java.lang".equals(c.packageName()) && "String".equals(c.name())) {
             return "Ljava/lang/String;";
