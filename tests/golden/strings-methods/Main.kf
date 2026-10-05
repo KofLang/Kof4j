@@ -1,0 +1,14 @@
+main() {
+    var s = "  Hello World  "
+    var t = s.trim()
+    println(t)
+    println(t.length)
+    println(t.substring(6))
+    println(t.startsWith("Hello"))
+    println(t.endsWith("World"))
+    println(t.indexOf("World"))
+    println(t.toUpperCase())
+    println(t.toLowerCase())
+    println(t.charAt(1) as Int)
+    println("A" + "B" == "AB")
+}

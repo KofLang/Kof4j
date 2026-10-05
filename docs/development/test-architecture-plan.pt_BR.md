@@ -811,6 +811,15 @@ JVM/Native/JS mais diverge, então piná-las nos quatro alvos é o incremento de
 cobertura de maior valor que resta na Fase 6. Prova (executada):
 `tests/run-golden.sh` **80/80** (20 casos × 4 alvos), exit 0.
 
+**Fatia 4 da Fase 6 ENTREGUE (05/10):** mais três casos — **23 no total** —
+fechando as superfícies de alto valor restantes: `strings-methods`
+(`trim`/`substring`/`startsWith`/`endsWith`/`indexOf`/`toUpperCase`/
+`toLowerCase`/`charAt` + `==` de conteúdo), `closures` (captura mutável via o
+`BoxN` sintético + captura dentro de `map`/`filter`) e `sealed-switch`
+(`sealed class` + switch expression exaustivo sem `default` — o contrato
+§X5.1/§X5.2, apagado no codegen). Prova (executada): `tests/run-golden.sh`
+**92/92** (23 casos × 4 alvos), exit 0.
+
 ### Fase 7 — Integração
 
 Implantar:

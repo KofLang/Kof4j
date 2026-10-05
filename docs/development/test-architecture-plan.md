@@ -807,6 +807,14 @@ pinning them on all four targets is the highest-value coverage increment left in
 Phase 6. Proof (executed): `tests/run-golden.sh` **80/80** (20 cases × 4
 targets), exit 0.
 
+**Phase 6 slice 4 LANDED (05/10):** three more cases — **23 total** — closing the
+remaining high-value surfaces: `strings-methods` (`trim`/`substring`/`startsWith`/
+`endsWith`/`indexOf`/`toUpperCase`/`toLowerCase`/`charAt` + content `==`),
+`closures` (mutable capture via the synthetic `BoxN` + capture inside `map`/
+`filter`), and `sealed-switch` (`sealed class` + exhaustive switch expression
+without `default` — the §X5.1/§X5.2 contract, erased in codegen). Proof
+(executed): `tests/run-golden.sh` **92/92** (23 cases × 4 targets), exit 0.
+
 ### Phase 7 — Integration
 
 Deploy:
