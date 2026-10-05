@@ -214,8 +214,7 @@ public final class ExpressionInstanceCallLowerer {
             // (s: (Int) -> Int), sem classe sintética). Todas as
             // lambdas da assinatura implementam a interface
             // sintética — invoca via INVOKEINTERFACE.
-            List<Type> argTypes = new ArrayList<>();
-            for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
+            for (ExpressionNode arg : mc.arguments()) ExpressionTyper.inferExprType(driver, arg, locals);
             for (ExpressionNode arg : mc.arguments()) {
                 localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
             }
@@ -225,8 +224,7 @@ public final class ExpressionInstanceCallLowerer {
             ops.add(new KofCall(iface, "invoke", ft.parameterTypes(), ft.returnType(), KofCallKind.INTERFACE));
             return localIdx;
         }
-        List<Type> argTypes = new ArrayList<>();
-        for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
+        for (ExpressionNode arg : mc.arguments()) ExpressionTyper.inferExprType(driver, arg, locals);
         for (ExpressionNode arg : mc.arguments()) {
             localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
         }
