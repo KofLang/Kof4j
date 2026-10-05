@@ -10,7 +10,7 @@
 **Main dependencies:** R3 / FFI-ABI (`docs/ffi-abi-structs.md`), the JVM interop path
 (`ExternalClasspath`/`JdkReflectionResolver`), `kof.process`/`kof.shell`/`kof.ssh`,
 KofJS, the Native backends, `kof.toml`/`kofdeps`
-**Implementation status:** fatias 1–16 LANDED in pure-Kof `libs/interop/` (manifest reader → `InteropCore`, through `CAbiConnector` = the declarative C-ABI half, slice 16) — see §9. **Slice A (`foreign module` grammar) LANDED 01/10** (`foreign` enters the grammar as sugar over the existing FFI path; `ForeignModuleGrammarE2ETest` 5/5). **Slices B (`InteropError`, `D-INTEROP-ERR-TYPE`, 02/10) and D (ABI-tier table, `D-ABI-TIER-TABLE`, 02/10) are LANDED** — the authorized A/B/C/D surface is complete; see §9.16/§879 for the measured closure. Next: await the maintainer's plan closure / promotion to `docs/stdlib/` (rule 6).
+**Implementation status:** fatias 1–16 LANDED in pure-Kof `libs/interop/` (manifest reader → `InteropCore`, through `CAbiConnector` = the declarative C-ABI half, slice 16) — see §9. **Slice A (`foreign module` grammar) LANDED 01/10** (`foreign` enters the grammar as sugar over the existing FFI path; `ForeignModuleGrammarE2ETest` 5/5). **Slices B (`InteropError`, `D-INTEROP-ERR-TYPE`, 02/10) and D (ABI-tier table, `D-ABI-TIER-TABLE`, 02/10) are LANDED** — the authorized A/B/C/D surface is complete; see §9.16/§879 for the measured closure. **§8 CLI generator LANDED 04/10** (`kof connector init`, `CmdConnectorInitTest` 7/7 — see §8.1). Next: await the maintainer's plan closure / promotion to `docs/stdlib/` (rule 6).
 
 > **Fundamental rule.** This document describes a future architectural direction. It does
 > **not** change the language, add keywords, create namespaces, or open an implementation
@@ -505,6 +505,28 @@ connector/
 It generates a starting connector structure so the community can create connectors without
 changing the compiler core. Placement is the existing `kof-cli` dispatch (`Main.java:17`),
 following the `kof new` / `kof deps` subcommand precedent.
+
+## 8.1 LANDED 04/10/2026 — `kof connector init` (CLI half)
+
+**State:** landed (`CmdConnector.java` + `InteropLibrary.java`, wired in `Main.java`).
+`kof connector init <dir> [--name N] [--language L] [--version V] [--abi A] [--runtime R]`
+creates the §8 structure (`kof-connector.toml` + `bindings/`/`runtime/`/`types/`/`tests/`/
+`docs/`) and writes the canonical manifest through the pure-Kof `interop.ConnectorTemplate`
+(D-KOF-FIRST-IMPL: the policy stays in the Kof library, the CLI supplies only the terminal
+mechanism — resolve the lib, compile a minimal generated `main`, run on the JVM). Honest
+`CONNECTOR001` (R6) on a missing dir, an unknown flag, an existing manifest, or a missing
+Kof library; never overwrites, never a silent no-op. The default name is the directory name;
+defaults `language=c`, `version=0.1.0`, `abi=c`, `runtime=native`.
+
+**Pre-fix measurement (RED):** on the shipped jar, `kof connector init <dir>` printed
+`unknown: connector` and exited **0** — a silent no-op (R6 violation), no scaffold written.
+
+**Proof:** `CmdConnectorInitTest` **7/7** — RED against the old silent no-op (5 failures + 2
+errors), GREEN post-wire: scaffold files/dirs exist; the generated `kof-connector.toml`
+round-trips through the pure-Kof `ConnectorManifest` (`validate()` passes, `name/language/
+version/abi/runtime` read back); the default name comes from the directory; an existing
+manifest is refused without overwrite; an unknown flag and a missing dir are refused;
+`CmdNewTest` 8/8 unregressed. No compiler/language change.
 
 ---
 

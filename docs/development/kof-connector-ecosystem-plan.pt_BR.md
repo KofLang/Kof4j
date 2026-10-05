@@ -13,6 +13,7 @@ KofJS, os backends Native, `kof.toml`/`kofdeps`
 **Estado de implementação:** fatias 1–16 POUSADAS em pure-Kof `libs/interop/` (leitor de manifest → `InteropCore`, até `CAbiConnector` = a metade declarativa C-ABI, fatia 16) — ver §9. **Fatia A (gramática `foreign module`) LANDADA 01/10** (`foreign` entra na gramática como açúcar sobre a via FFI existente; `ForeignModuleGrammarE2ETest` 5/5). Resta a fatia B (tipo de erro de interop) — **superfície DECIDIDA 02/10 por `D-INTEROP-ERR-TYPE`**
 (`InteropError` catchável, `.message`/`.code`, contrato String intocado). **A transcrição dos tiers
 de ABI FECHOU 02/10 (`D-ABI-TIER-TABLE`; §9.16 Fatia D): escala do stdlib, primeiro estável `1.0.0`.**
+**Gerador CLI do §8 POUSADO 04/10** (`kof connector init`, `CmdConnectorInitTest` 7/7 — ver §8.1).
 
 > **Regra fundamental.** Este documento descreve uma direção arquitetural futura. Ele **não**
 > altera a linguagem, não adiciona palavras-chave, não cria namespaces e não abre trilha de
@@ -512,6 +513,28 @@ connector/
 Gera a estrutura inicial de um connector para que a comunidade crie connectors sem alterar o
 core do compilador. O lugar é o dispatch existente de `kof-cli` (`Main.java:17`), seguindo o
 precedente dos subcomandos `kof new` / `kof deps`.
+
+## 8.1 POUSADO 04/10/2026 — `kof connector init` (metade CLI)
+
+**Estado:** pousado (`CmdConnector.java` + `InteropLibrary.java`, ligados em `Main.java`).
+`kof connector init <dir> [--name N] [--language L] [--version V] [--abi A] [--runtime R]`
+cria a estrutura do §8 (`kof-connector.toml` + `bindings/`/`runtime/`/`types/`/`tests/`/
+`docs/`) e escreve o manifest canônico através do `interop.ConnectorTemplate` puro-Kof
+(D-KOF-FIRST-IMPL: a política fica na lib Kof, a CLI fornece só o mecanismo de terminal —
+resolve a lib, compila um `main` mínimo gerado, roda na JVM). `CONNECTOR001` honesto (R6) em
+dir ausente, flag desconhecida, manifest existente ou lib Kof ausente; nunca sobrescreve,
+nunca um no-op silencioso. O nome padrão é o nome do diretório; defaults `language=c`,
+`version=0.1.0`, `abi=c`, `runtime=native`.
+
+**Medição pré-fix (VERMELHO):** no jar, `kof connector init <dir>` imprimia
+`unknown: connector` e saía **0** — no-op silencioso (viola R6), nenhum scaffold escrito.
+
+**Prova:** `CmdConnectorInitTest` **7/7** — VERMELHO contra o no-op antigo (5 falhas + 2
+erros), VERDE pós-ligação: arquivos/dirs existem; o `kof-connector.toml` gerado faz
+round-trip pelo `ConnectorManifest` puro-Kof (`validate()` passa; `name/language/version/abi/
+runtime` relidos); o nome padrão vem do diretório; manifest existente é recusado sem
+sobrescrita; flag desconhecida e dir ausente são recusados; `CmdNewTest` 8/8 sem regressão.
+Sem mudança de compilador/linguagem.
 
 ---
 
