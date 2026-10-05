@@ -21,9 +21,16 @@ orienta a intenção.
 | `extension` | `Path("data/users.txt").extension()` | `txt` |
 | `normalize` | `Path("a/./b/../c").normalize()` | `a/c` |
 | `isAbsolute` | `Path("/x").isAbsolute()` | `true` |
-| `toAbsolute` | `Path("x").toAbsolute()` | caminho absoluto |
+| `toAbsolute` | `Path("x").toAbsolute()` | caminho absoluto (lexical, nunca falha) |
+| `realPath` | `Path("link").realPath()` | caminho canônico com symlinks/junctions resolvidos; `String?` — `null` quando o caminho não existe |
 
 No Windows o separador é `\`; o código Kof nunca concatena separadores.
+`realPath()` é a primitiva para checagens de confinamento: compare o filho
+resolvido com a raiz resolvida para que um symlink ou uma junction de
+diretório do Windows não aponte para fora dela. `isSymlink()` reporta se o
+próprio caminho é um link simbólico (não reporta uma junction do Windows);
+`realPath()` resolve ambos. `realPath()` é JVM + Native (x86-64, riscv64,
+aarch64); o alvo JS a recusa em compile time com `IOJS001`.
 
 ## File
 

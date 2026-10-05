@@ -44,7 +44,7 @@ public final class NativeCrossLink {
             "snprintf", "strtod", "printf", "malloc", "calloc", "realloc", "free",
             "pow", "sqrt", "fmod", "dlopen", "dlsym", "dlclose",
             "fopen", "fclose", "fwrite", "fread", "memcpy", "memset",
-            "strlen", "strcmp", "strncmp", "open", "read", "write", "execvp");
+            "strlen", "strcmp", "strncmp", "open", "read", "write", "execvp", "realpath");
 
    static final Set<String> LIBM_SYMBOLS = Set.of(
             "pow", "sin", "cos", "tan", "asin", "acos", "atan", "atan2",

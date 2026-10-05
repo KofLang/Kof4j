@@ -84,6 +84,10 @@ public final class KofIo {
             case "normalize" -> argCount == 0 ? new IoCall("kof_io_path_normalize", PATH, List.of()) : null;
             case "isAbsolute" -> argCount == 0 ? new IoCall("kof_io_path_is_absolute", BOOL, List.of()) : null;
             case "toAbsolute" -> argCount == 0 ? new IoCall("kof_io_path_to_absolute", PATH, List.of()) : null;
+            // #751 / D-MAINT-BATCH-0510 (IO1): canonical path with links/junctions
+            // resolved (JVM toRealPath, Native realpath); null when it does not
+            // exist. Confinement checks compare this against the real root.
+            case "realPath" -> argCount == 0 ? new IoCall("kof_io_path_real_path", STR_NULL, List.of()) : null;
             case "create" -> argCount == 0 ? new IoCall("kof_io_dir_create", BOOL, List.of()) : null;
             case "createDirectories" -> argCount == 0 ? new IoCall("kof_io_dir_create_dirs", BOOL, List.of()) : null;
             // mkdir/mkdirs: POSIX-style aliases of create/createDirectories
@@ -128,6 +132,7 @@ public final class KofIo {
                 case "normalize" -> argCount == 1 ? new IoCall("kof_io_path_normalize", STR, List.of(STR)) : null;
                 case "isAbsolute" -> argCount == 1 ? new IoCall("kof_io_path_is_absolute", BOOL, List.of(STR)) : null;
                 case "toAbsolute" -> argCount == 1 ? new IoCall("kof_io_path_to_absolute", STR, List.of(STR)) : null;
+                case "realPath" -> argCount == 1 ? new IoCall("kof_io_path_real_path", STR_NULL, List.of(STR)) : null;
                 case "exists" -> argCount == 1 ? new IoCall("kof_io_file_exists", BOOL, List.of(STR)) : null;
                 default -> null;
             };

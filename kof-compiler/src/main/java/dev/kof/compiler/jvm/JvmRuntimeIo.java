@@ -211,6 +211,16 @@ public final class JvmRuntimeIo {
                     return s(p(path).toAbsolutePath());
                 }
 
+                public static String kof_io_path_real_path(String path) {
+                    // #751: canonical path with links/junctions resolved; null when
+                    // the path does not exist (contrast toAbsolute, which is lexical).
+                    try {
+                        return s(p(path).toRealPath());
+                    } catch (java.io.IOException e) {
+                        return null;
+                    }
+                }
+
                 public static int kof_io_dir_create(String path) {
                     try {
                         java.nio.file.Files.createDirectory(p(path));

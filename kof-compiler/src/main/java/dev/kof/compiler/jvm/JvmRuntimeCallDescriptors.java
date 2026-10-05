@@ -58,7 +58,8 @@ public final class JvmRuntimeCallDescriptors {
                     -> "(Ljava/lang/String;)I";
             case "kof_io_file_size" -> "(Ljava/lang/String;)J";
             case "kof_io_file_name", "kof_io_path_parent", "kof_io_path_file_name",
-                    "kof_io_path_extension", "kof_io_path_normalize", "kof_io_path_to_absolute"
+                    "kof_io_path_extension", "kof_io_path_normalize", "kof_io_path_to_absolute",
+                    "kof_io_path_real_path"
                     -> "(Ljava/lang/String;)Ljava/lang/String;";
             case "kof_io_path_resolve" -> "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;";
             case "kof_io_file_copy_to", "kof_io_file_move_to" -> "(Ljava/lang/String;Ljava/lang/String;)I";
