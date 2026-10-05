@@ -815,6 +815,21 @@ remaining high-value surfaces: `strings-methods` (`trim`/`substring`/`startsWith
 without `default` — the §X5.1/§X5.2 contract, erased in codegen). Proof
 (executed): `tests/run-golden.sh` **92/92** (23 cases × 4 targets), exit 0.
 
+**Phase 6 slice 5 LANDED (05/10):** three more cases — **26 total** — pinning the
+loop-control and numeric/string surfaces the old set did not exercise:
+`loops-control` (`do-while` runs its body once then loops on the condition,
+`break` exits a `for`, `continue` skips an iteration in both a `for` and a
+`for-in`), `numeric-casts` (`3.9 as Int` truncates to `3`, integer division `7/2`
+= `3` and modulo `7%3` = `1`, arithmetic precedence `2 + 3 * 4` = `14` vs
+`(2 + 3) * 4` = `20`, `Int`→`Double` promotion `5 + 2.5` = `7.5`, `5 as Double / 2`
+= `2.5`) and `string-parts-valueof` (`split(",")` + indexed `String[]`,
+`toCharArray()` + `chars[0] as Int` = the code unit, content-insensitive
+`equalsIgnoreCase`, and `String.valueOf` for `Int` and `Double`). Every case is
+validated on all four targets by the same runner. Each value was measured on the
+Script target first and cross-checked against the Kof contract before the golden
+was frozen. No compiler change — test infrastructure only. Proof (executed):
+`tests/run-golden.sh` **104/104** (26 cases × 4 targets), exit 0.
+
 ### Phase 7 — Integration
 
 Deploy:

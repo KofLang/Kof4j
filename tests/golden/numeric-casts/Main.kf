@@ -1,0 +1,13 @@
+main() {
+    var d = 3.9
+    println(d as Int)
+    var i = 7
+    println(i / 2)
+    println(i % 3)
+    println(2 + 3 * 4)
+    println((2 + 3) * 4)
+    var x = 5
+    var y = 2.5
+    println(x + y)
+    println(x as Double / 2)
+}

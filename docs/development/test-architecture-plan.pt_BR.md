@@ -820,6 +820,22 @@ fechando as superfícies de alto valor restantes: `strings-methods`
 §X5.1/§X5.2, apagado no codegen). Prova (executada): `tests/run-golden.sh`
 **92/92** (23 casos × 4 alvos), exit 0.
 
+**Fatia 5 da Fase 6 ENTREGUE (05/10):** mais três casos — **26 no total** —
+pinando as superfícies de controle de laço e numérica/string que o conjunto
+antigo não exercitava: `loops-control` (`do-while` roda o corpo uma vez e então
+itera pela condição, `break` sai de um `for`, `continue` pula uma iteração tanto
+em um `for` quanto em um `for-in`), `numeric-casts` (`3.9 as Int` trunca para
+`3`, divisão inteira `7/2` = `3` e módulo `7%3` = `1`, precedência aritmética
+`2 + 3 * 4` = `14` vs `(2 + 3) * 4` = `20`, promoção `Int`→`Double` `5 + 2.5` =
+`7.5`, `5 as Double / 2` = `2.5`) e `string-parts-valueof` (`split(",")` +
+`String[]` indexado, `toCharArray()` + `chars[0] as Int` = a unidade de código,
+`equalsIgnoreCase` insensível a conteúdo, e `String.valueOf` para `Int` e
+`Double`). Cada caso é validado nos quatro alvos pelo mesmo runner. Cada valor
+foi medido primeiro no alvo Script e conferido contra o contrato Kof antes de o
+golden ser congelado. Sem mudança de compilador — infraestrutura de teste
+apenas. Prova (executada): `tests/run-golden.sh` **104/104** (26 casos × 4
+alvos), exit 0.
+
 ### Fase 7 — Integração
 
 Implantar:

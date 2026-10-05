@@ -1,0 +1,12 @@
+main() {
+    var parts = "a,b,c".split(",")
+    println(parts.length)
+    println(parts[1])
+    var chars = "hi".toCharArray()
+    println(chars.length)
+    println(chars[0] as Int)
+    println("Hello".equalsIgnoreCase("hello"))
+    println(String.valueOf(42))
+    var label = "n=" + String.valueOf(7) + " d=" + String.valueOf(1.5)
+    println(label)
+}
