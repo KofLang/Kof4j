@@ -10,8 +10,8 @@
 Phase 1 profiling (`scripts/test-suite-profile.sh` + permanent
 `docs/testing/TEST-PERFORMANCE.md`), Phase 2 discovery audit
 (`scripts/test-suite-audit.sh`) and Phase 2 **ratchet** (`scripts/check_test_hygiene.sh`
-over the frozen `scripts/test-hygiene-baseline.txt`, **121 keys, rc=0** — 132 at the
-30/09 measurement, tightened by the 02/10 Phase-3 extraction and the 03/10–05/10 Phase-5 slices (`jvmOracle` 131→130, `stopServer` 130→129, `assertRuns` 129→128, `runScript` 128→127, `runKof` 127→126, `assertBoth` 126→125, `copyLibrary` 125→124, `runBoth` 124→123, `runAll3` 123→122, `assumeToolchain` 122→121); the 0-citation Phase-3 head is exhausted, next candidate has 10 doc
+over the frozen `scripts/test-hygiene-baseline.txt`, **119 keys, rc=0** — 132 at the
+30/09 measurement, tightened by the 02/10 Phase-3 extraction and the 03/10–05/10 Phase-5 slices (`jvmOracle` 131→130, `stopServer` 130→129, `assertRuns` 129→128, `runScript` 128→127, `runKof` 127→126, `assertBoth` 126→125, `copyLibrary` 125→124, `runBoth` 124→123, `runAll3` 123→122, `assumeToolchain` 122→121, `assumeAarch64` 121→120, `assumeCross` 120→119); the 0-citation Phase-3 head is exhausted, next candidate has 10 doc
 citations, and the remaining `dupname` cluster needs the Phase-5 harness). **Quick-win slice 1
 (28/09):** removed the false-positive `Thread.sleep` key (comment-only mention in
 `AsyncSleepJsE2ETest`) and the redundant post-`startServer` settle in
@@ -748,6 +748,21 @@ honest absent-cross/qemu guards); `check_test_hygiene` rc=0 with the
 (the 3 reported keys are the PDF lane's untracked `PdfTextE2ETest` +
 `startServer`, pre-existing external).
 
+**Phase 5 slice 13 LANDED (05/10):** the last two toolchain `dupname` clusters —
+`assumeAarch64` (8 classes) and `assumeCross` (2 classes) — are consolidated onto
+the same `NativeToolchainAssumptions` interface. `assumeNativeAarch64WithSysroot()`
+was added (mirror of the riscv64 variant) for `NativeRiscvDtoaTest`, whose local
+`assumeAarch64` also required the libc cross sysroot; the other 7 classes map to
+`assumeNativeAarch64()`. `NativeRiscvDbWireTest` and `PlatformSeamSabotageTest`
+(which still kept a full local `has`) now implement the interface too, and
+`KofConfigCrossTest` dropped its local `has`/`assumeCross` pair (its local `has`
+was used only by the guard). No test body, target or assertion moved. Proof: the
+10 affected batteries **74 run / 0F / 0E / 17 skipped** (the skips are the honest
+absent aarch64/qemu guards); `check_test_hygiene` rc=0 with both `dupname` keys
+**eliminated** — baseline re-frozen 121→**119**. The earlier `dupname startServer`
+NEW key (from the #756 `KofHttpErrorContractE2ETest` helper) was also cleared by
+renaming it `startContractServer`.
+
 ### Phase 6 — Conformance
 
 Build the official equivalence suite.
@@ -874,7 +889,7 @@ Before any deep refactoring, the path is:
 3. look for duplication (Phase 2 — discovery + ratchet LANDED:
    `scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`; work =
    shrink `scripts/test-hygiene-baseline.txt` via quick-win removals — current
-   authority = **121** non-comment keys, per `scripts/test-hygiene-baseline.txt`);
+   authority = **119** non-comment keys, per `scripts/test-hygiene-baseline.txt`);
 4. propose the modularization (Phase 3 — started: `--citations` measures the split cost per
    oversized class and the drift rule is fixed; four splits landed = `KofSetEqualitySupport`
    out of `KofSetEqualityTest` (21/21 kept), `KofMathSupport` out of `KofMathTest` (29/29 kept),
@@ -900,4 +915,4 @@ Before any deep refactoring, the path is:
 
 **Important:** this refactoring must not interfere with anything in the
 compiler. It is purely test infrastructure (golden rule). The front is open
-(`D-TEST-ARCHITECTURE-GO`); Phases 1–4 are CONCLUDED (oversized 43→18; harness ratchet 146→121, zero identical pairs remain). **Phase 5 is now AUTHORIZED and twelve slices LANDED** (`D-TEST-ARCHITECTURE-PHASES`, maintainer 03/10 — `NativeCrossSupport` 54/54, `NativeIoJvmOracleSupport` (jvmOracle key eliminated), `TargetGapRefusalSupport`, `ServerProcessSupport` (stopServer key eliminated, 118/118), `JvmRunSupport` (assertRuns key eliminated, 38/38), `MultiSourceRunSupport` (runScript key eliminated, 47/47), `KofmdRunSupport` (runKof key eliminated, 19/19), `JsParityRunSupport` (assertBoth key eliminated, 18/18), `LibraryInstallSupport` (copyLibrary key eliminated, 268/268), `JvmJsRunSupport` (runBoth key eliminated, 126/126), the `NullablePrimitiveContractSupport` `runAll3` consolidation (43/43), and `NativeToolchainAssumptions` (assumeToolchain key eliminated, 342/342)); Phases 5–7 remain open work, with the `main` cluster confirmed a false lead (Kof `main()` inside test-source text blocks, not a Java helper), and the Phase 6 first slice already LANDED.
+(`D-TEST-ARCHITECTURE-GO`); Phases 1–4 are CONCLUDED (oversized 43→18; harness ratchet 146→119, zero identical pairs remain). **Phase 5 is now AUTHORIZED and thirteen slices LANDED** (`D-TEST-ARCHITECTURE-PHASES`, maintainer 03/10 — `NativeCrossSupport` 54/54, `NativeIoJvmOracleSupport` (jvmOracle key eliminated), `TargetGapRefusalSupport`, `ServerProcessSupport` (stopServer key eliminated, 118/118), `JvmRunSupport` (assertRuns key eliminated, 38/38), `MultiSourceRunSupport` (runScript key eliminated, 47/47), `KofmdRunSupport` (runKof key eliminated, 19/19), `JsParityRunSupport` (assertBoth key eliminated, 18/18), `LibraryInstallSupport` (copyLibrary key eliminated, 268/268), `JvmJsRunSupport` (runBoth key eliminated, 126/126), the `NullablePrimitiveContractSupport` `runAll3` consolidation (43/43), `NativeToolchainAssumptions` (assumeToolchain key eliminated, 342/342), and the `assumeAarch64`+`assumeCross` cleanup (121→119, 74/74)); Phases 5–7 remain open work, with the `main` cluster confirmed a false lead (Kof `main()` inside test-source text blocks, not a Java helper), and the Phase 6 first slice already LANDED.

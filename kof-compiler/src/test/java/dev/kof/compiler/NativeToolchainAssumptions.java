@@ -72,6 +72,13 @@ public interface NativeToolchainAssumptions {
                 "cross toolchain aarch64 + qemu ausente — pulando (NATIVE002)");
     }
 
+    /** aarch64 + qemu + o sysroot libc cross (KOF_CROSS_SYSROOT / /tmp/opencode/x). */
+    default void assumeNativeAarch64WithSysroot() {
+        assumeNativeAarch64();
+        Assumptions.assumeTrue(crossSysrootPresent("aarch64"),
+                "libc cross ausente (KOF_CROSS_SYSROOT / /tmp/opencode/x) — pulando");
+    }
+
     /** binutils do host x86-64 (`as`, `ld`). */
     default void assumeNativeX86_64() {
         Assumptions.assumeTrue(hasTool(X86_64_TOOLS),

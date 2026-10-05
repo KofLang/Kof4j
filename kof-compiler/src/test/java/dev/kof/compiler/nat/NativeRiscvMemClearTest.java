@@ -43,10 +43,6 @@ class NativeRiscvMemClearTest implements NativeToolchainAssumptions {
         return true;
     }
 
-    private void assumeAarch64() {
-        Assumptions.assumeTrue(has("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"),
-                "cross toolchain aarch64 + qemu ausente — pulando (D-MEMORY-CLEAR)");
-    }
 
     /** Lista: 3 sentinelas via add real; clear; OR dos 3 slots == 0; size == 0.
      *  Map: 3 pares key/val plantados; clear; OR de keys+vals == 0; size == 0. */
@@ -200,7 +196,7 @@ class NativeRiscvMemClearTest implements NativeToolchainAssumptions {
 
     @Test
     void clearNullsEverySlotAarch64(@TempDir Path tempDir) throws IOException {
-        assumeAarch64();
+        assumeNativeAarch64();
         assertEquals("", buildAarch64(tempDir, "memcleara"));
     }
 }

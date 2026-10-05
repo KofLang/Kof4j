@@ -1,5 +1,7 @@
 package dev.kof.compiler.nat;
 
+import dev.kof.compiler.NativeToolchainAssumptions;
+
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -28,7 +30,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * {@code kof_sec_sha1_internal} (sabotagem) — prova que o harness exercita a
  * peça nova, não uma homônima.
  */
-class NativeRiscvDbWireTest {
+class NativeRiscvDbWireTest implements NativeToolchainAssumptions {
 
     private static boolean has(String... cmds) {
         for (String c : cmds) {
@@ -49,10 +51,6 @@ class NativeRiscvDbWireTest {
                 "cross toolchain riscv64 + qemu ausente — pulando (S5.1)");
     }
 
-    private void assumeAarch64() {
-        Assumptions.assumeTrue(has("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"),
-                "cross toolchain aarch64 + qemu ausente — pulando (S5.1)");
-    }
 
     private static final byte[][] MESSAGES = {
             new byte[0],
@@ -335,7 +333,7 @@ class NativeRiscvDbWireTest {
 
     @Test
     void sha1MatchesJvmOracleOnAarch64(@TempDir Path tempDir) throws Exception {
-        assumeAarch64();
+        assumeNativeAarch64();
         String harness = harness();
         String runtime = RiscvGcTestRuntimes.prunedFor(harness);
         String riscv = harness + "\n" + runtime;
@@ -587,7 +585,7 @@ class NativeRiscvDbWireTest {
 
     @Test
     void authResponseMatchesOracleOnAarch64(@TempDir Path tempDir) throws Exception {
-        assumeAarch64();
+        assumeNativeAarch64();
         String harness = authHarness();
         String runtime = RiscvGcTestRuntimes.prunedFor(harness);
         String riscv = harness + "\n" + runtime;
@@ -743,7 +741,7 @@ class NativeRiscvDbWireTest {
 
     @Test
     void handshakeAgainstRealMariaDbOnAarch64(@TempDir Path tempDir) throws Exception {
-        assumeAarch64();
+        assumeNativeAarch64();
         assumeMaria();
         String harness = mysqlHandshakeHarness();
         String runtime = RiscvGcTestRuntimes.prunedFor(harness);
@@ -922,7 +920,7 @@ class NativeRiscvDbWireTest {
 
     @Test
     void commandClassifiesResponseAgainstRealMariaDbOnAarch64(@TempDir Path tempDir) throws Exception {
-        assumeAarch64();
+        assumeNativeAarch64();
         assumeMaria();
         String harness = mysqlCommandHarness();
         String runtime = RiscvGcTestRuntimes.prunedFor(harness);
@@ -1104,7 +1102,7 @@ class NativeRiscvDbWireTest {
 
     @Test
     void resultsetHeaderAgainstRealMariaDbOnAarch64(@TempDir Path tempDir) throws Exception {
-        assumeAarch64();
+        assumeNativeAarch64();
         assumeMaria();
         String harness = mysqlResultsetHarness();
         String runtime = RiscvGcTestRuntimes.prunedFor(harness);
@@ -1339,7 +1337,7 @@ class NativeRiscvDbWireTest {
 
     @Test
     void queryAllRowsAgainstRealMariaDbOnAarch64(@TempDir Path tempDir) throws Exception {
-        assumeAarch64();
+        assumeNativeAarch64();
         assumeMaria();
         String harness = mysqlQueryAllHarness();
         String runtime = RiscvGcTestRuntimes.prunedFor(harness);
@@ -1514,7 +1512,7 @@ class NativeRiscvDbWireTest {
 
     @Test
     void bindRenderReplaceMatchesOracleOnAarch64(@TempDir Path tempDir) throws Exception {
-        assumeAarch64();
+        assumeNativeAarch64();
         String harness = bindHarness();
         String runtime = RiscvGcTestRuntimes.prunedFor(harness);
         String riscv = harness + "\n" + runtime;
@@ -1902,7 +1900,7 @@ class NativeRiscvDbWireTest {
 
     @Test
     void execWithBindsAgainstRealMariaDbOnAarch64(@TempDir Path tempDir) throws Exception {
-        assumeAarch64();
+        assumeNativeAarch64();
         assumeMaria();
         String harness = execBindHarness();
         String runtime = RiscvGcTestRuntimes.prunedFor(harness);
@@ -2119,7 +2117,7 @@ class NativeRiscvDbWireTest {
 
     @Test
     void ormExecAgainstRealMariaDbOnAarch64(@TempDir Path tempDir) throws Exception {
-        assumeAarch64();
+        assumeNativeAarch64();
         assumeMaria();
         String harness = ormExecHarness(null);
         String runtime = RiscvGcTestRuntimes.prunedFor(harness);
@@ -2440,7 +2438,7 @@ class NativeRiscvDbWireTest {
 
     @Test
     void connectMysqlAgainstRealMariaDbOnAarch64(@TempDir Path tempDir) throws Exception {
-        assumeAarch64();
+        assumeNativeAarch64();
         assumeMaria();
         String harness = connectHarness();
         String runtime = RiscvGcTestRuntimes.prunedFor(harness);
@@ -2707,7 +2705,7 @@ class NativeRiscvDbWireTest {
 
     @Test
     void dispatchExecuteQueryAgainstRealMariaDbOnAarch64(@TempDir Path tempDir) throws Exception {
-        assumeAarch64();
+        assumeNativeAarch64();
         assumeMaria();
         String harness = dispatchHarness();
         String runtime = RiscvGcTestRuntimes.prunedFor(harness);
@@ -2754,7 +2752,7 @@ class NativeRiscvDbWireTest {
 
     @Test
     void greetingParseMatchesOracleOnAarch64(@TempDir Path tempDir) throws Exception {
-        assumeAarch64();
+        assumeNativeAarch64();
         String harness = greetingHarness();
         String runtime = RiscvGcTestRuntimes.prunedFor(harness);
         String riscv = harness + "\n" + runtime;
@@ -2800,7 +2798,7 @@ class NativeRiscvDbWireTest {
 
     @Test
     void scrambleAndLenencMatchOracleOnAarch64(@TempDir Path tempDir) throws Exception {
-        assumeAarch64();
+        assumeNativeAarch64();
         String harness = wireHarness();
         String runtime = RiscvGcTestRuntimes.prunedFor(harness);
         String riscv = harness + "\n" + runtime;

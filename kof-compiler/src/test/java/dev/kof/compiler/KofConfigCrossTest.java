@@ -1,6 +1,5 @@
 package dev.kof.compiler;
 
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -19,22 +18,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * wrappers tipados. Contra o oracle JVM (JvmConfigRuntime) com valores
  * fixos — o mesmo contrato do RuntimeConfig1/2 (x86).
  */
-class KofConfigCrossTest {
+class KofConfigCrossTest implements NativeToolchainAssumptions {
 
     private final CompilerDriver driver = new CompilerDriver();
 
-    private static boolean has(String... cmds) {
-        for (String c : cmds) {
-            try {
-                Process p = new ProcessBuilder("sh", "-c", "command -v " + c)
-                        .redirectErrorStream(true).start();
-                if (p.waitFor() != 0) return false;
-            } catch (Exception e) {
-                return false;
-            }
-        }
-        return true;
-    }
 
     private String[] run(Path workDir, String source, String archFlag, String qemuArch,
                          Map<String, String> env) throws IOException {
@@ -86,7 +73,8 @@ class KofConfigCrossTest {
 
     @Test
     void lookupEnvFileProfileAndTypedBothArches(@TempDir Path workDir) throws IOException {
-        assumeCross();
+        assumeNativeRiscv64();
+        assumeNativeAarch64();
         Files.writeString(workDir.resolve("app.config"), """
                 # comment
                 app.name = MyApp
@@ -113,7 +101,8 @@ class KofConfigCrossTest {
 
     @Test
     void defaultFileBothArches(@TempDir Path workDir) throws IOException {
-        assumeCross();
+        assumeNativeRiscv64();
+        assumeNativeAarch64();
         Files.writeString(workDir.resolve("kof.config"), """
                 default.key = from-default
                 """);
@@ -131,7 +120,8 @@ class KofConfigCrossTest {
 
     @Test
     void requiredMissingPanicsBothArches(@TempDir Path workDir) throws IOException {
-        assumeCross();
+        assumeNativeRiscv64();
+        assumeNativeAarch64();
         String src = """
                 main() {
                     println(config.required("must.exist"))
@@ -145,10 +135,4 @@ class KofConfigCrossTest {
         }
     }
 
-    private static void assumeCross() {
-        Assumptions.assumeTrue(
-                has("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64")
-                        && has("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"),
-                "cross toolchain + qemu ausente — pulando (NATIVE002)");
-    }
 }

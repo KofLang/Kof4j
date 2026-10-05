@@ -41,10 +41,6 @@ class NativeRiscvGcListTest implements NativeToolchainAssumptions {
         return true;
     }
 
-    private void assumeAarch64() {
-        Assumptions.assumeTrue(has("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"),
-                "cross toolchain aarch64 + qemu ausente — pulando (NATIVE002 G-2)");
-    }
 
     /** _start cru: 3 allocs de tamanhos distintos + dump da gc-list. */
     private static final String HARNESS_ALLOCS = """
@@ -182,13 +178,13 @@ class NativeRiscvGcListTest implements NativeToolchainAssumptions {
 
     @Test
     void gcListLinksNewBlocksWithFlagsAarch64(@TempDir Path tempDir) throws IOException {
-        assumeAarch64();
+        assumeNativeAarch64();
         assertList(buildAarch64(tempDir, HARNESS_ALLOCS, "g2lista"));
     }
 
     @Test
     void gcListReuseDoesNotDuplicateAarch64(@TempDir Path tempDir) throws IOException {
-        assumeAarch64();
+        assumeNativeAarch64();
         assertReuse(buildAarch64(tempDir, HARNESS_REUSE, "g2reusea"));
     }
 }

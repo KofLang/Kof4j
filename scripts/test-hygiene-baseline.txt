@@ -11,8 +11,6 @@ dupname	assertManagedTargets
 dupname	assertParity
 dupname	assertRejected
 dupname	assertSem025
-dupname	assumeAarch64
-dupname	assumeCross
 dupname	both
 dupname	close
 dupname	compileAndRun

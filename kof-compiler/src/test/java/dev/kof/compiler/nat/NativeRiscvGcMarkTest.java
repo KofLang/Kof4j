@@ -42,10 +42,6 @@ class NativeRiscvGcMarkTest implements NativeToolchainAssumptions {
         return true;
     }
 
-    private void assumeAarch64() {
-        Assumptions.assumeTrue(has("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"),
-                "cross toolchain aarch64 + qemu ausente — pulando (NATIVE002 G-3)");
-    }
 
     // _start cru. O intervalo de raízes estáticas é definido AQUI com os mesmos
     // rótulos locais que o NativeArchEmitter emite no .data do programa (o
@@ -156,7 +152,7 @@ class NativeRiscvGcMarkTest implements NativeToolchainAssumptions {
 
     @Test
     void conservativeMarkMarksReachableAarch64(@TempDir Path tempDir) throws IOException {
-        assumeAarch64();
+        assumeNativeAarch64();
         assertMark(buildAarch64(tempDir, "g3marka"));
     }
 }

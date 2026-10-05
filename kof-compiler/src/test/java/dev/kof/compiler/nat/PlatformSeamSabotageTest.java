@@ -1,5 +1,7 @@
 package dev.kof.compiler.nat;
 
+import dev.kof.compiler.NativeToolchainAssumptions;
+
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -29,7 +31,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * <p>Pula (assume) quando a toolchain cross ou o qemu não existem, como os
  * demais testes cross (NATIVE002).
  */
-class PlatformSeamSabotageTest {
+class PlatformSeamSabotageTest implements NativeToolchainAssumptions {
 
     private static boolean has(String... cmds) {
         for (String c : cmds) {
@@ -50,10 +52,6 @@ class PlatformSeamSabotageTest {
                 "cross toolchain riscv64 + qemu ausente — pulando (B-0 NATIVE003)");
     }
 
-    private void assumeAarch64() {
-        Assumptions.assumeTrue(has("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"),
-                "cross toolchain aarch64 + qemu ausente — pulando (B-0 NATIVE003)");
-    }
 
     private void assumeX86Host() {
         String arch = System.getProperty("os.arch", "");
@@ -240,7 +238,7 @@ class PlatformSeamSabotageTest {
 
     @Test
     void seamIsLoadBearingAarch64(@TempDir Path tempDir) throws IOException {
-        assumeAarch64();
+        assumeNativeAarch64();
         assertEquals("seam", buildAarch64(tempDir, "seam_ctrl", false),
                 "controle: o runtime traduzido deve imprimir via a costura");
         assertEquals("", buildAarch64(tempDir, "seam_sab", true),

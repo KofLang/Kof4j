@@ -47,10 +47,6 @@ class NativeRiscvGcSweepTest implements NativeToolchainAssumptions {
         return true;
     }
 
-    private void assumeAarch64() {
-        Assumptions.assumeTrue(has("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"),
-                "cross toolchain aarch64 + qemu ausente — pulando (NATIVE002 G-4)");
-    }
 
     private static final String HARNESS = """
             .option arch, rv64g
@@ -218,7 +214,7 @@ class NativeRiscvGcSweepTest implements NativeToolchainAssumptions {
 
     @Test
     void sweepRecoversDeadAndMarksLiveAarch64(@TempDir Path tempDir) throws IOException {
-        assumeAarch64();
+        assumeNativeAarch64();
         assertSweep(buildAarch64(tempDir, "g4sweepa", HARNESS, RiscvGcTestRuntimes.prunedFor(HARNESS)));
     }
 
@@ -234,7 +230,7 @@ class NativeRiscvGcSweepTest implements NativeToolchainAssumptions {
 
     @Test
     void longAllocLoopSurvivesArenaExhaustionViaCollectAarch64(@TempDir Path tempDir) throws IOException {
-        assumeAarch64();
+        assumeNativeAarch64();
         String out = buildAarch64(tempDir, "g4loopa", HARNESS_LOOP, RiscvGcTestRuntimes.prunedFor(HARNESS_LOOP));
         assertTrue(out.contains("allocs: 10000"),
                 "o laço deveria completar as 10000 allocs no aarch64 (arena reciclada): " + out);

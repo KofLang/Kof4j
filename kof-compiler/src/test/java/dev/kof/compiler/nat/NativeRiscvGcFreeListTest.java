@@ -44,10 +44,6 @@ class NativeRiscvGcFreeListTest implements NativeToolchainAssumptions {
         return true;
     }
 
-    private void assumeAarch64() {
-        Assumptions.assumeTrue(has("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"),
-                "cross toolchain aarch64 + qemu ausente — pulando (NATIVE002 G-5)");
-    }
 
     /** _start cru: p1 = alloc(64); free(p1); p2 = alloc(64); exige p2 == p1. */
     private static final String HARNESS = """
@@ -144,7 +140,7 @@ class NativeRiscvGcFreeListTest implements NativeToolchainAssumptions {
      *  qemu-aarch64 sobre o runtime TRANSLADO. */
     @Test
     void freeListReusesSlotAndMemstatsCountsAarch64(@TempDir Path tempDir) throws IOException {
-        assumeAarch64();
+        assumeNativeAarch64();
         StringBuilder riscv = new StringBuilder(HARNESS).append('\n').append(RiscvGcTestRuntimes.prunedFor(HARNESS));
         StringBuilder arm = new StringBuilder();
         for (String line : riscv.toString().split("\n", -1)) {

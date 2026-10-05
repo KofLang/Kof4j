@@ -46,12 +46,6 @@ class NativeRiscvDtoaTest implements NativeToolchainAssumptions {
         return true;
     }
 
-    private void assumeAarch64() {
-        Assumptions.assumeTrue(has("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"),
-                "cross toolchain aarch64 + qemu ausente — pulando");
-        Assumptions.assumeTrue(NativeCrossLink.sysrootFor("aarch64") != null,
-                "libc cross ausente (KOF_CROSS_SYSROOT / /tmp/opencode/x) — pulando");
-    }
 
     private static final double[] DOUBLES = {
             3.14, -1.0, 0.5, 100.0, 1.0 / 3.0, 0.1, 1e7, 9999999.0, 1e-3, 9.99e-4,
@@ -170,7 +164,7 @@ class NativeRiscvDtoaTest implements NativeToolchainAssumptions {
 
     @Test
     void dtoaMatchesJvmOracleOnAarch64(@TempDir Path tempDir) throws IOException {
-        assumeAarch64();
+        assumeNativeAarch64WithSysroot();
         String harness = harness();
         String runtime = RiscvGcTestRuntimes.prunedFor(harness);
         String riscv = harness + "\n" + runtime;
