@@ -314,6 +314,29 @@ public final class RuntimeProcess {
                 jmp .Lkof_proc_child_argv_loop
             .Lkof_proc_child_argv_done:
                 movq $0, 8(%r15,%rbx,8)     # argv[size+1] = NULL
+                # issue #762: o filho não herda NENHUM descritor do pai/runtime
+                # (o JVM ProcessBuilder já os fecha). close_range(3, ~0,
+                # CLOSE_RANGE_CLOEXEC) marca todo fd >= 3 como close-on-exec:
+                # 0/1/2 sobrevivem e o fail pipe (já O_CLOEXEC) continua
+                # legível pelo pai para o exec-fail. Kernel < 5.9 (sem
+                # close_range) cai no loop fcntl(F_SETFD, FD_CLOEXEC).
+                movl $3, %edi
+                movl $-1, %esi
+                movl $4, %edx
+                movl $436, %eax
+                syscall
+                testq %rax, %rax
+                jns .Lkof_proc_child_cloexec_done
+                movl $3, %edi
+            .Lkof_proc_child_cloexec_loop:
+                movl $2, %esi               # F_SETFD
+                movl $1, %edx               # FD_CLOEXEC
+                movl $72, %eax              # fcntl
+                syscall
+                incl %edi
+                cmpl $1024, %edi
+                jl .Lkof_proc_child_cloexec_loop
+            .Lkof_proc_child_cloexec_done:
                 # execvp (libc host: resolução de PATH == ProcessBuilder)
                 movq 0(%r15), %rdi
                 movq %r15, %rsi
