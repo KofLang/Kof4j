@@ -220,7 +220,9 @@ public final class ExpressionInstanceCallLowerer {
                 localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
             }
             Type iface = driver.lambdaInterfaceType(ft);
-            ops.add(new KofCall(iface, "invoke", argTypes, ft.returnType(), KofCallKind.INTERFACE));
+            // Descritor = o do `invoke` da interface sintética (parâmetros do
+            // TIPO DE FUNÇÃO declarado), não os tipos inferidos dos argumentos.
+            ops.add(new KofCall(iface, "invoke", ft.parameterTypes(), ft.returnType(), KofCallKind.INTERFACE));
             return localIdx;
         }
         List<Type> argTypes = new ArrayList<>();
@@ -231,7 +233,7 @@ public final class ExpressionInstanceCallLowerer {
         // f.invoke(): o owner precisa ser a classe sintética
         // da lambda — FunctionType não tem nome JVM
         Type invokeOwner = new Type.ClassType("", ft.className(), List.of());
-        ops.add(new KofCall(invokeOwner, "invoke", argTypes, ft.returnType(), KofCallKind.INSTANCE));
+        ops.add(new KofCall(invokeOwner, "invoke", ft.parameterTypes(), ft.returnType(), KofCallKind.INSTANCE));
         return localIdx;
     }
     if (BuiltinTypes.isList(recvType) || BuiltinTypes.isChannel(recvType)

@@ -140,21 +140,22 @@ public final class ExpressionBareCallLowerer {
                     // sintética — invoca via INVOKEINTERFACE.
                     localIdx = ExpressionLowerer.emitExpression(driver, new IdentifierExpr(mc.position(), mc.methodName()),
                             ops, owner, localIdx, locals);
-                    List<Type> argTypes = new ArrayList<>();
-                    for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
                     localIdx = driver.emitArgumentsWithFormalTypes(mc.arguments(), lft.parameterTypes(),
                             ops, owner, localIdx, locals);
                     Type iface = driver.lambdaInterfaceType(lft);
-                    ops.add(new KofCall(iface, "invoke", argTypes, lft.returnType(),
+                    // O descritor do `invoke` é o da interface sintética, cujos
+                    // parâmetros são os do TIPO DE FUNÇÃO declarado (Long), não
+                    // os tipos inferidos dos argumentos (Int literal). Usar os
+                    // inferidos emitia `invoke(I)J` com um `LCONST_0` na pilha
+                    // → ASM COMPUTE_FRAMES AIOOBE (COMP002 "frame crash").
+                    ops.add(new KofCall(iface, "invoke", lft.parameterTypes(), lft.returnType(),
                             KofCallKind.INTERFACE));
                 } else {
                 localIdx = ExpressionLowerer.emitExpression(driver, new IdentifierExpr(mc.position(), mc.methodName()),
                         ops, owner, localIdx, locals);
-                List<Type> argTypes = new ArrayList<>();
-                for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
                 localIdx = driver.emitArgumentsWithFormalTypes(mc.arguments(), lft.parameterTypes(), ops, owner, localIdx, locals);
                 Type invokeOwner = new Type.ClassType("", lft.className(), List.of());
-                ops.add(new KofCall(invokeOwner, "invoke", argTypes, lft.returnType(), KofCallKind.INSTANCE));
+                ops.add(new KofCall(invokeOwner, "invoke", lft.parameterTypes(), lft.returnType(), KofCallKind.INSTANCE));
                 }
             } else {
                 // #402/#388: chamada de CAMPO de tipo de função da classe atual.
