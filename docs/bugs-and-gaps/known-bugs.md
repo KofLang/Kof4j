@@ -17069,4 +17069,4 @@ Generated JS contains `if (((i < n) & (f() > 0)))` (measured). Expected: `&&`, n
 
 **Boundary:** compiler frontend/JS backend only; no PDF-library or runtime change. JVM/Script/Native are correct (`accType` is not consulted by those emitters for this decision). Owner lane: compiler/JS.
 
-<!-- pt-switch --> **PT:** [§601 (pt_BR)](known-bugs.pt_BR.md#601--js-uma-comparação-numérica-como-operando-esquerdo-de--baixa-para-bitwise--sem-short-circuit-porque-o-tipo-de-resultado-da-comparação-fica-como-o-tipo-numérico-comum--o-operando-direito-é-avaliado-incondicionalmente-e-leituras-de-array-fora-dos-limites-escapam-da-guarda---aberto-0510-dona--19216815309095-lane-compilerjs-encontrado-pela-lane-do-leitor-pdf-issue-629)
+<!-- pt-switch --> **PT:** [§601 (pt_BR)](known-bugs.pt_BR.md#601--js-uma-comparacao-numerica-como-operando-esquerdo-de--baixa-para-bitwise--sem-short-circuit-porque-o-tipo-de-resultado-da-comparacao-fica-como-o-tipo-numerico-comum--o-operando-direito-e-avaliado-incondicionalmente-e-leituras-de-array-fora-dos-limites-escapam-da-guarda---aberto-0510-dona--19216815309095-lane-compilerjs-encontrado-pela-lane-do-leitor-pdf-issue-629)
