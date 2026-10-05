@@ -2,7 +2,7 @@
 
 # Graphics, Games e Media — Superfície de Intenção do Kof
 
-last: fatia-3.1 relógio puro + snapshot de input pousados 05/10 (`libs/game/Clock.kf` + `Keys.kf`, `GameClockE2ETest`/`GameInputE2ETest` 4/4 cada; `known-bugs` §603 corrigido no caminho); G1 SDL3 `3.4.16` medida (C + FFI do Kof, headless JVM+Native; `known-bugs` §605 corrigido)
+last: fatia-3.1 relógio puro + snapshot de input pousados 05/10 (`libs/game/Clock.kf` + `Keys.kf`, `GameClockE2ETest`/`GameInputE2ETest` 4/4 cada; `known-bugs` §603 corrigido no caminho); G1 SDL3 `3.4.16` medida (C + FFI do Kof, headless JVM+Native; `known-bugs` §606 corrigido)
 doing: fatia-3.1 (window/frame/input)
 next: fatia-3.1 backend window/frame/input — o G1 SDL3 agora está medido via FFI; falta o design da API de janela + entregar as libs/headers da SDL3 no sysroot cross
 location: docs/development
@@ -35,7 +35,8 @@ Medido na `lab` (nunca por familiaridade — `D-GRAPHICS-SPIKE`):
   sem headers em `/usr/include`). Bônus só-runtime: SDL_ttf `2.0.11`
   (era SDL1.2, sem `-dev`). Licenças lidas dos arquivos `copyright` da distro
   (SDL2 = zlib/libpng + permissiva, OpenAL = LGPL-2+, libavformat = LGPL-2.1+).
-  É a medição do spike, não a escolha de stack.
+  É a medição do spike, não a escolha de stack — a escolha em si é `G1` decidido
+  (**SDL3**) em `D-MAINT-BATCH-0510` (05/10); ver a matriz abaixo.
 - **Nuance de licença (medida do `.so` linkado, 30/09):** o FFmpeg da distro é
   **buildado com GPL** — `avcodec_license()` = `GPL version 3 or later`,
   `avformat_license()` = `GPL version 2 or later`, e `--enable-gpl` aparece em
@@ -55,7 +56,7 @@ Medido na `lab` (nunca por familiaridade — `D-GRAPHICS-SPIKE`):
   `SDL_GetVersion` = 2.30.0 e `SDL_Init(VIDEO|AUDIO)` rc=0 sob os drivers
   dummy — compila+linka+inicializa, mais forte que a sonda ctypes. OpenAL
   inalterado (só runtime, sem headers para compilar).
-- **Delta SDL3 (medido 05/10, G1):** a SDL3 não está instalada no host, mas os RPMs `SDL3-devel` + `libSDL3-0` do repo Tumbleweed foram extraídos num prefixo local e medidos: `gcc probe.c -lSDL3` compila+linka, e `SDL_Init(VIDEO)` + `SDL_CreateWindow` + `SDL_GetWindowTitle` + `SDL_DestroyWindow` + `SDL_Quit` rodam sob `SDL_VIDEODRIVER=dummy` (`driver=dummy`, `title=kof`, rc=0). O **binding FFI do Kof para a mesma forma também foi medido** — a primeira vez que a SDL3 é dirigida a partir do Kof — na JVM e no Native x86-64 (headless), imprimindo `init=true / driver=dummy / title=kof`. Isso fecha o `?` da SDL3 na matriz abaixo. Também revelou e corrigiu o bloqueador de paridade `known-bugs` §605 (uma biblioteca C com estado perdia seus globais entre chamadas `extern` na JVM/JS porque a arena do lookup era fechada por chamada); a stack não é utilizável sem essa correção. O cross (riscv64/aarch64) segue `?`: a stack escolhida precisa entregar suas libs+headers no sysroot cross.
+- **Delta SDL3 (medido 05/10, G1):** a SDL3 não está instalada no host, mas os RPMs `SDL3-devel` + `libSDL3-0` do repo Tumbleweed foram extraídos num prefixo local e medidos: `gcc probe.c -lSDL3` compila+linka, e `SDL_Init(VIDEO)` + `SDL_CreateWindow` + `SDL_GetWindowTitle` + `SDL_DestroyWindow` + `SDL_Quit` rodam sob `SDL_VIDEODRIVER=dummy` (`driver=dummy`, `title=kof`, rc=0). O **binding FFI do Kof para a mesma forma também foi medido** — a primeira vez que a SDL3 é dirigida a partir do Kof — na JVM e no Native x86-64 (headless), imprimindo `init=true / driver=dummy / title=kof`. Isso fecha o `?` da SDL3 na matriz abaixo. Também revelou e corrigiu o bloqueador de paridade `known-bugs` §606 (uma biblioteca C com estado perdia seus globais entre chamadas `extern` na JVM/JS porque a arena do lookup era fechada por chamada); a stack não é utilizável sem essa correção. O cross (riscv64/aarch64) segue `?`: a stack escolhida precisa entregar suas libs+headers no sysroot cross.
 - **Cross (riscv64/aarch64): ainda não mensurável.** Nenhum `.so`/header candidato
   está no sysroot cross da distro, e a toolchain cross do projeto
   (`scripts/setup-cross-toolchain.sh`, padrão `/tmp/kof-cross`) não foi montada
@@ -70,7 +71,7 @@ Medido na `lab` (nunca por familiaridade — `D-GRAPHICS-SPIKE`):
   **`kof.media`:** só bitmap/WAV/metadados/mic; playback/streaming/mixer/vídeo
   ausentes (`MEDIA001`/`MEDIA003`). Ambos seguem lacunas honestas até um backend real.
 
-**Matriz de candidatas (entrada para a escolha de stack da mantenedora; `?` = não medido):**
+**Matriz de candidatas (`G1` decidido — SDL3 — `D-MAINT-BATCH-0510`; a matriz agora é a entrada de vendoring/ABI para a fatia 3.1, não uma escolha em aberto; `?` = não medido):**
 
 | Candidata | Domínio | Licença (`?` = confirmar upstream) | Roda no host | Headless | Cross (riscv64/aarch64) | Eixo |
 |---|---|---|---|---|---|---|
@@ -84,8 +85,10 @@ Medido na `lab` (nunca por familiaridade — `D-GRAPHICS-SPIKE`):
 **Recomendação (guiada por medição, não por familiaridade):** a regra JVM do plano
 (§11: nunca JavaFX/Swing/AWT/`javax.sound`) + o acoplamento R3-first (§3) apontam para
 **uma stack portátil multi-alvo para janela+input+áudio** (SDL3 é a candidata natural)
-e **FFmpeg/Libav para codecs de vídeo** (nunca caseiros, §10/§14). A escolha é da
-mantenedora; o spike só remove incógnitas e restaura a guarda.
+e **FFmpeg/Libav para codecs de vídeo** (nunca caseiros, §10/§14).
+**Decidido:** `G1` é **SDL3** (`D-MAINT-BATCH-0510`, 05/10); o spike removeu as
+incógnitas e restaurou a guarda — a matriz abaixo agora é a entrada de
+vendoring/ABI, não uma escolha em aberto.
 **Ressalva da sonda de licença:** a face FFmpeg só é "livre" se um build LGPL for
 empacotado — a da distro mediu GPL (acima), então usá-la como está é uma decisão
 de licenciamento, não só técnica.
@@ -93,9 +96,9 @@ de licenciamento, não só técnica.
 **Como terminar (ordem das fatias, §15):** 3.0 (esta infra+relatório) → **3.1**
 window/frame/input em JVM/Script/Native/JS + conformância → 3.2 (2D) → 3.3
 (áudio, golden PCM offline) → 3.4 (vídeo, frame readback) → 3.5 (3D, só se a
-paridade permitir) → 3.6 (corpus). Cada fatia é una, testada, e exige a **escolha
-de stack** registrada como `D-*` antes de qualquer API (a matriz do relatório do
-spike é a entrada dessa decisão).
+paridade permitir) → 3.6 (corpus). Cada fatia é una, testada, e usa a **decisão
+`G1` (SDL3)** registrada em `D-MAINT-BATCH-0510` antes de qualquer API (a matriz do
+relatório do spike é a entrada de vendoring/ABI).
 
 # 0. Objetivo
 
@@ -251,7 +254,7 @@ cobertura/manutenção/testabilidade/cross-platform). Shaders escondidos no iní
 
 # 15. Fases / promoção / aberto
 
-- **Fatia 3.1 — iniciada 05/10 (lane security/connectors `192.168.15.15:9092`):** a metade pura e independente de backend do contrato §6/§7 pousou primeiro — `libs/game/Clock.kf` (namespace `kof.game`) é dono do livro-caixa de frames e do `dt` sobre timestamps monotônicos fornecidos pelo chamador (o "relógio virtual" que o plano exige para goldens determinísticos), então não chama API de janela/áudio/vídeo e é honesto em todo alvo hoje. Semântica congelada por `GameClockE2ETest` **4/4** em JVM + Script + Native x86-64 + JS (frame 0 `dt=0`; frames seguintes difam o timestamp anterior; `stop()` encerra `hasNext()`). `libs/game/Keys.kf` acrescenta o snapshot de input por frame do §7: `beginFrame(held)` difa os conjuntos de teclas atual e anterior e deriva `down`/`pressed`/`released`, então o backend só traduz eventos e as transições são determinísticas em todo alvo (`GameInputE2ETest` **4/4**, JVM + Script + Native x86-64 + JS, golden byte-idêntico). Construir o relógio revelou e corrigiu um defeito do frontend (`known-bugs` §603: o descritor do `invoke` da SAM sintética usava os tipos inferidos dos argumentos). A medição do G1 SDL3 então fechou a incógnita da stack: os RPMs `SDL3-devel`/`libSDL3-0` `3.4.16` foram extraídos para um prefixo local, uma sonda C compilou+linkou+rodou headless (`SDL_VIDEODRIVER=dummy`), e a mesma forma foi dirigida a partir do **Kof** via `extern` em JVM + Native x86-64 (`SDL_Init`/`SDL_CreateWindow`/`SDL_GetWindowTitle`/`SDL_DestroyWindow`/`SDL_Quit` → `init=true / driver=dummy / title=kof`). Esse primeiro uso pelo lado Kof revelou um bloqueador de paridade cross-target — uma biblioteca C com estado perdia seus globais entre chamadas `extern` na JVM/JS porque o lookup da biblioteca era carregado na arena por chamada e fechado — agora corrigido (`known-bugs` §605, `FfiLibraryStateE2ETest` 3/3 JVM+JS+Native, RED-first 2/3 pré-fix). Próximo: desenhar a janela de backend (`Window("…") { frame { dt -> … } }`) e entregar as libs+headers da SDL3 no sysroot cross para a API de janela pousar honestamente em todo alvo.
+- **Fatia 3.1 — iniciada 05/10 (lane security/connectors `192.168.15.15:9092`):** a metade pura e independente de backend do contrato §6/§7 pousou primeiro — `libs/game/Clock.kf` (namespace `kof.game`) é dono do livro-caixa de frames e do `dt` sobre timestamps monotônicos fornecidos pelo chamador (o "relógio virtual" que o plano exige para goldens determinísticos), então não chama API de janela/áudio/vídeo e é honesto em todo alvo hoje. Semântica congelada por `GameClockE2ETest` **4/4** em JVM + Script + Native x86-64 + JS (frame 0 `dt=0`; frames seguintes difam o timestamp anterior; `stop()` encerra `hasNext()`). `libs/game/Keys.kf` acrescenta o snapshot de input por frame do §7: `beginFrame(held)` difa os conjuntos de teclas atual e anterior e deriva `down`/`pressed`/`released`, então o backend só traduz eventos e as transições são determinísticas em todo alvo (`GameInputE2ETest` **4/4**, JVM + Script + Native x86-64 + JS, golden byte-idêntico). Construir o relógio revelou e corrigiu um defeito do frontend (`known-bugs` §603: o descritor do `invoke` da SAM sintética usava os tipos inferidos dos argumentos). A medição do G1 SDL3 então fechou a incógnita da stack: os RPMs `SDL3-devel`/`libSDL3-0` `3.4.16` foram extraídos para um prefixo local, uma sonda C compilou+linkou+rodou headless (`SDL_VIDEODRIVER=dummy`), e a mesma forma foi dirigida a partir do **Kof** via `extern` em JVM + Native x86-64 (`SDL_Init`/`SDL_CreateWindow`/`SDL_GetWindowTitle`/`SDL_DestroyWindow`/`SDL_Quit` → `init=true / driver=dummy / title=kof`). Esse primeiro uso pelo lado Kof revelou um bloqueador de paridade cross-target — uma biblioteca C com estado perdia seus globais entre chamadas `extern` na JVM/JS porque o lookup da biblioteca era carregado na arena por chamada e fechado — agora corrigido (`known-bugs` §606, `FfiLibraryStateE2ETest` 3/3 JVM+JS+Native, RED-first 2/3 pré-fix). Próximo: desenhar a janela de backend (`Window("…") { frame { dt -> … } }`) e entregar as libs+headers da SDL3 no sysroot cross para a API de janela pousar honestamente em todo alvo.
 - **3.0** spike+infra (stack/R3/FFI/licenças/headless/cross/guard-JavaFX;
   relatório, sem API) → **3.1** janela/frame/input (JVM/Script/Native/JS +
   conformância) → **3.2** 2D (sprite/texture/transform/tilemap/draw; golden/
