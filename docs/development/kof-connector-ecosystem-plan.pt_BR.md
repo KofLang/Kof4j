@@ -13,7 +13,7 @@ KofJS, os backends Native, `kof.toml`/`kofdeps`
 **Estado de implementação:** fatias 1–16 POUSADAS em pure-Kof `libs/interop/` (leitor de manifest → `InteropCore`, até `CAbiConnector` = a metade declarativa C-ABI, fatia 16) — ver §9. **Fatia A (gramática `foreign module`) LANDADA 01/10** (`foreign` entra na gramática como açúcar sobre a via FFI existente; `ForeignModuleGrammarE2ETest` 5/5). Resta a fatia B (tipo de erro de interop) — **superfície DECIDIDA 02/10 por `D-INTEROP-ERR-TYPE`**
 (`InteropError` catchável, `.message`/`.code`, contrato String intocado). **A transcrição dos tiers
 de ABI FECHOU 02/10 (`D-ABI-TIER-TABLE`; §9.16 Fatia D): escala do stdlib, primeiro estável `1.0.0`.**
-**Gerador CLI do §8 POUSADO 04/10** (`kof connector init`, `CmdConnectorInitTest` 7/7 — ver §8.1).
+**Gerador CLI do §8 POUSADO 04/10** (`kof connector init`, `CmdConnectorInitTest` 7/7 — ver §8.1); **gerador de binding header C do §7 POUSADO 04/10** (`interop.CHeaderBindings`, `CHeaderBindingsE2ETest` 6/6 — ver §7.1).
 
 > **Regra fundamental.** Este documento descreve uma direção arquitetural futura. Ele **não**
 > altera a linguagem, não adiciona palavras-chave, não cria namespaces e não abre trilha de
@@ -493,6 +493,29 @@ metadados Rust/Java/.NET/Python (depois)
 Não implementar todos os geradores de uma vez. Começar por uma linguagem com interface
 **formal e estável** — provavelmente C ABI. Bindings gerados devem ser determinísticos e
 cobertos por testes golden; binding gerado que não se pode confiar não é entregue.
+
+## 7.1 POUSADO 04/10/2026 — gerador header C → `foreign module` (fatia 1)
+
+**Estado:** pousado (`libs/interop/CHeaderBindings.kf`, Kof puro). `CHeaderBindings(path)` lê
+um header C linha a linha (`libs/file/TextStream`) e renderiza o bloco Kof `foreign module`
+(gramática da fatia A) que liga os símbolos declarados pela via FFI **existente** (regra 54 —
+nenhum motor de ABI novo): `render(moduleName, library)` → cabeçalho + um `extern` por função
+mapeada; `externLines()` e `declarations()` expõem as partes.
+
+**Subconjunto limitado (documentado):** só tipos escalares — `int`/`unsigned int`→`Int`,
+`long`/`long long`/`size_t`/`int64_t`→`Long`, `float`→`Float`, `double`→`Double`,
+`bool`/`_Bool`→`Bool`, `char*`/`const char*`→`String`, `void`→`void`. Uma declaração com
+ponteiro de função (dois parênteses), array (`[`), varargs (`...`), `static`/`typedef`
+(linkage interna / alias de tipo) ou tipo não mapeado é registrada em `skipped()` com motivo
+honesto — **nunca emitida errada, nunca descartada em silêncio** (R6). Linhas de
+pré-processador são ignoradas.
+
+**Prova:** `CHeaderBindingsE2ETest` **6/6** — RED-first (`PKG006 import
+'interop.CHeaderBindings' not found`), VERDE: o render golden é idêntico em JVM + Script +
+Native x86-64; o **round-trip** gera um bloco de um header real de `libm`, anexa um `main` e
+compila+roda o código emitido (`fmod=1.0`/`sqrt=12.0`); a lista de skips honestos é pinada;
+JS herda a lacuna `IOJS001` (o leitor). Bateria interop **89/0F** sem regressão. Sem mudança
+de compilador/linguagem.
 
 ---
 

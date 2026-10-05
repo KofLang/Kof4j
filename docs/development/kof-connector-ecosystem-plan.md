@@ -10,7 +10,7 @@
 **Main dependencies:** R3 / FFI-ABI (`docs/ffi-abi-structs.md`), the JVM interop path
 (`ExternalClasspath`/`JdkReflectionResolver`), `kof.process`/`kof.shell`/`kof.ssh`,
 KofJS, the Native backends, `kof.toml`/`kofdeps`
-**Implementation status:** fatias 1–16 LANDED in pure-Kof `libs/interop/` (manifest reader → `InteropCore`, through `CAbiConnector` = the declarative C-ABI half, slice 16) — see §9. **Slice A (`foreign module` grammar) LANDED 01/10** (`foreign` enters the grammar as sugar over the existing FFI path; `ForeignModuleGrammarE2ETest` 5/5). **Slices B (`InteropError`, `D-INTEROP-ERR-TYPE`, 02/10) and D (ABI-tier table, `D-ABI-TIER-TABLE`, 02/10) are LANDED** — the authorized A/B/C/D surface is complete; see §9.16/§879 for the measured closure. **§8 CLI generator LANDED 04/10** (`kof connector init`, `CmdConnectorInitTest` 7/7 — see §8.1). Next: await the maintainer's plan closure / promotion to `docs/stdlib/` (rule 6).
+**Implementation status:** fatias 1–16 LANDED in pure-Kof `libs/interop/` (manifest reader → `InteropCore`, through `CAbiConnector` = the declarative C-ABI half, slice 16) — see §9. **Slice A (`foreign module` grammar) LANDED 01/10** (`foreign` enters the grammar as sugar over the existing FFI path; `ForeignModuleGrammarE2ETest` 5/5). **Slices B (`InteropError`, `D-INTEROP-ERR-TYPE`, 02/10) and D (ABI-tier table, `D-ABI-TIER-TABLE`, 02/10) are LANDED** — the authorized A/B/C/D surface is complete; see §9.16/§879 for the measured closure. **§8 CLI generator LANDED 04/10** (`kof connector init`, `CmdConnectorInitTest` 7/7 — see §8.1); **§7 C-header binding generator LANDED 04/10** (`interop.CHeaderBindings`, `CHeaderBindingsE2ETest` 6/6 — see §7.1). Next: await the maintainer's plan closure / promotion to `docs/stdlib/` (rule 6).
 
 > **Fundamental rule.** This document describes a future architectural direction. It does
 > **not** change the language, add keywords, create namespaces, or open an implementation
@@ -485,6 +485,28 @@ Rust/Java/.NET/Python metadata (later)
 Do not implement all generators at once. Start with a language that has a **formal, stable
 interface** — most likely C ABI. Bindings generated must be deterministic and covered by
 golden tests; a generated binding that cannot be trusted is not delivered.
+
+## 7.1 LANDED 04/10/2026 — C header → `foreign module` generator (slice 1)
+
+**State:** landed (`libs/interop/CHeaderBindings.kf`, pure Kof). `CHeaderBindings(path)`
+reads a C header line by line (`libs/file/TextStream`) and renders the Kof `foreign module`
+block (slice A grammar) that binds the declared symbols through the **existing** FFI path
+(rule 54 — no new ABI engine): `render(moduleName, library)` → header + one `extern` per
+mapped function; `externLines()` and `declarations()` expose the pieces.
+
+**Bounded subset (documented):** scalar types only — `int`/`unsigned int`→`Int`,
+`long`/`long long`/`size_t`/`int64_t`→`Long`, `float`→`Float`, `double`→`Double`,
+`bool`/`_Bool`→`Bool`, `char*`/`const char*`→`String`, `void`→`void`. A declaration with a
+function pointer (two parens), an array (`[`), varargs (`...`), `static`/`typedef` (internal
+linkage / type alias) or an unmapped type is recorded in `skipped()` with an honest reason —
+**never emitted wrong, never silently dropped** (R6). Preprocessor lines are ignored.
+
+**Proof:** `CHeaderBindingsE2ETest` **6/6** — RED-first (`PKG006 import
+'interop.CHeaderBindings' not found`), GREEN: the golden render is identical on JVM + Script
++ Native x86-64; the **round-trip** generates a block from a real `libm` header, appends a
+`main` and compiles+runs the emitted source (`fmod=1.0`/`sqrt=12.0`); the honest-skip list is
+pinned; JS inherits the `IOJS001` gap (the reader). Interop battery **89/0F** unregressed.
+No compiler/language change.
 
 ---
 

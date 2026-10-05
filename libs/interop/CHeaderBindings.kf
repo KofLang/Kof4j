@@ -1,0 +1,329 @@
+package interop
+
+import file.TextStream
+
+// kof.interop — C header → Kof binding generator (plan §7, `D-CONNECTORS-GO`).
+//
+// The plan's §7 "header / binding generation": read a C header and emit the Kof
+// `foreign module` block (slice A grammar) that binds the declared symbols
+// through the EXISTING FFI path (rule 54, no new ABI engine). The output is
+// ordinary Kof source; a generated binding that cannot be trusted is not
+// delivered, so every symbol is either mapped deterministically or recorded in
+// `skipped()` with a reason — never emitted wrong, never silently dropped.
+//
+// Bounded, documented subset (slice 1):
+//   * scalar return/param types only — int/unsigned int -> Int, long/long long/
+//     size_t/int64_t -> Long, float -> Float, double -> Double, bool/_Bool ->
+//     Boolean, char*/const char* -> String, void -> void;
+//   * one `(` per declaration (function pointers with two parens are skipped);
+//   * no arrays (`[`), no varargs (`...`), no preprocessor lines (`#`),
+//     no `static` (internal linkage cannot be resolved by dlopen);
+//   * a trailing `;` is required; the return type is everything before the last
+//     identifier that precedes `(`.
+//
+// Built on `libs/file/TextStream.kf`; JS inherits the compile-time gap `IOJS001`
+// (the reader). `render()` is target-neutral (no IO) once the header is read.
+
+record CFunction(String name, String returnType, List<String> paramTypes, List<String> paramNames)
+
+class CHeaderBindings {
+    List<CFunction> functions
+    List<String> skippedReasons
+
+    constructor(String path) {
+        this.functions = listOf<CFunction>()
+        this.skippedReasons = listOf<String>()
+        parseCHeader(path, 8192, this.functions, this.skippedReasons)
+    }
+
+    constructor(String path, Int chunkSize) {
+        this.functions = listOf<CFunction>()
+        this.skippedReasons = listOf<String>()
+        parseCHeader(path, chunkSize, this.functions, this.skippedReasons)
+    }
+
+    // The mapped functions, in declaration order (deterministic).
+    List<CFunction> declarations() {
+        return this.functions
+    }
+
+    // Declarations that were NOT mapped, each with an honest reason.
+    List<String> skipped() {
+        return this.skippedReasons
+    }
+
+    // The `extern ...` lines only (the body of the module block).
+    List<String> externLines() {
+        var out: List<String> = listOf<String>()
+        var i = 0
+        while (i < this.functions.size()) {
+            out.add(renderExtern(this.functions.get(i)))
+            i = i + 1
+        }
+        return out
+    }
+
+    // The full `foreign module <name> { ... }` block, deterministically. The
+    // module header is the exact form slice A proved: library + abi c +
+    // ownership borrowed, then one `extern` per mapped function.
+    String render(String moduleName, String library) {
+        var out = "foreign module " + moduleName + " {\n"
+        out = out + "    library \"" + library + "\"\n"
+        out = out + "    abi c\n"
+        out = out + "    ownership borrowed\n"
+        var lines = externLines()
+        var i = 0
+        while (i < lines.size()) {
+            out = out + "    " + lines.get(i) + "\n"
+            i = i + 1
+        }
+        out = out + "}\n"
+        return out
+    }
+
+    String renderExtern(CFunction decl) {
+        var out = "extern " + decl.name + "("
+        var i = 0
+        while (i < decl.paramTypes.size()) {
+            if (i > 0) {
+                out = out + ", "
+            }
+            out = out + decl.paramTypes.get(i) + " " + decl.paramNames.get(i)
+            i = i + 1
+        }
+        out = out + "): " + decl.returnType
+        return out
+    }
+}
+
+// Read the header line by line and append mapped functions / skip reasons.
+void parseCHeader(String path, Int chunkSize, List<CFunction> out, List<String> skipped) {
+    var stream = TextStream(path, chunkSize)
+    var line = stream.nextLine()
+    while (line != null) {
+        var t = cHeaderTrim(line)
+        if (t.length > 0 && !t.startsWith("//") && !t.startsWith("/*") && !t.startsWith("*")) {
+            parseCHeaderLine(t, out, skipped)
+        }
+        line = stream.nextLine()
+    }
+}
+
+// Classify one trimmed non-comment line. Declarations with a single paren pair
+// and scalar types are mapped; everything else is recorded, never guessed.
+void parseCHeaderLine(String t, List<CFunction> out, List<String> skipped) {
+    if (!t.endsWith(";")) {
+        return
+    }
+    if (t.startsWith("#")) {
+        return
+    }
+    if (cHeaderStartsWithWord(t, "static") || cHeaderStartsWithWord(t, "typedef")) {
+        skipped.add("internal linkage or typedef: " + t)
+        return
+    }
+    if (cHeaderCount(t, '(') != 1 || cHeaderCount(t, ')') != 1) {
+        skipped.add("function pointer or malformed: " + t)
+        return
+    }
+    if (cHeaderContains(t, '[') || cHeaderContains(t, ']')) {
+        skipped.add("array declaration: " + t)
+        return
+    }
+    if (cHeaderIndexOf(t, "...") >= 0) {
+        skipped.add("variadic: " + t)
+        return
+    }
+    var open = cHeaderIndexOf(t, "(")
+    var close = cHeaderLastIndexOf(t, ")")
+    if (open < 0 || close < open) {
+        return
+    }
+    var before = cHeaderTrim(cHeaderSlice(t, 0, open))
+    var paramsRaw = cHeaderSlice(t, open + 1, close)
+    var nameStart = cHeaderLastIdentStart(before)
+    if (nameStart < 0) {
+        skipped.add("no function name: " + t)
+        return
+    }
+    var name = cHeaderSlice(before, nameStart, before.length)
+    var returnRaw = cHeaderTrim(cHeaderSlice(before, 0, nameStart))
+    var ret = cHeaderType(cHeaderNormalize(returnRaw))
+    if (ret == null) {
+        skipped.add("unsupported return type '" + returnRaw + "': " + t)
+        return
+    }
+    var paramTypes: List<String> = listOf<String>()
+    var paramNames: List<String> = listOf<String>()
+    var trimmedParams = cHeaderTrim(paramsRaw)
+    if (trimmedParams.length > 0 && trimmedParams != "void") {
+        var parts = cHeaderSplitParams(trimmedParams)
+        var i = 0
+        while (i < parts.size()) {
+            var p = cHeaderTrim(parts.get(i))
+            var pStart = cHeaderLastIdentStart(p)
+            if (pStart < 0) {
+                skipped.add("unsupported parameter in " + name + ": " + t)
+                return
+            }
+            var pName = cHeaderSlice(p, pStart, p.length)
+            var pRaw = cHeaderTrim(cHeaderSlice(p, 0, pStart))
+            var pType = cHeaderType(cHeaderNormalize(pRaw))
+            if (pType == null) {
+                skipped.add("unsupported parameter type '" + pRaw + "' in " + name + ": " + t)
+                return
+            }
+            paramTypes.add(pType)
+            paramNames.add(pName)
+            i = i + 1
+        }
+    }
+    out.add(CFunction(name, ret, paramTypes, paramNames))
+}
+
+// The C type table (slice 1). Returns the Kof type or null when unmapped.
+String? cHeaderType(String normalized) {
+    if (normalized == "void") {
+        return "void"
+    }
+    if (normalized == "int" || normalized == "unsignedint" || normalized == "signedint"
+            || normalized == "int32_t" || normalized == "unsignedint32_t") {
+        return "Int"
+    }
+    if (normalized == "long" || normalized == "longlong" || normalized == "longint"
+            || normalized == "longlongint" || normalized == "unsignedlong"
+            || normalized == "unsignedlonglong" || normalized == "size_t"
+            || normalized == "intptr_t" || normalized == "uintptr_t"
+            || normalized == "int64_t" || normalized == "uint64_t") {
+        return "Long"
+    }
+    if (normalized == "float") {
+        return "Float"
+    }
+    if (normalized == "double") {
+        return "Double"
+    }
+    if (normalized == "bool" || normalized == "_Bool") {
+        return "Bool"
+    }
+    if (normalized == "char*" || normalized == "constchar*") {
+        return "String"
+    }
+    return null
+}
+
+// Split a parameter list on top-level commas (no nesting exists in the scalar
+// subset, so a plain split is exact).
+List<String> cHeaderSplitParams(String s) {
+    var out: List<String> = listOf<String>()
+    var current = ""
+    var i = 0
+    while (i < s.length) {
+        var ch = s.charAt(i)
+        if (ch == ',') {
+            out.add(current)
+            current = ""
+        } else {
+            current = current + ch
+        }
+        i = i + 1
+    }
+    out.add(current)
+    return out
+}
+
+// Start index of the last identifier run in `s`, or -1 when there is none.
+Int cHeaderLastIdentStart(String s) {
+    var i = s.length - 1
+    while (i >= 0) {
+        if (cHeaderIsIdentChar(s.charAt(i))) {
+            var j = i
+            while (j >= 0 && cHeaderIsIdentChar(s.charAt(j))) {
+                j = j - 1
+            }
+            return j + 1
+        }
+        i = i - 1
+    }
+    return -1
+}
+
+Bool cHeaderIsIdentChar(Char ch) {
+    return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch == '_'
+}
+
+Bool cHeaderStartsWithWord(String s, String word) {
+    if (s.length < word.length) {
+        return false
+    }
+    if (cHeaderSlice(s, 0, word.length) != word) {
+        return false
+    }
+    if (s.length == word.length) {
+        return true
+    }
+    return !cHeaderIsIdentChar(s.charAt(word.length))
+}
+
+String cHeaderNormalize(String s) {
+    var out = ""
+    var i = 0
+    while (i < s.length) {
+        var ch = s.charAt(i)
+        if (ch != ' ' && ch != '\t') {
+            out = out + ch
+        }
+        i = i + 1
+    }
+    return out
+}
+
+Int cHeaderCount(String s, Char target) {
+    var n = 0
+    var i = 0
+    while (i < s.length) {
+        if (s.charAt(i) == target) {
+            n = n + 1
+        }
+        i = i + 1
+    }
+    return n
+}
+
+Bool cHeaderContains(String s, Char target) {
+    return cHeaderCount(s, target) > 0
+}
+
+Int cHeaderIndexOf(String s, String sub) {
+    return s.indexOf(sub)
+}
+
+Int cHeaderLastIndexOf(String s, String sub) {
+    return s.lastIndexOf(sub)
+}
+
+String cHeaderTrim(String s) {
+    var start = 0
+    var end = s.length
+    while (start < end && cHeaderIsSpace(s.charAt(start))) {
+        start = start + 1
+    }
+    while (end > start && cHeaderIsSpace(s.charAt(end - 1))) {
+        end = end - 1
+    }
+    return cHeaderSlice(s, start, end)
+}
+
+Bool cHeaderIsSpace(Char ch) {
+    return ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r'
+}
+
+String cHeaderSlice(String s, Int from, Int to) {
+    var out = ""
+    var i = from
+    while (i < to) {
+        out = out + s.charAt(i)
+        i = i + 1
+    }
+    return out
+}
