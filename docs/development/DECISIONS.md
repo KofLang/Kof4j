@@ -4827,3 +4827,30 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 **Relationships:** `Related: D-KOF-X25519 (same placement), D-KOF-NET (wire consumers), D-KOFSHARE-100KOF (satisfied: face is Kof, primitive is JDK), rule 6`.
 
 **Implemented (C1, 03/10):** the family ships under the existing namespaces — zero new namespace. `crypto.sign(Secret priv, Byte[] msg) -> String` (128-hex), `crypto.verify(Secret key, Byte[] msg, String sigHex) -> Bool`; `keyExchange.privateKey("Ed25519") -> Secret` (hex PKCS8(48B)‖SPKI(44B) = 184 chars, redaction R8 untouched) beside the no-arg X25519 face, and `keyExchange.publicKey(Secret)` now dispatches by format (64-hex = X25519 path, unchanged; 184-hex = Ed25519 raw-32 export, 64 hex). verify accepts the private Secret or a 64-hex public Secret via `secrets.of(hex)` — same face, no second API. JVM/Android/Script green (`CryptoSignE2ETest` 3/3: round-trip, public-only verify, tamper/bad-sig refusal, nondeterministic keygen, R8 redaction, leak assertion); JS/Native/cross refuse with the **new named gap SECN013** (signing family) — `publicKey` keeps SECN012 as the historical X25519 face it still is. Nothing hand-rolled: JDK `Signature`/`KeyPairGenerator` "Ed25519" (JDK 15+ primitive), Kof only encodes the hex the house already uses.
+
+---
+
+## D-MAINT-BATCH-0510 — maintainer multiple-choice batch (05/10/2026, chat poll): 14 pending rule-6 fronts resolved
+
+**Date:** 2026-10-05 · **State:** `DECIDED` (batch) · **Evidence:** the maintainer's multiple-choice answers in the chat poll of 05/10/2026 (one line each; the poll listed the real options from the plans/issues). **Effect:** the 14 fronts below are AUTHORIZED for implementation; issues stay OPEN until their owning lane lands the fix with proof.
+
+| # | Front (option) | Unblocks / queue |
+|---|---|---|
+| G1 (SDL3) | **graphics stack = SDL3** for window+input+audio | `graphics-gaming-plan` slice 3.1 (window/frame/input); lane SEM DONO — re-claim freely; record the `D-*` before any API |
+| G2 (FFmpeg LGPL vendorizado) | **video codecs = a vendored LGPL FFmpeg build** (the distro build measured GPL is NOT taken as-is) | slice 3.4 (video); vendoring is a packaging/licensing task owned by the graphics lane |
+| T1 (todos os targets) | **browser E2E provider must serve ALL targets** (JVM + JS + Native), not JVM-only | `kof-testing-platform` §6 provider policy; the Playwright/Cypress dependency declaration/versioning still lands with the provider slice |
+| T2 (feature compilador/CLI) | **`kof.test` stays a compiler/CLI feature** — NOT a stdlib namespace | §12; `StdCatalog` unchanged |
+| M1 (autorizar) | **memory-safety Phase 5 float/HFA + callbacks AUTHORIZED** | lane `.101:9092` unblocks the STOP faces (float/HFA cross + callbacks) |
+| C1 (promover) | **connector plan closure → promote to `docs/stdlib/`** | `kof-connector-ecosystem-plan.md` moves out of `docs/development/` (3-state rule) |
+| P3 (Maven isolada) | **PDFBox as an isolated Maven dep in the minimal module**, hidden behind the Kof API | `#629` decision 3; `libs/pdf` JVM slice |
+| P4 (IMG001) | **JS/Native PDF gap code = `IMG001`** (existing precedent) | `#629` decision 4 |
+| IO1 (adicionar) | **`kof.io` gains a `realPath`/reparse-point primitive** | `#751`; new stdlib surface |
+| NET1 (adicionar) | **`kof.net` gains name-resolution (`net.resolve`) + connect-to-vetted-address** | `#759`; new stdlib surface + cross policy |
+| HTTP1 (throw String) | **`kof.http` failures throw a String** (frozen contract), catchable by `catch (String e)` | `#756`; compiler/http lane |
+| SEC1 (erro) | **an unset `secrets.secret` is an explicit error** — never a silent empty `Secret` | `#758` residual; security/connectors lane |
+| TY1 (recusar) | **tighten `TypeChecker.isAssignable`** to refuse the builtin→builtin mismatch | `#753` residual; compiler/interop lane |
+| Q1 (ativar) | **branch protections ACTIVE** on `testing`/`prerelease`/`stable` (no force-push + required checks) | `quality-pipeline` 14.4; maintainer applies the GitHub settings |
+
+**Boundary:** this record AUTHORIZES the fronts; it does not implement them. Each front keeps its owning lane (or is re-claimable when unowned, e.g. graphics). Issues close only with executed proof per the lane's Q0–Q7. Nothing here weakens the freeze or the quality gate.
+
+**Relationships:** `Related: D-GRAPHICS-GAMING/D-GRAPHICS-SPIKE, D-TESTING-PLATFORM, D-MEMORY-SAFETY, D-CONNECTORS-GO, D-PDF-READ, D-QUALITY-PIPELINE-2609, rule 6, D-KOF-FIRST`.

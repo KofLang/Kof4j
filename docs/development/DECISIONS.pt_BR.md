@@ -4817,3 +4817,30 @@ individuais:
 **Relações:** `Related: D-KOF-X25519 (mesmo posicionamento), D-KOF-NET (consumidores no fio), D-KOFSHARE-100KOF (satisfeita: a face é Kof, a primitiva é JDK), regra 6`.
 
 **Implementado (C1, 03/10):** a família embarca nos namespaces existentes — zero namespace novo. `crypto.sign(Secret priv, Byte[] msg) -> String` (128-hex), `crypto.verify(Secret key, Byte[] msg, String sigHex) -> Bool`; `keyExchange.privateKey("Ed25519") -> Secret` (hex PKCS8(48B)‖SPKI(44B) = 184 chars, redação R8 intacta) ao lado da face X25519 sem argumento, e `keyExchange.publicKey(Secret)` agora despacha por formato (64-hex = caminho X25519, inalterado; 184-hex = export cru de 32 bytes do Ed25519, 64 hex). verify aceita o Secret privado ou um Secret público de 64-hex via `secrets.of(hex)` — mesma face, nenhum segundo API. JVM/Android/Script verdes (`CryptoSignE2ETest` 3/3: round-trip, verify só-público, recusa de tamper/assinatura ruim, keygen não-determinística, redação R8, asserção anti-vazamento); JS/Native/cross recusam com o **gap nomeado novo SECN013** (família de assinatura) — `publicKey` mantém SECN012 como a face X25519 histórica que sempre foi. Nada artesanal: `Signature`/`KeyPairGenerator` "Ed25519" do JDK (primitiva desde o JDK 15), Kof só codifica o hex que a casa já usa.
+
+---
+
+## D-MAINT-BATCH-0510 — lote de múltipla escolha da mantenedora (05/10/2026, poll no chat): 14 frentes rule-6 pendentes resolvidas
+
+**Data:** 2026-10-05 · **Estado:** `DECIDED` (lote) · **Evidência:** respostas de múltipla escolha da mantenedora no poll do chat de 05/10/2026 (uma linha cada; o poll listou as opções reais dos planos/issues). **Efeito:** as 14 frentes abaixo estão AUTORIZADAS para implementação; as issues seguem ABERTAS até a lane dona pousar o fix com prova.
+
+| # | Frente (opção) | Desbloqueia / fila |
+|---|---|---|
+| G1 (SDL3) | **stack gráfica = SDL3** para janela+input+áudio | `graphics-gaming-plan` fatia 3.1 (window/frame/input); lane SEM DONO — re-reivindicável; registrar o `D-*` antes de qualquer API |
+| G2 (FFmpeg LGPL vendorizado) | **codecs de vídeo = build FFmpeg LGPL vendorizado** (o build GPL da distro medido NÃO é usado como está) | fatia 3.4 (vídeo); vendorizar é tarefa de packaging/licença da lane de graphics |
+| T1 (todos os alvos) | **o provider de browser E2E deve servir TODOS os alvos** (JVM + JS + Native), não só JVM | `kof-testing-platform` §6 política de provider; a declaração/versionamento da dependência Playwright/Cypress pousa junto com a fatia do provider |
+| T2 (feature compilador/CLI) | **`kof.test` continua feature do compilador/CLI** — NÃO vira namespace stdlib | §12; `StdCatalog` inalterado |
+| M1 (autorizar) | **memory-safety Fase 5 float/HFA + callbacks AUTORIZADAS** | lane `.101:9092` desbloqueia as faces STOP (float/HFA cross + callbacks) |
+| C1 (promover) | **closure do plano de connectors → promover para `docs/stdlib/`** | `kof-connector-ecosystem-plan.md` sai de `docs/development/` (regra dos 3 estados) |
+| P3 (Maven isolada) | **PDFBox como dependência Maven isolada no módulo mínimo**, oculto atrás da API Kof | `#629` decisão 3; fatia JVM de `libs/pdf` |
+| P4 (IMG001) | **gap code de PDF em JS/Native = `IMG001`** (precedente existente) | `#629` decisão 4 |
+| IO1 (adicionar) | **`kof.io` ganha primitiva de `realPath`/reparse-point** | `#751`; nova superfície stdlib |
+| NET1 (adicionar) | **`kof.net` ganha name-resolution (`net.resolve`) + connect a endereço vetado** | `#759`; nova superfície stdlib + política cross |
+| HTTP1 (throw String) | **falhas de `kof.http` lançam String** (contrato congelado), capturável por `catch (String e)` | `#756`; lane compiler/http |
+| SEC1 (erro) | **`secrets.secret` sem valor é erro explícito** — nunca um `Secret` vazio silencioso | residual `#758`; lane security/connectors |
+| TY1 (recusar) | **apertar `TypeChecker.isAssignable`** para recusar o mismatch builtin→builtin | residual `#753`; lane compiler/interop |
+| Q1 (ativar) | **branch protections ATIVAS** em `testing`/`prerelease`/`stable` (sem force-push + required checks) | `quality-pipeline` 14.4; a mantenedora aplica as settings do GitHub |
+
+**Fronteira:** este registro AUTORIZA as frentes; não as implementa. Cada frente mantém sua lane dona (ou é re-reivindicável quando sem dono, ex. graphics). Issues fecham só com prova executada conforme Q0–Q7 da lane. Nada aqui enfraquece o freeze ou o quality gate.
+
+**Relações:** `Related: D-GRAPHICS-GAMING/D-GRAPHICS-SPIKE, D-TESTING-PLATFORM, D-MEMORY-SAFETY, D-CONNECTORS-GO, D-PDF-READ, D-QUALITY-PIPELINE-2609, rule 6, D-KOF-FIRST`.
