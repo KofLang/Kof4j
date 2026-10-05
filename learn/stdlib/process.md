@@ -23,6 +23,9 @@ if (r.exitCode == 0) { println(r.stdout) }        // non-zero exit is DATA
 - `Result` carries `stdout`/`stderr`/`exitCode` in both namespaces.
 - `spawn` returns a Handle: `readLine`/`write`/`exitCode`/`kill`/`alive` —
   the same handle ops as [18 — Concurrency](../18-concurrency.md).
+- Under `D-FULL-PARITY-050`, subprocesses do not inherit ambient parent file
+  descriptors beyond stdin/stdout/stderr. Native marks every descriptor `>2`
+  close-on-exec before `run`/`spawn` (`#762`), matching the JVM oracle.
 - NEVER build a command string (injection class) — args stay separate values.
 
 **See also:** [kof.shell](shell.md) — pipelines and dynamic argv;
