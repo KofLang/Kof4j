@@ -100,6 +100,22 @@ else
     fail "run script (got: $SCRIPT_OUTPUT)"
 fi
 
+# ── kof run --target native (the `run` dispatch, not just build) ───
+NATIVE_RUN_OUTPUT=$(java -jar "$KOF_JAR" run --target native "$WORK/src/Main.kf" 2>/dev/null || true)
+if [ "$NATIVE_RUN_OUTPUT" = "integration:42" ]; then
+    pass "run native"
+else
+    fail "run native (got: $NATIVE_RUN_OUTPUT)"
+fi
+
+# ── kof run --target js (embedded JS engine; no external node) ─────
+JS_RUN_OUTPUT=$(java -jar "$KOF_JAR" run --target js "$WORK/src/Main.kf" 2>/dev/null || true)
+if [ "$JS_RUN_OUTPUT" = "integration:42" ]; then
+    pass "run js"
+else
+    fail "run js (got: $JS_RUN_OUTPUT)"
+fi
+
 # ── kof check ──────────────────────────────────────────────────────
 if java -jar "$KOF_JAR" check "$WORK/src/Main.kf" >/dev/null 2>&1; then
     pass "check (valid file)"

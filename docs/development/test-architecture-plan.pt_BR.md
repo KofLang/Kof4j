@@ -868,6 +868,14 @@ alvos mais as superfícies do CLI (`check`/`serve`/`test`). Prova (executada):
 `tests/run-integration.sh` **12/12**, exit 0; a execução `integration-tests` do
 perfil `mvn verify -Pintegration` roda o mesmo script.
 
+**Fatia 3 da Fase 7 ENTREGUE (05/10):** a suíte de integração agora pina o próprio
+despacho do `kof run` nos dois alvos que faltavam — `kof run --target native` (o
+CLI compila, monta e executa, distinto da perna `build`+executar já coberta) e
+`kof run --target js` (o motor JS embutido, sem `node` externo). O
+`tests/run-integration.sh` agora exercita **14** checagens (eram 12) e todo alvo
+tem tanto uma perna `build` quanto uma `run`. Prova (executada):
+`tests/run-integration.sh` **14/14**, exit 0.
+
 ## 📊 Meta
 
 Após a refatoração:

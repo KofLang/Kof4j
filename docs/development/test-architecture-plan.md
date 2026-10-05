@@ -862,6 +862,14 @@ targets plus the CLI surfaces (`check`/`serve`/`test`). Proof (executed):
 `tests/run-integration.sh` **12/12**, exit 0; the `integration-tests` execution
 of the `mvn verify -Pintegration` profile rides the same script.
 
+**Phase 7 slice 3 LANDED (05/10):** the integration suite now pins the `kof run`
+dispatch itself on the two targets it was missing — `kof run --target native`
+(the CLI compiles, assembles and executes, distinct from the `build`+execute leg
+already covered) and `kof run --target js` (the embedded JS engine, no external
+`node`). `tests/run-integration.sh` now exercises **14** checks (was 12) and
+every target has both a `build` and a `run` leg. Proof (executed):
+`tests/run-integration.sh` **14/14**, exit 0.
+
 ## 📊 Goal
 
 After the refactoring:
