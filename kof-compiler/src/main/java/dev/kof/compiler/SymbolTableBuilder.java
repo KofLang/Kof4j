@@ -311,7 +311,13 @@ public final class SymbolTableBuilder {
             classSym.members().define(fs);
             classScope.define(fs);
         }
-        SymbolTable.ConstructorSymbol ctorSym = new SymbolTable.ConstructorSymbol(rec.name(), compTypes, 1);
+        int recRequired = 0;
+        while (recRequired < rec.components().size()
+                && rec.components().get(recRequired).initializer() == null) {
+            recRequired++;
+        }
+        SymbolTable.ConstructorSymbol ctorSym = new SymbolTable.ConstructorSymbol(rec.name(), compTypes, 1,
+                recRequired);
         classSym.members().define(ctorSym);
         classScope.define(ctorSym);
         for (RecordComponentNode comp : rec.components()) {
