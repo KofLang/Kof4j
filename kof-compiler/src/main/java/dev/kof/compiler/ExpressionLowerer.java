@@ -239,6 +239,19 @@ public final class ExpressionLowerer {
                         }
                     }
                 }
+                // #760: `new <imported-external-class>(...)` is a JVM-backed
+                // face; JS/Native must refuse with INTEROP003 instead of leaking
+                // the java_* ctor (Native ld undefined reference / JS
+                // ReferenceError). Wrapper owners keep their shims.
+                if (type instanceof Type.ClassType nct && !nct.packageName().isEmpty()
+                        && driver.externalClasspath.knows(nct.internalName())
+                        && JvmInteropTargetGap.refuses(driver.target)
+                        && !JvmInteropTargetGap.isShimmedOwner(nct.internalName())) {
+                    JvmInteropTargetGap.refuse(driver, ne.position(),
+                            "constructor of external class '"
+                                    + nct.internalName().replace('/', '.') + "'");
+                    yield localIdx;
+                }
                 ops.add(new KofNewObject(type, argTypes));
                 ops.add(new KofDup());
                 List<Type> ctorParamTypes;

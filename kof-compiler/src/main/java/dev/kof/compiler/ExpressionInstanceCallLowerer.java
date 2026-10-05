@@ -528,6 +528,20 @@ public final class ExpressionInstanceCallLowerer {
             }
         }
     }
+    // #760: a receiver whose type is an imported EXTERNAL class (import java.X)
+    // is a JVM-backed face. §510 gated only the static-FIELD face; without this
+    // gate the instance method (sc.nextLine()) emitted the real java_* call and
+    // the artifact died at link (Native COMP001) / run (JS ReferenceError). The
+    // wrapper owners keep their JS/Native shims.
+    if (JvmInteropTargetGap.refuses(driver.target)
+            && recvType instanceof Type.ClassType rtc && !rtc.packageName().isEmpty()
+            && driver.externalClasspath.knows(rtc.internalName())
+            && !JvmInteropTargetGap.isShimmedOwner(rtc.internalName())) {
+        JvmInteropTargetGap.refuse(driver, mc.position(),
+                "method '" + mc.methodName() + "()' of external class '"
+                        + rtc.internalName().replace('/', '.') + "'");
+        return localIdx;
+    }
     ops.add(new KofCall(recvType,
             runtimeMethod != null ? runtimeMethod : mc.methodName(),
             methodParamTypes, methodReturnType, callKind));

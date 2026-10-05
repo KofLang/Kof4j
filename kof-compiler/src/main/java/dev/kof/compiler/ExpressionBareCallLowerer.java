@@ -305,6 +305,14 @@ public final class ExpressionBareCallLowerer {
                 && driver.semanticAnalyzer.getClass(mc.methodName()) != null) return -1;
         if (declaresTopLevelFunction(driver, mc.methodName())) return -1;
         if (!driver.externalClasspath.knows(internal)) return -1;
+        // #760: implicit external ctor (`File(...)` sem `new`) — mesma face
+        // JVM-backed; JS/Native recusam com INTEROP003 (espelho do ramo `new`).
+        if (JvmInteropTargetGap.refuses(driver.target)
+                && !JvmInteropTargetGap.isShimmedOwner(internal)) {
+            JvmInteropTargetGap.refuse(driver, mc.position(),
+                    "constructor of external class '" + internal.replace('/', '.') + "'");
+            return localIdx;
+        }
         ExternalClasspath.MethodSignature sig =
                 driver.externalClasspath.resolvePublicConstructor(internal, mc.arguments().size());
         if (sig == null) return -1;

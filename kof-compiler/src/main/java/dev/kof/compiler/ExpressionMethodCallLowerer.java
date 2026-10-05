@@ -222,6 +222,17 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
     // único (VarargsArrayPacker) — `Arrays.asList(1,2)` empacota
     // Object[] e sai invokestatic com o descritor REAL, nunca mais
     // o dono vazio `"".asList:(II)`.
+    // #760: an imported EXTERNAL class used as a static-method receiver
+    // (Runtime.getRuntime(), Arrays.asList(...)) is a JVM-backed face; JS/Native
+    // must refuse with INTEROP003 instead of leaking the java_* call. The
+    // wrapper owners keep their shims.
+    if (JvmInteropTargetGap.refuses(driver.target)
+            && !JvmInteropTargetGap.isShimmedOwner(extQ.internalName())) {
+        JvmInteropTargetGap.refuse(driver, mc.position(),
+                "static method '" + mc.methodName() + "()' of external class '"
+                        + extQ.internalName().replace('/', '.') + "'");
+        return localIdx;
+    }
     ExternalClasspath.MethodSignature extSig = driver.externalClasspath.resolveMethod(
             extQ.internalName(), mc.methodName(), mc.arguments().size());
     List<Type> extFormal = VarargsArrayPacker.formalTypes(extSig);
