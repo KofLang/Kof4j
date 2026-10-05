@@ -10,7 +10,7 @@
 **Main dependencies:** R3 / FFI-ABI (`docs/ffi-abi-structs.md`), the JVM interop path
 (`ExternalClasspath`/`JdkReflectionResolver`), `kof.process`/`kof.shell`/`kof.ssh`,
 KofJS, the Native backends, `kof.toml`/`kofdeps`
-**Implementation status:** fatias 1–16 LANDED in pure-Kof `libs/interop/` (manifest reader → `InteropCore`, through `CAbiConnector` = the declarative C-ABI half, slice 16) — see §9. **Slice A (`foreign module` grammar) LANDED 01/10** (`foreign` enters the grammar as sugar over the existing FFI path; `ForeignModuleGrammarE2ETest` 5/5). **Slices B (`InteropError`, `D-INTEROP-ERR-TYPE`, 02/10) and D (ABI-tier table, `D-ABI-TIER-TABLE`, 02/10) are LANDED** — the authorized A/B/C/D surface is complete; see §9.16/§879 for the measured closure. **§8 CLI generator LANDED 04/10** (`kof connector init`, `CmdConnectorInitTest` 7/7 — see §8.1); **§7 C-header binding generator LANDED 04/10** (`interop.CHeaderBindings`, `CHeaderBindingsE2ETest` 6/6 — see §7.1). Next: await the maintainer's plan closure / promotion to `docs/stdlib/` (rule 6).
+**Implementation status:** fatias 1–16 LANDED in pure-Kof `libs/interop/` (manifest reader → `InteropCore`, through `CAbiConnector` = the declarative C-ABI half, slice 16) — see §9. **Slice A (`foreign module` grammar) LANDED 01/10** (`foreign` enters the grammar as sugar over the existing FFI path; `ForeignModuleGrammarE2ETest` 5/5). **Slices B (`InteropError`, `D-INTEROP-ERR-TYPE`, 02/10) and D (ABI-tier table, `D-ABI-TIER-TABLE`, 02/10) are LANDED** — the authorized A/B/C/D surface is complete; see §9.16/§879 for the measured closure. **§8 CLI generator LANDED 04/10** (`kof connector init`, `CmdConnectorInitTest` 7/7 — see §8.1); **§7 C-header binding generator LANDED 04/10** slices 1–2 (`interop.CHeaderBindings`, `CHeaderBindingsE2ETest` 7/7 — scalars §7.1, structs/typedefs §7.2). Next: await the maintainer's plan closure / promotion to `docs/stdlib/` (rule 6).
 
 > **Fundamental rule.** This document describes a future architectural direction. It does
 > **not** change the language, add keywords, create namespaces, or open an implementation
@@ -501,12 +501,36 @@ function pointer (two parens), an array (`[`), varargs (`...`), `static`/`typede
 linkage / type alias) or an unmapped type is recorded in `skipped()` with an honest reason —
 **never emitted wrong, never silently dropped** (R6). Preprocessor lines are ignored.
 
-**Proof:** `CHeaderBindingsE2ETest` **6/6** — RED-first (`PKG006 import
+**Proof:** `CHeaderBindingsE2ETest` — RED-first (`PKG006 import
 'interop.CHeaderBindings' not found`), GREEN: the golden render is identical on JVM + Script
 + Native x86-64; the **round-trip** generates a block from a real `libm` header, appends a
 `main` and compiles+runs the emitted source (`fmod=1.0`/`sqrt=12.0`); the honest-skip list is
-pinned; JS inherits the `IOJS001` gap (the reader). Interop battery **89/0F** unregressed.
+pinned; JS inherits the `IOJS001` gap (the reader). Interop battery unregressed.
 No compiler/language change.
+
+## 7.2 LANDED 04/10/2026 — C `struct`/`typedef` records (slice 2)
+
+**State:** landed in the same pure-Kof library. `struct Name { fields };`,
+`typedef struct { fields } Name;` and `typedef struct Name { fields } Name;` are emitted as
+Kof `record Name(...)` declarations **before** the `foreign module` block; a struct-typed
+parameter or return (`struct Point p`, `PtAlias p`) resolves to that record. `typedef <scalar>
+Alias;` and `typedef struct Name Alias;` are resolved as aliases. `structs()`/`recordLines()`
+expose the pieces. Records + `foreign module` compose through the existing FFI path — the
+round-trip proves the emitted source compiles and runs by value.
+
+**Bounded subset (documented):** a struct is emitted only when **every** field maps to a
+scalar (nested structs and function-pointer fields are `skipped()` honestly); multi-declarator
+fields (`int x, y;`) and the single-line form (`struct P { int x; int y; };`) are handled; a
+struct *use* without a body (`struct Point mkpoint(...)`) is a function, not a definition.
+Unmapped declarations stay in `skipped()` (R6).
+
+**Proof:** `CHeaderBindingsE2ETest` **7/7** — the golden includes `record Point(Int x, Int y)`
+and `record Mix(Double d, Int i)` plus the struct-typed `extern`s, identical on JVM + Script +
+Native x86-64; a **struct round-trip** generates a block from a host header, builds a
+`gcc -shared` `.so` (`sumpoint`/`mkpoint`), compiles+runs the emitted source
+(`sum=7`/`mk=5,6`) — by-value record arg and return through the existing ABI; RED-first: the
+slice-1 library fails the 5 struct tests while the scalar tests stay green. Interop battery
+**247/0F/30S** unregressed. No compiler/language change.
 
 ---
 

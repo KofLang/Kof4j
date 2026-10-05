@@ -13,7 +13,7 @@ KofJS, os backends Native, `kof.toml`/`kofdeps`
 **Estado de implementação:** fatias 1–16 POUSADAS em pure-Kof `libs/interop/` (leitor de manifest → `InteropCore`, até `CAbiConnector` = a metade declarativa C-ABI, fatia 16) — ver §9. **Fatia A (gramática `foreign module`) LANDADA 01/10** (`foreign` entra na gramática como açúcar sobre a via FFI existente; `ForeignModuleGrammarE2ETest` 5/5). Resta a fatia B (tipo de erro de interop) — **superfície DECIDIDA 02/10 por `D-INTEROP-ERR-TYPE`**
 (`InteropError` catchável, `.message`/`.code`, contrato String intocado). **A transcrição dos tiers
 de ABI FECHOU 02/10 (`D-ABI-TIER-TABLE`; §9.16 Fatia D): escala do stdlib, primeiro estável `1.0.0`.**
-**Gerador CLI do §8 POUSADO 04/10** (`kof connector init`, `CmdConnectorInitTest` 7/7 — ver §8.1); **gerador de binding header C do §7 POUSADO 04/10** (`interop.CHeaderBindings`, `CHeaderBindingsE2ETest` 6/6 — ver §7.1).
+**Gerador CLI do §8 POUSADO 04/10** (`kof connector init`, `CmdConnectorInitTest` 7/7 — ver §8.1); **gerador de binding header C do §7 POUSADO 04/10** fatias 1–2 (`interop.CHeaderBindings`, `CHeaderBindingsE2ETest` 7/7 — escalares §7.1, structs/typedefs §7.2).
 
 > **Regra fundamental.** Este documento descreve uma direção arquitetural futura. Ele **não**
 > altera a linguagem, não adiciona palavras-chave, não cria namespaces e não abre trilha de
@@ -510,12 +510,36 @@ ponteiro de função (dois parênteses), array (`[`), varargs (`...`), `static`/
 honesto — **nunca emitida errada, nunca descartada em silêncio** (R6). Linhas de
 pré-processador são ignoradas.
 
-**Prova:** `CHeaderBindingsE2ETest` **6/6** — RED-first (`PKG006 import
+**Prova:** `CHeaderBindingsE2ETest` — RED-first (`PKG006 import
 'interop.CHeaderBindings' not found`), VERDE: o render golden é idêntico em JVM + Script +
 Native x86-64; o **round-trip** gera um bloco de um header real de `libm`, anexa um `main` e
 compila+roda o código emitido (`fmod=1.0`/`sqrt=12.0`); a lista de skips honestos é pinada;
-JS herda a lacuna `IOJS001` (o leitor). Bateria interop **89/0F** sem regressão. Sem mudança
+JS herda a lacuna `IOJS001` (o leitor). Bateria interop sem regressão. Sem mudança
 de compilador/linguagem.
+
+## 7.2 POUSADO 04/10/2026 — records de `struct`/`typedef` C (fatia 2)
+
+**Estado:** pousado na mesma biblioteca Kof puro. `struct Name { fields };`,
+`typedef struct { fields } Name;` e `typedef struct Name { fields } Name;` são emitidos como
+declarações Kof `record Name(...)` **antes** do bloco `foreign module`; um parâmetro ou retorno
+tipado por struct (`struct Point p`, `PtAlias p`) resolve para esse record. `typedef <escalar>
+Alias;` e `typedef struct Name Alias;` são resolvidos como aliases. `structs()`/`recordLines()`
+expõem as partes. Records + `foreign module` compõem pela via FFI existente — o round-trip prova
+que o código emitido compila e roda por valor.
+
+**Subconjunto limitado (documentado):** um struct só é emitido quando **todos** os campos
+mapeiam para um escalar (structs aninhados e campos de ponteiro de função vão para `skipped()`
+honesto); campos multi-declarador (`int x, y;`) e a forma de uma linha (`struct P { int x; int
+y; };`) são tratados; um *uso* de struct sem corpo (`struct Point mkpoint(...)`) é função, não
+definição. Declarações não mapeadas ficam em `skipped()` (R6).
+
+**Prova:** `CHeaderBindingsE2ETest` **7/7** — o golden inclui `record Point(Int x, Int y)` e
+`record Mix(Double d, Int i)` mais os `extern` tipados por struct, idênticos em JVM + Script +
+Native x86-64; um **round-trip de struct** gera um bloco de um header hospedeiro, constrói um
+`.so` com `gcc -shared` (`sumpoint`/`mkpoint`), compila+roda o código emitido (`sum=7`/`mk=5,6`)
+— argumento e retorno de record por valor pela ABI existente; RED-first: a biblioteca da fatia 1
+falha os 5 testes de struct enquanto os testes escalares seguem verdes. Bateria interop
+**247/0F/30S** sem regressão. Sem mudança de compilador/linguagem.
 
 ---
 

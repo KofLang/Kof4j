@@ -9,21 +9,23 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Plan §7 (`D-CONNECTORS-GO`) slice 1: {@code interop.CHeaderBindings} — read a C
- * header and emit the Kof {@code foreign module} block (slice A grammar) that
- * binds the declared symbols through the EXISTING FFI path (rule 54). Bounded to
- * scalar types; unmapped declarations are recorded in {@code skipped()}, never
- * emitted wrong.
+ * Plan §7 (`D-CONNECTORS-GO`) slices 1–2: {@code interop.CHeaderBindings} — read a
+ * C header and emit the Kof {@code foreign module} block (slice A grammar) that
+ * binds the declared symbols through the EXISTING FFI path (rule 54). Slice 1 =
+ * scalar functions; slice 2 = {@code struct}/typedef declarations emitted as Kof
+ * {@code record}s and used in signatures. Unmapped declarations are recorded in
+ * {@code skipped()}, never emitted wrong.
  *
- * <p>The golden proves the deterministic text; the round-trip compiles the
- * GENERATED block against real libm on the JVM and runs it — the emitted source
- * is valid Kof, not just a string.</p>
+ * <p>The golden proves the deterministic text; the round-trips compile the
+ * GENERATED source against real libm (scalars) and a host {@code .so} (structs)
+ * and RUN it — the emitted source is valid Kof, not just a string.</p>
  */
 class CHeaderBindingsE2ETest implements LibraryInstallSupport {
 
@@ -35,6 +37,12 @@ class CHeaderBindingsE2ETest implements LibraryInstallSupport {
             #ifndef SAMPLE_H
             #define SAMPLE_H
 
+            struct Point { int x; int y; };
+            struct Rect { struct Point a; struct Point b; };
+            typedef struct { double d; int i; } Mix;
+            typedef struct Point PtAlias;
+            typedef int myint;
+
             int add(int a, int b);
             double sqrt(double x);
             const char *greet(const char *name);
@@ -43,8 +51,12 @@ class CHeaderBindingsE2ETest implements LibraryInstallSupport {
             unsigned long long total(void);
             float ratio(float a);
             bool flag(int x);
+            struct Point mkpoint(int x, int y);
+            int sumpoint(struct Point p);
+            Mix mixret(double d, int i);
+            int takealias(PtAlias p);
             static int hidden(int x);
-            typedef int myint;
+            typedef struct { int (*cb)(int); } WithFn;
             int apply(int (*cb)(int));
             int sum(int xs[]);
             int printf(const char *fmt, ...);
@@ -53,6 +65,9 @@ class CHeaderBindingsE2ETest implements LibraryInstallSupport {
             """;
 
     private static final String GOLDEN_RENDER = String.join("\n",
+            "record Point(Int x, Int y)",
+            "record Mix(Double d, Int i)",
+            "",
             "foreign module sample {",
             "    library \"libsample.so\"",
             "    abi c",
@@ -65,6 +80,10 @@ class CHeaderBindingsE2ETest implements LibraryInstallSupport {
             "    extern total(): Long",
             "    extern ratio(Float a): Float",
             "    extern flag(Int x): Bool",
+            "    extern mkpoint(Int x, Int y): Point",
+            "    extern sumpoint(Point p): Int",
+            "    extern mixret(Double d, Int i): Mix",
+            "    extern takealias(Point p): Int",
             "}",
             "");
 
@@ -94,36 +113,50 @@ class CHeaderBindingsE2ETest implements LibraryInstallSupport {
     @Test
     void unsupportedDeclarationsAreSkippedHonestly() throws Exception {
         String output = runJvm(skipProbe());
-        assertTrue(output.contains("skipped=5"), output);
+        assertTrue(output.contains("skipped=6"), output);
+        assertTrue(output.contains("Rect"), output);
+        assertTrue(output.contains("WithFn"), output);
         assertTrue(output.contains("int apply"), output);
         assertTrue(output.contains("int sum"), output);
         assertTrue(output.contains("int printf"), output);
     }
 
     @Test
-    void generatedBlockCompilesAndRunsOnJvm() throws Exception {
-        Path root = tmp.resolve("roundtrip");
+    void generatedScalarBlockCompilesAndRunsOnJvm() throws Exception {
+        Path root = tmp.resolve("roundtrip-scalar");
         Files.createDirectories(root);
-        // 1) generate the block from a real header via the pure-Kof generator.
         Files.writeString(root.resolve("libm.h"), """
                 double fmod(double a, double b);
                 double sqrt(double x);
                 """);
         String rendered = runJvm(renderProbe(root.resolve("libm.h"), "libm.so.6", "libm"));
-        // 2) the emitted block is valid Kof: append a main and compile+run it.
         String program = rendered + """
                 main() {
                     println("fmod=" + fmod(10.0, 3.0))
                     println("sqrt=" + sqrt(144.0))
                 }
                 """;
-        Path source = root.resolve("Main.kf");
-        Files.writeString(source, program);
-        Path out = root.resolve("out");
-        CompilationResult result = withLibrary(root, () -> compile(source, out, Target.JVM));
-        assertTrue(result.success(), () -> "generated block must compile: "
-                + result.diagnostics().getDiagnostics());
-        assertEquals("fmod=1.0\nsqrt=12.0", invokeMain(out));
+        assertEquals("fmod=1.0\nsqrt=12.0", runGenerated(root, program));
+    }
+
+    @Test
+    void generatedStructBlockCompilesAndRunsOnJvm() throws Exception {
+        Path root = tmp.resolve("roundtrip-struct");
+        Files.createDirectories(root);
+        Files.writeString(root.resolve("shapes.h"), """
+                struct Point { int x; int y; };
+                int sumpoint(struct Point p);
+                struct Point mkpoint(int x, int y);
+                """);
+        String rendered = runJvm(renderProbe(root.resolve("shapes.h"), "libkofchb.so", "shapes"));
+        String program = rendered + """
+                main() {
+                    println("sum=" + sumpoint(Point(3, 4)))
+                    var p = mkpoint(5, 6)
+                    println("mk=" + p.x + "," + p.y)
+                }
+                """;
+        assertEquals("sum=7\nmk=5,6", runGenerated(root, program));
     }
 
     @Test
@@ -175,6 +208,56 @@ class CHeaderBindingsE2ETest implements LibraryInstallSupport {
                 }
             }
             """.formatted(path(header));
+    }
+
+    /** Compile and run a generated program; build the host .so the header needs. */
+    private String runGenerated(Path root, String program) throws Exception {
+        String lib = program.contains("libkofchb.so") ? buildShapesLib(root) : null;
+        if (lib != null) {
+            program = program.replace("libkofchb.so", lib);
+        }
+        Path source = root.resolve("Main.kf");
+        Files.writeString(source, program);
+        Path out = root.resolve("out");
+        CompilationResult result = withLibrary(root, () -> compile(source, out, Target.JVM));
+        assertTrue(result.success(), () -> "generated program must compile: "
+                + result.diagnostics().getDiagnostics());
+        return invokeMain(out);
+    }
+
+    /** Build the host .so for the struct round-trip (environmental skip when no cc). */
+    private String buildShapesLib(Path dir) throws Exception {
+        Assumptions.assumeTrue(System.getProperty("os.name", "").toLowerCase().contains("linux"),
+                "the struct host lib is a native .so (Linux)");
+        String cc = firstPresent("/usr/bin/cc", "/usr/bin/gcc", "cc", "gcc");
+        Assumptions.assumeTrue(cc != null, "no C toolchain (cc/gcc) for the struct host");
+        Path c = dir.resolve("libkofchb.c");
+        Files.writeString(c, """
+                struct Point { int x; int y; };
+                int sumpoint(struct Point p) { return p.x + p.y; }
+                struct Point mkpoint(int x, int y) { struct Point p; p.x = x; p.y = y; return p; }
+                """);
+        Path so = dir.resolve("libkofchb.so");
+        Process p = new ProcessBuilder(cc, "-shared", "-fPIC", "-O2",
+                "-o", so.toString(), c.toString()).redirectErrorStream(true).start();
+        String output = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        Assumptions.assumeTrue(p.waitFor(60, TimeUnit.SECONDS) && p.exitValue() == 0,
+                "cc/gcc failed to build the struct host: " + output);
+        return so.toString();
+    }
+
+    private static String firstPresent(String... candidates) {
+        for (String candidate : candidates) {
+            try {
+                Process p = new ProcessBuilder(candidate, "--version").redirectErrorStream(true).start();
+                p.getInputStream().readAllBytes();
+                if (p.waitFor(15, TimeUnit.SECONDS) && p.exitValue() == 0) {
+                    return candidate;
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return null;
     }
 
     private static String path(Path p) {
