@@ -28,6 +28,10 @@ public class JsLoweringContext {
     Map<String, Map<Integer, String>> fnArityNames = Map.of();
     /** SG-011B: nome JS quando há ≥2 assinaturas sob o mesmo nome (chave = sigTag). */
     Map<String, Map<String, String>> fnSigNames = Map.of();
+    Map<String, Integer> ctorMaxArity = Map.of();
+    Set<String> ctorDispatch = Set.of();
+    Map<String, Set<String>> ctorSigTokens = Map.of();
+    Set<String> ctorPrivate = new HashSet<>();
     Map<String, Boolean> asyncMethods = Map.of();
     Set<String> asyncMethodNamesAnywhere = Set.of();
     /** ops do método em lowering — usado na mensagem de underflow da pilha */

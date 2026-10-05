@@ -133,6 +133,25 @@ public class JsBackend implements Backend {
                 }
             }
         }
+        Map<String, Integer> ctorMaxArity = new HashMap<>();
+        Map<String, Set<String>> ctorSigTokens = new HashMap<>();
+        Set<String> ctorDispatch = new HashSet<>();
+        for (IRClass clazz : effClasses) {
+            if (JsLoweringContext.skipClass(clazz) || JsLoweringContext.isMainClass(clazz)) continue;
+            Set<String> ctorSigs = new LinkedHashSet<>();
+            for (IRMethod method : clazz.methods()) {
+                if (!"<init>".equals(method.name())) continue;
+                ctorSigs.add(TopLevelOverload.sigTag(method.parameterTypes()));
+                ctorMaxArity.merge(clazz.name(), method.parameterTypes().size(), Math::max);
+            }
+            if (!ctorSigs.isEmpty()) {
+                ctorSigTokens.put(clazz.name(), ctorSigs);
+            }
+            if (ctorSigs.size() > 1) ctorDispatch.add(clazz.name());
+        }
+        this.lc.ctorMaxArity = ctorMaxArity;
+        this.lc.ctorSigTokens = ctorSigTokens;
+        this.lc.ctorDispatch = ctorDispatch;
         computeAsyncColoring(effClasses);
         // #133 (§186): clinit por classe (inclui Main) — chamado no topo do
         // módulo, antes do main; JS não tem <clinit> nativo.
