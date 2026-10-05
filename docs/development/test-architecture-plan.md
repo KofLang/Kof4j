@@ -830,6 +830,18 @@ Script target first and cross-checked against the Kof contract before the golden
 was frozen. No compiler change — test infrastructure only. Proof (executed):
 `tests/run-golden.sh` **104/104** (26 cases × 4 targets), exit 0.
 
+**Phase 6 slice 6 LANDED (05/10):** three more cases — **29 total** — pinning the
+operator, collection-mutation and enum-exhaustiveness surfaces:
+`bitwise-ops` (`&`/`|`/`^`/`<<`/`>>` — the operators most likely to diverge
+because JS bitwise is 32-bit while the JVM/Native paths are 64-bit, so the
+cross-target equality is a real guard), `list-map-mutation` (`list.add`/`get`/
+`set` and `map.put`/`get`/`keys().size` after construction, distinct from the
+read-only `collections`/`map-set` cases) and `enum-switch-expr` (an enum-typed
+switch expression with no `default` — the exhaustiveness contract for enums,
+distinct from the `sealed class` form in `sealed-switch`). Every case is
+validated on all four targets. Proof (executed): `tests/run-golden.sh`
+**116/116** (29 cases × 4 targets), exit 0.
+
 ### Phase 7 — Integration
 
 Deploy:

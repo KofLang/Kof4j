@@ -836,6 +836,18 @@ golden ser congelado. Sem mudança de compilador — infraestrutura de teste
 apenas. Prova (executada): `tests/run-golden.sh` **104/104** (26 casos × 4
 alvos), exit 0.
 
+**Fatia 6 da Fase 6 ENTREGUE (05/10):** mais três casos — **29 no total** —
+pinando as superfícies de operadores, mutação de coleções e exaustividade de
+enum: `bitwise-ops` (`&`/`|`/`^`/`<<`/`>>` — os operadores mais propensos a
+divergir porque o bitwise do JS é 32-bit enquanto os caminhos JVM/Native são
+64-bit, então a igualdade cross-target é uma guarda real), `list-map-mutation`
+(`list.add`/`get`/`set` e `map.put`/`get`/`keys().size` após a construção,
+distinto dos casos read-only `collections`/`map-set`) e `enum-switch-expr` (um
+switch expression de enum sem `default` — o contrato de exaustividade para
+enums, distinto da forma `sealed class` em `sealed-switch`). Cada caso é
+validado nos quatro alvos. Prova (executada): `tests/run-golden.sh` **116/116**
+(29 casos × 4 alvos), exit 0.
+
 ### Fase 7 — Integração
 
 Implantar:
