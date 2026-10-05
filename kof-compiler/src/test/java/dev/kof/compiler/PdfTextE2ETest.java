@@ -147,18 +147,14 @@ class PdfTextE2ETest extends KofmdRunSupport implements LibraryInstallSupport {
     }
 
     /**
-     * JS face is blocked by an unrelated pre-existing compiler bug, catalogued as
-     * {@code known-bugs §601}: {@code ExpressionBinaryLowerer} leaves the result
-     * type of a numeric comparison as the numeric common type, so a following
-     * {@code &&}/{@code ||} sees a non-Bool left operand and the JS backend emits
-     * bitwise {@code &}/{@code |} (no short-circuit) — the reader's
-     * {@code i < end && b[i] != ...} guards then read out of bounds. The compiler
-     * frontend is another lane's territory; this test pins the gap (a tripwire:
-     * it must be replaced by the contract assertion once §601 is fixed) instead of
-     * asserting a false green. JVM/Script/Native faces are covered above.
+     * The reader's guards are `i < end && b[i] != ...` — a numeric comparison as
+     * the left operand of `&&`. Before {@code known-bugs §601} was fixed the JS
+     * backend lowered that to bitwise {@code &} (no short-circuit) and the reader
+     * read out of bounds; now the comparison result is typed `Bool` and the JS
+     * face is a real contract assertion (JVM/Script/Native are covered above).
      */
     @Test
-    void readsOnJsBlockedByKnownBug601() throws Exception {
+    void readsOnJs() throws Exception {
         Path root = tmp.resolve("js");
         Path pdf = write(root, "js.pdf", document("1.4",
                 pageWithContent(flateStream("BT /F1 24 Tf 72 720 Td (JS PDF) Tj ET"))));
@@ -173,12 +169,9 @@ class PdfTextE2ETest extends KofmdRunSupport implements LibraryInstallSupport {
             int exitCode = dev.kof.runtime.KofJsRunner.run(
                     out.resolve("Default.mjs"), stdout,
                     java.io.InputStream.nullInputStream(), stderr);
-            assertTrue(exitCode != 0,
-                    "known-bugs §601 fixed? the JS reader ran green — replace this gap "
-                            + "test with the contract assertion (exit 0 + \"JS PDF\")");
+            assertEquals(0, exitCode, "JS stderr: " + stderr);
         }
-        assertTrue(Files.notExists(output),
-                "known-bugs §601: the bitwise `&` guard reads out of bounds before writing");
+        assertEquals("JS PDF", read(output));
     }
 
     @Test

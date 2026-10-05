@@ -332,7 +332,15 @@ for (int ci = chain.size() - 1; ci >= 0; ci--) {
         }
         driver.emitWideningIfNeeded(ops, rightType, commonType);
         ops.add(new KofBinary(TypeMetrics.mapArithmeticOp(be.operator()), commonType));
-        accType = commonType;
+        // §601: um relacional (`<`/`<=`/`>`/`>=`) sobre numéricos produz um
+        // `Bool`, mas o tipo do OPERANDO (commonType) é o numérico — deixar
+        // `accType` numérico aqui fazia um `&&`/`||` encadeado ver um operando
+        // não-Bool e baixar para bitwise `&`/`|` no JS (sem short-circuit;
+        // `i < end && b[i] != …` lia fora dos limites). Aritmética mantém o
+        // tipo comum.
+        accType = TypeMetrics.isComparisonOp(be.operator())
+                ? Type.PrimitiveType.BOOL
+                : commonType;
     } else if (ExpressionBinaryPredicates.isBitwiseOp(be.operator())
             && TypeMetrics.isInteger(accType) && TypeMetrics.isInteger(rightType)) {
         // §167: bitwise `& | ^` com Int e Long misturados. A promoção binária
