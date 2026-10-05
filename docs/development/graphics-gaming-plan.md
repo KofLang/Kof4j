@@ -2,11 +2,11 @@
 
 # Graphics, Games and Media — Kof's Intent Surface
 
-**Owner:** SEM DONO / OPEN — re-claim freely. spike-3.0 claims carry `192.168.15.30:9093` (runner/tooling, historical). This lane (.15) wrote the file in a lost window and DECLINES ownership: content is the graphics/media neighborhood, not connectors (re-routed to `check_plan_owners` compliance 03/10).
+**Owner:** `192.168.15.15:9092` — lane security/connectors, graphics/gaming front; re-claimed 05/10 (the spike-3.0 `192.168.15.30:9093` claims were runner/tooling, historical).
 
-last: spike-delta-02/10 (SDL2/FFmpeg -dev + C probes; raylib/SDL3/GLFW/miniaudio/cross still ?)
-doing: spike-3.0 (infra+report, no API)
-next: slice-3.1 (window/frame/input)
+last: slice-3.1 pure clock landed 05/10 (`libs/game/Clock.kf`, `GameClockE2ETest` 4/4; `known-bugs` §603 fixed on the way)
+doing: slice-3.1 (window/frame/input)
+next: slice-3.1 backend window/frame/input — needs G1 (SDL3) vendored into the sysroot before the window API opens
 location: docs/development
 state: UNDER DEVELOPMENT
 
@@ -255,6 +255,7 @@ WGSL/GLSL/HLSL/cross-compile decision deferred, not first slice).
 
 # 15. Phases / promotion / open
 
+- **Slice 3.1 — started 05/10 (lane security/connectors `192.168.15.15:9092`):** the pure, backend-independent half of the §6 loop contract landed first — `libs/game/Clock.kf` (namespace `kof.game`) owns the frame bookkeeping and `dt` over caller-supplied monotonic timestamps (the "virtual clock" the plan requires for deterministic goldens), so it calls no window/audio/video API and is honest on every target today. Semantics frozen by `GameClockE2ETest` **4/4** on JVM + Script + Native x86-64 + JS (frame 0 `dt=0`; later frames diff the previous timestamp; `stop()` ends `hasNext()`). Building it surfaced and fixed a frontend defect (`known-bugs` §603: the synthetic SAM `invoke` descriptor used inferred argument types). Next: the backend window (`Window("…") { frame { dt -> … } }`) still needs the G1 SDL3 stack vendored into the cross sysroot before any API lands.
 - **3.0** spike+infra (stack/R3/FFI/licensing/headless/cross/JavaFX-guard;
   report, no API) → **3.1** window/frame/input (JVM/Script/Native/JS +
   conformance) → **3.2** 2D (sprite/texture/transform/tilemap/draw; golden/

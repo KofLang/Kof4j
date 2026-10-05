@@ -2,15 +2,14 @@
 
 # Graphics, Games e Media — Superfície de Intenção do Kof
 
-last: delta-do-spike-02/10 (SDL2/FFmpeg -dev + sondas C; raylib/SDL3/GLFW/miniaudio/cross ainda ?)
-doing: spike-3.0 (infra+relatório, sem API)
-next: fatia-3.1 (window/frame/input)
+last: fatia-3.1 relógio puro pousado 05/10 (`libs/game/Clock.kf`, `GameClockE2ETest` 4/4; `known-bugs` §603 corrigido no caminho)
+doing: fatia-3.1 (window/frame/input)
+next: fatia-3.1 backend window/frame/input — precisa do G1 (SDL3) vendorizado no sysroot antes de abrir a API de janela
 location: docs/development
 state: UNDER DEVELOPMENT
 
-**Dono:** SEM DONO / ABERTO — reivindicar de novo. Os claims do spike-3.0 trazem `192.168.15.30:9093`, que é dona de `kof-testing-platform-plan` (violação de `D-PLAN-ONE-OWNER`). Uma identidade = um plano.
+**Dono:** `192.168.15.15:9092` — lane security/connectors, frente graphics/gaming; reivindicado 05/10 (os claims do spike-3.0 `192.168.15.30:9093` eram runner/tooling, históricos).
 **Status:** **EM DESENVOLVIMENTO** — promovido 30/09 de `future/` por `D-GRAPHICS-SPIKE` (spike 3.0 = medição + stack apenas, sem API) sob `D-FUTURE-PROMOTION`.
-**Dona:** lane UI.
 **Fonte normativa:** `DECISIONS.md` §D-GRAPHICS-GAMING + adendos da mantenedora + §D-GRAPHICS-SPIKE.
 **Deps:** R3/FFI-ABI, runtime, matriz de capabilities, fronteira da stdlib, suíte de conformância
 
@@ -251,6 +250,7 @@ cobertura/manutenção/testabilidade/cross-platform). Shaders escondidos no iní
 
 # 15. Fases / promoção / aberto
 
+- **Fatia 3.1 — iniciada 05/10 (lane security/connectors `192.168.15.15:9092`):** a metade pura e independente de backend do contrato de loop do §6 pousou primeiro — `libs/game/Clock.kf` (namespace `kof.game`) é dono do livro-caixa de frames e do `dt` sobre timestamps monotônicos fornecidos pelo chamador (o "relógio virtual" que o plano exige para goldens determinísticos), então não chama API de janela/áudio/vídeo e é honesto em todo alvo hoje. Semântica congelada por `GameClockE2ETest` **4/4** em JVM + Script + Native x86-64 + JS (frame 0 `dt=0`; frames seguintes difam o timestamp anterior; `stop()` encerra `hasNext()`). Construí-lo revelou e corrigiu um defeito do frontend (`known-bugs` §603: o descritor do `invoke` da SAM sintética usava os tipos inferidos dos argumentos). Próximo: a janela de backend (`Window("…") { frame { dt -> … } }`) ainda precisa da stack G1 SDL3 vendorizada no sysroot cross antes de qualquer API pousar.
 - **3.0** spike+infra (stack/R3/FFI/licenças/headless/cross/guard-JavaFX;
   relatório, sem API) → **3.1** janela/frame/input (JVM/Script/Native/JS +
   conformância) → **3.2** 2D (sprite/texture/transform/tilemap/draw; golden/
