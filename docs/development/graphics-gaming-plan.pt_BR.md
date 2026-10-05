@@ -2,7 +2,7 @@
 
 # Graphics, Games e Media — Superfície de Intenção do Kof
 
-last: fatia-3.1 relógio puro pousado 05/10 (`libs/game/Clock.kf`, `GameClockE2ETest` 4/4; `known-bugs` §603 corrigido no caminho)
+last: fatia-3.1 relógio puro + snapshot de input pousados 05/10 (`libs/game/Clock.kf` + `Keys.kf`, `GameClockE2ETest`/`GameInputE2ETest` 4/4 cada; `known-bugs` §603 corrigido no caminho)
 doing: fatia-3.1 (window/frame/input)
 next: fatia-3.1 backend window/frame/input — precisa do G1 (SDL3) vendorizado no sysroot antes de abrir a API de janela
 location: docs/development
@@ -250,7 +250,7 @@ cobertura/manutenção/testabilidade/cross-platform). Shaders escondidos no iní
 
 # 15. Fases / promoção / aberto
 
-- **Fatia 3.1 — iniciada 05/10 (lane security/connectors `192.168.15.15:9092`):** a metade pura e independente de backend do contrato de loop do §6 pousou primeiro — `libs/game/Clock.kf` (namespace `kof.game`) é dono do livro-caixa de frames e do `dt` sobre timestamps monotônicos fornecidos pelo chamador (o "relógio virtual" que o plano exige para goldens determinísticos), então não chama API de janela/áudio/vídeo e é honesto em todo alvo hoje. Semântica congelada por `GameClockE2ETest` **4/4** em JVM + Script + Native x86-64 + JS (frame 0 `dt=0`; frames seguintes difam o timestamp anterior; `stop()` encerra `hasNext()`). Construí-lo revelou e corrigiu um defeito do frontend (`known-bugs` §603: o descritor do `invoke` da SAM sintética usava os tipos inferidos dos argumentos). Próximo: a janela de backend (`Window("…") { frame { dt -> … } }`) ainda precisa da stack G1 SDL3 vendorizada no sysroot cross antes de qualquer API pousar.
+- **Fatia 3.1 — iniciada 05/10 (lane security/connectors `192.168.15.15:9092`):** a metade pura e independente de backend do contrato §6/§7 pousou primeiro — `libs/game/Clock.kf` (namespace `kof.game`) é dono do livro-caixa de frames e do `dt` sobre timestamps monotônicos fornecidos pelo chamador (o "relógio virtual" que o plano exige para goldens determinísticos), então não chama API de janela/áudio/vídeo e é honesto em todo alvo hoje. Semântica congelada por `GameClockE2ETest` **4/4** em JVM + Script + Native x86-64 + JS (frame 0 `dt=0`; frames seguintes difam o timestamp anterior; `stop()` encerra `hasNext()`). `libs/game/Keys.kf` acrescenta o snapshot de input por frame do §7: `beginFrame(held)` difa os conjuntos de teclas atual e anterior e deriva `down`/`pressed`/`released`, então o backend só traduz eventos e as transições são determinísticas em todo alvo (`GameInputE2ETest` **4/4**, JVM + Script + Native x86-64 + JS, golden byte-idêntico). Construir o relógio revelou e corrigiu um defeito do frontend (`known-bugs` §603: o descritor do `invoke` da SAM sintética usava os tipos inferidos dos argumentos). Próximo: a janela de backend (`Window("…") { frame { dt -> … } }`) ainda precisa da stack G1 SDL3 vendorizada no sysroot cross antes de qualquer API pousar.
 - **3.0** spike+infra (stack/R3/FFI/licenças/headless/cross/guard-JavaFX;
   relatório, sem API) → **3.1** janela/frame/input (JVM/Script/Native/JS +
   conformância) → **3.2** 2D (sprite/texture/transform/tilemap/draw; golden/
