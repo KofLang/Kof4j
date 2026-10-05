@@ -304,6 +304,7 @@ public final class NativeRiscvAsm {
                 .append(NativeRiscvAsmIoMeta.RISCV_RUNTIME_ASM_IO_META)
                 .append(NativeRiscvAsmIoMove.RISCV_RUNTIME_ASM_IO_MOVE)
                 .append(NativeRiscvAsmIoCopy.RISCV_RUNTIME_ASM_IO_COPY)
+                .append(NativeRiscvAsmProcessFdIsolation.RISCV_RUNTIME_ASM_PROCESS_FD_ISOLATION)
                 .append(NativeRiscvAsmProcess.RISCV_RUNTIME_ASM_PROCESS)
                 .append(NativeRiscvAsmProcessResult.RISCV_RUNTIME_ASM_PROCESS_RESULT)
                 .append(NativeRiscvAsmShell.RISCV_RUNTIME_ASM_SHELL)

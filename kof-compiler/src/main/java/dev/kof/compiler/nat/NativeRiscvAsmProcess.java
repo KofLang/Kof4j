@@ -202,9 +202,12 @@ public final class NativeRiscvAsmProcess {
                 slli t3, t3, 3
                 add t3, s5, t3
                 sd zero, 0(t3)
+                call kof_process_child_fd_isolation
+                bltz a0, .Lkof_rproc_child_execfail
                 ld a0, 0(s5)
                 mv a1, s5
                 call execvp
+            .Lkof_rproc_child_execfail:
                 add sp, sp, s4
                 la a1, .Lkof_rproc_execfail
                 li a2, 20

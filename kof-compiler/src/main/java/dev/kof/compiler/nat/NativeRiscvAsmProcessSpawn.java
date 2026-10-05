@@ -178,9 +178,12 @@ public final class NativeRiscvAsmProcessSpawn {
                 slli t3, t3, 3
                 add t3, s5, t3
                 sd zero, 0(t3)
+                call kof_process_child_fd_isolation
+                bltz a0, .Lkof_rpspawn_child_execfail
                 ld a0, 0(s5)
                 mv a1, s5
                 call execvp
+            .Lkof_rpspawn_child_execfail:
                 # exec falhou: restaura sp, escreve 1 byte no pipe CLOEXEC, _exit(127)
                 add sp, sp, s4
                 lw a0, 12(sp)

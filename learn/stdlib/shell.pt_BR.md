@@ -32,6 +32,9 @@ val r2 = shell.runWith(listOf("make"), "/work", mapOf("CC", "clang"))
 
 - `shell` é o idioma DINÂMICO (argv montado em runtime); para chamadas
   estáticas prefira [kof.process](process.pt_BR.md).
+- Cada estágio de pipeline segue o mesmo contrato de isolamento de descritores
+  de `kof.process`: FDs ambientes do pai `>2` são close-on-exec e nunca cruzam
+  um `exec` bem-sucedido do filho (`#762`).
 - Nenhuma string `sh -c "..."` — classe de injeção; a plataforma liga os
   pipes.
 

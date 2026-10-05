@@ -330,9 +330,12 @@ public final class NativeRiscvAsmPipeline {
                 slli t3, s6, 3
                 add  t3, s5, t3
                 sd   zero, 0(t3)
+                call kof_process_child_fd_isolation
+                bltz a0, .Lkof_pl_c_execfail_fd
                 ld   a0, 0(s5)
                 mv   a1, s5
                 call execvp
+            .Lkof_pl_c_execfail_fd:
                 li   a0, 2
                 la   a1, .Lkof_pl_msg_exec
                 li   a2, 18

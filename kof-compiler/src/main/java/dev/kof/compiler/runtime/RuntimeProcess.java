@@ -314,10 +314,14 @@ public final class RuntimeProcess {
                 jmp .Lkof_proc_child_argv_loop
             .Lkof_proc_child_argv_done:
                 movq $0, 8(%r15,%rbx,8)     # argv[size+1] = NULL
+                call kof_process_child_fd_isolation
+                testl %eax, %eax
+                js .Lkof_proc_child_execfail
                 # execvp (libc host: resolução de PATH == ProcessBuilder)
                 movq 0(%r15), %rdi
                 movq %r15, %rsi
                 call execvp
+            .Lkof_proc_child_execfail:
                 # exec falhou: mensagem no stderr + byte CLOEXEC + _exit(127)
                 leaq .Lkof_proc_execfail(%rip), %rsi
                 movl $20, %edx

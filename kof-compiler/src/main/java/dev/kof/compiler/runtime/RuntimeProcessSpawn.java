@@ -165,9 +165,13 @@ public final class RuntimeProcessSpawn {
                 jmp .Lkof_spawn_argvloop
             .Lkof_spawn_argvdone:
                 movq $0, 8(%r15,%rbx,8)
+                call kof_process_child_fd_isolation
+                testl %eax, %eax
+                js .Lkof_spawn_child_execfail
                 movq 0(%r15), %rdi
                 movq %r15, %rsi
                 call execvp
+            .Lkof_spawn_child_execfail:
                 # exec falhou: 1 byte no pipe CLOEXEC + _exit(127)
                 leaq .Lkof_spawn_devnull(%rip), %rsi
                 movl $1, %edx

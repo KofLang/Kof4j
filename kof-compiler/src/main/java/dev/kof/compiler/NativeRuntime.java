@@ -2,6 +2,7 @@ package dev.kof.compiler;
 import dev.kof.compiler.runtime.RuntimeArray;
 import dev.kof.compiler.runtime.RuntimeBuffer;
 import dev.kof.compiler.runtime.RuntimeProcess;
+import dev.kof.compiler.runtime.RuntimeProcessFdIsolation;
 import dev.kof.compiler.runtime.RuntimeProcessResult;
 import dev.kof.compiler.runtime.RuntimeProcessSpawn;
 import dev.kof.compiler.runtime.RuntimeShell;
@@ -160,6 +161,7 @@ public final class NativeRuntime {
         RuntimeGc.emitGc(sb);
         RuntimeConcurrency.emitConcurrency(sb);
         RuntimeChannel.emitChannel(sb);
+        RuntimeProcessFdIsolation.emit(sb);
         RuntimeProcess.emit(sb);
         RuntimeProcessResult.emit(sb);
         RuntimeProcessSpawn.emit(sb);

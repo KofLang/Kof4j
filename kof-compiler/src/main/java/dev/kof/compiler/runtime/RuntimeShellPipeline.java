@@ -257,9 +257,13 @@ public final class RuntimeShellPipeline {
             .Lkof_shell_pl_c_argv_done:
                 movl 12(%r14), %ecx
                 movq $0, (%r15,%rcx,8)      # argv[size] = NULL
+                call kof_process_child_fd_isolation
+                testl %eax, %eax
+                js .Lkof_shell_pl_c_execfail
                 movq (%r15), %rdi
                 movq %r15, %rsi
                 call execvp
+            .Lkof_shell_pl_c_execfail:
                 # exec falhou (ÚLTIMO escreve no stderr capturado; intermediário
                 # some no /dev/null — mesmo observável do JVM: exceção eager)
                 leaq .Lkof_shell_pl_execfail(%rip), %rsi
