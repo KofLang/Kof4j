@@ -12,6 +12,9 @@ later use fails `SECN010`, `KeyHandle` overloads on
 Android stay an honest compile-time gap `SECN008` (R6). Proofs: `SecretE2ETest`
 7/7, `KeyHandleE2ETest` 5/5. `secrets.get` kept the legacy raw `String` (frozen
 0.2.6) — the typed path is `secrets.of`/`secrets.secret` (non-breaking).
+**SEC1 (05/10, `D-MAINT-BATCH-0510`, issue #758):** `secrets.secret(name)` with
+an unset/blank env is now an explicit catchable error (`SECN015`), never a silent
+empty `Secret`; `SecretE2ETest` 9/9.
 **Authorized in full** by `DECISIONS.md` §D-SECRETS (maintainer 21/09).
 **Source:** `docs/architecture/IMPLEMENTATION-UNIVERSAL-PLATFORM.md` line 3.6 (`Secret`/`KeyHandle`
 pending, Stage 5) · gap analysis `docs/stdlib/security.md` (rows "Secrets (env): NONEXISTENT",

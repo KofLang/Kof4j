@@ -71,6 +71,9 @@ var fromBytes = secrets.fromBytes(payload)     // non-text bytes, per-byte
 
 `json.encode(key)` is redacted at runtime (`"Secret(*** )"`), and feeding
 `reveal()` straight into `log.*`/`json.encode` raises the `SECN009` warning.
+`secrets.secret(name)` with an unset/blank environment variable is an explicit,
+catchable error (`catch (String e)` names `SECN015`) — never a silent empty
+`Secret`; the legacy `secrets.get(name)` still returns the raw `String`.
 Keys are handled without ever reading them through a `KeyHandle`:
 
 ```kof

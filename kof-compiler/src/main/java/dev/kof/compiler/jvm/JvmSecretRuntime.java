@@ -31,8 +31,17 @@ public final class JvmSecretRuntime {
                     return new Secret(value);
                 }
 
+                // SEC1 (`D-MAINT-BATCH-0510`, issue #758): an unset/blank env var is
+                // an EXPLICIT error, never a silent empty `Secret` (a blank credential
+                // is a security failure that must surface). Thrown as a catchable
+                // Kof String (RuntimeException message), matching the frozen
+                // "Kof throws Strings" contract.
                 public static Secret kof_sec_secret(String name) {
-                    return new Secret(kof_sec_secret_get(name));
+                    String value = kof_sec_secret_get(name);
+                    if (value == null || value.isBlank()) {
+                        throw new RuntimeException("SECN015: secret '" + name + "' is not set");
+                    }
+                    return new Secret(value);
                 }
 
                 // Um int por byte (0..255); visão Latin-1 — round-trip SEM perda

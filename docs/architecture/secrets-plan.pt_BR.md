@@ -12,6 +12,9 @@ uso posterior falha `SECN010`, sobrecargas `KeyHandle` em
 Android permanecem gap honesto de compile-time `SECN008` (R6). Provas: `SecretE2ETest`
 7/7, `KeyHandleE2ETest` 5/5. `secrets.get` manteve o `String` cru legado (congelado
 0.2.6) — o caminho tipado é `secrets.of`/`secrets.secret` (sem quebra).
+**SEC1 (05/10, `D-MAINT-BATCH-0510`, issue #758):** `secrets.secret(name)` com
+env não definida/em branco agora é erro explícito e catchável (`SECN015`), nunca
+um `Secret` vazio silencioso; `SecretE2ETest` 9/9.
 **Autorizado em bloco** por `DECISIONS.md` §D-SECRETS (mantenedora 21/09).
 **Fonte:** linha 3.6 de `docs/architecture/IMPLEMENTATION-UNIVERSAL-PLATFORM.md` (`Secret`/`KeyHandle`
 pendentes, Estágio 5) · análise de gap `docs/stdlib/security.md` (linhas "Secrets (env):

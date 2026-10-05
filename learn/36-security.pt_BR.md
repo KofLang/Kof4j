@@ -71,6 +71,9 @@ var fromBytes = secrets.fromBytes(payload)     // bytes não-texto, byte a byte
 
 `json.encode(key)` é redigido em runtime (`"Secret(*** )"`), e alimentar
 `reveal()` direto em `log.*`/`json.encode` levanta o aviso `SECN009`.
+`secrets.secret(name)` com variável de ambiente não definida/em branco é erro
+explícito e catchável (`catch (String e)` nomeia `SECN015`) — nunca um `Secret`
+vazio silencioso; o legado `secrets.get(name)` segue devolvendo o `String` cru.
 Chaves são manipuladas sem nunca lê-las, via `KeyHandle`:
 
 ```kof

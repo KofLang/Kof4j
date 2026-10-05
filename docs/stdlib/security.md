@@ -349,7 +349,7 @@ jwt:         RFC 7519 HS256 (alg fixed, never accepted from the token)
 | `jwt.secret()` | ✅ env `KOF_JWT_SECRET` or generated | ✅ (`/proc/self/environ`) | ✅ | 32 bytes hex |
 | `secrets.get(name[, fallback])` | ✅ env | ✅ `/proc/self/environ` | ✅ platform | |
 | `secrets.redact(value)` | ✅ | ✅ (asm) | ✅ | `abcd********wxyz` |
-| `secrets.of(text)` / `secrets.secret(name)` | ✅ (→ `Secret`) | ❌ `SECN008` | ❌ `SECN008` | D-SECRETS face 1 |
+| `secrets.of(text)` / `secrets.secret(name)` | ✅ (→ `Secret`; unset env → `SECN015` error) | ❌ `SECN008` | ❌ `SECN008` | D-SECRETS face 1 |
 | `secrets.fromBytes(bytes)` | ✅ (→ `Secret`, per-byte Latin-1) | ❌ `SECN008` | ❌ `SECN008` | lossless for non-text bytes |
 | `Secret.reveal()` / `.redacted()` | ✅ | ❌ `SECN008` | ❌ `SECN008` | prints `Secret(*** )`; `reveal()` is the only raw export |
 | `secrets.keyFromHex/keyFromPem/keyFromKeystore(...)` | ✅ (→ `KeyHandle`) | ❌ `SECN008` | ❌ `SECN008` | P3; raw key bytes never exposed |
@@ -420,6 +420,11 @@ target gap diagnostics (SECN001/002/003). Adversarial cases included (§18).
   (`sha256Bytes`/`hmacSha256Bytes`, D-KOF-DIGEST-BYTES).
 - `SECN014` — non-`Secret` actual on the session-key face (D-KOF-X25519;
   private material is typed, never raw String).
+- `SECN015` — `secrets.secret(name)` with an unset/blank environment variable
+  throws an explicit, catchable error (`catch (String e)`) instead of silently
+  returning an empty `Secret` (a blank credential is a security failure). The
+  legacy `secrets.get(name)` keeps returning the raw `String`/fallback
+  (SEC1, `D-MAINT-BATCH-0510`, issue #758).
 
 ## 7.6 Bug fixes discovered during the implementation
 
