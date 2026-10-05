@@ -22,9 +22,7 @@ final class JvmFfiRuntime {
                 public static int kof_ffi_i(String lib, String name, int a) {
                     java.lang.foreign.Arena arena = java.lang.foreign.Arena.ofConfined();
                     try {
-                        java.lang.foreign.SymbolLookup lookup = lib.isEmpty()
-                                ? java.lang.foreign.SymbolLookup.loaderLookup()
-                                : java.lang.foreign.SymbolLookup.libraryLookup(lib, arena);
+                        java.lang.foreign.SymbolLookup lookup = kof_ffi_lookup(lib);
                         java.lang.foreign.Linker linker = java.lang.foreign.Linker.nativeLinker();
                         java.lang.invoke.MethodHandle handle = linker.downcallHandle(
                                 lookup.find(name).orElseThrow(),
@@ -43,9 +41,7 @@ final class JvmFfiRuntime {
                 public static int kof_ffi_si(String lib, String name, String a) {
                     java.lang.foreign.Arena arena = java.lang.foreign.Arena.ofConfined();
                     try {
-                        java.lang.foreign.SymbolLookup lookup = lib.isEmpty()
-                                ? java.lang.foreign.SymbolLookup.loaderLookup()
-                                : java.lang.foreign.SymbolLookup.libraryLookup(lib, arena);
+                        java.lang.foreign.SymbolLookup lookup = kof_ffi_lookup(lib);
                         java.lang.foreign.Linker linker = java.lang.foreign.Linker.nativeLinker();
                         java.lang.invoke.MethodHandle handle = linker.downcallHandle(
                                 lookup.find(name).orElseThrow(),
@@ -65,9 +61,7 @@ final class JvmFfiRuntime {
                 public static double kof_ffi_dd(String lib, String name, double a) {
                     java.lang.foreign.Arena arena = java.lang.foreign.Arena.ofConfined();
                     try {
-                        java.lang.foreign.SymbolLookup lookup = lib.isEmpty()
-                                ? java.lang.foreign.SymbolLookup.loaderLookup()
-                                : java.lang.foreign.SymbolLookup.libraryLookup(lib, arena);
+                        java.lang.foreign.SymbolLookup lookup = kof_ffi_lookup(lib);
                         java.lang.foreign.Linker linker = java.lang.foreign.Linker.nativeLinker();
                         java.lang.invoke.MethodHandle handle = linker.downcallHandle(
                                 lookup.find(name).orElseThrow(),
@@ -87,9 +81,7 @@ final class JvmFfiRuntime {
                     java.lang.foreign.Arena arena = java.lang.foreign.Arena.ofConfined();
                     java.util.ArrayList<Buffer> borrowHolds = new java.util.ArrayList<>();
                     try {
-                        java.lang.foreign.SymbolLookup lookup = lib.isEmpty()
-                                ? java.lang.foreign.SymbolLookup.loaderLookup()
-                                : java.lang.foreign.SymbolLookup.libraryLookup(lib, arena);
+                        java.lang.foreign.SymbolLookup lookup = kof_ffi_lookup(lib);
                         java.lang.foreign.Linker linker = java.lang.foreign.Linker.nativeLinker();
                         char ret = sig.charAt(0);
                         java.lang.foreign.MemoryLayout[] pl =
@@ -210,6 +202,23 @@ final class JvmFfiRuntime {
 
                 public static void kof_ffi_void(String lib, String name, String sig, Object[] args) {
                     kof_ffi(lib, name, sig, args);
+                }
+
+                // F2: the library is loaded ONCE per path and the lookup is reused across
+                // calls. Loading it into a per-call confined Arena (the old code) released
+                // the native library when the arena closed, so a stateful C library
+                // (globals/init state) lost its state between Kof calls on the JVM — while
+                // Native (link-by-use) persists it. The loader lookup needs no arena.
+                static final java.util.Map<String, java.lang.foreign.SymbolLookup> kof_ffi_lookups =
+                        new java.util.concurrent.ConcurrentHashMap<>();
+
+                static java.lang.foreign.SymbolLookup kof_ffi_lookup(String lib) {
+                    if (lib == null || lib.isEmpty()) {
+                        return java.lang.foreign.SymbolLookup.loaderLookup();
+                    }
+                    return kof_ffi_lookups.computeIfAbsent(lib, l ->
+                            java.lang.foreign.SymbolLookup.libraryLookup(
+                                    l, java.lang.foreign.Arena.ofShared()));
                 }
 
                 static java.lang.foreign.ValueLayout kof_ffi_layout(char c) {

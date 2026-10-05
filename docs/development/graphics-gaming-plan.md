@@ -4,9 +4,9 @@
 
 **Owner:** `192.168.15.15:9092` — lane security/connectors, graphics/gaming front; re-claimed 05/10 (the spike-3.0 `192.168.15.30:9093` claims were runner/tooling, historical).
 
-last: slice-3.1 pure clock + input snapshot landed 05/10 (`libs/game/Clock.kf` + `Keys.kf`, `GameClockE2ETest`/`GameInputE2ETest` 4/4 each; `known-bugs` §603 fixed on the way)
+last: slice-3.1 pure clock + input snapshot landed 05/10 (`libs/game/Clock.kf` + `Keys.kf`, `GameClockE2ETest`/`GameInputE2ETest` 4/4 each; `known-bugs` §603 fixed on the way); G1 SDL3 `3.4.16` measured (C + Kof FFI, headless JVM+Native; `known-bugs` §605 fixed)
 doing: slice-3.1 (window/frame/input)
-next: slice-3.1 backend window/frame/input — needs G1 (SDL3) vendored into the sysroot before the window API opens
+next: slice-3.1 backend window/frame/input — G1 SDL3 now measured via FFI; next is the window API design + shipping SDL3 libs/headers in the cross sysroot
 location: docs/development
 state: UNDER DEVELOPMENT
 
@@ -56,6 +56,19 @@ Measured on `lab` (never by familiarity — `D-GRAPHICS-SPIKE`):
   `SDL_GetVersion` = 2.30.0 and `SDL_Init(VIDEO|AUDIO)` rc=0 under the dummy
   drivers — compile+link+init, stronger than the ctypes probe. OpenAL unchanged
   (runtime-only, no headers to compile against).
+- **SDL3 delta (measured 05/10, G1):** SDL3 is not installed on the host, but the
+  `SDL3-devel` + `libSDL3-0` RPMs from the Tumbleweed repo were extracted into a
+  local prefix and measured: `gcc probe.c -lSDL3` compiles+links, and
+  `SDL_Init(VIDEO)` + `SDL_CreateWindow` + `SDL_GetWindowTitle` +
+  `SDL_DestroyWindow` + `SDL_Quit` run under `SDL_VIDEODRIVER=dummy`
+  (`driver=dummy`, `title=kof`, rc=0). The **Kof FFI binding of the same shape was
+  measured too** — the first time SDL3 is driven from Kof — on JVM and Native
+  x86-64 (headless), printing `init=true / driver=dummy / title=kof`. This closes
+  the SDL3 `?` in the matrix below. It also surfaced and fixed the parity blocker
+  `known-bugs` §605 (a stateful C library lost its globals between `extern` calls
+  on JVM/JS because the lookup arena was closed per call); the stack cannot be
+  used until that fix. Cross (riscv64/aarch64) stays `?`: the picked stack must
+  ship its libs+headers in the cross sysroot.
 - **Cross (riscv64/aarch64): not measurable yet.** No candidate `.so`/headers
   are in the distro cross sysroot, and the project's cross toolchain
   (`scripts/setup-cross-toolchain.sh`, default `/tmp/kof-cross`) was not set up
@@ -75,7 +88,7 @@ Measured on `lab` (never by familiarity — `D-GRAPHICS-SPIKE`):
 
 | Candidate | Domain | License (`?` = confirm upstream) | Runs on host | Headless | Cross (riscv64/aarch64) | Axis |
 |---|---|---|---|---|---|---|
-| SDL3 / SDL2 | window+input+audio | zlib/libpng + permissive (distro `copyright`) | SDL2 `2.30.0` runtime `.so` **+ `-dev` (02/10)**; C compile+link+headless-init OK | SDL3 `?` / SDL2 dummy driver **measured OK** | `?` | one lib, many targets |
+| SDL3 / SDL2 | window+input+audio | zlib/libpng + permissive (distro `copyright`) | SDL2 `2.30.0` runtime `.so` **+ `-dev` (02/10)**; SDL3 `3.4.16` RPMs extracted to a local prefix **05/10**; C compile+link OK for both | SDL3 + SDL2 dummy driver **measured OK**; **Kof FFI drives SDL3 init/window/title/quit on JVM+Native (05/10)** | `?` | one lib, many targets |
 | raylib | 2D/3D+audio | zlib (`?`) | not present | `?` | `?` | batteries-included 2D |
 | GLFW + GL API | window+context | zlib (`?`) | not present | offscreen ctx (`?`) | `?` | thin, GL expertise needed |
 | miniaudio | audio | public-domain/MIT-0 (`?`) | not present (header-only, drop-in) | offline mix yes (`?`) | `?` | single-header audio |
@@ -255,7 +268,7 @@ WGSL/GLSL/HLSL/cross-compile decision deferred, not first slice).
 
 # 15. Phases / promotion / open
 
-- **Slice 3.1 — started 05/10 (lane security/connectors `192.168.15.15:9092`):** the pure, backend-independent half of the §6/§7 contract landed first — `libs/game/Clock.kf` (namespace `kof.game`) owns the frame bookkeeping and `dt` over caller-supplied monotonic timestamps (the "virtual clock" the plan requires for deterministic goldens), so it calls no window/audio/video API and is honest on every target today. Semantics frozen by `GameClockE2ETest` **4/4** on JVM + Script + Native x86-64 + JS (frame 0 `dt=0`; later frames diff the previous timestamp; `stop()` ends `hasNext()`). `libs/game/Keys.kf` adds the §7 per-frame input snapshot: `beginFrame(held)` diffs the current and previous key sets and derives `down`/`pressed`/`released`, so the backend only translates events and the transitions are deterministic on every target (`GameInputE2ETest` **4/4**, JVM + Script + Native x86-64 + JS, byte-identical golden). Building the clock surfaced and fixed a frontend defect (`known-bugs` §603: the synthetic SAM `invoke` descriptor used inferred argument types). Next: the backend window (`Window("…") { frame { dt -> … } }`) still needs the G1 SDL3 stack vendored into the cross sysroot before any API lands.
+- **Slice 3.1 — started 05/10 (lane security/connectors `192.168.15.15:9092`):** the pure, backend-independent half of the §6/§7 contract landed first — `libs/game/Clock.kf` (namespace `kof.game`) owns the frame bookkeeping and `dt` over caller-supplied monotonic timestamps (the "virtual clock" the plan requires for deterministic goldens), so it calls no window/audio/video API and is honest on every target today. Semantics frozen by `GameClockE2ETest` **4/4** on JVM + Script + Native x86-64 + JS (frame 0 `dt=0`; later frames diff the previous timestamp; `stop()` ends `hasNext()`). `libs/game/Keys.kf` adds the §7 per-frame input snapshot: `beginFrame(held)` diffs the current and previous key sets and derives `down`/`pressed`/`released`, so the backend only translates events and the transitions are deterministic on every target (`GameInputE2ETest` **4/4**, JVM + Script + Native x86-64 + JS, byte-identical golden). Building the clock surfaced and fixed a frontend defect (`known-bugs` §603: the synthetic SAM `invoke` descriptor used inferred argument types). The G1 SDL3 measurement then closed the stack unknown: the `SDL3-devel`/`libSDL3-0` `3.4.16` RPMs were extracted to a local prefix, a C probe compiled+linked+ran headless (`SDL_VIDEODRIVER=dummy`), and the same shape was driven from **Kof** through `extern` on JVM + Native x86-64 (`SDL_Init`/`SDL_CreateWindow`/`SDL_GetWindowTitle`/`SDL_DestroyWindow`/`SDL_Quit` → `init=true / driver=dummy / title=kof`). That first Kof-side use surfaced a cross-target parity blocker — a stateful C library lost its globals between `extern` calls on JVM/JS because the library lookup was loaded into the per-call arena and closed — now fixed (`known-bugs` §605, `FfiLibraryStateE2ETest` 3/3 JVM+JS+Native, RED-first 2/3 pre-fix). Next: design the backend window (`Window("…") { frame { dt -> … } }`) and ship the SDL3 libs+headers into the cross sysroot so the window API lands honestly on every target.
 - **3.0** spike+infra (stack/R3/FFI/licensing/headless/cross/JavaFX-guard;
   report, no API) → **3.1** window/frame/input (JVM/Script/Native/JS +
   conformance) → **3.2** 2D (sprite/texture/transform/tilemap/draw; golden/
