@@ -628,7 +628,7 @@ work — reference it.
   depends on it (`WASM001` until then).
 * `docs/development/future/qrcode-wasm-plan.md` — another WASM front consumer.
 * `docs/stdlib/kof-file-plan.md` — `kof.file` for upload/download test helpers.
-* `docs/development/kof-connector-ecosystem-plan.md` — providers (browser drivers) are a
+* `docs/stdlib/kof-connector-ecosystem-plan.md` — providers (browser drivers) are a
   natural connector-style SPI; cross-reference for the SPI/manifest pattern.
 
 ---

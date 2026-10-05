@@ -18,7 +18,7 @@ puras sobre primitivos que já existem.
 **Fonte:** pedido da mantenedora (30/09/2026).
 
 **Trabalho já decidido que este plano DEVE reutilizar (não duplicar):**
-- `docs/development/kof-connector-ecosystem-plan.md` — `UNDER DEVELOPMENT`
+- `docs/stdlib/kof-connector-ecosystem-plan.md` — `UNDER DEVELOPMENT`
   (`D-CONNECTORS-GO`, `DECISIONS.md:4459`); COBOL já é caso declarado
   (`:438-441`, linha de capacidade `:467`, fase 7 `:520`) com a trava
   "direção, não uma demanda de 30 runtimes" (regra 55, `:448`).

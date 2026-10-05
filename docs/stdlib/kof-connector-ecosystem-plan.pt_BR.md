@@ -3,17 +3,16 @@
 # Interoperabilidade Kof — Ecossistema de Connectors
 
 **Dono:** `192.168.15.15:9092` (lane security — REIVINDICADO 02/10 por diretriz da mantenedora no chat: "assume o kof-connector". Os claims de connector anteriores de `.101` ficam como evidência histórica; uma identidade = um plano daqui em diante.)
-**Status:** EM DESENVOLVIMENTO — promovido `future/` → `docs/development/` por `D-CONNECTORS-GO` (mantenedora 29/09/2026)
-**Local:** `docs/development/kof-connector-ecosystem-plan.md`
+**Status:** CONCLUÍDO 05/10 — promovido `future/` → `docs/development/` por `D-CONNECTORS-GO` (mantenedora 29/09/2026), a superfície autorizada pousou (fatias 1–16 + A/B/C/D + §7/§8), movido para `docs/stdlib/` por `D-MAINT-BATCH-0510` C1 (regra dos 3 estados).
+**Local:** `docs/stdlib/kof-connector-ecosystem-plan.md`
 **Natureza:** arquitetura, contratos, dependências, estratégia de implementação, critérios de promoção
 **Fonte normativa:** `DECISIONS.md` §`D-CONNECTORS-GO` (DECIDIDO — promoção autorizada)
 **Dependências principais:** R3 / FFI-ABI (`docs/ffi-abi-structs.md`), o caminho de interop JVM
 (`ExternalClasspath`/`JdkReflectionResolver`), `kof.process`/`kof.shell`/`kof.ssh`,
 KofJS, os backends Native, `kof.toml`/`kofdeps`
-**Estado de implementação:** fatias 1–16 POUSADAS em pure-Kof `libs/interop/` (leitor de manifest → `InteropCore`, até `CAbiConnector` = a metade declarativa C-ABI, fatia 16) — ver §9. **Fatia A (gramática `foreign module`) LANDADA 01/10** (`foreign` entra na gramática como açúcar sobre a via FFI existente; `ForeignModuleGrammarE2ETest` 5/5). Resta a fatia B (tipo de erro de interop) — **superfície DECIDIDA 02/10 por `D-INTEROP-ERR-TYPE`**
-(`InteropError` catchável, `.message`/`.code`, contrato String intocado). **A transcrição dos tiers
+**Estado de implementação:** fatias 1–16 POUSADAS em pure-Kof `libs/interop/` (leitor de manifest → `InteropCore`, até `CAbiConnector` = a metade declarativa C-ABI, fatia 16) — ver §9. **Fatia A (gramática `foreign module`) LANDADA 01/10** (`foreign` entra na gramática como açúcar sobre a via FFI existente; `ForeignModuleGrammarE2ETest` 5/5). **Fatia B (`InteropError`) LANDADA 02/10** (`D-INTEROP-ERR-TYPE`: `InteropError` catchável, `.message`/`.code`, contrato String intocado; `InteropErrorE2ETest` 6/6). **A transcrição dos tiers
 de ABI FECHOU 02/10 (`D-ABI-TIER-TABLE`; §9.16 Fatia D): escala do stdlib, primeiro estável `1.0.0`.**
-**Gerador CLI do §8 POUSADO 04/10** (`kof connector init`, `CmdConnectorInitTest` 7/7 — ver §8.1); **gerador de binding header C do §7 POUSADO 04/10** fatias 1–3 (`interop.CHeaderBindings`, `CHeaderBindingsE2ETest` 8/8 — escalares §7.1, structs/typedefs §7.2, enum→Int §7.3).
+**Gerador CLI do §8 POUSADO 04/10** (`kof connector init`, `CmdConnectorInitTest` 7/7 — ver §8.1); **gerador de binding header C do §7 POUSADO 04/10** fatias 1–3 (`interop.CHeaderBindings`, `CHeaderBindingsE2ETest` 8/8 — escalares §7.1, structs/typedefs §7.2, enum→Int §7.3). **CONCLUÍDO e promovido para `docs/stdlib/` 05/10** por `D-MAINT-BATCH-0510` C1 (mantenedora). O catálogo multi-linguagem (§5) segue direção arquitetural sob a regra 55; a geração de header C cobre escalares/structs/enums, e outras formas C (callbacks/arrays/varargs, metadados C++/Rust/Java) ficam como trabalho futuro sob nova promoção.
 
 > **Regra fundamental.** Este documento descreve uma direção arquitetural futura. Ele **não**
 > altera a linguagem, não adiciona palavras-chave, não cria namespaces e não abre trilha de

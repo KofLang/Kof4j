@@ -600,7 +600,7 @@ Java interna**. Não duplicar o trabalho de profiling — referenciá-lo.
   depende dele (`WASM001` até então).
 * `docs/development/future/qrcode-wasm-plan.md` — outro consumidor da frente WASM.
 * `docs/stdlib/kof-file-plan.md` — `kof.file` para helpers de upload/download.
-* `docs/development/kof-connector-ecosystem-plan.md` — providers (drivers de browser) são
+* `docs/stdlib/kof-connector-ecosystem-plan.md` — providers (drivers de browser) são
   uma SPI natural no estilo connector; referência cruzada para o padrão SPI/manifest.
 
 ---

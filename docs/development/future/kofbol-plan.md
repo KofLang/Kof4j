@@ -18,7 +18,7 @@ already exist.
 **Source:** maintainer request (30/09/2026).
 
 **Related, already-decided work this plan MUST reuse (not duplicate):**
-- `docs/development/kof-connector-ecosystem-plan.md` — `UNDER DEVELOPMENT`
+- `docs/stdlib/kof-connector-ecosystem-plan.md` — `UNDER DEVELOPMENT`
   (`D-CONNECTORS-GO`, `DECISIONS.md:4459`); COBOL is already a declared case
   (`:438-441`, capability row `:467`, phase 7 `:520`) with the guardrail
   "a direction, not a 30-runtime demand" (rule 55, `:448`).

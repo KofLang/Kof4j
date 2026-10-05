@@ -45,7 +45,7 @@ authored under that freeze, not promoted.
 - `docs/development/future/kof-financial-plan.md` — the **greenfield** money
   model (`Money` = `Long` minor units + ISO-4217); the translator's
   financial-decimal output targets this, never `Float`/`Double`.
-- `docs/development/kof-connector-ecosystem-plan.md` phase 7 +
+- `docs/stdlib/kof-connector-ecosystem-plan.md` phase 7 +
   `docs/development/future/kofbol-plan.md` — `kof-cobol-connector` for the
   hybrid/gradual path.
 - `KofProjectConfig` `[sources]` (`D-CLI-SOURCE-ROOTS`, #708) — the declared

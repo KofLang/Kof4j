@@ -4451,7 +4451,7 @@ individuais:
 
 ## D-CONNECTORS-GO — o plano do Ecossistema de Connectors Kof é promovido ao trabalho corrente (mantenedora 29/09/2026, múltipla escolha "connectors" + `D-FUTURE-PROMOTION`)
 
-**Estado:** DECIDIDO (mantenedora) — `docs/development/kof-connector-ecosystem-plan.md` move-se para `docs/development/` com estado EM DESENVOLVIMENTO; uma frente por vez.
+**Estado:** DECIDIDO (mantenedora) — o plano do connector (hoje em `docs/stdlib/kof-connector-ecosystem-plan.md` após o encerramento de 05/10) moveu `future/` → `docs/development/` com estado EM DESENVOLVIMENTO; uma frente por vez.
 
 - **Escopo:** Interop Core + SPI/manifest de Connectors + catálogo, construindo sobre o substrato FFI/ABI existente (sem duplicá-lo, regra 54); controle de escopo regra 55 (provar com poucos connectors primeiro — Java primeiro, sem cascata de 30 runtimes); camadas official-packages (R1) e interop-first (R9) valem.
 - **Relações:** `Related: D-FUTURE-PROMOTION, D-FUTURE-BATCH-2809B, regra 6, regra 54, regra 55, R1, R9`.
@@ -4772,7 +4772,7 @@ individuais:
 - **Porquê:** a alternativa (tipo-marcador mínimo: nome no type system, runtime segue lançando String) foi REJEITADA pela mantenedora — decisão (a) type completo catchável.
 - **Implementação:** fatia compiler — braço de type-system + mapeamento do caminho de throw da FFI para o tipo novo + E2E por alvo RED-first (JVM/Script reais; JS/Native/cross seguem a matriz de interop por alvo existente ou gap nomeado). Vizinhos de `ForeignModuleGrammarE2ETest` continuam verdes.
 - **Pousado 02/10 (fatia de compilador B, `InteropErrorE2ETest` 6/6 VERDE):** os acessores são **métodos** `e.message()`/`e.code()` (padrão de builtins da casa, como `Secret.reveal()`; acesso por campo dá `SEM102` — refinamento da transcrição: o `.message`/`.code` da decisão são estes acessores); falhas de downcall FFI lançam código `INTEROP010` com prefixo `INTEROP010: ` na mensagem, e o `catch (String)` congelado vê a falha nomeada byte a byte; catch aninhado prova que throw String comum nunca é engolido; alvos fora da JVM (Script/JS/Native/Android) recusam o catch tipado no compile com gap nomeado `INTEROP009` (R6, nunca stub silencioso).
-- **Relações:** `Completa: D-CONNECTORS`, `Afeta: §9.16 Fatia B de docs/development/kof-connector-ecosystem-plan.md`, `Fronteira-congelada: contrato catch(String) inalterado`.
+- **Relações:** `Completa: D-CONNECTORS`, `Afeta: §9.16 Fatia B de docs/stdlib/kof-connector-ecosystem-plan.md`, `Fronteira-congelada: contrato catch(String) inalterado`.
 
 ---
 

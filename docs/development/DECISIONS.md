@@ -4461,7 +4461,7 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 
 ## D-CONNECTORS-GO — the Kof Connector Ecosystem plan is promoted to current work (maintainer 29/09/2026, multiple-choice "connectors" + `D-FUTURE-PROMOTION`)
 
-**State:** DECIDED (maintainer) — `docs/development/kof-connector-ecosystem-plan.md` moves to `docs/development/` with status UNDER DEVELOPMENT; one front at a time.
+**State:** DECIDED (maintainer) — the connector plan (now at `docs/stdlib/kof-connector-ecosystem-plan.md` after the 05/10 closure) moved `future/` → `docs/development/` with status UNDER DEVELOPMENT; one front at a time.
 
 - **Scope:** Interop Core + Connector SPI/manifest + catalogue, building on the existing FFI/ABI substrate (never duplicating it, rule 54); scope control rule 55 (prove with few connectors first — Java first, no 30-runtime waterfall); official-packages layering (R1) and interop-first (R9) apply.
 - **Relationships:** `Related: D-FUTURE-PROMOTION, D-FUTURE-BATCH-2809B, rule 6, rule 54, rule 55, R1, R9`.
@@ -4782,7 +4782,7 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 - **Why:** the alternative (type-marker minimum: name in the type system, runtime keeps throwing Strings) was REJECTED by the maintainer — decision (a) complete catchable type.
 - **Implementation:** compiler slice — type-system arm + mapping from the FFI throw path to the new type + per-target E2E RED-first (JVM/Script real; JS/Native/cross follow the existing per-target interop matrix or a named gap). `ForeignModuleGrammarE2ETest` neighbors must stay green.
 - **Landed 02/10 (compiler Slice B, `InteropErrorE2ETest` 6/6 GREEN):** accessors are **methods** `e.message()`/`e.code()` (house-builtin standard, same as `Secret.reveal()`; field access yields `SEM102` — transcription refinement: the decision's `.message`/`.code` means these accessors); FFI downcall failures throw code `INTEROP010` with the `INTEROP010: ` message prefix so the frozen `catch (String)` sees the named failure byte-for-byte; nested catch proves ordinary string throws are never swallowed; off-JVM targets (Script/JS/Native/Android) refuse typed catch at compile time with named gap `INTEROP009` (R6, never a silent stub).
-- **Relationships:** `Completes: D-CONNECTORS`, `Affects: §9.16 Slice B of docs/development/kof-connector-ecosystem-plan.md`, `Frozen-boundary: catch(String) contract unchanged`.
+- **Relationships:** `Completes: D-CONNECTORS`, `Affects: §9.16 Slice B of docs/stdlib/kof-connector-ecosystem-plan.md`, `Frozen-boundary: catch(String) contract unchanged`.
 
 ---
 

@@ -46,7 +46,7 @@ promoção de future (`docs/development/future/README.md` §"When to move",
 - `docs/development/future/kof-financial-plan.md` — o modelo de dinheiro
   *greenfield* (`Money` = `Long` minor units + ISO-4217); a saída
   financeiro-decimal do tradutor mira isto, nunca `Float`/`Double`.
-- `docs/development/kof-connector-ecosystem-plan.md` fase 7 +
+- `docs/stdlib/kof-connector-ecosystem-plan.md` fase 7 +
   `docs/development/future/kofbol-plan.md` — `kof-cobol-connector` para o
   caminho híbrido/gradual.
 - `KofProjectConfig` `[sources]` (`D-CLI-SOURCE-ROOTS`, #708) — o modelo de

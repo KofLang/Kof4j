@@ -2,15 +2,15 @@
 
 # Kof Interoperability — Connector Ecosystem
 
-**Status:** UNDER DEVELOPMENT — promoted `future/` → `docs/development/` by `D-CONNECTORS-GO` (maintainer 29/09/2026)
-**Location:** `docs/development/kof-connector-ecosystem-plan.md`
+**Status:** CONCLUDED 05/10 — promoted `future/` → `docs/development/` by `D-CONNECTORS-GO` (maintainer 29/09/2026), the authorized surface landed (slices 1–16 + A/B/C/D + §7/§8), moved to `docs/stdlib/` by `D-MAINT-BATCH-0510` C1 (3-state rule).
+**Location:** `docs/stdlib/kof-connector-ecosystem-plan.md`
 **Owner:** `192.168.15.15:9092` (lane security — CLAIMED 02/10 by maintainer directive in chat: "assume o kof-connector". The earlier `.101` connector-line claims stay as historical evidence; one identity = one plan from here.)
 **Nature:** architecture, contracts, dependencies, implementation strategy, promotion criteria
 **Normative source:** `DECISIONS.md` §`D-CONNECTORS-GO` (DECIDED — promotion authorized)
 **Main dependencies:** R3 / FFI-ABI (`docs/ffi-abi-structs.md`), the JVM interop path
 (`ExternalClasspath`/`JdkReflectionResolver`), `kof.process`/`kof.shell`/`kof.ssh`,
 KofJS, the Native backends, `kof.toml`/`kofdeps`
-**Implementation status:** fatias 1–16 LANDED in pure-Kof `libs/interop/` (manifest reader → `InteropCore`, through `CAbiConnector` = the declarative C-ABI half, slice 16) — see §9. **Slice A (`foreign module` grammar) LANDED 01/10** (`foreign` enters the grammar as sugar over the existing FFI path; `ForeignModuleGrammarE2ETest` 5/5). **Slices B (`InteropError`, `D-INTEROP-ERR-TYPE`, 02/10) and D (ABI-tier table, `D-ABI-TIER-TABLE`, 02/10) are LANDED** — the authorized A/B/C/D surface is complete; see §9.16/§879 for the measured closure. **§8 CLI generator LANDED 04/10** (`kof connector init`, `CmdConnectorInitTest` 7/7 — see §8.1); **§7 C-header binding generator LANDED 04/10** slices 1–3 (`interop.CHeaderBindings`, `CHeaderBindingsE2ETest` 8/8 — scalars §7.1, structs/typedefs §7.2, enum→Int §7.3). Next: await the maintainer's plan closure / promotion to `docs/stdlib/` (rule 6).
+**Implementation status:** fatias 1–16 LANDED in pure-Kof `libs/interop/` (manifest reader → `InteropCore`, through `CAbiConnector` = the declarative C-ABI half, slice 16) — see §9. **Slice A (`foreign module` grammar) LANDED 01/10** (`foreign` enters the grammar as sugar over the existing FFI path; `ForeignModuleGrammarE2ETest` 5/5). **Slices B (`InteropError`, `D-INTEROP-ERR-TYPE`, 02/10) and D (ABI-tier table, `D-ABI-TIER-TABLE`, 02/10) are LANDED** — the authorized A/B/C/D surface is complete; see §9.16/§879 for the measured closure. **§8 CLI generator LANDED 04/10** (`kof connector init`, `CmdConnectorInitTest` 7/7 — see §8.1); **§7 C-header binding generator LANDED 04/10** slices 1–3 (`interop.CHeaderBindings`, `CHeaderBindingsE2ETest` 8/8 — scalars §7.1, structs/typedefs §7.2, enum→Int §7.3). **CONCLUDED and promoted to `docs/stdlib/` 05/10** by `D-MAINT-BATCH-0510` C1 (maintainer). The multi-language connector catalogue (§5) stays an architectural direction under rule 55 (prove with few connectors); C header generation covers scalars/structs/enums, and further C shapes (callbacks/arrays/varargs, C++/Rust/Java metadata) remain future work under a new promotion.
 
 > **Fundamental rule.** This document describes a future architectural direction. It does
 > **not** change the language, add keywords, create namespaces, or open an implementation
@@ -965,8 +965,8 @@ authorized and its design questions are locked in `DECISIONS.md`:
 
 **Still to land:** NONE of the rule-6-gated pieces — **Slices A, B, C, D are all LANDED** (A: `foreign module`
 grammar 01/10; C: declarative C-ABI connector promoted slice 16 29/09; D: tier table transcribed 02/10;
-B: `InteropError` language type LANDED 02/10, `InteropErrorE2ETest` 6/6). Next: await maintainer
-determination on plan closure / promotion to `docs/stdlib/`. The `foreign module` **grammar construct is LANDED 01/10** (Slice A,
+B: `InteropError` language type LANDED 02/10, `InteropErrorE2ETest` 6/6). **Plan CLOSED 05/10** by
+`D-MAINT-BATCH-0510` C1 and promoted to `docs/stdlib/`. The `foreign module` **grammar construct is LANDED 01/10** (Slice A,
 `ForeignModuleGrammarE2ETest` **5/5 re-verified GREEN at tip 02/10** by the claiming lane
 `192.168.15.15:9092`) — sugar over the existing FFI path, not a new ABI engine.
 **Slice D is CLOSED 02/10** — tiers + first stable transcribed by `D-ABI-TIER-TABLE`: the stdlib
