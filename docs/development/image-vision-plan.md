@@ -1095,9 +1095,16 @@ tables selected by `COEFF_CDF_Q_CTXS`, all 15,996 numbers cross-checked against
 libaom's `token_cdfs.h`) and slice 3d LANDED 04/10 (`libs/image/Av1CoeffCtx.kf`,
 the coefficient context selection — `get_coeff_base_ctx`/`get_coeff_br_ctx` and
 the `all_zero`/`dc_sign` rules, the 2D offset table verified against libaom's
-`av1_nz_map_ctx_offset`); next are the tile coefficient walk itself, the loop
-filter and the quantization, then `decodeRaster` AVIF (still refused until the
-chain closes).
+`av1_nz_map_ctx_offset`) and slice 3e LANDED 05/10 (`libs/image/Av1Coeffs.kf`,
+the tile coefficient walk `coeffs()` — `all_zero`, the `eob_pt_*`/`eob_extra`
+EOB token, the `coeff_base_eob`/`coeff_base`/`coeff_br` level loop, the sign and
+`read_golomb` escape, and the per-tile adapted CDF store `Av1CoeffCdfStore`; the
+40-block fixture set round-trips a faithful libaom entropy encoder/decoder and
+the levels match a second independent Java reader and the Python oracle); next
+are the loop filter and the quantization, then `decodeRaster` AVIF (still
+refused until the chain closes). The cross native face of this slice is gated by
+known-bugs §602 (a large single frame trips the riscv64/aarch64 GC; the proof
+splits the walk into a per-block helper and one function per tile).
 
 ## PT
 [Português](image-vision-plan.pt_BR.md)

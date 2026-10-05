@@ -57,6 +57,13 @@ final class Av1CoeffCtxSupport {
 
     static int baseCtx(int txSz, int txType, int pos, int c, boolean isEob, int seed) {
         int a = ADJ[txSz];
+        int width = 1 << TXWL[a];
+        int height = TXH[a];
+        return baseCtxQ(txSz, txType, pos, c, isEob, quant(seed, width, height));
+    }
+
+    static int baseCtxQ(int txSz, int txType, int pos, int c, boolean isEob, int[] q) {
+        int a = ADJ[txSz];
         int bwl = TXWL[a];
         int width = 1 << bwl;
         int height = TXH[a];
@@ -69,7 +76,6 @@ final class Av1CoeffCtxSupport {
         int tc = txClass(txType);
         int row = pos >> bwl;
         int col = pos - (row << bwl);
-        int[] q = quant(seed, width, height);
         int mag = 0;
         for (int idx = 0; idx < 5; idx++) {
             int rr = row + SIG[(tc * 5 + idx) * 2];
@@ -88,13 +94,17 @@ final class Av1CoeffCtxSupport {
 
     static int brCtx(int txSz, int txType, int pos, int seed) {
         int a = ADJ[txSz];
+        return brCtxQ(txSz, txType, pos, quant(seed, TXW[a], TXH[a]));
+    }
+
+    static int brCtxQ(int txSz, int txType, int pos, int[] q) {
+        int a = ADJ[txSz];
         int bwl = TXWL[a];
         int txw = TXW[a];
         int txh = TXH[a];
         int row = pos >> bwl;
         int col = pos - (row << bwl);
         int tc = txClass(txType);
-        int[] q = quant(seed, txw, txh);
         int acc = 0;
         for (int idx = 0; idx < 3; idx++) {
             int rr = row + MAG[(tc * 3 + idx) * 2];

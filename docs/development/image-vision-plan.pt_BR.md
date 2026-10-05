@@ -1246,10 +1246,17 @@ default de coeficientes selecionadas por `COEFF_CDF_Q_CTXS`, todos os 15.996
 números conferidos contra `token_cdfs.h` da libaom) e fatia 3d LANDADA 04/10
 (`libs/image/Av1CoeffCtx.kf`, a seleção de contexto de coeficientes —
 `get_coeff_base_ctx`/`get_coeff_br_ctx` e as regras `all_zero`/`dc_sign`, a
-tabela 2D de offset conferida contra `av1_nz_map_ctx_offset` da libaom); a
-seguir vêm o walk de coeficientes do tile propriamente dito, o loop filter e a
-quantização, e então o `decodeRaster` AVIF (ainda recusado até a cadeia
-fechar).
+tabela 2D de offset conferida contra `av1_nz_map_ctx_offset` da libaom) e fatia
+3e LANDADA 05/10 (`libs/image/Av1Coeffs.kf`, o walk de coeficientes do tile
+`coeffs()` — `all_zero`, o token EOB `eob_pt_*`/`eob_extra`, o laço de níveis
+`coeff_base_eob`/`coeff_base`/`coeff_br`, o sinal e a fuga `read_golomb`, e o
+store de CDFs adaptadas por tile `Av1CoeffCdfStore`; as 40 fixtures de blocos
+fazem round-trip num encoder/decoder de entropia fiel à libaom e os níveis
+batem com um segundo leitor Java independente e com o oráculo Python); a seguir
+vêm o loop filter e a quantização, e então o `decodeRaster` AVIF (ainda
+recusado até a cadeia fechar). A face nativa cross desta fatia está limitada
+pela known-bugs §602 (um frame único grande dispara o GC riscv64/aarch64; a
+prova quebra o walk num helper por bloco e uma função por tile).
 
 ## EN
 [English](image-vision-plan.md)
