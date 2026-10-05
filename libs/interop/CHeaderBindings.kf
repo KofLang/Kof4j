@@ -11,7 +11,7 @@ import file.TextStream
 // delivered, so every declaration is either mapped deterministically or recorded
 // in `skipped()` with a reason — never emitted wrong, never silently dropped.
 //
-// Bounded, documented subset (slices 1–2):
+// Bounded, documented subset (slices 1–3):
 //   * scalar types — int/unsigned int -> Int, long/long long/size_t/int64_t ->
 //     Long, float -> Float, double -> Double, bool/_Bool -> Bool, char*/const
 //     char* -> String, void -> void;
@@ -19,6 +19,10 @@ import file.TextStream
 //     `record Name(...)` declarations (scalar fields), emitted before the module;
 //   * `typedef struct Name Alias;` and `typedef <scalar> Alias;` are resolved as
 //     aliases (a struct-typed parameter/return maps to the record name);
+//   * `enum Name { A, B };` (and typedef forms) resolve to `Int` — the C enum ABI;
+//     a `= value` enum is skipped honestly (the constants are not exposed as named
+//     Kof values: Kof's `enum` is name-based, so integer-constant exposure is a
+//     maintainer decision, not invented here);
 //   * one `(` per function declaration (function pointers with two parens are
 //     skipped); no arrays (`[`), no varargs (`...`), no preprocessor lines,
 //     no `static` (internal linkage cannot be resolved by dlopen);
@@ -39,6 +43,7 @@ class CHeaderBindings {
     List<String> structNames
     List<String> aliasNames
     List<String> aliasTargets
+    List<String> enumNames
 
     constructor(String path) {
         this.records = listOf<CRecord>()
@@ -47,6 +52,7 @@ class CHeaderBindings {
         this.structNames = listOf<String>()
         this.aliasNames = listOf<String>()
         this.aliasTargets = listOf<String>()
+        this.enumNames = listOf<String>()
         parseCHeader(path, 8192, this)
     }
 
@@ -57,6 +63,7 @@ class CHeaderBindings {
         this.structNames = listOf<String>()
         this.aliasNames = listOf<String>()
         this.aliasTargets = listOf<String>()
+        this.enumNames = listOf<String>()
         parseCHeader(path, chunkSize, this)
     }
 
@@ -68,6 +75,11 @@ class CHeaderBindings {
     // The `struct`/`typedef struct` records, in declaration order.
     List<CRecord> structs() {
         return this.records
+    }
+
+    // The `enum` names whose constants resolve to the C enum ABI (`Int`).
+    List<String> enums() {
+        return this.enumNames
     }
 
     // Declarations that were NOT mapped, each with an honest reason.
@@ -155,9 +167,12 @@ class CHeaderBindings {
     // name (a struct-typed parameter/return maps to the record), else null.
     String? resolveType(String cType) {
         var normalized = cHeaderNormalize(cType)
-        // A `struct Name` type: drop the keyword so it resolves to the record.
+        // A `struct Name` / `enum Name` type: drop the keyword so it resolves to
+        // the record / enum ABI.
         if (normalized.startsWith("struct")) {
             normalized = cHeaderTrim(cHeaderSlice(normalized, "struct".length, normalized.length))
+        } else if (normalized.startsWith("enum")) {
+            normalized = cHeaderTrim(cHeaderSlice(normalized, "enum".length, normalized.length))
         }
         var aliasIndex = this.aliasNames.indexOf(normalized)
         if (aliasIndex >= 0) {
@@ -169,6 +184,11 @@ class CHeaderBindings {
         }
         if (this.structNames.contains(normalized)) {
             return normalized
+        }
+        // A C `enum Name` value is an integer; a `typedef enum {...} Name` alias
+        // resolves here too. Kof's `enum` is name-based, so the ABI is `Int`.
+        if (this.enumNames.contains(normalized)) {
+            return "Int"
         }
         return null
     }
@@ -192,6 +212,8 @@ void parseCHeader(String path, Int chunkSize, CHeaderBindings bindings) {
         var t = lines.get(i)
         if (cHeaderIsStructStart(t)) {
             i = parseStruct(lines, i, bindings)
+        } else if (cHeaderIsEnumStart(t)) {
+            i = parseEnum(lines, i, bindings)
         } else if (cHeaderStartsWithWord(t, "typedef")) {
             parseTypedef(t, bindings)
         } else {
@@ -283,6 +305,88 @@ Int parseStruct(List<String> lines, Int start, CHeaderBindings bindings) {
     return i
 }
 
+// `enum Name { A, B };`, `typedef enum { A, B } Name;` or
+// `typedef enum Name { A, B } Name;`: register the tag and the typedef alias as
+// C enum ABI types (`Int`). A `= value` enum is skipped honestly — exposing the
+// integer constants as named Kof values is a maintainer decision (Kof's `enum`
+// is name-based). Returns the index of the closing line.
+Int parseEnum(List<String> lines, Int start, CHeaderBindings bindings) {
+    var header = lines.get(start)
+    var isTypedef = cHeaderStartsWithWord(header, "typedef")
+    var bodyStart = header
+    if (isTypedef) {
+        bodyStart = cHeaderTrim(cHeaderSlice(header, "typedef".length, header.length))
+    }
+    var afterEnum = cHeaderTrim(cHeaderSlice(bodyStart, "enum".length, bodyStart.length))
+    var name = ""
+    if (!afterEnum.startsWith("{")) {
+        var brace = cHeaderIndexOf(afterEnum, "{")
+        if (brace >= 0) {
+            name = cHeaderTrim(cHeaderSlice(afterEnum, 0, brace))
+        } else {
+            name = cHeaderTrim(afterEnum)
+        }
+    }
+    var tailName = ""
+    var body = ""
+    var i = start
+    var closed = false
+    var afterBrace = cHeaderSliceAfterBrace(header)
+    if (cHeaderContains(afterBrace, '}')) {
+        var close = cHeaderIndexOf(afterBrace, "}")
+        body = cHeaderSlice(afterBrace, 0, close)
+        var tail = cHeaderTrim(cHeaderSlice(afterBrace, close + 1, afterBrace.length))
+        if (tail.endsWith(";")) {
+            tail = cHeaderTrim(cHeaderSlice(tail, 0, tail.length - 1))
+        }
+        tailName = tail
+        closed = true
+    } else {
+        if (afterBrace.length > 0) {
+            body = afterBrace
+        }
+        while (i + 1 < lines.size()) {
+            i = i + 1
+            var t = lines.get(i)
+            if (t.startsWith("}")) {
+                closed = true
+                var tail = cHeaderTrim(cHeaderSlice(t, 1, t.length))
+                if (tail.endsWith(";")) {
+                    tail = cHeaderTrim(cHeaderSlice(tail, 0, tail.length - 1))
+                }
+                tailName = tail
+                break
+            }
+            if (body.length > 0) {
+                body = body + " "
+            }
+            body = body + t
+        }
+    }
+    if (!closed) {
+        bindings.skippedReasons.add("unterminated enum: " + header)
+        return i
+    }
+    if (cHeaderContains(body, '=')) {
+        bindings.skippedReasons.add("enum with explicit values: " + header)
+        return i
+    }
+    if (name.length == 0 && isTypedef) {
+        name = tailName
+    }
+    if (name.length == 0) {
+        bindings.skippedReasons.add("anonymous enum without typedef name: " + header)
+        return i
+    }
+    if (!bindings.enumNames.contains(name)) {
+        bindings.enumNames.add(name)
+    }
+    if (isTypedef && tailName.length > 0 && tailName != name && !bindings.enumNames.contains(tailName)) {
+        bindings.enumNames.add(tailName)
+    }
+    return i
+}
+
 // Parse a field line (`int x;`, `double d, e;`) into scalar fields. A field whose
 // type does not resolve is left out; the caller decides (a struct with no scalar
 // fields is skipped whole).
@@ -348,6 +452,21 @@ void parseTypedef(String t, CHeaderBindings bindings) {
             }
         }
         bindings.skippedReasons.add("typedef to unknown struct: " + t)
+        return
+    }
+    if (cHeaderStartsWithWord(rest, "enum")) {
+        var after = cHeaderTrim(cHeaderSlice(rest, "enum".length, rest.length))
+        var sp = cHeaderLastIdentStart(after)
+        if (sp >= 0) {
+            var alias = cHeaderSlice(after, sp, after.length)
+            var target = cHeaderTrim(cHeaderSlice(after, 0, sp))
+            if (bindings.enumNames.contains(target)) {
+                bindings.aliasNames.add(alias)
+                bindings.aliasTargets.add("Int")
+                return
+            }
+        }
+        bindings.skippedReasons.add("typedef to unknown enum: " + t)
         return
     }
     var nameStart = cHeaderLastIdentStart(rest)
@@ -445,6 +564,18 @@ Bool cHeaderIsStructStart(String t) {
     if (cHeaderStartsWithWord(t, "typedef")) {
         var rest = cHeaderTrim(cHeaderSlice(t, "typedef".length, t.length))
         return cHeaderStartsWithWord(rest, "struct") && cHeaderContains(rest, '{')
+    }
+    return false
+}
+
+Bool cHeaderIsEnumStart(String t) {
+    // An enum DEFINITION has a body; `enum Color c` is a use, not a definition.
+    if (cHeaderStartsWithWord(t, "enum")) {
+        return cHeaderContains(t, '{')
+    }
+    if (cHeaderStartsWithWord(t, "typedef")) {
+        var rest = cHeaderTrim(cHeaderSlice(t, "typedef".length, t.length))
+        return cHeaderStartsWithWord(rest, "enum") && cHeaderContains(rest, '{')
     }
     return false
 }

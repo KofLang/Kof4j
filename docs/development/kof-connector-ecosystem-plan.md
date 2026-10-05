@@ -10,7 +10,7 @@
 **Main dependencies:** R3 / FFI-ABI (`docs/ffi-abi-structs.md`), the JVM interop path
 (`ExternalClasspath`/`JdkReflectionResolver`), `kof.process`/`kof.shell`/`kof.ssh`,
 KofJS, the Native backends, `kof.toml`/`kofdeps`
-**Implementation status:** fatias 1–16 LANDED in pure-Kof `libs/interop/` (manifest reader → `InteropCore`, through `CAbiConnector` = the declarative C-ABI half, slice 16) — see §9. **Slice A (`foreign module` grammar) LANDED 01/10** (`foreign` enters the grammar as sugar over the existing FFI path; `ForeignModuleGrammarE2ETest` 5/5). **Slices B (`InteropError`, `D-INTEROP-ERR-TYPE`, 02/10) and D (ABI-tier table, `D-ABI-TIER-TABLE`, 02/10) are LANDED** — the authorized A/B/C/D surface is complete; see §9.16/§879 for the measured closure. **§8 CLI generator LANDED 04/10** (`kof connector init`, `CmdConnectorInitTest` 7/7 — see §8.1); **§7 C-header binding generator LANDED 04/10** slices 1–2 (`interop.CHeaderBindings`, `CHeaderBindingsE2ETest` 7/7 — scalars §7.1, structs/typedefs §7.2). Next: await the maintainer's plan closure / promotion to `docs/stdlib/` (rule 6).
+**Implementation status:** fatias 1–16 LANDED in pure-Kof `libs/interop/` (manifest reader → `InteropCore`, through `CAbiConnector` = the declarative C-ABI half, slice 16) — see §9. **Slice A (`foreign module` grammar) LANDED 01/10** (`foreign` enters the grammar as sugar over the existing FFI path; `ForeignModuleGrammarE2ETest` 5/5). **Slices B (`InteropError`, `D-INTEROP-ERR-TYPE`, 02/10) and D (ABI-tier table, `D-ABI-TIER-TABLE`, 02/10) are LANDED** — the authorized A/B/C/D surface is complete; see §9.16/§879 for the measured closure. **§8 CLI generator LANDED 04/10** (`kof connector init`, `CmdConnectorInitTest` 7/7 — see §8.1); **§7 C-header binding generator LANDED 04/10** slices 1–3 (`interop.CHeaderBindings`, `CHeaderBindingsE2ETest` 8/8 — scalars §7.1, structs/typedefs §7.2, enum→Int §7.3). Next: await the maintainer's plan closure / promotion to `docs/stdlib/` (rule 6).
 
 > **Fundamental rule.** This document describes a future architectural direction. It does
 > **not** change the language, add keywords, create namespaces, or open an implementation
@@ -524,13 +524,32 @@ fields (`int x, y;`) and the single-line form (`struct P { int x; int y; };`) ar
 struct *use* without a body (`struct Point mkpoint(...)`) is a function, not a definition.
 Unmapped declarations stay in `skipped()` (R6).
 
-**Proof:** `CHeaderBindingsE2ETest` **7/7** — the golden includes `record Point(Int x, Int y)`
+**Proof:** `CHeaderBindingsE2ETest` — the golden includes `record Point(Int x, Int y)`
 and `record Mix(Double d, Int i)` plus the struct-typed `extern`s, identical on JVM + Script +
 Native x86-64; a **struct round-trip** generates a block from a host header, builds a
 `gcc -shared` `.so` (`sumpoint`/`mkpoint`), compiles+runs the emitted source
 (`sum=7`/`mk=5,6`) — by-value record arg and return through the existing ABI; RED-first: the
 slice-1 library fails the 5 struct tests while the scalar tests stay green. Interop battery
-**247/0F/30S** unregressed. No compiler/language change.
+unregressed. No compiler/language change.
+
+## 7.3 LANDED 04/10/2026 — C `enum` → integer ABI (slice 3)
+
+**State:** landed in the same pure-Kof library. `enum Name { A, B };`,
+`typedef enum { A, B } Name;`, `typedef enum Name { A, B } Name;` and
+`typedef enum Name Alias;` register the tag/alias as C enum ABI types; a parameter or return
+of an enum type resolves to `Int` (the C enum ABI). `enums()` lists the registered names.
+
+**Bounded subset (documented):** a `= value` enum is `skipped()` honestly — Kof's `enum` is
+**name-based** (the runtime value is the name), so exposing the integer constants as named Kof
+values is not representable and is a maintainer decision, not invented here. Only the valueless
+enum (values `0..n-1`, always `int`) is mapped.
+
+**Proof:** `CHeaderBindingsE2ETest` **8/8** — the golden includes `extern paint(Int c): Int`,
+`extern pick(): Int`, `extern letterOf(Int x): Int` (enum/typedef-enum params and returns),
+identical on JVM + Script + Native x86-64; an **enum round-trip** builds a `gcc -shared` `.so`
+(`paint`/`pick`/`letterOf`) and compiles+runs the emitted source (`paint=11`/`pick=2`/
+`letter=0`); the `= value` enum is in the pinned skip list. RED-first: the slice-2 library
+fails the 5 enum tests while the struct/scalar tests stay green. No compiler/language change.
 
 ---
 

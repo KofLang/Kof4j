@@ -13,7 +13,7 @@ KofJS, os backends Native, `kof.toml`/`kofdeps`
 **Estado de implementação:** fatias 1–16 POUSADAS em pure-Kof `libs/interop/` (leitor de manifest → `InteropCore`, até `CAbiConnector` = a metade declarativa C-ABI, fatia 16) — ver §9. **Fatia A (gramática `foreign module`) LANDADA 01/10** (`foreign` entra na gramática como açúcar sobre a via FFI existente; `ForeignModuleGrammarE2ETest` 5/5). Resta a fatia B (tipo de erro de interop) — **superfície DECIDIDA 02/10 por `D-INTEROP-ERR-TYPE`**
 (`InteropError` catchável, `.message`/`.code`, contrato String intocado). **A transcrição dos tiers
 de ABI FECHOU 02/10 (`D-ABI-TIER-TABLE`; §9.16 Fatia D): escala do stdlib, primeiro estável `1.0.0`.**
-**Gerador CLI do §8 POUSADO 04/10** (`kof connector init`, `CmdConnectorInitTest` 7/7 — ver §8.1); **gerador de binding header C do §7 POUSADO 04/10** fatias 1–2 (`interop.CHeaderBindings`, `CHeaderBindingsE2ETest` 7/7 — escalares §7.1, structs/typedefs §7.2).
+**Gerador CLI do §8 POUSADO 04/10** (`kof connector init`, `CmdConnectorInitTest` 7/7 — ver §8.1); **gerador de binding header C do §7 POUSADO 04/10** fatias 1–3 (`interop.CHeaderBindings`, `CHeaderBindingsE2ETest` 8/8 — escalares §7.1, structs/typedefs §7.2, enum→Int §7.3).
 
 > **Regra fundamental.** Este documento descreve uma direção arquitetural futura. Ele **não**
 > altera a linguagem, não adiciona palavras-chave, não cria namespaces e não abre trilha de
@@ -533,13 +533,33 @@ honesto); campos multi-declarador (`int x, y;`) e a forma de uma linha (`struct 
 y; };`) são tratados; um *uso* de struct sem corpo (`struct Point mkpoint(...)`) é função, não
 definição. Declarações não mapeadas ficam em `skipped()` (R6).
 
-**Prova:** `CHeaderBindingsE2ETest` **7/7** — o golden inclui `record Point(Int x, Int y)` e
+**Prova:** `CHeaderBindingsE2ETest` — o golden inclui `record Point(Int x, Int y)` e
 `record Mix(Double d, Int i)` mais os `extern` tipados por struct, idênticos em JVM + Script +
 Native x86-64; um **round-trip de struct** gera um bloco de um header hospedeiro, constrói um
 `.so` com `gcc -shared` (`sumpoint`/`mkpoint`), compila+roda o código emitido (`sum=7`/`mk=5,6`)
 — argumento e retorno de record por valor pela ABI existente; RED-first: a biblioteca da fatia 1
 falha os 5 testes de struct enquanto os testes escalares seguem verdes. Bateria interop
-**247/0F/30S** sem regressão. Sem mudança de compilador/linguagem.
+sem regressão. Sem mudança de compilador/linguagem.
+
+## 7.3 POUSADO 04/10/2026 — `enum` C → ABI inteira (fatia 3)
+
+**Estado:** pousado na mesma biblioteca Kof puro. `enum Name { A, B };`,
+`typedef enum { A, B } Name;`, `typedef enum Name { A, B } Name;` e `typedef enum Name Alias;`
+registram a tag/alias como tipos da ABI de enum C; um parâmetro ou retorno de tipo enum resolve
+para `Int` (a ABI de enum C). `enums()` lista os nomes registrados.
+
+**Subconjunto limitado (documentado):** um enum com `= valor` vai para `skipped()` honesto — o
+`enum` do Kof é **por nome** (o valor de runtime é o nome), então expor as constantes inteiras
+como valores Kof nomeados não é representável e é decisão da mantenedora, não inventada aqui.
+Só o enum sem valores (valores `0..n-1`, sempre `int`) é mapeado.
+
+**Prova:** `CHeaderBindingsE2ETest` **8/8** — o golden inclui `extern paint(Int c): Int`,
+`extern pick(): Int`, `extern letterOf(Int x): Int` (parâmetros/retornos enum e typedef-enum),
+idênticos em JVM + Script + Native x86-64; um **round-trip de enum** constrói um `.so` com
+`gcc -shared` (`paint`/`pick`/`letterOf`) e compila+roda o código emitido (`paint=11`/`pick=2`/
+`letter=0`); o enum com `= valor` está na lista de skips pinada. RED-first: a biblioteca da
+fatia 2 falha os 5 testes de enum enquanto os de struct/escalar seguem verdes. Sem mudança de
+compilador/linguagem.
 
 ---
 

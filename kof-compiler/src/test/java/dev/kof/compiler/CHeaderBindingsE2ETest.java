@@ -16,11 +16,12 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Plan §7 (`D-CONNECTORS-GO`) slices 1–2: {@code interop.CHeaderBindings} — read a
+ * Plan §7 (`D-CONNECTORS-GO`) slices 1–3: {@code interop.CHeaderBindings} — read a
  * C header and emit the Kof {@code foreign module} block (slice A grammar) that
  * binds the declared symbols through the EXISTING FFI path (rule 54). Slice 1 =
  * scalar functions; slice 2 = {@code struct}/typedef declarations emitted as Kof
- * {@code record}s and used in signatures. Unmapped declarations are recorded in
+ * {@code record}s and used in signatures; slice 3 = C {@code enum}s resolved to
+ * the integer ABI ({@code Int}). Unmapped declarations are recorded in
  * {@code skipped()}, never emitted wrong.
  *
  * <p>The golden proves the deterministic text; the round-trips compile the
@@ -43,6 +44,11 @@ class CHeaderBindingsE2ETest implements LibraryInstallSupport {
             typedef struct Point PtAlias;
             typedef int myint;
 
+            enum Color { Red, Green, Blue };
+            typedef enum { A, B } Letter;
+            typedef enum Color AliasColor;
+            enum Explicit { X = 1, Y = 2 };
+
             int add(int a, int b);
             double sqrt(double x);
             const char *greet(const char *name);
@@ -55,6 +61,10 @@ class CHeaderBindingsE2ETest implements LibraryInstallSupport {
             int sumpoint(struct Point p);
             Mix mixret(double d, int i);
             int takealias(PtAlias p);
+            int paint(enum Color c);
+            enum Color pick(void);
+            Letter letterOf(int x);
+            AliasColor aliasPick(void);
             static int hidden(int x);
             typedef struct { int (*cb)(int); } WithFn;
             int apply(int (*cb)(int));
@@ -84,6 +94,10 @@ class CHeaderBindingsE2ETest implements LibraryInstallSupport {
             "    extern sumpoint(Point p): Int",
             "    extern mixret(Double d, Int i): Mix",
             "    extern takealias(Point p): Int",
+            "    extern paint(Int c): Int",
+            "    extern pick(): Int",
+            "    extern letterOf(Int x): Int",
+            "    extern aliasPick(): Int",
             "}",
             "");
 
@@ -113,12 +127,13 @@ class CHeaderBindingsE2ETest implements LibraryInstallSupport {
     @Test
     void unsupportedDeclarationsAreSkippedHonestly() throws Exception {
         String output = runJvm(skipProbe());
-        assertTrue(output.contains("skipped=6"), output);
+        assertTrue(output.contains("skipped=7"), output);
         assertTrue(output.contains("Rect"), output);
         assertTrue(output.contains("WithFn"), output);
         assertTrue(output.contains("int apply"), output);
         assertTrue(output.contains("int sum"), output);
         assertTrue(output.contains("int printf"), output);
+        assertTrue(output.contains("enum Explicit"), output);
     }
 
     @Test
@@ -136,7 +151,7 @@ class CHeaderBindingsE2ETest implements LibraryInstallSupport {
                     println("sqrt=" + sqrt(144.0))
                 }
                 """;
-        assertEquals("fmod=1.0\nsqrt=12.0", runGenerated(root, program));
+        assertEquals("fmod=1.0\nsqrt=12.0", runGenerated(root, program, null, null));
     }
 
     @Test
@@ -156,7 +171,41 @@ class CHeaderBindingsE2ETest implements LibraryInstallSupport {
                     println("mk=" + p.x + "," + p.y)
                 }
                 """;
-        assertEquals("sum=7\nmk=5,6", runGenerated(root, program));
+        String c = """
+                struct Point { int x; int y; };
+                int sumpoint(struct Point p) { return p.x + p.y; }
+                struct Point mkpoint(int x, int y) { struct Point p; p.x = x; p.y = y; return p; }
+                """;
+        assertEquals("sum=7\nmk=5,6", runGenerated(root, program, "libkofchb.so", c));
+    }
+
+    @Test
+    void generatedEnumBlockCompilesAndRunsOnJvm() throws Exception {
+        Path root = tmp.resolve("roundtrip-enum");
+        Files.createDirectories(root);
+        Files.writeString(root.resolve("colors.h"), """
+                enum Color { Red, Green, Blue };
+                typedef enum { A, B } Letter;
+                int paint(enum Color c);
+                enum Color pick(void);
+                Letter letterOf(int x);
+                """);
+        String rendered = runJvm(renderProbe(root.resolve("colors.h"), "libkofenum.so", "colors"));
+        String program = rendered + """
+                main() {
+                    println("paint=" + paint(1))
+                    println("pick=" + pick())
+                    println("letter=" + letterOf(0))
+                }
+                """;
+        String c = """
+                enum Color { Red, Green, Blue };
+                typedef enum { A, B } Letter;
+                int paint(enum Color c) { return c + 10; }
+                enum Color pick(void) { return Blue; }
+                Letter letterOf(int x) { return x == 0 ? A : B; }
+                """;
+        assertEquals("paint=11\npick=2\nletter=0", runGenerated(root, program, "libkofenum.so", c));
     }
 
     @Test
@@ -210,11 +259,14 @@ class CHeaderBindingsE2ETest implements LibraryInstallSupport {
             """.formatted(path(header));
     }
 
-    /** Compile and run a generated program; build the host .so the header needs. */
-    private String runGenerated(Path root, String program) throws Exception {
-        String lib = program.contains("libkofchb.so") ? buildShapesLib(root) : null;
-        if (lib != null) {
-            program = program.replace("libkofchb.so", lib);
+    /**
+     * Compile and run a generated program; when {@code libName} is given, build the
+     * host {@code .so} from {@code cSource} and point the generated block at it.
+     */
+    private String runGenerated(Path root, String program, String libName, String cSource)
+            throws Exception {
+        if (libName != null) {
+            program = program.replace(libName, buildHostLib(root, libName, cSource));
         }
         Path source = root.resolve("Main.kf");
         Files.writeString(source, program);
@@ -225,24 +277,20 @@ class CHeaderBindingsE2ETest implements LibraryInstallSupport {
         return invokeMain(out);
     }
 
-    /** Build the host .so for the struct round-trip (environmental skip when no cc). */
-    private String buildShapesLib(Path dir) throws Exception {
+    /** Build the host .so for a round-trip (environmental skip when no cc/Linux). */
+    private String buildHostLib(Path dir, String libName, String cSource) throws Exception {
         Assumptions.assumeTrue(System.getProperty("os.name", "").toLowerCase().contains("linux"),
-                "the struct host lib is a native .so (Linux)");
+                "the host lib is a native .so (Linux)");
         String cc = firstPresent("/usr/bin/cc", "/usr/bin/gcc", "cc", "gcc");
-        Assumptions.assumeTrue(cc != null, "no C toolchain (cc/gcc) for the struct host");
-        Path c = dir.resolve("libkofchb.c");
-        Files.writeString(c, """
-                struct Point { int x; int y; };
-                int sumpoint(struct Point p) { return p.x + p.y; }
-                struct Point mkpoint(int x, int y) { struct Point p; p.x = x; p.y = y; return p; }
-                """);
-        Path so = dir.resolve("libkofchb.so");
+        Assumptions.assumeTrue(cc != null, "no C toolchain (cc/gcc) for the host lib");
+        Path c = dir.resolve(libName.replace(".so", ".c"));
+        Files.writeString(c, cSource);
+        Path so = dir.resolve(libName);
         Process p = new ProcessBuilder(cc, "-shared", "-fPIC", "-O2",
                 "-o", so.toString(), c.toString()).redirectErrorStream(true).start();
         String output = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
         Assumptions.assumeTrue(p.waitFor(60, TimeUnit.SECONDS) && p.exitValue() == 0,
-                "cc/gcc failed to build the struct host: " + output);
+                "cc/gcc failed to build the host lib: " + output);
         return so.toString();
     }
 
