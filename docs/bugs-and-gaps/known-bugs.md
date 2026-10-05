@@ -17045,3 +17045,28 @@ MEASURED 03/10 (lane memory-safety/native-cross): the shape is stable RED at onl
 **Boundary:** the `realPath` face only. `isSymlink()` is unchanged (it is documented as "the path itself is a link"); `isLink()`/no-follow-open were considered and not added — `realPath` is the primitive the confinement use case needs. Windows reparse points are resolved by the JVM `toRealPath` path; the Native `realpath` face is POSIX. No JVM/JS behavior change beyond the new face; no diagnostic code.
 
 <!-- pt-switch --> **PT:** [§600 (pt_BR)](known-bugs.pt_BR.md#600--kofio-nao-tinha-como-canonicalizar-um-caminho-de-forma-portavel-symlinks--junctions-de-diretorio-do-windows-nunca-eram-resolvidos-entao-uma-checagem-de-confinamento-que-compara-o-caminho-do-filho-com-a-raiz-podia-ser-enganada-por-uma-junction-e-issymlink-e-false-para-ela---corrigido-0510-dona--19216815309093-lane-issuestooling-frente-bugs-and-gaps-issue-751-d-maint-batch-0510io1)
+
+## §601 — [JS] a numeric comparison as the LEFT operand of `&&`/`||` lowers to bitwise `&`/`|` (no short-circuit) because the comparison result type is left as the numeric common type — the right operand is evaluated unconditionally and out-of-bounds array reads escape their guard — 🟡 OPEN 05/10 (owner = 192.168.15.30:9095; lane compiler/JS; found by the PDF-reader lane, issue #629)
+
+**Symptom (measured 05/10, tip `ec1c7a6db`):** `var i = 3; var n = 3; if (i < n && f() > 0) { ... }` prints only `done` on the JVM/Script/Native, but on JS `f()` runs (prints `rhs`) and `var r = i < n && f() > 0` still evaluates the right side. In the pure-Kof PDF reader (`libs/pdf/PdfText.kf`) the shape `while (i < end && b[i] != 10 && b[i] != 13)` therefore reads `b[i]` past the end once `i == end`, and the JS run dies with `Error: Array index out of bounds: 484 (length 484)` instead of extracting the text. Any guard of the form `comparison && comparison`/`comparison || comparison` is affected; a Bool literal or a declared `Bool` variable on the left is NOT (it lowers to `&&`/`||` correctly).
+
+**Root (read in code, `ExpressionBinaryLowerer`):** the comparison branch (the `else if` that emits a `KofBinary` relational) ends with `accType = commonType` — the numeric common type (INT/LONG/DOUBLE) — even though the value produced is a `Bool`. The chain loop then reaches the fallback for `&&`/`||` with `accType == INT`, so `ExpressionBinaryFallbackOps.emit` builds `KofBinary(KofBinaryOp.AND, INT)`. `JsOperatorEmitter.binaryExpr` distinguishes logical from bitwise by `JsTypeMapper.isBoolOperand(kb.operandType())`; with an INT operand type it takes the bitwise branch and emits `(left) & (right)` — JavaScript evaluates both sides, so the short-circuit is lost. `SemBinaryResultTyper`/`ExpressionTyper` already type comparisons as `Bool`; only the lowering `accType` is stale.
+
+**Minimal repro:** compile and run on `--target js`:
+```kof
+Int f() { println("rhs"); return 1 }
+main() {
+    var i = 3
+    var n = 3
+    if (i < n && f() > 0) { println("both") }
+    var r = i < n && f() > 0
+    println(r)
+}
+```
+Generated JS contains `if (((i < n) & (f() > 0)))` (measured). Expected: `&&`, no `rhs`.
+
+**Pinned by:** `PdfTextE2ETest#readsOnJsBlockedByKnownBug601` (asserts the current failure and carries the instruction to replace it with the contract assertion once this is fixed). The existing `KofJsE2ETest#logicalAndOrShortCircuit` does not catch it because its left operand is the literal `false`; a comparison-on-the-left case must be added when this is fixed.
+
+**Boundary:** compiler frontend/JS backend only; no PDF-library or runtime change. JVM/Script/Native are correct (`accType` is not consulted by those emitters for this decision). Owner lane: compiler/JS.
+
+<!-- pt-switch --> **PT:** [§601 (pt_BR)](known-bugs.pt_BR.md#601--js-uma-comparação-numérica-como-operando-esquerdo-de--baixa-para-bitwise--sem-short-circuit-porque-o-tipo-de-resultado-da-comparação-fica-como-o-tipo-numérico-comum--o-operando-direito-é-avaliado-incondicionalmente-e-leituras-de-array-fora-dos-limites-escapam-da-guarda---aberto-0510-dona--19216815309095-lane-compilerjs-encontrado-pela-lane-do-leitor-pdf-issue-629)

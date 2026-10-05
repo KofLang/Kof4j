@@ -14591,3 +14591,28 @@ entrada do ledger apenas registra a divergência garantia-declarada × árvore.
 **Fronteira:** só a face `realPath`. `isSymlink()` fica inalterado (é documentado como "o próprio caminho é um link"); `isLink()`/abertura no-follow foram considerados e não adicionados — `realPath` é a primitiva que o caso de confinamento precisa. Reparse points do Windows são resolvidos pelo caminho `toRealPath` da JVM; a face `realpath` do Native é POSIX. Sem mudança de comportamento JVM/JS além da face nova; sem código de diagnóstico.
 
 <!-- en-switch --> **EN:** [§600 (EN)](known-bugs.md#600--kofio-had-no-portable-way-to-canonicalize-a-path-symlinks--windows-directory-junctions-were-never-resolved-so-a-confinement-check-comparing-a-child-path-to-a-root-could-be-fooled-by-a-junction-and-issymlink-is-false-for-one---fixed-0510-owner--19216815309093-lane-issuestooling-bugs-and-gaps-front-issue-751-d-maint-batch-0510io1)
+
+## §601 — [JS] uma comparação numérica como operando ESQUERDO de `&&`/`||` baixa para bitwise `&`/`|` (sem short-circuit) porque o tipo de resultado da comparação fica como o tipo numérico comum — o operando direito é avaliado incondicionalmente e leituras de array fora dos limites escapam da guarda — 🟡 ABERTO 05/10 (dona = 192.168.15.30:9095; lane compiler/JS; encontrado pela lane do leitor PDF, issue #629)
+
+**Sintoma (medido 05/10, tip `ec1c7a6db`):** `var i = 3; var n = 3; if (i < n && f() > 0) { ... }` imprime só `done` na JVM/Script/Native, mas no JS `f()` roda (imprime `rhs`) e `var r = i < n && f() > 0` ainda avalia o lado direito. No leitor PDF puro-Kof (`libs/pdf/PdfText.kf`) a forma `while (i < end && b[i] != 10 && b[i] != 13)` portanto lê `b[i]` além do fim quando `i == end`, e a execução JS morre com `Error: Array index out of bounds: 484 (length 484)` em vez de extrair o texto. Qualquer guarda da forma `comparação && comparação`/`comparação || comparação` é afetada; um literal Bool ou uma variável `Bool` declarada à esquerda NÃO é (baixa para `&&`/`||` corretamente).
+
+**Raiz (lida no código, `ExpressionBinaryLowerer`):** o ramo de comparação (o `else if` que emite um `KofBinary` relacional) termina com `accType = commonType` — o tipo numérico comum (INT/LONG/DOUBLE) — embora o valor produzido seja `Bool`. O loop de encadeamento então chega ao fallback de `&&`/`||` com `accType == INT`, então `ExpressionBinaryFallbackOps.emit` monta `KofBinary(KofBinaryOp.AND, INT)`. O `JsOperatorEmitter.binaryExpr` distingue lógico de bitwise por `JsTypeMapper.isBoolOperand(kb.operandType())`; com um tipo de operando INT ele toma o ramo bitwise e emite `(left) & (right)` — o JavaScript avalia os dois lados, então o short-circuit se perde. `SemBinaryResultTyper`/`ExpressionTyper` já tipam comparações como `Bool`; só o `accType` do lowering fica obsoleto.
+
+**Repro mínimo:** compile e rode em `--target js`:
+```kof
+Int f() { println("rhs"); return 1 }
+main() {
+    var i = 3
+    var n = 3
+    if (i < n && f() > 0) { println("both") }
+    var r = i < n && f() > 0
+    println(r)
+}
+```
+O JS gerado contém `if (((i < n) & (f() > 0)))` (medido). Esperado: `&&`, sem `rhs`.
+
+**Pinado por:** `PdfTextE2ETest#readsOnJsBlockedByKnownBug601` (afirma a falha atual e carrega a instrução de substituí-la pela asserção de contrato quando isto for corrigido). O `KofJsE2ETest#logicalAndOrShortCircuit` existente não pega porque seu operando esquerdo é o literal `false`; um caso com comparação à esquerda precisa ser adicionado quando isto for corrigido.
+
+**Fronteira:** só frontend/backend JS do compilador; sem mudança na biblioteca PDF ou no runtime. JVM/Script/Native estão corretos (os emissores deles não consultam `accType` para esta decisão). Lane dona: compiler/JS.
+
+<!-- en-switch --> **EN:** [§601 (EN)](known-bugs.md#601--js-a-numeric-comparison-as-the-left-operand-of--lowers-to-bitwise--no-short-circuit-because-the-comparison-result-type-is-left-as-the-numeric-common-type--the-right-operand-is-evaluated-unconditionally-and-out-of-bounds-array-reads-escape-their-guard---open-0510-owner--19216815309095-lane-compilerjs-found-by-the-pdf-reader-lane-issue-629)
