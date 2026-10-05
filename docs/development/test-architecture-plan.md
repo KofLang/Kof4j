@@ -838,6 +838,15 @@ Proof (executed): `mvn -o -pl kof-cli -Pintegration exec:exec@golden-tests`
 `mvn -o -pl kof-cli -am -Pintegration verify` → BUILD SUCCESS, both suites green
 at the `verify` phase.
 
+**Phase 7 slice 2 LANDED (05/10):** the CLI integration suite gained the two
+targets it was missing — `kof build --target js` + `node Default.mjs` (guarded
+on `node`, exactly like the golden runner, so a host without Node reports SKIP
+instead of a false red) and `kof run --target script` (direct IR interpretation).
+`tests/run-integration.sh` now exercises **12** checks (was 9) across all four
+targets plus the CLI surfaces (`check`/`serve`/`test`). Proof (executed):
+`tests/run-integration.sh` **12/12**, exit 0; the `integration-tests` execution
+of the `mvn verify -Pintegration` profile rides the same script.
+
 ## 📊 Goal
 
 After the refactoring:

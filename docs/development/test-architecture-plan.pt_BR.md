@@ -843,6 +843,15 @@ Prova (executada): `mvn -o -pl kof-cli -Pintegration exec:exec@golden-tests`
 `mvn -o -pl kof-cli -am -Pintegration verify` → BUILD SUCCESS, ambas as suítes
 verdes na fase `verify`.
 
+**Fatia 2 da Fase 7 ENTREGUE (05/10):** a suíte de integração do CLI ganhou os
+dois alvos que faltavam — `kof build --target js` + `node Default.mjs` (guardado
+em `node`, igual ao runner golden, então um host sem Node reporta SKIP em vez de
+vermelho falso) e `kof run --target script` (interpretação direta de IR). O
+`tests/run-integration.sh` agora exercita **12** checagens (eram 9) pelos quatro
+alvos mais as superfícies do CLI (`check`/`serve`/`test`). Prova (executada):
+`tests/run-integration.sh` **12/12**, exit 0; a execução `integration-tests` do
+perfil `mvn verify -Pintegration` roda o mesmo script.
+
 ## 📊 Meta
 
 Após a refatoração:
