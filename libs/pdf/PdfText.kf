@@ -1,0 +1,735 @@
+package pdf
+
+import image.Inflate
+import pdf.PdfBytes
+import pdf.PdfTextDecode
+import pdf.PdfContent
+
+// kof.pdf — pure-Kof PDF text reading (`pdfText`).
+//
+// Reads the text layer of a PDF without PDFBox, without OCR and without any new
+// language primitive: objects are walked sequentially, page content streams are
+// resolved through the `/Contents` references, FlateDecode streams are inflated
+// with the existing pure-Kof `image.Inflate`, and text is extracted from the
+// content operators (`PdfContent.kf`). Every target runs the same code.
+//
+//   var text = pdfText("cartao.pdf")   // null when the document has no text
+//
+// Contract (issue #629): text layer -> String; empty/whitespace -> null;
+// invalid, encrypted or unreadable -> an explicit `PDF:` exception (never null).
+// A document whose content streams are compressed with an unsupported filter is
+// an explicit `PDF:` exception, never a silent empty result.
+
+class PdfObj {
+    Int num
+    Int dictStart
+    Int dictEnd
+    Int streamStart
+    Int streamEnd
+    String filter
+
+    constructor(Int num, Int dictStart, Int dictEnd, Int streamStart, Int streamEnd, String filter) {
+        this.num = num
+        this.dictStart = dictStart
+        this.dictEnd = dictEnd
+        this.streamStart = streamStart
+        this.streamEnd = streamEnd
+        this.filter = filter
+    }
+}
+
+// An object carried inside an object stream (`/Type /ObjStm`), materialized so
+// the page walk can read it without a random-access xref.
+class PdfEmbedded {
+    Int num
+    Int[] data
+
+    constructor(Int num, Int[] data) {
+        this.num = num
+        this.data = data
+    }
+}
+
+// One `/Type /Page`: the object numbers referenced by `/Contents`, and its
+// `/Resources` either as an indirect object number (`resourcesRef`) or as a
+// direct dictionary range (`resourcesStart`/`resourcesEnd`).
+class PdfPage {
+    Int num
+    List<Int> contents
+    Int resourcesRef
+    Int resourcesStart
+    Int resourcesEnd
+
+    constructor(Int num, List<Int> contents, Int resourcesRef, Int resourcesStart, Int resourcesEnd) {
+        this.num = num
+        this.contents = contents
+        this.resourcesRef = resourcesRef
+        this.resourcesStart = resourcesStart
+        this.resourcesEnd = resourcesEnd
+    }
+}
+
+String? pdfText(String path) {
+    Int[]? raw = File(path).readBytes()
+    if (raw == null) {
+        throw "PDF: cannot read file"
+    }
+    if (raw.length < 5 || !pdfMatch(raw, 0, "%PDF-")) {
+        throw "PDF: not a PDF document"
+    }
+    if (pdfFind(raw, 0, "/Encrypt") >= 0) {
+        throw "PDF: encrypted documents are not supported"
+    }
+    var objects = pdfScanObjects(raw)
+    var embedded = pdfEmbeddedObjects(raw, objects)
+    var pages = pdfPages(raw, objects)
+    if (pages.size == 0) {
+        pdfPagesEmbedded(embedded, pages)
+    }
+    if (pages.size == 0) {
+        return null
+    }
+    var out = ""
+    var i = 0
+    while (i < pages.size) {
+        var page = pages.get(i)
+        var piece = pdfPageText(raw, objects, embedded, page)
+        if (piece.trim().length > 0) {
+            if (out.length > 0) {
+                out = out + "\n"
+            }
+            out = out + piece
+        }
+        i = i + 1
+    }
+    if (out.trim().length == 0) {
+        return null
+    }
+    return out
+}
+
+// Text of one page: its `/Contents` streams followed by any form XObjects its
+// `/Resources` draws (real PDFs put the visible text in forms — issue #629).
+String pdfPageText(Int[] b, List<PdfObj> objects, List<PdfEmbedded> embedded, PdfPage page) {
+    var out = ""
+    var i = 0
+    while (i < page.contents.size) {
+        out = out + pdfObjectStreamText(b, objects, embedded, page.contents.get(i))
+        i = i + 1
+    }
+    var forms = listOf<Int>()
+    if (page.resourcesRef >= 0) {
+        pdfResourceForms(b, objects, page.resourcesRef, forms)
+    } else if (page.resourcesStart >= 0) {
+        pdfCollectXObjectRefs(b, page.resourcesStart, page.resourcesEnd, forms)
+    }
+    return out + pdfFormsText(b, objects, embedded, forms)
+}
+
+// Form XObjects named by a resource dictionary, whether the dictionary is the
+// object itself or its `/Resources` entry.
+pdfResourceForms(Int[] b, List<PdfObj> objects, Int num, List<Int> forms) {
+    var obj = pdfFindObject(objects, num)
+    if (obj == null) {
+        return
+    }
+    if (pdfFindWithin(b, obj.dictStart, obj.dictEnd, "/Form") >= 0) {
+        forms.add(num)
+        return
+    }
+    pdfCollectXObjectRefs(b, obj.dictStart, obj.dictEnd, forms)
+}
+
+// Renders the text of every form XObject in `forms`, following the resource
+// chain of each form (nested forms included).
+String pdfFormsText(Int[] b, List<PdfObj> objects, List<PdfEmbedded> embedded, List<Int> forms) {
+    var out = ""
+    var seen = listOf<Int>()
+    var i = 0
+    while (i < forms.size) {
+        var num = forms.get(i)
+        i = i + 1
+        if (!pdfSeen(seen, num)) {
+            seen.add(num)
+            var obj = pdfFindObject(objects, num)
+            if (obj != null) {
+                if (pdfFindWithin(b, obj.dictStart, obj.dictEnd, "/Form") >= 0) {
+                    var data = pdfDecodeStream(b, obj)
+                    if (data != null) {
+                        out = out + pdfContentText(data, 0, data.length)
+                    }
+                    var nested = listOf<Int>()
+                    var rat = pdfFindWithin(b, obj.dictStart, obj.dictEnd, "/Resources")
+                    if (rat >= 0) {
+                        var j = pdfSkipWs(b, rat + 10, obj.dictEnd)
+                        var ref = pdfRefAt(b, j, obj.dictEnd)
+                        if (ref >= 0) {
+                            pdfResourceForms(b, objects, ref, nested)
+                        } else if (j + 1 < obj.dictEnd && b[j] == 60 && b[j + 1] == 60) {
+                            pdfCollectXObjectRefs(b, j, pdfDictEnd(b, j), nested)
+                        }
+                    } else {
+                        pdfCollectXObjectRefs(b, obj.dictStart, obj.dictEnd, nested)
+                    }
+                    forms.addAll(nested)
+                }
+            }
+        }
+    }
+    return out
+}
+
+Bool pdfSeen(List<Int> nums, Int num) {
+    var i = 0
+    while (i < nums.size) {
+        if (nums.get(i) == num) {
+            return true
+        }
+        i = i + 1
+    }
+    return false
+}
+
+// Decoded text of a content-like object, from the top-level objects or from an
+// object stream.
+String pdfObjectStreamText(Int[] b, List<PdfObj> objects, List<PdfEmbedded> embedded, Int num) {
+    var obj = pdfFindObject(objects, num)
+    if (obj != null) {
+        var data = pdfDecodeStream(b, obj)
+        if (data == null) {
+            return ""
+        }
+        return pdfContentText(data, 0, data.length)
+    }
+    var e = pdfFindEmbedded(embedded, num)
+    if (e != null) {
+        return pdfContentText(e.data, 0, e.data.length)
+    }
+    return ""
+}
+
+// A page's `/Contents` value, from its `/Page` dictionary. Handles a direct
+// reference, an array of references, and an indirect `/Contents N 0 R`.
+PdfPage pdfPage(Int[] b, List<PdfObj> objects, PdfObj o) {
+    var contents = listOf<Int>()
+    var at = pdfFindWithin(b, o.dictStart, o.dictEnd, "/Contents")
+    if (at >= 0) {
+        var i = pdfSkipWs(b, at + 9, o.dictEnd)
+        if (i < o.dictEnd && b[i] == 91) {
+            pdfCollectRefsAt(b, i + 1, o.dictEnd, contents)
+        } else {
+            pdfCollectRefsAt(b, i, o.dictEnd, contents)
+        }
+    }
+    var rs = -1
+    var rstart = -1
+    var rend = -1
+    var node = o
+    var depth = 0
+    while (depth < 16) {
+        var rat = pdfFindWithin(b, node.dictStart, node.dictEnd, "/Resources")
+        if (rat >= 0) {
+            var j = pdfSkipWs(b, rat + 10, node.dictEnd)
+            var ref = pdfRefAt(b, j, node.dictEnd)
+            if (ref >= 0) {
+                rs = ref
+            } else if (j + 1 < node.dictEnd && b[j] == 60 && b[j + 1] == 60) {
+                rstart = j
+                rend = pdfDictEnd(b, j)
+            }
+            depth = 16
+        } else {
+            var parent = pdfParentRef(b, node)
+            if (parent < 0) {
+                depth = 16
+            } else {
+                var pobj = pdfFindObject(objects, parent)
+                if (pobj == null) {
+                    depth = 16
+                } else {
+                    node = pobj
+                    depth = depth + 1
+                }
+            }
+        }
+    }
+    return PdfPage(o.num, contents, rs, rstart, rend)
+}
+
+// The `/Parent N 0 R` reference of a page-tree node, or -1.
+Int pdfParentRef(Int[] b, PdfObj o) {
+    var at = pdfFindWithin(b, o.dictStart, o.dictEnd, "/Parent")
+    if (at < 0) {
+        return -1
+    }
+    var j = pdfSkipWs(b, at + 7, o.dictEnd)
+    return pdfRefAt(b, j, o.dictEnd)
+}
+
+// Object number of an `N G R` reference beginning at `at`, else -1.
+Int pdfRefAt(Int[] b, Int at, Int end) {
+    var i = pdfSkipWs(b, at, end)
+    if (i >= end || !pdfIsDigit(b[i] & 255)) {
+        return -1
+    }
+    var num = pdfAtoi(b, i, end)
+    while (i < end && pdfIsDigit(b[i] & 255)) {
+        i = i + 1
+    }
+    i = pdfSkipWs(b, i, end)
+    if (i >= end || !pdfIsDigit(b[i] & 255)) {
+        return -1
+    }
+    while (i < end && pdfIsDigit(b[i] & 255)) {
+        i = i + 1
+    }
+    i = pdfSkipWs(b, i, end)
+    if (i < end && (b[i] & 255) == 82) {
+        return num
+    }
+    return -1
+}
+
+// Collects every `N G R` reference in `[from,end)`, stopping at the first
+// non-reference (an array's `]` or a dictionary key).
+pdfCollectRefsAt(Int[] b, Int from, Int end, List<Int> nums) {
+    var i = from
+    while (i < end) {
+        i = pdfSkipWs(b, i, end)
+        if (i >= end || b[i] == 93) {
+            return
+        }
+        var ref = pdfRefAt(b, i, end)
+        if (ref < 0) {
+            return
+        }
+        nums.add(ref)
+        i = pdfAfterInt(b, i, end)
+        i = pdfSkipWs(b, i, end)
+        i = pdfAfterInt(b, i, end)
+        i = pdfSkipWs(b, i, end)
+        i = i + 1
+    }
+}
+
+// Object numbers referenced from a dictionary's `/XObject` entry. The entry is
+// normally a name-to-reference sub-dictionary (`<< /TPL1 7 0 R >>`); an indirect
+// dictionary is returned by the caller through `pdfResourceForms` instead.
+pdfCollectXObjectRefs(Int[] b, Int from, Int end, List<Int> nums) {
+    var at = pdfFindWithin(b, from, end, "/XObject")
+    if (at < 0) {
+        return
+    }
+    var i = pdfSkipWs(b, at + 8, end)
+    if (i + 1 < end && b[i] == 60 && b[i + 1] == 60) {
+        var close = pdfDictEnd(b, i)
+        if (close > 0) {
+            pdfCollectRefsInDict(b, i + 2, close - 2, nums)
+        }
+    }
+}
+
+// Collects every `N G R` reference in a dictionary body, skipping `/Name` keys.
+pdfCollectRefsInDict(Int[] b, Int from, Int end, List<Int> nums) {
+    var i = from
+    while (i < end) {
+        i = pdfSkipWs(b, i, end)
+        if (i >= end) {
+            return
+        }
+        if ((b[i] & 255) == 47) {
+            i = i + 1
+            while (i < end && !pdfIsDelim(b[i] & 255)) {
+                i = i + 1
+            }
+            continue
+        }
+        var ref = pdfRefAt(b, i, end)
+        if (ref >= 0) {
+            nums.add(ref)
+            i = pdfAfterInt(b, i, end)
+            i = pdfSkipWs(b, i, end)
+            i = pdfAfterInt(b, i, end)
+            i = pdfSkipWs(b, i, end)
+            i = i + 1
+        } else {
+            i = i + 1
+        }
+    }
+}
+
+// Page objects discovered inside object streams (PDF 1.5+).
+pdfPagesEmbedded(List<PdfEmbedded> embedded, List<PdfPage> pages) {
+    var i = 0
+    while (i < embedded.size) {
+        var e = embedded.get(i)
+        if (pdfFind(e.data, 0, "/Contents") >= 0 && pdfFind(e.data, 0, "/Page") >= 0) {
+            var contents = listOf<Int>()
+            var at = pdfFind(e.data, 0, "/Contents")
+            if (at >= 0) {
+                var j = pdfSkipWs(e.data, at + 9, e.data.length)
+                if (j < e.data.length && e.data[j] == 91) {
+                    pdfCollectRefsAt(e.data, j + 1, e.data.length, contents)
+                } else {
+                    pdfCollectRefsAt(e.data, j, e.data.length, contents)
+                }
+            }
+            pages.add(PdfPage(e.num, contents, -1, -1, -1))
+        }
+        i = i + 1
+    }
+}
+
+// Every `/Type /Page` object (top-level). Page trees with `/Type /Pages`
+// children are resolved because the leaf `/Page` dicts carry `/Contents`.
+List<PdfPage> pdfPages(Int[] b, List<PdfObj> objects) {
+    var pages = listOf<PdfPage>()
+    var i = 0
+    while (i < objects.size) {
+        var o = objects.get(i)
+        if (pdfFindWithin(b, o.dictStart, o.dictEnd, "/Contents") >= 0
+                && pdfFindWithin(b, o.dictStart, o.dictEnd, "/Page") >= 0) {
+            pages.add(pdfPage(b, objects, o))
+        }
+        i = i + 1
+    }
+    return pages
+}
+
+// Materializes every object held in an `/ObjStm` stream. The stream begins with
+// `N` pairs of `objectNumber offset`; the object bodies start at `/First`.
+List<PdfEmbedded> pdfEmbeddedObjects(Int[] b, List<PdfObj> objects) {
+    var result = listOf<PdfEmbedded>()
+    var i = 0
+    while (i < objects.size) {
+        var o = objects.get(i)
+        if (o.streamStart >= 0 && pdfFindWithin(b, o.dictStart, o.dictEnd, "/ObjStm") >= 0) {
+            var data = pdfDecodeStream(b, o)
+            var count = pdfDictInt(b, o.dictStart, o.dictEnd, "/N")
+            var first = pdfDictInt(b, o.dictStart, o.dictEnd, "/First")
+            if (data != null && count > 0 && first > 0) {
+                var nums = new Int[count]
+                var offs = new Int[count]
+                var cursor = 0
+                var k = 0
+                while (k < count) {
+                    nums[k] = pdfAtoi(data, cursor, data.length)
+                    cursor = pdfAfterInt(data, cursor, data.length)
+                    offs[k] = pdfAtoi(data, cursor, data.length)
+                    cursor = pdfAfterInt(data, cursor, data.length)
+                    k = k + 1
+                }
+                var m = 0
+                while (m < count) {
+                    var start = first + offs[m]
+                    var end = data.length
+                    if (m + 1 < count) {
+                        end = first + offs[m + 1]
+                    }
+                    if (start < 0 || end > data.length || end < start) {
+                        end = data.length
+                        start = first + offs[m]
+                    }
+                    result.add(PdfEmbedded(nums[m], pdfSlice(data, start, end)))
+                    m = m + 1
+                }
+            }
+        }
+        i = i + 1
+    }
+    return result
+}
+
+// Index just past the integer literal beginning at `at` (or `at` when none).
+Int pdfAfterInt(Int[] b, Int at, Int end) {
+    var i = pdfSkipWs(b, at, end)
+    if (i < end && (b[i] == 45 || b[i] == 43)) {
+        i = i + 1
+    }
+    while (i < end && pdfIsDigit(b[i] & 255)) {
+        i = i + 1
+    }
+    return i
+}
+
+Int[] pdfSlice(Int[] b, Int from, Int to) {
+    var len = to - from
+    if (len < 0) {
+        len = 0
+    }
+    var out = new Int[len]
+    var i = 0
+    while (i < len) {
+        out[i] = b[from + i] & 255
+        i = i + 1
+    }
+    return out
+}
+
+// Integer value of `/key` in a dictionary, or -1 when absent/indirect.
+Int pdfDictInt(Int[] b, Int from, Int end, String key) {
+    var at = pdfFind(b, from, key)
+    if (at < 0 || at >= end) {
+        return -1
+    }
+    var i = pdfSkipWs(b, at + key.length, end)
+    if (i >= end || !pdfIsDigit(b[i] & 255)) {
+        return -1
+    }
+    var value = pdfAtoi(b, i, end)
+    while (i < end && pdfIsDigit(b[i] & 255)) {
+        i = i + 1
+    }
+    i = pdfSkipWs(b, i, end)
+    if (i < end && pdfIsDigit(b[i] & 255)) {
+        return -1
+    }
+    return value
+}
+
+// Sequential object walk. Streams are skipped by their declared `/Length` (or
+// the nearest `endstream`), so binary payloads are never misread as objects.
+List<PdfObj> pdfScanObjects(Int[] b) {
+    var objects = listOf<PdfObj>()
+    var i = 0
+    while (i < b.length) {
+        var num = pdfAtoi(b, i, b.length)
+        if (num < 0) {
+            i = i + 1
+            continue
+        }
+        var afterNum = i
+        while (afterNum < b.length && pdfIsDigit(b[afterNum] & 255)) {
+            afterNum = afterNum + 1
+        }
+        afterNum = pdfSkipWs(b, afterNum, b.length)
+        while (afterNum < b.length && pdfIsDigit(b[afterNum] & 255)) {
+            afterNum = afterNum + 1
+        }
+        var at = pdfSkipWs(b, afterNum, b.length)
+        if (!pdfMatch(b, at, "obj")) {
+            i = i + 1
+            continue
+        }
+        var dictStart = pdfSkipWs(b, at + 3, b.length)
+        var dictEnd = dictStart
+        if (pdfMatch(b, dictStart, "<<")) {
+            dictEnd = pdfDictEnd(b, dictStart)
+            if (dictEnd < 0) {
+                throw "PDF: unbalanced object dictionary"
+            }
+        }
+        var filter = pdfDictFilter(b, dictStart, dictEnd)
+        var streamStart = -1
+        var streamEnd = -1
+        var afterDict = pdfSkipWs(b, dictEnd, b.length)
+        if (pdfMatch(b, afterDict, "stream")) {
+            var s = afterDict + 6
+            if (s < b.length && b[s] == 13) {
+                s = s + 1
+            }
+            if (s < b.length && b[s] == 10) {
+                s = s + 1
+            }
+            streamStart = s
+            var declared = pdfDictLength(b, dictStart, dictEnd)
+            if (declared >= 0 && s + declared <= b.length) {
+                streamEnd = s + declared
+            } else {
+                streamEnd = pdfFind(b, s, "endstream")
+                if (streamEnd < 0) {
+                    streamEnd = b.length
+                }
+            }
+            var afterStream = pdfFind(b, streamEnd, "endstream")
+            if (afterStream >= 0) {
+                i = afterStream + 9
+            } else {
+                i = streamEnd
+            }
+        } else {
+            i = dictEnd
+        }
+        objects.add(PdfObj(num, dictStart, dictEnd, streamStart, streamEnd, filter))
+    }
+    return objects
+}
+
+// Matching '>>' for a dictionary opened at `open`, tracking nesting and strings.
+Int pdfDictEnd(Int[] b, Int open) {
+    var depth = 0
+    var i = open
+    while (i < b.length - 1) {
+        if (b[i] == 60 && b[i + 1] == 60) {
+            depth = depth + 1
+            i = i + 2
+        } else if (b[i] == 62 && b[i + 1] == 62) {
+            depth = depth - 1
+            i = i + 2
+            if (depth == 0) {
+                return i
+            }
+        } else if (b[i] == 40) {
+            var close = pdfLiteralEnd(b, i, b.length)
+            if (close < 0) {
+                return -1
+            }
+            i = close + 1
+        } else if (b[i] == 60) {
+            var closeHex = pdfFindByte(b, i + 1, 62)
+            if (closeHex < 0) {
+                return -1
+            }
+            i = closeHex + 1
+        } else {
+            i = i + 1
+        }
+    }
+    return -1
+}
+
+// `/Filter` of a dictionary as a String: "" (none), "FlateDecode", or another
+// named filter. An array filter returns the first element.
+String pdfDictFilter(Int[] b, Int from, Int end) {
+    var at = pdfFind(b, from, "/Filter")
+    if (at < 0 || at >= end) {
+        return ""
+    }
+    var i = pdfSkipWs(b, at + 7, end)
+    if (i < end && b[i] == 91) {
+        i = pdfSkipWs(b, i + 1, end)
+    }
+    if (i < end && b[i] == 47) {
+        var start = i + 1
+        var j = start
+        while (j < end && !pdfIsDelim(b[j] & 255)) {
+            j = j + 1
+        }
+        return pdfAscii(b, start, j - start)
+    }
+    return ""
+}
+
+// `/Length` of a dictionary as an Int, or -1 when missing, indirect or
+// non-numeric. An indirect length (`/Length 6 0 R`) returns -1 so the scanner
+// falls back to locating `endstream`.
+Int pdfDictLength(Int[] b, Int from, Int end) {
+    var at = pdfFind(b, from, "/Length")
+    if (at < 0 || at >= end) {
+        return -1
+    }
+    var i = pdfSkipWs(b, at + 7, end)
+    if (i >= end || !pdfIsDigit(b[i] & 255)) {
+        return -1
+    }
+    var value = pdfAtoi(b, i, end)
+    while (i < end && pdfIsDigit(b[i] & 255)) {
+        i = i + 1
+    }
+    i = pdfSkipWs(b, i, end)
+    if (i < end && pdfIsDigit(b[i] & 255)) {
+        return -1
+    }
+    return value
+}
+
+// Top-level object with number `num`, or null.
+PdfObj? pdfFindObject(List<PdfObj> objects, Int num) {
+    var i = 0
+    while (i < objects.size) {
+        if (objects.get(i).num == num) {
+            return objects.get(i)
+        }
+        i = i + 1
+    }
+    return null
+}
+
+// Object carried inside an `/ObjStm` with number `num`, or null.
+PdfEmbedded? pdfFindEmbedded(List<PdfEmbedded> embedded, Int num) {
+    var i = 0
+    while (i < embedded.size) {
+        if (embedded.get(i).num == num) {
+            return embedded.get(i)
+        }
+        i = i + 1
+    }
+    return null
+}
+
+// Decodes an object's stream bytes: raw when unfiltered, inflated when
+// FlateDecode, otherwise an explicit `PDF:` exception.
+Int[]? pdfDecodeStream(Int[] b, PdfObj o) {
+    if (o.streamStart < 0 || o.streamEnd < o.streamStart) {
+        return null
+    }
+    var len = o.streamEnd - o.streamStart
+    if (len <= 0) {
+        return null
+    }
+    var data = new Int[len]
+    var i = 0
+    while (i < len) {
+        data[i] = b[o.streamStart + i] & 255
+        i = i + 1
+    }
+    if (o.filter == "" || o.filter == "FlateDecode") {
+        if (o.filter == "") {
+            return data
+        }
+        return pdfInflate(data)
+    }
+    throw "PDF: unsupported stream filter /" + o.filter
+}
+
+// zlib wrapper (RFC 1950) -> DEFLATE payload for `image.Inflate`.
+Int[] pdfInflate(Int[] data) {
+    if (data.length < 2) {
+        throw "PDF: truncated FlateDecode stream"
+    }
+    var cmf = data[0] & 255
+    var flg = data[1] & 255
+    if ((cmf & 15) != 8 || ((cmf << 8) + flg) % 31 != 0) {
+        throw "PDF: bad zlib header"
+    }
+    var start = 2
+    if ((flg & 32) != 0) {
+        start = 6
+    }
+    var len = data.length - start - 4
+    if (len < 0) {
+        throw "PDF: truncated FlateDecode stream"
+    }
+    var payload = new Int[len]
+    var i = 0
+    while (i < len) {
+        payload[i] = data[start + i] & 255
+        i = i + 1
+    }
+    var inflate = Inflate(payload, pdfInflateCapacity(payload))
+    var got = inflate.run()
+    if (got < inflate.out.length) {
+        var exact = new Int[got]
+        var k = 0
+        while (k < got) {
+            exact[k] = inflate.out[k] & 255
+            k = k + 1
+        }
+        return exact
+    }
+    return inflate.out
+}
+
+// Output capacity for `Inflate`: the stored-block size when the stream is a
+// single stored block (cheap exact case), otherwise a generous bound. Inflate
+// never writes past `outLen` and `run()` reports the true byte count, so a
+// larger-than-needed buffer is trimmed by the caller.
+Int pdfInflateCapacity(Int[] payload) {
+    if (payload.length >= 5 && (payload[0] & 255) == 1) {
+        var stored = (payload[1] & 255) | ((payload[2] & 255) << 8)
+        if (stored > 0) {
+            return stored
+        }
+    }
+    return payload.length * 64 + 1024
+}

@@ -1,0 +1,106 @@
+package pdf
+
+import pdf.PdfBytes
+import pdf.PdfTextDecode
+
+// kof.pdf — text extraction from a decoded PDF content stream.
+//
+// Operands precede operators in PDF, so strings are buffered as operands and
+// emitted when a text-showing operator arrives: `Tj` shows the last operand,
+// `TJ` shows the whole array (kerning numbers are operands and are ignored),
+// `'` and `"` move to the next line and show. `Td`/`TD`/`T*`/`ET` are treated as
+// line/element breaks so adjacent text runs stay separated. Pure Kof.
+
+// Extracts the visible text of one content stream (raw, already decoded).
+String pdfContentText(Int[] b, Int from, Int end) {
+    var out = ""
+    var operands = listOf<String>()
+    var pendingSpace = false
+    var arrayDepth = 0
+    var i = pdfSkipWs(b, from, end)
+    while (i < end) {
+        var c = b[i] & 255
+        if (c == 37) {
+            while (i < end && b[i] != 10 && b[i] != 13) {
+                i = i + 1
+            }
+        } else if (c == 40) {
+            var close = pdfLiteralEnd(b, i, end)
+            if (close < 0) {
+                throw "PDF: unbalanced literal string"
+            }
+            operands.add(pdfDecodeBytes(pdfLiteralBytes(b, i + 1, close)))
+            i = close + 1
+        } else if (c == 60 && i + 1 < end && (b[i + 1] & 255) == 60) {
+            i = i + 2
+        } else if (c == 60) {
+            var closeHex = pdfFindByte(b, i + 1, 62)
+            if (closeHex < 0) {
+                throw "PDF: unbalanced hex string"
+            }
+            operands.add(pdfDecodeBytes(pdfHexBytes(b, i + 1, closeHex)))
+            i = closeHex + 1
+        } else if (c == 91) {
+            arrayDepth = arrayDepth + 1
+            i = i + 1
+        } else if (c == 93) {
+            if (arrayDepth > 0) {
+                arrayDepth = arrayDepth - 1
+            }
+            i = i + 1
+        } else if (c == 62 || c == 41 || c == 123 || c == 125) {
+            i = i + 1
+        } else if (c == 47) {
+            i = i + 1
+            while (i < end && !pdfIsDelim(b[i] & 255)) {
+                i = i + 1
+            }
+        } else if (pdfIsDigit(c) || c == 43 || c == 45 || c == 46) {
+            // Inside a TJ array a large negative adjustment is a word gap.
+            if (arrayDepth > 0 && pdfAtoiSigned(b, i, end) <= -100) {
+                operands.add(" ")
+            }
+            i = i + 1
+            while (i < end && !pdfIsDelim(b[i] & 255)) {
+                i = i + 1
+            }
+        } else if (pdfIsWs(c)) {
+            i = i + 1
+        } else {
+            var start = i
+            while (i < end && !pdfIsDelim(b[i] & 255)) {
+                i = i + 1
+            }
+            if (i == start) {
+                i = i + 1
+            } else {
+                var kw = pdfAscii(b, start, i - start)
+                if (kw == "Tj" || kw == "'" || kw == "\"") {
+                    if (operands.size > 0) {
+                        if (pendingSpace && out.length > 0) {
+                            out = out + " "
+                        }
+                        out = out + operands.get(operands.size - 1)
+                        pendingSpace = false
+                    }
+                } else if (kw == "TJ") {
+                    if (operands.size > 0) {
+                        if (pendingSpace && out.length > 0) {
+                            out = out + " "
+                        }
+                        var k = 0
+                        while (k < operands.size) {
+                            out = out + operands.get(k)
+                            k = k + 1
+                        }
+                        pendingSpace = false
+                    }
+                } else if (kw == "Td" || kw == "TD" || kw == "T*" || kw == "ET") {
+                    pendingSpace = true
+                }
+            }
+            operands = listOf<String>()
+        }
+    }
+    return out
+}
