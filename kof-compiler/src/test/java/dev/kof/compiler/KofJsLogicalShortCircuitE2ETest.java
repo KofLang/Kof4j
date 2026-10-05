@@ -44,7 +44,7 @@ class KofJsLogicalShortCircuitE2ETest extends KofJsSupport {
     }
 
     @Test
-    void logicalShortCircuitWithComparisonLeftOperand(@TempDir Path tempDir) throws IOException {
+    void logicalComparisonLeftOperandGuardBoundary(@TempDir Path tempDir) throws IOException {
         // §601: um relacional como operando ESQUERDO de && / || (`i < n && f() > 0`)
         // deixava o `accType` do lowering numérico, então o backend JS via um
         // operando não-Bool e emitia `&`/`|` bitwise — o RHS era avaliado sempre
