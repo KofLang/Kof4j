@@ -1,0 +1,24 @@
+class Animal {
+    String name
+    public constructor(String name) {
+        this.name = name
+    }
+    speak(): String = "animal"
+}
+
+class Dog extends Animal {
+    public constructor(String name) {
+        super(name)
+    }
+    speak(): String = "dog"
+}
+
+main() {
+    var a = Animal("generico")
+    var d = Dog("rex")
+    println(a.speak())
+    println(d.speak())
+    println(d.name)
+    d.name = "rex2"
+    println(d.name)
+}

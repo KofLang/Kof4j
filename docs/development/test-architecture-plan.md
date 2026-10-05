@@ -796,6 +796,17 @@ confirming the runner catches a wrong golden. No compiler change — test
 infrastructure only. Proof (executed): `tests/run-golden.sh` **64/64**
 (16 cases × 4 targets), exit 0.
 
+**Phase 6 slice 3 LANDED (05/10):** four more cases — **20 total** — covering the
+object model and generics: `classes` (explicit constructor + mutable fields +
+`extends` + implicit override + `super(name)`, field write through `this`),
+`interfaces` (`implements` + a `List<Speaker>` dispatched virtually),
+`generics-box` (`class Box<T>(T value)` erasure + `substituteTypeVariable` on
+JVM and Native), and `enum` (`enum Color { … }` + `name()` + `values().size`).
+These are the surfaces where JVM/Native/JS erasure most often diverges, so
+pinning them on all four targets is the highest-value coverage increment left in
+Phase 6. Proof (executed): `tests/run-golden.sh` **80/80** (20 cases × 4
+targets), exit 0.
+
 ### Phase 7 — Integration
 
 Deploy:

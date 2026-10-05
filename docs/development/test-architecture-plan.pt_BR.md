@@ -800,6 +800,17 @@ confirmando que o runner pega um golden errado. Sem mudança de compilador —
 infraestrutura de teste apenas. Prova (executada): `tests/run-golden.sh`
 **64/64** (16 casos × 4 alvos), exit 0.
 
+**Fatia 3 da Fase 6 ENTREGUE (05/10):** mais quatro casos — **20 no total** —
+cobrindo o modelo de objetos e generics: `classes` (constructor explícito +
+campos mutáveis + `extends` + override implícito + `super(name)`, escrita de
+campo via `this`), `interfaces` (`implements` + um `List<Speaker>` despachado
+virtualmente), `generics-box` (`class Box<T>(T value)` com erasure +
+`substituteTypeVariable` na JVM e Native) e `enum` (`enum Color { … }` +
+`name()` + `values().size`). São as superfícies onde a erasure
+JVM/Native/JS mais diverge, então piná-las nos quatro alvos é o incremento de
+cobertura de maior valor que resta na Fase 6. Prova (executada):
+`tests/run-golden.sh` **80/80** (20 casos × 4 alvos), exit 0.
+
 ### Fase 7 — Integração
 
 Implantar:
