@@ -1,0 +1,11 @@
+main() {
+    var xs = listOf(3, 1, 2, 1)
+    println(xs.sorted())
+    println(xs.distinct())
+    println(xs.any((x) -> x > 2))
+    println(xs.all((x) -> x > 0))
+    println(xs.count((x) -> x > 1))
+    println(xs.find((x) -> x > 2))
+    println(xs.map((x) -> x * 10))
+    println(xs.filter((x) -> x % 2 == 1))
+}

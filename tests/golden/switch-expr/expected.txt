@@ -1,0 +1,4 @@
+zero
+um
+muitos
+dois

@@ -770,7 +770,7 @@ chaves `dupname` **eliminadas** — baseline re-congelada 121→**119**. A chave
 
 Criar suíte oficial de equivalência.
 
-**Fatia da Fase 6 ENTREGUE (05/10):** a suíte oficial de equivalência
+**Fatia 1 da Fase 6 ENTREGUE (05/10):** a suíte oficial de equivalência
 (`tests/golden/`) cobria apenas JVM + native; o Golden Suite do plano define a
 meta como "mesmo código → mesma saída em todo alvo" com o **exit code**
 verificado, e a lista de alvos é JVM/Native/JS/Script. O `tests/run-golden.sh`
@@ -784,6 +784,21 @@ native, `node` para js) é **PULADO com o motivo**, nunca aprovado em silêncio.
 Nenhum compilador, classe de teste ou asserção mudou — infraestrutura de teste
 apenas. Prova (executada): `tests/run-golden.sh` **48/48** (12 casos × 4 alvos:
 jvm, native, js, script), exit 0.
+
+**Fatia 2 da Fase 6 ENTREGUE (05/10):** a *cobertura* da suíte de equivalência
+cresceu de 12 para **16 casos** — quatro casos novos de superfície da linguagem
+escolhidos para exercitar contratos que o conjunto antigo não cobria:
+`null-safety` (estreitamento de nullable + `if (x != null)`), `map-set`
+(`mapOf`/`put`/`getOrDefault`/`containsKey` + `setOf`/`add`/`contains`/`size`),
+`pipelines` (`sorted`/`distinct`/`any`/`all`/`count`/`find`/`map`/`filter`) e
+`switch-expr` (switch como expressão `case -> ...` + switch statement, `break`
+opcional). Cada caso é validado nos quatro alvos pelo mesmo runner, então o
+contrato "mesmo código → mesma saída em todo alvo" agora está pinado também
+para essas quatro superfícies. Um valor esperado foi corrigido durante a
+autoria RED-first (`sorted()` de `[3,1,2,1]` é `[1,1,2,3]`, não `[1,2,3,3]`),
+confirmando que o runner pega um golden errado. Sem mudança de compilador —
+infraestrutura de teste apenas. Prova (executada): `tests/run-golden.sh`
+**64/64** (16 casos × 4 alvos), exit 0.
 
 ### Fase 7 — Integração
 

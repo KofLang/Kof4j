@@ -767,7 +767,7 @@ renaming it `startContractServer`.
 
 Build the official equivalence suite.
 
-**Phase 6 slice LANDED (05/10):** the official equivalence suite (`tests/golden/`)
+**Phase 6 slice 1 LANDED (05/10):** the official equivalence suite (`tests/golden/`)
 covered only JVM + native; the plan's Golden Suite defines the goal as
 "same code → same output on every target" with the **exit code** checked, and
 the target list is JVM/Native/JS/Script. `tests/run-golden.sh` now runs every
@@ -781,6 +781,20 @@ target whose runtime is absent (`as`/`ld` for native, `node` for js) is
 assertion changed — test infrastructure only. Proof (executed):
 `tests/run-golden.sh` **48/48** (12 cases × 4 targets: jvm, native, js, script),
 exit 0.
+
+**Phase 6 slice 2 LANDED (05/10):** the equivalence suite's *coverage* grew from
+12 to **16 cases** — four new language-surface cases chosen to exercise
+contracts the old set did not: `null-safety` (nullable narrowing + `if (x !=
+null)`), `map-set` (`mapOf`/`put`/`getOrDefault`/`containsKey` + `setOf`/`add`/
+`contains`/`size`), `pipelines` (`sorted`/`distinct`/`any`/`all`/`count`/`find`/
+`map`/`filter`), and `switch-expr` (switch as an expression `case -> ...` +
+switch statement, `break` optional). Every case is validated on all four targets
+by the same runner, so the "same code → same output on every target" contract is
+now pinned for these four surfaces too. One expected value was corrected during
+RED-first authoring (`sorted()` on `[3,1,2,1]` is `[1,1,2,3]`, not `[1,2,3,3]`),
+confirming the runner catches a wrong golden. No compiler change — test
+infrastructure only. Proof (executed): `tests/run-golden.sh` **64/64**
+(16 cases × 4 targets), exit 0.
 
 ### Phase 7 — Integration
 

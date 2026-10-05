@@ -1,0 +1,22 @@
+String? greet(String name) {
+    if (name == null) {
+        return null
+    }
+    return "ola " + name
+}
+
+main() {
+    var a = greet("kof")
+    if (a != null) {
+        println(a)
+    }
+    var b = greet(null)
+    if (b == null) {
+        println("sem nome")
+    }
+    var len = 0
+    if (a != null) {
+        len = a.length
+    }
+    println(len)
+}
