@@ -17154,3 +17154,15 @@ Generated JS contains `if (((i < n) & (f() > 0)))` (measured). Expected: `&&`, n
 **Boundary:** the record/primary-constructor semantic arity registration only; the synthetic reduced-arity `<init>` wrappers were already emitted by the shared lowering. riscv64/aarch64 were run under qemu for this face (both matched the JVM oracle).
 
 <!-- pt-switch --> **PT:** [§607 (pt_BR)](known-bugs.pt_BR.md#607--o-gate-de-aridade-default-aware-do-766-foi-aplicado-so-a-face-constructor-explicito-uma-classe-de-construtor-primario-class-pint-x-string-y--z-e-um-record-com-componente-default-record-rint-a-int-b--7-ainda-morriam-com-sem023-mesmo-com-a-lowering-compartilhada-ja-emitindo-os-wrappers-init-de-aridade-reduzida---corrigido-0510-dona--19216815309093-lane-issuestooling-frente-bugs-and-gaps-residual-da-issue-766)
+
+## §608 — issue #771: `http.get` against a closed port on the JVM is caught by `catch (String e)` — the same root as §598 (the #756 wrap); the reporter measured a stale 0.5.0-beta jar, verified fixed at HEAD `14989c17d` — ✅ FIXED 05/10 (owner = 192.168.15.30:9093; lane issues/tooling, bugs-and-gaps front, issue #771)
+
+**Symptom (reported 05/10, issue #771):** `try { got = http.get("http://127.0.0.1:<closed>/health") } catch (String e) { got = "caught" }` was reported to die with an uncaught `java.net.ConnectException`, while `net.connect` to the same closed port produced a catchable String — the two modules diverging on the same condition.
+
+**Root (read in code):** the SAME root as §598 / #756 (`94e4c9403`): the JVM `kof.http` throw sites surfaced the raw `java.io.IOException`/`ConnectException`, which the generated `catch (String e)` handler (a `java/lang/RuntimeException` handler reading `getMessage()`) cannot see. The reporter measured the shipped `kof-cli 0.5.0-beta` jar, which predates the fix; the `lab` tree already carries it.
+
+**Verification (executed 05/10, HEAD `14989c17d`):** the reporter's exact program — `var got = "no-throw"; try { got = http.get("http://127.0.0.1:<closed>/health") } catch (String e) { got = "caught" }` — prints `HTTPRESULT=caught`, exit 0, no JVM stack trace (measured). Pinned permanently as `KofHttpErrorContractE2ETest#closedPortGetIsCaughtWithTheReporterShape`; the class is now **2/2** green (the existing §598 shape + this reporter shape). No code change was required — the §598 fix already covers this face.
+
+**Boundary:** the JVM `kof.http` throw sites only; `net.connect` was already conforming. No new diagnostic code, no API surface. Release-ledger row #771 dropped (it was a duplicate classification of the already-fixed #756 face).
+
+<!-- pt-switch --> **PT:** [§608 (pt_BR)](known-bugs.pt_BR.md#608--issue-771-httpget-contra-uma-porta-fechada-na-jvm-e-pego-por-catch-string-e--mesma-raiz-do-598-o-wrap-do-756-o-reporter-mediu-um-jar-050-beta-desatualizado-verificado-corrigido-no-head-14989c17d---corrigido-0510-dona--19216815309093-lane-issuestooling-frente-bugs-and-gaps-issue-771)
