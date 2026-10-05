@@ -40,7 +40,7 @@ jobs:
         if: github.ref_name == 'main'
         run: mvn clean package
 
-      - name: Golden tests (jvm + native)
+      - name: Golden tests (jvm + native + js + script)
         if: github.ref_name == 'main'
         run: tests/run-golden.sh
 

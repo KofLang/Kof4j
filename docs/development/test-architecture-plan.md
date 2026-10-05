@@ -729,6 +729,21 @@ name-based helper → `runAllThree`. No test body, target or assertion moved. Pr
 **43/43** green (NullableBoolTruthiness 15, TrooleanLaw 13, NullablePrimitiveFieldWriter 9,
 AsCastPrecedence 6); the `dupname runAll3` ratchet key is **eliminated** — baseline re-frozen 123→**122**.
 
+**Phase 6 slice LANDED (05/10):** the official equivalence suite (`tests/golden/`)
+covered only JVM + native; the plan's Golden Suite defines the goal as
+"same code → same output on every target" with the **exit code** checked, and
+the target list is JVM/Native/JS/Script. `tests/run-golden.sh` now runs every
+case on all four targets — `jvm`/`native`/`js` (build + run the artifact) and
+`script` (`kof run --target script`, direct IR interpretation) — asserting the
+captured stdout equals `expected.txt` AND the exit code is `0`. The optional
+`--target` selector and positional case filter were added; the default (what
+CI/release call) runs all four. External tools are guarded honestly (R6): a
+target whose runtime is absent (`as`/`ld` for native, `node` for js) is
+**SKIPPED with the reason**, never silently passed. No compiler, test class or
+assertion changed — test infrastructure only. Proof (executed):
+`tests/run-golden.sh` **48/48** (12 cases × 4 targets: jvm, native, js, script),
+exit 0.
+
 ### Phase 6 — Conformance
 
 Build the official equivalence suite.

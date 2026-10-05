@@ -105,7 +105,7 @@ jobs:
       - name: Test + package (the golden/integration scripts need the CLI jar)
         run: mvn clean package
 
-      - name: Golden tests (jvm + native)
+      - name: Golden tests (jvm + native + js + script)
         run: tests/run-golden.sh
 
       - name: Integration tests (CLI + serve)

@@ -730,6 +730,21 @@ corpo de teste, alvo ou asserção mudou. Prova: as 4 baterias afetadas **43/43*
 (NullableBoolTruthiness 15, TrooleanLaw 13, NullablePrimitiveFieldWriter 9, AsCastPrecedence 6); a chave
 `dupname runAll3` foi **eliminada** — baseline re-congelada 123→**122**.
 
+**Fatia da Fase 6 ENTREGUE (05/10):** a suíte oficial de equivalência
+(`tests/golden/`) cobria apenas JVM + native; o Golden Suite do plano define a
+meta como "mesmo código → mesma saída em todo alvo" com o **exit code**
+verificado, e a lista de alvos é JVM/Native/JS/Script. O `tests/run-golden.sh`
+agora roda cada caso nos quatro alvos — `jvm`/`native`/`js` (compila + executa o
+artefato) e `script` (`kof run --target script`, interpretação direta de IR) —
+afirmando que o stdout capturado é igual a `expected.txt` E que o exit code é
+`0`. Foram acrescentados o seletor opcional `--target` e o filtro posicional de
+casos; o padrão (o que CI/release chamam) roda os quatro. Ferramentas externas
+são guardadas honestamente (R6): um alvo cujo runtime falta (`as`/`ld` para
+native, `node` para js) é **PULADO com o motivo**, nunca aprovado em silêncio.
+Nenhum compilador, classe de teste ou asserção mudou — infraestrutura de teste
+apenas. Prova (executada): `tests/run-golden.sh` **48/48** (12 casos × 4 alvos:
+jvm, native, js, script), exit 0.
+
 ### Fase 6 — Conformance
 
 Criar suíte oficial de equivalência.
