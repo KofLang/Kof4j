@@ -44,7 +44,7 @@ class KofHttpErrorContractE2ETest {
         if (pool != null) pool.shutdownNow();
     }
 
-    private void startServer() throws IOException {
+    private void startContractServer() throws IOException {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         pool = Executors.newFixedThreadPool(2);
         server.setExecutor(pool);
@@ -104,7 +104,7 @@ class KofHttpErrorContractE2ETest {
      */
     @Test
     void httpFailuresAreCatchableAsStringAndExecutionContinues(@TempDir Path tempDir) throws IOException {
-        startServer();
+        startContractServer();
         String closed = "http://127.0.0.1:" + closedPort() + "/";
         String source = """
                 main(args: List<String>) {
