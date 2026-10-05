@@ -1,5 +1,7 @@
 package dev.kof.compiler.nat;
 
+import dev.kof.compiler.NativeToolchainAssumptions;
+
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -26,7 +28,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * <p>Guard {@code assumeTrue}: sem toolchain cross o teste PULA (nunca asm
  * não executado — regra do plano NATIVE002).
  */
-class NativeRiscvGcFreeListTest {
+class NativeRiscvGcFreeListTest implements NativeToolchainAssumptions {
 
     private static boolean has(String... cmds) {
         for (String c : cmds) {
@@ -40,11 +42,6 @@ class NativeRiscvGcFreeListTest {
             }
         }
         return true;
-    }
-
-    private void assumeToolchain() {
-        Assumptions.assumeTrue(has("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64"),
-                "cross toolchain riscv64 + qemu ausente — pulando (NATIVE002 G-1)");
     }
 
     private void assumeAarch64() {
@@ -131,7 +128,7 @@ class NativeRiscvGcFreeListTest {
 
     @Test
     void freeListReusesSlotAndMemstatsCounts(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         Path asm = tempDir.resolve("g1.s");
         Files.writeString(asm, HARNESS + "\n" + RiscvGcTestRuntimes.prunedFor(HARNESS));
         Path obj = tempDir.resolve("g1.o");

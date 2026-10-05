@@ -15,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * End-to-end tests for {@code kof.time} — sleep, now e scheduler.
  */
-class KofTimeE2ETest {
+class KofTimeE2ETest implements NativeToolchainAssumptions {
 
     private final CompilerDriver driver = new CompilerDriver();
 
@@ -1792,17 +1792,4 @@ class KofTimeE2ETest {
         }
     }
 
-    private void assumeToolchain(String... tools) {
-        for (String c : tools) {
-            try {
-                Process p = new ProcessBuilder("sh", "-c", "command -v " + c)
-                        .redirectErrorStream(true).start();
-                String o = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
-                org.junit.jupiter.api.Assumptions.assumeTrue(
-                        p.waitFor() == 0 && !o.isEmpty(), "toolchain ausente: " + c);
-            } catch (Exception e) {
-                org.junit.jupiter.api.Assumptions.assumeTrue(false, "toolchain ausente: " + c);
-            }
-        }
     }
-}

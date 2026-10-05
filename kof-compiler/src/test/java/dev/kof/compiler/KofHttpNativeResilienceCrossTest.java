@@ -51,7 +51,7 @@ class KofHttpNativeResilienceCrossTest {
         if (pool != null) pool.shutdownNow();
     }
 
-    private void assumeToolchain(String arch) {
+    private void assumeArchToolchain(String arch) {
         Assumptions.assumeTrue(NativeRiscv64E2ETest.hasToolchain(arch),
                 arch + " cross + qemu ausente (NATIVE002)");
     }
@@ -126,7 +126,7 @@ class KofHttpNativeResilienceCrossTest {
 
     @Test
     void riscv64TimeoutFires(@TempDir Path tempDir) throws Exception {
-        assumeToolchain("riscv64");
+        assumeArchToolchain("riscv64");
         int bh = startBlackhole();
         runCross("riscv64", Target.NATIVE_RISCV64, tempDir, """
                 main() {
@@ -148,7 +148,7 @@ class KofHttpNativeResilienceCrossTest {
 
     @Test
     void riscv64RetryAndCircuitParity(@TempDir Path tempDir) throws Exception {
-        assumeToolchain("riscv64");
+        assumeArchToolchain("riscv64");
         int port = startFlaky(2); // 500,500,200
         int closed = closedPort();
         runCross("riscv64", Target.NATIVE_RISCV64, tempDir, """
@@ -174,7 +174,7 @@ class KofHttpNativeResilienceCrossTest {
 
     @Test
     void aarch64TimeoutFires(@TempDir Path tempDir) throws Exception {
-        assumeToolchain("aarch64");
+        assumeArchToolchain("aarch64");
         int bh = startBlackhole();
         runCross("aarch64", Target.NATIVE_AARCH64, tempDir, """
                 main() {
@@ -196,7 +196,7 @@ class KofHttpNativeResilienceCrossTest {
 
     @Test
     void aarch64RetryAndCircuitParity(@TempDir Path tempDir) throws Exception {
-        assumeToolchain("aarch64");
+        assumeArchToolchain("aarch64");
         int port = startFlaky(2);
         int closed = closedPort();
         runCross("aarch64", Target.NATIVE_AARCH64, tempDir, """

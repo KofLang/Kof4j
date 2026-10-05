@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * {@code D-TEST-ARCHITECTURE-GO}); os testes e o nome da classe seguem no
  * {@code KofMathTest}.
  */
-abstract class KofMathSupport {
+abstract class KofMathSupport implements NativeToolchainAssumptions {
     protected final CompilerDriver driver = new CompilerDriver();
 
     protected void forCrossArch(Path tmp, String src, String expected) throws Exception {
@@ -35,21 +35,6 @@ abstract class KofMathSupport {
             int ec = p.waitFor();
             assertEquals(0, ec, t + " exit code, output: " + output);
             assertEquals(expected, output, t + " golden");
-        }
-    }
-
-    protected void assumeToolchain(String... tools) {
-        for (String c : tools) {
-            try {
-                Process p = new ProcessBuilder("sh", "-c", "command -v " + c)
-                        .redirectErrorStream(true).start();
-                String out = new String(p.getInputStream().readAllBytes(),
-                        java.nio.charset.StandardCharsets.UTF_8).trim();
-                org.junit.jupiter.api.Assumptions.assumeTrue(
-                        p.waitFor() == 0 && !out.isEmpty(), "toolchain ausente: " + c);
-            } catch (Exception e) {
-                org.junit.jupiter.api.Assumptions.assumeTrue(false, "toolchain ausente: " + c);
-            }
         }
     }
 

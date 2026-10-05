@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * getrandom) — a paridade provada aqui é do CONSELHO (faixa + bordas), não
  * do valor, que é exatamente o que o plano de S10 garante.
  */
-class KofRandomTest {
+class KofRandomTest implements NativeToolchainAssumptions {
     private final CompilerDriver driver = new CompilerDriver();
 
     /** Corpo comum de asserts de contrato (roda em qualquer alvo). */
@@ -240,22 +240,6 @@ class KofRandomTest {
         runQemu(tmp, Target.NATIVE_RISCV64, SHAPE_NATIVE_SRC);
         assumeToolchain("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64");
         runQemu(tmp, Target.NATIVE_AARCH64, SHAPE_NATIVE_SRC);
-    }
-
-    private void assumeToolchain(String... tools) {
-        for (String c : tools) {
-            try {
-                Process p = new ProcessBuilder("sh", "-c", "command -v " + c)
-                        .redirectErrorStream(true).start();
-                String out = new String(p.getInputStream().readAllBytes(),
-                        java.nio.charset.StandardCharsets.UTF_8).trim();
-                if (p.waitFor() != 0 || out.isEmpty()) {
-                    Assumptions.assumeTrue(false, "toolchain ausente: " + c);
-                }
-            } catch (Exception e) {
-                Assumptions.assumeTrue(false, "toolchain ausente: " + c);
-            }
-        }
     }
 
     private void runQemu(Path tempDir, Target target, String source) throws Exception {

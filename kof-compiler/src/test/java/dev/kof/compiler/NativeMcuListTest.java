@@ -18,13 +18,13 @@ import org.junit.jupiter.api.io.TempDir;
  * Testa kof_list_new, kof_list_add, kof_list_size, kof_string_of_int,
  * kof_println_string sob qemu-system-riscv32 -M virt.
  */
-class NativeMcuListTest {
+class NativeMcuListTest implements NativeToolchainAssumptions {
 
     private static final long HEAP = 0x10000; // 64 KB
 
     @Test
     void mcuListNewAddSizeAndPrint(@TempDir Path tempDir) throws Exception {
-        assumeToolchain();
+        assumeMcuRiscvAsm();
         String out = run(tempDir, "list1", body("""
                 li   a0, 0              # list = list_new()
                 call kof_list_new
@@ -56,7 +56,7 @@ class NativeMcuListTest {
 
     @Test
     void mcuListEmptySizePrintsZero(@TempDir Path tempDir) throws Exception {
-        assumeToolchain();
+        assumeMcuRiscvAsm();
         String out = run(tempDir, "list2", body("""
                 li   a0, 0
                 call kof_list_new
@@ -74,7 +74,7 @@ class NativeMcuListTest {
 
     @Test
     void mcuStringOfIntPrintsDecimal(@TempDir Path tempDir) throws Exception {
-        assumeToolchain();
+        assumeMcuRiscvAsm();
         String out = run(tempDir, "list3", body("""
                 li   a0, 42
                 call kof_string_of_int
@@ -101,7 +101,7 @@ class NativeMcuListTest {
 
     @Test
     void mcuListManyAddsAndSize(@TempDir Path tempDir) throws Exception {
-        assumeToolchain();
+        assumeMcuRiscvAsm();
         StringBuilder ops = new StringBuilder();
         ops.append("    call kof_list_new\n    mv s0, a0\n");
         for (int i = 1; i <= 10; i++) {
@@ -193,11 +193,6 @@ class NativeMcuListTest {
         p.waitFor(20, java.util.concurrent.TimeUnit.SECONDS);
         p.destroyForcibly();
         return Files.readString(ser, StandardCharsets.ISO_8859_1).replace("\0", "");
-    }
-
-    private void assumeToolchain() {
-        assumeTrue(hasTool("riscv64-linux-gnu-as", "--version"),
-                "binutils riscv64 ausente (riscv64-linux-gnu-as)");
     }
 
     private static String capture(String... cmd) throws IOException, InterruptedException {

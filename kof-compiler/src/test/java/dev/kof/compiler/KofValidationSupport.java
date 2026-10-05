@@ -13,23 +13,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * arquitetura de testes, {@code D-TEST-ARCHITECTURE-GO}); os testes e o nome da
  * classe seguem no {@code KofValidationTest} — zero drift de citação.
  */
-abstract class KofValidationSupport extends KofValidationPrograms {
+abstract class KofValidationSupport extends KofValidationPrograms implements NativeToolchainAssumptions {
 
     protected final CompilerDriver driver = new CompilerDriver();
-
-    protected static void assumeToolchain(String... bins) {
-        for (String b : bins) {
-            try {
-                Process p = new ProcessBuilder(b, "--version")
-                        .redirectOutput(new java.io.File("/dev/null"))
-                        .redirectErrorStream(true).start();
-                org.junit.jupiter.api.Assumptions.assumeTrue(p.waitFor() == 0,
-                        b + " ausente — pulando (NATIVE002)");
-            } catch (Exception e) {
-                org.junit.jupiter.api.Assumptions.assumeTrue(false, b + " ausente — pulando");
-            }
-        }
-    }
 
     protected void runQemu(Path tempDir, Target target, String qemu, String source) throws Exception {
         Path file = tempDir.resolve("Main-" + System.nanoTime() + ".kf");

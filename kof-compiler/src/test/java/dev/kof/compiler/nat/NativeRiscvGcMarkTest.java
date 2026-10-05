@@ -1,5 +1,7 @@
 package dev.kof.compiler.nat;
 
+import dev.kof.compiler.NativeToolchainAssumptions;
+
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -24,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * que aloca A(estático)→B(pilha)→C(inalcançável)→D(via campo de A), chama
  * `kof_gc_mark` e despeja a gc-list (LIFO): D=1, C=0, B=1, A=1.
  */
-class NativeRiscvGcMarkTest {
+class NativeRiscvGcMarkTest implements NativeToolchainAssumptions {
 
     private static boolean has(String... cmds) {
         for (String c : cmds) {
@@ -38,11 +40,6 @@ class NativeRiscvGcMarkTest {
             }
         }
         return true;
-    }
-
-    private void assumeToolchain() {
-        Assumptions.assumeTrue(has("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64"),
-                "cross toolchain riscv64 + qemu ausente — pulando (NATIVE002 G-3)");
     }
 
     private void assumeAarch64() {
@@ -153,7 +150,7 @@ class NativeRiscvGcMarkTest {
 
     @Test
     void conservativeMarkMarksReachable(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         assertMark(buildRiscv(tempDir, "g3mark"));
     }
 

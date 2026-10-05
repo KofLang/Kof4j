@@ -16,25 +16,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * testes e o nome da classe seguem no {@code KofStringsTest} — zero drift de
  * citação.
  */
-abstract class KofStringsSupport {
+abstract class KofStringsSupport implements NativeToolchainAssumptions {
 
     protected final CompilerDriver driver = new CompilerDriver();
 
-    protected void assumeToolchain(String... tools) {
-        for (String c : tools) {
-            try {
-                Process p = new ProcessBuilder("sh", "-c", "command -v " + c)
-                        .redirectErrorStream(true).start();
-                String out = new String(p.getInputStream().readAllBytes(),
-                        java.nio.charset.StandardCharsets.UTF_8).trim();
-                if (p.waitFor() != 0 || out.isEmpty()) {
-                    Assumptions.assumeTrue(false, "toolchain ausente: " + c);
-                }
-            } catch (Exception e) {
-                Assumptions.assumeTrue(false, "toolchain ausente: " + c);
-            }
-        }
-    }
     protected void runQemu(Path tempDir, Target target, String qemu, String source) throws Exception {
         Path file = tempDir.resolve("Main-" + System.nanoTime() + ".kf");
         Files.writeString(file, source);

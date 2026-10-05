@@ -5,7 +5,7 @@ import org.junit.jupiter.api.io.TempDir;
 import java.nio.file.*;
 import static org.junit.jupiter.api.Assertions.*;
 
-class KofEncodingTest {
+class KofEncodingTest implements NativeToolchainAssumptions {
 
     private final CompilerDriver driver = new CompilerDriver();
 
@@ -242,21 +242,6 @@ class KofEncodingTest {
         runQemuE(tmp, Target.NATIVE_RISCV64, "qemu-riscv64", src, expected);
         assumeToolchain("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64");
         runQemuE(tmp, Target.NATIVE_AARCH64, "qemu-aarch64", src, expected);
-    }
-
-    private static void assumeToolchain(String... tools) {
-        for (String c : tools) {
-            try {
-                Process p = new ProcessBuilder(c, "--version").redirectErrorStream(true).start();
-                String out = new String(p.getInputStream().readAllBytes(),
-                        java.nio.charset.StandardCharsets.UTF_8).trim();
-                if (p.waitFor() != 0 || out.isEmpty()) {
-                    org.junit.jupiter.api.Assumptions.assumeTrue(false, "toolchain ausente: " + c);
-                }
-            } catch (Exception e) {
-                org.junit.jupiter.api.Assumptions.assumeTrue(false, "toolchain ausente: " + c);
-            }
-        }
     }
 
     private void runQemuE(Path tempDir, Target target, String qemu, String source,

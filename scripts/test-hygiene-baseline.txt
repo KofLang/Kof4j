@@ -13,7 +13,6 @@ dupname	assertRejected
 dupname	assertSem025
 dupname	assumeAarch64
 dupname	assumeCross
-dupname	assumeToolchain
 dupname	both
 dupname	close
 dupname	compileAndRun

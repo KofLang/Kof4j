@@ -1,5 +1,7 @@
 package dev.kof.compiler.nat;
 
+import dev.kof.compiler.NativeToolchainAssumptions;
+
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -29,7 +31,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * A sabotagem REMOVE a peça B45 do keep: o {@code ld} falha com referência
  * indefinida — prova que o teste realmente exercita a fatia nova.
  */
-class NativeRiscvDtoaTest {
+class NativeRiscvDtoaTest implements NativeToolchainAssumptions {
 
     private static boolean has(String... cmds) {
         for (String c : cmds) {
@@ -42,13 +44,6 @@ class NativeRiscvDtoaTest {
             }
         }
         return true;
-    }
-
-    private void assumeToolchain() {
-        Assumptions.assumeTrue(has("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64"),
-                "cross toolchain riscv64 + qemu ausente — pulando");
-        Assumptions.assumeTrue(NativeCrossLink.sysrootFor("riscv64") != null,
-                "libc cross ausente (KOF_CROSS_SYSROOT / /tmp/opencode/x) — pulando");
     }
 
     private void assumeAarch64() {
@@ -166,7 +161,7 @@ class NativeRiscvDtoaTest {
 
     @Test
     void dtoaMatchesJvmOracleOnRiscv64(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64WithSysroot();
         String harness = harness();
         String runtime = RiscvGcTestRuntimes.prunedFor(harness);
         String out = buildDynamic("riscv64", tempDir, "dtoarv", harness + "\n" + runtime);
@@ -191,7 +186,7 @@ class NativeRiscvDtoaTest {
      *  referenciar snprintf/strtod (antes eram o motor do loop mais-curto). */
     @Test
     void dtoaPrunedRuntimeHasNoLibcFormatRefs() {
-        assumeToolchain();
+        assumeNativeRiscv64WithSysroot();
         String runtime = RiscvGcTestRuntimes.prunedFor(harness());
         assertFalse(runtime.contains("call snprintf"), "dtoa riscv nao deve chamar snprintf");
         assertFalse(runtime.contains("call strtod"), "dtoa riscv nao deve chamar strtod");
@@ -199,7 +194,7 @@ class NativeRiscvDtoaTest {
 
     @Test
     void withoutDtoaSliceLinkFailsSabotage(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64WithSysroot();
         String harness = harness();
         Set<Integer> keep = new LinkedHashSet<>(RiscvSlices.keepForProgramText(harness));
         int b45 = -1;

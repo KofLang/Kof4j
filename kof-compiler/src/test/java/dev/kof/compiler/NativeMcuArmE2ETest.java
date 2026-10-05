@@ -26,7 +26,7 @@ import org.junit.jupiter.api.io.TempDir;
  * (ver {@code scripts/provision-mcu-qemu.sh}). Sem eles o teste é
  * {@code assumeTrue} skip — nunca verde falso.
  */
-class NativeMcuArmE2ETest {
+class NativeMcuArmE2ETest implements NativeToolchainAssumptions {
 
     private static final String HELLO = "main() { println(\"KO-CM3 OK\") }";
     private static final String MULTI = "main() { print(\"a\"); println(\"b\"); print(\"c\") }";
@@ -34,7 +34,7 @@ class NativeMcuArmE2ETest {
 
     @Test
     void mcuArmPrintsOverUart(@TempDir Path tempDir) throws Exception {
-        assumeToolchain();
+        assumeMcuArmAsm();
         Path bin = build(tempDir, HELLO, true);
         assumeTrue(Files.isRegularFile(bin), "binário ARM ausente (assemble/link falhou)");
         String text = serialText(boot(tempDir, bin));
@@ -44,7 +44,7 @@ class NativeMcuArmE2ETest {
 
     @Test
     void mcuArmPreservesPrintOrderAndNewlines(@TempDir Path tempDir) throws Exception {
-        assumeToolchain();
+        assumeMcuArmAsm();
         Path bin = build(tempDir, MULTI, true);
         assumeTrue(Files.isRegularFile(bin), "binário ARM ausente (assemble/link falhou)");
         String text = serialText(boot(tempDir, bin));
@@ -54,7 +54,7 @@ class NativeMcuArmE2ETest {
 
     @Test
     void mcuArmVectorTableResetPathIsAsserted(@TempDir Path tempDir) throws Exception {
-        assumeToolchain();
+        assumeMcuArmAsm();
         String objcopy = toolPath("arm-none-eabi-objcopy");
         String nm = toolPath("arm-none-eabi-nm");
         assumeTrue(objcopy != null && nm != null, "binutils arm-none-eabi ausente");
@@ -156,10 +156,6 @@ class NativeMcuArmE2ETest {
 
     private String serialText(Path log) throws IOException {
         return Files.readString(log, StandardCharsets.ISO_8859_1).replace("\0", "");
-    }
-
-    private void assumeToolchain() {
-        assumeTrue(toolPath("arm-none-eabi-as") != null, "binutils arm-none-eabi ausente");
     }
 
     private static long le32(byte[] b, int off) {

@@ -10,8 +10,8 @@
 Phase 1 profiling (`scripts/test-suite-profile.sh` + permanent
 `docs/testing/TEST-PERFORMANCE.md`), Phase 2 discovery audit
 (`scripts/test-suite-audit.sh`) and Phase 2 **ratchet** (`scripts/check_test_hygiene.sh`
-over the frozen `scripts/test-hygiene-baseline.txt`, **122 keys, rc=0** — 132 at the
-30/09 measurement, tightened by the 02/10 Phase-3 extraction and the 03/10 Phase-5 slices (`jvmOracle` 131→130, `stopServer` 130→129, `assertRuns` 129→128, `runScript` 128→127, `runKof` 127→126, `assertBoth` 126→125, `copyLibrary` 125→124, `runBoth` 124→123, `runAll3` 123→122); the 0-citation Phase-3 head is exhausted, next candidate has 10 doc
+over the frozen `scripts/test-hygiene-baseline.txt`, **121 keys, rc=0** — 132 at the
+30/09 measurement, tightened by the 02/10 Phase-3 extraction and the 03/10–05/10 Phase-5 slices (`jvmOracle` 131→130, `stopServer` 130→129, `assertRuns` 129→128, `runScript` 128→127, `runKof` 127→126, `assertBoth` 126→125, `copyLibrary` 125→124, `runBoth` 124→123, `runAll3` 123→122, `assumeToolchain` 122→121); the 0-citation Phase-3 head is exhausted, next candidate has 10 doc
 citations, and the remaining `dupname` cluster needs the Phase-5 harness). **Quick-win slice 1
 (28/09):** removed the false-positive `Thread.sleep` key (comment-only mention in
 `AsyncSleepJsE2ETest`) and the redundant post-`startServer` settle in
@@ -729,6 +729,25 @@ name-based helper → `runAllThree`. No test body, target or assertion moved. Pr
 **43/43** green (NullableBoolTruthiness 15, TrooleanLaw 13, NullablePrimitiveFieldWriter 9,
 AsCastPrecedence 6); the `dupname runAll3` ratchet key is **eliminated** — baseline re-frozen 123→**122**.
 
+**Phase 5 slice 12 LANDED (05/10):** the `assumeToolchain` family — the last
+remaining `dupname` cluster (26 classes, each with its own private copy of the
+same "does this binary exist?" guard) — is consolidated behind a new
+`NativeToolchainAssumptions` interface (prefix-aware `hasTool` §591 + the named
+guards `assumeNativeRiscv64`/`assumeNativeRiscv64WithSysroot`/`assumeNativeAarch64`/
+`assumeNativeX86_64`/`assumeMcuRiscvAsm`/`assumeMcuArmAsm`, plus the generic
+`assumeToolchain(String...)` the abstract supports forward to). The 26 classes
+implement the interface and delete their local declarations; every no-arg call
+site now names the guard it needs (`assumeToolchain()` → the explicit guard), so
+the tool set each test requires is visible at the call site instead of buried in
+a per-class body. `KofHttpNativeResilienceCrossTest`'s distinct
+`assumeToolchain(String arch)` was renamed `assumeArchToolchain` so the name is
+not accidentally overloaded. No test body, target or assertion moved. Proof: the
+25 affected batteries **342 run / 0F / 0E / 15 skipped** (the skips are the
+honest absent-cross/qemu guards); `check_test_hygiene` rc=0 with the
+`dupname assumeToolchain` key **eliminated** — baseline re-frozen 122→**121**
+(the 3 reported keys are the PDF lane's untracked `PdfTextE2ETest` +
+`startServer`, pre-existing external).
+
 **Phase 6 slice LANDED (05/10):** the official equivalence suite (`tests/golden/`)
 covered only JVM + native; the plan's Golden Suite defines the goal as
 "same code → same output on every target" with the **exit code** checked, and
@@ -842,7 +861,7 @@ Before any deep refactoring, the path is:
 3. look for duplication (Phase 2 — discovery + ratchet LANDED:
    `scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`; work =
    shrink `scripts/test-hygiene-baseline.txt` via quick-win removals — current
-   authority = **122** non-comment keys, per `scripts/test-hygiene-baseline.txt`);
+   authority = **121** non-comment keys, per `scripts/test-hygiene-baseline.txt`);
 4. propose the modularization (Phase 3 — started: `--citations` measures the split cost per
    oversized class and the drift rule is fixed; four splits landed = `KofSetEqualitySupport`
    out of `KofSetEqualityTest` (21/21 kept), `KofMathSupport` out of `KofMathTest` (29/29 kept),
@@ -868,4 +887,4 @@ Before any deep refactoring, the path is:
 
 **Important:** this refactoring must not interfere with anything in the
 compiler. It is purely test infrastructure (golden rule). The front is open
-(`D-TEST-ARCHITECTURE-GO`); Phases 1–4 are CONCLUDED (oversized 43→18; harness ratchet 146→122, zero identical pairs remain). **Phase 5 is now AUTHORIZED and eleven slices LANDED** (`D-TEST-ARCHITECTURE-PHASES`, maintainer 03/10 — `NativeCrossSupport` 54/54, `NativeIoJvmOracleSupport` (jvmOracle key eliminated), `TargetGapRefusalSupport`, `ServerProcessSupport` (stopServer key eliminated, 118/118), `JvmRunSupport` (assertRuns key eliminated, 38/38), `MultiSourceRunSupport` (runScript key eliminated, 47/47), `KofmdRunSupport` (runKof key eliminated, 19/19), `JsParityRunSupport` (assertBoth key eliminated, 18/18), `LibraryInstallSupport` (copyLibrary key eliminated, 268/268), `JvmJsRunSupport` (runBoth key eliminated, 126/126), and the `NullablePrimitiveContractSupport` `runAll3` consolidation (43/43)); Phases 5–7 remain open work, with the remaining Phase 5 families (`main`, `assumeToolchain`) as the next increment.
+(`D-TEST-ARCHITECTURE-GO`); Phases 1–4 are CONCLUDED (oversized 43→18; harness ratchet 146→121, zero identical pairs remain). **Phase 5 is now AUTHORIZED and twelve slices LANDED** (`D-TEST-ARCHITECTURE-PHASES`, maintainer 03/10 — `NativeCrossSupport` 54/54, `NativeIoJvmOracleSupport` (jvmOracle key eliminated), `TargetGapRefusalSupport`, `ServerProcessSupport` (stopServer key eliminated, 118/118), `JvmRunSupport` (assertRuns key eliminated, 38/38), `MultiSourceRunSupport` (runScript key eliminated, 47/47), `KofmdRunSupport` (runKof key eliminated, 19/19), `JsParityRunSupport` (assertBoth key eliminated, 18/18), `LibraryInstallSupport` (copyLibrary key eliminated, 268/268), `JvmJsRunSupport` (runBoth key eliminated, 126/126), the `NullablePrimitiveContractSupport` `runAll3` consolidation (43/43), and `NativeToolchainAssumptions` (assumeToolchain key eliminated, 342/342)); Phases 5–7 remain open work, with the `main` cluster confirmed a false lead (Kof `main()` inside test-source text blocks, not a Java helper), and the Phase 6 first slice already LANDED.

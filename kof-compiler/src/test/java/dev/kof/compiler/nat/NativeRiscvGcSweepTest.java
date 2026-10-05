@@ -1,5 +1,7 @@
 package dev.kof.compiler.nat;
 
+import dev.kof.compiler.NativeToolchainAssumptions;
+
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -29,7 +31,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * (remover os hooks do coletor) = panic/exit 1, provando não-vacuidade. É o
  * fechamento do vazamento de ~260KB que era impossível de medir sem coletor.
  */
-class NativeRiscvGcSweepTest {
+class NativeRiscvGcSweepTest implements NativeToolchainAssumptions {
 
     private static boolean has(String... cmds) {
         for (String c : cmds) {
@@ -43,11 +45,6 @@ class NativeRiscvGcSweepTest {
             }
         }
         return true;
-    }
-
-    private void assumeToolchain() {
-        Assumptions.assumeTrue(has("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64"),
-                "cross toolchain riscv64 + qemu ausente — pulando (NATIVE002 G-4)");
     }
 
     private void assumeAarch64() {
@@ -215,7 +212,7 @@ class NativeRiscvGcSweepTest {
 
     @Test
     void sweepRecoversDeadAndMarksLive(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         assertSweep(buildRiscv(tempDir, "g4sweep", HARNESS, RiscvGcTestRuntimes.prunedFor(HARNESS)));
     }
 
@@ -227,7 +224,7 @@ class NativeRiscvGcSweepTest {
 
     @Test
     void longAllocLoopSurvivesArenaExhaustionViaCollect(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         String out = buildRiscv(tempDir, "g4loop", HARNESS_LOOP, RiscvGcTestRuntimes.prunedFor(HARNESS_LOOP));
         assertTrue(out.contains("allocs: 10000"),
                 "o laço deveria completar as 10000 allocs (arena reciclada pelo G-4): " + out);
@@ -247,7 +244,7 @@ class NativeRiscvGcSweepTest {
 
     @Test
     void longAllocLoopOomsWithoutCollector(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         // Sabotagem: remove TODOS os hooks do coletor (entry + OOM) do runtime.
         String sabotaged = RiscvGcTestRuntimes.prunedFor(HARNESS_LOOP)
                 .replace("    call kof_gc_collect\n", "")

@@ -1,5 +1,7 @@
 package dev.kof.compiler.nat;
 
+import dev.kof.compiler.NativeToolchainAssumptions;
+
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -23,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * que aloca N blocos e chama `kof_gc_dump`; a saída lista cada bloco com o
  * tamanho TOTAL (align16(size)+32, header G-0) e os flags, na ordem LIFO.
  */
-class NativeRiscvGcListTest {
+class NativeRiscvGcListTest implements NativeToolchainAssumptions {
 
     private static boolean has(String... cmds) {
         for (String c : cmds) {
@@ -37,11 +39,6 @@ class NativeRiscvGcListTest {
             }
         }
         return true;
-    }
-
-    private void assumeToolchain() {
-        Assumptions.assumeTrue(has("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64"),
-                "cross toolchain riscv64 + qemu ausente — pulando (NATIVE002 G-2)");
     }
 
     private void assumeAarch64() {
@@ -173,13 +170,13 @@ class NativeRiscvGcListTest {
 
     @Test
     void gcListLinksNewBlocksWithFlags(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         assertList(buildRiscv(tempDir, HARNESS_ALLOCS, "g2list"));
     }
 
     @Test
     void gcListReuseDoesNotDuplicate(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         assertReuse(buildRiscv(tempDir, HARNESS_REUSE, "g2reuse"));
     }
 

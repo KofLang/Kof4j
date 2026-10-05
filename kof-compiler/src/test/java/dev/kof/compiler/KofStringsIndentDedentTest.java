@@ -10,7 +10,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Testes de paridade multi-target para strings.indent e strings.dedent.
  * Cobrindo JVM, KofJS e Native (x86_64 / cross).
  */
-class KofStringsIndentDedentTest {
+class KofStringsIndentDedentTest implements NativeToolchainAssumptions {
     private final CompilerDriver driver = new CompilerDriver();
 
     private static final String GOLDEN_SOURCE = """
@@ -124,20 +124,6 @@ class KofStringsIndentDedentTest {
         int ec = p.waitFor();
         assertEquals(0, ec, "JS exit code: " + ec + ", output:\n" + output);
         assertEquals(expected, output);
-    }
-
-    private void assumeToolchain(String... tools) {
-        for (String c : tools) {
-            try {
-                Process p = new ProcessBuilder("sh", "-c", "command -v " + c).redirectErrorStream(true).start();
-                String out = new String(p.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).trim();
-                if (p.waitFor() != 0 || out.isEmpty()) {
-                    Assumptions.assumeTrue(false, "toolchain ausente: " + c);
-                }
-            } catch (Exception e) {
-                Assumptions.assumeTrue(false, "toolchain ausente: " + c);
-            }
-        }
     }
 
     private void runQemu(Path tempDir, Target target, String qemu, String source) throws Exception {
