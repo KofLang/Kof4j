@@ -90,4 +90,47 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!-- test-architecture Phase 7 ("mvn verify"): the official golden
+             (jvm+native+js+script) and CLI integration suites run in the
+             `verify` phase against the freshly shaded CLI jar, so
+             `mvn verify -Pintegration` is the plan's integration gate. The
+             scripts live at the reactor root; maven.multiModuleProjectDirectory
+             points there regardless of the module being built. -->
+        <profile>
+            <id>integration</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <version>3.6.3</version>
+                        <executions>
+                            <execution>
+                                <id>golden-tests</id>
+                                <phase>verify</phase>
+                                <goals><goal>exec</goal></goals>
+                                <configuration>
+                                    <executable>bash</executable>
+                                    <workingDirectory>${maven.multiModuleProjectDirectory}</workingDirectory>
+                                    <arguments><argument>tests/run-golden.sh</argument></arguments>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>integration-tests</id>
+                                <phase>verify</phase>
+                                <goals><goal>exec</goal></goals>
+                                <configuration>
+                                    <executable>bash</executable>
+                                    <workingDirectory>${maven.multiModuleProjectDirectory}</workingDirectory>
+                                    <arguments><argument>tests/run-integration.sh</argument></arguments>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>

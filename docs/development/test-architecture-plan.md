@@ -748,6 +748,10 @@ honest absent-cross/qemu guards); `check_test_hygiene` rc=0 with the
 (the 3 reported keys are the PDF lane's untracked `PdfTextE2ETest` +
 `startServer`, pre-existing external).
 
+### Phase 6 — Conformance
+
+Build the official equivalence suite.
+
 **Phase 6 slice LANDED (05/10):** the official equivalence suite (`tests/golden/`)
 covered only JVM + native; the plan's Golden Suite defines the goal as
 "same code → same output on every target" with the **exit code** checked, and
@@ -763,10 +767,6 @@ assertion changed — test infrastructure only. Proof (executed):
 `tests/run-golden.sh` **48/48** (12 cases × 4 targets: jvm, native, js, script),
 exit 0.
 
-### Phase 6 — Conformance
-
-Build the official equivalence suite.
-
 ### Phase 7 — Integration
 
 Deploy:
@@ -776,6 +776,19 @@ mvn verify
 ```
 
 or equivalent.
+
+**Phase 7 slice LANDED (05/10):** the plan's integration deploy is now a real
+Maven profile — `mvn verify -Pintegration` runs the official golden suite
+(jvm+native+js+script) and the CLI integration suite (`kof build`/`run`/`check`/
+`serve`/`test`) in the `verify` phase against the freshly shaded CLI jar, via
+`exec-maven-plugin` in `kof-cli` (`workingDirectory` =
+`${maven.multiModuleProjectDirectory}`, so the root scripts run regardless of
+the module). No CI YAML change was needed; the existing workflow steps keep
+calling the scripts directly, and the profile gives a single local/CI command.
+Proof (executed): `mvn -o -pl kof-cli -Pintegration exec:exec@golden-tests`
+→ **48/48**; `...@integration-tests` → **9/9**; and the full reactor
+`mvn -o -pl kof-cli -am -Pintegration verify` → BUILD SUCCESS, both suites green
+at the `verify` phase.
 
 ## 📊 Goal
 
