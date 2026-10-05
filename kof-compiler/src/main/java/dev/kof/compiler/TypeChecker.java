@@ -109,10 +109,10 @@ public final class TypeChecker {
     }
 
     static boolean ctorAccepts(SymbolTable.ConstructorSymbol c, List<Type> argTypes) {
-        return ctorAccepts(c, c.parameterTypes(), argTypes);
+        return ctorAccepts(c.parameterTypes(), argTypes);
     }
 
-    static boolean ctorAccepts(SymbolTable.ConstructorSymbol c, List<Type> formalTypes, List<Type> argTypes) {
+    static boolean ctorAccepts(List<Type> formalTypes, List<Type> argTypes) {
         if (formalTypes.size() != argTypes.size()) return false;
         for (int i = 0; i < argTypes.size(); i++) {
             if (!emitCtorPairCompatible(formalTypes.get(i), argTypes.get(i))) {
@@ -146,7 +146,7 @@ public final class TypeChecker {
             }
             List<Type> effective = c.effectiveParameterTypes(argTypes.size());
             hasSameArity = true;
-            if (ctorAccepts(c, effective, argTypes)) return; // o emit pega este irmao
+            if (ctorAccepts(effective, argTypes)) return; // o emit pega este irmao
         }
         if (!hasSameArity) return; // aridade: SEM023 do chamador, nao nosso caso
         // o emit cai no fallback "primeiro de mesma aridade" e inventa o
