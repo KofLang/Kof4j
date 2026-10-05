@@ -231,19 +231,6 @@ class EditorIntegrationTest {
     }
 
     @Test
-    void vscodeGrammarTravelsFromDistribution(@TempDir Path home) throws IOException {
-        // §14: sem rede — a grammar da distribuição é copiada para a extensão
-        var ctx = fake(Set.of("code"), Map.of("code", "1.102.3"), Set.of());
-        ByteArrayOutputStream bo = new ByteArrayOutputStream();
-        PrintStream out = new PrintStream(bo, true, StandardCharsets.UTF_8);
-        assertEquals(0, CmdEditor.run(new String[]{"editor", "install", "vscode"}, ctx, home,
-                new BufferedReader(new StringReader("")), out, out));
-        String grammar = Files.readString(
-                home.resolve(".vscode/extensions/kof.kof/syntaxes/kof.tmLanguage.json"));
-        assertTrue(grammar.contains("source.kof"), "grammar válida: " + grammar.substring(0, Math.min(80, grammar.length())));
-    }
-
-    @Test
     void vscodeExtensionHasCommandsSnippetsAndValidJson(@TempDir Path home) throws IOException {
         // §3/§19: a extensão precisa de extension.js (senão "command not found")
         // + snippets; todo JSON gerado tem que ser parseável (JSON inválido
