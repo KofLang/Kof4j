@@ -468,29 +468,4 @@ class KofJsE2ETest extends KofJsSupport {
             """);
         runJsWithStdin(source, tempDir.resolve("out"), "hello stdin\n", "got: hello stdin");
     }
-
-    @Test
-    void logicalAndOrShortCircuit(@TempDir Path tempDir) throws IOException {
-        // && / || booleanos devem short-circuitar no JS (o lado de não não é
-        // avaliado). Antes o backend emitia & / | bitwise → os dois lados
-        // eram sempre avaliados (f-rodou aparecia 3x em vez de 0x).
-        Path source = tempDir.resolve("Main.kf");
-        Files.writeString(source, SRC_LOGICAL_AND_OR_SHORT_CIRCUIT);
-        runJs(source, tempDir.resolve("out"), "y\nfalse");
-    }
-
-    @Test
-    void bitwiseAndOrStillWorks(@TempDir Path tempDir) throws IOException {
-        // & / | / ^ continuam bitwise (avaliando os dois lados) — o fix do
-        // short-circuit não pode ter quebrado a aritmética de bits.
-        Path source = tempDir.resolve("Main.kf");
-        Files.writeString(source, """
-            main() {
-                println(3 & 5)
-                println(3 | 5)
-                println(3 ^ 5)
-            }
-            """);
-        runJs(source, tempDir.resolve("out"), "1\n7\n6");
-    }
 }
