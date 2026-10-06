@@ -243,6 +243,8 @@ public final class NativeRuntime {
         NativeNetFront.emitNetListen(sb);
         NativeNetFront.emitNetAccept(sb);
         NativeNetFront.emitNetConnect(sb);
+        NativeNetFront.emitNetConnectAddr(sb);
+        NativeNetFront.emitNetResolve(sb);
         NativeNetFrontUdp.emitNetBind(sb);
         NativeNetFrontTcp.emitNetSend(sb);
         NativeNetFrontTcp.emitNetReceive(sb);

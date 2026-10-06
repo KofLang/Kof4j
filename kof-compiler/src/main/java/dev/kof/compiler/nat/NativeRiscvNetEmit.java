@@ -20,7 +20,8 @@ public final class NativeRiscvNetEmit {
     private NativeRiscvNetEmit() {}
 
     private static final Set<String> NET_VERBS = Set.of(
-            "kof_net_listen", "kof_net_accept", "kof_net_connect", "kof_net_bind",
+            "kof_net_listen", "kof_net_accept", "kof_net_connect", "kof_net_connect_addr",
+            "kof_net_resolve", "kof_net_bind",
             "kof_net_send", "kof_net_sendTo", "kof_net_receive",
             "kof_net_receiveFrom", "kof_net_peer", "kof_net_close");
 

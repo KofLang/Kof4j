@@ -139,23 +139,94 @@ class NetResolveE2ETest {
         }
     }
 
-    @Test
-    @DisplayName("NET1 native: resolve and the vetted connect refuse honestly (NET002) until the DNS slice")
-    void nativeRefused(@TempDir Path dir) throws Exception {
-        // O connect v1 do Native e IPv4 dotted-quad (sem resolvedor); o
-        // `resolve`/`connect_addr` so entram la com a fatia nativa. Ate entao
-        // o gate recusa com NET002 — nunca um link quebrado (R6).
-        for (String src : new String[]{
-                "main() { var a = net.resolve(\"localhost\") }",
-                "main() { var c = net.connect(\"localhost\", 80, \"127.0.0.1\") }"}) {
-            Path s = dir.resolve("nat.kf");
-            Files.writeString(s, src);
-            for (Target t : new Target[]{Target.NATIVE, Target.NATIVE_RISCV64}) {
-                CompilationResult r = driver.compile(s, dir.resolve("out-" + t), t);
-                assertFalse(r.success(), t + " must refuse until the native slice: " + src);
-                assertTrue(r.diagnostics().getDiagnostics().toString().contains("NET002"),
-                        t + " must name NET002: " + r.diagnostics().getDiagnostics());
+    private static final String NATIVE_PROGRAM = """
+            main() {
+                var addrs = net.resolve("localhost")
+                println("count-positive=" + (addrs.size > 0))
+                println("has-loopback=" + addrs.contains("127.0.0.1"))
+                try {
+                    net.resolve("no-such-host.invalid")
+                    println("NO-REFUSAL")
+                } catch (String m) {
+                    println("resolve-refused")
+                }
+                var l = net.listen(18941)
+                var worker = spawn {
+                    var s = l.accept()
+                    var got = s.receive(4096)
+                    s.send(got)
+                    s.close()
+                }
+                var c = net.connect("localhost", 18941, "127.0.0.1")
+                var payload = new Byte[2]
+                payload[0] = 7
+                payload[1] = 8
+                var sent = c.send(payload)
+                var back = c.receive(4096)
+                c.close()
+                await worker
+                l.close()
+                println("sent=" + sent)
+                println("back-len=" + back.length)
             }
+            """;
+
+    private String runNative(String src, Path dir, String name) throws Exception {
+        Path s = dir.resolve(name + ".kf");
+        Files.writeString(s, src);
+        CompilationResult r = driver.compile(s, dir.resolve("out-" + name), Target.NATIVE);
+        assertTrue(r.success(), name + " must compile: " + r.diagnostics().getDiagnostics());
+        Path bin = dir.resolve("out-" + name).resolve("Default").resolve("Main");
+        assertTrue(Files.exists(bin), "no native Main emitted for " + name);
+        Process p = new ProcessBuilder(bin.toString()).redirectErrorStream(true).start();
+        java.util.concurrent.Future<byte[]> reader;
+        boolean done;
+        try (var ex = java.util.concurrent.Executors.newSingleThreadExecutor(run -> {
+                Thread t = new Thread(run, "net-resolve-native"); t.setDaemon(true); return t; })) {
+            reader = ex.submit(() -> p.getInputStream().readAllBytes());
+            done = p.waitFor(30, java.util.concurrent.TimeUnit.SECONDS);
+            if (!done) { p.destroyForcibly(); p.waitFor(5, java.util.concurrent.TimeUnit.SECONDS); }
+        }
+        String out = new String(reader.get(5, java.util.concurrent.TimeUnit.SECONDS),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertTrue(done, name + " native did not exit in 30s; out=" + out);
+        return out;
+    }
+
+    @Test
+    @DisplayName("NET1 native x86-64: resolve + vetted connect run over REAL loopback")
+    void nativeResolveAndVettedConnect(@TempDir Path dir) throws Exception {
+        String out = runNative(NATIVE_PROGRAM, dir, "natresolve");
+        assertTrue(out.contains("count-positive=true"), "resolve must return addresses: " + out);
+        assertTrue(out.contains("has-loopback=true"), "localhost must include 127.0.0.1: " + out);
+        assertTrue(out.contains("resolve-refused"), "unknown host must refuse by name: " + out);
+        assertTrue(!out.contains("NO-REFUSAL"), "no silent empty list for a bad host: " + out);
+        assertTrue(out.contains("sent=2"), "vetted connect must send: " + out);
+        assertTrue(out.contains("back-len=2"), "vetted connect must round-trip: " + out);
+    }
+
+    @Test
+    @DisplayName("NET1 native cross (riscv64/aarch64): resolve + vetted connect under qemu")
+    void crossResolveAndVettedConnect(@TempDir Path dir) throws Exception {
+        for (var t : new Object[][]{
+                {Target.NATIVE_RISCV64, "riscv64"}, {Target.NATIVE_AARCH64, "aarch64"}}) {
+            Target target = (Target) t[0];
+            String arch = (String) t[1];
+            org.junit.jupiter.api.Assumptions.assumeTrue(
+                    NativeRiscv64E2ETest.hasToolchain(arch)
+                            && NativeRiscv64E2ETest.qemuPrefix(arch) != null,
+                    "cross " + arch + " toolchain/sysroot ausente — pulando");
+            Path s = dir.resolve("nat-" + arch + ".kf");
+            Files.writeString(s, NATIVE_PROGRAM);
+            CompilationResult r = driver.compile(s, dir.resolve("out-nat-" + arch), target);
+            assertTrue(r.success(), arch + " must compile: " + r.diagnostics().getDiagnostics());
+            Path bin = dir.resolve("out-nat-" + arch).resolve("Default").resolve("Main");
+            assertTrue(Files.exists(bin), "no cross Main emitted for " + arch);
+            String out = NativeRiscv64E2ETest.runQemu(arch, bin);
+            assertTrue(out.contains("count-positive=true"), arch + " resolve must return addresses: " + out);
+            assertTrue(out.contains("has-loopback=true"), arch + " localhost must include 127.0.0.1: " + out);
+            assertTrue(out.contains("resolve-refused"), arch + " unknown host must refuse: " + out);
+            assertTrue(out.contains("back-len=2"), arch + " vetted connect must round-trip: " + out);
         }
     }
 }

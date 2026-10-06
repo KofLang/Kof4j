@@ -194,15 +194,16 @@ public final class KofNet {
         // (fatia 4a) e riscv64/aarch64 (fatia 4b) entraram; Script usa o
         // lowering JVM e o mesmo runtime por reflexao (fatia 5, NetScriptE2ETest).
         // #759 / NET1 (D-MAINT-BATCH-0510): `net.resolve` (A/AAAA lookup) e
-        // o connect ao endereco validado (`kof_net_connect_addr`) entram
-        // primeiro na perna JVM/Script — o runtime JVM ja tem `InetAddress`
-        // (mesmo `java.net` confinado em JvmRuntimeSockets). O Native ainda
-        // NAO tem resolvedor (connect v1 e IPv4 dotted-quad, ver
-        // network-kofnet-plan), entao resolve/connect_addr recusam NET002
-        // honestamente la ate a fatia nativa (nunca um link quebrado).
+        // o connect ao endereco validado (`kof_net_connect_addr`). JVM/Script
+        // via `InetAddress` (java.net confinado em JvmRuntimeSockets); Native
+        // x86-64 + riscv64/aarch64 via libc `getaddrinfo`/`inet_ntop` (o
+        // resolvedor entra por uso, link dinamico — NativeCrossLink). JS recusa
+        // a frente inteira com NETN001 (D-NET-JS-V1).
         if (function.startsWith("kof_net_resolve")
                 || function.startsWith("kof_net_connect_addr")) {
-            return target == Target.JVM || target == Target.ANDROID;
+            return target == Target.JVM || target == Target.ANDROID
+                    || target == Target.NATIVE
+                    || target == Target.NATIVE_RISCV64 || target == Target.NATIVE_AARCH64;
         }
         if (function.startsWith("kof_net_listen") || function.startsWith("kof_net_accept")
                 || function.startsWith("kof_net_connect") || function.startsWith("kof_net_bind")
