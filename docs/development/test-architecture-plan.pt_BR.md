@@ -859,6 +859,18 @@ a identidade de round-trip — a superfície mais propensa a divergir porque o J
 real). Ambos validados nos quatro alvos, mais riscv64/aarch64 sob qemu na autoria.
 Prova (executada): `tests/run-golden.sh` **124/124** (31 casos × 4 alvos), exit 0.
 
+**Fatia 8 da Fase 6 ENTREGUE (06/10):** mais dois casos — **33 no total** — pinando
+o contrato de formatação de ponto flutuante e a superfície de concorrência:
+`double-formatting` (literais e aritmética `Double` — `1.0`, `2.5`, `1.0/3.0` =
+`0.3333333333333333`, o artefato IEEE-754 `0.1 + 0.2` =
+`0.30000000000000004`, `1.0/0.0` = `Infinity`, `1e3` = `1000.0`, `7.5 % 2.0` =
+`1.5`; formatação `Number`/`BigInt` do JS vs `double` de JVM/Native é uma guarda
+real de divergência) e `concurrency-spawn-await` (`val h = spawn f(n)` com
+`Handle<T>` tipado + desboxing no `await h`, duas tarefas juntadas e combinadas; o
+contrato congelado de `spawn`/`await` nos quatro alvos). Ambos validados nos quatro
+alvos, mais riscv64/aarch64 sob qemu na autoria. Prova (executada):
+`tests/run-golden.sh` **132/132** (33 casos × 4 alvos), exit 0.
+
 ### Fase 7 — Integração
 
 Implantar:

@@ -853,6 +853,18 @@ the surface most likely to diverge because JS uses `BigInt` while JVM/Native are
 targets, plus riscv64/aarch64 under qemu during authoring. Proof (executed):
 `tests/run-golden.sh` **124/124** (31 cases × 4 targets), exit 0.
 
+**Phase 6 slice 8 LANDED (06/10):** two more cases — **33 total** — pinning the
+floating-point formatting contract and the concurrency surface:
+`double-formatting` (`Double` literals and arithmetic — `1.0`, `2.5`, `1.0/3.0`
+= `0.3333333333333333`, the IEEE-754 artifact `0.1 + 0.2` =
+`0.30000000000000004`, `1.0/0.0` = `Infinity`, `1e3` = `1000.0`, `7.5 % 2.0` =
+`1.5`; JS `Number`/`BigInt` vs JVM/Native `double` formatting is a real
+divergence guard) and `concurrency-spawn-await` (`val h = spawn f(n)` with typed
+`Handle<T>` + `await h` unboxing, two tasks joined and combined; the frozen
+`spawn`/`await` contract on all four targets). Both are validated on all four
+targets, plus riscv64/aarch64 under qemu during authoring. Proof (executed):
+`tests/run-golden.sh` **132/132** (33 cases × 4 targets), exit 0.
+
 ### Phase 7 — Integration
 
 Deploy:

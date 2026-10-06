@@ -1,0 +1,15 @@
+Int twice(Int n) {
+    return n * 2
+}
+Int sq(Int n) {
+    return n * n
+}
+main() {
+    val a = spawn twice(21)
+    val b = spawn sq(5)
+    var va = await a
+    var vb = await b
+    println(va)
+    println(vb)
+    println(va + vb)
+}
