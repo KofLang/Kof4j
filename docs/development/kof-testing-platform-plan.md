@@ -479,7 +479,11 @@ discarded. The parse lives in `TestHarnessBuilder.matchesAnyTag` (compile-time c
 in `CmdTest.hasTagMatch` (so the §587 zero-match SKIP verdict agrees with the harness). Proof
 RED-first: new `TestTagsMultiE2ETest` **4/4** (union, trim, unknown-tag in the list, all-unknown
 honest no-op; pre-fix **3 RED** with the old single-tag match), `TestTagsE2ETest` **23/23** unchanged
-and `CmdTestTagTest` **7/7** (was 6 — the `--tag smoke,ui` CLI leg). **Negation remains future work** (it
+and `CmdTestTagTest` **7/7** (was 6 — the `--tag smoke,ui` CLI leg). **Rule-5 parity proof on Native
+x86-64:** `TestTagsNativeE2ETest` **2/2** compiles the multi-tag harness for `Target.NATIVE` and asserts
+the SAME filtered catalog (`kof test: tag 'smoke,ui' (2 of 3)`) plus the all-unknown honest no-op; the
+cross native targets are not advertised test targets (`kof test --target jvm|native|js`) and the harness
+main does not link `kof_process_exit` there. **Negation remains future work** (it
 needs a syntax to distinguish "not this tag" from a tag literally named with a `!`; not decided).
 
 ## 7.2 Parallelism

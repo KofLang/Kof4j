@@ -466,7 +466,11 @@ em compile-time) e é espelhado em `CmdTest.hasTagMatch` (para o veredito SKIP d
 concordar com o harness). Prova RED-first: novo `TestTagsMultiE2ETest` **4/4** (união, trim, tag
 desconhecida na lista, no-op honesto de todas desconhecidas; pré-fix **3 RED** com o match de tag
 única antigo), `TestTagsE2ETest` **23/23** inalterado e `CmdTestTagTest` **7/7** (era 6 — a perna de
-CLI `--tag smoke,ui`). **Negação segue como trabalho futuro** (precisa de uma sintaxe para distinguir
+CLI `--tag smoke,ui`). **Prova de paridade rule-5 no Native x86-64:** `TestTagsNativeE2ETest` **2/2**
+compila o harness multi-tag para `Target.NATIVE` e afirma o MESMO catálogo filtrado (`kof test: tag
+'smoke,ui' (2 of 3)`) mais o no-op honesto de todas desconhecidas; os alvos nativos cross não são alvos
+de teste anunciados (`kof test --target jvm|native|js`) e o main do harness não linka `kof_process_exit`
+lá. **Negação segue como trabalho futuro** (precisa de uma sintaxe para distinguir
 "não esta tag" de uma tag literalmente chamada com um `!`; não decidido).
 
 ## 7.2 Paralelismo
