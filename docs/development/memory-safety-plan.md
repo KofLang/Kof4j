@@ -5,9 +5,9 @@
 
 owner: `192.168.15.101:9092` (parity lane — claims MUST carry IP:PORTA, `D-AGENT-IDENTITY-IPPORT`)
 
-last: #748 plan-header sync LANDED 04/10 SHA `aa7596556` (owner `192.168.15.101:9092`; unit 10/#743 already closed; plan state no longer points at stale work)
-doing: rule-6 STOP — cross float/HFA and callbacks require maintainer direction; no agent-open memory-safety unit
-next: no memory-safety implementation unit until `D-*` direction; audit only unowned docs truth without colliding with active lanes
+last: phase-5 M1 doc-truth LANDED 05/10 issue #769 (owner `192.168.15.30:9095`; memory row) — `D-MAINT-BATCH-0510`/M1 AUTHORIZED the float/HFA + callbacks faces; plan header + phase-5 row + spec §12 Phase 5 + README memory row corrected EN+PT (previously 'STOP rule-6')
+doing: Phase 5 float/HFA + callbacks AUTHORIZED (`D-MAINT-BATCH-0510`/M1, 05/10) — implementable by the lane; no in-flight implementation unit claimed yet
+next: implement the phase-5 float/HFA cross face (and then FFI callbacks) per M1 — RED-first on x86-64 + cross riscv64/aarch64, or an honest per-target gap; no longer maintainer-gated
 location: memory-safety-plan
 state: active
 intent: compiler-provable-memory-safety
@@ -37,7 +37,7 @@ Success criterion: the compiler can prove a program cannot produce a class of er
 | 2 Compiler infrastructure | `OwnerKind`/`MemRule`/`ManagedResource`/`CaptureMode`/`MoveDetector`+`MoveTransfer` in `dev.kof.compiler.memory`; `MemoryModelTest` 8/8; zero behavior change | closed 26/09 (`9bcddfe90`, queue exhausted) |
 | 3 First guarantees | use-after-move; dangling; invalid escapes; mutable aliasing; double ownership/destruction | CLOSED 28/09 — slices 1–5 landed (O-03 fixed 27/09), slice 3.2 landed 28/09; no open slice remains |
 | 4 Closures & async | closure capture; callbacks; async/futures; iterators/generators | FECHADA 28/09 — 4.1 captura (#658), 4.2 async/futures (#659), 4.3 callbacks (#662); iteradores/geradores: veredito de ausencia medido (#659) |
-| 5 Native & FFI | pointers/allocation/C ABI; Kof↔C↔Rust↔JVM↔Python ownership table | STOP rule-6 — ownership table LANDED 28/09 (#670, spec §7); units 1–4 and cross faces 1–3 LANDED (`Buffer(U8)` x86/cross, compile/runtime `MEM020`, scalar arrays, `String[]`, memory-path structs). Remaining float/HFA and callbacks have no `D-*` decision; not an agent-open unit |
+| 5 Native & FFI | pointers/allocation/C ABI; Kof↔C↔Rust↔JVM↔Python ownership table | **AUTHORIZED (`D-MAINT-BATCH-0510`/M1, 05/10) — no longer maintainer-gated** — ownership table LANDED 28/09 (#670, spec §7); units 1–4 and cross faces 1–3 LANDED (`Buffer(U8)` x86/cross, compile/runtime `MEM020`, scalar arrays, `String[]`, memory-path structs). The remaining float/HFA and callbacks faces are now AUTHORIZED for the lane (M1); implementable, not blocked on a maintainer decision |
 | 6 JVM / JS / Script / Native | same semantics on every backend that exists | **CLOSED 02/10 — phase-6 units 1–4 LANDED (full suite 5117 run/0F/0E at closure):** unit 1 `SEM049` pinned on the 4 backends + `MEM010/011/012` doc-truthed to model-rule; unit 2 `MEM014` pinned web+db via probe-first Script measurement; unit 3 §11 completeness (`MEM022`/`MEM023` rows; invented `MEM015/016/017` corrected by measurement same-day); unit 4 `check_matrix_inventory.sh` wired into `agent-verify.sh` exposing+locking `MEM001/003/004` — the matrix is mechanically locked EN+PT. Only remaining face: FFI callbacks **STOP rule 6/12** (no native trampoline; maintainer call). | (historical) resolved scope 30/09 by `D-MEM-PHASE6-4BACKENDS`: the tree has NO WASM backend (`docs/backend-parity.md` = "Kof JVM × Native × KofJS", no WASM column), so phase 6 means **JVM/Script/JS/Native×3** (the four real backends); WASM leaves the contract until a real backend lands — never before, and never an accepted gap |
 
 ## Phase 3 slices (emission surface = what exists in the user surface)
@@ -102,6 +102,7 @@ Pass + wiring + `MemorySafetyE2ETest` per target (JVM/Script/JS/Native same sour
 - **Unit 8 LANDED 04/10 SHA `efed9c422` — FFI ghost-decision/§9 reconciliation.** Removed unrecorded `D-MEM-FFI-CALLBACKS` wording from current FFI/status/plan records and corrected `docs/spec/memory-safety.md`+PT §9 to state that Native x86-64 + cross `Buffer(U8)` are landed; §7 and §9 no longer contradict each other. Proved: Q2 rc=0 + 13 doc/governance gates rc=0. No behavior change.
 - **Unit 9 LANDED 04/10 SHA `404666603` issue #742 — collision reconciliation.** Concurrent `b51babe2a` already corrected README rows 0b/0f/0h/§559; the newer seven-Phase-5-slices/126-keys, graphics-spike, `D-KOF-SIGN` and `RasterDecodeE2ETest` 27/27+aarch64 authority was preserved. Docs only; no behavior change. (Post-rebase SHA repaired 04/10 by issues/tooling: the previously cited unit-9 collision SHA was lost in a rebase; `404666603` is the surviving equivalent, with follow-through `c196d9b2d`.)
 - **Unit 10 LANDED 04/10 issue #743 — phase-state doc truth.** Plan Phase 3 is CLOSED (slices 1–5 + 3.2 landed); Phase 5 and spec §12 Phase 5 are STOP rule-6 (landed faces vs un-decided float/HFA/callbacks); spec Phase 6 is CLOSED with units 1–4 and the matrix inventory gate. Docs only; no behavior change.
+- **Unit 11 LANDED 05/10 issue #769 (memory row) — Phase-5 M1 doc-truth.** `D-MAINT-BATCH-0510` (05/10) answered the rule-6 poll: **M1 = memory-safety Phase 5 float/HFA + callbacks AUTHORIZED**. The plan header (`doing:`/`next:`), the phase-5 table row, `docs/spec/memory-safety.md`+PT §12 Phase 5 and the README §0 memory row still recorded "STOP rule-6 / no `D-*` / require maintainer direction"; corrected EN+PT to AUTHORIZED. This supersedes the rule-6 STOP wording recorded in units 5/6/7/10 (kept as history); implementing the float/HFA cross + callback faces is now an implementable lane unit, not a maintainer gate. Docs only; no behavior change.
 
 ## Definition of done (whole front)
 
