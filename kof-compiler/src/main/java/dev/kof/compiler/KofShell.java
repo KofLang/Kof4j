@@ -52,8 +52,11 @@ public final class KofShell {
                     return new ShellCall("kof_process_run", KofProcess.RESULT,
                             List.of(BuiltinTypes.STRING, STRING_LIST));
                 }
+                // isList (not equals STRING_LIST): mirrors the runWith fix
+                // below — an inferred empty listOf() comes out as
+                // List<Object>, which is a legitimate empty argv.
                 if (argTypes.size() == 2 && BuiltinTypes.isString(argTypes.get(0))
-                        && STRING_LIST.equals(argTypes.get(1))) {
+                        && BuiltinTypes.isList(argTypes.get(1))) {
                     return new ShellCall("kof_process_run", KofProcess.RESULT,
                             List.of(BuiltinTypes.STRING, STRING_LIST));
                 }

@@ -91,6 +91,20 @@ class ShellE2ETest extends ShellSupport {
             """, "false", "1");
     }
 
+    /** #774 — an inline empty listOf() infers as List<Object>, same as the
+     *  empty-argv case runWith already handles; the 2-arg run overload
+     *  should accept it exactly like a pre-typed empty List<String> does. */
+    @Test
+    void runAcceptsInlineEmptyListOf() throws Exception {
+        assertJvmJsParity("""
+            main() {
+                var r = shell.run("false", listOf())
+                println(shell.ok(r))
+                println(r.exitCode)
+            }
+            """, "false", "1");
+    }
+
     @Test
     void pipelineChainsStdoutToStdinOnJvm() throws Exception {
         Files.writeString(tmp.resolve("S.kf"), """
