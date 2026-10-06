@@ -188,6 +188,17 @@ public final class NativeRiscvCrossOps {
 
         // String.valueOf (STATIC)
         if (kc.kind() == KofCallKind.STATIC && "valueOf".equals(mn)) {
+            // #772: Wrapper.valueOf(primitivo) é o BOX de erasure do slot T?
+            // (§284 MAGIC box), NÃO String.valueOf. Sem este ramo o box virava
+            // `kof_*_to_string` e o consumidor do slot lia o ponteiro como
+            // inteiro (garbage). `String.valueOf` (dono String) não casa.
+            String boxFn = NativeOpHelpers.wrapperValueOfBoxFn(kc);
+            if (boxFn != null) {
+                sb.append("    pop a0\n");
+                sb.append("    call ").append(boxFn).append("\n");
+                other.pushRiscv(sb, "a0");
+                return;
+            }
             // T? (Map.get→V? desde SG-008/bug 87): despacho pelo INNER. Sem
             // isso, valueOf(m.get(k)) com V?=Int nao casava o branch primitivo
             // e nao emitia NADA — o raw Int ficava na pilha e o println virava
@@ -256,12 +267,14 @@ public final class NativeRiscvCrossOps {
                     sb.append("    pop a0\n    call kof_bool_to_string\n");
                     other.pushRiscv(sb, "a0");
                 }
-            } else if (BuiltinTypes.isObject(vArgType) || vArgType instanceof Type.TypeVariable) {
-                // §284 + §444-cross (#613): Object/T apagado — valor e um box;
-                // kof_box_to_string despacha por MAGIC+tag e passa nao-box cru
-                // (paridade com os ramos equivalentes do x86; sem isto o box
-                // cru caia em println_string/concat — SIGSEGV no espelho do
-                // B.kf e "Box: <lixo>" medido no describe() do record #613).
+            } else if (BuiltinTypes.isObject(vArgType) || vArgType instanceof Type.TypeVariable
+                    || vArgType instanceof Type.UnknownType) {
+                // §284 + §444-cross (#613) + #772: Object/T/Unknown apagado —
+                // valor é um box; kof_box_to_string despacha por MAGIC+tag e
+                // passa não-box cru (paridade com os ramos equivalentes do x86;
+                // sem isto o box cru caía em println_string/concat — SIGSEGV no
+                // espelho do B.kf e "Box: <lixo>" medido no describe() do
+                // record #613; o Unknown vem do açúcar de stringificação).
                 sb.append("    pop a0\n");
                 sb.append("    call kof_box_to_string\n");
                 other.pushRiscv(sb, "a0");

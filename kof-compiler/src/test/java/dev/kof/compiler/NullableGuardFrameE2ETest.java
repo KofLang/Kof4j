@@ -133,6 +133,18 @@ class NullableGuardFrameE2ETest {
                 """, "5\n3\n0");
     }
 
+    // #772: o reprodutor EXATO da issue — o resultado narrowed concatenado
+    // (`"" + absIt(-5)`) passa pelo sugar `String.valueOf` no mesmo call-site
+    // do box de erasure; o backend native confundia os dois.
+    @Test
+    void narrowedPrimArgConcatRunsOnJvm(@TempDir Path dir) throws Exception {
+        runsOnJvm(dir, "primConcatRun", """
+                Int absIt(Int? x) { if (x != null) { var n = math.abs(x); return n } return 0 }
+                Int minIt(Int? a, Int? b) { if (a != null && b != null) { return math.min(a, b) } return 0 }
+                main() { println("" + absIt(-5) + "/" + minIt(5, 3)) }
+                """, "5/3");
+    }
+
     @Test
     void narrowedIfExpressionRunsOnJvm(@TempDir Path dir) throws Exception {
         runsOnJvm(dir, "ifExprRun", """
@@ -192,6 +204,13 @@ class NullableGuardFrameE2ETest {
                 """;
         runsOnScript(dir, "primScript", kof, "5\n3\n0");
         runsOnJs(dir, "primJs", kof, "5\n3\n0");
+        String concat = """
+                Int absIt(Int? x) { if (x != null) { var n = math.abs(x); return n } return 0 }
+                Int minIt(Int? a, Int? b) { if (a != null && b != null) { return math.min(a, b) } return 0 }
+                main() { println("" + absIt(-5) + "/" + minIt(5, 3)) }
+                """;
+        runsOnScript(dir, "primConcatScript", concat, "5/3");
+        runsOnJs(dir, "primConcatJs", concat, "5/3");
     }
 
     @Test
@@ -232,11 +251,24 @@ class NullableGuardFrameE2ETest {
                 Int probe(String? q) { return if (q != null) { math.parseInt(q) } else { 0 } }
                 main() { println(probe("13")); println(probe(null)) }
                 """, "13\n0");
-        // A face `Int? -> primitivo` no Native (slot MAGIC do param cruzado
-        // com o unbox do consumidor) ja era LIXO no baseline pre-#770 (medido
-        // 1650458528 no tip 24a23bba9) -- nao e regressao desta correcao e nao
-        // se pinar aqui lixo como se fosse verde. Registrada como face aberta
-        // no §610 Boundary e na issue #772; JVM/Script/JS estao verdes (testes acima).
+        // #772 (fechado): a face `Int? -> primitivo` no Native era LIXO no
+        // baseline pre-#770 (medido 1650458528 no tip 24a23bba9): o backend
+        // native confundia o BOX de erasure `Integer.valueOf(int)` (slot MAGIC
+        // do §284) com o sugar `String.valueOf(int)` do println -- mesmo nome
+        // `valueOf` -- e convertia o box para STRING; o consumidor do slot lia
+        // o PONTEIRO como inteiro. Agora pina o golden real nos 4 alvos.
+        runsOnNative(dir, "primNat", """
+                Int probe(Int? x) {
+                    if (x != null) { var n = math.abs(x); return n }
+                    return 0
+                }
+                main() { println(probe(-5)); println(probe(3)); println(probe(null)) }
+                """, "5\n3\n0");
+        runsOnNative(dir, "concatNat", """
+                Int absIt(Int? x) { if (x != null) { var n = math.abs(x); return n } return 0 }
+                Int minIt(Int? a, Int? b) { if (a != null && b != null) { return math.min(a, b) } return 0 }
+                main() { println("" + absIt(-5) + "/" + minIt(5, 3)) }
+                """, "5/3");
     }
 
     @Test
