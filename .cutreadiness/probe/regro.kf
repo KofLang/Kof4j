@@ -1,0 +1,1 @@
+main() { var id = 7; println("id=" + id); println("" + id + "/" + id) }
