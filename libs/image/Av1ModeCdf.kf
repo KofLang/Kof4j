@@ -3,7 +3,7 @@ package image
 // kof.image — AV1 default mode-info CDFs (slice 3m of the AVIF front, plan §34).
 // The non-coefficient entropy tables the tile block syntax reads: the partition
 // tree, the intra frame Y mode, the Y/UV mode, angle delta, filter-intra, the
-// segment/skip/tx-size/delta-q/delta-lf symbols, the CFL sign/alpha and the
+// skip/tx-size/delta-q/delta-lf symbols, the CFL sign/alpha and the
 // transform-partition split. Every table is the AV1 Bitstream & Decoding Process
 // Specification §10 (additional tables) table, read on the dev host 06/10, and
 // independently confirmed value-for-value against libaom
