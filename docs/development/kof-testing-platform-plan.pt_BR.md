@@ -15,7 +15,7 @@ compilador** — camadas L0–L5, perfis, performance). Este documento é a **pl
 usuário**; os dois se encontram no §13 (Performance) e não podem se duplicar.
 **Estado de implementação:** fatia 1 (helpers de asserção) POUSADA 30/09; fatia 2 (`assertThrows`) POUSADA 30/09 — o bloqueio foi corrigido (ver §15); fatia 3 (asserções do unit-core) POUSADA 01/10; fatia 4 (asserções numéricas Long/Double/Float) POUSADA 01/10; fatia 5 (Byte/Short/Char + `assertNotEqualBool`) POUSADA 01/10; fatia 6 (par genérico `assertEqual<T>`/`assertNotEqual<T>`) POUSADA 02/10 — desbloqueada pela correção do `known-bugs` §553 (`D-EQ-UNBOUNDED-T`), então o §4.1 está **completo**.
 
-> **Fatia 6 (POUSADA 02/10).** A última face do §4.1: o par genérico `assertEqual<T>(T expected, T actual, String label)` / `assertNotEqual<T>(...)` em `dev/kof/test.kf`. Ficou deliberadamente adiado (não entregue quebrado) até o `known-bugs` §553 ser resolvido: a resposta regra-6 da mantenedora `D-EQ-UNBOUNDED-T` (02/10) fixa `==` sobre um `T` não-limitado como **igualdade estrutural de conteúdo** em todo alvo, então o helper é correto para qualquer `T` (Int, String, record, …). O label stringifica `expected`/`actual` via `+` — sem primitiva nova, sem runtime por alvo. Prova RED-first: novo `GenericEqualityE2ETest` **16/16** (o par genérico verde em JVM/Script/JS/Nativo e lançando em mismatch real; o golden de semântica de `==` byte-idêntico ao oráculo JVM em JVM + Script + JS + Native x86-64 + riscv64(qemu) + aarch64(qemu)); `KofTestingE2ETest` 7/7. O §4.1 está completo; as faces restantes são regra-6/decisão (§4.4 parametrizado, §4.6 doubles, §5 harness, §6 provider de browser).
+> **Fatia 6 (POUSADA 02/10).** A última face do §4.1: o par genérico `assertEqual<T>(T expected, T actual, String label)` / `assertNotEqual<T>(...)` em `dev/kof/test.kf`. Ficou deliberadamente adiado (não entregue quebrado) até o `known-bugs` §553 ser resolvido: a resposta regra-6 da mantenedora `D-EQ-UNBOUNDED-T` (02/10) fixa `==` sobre um `T` não-limitado como **igualdade estrutural de conteúdo** em todo alvo, então o helper é correto para qualquer `T` (Int, String, record, …). O label stringifica `expected`/`actual` via `+` — sem primitiva nova, sem runtime por alvo. Prova RED-first: novo `GenericEqualityE2ETest` **16/16** (o par genérico verde em JVM/Script/JS/Nativo e lançando em mismatch real; o golden de semântica de `==` byte-idêntico ao oráculo JVM em JVM + Script + JS + Native x86-64 + riscv64(qemu) + aarch64(qemu)); `KofTestingE2ETest` 7/7. O §4.1 está completo; as faces restantes são regra-6/decisão (§4.4 parametrizado, §4.6 doubles, §5 harness). O **provider de browser** (§6) não está mais barrado: `D-MAINT-BATCH-0510`/`T1` decide que ele deve servir **todos os alvos** (JVM + JS + Native), e `/T2` decide que o `kof.test` continua **feature do compilador/CLI** (não namespace da stdlib) — ver §12.
 
 > **Fatia 5 (POUSADA 01/10).** A superfície escalar restante do §4.1: `assertEqualByte`/`assertNotEqualByte`,
 > `assertEqualShort`/`assertNotEqualShort`, `assertEqualChar`/`assertNotEqualChar`, mais o
@@ -569,15 +569,21 @@ paralelo; nenhum bloqueia o outro, e ambos compartilham o §13.
 
 # 12. Decisões abertas (regra 6 — a mantenedora decide)
 
+**Resolvidas 05/10 por `D-MAINT-BATCH-0510`** (poll de chat da mantenedora):
+
+* **T2 — `kof.test` continua feature do compilador/CLI**, NÃO namespace da stdlib; o `StdCatalog`
+  fica inalterado. (Era decisão aberta abaixo; agora decidida.)
+* **T1 — o provider de browser E2E deve servir TODOS os alvos** (JVM + JS + Native), não só JVM.
+  A declaração/versionamento da dependência Playwright/Cypress ainda landa com a fatia do provider.
+  (Era decisão aberta abaixo; agora decidida.)
+
+Ainda abertas (regra 6):
+
 * **D-TESTING-PLATFORM** — abrir a frente e seu escopo ordenado.
 * A **sintaxe exata da API de testes** (assertions, lifecycle, parametrização, locators) — aditiva
   ao `test`/`assert` existente; sem sintaxe estrangeira.
-* Se `kof.test` vira um **namespace da stdlib** (hoje o `StdCatalog` não tem nenhum) ou continua
-  feature do compilador/CLI.
 * **Política de providers**: Playwright/Cypress são dependências externas pesadas — como são
   declaradas, versionadas e barradas (interop-first, R9), e se vêm com a CLI ou são opt-in.
-* Se o browser E2E roda **só na JVM** primeiro (o `KofJsBrowserE2ETest` atual é teste Java) ou
-  também de um `kof test --e2e` standalone.
 * Promoção: `future/` → `docs/development/` quando a primeira fatia landar (três estados + R12).
 
 ---
