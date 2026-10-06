@@ -145,8 +145,9 @@ public final class StdCatalog {
                     Map.entry("queryEncode", List.of("queryEncode(String s) -> String")),
                     Map.entry("queryDecode", List.of("queryDecode(String s) -> String")),
                     Map.entry("listen", List.of("listen(Int port) -> Listener")),
-                    Map.entry("connect", List.of("connect(String host, Int port) -> Conn")),
-                    Map.entry("bind", List.of("bind(Int port) -> Endpoint")))),
+                    Map.entry("connect", List.of("connect(String host, Int port) -> Conn", "connect(String host, Int port, String address) -> Conn")),
+                    Map.entry("bind", List.of("bind(Int port) -> Endpoint")),
+                    Map.entry("resolve", List.of("resolve(String host) -> List<String>")))),
             Map.entry("uuid", java.util.Map.ofEntries(
                     Map.entry("isUuid", List.of("isUuid(String s) -> Bool")),
                     Map.entry("v4", List.of("v4() -> String")),

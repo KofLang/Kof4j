@@ -432,6 +432,10 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_net_listen" -> "(I)Ldev/kof/runtime/KofRuntime$NetListener;";
             case "kof_net_accept" -> "(Ldev/kof/runtime/KofRuntime$NetListener;)Ldev/kof/runtime/KofRuntime$NetConn;";
             case "kof_net_connect" -> "(Ljava/lang/String;I)Ldev/kof/runtime/KofRuntime$NetConn;";
+            // #759 / NET1: connect ao endereço validado (host mantido p/ Host/SNI).
+            case "kof_net_connect_addr" -> "(Ljava/lang/String;ILjava/lang/String;)Ldev/kof/runtime/KofRuntime$NetConn;";
+            // #759 / NET1: todos os endereços (A/AAAA) do host.
+            case "kof_net_resolve" -> "(Ljava/lang/String;)Ljava/util/ArrayList;";
             case "kof_net_bind" -> "(I)Ldev/kof/runtime/KofRuntime$NetEndpoint;";
             case "kof_net_send" -> "(Ldev/kof/runtime/KofRuntime$NetConn;[B)I";
             case "kof_net_receive" -> "(Ldev/kof/runtime/KofRuntime$NetConn;I)[B";

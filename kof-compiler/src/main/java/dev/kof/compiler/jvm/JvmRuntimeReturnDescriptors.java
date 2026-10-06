@@ -98,6 +98,9 @@ public final class JvmRuntimeReturnDescriptors {
             case "kof_net_listen" -> "Ldev/kof/runtime/KofRuntime$NetListener;";
             case "kof_net_accept" -> "Ldev/kof/runtime/KofRuntime$NetConn;";
             case "kof_net_connect" -> "Ldev/kof/runtime/KofRuntime$NetConn;";
+            // #759 / NET1: connect ao endereço validado; resolve devolve List.
+            case "kof_net_connect_addr" -> "Ldev/kof/runtime/KofRuntime$NetConn;";
+            case "kof_net_resolve" -> "Ljava/util/ArrayList;";
             case "kof_net_bind" -> "Ldev/kof/runtime/KofRuntime$NetEndpoint;";
             case "kof_net_send" -> "I";
             case "kof_net_receive", "kof_net_receiveFrom" -> "[B";

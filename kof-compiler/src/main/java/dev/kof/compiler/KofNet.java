@@ -40,6 +40,9 @@ public final class KofNet {
             new Type.ClassType("dev.kof.runtime", "KofRuntime$NetEndpoint", List.of());
     private static final Type BYTE_ARR =
             new Type.ArrayType(Type.PrimitiveType.BYTE);
+    /** #759 / NET1: `net.resolve` devolve todos os endereços (A/AAAA) do host. */
+    private static final Type STR_LIST =
+            new Type.ClassType("kof", "List", List.of(STR));
     /** close é o único verbo polimórfico em handle — a JVM resolve por
      *  Object (widening de referência; o runtime guarda o objeto real). */
     private static final Type HANDLE =
@@ -68,7 +71,7 @@ public final class KofNet {
     static List<String> functions() {
         return List.of("scheme", "host", "port", "path", "query",
                 "fragment", "queryEncode", "queryDecode",
-                "listen", "connect", "bind");
+                "listen", "connect", "bind", "resolve");
     }
     static NetCall staticMethod(String namespace, String name, List<Type> argTypes) {
         int argc = argTypes.size();
@@ -81,10 +84,21 @@ public final class KofNet {
             // 1º argumento na rota de membros (padrão web/db).
             case "listen" -> argc == 1 && argTypes.get(0) == INT
                     ? new NetCall("kof_net_listen", LISTENER, List.of(INT)) : null;
+            // #759 / NET1 (D-MAINT-BATCH-0510): duas formas de connect —
+            // (host, port) resolve pelo SO (comportamento histórico) e
+            // (host, port, address) conecta ao endereço NUMÉRICO já validado
+            // contra a política, mantendo `host` para Host/SNI/cert.
             case "connect" -> argc == 2 && argTypes.get(0) == STR && argTypes.get(1) == INT
-                    ? new NetCall("kof_net_connect", CONN, List.of(STR, INT)) : null;
+                    ? new NetCall("kof_net_connect", CONN, List.of(STR, INT))
+                    : argc == 3 && argTypes.get(0) == STR && argTypes.get(1) == INT
+                            && argTypes.get(2) == STR
+                    ? new NetCall("kof_net_connect_addr", CONN, List.of(STR, INT, STR)) : null;
             case "bind" -> argc == 1 && argTypes.get(0) == INT
                     ? new NetCall("kof_net_bind", ENDPOINT, List.of(INT)) : null;
+            // #759 / NET1: todos os endereços (A/AAAA) do host, para a guarda
+            // validar cada um antes de conectar (anti DNS-rebinding).
+            case "resolve" -> argc == 1 && argTypes.get(0) == STR
+                    ? new NetCall("kof_net_resolve", STR_LIST, List.of(STR)) : null;
             // accept/send/receive/sendTo/peer/close recebem handle => membros
             // de handle (instanceMethod), nao estaticos de namespace (web precedent).
             default -> null;
@@ -179,10 +193,22 @@ public final class KofNet {
         // morre NoSuchMethodError no class load. Native x86-64 (fatia 3), JS
         // (fatia 4a) e riscv64/aarch64 (fatia 4b) entraram; Script usa o
         // lowering JVM e o mesmo runtime por reflexao (fatia 5, NetScriptE2ETest).
+        // #759 / NET1 (D-MAINT-BATCH-0510): `net.resolve` (A/AAAA lookup) e
+        // o connect ao endereco validado (`kof_net_connect_addr`) entram
+        // primeiro na perna JVM/Script — o runtime JVM ja tem `InetAddress`
+        // (mesmo `java.net` confinado em JvmRuntimeSockets). O Native ainda
+        // NAO tem resolvedor (connect v1 e IPv4 dotted-quad, ver
+        // network-kofnet-plan), entao resolve/connect_addr recusam NET002
+        // honestamente la ate a fatia nativa (nunca um link quebrado).
+        if (function.startsWith("kof_net_resolve")
+                || function.startsWith("kof_net_connect_addr")) {
+            return target == Target.JVM || target == Target.ANDROID;
+        }
         if (function.startsWith("kof_net_listen") || function.startsWith("kof_net_accept")
                 || function.startsWith("kof_net_connect") || function.startsWith("kof_net_bind")
                 || function.startsWith("kof_net_send") || function.startsWith("kof_net_receive")
-                || function.startsWith("kof_net_peer") || function.equals("kof_net_close")) {
+                || function.startsWith("kof_net_peer")
+                || function.equals("kof_net_close")) {
             return target == Target.JVM || target == Target.ANDROID
                     || target == Target.NATIVE
                     || target == Target.NATIVE_RISCV64 || target == Target.NATIVE_AARCH64
@@ -197,7 +223,8 @@ public final class KofNet {
         if (function.startsWith("kof_net_listen") || function.startsWith("kof_net_accept")
                 || function.startsWith("kof_net_connect") || function.startsWith("kof_net_bind")
                 || function.startsWith("kof_net_send") || function.startsWith("kof_net_receive")
-                || function.startsWith("kof_net_peer") || function.equals("kof_net_close")) {
+                || function.startsWith("kof_net_peer") || function.startsWith("kof_net_resolve")
+                || function.equals("kof_net_close")) {
             return "NET002";
         }
         return "NET001";
