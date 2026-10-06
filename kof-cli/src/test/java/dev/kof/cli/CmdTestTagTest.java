@@ -71,6 +71,23 @@ class CmdTestTagTest {
     }
 
     @Test
+    void commaSeparatedTagsKeepTheUnionOfMatchingTests(@TempDir Path dir) throws Exception {
+        Path src = dir.resolve("src");
+        Files.createDirectories(src);
+        Files.writeString(src.resolve("Main.kf"),
+                "test \"soma\", \"smoke\" {\n    assert(2 + 2 == 4)\n}\n"
+                + "test \"janela\", \"ui\" {\n    assert(\"kof\" == \"kof\")\n}\n"
+                + "test \"banco\", \"db\" {\n    assert(true)\n}\n");
+        Cli r = cli(dir, "test", src.toString(), "--tag", "smoke,ui");
+        assertEquals(0, r.exit(), "multi-tag deve passar:\n" + r.out());
+        assertTrue(r.out().contains("kof test: tag 'smoke,ui' (2 of 3)"),
+                "§7.1: lista separada por vírgula casa por OR:\n" + r.out());
+        assertTrue(r.out().contains("PASS soma"), "smoke roda:\n" + r.out());
+        assertTrue(r.out().contains("PASS janela"), "ui roda:\n" + r.out());
+        assertFalse(r.out().contains("PASS banco"), "db NÃO roda:\n" + r.out());
+    }
+
+    @Test
     void emptyTagValueIsRefusedAtTheFlag(@TempDir Path dir) throws Exception {
         Path src = dir.resolve("src");
         Files.createDirectories(src);

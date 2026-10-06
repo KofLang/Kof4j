@@ -16870,7 +16870,7 @@ MEASURED 03/10 (lane memory-safety/native-cross): the shape is stable RED at onl
 
 **Proof (RED-first):** new `CmdTestTagTest#tagFilterDoesNotCountAZeroMatchFileAsPassed` (dir: 1 match + 1 no-match → `SKIP .../B.kf (no tests with tag 'smoke')`, `1 passed, 0 failed, 1 skipped`, and no `suite b: 1 passed`) and `#tagFilterWithNoMatchAnywhereIsAnHonestNoOp` (single file, 0 of 2 → `0 passed, 0 failed, 1 skipped`). Pre-fix both fail with the measured false green (`2 passed, 0 failed` / `1 passed, 0 failed`); post-fix `CmdTestTagTest` **6/6** and `CmdTestSuiteTest` **8/8** (the §576 skip and named-suite contracts unchanged). Non-regression: `TestTagsE2ETest` 23/23 (harness output byte-identical), `StructuredTestE2ETest` 12/12 (`TestInfo` consumers), `KofTestingE2ETest` 7/7, `GenericEqualityE2ETest` 16/16.
 
-**Boundary:** runner/CLI reporting only — no parser/typer/codegen/runtime change, no new syntax. `--tag` still filters at compile time and is a single-tag exact match (multi-tag/negation remain future work in the platform plan §7.1).
+**Boundary:** runner/CLI reporting only — no parser/typer/codegen/runtime change, no new syntax. `--tag` still filters at compile time; multi-tag (comma-separated OR) LANDED 06/10 (platform plan §7.1), negation remains future work.
 
 <!-- pt-switch --> **PT:** [§587 (pt_BR)](known-bugs.pt_BR.md#587--kof-test---tag-um-arquivo-cujos-testes-nenhum-casa-o-filtro-era-contado-como-passed-falso-verde--kof-test-dir---tag-smoke-com-1-arquivo-casando--1-sem-match-imprimia-2-passed-0-failed-e-suite-b-1-passed-0-failed---corrigido-0410-dona--19216815309093-lane-issuestooling-kof-testing-platform-71)
 

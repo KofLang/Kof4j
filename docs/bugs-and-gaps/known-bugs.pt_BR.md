@@ -14417,7 +14417,7 @@ entrada do ledger apenas registra a divergência garantia-declarada × árvore.
 
 **Prova (RED-first):** novos `CmdTestTagTest#tagFilterDoesNotCountAZeroMatchFileAsPassed` (dir: 1 match + 1 sem match → `SKIP .../B.kf (no tests with tag 'smoke')`, `1 passed, 0 failed, 1 skipped`, e nenhum `suite b: 1 passed`) e `#tagFilterWithNoMatchAnywhereIsAnHonestNoOp` (arquivo único, 0 de 2 → `0 passed, 0 failed, 1 skipped`). Pré-fix ambos falham com o falso verde medido (`2 passed, 0 failed` / `1 passed, 0 failed`); pós-fix `CmdTestTagTest` **6/6** e `CmdTestSuiteTest` **8/8** (os contratos de skip §576 e de suíte nomeada intactos). Não-regressão: `TestTagsE2ETest` 23/23 (saída do harness byte-idêntica), `StructuredTestE2ETest` 12/12 (consumidores de `TestInfo`), `KofTestingE2ETest` 7/7, `GenericEqualityE2ETest` 16/16.
 
-**Fronteira:** apenas relatório do runner/CLI — sem mudança de parser/typer/codegen/runtime, sem sintaxe nova. O `--tag` continua filtrando em compile-time e é casamento exato de tag única (multi-tag/negação seguem trabalho futuro do plano da plataforma §7.1).
+**Fronteira:** apenas relatório do runner/CLI — sem mudança de parser/typer/codegen/runtime, sem sintaxe nova. O `--tag` continua filtrando em compile-time; multi-tag (lista separada por vírgula, OR) POUSOU 06/10 (plano da plataforma §7.1), a negação segue trabalho futuro.
 
 <!-- en-switch --> **EN:** [§587 (EN)](known-bugs.md#587--kof-test---tag-a-file-whose-tests-none-match-the-filter-was-counted-as-passed-false-green--kof-test-dir---tag-smoke-with-1-matching--1-non-matching-file-printed-2-passed-0-failed-and-suite-b-1-passed-0-failed---fixed-0410-owner--19216815309093-lane-issuestooling-kof-testing-platform-71)
 

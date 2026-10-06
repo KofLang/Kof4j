@@ -443,6 +443,32 @@ vazio** passa (`PASS nothing`). (d) Um `test` **aninhado dentro de uma função*
 Categorizar testes: `unit`, `integration`, `e2e`, `slow`, `browser`, `network`, `database`,
 `native`, `jvm`, `js`, `wasm`, `security` — permitindo filtros eficientes.
 
+**Status:** POUSADA 26/09 (X8 fatia 3) — as tags são declaradas no primitivo
+(`test "nome", "smoke" { }`) e `kof test --tag <t>` filtra em COMPILE-TIME (propriedade de sistema
+`kof.test.tag`; o harness sintetizado é gerado uma vez e todo alvo roda o mesmo catálogo filtrado,
+paridade rule-5 por construção). Um filtro que não casa **nada** num arquivo é um no-op honesto
+(exit 0, o harness imprime `kof test: tag '<t>' (0 of N)` / `no tests with tag '<t>' (of N)`) — um
+filtro de tag não é um gate que quebra o build.
+
+**Arquivos sem match são SKIP, nunca passed (defeito medido `known-bugs` §587, CORRIGIDO 04/10):**
+o `CmdTest` contava todo arquivo cujo harness saía 0 como `passed`, então um arquivo cujos testes
+todos falhavam o filtro imprimia `suite b: 1 passed, 0 failed` / `2 passed, 0 failed` — um falso
+verde indistinguível de um passe real. O `CompilerDriver.TestInfo` agora expõe as `tags` declaradas,
+e um arquivo sem match é `SKIP <arquivo> (no tests with tag '<t>')`, contado em `skippedByTag` e
+excluído de `passed`.
+
+**Multi-tag (POUSADA 06/10, lane issues/tooling `192.168.15.30:9093`):** o valor de `--tag` é uma
+lista separada por vírgula e casa por **disjunção (OR)** — `kof test --tag smoke,ui` mantém todo
+teste que carregue *qualquer* uma das tags listadas; um valor simples (sem vírgula) é o caso de uma
+tag só e mantém o contrato histórico byte a byte (regra 2). Espaços em volta de cada tag são
+ignorados; um item vazio é descartado. O parse vive em `TestHarnessBuilder.matchesAnyTag` (catálogo
+em compile-time) e é espelhado em `CmdTest.hasTagMatch` (para o veredito SKIP de zero-match do §587
+concordar com o harness). Prova RED-first: novo `TestTagsMultiE2ETest` **4/4** (união, trim, tag
+desconhecida na lista, no-op honesto de todas desconhecidas; pré-fix **3 RED** com o match de tag
+única antigo), `TestTagsE2ETest` **23/23** inalterado e `CmdTestTagTest` **7/7** (era 6 — a perna de
+CLI `--tag smoke,ui`). **Negação segue como trabalho futuro** (precisa de uma sintaxe para distinguir
+"não esta tag" de uma tag literalmente chamada com um `!`; não decidido).
+
 ## 7.2 Paralelismo
 
 Unit: paralelo por padrão quando isolado. Integração: controlado. E2E: por browser/context/projeto

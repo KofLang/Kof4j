@@ -24,7 +24,7 @@ final class CmdTest {
 
     private static final String USAGE =
             "usage: kof test <file.kf|dir> [--target jvm|native|js] [--timeout <sec>]"
-            + " [--tag <tag>]";
+            + " [--tag <tag>[,<tag>...]]";
 
     static void run(String[] args) {
         if (args.length >= 2 && (args[1].equals("--help") || args[1].equals("-h"))) {
@@ -60,7 +60,8 @@ final class CmdTest {
         }
         Target target = Target.JVM;
         long timeoutSec = 0;   // 0 = sem limite (comportamento histórico, aditivo)
-        String tag = null;     // X8 fatia 3: filtro por tag (compile-time, único p/ 4 alvos)
+        String tag = null;     // X8 fatia 3: filtro por tag (compile-time, único p/ 4 alvos);
+                               // §7.1: aceita lista separada por vírgula (OR) — "smoke,ui"
         for (int i = argStart; i < args.length; i++) {
             if (args[i].startsWith("--target=")) {
                 target = KofCliSupport.parseTarget(args[i].substring("--target=".length()));
@@ -90,12 +91,12 @@ final class CmdTest {
                 // R6: an unknown flag (or --target/--timeout without its value) must
                 // never be silently ignored — the user/CI would believe it took effect.
                 System.err.println("test: unknown or incomplete flag: " + args[i]
-                        + " (accepts: --target jvm|native|js, --timeout <sec>, --tag <tag>)");
+                        + " (accepts: --target jvm|native|js, --timeout <sec>, --tag <tag>[,<tag>...])");
                 System.exit(1);
                 return;
             } else {
                 System.err.println("test: unexpected argument: " + args[i]
-                        + " (accepts: --target jvm|native|js, --timeout <sec>, --tag <tag>)");
+                        + " (accepts: --target jvm|native|js, --timeout <sec>, --tag <tag>[,<tag>...])");
                 System.exit(1);
                 return;
             }
@@ -381,8 +382,15 @@ final class CmdTest {
      * passed. As tags vêm de {@link CompilerDriver.TestInfo#tags()}.
      */
     private static boolean hasTagMatch(List<CompilerDriver.TestInfo> tests, String tag) {
+        // §7.1 multi-tag: o filtro é uma lista separada por vírgula e casa por
+        // DISJUNÇÃO (OR), espelhando TestHarnessBuilder.matchesAnyTag (mesma
+        // regra de trim/ignorar vazio) — o runner precisa do MESMO veredito que
+        // o harness compilado para não contar um arquivo sem match como passed.
         for (CompilerDriver.TestInfo t : tests) {
-            if (t.tags().contains(tag)) return true;
+            for (String part : tag.split(",", -1)) {
+                String want = part.trim();
+                if (!want.isEmpty() && t.tags().contains(want)) return true;
+            }
         }
         return false;
     }

@@ -469,7 +469,18 @@ no-op (exit 0, the harness prints `kof test: tag '<t>' (0 of N)` / `no tests wit
 failed the tag filter printed `suite b: 1 passed, 0 failed` / `2 passed, 0 failed` — a false green
 indistinguishable from a real pass. `CompilerDriver.TestInfo` now exposes the declared `tags`, and a
 zero-match file is `SKIP <file> (no tests with tag '<t>')` counted in `skippedByTag`, excluded from
-`passed`. Single-tag exact match only; multi-tag/negation remain future work.
+`passed`.
+
+**Multi-tag (LANDED 06/10, lane issues/tooling `192.168.15.30:9093`):** the `--tag` value is a
+comma-separated list and matches by **disjunction (OR)** — `kof test --tag smoke,ui` keeps every
+test carrying *any* of the listed tags; a bare value (no comma) is the single-tag case and keeps the
+historical contract byte for byte (rule 2). Whitespace around each tag is trimmed; an empty item is
+discarded. The parse lives in `TestHarnessBuilder.matchesAnyTag` (compile-time catalog) and mirrors
+in `CmdTest.hasTagMatch` (so the §587 zero-match SKIP verdict agrees with the harness). Proof
+RED-first: new `TestTagsMultiE2ETest` **4/4** (union, trim, unknown-tag in the list, all-unknown
+honest no-op; pre-fix **3 RED** with the old single-tag match), `TestTagsE2ETest` **23/23** unchanged
+and `CmdTestTagTest` **7/7** (was 6 — the `--tag smoke,ui` CLI leg). **Negation remains future work** (it
+needs a syntax to distinguish "not this tag" from a tag literally named with a `!`; not decided).
 
 ## 7.2 Parallelism
 
