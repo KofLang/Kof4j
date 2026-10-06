@@ -17259,3 +17259,17 @@ Generated JS contains `if (((i < n) & (f() > 0)))` (measured). Expected: `&&`, n
 **Boundary:** CLI target admission only; no parser/typer/codegen/runtime change, no new syntax, no change to `kof build` (the cross BUILD route stays correct and is what the refusal points to).
 
 <!-- pt-switch --> **PT:** [§615 (pt_BR)](known-bugs.pt_BR.md#615--kof-test---target-nativeriscnativearm-era-suporte-falso-a-cli-aceitava-o-alvo-cross-compilava-o-harness-e-entao-morria-com-um-erro-cru-riscv64-ld-undefined-reference-to-kof_process_exit-comp001---corrigido-0610-dona--19216815309093-lane-issuestooling-runner-do-kof-testing-platform)
+
+## §616 — `shell.run(program, args)` rejected an inline empty `listOf()` (SEM025) — ✅ FIXED 06/10 (owner = 192.168.15.30:9093; lane issues/tooling)
+
+**Symptom (measured 06/10, tip `86283490a`, from issue #774):** `shell.run(program, listOf())` — a legitimate "no arguments" call — failed overload resolution with `SEM025 Cannot resolve method 'run' on 'shell'`, while `shell.run("echo", listOf("x"))` (non-empty) and the 3-arg `shell.runWith(listOf(), ...)` compiled. The failure is at compile time, so any caller written in the two-argument shape could not build.
+
+**Root (read):** `KofShell.staticCall` matched the `run` argv parameter with `STRING_LIST.equals(argTypes.get(1))` — exact equality — so an empty list literal inferred as `List<Object>` did not match `List<String>`. `runWith` already accommodated that same case via `BuiltinTypes.isList(argTypes.get(0))`; `cmd` shared `run`'s exact-equality bug.
+
+**Fix (stdlib overload resolution only, zero language change):** `KofShell` now uses `BuiltinTypes.isList(...)` for the argv parameter of both `run` and `cmd`, mirroring `runWith`. A vacuous argv is legitimate — it means "no arguments" — and the lowering already passes it to `kof_process_run`/`kof_shell_argv` as `STRING_LIST`; the runtime, not the resolver, is where an empty argv has meaning.
+
+**Proof (RED-first):** new `ShellRunEmptyArgsE2ETest` **3/3** — pre-fix all RED with the exact `Cannot resolve method 'run'`; post-fix `run("false", listOf())` → `1`/`false`, `cmd("echo", listOf())` → `1`/`echo`, and the two-argument form equals the one-argument form. Non-regression `ShellE2ETest` 21/21 + `ShellCrossE2ETest` 7/7 + `StdCatalogTest` 11/11 + `StdCatalogSignaturesTest` 13/13 + `ProcessRunNativeE2ETest` 6/6 = **58/58**.
+
+**Boundary:** stdlib overload resolution only; no parser/typer/codegen/runtime change, no new syntax. `runWith`/`pipeline`/`ok` untouched. Issue #774.
+
+<!-- pt-switch --> **PT:** [§616 (pt_BR)](known-bugs.pt_BR.md#616--shellrunprogram-args-recusava-um-listof-vazio-inline-sem025---corrigido-0610-dona--19216815309093-lane-issuestooling)

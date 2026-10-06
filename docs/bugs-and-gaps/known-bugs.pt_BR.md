@@ -14799,3 +14799,17 @@ O JS gerado contém `if (((i < n) & (f() > 0)))` (medido). Esperado: `&&`, sem `
 
 **Limite:** admissão de alvo na CLI apenas; sem mudança de parser/typer/codegen/runtime, sem sintaxe nova, sem mudança no `kof build` (a rota de BUILD cross segue correta e é para onde a recusa aponta).
 
+
+## §616 — `shell.run(program, args)` recusava um `listOf()` vazio inline (SEM025) — ✅ CORRIGIDO 06/10 (dona = 192.168.15.30:9093; lane issues/tooling)
+
+**Sintoma (medido 06/10, tip `86283490a`, da issue #774):** `shell.run(program, listOf())` — uma chamada legítima de "sem argumentos" — falhava a resolução de sobrecarga com `SEM025 Cannot resolve method 'run' on 'shell'`, enquanto `shell.run("echo", listOf("x"))` (não-vazio) e o `shell.runWith(listOf(), ...)` de 3 args compilavam. A falha é em compile-time, então qualquer chamador escrito na forma de 2 args não compilava.
+
+**Causa-raiz (lida):** o `KofShell.staticCall` casava o parâmetro argv do `run` com `STRING_LIST.equals(argTypes.get(1))` — igualdade exata — então um literal de lista vazio inferido `List<Object>` não casava `List<String>`. O `runWith` já acomodava esse mesmo caso via `BuiltinTypes.isList(argTypes.get(0))`; o `cmd` compartilhava o bug de igualdade exata do `run`.
+
+**Correção (só resolução de sobrecarga do stdlib, zero mudança de linguagem):** o `KofShell` agora usa `BuiltinTypes.isList(...)` para o parâmetro argv do `run` e do `cmd`, espelhando o `runWith`. Um argv vazio é legítimo — significa "sem argumentos" — e o lowering já o passa a `kof_process_run`/`kof_shell_argv` como `STRING_LIST`; o runtime, não o resolvedor, é onde um argv vazio tem sentido.
+
+**Prova (RED-first):** novo `ShellRunEmptyArgsE2ETest` **3/3** — pré-fix todos RED com o exato `Cannot resolve method 'run'`; pós-fix `run("false", listOf())` → `1`/`false`, `cmd("echo", listOf())` → `1`/`echo`, e a forma de 2 args iguala a de 1 arg. Não-regressão `ShellE2ETest` 21/21 + `ShellCrossE2ETest` 7/7 + `StdCatalogTest` 11/11 + `StdCatalogSignaturesTest` 13/13 + `ProcessRunNativeE2ETest` 6/6 = **58/58**.
+
+**Limite:** só resolução de sobrecarga do stdlib; sem mudança de parser/typer/codegen/runtime, sem sintaxe nova. `runWith`/`pipeline`/`ok` intocados. Issue #774.
+
+<!-- en-switch --> **EN:** [§616 (en)](known-bugs.md#616--shellrunprogram-args-rejected-an-inline-empty-listof-sem025---fixed-0610-owner--19216815309093-lane-issuestooling)
