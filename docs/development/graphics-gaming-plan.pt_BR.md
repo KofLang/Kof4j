@@ -4,7 +4,7 @@
 
 last: fatia-3.1 relógio puro + snapshots de input de teclado/ponteiro/gamepad pousados 05/10 (`libs/game/Clock.kf` + `Keys.kf` + `Mouse.kf` + `Pad.kf`, `GameClockE2ETest`/`GameInputE2ETest`/`GameMouseE2ETest`/`GamePadE2ETest` 4/4 cada; `known-bugs` §603 corrigido no caminho); superfície pura `kof.game` verificada cross-target (`GameCrossE2ETest` 3/3 — oráculo JVM + riscv64 + aarch64 sob qemu); forma da janela DECIDIDA (`D-GRAPHICS-WINDOW-FORM`: `Window("…") { frame { dt -> … } }`, `dt` Int ms) e seu pré-requisito de parser corrigido (`known-bugs` §611, `TrailingLambdaParamsE2ETest` 6/6); G1 SDL3 `3.4.16` medida (C + FFI do Kof, headless JVM+Native; `known-bugs` §606 corrigido); **SDL3 vendada no sysroot cross 06/10 (`scripts/provision-cross-sdl3.sh`, aarch64+riscv64 `3.4.16` + fecho de runtime + GLIBC 2.44) e a ABI crua medida ponta-a-ponta headless nos quatro alvos (`Sdl3FfiCrossE2ETest` 5/5: JVM + Native x86-64 + riscv64 + aarch64 sob qemu, golden `init=true/driver=dummy/title=kof`)**
 doing: fatia-3.1 (window/frame/input)
-next: fatia-3.1 backend window/frame/input — forma DECIDIDA (`Window`), unidade do `dt` DECIDIDA (Int ms, primeiro frame 0), stack vendada + ABI cross provada; falta o hospedeiro `Window`/`frame` sobre o binding medido (long-frame/limit/pause/minimized/focus do loop ainda TBD — chamada da mantenedora)
+next: fatia-3.1 backend window/frame/input — forma DECIDIDA (`Window`), unidade do `dt` DECIDIDA (Int ms, primeiro frame 0), stack vendada + ABI cross provada, **semântica do loop DECIDIDA (`D-MAINT-BATCH-0610`: long-frame = clamp do dt, limit = só vsync on/off, pause = pause/resume explícitos + minimized suspende render + perder foco NÃO pausa)**; falta o hospedeiro `Window`/`frame` sobre o binding medido e o registro do `kof.game` no ledger
 location: docs/development
 state: UNDER DEVELOPMENT
 
@@ -142,8 +142,12 @@ release/caching/perda de janela. Sem gerenciamento GPU manual quando o backend r
   (a alternativa `Scene("Pong") { dt -> ... }` foi rejeitada); cobre título/tamanho/fullscreen/resize/foco/
   close/DPI/orientação/visibilidade/input; sem APIs de SO.
 - Loop: backend detém clock/vsync/scheduling/poll/submit/present; programa recebe
-  `dt` (unidade DECIDIDA — `D-GRAPHICS-WINDOW-FORM`: Int milissegundos, primeiro frame `0`;
-  long-frame/limite/pause/minimizado/foco TBD).
+  `dt` (unidade DECIDIDA — `D-GRAPHICS-WINDOW-FORM`: Int milissegundos, primeiro frame `0`).
+  As semânticas restantes do loop também estão DECIDIDAS (`D-MAINT-BATCH-0610`, 06/10):
+  **long-frame = clamp do `dt`** (o delta real limitado por um teto configurável —
+  guarda anti spiral-of-death, nunca um `dt` ilimitado); **limit = só vsync on/off**
+  (sem cap de frame-rate); **pause = `pause()`/`resume()` explícitos, `minimized`
+  suspende o render, perder foco NÃO pausa**.
 - Clock virtual obrigatório (`dt` determinístico) para física/animações/input/
   áudio/playback/goldens.
 

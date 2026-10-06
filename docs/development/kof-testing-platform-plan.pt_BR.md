@@ -239,6 +239,11 @@ Avaliar tabelas `entrada → esperado` — muito útil para parser, type checker
 processamento de string e operações numéricas. Não duplicar dezenas de testes só porque os
 inputs mudam.
 
+> **DECIDIDO 06/10 (`D-MAINT-BATCH-0610`/D):** §4.4 é a primeira face autorizada do conjunto
+> rule-6 restante deste plano (§4.6 test doubles e §5 harness depois). Continua infraestrutura
+> de teste aditiva — sem mudança de linguagem/semântica; a superfície concreta segue a
+> gramática do Kof e é definida na implementação.
+
 ## 4.5 Property-based (futuro)
 
 Deixar a arquitetura pronta para `encode(decode(x)) == x` ou `parse(print(ast)) == ast` quando a

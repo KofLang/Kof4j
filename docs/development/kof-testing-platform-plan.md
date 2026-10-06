@@ -255,6 +255,11 @@ Evaluate `input → expected` tables — very useful for parser, type checker, e
 string processing and numeric operations. Do not duplicate dozens of tests only because inputs
 change.
 
+> **DECIDED 06/10 (`D-MAINT-BATCH-0610`/D):** §4.4 is the first authorized face of this plan's
+> remaining rule-6 set (§4.6 test doubles and §5 harness follow). It stays additive test
+> infrastructure — no language/semantics change; the concrete surface follows Kof grammar and
+> is defined at implementation.
+
 ## 4.5 Property-based tests (future)
 
 Leave the architecture ready for `encode(decode(x)) == x` or `parse(print(ast)) == ast` when the

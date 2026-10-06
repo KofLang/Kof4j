@@ -4852,3 +4852,23 @@ individuais:
 **Fronteira:** a forma está decidida; o binding FFI/backend, o vendoring da SDL3 no sysroot cross e os TBDs restantes de semântica do loop NÃO são decididos aqui. A lane graphics é dona da fatia 3.1 (`D-PLAN-ONE-OWNER`); `kof.game` continua um pacote oficial (`check_stdlib_boundary` `HARD_DENY game`).
 
 **Relações:** `Related: D-GRAPHICS-GAMING, D-GRAPHICS-SPIKE, D-MAINT-BATCH-0510/G1, D-KOF-FIRST (rule 10), rule 6`.
+
+## D-MAINT-BATCH-0610 — lote de múltipla escolha da mantenedora (06/10/2026, poll no chat): 7 frentes rule-6 pendentes resolvidas
+
+**Data:** 2026-10-06 · **Estado:** `DECIDED` (lote) · **Evidência:** as respostas de múltipla escolha da mantenedora no poll do chat de 06/10/2026 (o poll listou as opções reais dos planos/issues/filas). **Efeito:** as 7 frentes abaixo estão AUTORIZADAS para implementação; as issues continuam abertas até a lane dona pousar a correção com prova. Este registro AUTORIZA; não implementa.
+
+| # | Frente (opção) | Desbloqueia / fila |
+|---|---|---|
+| A1 (semântica do loop — long-frame) | **clamp do `dt`** — o loop reporta o delta real limitado por um teto configurável (guarda anti spiral-of-death), nunca um `dt` ilimitado | fecha o TBD `long-frame` de `D-GRAPHICS-WINDOW-FORM`; `graphics-gaming-plan` §6 |
+| A2 (semântica do loop — limit) | **só vsync on/off** — sem cap de frame-rate; o vsync do backend é a única primitiva de pacing | fecha o TBD `limit`; `graphics-gaming-plan` §6 |
+| A3 (semântica do loop — pause/minimized/focus) | **`pause()`/`resume()` explícitos; `minimized` suspende o render; perder foco NÃO pausa** | fecha os TBDs `pause`/`minimized`/`focus`; `graphics-gaming-plan` §6 |
+| B (#763 FFI) | **overload por assinatura, completo** — um símbolo C bindado com mais de uma assinatura, resolvido por aridade/tipos (sem a forma alias de símbolo) | fila: superfície FFI do compilador; issue #763 (`post-1.0`) |
+| C (#753 residual / §554) | **estreitar + nomear o handle** — recusar o mismatch builtin→builtin em `TypeChecker.isAssignable` E tornar nomeável em fonte o handle `process.spawn`/`process.run` (`kof.process.Result`) | lane compiler/interop; issue #753 residual + `known-bugs` §554 |
+| D (testing-platform) | **§4.4 testes parametrizados primeiro** — tabelas `input → expected`; §4.6 doubles / §5 harness depois | `kof-testing-platform-plan` §4.4 |
+| E (Q1 branch protections) | **ativar agora** em `testing`/`prerelease`/`stable` (sem force-push + required checks) | `quality-pipeline` 14.4 (mantenedora aplica as configurações no GitHub) |
+| F (G2 FFmpeg) | **vendorizar o build LGPL agora** — o build GPL da distro NÃO é tomado como está | fatia 3.4 (vídeo); empacotamento/licença da lane graphics |
+| G (#761 contrato) | **permanente — nunca bloqueia corte** — sua categoria `1.0-blocks` é aposentada para `tracking/contract`; um contrato vivo não é um defeito aberto | remove o `CUT: SLIPS` estrutural do `check_lab_stability.sh`; #761 segue ABERTA por desenho |
+
+**Fronteira:** A1–A3 congelam a semântica restante do loop de `D-GRAPHICS-WINDOW-FORM`; o hospedeiro `Window`/`frame` pode pousar agora (a stack SDL3 está vendada + ABI-provada). B é uma nova superfície de linguagem FFI (ainda `post-1.0`). C segue `1.0-blocks` até ser corrigida; D é infraestrutura de teste aditiva; E é uma ação de configuração do GitHub feita pela mantenedora, não por um agente; F é empacotamento/licença; G é mudança de classificação que desbloqueia o corte 0.6.0. Nada aqui enfraquece o quality gate ou descongela `future/`.
+
+**Relações:** `Related: D-GRAPHICS-WINDOW-FORM, D-GRAPHICS-GAMING, D-MAINT-BATCH-0510, D-RELEASE-1.0, D-LAB-STABILITY, D-QUALITY-PIPELINE-2609, #761, #763, #753, rule 6`.
