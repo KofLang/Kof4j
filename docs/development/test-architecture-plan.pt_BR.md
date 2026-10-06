@@ -848,6 +848,17 @@ enums, distinto da forma `sealed class` em `sealed-switch`). Cada caso é
 validado nos quatro alvos. Prova (executada): `tests/run-golden.sh` **116/116**
 (29 casos × 4 alvos), exit 0.
 
+**Fatia 7 da Fase 6 ENTREGUE (06/10):** mais dois casos — **31 no total** — pinando
+as duas superfícies que a família #770/#772 acabou de exercitar e o contrato de
+inteiro largo: `std-math-nullable` (um `Int?`/`String?` estreitado passado a uma
+chamada std de formal primitivo — `math.abs`/`math.min`/`math.max`/`math.parseInt`
+por guardas de null, a forma exata que regrediu no native em `known-bugs` §612) e
+`long-arithmetic` (add/sub/mul/div/mod de `Long` 64-bit, menos unário, relacional e
+a identidade de round-trip — a superfície mais propensa a divergir porque o JS usa
+`BigInt` enquanto JVM/Native são 64-bit, então a igualdade cross-target é uma guarda
+real). Ambos validados nos quatro alvos, mais riscv64/aarch64 sob qemu na autoria.
+Prova (executada): `tests/run-golden.sh` **124/124** (31 casos × 4 alvos), exit 0.
+
 ### Fase 7 — Integração
 
 Implantar:

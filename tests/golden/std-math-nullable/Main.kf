@@ -1,0 +1,10 @@
+Int absIt(Int? x) { if (x != null) { var n = math.abs(x); return n } return 0 }
+Int minIt(Int? a, Int? b) { if (a != null && b != null) { return math.min(a, b) } return 0 }
+Int maxIt(Int? x) { if (x != null) { return math.max(x, 0) } return 0 }
+Int parseIt(String? q) { if (q != null && q.length() > 0) { return math.parseInt(q) } return 0 }
+void main() {
+    println("" + absIt(-5) + "/" + minIt(5, 3) + "/" + maxIt(0))
+    println("" + absIt(0) + "/" + minIt(-2, -9) + "/" + maxIt(7))
+    println("" + absIt(null) + "/" + minIt(null, 3) + "/" + maxIt(null))
+    println("" + parseIt("42") + "/" + parseIt("") + "/" + parseIt(null))
+}

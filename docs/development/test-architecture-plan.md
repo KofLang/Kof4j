@@ -842,6 +842,17 @@ distinct from the `sealed class` form in `sealed-switch`). Every case is
 validated on all four targets. Proof (executed): `tests/run-golden.sh`
 **116/116** (29 cases × 4 targets), exit 0.
 
+**Phase 6 slice 7 LANDED (06/10):** two more cases — **31 total** — pinning the two
+surfaces the #770/#772 family just exercised and the wide-integer contract:
+`std-math-nullable` (a narrowed `Int?`/`String?` fed to a primitive-arg std call —
+`math.abs`/`math.min`/`math.max`/`math.parseInt` through null guards, the exact
+shape that regressed on native in `known-bugs` §612) and `long-arithmetic` (64-bit
+`Long` add/sub/mul/div/mod, unary minus, relational and the round-trip identity —
+the surface most likely to diverge because JS uses `BigInt` while JVM/Native are
+64-bit, so cross-target equality is a real guard). Both are validated on all four
+targets, plus riscv64/aarch64 under qemu during authoring. Proof (executed):
+`tests/run-golden.sh` **124/124** (31 cases × 4 targets), exit 0.
+
 ### Phase 7 — Integration
 
 Deploy:
