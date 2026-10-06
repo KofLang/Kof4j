@@ -21,12 +21,17 @@ public final class StatementLowerer {
                 // "finally roda no caminho normal, no capturado e na propagação").
                 if (!driver.finallyFrames.isEmpty()) {
                     CompilerDriverState.FinallyFrame f = driver.finallyFrames.peek();
-                    // §551: region(is) try aninhadas DENTRO do corpo do try-com-
-                    // finally (catch-only ou finally mais interno já resolvido)
-                    // ficam vinculadas no ponto do return — desvincula até a
-                    // profundidade de entrada deste frame antes de saltar p/ o
-                    // epílogo (que desvincula o próprio finally).
-                    for (int i = 0; i < driver.tryDepth - f.tryDepthSelf(); i++) ops.add(new KofExcUnlink());
+                    // §551 residual (native catch-return): o frame é empilhado
+                    // ANTES do corpo do try, mas `tryDepth` DENTRO do catch é
+                    // `tryDepthSelf - 1` (o handler deste try já foi desempilhado
+                    // por `kof_throw_string` ao capturar). O unlink deve espelhar
+                    // exatamente os handlers VIVOS no ponto do return, não a
+                    // profundidade de entrada do frame: um return no try precisa
+                    // do unlink do próprio handler; um return no catch NÃO pode
+                    // desempilhar o handler já consumido (double-pop corrompia a
+                    // cadeia → SIGSEGV no próximo throw). O epílogo do finally
+                    // não desvincula mais — o return site já o fez.
+                    for (int i = 0; i < driver.tryDepth; i++) ops.add(new KofExcUnlink());
                     if (ret.value() != null) {
                         localIdx = ReturnValueLowerer.emitCoerced(driver, ret, returnType, ops, owner, localIdx, locals);
                         ops.add(new KofStoreLocal(returnType, f.slotValor()));
@@ -502,17 +507,13 @@ public final class StatementLowerer {
                     }
                     ops.add(new KofLoadLocal(new Type.ClassType("java.lang", "Throwable", List.of()), excTmp));
                     ops.add(new KofThrow());
-                    // caminho return-no-try/catch: finally roda, valor do slot
-                    // retorna; try/finally EXTERNO encadeia (store no slot dele)
+                    // caminho return-no-try/catch: o return site já desvinculou
+                    // os handlers vivos (§551 residual); aqui só roda o finally,
+                    // encadeia num finally externo ou retorna o valor.
                     ops.add(new KofLabel(returnFinallyL));
                     for (StatementNode s : ts.finallyBody()) {
                         localIdx = driver.emitStatement(s, ops, owner, localIdx, locals, returnType);
                     }
-                    // §551: o return atravessou o corpo do try com o handler
-                    // deste finally ainda vinculado — desvincula-o antes de
-                    // retornar/encadear. (Nos caminhos normal e de rethrow o
-                    // handler já foi desempilhado antes de chegar ao epílogo.)
-                    ops.add(new KofExcUnlink());
                     if (!driver.finallyFrames.isEmpty()) {
                         CompilerDriverState.FinallyFrame outer = driver.finallyFrames.peek();
                         if (retSlot >= 0) {
