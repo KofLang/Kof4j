@@ -1,0 +1,97 @@
+package image
+
+import image.Av1Tx
+import image.Av1InvTx
+import image.Av1Quant
+
+// kof.image — AV1 reconstruction (slice 3i of the AVIF front, plan §34).
+// The stage that turns the dequantized transform block produced by slice 3f
+// back into reconstructed samples, per AV1 Bitstream & Decoding Process
+// Specification §7.11.4 (reconstruct process), steps 2 and 3.
+//
+// Step 2 is the 2D inverse transform (`av1InvTx2d`, slice 3g); this module
+// carries step 3, the residual-to-prediction sum with the FLIPADST flips and
+// `Clip1`:
+//   - §7.11.4 `flipUD` derivation              -> av1ReconFlipUd
+//   - §7.11.4 `flipLR` derivation              -> av1ReconFlipLr
+//   - §7.11.4 `Clip1`                          -> av1ReconClip1
+//   - §7.11.4 step 3 (flip + add + clip)       -> av1ReconAddPred
+//   - §7.11.4 steps 2+3                        -> av1Reconstruct
+//
+// The dequantization (step 1) is slice 3f (`av1Dequant`); the caller composes
+// `av1Reconstruct( av1Dequant( quant, txSz, bitDepth, dcQuant, acQuant ),
+// pred, txSz, txType, bitDepth, lossless )`.
+//
+// Pure Kof, all targets: no I/O, no compiler change.
+
+// §7.11.4: `flipUD` is 1 when PlaneTxType is FLIPADST_DCT (4), FLIPADST_ADST
+// (8), V_FLIPADST (14) or FLIPADST_FLIPADST (6).
+Bool av1ReconFlipUd(Int txType) {
+    return txType == 4 || txType == 6 || txType == 8 || txType == 14
+}
+
+// §7.11.4: `flipLR` is 1 when PlaneTxType is DCT_FLIPADST (5), ADST_FLIPADST
+// (7), H_FLIPADST (15) or FLIPADST_FLIPADST (6).
+Bool av1ReconFlipLr(Int txType) {
+    return txType == 5 || txType == 6 || txType == 7 || txType == 15
+}
+
+// §7.11.4 step 3: `Clip1( v )` clamps a sample to `[ 0, ( 1 << BitDepth ) - 1 ]`.
+Int av1ReconClip1(Int v, Int bitDepth) {
+    return av1Clip3(0, (1 << bitDepth) - 1, v)
+}
+
+// §7.11.4 step 3: `CurrFrame[ plane ][ y + yy ][ x + xx ]` is set equal to
+// `Clip1( CurrFrame[ plane ][ y + yy ][ x + xx ] + Residual[ i ][ j ] )`, with
+// `xx = flipLR ? ( w - j - 1 ) : j` and `yy = flipUD ? ( h - i - 1 ) : i`.
+//
+// Inputs:
+//   - `pred`: the prediction block, flat row-major of size `w * h` (`w`
+//     columns).
+//   - `residual`: the residual block from `av1InvTx2d`, flat row-major of size
+//     `w * h` (`w` columns).
+//   - `w`, `h`: the transform block dimensions.
+//   - `txType`: PlaneTxType (0..15).
+//   - `bitDepth`: bit depth (8, 10 or 12).
+//
+// Outputs: the reconstructed block, flat row-major of size `w * h`.
+Int[] av1ReconAddPred(Int[] pred, Int[] residual, Int w, Int h, Int txType, Int bitDepth) {
+    var ud = av1ReconFlipUd(txType)
+    var lr = av1ReconFlipLr(txType)
+    var out = new Int[w * h]
+    var i = 0
+    while (i < h) {
+        var j = 0
+        while (j < w) {
+            var xx = j
+            if (lr) {
+                xx = w - j - 1
+            }
+            var yy = i
+            if (ud) {
+                yy = h - i - 1
+            }
+            out[yy * w + xx] = av1ReconClip1(pred[yy * w + xx] + residual[i * w + j], bitDepth)
+            j = j + 1
+        }
+        i = i + 1
+    }
+    return out
+}
+
+// §7.11.4 reconstruct process, steps 2 and 3.
+//
+// Inputs:
+//   - `dequant`: the dequantized transform block (the `Dequant` produced by
+//     slice 3f `av1Dequant`), flat row-major of size `tw * th` where
+//     `tw = Min(32, w)` and `th = Min(32, h)`.
+//   - `pred`: the prediction block, flat row-major of size `w * h`.
+//   - `txSz`, `txType`, `bitDepth`, `lossless`: as `av1InvTx2d`.
+//
+// Outputs: the reconstructed block, flat row-major of size `w * h`.
+Int[] av1Reconstruct(Int[] dequant, Int[] pred, Int txSz, Int txType, Int bitDepth, Bool lossless) {
+    var residual = av1InvTx2d(dequant, txSz, txType, bitDepth, lossless)
+    var w = av1TxWidth(txSz)
+    var h = av1TxHeight(txSz)
+    return av1ReconAddPred(pred, residual, w, h, txType, bitDepth)
+}
