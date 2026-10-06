@@ -478,10 +478,16 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
         ops.add(new KofCall(new Type.ClassType(sCall.ownerPackage(), sCall.ownerClass(), List.of()),
                 sCall.function(), sCall.parameterTypes(), sCall.returnType(),
                 KofCallKind.FUNCTION));
+    } else {
+        // §607/#770 face R6 (Q7): nenhum match de namespace = divergencia
+        // sem x lowering; o corpo VAZIO era o drop silencioso que deixava o
+        // frame incompleto (COMP002). Diagnostico honesto na linha da decl.
+        gapError(driver, mc, "no lowering for '" + rid.name() + "." + mc.methodName()
+                + "()' with argument types " + argTypes, "SEM025");
     }
     return localIdx;
 } else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
-            && KofObservability.isObservabilityNamespace(rid.name())) {
+        && KofObservability.isObservabilityNamespace(rid.name())) {
     List<Type> argTypes = new ArrayList<>();
     for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
     KofObservability.ObservabilityCall oCall = KofObservability.staticMethod(rid.name(), mc.methodName(), argTypes);

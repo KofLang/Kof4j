@@ -350,8 +350,14 @@ public final class SemExpressionTyper {
                 yield new Type.FunctionType(paramTypes, returnType);
             }
             case IfExpr ie -> {
-                Type thenType = inferType(sa, ie.thenExpr(), scope);
-                Type elseType = ie.elseExpr() != null ? inferType(sa, ie.elseExpr(), scope) : Type.UnknownType.UNKNOWN;
+                // #770: os ramos do `if`-expressao veem o narrowing da guarda,
+                // como o `if`-statement (collectNarrowing) e o lado direito de
+                // `&&` (SG-005).
+                Type thenType = inferType(sa, ie.thenExpr(),
+                        SemNarrowing.narrowedScope(ie.condition(), scope, false));
+                Type elseType = ie.elseExpr() != null
+                        ? inferType(sa, ie.elseExpr(), SemNarrowing.narrowedScope(ie.condition(), scope, true))
+                        : Type.UnknownType.UNKNOWN;
                 if (thenType.equals(elseType)) yield thenType;
                 yield HierarchyResolver.commonSupertype(sa, thenType, elseType);
             }

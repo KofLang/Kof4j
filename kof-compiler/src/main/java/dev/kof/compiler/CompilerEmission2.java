@@ -83,6 +83,16 @@ public final class CompilerEmission2 {
                     && argType instanceof Type.PrimitiveType) {
                 TypeEmitter.boxPrimitive(ops, formal);
             }
+            // #770: espelho do caso acima — formal CRU recebendo arg
+            // Nullable(primitivo) narrowed (`math.abs(x)` com `x: Int?` sob
+            // `if (x != null)`): o arg chega como referencia do wrapper (o
+            // slot de Int? e boxed, D-NULL-INTENT) e o invokestatic espera o
+            // primitivo cru; sem o unbox simetrico o JVM da VerifyError
+            // "Integer not assignable to integer".
+            if (formal instanceof Type.PrimitiveType && argType instanceof Type.NullableType nt
+                    && nt.inner() instanceof Type.PrimitiveType) {
+                driver.emitErasureUnboxSoft(ops, formal);
+            }
             if (formal != null && BuiltinTypes.isString(formal)
                     && argType instanceof Type.PrimitiveType pt
                     && "char".equals(Type.canonicalPrimitiveName(pt.name()))) {

@@ -372,6 +372,10 @@ IRModule currentModule;
         CompilerEmissionHelpers.emitErasureUnbox((CompilerDriver) this, ops, primitive);
     }
 
+    void emitErasureUnboxSoft(List<KofOperation> ops, Type primitive) {
+        CompilerEmissionHelpers.emitErasureUnboxSoft((CompilerDriver) this, ops, primitive);
+    }
+
     public java.util.List<CompilerDriver.ConfigKeyInfo> discoveredConfigKeys() {
         return CompilerConfigSupport.discoveredConfigKeys((CompilerDriver) this);
     }

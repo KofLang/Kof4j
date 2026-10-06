@@ -18,9 +18,23 @@ final class SemNarrowing {
      * e conjunção; `||` não narrow.
      */
     static SymbolTable narrowedScope(ExpressionNode cond, SymbolTable scope) {
+        return narrowedScope(cond, scope, false);
+    }
+
+    /**
+     * #770: narrowing dos RAMOS de um `if`-expressão. `negated=false` é o
+     * ramo then (`x != null` narrowa `x: T`); `negated=true` é o ramo else
+     * (`x == null` narrowa `x: T`). Mesma tabela de polaridade do
+     * collectNarrowing do StatementAnalyzer (`!=` so narrowa o then, `==`
+     * so narrowa o else, `&&` recursa os dois lados, `||` não narrowa) —
+     * a assimetria anterior (statement narrowava, expressão não) dava
+     * SEM025 honesto p/ `return if (q != null) { math.parseInt(q) } else
+     * { 0 }` enquanto a forma-statement compilava.
+     */
+    static SymbolTable narrowedScope(ExpressionNode cond, SymbolTable scope, boolean negated) {
         if (scope == null) return scope;
         java.util.List<SymbolTable.LocalVariableSymbol> narrow = new java.util.ArrayList<>();
-        collectCondNarrowing(cond, scope, narrow);
+        collectCondNarrowing(cond, scope, narrow, negated);
         if (narrow.isEmpty()) return scope;
         SymbolTable child = scope.enterScope();
         for (SymbolTable.LocalVariableSymbol s : narrow) child.define(s);
@@ -28,18 +42,21 @@ final class SemNarrowing {
     }
 
     private static void collectCondNarrowing(ExpressionNode cond, SymbolTable scope,
-            java.util.List<SymbolTable.LocalVariableSymbol> out) {
+            java.util.List<SymbolTable.LocalVariableSymbol> out, boolean negated) {
         if (!(cond instanceof BinaryExpr be)) return;
         String op = be.operator();
         if ("&&".equals(op)) {
-            collectCondNarrowing(be.left(), scope, out);
-            collectCondNarrowing(be.right(), scope, out);
+            collectCondNarrowing(be.left(), scope, out, negated);
+            collectCondNarrowing(be.right(), scope, out, negated);
             return;
         }
         if ("||".equals(op)) return;
         if (!(be.right() instanceof LiteralExpr rl && rl.kind() == ConcreteLiteralKind.NULL)) return;
         if (!(be.left() instanceof IdentifierExpr id)) return;
-        if (!"!=".equals(be.operator())) return;
+        boolean thenNarrow = "!=".equals(op);
+        boolean elseNarrow = "==".equals(op);
+        if (!thenNarrow && !elseNarrow) return;
+        if (negated ? !elseNarrow : !thenNarrow) return;
         SymbolTable.Symbol sym = scope.resolve(id.name());
         if (sym != null && sym.type() instanceof Type.NullableType nt) {
             out.add(new SymbolTable.LocalVariableSymbol(id.name(), nt.inner(), 0));
