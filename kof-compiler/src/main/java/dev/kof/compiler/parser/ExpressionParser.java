@@ -155,13 +155,37 @@ public class ExpressionParser {
         return prev != null && prev.line() == ctx.peek().line();
     }
 
+    /**
+     * Parses the {@code { ... }} of a trailing lambda — with explicit parameters
+     * ({@code { s: Int -> ... }}, {@code { a, b -> ... }}) when the block opens
+     * with a parameter list, else a 0-parameter block. The {@code LBRACE} is
+     * current. All trailing-lambda call shapes (bare identifier, parenthesized
+     * arguments, generic call, {@code receiver.method}) must use this so typed
+     * parameters work everywhere, not only on {@code receiver.method} — the
+     * graphics/gaming window form {@code Window("Pong") { frame { dt: Int -> ... } }}
+     * relies on the parenthesized and nested-bare shapes.
+     */
+    private static LambdaExpr parseTrailingLambdaBlock(ParseContext ctx) {
+        if (!LambdaParser.looksLikeLambdaBlockParams(ctx)) {
+            return new LambdaExpr(ctx.pos(), List.of(), StatementParser.parseBlock(ctx));
+        }
+        List<FormalParameterNode> params = LambdaParser.parseLambdaBlockParams(ctx);
+        ctx.expect(TokenType.ARROW, "Expected '->'", "PARSE042");
+        List<StatementNode> body = new ArrayList<>();
+        while (!ctx.check(TokenType.RBRACE) && !ctx.atEnd()) {
+            body.add(StatementParser.parseStatement(ctx));
+        }
+        ctx.expect(TokenType.RBRACE, "Expected '}'", "PARSE025");
+        return new LambdaExpr(ctx.pos(), params, body);
+    }
+
     static ExpressionNode parsePostfix(ParseContext ctx) {
         ExpressionNode expr = ExpressionParser.parsePrimary(ctx);
         while (true) {
             if (trailingLambdaSameLine(ctx) && expr instanceof IdentifierExpr ie) {
                 // trailing lambda call: identifier { ... } (transaction { ... })
                 expr = new MethodCallExpr(ctx.pos(), null, ie.name(), List.of(),
-                        List.of(new LambdaExpr(ctx.pos(), List.of(), StatementParser.parseBlock(ctx))));
+                        List.of(ExpressionParser.parseTrailingLambdaBlock(ctx)));
             } else if (ctx.check(TokenType.DOT)) {
                 ctx.advance();
                 String field;
@@ -180,22 +204,8 @@ public class ExpressionParser {
                     // With explicit parameters (receiver.method { s -> ... }
                     // or { s: Int -> ... }) the block is a typed lambda: the
                     // remaining statements up to '}' form the lambda body.
-                    if (LambdaParser.looksLikeLambdaBlockParams(ctx)) {
-                        List<FormalParameterNode> params = LambdaParser.parseLambdaBlockParams(ctx);
-                        ctx.expect(TokenType.ARROW, "Expected '->'", "PARSE042");
-                        // the opening '{' was consumed by the parameter list;
-                        // the lambda body is the statement list up to '}'
-                        List<StatementNode> body = new ArrayList<>();
-                        while (!ctx.check(TokenType.RBRACE) && !ctx.atEnd()) {
-                            body.add(StatementParser.parseStatement(ctx));
-                        }
-                        ctx.expect(TokenType.RBRACE, "Expected '}'", "PARSE025");
-                        expr = new MethodCallExpr(ctx.pos(), expr, field, List.of(),
-                                List.of(new LambdaExpr(ctx.pos(), params, body)));
-                    } else {
-                        expr = new MethodCallExpr(ctx.pos(), expr, field, List.of(),
-                                List.of(new LambdaExpr(ctx.pos(), List.of(), StatementParser.parseBlock(ctx))));
-                    }
+                    expr = new MethodCallExpr(ctx.pos(), expr, field, List.of(),
+                            List.of(ExpressionParser.parseTrailingLambdaBlock(ctx)));
                 } else {
                     expr = new FieldAccessExpr(ctx.pos(), expr, field);
                 }
@@ -221,7 +231,7 @@ public class ExpressionParser {
                             && ctx.entityNames.contains(qr.name()) && args.size() == 1) {
                         return ExpressionParser.parseQueryDsl(ctx, fa.position(), qr.name(), args.get(0));
                     }
-                    args.add(new LambdaExpr(ctx.pos(), List.of(), StatementParser.parseBlock(ctx)));
+                    args.add(ExpressionParser.parseTrailingLambdaBlock(ctx));
                 }
                 if (expr instanceof IdentifierExpr ie) {
                     expr = new MethodCallExpr(ctx.pos(), null, ie.name(), List.of(), args);
@@ -235,7 +245,7 @@ public class ExpressionParser {
                 List<String> typeArgs = ExpressionParser.parseCallTypeArguments(ctx);
                 List<ExpressionNode> args = ExpressionParser.parseArguments(ctx);
                 if (trailingLambdaSameLine(ctx)) {
-                    args.add(new LambdaExpr(ctx.pos(), List.of(), StatementParser.parseBlock(ctx)));
+                    args.add(ExpressionParser.parseTrailingLambdaBlock(ctx));
                 }
                 if (expr instanceof IdentifierExpr ie3) {
                     expr = new MethodCallExpr(ctx.pos(), null, ie3.name(), typeArgs, args);
