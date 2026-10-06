@@ -488,7 +488,12 @@ and `CmdTestTagTest` **7/7** (was 6 — the `--tag smoke,ui` CLI leg). **Rule-5 
 x86-64:** `TestTagsNativeE2ETest` **2/2** compiles the multi-tag harness for `Target.NATIVE` and asserts
 the SAME filtered catalog (`kof test: tag 'smoke,ui' (2 of 3)`) plus the all-unknown honest no-op; the
 cross native targets are not advertised test targets (`kof test --target jvm|native|js`) and the harness
-main does not link `kof_process_exit` there. **Negation remains future work** (it
+main does not link `kof_process_exit` there. **Cross-target refusal (LANDED 06/10, `known-bugs` §615):**
+`kof test --target native.risc`/`native.arm` was false support (it compiled and then died with a raw
+`undefined reference to 'kof_process_exit' [COMP001]`); `CmdTest` now refuses both early with a named
+message pointing at `--target jvm|native|js` and at `kof build --target native.<arch>` + qemu (the
+compiler E2E suite is the cross runner). Proof RED-first: `CmdTestCrossTargetRefusalTest` **2/2**.
+**Negation remains future work** (it
 needs a syntax to distinguish "not this tag" from a tag literally named with a `!`; not decided).
 
 ## 7.2 Parallelism

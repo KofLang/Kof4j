@@ -119,6 +119,22 @@ final class CmdTest {
             System.exit(1);
             return;
         }
+        // Cross native targets são verificados pela suíte E2E do compilador sob
+        // qemu, não por `kof test`: o runner executa o binário do HOST direto e o
+        // harness cross não linka `kof_process_exit` (o binário nem chega a
+        // produzir — morria com um `riscv64-ld: undefined reference` mislabeled
+        // COMP001, "suporte" falso). Recusa honesta e cedo (R6/Q7), no mesmo
+        // padrão do android.
+        if (target == Target.NATIVE_RISCV64 || target == Target.NATIVE_AARCH64) {
+            System.err.println("test: --target native." + target.nativeArch()
+                    + " is not a test target (the runner executes the host"
+                    + " binary; the cross harness is verified under qemu by the"
+                    + " compiler E2E suite). Test the logic with"
+                    + " --target jvm|native|js, or build with"
+                    + " 'kof build --target native." + target.nativeArch() + "' and run under qemu");
+            System.exit(1);
+            return;
+        }
         boolean dirMode = Files.isDirectory(src);
         List<Path> files = dirMode ? collectTests(src) : List.of(src);
         if (files.isEmpty()) {

@@ -14787,3 +14787,15 @@ O JS gerado contém `if (((i < n) & (f() > 0)))` (medido). Esperado: `&&`, sem `
 
 **Limite:** registro de regressão apenas — evidência de bisect, faces do repro, causa raiz suspeita; a correção pertence à lane autora do §612 (native-backend), rastreada por #772 (reaberta) + #773. O `lab` NÃO está estável para o corte 0.6.0 (`D-LAB-STABILITY`): suite-report SLIPS até estas cinco faces + as faces da correção §612 estarem todas verdes.
 
+## §615 — `kof test --target native.risc`/`native.arm` era SUPORTE FALSO: a CLI aceitava o alvo cross, compilava o harness e então morria com um erro cru `riscv64-ld: undefined reference to 'kof_process_exit' [COMP001]` — ✅ CORRIGIDO 06/10 (dona = 192.168.15.30:9093; lane issues/tooling, runner do `kof-testing-platform`)
+
+**Sintoma (medido 06/10, tip `7a1715c2a`):** `kof test Calc.kf --target native.risc` (e `native.arm`) é aceito pela CLI, imprime as linhas cross do `NativeBackend` (prune/emit) e então falha com `riscv64-ld: ... undefined reference to 'kof_process_exit' [COMP001]` / `0 passed, 1 failed`. `COMP001` é o código interno de "Error reading source file", então o usuário vê um crash de compilador/linker mal rotulado em vez de uma recusa — a CLI anunciava um alvo que não consegue rodar (R6/Q7: não-implementado fingindo suporte). O USAGE já dizia `--target jvm|native|js`, e `DECISIONS` §D-TESTING-PLATFORM declara os alvos de teste reais `jvm/native/js`, então isto nunca foi uma rota suportada.
+
+**Causa-raiz (lida):** o `CmdTest` executa o binário produzido direto no HOST e o harness de teste cross linka o runtime cross, que não define `kof_process_exit` (os nativos cross são exercitados pela suíte E2E do compilador sob qemu — `NativeRiscv64E2ETest`/`NativeAarch64E2ETest`). O `CmdTest` tinha um guard honesto e cedo para `--target android` (empacotamento, sem binário standalone) mas nenhum para os nativos cross, então eles caíam no ramo nativo genérico.
+
+**Correção (só CLI, zero mudança de linguagem):** o `CmdTest` recusa `NATIVE_RISCV64`/`NATIVE_AARCH64` cedo, antes da compilação, com mensagem nomeada que aponta os alvos executáveis (`--target jvm|native|js`) e a rota real (`kof build --target native.<arch>` + qemu), espelhando o precedente do `--target android`.
+
+**Prova (RED-first):** novo `CmdTestCrossTargetRefusalTest` **2/2** — pré-fix ambos RED com o exato vazamento `undefined reference to 'kof_process_exit'` + `[COMP001]`; pós-fix ambos recusam (exit 1, a mensagem nomeia a recusa, sem erro de linker, sem `COMP001`). Não-regressão: `CmdTestSuiteTest` 8/8 + `CmdTestTagTest` 7/7 + `CmdTestTimeoutTest` 3/3 = **18/18**, e um smoke direto de `--target native` / `--target js` imprime `PASS soma` / `1 passed, 0 failed` nos dois. Q2 rc=0.
+
+**Limite:** admissão de alvo na CLI apenas; sem mudança de parser/typer/codegen/runtime, sem sintaxe nova, sem mudança no `kof build` (a rota de BUILD cross segue correta e é para onde a recusa aponta).
+

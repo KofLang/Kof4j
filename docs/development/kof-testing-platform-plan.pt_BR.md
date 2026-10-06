@@ -475,7 +475,12 @@ CLI `--tag smoke,ui`). **Prova de paridade rule-5 no Native x86-64:** `TestTagsN
 compila o harness multi-tag para `Target.NATIVE` e afirma o MESMO catálogo filtrado (`kof test: tag
 'smoke,ui' (2 of 3)`) mais o no-op honesto de todas desconhecidas; os alvos nativos cross não são alvos
 de teste anunciados (`kof test --target jvm|native|js`) e o main do harness não linka `kof_process_exit`
-lá. **Negação segue como trabalho futuro** (precisa de uma sintaxe para distinguir
+lá. **Recusa de alvo cross (POUSADA 06/10, `known-bugs` §615):** `kof test --target
+native.risc`/`native.arm` era suporte falso (compilava e então morria com um erro cru `undefined
+reference to 'kof_process_exit' [COMP001]`); o `CmdTest` agora recusa ambos cedo com mensagem nomeada
+apontando `--target jvm|native|js` e `kof build --target native.<arch>` + qemu (a suíte E2E do
+compilador é o runner cross). Prova RED-first: `CmdTestCrossTargetRefusalTest` **2/2**.
+**Negação segue como trabalho futuro** (precisa de uma sintaxe para distinguir
 "não esta tag" de uma tag literalmente chamada com um `!`; não decidido).
 
 ## 7.2 Paralelismo
