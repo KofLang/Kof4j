@@ -260,6 +260,34 @@ change.
 > infrastructure — no language/semantics change; the concrete surface follows Kof grammar and
 > is defined at implementation.
 
+**Status: LANDED 06/10 (`D-MAINT-BATCH-0610`/D).** The surface is the additive `kof.test` helper
+`testRows(rows, label, body)` — written in Kof, no new syntax/primitive (`D-KOF-FIRST` item 12),
+injected flat on the explicit `import kof.test` like the other helpers. Each row is a
+`List<String>` (the columns); `body` receives the row and asserts with the §4.1 helpers:
+
+```kof
+import kof.test
+
+test "square table" {
+    testRows(listOf(listOf("1", "1"), listOf("2", "4"), listOf("3", "9")), "square", (r: List<String>) -> {
+        var input = r.get(0).toInt()
+        if (input * input != r.get(1).toInt()) {
+            throw "expected " + r.get(1) + ", got " + (input * input)
+        }
+    })
+}
+```
+
+Rows run **in isolation** — one failing row does not abort the others — and the failures
+aggregate into **one** named message (`<label>: N of M rows failed` + `row <i> <row>: <why>`),
+which the harness reports as `FAIL <test>: …` (throw of String, the same path on all targets).
+A uniform `List<String>` table is the honest complete increment: a generic `(T) -> Void` is
+refused at compile time (`SEM085`, erasure ABI is 1.0-line), so a table per typed record would
+need a helper per type — no ceremony. **Proof:** `TestRowsE2ETest` **7/7** (passing/failing
+tables, row isolation, named bad row) across JVM + JS + Native x86-64 + riscv64/aarch64(qemu);
+non-regression `KofTestingE2ETest` 7/7 + `StructuredTestE2ETest` 12/12 + `TestTagsE2ETest` 23/23
++ `GenericEqualityE2ETest` 16/16 + `AssertE2ETest` 5/5 + `StdCatalogTest` 11/11 = **74/74**.
+
 ## 4.5 Property-based tests (future)
 
 Leave the architecture ready for `encode(decode(x)) == x` or `parse(print(ast)) == ast` when the

@@ -19,7 +19,7 @@ import java.util.List;
  * {@code assertEqualLong}/{@code assertNotEqualLong}/
  * {@code assertEqualDouble}/{@code assertNotEqualDouble}/{@code assertEqualFloat}/
  * {@code assertNotEqualFloat}/{@code assertNull}/{@code assertNotNull}/{@code assertThrows}/
- * {@code fail}) são escritos EM KOF
+ * {@code fail}/{@code testRows}) são escritos EM KOF
  * ({@code dev/kof/test.kf} no resource) e injetados FLAT no
  * {@code import kof.test} EXPLÍCITO — mesmo mecanismo de
  * {@code kof.pagination}/{@code kof.pairs}. Aditivo à superfície

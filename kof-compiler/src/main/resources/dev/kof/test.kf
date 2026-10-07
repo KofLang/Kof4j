@@ -186,3 +186,33 @@ Void assertThrows(() -> Void block, String label) {
     }
     throw "assertion failed: " + label + " (expected an exception)"
 }
+
+// Setimo slice (06/10, §4.4 parametrizados — D-MAINT-BATCH-0610/D): tabelas
+// `input -> expected` sem duplicar N testes so porque a entrada muda. Escrito
+// EM KOF, nenhuma sintaxe/primitiva nova: cada linha e um `List<String>` (as
+// colunas), o `body` recebe a linha e asserta com os helpers acima. As linhas
+// rodam ISOLADAS — uma falha nao aborta as demais — e o resultado agrega TODAS
+// as falhas numa unica mensagem (nomeadas por indice + conteudo da linha), que
+// o harness do `kof test` reporta como `FAIL <test>: ...` (throw de String,
+// mesmo caminho dos 4 alvos). Generico por T nao entra: `(T) -> Void` e
+// recusado (SEM085, ABI de 1.0) — a tabela uniforme de strings e o incremento
+// completo e honesto.
+Void testRows(List<List<String>> rows, String label, (List<String>) -> Void body) {
+    var failures = listOf<String>()
+    var i = 0
+    for (var row in rows) {
+        try {
+            body(row)
+        } catch (String e) {
+            failures.add("row " + i + " " + row + ": " + e)
+        }
+        i = i + 1
+    }
+    if (failures.size() > 0) {
+        var msg = label + ": " + failures.size() + " of " + rows.size() + " rows failed"
+        for (var f in failures) {
+            msg = msg + "\n  " + f
+        }
+        throw msg
+    }
+}

@@ -244,6 +244,35 @@ inputs mudam.
 > de teste aditiva — sem mudança de linguagem/semântica; a superfície concreta segue a
 > gramática do Kof e é definida na implementação.
 
+**Status: LANDADO 06/10 (`D-MAINT-BATCH-0610`/D).** A superfície é o helper aditivo
+`testRows(rows, label, body)` do `kof.test` — escrito em Kof, sem sintaxe/primitiva nova
+(`D-KOF-FIRST` item 12), injetado flat no `import kof.test` explícito como os demais helpers.
+Cada linha é um `List<String>` (as colunas); o `body` recebe a linha e asserta com os helpers
+do §4.1:
+
+```kof
+import kof.test
+
+test "square table" {
+    testRows(listOf(listOf("1", "1"), listOf("2", "4"), listOf("3", "9")), "square", (r: List<String>) -> {
+        var input = r.get(0).toInt()
+        if (input * input != r.get(1).toInt()) {
+            throw "expected " + r.get(1) + ", got " + (input * input)
+        }
+    })
+}
+```
+
+As linhas rodam **isoladas** — uma falha não aborta as demais — e as falhas agregam numa **única**
+mensagem nomeada (`<label>: N of M rows failed` + `row <i> <row>: <motivo>`), que o harness
+reporta como `FAIL <test>: …` (throw de String, mesmo caminho nos 4 alvos). A tabela uniforme de
+`List<String>` é o incremento completo e honesto: um `(T) -> Void` genérico é recusado em
+compile-time (`SEM085`, ABI de erasure é da linha 1.0), então uma tabela por record tipado exigiria
+um helper por tipo — cerimônia nenhuma. **Prova:** `TestRowsE2ETest` **7/7** (tabelas que passam/
+falham, isolamento de linha, linha ruim nomeada) em JVM + JS + Native x86-64 + riscv64/aarch64(qemu);
+não-regressão `KofTestingE2ETest` 7/7 + `StructuredTestE2ETest` 12/12 + `TestTagsE2ETest` 23/23
++ `GenericEqualityE2ETest` 16/16 + `AssertE2ETest` 5/5 + `StdCatalogTest` 11/11 = **74/74**.
+
 ## 4.5 Property-based (futuro)
 
 Deixar a arquitetura pronta para `encode(decode(x)) == x` ou `parse(print(ast)) == ast` quando a

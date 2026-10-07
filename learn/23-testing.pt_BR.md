@@ -53,6 +53,29 @@ main() {
 }
 ```
 
+## Testes parametrizados (tabelas entrada → esperado)
+
+Quando só a entrada muda, guie o teste por uma tabela em vez de duplicar blocos
+`test`. O `testRows` (do `kof.test`) avalia cada linha isoladamente e reporta todas
+as falhas numa única mensagem nomeada:
+
+```kof
+import kof.test
+
+test "square table" {
+    testRows(listOf(listOf("1", "1"), listOf("2", "4"), listOf("3", "9")), "square", (r: List<String>) -> {
+        var input = r.get(0).toInt()
+        if (input * input != r.get(1).toInt()) {
+            throw "expected " + r.get(1) + ", got " + (input * input)
+        }
+    })
+}
+```
+
+Cada linha é um `List<String>`; a lambda recebe uma linha e asserta com os helpers
+`assertEqual*`. Uma falha nomeia a linha por índice e conteúdo
+(`row 1 [2, 5]: expected 5, got 4`) e uma linha ruim nunca para as demais.
+
 ## Testes estilo property (semeados, reprodutíveis)
 
 Não existe uma superfície separada de property-runner: um *teste de property* é um

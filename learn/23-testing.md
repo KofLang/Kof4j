@@ -54,6 +54,29 @@ main() {
 }
 ```
 
+## Parameterized tests (input → expected tables)
+
+When only the input changes, drive the test from a table instead of duplicating test
+blocks. `testRows` (from `kof.test`) evaluates every row in isolation and reports all the
+failures in one named message:
+
+```kof
+import kof.test
+
+test "square table" {
+    testRows(listOf(listOf("1", "1"), listOf("2", "4"), listOf("3", "9")), "square", (r: List<String>) -> {
+        var input = r.get(0).toInt()
+        if (input * input != r.get(1).toInt()) {
+            throw "expected " + r.get(1) + ", got " + (input * input)
+        }
+    })
+}
+```
+
+Each row is a `List<String>`; the lambda receives one row and asserts with the
+`assertEqual*` helpers. A failure names the row by index and content
+(`row 1 [2, 5]: expected 5, got 4`) and one bad row never stops the others.
+
 ## Property-style tests (seeded, reproducible)
 
 There is no separate property-runner surface: a *property test* is a `test` block
