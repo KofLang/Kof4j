@@ -1,10 +1,10 @@
 # AGENTS.md
 
-last: 0.5.0-beta
+last: protocolo 0.6.0 ativo (06/10 `D-MAINT-BATCH-0610` — 7 frentes rule-6 decididas; #761 reclassificado `tracking/contract`, permanente, nunca bloqueia corte; tip do lab 7ffd088ee, gates estruturais rc=0)
 
-doing: #651-COMPLETA (superfície Buffer(U8) + token FFI B no x86-64 E no cross riscv64/aarch64; fatia B 29/09) + #678-D-SCRIPT-WARN-SURFACE-pousada (Script expõe WARNING do frontend) + unidade-3-fase-5-pinada (Buffer(U8) INOUT × spawn/await paridade runtime) + unidade-2-fase-5-pousada (#667 Script×extern FFI001 na linha da declaração + #668 face de compilação MEM020) + memory-safety-fase-4-FECHADA (#658/#659/#662) + #660-D-MEM021-SCALAR-pousado (c65f9ba18, mantenedora A/ERROR) + cadeia-de-evidencia-hardened (#664/#665/#669) + unidade-1-fase-5-pinada (#666) + tabela-ownership-pousada (#670) + celulas-defasadas-mortas (#671) + selftest-pt-provado (#672) + records-vivos-registrados (#673)
+doing: familia #770 FECHADA (§609 desempacotar arg std + §610 narrowing do IfExpr + `emitErasureUnboxSoft` + SEM025 honesto; issue fechada 05/10) + correcao §612 (MAGIC-box nativo) landed mas REGREDIU 5 faces nativas -> #772 REABERTA + #773 criada + §614 RED (auditoria de prontidao do corte + bisect 06/10, dona lane .30:9092 nativa; CORTE ESCORREGA) + §613 return-no-catch-finally SIGSEGV CORRIGIDO + §615 recusa honesta cross + §616/#774 shell-args-vazios FECHADO + graphics destravado (semantica de laco A1-A3 DECIDIDA; SDL3 vendorizado + ABI cross provada `Sdl3FfiCrossE2ETest` 5/5; fatia 3.1 = lane .15) + testing-platform §4.4 LANDADA (`testRows` 7/7 cross) + §554 DECIDIDO (batch C, lane compiler/interop) + memory-safety M1 AUTORIZADO (#769) + heartbeat/issue-watcher registrados MORTOS (medido, DB recuperado) + tooling de sobrevivencia: `scripts/opencode-db-vacuum.sh` (69.3->2.94 GiB provado; causa-raiz das mortes = OOM provado pelo kernel)
 
-next: frente bugs-and-gaps + protocolo de release (`D-FUTURE-FREEZE`) / protocolo 0.6.0 + cadência semanal de minors até 0.9.0 (`D-RELEASE-CADENCE`, `D-LAB-STABILITY`) / varredura-de-promoção (lane pipeline) / 14.4-rulesets (mantenedora)
+next: frente protocolo de release — re-medir `check_lab_stability` quando a correcao do §614/#773 pousar (entao o corte 0.6.0 fica elegivel pela mantenedora sob `D-LAB-STABILITY`); varreduras de verdade de docs (ledger/status/README); cadencia semanal de minors (`D-RELEASE-CADENCE`); 14.4-rulesets + promotion-sweep ficam com a mantenedora; `docs/development/future/` CONGELADO (`D-FUTURE-FREEZE`)
 
 location: repositório
 
