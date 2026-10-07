@@ -4911,3 +4911,30 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 **Boundary:** all three are additive test infrastructure — no language/semantics change. A is the only surface implemented so far (`fixedClock`/`scriptedClock`/`seededRandom`); B and C are AUTHORIZED and queued. Nothing here weakens the quality gate or unfreezes `future/`.
 
 **Relationships:** `Related: D-MAINT-BATCH-0610, D-KOF-FIRST, D-TESTING-PLATFORM, rule 6, rule 12`.
+
+---
+
+## D-PORTUKOF — PortuKof (.ptkf): official pt-BR surface of Kof, one semantics (maintainer chat directive 07/10/2026)
+
+**Date:** 2026-10-07 · **State:** `DECIDED` + `IN PROGRESS` (lane `portukof`, owner `192.168.15.101:9092`) · **Authority:** the maintainer's explicit directive of 07/10/2026 (GIGAPROMPT — IMPLEMENTAÇÃO DO PORTUKOF) and its amendment the same day (absolute full-frontend-parity rule + isolated branch/worktree). **Effect:** PortuKof is an official language SURFACE of Kof. It is NOT a fork, NOT a second compiler, NOT a second semantics.
+
+**Contract:**
+
+1. `*.ptkf` = Kof written with pt-BR vocabulary; the extension deterministically selects the profile (no content heuristics). `kof run|build|check|test` autodiscover it; no `--language` flag is required.
+2. ONE semantics: one AST, one IR, one type system, one runtime, one stdlib, one backend set. The PortuKof frontend must land on EXACTLY the canonical Kof AST after parsing — localized keywords reach it through the lexer's keyword table (profile-aware, injected at parse time), and localized builtins/stdlib names reach it through a post-parse normalization pass that rewrites the AST to canonical symbols (alias ≠ implementation). Nothing below the AST knows PortuKof exists.
+3. NEVER translated: string contents, user-defined identifiers, the canonical type names (`Int`/`String`/`List`/...). Operators/precedence/punctuation are language identity and stay identical.
+4. Not prose: PortuKof is programming syntax with Portuguese vocabulary, not natural-language DSL (`se idade >= 18 {` — never `se a idade for maior que dezoito então`).
+5. Unaccented keywords (recommended by the directive, evaluated against Kof's portability/simplicity philosophy, documented): `nao`, `senao`, `funcao`, `variavel`.
+6. `var`/`val` stay `var`/`val` (D-KOF-FIRST: Kof is not JavaScript; the directive allows the untranslated form and it is the recommended one).
+
+**Absolute rule (maintainer amendment 07/10) — FULL FRONTEND PARITY:** PortuKof must expose the COMPLETE Kof frontend — every lexer keyword, every builtin, every stdlib namespace/function of `StdCatalog`, every library package name reachable by canonical resolution — through a bijective, collision-checked Portuguese alias. NO subset, NO gap, NO stub (Q7). The parity is mechanically enforced by a gate (`scripts/check_portukof_parity.sh`) + parity tests; the surface may only ship with 100% frontend coverage.
+
+**Working method (maintainer order 07/10):** branch `portukof`, developed in a SEPARATE on-disk worktree (`/home/mel/Kof4j-portukof`, cloned from the repo) so the shared `lab` worktree and the other live lanes are never touched; the branch is pushed to `origin/portukof` only; any merge into `lab` is the maintainer's (`D-BRANCH-PIPELINE`, main-merge authority). This is an explicit maintainer authorization overriding `no-tmp-worktree` for THIS lane only.
+
+**Versioning:** PortuKof follows the Kof version (`D-RELEASE-CADENCE`); no independent PortuKof version. Vocabulary compatibility follows the existing Kof compatibility policies.
+
+**Alternatives considered (all rejected by the directive and by measurement):** (a) a forked compiler — multiplies semantics; (b) a pre-processing text translator — breaks positions/diagnostics/tooling and drifts; (c) heuristic language detection — non-deterministic; (d) prose-DSL — another language. The chosen architecture is one surface: profile-aware lexer + post-parse AST normalization to canonical symbols + CLI discovery + (phased) localized diagnostics and tooling.
+
+**Future multilingual:** the `LanguageProfile` mechanism is the extension point — a new surface is vocabulary + aliases + docs + tests, never a compiler change (PARTE 22/35).
+
+**Relationships:** `Related: D-KOF-FIRST, D-KOF-AS-CLOUD, D-RELEASE-CADENCE, D-BRANCH-PIPELINE, rule 6 (this record IS the decision — no pending decision blocks the surface), rule 11, rule 12`.

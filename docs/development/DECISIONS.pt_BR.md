@@ -4901,3 +4901,30 @@ individuais:
 **Limite:** as três são infraestrutura de teste aditiva — sem mudança de linguagem/semântica. A é a única superfície implementada até agora (`fixedClock`/`scriptedClock`/`seededRandom`); B e C estão AUTORIZADAS e na fila. Nada aqui enfraquece o quality gate ou descongela `future/`.
 
 **Relações:** `Related: D-MAINT-BATCH-0610, D-KOF-FIRST, D-TESTING-PLATFORM, rule 6, rule 12`.
+
+---
+
+## D-PORTUKOF — PortuKof (.ptkf): superfície oficial pt-BR do Kof, uma única semântica (ordem da mantenedora no chat 07/10/2026)
+
+**Data:** 2026-10-07 · **Estado:** `DECIDIDO` + `EM CURSO` (lane `portukof`, dona `192.168.15.101:9092`) · **Autoridade:** ordem explícita da mantenedora em 07/10/2026 (GIGAPROMPT — IMPLEMENTAÇÃO DO PORTUKOF) e sua emenda no mesmo dia (regra absoluta de paridade completa de frontend + branch/worktree isolados). **Efeito:** PortuKof é SUPERFÍCIE oficial do Kof. NÃO é fork, NÃO é segundo compilador, NÃO é segunda semântica.
+
+**Contrato:**
+
+1. `*.ptkf` = Kof escrito com vocabulário pt-BR; a extensão seleciona o perfil de forma determinística (sem heurística de conteúdo). `kof run|build|check|test` autodescobrem; nenhum flag `--language` é necessário.
+2. UMA semântica: um AST, um IR, um type system, um runtime, uma stdlib, um conjunto de backends. O frontend PortuKof deve chegar EXATAMENTE ao AST canônico do Kof após o parse — keywords localizadas via tabela de keywords do lexer (profile-aware, injetada no parse) e builtins/stdlib localizados via normalização pós-parse que reescreve o AST para os símbolos canônicos (alias ≠ implementação). Nada abaixo do AST sabe que PortuKof existe.
+3. NUNCA traduzido: conteúdo de strings, identificadores definidos pelo usuário, nomes canônicos de tipos (`Int`/`String`/`List`/...). Operadores/precedência/pontuação são identidade da linguagem e permanecem idênticos.
+4. Não prosa: PortuKof é sintaxe de programação com vocabulário português, não DSL de linguagem natural (`se idade >= 18 {` — nunca `se a idade for maior que dezoito então`).
+5. Keywords sem acento (recomendação da ordem, avaliada contra a filosofia de portabilidade/simplicidade do Kof, documentada): `nao`, `senao`, `funcao`, `variavel`.
+6. `var`/`val` permanecem `var`/`val` (D-KOF-FIRST: Kof não é JavaScript; a ordem admite a forma não traduzida e ela é a recomendada).
+
+**Regra absoluta (emenda da mantenedora 07/10) — PARIDADE COMPLETA DE FRONTEND:** PortuKof deve expor o frontend Kof COMPLETO — toda keyword do lexer, todo builtin, todo namespace/função da stdlib do `StdCatalog`, todo nome de pacote de biblioteca alcançável por resolução canônica — através de um alias português bijetivo e livre de colisões. SEM subconjunto, SEM gap, SEM stub (Q7). A paridade é imposta mecanicamente por gate (`scripts/check_portukof_parity.sh`) + testes de paridade; a superfície só embarca com 100% de cobertura do frontend.
+
+**Método de trabalho (ordem da mantenedora 07/10):** branch `portukof`, desenvolvida em worktree SEPARADO no disco (`/home/mel/Kof4j-portukof`, clonado do repositório) para nunca tocar o worktree compartilhado do `lab` nem as lanes vivas; a branch sobe só para `origin/portukof`; qualquer merge no `lab` é da mantenedora (`D-BRANCH-PIPELINE`, autoridade main-merge). autorização explícita da mantenedora cobrindo `no-tmp-worktree` SÓ para esta lane.
+
+**Versionamento:** PortuKof segue a versão do Kof (`D-RELEASE-CADENCE`); sem versão independente. Compatibilidade de vocabulário segue as políticas de compatibilidade do Kof.
+
+**Alternativas consideradas (todas rejeitadas pela ordem e por medição):** (a) compilador forkado — multiplica a semântica; (b) pré-tradutor de texto — quebra posições/diagnósticos/tooling e deriva; (c) detecção heurística de idioma — não determinística; (d) DSL em prosa — outra linguagem. A arquitetura escolhida é uma superfície: lexer profile-aware + normalização pós-parse do AST para símbolos canônicos + descoberta na CLI + (em fases) diagnósticos e tooling localizados.
+
+**Multilíngue futuro:** o mecanismo `LanguageProfile` é o ponto de extensão — uma nova superfície é vocabulário + aliases + docs + testes, nunca mudança de compilador (PARTE 22/35).
+
+**Relações:** `Related: D-KOF-FIRST, D-KOF-AS-CLOUD, D-RELEASE-CADENCE, D-BRANCH-PIPELINE, rule 6 (este registro É a decisão — nenhuma decisão pendente bloqueia a superfície), rule 11, rule 12`.
