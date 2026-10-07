@@ -88,9 +88,9 @@ main() {
 ```
 
 Kof não tem receptor implícito, então o corpo recebe a window como `self`
-— nunca capture a window externa (um corpo de 1 arg com captura atinge o
-defeito cross do backend `known-bugs` §620; a forma de 2 args é verde em
-tudo). `pause()`/`resume()` pulam/restauram o corpo; `minimize()`
+— nunca capture a window externa (um corpo de 1 arg com captura atingia o
+defeito cross do backend `known-bugs` §620, ✅ CORRIGIDO 07/10; a forma de
+2 args segue o idioma e é verde em tudo). `pause()`/`resume()` pulam/restauram o corpo; `minimize()`
 suspende; `blur()` só registra foco e nunca pausa (A3).
 
 ## Sprites — intent, transforms, animação, lista de draw
@@ -115,8 +115,8 @@ main() {
 via `pos + R·S·F·(p − origin)`; `animate(dtMs, frameMs)` avança no tempo do
 chamador (`frameMs <= 0` lança); `DrawList` mantém ordem de inserção para
 o backend consumir. Rotação usa `game.Trig` (`trigSin`/`trigCos`, Taylor,
-sem-branch) — nunca `math.sin`/`math.cos`, que não têm símbolos Native
-(`known-bugs` §621).
+sem-branch) — nunca `math.sin`/`math.cos`, que não tinham símbolos Native
+(`known-bugs` §621, ✅ CORRIGIDO 07/10 com um `MATH001` honesto).
 
 ## Tilemaps — grades esparsas ilimitadas
 

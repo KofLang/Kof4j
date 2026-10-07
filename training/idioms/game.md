@@ -86,8 +86,9 @@ main() {
 ```
 
 Kof has no implicit receiver, so the body takes the window as `self` —
-never capture the outer window (a capturing 1-arg body hits cross-backend
-defect `known-bugs` §620; the 2-arg shape is green everywhere).
+never capture the outer window (a capturing 1-arg body hit cross-backend
+defect `known-bugs` §620, ✅ FIXED 07/10; the 2-arg shape stays the idiom and
+is green everywhere).
 `pause()`/`resume()` skip/restore the body; `minimize()` suspends it;
 `blur()` only records focus and never pauses (A3).
 
@@ -113,8 +114,8 @@ main() {
 `pos + R·S·F·(p − origin)`; `animate(dtMs, frameMs)` advances on caller
 time (`frameMs <= 0` throws); `DrawList` keeps insertion order for the
 backend to consume. Rotation uses `game.Trig` (`trigSin`/`trigCos`,
-Taylor, branch-free) — never `math.sin`/`math.cos`, which have no Native
-symbols (`known-bugs` §621).
+Taylor, branch-free) — never `math.sin`/`math.cos`, which had no Native
+symbols (`known-bugs` §621, ✅ FIXED 07/10 with an honest `MATH001`).
 
 ## Tilemaps — unbounded sparse grids
 
