@@ -38,6 +38,10 @@ final class SemFieldAccessTyper {
                 String en = MemberResolver.enumNameOfConstant(sa.unit(), fa);
                 if (en != null) return CompilerTypes.enumTypeOf(en, sa); // #445: pkg real via ClassSymbol
                 Type recvType = SemExpressionTyper.inferType(sa, fa.receiver(), scope);
+                // D-PORTUKOF u3: entrada alias-aware para CAMPOS (length/nome/
+                // caminho/estado...); namespaces de constantes (palette/tokens/
+                // MAX_VALUE) ja passaram acima e ficam intactos.
+                fa = PortuKofMethodSplicer.canonicalField(sa, recvType, sa.unit(), fa);
                 Type nf = Narrowing.narrowedField(scope, Narrowing.pathOf(fa));
                 if (nf != null) return nf;
                 // bug 99 (R6, nunca silencioso): `Int.MAX_VALUE`/`Long.foo` etc.

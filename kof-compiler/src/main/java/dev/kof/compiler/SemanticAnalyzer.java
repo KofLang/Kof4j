@@ -358,6 +358,17 @@ public class SemanticAnalyzer {
     Map<ExpressionNode, Type> expressionTypes() { return java.util.Collections.unmodifiableMap(expressionTypes); }
     Map<MethodCallExpr, SymbolTable.MethodSymbol> resolvedMethods() { return java.util.Collections.unmodifiableMap(resolvedMethods); }
     Map<NewExpr, SymbolTable.ConstructorSymbol> resolvedConstructors() { return java.util.Collections.unmodifiableMap(resolvedConstructors); }
+
+    // D-PORTUKOF u3 (07/10): decisoes do hook de entrada dos tybers (nome de
+    // superficie -> canonico, por no original). O splice pos-analise so aplica
+    // o que a analise ja resolveu pelo tipo real do receiver.
+    private final Map<MethodCallExpr, String> surfaceMethodAliases = new IdentityHashMap<>();
+    private final Map<FieldAccessExpr, String> surfaceFieldAliases = new IdentityHashMap<>();
+
+    void recordSurfaceMethod(MethodCallExpr mc, String canon) { surfaceMethodAliases.put(mc, canon); }
+    void recordSurfaceField(FieldAccessExpr fa, String canon) { surfaceFieldAliases.put(fa, canon); }
+    String surfaceMethodAlias(MethodCallExpr mc) { return surfaceMethodAliases.get(mc); }
+    String surfaceFieldAlias(FieldAccessExpr fa) { return surfaceFieldAliases.get(fa); }
     Map<String, SymbolTable> classMemberScopes() { return java.util.Collections.unmodifiableMap(classMemberScopes); }
     Map<ConstructorDeclarationNode, SymbolTable> ctorScopes() { return java.util.Collections.unmodifiableMap(ctorScopes); }
     Map<MethodDeclarationNode, SymbolTable> methodScopes() { return java.util.Collections.unmodifiableMap(methodScopes); }
@@ -370,6 +381,26 @@ public class SemanticAnalyzer {
     void putExpressionType(ExpressionNode expr, Type type) {
         expressionTypes.put(expr, type);
         if (trackedExpressionTypes != null) trackedExpressionTypes.add(expr);
+    }
+
+    // D-PORTUKOF unidade 3 (07/10): o splicer de superficie de metodos roda
+    // depois da analise e substitui nos (nome de superficie -> canonico). Os
+    // caches do analyzer sao de IDENTIDADE; estas tres rotinas re-indexam a
+    // entrada do no antigo para o novo — nada mais e tocado.
+    void spliceTypeCache(ExpressionNode from, ExpressionNode to) {
+        Type t = expressionTypes.get(from);
+        if (t != null) expressionTypes.put(to, t);
+    }
+
+    void spliceMethodCache(MethodCallExpr from, MethodCallExpr to) {
+        spliceTypeCache(from, to);
+        SymbolTable.MethodSymbol s = resolvedMethods.get(from);
+        if (s != null) resolvedMethods.put(to, s);
+    }
+
+    void spliceCtorCache(NewExpr from, NewExpr to) {
+        SymbolTable.ConstructorSymbol s = resolvedConstructors.get(from);
+        if (s != null) resolvedConstructors.put(to, s);
     }
     void putResolvedMethod(MethodCallExpr call, SymbolTable.MethodSymbol sym) { resolvedMethods.put(call, sym); }
     void putResolvedConstructor(NewExpr expr, SymbolTable.ConstructorSymbol sym) { resolvedConstructors.put(expr, sym); }

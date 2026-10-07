@@ -61,5 +61,37 @@ if ! grep -q 'put("escreva", "print")' kof-compiler/src/main/java/dev/kof/compil
     note "RC=1: builtin alias `escreva`→`print` ausente do perfil"; fail=1
 fi
 
+# 4) paridade U3 — metodos/campos de superficie tipada (07/10):
+#    a deriva dos dispatchers reais vs. a tabela commitada + bijetividade +
+#    a regra de ouro receiver-aware (tamanho=length em String, size em colecoes).
+if [ -f scripts/gen_portukof_methods.py ]; then
+    python3 scripts/gen_portukof_methods.py --check || fail=1
+    python3 - "$LANG_DIR/PortuKofMethodAliases.java" <<'PY' || fail=1
+import re, sys
+t = open(sys.argv[1]).read()
+blocks = re.findall(r'r\.put\("([A-Z_]+)", pair\(new String\[\]\[\]\{(.*?)\}\)\);', t, re.S)
+if not blocks:
+    print("portukof-parity: U3: tabela vazia/inesperada"); sys.exit(1)
+gold = {"STRING": "length", "LIST": "size", "MAP": "size", "SET": "size"}
+for cat, body in blocks:
+    pairs = re.findall(r'\{"([^"]+)", "([^"]+)"\}', body)
+    alias2canon = {}
+    for canon, al in pairs:
+        if al in alias2canon and alias2canon[al] != canon:
+            print(f"portukof-parity: U3 colisao {cat}:{al}"); sys.exit(1)
+        alias2canon[al] = canon
+        if al != al.encode("ascii", "ignore").decode():
+            print(f"portukof-parity: U3 alias acentuado {cat}:{al}"); sys.exit(1)
+        if not re.fullmatch(r"[a-z][A-Za-z0-9]*", al):
+            print(f"portukof-parity: U3 alias invalido {cat}:{al}"); sys.exit(1)
+    if cat in gold and "tamanho" in alias2canon:
+        if alias2canon["tamanho"] != gold[cat]:
+            print(f"portukof-parity: U3 {cat}.tamanho={alias2canon['tamanho']} "
+                  f"(esperado {gold[cat]})"); sys.exit(1)
+print(f"portukof-parity: U3 OK — {len(blocks)} categorias, bijetivas, "
+      "tamanho=length(String)/size(colecoes)")
+PY
+fi
+
 [ $fail -eq 0 ] && { note "TODAS as checagens rc=0 — paridade absoluta travada"; exit 0; }
 note "FALHOU"; exit 1

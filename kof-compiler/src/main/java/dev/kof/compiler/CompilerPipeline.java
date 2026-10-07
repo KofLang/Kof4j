@@ -374,6 +374,10 @@ public final class CompilerPipeline {
         if (diagnostics.hasErrors()) {
             return null;
         }
+        // D-PORTUKOF unidade 3 (07/10): splice receiver-aware da superficie de
+        // metodos/campos (alias -> canonico pelo TIPO REAL do receiver, cache
+        // de identidade re-indexado). EN: tabela devolve o mesmo nome — no-op.
+        unit = PortuKofMethodSplicer.run(driver, driver.semanticAnalyzer, unit);
         LabelId.reset();
         driver.currentModule = new IRModule("", List.of(), List.of());
         driver.currentUnit = unit;
