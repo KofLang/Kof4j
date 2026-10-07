@@ -5,8 +5,8 @@
 **Owner:** `192.168.15.15:9092` — lane security/connectors, graphics/gaming front; re-claimed 05/10 (the spike-3.0 `192.168.15.30:9093` claims were runner/tooling, historical).
 
 last: slice-3.1 pure clock + key/pointer/pad input snapshots landed 05/10 (`libs/game/Clock.kf` + `Keys.kf` + `Mouse.kf` + `Pad.kf`, `GameClockE2ETest`/`GameInputE2ETest`/`GameMouseE2ETest`/`GamePadE2ETest` 4/4 each; `known-bugs` §603 fixed on the way); pure `kof.game` surface cross-target verified (`GameCrossE2ETest` 3/3 — JVM oracle + riscv64 + aarch64 under qemu); window form DECIDED (`D-GRAPHICS-WINDOW-FORM`: `Window("…") { frame { dt -> … } }`, `dt` Int ms) and its parser prerequisite fixed (`known-bugs` §611, `TrailingLambdaParamsE2ETest` 6/6); G1 SDL3 `3.4.16` measured (C + Kof FFI, headless JVM+Native; `known-bugs` §606 fixed); **SDL3 vendored into the cross sysroot 06/10 (`scripts/provision-cross-sdl3.sh`, aarch64+riscv64 `3.4.16` + runtime closure + GLIBC 2.44) and the raw ABI measured end-to-end headless on all four targets (`Sdl3FfiCrossE2ETest` 5/5: JVM + Native x86-64 + riscv64 + aarch64 under qemu, golden `init=true/driver=dummy/title=kof`)**
-doing: slice-3.3d (WAV encoder)
-next: WAV encoder LANDED 07/10 (`libs/game/Wav.kf`, `GameWavE2ETest` 6/6 every target); remaining = audible playback (device output) + mixer voice routing + 3.4 (video)
+doing: slice-3.4a (video playback intent)
+next: video playback intent LANDED 07/10 (`libs/game/Video.kf`, `GameVideoE2ETest` 6/6 every target); remaining = decoder/frame-readback backend faces (FFmpeg LGPL decision F, maintainer) + 3.5 (3D, parity-gated)
 location: docs/development
 state: UNDER DEVELOPMENT
 
@@ -247,6 +247,14 @@ WGSL/GLSL/HLSL/cross-compile decision deferred, not first slice).
 - Video: `Window("Trailer") { video("intro.mp4").autoplay() }`; no demuxer/
   decoder/codec/queue/hardware-decoder in-app. No own codecs (FFmpeg/Libav/
   native; criteria: license/target/security/maintenance/formats/headless).
+- Slice 3.4a LANDED 07/10 (pure playback intent, no decoder): `libs/game/
+  Video.kf` (`video()` factory + `play/pause/stop/seek/volume/loop/mute`,
+  `tick(dtMs)` over caller-supplied timestamps, `position/frameIndex/
+  finished`; meaningless metadata throws at construction, `seek` clamps,
+  volume clamps into [0,1], end-of-stream stops (or wraps on loop)).
+  Proof: `GameVideoE2ETest` **6/6** (all-integer golden on JVM + Script +
+  Native x86-64 + JS + riscv64 + aarch64 under qemu). Decoder and frame
+  readback stay backend work (FFmpeg LGPL decision F, maintainer).
 - `kof.media` today (bitmap/WAV/metadata/mic) → playback/streaming/mixing/
   video-playback, additively.
 - KofUI ≠ competing language (UI apps vs games); share window/input/video/

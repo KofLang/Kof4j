@@ -3,8 +3,8 @@
 # Graphics, Games e Media — Superfície de Intenção do Kof
 
 last: fatia-3.1 relógio puro + snapshots de input de teclado/ponteiro/gamepad pousados 05/10 (`libs/game/Clock.kf` + `Keys.kf` + `Mouse.kf` + `Pad.kf`, `GameClockE2ETest`/`GameInputE2ETest`/`GameMouseE2ETest`/`GamePadE2ETest` 4/4 cada; `known-bugs` §603 corrigido no caminho); superfície pura `kof.game` verificada cross-target (`GameCrossE2ETest` 3/3 — oráculo JVM + riscv64 + aarch64 sob qemu); forma da janela DECIDIDA (`D-GRAPHICS-WINDOW-FORM`: `Window("…") { frame { dt -> … } }`, `dt` Int ms) e seu pré-requisito de parser corrigido (`known-bugs` §611, `TrailingLambdaParamsE2ETest` 6/6); G1 SDL3 `3.4.16` medida (C + FFI do Kof, headless JVM+Native; `known-bugs` §606 corrigido); **SDL3 vendada no sysroot cross 06/10 (`scripts/provision-cross-sdl3.sh`, aarch64+riscv64 `3.4.16` + fecho de runtime + GLIBC 2.44) e a ABI crua medida ponta-a-ponta headless nos quatro alvos (`Sdl3FfiCrossE2ETest` 5/5: JVM + Native x86-64 + riscv64 + aarch64 sob qemu, golden `init=true/driver=dummy/title=kof`)**
-doing: fatia-3.3d (encoder WAV)
-next: encoder WAV POUSADO 07/10 (`libs/game/Wav.kf`, `GameWavE2ETest` 6/6 todo alvo); falta playback audível (saída no device) + roteamento de vozes do mixer + 3.4 (vídeo)
+doing: fatia-3.4a (intent de playback de vídeo)
+next: intent de playback de vídeo POUSADO 07/10 (`libs/game/Video.kf`, `GameVideoE2ETest` 6/6 todo alvo); faltam faces de decoder/frame-readback no backend (decisão F do FFmpeg LGPL, mantenedora) + 3.5 (3D, gated por paridade)
 location: docs/development
 state: UNDER DEVELOPMENT
 
@@ -227,6 +227,15 @@ cobertura/manutenção/testabilidade/cross-platform). Shaders escondidos no iní
 - Vídeo: `Window("Trailer") { video("intro.mp4").autoplay() }`; sem demuxer/
   decoder/codec/fila/hardware-decoder no app. Sem codecs próprios (FFmpeg/Libav/
   nativos; critérios: licença/alvo/segurança/manutenção/formatos/headless).
+- Fatia 3.4a POUSADA 07/10 (intent puro de playback, sem decoder): `libs/game/
+  Video.kf` (fábrica `video()` + `play/pause/stop/seek/volume/loop/mute`,
+  `tick(dtMs)` sobre timestamps do chamador, `position/frameIndex/
+  finished`; metadados sem sentido lançam na construção, `seek` clampa,
+  volume clampa em [0,1], fim-de-stream para (ou dá wrap com loop)).
+  Prova: `GameVideoE2ETest` **6/6** (golden todo-inteiro em JVM + Script +
+  Native x86-64 + JS + riscv64 + aarch64 sob qemu). Decoder e frame
+  readback seguem trabalho de backend (decisão F do FFmpeg LGPL,
+  mantenedora).
 - `kof.media` hoje (bitmap/WAV/metadados/mic) → playback/streaming/mixing/
   video-playback, aditivamente.
 - KofUI ≠ linguagem concorrente (apps UI vs jogos); compartilha janela/input/
