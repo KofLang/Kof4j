@@ -466,13 +466,17 @@ public final class CompilerPipeline {
         for (Path src : sources) {
             String code = src == sources.get(0) ? driver.currentSourceContent : Files.readString(src);
             String fileName = src.getFileName().toString();
-            Lexer lexer = new Lexer(code, fileName, diagnostics);
+            // D-PORTUKOF (07/10): a extensão determina o perfil (autodescoberta
+            // determinística). Perfil canônico = comportamento histórico exato.
+            dev.kof.compiler.lang.LanguageProfile profile =
+                    dev.kof.compiler.lang.LanguageProfile.forFileName(fileName);
+            Lexer lexer = new Lexer(code, fileName, diagnostics, profile);
             List<Token> tokens = lexer.tokenize();
             if (diagnostics.hasErrors()) return null;
-            Parser parser = new Parser(tokens, diagnostics, fileName);
+            Parser parser = new Parser(tokens, diagnostics, fileName, profile);
             CompilationUnitNode unit = parser.parse();
             if (diagnostics.hasErrors()) return null;
-            parsedUnits.add(unit);
+            parsedUnits.add(dev.kof.compiler.lang.PortuKofParity.normalize(profile, unit));
         }
         java.util.List<String> unitPkgs = new ArrayList<>();
         for (int i = 0; i < parsedUnits.size(); i++) {

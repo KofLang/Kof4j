@@ -58,7 +58,7 @@ final class CmdScript {
         if (watch) return watchScript(src, target, progArgs.toArray(new String[0]));
         // .kf: compila direto (preserva file:line); .ks: wrap decls/stmts como antes
         try {
-            if (src.toString().endsWith(".kf")) {
+            if (src.toString().endsWith(".kf") || src.toString().endsWith(".ptkf")) {
                 var r = dev.kof.script.KofScript.runFile(src, target, progArgs.toArray(new String[0]));
                 if (!r.success()) {
                     if (!r.stderr().isBlank()) System.err.print(r.stderr());

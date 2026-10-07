@@ -2,100 +2,39 @@ package dev.kof.compiler.parser;
 import dev.kof.compiler.DiagnosticCollector;
 import dev.kof.compiler.Token;
 import dev.kof.compiler.TokenType;
+import dev.kof.compiler.lang.KofKeywords;
+import dev.kof.compiler.lang.LanguageProfile;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public class Lexer {
 
-    private static final Map<String, TokenType> KEYWORDS = new HashMap<>();
-
-    static {
-        KEYWORDS.put("class", TokenType.CLASS);
-        KEYWORDS.put("interface", TokenType.INTERFACE);
-        KEYWORDS.put("record", TokenType.RECORD);
-        KEYWORDS.put("enum", TokenType.ENUM);
-        KEYWORDS.put("entity", TokenType.ENTITY);
-        KEYWORDS.put("extern", TokenType.EXTERN);
-        KEYWORDS.put("generated", TokenType.GENERATED);
-        KEYWORDS.put("unique", TokenType.UNIQUE);
-        KEYWORDS.put("extends", TokenType.EXTENDS);
-        KEYWORDS.put("implements", TokenType.IMPLEMENTS);
-        // Palavras RESERVADAS (SG-001, 06/09): nunca foram keyword de função
-        // do Kof (o corpus diz "não existe fun/fn/func") — viraram reserved
-        // words para que NÃO voltem nem como identificador (fun() como nome,
-        // var fun = 1, param). Mesmo mecanismo de sealed/permits (token
-        // dedicado, parser não aceita → erro, nunca silencioso).
-        KEYWORDS.put("fun", TokenType.FUN);
-        KEYWORDS.put("fn", TokenType.FN);
-        KEYWORDS.put("func", TokenType.FUNC);
-        KEYWORDS.put("package", TokenType.PACKAGE);
-        KEYWORDS.put("import", TokenType.IMPORT);
-        KEYWORDS.put("public", TokenType.PUBLIC);
-        KEYWORDS.put("private", TokenType.PRIVATE);
-        KEYWORDS.put("protected", TokenType.PROTECTED);
-        KEYWORDS.put("static", TokenType.STATIC);
-        KEYWORDS.put("final", TokenType.FINAL);
-        KEYWORDS.put("abstract", TokenType.ABSTRACT);
-        KEYWORDS.put("transient", TokenType.TRANSIENT);
-        KEYWORDS.put("volatile", TokenType.VOLATILE);
-        KEYWORDS.put("synchronized", TokenType.SYNCHRONIZED);
-        KEYWORDS.put("native", TokenType.NATIVE);
-        KEYWORDS.put("default", TokenType.DEFAULT);
-        KEYWORDS.put("override", TokenType.OVERRIDE);
-        KEYWORDS.put("void", TokenType.VOID);
-        KEYWORDS.put("new", TokenType.NEW);
-        KEYWORDS.put("this", TokenType.THIS);
-        KEYWORDS.put("super", TokenType.SUPER);
-        KEYWORDS.put("return", TokenType.RETURN);
-        KEYWORDS.put("throw", TokenType.THROW);
-        KEYWORDS.put("if", TokenType.IF);
-        KEYWORDS.put("else", TokenType.ELSE);
-        KEYWORDS.put("for", TokenType.FOR);
-        KEYWORDS.put("while", TokenType.WHILE);
-        KEYWORDS.put("do", TokenType.DO);
-        KEYWORDS.put("switch", TokenType.SWITCH);
-        KEYWORDS.put("case", TokenType.CASE);
-        KEYWORDS.put("break", TokenType.BREAK);
-        KEYWORDS.put("continue", TokenType.CONTINUE);
-        KEYWORDS.put("try", TokenType.TRY);
-        KEYWORDS.put("catch", TokenType.CATCH);
-        KEYWORDS.put("finally", TokenType.FINALLY);
-        KEYWORDS.put("spawn", TokenType.SPAWN);
-        KEYWORDS.put("await", TokenType.AWAIT);
-        KEYWORDS.put("assert", TokenType.ASSERT);
-        KEYWORDS.put("instanceof", TokenType.INSTANCEOF);
-        KEYWORDS.put("var", TokenType.VAR);
-        KEYWORDS.put("val", TokenType.VAL);
-        KEYWORDS.put("as", TokenType.AS);
-        KEYWORDS.put("bool", TokenType.BOOL_TYPE);
-        KEYWORDS.put("byte", TokenType.BYTE_TYPE);
-        KEYWORDS.put("short", TokenType.SHORT_TYPE);
-        KEYWORDS.put("int", TokenType.INT_TYPE);
-        KEYWORDS.put("long", TokenType.LONG_TYPE);
-        KEYWORDS.put("float", TokenType.FLOAT_TYPE);
-        KEYWORDS.put("double", TokenType.DOUBLE_TYPE);
-        KEYWORDS.put("char", TokenType.CHAR_TYPE);
-        KEYWORDS.put("string", TokenType.STRING_TYPE);
-        KEYWORDS.put("true", TokenType.BOOLEAN_LITERAL);
-        KEYWORDS.put("false", TokenType.BOOLEAN_LITERAL);
-        KEYWORDS.put("null", TokenType.NULL_LITERAL);
-    }
+    /** Tabela canônica — fonte única em `lang/KofKeywords` (`D-PORTUKOF`). */
+    private static final Map<String, TokenType> KEYWORDS = KofKeywords.MAP;
 
     private final String source;
     private final String file;
     private final DiagnosticCollector diagnostics;
+    /** Perfil da superfície (`D-PORTUKOF`): tabela de keywords + valores canônicos.
+     *  Construtor histórico = perfil KOF canônico — comportamento inalterado. */
+    private final LanguageProfile profile;
     private final List<Token> tokens = new ArrayList<>();
     private int pos;
     private int line = 1;
     private int column = 1;
 
     public Lexer(String source, String file, DiagnosticCollector diagnostics) {
+        this(source, file, diagnostics, LanguageProfile.KOF);
+    }
+
+    public Lexer(String source, String file, DiagnosticCollector diagnostics,
+                 LanguageProfile profile) {
         this.source = source;
         this.file = file;
         this.diagnostics = diagnostics;
+        this.profile = profile;
     }
 
     public List<Token> tokenize() {
@@ -406,8 +345,9 @@ public class Lexer {
             advance();
         }
         String value = source.substring(startOffset, pos);
-        TokenType type = KEYWORDS.getOrDefault(value, TokenType.IDENTIFIER);
-        addToken(type, value, startLine, startCol, startOffset, pos - startOffset);
+        TokenType type = profile.keywords().getOrDefault(value, TokenType.IDENTIFIER);
+        String canon = profile.lexicalCanon().get(value);
+        addToken(type, canon != null ? canon : value, startLine, startCol, startOffset, pos - startOffset);
     }
 
     private void readOperatorOrDelimiter() {

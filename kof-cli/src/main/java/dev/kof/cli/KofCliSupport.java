@@ -221,10 +221,10 @@ final class KofCliSupport {
         return files;
     }
 
-    /** O path é um arquivo-fonte Kof (.kf ou .kof)? Único filtro da descoberta. */
+    /** O path é um arquivo-fonte Kof (.kf, .kof ou PortuKof .ptkf)? Único filtro da descoberta. */
     static boolean isKofSource(Path p) {
         String n = p.toString().toLowerCase();
-        return n.endsWith(".kf") || n.endsWith(".kof");
+        return n.endsWith(".kf") || n.endsWith(".kof") || n.endsWith(".ptkf");
     }
 
     /**

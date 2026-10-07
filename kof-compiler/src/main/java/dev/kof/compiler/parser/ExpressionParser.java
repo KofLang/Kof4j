@@ -532,21 +532,20 @@ public class ExpressionParser {
         List<String> orderDirs = new ArrayList<>();
         ExpressionNode limit = null;
         while (!ctx.check(TokenType.RBRACE) && !ctx.atEnd()) {
-            if (ctx.check(TokenType.IDENTIFIER) && "where".equals(ctx.peek().value())) {
+            if (ctx.wordIs("where")) {
                 ctx.advance();
                 wheres.add(ExpressionParser.parseExpression(ctx));
                 ctx.expectSemicolon();
-            } else if (ctx.check(TokenType.IDENTIFIER) && "orderBy".equals(ctx.peek().value())) {
+            } else if (ctx.wordIs("orderBy")) {
                 ctx.advance();
                 orderFields.add(ExpressionParser.parseIdentifierOrLiteral(ctx));
                 String dir = "asc";
-                if (ctx.check(TokenType.IDENTIFIER) && ("desc".equals(ctx.peek().value())
-                        || "asc".equals(ctx.peek().value()))) {
-                    dir = ctx.advance().value();
+                if (ctx.wordIs("desc") || ctx.wordIs("asc")) {
+                    dir = ctx.canonicalValue(ctx.advance().value());
                 }
                 orderDirs.add(dir);
                 ctx.expectSemicolon();
-            } else if (ctx.check(TokenType.IDENTIFIER) && "limit".equals(ctx.peek().value())) {
+            } else if (ctx.wordIs("limit")) {
                 ctx.advance();
                 limit = ExpressionParser.parseExpression(ctx);
                 ctx.expectSemicolon();
