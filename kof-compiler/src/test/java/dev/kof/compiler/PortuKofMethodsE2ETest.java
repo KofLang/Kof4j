@@ -24,7 +24,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PortuKofMethodsE2ETest {
 
     private static String run(String src, String fileName) throws Exception {
-        Path root = Files.createTempDirectory("ptkf-methods-");
+        return runAt(src, fileName, Files.createTempDirectory("ptkf-methods-"));
+    }
+
+    private static String runAt(String src, String fileName, Path root) throws Exception {
         Path f = root.resolve(fileName);
         Files.writeString(f, src);
         KofInterpreter.Result r = new CompilerDriver().interpret(List.of(f), root, new String[0]);
@@ -156,17 +159,19 @@ class PortuKofMethodsE2ETest {
     @Test
     void ioMethodAliasesResolveToCanonicalSymbols() throws Exception {
         // Face File/Path: `existe`/`lerTexto`/`escreverTexto` -> exists/readText/
-        // writeText. Script target executa filesystem real em tmpdir.
-        String kof = kf("    var f = File(\"io-alias.txt\")\n"
+        // writeText. Caminho ABSOLUTO dentro do tmpdir — nunca polui o repo.
+        Path root = Files.createTempDirectory("ptkf-io-");
+        String target = root.resolve("alvo.txt").toString().replace("\\", "/");
+        String kof = kf("    var f = File(\"" + target + "\")\n"
                 + "    f.writeText(\"oi\")\n"
                 + "    println(f.exists())\n"
                 + "    println(f.readText())\n");
-        String ptkf = pt("    var f = File(\"io-alias.txt\")\n"
+        String ptkf = pt("    var f = File(\"" + target + "\")\n"
                 + "    f.escreverTexto(\"oi\")\n"
                 + "    println(f.existe())\n"
                 + "    println(f.lerTexto())\n");
-        String outK = run(kof, "Main.kf");
-        String outP = run(ptkf, "Main.ptkf");
+        String outK = runAt(kof, "Main.kf", root);
+        String outP = runAt(ptkf, "Main.ptkf", root);
         assertEquals(outK, outP, "IO: alias == canonico em saida");
         assertTrue(outK.contains("oi"), "gravou/leu de verdade: " + outK);
     }
