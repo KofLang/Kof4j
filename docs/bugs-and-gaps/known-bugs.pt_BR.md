@@ -14872,3 +14872,29 @@ JVM/Script/Native imprimiam `fin-inner`, `fin-outer`, `inner`. KofJS abortava: `
 **Limite:** runtime `kof_io_dir_delete` no JS vs JVM/Native mais o contrato `IO.md`/`learn/34`. Sem mudança de parser/typer/lowering. Uma correção em qualquer direção deve embarcar um teste de paridade cross-target (JVM ≡ Native ≡ JS) e a doc atualizada no mesmo commit.
 
 <!-- en-switch --> **EN:** [§618 (en)](known-bugs.md#618--directorydelete-deletes-a-non-empty-directory-recursively-on-jvmnative-but-only-an-empty-one-on-js-returns-false---open-0610-owner--19216815309093-lane-issuestooling-kof-testing-platform-5-harness-contract-decision-needed)
+
+## §619 — campo de classe sem inicializador seguido de membro que começa com `(` engolia o `(` como lista de parâmetros do campo, então `String title` + `() -> Long src` morria `PARSE016` — ✅ CORRIGIDO 07/10 (dona = 192.168.15.15:9092; lane security/connectors, frente graphics/gaming)
+
+**Sintoma (medido 07/10, tip `f1b4a68e7`, ao escrever `libs/game/Window.kf`):** uma classe com `String windowTitle` (sem inicializador) seguida na LINHA SEGUINTE por `() -> Long clockSource = null` falhava com `Unexpected token in class body` (`PARSE016`) no `->`. Variantes com campo inicializado antes (`Int a = 0`) ou o campo de tipo-função primeiro parseavam — só a forma campo-sem-inicializador-então-`(` morria.
+
+**Causa-raiz (lida):** o ramo `Type name ...` do `ClassMemberParser` tratava QUALQUER `(` após o nome do membro como lista de parâmetros, sem exigência de mesma linha — então o `(` que abre o tipo-função do membro SEGUINTE era consumido como parâmetros de `title(`, e o `->` encalhado errava. O caminho irmão da trailing-lambda já tinha o guard equivalente (`known-bugs` §692: um `{` em outra linha não é trailing lambda).
+
+**Correção (só parser, aditiva):** um guard `paramsOnSameLine` na decisão campo-vs-método — o `(` abre lista de parâmetros só na MESMA linha do nome do membro (um método real sempre escreve `name(` numa linha); senão o membro é campo e o `parseField` roda. O ramo de membro-começando-com-`(` (issue #218) está intocado.
+
+**Prova (RED-first):** novo `ClassMemberParseE2ETest` **4/4** — pré-fix 2/4 RED com o exato `PARSE016` (pernas JVM + Script; os dois controles verdes pré e pós-fix); pós-fix a forma do `Window.kf` compila em todo alvo.
+
+**Limite:** só desambiguação de membro de corpo de classe; sem mudança de typer/lowering/runtime, sem sintaxe nova. Métodos com `name(` na mesma linha inafetados.
+
+<!-- en-switch --> **EN:** [§619 (en)](known-bugs.md#619--an-uninitialized-class-field-followed-by-a-member-that-starts-with--swallowed-the--as-the-fields-parameter-list-so-string-title-----long-src-died-parse016---fixed-0710-owner--19216815159092-lane-securityconnectors-graphicsgaming-front)
+
+## §620 — lambda que captura passada como argumento de tipo-função recebe primeiro argumento-lixo nos nativos cross (riscv64/aarch64); as capturas estão certas, x86-64/JVM/Script/JS corretos — 🟡 ABERTA (achada 07/10 pelo host window da fatia-3.1 graphics/gaming; dona = lane native-backend)
+
+**Sintoma (medido 07/10, tip `f1b4a68e7` + fatia WIP):** `w.call { dt: Int -> println("dt=" + dt + " x=" + x) }` (corpo captura `x`) imprime `dt=7 x=100` na JVM + Native x86-64 mas `dt=140912 x=100` sob qemu-riscv64 e `dt=4335216 x=100` sob qemu-aarch64 — o ARGUMENTO é lixo, a CAPTURA está certa. Bisseção: corpo sem captura está correto nos três nativos; fonte zero-arg com captura (`() -> s.now()` guardada em campo, chamada depois) está correta; só captura-COM-args como parâmetro de tipo-função diverge, nos dois alvos cross identicamente. A forma interna decidida do host graphics (`w.frame { dt -> ... w.stop() }`, que captura a window externa) atinge exatamente isto.
+
+**Causa-raiz (desconhecida — não alegada):** só comportamento medido + bisseção. Área suspeita é o marshaling de argumento de closure no cross (emissores riscv64/aarch64), compartilhada pelos dois alvos cross mas correta no x86-64. A correção pertence à lane native-backend — esta lane não toca (`D-PLAN-ONE-OWNER`).
+
+**Desvio (esta lane, embarcado):** o `frame` do `libs/game/Window.kf` recebe `(Int, Window) -> Void` e passa `this` como segundo argumento, então o corpo nunca captura a window externa (`w.frame { dt: Int, self: Window -> ... self.stop() }`) — lambda de 2 args sem captura, medida verde em JVM + Script + Native x86-64 + riscv64 + aarch64 (qemu) + JS (`GameWindowE2ETest` 8/8). A forma decidida e o contrato do `dt` estão inalterados.
+
+**Limite:** só registro + desvio; sem mudança de backend por esta lane. A fatia 3.1 segue verde em todo alvo apesar do §620. A forma de 1 arg com captura segue RED no cross até a lane dona corrigir.
+
+<!-- en-switch --> **EN:** [§620 (en)](known-bugs.md#620--a-capturing-lambda-passed-as-a-function-typed-argument-receives-a-garbage-first-argument-on-the-cross-natives-riscv64aarch64-the-captures-are-correct-x86-64jvmscriptjs-correct---open-found-0710-by-the-graphicsgaming-slice-31-window-host-owner--native-backend-lane)

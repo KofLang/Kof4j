@@ -5,8 +5,8 @@
 **Owner:** `192.168.15.15:9092` — lane security/connectors, graphics/gaming front; re-claimed 05/10 (the spike-3.0 `192.168.15.30:9093` claims were runner/tooling, historical).
 
 last: slice-3.1 pure clock + key/pointer/pad input snapshots landed 05/10 (`libs/game/Clock.kf` + `Keys.kf` + `Mouse.kf` + `Pad.kf`, `GameClockE2ETest`/`GameInputE2ETest`/`GameMouseE2ETest`/`GamePadE2ETest` 4/4 each; `known-bugs` §603 fixed on the way); pure `kof.game` surface cross-target verified (`GameCrossE2ETest` 3/3 — JVM oracle + riscv64 + aarch64 under qemu); window form DECIDED (`D-GRAPHICS-WINDOW-FORM`: `Window("…") { frame { dt -> … } }`, `dt` Int ms) and its parser prerequisite fixed (`known-bugs` §611, `TrailingLambdaParamsE2ETest` 6/6); G1 SDL3 `3.4.16` measured (C + Kof FFI, headless JVM+Native; `known-bugs` §606 fixed); **SDL3 vendored into the cross sysroot 06/10 (`scripts/provision-cross-sdl3.sh`, aarch64+riscv64 `3.4.16` + runtime closure + GLIBC 2.44) and the raw ABI measured end-to-end headless on all four targets (`Sdl3FfiCrossE2ETest` 5/5: JVM + Native x86-64 + riscv64 + aarch64 under qemu, golden `init=true/driver=dummy/title=kof`)**
-doing: slice-3.1 (window/frame/input)
-next: slice-3.1 backend window/frame/input — form DECIDED (`Window`), `dt` unit DECIDED (Int ms, first frame 0), stack vendored + cross ABI proven, **loop semantics DECIDED (`D-MAINT-BATCH-0610`: long-frame = dt clamp, limit = vsync on/off, pause = explicit pause/resume + minimized suspends render + unfocus does NOT pause)**; next is the `Window`/`frame` host over the measured binding and the `kof.game` ledger registration
+doing: slice-3.1 (window/frame host)
+next: pure `Window`/`frame` host LANDED 07/10 (`libs/game/Window.kf`, `GameWindowE2ETest` 8/8 every target); remaining = the OS-window SDL3 binding over the measured stack + the `kof.game` ledger registration + 3.2 (2D)
 location: docs/development
 state: UNDER DEVELOPMENT
 
@@ -169,6 +169,14 @@ release/caching/window-loss. No manual GPU management when the backend can do it
   suspends the render, losing focus does NOT pause**.
 - Virtual clock required (deterministic `dt` streams) for physics/animations/
   input/audio/playback/goldens.
+- Pure host LANDED 07/10 (`libs/game/Window.kf`, slice 3.1): `Window("Pong")`
+  + `clock(source)` + `dtClampMillis(n)` (A1) + `vsync(on)` (A2) +
+  `pause()`/`resume()`/`minimize()`/`restore()`/`blur()`/`focus()` (A3) +
+  `frame { dt: Int, self: Window -> ... }` over the composed `Clock`; the
+  2-arg body (window passed as `self`, never captured) sidesteps `known-bugs`
+  §620 (capturing lambda + args = garbage first arg on cross) and is green on
+  every target (`GameWindowE2ETest` 8/8). Building it fixed `known-bugs` §619
+  (uninitialized field + `(` member misparse, `ClassMemberParseE2ETest` 4/4).
 
 # 7. Input
 

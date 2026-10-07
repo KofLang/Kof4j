@@ -17334,3 +17334,29 @@ JVM/Script/Native printed `fin-inner`, `fin-outer`, `inner`. KofJS aborted: `Int
 **Boundary:** runtime `kof_io_dir_delete` on JS vs JVM/Native plus the `IO.md`/`learn/34` contract. No parser/typer/lowering change. A fix in either direction must ship with a cross-target parity test (JVM ≡ Native ≡ JS) and the doc updated in the same commit.
 
 <!-- pt-switch --> **PT:** [§618 (pt_BR)](known-bugs.pt_BR.md#618--directorydelete-apaga-um-diretorio-nao-vazio-recursivamente-no-jvmnative-mas-so-um-vazio-no-js-devolve-false---aberto-0610-dona--19216815309093-lane-issuestooling-harness-5-do-kof-testing-platform-decisao-de-contrato)
+
+## §619 — an uninitialized class field followed by a member that starts with `(` swallowed the `(` as the field's parameter list, so `String title` + `() -> Long src` died `PARSE016` — ✅ FIXED 07/10 (owner = 192.168.15.15:9092; lane security/connectors, graphics/gaming front)
+
+**Symptom (measured 07/10, tip `f1b4a68e7`, while writing `libs/game/Window.kf`):** a class with `String windowTitle` (no initializer) followed on the NEXT line by `() -> Long clockSource = null` failed with `Unexpected token in class body` (`PARSE016`) at the `->`. Variants with an initialized field before (`Int a = 0`) or the function-typed field first parsed — only the uninitialized-field-then-`(` shape died.
+
+**Root (read):** `ClassMemberParser`'s `Type name ...` branch treated ANY `(` after the member name as the parameter list, with no same-line requirement — so the `(` opening the NEXT member's function type was consumed as `title(`'s parameters, and the stranded `->` errored. The sibling trailing-lambda path already had the equivalent guard (`known-bugs` §692: a `{` on another line is not a trailing lambda).
+
+**Fix (parser only, additive):** a `paramsOnSameLine` guard on the field-vs-method decision — the `(` opens a parameter list only on the SAME line as the member name (a real method always writes `name(` on one line); otherwise the member is a field and `parseField` runs. The member-starting-with-`(` branch (issue #218) is untouched.
+
+**Proof (RED-first):** new `ClassMemberParseE2ETest` **4/4** — pre-fix 2/4 RED with the exact `PARSE016` (JVM + Script legs; the two controls green pre- and post-fix); post-fix the `Window.kf` shape compiles on every target.
+
+**Boundary:** class-body member disambiguation only; no typer/lowering/runtime change, no new syntax. Methods with same-line `name(` are unaffected.
+
+<!-- pt-switch --> **PT:** [§619 (pt_BR)](known-bugs.pt_BR.md#619--campo-de-classe-sem-inicializador-seguido-de-membro-que-comeca-com--engolia-o--como-lista-de-parametros-do-campo-entao-string-title-----long-src-morria-parse016---corrigido-0710-dona--19216815159092-lane-securityconnectors-frente-graphicsgaming)
+
+## §620 — a capturing lambda passed as a function-typed argument receives a garbage first argument on the cross natives (riscv64/aarch64); the captures are correct, x86-64/JVM/Script/JS correct — 🟡 OPEN (found 07/10 by the graphics/gaming slice-3.1 window host; owner = native-backend lane)
+
+**Symptom (measured 07/10, tip `f1b4a68e7` + slice WIP):** `w.call { dt: Int -> println("dt=" + dt + " x=" + x) }` (body captures `x`) prints `dt=7 x=100` on JVM + Native x86-64 but `dt=140912 x=100` under qemu-riscv64 and `dt=4335216 x=100` under qemu-aarch64 — the ARGUMENT is garbage, the CAPTURE is right. Bisect: a non-capturing body is correct on all three natives; a capturing zero-arg source (`() -> s.now()` stored in a field, called later) is correct; only capturing-WITH-args as a function-typed parameter diverges, on both cross targets identically. The graphics host's decided inner shape (`w.frame { dt -> ... w.stop() }`, which captures the outer window) hits exactly this.
+
+**Root (unknown — not claimed):** measured behavior + bisection only. Suspect area is the cross closure-argument marshaling (riscv64/aarch64 emitters), shared by both cross targets but correct on x86-64. The fix belongs to the native-backend lane — this lane does not touch it (`D-PLAN-ONE-OWNER`).
+
+**Workaround (this lane, shipped):** `libs/game/Window.kf`'s `frame` takes `(Int, Window) -> Void` and passes `this` as the second argument, so the body never captures the outer window (`w.frame { dt: Int, self: Window -> ... self.stop() }`) — a non-capturing 2-arg lambda, measured green on JVM + Script + Native x86-64 + riscv64 + aarch64 (qemu) + JS (`GameWindowE2ETest` 8/8). The decided form and `dt` contract are unchanged.
+
+**Boundary:** record + workaround only; no backend change from this lane. Slice 3.1 stays green on every target despite §620. The 1-arg capturing shape remains RED on cross until the owning lane fixes it.
+
+<!-- pt-switch --> **PT:** [§620 (pt_BR)](known-bugs.pt_BR.md#620--lambda-que-captura-passada-como-argumento-de-tipo-funcao-recebe-primeiro-argumento-lixo-nos-nativos-cross-riscv64aarch64-as-capturas-estao-certas-x86-64jvmscriptjs-corretos---aberta-achada-0710-pelo-host-window-da-fatia-31-graphicsgaming-dona--lane-native-backend)

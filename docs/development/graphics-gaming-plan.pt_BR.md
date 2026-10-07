@@ -3,8 +3,8 @@
 # Graphics, Games e Media — Superfície de Intenção do Kof
 
 last: fatia-3.1 relógio puro + snapshots de input de teclado/ponteiro/gamepad pousados 05/10 (`libs/game/Clock.kf` + `Keys.kf` + `Mouse.kf` + `Pad.kf`, `GameClockE2ETest`/`GameInputE2ETest`/`GameMouseE2ETest`/`GamePadE2ETest` 4/4 cada; `known-bugs` §603 corrigido no caminho); superfície pura `kof.game` verificada cross-target (`GameCrossE2ETest` 3/3 — oráculo JVM + riscv64 + aarch64 sob qemu); forma da janela DECIDIDA (`D-GRAPHICS-WINDOW-FORM`: `Window("…") { frame { dt -> … } }`, `dt` Int ms) e seu pré-requisito de parser corrigido (`known-bugs` §611, `TrailingLambdaParamsE2ETest` 6/6); G1 SDL3 `3.4.16` medida (C + FFI do Kof, headless JVM+Native; `known-bugs` §606 corrigido); **SDL3 vendada no sysroot cross 06/10 (`scripts/provision-cross-sdl3.sh`, aarch64+riscv64 `3.4.16` + fecho de runtime + GLIBC 2.44) e a ABI crua medida ponta-a-ponta headless nos quatro alvos (`Sdl3FfiCrossE2ETest` 5/5: JVM + Native x86-64 + riscv64 + aarch64 sob qemu, golden `init=true/driver=dummy/title=kof`)**
-doing: fatia-3.1 (window/frame/input)
-next: fatia-3.1 backend window/frame/input — forma DECIDIDA (`Window`), unidade do `dt` DECIDIDA (Int ms, primeiro frame 0), stack vendada + ABI cross provada, **semântica do loop DECIDIDA (`D-MAINT-BATCH-0610`: long-frame = clamp do dt, limit = só vsync on/off, pause = pause/resume explícitos + minimized suspende render + perder foco NÃO pausa)**; falta o hospedeiro `Window`/`frame` sobre o binding medido e o registro do `kof.game` no ledger
+doing: fatia-3.1 (hospedeiro window/frame)
+next: hospedeiro puro `Window`/`frame` da fatia-3.1 POUSADO 07/10 (`libs/game/Window.kf`, `GameWindowE2ETest` 8/8 verde em todo alvo); falta o binding SDL3 da janela do SO sobre o stack medido + o registro do `kof.game` no ledger + 3.2 (2D)
 location: docs/development
 state: UNDER DEVELOPMENT
 
@@ -150,6 +150,14 @@ release/caching/perda de janela. Sem gerenciamento GPU manual quando o backend r
   suspende o render, perder foco NÃO pausa**.
 - Clock virtual obrigatório (`dt` determinístico) para física/animações/input/
   áudio/playback/goldens.
+- Hospedeiro puro POUSADO 07/10 (`libs/game/Window.kf`, fatia 3.1): `Window("Pong")`
+  + `clock(fonte)` + `dtClampMillis(n)` (A1) + `vsync(on)` (A2) +
+  `pause()`/`resume()`/`minimize()`/`restore()`/`blur()`/`focus()` (A3) +
+  `frame { dt: Int, self: Window -> ... }` sobre o `Clock` composto; o corpo de
+  2 args (window passada como `self`, nunca capturada) desvia do `known-bugs`
+  §620 (lambda com captura + args = primeiro arg lixo no cross) e é verde em
+  todo alvo (`GameWindowE2ETest` 8/8). Construí-lo corrigiu o `known-bugs` §619
+  (campo sem inicializador + membro `(` mal-parseado, `ClassMemberParseE2ETest` 4/4).
 
 # 7. Input
 
