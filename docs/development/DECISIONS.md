@@ -4882,3 +4882,19 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 **Boundary:** A1–A3 freeze the remaining loop semantics of `D-GRAPHICS-WINDOW-FORM`; the `Window`/`frame` host may now land (the SDL3 stack is vendored + ABI-proven). B is a new FFI language surface (still `post-1.0`). C stays `1.0-blocks` until fixed; D is additive test infrastructure; E is a GitHub-settings action performed by the maintainer, not by an agent; F is packaging/licensing; G is a classification change that unblocks the 0.6.0 cut. Nothing here weakens the quality gate or unfreezes `future/`.
 
 **Relationships:** `Related: D-GRAPHICS-WINDOW-FORM, D-GRAPHICS-GAMING, D-MAINT-BATCH-0510, D-RELEASE-1.0, D-LAB-STABILITY, D-QUALITY-PIPELINE-2609, #761, #763, #753, rule 6`.
+
+---
+
+## D-MAINT-BATCH-0610B — maintainer multiple-choice batch (06/10/2026, second chat poll): testing-platform surfaces resolved
+
+**Date:** 2026-10-06 · **State:** `DECIDED` (batch) · **Evidence:** the maintainer's multiple-choice answers in the chat poll of 06/10/2026 (the poll listed the real options from `kof-testing-platform-plan` §4.6/§5/§6). **Effect:** the three surfaces below are AUTHORIZED for implementation; this record AUTHORIZES, it does not implement. It extends `D-MAINT-BATCH-0610`/D (§4.4 first).
+
+| # | Front (option) | Unblocks / queue |
+|---|---|---|
+| A (§4.6 test doubles) | **clock/random seams only** — inject a deterministic clock and a reproducible random source; no mock/stub/spy framework (use the real behavior when it is cheap and deterministic) | `kof-testing-platform-plan` §4.6; `kof.test` helper surface |
+| B (§5 integration harness) | **Kof library (`kof.test`)** — the harness surface lives in the Kof library (temp dir / server / db lifecycle with `try/finally` cleanup), injected flat on the explicit `import kof.test`; no Java-only surface | `kof-testing-platform-plan` §5; library-first (`D-KOF-FIRST` item 12) |
+| C (§6 browser provider) | **opt-in per project, CLI does not bundle** — Playwright/Cypress are declared per project and the CLI does not carry them (interop-first R9, no heavyweight default dependency) | `kof-testing-platform-plan` §6; provider slice |
+
+**Boundary:** all three are additive test infrastructure — no language/semantics change. A is the only surface implemented so far (`fixedClock`/`scriptedClock`/`seededRandom`); B and C are AUTHORIZED and queued. Nothing here weakens the quality gate or unfreezes `future/`.
+
+**Relationships:** `Related: D-MAINT-BATCH-0610, D-KOF-FIRST, D-TESTING-PLATFORM, rule 6, rule 12`.

@@ -4872,3 +4872,19 @@ individuais:
 **Fronteira:** A1–A3 congelam a semântica restante do loop de `D-GRAPHICS-WINDOW-FORM`; o hospedeiro `Window`/`frame` pode pousar agora (a stack SDL3 está vendada + ABI-provada). B é uma nova superfície de linguagem FFI (ainda `post-1.0`). C segue `1.0-blocks` até ser corrigida; D é infraestrutura de teste aditiva; E é uma ação de configuração do GitHub feita pela mantenedora, não por um agente; F é empacotamento/licença; G é mudança de classificação que desbloqueia o corte 0.6.0. Nada aqui enfraquece o quality gate ou descongela `future/`.
 
 **Relações:** `Related: D-GRAPHICS-WINDOW-FORM, D-GRAPHICS-GAMING, D-MAINT-BATCH-0510, D-RELEASE-1.0, D-LAB-STABILITY, D-QUALITY-PIPELINE-2609, #761, #763, #753, rule 6`.
+
+---
+
+## D-MAINT-BATCH-0610B — lote de múltipla escolha da mantenedora (06/10/2026, segundo poll no chat): superfícies do testing-platform resolvidas
+
+**Data:** 2026-10-06 · **Estado:** `DECIDED` (lote) · **Evidência:** as respostas de múltipla escolha da mantenedora no poll do chat de 06/10/2026 (o poll listou as opções reais do `kof-testing-platform-plan` §4.6/§5/§6). **Efeito:** as três superfícies abaixo ficam AUTORIZADAS para implementação; este registro AUTORIZA, não implementa. Estende `D-MAINT-BATCH-0610`/D (§4.4 primeiro).
+
+| # | Frente (opção) | Desbloqueia / fila |
+|---|---|---|
+| A (§4.6 test doubles) | **apenas seams de clock/random** — injetar um clock determinístico e uma fonte aleatória reprodutível; sem framework de mock/stub/spy (usar o comportamento real quando for barato e determinístico) | `kof-testing-platform-plan` §4.6; superfície de helpers `kof.test` |
+| B (§5 integration harness) | **biblioteca Kof (`kof.test`)** — a superfície do harness vive na biblioteca Kof (ciclo de temp dir / server / db com cleanup via `try/finally`), injetada flat no `import kof.test` explícito; sem superfície só-Java | `kof-testing-platform-plan` §5; library-first (`D-KOF-FIRST` item 12) |
+| C (§6 browser provider) | **opt-in por projeto, a CLI não empacota** — Playwright/Cypress são declarados por projeto e a CLI não os carrega (interop-first R9, sem dependência pesada por padrão) | `kof-testing-platform-plan` §6; fatia do provider |
+
+**Limite:** as três são infraestrutura de teste aditiva — sem mudança de linguagem/semântica. A é a única superfície implementada até agora (`fixedClock`/`scriptedClock`/`seededRandom`); B e C estão AUTORIZADAS e na fila. Nada aqui enfraquece o quality gate ou descongela `future/`.
+
+**Relações:** `Related: D-MAINT-BATCH-0610, D-KOF-FIRST, D-TESTING-PLATFORM, rule 6, rule 12`.

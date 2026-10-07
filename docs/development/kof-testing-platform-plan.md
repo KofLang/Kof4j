@@ -299,9 +299,44 @@ Minimal support for fake/stub/spy/mock. Rule: if the real behavior is cheap and 
 use the real behavior. Mock mainly external boundaries: HTTP service, filesystem, clock, random
 source, external process, database.
 
+> **DECIDED 06/10 (`D-MAINT-BATCH-0610B`/A):** scope = **clock/random seams only** — inject a
+> deterministic clock and a reproducible random source; no mock/stub/spy framework.
+
+**Status: LANDED 06/10 (`D-MAINT-BATCH-0610B`/A).** The surface is three additive `kof.test`
+helpers, written in Kof (no new syntax/primitive, `D-KOF-FIRST` item 12):
+
+```kof
+import kof.test
+
+// clock seam: a source of epoch millis the test controls, instead of time.now()
+var clock = fixedClock(1000L)        // always 1000
+var stepped = scriptedClock(listOf(10L, 20L, 30L))  // 10, 20, 30, then repeats 30
+
+// random seam: same seed => same sequence on every backend and every run
+var r = seededRandom(42)
+var roll = r.next(6)
+```
+
+`fixedClock(millis)` freezes one instant; `scriptedClock(times)` returns the next reading per
+call and, once exhausted, repeats the **last** (never throws, never invents a value after data
+ran out; empty list = 0). `seededRandom(seed)` is a pure-Kof integer LCG (multiplier 32719,
+modulus 32749, so the product fits in 32-bit `Int` with **no overflow**) — a test that depends
+on randomness gets a reproducible sequence, and a failure returns identically on every run.
+`rng` from the stdlib is deliberately **not** used: it has a cross gap (`RNG001`) and the whole
+host file compiles on every target, so every helper must be supported on all four.
+
+**Proof:** `TestSeamsE2ETest` **7/7** (fixed/scripted/exhaustion, seeded reproducibility across
+runs) across JVM + JS + Native x86-64 + riscv64/aarch64(qemu); non-regression `KofTestingE2ETest`
+7/7 + `TestRowsE2ETest` 7/7 + `StructuredTestE2ETest` 12/12 + `TestTagsE2ETest` 23/23 +
+`GenericEqualityE2ETest` 16/16 + `AssertE2ETest` 5/5 + `StdCatalogTest` 11/11 = **86/86**.
+
 ---
 
 # 5. Integration harness
+
+> **DECIDED 06/10 (`D-MAINT-BATCH-0610B`/B):** the harness surface lives in the **Kof library**
+> (`kof.test`) — temp dir / server / db lifecycle with `try/finally` cleanup, injected flat on
+> the explicit `import kof.test`. No Java-only surface. AUTHORIZED; queued after §4.6.
 
 Infrastructure to bring up resources: HTTP server, database, filesystem, process, external
 service. Each resource has `start → health check → test → cleanup`. **Never leave processes or
@@ -332,6 +367,10 @@ honest diagnostic (`NATIVE002`/`WASM001` class), never silent.
 ---
 
 # 6. Frontend Testing API
+
+> **DECIDED 06/10 (`D-MAINT-BATCH-0610B`/C):** the browser provider (Playwright/Cypress) is
+> **opt-in per project** — declared per project, the CLI does **not** bundle it (interop-first
+> R9, no heavyweight default dependency). AUTHORIZED; queued after §5.
 
 An official browser-testing API in Kof. Conceptually:
 

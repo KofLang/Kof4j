@@ -76,6 +76,36 @@ Cada linha é um `List<String>`; a lambda recebe uma linha e asserta com os help
 `assertEqual*`. Uma falha nomeia a linha por índice e conteúdo
 (`row 1 [2, 5]: expected 5, got 4`) e uma linha ruim nunca para as demais.
 
+## Tempo e aleatoriedade determinísticos (seams de teste)
+
+Lógica que depende do relógio ou de aleatoriedade é difícil de testar — a menos que o teste
+injete a fonte. O `kof.test` fornece seams determinísticos, então o resultado é reprodutível:
+
+```kof
+import kof.test
+
+Long elapsed(Long start, Long now) {
+    return now - start
+}
+
+test "clock seam drives elapsed" {
+    var clock = scriptedClock(listOf(100L, 400L, 900L))
+    var start = clock()
+    assertEqualLong(300L, elapsed(start, clock()), "first interval")
+    assertEqualLong(800L, elapsed(start, clock()), "second interval")
+}
+
+test "random seam is reproducible" {
+    var a = seededRandom(42)
+    var b = seededRandom(42)
+    assertEqualInt(a.next(6), b.next(6), "same seed, same sequence")
+}
+```
+
+`fixedClock(millis)` congela um instante; `scriptedClock(times)` devolve a próxima medida por
+chamada e, esgotada, repete a última. `seededRandom(seed)` dá a mesma sequência para a mesma seed
+em todo backend e toda execução — a falha volta idêntica.
+
 ## Testes estilo property (semeados, reprodutíveis)
 
 Não existe uma superfície separada de property-runner: um *teste de property* é um
