@@ -5,8 +5,8 @@
 **Owner:** `192.168.15.15:9092` — lane security/connectors, graphics/gaming front; re-claimed 05/10 (the spike-3.0 `192.168.15.30:9093` claims were runner/tooling, historical).
 
 last: slice-3.1 pure clock + key/pointer/pad input snapshots landed 05/10 (`libs/game/Clock.kf` + `Keys.kf` + `Mouse.kf` + `Pad.kf`, `GameClockE2ETest`/`GameInputE2ETest`/`GameMouseE2ETest`/`GamePadE2ETest` 4/4 each; `known-bugs` §603 fixed on the way); pure `kof.game` surface cross-target verified (`GameCrossE2ETest` 3/3 — JVM oracle + riscv64 + aarch64 under qemu); window form DECIDED (`D-GRAPHICS-WINDOW-FORM`: `Window("…") { frame { dt -> … } }`, `dt` Int ms) and its parser prerequisite fixed (`known-bugs` §611, `TrailingLambdaParamsE2ETest` 6/6); G1 SDL3 `3.4.16` measured (C + Kof FFI, headless JVM+Native; `known-bugs` §606 fixed); **SDL3 vendored into the cross sysroot 06/10 (`scripts/provision-cross-sdl3.sh`, aarch64+riscv64 `3.4.16` + runtime closure + GLIBC 2.44) and the raw ABI measured end-to-end headless on all four targets (`Sdl3FfiCrossE2ETest` 5/5: JVM + Native x86-64 + riscv64 + aarch64 under qemu, golden `init=true/driver=dummy/title=kof`)**
-doing: slice-3.2a (2D sprite intent)
-next: slice-3.2a sprite/draw LANDED 07/10 (`libs/game/Sprite.kf` + `Draw.kf` + `Trig.kf`, `GameSpriteE2ETest` 14/14 every target); remaining = tilemap intent (3.2b) + the OS-window SDL3 binding + the `kof.game` ledger registration
+doing: slice-3.2b (2D tilemap intent)
+next: slice-3.2b tilemap LANDED 07/10 (`libs/game/Tilemap.kf`, `GameTilemapE2ETest` 6/6 every target); remaining = the OS-window SDL3 binding + the `kof.game` ledger registration + 3.3 (audio)
 location: docs/development
 state: UNDER DEVELOPMENT
 
@@ -206,6 +206,15 @@ backend decides *how* (batching/atlas/command-buffer/order/cache/upload hidden).
   draw goldens on JVM + Script + Native x86-64 + JS; transform golden also
   riscv64 + aarch64 under qemu; milli-unit goldens, never raw `Double`s).
   Next: tilemap intent (3.2b).
+- Slice 3.2b LANDED 07/10 (pure intent, no rendering): `libs/game/Tilemap.kf`
+  (`tilemap()` factory + unbounded sparse grid: `tileAt`/`setTile`/
+  `clearTile`/`hasTile`/`count`/`clear`, `worldX`/`worldY` pixel origins;
+  negative id clears, unset reads `-1`, `tileSize <= 0` throws). Building it
+  confirmed two `List` API facts the compiler states explicitly (`[]`
+  assignment is arrays-only → `l.set(i, v)` per `SEM054`; removal is
+  `l.remove(i)`, no `removeAt`) — language knowledge, no bug. Proof:
+  `GameTilemapE2ETest` **6/6** (all-integer golden on JVM + Script + Native
+  x86-64 + JS + riscv64 + aarch64 under qemu).
 
 # 9. 3D (later)
 

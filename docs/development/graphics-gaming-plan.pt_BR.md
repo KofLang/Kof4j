@@ -3,8 +3,8 @@
 # Graphics, Games e Media — Superfície de Intenção do Kof
 
 last: fatia-3.1 relógio puro + snapshots de input de teclado/ponteiro/gamepad pousados 05/10 (`libs/game/Clock.kf` + `Keys.kf` + `Mouse.kf` + `Pad.kf`, `GameClockE2ETest`/`GameInputE2ETest`/`GameMouseE2ETest`/`GamePadE2ETest` 4/4 cada; `known-bugs` §603 corrigido no caminho); superfície pura `kof.game` verificada cross-target (`GameCrossE2ETest` 3/3 — oráculo JVM + riscv64 + aarch64 sob qemu); forma da janela DECIDIDA (`D-GRAPHICS-WINDOW-FORM`: `Window("…") { frame { dt -> … } }`, `dt` Int ms) e seu pré-requisito de parser corrigido (`known-bugs` §611, `TrailingLambdaParamsE2ETest` 6/6); G1 SDL3 `3.4.16` medida (C + FFI do Kof, headless JVM+Native; `known-bugs` §606 corrigido); **SDL3 vendada no sysroot cross 06/10 (`scripts/provision-cross-sdl3.sh`, aarch64+riscv64 `3.4.16` + fecho de runtime + GLIBC 2.44) e a ABI crua medida ponta-a-ponta headless nos quatro alvos (`Sdl3FfiCrossE2ETest` 5/5: JVM + Native x86-64 + riscv64 + aarch64 sob qemu, golden `init=true/driver=dummy/title=kof`)**
-doing: fatia-3.2a (intent 2D de sprite)
-next: sprite/draw da fatia-3.2a POUSADO 07/10 (`libs/game/Sprite.kf` + `Draw.kf` + `Trig.kf`, `GameSpriteE2ETest` 14/14 todo alvo); falta o intent de tilemap (3.2b) + o binding SDL3 da janela do SO + o registro do `kof.game` no ledger
+doing: fatia-3.2b (intent 2D de tilemap)
+next: tilemap da fatia-3.2b POUSADO 07/10 (`libs/game/Tilemap.kf`, `GameTilemapE2ETest` 6/6 todo alvo); falta o binding SDL3 da janela do SO + o registro do `kof.game` no ledger + 3.3 (áudio)
 location: docs/development
 state: UNDER DEVELOPMENT
 
@@ -186,6 +186,15 @@ quê*, backend decide *como* (batching/atlas/command-buffer/ordem/cache/upload o
   (goldens de transform + animação + draw em JVM + Script + Native x86-64 +
   JS; golden de transform também riscv64 + aarch64 sob qemu; goldens em
   milli-units, nunca `Double` cru). Próxima: intent de tilemap (3.2b).
+- Fatia 3.2b POUSADA 07/10 (intent puro, sem render): `libs/game/Tilemap.kf`
+  (fábrica `tilemap()` + grade esparsa ilimitada: `tileAt`/`setTile`/
+  `clearTile`/`hasTile`/`count`/`clear`, origens em pixel `worldX`/`worldY`;
+  id negativo limpa, não-setado lê `-1`, `tileSize <= 0` lança). Construí-la
+  confirmou dois fatos da API de `List` que o compilador diz explicitamente
+  (atribuição `[]` é só de arrays → `l.set(i, v)` por `SEM054`; remoção é
+  `l.remove(i)`, sem `removeAt`) — conhecimento da linguagem, sem bug. Prova:
+  `GameTilemapE2ETest` **6/6** (golden todo-inteiro em JVM + Script + Native
+  x86-64 + JS + riscv64 + aarch64 sob qemu).
 
 # 9. 3D (depois)
 
