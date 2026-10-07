@@ -44,7 +44,6 @@ JsIr.JsStatement parse(MethodCtx ctx, int[] pos) {
         // ctx.currentReturnFinallyLabel, então o epílogo externo usaria o label
         // errado.
         LabelId myReturnFinally = null;
-        int myRetSlot = -1;
         {
             int depth = 1;
             for (int i = pos[0]; i < ctx.ops.size(); i++) {
@@ -56,7 +55,6 @@ JsIr.JsStatement parse(MethodCtx ctx, int[] pos) {
                 }
                 if (depth == 1 && ctx.ops.get(i) instanceof KofStoreLocal sl
                         && "#retVal".equals(ctx.rawLocalNames.get(sl.index()))) {
-                    myRetSlot = sl.index();
                     for (int j = i + 1; j < ctx.ops.size() && j <= i + 3; j++) {
                         if (ctx.ops.get(j) instanceof KofJump kj) { myReturnFinally = kj.target(); break; }
                         if (ctx.ops.get(j) instanceof KofLabel) break;
