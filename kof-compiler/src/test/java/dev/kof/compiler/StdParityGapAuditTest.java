@@ -33,11 +33,12 @@ class StdParityGapAuditTest {
             // not among the six stdlib-parity targets, so they are excluded here
             // rather than pretending a stdlib surface they do not have.
             if (t == Target.NATIVE_RISCV32 || t == Target.NATIVE_MCU_ARM) continue;
-            // WASM/WASI (15.1, #776) are topology-only: no emitting backend yet,
-            // refused at compile with the clean WASM001 diagnostic (never a
-            // silent gate) — same class as the MCU slices above, so they are
-            // excluded here rather than pretending a stdlib surface they do not
-            // have. They ENTER the matrix when unit 15.2+ lands with goldens.
+            // WASI (15.1, #776) is topology-only: no emitting backend yet,
+            // refused at compile with the clean WASM001 diagnostic. WASM (15.2)
+            // emits the SCALAR subset only — no stdlib surface, no IO, no main
+            // host yet — so neither pretends a stdlib surface it does not have
+            // (never a silent gate). WASI enters with 15.3; the stdlib matrix
+            // row opens when 15.3/15.4 land the runtime + host with goldens.
             if (t == Target.WASM || t == Target.WASI) continue;
             if (!supported.test(t)) {
                 s.add(t);

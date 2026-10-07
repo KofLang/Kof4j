@@ -18,10 +18,11 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /** #259/N2: the same return/local contract on each target, independently reported. */
 class NativeNullablePrimitiveContractE2ETest {
-    // 15.1 (#776, 07/10): WASM/WASI joined the TOPOLOGY but have no emitting
-    // backend yet (compile refuses with the clean WASM001 diagnostic) — they
-    // are excluded from the run-the-surface matrix exactly like ANDROID, and
-    // must RE-ENTER this matrix when units 15.2/15.3 land with real goldens.
+    // 15.1 (#776, 07/10) + 15.2: WASI has no emitting backend (WASM001); the
+    // WASM backend emits the scalar subset only (WASM002 outside it) — this
+    // matrix's programs use IO/records, i.e. host territory (units 15.3/15.4).
+    // They are excluded from the run-the-surface matrix exactly like ANDROID
+    // and must RE-ENTER when units 15.3/15.4 land the host with real goldens.
 
     @ParameterizedTest
     @EnumSource(value = Target.class, names = {"ANDROID", "WASM", "WASI"}, mode = EnumSource.Mode.EXCLUDE)

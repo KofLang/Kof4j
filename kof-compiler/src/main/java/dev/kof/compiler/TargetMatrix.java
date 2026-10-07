@@ -22,7 +22,7 @@ public final class TargetMatrix {
 
     /** Targets que podem servir de backend. */
     public static boolean isBackend(Target t) {
-        return t == Target.JVM || t.isNative() || t == Target.SCRIPT;
+        return t == Target.JVM || t.isNative() || t == Target.SCRIPT || t == Target.WASM;
     }
 
     /** Targets que podem servir de frontend. */
@@ -48,8 +48,9 @@ public final class TargetMatrix {
         if (frontend != null && !isFrontend(frontend)) {
             if (frontend == Target.WASM || frontend == Target.WASI) {
                 return "target '" + name(frontend) + "' cannot be a frontend yet"
-                        + " — no emitting backend (WASM001): see"
-                        + " docs/development/wasm-wasi-plan.md (TIER 15, units 15.2+,"
+                        + " — no host/runtime (WASM001; the wasm backend emits only the"
+                        + " scalar subset — unit 15.2): see"
+                        + " docs/development/wasm-wasi-plan.md (TIER 15, units 15.3+,"
                         + " issue #776); frontend: kofjs, script";
             }
             return "target '" + name(frontend) + "' cannot be a frontend"
@@ -59,17 +60,18 @@ public final class TargetMatrix {
     }
 
     /**
-     * 15.1 (#776): wasm/wasi EXISTEM na topologia mas ainda nao emitem — a
-     * recusa nomeia o gap (WASM001), o plano e a unidade que implementa, em
-     * vez da lista genérica de backends (R6: nunca "unknown" para alvo real).
+     * 15.1 (#776) colocou wasm/wasi na topologia; 15.2 deu ao wasm um backend
+     * de subset escalar. WASI ainda recusa — a recusa nomeia o gap (WASM001),
+     * o plano e a unidade que implementa, em vez da lista generica de backends
+     * (R6: nunca "unknown" para alvo real).
      */
     private static String backendGapHint(Target t) {
-        if (t == Target.WASM || t == Target.WASI) {
+        if (t == Target.WASI) {
             return " yet — it has no emitting backend (WASM001): the plan is"
-                    + " docs/development/wasm-wasi-plan.md (TIER 15, unit 15.2,"
-                    + " issue #776); backend: jvm, native, script";
+                    + " docs/development/wasm-wasi-plan.md (TIER 15, unit 15.3,"
+                    + " issue #776); backend: jvm, native, script, wasm";
         }
-        return " (backend: jvm, native, script)";
+        return " (backend: jvm, native, script, wasm)";
     }
 
     /** Nome canônico do alvo (o que vai no kof.toml / CLI). */

@@ -1,0 +1,145 @@
+package dev.kof.compiler.wasm;
+
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * WasmBinary — construtor do formato binario WebAssembly 1.0 core (D-WASM-01:
+ * backend DIRETO, sem toolchain externa na emissao). O modulo do subset 15.2
+ * usa as secoes Type(1), Function(3), Export(7), Code(10) e Memory(5) (a
+ * memory linear do plano §9 e declarada desde ja: 1 pagina — o runtime das
+ * unidades 15.3+ cresce sobre ela sem quebrar modulo existente).
+ */
+public final class WasmBinary {
+
+    private WasmBinary() {}
+
+    static void writeUleb(ByteArrayOutputStream out, long v) {
+        long x = v;
+        do {
+            int b = (int) (x & 0x7f);
+            x >>>= 7;
+            if (x != 0) b |= 0x80;
+            out.write(b);
+        } while (x != 0);
+    }
+
+    static void writeSleb(ByteArrayOutputStream out, long v) {
+        long x = v;
+        while (true) {
+            int b = (int) (x & 0x7f);
+            x >>= 7;
+            boolean signBit = (b & 0x40) != 0;
+            if ((x == 0 && !signBit) || (x == -1 && signBit)) {
+                out.write(b);
+                return;
+            }
+            out.write(b | 0x80);
+        }
+    }
+
+    private static byte[] uleb(long v) {
+        var out = new ByteArrayOutputStream(5);
+        writeUleb(out, v);
+        return out.toByteArray();
+    }
+
+    private static byte[] bytes(byte[]... parts) {
+        var out = new ByteArrayOutputStream();
+        for (byte[] p : parts) out.writeBytes(p);
+        return out.toByteArray();
+    }
+
+    private static byte[] str(String s) {
+        byte[] b = s.getBytes(StandardCharsets.UTF_8);
+        return bytes(uleb(b.length), b);
+    }
+
+    private static byte[] vec(List<byte[]> items) {
+        var parts = new ArrayList<byte[]>(items.size() + 1);
+        parts.add(uleb(items.size()));
+        parts.addAll(items);
+        return bytes(parts.toArray(new byte[0][]));
+    }
+
+    private static byte[] section(int id, byte[] content) {
+        return bytes(new byte[]{(byte) id}, uleb(content.length), content);
+    }
+
+    static byte[] module(WasmModule m) {
+        // 1) type section (dedup por assinatura)
+        List<byte[]> typeBodies = new ArrayList<>();
+        Map<String, Integer> typeIdx = new LinkedHashMap<>();
+        List<byte[]> funcTypeBytes = new ArrayList<>();
+        Map<String, Integer> funcIdx = new LinkedHashMap<>();
+        for (WasmFunc f : m.funcs()) {
+            String key = sigKey(f);
+            Integer t = typeIdx.get(key);
+            if (t == null) {
+                t = typeBodies.size();
+                typeIdx.put(key, t);
+                List<byte[]> ps = new ArrayList<>();
+                for (int p : f.params()) ps.add(new byte[]{(byte) p});
+                List<byte[]> rs = new ArrayList<>();
+                for (int r : f.results()) rs.add(new byte[]{(byte) r});
+                typeBodies.add(bytes(new byte[]{0x60}, vec(ps), vec(rs)));
+            }
+            funcTypeBytes.add(uleb(t));
+            funcIdx.put(f.name(), funcIdx.size());
+        }
+        // 2) exports: todas as funcs do modulo + memory
+        List<byte[]> exportItems = new ArrayList<>();
+        for (WasmFunc f : m.funcs()) {
+            exportItems.add(bytes(str(f.name()), new byte[]{0x00}, uleb(funcIdx.get(f.name()))));
+        }
+        exportItems.add(bytes(str("memory"), new byte[]{0x02}, uleb(0)));
+        // 3) code: locals agrupan por tipo; corpo resolve `call` por nome
+        List<byte[]> codeItems = new ArrayList<>();
+        for (WasmFunc f : m.funcs()) {
+            Map<Integer, Integer> counts = new LinkedHashMap<>();
+            for (int t : f.locals()) counts.merge(t, 1, Integer::sum);
+            List<byte[]> groups = new ArrayList<>();
+            for (var e : counts.entrySet()) {
+                groups.add(bytes(uleb(e.getValue()), new byte[]{(byte) (int) e.getKey()}));
+            }
+            var body = new ByteArrayOutputStream();
+            body.writeBytes(vec(groups));
+            for (WasmInstr in : f.instrs()) in.encode(body, funcIdx);
+            body.write(0x0b); // end
+            codeItems.add(bytes(uleb(body.size()), body.toByteArray()));
+        }
+        return bytes(
+                new byte[]{0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00},
+                section(1, vec(typeBodies)),
+                section(3, vec(funcTypeBytes)),
+                section(5, vec(List.of(new byte[]{0x00, 0x01}))),
+                section(7, vec(exportItems)),
+                section(10, vec(codeItems)));
+    }
+
+    private static String sigKey(WasmFunc f) {
+        StringBuilder sb = new StringBuilder();
+        for (int p : f.params()) sb.append(p).append(',');
+        sb.append("->");
+        for (int r : f.results()) sb.append(r).append(',');
+        return sb.toString();
+    }
+}
+
+/** Funcao do modulo: assinatura + locals + corpo. */
+record WasmFunc(String name, List<Integer> params, List<Integer> results,
+                List<Integer> locals, List<WasmInstr> instrs) {
+
+    static final int TYPE_I32 = 0x7f, TYPE_I64 = 0x7e, TYPE_F64 = 0x7c;
+}
+
+/** Modelo do modulo (lista ordenada de funcs). */
+record WasmModule(List<WasmFunc> funcs) {
+    byte[] serialize() {
+        return WasmBinary.module(this);
+    }
+}

@@ -1135,7 +1135,7 @@ Plano: [`wasm-wasi-plan.pt_BR.md`](wasm-wasi-plan.pt_BR.md) (+EN), promovido pel
 | # | Unidade | Gate/prova | Estado |
 |---|---|---|---|
 | 15.1 | enum `Target` + encanamento de build (aditivo, zero mudança de comportamento nos alvos existentes) | suíte dos 4 alvos verdes inalterada; `Target.WASM/WASI` parse+dispatch | ✅ POUSADA 07/10 (`WasmTargetGateE2ETest` 5/5; suíte 5459 runs / 0 F determinístico) |
-| 15.2 | fatia 1 de codegen — funções escalares sob wasmtime (D-WASM-01/02: backend direto, Int=i64) | golden `tests/run-golden.sh` + novo harness wasm vs oráculo JVM | ABERTA |
+| 15.2 | fatia 1 de codegen — funções escalares sob wasmtime (D-WASM-01/02: backend direto, Int=i64) | novo harness wasm vs oráculo JVM (`WasmScalarE2ETest` 3/3: validação `wasm-tools` + execução `wasmtime`; golden `run-golden.sh`×wasm exige o host `main`/IO de 15.3 — adiado com honestidade, matriz intacta) | ✅ POUSADA 07/10 (lane `192.168.15.101:9092`) |
 | 15.3 | fatias de runtime pelos planos fases 0–7 (GC/handles/desempilhamento/closures/WASI preview1) | seção de release-gates do plano; linhas da matriz de paridade | ABERTA |
 | 15.4 | **flip do padrão de frontend POR ÚLTIMO** (web/desktop para WASI; JS só explícito) | suíte completa dos 4 alvos existentes verde + paridade WASI; `D-LAB-STABILITY` remedida | ABERTA |
 

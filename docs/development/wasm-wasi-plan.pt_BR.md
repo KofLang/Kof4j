@@ -1,12 +1,12 @@
 [English](wasm-wasi-plan.md) | [Português](wasm-wasi-plan.pt_BR.md)
 
-**Dono:** SEM DONO / OPEN — promovido por `D-WEB-WASI-DEFAULT-0710` (GATE do 0.6.0, #776); qualquer lane livre o reivindica no DOING primeiro (`D-PLAN-ONE-OWNER`).
+**Dono:** `192.168.15.101:9092` (lane TIER 15; unidades 15.1+15.2 pousadas) — promovido por `D-WEB-WASI-DEFAULT-0710` (GATE do 0.6.0, #776); qualquer lane livre o reivindica no DOING primeiro (`D-PLAN-ONE-OWNER`).
 
 # WebAssembly (WASM) + WASI — especificação de implementação futura
 
-last: 15.1 POUSADA 07/10 (este commit; lane `192.168.15.101:9092`) — `Target.WASM/WASI` na topologia: enum + `TargetMatrix` + parse da CLI + recusa honesta WASM001 no compile (sem artefatos; nomeia plano/TIER-15/#776); `WasmTargetGateE2ETest` 5/5; lote da face tocada 293+82 verde (`NativeNullablePrimitiveContractE2ETest` re-exclui WASM/WASI como ANDROID — reentrada obrigatória na 15.2)
-doing: 15.2 em seguida — primeira fatia de backend emissor (funções escalares `Int/Long/Double` sob wasmtime, D-WASM-01/02: backend direto, Int=i64), RED-first, aditiva; reivindicar no DOING primeiro (`D-PLAN-ONE-OWNER`)
-next: 15.2 (escalares wasmtime) → 15.3 fatias de runtime (GC/handles/desempilhamento/closures/WASI preview1) → 15.4 flip do padrão de frontend POR ÚLTIMO (#776 só fecha com paridade total + 4 alvos existentes verdes)
+last: 15.2 POUSADA 07/10 (lane `192.168.15.101:9092`) — o backend `wasm` emite o SUBSET ESCALAR: funções top-level `Int/Long/Double/Bool/Char`, binário WebAssembly direto (`WasmBackend`/`WasmBinary`/`WasmInstr`), Int=i64 (D-WASM-02), dispatcher `loop $dispatch` + `$pc`; executado + validado sob wasmtime v49.0.2 / wasm-tools 1.261.0 (`WasmScalarE2ETest` 3/3, oráculo = o mesmo programa na JVM). `WASI` segue `WASM001`; fora do subset (IO/coleções/records/void) recusa `WASM002` nomeando o plano + #776, SEM artefatos.
+doing: 15.3 em seguida — fatias de runtime: `main` + host de println sob WASI preview1 (§host wasmtime-primeiro, D-WASM-06), depois handles/marca-e-varre do GC (D-WASM-03/04) — strings/records/IO chegam ali, não na 15.2.
+next: 15.3 (host WASI preview1 + fatias de runtime) → 15.4 flip do frontend-padrão POR ÚLTIMO (só com paridade total; o corte segue gated por #776 via `D-LAB-STABILITY`).
 location: docs/development/wasm-wasi-plan.pt_BR.md
 state: EM DESENVOLVIMENTO
 
@@ -114,6 +114,26 @@ implementar — não assumir mais deste diagrama do que está escrito aqui):
   `Target`** (adjacente a superfície congelada, regra 6) e sem codegen. Prova
   RED-first: `TargetMatrixTest.wasiSpellingsAreHonestGap` +
   `SelectTargetsTest.legacyWasiTargetFlagIsHonestGap`.
+- **Fatia 15.2 POUSADA (07/10, lane `192.168.15.101:9092`):** primeiro backend
+  emissor do `wasm` — `dev/kof/compiler/wasm/WasmBackend` grava um módulo
+  WebAssembly binário direto (seções `WasmBinary`, encodings `WasmInstr`)
+  exportando toda função estática top-level ESCALAR (`Int/Long/Double/Bool/
+  Char`; `Int=i64` por D-WASM-02) de `Default/Main`; fluxo de controle desce
+  do grafo de blocos do IR para um dispatcher `loop $dispatch` + `$pc` (com
+  profundidade de `br` explícita — fallthrough apenas-para-frente foi medido
+  e rejeitado); chamadas diretas resolvem por nome na serialização. A borda
+  do subset é recusa HONESTA, nunca skip silencioso: `CompilerPipeline` pega
+  `WasmUnsupportedException` → `WASM002` nomeando plano + unidade + #776 e
+  NÃO grava artefatos (Q7). `main`/IO/strings/coleções/records = 15.3+
+  (D-WASM-03..06). Emissão WAT segue PLANNED (a linha `--emit=wat` precede a
+  fatia; o produto da 15.2 é o binário). Prova: `WasmScalarE2ETest` 3/3 —
+  emissão+validação via `wasm-tools` 1.261.0, execução via `wasmtime`
+  v49.0.2 (`scripts/provision-wasmtime.sh`, checksums pinados, host-gated por
+  `assumeTrue`), paridade com oráculo JVM de `add`, `collatz(27)=111`,
+  `fib(10)=55`; o caso de recusa prova módulo parcial INEXISTENTE.
+  `WasmTargetGateE2ETest` reppinado na verdade nova (wasm É backend; WASI
+  segue `WASM001`; programa fora do subset → `WASM002`).
+
 - **Emenda (07/10, lane `192.168.15.101:9092`, 15.1-COMPLETA):** o passo do
   enum NÃO ficou adiado — o roadmap TIER 15 define a própria 15.1 como
   enum+encanamento (ordem da mantenedora `D-WEB-WASI-DEFAULT-0710`, que
@@ -152,12 +172,13 @@ runtime** (GC, strings, dispatch) já pagos em JVM+Native+JS. **TBD**: se o
 emissor consome a IR de lowering atual direto ou uma IR intermediária
 orientada a WASM — decidir na Fase 0 (§31).
 
-## 5. Target registry (15.1 POUSADA 07/10 — enum + matriz + parse da CLI; emissão PLANEJADA)
+## 5. Target registry (15.1+15.2 POUSADA 07/10 — enum + matriz + parse da CLI + emissão ESCALAR)LANEJADA)
 
 ```
 CURRENT (real hoje):
   kof compile/build/run → jvm | native (native.risc/arm cross) | js | script | --android
-  kof --target wasm|wasi → PARSEIAM desde 15.1; o compile recusa com WASM001 honesto — nunca silencioso
+  kof --target wasm → EMITE o subset escalar desde 15.2 (fora dele: WASM002 honesto)
+  kof --target wasi → PARSEIA; o compile recusa com WASM001 honesto — nunca silencioso
 
 PLANNED (só esta doc — não documentar como existente):
   kof build --target=wasm / --target=wasi

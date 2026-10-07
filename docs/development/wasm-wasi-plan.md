@@ -1,12 +1,12 @@
 [English](wasm-wasi-plan.md) | [Português](wasm-wasi-plan.pt_BR.md)
 
-**Owner:** SEM DONO / OPEN — promoted by `D-WEB-WASI-DEFAULT-0710` (0.6.0 GATE, #776); any free lane claims it in DOING first (`D-PLAN-ONE-OWNER`).
+**Owner:** `192.168.15.101:9092` (TIER 15 lane; units 15.1+15.2 landed) — promoted by `D-WEB-WASI-DEFAULT-0710` (0.6.0 GATE, #776); any free lane claims it in DOING first (`D-PLAN-ONE-OWNER`).
 
 # Kof WASM & WASI — future implementation specification
 
-last: 15.1 LANDED 07/10 (this commit; lane `192.168.15.101:9092`) — `Target.WASM/WASI` + `TargetMatrix` + CLI parse + compile-path honest WASM001 refusal (no artifacts, names plan/TIER-15/#776); `WasmTargetGateE2ETest` 5/5; touched-face batch 293+82 green (incl. `NativeNullablePrimitiveContractE2ETest` re-excluded WASM/WASI like ANDROID — re-entry required at 15.2)
-doing: 15.2 next — first emitting backend slice (scalar `Int/Long/Double` functions under wasmtime, D-WASM-01/02: direct backend, Int=i64), RED-first, additive; claim in DOING first (`D-PLAN-ONE-OWNER`)
-next: 15.2 (wasmtime scalars) → 15.3 runtime slices (GC/handles/unwind/closures/WASI preview1) → 15.4 frontend-default flip LAST (#776 closes only with total parity + 4-existing-targets green)
+last: 15.2 LANDED 07/10 (lane `192.168.15.101:9092`) — wasm backend emits the SCALAR subset: top-level `Int/Long/Double/Bool/Char` functions, direct binary WebAssembly (`WasmBackend`/`WasmBinary`/`WasmInstr`), Int=i64 (D-WASM-02), dispatcher `loop $dispatch` + `$pc`; executed + validated under wasmtime v49.0.2 / wasm-tools 1.261.0 (`WasmScalarE2ETest` 3/3, oracle = same program on JVM). `WASI` still `WASM001`; anything outside the subset (IO/collections/records/void) refuses `WASM002` naming this plan + #776, NO artifacts.
+doing: 15.3 next — runtime slices: `main` + println host under WASI preview1 (§19 host wasmtime-first, D-WASM-06), then GC handles/mark-sweep (D-WASM-03/04) — scalar strings/records/IO land there, not in 15.2.
+next: 15.3 (WASI preview1 host + runtime slices) → 15.4 frontend-default flip LAST (only at full parity; `D-LAB-STABILITY` keeps the cut gated by #776).
 location: docs/development/wasm-wasi-plan.md
 state: UNDER DEVELOPMENT
 
@@ -135,10 +135,10 @@ for the capability column.
 fuzzing obligations, §26–27); a wasm runtime must exist (§7); **DECISION
 REQUIRED** from the maintainer to freeze this as official (rule 6).
 
-## 6. Target registry (15.1 LANDED 07/10 — enum + matrix + CLI parse; emission PLANNED)
+## 6. Target registry (15.1+15.2 LANDED 07/10 — enum + matrix + CLI parse + SCALAR emission)
 
 ```bash
-kof build --target=wasm   # 15.1: parses — today: WASM001 honest rejection (15.2 emits)
+kof build --target=wasm   # 15.2: emits the scalar subset; outside it: WASM002 honest rejection
 kof build --target=wasi   # PLANNED
 kof check --target=wasm   # PLANNED (diagnostic parity with other targets)
 kof run --target=wasi     # PLANNED (requires a WASI host, §19)
@@ -160,6 +160,26 @@ generic "unknown target". The message now names the promoted plan + issue #776 +
 yet** (that is the frozen-surface-adjacent step, rule 6, deferred to the codegen
 phase). Proof: `TargetMatrixTest.wasiSpellingsAreHonestGap` +
 `SelectTargetsTest.legacyWasiTargetFlagIsHonestGap` (both RED pre-slice).
+
+**Slice 15.2 LANDED (07/10, lane `192.168.15.101:9092`):** first emitting
+backend for `wasm` — `dev/kof/compiler/wasm/WasmBackend` writes a direct
+binary WebAssembly module (`WasmBinary` sections, `WasmInstr` encodings)
+exporting every top-level static SCALAR function (`Int/Long/Double/Bool/
+Char`; `Int=i64` per D-WASM-02) of `Default/Main`; control flow lowers
+through the IR block graph into a `loop $dispatch` + `$pc` dispatcher
+(explicit `br` depth — forward-only fallthrough was measured and rejected);
+direct calls resolve by name at serialization. The subset boundary is a
+HONEST refusal, never a silent skip: `CompilerPipeline` catches
+`WasmUnsupportedException` → `WASM002` naming this plan + unit + #776 and
+writes NO artifacts (Q7). `main`/IO/strings/collections/records = 15.3+
+(D-WASM-03..06). WAT emission stays PLANNED (this section's `--emit=wat`
+row predates the slice; the binary is the 15.2 product). Proof:
+`WasmScalarE2ETest` 3/3 — emission+validation via `wasm-tools` 1.261.0,
+execution via `wasmtime` v49.0.2 (`scripts/provision-wasmtime.sh`, pinned
+checksums, host-gated by `assumeTrue`), JVM oracle parity for `add`,
+`collatz(27)=111`, `fib(10)=55`; refusal case proves no partial module.
+`WasmTargetGateE2ETest` re-pinned to the new truth (wasm IS backend; WASI
+still `WASM001`; out-of-subset program → `WASM002`).
 
 **Amendment (07/10, lane `192.168.15.101:9092`, 15.1-COMPLETE):** the enum
 step was NOT deferred — roadmap TIER 15 defines 15.1 ITSELF as enum+plumbing

@@ -322,19 +322,25 @@ different reason, both honest (R6):
   covered by `AndroidInteropE2ETest` (JVM semantics in `Target.ANDROID`);
   the APK pipeline itself requires the SDK and has no E2E in the suite.
 
-- **`wasm` / `wasi`** — **WASM001: só topologia, sem backend emissor ainda**
-  (15.1 pousada 07/10 em duas fatias: cobertura de solecismos `233724b40` pela
-  lane `192.168.15.30:9092` + a topologia enum/parse da unidade-1 do TIER 15
-  (`D-WEB-WASI-DEFAULT-0710`) pela lane `192.168.15.101:9092`; issue #776).
-  `Target.WASM`/`Target.WASI` EXISTEM, `TargetMatrix` nomeia+parseia os
-  canônicos `wasm`/`wasi` e a CLI os aceita; o compilador RECUSA na emissão
-  com o diagnóstico limpo **WASM001** nomeando o plano, a unidade 15.2 do
-  TIER 15 e a #776 — e nenhum artefato, nunca um fallback JVM silencioso. Os
-  aliases/solecismos longos (`kofwasm`, `kofwebasm`, `kofwebassembly`,
-  `webassembly`, `wasm32`, `wasm32-wasi`, `wasi-preview1`, `wasip1`,
-  `kofwasi`) mantêm o gap de string via `TargetMatrix.frontendGapFor`.
-  Entram na matriz por-alvo quando a 15.2 pousar goldens reais.
-  Prova: `WasmTargetGateE2ETest` + `TargetMatrixTest` + `SelectTargetsTest`.
+- **`wasm`** — **subset escalar EMITE (unidade 15.2 do TIER 15, 07/10, #776).**
+  `Target.WASM` é backend emissor real para funções estáticas top-level
+  escalares (`Int/Long/Double/Bool/Char`, `Int=i64` por D-WASM-02), gravadas
+  como módulo WebAssembly binário direto, executado e validado sob `wasmtime`
+  v49.0.2 / `wasm-tools` 1.261.0 (`WasmScalarE2ETest` 3/3, paridade com o
+  oráculo JVM). Tudo fora do subset — IO/`println`, coleções, records/strings,
+  `void`, chamadas que os alcancem — recusa com **WASM002** nomeando plano +
+  unidade + #776, sem GRAVAR artefatos (Q7; provado por
+  `WasmTargetGateE2ETest`). `main` e a superfície stdlib chegam com o host
+  15.3 (WASI preview1) — até lá `wasm` NÃO entra nas matrizes por-alvo
+  run-the-surface (as exclusões carregam o motivo).
+- **`wasi`** — **WASM001: só topologia, sem backend emissor ainda** (15.1
+  pousada 07/10: enum/parse/CLI pela lane `192.168.15.101:9092` + solecismos
+  de string `233724b40` pela lane `192.168.15.30:9092`; a unidade 15.3
+  implementa o backend WASI-preview1). Os aliases/solecismos longos
+  (`kofwasm`, `kofwebasm`, `kofwebassembly`, `webassembly`, `wasm32`,
+  `wasm32-wasi`, `wasi-preview1`, `wasip1`, `kofwasi`) mantêm o gap de string
+  via `TargetMatrix.frontendGapFor`. Prova: `WasmTargetGateE2ETest` +
+  `WasmScalarE2ETest` + `TargetMatrixTest` + `SelectTargetsTest`.
 
 ## Method notes
 
