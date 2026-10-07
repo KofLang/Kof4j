@@ -1,0 +1,206 @@
+package image
+
+import image.Av1Block
+import image.Av1ModeCdf
+import image.Av1Symbol
+import image.Av1Tx
+
+// kof.image — AV1 transform-size selection (slice 3s of the AVIF front, plan
+// §34). The `read_tx_size` / `read_selected_tx_size` stage `decode_block` runs
+// after the mode info (§5.11.31 `read_tx_size`, libaom
+// `read_selected_tx_size`/`read_tx_size`): given the block size, the frame
+// `TxMode` (§5.9.17) and the lossless flag, it either fixes the transform from
+// the mode (`ONLY_4X4`/`TX_MODE_LARGEST`) or reads the `@@tx_depth` symbol from
+// the slice-3m `Default_Tx_Size_Cdf` — selected by the `bsize_to_tx_size_cat`
+// category and the neighbour transform context — and applies `Split_Tx_Size`
+// that many times. The context is the spec's `get_above_tx_width` /
+// `get_left_tx_height` over the per-4x4 `InterTxSizes` map this module keeps.
+//
+// Still-intra scope: the inter `read_block_tx_size` var-tx tree is not reachable
+// (it needs `is_inter`), so this slice covers the else-branch `read_tx_size`
+// exactly. Pure arithmetic, no `kof.io`, so it runs on every target.
+// `decodeRaster` keeps refusing AVIF until the chain closes.
+
+// TX modes (§5.9.17 semantics): 0 ONLY_4X4, 1 TX_MODE_LARGEST, 2 TX_MODE_SELECT.
+Int av1TxModeOnly4x4() {
+    return 0
+}
+
+Int av1TxModeLargest() {
+    return 1
+}
+
+Int av1TxModeSelect() {
+    return 2
+}
+
+// Split_Tx_Size[ TX_SIZES_ALL ] (libaom `sub_tx_size_map`): the next smaller
+// square/rectangular transform a split yields.
+Int av1SplitTxSize(Int txSz) {
+    return listOf(0, 0, 1, 2, 3, 0, 0, 1, 1, 2, 2, 3, 3, 5, 6, 7, 8, 9, 10).get(txSz)
+}
+
+// bsize_to_max_depth[ bS ]: the maximum `@@tx_depth` value the block admits.
+Int av1BsizeToMaxDepth(Int bs) {
+    return listOf(0, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2).get(bs)
+}
+
+// bsize_to_tx_size_depth[ bS ] (libaom); the CDF category is this minus one.
+Int av1BsizeToTxSizeDepth(Int bs) {
+    return listOf(0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 4, 4, 4, 2, 2, 3, 3, 4, 4).get(bs)
+}
+
+// depth_to_tx_size( depth, bS ): apply `Split_Tx_Size` `depth` times.
+Int av1DepthToTxSize(Int depth, Int bs) {
+    var tx = av1BlockMaxTxRect(bs)
+    var d = 0
+    while (d < depth) {
+        tx = av1SplitTxSize(tx)
+        d = d + 1
+    }
+    return tx
+}
+
+// tx_size_from_tx_mode( bS, txMode ) (libaom `tx_size_from_tx_mode`). The
+// biggest transform per mode is TX_4X4 (ONLY_4X4) / TX_64X64 (LARGEST/SELECT),
+// so a rectangular max whose min-side square exceeds the biggest square clamps
+// to it.
+Int av1TxSizeFromTxMode(Int bs, Int txMode) {
+    var largest = 4
+    if (txMode == 0) {
+        largest = 0
+    }
+    var maxRect = av1BlockMaxTxRect(bs)
+    if (bs == 0) {
+        var sq0 = av1TxSizeSqr(maxRect)
+        if (sq0 < largest) {
+            return sq0
+        }
+        return largest
+    }
+    var sqr = av1TxSizeSqr(maxRect)
+    if (sqr <= largest) {
+        return maxRect
+    }
+    return largest
+}
+
+// `block_signals_txsize( bS )` (libaom): anything larger than BLOCK_4X4.
+Int av1BlockSignalsTxSize(Int bs) {
+    if (bs > 0) {
+        return 1
+    }
+    return 0
+}
+
+class Av1TxSize {
+    Av1Symbol sym
+    Int miCols
+    Int miRows
+    Int[] txfmAbove
+    Int[] txfmLeft
+    List<Int[]> txDepthStore
+
+    constructor(Int[] data, Int miCols, Int miRows) {
+        this.sym = Av1Symbol(data)
+        this.miCols = miCols
+        this.miRows = miRows
+        this.txfmAbove = new Int[miCols]
+        this.txfmLeft = new Int[miRows]
+        var a = 0
+        while (a < miCols) {
+            this.txfmAbove[a] = 64
+            a = a + 1
+        }
+        var l = 0
+        while (l < miRows) {
+            this.txfmLeft[l] = 64
+            l = l + 1
+        }
+        var modes = Av1ModeCdf()
+        this.txDepthStore = listOf()
+        var i = 0
+        while (i < 12) {
+            this.txDepthStore.add(modes.txSize(i / 3, i % 3))
+            i = i + 1
+        }
+    }
+
+    // get_above_tx_width( row, col ) / get_left_tx_height( row, col ) collapsed
+    // to the still-intra face (no inter neighbours): the stored per-4x4 width /
+    // height, or 64 at the frame edge.
+    Int getTxSizeContext(Int r, Int c, Int bs) {
+        var maxTx = av1BlockMaxTxRect(bs)
+        var maxW = av1TxWidth(maxTx)
+        var maxH = av1TxHeight(maxTx)
+        var above = 0
+        var left = 0
+        if (r > 0) {
+            above = av1Bool(this.txfmAbove[c] >= maxW)
+        }
+        if (c > 0) {
+            left = av1Bool(this.txfmLeft[r] >= maxH)
+        }
+        if (r > 0 && c > 0) {
+            return above + left
+        }
+        if (r > 0) {
+            return above
+        }
+        if (c > 0) {
+            return left
+        }
+        return 0
+    }
+
+    // set_txfm_ctxs( txSz, bS, skip ): broadcast the transform width/height over
+    // the block's 4x4 footprint (the block's own pixels when `skip`).
+    void setTxfmCtxs(Int r, Int c, Int bs, Int txSz, Int skip) {
+        var bw4 = av1BlockNum4x4Wide(bs)
+        var bh4 = av1BlockNum4x4High(bs)
+        var bw = av1TxWidth(txSz)
+        var bh = av1TxHeight(txSz)
+        if (skip == 1) {
+            bw = bw4 * 4
+            bh = bh4 * 4
+        }
+        var i = 0
+        while (i < bw4) {
+            this.txfmAbove[c + i] = bw
+            i = i + 1
+        }
+        var j = 0
+        while (j < bh4) {
+            this.txfmLeft[r + j] = bh
+            j = j + 1
+        }
+    }
+
+    // `read_selected_tx_size()` (§5.11.31): the `@@tx_depth` symbol over the
+    // `Default_Tx_Size_Cdf` row `cat*3 + ctx` with `maxDepth+1` symbols, then
+    // `depth_to_tx_size`.
+    Int readSelectedTxSize(Int r, Int c, Int bs) {
+        var cat = av1BsizeToTxSizeDepth(bs) - 1
+        var maxDepths = av1BsizeToMaxDepth(bs)
+        var ctx = this.getTxSizeContext(r, c, bs)
+        var depth = this.sym.readSymbol(this.txDepthStore.get(cat * 3 + ctx), maxDepths + 1)
+        return av1DepthToTxSize(depth, bs)
+    }
+
+    // `read_tx_size( allowSelect )` (§5.11.31): Lossless fixes TX_4X4; a block
+    // that signals a transform size and selects it reads `@@tx_depth`, else the
+    // transform comes from the mode; BLOCK_4X4 always uses the rectangular max
+    // (TX_4X4). `lossless`/`txMode` mirror the frame header.
+    Int readTxSize(Int r, Int c, Int bs, Int skip, Int txMode, Int isInter, Int lossless) {
+        if (lossless == 1) {
+            return 0
+        }
+        if (av1BlockSignalsTxSize(bs) == 1) {
+            if ((isInter == 0 || skip == 0) && txMode == 2) {
+                return this.readSelectedTxSize(r, c, bs)
+            }
+            return av1TxSizeFromTxMode(bs, txMode)
+        }
+        return av1BlockMaxTxRect(bs)
+    }
+}

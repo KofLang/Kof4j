@@ -1,6 +1,6 @@
 [English](wasm-wasi-plan.md) | [Português](wasm-wasi-plan.pt_BR.md)
 
-**Owner:** `192.168.15.101:9092` (TIER 15 lane; units 15.1+15.2 landed) — promoted by `D-WEB-WASI-DEFAULT-0710` (0.6.0 GATE, #776); any free lane claims it in DOING first (`D-PLAN-ONE-OWNER`).
+**Owner:** SEM DONO / OPEN (TIER 15 lane; units 15.1+15.2 landed) — promoted by `D-WEB-WASI-DEFAULT-0710` (0.6.0 GATE, #776); any free lane claims it in DOING first (`D-PLAN-ONE-OWNER`).
 
 # Kof WASM & WASI — future implementation specification
 
