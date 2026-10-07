@@ -20,8 +20,14 @@ package image
 // `TilePartitionW<bsl>Cdf[ctx]` when the block has both neighbours, and the
 // derived 2-symbol `@@split_or_horz`/`@@split_or_vert` CDFs when only one side
 // exists. `av1PartitionGatherHorzAlike`/`av1PartitionGatherVertAlike` build the
-// latter exactly as the spec §9.3 (and libaom `partition_gather_*_alike`) do:
-// `cdf[0] = (1<<15) - psum`, `cdf[1] = 1<<15`, `cdf[2] = 0`.
+// latter exactly as the spec §9.3 does: `cdf[0] = (1<<15) - psum`,
+// `cdf[1] = 1<<15`, `cdf[2] = 0`. Beware the MIRROR naming between the two
+// sources: the spec names each CDF by the symbol it codes, while libaom names
+// `partition_gather_*_alike` by the partitions it gathers — so spec
+// `split_or_horz` is libaom `partition_gather_vert_alike` and spec
+// `split_or_vert` is libaom `partition_gather_horz_alike` (measured 06/10; the
+// first 3n landing had them swapped because both the module and its oracle
+// carried the same transposed reading).
 //
 // Pure arithmetic, no `kof.io`, so it runs on every target. `decodeRaster`
 // keeps refusing AVIF until the chain closes.
@@ -135,16 +141,18 @@ Int av1PartitionCtx(Int bsl, Int above, Int left) {
 }
 
 // The split_or_horz 2-symbol CDF: HORZ is coded as 0, SPLIT as 1; the CDF sums
-// the probabilities of every partition that is not HORZ. `partitionCdf` is the
+// the probabilities of every partition that is not VERT. `partitionCdf` is the
 // spec row `TilePartitionW<bsl>Cdf[ctx]` (length `av1PartitionCdfLength(bs)`).
+// `PARTITION_HORZ_A`=4, `PARTITION_VERT_A`=6, `PARTITION_VERT_B`=7 and
+// `PARTITION_VERT_4`=9; with `cdf_element_prob(cdf,e)=(e>0?cdf[e-1]:1<<15)-cdf[e]`.
 Int[] av1PartitionGatherHorzAlike(Int[] partitionCdf, Int bs) {
-    var psum = partitionCdf[1] - partitionCdf[0]
+    var psum = partitionCdf[2] - partitionCdf[1]
     psum = psum + (partitionCdf[3] - partitionCdf[2])
     psum = psum + (partitionCdf[4] - partitionCdf[3])
-    psum = psum + (partitionCdf[5] - partitionCdf[4])
     psum = psum + (partitionCdf[6] - partitionCdf[5])
+    psum = psum + (partitionCdf[7] - partitionCdf[6])
     if (bs != 15) {
-        psum = psum + (partitionCdf[8] - partitionCdf[7])
+        psum = psum + (partitionCdf[9] - partitionCdf[8])
     }
     var out = new Int[3]
     out[0] = 32768 - psum
@@ -153,15 +161,17 @@ Int[] av1PartitionGatherHorzAlike(Int[] partitionCdf, Int bs) {
     return out
 }
 
-// The split_or_vert 2-symbol CDF: VERT is coded as 0, SPLIT as 1.
+// The split_or_vert 2-symbol CDF: VERT is coded as 0, SPLIT as 1. Sums every
+// partition that is not HORZ (`PARTITION_HORZ`=1, `PARTITION_SPLIT`=3,
+// `PARTITION_HORZ_A`=4, `PARTITION_HORZ_B`=5, `PARTITION_HORZ_4`=8).
 Int[] av1PartitionGatherVertAlike(Int[] partitionCdf, Int bs) {
-    var psum = partitionCdf[2] - partitionCdf[1]
+    var psum = partitionCdf[1] - partitionCdf[0]
     psum = psum + (partitionCdf[3] - partitionCdf[2])
     psum = psum + (partitionCdf[4] - partitionCdf[3])
+    psum = psum + (partitionCdf[5] - partitionCdf[4])
     psum = psum + (partitionCdf[6] - partitionCdf[5])
-    psum = psum + (partitionCdf[7] - partitionCdf[6])
     if (bs != 15) {
-        psum = psum + (partitionCdf[9] - partitionCdf[8])
+        psum = psum + (partitionCdf[8] - partitionCdf[7])
     }
     var out = new Int[3]
     out[0] = 32768 - psum

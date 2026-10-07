@@ -33,7 +33,7 @@ final class Av1BlockSupport {
 
     /** Expected SHA-256 of the decoded golden text (stripped), stale-resource guard. */
     static final String GOLDEN_SHA256 =
-        "93241a14365af85b5ed009208616a4927a0fe576575c5401f6095e88a5b1a628";
+        "c14252b3c35df8025aff5a21bbe6a0aa6a81cdfdd458986349e5c389f7730e9c";
 
     /** The canonical dump the Kof probe must reproduce. */
     static String golden() {
