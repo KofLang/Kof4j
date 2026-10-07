@@ -13,8 +13,9 @@ import java.util.List;
  * {@code security} (entropia do SO, R11 — nunca primitivo caseiro). O rng é
  * o inverso deliberado: determinismo reprodutível.
  *
- * <p>Fatia 1 = JVM + JS (R7 honesto). NATIVE/ANDROID: gap diagnóstico
- * {@code RNG001} (nada de fallback silencioso, R6); asm nativo é a fatia 2.
+ * <p>Fatia 2 = JVM + JS + NATIVE x86_64 + ANDROID (R7 honesto; android reusa o
+ * runtime JVM desde 07/10, issue #777). Cross riscv64/aarch64: gap diagnóstico
+ * {@code RNG001} (nada de fallback silencioso, R6).
  *
  * <p>Contratos lenientes (paridade com random.int): bound &lt;= 0 =&gt; 0;
  * string com n &lt;= 0 ou alfabeto vazio =&gt; "". double em [0,1) com 52 bits
@@ -60,11 +61,20 @@ public final class KofRng {
 
     /**
      * Fatia 2 (R7): JVM + JS + NATIVE x86_64 (RuntimeRng — mesmos bits por
-     * construção); cross riscv64/aarch64 e ANDROID = RNG001 (gap honesto —
-     * port riscv com qemu na fatia 3; android precisa de medição real).
+     * construção); cross riscv64/aarch64 = RNG001 (gap honesto — port riscv
+     * com qemu na fatia 3).
+     *
+     * <p>ANDROID entra na fatia 2 (07/10, issue #777): o alvo reusa o
+     * {@code JvmBackend} e o MESMO {@code KofRuntime} gerado (inclui
+     * {@code JvmStringRngRuntime}); como o rng usa só ops int 32-bit
+     * (xor/shift/mul com wrap), os bits são idênticos ao JVM por construção —
+     * provado em {@code KofRngTest.androidMatchesOracle} (bytecode Android
+     * executado no host produz a mesma sequência). O ART executa o mesmo
+     * bytecode.
      */
     static boolean supportedOn(@SuppressWarnings("unused") String function, Target target) {
-        return target == Target.JVM || target == Target.JS || target == Target.NATIVE;
+        return target == Target.JVM || target == Target.JS || target == Target.NATIVE
+                || target == Target.ANDROID;
     }
 
     static String gapCode(@SuppressWarnings("unused") String function) {

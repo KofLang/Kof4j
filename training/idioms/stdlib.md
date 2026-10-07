@@ -162,7 +162,8 @@ test "sum commutes on random pairs" {
 `random.*` = OS entropy (R11). A failing property test prints its seed and the
 failure reproduces. Mixing the two is the anti-pattern: seeding for security
 material (R11 violation) or drawing entropy from rng (flaky tests). Slice 1 =
-JVM + JS + NATIVE x86_64 (asm `RuntimeRng`, same bits by construction); cross riscv64/aarch64/ANDROID = `RNG001` honest gap at compile time.
+JVM + JS + NATIVE x86_64 (asm `RuntimeRng`, same bits by construction);
+ANDROID reuses the JVM runtime (issue #777); cross riscv64/aarch64 = `RNG001` honest gap at compile time.
 
 ## validation — formatting is NOT validating (S12/S12b)
 

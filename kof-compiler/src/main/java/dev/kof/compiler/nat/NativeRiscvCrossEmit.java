@@ -115,19 +115,32 @@ public final class NativeRiscvCrossEmit {
         // salva args de entrada (this + params) nos slots locais — ABI riscv:
         // a0=this/arg0, a1..a7 = demais args (até 8 registradores).
         String[] argRegs = {"a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7"};
-        // NOTA (§546): o laço percorre TODOS os locais na ordem de índice; os
-        // primeiros ocupam os registradores de ABI e os locais ≥ 8 leem a pilha
-        // do caller. Locais que NÃO são args de entrada (temporários de índice
-        // alto) acabam recebendo um valor de pilha — inofensivo, pois são
-        // sempre escritos antes de lidos; reduzir o laço a
-        // `parameterTypes().size()` quebra funções geradas com args ocultos
-        // (ex.: `zipPairs<A,B>` recebe mais registradores que params Kof). A
-        // correção §546 é a LEITURA da pilha (antes: clamp em a7).
+        // §620 (bug 9 cross): capturas de lambda NÃO são args de entrada (são
+        // carregadas dos campos do objeto via ops). O laço antigo percorria os
+        // locais na ordem de INSERÇÃO [this, captura, param] e consumia um
+        // registrador para a captura, deslocando todos os params reais — a
+        // lambda com captura recebia o argumento no registrador errado (lixo no
+        // cross, correto no x86 que já pulava capturas). Só os slots 1..(soma
+        // das larguras dos params) recebem registradores; capturas (slots
+        // acima) são preenchidas pelas ops. Locais ordenados por índice (a
+        // lista do IR pode estar fora de ordem; `this`=0 primeiro).
+        int paramSlotMax = 1;
+        for (Type pt : method.parameterTypes()) {
+            paramSlotMax += NativeTypeKinds.isDoubleWidthSlot(pt) ? 2 : 1;
+        }
+        java.util.List<IRLocalVariable> sortedLocals =
+                new java.util.ArrayList<>(method.localVariables());
+        sortedLocals.sort(java.util.Comparator.comparingInt(IRLocalVariable::index));
         int argIdx = 0;
-        for (IRLocalVariable lv : method.localVariables()) {
+        for (IRLocalVariable lv : sortedLocals) {
             if (lv.name().equals("this")) {
                 sb.append("    sd a0, ").append(crossLocalOffRiscv(lv.index())).append("(s11)\n");
                 argIdx++;
+                continue;
+            }
+            if (lv.index() >= paramSlotMax) {
+                // captura de lambda (ou temporário de índice alto): preenchido
+                // pelas ops, NÃO consome registrador de entrada (§620).
                 continue;
             }
             if (argIdx < argRegs.length) {

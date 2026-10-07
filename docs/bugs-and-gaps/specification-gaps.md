@@ -453,7 +453,7 @@ future recommendations (rule 14 of the task: do not change behavior).
   (the Kof contract precedes any QuickCheck/Hypothesis borrowing) apply.
 - **Implementation todo (when decided):** 1. fix the surface (one option each);
   2. parser/typer + runner in `kof-cli`/`kof-script`; 3. deterministic seed + replay;
-  4. per-target parity JVM/Native-x86/JS (`RNG001` honest on cross/Android);
+  4. per-target parity JVM/Native-x86/JS/Android (`RNG001` honest on cross only — Android real since #777);
   5. E2E per target + corpus (`training/`, `learn/23-testing`); 6. complete or
   diagnosed gap — no stub (Q7/R6).
 - **Decided (21/09, maintainer-delegated, `D-PROPERTY`):** option **C** + option **iii** —

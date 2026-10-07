@@ -97,10 +97,9 @@ class StdParityGapAuditTest {
     }
 
     @Test
-    @DisplayName("rng: cross + ANDROID + SCRIPT gated (RNG001)")
-    void rngGatesCrossAndroidScript() {
-        assertEquals(Set.of(Target.NATIVE_RISCV64, Target.NATIVE_AARCH64,
-                Target.ANDROID, Target.SCRIPT),
+    @DisplayName("rng: cross + SCRIPT gated (RNG001) — ANDROID real desde #777")
+    void rngGatesCrossAndScript() {
+        assertEquals(Set.of(Target.NATIVE_RISCV64, Target.NATIVE_AARCH64, Target.SCRIPT),
                 unsupported(t -> KofRng.supportedOn("kof_rng_int", t)));
         assertEquals("RNG001", KofRng.gapCode("kof_rng_int"));
     }

@@ -203,16 +203,16 @@ class KofRngTest {
     }
 
     /**
-     * R6/R7: fatia 2 = JVM+JS+NATIVE x86_64. Cross riscv64/aarch64 e ANDROID
-     * continuam gap honesto RNG001 no compile (port riscv = fatia 3 c/ qemu;
-     * android exige medição real da face DEX).
+     * R6/R7: fatia 2 = JVM+JS+NATIVE x86_64+ANDROID. Cross riscv64/aarch64
+     * continuam gap honesto RNG001 no compile (port riscv = fatia 3 c/ qemu).
+     * ANDROID entrou na fatia 2 em 07/10 (issue #777) — ver
+     * {@link #androidMatchesOracle}.
      */
     @Test
-    void crossAndAndroidStayHonestGap(@TempDir Path tmp) throws Exception {
+    void crossStaysHonestGap(@TempDir Path tmp) throws Exception {
         Path file = tmp.resolve("Main-" + System.nanoTime() + ".kf");
         Files.writeString(file, "main() { rng.seed(42) println(rng.int(10)) }");
-        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64,
-                Target.ANDROID}) {
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
             Path outDir = tmp.resolve("out-" + t + "-" + System.nanoTime());
             CompilationResult r = driver.compile(file, outDir, t);
             assertFalse(r.success(), t + " deve falhar em compile (gap honesto)");
@@ -220,6 +220,21 @@ class KofRngTest {
                             .anyMatch(d -> "RNG001".equals(d.code())),
                     t + " esperava RNG001, veio " + r.diagnostics().getDiagnostics());
         }
+    }
+
+    /**
+     * Issue #777: o alvo ANDROID reusa o backend JVM e o MESMO KofRuntime
+     * gerado (inclui o fragmento rng) — o rng é determinístico por construção
+     * (só ops int 32-bit). Compila o MESMO programa para ANDROID e executa o
+     * bytecode emitido no host: a sequência tem de bater com o oracle. Prova
+     * a face DEX "por construção" sem SDK Android (o ART executa o mesmo
+     * bytecode; paridade JVM≡ANDROID como `GpuAndroidE2ETest`).
+     */
+    @Test
+    void androidMatchesOracle(@TempDir Path tmp) throws Exception {
+        String out = runAndroid(tmp, REF_SRC);
+        assertEquals(expectedRefOutput(), out,
+                "ANDROID rng sequence must match the in-test reference implementation");
     }
 
     /**
@@ -296,6 +311,25 @@ class KofRngTest {
         String output = new String(p.getInputStream().readAllBytes(),
                 java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
         assertEquals(0, p.waitFor(), "JVM exit code, output: " + output);
+        return output;
+    }
+
+    /**
+     * Issue #777: compila para ANDROID e roda o bytecode emitido no host —
+     * Android reusa o JvmBackend, então `Main.class`/`KofRuntime.class` são
+     * os mesmos; o ART executa bytecode idêntico. Sem SDK Android.
+     */
+    private String runAndroid(Path tempDir, String source) throws Exception {
+        Path file = tempDir.resolve("Main-" + System.nanoTime() + ".kf");
+        Files.writeString(file, source);
+        Path outDir = tempDir.resolve("out-android-" + System.nanoTime());
+        CompilationResult result = driver.compile(file, outDir, Target.ANDROID);
+        assertTrue(result.success(), "ANDROID compile failed: " + result.diagnostics().getDiagnostics());
+        Process p = new ProcessBuilder(System.getProperty("java.home") + "/bin/java",
+                "-cp", outDir.toString(), "Default.Main").redirectErrorStream(true).start();
+        String output = new String(p.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, p.waitFor(), "ANDROID exit code, output: " + output);
         return output;
     }
 

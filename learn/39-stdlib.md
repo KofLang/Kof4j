@@ -283,8 +283,10 @@ test "addition commutes" {
 Same seed => SAME sequence on JVM and JS (xorshift128 + splitmix32,
 32-bit-exact math — parity proven byte-for-byte by `KofRngTest.jvmJsParity`).
 NEVER for keys/tokens/secret material: that is `random`/`security`
-(OS entropy, R11). Slice 1 = JVM + JS; NATIVE/ANDROID fail at compile time
-with the honest gap `RNG001` (x86_64 asm landed in slice 2 — byte-identical to JVM). int(bound) uses modulo
+(OS entropy, R11). Slice 1 = JVM + JS; slice 2 added NATIVE x86_64 (asm,
+byte-identical to JVM) and ANDROID (reuses the JVM runtime, issue #777).
+The cross natives (riscv64/aarch64) fail at compile time with the honest
+gap `RNG001`. int(bound) uses modulo
 (tiny documented bias) — the contract is deterministic parity, not
 cryptographic uniformity.
 

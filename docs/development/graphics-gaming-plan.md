@@ -173,9 +173,10 @@ release/caching/window-loss. No manual GPU management when the backend can do it
   + `clock(source)` + `dtClampMillis(n)` (A1) + `vsync(on)` (A2) +
   `pause()`/`resume()`/`minimize()`/`restore()`/`blur()`/`focus()` (A3) +
   `frame { dt: Int, self: Window -> ... }` over the composed `Clock`; the
-  2-arg body (window passed as `self`, never captured) sidesteps `known-bugs`
-  §620 (capturing lambda + args = garbage first arg on cross) and is green on
-  every target (`GameWindowE2ETest` 8/8). Building it fixed `known-bugs` §619
+  2-arg body (window passed as `self`, never captured) sidesteps what was
+  `known-bugs` §620 (capturing lambda + args = garbage first arg on cross),
+  ✅ FIXED 07/10 by the native-backend lane, and is green on every target
+  (`GameWindowE2ETest` 8/8). Building it fixed `known-bugs` §619
   (uninitialized field + `(` member misparse, `ClassMemberParseE2ETest` 4/4).
 - Pump binding LANDED 07/10 (slice 3.1 remainder, test-only over the vendored
   stack — no new Kof API): `Sdl3PumpE2ETest` **5/5** drives a real headless
@@ -210,8 +211,9 @@ backend decides *how* (batching/atlas/command-buffer/order/cache/upload hidden).
   caller-supplied delta, `draw(queue)`) + `libs/game/Draw.kf` (`DrawCmd`
   record + ordered `DrawList`: `draw/clear/size/commandAt`, invisible draws
   record nothing) + `libs/game/Trig.kf` (pure-Kof `trigSin`/`trigCos`,
-  Taylor through x^13 — `math.sin`/`math.cos` have no Native symbols,
-  `known-bugs` §621, so the lib uses zero backend trig). Cross-file same-
+  Taylor through x^13 — `math.sin`/`math.cos` had no Native symbols,
+  `known-bugs` §621, ✅ FIXED 07/10 by the native-backend lane with an honest
+  `MATH001` gate, so the lib still uses zero backend trig). Cross-file same-
   package refs need an explicit `import` (measured: `import game.Draw` /
   `import game.Trig` inside `Sprite.kf`, the `Window.kf` → `game.Clock`
   precedent). Proof: `GameSpriteE2ETest` **14/14** (transform + animation +
@@ -264,7 +266,8 @@ WGSL/GLSL/HLSL/cross-compile decision deferred, not first slice).
   `render()` to 16-bit PCM `Int[]`, overlapping voices sum and clamp to
   [-32768, 32767], each loop restarts the phase, `rate <= 0` throws).
   Samples synthesize from `game.Trig` only (zero backend trig — the Native
-  runtime has no `sin`/`cos` symbols, `known-bugs` §621). Building it
+  runtime had no `sin`/`cos` symbols, `known-bugs` §621, ✅ FIXED 07/10).
+  Building it
   bisected and catalogued `known-bugs` §622 (a 2nd/nested conditional
   assignment to the same Double local is lost on cross; the 15-line
   `twoIfLit` reproducer + else/while/return/nested variants) and ships the

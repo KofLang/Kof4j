@@ -333,7 +333,12 @@ public final class StatementLowerer {
             case ThrowStmt ts -> {
                 localIdx = ExpressionLowerer.emitExpression(driver, ts.expression(), ops, owner, localIdx, locals);
                 Type excType = ExpressionTyper.inferExprType(driver, ts.expression(), locals);
-                if (BuiltinTypes.isString(excType) && driver.target == Target.JVM) {
+                // ANDROID reusa o JvmBackend e o mesmo contrato de excecao
+                // String->RuntimeException do JVM (issue #777 hunt): sem isto o
+                // `athrow` recebia a String crua -> VerifyError em toda app
+                // Android com `throw`/`assert`.
+                if (BuiltinTypes.isString(excType)
+                        && (driver.target == Target.JVM || driver.target == Target.ANDROID)) {
                     int tmp = localIdx++;
                     locals.add(new IRLocalVariable(tmp, "#exc", BuiltinTypes.STRING));
                     ops.add(new KofStoreLocal(BuiltinTypes.STRING, tmp));
@@ -355,7 +360,7 @@ public final class StatementLowerer {
                 ops.add(new KofConditionalJump(KofComparison.EQ, failLabel, okLabel));
                 ops.add(new KofLabel(failLabel));
                 String message = asrt.message() != null ? asrt.message() : "assertion failed";
-                if (driver.target == Target.JVM) {
+                if (driver.target == Target.JVM || driver.target == Target.ANDROID) {
                     int tmp = localIdx++;
                     locals.add(new IRLocalVariable(tmp, "#exc", BuiltinTypes.STRING));
                     ops.add(new KofLoadLiteral(BuiltinTypes.STRING, message));

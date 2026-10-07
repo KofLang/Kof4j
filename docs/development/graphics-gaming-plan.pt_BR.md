@@ -154,9 +154,10 @@ release/caching/perda de janela. Sem gerenciamento GPU manual quando o backend r
   + `clock(fonte)` + `dtClampMillis(n)` (A1) + `vsync(on)` (A2) +
   `pause()`/`resume()`/`minimize()`/`restore()`/`blur()`/`focus()` (A3) +
   `frame { dt: Int, self: Window -> ... }` sobre o `Clock` composto; o corpo de
-  2 args (window passada como `self`, nunca capturada) desvia do `known-bugs`
-  §620 (lambda com captura + args = primeiro arg lixo no cross) e é verde em
-  todo alvo (`GameWindowE2ETest` 8/8). Construí-lo corrigiu o `known-bugs` §619
+  2 args (window passada como `self`, nunca capturada) desvia do que era o
+  `known-bugs` §620 (lambda com captura + args = primeiro arg lixo no cross),
+  ✅ CORRIGIDO 07/10 pela lane native-backend, e é verde em todo alvo
+  (`GameWindowE2ETest` 8/8). Construí-lo corrigiu o `known-bugs` §619
   (campo sem inicializador + membro `(` mal-parseado, `ClassMemberParseE2ETest` 4/4).
 - Binding do pump POUSADO 07/10 (resto da fatia 3.1, só-teste sobre o stack
   vendado — sem API Kof nova): `Sdl3PumpE2ETest` **5/5** dirige uma janela
@@ -190,8 +191,9 @@ quê*, backend decide *como* (batching/atlas/command-buffer/ordem/cache/upload o
   do chamador, `draw(queue)`) + `libs/game/Draw.kf` (record `DrawCmd` +
   `DrawList` ordenada: `draw/clear/size/commandAt`, draw invisível não
   registra nada) + `libs/game/Trig.kf` (`trigSin`/`trigCos` em Kof puro,
-  Taylor até x^13 — `math.sin`/`math.cos` não têm símbolos Native,
-  `known-bugs` §621, então a lib usa zero trig de backend). Refs entre
+  Taylor até x^13 — `math.sin`/`math.cos` não tinham símbolos Native,
+  `known-bugs` §621, ✅ CORRIGIDO 07/10 pela lane native-backend com um gate
+  honesto `MATH001`, então a lib segue usando zero trig de backend). Refs entre
   arquivos do mesmo pacote exigem `import` explícito (medido: `import
   game.Draw` / `import game.Trig` dentro do `Sprite.kf`, precedente
   `Window.kf` → `game.Clock`). Prova: `GameSpriteE2ETest` **14/14**
@@ -245,7 +247,8 @@ cobertura/manutenção/testabilidade/cross-platform). Shaders escondidos no iní
   `render()` para PCM 16-bit `Int[]`, vozes sobrepostas somam e clampam em
   [-32768, 32767], cada loop reinicia a fase, `rate <= 0` lança). Amostras
   sintetizam só de `game.Trig` (zero trig de backend — o runtime Native não
-  tem símbolos `sin`/`cos`, `known-bugs` §621). Construí-lo bissectou e
+  tinha símbolos `sin`/`cos`, `known-bugs` §621, ✅ CORRIGIDO 07/10).
+  Construí-lo bissectou e
   catalogou o `known-bugs` §622 (uma 2ª/aninhada atribuição condicional no
   mesmo local Double se perde no cross; reprodutor `twoIfLit` de 15 linhas +
   variantes else/while/return/aninhadas) e embarca o desvio sem-branch
