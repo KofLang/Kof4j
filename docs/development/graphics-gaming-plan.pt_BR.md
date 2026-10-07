@@ -3,8 +3,8 @@
 # Graphics, Games e Media — Superfície de Intenção do Kof
 
 last: fatia-3.1 relógio puro + snapshots de input de teclado/ponteiro/gamepad pousados 05/10 (`libs/game/Clock.kf` + `Keys.kf` + `Mouse.kf` + `Pad.kf`, `GameClockE2ETest`/`GameInputE2ETest`/`GameMouseE2ETest`/`GamePadE2ETest` 4/4 cada; `known-bugs` §603 corrigido no caminho); superfície pura `kof.game` verificada cross-target (`GameCrossE2ETest` 3/3 — oráculo JVM + riscv64 + aarch64 sob qemu); forma da janela DECIDIDA (`D-GRAPHICS-WINDOW-FORM`: `Window("…") { frame { dt -> … } }`, `dt` Int ms) e seu pré-requisito de parser corrigido (`known-bugs` §611, `TrailingLambdaParamsE2ETest` 6/6); G1 SDL3 `3.4.16` medida (C + FFI do Kof, headless JVM+Native; `known-bugs` §606 corrigido); **SDL3 vendada no sysroot cross 06/10 (`scripts/provision-cross-sdl3.sh`, aarch64+riscv64 `3.4.16` + fecho de runtime + GLIBC 2.44) e a ABI crua medida ponta-a-ponta headless nos quatro alvos (`Sdl3FfiCrossE2ETest` 5/5: JVM + Native x86-64 + riscv64 + aarch64 sob qemu, golden `init=true/driver=dummy/title=kof`)**
-doing: fatia-3.3a (mixer de áudio offline)
-next: mixer da fatia-3.3a POUSADO 07/10 (`libs/game/Audio.kf`, `GameAudioE2ETest` 6/6 todo alvo); faltam as faces de áudio vivo no backend (decoder/playback/device) + 3.4 (vídeo)
+doing: fatia-3.3b (ABI de áudio SDL3)
+next: ABI de áudio SDL3 POUSADA 07/10 (`Sdl3AudioE2ETest` 5/5 todo alvo); faltam faces audíveis de playback/streaming (saída no device, roteamento de vozes do mixer) + 3.4 (vídeo)
 location: docs/development
 state: UNDER DEVELOPMENT
 
@@ -251,6 +251,19 @@ cobertura/manutenção/testabilidade/cross-platform). Shaders escondidos no iní
   genericamente, e imports resolvem pelo filesystem. Inventar uma linha
   `kof.game` afirmaria um namespace indecidido. Próxima: faces de áudio vivo
   no backend + 3.4 (vídeo).
+- Fatia 3.3b POUSADA 07/10 (ABI de áudio SDL3, só-teste sobre o stack
+  vendado — sem saída audível afirmada, CI não tem alto-falantes):
+  `Sdl3AudioE2ETest` **5/5** inicia o subsistema de áudio, abre o device
+  default de playback, lê de volta o `SDL_AudioSpec` negociado (S16 stereo
+  44100 Hz, 1024 frames de buffer — idêntico nos quatro alvos), pausa/
+  retoma, fecha e quita, golden `init/open/fmt/format/channels/freq/
+  frames/pause/resume/quit=true` em JVM + Native x86-64 + riscv64 + aarch64
+  sob qemu. Fatos Kof/FFI medidos: `SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK` é
+  passado como `0 - 1` (Kof não tem literais unsigned; mesmos 32 bits
+  baixos); o `spec` anulável não soletra `NULL` (`SEM048`), mas um buffer
+  zerado de 12 bytes é aceito e negocia os defaults do dummy aqui. Faces
+  audíveis de decoder/playback/streaming seguem trabalho posterior (decisão
+  F do FFmpeg LGPL para codecs, mantenedora).
 
 # 11. Alvos
 
