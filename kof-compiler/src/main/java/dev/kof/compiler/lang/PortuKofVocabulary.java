@@ -142,53 +142,47 @@ public final class PortuKofVocabulary {
             {"await", "aguarda"},
     });
 
-    /** Namespaces stdlib (StdCatalog): canônico → português. */
-    private static final Map<String, String> NAMESPACES = map(new String[][]{
-            {"math", "matematica"},
-            {"strings", "textos"},
-            {"encoding", "codificacao"},
-            {"net", "rede"},
-            {"uuid", "uuid"},
-            {"random", "aleatorio"},
-            {"rng", "gerador"},
-            {"time", "tempo"},
-            {"http", "http"},
-            {"db", "banco"},
-            {"cache", "cache"},
-            {"buffer", "buffer"},
-            {"process", "processo"},
-            {"shell", "shell"},
-            {"ssh", "ssh"},
-            {"json", "json"},
-            {"log", "registro"},
-            {"orm", "orm"},
-            {"config", "config"},
-            {"gpu", "gpu"},
-            {"mq", "fila"},
-            {"validation", "validacao"},
-            {"observability", "observabilidade"},
-            {"tetris", "tetris"},
-            {"image", "imagem"},
-            {"audio", "audio"},
-            {"video", "video"},
-            {"mic", "microfone"},
-            {"io", "io"},
-            {"file", "arquivo"},
-            {"fs", "sistema"},
-            {"csv", "csv"},
-            {"ini", "ini"},
-            {"toml", "toml"},
-            {"yaml", "yaml"},
-            {"xml", "xml"},
-            {"crypto", "criptografia"},
-            {"secrets", "segredos"},
-            {"hash", "hash"},
-            {"jwt", "jwt"},
-            {"sign", "assinar"},
-            {"verify", "verificar"},
-            {"key", "chave"},
-            {"password", "senha"},
-    });
+    /**
+     * Namespaces alcançáveis: catálogo stdlib REAL (tabela gerada a partir do
+     * `StdCatalog` em execução — `scripts/gen_portukof_aliases.py`) + as
+     * bibliotecas-oficiais por pacote (`libs/`). Canônico → português;
+     * colisão mantém o canônico (bijetividade travada no gate).
+     */
+    public static Map<String, String> namespaces() {
+        return Namespaces.MAP;
+    }
+
+    private static final class Namespaces {
+        static final Map<String, String> MAP = build();
+
+        private static Map<String, String> build() {
+            Map<String, String> m = new LinkedHashMap<>();
+            // libs/pacotes que NÃO são namespaces do catálogo (import por pacote)
+            m.put("file", "arquivo");
+            m.put("io", "io");
+            m.put("fs", "sistema");
+            m.put("csv", "csv");
+            m.put("ini", "ini");
+            m.put("toml", "toml");
+            m.put("yaml", "yaml");
+            m.put("xml", "xml");
+            m.put("pdf", "pdf");
+            m.put("game", "jogo");
+            m.put("vision", "visao");
+            m.put("kofmd", "kofmd");
+            m.put("interop", "interoperabilidade");
+            m.put("secrets", "segredos");
+            m.put("hash", "hash");
+            m.put("sign", "assinar");
+            m.put("verify", "verificar");
+            m.put("key", "chave");
+            m.put("password", "senha");
+            // catálogo stdlib — a fonte é a tabela gerada (nunca a mão)
+            m.putAll(PortuKofStdlibMembers.namespaces());
+            return Collections.unmodifiableMap(m);
+        }
+    }
+;
 
     /** Tabela de keywords do PortuKof: palavra-fonte → TokenType. */
     public static Map<String, TokenType> keywords() {
@@ -237,10 +231,6 @@ public final class PortuKofVocabulary {
     /** Nome canônico → entrada (para o gate de bijetividade). */
     public static List<String[]> pairs() {
         return PAIRS;
-    }
-
-    public static Map<String, String> namespaces() {
-        return NAMESPACES;
     }
 
     public static Map<String, String> builtins() {
@@ -305,13 +295,24 @@ public final class PortuKofVocabulary {
         private static Map<String, String> build() {
             Map<String, String> m = new LinkedHashMap<>();
             for (Map.Entry<String, String> e : BUILTINS.entrySet()) m.put(e.getValue(), e.getKey());
-            for (Map.Entry<String, String> e : NAMESPACES.entrySet()) m.put(e.getValue(), e.getKey());
+            for (Map.Entry<String, String> e : namespaces().entrySet()) m.put(e.getValue(), e.getKey());
             m.put("principal", "main");
             return Collections.unmodifiableMap(m);
         }
     }
 
     private static final class Members {
-        static final Map<String, Map<String, String>> MAP = Map.of();
+        /** alias pt-BR → membro canônico, por namespace (tabela do gerador). */
+        static final Map<String, Map<String, String>> MAP = invert(PortuKofStdlibMembers.table());
+
+        private static Map<String, Map<String, String>> invert(Map<String, String[][]> table) {
+            Map<String, Map<String, String>> out = new LinkedHashMap<>();
+            for (Map.Entry<String, String[][]> e : table.entrySet()) {
+                Map<String, String> m = new LinkedHashMap<>();
+                for (String[] row : e.getValue()) m.put(row[1], row[0]);
+                out.put(e.getKey(), Collections.unmodifiableMap(m));
+            }
+            return Collections.unmodifiableMap(out);
+        }
     }
 }
