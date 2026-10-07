@@ -17397,3 +17397,15 @@ Literals only — no calls, no captures, no FFI. Bisected variants, all failing 
 **Boundary:** record + workaround only; no typer/runtime/backend change from this lane. Distinct from §620 (closures) and §602 (GC freeing live frames): values here are never corrupted, only stale.
 
 <!-- pt-switch --> **PT:** [§622 (pt_BR)](known-bugs.pt_BR.md#622--uma-segunda-ou-aninhada-atribuicao-condicional-no-mesmo-local-double-se-perde-nos-nativos-cross-riscv64aarch64-o-primeiro-branch-funciona-os-seguintes-mantem-silenciosamente-o-valor-antigo---aberta-achada-0710-bissectando-o-mixer-de-audio-da-fatia-33a-dona--lane-native-backend)
+
+## §623 — a `"\0"` NUL escape inside a string literal works on JVM but breaks the Native assembler (raw control byte in the generated `.s`, mislabeled `COMP001`) — 🟡 OPEN (found 07/10 by the graphics/gaming slice-3.3c audio stream; owner = native-backend lane)
+
+**Symptom (measured 07/10, tip `da5afcaa4`):** `println("A\0B")` compiles and prints `A<NUL>B` on JVM, but every Native target (x86-64, riscv64, aarch64) dies at `as` with `invalid character ... in mnemonic` / `missing closing "'"` — the emitter writes the NUL (or the mangled escape) raw into a `.s` string literal — reported as `Error reading source file ... [COMP001]`, the internal "cannot read source" code, so the user sees a source error for a backend emission defect (same false-support class as §615/`math.sin` §621). Minimal reproducer above; no FFI, no imports.
+
+**Root (read, not fixed by this lane):** the frontend accepts `\0` (JVM proves the escape is real) while the native string-literal emission does not escape control bytes for GAS. Either the frontend must refuse `\0` on Native with a named gap code, or the emitter must escape it — both are native-backend work (`D-PLAN-ONE-OWNER`).
+
+**Workaround (this lane, shipped):** `Sdl3AudioStreamE2ETest` pins the exact converted bytes of a printable-ASCII pattern instead (`'A'` = S16 `0x4141` → F32 `0,130,2,63` repeating — exact IEEE, identical on every FPU), so the slice needs no NUL bytes anywhere (`GameAudioE2ETest`/`Sdl3AudioStreamE2ETest` green on all legs). A runtime NUL-string constructor (no NUL bytes in source) would also sidestep it; Kof has none today.
+
+**Boundary:** record + workaround only; no typer/runtime/backend change from this lane.
+
+<!-- pt-switch --> **PT:** [§623 (pt_BR)](known-bugs.pt_BR.md#623--um-escape-nul-0-dentro-de-string-literal-funciona-na-jvm-mas-quebra-o-assembler-native-byte-de-controle-cru-no-s-gerado-mal-rotulado-comp001---aberta-achada-0710-pelo-stream-de-audio-da-fatia-33c-dona--lane-native-backend)

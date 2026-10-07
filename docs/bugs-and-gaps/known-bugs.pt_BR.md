@@ -14922,3 +14922,15 @@ JVM/Script/Native imprimiam `fin-inner`, `fin-outer`, `inner`. KofJS abortava: `
 **Limite:** só registro + desvio; sem mudança de typer/runtime/backend por esta lane. Distinto do §620 (closures) e do §602 (GC liberando frames vivos): valores aqui nunca corrompem, só ficam obsoletos.
 
 <!-- en-switch --> **EN:** [§622 (en)](known-bugs.md#622--a-second-or-nested-conditional-assignment-to-the-same-double-local-is-lost-on-the-cross-natives-riscv64aarch64-the-first-branch-works-later-ones-silently-keep-the-old-value---open-found-0710-bisecting-the-slice-33a-audio-mixer-owner--native-backend-lane)
+
+## §623 — um escape NUL `"\0"` dentro de string literal funciona na JVM mas quebra o assembler Native (byte de controle cru no `.s` gerado, mal-rotulado `COMP001`) — 🟡 ABERTA (achada 07/10 pelo stream de áudio da fatia-3.3c; dona = lane native-backend)
+
+**Sintoma (medido 07/10, tip `da5afcaa4`):** `println("A\0B")` compila e imprime `A<NUL>B` na JVM, mas todo alvo Native (x86-64, riscv64, aarch64) morre no `as` com `invalid character ... in mnemonic` — o emissor escreve o NUL (ou o escape mutilado) cru num literal de string do `.s` — reportado como `Error reading source file ... [COMP001]`, o código interno de "não consigo ler a fonte", então o usuário vê um erro de fonte para um defeito de emissão do backend (mesma classe de suporte-falso do §615/`math.sin` §621). Reprodutor mínimo acima; sem FFI, sem imports.
+
+**Causa-raiz (lida, não corrigida por esta lane):** o frontend aceita `\0` (a JVM prova que o escape é real) enquanto a emissão de string do native não escapa bytes de controle para o GAS. Ou o frontend precisa recusar `\0` no Native com um gap code nomeado, ou o emissor precisa escapá-lo — ambos são trabalho native-backend (`D-PLAN-ONE-OWNER`).
+
+**Desvio (esta lane, embarcado):** o `Sdl3AudioStreamE2ETest` pina os bytes exatos convertidos de um padrão ASCII imprimível (`'A'` = S16 `0x4141` → F32 `0,130,2,63` repetindo — IEEE exato, idêntico em toda FPU), então a fatia não precisa de bytes NUL em lugar algum. Um construtor de string NUL em runtime (sem NULs na fonte) também desviaria; Kof não tem nenhum hoje.
+
+**Limite:** só registro + desvio; sem mudança de typer/runtime/backend por esta lane.
+
+<!-- en-switch --> **EN:** [§623 (en)](known-bugs.md#623--a-0-nul-escape-inside-a-string-literal-works-on-jvm-but-breaks-the-native-assembler-raw-control-byte-in-the-generated-s-mislabeled-comp001---open-found-0710-by-the-graphicsgaming-slice-33c-audio-stream-owner--native-backend-lane)

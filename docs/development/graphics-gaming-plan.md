@@ -5,8 +5,8 @@
 **Owner:** `192.168.15.15:9092` — lane security/connectors, graphics/gaming front; re-claimed 05/10 (the spike-3.0 `192.168.15.30:9093` claims were runner/tooling, historical).
 
 last: slice-3.1 pure clock + key/pointer/pad input snapshots landed 05/10 (`libs/game/Clock.kf` + `Keys.kf` + `Mouse.kf` + `Pad.kf`, `GameClockE2ETest`/`GameInputE2ETest`/`GameMouseE2ETest`/`GamePadE2ETest` 4/4 each; `known-bugs` §603 fixed on the way); pure `kof.game` surface cross-target verified (`GameCrossE2ETest` 3/3 — JVM oracle + riscv64 + aarch64 under qemu); window form DECIDED (`D-GRAPHICS-WINDOW-FORM`: `Window("…") { frame { dt -> … } }`, `dt` Int ms) and its parser prerequisite fixed (`known-bugs` §611, `TrailingLambdaParamsE2ETest` 6/6); G1 SDL3 `3.4.16` measured (C + Kof FFI, headless JVM+Native; `known-bugs` §606 fixed); **SDL3 vendored into the cross sysroot 06/10 (`scripts/provision-cross-sdl3.sh`, aarch64+riscv64 `3.4.16` + runtime closure + GLIBC 2.44) and the raw ABI measured end-to-end headless on all four targets (`Sdl3FfiCrossE2ETest` 5/5: JVM + Native x86-64 + riscv64 + aarch64 under qemu, golden `init=true/driver=dummy/title=kof`)**
-doing: slice-3.3b (SDL3 audio ABI)
-next: SDL3 audio ABI LANDED 07/10 (`Sdl3AudioE2ETest` 5/5 every target); remaining = audible playback/streaming faces (device output, mixer voice routing) + 3.4 (video)
+doing: slice-3.3c (SDL3 audio stream)
+next: SDL3 audio stream LANDED 07/10 (`Sdl3AudioStreamE2ETest` 5/5 every target); remaining = audible playback (device output) + mixer voice routing + 3.4 (video)
 location: docs/development
 state: UNDER DEVELOPMENT
 
@@ -283,6 +283,20 @@ WGSL/GLSL/HLSL/cross-compile decision deferred, not first slice).
   accepted and negotiates the dummy defaults here. Audible
   decoder/playback/streaming faces stay later work (FFmpeg LGPL decision F
   for codecs, maintainer).
+- Slice 3.3c LANDED 07/10 (SDL3 audio stream submit path, test-only — the
+  device stays paused so no background thread consumes the queue): the
+  negotiated device spec is reused as the stream spec (a zeroed spec is
+  rejected for streams: `src_spec->format is invalid`), then 16 `'A'` bytes
+  round-trip as exactly 32 available/returned bytes — the stream converts
+  to SDL's internal F32 mixer format regardless (`src=S16/2ch/44100`,
+  `dst=F32/2ch/44100` read back; `'A'` = S16 `0x4141` → F32 `0,130,2,63`
+  repeating, exact IEEE pinned). Measured boundaries: same-`Buffer` twice
+  in one call trips the honest `MEM020` borrow guard (fill two buffers
+  instead); a `\0`-in-source silent cycle was measured and dropped — NUL
+  bytes marshal fine on JVM but break the native assembler (raw control
+  bytes in `.s`), and Kof has no runtime NUL-string constructor
+  (`known-bugs` §623, native-backend lane). Proof: `Sdl3AudioStreamE2ETest`
+  **5/5** on JVM + Native x86-64 + riscv64 + aarch64 under qemu.
 
 # 11. Targets
 
