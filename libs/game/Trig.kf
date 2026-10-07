@@ -21,7 +21,10 @@ package game
 // Semantics (frozen here, tested): angles in DEGREES; `trigSin` reduces to
 // [-π, π] and evaluates the Taylor series through x^13 (error ~1e-12 on the
 // reduced range — milli-unit goldens never move); `trigCos(d)` is
-// `trigSin(90 - d)`. Pure arithmetic, no IO; runs on every target.
+// `trigSin(90 - d)`. The reduction is BRANCH-FREE (`roundTo`, never
+// sequential `if`s on a Double local — the cross natives miscompile the
+// second-and-later conditional Double assignment, `known-bugs` §622).
+// Pure arithmetic, no IO; runs on every target.
 
 Double trigPi() {
     return 3.141592653589793
@@ -32,12 +35,13 @@ Double trigToRadians(Double deg) {
 }
 
 // Reduce radians to [-pi, pi] so the Taylor series converges fast.
+// Branch-free on purpose: nearest-turn subtraction via `roundTo` (the cross
+// natives miscompile a second conditional Double assignment — `known-bugs`
+// §622 — so no `if` may appear here at all).
 Double trigNorm(Double rad) {
     var twoPi = 2.0 * trigPi()
-    var r = rad % twoPi
-    if (r > trigPi()) { r = r - twoPi }
-    if (r < 0.0 - trigPi()) { r = r + twoPi }
-    return r
+    var turns = math.roundTo(rad / twoPi, 0)
+    return rad - turns * twoPi
 }
 
 // Sine of `deg` (degrees) via the Taylor series through x^13.

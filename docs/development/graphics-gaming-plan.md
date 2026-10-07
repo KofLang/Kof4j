@@ -5,8 +5,8 @@
 **Owner:** `192.168.15.15:9092` — lane security/connectors, graphics/gaming front; re-claimed 05/10 (the spike-3.0 `192.168.15.30:9093` claims were runner/tooling, historical).
 
 last: slice-3.1 pure clock + key/pointer/pad input snapshots landed 05/10 (`libs/game/Clock.kf` + `Keys.kf` + `Mouse.kf` + `Pad.kf`, `GameClockE2ETest`/`GameInputE2ETest`/`GameMouseE2ETest`/`GamePadE2ETest` 4/4 each; `known-bugs` §603 fixed on the way); pure `kof.game` surface cross-target verified (`GameCrossE2ETest` 3/3 — JVM oracle + riscv64 + aarch64 under qemu); window form DECIDED (`D-GRAPHICS-WINDOW-FORM`: `Window("…") { frame { dt -> … } }`, `dt` Int ms) and its parser prerequisite fixed (`known-bugs` §611, `TrailingLambdaParamsE2ETest` 6/6); G1 SDL3 `3.4.16` measured (C + Kof FFI, headless JVM+Native; `known-bugs` §606 fixed); **SDL3 vendored into the cross sysroot 06/10 (`scripts/provision-cross-sdl3.sh`, aarch64+riscv64 `3.4.16` + runtime closure + GLIBC 2.44) and the raw ABI measured end-to-end headless on all four targets (`Sdl3FfiCrossE2ETest` 5/5: JVM + Native x86-64 + riscv64 + aarch64 under qemu, golden `init=true/driver=dummy/title=kof`)**
-doing: 3.1 remainder — `kof.game` stdlib-ledger registration + OS-window SDL3 binding (pump LANDED `Sdl3PumpE2ETest` 5/5)
-next: SDL3 pump LANDED 07/10 (`Sdl3PumpE2ETest` 5/5 every target); remaining = the `kof.game` ledger registration + 3.3 (audio)
+doing: slice-3.3a (offline audio mixer)
+next: slice-3.3a mixer LANDED 07/10 (`libs/game/Audio.kf`, `GameAudioE2ETest` 6/6 every target); remaining = live-audio backend faces (decoder/playback/device) + 3.4 (video)
 location: docs/development
 state: UNDER DEVELOPMENT
 
@@ -251,6 +251,25 @@ WGSL/GLSL/HLSL/cross-compile decision deferred, not first slice).
   video-playback, additively.
 - KofUI ≠ competing language (UI apps vs games); share window/input/video/
   images/events infra where equivalent.
+- Slice 3.3a LANDED 07/10 (pure offline mixer, no audible output):
+  `libs/game/Audio.kf` (`Sound` record + `Mixer`: `play(sound, startMs)`,
+  `render()` to 16-bit PCM `Int[]`, overlapping voices sum and clamp to
+  [-32768, 32767], each loop restarts the phase, `rate <= 0` throws).
+  Samples synthesize from `game.Trig` only (zero backend trig — the Native
+  runtime has no `sin`/`cos` symbols, `known-bugs` §621). Building it
+  bisected and catalogued `known-bugs` §622 (a 2nd/nested conditional
+  assignment to the same Double local is lost on cross; the 15-line
+  `twoIfLit` reproducer + else/while/return/nested variants) and ships the
+  branch-free workaround (`roundTo` range reduction in `Trig.trigNorm`).
+  Proof: `GameAudioE2ETest` **6/6** (exact-integer golden on JVM + Script +
+  Native x86-64 + JS + riscv64 + aarch64 under qemu). Audible
+  decoder/playback/device faces stay backend work.
+- Ledger close-out (measured 07/10, no gate change): `kof.game` needs NO
+  ledger row — the R1 namespace question (`kof.game` vs `package game`) is
+  maintainer-open, `HARD_DENY game` already encodes official-package-only,
+  `scripts/package.sh` ships all of `libs/` generically, and imports
+  resolve off the filesystem. Inventing a `kof.game` row would assert an
+  undecided namespace. Next: live-audio backend faces + 3.4 (video).
 
 # 11. Targets
 

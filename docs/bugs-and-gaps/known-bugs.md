@@ -17372,3 +17372,28 @@ JVM/Script/Native printed `fin-inner`, `fin-outer`, `inner`. KofJS aborted: `Int
 **Boundary:** record + workaround only; no typer/runtime/backend change from this lane. The 1-milli Taylor deviation pinned in `GameSpriteE2ETest` (`f=83999`, deterministic on all six legs) is documented there, an order of magnitude below any visible pixel.
 
 <!-- pt-switch --> **PT:** [§621 (pt_BR)](known-bugs.pt_BR.md#621--mathsinmathcosmathtoradians-e-as-outras-constantes-trig-passam-no-type-check-em-todo-alvo-mas-nao-tem-simbolo-no-runtime-native-entao-um-build-native-morre-no-ld-com-um-comp001-mal-rotulado---aberta-achada-0710-pelo-sprite-da-fatia-32a-graphicsgaming-dona--lane-native-backend)
+
+## §622 — a second (or nested) conditional assignment to the same Double local is lost on the cross natives (riscv64/aarch64): the first branch works, later ones silently keep the old value — 🟡 OPEN (found 07/10 bisecting the slice-3.3a audio mixer; owner = native-backend lane)
+
+**Symptom (measured 07/10, tip `297f273f2`):** the 15-line program below prints `t=-1570796` then `t2=2283185` on Native x86-64, but `t=-1570796` then `t2=-4000000` under qemu-riscv64 AND qemu-aarch64 identically — the second `if` never takes effect on cross (the local keeps its pre-branch value, no crash, no diagnostic):
+```
+Double twoIfLit(Double v) {
+    var r = v % 6.283185307179586
+    if (r > 3.141592653589793) { return r - 6.283185307179586 }
+    if (r < 0.0 - 3.141592653589793) { return r + 6.283185307179586 }
+    return r
+}
+main() {
+    println("t=" + ((twoIfLit(17.27875959474586) * 1000000.0) as Int))
+    println("t2=" + ((twoIfLit(-4.0) * 1000000.0) as Int))
+}
+```
+Literals only — no calls, no captures, no FFI. Bisected variants, all failing the later branch identically on both cross targets while x86-64 is correct: `if/else` with a nested second `if`; two `while` loops (BOTH branches lost there); return-form; nested if-*expressions*; and split one-`if`-per-function helpers called nested (each helper is the proven single-`if` shape that works when called from `main`). Single-`if` on a Double local, Double `%`, comparisons, reassignment, multi-arg and nested Double calls all verified correct on cross in isolation — only the second-and-later conditional Double assignment (possibly reunited by inlining; suspicion only, not claimed) loses.
+
+**Root (unknown — not claimed):** measured behavior + bisection only. Suspect area is the cross Double local/branch lowering (riscv64/aarch64 emitters); the fix belongs to the native-backend lane — this lane does not touch it (`D-PLAN-ONE-OWNER`).
+
+**Workaround (this lane, shipped):** `libs/game/Trig.kf`'s range reduction is BRANCH-FREE — `rad - roundTo(rad / twoPi, 0) * twoPi` (`math.roundTo` is native-defined on all targets) — so the audio mixer that exposed this needs zero conditionals on Doubles (`GameAudioE2ETest` 6/6 on JVM + Script + Native x86-64 + riscv64 + aarch64 qemu + JS).
+
+**Boundary:** record + workaround only; no typer/runtime/backend change from this lane. Distinct from §620 (closures) and §602 (GC freeing live frames): values here are never corrupted, only stale.
+
+<!-- pt-switch --> **PT:** [§622 (pt_BR)](known-bugs.pt_BR.md#622--uma-segunda-ou-aninhada-atribuicao-condicional-no-mesmo-local-double-se-perde-nos-nativos-cross-riscv64aarch64-o-primeiro-branch-funciona-os-seguintes-mantem-silenciosamente-o-valor-antigo---aberta-achada-0710-bissectando-o-mixer-de-audio-da-fatia-33a-dona--lane-native-backend)

@@ -3,8 +3,8 @@
 # Graphics, Games e Media — Superfície de Intenção do Kof
 
 last: fatia-3.1 relógio puro + snapshots de input de teclado/ponteiro/gamepad pousados 05/10 (`libs/game/Clock.kf` + `Keys.kf` + `Mouse.kf` + `Pad.kf`, `GameClockE2ETest`/`GameInputE2ETest`/`GameMouseE2ETest`/`GamePadE2ETest` 4/4 cada; `known-bugs` §603 corrigido no caminho); superfície pura `kof.game` verificada cross-target (`GameCrossE2ETest` 3/3 — oráculo JVM + riscv64 + aarch64 sob qemu); forma da janela DECIDIDA (`D-GRAPHICS-WINDOW-FORM`: `Window("…") { frame { dt -> … } }`, `dt` Int ms) e seu pré-requisito de parser corrigido (`known-bugs` §611, `TrailingLambdaParamsE2ETest` 6/6); G1 SDL3 `3.4.16` medida (C + FFI do Kof, headless JVM+Native; `known-bugs` §606 corrigido); **SDL3 vendada no sysroot cross 06/10 (`scripts/provision-cross-sdl3.sh`, aarch64+riscv64 `3.4.16` + fecho de runtime + GLIBC 2.44) e a ABI crua medida ponta-a-ponta headless nos quatro alvos (`Sdl3FfiCrossE2ETest` 5/5: JVM + Native x86-64 + riscv64 + aarch64 sob qemu, golden `init=true/driver=dummy/title=kof`)**
-doing: restante da 3.1 — registro do `kof.game` no ledger da stdlib + binding SDL3 de janela de SO (pump POUSADO `Sdl3PumpE2ETest` 5/5)
-next: pump SDL3 POUSADO 07/10 (`Sdl3PumpE2ETest` 5/5 todo alvo); falta o registro do `kof.game` no ledger + 3.3 (áudio)
+doing: fatia-3.3a (mixer de áudio offline)
+next: mixer da fatia-3.3a POUSADO 07/10 (`libs/game/Audio.kf`, `GameAudioE2ETest` 6/6 todo alvo); faltam as faces de áudio vivo no backend (decoder/playback/device) + 3.4 (vídeo)
 location: docs/development
 state: UNDER DEVELOPMENT
 
@@ -231,6 +231,26 @@ cobertura/manutenção/testabilidade/cross-platform). Shaders escondidos no iní
   video-playback, aditivamente.
 - KofUI ≠ linguagem concorrente (apps UI vs jogos); compartilha janela/input/
   vídeo/imagens/eventos onde equivalente.
+- Fatia 3.3a POUSADA 07/10 (mixer offline puro, sem saída audível):
+  `libs/game/Audio.kf` (record `Sound` + `Mixer`: `play(sound, startMs)`,
+  `render()` para PCM 16-bit `Int[]`, vozes sobrepostas somam e clampam em
+  [-32768, 32767], cada loop reinicia a fase, `rate <= 0` lança). Amostras
+  sintetizam só de `game.Trig` (zero trig de backend — o runtime Native não
+  tem símbolos `sin`/`cos`, `known-bugs` §621). Construí-lo bissectou e
+  catalogou o `known-bugs` §622 (uma 2ª/aninhada atribuição condicional no
+  mesmo local Double se perde no cross; reprodutor `twoIfLit` de 15 linhas +
+  variantes else/while/return/aninhadas) e embarca o desvio sem-branch
+  (redução via `roundTo` no `Trig.trigNorm`). Prova: `GameAudioE2ETest`
+  **6/6** (golden de inteiros exatos em JVM + Script + Native x86-64 + JS +
+  riscv64 + aarch64 sob qemu). Faces audíveis de decoder/playback/device
+  seguem trabalho de backend.
+- Fecho do ledger (medido 07/10, sem mudança de gate): `kof.game` NÃO precisa
+  de linha no ledger — a questão R1 do namespace (`kof.game` vs `package
+  game`) é aberta da mantenedora, `HARD_DENY game` já codifica
+  official-package-only, `scripts/package.sh` embarca todo `libs/`
+  genericamente, e imports resolvem pelo filesystem. Inventar uma linha
+  `kof.game` afirmaria um namespace indecidido. Próxima: faces de áudio vivo
+  no backend + 3.4 (vídeo).
 
 # 11. Alvos
 

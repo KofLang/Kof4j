@@ -1,0 +1,126 @@
+package game
+
+import game.Trig
+
+// kof.game — offline audio mixer (slice 3.3a of the graphics/gaming front,
+// `D-GRAPHICS-GAMING` + `D-GRAPHICS-SPIKE` + `D-MAINT-BATCH-0510`/G1).
+//
+// The plan §10 freezes sound/music as INTENT (`sound("boom.ogg").play()`)
+// while the backend owns decoder/buffer/mixer/output, and §13 requires the
+// offline path: program → mixer → PCM → hash/reference (volume/mix/order/
+// loop/duration/channels, no speakers). This module is the PURE,
+// backend-independent half: synthesized tones (no decoder yet — the backend's
+// job per §10) scheduled on a mixer that renders deterministic 16-bit PCM
+// into an `Int[]` the tests pin exactly. It calls no audio/window API and is
+// honest on every target today.
+//
+//   var mix = mixer(8000)
+//   mix.play(Sound("a440", 440.0, 100.0, 1.0, 1), 0)
+//   mix.play(Sound("e660", 660.0, 100.0, 0.5, 1), 50)
+//   var pcm = mix.render()   // 1600 samples, deterministically
+//
+// Semantics (frozen here, tested):
+// - A `Sound` is a synthesized sine tone: `freqHz`/`durationMs`/`volume`
+//   (0.0–1.0 nominal; above 1.0 clips, never wraps) repeated `loops` times;
+//   each repetition restarts the phase (a loop replays the sample).
+// - `play(sound, startMs)` schedules at an absolute millisecond offset and
+//   returns the mixer (fluent); overlapping notes SUM sample-wise and clip
+//   to [-32768, 32767] (never wrap, never saturate-silently: the clamp is
+//   the contract).
+// - `render()` sizes the output to the latest sounding sample and returns a
+//   fresh array on every call (re-rendering is idempotent); an empty score
+//   renders zero samples. Sample `i` of a repetition starting at sample
+//   `base` is `(trigSin(freq * (i * 1000.0 / rate) / 1000.0 * 360.0) *
+//   volume * 32767.0) as Int` — pure `game.Trig`, identical on every target
+//   (no backend trig, no libm, `known-bugs` §621).
+// - `mixer(rate)` with `rate <= 0` throws (a meaningless rate is never
+//   silent). Pure arithmetic, no IO; runs on every target.
+
+// A synthesized tone: sine at `freqHz` for `durationMs`, repeated `loops`.
+record Sound(String name, Double freqHz, Double durationMs, Double volume, Int loops)
+
+// One scheduled voice: `sound` sounding from `startMs`.
+record Scheduled(Sound sound, Int startMs)
+
+class Mixer {
+    Int rate
+    List<Scheduled> score
+
+    constructor(rate: Int) {
+        if (rate <= 0) { throw "Mixer: sampleRate must be > 0" }
+        this.rate = rate
+        this.score = listOf<Scheduled>()
+    }
+
+    Int sampleRate() {
+        return this.rate
+    }
+
+    Int voices() {
+        return this.score.size
+    }
+
+    // Schedule `sound` at absolute `startMs`.
+    Mixer play(Sound sound, Int startMs) {
+        this.score.add(Scheduled(sound, startMs))
+        return this
+    }
+
+    // Render the whole score to 16-bit PCM samples.
+    Int[] render() {
+        var total = 0
+        for (var e in this.score) {
+            var end = this.entryEnd(e)
+            if (end > total) { total = end }
+        }
+        var out = new Int[total]
+        var k = 0
+        while (k < total) {
+            out[k] = 0
+            k = k + 1
+        }
+        for (var e in this.score) {
+            this.renderEntry(out, e)
+        }
+        return out
+    }
+
+    // Last sounding sample (exclusive) of one scheduled voice.
+    Int entryEnd(Scheduled e) {
+        var startSample = e.startMs() * this.rate / 1000
+        var noteSamples = ((e.sound().durationMs() * e.sound().loops()) as Int) * this.rate / 1000
+        return startSample + noteSamples
+    }
+
+    // Mix one voice into `out` (adds, then clamps).
+    void renderEntry(Int[] out, Scheduled e) {
+        var s = e.sound()
+        var startSample = e.startMs() * this.rate / 1000
+        var perRep = ((s.durationMs()) as Int) * this.rate / 1000
+        var rep = 0
+        while (rep < s.loops()) {
+            var base = startSample + rep * perRep
+            var i = 0
+            while (i < perRep) {
+                var tMs = i * 1000.0 / this.rate
+                var cycles = s.freqHz() * tMs / 1000.0
+                var sample = (trigSin(cycles * 360.0) * s.volume() * 32767.0) as Int
+                out[base + i] = mixerClip(out[base + i] + sample)
+                i = i + 1
+            }
+            rep = rep + 1
+        }
+    }
+}
+
+// The mix clamp, stated as the contract it is: sums never wrap.
+Int mixerClip(Int v) {
+    if (v > 32767) { return 32767 }
+    if (v < -32768) { return -32768 }
+    return v
+}
+
+// The plan §10 factory shape (rate first, like a canvas size).
+Mixer mixer(Int sampleRate) {
+    return Mixer(sampleRate)
+}
