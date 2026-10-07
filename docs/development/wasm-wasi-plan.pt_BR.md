@@ -1,5 +1,7 @@
 [English](wasm-wasi-plan.md) | [Português](wasm-wasi-plan.pt_BR.md)
 
+**Dono:** SEM DONO / OPEN — promovido por `D-WEB-WASI-DEFAULT-0710` (GATE do 0.6.0, #776); qualquer lane livre o reivindica no DOING primeiro (`D-PLAN-ONE-OWNER`).
+
 # WebAssembly (WASM) + WASI — especificação de implementação futura
 
 > **Estado (07/10): EM DESENVOLVIMENTO — promovido por ordem direta da**

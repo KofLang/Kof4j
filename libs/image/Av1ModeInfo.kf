@@ -1,0 +1,186 @@
+package image
+
+import image.Av1ModeCdf
+import image.Av1Symbol
+
+// kof.image — AV1 intra mode-info prefix, slice 3p of the AVIF front (plan §34).
+// The first two syntax elements `intra_frame_mode_info` reads after the
+// partition walk of slice 3o: the segment id (§5.11.8 `read_segment_id`,
+// including the `neg_deinterleave` postprocess) and the skip flag (§5.11.11
+// `read_skip`), in the spec order (`SegIdPreSkip` decides which comes first).
+//
+// The spatial segment predictor/context is libaom's `av1_get_spatial_seg_pred`
+// (`prevUL`/`prevU`/`prevL` from the 4x4 segment map, `cdf_index` 0/1/2) and the
+// skip context is the spec's `Skips[MiRow-1][MiCol] + Skips[MiRow][MiCol-1]`
+// (libaom `av1_get_skip_txfm_context`). Both CDFs are the slice-3m defaults
+// (now including the segment tables) adapted in place per tile.
+//
+// Pure arithmetic, no `kof.io`, so it runs on every target. `decodeRaster`
+// keeps refusing AVIF until the chain closes.
+
+// libaom `av1_neg_deinterleave` (spec §5.11.8 `neg_deinterleave`): maps the
+// coded symbol back to the segment id, centred on the spatial predictor.
+Int av1NegDeinterleave(Int diff, Int ref, Int max) {
+    if (ref == 0) {
+        return diff
+    }
+    if (ref >= (max - 1)) {
+        return max - diff - 1
+    }
+    if (2 * ref < max) {
+        if (diff <= 2 * ref) {
+            if ((diff & 1) == 1) {
+                return ref + ((diff + 1) >> 1)
+            }
+            return ref - (diff >> 1)
+        }
+        return diff
+    }
+    if (diff <= 2 * (max - ref - 1)) {
+        if ((diff & 1) == 1) {
+            return ref + ((diff + 1) >> 1)
+        }
+        return ref - (diff >> 1)
+    }
+    return max - (diff + 1)
+}
+
+// §9 parsing process: the segment-id CDF context (0/1/2).
+Int av1SegIdCtx(Int prevUl, Int prevU, Int prevL) {
+    if (prevUl < 0) {
+        return 0
+    }
+    if (prevUl == prevU && prevUl == prevL) {
+        return 2
+    }
+    if (prevUl == prevU || prevUl == prevL || prevU == prevL) {
+        return 1
+    }
+    return 0
+}
+
+// libaom `av1_get_spatial_seg_pred`: the spatial segment predictor.
+Int av1SegIdPred(Int prevUl, Int prevU, Int prevL) {
+    if (prevU < 0) {
+        if (prevL < 0) {
+            return 0
+        }
+        return prevL
+    }
+    if (prevL < 0) {
+        return prevU
+    }
+    if (prevUl == prevU) {
+        return prevU
+    }
+    return prevL
+}
+
+class Av1ModeInfo {
+    Av1Symbol sym
+    Av1ModeCdf modes
+    Int miCols
+    Int miRows
+    Int[] segMap
+    Int[] skipMap
+    List<Int[]> segStore
+    List<Int[]> skipStore
+    List<Int[]> steps
+
+    constructor(Int[] data, Int miCols, Int miRows) {
+        this.sym = Av1Symbol(data)
+        this.modes = Av1ModeCdf()
+        this.miCols = miCols
+        this.miRows = miRows
+        this.segMap = new Int[miCols * miRows]
+        this.skipMap = new Int[miCols * miRows]
+        this.segStore = listOf()
+        this.skipStore = listOf()
+        var i = 0
+        while (i < 3) {
+            this.segStore.add(this.modes.segmentId(i))
+            this.skipStore.add(this.modes.skip(i))
+            i = i + 1
+        }
+        this.steps = listOf()
+    }
+
+    // The 4x4 segment map cell, or -1 when out of the frame (the spec's
+    // `prevU`/`prevL`/`prevUL` = -1 edge).
+    Int segAt(Int r, Int c) {
+        if (r < 0 || c < 0) {
+            return -1
+        }
+        return this.segMap[r * this.miCols + c]
+    }
+
+    Int skipAt(Int r, Int c) {
+        if (r < 0 || c < 0) {
+            return 0
+        }
+        return this.skipMap[r * this.miCols + c]
+    }
+
+    void addStep(Int r, Int c, Int skip, Int segment) {
+        var s = new Int[4]
+        s[0] = r
+        s[1] = c
+        s[2] = skip
+        s[3] = segment
+        this.steps.add(s)
+    }
+
+    // `read_skip()`: the SEG_LVL_SKIP shortcut when `SegIdPreSkip`, else the
+    // `@@skip` symbol with the neighbour context.
+    Int readSkip(Int r, Int c, Int segIdPreSkip, Int segSkipActive) {
+        var skip = 0
+        if (segIdPreSkip == 1 && segSkipActive == 1) {
+            skip = 1
+        } else {
+            var ctx = this.skipAt(r - 1, c) + this.skipAt(r, c - 1)
+            skip = this.sym.readSymbol(this.skipStore.get(ctx), 2)
+        }
+        this.skipMap[r * this.miCols + c] = skip
+        return skip
+    }
+
+    // `read_segment_id()`: spatial predictor/context, the `@@segment_id` symbol
+    // and the `neg_deinterleave` postprocess. When `skip` the id is the
+    // predictor without reading a symbol.
+    Int readSegmentId(Int r, Int c, Int skip, Int lastActiveSegId) {
+        var prevUl = this.segAt(r - 1, c - 1)
+        var prevU = this.segAt(r - 1, c)
+        var prevL = this.segAt(r, c - 1)
+        var pred = av1SegIdPred(prevUl, prevU, prevL)
+        var id = pred
+        if (skip == 0) {
+            var ctx = av1SegIdCtx(prevUl, prevU, prevL)
+            var coded = this.sym.readSymbol(this.segStore.get(ctx), 8)
+            id = av1NegDeinterleave(coded, pred, lastActiveSegId + 1)
+        }
+        this.segMap[r * this.miCols + c] = id
+        return id
+    }
+
+    // The `intra_frame_mode_info` prefix in spec order. `segIdPreSkip` selects
+    // whether the segment id is read before the skip; `segSkipActive` is the
+    // SEG_LVL_SKIP feature of the segment (0 in this slice; the segmentation
+    // feature tables land with the mode-info reader proper). Returns
+    // `[ skip, segment_id ]`.
+    Int[] readPrefix(Int r, Int c, Int segIdPreSkip, Int lastActiveSegId, Int segSkipActive) {
+        var skip = 0
+        var seg = 0
+        if (segIdPreSkip == 1) {
+            seg = this.readSegmentId(r, c, 0, lastActiveSegId)
+        }
+        skip = this.readSkip(r, c, segIdPreSkip, segSkipActive)
+        if (segIdPreSkip == 0) {
+            seg = this.readSegmentId(r, c, skip, lastActiveSegId)
+        }
+        this.addStep(r, c, skip, seg)
+        var out = new Int[2]
+        out[0] = skip
+        out[1] = seg
+        return out
+    }
+}

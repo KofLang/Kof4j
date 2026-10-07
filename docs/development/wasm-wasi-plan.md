@@ -1,5 +1,7 @@
 [English](wasm-wasi-plan.md) | [Português](wasm-wasi-plan.pt_BR.md)
 
+**Owner:** SEM DONO / OPEN — promoted by `D-WEB-WASI-DEFAULT-0710` (0.6.0 GATE, #776); any free lane claims it in DOING first (`D-PLAN-ONE-OWNER`).
+
 # Kof WASM & WASI — future implementation specification
 
 > **State (07/10): UNDER DEVELOPMENT — promoted by the maintainer's own order**
