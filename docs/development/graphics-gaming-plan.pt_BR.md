@@ -3,8 +3,8 @@
 # Graphics, Games e Media — Superfície de Intenção do Kof
 
 last: fatia-3.1 relógio puro + snapshots de input de teclado/ponteiro/gamepad pousados 05/10 (`libs/game/Clock.kf` + `Keys.kf` + `Mouse.kf` + `Pad.kf`, `GameClockE2ETest`/`GameInputE2ETest`/`GameMouseE2ETest`/`GamePadE2ETest` 4/4 cada; `known-bugs` §603 corrigido no caminho); superfície pura `kof.game` verificada cross-target (`GameCrossE2ETest` 3/3 — oráculo JVM + riscv64 + aarch64 sob qemu); forma da janela DECIDIDA (`D-GRAPHICS-WINDOW-FORM`: `Window("…") { frame { dt -> … } }`, `dt` Int ms) e seu pré-requisito de parser corrigido (`known-bugs` §611, `TrailingLambdaParamsE2ETest` 6/6); G1 SDL3 `3.4.16` medida (C + FFI do Kof, headless JVM+Native; `known-bugs` §606 corrigido); **SDL3 vendada no sysroot cross 06/10 (`scripts/provision-cross-sdl3.sh`, aarch64+riscv64 `3.4.16` + fecho de runtime + GLIBC 2.44) e a ABI crua medida ponta-a-ponta headless nos quatro alvos (`Sdl3FfiCrossE2ETest` 5/5: JVM + Native x86-64 + riscv64 + aarch64 sob qemu, golden `init=true/driver=dummy/title=kof`)**
-doing: fatia-3.4a (intent de playback de vídeo)
-next: intent de playback de vídeo POUSADO 07/10 (`libs/game/Video.kf`, `GameVideoE2ETest` 6/6 todo alvo); faltam faces de decoder/frame-readback no backend (decisão F do FFmpeg LGPL, mantenedora) + 3.5 (3D, gated por paridade)
+doing: fatia-3.6a (corpus: idiomas + tutorial)
+next: corpus 3.6a POUSADO 07/10 (`training/idioms/game.md` + `learn/42-games.md`, EN+PT, todo snippet com compile verificado); faltam faces de decoder/frame-readback no backend (decisão F do FFmpeg LGPL, mantenedora) + 3.5 (3D, gated por paridade)
 location: docs/development
 state: UNDER DEVELOPMENT
 
@@ -364,6 +364,18 @@ cobertura/manutenção/testabilidade/cross-platform). Shaders escondidos no iní
   (`video/play/pause/seek/volume` com contrato definido; frame readback) →
   **3.5** 3D só se stack/alvos/R3/runtime/conformância permitirem (senão `GFX00x`
   segue válido) → **3.6** corpus (training/learn/docs/conformância/paridade).
+- Fatia 3.6a POUSADA 07/10 (corpus, só-docs — sem mudança de
+  compilador/biblioteca): `training/idioms/game.md` (+PT: formas canônicas
+  para os 12 módulos com as restrições medidas — tempo virtual, corpo de
+  frame de 2 args, goldens em milli-units, imports por arquivo, sem trig de
+  backend) + `learn/42-games.md` (+PT: tutorial "seu primeiro game loop"
+  compondo Clock/Keys/Sprite/Draw/Window). Prova: todos os 20 snippets
+  extraídos e compilados limpos na JVM (9 EN + 9 PT de idiomas + 2
+  tutoriais), ambos os programas de tutorial rodam (`drawn=3`); executá-los
+  pegou e corrigiu 2 bugs de doc pré-commit (uma lambda `Int` para fonte de
+  clock `() -> Long` — `IncompatibleClassChangeError` em runtime — e um
+  print de `Double` cru no exemplo de sprite). Próxima: 3.6b+ (faces de
+  decoder, docs de backend) conforme backends pousarem.
 - Checklist de promoção: implementação/runtime/alvos/conformância/golden/
   headless/docs/gaps-catalogados/perf/segurança/licenças/corpus (sem "funciona
   na minha máquina").

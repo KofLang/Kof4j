@@ -5,8 +5,8 @@
 **Owner:** `192.168.15.15:9092` — lane security/connectors, graphics/gaming front; re-claimed 05/10 (the spike-3.0 `192.168.15.30:9093` claims were runner/tooling, historical).
 
 last: slice-3.1 pure clock + key/pointer/pad input snapshots landed 05/10 (`libs/game/Clock.kf` + `Keys.kf` + `Mouse.kf` + `Pad.kf`, `GameClockE2ETest`/`GameInputE2ETest`/`GameMouseE2ETest`/`GamePadE2ETest` 4/4 each; `known-bugs` §603 fixed on the way); pure `kof.game` surface cross-target verified (`GameCrossE2ETest` 3/3 — JVM oracle + riscv64 + aarch64 under qemu); window form DECIDED (`D-GRAPHICS-WINDOW-FORM`: `Window("…") { frame { dt -> … } }`, `dt` Int ms) and its parser prerequisite fixed (`known-bugs` §611, `TrailingLambdaParamsE2ETest` 6/6); G1 SDL3 `3.4.16` measured (C + Kof FFI, headless JVM+Native; `known-bugs` §606 fixed); **SDL3 vendored into the cross sysroot 06/10 (`scripts/provision-cross-sdl3.sh`, aarch64+riscv64 `3.4.16` + runtime closure + GLIBC 2.44) and the raw ABI measured end-to-end headless on all four targets (`Sdl3FfiCrossE2ETest` 5/5: JVM + Native x86-64 + riscv64 + aarch64 under qemu, golden `init=true/driver=dummy/title=kof`)**
-doing: slice-3.4a (video playback intent)
-next: video playback intent LANDED 07/10 (`libs/game/Video.kf`, `GameVideoE2ETest` 6/6 every target); remaining = decoder/frame-readback backend faces (FFmpeg LGPL decision F, maintainer) + 3.5 (3D, parity-gated)
+doing: slice-3.6a (corpus: idioms + tutorial)
+next: corpus 3.6a LANDED 07/10 (`training/idioms/game.md` + `learn/42-games.md`, EN+PT, every snippet compile-checked); remaining = decoder/frame-readback backend faces (FFmpeg LGPL decision F, maintainer) + 3.5 (3D, parity-gated)
 location: docs/development
 state: UNDER DEVELOPMENT
 
@@ -392,6 +392,17 @@ WGSL/GLSL/HLSL/cross-compile decision deferred, not first slice).
   (`video/play/pause/seek/volume` on defined contract; frame readback) →
   **3.5** 3D only if stack/targets/R3/runtime/conformance allow (else `GFX00x`
   stays valid) → **3.6** corpus (training/learn/docs/conformance/parity).
+- Slice 3.6a LANDED 07/10 (corpus, docs-only — no compiler/library change):
+  `training/idioms/game.md` (+PT: canonical forms for all 12 modules with
+  the measured constraints — virtual time, 2-arg frame body, milli-unit
+  goldens, per-file imports, no backend trig) + `learn/42-games.md` (+PT:
+  "your first game loop" tutorial composing Clock/Keys/Sprite/Draw/Window).
+  Proof: all 20 snippets extracted and compiled clean on JVM (9 EN + 9 PT
+  idioms + 2 tutorials), both tutorial programs run (`drawn=3`);
+  executing them caught and fixed 2 doc bugs pre-commit (an `Int` lambda
+  for a `() -> Long` clock source — runtime `IncompatibleClassChangeError`
+  — and a raw-`Double` print in the sprite example). Next: 3.6b+ (decoder
+  faces, backend docs) as backends land.
 - Promotion checklist: implementation/runtime/targets/conformance/golden/
   headless/docs/gaps-catalogued/perf/security/licensing/corpus (no "works on
   my machine").
