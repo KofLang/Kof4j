@@ -711,7 +711,7 @@ Java interna**. Não duplicar o trabalho de profiling — referenciá-lo.
 
 * `docs/development/test-architecture-plan.md` — suíte Java interna (L0–L5, perfis,
   performance). **Complementar, não duplicado.**
-* `docs/development/future/wasm-wasi-plan.md` — KofWasm; o E2E cross-target/WASM da plataforma
+* `docs/development/wasm-wasi-plan.md` — KofWasm; o E2E cross-target/WASM da plataforma
   depende dele (`WASM001` até então).
 * `docs/development/future/qrcode-wasm-plan.md` — outro consumidor da frente WASM.
 * `docs/stdlib/kof-file-plan.md` — `kof.file` para helpers de upload/download.

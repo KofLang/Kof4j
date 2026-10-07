@@ -4284,6 +4284,19 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 
 - **Relationships:** `Related: D-FUTURE-BATCH-2809, D-FUTURE-PROMOTION, D-PAGINATION, D-VALUE-RECORDS-GO, D-ENTITY-HISTORY, D-MULTIPARADIGMA-GO, D-GRAPHICS-SPIKE, D-TESTING-PLATFORM, D-CONNECTORS, D-KOF-FILE-GO, D-IMAGE-VISION-GO, D-BOOTSTRAP-GO, D-WASM-GO, rule 6`.
 
+## D-WEB-WASI-DEFAULT-0710 — WASI is the DEFAULT frontend target; `wasm/wasi-plan` PROMOTED; 0.6.0 GATE (maintainer order 07/10)
+
+**State:** DECIDED + PROMOTED (maintainer, chat 07/10) — recorded by lane `192.168.15.101:9092`.
+
+* **Decision:** `docs/development/wasm-wasi-plan.md`(+PT) is promoted into `docs/development/` — the promotion is the maintainer's own act (a deliberate exception to `D-FUTURE-FREEZE`), not an agent choice.
+* **Semantics of the order (verbatim intent):** the web target of Kof becomes **WASI by default**; the desktop frontend likewise; the JS/`kofjs` target **continues to exist** and is used only when **explicitly specified**. The language **surface does not change** — one backend is added and the frontend default switches. **Total behavior parity** is required and **nothing that works today may break** (`D-QUALITY-PIPELINE`/zero-regression).
+* **Gate:** the plan is a **GATE for the 0.6.0 cut** — `D-LAB-STABILITY` now also requires the WASI-default frontend to land with the existing 4-target suite green. Tracking issue **#776** (`1.0-blocks`); ledger row added the same day (`scripts/release-blockers.tsv`).
+* **Technical shape stays as decided by `D-WASM-GO` (28/09, D-WASM-01..09):** direct backend (not a transpile chain); `Int` = i64; thrown-string unwinding; handles + handle table; native mark-sweep GC; explicit closure env; WASI preview1; wasmtime first; cooperative concurrency in v1.
+* **Ownership (`D-PLAN-ONE-OWNER`):** the promoted plan is **OPEN, unowned** — any free lane claims it in DOING with `owner = <ip>:<port>` first; the notice is recorded in DOING EN/PT + status + this entry. The issue-watcher session is DEAD, so the DOING/issue path is the notification.
+* **Suggested sequencing (measured against the tree):** `Target` enum + build plumbing (additive) → codegen slice 1 (scalar functions under wasmtime) → parity harness reusing the JVM oracle → runtime surface slices → the **frontend-default flip LAST** (it is the part that must not break what works).
+
+- **Relationships:** `Related: D-WASM-GO, D-WASM-01..09, D-FUTURE-PROMOTION, D-FUTURE-FREEZE, D-LAB-STABILITY, D-QUALITY-PIPELINE-2609, D-PLAN-ONE-OWNER, rule 6`; tracker `#776`.
+
 ## D-PAGINATION-P4-LOWERING — `orm.window` desugars in the ORM lowerer into the Kof `window(...)` helper (maintainer 29/09/2026, "P4 via (b)")
 
 **State:** DECIDED (maintainer) — unblocks pagination plan P4 under `D-PAGINATION`.

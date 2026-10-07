@@ -1126,6 +1126,17 @@ FFI struct spec). Claim in `DOING.md` before code; one item = one owner
 | 13.5 | Split batch: `NativeBackend` 603 + `CompilerPipeline` 588 + `RuntimeOrm7` 585 (behavior-preserving, precedent §442/§446) | 9092 (**✅ DONE 23/09**) | `CompilerPipeline` ✅ 475; `RuntimeOrm7` ✅ split (`RuntimeOrm7` 34 + `RuntimeOrm7Setup` 265 + `RuntimeOrm7Fetch` 329); `NativeBackend` ✅ 547 (<600, tolerated band; baseline 571→547 refreshed) — `check_500.sh` rc=0, suite green |
 | 13.6 | D6-1=B — mutable `struct` by-ref front (spec-first, rule 11) | FFI | design §4/§6 reviewed, then parser/typer diff + tests |
 
+### TIER 15 — WASI default frontend (MAINTAINER ORDER 07/10, `D-WEB-WASI-DEFAULT-0710`; **0.6.0 GATE**, issue #776)
+
+Plan: [`wasm-wasi-plan.md`](wasm-wasi-plan.md) (+PT), promoted from `future/` by the maintainer herself. Web target **defaults to WASI**; desktop frontend likewise; `kofjs`/JS stays available when explicitly specified. Surface unchanged; total parity; zero regression. Technical shape fixed by `D-WASM-01..09`. OPEN — any free lane claims in DOING first.
+
+| # | Unit | Gate/proof | State |
+|---|---|---|---|
+| 15.1 | `Target` enum + build plumbing (additive, zero behavior change to existing targets) | existing 4-target suite green unchanged; `Target.WASM/WASI` parse+dispatch | OPEN |
+| 15.2 | codegen slice 1 — scalar functions under wasmtime (D-WASM-01/02: direct backend, Int=i64) | golden `tests/run-golden.sh` + new wasm harness vs JVM oracle | OPEN |
+| 15.3 | runtime slices per plan phases 0–7 (GC/handles/unwind/closures/WASI preview1) | plan release-gates section; parity matrix rows | OPEN |
+| 15.4 | **frontend-default flip LAST** (web/desktop to WASI; JS only explicit) | full 4-existing-target suite green + WASI parity; `D-LAB-STABILITY` re-measured | OPEN |
+
 ## 24. KOF 1.0 EXIT GATE — contract stabilization (RATIFIED 09/20/2026, `DECISIONS.md` §D-RELEASE-1.0; edges closed by `D-1.0-EDGES`)
 
 Development meta until the first RC: **no bug ships, no edge stays open.** The

@@ -722,7 +722,7 @@ work — reference it.
 
 * `docs/development/test-architecture-plan.md` — internal Java suite (L0–L5, profiles,
   performance). **Complementary, not duplicated.**
-* `docs/development/future/wasm-wasi-plan.md` — KofWasm; the platform's cross-target/WASM E2E
+* `docs/development/wasm-wasi-plan.md` — KofWasm; the platform's cross-target/WASM E2E
   depends on it (`WASM001` until then).
 * `docs/development/future/qrcode-wasm-plan.md` — another WASM front consumer.
 * `docs/stdlib/kof-file-plan.md` — `kof.file` for upload/download test helpers.

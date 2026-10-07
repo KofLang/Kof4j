@@ -2,7 +2,17 @@
 
 # WebAssembly (WASM) + WASI — especificação de implementação futura
 
-> **Estado (19/09): FUTURE — apenas documentação, zero código.** Registrado
+> **Estado (07/10): EM DESENVOLVIMENTO — promovido por ordem direta da**
+> **mantenedora** (`D-WEB-WASI-DEFAULT-0710`); **zero código no dia da promoção.**
+> O plano é **GATE do corte 0.6.0** (issue #776): o alvo web do Kof passa a ser
+> **WASI por padrão**, o frontend desktop igualmente; o alvo JS/`kofjs`
+> **continua existindo** quando explicitamente especificado; a **superfície da
+> linguagem não muda**; **paridade total de comportamento** e **zero regressão**
+> são obrigatórios. O plano está ABERTO e sem dono — qualquer lane livre o
+> reivindica no DOING primeiro (`D-PLAN-ONE-OWNER`). Cada afirmação abaixo
+> permanece marcada **CURRENT** (medido no código), **PLANNED** (proposto aqui)
+> ou **TBD / DECISION REQUIRED** (marcadores históricos — o bloco 28/09
+> `D-WASM-01..09` já resolveu as questões técnicas).
 > por pedido explícito da mantenedora ("documente a implementação futura de
 > WASM/WASI; NÃO implemente"). Não é fila de execução (regra três-estados +
 > R12). Esta spec **não muda nada**: nenhum `Target`, backend, runtime ou

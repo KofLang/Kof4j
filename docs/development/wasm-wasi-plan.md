@@ -2,13 +2,16 @@
 
 # Kof WASM & WASI — future implementation specification
 
-> **State (19/09): FUTURE — specification only, zero code.** No WASM/WASI
-> implementation was performed or is implied by this document. Registered at
-> the maintainer's request so that a future agent/developer can implement the
-> feature from this spec alone. Not an execution queue (three-states rule +
-> R12). Every statement is marked **CURRENT** (measured in the code),
-> **PLANNED** (proposed here) or **TBD / DECISION REQUIRED** (not decided —
-> never presented as decided).
+> **State (07/10): UNDER DEVELOPMENT — promoted by the maintainer's own order**
+> (`D-WEB-WASI-DEFAULT-0710`); **zero code at promotion day**. The plan is a
+> **GATE for the 0.6.0 cut** (issue #776): Kof's web target becomes **WASI by
+> default**, desktop frontend likewise; the JS/`kofjs` target **continues to
+> exist** when explicitly specified; the **language surface does not change**;
+> **total behavior parity** and **zero regression** are mandatory. The plan is
+> OPEN and unowned — any free lane claims it in DOING first (`D-PLAN-ONE-OWNER`).
+> Every statement below stays marked **CURRENT** (measured in the code),
+> **PLANNED** (proposed here) or **TBD / DECISION REQUIRED** (legacy markers —
+> the 28/09 `D-WASM-01..09` block already resolved the technical ones).
 >
 > **Decision update (28/09/2026):** the technical questions this spec left
 > TBD/DECISION REQUIRED were **resolved** by the maintainer in `DECISIONS.md`
