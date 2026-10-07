@@ -19,6 +19,26 @@ import image.Av1Symbol
 // Pure arithmetic, no `kof.io`, so it runs on every target. `decodeRaster`
 // keeps refusing AVIF until the chain closes.
 
+// The frame-level state `read_cdef`/`read_delta_qindex`/`read_delta_lf` consume
+// (slice 3r): the superblock size (`BLOCK_64X64` = 12 or `BLOCK_128X128` = 15),
+// the number of CDEF strength bits, and the quantizer / loop-filter delta
+// parameters from `delta_q_params`/`delta_lf_params` (§5.9.12/§5.9.13) with the
+// `CodedLossless` flag (when true the whole tail is skipped).
+record Av1ModeTail(Int sbSize, Int cdefBits, Int enableCdef, Int codedLossless,
+                   Int deltaQPresent, Int deltaQRes, Int deltaLfPresent,
+                   Int deltaLfMulti, Int deltaLfRes, Int numPlanes)
+
+// Clip3( low, high, x ).
+Int av1ModeInfoClip3(Int lo, Int hi, Int x) {
+    if (x < lo) {
+        return lo
+    }
+    if (x > hi) {
+        return hi
+    }
+    return x
+}
+
 // libaom `av1_neg_deinterleave` (spec §5.11.8 `neg_deinterleave`): maps the
 // coded symbol back to the segment id, centred on the spatial predictor.
 Int av1NegDeinterleave(Int diff, Int ref, Int max) {
@@ -109,6 +129,7 @@ class Av1ModeInfo {
     Int[] skipMap
     Int[] yModeMap
     Int[] uvModeMap
+    Int[] cdefMap
     List<Int[]> segStore
     List<Int[]> skipStore
     List<Int[]> kfYStore
@@ -118,6 +139,8 @@ class Av1ModeInfo {
     Int[] filterModeStore
     Int[] cflSignStore
     List<Int[]> cflAlphaStore
+    Int[] deltaQStore
+    List<Int[]> deltaLfStore
     List<Int[]> steps
 
     constructor(Int[] data, Int miCols, Int miRows) {
@@ -129,6 +152,12 @@ class Av1ModeInfo {
         this.skipMap = new Int[miCols * miRows]
         this.yModeMap = new Int[miCols * miRows]
         this.uvModeMap = new Int[miCols * miRows]
+        this.cdefMap = new Int[miCols * miRows]
+        var ci = 0
+        while (ci < this.cdefMap.size) {
+            this.cdefMap[ci] = -1
+            ci = ci + 1
+        }
         this.segStore = listOf()
         this.skipStore = listOf()
         var i = 0
@@ -171,6 +200,13 @@ class Av1ModeInfo {
         i = 0
         while (i < 6) {
             this.cflAlphaStore.add(this.modes.cflAlpha(i))
+            i = i + 1
+        }
+        this.deltaQStore = this.modes.deltaQ()
+        this.deltaLfStore = listOf()
+        i = 0
+        while (i < 4) {
+            this.deltaLfStore.add(this.modes.deltaLf())
             i = i + 1
         }
         this.steps = listOf()
@@ -304,6 +340,129 @@ class Av1ModeInfo {
         out[5] = cflV
         out[6] = useFilterIntra
         out[7] = filterMode
+        return out
+    }
+
+    // `read_cdef()` (§5.11.8, spec `clear_cdef`/`read_cdef`): when CDEF is on,
+    // every 64x64 unit reads a `cdef_bits`-wide strength literal ONCE — from the
+    // FIRST non-skip block that touches the unit, wherever inside it that block
+    // sits (the spec masks `MiRow`/`MiCol` to the unit origin and tests the
+    // grid) — and broadcasts it over the unit. `skip` is the block's skip flag.
+    Int readCdef(Int r, Int c, Int bs, Int skip, Av1ModeTail cfg) {
+        if (skip == 1 || cfg.codedLossless == 1 || cfg.enableCdef == 0) {
+            return -1
+        }
+        var cdefSize4 = 16
+        var r0 = r - (r % cdefSize4)
+        var c0 = c - (c % cdefSize4)
+        if (this.cdefMap[r0 * this.miCols + c0] == -1) {
+            var strength = this.sym.readLiteral(cfg.cdefBits)
+            var w4 = av1BlockNum4x4Wide(bs)
+            var h4 = av1BlockNum4x4High(bs)
+            var i = r0
+            while (i < r0 + h4) {
+                var j = c0
+                while (j < c0 + w4) {
+                    this.cdefMap[i * this.miCols + j] = strength
+                    j = j + cdefSize4
+                }
+                i = i + cdefSize4
+            }
+            return strength
+        }
+        return this.cdefMap[r0 * this.miCols + c0]
+    }
+
+    // `read_delta_qindex()` (§5.11.8): the `@@delta_q_abs` symbol plus the
+    // `DELTA_Q_SMALL` literal escape and the sign bit, returning the reduced
+    // delta scaled by `delta_q_res`. The caller adds it to the running quantizer
+    // index and clamps to [1,255]. Gated on `ReadDeltas`, on the first block of
+    // the superblock (libaom's `mi_col/mi_row & (mib_size-1) == 0`) and on the
+    // spec's `MiSize == sbSize && skip` early return.
+    Int readDeltaQ(Int r, Int c, Int bs, Int skip, Av1ModeTail cfg) {
+        if (bs == cfg.sbSize && skip == 1) {
+            return 0
+        }
+        if (cfg.deltaQPresent == 0) {
+            return 0
+        }
+        var sb4 = 16
+        if (cfg.sbSize == 15) {
+            sb4 = 32
+        }
+        if ((r % sb4) != 0 || (c % sb4) != 0) {
+            return 0
+        }
+        var abs = this.sym.readSymbol(this.deltaQStore, 4)
+        if (abs == 3) {
+            var rem = this.sym.readLiteral(3) + 1
+            abs = this.sym.readLiteral(rem) + (1 << rem) + 1
+        }
+        var sign = 1
+        if (abs != 0) {
+            sign = this.sym.readLiteral(1)
+        }
+        var reduced = abs
+        if (sign == 1) {
+            reduced = 0 - abs
+        }
+        return reduced << cfg.deltaQRes
+    }
+
+    // `read_delta_lf()` (§5.11.8): one delta level per `frameLfCount` entry,
+    // each the `@@delta_lf_abs` symbol plus the `DELTA_LF_SMALL` literal escape
+    // and the sign bit, accumulated into `cur[i]` and clamped to
+    // [-MAX_LOOP_FILTER, MAX_LOOP_FILTER]. Returns the updated levels (an empty
+    // list when the reader is gated out). Same superblock-first-block gate as
+    // `readDeltaQ`.
+    List<Int> readDeltaLf(Int r, Int c, Int bs, Int skip, List<Int> cur, Av1ModeTail cfg) {
+        if (bs == cfg.sbSize && skip == 1) {
+            return listOf()
+        }
+        if (cfg.deltaLfPresent == 0) {
+            return listOf()
+        }
+        var sb4 = 16
+        if (cfg.sbSize == 15) {
+            sb4 = 32
+        }
+        if ((r % sb4) != 0 || (c % sb4) != 0) {
+            return listOf()
+        }
+        var count = 1
+        if (cfg.deltaLfMulti == 1) {
+            count = 4
+            if (cfg.numPlanes == 1) {
+                count = 2
+            }
+        }
+        var out = listOf()
+        var i = 0
+        while (i < count) {
+            var store = this.deltaLfStore.get(0)
+            if (cfg.deltaLfMulti == 1) {
+                store = this.deltaLfStore.get(i)
+            }
+            var abs = this.sym.readSymbol(store, 4)
+            if (abs == 3) {
+                var n = this.sym.readLiteral(3) + 1
+                abs = this.sym.readLiteral(n) + (1 << n) + 1
+            }
+            var sign = 1
+            if (abs != 0) {
+                sign = this.sym.readLiteral(1)
+            }
+            var reduced = abs
+            if (sign == 1) {
+                reduced = 0 - abs
+            }
+            var prev = 0
+            if (i < cur.size) {
+                prev = cur.get(i)
+            }
+            out.add(av1ModeInfoClip3(0 - 63, 63, prev + (reduced << cfg.deltaLfRes)))
+            i = i + 1
+        }
         return out
     }
 

@@ -34,7 +34,7 @@ final class Av1ModeBodySupport {
 
     /** Expected SHA-256 of the decoded golden text (stripped), stale-resource guard. */
     static final String GOLDEN_SHA256 =
-        "4b4630b1a3e7794d02d0d92e48efb7674721a2717204e77678a7e4a104728138";
+        "cef3c09dc31aab8e4e970381a60c7e28551ec38b2a10e80b8bf7d64337a6dc1e";
 
     /** The canonical dump the Kof probe must reproduce. */
     static String golden() {
@@ -52,10 +52,32 @@ final class Av1ModeBodySupport {
             }
             byte[] gz = Base64.getDecoder().decode(sb.toString());
             try (GZIPInputStream in = new GZIPInputStream(new java.io.ByteArrayInputStream(gz))) {
-                return new String(in.readAllBytes(), StandardCharsets.UTF_8).strip();
+                String text = new String(in.readAllBytes(), StandardCharsets.UTF_8).strip();
+                String actual = sha256(text);
+                if (!actual.equals(GOLDEN_SHA256)) {
+                    throw new IllegalStateException(
+                            "stale golden " + RESOURCE + ": expected " + GOLDEN_SHA256
+                                    + " but hashed " + actual);
+                }
+                return text;
             }
         } catch (java.io.IOException e) {
             throw new IllegalStateException("cannot read " + RESOURCE, e);
+        }
+    }
+
+    private static String sha256(String text) {
+        try {
+            byte[] d = java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(text.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder(d.length * 2);
+            for (byte b : d) {
+                sb.append(Character.forDigit((b >> 4) & 0xF, 16));
+                sb.append(Character.forDigit(b & 0xF, 16));
+            }
+            return sb.toString();
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
         }
     }
 
