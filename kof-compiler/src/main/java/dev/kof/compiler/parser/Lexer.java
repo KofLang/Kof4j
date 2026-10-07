@@ -235,7 +235,7 @@ public class Lexer {
         try {
             code = Integer.parseInt(hex, 16);
         } catch (NumberFormatException e) {
-            diagnostics.error(file, line, column, 4, "Invalid unicode escape: \\u" + hex, "LEX007");
+            diagnostics.error(file, line, column, 4, "Invalid unicode escape: \\u" + hex, "LEX007", hex);
             pos += 4;
             return '\0';
         }
@@ -440,7 +440,7 @@ public class Lexer {
             case '@' -> TokenType.AT;
             default -> {
                 diagnostics.error(file, startLine, startCol, 1,
-                        "Unexpected character: '" + c + "'", "LEX005");
+                        "Unexpected character: '" + c + "'", "LEX005", String.valueOf(c));
                 yield TokenType.ERROR;
             }
         };

@@ -93,5 +93,40 @@ print(f"portukof-parity: U3 OK — {len(blocks)} categorias, bijetivas, "
 PY
 fi
 
+# 5) paridade F6 — catálogo de diagnósticos localizados (code-chave, sem código
+#    desconhecido, placeholders contíguos). Cobertura TOTAL do domínio
+#    user-facing (LEX/PARSE/SEM) é travada contra os códigos REAIS de emissão.
+if [ -f "$LANG_DIR/PortuKofDiagnostics.java" ]; then
+    python3 - "$LANG_DIR/PortuKofDiagnostics.java" kof-compiler/src/main/java <<'PY' || fail=1
+import re, sys, pathlib
+cat = open(sys.argv[1]).read()
+root = pathlib.Path(sys.argv[2])
+# codes emitidos de verdade no compilador
+real = set()
+for f in root.rglob("*.java"):
+    for m in re.finditer(r'"((?:LEX|PARSE|SEM)\d+)"', f.read_text()):
+        real.add(m.group(1))
+# códigos no catálogo PT
+mapped = set(re.findall(r'm\.put\("((?:LEX|PARSE|SEM)\d+)"', cat))
+unknown = mapped - real
+if unknown:
+    print(f"portukof-parity: F6 código no catálogo SEM emissão real: {sorted(unknown)}"); sys.exit(1)
+# placeholders contíguos {0..n-1}
+for code, tpl in re.findall(r'm\.put\("((?:LEX|PARSE|SEM)\d+)",\s*"((?:[^"\\]|\\.)*)"\)', cat):
+    idxs = [int(i) for i in re.findall(r'\{(\d+)\}', tpl)]
+    if idxs and sorted(idxs) != list(range(max(idxs)+1)):
+        print(f"portukof-parity: F6 placeholder não contíguo em {code}: {tpl}"); sys.exit(1)
+    if len(idxs) != len(set(idxs)):
+        print(f"portukof-parity: F6 placeholder duplicado em {code}: {tpl}"); sys.exit(1)
+# cobertura do domínio já mapeado (LEX 100% obrigatória nesta fase)
+lex_real = {c for c in real if c.startswith("LEX")}
+lex_map = {c for c in mapped if c.startswith("LEX")}
+if lex_real - lex_map:
+    print(f"portukof-parity: F6 LEX sem PT: {sorted(lex_real-lex_map)}"); sys.exit(1)
+print(f"portukof-parity: F6 OK — {len(mapped)} códigos localizados, todos com emissão real, "
+      f"LEX {len(lex_map)}/{len(lex_real)}; PARSE+SEM em progresso")
+PY
+fi
+
 [ $fail -eq 0 ] && { note "TODAS as checagens rc=0 — paridade absoluta travada"; exit 0; }
 note "FALHOU"; exit 1
