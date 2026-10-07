@@ -120,9 +120,11 @@ sessions:
 heartbeat:
 port: 9093
 session: ses_f69e2a3f7ffe9J10aWcHEUOfW8
+state: DEAD 06/10 (measured: 0 rows in the live opencode.db after the DB recovery; no listener on 9093) — re-registration requires spawning the server and recording the NEW session id; never invent ids
 issue-watcher:
 port: 9094
 session: ses_f69c2cb03ffe2zDYCqW7fesphi
+state: DEAD 06/10 (measured: 0 rows in the live opencode.db; no listener on 9094) — same re-registration rule
 
 issue-watcher:
 

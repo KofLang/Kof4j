@@ -134,6 +134,8 @@ port: 9093
 
 session: ses_f69e2a3f7ffe9J10aWcHEUOfW8
 
+state: MORTO 06/10 (medido: 0 linhas no opencode.db vivo após a recuperação do banco; sem listener na 9093) — o re-registro exige spawnar o servidor e gravar o NOVO id de sessão; jamais inventar ids
+
 issue-watcher:
 
 port: 9094
