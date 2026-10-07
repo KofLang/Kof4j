@@ -17412,3 +17412,17 @@ Literals only — no calls, no captures, no FFI. Bisected variants, all failing 
 **Boundary:** record + workaround only; no typer/runtime/backend change from this lane.
 
 <!-- pt-switch --> **PT:** [§623 (pt_BR)](known-bugs.pt_BR.md#623--um-escape-nul-0-dentro-de-string-literal-funciona-na-jvm-mas-quebra-o-assembler-native-byte-de-controle-cru-no-s-gerado-mal-rotulado-comp001---aberta-achada-0710-pelo-stream-de-audio-da-fatia-33c-dona--lane-native-backend)
+
+## §624 — the ANDROID target emitted INVALID bytecode for `throw`/`assert`: the String→`RuntimeException` wrap was gated to `Target.JVM` only, so the `athrow` received the raw `String` on the stack (`VerifyError`, masked by the launcher as "JavaFX runtime components not found") — ✅ FIXED 07/10 (owner = 192.168.15.30:9093; lane issues/tooling, discovered in the issue-#777 hunt)
+
+**Symptom (measured 07/10, tip `da5afcaa4`):** any Android app whose Kof source uses `throw "msg"` or a failing `assert` fails to load: `java -cp out Default.Main` prints the false launcher message "os componentes de runtime do JavaFX não foram encontrados", and the diagnostic launcher (`KofJvmMain`) shows the real cause `java.lang.VerifyError: Bad type on operand stack ... Type 'java/lang/String' is not assignable to 'java/lang/Throwable'` at the `athrow`. The same source runs correctly on JVM/Script/Native/JS.
+
+**Root (read):** `StatementLowerer` wrapped a String exception into a `java.lang.RuntimeException` only when `driver.target == Target.JVM` (`ThrowStmt` at `:336`, `AssertStmt` at `:358`). ANDROID reuses `JvmBackend(Target.ANDROID)` and the identical JVM exception contract (a Kof `throw "s"` becomes `RuntimeException("s")` so `catch (String)` still sees the message), but the guard excluded it, so the String itself was left on the stack for `athrow` — an invalid operand type that the JVM verifier rejects at class load.
+
+**Fix (lowering only, additive):** both guards now accept `Target.JVM || Target.ANDROID`. No typer/parser/runtime change; the bytecode for JVM is untouched (the condition is unchanged for it).
+
+**Proof (RED-first):** new `AndroidExceptionLoweringE2ETest` **2/2** — pre-fix both legs RED with the exact `VerifyError`; post-fix the Android-targeted bytecode runs on the host (Android = JVM backend) and prints `before` + `java.lang.RuntimeException: boom` / `java.lang.RuntimeException: assertion failed`. The issue-#777 `KofRngTest.androidMatchesOracle` (which exercises a non-constant `assert`) is green with the fix and RED without it.
+
+**Boundary:** the JVM-family throw/assert wrap on the Android target only. Other `target == Target.JVM` sites that intentionally mean "JVM-only runtime behavior" are out of scope; this one is a shared JVM-backend contract. No issue filed (found by this lane, same commit).
+
+<!-- pt-switch --> **PT:** [§624 (pt_BR)](known-bugs.pt_BR.md#624--o-alvo-android-emitia-bytecode-invalido-para-throwassert-o-wrap-stringruntimeexception-estava-gated-so-em-targetjvm-entao-o-athrow-recebia-a-string-crua-na-pilha-verifyerror-mascarado-pelo-launcher-como-componentes-de-runtime-do-javafx-nao-encontrados---corrigido-0710-dona--19216815309093-lane-issuestooling-achado-na-caca-da-issue-777)
