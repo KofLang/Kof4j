@@ -95,20 +95,57 @@ class PortuKofDiagnosticsTest {
     }
 
     @Test
-    void catalogIsCodeKeyedAndPlaceholderSafe() {
-        var pt = PortuKofDiagnostics.ptTemplates();
-        assertFalse(pt.isEmpty(), "catálogo PT não vazio");
-        for (var e : pt.entrySet()) {
+    void catalogIsCodeKeyedCompleteAndPlaceholderSafe() {
+        var catalog = PortuKofDiagnostics.catalog();
+        assertFalse(catalog.isEmpty(), "catálogo não vazio");
+        var ph = java.util.regex.Pattern.compile("\\{(\\d+)\\}");
+        for (var e : catalog.entrySet()) {
             assertTrue(e.getKey().matches("(LEX|PARSE|SEM)[0-9]+"),
                     "chave deve ser código canônico: " + e.getKey());
-            assertFalse(e.getValue().isBlank(), "template vazio: " + e.getKey());
+            assertFalse(e.getValue().isEmpty(), "sem variantes: " + e.getKey());
+            for (String[] v : e.getValue()) {
+                assertFalse(v[1].isBlank(), "template PT vazio em " + e.getKey());
+                var en = ph.matcher(v[0]);
+                var pt = ph.matcher(v[1]);
+                var enIdx = new java.util.TreeSet<String>();
+                var ptIdx = new java.util.TreeSet<String>();
+                while (en.find()) enIdx.add(en.group());
+                while (pt.find()) ptIdx.add(pt.group());
+                assertEquals(enIdx, ptIdx, "paridade de placeholders " + e.getKey());
+            }
         }
+    }
+
+    @Test
+    void localizeKeysOnCanonicalMessageNotProsa() {
+        // chave = código + mensagem EN canônica + args; PT só sai quando a variante
+        // EN, renderizada com os MESMOS args, reproduz exatamente a mensagem.
         assertEquals("caractere inesperado: 'x'",
-                PortuKofDiagnostics.localize("LEX005", "M.ptkf", List.of("x")));
+                PortuKofDiagnostics.localize("LEX005", "M.ptkf", "Unexpected character: 'x'", List.of("x")));
         // superfície KOF => null (fica EN); conteúdo do arg nunca é tocado
-        assertEquals(null, PortuKofDiagnostics.localize("LEX005", "M.kf", List.of("x")));
-        // usuário 'João' preservado literalmente dentro do arg (sem traduzir)
-        assertEquals("caractere inesperado: 'João'",
-                PortuKofDiagnostics.localize("LEX005", "M.ptkf", List.of("João")));
+        assertEquals(null,
+                PortuKofDiagnostics.localize("LEX005", "M.kf", "Unexpected character: 'x'", List.of("x")));
+        // mensagem que nenhuma variante reproduz => null (NUNCA tradução aproximada)
+        assertEquals(null,
+                PortuKofDiagnostics.localize("LEX005", "M.ptkf", "Some message no template renders", List.of("x")));
+    }
+
+    @Test
+    void staticSemTemplateLocalizesThroughCatalog() {
+        String en = "List.zip takes exactly one List argument";
+        // superfície KOF => null (o chamador mantém a EN canônica)
+        assertEquals(null, PortuKofDiagnostics.localize("SEM025", "M.kf", en, List.of()),
+                "Kof não localiza (null => mantém EN)");
+        String pt = PortuKofDiagnostics.localize("SEM025", "M.ptkf", en, List.of());
+        assertNotEquals(en, pt, "PortuKof localiza a forma humana");
+        assertTrue(pt.contains("List.zip"), pt);
+    }
+
+    @Test
+    void parseDiagnosticLocalizedEndToEnd() throws Exception {
+        // PARSE real (não só LEX): mesma posição/código/message EN nas duas faces;
+        // só a forma humana PT aparece na superfície .ptkf.
+        assertParity("main() {\n    var x = (1 + 2\n}\n",
+                "principal() {\n    var x = (1 + 2\n}\n", "PARSE040");
     }
 }

@@ -452,7 +452,7 @@ public class StatementParser {
                         + "the type '" + type + "' before '" + name + "' does not match '" + annType
                         + "' and would be silently discarded; write 'var " + name + ": " + annType
                         + " = ...' or '" + annType + " " + name + " = ...'",
-                        "PARSE095");
+                        "PARSE095", type, name, annType, name, annType, annType, name);
             }
             type = annType;
         }

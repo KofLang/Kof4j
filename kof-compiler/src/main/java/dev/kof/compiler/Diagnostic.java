@@ -69,7 +69,7 @@ public record Diagnostic(Severity severity, String file, int line, int column, i
      *  argumentos estruturados capturados na emissão; `.kf` e qualquer código sem
      *  tradução permanecem em inglês. Detecção por EXTENSÃO, nunca por conteúdo. */
     public String localizedMessage() {
-        String pt = PortuKofDiagnostics.localize(code, file, args);
+        String pt = PortuKofDiagnostics.localize(code, file, message, args);
         return pt != null ? pt : message;
     }
 

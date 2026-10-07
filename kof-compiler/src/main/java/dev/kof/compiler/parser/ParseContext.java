@@ -153,7 +153,7 @@ public class ParseContext {
             advance();
             diagnostics.error(file, kw.line(), kw.column(), kw.value().length(),
                     "'" + kw.value() + "' is a reserved word (Kof has no function keyword); "
-                    + "declare as 'Type name(...) { }' or 'name(...): Type { }'", "PARSE085");
+                    + "declare as 'Type name(...) { }' or 'name(...): Type { }'", "PARSE085", kw.value());
             return "error";
         }
         diagnostics.error(file, peek().line(), peek().column(), peek().length(), message, code);
@@ -183,5 +183,12 @@ public class ParseContext {
 
     public void error(String message, String code) {
         diagnostics.error(file, peek().line(), peek().column(), peek().length(), message, code);
+    }
+
+    /** D-PORTUKOF F6: captura de ARGUMENTOS ESTRUTURADOS (a mensagem EN continua
+     *  idêntica; os args alimentam a renderização PT pelo código). */
+    public void error(String message, String code, Object... args) {
+        diagnostics.error(file, peek().line(), peek().column(), peek().length(),
+                message, code, args);
     }
 }

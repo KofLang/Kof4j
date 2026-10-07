@@ -307,11 +307,11 @@ public class Parser {
         }
         ctx.expect(TokenType.RBRACE, "Expected '}' to close foreign module", "PARSE093");
         if (library == null) {
-            ctx.error("foreign module '" + name + "' must declare a `library \"...\"`", "PARSE097");
+            ctx.error("foreign module '" + name + "' must declare a `library \"...\"`", "PARSE097", name);
         }
         if (ownership != null && !CONNECTOR_OWNERSHIP.contains(ownership)) {
             ctx.error("foreign module '" + name + "': unknown ownership '" + ownership
-                    + "' (expected one of " + CONNECTOR_OWNERSHIP + ")", "PARSE099");
+                    + "' (expected one of " + CONNECTOR_OWNERSHIP + ")", "PARSE099", name, ownership, CONNECTOR_OWNERSHIP);
         }
         List<AstNode> out = new ArrayList<>(externs);
         out.add(new ForeignModuleNode(p, name, library, abi, ownership, List.of()));
@@ -370,7 +370,7 @@ public class Parser {
     static void rejectFunctionKeyword(ParseContext ctx) {
         String w = ctx.advance().value();
         ctx.error("'" + w + "' is a reserved word (Kof has no function keyword); "
-                + "declare as 'Type name(...) { }' or 'name(...): Type { }'", "PARSE085");
+                + "declare as 'Type name(...) { }' or 'name(...): Type { }'", "PARSE085", w);
     }
 
     /**
