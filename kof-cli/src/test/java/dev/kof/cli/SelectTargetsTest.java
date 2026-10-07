@@ -86,9 +86,14 @@ class SelectTargetsTest {
 
     @Test
     void legacyTargetFlagSharesWasmHonestGap() {
-        // --target=wasm (legado) deve explicar o WASM001/Fase 6 como
-        // --frontend=wasm — nunca "unknown target" genérico (R6).
-        var msgs = KofCliSupport.unknownTargetMessages("wasm");
+        // 15.1 (07/10, #776): "wasm"/"wasi" agora PARSEM — targets reais da
+        // topologia sem backend de emissão; a recusa honesta (WASM001) vive
+        // no compile (WasmTargetGateE2ETest) e no validate. O ALIAS longo
+        // segue com mensagem WASM001 nomeando o plano real (R6).
+        assertEquals(0, KofCliSupport.unknownTargetMessages("wasm").size(),
+                "wasm é alvo válido desde 15.1");
+        assertEquals(0, KofCliSupport.unknownTargetMessages("wasi").size());
+        var msgs = KofCliSupport.unknownTargetMessages("webassembly");
         assertEquals(1, msgs.size());
         assertTrue(msgs.get(0).contains("WASM001"), msgs.get(0));
         assertTrue(msgs.get(0).contains("docs/development/DECISIONS.md"),
@@ -103,12 +108,17 @@ class SelectTargetsTest {
     // the generic "unknown target". RED pre-fix (`unknown target: wasi`).
     @Test
     void legacyWasiTargetFlagIsHonestGap() {
-        var msgs = KofCliSupport.unknownTargetMessages("wasi");
+        // 15.1-COMPLETE (lane 192.168.15.101:9092): bare "wasi" is a REAL
+        // target now — parse succeeds; the honest WASM001 refusal moved to
+        // validate()/compile (WasmTargetGateE2ETest). The LONG solecisms keep
+        // lane .30's named string gap.
+        assertEquals(0, KofCliSupport.unknownTargetMessages("wasi").size());
+        var msgs = KofCliSupport.unknownTargetMessages("wasi-preview1");
         assertEquals(1, msgs.size());
         assertTrue(msgs.get(0).contains("WASM001"), msgs.get(0));
         assertTrue(msgs.get(0).contains("#776"), msgs.get(0));
         assertTrue(msgs.get(0).contains("docs/development/wasm-wasi-plan.md"), msgs.get(0));
-        // --frontend=wasi (canonical path) rejects with the same named gap
+        // the canonical FRONTEND path refuses the real target with the same named gap
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
                 () -> KofCliSupport.selectTargets("jvm", "wasi", null));
         assertTrue(e.getMessage().contains("WASM001"), e.getMessage());

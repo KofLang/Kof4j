@@ -4,6 +4,12 @@
 
 # WebAssembly (WASM) + WASI — especificação de implementação futura
 
+last: 15.1 POUSADA 07/10 (este commit; lane `192.168.15.101:9092`) — `Target.WASM/WASI` na topologia: enum + `TargetMatrix` + parse da CLI + recusa honesta WASM001 no compile (sem artefatos; nomeia plano/TIER-15/#776); `WasmTargetGateE2ETest` 5/5; lote da face tocada 293+82 verde (`NativeNullablePrimitiveContractE2ETest` re-exclui WASM/WASI como ANDROID — reentrada obrigatória na 15.2)
+doing: 15.2 em seguida — primeira fatia de backend emissor (funções escalares `Int/Long/Double` sob wasmtime, D-WASM-01/02: backend direto, Int=i64), RED-first, aditiva; reivindicar no DOING primeiro (`D-PLAN-ONE-OWNER`)
+next: 15.2 (escalares wasmtime) → 15.3 fatias de runtime (GC/handles/desempilhamento/closures/WASI preview1) → 15.4 flip do padrão de frontend POR ÚLTIMO (#776 só fecha com paridade total + 4 alvos existentes verdes)
+location: docs/development/wasm-wasi-plan.pt_BR.md
+state: EM DESENVOLVIMENTO
+
 > **Estado (07/10): EM DESENVOLVIMENTO — promovido por ordem direta da**
 > **mantenedora** (`D-WEB-WASI-DEFAULT-0710`); **zero código no dia da promoção.**
 > O plano é **GATE do corte 0.6.0** (issue #776): o alvo web do Kof passa a ser
@@ -107,7 +113,18 @@ implementar — não assumir mais deste diagrama do que está escrito aqui):
   "Phase 6 of the platform plan"). Plumbing aditivo: **ainda sem valor no enum
   `Target`** (adjacente a superfície congelada, regra 6) e sem codegen. Prova
   RED-first: `TargetMatrixTest.wasiSpellingsAreHonestGap` +
-  `SelectTargetsTest.legacyWasiTargetFlagIsHonestGap`. O código do gap está
+  `SelectTargetsTest.legacyWasiTargetFlagIsHonestGap`.
+- **Emenda (07/10, lane `192.168.15.101:9092`, 15.1-COMPLETA):** o passo do
+  enum NÃO ficou adiado — o roadmap TIER 15 define a própria 15.1 como
+  enum+encanamento (ordem da mantenedora `D-WEB-WASI-DEFAULT-0710`, que
+  promoveu este plano). `Target.WASM`/`Target.WASI` agora EXISTEM: as formas
+  canônicas `wasm`/`wasi` PARSEIAM como alvos reais ponta a ponta, e a recusa
+  honesta de emissão (WASM001, nomeando este plano + unidade 15.2 + #776, sem
+  escrever artefatos, nunca fallback JVM) vive em
+  `TargetMatrix.validate`/`CompilerPipeline.lowerAndEmit`
+  (`WasmTargetGateE2ETest` 5/5). Os solecismos longos mantêm o gap de string
+  da `.30` verbatim; os dois testes da `.30` foram re-pinados para esta
+  verdade (cobertura de solecismos preservada). O código do gap está
   reservado para este futuro (§14).
 - `dev.kof.compiler.js` (`JsBackend`, `JsArtifactWriter`, …) — precedente
   estrutural para um pacote `dev.kof.compiler.wasm`.
@@ -135,12 +152,12 @@ runtime** (GC, strings, dispatch) já pagos em JVM+Native+JS. **TBD**: se o
 emissor consome a IR de lowering atual direto ou uma IR intermediária
 orientada a WASM — decidir na Fase 0 (§31).
 
-## 5. Target registry
+## 5. Target registry (15.1 POUSADA 07/10 — enum + matriz + parse da CLI; emissão PLANEJADA)
 
 ```
 CURRENT (real hoje):
   kof compile/build/run → jvm | native (native.risc/arm cross) | js | script | --android
-  kof --target wasm|wasi → REJEITADO hoje com WASM001 (gap honesto, TargetMatrix) — nunca silencioso
+  kof --target wasm|wasi → PARSEIAM desde 15.1; o compile recusa com WASM001 honesto — nunca silencioso
 
 PLANNED (só esta doc — não documentar como existente):
   kof build --target=wasm / --target=wasi

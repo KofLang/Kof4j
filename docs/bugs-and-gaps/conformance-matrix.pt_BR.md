@@ -322,20 +322,19 @@ different reason, both honest (R6):
   covered by `AndroidInteropE2ETest` (JVM semantics in `Target.ANDROID`);
   the APK pipeline itself requires the SDK and has no E2E in the suite.
 
-- **`wasm` / `wasi` / `kofwebassembly`** — **WASM001: ainda não existe**. Não há
-  `Target.WASM`; `TargetMatrix.frontendGapFor` mapeia os nomes pedidos
-  (`wasm`, `kofwasm`, `kofwebasm`, `kofwebassembly`, `webassembly`, `wasm32`,
-  `wasm32-wasi`, `wasi`, `wasi-preview1`, `wasip1`, `kofwasi`) para o gap
-  **WASM001** — a frente wasm/wasi agora está PROMOVIDA e é gate do corte 0.6.0
-  (`docs/development/wasm-wasi-plan.md`, issue #776, `D-WEB-WASI-DEFAULT-0710`;
-  formato técnico `D-WASM-GO`/`D-WASM-01..09`). Os dois caminhos CLI diagnosticam
-  o mesmo: `--frontend=wasm`/`--frontend=wasi`/`kof.toml` →
-  `TargetMatrix.parse` com o gap; `--target=wasm`/`--target=wasi` (flag legada) →
-  a mesma mensagem via `KofCliSupport.parseTarget`. Nunca compila como JVM por
-  engano. Prova: `TargetMatrixTest.wasmGapMessagePointsToRealPlanPath` +
-  `TargetMatrixTest.wasiSpellingsAreHonestGap` +
-  `SelectTargetsTest.wasmFrontendIsHonestGap` +
-  `SelectTargetsTest.legacyWasiTargetFlagIsHonestGap`.
+- **`wasm` / `wasi`** — **WASM001: só topologia, sem backend emissor ainda**
+  (15.1 pousada 07/10 em duas fatias: cobertura de solecismos `233724b40` pela
+  lane `192.168.15.30:9092` + a topologia enum/parse da unidade-1 do TIER 15
+  (`D-WEB-WASI-DEFAULT-0710`) pela lane `192.168.15.101:9092`; issue #776).
+  `Target.WASM`/`Target.WASI` EXISTEM, `TargetMatrix` nomeia+parseia os
+  canônicos `wasm`/`wasi` e a CLI os aceita; o compilador RECUSA na emissão
+  com o diagnóstico limpo **WASM001** nomeando o plano, a unidade 15.2 do
+  TIER 15 e a #776 — e nenhum artefato, nunca um fallback JVM silencioso. Os
+  aliases/solecismos longos (`kofwasm`, `kofwebasm`, `kofwebassembly`,
+  `webassembly`, `wasm32`, `wasm32-wasi`, `wasi-preview1`, `wasip1`,
+  `kofwasi`) mantêm o gap de string via `TargetMatrix.frontendGapFor`.
+  Entram na matriz por-alvo quando a 15.2 pousar goldens reais.
+  Prova: `WasmTargetGateE2ETest` + `TargetMatrixTest` + `SelectTargetsTest`.
 
 ## Method notes
 

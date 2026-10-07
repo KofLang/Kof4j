@@ -4,6 +4,12 @@
 
 # Kof WASM & WASI — future implementation specification
 
+last: 15.1 LANDED 07/10 (this commit; lane `192.168.15.101:9092`) — `Target.WASM/WASI` + `TargetMatrix` + CLI parse + compile-path honest WASM001 refusal (no artifacts, names plan/TIER-15/#776); `WasmTargetGateE2ETest` 5/5; touched-face batch 293+82 green (incl. `NativeNullablePrimitiveContractE2ETest` re-excluded WASM/WASI like ANDROID — re-entry required at 15.2)
+doing: 15.2 next — first emitting backend slice (scalar `Int/Long/Double` functions under wasmtime, D-WASM-01/02: direct backend, Int=i64), RED-first, additive; claim in DOING first (`D-PLAN-ONE-OWNER`)
+next: 15.2 (wasmtime scalars) → 15.3 runtime slices (GC/handles/unwind/closures/WASI preview1) → 15.4 frontend-default flip LAST (#776 closes only with total parity + 4-existing-targets green)
+location: docs/development/wasm-wasi-plan.md
+state: UNDER DEVELOPMENT
+
 > **State (07/10): UNDER DEVELOPMENT — promoted by the maintainer's own order**
 > (`D-WEB-WASI-DEFAULT-0710`); **zero code at promotion day**. The plan is a
 > **GATE for the 0.6.0 cut** (issue #776): Kof's web target becomes **WASI by
@@ -129,10 +135,10 @@ for the capability column.
 fuzzing obligations, §26–27); a wasm runtime must exist (§7); **DECISION
 REQUIRED** from the maintainer to freeze this as official (rule 6).
 
-## 6. Target registry (PLANNED)
+## 6. Target registry (15.1 LANDED 07/10 — enum + matrix + CLI parse; emission PLANNED)
 
 ```bash
-kof build --target=wasm   # PLANNED — today: WASM001 honest rejection
+kof build --target=wasm   # 15.1: parses — today: WASM001 honest rejection (15.2 emits)
 kof build --target=wasi   # PLANNED
 kof check --target=wasm   # PLANNED (diagnostic parity with other targets)
 kof run --target=wasi     # PLANNED (requires a WASI host, §19)
@@ -154,6 +160,17 @@ generic "unknown target". The message now names the promoted plan + issue #776 +
 yet** (that is the frozen-surface-adjacent step, rule 6, deferred to the codegen
 phase). Proof: `TargetMatrixTest.wasiSpellingsAreHonestGap` +
 `SelectTargetsTest.legacyWasiTargetFlagIsHonestGap` (both RED pre-slice).
+
+**Amendment (07/10, lane `192.168.15.101:9092`, 15.1-COMPLETE):** the enum
+step was NOT deferred — roadmap TIER 15 defines 15.1 ITSELF as enum+plumbing
+(maintainer order `D-WEB-WASI-DEFAULT-0710`, the order that promoted this
+plan). `Target.WASM`/`Target.WASI` now EXIST: the canonical bare `wasm`/`wasi`
+PARSE as real targets end-to-end, and the honest emitting refusal (WASM001,
+naming this plan + unit 15.2 + #776, writing NO artifacts, never a JVM
+fallback) lives in `TargetMatrix.validate`/`CompilerPipeline.lowerAndEmit`
+(`WasmTargetGateE2ETest` 5/5). The long solecisms keep `.30`'s string gap
+verbatim; both `.30` tests were re-pinned to this truth (solecism coverage
+preserved).
 
 ## 7. WASM backend spec (PLANNED)
 

@@ -18,8 +18,13 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /** #259/N2: the same return/local contract on each target, independently reported. */
 class NativeNullablePrimitiveContractE2ETest {
+    // 15.1 (#776, 07/10): WASM/WASI joined the TOPOLOGY but have no emitting
+    // backend yet (compile refuses with the clean WASM001 diagnostic) — they
+    // are excluded from the run-the-surface matrix exactly like ANDROID, and
+    // must RE-ENTER this matrix when units 15.2/15.3 land with real goldens.
+
     @ParameterizedTest
-    @EnumSource(value = Target.class, names = {"ANDROID"}, mode = EnumSource.Mode.EXCLUDE)
+    @EnumSource(value = Target.class, names = {"ANDROID", "WASM", "WASI"}, mode = EnumSource.Mode.EXCLUDE)
     void absenceAndPresentDefaults(Target target, @TempDir Path dir) throws Exception {
         run(target, dir, """
                 Int? ni() { return null }
@@ -50,7 +55,7 @@ class NativeNullablePrimitiveContractE2ETest {
     }
 
     @ParameterizedTest
-    @EnumSource(value = Target.class, names = {"ANDROID"}, mode = EnumSource.Mode.EXCLUDE)
+    @EnumSource(value = Target.class, names = {"ANDROID", "WASM", "WASI"}, mode = EnumSource.Mode.EXCLUDE)
     void branchesLocalsAndForwardedReturn(Target target, @TempDir Path dir) throws Exception {
         run(target, dir, """
                 Int? f(Bool c) = if (c) 7 else null
@@ -78,7 +83,7 @@ class NativeNullablePrimitiveContractE2ETest {
     }
 
     @ParameterizedTest
-    @EnumSource(value = Target.class, names = {"ANDROID"}, mode = EnumSource.Mode.EXCLUDE)
+    @EnumSource(value = Target.class, names = {"ANDROID", "WASM", "WASI"}, mode = EnumSource.Mode.EXCLUDE)
     void equalityUsesPayloadAndNullIsSymmetric(Target target, @TempDir Path dir) throws Exception {
         run(target, dir, """
                 Int? a() { return 10000 }
@@ -98,7 +103,7 @@ class NativeNullablePrimitiveContractE2ETest {
     }
 
     @ParameterizedTest
-    @EnumSource(value = Target.class, names = {"ANDROID"}, mode = EnumSource.Mode.EXCLUDE)
+    @EnumSource(value = Target.class, names = {"ANDROID", "WASM", "WASI"}, mode = EnumSource.Mode.EXCLUDE)
     void stringificationAndFinallyPreserveRepresentation(Target target, @TempDir Path dir) throws Exception {
         run(target, dir, """
                 Char? c(Bool b) { if (b) return 'K'; return null }
@@ -118,7 +123,7 @@ class NativeNullablePrimitiveContractE2ETest {
     }
 
     @ParameterizedTest
-    @EnumSource(value = Target.class, names = {"ANDROID"}, mode = EnumSource.Mode.EXCLUDE)
+    @EnumSource(value = Target.class, names = {"ANDROID", "WASM", "WASI"}, mode = EnumSource.Mode.EXCLUDE)
     void floatingEqualityMatchesJvmWrapperContract(Target target, @TempDir Path dir) throws Exception {
         run(target, dir, """
                 Double? dn() { return 0.0 / 0.0 }
@@ -143,7 +148,7 @@ class NativeNullablePrimitiveContractE2ETest {
      * {@code NullableType} ele acordou.
      */
     @ParameterizedTest
-    @EnumSource(value = Target.class, names = {"ANDROID"}, mode = EnumSource.Mode.EXCLUDE)
+    @EnumSource(value = Target.class, names = {"ANDROID", "WASM", "WASI"}, mode = EnumSource.Mode.EXCLUDE)
     void plainAssignmentBoxesAtDeclaredInnerWidth(Target target, @TempDir Path dir) throws Exception {
         run(target, dir, """
                 main() {
@@ -178,7 +183,7 @@ class NativeNullablePrimitiveContractE2ETest {
      * Native de fora justamente porque o slot era o int cru.
      */
     @ParameterizedTest
-    @EnumSource(value = Target.class, names = {"ANDROID"}, mode = EnumSource.Mode.EXCLUDE)
+    @EnumSource(value = Target.class, names = {"ANDROID", "WASM", "WASI"}, mode = EnumSource.Mode.EXCLUDE)
     void boxedBoolTruthinessReadsValueNotPointer(Target target, @TempDir Path dir) throws Exception {
         run(target, dir, """
                 Troolean nb() { return null }

@@ -322,20 +322,19 @@ different reason, both honest (R6):
   covered by `AndroidInteropE2ETest` (JVM semantics in `Target.ANDROID`);
   the APK pipeline itself requires the SDK and has no E2E in the suite.
 
-- **`wasm` / `wasi` / `kofwebassembly`** — **WASM001: does not exist yet**. There
-  is no `Target.WASM`; `TargetMatrix.frontendGapFor` maps the requested names
-  (`wasm`, `kofwasm`, `kofwebasm`, `kofwebassembly`, `webassembly`, `wasm32`,
-  `wasm32-wasi`, `wasi`, `wasi-preview1`, `wasip1`, `kofwasi`) to the gap
-  **WASM001** — the wasm/wasi frontend is now PROMOTED and is a 0.6.0 cut gate
-  (`docs/development/wasm-wasi-plan.md`, issue #776, `D-WEB-WASI-DEFAULT-0710`;
-  technical shape `D-WASM-GO`/`D-WASM-01..09`). The two CLI paths diagnose the
-  same: `--frontend=wasm`/`--frontend=wasi`/`kof.toml` →
-  `TargetMatrix.parse` with the gap; `--target=wasm`/`--target=wasi` (legacy
-  flag) → the same message via `KofCliSupport.parseTarget`. It never compiles as
-  JVM by mistake. Proof: `TargetMatrixTest.wasmGapMessagePointsToRealPlanPath` +
-  `TargetMatrixTest.wasiSpellingsAreHonestGap` +
-  `SelectTargetsTest.wasmFrontendIsHonestGap` +
-  `SelectTargetsTest.legacyWasiTargetFlagIsHonestGap`.
+- **`wasm` / `wasi`** — **WASM001: topology-only, no emitting backend yet**
+  (15.1 landed 07/10 in two slices: string-spelling coverage `233724b40` by
+  lane `192.168.15.30:9092` + the enum/parse topology of TIER 15 unit-1
+  (`D-WEB-WASI-DEFAULT-0710`) by lane `192.168.15.101:9092`; issue #776).
+  `Target.WASM`/`Target.WASI` EXIST, `TargetMatrix` names+parses the canonical
+  `wasm`/`wasi` and the CLI accepts them; the compiler REFUSES at emit with
+  the clean **WASM001** diagnostic naming the plan, TIER 15 unit 15.2 and
+  #776 — and no artifacts, never a silent JVM fallback. The long
+  aliases/solecisms (`kofwasm`, `kofwebasm`, `kofwebassembly`, `webassembly`,
+  `wasm32`, `wasm32-wasi`, `wasi-preview1`, `wasip1`, `kofwasi`) keep the
+  string gap via `TargetMatrix.frontendGapFor`. They ENTER the per-target
+  matrix when 15.2 lands real goldens. Proof: `WasmTargetGateE2ETest` +
+  `TargetMatrixTest` + `SelectTargetsTest`.
 
 ## Method notes
 

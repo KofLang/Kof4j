@@ -91,7 +91,7 @@ final class KofCliSupport {
         Target t = switch (value) {
             case "jvm", "native", "native.risc", "native.riscv64", "native.riscv",
                  "native.arm", "native.aarch64", "native.aarch", "js", "kofjs",
-                 "android", "script", "kofscript" -> Target.JVM;
+                 "android", "script", "kofscript", "wasm", "wasi" -> Target.JVM;
             default -> null;
         };
         if (t != null) return List.of();
@@ -112,6 +112,8 @@ final class KofCliSupport {
             case "js", "kofjs" -> Target.JS;
             case "android" -> Target.ANDROID;
             case "script", "kofscript" -> Target.SCRIPT;
+            case "wasm" -> Target.WASM;
+            case "wasi" -> Target.WASI;
             default -> {
                 for (String e : unknownTargetMessages(value)) System.err.println(e);
                 System.exit(1);

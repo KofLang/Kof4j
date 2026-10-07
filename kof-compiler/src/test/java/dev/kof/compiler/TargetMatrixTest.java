@@ -53,8 +53,14 @@ class TargetMatrixTest {
 
     @Test
     void wasmIsHonestGap() {
-        assertEquals("WASM001", TargetMatrix.frontendGapFor("wasm"));
+        // 15.1 (07/10, `D-WEB-WASI-DEFAULT-0710`, #776): "wasm"/"wasi" agora
+        // SAO targets da topologia — o gap deles e de emissao (validate/
+        // compile nomeia WASM001), nao de existencia. Os aliases longos
+        // seguem gap de string honesto.
+        assertNull(TargetMatrix.frontendGapFor("wasm"), "wasm e target real desde 15.1");
+        assertNull(TargetMatrix.frontendGapFor("wasi"), "wasi e target real desde 15.1");
         assertEquals("WASM001", TargetMatrix.frontendGapFor("KofWebAssembly"));
+        assertEquals("WASM001", TargetMatrix.frontendGapFor("webassembly"));
         assertNull(TargetMatrix.frontendGapFor("kofjs"), "kofjs existe");
         assertNull(TargetMatrix.frontendGapFor("script"), "script existe");
     }
@@ -65,16 +71,22 @@ class TargetMatrixTest {
     // (`frontendGapFor("wasi")` returned null → unknown).
     @Test
     void wasiSpellingsAreHonestGap() {
+        // 15.1-COMPLETE (07/10, lane 192.168.15.101:9092): the bare spellings
+        // "wasi"/"wasm" are now REAL targets (enum + parse) — their honest
+        // refusal moved to validate()/compile (WasmTargetGateE2ETest). The
+        // LONG solecisms keep the named string gap (lane .30 intent kept).
         for (String name : java.util.List.of(
-                "wasi", "WASI", "wasi-preview1", "wasip1", "kofwasi",
+                "wasi-preview1", "wasip1", "kofwasi",
                 "wasm32", "wasm32-wasi")) {
             assertEquals("WASM001", TargetMatrix.frontendGapFor(name), name);
         }
         java.util.List<String> errs = new java.util.ArrayList<>();
-        assertNull(TargetMatrix.parse("wasi", errs), "wasi ainda não existe → null");
+        assertNull(TargetMatrix.parse("wasip1", errs), "wasip1 ainda é gap de string → null");
         assertEquals(1, errs.size());
         assertTrue(errs.get(0).contains("WASM001"), errs.get(0));
         assertTrue(errs.get(0).contains("#776"), errs.get(0));
+        assertEquals(Target.WASI, TargetMatrix.parse("wasi", new java.util.ArrayList<>()));
+        assertEquals(Target.WASM, TargetMatrix.parse("wasm", new java.util.ArrayList<>()));
     }
 
     @Test

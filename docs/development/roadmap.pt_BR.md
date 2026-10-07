@@ -1128,6 +1128,17 @@ item = um dono + uma prova.
 | 13.5 | Lote de split: `NativeBackend` 603 + `CompilerPipeline` 588 + `RuntimeOrm7` 585 (behavior-preserving, precedente §442/§446) | 9092 (**✅ FEITO 23/09**) | `CompilerPipeline` ✅ 475; `RuntimeOrm7` ✅ split (`RuntimeOrm7` 34 + `RuntimeOrm7Setup` 265 + `RuntimeOrm7Fetch` 329); `NativeBackend` ✅ 547 (<600, faixa tolerada; baseline 571→547 atualizado) — `check_500.sh` rc=0, suíte verde |
 | 13.6 | D6-1=B — frente `struct` mutável by-ref (spec-first, regra 11) | FFI | design §4/§6 revisado, depois diff parser/typer + testes |
 
+### TIER 15 — Frontend WASI por padrão (ORDEM DA MANTENEDORA 07/10, `D-WEB-WASI-DEFAULT-0710`; **GATE do 0.6.0**, issue #776)
+
+Plano: [`wasm-wasi-plan.pt_BR.md`](wasm-wasi-plan.pt_BR.md) (+EN), promovido pela própria mantenedora a partir de `future/`. O alvo web **passa a ser WASI por padrão**; o frontend desktop igualmente; `kofjs`/JS continua disponível quando explicitamente especificado. Superfície inalterada; paridade total; zero regressão. Formato técnico fixado por `D-WASM-01..09`.
+
+| # | Unidade | Gate/prova | Estado |
+|---|---|---|---|
+| 15.1 | enum `Target` + encanamento de build (aditivo, zero mudança de comportamento nos alvos existentes) | suíte dos 4 alvos verdes inalterada; `Target.WASM/WASI` parse+dispatch | ✅ POUSADA 07/10 (`WasmTargetGateE2ETest` 5/5; suíte 5459 runs / 0 F determinístico) |
+| 15.2 | fatia 1 de codegen — funções escalares sob wasmtime (D-WASM-01/02: backend direto, Int=i64) | golden `tests/run-golden.sh` + novo harness wasm vs oráculo JVM | ABERTA |
+| 15.3 | fatias de runtime pelos planos fases 0–7 (GC/handles/desempilhamento/closures/WASI preview1) | seção de release-gates do plano; linhas da matriz de paridade | ABERTA |
+| 15.4 | **flip do padrão de frontend POR ÚLTIMO** (web/desktop para WASI; JS só explícito) | suíte completa dos 4 alvos existentes verde + paridade WASI; `D-LAB-STABILITY` remedida | ABERTA |
+
 ## 24. KOF 1.0 EXIT GATE — estabilização dos contratos (RATIFICADO 20/09/2026, `DECISIONS.md` §D-RELEASE-1.0; arestas fechadas por `D-1.0-EDGES`)
 
 Meta de desenvolvimento até o primeiro RC: **nenhum bug embarca, nenhuma aresta

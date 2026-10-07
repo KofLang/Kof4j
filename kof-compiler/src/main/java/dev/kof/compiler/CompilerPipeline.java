@@ -218,6 +218,9 @@ public final class CompilerPipeline {
             // SCRIPT não emite artefato — é interpretado (interpret()). O
             // chamador (lowerAndEmit) bloqueia antes; isto é defensivo.
             case SCRIPT -> throw new IllegalStateException("SCRIPT has no backend");
+            // 15.1 (#776): topologia sem emissao — o chamador (lowerAndEmit)
+            // bloqueia ANTES com o diagnostico WASM001; isto e defensivo.
+            case WASM, WASI -> throw new IllegalStateException("WASM/WASI backend is unit 15.2 (#776)");
         };
     }
 
@@ -314,6 +317,18 @@ public final class CompilerPipeline {
                     "target 'script' emits no artifacts; use kof run --target script"
                             + " (direct IR interpretation) or another target",
                     "COMP003");
+            return;
+        }
+        if (target == Target.WASM || target == Target.WASI) {
+            // 15.1 (D-WEB-WASI-DEFAULT-0710, #776): alvo real da topologia sem
+            // backend de emissao ainda (unidade 15.2). Recusa HONESTA com o gap
+            // code, o plano e a issue — nunca fallback silencioso (R6/Q7).
+            diagnostics.error(driver.currentSourceName, 0, 0, 0,
+                    "target '" + TargetMatrix.name(target) + "' has no emitting backend yet"
+                            + " (WASM001) — promoted plan docs/development/wasm-wasi-plan.md,"
+                            + " TIER 15 unit 15.2, issue #776; web/desktop default flips only"
+                            + " at unit 15.4 with full parity",
+                    "WASM001");
             return;
         }
         if (System.getProperty("kof.trace") != null) {

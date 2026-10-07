@@ -1132,7 +1132,7 @@ Plan: [`wasm-wasi-plan.md`](wasm-wasi-plan.md) (+PT), promoted from `future/` by
 
 | # | Unit | Gate/proof | State |
 |---|---|---|---|
-| 15.1 | `Target` enum + build plumbing (additive, zero behavior change to existing targets) | existing 4-target suite green unchanged; `Target.WASM/WASI` parse+dispatch | OPEN |
+| 15.1 | `Target` enum + build plumbing (additive, zero behavior change to existing targets) | existing 4-target suite green unchanged; `Target.WASM/WASI` parse+dispatch | ✅ LANDED 07/10 (`WasmTargetGateE2ETest` 5/5; suite 5459 run / 0 deterministic F) |
 | 15.2 | codegen slice 1 — scalar functions under wasmtime (D-WASM-01/02: direct backend, Int=i64) | golden `tests/run-golden.sh` + new wasm harness vs JVM oracle | OPEN |
 | 15.3 | runtime slices per plan phases 0–7 (GC/handles/unwind/closures/WASI preview1) | plan release-gates section; parity matrix rows | OPEN |
 | 15.4 | **frontend-default flip LAST** (web/desktop to WASI; JS only explicit) | full 4-existing-target suite green + WASI parity; `D-LAB-STABILITY` re-measured | OPEN |
