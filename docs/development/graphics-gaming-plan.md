@@ -5,8 +5,8 @@
 **Owner:** `192.168.15.15:9092` — lane security/connectors, graphics/gaming front; re-claimed 05/10 (the spike-3.0 `192.168.15.30:9093` claims were runner/tooling, historical).
 
 last: slice-3.1 pure clock + key/pointer/pad input snapshots landed 05/10 (`libs/game/Clock.kf` + `Keys.kf` + `Mouse.kf` + `Pad.kf`, `GameClockE2ETest`/`GameInputE2ETest`/`GameMouseE2ETest`/`GamePadE2ETest` 4/4 each; `known-bugs` §603 fixed on the way); pure `kof.game` surface cross-target verified (`GameCrossE2ETest` 3/3 — JVM oracle + riscv64 + aarch64 under qemu); window form DECIDED (`D-GRAPHICS-WINDOW-FORM`: `Window("…") { frame { dt -> … } }`, `dt` Int ms) and its parser prerequisite fixed (`known-bugs` §611, `TrailingLambdaParamsE2ETest` 6/6); G1 SDL3 `3.4.16` measured (C + Kof FFI, headless JVM+Native; `known-bugs` §606 fixed); **SDL3 vendored into the cross sysroot 06/10 (`scripts/provision-cross-sdl3.sh`, aarch64+riscv64 `3.4.16` + runtime closure + GLIBC 2.44) and the raw ABI measured end-to-end headless on all four targets (`Sdl3FfiCrossE2ETest` 5/5: JVM + Native x86-64 + riscv64 + aarch64 under qemu, golden `init=true/driver=dummy/title=kof`)**
-doing: slice-3.3c (SDL3 audio stream)
-next: SDL3 audio stream LANDED 07/10 (`Sdl3AudioStreamE2ETest` 5/5 every target); remaining = audible playback (device output) + mixer voice routing + 3.4 (video)
+doing: slice-3.3d (WAV encoder)
+next: WAV encoder LANDED 07/10 (`libs/game/Wav.kf`, `GameWavE2ETest` 6/6 every target); remaining = audible playback (device output) + mixer voice routing + 3.4 (video)
 location: docs/development
 state: UNDER DEVELOPMENT
 
@@ -297,6 +297,16 @@ WGSL/GLSL/HLSL/cross-compile decision deferred, not first slice).
   bytes in `.s`), and Kof has no runtime NUL-string constructor
   (`known-bugs` §623, native-backend lane). Proof: `Sdl3AudioStreamE2ETest`
   **5/5** on JVM + Native x86-64 + riscv64 + aarch64 under qemu.
+- Slice 3.3d LANDED 07/10 (WAV encoder, pure Kof — the offline mixer's PCM
+  made shippable): `libs/game/Wav.kf` (`encodeWav(samples, rate, channels)`
+  writes PCM16 WAVE images (44-byte RIFF header from `charAt` codes, never
+  magic numbers; mono/stereo only and `rate <= 0` throw; samples clamp) and
+  reads them back field-exact (`wavSampleCount`/`wavRate`/`wavChannels`/
+  `wavSampleAt`). Unlocked by measuring that `Byte[]` indexed write plus
+  `as Byte` (mod-256 wrap) work on every target — the same surface a future
+  stream-submit bridge needs. Proof: `GameWavE2ETest` **6/6** (exact header
+  + roundtrip golden, incl. ±32768 extremes, on JVM + Script + Native
+  x86-64 + JS + riscv64 + aarch64 under qemu).
 
 # 11. Targets
 

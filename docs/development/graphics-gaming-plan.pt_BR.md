@@ -3,8 +3,8 @@
 # Graphics, Games e Media — Superfície de Intenção do Kof
 
 last: fatia-3.1 relógio puro + snapshots de input de teclado/ponteiro/gamepad pousados 05/10 (`libs/game/Clock.kf` + `Keys.kf` + `Mouse.kf` + `Pad.kf`, `GameClockE2ETest`/`GameInputE2ETest`/`GameMouseE2ETest`/`GamePadE2ETest` 4/4 cada; `known-bugs` §603 corrigido no caminho); superfície pura `kof.game` verificada cross-target (`GameCrossE2ETest` 3/3 — oráculo JVM + riscv64 + aarch64 sob qemu); forma da janela DECIDIDA (`D-GRAPHICS-WINDOW-FORM`: `Window("…") { frame { dt -> … } }`, `dt` Int ms) e seu pré-requisito de parser corrigido (`known-bugs` §611, `TrailingLambdaParamsE2ETest` 6/6); G1 SDL3 `3.4.16` medida (C + FFI do Kof, headless JVM+Native; `known-bugs` §606 corrigido); **SDL3 vendada no sysroot cross 06/10 (`scripts/provision-cross-sdl3.sh`, aarch64+riscv64 `3.4.16` + fecho de runtime + GLIBC 2.44) e a ABI crua medida ponta-a-ponta headless nos quatro alvos (`Sdl3FfiCrossE2ETest` 5/5: JVM + Native x86-64 + riscv64 + aarch64 sob qemu, golden `init=true/driver=dummy/title=kof`)**
-doing: fatia-3.3c (stream de áudio SDL3)
-next: stream de áudio SDL3 POUSADO 07/10 (`Sdl3AudioStreamE2ETest` 5/5 todo alvo); falta playback audível (saída no device) + roteamento de vozes do mixer + 3.4 (vídeo)
+doing: fatia-3.3d (encoder WAV)
+next: encoder WAV POUSADO 07/10 (`libs/game/Wav.kf`, `GameWavE2ETest` 6/6 todo alvo); falta playback audível (saída no device) + roteamento de vozes do mixer + 3.4 (vídeo)
 location: docs/development
 state: UNDER DEVELOPMENT
 
@@ -264,6 +264,17 @@ cobertura/manutenção/testabilidade/cross-platform). Shaders escondidos no iní
   zerado de 12 bytes é aceito e negocia os defaults do dummy aqui. Faces
   audíveis de decoder/playback/streaming seguem trabalho posterior (decisão
   F do FFmpeg LGPL para codecs, mantenedora).
+- Fatia 3.3d POUSADA 07/10 (encoder WAV, Kof puro — o PCM do mixer offline
+  feito embarcável): `libs/game/Wav.kf` (`encodeWav(samples, rate,
+  channels)` escreve imagens WAVE PCM16 (header RIFF de 44 bytes a partir
+  de códigos `charAt`, nunca números mágicos; só mono/stereo e `rate <= 0`
+  lança; amostras clampam) e as lê de volta campo-exatas
+  (`wavSampleCount`/`wavRate`/`wavChannels`/`wavSampleAt`). Destravada ao
+  medir que escrita indexada em `Byte[]` mais `as Byte` (wrap mod-256)
+  funcionam em todo alvo — a mesma superfície de que uma futura ponte de
+  submit para stream precisa. Prova: `GameWavE2ETest` **6/6** (header exato
+  + golden de roundtrip, incl. extremos ±32768, em JVM + Script + Native
+  x86-64 + JS + riscv64 + aarch64 sob qemu).
 
 # 11. Alvos
 
