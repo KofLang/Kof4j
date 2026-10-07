@@ -17360,3 +17360,15 @@ JVM/Script/Native printed `fin-inner`, `fin-outer`, `inner`. KofJS aborted: `Int
 **Boundary:** record + workaround only; no backend change from this lane. Slice 3.1 stays green on every target despite §620. The 1-arg capturing shape remains RED on cross until the owning lane fixes it.
 
 <!-- pt-switch --> **PT:** [§620 (pt_BR)](known-bugs.pt_BR.md#620--lambda-que-captura-passada-como-argumento-de-tipo-funcao-recebe-primeiro-argumento-lixo-nos-nativos-cross-riscv64aarch64-as-capturas-estao-certas-x86-64jvmscriptjs-corretos---aberta-achada-0710-pelo-host-window-da-fatia-31-graphicsgaming-dona--lane-native-backend)
+
+## §621 — `math.sin`/`math.cos`/`math.toRadians` (and the other trig constants) type-check on every target but have no Native runtime symbol, so a Native build dies at `ld` with a mislabeled `COMP001` — 🟡 OPEN (found 07/10 by the graphics/gaming slice-3.2a sprite; owner = native-backend lane)
+
+**Symptom (measured 07/10, tip `52799689d`):** `KofMath` accepts `math.sin`/`math.cos`/`math.toRadians` (Double in, Double out) and JVM/Script/JS run them, but any Native target (x86-64, riscv64, aarch64) fails the link: `undefined reference to 'kof_math_toRadians'/'kof_math_cos'/'kof_math_sin'`, reported as `Error reading source file ... [COMP001]` — `COMP001` is the internal "cannot read source" code, so the user sees a mislabeled source error instead of an honest undefined-symbol refusal (same false-support class as §615). The Native runtime defines `kof_math_sqrt`/`kof_math_pow`/`kof_math_abs`/predicates but no trig: the typer promises what the backend cannot link.
+
+**Root (read, not fixed by this lane):** `KofMath` gates arity/types per function with no per-target capability matrix behind it, and the Native emitters lower the call to a runtime symbol unconditionally. Either the typer must refuse trig on Native with a named gap code, or the runtime must gain the symbols (libm or compiler-rt lowering) — both are native-backend work (`D-PLAN-ONE-OWNER`).
+
+**Workaround (this lane, shipped):** `libs/game/Trig.kf` carries pure-Kof `trigSin`/`trigCos` (degrees in; range-reduced Taylor through x^13, ~1e-12 worst case) over plain arithmetic, so `libs/game/Sprite.kf` uses zero `math.*` trig and the whole `kof.game` surface links on every target (`GameSpriteE2ETest` 14/14). The pure form is additionally *more* portable than libm (no last-ulp cross-`libm` golden drift); if the backend ever ships the symbols, the Kof surface stays byte-identical.
+
+**Boundary:** record + workaround only; no typer/runtime/backend change from this lane. The 1-milli Taylor deviation pinned in `GameSpriteE2ETest` (`f=83999`, deterministic on all six legs) is documented there, an order of magnitude below any visible pixel.
+
+<!-- pt-switch --> **PT:** [§621 (pt_BR)](known-bugs.pt_BR.md#621--mathsinmathcosmathtoradians-e-as-outras-constantes-trig-passam-no-type-check-em-todo-alvo-mas-nao-tem-simbolo-no-runtime-native-entao-um-build-native-morre-no-ld-com-um-comp001-mal-rotulado---aberta-achada-0710-pelo-sprite-da-fatia-32a-graphicsgaming-dona--lane-native-backend)

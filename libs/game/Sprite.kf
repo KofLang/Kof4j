@@ -1,0 +1,194 @@
+package game
+
+import game.Draw
+import game.Trig
+
+// kof.game — 2D sprite intent (slice 3.2a of the graphics/gaming front,
+// `D-GRAPHICS-GAMING` + `D-GRAPHICS-SPIKE` + `D-MAINT-BATCH-0510`/G1).
+//
+// The plan §8 freezes the first 2D level as INTENT the app declares:
+// `sprite("player.png").at(120, 80).draw()` with transforms
+// `at/scale/turn/origin/flip` and animation `frames("walk")` + `animate()`.
+// Rendering itself (atlas/batching/upload/selection/present) is the backend's
+// job and lands in a later slice; this module is the PURE,
+// backend-independent half: sprite state, the 2D transform math and the
+// deterministic animation clock. It calls no rendering/window/audio API and
+// is honest on every target today.
+//
+//   var hero = sprite("player.png").at(120, 80).scale(2.0, 2.0)
+//   hero.frames(listOf("walk0.png", "walk1.png", "walk2.png", "walk3.png"))
+//   hero.animate(dt, 120)
+//   queue.draw(hero)
+//
+// Semantics (frozen here, tested):
+// - `at(x, y)` sets the world position of the sprite's ORIGIN point (not the
+//   top-left corner): the origin is the pivot every transform rotates/scales
+//   around, so `origin(8, 8)` + `at(100, 50)` pins pixel (8, 8) at (100, 50).
+// - `turn(deg)` sets the ABSOLUTE rotation in degrees, clockwise-positive
+//   (screen space, y down); `scale(sx, sy)` the absolute axis scales.
+// - `flip(h, v)` mirrors the local axes BEFORE scale/rotation (a flipped
+//   sprite rotates around the same origin, mirrored).
+// - `worldPointX(lx, ly)` / `worldPointY(lx, ly)` map an image-local pixel
+//   (unscaled, top-left origin) to world space through
+//   pos + R * S * F * (p - origin). Pure `game.Trig` (Taylor `trigSin`/
+//   `trigCos` — never `math.sin`/`math.cos`, which the Native runtime does
+//   not define); callers that need formatting-stable output convert to
+//   milli-units.
+// - `frames(names)` installs the animation strip and rewinds; `animate(dtMs,
+//   frameMs)` advances `elapsedMs` by the CALLER-supplied delta (a virtual
+//   clock like `Clock` — deterministic goldens, no wall time) and selects
+//   `(elapsed / frameMs) % strip.size`; `frameMs <= 0` throws (division by
+//   zero is never silent). With no strip installed `animate` is a no-op and
+//   `current()` returns the base image.
+// - `show()`/`hide()` gate `draw(queue)`: an invisible sprite records
+//   nothing. Pure state, no IO; runs on every target.
+
+class Sprite {
+    String image
+    Int posX
+    Int posY
+    Double scaleX
+    Double scaleY
+    Double rotationDeg
+    Int originX
+    Int originY
+    Bool flipH
+    Bool flipV
+    Bool visible
+    List<String> strip
+    Int frameIndex
+    Int elapsedMs
+
+    constructor(image: String) {
+        this.image = image
+        this.posX = 0
+        this.posY = 0
+        this.scaleX = 1.0
+        this.scaleY = 1.0
+        this.rotationDeg = 0.0
+        this.originX = 0
+        this.originY = 0
+        this.flipH = false
+        this.flipV = false
+        this.visible = true
+        this.strip = listOf<String>()
+        this.frameIndex = 0
+        this.elapsedMs = 0
+    }
+
+    // World position of the origin point.
+    Sprite at(Int x, Int y) {
+        this.posX = x
+        this.posY = y
+        return this
+    }
+
+    // Absolute axis scales.
+    Sprite scale(Double sx, Double sy) {
+        this.scaleX = sx
+        this.scaleY = sy
+        return this
+    }
+
+    // Absolute rotation in degrees, clockwise-positive.
+    Sprite turn(Double deg) {
+        this.rotationDeg = deg
+        return this
+    }
+
+    // Pivot in unscaled image pixels.
+    Sprite origin(Int ox, Int oy) {
+        this.originX = ox
+        this.originY = oy
+        return this
+    }
+
+    // Mirror the local axes (applied before scale/rotation).
+    Sprite flip(Bool h, Bool v) {
+        this.flipH = h
+        this.flipV = v
+        return this
+    }
+
+    Sprite show() {
+        this.visible = true
+        return this
+    }
+
+    Sprite hide() {
+        this.visible = false
+        return this
+    }
+
+    // Install the animation strip and rewind to its first frame.
+    Sprite frames(List<String> names) {
+        this.strip = names
+        this.frameIndex = 0
+        this.elapsedMs = 0
+        return this
+    }
+
+    // Advance the animation by the caller-supplied `dtMs`.
+    Sprite animate(Int dtMs, Int frameMs) {
+        if (frameMs <= 0) { throw "Sprite '" + this.image + "': frameMs must be > 0" }
+        if (this.strip.size == 0) { return this }
+        this.elapsedMs = this.elapsedMs + dtMs
+        this.frameIndex = (this.elapsedMs / frameMs) % this.strip.size
+        return this
+    }
+
+    // The image to draw now: the strip's current frame, or the base image.
+    String current() {
+        if (this.strip.size == 0) { return this.image }
+        return this.strip[this.frameIndex]
+    }
+
+    Bool isVisible() {
+        return this.visible
+    }
+
+    Int x() {
+        return this.posX
+    }
+
+    Int y() {
+        return this.posY
+    }
+
+    // Map an image-local pixel to world-space X.
+    Double worldPointX(Int lx, Int ly) {
+        var dx = (lx - this.originX) as Double
+        var dy = (ly - this.originY) as Double
+        if (this.flipH) { dx = 0.0 - dx }
+        if (this.flipV) { dy = 0.0 - dy }
+        dx = dx * this.scaleX
+        dy = dy * this.scaleY
+        return (this.posX as Double) + dx * trigCos(this.rotationDeg) - dy * trigSin(this.rotationDeg)
+    }
+
+    // Map an image-local pixel to world-space Y.
+    Double worldPointY(Int lx, Int ly) {
+        var dx = (lx - this.originX) as Double
+        var dy = (ly - this.originY) as Double
+        if (this.flipH) { dx = 0.0 - dx }
+        if (this.flipV) { dy = 0.0 - dy }
+        dx = dx * this.scaleX
+        dy = dy * this.scaleY
+        return (this.posY as Double) + dx * trigSin(this.rotationDeg) + dy * trigCos(this.rotationDeg)
+    }
+
+    // Record this sprite into `queue` (a no-op while invisible).
+    Sprite draw(DrawList queue) {
+        if (this.visible) {
+            queue.addCmd(DrawCmd(this.current(), (this.posX as Double),
+                (this.posY as Double), this.scaleX, this.scaleY,
+                this.rotationDeg, this.flipH, this.flipV))
+        }
+        return this
+    }
+}
+
+// The plan §8 factory shape: `sprite("player.png")`.
+Sprite sprite(String image) {
+    return Sprite(image)
+}

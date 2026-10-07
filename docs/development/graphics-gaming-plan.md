@@ -5,8 +5,8 @@
 **Owner:** `192.168.15.15:9092` — lane security/connectors, graphics/gaming front; re-claimed 05/10 (the spike-3.0 `192.168.15.30:9093` claims were runner/tooling, historical).
 
 last: slice-3.1 pure clock + key/pointer/pad input snapshots landed 05/10 (`libs/game/Clock.kf` + `Keys.kf` + `Mouse.kf` + `Pad.kf`, `GameClockE2ETest`/`GameInputE2ETest`/`GameMouseE2ETest`/`GamePadE2ETest` 4/4 each; `known-bugs` §603 fixed on the way); pure `kof.game` surface cross-target verified (`GameCrossE2ETest` 3/3 — JVM oracle + riscv64 + aarch64 under qemu); window form DECIDED (`D-GRAPHICS-WINDOW-FORM`: `Window("…") { frame { dt -> … } }`, `dt` Int ms) and its parser prerequisite fixed (`known-bugs` §611, `TrailingLambdaParamsE2ETest` 6/6); G1 SDL3 `3.4.16` measured (C + Kof FFI, headless JVM+Native; `known-bugs` §606 fixed); **SDL3 vendored into the cross sysroot 06/10 (`scripts/provision-cross-sdl3.sh`, aarch64+riscv64 `3.4.16` + runtime closure + GLIBC 2.44) and the raw ABI measured end-to-end headless on all four targets (`Sdl3FfiCrossE2ETest` 5/5: JVM + Native x86-64 + riscv64 + aarch64 under qemu, golden `init=true/driver=dummy/title=kof`)**
-doing: slice-3.1 (window/frame host)
-next: pure `Window`/`frame` host LANDED 07/10 (`libs/game/Window.kf`, `GameWindowE2ETest` 8/8 every target); remaining = the OS-window SDL3 binding over the measured stack + the `kof.game` ledger registration + 3.2 (2D)
+doing: slice-3.2a (2D sprite intent)
+next: slice-3.2a sprite/draw LANDED 07/10 (`libs/game/Sprite.kf` + `Draw.kf` + `Trig.kf`, `GameSpriteE2ETest` 14/14 every target); remaining = tilemap intent (3.2b) + the OS-window SDL3 binding + the `kof.game` ledger registration
 location: docs/development
 state: UNDER DEVELOPMENT
 
@@ -192,6 +192,20 @@ First level. `sprite("player.png").at(120, 80).draw()`; transforms
 Tilemaps = map intent (`tilemap("level.png", 16)`); questions: tileset/atlas/
 layers/collision/animated/infinite/formats. Rendering: app declares *what*,
 backend decides *how* (batching/atlas/command-buffer/order/cache/upload hidden).
+- Slice 3.2a LANDED 07/10 (pure intent, no rendering): `libs/game/Sprite.kf`
+  (`sprite()` factory + `at/scale/turn/origin/flip/show/hide`, `worldPointX/Y`
+  = `pos + R·S·F·(p − origin)`, `frames()/animate(dtMs, frameMs)` over a
+  caller-supplied delta, `draw(queue)`) + `libs/game/Draw.kf` (`DrawCmd`
+  record + ordered `DrawList`: `draw/clear/size/commandAt`, invisible draws
+  record nothing) + `libs/game/Trig.kf` (pure-Kof `trigSin`/`trigCos`,
+  Taylor through x^13 — `math.sin`/`math.cos` have no Native symbols,
+  `known-bugs` §621, so the lib uses zero backend trig). Cross-file same-
+  package refs need an explicit `import` (measured: `import game.Draw` /
+  `import game.Trig` inside `Sprite.kf`, the `Window.kf` → `game.Clock`
+  precedent). Proof: `GameSpriteE2ETest` **14/14** (transform + animation +
+  draw goldens on JVM + Script + Native x86-64 + JS; transform golden also
+  riscv64 + aarch64 under qemu; milli-unit goldens, never raw `Double`s).
+  Next: tilemap intent (3.2b).
 
 # 9. 3D (later)
 

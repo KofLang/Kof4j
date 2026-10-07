@@ -3,8 +3,8 @@
 # Graphics, Games e Media — Superfície de Intenção do Kof
 
 last: fatia-3.1 relógio puro + snapshots de input de teclado/ponteiro/gamepad pousados 05/10 (`libs/game/Clock.kf` + `Keys.kf` + `Mouse.kf` + `Pad.kf`, `GameClockE2ETest`/`GameInputE2ETest`/`GameMouseE2ETest`/`GamePadE2ETest` 4/4 cada; `known-bugs` §603 corrigido no caminho); superfície pura `kof.game` verificada cross-target (`GameCrossE2ETest` 3/3 — oráculo JVM + riscv64 + aarch64 sob qemu); forma da janela DECIDIDA (`D-GRAPHICS-WINDOW-FORM`: `Window("…") { frame { dt -> … } }`, `dt` Int ms) e seu pré-requisito de parser corrigido (`known-bugs` §611, `TrailingLambdaParamsE2ETest` 6/6); G1 SDL3 `3.4.16` medida (C + FFI do Kof, headless JVM+Native; `known-bugs` §606 corrigido); **SDL3 vendada no sysroot cross 06/10 (`scripts/provision-cross-sdl3.sh`, aarch64+riscv64 `3.4.16` + fecho de runtime + GLIBC 2.44) e a ABI crua medida ponta-a-ponta headless nos quatro alvos (`Sdl3FfiCrossE2ETest` 5/5: JVM + Native x86-64 + riscv64 + aarch64 sob qemu, golden `init=true/driver=dummy/title=kof`)**
-doing: fatia-3.1 (hospedeiro window/frame)
-next: hospedeiro puro `Window`/`frame` da fatia-3.1 POUSADO 07/10 (`libs/game/Window.kf`, `GameWindowE2ETest` 8/8 verde em todo alvo); falta o binding SDL3 da janela do SO sobre o stack medido + o registro do `kof.game` no ledger + 3.2 (2D)
+doing: fatia-3.2a (intent 2D de sprite)
+next: sprite/draw da fatia-3.2a POUSADO 07/10 (`libs/game/Sprite.kf` + `Draw.kf` + `Trig.kf`, `GameSpriteE2ETest` 14/14 todo alvo); falta o intent de tilemap (3.2b) + o binding SDL3 da janela do SO + o registro do `kof.game` no ledger
 location: docs/development
 state: UNDER DEVELOPMENT
 
@@ -172,6 +172,20 @@ Primeiro nível. `sprite("player.png").at(120, 80).draw()`; transforms
 `player.animate()` (plataforma: atlas/batching/upload/seleção).
 Tilemaps = intenção de mapa (`tilemap("level.png", 16)`). Render: app declara *o
 quê*, backend decide *como* (batching/atlas/command-buffer/ordem/cache/upload ocultos).
+- Fatia 3.2a POUSADA 07/10 (intent puro, sem render): `libs/game/Sprite.kf`
+  (fábrica `sprite()` + `at/scale/turn/origin/flip/show/hide`, `worldPointX/Y`
+  = `pos + R·S·F·(p − origin)`, `frames()/animate(dtMs, frameMs)` sobre delta
+  do chamador, `draw(queue)`) + `libs/game/Draw.kf` (record `DrawCmd` +
+  `DrawList` ordenada: `draw/clear/size/commandAt`, draw invisível não
+  registra nada) + `libs/game/Trig.kf` (`trigSin`/`trigCos` em Kof puro,
+  Taylor até x^13 — `math.sin`/`math.cos` não têm símbolos Native,
+  `known-bugs` §621, então a lib usa zero trig de backend). Refs entre
+  arquivos do mesmo pacote exigem `import` explícito (medido: `import
+  game.Draw` / `import game.Trig` dentro do `Sprite.kf`, precedente
+  `Window.kf` → `game.Clock`). Prova: `GameSpriteE2ETest` **14/14**
+  (goldens de transform + animação + draw em JVM + Script + Native x86-64 +
+  JS; golden de transform também riscv64 + aarch64 sob qemu; goldens em
+  milli-units, nunca `Double` cru). Próxima: intent de tilemap (3.2b).
 
 # 9. 3D (depois)
 
