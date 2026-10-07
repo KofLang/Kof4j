@@ -3,8 +3,8 @@
 # Graphics, Games e Media — Superfície de Intenção do Kof
 
 last: fatia-3.1 relógio puro + snapshots de input de teclado/ponteiro/gamepad pousados 05/10 (`libs/game/Clock.kf` + `Keys.kf` + `Mouse.kf` + `Pad.kf`, `GameClockE2ETest`/`GameInputE2ETest`/`GameMouseE2ETest`/`GamePadE2ETest` 4/4 cada; `known-bugs` §603 corrigido no caminho); superfície pura `kof.game` verificada cross-target (`GameCrossE2ETest` 3/3 — oráculo JVM + riscv64 + aarch64 sob qemu); forma da janela DECIDIDA (`D-GRAPHICS-WINDOW-FORM`: `Window("…") { frame { dt -> … } }`, `dt` Int ms) e seu pré-requisito de parser corrigido (`known-bugs` §611, `TrailingLambdaParamsE2ETest` 6/6); G1 SDL3 `3.4.16` medida (C + FFI do Kof, headless JVM+Native; `known-bugs` §606 corrigido); **SDL3 vendada no sysroot cross 06/10 (`scripts/provision-cross-sdl3.sh`, aarch64+riscv64 `3.4.16` + fecho de runtime + GLIBC 2.44) e a ABI crua medida ponta-a-ponta headless nos quatro alvos (`Sdl3FfiCrossE2ETest` 5/5: JVM + Native x86-64 + riscv64 + aarch64 sob qemu, golden `init=true/driver=dummy/title=kof`)**
-doing: fatia-3.2b (intent 2D de tilemap)
-next: tilemap da fatia-3.2b POUSADO 07/10 (`libs/game/Tilemap.kf`, `GameTilemapE2ETest` 6/6 todo alvo); falta o binding SDL3 da janela do SO + o registro do `kof.game` no ledger + 3.3 (áudio)
+doing: fatia-3.1 (binding SDL3 do pump)
+next: pump SDL3 POUSADO 07/10 (`Sdl3PumpE2ETest` 5/5 todo alvo); falta o registro do `kof.game` no ledger + 3.3 (áudio)
 location: docs/development
 state: UNDER DEVELOPMENT
 
@@ -158,6 +158,18 @@ release/caching/perda de janela. Sem gerenciamento GPU manual quando o backend r
   §620 (lambda com captura + args = primeiro arg lixo no cross) e é verde em
   todo alvo (`GameWindowE2ETest` 8/8). Construí-lo corrigiu o `known-bugs` §619
   (campo sem inicializador + membro `(` mal-parseado, `ClassMemberParseE2ETest` 4/4).
+- Binding do pump POUSADO 07/10 (resto da fatia 3.1, só-teste sobre o stack
+  vendado — sem API Kof nova): `Sdl3PumpE2ETest` **5/5** dirige uma janela
+  SDL3 headless real (driver `dummy`) com drain (`SDL_PollEvent` num
+  `Buffer(U8)` de 128 bytes, o tamanho do `SDL_Event`) + push + pacing
+  (`SDL_Delay`/`SDL_GetTicks`) + dois frames de `Clock` virtual com snapshots
+  de `Keys`, golden `init=true/push=true/poll=0/paced=true/frames=2/quit=true`
+  em JVM + Native x86-64 + riscv64 + aarch64 sob qemu. Fronteiras medidas: o
+  SDL descarta evento pushado de tipo zero (`poll=0` pinado); eventos reais do
+  backend existem (ex. `0x404 MOUSE_ADDED` na criação) mas as contagens variam
+  por ambiente, então o drain conta em silêncio; síntese com scancodes espera
+  uma superfície de escrita de bytes no `Buffer` (hoje só alloc+leitura —
+  fronteira documentada, não gap silencioso).
 
 # 7. Input
 

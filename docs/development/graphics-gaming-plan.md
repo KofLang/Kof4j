@@ -5,8 +5,8 @@
 **Owner:** `192.168.15.15:9092` — lane security/connectors, graphics/gaming front; re-claimed 05/10 (the spike-3.0 `192.168.15.30:9093` claims were runner/tooling, historical).
 
 last: slice-3.1 pure clock + key/pointer/pad input snapshots landed 05/10 (`libs/game/Clock.kf` + `Keys.kf` + `Mouse.kf` + `Pad.kf`, `GameClockE2ETest`/`GameInputE2ETest`/`GameMouseE2ETest`/`GamePadE2ETest` 4/4 each; `known-bugs` §603 fixed on the way); pure `kof.game` surface cross-target verified (`GameCrossE2ETest` 3/3 — JVM oracle + riscv64 + aarch64 under qemu); window form DECIDED (`D-GRAPHICS-WINDOW-FORM`: `Window("…") { frame { dt -> … } }`, `dt` Int ms) and its parser prerequisite fixed (`known-bugs` §611, `TrailingLambdaParamsE2ETest` 6/6); G1 SDL3 `3.4.16` measured (C + Kof FFI, headless JVM+Native; `known-bugs` §606 fixed); **SDL3 vendored into the cross sysroot 06/10 (`scripts/provision-cross-sdl3.sh`, aarch64+riscv64 `3.4.16` + runtime closure + GLIBC 2.44) and the raw ABI measured end-to-end headless on all four targets (`Sdl3FfiCrossE2ETest` 5/5: JVM + Native x86-64 + riscv64 + aarch64 under qemu, golden `init=true/driver=dummy/title=kof`)**
-doing: slice-3.2b (2D tilemap intent)
-next: slice-3.2b tilemap LANDED 07/10 (`libs/game/Tilemap.kf`, `GameTilemapE2ETest` 6/6 every target); remaining = the OS-window SDL3 binding + the `kof.game` ledger registration + 3.3 (audio)
+doing: slice-3.1 (SDL3 pump binding)
+next: SDL3 pump LANDED 07/10 (`Sdl3PumpE2ETest` 5/5 every target); remaining = the `kof.game` ledger registration + 3.3 (audio)
 location: docs/development
 state: UNDER DEVELOPMENT
 
@@ -177,6 +177,18 @@ release/caching/window-loss. No manual GPU management when the backend can do it
   §620 (capturing lambda + args = garbage first arg on cross) and is green on
   every target (`GameWindowE2ETest` 8/8). Building it fixed `known-bugs` §619
   (uninitialized field + `(` member misparse, `ClassMemberParseE2ETest` 4/4).
+- Pump binding LANDED 07/10 (slice 3.1 remainder, test-only over the vendored
+  stack — no new Kof API): `Sdl3PumpE2ETest` **5/5** drives a real headless
+  SDL3 window (`dummy` driver) through drain (`SDL_PollEvent` into a 128-byte
+  `Buffer(U8)`, the `SDL_Event` size) + push + pacing (`SDL_Delay`/
+  `SDL_GetTicks`) + two virtual-`Clock` frames with `Keys` snapshots, golden
+  `init=true/push=true/poll=0/paced=true/frames=2/quit=true` on JVM + Native
+  x86-64 + riscv64 + aarch64 under qemu. Measured boundaries: SDL drops a
+  pushed zero (type-0) event (`poll=0` pinned); real backend events exist
+  (e.g. `0x404 MOUSE_ADDED` at creation) but counts vary by environment, so
+  the drain counts silently; scancode-carrying synthesis awaits a `Buffer`
+  byte-write surface (today alloc+read only — documented frontier, not a
+  silent gap).
 
 # 7. Input
 
