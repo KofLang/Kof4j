@@ -1,5 +1,6 @@
 package image
 
+import image.Av1Block
 import image.Av1ModeCdf
 import image.Av1Symbol
 
@@ -76,6 +77,29 @@ Int av1SegIdPred(Int prevUl, Int prevU, Int prevL) {
     return prevL
 }
 
+// The spec `Intra_Mode_Context[ INTRA_MODES ]` (libaom `intra_mode_context`).
+List<Int> av1IntraModeContext() {
+    return listOf(0, 1, 2, 3, 4, 4, 4, 4, 3, 0, 1, 2, 0)
+}
+
+// `is_directional_mode( mode )`: V_PRED (1) .. D67_PRED (8).
+Int av1IsDirectionalMode(Int mode) {
+    if (mode >= 1 && mode <= 8) {
+        return 1
+    }
+    return 0
+}
+
+// Max( Block_Width[ bs ], Block_Height[ bs ] ).
+Int av1ModeInfoMaxDim(Int bs) {
+    var w = av1BlockWidth(bs)
+    var h = av1BlockHeight(bs)
+    if (h > w) {
+        return h
+    }
+    return w
+}
+
 class Av1ModeInfo {
     Av1Symbol sym
     Av1ModeCdf modes
@@ -83,8 +107,17 @@ class Av1ModeInfo {
     Int miRows
     Int[] segMap
     Int[] skipMap
+    Int[] yModeMap
+    Int[] uvModeMap
     List<Int[]> segStore
     List<Int[]> skipStore
+    List<Int[]> kfYStore
+    List<Int[]> uvStore
+    List<Int[]> angleStore
+    List<Int[]> filterIntraStore
+    Int[] filterModeStore
+    Int[] cflSignStore
+    List<Int[]> cflAlphaStore
     List<Int[]> steps
 
     constructor(Int[] data, Int miCols, Int miRows) {
@@ -94,6 +127,8 @@ class Av1ModeInfo {
         this.miRows = miRows
         this.segMap = new Int[miCols * miRows]
         this.skipMap = new Int[miCols * miRows]
+        this.yModeMap = new Int[miCols * miRows]
+        this.uvModeMap = new Int[miCols * miRows]
         this.segStore = listOf()
         this.skipStore = listOf()
         var i = 0
@@ -102,7 +137,174 @@ class Av1ModeInfo {
             this.skipStore.add(this.modes.skip(i))
             i = i + 1
         }
+        this.kfYStore = listOf()
+        i = 0
+        while (i < 25) {
+            this.kfYStore.add(this.modes.kfY(i / 5, i % 5))
+            i = i + 1
+        }
+        this.uvStore = listOf()
+        i = 0
+        while (i < 26) {
+            if (i < 13) {
+                this.uvStore.add(this.modes.uv(0, i))
+            } else {
+                this.uvStore.add(this.modes.uv(1, i - 13))
+            }
+            i = i + 1
+        }
+        this.angleStore = listOf()
+        i = 0
+        while (i < 8) {
+            this.angleStore.add(this.modes.angle(i))
+            i = i + 1
+        }
+        this.filterIntraStore = listOf()
+        i = 0
+        while (i < 22) {
+            this.filterIntraStore.add(this.modes.filterIntra(i))
+            i = i + 1
+        }
+        this.filterModeStore = this.modes.filterMode()
+        this.cflSignStore = this.modes.cflSign()
+        this.cflAlphaStore = listOf()
+        i = 0
+        while (i < 6) {
+            this.cflAlphaStore.add(this.modes.cflAlpha(i))
+            i = i + 1
+        }
         this.steps = listOf()
+    }
+
+    Int yModeAt(Int r, Int c) {
+        if (r < 0 || c < 0) {
+            return 0
+        }
+        return this.yModeMap[r * this.miCols + c]
+    }
+
+    Int uvModeAt(Int r, Int c) {
+        if (r < 0 || c < 0) {
+            return 0
+        }
+        return this.uvModeMap[r * this.miCols + c]
+    }
+
+    void setModes(Int r, Int c, Int bs, Int yMode, Int uvMode) {
+        var bw = av1BlockNum4x4Wide(bs)
+        var bh = av1BlockNum4x4High(bs)
+        var i = 0
+        while (i < bh) {
+            var j = 0
+            while (j < bw) {
+                this.yModeMap[(r + i) * this.miCols + (c + j)] = yMode
+                this.uvModeMap[(r + i) * this.miCols + (c + j)] = uvMode
+                j = j + 1
+            }
+            i = i + 1
+        }
+    }
+
+    // The non-palette part of the `intra_frame_mode_info` body (§5.11.8):
+    // intra Y mode, angle delta Y, UV mode (with the CFL-allowed selection),
+    // angle delta UV, CFL alphas and filter-intra mode info. Returns
+    // `[ yMode, angleDeltaY, uvMode, angleDeltaUV, cflAlphaU, cflAlphaV,
+    //    useFilterIntra, filterIntraMode ]`. `lossless`/`hasChroma`/
+    // `enableFilterIntra` mirror the header flags; `palettePossible` is the
+    // spec's palette guard (`allow_screen_content_tools` and the block-size
+    // rule) — when it holds, palette is not covered yet and the reader refuses
+    // by name.
+    Int[] readBody(Int r, Int c, Int bs, Int lossless, Int hasChroma,
+                   Int enableFilterIntra, Int palettePossible) {
+        if (palettePossible == 1) {
+            throw "IMAGE: av1 palette mode not covered"
+        }
+        var hasU = 0
+        if (r > 0) {
+            hasU = 1
+        }
+        var hasL = 0
+        if (c > 0) {
+            hasL = 1
+        }
+        var imc = av1IntraModeContext()
+        var aboveMode = 0
+        if (hasU == 1) {
+            aboveMode = imc.get(this.yModeAt(r - 1, c))
+        }
+        var leftMode = 0
+        if (hasL == 1) {
+            leftMode = imc.get(this.yModeAt(r, c - 1))
+        }
+        var yMode = this.sym.readSymbol(this.kfYStore.get(aboveMode * 5 + leftMode), 13)
+        var angleY = 0
+        if (bs >= 3 && av1IsDirectionalMode(yMode) == 1) {
+            var raw = this.sym.readSymbol(this.angleStore.get(yMode - 1), 7)
+            angleY = raw - 3
+        }
+        var uvMode = 0
+        var angleUV = 0
+        var cflU = 0
+        var cflV = 0
+        if (hasChroma == 1) {
+            var maxDim = av1BlockWidth(bs)
+            if (av1BlockHeight(bs) > maxDim) {
+                maxDim = av1BlockHeight(bs)
+            }
+            var cflAllowed = 0
+            if (lossless == 1 && bs == 0) {
+                cflAllowed = 1
+            } else if (lossless == 0 && maxDim <= 32) {
+                cflAllowed = 1
+            }
+            if (cflAllowed == 1) {
+                uvMode = this.sym.readSymbol(this.uvStore.get(13 + yMode), 14)
+            } else {
+                uvMode = this.sym.readSymbol(this.uvStore.get(yMode), 13)
+            }
+            if (uvMode == 13) {
+                var signs = this.sym.readSymbol(this.cflSignStore, 8)
+                var signU = (signs + 1) / 3
+                var signV = (signs + 1) % 3
+                if (signU != 0) {
+                    var au = this.sym.readSymbol(this.cflAlphaStore.get((signU - 1) * 3 + signV), 16)
+                    cflU = 1 + au
+                    if (signU == 2) {
+                        cflU = 0 - cflU
+                    }
+                }
+                if (signV != 0) {
+                    var av = this.sym.readSymbol(this.cflAlphaStore.get((signV - 1) * 3 + signU), 16)
+                    cflV = 1 + av
+                    if (signV == 2) {
+                        cflV = 0 - cflV
+                    }
+                }
+            }
+            if (bs >= 3 && av1IsDirectionalMode(uvMode) == 1) {
+                var rawUV = this.sym.readSymbol(this.angleStore.get(uvMode - 1), 7)
+                angleUV = rawUV - 3
+            }
+        }
+        var useFilterIntra = 0
+        var filterMode = 0
+        if (enableFilterIntra == 1 && yMode == 0 && av1ModeInfoMaxDim(bs) <= 32) {
+            useFilterIntra = this.sym.readSymbol(this.filterIntraStore.get(bs), 2)
+            if (useFilterIntra == 1) {
+                filterMode = this.sym.readSymbol(this.filterModeStore, 5)
+            }
+        }
+        this.setModes(r, c, bs, yMode, uvMode)
+        var out = new Int[8]
+        out[0] = yMode
+        out[1] = angleY
+        out[2] = uvMode
+        out[3] = angleUV
+        out[4] = cflU
+        out[5] = cflV
+        out[6] = useFilterIntra
+        out[7] = filterMode
+        return out
     }
 
     // The 4x4 segment map cell, or -1 when out of the frame (the spec's
