@@ -872,6 +872,15 @@ targets, plus riscv64/aarch64 under qemu during authoring. Proof (executed):
 of `known-bugs` §613). Validated on all four targets. Proof (executed):
 `tests/run-golden.sh` **136/136** (34 cases × 4 targets), exit 0.
 
+**Phase 6 slice 10 LANDED (06/10):** one more case — **35 total** — pinning the
+two `try/finally` abrupt-completion faces the Phase-6 slice-9 sweep catalogued
+as `known-bugs` §617, now FIXED: `finally-control-flow` combines a
+`break`/`continue` leaving a `try` (the finally MUST run before the jump) with a
+nested `try/finally` whose inner try `return`s (the outer finally runs, the inner
+value survives). Validated on all four targets; additionally run on
+riscv64/aarch64 under qemu during authoring. Proof (executed):
+`tests/run-golden.sh` **140/140** (35 cases × 4 targets), exit 0.
+
 ### Phase 7 — Integration
 
 Deploy:

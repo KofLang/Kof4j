@@ -74,7 +74,7 @@ IRModule currentModule;
      * savedMutated) p/ não vazar frame do método externo.
      */
     record FinallyFrame(LabelId returnFinallyLabel, LabelId rethrowLabel, int slotValor, Type returnType,
-                        int tryDepthSelf) {
+                        int tryDepthSelf, java.util.List<StatementNode> finallyBody) {
     }
 
     final java.util.Deque<FinallyFrame> finallyFrames = new java.util.ArrayDeque<>();

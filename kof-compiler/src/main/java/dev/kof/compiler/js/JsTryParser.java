@@ -34,17 +34,38 @@ JsIr.JsStatement parse(MethodCtx ctx, int[] pos) {
                 pos[0]++;
         // DD-01 (bug 45): lookahead do label return-finally — é o alvo do
         // KofJump que aparece logo após o store #retVal no corpo do try.
-        ctx.currentReturnFinallyLabel = null;
-        for (int i = pos[0]; i < ctx.ops.size(); i++) {
-            if (ctx.ops.get(i) instanceof KofStoreLocal sl
-                    && "#retVal".equals(ctx.rawLocalNames.get(sl.index()))) {
-                for (int j = i + 1; j < ctx.ops.size() && j <= i + 3; j++) {
-                    if (ctx.ops.get(j) instanceof KofJump kj) { ctx.currentReturnFinallyLabel = kj.target(); break; }
-                    if (ctx.ops.get(j) instanceof KofLabel) break;
+        // §617 face B: a varredura é CIENTE DE PROFUNDIDADE — um `#retVal` de
+        // um try ANINHADO (mesmo nome de local, índice diferente) não pode ser
+        // confundido com o deste try (era a causa do ICE `unexpected
+        // KofCatchStart` em try/finally aninhado com return interno). O store
+        // DESTE try é o primeiro em profundidade relativa 1; aninhados ficam em
+        // >=2 e o KofTryEnd do aninhado decrementa de volta. O valor achado é
+        // SALVO antes de parsear o corpo: o parse do try aninhado sobrescreve
+        // ctx.currentReturnFinallyLabel, então o epílogo externo usaria o label
+        // errado.
+        LabelId myReturnFinally = null;
+        int myRetSlot = -1;
+        {
+            int depth = 1;
+            for (int i = pos[0]; i < ctx.ops.size(); i++) {
+                if (ctx.ops.get(i) instanceof KofTryStart) { depth++; continue; }
+                if (ctx.ops.get(i) instanceof KofTryEnd) {
+                    depth--;
+                    if (depth == 0) break;
+                    continue;
                 }
-                break;
+                if (depth == 1 && ctx.ops.get(i) instanceof KofStoreLocal sl
+                        && "#retVal".equals(ctx.rawLocalNames.get(sl.index()))) {
+                    myRetSlot = sl.index();
+                    for (int j = i + 1; j < ctx.ops.size() && j <= i + 3; j++) {
+                        if (ctx.ops.get(j) instanceof KofJump kj) { myReturnFinally = kj.target(); break; }
+                        if (ctx.ops.get(j) instanceof KofLabel) break;
+                    }
+                    break;
+                }
             }
         }
+        ctx.currentReturnFinallyLabel = myReturnFinally;
         List<JsIr.JsStatement> tryBody = flow.parseStatements(ctx, pos, Set.of(ts.endLabel()), new ArrayList<>());
         // DD-01: com return no corpo (sem catch), o body para no primeiro
         // region-exit (jump p/ returnFinally) e sobra o jump do fluxo normal
@@ -107,7 +128,7 @@ JsIr.JsStatement parse(MethodCtx ctx, int[] pos) {
             // DD-01: se há return-finally (return no corpo), o epílogo vem
             // ANTES do Label(done) — parar o skip nele e parsear o epílogo.
             LabelId done = exits.isEmpty() ? null : exits.get(exits.size() - 1);
-            LabelId rf = ctx.currentReturnFinallyLabel;
+            LabelId rf = myReturnFinally;
             if (rf != null) {
                 while (pos[0] < ctx.ops.size() && !(ctx.ops.get(pos[0]) instanceof KofLabel kl
                         && kl.label().equals(rf))) {
@@ -145,18 +166,29 @@ JsIr.JsStatement parse(MethodCtx ctx, int[] pos) {
         // corpo, preservando SÓ o return final do valor.
         List<JsIr.JsStatement> returnFinally = new ArrayList<>();
         if (hasFinally && pos[0] < ctx.ops.size() && ctx.ops.get(pos[0]) instanceof KofLabel rf
-                && rf.label().equals(ctx.currentReturnFinallyLabel)) {
+                && rf.label().equals(myReturnFinally)) {
             pos[0]++;
             List<JsIr.JsStatement> epilogue = flow.parseStatements(ctx, pos, Set.of(), new ArrayList<>());
-            boolean returning = false;
-            for (JsIr.JsStatement st : epilogue) {
-                if (st instanceof JsIr.JsReturn jr) { returnFinally.add(jr); returning = true; }
+            // §617 face B: o epílogo repete o corpo do finally (que o
+            // try/finally NATIVO do JS já executa) como PREFIXO exato, antes da
+            // cauda real — descartar o prefixo que coincide com finallyBody,
+            // preservando a cauda: o `return` final (single-try) OU a cadeia
+            // `#retVal = <slot interno>; return #retVal` (try/finally aninhado,
+            // onde o valor do return interno precisa sobreviver ao finally
+            // externo). Antes, só o JsReturn era preservado e o caso aninhado
+            // devolvia `undefined`.
+            int epiStart = 0;
+            while (epiStart < epilogue.size() && epiStart < finallyBody.size()
+                    && epilogue.get(epiStart).equals(finallyBody.get(epiStart))) {
+                epiStart++;
             }
-            if (!returning) returnFinally.addAll(epilogue);
+            returnFinally.addAll(epilogue.subList(epiStart, epilogue.size()));
             // o Label(done) do try encerra o epílogo — consumir (não é loop:
-            // nenhum jump posterior aponta p/ ele depois do epílogo parseado)
+            // nenhum jump posterior aponta p/ ele depois do epílogo parseado).
+            // §617 face B: NÃO consumir se for o endLabel de um try ENVOLVENTE
+            // (o KofCatchStart do outer ficaria solto → COMP002).
             if (pos[0] < ctx.ops.size() && ctx.ops.get(pos[0]) instanceof KofLabel dl
-                    && !ctx.isLoopLabel(dl.label())) {
+                    && !ctx.isLoopLabel(dl.label()) && !ctx.isTryEndLabel(dl.label())) {
                 pos[0]++;
             }
         }

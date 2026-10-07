@@ -878,6 +878,15 @@ contrato de `return`-através-de-`finally` que o SIGSEGV nativo do §613 expôs:
 `known-bugs` §613). Validado nos quatro alvos. Prova (executada):
 `tests/run-golden.sh` **136/136** (34 casos × 4 alvos), exit 0.
 
+**Fatia 10 da Fase 6 ENTREGUE (06/10):** mais um caso — **35 no total** — pinando as
+duas faces de conclusão abrupta do `try/finally` que a varredura da fatia 9 da Fase 6
+catalogou como `known-bugs` §617, agora CORRIGIDO: `finally-control-flow` combina um
+`break`/`continue` saindo de um `try` (o finally DEVE rodar antes do salto) com um
+`try/finally` aninhado cujo try interno `return`a (o finally externo roda, o valor
+interno sobrevive). Validado nos quatro alvos; adicionalmente rodado em
+riscv64/aarch64 sob qemu na autoria. Prova (executada):
+`tests/run-golden.sh` **140/140** (35 casos × 4 alvos), exit 0.
+
 ### Fase 7 — Integração
 
 Implantar:
