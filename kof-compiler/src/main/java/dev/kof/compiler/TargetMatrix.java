@@ -75,7 +75,10 @@ public final class TargetMatrix {
         if (requested == null) return null;
         String r = requested.toLowerCase();
         if (r.equals("wasm") || r.equals("kofwasm") || r.equals("kofwebasm")
-                || r.equals("kofwebassembly") || r.equals("webassembly")) {
+                || r.equals("kofwebassembly") || r.equals("webassembly")
+                || r.equals("wasm32") || r.equals("wasm32-wasi")
+                || r.equals("wasi") || r.equals("wasi-preview1")
+                || r.equals("wasip1") || r.equals("kofwasi")) {
             return "WASM001";
         }
         return null;
@@ -91,8 +94,10 @@ public final class TargetMatrix {
         String gap = frontendGapFor(value);
         if (gap != null) {
             if (outError != null) outError.add(
-                    "target '" + value + "' (KofWebAssembly) does not exist yet — planned"
-                            + " in Phase 6 of the platform plan (docs/development/DECISIONS.md) ["
+                    "target '" + value + "' (KofWebAssembly/WASI) does not exist yet — the"
+                            + " wasm/wasi frontend is promoted and is a 0.6.0 cut gate"
+                            + " (docs/development/wasm-wasi-plan.md, issue #776,"
+                            + " D-WEB-WASI-DEFAULT-0710, docs/development/DECISIONS.md) ["
                             + gap + "]");
             return null;
         }

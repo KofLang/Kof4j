@@ -59,6 +59,24 @@ class TargetMatrixTest {
         assertNull(TargetMatrix.frontendGapFor("script"), "script existe");
     }
 
+    // #776 / D-WEB-WASI-DEFAULT-0710: WASI is the ordered DEFAULT web/desktop
+    // frontend, so the `wasi`/`wasm32-wasi` spellings are KNOWN planned targets
+    // (WASM001 honest gap), never the generic "unknown target" (R6). RED pre-fix
+    // (`frontendGapFor("wasi")` returned null → unknown).
+    @Test
+    void wasiSpellingsAreHonestGap() {
+        for (String name : java.util.List.of(
+                "wasi", "WASI", "wasi-preview1", "wasip1", "kofwasi",
+                "wasm32", "wasm32-wasi")) {
+            assertEquals("WASM001", TargetMatrix.frontendGapFor(name), name);
+        }
+        java.util.List<String> errs = new java.util.ArrayList<>();
+        assertNull(TargetMatrix.parse("wasi", errs), "wasi ainda não existe → null");
+        assertEquals(1, errs.size());
+        assertTrue(errs.get(0).contains("WASM001"), errs.get(0));
+        assertTrue(errs.get(0).contains("#776"), errs.get(0));
+    }
+
     @Test
     void wasmGapMessagePointsToRealPlanPath() {
         // R6: diagnóstico honesto com referência CORRETA — o plano de origem

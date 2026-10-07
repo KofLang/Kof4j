@@ -143,6 +143,18 @@ its phase (§31); until then `WASM001` remains the answer. Registry touch
 points (measured): `Target.java` enum + `TargetMatrix` + `kof-cli` target
 parsing — **enum change = frozen-surface adjacent → rule 6 approval**.
 
+**Slice 15.1 plumbing LANDED (06/10, lane compiler/JVM/native `192.168.15.30:9092`):**
+the honest gap now covers the WASI spellings too — `TargetMatrix.frontendGapFor`
+recognizes `wasm32`, `wasm32-wasi`, `wasi`, `wasi-preview1`, `wasip1`, `kofwasi`
+(besides the existing `wasm`/`kofwasm`/`kofwebasm`/`kofwebassembly`/`webassembly`)
+and both CLI paths (`--frontend=wasi`/`kof.toml` via `TargetMatrix.parse`, legacy
+`--target=wasi` via `KofCliSupport.parseTarget`) refuse with `WASM001`, never the
+generic "unknown target". The message now names the promoted plan + issue #776 +
+`D-WEB-WASI-DEFAULT-0710`. Additive plumbing only — **no `Target` enum value
+yet** (that is the frozen-surface-adjacent step, rule 6, deferred to the codegen
+phase). Proof: `TargetMatrixTest.wasiSpellingsAreHonestGap` +
+`SelectTargetsTest.legacyWasiTargetFlagIsHonestGap` (both RED pre-slice).
+
 ## 7. WASM backend spec (PLANNED)
 
 Module sections to emit: `Type, Import, Function, Table, Memory, Global,

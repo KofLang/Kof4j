@@ -97,4 +97,20 @@ class SelectTargetsTest {
         assertTrue(KofCliSupport.unknownTargetMessages("native").isEmpty());
         assertTrue(KofCliSupport.unknownTargetMessages("nada").toString().contains("unknown target"));
     }
+
+    // #776 / D-WEB-WASI-DEFAULT-0710: the ordered WASI default frontend is a
+    // KNOWN planned target — `--target=wasi` must explain WASM001/#776, never
+    // the generic "unknown target". RED pre-fix (`unknown target: wasi`).
+    @Test
+    void legacyWasiTargetFlagIsHonestGap() {
+        var msgs = KofCliSupport.unknownTargetMessages("wasi");
+        assertEquals(1, msgs.size());
+        assertTrue(msgs.get(0).contains("WASM001"), msgs.get(0));
+        assertTrue(msgs.get(0).contains("#776"), msgs.get(0));
+        assertTrue(msgs.get(0).contains("docs/development/wasm-wasi-plan.md"), msgs.get(0));
+        // --frontend=wasi (canonical path) rejects with the same named gap
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> KofCliSupport.selectTargets("jvm", "wasi", null));
+        assertTrue(e.getMessage().contains("WASM001"), e.getMessage());
+    }
 }

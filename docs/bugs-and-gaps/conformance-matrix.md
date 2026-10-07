@@ -322,16 +322,20 @@ different reason, both honest (R6):
   covered by `AndroidInteropE2ETest` (JVM semantics in `Target.ANDROID`);
   the APK pipeline itself requires the SDK and has no E2E in the suite.
 
-- **`wasm` / `kofwebassembly`** — **WASM001: does not exist yet**. There is no
-  `Target.WASM`; `TargetMatrix.frontendGapFor` maps the requested names
-  (`wasm`, `kofwasm`, `kofwebasm`, `kofwebassembly`, `webassembly`) to the gap
-  **WASM001**, planned in Phase 6 of the platform plan
-  (`docs/development/DECISIONS.md` §D-PLATFORM). The two CLI paths
-  diagnose the same: `--frontend=wasm`/`kof.toml` →
-  `TargetMatrix.parse` with the gap; `--target=wasm` (legacy flag) → the same
-  message via `KofCliSupport.parseTarget`. It never compiles as JVM by
-  mistake. Proof: `TargetMatrixTest.wasmGapMessagePointsToRealPlanPath` +
-  `SelectTargetsTest.wasmFrontendIsHonestGap`.
+- **`wasm` / `wasi` / `kofwebassembly`** — **WASM001: does not exist yet**. There
+  is no `Target.WASM`; `TargetMatrix.frontendGapFor` maps the requested names
+  (`wasm`, `kofwasm`, `kofwebasm`, `kofwebassembly`, `webassembly`, `wasm32`,
+  `wasm32-wasi`, `wasi`, `wasi-preview1`, `wasip1`, `kofwasi`) to the gap
+  **WASM001** — the wasm/wasi frontend is now PROMOTED and is a 0.6.0 cut gate
+  (`docs/development/wasm-wasi-plan.md`, issue #776, `D-WEB-WASI-DEFAULT-0710`;
+  technical shape `D-WASM-GO`/`D-WASM-01..09`). The two CLI paths diagnose the
+  same: `--frontend=wasm`/`--frontend=wasi`/`kof.toml` →
+  `TargetMatrix.parse` with the gap; `--target=wasm`/`--target=wasi` (legacy
+  flag) → the same message via `KofCliSupport.parseTarget`. It never compiles as
+  JVM by mistake. Proof: `TargetMatrixTest.wasmGapMessagePointsToRealPlanPath` +
+  `TargetMatrixTest.wasiSpellingsAreHonestGap` +
+  `SelectTargetsTest.wasmFrontendIsHonestGap` +
+  `SelectTargetsTest.legacyWasiTargetFlagIsHonestGap`.
 
 ## Method notes
 

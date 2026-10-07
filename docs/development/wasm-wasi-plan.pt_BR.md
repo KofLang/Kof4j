@@ -95,9 +95,20 @@ implementar — não assumir mais deste diagrama do que está escrito aqui):
 - `Target.java` — enum + `isNative()`/`nativeArch()` (PLANNED: `WASM`,
   `WASI` — **TBD: uma entrada por host ou `WASM` + flag de host**;
   DECISION REQUIRED).
-- `TargetMatrix.java` — **CURRENT**: já mapeia pedido `wasm`/`kofwebasm`
-  ao gap honesto `WASM001` ("planejado Fase 6 — rejeitado com gap honesto,
-  nunca silencioso"). O código está reservado para este futuro (§14).
+- `TargetMatrix.java` — **CURRENT**: mapeia os pedidos `wasm`/`kofwasm`/
+  `kofwebasm`/`kofwebassembly`/`webassembly` **e as grafias WASI** `wasm32`/
+  `wasm32-wasi`/`wasi`/`wasi-preview1`/`wasip1`/`kofwasi` ao gap honesto
+  `WASM001`, nunca silencioso. **Fatia 15.1 (LANDED 07/10, lane
+  compiler/JVM/native `192.168.15.30:9092`):** os dois caminhos CLI
+  (`--frontend=wasi`/`kof.toml` via `TargetMatrix.parse`, legado
+  `--target=wasi` via `KofCliSupport.parseTarget`) recusam com `WASM001`
+  nomeado — nunca "unknown target" (R6) — e a mensagem aponta para o plano
+  promovido + issue #776 + `D-WEB-WASI-DEFAULT-0710` (antes o obsoleto
+  "Phase 6 of the platform plan"). Plumbing aditivo: **ainda sem valor no enum
+  `Target`** (adjacente a superfície congelada, regra 6) e sem codegen. Prova
+  RED-first: `TargetMatrixTest.wasiSpellingsAreHonestGap` +
+  `SelectTargetsTest.legacyWasiTargetFlagIsHonestGap`. O código do gap está
+  reservado para este futuro (§14).
 - `dev.kof.compiler.js` (`JsBackend`, `JsArtifactWriter`, …) — precedente
   estrutural para um pacote `dev.kof.compiler.wasm`.
 - CLI: `dev.kof.cli` mapeia `"jvm"|"native"|"js"` para `Target` (ex.:
