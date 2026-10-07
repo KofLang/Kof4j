@@ -871,6 +871,13 @@ contrato congelado de `spawn`/`await` nos quatro alvos). Ambos validados nos qua
 alvos, mais riscv64/aarch64 sob qemu na autoria. Prova (executada):
 `tests/run-golden.sh` **132/132** (33 casos × 4 alvos), exit 0.
 
+**Fatia 9 da Fase 6 ENTREGUE (06/10):** mais um caso — **34 no total** — pinando o
+contrato de `return`-através-de-`finally` que o SIGSEGV nativo do §613 expôs:
+`finally-return` (`return` dentro do `try` E dentro do `catch` de um
+`try/catch/finally`, com o `finally` rodando nos dois caminhos — a forma exata do
+`known-bugs` §613). Validado nos quatro alvos. Prova (executada):
+`tests/run-golden.sh` **136/136** (34 casos × 4 alvos), exit 0.
+
 ### Fase 7 — Integração
 
 Implantar:

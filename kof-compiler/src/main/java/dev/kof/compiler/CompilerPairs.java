@@ -43,6 +43,13 @@ final class CompilerPairs {
         List<AstNode> decls = new ArrayList<>(unit.declarations());
         for (AstNode d : hostUnit.declarations()) {
             driver.declarationPackages.put(d, "");
+            // #773: marca o record injetado para o toString sintético usar o
+            // caminho sem box no campo `T` (não puxa a fatia §284 quando o
+            // programa não usa zip). Registrado no MESMO ponto em que o
+            // pacote é fixado.
+            if (d instanceof RecordDeclarationNode rec) {
+                driver.flatInjectedRecordTypes.add(rec.name());
+            }
             decls.add(d);
         }
         return new CompilationUnitNode(unit.position(), unit.packageName(), unit.imports(), decls);

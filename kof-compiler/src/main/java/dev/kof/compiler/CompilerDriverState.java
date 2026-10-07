@@ -187,6 +187,14 @@ IRModule currentModule;
     final java.util.Map<AstNode, String> declarationPackages =
             new java.util.IdentityHashMap<>();
 
+    /** #773: nomes dos records injetados FLAT em todo programa (hoje só o
+     *  `Pair` do zip, `CompilerPairs`). O `toString` sintético de um record
+     *  genérico usa `kof_box_to_string` para campo `T`; para um record
+     *  injetado sem uso isso puxaria a fatia §284 inteira para o runtime de
+     *  QUALQUER programa (hello 109→126 syms). Com o nome aqui, o campo `T`
+     *  do record injetado usa o caminho pré-§612 (concat direto, sem box). */
+    final java.util.Set<String> flatInjectedRecordTypes = new java.util.HashSet<>();
+
     /** Dono real da lambda (classe onde o corpo foi escrito) por classe sintética. */
     final java.util.Map<String, String> lambdaEnclosingOwner = new java.util.LinkedHashMap<>();
 
@@ -560,6 +568,7 @@ IRModule currentModule;
         externSignatures.clear();
         pendingSuperBridges.clear();
         declarationPackages.clear();
+        flatInjectedRecordTypes.clear();
         lambdaEnclosingOwner.clear();
         mutatedCapturedNames.clear();
         lambdaCapturedNames.clear();

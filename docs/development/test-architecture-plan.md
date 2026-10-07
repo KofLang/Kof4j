@@ -865,6 +865,13 @@ divergence guard) and `concurrency-spawn-await` (`val h = spawn f(n)` with typed
 targets, plus riscv64/aarch64 under qemu during authoring. Proof (executed):
 `tests/run-golden.sh` **132/132** (33 cases × 4 targets), exit 0.
 
+**Phase 6 slice 9 LANDED (06/10):** one more case — **34 total** — pinning the
+`return`-through-`finally` contract the §613 native SIGSEGV exposed:
+`finally-return` (`return` inside the `try` AND inside the `catch` of a
+`try/catch/finally`, with the `finally` running on both paths — the exact shape
+of `known-bugs` §613). Validated on all four targets. Proof (executed):
+`tests/run-golden.sh` **136/136** (34 cases × 4 targets), exit 0.
+
 ### Phase 7 — Integration
 
 Deploy:

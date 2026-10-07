@@ -1,0 +1,17 @@
+String g(Bool b) {
+    try {
+        if (b) {
+            throw "x"
+        }
+        return "OK"
+    } catch (String e) {
+        return "CATCH:" + e
+    } finally {
+        println("F")
+    }
+}
+
+main() {
+    println(g(true))
+    println(g(false))
+}

@@ -35,6 +35,10 @@ public final class NativeRiscvAsmRtB47 {
         sb.append("""
                 .section .rodata
                 .Ldb_null: .asciz "null"
+                # #773: MAGIC do box §284 — kof_db_bind desembrulha o VALOR de um
+                # arg erased (Integer.valueOf do db.execute) em vez de bind_text.
+                .p2align 3
+                .Ldb_bind_magic: .8byte 0x4B4F46425F425801
                 .section .bss
                 .align 3
                 .Ldb_slots: .zero 512
@@ -269,6 +273,16 @@ public final class NativeRiscvAsmRtB47 {
                     la   t1, _kof_heap
                     bltu a2, t1, .Lbind_int
                     bgeu a2, t0, .Lbind_int
+                    # #773: ponteiro vivo pode ser um §284 MAGIC box (arg erased
+                    # do db.execute passou por Integer.valueOf) — desembrulha o
+                    # valor (+16) e bind_int; paridade com o autobox JVM.
+                    la   t1, .Ldb_bind_magic
+                    ld   t1, 0(t1)
+                    ld   t2, 0(a2)
+                    bne  t1, t2, .Lbind_str
+                    ld   a2, 16(a2)
+                    j    .Lbind_int
+                .Lbind_str:
                     sd   s0, 8(sp)
                     sd   s1, 0(sp)
                     mv   s0, a0
