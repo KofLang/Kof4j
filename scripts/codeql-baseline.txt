@@ -40,6 +40,7 @@
 # —— FIXADOS no codigo, aguardando o proximo re-scan fechar o alerta ——
 # (todos provados com teste alvo em 20/09; sairao de `open` sozinhos no re-scan
 #  do ref correspondente; podar apos a primeira CI verde que os fechar)
+1106	java/local-variable-is-never-read	kof-compiler/src/main/java/dev/kof/compiler/js/JsTryParser.java	lane pipeline/image-vision (gate unblock) + #555	2026-10-07	fix POUSADO 07/10 (2dbd479c5): local morto `myRetSlot` removido de JsTryParser.parse; nasceu em ee01c311a (§617, lane compiler/JVM/native); alerta segue aberto na API ate o re-scan do CodeQL auto-fechar; CoreRegressionE2ETest#finallyRunsOnBreakAndContinue 1/1; baseline mantido nesse intervalo (remover apos o re-scan)
 877	java/type-variable-hides-type	kof-cli/src/main/java/dev/kof/cli/DepsRegistry.java	lane #555	2026-09-20	fix: type var <T>-><B> (o <T> escondia o enum TranslateLexer.T); DepsRegistryTest 6/6
 887	java/local-variable-is-never-read	kof-compiler/src/test/java/dev/kof/compiler/KofTimeE2ETest.java	lane #555	2026-09-20	fix: `int[] n = {0}` morto (substituido pelo TickCounter) removido; KofTimeE2ETest#durationSchedulerAtFiresJvm 1/1
 889	java/missing-override-annotation	kof-compiler/src/test/java/dev/kof/compiler/KofTimeE2ETest.java	lane #555	2026-09-20	fix: @Override em TickCounter.invoke
