@@ -106,6 +106,43 @@ test "random seam is reproducible" {
 chamada e, esgotada, repete a última. `seededRandom(seed)` dá a mesma sequência para a mesma seed
 em todo backend e toda execução — a falha volta idêntica.
 
+## Recursos temporários (harness de integração)
+
+Um teste de integração sobe um recurso (um diretório temporário, um servidor, um banco) e precisa
+limpá-lo **mesmo quando o teste falha**. O `withTempDir` cuida desse ciclo de vida: cria o
+diretório, roda o corpo e remove a árvore recursivamente depois — o `finally` roda nos dois
+caminhos:
+
+```kof
+import kof.test
+
+test "escreve um arquivo num diretório temporário" {
+    withTempDir("build/tmp-test", (d: String) -> {
+        var f = File(Path(d).resolve("data.txt"))
+        f.writeText("hello")
+        assertEqualString("hello", f.readText(), "ida e volta")
+    })
+    // o diretório sumiu aqui, mesmo se o corpo lançou
+}
+```
+
+Um recurso que sobe assincronamente é sondado com `waitUntil(probe, attempts, intervalMs)` — ele
+sonda, dorme `intervalMs` entre tentativas e devolve o último resultado; nunca lança e nunca
+inventa sucesso:
+
+```kof
+test "o servidor fica pronto" {
+    withTempDir("build/tmp-srv", (d: String) -> {
+        var up = waitUntil(() -> File(Path(d).resolve("ready")).exists(), 40, 25)
+        assert(up, "o servidor nunca ficou pronto")
+    })
+}
+```
+
+O cleanup é Kof puro (`Directory.list()` + `File.delete()`), então é idêntico no JVM, Native e JS
+— o `Directory.delete()` sozinho só remove um diretório vazio no JS (ver `known-bugs` §618), então
+o `removeTree` percorre a árvore em vez de confiar nele.
+
 ## Testes estilo property (semeados, reprodutíveis)
 
 Não existe uma superfície separada de property-runner: um *teste de property* é um

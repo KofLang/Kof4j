@@ -338,6 +338,35 @@ runs) across JVM + JS + Native x86-64 + riscv64/aarch64(qemu); non-regression `K
 > (`kof.test`) — temp dir / server / db lifecycle with `try/finally` cleanup, injected flat on
 > the explicit `import kof.test`. No Java-only surface. AUTHORIZED; queued after §4.6.
 
+**Status: LANDED 06/10 (first slice — temp-dir lifecycle + readiness poll).** The surface is
+written in Kof (`dev/kof/test.kf`), no new syntax/primitive (`D-KOF-FIRST` item 12):
+
+```kof
+import kof.test
+
+// start → test → cleanup, cleanup even when the body throws
+withTempDir("build/tmp", (d: String) -> {
+    File(Path(d).resolve("data.txt")).writeText("hello")
+    assertEqualString("hello", File(Path(d).resolve("data.txt")).readText(), "round trip")
+})
+
+// bounded readiness poll for a resource that comes up asynchronously
+var up = waitUntil(() -> File("build/tmp/ready").exists(), 40, 25)
+```
+
+`withTempDir(dir, body)` creates the directory, runs the body and recursively removes the tree in
+a `finally` (both paths). `removeTree(path)` is the recursive removal, pure Kof (`Directory.list()`
++ `File.delete()`): `Directory.delete()` only removes an empty directory on JS (JVM/Native delete
+recursively — `known-bugs` §618), so the helper walks the tree to keep cleanup identical on all
+four targets. `waitUntil(probe, attempts, intervalMs)` probes, sleeps between attempts and returns
+the last result — never throws, never invents success; `attempts <= 0` does a single probe.
+
+**Proof:** `IntegrationHarnessE2ETest` **7/7** (create/write/read, cleanup on success, cleanup on
+throw, bounded poll, no-trace-on-disk) across JVM + JS + Native x86-64 + riscv64/aarch64(qemu).
+
+Server and database lifecycle helpers follow in later slices; this slice delivers the temp-dir
+lifecycle and the readiness poll that the server/db slices will reuse.
+
 Infrastructure to bring up resources: HTTP server, database, filesystem, process, external
 service. Each resource has `start → health check → test → cleanup`. **Never leave processes or
 ports open after a test.**

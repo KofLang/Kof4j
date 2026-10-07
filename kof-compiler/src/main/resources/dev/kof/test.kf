@@ -281,3 +281,58 @@ class SeededRandom {
 SeededRandom seededRandom(Int seed) {
     return SeededRandom(seed)
 }
+
+// Nono slice (06/10, §5 harness de integracao — D-MAINT-BATCH-0610B/B): o
+// ciclo de vida de um diretorio temporario, escrito EM KOF, nenhuma primitiva
+// nova. "start -> health check -> test -> cleanup": `withTempDir` cria o
+// diretorio, roda o corpo e REMOVE a arvore depois, mesmo se o corpo lancar
+// (o `finally` garante o cleanup nos 4 alvos). O teste de integracao que usa um
+// diretorio temporario nunca deixa lixo no disco — a decisao da mantenedora
+// ("temp dir / server / db lifecycle with try/finally cleanup").
+//
+// `removeTree` existe porque `Directory.delete()` NAO e portavel para uma
+// arvore com conteudo: o JVM/Native apagam recursivamente (contrato do
+// `kof_io_dir_delete`), mas o alvo JS so apaga um diretorio VAZIO e devolve
+// `false` com um arquivo dentro (divergencia cross medida, rule 5). O helper
+// desce a arvore em Kof puro — `Directory.list()` para descer, `File.delete()`
+// para folhas — entao o cleanup e identico nos 4 alvos.
+Void removeTree(String path) {
+    var d = Directory(path)
+    if (!d.exists()) {
+        return
+    }
+    if (d.isDirectory()) {
+        for (var name in d.list()) {
+            removeTree(Path(path).resolve(name))
+        }
+        d.delete()
+    } else {
+        File(path).delete()
+    }
+}
+
+Void withTempDir(String dir, (String) -> Void body) {
+    Directory(dir).createDirectories()
+    try {
+        body(dir)
+    } finally {
+        removeTree(dir)
+    }
+}
+
+// Health check de um recurso que sobe assincronamente: sonda `probe` ate
+// `attempts` vezes, dormindo `intervalMs` entre as tentativas, e devolve o
+// ultimo resultado (uma sonda final apos a ultima espera). `attempts <= 0`
+// faz uma unica sonda, sem esperar — nunca lanca, nunca inventa sucesso.
+// Mesmo caminho nos 4 alvos: no KofJS `time.sleep` cede o event-loop.
+Bool waitUntil(() -> Bool probe, Int attempts, Int intervalMs) {
+    var i = 0
+    while (i < attempts) {
+        if (probe()) {
+            return true
+        }
+        time.sleep(intervalMs)
+        i = i + 1
+    }
+    return probe()
+}

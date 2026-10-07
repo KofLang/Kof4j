@@ -324,6 +324,36 @@ execuções) em JVM + JS + Native x86-64 + riscv64/aarch64(qemu); não-regressã
 > (`kof.test`) — ciclo de temp dir / server / db com cleanup via `try/finally`, injetada flat no
 > `import kof.test` explícito. Sem superfície só-Java. AUTORIZADO; na fila depois do §4.6.
 
+**Status: LANDED 06/10 (primeira fatia — ciclo de vida de temp dir + poll de prontidão).** A
+superfície é escrita em Kof (`dev/kof/test.kf`), sem sintaxe/primitiva nova (`D-KOF-FIRST` item 12):
+
+```kof
+import kof.test
+
+// start → test → cleanup, cleanup mesmo quando o corpo lança
+withTempDir("build/tmp", (d: String) -> {
+    File(Path(d).resolve("data.txt")).writeText("hello")
+    assertEqualString("hello", File(Path(d).resolve("data.txt")).readText(), "ida e volta")
+})
+
+// poll de prontidão limitado para um recurso que sobe assincronamente
+var up = waitUntil(() -> File("build/tmp/ready").exists(), 40, 25)
+```
+
+`withTempDir(dir, body)` cria o diretório, roda o corpo e remove a árvore recursivamente num
+`finally` (os dois caminhos). `removeTree(path)` é a remoção recursiva, Kof puro (`Directory.list()`
++ `File.delete()`): o `Directory.delete()` só remove um diretório vazio no JS (JVM/Native apagam
+recursivamente — `known-bugs` §618), então o helper percorre a árvore para manter o cleanup
+idêntico nos 4 alvos. `waitUntil(probe, attempts, intervalMs)` sonda, dorme entre as tentativas e
+devolve o último resultado — nunca lança, nunca inventa sucesso; `attempts <= 0` faz uma única
+sonda.
+
+**Prova:** `IntegrationHarnessE2ETest` **7/7** (cria/escreve/lê, cleanup no sucesso, cleanup no
+throw, poll limitado, sem rastro no disco) nos alvos JVM + JS + Native x86-64 + riscv64/aarch64(qemu).
+
+Os helpers de ciclo de vida de servidor e banco vêm em fatias posteriores; esta fatia entrega o
+ciclo de vida de temp dir e o poll de prontidão que as fatias de server/db vão reusar.
+
 Infraestrutura para subir recursos: servidor HTTP, banco, filesystem, processo, serviço externo.
 Cada recurso tem `start → health check → test → cleanup`. **Nunca deixar processos ou portas
 abertas após o teste.**
