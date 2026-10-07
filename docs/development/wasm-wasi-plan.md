@@ -4,9 +4,9 @@
 
 # Kof WASM & WASI — future implementation specification
 
-last: 15.2 LANDED 07/10 (lane `192.168.15.101:9092`) — wasm backend emits the SCALAR subset: top-level `Int/Long/Double/Bool/Char` functions, direct binary WebAssembly (`WasmBackend`/`WasmBinary`/`WasmInstr`), Int=i64 (D-WASM-02), dispatcher `loop $dispatch` + `$pc`; executed + validated under wasmtime v49.0.2 / wasm-tools 1.261.0 (`WasmScalarE2ETest` 3/3, oracle = same program on JVM). `WASI` still `WASM001`; anything outside the subset (IO/collections/records/void) refuses `WASM002` naming this plan + #776, NO artifacts.
-doing: 15.3 next — runtime slices: `main` + println host under WASI preview1 (§19 host wasmtime-first, D-WASM-06), then GC handles/mark-sweep (D-WASM-03/04) — scalar strings/records/IO land there, not in 15.2.
-next: 15.3 (WASI preview1 host + runtime slices) → 15.4 frontend-default flip LAST (only at full parity; `D-LAB-STABILITY` keeps the cut gated by #776).
+last: 15.3 slice 1 LANDED 07/10 (lane `192.168.15.101:9092`) — `Target.WASI` EMITS a WASI-preview1 module: `main` -> `_start`, scalar `println` -> `fd_write` (WasmWasiE2ETest 3/3, stdout == JVM oracle under wasmtime); before it 15.2 — wasm backend emits the SCALAR subset: top-level `Int/Long/Double/Bool/Char` functions, direct binary WebAssembly (`WasmBackend`/`WasmBinary`/`WasmInstr`), Int=i64 (D-WASM-02), dispatcher `loop $dispatch` + `$pc`; executed + validated under wasmtime v49.0.2 / wasm-tools 1.261.0 (`WasmScalarE2ETest` 3/3, oracle = same program on JVM). `WASI` still `WASM001`; anything outside the subset (IO/collections/records/void) refuses `WASM002` naming this plan + #776, NO artifacts.
+doing: 15.3 continues — GC handles/mark-sweep runtime (GC-handle rule of the plan): `println(String)`, records, collections, `args`; then 15.4 flip.
+next: 15.3b+ (GC handles + strings/records/args runtime) → 15.4 frontend-default flip LAST (only at full parity; `D-LAB-STABILITY` keeps the cut gated by #776).
 location: docs/development/wasm-wasi-plan.md
 state: UNDER DEVELOPMENT
 
@@ -180,6 +180,25 @@ checksums, host-gated by `assumeTrue`), JVM oracle parity for `add`,
 `collatz(27)=111`, `fib(10)=55`; refusal case proves no partial module.
 `WasmTargetGateE2ETest` re-pinned to the new truth (wasm IS backend; WASI
 still `WASM001`; out-of-subset program → `WASM002`).
+
+**Slice 15.3-stdout LANDED (07/10, lane `192.168.15.101:9092`):**
+`Target.WASI` is now an EMITTING WASI-preview1 backend: `main` compiles to
+the exported `_start` (command mode), every scalar `println` writes through
+the imported `wasi_snapshot_preview1.fd_write`; `Int`/`Long` print via the
+emitted `kof.writeInt` itoa helper, `Bool` via `kof.writeBool`. Out-of-slice
+programs (string literals, `args`, records/collections) refuse `WASM002`
+naming this plan + #776, writing NO artifacts (Q7; proven by
+`WasmWasiE2ETest` + `WasmTargetGateE2ETest`). Proof: `WasmWasiE2ETest` 3/3 —
+module carries the preview1 imports + `_start` export, validates with
+`wasm-tools` 1.261.0, executes under `wasmtime` v49.0.2 with stdout EXACTLY
+equal to the JVM oracle of the same source (negative/zero/call-result ints,
+bools), exit 0; the `WasmScalarE2ETest` 3/3 (15.2) and re-pinned
+`WasmTargetGateE2ETest` 5/5 (WASI IS backend; frontend gap stays `WASM001`
+until 15.4) stay green; `kof deploy --target wasi` honestly refuses `WASM001`
+(module emits, deploy archive/runtime host not yet — `SelectTargetsTest`/
+`CmdDeployTest` unchanged-green). `println(String)`, records, collections,
+`args` and the GC-handle runtime land in the NEXT 15.3 slices (GC-handle rule of the plan).
+
 
 **Amendment (07/10, lane `192.168.15.101:9092`, 15.1-COMPLETE):** the enum
 step was NOT deferred — roadmap TIER 15 defines 15.1 ITSELF as enum+plumbing

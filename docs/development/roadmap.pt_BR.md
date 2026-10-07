@@ -1136,7 +1136,7 @@ Plano: [`wasm-wasi-plan.pt_BR.md`](wasm-wasi-plan.pt_BR.md) (+EN), promovido pel
 |---|---|---|---|
 | 15.1 | enum `Target` + encanamento de build (aditivo, zero mudança de comportamento nos alvos existentes) | suíte dos 4 alvos verdes inalterada; `Target.WASM/WASI` parse+dispatch | ✅ POUSADA 07/10 (`WasmTargetGateE2ETest` 5/5; suíte 5459 runs / 0 F determinístico) |
 | 15.2 | fatia 1 de codegen — funções escalares sob wasmtime (D-WASM-01/02: backend direto, Int=i64) | novo harness wasm vs oráculo JVM (`WasmScalarE2ETest` 3/3: validação `wasm-tools` + execução `wasmtime`; golden `run-golden.sh`×wasm exige o host `main`/IO de 15.3 — adiado com honestidade, matriz intacta) | ✅ POUSADA 07/10 (lane `192.168.15.101:9092`) |
-| 15.3 | fatias de runtime pelos planos fases 0–7 (GC/handles/desempilhamento/closures/WASI preview1) | seção de release-gates do plano; linhas da matriz de paridade | ABERTA |
+| 15.3 | fatias de runtime pelos planos fases 0–7 (GC/handles/desempilhamento/closures/WASI preview1) — **fatia 1 (host WASI-preview1 `_start` + `println` escalar) POUSADA 07/10** (`WasmWasiE2ETest` 3/3: stdout==oracle-JVM sob wasmtime; fora-da-fatia `WASM002` sem artefatos) | seção de release-gates do plano; linhas da matriz de paridade | ABERTA (fatias GC/strings/args) |
 | 15.4 | **flip do padrão de frontend POR ÚLTIMO** (web/desktop para WASI; JS só explícito) | suíte completa dos 4 alvos existentes verde + paridade WASI; `D-LAB-STABILITY` remedida | ABERTA |
 
 ## 24. KOF 1.0 EXIT GATE — estabilização dos contratos (RATIFICADO 20/09/2026, `DECISIONS.md` §D-RELEASE-1.0; arestas fechadas por `D-1.0-EDGES`)

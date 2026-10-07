@@ -330,17 +330,23 @@ different reason, both honest (R6):
   oráculo JVM). Tudo fora do subset — IO/`println`, coleções, records/strings,
   `void`, chamadas que os alcancem — recusa com **WASM002** nomeando plano +
   unidade + #776, sem GRAVAR artefatos (Q7; provado por
-  `WasmTargetGateE2ETest`). `main` e a superfície stdlib chegam com o host
-  15.3 (WASI preview1) — até lá `wasm` NÃO entra nas matrizes por-alvo
-  run-the-surface (as exclusões carregam o motivo).
-- **`wasi`** — **WASM001: só topologia, sem backend emissor ainda** (15.1
-  pousada 07/10: enum/parse/CLI pela lane `192.168.15.101:9092` + solecismos
-  de string `233724b40` pela lane `192.168.15.30:9092`; a unidade 15.3
-  implementa o backend WASI-preview1). Os aliases/solecismos longos
-  (`kofwasm`, `kofwebasm`, `kofwebassembly`, `webassembly`, `wasm32`,
-  `wasm32-wasi`, `wasi-preview1`, `wasip1`, `kofwasi`) mantêm o gap de string
-  via `TargetMatrix.frontendGapFor`. Prova: `WasmTargetGateE2ETest` +
-  `WasmScalarE2ETest` + `TargetMatrixTest` + `SelectTargetsTest`.
+  `WasmTargetGateE2ETest`). `main`+`println` chegam com o host WASI da 15.3
+  (fatia 1 POUSADA 07/10 — `Target.WASI` os emite; `Target.WASM` ainda não
+  tem `main`/IO) — `wasm` segue fora das matrizes por-alvo run-the-surface
+  (as exclusões carregam o motivo).
+- **`wasi`** — **backend WASI-preview1 EMITE a fatia de stdout** (fatia 1 da
+  15.3 POUSADA 07/10 pela lane `192.168.15.101:9092`: `main` -> `_start`
+  exportado, `println` escalar -> `wasi_snapshot_preview1.fd_write`
+  importado; o módulo valida com `wasm-tools` e executa sob `wasmtime` com
+  stdout == oracle JVM — `WasmWasiE2ETest` 3/3). Fora da fatia (literais de
+  string, `args`, records/coleções, runtime GC) recusa **WASM002** nomeando
+  plano + #776 sem artefatos; o FRONTEND padrão e o `kof deploy` mantêm o
+  **WASM001** honesto até a unidade 15.4 (flip) / o host de deploy. Os
+  aliases/solecismos longos (`kofwasm`, `kofwebasm`, `kofwebassembly`,
+  `webassembly`, `wasm32`, `wasm32-wasi`, `wasi-preview1`, `wasip1`,
+  `kofwasi`) mantêm o gap de string via `TargetMatrix.frontendGapFor`.
+  Prova: `WasmWasiE2ETest` + `WasmTargetGateE2ETest` + `WasmScalarE2ETest` +
+  `TargetMatrixTest` + `SelectTargetsTest`.
 
 ## Method notes
 

@@ -219,7 +219,7 @@ public final class CompilerPipeline {
             // chamador (lowerAndEmit) bloqueia antes; isto é defensivo.
             case SCRIPT -> throw new IllegalStateException("SCRIPT has no backend");
             case WASM -> new dev.kof.compiler.wasm.WasmBackend();
-            case WASI -> throw new IllegalStateException("WASI backend is unit 15.3+ (#776)");
+            case WASI -> new dev.kof.compiler.wasm.WasmBackend(true);
         };
     }
 
@@ -316,15 +316,6 @@ public final class CompilerPipeline {
                     "target 'script' emits no artifacts; use kof run --target script"
                             + " (direct IR interpretation) or another target",
                     "COMP003");
-            return;
-        }
-        if (target == Target.WASI) {
-            diagnostics.error(driver.currentSourceName, 0, 0, 0,
-                    "target 'wasi' has no emitting backend yet (WASM001) — promoted plan"
-                            + " docs/development/wasm-wasi-plan.md (TIER 15, unit 15.3,"
-                            + " issue #776); web/desktop default flips only at unit 15.4"
-                            + " with full parity",
-                    "WASM001");
             return;
         }
         if (System.getProperty("kof.trace") != null) {

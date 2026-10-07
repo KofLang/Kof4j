@@ -8,7 +8,8 @@ import java.util.Locale;
  * mantem o lowering independente da ordem final do modulo.
  */
 public abstract sealed class WasmInstr permits WasmInstr.Const, WasmInstr.Local,
-        WasmInstr.Simple, WasmInstr.Blocking, WasmInstr.Branch, WasmInstr.Call, WasmInstr.NegTop {
+        WasmInstr.Simple, WasmInstr.Blocking, WasmInstr.Branch, WasmInstr.Call, WasmInstr.NegTop, WasmInstr.Store8, WasmInstr.I32,
+        WasmInstr.Mem {
 
     /** @param funcIdx mapa nome→indice para resolver `call` (null quando nao ha calls). */
     public abstract void encode(java.io.ByteArrayOutputStream out, java.util.Map<String, Integer> funcIdx);
@@ -50,7 +51,7 @@ public abstract sealed class WasmInstr permits WasmInstr.Const, WasmInstr.Local,
 
     /** local.get / local.set */
     public static final class Local extends WasmInstr {
-        public static final int GET = 0, SET = 1;
+        public static final int GET = 0, SET = 1, TEE = 2;
         public final int op;
         public final int idx;
         public final String name; // rotulo de depuracao
@@ -58,13 +59,14 @@ public abstract sealed class WasmInstr permits WasmInstr.Const, WasmInstr.Local,
         public Local(int op, int idx, String name) { this.op = op; this.idx = idx; this.name = name; }
 
         @Override public void encode(java.io.ByteArrayOutputStream out, java.util.Map<String, Integer> f) {
-            out.write(op == GET ? 0x20 : 0x21);
+            out.write(op == GET ? 0x20 : (op == SET ? 0x21 : 0x22));
             WasmBinary.writeUleb(out, idx);
         }
 
         @Override public void wat(StringBuilder sb, int n) {
             pad(sb, n);
-            sb.append(op == GET ? "(local.get $" : "(local.set $").append(name).append(")\n");
+            sb.append(op == GET ? "(local.get $" : (op == SET ? "(local.set $" : "(local.tee $"))
+                  .append(name).append(")\n");
         }
     }
 
@@ -82,6 +84,62 @@ public abstract sealed class WasmInstr permits WasmInstr.Const, WasmInstr.Local,
         @Override public void wat(StringBuilder sb, int n) {
             pad(sb, n);
             sb.append('(').append(watName).append(")\n");
+        }
+    }
+
+    /** i32.store8 em offset estatico: empilha (addr)(value) antes. */
+    public static final class Store8 extends WasmInstr {
+        public final int offset;
+
+        public Store8(int offset) { this.offset = offset; }
+
+        @Override public void encode(java.io.ByteArrayOutputStream out, java.util.Map<String, Integer> f) {
+            out.write(0x3a);
+            WasmBinary.writeUleb(out, 0);
+            WasmBinary.writeUleb(out, offset);
+        }
+
+        @Override public void wat(StringBuilder sb, int n) {
+            pad(sb, n);
+            sb.append("(i32.store8 offset=").append(offset).append(")\n");
+        }
+    }
+
+    /** i32 load/store com memarg estatico (host 15.3: iovec + nwritten). */
+    public static final class Mem extends WasmInstr {
+        public static final int LOAD = 0x28, STORE = 0x36;
+        public final int op;
+        public final int offset;
+
+        public Mem(int op, int offset) { this.op = op; this.offset = offset; }
+
+        @Override public void encode(java.io.ByteArrayOutputStream out, java.util.Map<String, Integer> f) {
+            out.write(op);
+            WasmBinary.writeUleb(out, 2); // align = log2(4)
+            WasmBinary.writeUleb(out, offset);
+        }
+
+        @Override public void wat(StringBuilder sb, int n) {
+            pad(sb, n);
+            sb.append(op == LOAD ? "(i32.load offset=" : "(i32.store offset=")
+              .append(offset).append(")\n");
+        }
+    }
+
+    /** i32 util do host (add/sub/const ja existem via Simple/Const). */
+    public static final class I32 extends WasmInstr {
+        public final int op;
+        public final String name;
+
+        public I32(int op, String name) { this.op = op; this.name = name; }
+
+        @Override public void encode(java.io.ByteArrayOutputStream out, java.util.Map<String, Integer> f) {
+            out.write(op);
+        }
+
+        @Override public void wat(StringBuilder sb, int n) {
+            pad(sb, n);
+            sb.append('(').append(name).append(")\n");
         }
     }
 
@@ -131,20 +189,25 @@ public abstract sealed class WasmInstr permits WasmInstr.Const, WasmInstr.Local,
         public final String label;
         public final int depth;
         public final boolean isReturn;
+        public final boolean cond;
 
-        public Branch(String label, int depth) { this.label = label; this.depth = depth; this.isReturn = false; }
-        private Branch() { this.label = null; this.depth = 0; this.isReturn = true; }
+        public Branch(String label, int depth) { this(label, depth, false); }
+
+        public Branch(String label, int depth, boolean cond) {
+            this.label = label; this.depth = depth; this.isReturn = false; this.cond = cond;
+        }
+        private Branch() { this.label = null; this.depth = 0; this.isReturn = true; this.cond = false; }
 
         public static Branch ret() { return new Branch(); }
 
         @Override public void encode(java.io.ByteArrayOutputStream out, java.util.Map<String, Integer> f) {
             if (isReturn) out.write(0x0f);
-            else { out.write(0x0c); WasmBinary.writeUleb(out, depth); }
+            else { out.write(cond ? 0x0d : 0x0c); WasmBinary.writeUleb(out, depth); }
         }
 
         @Override public void wat(StringBuilder sb, int n) {
             pad(sb, n);
-            sb.append(isReturn ? "(return)\n" : "(br $" + label + ")\n");
+            sb.append(isReturn ? "(return)\n" : (cond ? "(br_if $" + label + ")\n" : "(br $" + label + ")\n"));
         }
     }
 

@@ -59,15 +59,16 @@ class WasmTargetGateE2ETest {
     }
 
     @Test
-    void matrixTreatsWasmAsBackendAndWasiAsUnemittedFrontend() {
+    void matrixTreatsWasmAndWasiAsBackendsNeitherFrontendYet() {
         // 15.2 pousou: WASM É backend de emissao (subset escalar, WasmScalarE2ETest).
-        // WASI continua recusa WASM001 ate a unidade 15.3 (runtime/preview1).
-        // Nenhum dos dois e frontend ainda — o flip de padrao e a unidade 15.4.
+        // 15.3 fatia 1 pousou: WASI É backend WASI-preview1 (_start + fd_write,
+        // WasmWasiE2ETest). Frontend/deploy/flip de padrao seguem na unidade 15.4.
         assertTrue(TargetMatrix.isBackend(Target.WASM), "wasm emite desde 15.2");
         assertFalse(TargetMatrix.isFrontend(Target.WASM));
-        assertFalse(TargetMatrix.isBackend(Target.WASI), "wasi: 15.3 pendente");
-        assertFalse(TargetMatrix.isFrontend(Target.WASI));
+        assertTrue(TargetMatrix.isBackend(Target.WASI), "wasi emite desde 15.3 fatia 1");
+        assertFalse(TargetMatrix.isFrontend(Target.WASI), "flip de frontend e 15.4");
         assertNull(TargetMatrix.validate(Target.WASM, null), "backend wasm aceito");
+        assertNull(TargetMatrix.validate(Target.WASI, null), "backend wasi aceito");
         String fe = TargetMatrix.validate(null, Target.WASI);
         assertTrue(fe != null && fe.contains("WASM001"), "frontend wasi recusa honesta: " + fe);
         String feWasm = TargetMatrix.validate(null, Target.WASM);
@@ -76,16 +77,30 @@ class WasmTargetGateE2ETest {
 
     @Test
     void outOfSubsetProgramsRefuseHonestlyWithNoArtifacts(@TempDir Path dir) throws IOException {
-        // WASI: ainda WASM001 (nenhum backend). WASM: fora do subset escalar
-        // (println) -> WASM002 nomeando plano/unidade, SEM artefatos (Q7/R6).
+        // 15.3: WASI emite a fatia escalar (SUCESSO abaixo); fora da fatia
+        // (strings/args) -> WASM002 nomeando plano/unidade, SEM artefatos (Q7/R6).
         {
-            Path src = dir.resolve("GateWasi.kf");
+            Path src = dir.resolve("GateWasiInSlice.kf");
             Files.writeString(src, SRC);
-            Path out = dir.resolve("out-wasi");
+            Path out = dir.resolve("out-wasi-ok");
+            CompilationResult ok = driver.compile(src, out, Target.WASI);
+            assertTrue(ok.success(), "WASI emite a fatia 1 (println escalar): "
+                    + ok.diagnostics().getDiagnostics());
+            Path bin = out.resolve("Default").resolve("Main.wasm");
+            assertTrue(Files.exists(bin), "WASI emits the module");
+            String raw = new String(Files.readAllBytes(bin), StandardCharsets.ISO_8859_1);
+            assertTrue(raw.contains("wasi_snapshot_preview1") && raw.contains("fd_write")
+                            && raw.contains("_start"),
+                    "WASI module has preview1 imports and _start export");
+        }
+        {
+            Path src = dir.resolve("GateWasiStrings.kf");
+            Files.writeString(src, "main() { println(\"oi\") }\n");
+            Path out = dir.resolve("out-wasi-refuse");
             CompilationResult r = driver.compile(src, out, Target.WASI);
-            assertFalse(r.success(), "WASI still refuses (unidade 15.3 pendente)");
+            assertFalse(r.success(), "println de string esta fora da fatia 1 (WASM002)");
             String diags = r.diagnostics().getDiagnostics().toString();
-            for (String mark : GAP_MARKS) {
+            for (String mark : new String[] {"WASM002", "#776", "wasm-wasi-plan"}) {
                 assertTrue(diags.contains(mark), "WASI diagnostic must name " + mark + ": " + diags);
             }
             assertFalse(Files.exists(out.resolve("Default")),

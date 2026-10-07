@@ -4,6 +4,9 @@ import dev.kof.compiler.AccessFlags;
 import dev.kof.compiler.*;
 import dev.kof.compiler.backend.Backend;
 
+import static dev.kof.compiler.wasm.WasmScalarOps.*;
+import static dev.kof.compiler.wasm.WasmStdoutRuntime.*;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -25,6 +28,16 @@ import java.util.*;
  */
 public class WasmBackend implements Backend {
 
+    private final boolean wasi;
+
+    public WasmBackend() {
+        this(false);
+    }
+
+    public WasmBackend(boolean wasi) {
+        this.wasi = wasi;
+    }
+
     @Override
     public void emit(IRModule module, Path outputDir) throws IOException {
         emit(module, outputDir, false);
@@ -34,14 +47,19 @@ public class WasmBackend implements Backend {
     public void emit(IRModule module, Path outputDir, boolean debugInfo) throws IOException {
         List<IRMethod> entries = new ArrayList<>();
         java.util.Map<String, IRMethod> decls = new java.util.LinkedHashMap<>();
+        IRMethod mainDecl = null;
         String entryClass = null;
         for (IRClass clazz : module.classes()) {
             for (IRMethod m : clazz.methods()) {
                 if ((m.accessFlags() & AccessFlags.STATIC) == 0) continue;
                 if (!"Default/Main".equals(clazz.name())) continue;
-                // main e a entrada com IO — host chega na unidade 15.3; seu corpo
-                // NAO e alcancavel e ele nao e exportado nesta unidade
-                if ("main".equals(m.name()) && "void".equalsIgnoreCase(typeName(m.returnType()))) {
+                boolean isMain = "main".equals(m.name())
+                        && "void".equalsIgnoreCase(typeName(m.returnType()));
+                if (isMain) {
+                    if (!wasi) continue; // wasm puro: main pede host — 15.3 (WASI)
+                    mainDecl = m;
+                    decls.putIfAbsent(m.name(), m);
+                    entryClass = clazz.name();
                     continue;
                 }
                 decls.putIfAbsent(m.name(), m);
@@ -51,18 +69,48 @@ public class WasmBackend implements Backend {
                 }
             }
         }
+        // println e um builtin do compilador em TODOS os backends (JsCallEmitter/
+        // ExpressionPrintLowerer); nunca sombreavel por declaracao de usuario
+        boolean printIntrinsic = wasi;
         // fecho transitivo de chamadas a partir das entradas escalares: qualquer
         // declaracao FORA do subset que seja de fato alcancada recusa honesto
         // (WASM002) — helper injetado pela stdlib que o programa nao usa nao
         // conta; nunca sucesso parcial silencioso (Q7)
         java.util.Deque<IRMethod> work = new java.util.ArrayDeque<>(entries);
+        if (wasi && mainDecl != null) work.add(mainDecl); // corpo de main entra no fecho
         java.util.Set<IRMethod> seen = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
         while (!work.isEmpty()) {
             IRMethod cur = work.poll();
             if (!seen.add(cur)) continue;
             for (IRBasicBlock bb : cur.basicBlocks()) {
-                for (var op : bb.operations()) {
+                List<KofOperation> cops = bb.operations();
+                for (int ci = 0; ci < cops.size(); ci++) {
+                    var op = cops.get(ci);
                     if (!(op instanceof KofCall kc)) continue;
+                    if (wasi && printIntrinsic && "valueOf".equals(kc.methodName())
+                            && printlnFollows(cops, ci)) {
+                        continue; // consumido pelo host de println (cadeia de valueOf)
+                    }
+                    boolean isPrintCall = wasi && printIntrinsic
+                            && "println".equals(kc.methodName());
+                    if (isPrintCall) {
+                        String t = null;
+                        for (IRBasicBlock scan : cur.basicBlocks()) {
+                            List<KofOperation> sop = scan.operations();
+                            for (int si = 0; si < sop.size(); si++) {
+                                if (sop.get(si) == kc) {
+                                    t = operandTypeBefore(sop, si);
+                                }
+                            }
+                        }
+                        if (t == null || !printableScalar(t)) {
+                            throw new WasmUnsupportedException("println '" + t
+                                    + "' fora da fatia 1 da unidade 15.3 (WASM002) — o host de "
+                                    + "strings/records/colecoes/double chega com o runtime (D-WASM-03/04);"
+                                    + " docs/development/wasm-wasi-plan.md (#776)");
+                        }
+                        continue;
+                    }
                     IRMethod t = decls.get(kc.methodName());
                     if (t == null) {
                         throw new WasmUnsupportedException("chamada '" + kc.methodName()
@@ -70,7 +118,7 @@ public class WasmBackend implements Backend {
                                 + " IO/stdlib/intrinsics recebem host nas unidades 15.3+;"
                                 + " docs/development/wasm-wasi-plan.md (#776)");
                     }
-                    if (!isScalarSignature(t)) {
+                    if (!isScalarSignature(t) && !(wasi && t == mainDecl)) {
                         throw new WasmUnsupportedException("chamada '" + kc.methodName()
                                 + "' fora do subset escalar da unidade 15.2 (WASM002) —"
                                 + " classes/colecoes/IO/void estao fora; main com host chega em 15.3;"
@@ -88,8 +136,42 @@ public class WasmBackend implements Backend {
         entries.sort(Comparator.comparing(IRMethod::name));
 
         List<WasmFunc> funcs = new ArrayList<>();
-        for (IRMethod m : entries) funcs.add(lowerMethod(m));
-        byte[] bin = new WasmModule(funcs).serialize();
+        List<WasmFunc> lowered = new ArrayList<>();
+        for (IRMethod m : entries) lowered.add(lowerMethod(m, wasi, printIntrinsic));
+        IRMethod startM = null;
+        if (wasi) {
+            if (mainDecl != null) {
+                for (IRBasicBlock bb : mainDecl.basicBlocks()) {
+                    for (var op : bb.operations()) {
+                        if ((op instanceof KofLoadLocal ll && (ll.index() == 0 || ll.index() == 1))
+                                || (op instanceof KofStoreLocal sl && (sl.index() == 0 || sl.index() == 1))) {
+                            throw new WasmUnsupportedException("leitura/escrita de 'args' na unidade 15.3 fatia 1 (WASM002)"
+                                    + " — args_get chega na fatia 15.3b; docs/development/wasm-wasi-plan.md (#776)");
+                        }
+                    }
+                }
+                var startLocals = new ArrayList<IRLocalVariable>();
+                for (IRLocalVariable lv : mainDecl.localVariables()) {
+                    if (lv.index() >= 2) startLocals.add(lv); // slots 0/1 = args (ArrayType)
+                }
+                startM = new IRMethod("_start", mainDecl.returnType(), java.util.List.<Type>of(),
+                        mainDecl.accessFlags(), mainDecl.thrownExceptions(), mainDecl.basicBlocks(),
+                        startLocals, KofDebugInfo.EMPTY, List.of(), List.of());
+            }
+            java.util.List<IRMethod> scanAll = new java.util.ArrayList<>(entries);
+            if (startM != null) scanAll.add(startM);
+            java.util.Set<String> printed = printOperandTypes(scanAll);
+            if (printed.contains("int") || printed.contains("long")) funcs.add(kofWriteInt());
+            if (printed.contains("bool") || printed.contains("boolean")) funcs.add(kofWriteBool());
+            if (printed.contains("char")) funcs.add(kofWriteChar());
+        }
+        funcs.addAll(lowered);
+        if (startM != null) funcs.add(lowerMethod(startM, true, printIntrinsic));
+        List<WasmImport> imports = wasi
+                ? List.of(WasmImport.wasi("fd_write", List.of(0x7f, 0x7f, 0x7f, 0x7f), List.of(0x7f)),
+                          WasmImport.wasi("proc_exit", List.of(0x7f), List.of()))
+                : List.of();
+        byte[] bin = new WasmModule(imports, funcs).serialize();
         String rel = entryClass.replace('/', java.io.File.separatorChar);
         Path wasmPath = outputDir.resolve(rel + ".wasm");
         Files.createDirectories(wasmPath.getParent());
@@ -111,11 +193,85 @@ public class WasmBackend implements Backend {
         };
     }
 
+    /** tipo do ultimo produtor de pilha antes da chamada (IR de pilha:
+   receiver do println via KofGetStatic e ignorado). */
+    static String operandTypeBefore(List<KofOperation> ops, int idx) {
+        for (int i = idx - 1; i >= 0; i--) {
+            KofOperation op = ops.get(i);
+            if (op instanceof KofGetStatic || op instanceof KofLabel || op instanceof KofPop) {
+                continue;
+            }
+            if (op instanceof KofLoadLiteral lit) return typeName(lit.type());
+            if (op instanceof KofLoadLocal ll) return typeName(ll.type());
+            if (op instanceof KofBinary bin) return typeName(bin.operandType());
+            if (op instanceof KofUnary un) return typeName(un.operandType());
+            if (op instanceof KofCall kc) {
+                if ("valueOf".equals(kc.methodName()) && !kc.parameterTypes().isEmpty()
+                        && !(kc.parameterTypes().get(0) instanceof Type.UnknownType)) {
+                    return typeName(kc.parameterTypes().get(0));
+                }
+                if ("valueOf".equals(kc.methodName())) {
+                    return operandTypeBefore(ops, i); // Unknown p/ valueOf: anda p/ o valor real
+                }
+                return typeName(kc.returnType());
+            }
+            return null;
+        }
+        return null;
+    }
+
+    static java.util.Set<String> printOperandTypes(Iterable<IRMethod> ms) {
+        java.util.Set<String> out = new java.util.LinkedHashSet<>();
+        for (IRMethod m : ms) {
+            for (IRBasicBlock bb : m.basicBlocks()) {
+                List<KofOperation> ops = bb.operations();
+                for (int i = 0; i < ops.size(); i++) {
+                    if (ops.get(i) instanceof KofCall kc && "println".equals(kc.methodName())) {
+                        String t = operandTypeBefore(ops, i);
+                        out.add(t == null ? "?" : t.toLowerCase());
+                    }
+                }
+            }
+        }
+        return out;
+    }
+
+    static boolean printableScalar(String name) {
+        return switch (name.toLowerCase()) {
+            case "int", "long", "bool", "boolean", "char" -> true;
+            default -> false;
+        };
+    }
+
+    private static boolean usesPrintOf(List<IRMethod> entries, IRMethod main, String kind) {
+        List<IRMethod> all = new ArrayList<>(entries);
+        if (main != null) all.add(main);
+        for (IRMethod m : all) {
+            for (IRBasicBlock bb : m.basicBlocks()) {
+                for (var op : bb.operations()) {
+                    if (op instanceof KofCall kc && ("println".equals(kc.methodName())
+                            || "print".equals(kc.methodName()))
+                            && !kc.parameterTypes().isEmpty()
+                            && kc.parameterTypes().get(0) instanceof Type.PrimitiveType pp
+                            && pp.name().equalsIgnoreCase(kind)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    // ------------------------------------------------------------------
+    // host WASI preview1 (unidade 15.3 fatia 1): _start + println escalares
+    // ------------------------------------------------------------------
+
+
     // ------------------------------------------------------------------
     // lowering por funcao
     // ------------------------------------------------------------------
 
-    private static WasmFunc lowerMethod(IRMethod m) {
+    private static WasmFunc lowerMethod(IRMethod m, boolean wasi, boolean printIntrinsic) {
         List<Integer> params = new ArrayList<>();
         Map<Integer, Integer> slotMap = new LinkedHashMap<>();
         int jvmSlot = 0;
@@ -135,7 +291,14 @@ public class WasmBackend implements Backend {
             locals.add(mapType(typeName(lv.type()), m.name(), "local " + lv.name()));
             nextWasm++;
         }
-        final int pcIdx = nextWasm;
+        int wIdx = -1, sIdx = -1;
+        if ("_start".equals(m.name())) {
+            wIdx = nextWasm;
+            locals.add(WasmFunc.TYPE_I32); // scratch w
+            sIdx = nextWasm + 1;
+            locals.add(WasmFunc.TYPE_I32); // scratch s
+        }
+        final int pcIdx = nextWasm + ("_start".equals(m.name()) ? 2 : 0);
         locals.add(WasmFunc.TYPE_I32); // $pc
         List<Integer> results = new ArrayList<>();
         if (m.returnType() instanceof Type.PrimitiveType pr && !"void".equalsIgnoreCase(pr.name())) {
@@ -160,6 +323,9 @@ public class WasmBackend implements Backend {
         }
 
         Ctx ctx = new Ctx(slotMap, pcIdx, labelToBlock, m.name());
+        ctx.wIdx = wIdx;
+        ctx.sIdx = sIdx;
+        ctx.wasi = wasi && printIntrinsic;
         List<WasmInstr> body = new ArrayList<>();
         body.add(new WasmInstr.Const(0, 0));
         body.add(new WasmInstr.Local(WasmInstr.Local.SET, pcIdx, "pc"));
@@ -176,8 +342,22 @@ public class WasmBackend implements Backend {
         return new WasmFunc(m.name(), params, results, locals, body);
     }
 
-    private record Ctx(Map<Integer, Integer> slotMap, int pcIdx,
-                       Map<Integer, Integer> labelToBlock, String funcName) {
+    private static final class Ctx {
+        final Map<Integer, Integer> slotMap;
+        final int pcIdx;
+        final Map<Integer, Integer> labelToBlock;
+        final String funcName;
+        int wIdx = -1, sIdx = -1;
+        boolean wasi;
+        String lastPush;
+
+        Ctx(Map<Integer, Integer> slotMap, int pcIdx,
+            Map<Integer, Integer> labelToBlock, String funcName) {
+            this.slotMap = slotMap;
+            this.pcIdx = pcIdx;
+            this.labelToBlock = labelToBlock;
+            this.funcName = funcName;
+        }
         int w(int jvmSlot) {
             Integer i = slotMap.get(jvmSlot);
             if (i == null) {
@@ -225,7 +405,7 @@ public class WasmBackend implements Backend {
                 out.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x40));
                 return;
             }
-            emitPlain(op, ctx, out);
+            emitPlain(ops, i, ctx, out);
         }
         // bloco sem terminador: continua no proximo por ordem (fallthrough do IR linear)
         if (nextBlock >= 0) {
@@ -233,6 +413,22 @@ public class WasmBackend implements Backend {
         } else {
             out.add(WasmInstr.Branch.ret());
         }
+        out.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x40));
+    }
+
+    private static void emitCondJump(KofConditionalJump cj, Ctx ctx, List<WasmInstr> out) {
+        switch (cj.comparison()) {
+            case EQ -> out.add(cmp(cj, "eq", 0x51, 0x61));
+            case NE -> out.add(cmp(cj, "ne", 0x52, 0x62));
+            case LT -> out.add(cmp(cj, "lt_s", 0x53, 0x63));
+            case GT -> out.add(cmp(cj, "gt_s", 0x55, 0x64));
+            case LE -> out.add(cmp(cj, "le_s", 0x57, 0x65));
+            case GE -> out.add(cmp(cj, "ge_s", 0x59, 0x66));
+        }
+        out.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, null, 0x40));
+        jumpTo(ctx.blockOf(cj.trueLabel()), 2, ctx, out);
+        out.add(new WasmInstr.Blocking(WasmInstr.Blocking.ELSE, null, 0x40));
+        jumpTo(ctx.blockOf(cj.falseLabel()), 2, ctx, out);
         out.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x40));
     }
 
@@ -245,21 +441,58 @@ public class WasmBackend implements Backend {
         }
     }
 
-    private static void emitPlain(KofOperation op, Ctx ctx, List<WasmInstr> out) {
+    private static boolean printlnFollows(List<KofOperation> ops, int idx) {
+        for (int i = idx + 1; i < ops.size(); i++) {
+            KofOperation next = ops.get(i);
+            if (next instanceof KofGetStatic || next instanceof KofLabel
+                    || (next instanceof KofCall nk && "valueOf".equals(nk.methodName()))) {
+                continue; // caixa intermediaria da cadeia de valueOf
+            }
+            return next instanceof KofCall kc && "println".equals(kc.methodName());
+        }
+        return false;
+    }
+
+    private static void emitPlain(List<KofOperation> ops, int idx, Ctx ctx, List<WasmInstr> out) {
+        KofOperation op = ops.get(idx);
         if (op instanceof KofLoadLocal ll) {
             out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.w(ll.index()), "l" + ll.index()));
         } else if (op instanceof KofStoreLocal sl) {
             out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.w(sl.index()), "l" + sl.index()));
         } else if (op instanceof KofLoadLiteral lit) {
             emitLiteral(lit.value(), lit.type(), out);
+            ctx.lastPush = typeName(lit.type());
         } else if (op instanceof KofBinary bin) {
             emitBinaryOp(bin.op(), typeName(bin.operandType()), out);
+            ctx.lastPush = typeName(bin.operandType());
         } else if (op instanceof KofUnary un) {
             emitUnary(un, out);
+            ctx.lastPush = typeName(un.operandType());
         } else if (op instanceof KofPop) {
             out.add(new WasmInstr.Simple(0x1a, "drop"));
+        } else if (op instanceof KofGetStatic gs
+                && ctx.wasi && "System".equals(ownerSimpleName(gs.ownerType())) && "out".equals(gs.name())) {
+            // receiver do println — nao empilha nada; a rota println consome so o argumento
         } else if (op instanceof KofCall kc) {
-            if (kc.kind() == KofCallKind.FUNCTION || kc.kind() == KofCallKind.STATIC) {
+            if (ctx.wasi && "valueOf".equals(kc.methodName()) && printlnFollows(ops, idx)) {
+                // String.valueOf(X) seguido de println: o valor bruto ja esta na
+                // pilha; pula o valueOf e deixa o helper escalar consumir
+                ctx.lastPush = (!kc.parameterTypes().isEmpty()
+                        && !(kc.parameterTypes().get(0) instanceof Type.UnknownType))
+                        ? typeName(kc.parameterTypes().get(0))
+                        : operandTypeBefore(ops, idx);
+            } else if (ctx.wasi && "println".equals(kc.methodName())) {
+                String t = ctx.lastPush == null ? "?" : ctx.lastPush.toLowerCase();
+                switch (t) {
+                    case "int", "long" -> out.add(new WasmInstr.Call("kof.writeInt"));
+                    case "bool", "boolean" -> out.add(new WasmInstr.Call("kof.writeBool"));
+                    case "char" -> out.add(new WasmInstr.Call("kof.writeChar"));
+                    default -> throw new WasmUnsupportedException("println '" + t
+                            + "' fora da fatia 1 da unidade 15.3 (WASM002) — o host de strings/"
+                            + "records/colecoes chega com o runtime (D-WASM-03/04);"
+                            + " docs/development/wasm-wasi-plan.md (#776)");
+                }
+            } else if (kc.kind() == KofCallKind.FUNCTION || kc.kind() == KofCallKind.STATIC) {
                 out.add(new WasmInstr.Call(kc.methodName()));
             } else {
                 throw new WasmUnsupportedException("chamada '" + kc.methodName()
@@ -269,7 +502,7 @@ public class WasmBackend implements Backend {
             // marcadores estruturais — no-op (mesma decisao medida no JvmOpEmitter)
         } else {
             throw new WasmUnsupportedException("construcao fora do subset escalar 15.2 (WASM002): '"
-                    + op.getClass().getSimpleName() + "' em '" + ctx.funcName()
+                    + op.getClass().getSimpleName() + "' em '" + ctx.funcName
                     + "' — docs/development/wasm-wasi-plan.md (#776)");
         }
     }
@@ -280,118 +513,4 @@ public class WasmBackend implements Backend {
         out.add(new WasmInstr.Branch("dispatch", depth));
     }
 
-    private static void emitLiteral(Object val, Type type, List<WasmInstr> out) {
-        if (val instanceof Boolean b) {
-            out.add(new WasmInstr.Const(0, b ? 1 : 0));
-        } else if (val instanceof Character c) {
-            out.add(new WasmInstr.Const(0, c));
-        } else if (val instanceof Number n) {
-            if (type instanceof Type.PrimitiveType pt && "double".equalsIgnoreCase(pt.name())) {
-                out.add(new WasmInstr.Const(n.doubleValue()));
-            } else {
-                out.add(new WasmInstr.Const(1, n.longValue()));
-            }
-        } else {
-            throw new WasmUnsupportedException("literal fora do subset escalar (WASM002): " + val);
-        }
-    }
-
-    private static void emitBinaryOp(KofBinaryOp op, String type, List<WasmInstr> out) {
-        boolean dbl = "double".equalsIgnoreCase(type);
-        if (dbl) {
-            switch (op) {
-                case ADD -> out.add(new WasmInstr.Simple(0xa0, "f64.add"));
-                case SUB -> out.add(new WasmInstr.Simple(0xa1, "f64.sub"));
-                case MUL -> out.add(new WasmInstr.Simple(0xa2, "f64.mul"));
-                case DIV -> out.add(new WasmInstr.Simple(0xa3, "f64.div"));
-                case EQ -> out.add(new WasmInstr.Simple(0x61, "f64.eq"));
-                case NE -> out.add(new WasmInstr.Simple(0x62, "f64.ne"));
-                case LT -> out.add(new WasmInstr.Simple(0x63, "f64.lt"));
-                case GT -> out.add(new WasmInstr.Simple(0x64, "f64.gt"));
-                case LE -> out.add(new WasmInstr.Simple(0x65, "f64.le"));
-                case GE -> out.add(new WasmInstr.Simple(0x66, "f64.ge"));
-                default -> throw new WasmUnsupportedException("op f64 '" + op + "' fora do subset 15.2 (WASM002)");
-            }
-            return;
-        }
-        switch (op) {
-            case ADD -> out.add(new WasmInstr.Simple(0x7c, "i64.add"));
-            case SUB -> out.add(new WasmInstr.Simple(0x7d, "i64.sub"));
-            case MUL -> out.add(new WasmInstr.Simple(0x7e, "i64.mul"));
-            case DIV -> out.add(new WasmInstr.Simple(0x7f, "i64.div_s"));
-            case MOD -> out.add(new WasmInstr.Simple(0x81, "i64.rem_s"));
-            case AND -> out.add(new WasmInstr.Simple(0x83, "i64.and"));
-            case OR -> out.add(new WasmInstr.Simple(0x84, "i64.or"));
-            case XOR -> out.add(new WasmInstr.Simple(0x85, "i64.xor"));
-            case SHL -> out.add(new WasmInstr.Simple(0x86, "i64.shl"));
-            case SHR -> out.add(new WasmInstr.Simple(0x87, "i64.shr_s"));
-            case USHR -> out.add(new WasmInstr.Simple(0x88, "i64.shr_u"));
-            case EQ -> out.add(new WasmInstr.Simple(0x51, "i64.eq"));
-            case NE -> out.add(new WasmInstr.Simple(0x52, "i64.ne"));
-            case LT -> out.add(new WasmInstr.Simple(0x53, "i64.lt_s"));
-            case GT -> out.add(new WasmInstr.Simple(0x55, "i64.gt_s"));
-            case LE -> out.add(new WasmInstr.Simple(0x56, "i64.le_s"));
-            case GE -> out.add(new WasmInstr.Simple(0x57, "i64.ge_s"));
-            default -> throw new WasmUnsupportedException("op '" + op + "' fora do subset 15.2 (WASM002)");
-        }
-    }
-
-    private static void emitUnary(KofUnary un, List<WasmInstr> out) {
-        String t = typeName(un.operandType());
-        switch (un.op()) {
-            case NEG -> {
-                if ("double".equalsIgnoreCase(t)) {
-                    out.add(new WasmInstr.Simple(0x9a, "f64.neg"));
-                } else {
-                    out.add(new WasmInstr.NegTop());
-                }
-            }
-            case NOT -> out.add(new WasmInstr.Simple(0x45, "i32.eqz"));
-            default -> throw new WasmUnsupportedException("unario '" + un.op()
-                    + "' fora do subset 15.2 (WASM002) — conversions pertencem as unidades 15.3+");
-        }
-    }
-
-    private static WasmInstr cmp(KofConditionalJump cj, String suffix, int i64Op, int f64Op) {
-        boolean dbl = "double".equalsIgnoreCase(typeName(cj.operandType()));
-        int op = dbl ? f64Op : i64Op;
-        String name = (dbl ? "f64." : "i64.") + suffix.replace("_s", "");
-        return new WasmInstr.Simple(op, name);
-    }
-
-    private static void emitCondJump(KofConditionalJump cj, Ctx ctx, List<WasmInstr> out) {
-        switch (cj.comparison()) {
-            case EQ -> out.add(cmp(cj, "eq", 0x51, 0x61));
-            case NE -> out.add(cmp(cj, "ne", 0x52, 0x62));
-            case LT -> out.add(cmp(cj, "lt_s", 0x53, 0x63));
-            case GT -> out.add(cmp(cj, "gt_s", 0x55, 0x64));
-            case LE -> out.add(cmp(cj, "le_s", 0x56, 0x65));
-            case GE -> out.add(cmp(cj, "ge_s", 0x57, 0x66));
-        }
-        out.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, null, 0x40));
-        jumpTo(ctx.blockOf(cj.trueLabel()), 2, ctx, out);
-        out.add(new WasmInstr.Blocking(WasmInstr.Blocking.ELSE, null, 0x40));
-        jumpTo(ctx.blockOf(cj.falseLabel()), 2, ctx, out);
-        out.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x40));
-    }
-
-    private static String typeName(Type t) {
-        if (t instanceof Type.PrimitiveType pt) return pt.name();
-        return t.toString();
-    }
-
-    private static int mapType(String name, String context, String role) {
-        return switch (name.toLowerCase()) {
-            case "int", "long" -> WasmFunc.TYPE_I64;
-            case "double" -> WasmFunc.TYPE_F64;
-            case "bool", "boolean", "char" -> WasmFunc.TYPE_I32;
-            default -> throw new WasmUnsupportedException(role + " '" + name + "' em '" + context
-                    + "' fora do subset escalar 15.2 (WASM002) — docs/development/wasm-wasi-plan.md (#776)");
-        };
-    }
-
-    private static boolean isWide(Type t) {
-        return t instanceof Type.PrimitiveType pt
-                && ("long".equalsIgnoreCase(pt.name()) || "double".equalsIgnoreCase(pt.name()));
-    }
 }

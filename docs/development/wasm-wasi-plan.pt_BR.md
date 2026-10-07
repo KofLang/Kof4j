@@ -4,9 +4,9 @@
 
 # WebAssembly (WASM) + WASI — especificação de implementação futura
 
-last: 15.2 POUSADA 07/10 (lane `192.168.15.101:9092`) — o backend `wasm` emite o SUBSET ESCALAR: funções top-level `Int/Long/Double/Bool/Char`, binário WebAssembly direto (`WasmBackend`/`WasmBinary`/`WasmInstr`), Int=i64 (D-WASM-02), dispatcher `loop $dispatch` + `$pc`; executado + validado sob wasmtime v49.0.2 / wasm-tools 1.261.0 (`WasmScalarE2ETest` 3/3, oráculo = o mesmo programa na JVM). `WASI` segue `WASM001`; fora do subset (IO/coleções/records/void) recusa `WASM002` nomeando o plano + #776, SEM artefatos.
-doing: 15.3 em seguida — fatias de runtime: `main` + host de println sob WASI preview1 (§host wasmtime-primeiro, D-WASM-06), depois handles/marca-e-varre do GC (D-WASM-03/04) — strings/records/IO chegam ali, não na 15.2.
-next: 15.3 (host WASI preview1 + fatias de runtime) → 15.4 flip do frontend-padrão POR ÚLTIMO (só com paridade total; o corte segue gated por #776 via `D-LAB-STABILITY`).
+last: fatia 1 da 15.3 POUSADA 07/10 (lane `192.168.15.101:9092`) — `Target.WASI` EMITE um modulo WASI-preview1: `main` -> `_start`, `println` escalar -> `fd_write` (WasmWasiE2ETest 3/3, stdout == oracle JVM sob wasmtime); antes a 15.2 — o backend `wasm` emite o SUBSET ESCALAR: funções top-level `Int/Long/Double/Bool/Char`, binário WebAssembly direto (`WasmBackend`/`WasmBinary`/`WasmInstr`), Int=i64 (D-WASM-02), dispatcher `loop $dispatch` + `$pc`; executado + validado sob wasmtime v49.0.2 / wasm-tools 1.261.0 (`WasmScalarE2ETest` 3/3, oráculo = o mesmo programa na JVM). `WASI` segue `WASM001`; fora do subset (IO/coleções/records/void) recusa `WASM002` nomeando o plano + #776, SEM artefatos.
+doing: 15.3 continua — GC handles/marca-e-varre (regra GC-handle do plano): `println(String)`, records, colecoes, `args`; depois 15.4 flip.
+next: 15.3b+ (GC handles + runtime strings/records/args) → 15.4 flip do frontend-padrão POR ÚLTIMO (só com paridade total; o corte segue gated por #776 via `D-LAB-STABILITY`).
 location: docs/development/wasm-wasi-plan.pt_BR.md
 state: EM DESENVOLVIMENTO
 
@@ -133,6 +133,26 @@ implementar — não assumir mais deste diagrama do que está escrito aqui):
   `fib(10)=55`; o caso de recusa prova módulo parcial INEXISTENTE.
   `WasmTargetGateE2ETest` reppinado na verdade nova (wasm É backend; WASI
   segue `WASM001`; programa fora do subset → `WASM002`).
+
+**Fatia 15.3-stdout POUSADA (07/10, lane `192.168.15.101:9092`):**
+`Target.WASI` e agora um backend EMISSOR WASI-preview1: `main` compila para
+`_start` exportado (modo comando), e todo `println` escalar escreve pelo
+import `wasi_snapshot_preview1.fd_write`; `Int`/`Long` imprimem pelo helper
+`kof.writeInt` (itoa emitido), `Bool` pelo `kof.writeBool`. Programas fora da
+fatia (literais de string, `args`, records/colecoes) recusam `WASM002`
+nomeando este plano + #776, sem escrever artefatos (Q7; provado por
+`WasmWasiE2ETest` + `WasmTargetGateE2ETest`). Prova: `WasmWasiE2ETest` 3/3 —
+modulo com imports preview1 + export `_start`, validado com `wasm-tools`
+1.261.0, executado sob `wasmtime` v49.0.2 com stdout EXATAMENTE igual ao
+oracle JVM do mesmo fonte (ints negativos/zero/resultado de chamada, bools),
+exit 0; `WasmScalarE2ETest` 3/3 (15.2) e `WasmTargetGateE2ETest` 5/5
+reppinado (WASI E backend; o gap de frontend fica `WASM001` ate 15.4) seguem
+verdes; `kof deploy --target wasi` recusa com honestidade `WASM001` (emite
+modulo, mas sem archive/host de deploy ainda — `SelectTargetsTest`/
+`CmdDeployTest` verdes sem mudanca). `println(String)`, records, colecoes,
+`args` e o runtime de GC handles pousam nas PROXIMAS fatias da 15.3
+(regra GC-handle do plano).
+
 
 - **Emenda (07/10, lane `192.168.15.101:9092`, 15.1-COMPLETA):** o passo do
   enum NÃO ficou adiado — o roadmap TIER 15 define a própria 15.1 como

@@ -71,11 +71,28 @@ public final class WasmBinary {
     }
 
     static byte[] module(WasmModule m) {
-        // 1) type section (dedup por assinatura)
+        // 1) type section (dedup por assinatura; imports primeiro — o espaco
+        // de funcoes do wasm indexa imports ANTES das funcs definidas)
         List<byte[]> typeBodies = new ArrayList<>();
         Map<String, Integer> typeIdx = new LinkedHashMap<>();
         List<byte[]> funcTypeBytes = new ArrayList<>();
         Map<String, Integer> funcIdx = new LinkedHashMap<>();
+        List<byte[]> importItems = new ArrayList<>();
+        for (WasmImport im : m.imports()) {
+            String key = importSigKey(im);
+            Integer t = typeIdx.get(key);
+            if (t == null) {
+                t = typeBodies.size();
+                typeIdx.put(key, t);
+                List<byte[]> ps = new ArrayList<>();
+                for (int p : im.params()) ps.add(new byte[]{(byte) p});
+                List<byte[]> rs = new ArrayList<>();
+                for (int r : im.results()) rs.add(new byte[]{(byte) r});
+                typeBodies.add(bytes(new byte[]{0x60}, vec(ps), vec(rs)));
+            }
+            importItems.add(bytes(str(im.module()), str(im.field()), new byte[]{0x00}, uleb(t)));
+            funcIdx.put(im.name(), funcIdx.size());
+        }
         for (WasmFunc f : m.funcs()) {
             String key = sigKey(f);
             Integer t = typeIdx.get(key);
@@ -112,13 +129,23 @@ public final class WasmBinary {
             body.write(0x0b); // end
             codeItems.add(bytes(uleb(body.size()), body.toByteArray()));
         }
-        return bytes(
-                new byte[]{0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00},
-                section(1, vec(typeBodies)),
-                section(3, vec(funcTypeBytes)),
-                section(5, vec(List.of(new byte[]{0x00, 0x01}))),
-                section(7, vec(exportItems)),
-                section(10, vec(codeItems)));
+        var sections = new ArrayList<byte[]>();
+        sections.add(new byte[]{0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00});
+        sections.add(section(1, vec(typeBodies)));
+        if (!importItems.isEmpty()) sections.add(section(2, vec(importItems)));
+        sections.add(section(3, vec(funcTypeBytes)));
+        sections.add(section(5, vec(List.of(new byte[]{0x00, 0x01}))));
+        sections.add(section(7, vec(exportItems)));
+        sections.add(section(10, vec(codeItems)));
+        return bytes(sections.toArray(new byte[0][]));
+    }
+
+    private static String importSigKey(WasmImport im) {
+        StringBuilder sb = new StringBuilder();
+        for (int p : im.params()) sb.append(p).append(',');
+        sb.append("->");
+        for (int r : im.results()) sb.append(r).append(',');
+        return sb.toString();
     }
 
     private static String sigKey(WasmFunc f) {
@@ -138,7 +165,11 @@ record WasmFunc(String name, List<Integer> params, List<Integer> results,
 }
 
 /** Modelo do modulo (lista ordenada de funcs). */
-record WasmModule(List<WasmFunc> funcs) {
+record WasmModule(List<WasmImport> imports, List<WasmFunc> funcs) {
+
+    WasmModule(List<WasmFunc> funcs) {
+        this(List.of(), funcs);
+    }
     byte[] serialize() {
         return WasmBinary.module(this);
     }
