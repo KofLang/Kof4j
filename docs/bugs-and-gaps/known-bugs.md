@@ -16449,15 +16449,38 @@ MEASURED 03/10 (lane memory-safety/native-cross): the shape is stable RED at onl
 
 <!-- pt-switch --> **PT:** [§553 (pt_BR)](known-bugs.pt_BR.md#553---sobre-um-parametro-de-tipo-nao-limitado-t-significa-igualdade-estrutural-de-conteudo-jvmscriptnativo-deixam-de-comparar-por-referencia-o-js-ja-comparava---corrigido-0210-dona--19216815309092-d-eq-unbounded-t-encontrado-ao-sondar-o-assertequal-generico-para-o-koftest-41)
 
-## §554 — JVM interop: a call whose argument type only matches a primitive-widened Java overload is typed OK (check passes) and dies at class load with VerifyError: Bad type on operand stack — launcher masks it as the JavaFX message — 🟡 OPEN (owner = compiler/interop lane); found building KofShare device identity over java.security
+## §554 — JVM interop: a call whose argument type only matches a primitive-widened Java overload is typed OK (check passes) and dies at class load with VerifyError: Bad type on operand stack — launcher masks it as the JavaFX message — ✅ FIXED 07/10 (owner = 192.168.15.15:9092; lane security/connectors, bugs-and-gaps front per maintainer order; found building KofShare device identity over java.security)
 **Symptom (measured 01/10, tip `c9dd94fe4`, jar rebuilt fresh):** `org.bouncycastle.crypto.signers.Ed25519Signer.update(Byte[])` — the Java surface has `update(byte)` and `update(byte[])`; Kof binds the SCALAR `update(byte)` (the array is silently widened into the scalar slot) and `kof run`/`kof check` say nothing (`checked 1 file(s) — no errors`). The class loads with `VerifyError: Bad type on operand stack — Type '[B' is not assignable to integer @invokevirtual` (proved via direct `java -cp out Default.Main` and a reflection runner; the `kof run`/`kof build` launcher masks the VerifyError as "os componentes de runtime do JavaFX nao foram encontrados" — the §556 family). Bare repro: `import org.bouncycastle.crypto.signers.Ed25519Signer; main() { var s = Ed25519Signer(); var msg = new Byte[2]; s.update(msg) }` + `kof run --deps` (bcprov reachable via kofdeps).
 **Root (measured):** interop overload selection keys on name+arity and accepts a reference argument into a primitive-widened parameter slot instead of preferring the array overload or refusing at the call site. The same slot-mismatch family already gates non-interop primitives (§336 `X as T <op> Y`, §269(d) `n.abs()` → SEM074); the Java-overload arm is unguarded.
 **Workaround (measured green):** call the exact-arity overload explicitly — `signer.update(msg, 0, msg.length)` (`update(byte[],int,int)`): sign+verify end-to-end (Ed25519, 64-byte signature, verify=true).
 **Decision recorded (06/10, `D-MAINT-BATCH-0610`/C):** (c) TIGHTEN + NAME THE HANDLE — refuse the builtin→builtin mismatch in `TypeChecker.isAssignable` AND make `kof.process.Result` nameable; implementation unowned. Original contract text below (verbatim): the silent acceptance is R6 either way; whether the fix is (a) prefer the exact reference-type overload or (b) reject a reference argument in a primitive slot with a call-site SEM — the overload-policy choice belongs to the maintainer. The minimal honest step (b) follows the §269(d)/§336 precedent.
 **Proof (executed, no suite):** the repro above: `check` rc=0 with zero diagnostics + `java Default.Main` VerifyError (message quoted in the first paragraph); the 3-arg workaround runs green.
 **Boundary:** JVM interop only (the `kof deps` jar was fully reachable — `import` + ctor + `as` cast + the 3-arg call all worked; the defect is the 1-arg overload arm). No GitHub issue (worker has no identity: `gh-as-agent.sh whoami` → 403); recorded here + `docs/development/README.md` §3.
+**Fix (07/10, this lane — `D-MAINT-BATCH-0610`/C tighten, option (b)):**
+no `isAssignable` change was needed — the predicate already refuses
+array/reference → primitive; the two external typer arms (`MemberCallTyper`:
+static `ImportedClass.method()` + instance `receiver.method()` on an
+external class) resolved by name+arity only and never consulted it. Both
+arms now run the already-inferred args through `checkArgTypes`, so the
+§554 shape reports `Argument 1 of 'update': expected 'Byte' but got
+'Byte[]' [SEM014]` at the call site instead of a load-time VerifyError.
+Varargs signatures keep the legacy path (§500: `Arrays.asList()` with 0
+args must not false-positive on arity equality). The 1-arg array overload
+stays uncallable by shape (same arity, same call) — the 3-arg form is the
+honest route; a future (a)-style prefer-exact-overload can relax this
+without breaking the new diagnostic.
+**Proof (RED-first):** new `InteropPrimitiveSlotE2ETest` **3/3** (ASM-
+emitted fixture with scalar-first `update(byte)`/`update(byte[])`/
+`update(byte[],int,int)` + `echo(long)` widening control — no `javac`
+needed): pre-fix the SEM014 leg fails (compiles clean — the old silence),
+post-fix SEM014 names both sides, the 3-arg form runs green (`2`, no
+VerifyError), and the `Int`-into-`long` widening still binds and runs
+(`7`). Non-regression: full `kof-compiler` suite re-ran — the only
+delta vs the pre-fix tree is the fixed `ExternalVarargsStaticE2ETest`
+face (my first draft broke §500, guard added); UEFI/OVMF + JavaFX-
+absent failures are identical pre/post (environmental).
 
-<!-- pt-switch --> **PT:** [§554 (pt_BR)](known-bugs.pt_BR.md#554--interop-jvm-uma-chamada-cujo-tipo-de-argumento-so-casa-com-um-overload-java-alargado-por-primitiva-e-tipada-como-ok-o-check-passa-e-morre-no-class-load-com-verifyerror-bad-type-on-operand-stack--o-launcher-mascara-com-a-mensagem-de-javafx---aberto-dona--lane-compilerinterop-encontrado-construindo-a-identidade-de-dispositivo-do-kofshare-sobre-javasecurity)
+<!-- pt-switch --> **PT:** [§554 (pt_BR)](known-bugs.pt_BR.md#554--interop-jvm-uma-chamada-cujo-tipo-de-argumento-so-casa-com-um-overload-java-alargado-por-primitiva-e-tipada-como-ok-o-check-passa-e-morre-no-class-load-com-verifyerror-bad-type-on-operand-stack--o-launcher-mascara-com-a-mensagem-de-javafx---corrigido-0710-dona--19216815159092-lane-securityconnectors-frente-bugs-and-gaps-por-ordem-da-mantenedora-encontrado-construindo-a-identidade-de-dispositivo-do-kofshare-sobre-javasecurity)
 
 ## §555 — JVM interop: String.getBytes() passes the typer with ZERO diagnostics and mislowers the array element type (getfield "?".length) — class load dies NoClassDefFoundError: ?, launcher masks it as the JavaFX message — ✅ FIXED 01/10 (#719, `ab12b8c51`, compiler/JVM lane); found building KofShare chunk framing
 **Symptom (measured 01/10, tip `c9dd94fe4`):** `main() { var s = "payload"; var b = s.getBytes(); println(b.length) }` — `kof check` says "no errors"; `kof run` dies with the JavaFX launcher mask (§556); loading the built class directly (`java -cp out Default.Main`) raises `NoClassDefFoundError: ?` / `ClassNotFoundException: ?`. javap shows the real bug: the `getBytes()` result is typed `Object`, and `b.length` lowers to `GETFIELD "?".length` — the array element type fell into the `"?"` placeholder (the same owner-`?` family as §246/§268, reached through the array-typed interop return).
