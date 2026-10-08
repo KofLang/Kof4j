@@ -18,8 +18,13 @@ import static org.junit.jupiter.api.Assertions.*;
  * getrandom) — a paridade provada aqui é do CONSELHO (faixa + bordas), não
  * do valor, que é exatamente o que o plano de S10 garante.
  */
-class KofRandomTest implements NativeToolchainAssumptions {
+class KofRandomTest implements QemuRunSupport {
     private final CompilerDriver driver = new CompilerDriver();
+
+    @Override
+    public CompilerDriver driver() {
+        return driver;
+    }
 
     /** Corpo comum de asserts de contrato (roda em qualquer alvo). */
     private static final String CONTRACT_SRC = """
@@ -66,7 +71,7 @@ class KofRandomTest implements NativeToolchainAssumptions {
                     ? new String[]{"riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64"}
                     : new String[]{"aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"};
             assumeToolchain(tools);
-            runQemu(tmp, t, CONTRACT_SRC);
+            runQemu(tmp, t, qemu, CONTRACT_SRC);
         }
     }
 
@@ -109,11 +114,12 @@ class KofRandomTest implements NativeToolchainAssumptions {
     @Test
     void randomStringCrossArch(@TempDir Path tmp) throws Exception {
         for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            String qemu = t == Target.NATIVE_RISCV64 ? "qemu-riscv64" : "qemu-aarch64";
             String[] tools = t == Target.NATIVE_RISCV64
                     ? new String[]{"riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64"}
                     : new String[]{"aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"};
             assumeToolchain(tools);
-            runQemu(tmp, t, STRING_SRC);
+            runQemu(tmp, t, qemu, STRING_SRC);
         }
     }
 
@@ -237,25 +243,9 @@ class KofRandomTest implements NativeToolchainAssumptions {
     void randomShapeCrossArch(@TempDir Path tmp) throws Exception {        // RAND001: getrandom(2) ecall 278 (primitiva SECN000/B25 confirmada
         // no qemu). Shape idêntico ao x86 — assert-only, sem golden.
         assumeToolchain("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64");
-        runQemu(tmp, Target.NATIVE_RISCV64, SHAPE_NATIVE_SRC);
+        runQemu(tmp, Target.NATIVE_RISCV64, "qemu-riscv64", SHAPE_NATIVE_SRC);
         assumeToolchain("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64");
-        runQemu(tmp, Target.NATIVE_AARCH64, SHAPE_NATIVE_SRC);
-    }
-
-    private void runQemu(Path tempDir, Target target, String source) throws Exception {
-        Path file = tempDir.resolve("Main-" + System.nanoTime() + ".kf");
-        Files.writeString(file, source);
-        Path outDir = tempDir.resolve("out-" + System.nanoTime());
-        CompilationResult result = driver.compile(file, outDir, target);
-        assertTrue(result.success(), target + " compile failed: "
-                + result.diagnostics().getDiagnostics());
-        Path bin = outDir.resolve("Default/Main");
-        Process p = NativeRiscv64E2ETest.qemu(target == Target.NATIVE_RISCV64 ? "riscv64" : "aarch64",
-                bin).redirectErrorStream(true).start();
-        String output = new String(p.getInputStream().readAllBytes(),
-                java.nio.charset.StandardCharsets.UTF_8).trim();
-        int ec = p.waitFor();
-        assertEquals(0, ec, target + " runtime (qemu) exit " + ec + ", out: " + output);
+        runQemu(tmp, Target.NATIVE_AARCH64, "qemu-aarch64", SHAPE_NATIVE_SRC);
     }
 
     private void runJvm(Path tempDir, String source) throws Exception {
