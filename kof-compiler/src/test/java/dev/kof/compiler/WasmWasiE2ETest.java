@@ -38,6 +38,9 @@ class WasmWasiE2ETest {
                 println(2 + 3 * 4)
                 println("oi")
                 println("hello kof")
+                var s = "a" + "b"
+                println(s)
+                println("x" + "y" + "z")
             }
             """;
 
@@ -84,16 +87,16 @@ class WasmWasiE2ETest {
         String out = new String(proc.getInputStream().readAllBytes());
         assertTrue(proc.waitFor(60, TimeUnit.SECONDS), "host must answer within 60s");
         assertEquals(0, proc.exitValue(), "clean WASI exit: " + out);
-        assertEquals("3\n-42\n0\n55\ntrue\nfalse\n14\noi\nhello kof", out.replaceAll("(?m)^warning:.*$", "")
+        assertEquals("3\n-42\n0\n55\ntrue\nfalse\n14\noi\nhello kof\nab\nxyz", out.replaceAll("(?m)^warning:.*$", "")
                 .replaceAll("\\n+$", ""), "stdout must equal the JVM oracle");
     }
 
     @Test
-    void stringArgsAndOutOfSlicePrintRefuseWithNoArtifacts(@TempDir Path dir) throws Exception {
+    void argsAndOutOfSlicePrintRefuseWithNoArtifacts(@TempDir Path dir) throws Exception {
         var driver = new CompilerDriver();
         record Case(String name, String src) {}
         for (Case c : List.of(
-                new Case("concat", "main(String[] args) { var s = \"a\" + \"b\"\\n    println(s) }\\n"),
+                new Case("index", "main(String[] args) { println(args[0]) }\n"),
                 new Case("args", "main(String[] args) { println(args) }\\n"))) {
             Path src = dir.resolve("Refuse-" + c.name() + ".kf");
             Files.writeString(src, c.src().replace("\\n", "\n"));

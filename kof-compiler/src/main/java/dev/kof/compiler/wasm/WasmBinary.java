@@ -135,6 +135,14 @@ public final class WasmBinary {
         if (!importItems.isEmpty()) sections.add(section(2, vec(importItems)));
         sections.add(section(3, vec(funcTypeBytes)));
         sections.add(section(5, vec(List.of(new byte[]{0x00, 0x01}))));
+        if (m.globals() != null && !m.globals().isEmpty()) {
+            List<byte[]> globalItems = new ArrayList<>();
+            for (int init : m.globals()) {
+                // valtype i32 (0x7f), mutable (0x01), init expr i32.const init; end
+                globalItems.add(bytes(new byte[]{0x7f, 0x01, 0x41}, sleb(init), new byte[]{0x0b}));
+            }
+            sections.add(section(6, vec(globalItems)));
+        }
         sections.add(section(7, vec(exportItems)));
         sections.add(section(10, vec(codeItems)));
         if (m.data() != null && !m.data().isEmpty()) {
@@ -192,15 +200,21 @@ record WasmFunc(String name, List<Integer> params, List<Integer> results,
 record WasmData(int addr, byte[] bytes) {}
 
 /** Modelo do modulo (lista ordenada de funcs). */
-record WasmModule(List<WasmImport> imports, List<WasmFunc> funcs, List<WasmData> data) {
+record WasmModule(List<WasmImport> imports, List<WasmFunc> funcs, List<WasmData> data,
+                  List<Integer> globals) {
 
     WasmModule(List<WasmFunc> funcs) {
-        this(List.of(), funcs, List.of());
+        this(List.of(), funcs, List.of(), List.of());
     }
 
     WasmModule(List<WasmImport> imports, List<WasmFunc> funcs) {
-        this(imports, funcs, List.of());
+        this(imports, funcs, List.of(), List.of());
     }
+
+    WasmModule(List<WasmImport> imports, List<WasmFunc> funcs, List<WasmData> data) {
+        this(imports, funcs, data, List.of());
+    }
+
     byte[] serialize() {
         return WasmBinary.module(this);
     }

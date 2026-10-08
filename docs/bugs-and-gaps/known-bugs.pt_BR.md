@@ -14989,3 +14989,38 @@ shift se aplica a chamadas SEM lambda capturante (calls escalares multi-arg deve
 **Limite:** a comparação float/double do interpretador Script. JVM/JS/Native já eram IEEE-corretos; sem mudança de superfície da linguagem.
 
 <!-- en-switch --> **EN:** [§626 (en)](known-bugs.md#626--the-script-interpreter-compared-doublefloat-with-doublecomparefloatcompare-which-orders-nan-as-greater-than-everything-so-nan--10-returned-true-while-jvmjs-return-false---fixed-0710-found-0710-while-fixing-622-fixed-by-the-native-backend-lane-owner--19216815309092)
+
+## §627 — `assertEqual`/`assertNotEqual` do `kof.test` sobre `Double`/`Float` FALHAM EM FALHAR no Script e no Native riscv64: as quatro faces negativas de float imprimem `NO-THROW` (e a execução riscv64 sai com 1 em `eqFlt (expected 1.5, got 1.5)`) — o oráculo JVM/JS imprime `assertion failed: boomeqDbl/boomneqDbl/boomeqFlt/boomneqFlt`
+
+**Status:** 🟡 ABERTO 08/10 — externo à lane WASI; achado pela lane `192.168.15.101:9092` na suite completa após a unidade 15.3c-fatiaA; dona = `192.168.15.30:9092` (lane compilador/JVM/nativo — linhagem §622/§626), NAO tocado aqui (`D-PLAN-ONE-OWNER` + regra de colisao)
+
+**Repro (medido 08/10, tips `0230723e3` e `898bc50ab`, determinista em execuções ISOLADAS):** `mvn -o test -pl kof-compiler -Dtest='KofTestingE2ETest'` — 7 run / 2 F: `assertionsRunOnScript` e `assertionsRunOnNativeRiscv64`. O diff da face Script contra o oráculo JVM é exatamente quatro linhas: esperado `assertion failed: boomeqDbl (expected 1.5, got 2.5)` / `boomneqDbl (did not expect 2.5)` / `boomeqFlt (expected 1.5, got 2.5)` / `boomneqFlt (did not expect 2.5)`, obtido `NO-THROW` ×4 — isto é, `assertEqual(1.5, 2.5)` e `assertNotEqual(2.5, 2.5)` de `Double`/`Float` PASSAM silenciosamente no Script; a face riscv64 ainda mostra `assertion failed: eqFlt (expected 1.5, got 1.5)` e sai `1` (a harness espera exit 0) — no cross uma IGUALDADE de dois `FLOAT` IDÊNTICOS falha. Verificado independente desta lane: `git stash` de TODAS as mudanças da 15.3c-sliceA reproduz as duas faces RED nos mesmos tips.
+
+**Linhagem suspeita (NAO VERIFICADA — a causa raiz é da lane dona):** o re-escopo do §626 (`KofInterpreterValues.fpCmpResult`, só interpretador) e a refacção de branch float cross do §622 (`feq.d`/`flt.d`/`fle.d` em `NativeRiscvCrossOps`) mudaram como comparações `Double`/`Float` resolvem; as faces de assert negativo (`==`/`!=` alimentando `assertEqual`/`assertNotEqual`) são exatamente os consumidores agora errados no Script + riscv64, enquanto a bateria ordenada (`<`/`>`) `FpCompareCrossE2ETest` segue verde — registrar como inferência, nao medicao.
+
+**Contrato:** igualdade IEEE-754 de primitivos: `1.5 == 1.5` e verdadeiro e `1.5 == 2.5` e falso em TODO alvo; as assercoes do `kof.test` devem falhar exatamente quando os valores diferem (semantica de igualdade congelada; regressao-zero do `D-LAB-STABILITY`).
+
+**Esperado:** `KofTestingE2ETest` 7/7 no tip (as duas faces verdes); se os caminhos do §626/§622 estao corretos para ORDENACAO, a regressao esta no dispatch `==`/`!=` que alimenta os helpers de assert, incluindo o codigo de saida do harness no riscv64.
+
+<!-- en-switch --> **EN:** [§627 (en)](known-bugs.md#627--koftest-assertequalassertnotequal-on-doublefloat-do-not-fail-when-they-must-on-script-and-on-native-riscv64-the-four-negative-float-faces-print-no-throw-and-the-riscv64-run-exits-1-on-eqflt-expected-15-got-15--the-jvmjs-oracle-prints-assertion-failed-boomeqdblboomneqdblboomeqfltboomneqflt)
+
+## §628 — o `ExternalArgTighten` (SEM014) do §554 `D-MAINT-BATCH-0610/C`, pousado em `898bc50ab`, QUEBRA o `JvmLauncherDiagnosticE2ETest`: suas fixtures `pipe.kf`/`Main.kf` passam `Byte[]` para `update` e agora recusam `Argument 1 of 'update': expected 'ByteBuffer' but got 'Byte[]' [SEM014] — 3 faces deterministas RED no tip limpo, kof-cli 593 run / 3 F — 🟡 ABERTO 08/10 (achado 08/10 na re-medicao da suite completa pela lane WASI; dona = a lane compilador/interop que pousou `898bc50ab` (D-MAINT-BATCH-0610/C); NAO tocado pela lane WASI pela regra de colisao)
+
+**Repro (medido 08/10):** com TODAS as mudancas da lane WASI em stash, no tip remoto limpo `898bc50ab`:
+`mvn -o test -pl kof-cli -am -Dtest='JvmLauncherDiagnosticE2ETest'` — 6 run / **3 F deterministas**
+(`kofWorkflowNeverPrintsJavafxMask`, `kofRunNeverPrintsJavafxMask`, `kofTestNeverPrintsJavafxMask`);
+a compilacao do filho morre com `pipe.kf:11:19: error: Argument 1 of 'update': expected 'ByteBuffer' but
+got 'Byte[]' [SEM014]` (idem nas variantes `Main.kf`) — as fixtures de pipeline escrevem no stdin com um
+`Byte[]`, o tightening do §554 agora exige `ByteBuffer`. A MESMA classe estava 6/6 VERDE antes de `898bc50ab`
+(eh a prova do diagnostico de lancador §556, lane `.30:9093`, 01/10) e `CmdWorkflowTest`/`CmdTestSuiteTest`
+seguem verdes na mesma execucao — apenas estas tres fixtures mudaram de sentido sob o novo gate.
+
+**Contrato:** regressao-zero do `D-LAB-STABILITY` — um tightening legal pelo `D-MAINT-BATCH-0610/C` ainda
+deve manter as PROVAS EXISTENTES verdes no MESMO commit que o pousa (migrar as fixtures para a forma
+`ByteBuffer`, ou manter `Byte[]` aceito naquele limite, ou registrar a mudanca de semantica + a movida da
+fixture na mesma entrega — a escolha e da lane dona, nao deste catalogo).
+
+**Limite:** fixtures de teste do kof-cli + o gate de argumento do `KofProcess`/`update`; nenhum arquivo
+WASI/WASM tocado.
+
+<!-- en-switch --> **EN:** [§628 (en)](known-bugs.md#628--the-d-maint-batch-0610c-554-externalargtighten-sem014-landed-at-898bc50ab-breaks-jvmlauncherdiagnostice2etest-its-pipekfmainkf-fixtures-pass-byte-to-update-and-now-refuse-argument-1-of-update-expected-bytebuffer-but-got-byte-sem014--3-faces-deterministic-red-at-the-clean-tip-kof-cli-593-run--3-f---open-0810-found-0810-by-the-wasi-lanes-full-suite-re-measure-owner--the-compilerinterop-lane-that-landed-898bc50ab-d-maint-batch-0610c-not-touched-by-the-wasi-lane-per-the-collision-rule)

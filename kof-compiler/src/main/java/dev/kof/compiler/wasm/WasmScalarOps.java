@@ -123,7 +123,7 @@ public final class WasmScalarOps {
         return switch (name.toLowerCase()) {
             case "int", "long" -> WasmFunc.TYPE_I64;
             case "double" -> WasmFunc.TYPE_F64;
-            case "bool", "boolean", "char" -> WasmFunc.TYPE_I32;
+            case "bool", "boolean", "char", "string" -> WasmFunc.TYPE_I32; // string = handle i32 (15.3c)
             default -> throw new WasmUnsupportedException(role + " '" + name + "' em '" + context
                     + "' fora do subset escalar 15.2 (WASM002) — docs/development/wasm-wasi-plan.md (#776)");
         };

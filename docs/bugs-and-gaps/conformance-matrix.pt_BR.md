@@ -334,12 +334,14 @@ different reason, both honest (R6):
   (fatia 1 POUSADA 07/10 — `Target.WASI` os emite; `Target.WASM` ainda não
   tem `main`/IO) — `wasm` segue fora das matrizes por-alvo run-the-surface
   (as exclusões carregam o motivo).
-- **`wasi`** — **backend WASI-preview1 EMITE a fatia de stdout** (fatia 1 da
-  15.3 POUSADA 07/10 pela lane `192.168.15.101:9092`: `main` -> `_start`
-  exportado, `println` escalar E `println(String)` de LITERAL (data segments + `kof.writeString`) -> `wasi_snapshot_preview1.fd_write`
-  importado; o módulo valida com `wasm-tools` e executa sob `wasmtime` com
-  stdout == oracle JVM — `WasmWasiE2ETest` 3/3). Fora da fatia (concat/variáveis de
-  string, `args`, records/coleções, runtime GC) recusa **WASM002** nomeando
+ - **`wasi`** — **backend WASI-preview1 EMITE a fatia de stdout + strings** (fatia 1 da
+   15.3 POUSADA 07/10 + 15.3b `println(String)` de literal + 15.3c-fatiaA variáveis/concat
+   de String num bump heap (POUSADA 08/10) pela lane `192.168.15.101:9092`: `main` -> `_start`
+   exportado, `println` escalar E `println(String)` de literal (data segments + `kof.writeString`) +
+   handles de `String` num bump heap `global 0`@16384 (`[len][bytes]\n`, `kof.strLit`/
+   `kof.strConcat`/`kof.writeStr`) -> `wasi_snapshot_preview1.fd_write`
+   importado; o módulo valida com `wasm-tools` e executa sob `wasmtime` com
+   stdout == oracle JVM — `WasmWasiE2ETest` 3/3). Fora da fatia (`args`, records/coleções, runtime GC) recusa **WASM002** nomeando
   plano + #776 sem artefatos; o FRONTEND padrão e o `kof deploy` mantêm o
   **WASM001** honesto até a unidade 15.4 (flip) / o host de deploy. Os
   aliases/solecismos longos (`kofwasm`, `kofwebasm`, `kofwebassembly`,

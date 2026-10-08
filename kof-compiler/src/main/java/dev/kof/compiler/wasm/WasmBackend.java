@@ -46,6 +46,7 @@ public class WasmBackend implements Backend {
     @Override
     public void emit(IRModule module, Path outputDir, boolean debugInfo) throws IOException {
         Map<String, Integer> stringPool = new LinkedHashMap<>();
+        List<Integer> globals = List.of();
         List<WasmData> dataSegments = new ArrayList<>();
         List<IRMethod> entries = new ArrayList<>();
         java.util.Map<String, IRMethod> decls = new java.util.LinkedHashMap<>();
@@ -89,9 +90,9 @@ public class WasmBackend implements Backend {
                 for (int ci = 0; ci < cops.size(); ci++) {
                     var op = cops.get(ci);
                     if (!(op instanceof KofCall kc)) continue;
-                    if (wasi && printIntrinsic && "valueOf".equals(kc.methodName())
-                            && printlnFollows(cops, ci)) {
-                        continue; // consumido pelo host de println (cadeia de valueOf)
+                    if (wasi && printIntrinsic && ("valueOf".equals(kc.methodName())
+                            || "kof_string_concat".equals(kc.methodName()))) {
+                        continue; // wrapper intrinseco (println / concat) tratado na emissao
                     }
                     boolean isPrintCall = wasi && printIntrinsic
                             && "println".equals(kc.methodName());
@@ -145,8 +146,8 @@ public class WasmBackend implements Backend {
             if (mainDecl != null) {
                 for (IRBasicBlock bb : mainDecl.basicBlocks()) {
                     for (var op : bb.operations()) {
-                        if ((op instanceof KofLoadLocal ll && (ll.index() == 0 || ll.index() == 1))
-                                || (op instanceof KofStoreLocal sl && (sl.index() == 0 || sl.index() == 1))) {
+                        if ((op instanceof KofLoadLocal ll && ll.index() == 0)
+                                || (op instanceof KofStoreLocal sl && sl.index() == 0)) {
                             throw new WasmUnsupportedException("leitura/escrita de 'args' na unidade 15.3 fatia 1 (WASM002)"
                                     + " — args_get chega na fatia 15.3b; docs/development/wasm-wasi-plan.md (#776)");
                         }
@@ -154,7 +155,7 @@ public class WasmBackend implements Backend {
                 }
                 var startLocals = new ArrayList<IRLocalVariable>();
                 for (IRLocalVariable lv : mainDecl.localVariables()) {
-                    if (lv.index() >= 2) startLocals.add(lv); // slots 0/1 = args (ArrayType)
+                    if (lv.index() >= 1) startLocals.add(lv); // slot 0 = args (ArrayType)
                 }
                 startM = new IRMethod("_start", mainDecl.returnType(), java.util.List.<Type>of(),
                         mainDecl.accessFlags(), mainDecl.thrownExceptions(), mainDecl.basicBlocks(),
@@ -166,7 +167,13 @@ public class WasmBackend implements Backend {
             if (printed.contains("int") || printed.contains("long")) funcs.add(kofWriteInt());
             if (printed.contains("bool") || printed.contains("boolean")) funcs.add(kofWriteBool());
             if (printed.contains("char")) funcs.add(kofWriteChar());
-                if (printed.contains("string")) funcs.add(kofWriteString());
+                if (printed.contains("string")) {
+                    funcs.add(kofStrLit());
+                    funcs.add(kofWriteStr());
+                    if (usesStringConcat(scanAll)) funcs.add(kofStrConcat());
+                    else { /* no-op */ }
+                    globals = java.util.List.of(HEAP_BASE); // bump pointer global 0
+                }
         }
         funcs.addAll(lowered);
         if (startM != null) funcs.add(lowerMethod(startM, true, printIntrinsic, stringPool, dataSegments));
@@ -174,7 +181,7 @@ public class WasmBackend implements Backend {
                 ? List.of(WasmImport.wasi("fd_write", List.of(0x7f, 0x7f, 0x7f, 0x7f), List.of(0x7f)),
                           WasmImport.wasi("proc_exit", List.of(0x7f), List.of()))
                 : List.of();
-        byte[] bin = new WasmModule(imports, funcs, dataSegments).serialize();
+        byte[] bin = new WasmModule(imports, funcs, dataSegments, globals).serialize();
         String rel = entryClass.replace('/', java.io.File.separatorChar);
         Path wasmPath = outputDir.resolve(rel + ".wasm");
         Files.createDirectories(wasmPath.getParent());
@@ -221,6 +228,19 @@ public class WasmBackend implements Backend {
             return null;
         }
         return null;
+    }
+
+    static boolean usesStringConcat(Iterable<IRMethod> ms) {
+        for (IRMethod m : ms) {
+            for (IRBasicBlock bb : m.basicBlocks()) {
+                for (KofOperation op : bb.operations()) {
+                    if (op instanceof KofCall kc && "kof_string_concat".equals(kc.methodName())) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     static java.util.Set<String> printOperandTypes(Iterable<IRMethod> ms) {
@@ -486,11 +506,15 @@ public class WasmBackend implements Backend {
         } else if (op instanceof KofStoreLocal sl) {
             out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.w(sl.index()), "l" + sl.index()));
         } else if (op instanceof KofLoadLiteral lit) {
-            if (ctx.wasi && lit.value() instanceof String str && printlnFollows(ops, idx)) {
+            if (ctx.wasi && lit.value() instanceof String str) {
                 int addr = ctx.internString(str);
                 out.add(new WasmInstr.Const(0, addr));
                 out.add(new WasmInstr.Const(0, ctx.internLen(str)));
+                out.add(new WasmInstr.Call("kof.strLit")); // handle no heap (15.3c)
                 ctx.lastPush = "string";
+            } else if ("string".equalsIgnoreCase(typeName(lit.type()))) {
+                throw new WasmUnsupportedException("literal String fora do WASI (WASM002) —"
+                        + " docs/development/wasm-wasi-plan.md (#776)");
             } else {
                 emitLiteral(lit.value(), lit.type(), out);
                 ctx.lastPush = typeName(lit.type());
@@ -507,7 +531,11 @@ public class WasmBackend implements Backend {
                 && ctx.wasi && "System".equals(ownerSimpleName(gs.ownerType())) && "out".equals(gs.name())) {
             // receiver do println — nao empilha nada; a rota println consome so o argumento
         } else if (op instanceof KofCall kc) {
-            if (ctx.wasi && "valueOf".equals(kc.methodName()) && printlnFollows(ops, idx)) {
+            if (ctx.wasi && "kof_string_concat".equals(kc.methodName())) {
+                out.add(new WasmInstr.Call("kof.strConcat")); // a+b de strings (15.3c)
+                ctx.lastPush = "string";
+            } else if (ctx.wasi && "valueOf".equals(kc.methodName())
+                    && (printlnFollows(ops, idx) || "String".equals(ownerSimpleName(kc.ownerType())))) {
                 // String.valueOf(X) seguido de println: o valor bruto ja esta na
                 // pilha; pula o valueOf e deixa o helper escalar consumir
                 ctx.lastPush = (!kc.parameterTypes().isEmpty()
@@ -520,7 +548,7 @@ public class WasmBackend implements Backend {
                     case "int", "long" -> out.add(new WasmInstr.Call("kof.writeInt"));
                     case "bool", "boolean" -> out.add(new WasmInstr.Call("kof.writeBool"));
                     case "char" -> out.add(new WasmInstr.Call("kof.writeChar"));
-                    case "string" -> out.add(new WasmInstr.Call("kof.writeString"));
+                    case "string" -> out.add(new WasmInstr.Call("kof.writeStr"));
                     default -> throw new WasmUnsupportedException("println '" + t
                             + "' fora da fatia 1 da unidade 15.3 (WASM002) — o runtime de strings/"
                             + "records/colecoes chega com o runtime (D-WASM-03/04);"

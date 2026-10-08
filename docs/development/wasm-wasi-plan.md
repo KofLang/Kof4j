@@ -1,12 +1,12 @@
 [English](wasm-wasi-plan.md) | [Português](wasm-wasi-plan.pt_BR.md)
 
-**Owner:** `192.168.15.101:9092` (TIER 15 lane; 15.1+15.2+15.3-slice1+15.3b landed; 15.3c `args` claimed) — promoted by `D-WEB-WASI-DEFAULT-0710` (0.6.0 GATE, #776); any free lane claims it in DOING first (`D-PLAN-ONE-OWNER`).
+**Owner:** `192.168.15.101:9092` (TIER 15 lane; 15.1+15.2+15.3-slice1+15.3b+15.3c-sliceA landed; 15.3c-sliceB `args` next) — promoted by `D-WEB-WASI-DEFAULT-0710` (0.6.0 GATE, #776); any free lane claims it in DOING first (`D-PLAN-ONE-OWNER`).
 
 # Kof WASM & WASI — future implementation specification
 
-last: 15.3b LANDED 07/10 (`println(String)` literal via data segments + `kof.writeString`, JVM-oracle stdout parity under wasmtime); before it 15.3 slice 1 LANDED 07/10 (lane `192.168.15.101:9092`) — `Target.WASI` EMITS a WASI-preview1 module: `main` -> `_start`, scalar `println` -> `fd_write` (WasmWasiE2ETest 3/3, stdout == JVM oracle under wasmtime); before it 15.2 — wasm backend emits the SCALAR subset: top-level `Int/Long/Double/Bool/Char` functions, direct binary WebAssembly (`WasmBackend`/`WasmBinary`/`WasmInstr`), Int=i64 (D-WASM-02), dispatcher `loop $dispatch` + `$pc`; executed + validated under wasmtime v49.0.2 / wasm-tools 1.261.0 (`WasmScalarE2ETest` 3/3, oracle = same program on JVM). `WASI` still `WASM001`; anything outside the subset (IO/collections/records/void) refuses `WASM002` naming this plan + #776, NO artifacts.
-doing: 15.3 continues — `args` over preview1 `args_sizes_get`/`args_get` (plan §14) next; records/collections/GC-handle runtime after; then 15.4 flip.
-next: 15.3b+ (GC handles + strings/records/args runtime) → 15.4 frontend-default flip LAST (only at full parity; `D-LAB-STABILITY` keeps the cut gated by #776).
+last: 15.3c-sliceA LANDED 08/10 (String variables + concatenation on a bump heap `global 0`@16384, `[len][bytes]\n` handles; `kof.strLit`/`kof.strConcat`/`kof.writeStr`; `WasmWasiE2ETest` 3/3 prints `ab`/`xyz` == JVM oracle under wasmtime v49.0.2); before it 15.3b LANDED 07/10 (`println(String)` literal via data segments + `kof.writeString`, JVM-oracle stdout parity under wasmtime); before it 15.3 slice 1 LANDED 07/10 (lane `192.168.15.101:9092`) — `Target.WASI` EMITS a WASI-preview1 module: `main` -> `_start`, scalar `println` -> `fd_write` (WasmWasiE2ETest 3/3, stdout == JVM oracle under wasmtime); before it 15.2 — wasm backend emits the SCALAR subset: top-level `Int/Long/Double/Bool/Char` functions, direct binary WebAssembly (`WasmBackend`/`WasmBinary`/`WasmInstr`), Int=i64 (D-WASM-02), dispatcher `loop $dispatch` + `$pc`; executed + validated under wasmtime v49.0.2 / wasm-tools 1.261.0 (`WasmScalarE2ETest` 3/3, oracle = same program on JVM). `WASI` still `WASM001`; anything outside the subset (IO/collections/records/void) refuses `WASM002` naming this plan + #776, NO artifacts.
+doing: 15.3 continues — `args` over preview1 `args_sizes_get`/`args_get` (plan §14, 15.3c-sliceB) next; records/collections/GC-handle runtime after; then 15.4 flip.
+next: 15.3c-sliceB (`args`) → GC-handle runtime (records/collections) → 15.4 frontend-default flip LAST (only at full parity; `D-LAB-STABILITY` keeps the cut gated by #776).
 location: docs/development/wasm-wasi-plan.md
 state: UNDER DEVELOPMENT
 
@@ -214,7 +214,28 @@ plan §8/§9) — 15.3c+ (`args`) then GC slices. NOTE 07/10: the 4-module suite
 `4877 run / 3 F` — JavaFX env (documented) + `Av1CoeffsE2ETest` aarch64/riscv64 =
 EXTERNAL regression catalogued as `known-bugs` **§625** (bisect lands on `a2f69d2f7`
 §620 cross-arg shift; reproduced at remote tip `45d839322` WITHOUT any WASI-lane code;
-owner lane `192.168.15.30:9092`; NOT touched by this lane — collision rule).
+ owner lane `192.168.15.30:9092`; NOT touched by this lane — collision rule).
+
+
+**Slice 15.3c-sliceA LANDED (08/10, lane `192.168.15.101:9092`):** String VARIABLES
+and CONCATENATION now emit — a `String` value becomes an i32 HANDLE into a bump
+heap (`global 0`, mutable i32 initialized `16384`; `[len][bytes]\n` layout, the
+`+1` newline reserved at emit time so `println` never re-allocates). Three emitted
+helpers drive it: `kof.strLit(addr,len)` copies a DATA-segment literal into a fresh
+heap block and returns its handle; `kof.strConcat(a,b)` bump-allocates `la+lb`,
+copies both payloads (`copyLoop` — a `block`+`loop` with `br_if`/`br`, `i32.load8_u`
+align 0, byte store `addr` pushed before `value`) and returns the joined handle;
+`kof.writeStr(handle)` writes `[h]+1` bytes through `fd_write` (reused for every
+`println` of a non-literal string). The println intercept pushes `(addr,len)` for
+a literal and calls `kof.strLit` for `kof_string_concat`/`String` variables, so
+`var s = "a" + "b"; println(s)` and `println("x" + "y" + "z")` print `ab`/`xyz`.
+Proof: `WasmWasiE2ETest` 3/3 — the mixed scalar+string+concat main prints EXACTLY
+the JVM-oracle stdout (`3/-42/0/55/true/false/14/oi/hello kof/ab/xyz`) under
+wasmtime v49.0.2, module validates with `wasm-tools`, exit 0; `WasmTargetGateE2ETest`
+5/5 + `WasmScalarE2ETest` 3/3 + `TargetMatrixTest` 10/10 green. `println(args)`/
+`args[0]`/records/collections still refuse `WASM002` naming plan + #776 with NO
+artifacts (Q7). Remaining 15.3: `args` over `args_sizes_get`/`args_get` (plan §14,
+15.3c-sliceB) then the GC-handle runtime for records/collections, then 15.4 flip LAST. MEASURE 08/10: the full 4-module suite at tip `898bc50ab` + this slice = 8F + 2 flakes, ALL external/environmental and stash-proven independent of the WASI lane: §625 `Av1CoeffsE2ETest` (2F) + §627 `KofTestingE2ETest` float-assert (2F, NEW catalogue) + §628 `JvmLauncherDiagnosticE2ETest` (3F deterministic at the CLEAN tip — the §554 `ExternalArgTighten` breaks the pipe fixtures, owner compiler/interop) + JavaFX env (1F) + `InteropTimeoutE2ETest` load flakes (2F, GREEN isolated). Live queue 3->5.
 
 
 **Amendment (07/10, lane `192.168.15.101:9092`, 15.1-COMPLETE):** the enum

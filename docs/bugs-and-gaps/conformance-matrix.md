@@ -334,12 +334,15 @@ different reason, both honest (R6):
   (slice 1 LANDED 07/10 — `Target.WASI` emits them; `Target.WASM` still has
   no `main`/IO) — `wasm` stays out of the run-the-surface per-target
   matrices (exclusions carry the reason).
-- **`wasi`** — **WASI-preview1 backend EMITS the stdout slice** (15.3 slice 1
-  LANDED 07/10 by lane `192.168.15.101:9092`: `main` -> exported `_start`,
-  scalar `println` + `println(String)` of a LITERAL (data segments + `kof.writeString`) -> imported `wasi_snapshot_preview1.fd_write`; module
-  validates with `wasm-tools`, executes under `wasmtime` with stdout == JVM
-  oracle — `WasmWasiE2ETest` 3/3). Outside the slice (string concat/variables, `args`,
-  records/collections, GC runtime) refuses **WASM002** naming plan + #776
+ - **`wasi`** — **WASI-preview1 backend EMITS the stdout + string slice** (15.3 slice 1
+   LANDED 07/10 + 15.3b `println(String)` literal + 15.3c-sliceA String variables/concat
+   on a bump heap (LANDED 08/10) by lane `192.168.15.101:9092`: `main` -> exported `_start`,
+   scalar `println` + `println(String)` of a literal (data segments + `kof.writeString`) +
+   `String` handles on a bump heap `global 0`@16384 (`[len][bytes]\n`, `kof.strLit`/
+   `kof.strConcat`/`kof.writeStr`) -> imported `wasi_snapshot_preview1.fd_write`; module
+   validates with `wasm-tools`, executes under `wasmtime` with stdout == JVM
+   oracle — `WasmWasiE2ETest` 3/3). Outside the slice (`args`,
+   records/collections, GC runtime) refuses **WASM002** naming plan + #776
   with NO artifacts; the FRONTEND default and `kof deploy` keep the honest
   **WASM001** until unit 15.4 (flip) / the deploy host. The long
   aliases/solecisms (`kofwasm`, `kofwebasm`, `kofwebassembly`, `webassembly`,

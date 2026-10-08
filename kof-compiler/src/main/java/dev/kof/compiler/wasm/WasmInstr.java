@@ -9,7 +9,7 @@ import java.util.Locale;
  */
 public abstract sealed class WasmInstr permits WasmInstr.Const, WasmInstr.Local,
         WasmInstr.Simple, WasmInstr.Blocking, WasmInstr.Branch, WasmInstr.Call, WasmInstr.NegTop, WasmInstr.Store8, WasmInstr.I32,
-        WasmInstr.Mem {
+        WasmInstr.Mem, WasmInstr.Global {
 
     /** @param funcIdx mapa nome→indice para resolver `call` (null quando nao ha calls). */
     public abstract void encode(java.io.ByteArrayOutputStream out, java.util.Map<String, Integer> funcIdx);
@@ -107,7 +107,7 @@ public abstract sealed class WasmInstr permits WasmInstr.Const, WasmInstr.Local,
 
     /** i32 load/store com memarg estatico (host 15.3: iovec + nwritten). */
     public static final class Mem extends WasmInstr {
-        public static final int LOAD = 0x28, STORE = 0x36;
+        public static final int LOAD = 0x28, STORE = 0x36, LOAD8U = 0x2d;
         public final int op;
         public final int offset;
 
@@ -115,7 +115,7 @@ public abstract sealed class WasmInstr permits WasmInstr.Const, WasmInstr.Local,
 
         @Override public void encode(java.io.ByteArrayOutputStream out, java.util.Map<String, Integer> f) {
             out.write(op);
-            WasmBinary.writeUleb(out, 2); // align = log2(4)
+            WasmBinary.writeUleb(out, op == LOAD8U ? 0 : 2); // byte align=0, i32 align=2
             WasmBinary.writeUleb(out, offset);
         }
 
@@ -127,6 +127,25 @@ public abstract sealed class WasmInstr permits WasmInstr.Const, WasmInstr.Local,
     }
 
     /** i32 util do host (add/sub/const ja existem via Simple/Const). */
+    /** i32.get / i32.set num global mutavel (heap bump pointer da 15.3c). */
+    public static final class Global extends WasmInstr {
+        public static final int GET = 0, SET = 1;
+        public final int op;
+        public final int index;
+
+        public Global(int op, int index) { this.op = op; this.index = index; }
+
+        @Override public void encode(java.io.ByteArrayOutputStream out, java.util.Map<String, Integer> funcIdx) {
+            out.write(op == GET ? 0x23 : 0x24);
+            WasmBinary.writeUleb(out, index);
+        }
+
+        @Override public void wat(StringBuilder sb, int n) {
+            pad(sb, n);
+            sb.append(op == GET ? "(global.get " : "(global.set ").append(index).append(")\n");
+        }
+    }
+
     public static final class I32 extends WasmInstr {
         public final int op;
         public final String name;
@@ -157,7 +176,7 @@ public abstract sealed class WasmInstr permits WasmInstr.Const, WasmInstr.Local,
 
     /** block / loop / if / else / end (blocktype VOID nos dispatchers) */
     public static final class Blocking extends WasmInstr {
-        public static final int LOOP = 0, IF = 1, ELSE = 2, END = 3;
+        public static final int BLOCK = 4, LOOP = 0, IF = 1, ELSE = 2, END = 3;
         public final int op;
         public final String label;
         public final int blockType; // 0x40 void
@@ -166,6 +185,7 @@ public abstract sealed class WasmInstr permits WasmInstr.Const, WasmInstr.Local,
 
         @Override public void encode(java.io.ByteArrayOutputStream out, java.util.Map<String, Integer> f) {
             switch (op) {
+                case BLOCK -> { out.write(0x02); out.write(blockType); }
                 case LOOP -> { out.write(0x03); out.write(blockType); }
                 case IF -> { out.write(0x04); out.write(blockType); }
                 case ELSE -> out.write(0x05);
