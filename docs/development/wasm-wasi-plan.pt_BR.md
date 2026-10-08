@@ -214,7 +214,7 @@ no tip remoto `45d839322` SEM nenhum codigo da lane WASI; lane dona
   `WasmBackend` 629 -> 204 (so assembly do modulo), lowering/dispatcher/Ctx extraidos
   para `WasmLowering` (447), `kof.readArgs` + `copyInto` vivem em `WasmArgsRuntime`
   (192), `WasmStdoutRuntime` 503 -> 329; puro movimento de codigo, bateria WASI verde
-  depois. MEDIDO 08/10 (arvore pos-split + pos-correcao §625): <pendente>
+  depois. MEDIDO 08/10 (arvore pos-split + pos-correcao §625): suite completa 4 modulos = kof-compiler 4898 exec/5F + kof-cli 593/3F — §627 2F + §628 3F = 5F deterministas EXTERNAS (outras lanes) + JavaFX-amb 1F + flakes de carga InteropTimeout 2F = 3F ambientais; §625 VERDE apos a correcao `.30` do prologo (`6572e6367`, Av1Coeffs 6/6 re-medido aqui); RingPrivilege verde nesta passada; ZERO falhas WASI, bateria 23/23 + PrologueSlotInit 2/2.
 
 **Emenda (07/10, lane `192.168.15.101:9092`, 15.1-COMPLETA):** o passo do
   enum NÃO ficou adiado — o roadmap TIER 15 define a própria 15.1 como

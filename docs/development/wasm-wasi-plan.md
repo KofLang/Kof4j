@@ -260,7 +260,7 @@ still `WASM002` naming plan + #776 with NO artifacts. Gate hygiene: the split fo
 `check_500` landed WITH this slice — `WasmBackend` 629 -> 204 (module assembly only),
 lowering/dispatcher/Ctx extracted to `WasmLowering` (447), `kof.readArgs` + `copyInto`
 live in `WasmArgsRuntime` (192), `WasmStdoutRuntime` 503 -> 329; pure code motion, WASI
-battery green after. MEASURE 08/10 (post-split + post-§625-fix tree): <pendente>
+battery green after. MEASURE 08/10 (post-split + post-§625-fix tree): full 4-module suite = kof-compiler 4898 run/5F + kof-cli 593/3F — §627 2F + §628 3F = 5F deterministic EXTERNAL (other lanes) + JavaFX-env 1F + InteropTimeout load flakes 2F = 3F environmental; §625 GREEN post the `.30` prologue fix (`6572e6367`, Av1Coeffs 6/6 re-measured here); RingPrivilege GREEN this pass; ZERO WASI failures, battery 23/23 + PrologueSlotInit 2/2.
 
 **Amendment (07/10, lane `192.168.15.101:9092`, 15.1-COMPLETE):** the enum
 step was NOT deferred — roadmap TIER 15 defines 15.1 ITSELF as enum+plumbing
