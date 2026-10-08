@@ -1,0 +1,11 @@
+// Coleções e métodos receiver-aware — PortuKof
+// `tamanho()` é length em String e size em List (resolvido pelo tipo do receiver).
+principal() {
+    val xs = listaDe(3, 1, 2)
+    val nome = "Kof"
+    escrevaln(nome.tamanho())     // String → length
+    escrevaln(xs.tamanho())        // List  → size
+    se (xs.contem(2)) {
+        escrevaln("tem dois")
+    }
+}

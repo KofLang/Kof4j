@@ -50,7 +50,7 @@ final class Fmt {
         for (Path f : files) {
             try {
                 String in = Files.readString(f);
-                String out = format(in);
+                String out = format(in, f.getFileName().toString());
                 if (!out.equals(in)) changed++;
                 if (write) {
                     if (!out.equals(in)) Files.writeString(f, out);
@@ -67,7 +67,12 @@ final class Fmt {
 
     /** Formata via parser real (KofFormatter); fallback token-based se falhar. */
     static String format(String src) {
-        String viaAst = dev.kof.compiler.KofFormatter.format(src, "Main.kf");
+        return format(src, "Main.kf");
+    }
+
+    /** fileName é a autoridade do perfil (`.ptkf` → PortuKof); passado real do CLI. */
+    static String format(String src, String fileName) {
+        String viaAst = dev.kof.compiler.KofFormatter.format(src, fileName);
         if (viaAst != null) return viaAst;
         List<String> tokens = tokenize(src);
         StringBuilder out = new StringBuilder();

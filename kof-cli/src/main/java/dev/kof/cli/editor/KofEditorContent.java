@@ -201,7 +201,7 @@ public final class KofEditorContent {
                 <?xml version="1.0" encoding="UTF-8"?>
                 <!-- Kof: file type (*.kf/*.kof) — delegates semantics to kof lsp -->
                 <filetype name="Kof" implementationClass="com.intellij.openapi.fileTypes.impl.SimpleFileType"
-                          fieldName="INSTANCE" language="Kof" extensions="kf;kof"
+                          fieldName="INSTANCE" language="Kof" extensions="kf;kof;ptkf"
                           description="Kof language source file" />
                 """),
             new EditorFile(".config/JetBrains/kof/tools/Kof.xml", kof(ctx, """

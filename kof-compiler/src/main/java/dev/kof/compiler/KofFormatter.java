@@ -1,4 +1,5 @@
 package dev.kof.compiler;
+import dev.kof.compiler.lang.LanguageProfile;
 import dev.kof.compiler.parser.Lexer;
 import dev.kof.compiler.parser.Parser;
 
@@ -15,6 +16,14 @@ public final class KofFormatter {
     private KofFormatter() {}
 
     public static String format(String src, String fileName) {
+        // F7 (D-PORTUKOF): o AST-printer reimprime a superfície CANÔNICA em inglês
+        // (keywords estruturais `class/record/if/return/var…` hardcoded). Rodar o
+        // parser de perfil em `.ptkf` sem o vocabulário superficial PT produziria
+        // um TRANSPILE silencioso PT→EN — proibido (§19: formatter != tradutor).
+        // Enquanto o AST-printer não for surface-aware, PortuKof retorna null e o
+        // chamador (CLI/LSP) cai no fallback token-based, que PRESERVA a superfície
+        // original byte-a-byte. Kof (KOF) é idêntico ao comportamento histórico.
+        if (LanguageProfile.PORTUKOF == LanguageProfile.forFileName(fileName)) return null;
         try {
             DiagnosticCollector diagnostics = new DiagnosticCollector();
             Lexer lexer = new Lexer(src, fileName, diagnostics);
