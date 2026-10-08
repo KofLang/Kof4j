@@ -13,7 +13,7 @@
 **Companion plan:** `test-architecture-plan.md` (the **compiler's own Java suite** refactor —
 L0–L5 layers, profiles, performance). This document is the **user-facing testing platform**;
 the two meet at §13 (Performance) and must not duplicate each other.
-**Implementation status:** slice 1 (assertion helpers) LANDED 30/09; slice 2 (`assertThrows`) LANDED 30/09 — the blocker was fixed (see §15); slice 3 (unit-core assertions) LANDED 01/10; slice 4 (Long/Double/Float numeric assertions) LANDED 01/10; slice 5 (Byte/Short/Char + `assertNotEqualBool`) LANDED 01/10; slice 6 (generic `assertEqual<T>`/`assertNotEqual<T>` pair) LANDED 02/10 — unblocked by the `known-bugs` §553 fix (`D-EQ-UNBOUNDED-T`), so §4.1 is now **complete**.
+**Implementation status:** slice 1 (assertion helpers) LANDED 30/09; slice 2 (`assertThrows`) LANDED 30/09 — the blocker was fixed (see §15); slice 3 (unit-core assertions) LANDED 01/10; slice 4 (Long/Double/Float numeric assertions) LANDED 01/10; slice 5 (Byte/Short/Char + `assertNotEqualBool`) LANDED 01/10; slice 6 (generic `assertEqual<T>`/`assertNotEqual<T>` pair) LANDED 02/10 — unblocked by the `known-bugs` §553 fix (`D-EQ-UNBOUNDED-T`), so §4.1 is now **complete**; §5 harness — slice 1 (temp dir + readiness poll) LANDED 06/10, slice 2 (database lifecycle `withDb` in the opt-in `kof.test.db`) LANDED 07/10.
 
 > **Slice 6 (LANDED 02/10).** The last §4.1 face: the generic pair `assertEqual<T>(T expected, T actual, String label)` / `assertNotEqual<T>(...)` in `dev/kof/test.kf`. It was deliberately deferred (not shipped broken) until `known-bugs` §553 was resolved: the maintainer's rule-6 answer `D-EQ-UNBOUNDED-T` (02/10) fixes `==` on an unbounded `T` as **structural content equality** on every target, so the helper is correct for any `T` (Int, String, record, …). The label stringifies `expected`/`actual` via `+` — no new primitive, no per-target runtime. Proof RED-first: new `GenericEqualityE2ETest` **16/16** (the generic pair green on JVM/Script/JS/Native and throwing on a real mismatch; the `==` semantics golden byte-identical to the JVM oracle on JVM + Script + JS + Native x86-64 + riscv64(qemu) + aarch64(qemu)); `KofTestingE2ETest` 7/7. §4.1 is complete; the remaining faces are rule-6/decision-gated (§4.4 parameterized, §4.6 test doubles, §5 harness). The **browser provider** (§6) is no longer gated: `D-MAINT-BATCH-0510`/`T1` decides it must serve **all targets** (JVM + JS + Native), and `/T2` decides `kof.test` stays a **compiler/CLI feature** (not a stdlib namespace) — see §12.
 
@@ -338,16 +338,25 @@ runs) across JVM + JS + Native x86-64 + riscv64/aarch64(qemu); non-regression `K
 > (`kof.test`) — temp dir / server / db lifecycle with `try/finally` cleanup, injected flat on
 > the explicit `import kof.test`. No Java-only surface. AUTHORIZED; queued after §4.6.
 
-**Status: LANDED 06/10 (first slice — temp-dir lifecycle + readiness poll).** The surface is
-written in Kof (`dev/kof/test.kf`), no new syntax/primitive (`D-KOF-FIRST` item 12):
+**Status: LANDED 06/10 (first slice — temp-dir lifecycle + readiness poll); LANDED 07/10 (second
+slice — database-connection lifecycle).** The surface is written in Kof (`dev/kof/test.kf`), no
+new syntax/primitive (`D-KOF-FIRST` item 12):
 
 ```kof
 import kof.test
+import kof.test.db
 
 // start → test → cleanup, cleanup even when the body throws
 withTempDir("build/tmp", (d: String) -> {
     File(Path(d).resolve("data.txt")).writeText("hello")
     assertEqualString("hello", File(Path(d).resolve("data.txt")).readText(), "round trip")
+})
+
+// database connection: opened, used, closed — even when the body throws
+withDb("jdbc:h2:mem:test;DB_CLOSE_DELAY=-1", (h: String) -> {
+    db.execute(h, "create table t(id int)")
+    db.execute(h, "insert into t values (?)", 7)
+    assertEqualString("{\"n\":1}", db.query(h, "select count(*) as n from t").get(0), "row count")
 })
 
 // bounded readiness poll for a resource that comes up asynchronously
@@ -360,12 +369,29 @@ a `finally` (both paths). `removeTree(path)` is the recursive removal, pure Kof 
 recursively — `known-bugs` §618), so the helper walks the tree to keep cleanup identical on all
 four targets. `waitUntil(probe, attempts, intervalMs)` probes, sleeps between attempts and returns
 the last result — never throws, never invents success; `attempts <= 0` does a single probe.
+`withDb(url, body)` opens `db.connect(url)`, runs the body and closes the connection in a `finally`
+(both paths) — the symmetric pair of the open, so an integration test never leaves a connection
+behind. The body is `(String) -> Void` (the handle is opaque, a concrete type — `(T) -> Void` is
+refused with `SEM085`), so the helper is flat-injected on every target. **It lives in a separate
+opt-in host `kof.test.db`, not in `kof.test`** (the `CompilerWeb`-vs-`kof.pagination` precedent):
+`withDb` calls `db.connect`/`db.close`, and the cross native links libsqlite3 **by use**
+(`NativeCrossLink.needsSqlite` scans the pruned asm for `call sqlite3_*`). Because `kof.test` is
+flat-injected whole, a db helper living there would make **every** `import kof.test` program link
+`-lsqlite3` on the cross (measured: `riscv64-linux-gnu-ld: cannot find -lsqlite3`); the separate
+import means only a program that asks for `kof.test.db` pays the gap.
 
 **Proof:** `IntegrationHarnessE2ETest` **7/7** (create/write/read, cleanup on success, cleanup on
-throw, bounded poll, no-trace-on-disk) across JVM + JS + Native x86-64 + riscv64/aarch64(qemu).
+throw, bounded poll, no-trace-on-disk) across JVM + JS + Native x86-64 + riscv64/aarch64(qemu) —
+this is also the regression guard that `import kof.test` alone does **not** force sqlite on the
+cross; `DbLifecycleE2ETest` **3/3** (body runs, connection closed on success and on throw — proven
+on JVM + JS by the H2 in-memory database being empty after the helper, and on Native x86-64 by the
+body + throw-path continuation with the data persisted). RED-first: pre-slice the probe does not
+compile (`SEM015 Undefined function: 'withDb'`).
 
-Server and database lifecycle helpers follow in later slices; this slice delivers the temp-dir
-lifecycle and the readiness poll that the server/db slices will reuse.
+The server lifecycle helper is **not** composable in pure Kof: `app.listen(port)` blocks, so a
+`withServer { }` body could not run on the same thread; it needs a runner/desugar seam (a
+rule-6-adjacent decision), so it stays open rather than shipping a stub. The database lifecycle
+lands because `db.connect`/`db.close` are already non-blocking and symmetric.
 
 Infrastructure to bring up resources: HTTP server, database, filesystem, process, external
 service. Each resource has `start → health check → test → cleanup`. **Never leave processes or

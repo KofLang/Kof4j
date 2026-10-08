@@ -143,6 +143,24 @@ The cleanup is pure Kof (`Directory.list()` + `File.delete()`), so it is identic
 and JS — `Directory.delete()` itself only removes an empty directory on JS (see `known-bugs` §618),
 so `removeTree` walks the tree instead of relying on it.
 
+A database connection has the same shape, via the opt-in import `kof.test.db`:
+`withDb(url, body)` opens `db.connect(url)`, runs the body and closes the connection in a
+`finally` — both the success and the throw path, so a test never leaves a connection behind. It
+lives in its own import (not `kof.test`) so a program that never touches a database does not pay
+the native sqlite link:
+
+```kof
+import kof.test.db
+
+test "insert then count" {
+    withDb("jdbc:h2:mem:test;DB_CLOSE_DELAY=-1", (h: String) -> {
+        db.execute(h, "create table t(id int)")
+        db.execute(h, "insert into t values (?)", 7)
+        assertEqualString("{\"n\":1}", db.query(h, "select count(*) as n from t").get(0), "count")
+    })
+}
+```
+
 ## Property-style tests (seeded, reproducible)
 
 There is no separate property-runner surface: a *property test* is a `test` block

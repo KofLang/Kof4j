@@ -13,7 +13,7 @@ linguagem (`test`/`assert`), o harness por alvo (`ConformanceMatrixTest`), `KofJ
 **Plano companheiro:** `test-architecture-plan.md` (refatoração da **suíte Java do próprio
 compilador** — camadas L0–L5, perfis, performance). Este documento é a **plataforma de testes do
 usuário**; os dois se encontram no §13 (Performance) e não podem se duplicar.
-**Estado de implementação:** fatia 1 (helpers de asserção) POUSADA 30/09; fatia 2 (`assertThrows`) POUSADA 30/09 — o bloqueio foi corrigido (ver §15); fatia 3 (asserções do unit-core) POUSADA 01/10; fatia 4 (asserções numéricas Long/Double/Float) POUSADA 01/10; fatia 5 (Byte/Short/Char + `assertNotEqualBool`) POUSADA 01/10; fatia 6 (par genérico `assertEqual<T>`/`assertNotEqual<T>`) POUSADA 02/10 — desbloqueada pela correção do `known-bugs` §553 (`D-EQ-UNBOUNDED-T`), então o §4.1 está **completo**.
+**Estado de implementação:** fatia 1 (helpers de asserção) POUSADA 30/09; fatia 2 (`assertThrows`) POUSADA 30/09 — o bloqueio foi corrigido (ver §15); fatia 3 (asserções do unit-core) POUSADA 01/10; fatia 4 (asserções numéricas Long/Double/Float) POUSADA 01/10; fatia 5 (Byte/Short/Char + `assertNotEqualBool`) POUSADA 01/10; fatia 6 (par genérico `assertEqual<T>`/`assertNotEqual<T>`) POUSADA 02/10 — desbloqueada pela correção do `known-bugs` §553 (`D-EQ-UNBOUNDED-T`), então o §4.1 está **completo**; §5 harness — fatia 1 (temp dir + poll de prontidão) POUSADA 06/10, fatia 2 (ciclo de vida de banco `withDb` no opt-in `kof.test.db`) POUSADA 07/10.
 
 > **Fatia 6 (POUSADA 02/10).** A última face do §4.1: o par genérico `assertEqual<T>(T expected, T actual, String label)` / `assertNotEqual<T>(...)` em `dev/kof/test.kf`. Ficou deliberadamente adiado (não entregue quebrado) até o `known-bugs` §553 ser resolvido: a resposta regra-6 da mantenedora `D-EQ-UNBOUNDED-T` (02/10) fixa `==` sobre um `T` não-limitado como **igualdade estrutural de conteúdo** em todo alvo, então o helper é correto para qualquer `T` (Int, String, record, …). O label stringifica `expected`/`actual` via `+` — sem primitiva nova, sem runtime por alvo. Prova RED-first: novo `GenericEqualityE2ETest` **16/16** (o par genérico verde em JVM/Script/JS/Nativo e lançando em mismatch real; o golden de semântica de `==` byte-idêntico ao oráculo JVM em JVM + Script + JS + Native x86-64 + riscv64(qemu) + aarch64(qemu)); `KofTestingE2ETest` 7/7. O §4.1 está completo; as faces restantes são regra-6/decisão (§4.4 parametrizado, §4.6 doubles, §5 harness). O **provider de browser** (§6) não está mais barrado: `D-MAINT-BATCH-0510`/`T1` decide que ele deve servir **todos os alvos** (JVM + JS + Native), e `/T2` decide que o `kof.test` continua **feature do compilador/CLI** (não namespace da stdlib) — ver §12.
 
@@ -324,16 +324,25 @@ execuções) em JVM + JS + Native x86-64 + riscv64/aarch64(qemu); não-regressã
 > (`kof.test`) — ciclo de temp dir / server / db com cleanup via `try/finally`, injetada flat no
 > `import kof.test` explícito. Sem superfície só-Java. AUTORIZADO; na fila depois do §4.6.
 
-**Status: LANDED 06/10 (primeira fatia — ciclo de vida de temp dir + poll de prontidão).** A
-superfície é escrita em Kof (`dev/kof/test.kf`), sem sintaxe/primitiva nova (`D-KOF-FIRST` item 12):
+**Status: LANDED 06/10 (primeira fatia — ciclo de vida de temp dir + poll de prontidão); LANDED
+07/10 (segunda fatia — ciclo de vida de conexão de banco).** A superfície é escrita em Kof
+(`dev/kof/test.kf`), sem sintaxe/primitiva nova (`D-KOF-FIRST` item 12):
 
 ```kof
 import kof.test
+import kof.test.db
 
 // start → test → cleanup, cleanup mesmo quando o corpo lança
 withTempDir("build/tmp", (d: String) -> {
     File(Path(d).resolve("data.txt")).writeText("hello")
     assertEqualString("hello", File(Path(d).resolve("data.txt")).readText(), "ida e volta")
+})
+
+// conexão de banco: aberta, usada, fechada — mesmo quando o corpo lança
+withDb("jdbc:h2:mem:test;DB_CLOSE_DELAY=-1", (h: String) -> {
+    db.execute(h, "create table t(id int)")
+    db.execute(h, "insert into t values (?)", 7)
+    assertEqualString("{\"n\":1}", db.query(h, "select count(*) as n from t").get(0), "linhas")
 })
 
 // poll de prontidão limitado para um recurso que sobe assincronamente
@@ -346,13 +355,29 @@ var up = waitUntil(() -> File("build/tmp/ready").exists(), 40, 25)
 recursivamente — `known-bugs` §618), então o helper percorre a árvore para manter o cleanup
 idêntico nos 4 alvos. `waitUntil(probe, attempts, intervalMs)` sonda, dorme entre as tentativas e
 devolve o último resultado — nunca lança, nunca inventa sucesso; `attempts <= 0` faz uma única
-sonda.
+sonda. `withDb(url, body)` abre `db.connect(url)`, roda o corpo e fecha a conexão num `finally`
+(os dois caminhos) — o par simétrico do open, então um teste de integração nunca deixa conexão
+aberta. O corpo é `(String) -> Void` (o handle é opaco, tipo concreto — `(T) -> Void` é recusado
+com `SEM085`), então o helper é injetado flat em todo alvo. **Ele mora num host opt-in separado
+`kof.test.db`, não no `kof.test`** (precedente `CompilerWeb` vs `kof.pagination`): o `withDb` chama
+`db.connect`/`db.close`, e o native cross liga libsqlite3 **por uso**
+(`NativeCrossLink.needsSqlite` varre o asm podado por `call sqlite3_*`). Como o `kof.test` é
+injetado flat inteiro, um helper de banco morando lá faria **todo** programa que importa
+`kof.test` tentar `-lsqlite3` no cross (medido: `riscv64-linux-gnu-ld: cannot find -lsqlite3`); o
+import separado faz só quem pede `kof.test.db` pagar o gap.
 
 **Prova:** `IntegrationHarnessE2ETest` **7/7** (cria/escreve/lê, cleanup no sucesso, cleanup no
-throw, poll limitado, sem rastro no disco) nos alvos JVM + JS + Native x86-64 + riscv64/aarch64(qemu).
+throw, poll limitado, sem rastro no disco) nos alvos JVM + JS + Native x86-64 + riscv64/aarch64(qemu)
+— também é a guarda de regressão de que `import kof.test` sozinho **não** força sqlite no cross;
+`DbLifecycleE2ETest` **3/3** (corpo roda, conexão fechada no sucesso e no throw — provado no JVM +
+JS pelo banco H2 em memória ficar vazio após o helper, e no Native x86-64 pelo corpo + continuação
+após o throw com os dados persistidos). RED-first: pré-fatia a sonda não compila
+(`SEM015 Undefined function: 'withDb'`).
 
-Os helpers de ciclo de vida de servidor e banco vêm em fatias posteriores; esta fatia entrega o
-ciclo de vida de temp dir e o poll de prontidão que as fatias de server/db vão reusar.
+O helper de ciclo de vida de servidor **não** é componível em Kof puro: `app.listen(port)` bloqueia,
+então um corpo `withServer { }` não rodaria na mesma thread; precisa de uma costura de
+runner/desugar (decisão adjacente à regra 6), então fica aberto em vez de pousar um stub. O ciclo
+de vida de banco pousa porque `db.connect`/`db.close` já são não-bloqueantes e simétricos.
 
 Infraestrutura para subir recursos: servidor HTTP, banco, filesystem, processo, serviço externo.
 Cada recurso tem `start → health check → test → cleanup`. **Nunca deixar processos ou portas
