@@ -1716,5 +1716,17 @@
       "en": "'{0}' is a builtin namespace; it has no field '{1}' (namespaces expose functions, not properties — use {2}.someFunction(...))",
       "pt": "'{0}' é um namespace builtin; não tem o campo '{1}' (namespaces expõem funções, não propriedades — use {2}.algumaFuncao(...))"
     }
+  ],
+  "SEM103": [
+    {
+      "arity": 2,
+      "en": "'{0}' is a type, not a value — array allocation is `new {1}[n]`",
+      "pt": "'{0}' é um tipo, não um valor — a alocação de vetor é `novo {1}[n]`"
+    },
+    {
+      "arity": 2,
+      "en": "'{0}' is a type, not a value — to convert use `as {1}`",
+      "pt": "'{0}' é um tipo, não um valor — para converter use `como {1}`"
+    }
   ]
 }
