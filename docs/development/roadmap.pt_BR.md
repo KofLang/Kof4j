@@ -973,9 +973,7 @@ ciência) **sem** destruir a simplicidade da linguagem.
 > **ABERTA (7ª frente):** `image-vision` — promovido 29/09 (`D-IMAGE-VISION-GO`, `D-FUTURE-PROMOTION`) para
 > [`image-vision-plan.md`](image-vision-plan.md); estado 02/10: metadados de 17 formatos + decode/encode/ops de raster + fatias `kof.vision` + decoder VP8 lossy de key frame ponteira-a-ponteira (oráculo libwebp) + AVIF fatias 1–2g (travessias de container/item/fluxo-OBU/cabeçalho-de-sequência/prefixo-de-quadro/cabeçalho-de-tile-group/obu-de-metadado, Kof puro, `AvifFrameE2ETest` 16/16 + `AvifMetaE2ETest` 8/8) LANDADAS; sem decode de pixel AVIF (`decodeRaster` recusa AVIF por política). Fila pelo plano §34 — o estado autoritativo vive lá.
 > **ABERTA (8ª frente):** `graphics-gaming` — promovido 30/09 (`D-GRAPHICS-SPIKE`, `D-FUTURE-PROMOTION`) para
-> [`graphics-gaming-plan.md`](graphics-gaming-plan.md); fatia **3.0 = spike+infra** (guarda JavaFX-ausente
-> `scripts/check_javafx_absent.sh` + self-test + relatório medido, **sem API**). Próximo = escolha de stack
-> da mantenedora (`D-*`), depois a fatia 3.1 (window/frame/input).
+> [`graphics-gaming-plan.md`](graphics-gaming-plan.md); stack `G1` DECIDIDA (SDL3) + forma `D-GRAPHICS-WINDOW-FORM` + loop `D-MAINT-BATCH-0610`/A1–A3; superfície pura POUSADA 05–07/10 (`Clock`/`Keys`/`Mouse`/`Pad`/`Window`/`Sprite`/`Draw`/`Trig`/`Tilemap`/`Audio`/`Wav`/`Video`, goldens E2E todo alvo) + ABI/pump/áudio/stream SDL3 medidos headless nos quatro alvos + corpus 3.6a (`training/idioms/game` + `learn/42-games`). Restam faces de backend (decoder/playback/device, decisão F do FFmpeg LGPL) + 3.5 (3D, gated por paridade). Estado autoritativo vive no plano.
 > Todos os planos restantes de `future/` estão autorizados com suas
 > questões de design resolvidas (`D-FUTURE-BATCH-2809B`); a promoção segue
 > uma-por-vez (`D-FUTURE-PROMOTION`).
