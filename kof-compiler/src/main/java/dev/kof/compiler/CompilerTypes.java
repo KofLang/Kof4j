@@ -49,6 +49,17 @@ public final class CompilerTypes {
          }
          Type viaImports = qualifyViaImports(typeName, currentUnit, external);
          if (viaImports != null) return viaImports;
+        // §632: tipo de FUNÇÃO com componente PONTUADO (`(kof.web.App, String)
+        // -> Void`, `(java.lang.Object, Int) -> Void`). O split de nome
+        // pontuado logo abaixo cortava no PRIMEIRO '.' (lastDot) e devolvia
+        // `ClassType("kof.web", "App, String) -> Void")` — o descritor JVM
+        // saía `L(kof/web/App, String) -> Void;` (classe inexistente →
+        // NoClassDefFoundError no load de `Main`). `Type.of` balanceia os
+        // parênteses e monta a `FunctionType`; a qualificação profunda dos
+        // parâmetros (imports/declarados) roda no chamador via `qualifyDeep`.
+        if (typeName.startsWith("(") && Type.fnTypeArrow(typeName) >= 0) {
+            return Type.of(typeName);
+        }
         // §336: type-ref COM args (`x as List<Int>` em `as`/`instanceof`) chega
         // inteiro aqui desde o fix do parser. `Type.of` ja parseia "Base<Args>"
         // (usado nas decls); a qualificacao de imports so se aplica quando o

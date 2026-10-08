@@ -17607,3 +17607,19 @@ affected; `SEM103` is new (highest previously used = `SEM102`).
 **Boundary:** translator-only, cross aarch64; RISC-V output untouched (it already used the 32-bit `amoswap.w`); x86 untouched. Not a semantics change — a codegen width correctness fix.
 
 <!-- pt-switch --> **PT:** [§631 (pt_BR)](known-bugs.pt_BR.md#631--o-tradutor-aarch64-renderizava-o-spinlock-de-32-bits-amoswapw-como-o-swpal-x-de-64-bits-escrevendo-os-4-bytes-vizinhos-do-lock-a-cada-aquisicao---corrigido-0810-achado-0810-pela-lane-compiladorjvmnativo-19216815309092-ao-estreitar-o-known-bugs-602-mesma-lane-tradutor-cross-sem-dono-em-curso)
+
+## §632 — a function-typed parameter whose component type is dotted (`(kof.web.App, String) -> Void`) emitted an invalid JVM descriptor `L(kof/web/App, String) -> Void;`, so loading `Main` died `NoClassDefFoundError` — ✅ FIXED 08/10 (lane issues/tooling `192.168.15.30:9093`, frontend type resolver, no owner EM CURSO)
+
+**Status:** ✅ FIXED 08/10 (lane issues/tooling `192.168.15.30:9093`) — `CompilerTypes.toType` now recognises a function-type string (`startsWith("(")` + `Type.fnTypeArrow >= 0`) BEFORE the dotted-name split and parses it with `Type.of` (paren-balanced); the existing `qualifyDeep` recursion then qualifies each parameter. Proof `FunctionTypeDottedParamE2ETest` **3/3** (RED 2/3 pre-fix with the exact `NoClassDefFoundError: (kof/web/App, String) -> Void`).
+
+**Repro (measured 08/10, deterministic):** `kof run` (NOT `kof check` — no descriptor is emitted by check) on
+`Void run((java.lang.Object, Int) -> Void body) { println("ok") }  main() { run((o: java.lang.Object, n: Int) -> { println("body") }) }`
+→ `kof run: could not load main class Default.Main / java.lang.NoClassDefFoundError: (java.lang.Object, Int) -> Void`. Same for `(kof.web.App, String) -> Void`; `javap` shows the invalid descriptor `(IL(java/lang/Object, Int) -> Void;)V` on the generated `Main.run`.
+
+**Root (read):** `CompilerTypes.toType` had a dotted-name split for a plain class name (`a.b.C` → package `a.b`, `name C`). A function-type string hit the same branch and was cut at the FIRST `'.'` — which sits INSIDE a parameter — so `(kof.web.App, String) -> Void` became `ClassType("(kof.web", "App, String) -> Void")`; the JVM descriptor then became `L(kof/web/App, String) -> Void;`, a class that does not exist. `kof check` passed because no descriptor is emitted; only `run`/`build` surfaced the load failure.
+
+**Contract:** a function type is parsed by paren-balancing, never by a dotted-name split; each parameter is qualified independently (R6 — a well-typed program must not emit a descriptor for a class that cannot exist).
+
+**Boundary:** `CompilerTypes.toType` only (the shared driver-side resolver); `Type.of` already balanced the parens. Undotted components (`(Int, Int) -> Void`) and user records were and remain correct (the control test passes pre- and post-fix). The practical unblock: the §5 server-lifecycle helper `withServer(app, port, (kof.web.App, String) -> Void body)` now loads.
+
+<!-- pt-switch --> **PT:** [§632 (pt_BR)](known-bugs.pt_BR.md#632--um-parametro-de-tipo-funcao-cujo-componente-e-pontuado-kofwebapp-string---void-emitia-um-descritor-jvm-invalido-lkofwebapp-string---void-entao-carregar-main-morria-noclassdeffounderror---fixed-0810-lane-issuestooling-19216815309093-resolvedor-de-tipos-do-frontend-sem-dono-em-curso)

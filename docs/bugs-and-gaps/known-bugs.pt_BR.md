@@ -15109,3 +15109,19 @@ statement (`f(Int)`, `return Int`, `Int` statement) já compilam limpo (medido) 
 **Fronteira:** so o tradutor, cross aarch64; a saida RISC-V intacta (ja usava o `amoswap.w` de 32 bits); x86 intacto. Nao e mudanca de semantica — e correcao de largura de codegen.
 
 <!-- en-switch --> **EN:** [§631 (en)](known-bugs.md#631--the-aarch64-translator-rendered-the-32-bit-spinlock-amoswapw-as-the-64-bit-swpal-x-writing-the-locks-4-neighbouring-bytes-on-every-acquire---fixed-0810-found-0810-by-lane-compilerjvmnative-19216815309092-while-narrowing-known-bugs-602-same-lane-cross-translator-no-owner-em-curso)
+
+## §632 — um parâmetro de tipo função cujo componente é pontuado (`(kof.web.App, String) -> Void`) emitia um descritor JVM inválido `L(kof/web/App, String) -> Void;`, então carregar `Main` morria `NoClassDefFoundError` — ✅ FIXED 08/10 (lane issues/tooling `192.168.15.30:9093`, resolvedor de tipos do frontend, sem dono EM CURSO)
+
+**Status:** ✅ FIXED 08/10 (lane issues/tooling `192.168.15.30:9093`) — `CompilerTypes.toType` agora reconhece uma string de tipo de função (`startsWith("(")` + `Type.fnTypeArrow >= 0`) ANTES do split de nome pontuado e a parseia com `Type.of` (parênteses balanceados); a recursão `qualifyDeep` existente então qualifica cada parâmetro. Prova `FunctionTypeDottedParamE2ETest` **3/3** (RED 2/3 pré-fix com o exato `NoClassDefFoundError: (kof/web/App, String) -> Void`).
+
+**Repro (medido 08/10, determinístico):** `kof run` (NÃO `kof check` — check não emite descritor) em
+`Void run((java.lang.Object, Int) -> Void body) { println("ok") }  main() { run((o: java.lang.Object, n: Int) -> { println("body") }) }`
+→ `kof run: could not load main class Default.Main / java.lang.NoClassDefFoundError: (java.lang.Object, Int) -> Void`. O mesmo para `(kof.web.App, String) -> Void`; o `javap` mostra o descritor inválido `(IL(java/lang/Object, Int) -> Void;)V` no `Main.run` gerado.
+
+**Raiz (lida):** `CompilerTypes.toType` tinha um split de nome pontuado para um nome de classe simples (`a.b.C` → pacote `a.b`, nome `C`). Uma string de tipo de função caía no mesmo ramo e era cortada no PRIMEIRO `'.'` — que fica DENTRO de um parâmetro — então `(kof.web.App, String) -> Void` virava `ClassType("(kof.web", "App, String) -> Void")`; o descritor JVM virava `L(kof/web/App, String) -> Void;`, uma classe que não existe. `kof check` passava porque nenhum descritor é emitido; só `run`/`build` expunham a falha de load.
+
+**Contrato:** um tipo de função é parseado por balanceamento de parênteses, nunca por um split de nome pontuado; cada parâmetro é qualificado independentemente (R6 — um programa bem tipado não pode emitir descritor para uma classe que não pode existir).
+
+**Fronteira:** só `CompilerTypes.toType` (o resolvedor compartilhado do lado do driver); `Type.of` já balanceava os parênteses. Componentes não pontuados (`(Int, Int) -> Void`) e records do usuário eram e continuam corretos (o controle passa pré e pós-fix). O desbloqueio prático: o helper de ciclo de vida de servidor do §5 `withServer(app, port, (kof.web.App, String) -> Void body)` agora carrega.
+
+<!-- en-switch --> **EN:** [§632 (en)](known-bugs.md#632--a-function-typed-parameter-whose-component-type-is-dotted-kofwebapp-string---void-emitted-an-invalid-jvm-descriptor-lkofwebapp-string---void-so-loading-main-died-noclassdeffounderror---fixed-0810-lane-issuestooling-19216815309093-frontend-type-resolver-no-owner-em-curso)
