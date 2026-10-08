@@ -365,9 +365,9 @@ var up = waitUntil(() -> File("build/tmp/ready").exists(), 40, 25)
 
 `withTempDir(dir, body)` creates the directory, runs the body and recursively removes the tree in
 a `finally` (both paths). `removeTree(path)` is the recursive removal, pure Kof (`Directory.list()`
-+ `File.delete()`): `Directory.delete()` only removes an empty directory on JS (JVM/Native delete
-recursively — `known-bugs` §618), so the helper walks the tree to keep cleanup identical on all
-four targets. `waitUntil(probe, attempts, intervalMs)` probes, sleeps between attempts and returns
++ `File.delete()`): it predates the `known-bugs` §618 fix, when `Directory.delete()` only removed
+an empty directory on JS — since 08/10 `delete()` itself is recursive on all four targets (§618
+FIXED), and `removeTree` stays as the portable pure-Kof form that needs no backend. `waitUntil(probe, attempts, intervalMs)` probes, sleeps between attempts and returns
 the last result — never throws, never invents success; `attempts <= 0` does a single probe.
 `withDb(url, body)` opens `db.connect(url)`, runs the body and closes the connection in a `finally`
 (both paths) — the symmetric pair of the open, so an integration test never leaves a connection

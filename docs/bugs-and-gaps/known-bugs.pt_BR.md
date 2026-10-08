@@ -14863,7 +14863,7 @@ JVM/Script/Native imprimiam `fin-inner`, `fin-outer`, `inner`. KofJS abortava: `
 
 <!-- en-switch --> **EN:** [§616 (en)](known-bugs.md#616--shellrunprogram-args-rejected-an-inline-empty-listof-sem025---fixed-0610-owner--19216815309093-lane-issuestooling)
 
-## §618 — `Directory.delete()` apaga um diretório não-vazio recursivamente no JVM/Native mas só um vazio no JS (devolve `false`) — 🔴 ABERTO 06/10 (dona = 192.168.15.30:9093; lane issues/tooling, harness §5 do `kof-testing-platform`; decisão de contrato)
+## §618 — `Directory.delete()` apaga um diretório não-vazio recursivamente no JVM/Native mas só um vazio no JS (devolve `false`) — ✅ CORRIGIDO 08/10 (dona = 192.168.15.15:9092; lane security/connectors, frente bugs-and-gaps por ordem da mantenedora `D-MAINT-BATCH-0610`/B — mantenedora escolheu (B) recursivo-em-tudo 08/10)
 
 **Sintoma (medido 06/10, tip `e40e84c45`):** a mesma fonte `Directory(dir).delete()` devolve `true` e remove a árvore inteira no JVM e no Native (x86-64, riscv64, aarch64), mas devolve `false` e deixa o diretório (com o conteúdo) no alvo **JS** — medido com um arquivo dentro do diretório: JVM/Native `true`/sumiu, JS `false`/presente.
 
@@ -14874,8 +14874,10 @@ JVM/Script/Native imprimiam `fin-inner`, `fin-outer`, `inner`. KofJS abortava: `
 **Forma da correção (precisa de decisão da mantenedora — mudança de contrato, regra 6):** ou (A) fazer JVM/Native apagarem só um diretório vazio (alinha os 3 alvos ao contrato documentado; chamadores usam um helper recursivo), ou (B) fazer o JS recursivo (alinha o contrato ao comportamento JVM/Native). O harness §5 do `kof.test` **não** espera por isso: `withTempDir`/`removeTree` (Kof puro — `Directory.list()` + `File.delete()`) deixam o cleanup idêntico nos 4 alvos hoje, e a docstring do `removeTree` registra esta divergência. Decisão necessária antes de mudar qualquer lado.
 
 **Limite:** runtime `kof_io_dir_delete` no JS vs JVM/Native mais o contrato `IO.md`/`learn/34`. Sem mudança de parser/typer/lowering. Uma correção em qualquer direção deve embarcar um teste de paridade cross-target (JVM ≡ Native ≡ JS) e a doc atualizada no mesmo commit.
+**Correção (08/10, esta lane — opção (B) como decidida):** a ponte JS (`KofJsRunner` `dirDelete`) agora percorre em ordem reversa exatamente como a JVM (`Files.walk` nunca segue symlinks; ausente→`false` preservado). Contrato `docs/stdlib/IO.md` + `learn/34` atualizado para recursivo-em-tudo no mesmo commit.
+**Prova (RED-first):** novo `IoDirDeleteJsParityE2ETest` **2/2** (faces de árvore não-vazia + subdir + dir-ausente; pré-fix a perna JS imprime `false` com a árvore sobrevivendo, pós-fix o golden JVM `true/false/false` vale byte-idêntico em JS e Native x86-64; cross riscv64/aarch64 já pinado em `NativeIoDirDeleteCrossTest`).
 
-<!-- en-switch --> **EN:** [§618 (en)](known-bugs.md#618--directorydelete-deletes-a-non-empty-directory-recursively-on-jvmnative-but-only-an-empty-one-on-js-returns-false---open-0610-owner--19216815309093-lane-issuestooling-kof-testing-platform-5-harness-contract-decision-needed)
+<!-- en-switch --> **EN:** [§618 (en)](known-bugs.md#618--directorydelete-deletes-a-non-empty-directory-recursively-on-jvmnative-but-only-an-empty-one-on-js-returns-false---fixed-0810-owner--19216815159092-lane-securityconnectors-bugs-and-gaps-front-per-maintainer-order-d-maint-batch-0610b--maintainer-chose-b-recursive-everywhere-0810)
 
 ## §619 — campo de classe sem inicializador seguido de membro que começa com `(` engolia o `(` como lista de parâmetros do campo, então `String title` + `() -> Long src` morria `PARSE016` — ✅ CORRIGIDO 07/10 (dona = 192.168.15.15:9092; lane security/connectors, frente graphics/gaming)
 
