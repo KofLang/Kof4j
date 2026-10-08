@@ -44,6 +44,24 @@ class WasmWasiE2ETest {
             }
             """;
 
+    private static final String SRC_RECORD = """
+            record Point(Int x, Int y)
+            record Pair(String a, Int n)
+
+            main(String[] args) {
+                var p = Point(1, 2)
+                println(p)
+                println(p.x)
+                println(p == Point(1, 2))
+                println(p != Point(1, 2))
+                var q = Pair("ab", 7)
+                println(q)
+                println(q.a + "!")
+                println(q == Pair("ab", 7))
+                println("x" + p.x)
+            }
+            """;
+
     private static final String SRC_ARGS = """
             main(String[] args) {
                 println(args.length)
@@ -168,6 +186,33 @@ class WasmWasiE2ETest {
         assertTrue(oob.waitFor(60, TimeUnit.SECONDS), "host within 60s");
         assertNotEquals(0, oob.exitValue(),
                 "indice fora de limites trap deterministico (D-WASM-03 pendente), nunca lixo: " + oobOut);
+    }
+
+    @Test
+    void recordsMatchTheJvmOracleByteForByte(@TempDir Path dir) throws Exception {
+        var wasmtime = host("wasmtime");
+        assumeTrue(wasmtime != null, "wasmtime host absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), SRC_RECORD);
+        var driver = new CompilerDriver();
+        var jvm = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-jvm"), Target.JVM);
+        assertTrue(jvm.success(), "jvm oracle compile: " + jvm.diagnostics().getDiagnostics());
+        var oracle = new ProcessBuilder(List.of(jvmBin(), "-cp",
+                Path.of(dir.toString(), "out-jvm").toString(), "Default.Main"))
+                .redirectErrorStream(true).start();
+        String expected = new String(oracle.getInputStream().readAllBytes());
+        assertTrue(oracle.waitFor(120, TimeUnit.SECONDS) && oracle.exitValue() == 0,
+                "JVM oracle records: " + expected);
+        var wasi = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-wasi"), Target.WASI);
+        assertTrue(wasi.success(), "wasi records compile: " + wasi.diagnostics().getDiagnostics());
+        var proc = new ProcessBuilder(List.of(wasmtime.toString(), "run",
+                Path.of(dir.toString(), "out-wasi", "Default", "Main.wasm").toString()))
+                .redirectErrorStream(true).start();
+        String out = new String(proc.getInputStream().readAllBytes());
+        assertTrue(proc.waitFor(60, TimeUnit.SECONDS), "host within 60s");
+        assertEquals(0, proc.exitValue(), "clean WASI exit with records: " + out);
+        assertEquals(expected.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                out.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                "record stdout must equal the JVM oracle byte-for-byte");
     }
 
     @Test
