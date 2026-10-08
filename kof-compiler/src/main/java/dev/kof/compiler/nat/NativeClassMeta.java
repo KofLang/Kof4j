@@ -296,11 +296,9 @@ final class NativeClassMeta {
         for (String[] entry : nb.stringLiterals) {
             String value = entry[0];
             String label = entry[1];
-            String escaped = value.replace("\\", "\\\\")
-                    .replace("\"", "\\\"")
-                    .replace("\n", "\\n")
-                    .replace("\t", "\\t");
-            sb.append(label).append(": .asciz \"").append(escaped).append("\"\n");
+            // §623: escape control/UTF-8 bytes (o NUL cru de "\0" quebrava o GAS).
+            sb.append(label).append(": .asciz \"")
+              .append(NativeGasStrings.gasEscape(value)).append("\"\n");
         }
         sb.append(".Lnewline: .asciz \"\\n\"\n");
         sb.append(".Lkof_str_true: .asciz \"true\"\n");
