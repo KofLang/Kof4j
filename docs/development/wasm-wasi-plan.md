@@ -1,11 +1,11 @@
 [English](wasm-wasi-plan.md) | [Português](wasm-wasi-plan.pt_BR.md)
 
-**Owner:** SEM DONO / OPEN (TIER 15 lane; units 15.1+15.2 landed) — promoted by `D-WEB-WASI-DEFAULT-0710` (0.6.0 GATE, #776); any free lane claims it in DOING first (`D-PLAN-ONE-OWNER`).
+**Owner:** `192.168.15.101:9092` (TIER 15 lane; 15.1+15.2+15.3-slice1+15.3b landed; 15.3c `args` claimed) — promoted by `D-WEB-WASI-DEFAULT-0710` (0.6.0 GATE, #776); any free lane claims it in DOING first (`D-PLAN-ONE-OWNER`).
 
 # Kof WASM & WASI — future implementation specification
 
-last: 15.3 slice 1 LANDED 07/10 (lane `192.168.15.101:9092`) — `Target.WASI` EMITS a WASI-preview1 module: `main` -> `_start`, scalar `println` -> `fd_write` (WasmWasiE2ETest 3/3, stdout == JVM oracle under wasmtime); before it 15.2 — wasm backend emits the SCALAR subset: top-level `Int/Long/Double/Bool/Char` functions, direct binary WebAssembly (`WasmBackend`/`WasmBinary`/`WasmInstr`), Int=i64 (D-WASM-02), dispatcher `loop $dispatch` + `$pc`; executed + validated under wasmtime v49.0.2 / wasm-tools 1.261.0 (`WasmScalarE2ETest` 3/3, oracle = same program on JVM). `WASI` still `WASM001`; anything outside the subset (IO/collections/records/void) refuses `WASM002` naming this plan + #776, NO artifacts.
-doing: 15.3 continues — GC handles/mark-sweep runtime (GC-handle rule of the plan): `println(String)`, records, collections, `args`; then 15.4 flip.
+last: 15.3b LANDED 07/10 (`println(String)` literal via data segments + `kof.writeString`, JVM-oracle stdout parity under wasmtime); before it 15.3 slice 1 LANDED 07/10 (lane `192.168.15.101:9092`) — `Target.WASI` EMITS a WASI-preview1 module: `main` -> `_start`, scalar `println` -> `fd_write` (WasmWasiE2ETest 3/3, stdout == JVM oracle under wasmtime); before it 15.2 — wasm backend emits the SCALAR subset: top-level `Int/Long/Double/Bool/Char` functions, direct binary WebAssembly (`WasmBackend`/`WasmBinary`/`WasmInstr`), Int=i64 (D-WASM-02), dispatcher `loop $dispatch` + `$pc`; executed + validated under wasmtime v49.0.2 / wasm-tools 1.261.0 (`WasmScalarE2ETest` 3/3, oracle = same program on JVM). `WASI` still `WASM001`; anything outside the subset (IO/collections/records/void) refuses `WASM002` naming this plan + #776, NO artifacts.
+doing: 15.3 continues — `args` over preview1 `args_sizes_get`/`args_get` (plan §14) next; records/collections/GC-handle runtime after; then 15.4 flip.
 next: 15.3b+ (GC handles + strings/records/args runtime) → 15.4 frontend-default flip LAST (only at full parity; `D-LAB-STABILITY` keeps the cut gated by #776).
 location: docs/development/wasm-wasi-plan.md
 state: UNDER DEVELOPMENT
@@ -198,6 +198,23 @@ until 15.4) stay green; `kof deploy --target wasi` honestly refuses `WASM001`
 (module emits, deploy archive/runtime host not yet — `SelectTargetsTest`/
 `CmdDeployTest` unchanged-green). `println(String)`, records, collections,
 `args` and the GC-handle runtime land in the NEXT 15.3 slices (GC-handle rule of the plan).
+
+**Slice 15.3b LANDED (07/10, lane `192.168.15.101:9092`):** `println(String)` of a
+string LITERAL now emits: the bytes go to a wasm DATA segment (pool based at 1024,
+`+1` byte reserved per string for the newline, 4-aligned), the println intercept
+pushes `(addr,len)` and the emitted `kof.writeString` helper writes them through
+`fd_write` with the trailing `\n`. Proof: `WasmWasiE2ETest` 3/3 — mixed scalar+string
+main prints EXACTLY the JVM-oracle stdout (`oi`, `hello kof` added) under wasmtime
+v49.0.2, module validates with `wasm-tools`; out-of-slice strings (concat
+`var s = "a" + "b"`, `println(args)`) refuse `WASM002` naming plan + #776 with NO
+artifacts (Q7); `WasmTargetGateE2ETest` 5/5 re-pinned (its refuse case moved from
+string-literal — now EMITTED — to `args`); `WasmScalarE2ETest` 3/3 stays green. String
+VARIABLES/concat/records/collections need the heap (D-WASM handle-table shape of the
+plan §8/§9) — 15.3c+ (`args`) then GC slices. NOTE 07/10: the 4-module suite is
+`4877 run / 3 F` — JavaFX env (documented) + `Av1CoeffsE2ETest` aarch64/riscv64 =
+EXTERNAL regression catalogued as `known-bugs` **§625** (bisect lands on `a2f69d2f7`
+§620 cross-arg shift; reproduced at remote tip `45d839322` WITHOUT any WASI-lane code;
+owner lane `192.168.15.30:9092`; NOT touched by this lane — collision rule).
 
 
 **Amendment (07/10, lane `192.168.15.101:9092`, 15.1-COMPLETE):** the enum

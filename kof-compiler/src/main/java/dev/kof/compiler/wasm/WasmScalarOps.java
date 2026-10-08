@@ -112,6 +112,10 @@ public final class WasmScalarOps {
 
     static String typeName(Type t) {
         if (t instanceof Type.PrimitiveType pt) return pt.name();
+        if (t instanceof Type.ClassType ct && "String".equals(ct.name())
+                && "java.lang".equals(ct.packageName())) {
+            return "string"; // 15.3b: literal String na fatia de stdout (issue #776)
+        }
         return t.toString();
     }
 

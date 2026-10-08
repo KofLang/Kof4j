@@ -336,9 +336,9 @@ different reason, both honest (R6):
   (as exclusões carregam o motivo).
 - **`wasi`** — **backend WASI-preview1 EMITE a fatia de stdout** (fatia 1 da
   15.3 POUSADA 07/10 pela lane `192.168.15.101:9092`: `main` -> `_start`
-  exportado, `println` escalar -> `wasi_snapshot_preview1.fd_write`
+  exportado, `println` escalar E `println(String)` de LITERAL (data segments + `kof.writeString`) -> `wasi_snapshot_preview1.fd_write`
   importado; o módulo valida com `wasm-tools` e executa sob `wasmtime` com
-  stdout == oracle JVM — `WasmWasiE2ETest` 3/3). Fora da fatia (literais de
+  stdout == oracle JVM — `WasmWasiE2ETest` 3/3). Fora da fatia (concat/variáveis de
   string, `args`, records/coleções, runtime GC) recusa **WASM002** nomeando
   plano + #776 sem artefatos; o FRONTEND padrão e o `kof deploy` mantêm o
   **WASM001** honesto até a unidade 15.4 (flip) / o host de deploy. Os

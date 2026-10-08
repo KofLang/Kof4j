@@ -14954,6 +14954,23 @@ JVM/Script/Native imprimiam `fin-inner`, `fin-outer`, `inner`. KofJS abortava: `
 
 <!-- en-switch --> **EN:** [§624 (en)](known-bugs.md#624--the-android-target-emitted-invalid-bytecode-for-throwassert-the-stringruntimeexception-wrap-was-gated-to-targetjvm-only-so-the-athrow-received-the-raw-string-on-the-stack-verifyerror-masked-by-the-launcher-as-javafx-runtime-components-not-found---fixed-0710-owner--19216815309093-lane-issuestooling-discovered-in-the-issue-777-hunt)
 
+## §625 — a correção de shift de args cross do §620 REGREDIU `Av1CoeffsE2ETest` em `aarch64` E `riscv64`
+
+**Estado:** 🟡 ABERTO 07/10 — externo à lane WASI; achado pela lane `192.168.15.101:9092` na suíte da unidade 15.3b; dona = lane compiler/JVM/native `192.168.15.30:9092`
+
+**Repro (medido 07/10):** `mvn -o test -pl kof-compiler -Dtest='Av1CoeffsE2ETest'` no tip `lab` rebaseado —
+`av1CoeffsOnNativeAarch64` e `av1CoeffsOnNativeRiscv64` FALHAM determinísticos (rodada isolada, 37s, não é
+carga): o decode cross-emitter imprime `cul`/coeficientes dequant errados (`T0 B0 eob 4 cul 63 dc 1` seguido
+de linha de coeficientes divergente do golden). O MESMO teste PASSA isolado no tip `45d839322` SEM os commits
+da lane WASI — provado por rerun em HEAD destacado (bisect dos 11 commits remotos cai em `a2f69d2f7
+fix(compiler)+test+docs: §620 capturing-lambda cross arg shift + §621 native trig`, o único arquivo de
+codegen native/cross no intervalo: `nat/NativeRiscv64CrossEmit.java`).
+
+**Contrato:** zero-regression (`D-LAB-STABILITY`): um commit que corrige deve manter TODA face cross
+existente verde; o corpus `Av1Coeffs` (calls cross de muitos parâmetros) é prova existente que ficou vermelha.
+
+**Esperado:** as duas faces verdes no tip; se o shift do §620 estiver correto, a regressão está em como o
+shift se aplica a chamadas SEM lambda capturante (calls escalares multi-arg devem manter seus slots de ABI).
 ## §626 — o interpretador Script comparava `Double`/`Float` com `Double.compare`/`Float.compare`, que ordena NaN como maior que tudo, então `NaN > 1.0` retornava `true` enquanto JVM/JS retornam `false` — ✅ CORRIGIDO 07/10 (achado 07/10 ao corrigir o §622; corrigido pela lane native-backend, dona = 192.168.15.30:9092)
 
 **Sintoma (medido 07/10, tip `e012d020b`):** `var nan = 0.0 / 0.0; println(nan > 1.0)` imprime `true` em `--target script` mas `false` na JVM, JS e todo alvo nativo. A mesma divergência atinge `<`/`<=`/`>=` (todos falsos na JVM/JS, mas `Double.compare` ordena NaN acima de `+∞`) e `==`/`!=` já estavam corretos (caminho `==` separado).

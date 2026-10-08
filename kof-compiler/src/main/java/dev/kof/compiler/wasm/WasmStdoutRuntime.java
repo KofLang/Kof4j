@@ -17,6 +17,9 @@ public final class WasmStdoutRuntime {
     /** layout da pagina linear do host 15.3 (nwritten / iovec / buffer). */
     public static final int SCRATCH_NWRITTEN = 8, SCRATCH_IOVEC = 16, SCRATCH_OUT = 256;
 
+    /** base do pool de strings 15.3b (data segments; acima do scratch). */
+    public static final int DATA_BASE = 1024;
+
     private WasmStdoutRuntime() {
     }
 
@@ -160,4 +163,30 @@ public final class WasmStdoutRuntime {
         return new WasmFunc("kof.writeChar", List.of(0x7f), List.of(), List.of(), b);
     }
 
+
+    /** 15.3b: `kof.writeString(addr,len)` — iovec aponta o data segment e
+     * um '\n' ocupa o byte reservado apos a string. */
+    public static WasmFunc kofWriteString() {
+        List<WasmInstr> b = new ArrayList<>();
+        b.add(new WasmInstr.Const(0, SCRATCH_IOVEC));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "addr"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.STORE, 0));
+        b.add(new WasmInstr.Const(0, SCRATCH_IOVEC + 4));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "len"));
+        b.add(new WasmInstr.Const(0, 1));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.STORE, 0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "addr"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "len"));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Const(0, '\n'));
+        b.add(new WasmInstr.Store8(0));
+        b.add(new WasmInstr.Const(0, 1));
+        b.add(new WasmInstr.Const(0, SCRATCH_IOVEC));
+        b.add(new WasmInstr.Const(0, 1));
+        b.add(new WasmInstr.Const(0, SCRATCH_NWRITTEN));
+        b.add(new WasmInstr.Call("fd_write"));
+        b.add(new WasmInstr.Simple(0x1a, "drop"));
+        return new WasmFunc("kof.writeString", List.of(0x7f, 0x7f), List.of(), List.of(), b);
+    }
 }

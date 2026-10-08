@@ -17429,6 +17429,23 @@ Literals only — no calls, no captures, no FFI.
 
 <!-- pt-switch --> **PT:** [§624 (pt_BR)](known-bugs.pt_BR.md#624--o-alvo-android-emitia-bytecode-invalido-para-throwassert-o-wrap-stringruntimeexception-estava-gated-so-em-targetjvm-entao-o-athrow-recebia-a-string-crua-na-pilha-verifyerror-mascarado-pelo-launcher-como-componentes-de-runtime-do-javafx-nao-encontrados---corrigido-0710-dona--19216815309093-lane-issuestooling-achado-na-caca-da-issue-777)
 
+## §625 — the §620 cross-arg-shift fix REGRESSED `Av1CoeffsE2ETest` on `aarch64` AND `riscv64`
+
+**Status:** 🟡 OPEN 07/10 — external to the WASI lane; found by lane `192.168.15.101:9092` during the unit 15.3b suite; owner = compiler/JVM/native lane `192.168.15.30:9092`
+
+**Repro (measured 07/10):** `mvn -o test -pl kof-compiler -Dtest='Av1CoeffsE2ETest'` on the rebased `lab`
+tip — `av1CoeffsOnNativeAarch64` and `av1CoeffsOnNativeRiscv64` FAIL deterministically (isolated run,
+37s, not load): the cross-emitted decode prints wrong `cul`/dequant coefficients (`T0 B0 eob 4 cul 63
+dc 1` followed by a coefficient row diverging from the golden). The SAME test PASSES isolated at tip
+`45d839322` WITHOUT the WASI lane commits — proven by detached-HEAD re-run (bisect of the 11 remote
+commots lands on `a2f69d2f7 fix(compiler)+test+docs: §620 capturing-lambda cross arg shift + §621
+native trig`, the only native/cross codegen file in the range: `nat/NativeRiscv64CrossEmit.java`).
+
+**Contract:** zero-regression (`D-LAB-STABILITY`): a fixing commit must keep EVERY existing cross face
+green; the `Av1Coeffs` corpus (many-parameter cross calls) is an existing proof that went red.
+
+**Expected:** both faces green at the tip; if the §620 shift is correct, the regression is in how the
+shift applies to calls WITHOUT a capturing lambda (multi-arg scalar calls must keep their ABI slots).
 ## §626 — the Script interpreter compared `Double`/`Float` with `Double.compare`/`Float.compare`, which ORDERS NaN as greater than everything, so `NaN > 1.0` returned `true` while JVM/JS return `false` — ✅ FIXED 07/10 (found 07/10 while fixing §622; fixed by the native-backend lane, owner = 192.168.15.30:9092)
 
 **Symptom (measured 07/10, tip `e012d020b`):** `var nan = 0.0 / 0.0; println(nan > 1.0)` prints `true` on `--target script` but `false` on JVM, JS and every native target. The same divergence hits `<`/`<=`/`>=` (all false on JVM/JS, but `Double.compare` orders NaN above `+∞`) and `==`/`!=` are already correct (handled by a separate `==` path).

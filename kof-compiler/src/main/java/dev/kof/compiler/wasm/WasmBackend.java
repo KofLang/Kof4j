@@ -45,6 +45,8 @@ public class WasmBackend implements Backend {
 
     @Override
     public void emit(IRModule module, Path outputDir, boolean debugInfo) throws IOException {
+        Map<String, Integer> stringPool = new LinkedHashMap<>();
+        List<WasmData> dataSegments = new ArrayList<>();
         List<IRMethod> entries = new ArrayList<>();
         java.util.Map<String, IRMethod> decls = new java.util.LinkedHashMap<>();
         IRMethod mainDecl = null;
@@ -106,7 +108,7 @@ public class WasmBackend implements Backend {
                         if (t == null || !printableScalar(t)) {
                             throw new WasmUnsupportedException("println '" + t
                                     + "' fora da fatia 1 da unidade 15.3 (WASM002) — o host de "
-                                    + "strings/records/colecoes/double chega com o runtime (D-WASM-03/04);"
+                                    + "strings de operacoes/records/colecoes/double chega com o runtime"
                                     + " docs/development/wasm-wasi-plan.md (#776)");
                         }
                         continue;
@@ -137,7 +139,7 @@ public class WasmBackend implements Backend {
 
         List<WasmFunc> funcs = new ArrayList<>();
         List<WasmFunc> lowered = new ArrayList<>();
-        for (IRMethod m : entries) lowered.add(lowerMethod(m, wasi, printIntrinsic));
+        for (IRMethod m : entries) lowered.add(lowerMethod(m, wasi, printIntrinsic, stringPool, dataSegments));
         IRMethod startM = null;
         if (wasi) {
             if (mainDecl != null) {
@@ -164,14 +166,15 @@ public class WasmBackend implements Backend {
             if (printed.contains("int") || printed.contains("long")) funcs.add(kofWriteInt());
             if (printed.contains("bool") || printed.contains("boolean")) funcs.add(kofWriteBool());
             if (printed.contains("char")) funcs.add(kofWriteChar());
+                if (printed.contains("string")) funcs.add(kofWriteString());
         }
         funcs.addAll(lowered);
-        if (startM != null) funcs.add(lowerMethod(startM, true, printIntrinsic));
+        if (startM != null) funcs.add(lowerMethod(startM, true, printIntrinsic, stringPool, dataSegments));
         List<WasmImport> imports = wasi
                 ? List.of(WasmImport.wasi("fd_write", List.of(0x7f, 0x7f, 0x7f, 0x7f), List.of(0x7f)),
                           WasmImport.wasi("proc_exit", List.of(0x7f), List.of()))
                 : List.of();
-        byte[] bin = new WasmModule(imports, funcs).serialize();
+        byte[] bin = new WasmModule(imports, funcs, dataSegments).serialize();
         String rel = entryClass.replace('/', java.io.File.separatorChar);
         Path wasmPath = outputDir.resolve(rel + ".wasm");
         Files.createDirectories(wasmPath.getParent());
@@ -237,6 +240,7 @@ public class WasmBackend implements Backend {
     }
 
     static boolean printableScalar(String name) {
+        if ("string".equals(name.toLowerCase())) return true; // 15.3b (literal)
         return switch (name.toLowerCase()) {
             case "int", "long", "bool", "boolean", "char" -> true;
             default -> false;
@@ -271,7 +275,8 @@ public class WasmBackend implements Backend {
     // lowering por funcao
     // ------------------------------------------------------------------
 
-    private static WasmFunc lowerMethod(IRMethod m, boolean wasi, boolean printIntrinsic) {
+    private static WasmFunc lowerMethod(IRMethod m, boolean wasi, boolean printIntrinsic,
+            Map<String, Integer> stringPool, List<WasmData> dataSegments) {
         List<Integer> params = new ArrayList<>();
         Map<Integer, Integer> slotMap = new LinkedHashMap<>();
         int jvmSlot = 0;
@@ -322,7 +327,7 @@ public class WasmBackend implements Backend {
             }
         }
 
-        Ctx ctx = new Ctx(slotMap, pcIdx, labelToBlock, m.name());
+        Ctx ctx = new Ctx(slotMap, pcIdx, labelToBlock, m.name(), stringPool, dataSegments);
         ctx.wIdx = wIdx;
         ctx.sIdx = sIdx;
         ctx.wasi = wasi && printIntrinsic;
@@ -347,16 +352,37 @@ public class WasmBackend implements Backend {
         final int pcIdx;
         final Map<Integer, Integer> labelToBlock;
         final String funcName;
+        final Map<String, Integer> stringPool;
+        final List<WasmData> dataSegments;
+        int dataNext = DATA_BASE;
         int wIdx = -1, sIdx = -1;
         boolean wasi;
         String lastPush;
 
         Ctx(Map<Integer, Integer> slotMap, int pcIdx,
-            Map<Integer, Integer> labelToBlock, String funcName) {
+                Map<Integer, Integer> labelToBlock, String funcName,
+                Map<String, Integer> stringPool, List<WasmData> dataSegments) {
             this.slotMap = slotMap;
             this.pcIdx = pcIdx;
             this.labelToBlock = labelToBlock;
             this.funcName = funcName;
+            this.stringPool = stringPool;
+            this.dataSegments = dataSegments;
+        }
+        int internString(String str) {
+            Integer a = stringPool.get(str);
+            if (a != null) return a;
+            byte[] bs = str.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            int addr = dataNext;
+            stringPool.put(str, addr);
+            dataSegments.add(new WasmData(addr, bs));
+            dataNext += bs.length + 1; // +1 reserva o byte do '\n'
+            dataNext = (dataNext + 3) & ~3;
+            return addr;
+        }
+
+        int internLen(String str) {
+            return str.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
         }
         int w(int jvmSlot) {
             Integer i = slotMap.get(jvmSlot);
@@ -460,8 +486,15 @@ public class WasmBackend implements Backend {
         } else if (op instanceof KofStoreLocal sl) {
             out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.w(sl.index()), "l" + sl.index()));
         } else if (op instanceof KofLoadLiteral lit) {
-            emitLiteral(lit.value(), lit.type(), out);
-            ctx.lastPush = typeName(lit.type());
+            if (ctx.wasi && lit.value() instanceof String str && printlnFollows(ops, idx)) {
+                int addr = ctx.internString(str);
+                out.add(new WasmInstr.Const(0, addr));
+                out.add(new WasmInstr.Const(0, ctx.internLen(str)));
+                ctx.lastPush = "string";
+            } else {
+                emitLiteral(lit.value(), lit.type(), out);
+                ctx.lastPush = typeName(lit.type());
+            }
         } else if (op instanceof KofBinary bin) {
             emitBinaryOp(bin.op(), typeName(bin.operandType()), out);
             ctx.lastPush = typeName(bin.operandType());
@@ -487,8 +520,9 @@ public class WasmBackend implements Backend {
                     case "int", "long" -> out.add(new WasmInstr.Call("kof.writeInt"));
                     case "bool", "boolean" -> out.add(new WasmInstr.Call("kof.writeBool"));
                     case "char" -> out.add(new WasmInstr.Call("kof.writeChar"));
+                    case "string" -> out.add(new WasmInstr.Call("kof.writeString"));
                     default -> throw new WasmUnsupportedException("println '" + t
-                            + "' fora da fatia 1 da unidade 15.3 (WASM002) — o host de strings/"
+                            + "' fora da fatia 1 da unidade 15.3 (WASM002) — o runtime de strings/"
                             + "records/colecoes chega com o runtime (D-WASM-03/04);"
                             + " docs/development/wasm-wasi-plan.md (#776)");
                 }

@@ -95,10 +95,10 @@ class WasmTargetGateE2ETest {
         }
         {
             Path src = dir.resolve("GateWasiStrings.kf");
-            Files.writeString(src, "main() { println(\"oi\") }\n");
+            Files.writeString(src, "main(String[] args) { println(args) }\n");
             Path out = dir.resolve("out-wasi-refuse");
             CompilationResult r = driver.compile(src, out, Target.WASI);
-            assertFalse(r.success(), "println de string esta fora da fatia 1 (WASM002)");
+            assertFalse(r.success(), "println de args esta fora da fatia 15.3b (WASM002)");
             String diags = r.diagnostics().getDiagnostics().toString();
             for (String mark : new String[] {"WASM002", "#776", "wasm-wasi-plan"}) {
                 assertTrue(diags.contains(mark), "WASI diagnostic must name " + mark + ": " + diags);

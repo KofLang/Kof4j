@@ -36,6 +36,8 @@ class WasmWasiE2ETest {
                 println(true)
                 println(false)
                 println(2 + 3 * 4)
+                println("oi")
+                println("hello kof")
             }
             """;
 
@@ -82,7 +84,7 @@ class WasmWasiE2ETest {
         String out = new String(proc.getInputStream().readAllBytes());
         assertTrue(proc.waitFor(60, TimeUnit.SECONDS), "host must answer within 60s");
         assertEquals(0, proc.exitValue(), "clean WASI exit: " + out);
-        assertEquals("3\n-42\n0\n55\ntrue\nfalse\n14", out.replaceAll("(?m)^warning:.*$", "")
+        assertEquals("3\n-42\n0\n55\ntrue\nfalse\n14\noi\nhello kof", out.replaceAll("(?m)^warning:.*$", "")
                 .replaceAll("\\n+$", ""), "stdout must equal the JVM oracle");
     }
 
@@ -91,7 +93,7 @@ class WasmWasiE2ETest {
         var driver = new CompilerDriver();
         record Case(String name, String src) {}
         for (Case c : List.of(
-                new Case("string", "main(String[] args) { println(\"ola\") }\\n"),
+                new Case("concat", "main(String[] args) { var s = \"a\" + \"b\"\\n    println(s) }\\n"),
                 new Case("args", "main(String[] args) { println(args) }\\n"))) {
             Path src = dir.resolve("Refuse-" + c.name() + ".kf");
             Files.writeString(src, c.src().replace("\\n", "\n"));

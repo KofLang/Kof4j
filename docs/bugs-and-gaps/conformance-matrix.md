@@ -336,9 +336,9 @@ different reason, both honest (R6):
   matrices (exclusions carry the reason).
 - **`wasi`** — **WASI-preview1 backend EMITS the stdout slice** (15.3 slice 1
   LANDED 07/10 by lane `192.168.15.101:9092`: `main` -> exported `_start`,
-  scalar `println` -> imported `wasi_snapshot_preview1.fd_write`; module
+  scalar `println` + `println(String)` of a LITERAL (data segments + `kof.writeString`) -> imported `wasi_snapshot_preview1.fd_write`; module
   validates with `wasm-tools`, executes under `wasmtime` with stdout == JVM
-  oracle — `WasmWasiE2ETest` 3/3). Outside the slice (string literals, `args`,
+  oracle — `WasmWasiE2ETest` 3/3). Outside the slice (string concat/variables, `args`,
   records/collections, GC runtime) refuses **WASM002** naming plan + #776
   with NO artifacts; the FRONTEND default and `kof deploy` keep the honest
   **WASM001** until unit 15.4 (flip) / the deploy host. The long

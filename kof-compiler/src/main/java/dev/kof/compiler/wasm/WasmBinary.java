@@ -137,7 +137,31 @@ public final class WasmBinary {
         sections.add(section(5, vec(List.of(new byte[]{0x00, 0x01}))));
         sections.add(section(7, vec(exportItems)));
         sections.add(section(10, vec(codeItems)));
+        if (m.data() != null && !m.data().isEmpty()) {
+            List<byte[]> dataItems = new ArrayList<>();
+            for (WasmData d : m.data()) {
+                dataItems.add(bytes(new byte[]{0x00}, new byte[]{0x41}, sleb(d.addr()),
+                        new byte[]{0x0b}, uleb(d.bytes().length), d.bytes()));
+            }
+            sections.add(section(11, vec(dataItems)));
+        }
         return bytes(sections.toArray(new byte[0][]));
+    }
+
+    private static byte[] sleb(int v) {
+        var out = new ArrayList<Byte>();
+        boolean more = true;
+        while (more) {
+            byte b = (byte) (v & 0x7f);
+            v >>= 7;
+            boolean signBit = (b & 0x40) != 0;
+            if ((v == 0 && !signBit) || (v == -1 && signBit)) more = false;
+            else b |= 0x80;
+            out.add(b);
+        }
+        byte[] r = new byte[out.size()];
+        for (int i = 0; i < r.length; i++) r[i] = out.get(i);
+        return r;
     }
 
     private static String importSigKey(WasmImport im) {
@@ -164,11 +188,18 @@ record WasmFunc(String name, List<Integer> params, List<Integer> results,
     static final int TYPE_I32 = 0x7f, TYPE_I64 = 0x7e, TYPE_F64 = 0x7c;
 }
 
+/** Segmento de dados ativo (pagina linear): endereco + bytes (strings 15.3b). */
+record WasmData(int addr, byte[] bytes) {}
+
 /** Modelo do modulo (lista ordenada de funcs). */
-record WasmModule(List<WasmImport> imports, List<WasmFunc> funcs) {
+record WasmModule(List<WasmImport> imports, List<WasmFunc> funcs, List<WasmData> data) {
 
     WasmModule(List<WasmFunc> funcs) {
-        this(List.of(), funcs);
+        this(List.of(), funcs, List.of());
+    }
+
+    WasmModule(List<WasmImport> imports, List<WasmFunc> funcs) {
+        this(imports, funcs, List.of());
     }
     byte[] serialize() {
         return WasmBinary.module(this);
