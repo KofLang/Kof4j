@@ -173,10 +173,15 @@ public final class NativeAarch64Translator {
                     + ", " + suf + args[1].trim().substring(1));
         }
         if (mn.startsWith("feq.") || mn.startsWith("flt.") || mn.startsWith("fle.") || mn.startsWith("fgt.") || mn.startsWith("fge.")) {
+            // §622: após `fcmp`, os aliases ARM `lt`(N!=V) e `le`(Z=1 || N!=V)
+            // NÃO são "quiet": com NaN (N=0,V=1) dão TRUE. O par ordenado
+            // correto é `mi`(N==1) para flt e `ls`(C==0 || Z==1) para fle —
+            // ambos falsos em NaN, idênticos ao riscv `flt.d`/`fle.d` e ao x86.
+            // eq/gt/ge já eram ordenados corretos.
             String condMap = switch (mn.substring(1, 4)) {
                 case "eq." -> "eq";
-                case "lt." -> "lt";
-                case "le." -> "le";
+                case "lt." -> "mi";
+                case "le." -> "ls";
                 case "gt." -> "gt";
                 case "ge." -> "ge";
                 default -> "eq";

@@ -269,9 +269,12 @@ WGSL/GLSL/HLSL/cross-compile decision deferred, not first slice).
   runtime had no `sin`/`cos` symbols, `known-bugs` §621, ✅ FIXED 07/10).
   Building it
   bisected and catalogued `known-bugs` §622 (a 2nd/nested conditional
-  assignment to the same Double local is lost on cross; the 15-line
-  `twoIfLit` reproducer + else/while/return/nested variants) and ships the
-  branch-free workaround (`roundTo` range reduction in `Trig.trigNorm`).
+  assignment to the same Double local was lost on cross; the 15-line
+  `twoIfLit` reproducer + else/while/return/nested variants), ✅ FIXED 07/10
+  by the native-backend lane (the cross conditional-jump compared Double bit
+  patterns with signed-integer branches), and ships the
+  branch-free workaround (`roundTo` range reduction in `Trig.trigNorm`,
+  still valid and faster).
   Proof: `GameAudioE2ETest` **6/6** (exact-integer golden on JVM + Script +
   Native x86-64 + JS + riscv64 + aarch64 under qemu). Audible
   decoder/playback/device faces stay backend work.

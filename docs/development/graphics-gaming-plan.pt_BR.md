@@ -250,9 +250,11 @@ cobertura/manutenção/testabilidade/cross-platform). Shaders escondidos no iní
   tinha símbolos `sin`/`cos`, `known-bugs` §621, ✅ CORRIGIDO 07/10).
   Construí-lo bissectou e
   catalogou o `known-bugs` §622 (uma 2ª/aninhada atribuição condicional no
-  mesmo local Double se perde no cross; reprodutor `twoIfLit` de 15 linhas +
-  variantes else/while/return/aninhadas) e embarca o desvio sem-branch
-  (redução via `roundTo` no `Trig.trigNorm`). Prova: `GameAudioE2ETest`
+  mesmo local Double se perdia no cross; reprodutor `twoIfLit` de 15 linhas +
+  variantes else/while/return/aninhadas), ✅ CORRIGIDO 07/10 pela lane
+  native-backend (o salto condicional cross comparava padrões de bits Double
+  com ramos inteiros com sinal), e embarca o desvio sem-branch
+  (redução via `roundTo` no `Trig.trigNorm`, ainda válido e mais rápido). Prova: `GameAudioE2ETest`
   **6/6** (golden de inteiros exatos em JVM + Script + Native x86-64 + JS +
   riscv64 + aarch64 sob qemu). Faces audíveis de decoder/playback/device
   seguem trabalho de backend.

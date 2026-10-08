@@ -17376,9 +17376,9 @@ JVM/Script/Native printed `fin-inner`, `fin-outer`, `inner`. KofJS aborted: `Int
 **Boundary:** `libs/game/Trig.kf`'s pure-Kof `trigSin`/`trigCos` workaround stays valid (and remains more portable than libm); the 1-milli Taylor deviation pinned in `GameSpriteE2ETest` (`f=83999`) is unchanged.
 
 <!-- pt-switch --> **PT:** [§621 (pt_BR)](known-bugs.pt_BR.md#621--mathsinmathcosmathtoradians-e-as-outras-funcoes-trig-passavam-no-type-check-em-todo-alvo-mas-nao-tinham-simbolo-no-runtime-native-entao-um-build-native-morria-no-ld-com-um-comp001-mal-rotulado---corrigido-0710-achada-0710-pelo-sprite-da-fatia-32a-graphicsgaming-corrigida-pela-lane-native-backend-dona--19216815309092)
-## §622 — a second (or nested) conditional assignment to the same Double local is lost on the cross natives (riscv64/aarch64): the first branch works, later ones silently keep the old value — 🟡 OPEN (found 07/10 bisecting the slice-3.3a audio mixer; owner = native-backend lane)
+## §622 — a second (or nested) conditional assignment to the same Double local was lost on the cross natives (riscv64/aarch64): the cross conditional-jump compared the raw IEEE-754 bit patterns with SIGNED INTEGER branches, so negative doubles compared backwards — ✅ FIXED 07/10 (found 07/10 bisecting the slice-3.3a audio mixer; fixed by the native-backend lane, owner = 192.168.15.30:9092)
 
-**Symptom (measured 07/10, tip `297f273f2`):** the 15-line program below prints `t=-1570796` then `t2=2283185` on Native x86-64, but `t=-1570796` then `t2=-4000000` under qemu-riscv64 AND qemu-aarch64 identically — the second `if` never takes effect on cross (the local keeps its pre-branch value, no crash, no diagnostic):
+**Symptom (measured 07/10, tip `297f273f2`):** the 15-line program below prints `t=-1570796` then `t2=2283185` on Native x86-64, but `t=-1570796` then `t2=-4000000` under qemu-riscv64 AND qemu-aarch64 identically — the second `if` never took effect on cross (the local kept its pre-branch value, no crash, no diagnostic):
 ```
 Double twoIfLit(Double v) {
     var r = v % 6.283185307179586
@@ -17391,15 +17391,17 @@ main() {
     println("t2=" + ((twoIfLit(-4.0) * 1000000.0) as Int))
 }
 ```
-Literals only — no calls, no captures, no FFI. Bisected variants, all failing the later branch identically on both cross targets while x86-64 is correct: `if/else` with a nested second `if`; two `while` loops (BOTH branches lost there); return-form; nested if-*expressions*; and split one-`if`-per-function helpers called nested (each helper is the proven single-`if` shape that works when called from `main`). Single-`if` on a Double local, Double `%`, comparisons, reassignment, multi-arg and nested Double calls all verified correct on cross in isolation — only the second-and-later conditional Double assignment (possibly reunited by inlining; suspicion only, not claimed) loses.
+Literals only — no calls, no captures, no FFI.
 
-**Root (unknown — not claimed):** measured behavior + bisection only. Suspect area is the cross Double local/branch lowering (riscv64/aarch64 emitters); the fix belongs to the native-backend lane — this lane does not touch it (`D-PLAN-ONE-OWNER`).
+**Root (found + fixed by the native-backend lane):** `NativeRiscvCrossOps.emitCrossCondJumpRiscv` popped the two operand qwords and branched with the INTEGER comparisons `bge`/`ble`/`blt`/`bgt` regardless of operand type. For a `Double`/`Float` the qwords are the raw IEEE-754 bit patterns, and signed-integer order on those is non-monotonic for negatives: `-1.0` (`0xBFF0…`) has a LARGER signed pattern than `-2.0` (`0xC000…`). So `r < -π` (comparing `-4.0` against `-3.14159…`) took the wrong branch; the first `if` only worked because `+π` is positive. x86-64 (`NativeOpHelpers.emitConditionalJump`) already loads the operands into `xmm` and uses `ucomisd`/`ucomiss`, so it was correct. The bisection's "second/nested assignment" framing was a red herring: ANY ordered comparison of a negative double on cross was inverted (single `if` too, when the test operand was negative).
 
-**Workaround (this lane, shipped):** `libs/game/Trig.kf`'s range reduction is BRANCH-FREE — `rad - roundTo(rad / twoPi, 0) * twoPi` (`math.roundTo` is native-defined on all targets) — so the audio mixer that exposed this needs zero conditionals on Doubles (`GameAudioE2ETest` 6/6 on JVM + Script + Native x86-64 + riscv64 + aarch64 qemu + JS).
+**Fix (cross emitter + aarch64 translator, additive):** the cross conditional-jump now branches on the operand type — for `Float`/`Double` it reinterprets the qwords into the FPU (`fmv.w.x`/`fmv.d.x`) and computes the predicate with `feq.d`/`flt.d`/`fle.d` (NaN-false, like the x86 `ucomis*`+PF path), branching on the boolean. `NativeAarch64Translator` maps riscv `flt`→AArch64 `cset mi` and `fle`→`cset ls` (the previous `lt`/`le` aliases are NOT NaN-quiet: after `fcmp`, NaN sets N=0,V=1 so `cset lt`/`cset le` returned TRUE). Integer comparisons are untouched.
 
-**Boundary:** record + workaround only; no typer/runtime/backend change from this lane. Distinct from §620 (closures) and §602 (GC freeing live frames): values here are never corrupted, only stale.
+**Proof (RED-first):** new `FpCompareCrossE2ETest` **4/4** — pre-fix RED with the exact `t2=-4000000` (riscv64+aarch64) and the negative-double operator battery; post-fix the full operator battery (`<`/`<=`/`>`/`>=`/`==`/`!=`, Double and Float, negatives, mixed signs and NaN) is byte-identical to the JVM oracle on riscv64(qemu) + aarch64(qemu). Non-regression: `NativeRiscv64E2ETest`+`NativeE2ETest`+`CrossHeapParityE2ETest`+`LambdaCapturingArgCrossE2ETest`+`KofMathTest`+`CoreRegressionE2ETest` = **273 run / 0F / 0E** (1 env skip); `tests/run-golden.sh` **140/140**.
 
-<!-- pt-switch --> **PT:** [§622 (pt_BR)](known-bugs.pt_BR.md#622--uma-segunda-ou-aninhada-atribuicao-condicional-no-mesmo-local-double-se-perde-nos-nativos-cross-riscv64aarch64-o-primeiro-branch-funciona-os-seguintes-mantem-silenciosamente-o-valor-antigo---aberta-achada-0710-bissectando-o-mixer-de-audio-da-fatia-33a-dona--lane-native-backend)
+**Boundary:** cross natives + the aarch64 translation of the FP compare. The graphics `Trig.kf` branch-free workaround stays valid (still faster and ULP-stable) but is no longer required.
+
+<!-- pt-switch --> **PT:** [§622 (pt_BR)](known-bugs.pt_BR.md#622--uma-segunda-ou-aninhada-atribuicao-condicional-no-mesmo-local-double-se-perdia-nos-nativos-cross-riscv64aarch64-o-salto-condicional-cross-comparava-os-padroes-de-bits-ieee-754-crus-com-ramos-inteiros-com-sinal-entao-doubles-negativos-comparavam-ao-contrario---corrigido-0710-achada-0710-bissectando-o-mixer-de-audio-da-fatia-33a-corrigida-pela-lane-native-backend-dona--19216815309092)
 
 ## §623 — a `"\0"` NUL escape inside a string literal works on JVM but breaks the Native assembler (raw control byte in the generated `.s`, mislabeled `COMP001`) — 🟡 OPEN (found 07/10 by the graphics/gaming slice-3.3c audio stream; owner = native-backend lane)
 
@@ -17426,3 +17428,17 @@ Literals only — no calls, no captures, no FFI. Bisected variants, all failing 
 **Boundary:** the JVM-family throw/assert wrap on the Android target only. Other `target == Target.JVM` sites that intentionally mean "JVM-only runtime behavior" are out of scope; this one is a shared JVM-backend contract. No issue filed (found by this lane, same commit).
 
 <!-- pt-switch --> **PT:** [§624 (pt_BR)](known-bugs.pt_BR.md#624--o-alvo-android-emitia-bytecode-invalido-para-throwassert-o-wrap-stringruntimeexception-estava-gated-so-em-targetjvm-entao-o-athrow-recebia-a-string-crua-na-pilha-verifyerror-mascarado-pelo-launcher-como-componentes-de-runtime-do-javafx-nao-encontrados---corrigido-0710-dona--19216815309093-lane-issuestooling-achado-na-caca-da-issue-777)
+
+## §626 — the Script interpreter compared `Double`/`Float` with `Double.compare`/`Float.compare`, which ORDERS NaN as greater than everything, so `NaN > 1.0` returned `true` while JVM/JS return `false` — ✅ FIXED 07/10 (found 07/10 while fixing §622; fixed by the native-backend lane, owner = 192.168.15.30:9092)
+
+**Symptom (measured 07/10, tip `e012d020b`):** `var nan = 0.0 / 0.0; println(nan > 1.0)` prints `true` on `--target script` but `false` on JVM, JS and every native target. The same divergence hits `<`/`<=`/`>=` (all false on JVM/JS, but `Double.compare` orders NaN above `+∞`) and `==`/`!=` are already correct (handled by a separate `==` path).
+
+**Root (found + fixed by the native-backend lane):** `KofInterpreterOps.binary` computed ordered float/double comparisons via `KofInterpreterValues.cmpResult(op, Double.compare(x, y))` (and `Float.compare`). `Double.compare`/`Float.compare` define a TOTAL order for sorting where NaN is larger than every value, which is NOT the IEEE-754 comparison semantics the JVM `dcmpl/dcmpg`/`fcmpl/fcmpg` and JS use (NaN is false in every ordered comparison). The conditional-jump path `KofInterpreterOps.compare` had the same `Double.compare` defect.
+
+**Fix (interpreter only, additive):** new `KofInterpreterValues.fpCmpResult(op, x, y)` compares with the primitive IEEE operators (`x < y`, `x <= y`, `x > y`, `x >= y`, `x == y`, `x != y`) and both interpreter paths use it for Float/Double. Integer/long/ref comparisons are untouched.
+
+**Proof (RED-first):** the new `FpCompareCrossE2ETest.everyOrderedOperatorAllTargets` is RED pre-fix on the Script leg (`nanGt` mismatch) and GREEN post-fix; the whole operator battery is byte-identical to the JVM oracle on Script + JS + JVM + Native x86-64. Non-regression: `KofInterpreterParityTest` 28/28 + numeric/primitive battery 44/44; `tests/run-golden.sh` **140/140**.
+
+**Boundary:** the Script interpreter's float/double comparison. JVM/JS/Native were already IEEE-correct; no language-surface change.
+
+<!-- pt-switch --> **PT:** [§626 (pt_BR)](known-bugs.pt_BR.md#626--o-interpretador-script-comparava-doublefloat-com-doublecomparefloatcompare-que-ordena-nan-como-maior-que-tudo-entao-nan--10-retornava-true-enquanto-jvmjs-retornam-false---corrigido-0710-achado-0710-ao-corrigir-o-622-corrigido-pela-lane-native-backend-dona--19216815309092)
