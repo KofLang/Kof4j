@@ -62,6 +62,18 @@ class NativeAarch64TranslatorAluTest {
         assertTrue(tr("    sra a1, a2, a3").contains("asr x1, x2, x3"), "sra -> asr");
     }
 
+    /**
+     * §631: `amoswap.w` é 32-bit (o lock do allocator é `.word`). A tradução
+     * anterior usava registradores X (`swpal x`) = 64-bit, sobrescrevendo os
+     * 4 bytes vizinhos do lock. O contrato é a LARGURA: `swpal w`.
+     */
+    @Test
+    void amoswapWordBecomesSwpalWithWRegisters() {
+        String out = tr("    amoswap.w t1, t0, (s1)");
+        assertTrue(out.contains("swpal w9, w10, [x20]"), "amoswap.w -> swpal w (32-bit): " + out);
+        assertFalse(out.contains("swpal x"), "nunca a forma X (64-bit): " + out);
+    }
+
     /** Camada forte: o `as` aarch64 REAL aceita o texto traduzido (não basta a string). */
     @Test
     void translatedMnemonicsAssembleWithAarch64As(@TempDir Path dir) throws IOException {
@@ -75,8 +87,12 @@ class NativeAarch64TranslatorAluTest {
                 "    sll a1, a2, a3",
                 "    srl a1, a2, a3",
                 "    sra a1, a2, a3",
+                "    amoswap.w a1, a2, (a3)",
                 "    ret");
         StringBuilder asm = new StringBuilder();
+        // §631: o emissor real abre o .s com `.arch armv8.1-a` (habilita LSE,
+        // ex. `swpal`); o probe precisa do mesmo para o `as` aceitar o atômico.
+        asm.append(".arch armv8.1-a\n");
         for (String line : riscv) {
             for (String t : NativeAarch64Translator.translateRiscvToAarch64(line)) asm.append(t).append('\n');
         }
