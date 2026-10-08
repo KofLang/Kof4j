@@ -141,8 +141,12 @@ class JvmLauncherDiagnosticE2ETest {
         assertFalse(out.contains("JavaFX"),
                 "kof run não pode imprimir a máscara JavaFX (§556):\n" + out);
         if (!out.contains("32")) {
+            // §628: desde o aperto §554 (`ExternalArgTighten`), a fixture
+            // `md.update(Byte[])` recusa no COMPILE com SEM014 em vez de
+            // morrer VerifyError no load — o diagnóstico de compile-time
+            // TAMBÉM é a causa real revelada (nunca a máscara).
             assertTrue(out.contains("VerifyError") || out.contains("NoClassDefFoundError")
-                            || out.contains("Exception"),
+                            || out.contains("Exception") || out.contains("SEM"),
                     "se o programa falha ao carregar, a causa real deve aparecer:\n" + out);
         }
     }
@@ -196,8 +200,9 @@ class JvmLauncherDiagnosticE2ETest {
         assertFalse(out.contains("JavaFX"),
                 "kof workflow run não pode imprimir a máscara JavaFX (§556):\n" + out);
         assertTrue(out.contains("ok") || out.contains("allOk") || out.contains("VerifyError")
-                        || out.contains("NoClassDefFoundError") || out.contains("Exception"),
-                "o pipeline roda ou a causa real aparece:\n" + out);
+                        || out.contains("NoClassDefFoundError") || out.contains("Exception")
+                        || out.contains("SEM"),
+                "o pipeline roda ou a causa real aparece (§628: SEM014 de compile-time conta):\n" + out);
     }
 
     @Test
@@ -228,7 +233,8 @@ class JvmLauncherDiagnosticE2ETest {
         assertFalse(out.contains("JavaFX"),
                 "kof test não pode imprimir a máscara JavaFX (§556):\n" + out);
         assertTrue(out.contains("PASS digest") || out.contains("VerifyError")
-                        || out.contains("NoClassDefFoundError") || out.contains("Exception"),
-                "o teste roda ou a causa real aparece:\n" + out);
+                        || out.contains("NoClassDefFoundError") || out.contains("Exception")
+                        || out.contains("SEM"),
+                "o teste roda ou a causa real aparece (§628: SEM014 de compile-time conta):\n" + out);
     }
 }
