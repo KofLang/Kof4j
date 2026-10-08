@@ -338,33 +338,14 @@ public final class SemExpressionTyper {
                 sa.currentExplicitVoid = false;
                 StatementAnalyzer.analyzeBody(sa, le.body(), lambdaScope, Type.UnknownType.UNKNOWN);
                 sa.currentExplicitVoid = prevEv;
-                Type returnType = Type.UnknownType.UNKNOWN;
-                boolean hasReturn = false;
-                for (StatementNode s : le.body()) {
-                    if (s instanceof ReturnStmt rs) {
-                        hasReturn = true;
-                        if (rs.value() != null) {
-                            returnType = inferType(sa, rs.value(), lambdaScope);
-                        } else {
-                            returnType = Type.PrimitiveType.VOID;
-                        }
-                        break;
-                    }
-                    if (s instanceof BlockStmt b) {
-                        for (StatementNode inner : b.statements()) {
-                            if (inner instanceof ReturnStmt rs2) {
-                                hasReturn = true;
-                                if (rs2.value() != null) {
-                                    returnType = inferType(sa, rs2.value(), lambdaScope);
-                                } else {
-                                    returnType = Type.PrimitiveType.VOID;
-                                }
-                                break;
-                            }
-                        }
-                    }
-                }
-                if (!hasReturn) {
+                // §630: o scan tem de RECURSAR (try/catch, if/else, switch,
+                // loops) — antes só via `return` no topo do corpo ou dentro de
+                // um BlockStmt de um nível, então `() -> { try { return x }
+                // catch { return y } }` tipava VOID e o valor era descartado
+                // (SEM033 ao usar a lambda como valor). Espelha a recursão de
+                // `ExpressionTyper.returnValueType` (paridade semântica/lowering).
+                Type returnType = lambdaReturnValueType(sa, le.body(), lambdaScope);
+                if (returnType == null) {
                     returnType = Type.PrimitiveType.VOID;
                 }
                 yield new Type.FunctionType(paramTypes, returnType);
@@ -425,6 +406,59 @@ public final class SemExpressionTyper {
         if (BuiltinTypes.isString(t)) return "charAt(i) / substring(i)";
         if (BuiltinTypes.isMap(t)) return "get(k)";
         return "get(i)";
+    }
+
+    /**
+     * §630: valor do primeiro `return` de um corpo de lambda, RECURSANDO em
+     * blocos, `if`/`else`, `switch`, `try`/`catch`/`finally` e loops — a mesma
+     * travessia de {@code ExpressionTyper.returnValueType} (o caminho do
+     * lowering). Retorna {@code null} quando nenhum `return` é alcançado
+     * (corpo void). Antes só o topo do corpo e um BlockStmt de um nível eram
+     * vistos, então uma lambda com `try { return x } catch { return y }`
+     * tipava VOID (SEM033 ao usar o valor).
+     */
+    private static Type lambdaReturnValueType(SemanticAnalyzer sa,
+                                              List<StatementNode> body, SymbolTable scope) {
+        for (StatementNode s : body) {
+            Type t = lambdaReturnOfStatement(sa, s, scope);
+            if (t != null) return t;
+        }
+        return null;
+    }
+
+    private static Type lambdaReturnOfStatement(SemanticAnalyzer sa, StatementNode s,
+                                                SymbolTable scope) {
+        if (s instanceof ReturnStmt rs) {
+            return rs.value() != null ? inferType(sa, rs.value(), scope)
+                    : Type.PrimitiveType.VOID;
+        }
+        if (s instanceof BlockStmt bs) return lambdaReturnValueType(sa, bs.statements(), scope);
+        if (s instanceof IfStmt is) {
+            Type t = lambdaReturnOfStatement(sa, is.thenBranch(), scope);
+            if (t != null) return t;
+            return is.elseBranch() != null ? lambdaReturnOfStatement(sa, is.elseBranch(), scope) : null;
+        }
+        if (s instanceof SwitchStmt ss) {
+            for (SwitchCase sc : ss.cases()) {
+                Type t = lambdaReturnValueType(sa, sc.body(), scope);
+                if (t != null) return t;
+            }
+            return lambdaReturnValueType(sa, ss.defaultBody(), scope);
+        }
+        if (s instanceof TryStmt ts) {
+            Type t = lambdaReturnValueType(sa, ts.tryBody(), scope);
+            if (t != null) return t;
+            for (CatchClause cc : ts.catchClauses()) {
+                t = lambdaReturnValueType(sa, cc.body(), scope);
+                if (t != null) return t;
+            }
+            return lambdaReturnValueType(sa, ts.finallyBody(), scope);
+        }
+        if (s instanceof WhileStmt ws) return lambdaReturnOfStatement(sa, ws.body(), scope);
+        if (s instanceof DoWhileStmt dws) return lambdaReturnOfStatement(sa, dws.body(), scope);
+        if (s instanceof ForStmt fs) return lambdaReturnOfStatement(sa, fs.body(), scope);
+        if (s instanceof ForInStmt fis) return lambdaReturnOfStatement(sa, fis.body(), scope);
+        return null;
     }
 }
 

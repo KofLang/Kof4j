@@ -17572,3 +17572,19 @@ faces (`f(Int)`, `return Int`, bare `Int` statement) already compile clean (meas
 affected; `SEM103` is new (highest previously used = `SEM102`).
 
 <!-- pt-switch --> **PT:** [§629 (pt_BR)](known-bugs.pt_BR.md#629--um-nome-de-tipo-builtin-nu-usado-como-valor-int3-var-x--int-passava-pelo-typer-como-unknown-e-o-backend-jvm-emitia-um-frame-com-operando-fantasma-morrendo-no-asm-compute_frames-arrayindexoutofboundsexception-index--1--negativearraysizeexception--1-em-vez-de-um-diagnostico---fixed-0810-achado-0810-pela-lane-issuestooling-19216815309093-durante-a-caca-da-issue-779-corrigido-na-mesma-lane-typer-de-frente-sem-dono-em-curso)
+
+## §630 — a lambda whose value comes from a NESTED statement (`try`/`catch`, `if`/`else`, `switch`, loops) was typed `() -> Void`, so the returned value was discarded and using it died `SEM033` — ✅ FIXED 08/10 (lane issues/tooling `192.168.15.30:9093`, frontend typer, no owner EM CURSO)
+
+**Status:** ✅ FIXED 08/10 (lane issues/tooling `192.168.15.30:9093`) — `SemExpressionTyper.LambdaExpr` now recurses over the lambda body through `lambdaReturnValueType`/`lambdaReturnOfStatement` (blocks, `if`/`else`, `switch`, `try`/`catch`/`finally`, loops), mirroring the lowering-side `ExpressionTyper.returnValueType`; proof `LambdaTryReturnE2ETest` 4/4 (RED 2/4 pre-fix with the exact `SEM033`), higher-order/lambda/closure/higher-order/generic battery 266 run / 1 F (the only failure = the documented JavaFX-absent environment).
+
+**Repro (measured 08/10, deterministic):** `kof check` on
+`main() { var f = () -> { try { return 1 } catch (String e) { return 2 } }; println(f()) }`
+→ `error: println(...) received a void value — the call does not return a value (add a 'return' or don't use it as an argument) [SEM033]`. A named function with the same `try`/`catch` body returns `Int` correctly, and a lambda with a top-level `return` or an `if`/`return` compiles — only NESTED statements were missed.
+
+**Root (read):** the semantic path (`SemExpressionTyper.LambdaExpr`) inferred the lambda return type with a hand-rolled scan that only inspected the TOP-LEVEL statements of the body and, for a single `BlockStmt` level, its immediate `return` statements. A `return` inside a `TryStmt` (or `if`/`switch`/loop) was never seen, so `hasReturn` stayed false and the lambda was typed `() -> Void`; `ExpressionTyper.firstReturnValueType`/`returnValueType` (the lowering path) already recursed, so the two typers disagreed. No diagnostic crash — the value was silently dropped, and the use site (e.g. `println`, `waitUntil`) raised `SEM033`.
+
+**Contract:** a lambda's inferred return type is the type of its first reachable `return`, wherever it sits in the body (R6 — the semantic and lowering typers must agree). `SEM033` is the honest diagnostic when a value is genuinely absent.
+
+**Boundary:** `SemExpressionTyper` only; the `ExpressionTyper` lowering traversal is unchanged. Void lambdas (no `return`) stay `() -> Void`; `#333` (lambda body not inheriting the enclosing function's value rejection) preserved; `LambdaVoidInferenceE2ETest` 2/2, `IntegrationHarnessE2ETest` 7/7, `TestRowsE2ETest` 7/7 unchanged. The practical unblock: a `kof.test` readiness probe `() -> { try { net.connect(...); return true } catch { return false } }` now type-checks (the §5 server-lifecycle helper).
+
+<!-- pt-switch --> **PT:** [§630 (pt_BR)](known-bugs.pt_BR.md#630--uma-lambda-cujo-valor-vem-de-um-statement-aninhado-trycatch-ifelse-switch-loops-era-tipada----void-entao-o-valor-retornado-era-descartado-e-usa-lo-morria-sem033---fixed-0810-lane-issuestooling-19216815309093-typer-de-frente-sem-dono-em-curso)

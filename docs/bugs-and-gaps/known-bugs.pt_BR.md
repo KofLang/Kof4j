@@ -15074,3 +15074,19 @@ indexa arrays (`docs/language-reference/types.md` §3.1).
 **Fronteira:** `SemExpressionTyper` + `StatementAnalyzer`; as faces de nome-nu em argumento/return/
 statement (`f(Int)`, `return Int`, `Int` statement) já compilam limpo (medido) e não são afetadas;
 `SEM103` é novo (maior usado antes = `SEM102`).
+
+## §630 — uma lambda cujo valor vem de um statement aninhado (`try`/`catch`, `if`/`else`, `switch`, loops) era tipada `() -> Void`, então o valor retornado era descartado e usá-lo morria `SEM033` — ✅ FIXED 08/10 (lane issues/tooling `192.168.15.30:9093`, typer de frente, sem dono EM CURSO)
+
+**Status:** ✅ FIXED 08/10 (lane issues/tooling `192.168.15.30:9093`) — `SemExpressionTyper.LambdaExpr` agora recursa sobre o corpo da lambda via `lambdaReturnValueType`/`lambdaReturnOfStatement` (blocos, `if`/`else`, `switch`, `try`/`catch`/`finally`, loops), espelhando o `ExpressionTyper.returnValueType` do caminho de lowering; prova `LambdaTryReturnE2ETest` 4/4 (RED 2/4 pré-fix com o exato `SEM033`), bateria lambda/closure/higher-order/generic 266 rodados / 1 F (a única falha = o ambiente documentado sem JavaFX).
+
+**Repro (medido 08/10, determinístico):** `kof check` em
+`main() { var f = () -> { try { return 1 } catch (String e) { return 2 } }; println(f()) }`
+→ `error: println(...) received a void value — the call does not return a value (add a 'return' or don't use it as an argument) [SEM033]`. Uma função nomeada com o mesmo corpo `try`/`catch` retorna `Int` corretamente, e uma lambda com `return` no topo ou um `if`/`return` compila — só statements ANINHADOS eram perdidos.
+
+**Raiz (lida):** o caminho semântico (`SemExpressionTyper.LambdaExpr`) inferia o tipo de retorno da lambda com um scan manual que só olhava os statements de TOPO do corpo e, para um nível de `BlockStmt`, seus `return` imediatos. Um `return` dentro de um `TryStmt` (ou `if`/`switch`/loop) nunca era visto, então `hasReturn` ficava false e a lambda era tipada `() -> Void`; `ExpressionTyper.firstReturnValueType`/`returnValueType` (o caminho de lowering) já recursava, então os dois typers divergiam. Sem crash de diagnóstico — o valor era silenciosamente descartado, e o uso (ex.: `println`, `waitUntil`) levantava `SEM033`.
+
+**Contrato:** o tipo de retorno inferido de uma lambda é o tipo do primeiro `return` alcançável, onde quer que ele esteja no corpo (R6 — os typers semântico e de lowering devem concordar). `SEM033` é o diagnóstico honesto quando o valor está genuinamente ausente.
+
+**Fronteira:** apenas `SemExpressionTyper`; a travessia de lowering do `ExpressionTyper` não muda. Lambdas void (sem `return`) seguem `() -> Void`; `#333` (corpo da lambda não herda a rejeição de valor da função envolvente) preservado; `LambdaVoidInferenceE2ETest` 2/2, `IntegrationHarnessE2ETest` 7/7, `TestRowsE2ETest` 7/7 inalterados. O desbloqueio prático: uma sonda de prontidão `kof.test` `() -> { try { net.connect(...); return true } catch { return false } }` agora type-checa (o helper de ciclo de vida de servidor do §5).
+
+<!-- pt-switch --> **EN:** [§630 (en)](known-bugs.md#630--a-lambda-whose-value-comes-from-a-nested-statement-trycatch-ifelse-switch-loops-was-typed----void-so-the-returned-value-was-discarded-and-using-it-died-sem033---fixed-0810-lane-issuestooling-19216815309093-frontend-typer-no-owner-em-curso)
