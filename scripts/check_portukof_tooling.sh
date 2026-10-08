@@ -5,7 +5,8 @@
 #
 # Princípios travados mecanicamente:
 #   * a EXTENSÃO `.ptkf` é a autoridade do perfil em toda a cadeia (CLI/LSP/fmt);
-#   * o formatter NUNCA transpila PT→EN (guard anti-transpile presente);
+#   * o formatter NUNCA transpila PT→EN: o AST-printer é profile-aware (F7.3) e
+#     renderiza a superfície pela ponte única `SurfaceNames`, sem tabela própria;
 #   * o CONTRATO DE MÁQUINA (LSP/`--json`) usa a mensagem canônica EN, nunca PT;
 #   * NÃO existe segundo engine PortuKof no tooling (golden rule §4): a paridade
 #     vem do `LanguageProfile` + catálogo canônico, nunca de uma classe paralela.
@@ -39,11 +40,31 @@ must_have "$CLI/LspProject.java" '"\.ptkf"' \
 must_have "$CLI/LspProject.java" 'endsWith\("\.ptkf"\)|n\.endsWith\("\.ptkf"\)' \
     "LspProject deve tratar .ptkf como fonte canônica no espelho/irmãos"
 
-# 3) Formatter anti-transpile — AST-printer recusa .ptkf ANTES de reimprimir EN
-must_have "$COMP/KofFormatter.java" 'LanguageProfile\.PORTUKOF == LanguageProfile\.forFileName\(fileName\)' \
-    "KofFormatter deve ter o guard anti-transpile para PortuKof"
+# 3) Formatter profile-aware (F7.3) — o AST-printer renderiza a superfície do
+#    perfil pela ponte única; NUNCA tabela PT própria, NUNCA o guard de recusa.
+must_have "$COMP/KofFormatter.java" 'LanguageProfile\.forFileName\(fileName\)' \
+    "KofFormatter deve escolher o perfil pelo nome do arquivo (autoridade da extensão)"
 must_have "$CLI/Fmt.java" 'format\(in, f\.getFileName\(\)\.toString\(\)\)' \
     "Fmt deve passar o nome real do arquivo ao formatter (não Main.kf fixo)"
+
+# 3b) F7.3 — o AST-printer é profile-aware: renderiza slots estruturais pela
+#     ponte única `SurfaceNames`; proibido tabela/replace/guard-de-recusa.
+must_have "$COMP/KofFormatter.java" 'SurfaceNames' \
+    "KofFormatter deve reimprimir a superfície pela ponte única SurfaceNames (sem segunda tabela)"
+must_not "$COMP/KofFormatter.java" 'return null;.*PORTUKOF|PORTUKOF.*return null' \
+    "o guard F7.1 de recusa não pode voltar — o caminho AST é o principal"
+for pf in "$COMP/KofFormatter.java" "$COMP/KofFormatterExpr.java" "$COMP/KofFormatterStmt.java" "$COMP/KofFormatterComments.java"; do
+    [ -f "$pf" ] || continue
+    must_not "$pf" 'Map<' \
+        "o printer não pode carregar catálogo/vocabulário próprio (golden rule §4)"
+    must_not "$pf" '\.replace\("[[:alpha:]_]{2,}"' \
+        "proibido replace textual de palavras no formatter (regra de ouro §4)"
+done
+must_have "$CLI/LspServer.java" 'KofFormatter\.format\(text, fileNameOf\(uri\)\)' \
+    "LSP deve chamar o formatter canônico com o fileName real (perfil por extensão)"
+if [ ! -f kof-compiler/src/test/java/dev/kof/compiler/PortuKofFormatterProfileE2ETest.java ]; then
+    note "FALTA: PortuKofFormatterProfileE2ETest (prova F7.3 do formatter profile-aware)"; fail=1
+fi
 
 # 4) Editor manifests registram .ptkf (mesma language Kof, superfície PT)
 must_have "$CLI/editor/VscodeExtensionContent.java" '"\.ptkf"' \

@@ -13,6 +13,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -163,16 +164,37 @@ class PortuKofToolingE2ETest {
                 "range presente nas duas faces (posição é autoridade do SOURCE)");
     }
 
-    // (3) FORMATTER nunca transpila: o AST-printer de superfície EN recusa `.ptkf`
-    //     (devolve null); o resultado do CLI preserva a superfície PT e faz
-    //     round-trip estável; strings/comentários/integradores intocados.
+    // (3) FORMATTER profile-aware (F7.3): o AST-printer agora formata .ptkf
+    //     DIRETO pela AST na superfície do perfil (sem transpilar para EN).
+    //     CLI e LSP usam a AST como caminho principal; strings/comentários/
+    //     identificadores intactos; round-trip idempotente.
     @Test
-    void astPrinterRefusesPtkfInsteadOfTranspiling() {
-        assertNull(dev.kof.compiler.KofFormatter.format(PT_VALID, "Main.ptkf"),
-                "KofFormatter sobre .ptkf deve devolver null (nunca reimprimir EN)");
+    void astPrinterRendersPortukofSurfaceDirectly() {
+        String out = dev.kof.compiler.KofFormatter.format(PT_VALID, "Main.ptkf");
+        assertNotNull(out, "F7.3: KofFormatter formata .ptkf diretamente pela AST");
+        assertTrue(out.contains("principal"), "superfície PT preservada: " + out);
+        assertTrue(out.contains("escreva"), out);
+        assertFalse(out.contains("main"), "AST-printer não transipila principal→main: " + out);
+        assertFalse(out.contains("print("), "AST-printer não transipila escreva→print: " + out);
         // EN segue o caminho AST normal (não regrediu)
         assertTrue(dev.kof.compiler.KofFormatter.format("main() {\n}\n", "Main.kf") != null,
                 "Kof .kf continua pelo AST-printer");
+    }
+
+    // (3.1) LSP textDocument/formatting sobre `.ptkf`: o LSP chama direto
+    //       KofFormatter.format com o fileName real (F7.1 devolvia null →
+    //       respondia sem edit; F7.3 devolve o edit na superfície PT).
+    @Test
+    void lspFormattingReturnsSurfaceEditForPtkf(@TempDir Path dir) throws Exception {
+        Path main = dir.resolve("Main.ptkf");
+        String messy = "principal() {\n  se (verdadeiro) { escreva( 1 ) }\n}\n";
+        String req = "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"textDocument/formatting\",\"params\":{\"textDocument\":{\"uri\":\""
+                + uriOf(main) + "\"}}}";
+        String out = run(frame(initReq(dir)), frame(didOpen(main, messy)), frame(req));
+        assertTrue(out.contains("\"newText\""), "LSP emite edit de formatação para .ptkf: " + out);
+        assertTrue(out.contains("principal()"), out);
+        assertTrue(out.contains("escreva(1)"), "normalização de espaçamento pela AST: " + out);
+        assertFalse(out.contains("main"), "nunca transpila para EN: " + out);
     }
 
     @Test

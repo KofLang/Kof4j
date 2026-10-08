@@ -24,14 +24,24 @@ public final class SurfaceNames {
 
     private SurfaceNames() {}
 
-    /** Nome de superfície de uma keyword/tipo canônico (class → classe). */
+    /**
+     * Nome de superfície de uma keyword/tipo/contextual canônico (class →
+     * classe, in → em, constructor → construtor). A ponte cobre as DUAS
+     * famílias do vocabulário — keywords léxicas (`PortuKofVocabulary.pairs()`)
+     * e palavras contextuais (a MESMA tabela `CONTEXTUAL` que alimenta
+     * `contextualWords` do perfil e o `wordIs` do parser; PARTE 27) — porque
+     * o AST-printer precisa reimprimir as duas. Sem segunda lista. NUNCA
+     * resolve builtins: um slot estrutural pode colidir com um nome de
+     * usuário (`print` é IDENTIFIER válido), e mistraduzir nome é a
+     * regra-ouro absoluta (PARTE 5).
+     */
     public static String keyword(LanguageProfile p, String canonical) {
         if (p == LanguageProfile.KOF) return canonical;
         for (String[] pair : PortuKofVocabulary.pairs()) {
             if (pair[0].equals(canonical)) return pair[1];
         }
-        String b = PortuKofVocabulary.builtins().get(canonical);
-        return b != null ? b : canonical;
+        String c = PortuKofVocabulary.contextualCanonToPortuguese().get(canonical);
+        return c != null ? c : canonical;
     }
 
     /** Nome de superfície de um builtin de chamada nua (print → escreva). */
