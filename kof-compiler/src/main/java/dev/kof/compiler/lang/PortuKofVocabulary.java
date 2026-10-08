@@ -124,6 +124,19 @@ public final class PortuKofVocabulary {
             {"limit", "limite"},
     });
 
+    /**
+     * AÇÚCAR de fala (ordem da mantenedora 08/10, `D-PORTUKOF-SUGAR`): a
+     * superfície de ensino para crianças — `diga`/`diz` são ALIASES extras dos
+     * MESMOS builtins (`println`/`print`). A tabela primária continua a
+     * BUILTINS (bijetiva, gateada, é a que o hover/formatter/show retornam);
+     * o açúcar só ALARGA o domínio fechado superfície→canônico. Sem nova
+     * implementação, sem nova palavra inventada: só as duas medidas aqui.
+     */
+    private static final Map<String, String> SUGAR = map(new String[][]{
+            {"println", "diga"},
+            {"print", "diz"},
+    });
+
     /** Builtins de chamada nua: canônico → português (medidos no frontend real). */
     private static final Map<String, String> BUILTINS = map(new String[][]{
             {"print", "escreva"},
@@ -237,6 +250,11 @@ public final class PortuKofVocabulary {
         return BUILTINS;
     }
 
+    /** Açúcar de fala (manutenção 08/10): aliases EXTRAS de builtins de chamada nua. */
+    public static Map<String, String> builtinsSugar() {
+        return SUGAR;
+    }
+
     private static Map<String, String> map(String[][] entries) {
         Map<String, String> m = new LinkedHashMap<>();
         for (String[] e : entries) m.put(e[0], e[1]);
@@ -295,6 +313,10 @@ public final class PortuKofVocabulary {
         private static Map<String, String> build() {
             Map<String, String> m = new LinkedHashMap<>();
             for (Map.Entry<String, String> e : BUILTINS.entrySet()) m.put(e.getValue(), e.getKey());
+            // D-PORTUKOF-SUGAR (08/10): `diga`/`diz` ALARGAM o domínio fechado
+            // como grafias extras dos MESMOS builtins — nunca substituem a
+            // forma primária (BUILTINS é invertível; SUGAR é tabela à parte).
+            for (Map.Entry<String, String> e : SUGAR.entrySet()) m.put(e.getValue(), e.getKey());
             for (Map.Entry<String, String> e : namespaces().entrySet()) m.put(e.getValue(), e.getKey());
             m.put("principal", "main");
             return Collections.unmodifiableMap(m);

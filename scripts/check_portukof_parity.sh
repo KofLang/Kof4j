@@ -61,6 +61,20 @@ if ! grep -q 'put("escreva", "print")' kof-compiler/src/main/java/dev/kof/compil
     note "RC=1: builtin alias `escreva`→`print` ausente do perfil"; fail=1
 fi
 
+# 3b) D-PORTUKOF-SUGAR (manutenção 08/10): `diga`→`println`, `diz`→`print` —
+#     GRIFIAS EXTRAS dos mesmos builtins, tabela à parte; a bijetividade
+#     primária (seção 1/3 acima) não as conhece e o printer continua mostrando
+#     a forma primária. O açúcar só alarga o domínio fechado superfície→canônico.
+SUGAR_LINE1='"println", "diga"'
+SUGAR_LINE2='"print", "diz"'
+if ! grep -qF "$SUGAR_LINE1" kof-compiler/src/main/java/dev/kof/compiler/lang/PortuKofVocabulary.java \
+   || ! grep -qF "$SUGAR_LINE2" kof-compiler/src/main/java/dev/kof/compiler/lang/PortuKofVocabulary.java; then
+    note "RC=1: tabela de açúcar (SUGAR) ausente de PortuKofVocabulary — diga/diz não são aliases"; fail=1
+fi
+if ! grep -q 'builtinsSugar()' kof-compiler/src/main/java/dev/kof/compiler/lang/PortuKofParity.java; then
+    note "RC=1: PortuKofParity não resolve o açúcar no domínio fechado (normalização incompleta)"; fail=1
+fi
+
 # 4) paridade U3 — metodos/campos de superficie tipada (07/10):
 #    a deriva dos dispatchers reais vs. a tabela commitada + bijetividade +
 #    a regra de ouro receiver-aware (tamanho=length em String, size em colecoes).

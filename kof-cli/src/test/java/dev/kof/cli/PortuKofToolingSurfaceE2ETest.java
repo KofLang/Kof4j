@@ -201,6 +201,23 @@ class PortuKofToolingSurfaceE2ETest {
     }
 
     @Test
+    void speechSugarCompletesAndHoversAsSameBuiltin(@TempDir Path dir) throws Exception {
+        Path pt = dir.resolve("G.ptkf");
+        String text = "principal() {\n    diga(\"oi\")\n    diz(\"la\")\n}\n";
+        String out = run(frame(initReq(null)), frame(didOpen(pt, text)), frame(req(1, "textDocument/completion", pt, 1, 5)));
+        List<String> lb = labels(resultOf(out, 1));
+        assertNotNull(resultOf(out, 1), "completion .ptkf");
+        assertTrue(lb.contains("diga"), "diga (SUGAR 08/10) no completion: " + lb);
+        assertTrue(lb.contains("diz"), "diz (SUGAR 08/10) no completion: " + lb);
+        assertFalse(lb.contains("println"), "canônico não vaza na superfície: " + lb);
+        String hov = run(frame(initReq(null)), frame(didOpen(pt, text)), frame(req(2, "textDocument/hover", pt, 1, 6)));
+        String v = hoverValue(resultOf(hov, 2));
+        assertNotNull(v, "hover em `diga`");
+        assertTrue(v.startsWith("**escrevaln**"),
+                "diga resolve à IDENTIDADE println, exibida na grafia primária: " + v);
+    }
+
+    @Test
     void hoverMethodReceiverAwareResolvesByCategory(@TempDir Path dir) throws Exception {
         Path pt = dir.resolve("R.ptkf");
         String text = "principal() {\n    var s = \"ola\"\n    escrevaln(s.tamanho())\n}\n";

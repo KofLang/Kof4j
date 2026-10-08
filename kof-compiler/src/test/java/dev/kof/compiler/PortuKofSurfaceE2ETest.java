@@ -254,4 +254,43 @@ class PortuKofSurfaceE2ETest {
                 "stdlib alias surface must resolve on JVM: " + r.diagnostics().getDiagnostics());
     }
 
+    @Test
+    void speechSugarNormalizesToTheSameCanonicalBuiltins() {
+        CompilationUnitNode sugar = parseUnit(
+                "principal() {\n    diga(\"a\")\n    diz(\"b\")\n}\n", "Main.ptkf",
+                LanguageProfile.PORTUKOF);
+        CompilationUnitNode primary = parseUnit(
+                "principal() {\n    escrevaln(\"a\")\n    escreva(\"b\")\n}\n", "Main.ptkf",
+                LanguageProfile.PORTUKOF);
+        assertEquals(shape(primary), shape(sugar),
+                "D-PORTUKOF-SUGAR: diga/diz normalize to println/print — same AST, not a new call");
+    }
+
+    @Test
+    void speechSugarRunsIdenticallyOnTheScriptTarget() throws Exception {
+        String ptkf = "principal() {\n" +
+                "    diga(\"a\")\n" +
+                "    diz(\"b\")\n" +
+                "    diz(\"c\")\n" +
+                "    diga(\"\")\n" +
+                "}\n";
+        Path root = Files.createTempDirectory("ptkf-sugar-");
+        Path pt = root.resolve("Main.ptkf");
+        Files.writeString(pt, ptkf);
+        KofInterpreter.Result r = new CompilerDriver().interpret(List.of(pt), root, new String[0]);
+        assertEquals(0, r.exitCode(), "sugar must run: " + r.stderr());
+        assertEquals("a\nbc\n", r.stdout(),
+                "diga=println (line), diz=print (no line) — measured");
+    }
+
+    @Test
+    void sugarDoesNotSpoilPrimaryRendering() {
+        String rendered = dev.kof.compiler.lang.SurfaceNames.symbol(
+                LanguageProfile.PORTUKOF, "println");
+        assertEquals("escrevaln", rendered,
+                "sugar extends accepted spellings; the PRIMARY surface name stays escrevaln");
+        assertEquals("print", dev.kof.compiler.lang.SurfaceNames
+                .builtin(LanguageProfile.KOF, "print"));
+    }
+
 }

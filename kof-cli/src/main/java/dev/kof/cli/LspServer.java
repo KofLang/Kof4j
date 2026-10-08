@@ -342,6 +342,11 @@ final class LspServer {
                     String label = dev.kof.compiler.lang.SurfaceNames.builtin(profile, canon);
                     if (seen.add(label)) add.accept(label, "Keyword");
                 }
+                // D-PORTUKOF-SUGAR (08/10): `diga`/`diz` — mesmos símbolos,
+                // grafias extras da tabela oficial (nunca lista paralela).
+                for (String label : dev.kof.compiler.lang.PortuKofVocabulary.builtinsSugar().values()) {
+                    if (seen.add(label)) add.accept(label, "Keyword");
+                }
                 String entry = dev.kof.compiler.lang.SurfaceNames.symbol(profile, "main");
                 if (seen.add(entry)) add.accept(entry, "Keyword");
             }

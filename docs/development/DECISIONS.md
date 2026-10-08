@@ -4938,3 +4938,24 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 **Future multilingual:** the `LanguageProfile` mechanism is the extension point — a new surface is vocabulary + aliases + docs + tests, never a compiler change (PARTE 22/35).
 
 **Relationships:** `Related: D-KOF-FIRST, D-KOF-AS-CLOUD, D-RELEASE-CADENCE, D-BRANCH-PIPELINE, rule 6 (this record IS the decision — no pending decision blocks the surface), rule 11, rule 12`.
+
+---
+
+## D-PORTUKOF-SUGAR — speech sugar `diga`/`diz` as child-facing aliases of `println`/`print` (maintainer chat directive 08/10/2026)
+
+**Decision (maintainer 08/10, in the PortuKof teaching-track work):** the PortuKof surface accepts `diga` for `println` and `diz` for `print` — "not just escreva". These are **speech sugar**: extra accepted spellings of the SAME builtins, aimed at kids (the way Scratch says "say"). The question "which behavior?" was measured and answered by the maintainer in chat: **both** — `diga`→`println` (line), `diz`→`print` (no line).
+
+**Mechanical consequences (all inside the ONE existing bridge):**
+
+* `lang/PortuKofVocabulary.SUGAR` is a separate, small table (`{"println","diga"}, {"print","diz"}`); the PRIMARY `BUILTINS` table and its bijection gate (64↔64) are UNCHANGED.
+* The sugar only **widens the surface→canonical closed domain**: `PortuKofParity.normalize` maps `diga`/`diz` bare calls to `println`/`print` — same AST, same IR, same implementation. Canonical→surface rendering still returns the PRIMARY spelling (`escrevaln`/`escreva`); sugar never spoils display, hover labels, or `kof fmt`'s canonical→PortuKof path.
+* `kof fmt` on `.ptkf` keeps `diga`/`diz` **verbatim** (they are name slots in the parsed surface AST), idempotent.
+* LSP completion/hover/rename see the sugar because they read the SAME `symbolAliases()` the parser walks (no parallel list anywhere).
+
+**Identity vs sugar rule:** the teaching docs teach `diga`/`diz` alongside the primary `escrevaln`/`escreva` but never instead of them — the reference tables, diagnostics and tooling keep the primary spellings as the canonical pt-BR face.
+
+**Scope guard:** sugar is allowed ONLY for builtins of the closed domain with measured child-facing natural wording; no member/namespace sugar without a maintainer decision. Any future alias follows this same table+gate shape (no second vocabulary anywhere).
+
+**Proof:** `PortuKofSurfaceE2ETest` (normalization identity vs primary table; script-target parity; JVM compile parity), `PortuKofFormatterProfileE2ETest` (verbatim + idempotent), `PortuKofToolingSurfaceE2ETest` (completion offers `diga`/`diz`, no canonical leak; hover resolves `diga` to the primary `escrevaln`/`println` identity), gate `scripts/check_portukof_parity.sh` §3b.
+
+**Relationships:** `Related: D-PORTUKOF (one surface, one compiler), D-KOF-FIRST (library/vocabulary, not new primitives), rule 11 (surface stays extremely simple — the sugar is 2 words).`

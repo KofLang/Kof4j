@@ -148,6 +148,19 @@ class PortuKofFormatterProfileE2ETest {
         assertFalse(out.contains("listOf"), out);
     }
 
+    @Test
+    void speechSugarStaysVerbatimAndIdempotent() {
+        String out = KofFormatter.format(
+                "principal() {\n    diga(\"a\")\n    diz(\"b\")\n}\n", "T.ptkf");
+        assertNotNull(out);
+        assertTrue(out.contains("diga(\"a\")"), "diga é nome verbatim: " + out);
+        assertTrue(out.contains("diz(\"b\")"), "diz é nome verbatim: " + out);
+        assertFalse(out.contains("println"), out);
+        assertFalse(out.contains("escrevaln"), "printer não converte açúcar em forma primária: " + out);
+        String again = KofFormatter.format(out, "T.ptkf");
+        assertEquals(out, again, "diga/diz idempotente");
+    }
+
     // 6 — strings nunca são traduzidas nem recontadas: conteúdo exato.
     @Test
     void stringsAreUntouched() {

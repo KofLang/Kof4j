@@ -239,7 +239,8 @@ public final class PortuKofParity {
         String name = mc.methodName();
         if (mc.receiver() == null) {
             String canon = al.get(name);
-            if (canon != null && PortuKofVocabulary.builtins().containsValue(name)) name = canon;
+            if (canon != null && (PortuKofVocabulary.builtins().containsValue(name)
+                    || PortuKofVocabulary.builtinsSugar().containsValue(name))) name = canon;
         } else if (recv instanceof IdentifierExpr id) {
             String canonNs = al.get(id.name());
             if (canonNs != null && PortuKofVocabulary.namespaces().containsValue(id.name())) {

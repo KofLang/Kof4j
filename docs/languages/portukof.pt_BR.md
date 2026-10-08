@@ -107,6 +107,15 @@ Builtins (fonte: `lang/PortuKofVocabulary.BUILTINS`):
 | `durma` | `sleep` | `canal` | `channel` |
 | `gera` | `spawn` | `aguarda` | `await` |
 
+Açúcar de fala (`lang/PortuKofVocabulary.SUGAR`, `D-PORTUKOF-SUGAR`, mantenedora 08/10): aliases de ensino que **alargam as grafias aceitas** sem substituir a tabela primária — mesmo símbolo, mesma implementação:
+
+| PortuKof açúcar | Kof | PortuKof primário |
+|---|---|---|
+| `diga` | `println` | `escrevaln` |
+| `diz` | `print` | `escreva` |
+
+O açúcar só alarga o domínio fechado superfície→canônico (normalização do parser, completion, hover, guarda de rename). A renderização canônico→superfície sempre devolve a grafia **primária** (`escrevaln`/`escreva`); `kof fmt` preserva `diga`/`diz` verbatim. Prova: `PortuKofSurfaceE2ETest` (identidade da normalização + paridade no script), `PortuKofFormatterProfileE2ETest` (idempotência verbatim), `PortuKofToolingSurfaceE2ETest` (completion/hover); gate `scripts/check_portukof_parity.sh` §3b.
+
 Namespaces da stdlib (fonte: `lang/PortuKofStdlibMembers.namespaces()`, 36 namespaces; gerados por `scripts/gen_portukof_aliases.py` a partir de um dump em execução do `StdCatalog` real):
 
 | PortuKof | Kof | PortuKof | Kof |
