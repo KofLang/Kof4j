@@ -14958,9 +14958,7 @@ JVM/Script/Native imprimiam `fin-inner`, `fin-outer`, `inner`. KofJS abortava: `
 
 <!-- en-switch --> **EN:** [§624 (en)](known-bugs.md#624--the-android-target-emitted-invalid-bytecode-for-throwassert-the-stringruntimeexception-wrap-was-gated-to-targetjvm-only-so-the-athrow-received-the-raw-string-on-the-stack-verifyerror-masked-by-the-launcher-as-javafx-runtime-components-not-found---fixed-0710-owner--19216815309093-lane-issuestooling-discovered-in-the-issue-777-hunt)
 
-## §625 — a correção de shift de args cross do §620 REGREDIU `Av1CoeffsE2ETest` em `aarch64` E `riscv64`
-
-**Estado:** 🟡 ABERTO 07/10 — externo à lane WASI; achado pela lane `192.168.15.101:9092` na suíte da unidade 15.3b; dona = lane compiler/JVM/native `192.168.15.30:9092`
+## §625 — a correção de shift de args cross do §620 REGREDIU `Av1CoeffsE2ETest` em `aarch64` E `riscv64` — ✅ CORRIGIDO 07/10 (achada 07/10 pela suíte 15.3b da lane WASI; corrigida pela lane native-backend, dona = 192.168.15.30:9092)
 
 **Repro (medido 07/10):** `mvn -o test -pl kof-compiler -Dtest='Av1CoeffsE2ETest'` no tip `lab` rebaseado —
 `av1CoeffsOnNativeAarch64` e `av1CoeffsOnNativeRiscv64` FALHAM determinísticos (rodada isolada, 37s, não é
@@ -14970,11 +14968,31 @@ da lane WASI — provado por rerun em HEAD destacado (bisect dos 11 commits remo
 fix(compiler)+test+docs: §620 capturing-lambda cross arg shift + §621 native trig`, o único arquivo de
 codegen native/cross no intervalo: `nat/NativeRiscv64CrossEmit.java`).
 
-**Contrato:** zero-regression (`D-LAB-STABILITY`): um commit que corrige deve manter TODA face cross
-existente verde; o corpus `Av1Coeffs` (calls cross de muitos parâmetros) é prova existente que ficou vermelha.
+**Causa-raiz (medida 08/10):** a correção do §620 (correta) mudou o prologue cross para que só os slots
+`1..paramSlotMax` consumam registradores de entrada; slots ACIMA de `paramSlotMax` (capturas de lambda e
+temporários de lowering de índice alto) são preenchidos pelas ops e sofrem `continue`. Mas o ramo do
+`continue` não emitia NADA, deixando esses slots NÃO-INICIALIZADOS ("stale"). O GC cross é conservativo
+(`kof_gc_mark` varre o frame `[sp..kof_main_stack_bottom]`, `NativeRiscvAsmRtB43`), então uma palavra stale
+que caia em `[_kof_heap, _kof_heap_end)` e esteja marcada no bitmap de blocos é seguida como ponteiro — a
+caminhada AV1 (`decodeOne` tem 8 params + 2 slots não-arg) então imprimia `cul`/dequant errados e dava
+SIGSEGV sob qemu. O emitter x86 tinha o mesmo padrão latente (`NativeMethodEmitter`), não observado porque
+seu layout de frame/operandos difere.
 
-**Esperado:** as duas faces verdes no tip; se o shift do §620 estiver correto, a regressão está em como o
-shift se aplica a chamadas SEM lambda capturante (calls escalares multi-arg devem manter seus slots de ABI).
+**Correção (aditiva):** o ramo `lv.index() >= paramSlotMax` agora ZERA o slot nos dois emitters —
+`sd zero, crossLocalOffRiscv(idx)(s11)` (`NativeRiscvCrossEmit`, herdado pelo tradutor aarch64) e
+`movq $0, -(idx+1)*8(%rbp)` (`NativeMethodEmitter`). A atribuição de registradores de args do §620 intacta.
+
+**Prova (RED-first):** novo `nat/PrologueSlotInitTest` (2 testes, sem toolchain, asserta que o prologue
+emitido inicializa TODO slot local) é RED pré-fix nos dois backends — `slot 9 (capture) never initialized
+in prologue (offset -96)` riscv / `offset -80` x86 — e VERDE pós-fix. Comportamental: `Av1CoeffsE2ETest` 6/6
+(inclui aarch64 + riscv64 sob qemu) e o guarda do §620 `LambdaCapturingArgCrossE2ETest` 4/4. Não-regressão:
+`NativeE2ETest` + `NativeRiscv64E2ETest` + `CrossHeapParityE2ETest` + `KofGcE2ETest` + `FpCompareCrossE2ETest`
++ `LambdaCapturingArgCrossE2ETest` 144 rodados / 0F / 1 skip.
+
+**Limite:** a inicialização de slots do prologue nativo cross (riscv64/aarch64) e x86-64; sem mudança de
+superfície da linguagem, sem mudança de ABI.
+
+<!-- en-switch --> **EN:** [§625 (en)](known-bugs.md#625--the-620-cross-arg-shift-fix-regressed-av1coeffse2etest-on-aarch64-and-riscv64---fixed-0710-found-0710-by-the-wasi-lanes-153b-suite-fixed-by-the-native-backend-lane-owner--19216815309092)
 ## §626 — o interpretador Script comparava `Double`/`Float` com `Double.compare`/`Float.compare`, que ordena NaN como maior que tudo, então `NaN > 1.0` retornava `true` enquanto JVM/JS retornam `false` — ✅ CORRIGIDO 07/10 (achado 07/10 ao corrigir o §622; corrigido pela lane native-backend, dona = 192.168.15.30:9092)
 
 **Re-verificado 07/10:** apos `7e4fe25d5` (correcoes §622 + §626, só interpretador) as duas faces cross AINDA falham (isolado, 39s) — a regressao do shift do §620 e independente do trabalho §622/§626 e segue aberta.

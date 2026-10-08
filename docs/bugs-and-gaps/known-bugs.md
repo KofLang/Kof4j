@@ -17454,23 +17454,42 @@ Literals only — no calls, no captures, no FFI.
 
 <!-- pt-switch --> **PT:** [§624 (pt_BR)](known-bugs.pt_BR.md#624--o-alvo-android-emitia-bytecode-invalido-para-throwassert-o-wrap-stringruntimeexception-estava-gated-so-em-targetjvm-entao-o-athrow-recebia-a-string-crua-na-pilha-verifyerror-mascarado-pelo-launcher-como-componentes-de-runtime-do-javafx-nao-encontrados---corrigido-0710-dona--19216815309093-lane-issuestooling-achado-na-caca-da-issue-777)
 
-## §625 — the §620 cross-arg-shift fix REGRESSED `Av1CoeffsE2ETest` on `aarch64` AND `riscv64`
-
-**Status:** 🟡 OPEN 07/10 — external to the WASI lane; found by lane `192.168.15.101:9092` during the unit 15.3b suite; owner = compiler/JVM/native lane `192.168.15.30:9092`
+## §625 — the §620 cross-arg-shift fix REGRESSED `Av1CoeffsE2ETest` on `aarch64` AND `riscv64` — ✅ FIXED 07/10 (found 07/10 by the WASI lane's 15.3b suite; fixed by the native-backend lane, owner = 192.168.15.30:9092)
 
 **Repro (measured 07/10):** `mvn -o test -pl kof-compiler -Dtest='Av1CoeffsE2ETest'` on the rebased `lab`
 tip — `av1CoeffsOnNativeAarch64` and `av1CoeffsOnNativeRiscv64` FAIL deterministically (isolated run,
 37s, not load): the cross-emitted decode prints wrong `cul`/dequant coefficients (`T0 B0 eob 4 cul 63
 dc 1` followed by a coefficient row diverging from the golden). The SAME test PASSES isolated at tip
 `45d839322` WITHOUT the WASI lane commits — proven by detached-HEAD re-run (bisect of the 11 remote
-commots lands on `a2f69d2f7 fix(compiler)+test+docs: §620 capturing-lambda cross arg shift + §621
+commits lands on `a2f69d2f7 fix(compiler)+test+docs: §620 capturing-lambda cross arg shift + §621
 native trig`, the only native/cross codegen file in the range: `nat/NativeRiscv64CrossEmit.java`).
 
-**Contract:** zero-regression (`D-LAB-STABILITY`): a fixing commit must keep EVERY existing cross face
-green; the `Av1Coeffs` corpus (many-parameter cross calls) is an existing proof that went red.
+**Root cause (measured 08/10):** the §620 fix (correct) changed the cross prologue so that only slots
+`1..paramSlotMax` consume entry registers; slots ABOVE `paramSlotMax` (lambda captures and high-index
+lowering temporaries) are filled by the ops and `continue`d. But the `continue` branch emitted NOTHING,
+leaving those slots UNINITIALIZED ("stale"). The cross GC is conservative (`kof_gc_mark` walks the
+frame `[sp..kof_main_stack_bottom]`, `NativeRiscvAsmRtB43`), so a stale word that happens to land in
+`[_kof_heap, _kof_heap_end)` and is flagged in the block bitmap is followed as a pointer — the AV1 walk
+(`decodeOne` has 8 params + 2 non-arg slots) then printed wrong `cul`/dequant values and SIGSEGV'd
+under qemu. The x86 emitter had the same latent pattern (`NativeMethodEmitter`), unobserved because its
+frame/operand layout differs.
 
-**Expected:** both faces green at the tip; if the §620 shift is correct, the regression is in how the
-shift applies to calls WITHOUT a capturing lambda (multi-arg scalar calls must keep their ABI slots).
+**Fix (additive):** the `lv.index() >= paramSlotMax` branch now ZEROES the slot in both emitters —
+`sd zero, crossLocalOffRiscv(idx)(s11)` (`NativeRiscvCrossEmit`, inherited by the aarch64 translator)
+and `movq $0, -(idx+1)*8(%rbp)` (`NativeMethodEmitter`). The §620 arg-register assignment is untouched.
+
+**Proof (RED-first):** new `nat/PrologueSlotInitTest` (2 tests, toolchain-free, asserts the emitted
+prologue initializes EVERY local slot) is RED pre-fix on both backends — `slot 9 (capture) never
+initialized in prologue (offset -96)` riscv / `offset -80` x86 — and GREEN post-fix. Behavioural:
+`Av1CoeffsE2ETest` 6/6 (aarch64 + riscv64 qemu included) and the §620 guard
+`LambdaCapturingArgCrossE2ETest` 4/4. Non-regression: `NativeE2ETest` + `NativeRiscv64E2ETest` +
+`CrossHeapParityE2ETest` + `KofGcE2ETest` + `FpCompareCrossE2ETest` + `LambdaCapturingArgCrossE2ETest`
+144 run / 0F / 1 skip.
+
+**Boundary:** the cross (riscv64/aarch64) and x86-64 native prologue slot initialization; no language
+surface change, no ABI change.
+
+<!-- pt-switch --> **PT:** [§625 (pt_BR)](known-bugs.pt_BR.md#625--a-correcao-de-shift-de-args-cross-do-620-regrediu-av1coeffse2etest-em-aarch64-e-riscv64---corrigido-0710-achada-0710-pela-suite-153b-da-lane-wasi-corrigida-pela-lane-native-backend-dona--19216815309092)
 ## §626 — the Script interpreter compared `Double`/`Float` with `Double.compare`/`Float.compare`, which ORDERS NaN as greater than everything, so `NaN > 1.0` returned `true` while JVM/JS return `false` — ✅ FIXED 07/10 (found 07/10 while fixing §622; fixed by the native-backend lane, owner = 192.168.15.30:9092)
 
 **Re-verified 07/10:** after `7e4fe25d5` (§622 + §626 fixes, interpreter-only) the two cross faces STILL fail (isolated, 39s) — the §620 shift regression is independent of the §622/§626 work and stays open.

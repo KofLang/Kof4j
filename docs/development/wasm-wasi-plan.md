@@ -214,7 +214,8 @@ plan §8/§9) — 15.3c+ (`args`) then GC slices. NOTE 07/10: the 4-module suite
 `4877 run / 3 F` — JavaFX env (documented) + `Av1CoeffsE2ETest` aarch64/riscv64 =
 EXTERNAL regression catalogued as `known-bugs` **§625** (bisect lands on `a2f69d2f7`
 §620 cross-arg shift; reproduced at remote tip `45d839322` WITHOUT any WASI-lane code;
- owner lane `192.168.15.30:9092`; NOT touched by this lane — collision rule).
+ owner lane `192.168.15.30:9092`; NOT touched by this lane — collision rule) — **FIXED
+ 08/10** by that lane (cross/x86 prologue zeroes slots above `paramSlotMax`, `PrologueSlotInitTest`).
 
 
 **Slice 15.3c-sliceA LANDED (08/10, lane `192.168.15.101:9092`):** String VARIABLES
@@ -235,7 +236,7 @@ wasmtime v49.0.2, module validates with `wasm-tools`, exit 0; `WasmTargetGateE2E
 5/5 + `WasmScalarE2ETest` 3/3 + `TargetMatrixTest` 10/10 green. `println(args)`/
 `args[0]`/records/collections still refuse `WASM002` naming plan + #776 with NO
 artifacts (Q7). Remaining 15.3: `args` over `args_sizes_get`/`args_get` (plan §14,
-15.3c-sliceB) then the GC-handle runtime for records/collections, then 15.4 flip LAST. MEASURE 08/10: the full 4-module suite at tip `898bc50ab` + this slice = 8F + 2 flakes, ALL external/environmental and stash-proven independent of the WASI lane: §625 `Av1CoeffsE2ETest` (2F) + §627 `KofTestingE2ETest` float-assert (2F, NEW catalogue) + §628 `JvmLauncherDiagnosticE2ETest` (3F deterministic at the CLEAN tip — the §554 `ExternalArgTighten` breaks the pipe fixtures, owner compiler/interop) + JavaFX env (1F) + `InteropTimeoutE2ETest` load flakes (2F, GREEN isolated). Live queue 3->5.
+15.3c-sliceB) then the GC-handle runtime for records/collections, then 15.4 flip LAST. MEASURE 08/10: the full 4-module suite at tip `898bc50ab` + this slice = 8F + 2 flakes, ALL external/environmental and stash-proven independent of the WASI lane: §625 `Av1CoeffsE2ETest` (2F, FIXED 08/10 by lane `.30:9092` — zero stale prologue slots) + §627 `KofTestingE2ETest` float-assert (2F, NEW catalogue) + §628 `JvmLauncherDiagnosticE2ETest` (3F deterministic at the CLEAN tip — the §554 `ExternalArgTighten` breaks the pipe fixtures, owner compiler/interop) + JavaFX env (1F) + `InteropTimeoutE2ETest` load flakes (2F, GREEN isolated). Live queue 3->5 (5->4 after the §625 fix).
 
 
 **Amendment (07/10, lane `192.168.15.101:9092`, 15.1-COMPLETE):** the enum

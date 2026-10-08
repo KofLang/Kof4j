@@ -122,7 +122,11 @@ final class NativeMethodEmitter {
             }
             if (lv.index() >= paramSlotMax) {
                 // captura de lambda: preenchida pelas ops (KofLoadField) —
-                // NÃO consome registro de entrada
+                // NÃO consome registro de entrada. §625: zera o slot (não deixa
+                // stale) para o GC conservador não seguir lixo como ponteiro.
+                // Mesmo padrão latente do cross; aqui não havia regressão
+                // observada, mas o slot nunca deve carregar lixo não-ponteiro.
+                sb.append("    movq $0, -").append((lv.index() + 1) * 8).append("(%rbp)\n");
                 continue;
             }
             if (intArgIdx < 6) {

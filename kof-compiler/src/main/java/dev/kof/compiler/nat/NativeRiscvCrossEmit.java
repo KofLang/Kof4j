@@ -141,6 +141,12 @@ public final class NativeRiscvCrossEmit {
             if (lv.index() >= paramSlotMax) {
                 // captura de lambda (ou temporário de índice alto): preenchido
                 // pelas ops, NÃO consome registrador de entrada (§620).
+                // §625: mas o slot precisa ser ZERADO, não deixado stale — o GC
+                // conservador do cross varre o frame [sp..bottom] e seguiria o
+                // lixo como ponteiro. O x86 tinha o MESMO padrão latente (mesma
+                // correção aplicada lá); a regressão AV1 só se materializou no
+                // cross pelo layout de frame/operandos, não por já zerar.
+                sb.append("    sd zero, ").append(crossLocalOffRiscv(lv.index())).append("(s11)\n");
                 continue;
             }
             if (argIdx < argRegs.length) {

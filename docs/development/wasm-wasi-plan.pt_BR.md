@@ -169,7 +169,8 @@ de 4 modulos e `4877 run / 3 F` — JavaFX ambiental (documentada) +
 `Av1CoeffsE2ETest` aarch64/riscv64 = regressao EXTERNA catalogada como
 `known-bugs` **§625** (bisect cai em `a2f69d2f7` do shift cross do §620; reproduzida
 no tip remoto `45d839322` SEM nenhum codigo da lane WASI; lane dona
-`192.168.15.30:9092`; NAO tocada por esta lane — regra de colisao).
+`192.168.15.30:9092`; NAO tocada por esta lane — regra de colisao) — **CORRIGIDA
+08/10** por aquela lane (prologue cross/x86 zera slots acima de `paramSlotMax`, `PrologueSlotInitTest`).
 
 
 - **Fatia 15.3c-fatiaA POUSADA (08/10, lane `192.168.15.101:9092`):** VARIAVEIS e
@@ -190,7 +191,7 @@ no tip remoto `45d839322` SEM nenhum codigo da lane WASI; lane dona
   `TargetMatrixTest` 10/10 verdes. `println(args)`/`args[0]`/records/colecoes seguem
   recusando `WASM002` nomeando plano + #776 sem artefatos (Q7). Restante da 15.3: `args`
   via `args_sizes_get`/`args_get` (§14 do plano, 15.3c-fatiaB), depois o runtime de
-  GC-handle para records/colecoes, e o flip 15.4 POR ULTIMO. MEDIDO 08/10: a suite completa dos 4 modulos no tip `898bc50ab` + esta fatia = 8F + 2 flakes, TODOS externos/ambientais e stash-prova independentes da lane WASI: §625 `Av1CoeffsE2ETest` (2F) + §627 `KofTestingE2ETest` assert-float (2F, novo catalogo) + §628 `JvmLauncherDiagnosticE2ETest` (3F deterministas no tip LIMPO — o `ExternalArgTighten` do §554 quebra as fixtures de pipe, dona compilador/interop) + JavaFX ambiental (1F) + flakes de carga `InteropTimeoutE2ETest` (2F, VERDES isolados). Fila viva 3->5.
+  GC-handle para records/colecoes, e o flip 15.4 POR ULTIMO. MEDIDO 08/10: a suite completa dos 4 modulos no tip `898bc50ab` + esta fatia = 8F + 2 flakes, TODOS externos/ambientais e stash-prova independentes da lane WASI: §625 `Av1CoeffsE2ETest` (2F, CORRIGIDA 08/10 pela lane `.30:9092` — zera slots stale do prologue) + §627 `KofTestingE2ETest` assert-float (2F, novo catalogo) + §628 `JvmLauncherDiagnosticE2ETest` (3F deterministas no tip LIMPO — o `ExternalArgTighten` do §554 quebra as fixtures de pipe, dona compilador/interop) + JavaFX ambiental (1F) + flakes de carga `InteropTimeoutE2ETest` (2F, VERDES isolados). Fila viva 3->5 (5->4 apos a correcao do §625).
 
 
 - **Emenda (07/10, lane `192.168.15.101:9092`, 15.1-COMPLETA):** o passo do
