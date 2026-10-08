@@ -17538,3 +17538,33 @@ fixture move in the same delivery — the choice belongs to the owner lane, not 
 **Boundary:** kof-cli test fixtures + the `KofProcess`/`update` argument gate; no WASI/WASM file touched.
 
 <!-- pt-switch --> **PT:** [§628 (pt_BR)](known-bugs.pt_BR.md#628--o-externalargtighten-sem014-do-554-d-maint-batch-0610c-pousado-em-898bc50ab-quebra-o-jvmlauncherdiagnostice2etest-suas-fixtures-pipekfmainkf-passam-byte-para-update-e-agora-recusam-argument-1-of-update-expected-bytebuffer-but-got-byte-sem014--3-faces-deterministas-red-no-tip-limpo-kof-cli-593-run--3-f---aberto-0810-achado-0810-na-re-medicao-da-suite-completa-pela-lane-wasi-dona--a-lane-compiladorinterop-que-pousou-898bc50ab-d-maint-batch-0610c-nao-tocado-pela-lane-wasi-pela-regra-de-colisao)
+
+## §629 — a bare builtin TYPE NAME used as a value (`Int[3]`, `var x = Int`) slipped through the typer as `Unknown`, so the JVM backend emitted a frame with a phantom operand and died in ASM `COMPUTE_FRAMES` (`ArrayIndexOutOfBoundsException: Index -1` / `NegativeArraySizeException: -1`) instead of a diagnostic — ✅ FIXED 08/10 (found 08/10 by lane issues/tooling `192.168.15.30:9093` during the issue #779 hunt; fixed on the same lane, frontend typer, no owner EM CURSO)
+
+**Status:** ✅ FIXED 08/10 (lane issues/tooling `192.168.15.30:9093`) — new `SEM103` at `SemExpressionTyper.ArrayAccessExpr` (builtin/declared type-name receiver) + `StatementAnalyzer.VarDeclStmt` (bare builtin name initializer); proof `TypeNameAsValueE2ETest` 6/6 (RED 3/6 pre-fix with the exact ASM frame crash), `CoreRegressionE2ETest` 104/104 non-regression.
+
+**Repro (measured 08/10, tip `5f528bea2`, deterministic):** `kof check` on
+`main() { var x = Int[3]; x[0] = 7; println(x[0]) }` → `error: Internal compiler error: frame crash
+in Default/Main.main (super=java/lang/Object) ... phase: JVM backend / ASM COMPUTE_FRAMES (visitMaxs)
+... ASM error: ArrayIndexOutOfBoundsException: Index -1 out of bounds for length 0`. `var x = Int;
+println(x)` → same crash with `NegativeArraySizeException: -1`. Reproduces for every primitive
+(`Int/String/Double/Bool/Long/Float/Byte/Short/Char`) and for a declared class (`Foo[3]`); `Int[3]`
+alone (unused) compiles clean — the crash needs the array used. Reproduces on the 0.4.4-beta release
+jar too → PRE-EXISTING, not the #779 regression.
+
+**Root (read):** `Int[3]` parses as `ArrayAccessExpr(IdentifierExpr("Int"), 3)`. `SemExpressionTyper`
+`ArrayAccessExpr` fell to `yield UnknownType.UNKNOWN` (the receiver is not an `ArrayType`) and the
+builtin name is exempt from `SEM011` (`MemberResolver.isBuiltinTypeName`), so no diagnostic fired;
+the lowering then emitted `KofArrayLoad`/`KofStoreLocal` with an `UnknownType[]` element type → invalid
+bytecode → ASM frame crash. The spec is explicit: allocation is `new Int[n]`, and `a[i]` only indexes
+arrays (`docs/language-reference/types.md` §3.1).
+
+**Contract:** a type name is not a value (R6 — diagnose, never crash); array allocation is
+`new T[n]`; `a[i]` only indexes arrays. `as`/`instanceof` RHS are type-refs and stay valid (resolved
+before the guard; `AsCastPrecedenceE2ETest` 6/6).
+
+**Boundary:** `SemExpressionTyper` + `StatementAnalyzer`; the argument/return/statement bare-name
+faces (`f(Int)`, `return Int`, bare `Int` statement) already compile clean (measured) and are not
+affected; `SEM103` is new (highest previously used = `SEM102`).
+
+<!-- pt-switch --> **PT:** [§629 (pt_BR)](known-bugs.pt_BR.md#629--um-nome-de-tipo-builtin-nu-usado-como-valor-int3-var-x--int-passava-pelo-typer-como-unknown-e-o-backend-jvm-emitia-um-frame-com-operando-fantasma-morrendo-no-asm-compute_frames-arrayindexoutofboundsexception-index--1--negativearraysizeexception--1-em-vez-de-um-diagnostico---fixed-0810-achado-0810-pela-lane-issuestooling-19216815309093-durante-a-caca-da-issue-779-corrigido-na-mesma-lane-typer-de-frente-sem-dono-em-curso)

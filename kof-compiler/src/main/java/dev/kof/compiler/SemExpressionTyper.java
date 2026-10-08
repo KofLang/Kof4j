@@ -279,6 +279,26 @@ public final class SemExpressionTyper {
                 if (recvType instanceof Type.ArrayType at) {
                     yield at.componentType();
                 }
+                // §629: `T[n]` on a TYPE NAME is not array allocation — the
+                // surface is `new T[n]`. `Int[3]`/`Foo[3]` used to compile to
+                // Unknown with no diagnostic, and the JVM backend then crashed
+                // in ASM COMPUTE_FRAMES instead of reporting (R6). The `as`/
+                // `instanceof` RHS never reaches here (the chain loop resolves
+                // type-refs before this). Builtin names are not in the symbol
+                // table unless shadowed by a local, so accept either a resolved
+                // ClassSymbol or a builtin name with no local shadowing it.
+                if (sa.diagnostics() != null && aa.receiver() instanceof IdentifierExpr rie
+                        && (scope.resolve(rie.name()) instanceof SymbolTable.ClassSymbol
+                            || (scope.resolve(rie.name()) == null
+                                && MemberResolver.isBuiltinTypeName(rie.name())))) {
+                    var pos = aa.position();
+                    sa.diagnostics().error(pos != null ? pos.file() : "",
+                            pos != null ? pos.line() : 0, pos != null ? pos.column() : 0, 0,
+                            "'" + rie.name() + "' is a type, not a value — array allocation is "
+                                    + "`new " + rie.name() + "[n]`",
+                            "SEM103");
+                    yield Type.UnknownType.UNKNOWN;
+                }
                 // paridade absoluta (JVM=JS=X86=ARM=RISC, regra 6/R6) — mesmo
                 // padrão do §96/§98/§100: `x[i]` SÓ existe para ARRAY no corpus
                 // (`learn/04:84`, `new Int[n]`). Em String/Map/Set o

@@ -15042,3 +15042,31 @@ fixture na mesma entrega — a escolha e da lane dona, nao deste catalogo).
 WASI/WASM tocado.
 
 <!-- en-switch --> **EN:** [§628 (en)](known-bugs.md#628--the-d-maint-batch-0610c-554-externalargtighten-sem014-landed-at-898bc50ab-breaks-jvmlauncherdiagnostice2etest-its-pipekfmainkf-fixtures-pass-byte-to-update-and-now-refuse-argument-1-of-update-expected-bytebuffer-but-got-byte-sem014--3-faces-deterministic-red-at-the-clean-tip-kof-cli-593-run--3-f---open-0810-found-0810-by-the-wasi-lanes-full-suite-re-measure-owner--the-compilerinterop-lane-that-landed-898bc50ab-d-maint-batch-0610c-not-touched-by-the-wasi-lane-per-the-collision-rule)
+
+## §629 — um nome de tipo builtin nu usado como valor (`Int[3]`, `var x = Int`) passava pelo typer como `Unknown` e o backend JVM emitia um frame com operando fantasma, morrendo no ASM `COMPUTE_FRAMES` (`ArrayIndexOutOfBoundsException: Index -1` / `NegativeArraySizeException: -1`) em vez de um diagnóstico — ✅ FIXED 08/10 (achado 08/10 pela lane issues/tooling `192.168.15.30:9093` durante a caça da issue #779; corrigido na mesma lane, typer de frente, sem dono EM CURSO)
+
+**Status:** ✅ FIXED 08/10 (lane issues/tooling `192.168.15.30:9093`) — novo `SEM103` em `SemExpressionTyper.ArrayAccessExpr` (receiver nome-de-tipo builtin/declarado) + `StatementAnalyzer.VarDeclStmt` (inicializador nome builtin nu); prova `TypeNameAsValueE2ETest` 6/6 (RED 3/6 pré-fix com o exato frame crash do ASM), `CoreRegressionE2ETest` 104/104 sem regressão.
+
+**Repro (medido 08/10, tip `5f528bea2`, determinístico):** `kof check` em
+`main() { var x = Int[3]; x[0] = 7; println(x[0]) }` → `error: Internal compiler error: frame crash
+in Default/Main.main (super=java/lang/Object) ... phase: JVM backend / ASM COMPUTE_FRAMES (visitMaxs)
+... ASM error: ArrayIndexOutOfBoundsException: Index -1 out of bounds for length 0`. `var x = Int;
+println(x)` → mesmo crash com `NegativeArraySizeException: -1`. Reproduz para todo primitivo
+(`Int/String/Double/Bool/Long/Float/Byte/Short/Char`) e para uma classe declarada (`Foo[3]`); `Int[3]`
+sozinho (não usado) compila limpo — o crash exige o array usado. Reproduz também no jar de release
+0.4.4-beta → PRÉ-EXISTENTE, não a regressão do #779.
+
+**Raiz (lida):** `Int[3]` parseia como `ArrayAccessExpr(IdentifierExpr("Int"), 3)`. O `ArrayAccessExpr`
+do `SemExpressionTyper` caía em `yield UnknownType.UNKNOWN` (o receiver não é `ArrayType`) e o nome
+builtin é isento do `SEM011` (`MemberResolver.isBuiltinTypeName`), então nenhum diagnóstico saía; o
+lowering então emitia `KofArrayLoad`/`KofStoreLocal` com element type `UnknownType[]` → bytecode
+inválido → crash do frame no ASM. A especificação é explícita: alocação é `new Int[n]`, e `a[i]` só
+indexa arrays (`docs/language-reference/types.md` §3.1).
+
+**Contrato:** nome de tipo não é valor (R6 — diagnostica, nunca crasha); alocação de array é
+`new T[n]`; `a[i]` só indexa arrays. RHS de `as`/`instanceof` são type-refs e seguem válidos
+(resolvidos antes do guard; `AsCastPrecedenceE2ETest` 6/6).
+
+**Fronteira:** `SemExpressionTyper` + `StatementAnalyzer`; as faces de nome-nu em argumento/return/
+statement (`f(Int)`, `return Int`, `Int` statement) já compilam limpo (medido) e não são afetadas;
+`SEM103` é novo (maior usado antes = `SEM102`).
