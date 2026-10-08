@@ -128,13 +128,17 @@ public final class KofInterpreterOps {
             // (<, <=, >, >=) e `!=` é verdadeiro. `Double.compare` NÃO serve:
             // ele ordena NaN como MAIOR que tudo (`Double.compare(NaN,1)==1`),
             // então `NaN > 1` virava true no Script (divergência vs JVM/JS,
-            // known-bugs §625). EQ/NE já retornados acima com `==`/`!=`.
+            // known-bugs §626). §627: EQ/NE NÃO eram tratados acima — o valor
+            // `KofBinary(EQ/NE)` usa o caminho `binary` (numEq), mas um `if`
+            // sobre `a != b` cai AQUI (salto condicional) e o `default -> false`
+            // fazia `assertEqualDouble(1.5,2.5)` nunca lançar no Script.
             return switch (cmp) {
+                case EQ -> x == y;
+                case NE -> x != y;
                 case LT -> x < y;
                 case LE -> x <= y;
                 case GT -> x > y;
                 case GE -> x >= y;
-                default -> false;
             };
         }
         int x = KofInterpreter.unboxInt(a), y = KofInterpreter.unboxInt(b);

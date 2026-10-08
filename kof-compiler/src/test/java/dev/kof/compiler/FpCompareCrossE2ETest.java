@@ -27,6 +27,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p>The same probe also pinned §625: the Script interpreter compared doubles
  * with {@code Double.compare}, which ORDERS NaN as greater than everything, so
  * {@code NaN > 1.0} returned true while JVM/JS return false. Fixed to IEEE.
+ *
+ * <p>§627: the value path ({@code a == b} as an expression) and the
+ * conditional-jump path ({@code if (a == b)}) diverged. The interpreter's
+ * {@code compare} returned {@code false} for EQ/NE on Float/Double, so
+ * {@code kof.test}'s {@code assertEqualDouble(1.5, 2.5)} never threw on Script;
+ * and the cross cond-jump used {@code feq.d}/{@code flt.d}/{@code fle.d} for
+ * Float too — {@code fmv.w.x} NaN-boxes the single into the upper 32 bits, so
+ * {@code 2.5 == 2.5} was false on riscv64/aarch64. Both now use the right path
+ * ({@code x == y} and {@code feq.s}).
  */
 class FpCompareCrossE2ETest extends LambdaSupport {
 
@@ -59,6 +68,12 @@ class FpCompareCrossE2ETest extends LambdaSupport {
             Bool dne(Double a, Double b) { return a != b }
             Bool flt(Float a, Float b) { return a < b }
             Int b(Bool v) { if (v) { return 1 } return 0 }
+            Void ifEqF(Float a, Float b, String label) {
+                if (a == b) { println("EQ " + label) } else { println("NE " + label) }
+            }
+            Void ifNeD(Double a, Double b, String label) {
+                if (a != b) { println("NE " + label) } else { println("EQ " + label) }
+            }
             main() {
                 println("negneg_lt=" + b(dlt(0.0 - 1.0, 0.0 - 2.0)) + b(dlt(0.0 - 2.0, 0.0 - 1.0)))
                 println("negneg_gt=" + b(dgt(0.0 - 1.0, 0.0 - 2.0)) + b(dgt(0.0 - 2.0, 0.0 - 1.0)))
@@ -69,6 +84,10 @@ class FpCompareCrossE2ETest extends LambdaSupport {
                 println("flt=" + b(flt(0.0 - 3.5, 0.0 - 1.5)) + b(flt(0.0 - 1.5, 0.0 - 3.5)))
                 var nan = 0.0 / 0.0
                 println("nan=" + b(dlt(nan, 1.0)) + b(dgt(nan, 1.0)) + b(dle(nan, 1.0)) + b(dge(nan, 1.0)) + b(deq(nan, nan)) + b(dne(nan, nan)))
+                ifEqF(2.5, 2.5, "same")
+                ifEqF(1.5, 2.5, "diff")
+                ifNeD(2.5, 2.5, "same")
+                ifNeD(1.5, 2.5, "diff")
             }
             """;
     private static final String OPERATORS_EXPECTED = """
@@ -79,7 +98,11 @@ class FpCompareCrossE2ETest extends LambdaSupport {
             mix_lt=10
             eqne=1001
             flt=10
-            nan=000001""";
+            nan=000001
+            EQ same
+            NE diff
+            EQ same
+            NE diff""";
 
     @Test
     void twoIfLiteralsJvmScriptAndX86(@TempDir Path t) throws Exception {
