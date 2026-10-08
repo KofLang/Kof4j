@@ -2,7 +2,7 @@
 
 # PortuKof (`.ptkf`) — Portuguese Surface for Kof
 
-last: F7.1 tooling parity landed 07/10 (`.ptkf` first-class in LSP analysis + machine-contract parity + formatter anti-transpile + editor manifests; `PortuKofToolingE2ETest` 6/6; gate `check_portukof_tooling.sh` rc=0) | F6 localized diagnostics landed 07/10 (164 codes / 278 variants, PT 100%, placeholder parity locked; `PortuKofDiagnosticsTest` 9/9) | U3 receiver-aware methods landed 07/10 (17 categories; `tamanho`=length/size; `PortuKofMethodsE2ETest` 8/8) | U2 stdlib parity landed 07/10 (308 members / 36 namespaces; `PortuKofStdlibE2ETest` 4/4) | U1 substrate landed 07/10 (`LanguageProfile` + Lexer profile-aware + `.ptkf` autodiscovery; `PortuKofSurfaceE2ETest` 11/11)
+last: F7.2 surface rendering + `.ptkf` imports landed 07/10 (completion/hover/signature/symbols render PT through the single `lang/SurfaceNames` bridge over canonical symbols — no regex, no textual replace, no second engine; `CompilerImports` resolves `.ptkf` sibling/package/mixed Kof↔PortuKof by extension; `PortuKofToolingSurfaceE2ETest` 20/20) | F7.1 tooling parity landed 07/10 (`.ptkf` first-class in LSP analysis + machine-contract parity + formatter anti-transpile + editor manifests; `PortuKofToolingE2ETest` 7/7; gate `check_portukof_tooling.sh` rc=0) | F6 localized diagnostics landed 07/10 (164 codes / 278 variants, PT 100%, placeholder parity locked; `PortuKofDiagnosticsTest` 9/9) | U3 receiver-aware methods landed 07/10 (17 categories; `tamanho`=length/size; `PortuKofMethodsE2ETest` 8/8) | U2 stdlib parity landed 07/10 (308 members / 36 namespaces; `PortuKofStdlibE2ETest` 4/4) | U1 substrate landed 07/10 (`LanguageProfile` + Lexer profile-aware + `.ptkf` autodiscovery; `PortuKofSurfaceE2ETest` 11/11)
 location: docs/languages/portukof.md
 state: active
 
@@ -160,6 +160,8 @@ Sample aliases: `contem`→`contains`, `estaVazio`→`isEmpty`, `comprimento`/`t
 * **Source ranges (§29/§30):** positions come from source-authoritative tokens (line/column/offset/length of the *real* `.ptkf` text) — a longer PT word never shifts a range.
 * **Formatter anti-transpile (§18–22/§39):** `KofFormatter` is an AST printer that hardcodes canonical English structural keywords, so running it over `.ptkf` would silently transpile PT→EN — forbidden. `KofFormatter.format(src, file)` returns `null` for `PORTUKOF`; the CLI falls back to its token-based serializer which preserves the Portuguese surface, strings, comments and identifiers byte-for-byte and is idempotent (`F(F(x)) == F(x)`).
 * **Editor manifests (§6):** VS Code (`VscodeExtensionContent`) and IntelliJ (`KofEditorContent`) register `.ptkf` under the same `Kof` language.
+* **Surface rendering (§33, F7.2):** completion/hover/signature/symbols render the PT surface through a SINGLE bridge, `lang/SurfaceNames` (`canonical → surface`), which delegates to the already-gated catalogs (`PortuKofVocabulary`, `PortuKofStdlibMembers`, `PortuKofMethodAliases`). No regex, no textual `replace`, no per-tool list: `SurfaceNames` returns identity when the profile is KOF, so Kof is byte-identical. A word typed in a `.ptkf` buffer is canonicalized *by the profile* to the same symbol Kof uses, then re-rendered in surface spelling; user identifiers never pass through the bridge.
+* **Imports (§21–§24, F7.2):** the single `CompilerImports` resolver recognizes `.ptkf` by extension (same `LanguageProfile.forFileName` authority), parses the imported file with its own profile, and normalizes surface imports (`importa arquivo.csv` → `file.csv` via `PortuKofParity.canonImport`). Kof↔PortuKof modules coexist: a `.ptkf` may import a `.kf` and vice-versa, with no parallel resolver.
 
 ---
 
@@ -188,9 +190,22 @@ Sample aliases: `contem`→`contains`, `estaVazio`→`isEmpty`, `comprimento`/`t
 | LSP single-file + project-mirror analysis | ✓ | ✓ | `LspProject.fileNameOf`+mirror; `PortuKofToolingE2ETest` |
 | Formatter surface preservation | ✓ (AST) | ✓ (token) | anti-transpile guard; `PortuKofToolingE2ETest` |
 | Editor manifests (VS Code, IntelliJ) | ✓ | ✓ | `EditorIntegrationTest` 22/22 |
-| Completion / Hover catalog rendering (PT) | ✓ | pending | **F7.2** declared (§43 — not invented) |
-| Profile-driven AST formatter (PT surface) | ✓ | pending | **F7.3** declared (§43 — token fallback in use) |
-| Semantic tokens | ✗ | ✗ | absent in Kof core — honest absence (§43/§15) |
+| Document / workspace symbols (surface) | ✓ | ✓ | `LspSymbols` profile-aware; `PortuKofToolingSurfaceE2ETest` 20/20 |
+| Completion surface (kw/builtin/stdlib/method/user) | ✓ | ✓ | `LanguageProfile`+`SurfaceNames`; `PortuKofToolingSurfaceE2ETest` |
+| Hover surface (builtin/stdlib/method/user) | ✓ | ✓ | receiver-aware category (§11); `PortuKofToolingSurfaceE2ETest` |
+| Signature help (surface label, canonical params) | ✓ | ✓ | `LspSignatureHelp` profile-aware |
+| Import `.ptkf` (sibling/package/mixed) | ✓ | ✓ | `CompilerImports` extension-authority + `PortuKofParity.canonImport` |
+| Definition / references / rename (semantic identity) | core-textual | core-textual | Kof LSP is textual by design (no typed index): user symbols resolve; cross-receiver alias disambiguation = core gap, declared (not faked) |
+| Rename guards (surface alias/keyword) | ✓ | ✓ | `LspRename` profile-aware refusal |
+| Semantic tokens | ✗ | ✗ | absent in Kof core — honest absence (§15) |
+
+**Core limitation, declared not faked (§18/§15):** Kof's LSP definition/references/rename are
+*textual* (the server does not run a full parser/typed index per request — see `LspSymbols`).
+User symbols rename/resolve correctly on either surface. Disambiguating a bare alias word
+(`tamanho` = `length` on String vs `size` on List) across receivers, strings and comments needs a
+typed symbol index that the core does not have; PortuKof does **not** fake it with textual rules.
+The *compiler* resolves aliases by receiver type (U3 `PortuKofMethodSplicer`), so the language
+contract is complete; only the editor-side *semantic* navigation inherits the core limitation.
 
 ---
 

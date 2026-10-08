@@ -1,0 +1,5 @@
+// Pacote `util` — superfície PortuKof (mesmo compilador, mesma semântica)
+pacote util
+inteiro dobro(inteiro x) {
+    retorna x * 2
+}

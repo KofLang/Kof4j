@@ -35,8 +35,28 @@ public final class PortuKofParity {
         Map<String, String> al = profile.symbolAliases();
         List<AstNode> decls = new ArrayList<>();
         for (AstNode d : unit.declarations()) decls.add(decl(profile, al, d));
-        return new CompilationUnitNode(unit.position(), unit.packageName(),
-                new ArrayList<>(unit.imports()), decls);
+        List<String> imports = new ArrayList<>();
+        for (String imp : unit.imports()) imports.add(canonImport(al, imp));
+        return new CompilationUnitNode(unit.position(), unit.packageName(), imports, decls);
+    }
+
+    /**
+     * F7.2 (07/10) — a RAIZ de um import de superfície vira o pacote canônico
+     * (`importa arquivo.csv` → `file.csv`), exatamente como o receiver de um
+     * member-call. Só o PRIMEIRO segmento; pacotes do usuário (`util`,
+     * `dominio`) não estão no catálogo fechado e NUNCA são reescritos
+     * (PARTE 5). Wildcard preservado.
+     */
+    private static String canonImport(Map<String, String> al, String imp) {
+        if (imp == null || imp.isEmpty()) return imp;
+        boolean wildcard = imp.endsWith(".*");
+        String core = wildcard ? imp.substring(0, imp.length() - 2) : imp;
+        int dot = core.indexOf('.');
+        String root = dot < 0 ? core : core.substring(0, dot);
+        String canon = al.get(root);
+        if (canon == null || canon.equals(root)) return imp;
+        String rest = dot < 0 ? "" : core.substring(dot);
+        return canon + rest + (wildcard ? ".*" : "");
     }
 
     private static AstNode decl(LanguageProfile p, Map<String, String> al, AstNode d) {

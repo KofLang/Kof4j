@@ -72,5 +72,59 @@ if [ ! -f kof-cli/src/test/java/dev/kof/cli/PortuKofToolingE2ETest.java ]; then
     note "FALTA: PortuKofToolingE2ETest (prova da paridade de tooling)"; fail=1
 fi
 
-[ $fail -eq 0 ] && { note "F7 OK — .ptkf first-class no tooling, sem segundo engine, contrato de máquina intacto"; exit 0; }
+# ---- F7.2 — RENDERIZAÇÃO DE SUPERFÍCIE (ponte única) + imports `.ptkf` ----
+
+# 8) A ponte CANONICAL→SURFACE vive em UM lugar (lang/SurfaceNames) e é a única
+#    fonte pedida pelo tooling; nenhum arquivo de tooling re-implementa alias.
+LANGPKG=$COMP/lang
+must_have "$LANGPKG/SurfaceNames.java" 'class SurfaceNames' \
+    "SurfaceNames deve existir como ponte única canônico→superfície"
+must_have "$LANGPKG/SurfaceNames.java" 'PortuKofVocabulary' \
+    "SurfaceNames delega ao vocabulário gateado (fonte única)"
+must_have "$LANGPKG/SurfaceNames.java" 'PortuKofStdlibMembers' \
+    "SurfaceNames delega aos membros de stdlib gateados (fonte única)"
+must_have "$LANGPKG/SurfaceNames.java" 'PortuKofMethodAliases' \
+    "SurfaceNames delega aos aliases receiver-aware gateados (fonte única)"
+
+# 9) Tooling PERGUNTA ao perfil via SurfaceNames — nunca regex/replacement textual.
+for f in "$CLI/LspHover.java" "$CLI/LspServer.java" "$CLI/LspSymbols.java" \
+         "$CLI/LspSignatureHelp.java" "$CLI/LspRename.java" "$CLI/LspProject.java"; do
+    must_have "$f" 'SurfaceNames|LanguageProfile' \
+        "tooling deve resolver superfície pela ponte do perfil"
+done
+# proibido: substituição textual de uma superfície por outra (transpile no tooling)
+must_not "$CLI/LspHover.java" 'replace\("print"|replace\("println"|replace\("main"' \
+    "hover NÃO pode traduzir por replace textual (regra de ouro §4)"
+must_not "$CLI/LspServer.java" 'replace\("print"|replace\("println"|replace\("main"' \
+    "completion/hover NÃO pode traduzir por replace textual (regra de ouro §4)"
+
+# 10) KOF = identidade (zero regressão): SurfaceNames devolve o próprio canônico
+#     quando o perfil é KOF — travado por contrato nos métodos com early-return.
+if grep -qE 'if \(p == LanguageProfile\.KOF\) return (canonical|surfaceMember|surface|canonicalMember)' \
+        "$LANGPKG/SurfaceNames.java"; then
+    :
+else
+    note "FALTA: SurfaceNames deve manter identidade para KOF (zero regressão)"; fail=1
+fi
+
+# 11) IMPORTS `.ptkf` — o MESMO `CompilerImports` (sem resolver paralelo):
+#     a extensão é a autoridade e o perfil é escolhido por nome de arquivo.
+must_have "$COMP/CompilerImports.java" '\.ptkf' \
+    "CompilerImports deve reconhecer .ptkf (resolução por extensão)"
+must_have "$COMP/CompilerImports.java" 'LanguageProfile\.forFileName' \
+    "CompilerImports deve escolher o perfil pelo nome do arquivo (nunca conteúdo)"
+if grep -rqE 'class PortuKof(Import|ImportResolver)' "$COMP" "$CLI" 2>/dev/null; then
+    note "PROIBIDO: import resolver PortuKof paralelo (golden rule §4)"; fail=1
+fi
+
+# 12) A bateria de SUPERFÍCIE existe (completion/hover/sig/def/refs/symbols/rename/import)
+if [ ! -f kof-cli/src/test/java/dev/kof/cli/PortuKofToolingSurfaceE2ETest.java ]; then
+    note "FALTA: PortuKofToolingSurfaceE2ETest (prova da renderização de superfície F7.2)"; fail=1
+fi
+# exemplo oficial de import .ptkf versionado (estrutura que resolve ponta-a-ponta)
+if [ ! -f examples/portukof/imports/main.ptkf ] || [ ! -f examples/portukof/imports/util/Mat.ptkf ]; then
+    note "FALTA: examples/portukof/imports/*.ptkf (prova oficial do import .ptkf)"; fail=1
+fi
+
+[ $fail -eq 0 ] && { note "F7 OK — .ptkf first-class no tooling, superfície pela ponte única, imports .ptkf, sem segundo engine, contrato de máquina intacto"; exit 0; }
 note "FALHOU"; exit 1

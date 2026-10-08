@@ -2,7 +2,7 @@
 
 # PortuKof (`.ptkf`) — Superfície Portuguesa do Kof
 
-last: F7.1 paridade de tooling landada 07/10 (`.ptkf` cidadão de primeira classe na análise LSP + paridade de contrato de máquina + anti-transpile do formatter + manifestos de editor; `PortuKofToolingE2ETest` 7/7; gate `check_portukof_tooling.sh` rc=0) | F6 diagnósticos localizados landados 07/10 (164 códigos / 278 variantes, PT 100%, paridade de placeholders travada; `PortuKofDiagnosticsTest` 9/9) | U3 métodos receiver-aware landada 07/10 (17 categorias; `tamanho`=length/size; `PortuKofMethodsE2ETest` 8/8) | U2 paridade stdlib landada 07/10 (308 membros / 36 namespaces; `PortuKofStdlibE2ETest` 4/4) | U1 substrato landado 07/10 (`LanguageProfile` + Lexer profile-aware + autodescoberta `.ptkf`; `PortuKofSurfaceE2ETest` 11/11)
+last: F7.2 renderização de superfície + imports `.ptkf` landada 07/10 (completion/hover/signature/symbols mostram PT através da ponte única `lang/SurfaceNames` sobre símbolos canônicos — sem regex, sem replace textual, sem segundo engine; `CompilerImports` resolve `.ptkf` irmão/pacote/misto Kof↔PortuKof por extensão; `PortuKofToolingSurfaceE2ETest` 20/20) | F7.1 paridade de tooling landada 07/10 (`.ptkf` cidadão de primeira classe na análise LSP + paridade de contrato de máquina + anti-transpile do formatter + manifestos de editor; `PortuKofToolingE2ETest` 7/7; gate `check_portukof_tooling.sh` rc=0) | F6 diagnósticos localizados landados 07/10 (164 códigos / 278 variantes, PT 100%, paridade de placeholders travada; `PortuKofDiagnosticsTest` 9/9) | U3 métodos receiver-aware landada 07/10 (17 categorias; `tamanho`=length/size; `PortuKofMethodsE2ETest` 8/8) | U2 paridade stdlib landada 07/10 (308 membros / 36 namespaces; `PortuKofStdlibE2ETest` 4/4) | U1 substrato landado 07/10 (`LanguageProfile` + Lexer profile-aware + autodescoberta `.ptkf`; `PortuKofSurfaceE2ETest` 11/11)
 location: docs/languages/portukof.pt_BR.md
 state: active
 
@@ -160,6 +160,8 @@ Aliases de exemplo: `contem`→`contains`, `estaVazio`→`isEmpty`, `comprimento
 * **Ranges de fonte (§29/§30):** as posições vêm de tokens fonte-autoritativos (linha/coluna/offset/length do texto `.ptkf` real) — uma palavra PT mais longa nunca desloca um range.
 * **Anti-transpile do formatter (§18–22/§39):** `KofFormatter` é um printer de AST que hardcodeia keywords estruturais inglesas canônicas, então rodá-lo sobre `.ptkf` transpilaria PT→EN em silêncio — proibido. `KofFormatter.format(src, file)` devolve `null` para `PORTUKOF`; o CLI cai no serializador por tokens, que preserva a superfície portuguesa, strings, comentários e identificadores byte-a-byte e é idempotente (`F(F(x)) == F(x)`).
 * **Manifestos de editor (§6):** VS Code (`VscodeExtensionContent`) e IntelliJ (`KofEditorContent`) registram `.ptkf` sob a MESMA linguagem `Kof`.
+* **Renderização de superfície (§33, F7.2):** completion/hover/signature/symbols mostram a superfície PT através de UMA ponte única, `lang/SurfaceNames` (`canônico → superfície`), que delega aos catálogos já gateados (`PortuKofVocabulary`, `PortuKofStdlibMembers`, `PortuKofMethodAliases`). Sem regex, sem `replace` textual, sem lista por ferramenta: `SurfaceNames` devolve identidade quando o perfil é KOF, então o Kof é byte-idêntico. Uma palavra digitada num buffer `.ptkf` é canonizada *pelo perfil* para o mesmo símbolo que o Kof usa e então re-renderizada na grafia de superfície; identificadores de usuário nunca passam pela ponte.
+* **Imports (§21–§24, F7.2):** o único resolver `CompilerImports` reconhece `.ptkf` por extensão (a MESMA autoridade `LanguageProfile.forFileName`), parseia o arquivo importado com o perfil dele e normaliza imports de superfície (`importa arquivo.csv` → `file.csv` via `PortuKofParity.canonImport`). Módulos Kof↔PortuKof coexistem: um `.ptkf` pode importar um `.kf` e vice-versa, sem resolver paralelo.
 
 ---
 
@@ -188,9 +190,22 @@ Aliases de exemplo: `contem`→`contains`, `estaVazio`→`isEmpty`, `comprimento
 | Análise LSP arquivo-único + modo projeto | ✓ | ✓ | `LspProject.fileNameOf`+mirror; `PortuKofToolingE2ETest` |
 | Preservação de superfície no formatter | ✓ (AST) | ✓ (token) | guard anti-transpile; `PortuKofToolingE2ETest` |
 | Manifestos de editor (VS Code, IntelliJ) | ✓ | ✓ | `EditorIntegrationTest` 22/22 |
-| Rendering de catálogo em Completion/Hover (PT) | ✓ | pendente | **F7.2** declarado (§43 — não inventado) |
-| Formatter AST dirigido por perfil (PT) | ✓ | pendente | **F7.3** declarado (§43 — fallback token em uso) |
-| Semantic tokens | ✗ | ✗ | ausentes no core Kof — ausência honesta (§43/§15) |
+| Symbols de documento/workspace (superfície) | ✓ | ✓ | `LspSymbols` ciente de perfil; `PortuKofToolingSurfaceE2ETest` 20/20 |
+| Completion de superfície (kw/builtin/stdlib/método/usuário) | ✓ | ✓ | `LanguageProfile`+`SurfaceNames`; `PortuKofToolingSurfaceE2ETest` |
+| Hover de superfície (builtin/stdlib/método/usuário) | ✓ | ✓ | categoria receiver-aware (§11); `PortuKofToolingSurfaceE2ETest` |
+| Signature help (rótulo de superfície, params canônicos) | ✓ | ✓ | `LspSignatureHelp` ciente de perfil |
+| Import `.ptkf` (irmão/pacote/misto) | ✓ | ✓ | `CompilerImports` autoridade de extensão + `PortuKofParity.canonImport` |
+| Definition / references / rename (identidade semântica) | core-textual | core-textual | O LSP do Kof é textual por design (sem índice tipado): símbolos do usuário resolvem; desambiguar alias entre receivers = gap do core, declarado (não forjado) |
+| Guardas de rename (alias/keyword de superfície) | ✓ | ✓ | recusa ciente de perfil em `LspRename` |
+| Semantic tokens | ✗ | ✗ | ausentes no core Kof — ausência honesta (§15) |
+
+**Limitação do core, declarada e não forjada (§18/§15):** definition/references/rename do LSP do Kof são
+*textuais* (o servidor não roda parser/índice tipado completo por request — ver `LspSymbols`). Símbolos do
+usuário renomeiam/resolvem corretamente em qualquer superfície. Desambiguar uma palavra-alias solta
+(`tamanho` = `length` em String vs `size` em List) entre receivers, strings e comentários exige um índice de
+símbolos tipado que o core não tem; o PortuKof **não** forja isso com regras textuais. O *compilador* resolve
+os aliases pelo tipo do receiver (U3 `PortuKofMethodSplicer`), então o contrato da linguagem é completo; só a
+navegação *semântica* do editor herda a limitação do core.
 
 ---
 

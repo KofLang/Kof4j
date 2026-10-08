@@ -210,7 +210,9 @@ final class LspProject {
     }
 
     private static void collect(java.util.List<Object> out, String uri, String text, String q) {
-        for (LspSymbols.DocSymbol s : LspSymbols.documentSymbols(text)) {
+        dev.kof.compiler.lang.LanguageProfile p = dev.kof.compiler.lang.LanguageProfile
+                .forFileName(fileNameOf(uri));
+        for (LspSymbols.DocSymbol s : LspSymbols.documentSymbols(p, text)) {
             if (!s.name().toLowerCase(java.util.Locale.ROOT).contains(q)) continue;
             java.util.Map<String, Object> sym = new java.util.LinkedHashMap<>();
             sym.put("name", s.name());
@@ -235,7 +237,8 @@ final class LspProject {
     static String[] declarationLine(String uri, String bufferText, String word, Path root) {
         if (word == null || word.isEmpty()) return null;
         if (bufferText != null) {
-            int[] r = LspSymbols.declarationRange(bufferText, word);
+            int[] r = LspSymbols.declarationRange(
+                    dev.kof.compiler.lang.LanguageProfile.forFileName(fileNameOf(uri)), bufferText, word);
             if (r != null) return new String[]{ lineAt(bufferText, r[0]), nameOf(uri) };
         }
         Path self = toPath(uri);
@@ -243,7 +246,9 @@ final class LspProject {
         for (Path f : siblings(self, root)) {
             String txt = readOrNull(f);
             if (txt == null) continue;
-            int[] r = LspSymbols.declarationRange(txt, word);
+            int[] r = LspSymbols.declarationRange(
+                    dev.kof.compiler.lang.LanguageProfile.forFileName(f.getFileName().toString()),
+                    txt, word);
             if (r != null) return new String[]{ lineAt(txt, r[0]), f.getFileName().toString() };
         }
         return null;
