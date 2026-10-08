@@ -13,7 +13,7 @@
 **Companion plan:** `test-architecture-plan.md` (the **compiler's own Java suite** refactor —
 L0–L5 layers, profiles, performance). This document is the **user-facing testing platform**;
 the two meet at §13 (Performance) and must not duplicate each other.
-**Implementation status:** slice 1 (assertion helpers) LANDED 30/09; slice 2 (`assertThrows`) LANDED 30/09 — the blocker was fixed (see §15); slice 3 (unit-core assertions) LANDED 01/10; slice 4 (Long/Double/Float numeric assertions) LANDED 01/10; slice 5 (Byte/Short/Char + `assertNotEqualBool`) LANDED 01/10; slice 6 (generic `assertEqual<T>`/`assertNotEqual<T>` pair) LANDED 02/10 — unblocked by the `known-bugs` §553 fix (`D-EQ-UNBOUNDED-T`), so §4.1 is now **complete**; §5 harness — slice 1 (temp dir + readiness poll) LANDED 06/10, slice 2 (database lifecycle `withDb` in the opt-in `kof.test.db`) LANDED 07/10.
+**Implementation status:** slice 1 (assertion helpers) LANDED 30/09; slice 2 (`assertThrows`) LANDED 30/09 — the blocker was fixed (see §15); slice 3 (unit-core assertions) LANDED 01/10; slice 4 (Long/Double/Float numeric assertions) LANDED 01/10; slice 5 (Byte/Short/Char + `assertNotEqualBool`) LANDED 01/10; slice 6 (generic `assertEqual<T>`/`assertNotEqual<T>` pair) LANDED 02/10 — unblocked by the `known-bugs` §553 fix (`D-EQ-UNBOUNDED-T`), so §4.1 is now **complete**; §5 harness — slice 1 (temp dir + readiness poll) LANDED 06/10, slice 2 (database lifecycle `withDb` in the opt-in `kof.test.db`) LANDED 07/10, slice 3 (server lifecycle `withServer` in the opt-in `kof.test.web`, `spawn`+readiness+`finally` close) LANDED 08/10 — JVM-complete; the cross targets report the pre-existing `app.close`/`WEB001` gap honestly (no silent fallback).
 
 > **Slice 6 (LANDED 02/10).** The last §4.1 face: the generic pair `assertEqual<T>(T expected, T actual, String label)` / `assertNotEqual<T>(...)` in `dev/kof/test.kf`. It was deliberately deferred (not shipped broken) until `known-bugs` §553 was resolved: the maintainer's rule-6 answer `D-EQ-UNBOUNDED-T` (02/10) fixes `==` on an unbounded `T` as **structural content equality** on every target, so the helper is correct for any `T` (Int, String, record, …). The label stringifies `expected`/`actual` via `+` — no new primitive, no per-target runtime. Proof RED-first: new `GenericEqualityE2ETest` **16/16** (the generic pair green on JVM/Script/JS/Native and throwing on a real mismatch; the `==` semantics golden byte-identical to the JVM oracle on JVM + Script + JS + Native x86-64 + riscv64(qemu) + aarch64(qemu)); `KofTestingE2ETest` 7/7. §4.1 is complete; the remaining faces are rule-6/decision-gated (§4.4 parameterized, §4.6 test doubles, §5 harness). The **browser provider** (§6) is no longer gated: `D-MAINT-BATCH-0510`/`T1` decides it must serve **all targets** (JVM + JS + Native), and `/T2` decides `kof.test` stays a **compiler/CLI feature** (not a stdlib namespace) — see §12.
 
@@ -388,10 +388,23 @@ on JVM + JS by the H2 in-memory database being empty after the helper, and on Na
 body + throw-path continuation with the data persisted). RED-first: pre-slice the probe does not
 compile (`SEM015 Undefined function: 'withDb'`).
 
-The server lifecycle helper is **not** composable in pure Kof: `app.listen(port)` blocks, so a
-`withServer { }` body could not run on the same thread; it needs a runner/desugar seam (a
-rule-6-adjacent decision), so it stays open rather than shipping a stub. The database lifecycle
-lands because `db.connect`/`db.close` are already non-blocking and symmetric.
+The server lifecycle helper **is** composable in pure Kof, contrary to the earlier note: `app.listen(port)`
+blocks, but the helper spawns it (`var h = spawn { app.listen(port) }`), polls the port with a bounded
+`http.get` probe until it accepts, runs the body and closes the app in a `finally` — `app.close()` then
+`await h` — on both the success and the throw path. It lives in a **separate opt-in host `kof.test.web`**
+(not `kof.test`), the `CompilerTestDb` precedent: it depends on `kof.web`/`kof.http` and the `spawn`
+primitive, and `kof.test` is flat-injected whole, so a web helper living there would make every unit test
+carry the web tree. `withServer(app, port, body)` takes the **already-configured** `app` (routes registered
+before the helper) because `app.listen` must start after the routes exist; the body is `(String) -> Void`
+(the URL). **`app.close()` (`kof_web_close`) is a JVM-only runtime symbol today**, so the helper is
+JVM-complete and the cross targets report the pre-existing `WEB001` gap honestly at compile time (R6 —
+never a silent fallback, never a leak); the day `kof_web_close` lands on Native/JS the pin flips
+consciously. **Proof:** new `ServerLifecycleE2ETest` **3/3** — JVM lifecycle golden (body sees its own
+`pong`; the port is refused after the helper on both the success and the throw path, i.e. the `finally`
+ran), the cross targets pinned to the honest `WEB001`, and the opt-in guard (`withServer` is undefined
+without `import kof.test.web`). RED-first: the helper was unblocked by the `known-bugs` §630 (nested
+`return` lambda typing) and §632 (dotted function-typed parameter descriptor) fixes; §633 fixed the
+`MEM014` false positive the helper exposed.
 
 Infrastructure to bring up resources: HTTP server, database, filesystem, process, external
 service. Each resource has `start → health check → test → cleanup`. **Never leave processes or

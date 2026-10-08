@@ -17625,3 +17625,19 @@ affected; `SEM103` is new (highest previously used = `SEM102`).
 **Boundary:** `CompilerTypes.toType` only (the shared driver-side resolver); `Type.of` already balanced the parens. Undotted components (`(Int, Int) -> Void`) and user records were and remain correct (the control test passes pre- and post-fix). The practical unblock: the §5 server-lifecycle helper `withServer(app, port, (kof.web.App, String) -> Void body)` now loads.
 
 <!-- pt-switch --> **PT:** [§632 (pt_BR)](known-bugs.pt_BR.md#632--um-parametro-de-tipo-funcao-cujo-componente-e-pontuado-kofwebapp-string---void-emitia-um-descritor-jvm-invalido-lkofwebapp-string---void-entao-carregar-main-morria-noclassdeffounderror---fixed-0810-lane-issuestooling-19216815309093-resolvedor-de-tipos-do-frontend-sem-dono-em-curso)
+
+## §633 — the `MEM014` resource-leak warning was a FALSE POSITIVE when the handle is handed to another function in statement position (`consume(app)`, `withServer(app, ...)`) — ✅ FIXED 08/10 (lane issues/tooling `192.168.15.30:9093`, shared memory-safety frontend pass, no owner EM CURSO)
+
+**Status:** ✅ FIXED 08/10 (lane issues/tooling `192.168.15.30:9093`) — `ResourceLeakAnalysis.escapeShape` now treats an `ExpressionStmt` whose expression hands the handle away (`mentionsEscaping`) as an escape, the same as a `return`/alias/initializer. Proof `ResourceLeakE2ETest` **6/6** (new `passedAsArgumentInStatementPositionSilencesTheWarning`, RED pre-fix).
+
+**Repro (measured 08/10, deterministic):** `kof check` on
+`Void consume(kof.web.App a) { a.close() }  main() { var app = web.app(); consume(app); println("up") }`
+warned `L-05: resource 'app' ... is never closed in this scope and never handed to anyone [MEM014]` even though `app` is handed to `consume`, which closes it.
+
+**Root (read):** `ResourceLeakAnalysis.escapeShape` only inspected `ReturnStmt`, `VarDeclStmt` and `AssignmentExpr`; a top-level call whose handle sits in argument position (`consume(app)`, `withServer(app, port, body)`) was an `ExpressionStmt`, never matched, so `escapesAnywhere` returned false and the warning fired. The javadoc already promised "never handed to anyone (returned, passed, aliased, stored)".
+
+**Contract:** handing a handle to another function in statement position is an escape (the callee owns the close); receiver position (`app.close()`, `app.port()`) and `db.close(handle)` stay uses, not transfers (the pre-existing conservatisms).
+
+**Boundary:** `ResourceLeakAnalysis.escapeShape` only (the shared frontend pass, same diagnostic on all four targets by construction). The §5 server-lifecycle helper `withServer(app, port, body)` was the trigger: without the fix, the helper's own correct lifecycle (`app.close()` in a `finally`) still warned at the creation site.
+
+<!-- pt-switch --> **PT:** [§633 (pt_BR)](known-bugs.pt_BR.md#633--o-aviso-mem014-de-recurso-vazado-era-falso-positivo-quando-o-handle-e-entregue-a-outra-funcao-em-posicao-de-statement-consumeapp-withserverapp----fixed-0810-lane-issuestooling-19216815309093-passe-de-memory-safety-do-frontend-sem-dono-em-curso)
