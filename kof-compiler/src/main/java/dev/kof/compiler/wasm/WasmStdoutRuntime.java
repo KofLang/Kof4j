@@ -14,8 +14,11 @@ import java.util.*;
  */
 public final class WasmStdoutRuntime {
 
-    /** layout da pagina linear do host 15.3 (nwritten / iovec / buffer). */
+    /** layout da pagina linear do host 15.3 (nwritten / iovec / buffer / argc). */
     public static final int SCRATCH_NWRITTEN = 8, SCRATCH_IOVEC = 16, SCRATCH_OUT = 256;
+
+    /** slots estaticos do readArgs 15.3c-sliceB (&argc / &argv_buf_size). */
+    public static final int SCRATCH_ARGC = 48, SCRATCH_ARGSZ = 52;
 
     /** base do pool de strings 15.3b (data segments; acima do scratch). */
     public static final int DATA_BASE = 1024;
@@ -322,4 +325,5 @@ public final class WasmStdoutRuntime {
         b.add(new WasmInstr.Simple(0x1a, "drop"));
         return new WasmFunc("kof.writeStr", List.of(0x7f), List.of(), List.of(), b);
     }
+
 }

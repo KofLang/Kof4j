@@ -341,7 +341,10 @@ different reason, both honest (R6):
    handles de `String` num bump heap `global 0`@16384 (`[len][bytes]\n`, `kof.strLit`/
    `kof.strConcat`/`kof.writeStr`) -> `wasi_snapshot_preview1.fd_write`
    importado; o módulo valida com `wasm-tools` e executa sob `wasmtime` com
-   stdout == oracle JVM — `WasmWasiE2ETest` 3/3). Fora da fatia (`args`, records/coleções, runtime GC) recusa **WASM002** nomeando
+   stdout == oracle JVM — `WasmWasiE2ETest` 5/5 incl. 15.3c-fatiaB `args`: `kof.readArgs` sobre
+   `args_sizes_get`/`args_get` monta handles no heap, `args.length`/`args[i]` com trap explicito
+   de limites, run WASI com `alpha beta` byte-identico ao oracle JVM). Fora da fatia
+   (records/coleções, `println(array)`, for-in, runtime GC) recusa **WASM002** nomeando
   plano + #776 sem artefatos; o FRONTEND padrão e o `kof deploy` mantêm o
   **WASM001** honesto até a unidade 15.4 (flip) / o host de deploy. Os
   aliases/solecismos longos (`kofwasm`, `kofwebasm`, `kofwebassembly`,

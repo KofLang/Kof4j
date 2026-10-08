@@ -44,6 +44,20 @@ class WasmWasiE2ETest {
             }
             """;
 
+    private static final String SRC_ARGS = """
+            main(String[] args) {
+                println(args.length)
+                println(args[0])
+                println(args[1])
+                var s = args[0] + "-" + args[1]
+                println(s)
+            }
+            """;
+
+    private static String jvmBin() {
+        return Path.of(System.getProperty("java.home"), "bin", "java").toString();
+    }
+
     private static Path host(String tool) {
         String home = System.getenv().getOrDefault("KOF_WASM_HOME",
                 System.getProperty("user.home") + "/.local/share/kof-wasm");
@@ -92,12 +106,77 @@ class WasmWasiE2ETest {
     }
 
     @Test
+    void argsLengthIndexAndConcatMatchTheJvmOracle(@TempDir Path dir) throws Exception {
+        var wasmtime = host("wasmtime");
+        assumeTrue(wasmtime != null, "wasmtime host absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), SRC_ARGS);
+        var driver = new CompilerDriver();
+        var wasi = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-wasi"), Target.WASI);
+        assertTrue(wasi.success(), "wasi args compile: " + wasi.diagnostics().getDiagnostics());
+        var jvm = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-jvm"), Target.JVM);
+        assertTrue(jvm.success(), "jvm oracle compile: " + jvm.diagnostics().getDiagnostics());
+        var oracle = new ProcessBuilder(List.of(jvmBin(), "-cp",
+                Path.of(dir.toString(), "out-jvm").toString(), "Default.Main", "alpha", "beta"))
+                .redirectErrorStream(true).start();
+        String expected = new String(oracle.getInputStream().readAllBytes());
+        assertTrue(oracle.waitFor(120, TimeUnit.SECONDS) && oracle.exitValue() == 0,
+                "JVM oracle must pass args: " + expected);
+        var proc = new ProcessBuilder(List.of(wasmtime.toString(), "run",
+                Path.of(dir.toString(), "out-wasi", "Default", "Main.wasm").toString(),
+                "alpha", "beta"))
+                .redirectErrorStream(true).start();
+        String out = new String(proc.getInputStream().readAllBytes());
+        assertTrue(proc.waitFor(60, TimeUnit.SECONDS), "host must answer within 60s");
+        assertEquals(0, proc.exitValue(), "clean WASI exit with args: " + out);
+        assertEquals(expected.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                out.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                "args stdout must equal the JVM oracle");
+    }
+
+    @Test
+    void emptyArgsLengthMatchesJvmAndOobIndexTraps(@TempDir Path dir) throws Exception {
+        var wasmtime = host("wasmtime");
+        assumeTrue(wasmtime != null, "wasmtime host absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    println(args.length)
+                }
+                """);
+        var driver = new CompilerDriver();
+        assertTrue(driver.compile(dir.resolve("Main.kf"), dir.resolve("out-wasi"), Target.WASI)
+                .success(), "empty-args compile");
+        var proc = new ProcessBuilder(List.of(wasmtime.toString(), "run",
+                Path.of(dir.toString(), "out-wasi", "Default", "Main.wasm").toString()))
+                .redirectErrorStream(true).start();
+        String out = new String(proc.getInputStream().readAllBytes());
+        assertTrue(proc.waitFor(60, TimeUnit.SECONDS) && proc.exitValue() == 0,
+                "clean exit with zero args: " + out);
+        assertEquals("0", out.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                "args.length == 0 sem argv (JVM oracle)");
+
+        Files.writeString(dir.resolve("Oob.kf"), """
+                main(String[] args) {
+                    println(args[7])
+                }
+                """);
+        assertTrue(driver.compile(dir.resolve("Oob.kf"), dir.resolve("out-oob"), Target.WASI)
+                .success(), "oob compile deve emitir (trap e runtime)");
+        var oob = new ProcessBuilder(List.of(wasmtime.toString(), "run",
+                Path.of(dir.toString(), "out-oob", "Default", "Oob.wasm").toString()))
+                .redirectErrorStream(true).start();
+        String oobOut = new String(oob.getInputStream().readAllBytes());
+        assertTrue(oob.waitFor(60, TimeUnit.SECONDS), "host within 60s");
+        assertNotEquals(0, oob.exitValue(),
+                "indice fora de limites trap deterministico (D-WASM-03 pendente), nunca lixo: " + oobOut);
+    }
+
+    @Test
     void argsAndOutOfSlicePrintRefuseWithNoArtifacts(@TempDir Path dir) throws Exception {
         var driver = new CompilerDriver();
         record Case(String name, String src) {}
         for (Case c : List.of(
-                new Case("index", "main(String[] args) { println(args[0]) }\n"),
-                new Case("args", "main(String[] args) { println(args) }\\n"))) {
+                new Case("array-print", "main(String[] args) { println(args) }\n"),
+                new Case("iter", "main(String[] args) {\n    for (var a in args) { println(a) }\n}\n"))) {
             Path src = dir.resolve("Refuse-" + c.name() + ".kf");
             Files.writeString(src, c.src().replace("\\n", "\n"));
             Path out = dir.resolve("out-" + c.name());

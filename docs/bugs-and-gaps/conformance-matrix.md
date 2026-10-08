@@ -341,8 +341,10 @@ different reason, both honest (R6):
    `String` handles on a bump heap `global 0`@16384 (`[len][bytes]\n`, `kof.strLit`/
    `kof.strConcat`/`kof.writeStr`) -> imported `wasi_snapshot_preview1.fd_write`; module
    validates with `wasm-tools`, executes under `wasmtime` with stdout == JVM
-   oracle — `WasmWasiE2ETest` 3/3). Outside the slice (`args`,
-   records/collections, GC runtime) refuses **WASM002** naming plan + #776
+   oracle — `WasmWasiE2ETest` 5/5 incl. 15.3c-sliceB `args`: `kof.readArgs` over
+   `args_sizes_get`/`args_get` builds heap handles, `args.length`/`args[i]` with an explicit
+   bounds trap, WASI run with `alpha beta` byte-equal to the JVM oracle). Outside the slice
+   (records/collections, `println(array)`, for-in, GC runtime) refuses **WASM002** naming plan + #776
   with NO artifacts; the FRONTEND default and `kof deploy` keep the honest
   **WASM001** until unit 15.4 (flip) / the deploy host. The long
   aliases/solecisms (`kofwasm`, `kofwebasm`, `kofwebassembly`, `webassembly`,

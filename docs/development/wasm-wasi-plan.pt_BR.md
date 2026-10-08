@@ -1,12 +1,12 @@
 [English](wasm-wasi-plan.md) | [Português](wasm-wasi-plan.pt_BR.md)
 
-**Dono:** `192.168.15.101:9092` (lane TIER 15; 15.1+15.2+15.3-fatia1+15.3b+15.3c-fatiaA pousadas; 15.3c-fatiaB `args` em seguida) — promovido por `D-WEB-WASI-DEFAULT-0710` (GATE do 0.6.0, #776); qualquer lane livre o reivindica no DOING primeiro (`D-PLAN-ONE-OWNER`).
+**Dono:** `192.168.15.101:9092` (lane TIER 15; 15.1+15.2+15.3-fatia1+15.3b+15.3c-fatiaA+15.3c-fatiaB pousadas; runtime GC-handle em seguida) — promovido por `D-WEB-WASI-DEFAULT-0710` (GATE do 0.6.0, #776); qualquer lane livre o reivindica no DOING primeiro (`D-PLAN-ONE-OWNER`).
 
 # WebAssembly (WASM) + WASI — especificação de implementação futura
 
-last: 15.3c-fatiaA POUSADA 08/10 (VARIAVEIS + CONCATENACAO de String num bump heap `global 0`@16384, handles `[len][bytes]\n`; `kof.strLit`/`kof.strConcat`/`kof.writeStr`; `WasmWasiE2ETest` 3/3 imprime `ab`/`xyz` == oracle JVM sob wasmtime v49.0.2); antes a 15.3b POUSADA 07/10 (`println(String)` de LITERAL via data segments + `kof.writeString`, paridade de stdout com oracle JVM sob wasmtime); antes a fatia 1 da 15.3 POUSADA 07/10 (lane `192.168.15.101:9092`) — `Target.WASI` EMITE um modulo WASI-preview1: `main` -> `_start`, `println` escalar -> `fd_write` (WasmWasiE2ETest 3/3, stdout == oracle JVM sob wasmtime); antes a 15.2 — o backend `wasm` emite o SUBSET ESCALAR: funções top-level `Int/Long/Double/Bool/Char`, binário WebAssembly direto (`WasmBackend`/`WasmBinary`/`WasmInstr`), Int=i64 (D-WASM-02), dispatcher `loop $dispatch` + `$pc`; executado + validado sob wasmtime v49.0.2 / wasm-tools 1.261.0 (`WasmScalarE2ETest` 3/3, oráculo = o mesmo programa na JVM). `WASI` segue `WASM001`; fora do subset (IO/coleções/records/void) recusa `WASM002` nomeando o plano + #776, SEM artefatos.
-doing: 15.3 continua — `args` via preview1 `args_sizes_get`/`args_get` (§14 do plano, 15.3c-fatiaB) em seguida; records/colecoes/GC-handle runtime depois; depois 15.4 flip.
-next: 15.3c-fatiaB (`args`) → runtime GC-handle (records/colecoes) → 15.4 flip do frontend-padrão POR ÚLTIMO (só com paridade total; o corte segue gated por #776 via `D-LAB-STABILITY`).
+last: 15.3c-fatiaB POUSADA 08/10 (`args` via `args_sizes_get`/`args_get` do preview1: `kof.readArgs` monta `[count][handle...]` de handles KofString no heap, argv[0] descartado p/ paridade JVM; `args.length` = `[arr]` + `i64.extend_i32_s` (D-WASM-02); `args[i]` = trap explicito de limites (`i32.le_u` -> `unreachable`, nunca lixo); E2E `alpha beta` == oracle JVM; `WasmWasiE2ETest` 5/5); antes a 15.3c-fatiaA POUSADA 08/10 (VARIAVEIS + CONCATENACAO de String num bump heap `global 0`@16384, handles `[len][bytes]\n`; `kof.strLit`/`kof.strConcat`/`kof.writeStr`; `WasmWasiE2ETest` 3/3 imprime `ab`/`xyz` == oracle JVM sob wasmtime v49.0.2); antes a 15.3b POUSADA 07/10 (`println(String)` de LITERAL via data segments + `kof.writeString`, paridade de stdout com oracle JVM sob wasmtime); antes a fatia 1 da 15.3 POUSADA 07/10 (lane `192.168.15.101:9092`) — `Target.WASI` EMITE um modulo WASI-preview1: `main` -> `_start`, `println` escalar -> `fd_write` (WasmWasiE2ETest 3/3, stdout == oracle JVM sob wasmtime); antes a 15.2 — o backend `wasm` emite o SUBSET ESCALAR: funções top-level `Int/Long/Double/Bool/Char`, binário WebAssembly direto (`WasmBackend`/`WasmBinary`/`WasmInstr`), Int=i64 (D-WASM-02), dispatcher `loop $dispatch` + `$pc`; executado + validado sob wasmtime v49.0.2 / wasm-tools 1.261.0 (`WasmScalarE2ETest` 3/3, oráculo = o mesmo programa na JVM). `WASI` segue `WASM001`; fora do subset (IO/coleções/records/void) recusa `WASM002` nomeando o plano + #776, SEM artefatos.
+doing: 15.3 continua — runtime GC-handle (records/colecoes) em seguida; `println(array)`/for-in/`.length` em String seguem recusando `WASM002`; depois 15.4 flip.
+next: runtime GC-handle (records/colecoes) → 15.4 flip do frontend-padrão POR ÚLTIMO (só com paridade total; o corte segue gated por #776 via `D-LAB-STABILITY`).
 location: docs/development/wasm-wasi-plan.pt_BR.md
 state: EM DESENVOLVIMENTO
 
@@ -188,13 +188,35 @@ no tip remoto `45d839322` SEM nenhum codigo da lane WASI; lane dona
   mista escalar+string+concat imprime EXATAMENTE o stdout do oracle JVM
   (`3/-42/0/55/true/false/14/oi/hello kof/ab/xyz`) sob wasmtime v49.0.2, modulo valida com
   `wasm-tools`, exit 0; `WasmTargetGateE2ETest` 5/5 + `WasmScalarE2ETest` 3/3 +
-  `TargetMatrixTest` 10/10 verdes. `println(args)`/`args[0]`/records/colecoes seguem
-  recusando `WASM002` nomeando plano + #776 sem artefatos (Q7). Restante da 15.3: `args`
-  via `args_sizes_get`/`args_get` (§14 do plano, 15.3c-fatiaB), depois o runtime de
-  GC-handle para records/colecoes, e o flip 15.4 POR ULTIMO. MEDIDO 08/10: a suite completa dos 4 modulos no tip `898bc50ab` + esta fatia = 8F + 2 flakes, TODOS externos/ambientais e stash-prova independentes da lane WASI: §625 `Av1CoeffsE2ETest` (2F, CORRIGIDA 08/10 pela lane `.30:9092` — zera slots stale do prologue) + §627 `KofTestingE2ETest` assert-float (2F, novo catalogo) + §628 `JvmLauncherDiagnosticE2ETest` (3F deterministas no tip LIMPO — o `ExternalArgTighten` do §554 quebra as fixtures de pipe, dona compilador/interop) + JavaFX ambiental (1F) + flakes de carga `InteropTimeoutE2ETest` (2F, VERDES isolados). Fila viva 3->5 (5->4 apos a correcao do §625).
+  `TargetMatrixTest` 10/10 verdes. Na epoca `args` ainda recusava; pousou no MESMO DIA
+  como 15.3c-fatiaB abaixo (records/colecoes ficam; flip 15.4 POR ULTIMO). MEDIDO 08/10: a suite completa dos 4 modulos no tip `898bc50ab` + esta fatia = 8F + 2 flakes, TODOS externos/ambientais e stash-prova independentes da lane WASI: §625 `Av1CoeffsE2ETest` (2F, CORRIGIDA 08/10 pela lane `.30:9092` — zera slots stale do prologue) + §627 `KofTestingE2ETest` assert-float (2F, novo catalogo) + §628 `JvmLauncherDiagnosticE2ETest` (3F deterministas no tip LIMPO — o `ExternalArgTighten` do §554 quebra as fixtures de pipe, dona compilador/interop) + JavaFX ambiental (1F) + flakes de carga `InteropTimeoutE2ETest` (2F, VERDES isolados). Fila viva 3->5 (5->4 apos a correcao do §625).
 
 
-- **Emenda (07/10, lane `192.168.15.101:9092`, 15.1-COMPLETA):** o passo do
+- - **Fatia 15.3c-fatiaB POUSADA (08/10, lane `192.168.15.101:9092`):** `args` — um
+  programa que toca `args` ganha prologo `kof.readArgs` no `_start`: WASI-preview1
+  `args_sizes_get(&argc@48,&argv_buf_size@52)`, bump-aloca a TABELA de ponteiros
+  (`argc*4`) e o BUFFER NUL (`sz`) no `global 0`, chama `args_get` e converte cada
+  `argv[i+1]` (argv[0] = nome do programa, DESCARTADO p/ paridade JVM) num handle
+  KofString `[len][bytes]\n` no heap (strlen + `copyInto`), devolvendo handle de
+  array `[count][handle...]`. `args.length` reduz a `i32.load` de `[arr]` +
+  `i64.extend_i32_s` (Int = i64, D-WASM-02); `args[i]` reduz a `i32.wrap_i64` do
+  indice com bounds-check EXPLICITO (`count <= idx` via `i32.le_u` -> `unreachable`)
+  — fora de limites e trap DETERMINISTICO, NUNCA leitura de lixo (modelo de excecao
+  D-WASM-03 segue TBD); `println(args[i])` e `args[i] + "x"` usam o runtime de String
+  da 15.3c-fatiaA (`kof.writeStr`/`kof.strConcat`). Prova: `WasmWasiE2ETest` 5/5 sob
+  wasmtime v49.0.2 — `argsLengthIndexAndConcatMatchTheJvmOracle` compila a MESMA
+  fonte para JVM e WASI, roda as duas com `alpha beta` e exige stdout byte-a-byte
+  identico (`2/alpha/beta/alpha-beta`); `emptyArgsLengthMatchesJvmAndOobIndexTraps`
+  pinta `args.length == 0` sem argv e exit NAO-ZERO do wasmtime para `args[7]`
+  (`unreachable` explicito, exit 134 medido); face de recusa re-pinnada: `println(args)`
+  (formato de array) e `for (a in args)` seguem `WASM002` nomeando plano + #776 sem
+  artefatos. Higiene de gate: o split cobrado pelo `check_500` pousou COM esta fatia —
+  `WasmBackend` 629 -> 204 (so assembly do modulo), lowering/dispatcher/Ctx extraidos
+  para `WasmLowering` (447), `kof.readArgs` + `copyInto` vivem em `WasmArgsRuntime`
+  (192), `WasmStdoutRuntime` 503 -> 329; puro movimento de codigo, bateria WASI verde
+  depois. MEDIDO 08/10 (arvore pos-split + pos-correcao §625): <pendente>
+
+**Emenda (07/10, lane `192.168.15.101:9092`, 15.1-COMPLETA):** o passo do
   enum NÃO ficou adiado — o roadmap TIER 15 define a própria 15.1 como
   enum+encanamento (ordem da mantenedora `D-WEB-WASI-DEFAULT-0710`, que
   promoveu este plano). `Target.WASM`/`Target.WASI` agora EXISTEM: as formas
