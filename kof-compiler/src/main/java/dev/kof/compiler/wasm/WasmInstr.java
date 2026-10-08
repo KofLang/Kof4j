@@ -105,9 +105,10 @@ public abstract sealed class WasmInstr permits WasmInstr.Const, WasmInstr.Local,
         }
     }
 
-    /** i32 load/store com memarg estatico (host 15.3: iovec + nwritten). */
+    /** load/store com memarg estatico (host 15.3: iovec + nwritten; 15.3d: slots i64). */
     public static final class Mem extends WasmInstr {
         public static final int LOAD = 0x28, STORE = 0x36, LOAD8U = 0x2d;
+        public static final int LOAD64 = 0x29, STORE64 = 0x37;
         public final int op;
         public final int offset;
 
@@ -115,14 +116,28 @@ public abstract sealed class WasmInstr permits WasmInstr.Const, WasmInstr.Local,
 
         @Override public void encode(java.io.ByteArrayOutputStream out, java.util.Map<String, Integer> f) {
             out.write(op);
-            WasmBinary.writeUleb(out, op == LOAD8U ? 0 : 2); // byte align=0, i32 align=2
+            WasmBinary.writeUleb(out, align()); // byte 0, i32 2, i64 3
             WasmBinary.writeUleb(out, offset);
+        }
+
+        private int align() {
+            return switch (op) {
+                case LOAD8U -> 0;
+                case LOAD64, STORE64 -> 3;
+                default -> 2;
+            };
         }
 
         @Override public void wat(StringBuilder sb, int n) {
             pad(sb, n);
-            sb.append(op == LOAD ? "(i32.load offset=" : "(i32.store offset=")
-              .append(offset).append(")\n");
+            String name = switch (op) {
+                case LOAD -> "(i32.load offset=";
+                case STORE -> "(i32.store offset=";
+                case LOAD64 -> "(i64.load offset=";
+                case STORE64 -> "(i64.store offset=";
+                default -> "(i32.load8_u offset=";
+            };
+            sb.append(name).append(offset).append(")\n");
         }
     }
 

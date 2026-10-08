@@ -126,8 +126,14 @@ final class WasmLowering {
     // lowering por funcao
     // ------------------------------------------------------------------
 
+    private static boolean isI64Field(Type t) {
+        return t instanceof Type.PrimitiveType pt
+                && ("int".equalsIgnoreCase(pt.name()) || "long".equalsIgnoreCase(pt.name()));
+    }
+
     static WasmFunc lowerMethod(IRMethod m, boolean wasi, boolean printIntrinsic,
-            boolean argsHandle, Map<String, Integer> stringPool, List<WasmData> dataSegments) {
+            boolean argsHandle, Map<String, Integer> stringPool, List<WasmData> dataSegments,
+            Map<String, ClassLayout> records) {
         List<Integer> params = new ArrayList<>();
         Map<Integer, Integer> slotMap = new LinkedHashMap<>();
         int jvmSlot = 0;
@@ -146,6 +152,8 @@ final class WasmLowering {
             slotMap.put(lv.index(), nextWasm);
             if (argsHandle && lv.index() == 0) {
                 locals.add(WasmFunc.TYPE_I32); // args = handle de array no heap (15.3c-sliceB)
+            } else if (lv.type() instanceof Type.ClassType ct && records != null && records.containsKey(ct.name())) {
+                locals.add(WasmFunc.TYPE_I32); // record = handle no heap (15.3d)
             } else {
                 locals.add(mapType(typeName(lv.type()), m.name(), "local " + lv.name()));
             }
@@ -157,8 +165,17 @@ final class WasmLowering {
             locals.add(WasmFunc.TYPE_I32); // scratch w
             sIdx = nextWasm + 1;
             locals.add(WasmFunc.TYPE_I32); // scratch s
+            nextWasm += 2;
         }
-        final int pcIdx = nextWasm + ("_start".equals(m.name()) ? 2 : 0);
+        int objIdx = -1, vIdx = -1;
+        if (records != null && !records.isEmpty()) {
+            objIdx = nextWasm;
+            locals.add(WasmFunc.TYPE_I32); // scratch obj (handle)
+            vIdx = nextWasm + 1;
+            locals.add(WasmFunc.TYPE_I64); // scratch v (valor i64)
+            nextWasm += 2;
+        }
+        final int pcIdx = nextWasm;
         locals.add(WasmFunc.TYPE_I32); // $pc
         List<Integer> results = new ArrayList<>();
         if (m.returnType() instanceof Type.PrimitiveType pr && !"void".equalsIgnoreCase(pr.name())) {
@@ -182,9 +199,11 @@ final class WasmLowering {
             }
         }
 
-        Ctx ctx = new Ctx(slotMap, pcIdx, labelToBlock, m.name(), stringPool, dataSegments);
+        Ctx ctx = new Ctx(slotMap, pcIdx, labelToBlock, m.name(), stringPool, dataSegments, records);
         ctx.wIdx = wIdx;
         ctx.sIdx = sIdx;
+        ctx.objIdx = objIdx;
+        ctx.vIdx = vIdx;
         ctx.wasi = wasi && printIntrinsic;
         List<WasmInstr> body = new ArrayList<>();
         if (argsHandle) {
@@ -213,20 +232,30 @@ final class WasmLowering {
         final String funcName;
         final Map<String, Integer> stringPool;
         final List<WasmData> dataSegments;
+        final Map<String, ClassLayout> records;
         int dataNext = DATA_BASE;
         int wIdx = -1, sIdx = -1;
+        int objIdx = -1, vIdx = -1;
         boolean wasi;
         String lastPush;
 
         Ctx(Map<Integer, Integer> slotMap, int pcIdx,
                 Map<Integer, Integer> labelToBlock, String funcName,
-                Map<String, Integer> stringPool, List<WasmData> dataSegments) {
+                Map<String, Integer> stringPool, List<WasmData> dataSegments,
+                Map<String, ClassLayout> records) {
             this.slotMap = slotMap;
             this.pcIdx = pcIdx;
             this.labelToBlock = labelToBlock;
             this.funcName = funcName;
             this.stringPool = stringPool;
             this.dataSegments = dataSegments;
+            this.records = records;
+        }
+
+        /** record IR alcancado nesta fatia (15.3d); null = fora do subset. */
+        ClassLayout recordOf(Type t) {
+            if (records == null || !(t instanceof Type.ClassType ct)) return null;
+            return records.get(ct.name());
         }
         int internString(String str) {
             Integer a = stringPool.get(str);
@@ -364,6 +393,46 @@ final class WasmLowering {
         } else if (op instanceof KofUnary un) {
             emitUnary(un, out);
             ctx.lastPush = typeName(un.operandType());
+        } else if (op instanceof KofNewObject no) {
+            ClassLayout layout = ctx.recordOf(no.type());
+            if (layout == null || ctx.objIdx < 0) {
+                throw new WasmUnsupportedException("alocacao de '" + no.type()
+                        + "' fora do subset de records da 15.3d (WASM002) — docs/development/wasm-wasi-plan.md (#776)");
+            }
+            // 15.3d incremento 1: slots de 8 bytes gravados como i64 — so campos
+            // Int/Long; String/Bool/Char/Double/record (i32/f64 no stack) recusam
+            // honesto (WASM002, SEM artefato) em vez de emitir modulo invalido (Q7).
+            for (FieldLayout f : layout.fields()) {
+                if (!isI64Field(f.type())) {
+                    throw new WasmUnsupportedException("record '" + no.type() + "' campo '" + f.name()
+                            + "' de tipo '" + typeName(f.type()) + "' fora do incremento 1 da 15.3d (WASM002)"
+                            + " — campos nao-Int/Long chegam com o toString/equals (incremento 2);"
+                            + " docs/development/wasm-wasi-plan.md (#776)");
+                }
+            }
+            // h = global 0; global 0 += totalSize; empilha h
+            out.add(new WasmInstr.Global(WasmInstr.Global.GET, 0));
+            out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.objIdx, "obj"));
+            out.add(new WasmInstr.Global(WasmInstr.Global.GET, 0));
+            out.add(new WasmInstr.Const(0, layout.totalSize()));
+            out.add(new WasmInstr.Simple(0x6a, "i32.add"));
+            out.add(new WasmInstr.Global(WasmInstr.Global.SET, 0));
+            out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.objIdx, "obj"));
+            ctx.lastPush = "record";
+        } else if (op instanceof KofDup) {
+            // no-op no contexto de construtor de record: o handle colocado pelo
+            // KofNewObject permanece na base da pilha e sera consumido pelo KofStoreLocal
+        } else if (op instanceof KofLoadField lf) {
+            ClassLayout layout = ctx.recordOf(lf.ownerType());
+            if (layout == null) {
+                throw new WasmUnsupportedException("leitura de campo '" + lf.name() + "' em tipo nao-record '"
+                        + lf.ownerType() + "' (WASM002) — docs/development/wasm-wasi-plan.md (#776)");
+            }
+            // pilha tem o receiver handle (i32) -> soma offset -> i64.load
+            out.add(new WasmInstr.Const(0, layout.fieldOffset(lf.name())));
+            out.add(new WasmInstr.Simple(0x6a, "i32.add"));
+            out.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD64, 0));
+            ctx.lastPush = typeName(lf.fieldType());
         } else if (op instanceof KofPop) {
             out.add(new WasmInstr.Simple(0x1a, "drop"));
         } else if (op instanceof KofArrayLength) {
@@ -399,7 +468,22 @@ final class WasmLowering {
                 && ctx.wasi && "System".equals(ownerSimpleName(gs.ownerType())) && "out".equals(gs.name())) {
             // receiver do println — nao empilha nada; a rota println consome so o argumento
         } else if (op instanceof KofCall kc) {
-            if (ctx.wasi && "kof_string_concat".equals(kc.methodName())) {
+            if (ctx.wasi && kc.kind() == KofCallKind.CONSTRUCTOR && "<init>".equals(kc.methodName())
+                    && ctx.recordOf(kc.ownerType()) != null) {
+                // armazena os argumentos empilhados nos offsets do ClassLayout (ordem reversa)
+                ClassLayout layout = ctx.recordOf(kc.ownerType());
+                List<FieldLayout> fls = layout.fields();
+                for (int fi = fls.size() - 1; fi >= 0; fi--) {
+                    FieldLayout f = fls.get(fi);
+                    out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.vIdx, "v"));
+                    out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.objIdx, "obj"));
+                    out.add(new WasmInstr.Const(0, f.offset()));
+                    out.add(new WasmInstr.Simple(0x6a, "i32.add"));
+                    out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.vIdx, "v"));
+                    out.add(new WasmInstr.Mem(WasmInstr.Mem.STORE64, 0));
+                }
+                ctx.lastPush = "record";
+            } else if (ctx.wasi && "kof_string_concat".equals(kc.methodName())) {
                 out.add(new WasmInstr.Call("kof.strConcat")); // a+b de strings (15.3c)
                 ctx.lastPush = "string";
             } else if (ctx.wasi && "valueOf".equals(kc.methodName())

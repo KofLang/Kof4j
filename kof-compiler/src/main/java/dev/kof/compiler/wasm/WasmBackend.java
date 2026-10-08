@@ -77,6 +77,15 @@ public class WasmBackend implements Backend {
         // println e um builtin do compilador em TODOS os backends (JsCallEmitter/
         // ExpressionPrintLowerer); nunca sombreavel por declaracao de usuario
         boolean printIntrinsic = wasi;
+        // records da 15.3d: classe cujo superName e java/lang/Record; o handle e um
+        // bloco no bump heap com o layout do ClassLayout (slots de 8 bytes)
+        Map<String, ClassLayout> records = new java.util.LinkedHashMap<>();
+        for (IRClass clazz : module.classes()) {
+            if (!"java/lang/Record".equals(clazz.superName())) continue;
+            String simple = clazz.name().substring(clazz.name().lastIndexOf('/') + 1);
+            records.put(simple, ClassLayout.build(clazz));
+        }
+        boolean usesRecords = !records.isEmpty();
         // fecho transitivo de chamadas a partir das entradas escalares: qualquer
         // declaracao FORA do subset que seja de fato alcancada recusa honesto
         // (WASM002) — helper injetado pela stdlib que o programa nao usa nao
@@ -95,6 +104,11 @@ public class WasmBackend implements Backend {
                     if (wasi && printIntrinsic && ("valueOf".equals(kc.methodName())
                             || "kof_string_concat".equals(kc.methodName()))) {
                         continue; // wrapper intrinseco (println / concat) tratado na emissao
+                    }
+                    if (wasi && usesRecords && kc.kind() == KofCallKind.CONSTRUCTOR
+                            && "<init>".equals(kc.methodName())
+                            && records.containsKey(ownerSimpleName(kc.ownerType()))) {
+                        continue; // construtor de record inlinado (15.3d)
                     }
                     boolean isPrintCall = wasi && printIntrinsic
                             && "println".equals(kc.methodName());
@@ -142,7 +156,7 @@ public class WasmBackend implements Backend {
 
         List<WasmFunc> funcs = new ArrayList<>();
         List<WasmFunc> lowered = new ArrayList<>();
-        for (IRMethod m : entries) lowered.add(lowerMethod(m, wasi, printIntrinsic, false, stringPool, dataSegments));
+        for (IRMethod m : entries) lowered.add(lowerMethod(m, wasi, printIntrinsic, false, stringPool, dataSegments, records));
         IRMethod startM = null;
         boolean usesArgs = false;
         if (wasi) {
@@ -180,9 +194,12 @@ public class WasmBackend implements Backend {
                 funcs.add(kofReadArgs());
                 globals = java.util.List.of(HEAP_BASE); // heap p/ handles de args
             }
+            if (usesRecords) {
+                globals = java.util.List.of(HEAP_BASE); // heap p/ blocos de record (15.3d)
+            }
         }
         funcs.addAll(lowered);
-        if (startM != null) funcs.add(lowerMethod(startM, true, printIntrinsic, usesArgs, stringPool, dataSegments));
+        if (startM != null) funcs.add(lowerMethod(startM, true, printIntrinsic, usesArgs, stringPool, dataSegments, records));
         List<WasmImport> imports;
         if (!wasi) {
             imports = List.of();

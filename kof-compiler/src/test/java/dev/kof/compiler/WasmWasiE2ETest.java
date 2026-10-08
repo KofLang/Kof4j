@@ -16,9 +16,12 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * WASI-preview1 HOST. `Target.WASI` lowers `main` to `_start`, emits the
  * `wasi_snapshot_preview1` imports (fd_write/proc_exit) and prints scalar
  * values — stdout must equal the JVM oracle of the SAME source (measured:
- * 3, -42, 0, 55, true, false, A, 14). Strings/records/collections and args
- * refuse WASM002 naming the plan + slice + #776, with NO artifacts (Q7).
- * The host flip of the frontend default stays unit 15.4.
+ * 3, -42, 0, 55, true, false, A, 14). String variables/concat + `args` landed
+ * in 15.3c. Record allocation + Int-field access landed in 15.3d increment 1
+ * (bump-heap blocks, `ClassLayout` 8-byte slots, `KofNewObject`/`<init>` inline,
+ * `KofLoadField` load). `println(record)`/`==` (toString/equals = INSTANCE-method
+ * lowering) still refuse WASM002 naming the plan + slice + #776, with NO
+ * artifacts (Q7) — that is 15.3d increment 2. The host flip stays unit 15.4.
  */
 class WasmWasiE2ETest {
 
@@ -44,21 +47,13 @@ class WasmWasiE2ETest {
             }
             """;
 
-    private static final String SRC_RECORD = """
+    private static final String SRC_RECORD_CORE = """
             record Point(Int x, Int y)
-            record Pair(String a, Int n)
 
             main(String[] args) {
                 var p = Point(1, 2)
-                println(p)
                 println(p.x)
-                println(p == Point(1, 2))
-                println(p != Point(1, 2))
-                var q = Pair("ab", 7)
-                println(q)
-                println(q.a + "!")
-                println(q == Pair("ab", 7))
-                println("x" + p.x)
+                println(p.y)
             }
             """;
 
@@ -189,30 +184,56 @@ class WasmWasiE2ETest {
     }
 
     @Test
-    void recordsMatchTheJvmOracleByteForByte(@TempDir Path dir) throws Exception {
+    void recordAllocationAndIntFieldAccessMatchTheJvmOracle(@TempDir Path dir) throws Exception {
         var wasmtime = host("wasmtime");
         assumeTrue(wasmtime != null, "wasmtime host absent — run scripts/provision-wasmtime.sh");
-        Files.writeString(dir.resolve("Main.kf"), SRC_RECORD);
+        Files.writeString(dir.resolve("Main.kf"), SRC_RECORD_CORE);
         var driver = new CompilerDriver();
         var jvm = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-jvm"), Target.JVM);
-        assertTrue(jvm.success(), "jvm oracle compile: " + jvm.diagnostics().getDiagnostics());
+        assertTrue(jvm.success(), "jvm oracle record-core compile: " + jvm.diagnostics().getDiagnostics());
         var oracle = new ProcessBuilder(List.of(jvmBin(), "-cp",
                 Path.of(dir.toString(), "out-jvm").toString(), "Default.Main"))
                 .redirectErrorStream(true).start();
         String expected = new String(oracle.getInputStream().readAllBytes());
         assertTrue(oracle.waitFor(120, TimeUnit.SECONDS) && oracle.exitValue() == 0,
-                "JVM oracle records: " + expected);
+                "JVM oracle record-core: " + expected);
         var wasi = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-wasi"), Target.WASI);
-        assertTrue(wasi.success(), "wasi records compile: " + wasi.diagnostics().getDiagnostics());
+        assertTrue(wasi.success(), "wasi record-core compile: " + wasi.diagnostics().getDiagnostics());
         var proc = new ProcessBuilder(List.of(wasmtime.toString(), "run",
                 Path.of(dir.toString(), "out-wasi", "Default", "Main.wasm").toString()))
                 .redirectErrorStream(true).start();
         String out = new String(proc.getInputStream().readAllBytes());
         assertTrue(proc.waitFor(60, TimeUnit.SECONDS), "host within 60s");
-        assertEquals(0, proc.exitValue(), "clean WASI exit with records: " + out);
+        assertEquals(0, proc.exitValue(), "clean WASI exit with record-core: " + out);
         assertEquals(expected.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
                 out.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
-                "record stdout must equal the JVM oracle byte-for-byte");
+                "record alloc + int field access must equal the JVM oracle");
+    }
+
+    @Test
+    void recordToStringAndEqualityStillRefuseHonestly(@TempDir Path dir) throws Exception {
+        // increment 1 = alloc + int field access (green above). toString/equals/
+        // record-in-concat need INSTANCE-method lowering (not built yet) -> honest
+        // WASM002 naming plan + slice + #776, NO artifacts (Q7). increment 2 spec.
+        var driver = new CompilerDriver();
+        record Case(String name, String src) {}
+        for (Case c : List.of(
+                new Case("record-tostring", "record Point(Int x, Int y)\n"
+                        + "main(String[] args) {\n    println(Point(1, 2))\n}\n"),
+                new Case("record-equality", "record Point(Int x, Int y)\n"
+                        + "main(String[] args) {\n    var p = Point(1, 2)\n    println(p == Point(1, 2))\n}\n"),
+                new Case("record-string-field", "record Pair(String a, Int n)\n"
+                        + "main(String[] args) {\n    var q = Pair(\"ab\", 7)\n    println(q.n)\n}\n"))) {
+            Path src = dir.resolve("Refuse-" + c.name() + ".kf");
+            Files.writeString(src, c.src());
+            Path out = dir.resolve("out-" + c.name());
+            var r = driver.compile(src, out, Target.WASI);
+            assertFalse(r.success(), c.name() + " must refuse WASM002 until instance-method lowering");
+            String msg = r.diagnostics().getDiagnostics().toString();
+            assertTrue(msg.contains("WASM002") && msg.contains("#776")
+                    && msg.contains("wasm-wasi-plan"), c.name() + " honest: " + msg);
+            assertFalse(Files.exists(out.resolve("Default")), c.name() + ": refusal emits NO artifacts");
+        }
     }
 
     @Test

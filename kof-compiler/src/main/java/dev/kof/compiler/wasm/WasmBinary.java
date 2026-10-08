@@ -114,15 +114,20 @@ public final class WasmBinary {
             exportItems.add(bytes(str(f.name()), new byte[]{0x00}, uleb(funcIdx.get(f.name()))));
         }
         exportItems.add(bytes(str("memory"), new byte[]{0x02}, uleb(0)));
-        // 3) code: locals agrupan por tipo; corpo resolve `call` por nome
+        // 3) code: locals agrupam runs CONSECUTIVOS do mesmo tipo (a ordem dos
+        // indices e a ordem de insercao — o lowering atribui indices por posicao,
+        // entao nao se pode reordenar por tipo sem deslocar o corpo); corpo
+        // resolve `call` por nome
         List<byte[]> codeItems = new ArrayList<>();
         for (WasmFunc f : m.funcs()) {
-            Map<Integer, Integer> counts = new LinkedHashMap<>();
-            for (int t : f.locals()) counts.merge(t, 1, Integer::sum);
             List<byte[]> groups = new ArrayList<>();
-            for (var e : counts.entrySet()) {
-                groups.add(bytes(uleb(e.getValue()), new byte[]{(byte) (int) e.getKey()}));
+            int runType = -1, runCount = 0;
+            for (int t : f.locals()) {
+                if (t == runType) { runCount++; continue; }
+                if (runCount > 0) groups.add(bytes(uleb(runCount), new byte[]{(byte) runType}));
+                runType = t; runCount = 1;
             }
+            if (runCount > 0) groups.add(bytes(uleb(runCount), new byte[]{(byte) runType}));
             var body = new ByteArrayOutputStream();
             body.writeBytes(vec(groups));
             for (WasmInstr in : f.instrs()) in.encode(body, funcIdx);
