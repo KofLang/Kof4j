@@ -137,6 +137,36 @@ public final class JvmTypeMapper {
     }
 
     /**
+     * §597 residual (D-MAINT-BATCH-0510/TY1): {@code TypeChecker.runtimeClassRelation}
+     * compara dois builtins pela classe de runtime que sua ERASÃO JVM carrega.
+     * Alguns builtins (ProcessResult/Buffer/Secret/KeyHandle/InteropError)
+     * apagam para classes ANINHADAS de {@code KofRuntime} — que o compilador
+     * GERA por-output e que, portanto, NÃO estão no classpath do próprio
+     * compilador: {@code Class.forName} devolve null e a relação fica
+     * conservadora (aceita), então `Result r = "x"`/`Long -> Result` seguiam
+     * compilando limpo e morriam no load com `NoClassDefFoundError`.
+     *
+     * <p>Devolve o nome interno da SUPERCLASSE real da classe de runtime
+     * gerada (lida da fonte canônica em {@code Jvm*Runtime}) para esses
+     * descritores; {@code null} para qualquer outro (descritor JDK/sintético),
+     * preservando a via {@code Class.forName} existente. As cinco classes
+     * mapeadas só estendem Object/RuntimeException e não implementam
+     * interfaces, então a superclasse decide a hierarquia por completo.
+     */
+    public static String generatedRuntimeSuperInternalName(String internalName) {
+        return switch (internalName) {
+            // Buffer/Secret/KeyHandle/ProcessResult: `public static final class X {`
+            case "dev/kof/runtime/KofRuntime$Buffer",
+                 "dev/kof/runtime/KofRuntime$Secret",
+                 "dev/kof/runtime/KofRuntime$KeyHandle",
+                 "dev/kof/runtime/KofRuntime$ProcessResult" -> "java/lang/Object";
+            // JvmInteropErrorRuntime: `class InteropError extends RuntimeException`
+            case "dev/kof/runtime/KofRuntime$InteropError" -> "java/lang/RuntimeException";
+            default -> null;
+        };
+    }
+
+    /**
      * Assinatura genérica (atributo Signature do class file) de um tipo —
      * preserva os type-arguments que o descriptor apaga. Emitida em campos e
      * record components para que `Field.getGenericType()`/

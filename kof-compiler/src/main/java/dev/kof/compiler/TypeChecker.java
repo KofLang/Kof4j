@@ -1,5 +1,6 @@
 package dev.kof.compiler;
 
+import dev.kof.compiler.jvm.JvmTypeMapper;
 import java.util.List;
 
 /**
@@ -274,14 +275,47 @@ public final class TypeChecker {
     private static Boolean runtimeClassRelation(Type.ClassType from, Type.ClassType to) {
         Class<?> f = loadRuntimeClass(from);
         Class<?> t = loadRuntimeClass(to);
-        if (f == null || t == null) return null;
-        return t.isAssignableFrom(f);
+        if (f != null && t != null) return t.isAssignableFrom(f);
+        // §597 residual (D-MAINT-BATCH-0510/TY1): os builtins que apagam para
+        // classes ANINHADAS de `KofRuntime` (ProcessResult/Buffer/Secret/
+        // KeyHandle/InteropError) NÃO estão no classpath do compilador — o
+        // `KofRuntime` é gerado por-output e compilado com `javac` só na
+        // emissão. `Class.forName` devolve null e a relação ficava
+        // conservadora: `Result r = "x"` e `Long -> Result` compilavam limpo e
+        // morriam no load com `NoClassDefFoundError`. Resolvemos a superclasse
+        // real da classe gerada pelo registro canônico
+        // (`JvmTypeMapper.generatedRuntimeSuperInternalName`); as cinco classes
+        // só estendem Object/RuntimeException e não implementam interface, então
+        // a cadeia de superclasse decide a hierarquia por completo.
+        String fi = erasureInternalName(from);
+        String ti = erasureInternalName(to);
+        String fSuper = JvmTypeMapper.generatedRuntimeSuperInternalName(fi);
+        String tSuper = JvmTypeMapper.generatedRuntimeSuperInternalName(ti);
+        if (fSuper == null && tSuper == null) return null;
+        if (fi != null && fi.equals(ti)) return true;
+        // `from -> to`: `to` gerado só pode ser atribuído de si mesmo (acima);
+        // nenhuma outra classe gerada o estende. `from` gerado conforma-se a
+        // `to` quando a superclasse real de `from` conforma.
+        if (tSuper != null) return false;
+        Class<?> fromSuper = loadInternalName(fSuper);
+        if (fromSuper == null) return null;
+        if (t != null) return t.isAssignableFrom(fromSuper);
+        return null;
+    }
+
+    /** Erasure internal name (`a/b/C`) de um ClassType, ou null. */
+    private static String erasureInternalName(Type.ClassType ct) {
+        try {
+            return JvmTypeMapper.toInternalName(ct.packageName(), ct.name());
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     private static Class<?> loadRuntimeClass(Type.ClassType ct) {
         String descriptor;
         try {
-            descriptor = dev.kof.compiler.jvm.JvmTypeMapper.classDescriptor(ct);
+            descriptor = JvmTypeMapper.classDescriptor(ct);
         } catch (Throwable t) {
             return null;
         }
@@ -289,7 +323,11 @@ public final class TypeChecker {
                 || descriptor.charAt(0) != 'L' || descriptor.charAt(descriptor.length() - 1) != ';') {
             return null;
         }
-        String internal = descriptor.substring(1, descriptor.length() - 1);
+        return loadInternalName(descriptor.substring(1, descriptor.length() - 1));
+    }
+
+    private static Class<?> loadInternalName(String internal) {
+        if (internal == null) return null;
         try {
             return Class.forName(internal.replace('/', '.'), false,
                     TypeChecker.class.getClassLoader());
