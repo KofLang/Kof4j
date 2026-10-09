@@ -1,5 +1,8 @@
 package image
 
+import image.Av1Block
+import image.Av1Tx
+
 // kof.image — AV1 coefficient context selection (slice 3d of the AVIF front,
 // plan §34). The functions the tile coefficient walk (`coeffs()`,
 // §5.11.39 / AV1 §6.4.3) calls to pick which entropy CDF a symbol uses:
@@ -269,4 +272,124 @@ Int av1DcSignCtx(Int dcSign) {
         return 2
     }
     return 0
+}
+
+// The per-block entropy context stored after decoding a transform block and
+// read back by the neighbours' context selection: the block's `culLevel`
+// (already the coefficient walk's 0..63 sum) reduced to the low 3 bits
+// (COEFF_CONTEXT_MASK = 7) with the DC sign packed on top — bit 3 set when the
+// DC coefficient is negative, and `+2 << 3` when positive (libaom
+// `set_dc_sign` / `av1_get_txb_entropy_context`, `av1/encoder/encodetxb.c`).
+// `dcCategory` is the coefficient walk's 0/1/2 DC category (0 = none,
+// 1 = negative, 2 = positive).
+Int av1TxbEntropyContext(Int culLevel, Int dcCategory) {
+    var cul = culLevel
+    if (cul > 7) {
+        cul = 7
+    }
+    if (dcCategory == 1) {
+        return cul + 8
+    }
+    if (dcCategory == 2) {
+        return cul + 16
+    }
+    return cul
+}
+
+// The coefficient entropy-context selection `get_txb_ctx` (libaom
+// `av1/common/txb_common.h`, the spec's `all_zero`/`dc_sign` neighbour rules):
+// from the above/left per-4x4-unit entropy contexts of the plane residual
+// block, returns `[ allZeroCtx, dcSignCtx ]`.
+//
+//   - `above`/`left` are the neighbour entropy-context bytes (as produced by
+//     `av1TxbEntropyContext`); the first `txbWUnit`/`txbHUnit` entries are read
+//     (the transform block's width/height in 4x4 units).
+//   - `planeBsize` is the plane residual block size index, `txSz` the transform
+//     size, `plane` 0 = luma.
+//
+// The DC sign is the sum of the neighbour DC signs (`above` then `left`) mapped
+// through `kTxbCtxSigns` and `kTxbCtxDcSignContexts`; luma's `all_zero` uses
+// the spec `Max()` categories, chroma's adds the `get_entropy_context` OR of
+// the neighbours plus the block-bigger offset (7 or 10).
+List<Int> av1TxbCtx(Int[] above, Int[] left, Int txbWUnit, Int txbHUnit,
+                    Int planeBsize, Int txSz, Int plane) {
+    var dcSign = 0
+    var k = 0
+    while (k < txbWUnit) {
+        var sign = above[k] >> 3
+        if (sign == 1) {
+            dcSign = dcSign - 1
+        }
+        if (sign == 2) {
+            dcSign = dcSign + 1
+        }
+        k = k + 1
+    }
+    k = 0
+    while (k < txbHUnit) {
+        var sign = left[k] >> 3
+        if (sign == 1) {
+            dcSign = dcSign - 1
+        }
+        if (sign == 2) {
+            dcSign = dcSign + 1
+        }
+        k = k + 1
+    }
+    var dcSignCtx = 0
+    if (dcSign < 0) {
+        dcSignCtx = 1
+    }
+    if (dcSign > 0) {
+        dcSignCtx = 2
+    }
+
+    var skipCtx = 0
+    if (plane == 0) {
+        if (planeBsize == av1TxSizeToBsize(txSz)) {
+            skipCtx = 0
+        } else {
+            var top = 0
+            k = 0
+            while (k < txbWUnit) {
+                var lvl = above[k] & 7
+                if (lvl > top) {
+                    top = lvl
+                }
+                k = k + 1
+            }
+            var lft = 0
+            k = 0
+            while (k < txbHUnit) {
+                var lvl = left[k] & 7
+                if (lvl > lft) {
+                    lft = lvl
+                }
+                k = k + 1
+            }
+            skipCtx = av1AllZeroCtxY(top, lft, av1BlockNum4x4Wide(planeBsize),
+                                     av1BlockNum4x4High(planeBsize),
+                                     txbWUnit, txbHUnit)
+        }
+    } else {
+        var aboveEc = 0
+        var leftEc = 0
+        k = 0
+        while (k < txbWUnit) {
+            if (above[k] != 0) {
+                aboveEc = 1
+            }
+            k = k + 1
+        }
+        k = 0
+        while (k < txbHUnit) {
+            if (left[k] != 0) {
+                leftEc = 1
+            }
+            k = k + 1
+        }
+        var bigger = av1BlockNumPelsLog2(planeBsize) > av1BlockNumPelsLog2(av1TxSizeToBsize(txSz))
+        skipCtx = av1AllZeroCtxUV(aboveEc == 1, leftEc == 1, bigger)
+    }
+    return listOf(skipCtx, dcSignCtx)
 }

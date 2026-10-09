@@ -95,6 +95,14 @@ Int av1BlockMaxTx(Int bs) {
     return listOf(0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 4, 0, 0, 1, 1, 2, 2).get(bs)
 }
 
+// txsize_to_bsize[ txSz ] (libaom `av1/common/common_data.h`): the square
+// block size whose width/height equals the transform size, used by the
+// coefficient entropy-context selection (`get_txb_ctx`) to detect the
+// block-fills-plane case.
+Int av1TxSizeToBsize(Int txSz) {
+    return listOf(0, 3, 6, 9, 12, 1, 2, 4, 5, 7, 8, 10, 11, 16, 17, 18, 19, 20, 21).get(txSz)
+}
+
 // Partition_Subsize[ p ][ bS ]; BLOCK_INVALID (22) when not allowed.
 Int av1BlockPartitionSubsize(Int p, Int bs) {
     var rows = listOf(
