@@ -1,0 +1,39 @@
+// kof.test.web — pacote virtual ADITIVO (kof-testing-platform-plan §5, terceira fatia;
+// D-MAINT-BATCH-0610B/B). Escrito EM KOF (D-KOF-FIRST item 12): o compilador injeta FLAT
+// no `import kof.test.web` EXPLICITO, mesmo mecanismo de kof.test/kof.test.db.
+//
+// Host SEPARADO do `kof.test` DE PROPOSITO (precedente `CompilerTestDb` vs `CompilerWeb`):
+// o helper depende de `kof.web` (app.listen, app.close) e de `kof.http` (http.get na sonda
+// de prontidao) e da primitiva spawn. Como `kof.test` e injetado FLAT inteiro, colocar
+// withServer la faria todo teste de unidade carregar a arvore web. O host isolado
+// `kof.test.web` mantem `kof.test` puro.
+//
+// Ciclo de vida de um servidor HTTP de teste, escrito EM KOF:
+//   app configurado com rotas -> withServer(app, port, body) -> app.close() no finally.
+// O teste nunca deixa portas abertas (regra §5: "Never leave processes or ports open").
+// O app ja vem configurado (rotas registradas) porque `app.listen` bloqueia: o helper
+// sobe o servidor numa tarefa `spawn`, espera a porta aceitar, roda o corpo e FECHA no
+// `finally` — inclusive quando o corpo lanca.
+Void withServer(kof.web.App app, Int port, (String) -> Void body) {
+    var h = spawn { app.listen(port) }
+    try {
+        var up = false
+        var attempts = 50
+        while (attempts > 0 && !up) {
+            try {
+                http.get("http://127.0.0.1:" + port + "/")
+                up = true
+            } catch (String e) {
+                time.sleep(20)
+                attempts = attempts - 1
+            }
+        }
+        if (!up) {
+            throw "server failed to start on port " + port
+        }
+        body("http://127.0.0.1:" + port)
+    } finally {
+        app.close()
+        await h
+    }
+}

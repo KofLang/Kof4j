@@ -10,8 +10,13 @@ import static org.junit.jupiter.api.Assertions.*;
  * Testes de paridade multi-target para strings.indent e strings.dedent.
  * Cobrindo JVM, KofJS e Native (x86_64 / cross).
  */
-class KofStringsIndentDedentTest implements NativeToolchainAssumptions {
+class KofStringsIndentDedentTest implements QemuRunSupport {
     private final CompilerDriver driver = new CompilerDriver();
+
+    @Override
+    public CompilerDriver driver() {
+        return driver;
+    }
 
     private static final String GOLDEN_SOURCE = """
         main() {
@@ -124,19 +129,6 @@ class KofStringsIndentDedentTest implements NativeToolchainAssumptions {
         int ec = p.waitFor();
         assertEquals(0, ec, "JS exit code: " + ec + ", output:\n" + output);
         assertEquals(expected, output);
-    }
-
-    private void runQemu(Path tempDir, Target target, String qemu, String source) throws Exception {
-        Path file = tempDir.resolve("Main-" + System.nanoTime() + ".kf");
-        Files.writeString(file, source);
-        Path outDir = tempDir.resolve("out-" + System.nanoTime());
-        CompilationResult result = driver.compile(file, outDir, target);
-        assertTrue(result.success(), target + " compile failed: " + result.diagnostics().getDiagnostics());
-        Path bin = outDir.resolve("Default/Main");
-        Process p = NativeRiscv64E2ETest.qemu(qemu.substring(5), bin).redirectErrorStream(true).start();
-        String output = new String(p.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).trim();
-        int ec = p.waitFor();
-        assertEquals(0, ec, target + " runtime exit " + ec + ", out: " + output);
     }
 
     private static Path findJsEntry(Path dir) throws java.io.IOException {

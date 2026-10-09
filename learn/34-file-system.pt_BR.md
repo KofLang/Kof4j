@@ -57,7 +57,7 @@ Path("data").resolve("users")    // data/users (ou data\users no Windows)
 | `readBytes()` | conteúdo como `Int[]` (bytes 0-255) |
 | `writeBytes(b)` / `appendBytes(b)` | grava / anexa bytes |
 | `size()` | tamanho em bytes |
-| `delete()` | remove (arquivo ou diretório vazio) |
+| `delete()` | remove (arquivo ou diretório — diretórios não-vazios apagam recursivamente em todo alvo desde 08/10) |
 | `name()` / `path()` | nome do arquivo / caminho |
 
 Não existem formas estáticas `File.…` — sempre construa o handle primeiro:
@@ -76,7 +76,7 @@ f.writeText("conteúdo")
 | `create()` | cria (falha se já existe) |
 | `createDirectories()` | cria recursivamente |
 | `list()` | `List<String>` com os nomes dos itens (ordenado) |
-| `delete()` | remove diretório vazio |
+| `delete()` | remove diretório, recursivamente se não-vazio (todos os alvos desde 08/10) |
 
 ```kof
 var dir = Directory("data")

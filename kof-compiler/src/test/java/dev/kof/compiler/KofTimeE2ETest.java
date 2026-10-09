@@ -15,9 +15,14 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * End-to-end tests for {@code kof.time} — sleep, now e scheduler.
  */
-class KofTimeE2ETest implements NativeToolchainAssumptions {
+class KofTimeE2ETest implements QemuRunSupport {
 
     private final CompilerDriver driver = new CompilerDriver();
+
+    @Override
+    public CompilerDriver driver() {
+        return driver;
+    }
 
     private static boolean has(String... cmds) {
         for (String c : cmds) {
@@ -509,23 +514,6 @@ class KofTimeE2ETest implements NativeToolchainAssumptions {
             runQemu(tempDir, Target.NATIVE_AARCH64, "qemu-aarch64", src);
         } else {
             Assumptions.assumeTrue(false, "toolchain aarch64 ausente");
-        }
-    }
-
-    private void runQemu(Path tempDir, Target target, String qemu, String kofSource)
-            throws IOException {
-        Path file = tempDir.resolve("Main-" + target + "-" + System.nanoTime() + ".kf");
-        Files.writeString(file, kofSource);
-        Path outDir = tempDir.resolve("qemu-" + target + "-" + System.nanoTime());
-        CompilationResult result = new CompilerDriver().compile(file, outDir, target);
-        assertTrue(result.success(), target + " compile: " + result.diagnostics().getDiagnostics());
-        Path bin = outDir.resolve("Default/Main");
-        try {
-            Process p = NativeRiscv64E2ETest.qemu(qemu.substring(5), bin).redirectErrorStream(true).start();
-            String output = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
-            assertEquals(0, p.waitFor(), target + " qemu exit, out: " + output);
-        } catch (InterruptedException e) {
-            throw new IOException("interrupted", e);
         }
     }
 

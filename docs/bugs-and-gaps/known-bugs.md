@@ -17346,7 +17346,7 @@ JVM/Script/Native printed `fin-inner`, `fin-outer`, `inner`. KofJS aborted: `Int
 
 <!-- pt-switch --> **PT:** [§616 (pt_BR)](known-bugs.pt_BR.md#616--shellrunprogram-args-recusava-um-listof-vazio-inline-sem025---corrigido-0610-dona--19216815309093-lane-issuestooling)
 
-## §618 — `Directory.delete()` deletes a non-empty directory recursively on JVM/Native but only an empty one on JS (returns `false`) — 🔴 OPEN 06/10 (owner = 192.168.15.30:9093; lane issues/tooling, `kof-testing-platform` §5 harness; contract decision needed)
+## §618 — `Directory.delete()` deletes a non-empty directory recursively on JVM/Native but only an empty one on JS (returns `false`) — ✅ FIXED 08/10 (owner = 192.168.15.15:9092; lane security/connectors, bugs-and-gaps front per maintainer order `D-MAINT-BATCH-0610`/B — maintainer chose (B) recursive-everywhere 08/10)
 
 **Symptom (measured 06/10, tip `e40e84c45`):** the same source `Directory(dir).delete()` returns `true` and removes the whole tree on JVM and on Native (x86-64, riscv64, aarch64), but returns `false` and leaves the directory (with its contents) on the **JS** target — measured with one file inside the directory: JVM/Native `true`/gone, JS `false`/present.
 
@@ -17357,8 +17357,10 @@ JVM/Script/Native printed `fin-inner`, `fin-outer`, `inner`. KofJS aborted: `Int
 **Fix shape (needs a maintainer decision — contract change, rule 6):** either (A) make JVM/Native delete only an empty directory (align the 3 targets to the documented contract; callers use a recursive helper), or (B) make JS recursive (align the contract to the JVM/Native behavior). The `kof.test` §5 harness does **not** wait for this: `withTempDir`/`removeTree` (pure Kof — `Directory.list()` + `File.delete()`) make cleanup identical on all four targets today, and `removeTree`'s docstring records this divergence. Decision required before changing either side.
 
 **Boundary:** runtime `kof_io_dir_delete` on JS vs JVM/Native plus the `IO.md`/`learn/34` contract. No parser/typer/lowering change. A fix in either direction must ship with a cross-target parity test (JVM ≡ Native ≡ JS) and the doc updated in the same commit.
+**Fix (08/10, this lane — option (B) as decided):** the JS bridge (`KofJsRunner` `dirDelete`) now walks reverse-order exactly like the JVM (`Files.walk` never follows symlinks; absent→`false` preserved). `docs/stdlib/IO.md` + `learn/34` contract updated to recursive-everywhere in the same commit.
+**Proof (RED-first):** new `IoDirDeleteJsParityE2ETest` **2/2** (non-empty tree + subdir + absent-dir faces; pre-fix the JS leg prints `false` with the tree surviving, post-fix the JVM golden `true/false/false` holds byte-identical on JS and Native x86-64; cross riscv64/aarch64 already pinned in `NativeIoDirDeleteCrossTest`).
 
-<!-- pt-switch --> **PT:** [§618 (pt_BR)](known-bugs.pt_BR.md#618--directorydelete-apaga-um-diretorio-nao-vazio-recursivamente-no-jvmnative-mas-so-um-vazio-no-js-devolve-false---aberto-0610-dona--19216815309093-lane-issuestooling-harness-5-do-kof-testing-platform-decisao-de-contrato)
+<!-- pt-switch --> **PT:** [§618 (pt_BR)](known-bugs.pt_BR.md#618--directorydelete-apaga-um-diretorio-nao-vazio-recursivamente-no-jvmnative-mas-so-um-vazio-no-js-devolve-false---corrigido-0810-dona--19216815159092-lane-securityconnectors-frente-bugs-and-gaps-por-ordem-da-mantenedora-d-maint-batch-0610b--mantenedora-escolheu-b-recursivo-em-tudo-0810)
 
 ## §619 — an uninitialized class field followed by a member that starts with `(` swallowed the `(` as the field's parameter list, so `String title` + `() -> Long src` died `PARSE016` — ✅ FIXED 07/10 (owner = 192.168.15.15:9092; lane security/connectors, graphics/gaming front)
 
@@ -17607,3 +17609,47 @@ affected; `SEM103` is new (highest previously used = `SEM102`).
 **Boundary:** translator-only, cross aarch64; RISC-V output untouched (it already used the 32-bit `amoswap.w`); x86 untouched. Not a semantics change — a codegen width correctness fix.
 
 <!-- pt-switch --> **PT:** [§631 (pt_BR)](known-bugs.pt_BR.md#631--o-tradutor-aarch64-renderizava-o-spinlock-de-32-bits-amoswapw-como-o-swpal-x-de-64-bits-escrevendo-os-4-bytes-vizinhos-do-lock-a-cada-aquisicao---corrigido-0810-achado-0810-pela-lane-compiladorjvmnativo-19216815309092-ao-estreitar-o-known-bugs-602-mesma-lane-tradutor-cross-sem-dono-em-curso)
+
+## §632 — a function-typed parameter whose component type is dotted (`(kof.web.App, String) -> Void`) emitted an invalid JVM descriptor `L(kof/web/App, String) -> Void;`, so loading `Main` died `NoClassDefFoundError` — ✅ FIXED 08/10 (lane issues/tooling `192.168.15.30:9093`, frontend type resolver, no owner EM CURSO)
+
+**Status:** ✅ FIXED 08/10 (lane issues/tooling `192.168.15.30:9093`) — `CompilerTypes.toType` now recognises a function-type string (`startsWith("(")` + `Type.fnTypeArrow >= 0`) BEFORE the dotted-name split and parses it with `Type.of` (paren-balanced); the existing `qualifyDeep` recursion then qualifies each parameter. Proof `FunctionTypeDottedParamE2ETest` **3/3** (RED 2/3 pre-fix with the exact `NoClassDefFoundError: (kof/web/App, String) -> Void`).
+
+**Repro (measured 08/10, deterministic):** `kof run` (NOT `kof check` — no descriptor is emitted by check) on
+`Void run((java.lang.Object, Int) -> Void body) { println("ok") }  main() { run((o: java.lang.Object, n: Int) -> { println("body") }) }`
+→ `kof run: could not load main class Default.Main / java.lang.NoClassDefFoundError: (java.lang.Object, Int) -> Void`. Same for `(kof.web.App, String) -> Void`; `javap` shows the invalid descriptor `(IL(java/lang/Object, Int) -> Void;)V` on the generated `Main.run`.
+
+**Root (read):** `CompilerTypes.toType` had a dotted-name split for a plain class name (`a.b.C` → package `a.b`, `name C`). A function-type string hit the same branch and was cut at the FIRST `'.'` — which sits INSIDE a parameter — so `(kof.web.App, String) -> Void` became `ClassType("(kof.web", "App, String) -> Void")`; the JVM descriptor then became `L(kof/web/App, String) -> Void;`, a class that does not exist. `kof check` passed because no descriptor is emitted; only `run`/`build` surfaced the load failure.
+
+**Contract:** a function type is parsed by paren-balancing, never by a dotted-name split; each parameter is qualified independently (R6 — a well-typed program must not emit a descriptor for a class that cannot exist).
+
+**Boundary:** `CompilerTypes.toType` only (the shared driver-side resolver); `Type.of` already balanced the parens. Undotted components (`(Int, Int) -> Void`) and user records were and remain correct (the control test passes pre- and post-fix). The practical unblock: the §5 server-lifecycle helper `withServer(app, port, (kof.web.App, String) -> Void body)` now loads.
+
+<!-- pt-switch --> **PT:** [§632 (pt_BR)](known-bugs.pt_BR.md#632--um-parametro-de-tipo-funcao-cujo-componente-e-pontuado-kofwebapp-string---void-emitia-um-descritor-jvm-invalido-lkofwebapp-string---void-entao-carregar-main-morria-noclassdeffounderror---fixed-0810-lane-issuestooling-19216815309093-resolvedor-de-tipos-do-frontend-sem-dono-em-curso)
+
+## §633 — the `MEM014` resource-leak warning was a FALSE POSITIVE when the handle is handed to another function in statement position (`consume(app)`, `withServer(app, ...)`) — ✅ FIXED 08/10 (lane issues/tooling `192.168.15.30:9093`, shared memory-safety frontend pass, no owner EM CURSO)
+
+**Status:** ✅ FIXED 08/10 (lane issues/tooling `192.168.15.30:9093`) — `ResourceLeakAnalysis.escapeShape` now treats an `ExpressionStmt` whose expression hands the handle away (`mentionsEscaping`) as an escape, the same as a `return`/alias/initializer. Proof `ResourceLeakE2ETest` **6/6** (new `passedAsArgumentInStatementPositionSilencesTheWarning`, RED pre-fix).
+
+**Repro (measured 08/10, deterministic):** `kof check` on
+`Void consume(kof.web.App a) { a.close() }  main() { var app = web.app(); consume(app); println("up") }`
+warned `L-05: resource 'app' ... is never closed in this scope and never handed to anyone [MEM014]` even though `app` is handed to `consume`, which closes it.
+
+**Root (read):** `ResourceLeakAnalysis.escapeShape` only inspected `ReturnStmt`, `VarDeclStmt` and `AssignmentExpr`; a top-level call whose handle sits in argument position (`consume(app)`, `withServer(app, port, body)`) was an `ExpressionStmt`, never matched, so `escapesAnywhere` returned false and the warning fired. The javadoc already promised "never handed to anyone (returned, passed, aliased, stored)".
+
+**Contract:** handing a handle to another function in statement position is an escape (the callee owns the close); receiver position (`app.close()`, `app.port()`) and `db.close(handle)` stay uses, not transfers (the pre-existing conservatisms).
+
+**Boundary:** `ResourceLeakAnalysis.escapeShape` only (the shared frontend pass, same diagnostic on all four targets by construction). The §5 server-lifecycle helper `withServer(app, port, body)` was the trigger: without the fix, the helper's own correct lifecycle (`app.close()` in a `finally`) still warned at the creation site.
+
+<!-- pt-switch --> **PT:** [§633 (pt_BR)](known-bugs.pt_BR.md#633--o-aviso-mem014-de-recurso-vazado-era-falso-positivo-quando-o-handle-e-entregue-a-outra-funcao-em-posicao-de-statement-consumeapp-withserverapp----fixed-0810-lane-issuestooling-19216815309093-passe-de-memory-safety-do-frontend-sem-dono-em-curso)
+
+## §634 — the aarch64 translator mapped the RISC-V callee-saved `s10` to the caller-saved `x16`, so a value live across a `call` in `kof_schub_to_decimal` could be clobbered and `kof_gc_mark` spilled the wrong register — ✅ FIXED 08/10 (lane compiler/JVM/native `192.168.15.30:9092`)
+
+**Status:** ✅ FIXED 08/10 (lane compiler/JVM/native `192.168.15.30:9092`) — `NativeAarch64Helpers.aarch64Reg` maps `s10 -> x18` (callee-saved on Linux, unused by every other translator path) instead of `x16` (caller-saved / IP0). Proof `NativeAarch64TranslatorAluTest` **7/7** (new `s10MapsToCalleeSavedRegister`, RED pre-fix with `str x16, [sp, #32]`).
+
+**Repro (read, deterministic):** `NativeRiscvSchubfach.java:160` (`kof_schub_to_decimal`) does `mv s10, a0` then reuses `s10` as an argument across three subsequent `call kof_schub_rop` (lines 162/167/172). On RISC-V `s10` is callee-saved, so the value survives; the aarch64 translator emitted `x16`, which `kof_schub_rop` is free to clobber. The same register is spilled by `kof_gc_mark` (`NativeRiscvAsmRtB43.java:161`): the translator emitted `str x18, [sp, #32]` (the new mapping) — before the fix it spilled the empty `x18` and never the live `x16`, hiding a live pointer from the conservative collector.
+
+**Root (read):** the RISC-V→aarch64 register map assigned `s0..s9 -> x19..x28` and `s11 -> x29` but had no free callee-saved slot left for `s10`, so it fell back to `x16`; `x18` is callee-saved on Linux AArch64 and no translator path used it. Fix: `case "s10" -> "x18"`.
+
+**Boundary:** the register map only (`NativeAarch64Helpers`). The behavioral faces measured (`NumericFormatterE2ETest` 3/3, `GameWavE2ETest` 6/6, `CrossHeapParityE2ETest` 6/6, `KofGcE2ETest` 4/4, `Av1CoeffsE2ETest` 6/6, `NativeRiscv64E2ETest` 58 run / 1 env skip) are green; a Double-format probe printing `1.5 / 0.1 / 1.0E-300 / …` is byte-identical to the JVM oracle under qemu (the `x16` clobber is latent for the current `kof_schub_rop` bodies, which do not yet touch `x16`, but the ABI contract is violated). Found while narrowing §602; a distinct root, §602 stays OPEN.
+
+<!-- pt-switch --> **PT:** [§634 (pt_BR)](known-bugs.pt_BR.md#634--o-tradutor-aarch64-mapeava-o-callee-saved-s10-do-risc-v-para-o-caller-saved-x16-entao-um-valor-vivo-atraves-de-um-call-em-kof_schub_to_decimal-podia-ser-destruido-e-o-kof_gc_mark-derramava-o-registrador-errado---fixed-0810-lane-compilerjvmnative-19216815309092)

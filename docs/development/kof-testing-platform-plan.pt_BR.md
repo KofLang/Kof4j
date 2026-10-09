@@ -13,7 +13,7 @@ linguagem (`test`/`assert`), o harness por alvo (`ConformanceMatrixTest`), `KofJ
 **Plano companheiro:** `test-architecture-plan.md` (refatoração da **suíte Java do próprio
 compilador** — camadas L0–L5, perfis, performance). Este documento é a **plataforma de testes do
 usuário**; os dois se encontram no §13 (Performance) e não podem se duplicar.
-**Estado de implementação:** fatia 1 (helpers de asserção) POUSADA 30/09; fatia 2 (`assertThrows`) POUSADA 30/09 — o bloqueio foi corrigido (ver §15); fatia 3 (asserções do unit-core) POUSADA 01/10; fatia 4 (asserções numéricas Long/Double/Float) POUSADA 01/10; fatia 5 (Byte/Short/Char + `assertNotEqualBool`) POUSADA 01/10; fatia 6 (par genérico `assertEqual<T>`/`assertNotEqual<T>`) POUSADA 02/10 — desbloqueada pela correção do `known-bugs` §553 (`D-EQ-UNBOUNDED-T`), então o §4.1 está **completo**; §5 harness — fatia 1 (temp dir + poll de prontidão) POUSADA 06/10, fatia 2 (ciclo de vida de banco `withDb` no opt-in `kof.test.db`) POUSADA 07/10.
+**Estado de implementação:** fatia 1 (helpers de asserção) POUSADA 30/09; fatia 2 (`assertThrows`) POUSADA 30/09 — o bloqueio foi corrigido (ver §15); fatia 3 (asserções do unit-core) POUSADA 01/10; fatia 4 (asserções numéricas Long/Double/Float) POUSADA 01/10; fatia 5 (Byte/Short/Char + `assertNotEqualBool`) POUSADA 01/10; fatia 6 (par genérico `assertEqual<T>`/`assertNotEqual<T>`) POUSADA 02/10 — desbloqueada pela correção do `known-bugs` §553 (`D-EQ-UNBOUNDED-T`), então o §4.1 está **completo**; §5 harness — fatia 1 (temp dir + poll de prontidão) POUSADA 06/10, fatia 2 (ciclo de vida de banco `withDb` no opt-in `kof.test.db`) POUSADA 07/10, fatia 3 (ciclo de vida de servidor `withServer` no opt-in `kof.test.web`, `spawn`+prontidão+close no `finally`) POUSADA 08/10 — completo no JVM; os alvos cross reportam o gap pré-existente `app.close`/`WEB001` honestamente (sem fallback silencioso).
 
 > **Fatia 6 (POUSADA 02/10).** A última face do §4.1: o par genérico `assertEqual<T>(T expected, T actual, String label)` / `assertNotEqual<T>(...)` em `dev/kof/test.kf`. Ficou deliberadamente adiado (não entregue quebrado) até o `known-bugs` §553 ser resolvido: a resposta regra-6 da mantenedora `D-EQ-UNBOUNDED-T` (02/10) fixa `==` sobre um `T` não-limitado como **igualdade estrutural de conteúdo** em todo alvo, então o helper é correto para qualquer `T` (Int, String, record, …). O label stringifica `expected`/`actual` via `+` — sem primitiva nova, sem runtime por alvo. Prova RED-first: novo `GenericEqualityE2ETest` **16/16** (o par genérico verde em JVM/Script/JS/Nativo e lançando em mismatch real; o golden de semântica de `==` byte-idêntico ao oráculo JVM em JVM + Script + JS + Native x86-64 + riscv64(qemu) + aarch64(qemu)); `KofTestingE2ETest` 7/7. O §4.1 está completo; as faces restantes são regra-6/decisão (§4.4 parametrizado, §4.6 doubles, §5 harness). O **provider de browser** (§6) não está mais barrado: `D-MAINT-BATCH-0510`/`T1` decide que ele deve servir **todos os alvos** (JVM + JS + Native), e `/T2` decide que o `kof.test` continua **feature do compilador/CLI** (não namespace da stdlib) — ver §12.
 
@@ -351,9 +351,9 @@ var up = waitUntil(() -> File("build/tmp/ready").exists(), 40, 25)
 
 `withTempDir(dir, body)` cria o diretório, roda o corpo e remove a árvore recursivamente num
 `finally` (os dois caminhos). `removeTree(path)` é a remoção recursiva, Kof puro (`Directory.list()`
-+ `File.delete()`): o `Directory.delete()` só remove um diretório vazio no JS (JVM/Native apagam
-recursivamente — `known-bugs` §618), então o helper percorre a árvore para manter o cleanup
-idêntico nos 4 alvos. `waitUntil(probe, attempts, intervalMs)` sonda, dorme entre as tentativas e
++ `File.delete()`): ela é anterior à correção do `known-bugs` §618, quando o `Directory.delete()`
+só removia diretório vazio no JS — desde 08/10 o próprio `delete()` é recursivo nos 4 alvos (§618
+CORRIGIDO), e o `removeTree` segue como a forma portátil em Kof puro que não precisa de backend. `waitUntil(probe, attempts, intervalMs)` sonda, dorme entre as tentativas e
 devolve o último resultado — nunca lança, nunca inventa sucesso; `attempts <= 0` faz uma única
 sonda. `withDb(url, body)` abre `db.connect(url)`, roda o corpo e fecha a conexão num `finally`
 (os dois caminhos) — o par simétrico do open, então um teste de integração nunca deixa conexão
@@ -374,10 +374,24 @@ JS pelo banco H2 em memória ficar vazio após o helper, e no Native x86-64 pelo
 após o throw com os dados persistidos). RED-first: pré-fatia a sonda não compila
 (`SEM015 Undefined function: 'withDb'`).
 
-O helper de ciclo de vida de servidor **não** é componível em Kof puro: `app.listen(port)` bloqueia,
-então um corpo `withServer { }` não rodaria na mesma thread; precisa de uma costura de
-runner/desugar (decisão adjacente à regra 6), então fica aberto em vez de pousar um stub. O ciclo
-de vida de banco pousa porque `db.connect`/`db.close` já são não-bloqueantes e simétricos.
+O helper de ciclo de vida de servidor **é** componível em Kof puro, ao contrário da nota anterior:
+`app.listen(port)` bloqueia, mas o helper o sobe numa tarefa (`var h = spawn { app.listen(port) }`),
+sonda a porta com um probe limitado de `http.get` até ela aceitar, roda o corpo e fecha o app num
+`finally` — `app.close()` e então `await h` — tanto no caminho de sucesso quanto no de throw. Ele mora
+num **host opt-in separado `kof.test.web`** (não em `kof.test`), precedente `CompilerTestDb`: depende de
+`kof.web`/`kof.http` e da primitiva `spawn`, e `kof.test` é injetado FLAT inteiro, então um helper web
+morando lá faria todo teste de unidade carregar a árvore web. `withServer(app, port, body)` recebe o
+`app` **já configurado** (rotas registradas antes do helper) porque `app.listen` precisa começar depois
+que as rotas existem; o corpo é `(String) -> Void` (a URL). **`app.close()` (`kof_web_close`) é um
+símbolo de runtime só do JVM hoje**, então o helper é completo no JVM e os alvos cross reportam o gap
+pré-existente `WEB001` honestamente em compile-time (R6 — nunca fallback silencioso, nunca vazamento);
+no dia em que `kof_web_close` pousar em Native/JS o pin vira edição consciente. **Prova:** novo
+`ServerLifecycleE2ETest` **3/3** — golden do ciclo JVM (o corpo vê seu próprio `pong`; a porta é
+recusada depois do helper nos dois caminhos, i.e. o `finally` rodou), os alvos cross pinados no `WEB001`
+honesto, e a guarda opt-in (`withServer` é indefinido sem `import kof.test.web`). RED-first: o helper
+foi desbloqueado pelos fixes `known-bugs` §630 (tipagem de lambda com `return` aninhado) e §632
+(descritor de parâmetro de tipo função pontuado); o §633 corrigiu o falso positivo `MEM014` que o helper
+expôs.
 
 Infraestrutura para subir recursos: servidor HTTP, banco, filesystem, processo, serviço externo.
 Cada recurso tem `start → health check → test → cleanup`. **Nunca deixar processos ou portas
