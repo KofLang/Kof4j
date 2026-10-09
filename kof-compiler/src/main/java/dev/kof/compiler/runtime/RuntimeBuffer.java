@@ -132,7 +132,7 @@ public final class RuntimeBuffer {
             .globl kof_buffer_peek8
             .type kof_buffer_peek8, @function
             kof_buffer_peek8:
-                movsbl (%rdi), %eax
+                movzbl (%rdi), %eax
                 ret
 
             .globl kof_buffer_peek64_buf
@@ -173,7 +173,7 @@ public final class RuntimeBuffer {
                 jg .Lbfk_peek_oob
                 cmpl %ecx, %esi
                 je .Lbfk_peek_oob
-                movsbl 24(%rdi,%rsi,1), %eax
+                movzbl 24(%rdi,%rsi,1), %eax
                 ret
 
             .Lbfk_peek_oob:

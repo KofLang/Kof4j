@@ -186,7 +186,7 @@ public final class NativeRiscvAsmBuffer {
             .globl kof_buffer_peek8
             .type kof_buffer_peek8, @function
             kof_buffer_peek8:
-                lb   a0, 0(a0)
+                lbu  a0, 0(a0)
                 ret
 
             .globl kof_buffer_peek64_buf
@@ -221,7 +221,7 @@ public final class NativeRiscvAsmBuffer {
                 bge  a1, t0, .Lkof_peek_oob
                 beq  a1, t0, .Lkof_peek_oob
                 add  t2, a0, a1
-                lb   a0, 24(t2)
+                lbu  a0, 24(t2)
                 ret
 
             .Lkof_peek_oob:

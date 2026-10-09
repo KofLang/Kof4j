@@ -76,8 +76,10 @@ public final class JvmBufferRuntime {
                 }
 
                 private static int kof_peek_raw8(long addr) {
+                    // & 0xFF: UNSIGNED byte — parity with the native `lbu`
+                    // (the FFM JAVA_BYTE read is signed; the peek contract is 0..255).
                     return java.lang.foreign.MemorySegment.ofAddress(addr).reinterpret(1)
-                            .get(java.lang.foreign.ValueLayout.JAVA_BYTE, 0L);
+                            .get(java.lang.foreign.ValueLayout.JAVA_BYTE, 0L) & 0xFF;
                 }
 
                 public static long kof_buffer_peek64(long addr) {
