@@ -32,6 +32,9 @@ val r2 = shell.runWith(listOf("make"), "/work", mapOf("CC", "clang"))
 
 - `shell` is the DYNAMIC idiom (argv assembled at runtime); for static calls
   prefer [kof.process](process.md).
+- Every pipeline stage has the same descriptor-isolation contract as
+  `kof.process`: ambient parent descriptors `>2` are close-on-exec and never
+  cross a successful child `exec` (`#762`).
 - No `sh -c "..."` strings anywhere — injection class; the platform wires
   the pipes.
 
