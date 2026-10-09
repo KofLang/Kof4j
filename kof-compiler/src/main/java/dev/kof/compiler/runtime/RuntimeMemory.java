@@ -27,6 +27,13 @@ public final class RuntimeMemory {
             .balign 8
             kof_alloc_lock: .space 40          # pthread_mutex_t (zero-init = default)
             kof_free_head: .quad 0
+            # #781: offset (arena_ptr - arena_base) da ULTIMA coleta disparada
+            # pelo pacing. Guardado como OFFSET (inteiro pequeno), nunca como
+            # ponteiro: o mark varre .data.._end como raizes, entao um valor
+            # que imitasse endereco de bloco super-reteria (leak, nunca
+            # corrupcao). Usado so quando ha arena (kof_arena_base != 0).
+            .balign 8
+            _kof_gc_last_off: .quad 0
             .globl kof_gc_head
             .balign 8
             kof_gc_head: .quad 0
@@ -161,10 +168,36 @@ public final class RuntimeMemory {
                 # sao varridas; face "scan de stack de worker" catalogada,
                 # nunca silenciosa). Sem gate/flag o hang antigo (status.md)
                 # voltava: collect reentrante com cursor vivo.
+                #
+                # #781 PACING (x86-64): collect_now era chamado em TODA
+                # free-list-miss, entao um heap que so cresce dispara N
+                # coletas -> O(N^2) mark (medido: 70k nos nao termina em
+                # >2min; kof_gc_mark ~97% do CPU). Agora so coleta quando a
+                # arena avancou ao menos 1 MiB (2^20) desde a ULTIMA coleta;
+                # entre coletas o alloc so cresce a arena. Isso preserva
+                # EXATAMENTE a garantia do §260 (a coleta periodica ve todos
+                # os temporarios vivos via o blanket spill) e mantem o
+                # repro §260 (strings fugazes reusam a free-list) verde. Sem
+                # arena (freestanding/BIOS/UEFI) o pacing nao se aplica (o
+                # GC cai na varredura linear antiga; coletar sempre ali e o
+                # comportamento historico).
                 cmpq $0, 8(%rsp)
                 jne .Lkof_alloc_mmap
                 cmpq $0, kof_spawn_count(%rip)
                 jne .Lkof_alloc_mmap
+                movq kof_arena_base(%rip), %rax
+                testq %rax, %rax
+                je .Lkof_alloc_gc_run
+                movq kof_arena_ptr(%rip), %rcx
+                subq %rax, %rcx                  # offset atual na arena
+                movq _kof_gc_last_off(%rip), %rdx
+                subq %rdx, %rcx                  # bytes desde a ultima coleta
+                cmpq $1048576, %rcx
+                jb .Lkof_alloc_mmap
+                movq kof_arena_ptr(%rip), %rcx
+                subq %rax, %rcx
+                movq %rcx, _kof_gc_last_off(%rip)
+            .Lkof_alloc_gc_run:
                 movq $1, 8(%rsp)
                 call kof_gc_collect_now
                 movq kof_free_head(%rip), %r13
@@ -226,6 +259,23 @@ public final class RuntimeMemory {
                 popq %rbx
                 ret
             .Lkof_alloc_fail:
+                # #781: arena esgotada. Antes: panic direto. Agora, quando ha
+                # arena e ainda NAO coletamos nesta chamada, roda UMA coleta
+                # completa e re-tenta a busca (recupera blocos mortos que o
+                # pacing #781 adiou). So panica se ainda faltar. Sem arena
+                # (freestanding/BIOS/UEFI) mantem o panic historico.
+                movq kof_arena_base(%rip), %rax
+                testq %rax, %rax
+                je .Lkof_alloc_fail_panic
+                cmpq $0, 8(%rsp)
+                jne .Lkof_alloc_fail_panic
+                movq $1, 8(%rsp)
+                call kof_gc_collect_now
+                movq kof_free_head(%rip), %r13
+                xorq %r14, %r14
+                movq $1048576, %r11
+                jmp .Lkof_alloc_search
+            .Lkof_alloc_fail_panic:
                 leaq kof_alloc_lock(%rip), %rdi
                 movl $0, (%rdi)
                 movl $1, %esi

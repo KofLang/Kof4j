@@ -1,6 +1,7 @@
 package dev.kof.compiler;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
@@ -128,6 +129,40 @@ class KofGcE2ETest {
                     println(n > 100)
                 }
                 """, "keep-me\ntrue");
+    }
+
+    @Test
+    @Timeout(20)
+    void gcPacesCollectionsOnMonotonicGrowth(@TempDir Path tempDir) throws IOException {
+        // #781: with the OLD trigger (kof_gc_collect_now on EVERY free-list
+        // miss) a monotonically-growing live set fires N full collections ->
+        // O(N^2) marking; the 70k-node reproducer of the issue does not finish
+        // in >2 min (kof_gc_mark ~97% of CPU). The pacing threshold (collect
+        // only after the arena advanced >= 1 MiB since the last collection)
+        // makes this linear-ish. 50k nodes is enough to hang the OLD code well
+        // past the timeout while staying fast with the fix. Sum(0..49999) =
+        // 1249975000 (fits Int). The @Timeout is the RED-first proof: MEASURED
+        // 60.5s on the pre-fix tree (RED) vs ~0.6s after (GREEN), a ~100x
+        // margin under the 20s bound.
+        runNative(tempDir, """
+                record Node(Int value, Node? nextNode)
+
+                main() {
+                    var head: Node?
+                    var i = 0
+                    while (i < 50000) {
+                        head = Node(i, head)
+                        i = i + 1
+                    }
+                    var curr = head
+                    var sum = 0
+                    while (curr != null) {
+                        sum = sum + curr.value()
+                        curr = curr.nextNode()
+                    }
+                    println(sum)
+                }
+                """, "1249975000");
     }
 
     @Test
