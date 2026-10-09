@@ -326,4 +326,80 @@ public final class WasmStdoutRuntime {
         return new WasmFunc("kof.writeStr", List.of(0x7f), List.of(), List.of(), b);
     }
 
+    /** `kof.intToStr(v)` -> handle `[len][digits]` no bump heap (15.3d inc2; JVM
+     * `String.valueOf(Int)` paridade). Mesma aritmetica scratch do `kof.writeInt`
+     * (provada verde na 15.3c) + bump/copy do `kof.strLit` (provado verde). */
+    public static WasmFunc kofIntToStr() {
+        List<WasmInstr> b = new ArrayList<>();
+        b.add(new WasmInstr.Const(0, SCRATCH_OUT + 20));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 1, "w"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "v"));
+        b.add(new WasmInstr.Const(1, 0));
+        b.add(new WasmInstr.Simple(0x53, "i64.lt_s"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "neg", 0x40));
+        b.add(new WasmInstr.Const(0, 1));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 2, "s"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "v"));
+        b.add(new WasmInstr.Const(1, -1));
+        b.add(new WasmInstr.Simple(0x7e, "i64.mul"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 0, "v"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "neg", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.BLOCK, "itoa_x", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.LOOP, "itoa", 0x40));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "v"));
+        b.add(new WasmInstr.Const(1, 10));
+        b.add(new WasmInstr.Simple(0x81, "i64.rem_s"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 3, "d"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "v"));
+        b.add(new WasmInstr.Const(1, 10));
+        b.add(new WasmInstr.Simple(0x7f, "i64.div_s"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 0, "v"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "w"));
+        b.add(new WasmInstr.Const(0, 1));
+        b.add(new WasmInstr.Simple(0x6b, "i32.sub"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.TEE, 1, "w"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "d"));
+        b.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64"));
+        b.add(new WasmInstr.Const(0, '0'));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Store8(0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "v"));
+        b.add(new WasmInstr.Const(1, 0));
+        b.add(new WasmInstr.Simple(0x55, "i64.gt_s"));
+        b.add(new WasmInstr.Branch("itoa", 0, true));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "itoa", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "itoa_x", 0x40));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "s"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, null, 0x40));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "w"));
+        b.add(new WasmInstr.Const(0, 1));
+        b.add(new WasmInstr.Simple(0x6b, "i32.sub"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.TEE, 1, "w"));
+        b.add(new WasmInstr.Const(0, '-'));
+        b.add(new WasmInstr.Store8(0));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x40));
+        b.add(new WasmInstr.Const(0, SCRATCH_OUT + 20));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "w"));
+        b.add(new WasmInstr.Simple(0x6b, "i32.sub"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 4, "len"));
+        b.add(new WasmInstr.Global(WasmInstr.Global.GET, 0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 5, "h"));
+        b.add(new WasmInstr.Global(WasmInstr.Global.GET, 0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 4, "len"));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Const(0, 5));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Global(WasmInstr.Global.SET, 0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 5, "h"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 4, "len"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.STORE, 0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 5, "h"));
+        b.add(new WasmInstr.Const(0, 4));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 6, "dst"));
+        copyLoop(b, 1, 6, 4, 7, "itcp", 0);
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 5, "h"));
+        return new WasmFunc("kof.intToStr", List.of(0x7e), List.of(0x7f),
+                List.of(0x7f, 0x7f, 0x7e, 0x7f, 0x7f, 0x7f, 0x7f), b);
+    }
 }

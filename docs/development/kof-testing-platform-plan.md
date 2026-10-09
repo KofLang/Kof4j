@@ -13,7 +13,7 @@
 **Companion plan:** `test-architecture-plan.md` (the **compiler's own Java suite** refactor —
 L0–L5 layers, profiles, performance). This document is the **user-facing testing platform**;
 the two meet at §13 (Performance) and must not duplicate each other.
-**Implementation status:** slice 1 (assertion helpers) LANDED 30/09; slice 2 (`assertThrows`) LANDED 30/09 — the blocker was fixed (see §15); slice 3 (unit-core assertions) LANDED 01/10; slice 4 (Long/Double/Float numeric assertions) LANDED 01/10; slice 5 (Byte/Short/Char + `assertNotEqualBool`) LANDED 01/10; slice 6 (generic `assertEqual<T>`/`assertNotEqual<T>` pair) LANDED 02/10 — unblocked by the `known-bugs` §553 fix (`D-EQ-UNBOUNDED-T`), so §4.1 is now **complete**; §5 harness — slice 1 (temp dir + readiness poll) LANDED 06/10, slice 2 (database lifecycle `withDb` in the opt-in `kof.test.db`) LANDED 07/10, slice 3 (server lifecycle `withServer` in the opt-in `kof.test.web`, `spawn`+readiness+`finally` close) LANDED 08/10 — JVM-complete; the cross targets report the pre-existing `app.close`/`WEB001` gap honestly (no silent fallback); §6 browser-provider policy RECORDED 08/10 (docs-only — opt-in per project `C`, all targets `T1`, `kof.test` compiler/CLI `T2`; the provider slice itself stays gated by the open rule-6 provider-declaration decision); §8.5 runner duration measurement (per-file wall time + slowest file) LANDED 08/10.
+**Implementation status:** slice 1 (assertion helpers) LANDED 30/09; slice 2 (`assertThrows`) LANDED 30/09 — the blocker was fixed (see §15); slice 3 (unit-core assertions) LANDED 01/10; slice 4 (Long/Double/Float numeric assertions) LANDED 01/10; slice 5 (Byte/Short/Char + `assertNotEqualBool`) LANDED 01/10; slice 6 (generic `assertEqual<T>`/`assertNotEqual<T>` pair) LANDED 02/10 — unblocked by the `known-bugs` §553 fix (`D-EQ-UNBOUNDED-T`), so §4.1 is now **complete**; §5 harness — slice 1 (temp dir + readiness poll) LANDED 06/10, slice 2 (database lifecycle `withDb` in the opt-in `kof.test.db`) LANDED 07/10, slice 3 (server lifecycle `withServer` in the opt-in `kof.test.web`, `spawn`+readiness+`finally` close) LANDED 08/10 — JVM-complete; the cross targets report the pre-existing `app.close`/`WEB001` gap honestly (no silent fallback); §6 browser-provider policy RECORDED 08/10 (docs-only — opt-in per project `C`, all targets `T1`, `kof.test` compiler/CLI `T2`; the provider slice itself stays gated by the open rule-6 provider-declaration decision); §8.5 runner duration measurement (per-file wall time + slowest file) LANDED 08/10; §5.1 `process`/`config`/`environment variables` faces RECORDED 08/10 as measured boundaries (handle not nameable + no list-varargs; no setenv primitive, config read-only — rule 6).
 
 > **Slice 6 (LANDED 02/10).** The last §4.1 face: the generic pair `assertEqual<T>(T expected, T actual, String label)` / `assertNotEqual<T>(...)` in `dev/kof/test.kf`. It was deliberately deferred (not shipped broken) until `known-bugs` §553 was resolved: the maintainer's rule-6 answer `D-EQ-UNBOUNDED-T` (02/10) fixes `==` on an unbounded `T` as **structural content equality** on every target, so the helper is correct for any `T` (Int, String, record, …). The label stringifies `expected`/`actual` via `+` — no new primitive, no per-target runtime. Proof RED-first: new `GenericEqualityE2ETest` **16/16** (the generic pair green on JVM/Script/JS/Native and throwing on a real mismatch; the `==` semantics golden byte-identical to the JVM oracle on JVM + Script + JS + Native x86-64 + riscv64(qemu) + aarch64(qemu)); `KofTestingE2ETest` 7/7. §4.1 is complete; the remaining faces are rule-6/decision-gated (§4.4 parameterized, §4.6 test doubles, §5 harness). The **browser provider** (§6) is no longer gated: `D-MAINT-BATCH-0510`/`T1` decides it must serve **all targets** (JVM + JS + Native), and `/T2` decides `kof.test` stays a **compiler/CLI feature** (not a stdlib namespace) — see §12.
 
@@ -409,6 +409,37 @@ without `import kof.test.web`). RED-first: the helper was unblocked by the `know
 Infrastructure to bring up resources: HTTP server, database, filesystem, process, external
 service. Each resource has `start → health check → test → cleanup`. **Never leave processes or
 ports open after a test.**
+
+**Status: temp dir + db + server LANDED; `process`, `config` and `environment variables` remain
+(measured boundaries, 08/10 — lane issues/tooling `192.168.15.30:9093`).** The three landed
+lifecycles (`withTempDir`/`withDb`/`withServer`) are the maintainer's `D-MAINT-BATCH-0610B`/B scope.
+The remaining §5.1 resources are blocked by *missing mechanisms*, not by an undecided API — so they
+are recorded as boundaries instead of a stub (Q7):
+
+* **Process lifecycle (`withProcess(program, args, body)`) — NOT expressible in pure Kof today.**
+  The intent is the symmetric pair of `withDb`: `process.spawn` a child, run the body, and
+  guarantee `h.kill()` in a `finally` (both paths). Two measured blockers: (1) the spawn handle is
+  an internal `java.lang.Long` registry token with **no nameable Kof type** — `(Long) -> Void` and
+  `(java.lang.Long) -> Void` both fail (`SEM074`/`SEM014`; `Long` is the primitive, not the handle),
+  so the handle cannot be a parameter; (2) `process.spawn(program, List<String>)` is **refused**
+  (`SEM025`) — only fixed String varargs `process.spawn("prog", "a", "b")` type-check, so a helper
+  cannot forward a variable argument list. The honest boundary mirrors the `app.close`/`WEB001`
+  case: no helper ships until the handle is nameable (the `kof.process.Result` `D-MAINT-BATCH-0610`/C
+  precedent) or spawn accepts a list.
+* **Environment variables (`withEnv(name, value, body)`) — needs a set/restore primitive that does
+  not exist.** The stdlib only *reads* (`config.env(key)`, `config.*`); there is no `setenv`
+  equivalent to write a variable and restore it in a `finally`, so a scoped environment helper
+  cannot be written in Kof. Adding one is a **new stdlib surface (rule 6)** — recorded for the
+  maintainer, never invented.
+* **Config (`withConfig(entries, body)`) — the same missing primitive, plus no write surface.**
+  `config.get`/`config.has` read from the file named by `KOF_CONFIG` (default `kof.config`) and
+  from the process environment (`RuntimeConfig1`/`RuntimeConfig2`, `NativeRiscvAsmConfig3`); a
+  scoped test config therefore needs to *set* `KOF_CONFIG` (or write a file the reader will pick
+  up) and *restore* it in a `finally` — i.e. the same `setenv` primitive the environment helper
+  needs. `config` has no writer at all today, so a helper cannot seed a value in pure Kof; recorded
+  for the maintainer with `withEnv`, never invented.
+
+All three are additive/library-first once the mechanism exists; none blocks the landed harness.
 
 ## 5.1 Temporary environment
 
