@@ -4928,3 +4928,24 @@ individuais:
 **Multilíngue futuro:** o mecanismo `LanguageProfile` é o ponto de extensão — uma nova superfície é vocabulário + aliases + docs + testes, nunca mudança de compilador (PARTE 22/35).
 
 **Relações:** `Related: D-KOF-FIRST, D-KOF-AS-CLOUD, D-RELEASE-CADENCE, D-BRANCH-PIPELINE, rule 6 (este registro É a decisão — nenhuma decisão pendente bloqueia a superfície), rule 11, rule 12`.
+
+---
+
+## D-PORTUKOF-SUGAR — açúcar de fala `diga`/`diz` como aliases infantis de `println`/`print` (ordem da mantenedora no chat 08/10/2026)
+
+**Decisão (mantenedora 08/10, no trabalho da trilha de ensino PortuKof):** a superfície PortuKof aceita `diga` para `println` e `diz` para `print` — "não só escreva". São **açúcar de fala**: grafias extras aceitas dos MESMOS builtins, voltadas a crianças (como o Scratch diz "say"). A pergunta "qual comportamento?" foi medida e respondida pela mantenedora no chat: **ambos** — `diga`→`println` (com quebra de linha), `diz`→`print` (sem quebra).
+
+**Consequências mecânicas (todas dentro da ÚNICA ponte existente):**
+
+* `lang/PortuKofVocabulary.SUGAR` é uma tabela separada e pequena (`{"println","diga"}, {"print","diz"}`); a tabela PRIMARY `BUILTINS` e seu gate de bijeção (64↔64) ficam INALTERADOS.
+* O açúcar só **amplia o domínio fechado superfície→canônico**: `PortuKofParity.normalize` mapeia chamadas nuas `diga`/`diz` para `println`/`print` — mesmo AST, mesmo IR, mesma implementação. A renderização canônico→superfície continua devolvendo a grafia PRIMARY (`escrevaln`/`escreva`); o açúcar nunca contamina a exibição, os rótulos de hover ou o caminho canônico→PortuKof do `kof fmt`.
+* `kof fmt` em `.ptkf` mantém `diga`/`diz` **verbatim** (são slots de nome no AST de superfície parseado), idempotente.
+* LSP completion/hover/rename enxergam o açúcar porque leem o MESMO `symbolAliases()` que o parser percorre (nenhuma lista paralela em lugar algum).
+
+**Regra identidade vs açúcar:** os docs de ensino ensinam `diga`/`diz` ao lado dos primários `escrevaln`/`escreva`, mas nunca no lugar deles — as tabelas de referência, diagnósticos e tooling mantêm as grafias primárias como a face canônica pt-BR.
+
+**Guarda de escopo:** o açúcar é permitido SOMENTE para builtins do domínio fechado com redação natural infantil medida; nenhum açúcar de membro/namespace sem decisão da mantenedora. Qualquer alias futuro segue esta mesma forma de tabela+gate (nenhum segundo vocabulário em lugar algum).
+
+**Prova:** `PortuKofSurfaceE2ETest` (identidade de normalização vs tabela primária; paridade no alvo script; paridade de compilação JVM), `PortuKofFormatterProfileE2ETest` (verbatim + idempotente), `PortuKofToolingSurfaceE2ETest` (completion oferece `diga`/`diz`, sem vazamento canônico; hover resolve `diga` para a identidade primária `escrevaln`/`println`), gate `scripts/check_portukof_parity.sh` §3b.
+
+**Relações:** `Related: D-PORTUKOF (uma superfície, um compilador), D-KOF-FIRST (biblioteca/vocabulário, não novas primitivas), rule 11 (a superfície continua extremamente simples — o açúcar são 2 palavras).`
