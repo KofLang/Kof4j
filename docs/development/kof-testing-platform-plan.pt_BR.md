@@ -13,7 +13,7 @@ linguagem (`test`/`assert`), o harness por alvo (`ConformanceMatrixTest`), `KofJ
 **Plano companheiro:** `test-architecture-plan.md` (refatoração da **suíte Java do próprio
 compilador** — camadas L0–L5, perfis, performance). Este documento é a **plataforma de testes do
 usuário**; os dois se encontram no §13 (Performance) e não podem se duplicar.
-**Estado de implementação:** fatia 1 (helpers de asserção) POUSADA 30/09; fatia 2 (`assertThrows`) POUSADA 30/09 — o bloqueio foi corrigido (ver §15); fatia 3 (asserções do unit-core) POUSADA 01/10; fatia 4 (asserções numéricas Long/Double/Float) POUSADA 01/10; fatia 5 (Byte/Short/Char + `assertNotEqualBool`) POUSADA 01/10; fatia 6 (par genérico `assertEqual<T>`/`assertNotEqual<T>`) POUSADA 02/10 — desbloqueada pela correção do `known-bugs` §553 (`D-EQ-UNBOUNDED-T`), então o §4.1 está **completo**; §5 harness — fatia 1 (temp dir + poll de prontidão) POUSADA 06/10, fatia 2 (ciclo de vida de banco `withDb` no opt-in `kof.test.db`) POUSADA 07/10, fatia 3 (ciclo de vida de servidor `withServer` no opt-in `kof.test.web`, `spawn`+prontidão+close no `finally`) POUSADA 08/10 — completo no JVM; os alvos cross reportam o gap pré-existente `app.close`/`WEB001` honestamente (sem fallback silencioso); política do provider de browser do §6 REGISTRADA 08/10 (só docs — opt-in por projeto `C`, todos os alvos `T1`, `kof.test` compilador/CLI `T2`; a fatia do provider em si segue gated pela decisão aberta da regra 6 sobre declaração de provider).
+**Estado de implementação:** fatia 1 (helpers de asserção) POUSADA 30/09; fatia 2 (`assertThrows`) POUSADA 30/09 — o bloqueio foi corrigido (ver §15); fatia 3 (asserções do unit-core) POUSADA 01/10; fatia 4 (asserções numéricas Long/Double/Float) POUSADA 01/10; fatia 5 (Byte/Short/Char + `assertNotEqualBool`) POUSADA 01/10; fatia 6 (par genérico `assertEqual<T>`/`assertNotEqual<T>`) POUSADA 02/10 — desbloqueada pela correção do `known-bugs` §553 (`D-EQ-UNBOUNDED-T`), então o §4.1 está **completo**; §5 harness — fatia 1 (temp dir + poll de prontidão) POUSADA 06/10, fatia 2 (ciclo de vida de banco `withDb` no opt-in `kof.test.db`) POUSADA 07/10, fatia 3 (ciclo de vida de servidor `withServer` no opt-in `kof.test.web`, `spawn`+prontidão+close no `finally`) POUSADA 08/10 — completo no JVM; os alvos cross reportam o gap pré-existente `app.close`/`WEB001` honestamente (sem fallback silencioso); política do provider de browser do §6 REGISTRADA 08/10 (só docs — opt-in por projeto `C`, todos os alvos `T1`, `kof.test` compilador/CLI `T2`; a fatia do provider em si segue gated pela decisão aberta da regra 6 sobre declaração de provider); medição de duração do runner do §8.5 (tempo por arquivo + arquivo mais lento) POUSADA 08/10; faces `processo`/`config`/`variáveis de ambiente` do §5.1 REGISTRADAS 08/10 como fronteiras medidas (handle não nomeável + sem varargs-de-lista; sem primitiva setenv, config só-leitura — regra 6).
 
 > **Fatia 6 (POUSADA 02/10).** A última face do §4.1: o par genérico `assertEqual<T>(T expected, T actual, String label)` / `assertNotEqual<T>(...)` em `dev/kof/test.kf`. Ficou deliberadamente adiado (não entregue quebrado) até o `known-bugs` §553 ser resolvido: a resposta regra-6 da mantenedora `D-EQ-UNBOUNDED-T` (02/10) fixa `==` sobre um `T` não-limitado como **igualdade estrutural de conteúdo** em todo alvo, então o helper é correto para qualquer `T` (Int, String, record, …). O label stringifica `expected`/`actual` via `+` — sem primitiva nova, sem runtime por alvo. Prova RED-first: novo `GenericEqualityE2ETest` **16/16** (o par genérico verde em JVM/Script/JS/Nativo e lançando em mismatch real; o golden de semântica de `==` byte-idêntico ao oráculo JVM em JVM + Script + JS + Native x86-64 + riscv64(qemu) + aarch64(qemu)); `KofTestingE2ETest` 7/7. O §4.1 está completo; as faces restantes são regra-6/decisão (§4.4 parametrizado, §4.6 doubles, §5 harness). O **provider de browser** (§6) não está mais barrado: `D-MAINT-BATCH-0510`/`T1` decide que ele deve servir **todos os alvos** (JVM + JS + Native), e `/T2` decide que o `kof.test` continua **feature do compilador/CLI** (não namespace da stdlib) — ver §12.
 
@@ -397,6 +397,37 @@ Infraestrutura para subir recursos: servidor HTTP, banco, filesystem, processo, 
 Cada recurso tem `start → health check → test → cleanup`. **Nunca deixar processos ou portas
 abertas após o teste.**
 
+**Status: temp dir + db + servidor POUSADOS; `processo`, `config` e `variáveis de ambiente` restam
+(fronteiras medidas, 08/10 — lane issues/tooling `192.168.15.30:9093`).** Os três ciclos de vida
+pousados (`withTempDir`/`withDb`/`withServer`) são o escopo `D-MAINT-BATCH-0610B`/B da mantenedora. Os
+recursos restantes do §5.1 estão bloqueados por *mecanismos ausentes*, não por uma API indefinida —
+então são registrados como fronteiras em vez de um stub (Q7):
+
+* **Ciclo de vida de processo (`withProcess(program, args, body)`) — NÃO expressável em Kof puro
+  hoje.** A intenção é o par simétrico do `withDb`: dar `process.spawn` num filho, rodar o corpo e
+  garantir `h.kill()` num `finally` (os dois caminhos). Dois bloqueios medidos: (1) o handle do spawn
+  é um token interno `java.lang.Long` **sem tipo Kof nomeável** — `(Long) -> Void` e
+  `(java.lang.Long) -> Void` falham (`SEM074`/`SEM014`; `Long` é o primitivo, não o handle), então o
+  handle não pode ser parâmetro; (2) `process.spawn(program, List<String>)` é **recusado** (`SEM025`)
+  — só o varargs fixo de String `process.spawn("prog", "a", "b")` tipa, então um helper não consegue
+  repassar uma lista variável de argumentos. A fronteira honesta espelha o caso
+  `app.close`/`WEB001`: nenhum helper pousa até o handle ser nomeável (o precedente
+  `kof.process.Result` de `D-MAINT-BATCH-0610`/C) ou o spawn aceitar uma lista.
+* **Variáveis de ambiente (`withEnv(name, value, body)`) — precisa de uma primitiva de set/restore que
+  não existe.** A stdlib só *lê* (`config.env(key)`, `config.*`); não há equivalente a `setenv` para
+  escrever uma variável e restaurá-la num `finally`, então um helper de ambiente com escopo não pode
+  ser escrito em Kof. Adicioná-lo é **superfície nova da stdlib (regra 6)** — registrado para a
+  mantenedora, nunca inventado.
+* **Config (`withConfig(entries, body)`) — a mesma primitiva ausente, mais nenhuma superfície de
+  escrita.** `config.get`/`config.has` leem do arquivo nomeado por `KOF_CONFIG` (default
+  `kof.config`) e do ambiente do processo (`RuntimeConfig1`/`RuntimeConfig2`,
+  `NativeRiscvAsmConfig3`); um config de teste com escopo precisa então *escrever* `KOF_CONFIG` (ou
+  um arquivo que o leitor pegue) e *restaurá-lo* num `finally` — i.e. a mesma primitiva `setenv` que
+  o helper de ambiente precisa. O `config` não tem escritor nenhum hoje, então um helper não semeia
+  um valor em Kof puro; registrado para a mantenedora junto com `withEnv`, nunca inventado.
+
+Todos os três são aditivos/library-first quando o mecanismo existir; nenhum bloqueia o harness pousado.
+
 ## 5.1 Ambiente temporário
 
 Suporte oficial a diretório, banco, config, servidor e variáveis de ambiente temporários.
@@ -645,6 +676,11 @@ quando seguro. Nunca compartilhar portas, banco, filesystem, sessão, cookies ou
 Todo teste tem timeout razoável: separar unit, integração, e2e e ação de browser. Nunca deixar um
 teste travar indefinidamente. (Semente: `CmdTest --timeout`, `CmdTestTimeoutTest`.)
 
+**Status:** um `--timeout <sec>` global LANDOU (JVM/Native via `Process.waitFor` + `destroyForcibly`;
+JS best-effort em processo com `Thread.join`). Timeouts **por nível** seguem abertos — precisam do
+conceito de nível, ainda ausente no runner. A **medição de duração** complementar (tempo por arquivo +
+arquivo mais lento) LANDOU 08/10 e está registrada no §8.5.
+
 ## 7.4 Retry e detecção de flaky
 
 Retries com muito cuidado, **nunca para esconder flakiness**. Registrar primeira execução,
@@ -695,6 +731,17 @@ E2E            87 passed / 1 failed   2m14s
 
 com duração e identificação de testes lentos. Meta de design: `docs/testing/TEST-PERFORMANCE.md`
 (o plano companheiro o propõe; §13).
+
+**Status: PRIMEIRA FATIA POUSADA 08/10 (lane issues/tooling `192.168.15.30:9093`).** O runner agora
+mede o tempo de parede por arquivo e imprime uma linha aditiva após o sumário —
+`time: <total>ms total, slowest <file> (<ms>ms)` — a base da **identificação de testes lentos**. Sai
+no caminho de sucesso **e** no de falha (antes do exit não-zero), então um arquivo lento/falho é
+diagnosticável só pela saída da corrida; sem flag nova, sem conceito de nível, sem mudar as linhas
+históricas de sumário/suíte (byte-compatível — as asserções existentes seguem verdes). O recorte por
+**nível** (Unit/Integration/E2E) e o relatório legível por máquina seguem abertos: precisam do
+conceito de nível que o runner ainda não tem (o eixo `--tag` é o único classificador hoje). Prova:
+`CmdTestSuiteTest` **10/10** — novos `runnerReportsTotalTimeAndSlowestFile` + `timingIsPrintedBeforeAFailingExit`,
+RED-first (ambos falham pré-fatia, sem a linha `time:`).
 
 ---
 

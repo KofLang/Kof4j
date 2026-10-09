@@ -69,8 +69,15 @@ Int av1FilterIntraTap(Int mode, Int k, Int tap) {
 // §7.11.2.3 recursive intra prediction. `above`/`left` are the raw edge arrays
 // with `co` indexing `AboveRow[0]`/`LeftCol[0]`; `above[co-1]` is the corner.
 // Returns the `w*h` prediction in raster order. `mode` is the
-// `filter_intra_mode` (0..4).
+// `filter_intra_mode` (0..4). 8-bit (`Clip1` to 255); `av1FilterIntraPredBd`
+// is the bit-depth-aware form.
 Int[] av1FilterIntraPred(Int[] above, Int[] left, Int w, Int h, Int co, Int mode) {
+    return av1FilterIntraPredBd(above, left, w, h, co, mode, 8)
+}
+
+// `av1FilterIntraPred` with the §7.11.2.3 `Clip1` bound `(1 << bitDepth) - 1`.
+Int[] av1FilterIntraPredBd(Int[] above, Int[] left, Int w, Int h, Int co, Int mode, Int bitDepth) {
+    var hi = (1 << bitDepth) - 1
     var stride = w + 1
     var buf = new Int[(h + 1) * stride]
     var c = 0
@@ -121,8 +128,8 @@ Int[] av1FilterIntraPred(Int[] above, Int[] left, Int w, Int h, Int co, Int mode
                     if (v < 0) {
                         v = 0
                     }
-                    if (v > 255) {
-                        v = 255
+                    if (v > hi) {
+                        v = hi
                     }
                     buf[(((i2 << 1) + i1) + 1) * stride + (j4 << 2) + j1 + 1] = v
                     j1 = j1 + 1

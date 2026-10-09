@@ -5,8 +5,8 @@
 **Owner:** `192.168.15.15:9092` — lane security/connectors, graphics/gaming front; re-claimed 05/10 (the spike-3.0 `192.168.15.30:9093` claims were runner/tooling, historical).
 
 last: slice-3.1 pure clock + key/pointer/pad input snapshots landed 05/10 (`libs/game/Clock.kf` + `Keys.kf` + `Mouse.kf` + `Pad.kf`, `GameClockE2ETest`/`GameInputE2ETest`/`GameMouseE2ETest`/`GamePadE2ETest` 4/4 each; `known-bugs` §603 fixed on the way); pure `kof.game` surface cross-target verified (`GameCrossE2ETest` 3/3 — JVM oracle + riscv64 + aarch64 under qemu); window form DECIDED (`D-GRAPHICS-WINDOW-FORM`: `Window("…") { frame { dt -> … } }`, `dt` Int ms) and its parser prerequisite fixed (`known-bugs` §611, `TrailingLambdaParamsE2ETest` 6/6); G1 SDL3 `3.4.16` measured (C + Kof FFI, headless JVM+Native; `known-bugs` §606 fixed); **SDL3 vendored into the cross sysroot 06/10 (`scripts/provision-cross-sdl3.sh`, aarch64+riscv64 `3.4.16` + runtime closure + GLIBC 2.44) and the raw ABI measured end-to-end headless on all four targets (`Sdl3FfiCrossE2ETest` 5/5: JVM + Native x86-64 + riscv64 + aarch64 under qemu, golden `init=true/driver=dummy/title=kof`)**
-doing: slice-3.6a (corpus: idioms + tutorial)
-next: corpus 3.6a LANDED 07/10 (`training/idioms/game.md` + `learn/42-games.md`, EN+PT, every snippet compile-checked); remaining = decoder/frame-readback backend faces (FFmpeg LGPL decision F, maintainer) + 3.5 (3D, parity-gated)
+doing: decision F executed (FFmpeg LGPL vendor + FFI probe + 3.4 backend frame readback) + 3.5 (3D) PROMOTED to active scope
+next: decision F ORDERED 08/10 (maintainer, chat decision: vendor the upstream LGPL-2.1+ build from source, no `--enable-gpl`; probe license must NOT be GPLv3+ before any decode lands) + 3.5 PROMOTED 08/10 (maintainer: mesh/camera/material/light/transform + external parsers; shaders stay hidden at first) — both recorded in `D-MAINT-BATCH-0510` (DECISIONS.md)
 location: docs/development
 state: UNDER DEVELOPMENT
 

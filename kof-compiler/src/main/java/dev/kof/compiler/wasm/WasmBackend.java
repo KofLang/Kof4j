@@ -186,6 +186,7 @@ public class WasmBackend implements Backend {
                 if (printed.contains("string")) {
                     funcs.add(kofStrLit());
                     funcs.add(kofWriteStr());
+                    funcs.add(kofIntToStr());
                     if (usesStringConcat(scanAll)) funcs.add(kofStrConcat());
                     else { /* no-op */ }
                     globals = java.util.List.of(HEAP_BASE); // bump pointer global 0

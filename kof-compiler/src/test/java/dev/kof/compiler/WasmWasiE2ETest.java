@@ -211,6 +211,44 @@ class WasmWasiE2ETest {
     }
 
     @Test
+    void stringValuesOfVariablesAndConcatMatchTheJvmOracle(@TempDir Path dir) throws Exception {
+        // 15.3d inc2: String.valueOf(Int|Long) como VALOR (kof.intToStr no bump heap)
+        // + concat de handles; paridade byte-a-byte com o oraculo JVM sob wasmtime.
+        var wasmtime = host("wasmtime");
+        assumeTrue(wasmtime != null, "wasmtime host absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var s = String.valueOf(3)
+                    println(s)
+                    println(-42)
+                    println(String.valueOf(7) + "!")
+                    var n = String.valueOf(100)
+                    println("x" + n)
+                }
+                """);
+        var driver = new CompilerDriver();
+        var jvm = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-jvm"), Target.JVM);
+        assertTrue(jvm.success(), "jvm oracle strings-valueof compile: " + jvm.diagnostics().getDiagnostics());
+        var oracle = new ProcessBuilder(List.of(jvmBin(), "-cp",
+                Path.of(dir.toString(), "out-jvm").toString(), "Default.Main"))
+                .redirectErrorStream(true).start();
+        String expected = new String(oracle.getInputStream().readAllBytes());
+        assertTrue(oracle.waitFor(120, TimeUnit.SECONDS) && oracle.exitValue() == 0,
+                "JVM oracle strings-valueof: " + expected);
+        var wasi = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-wasi"), Target.WASI);
+        assertTrue(wasi.success(), "wasi strings-valueof compile: " + wasi.diagnostics().getDiagnostics());
+        var proc = new ProcessBuilder(List.of(wasmtime.toString(), "run",
+                Path.of(dir.toString(), "out-wasi", "Default", "Main.wasm").toString()))
+                .redirectErrorStream(true).start();
+        String out = new String(proc.getInputStream().readAllBytes());
+        assertTrue(proc.waitFor(60, TimeUnit.SECONDS), "host within 60s");
+        assertEquals(0, proc.exitValue(), "clean WASI exit with strings-valueof: " + out);
+        assertEquals(expected.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                out.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                "String.valueOf/concat must equal the JVM oracle");
+    }
+
+    @Test
     void recordToStringAndEqualityStillRefuseHonestly(@TempDir Path dir) throws Exception {
         // increment 1 = alloc + int field access (green above). toString/equals/
         // record-in-concat need INSTANCE-method lowering (not built yet) -> honest

@@ -1,0 +1,173 @@
+package image
+
+import image.Av1Intra
+import image.Av1IntraDr
+import image.Av1FilterIntra
+
+// kof.image — AV1 intra prediction composition (slice 3u of the AVIF front,
+// plan §34). Implements the AV1 Bitstream & Decoding Process Specification
+// §7.11.2 (intra prediction process) as the `predict_intra` call the tile
+// decode drives per transform block: it builds the `AboveRow`/`LeftCol` edge
+// arrays from the already reconstructed samples of the current plane (the
+// availability flags, the `haveAboveRight`/`haveBelowLeft` `2*w`/`2*h` read
+// limits and the missing-edge substitutions `128±1`), then dispatches to the
+// slice-3j base predictors (`av1IntraPred`: DC/V/H/SMOOTH/PAETH), the slice-3k
+// directional process (`av1DrPredict`) or the slice-3l recursive filter-intra
+// process (`av1FilterIntraPredBd`).
+//
+// The frame samples live in a flat `CurrFrame[plane]` buffer with `stride`;
+// `x`/`y` are the top-left sample of the transform block in that plane's
+// coordinates, `maxX`/`maxY` the largest valid coordinates. `filterType`
+// (§7.11.2.8 intra filter type) and `enableEdgeFilter` (the sequence-header
+// `enable_intra_edge_filter`) are supplied by the caller; the frame assembly
+// owns the neighbour-mode state.
+//
+// Pure Kof, all targets: no I/O, no compiler change. `decodeRaster` still
+// refuses AVIF until the chain closes.
+
+// The §7.11.2 intra prediction process for one transform block. `frame` is the
+// flat reconstructed plane (`stride` samples per row); the block occupies
+// `w x h` samples at `(x, y)`. `haveLeft`/`haveAbove`/`haveAboveRight`/
+// `haveBelowLeft` are the §7.11.2 availability flags; `maxX`/`maxY` are the
+// largest valid plane coordinates. `useFilterIntra`/`filterIntraMode` select the
+// recursive filter-intra predictor, otherwise `mode`/`angleDelta` select the
+// base/directional predictor. `enableEdgeFilter` is the sequence-header
+// `enable_intra_edge_filter` flag. Returns the `w*h` prediction in raster order.
+Int[] av1IntraPredictBlock(Int[] frame, Int stride, Int x, Int y,
+                           Int w, Int h, Int maxX, Int maxY,
+                           Int haveLeft, Int haveAbove,
+                           Int haveAboveRight, Int haveBelowLeft,
+                           Int mode, Int angleDelta,
+                           Int useFilterIntra, Int filterIntraMode,
+                           Int bitDepth, Int filterType, Bool enableEdgeFilter) {
+    var total = w + h
+    var co = 2 * total + 8
+    var len = co + 4 * total + 16
+    var above = new Int[len]
+    var left = new Int[len]
+    var mid = 1 << (bitDepth - 1)
+
+    // AboveRow[ i ], i = 0..w+h-1 (§7.11.2).
+    if (haveAbove == 0 && haveLeft == 1) {
+        var v = frame[y * stride + (x - 1)]
+        var i = 0
+        while (i < total) {
+            above[co + i] = v
+            i = i + 1
+        }
+    } else {
+        if (haveAbove == 0 && haveLeft == 0) {
+            var i = 0
+            while (i < total) {
+                above[co + i] = mid - 1
+                i = i + 1
+            }
+        } else {
+            var limit = x + w - 1
+            if (haveAboveRight == 1) {
+                limit = x + 2 * w - 1
+            }
+            if (limit > maxX) {
+                limit = maxX
+            }
+            var i = 0
+            while (i < total) {
+                var xi = x + i
+                if (xi > limit) {
+                    xi = limit
+                }
+                above[co + i] = frame[(y - 1) * stride + xi]
+                i = i + 1
+            }
+        }
+    }
+
+    // LeftCol[ i ], i = 0..w+h-1 (§7.11.2).
+    if (haveLeft == 0 && haveAbove == 1) {
+        var v = frame[(y - 1) * stride + x]
+        var i = 0
+        while (i < total) {
+            left[co + i] = v
+            i = i + 1
+        }
+    } else {
+        if (haveLeft == 0 && haveAbove == 0) {
+            var i = 0
+            while (i < total) {
+                left[co + i] = mid + 1
+                i = i + 1
+            }
+        } else {
+            var limit = y + h - 1
+            if (haveBelowLeft == 1) {
+                limit = y + 2 * h - 1
+            }
+            if (limit > maxY) {
+                limit = maxY
+            }
+            var i = 0
+            while (i < total) {
+                var yi = y + i
+                if (yi > limit) {
+                    yi = limit
+                }
+                left[co + i] = frame[yi * stride + (x - 1)]
+                i = i + 1
+            }
+        }
+    }
+
+    // The corner AboveRow[ -1 ] / LeftCol[ -1 ] (§7.11.2).
+    var corner = mid
+    if (haveAbove == 1 && haveLeft == 1) {
+        corner = frame[(y - 1) * stride + (x - 1)]
+    } else {
+        if (haveAbove == 1) {
+            corner = frame[(y - 1) * stride + x]
+        } else {
+            if (haveLeft == 1) {
+                corner = frame[y * stride + (x - 1)]
+            }
+        }
+    }
+    above[co - 1] = corner
+    left[co - 1] = corner
+
+    if (useFilterIntra == 1) {
+        return av1FilterIntraPredBd(above, left, w, h, co, filterIntraMode, bitDepth)
+    }
+    if (av1IntraIsDirectional(mode)) {
+        var nTopPx = 0
+        if (haveAbove == 1) {
+            nTopPx = w
+            if (maxX - x + 1 < nTopPx) {
+                nTopPx = maxX - x + 1
+            }
+        }
+        var nLeftPx = 0
+        if (haveLeft == 1) {
+            nLeftPx = h
+            if (maxY - y + 1 < nLeftPx) {
+                nLeftPx = maxY - y + 1
+            }
+        }
+        return av1DrPredict(mode, angleDelta, above, left, w, h, co,
+                            nTopPx, nLeftPx, bitDepth, filterType, enableEdgeFilter)
+    }
+
+    // Non-directional modes read the flat edges from entry 0.
+    var above0 = new Int[w]
+    var left0 = new Int[h]
+    var j = 0
+    while (j < w) {
+        above0[j] = above[co + j]
+        j = j + 1
+    }
+    j = 0
+    while (j < h) {
+        left0[j] = left[co + j]
+        j = j + 1
+    }
+    return av1IntraPred(mode, above0, left0, w, h, haveAbove == 1,
+                        haveLeft == 1, above[co - 1], bitDepth)
+}

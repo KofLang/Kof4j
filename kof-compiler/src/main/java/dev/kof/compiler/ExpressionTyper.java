@@ -220,7 +220,15 @@ public final class ExpressionTyper {
                 List<IRLocalVariable> extended = new ArrayList<>(locals);
                 int pidx = 0;
                 for (FormalParameterNode p : le.parameters()) {
-                    Type pt = CompilerTypes.toType(p.type(), driver.currentUnit);
+                    // §548/#710 residual: o tipo do parâmetro precisa da MESMA
+                    // qualificação que CompilerLambdaClass usa no `invoke`
+                    // (sobrecarga ciente do SemanticAnalyzer → qualifyDeep).
+                    // A de 2 args deixava um parâmetro `Label` (kof.ui) como
+                    // ClassType("","Label") no FunctionType, então a interface
+                    // sintética saía `Function1_CLabel_void.invoke(Label)` com
+                    // um handle `int` na pilha → VerifyError. O valor real é o
+                    // handle; os dois lados têm de concordar.
+                    Type pt = CompilerTypes.toType(p.type(), driver.currentUnit, driver.semanticAnalyzer);
                     paramTypes.add(pt);
                     extended.add(new IRLocalVariable(pidx++, p.name(), pt));
                 }

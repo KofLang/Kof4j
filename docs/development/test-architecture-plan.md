@@ -894,6 +894,20 @@ value survives). Validated on all four targets; additionally run on
 riscv64/aarch64 under qemu during authoring. Proof (executed):
 `tests/run-golden.sh` **140/140** (35 cases × 4 targets), exit 0.
 
+**Phase 6 slice 11 LANDED (08/10, lane compiler/JVM/native `192.168.15.30:9092`):** one
+more case — **36 total** — pinning the `List` higher-order/query surfaces the
+`pipelines` case left uncovered: `list-higher-order` exercises `reduce(lambda,
+seed)` (seed form, `SEM073` if omitted), `indexOf`/`lastIndexOf` (`-1` when
+absent), `isEmpty`, `none(pred)`, `find(pred)` (the first match), `slice(off,
+len)`/`take(n)`/`drop(n)` (materialized copies, clamped), `groupBy` (`Map<K,
+List<E>>`), `flatMap` (flattened list), `sort()` in place, `addAll`, `subList`,
+`remove` and `sorted(comparator)` with a descending comparator. The `zip` face
+is deliberately NOT included: it is the documented `NAT008` native gap (a
+primitive element crosses a bare type parameter), so a golden case requiring all
+four targets cannot pin it — the refusal is the contract. Validated on all four
+targets. Proof (executed): `tests/run-golden.sh` **144/144** (36 cases × 4
+targets), exit 0.
+
 ### Phase 7 — Integration
 
 Deploy:

@@ -487,13 +487,36 @@ final class WasmLowering {
                 out.add(new WasmInstr.Call("kof.strConcat")); // a+b de strings (15.3c)
                 ctx.lastPush = "string";
             } else if (ctx.wasi && "valueOf".equals(kc.methodName())
-                    && (printlnFollows(ops, idx) || "String".equals(ownerSimpleName(kc.ownerType())))) {
+                    && printlnFollows(ops, idx)) {
                 // String.valueOf(X) seguido de println: o valor bruto ja esta na
                 // pilha; pula o valueOf e deixa o helper escalar consumir
                 ctx.lastPush = (!kc.parameterTypes().isEmpty()
                         && !(kc.parameterTypes().get(0) instanceof Type.UnknownType))
                         ? typeName(kc.parameterTypes().get(0))
                         : operandTypeBefore(ops, idx);
+            } else if (ctx.wasi && "valueOf".equals(kc.methodName())
+                    && "String".equals(ownerSimpleName(kc.ownerType()))) {
+                // String.valueOf como VALOR (variavel/concat) — paridade JVM:
+                // Int|Long -> kof.intToStr (handle `[len][digits]` no bump heap);
+                // String -> identidade (o `+` do JVM reaplica valueOf no handle);
+                // outros tipos recusam honesto (WASM002) sem artefato (Q7).
+                if ("string".equals(ctx.lastPush)) {
+                    ctx.lastPush = "string";
+                } else {
+                    String vt = (!kc.parameterTypes().isEmpty()
+                            && !(kc.parameterTypes().get(0) instanceof Type.UnknownType))
+                            ? typeName(kc.parameterTypes().get(0))
+                            : operandTypeBefore(ops, idx);
+                    if ("string".equalsIgnoreCase(vt)) {
+                        ctx.lastPush = "string";
+                    } else if ("int".equalsIgnoreCase(vt) || "long".equalsIgnoreCase(vt)) {
+                        out.add(new WasmInstr.Call("kof.intToStr"));
+                        ctx.lastPush = "string";
+                    } else {
+                        throw new WasmUnsupportedException("String.valueOf('" + vt
+                                + "') fora da 15.3d inc2 (WASM002) — docs/development/wasm-wasi-plan.md (#776)");
+                    }
+                }
             } else if (ctx.wasi && "println".equals(kc.methodName())) {
                 String t = ctx.lastPush == null ? "?" : ctx.lastPush.toLowerCase();
                 switch (t) {
