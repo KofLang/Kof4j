@@ -260,8 +260,22 @@ public final class RuntimeDb4 {
                 pushq %rbp
                 movq %rsp, %rbp
                 andq $-16, %rsp
+                # #773: um arg erased do db.execute passa por Integer.valueOf
+                # (ExpressionDbCallLowerer) — no native e o box MAGIC do §284,
+                # um PONTEIRO ≥ limiar. Sem reconhece-lo, caia em bind_text
+                # sobre o MAGIC (bytes do +24 = "") -> coluna int virava "".
+                # Paridade com o autobox JVM (JDBC bind int): desembrulha o
+                # VALOR (+16) e segue o caminho Int. O deref so ocorre >=
+                # limiar (Int cru nunca e dereferenciado).
                 cmpq $0x1000000, %rdx
-                jae .Ldb_bind_str
+                jb .Ldb_bind_int
+                movabsq $0x4B4F46425F425801, %rax
+                cmpq %rax, (%rdx)
+                je .Ldb_bind_box
+                jmp .Ldb_bind_str
+            .Ldb_bind_box:
+                movq 16(%rdx), %rdx
+            .Ldb_bind_int:
                 pushq %rbx
                 movl %edx, %ebx
                 subq $8, %rsp

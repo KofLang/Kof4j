@@ -21,9 +21,16 @@ orienta a intenção.
 | `extension` | `Path("data/users.txt").extension()` | `txt` |
 | `normalize` | `Path("a/./b/../c").normalize()` | `a/c` |
 | `isAbsolute` | `Path("/x").isAbsolute()` | `true` |
-| `toAbsolute` | `Path("x").toAbsolute()` | caminho absoluto |
+| `toAbsolute` | `Path("x").toAbsolute()` | caminho absoluto (lexical, nunca falha) |
+| `realPath` | `Path("link").realPath()` | caminho canônico com symlinks/junctions resolvidos; `String?` — `null` quando o caminho não existe |
 
 No Windows o separador é `\`; o código Kof nunca concatena separadores.
+`realPath()` é a primitiva para checagens de confinamento: compare o filho
+resolvido com a raiz resolvida para que um symlink ou uma junction de
+diretório do Windows não aponte para fora dela. `isSymlink()` reporta se o
+próprio caminho é um link simbólico (não reporta uma junction do Windows);
+`realPath()` resolve ambos. `realPath()` é JVM + Native (x86-64, riscv64,
+aarch64); o alvo JS a recusa em compile time com `IOJS001`.
 
 ## File
 
@@ -36,7 +43,7 @@ No Windows o separador é `\`; o código Kof nunca concatena separadores.
 | `readBytes()` | `Int[]` (0-255), `null` se falhar |
 | `writeBytes(b)` / `appendBytes(b)` | Bool |
 | `size()` | Long; lança exceção se o arquivo não existe (02/09 — sem sentinela `-1`) |
-| `delete()` | Bool (arquivo ou diretório vazio) |
+| `delete()` | Bool (arquivo ou diretório — diretórios não-vazios apagam recursivamente em todo alvo desde 08/10, `known-bugs` §618) |
 | `name()` / `path()` | String |
 | `copyTo(destino)` | Bool — JVM + Native (x86-64/riscv64/aarch64, linha de paridade 13). Copia bytes + atributos básicos. Sem sobrescrita por padrão (devolve `false`, sem alterar nenhum dos dois arquivos, se `destino` já existir); não cria o diretório pai de `destino` implicitamente — quem chama precisa garantir que ele exista |
 | `moveTo(destino)` | Bool — JVM + Native. Primitiva de filesystem para mover/renomear, sem sobrescrita por padrão (mesmo contrato de `copyTo`). Não é uma transação segura: quem precisa de mover com verificação de hash continua fazendo copiar → validar → apagar, como já fazia antes deste método existir |
@@ -59,7 +66,7 @@ inalcançável porque o typer nunca resolve o tipo como receptor estático;
 | `create()` | cria; falha se já existe |
 | `createDirectories()` | cria recursivamente |
 | `list()` | `List<String>` dos nomes, ordenado |
-| `delete()` | remove diretório vazio |
+| `delete()` | remove diretório, recursivamente se não-vazio (todos os alvos desde 08/10, `known-bugs` §618) |
 
 ```kof
 var dir = Directory("data")

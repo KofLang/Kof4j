@@ -32,14 +32,14 @@ public final class ExpressionBareCallLowerer {
             Type targetType = CompilerTypes.ownerTypeFromInternal(targetInternal, driver.semanticAnalyzer);
             SymbolTable.ClassSymbol targetCs = driver.semanticAnalyzer.getClass(
                     targetInternal.substring(targetInternal.lastIndexOf('/') + 1));
-            SymbolTable.ConstructorSymbol ctor = targetCs != null
-                    ? SymbolTable.constructorFor(targetCs.members(), mc.arguments().size()) : null;
             List<Type> argTypes = new ArrayList<>();
             for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
+            SymbolTable.ConstructorSymbol ctor = targetCs != null
+                    ? SymbolTable.constructorFor(targetCs.members(), mc.arguments().size(), argTypes) : null;
             ops.add(new KofLoadLocal(CompilerTypes.ownerTypeFromInternal(owner, driver.semanticAnalyzer), 0));
             List<Type> ctorParamTypes;
-            if (ctor != null && ctor.parameterTypes().size() == mc.arguments().size()) {
-                ctorParamTypes = ctor.parameterTypes();
+            if (ctor != null && ctor.acceptsArgumentCount(mc.arguments().size())) {
+                ctorParamTypes = ctor.effectiveParameterTypes(mc.arguments().size());
             } else {
                 if (targetCs != null && driver.currentDiagnostics != null) {
                     // classe conhecida e nenhum construtor com essa
@@ -120,14 +120,13 @@ public final class ExpressionBareCallLowerer {
         if (cs != null) {
             List<Type> argTypes = new ArrayList<>();
             for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
-            SymbolTable.ConstructorSymbol ctor = null;
-            SymbolTable.Symbol ctorSym = cs.members().resolve("<init>");
-            if (ctorSym instanceof SymbolTable.ConstructorSymbol ctorSingle) ctor = ctorSingle;
+            SymbolTable.ConstructorSymbol ctor = SymbolTable.constructorFor(
+                    cs.members(), mc.arguments().size(), argTypes);
             ops.add(new KofNewObject(cs.type(), argTypes));
             ops.add(new KofDup());
-            List<Type> ctorParamTypes = (ctor != null
-                    && ctor.parameterTypes().size() == mc.arguments().size())
-                    ? ctor.parameterTypes() : argTypes;
+            List<Type> ctorParamTypes = ctor != null && ctor.acceptsArgumentCount(mc.arguments().size())
+                    ? ctor.effectiveParameterTypes(mc.arguments().size())
+                    : argTypes;
             localIdx = driver.emitArgumentsWithFormalTypes(mc.arguments(), ctorParamTypes, ops, owner, localIdx, locals);
             ops.add(new KofCall(cs.type(), "<init>", ctorParamTypes, Type.PrimitiveType.VOID, KofCallKind.CONSTRUCTOR));
         } else {
@@ -140,21 +139,22 @@ public final class ExpressionBareCallLowerer {
                     // sintética — invoca via INVOKEINTERFACE.
                     localIdx = ExpressionLowerer.emitExpression(driver, new IdentifierExpr(mc.position(), mc.methodName()),
                             ops, owner, localIdx, locals);
-                    List<Type> argTypes = new ArrayList<>();
-                    for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
                     localIdx = driver.emitArgumentsWithFormalTypes(mc.arguments(), lft.parameterTypes(),
                             ops, owner, localIdx, locals);
                     Type iface = driver.lambdaInterfaceType(lft);
-                    ops.add(new KofCall(iface, "invoke", argTypes, lft.returnType(),
+                    // O descritor do `invoke` é o da interface sintética, cujos
+                    // parâmetros são os do TIPO DE FUNÇÃO declarado (Long), não
+                    // os tipos inferidos dos argumentos (Int literal). Usar os
+                    // inferidos emitia `invoke(I)J` com um `LCONST_0` na pilha
+                    // → ASM COMPUTE_FRAMES AIOOBE (COMP002 "frame crash").
+                    ops.add(new KofCall(iface, "invoke", lft.parameterTypes(), lft.returnType(),
                             KofCallKind.INTERFACE));
                 } else {
                 localIdx = ExpressionLowerer.emitExpression(driver, new IdentifierExpr(mc.position(), mc.methodName()),
                         ops, owner, localIdx, locals);
-                List<Type> argTypes = new ArrayList<>();
-                for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
                 localIdx = driver.emitArgumentsWithFormalTypes(mc.arguments(), lft.parameterTypes(), ops, owner, localIdx, locals);
                 Type invokeOwner = new Type.ClassType("", lft.className(), List.of());
-                ops.add(new KofCall(invokeOwner, "invoke", argTypes, lft.returnType(), KofCallKind.INSTANCE));
+                ops.add(new KofCall(invokeOwner, "invoke", lft.parameterTypes(), lft.returnType(), KofCallKind.INSTANCE));
                 }
             } else {
                 // #402/#388: chamada de CAMPO de tipo de função da classe atual.

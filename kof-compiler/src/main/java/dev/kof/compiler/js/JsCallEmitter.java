@@ -335,10 +335,11 @@ void handleConstructorCall(MethodCtx ctx, List<Object> stack, KofCall kc) {
             callArgs.addAll(sourceArgs);
             String ctorName = "__kof_ctor"
                     + TopLevelOverload.sigTag(kc.parameterTypes()).replace('_', '$');
+            JsIr.JsExpression privateCtor = new JsIr.JsMember(
+                    new JsIr.JsMember(new JsIr.JsIdentifier(JsTypeMapper.jsClassName(owner)), "prototype"),
+                    ctorName);
             throw new StatementEnd(new JsIr.JsCall(
-                    new JsIr.JsMember(new JsIr.JsMember(new JsIr.JsIdentifier(
-                            JsTypeMapper.jsClassName(owner)), "prototype"), ctorName),
-                    callArgs));
+                    new JsIr.JsMember(privateCtor, "call"), callArgs));
         }
         // super(...) constructor call
         throw new StatementEnd(new JsIr.JsCall(new JsIr.JsIdentifier("super"), args));

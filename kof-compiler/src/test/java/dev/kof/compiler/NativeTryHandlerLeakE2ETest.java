@@ -124,6 +124,49 @@ class NativeTryHandlerLeakE2ETest {
             }
             """;
 
+    // §551 residual (06/10): um `return` dentro do CATCH de um try/finally.
+    // O frame DD-01 era empilhado ANTES do corpo do try, então o return no
+    // catch emitia um unlink a MENOS (o handler deste try já tinha sido
+    // desempilhado pelo throw) — a cadeia `kof_exc_chain` corrompia e o
+    // próximo throw dava SIGSEGV no nativo. JVM/Script/JS corretos.
+    private static final String RETURN_IN_CATCH_FINALLY = """
+            String g(Bool b) {
+                try {
+                    if (b) {
+                        throw "x"
+                    }
+                    return "OK"
+                } catch (String e) {
+                    return "CATCH:" + e
+                } finally {
+                    println("F")
+                }
+            }
+            main() {
+                println(g(true))
+                throw "BOOM"
+            }
+            """;
+
+    private static final String RETURN_IN_CATCH_FINALLY_CLEAN = """
+            String g(Bool b) {
+                try {
+                    if (b) {
+                        throw "x"
+                    }
+                    return "OK"
+                } catch (String e) {
+                    return "CATCH:" + e
+                } finally {
+                    println("F")
+                }
+            }
+            main() {
+                println(g(true))
+                println(g(false))
+            }
+            """;
+
     private static final String BREAK_IN_TRY = """
             main() {
                 for (var i in listOf(1)) {
@@ -298,6 +341,25 @@ class NativeTryHandlerLeakE2ETest {
     }
 
     @Test
+    void returnInsideCatchWithFinallyDoesNotLeakHandler() throws Exception {
+        allTargets("return-catch-finally", RETURN_IN_CATCH_FINALLY,
+                new Expect("F", 1), new Expect("CATCH:x", 1));
+    }
+
+    @Test
+    void returnInsideCatchWithFinallyMatchesJvmOnNative() throws Exception {
+        Path src = tmp.resolve("return-catch-finally-exact.kf");
+        Files.writeString(src, RETURN_IN_CATCH_FINALLY_CLEAN);
+        Run jvm = runJvm(src, tmp.resolve("rcf-jvm"));
+        Run nat = runNative(src, tmp.resolve("rcf-nat"));
+        assertTrue(jvm.ok(), "JVM run failed: " + jvm.output());
+        assertTrue(nat.ok(), "native run failed (ec=" + nat.ec() + "): " + nat.output());
+        assertEquals("F\nCATCH:x\nF\nOK", jvm.norm(), "JVM oracle golden drift");
+        assertEquals(jvm.norm(), nat.norm(),
+                "native output diverges from the JVM oracle on return-inside-catch+finally");
+    }
+
+    @Test
     void breakInsideTryDoesNotLeakHandler() throws Exception {
         allTargets("break-try", BREAK_IN_TRY, new Expect("CAUGHT", 0), new Expect("AFTER", 1));
     }
@@ -341,6 +403,24 @@ class NativeTryHandlerLeakE2ETest {
         assertNoLeak("aarch64", runCross(src, tmp.resolve("cross-aa-brk-out"),
                         Target.NATIVE_AARCH64, "aarch64"),
                 List.of(new Expect("CAUGHT", 0), new Expect("AFTER", 1)));
+    }
+
+    @Test
+    void crossRiscv64ReturnInsideCatchWithFinallyDoesNotLeakHandler() throws Exception {
+        Path src = tmp.resolve("cross-rv-rcf.kf");
+        Files.writeString(src, RETURN_IN_CATCH_FINALLY);
+        assertNoLeak("riscv64", runCross(src, tmp.resolve("cross-rv-rcf-out"),
+                        Target.NATIVE_RISCV64, "riscv64"),
+                List.of(new Expect("F", 1), new Expect("CATCH:x", 1)));
+    }
+
+    @Test
+    void crossAarch64ReturnInsideCatchWithFinallyDoesNotLeakHandler() throws Exception {
+        Path src = tmp.resolve("cross-aa-rcf.kf");
+        Files.writeString(src, RETURN_IN_CATCH_FINALLY);
+        assertNoLeak("aarch64", runCross(src, tmp.resolve("cross-aa-rcf-out"),
+                        Target.NATIVE_AARCH64, "aarch64"),
+                List.of(new Expect("F", 1), new Expect("CATCH:x", 1)));
     }
 
     @Test

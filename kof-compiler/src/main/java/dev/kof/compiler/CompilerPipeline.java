@@ -218,6 +218,8 @@ public final class CompilerPipeline {
             // SCRIPT não emite artefato — é interpretado (interpret()). O
             // chamador (lowerAndEmit) bloqueia antes; isto é defensivo.
             case SCRIPT -> throw new IllegalStateException("SCRIPT has no backend");
+            case WASM -> new dev.kof.compiler.wasm.WasmBackend();
+            case WASI -> new dev.kof.compiler.wasm.WasmBackend(true);
         };
     }
 
@@ -331,7 +333,12 @@ public final class CompilerPipeline {
         UiTargetDiagnostics.warnIfNative(driver, irModule, diagnostics);
         Files.createDirectories(outputDir);
         Backend backend = CompilerPipeline.selectBackend(driver, target);
-        backend.emit(irModule, outputDir, driver.debugInfoEnabled);
+        try {
+            backend.emit(irModule, outputDir, driver.debugInfoEnabled);
+        } catch (dev.kof.compiler.wasm.WasmUnsupportedException e) {
+            diagnostics.error(driver.currentSourceName, 0, 0, 0, e.getMessage(), "WASM002");
+            return;
+        }
         if (target == Target.ANDROID) {
             new AndroidProjectWriter(driver.androidMinSdk, driver.androidTargetSdk)
                     .write(outputDir, irModule);
@@ -518,6 +525,10 @@ public final class CompilerPipeline {
         merged = CompilerPairs.injectHostIfNeeded(driver, merged, diagnostics);
         if (merged == null) return null;
         merged = CompilerTesting.injectHostIfNeeded(driver, merged, diagnostics);
+        if (merged == null) return null;
+        merged = CompilerTestDb.injectHostIfNeeded(driver, merged, diagnostics);
+        if (merged == null) return null;
+        merged = CompilerTestWeb.injectHostIfNeeded(driver, merged, diagnostics);
         if (merged == null) return null;
         merged = CompilerWeb.injectHostIfNeeded(driver, merged, diagnostics);
         if (merged == null) return null;

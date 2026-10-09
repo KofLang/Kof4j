@@ -1,0 +1,108 @@
+package game
+
+// kof.game — frame clock (slice 3.1 of the graphics/gaming front, `D-GRAPHICS-GAMING`
+// + `D-GRAPHICS-SPIKE` + the stack batch `D-MAINT-BATCH-0510`/G1-G2).
+//
+// The platform owns the loop (plan §6): the backend owns clock/vsync/scheduling
+// and the program only reads `dt`. This module is the PURE, backend-independent
+// half of that contract: the frame bookkeeping and the delta time. It adds no
+// rendering and calls no window/audio/video API, so it is honest on every target
+// today and the backend window (`Window`/`frame`) is layered on top in a later
+// slice.
+//
+// The clock does not own a timer: the caller passes the current monotonic
+// microsecond timestamp to `start`/`beginFrame`. That keeps `dt` deterministic
+// and testable — a virtual clock is just a counter the caller advances (plan §6
+// "virtual clock required ... for physics/animations/input/audio/playback/
+// goldens") — and leaves the waiting/vsync to the backend, which is where the
+// plan puts it.
+//
+//   var clock = Clock()
+//   clock.start(time.now() * 1000)
+//   while (clock.hasNext()) {
+//       var frame = clock.beginFrame(time.now() * 1000)
+//       update(clock.dtMicros())      // dt for this frame
+//       draw()
+//       if (frame >= 120) { clock.stop() }
+//   }
+//
+// Semantics (frozen here, tested): `start` captures the epoch and prepares frame
+// 0; the first `beginFrame` reports `dt = 0` (no prior frame to diff) and
+// `frame = 0`; every later `beginFrame` computes `dt` as the span since the
+// previous frame. `stop()` makes `hasNext()` false. Pure arithmetic, no IO; runs
+// on every target.
+
+class Clock {
+    Bool running
+    Bool firstFrame
+    Long originMicros
+    Long previousMicros
+    Long dt
+    Int frameIndex
+
+    constructor() {
+        this.running = false
+        this.firstFrame = false
+        this.originMicros = 0
+        this.previousMicros = 0
+        this.dt = 0
+        this.frameIndex = 0
+    }
+
+    // Begin the loop at `nowMicros`: capture the epoch and prepare frame 0.
+    void start(Long nowMicros) {
+        this.originMicros = nowMicros
+        this.previousMicros = nowMicros
+        this.dt = 0
+        this.frameIndex = 0
+        this.firstFrame = true
+        this.running = true
+    }
+
+    Bool hasNext() {
+        return this.running
+    }
+
+    // The current frame's index, starting at 0.
+    Int frame() {
+        return this.frameIndex
+    }
+
+    // Microseconds between the previous frame and this one (0 on the first).
+    Long dtMicros() {
+        return this.dt
+    }
+
+    // Milliseconds between the previous frame and this one (integer floor).
+    Int dtMillis() {
+        return (this.dt / 1000) as Int
+    }
+
+    // Seconds between the previous frame and this one.
+    Double dtSeconds() {
+        return this.dt.toDouble() / 1000000.0
+    }
+
+    // Microseconds elapsed since `start` (monotonic).
+    Long elapsedMicros(Long nowMicros) {
+        return nowMicros - this.originMicros
+    }
+
+    // Enter a frame at `nowMicros`: the first frame keeps `dt = 0`; later frames
+    // diff against the previous timestamp. Returns the frame index just begun.
+    Int beginFrame(Long nowMicros) {
+        if (this.firstFrame) {
+            this.firstFrame = false
+        } else {
+            this.dt = nowMicros - this.previousMicros
+            this.frameIndex = this.frameIndex + 1
+        }
+        this.previousMicros = nowMicros
+        return this.frameIndex
+    }
+
+    // Stop the loop; `hasNext()` becomes false.
+    void stop() {
+        this.running = false
+    }
+}

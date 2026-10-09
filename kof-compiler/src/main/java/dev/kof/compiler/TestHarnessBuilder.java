@@ -54,7 +54,7 @@ final class TestHarnessBuilder {
         if (filtering) {
             kept = new ArrayList<>();
             for (Entry t : tests) {
-                if (t.tags().contains(tagFilter)) kept.add(t);
+                if (matchesAnyTag(t.tags(), tagFilter)) kept.add(t);
             }
         }
         List<StatementNode> body = new ArrayList<>();
@@ -209,6 +209,21 @@ final class TestHarnessBuilder {
                 null));
         return new FunctionDeclarationNode(p, List.of(), "void", "main",
                 List.of(), List.of(), List.of(), List.copyOf(body));
+    }
+
+    /**
+     * §7.1 multi-tag: o valor de {@code --tag} é uma lista separada por vírgula e
+     * casa por DISJUNÇÃO (OR) — {@code --tag smoke,ui} mantém todo teste que
+     * carregue QUALQUER uma das tags. Um valor simples (sem vírgula) é o caso de
+     * uma tag só e mantém o contrato histórico byte a byte (rule 2). Espaços em
+     * volta de cada tag são ignorados; um item vazio é descartado (não casa).
+     */
+    static boolean matchesAnyTag(List<String> tags, String filter) {
+        for (String part : filter.split(",", -1)) {
+            String want = part.trim();
+            if (!want.isEmpty() && tags.contains(want)) return true;
+        }
+        return false;
     }
 
     private static StatementNode testCall(SourcePosition p, Entry test) {

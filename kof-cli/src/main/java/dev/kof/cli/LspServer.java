@@ -195,7 +195,7 @@ final class LspServer {
             // main(), var/val de topo -> globals).
             String outText = text;
             if (name.endsWith(".ks")) {
-                outText = text.contains("main()") ? text : dev.kof.script.KofScript.wrapPureKof(text);
+                outText = dev.kof.script.KofScript.prepareSource(text);
                 name = name.replace(".ks", ".kf");
             }
             // #636: documento que E arquivo de projeto real (kof.toml ancestral

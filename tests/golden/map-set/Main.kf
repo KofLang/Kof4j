@@ -1,0 +1,11 @@
+main() {
+    var m = mapOf("a", 1)
+    m.put("b", 2)
+    println(m.get("a"))
+    println(m.getOrDefault("z", 9))
+    println(m.containsKey("b"))
+    var s = setOf(1, 2, 3)
+    s.add(4)
+    println(s.contains(2))
+    println(s.size)
+}

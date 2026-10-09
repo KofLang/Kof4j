@@ -1,0 +1,58 @@
+package game
+
+// kof.game — draw-command list (slice 3.2a of the graphics/gaming front,
+// `D-GRAPHICS-GAMING` + `D-GRAPHICS-SPIKE` + `D-MAINT-BATCH-0510`/G1).
+//
+// The plan §8 rule for rendering: the app declares *what*, the backend
+// decides *how* (batching/atlas/command-buffer/order/cache/upload hidden).
+// This module is the PURE declaration half: `DrawList.draw(sprite)` resolves
+// the sprite's current frame + world transform into a `DrawCmd` record and
+// appends it IN ORDER, so the backend consumes an explicit, deterministic
+// frame description instead of hidden GPU state. It calls no rendering API
+// and is honest on every target today.
+//
+//   var queue = DrawList()
+//   queue.draw(hero.at(10, 20))
+//   queue.draw(enemy.hide())     // invisible: records nothing
+//   backend.present(queue)       // a later slice owns this
+//   queue.clear()
+//
+// Semantics (frozen here, tested): commands keep insertion order; `clear()`
+// empties the list; `commandAt(i)` reads by position; drawing an invisible
+// sprite records nothing. The command snapshots the sprite (later mutation
+// of the sprite never rewrites a recorded command). Pure data, no IO; runs
+// on every target.
+
+record DrawCmd(String image, Double x, Double y, Double scaleX, Double scaleY,
+    Double rotationDeg, Bool flipH, Bool flipV)
+
+class DrawList {
+    List<DrawCmd> commands
+
+    constructor() {
+        this.commands = listOf<DrawCmd>()
+    }
+
+    // Resolve `s` and append its command (a no-op while `s` is invisible).
+    DrawList draw(Sprite s) {
+        s.draw(this)
+        return this
+    }
+
+    // Append a prebuilt command (the `Sprite.draw` path).
+    void addCmd(DrawCmd cmd) {
+        this.commands.add(cmd)
+    }
+
+    Int size() {
+        return this.commands.size
+    }
+
+    DrawCmd commandAt(Int i) {
+        return this.commands[i]
+    }
+
+    void clear() {
+        this.commands = listOf<DrawCmd>()
+    }
+}

@@ -85,9 +85,9 @@ final class NativeArchEmitter {
             nb.collectStrings(c);
         }
         for (String[] e : nb.stringLiterals) {
-            String esc = e[0].replace("\\", "\\\\").replace("\"", "\\\"")
-                    .replace("\n", "\\n").replace("\t", "\\t");
-            sb.append(e[1]).append(": .asciz \"").append(esc).append("\"\n");
+            // §623: escape control/UTF-8 bytes (o NUL cru de "\0" quebrava o GAS).
+            sb.append(e[1]).append(": .asciz \"")
+              .append(NativeGasStrings.gasEscape(e[0])).append("\"\n");
         }
         // bug 59: símbolos de campos estáticos (ex: kof_static_java_lang_System_out)
         // referenciados por KofGetStatic no riscv/aarch precisam ser DEFINIDOS no
@@ -308,9 +308,9 @@ final class NativeArchEmitter {
             nb.collectStrings(c);
         }
         for (String[] e : nb.stringLiterals) {
-            String esc = e[0].replace("\\", "\\\\").replace("\"", "\\\"")
-                    .replace("\n", "\\n").replace("\t", "\\t");
-            riscvSb.append(e[1]).append(": .asciz \"").append(esc).append("\"\n");
+            // §623: escape control/UTF-8 bytes (o NUL cru de "\0" quebrava o GAS).
+            riscvSb.append(e[1]).append(": .asciz \"")
+                   .append(NativeGasStrings.gasEscape(e[0])).append("\"\n");
         }
         // bug 59: símbolos de campos estáticos definidos no .data (ver emitRiscv).
         nb.collectStaticFields();

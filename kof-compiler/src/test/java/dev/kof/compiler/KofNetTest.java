@@ -6,7 +6,7 @@ import java.nio.file.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /** STDLIB S8 — kof.net (6 campos escalares de URI v1 + fachada query*). */
-class KofNetTest {
+class KofNetTest implements NativeToolchainAssumptions {
 
     private final CompilerDriver driver = new CompilerDriver();
 
@@ -107,21 +107,6 @@ class KofNetTest {
         runQemuE(tmp, Target.NATIVE_RISCV64, "qemu-riscv64", SRC, EXPECTED);
         assumeToolchain("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64");
         runQemuE(tmp, Target.NATIVE_AARCH64, "qemu-aarch64", SRC, EXPECTED);
-    }
-
-    private static void assumeToolchain(String... tools) {
-        for (String c : tools) {
-            try {
-                Process p = new ProcessBuilder(c, "--version").redirectErrorStream(true).start();
-                String o = new String(p.getInputStream().readAllBytes(),
-                        java.nio.charset.StandardCharsets.UTF_8).trim();
-                if (p.waitFor() != 0 || o.isEmpty()) {
-                    org.junit.jupiter.api.Assumptions.assumeTrue(false, "toolchain ausente: " + c);
-                }
-            } catch (Exception e) {
-                org.junit.jupiter.api.Assumptions.assumeTrue(false, "toolchain ausente: " + c);
-            }
-        }
     }
 
     private void runQemuE(Path tempDir, Target target, String qemu, String source,

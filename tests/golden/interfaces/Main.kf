@@ -1,0 +1,18 @@
+interface Speaker {
+    speak(): String
+}
+
+class Dog implements Speaker {
+    speak(): String = "woof"
+}
+
+class Cat implements Speaker {
+    speak(): String = "meow"
+}
+
+main() {
+    var animals: List<Speaker> = listOf(Dog(), Cat())
+    for (var a in animals) {
+        println(a.speak())
+    }
+}

@@ -311,7 +311,13 @@ public final class SymbolTableBuilder {
             classSym.members().define(fs);
             classScope.define(fs);
         }
-        SymbolTable.ConstructorSymbol ctorSym = new SymbolTable.ConstructorSymbol(rec.name(), compTypes, 1);
+        int recRequired = 0;
+        while (recRequired < rec.components().size()
+                && rec.components().get(recRequired).initializer() == null) {
+            recRequired++;
+        }
+        SymbolTable.ConstructorSymbol ctorSym = new SymbolTable.ConstructorSymbol(rec.name(), compTypes, 1,
+                recRequired);
         classSym.members().define(ctorSym);
         classScope.define(ctorSym);
         for (RecordComponentNode comp : rec.components()) {
@@ -389,6 +395,13 @@ public final class SymbolTableBuilder {
         checkMemberSignatureDupes(sa, iface.members(), iface.name(), classScope, "interface");
     }
 
+    static int requiredConstructorArity(List<FormalParameterNode> parameters) {
+        for (int i = 0; i < parameters.size(); i++) {
+            if (parameters.get(i).defaultExpression() != null) return i;
+        }
+        return parameters.size();
+    }
+
     static void defineConstructorSymbol(SemanticAnalyzer sa, ConstructorDeclarationNode ctor,
                                         SymbolTable.ClassSymbol classSym, SymbolTable classScope) {
         String className = classSym.name();
@@ -403,7 +416,9 @@ public final class SymbolTableBuilder {
             ctorScope.define(new SymbolTable.ParameterSymbol(param.name(), paramType, idx));
             idx++;
         }
-        SymbolTable.ConstructorSymbol ctorSym = new SymbolTable.ConstructorSymbol(className, paramTypes, 1);
+        int requiredArity = requiredConstructorArity(ctor.parameters());
+        SymbolTable.ConstructorSymbol ctorSym = new SymbolTable.ConstructorSymbol(className, paramTypes, 1,
+                requiredArity);
         classScope.define(ctorSym);
         // #639 face 2: define no símbolo da PRÓPRIA declaração (não no de nome
         // simples, que colide quando duas packages declaram o mesmo nome).

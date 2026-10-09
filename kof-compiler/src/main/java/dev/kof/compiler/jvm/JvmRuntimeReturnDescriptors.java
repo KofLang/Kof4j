@@ -37,7 +37,7 @@ public final class JvmRuntimeReturnDescriptors {
                     "kof_io_file_copy_to", "kof_io_file_move_to", "kof_io_file_is_symlink" -> "I";
             case "kof_io_read_text", "kof_io_file_name", "kof_io_path_parent", "kof_io_path_file_name",
                     "kof_io_path_extension", "kof_io_path_normalize", "kof_io_path_resolve",
-                    "kof_io_path_to_absolute" -> "Ljava/lang/String;";
+                    "kof_io_path_to_absolute", "kof_io_path_real_path" -> "Ljava/lang/String;";
             case "kof_process_run" -> "Ldev/kof/runtime/KofRuntime$ProcessResult;";
             case "kof_process_exit" -> "V";
             case "kof_shell_argv" -> "Ljava/util/ArrayList;";
@@ -98,6 +98,9 @@ public final class JvmRuntimeReturnDescriptors {
             case "kof_net_listen" -> "Ldev/kof/runtime/KofRuntime$NetListener;";
             case "kof_net_accept" -> "Ldev/kof/runtime/KofRuntime$NetConn;";
             case "kof_net_connect" -> "Ldev/kof/runtime/KofRuntime$NetConn;";
+            // #759 / NET1: connect ao endereço validado; resolve devolve List.
+            case "kof_net_connect_addr" -> "Ldev/kof/runtime/KofRuntime$NetConn;";
+            case "kof_net_resolve" -> "Ljava/util/ArrayList;";
             case "kof_net_bind" -> "Ldev/kof/runtime/KofRuntime$NetEndpoint;";
             case "kof_net_send" -> "I";
             case "kof_net_receive", "kof_net_receiveFrom" -> "[B";

@@ -1,0 +1,409 @@
+package image
+
+import image.Av1Tx
+import image.Av1InvTx
+
+// kof.image — AV1 loop filter (slice 3h of the AVIF front, plan §34).
+// The deblocking stage that follows the inverse transform, per AV1
+// Bitstream & Decoding Process Specification §7.14 (loop filter process).
+//
+// This module carries the target-independent pure functions the edge walk
+// (§7.14.2) drives:
+//   - §7.14.3 filter size process            -> av1LfFilterSize
+//   - §7.14.4/§7.14.5 adaptive strength      -> av1LfStrength
+//   - §7.14.6.2 filter mask process          -> av1LfMask
+//   - §7.14.6.3 narrow filter process        -> av1LfNarrow
+//   - §7.14.6.4 wide filter process          -> av1LfWide
+//   - §7.14.6 sample filtering dispatch      -> av1LfSample
+//
+// The edge-walk driver itself (which edges are filtered and when) depends on
+// the decoded mode-info arrays (MiSizes/RefFrames/YModes/Skips/SegmentIds/
+// DeltaLFs) and belongs to the reconstruction slice; this module is the
+// arithmetic core that consumes them.
+//
+// Pure Kof, all targets: no I/O, no compiler change.
+
+// §7.14.4: `MAX_LOOP_FILTER`.
+Int av1LfMaxLoopFilter() {
+    return 63
+}
+
+// §7.14.5: `i = ( plane == 0 ) ? pass : ( plane + 1 )`, the index into
+// loop_filter_level[] and DeltaLFs[].
+Int av1LfIndex(Int plane, Int pass) {
+    if (plane == 0) {
+        return pass
+    }
+    return plane + 1
+}
+
+// §7.14.5: the segment feature id for the loop filter strength
+// (`SEG_LVL_ALT_LF_Y_V` = 1, so feature = 1 + i).
+Int av1LfSegFeature(Int plane, Int pass) {
+    return 1 + av1LfIndex(plane, pass)
+}
+
+Int av1LfMin(Int a, Int b) {
+    if (a < b) {
+        return a
+    }
+    return b
+}
+
+Int av1LfMax(Int a, Int b) {
+    if (a > b) {
+        return a
+    }
+    return b
+}
+
+Int av1LfAbs(Int v) {
+    if (v < 0) {
+        return -v
+    }
+    return v
+}
+
+// §7.14.4: `modeType` from the prediction mode. libaom `mode_lf_lut`:
+// intra modes 0..12 -> 0; single inter modes 13..16 -> 1,1,0,1
+// (GLOBALMV == 15 -> 0); compound modes 17..24 -> 1,1,1,1,1,1,0,1
+// (GLOBAL_GLOBALMV == 23 -> 0).
+Int av1LfModeType(Int mode) {
+    if (mode == 15 || mode == 23) {
+        return 0
+    }
+    if (mode >= 13) {
+        return 1
+    }
+    return 0
+}
+
+// §7.14.3 filter size process. Output is the maximum filter size in samples
+// (4, 8 or 16).
+Int av1LfFilterSize(Int txSz, Int prevTxSz, Int pass, Int plane) {
+    var baseSize = 0
+    if (pass == 0) {
+        baseSize = av1LfMin(av1TxWidth(prevTxSz), av1TxWidth(txSz))
+    } else {
+        baseSize = av1LfMin(av1TxHeight(prevTxSz), av1TxHeight(txSz))
+    }
+    if (plane == 0) {
+        return av1LfMin(16, baseSize)
+    }
+    return av1LfMin(8, baseSize)
+}
+
+// §7.14.4/§7.14.5 adaptive filter strength. Returns [lvl, limit, blimit,
+// thresh]. `loopFilterLevel` is loop_filter_level[ i ] for the plane/pass
+// (i = av1LfIndex(plane, pass)); `deltaLf` is DeltaLFs[ row ][ col ][ i ].
+// `segActive` is seg_feature_active_idx(segment, av1LfSegFeature(plane, pass))
+// and `segData` the matching FeatureData entry.
+Int[] av1LfStrength(Int loopFilterLevel, Int deltaLf, Int segActive,
+        Int segData, Int ref, Int modeType, Int sharpness, Bool deltaEnabled,
+        Int refDelta, Int modeDelta) {
+    var lvlSeg = av1LfClip3(0, 63, deltaLf + loopFilterLevel)
+    if (segActive == 1) {
+        lvlSeg = av1LfClip3(0, 63, segData + lvlSeg)
+    }
+    if (deltaEnabled) {
+        var nShift = lvlSeg >> 5
+        if (ref == 0) {
+            lvlSeg = lvlSeg + (refDelta << nShift)
+        } else {
+            lvlSeg = lvlSeg + (refDelta << nShift) + (modeDelta << nShift)
+        }
+        lvlSeg = av1LfClip3(0, 63, lvlSeg)
+    }
+    var shift = 0
+    if (sharpness > 4) {
+        shift = 2
+    } else if (sharpness > 0) {
+        shift = 1
+    }
+    var limit = 0
+    if (sharpness > 0) {
+        limit = av1LfClip3(1, 9 - sharpness, lvlSeg >> shift)
+    } else {
+        limit = av1LfMax(1, lvlSeg >> shift)
+    }
+    var blimit = 2 * (lvlSeg + 2) + limit
+    var thresh = lvlSeg >> 4
+    var out = new Int[4]
+    out[0] = lvlSeg
+    out[1] = limit
+    out[2] = blimit
+    out[3] = thresh
+    return out
+}
+
+Int av1LfClip3(Int low, Int high, Int v) {
+    if (v < low) {
+        return low
+    }
+    if (v > high) {
+        return high
+    }
+    return v
+}
+
+// Sample access with coordinate clamping (the spec guarantees the edge walk
+// stays in bounds; clamping keeps this arithmetic core total).
+Int av1LfAt(Int[] s, Int w, Int h, Int x, Int y) {
+    if (x < 0) {
+        x = 0
+    }
+    if (x > w - 1) {
+        x = w - 1
+    }
+    if (y < 0) {
+        y = 0
+    }
+    if (y > h - 1) {
+        y = h - 1
+    }
+    return s[y * w + x]
+}
+
+// §7.14.6.2 filter mask process. Returns [hevMask, filterMask, flatMask,
+// flatMask2]. flatMask is only meaningful when filterSize >= 8 and flatMask2
+// when filterSize >= 16; the other entries are set to 1 so callers can use
+// them unconditionally.
+Int[] av1LfMask(Int[] s, Int w, Int h, Int x, Int y, Int dx, Int dy,
+        Int plane, Int limit, Int blimit, Int thresh, Int filterSize,
+        Int bitDepth) {
+    var q0 = av1LfAt(s, w, h, x, y)
+    var q1 = av1LfAt(s, w, h, x + dx, y + dy)
+    var q2 = av1LfAt(s, w, h, x + dx * 2, y + dy * 2)
+    var q3 = av1LfAt(s, w, h, x + dx * 3, y + dy * 3)
+    var q4 = av1LfAt(s, w, h, x + dx * 4, y + dy * 4)
+    var q5 = av1LfAt(s, w, h, x + dx * 5, y + dy * 5)
+    var q6 = av1LfAt(s, w, h, x + dx * 6, y + dy * 6)
+    var p0 = av1LfAt(s, w, h, x - dx, y - dy)
+    var p1 = av1LfAt(s, w, h, x - dx * 2, y - dy * 2)
+    var p2 = av1LfAt(s, w, h, x - dx * 3, y - dy * 3)
+    var p3 = av1LfAt(s, w, h, x - dx * 4, y - dy * 4)
+    var p4 = av1LfAt(s, w, h, x - dx * 5, y - dy * 5)
+    var p5 = av1LfAt(s, w, h, x - dx * 6, y - dy * 6)
+    var p6 = av1LfAt(s, w, h, x - dx * 7, y - dy * 7)
+
+    var bdShift = bitDepth - 8
+    var threshBd = thresh << bdShift
+    var hevMask = 0
+    if (av1LfAbs(p1 - p0) > threshBd) {
+        hevMask = 1
+    }
+    if (av1LfAbs(q1 - q0) > threshBd) {
+        hevMask = 1
+    }
+
+    var filterLen = 16
+    if (filterSize == 4) {
+        filterLen = 4
+    } else if (plane != 0) {
+        filterLen = 6
+    } else if (filterSize == 8) {
+        filterLen = 8
+    }
+
+    var limitBd = limit << bdShift
+    var blimitBd = blimit << bdShift
+    var mask = 0
+    if (av1LfAbs(p1 - p0) > limitBd) {
+        mask = 1
+    }
+    if (av1LfAbs(q1 - q0) > limitBd) {
+        mask = 1
+    }
+    if (av1LfAbs(p0 - q0) * 2 + av1LfAbs(p1 - q1) / 2 > blimitBd) {
+        mask = 1
+    }
+    if (filterLen >= 6) {
+        if (av1LfAbs(p2 - p1) > limitBd) {
+            mask = 1
+        }
+        if (av1LfAbs(q2 - q1) > limitBd) {
+            mask = 1
+        }
+    }
+    if (filterLen >= 8) {
+        if (av1LfAbs(p3 - p2) > limitBd) {
+            mask = 1
+        }
+        if (av1LfAbs(q3 - q2) > limitBd) {
+            mask = 1
+        }
+    }
+    var filterMask = 0
+    if (mask == 0) {
+        filterMask = 1
+    }
+
+    var thresholdBd = 1 << bdShift
+    var flatMask = 1
+    if (filterSize >= 8) {
+        var fm = 0
+        if (av1LfAbs(p1 - p0) > thresholdBd) {
+            fm = 1
+        }
+        if (av1LfAbs(q1 - q0) > thresholdBd) {
+            fm = 1
+        }
+        if (av1LfAbs(p2 - p0) > thresholdBd) {
+            fm = 1
+        }
+        if (av1LfAbs(q2 - q0) > thresholdBd) {
+            fm = 1
+        }
+        if (filterLen >= 8) {
+            if (av1LfAbs(p3 - p0) > thresholdBd) {
+                fm = 1
+            }
+            if (av1LfAbs(q3 - q0) > thresholdBd) {
+                fm = 1
+            }
+        }
+        flatMask = 0
+        if (fm == 0) {
+            flatMask = 1
+        }
+    }
+
+    var flatMask2 = 1
+    if (filterSize >= 16) {
+        var fm2 = 0
+        if (av1LfAbs(p6 - p0) > thresholdBd) {
+            fm2 = 1
+        }
+        if (av1LfAbs(q6 - q0) > thresholdBd) {
+            fm2 = 1
+        }
+        if (av1LfAbs(p5 - p0) > thresholdBd) {
+            fm2 = 1
+        }
+        if (av1LfAbs(q5 - q0) > thresholdBd) {
+            fm2 = 1
+        }
+        if (av1LfAbs(p4 - p0) > thresholdBd) {
+            fm2 = 1
+        }
+        if (av1LfAbs(q4 - q0) > thresholdBd) {
+            fm2 = 1
+        }
+        flatMask2 = 0
+        if (fm2 == 0) {
+            flatMask2 = 1
+        }
+    }
+
+    var out = new Int[4]
+    out[0] = hevMask
+    out[1] = filterMask
+    out[2] = flatMask
+    out[3] = flatMask2
+    return out
+}
+
+// §7.14.6.3 narrow filter process, in place.
+void av1LfNarrow(Int[] s, Int w, Int h, Int x, Int y, Int dx, Int dy,
+        Int plane, Int hevMask, Int bitDepth) {
+    var offset = 0x80 << (bitDepth - 8)
+    var lo = -(1 << (bitDepth - 1))
+    var hi = (1 << (bitDepth - 1)) - 1
+    var q0 = av1LfAt(s, w, h, x, y)
+    var q1 = av1LfAt(s, w, h, x + dx, y + dy)
+    var p0 = av1LfAt(s, w, h, x - dx, y - dy)
+    var p1 = av1LfAt(s, w, h, x - dx * 2, y - dy * 2)
+    var ps1 = p1 - offset
+    var ps0 = p0 - offset
+    var qs0 = q0 - offset
+    var qs1 = q1 - offset
+    var filter = 0
+    if (hevMask == 1) {
+        filter = av1LfClip3(lo, hi, ps1 - qs1)
+    }
+    filter = av1LfClip3(lo, hi, filter + 3 * (qs0 - ps0))
+    var filter1 = av1LfClip3(lo, hi, filter + 4) >> 3
+    var filter2 = av1LfClip3(lo, hi, filter + 3) >> 3
+    var oq0 = av1LfClip3(lo, hi, qs0 - filter1) + offset
+    var op0 = av1LfClip3(lo, hi, ps0 + filter2) + offset
+    s[y * w + x] = oq0
+    s[(y - dy) * w + (x - dx)] = op0
+    if (hevMask == 0) {
+        var f = av1InvRound2(filter1, 1)
+        var oq1 = av1LfClip3(lo, hi, qs1 - f) + offset
+        var op1 = av1LfClip3(lo, hi, ps1 + f) + offset
+        s[(y + dy) * w + (x + dx)] = oq1
+        s[(y - dy * 2) * w + (x - dx * 2)] = op1
+    }
+}
+
+// §7.14.6.4 wide filter process, in place. `log2Size` is 3 or 4.
+void av1LfWide(Int[] s, Int w, Int h, Int x, Int y, Int dx, Int dy,
+        Int plane, Int log2Size) {
+    var n = 0
+    if (log2Size == 4) {
+        n = 6
+    } else if (plane == 0) {
+        n = 3
+    } else {
+        n = 2
+    }
+    var n2 = 1
+    if (log2Size == 3 && plane == 0) {
+        n2 = 0
+    }
+    var len = 2 * n
+    var f = new Int[len]
+    var i = -n
+    while (i < n) {
+        var t = 0
+        var j = -n
+        while (j <= n) {
+            var p = i + j
+            if (p < -(n + 1)) {
+                p = -(n + 1)
+            }
+            if (p > n) {
+                p = n
+            }
+            var tap = 1
+            if (av1LfAbs(j) <= n2) {
+                tap = 2
+            }
+            t = t + av1LfAt(s, w, h, x + p * dx, y + p * dy) * tap
+            j = j + 1
+        }
+        f[i + n] = av1InvRound2(t, log2Size)
+        i = i + 1
+    }
+    i = -n
+    while (i < n) {
+        s[(y + i * dy) * w + (x + i * dx)] = f[i + n]
+        i = i + 1
+    }
+}
+
+// §7.14.6 sample filtering process: run the mask process, then dispatch to
+// no filter, narrow, wide-8 or wide-16. `filterSize` is the §7.14.3 output.
+void av1LfSample(Int[] s, Int w, Int h, Int x, Int y, Int dx, Int dy,
+        Int plane, Int limit, Int blimit, Int thresh, Int filterSize,
+        Int bitDepth) {
+    var masks = av1LfMask(s, w, h, x, y, dx, dy, plane, limit, blimit,
+            thresh, filterSize, bitDepth)
+    var hevMask = masks[0]
+    var filterMask = masks[1]
+    var flatMask = masks[2]
+    var flatMask2 = masks[3]
+    if (filterMask == 0) {
+        return
+    }
+    if (filterSize == 4 || flatMask == 0) {
+        av1LfNarrow(s, w, h, x, y, dx, dy, plane, hevMask, bitDepth)
+        return
+    }
+    if (filterSize == 8 || flatMask2 == 0) {
+        av1LfWide(s, w, h, x, y, dx, dy, plane, 3)
+        return
+    }
+    av1LfWide(s, w, h, x, y, dx, dy, plane, 4)
+}

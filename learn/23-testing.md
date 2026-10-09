@@ -54,6 +54,113 @@ main() {
 }
 ```
 
+## Parameterized tests (input → expected tables)
+
+When only the input changes, drive the test from a table instead of duplicating test
+blocks. `testRows` (from `kof.test`) evaluates every row in isolation and reports all the
+failures in one named message:
+
+```kof
+import kof.test
+
+test "square table" {
+    testRows(listOf(listOf("1", "1"), listOf("2", "4"), listOf("3", "9")), "square", (r: List<String>) -> {
+        var input = r.get(0).toInt()
+        if (input * input != r.get(1).toInt()) {
+            throw "expected " + r.get(1) + ", got " + (input * input)
+        }
+    })
+}
+```
+
+Each row is a `List<String>`; the lambda receives one row and asserts with the
+`assertEqual*` helpers. A failure names the row by index and content
+(`row 1 [2, 5]: expected 5, got 4`) and one bad row never stops the others.
+
+## Deterministic time and randomness (test seams)
+
+Logic that depends on the clock or on randomness is hard to test — unless the test injects the
+source. `kof.test` provides deterministic seams, so the outcome is reproducible:
+
+```kof
+import kof.test
+
+Long elapsed(Long start, Long now) {
+    return now - start
+}
+
+test "clock seam drives elapsed" {
+    var clock = scriptedClock(listOf(100L, 400L, 900L))
+    var start = clock()
+    assertEqualLong(300L, elapsed(start, clock()), "first interval")
+    assertEqualLong(800L, elapsed(start, clock()), "second interval")
+}
+
+test "random seam is reproducible" {
+    var a = seededRandom(42)
+    var b = seededRandom(42)
+    assertEqualInt(a.next(6), b.next(6), "same seed, same sequence")
+}
+```
+
+`fixedClock(millis)` freezes one instant; `scriptedClock(times)` returns the next reading per
+call and, once exhausted, repeats the last. `seededRandom(seed)` gives the same sequence for the
+same seed on every backend and every run — a failure comes back identically.
+
+## Temporary resources (integration harness)
+
+An integration test brings up a resource (a temp directory, a server, a database) and must clean
+it up **even when the test fails**. `withTempDir` owns that lifecycle: it creates the directory,
+runs the body and recursively removes the tree afterwards — the `finally` runs on both paths:
+
+```kof
+import kof.test
+
+test "writes a file into a temp dir" {
+    withTempDir("build/tmp-test", (d: String) -> {
+        var f = File(Path(d).resolve("data.txt"))
+        f.writeText("hello")
+        assertEqualString("hello", f.readText(), "round trip")
+    })
+    // the directory is gone here, even if the body threw
+}
+```
+
+A resource that comes up asynchronously is polled with `waitUntil(probe, attempts, intervalMs)`
+— it probes, sleeps `intervalMs` between attempts, and returns the last result; it never throws
+and never invents success:
+
+```kof
+test "server becomes ready" {
+    withTempDir("build/tmp-srv", (d: String) -> {
+        var up = waitUntil(() -> File(Path(d).resolve("ready")).exists(), 40, 25)
+        assert(up, "server never became ready")
+    })
+}
+```
+
+The cleanup is pure Kof (`Directory.list()` + `File.delete()`), so it is identical on JVM, Native
+and JS — `Directory.delete()` itself only removes an empty directory on JS (see `known-bugs` §618),
+so `removeTree` walks the tree instead of relying on it.
+
+A database connection has the same shape, via the opt-in import `kof.test.db`:
+`withDb(url, body)` opens `db.connect(url)`, runs the body and closes the connection in a
+`finally` — both the success and the throw path, so a test never leaves a connection behind. It
+lives in its own import (not `kof.test`) so a program that never touches a database does not pay
+the native sqlite link:
+
+```kof
+import kof.test.db
+
+test "insert then count" {
+    withDb("jdbc:h2:mem:test;DB_CLOSE_DELAY=-1", (h: String) -> {
+        db.execute(h, "create table t(id int)")
+        db.execute(h, "insert into t values (?)", 7)
+        assertEqualString("{\"n\":1}", db.query(h, "select count(*) as n from t").get(0), "count")
+    })
+}
+```
+
 ## Property-style tests (seeded, reproducible)
 
 There is no separate property-runner surface: a *property test* is a `test` block

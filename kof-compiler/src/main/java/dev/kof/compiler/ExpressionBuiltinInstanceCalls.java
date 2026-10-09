@@ -28,7 +28,7 @@ final class ExpressionBuiltinInstanceCalls {
             "kof_io_append_bytes", "kof_io_dir_list", "kof_io_read_range",
             "kof_io_read_range_path", "kof_io_file_name", "kof_io_path_file_name",
             "kof_io_path_parent", "kof_io_path_extension", "kof_io_path_is_absolute",
-            "kof_io_path_resolve", "kof_io_path_normalize", "kof_io_path_to_absolute", "kof_io_dir_delete", "kof_io_file_modified_time", "kof_io_file_is_symlink", "kof_io_file_move_to", "kof_io_file_copy_to");
+            "kof_io_path_resolve", "kof_io_path_normalize", "kof_io_path_to_absolute", "kof_io_dir_delete", "kof_io_file_modified_time", "kof_io_file_is_symlink", "kof_io_file_move_to", "kof_io_file_copy_to", "kof_io_path_real_path");
 
     /**
      * Faces de kof.io sem binding no runtime JS ({@code kof-runtime-io.mjs}
@@ -40,7 +40,8 @@ final class ExpressionBuiltinInstanceCalls {
     private static final Set<String> JS_MISSING_IO = Set.of(
             "kof_io_read_range", "kof_io_read_range_path",
             "kof_io_file_copy_to", "kof_io_file_move_to",
-            "kof_io_file_modified_time", "kof_io_file_is_symlink");
+            "kof_io_file_modified_time", "kof_io_file_is_symlink",
+            "kof_io_path_real_path");
 
     /** Diagnóstico de gap honesto (R6) numa chamada kof.web. */
     private static void webGap(CompilerDriver driver, MethodCallExpr mc, String msg, String code) {

@@ -106,6 +106,7 @@ public final class MemberCallTyper {
                     sa.putResolvedMethod(mc, new SymbolTable.MethodSymbol(mc.methodName(),
                             qt.internalName(), ret, params, 1,
                             SymbolTable.DispatchKind.STATIC));
+                    ExternalArgTighten.checkExternalCall(sa, mc, argTypes, params, sig.isVarargs());
                     return ret;
                 }
                 // §500 (face método inexistente): nome de classe importada que
@@ -417,6 +418,7 @@ public final class MemberCallTyper {
                     sa.putResolvedMethod(mc, new SymbolTable.MethodSymbol(mc.methodName(),
                             ct.internalName(), ret, params, 1,
                             ExternalDispatchKind.of(sig.ownerIsInterface())));
+                    ExternalArgTighten.checkExternalCall(sa, mc, argTypes, params, sig.isVarargs());
                     return ret;
                 }
             }

@@ -283,8 +283,10 @@ test "adição comuta" {
 Mesma seed => MESMA sequência na JVM e no JS (xorshift128 + splitmix32,
 aritmética 32-bit exata — paridade provada byte-a-byte pelo
 `KofRngTest.jvmJsParity`). NUNCA para chaves/tokens/segredo: isso é
-`random`/`security` (entropia do SO, R11). Fatia 1 = JVM + JS; NATIVE/ANDROID
-falham em compile com o gap honesto `RNG001` (asm x86_64 caiu na fatia 2 — byte-idêntico ao JVM).
+`random`/`security` (entropia do SO, R11). Fatia 1 = JVM + JS; a fatia 2
+somou NATIVE x86_64 (asm, byte-idêntico ao JVM) e ANDROID (reusa o runtime
+JVM, issue #777). Os nativos cross (riscv64/aarch64) falham em compile com
+o gap honesto `RNG001`.
 int(bound) usa módulo (viés pequeno documentado) — o contrato é paridade
 determinística, não uniformidade criptográfica.
 

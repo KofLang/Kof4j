@@ -74,7 +74,7 @@ IRModule currentModule;
      * savedMutated) p/ não vazar frame do método externo.
      */
     record FinallyFrame(LabelId returnFinallyLabel, LabelId rethrowLabel, int slotValor, Type returnType,
-                        int tryDepthSelf) {
+                        int tryDepthSelf, java.util.List<StatementNode> finallyBody) {
     }
 
     final java.util.Deque<FinallyFrame> finallyFrames = new java.util.ArrayDeque<>();
@@ -186,6 +186,14 @@ IRModule currentModule;
     /** Pacote declarado de cada declaração (multi-pacote num só módulo). */
     final java.util.Map<AstNode, String> declarationPackages =
             new java.util.IdentityHashMap<>();
+
+    /** #773: nomes dos records injetados FLAT em todo programa (hoje só o
+     *  `Pair` do zip, `CompilerPairs`). O `toString` sintético de um record
+     *  genérico usa `kof_box_to_string` para campo `T`; para um record
+     *  injetado sem uso isso puxaria a fatia §284 inteira para o runtime de
+     *  QUALQUER programa (hello 109→126 syms). Com o nome aqui, o campo `T`
+     *  do record injetado usa o caminho pré-§612 (concat direto, sem box). */
+    final java.util.Set<String> flatInjectedRecordTypes = new java.util.HashSet<>();
 
     /** Dono real da lambda (classe onde o corpo foi escrito) por classe sintética. */
     final java.util.Map<String, String> lambdaEnclosingOwner = new java.util.LinkedHashMap<>();
@@ -372,6 +380,10 @@ IRModule currentModule;
         CompilerEmissionHelpers.emitErasureUnbox((CompilerDriver) this, ops, primitive);
     }
 
+    void emitErasureUnboxSoft(List<KofOperation> ops, Type primitive) {
+        CompilerEmissionHelpers.emitErasureUnboxSoft((CompilerDriver) this, ops, primitive);
+    }
+
     public java.util.List<CompilerDriver.ConfigKeyInfo> discoveredConfigKeys() {
         return CompilerConfigSupport.discoveredConfigKeys((CompilerDriver) this);
     }
@@ -556,6 +568,7 @@ IRModule currentModule;
         externSignatures.clear();
         pendingSuperBridges.clear();
         declarationPackages.clear();
+        flatInjectedRecordTypes.clear();
         lambdaEnclosingOwner.clear();
         mutatedCapturedNames.clear();
         lambdaCapturedNames.clear();

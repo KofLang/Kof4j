@@ -1,0 +1,121 @@
+package game
+
+// kof.game — tilemap intent (slice 3.2b of the graphics/gaming front,
+// `D-GRAPHICS-GAMING` + `D-GRAPHICS-SPIKE` + `D-MAINT-BATCH-0510`/G1).
+//
+// The plan §8 freezes tilemaps as map INTENT: `tilemap("level.png", 16)`.
+// Tileset/atlas/layers/collision/animated/infinite/formats stay open backend
+// questions; this module is the PURE, backend-independent half: an unbounded
+// sparse tile grid (negative coordinates allowed — the plan's "infinite"
+// face falls out for free) with deterministic queries. It calls no
+// rendering/window/audio API and is honest on every target today.
+//
+//   var level = tilemap("level.png", 16)
+//   level.setTile(0, 0, 1).setTile(3, 2, 5)
+//   level.tileAt(0, 0)    // 7 after level.setTile(0, 0, 7)
+//   level.tileAt(9, 9)    // -1: unset
+//
+// Semantics (frozen here, tested):
+// - Cells are addressed by integer `(col, row)` over an unbounded grid;
+//   `tileAt` returns the tile id, or `-1` when the cell was never set (or was
+//   cleared). A negative id in `setTile` clears the cell instead of storing
+//   (so `-1` is both the empty read and the empty write — one convention).
+// - `setTile` on an occupied cell REPLACES the id (the count never double-
+//   counts a cell); `clearTile` removes it; `count()` is the number of
+//   occupied cells, `clear()` empties the grid.
+// - `worldX(col)` / `worldY(row)` map a cell to its pixel origin
+//   (`col * tileSize`), the bridge to sprite placement; `tileSize <= 0`
+//   throws at construction (a zero-size tile is meaningless, never silent).
+// - Storage is insertion-ordered and queries are deterministic on every
+//   target; capacity is the backend's job. Pure integers, no IO; runs on
+//   every target.
+
+record TileEntry(Int col, Int row, Int id)
+
+class Tilemap {
+    String tileset
+    Int tileSize
+    List<TileEntry> cells
+
+    constructor(tileset: String, tileSize: Int) {
+        if (tileSize <= 0) { throw "Tilemap '" + tileset + "': tileSize must be > 0" }
+        this.tileset = tileset
+        this.tileSize = tileSize
+        this.cells = listOf<TileEntry>()
+    }
+
+    String tilesetName() {
+        return this.tileset
+    }
+
+    Int tilePixels() {
+        return this.tileSize
+    }
+
+    // Number of occupied cells.
+    Int count() {
+        return this.cells.size
+    }
+
+    // Position of `(col, row)` in `cells`, or -1 when absent.
+    Int indexOf(Int col, Int row) {
+        var i = 0
+        while (i < this.cells.size) {
+            var e = this.cells[i]
+            if (e.col() == col && e.row() == row) { return i }
+            i = i + 1
+        }
+        return -1
+    }
+
+    // Tile id at `(col, row)`, or -1 when the cell is empty.
+    Int tileAt(Int col, Int row) {
+        var i = this.indexOf(col, row)
+        if (i < 0) { return -1 }
+        return this.cells[i].id()
+    }
+
+    Bool hasTile(Int col, Int row) {
+        return this.indexOf(col, row) >= 0
+    }
+
+    // Store `id` at `(col, row)` (a negative id clears instead).
+    Tilemap setTile(Int col, Int row, Int id) {
+        if (id < 0) { return this.clearTile(col, row) }
+        var i = this.indexOf(col, row)
+        if (i < 0) {
+            this.cells.add(TileEntry(col, row, id))
+        } else {
+            this.cells.set(i, TileEntry(col, row, id))
+        }
+        return this
+    }
+
+    // Remove `(col, row)`; absent cells are a no-op.
+    Tilemap clearTile(Int col, Int row) {
+        var i = this.indexOf(col, row)
+        if (i >= 0) { this.cells.remove(i) }
+        return this
+    }
+
+    // Empty the whole grid.
+    Tilemap clear() {
+        this.cells = listOf<TileEntry>()
+        return this
+    }
+
+    // Pixel origin of column `col` (bridge to sprite placement).
+    Int worldX(Int col) {
+        return col * this.tileSize
+    }
+
+    // Pixel origin of row `row`.
+    Int worldY(Int row) {
+        return row * this.tileSize
+    }
+}
+
+// The plan §8 shape: `tilemap("level.png", 16)`.
+Tilemap tilemap(String tileset, Int tileSize) {
+    return Tilemap(tileset, tileSize)
+}

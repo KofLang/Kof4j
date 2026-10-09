@@ -177,6 +177,8 @@ final class CmdBuild {
             System.exit(1);
             return;
         }
+        String extErr = KofCliSupport.unsupportedSourceExtension("build", src);
+        if (extErr != null) { System.err.println(extErr); System.exit(1); return; }
         // Convenience (Go-like: the directory is the module): a single source
         // file resolves to its containing directory. Documented as
         // `kof build app.kf`, it previously exited 0 with "no .kf/.kof files

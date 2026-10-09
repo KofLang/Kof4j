@@ -19,30 +19,60 @@ public final class CompilerRecordSupport {
         List<KofOperation> ops = new ArrayList<>();
         List<IRLocalVariable> locals = new ArrayList<>();
         locals.add(new IRLocalVariable(0, "this", ownerType));
+        // #773: no native o `valueOf` de um literal String é no-op (String já
+        // é o valor) e o de um campo despacha pelo tipo REAL — passar Unknown
+        // fazia o emissor nativo chamar `kof_box_to_string`, o que puxava a
+        // fatia §284 inteira (box/unbox) para o runtime de QUALQUER programa
+        // (o record `Pair` do zip é injetado flat em todos): o hello podado
+        // voltava de <110 p/ 126 syms. JVM/JS/Script mantêm o Unknown (o JVM
+        // precisa do Object do `String.valueOf(Object)`).
+        boolean nativeT = driver.target.isNative();
+        Type literalValueOfArg = nativeT ? BuiltinTypes.STRING : Type.UnknownType.UNKNOWN;
         // "Nome[x=valor, y=valor]" — concat: literal, campo, separador...
         ops.add(new KofLoadLiteral(BuiltinTypes.STRING, simpleName + "["));
         ops.add(new KofCall(BuiltinTypes.STRING, "valueOf",
-                List.of(Type.UnknownType.UNKNOWN), BuiltinTypes.STRING, KofCallKind.STATIC));
+                List.of(literalValueOfArg), BuiltinTypes.STRING, KofCallKind.STATIC));
         for (int i = 0; i < fields.size(); i++) {
             IRField f = fields.get(i);
             ops.add(new KofLoadLiteral(BuiltinTypes.STRING, f.name() + "="));
             ops.add(new KofCall(BuiltinTypes.STRING, "valueOf",
-                    List.of(Type.UnknownType.UNKNOWN), BuiltinTypes.STRING, KofCallKind.STATIC));
+                    List.of(literalValueOfArg), BuiltinTypes.STRING, KofCallKind.STATIC));
             ops.add(new KofCall(BuiltinTypes.STRING, "kof_string_concat",
                     List.of(BuiltinTypes.STRING, BuiltinTypes.STRING),
                     BuiltinTypes.STRING, KofCallKind.FUNCTION));
             ops.add(new KofLoadLocal(ownerType, 0));
             ops.add(new KofLoadField(ownerType, f.name(), f.type()));
-            if (!Type.isString(f.type())) TypeEmitter.boxPrimitive(ops, f.type());
-            ops.add(new KofCall(BuiltinTypes.STRING, "valueOf",
-                    List.of(Type.UnknownType.UNKNOWN), BuiltinTypes.STRING, KofCallKind.STATIC));
+            if (nativeT) {
+                // Campo genérico/apagado (T/Unknown): o valor é uma referência
+                // crua; o `valueOf` de um String é no-op e o concat a trata
+                // como String (comportamento pré-§612, sem puxar a fatia de
+                // box). Campo concreto despacha pelo tipo REAL (Int→int_to_string,
+                // record→vtable).
+                // Record injetado FLAT e sem uso (o `Pair` do zip em todo
+                // programa, #773): campo `T` apagado passa como String (no-op)
+                // — não puxa `kof_box_to_string`/fatia §284. O `Pair<Int,Int>`
+                // já é recusado no native (NAT004), então nada imprimível
+                // regride; o ganho é o hello voltar a <110 syms (S-3).
+                Type fv = f.type();
+                boolean flatInjected = driver.flatInjectedRecordTypes.contains(simpleName);
+                Type fieldValueOfArg = (fv instanceof Type.TypeVariable
+                        || fv instanceof Type.UnknownType || Type.isString(fv))
+                        ? (flatInjected ? BuiltinTypes.STRING : fv)
+                        : fv;
+                ops.add(new KofCall(BuiltinTypes.STRING, "valueOf",
+                        List.of(fieldValueOfArg), BuiltinTypes.STRING, KofCallKind.STATIC));
+            } else {
+                if (!Type.isString(f.type())) TypeEmitter.boxPrimitive(ops, f.type());
+                ops.add(new KofCall(BuiltinTypes.STRING, "valueOf",
+                        List.of(Type.UnknownType.UNKNOWN), BuiltinTypes.STRING, KofCallKind.STATIC));
+            }
             ops.add(new KofCall(BuiltinTypes.STRING, "kof_string_concat",
                     List.of(BuiltinTypes.STRING, BuiltinTypes.STRING),
                     BuiltinTypes.STRING, KofCallKind.FUNCTION));
             if (i + 1 < fields.size()) {
                 ops.add(new KofLoadLiteral(BuiltinTypes.STRING, ", "));
                 ops.add(new KofCall(BuiltinTypes.STRING, "valueOf",
-                        List.of(Type.UnknownType.UNKNOWN), BuiltinTypes.STRING, KofCallKind.STATIC));
+                        List.of(literalValueOfArg), BuiltinTypes.STRING, KofCallKind.STATIC));
                 ops.add(new KofCall(BuiltinTypes.STRING, "kof_string_concat",
                         List.of(BuiltinTypes.STRING, BuiltinTypes.STRING),
                         BuiltinTypes.STRING, KofCallKind.FUNCTION));
@@ -50,7 +80,7 @@ public final class CompilerRecordSupport {
         }
         ops.add(new KofLoadLiteral(BuiltinTypes.STRING, "]"));
         ops.add(new KofCall(BuiltinTypes.STRING, "valueOf",
-                List.of(Type.UnknownType.UNKNOWN), BuiltinTypes.STRING, KofCallKind.STATIC));
+                List.of(literalValueOfArg), BuiltinTypes.STRING, KofCallKind.STATIC));
         ops.add(new KofCall(BuiltinTypes.STRING, "kof_string_concat",
                 List.of(BuiltinTypes.STRING, BuiltinTypes.STRING),
                 BuiltinTypes.STRING, KofCallKind.FUNCTION));

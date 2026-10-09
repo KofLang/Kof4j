@@ -24,6 +24,8 @@ public final class NativeRiscvAsmNetCore {
             .Lnet_msg_bind:     .asciz "kof.net: cannot bind (NET002)"
             .Lnet_msg_handle:   .asciz "kof.net: not a net handle (NET005)"
             .Lnet_msg_addr:     .asciz "kof.net: address needs host:port (NET004)"
+            .Lnet_msg_vetted:   .asciz "kof.net: connect to a vetted address needs a non-empty address (NET004)"
+            .Lnet_msg_resolve:  .asciz "kof.net: cannot resolve host (NET004)"
             .Lnet_msg_toobig:   .asciz "kof.net: datagram exceeds 65507 byte UDP payload bound (NET003)"
             .Lnet_msg_send:     .asciz "kof.net: send failed (NET002)"
             .Lnet_msg_recv:     .asciz "kof.net: receive failed (NET002)"
@@ -340,5 +342,107 @@ public final class NativeRiscvAsmNetCore {
                 ld   ra, 24(sp)
                 addi sp, sp, 32
                 ret
+
+            # #759 / NET1: net.connect(host@a0, port@a1, address@a2) -> Conn.
+            # O `address` validado e o destino real (dotted-quad v1); `host` fica
+            # para Host/SNI/cert do chamador. Vazio => NET004 (nunca re-resolve).
+            .globl kof_net_connect_addr
+            .type kof_net_connect_addr, @function
+            kof_net_connect_addr:
+                beqz a2, .Lnet_ca_fail
+                lw   t0, 16(a2)
+                beqz t0, .Lnet_ca_fail
+                mv   a0, a2
+                j    kof_net_connect
+            .Lnet_ca_fail:
+                la   a0, .Lnet_msg_vetted
+                call kof_net_throw
+
+            # #759 / NET1: net.resolve(host@a0) -> List<String> (todos A/AAAA, via
+            # libc getaddrinfo/inet_ntop). Host desconhecido => NET004.
+            .globl kof_net_resolve
+            .type kof_net_resolve, @function
+            kof_net_resolve:
+                addi sp, sp, -192
+                sd   ra, 184(sp)
+                sd   s0, 176(sp)
+                sd   s1, 168(sp)
+                sd   s2, 160(sp)
+                sd   s3, 152(sp)
+                sd   s4, 144(sp)
+                sd   s5, 136(sp)
+                sd   s6, 128(sp)
+                sd   s7, 120(sp)
+                mv   s0, a0
+                beqz s0, .Lnet_resolve_fail
+                lw   t0, 16(s0)
+                beqz t0, .Lnet_resolve_fail
+                addi s2, sp, 16            # hints (48)
+                addi s3, sp, 64            # &res
+                addi s4, sp, 72            # buf[64]
+                li   t0, 0
+                sd   t0, 0(s2)
+                sd   t0, 8(s2)
+                sd   t0, 16(s2)
+                sd   t0, 24(s2)
+                sd   t0, 32(s2)
+                sd   t0, 40(s2)
+                li   t0, 1
+                sw   t0, 8(s2)             # ai_socktype = SOCK_STREAM
+                addi a0, s0, 24
+                li   a1, 0
+                mv   a2, s2
+                mv   a3, s3
+                call getaddrinfo
+                bnez a0, .Lnet_resolve_fail
+                ld   s5, 0(s3)
+                call kof_list_new
+                mv   s6, a0
+            .Lnet_resolve_loop:
+                beqz s5, .Lnet_resolve_done
+                lw   t0, 4(s5)
+                li   t1, 2
+                bne  t0, t1, .Lnet_resolve_next
+                li   a0, 2
+                ld   a1, 24(s5)
+                addi a1, a1, 4
+                mv   a2, s4
+                li   a3, 64
+                call inet_ntop
+                li   t0, 0
+            .Lnet_resolve_len:
+                add  t1, s4, t0
+                lbu  t1, 0(t1)
+                beqz t1, .Lnet_resolve_len_done
+                addi t0, t0, 1
+                j    .Lnet_resolve_len
+            .Lnet_resolve_len_done:
+                mv   a0, s4
+                mv   a1, t0
+                call kof_string_from_literal
+                mv   a1, a0
+                mv   a0, s6
+                call kof_list_add
+            .Lnet_resolve_next:
+                ld   s5, 40(s5)
+                j    .Lnet_resolve_loop
+            .Lnet_resolve_done:
+                ld   a0, 0(s3)
+                call freeaddrinfo
+                mv   a0, s6
+                ld   s7, 120(sp)
+                ld   s6, 128(sp)
+                ld   s5, 136(sp)
+                ld   s4, 144(sp)
+                ld   s3, 152(sp)
+                ld   s2, 160(sp)
+                ld   s1, 168(sp)
+                ld   s0, 176(sp)
+                ld   ra, 184(sp)
+                addi sp, sp, 192
+                ret
+            .Lnet_resolve_fail:
+                la   a0, .Lnet_msg_resolve
+                call kof_net_throw
             """;
 }

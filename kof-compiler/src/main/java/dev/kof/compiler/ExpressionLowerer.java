@@ -203,41 +203,13 @@ public final class ExpressionLowerer {
                         ? driver.semanticAnalyzer.getResolvedConstructor(ne) : null;
                 if (resolvedCtor == null && type instanceof Type.ClassType ct
                         && driver.semanticAnalyzer != null) {
-                    // fallback: resolver por assignability quando o registro
-                    // por identidade falhou (ex.: node recriado no desugar)
                     SymbolTable.ClassSymbol cs = driver.semanticAnalyzer.getClass(ct.name());
                     if (cs != null) {
-                        SymbolTable.Symbol anyInit = cs.members().resolve("<init>");
-                        if (anyInit instanceof SymbolTable.ConstructorSet set) {
-                            for (SymbolTable.ConstructorSymbol c : set.constructors()) {
-                                if (c.parameterTypes().size() == argTypes.size()) {
-                                    boolean compatible = true;
-                                    for (int ai = 0; ai < argTypes.size(); ai++) {
-                                        if (!driver.ctorCompatible(c.parameterTypes().get(ai), argTypes.get(ai))) {
-                                            compatible = false;
-                                            break;
-                                        }
-                                    }
-                                    if (compatible) { resolvedCtor = c; break; }
-                                }
-                            }
-                        }
+                        resolvedCtor = SymbolTable.constructorFor(cs.members(), argTypes.size(), argTypes);
                     }
                 }
-                if (resolvedCtor == null && type instanceof Type.ClassType ct
-                        && driver.semanticAnalyzer != null) {
-                    SymbolTable.ClassSymbol cs2 = driver.semanticAnalyzer.getClass(ct.name());
-                    if (cs2 != null) {
-                        SymbolTable.Symbol anyInit2 = cs2.members().resolve("<init>");
-                        if (anyInit2 instanceof SymbolTable.ConstructorSet set2) {
-                            for (SymbolTable.ConstructorSymbol c : set2.constructors()) {
-                                if (c.parameterTypes().size() == argTypes.size()) {
-                                    resolvedCtor = c;
-                                    break;
-                                }
-                            }
-                        }
-                    }
+                if (resolvedCtor != null && !resolvedCtor.acceptsArgumentCount(argTypes.size())) {
+                    resolvedCtor = null;
                 }
                 // #760: `new <imported-external-class>(...)` is a JVM-backed
                 // face; JS/Native must refuse with INTEROP003 instead of leaking
@@ -255,9 +227,8 @@ public final class ExpressionLowerer {
                 ops.add(new KofNewObject(type, argTypes));
                 ops.add(new KofDup());
                 List<Type> ctorParamTypes;
-                if (resolvedCtor != null
-                        && resolvedCtor.parameterTypes().size() == ne.arguments().size()) {
-                    ctorParamTypes = resolvedCtor.parameterTypes();
+                if (resolvedCtor != null) {
+                    ctorParamTypes = resolvedCtor.effectiveParameterTypes(ne.arguments().size());
                 } else if (type instanceof Type.ClassType ct && !ct.packageName().isEmpty()
                         && driver.externalClasspath.knows(ct.internalName())) {
                     // construtor de classe externa: descritor exato do classpath

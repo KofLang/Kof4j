@@ -40,6 +40,8 @@ public final class NativeNetFront {
             .Lnet_msg_bind:     .asciz "kof.net: cannot bind (NET002)"
             .Lnet_msg_handle:   .asciz "kof.net: not a net handle (NET005)"
             .Lnet_msg_addr:     .asciz "kof.net: address needs host:port (NET004)"
+            .Lnet_msg_vetted:   .asciz "kof.net: connect to a vetted address needs a non-empty address (NET004)"
+            .Lnet_msg_resolve:  .asciz "kof.net: cannot resolve host (NET004)"
             .Lnet_msg_toobig:   .asciz "kof.net: datagram exceeds 65507 byte UDP payload bound (NET003)"
             .Lnet_msg_send:     .asciz "kof.net: send failed (NET002)"
             .Lnet_msg_recv:     .asciz "kof.net: receive failed (NET002)"
@@ -294,6 +296,110 @@ public final class NativeNetFront {
                 movl %r13d, %edi
                 call kof_plat_close
                 leaq .Lnet_msg_connect(%rip), %rdi
+                call kof_net_throw
+            """);
+    }
+
+    /** #759 / NET1: net.resolve(host) -> List&lt;String&gt; (todos os A/AAAA, ordem do
+     *  SO) via libc {@code getaddrinfo}/{@code inet_ntop}. Um host desconhecido
+     *  lança String catchável (NET004). */
+    public static void emitNetResolve(StringBuilder sb) {
+        sb.append("""
+            .globl kof_net_resolve
+            .type kof_net_resolve, @function
+            kof_net_resolve:
+                pushq %rbx
+                pushq %r12
+                pushq %r13
+                pushq %r14
+                pushq %r15
+                subq $176, %rsp
+                movq %rdi, %rbx
+                testq %rbx, %rbx
+                jz .Lresolve_fail
+                movl 16(%rbx), %eax
+                testl %eax, %eax
+                jz .Lresolve_fail
+                movq $0, 64(%rsp)
+                movq $0, 72(%rsp)
+                movq $0, 80(%rsp)
+                movq $0, 88(%rsp)
+                movq $0, 96(%rsp)
+                movq $0, 104(%rsp)
+                movl $1, 72(%rsp)
+                leaq 24(%rbx), %rdi
+                xorq %rsi, %rsi
+                leaq 64(%rsp), %rdx
+                leaq 112(%rsp), %rcx
+                call getaddrinfo
+                testl %eax, %eax
+                jne .Lresolve_fail
+                movq 112(%rsp), %r12
+                call kof_list_new
+                movq %rax, %r13
+            .Lresolve_loop:
+                testq %r12, %r12
+                jz .Lresolve_done
+                cmpl $2, 4(%r12)
+                jne .Lresolve_next
+                movl $2, %edi
+                movq 24(%r12), %rsi
+                addq $4, %rsi
+                movq %rsp, %rdx
+                movl $64, %ecx
+                call inet_ntop
+                movq %rsp, %r14
+                xorq %rcx, %rcx
+            .Lresolve_len:
+                cmpb $0, (%r14,%rcx)
+                je .Lresolve_len_done
+                incq %rcx
+                jmp .Lresolve_len
+            .Lresolve_len_done:
+                movq %r14, %rdi
+                movl %ecx, %esi
+                call kof_string_from_literal
+                movq %r13, %rdi
+                movq %rax, %rsi
+                call kof_list_add
+            .Lresolve_next:
+                movq 40(%r12), %r12
+                jmp .Lresolve_loop
+            .Lresolve_done:
+                movq 112(%rsp), %rdi
+                call freeaddrinfo
+                movq %r13, %rax
+                addq $176, %rsp
+                popq %r15
+                popq %r14
+                popq %r13
+                popq %r12
+                popq %rbx
+                ret
+            .Lresolve_fail:
+                leaq .Lnet_msg_resolve(%rip), %rdi
+                call kof_net_throw
+            """);
+    }
+
+    /** #759 / NET1: net.connect(host, port, address) -> Conn. O `address` já
+     *  validado é o destino real (dotted-quad v1, mesma rota do connect);
+     *  `host` fica para o Host/SNI/cert do chamador. Endereço em branco recusa
+     *  NET004, nunca uma re-resolução silenciosa. */
+    public static void emitNetConnectAddr(StringBuilder sb) {
+        sb.append("""
+            .globl kof_net_connect_addr
+            .type kof_net_connect_addr, @function
+            kof_net_connect_addr:
+                testq %rdx, %rdx
+                jz .Lca_fail
+                movl 16(%rdx), %eax
+                testl %eax, %eax
+                jz .Lca_fail
+                movq %rdx, %rdi
+                jmp kof_net_connect
+            .Lca_fail:
+                leaq .Lnet_msg_vetted(%rip), %rdi
                 call kof_net_throw
             """);
     }

@@ -237,6 +237,34 @@ final class NativeOpHelpers {
         };
     }
 
+    /**
+     * #772: {@code Wrapper.valueOf(primitivo)} — o BOX de erasure do slot
+     * {@code T?} no native (§284 MAGIC box) — compartilha o nome {@code valueOf}
+     * com o açúcar {@code String.valueOf} do println. Sem o DONO, os dois
+     * backends convertiam o box para string e o consumidor do slot lia o
+     * PONTEIRO MAGIC como inteiro. Devolve o nome da runtime {@code kof_box_*}
+     * quando o dono é um wrapper numerico/boolean e o arg é o primitivo CRU
+     * (um {@code T?} já chega boxed e não passa por aqui). {@code null} para
+     * qualquer outro {@code valueOf} (String etc.).
+     */
+    static String wrapperValueOfBoxFn(KofCall kc) {
+        if (kc.kind() != KofCallKind.STATIC) return null;
+        if (!"valueOf".equals(kc.methodName())) return null;
+        if (kc.parameterTypes().size() != 1) return null;
+        if (!(kc.ownerType() instanceof Type.ClassType ct)) return null;
+        String prim = switch (ct.name()) {
+            case "Integer", "Short", "Byte", "Character" -> "int";
+            case "Long" -> "long";
+            case "Double" -> "double";
+            case "Float" -> "float";
+            case "Boolean" -> "bool";
+            default -> null;
+        };
+        if (prim == null) return null;
+        if (kc.parameterTypes().get(0) instanceof Type.NullableType) return null;
+        return NativeBoxTags.boxFn(prim);
+    }
+
     static int resolveFieldOffset(NativeBackend nb, Type ownerType, String fieldName) {
         ClassLayout layout = nb.getLayoutForType(ownerType);
         if (layout != null) {

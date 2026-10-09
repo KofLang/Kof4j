@@ -174,11 +174,15 @@ public final class NativeDbPrepared {
                 leaq .Ldb_prep_args(%rip), %rax
                 movq (%rax,%rcx,8), %rax      # valor
                 cmpq $0x1000000, %rax
-                jae .Lexec_tstr
-                movw $3, (%r15)               # MYSQL_TYPE_LONG
-                jmp .Lexec_tnext
-            .Lexec_tstr:
+                jb .Lexec_tint
+                # #773: §284 MAGIC box (arg erased via Integer.valueOf) => int.
+                movabsq $0x4B4F46425F425801, %r11
+                cmpq %r11, (%rax)
+                je .Lexec_tint
                 movw $0xFD, (%r15)            # MYSQL_TYPE_VAR_STRING
+                jmp .Lexec_tnext
+            .Lexec_tint:
+                movw $3, (%r15)               # MYSQL_TYPE_LONG
             .Lexec_tnext:
                 addq $2, %r15
                 incl %ecx
@@ -193,7 +197,14 @@ public final class NativeDbPrepared {
                 leaq .Ldb_prep_args(%rip), %rax
                 movq (%rax,%rcx,8), %rax
                 cmpq $0x1000000, %rax
-                jae .Lexec_vstr
+                jb .Lexec_vint
+                # #773: §284 MAGIC box (arg erased via Integer.valueOf) =>
+                # desembrulha o valor (+16) e escreve int 4B LE.
+                movabsq $0x4B4F46425F425801, %r11
+                cmpq %r11, (%rax)
+                jne .Lexec_vstr
+                movq 16(%rax), %rax
+            .Lexec_vint:
                 movl %eax, (%r15)             # int 4B LE
                 addq $4, %r15
                 incl %ecx

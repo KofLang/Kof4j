@@ -20,6 +20,17 @@ final class NativeX86ValueOf {
         if (!(kc.kind() == KofCallKind.STATIC && "valueOf".equals(kc.methodName()))) {
             return false;
         }
+            // #772: Wrapper.valueOf(primitivo) é o BOX de erasure do slot T?
+            // (§284 MAGIC box), NÃO String.valueOf. Sem este ramo o box virava
+            // `kof_*_to_string` e o consumidor do slot lia o ponteiro como
+            // inteiro (garbage). `String.valueOf` (dono String) não casa.
+            String boxFn = NativeOpHelpers.wrapperValueOfBoxFn(kc);
+            if (boxFn != null) {
+                sb.append("    popq %rdi\n");
+                sb.append("    call ").append(boxFn).append("\n");
+                sb.append("    pushq %rax\n");
+                return true;
+            }
             Type argType = kc.parameterTypes().isEmpty() ? Type.UnknownType.UNKNOWN : kc.parameterTypes().get(0);
             if (KofProcess.isResult(argType)) {
                 sb.append("    popq %rdi\n");
@@ -134,14 +145,17 @@ final class NativeX86ValueOf {
                 sb.append("    popq %rdi\n");
                 sb.append("    call kof_box_to_string\n");
                 sb.append("    pushq %rax\n");
-            } else if (dispatchType instanceof Type.TypeVariable) {
-                // §444: TypeVariable NÃO casava ramo nenhum e o emit terminava
-                // `return true` SEM emitir conversão — o box de erasure cru
-                // (o ctor genérico boxeia o primitivo) caía no println_string
-                // = lixo/stdio vazio (silent, R6). Mesma invariante §284 do
-                // ramo Object: valor de T apagado é box de primitivo ou
-                // referência real — kof_box_to_string despacha por MAGIC+tag
-                // e passa não-box cru.
+            } else if (dispatchType instanceof Type.TypeVariable
+                    || dispatchType instanceof Type.UnknownType) {
+                // §444 + #772: TypeVariable/Unknown NÃO casavam ramo nenhum e o
+                // emit terminava `return true` SEM emitir conversão — o box de
+                // erasure cru caía no println_string/concat = lixo/stdio vazio
+                // (silent, R6). O Unknown é o argumento do açúcar de
+                // stringificação (`String.valueOf` sobre o primitivo/box já
+                // empilhado: `"x" + n`, campo de record toString) e o TypeVariable
+                // é o `T` apagado do ctor genérico. Mesma invariante §284 do ramo
+                // Object: valor apagado é box de primitivo ou referência real —
+                // kof_box_to_string despacha por MAGIC+tag e passa não-box cru.
                 sb.append("    popq %rdi\n");
                 sb.append("    call kof_box_to_string\n");
                 sb.append("    pushq %rax\n");

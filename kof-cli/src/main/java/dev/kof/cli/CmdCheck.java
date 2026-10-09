@@ -62,6 +62,11 @@ final class CmdCheck {
             err.println("not found: " + src);
             return 1;
         }
+        String extErr = KofCliSupport.unsupportedSourceExtension("check", src);
+        if (extErr != null) {
+            err.println(extErr);
+            return 1;
+        }
 
         List<Path> files = Files.isDirectory(src) ? KofCliSupport.collect(src) : List.of(src);
         if (files.isEmpty()) {

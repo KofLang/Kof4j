@@ -13,37 +13,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * arquitetura de testes, {@code D-TEST-ARCHITECTURE-GO}); os testes e o nome da
  * classe seguem no {@code KofValidationTest} — zero drift de citação.
  */
-abstract class KofValidationSupport extends KofValidationPrograms {
+abstract class KofValidationSupport extends KofValidationPrograms implements QemuRunSupport {
 
     protected final CompilerDriver driver = new CompilerDriver();
 
-    protected static void assumeToolchain(String... bins) {
-        for (String b : bins) {
-            try {
-                Process p = new ProcessBuilder(b, "--version")
-                        .redirectOutput(new java.io.File("/dev/null"))
-                        .redirectErrorStream(true).start();
-                org.junit.jupiter.api.Assumptions.assumeTrue(p.waitFor() == 0,
-                        b + " ausente — pulando (NATIVE002)");
-            } catch (Exception e) {
-                org.junit.jupiter.api.Assumptions.assumeTrue(false, b + " ausente — pulando");
-            }
-        }
+    @Override
+    public CompilerDriver driver() {
+        return driver;
     }
 
-    protected void runQemu(Path tempDir, Target target, String qemu, String source) throws Exception {
-        Path file = tempDir.resolve("Main-" + System.nanoTime() + ".kf");
-        Files.writeString(file, source);
-        Path outDir = tempDir.resolve("out-" + System.nanoTime());
-        CompilationResult result = driver.compile(file, outDir, target);
-        assertTrue(result.success(), target + " compile failed: "
-                + result.diagnostics().getDiagnostics());
-        Path bin = outDir.resolve("Default/Main");
-        Process p = NativeRiscv64E2ETest.qemu(qemu.substring(5), bin).redirectErrorStream(true).start();
-        String output = new String(p.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).trim();
-        int ec = p.waitFor();
-        assertEquals(0, ec, target + " runtime (qemu) exit " + ec + ", out: " + output);
-    }
 
     protected String runJvm(Path tempDir, String source, String expected) throws java.io.IOException {
         Path file = tempDir.resolve("Main-" + System.nanoTime() + ".kf");

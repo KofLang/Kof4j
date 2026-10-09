@@ -1,8 +1,8 @@
 # AGENTS.md
 
-last: 0.5.0-beta
-doing: #651-COMPLETE (Buffer(U8) surface + FFI token B on x86-64 AND cross riscv64/aarch64; fatia B 29/09) + #678-D-SCRIPT-WARN-SURFACE-landed (Script surfaces frontend WARNING diagnostics) + phase-5-unit-3-pinned (Buffer(U8) INOUT × spawn/await runtime parity) + phase-5-unit-2-landed (#667 Script×extern FFI001 at decl line + #668 MEM020 compile face) + memory-safety-phase-4-CLOSED (#658/#659/#662) + #660-D-MEM021-SCALAR-landed (c65f9ba18, maintainer A/ERROR) + evidence-chain-hardened (#664/#665/#669) + phase-5-unit-1-pinned (#666) + ownership-table-landed (#670) + stale-cells-purged (#671) + ledger-selftest-pt-proven (#672) + living-records-registered (#673)
-next: bugs-and-gaps front + release protocol (`D-FUTURE-FREEZE`) / 0.6.0 protocol + weekly minor cadence to 0.9.0 (`D-RELEASE-CADENCE`, `D-LAB-STABILITY`) / promotion-sweep (lane pipeline) / 14.4-rulesets (mantenedora)
+last: 0.6.0-protocol + WASI GATE (07/10 maintainer order `D-WEB-WASI-DEFAULT-0710`: wasm/wasi plan promoted, WASI = default web+desktop frontend, #776 `1.0-blocks` gates the cut; structural gates rc=0; suite 7F non-WASI (4 deterministic external §628/JavaFX + 3 load-proven environmental; 0 WASI, battery 25/25); §625+§627+§631 fixed 08/10 by lane .30:9092)
+doing: #772+#773 CLOSED 06-07/10 (re-scoped §612 `aa67a2acb`; battery 166/0F, ledger rows dropped) + M1 unidade-1 LANDED 07/10 (HFA struct param cross, `2d933828c`) + WASI 15.1+15.2+15.3-slice1+15.3b+15.3c-sliceA+15.3c-sliceB+15.3d-inc1 LANDED 07-08/10 (#776 topology + SCALAR backend + WASI-preview1 stdout host + `println(String)` literal via DATA segments + String VARIABLES/concat on a bump heap `global 0`@16384 `kof.strLit`/`kof.strConcat`/`kof.writeStr` + `args` via `kof.readArgs` (`args_sizes_get`/`args_get`, explicit bounds trap, argv[0] dropped = JVM parity); `WasmWasiE2ETest` 7/7 under wasmtime with JVM-oracle parity `…/ab/xyz` + `alpha/beta/alpha-beta` + record `Point(1,2).x/.y` -> `1/2` (15.3d inc1 alloc + Int/Long field read via `Mem.LOAD64/STORE64` on the bump heap; toString/equals/concat + non-i64 fields still `WASM002` no artifacts until instance-method lowering; then collections land the rest of 15.3; 15.4 flip LAST) + EXTERNAL native/cross regression catalogued `known-bugs` §625 (`Av1CoeffsE2ETest` aarch64+riscv64 at remote tip, bisect `a2f69d2f7`, owner lane .30:9092) — FIXED 08/10 (cross/x86 prologue zeroes slots above `paramSlotMax`; `PrologueSlotInitTest`) + #770-family CLOSED (§609 std-arg unwrap + §610 IfExpr narrowing + `emitErasureUnboxSoft` + honest SEM025; issue closed 05/10) + §612 native MAGIC-box fix landed but REGRESSED 5 native faces -> #772 REOPENED + #773 filed + §614 RED (cut-readiness audit + bisect 06/10, owner .30:9092 native lane; lab CUT SLIPS) + §613 catch-return-finally SIGSEGV FIXED + §615 honest cross refusal + §616/#774 shell-empty-args CLOSED + graphics-gaming unblocked (A1-A3 loop semantics DECIDED; SDL3 vendored + cross ABI proven `Sdl3FfiCrossE2ETest` 5/5; slice 3.1 = .15 lane) + testing-platform §4.4 LANDED (`testRows` 7/7 cross) + §554 DECIDED (batch C, compiler/interop lane) + memory-safety M1 AUTHORIZED (#769) + heartbeat/issue-watcher recorded DEAD (measured, recovered DB) + agent-survival tooling: `scripts/opencode-db-vacuum.sh` (69.3->2.94 GiB proven; death root cause = OOM kernel-proven)
+next: 0.6.0 is GATED by #776 (WASI default frontend, TIER 15) — plan OPEN, free lanes claim it in DOING; then re-measure `check_lab_stability` for the cut; weekly minor cadence (`D-RELEASE-CADENCE`); 14.4-rulesets + promotion-sweep stay with the maintainer; `docs/development/future/` stays FROZEN except this maintainer-ordered promotion (`D-FUTURE-FREEZE`)
 location: repository
 state: active
 
@@ -120,9 +120,11 @@ sessions:
 heartbeat:
 port: 9093
 session: ses_f69e2a3f7ffe9J10aWcHEUOfW8
+state: DEAD 06/10 (measured: 0 rows in the live opencode.db after the DB recovery; no listener on 9093) — re-registration requires spawning the server and recording the NEW session id; never invent ids
 issue-watcher:
 port: 9094
 session: ses_f69c2cb03ffe2zDYCqW7fesphi
+state: DEAD 06/10 (measured: 0 rows in the live opencode.db; no listener on 9094) — same re-registration rule
 
 issue-watcher:
 

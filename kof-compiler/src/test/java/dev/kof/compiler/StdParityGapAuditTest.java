@@ -33,6 +33,13 @@ class StdParityGapAuditTest {
             // not among the six stdlib-parity targets, so they are excluded here
             // rather than pretending a stdlib surface they do not have.
             if (t == Target.NATIVE_RISCV32 || t == Target.NATIVE_MCU_ARM) continue;
+            // WASI (15.1, #776) is topology-only: no emitting backend yet,
+            // refused at compile with the clean WASM001 diagnostic. WASM (15.2)
+            // emits the SCALAR subset only — no stdlib surface, no IO, no main
+            // host yet — so neither pretends a stdlib surface it does not have
+            // (never a silent gate). WASI enters with 15.3; the stdlib matrix
+            // row opens when 15.3/15.4 land the runtime + host with goldens.
+            if (t == Target.WASM || t == Target.WASI) continue;
             if (!supported.test(t)) {
                 s.add(t);
             }
@@ -90,10 +97,9 @@ class StdParityGapAuditTest {
     }
 
     @Test
-    @DisplayName("rng: cross + ANDROID + SCRIPT gated (RNG001)")
-    void rngGatesCrossAndroidScript() {
-        assertEquals(Set.of(Target.NATIVE_RISCV64, Target.NATIVE_AARCH64,
-                Target.ANDROID, Target.SCRIPT),
+    @DisplayName("rng: cross + SCRIPT gated (RNG001) — ANDROID real desde #777")
+    void rngGatesCrossAndScript() {
+        assertEquals(Set.of(Target.NATIVE_RISCV64, Target.NATIVE_AARCH64, Target.SCRIPT),
                 unsupported(t -> KofRng.supportedOn("kof_rng_int", t)));
         assertEquals("RNG001", KofRng.gapCode("kof_rng_int"));
     }

@@ -1,0 +1,11 @@
+enum Color { RED, GREEN, BLUE }
+String label(Color c) = switch (c) {
+    case Color.RED -> "red"
+    case Color.GREEN -> "green"
+    case Color.BLUE -> "blue"
+}
+main() {
+    println(label(Color.RED))
+    println(label(Color.GREEN))
+    println(label(Color.BLUE))
+}

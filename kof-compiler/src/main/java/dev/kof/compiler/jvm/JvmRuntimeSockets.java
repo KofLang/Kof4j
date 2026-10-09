@@ -92,6 +92,40 @@ public final class JvmRuntimeSockets {
                     }
                 }
 
+                /** #759 / NET1 (D-MAINT-BATCH-0510): conecta ao endereço
+                 *  NUMÉRICO já resolvido/validado pela guarda, mantendo `host`
+                 *  para Host/SNI/cert. Um `address` em branco é recusado com
+                 *  nome (NET004), nunca uma re-resolução silenciosa. */
+                public static NetConn kof_net_connect_addr(String host, int port, String address) {
+                    if (address == null || address.isBlank()) {
+                        throw new RuntimeException("kof.net: connect to a vetted address needs a"
+                                + " non-empty address (NET004)");
+                    }
+                    try {
+                        return new NetConn(new java.net.Socket(address, port));
+                    } catch (java.io.IOException e) {
+                        throw new RuntimeException("kof.net: cannot connect to " + address + ":"
+                                + port + " (for " + host + "): " + e.getMessage(), e);
+                    }
+                }
+
+                /** #759 / NET1: todos os endereços (A/AAAA) do host, na ordem do
+                 *  SO — a guarda valida cada um antes de conectar. Um host
+                 *  desconhecido lança String catchável (NET004). */
+                public static java.util.ArrayList kof_net_resolve(String host) {
+                    if (host == null || host.isBlank()) {
+                        throw new RuntimeException("kof.net: resolve needs a host (NET004)");
+                    }
+                    try {
+                        java.net.InetAddress[] all = java.net.InetAddress.getAllByName(host);
+                        java.util.ArrayList out = new java.util.ArrayList();
+                        for (java.net.InetAddress a : all) out.add(a.getHostAddress());
+                        return out;
+                    } catch (java.net.UnknownHostException e) {
+                        throw new RuntimeException("kof.net: cannot resolve '" + host + "' (NET004)", e);
+                    }
+                }
+
                 /** Envia pelo fluxo e devolve o total escrito (Int). */
                 public static int kof_net_send(NetConn c, byte[] payload) {
                     if (c == null) throw new IllegalArgumentException("kof.net: null connection");

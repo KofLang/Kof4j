@@ -1,0 +1,386 @@
+package image
+
+import image.Av1Symbol
+import image.Av1Tx
+import image.Av1CoeffCdf
+import image.Av1CoeffCtx
+
+// kof.image — AV1 coefficient block walk (slice 3e of the AVIF front,
+// plan §34). This is `coeffs()` of the AV1 Bitstream & Decoding Process
+// Specification §5.11.39 (the syntax is also shown as §6.4.3), the stage
+// that turns the tile's entropy-coded bits into the quantized coefficient
+// levels of one transform block. It composes the earlier slices:
+// `Av1Symbol` (the range decoder), `Av1Tx` (the scan order, the transform
+// classes and `compute_tx_type`), `Av1CoeffCdf` (the default coefficient
+// CDFs) and `Av1CoeffCtx` (the coefficient context selection).
+//
+// The walk reads, in order: `all_zero`; the `eob_pt_*` EOB token and its
+// `eob_extra` bits; then, from `c = eob - 1` down to `0`, `coeff_base_eob`
+// (only at the EOB position) or `coeff_base`, each followed by the
+// `coeff_br` refinement loop; finally, from `c = 0` up to `eob - 1`, the
+// sign (`dc_sign` at the DC position, an equiprobable bit elsewhere), the
+// `read_golomb` escape for a level above `NUM_BASE_LEVELS + COEFF_BASE_RANGE`
+// and the running `culLevel`/`dcCategory`. Every constant and rule is quoted
+// from the spec §3, §5.11.39, §9.3.3 and §10, read on the dev host 05/10.
+//
+// The CDFs adapt IN PLACE (the spec's "the process also modifies the input
+// array cdf"), so the adapted tables live in `Av1CoeffCdfStore`, which
+// persists for the whole tile and is shared by every block; `Av1Coeffs` is
+// the per-block walk over one such store. The store keys each adapted CDF by
+// its full `[txSzCtx][ptype][ctx]` tuple and lazily seeds it from the
+// `Av1CoeffCdf` defaults. `levels` holds the signed `Quant[]` raster (the
+// transform's adjusted dimensions) and is exposed so the caller can
+// dequantize; `culLevel` (0..63) and `dcCategory` (0/1/2) feed the next
+// block's `all_zero`/`dc_sign` contexts.
+//
+// Errors are `String` throws beginning with `IMAGE:`. Pixel decoding is NOT
+// part of this slice: `decodeRaster` keeps refusing AVIF until the chain
+// (loop filter + quantization) closes.
+
+// AV1_Eob_Offset_Bits[ eob_pt ] for eob_pt = 1..11 (§3, libaom
+// av1/common/txb_common.c `av1_eob_offset_bits`).
+Int av1EobOffsetBits(Int eobPt) {
+    var t = listOf(0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9)
+    return t.get(eobPt)
+}
+
+// rec_eob_pos( eob_token, extra ) (§6.4.3): the EOB position from the token
+// and its extra bits (libaom av1_eob_group_start + the `extra` sum).
+Int av1RecEobPos(Int eobToken, Int extra) {
+    var start = listOf(0, 1, 2, 3, 5, 9, 17, 33, 65, 129, 257, 513)
+    var eob = start.get(eobToken)
+    if (eob > 2) {
+        eob = eob + extra
+    }
+    return eob
+}
+
+// The adapted coefficient CDFs of one tile. Every table is keyed by its full
+// context tuple; a fresh `Int[]` is seeded from `Av1CoeffCdf` on first use
+// and then mutated in place by `Av1Symbol.readSymbol`.
+class Av1CoeffCdfStore {
+    Int qctx
+    Av1CoeffCdf defaults
+    List<Int[]> txbSkip
+    List<Int[]> eobPt
+    List<Int[]> eobExtra
+    List<Int[]> dcSign
+    List<Int[]> coeffBaseEob
+    List<Int[]> coeffBase
+    List<Int[]> coeffBr
+
+    constructor(Int baseQIdx) {
+        this.qctx = av1CoeffCdfQCtx(baseQIdx)
+        this.defaults = Av1CoeffCdf(this.qctx)
+        this.txbSkip = listOf<Int[]>()
+        this.eobPt = listOf<Int[]>()
+        this.eobExtra = listOf<Int[]>()
+        this.dcSign = listOf<Int[]>()
+        this.coeffBaseEob = listOf<Int[]>()
+        this.coeffBase = listOf<Int[]>()
+        this.coeffBr = listOf<Int[]>()
+    }
+
+    Int[] atOrSeed(List<Int[]> cache, Int index, Int[] fresh) {
+        while (cache.size <= index) {
+            cache.add(new Int[1])
+        }
+        var cur = cache.get(index)
+        if (cur.size < 2) {
+            cache.set(index, fresh)
+            return fresh
+        }
+        return cur
+    }
+
+    // TileTxbSkipCdf[ txSzCtx ][ ctx ].
+    Int[] txbSkipCdf(Int txSzCtx, Int ctx) {
+        return this.atOrSeed(this.txbSkip, txSzCtx * 13 + ctx,
+                this.defaults.txbSkipCdf(txSzCtx, ctx))
+    }
+
+    // TileEobPtNCdf[ ptype ][ ctx ] for N = 16..1024.
+    Int[] eobPtCdf(Int n, Int ptype, Int ctx) {
+        var per = 0
+        if (n == 16) {
+            per = 2
+        } else if (n == 32) {
+            per = 2
+        } else if (n == 64) {
+            per = 2
+        } else if (n == 128) {
+            per = 2
+        } else if (n == 256) {
+            per = 2
+        } else {
+            per = 1
+        }
+        return this.atOrSeed(this.eobPt, n * 4 + ptype * per + ctx,
+                this.defaults.eobPtCdf(n, ptype, ctx))
+    }
+
+    // TileEobExtraCdf[ txSzCtx ][ ptype ][ ctx ].
+    Int[] eobExtraCdf(Int txSzCtx, Int ptype, Int ctx) {
+        return this.atOrSeed(this.eobExtra, (txSzCtx * 2 + ptype) * 9 + ctx,
+                this.defaults.eobExtraCdf(txSzCtx, ptype, ctx))
+    }
+
+    // TileDcSignCdf[ ptype ][ ctx ].
+    Int[] dcSignCdf(Int ptype, Int ctx) {
+        return this.atOrSeed(this.dcSign, ptype * 3 + ctx,
+                this.defaults.dcSignCdf(ptype, ctx))
+    }
+
+    // TileCoeffBaseEobCdf[ txSzCtx ][ ptype ][ ctx ].
+    Int[] coeffBaseEobCdf(Int txSzCtx, Int ptype, Int ctx) {
+        return this.atOrSeed(this.coeffBaseEob, (txSzCtx * 2 + ptype) * 4 + ctx,
+                this.defaults.coeffBaseEobCdf(txSzCtx, ptype, ctx))
+    }
+
+    // TileCoeffBaseCdf[ txSzCtx ][ ptype ][ ctx ].
+    Int[] coeffBaseCdf(Int txSzCtx, Int ptype, Int ctx) {
+        return this.atOrSeed(this.coeffBase, (txSzCtx * 2 + ptype) * 42 + ctx,
+                this.defaults.coeffBaseCdf(txSzCtx, ptype, ctx))
+    }
+
+    // TileCoeffBrCdf[ Min( txSzCtx, TX_32X32 ) ][ ptype ][ ctx ].
+    Int[] coeffBrCdf(Int txSzCtx, Int ptype, Int ctx) {
+        var t = txSzCtx
+        if (t > 3) {
+            t = 3
+        }
+        return this.atOrSeed(this.coeffBr, (t * 2 + ptype) * 21 + ctx,
+                this.defaults.coeffBrCdf(txSzCtx, ptype, ctx))
+    }
+}
+
+class Av1Coeffs {
+    Av1Symbol reader
+    Av1CoeffCdfStore store
+    Int txSz
+    Int txSzCtx
+    Int plane
+    Int ptype
+    Int bwl
+    Int txw
+    Int txh
+    Int txType
+    Int[] scan
+    Int[] levels
+    Int eob
+    Int culLevel
+    Int dcCategory
+
+    // `reader` is positioned at the start of the block; `store` is the
+    // tile's adapted CDF store; `txSz` is the transform-size index, `txType`
+    // the block's transform type (from `transform_type()` on luma or
+    // `compute_tx_type()` on chroma) and `plane` the plane (0 = luma).
+    constructor(Av1Symbol reader, Av1CoeffCdfStore store, Int txSz, Int txType, Int plane) {
+        this.reader = reader
+        this.store = store
+        this.txSz = txSz
+        this.txType = txType
+        this.plane = plane
+        this.ptype = 0
+        if (plane > 0) {
+            this.ptype = 1
+        }
+        this.txSzCtx = av1TxSzCtx(txSz)
+        var adj = av1AdjustedTxSize(txSz)
+        this.bwl = av1TxWidthLog2(adj)
+        this.txw = av1TxWidth(adj)
+        this.txh = av1TxHeight(adj)
+        this.scan = av1ScanOrder(txSz, txType)
+        this.levels = new Int[this.txw * this.txh]
+        this.eob = 0
+        this.culLevel = 0
+        this.dcCategory = 0
+    }
+
+    // The `eob_pt_*` token's multi-size (the spec's `eobMultisize`): for the
+    // 16x64/64x16 sizes it is 5, for 32x64/64x32/64x64 it is 6, otherwise
+    // Min(Tx_Width_Log2, 5) + Min(Tx_Height_Log2, 5) - 4.
+    Int eobMultiSize(Int txSz) {
+        if (txSz == 17 || txSz == 18) {
+            return 5
+        }
+        if (av1TxSizeSqrUp(txSz) == 4) {
+            return 6
+        }
+        var wl = av1TxWidthLog2(txSz)
+        var hl = av1TxHeightLog2(txSz)
+        if (wl > 5) {
+            wl = 5
+        }
+        if (hl > 5) {
+            hl = 5
+        }
+        return wl + hl - 4
+    }
+
+    // eob_pt_16..eob_pt_1024 (§9.3.3): the EOB token (1-based) and its
+    // `eob_extra` bits. Fills and returns `this.eob`.
+    Int readEob() {
+        var multi = this.eobMultiSize(this.txSz)
+        // eob_pt_512/eob_pt_1024 have no multi-size context (the spec's
+        // TileEobPt512Cdf[ ptype ]), so `ctx` stays 0 there.
+        var ctx = 0
+        if (av1TxClass(this.txType) != 0 && multi < 5) {
+            ctx = 1
+        }
+        var n = 16
+        var symbols = 5
+        if (multi == 1) {
+            n = 32
+            symbols = 6
+        } else if (multi == 2) {
+            n = 64
+            symbols = 7
+        } else if (multi == 3) {
+            n = 128
+            symbols = 8
+        } else if (multi == 4) {
+            n = 256
+            symbols = 9
+        } else if (multi == 5) {
+            n = 512
+            symbols = 10
+        } else if (multi >= 6) {
+            n = 1024
+            symbols = 11
+        }
+        var eobPt = this.reader.readSymbol(this.store.eobPtCdf(n, this.ptype, ctx), symbols) + 1
+        var eobExtra = 0
+        var bits = av1EobOffsetBits(eobPt)
+        if (bits > 0) {
+            var eobCtx = eobPt - 3
+            if (this.reader.readSymbol(
+                    this.store.eobExtraCdf(this.txSzCtx, this.ptype, eobCtx), 2) != 0) {
+                eobExtra = eobExtra + (1 << (bits - 1))
+            }
+            var i = 1
+            while (i < bits) {
+                if (this.reader.readBool() != 0) {
+                    eobExtra = eobExtra + (1 << (bits - 1 - i))
+                }
+                i = i + 1
+            }
+        }
+        this.eob = av1RecEobPos(eobPt, eobExtra)
+        return this.eob
+    }
+
+    // The `read_golomb` escape (§5.11.39 / libaom decodetxb.c read_golomb):
+    // a unary length then that many bits, returning `x - 1`.
+    Int readGolomb() {
+        var x = 1
+        var length = 0
+        var i = 0
+        while (i == 0) {
+            i = this.reader.readBool()
+            length = length + 1
+            if (length > 20) {
+                throw "IMAGE: av1 coefficient golomb length out of range"
+            }
+        }
+        i = 0
+        while (i < length - 1) {
+            x = x << 1
+            x = x + this.reader.readBool()
+            i = i + 1
+        }
+        return x - 1
+    }
+
+    // The full `coeffs()` walk for one block. `allZeroCtx` is the block's
+    // `all_zero` context and `dcSignCtx` its `dc_sign` context (0..2, from
+    // the neighbours' DC categories). Returns `eob`; `levels` then holds the
+    // signed `Quant[]`, `culLevel` the 0..63 magnitude sum and `dcCategory`
+    // the DC sign category (0 = none, 1 = negative, 2 = positive).
+    Int decodeBlock(Int allZeroCtx, Int dcSignCtx) {
+        var i = 0
+        while (i < this.levels.size) {
+            this.levels[i] = 0
+            i = i + 1
+        }
+        this.eob = 0
+        this.culLevel = 0
+        this.dcCategory = 0
+        if (this.reader.readSymbol(
+                this.store.txbSkipCdf(this.txSzCtx, allZeroCtx), 2) != 0) {
+            return 0
+        }
+        var eob = this.readEob()
+
+        // Descending base/refinement loop (spec `for c = eob-1 .. 0`).
+        var c = eob - 1
+        while (c >= 0) {
+            var pos = this.scan[c]
+            var level = 0
+            if (c == eob - 1) {
+                var ctxEob = av1GetCoeffBaseCtx(this.txSz, this.txType, this.levels, pos, c, true) - 42 + 4
+                level = this.reader.readSymbol(
+                        this.store.coeffBaseEobCdf(this.txSzCtx, this.ptype, ctxEob), 3) + 1
+            } else {
+                var ctxBase = av1GetCoeffBaseCtx(this.txSz, this.txType, this.levels, pos, c, false)
+                level = this.reader.readSymbol(
+                        this.store.coeffBaseCdf(this.txSzCtx, this.ptype, ctxBase), 4)
+            }
+            if (level > 2) {
+                var brCtx = av1GetCoeffBrCtx(this.txSz, this.txType, this.levels, pos)
+                var brCdf = this.store.coeffBrCdf(this.txSzCtx, this.ptype, brCtx)
+                var idx = 0
+                var br = 0
+                while (idx < 12) {
+                    br = this.reader.readSymbol(brCdf, 4)
+                    level = level + br
+                    if (br < 3) {
+                        idx = 12
+                    } else {
+                        idx = idx + 3
+                    }
+                }
+            }
+            this.levels[pos] = level
+            c = c - 1
+        }
+
+        // Ascending sign / escape / culLevel loop (spec `for c = 0 .. eob-1`).
+        c = 0
+        while (c < eob) {
+            var pos = this.scan[c]
+            var sign = 0
+            if (this.levels[pos] != 0) {
+                if (c == 0) {
+                    sign = this.reader.readSymbol(
+                            this.store.dcSignCdf(this.ptype, dcSignCtx), 2)
+                } else {
+                    sign = this.reader.readBool()
+                }
+            }
+            if (this.levels[pos] > 14) {
+                // The base+refinement level saturates at NUM_BASE_LEVELS +
+                // COEFF_BASE_RANGE (14); the escape is added to it (libaom
+                // `level += read_golomb()`), so the reconstructed level is
+                // `golomb + 15`.
+                this.levels[pos] = this.levels[pos] + this.readGolomb()
+            }
+            if (pos == 0 && this.levels[pos] > 0) {
+                this.dcCategory = 1
+                if (sign == 0) {
+                    this.dcCategory = 2
+                }
+            }
+            var magnitude = this.levels[pos]
+            this.culLevel = this.culLevel + magnitude
+            if (sign != 0) {
+                this.levels[pos] = -magnitude
+            }
+            c = c + 1
+        }
+        if (this.culLevel > 63) {
+            this.culLevel = 63
+        }
+        return eob
+    }
+}

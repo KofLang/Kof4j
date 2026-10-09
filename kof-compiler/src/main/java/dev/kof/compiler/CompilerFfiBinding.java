@@ -156,9 +156,13 @@ final class CompilerFfiBinding {
             // 3.7 fatia 4 + D-MEM-FFI-CROSS-FULL face 3 estendida: no cross o
             // struct por valor binda no register path INTEGER (≤ 16 B) OU no
             // memory path (> 16 B → BYREF, um ponteiro em `a0`/`x0`; medido
-            // 30/09). float/HFA segue FFI001 honesto (R6).
+            // 30/09). D-MEMORY-SAFETY M1 unidade-1 (06/10): também no register
+            // path FP — struct homogêneo-double/float ≤ 16 B (LP64D achata em
+            // ordinais FP próprios; AAPCS64 HFA entrega campo-a-campo em v0..).
+            // Misto float+int segue FFI001 honesto (as ABIs divergem; R6).
             if (!x86 && !FfiStructLayout.crossIntRegisterOnly(driver.target, st)
-                    && !FfiStructLayout.crossByMemory(driver.target, st)) {
+                    && !FfiStructLayout.crossByMemory(driver.target, st)
+                    && !FfiStructLayout.crossHomogeneousFloat(st)) {
                 return false;
             }
             paramTypes.add(st);

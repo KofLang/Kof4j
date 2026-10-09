@@ -133,6 +133,21 @@ public final class StatementAnalyzer {
                                 "Undefined variable or type: '" + vds.type() + "'", "SEM011");
                     }
                 } else if (vds.initializer() != null) {
+                    // §629: a bare TYPE NAME has no value (`var x = Int`); the
+                    // typer yielded Unknown and the JVM backend emitted a frame
+                    // with a phantom operand → ASM COMPUTE_FRAMES crash instead
+                    // of a diagnostic (R6). `Int[3]` is caught in the array
+                    // access; this closes the plain-value face. A local shadow
+                    // or a declared class with that name wins (resolved first).
+                    if (sa.diagnostics() != null
+                            && vds.initializer() instanceof IdentifierExpr iie
+                            && scope.resolve(iie.name()) == null
+                            && MemberResolver.isBuiltinTypeName(iie.name())) {
+                        sa.diagnostics().error(vds,
+                                "'" + iie.name() + "' is a type, not a value — to convert use `as "
+                                        + iie.name() + "`",
+                                "SEM103");
+                    }
                     varType = SemExpressionTyper.inferType(sa, vds.initializer(), scope);
                 } else {
                     varType = Type.UnknownType.UNKNOWN;

@@ -473,13 +473,13 @@ public final class JsClassEmitter {
             body.add(new JsIr.JsIf(condition, List.of(new JsIr.JsBlock(branchBody)), List.of()));
         }
 
-        body.add(new JsIr.JsIf(new JsIr.JsNumber("1"), dispatchDefaultBranch(clazz, ctors), List.of()));
+        body.add(new JsIr.JsIf(new JsIr.JsNumber("1"), dispatchDefaultBranch(clazz), List.of()));
         body.add(new JsIr.JsReturn(new JsIr.JsThis()));
         return new JsIr.JsFunction("constructor", List.of("...__kof_ctor_rest"), body,
                 false, true, false, false, ctors.isEmpty() ? null : JsMethodParser.firstKofLine(ctors.get(0)));
     }
 
-    private List<JsIr.JsStatement> dispatchDefaultBranch(IRClass clazz, List<IRMethod> ctors) {
+    private List<JsIr.JsStatement> dispatchDefaultBranch(IRClass clazz) {
         List<JsIr.JsStatement> out = new ArrayList<>();
         out.add(new JsIr.JsThrow(new JsIr.JsCall(new JsIr.JsIdentifier("Error"),
                 List.of(new JsIr.JsString("KofJS: no constructor of " + clazz.name()

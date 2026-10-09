@@ -24,6 +24,18 @@ public final class KofProcess {
         return RESULT.equals(t);
     }
 
+    /** `D-MAINT-BATCH-0610`/C (name the handle): `Result` is a declarable
+     *  name (var/param/field/return) — same pattern as
+     *  {@code KofUi.typeByName} (§179) and {@code KofNet.typeByName}
+     *  (fatia 6); registered via {@code CompilerTypes.builtinDeclaredType}.
+     *  The user-declared homonym still wins (§243 guard in qualifyDeep).
+     *  Without this, product code cannot pass a `process.run(...)` result
+     *  between functions: SEM011. */
+    static Type typeByName(String name) {
+        if ("Result".equals(name)) return RESULT;
+        return null;
+    }
+
     /** Fields exposed by the process result object. */
     static Type fieldType(String name) {
         return switch (name) {

@@ -356,10 +356,18 @@ Kof is a **distribution**: install it and get the compiler, CLI, runtime,
 stdlib, tooling, editor support and an embedded OpenJDK. **No external
 Java installation is required** — and you don't need to know the version to install.
 
-1. Download the package for **your** system:
-   - **Releases** (stable, `main`): [GitHub Releases](https://github.com/KofLang/Kof4j/releases)
-   - **Pre-releases** (beta, `beta-*`): [Pre-releases](https://github.com/KofLang/Kof4j/releases?q=prerelease%3Atrue) — e.g. `kof-0.5.0-beta+2026.09.17`
-   Variants: `linux-x86_64.tar.gz` / `macos-arm64.tar.gz` / `macos-x86_64.tar.gz` (Intel) / `windows-x86_64.zip`.
+1. **Linux/macOS — automated** (detects your platform and the newest release,
+   no version to type):
+
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/KofLang/Kof4j/main/scripts/install.sh | bash
+   ```
+
+   **Or manual:** download the package for **your** system from
+   [GitHub Releases](https://github.com/KofLang/Kof4j/releases). Kof publishes
+   **one release per platform** (`linux-x86_64.tar.gz` / `macos-arm64.tar.gz` /
+   `macos-x86_64.tar.gz` (Intel) / `windows-x86_64.zip`) — pick the newest
+   release whose name ends with yours.
 2. Extract it and add `bin` to `PATH`:
 
 ```bash

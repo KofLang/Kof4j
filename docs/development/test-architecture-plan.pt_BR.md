@@ -10,9 +10,9 @@ arquivos `*Test.java` sem camadas/harness; o plano está em andamento. **Pousado
 Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`),
 Fase 2 auditoria de descoberta (`scripts/test-suite-audit.sh`) e Fase 2 **ratchet**
 (`scripts/check_test_hygiene.sh` sobre o baseline congelado
-`scripts/test-hygiene-baseline.txt`, **122 chaves, rc=0** — 132 na medição de
+`scripts/test-hygiene-baseline.txt`, **118 chaves, rc=0** — 132 na medição de
 30/09, apertado pela extração da Fase 3 de 02/10; a cabeça da Fase 3 com 0 citações está esgotada, o próximo candidato tem 10 citações
-de doc, e o cluster `dupname` restante exige o harness da Fase 5; as fatias da Fase 5 de 03/10 apertaram `jvmOracle` 131→130, `stopServer` 130→129, `assertRuns` 129→128, `runScript` 128→127, `runKof` 127→126, `assertBoth` 126→125 e `copyLibrary` 125→124 e `runBoth` 124→123 e `runAll3` 123→122). **Fatia quick-win 1 (28/09):**
+de doc, e o cluster `dupname` restante exigia o harness da Fase 5; as fatias da Fase 5 de 03/10–08/10 apertaram `jvmOracle` 131→130, `stopServer` 130→129, `assertRuns` 129→128, `runScript` 128→127, `runKof` 127→126, `assertBoth` 126→125, `copyLibrary` 125→124, `runBoth` 124→123, `runAll3` 123→122, `assumeToolchain` 122→121, `assumeAarch64` 121→120, `assumeCross` 120→119 e `runQemu` 119→118). **Fatia quick-win 1 (28/09):**
 removida a chave `Thread.sleep` falso-positiva (menção só em comentário no
 `AsyncSleepJsE2ETest`) e o settle redundante pós-`startServer` no
 `KofWebHardeningTest` (o probe de readiness de porta já garante o bind).
@@ -730,7 +730,61 @@ corpo de teste, alvo ou asserção mudou. Prova: as 4 baterias afetadas **43/43*
 (NullableBoolTruthiness 15, TrooleanLaw 13, NullablePrimitiveFieldWriter 9, AsCastPrecedence 6); a chave
 `dupname runAll3` foi **eliminada** — baseline re-congelada 123→**122**.
 
-**Fatia da Fase 6 ENTREGUE (05/10):** a suíte oficial de equivalência
+**Fatia 12 da Fase 5 ENTREGUE (05/10):** a família `assumeToolchain` — o último
+cluster `dupname` restante (26 classes, cada uma com a sua cópia privada do
+mesmo guard "este binário existe?") — é consolidada atrás de uma nova interface
+`NativeToolchainAssumptions` (`hasTool` prefix-aware §591 + os guards nomeados
+`assumeNativeRiscv64`/`assumeNativeRiscv64WithSysroot`/`assumeNativeAarch64`/
+`assumeNativeX86_64`/`assumeMcuRiscvAsm`/`assumeMcuArmAsm`, além do genérico
+`assumeToolchain(String...)` para o qual os suportes abstratos encaminham). As
+26 classes implementam a interface e apagam as declarações locais; cada ponto de
+chamada sem argumento agora nomeia o guard que precisa (`assumeToolchain()` → o
+guard explícito), então o conjunto de ferramentas de cada teste fica visível no
+call site em vez de enterrado num corpo por classe. O
+`assumeToolchain(String arch)` distinto de `KofHttpNativeResilienceCrossTest`
+foi renomeado `assumeArchToolchain` para o nome não ficar sobrecarregado por
+acidente. Nenhum corpo de teste, alvo ou asserção mudou. Prova: as 25 baterias
+afetadas **342 rodados / 0F / 0E / 15 pulados** (os pulos são os guards honestos
+de cross/qemu ausente); `check_test_hygiene` rc=0 com a chave
+`dupname assumeToolchain` **eliminada** — baseline re-congelada 122→**121** (as
+3 chaves reportadas são do `PdfTextE2ETest` não-rastreado da lane PDF +
+`startServer`, dívida externa pré-existente).
+
+**Fatia 13 da Fase 5 ENTREGUE (05/10):** os dois últimos clusters `dupname` de
+toolchain — `assumeAarch64` (8 classes) e `assumeCross` (2 classes) — são
+consolidados na mesma interface `NativeToolchainAssumptions`. Foi acrescentado
+`assumeNativeAarch64WithSysroot()` (espelho da variante riscv64) para o
+`NativeRiscvDtoaTest`, cujo `assumeAarch64` local também exigia o sysroot libc
+cross; as outras 7 classes mapeiam para `assumeNativeAarch64()`.
+`NativeRiscvDbWireTest` e `PlatformSeamSabotageTest` (que ainda mantinham um
+`has` local completo) agora também implementam a interface, e o
+`KofConfigCrossTest` descartou o par local `has`/`assumeCross` (o `has` local só
+era usado pelo guard). Nenhum corpo de teste, alvo ou asserção mudou. Prova: as
+10 baterias afetadas **74 rodados / 0F / 0E / 17 pulados** (os pulos são os
+guards honestos de aarch64/qemu ausente); `check_test_hygiene` rc=0 com as duas
+chaves `dupname` **eliminadas** — baseline re-congelada 121→**119**. A chave NOVA
+`dupname startServer` anterior (do helper do `KofHttpErrorContractE2ETest` do
+#756) também foi limpa ao renomeá-lo `startContractServer`.
+
+**Fatia 14 da Fase 5 ENTREGUE (08/10, lane compiler/JVM/native `192.168.15.30:9092`):**
+o cluster `dupname` `runQemu` — seis classes (`KofUuidTest`, `KofStringsSupport`,
+`KofValidationSupport`, `KofStringsIndentDedentTest`, `KofTimeE2ETest`,
+`KofRandomTest`) declaravam cada uma um helper equivalente byte a byte que compila
+uma fonte Kof para um alvo cross e roda o binário sob QEMU, afirmando exit 0. O
+helper agora vive uma vez numa nova interface `QemuRunSupport` (um método `default`
+sobre um acessor abstrato `driver()`), que estende `NativeToolchainAssumptions`; as
+seis classes a implementam e suas cópias locais são removidas. Os três pontos de
+chamada do `KofRandomTest` passam o nome do arch do qemu explicitamente
+(`qemu-riscv64`/`qemu-aarch64`), alinhando com as outras cinco. Nenhum corpo de
+teste, alvo ou asserção mudou. Prova: as seis baterias afetadas **151 rodados / 0F /
+0E**; `check_test_hygiene` rc=0 com `dupname runQemu` **eliminada** — baseline
+re-congelada 119→**118**.
+
+### Fase 6 — Conformance
+
+Criar suíte oficial de equivalência.
+
+**Fatia 1 da Fase 6 ENTREGUE (05/10):** a suíte oficial de equivalência
 (`tests/golden/`) cobria apenas JVM + native; o Golden Suite do plano define a
 meta como "mesmo código → mesma saída em todo alvo" com o **exit code**
 verificado, e a lista de alvos é JVM/Native/JS/Script. O `tests/run-golden.sh`
@@ -745,9 +799,122 @@ Nenhum compilador, classe de teste ou asserção mudou — infraestrutura de tes
 apenas. Prova (executada): `tests/run-golden.sh` **48/48** (12 casos × 4 alvos:
 jvm, native, js, script), exit 0.
 
-### Fase 6 — Conformance
+**Fatia 2 da Fase 6 ENTREGUE (05/10):** a *cobertura* da suíte de equivalência
+cresceu de 12 para **16 casos** — quatro casos novos de superfície da linguagem
+escolhidos para exercitar contratos que o conjunto antigo não cobria:
+`null-safety` (estreitamento de nullable + `if (x != null)`), `map-set`
+(`mapOf`/`put`/`getOrDefault`/`containsKey` + `setOf`/`add`/`contains`/`size`),
+`pipelines` (`sorted`/`distinct`/`any`/`all`/`count`/`find`/`map`/`filter`) e
+`switch-expr` (switch como expressão `case -> ...` + switch statement, `break`
+opcional). Cada caso é validado nos quatro alvos pelo mesmo runner, então o
+contrato "mesmo código → mesma saída em todo alvo" agora está pinado também
+para essas quatro superfícies. Um valor esperado foi corrigido durante a
+autoria RED-first (`sorted()` de `[3,1,2,1]` é `[1,1,2,3]`, não `[1,2,3,3]`),
+confirmando que o runner pega um golden errado. Sem mudança de compilador —
+infraestrutura de teste apenas. Prova (executada): `tests/run-golden.sh`
+**64/64** (16 casos × 4 alvos), exit 0.
 
-Criar suíte oficial de equivalência.
+**Fatia 3 da Fase 6 ENTREGUE (05/10):** mais quatro casos — **20 no total** —
+cobrindo o modelo de objetos e generics: `classes` (constructor explícito +
+campos mutáveis + `extends` + override implícito + `super(name)`, escrita de
+campo via `this`), `interfaces` (`implements` + um `List<Speaker>` despachado
+virtualmente), `generics-box` (`class Box<T>(T value)` com erasure +
+`substituteTypeVariable` na JVM e Native) e `enum` (`enum Color { … }` +
+`name()` + `values().size`). São as superfícies onde a erasure
+JVM/Native/JS mais diverge, então piná-las nos quatro alvos é o incremento de
+cobertura de maior valor que resta na Fase 6. Prova (executada):
+`tests/run-golden.sh` **80/80** (20 casos × 4 alvos), exit 0.
+
+**Fatia 4 da Fase 6 ENTREGUE (05/10):** mais três casos — **23 no total** —
+fechando as superfícies de alto valor restantes: `strings-methods`
+(`trim`/`substring`/`startsWith`/`endsWith`/`indexOf`/`toUpperCase`/
+`toLowerCase`/`charAt` + `==` de conteúdo), `closures` (captura mutável via o
+`BoxN` sintético + captura dentro de `map`/`filter`) e `sealed-switch`
+(`sealed class` + switch expression exaustivo sem `default` — o contrato
+§X5.1/§X5.2, apagado no codegen). Prova (executada): `tests/run-golden.sh`
+**92/92** (23 casos × 4 alvos), exit 0.
+
+**Fatia 5 da Fase 6 ENTREGUE (05/10):** mais três casos — **26 no total** —
+pinando as superfícies de controle de laço e numérica/string que o conjunto
+antigo não exercitava: `loops-control` (`do-while` roda o corpo uma vez e então
+itera pela condição, `break` sai de um `for`, `continue` pula uma iteração tanto
+em um `for` quanto em um `for-in`), `numeric-casts` (`3.9 as Int` trunca para
+`3`, divisão inteira `7/2` = `3` e módulo `7%3` = `1`, precedência aritmética
+`2 + 3 * 4` = `14` vs `(2 + 3) * 4` = `20`, promoção `Int`→`Double` `5 + 2.5` =
+`7.5`, `5 as Double / 2` = `2.5`) e `string-parts-valueof` (`split(",")` +
+`String[]` indexado, `toCharArray()` + `chars[0] as Int` = a unidade de código,
+`equalsIgnoreCase` insensível a conteúdo, e `String.valueOf` para `Int` e
+`Double`). Cada caso é validado nos quatro alvos pelo mesmo runner. Cada valor
+foi medido primeiro no alvo Script e conferido contra o contrato Kof antes de o
+golden ser congelado. Sem mudança de compilador — infraestrutura de teste
+apenas. Prova (executada): `tests/run-golden.sh` **104/104** (26 casos × 4
+alvos), exit 0.
+
+**Fatia 6 da Fase 6 ENTREGUE (05/10):** mais três casos — **29 no total** —
+pinando as superfícies de operadores, mutação de coleções e exaustividade de
+enum: `bitwise-ops` (`&`/`|`/`^`/`<<`/`>>` — os operadores mais propensos a
+divergir porque o bitwise do JS é 32-bit enquanto os caminhos JVM/Native são
+64-bit, então a igualdade cross-target é uma guarda real), `list-map-mutation`
+(`list.add`/`get`/`set` e `map.put`/`get`/`keys().size` após a construção,
+distinto dos casos read-only `collections`/`map-set`) e `enum-switch-expr` (um
+switch expression de enum sem `default` — o contrato de exaustividade para
+enums, distinto da forma `sealed class` em `sealed-switch`). Cada caso é
+validado nos quatro alvos. Prova (executada): `tests/run-golden.sh` **116/116**
+(29 casos × 4 alvos), exit 0.
+
+**Fatia 7 da Fase 6 ENTREGUE (06/10):** mais dois casos — **31 no total** — pinando
+as duas superfícies que a família #770/#772 acabou de exercitar e o contrato de
+inteiro largo: `std-math-nullable` (um `Int?`/`String?` estreitado passado a uma
+chamada std de formal primitivo — `math.abs`/`math.min`/`math.max`/`math.parseInt`
+por guardas de null, a forma exata que regrediu no native em `known-bugs` §612) e
+`long-arithmetic` (add/sub/mul/div/mod de `Long` 64-bit, menos unário, relacional e
+a identidade de round-trip — a superfície mais propensa a divergir porque o JS usa
+`BigInt` enquanto JVM/Native são 64-bit, então a igualdade cross-target é uma guarda
+real). Ambos validados nos quatro alvos, mais riscv64/aarch64 sob qemu na autoria.
+Prova (executada): `tests/run-golden.sh` **124/124** (31 casos × 4 alvos), exit 0.
+
+**Fatia 8 da Fase 6 ENTREGUE (06/10):** mais dois casos — **33 no total** — pinando
+o contrato de formatação de ponto flutuante e a superfície de concorrência:
+`double-formatting` (literais e aritmética `Double` — `1.0`, `2.5`, `1.0/3.0` =
+`0.3333333333333333`, o artefato IEEE-754 `0.1 + 0.2` =
+`0.30000000000000004`, `1.0/0.0` = `Infinity`, `1e3` = `1000.0`, `7.5 % 2.0` =
+`1.5`; formatação `Number`/`BigInt` do JS vs `double` de JVM/Native é uma guarda
+real de divergência) e `concurrency-spawn-await` (`val h = spawn f(n)` com
+`Handle<T>` tipado + desboxing no `await h`, duas tarefas juntadas e combinadas; o
+contrato congelado de `spawn`/`await` nos quatro alvos). Ambos validados nos quatro
+alvos, mais riscv64/aarch64 sob qemu na autoria. Prova (executada):
+`tests/run-golden.sh` **132/132** (33 casos × 4 alvos), exit 0.
+
+**Fatia 9 da Fase 6 ENTREGUE (06/10):** mais um caso — **34 no total** — pinando o
+contrato de `return`-através-de-`finally` que o SIGSEGV nativo do §613 expôs:
+`finally-return` (`return` dentro do `try` E dentro do `catch` de um
+`try/catch/finally`, com o `finally` rodando nos dois caminhos — a forma exata do
+`known-bugs` §613). Validado nos quatro alvos. Prova (executada):
+`tests/run-golden.sh` **136/136** (34 casos × 4 alvos), exit 0.
+
+**Fatia 10 da Fase 6 ENTREGUE (06/10):** mais um caso — **35 no total** — pinando as
+duas faces de conclusão abrupta do `try/finally` que a varredura da fatia 9 da Fase 6
+catalogou como `known-bugs` §617, agora CORRIGIDO: `finally-control-flow` combina um
+`break`/`continue` saindo de um `try` (o finally DEVE rodar antes do salto) com um
+`try/finally` aninhado cujo try interno `return`a (o finally externo roda, o valor
+interno sobrevive). Validado nos quatro alvos; adicionalmente rodado em
+riscv64/aarch64 sob qemu na autoria. Prova (executada):
+`tests/run-golden.sh` **140/140** (35 casos × 4 alvos), exit 0.
+
+**Fatia 11 da Fase 6 ENTREGUE (08/10, lane compiler/JVM/native `192.168.15.30:9092`):** mais
+um caso — **36 no total** — pinando as superfícies de consulta/ordem superior de
+`List` que o caso `pipelines` deixou de fora: `list-higher-order` exercita
+`reduce(lambda, seed)` (forma com seed; `SEM073` se omitida),
+`indexOf`/`lastIndexOf` (`-1` quando ausente), `isEmpty`, `none(pred)`,
+`find(pred)` (o primeiro match), `slice(off, len)`/`take(n)`/`drop(n)` (cópias
+materializadas, clampadas), `groupBy` (`Map<K, List<E>>`), `flatMap` (lista
+achatada), `sort()` in place, `addAll`, `subList`, `remove` e
+`sorted(comparator)` com comparador descendente. A face `zip` fica
+deliberadamente de FORA: é o gap nativo documentado `NAT008` (um elemento
+primitivo cruza um parâmetro de tipo nu), então um caso golden que exige os
+quatro alvos não pode piná-lo — a recusa É o contrato. Validado nos quatro
+alvos. Prova (executada): `tests/run-golden.sh` **144/144** (36 casos × 4
+alvos), exit 0.
 
 ### Fase 7 — Integração
 
@@ -758,6 +925,36 @@ mvn verify
 ```
 
 ou equivalente.
+
+**Fatia da Fase 7 ENTREGUE (05/10):** o deploy de integração do plano agora é um
+perfil Maven real — `mvn verify -Pintegration` roda a suíte golden oficial
+(jvm+native+js+script) e a suíte de integração do CLI (`kof build`/`run`/`check`/
+`serve`/`test`) na fase `verify` contra o jar do CLI recém-sombreado, via
+`exec-maven-plugin` no `kof-cli` (`workingDirectory` =
+`${maven.multiModuleProjectDirectory}`, então os scripts da raiz rodam
+independente do módulo). Nenhum YAML de CI precisou mudar; os passos existentes
+seguem chamando os scripts direto, e o perfil dá um comando único local/CI.
+Prova (executada): `mvn -o -pl kof-cli -Pintegration exec:exec@golden-tests`
+→ **48/48**; `...@integration-tests` → **9/9**; e o reactor completo
+`mvn -o -pl kof-cli -am -Pintegration verify` → BUILD SUCCESS, ambas as suítes
+verdes na fase `verify`.
+
+**Fatia 2 da Fase 7 ENTREGUE (05/10):** a suíte de integração do CLI ganhou os
+dois alvos que faltavam — `kof build --target js` + `node Default.mjs` (guardado
+em `node`, igual ao runner golden, então um host sem Node reporta SKIP em vez de
+vermelho falso) e `kof run --target script` (interpretação direta de IR). O
+`tests/run-integration.sh` agora exercita **12** checagens (eram 9) pelos quatro
+alvos mais as superfícies do CLI (`check`/`serve`/`test`). Prova (executada):
+`tests/run-integration.sh` **12/12**, exit 0; a execução `integration-tests` do
+perfil `mvn verify -Pintegration` roda o mesmo script.
+
+**Fatia 3 da Fase 7 ENTREGUE (05/10):** a suíte de integração agora pina o próprio
+despacho do `kof run` nos dois alvos que faltavam — `kof run --target native` (o
+CLI compila, monta e executa, distinto da perna `build`+executar já coberta) e
+`kof run --target js` (o motor JS embutido, sem `node` externo). O
+`tests/run-integration.sh` agora exercita **14** checagens (eram 12) e todo alvo
+tem tanto uma perna `build` quanto uma `run`. Prova (executada):
+`tests/run-integration.sh` **14/14**, exit 0.
 
 ## 📊 Meta
 
@@ -842,7 +1039,7 @@ Antes de qualquer refatoração profunda, o caminho é:
 3. procurar duplicações (Fase 2 — descoberta + ratchet POUSADAS:
    `scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`; trabalho =
    encolher `scripts/test-hygiene-baseline.txt` via remoções quick-win — autoridade
-   atual = **122** chaves não-comentário, por `scripts/test-hygiene-baseline.txt`);
+   atual = **118** chaves não-comentário, por `scripts/test-hygiene-baseline.txt`);
 4. propor modularização (Fase 3 — iniciada: `--citations` mede o custo de divisão por classe
    oversized e a regra de drift está fixada; quatro divisões landadas = `KofSetEqualitySupport`
    do `KofSetEqualityTest` (21/21 mantidos), `KofMathSupport` do `KofMathTest` (29/29 mantidos),
@@ -867,4 +1064,4 @@ Antes de qualquer refatoração profunda, o caminho é:
 
 **Importante:** essa refatoração não deve interferir em nada no compilador. É
 puramente de infraestrutura de testes (regra de ouro). A frente está aberta
-(`D-TEST-ARCHITECTURE-GO`); as Fases 1–4 estão CONCLUÍDAS (oversized 43→18; ratchet do harness 146→122, zero pares idênticos restantes). **A Fase 5 agora está AUTORIZADA e onze fatias ENTREGUES** (`D-TEST-ARCHITECTURE-PHASES`, mantenedora 03/10 — `NativeCrossSupport` 54/54, `NativeIoJvmOracleSupport` (chave `jvmOracle` eliminada), `TargetGapRefusalSupport`, `ServerProcessSupport` (chave `stopServer` eliminada, 118/118), `JvmRunSupport` (chave `assertRuns` eliminada, 38/38), `MultiSourceRunSupport` (chave `runScript` eliminada, 47/47) `KofmdRunSupport` (chave `runKof` eliminada, 19/19) `JsParityRunSupport` (chave `assertBoth` eliminada, 18/18) `LibraryInstallSupport` (chave `copyLibrary` eliminada, 268/268), `JvmJsRunSupport` (chave `runBoth` eliminada, 126/126) e a consolidação `runAll3` em `NullablePrimitiveContractSupport` (43/43)); as Fases 5–7 seguem trabalho aberto, com as famílias restantes da Fase 5 (`main`, `assumeToolchain`) como o próximo incremento.
+(`D-TEST-ARCHITECTURE-GO`); as Fases 1–4 estão CONCLUÍDAS (oversized 43→18; ratchet do harness 146→119, zero pares idênticos restantes). **A Fase 5 agora está AUTORIZADA e quatorze fatias ENTREGUES** (`D-TEST-ARCHITECTURE-PHASES`, mantenedora 03/10 — `NativeCrossSupport` 54/54, `NativeIoJvmOracleSupport` (chave `jvmOracle` eliminada), `TargetGapRefusalSupport`, `ServerProcessSupport` (chave `stopServer` eliminada, 118/118), `JvmRunSupport` (chave `assertRuns` eliminada, 38/38), `MultiSourceRunSupport` (chave `runScript` eliminada, 47/47) `KofmdRunSupport` (chave `runKof` eliminada, 19/19) `JsParityRunSupport` (chave `assertBoth` eliminada, 18/18) `LibraryInstallSupport` (chave `copyLibrary` eliminada, 268/268), `JvmJsRunSupport` (chave `runBoth` eliminada, 126/126), a consolidação `runAll3` em `NullablePrimitiveContractSupport` (43/43), `NativeToolchainAssumptions` (chave `assumeToolchain` eliminada, 342/342), a limpeza `assumeAarch64`+`assumeCross` (121→119, 74/74) e `QemuRunSupport` (chave `runQemu` eliminada, 151/151, 119→118)); as Fases 5–7 seguem trabalho aberto, com o cluster `main` confirmado falso-positivo (`main()` Kof dentro de text blocks de fonte de teste) e a primeira fatia da Fase 6 já ENTREGUE.

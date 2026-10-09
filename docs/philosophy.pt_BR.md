@@ -231,6 +231,40 @@ A semântica da linguagem é única. Os backends implementam essa semântica de 
 
 ---
 
+## Contrato de Compatibilidade (1.0)
+
+> **Status:** o contrato vivo da 1.0. A issue
+> [#761](https://github.com/KofLang/Kof4j/issues/761) é **permanente e nunca é
+> fechada** (mantenedora, 05/10) — ela acompanha estes vinte mandamentos como a
+> garantia que a primeira RC deve honrar.
+
+Kof não quebra código do usuário para facilitar a vida do compilador. Se o
+compilador mudou, é responsabilidade do compilador continuar entendendo o
+código que já entendia.
+
+1. **Não quebramos o frontend da linguagem.** Código Kof válido deve continuar sendo código Kof válido nas versões seguintes.
+2. **Se algo funcionava na versão anterior e parou de funcionar agora, é bug do compilador e nunca do usuário.** Regressões devem ser tratadas como defeitos do compilador.
+3. **Toda mudança de sintaxe é incremental e nunca destrutiva.** Novas formas de escrever código devem coexistir com as formas existentes.
+4. **Compatibilidade é uma feature da linguagem.** Manter código existente funcionando faz parte do contrato do compilador.
+5. **Mudanças internas do compilador não devem exigir alterações no código do usuário.** Refatorações de parser, AST, IR, otimizações ou backends são responsabilidade do compilador.
+6. **O compilador deve absorver complexidade, não transferi-la para o usuário.** Se uma mudança interna exige adaptações generalizadas no código Kof, a solução deve ser buscada primeiro dentro do compilador.
+7. **Código Kof válido não deve depender da versão do compilador para continuar válido.** A evolução do compilador deve ser transparente para programas existentes.
+8. **Novas funcionalidades devem coexistir com funcionalidades existentes.** Adicionar uma capacidade nova não justifica remover ou invalidar uma capacidade anterior.
+9. **Depreciações devem ser explícitas, graduais e documentadas.** Nenhuma funcionalidade deve desaparecer sem um processo claro de depreciação.
+10. **Depreciação não significa quebra imediata.** Uma funcionalidade depreciada deve continuar funcionando durante o período de compatibilidade definido pelo projeto.
+11. **Mudanças de versão não são justificativa para quebrar usuários.** Nenhuma versão, inclusive major, deve introduzir quebras que possam ser evitadas pelo compilador.
+12. **Mudanças de backend não podem quebrar o frontend da linguagem.** JVM, Native, JS, WASM ou qualquer outro target devem preservar o mesmo contrato da linguagem.
+13. **O mesmo código Kof deve manter a mesma semântica entre targets sempre que o contrato da linguagem permitir.** Diferenças específicas de plataforma devem ser responsabilidade do backend.
+14. **Uma nova versão que rejeita código anteriormente válido possui uma regressão até que se prove o contrário.** A mudança deve ser investigada como bug antes de ser considerada alteração legítima da linguagem.
+15. **Toda regressão corrigida deve receber um teste de não-regressão.** Aquilo que quebrou uma vez deve possuir uma prova automatizada de que continuará funcionando.
+16. **O compilador deve preservar a semântica do código existente.** Mudanças no parser, AST, IR, otimizações ou geração de código não podem alterar o significado de programas válidos.
+17. **Em caso de conflito entre uma nova interpretação e o comportamento legado, o comportamento legado vence.** Compatibilidade tem precedência sobre conveniência de implementação.
+18. **Otimizações nunca podem alterar o comportamento observável de um programa válido.** Performance é responsabilidade do compilador e não pode exigir mudanças no código do usuário.
+19. **O compilador deve ser mais compatível com o usuário do que com sua própria implementação.** Se preservar compatibilidade exigir complexidade adicional no compilador, essa complexidade pertence ao compilador.
+20. **O usuário não deve precisar acompanhar a implementação do compilador para manter seu código funcionando.** O Kof deve evoluir sem exigir que o usuário reescreva código apenas porque o compilador evoluiu.
+
+---
+
 ## O que Kof NÃO é
 
 - Não é Java com outra sintaxe

@@ -44,7 +44,7 @@ class KofHttpErrorContractE2ETest {
         if (pool != null) pool.shutdownNow();
     }
 
-    private void startServer() throws IOException {
+    private void startContractServer() throws IOException {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         pool = Executors.newFixedThreadPool(2);
         server.setExecutor(pool);
@@ -104,7 +104,7 @@ class KofHttpErrorContractE2ETest {
      */
     @Test
     void httpFailuresAreCatchableAsStringAndExecutionContinues(@TempDir Path tempDir) throws IOException {
-        startServer();
+        startContractServer();
         String closed = "http://127.0.0.1:" + closedPort() + "/";
         String source = """
                 main(args: List<String>) {
@@ -136,5 +136,31 @@ class KofHttpErrorContractE2ETest {
                 "the raw Java exception must not escape to the stack trace, got: " + out);
         assertFalse(out.contains("\tat java.base/"),
                 "no JVM stack trace may escape, got: " + out);
+    }
+
+    /**
+     * Issue #771 — the reporter's exact shape: the value is assigned INSIDE the
+     * {@code try} and only the {@code catch} rewrites it. Verified fixed by the
+     * same #756 wrap; pinned permanently so the release ledger can close #771
+     * against executed proof instead of the reporter's stale 0.5.0-beta jar.
+     */
+    @Test
+    void closedPortGetIsCaughtWithTheReporterShape(@TempDir Path tempDir) throws IOException {
+        String closed = "http://127.0.0.1:" + closedPort() + "/health";
+        String source = """
+                void main() {
+                    var got = "no-throw"
+                    try {
+                        got = http.get("%s")
+                    } catch (String e) {
+                        got = "caught"
+                    }
+                    println("HTTPRESULT=" + got)
+                }
+                """.formatted(closed);
+        String out = runJvm(tempDir, source);
+        assertTrue(out.contains("HTTPRESULT=caught"), "must be caught, got: " + out);
+        assertFalse(out.contains("Exception in thread"), "no JVM stack trace may escape, got: " + out);
+        assertFalse(out.contains("\tat java.base/"), "no JVM stack trace may escape, got: " + out);
     }
 }

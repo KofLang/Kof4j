@@ -1,5 +1,7 @@
 package dev.kof.compiler.nat;
 
+import dev.kof.compiler.NativeToolchainAssumptions;
+
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -18,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * PRODUCAO ({@link RuntimeSlices#keepForProgramText}). Lista via add real; map
  * com pares key/val plantados; OR dos slots lidos da memoria apos o clear.
  */
-class NativeX86MemClearTest {
+class NativeX86MemClearTest implements NativeToolchainAssumptions {
 
     private static boolean has(String... cmds) {
         for (String c : cmds) {
@@ -32,11 +34,6 @@ class NativeX86MemClearTest {
             }
         }
         return true;
-    }
-
-    private void assumeToolchain() {
-        Assumptions.assumeTrue(has("as", "ld"),
-                "binutils x86-64 ausente — pulando (D-MEMORY-CLEAR x86)");
     }
 
     private static final String HARNESS_CLEAR = """
@@ -167,7 +164,7 @@ class NativeX86MemClearTest {
 
     @Test
     void clearNullsEverySlotX86(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeX86_64();
         assertEquals("", build(tempDir, "memclearx86"));
     }
 }

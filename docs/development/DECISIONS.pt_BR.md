@@ -4272,6 +4272,19 @@ individuais:
 
 - **Relações:** `Related: D-FUTURE-BATCH-2809, D-FUTURE-PROMOTION, D-PAGINATION, D-VALUE-RECORDS-GO, D-ENTITY-HISTORY, D-MULTIPARADIGMA-GO, D-GRAPHICS-SPIKE, D-TESTING-PLATFORM, D-CONNECTORS, D-KOF-FILE-GO, D-IMAGE-VISION-GO, D-BOOTSTRAP-GO, D-WASM-GO, regra 6`.
 
+## D-WEB-WASI-DEFAULT-0710 — WASI vira o ALVO-PADRÃO de frontend; `wasm/wasi-plan` PROMOVIDO; GATE do 0.6.0 (ordem da mantenedora 07/10)
+
+**Estado:** DECIDIDO + PROMOVIDO (mantenedora, chat 07/10) — registrado pela lane `192.168.15.101:9092`.
+
+* **Decisão:** `docs/development/wasm-wasi-plan.md`(+PT) é promovido para `docs/development/` — a promoção é ato da própria mantenedora (exceção deliberada ao `D-FUTURE-FREEZE`), não escolha de agente.
+* **Semântica da ordem (intenção verbatim):** o alvo web do Kof passa a ser **WASI por padrão**; o frontend desktop igualmente; o alvo JS/`kofjs` **continua existindo** e é usado só quando **explicitamente especificado**. A **superfície da linguagem não muda** — adiciona-se um backend e troca-se o padrão de frontend. **Paridade total de comportamento** é obrigatória e **nada que funciona hoje pode quebrar** (`D-QUALITY-PIPELINE`/zero-regression).
+* **Gate:** o plano é **GATE do corte 0.6.0** — `D-LAB-STABILITY` agora também exige o WASI-padrão de frontend pousado com a suíte dos 4 alvos existentes verde. Issue de rastreio **#776** (`1.0-blocks`); linha no ledger adicionada no mesmo dia (`scripts/release-blockers.tsv`).
+* **Formato técnico permanece o decidido em `D-WASM-GO` (28/09, D-WASM-01..09):** backend direto (não cadeia de transpilação); `Int` = i64; desempilhamento por string lançada; handles + tabela de handles; GC mark-sweep nativo; env de closure explícito; WASI preview1; wasmtime primeiro; concorrência cooperativa na v1.
+* **Propriedade (`D-PLAN-ONE-OWNER`):** o plano promovido está **ABERTO, sem dono** — qualquer lane livre o reivindica no DOING com `owner = <ip>:<porta>` primeiro; o aviso está registrado no DOING EN/PT + status + esta entrada. A sessão issue-watcher está MORTA, então o caminho DOING/issue é a notificação.
+* **Sequenciamento sugerido (medido contra a árvore):** enum `Target` + encanamento de build (aditivo) → fatia 1 de codegen (funções escalares sob wasmtime) → harness de paridade reusando o oráculo JVM → fatias de superfície de runtime → o **flip de padrão de frontend POR ÚLTIMO** (é a parte que não pode quebrar o que funciona).
+
+- **Relações:** `Related: D-WASM-GO, D-WASM-01..09, D-FUTURE-PROMOTION, D-FUTURE-FREEZE, D-LAB-STABILITY, D-QUALITY-PIPELINE-2609, D-PLAN-ONE-OWNER, rule 6`; rastreio `#776`.
+
 ## D-PAGINATION-P4-LOWERING — `orm.window` dessuga no lowerer de ORM para o helper Kof `windowPage(...)` (mantenedora 29/09/2026, "P4 via (b)")
 
 **Estado:** DECIDED (mantenedora) — destrava a P4 do plano de paginação sob `D-PAGINATION`.
@@ -4844,3 +4857,47 @@ individuais:
 **Fronteira:** este registro AUTORIZA as frentes; não as implementa. Cada frente mantém sua lane dona (ou é re-reivindicável quando sem dono, ex. graphics). Issues fecham só com prova executada conforme Q0–Q7 da lane. Nada aqui enfraquece o freeze ou o quality gate.
 
 **Relações:** `Related: D-GRAPHICS-GAMING/D-GRAPHICS-SPIKE, D-TESTING-PLATFORM, D-MEMORY-SAFETY, D-CONNECTORS-GO, D-PDF-READ, D-QUALITY-PIPELINE-2609, rule 6, D-KOF-FIRST`.
+
+## D-GRAPHICS-WINDOW-FORM — a forma da janela de backend é `Window("…") { frame { dt -> … } }` (05/10/2026, mantenedora, chat)
+
+**Data:** 2026-10-05 · **Estado:** `DECIDED` · **Evidência:** a resposta da mantenedora à pergunta sobre a forma da fatia 3.1 de graphics/gaming no chat (as duas candidatas no §6 de `graphics-gaming-plan.md` eram `Window("…") { frame { dt -> … } }` e `Scene("…") { dt -> … }`). **Efeito:** a janela é um valor `Window` explícito que é dono do loop; `frame` é a chamada por tick que entrega o `dt` ao programa. `Scene` NÃO é o hospedeiro do loop. A unidade do `dt` do loop também está decidida: **Int milissegundos, primeiro frame `0`** (mapeia para `Clock.dtMillis()`); as semânticas restantes do loop (long-frame/limit/pause/minimized/focus) continuam TBD e exigem chamada própria antes de a API do loop pousar. Isto fecha a linha "form undecided" do §6 e a linha da unidade do `dt` do §6. A metade pura (`libs/game/Clock.kf` + `Keys`/`Mouse`/`Pad`) já pousou e não muda. Uma sonda da forma escolhida (`class Window` com um parâmetro `(Double) -> Void` e a chamada trailing-lambda `w.frame { dt: Double -> … }`) compilou limpa no compilador atual antes deste registro. **Pré-requisito de parser (corrigido no mesmo dia):** a forma aninhada literal `Window("…") { frame { dt: Int -> … } }` precisa de (a) parâmetros tipados numa trailing lambda de chamada entre parênteses — corrigido como `known-bugs` §611 (`TrailingLambdaParamsE2ETest` 6/6) — e (b) um receptor implícito para o `frame` puro, que o Kof NÃO tem (SEM015/SEM025); hoje a forma expressável é `{ w: Window -> w.frame { dt: Int -> … } }`.
+
+**Fronteira:** a forma está decidida; o binding FFI/backend, o vendoring da SDL3 no sysroot cross e os TBDs restantes de semântica do loop NÃO são decididos aqui. A lane graphics é dona da fatia 3.1 (`D-PLAN-ONE-OWNER`); `kof.game` continua um pacote oficial (`check_stdlib_boundary` `HARD_DENY game`).
+
+**Relações:** `Related: D-GRAPHICS-GAMING, D-GRAPHICS-SPIKE, D-MAINT-BATCH-0510/G1, D-KOF-FIRST (rule 10), rule 6`.
+
+## D-MAINT-BATCH-0610 — lote de múltipla escolha da mantenedora (06/10/2026, poll no chat): 7 frentes rule-6 pendentes resolvidas
+
+**Data:** 2026-10-06 · **Estado:** `DECIDED` (lote) · **Evidência:** as respostas de múltipla escolha da mantenedora no poll do chat de 06/10/2026 (o poll listou as opções reais dos planos/issues/filas). **Efeito:** as 7 frentes abaixo estão AUTORIZADAS para implementação; as issues continuam abertas até a lane dona pousar a correção com prova. Este registro AUTORIZA; não implementa.
+
+| # | Frente (opção) | Desbloqueia / fila |
+|---|---|---|
+| A1 (semântica do loop — long-frame) | **clamp do `dt`** — o loop reporta o delta real limitado por um teto configurável (guarda anti spiral-of-death), nunca um `dt` ilimitado | fecha o TBD `long-frame` de `D-GRAPHICS-WINDOW-FORM`; `graphics-gaming-plan` §6 |
+| A2 (semântica do loop — limit) | **só vsync on/off** — sem cap de frame-rate; o vsync do backend é a única primitiva de pacing | fecha o TBD `limit`; `graphics-gaming-plan` §6 |
+| A3 (semântica do loop — pause/minimized/focus) | **`pause()`/`resume()` explícitos; `minimized` suspende o render; perder foco NÃO pausa** | fecha os TBDs `pause`/`minimized`/`focus`; `graphics-gaming-plan` §6 |
+| B (#763 FFI) | **overload por assinatura, completo** — um símbolo C bindado com mais de uma assinatura, resolvido por aridade/tipos (sem a forma alias de símbolo) | fila: superfície FFI do compilador; issue #763 (`post-1.0`) |
+| C (#753 residual / §554) | **estreitar + nomear o handle** — recusar o mismatch builtin→builtin em `TypeChecker.isAssignable` E tornar nomeável em fonte o handle `process.spawn`/`process.run` (`kof.process.Result`) | lane compiler/interop; issue #753 residual + `known-bugs` §554 |
+| D (testing-platform) | **§4.4 testes parametrizados primeiro** — tabelas `input → expected`; §4.6 doubles / §5 harness depois | `kof-testing-platform-plan` §4.4 |
+| E (Q1 branch protections) | **ativar agora** em `testing`/`prerelease`/`stable` (sem force-push + required checks) | `quality-pipeline` 14.4 (mantenedora aplica as configurações no GitHub) |
+| F (G2 FFmpeg) | **vendorizar o build LGPL agora** — o build GPL da distro NÃO é tomado como está | fatia 3.4 (vídeo); empacotamento/licença da lane graphics |
+| G (#761 contrato) | **permanente — nunca bloqueia corte** — sua categoria `1.0-blocks` é aposentada para `tracking/contract`; um contrato vivo não é um defeito aberto | remove o `CUT: SLIPS` estrutural do `check_lab_stability.sh`; #761 segue ABERTA por desenho |
+
+**Fronteira:** A1–A3 congelam a semântica restante do loop de `D-GRAPHICS-WINDOW-FORM`; o hospedeiro `Window`/`frame` pode pousar agora (a stack SDL3 está vendada + ABI-provada). B é uma nova superfície de linguagem FFI (ainda `post-1.0`). C segue `1.0-blocks` até ser corrigida; D é infraestrutura de teste aditiva; E é uma ação de configuração do GitHub feita pela mantenedora, não por um agente; F é empacotamento/licença; G é mudança de classificação que desbloqueia o corte 0.6.0. Nada aqui enfraquece o quality gate ou descongela `future/`.
+
+**Relações:** `Related: D-GRAPHICS-WINDOW-FORM, D-GRAPHICS-GAMING, D-MAINT-BATCH-0510, D-RELEASE-1.0, D-LAB-STABILITY, D-QUALITY-PIPELINE-2609, #761, #763, #753, rule 6`.
+
+---
+
+## D-MAINT-BATCH-0610B — lote de múltipla escolha da mantenedora (06/10/2026, segundo poll no chat): superfícies do testing-platform resolvidas
+
+**Data:** 2026-10-06 · **Estado:** `DECIDED` (lote) · **Evidência:** as respostas de múltipla escolha da mantenedora no poll do chat de 06/10/2026 (o poll listou as opções reais do `kof-testing-platform-plan` §4.6/§5/§6). **Efeito:** as três superfícies abaixo ficam AUTORIZADAS para implementação; este registro AUTORIZA, não implementa. Estende `D-MAINT-BATCH-0610`/D (§4.4 primeiro).
+
+| # | Frente (opção) | Desbloqueia / fila |
+|---|---|---|
+| A (§4.6 test doubles) | **apenas seams de clock/random** — injetar um clock determinístico e uma fonte aleatória reprodutível; sem framework de mock/stub/spy (usar o comportamento real quando for barato e determinístico) | `kof-testing-platform-plan` §4.6; superfície de helpers `kof.test` |
+| B (§5 integration harness) | **biblioteca Kof (`kof.test`)** — a superfície do harness vive na biblioteca Kof (ciclo de temp dir / server / db com cleanup via `try/finally`), injetada flat no `import kof.test` explícito; sem superfície só-Java | `kof-testing-platform-plan` §5; library-first (`D-KOF-FIRST` item 12) |
+| C (§6 browser provider) | **opt-in por projeto, a CLI não empacota** — Playwright/Cypress são declarados por projeto e a CLI não os carrega (interop-first R9, sem dependência pesada por padrão) | `kof-testing-platform-plan` §6; fatia do provider |
+
+**Limite:** as três são infraestrutura de teste aditiva — sem mudança de linguagem/semântica. A é a única superfície implementada até agora (`fixedClock`/`scriptedClock`/`seededRandom`); B e C estão AUTORIZADAS e na fila. Nada aqui enfraquece o quality gate ou descongela `future/`.
+
+**Relações:** `Related: D-MAINT-BATCH-0610, D-KOF-FIRST, D-TESTING-PLATFORM, rule 6, rule 12`.

@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * toolchain no host, pula (não é regressão silenciosa). JVM é lazy on-demand
  * (class-loading) — não há artefato único p/ travar; documentado no plano T4.
  */
-class ArtifactSizeTest {
+class ArtifactSizeTest implements NativeToolchainAssumptions {
 
     private final CompilerDriver driver = new CompilerDriver();
 
@@ -258,7 +258,7 @@ class ArtifactSizeTest {
      *  Mesmo mecanismo da S-3: seed por TEXTO → o fecho traz só json ∪ piso. */
     @Test
     void riscvFamilyAbsenceAfterPrune(@TempDir Path tmp) throws IOException {
-        assumeCross("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64");
+        assumeNativeRiscv64();
         ArtifactSize.ElfSizes jsn = elfOfTarget(tmp, "rvjsn", Target.NATIVE_RISCV64,
                 "main() {\n    println(json.encode(listOf(1, 2, 3)))\n}\n");
         assertTrue(jsn.definedKof().contains("kof_json_encode_int"),
@@ -297,7 +297,7 @@ class ArtifactSizeTest {
 
     @Test
     void helloRiscvSizeWithinBaseline(@TempDir Path tmp) throws IOException {
-        assumeCross("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64");
+        assumeNativeRiscv64();
         Path bin = helloNative(tmp, Target.NATIVE_RISCV64);
         ArtifactSize.ElfSizes e = ArtifactSize.elf(bin);
         // riscv não tem GC mark-sweep: o inchaço é .data (fatias) + .bss (heap).
@@ -316,23 +316,10 @@ class ArtifactSizeTest {
      *  aarch64 tem baseline travado; antes, só riscv era medido). */
     @Test
     void helloAarch64SizeWithinBaseline(@TempDir Path tmp) throws IOException {
-        assumeCross("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64");
+        assumeNativeAarch64();
         Path bin = helloNative(tmp, Target.NATIVE_AARCH64);
         ArtifactSize.ElfSizes e = ArtifactSize.elf(bin);
         assertNoBloat(e.fileBytes(), e.kofSymbols(), HELLO_AA_BYTES, HELLO_AA_SYMS, "hello aarch64");
     }
 
-    private static void assumeCross(String... cmds) {
-        for (String c : cmds) {
-            try {
-                Process p = new ProcessBuilder("sh", "-c", "command -v " + c).redirectErrorStream(true).start();
-                String out = new String(p.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).trim();
-                if (p.waitFor() != 0 || out.isEmpty()) {
-                    Assumptions.assumeTrue(false, "toolchain cross ausente (" + c + ") — pulando (NATIVE002/#97)");
-                }
-            } catch (Exception e) {
-                Assumptions.assumeTrue(false, "toolchain cross ausente — pulando");
-            }
-        }
-    }
 }

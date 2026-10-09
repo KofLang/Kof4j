@@ -115,7 +115,7 @@ Além do **namespace embutido** `rng` — PRNG determinístico com seed para
 testes property-based (`rng.seed(Int)`, `rng.int(Int)`, `rng.boolean()`,
 `rng.double()`, `rng.string(Int, String)`; `KofRng`/`KofStd`, sem classe
 `kof.*`, sem import). Mesma seed ⇒ mesma sequência em qualquer backend;
-JVM+JS+NATIVE x86_64 hoje (fatia 2 do X8, paridade bit-a-bit provada); ANDROID e cross riscv64/aarch64 rejeitados com `RNG001` (R6). Ver
+JVM+JS+NATIVE x86_64+ANDROID hoje (fatia 2 do X8, paridade bit-a-bit provada; ANDROID reusa o runtime JVM desde 07/10, issue #777); cross riscv64/aarch64 rejeitado com `RNG001` (R6). Ver
 `learn/39-stdlib.pt_BR.md` §rng e `training/idioms/stdlib.pt_BR.md` §rng.
 
 Cada área tem documento próprio em `docs/stdlib*.md` (não duplicados aqui). A

@@ -1,7 +1,9 @@
 package dev.kof.compiler;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Lowering de declarações de classe/interface/record para IRClass/IRMethod.
@@ -39,6 +41,15 @@ public final class CompilerClassLowering {
         // (VerifyError) assim que a classe fosse instanciada. Separa por
         // STATIC e sintetiza o <clinit> na ordem de declaração.
         java.util.Map<String, ExpressionNode> staticFieldInits = new java.util.LinkedHashMap<>();
+        // #766: um default de construtor gera wrappers de prefixo. Se a mesma
+        // assinatura reduzida já existe (declaração exata ou outro wrapper), o
+        // suário explícito vence a chamada; suprimir evita ClassFormatError.
+        Set<List<Type>> ctorSignatures = new java.util.LinkedHashSet<>();
+        for (AstNode member : cls.members()) {
+            if (member instanceof ConstructorDeclarationNode ctor) {
+                ctorSignatures.add(List.copyOf(constructorParameterTypes(ctor, cls.typeParameters(), driver)));
+            }
+        }
         for (AstNode member : cls.members()) {
             if (member instanceof FieldDeclarationNode field) {
                 IRField irField = CompilerClassLowering.lowerField(driver,field, cls.typeParameters());
@@ -59,9 +70,17 @@ public final class CompilerClassLowering {
             } else if (member instanceof MethodDeclarationNode method) {
                 methods.add(CompilerClassLowering.lowerMethod(driver,method, internalName, false, cls.typeParameters()));
             } else if (member instanceof ConstructorDeclarationNode ctor) {
-                methods.add(CompilerClassLowering.lowerConstructor(driver,ctor, internalName, superName, cls.typeParameters(), fields, fieldInits));
-                methods.addAll(CompilerClassLowering.lowerConstructorDefaults(driver,ctor, internalName, superName,
-                        cls.typeParameters(), fields, fieldInits));
+                IRMethod canonical = CompilerClassLowering.lowerConstructor(driver, ctor, internalName, superName,
+                        cls.typeParameters(), fields, fieldInits);
+                methods.add(canonical);
+                ctorSignatures.add(List.copyOf(canonical.parameterTypes()));
+                List<IRMethod> defaults = CompilerClassLowering.lowerConstructorDefaults(driver, ctor, internalName,
+                        superName, cls.typeParameters(), fields, fieldInits);
+                for (IRMethod defaultCtor : defaults) {
+                    if (ctorSignatures.add(List.copyOf(defaultCtor.parameterTypes()))) {
+                        methods.add(defaultCtor);
+                    }
+                }
             }
         }
         if (!methods.stream().anyMatch(m -> m.name().equals("<init>"))) {
@@ -264,6 +283,16 @@ public final class CompilerClassLowering {
     }
 
     /** Annotations por parâmetro, alinhadas à ordem de parameterTypes. */
+
+    static List<Type> constructorParameterTypes(ConstructorDeclarationNode ctor, List<String> typeParams,
+                                                CompilerDriver driver) {
+        List<Type> types = new ArrayList<>();
+        for (FormalParameterNode p : ctor.parameters()) {
+            types.add(CompilerTypes.resolveWithTypeParams(p.type(), typeParams, driver.currentUnit,
+                    driver.semanticAnalyzer));
+        }
+        return types;
+    }
 
     /**
      * Default parameter values on constructors: for each trailing default, a

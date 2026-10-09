@@ -10,8 +10,8 @@
 Phase 1 profiling (`scripts/test-suite-profile.sh` + permanent
 `docs/testing/TEST-PERFORMANCE.md`), Phase 2 discovery audit
 (`scripts/test-suite-audit.sh`) and Phase 2 **ratchet** (`scripts/check_test_hygiene.sh`
-over the frozen `scripts/test-hygiene-baseline.txt`, **122 keys, rc=0** — 132 at the
-30/09 measurement, tightened by the 02/10 Phase-3 extraction and the 03/10 Phase-5 slices (`jvmOracle` 131→130, `stopServer` 130→129, `assertRuns` 129→128, `runScript` 128→127, `runKof` 127→126, `assertBoth` 126→125, `copyLibrary` 125→124, `runBoth` 124→123, `runAll3` 123→122); the 0-citation Phase-3 head is exhausted, next candidate has 10 doc
+over the frozen `scripts/test-hygiene-baseline.txt`, **118 keys, rc=0** — 132 at the
+30/09 measurement, tightened by the 02/10 Phase-3 extraction and the 03/10–08/10 Phase-5 slices (`jvmOracle` 131→130, `stopServer` 130→129, `assertRuns` 129→128, `runScript` 128→127, `runKof` 127→126, `assertBoth` 126→125, `copyLibrary` 125→124, `runBoth` 124→123, `runAll3` 123→122, `assumeToolchain` 122→121, `assumeAarch64` 121→120, `assumeCross` 120→119, `runQemu` 119→118); the 0-citation Phase-3 head is exhausted, next candidate has 10 doc
 citations, and the remaining `dupname` cluster needs the Phase-5 harness). **Quick-win slice 1
 (28/09):** removed the false-positive `Thread.sleep` key (comment-only mention in
 `AsyncSleepJsE2ETest`) and the redundant post-`startServer` settle in
@@ -729,7 +729,58 @@ name-based helper → `runAllThree`. No test body, target or assertion moved. Pr
 **43/43** green (NullableBoolTruthiness 15, TrooleanLaw 13, NullablePrimitiveFieldWriter 9,
 AsCastPrecedence 6); the `dupname runAll3` ratchet key is **eliminated** — baseline re-frozen 123→**122**.
 
-**Phase 6 slice LANDED (05/10):** the official equivalence suite (`tests/golden/`)
+**Phase 5 slice 12 LANDED (05/10):** the `assumeToolchain` family — the last
+remaining `dupname` cluster (26 classes, each with its own private copy of the
+same "does this binary exist?" guard) — is consolidated behind a new
+`NativeToolchainAssumptions` interface (prefix-aware `hasTool` §591 + the named
+guards `assumeNativeRiscv64`/`assumeNativeRiscv64WithSysroot`/`assumeNativeAarch64`/
+`assumeNativeX86_64`/`assumeMcuRiscvAsm`/`assumeMcuArmAsm`, plus the generic
+`assumeToolchain(String...)` the abstract supports forward to). The 26 classes
+implement the interface and delete their local declarations; every no-arg call
+site now names the guard it needs (`assumeToolchain()` → the explicit guard), so
+the tool set each test requires is visible at the call site instead of buried in
+a per-class body. `KofHttpNativeResilienceCrossTest`'s distinct
+`assumeToolchain(String arch)` was renamed `assumeArchToolchain` so the name is
+not accidentally overloaded. No test body, target or assertion moved. Proof: the
+25 affected batteries **342 run / 0F / 0E / 15 skipped** (the skips are the
+honest absent-cross/qemu guards); `check_test_hygiene` rc=0 with the
+`dupname assumeToolchain` key **eliminated** — baseline re-frozen 122→**121**
+(the 3 reported keys are the PDF lane's untracked `PdfTextE2ETest` +
+`startServer`, pre-existing external).
+
+**Phase 5 slice 13 LANDED (05/10):** the last two toolchain `dupname` clusters —
+`assumeAarch64` (8 classes) and `assumeCross` (2 classes) — are consolidated onto
+the same `NativeToolchainAssumptions` interface. `assumeNativeAarch64WithSysroot()`
+was added (mirror of the riscv64 variant) for `NativeRiscvDtoaTest`, whose local
+`assumeAarch64` also required the libc cross sysroot; the other 7 classes map to
+`assumeNativeAarch64()`. `NativeRiscvDbWireTest` and `PlatformSeamSabotageTest`
+(which still kept a full local `has`) now implement the interface too, and
+`KofConfigCrossTest` dropped its local `has`/`assumeCross` pair (its local `has`
+was used only by the guard). No test body, target or assertion moved. Proof: the
+10 affected batteries **74 run / 0F / 0E / 17 skipped** (the skips are the honest
+absent aarch64/qemu guards); `check_test_hygiene` rc=0 with both `dupname` keys
+**eliminated** — baseline re-frozen 121→**119**. The earlier `dupname startServer`
+NEW key (from the #756 `KofHttpErrorContractE2ETest` helper) was also cleared by
+renaming it `startContractServer`.
+
+**Phase 5 slice 14 LANDED (08/10, lane compiler/JVM/native `192.168.15.30:9092`):**
+the `runQemu` `dupname` cluster — six classes (`KofUuidTest`, `KofStringsSupport`,
+`KofValidationSupport`, `KofStringsIndentDedentTest`, `KofTimeE2ETest`,
+`KofRandomTest`) each declared a byte-equivalent helper that compiles a Kof source
+for a cross target and runs the binary under QEMU, asserting exit 0. The helper
+now lives once in a new `QemuRunSupport` interface (a `default` method over an
+abstract `driver()` accessor), which extends `NativeToolchainAssumptions`; the six
+classes implement it and their local copies are deleted. `KofRandomTest`'s three
+call sites pass the qemu arch name explicitly (`qemu-riscv64`/`qemu-aarch64`),
+matching the other five. No test body, target or assertion moved. Proof: the six
+affected batteries **151 run / 0F / 0E**; `check_test_hygiene` rc=0 with
+`dupname runQemu` **eliminated** — baseline re-frozen 119→**118**.
+
+### Phase 6 — Conformance
+
+Build the official equivalence suite.
+
+**Phase 6 slice 1 LANDED (05/10):** the official equivalence suite (`tests/golden/`)
 covered only JVM + native; the plan's Golden Suite defines the goal as
 "same code → same output on every target" with the **exit code** checked, and
 the target list is JVM/Native/JS/Script. `tests/run-golden.sh` now runs every
@@ -744,9 +795,118 @@ assertion changed — test infrastructure only. Proof (executed):
 `tests/run-golden.sh` **48/48** (12 cases × 4 targets: jvm, native, js, script),
 exit 0.
 
-### Phase 6 — Conformance
+**Phase 6 slice 2 LANDED (05/10):** the equivalence suite's *coverage* grew from
+12 to **16 cases** — four new language-surface cases chosen to exercise
+contracts the old set did not: `null-safety` (nullable narrowing + `if (x !=
+null)`), `map-set` (`mapOf`/`put`/`getOrDefault`/`containsKey` + `setOf`/`add`/
+`contains`/`size`), `pipelines` (`sorted`/`distinct`/`any`/`all`/`count`/`find`/
+`map`/`filter`), and `switch-expr` (switch as an expression `case -> ...` +
+switch statement, `break` optional). Every case is validated on all four targets
+by the same runner, so the "same code → same output on every target" contract is
+now pinned for these four surfaces too. One expected value was corrected during
+RED-first authoring (`sorted()` on `[3,1,2,1]` is `[1,1,2,3]`, not `[1,2,3,3]`),
+confirming the runner catches a wrong golden. No compiler change — test
+infrastructure only. Proof (executed): `tests/run-golden.sh` **64/64**
+(16 cases × 4 targets), exit 0.
 
-Build the official equivalence suite.
+**Phase 6 slice 3 LANDED (05/10):** four more cases — **20 total** — covering the
+object model and generics: `classes` (explicit constructor + mutable fields +
+`extends` + implicit override + `super(name)`, field write through `this`),
+`interfaces` (`implements` + a `List<Speaker>` dispatched virtually),
+`generics-box` (`class Box<T>(T value)` erasure + `substituteTypeVariable` on
+JVM and Native), and `enum` (`enum Color { … }` + `name()` + `values().size`).
+These are the surfaces where JVM/Native/JS erasure most often diverges, so
+pinning them on all four targets is the highest-value coverage increment left in
+Phase 6. Proof (executed): `tests/run-golden.sh` **80/80** (20 cases × 4
+targets), exit 0.
+
+**Phase 6 slice 4 LANDED (05/10):** three more cases — **23 total** — closing the
+remaining high-value surfaces: `strings-methods` (`trim`/`substring`/`startsWith`/
+`endsWith`/`indexOf`/`toUpperCase`/`toLowerCase`/`charAt` + content `==`),
+`closures` (mutable capture via the synthetic `BoxN` + capture inside `map`/
+`filter`), and `sealed-switch` (`sealed class` + exhaustive switch expression
+without `default` — the §X5.1/§X5.2 contract, erased in codegen). Proof
+(executed): `tests/run-golden.sh` **92/92** (23 cases × 4 targets), exit 0.
+
+**Phase 6 slice 5 LANDED (05/10):** three more cases — **26 total** — pinning the
+loop-control and numeric/string surfaces the old set did not exercise:
+`loops-control` (`do-while` runs its body once then loops on the condition,
+`break` exits a `for`, `continue` skips an iteration in both a `for` and a
+`for-in`), `numeric-casts` (`3.9 as Int` truncates to `3`, integer division `7/2`
+= `3` and modulo `7%3` = `1`, arithmetic precedence `2 + 3 * 4` = `14` vs
+`(2 + 3) * 4` = `20`, `Int`→`Double` promotion `5 + 2.5` = `7.5`, `5 as Double / 2`
+= `2.5`) and `string-parts-valueof` (`split(",")` + indexed `String[]`,
+`toCharArray()` + `chars[0] as Int` = the code unit, content-insensitive
+`equalsIgnoreCase`, and `String.valueOf` for `Int` and `Double`). Every case is
+validated on all four targets by the same runner. Each value was measured on the
+Script target first and cross-checked against the Kof contract before the golden
+was frozen. No compiler change — test infrastructure only. Proof (executed):
+`tests/run-golden.sh` **104/104** (26 cases × 4 targets), exit 0.
+
+**Phase 6 slice 6 LANDED (05/10):** three more cases — **29 total** — pinning the
+operator, collection-mutation and enum-exhaustiveness surfaces:
+`bitwise-ops` (`&`/`|`/`^`/`<<`/`>>` — the operators most likely to diverge
+because JS bitwise is 32-bit while the JVM/Native paths are 64-bit, so the
+cross-target equality is a real guard), `list-map-mutation` (`list.add`/`get`/
+`set` and `map.put`/`get`/`keys().size` after construction, distinct from the
+read-only `collections`/`map-set` cases) and `enum-switch-expr` (an enum-typed
+switch expression with no `default` — the exhaustiveness contract for enums,
+distinct from the `sealed class` form in `sealed-switch`). Every case is
+validated on all four targets. Proof (executed): `tests/run-golden.sh`
+**116/116** (29 cases × 4 targets), exit 0.
+
+**Phase 6 slice 7 LANDED (06/10):** two more cases — **31 total** — pinning the two
+surfaces the #770/#772 family just exercised and the wide-integer contract:
+`std-math-nullable` (a narrowed `Int?`/`String?` fed to a primitive-arg std call —
+`math.abs`/`math.min`/`math.max`/`math.parseInt` through null guards, the exact
+shape that regressed on native in `known-bugs` §612) and `long-arithmetic` (64-bit
+`Long` add/sub/mul/div/mod, unary minus, relational and the round-trip identity —
+the surface most likely to diverge because JS uses `BigInt` while JVM/Native are
+64-bit, so cross-target equality is a real guard). Both are validated on all four
+targets, plus riscv64/aarch64 under qemu during authoring. Proof (executed):
+`tests/run-golden.sh` **124/124** (31 cases × 4 targets), exit 0.
+
+**Phase 6 slice 8 LANDED (06/10):** two more cases — **33 total** — pinning the
+floating-point formatting contract and the concurrency surface:
+`double-formatting` (`Double` literals and arithmetic — `1.0`, `2.5`, `1.0/3.0`
+= `0.3333333333333333`, the IEEE-754 artifact `0.1 + 0.2` =
+`0.30000000000000004`, `1.0/0.0` = `Infinity`, `1e3` = `1000.0`, `7.5 % 2.0` =
+`1.5`; JS `Number`/`BigInt` vs JVM/Native `double` formatting is a real
+divergence guard) and `concurrency-spawn-await` (`val h = spawn f(n)` with typed
+`Handle<T>` + `await h` unboxing, two tasks joined and combined; the frozen
+`spawn`/`await` contract on all four targets). Both are validated on all four
+targets, plus riscv64/aarch64 under qemu during authoring. Proof (executed):
+`tests/run-golden.sh` **132/132** (33 cases × 4 targets), exit 0.
+
+**Phase 6 slice 9 LANDED (06/10):** one more case — **34 total** — pinning the
+`return`-through-`finally` contract the §613 native SIGSEGV exposed:
+`finally-return` (`return` inside the `try` AND inside the `catch` of a
+`try/catch/finally`, with the `finally` running on both paths — the exact shape
+of `known-bugs` §613). Validated on all four targets. Proof (executed):
+`tests/run-golden.sh` **136/136** (34 cases × 4 targets), exit 0.
+
+**Phase 6 slice 10 LANDED (06/10):** one more case — **35 total** — pinning the
+two `try/finally` abrupt-completion faces the Phase-6 slice-9 sweep catalogued
+as `known-bugs` §617, now FIXED: `finally-control-flow` combines a
+`break`/`continue` leaving a `try` (the finally MUST run before the jump) with a
+nested `try/finally` whose inner try `return`s (the outer finally runs, the inner
+value survives). Validated on all four targets; additionally run on
+riscv64/aarch64 under qemu during authoring. Proof (executed):
+`tests/run-golden.sh` **140/140** (35 cases × 4 targets), exit 0.
+
+**Phase 6 slice 11 LANDED (08/10, lane compiler/JVM/native `192.168.15.30:9092`):** one
+more case — **36 total** — pinning the `List` higher-order/query surfaces the
+`pipelines` case left uncovered: `list-higher-order` exercises `reduce(lambda,
+seed)` (seed form, `SEM073` if omitted), `indexOf`/`lastIndexOf` (`-1` when
+absent), `isEmpty`, `none(pred)`, `find(pred)` (the first match), `slice(off,
+len)`/`take(n)`/`drop(n)` (materialized copies, clamped), `groupBy` (`Map<K,
+List<E>>`), `flatMap` (flattened list), `sort()` in place, `addAll`, `subList`,
+`remove` and `sorted(comparator)` with a descending comparator. The `zip` face
+is deliberately NOT included: it is the documented `NAT008` native gap (a
+primitive element crosses a bare type parameter), so a golden case requiring all
+four targets cannot pin it — the refusal is the contract. Validated on all four
+targets. Proof (executed): `tests/run-golden.sh` **144/144** (36 cases × 4
+targets), exit 0.
 
 ### Phase 7 — Integration
 
@@ -757,6 +917,36 @@ mvn verify
 ```
 
 or equivalent.
+
+**Phase 7 slice LANDED (05/10):** the plan's integration deploy is now a real
+Maven profile — `mvn verify -Pintegration` runs the official golden suite
+(jvm+native+js+script) and the CLI integration suite (`kof build`/`run`/`check`/
+`serve`/`test`) in the `verify` phase against the freshly shaded CLI jar, via
+`exec-maven-plugin` in `kof-cli` (`workingDirectory` =
+`${maven.multiModuleProjectDirectory}`, so the root scripts run regardless of
+the module). No CI YAML change was needed; the existing workflow steps keep
+calling the scripts directly, and the profile gives a single local/CI command.
+Proof (executed): `mvn -o -pl kof-cli -Pintegration exec:exec@golden-tests`
+→ **48/48**; `...@integration-tests` → **9/9**; and the full reactor
+`mvn -o -pl kof-cli -am -Pintegration verify` → BUILD SUCCESS, both suites green
+at the `verify` phase.
+
+**Phase 7 slice 2 LANDED (05/10):** the CLI integration suite gained the two
+targets it was missing — `kof build --target js` + `node Default.mjs` (guarded
+on `node`, exactly like the golden runner, so a host without Node reports SKIP
+instead of a false red) and `kof run --target script` (direct IR interpretation).
+`tests/run-integration.sh` now exercises **12** checks (was 9) across all four
+targets plus the CLI surfaces (`check`/`serve`/`test`). Proof (executed):
+`tests/run-integration.sh` **12/12**, exit 0; the `integration-tests` execution
+of the `mvn verify -Pintegration` profile rides the same script.
+
+**Phase 7 slice 3 LANDED (05/10):** the integration suite now pins the `kof run`
+dispatch itself on the two targets it was missing — `kof run --target native`
+(the CLI compiles, assembles and executes, distinct from the `build`+execute leg
+already covered) and `kof run --target js` (the embedded JS engine, no external
+`node`). `tests/run-integration.sh` now exercises **14** checks (was 12) and
+every target has both a `build` and a `run` leg. Proof (executed):
+`tests/run-integration.sh` **14/14**, exit 0.
 
 ## 📊 Goal
 
@@ -842,7 +1032,7 @@ Before any deep refactoring, the path is:
 3. look for duplication (Phase 2 — discovery + ratchet LANDED:
    `scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`; work =
    shrink `scripts/test-hygiene-baseline.txt` via quick-win removals — current
-   authority = **122** non-comment keys, per `scripts/test-hygiene-baseline.txt`);
+   authority = **118** non-comment keys, per `scripts/test-hygiene-baseline.txt`);
 4. propose the modularization (Phase 3 — started: `--citations` measures the split cost per
    oversized class and the drift rule is fixed; four splits landed = `KofSetEqualitySupport`
    out of `KofSetEqualityTest` (21/21 kept), `KofMathSupport` out of `KofMathTest` (29/29 kept),
@@ -868,4 +1058,4 @@ Before any deep refactoring, the path is:
 
 **Important:** this refactoring must not interfere with anything in the
 compiler. It is purely test infrastructure (golden rule). The front is open
-(`D-TEST-ARCHITECTURE-GO`); Phases 1–4 are CONCLUDED (oversized 43→18; harness ratchet 146→122, zero identical pairs remain). **Phase 5 is now AUTHORIZED and eleven slices LANDED** (`D-TEST-ARCHITECTURE-PHASES`, maintainer 03/10 — `NativeCrossSupport` 54/54, `NativeIoJvmOracleSupport` (jvmOracle key eliminated), `TargetGapRefusalSupport`, `ServerProcessSupport` (stopServer key eliminated, 118/118), `JvmRunSupport` (assertRuns key eliminated, 38/38), `MultiSourceRunSupport` (runScript key eliminated, 47/47), `KofmdRunSupport` (runKof key eliminated, 19/19), `JsParityRunSupport` (assertBoth key eliminated, 18/18), `LibraryInstallSupport` (copyLibrary key eliminated, 268/268), `JvmJsRunSupport` (runBoth key eliminated, 126/126), and the `NullablePrimitiveContractSupport` `runAll3` consolidation (43/43)); Phases 5–7 remain open work, with the remaining Phase 5 families (`main`, `assumeToolchain`) as the next increment.
+(`D-TEST-ARCHITECTURE-GO`); Phases 1–4 are CONCLUDED (oversized 43→18; harness ratchet 146→119, zero identical pairs remain). **Phase 5 is now AUTHORIZED and fourteen slices LANDED** (`D-TEST-ARCHITECTURE-PHASES`, maintainer 03/10 — `NativeCrossSupport` 54/54, `NativeIoJvmOracleSupport` (jvmOracle key eliminated), `TargetGapRefusalSupport`, `ServerProcessSupport` (stopServer key eliminated, 118/118), `JvmRunSupport` (assertRuns key eliminated, 38/38), `MultiSourceRunSupport` (runScript key eliminated, 47/47), `KofmdRunSupport` (runKof key eliminated, 19/19), `JsParityRunSupport` (assertBoth key eliminated, 18/18), `LibraryInstallSupport` (copyLibrary key eliminated, 268/268), `JvmJsRunSupport` (runBoth key eliminated, 126/126), the `NullablePrimitiveContractSupport` `runAll3` consolidation (43/43), `NativeToolchainAssumptions` (assumeToolchain key eliminated, 342/342), the `assumeAarch64`+`assumeCross` cleanup (121→119, 74/74), and `QemuRunSupport` (runQemu key eliminated, 151/151, 119→118)); Phases 5–7 remain open work, with the `main` cluster confirmed a false lead (Kof `main()` inside test-source text blocks, not a Java helper), and the Phase 6 first slice already LANDED.

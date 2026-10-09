@@ -1,0 +1,10 @@
+class Box<T>(T value) {
+    get(): T { return value }
+}
+
+main() {
+    var b: Box<Int> = Box(42)
+    println(b.get())
+    var s: Box<String> = Box("kof")
+    println(s.get())
+}

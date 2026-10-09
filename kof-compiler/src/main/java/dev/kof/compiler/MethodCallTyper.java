@@ -385,7 +385,17 @@ if (mc.receiver() != null) {
     }
     if (mc.receiver() instanceof IdentifierExpr rid && KofStd.isStdNamespace(rid.name())) {
         List<Type> argTypes = new ArrayList<>();
-        for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
+        for (ExpressionNode arg : mc.arguments()) {
+            // narrowing de null-safety: `if (q != null) { math.parseInt(q) }`
+            // — o frontend estreita `q: String?` para `String` no escopo do
+            // ramo, mas o typer do lowerer lê os IR-locals (ainda Nullable);
+            // sem o unwrap o `staticMethod` devolve null e a chamada sumia
+            // (IR sem o call → frame crash COMP002). Espelha o unwrap de
+            // receiver em `MethodCallTyper`/`ExpressionInstanceCallLowerer`.
+            Type at = ExpressionTyper.inferExprType(driver, arg, locals);
+            if (at instanceof Type.NullableType nt) at = nt.inner();
+            argTypes.add(at);
+        }
         KofStd.StdCall sCall = KofStd.staticMethod(rid.name(), mc.methodName(), argTypes);
         if (sCall != null) return sCall.returnType();
         return Type.UnknownType.UNKNOWN;

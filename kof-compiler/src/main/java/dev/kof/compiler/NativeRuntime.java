@@ -27,6 +27,7 @@ import dev.kof.compiler.runtime.RuntimeIo1;
 import dev.kof.compiler.runtime.RuntimeIo2;
 import dev.kof.compiler.runtime.RuntimeIo3;
 import dev.kof.compiler.runtime.RuntimeIoMeta;
+import dev.kof.compiler.runtime.RuntimeIoRealPath;
 import dev.kof.compiler.runtime.RuntimeIoMove;
 import dev.kof.compiler.runtime.RuntimeIoCopy;
 import dev.kof.compiler.runtime.RuntimeMedia;
@@ -226,6 +227,7 @@ public final class NativeRuntime {
         RuntimeIo2.emit(sb);
         RuntimeIo3.emit(sb);
         RuntimeIoMeta.emit(sb);
+        RuntimeIoRealPath.emit(sb);
         RuntimeIoMove.emit(sb);
         RuntimeIoCopy.emit(sb);
         RuntimeMedia.emit(sb);
@@ -241,6 +243,8 @@ public final class NativeRuntime {
         NativeNetFront.emitNetListen(sb);
         NativeNetFront.emitNetAccept(sb);
         NativeNetFront.emitNetConnect(sb);
+        NativeNetFront.emitNetConnectAddr(sb);
+        NativeNetFront.emitNetResolve(sb);
         NativeNetFrontUdp.emitNetBind(sb);
         NativeNetFrontTcp.emitNetSend(sb);
         NativeNetFrontTcp.emitNetReceive(sb);

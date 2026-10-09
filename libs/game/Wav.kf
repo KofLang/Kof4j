@@ -1,0 +1,130 @@
+package game
+
+// kof.game — WAV encoder (slice 3.3d of the graphics/gaming front,
+// `D-GRAPHICS-GAMING` + `D-GRAPHICS-SPIKE` + `D-MAINT-BATCH-0510`/G1).
+//
+// The offline mixer (`Audio.kf`) renders PCM into memory; this module is the
+// PURE next step that makes those samples shippable: it encodes 16-bit PCM
+// into a WAVE file image (RIFF header + samples, little-endian) that any
+// player decodes and future backend playback can submit verbatim. No
+// decoder, no device, no audio API — honest on every target today.
+//
+//   var pcm = mixer(8000).play(Sound("a", 440.0, 100.0, 1.0, 1), 0).render()
+//   var wav = encodeWav(pcm, 8000, 1)   // Byte[]: 44 header + 2 per sample
+//
+// Semantics (frozen here, tested):
+// - Format is always PCM16 (`audioFormat = 1`, `bitsPerSample = 16`):
+//   `byteRate = rate * channels * 2`, `blockAlign = channels * 2`,
+//   `chunkSize = 36 + dataBytes`. Tags (`RIFF`/`WAVE`/`fmt `/`data`) come
+//   from `charAt` codes, never magic numbers.
+// - `channels` is 1 (mono) or 2 (stereo); anything else throws (an
+//   undeclared layout is never silently written). `rate <= 0` throws.
+// - Samples are interleaved in input order and clamped to [-32768, 32767]
+//   (the mixer already clamps; the encoder never trusts it blindly).
+// - Decoding back is field-exact: `wavSamples`, `wavRate`, `wavChannels`
+//   read a `encodeWav` image, so a golden pins the format both ways.
+// - Pure integers and bytes, no IO; runs on every target.
+
+// Encode 16-bit PCM `samples` (interleaved) as a WAVE file image.
+Byte[] encodeWav(Int[] samples, Int sampleRate, Int channels) {
+    if (channels != 1 && channels != 2) { throw "Wav: channels must be 1 or 2" }
+    if (sampleRate <= 0) { throw "Wav: sampleRate must be > 0" }
+    var dataBytes = samples.length * 2
+    var out = new Byte[44 + dataBytes]
+    wavTag(out, 0, "RIFF")
+    wavU32(out, 4, 36 + dataBytes)
+    wavTag(out, 8, "WAVE")
+    wavTag(out, 12, "fmt ")
+    wavU32(out, 16, 16)
+    wavU16(out, 20, 1)
+    wavU16(out, 22, channels)
+    wavU32(out, 24, sampleRate)
+    wavU32(out, 28, sampleRate * channels * 2)
+    wavU16(out, 32, channels * 2)
+    wavU16(out, 34, 16)
+    wavTag(out, 36, "data")
+    wavU32(out, 40, dataBytes)
+    var i = 0
+    while (i < samples.length) {
+        wavI16(out, 44 + i * 2, samples[i])
+        i = i + 1
+    }
+    return out
+}
+
+// Number of PCM samples in a `encodeWav` image.
+Int wavSampleCount(Byte[] wav) {
+    return (wavU32read(wav, 40) / 2) as Int
+}
+
+// Sample rate of a `encodeWav` image.
+Int wavRate(Byte[] wav) {
+    return wavU32read(wav, 24)
+}
+
+// Channel count of a `encodeWav` image.
+Int wavChannels(Byte[] wav) {
+    return wavU16read(wav, 22)
+}
+
+// Sample `i` of a `encodeWav` image (signed).
+Int wavSampleAt(Byte[] wav, Int i) {
+    return wavI16read(wav, 44 + i * 2)
+}
+
+// Write a 4-char tag from `charAt` codes (never magic numbers).
+void wavTag(Byte[] out, Int off, String tag) {
+    var i = 0
+    while (i < 4) {
+        out[off + i] = (tag.charAt(i) as Int) as Byte
+        i = i + 1
+    }
+}
+
+// Write an unsigned 32-bit little-endian value.
+void wavU32(Byte[] out, Int off, Int v) {
+    out[off] = (v & 0xFF) as Byte
+    out[off + 1] = ((v >> 8) & 0xFF) as Byte
+    out[off + 2] = ((v >> 16) & 0xFF) as Byte
+    out[off + 3] = ((v >> 24) & 0xFF) as Byte
+}
+
+// Write an unsigned 16-bit little-endian value.
+void wavU16(Byte[] out, Int off, Int v) {
+    out[off] = (v & 0xFF) as Byte
+    out[off + 1] = ((v >> 8) & 0xFF) as Byte
+}
+
+// Write a signed 16-bit little-endian sample (clamped).
+void wavI16(Byte[] out, Int off, Int v) {
+    var s = v
+    if (s > 32767) { s = 32767 }
+    if (s < -32768) { s = -32768 }
+    if (s < 0) { s = s + 65536 }
+    wavU16(out, off, s)
+}
+
+// Read an unsigned 32-bit little-endian value.
+Int wavU32read(Byte[] wav, Int off) {
+    return wavUbyte(wav, off) + wavUbyte(wav, off + 1) * 256
+        + wavUbyte(wav, off + 2) * 65536 + wavUbyte(wav, off + 3) * 16777216
+}
+
+// Read an unsigned 16-bit little-endian value.
+Int wavU16read(Byte[] wav, Int off) {
+    return wavUbyte(wav, off) + wavUbyte(wav, off + 1) * 256
+}
+
+// Read a signed 16-bit little-endian sample.
+Int wavI16read(Byte[] wav, Int off) {
+    var u = wavU16read(wav, off)
+    if (u >= 32768) { u = u - 65536 }
+    return u
+}
+
+// One byte as unsigned 0..255.
+Int wavUbyte(Byte[] wav, Int i) {
+    var v = wav[i] as Int
+    if (v < 0) { v = v + 256 }
+    return v
+}

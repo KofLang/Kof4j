@@ -58,7 +58,8 @@ public final class JvmRuntimeCallDescriptors {
                     -> "(Ljava/lang/String;)I";
             case "kof_io_file_size" -> "(Ljava/lang/String;)J";
             case "kof_io_file_name", "kof_io_path_parent", "kof_io_path_file_name",
-                    "kof_io_path_extension", "kof_io_path_normalize", "kof_io_path_to_absolute"
+                    "kof_io_path_extension", "kof_io_path_normalize", "kof_io_path_to_absolute",
+                    "kof_io_path_real_path"
                     -> "(Ljava/lang/String;)Ljava/lang/String;";
             case "kof_io_path_resolve" -> "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;";
             case "kof_io_file_copy_to", "kof_io_file_move_to" -> "(Ljava/lang/String;Ljava/lang/String;)I";
@@ -431,6 +432,10 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_net_listen" -> "(I)Ldev/kof/runtime/KofRuntime$NetListener;";
             case "kof_net_accept" -> "(Ldev/kof/runtime/KofRuntime$NetListener;)Ldev/kof/runtime/KofRuntime$NetConn;";
             case "kof_net_connect" -> "(Ljava/lang/String;I)Ldev/kof/runtime/KofRuntime$NetConn;";
+            // #759 / NET1: connect ao endereço validado (host mantido p/ Host/SNI).
+            case "kof_net_connect_addr" -> "(Ljava/lang/String;ILjava/lang/String;)Ldev/kof/runtime/KofRuntime$NetConn;";
+            // #759 / NET1: todos os endereços (A/AAAA) do host.
+            case "kof_net_resolve" -> "(Ljava/lang/String;)Ljava/util/ArrayList;";
             case "kof_net_bind" -> "(I)Ldev/kof/runtime/KofRuntime$NetEndpoint;";
             case "kof_net_send" -> "(Ldev/kof/runtime/KofRuntime$NetConn;[B)I";
             case "kof_net_receive" -> "(Ldev/kof/runtime/KofRuntime$NetConn;I)[B";

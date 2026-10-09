@@ -1,0 +1,539 @@
+package image
+
+import image.Av1Intra
+
+// kof.image — AV1 directional intra prediction + intra edge filtering (slice 3k
+// of the AVIF front, plan §34). Implements the AV1 Bitstream & Decoding Process
+// Specification §7.11.2.4 (directional intra prediction process) and the edge
+// processes it invokes: §7.11.2.7 (filter corner), §7.11.2.9 (edge filter
+// strength selection), §7.11.2.10 (edge upsample selection), §7.11.2.11
+// (upsample) and §7.11.2.12 (edge filter).
+//
+// The eight angular modes (V_PRED..D67_PRED, mode 1..8) map to `pAngle` through
+// `Mode_To_Angle` + `angleDelta * ANGLE_STEP`; the three zones use
+// `Dr_Intra_Derivative` and the `av1_dr_prediction_z1/z2/z3_c` kernels. The
+// `enable_intra_edge_filter` guard and the `haveAbove`/`haveLeft`/
+// `haveAboveRight`/`haveBelowLeft` availability flags are passed by the caller
+// (the tile decode), so the arithmetic stays target-independent.
+//
+// This module covers the `intra_edge_filter_type` 0 face (the caller derives
+// it from the neighbouring modes; the harness pins type 0). The recursive
+// filter-intra mode is a separate slice.
+//
+// Pure Kof, all targets: no I/O, no compiler change.
+
+// §7.11.2: `Mode_To_Angle[ mode ]`.
+Int av1IntraModeToAngle(Int mode) {
+    if (mode == 1) {
+        return 90
+    }
+    if (mode == 2) {
+        return 180
+    }
+    if (mode == 3) {
+        return 45
+    }
+    if (mode == 4) {
+        return 135
+    }
+    if (mode == 5) {
+        return 113
+    }
+    if (mode == 6) {
+        return 157
+    }
+    if (mode == 7) {
+        return 203
+    }
+    if (mode == 8) {
+        return 67
+    }
+    return 0
+}
+
+// §7.11.2.4: `pAngle = Mode_To_Angle[ mode ] + angleDelta * ANGLE_STEP`.
+Int av1IntraPAngle(Int mode, Int angleDelta) {
+    return av1IntraModeToAngle(mode) + angleDelta * 3
+}
+
+// `Dr_Intra_Derivative[90]` (§10 additional tables).
+Int av1DrDerivative(Int i) {
+    return listOf(
+        0, 0, 0, 1023, 0, 0, 547, 0, 0, 372, 0, 0, 0, 0,
+        273, 0, 0, 215, 0, 0, 178, 0, 0, 151, 0, 0, 132, 0, 0,
+        116, 0, 0, 102, 0, 0, 0, 90, 0, 0, 80, 0, 0, 71, 0, 0,
+        64, 0, 0, 57, 0, 0, 51, 0, 0, 45, 0, 0, 0, 40, 0, 0,
+        35, 0, 0, 31, 0, 0, 27, 0, 0, 23, 0, 0, 19, 0, 0,
+        15, 0, 0, 0, 0, 11, 0, 0, 7, 0, 0, 3, 0, 0
+    ).get(i)
+}
+
+// §7.11.2.4 step 5: `dx` derivation.
+Int av1DrGetDx(Int pAngle) {
+    if (pAngle > 0 && pAngle < 90) {
+        return av1DrDerivative(pAngle)
+    }
+    if (pAngle > 90 && pAngle < 180) {
+        return av1DrDerivative(180 - pAngle)
+    }
+    return 1
+}
+
+// §7.11.2.4 step 6: `dy` derivation.
+Int av1DrGetDy(Int pAngle) {
+    if (pAngle > 90 && pAngle < 180) {
+        return av1DrDerivative(pAngle - 90)
+    }
+    if (pAngle > 180 && pAngle < 270) {
+        return av1DrDerivative(270 - pAngle)
+    }
+    return 1
+}
+
+// §7.11.2.7 filter corner process: `Round2( LeftCol[0]*5 + AboveRow[-1]*6 +
+// AboveRow[0]*5, 4 )` written to both corners. `co` is the index of
+// `AboveRow[0]`/`LeftCol[0]` in the flat edge arrays.
+Int av1DrFilterCorner(Int[] above, Int[] left, Int co) {
+    return (left[co] * 5 + above[co - 1] * 6 + above[co] * 5 + 8) >> 4
+}
+
+// §7.11.2.9 intra edge filter strength selection.
+Int av1DrEdgeFilterStrength(Int w, Int h, Int filterType, Int delta) {
+    var d = delta
+    if (d < 0) {
+        d = -d
+    }
+    var blkWh = w + h
+    var strength = 0
+    if (filterType == 0) {
+        if (blkWh <= 8) {
+            if (d >= 56) {
+                strength = 1
+            }
+        } else {
+            if (blkWh <= 12) {
+                if (d >= 40) {
+                    strength = 1
+                }
+            } else {
+                if (blkWh <= 16) {
+                    if (d >= 40) {
+                        strength = 1
+                    }
+                } else {
+                    if (blkWh <= 24) {
+                        if (d >= 8) {
+                            strength = 1
+                        }
+                        if (d >= 16) {
+                            strength = 2
+                        }
+                        if (d >= 32) {
+                            strength = 3
+                        }
+                    } else {
+                        if (blkWh <= 32) {
+                            strength = 1
+                            if (d >= 4) {
+                                strength = 2
+                            }
+                            if (d >= 32) {
+                                strength = 3
+                            }
+                        } else {
+                            strength = 3
+                        }
+                    }
+                }
+            }
+        }
+    } else {
+        if (blkWh <= 8) {
+            if (d >= 40) {
+                strength = 1
+            }
+            if (d >= 64) {
+                strength = 2
+            }
+        } else {
+            if (blkWh <= 16) {
+                if (d >= 20) {
+                    strength = 1
+                }
+                if (d >= 48) {
+                    strength = 2
+                }
+            } else {
+                if (blkWh <= 24) {
+                    if (d >= 4) {
+                        strength = 3
+                    }
+                } else {
+                    strength = 3
+                }
+            }
+        }
+    }
+    return strength
+}
+
+// §7.11.2.10 intra edge upsample selection process.
+Bool av1DrUseUpsample(Int w, Int h, Int filterType, Int delta) {
+    var d = delta
+    if (d < 0) {
+        d = -d
+    }
+    if (d == 0 || d >= 40) {
+        return false
+    }
+    if (filterType == 0) {
+        return w + h <= 16
+    }
+    return w + h <= 8
+}
+
+// §7.11.2.12 intra edge filter process over `buf` (AboveRow when `left` is 0,
+// LeftCol when `left` is 1). `co` indexes `buf[0]`; the process filters entries
+// `buf[0..sz-1]` in place. `buf` must be a mutable copy long enough for the
+// negative-indexed corner.
+void av1DrFilterEdge(Int[] buf, Int co, Int sz, Int strength, Int left) {
+    if (strength == 0) {
+        return
+    }
+    var kernel0 = 0
+    var kernel1 = 0
+    var kernel2 = 0
+    var kernel3 = 0
+    var kernel4 = 0
+    if (strength == 1) {
+        kernel0 = 0
+        kernel1 = 4
+        kernel2 = 8
+        kernel3 = 4
+        kernel4 = 0
+    } else {
+        if (strength == 2) {
+            kernel0 = 0
+            kernel1 = 5
+            kernel2 = 6
+            kernel3 = 5
+            kernel4 = 0
+        } else {
+            kernel0 = 2
+            kernel1 = 4
+            kernel2 = 4
+            kernel3 = 4
+            kernel4 = 2
+        }
+    }
+    var edge = new Int[sz]
+    var i = 0
+    while (i < sz) {
+        edge[i] = buf[co + i - 1]
+        i = i + 1
+    }
+    i = 1
+    while (i < sz) {
+        var s = 0
+        var j = 0
+        while (j < 5) {
+            var k = i - 2 + j
+            if (k < 0) {
+                k = 0
+            }
+            if (k > sz - 1) {
+                k = sz - 1
+            }
+            var tap = kernel0
+            if (j == 1) {
+                tap = kernel1
+            }
+            if (j == 2) {
+                tap = kernel2
+            }
+            if (j == 3) {
+                tap = kernel3
+            }
+            if (j == 4) {
+                tap = kernel4
+            }
+            s = s + edge[k] * tap
+            j = j + 1
+        }
+        buf[co + i - 1] = (s + 8) >> 4
+        i = i + 1
+    }
+}
+
+// §7.11.2.11 intra edge upsample process. The edge array is upsampled in place:
+// the original `numPx` entries at `buf[co..co+numPx-1]` and the corner at
+// `buf[co-1]` are consumed; the upsampled samples are written at
+// `buf[co-2 .. co+2*numPx-2]`. `bitDepth` clips the interpolation.
+void av1DrUpsampleEdge(Int[] buf, Int co, Int numPx, Int bitDepth) {
+    var dup = new Int[numPx + 3]
+    dup[0] = buf[co - 1]
+    dup[1] = buf[co - 1]
+    var i = 0
+    while (i < numPx) {
+        dup[i + 2] = buf[co + i]
+        i = i + 1
+    }
+    dup[numPx + 2] = buf[co + numPx - 1]
+    buf[co - 2] = dup[0]
+    i = 0
+    while (i < numPx) {
+        var s = -dup[i] + 9 * dup[i + 1] + 9 * dup[i + 2] - dup[i + 3]
+        s = av1DrClip1((s + 8) >> 4, bitDepth)
+        buf[co + 2 * i - 1] = s
+        buf[co + 2 * i] = dup[i + 2]
+        i = i + 1
+    }
+}
+
+// `Clip1( v )` for the upsample.
+Int av1DrClip1(Int v, Int bitDepth) {
+    var hi = (1 << bitDepth) - 1
+    if (v < 0) {
+        return 0
+    }
+    if (v > hi) {
+        return hi
+    }
+    return v
+}
+
+// §7.11.2.4 zone 1 (`pAngle < 90`) prediction. `above`/`left` are the filtered
+// and possibly upsampled edge arrays, `co` indexes `AboveRow[0]`/`LeftCol[0]`.
+Int[] av1DrPredZ1(Int[] above, Int w, Int h, Int co, Int upsampleAbove, Int dx) {
+    var out = new Int[w * h]
+    var maxBaseX = (w + h - 1) << upsampleAbove
+    var fracBits = 6 - upsampleAbove
+    var baseInc = 1 << upsampleAbove
+    var x = dx
+    var r = 0
+    var done = false
+    while (r < h) {
+        var base = x >> fracBits
+        var shift = ((x << upsampleAbove) & 0x3F) >> 1
+        if (base >= maxBaseX) {
+            var i = r
+            while (i < h) {
+                var c = 0
+                while (c < w) {
+                    out[i * w + c] = above[co + maxBaseX]
+                    c = c + 1
+                }
+                i = i + 1
+            }
+            done = true
+            r = h
+        } else {
+            var c = 0
+            while (c < w) {
+                if (base < maxBaseX) {
+                    var pv = above[co + base] * (32 - shift) + above[co + base + 1] * shift
+                    out[r * w + c] = (pv + 16) >> 5
+                } else {
+                    out[r * w + c] = above[co + maxBaseX]
+                }
+                base = base + baseInc
+                c = c + 1
+            }
+            r = r + 1
+            x = x + dx
+        }
+    }
+    return out
+}
+
+// §7.11.2.4 zone 2 (`90 < pAngle < 180`) prediction.
+Int[] av1DrPredZ2(Int[] above, Int[] left, Int w, Int h, Int co, Int upsampleAbove, Int upsampleLeft, Int dx, Int dy) {
+    var out = new Int[w * h]
+    var minBaseX = -(1 << upsampleAbove)
+    var fracBitsX = 6 - upsampleAbove
+    var fracBitsY = 6 - upsampleLeft
+    var r = 0
+    while (r < h) {
+        var c = 0
+        while (c < w) {
+            var y = r + 1
+            var x = (c << 6) - y * dx
+            var baseX = x >> fracBitsX
+            if (baseX >= minBaseX) {
+                var shift = ((x * (1 << upsampleAbove)) & 0x3F) >> 1
+                var pv = above[co + baseX] * (32 - shift) + above[co + baseX + 1] * shift
+                out[r * w + c] = (pv + 16) >> 5
+            } else {
+                var x2 = c + 1
+                var y2 = (r << 6) - x2 * dy
+                var baseY = y2 >> fracBitsY
+                var shift = ((y2 * (1 << upsampleLeft)) & 0x3F) >> 1
+                var pv = left[co + baseY] * (32 - shift) + left[co + baseY + 1] * shift
+                out[r * w + c] = (pv + 16) >> 5
+            }
+            c = c + 1
+        }
+        r = r + 1
+    }
+    return out
+}
+
+// §7.11.2.4 zone 3 (`pAngle > 180`) prediction.
+Int[] av1DrPredZ3(Int[] left, Int w, Int h, Int co, Int upsampleLeft, Int dy) {
+    var out = new Int[w * h]
+    var maxBaseY = (w + h - 1) << upsampleLeft
+    var fracBits = 6 - upsampleLeft
+    var baseInc = 1 << upsampleLeft
+    var y = dy
+    var c = 0
+    while (c < w) {
+        var base = y >> fracBits
+        var shift = ((y << upsampleLeft) & 0x3F) >> 1
+        var r = 0
+        var brk = false
+        while (r < h) {
+            if (brk) {
+                r = h
+            } else {
+                if (base < maxBaseY) {
+                    var pv = left[co + base] * (32 - shift) + left[co + base + 1] * shift
+                    out[r * w + c] = (pv + 16) >> 5
+                    base = base + baseInc
+                    r = r + 1
+                } else {
+                    var rr = r
+                    while (rr < h) {
+                        out[rr * w + c] = left[co + maxBaseY]
+                        rr = rr + 1
+                    }
+                    brk = true
+                    r = h
+                }
+            }
+        }
+        y = y + dy
+        c = c + 1
+    }
+    return out
+}
+
+// `V_PRED` face of the directional process (`pAngle == 90`): every row equals
+// `AboveRow`. `co` indexes `above[0]`.
+Int[] av1DrV(Int[] above, Int w, Int h, Int co) {
+    var out = new Int[w * h]
+    var i = 0
+    while (i < h) {
+        var j = 0
+        while (j < w) {
+            out[i * w + j] = above[co + j]
+            j = j + 1
+        }
+        i = i + 1
+    }
+    return out
+}
+
+// `H_PRED` face of the directional process (`pAngle == 180`): every column
+// equals `LeftCol`. `co` indexes `left[0]`.
+Int[] av1DrH(Int[] left, Int w, Int h, Int co) {
+    var out = new Int[w * h]
+    var i = 0
+    while (i < h) {
+        var j = 0
+        while (j < w) {
+            out[i * w + j] = left[co + i]
+            j = j + 1
+        }
+        i = i + 1
+    }
+    return out
+}
+
+// `need_above` for the directional modes (libaom `extend_modes`): H_PRED (2)
+// and D203 (7) do not use the above edge.
+Bool av1DrNeedAbove(Int mode) {
+    return !(mode == 2 || mode == 7)
+}
+
+// `need_left` for the directional modes: V_PRED (1), D45 (3) and D67 (8) only
+// use the above edge; the others use both.
+Bool av1DrNeedLeft(Int mode) {
+    return !(mode == 1 || mode == 3 || mode == 8)
+}
+
+// Full §7.11.2.4 directional intra prediction, including the §7.11.2.7-.12 edge
+// processes. `above`/`left` are the raw edge arrays with `co` indexing entry 0;
+// the caller owns copies long enough for the negative-indexed corner.
+// `nTopPx`/`nLeftPx` are the §7.11.2.4 availability counts (0 when the edge is
+// absent). `filterType` is the §7.11.2.8 intra filter type (0 or 1); the
+// recursive filter-intra mode is a later slice.
+Int[] av1DrPredict(Int mode, Int angleDelta, Int[] above, Int[] left, Int w, Int h,
+                   Int co, Int nTopPx, Int nLeftPx, Int bitDepth, Int filterType) {
+    var pAngle = av1IntraPAngle(mode, angleDelta)
+    if (pAngle == 90) {
+        return av1DrV(above, w, h, co)
+    }
+    if (pAngle == 180) {
+        return av1DrH(left, w, h, co)
+    }
+    var needLeft = av1DrNeedLeft(mode)
+    var needAbove = av1DrNeedAbove(mode)
+    var needRight = pAngle < 90
+    var needBottom = pAngle > 180
+    var upsampleAbove = false
+    var upsampleLeft = false
+    if (pAngle != 90 && pAngle != 180) {
+        if (needAbove && needLeft && (w + h) >= 24) {
+            var corner = av1DrFilterCorner(above, left, co)
+            above[co - 1] = corner
+            left[co - 1] = corner
+        }
+        if (needAbove && nTopPx > 0) {
+            var strength = av1DrEdgeFilterStrength(w, h, filterType, pAngle - 90)
+            var nPx = nTopPx + 1
+            if (needRight) {
+                nPx = nPx + h
+            }
+            av1DrFilterEdge(above, co, nPx, strength, 0)
+        }
+        if (needLeft && nLeftPx > 0) {
+            var strength = av1DrEdgeFilterStrength(h, w, filterType, pAngle - 180)
+            var nPx = nLeftPx + 1
+            if (needBottom) {
+                nPx = nPx + w
+            }
+            av1DrFilterEdge(left, co, nPx, strength, 1)
+        }
+    }
+    upsampleAbove = av1DrUseUpsample(w, h, filterType, pAngle - 90)
+    if (needAbove && upsampleAbove) {
+        var nPx = w
+        if (needRight) {
+            nPx = nPx + h
+        }
+        av1DrUpsampleEdge(above, co, nPx, bitDepth)
+    }
+    upsampleLeft = av1DrUseUpsample(h, w, filterType, pAngle - 180)
+    if (needLeft && upsampleLeft) {
+        var nPx = h
+        if (needBottom) {
+            nPx = nPx + w
+        }
+        av1DrUpsampleEdge(left, co, nPx, bitDepth)
+    }
+    var ua = 0
+    if (upsampleAbove) {
+        ua = 1
+    }
+    var ul = 0
+    if (upsampleLeft) {
+        ul = 1
+    }
+    if (pAngle < 90) {
+        return av1DrPredZ1(above, w, h, co, ua, av1DrGetDx(pAngle))
+    }
+    if (pAngle < 180) {
+        return av1DrPredZ2(above, left, w, h, co, ua, ul, av1DrGetDx(pAngle), av1DrGetDy(pAngle))
+    }
+    return av1DrPredZ3(left, w, h, co, ul, av1DrGetDy(pAngle))
+}

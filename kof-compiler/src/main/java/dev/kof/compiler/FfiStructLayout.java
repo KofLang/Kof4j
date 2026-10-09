@@ -178,6 +178,50 @@ public final class FfiStructLayout {
         return true;
     }
 
+    /**
+     * D-MEMORY-SAFETY M1 unidade-1 (06/10): struct HOMOGÊNEO-FLUTUANTE de ≤ 2
+     * campos ≤ 16 B — binda no register path FP dos dois cross. As duas ABIs
+     * concordam no corte medido ({@code AbiLayoutTest} golden): LP6D achata
+     * ≤ 2 campos em SSE por campo ({@code [SSE]} / {@code [SSE,SSE]}); AAPCS64
+     * é HFA n ≤ 4 e entrega campo-a-campo em v0..v3 — o MESMO ordinal por
+     * campo. Misto (float+int) diverge (achado vs eightword INTEGER único) e
+     * 3–4 campos estouram os 16 B (BYREF — face própria) — ambos ficam em
+     * FFI001 honesto (R6).
+     */
+    public static boolean crossHomogeneousFloat(Type structType) {
+        List<FieldInfo> fs = fields(structType);
+        if (fs.isEmpty() || fs.size() > 2) return false;
+        int size = 0;
+        for (FieldInfo f : fs) {
+            if (f.scalar() != AbiLayout.Scalar.DOUBLE && f.scalar() != AbiLayout.Scalar.FLOAT) {
+                return false;
+            }
+            size += f.scalar() == AbiLayout.Scalar.FLOAT ? 4 : 8;
+        }
+        return size <= 16;
+    }
+
+    /** Float field of a {@link #crossHomogeneousFloat} struct → its scalar char
+     *  ({@code 'f'}/{@code 'd'}) at field index {@code fi}. */
+    public static char crossHfaFieldChar(Type structType, int fi) {
+        return fields(structType).get(fi).scalar() == AbiLayout.Scalar.FLOAT ? 'f' : 'd';
+    }
+
+    /** Emit the load of HFA field {@code fi} (float/double bits) from the Kof
+     *  object ({@code 16 + 8·slot}) into {@code dst} — the soft-float-safe form
+     *  (l.wu/l.d of the raw slot; NEVER an FP load of the object memory). */
+    public static void emitRiscvHfaFieldLoad(StringBuilder sb, Type structType, int fi,
+                                             String base, String dst) {
+        FieldInfo f = fields(structType).get(fi);
+        int off = 16 + 8 * f.kofSlot();
+        boolean flt = f.scalar() == AbiLayout.Scalar.FLOAT;
+        // O slot Kof guarda os bits do Float nos 32 BAIXOS (mesma forma do
+        // caminho escalar: `ld t2, slot` → `fmv.w.x fa{n}, t2`); Double = 8 B.
+        // Leitura INTEGER (l.w/l.d) — nunca load FP do objeto (soft-float-safe).
+        sb.append(flt ? "    lw " : "    ld ").append(dst).append(", ")
+          .append(off).append("(").append(base).append(")\n");
+    }
+
     /** True when a single struct is bindable as a cross (riscv64/aarch64) RETURN
      *  in the **memory path** (sret) — larger than 16 B, so the C writes it
      *  through the ABI's indirect-result pointer. Unlike x86-64 sret (a hidden
@@ -242,6 +286,17 @@ public final class FfiStructLayout {
                 if (l.byMemory()) {
                     if (nInt >= 8) return false;
                     nInt++;
+                    continue;
+                }
+                if (crossHomogeneousFloat(t)) {
+                    // D-MEMORY-SAFETY M1 unidade-1 (06/10): cada campo flutuante
+                    // = um ordinal FP próprio (LP64D achata ≤ 2 campos em
+                    // [SSE(,SSE)]; AAPCS64 HFA n ≤ 4 entrega campo-a-campo em
+                    // v0..v3). Medido no golden do AbiLayoutTest; o 3o/4o campo
+                    // duplo estouraria os 16 B (BYREF, face própria).
+                    int nf = fields(t).size();
+                    if (nFlt + nf > 8) return false;
+                    nFlt += nf;
                     continue;
                 }
                 if (l.size() > 16 || l.classes().isEmpty()) return false;

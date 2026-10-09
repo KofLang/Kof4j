@@ -2,11 +2,11 @@
 
 # Graphics, Games and Media — Kof's Intent Surface
 
-**Owner:** SEM DONO / OPEN — re-claim freely. spike-3.0 claims carry `192.168.15.30:9093` (runner/tooling, historical). This lane (.15) wrote the file in a lost window and DECLINES ownership: content is the graphics/media neighborhood, not connectors (re-routed to `check_plan_owners` compliance 03/10).
+**Owner:** `192.168.15.15:9092` — lane security/connectors, graphics/gaming front; re-claimed 05/10 (the spike-3.0 `192.168.15.30:9093` claims were runner/tooling, historical).
 
-last: spike-delta-02/10 (SDL2/FFmpeg -dev + C probes; raylib/SDL3/GLFW/miniaudio/cross still ?)
-doing: spike-3.0 (infra+report, no API)
-next: slice-3.1 (window/frame/input)
+last: slice-3.1 pure clock + key/pointer/pad input snapshots landed 05/10 (`libs/game/Clock.kf` + `Keys.kf` + `Mouse.kf` + `Pad.kf`, `GameClockE2ETest`/`GameInputE2ETest`/`GameMouseE2ETest`/`GamePadE2ETest` 4/4 each; `known-bugs` §603 fixed on the way); pure `kof.game` surface cross-target verified (`GameCrossE2ETest` 3/3 — JVM oracle + riscv64 + aarch64 under qemu); window form DECIDED (`D-GRAPHICS-WINDOW-FORM`: `Window("…") { frame { dt -> … } }`, `dt` Int ms) and its parser prerequisite fixed (`known-bugs` §611, `TrailingLambdaParamsE2ETest` 6/6); G1 SDL3 `3.4.16` measured (C + Kof FFI, headless JVM+Native; `known-bugs` §606 fixed); **SDL3 vendored into the cross sysroot 06/10 (`scripts/provision-cross-sdl3.sh`, aarch64+riscv64 `3.4.16` + runtime closure + GLIBC 2.44) and the raw ABI measured end-to-end headless on all four targets (`Sdl3FfiCrossE2ETest` 5/5: JVM + Native x86-64 + riscv64 + aarch64 under qemu, golden `init=true/driver=dummy/title=kof`)**
+doing: decision F executed (FFmpeg LGPL vendor + FFI probe + 3.4 backend frame readback) + 3.5 (3D) PROMOTED to active scope
+next: decision F ORDERED 08/10 (maintainer, chat decision: vendor the upstream LGPL-2.1+ build from source, no `--enable-gpl`; probe license must NOT be GPLv3+ before any decode lands) + 3.5 PROMOTED 08/10 (maintainer: mesh/camera/material/light/transform + external parsers; shaders stay hidden at first) — both recorded in `D-MAINT-BATCH-0510` (DECISIONS.md)
 location: docs/development
 state: UNDER DEVELOPMENT
 
@@ -36,7 +36,8 @@ Measured on `lab` (never by familiarity — `D-GRAPHICS-SPIKE`):
   them; no headers under `/usr/include`). Bonus runtime-only: SDL_ttf `2.0.11`
   (SDL1.2-era, no `-dev`). Licenses read from the distro `copyright` files
   (SDL2 = zlib/libpng + permissive, OpenAL = LGPL-2+, libavformat = LGPL-2.1+).
-  The spike measurement, not the stack pick.
+  The spike measurement, not the stack pick — the pick itself is `G1` decided
+  (**SDL3**) in `D-MAINT-BATCH-0510` (05/10); see the matrix below.
 - **License nuance (measured from the linked `.so`, 30/09):** the distro FFmpeg
   is **GPL-built** — `avcodec_license()` = `GPL version 3 or later`,
   `avformat_license()` = `GPL version 2 or later`, and `--enable-gpl` appears in
@@ -56,6 +57,19 @@ Measured on `lab` (never by familiarity — `D-GRAPHICS-SPIKE`):
   `SDL_GetVersion` = 2.30.0 and `SDL_Init(VIDEO|AUDIO)` rc=0 under the dummy
   drivers — compile+link+init, stronger than the ctypes probe. OpenAL unchanged
   (runtime-only, no headers to compile against).
+- **SDL3 delta (measured 05/10, G1):** SDL3 is not installed on the host, but the
+  `SDL3-devel` + `libSDL3-0` RPMs from the Tumbleweed repo were extracted into a
+  local prefix and measured: `gcc probe.c -lSDL3` compiles+links, and
+  `SDL_Init(VIDEO)` + `SDL_CreateWindow` + `SDL_GetWindowTitle` +
+  `SDL_DestroyWindow` + `SDL_Quit` run under `SDL_VIDEODRIVER=dummy`
+  (`driver=dummy`, `title=kof`, rc=0). The **Kof FFI binding of the same shape was
+  measured too** — the first time SDL3 is driven from Kof — on JVM and Native
+  x86-64 (headless), printing `init=true / driver=dummy / title=kof`. This closes
+  the SDL3 `?` in the matrix below. It also surfaced and fixed the parity blocker
+  `known-bugs` §606 (a stateful C library lost its globals between `extern` calls
+  on JVM/JS because the lookup arena was closed per call); the stack cannot be
+  used until that fix. Cross (riscv64/aarch64) stays `?`: the picked stack must
+  ship its libs+headers in the cross sysroot.
 - **Cross (riscv64/aarch64): not measurable yet.** No candidate `.so`/headers
   are in the distro cross sysroot, and the project's cross toolchain
   (`scripts/setup-cross-toolchain.sh`, default `/tmp/kof-cross`) was not set up
@@ -71,11 +85,11 @@ Measured on `lab` (never by familiarity — `D-GRAPHICS-SPIKE`):
   bitmap/WAV/metadata/mic only; playback/streaming/mixer/video absent
   (`MEDIA001`/`MEDIA003`). Both stay honest gaps until a real backend lands.
 
-**Candidate matrix (input to the maintainer's stack pick; `?` = not measured):**
+**Candidate matrix (`G1` decided — SDL3 — `D-MAINT-BATCH-0510`; the matrix is now the vendoring/ABI input for slice 3.1, not an open pick; `?` = not measured):**
 
 | Candidate | Domain | License (`?` = confirm upstream) | Runs on host | Headless | Cross (riscv64/aarch64) | Axis |
 |---|---|---|---|---|---|---|
-| SDL3 / SDL2 | window+input+audio | zlib/libpng + permissive (distro `copyright`) | SDL2 `2.30.0` runtime `.so` **+ `-dev` (02/10)**; C compile+link+headless-init OK | SDL3 `?` / SDL2 dummy driver **measured OK** | `?` | one lib, many targets |
+| SDL3 / SDL2 | window+input+audio | zlib/libpng + permissive (distro `copyright`) | SDL2 `2.30.0` runtime `.so` **+ `-dev` (02/10)**; SDL3 `3.4.16` RPMs extracted to a local prefix **05/10**; C compile+link OK for both | SDL3 + SDL2 dummy driver **measured OK**; **Kof FFI drives SDL3 init/window/title/quit on JVM+Native (05/10)** | `?` | one lib, many targets |
 | raylib | 2D/3D+audio | zlib (`?`) | not present | `?` | `?` | batteries-included 2D |
 | GLFW + GL API | window+context | zlib (`?`) | not present | offscreen ctx (`?`) | `?` | thin, GL expertise needed |
 | miniaudio | audio | public-domain/MIT-0 (`?`) | not present (header-only, drop-in) | offline mix yes (`?`) | `?` | single-header audio |
@@ -85,8 +99,10 @@ Measured on `lab` (never by familiarity — `D-GRAPHICS-SPIKE`):
 **Recommendation (measurement-driven, not by familiarity):** the plan's JVM rule
 (§11: never JavaFX/Swing/AWT/`javax.sound`) plus the R3-first coupling (§3) point
 to **one portable multi-target stack for window+input+audio** (SDL3 is the natural
-candidate) and **FFmpeg/Libav for video codecs** (never homemade, §10/§14). The
-maintainer picks; the spike only removes unknowns and restores the guard.
+candidate) and **FFmpeg/Libav for video codecs** (never homemade, §10/§14).
+**Decided:** `G1` is **SDL3** (`D-MAINT-BATCH-0510`, 05/10); the spike removed the
+unknowns and restored the guard — the matrix below is now the vendoring/ABI input,
+not an open pick.
 **Caveat from the license probe:** the FFmpeg face is only "free" if a LGPL
 build is vendored — the distro one measured GPL (above), so taking it as-is is a
 licensing decision, not merely technical.
@@ -94,9 +110,9 @@ licensing decision, not merely technical.
 **How to finish (slice order, `§15`):** 3.0 (this infra+report) → **3.1**
 window/frame/input on JVM/Script/Native/JS + conformance → 3.2 (2D) → 3.3
 (audio, offline PCM golden) → 3.4 (video, frame readback) → 3.5 (3D, only if
-parity allows) → 3.6 (corpus). Each slice is a complete, tested unit and needs
-its **stack choice** recorded as a `D-*` before any API lands (the spike report's
-matrix is the input to that decision).
+parity allows) → 3.6 (corpus). Each slice is a complete, tested unit and uses the
+**`G1` decision (SDL3)** recorded in `D-MAINT-BATCH-0510` before any API lands (the
+spike report's matrix is the vendoring/ABI input).
 
 # 0. Objective
 
@@ -141,13 +157,39 @@ release/caching/window-loss. No manual GPU management when the backend can do it
 
 # 6. Window / loop / clock
 
-- Window (backend-owned, form undecided): `Window("Pong") { frame { dt -> ... } }`
-  vs `Scene("Pong") { dt -> ... }`; covers title/size/fullscreen/resize/focus/
+- Window (backend-owned, form DECIDED — `D-GRAPHICS-WINDOW-FORM`): `Window("Pong") { frame { dt -> ... } }`
+  (the `Scene("Pong") { dt -> ... }` alternative was rejected); covers title/size/fullscreen/resize/focus/
   close/DPI/orientation/visibility/input; no OS APIs.
 - Loop: backend owns clock/vsync/scheduling/poll/submit/present; program gets
-  `dt` (unit/precision/first-frame/long-frame/limit/pause/minimized/focus TBD).
+  `dt` (unit DECIDED — `D-GRAPHICS-WINDOW-FORM`: Int milliseconds, first frame `0`).
+  The remaining loop semantics are DECIDED too (`D-MAINT-BATCH-0610`, 06/10):
+  **long-frame = clamp of `dt`** (the real delta bounded by a configured ceiling —
+  spiral-of-death guard, never an unbounded `dt`); **limit = vsync on/off only**
+  (no frame-rate cap); **pause = explicit `pause()`/`resume()`, `minimized`
+  suspends the render, losing focus does NOT pause**.
 - Virtual clock required (deterministic `dt` streams) for physics/animations/
   input/audio/playback/goldens.
+- Pure host LANDED 07/10 (`libs/game/Window.kf`, slice 3.1): `Window("Pong")`
+  + `clock(source)` + `dtClampMillis(n)` (A1) + `vsync(on)` (A2) +
+  `pause()`/`resume()`/`minimize()`/`restore()`/`blur()`/`focus()` (A3) +
+  `frame { dt: Int, self: Window -> ... }` over the composed `Clock`; the
+  2-arg body (window passed as `self`, never captured) sidesteps what was
+  `known-bugs` §620 (capturing lambda + args = garbage first arg on cross),
+  ✅ FIXED 07/10 by the native-backend lane, and is green on every target
+  (`GameWindowE2ETest` 8/8). Building it fixed `known-bugs` §619
+  (uninitialized field + `(` member misparse, `ClassMemberParseE2ETest` 4/4).
+- Pump binding LANDED 07/10 (slice 3.1 remainder, test-only over the vendored
+  stack — no new Kof API): `Sdl3PumpE2ETest` **5/5** drives a real headless
+  SDL3 window (`dummy` driver) through drain (`SDL_PollEvent` into a 128-byte
+  `Buffer(U8)`, the `SDL_Event` size) + push + pacing (`SDL_Delay`/
+  `SDL_GetTicks`) + two virtual-`Clock` frames with `Keys` snapshots, golden
+  `init=true/push=true/poll=0/paced=true/frames=2/quit=true` on JVM + Native
+  x86-64 + riscv64 + aarch64 under qemu. Measured boundaries: SDL drops a
+  pushed zero (type-0) event (`poll=0` pinned); real backend events exist
+  (e.g. `0x404 MOUSE_ADDED` at creation) but counts vary by environment, so
+  the drain counts silently; scancode-carrying synthesis awaits a `Buffer`
+  byte-write surface (today alloc+read only — documented frontier, not a
+  silent gap).
 
 # 7. Input
 
@@ -163,6 +205,30 @@ First level. `sprite("player.png").at(120, 80).draw()`; transforms
 Tilemaps = map intent (`tilemap("level.png", 16)`); questions: tileset/atlas/
 layers/collision/animated/infinite/formats. Rendering: app declares *what*,
 backend decides *how* (batching/atlas/command-buffer/order/cache/upload hidden).
+- Slice 3.2a LANDED 07/10 (pure intent, no rendering): `libs/game/Sprite.kf`
+  (`sprite()` factory + `at/scale/turn/origin/flip/show/hide`, `worldPointX/Y`
+  = `pos + R·S·F·(p − origin)`, `frames()/animate(dtMs, frameMs)` over a
+  caller-supplied delta, `draw(queue)`) + `libs/game/Draw.kf` (`DrawCmd`
+  record + ordered `DrawList`: `draw/clear/size/commandAt`, invisible draws
+  record nothing) + `libs/game/Trig.kf` (pure-Kof `trigSin`/`trigCos`,
+  Taylor through x^13 — `math.sin`/`math.cos` had no Native symbols,
+  `known-bugs` §621, ✅ FIXED 07/10 by the native-backend lane with an honest
+  `MATH001` gate, so the lib still uses zero backend trig). Cross-file same-
+  package refs need an explicit `import` (measured: `import game.Draw` /
+  `import game.Trig` inside `Sprite.kf`, the `Window.kf` → `game.Clock`
+  precedent). Proof: `GameSpriteE2ETest` **14/14** (transform + animation +
+  draw goldens on JVM + Script + Native x86-64 + JS; transform golden also
+  riscv64 + aarch64 under qemu; milli-unit goldens, never raw `Double`s).
+  Next: tilemap intent (3.2b).
+- Slice 3.2b LANDED 07/10 (pure intent, no rendering): `libs/game/Tilemap.kf`
+  (`tilemap()` factory + unbounded sparse grid: `tileAt`/`setTile`/
+  `clearTile`/`hasTile`/`count`/`clear`, `worldX`/`worldY` pixel origins;
+  negative id clears, unset reads `-1`, `tileSize <= 0` throws). Building it
+  confirmed two `List` API facts the compiler states explicitly (`[]`
+  assignment is arrays-only → `l.set(i, v)` per `SEM054`; removal is
+  `l.remove(i)`, no `removeAt`) — language knowledge, no bug. Proof:
+  `GameTilemapE2ETest` **6/6** (all-integer golden on JVM + Script + Native
+  x86-64 + JS + riscv64 + aarch64 under qemu).
 
 # 9. 3D (later)
 
@@ -183,10 +249,78 @@ WGSL/GLSL/HLSL/cross-compile decision deferred, not first slice).
 - Video: `Window("Trailer") { video("intro.mp4").autoplay() }`; no demuxer/
   decoder/codec/queue/hardware-decoder in-app. No own codecs (FFmpeg/Libav/
   native; criteria: license/target/security/maintenance/formats/headless).
+- Slice 3.4a LANDED 07/10 (pure playback intent, no decoder): `libs/game/
+  Video.kf` (`video()` factory + `play/pause/stop/seek/volume/loop/mute`,
+  `tick(dtMs)` over caller-supplied timestamps, `position/frameIndex/
+  finished`; meaningless metadata throws at construction, `seek` clamps,
+  volume clamps into [0,1], end-of-stream stops (or wraps on loop)).
+  Proof: `GameVideoE2ETest` **6/6** (all-integer golden on JVM + Script +
+  Native x86-64 + JS + riscv64 + aarch64 under qemu). Decoder and frame
+  readback stay backend work (FFmpeg LGPL decision F, maintainer).
 - `kof.media` today (bitmap/WAV/metadata/mic) → playback/streaming/mixing/
   video-playback, additively.
 - KofUI ≠ competing language (UI apps vs games); share window/input/video/
   images/events infra where equivalent.
+- Slice 3.3a LANDED 07/10 (pure offline mixer, no audible output):
+  `libs/game/Audio.kf` (`Sound` record + `Mixer`: `play(sound, startMs)`,
+  `render()` to 16-bit PCM `Int[]`, overlapping voices sum and clamp to
+  [-32768, 32767], each loop restarts the phase, `rate <= 0` throws).
+  Samples synthesize from `game.Trig` only (zero backend trig — the Native
+  runtime had no `sin`/`cos` symbols, `known-bugs` §621, ✅ FIXED 07/10).
+  Building it
+  bisected and catalogued `known-bugs` §622 (a 2nd/nested conditional
+  assignment to the same Double local was lost on cross; the 15-line
+  `twoIfLit` reproducer + else/while/return/nested variants), ✅ FIXED 07/10
+  by the native-backend lane (the cross conditional-jump compared Double bit
+  patterns with signed-integer branches), and ships the
+  branch-free workaround (`roundTo` range reduction in `Trig.trigNorm`,
+  still valid and faster).
+  Proof: `GameAudioE2ETest` **6/6** (exact-integer golden on JVM + Script +
+  Native x86-64 + JS + riscv64 + aarch64 under qemu). Audible
+  decoder/playback/device faces stay backend work.
+- Ledger close-out (measured 07/10, no gate change): `kof.game` needs NO
+  ledger row — the R1 namespace question (`kof.game` vs `package game`) is
+  maintainer-open, `HARD_DENY game` already encodes official-package-only,
+  `scripts/package.sh` ships all of `libs/` generically, and imports
+  resolve off the filesystem. Inventing a `kof.game` row would assert an
+  undecided namespace. Next: live-audio backend faces + 3.4 (video).
+- Slice 3.3b LANDED 07/10 (SDL3 audio ABI, test-only over the vendored
+  stack — no audible output asserted, CI has no speakers): `Sdl3AudioE2ETest`
+  **5/5** inits the audio subsystem, opens the default playback device,
+  reads back the negotiated `SDL_AudioSpec` (S16 stereo 44100 Hz, 1024
+  buffer frames — identical on all four targets), pauses/resumes, closes
+  and quits, golden `init/open/fmt/format/channels/freq/frames/pause/
+  resume/quit=true` on JVM + Native x86-64 + riscv64 + aarch64 under qemu.
+  Measured Kof/FFI facts: `SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK` is passed as
+  `0 - 1` (Kof has no unsigned literals; same low 32 bits); the nullable
+  `spec` cannot spell `NULL` (`SEM048`), but a zeroed 12-byte buffer is
+  accepted and negotiates the dummy defaults here. Audible
+  decoder/playback/streaming faces stay later work (FFmpeg LGPL decision F
+  for codecs, maintainer).
+- Slice 3.3c LANDED 07/10 (SDL3 audio stream submit path, test-only — the
+  device stays paused so no background thread consumes the queue): the
+  negotiated device spec is reused as the stream spec (a zeroed spec is
+  rejected for streams: `src_spec->format is invalid`), then 16 `'A'` bytes
+  round-trip as exactly 32 available/returned bytes — the stream converts
+  to SDL's internal F32 mixer format regardless (`src=S16/2ch/44100`,
+  `dst=F32/2ch/44100` read back; `'A'` = S16 `0x4141` → F32 `0,130,2,63`
+  repeating, exact IEEE pinned). Measured boundaries: same-`Buffer` twice
+  in one call trips the honest `MEM020` borrow guard (fill two buffers
+  instead); a `\0`-in-source silent cycle was measured and dropped — NUL
+  bytes marshal fine on JVM but break the native assembler (raw control
+  bytes in `.s`), and Kof has no runtime NUL-string constructor
+  (`known-bugs` §623, native-backend lane). Proof: `Sdl3AudioStreamE2ETest`
+  **5/5** on JVM + Native x86-64 + riscv64 + aarch64 under qemu.
+- Slice 3.3d LANDED 07/10 (WAV encoder, pure Kof — the offline mixer's PCM
+  made shippable): `libs/game/Wav.kf` (`encodeWav(samples, rate, channels)`
+  writes PCM16 WAVE images (44-byte RIFF header from `charAt` codes, never
+  magic numbers; mono/stereo only and `rate <= 0` throw; samples clamp) and
+  reads them back field-exact (`wavSampleCount`/`wavRate`/`wavChannels`/
+  `wavSampleAt`). Unlocked by measuring that `Byte[]` indexed write plus
+  `as Byte` (mod-256 wrap) work on every target — the same surface a future
+  stream-submit bridge needs. Proof: `GameWavE2ETest` **6/6** (exact header
+  + roundtrip golden, incl. ±32768 extremes, on JVM + Script + Native
+  x86-64 + JS + riscv64 + aarch64 under qemu).
 
 # 11. Targets
 
@@ -255,6 +389,7 @@ WGSL/GLSL/HLSL/cross-compile decision deferred, not first slice).
 
 # 15. Phases / promotion / open
 
+- **Slice 3.1 — started 05/10 (lane security/connectors `192.168.15.15:9092`):** the pure, backend-independent half of the §6/§7 contract landed first — `libs/game/Clock.kf` (namespace `kof.game`) owns the frame bookkeeping and `dt` over caller-supplied monotonic timestamps (the "virtual clock" the plan requires for deterministic goldens), so it calls no window/audio/video API and is honest on every target today. Semantics frozen by `GameClockE2ETest` **4/4** on JVM + Script + Native x86-64 + JS (frame 0 `dt=0`; later frames diff the previous timestamp; `stop()` ends `hasNext()`). `libs/game/Keys.kf` adds the §7 per-frame input snapshot: `beginFrame(held)` diffs the current and previous key sets and derives `down`/`pressed`/`released`, so the backend only translates events and the transitions are deterministic on every target (`GameInputE2ETest` **4/4**, JVM + Script + Native x86-64 + JS, byte-identical golden). `libs/game/Mouse.kf` completes the pointer half of the same §7 snapshot: `beginFrame(x, y, buttons)` keeps the pointer position and the previous/current button sets and derives `x`/`y`, the per-frame movement `dx`/`dy` (0 on the first frame, mirroring the clock's first-frame `dt=0`) and `down`/`pressed`/`released`, so the backend only translates pointer events (`GameMouseE2ETest` **4/4**, JVM + Script + Native x86-64 + JS, byte-identical golden). `libs/game/Pad.kf` closes the §7 input surface with the gamepad snapshot: `beginFrame(leftX, leftY, rightX, rightY, buttons)` records the stick axes raw (normalizing a device range is backend policy) and diffs the button set for `down`/`pressed`/`released` (`GamePadE2ETest` **4/4**, JVM + Script + Native x86-64 + JS, byte-identical golden). Building the clock surfaced and fixed a frontend defect (`known-bugs` §603: the synthetic SAM `invoke` descriptor used inferred argument types). The G1 SDL3 measurement then closed the stack unknown: the `SDL3-devel`/`libSDL3-0` `3.4.16` RPMs were extracted to a local prefix, a C probe compiled+linked+ran headless (`SDL_VIDEODRIVER=dummy`), and the same shape was driven from **Kof** through `extern` on JVM + Native x86-64 (`SDL_Init`/`SDL_CreateWindow`/`SDL_GetWindowTitle`/`SDL_DestroyWindow`/`SDL_Quit` → `init=true / driver=dummy / title=kof`). That first Kof-side use surfaced a cross-target parity blocker — a stateful C library lost its globals between `extern` calls on JVM/JS because the library lookup was loaded into the per-call arena and closed — now fixed (`known-bugs` §606, `FfiLibraryStateE2ETest` 3/3 JVM+JS+Native, RED-first 2/3 pre-fix). The pure surface was then verified on the cross backends too: `GameCrossE2ETest` **3/3** drives one virtual frame through all four modules together — frame 0 `dt=0`, `left` pressed, pointer (100, 50) with no movement, neutral pad; frame 1 `dt=16`, `space` pressed with `left` held, pointer (140, 70) moved +40/+20 with `left` pressed, left stick (0.5, −0.25) with `a` pressed — and asserts the same golden on the JVM oracle and on **riscv64 + aarch64** under qemu (the per-module suites cover x86-64 + JS + Script; axes in milli-units). The window form is then DECIDED (`D-GRAPHICS-WINDOW-FORM`): `Window("…") { frame { dt -> … } }` with `dt` an `Int` of milliseconds (first frame `0`) — preparing it measured and fixed a parser gap (`known-bugs` §611: a trailing lambda with an explicit parameter parsed only after a `.` receiver; `f { dt: Int -> … }` and `f(1) { dt: Int -> … }` now parse too, `TrailingLambdaParamsE2ETest` 6/6), so the literal nested form's only remaining need is an implicit receiver (Kof has none: SEM015/SEM025), written today as `{ w: Window -> w.frame { dt: Int -> … } }`. The stack then shipped cross-target: new `scripts/provision-cross-sdl3.sh` vendors SDL3 `3.4.16` + its measured runtime closure (audio/X11/wayland/drm/…) + GLIBC 2.44 from the openSUSE Ports RPMs into `$KOF_CROSS_SYSROOT/usr/<arch>-linux-gnu/{include,lib}` (no root; the aarch64 SDL3 needs `GLIBC_2.43`, the sysroot libc was 2.41 — the forward-compatible Ports glibc closes it), and the raw SDL3 ABI is now proven end-to-end headless (`SDL_VIDEODRIVER=dummy`) on **all four targets** — `Sdl3FfiCrossE2ETest` **5/5**: JVM + Native x86-64 + riscv64 + aarch64 under qemu, identical golden `init=true / driver=dummy / title=kof` (`SDL_Init`/`SDL_CreateWindow`/`SDL_GetWindowTitle`/`SDL_DestroyWindow`/`SDL_Quit`), with the cross pair pinned to agree (rule 5). Next: design the backend window (`Window("…") { frame { dt -> … } }`) over the measured binding — the loop long-frame/limit/pause/minimized/focus semantics remain the maintainer's call (`D-GRAPHICS-WINDOW-FORM`).
 - **3.0** spike+infra (stack/R3/FFI/licensing/headless/cross/JavaFX-guard;
   report, no API) → **3.1** window/frame/input (JVM/Script/Native/JS +
   conformance) → **3.2** 2D (sprite/texture/transform/tilemap/draw; golden/
@@ -263,6 +398,17 @@ WGSL/GLSL/HLSL/cross-compile decision deferred, not first slice).
   (`video/play/pause/seek/volume` on defined contract; frame readback) →
   **3.5** 3D only if stack/targets/R3/runtime/conformance allow (else `GFX00x`
   stays valid) → **3.6** corpus (training/learn/docs/conformance/parity).
+- Slice 3.6a LANDED 07/10 (corpus, docs-only — no compiler/library change):
+  `training/idioms/game.md` (+PT: canonical forms for all 12 modules with
+  the measured constraints — virtual time, 2-arg frame body, milli-unit
+  goldens, per-file imports, no backend trig) + `learn/42-games.md` (+PT:
+  "your first game loop" tutorial composing Clock/Keys/Sprite/Draw/Window).
+  Proof: all 20 snippets extracted and compiled clean on JVM (9 EN + 9 PT
+  idioms + 2 tutorials), both tutorial programs run (`drawn=3`);
+  executing them caught and fixed 2 doc bugs pre-commit (an `Int` lambda
+  for a `() -> Long` clock source — runtime `IncompatibleClassChangeError`
+  — and a raw-`Double` print in the sprite example). Next: 3.6b+ (decoder
+  faces, backend docs) as backends land.
 - Promotion checklist: implementation/runtime/targets/conformance/golden/
   headless/docs/gaps-catalogued/perf/security/licensing/corpus (no "works on
   my machine").

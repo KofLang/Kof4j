@@ -39,6 +39,8 @@ final class CmdServe {
         }
         Path file = Path.of(args[1]);
         if (!Files.exists(file)) { System.err.println("file not found: " + file); System.exit(1); return; }
+        String extErr = KofCliSupport.unsupportedSourceExtension("serve", file);
+        if (extErr != null) { System.err.println(extErr); System.exit(1); return; }
 
         int port = 8080;
         boolean portFlag = false;

@@ -302,6 +302,9 @@ public final class NativeRiscvAsm {
                 // D-FULL-PARITY-050 row 13 slice 15 (native cross lane, 26/09):
                 // metadata (modifiedTime + isSymlink).
                 .append(NativeRiscvAsmIoMeta.RISCV_RUNTIME_ASM_IO_META)
+                // #751 / D-MAINT-BATCH-0510 (IO1): kof_io_path_real_path
+                // (realpath libc; link dinâmico só-por-uso).
+                .append(NativeRiscvAsmIoRealPath.RISCV_RUNTIME_ASM_IO_REALPATH)
                 .append(NativeRiscvAsmIoMove.RISCV_RUNTIME_ASM_IO_MOVE)
                 .append(NativeRiscvAsmIoCopy.RISCV_RUNTIME_ASM_IO_COPY)
                 .append(NativeRiscvAsmProcess.RISCV_RUNTIME_ASM_PROCESS)

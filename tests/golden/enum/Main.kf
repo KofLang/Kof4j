@@ -1,0 +1,8 @@
+enum Color { RED, GREEN, BLUE }
+
+main() {
+    var c = Color.RED
+    println(c.name())
+    println(Color.GREEN.name())
+    println(Color.values().size)
+}

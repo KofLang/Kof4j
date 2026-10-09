@@ -36,6 +36,8 @@ final class Fmt {
         boolean write = Arrays.asList(args).contains("-w");
         Path src = Path.of(args[1]);
         if (!Files.exists(src)) { System.err.println("not found: " + src); return 1; }
+        String extErr = KofCliSupport.unsupportedSourceExtension("fmt", src);
+        if (extErr != null) { System.err.println(extErr); return 1; }
 
         List<Path> files = new ArrayList<>();
         try {

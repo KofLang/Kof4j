@@ -1,0 +1,788 @@
+package image
+
+import image.Av1Tx
+
+// kof.image — AV1 inverse transform (slice 3g of the AVIF front, plan §34).
+// The 2D inverse transform of AV1 Bitstream & Decoding Process Specification
+// §7.13 (inverse transform process), the stage that turns the dequantized
+// transform block (`Dequant`) produced by slice 3f into the residual block
+// (`Residual`) the reconstruction adds to the prediction.
+//
+// Contents, all quoted verbatim from the spec read on the dev host:
+//   - §7.13.2.1 butterfly functions `brev`, `B`, `H`, `cos128`, `sin128`
+//     and the `Cos128_Lookup[ 65 ]` table;
+//   - §7.13.2.2 inverse DCT permutation, §7.13.2.3 inverse DCT (n = 2..6);
+//   - §7.13.2.4/§7.13.2.5 ADST input/output permutation, §7.13.2.6/§7/§8
+//     inverse ADST4/8/16;
+//   - §7.13.2.9 inverse ADST dispatch;
+//   - §7.13.2.10 inverse Walsh-Hadamard (lossless);
+//   - §7.13.2.11–§7.13.2.15 inverse identity transforms;
+//   - §7.13.3 the 2D inverse transform process (`Transform_Row_Shift`, the
+//     rect `NewSqrt2` pre-scale, the row/column transform selection from
+//     `PlaneTxType`, and the two shift/clamp stages).
+//
+// The inverse transform does NOT apply the FLIPADST flips: per §7.12 step 3
+// the `flipUD`/`flipLR` flips are applied when the residual is added to the
+// prediction, not inside the transform. `av1InvTx2d` therefore returns the
+// spec's `Residual` and the caller owns the flips.
+//
+// Pure Kof: integer arithmetic only, no `kof.io`, so every target.
+
+// Cos128_Lookup[ 65 ] (§7.13.2.1): 4096 * cos( angle * pi / 128 ) rounded.
+Int av1Cos128At(Int i) {
+    return listOf(
+        4096, 4095, 4091, 4085, 4076, 4065, 4052, 4036,
+        4017, 3996, 3973, 3948, 3920, 3889, 3857, 3822,
+        3784, 3745, 3703, 3659, 3612, 3564, 3513, 3461,
+        3406, 3349, 3290, 3229, 3166, 3102, 3035, 2967,
+        2896, 2824, 2751, 2675, 2598, 2520, 2440, 2359,
+        2276, 2191, 2106, 2019, 1931, 1842, 1751, 1660,
+        1567, 1474, 1380, 1285, 1189, 1092, 995, 897,
+        799, 700, 601, 501, 401, 301, 201, 101, 0
+    ).get(i)
+}
+
+// cos128( angle ) per §7.13.2.1.
+Int av1Cos128(Int angle) {
+    var angle2 = angle & 255
+    if (angle2 <= 64) {
+        return av1Cos128At(angle2)
+    }
+    if (angle2 <= 128) {
+        return -av1Cos128At(128 - angle2)
+    }
+    if (angle2 <= 192) {
+        return -av1Cos128At(angle2 - 128)
+    }
+    return av1Cos128At(256 - angle2)
+}
+
+// sin128( angle ) = cos128( angle - 64 ) per §7.13.2.1.
+Int av1Sin128(Int angle) {
+    return av1Cos128(angle - 64)
+}
+
+// brev( numBits, x ) per §7.13.2.1.
+Int av1Brev(Int numBits, Int x) {
+    var t = 0
+    var i = 0
+    while (i < numBits) {
+        var bit = (x >> i) & 1
+        t = t + (bit << (numBits - 1 - i))
+        i = i + 1
+    }
+    return t
+}
+
+// Round2( x, n ) per §4 conventions (round half away from zero by the
+// spec's `( x + ( 1 << ( n - 1 ) ) ) >> n`).
+Int av1InvRound2(Int x, Int n) {
+    if (n == 0) {
+        return x
+    }
+    return (x + (1 << (n - 1))) >> n
+}
+
+// Round2 for a 64-bit product (products of two transform values exceed 32
+// bits before the shift, so the multiply is done in Long).
+Int av1InvRound2L(Long x, Int n) {
+    if (n == 0) {
+        return x as Int
+    }
+    return ((x + (1L << (n - 1))) >> n) as Int
+}
+
+// Clip3 helper local to the transform.
+Int av1InvClip3(Int low, Int high, Int v) {
+    if (v < low) {
+        return low
+    }
+    if (v > high) {
+        return high
+    }
+    return v
+}
+
+// B( a, b, angle, flip, r ) per §7.13.2.1. The general rotation is used for
+// every angle (the two-multiply shortcut for `angle == 32 + 64*k` is
+// arithmetically identical and therefore not needed).
+void av1InvB(Int[] T, Int a, Int b, Int angle, Int flip, Int r) {
+    var ca = av1Cos128(angle) as Long
+    var sa = av1Sin128(angle) as Long
+    var ta = T[a] as Long
+    var tb = T[b] as Long
+    var x = ta * ca - tb * sa
+    var y = ta * sa + tb * ca
+    T[a] = av1InvRound2L(x, 12)
+    T[b] = av1InvRound2L(y, 12)
+    if (flip == 1) {
+        var tmp = T[a]
+        T[a] = T[b]
+        T[b] = tmp
+    }
+}
+
+// H( a, b, flag, r ) per §7.13.2.1. `flag == 1` invokes H( b, a, 0, r ).
+void av1InvH(Int[] T, Int a0, Int b0, Int flag, Int r) {
+    var a = a0
+    var b = b0
+    if (flag == 1) {
+        a = b0
+        b = a0
+    }
+    var x = T[a]
+    var y = T[b]
+    var lo = - (1 << (r - 1))
+    var hi = (1 << (r - 1)) - 1
+    T[a] = av1InvClip3(lo, hi, x + y)
+    T[b] = av1InvClip3(lo, hi, x - y)
+}
+
+// Inverse DCT array permutation process (§7.13.2.2): T[i] = copyT[brev(n,i)].
+void av1InvDctPermute(Int[] T, Int n) {
+    var len = 1 << n
+    var copy = new Int[len]
+    var i = 0
+    while (i < len) {
+        copy[i] = T[i]
+        i = i + 1
+    }
+    i = 0
+    while (i < len) {
+        T[i] = copy[av1Brev(n, i)]
+        i = i + 1
+    }
+}
+
+// Inverse DCT process (§7.13.2.3), in place on T of length 2^n, n = 2..6.
+void av1InvDct(Int[] T, Int n, Int r) {
+    av1InvDctPermute(T, n)
+    if (n == 6) {
+        var i = 0
+        while (i < 16) {
+            av1InvB(T, 32 + i, 63 - i, 63 - 4 * av1Brev(4, i), 0, r)
+            i = i + 1
+        }
+    }
+    if (n >= 5) {
+        var i = 0
+        while (i < 8) {
+            av1InvB(T, 16 + i, 31 - i, 6 + (av1Brev(3, 7 - i) << 3), 0, r)
+            i = i + 1
+        }
+    }
+    if (n == 6) {
+        var i = 0
+        while (i < 16) {
+            av1InvH(T, 32 + i * 2, 33 + i * 2, i & 1, r)
+            i = i + 1
+        }
+    }
+    if (n >= 4) {
+        var i = 0
+        while (i < 4) {
+            av1InvB(T, 8 + i, 15 - i, 12 + (av1Brev(2, 3 - i) << 4), 0, r)
+            i = i + 1
+        }
+    }
+    if (n >= 5) {
+        var i = 0
+        while (i < 8) {
+            av1InvH(T, 16 + 2 * i, 17 + 2 * i, i & 1, r)
+            i = i + 1
+        }
+    }
+    if (n == 6) {
+        var i = 0
+        while (i < 4) {
+            var j = 0
+            while (j < 2) {
+                av1InvB(T, 62 - i * 4 - j, 33 + i * 4 + j, 60 - 16 * av1Brev(2, i) + 64 * j, 1, r)
+                j = j + 1
+            }
+            i = i + 1
+        }
+    }
+    if (n >= 3) {
+        var i = 0
+        while (i < 2) {
+            av1InvB(T, 4 + i, 7 - i, 56 - 32 * i, 0, r)
+            i = i + 1
+        }
+    }
+    if (n >= 4) {
+        var i = 0
+        while (i < 4) {
+            av1InvH(T, 8 + 2 * i, 9 + 2 * i, i & 1, r)
+            i = i + 1
+        }
+    }
+    if (n >= 5) {
+        var i = 0
+        while (i < 2) {
+            var j = 0
+            while (j < 2) {
+                av1InvB(T, 30 - 4 * i - j, 17 + 4 * i + j, 24 + (j << 6) + ((1 - i) << 5), 1, r)
+                j = j + 1
+            }
+            i = i + 1
+        }
+    }
+    if (n == 6) {
+        var i = 0
+        while (i < 8) {
+            var j = 0
+            while (j < 2) {
+                av1InvH(T, 32 + i * 4 + j, 35 + i * 4 - j, i & 1, r)
+                j = j + 1
+            }
+            i = i + 1
+        }
+    }
+    var i12 = 0
+    while (i12 < 2) {
+        av1InvB(T, 2 * i12, 2 * i12 + 1, 32 + 16 * i12, 1 - i12, r)
+        i12 = i12 + 1
+    }
+    if (n >= 3) {
+        var i = 0
+        while (i < 2) {
+            av1InvH(T, 4 + 2 * i, 5 + 2 * i, i, r)
+            i = i + 1
+        }
+    }
+    if (n >= 4) {
+        var i = 0
+        while (i < 2) {
+            av1InvB(T, 14 - i, 9 + i, 48 + 64 * i, 1, r)
+            i = i + 1
+        }
+    }
+    if (n >= 5) {
+        var i = 0
+        while (i < 4) {
+            var j = 0
+            while (j < 2) {
+                av1InvH(T, 16 + 4 * i + j, 19 + 4 * i - j, i & 1, r)
+                j = j + 1
+            }
+            i = i + 1
+        }
+    }
+    if (n == 6) {
+        var i = 0
+        while (i < 2) {
+            var j = 0
+            while (j < 4) {
+                av1InvB(T, 61 - i * 8 - j, 34 + i * 8 + j, 56 - i * 32 + (j >> 1) * 64, 1, r)
+                j = j + 1
+            }
+            i = i + 1
+        }
+    }
+    var i17 = 0
+    while (i17 < 2) {
+        av1InvH(T, i17, 3 - i17, 0, r)
+        i17 = i17 + 1
+    }
+    if (n >= 3) {
+        av1InvB(T, 6, 5, 32, 1, r)
+    }
+    if (n >= 4) {
+        var i = 0
+        while (i < 2) {
+            var j = 0
+            while (j < 2) {
+                av1InvH(T, 8 + 4 * i + j, 11 + 4 * i - j, i, r)
+                j = j + 1
+            }
+            i = i + 1
+        }
+    }
+    if (n >= 5) {
+        var i = 0
+        while (i < 4) {
+            av1InvB(T, 29 - i, 18 + i, 48 + (i >> 1) * 64, 1, r)
+            i = i + 1
+        }
+    }
+    if (n == 6) {
+        var i = 0
+        while (i < 4) {
+            var j = 0
+            while (j < 4) {
+                av1InvH(T, 32 + 8 * i + j, 39 + 8 * i - j, i & 1, r)
+                j = j + 1
+            }
+            i = i + 1
+        }
+    }
+    if (n >= 3) {
+        var i = 0
+        while (i < 4) {
+            av1InvH(T, i, 7 - i, 0, r)
+            i = i + 1
+        }
+    }
+    if (n >= 4) {
+        var i = 0
+        while (i < 2) {
+            av1InvB(T, 13 - i, 10 + i, 32, 1, r)
+            i = i + 1
+        }
+    }
+    if (n >= 5) {
+        var i = 0
+        while (i < 2) {
+            var j = 0
+            while (j < 4) {
+                av1InvH(T, 16 + i * 8 + j, 23 + i * 8 - j, i, r)
+                j = j + 1
+            }
+            i = i + 1
+        }
+    }
+    if (n == 6) {
+        var i = 0
+        while (i < 8) {
+            var ang = 48
+            if (i >= 4) {
+                ang = 112
+            }
+            av1InvB(T, 59 - i, 36 + i, ang, 1, r)
+            i = i + 1
+        }
+    }
+    if (n >= 4) {
+        var i = 0
+        while (i < 8) {
+            av1InvH(T, i, 15 - i, 0, r)
+            i = i + 1
+        }
+    }
+    if (n >= 5) {
+        var i = 0
+        while (i < 4) {
+            av1InvB(T, 27 - i, 20 + i, 32, 1, r)
+            i = i + 1
+        }
+    }
+    if (n == 6) {
+        var i = 0
+        while (i < 8) {
+            av1InvH(T, 32 + i, 47 - i, 0, r)
+            av1InvH(T, 48 + i, 63 - i, 1, r)
+            i = i + 1
+        }
+    }
+    if (n >= 5) {
+        var i = 0
+        while (i < 16) {
+            av1InvH(T, i, 31 - i, 0, r)
+            i = i + 1
+        }
+    }
+    if (n == 6) {
+        var i = 0
+        while (i < 8) {
+            av1InvB(T, 55 - i, 40 + i, 32, 1, r)
+            i = i + 1
+        }
+    }
+    if (n == 6) {
+        var i = 0
+        while (i < 32) {
+            av1InvH(T, i, 63 - i, 0, r)
+            i = i + 1
+        }
+    }
+}
+
+// ADST input array permutation process (§7.13.2.4), 3 <= n <= 4.
+void av1InvAdstInputPermute(Int[] T, Int n) {
+    var n0 = 1 << n
+    var copy = new Int[n0]
+    var i = 0
+    while (i < n0) {
+        copy[i] = T[i]
+        i = i + 1
+    }
+    i = 0
+    while (i < n0) {
+        var idx = n0 - i - 1
+        if ((i & 1) == 1) {
+            idx = i - 1
+        }
+        T[i] = copy[idx]
+        i = i + 1
+    }
+}
+
+// ADST output array permutation process (§7.13.2.5), 3 <= n <= 4.
+void av1InvAdstOutputPermute(Int[] T, Int n) {
+    var n0 = 1 << n
+    var copy = new Int[n0]
+    var i = 0
+    while (i < n0) {
+        copy[i] = T[i]
+        i = i + 1
+    }
+    i = 0
+    while (i < n0) {
+        var a = (i >> 3) & 1
+        var b = ((i >> 2) & 1) ^ ((i >> 3) & 1)
+        var c = ((i >> 1) & 1) ^ ((i >> 2) & 1)
+        var d = (i & 1) ^ ((i >> 1) & 1)
+        var idx = ((d << 3) | (c << 2) | (b << 1) | a) >> (4 - n)
+        var v = copy[idx]
+        if ((i & 1) == 1) {
+            v = -v
+        }
+        T[i] = v
+        i = i + 1
+    }
+}
+
+// Inverse ADST4 process (§7.13.2.6).
+void av1InvAdst4(Int[] T) {
+    var s = new Long[7]
+    s[0] = 1321L * (T[0] as Long)
+    s[1] = 2482L * (T[0] as Long)
+    s[2] = 3344L * (T[1] as Long)
+    s[3] = 3803L * (T[2] as Long)
+    s[4] = 1321L * (T[2] as Long)
+    s[5] = 2482L * (T[3] as Long)
+    s[6] = 3803L * (T[3] as Long)
+    var a7 = (T[0] as Long) - (T[2] as Long)
+    var b7 = a7 + (T[3] as Long)
+    s[0] = s[0] + s[3]
+    s[1] = s[1] - s[4]
+    s[3] = s[2]
+    s[2] = 3344L * b7
+    s[0] = s[0] + s[5]
+    s[1] = s[1] - s[6]
+    var x0 = s[0] + s[3]
+    var x1 = s[1] + s[3]
+    var x2 = s[2]
+    var x3 = s[0] + s[1]
+    x3 = x3 - s[3]
+    T[0] = av1InvRound2L(x0, 12)
+    T[1] = av1InvRound2L(x1, 12)
+    T[2] = av1InvRound2L(x2, 12)
+    T[3] = av1InvRound2L(x3, 12)
+}
+
+// Inverse ADST8 process (§7.13.2.7).
+void av1InvAdst8(Int[] T, Int r) {
+    av1InvAdstInputPermute(T, 3)
+    var i = 0
+    while (i < 4) {
+        av1InvB(T, 2 * i, 2 * i + 1, 60 - 16 * i, 1, r)
+        i = i + 1
+    }
+    i = 0
+    while (i < 4) {
+        av1InvH(T, i, 4 + i, 0, r)
+        i = i + 1
+    }
+    i = 0
+    while (i < 2) {
+        av1InvB(T, 4 + 3 * i, 5 + i, 48 - 32 * i, 1, r)
+        i = i + 1
+    }
+    var j = 0
+    while (j < 2) {
+        i = 0
+        while (i < 2) {
+            av1InvH(T, 4 * j + i, 2 + 4 * j + i, 0, r)
+            i = i + 1
+        }
+        j = j + 1
+    }
+    i = 0
+    while (i < 2) {
+        av1InvB(T, 2 + 4 * i, 3 + 4 * i, 32, 1, r)
+        i = i + 1
+    }
+    av1InvAdstOutputPermute(T, 3)
+}
+
+// Inverse ADST16 process (§7.13.2.8).
+void av1InvAdst16(Int[] T, Int r) {
+    av1InvAdstInputPermute(T, 4)
+    var i = 0
+    while (i < 8) {
+        av1InvB(T, 2 * i, 2 * i + 1, 62 - 8 * i, 1, r)
+        i = i + 1
+    }
+    i = 0
+    while (i < 8) {
+        av1InvH(T, i, 8 + i, 0, r)
+        i = i + 1
+    }
+    i = 0
+    while (i < 2) {
+        av1InvB(T, 8 + 2 * i, 9 + 2 * i, 56 - 32 * i, 1, r)
+        av1InvB(T, 13 + 2 * i, 12 + 2 * i, 8 + 32 * i, 1, r)
+        i = i + 1
+    }
+    var j = 0
+    while (j < 2) {
+        i = 0
+        while (i < 4) {
+            av1InvH(T, 8 * j + i, 4 + 8 * j + i, 0, r)
+            i = i + 1
+        }
+        j = j + 1
+    }
+    j = 0
+    while (j < 2) {
+        i = 0
+        while (i < 2) {
+            av1InvB(T, 4 + 8 * j + 3 * i, 5 + 8 * j + i, 48 - 32 * i, 1, r)
+            i = i + 1
+        }
+        j = j + 1
+    }
+    j = 0
+    while (j < 4) {
+        i = 0
+        while (i < 2) {
+            av1InvH(T, 4 * j + i, 2 + 4 * j + i, 0, r)
+            i = i + 1
+        }
+        j = j + 1
+    }
+    i = 0
+    while (i < 4) {
+        av1InvB(T, 2 + 4 * i, 3 + 4 * i, 32, 1, r)
+        i = i + 1
+    }
+    av1InvAdstOutputPermute(T, 4)
+}
+
+// Inverse ADST dispatch process (§7.13.2.9), 2 <= n <= 4.
+void av1InvAdst(Int[] T, Int n, Int r) {
+    if (n == 2) {
+        av1InvAdst4(T)
+        return
+    }
+    if (n == 3) {
+        av1InvAdst8(T, r)
+        return
+    }
+    if (n == 4) {
+        av1InvAdst16(T, r)
+        return
+    }
+    throw "IMAGE: av1 inverse adst size out of range"
+}
+
+// Inverse Walsh-Hadamard transform process (§7.13.2.10), in place on T[4].
+void av1InvWht(Int[] T, Int shift) {
+    var a = T[0] >> shift
+    var c = T[1] >> shift
+    var d = T[2] >> shift
+    var b = T[3] >> shift
+    a = a + c
+    d = d - b
+    var e = (a - d) >> 1
+    b = e - b
+    c = e - c
+    a = a - b
+    d = d + c
+    T[0] = a
+    T[1] = b
+    T[2] = c
+    T[3] = d
+}
+
+// Inverse identity transform process (§7.13.2.11–§7.13.2.15), 2 <= n <= 5.
+void av1InvIdentity(Int[] T, Int n) {
+    var i = 0
+    if (n == 2) {
+        while (i < 4) {
+            T[i] = av1InvRound2L(5793L * (T[i] as Long), 12)
+            i = i + 1
+        }
+        return
+    }
+    if (n == 3) {
+        while (i < 8) {
+            T[i] = T[i] * 2
+            i = i + 1
+        }
+        return
+    }
+    if (n == 4) {
+        while (i < 16) {
+            T[i] = av1InvRound2L(11586L * (T[i] as Long), 12)
+            i = i + 1
+        }
+        return
+    }
+    if (n == 5) {
+        while (i < 32) {
+            T[i] = T[i] * 4
+            i = i + 1
+        }
+        return
+    }
+    throw "IMAGE: av1 inverse identity size out of range"
+}
+
+// Transform_Row_Shift[ TX_SIZES_ALL ] (§7.13.3).
+Int av1InvRowShift(Int txSz) {
+    return listOf(0, 1, 2, 2, 2, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2).get(txSz)
+}
+
+// Row transform selection per §7.13.3 (the inverse DCT types): DCT_DCT,
+// ADST_DCT, FLIPADST_DCT and H_DCT invoke the inverse DCT on each row.
+Bool av1InvRowDct(Int txType) {
+    return txType == 0 || txType == 1 || txType == 4 || txType == 11
+}
+
+// Row transform selection per §7.13.3 (the inverse ADST types): DCT_ADST,
+// ADST_ADST, DCT_FLIPADST, FLIPADST_FLIPADST, ADST_FLIPADST, FLIPADST_ADST,
+// H_ADST and H_FLIPADST invoke the inverse ADST on each row.
+Bool av1InvRowAdst(Int txType) {
+    return txType == 2 || txType == 3 || txType == 5 || txType == 6 || txType == 7 || txType == 8 || txType == 13 || txType == 15
+}
+
+// Column transform selection per §7.13.3 (the inverse DCT types): DCT_DCT,
+// DCT_ADST, DCT_FLIPADST and V_DCT invoke the inverse DCT on each column.
+Bool av1InvColDct(Int txType) {
+    return txType == 0 || txType == 2 || txType == 5 || txType == 10
+}
+
+// Column transform selection per §7.13.3 (the inverse ADST types): ADST_DCT,
+// ADST_ADST, FLIPADST_DCT, FLIPADST_FLIPADST, ADST_FLIPADST, FLIPADST_ADST,
+// V_ADST and V_FLIPADST invoke the inverse ADST on each column.
+Bool av1InvColAdst(Int txType) {
+    return txType == 1 || txType == 3 || txType == 4 || txType == 6 || txType == 7 || txType == 8 || txType == 12 || txType == 14
+}
+
+Int av1InvAbs(Int v) {
+    if (v < 0) {
+        return -v
+    }
+    return v
+}
+
+// 2D inverse transform process (§7.13.3).
+//
+// Inputs:
+//   - `dequant`: the dequantized transform block from `av1Dequant`, flat
+//     row-major of size `tw * th` where `tw = Min(32, w)` and
+//     `th = Min(32, h)` (the spec's `Dequant[ i ][ j ]`, row-major with
+//     `tw` columns). Values at `i >= 32` or `j >= 32` are treated as zero.
+//   - `txSz`: transform size (0..18).
+//   - `txType`: PlaneTxType (0..15).
+//   - `bitDepth`: bit depth (8, 10 or 12).
+//   - `lossless`: the frame's Lossless flag.
+//
+// Outputs: flat row-major `Residual[ w * h ]` (the spec's
+// `Residual[ i ][ j ]`, `w` columns). The FLIPADST flips are NOT applied here
+// (per §7.12 step 3 the caller applies `flipUD`/`flipLR` when adding the
+// residual to the prediction).
+Int[] av1InvTx2d(Int[] dequant, Int txSz, Int txType, Int bitDepth, Bool lossless) {
+    var log2W = av1TxWidthLog2(txSz)
+    var log2H = av1TxHeightLog2(txSz)
+    var w = 1 << log2W
+    var h = 1 << log2H
+    var rowShift = av1InvRowShift(txSz)
+    var colShift = 4
+    if (lossless) {
+        rowShift = 0
+        colShift = 0
+    }
+    var rowClampRange = bitDepth + 8
+    var colClampRange = bitDepth + 6
+    if (colClampRange < 16) {
+        colClampRange = 16
+    }
+    var tw = w
+    if (tw > 32) {
+        tw = 32
+    }
+    var residual = new Int[w * h]
+    var i = 0
+    while (i < h) {
+        var T = new Int[w]
+        var j = 0
+        while (j < w) {
+            if (i < 32 && j < 32) {
+                T[j] = dequant[i * tw + j]
+            } else {
+                T[j] = 0
+            }
+            j = j + 1
+        }
+        if (av1InvAbs(log2W - log2H) == 1) {
+            j = 0
+            while (j < w) {
+                T[j] = av1InvRound2L((T[j] as Long) * 2896L, 12)
+                j = j + 1
+            }
+        }
+        if (lossless) {
+            av1InvWht(T, 2)
+        } else {
+            if (av1InvRowDct(txType)) {
+                av1InvDct(T, log2W, rowClampRange)
+            } else {
+                if (av1InvRowAdst(txType)) {
+                    av1InvAdst(T, log2W, rowClampRange)
+                } else {
+                    av1InvIdentity(T, log2W)
+                }
+            }
+        }
+        j = 0
+        while (j < w) {
+            residual[i * w + j] = av1InvRound2(T[j], rowShift)
+            j = j + 1
+        }
+        i = i + 1
+    }
+    var colLo = - (1 << (colClampRange - 1))
+    var colHi = (1 << (colClampRange - 1)) - 1
+    i = 0
+    while (i < h) {
+        var j = 0
+        while (j < w) {
+            residual[i * w + j] = av1InvClip3(colLo, colHi, residual[i * w + j])
+            j = j + 1
+        }
+        i = i + 1
+    }
+    var col = 0
+    while (col < w) {
+        var T = new Int[h]
+        i = 0
+        while (i < h) {
+            T[i] = residual[i * w + col]
+            i = i + 1
+        }
+        if (lossless) {
+            av1InvWht(T, 0)
+        } else {
+            if (av1InvColDct(txType)) {
+                av1InvDct(T, log2H, colClampRange)
+            } else {
+                if (av1InvColAdst(txType)) {
+                    av1InvAdst(T, log2H, colClampRange)
+                } else {
+                    av1InvIdentity(T, log2H)
+                }
+            }
+        }
+        i = 0
+        while (i < h) {
+            residual[i * w + col] = av1InvRound2(T[i], colShift)
+            i = i + 1
+        }
+        col = col + 1
+    }
+    return residual
+}

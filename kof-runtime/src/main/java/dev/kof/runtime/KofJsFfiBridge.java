@@ -44,12 +44,28 @@ public final class KofJsFfiBridge {
     private KofJsFfiBridge() {
     }
 
+    /**
+     * The native library is loaded ONCE per path and its lookup is reused across
+     * calls. The old code loaded it into the per-call confined {@link Arena},
+     * whose {@code close()} released the library and reset its globals, so a
+     * stateful C library lost its state between Kof calls on the JS host — while
+     * Native (link-by-use) persists it. The lookup arena is shared and never
+     * closed; the per-call arena still owns the argument/return memory.
+     */
+    private static final java.util.Map<String, SymbolLookup> LOOKUPS =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static SymbolLookup lookupFor(String lib) {
+        if (lib == null || lib.isEmpty()) {
+            return SymbolLookup.loaderLookup();
+        }
+        return LOOKUPS.computeIfAbsent(lib, l -> SymbolLookup.libraryLookup(l, Arena.ofShared()));
+    }
+
     public static Object call(String lib, String name, String sig, Object[] args) {
         Arena arena = Arena.ofConfined();
         try {
-            SymbolLookup lookup = lib.isEmpty()
-                    ? SymbolLookup.loaderLookup()
-                    : SymbolLookup.libraryLookup(lib, arena);
+            SymbolLookup lookup = lookupFor(lib);
             Linker linker = Linker.nativeLinker();
             char ret = sig.charAt(0);
             StructLayout retStruct = null;

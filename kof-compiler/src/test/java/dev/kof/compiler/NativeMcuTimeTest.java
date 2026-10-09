@@ -23,11 +23,11 @@ import org.junit.jupiter.api.io.TempDir;
  * contador {@code time} com {@code boot=0} e precisa ser não-decrescente.
  * Guards honestos (Q5): sem binutils riscv64/qemu → {@code assumeTrue} skip.
  */
-class NativeMcuTimeTest {
+class NativeMcuTimeTest implements NativeToolchainAssumptions {
 
     @Test
     void mcuWallTimeIsNamedRefusal(@TempDir Path tempDir) throws Exception {
-        assumeToolchain();
+        assumeMcuRiscvAsm();
         String out = run(tempDir, "tw", harness(
                 "    la   a0, .Lts1\n    call kof_plat_time\n"), 0x4000);
         assertTrue(out.contains("time.now() unavailable on MCU"),
@@ -36,7 +36,7 @@ class NativeMcuTimeTest {
 
     @Test
     void mcuMonoTimeIsNonDecreasing(@TempDir Path tempDir) throws Exception {
-        assumeToolchain();
+        assumeMcuRiscvAsm();
         String out = run(tempDir, "tm", harness(
                 "    la   s1, .Lts1\n    mv   a0, s1\n    call kof_plat_time_mono\n"
                 + "    lw   s0, 4(s1)\n"
@@ -135,11 +135,6 @@ class NativeMcuTimeTest {
         p.waitFor(20, TimeUnit.SECONDS);
         p.destroyForcibly();
         return Files.readString(ser, StandardCharsets.ISO_8859_1).replace("\0", "");
-    }
-
-    private void assumeToolchain() {
-        assumeTrue(hasTool("riscv64-linux-gnu-as", "--version"),
-                "binutils riscv64 ausente (riscv64-linux-gnu-as)");
     }
 
     private static String capture(String... cmd) throws IOException, InterruptedException {
