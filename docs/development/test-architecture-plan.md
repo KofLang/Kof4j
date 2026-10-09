@@ -10,8 +10,8 @@
 Phase 1 profiling (`scripts/test-suite-profile.sh` + permanent
 `docs/testing/TEST-PERFORMANCE.md`), Phase 2 discovery audit
 (`scripts/test-suite-audit.sh`) and Phase 2 **ratchet** (`scripts/check_test_hygiene.sh`
-over the frozen `scripts/test-hygiene-baseline.txt`, **119 keys, rc=0** — 132 at the
-30/09 measurement, tightened by the 02/10 Phase-3 extraction and the 03/10–05/10 Phase-5 slices (`jvmOracle` 131→130, `stopServer` 130→129, `assertRuns` 129→128, `runScript` 128→127, `runKof` 127→126, `assertBoth` 126→125, `copyLibrary` 125→124, `runBoth` 124→123, `runAll3` 123→122, `assumeToolchain` 122→121, `assumeAarch64` 121→120, `assumeCross` 120→119); the 0-citation Phase-3 head is exhausted, next candidate has 10 doc
+over the frozen `scripts/test-hygiene-baseline.txt`, **118 keys, rc=0** — 132 at the
+30/09 measurement, tightened by the 02/10 Phase-3 extraction and the 03/10–08/10 Phase-5 slices (`jvmOracle` 131→130, `stopServer` 130→129, `assertRuns` 129→128, `runScript` 128→127, `runKof` 127→126, `assertBoth` 126→125, `copyLibrary` 125→124, `runBoth` 124→123, `runAll3` 123→122, `assumeToolchain` 122→121, `assumeAarch64` 121→120, `assumeCross` 120→119, `runQemu` 119→118); the 0-citation Phase-3 head is exhausted, next candidate has 10 doc
 citations, and the remaining `dupname` cluster needs the Phase-5 harness). **Quick-win slice 1
 (28/09):** removed the false-positive `Thread.sleep` key (comment-only mention in
 `AsyncSleepJsE2ETest`) and the redundant post-`startServer` settle in
@@ -763,6 +763,19 @@ absent aarch64/qemu guards); `check_test_hygiene` rc=0 with both `dupname` keys
 NEW key (from the #756 `KofHttpErrorContractE2ETest` helper) was also cleared by
 renaming it `startContractServer`.
 
+**Phase 5 slice 14 LANDED (08/10, lane compiler/JVM/native `192.168.15.30:9092`):**
+the `runQemu` `dupname` cluster — six classes (`KofUuidTest`, `KofStringsSupport`,
+`KofValidationSupport`, `KofStringsIndentDedentTest`, `KofTimeE2ETest`,
+`KofRandomTest`) each declared a byte-equivalent helper that compiles a Kof source
+for a cross target and runs the binary under QEMU, asserting exit 0. The helper
+now lives once in a new `QemuRunSupport` interface (a `default` method over an
+abstract `driver()` accessor), which extends `NativeToolchainAssumptions`; the six
+classes implement it and their local copies are deleted. `KofRandomTest`'s three
+call sites pass the qemu arch name explicitly (`qemu-riscv64`/`qemu-aarch64`),
+matching the other five. No test body, target or assertion moved. Proof: the six
+affected batteries **151 run / 0F / 0E**; `check_test_hygiene` rc=0 with
+`dupname runQemu` **eliminated** — baseline re-frozen 119→**118**.
+
 ### Phase 6 — Conformance
 
 Build the official equivalence suite.
@@ -864,6 +877,36 @@ divergence guard) and `concurrency-spawn-await` (`val h = spawn f(n)` with typed
 `spawn`/`await` contract on all four targets). Both are validated on all four
 targets, plus riscv64/aarch64 under qemu during authoring. Proof (executed):
 `tests/run-golden.sh` **132/132** (33 cases × 4 targets), exit 0.
+
+**Phase 6 slice 9 LANDED (06/10):** one more case — **34 total** — pinning the
+`return`-through-`finally` contract the §613 native SIGSEGV exposed:
+`finally-return` (`return` inside the `try` AND inside the `catch` of a
+`try/catch/finally`, with the `finally` running on both paths — the exact shape
+of `known-bugs` §613). Validated on all four targets. Proof (executed):
+`tests/run-golden.sh` **136/136** (34 cases × 4 targets), exit 0.
+
+**Phase 6 slice 10 LANDED (06/10):** one more case — **35 total** — pinning the
+two `try/finally` abrupt-completion faces the Phase-6 slice-9 sweep catalogued
+as `known-bugs` §617, now FIXED: `finally-control-flow` combines a
+`break`/`continue` leaving a `try` (the finally MUST run before the jump) with a
+nested `try/finally` whose inner try `return`s (the outer finally runs, the inner
+value survives). Validated on all four targets; additionally run on
+riscv64/aarch64 under qemu during authoring. Proof (executed):
+`tests/run-golden.sh` **140/140** (35 cases × 4 targets), exit 0.
+
+**Phase 6 slice 11 LANDED (08/10, lane compiler/JVM/native `192.168.15.30:9092`):** one
+more case — **36 total** — pinning the `List` higher-order/query surfaces the
+`pipelines` case left uncovered: `list-higher-order` exercises `reduce(lambda,
+seed)` (seed form, `SEM073` if omitted), `indexOf`/`lastIndexOf` (`-1` when
+absent), `isEmpty`, `none(pred)`, `find(pred)` (the first match), `slice(off,
+len)`/`take(n)`/`drop(n)` (materialized copies, clamped), `groupBy` (`Map<K,
+List<E>>`), `flatMap` (flattened list), `sort()` in place, `addAll`, `subList`,
+`remove` and `sorted(comparator)` with a descending comparator. The `zip` face
+is deliberately NOT included: it is the documented `NAT008` native gap (a
+primitive element crosses a bare type parameter), so a golden case requiring all
+four targets cannot pin it — the refusal is the contract. Validated on all four
+targets. Proof (executed): `tests/run-golden.sh` **144/144** (36 cases × 4
+targets), exit 0.
 
 ### Phase 7 — Integration
 
@@ -989,7 +1032,7 @@ Before any deep refactoring, the path is:
 3. look for duplication (Phase 2 — discovery + ratchet LANDED:
    `scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`; work =
    shrink `scripts/test-hygiene-baseline.txt` via quick-win removals — current
-   authority = **119** non-comment keys, per `scripts/test-hygiene-baseline.txt`);
+   authority = **118** non-comment keys, per `scripts/test-hygiene-baseline.txt`);
 4. propose the modularization (Phase 3 — started: `--citations` measures the split cost per
    oversized class and the drift rule is fixed; four splits landed = `KofSetEqualitySupport`
    out of `KofSetEqualityTest` (21/21 kept), `KofMathSupport` out of `KofMathTest` (29/29 kept),
@@ -1015,4 +1058,4 @@ Before any deep refactoring, the path is:
 
 **Important:** this refactoring must not interfere with anything in the
 compiler. It is purely test infrastructure (golden rule). The front is open
-(`D-TEST-ARCHITECTURE-GO`); Phases 1–4 are CONCLUDED (oversized 43→18; harness ratchet 146→119, zero identical pairs remain). **Phase 5 is now AUTHORIZED and thirteen slices LANDED** (`D-TEST-ARCHITECTURE-PHASES`, maintainer 03/10 — `NativeCrossSupport` 54/54, `NativeIoJvmOracleSupport` (jvmOracle key eliminated), `TargetGapRefusalSupport`, `ServerProcessSupport` (stopServer key eliminated, 118/118), `JvmRunSupport` (assertRuns key eliminated, 38/38), `MultiSourceRunSupport` (runScript key eliminated, 47/47), `KofmdRunSupport` (runKof key eliminated, 19/19), `JsParityRunSupport` (assertBoth key eliminated, 18/18), `LibraryInstallSupport` (copyLibrary key eliminated, 268/268), `JvmJsRunSupport` (runBoth key eliminated, 126/126), the `NullablePrimitiveContractSupport` `runAll3` consolidation (43/43), `NativeToolchainAssumptions` (assumeToolchain key eliminated, 342/342), and the `assumeAarch64`+`assumeCross` cleanup (121→119, 74/74)); Phases 5–7 remain open work, with the `main` cluster confirmed a false lead (Kof `main()` inside test-source text blocks, not a Java helper), and the Phase 6 first slice already LANDED.
+(`D-TEST-ARCHITECTURE-GO`); Phases 1–4 are CONCLUDED (oversized 43→18; harness ratchet 146→119, zero identical pairs remain). **Phase 5 is now AUTHORIZED and fourteen slices LANDED** (`D-TEST-ARCHITECTURE-PHASES`, maintainer 03/10 — `NativeCrossSupport` 54/54, `NativeIoJvmOracleSupport` (jvmOracle key eliminated), `TargetGapRefusalSupport`, `ServerProcessSupport` (stopServer key eliminated, 118/118), `JvmRunSupport` (assertRuns key eliminated, 38/38), `MultiSourceRunSupport` (runScript key eliminated, 47/47), `KofmdRunSupport` (runKof key eliminated, 19/19), `JsParityRunSupport` (assertBoth key eliminated, 18/18), `LibraryInstallSupport` (copyLibrary key eliminated, 268/268), `JvmJsRunSupport` (runBoth key eliminated, 126/126), the `NullablePrimitiveContractSupport` `runAll3` consolidation (43/43), `NativeToolchainAssumptions` (assumeToolchain key eliminated, 342/342), the `assumeAarch64`+`assumeCross` cleanup (121→119, 74/74), and `QemuRunSupport` (runQemu key eliminated, 151/151, 119→118)); Phases 5–7 remain open work, with the `main` cluster confirmed a false lead (Kof `main()` inside test-source text blocks, not a Java helper), and the Phase 6 first slice already LANDED.

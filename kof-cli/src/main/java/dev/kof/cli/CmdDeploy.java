@@ -306,6 +306,14 @@ final class CmdDeploy {
                 ext = ".apk";
                 tarMode = 0644;
             }
+            case WASM -> throw new IOException(
+                    "target 'wasm' emits the scalar subset (unit 15.2) but has no deployable"
+                            + " host/archive yet (WASM001; wasm-wasi-plan.md TIER 15 units"
+                            + " 15.3+, issue #776)");
+            case WASI -> throw new IOException(
+                    "target 'wasi' compiles a WASI-preview1 module (unidade 15.3) but kof"
+                            + " deploy has no runtime host/archive yet (WASM001; wasm-wasi-plan.md"
+                            + " TIER 15 unit 15.3, issue #776)");
             default -> throw new IOException("unreachable: " + target);
         }
 

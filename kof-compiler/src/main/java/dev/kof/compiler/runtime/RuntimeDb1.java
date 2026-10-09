@@ -426,6 +426,14 @@ public final class RuntimeDb1 {
                 subq $4096, %rsp
                 cmpq $0x1000000, %rdi
                 jb .Ldb_rnd_int
+                # #773: ponteiro pode ser um §284 MAGIC box (arg erased do
+                # db.execute passou por Integer.valueOf) — desembrulha o valor
+                # (+16) e renderiza como inteiro, paridade com o autobox JVM.
+                movabsq $0x4B4F46425F425801, %rax
+                cmpq %rax, (%rdi)
+                jne .Ldb_rnd_str
+                movq 16(%rdi), %rdi
+                jmp .Ldb_rnd_int
             .Ldb_rnd_str:
                 movq %rdi, %rbx
                 movl 16(%rbx), %r12d

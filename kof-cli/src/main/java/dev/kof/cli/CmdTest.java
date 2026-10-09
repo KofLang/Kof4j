@@ -108,6 +108,8 @@ final class CmdTest {
             return;
         }
         if (!Files.exists(src)) { System.err.println("not found: " + src); System.exit(1); return; }
+        String extErr = KofCliSupport.unsupportedSourceExtension("test", src);
+        if (extErr != null) { System.err.println(extErr); System.exit(1); return; }
         // android é empacotamento (APK/AAB), não um alvo de execução: `kof test`
         // não produz binário standalone. Recusa honesta e cedo (R6) em vez do
         // enganoso "no binary produced" depois de compilar o projeto inteiro.
@@ -116,6 +118,22 @@ final class CmdTest {
                     + " (android is packaging). Test the logic with"
                     + " --target jvm|native|js; use 'kof build --target android'"
                     + " to build the APK");
+            System.exit(1);
+            return;
+        }
+        // Cross native targets são verificados pela suíte E2E do compilador sob
+        // qemu, não por `kof test`: o runner executa o binário do HOST direto e o
+        // harness cross não linka `kof_process_exit` (o binário nem chega a
+        // produzir — morria com um `riscv64-ld: undefined reference` mislabeled
+        // COMP001, "suporte" falso). Recusa honesta e cedo (R6/Q7), no mesmo
+        // padrão do android.
+        if (target == Target.NATIVE_RISCV64 || target == Target.NATIVE_AARCH64) {
+            System.err.println("test: --target native." + target.nativeArch()
+                    + " is not a test target (the runner executes the host"
+                    + " binary; the cross harness is verified under qemu by the"
+                    + " compiler E2E suite). Test the logic with"
+                    + " --target jvm|native|js, or build with"
+                    + " 'kof build --target native." + target.nativeArch() + "' and run under qemu");
             System.exit(1);
             return;
         }
@@ -145,6 +163,12 @@ final class CmdTest {
         // subdiretório é uma suíte nomeada (nome = caminho relativo; "." = raiz);
         // os contadores por suíte são somados ao total no fim.
         java.util.Map<String, int[]> suites = new java.util.LinkedHashMap<>();
+        // §7.3/§8.5 (kof-testing-platform): tempo por arquivo — a base de "slow-test
+        // identification". Só medição: o total e o arquivo mais lento são impressos
+        // no fim; nenhuma flag nova, nenhum alvo/filtro tocado.
+        long totalMs = 0;
+        long slowestMs = -1;
+        Path slowestFile = null;
         // per-file (docs/bugs-and-gaps/ecosystem-coverage.md §3.11): cada .kf é um programa
         // independente com seu próprio main() — NUNCA agrupar irmãos num
         // módulo só (PKG002: 2 main()). Cross-file é domínio de kof build.
@@ -154,6 +178,7 @@ final class CmdTest {
         // `package exemplo`); em modo arquivo, o diretório do arquivo.
         Path testsRoot = dirMode ? src : src.getParent();
         for (Path f : files) {
+            long startNanos = System.nanoTime();
             Path tmp;
             try { tmp = Files.createTempDirectory("kof-test-"); }
             catch (IOException e) { System.err.println("failed to create temp dir: " + e.getMessage()); System.exit(1); return; }
@@ -173,6 +198,9 @@ final class CmdTest {
                 System.out.println("SKIP " + f + " (no tests, no main)");
                 skipped++;
                 KofCliSupport.cleanup(tmp);
+                long elapsedMs = (System.nanoTime() - startNanos) / 1_000_000;
+                totalMs += elapsedMs;
+                if (elapsedMs > slowestMs) { slowestMs = elapsedMs; slowestFile = f; }
                 continue;
             }
             // §587: um arquivo cujos testes NENHUM casa o filtro --tag não é uma
@@ -298,6 +326,9 @@ final class CmdTest {
                 System.out.print(output);
                 System.out.println("SKIP " + f + " (no tests with tag '" + tag + "')");
                 skippedByTag++;
+                long elapsedMs = (System.nanoTime() - startNanos) / 1_000_000;
+                totalMs += elapsedMs;
+                if (elapsedMs > slowestMs) { slowestMs = elapsedMs; slowestFile = f; }
                 continue;
             }
             if (dirMode) {
@@ -321,6 +352,9 @@ final class CmdTest {
                 System.out.println("FAIL " + f);
                 System.out.print(output);
             }
+            long elapsedMs = (System.nanoTime() - startNanos) / 1_000_000;
+            totalMs += elapsedMs;
+            if (elapsedMs > slowestMs) { slowestMs = elapsedMs; slowestFile = f; }
         }
         if (tag != null) System.clearProperty("kof.test.tag");
         if (dirMode) {
@@ -345,6 +379,13 @@ final class CmdTest {
             }
         }
         System.out.println(summary);
+        // §7.3/§8.5: medição de tempo por arquivo — o total e o mais lento dão a
+        // base de "slow-test identification" sem flag nova. Só quando ao menos um
+        // arquivo foi processado (a saída histórica sem arquivos fica intacta).
+        if (slowestFile != null) {
+            System.out.println("time: " + totalMs + "ms total, slowest " + slowestFile
+                    + " (" + slowestMs + "ms)");
+        }
         if (failed > 0) System.exit(1);
         // §576: nenhum arquivo executável (todos auxiliares) não é sucesso —
         // espelha o #708 ("zero discovered tests is not a success").

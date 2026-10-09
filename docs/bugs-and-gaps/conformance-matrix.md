@@ -322,16 +322,41 @@ different reason, both honest (R6):
   covered by `AndroidInteropE2ETest` (JVM semantics in `Target.ANDROID`);
   the APK pipeline itself requires the SDK and has no E2E in the suite.
 
-- **`wasm` / `kofwebassembly`** — **WASM001: does not exist yet**. There is no
-  `Target.WASM`; `TargetMatrix.frontendGapFor` maps the requested names
-  (`wasm`, `kofwasm`, `kofwebasm`, `kofwebassembly`, `webassembly`) to the gap
-  **WASM001**, planned in Phase 6 of the platform plan
-  (`docs/development/DECISIONS.md` §D-PLATFORM). The two CLI paths
-  diagnose the same: `--frontend=wasm`/`kof.toml` →
-  `TargetMatrix.parse` with the gap; `--target=wasm` (legacy flag) → the same
-  message via `KofCliSupport.parseTarget`. It never compiles as JVM by
-  mistake. Proof: `TargetMatrixTest.wasmGapMessagePointsToRealPlanPath` +
-  `SelectTargetsTest.wasmFrontendIsHonestGap`.
+- **`wasm`** — **scalar subset emits (TIER 15 unit 15.2, 07/10, #776).**
+  `Target.WASM` is a real emitting backend for top-level static scalar
+  functions (`Int/Long/Double/Bool/Char`, `Int=i64` per D-WASM-02), written
+  as a direct binary WebAssembly module, executed and validated under
+  `wasmtime` v49.0.2 / `wasm-tools` 1.261.0 (`WasmScalarE2ETest` 3/3, JVM
+  oracle parity). Everything outside the subset — IO/`println`, collections,
+  records/strings, `void`, calls into them — refuses with **WASM002** naming
+  the plan + unit + #776, writing NO artifacts (Q7; proven by
+  `WasmTargetGateE2ETest`). `main`+`println` arrive with the 15.3 WASI host
+  (slice 1 LANDED 07/10 — `Target.WASI` emits them; `Target.WASM` still has
+  no `main`/IO) — `wasm` stays out of the run-the-surface per-target
+  matrices (exclusions carry the reason).
+ - **`wasi`** — **WASI-preview1 backend EMITS the stdout + string + args + record-alloc slice** (15.3 slice 1
+   LANDED 07/10 + 15.3b `println(String)` literal + 15.3c-sliceA String variables/concat
+   + 15.3c-sliceB `args` + 15.3d-increment1 record alloc/Int-field-read (LANDED 08/10) by lane `192.168.15.101:9092`: `main` -> exported `_start`,
+   scalar `println` + `println(String)` of a literal (data segments + `kof.writeString`) +
+   `String` handles on a bump heap `global 0`@16384 (`[len][bytes]\n`, `kof.strLit`/
+   `kof.strConcat`/`kof.writeStr`) -> imported `wasi_snapshot_preview1.fd_write`; module
+   validates with `wasm-tools`, executes under `wasmtime` with stdout == JVM
+   oracle — `WasmWasiE2ETest` 7/7 incl. 15.3c-sliceB `args`: `kof.readArgs` over
+   `args_sizes_get`/`args_get` builds heap handles, `args.length`/`args[i]` with an explicit
+   bounds trap, WASI run with `alpha beta` byte-equal to the JVM oracle, and
+   15.3d-increment1 RECORD allocation + Int/Long field access: `KofNewObject` bump by
+   `ClassLayout.totalSize`, `<init>` reverse-order `i64.store`s at `fieldOffset`,
+   `KofLoadField` `i64.load` (real `Mem.LOAD64`/`STORE64` opcodes), `println(p.x)`/`println(p.y)`
+   byte-equal to the JVM oracle). Outside the slice
+   (record `toString`/`equals`/concat + non-i64 fields — pending instance-method lowering;
+   collections, `println(array)`, for-in, GC runtime) refuses **WASM002** naming plan + #776
+  with NO artifacts; the FRONTEND default and `kof deploy` keep the honest
+  **WASM001** until unit 15.4 (flip) / the deploy host. The long
+  aliases/solecisms (`kofwasm`, `kofwebasm`, `kofwebassembly`, `webassembly`,
+  `wasm32`, `wasm32-wasi`, `wasi-preview1`, `wasip1`, `kofwasi`) keep the
+  string gap via `TargetMatrix.frontendGapFor`. Proof: `WasmWasiE2ETest` +
+  `WasmTargetGateE2ETest` + `WasmScalarE2ETest` + `TargetMatrixTest` +
+  `SelectTargetsTest`.
 
 ## Method notes
 

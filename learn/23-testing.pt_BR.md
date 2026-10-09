@@ -53,6 +53,114 @@ main() {
 }
 ```
 
+## Testes parametrizados (tabelas entrada → esperado)
+
+Quando só a entrada muda, guie o teste por uma tabela em vez de duplicar blocos
+`test`. O `testRows` (do `kof.test`) avalia cada linha isoladamente e reporta todas
+as falhas numa única mensagem nomeada:
+
+```kof
+import kof.test
+
+test "square table" {
+    testRows(listOf(listOf("1", "1"), listOf("2", "4"), listOf("3", "9")), "square", (r: List<String>) -> {
+        var input = r.get(0).toInt()
+        if (input * input != r.get(1).toInt()) {
+            throw "expected " + r.get(1) + ", got " + (input * input)
+        }
+    })
+}
+```
+
+Cada linha é um `List<String>`; a lambda recebe uma linha e asserta com os helpers
+`assertEqual*`. Uma falha nomeia a linha por índice e conteúdo
+(`row 1 [2, 5]: expected 5, got 4`) e uma linha ruim nunca para as demais.
+
+## Tempo e aleatoriedade determinísticos (seams de teste)
+
+Lógica que depende do relógio ou de aleatoriedade é difícil de testar — a menos que o teste
+injete a fonte. O `kof.test` fornece seams determinísticos, então o resultado é reprodutível:
+
+```kof
+import kof.test
+
+Long elapsed(Long start, Long now) {
+    return now - start
+}
+
+test "clock seam drives elapsed" {
+    var clock = scriptedClock(listOf(100L, 400L, 900L))
+    var start = clock()
+    assertEqualLong(300L, elapsed(start, clock()), "first interval")
+    assertEqualLong(800L, elapsed(start, clock()), "second interval")
+}
+
+test "random seam is reproducible" {
+    var a = seededRandom(42)
+    var b = seededRandom(42)
+    assertEqualInt(a.next(6), b.next(6), "same seed, same sequence")
+}
+```
+
+`fixedClock(millis)` congela um instante; `scriptedClock(times)` devolve a próxima medida por
+chamada e, esgotada, repete a última. `seededRandom(seed)` dá a mesma sequência para a mesma seed
+em todo backend e toda execução — a falha volta idêntica.
+
+## Recursos temporários (harness de integração)
+
+Um teste de integração sobe um recurso (um diretório temporário, um servidor, um banco) e precisa
+limpá-lo **mesmo quando o teste falha**. O `withTempDir` cuida desse ciclo de vida: cria o
+diretório, roda o corpo e remove a árvore recursivamente depois — o `finally` roda nos dois
+caminhos:
+
+```kof
+import kof.test
+
+test "escreve um arquivo num diretório temporário" {
+    withTempDir("build/tmp-test", (d: String) -> {
+        var f = File(Path(d).resolve("data.txt"))
+        f.writeText("hello")
+        assertEqualString("hello", f.readText(), "ida e volta")
+    })
+    // o diretório sumiu aqui, mesmo se o corpo lançou
+}
+```
+
+Um recurso que sobe assincronamente é sondado com `waitUntil(probe, attempts, intervalMs)` — ele
+sonda, dorme `intervalMs` entre tentativas e devolve o último resultado; nunca lança e nunca
+inventa sucesso:
+
+```kof
+test "o servidor fica pronto" {
+    withTempDir("build/tmp-srv", (d: String) -> {
+        var up = waitUntil(() -> File(Path(d).resolve("ready")).exists(), 40, 25)
+        assert(up, "o servidor nunca ficou pronto")
+    })
+}
+```
+
+O cleanup é Kof puro (`Directory.list()` + `File.delete()`), então é idêntico no JVM, Native e JS
+— o `Directory.delete()` sozinho só remove um diretório vazio no JS (ver `known-bugs` §618), então
+o `removeTree` percorre a árvore em vez de confiar nele.
+
+Uma conexão de banco tem a mesma forma, via o import opt-in `kof.test.db`:
+`withDb(url, body)` abre `db.connect(url)`, roda o corpo e fecha a conexão num `finally` — nos dois
+caminhos, sucesso e throw, então um teste nunca deixa uma conexão aberta. Ele mora no próprio
+import (não no `kof.test`) para que um programa que nunca toca um banco não pague o link sqlite
+nativo:
+
+```kof
+import kof.test.db
+
+test "insere e conta" {
+    withDb("jdbc:h2:mem:test;DB_CLOSE_DELAY=-1", (h: String) -> {
+        db.execute(h, "create table t(id int)")
+        db.execute(h, "insert into t values (?)", 7)
+        assertEqualString("{\"n\":1}", db.query(h, "select count(*) as n from t").get(0), "contagem")
+    })
+}
+```
+
 ## Testes estilo property (semeados, reprodutíveis)
 
 Não existe uma superfície separada de property-runner: um *teste de property* é um

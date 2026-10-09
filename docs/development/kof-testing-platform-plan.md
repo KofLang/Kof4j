@@ -13,7 +13,7 @@
 **Companion plan:** `test-architecture-plan.md` (the **compiler's own Java suite** refactor —
 L0–L5 layers, profiles, performance). This document is the **user-facing testing platform**;
 the two meet at §13 (Performance) and must not duplicate each other.
-**Implementation status:** slice 1 (assertion helpers) LANDED 30/09; slice 2 (`assertThrows`) LANDED 30/09 — the blocker was fixed (see §15); slice 3 (unit-core assertions) LANDED 01/10; slice 4 (Long/Double/Float numeric assertions) LANDED 01/10; slice 5 (Byte/Short/Char + `assertNotEqualBool`) LANDED 01/10; slice 6 (generic `assertEqual<T>`/`assertNotEqual<T>` pair) LANDED 02/10 — unblocked by the `known-bugs` §553 fix (`D-EQ-UNBOUNDED-T`), so §4.1 is now **complete**.
+**Implementation status:** slice 1 (assertion helpers) LANDED 30/09; slice 2 (`assertThrows`) LANDED 30/09 — the blocker was fixed (see §15); slice 3 (unit-core assertions) LANDED 01/10; slice 4 (Long/Double/Float numeric assertions) LANDED 01/10; slice 5 (Byte/Short/Char + `assertNotEqualBool`) LANDED 01/10; slice 6 (generic `assertEqual<T>`/`assertNotEqual<T>` pair) LANDED 02/10 — unblocked by the `known-bugs` §553 fix (`D-EQ-UNBOUNDED-T`), so §4.1 is now **complete**; §5 harness — slice 1 (temp dir + readiness poll) LANDED 06/10, slice 2 (database lifecycle `withDb` in the opt-in `kof.test.db`) LANDED 07/10, slice 3 (server lifecycle `withServer` in the opt-in `kof.test.web`, `spawn`+readiness+`finally` close) LANDED 08/10 — JVM-complete; the cross targets report the pre-existing `app.close`/`WEB001` gap honestly (no silent fallback); §6 browser-provider policy RECORDED 08/10 (docs-only — opt-in per project `C`, all targets `T1`, `kof.test` compiler/CLI `T2`; the provider slice itself stays gated by the open rule-6 provider-declaration decision); §8.5 runner duration measurement (per-file wall time + slowest file) LANDED 08/10.
 
 > **Slice 6 (LANDED 02/10).** The last §4.1 face: the generic pair `assertEqual<T>(T expected, T actual, String label)` / `assertNotEqual<T>(...)` in `dev/kof/test.kf`. It was deliberately deferred (not shipped broken) until `known-bugs` §553 was resolved: the maintainer's rule-6 answer `D-EQ-UNBOUNDED-T` (02/10) fixes `==` on an unbounded `T` as **structural content equality** on every target, so the helper is correct for any `T` (Int, String, record, …). The label stringifies `expected`/`actual` via `+` — no new primitive, no per-target runtime. Proof RED-first: new `GenericEqualityE2ETest` **16/16** (the generic pair green on JVM/Script/JS/Native and throwing on a real mismatch; the `==` semantics golden byte-identical to the JVM oracle on JVM + Script + JS + Native x86-64 + riscv64(qemu) + aarch64(qemu)); `KofTestingE2ETest` 7/7. §4.1 is complete; the remaining faces are rule-6/decision-gated (§4.4 parameterized, §4.6 test doubles, §5 harness). The **browser provider** (§6) is no longer gated: `D-MAINT-BATCH-0510`/`T1` decides it must serve **all targets** (JVM + JS + Native), and `/T2` decides `kof.test` stays a **compiler/CLI feature** (not a stdlib namespace) — see §12.
 
@@ -255,6 +255,39 @@ Evaluate `input → expected` tables — very useful for parser, type checker, e
 string processing and numeric operations. Do not duplicate dozens of tests only because inputs
 change.
 
+> **DECIDED 06/10 (`D-MAINT-BATCH-0610`/D):** §4.4 is the first authorized face of this plan's
+> remaining rule-6 set (§4.6 test doubles and §5 harness follow). It stays additive test
+> infrastructure — no language/semantics change; the concrete surface follows Kof grammar and
+> is defined at implementation.
+
+**Status: LANDED 06/10 (`D-MAINT-BATCH-0610`/D).** The surface is the additive `kof.test` helper
+`testRows(rows, label, body)` — written in Kof, no new syntax/primitive (`D-KOF-FIRST` item 12),
+injected flat on the explicit `import kof.test` like the other helpers. Each row is a
+`List<String>` (the columns); `body` receives the row and asserts with the §4.1 helpers:
+
+```kof
+import kof.test
+
+test "square table" {
+    testRows(listOf(listOf("1", "1"), listOf("2", "4"), listOf("3", "9")), "square", (r: List<String>) -> {
+        var input = r.get(0).toInt()
+        if (input * input != r.get(1).toInt()) {
+            throw "expected " + r.get(1) + ", got " + (input * input)
+        }
+    })
+}
+```
+
+Rows run **in isolation** — one failing row does not abort the others — and the failures
+aggregate into **one** named message (`<label>: N of M rows failed` + `row <i> <row>: <why>`),
+which the harness reports as `FAIL <test>: …` (throw of String, the same path on all targets).
+A uniform `List<String>` table is the honest complete increment: a generic `(T) -> Void` is
+refused at compile time (`SEM085`, erasure ABI is 1.0-line), so a table per typed record would
+need a helper per type — no ceremony. **Proof:** `TestRowsE2ETest` **7/7** (passing/failing
+tables, row isolation, named bad row) across JVM + JS + Native x86-64 + riscv64/aarch64(qemu);
+non-regression `KofTestingE2ETest` 7/7 + `StructuredTestE2ETest` 12/12 + `TestTagsE2ETest` 23/23
++ `GenericEqualityE2ETest` 16/16 + `AssertE2ETest` 5/5 + `StdCatalogTest` 11/11 = **74/74**.
+
 ## 4.5 Property-based tests (future)
 
 Leave the architecture ready for `encode(decode(x)) == x` or `parse(print(ast)) == ast` when the
@@ -266,9 +299,112 @@ Minimal support for fake/stub/spy/mock. Rule: if the real behavior is cheap and 
 use the real behavior. Mock mainly external boundaries: HTTP service, filesystem, clock, random
 source, external process, database.
 
+> **DECIDED 06/10 (`D-MAINT-BATCH-0610B`/A):** scope = **clock/random seams only** — inject a
+> deterministic clock and a reproducible random source; no mock/stub/spy framework.
+
+**Status: LANDED 06/10 (`D-MAINT-BATCH-0610B`/A).** The surface is three additive `kof.test`
+helpers, written in Kof (no new syntax/primitive, `D-KOF-FIRST` item 12):
+
+```kof
+import kof.test
+
+// clock seam: a source of epoch millis the test controls, instead of time.now()
+var clock = fixedClock(1000L)        // always 1000
+var stepped = scriptedClock(listOf(10L, 20L, 30L))  // 10, 20, 30, then repeats 30
+
+// random seam: same seed => same sequence on every backend and every run
+var r = seededRandom(42)
+var roll = r.next(6)
+```
+
+`fixedClock(millis)` freezes one instant; `scriptedClock(times)` returns the next reading per
+call and, once exhausted, repeats the **last** (never throws, never invents a value after data
+ran out; empty list = 0). `seededRandom(seed)` is a pure-Kof integer LCG (multiplier 32719,
+modulus 32749, so the product fits in 32-bit `Int` with **no overflow**) — a test that depends
+on randomness gets a reproducible sequence, and a failure returns identically on every run.
+`rng` from the stdlib is deliberately **not** used: it has a cross gap (`RNG001`) and the whole
+host file compiles on every target, so every helper must be supported on all four.
+
+**Proof:** `TestSeamsE2ETest` **7/7** (fixed/scripted/exhaustion, seeded reproducibility across
+runs) across JVM + JS + Native x86-64 + riscv64/aarch64(qemu); non-regression `KofTestingE2ETest`
+7/7 + `TestRowsE2ETest` 7/7 + `StructuredTestE2ETest` 12/12 + `TestTagsE2ETest` 23/23 +
+`GenericEqualityE2ETest` 16/16 + `AssertE2ETest` 5/5 + `StdCatalogTest` 11/11 = **86/86**.
+
 ---
 
 # 5. Integration harness
+
+> **DECIDED 06/10 (`D-MAINT-BATCH-0610B`/B):** the harness surface lives in the **Kof library**
+> (`kof.test`) — temp dir / server / db lifecycle with `try/finally` cleanup, injected flat on
+> the explicit `import kof.test`. No Java-only surface. AUTHORIZED; queued after §4.6.
+
+**Status: LANDED 06/10 (first slice — temp-dir lifecycle + readiness poll); LANDED 07/10 (second
+slice — database-connection lifecycle).** The surface is written in Kof (`dev/kof/test.kf`), no
+new syntax/primitive (`D-KOF-FIRST` item 12):
+
+```kof
+import kof.test
+import kof.test.db
+
+// start → test → cleanup, cleanup even when the body throws
+withTempDir("build/tmp", (d: String) -> {
+    File(Path(d).resolve("data.txt")).writeText("hello")
+    assertEqualString("hello", File(Path(d).resolve("data.txt")).readText(), "round trip")
+})
+
+// database connection: opened, used, closed — even when the body throws
+withDb("jdbc:h2:mem:test;DB_CLOSE_DELAY=-1", (h: String) -> {
+    db.execute(h, "create table t(id int)")
+    db.execute(h, "insert into t values (?)", 7)
+    assertEqualString("{\"n\":1}", db.query(h, "select count(*) as n from t").get(0), "row count")
+})
+
+// bounded readiness poll for a resource that comes up asynchronously
+var up = waitUntil(() -> File("build/tmp/ready").exists(), 40, 25)
+```
+
+`withTempDir(dir, body)` creates the directory, runs the body and recursively removes the tree in
+a `finally` (both paths). `removeTree(path)` is the recursive removal, pure Kof (`Directory.list()`
++ `File.delete()`): it predates the `known-bugs` §618 fix, when `Directory.delete()` only removed
+an empty directory on JS — since 08/10 `delete()` itself is recursive on all four targets (§618
+FIXED), and `removeTree` stays as the portable pure-Kof form that needs no backend. `waitUntil(probe, attempts, intervalMs)` probes, sleeps between attempts and returns
+the last result — never throws, never invents success; `attempts <= 0` does a single probe.
+`withDb(url, body)` opens `db.connect(url)`, runs the body and closes the connection in a `finally`
+(both paths) — the symmetric pair of the open, so an integration test never leaves a connection
+behind. The body is `(String) -> Void` (the handle is opaque, a concrete type — `(T) -> Void` is
+refused with `SEM085`), so the helper is flat-injected on every target. **It lives in a separate
+opt-in host `kof.test.db`, not in `kof.test`** (the `CompilerWeb`-vs-`kof.pagination` precedent):
+`withDb` calls `db.connect`/`db.close`, and the cross native links libsqlite3 **by use**
+(`NativeCrossLink.needsSqlite` scans the pruned asm for `call sqlite3_*`). Because `kof.test` is
+flat-injected whole, a db helper living there would make **every** `import kof.test` program link
+`-lsqlite3` on the cross (measured: `riscv64-linux-gnu-ld: cannot find -lsqlite3`); the separate
+import means only a program that asks for `kof.test.db` pays the gap.
+
+**Proof:** `IntegrationHarnessE2ETest` **7/7** (create/write/read, cleanup on success, cleanup on
+throw, bounded poll, no-trace-on-disk) across JVM + JS + Native x86-64 + riscv64/aarch64(qemu) —
+this is also the regression guard that `import kof.test` alone does **not** force sqlite on the
+cross; `DbLifecycleE2ETest` **3/3** (body runs, connection closed on success and on throw — proven
+on JVM + JS by the H2 in-memory database being empty after the helper, and on Native x86-64 by the
+body + throw-path continuation with the data persisted). RED-first: pre-slice the probe does not
+compile (`SEM015 Undefined function: 'withDb'`).
+
+The server lifecycle helper **is** composable in pure Kof, contrary to the earlier note: `app.listen(port)`
+blocks, but the helper spawns it (`var h = spawn { app.listen(port) }`), polls the port with a bounded
+`http.get` probe until it accepts, runs the body and closes the app in a `finally` — `app.close()` then
+`await h` — on both the success and the throw path. It lives in a **separate opt-in host `kof.test.web`**
+(not `kof.test`), the `CompilerTestDb` precedent: it depends on `kof.web`/`kof.http` and the `spawn`
+primitive, and `kof.test` is flat-injected whole, so a web helper living there would make every unit test
+carry the web tree. `withServer(app, port, body)` takes the **already-configured** `app` (routes registered
+before the helper) because `app.listen` must start after the routes exist; the body is `(String) -> Void`
+(the URL). **`app.close()` (`kof_web_close`) is a JVM-only runtime symbol today**, so the helper is
+JVM-complete and the cross targets report the pre-existing `WEB001` gap honestly at compile time (R6 —
+never a silent fallback, never a leak); the day `kof_web_close` lands on Native/JS the pin flips
+consciously. **Proof:** new `ServerLifecycleE2ETest` **3/3** — JVM lifecycle golden (body sees its own
+`pong`; the port is refused after the helper on both the success and the throw path, i.e. the `finally`
+ran), the cross targets pinned to the honest `WEB001`, and the opt-in guard (`withServer` is undefined
+without `import kof.test.web`). RED-first: the helper was unblocked by the `known-bugs` §630 (nested
+`return` lambda typing) and §632 (dotted function-typed parameter descriptor) fixes; §633 fixed the
+`MEM014` false positive the helper exposed.
 
 Infrastructure to bring up resources: HTTP server, database, filesystem, process, external
 service. Each resource has `start → health check → test → cleanup`. **Never leave processes or
@@ -299,6 +435,24 @@ honest diagnostic (`NATIVE002`/`WASM001` class), never silent.
 ---
 
 # 6. Frontend Testing API
+
+> **DECIDED 06/10 (`D-MAINT-BATCH-0610B`/C):** the browser provider (Playwright/Cypress) is
+> **opt-in per project** — declared per project, the CLI does **not** bundle it (interop-first
+> R9, no heavyweight default dependency). AUTHORIZED; queued after §5.
+
+**Status: POLICY RECORDED 08/10 (docs-only, lane issues/tooling `192.168.15.30:9093`).** The §6
+policy is now fixed by three decisions and recorded here: **(C)** opt-in per project — the CLI
+does **not** bundle Playwright/Cypress; **(T1)** the browser provider must serve **all targets**
+(JVM + JS + Native), not JVM-only; **(T2)** `kof.test` stays a **compiler/CLI feature**, not a
+stdlib namespace (`StdCatalog` unchanged). **Honest boundary — no browser API ships yet:** the
+entire §6 surface (browser abstraction/SPI, Playwright provider, locators, web assertions, network
+interception, capability matrix) is the **provider slice**, still gated by the open rule-6 decision
+(§12): *how* providers are declared, versioned and gated (interop-first R9). This document records
+the policy; it does **not** promise an API before that decision — no stub, no fake surface (Q7).
+The seed is `KofJsBrowserE2ETest` (a raw mechanism: real Chrome `--headless --dump-dom`, macOS
+`safaridriver` W3C WebDriver), not an abstraction. The provider SPI/manifest pattern cross-references
+`kof-connector-ecosystem-plan.md` (§14). Capability-matrix values stay `?` until discovered during
+implementation (§6.4) — never assumed.
 
 An official browser-testing API in Kof. Conceptually:
 
@@ -479,7 +633,16 @@ discarded. The parse lives in `TestHarnessBuilder.matchesAnyTag` (compile-time c
 in `CmdTest.hasTagMatch` (so the §587 zero-match SKIP verdict agrees with the harness). Proof
 RED-first: new `TestTagsMultiE2ETest` **4/4** (union, trim, unknown-tag in the list, all-unknown
 honest no-op; pre-fix **3 RED** with the old single-tag match), `TestTagsE2ETest` **23/23** unchanged
-and `CmdTestTagTest` **7/7** (was 6 — the `--tag smoke,ui` CLI leg). **Negation remains future work** (it
+and `CmdTestTagTest` **7/7** (was 6 — the `--tag smoke,ui` CLI leg). **Rule-5 parity proof on Native
+x86-64:** `TestTagsNativeE2ETest` **2/2** compiles the multi-tag harness for `Target.NATIVE` and asserts
+the SAME filtered catalog (`kof test: tag 'smoke,ui' (2 of 3)`) plus the all-unknown honest no-op; the
+cross native targets are not advertised test targets (`kof test --target jvm|native|js`) and the harness
+main does not link `kof_process_exit` there. **Cross-target refusal (LANDED 06/10, `known-bugs` §615):**
+`kof test --target native.risc`/`native.arm` was false support (it compiled and then died with a raw
+`undefined reference to 'kof_process_exit' [COMP001]`); `CmdTest` now refuses both early with a named
+message pointing at `--target jvm|native|js` and at `kof build --target native.<arch>` + qemu (the
+compiler E2E suite is the cross runner). Proof RED-first: `CmdTestCrossTargetRefusalTest` **2/2**.
+**Negation remains future work** (it
 needs a syntax to distinguish "not this tag" from a tag literally named with a `!`; not decided).
 
 ## 7.2 Parallelism
@@ -491,6 +654,11 @@ when safe. Never share ports, database, filesystem, session, cookies or global s
 
 Every test has a reasonable timeout: separate unit, integration, e2e and browser-action
 timeouts. Never let a test hang indefinitely. (Seed: `CmdTest --timeout`, `CmdTestTimeoutTest`.)
+
+**Status:** a single global `--timeout <sec>` LANDED (JVM/Native via `Process.waitFor` + `destroyForcibly`;
+JS best-effort in-process `Thread.join`). Separate **per-level** timeouts remain open — they need the
+level concept, not yet in the runner. The complementary **duration measurement** (per-file wall time +
+slowest file) LANDED 08/10 and is recorded in §8.5.
 
 ## 7.4 Retry and flaky detection
 
@@ -540,6 +708,17 @@ E2E            87 passed / 1 failed   2m14s
 
 with duration and slow-test identification. Design goal: `docs/testing/TEST-PERFORMANCE.md`
 (the companion plan proposes it; §13).
+
+**Status: FIRST SLICE LANDED 08/10 (lane issues/tooling `192.168.15.30:9093`).** The runner now
+measures each file's wall time and prints one additive line after the summary —
+`time: <total>ms total, slowest <file> (<ms>ms)` — the base of **slow-test identification**. It is
+printed on the success **and** failure paths (before the non-zero exit), so a slow/failing file is
+diagnosable from the run output alone; no new flag, no level concept, no change to the historical
+summary/suite lines (byte-compatible — the existing assertions stay green). The per-**level**
+breakdown (Unit/Integration/E2E) and the machine-readable report remain open: they need the level
+concept the runner does not have yet (the `--tag` axis is the only current classifier). Proof:
+`CmdTestSuiteTest` **10/10** — new `runnerReportsTotalTimeAndSlowestFile` + `timingIsPrintedBeforeAFailingExit`,
+RED-first (both fail pre-slice, no `time:` line).
 
 ---
 
@@ -620,8 +799,9 @@ Still open (rule 6):
 * The exact **test API syntax** (assertions, lifecycle, parameterization, locators) — additive
   to the existing `test`/`assert`; no foreign syntax.
 * **Provider policy**: Playwright/Cypress are external heavyweight dependencies — how they are
-  declared, versioned and gated (interop-first, R9), and whether they ship with the CLI or are
-  opt-in.
+  declared, versioned and gated (interop-first, R9). **The "ship with the CLI or opt-in" half is
+  resolved** by `D-MAINT-BATCH-0610B`/C (opt-in per project, CLI does not bundle); the
+  declaration/versioning/gating mechanism remains open and gates the §6 provider slice.
 * Promotion: `future/` → `docs/development/` when the first slice lands (three-states + R12).
 
 ---
@@ -641,7 +821,7 @@ work — reference it.
 
 * `docs/development/test-architecture-plan.md` — internal Java suite (L0–L5, profiles,
   performance). **Complementary, not duplicated.**
-* `docs/development/future/wasm-wasi-plan.md` — KofWasm; the platform's cross-target/WASM E2E
+* `docs/development/wasm-wasi-plan.md` — KofWasm; the platform's cross-target/WASM E2E
   depends on it (`WASM001` until then).
 * `docs/development/future/qrcode-wasm-plan.md` — another WASM front consumer.
 * `docs/stdlib/kof-file-plan.md` — `kof.file` for upload/download test helpers.

@@ -26,6 +26,24 @@ public enum Target {
     JS,
     ANDROID,
     /**
+     * TIER 15 15.1 (07/10, ordem da mantenedora `D-WEB-WASI-DEFAULT-0710`,
+     * issue #776): WebAssembly entra na TOPOLOGIA — backend direto planejado
+     * por `D-WASM-01..09` (Int=i64, string lançada, tabela de handles,
+     * mark-sweep, WASI preview1, wasmtime primeiro). SEM EMISSÃO AINDA: o
+     * compile recusa com o gap honesto WASM001 (unidade 15.2 implementa);
+     * nunca fallback silencioso (R6/Q7). Frontend-padrão do web quando o
+     * plano pousar — o FLIP do padrão (15.4) é por último, com paridade.
+     */
+    WASM,
+    /**
+     * WASI = o MESMO backend WASM mais a camada de interface de sistema
+     * (preview1). Entra na topologia com o par `WASM` (15.1); recusa
+     * honesta WASM001 até a emissão (15.2/15.3). Padrao do frontend desktop
+     * apos o pouso (`D-WEB-WASI-DEFAULT-0710`); o alvo JS/`kofjs` permanece
+     * para uso explicito.
+     */
+    WASI,
+    /**
      * KofScript — coringa de execução (fase 2 do plano de plataforma).
      * Não emite artefatos: o programa é interpretado na IR compartilhada
      * ({@code CompilerPipeline.interpret}). {@code compile}/{@code build}

@@ -3,8 +3,8 @@
 # Graphics, Games e Media — Superfície de Intenção do Kof
 
 last: fatia-3.1 relógio puro + snapshots de input de teclado/ponteiro/gamepad pousados 05/10 (`libs/game/Clock.kf` + `Keys.kf` + `Mouse.kf` + `Pad.kf`, `GameClockE2ETest`/`GameInputE2ETest`/`GameMouseE2ETest`/`GamePadE2ETest` 4/4 cada; `known-bugs` §603 corrigido no caminho); superfície pura `kof.game` verificada cross-target (`GameCrossE2ETest` 3/3 — oráculo JVM + riscv64 + aarch64 sob qemu); forma da janela DECIDIDA (`D-GRAPHICS-WINDOW-FORM`: `Window("…") { frame { dt -> … } }`, `dt` Int ms) e seu pré-requisito de parser corrigido (`known-bugs` §611, `TrailingLambdaParamsE2ETest` 6/6); G1 SDL3 `3.4.16` medida (C + FFI do Kof, headless JVM+Native; `known-bugs` §606 corrigido); **SDL3 vendada no sysroot cross 06/10 (`scripts/provision-cross-sdl3.sh`, aarch64+riscv64 `3.4.16` + fecho de runtime + GLIBC 2.44) e a ABI crua medida ponta-a-ponta headless nos quatro alvos (`Sdl3FfiCrossE2ETest` 5/5: JVM + Native x86-64 + riscv64 + aarch64 sob qemu, golden `init=true/driver=dummy/title=kof`)**
-doing: fatia-3.1 (window/frame/input)
-next: fatia-3.1 backend window/frame/input — forma DECIDIDA (`Window`), unidade do `dt` DECIDIDA (Int ms, primeiro frame 0), stack vendada + ABI cross provada; falta o hospedeiro `Window`/`frame` sobre o binding medido (long-frame/limit/pause/minimized/focus do loop ainda TBD — chamada da mantenedora)
+doing: decisão F executada (vendor LGPL do FFmpeg + probe FFI + frame readback do backend 3.4) + 3.5 (3D) PROMOVIDA ao escopo ativo
+next: decisão F ORDENADA 08/10 (mantenedora, decisão de chat: vendor da build upstream LGPL-2.1+ da fonte, sem `--enable-gpl`; a licença do probe NÃO pode ser GPLv3+ antes de qualquer decode) + 3.5 PROMOVIDA 08/10 (mantenedora: mesh/camera/material/light/transform + parsers externos; shaders seguem escondidos na primeira fatia) — ambas registradas em `D-MAINT-BATCH-0510` (DECISIONS.md)ridade)
 location: docs/development
 state: UNDER DEVELOPMENT
 
@@ -142,10 +142,35 @@ release/caching/perda de janela. Sem gerenciamento GPU manual quando o backend r
   (a alternativa `Scene("Pong") { dt -> ... }` foi rejeitada); cobre título/tamanho/fullscreen/resize/foco/
   close/DPI/orientação/visibilidade/input; sem APIs de SO.
 - Loop: backend detém clock/vsync/scheduling/poll/submit/present; programa recebe
-  `dt` (unidade DECIDIDA — `D-GRAPHICS-WINDOW-FORM`: Int milissegundos, primeiro frame `0`;
-  long-frame/limite/pause/minimizado/foco TBD).
+  `dt` (unidade DECIDIDA — `D-GRAPHICS-WINDOW-FORM`: Int milissegundos, primeiro frame `0`).
+  As semânticas restantes do loop também estão DECIDIDAS (`D-MAINT-BATCH-0610`, 06/10):
+  **long-frame = clamp do `dt`** (o delta real limitado por um teto configurável —
+  guarda anti spiral-of-death, nunca um `dt` ilimitado); **limit = só vsync on/off**
+  (sem cap de frame-rate); **pause = `pause()`/`resume()` explícitos, `minimized`
+  suspende o render, perder foco NÃO pausa**.
 - Clock virtual obrigatório (`dt` determinístico) para física/animações/input/
   áudio/playback/goldens.
+- Hospedeiro puro POUSADO 07/10 (`libs/game/Window.kf`, fatia 3.1): `Window("Pong")`
+  + `clock(fonte)` + `dtClampMillis(n)` (A1) + `vsync(on)` (A2) +
+  `pause()`/`resume()`/`minimize()`/`restore()`/`blur()`/`focus()` (A3) +
+  `frame { dt: Int, self: Window -> ... }` sobre o `Clock` composto; o corpo de
+  2 args (window passada como `self`, nunca capturada) desvia do que era o
+  `known-bugs` §620 (lambda com captura + args = primeiro arg lixo no cross),
+  ✅ CORRIGIDO 07/10 pela lane native-backend, e é verde em todo alvo
+  (`GameWindowE2ETest` 8/8). Construí-lo corrigiu o `known-bugs` §619
+  (campo sem inicializador + membro `(` mal-parseado, `ClassMemberParseE2ETest` 4/4).
+- Binding do pump POUSADO 07/10 (resto da fatia 3.1, só-teste sobre o stack
+  vendado — sem API Kof nova): `Sdl3PumpE2ETest` **5/5** dirige uma janela
+  SDL3 headless real (driver `dummy`) com drain (`SDL_PollEvent` num
+  `Buffer(U8)` de 128 bytes, o tamanho do `SDL_Event`) + push + pacing
+  (`SDL_Delay`/`SDL_GetTicks`) + dois frames de `Clock` virtual com snapshots
+  de `Keys`, golden `init=true/push=true/poll=0/paced=true/frames=2/quit=true`
+  em JVM + Native x86-64 + riscv64 + aarch64 sob qemu. Fronteiras medidas: o
+  SDL descarta evento pushado de tipo zero (`poll=0` pinado); eventos reais do
+  backend existem (ex. `0x404 MOUSE_ADDED` na criação) mas as contagens variam
+  por ambiente, então o drain conta em silêncio; síntese com scancodes espera
+  uma superfície de escrita de bytes no `Buffer` (hoje só alloc+leitura —
+  fronteira documentada, não gap silencioso).
 
 # 7. Input
 
@@ -160,6 +185,30 @@ Primeiro nível. `sprite("player.png").at(120, 80).draw()`; transforms
 `player.animate()` (plataforma: atlas/batching/upload/seleção).
 Tilemaps = intenção de mapa (`tilemap("level.png", 16)`). Render: app declara *o
 quê*, backend decide *como* (batching/atlas/command-buffer/ordem/cache/upload ocultos).
+- Fatia 3.2a POUSADA 07/10 (intent puro, sem render): `libs/game/Sprite.kf`
+  (fábrica `sprite()` + `at/scale/turn/origin/flip/show/hide`, `worldPointX/Y`
+  = `pos + R·S·F·(p − origin)`, `frames()/animate(dtMs, frameMs)` sobre delta
+  do chamador, `draw(queue)`) + `libs/game/Draw.kf` (record `DrawCmd` +
+  `DrawList` ordenada: `draw/clear/size/commandAt`, draw invisível não
+  registra nada) + `libs/game/Trig.kf` (`trigSin`/`trigCos` em Kof puro,
+  Taylor até x^13 — `math.sin`/`math.cos` não tinham símbolos Native,
+  `known-bugs` §621, ✅ CORRIGIDO 07/10 pela lane native-backend com um gate
+  honesto `MATH001`, então a lib segue usando zero trig de backend). Refs entre
+  arquivos do mesmo pacote exigem `import` explícito (medido: `import
+  game.Draw` / `import game.Trig` dentro do `Sprite.kf`, precedente
+  `Window.kf` → `game.Clock`). Prova: `GameSpriteE2ETest` **14/14**
+  (goldens de transform + animação + draw em JVM + Script + Native x86-64 +
+  JS; golden de transform também riscv64 + aarch64 sob qemu; goldens em
+  milli-units, nunca `Double` cru). Próxima: intent de tilemap (3.2b).
+- Fatia 3.2b POUSADA 07/10 (intent puro, sem render): `libs/game/Tilemap.kf`
+  (fábrica `tilemap()` + grade esparsa ilimitada: `tileAt`/`setTile`/
+  `clearTile`/`hasTile`/`count`/`clear`, origens em pixel `worldX`/`worldY`;
+  id negativo limpa, não-setado lê `-1`, `tileSize <= 0` lança). Construí-la
+  confirmou dois fatos da API de `List` que o compilador diz explicitamente
+  (atribuição `[]` é só de arrays → `l.set(i, v)` por `SEM054`; remoção é
+  `l.remove(i)`, sem `removeAt`) — conhecimento da linguagem, sem bug. Prova:
+  `GameTilemapE2ETest` **6/6** (golden todo-inteiro em JVM + Script + Native
+  x86-64 + JS + riscv64 + aarch64 sob qemu).
 
 # 9. 3D (depois)
 
@@ -180,10 +229,66 @@ cobertura/manutenção/testabilidade/cross-platform). Shaders escondidos no iní
 - Vídeo: `Window("Trailer") { video("intro.mp4").autoplay() }`; sem demuxer/
   decoder/codec/fila/hardware-decoder no app. Sem codecs próprios (FFmpeg/Libav/
   nativos; critérios: licença/alvo/segurança/manutenção/formatos/headless).
+- Fatia 3.4a POUSADA 07/10 (intent puro de playback, sem decoder): `libs/game/
+  Video.kf` (fábrica `video()` + `play/pause/stop/seek/volume/loop/mute`,
+  `tick(dtMs)` sobre timestamps do chamador, `position/frameIndex/
+  finished`; metadados sem sentido lançam na construção, `seek` clampa,
+  volume clampa em [0,1], fim-de-stream para (ou dá wrap com loop)).
+  Prova: `GameVideoE2ETest` **6/6** (golden todo-inteiro em JVM + Script +
+  Native x86-64 + JS + riscv64 + aarch64 sob qemu). Decoder e frame
+  readback seguem trabalho de backend (decisão F do FFmpeg LGPL,
+  mantenedora).
 - `kof.media` hoje (bitmap/WAV/metadados/mic) → playback/streaming/mixing/
   video-playback, aditivamente.
 - KofUI ≠ linguagem concorrente (apps UI vs jogos); compartilha janela/input/
   vídeo/imagens/eventos onde equivalente.
+- Fatia 3.3a POUSADA 07/10 (mixer offline puro, sem saída audível):
+  `libs/game/Audio.kf` (record `Sound` + `Mixer`: `play(sound, startMs)`,
+  `render()` para PCM 16-bit `Int[]`, vozes sobrepostas somam e clampam em
+  [-32768, 32767], cada loop reinicia a fase, `rate <= 0` lança). Amostras
+  sintetizam só de `game.Trig` (zero trig de backend — o runtime Native não
+  tinha símbolos `sin`/`cos`, `known-bugs` §621, ✅ CORRIGIDO 07/10).
+  Construí-lo bissectou e
+  catalogou o `known-bugs` §622 (uma 2ª/aninhada atribuição condicional no
+  mesmo local Double se perdia no cross; reprodutor `twoIfLit` de 15 linhas +
+  variantes else/while/return/aninhadas), ✅ CORRIGIDO 07/10 pela lane
+  native-backend (o salto condicional cross comparava padrões de bits Double
+  com ramos inteiros com sinal), e embarca o desvio sem-branch
+  (redução via `roundTo` no `Trig.trigNorm`, ainda válido e mais rápido). Prova: `GameAudioE2ETest`
+  **6/6** (golden de inteiros exatos em JVM + Script + Native x86-64 + JS +
+  riscv64 + aarch64 sob qemu). Faces audíveis de decoder/playback/device
+  seguem trabalho de backend.
+- Fecho do ledger (medido 07/10, sem mudança de gate): `kof.game` NÃO precisa
+  de linha no ledger — a questão R1 do namespace (`kof.game` vs `package
+  game`) é aberta da mantenedora, `HARD_DENY game` já codifica
+  official-package-only, `scripts/package.sh` embarca todo `libs/`
+  genericamente, e imports resolvem pelo filesystem. Inventar uma linha
+  `kof.game` afirmaria um namespace indecidido. Próxima: faces de áudio vivo
+  no backend + 3.4 (vídeo).
+- Fatia 3.3b POUSADA 07/10 (ABI de áudio SDL3, só-teste sobre o stack
+  vendado — sem saída audível afirmada, CI não tem alto-falantes):
+  `Sdl3AudioE2ETest` **5/5** inicia o subsistema de áudio, abre o device
+  default de playback, lê de volta o `SDL_AudioSpec` negociado (S16 stereo
+  44100 Hz, 1024 frames de buffer — idêntico nos quatro alvos), pausa/
+  retoma, fecha e quita, golden `init/open/fmt/format/channels/freq/
+  frames/pause/resume/quit=true` em JVM + Native x86-64 + riscv64 + aarch64
+  sob qemu. Fatos Kof/FFI medidos: `SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK` é
+  passado como `0 - 1` (Kof não tem literais unsigned; mesmos 32 bits
+  baixos); o `spec` anulável não soletra `NULL` (`SEM048`), mas um buffer
+  zerado de 12 bytes é aceito e negocia os defaults do dummy aqui. Faces
+  audíveis de decoder/playback/streaming seguem trabalho posterior (decisão
+  F do FFmpeg LGPL para codecs, mantenedora).
+- Fatia 3.3d POUSADA 07/10 (encoder WAV, Kof puro — o PCM do mixer offline
+  feito embarcável): `libs/game/Wav.kf` (`encodeWav(samples, rate,
+  channels)` escreve imagens WAVE PCM16 (header RIFF de 44 bytes a partir
+  de códigos `charAt`, nunca números mágicos; só mono/stereo e `rate <= 0`
+  lança; amostras clampam) e as lê de volta campo-exatas
+  (`wavSampleCount`/`wavRate`/`wavChannels`/`wavSampleAt`). Destravada ao
+  medir que escrita indexada em `Byte[]` mais `as Byte` (wrap mod-256)
+  funcionam em todo alvo — a mesma superfície de que uma futura ponte de
+  submit para stream precisa. Prova: `GameWavE2ETest` **6/6** (header exato
+  + golden de roundtrip, incl. extremos ±32768, em JVM + Script + Native
+  x86-64 + JS + riscv64 + aarch64 sob qemu).
 
 # 11. Alvos
 
@@ -264,6 +369,18 @@ cobertura/manutenção/testabilidade/cross-platform). Shaders escondidos no iní
   (`video/play/pause/seek/volume` com contrato definido; frame readback) →
   **3.5** 3D só se stack/alvos/R3/runtime/conformância permitirem (senão `GFX00x`
   segue válido) → **3.6** corpus (training/learn/docs/conformância/paridade).
+- Fatia 3.6a POUSADA 07/10 (corpus, só-docs — sem mudança de
+  compilador/biblioteca): `training/idioms/game.md` (+PT: formas canônicas
+  para os 12 módulos com as restrições medidas — tempo virtual, corpo de
+  frame de 2 args, goldens em milli-units, imports por arquivo, sem trig de
+  backend) + `learn/42-games.md` (+PT: tutorial "seu primeiro game loop"
+  compondo Clock/Keys/Sprite/Draw/Window). Prova: todos os 20 snippets
+  extraídos e compilados limpos na JVM (9 EN + 9 PT de idiomas + 2
+  tutoriais), ambos os programas de tutorial rodam (`drawn=3`); executá-los
+  pegou e corrigiu 2 bugs de doc pré-commit (uma lambda `Int` para fonte de
+  clock `() -> Long` — `IncompatibleClassChangeError` em runtime — e um
+  print de `Double` cru no exemplo de sprite). Próxima: 3.6b+ (faces de
+  decoder, docs de backend) conforme backends pousarem.
 - Checklist de promoção: implementação/runtime/alvos/conformância/golden/
   headless/docs/gaps-catalogados/perf/segurança/licenças/corpus (sem "funciona
   na minha máquina").

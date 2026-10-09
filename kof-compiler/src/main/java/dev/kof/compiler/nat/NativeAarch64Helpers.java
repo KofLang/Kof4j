@@ -93,7 +93,7 @@ final class NativeAarch64Helpers {
             case "s7" -> "x26";
             case "s8" -> "x27";
             case "s9" -> "x28";
-            case "s10" -> "x16";
+            case "s10" -> "x18";
             case "s11" -> "x29";
             case "a0" -> "x0";
             case "a1" -> "x1";

@@ -16401,6 +16401,7 @@ MEASURED 03/10 (lane memory-safety/native-cross): the shape is stable RED at onl
 **Fix (30/09, this session):** `CompilerLambdaClass` typed the lambda formal parameters with the 2-arg `CompilerTypes.toType(String, unit)` overload, which does NOT run `qualifyDeep` — so a `kof.ui`/`kof.media` name declared as a lambda parameter stayed `ClassType("", "Label")` while the call site and the runtime use the builtin handle. Now it uses the SemanticAnalyzer-aware overload (`CompilerTypes.toType(p.type(), currentUnit, semanticAnalyzer)` → `qualifyDeep`), the exact §179 qualification, shadowing guard included.
 **Proof RED-first:** `UiLambdaParameterTypeE2ETest` **5/5** — pre-fix 3/5 fail (JVM `NoSuchMethodError: 'void Lambda0.invoke(int)'`, JS `TypeError: w.setText is not a function`, Native link failure on `invoke`), green after; the two controls (a plain user `record` lambda parameter prints `3`; a user class named `Label` shadows the builtin and prints `meu`) pass both ways. Regression: lambda/higher-order/UI battery **199/199** (`LambdaE2ETest` 36, `ComponentCoreE2ETest` 28, `UiE2ETest` 29, `KofHigherOrderTest` 8, `LambdaInGenericContainerE2ETest` 5, `FieldAndMethodSameNameE2ETest` 5, `HigherOrderCaptureE2ETest` 4, `LambdaFieldCaptureTest` 4, `TrailingLambdaSameLineTest` 3, `LambdaVoidInferenceE2ETest` 2, `KofConcurrency2Test` 50, `CollectionMethodsStdlibE2ETest` 11, `StdCatalogTest` 11, `ListZipE2ETest` 3).
 **Boundary:** `kof.ui` is outside the 1.0 core surface (same class as #702/#547); classified `1.0-outside`. Not a 1.0 blocker.
+**Residual (measured 09/10, tip `4f0012ef9`):** the SAME test went RED again on `lab` — the 30/09 fix covered `CompilerLambdaClass`, but the synthetic interface's `FunctionType` is built EARLIER by `ExpressionTyper.inferExprType` (`LambdaExpr` case), which typed the formals with the 2-arg `CompilerTypes.toType(p.type(), driver.currentUnit)` (no `qualifyDeep`), so `Function1_CLabel_void.invoke` came out with the raw name (`LLabel;`) while the call site passed the `int` handle → `VerifyError: Bad type on operand stack` (CI `Build + Tests`). Fix: the same SemanticAnalyzer-aware overload at `ExpressionTyper` (`CompilerTypes.toType(p.type(), driver.currentUnit, driver.semanticAnalyzer)`), mirroring the 30/09 qualification. Proof: `UiLambdaParameterTypeE2ETest` **5/5** (3/5 RED pre-fix), lambda/UI battery **116/0** (`LambdaE2ETest` 36, `ComponentCoreE2ETest` 28, …), `FunctionValueInvokeDescriptorE2ETest` 3/3, `CompilerDriverTest` 262, `CoreRegressionE2ETest` 104.
 
 <!-- pt-switch --> **PT:** [§548 (pt_BR)](known-bugs.pt_BR.md#548--jvm-um-parametro-de-lambda-declarado-com-um-tipo-kofui-w-label----e-event----e-mal-tipado-no-descriptor--nosuchmethoderror-void-lambda0invokeint--verifyerror---corrigido-3009-dona--lane-compilerui-issue-710)
 
@@ -16449,15 +16450,38 @@ MEASURED 03/10 (lane memory-safety/native-cross): the shape is stable RED at onl
 
 <!-- pt-switch --> **PT:** [§553 (pt_BR)](known-bugs.pt_BR.md#553---sobre-um-parametro-de-tipo-nao-limitado-t-significa-igualdade-estrutural-de-conteudo-jvmscriptnativo-deixam-de-comparar-por-referencia-o-js-ja-comparava---corrigido-0210-dona--19216815309092-d-eq-unbounded-t-encontrado-ao-sondar-o-assertequal-generico-para-o-koftest-41)
 
-## §554 — JVM interop: a call whose argument type only matches a primitive-widened Java overload is typed OK (check passes) and dies at class load with VerifyError: Bad type on operand stack — launcher masks it as the JavaFX message — 🟡 OPEN (owner = compiler/interop lane); found building KofShare device identity over java.security
+## §554 — JVM interop: a call whose argument type only matches a primitive-widened Java overload is typed OK (check passes) and dies at class load with VerifyError: Bad type on operand stack — launcher masks it as the JavaFX message — ✅ FIXED 07/10 (owner = 192.168.15.15:9092; lane security/connectors, bugs-and-gaps front per maintainer order; found building KofShare device identity over java.security)
 **Symptom (measured 01/10, tip `c9dd94fe4`, jar rebuilt fresh):** `org.bouncycastle.crypto.signers.Ed25519Signer.update(Byte[])` — the Java surface has `update(byte)` and `update(byte[])`; Kof binds the SCALAR `update(byte)` (the array is silently widened into the scalar slot) and `kof run`/`kof check` say nothing (`checked 1 file(s) — no errors`). The class loads with `VerifyError: Bad type on operand stack — Type '[B' is not assignable to integer @invokevirtual` (proved via direct `java -cp out Default.Main` and a reflection runner; the `kof run`/`kof build` launcher masks the VerifyError as "os componentes de runtime do JavaFX nao foram encontrados" — the §556 family). Bare repro: `import org.bouncycastle.crypto.signers.Ed25519Signer; main() { var s = Ed25519Signer(); var msg = new Byte[2]; s.update(msg) }` + `kof run --deps` (bcprov reachable via kofdeps).
 **Root (measured):** interop overload selection keys on name+arity and accepts a reference argument into a primitive-widened parameter slot instead of preferring the array overload or refusing at the call site. The same slot-mismatch family already gates non-interop primitives (§336 `X as T <op> Y`, §269(d) `n.abs()` → SEM074); the Java-overload arm is unguarded.
 **Workaround (measured green):** call the exact-arity overload explicitly — `signer.update(msg, 0, msg.length)` (`update(byte[],int,int)`): sign+verify end-to-end (Ed25519, 64-byte signature, verify=true).
-**Kof contract (rule 6, the decision):** the silent acceptance is R6 either way; whether the fix is (a) prefer the exact reference-type overload or (b) reject a reference argument in a primitive slot with a call-site SEM — the overload-policy choice belongs to the maintainer. The minimal honest step (b) follows the §269(d)/§336 precedent.
+**Decision recorded (06/10, `D-MAINT-BATCH-0610`/C):** (c) TIGHTEN + NAME THE HANDLE — refuse the builtin→builtin mismatch in `TypeChecker.isAssignable` AND make `kof.process.Result` nameable; implementation unowned. Original contract text below (verbatim): the silent acceptance is R6 either way; whether the fix is (a) prefer the exact reference-type overload or (b) reject a reference argument in a primitive slot with a call-site SEM — the overload-policy choice belongs to the maintainer. The minimal honest step (b) follows the §269(d)/§336 precedent.
 **Proof (executed, no suite):** the repro above: `check` rc=0 with zero diagnostics + `java Default.Main` VerifyError (message quoted in the first paragraph); the 3-arg workaround runs green.
 **Boundary:** JVM interop only (the `kof deps` jar was fully reachable — `import` + ctor + `as` cast + the 3-arg call all worked; the defect is the 1-arg overload arm). No GitHub issue (worker has no identity: `gh-as-agent.sh whoami` → 403); recorded here + `docs/development/README.md` §3.
+**Fix (07/10, this lane — `D-MAINT-BATCH-0610`/C tighten, option (b)):**
+no `isAssignable` change was needed — the predicate already refuses
+array/reference → primitive; the two external typer arms (`MemberCallTyper`:
+static `ImportedClass.method()` + instance `receiver.method()` on an
+external class) resolved by name+arity only and never consulted it. Both
+arms now run the already-inferred args through `checkArgTypes`, so the
+§554 shape reports `Argument 1 of 'update': expected 'Byte' but got
+'Byte[]' [SEM014]` at the call site instead of a load-time VerifyError.
+Varargs signatures keep the legacy path (§500: `Arrays.asList()` with 0
+args must not false-positive on arity equality). The 1-arg array overload
+stays uncallable by shape (same arity, same call) — the 3-arg form is the
+honest route; a future (a)-style prefer-exact-overload can relax this
+without breaking the new diagnostic.
+**Proof (RED-first):** new `InteropPrimitiveSlotE2ETest` **3/3** (ASM-
+emitted fixture with scalar-first `update(byte)`/`update(byte[])`/
+`update(byte[],int,int)` + `echo(long)` widening control — no `javac`
+needed): pre-fix the SEM014 leg fails (compiles clean — the old silence),
+post-fix SEM014 names both sides, the 3-arg form runs green (`2`, no
+VerifyError), and the `Int`-into-`long` widening still binds and runs
+(`7`). Non-regression: full `kof-compiler` suite re-ran — the only
+delta vs the pre-fix tree is the fixed `ExternalVarargsStaticE2ETest`
+face (my first draft broke §500, guard added); UEFI/OVMF + JavaFX-
+absent failures are identical pre/post (environmental).
 
-<!-- pt-switch --> **PT:** [§554 (pt_BR)](known-bugs.pt_BR.md#554--interop-jvm-uma-chamada-cujo-tipo-de-argumento-so-casa-com-um-overload-java-alargado-por-primitiva-e-tipada-como-ok-o-check-passa-e-morre-no-class-load-com-verifyerror-bad-type-on-operand-stack--o-launcher-mascara-com-a-mensagem-de-javafx---aberto-dona--lane-compilerinterop-encontrado-construindo-a-identidade-de-dispositivo-do-kofshare-sobre-javasecurity)
+<!-- pt-switch --> **PT:** [§554 (pt_BR)](known-bugs.pt_BR.md#554--interop-jvm-uma-chamada-cujo-tipo-de-argumento-so-casa-com-um-overload-java-alargado-por-primitiva-e-tipada-como-ok-o-check-passa-e-morre-no-class-load-com-verifyerror-bad-type-on-operand-stack--o-launcher-mascara-com-a-mensagem-de-javafx---corrigido-0710-dona--19216815159092-lane-securityconnectors-frente-bugs-and-gaps-por-ordem-da-mantenedora-encontrado-construindo-a-identidade-de-dispositivo-do-kofshare-sobre-javasecurity)
 
 ## §555 — JVM interop: String.getBytes() passes the typer with ZERO diagnostics and mislowers the array element type (getfield "?".length) — class load dies NoClassDefFoundError: ?, launcher masks it as the JavaFX message — ✅ FIXED 01/10 (#719, `ab12b8c51`, compiler/JVM lane); found building KofShare chunk framing
 **Symptom (measured 01/10, tip `c9dd94fe4`):** `main() { var s = "payload"; var b = s.getBytes(); println(b.length) }` — `kof check` says "no errors"; `kof run` dies with the JavaFX launcher mask (§556); loading the built class directly (`java -cp out Default.Main`) raises `NoClassDefFoundError: ?` / `ClassNotFoundException: ?`. javap shows the real bug: the `getBytes()` result is typed `Object`, and `b.length` lowers to `GETFIELD "?".length` — the array element type fell into the `"?"` placeholder (the same owner-`?` family as §246/§268, reached through the array-typed interop return).
@@ -17086,6 +17110,8 @@ Generated JS contains `if (((i < n) & (f() > 0)))` (measured). Expected: `&&`, n
 
 **Boundary:** not an image-vision defect — the pure-Kof walk reproduces the second Java reader and the Python oracle on the same fixtures, and only the single-large-frame cross shape crashes. Owner = native/GC lane; a real multi-block AVIF tile decode on riscv64/aarch64 is expected to hit the same shape, so the chain is blocked on this until the GC root scan is complete.
 
+**Narrowed measurement (08/10, lane compiler/JVM/native `192.168.15.30:9092`, tip `5355954d1`):** a FLAT single-frame probe (one `main` decoding 8 tiles x 5 blocks, no per-tile/per-block helper split) is now **GREEN on riscv64** (qemu, 3/3 runs byte-equal to the JVM oracle) but **deterministically SIGSEGVs on aarch64** (exit 139) after exactly 25 blocks decode: `limit=25` passes, `limit=26` crashes. The fault is the indirect vtable dispatch `ldr x9,[x0,#8]; add x9,#24; ldr x9,[x9]; blr x9` in `Default_Main_main` (source `Main.kf:423`), i.e. a stale `Av1Coeffs` receiver. **GC is the trigger:** rebuilt with a 256 MiB heap (GC never runs) the SAME flat probe is byte-equal GREEN; at 4 MiB it crashes at 8 lines, at 8 MiB at 32, at 16 MiB at 52 — the earlier the reclaim, the earlier the crash. Disabling free-list reuse makes it OOM (no segfault), so the crash is a use-after-reclaim (free then reuse) on aarch64 only. The §631 `swpal` width fix does NOT change this (distinct root). Remaining direction for the owner: the aarch64 allocator/mark/sweep path frees a still-live `Av1Coeffs` receiver; the riscv64 path with the same shape is now correct.
+
 <!-- pt-switch --> **PT:** [§602 (pt_BR)](known-bugs.pt_BR.md#602--nativo-riscv64-e-um-frame-aarch64-grande-e-unico-decodificar-varios-blocos-de-transformada-numa-unica-funcao-kof-libera-objetos-vivos-do-frame-chamador-num-tick-do-gc-entao-o-walk-de-coeficientes-do-tile-av1-da-sigsegv-139-depois-de-4-tiles-jvmscriptx86-64-e-uma-quebra-por-bloco-em-helper-sao-corretos---aberto-encontrado-0510-pela-fatia-3e-do-avif-image-vision-lane-nativegc)
 
 ## §603 — a function-typed local assigned from a FIELD and called inside a loop emitted the synthetic SAM `invoke` call with the INFERRED argument types instead of the declared function type's, so an `Int` literal pushed `LCONST_0` under a descriptor expecting an int and the JVM backend crashed with `COMP002` "frame crash" (ASM `COMPUTE_FRAMES` AIOOBE) — ✅ FIXED 05/10 (owner = 192.168.15.15:9092; lane security/connectors, graphics/gaming front)
@@ -17209,6 +17235,44 @@ Generated JS contains `if (((i < n) & (f() > 0)))` (measured). Expected: `&&`, n
 
 <!-- pt-switch --> **PT:** [§609 (pt_BR)](known-bugs.pt_BR.md#611--uma-trailing-lambda-com-parametro-explicito--dt-int-----so-parseava-depois-de-um-receptor--as-formas-de-chamada-identificador-puro-e-argumentos-entre-parenteses-descartavam-a-lista-de-parametros-entao-f--dt-int-----e-f1--dt-int-----falhavam-com-parse041--a-forma-que-a-janela-graphics-escolhida-pela-mantenedora-precisa---corrigido-0510-dona--19216815159092-lane-securityconnectors-frente-graphicsgaming-d-graphics-window-form)
 
+## §617 — try/finally control-flow parity (2 faces): (A) `break`/`continue` leaving a `try` SKIPPED the `finally` on JVM/Script/Native (JS was Java-correct); (B) a NESTED `try/finally` whose inner try `return`s ICEd the KofJS target (`COMP002 unexpected KofCatchStart`) — ✅ FIXED 06/10 (owner = 192.168.15.30:9092; lane compiler/JVM/native, bugs-and-gaps front; found in the Phase-6 equivalence sweep after §613)
+
+**Face A — `break`/`continue` skip the `finally` (JVM/Script/Native; JS correct).** The governing contract is `docs/language-reference/statements.md:187` — "`finally` always executes" — and `training/idioms/errors.md:109` — "runs on the normal path, on the caught path and on propagation". A `break`/`continue` that leaves a `try` region is a normal path, so the `finally` MUST run. Measured (06/10, fresh jar):
+
+```
+main() {
+    for (var i in listOf(1, 2)) {
+        try {
+            if (i == 1) { continue }
+            println("body:" + i)
+        } finally {
+            println("fin:" + i)
+        }
+    }
+}
+```
+
+JVM, Script, Native x86-64 AND Native riscv64 (qemu) printed `body:2` + `fin:2` — the `continue` skipped `fin:1`. JS printed the Java-correct `fin:1` + `body:2` + `fin:2`. The same held for `break` (the loop exited without running the finally). **Root (read in code):** the DD-01 `FinallyFrame` machinery only intercepted `ReturnStmt` (`StatementLowerer:22-44`); `BreakStmt`/`ContinueStmt` (`StatementLowerer:62-79`) emitted only the §551 `KofExcUnlink` handler cleanup and jumped straight to the loop label, with no finally epilogue. JS was correct because it reconstructs a NATIVE JS `try/finally`, where the engine runs the finally on any abrupt completion. **Fix (landed):** `CompilerDriverState.FinallyFrame` now carries the lowered `finallyBody`; a new `StatementLowerer.emitExitedFinallyBodies(...)` walks the active `finallyFrames` and, for every frame the `break`/`continue` exits (`tryDepthSelf > targetDepth`), emits the frame's finally body BEFORE the jump, popping/restoring the frame so a `return` inside that finally still sees only the outer frames. Skipped on `Target.JS` (native JS `try/finally` already covers it). Proof: the program above now prints `fin:1` + `body:2` + `fin:2` and the `break` loop prints `bfin:1` on JVM, Script, JS, Native x86-64, riscv64 and aarch64.
+
+**Face B — nested `try/finally` + `return` ICEs KofJS.** Measured (06/10):
+
+```
+String h() {
+    try {
+        try { return "inner" } finally { println("fin-inner") }
+    } finally { println("fin-outer") }
+}
+main() { println(h()) }
+```
+
+JVM/Script/Native printed `fin-inner`, `fin-outer`, `inner`. KofJS aborted: `Internal compiler error: KofJS: unexpected KofCatchStart at statement level [COMP002]` (`JsTryParser.parse` → `parseStatements` → `parseStatement`). **Pre-existing, NOT a §613 regression:** the pre-§613 lowering (checked out `HEAD~1`'s `StatementLowerer` via classpath override) ICEd identically; a SINGLE try/finally with `return` was correct on JS (`JsTryParser`'s DD-01 epilogue handling). The `currentReturnFinallyLabel` lookahead at `JsTryParser:37-47` scanned forward and bound the INNER return's epilogue label while parsing the OUTER try, so the outer body's `parseStatements` stopped early and the outer `KofCatchStart` was left loose. **Fix (landed):** (1) the lookahead is now DEPTH-AWARE — it only binds a `#retVal` store at relative try-depth 1, skipping nested `KofTryStart` regions, and saves the slot index; (2) the DD-01 epilogue tail no longer discards everything but the final `JsReturn` — it strips only the PREFIX that duplicates the native JS `finally` body and keeps the real tail (`#retVal = <inner slot>; return #retVal`), so the inner value survives the outer finally; (3) the trailing done-label is not consumed when it is an enclosing `try`'s end label (that would leave the outer `KofCatchStart` loose → COMP002). Proof: the program above now prints `fin-inner`, `fin-outer`, `inner` on JVM, Script, JS, Native x86-64, riscv64 and aarch64.
+
+**Proof of the face-B root (executed):** the nested program ran green on JVM/Script/Native x86-64; the same file ICEd on JS both with the §613 lowering and with `HEAD~1`'s lowering (classpath override), proving independence from §613. After the fix it prints `fin-inner`/`fin-outer`/`inner` on all six targets.
+
+**Boundary:** both faces are try/finally abrupt-completion control flow. Face A is a JVM/Script/Native lowering gap (JS is the oracle); face B is a KofJS reconstructor gap (JVM/Script/Native are the oracle). No `D-*` decision is required — the contract ("`finally` always executes") is normative. No issue filed; catalogued here + the `twin.md` cross-reference.
+
+<!-- pt-switch --> **PT:** [§617 (pt_BR)](known-bugs.pt_BR.md#617--paridade-de-fluxo-do-tryfinally-2-faces-a-breakcontinue-saindo-de-um-try-pulavam-o-finally-no-jvmscriptnative-js-era-java-correto-b-um-tryfinally-aninhado-cujo-try-interno-returna-dava-ice-no-alvo-kofjs-comp002-unexpected-kofcatchstart---corrigido-0610-dona--19216815309092-lane-compilerjvmnative-frente-bugs-and-gaps-achado-na-varredura-de-equivalencia-da-fase-6-apos-o-613)
+
 ## §613 — native (x86-64 + riscv64 + aarch64): a `return` INSIDE a `catch` of a `try/finally` corrupted the exception-handler chain and SIGSEGV'd on the next `throw` — the DD-01 finally frame was pushed before the `try` body, so the catch-path return emitted one `KofExcUnlink` too many (the throw had already popped this `try`'s handler); JVM/Script/JS correct — ✅ FIXED 06/10 (owner = 192.168.15.30:9092; lane compiler/JVM/native, bugs-and-gaps front; the §551 residual)
 
 **Symptom (measured 06/10, RED-first):** `String g(Bool b) { try { if (b) { throw "x" } return "OK" } catch (String e) { return "CATCH:" + e } finally { println("F") } }` + `main() { println(g(true)) }` printed `F` then **crashed (SIGSEGV, exit 139)** on Native x86-64, riscv64 (qemu) and aarch64 (qemu), instead of `F` + `CATCH:x`. JVM, Script and JS printed the correct value. The bug only fires when the `return` is in the CATCH of a try that has a `finally`; a `return` in the TRY body (`§551`) was already correct.
@@ -17236,12 +17300,357 @@ Generated JS contains `if (((i < n) & (f() > 0)))` (measured). Expected: `&&`, n
 **Boundary:** the native `valueOf` dispatch only. The JVM/JS/Script box path is unchanged; `String.valueOf` on native still maps to `kof_*_to_string`; no semantic/grammar change. The fix is complete with cross-target proof; the issue stays OPEN on GitHub (closure is maintainer-gated from this host) and its `release-blockers.tsv` row is updated to `fix landed 06/10 (§612)`.
 
 <!-- pt-switch --> **PT:** [§612 (pt_BR)](known-bugs.pt_BR.md#612--issue-772-a-face-nativa-da-familia-770-um-int-estreitado-passado-a-uma-chamada-std-de-formal-primitivo-mathabsx-imprimia-lixo-de-ponteiro-no-native-porque-o-backend-mapeava-o-box-de-erasure-integervalueofint--mesmo-nome-do-acucar-de-stringificacao-stringvalueof--para-kof_int_to_string-entao-o-soft-unbox-do-callee-lia-o-ponteiro-da-string-como-inteiro---fixed-0510-dona--19216815309092-lane-compilerjvmnative-frente-bugs-and-gaps-issue-772)
-## §614 — the §612 fix (#772 native MAGIC-box dispatch) shipped a zero-regression violation: its numeric/boolean-wrapper `valueOf` box branch now wins where the stringify sugar owned the value — native JSON of an int column prints the empty string, AV1 aarch64 SIGSEGVs, VP8 riscv64 reports array-index-out-of-bounds, the ORM native x86-64 oracle contract breaks, and the pruned hello runtime grew back from <110 to 126 syms — 🔴 RED (found 06/10 by the 0.6.0 cut-readiness audit, owner = native-backend lane / §612 author; issues #772-reopened + #773)
+## §614 — the §612 fix (#772 native MAGIC-box dispatch) shipped a zero-regression violation: its numeric/boolean-wrapper `valueOf` box branch now wins where the stringify sugar owned the value — native JSON of an int column prints the empty string, AV1 aarch64 SIGSEGVs, VP8 riscv64 reports array-index-out-of-bounds, the ORM native x86-64 oracle contract breaks, and the pruned hello runtime grew back from <110 to 126 syms — ✅ FIXED 06/10 (found by the 0.6.0 cut-readiness audit; fixed by the §612 author lane = 192.168.15.30:9092, lane compiler/JVM/native; issues #772 + #773)
 
 **Symptom (measured 06/10, battery bisect on `lab`):** same 5-class battery, parent `36f72695e` = 147 run / **0F** -> `1d9415d00` (the §612 fix) = **5F deterministic** -> tip `fd0ff7cb9` unchanged. (1) `KofDbE2ETest.nativeSqliteRoundtrip`: expected `{"id":7,"name":"Nativa"}` but was `{"id":"","name":"Nativa"}` — int->string value-of prints EMPTY on native; (2) `Av1CoeffsE2ETest.av1CoeffsOnNativeAarch64`: qemu SIGSEGV (139); (3) `Vp8RasterE2ETest.vp8RasterOnNativeRiscv64`: `Runtime error: array index out of bounds` (exit 1) — value corruption on cross; (4) `KofOrmE2ETest.crossNativeF1aDeleteAllCountMatchX86Oracle`: the D-DB-GAPS oracle (drop -> count 0 / deleteAll false) mismatches; (5) `ArtifactSizeTest.helloX86NativeSizeWithinBaseline`: hello grew `<110` -> **126 syms** (S-3 prune undone — `wrapperValueOfBoxFn` emits `kof_box_*` at every numeric-wrapper `valueOf` site, reviving slices the pruner dropped).
 
 **Root (measured, from the §612 diff):** `NativeOpHelpers.wrapperValueOfBoxFn` + `NativeX86ValueOf` + `NativeRiscvCrossOps` route a numeric/boolean-wrapper `valueOf(int)` to the MAGIC box (`kof_box_*`) for the narrowed-arg consumer — but on native `valueOf` is ALSO the stringify sugar (`"" + i`, JSON of an int column, `println`); the stringifier now receives a MAGIC-box handle instead of digits and prints empty / reads it as a pointer/index (the AV1/VP8/ORM cross corruption). The dispatch between stringify-sugar and box must be re-scoped so only the narrowed-int-arg-to-primitive-consumer gets the MAGIC box (the #772 face §612 was asked to fix).
 
-**Boundary:** regression record only — bisect evidence, repro faces, suspected root; the fix belongs to the §612 author lane (native-backend), tracked by #772 (reopened) + #773. `lab` is NOT stable for the 0.6.0 cut (`D-LAB-STABILITY`): suite-report SLIPS until these five faces + the §612 fix faces are all green.
+**Root (confirmed on execution):** the regression is the `wrapperValueOfBoxFn` box emission FIRING ON THE STRINGIFY SUGAR. §612 made `String.valueOf(<primitivo>)` pre-box the raw primitive (`TypeEmitter.boxPrimitive`) so the box would carry its OWNER name (`Integer.valueOf`), but the native `valueOf` emitter then routed that box through `wrapperValueOfBoxFn` -> `kof_box_int` — a 24B MAGIC allocation — and the stringify consumer's `kof_box_to_string` immediately undid it; the box leaked into Object consumers (the DB bind heuristic `cmpq $0x1000000`, the cross heap scan) and every concat of a primitive allocated a box per operand (the AV1/VP8 cross heaps ran out / corrupted).
 
-<!-- pt-switch --> **PT:** [§614 (pt_BR)](known-bugs.pt_BR.md#614--a-correcao-612-despacho-magic-box-nativo-772-embarcou-uma-violacao-de-zero-regressao-o-ramo-de-box-de-valueof-de-wrapper-numericobooleano-agora-vence-onde-a-cuca-de-stringify-era-dona-do-valor--json-nativo-de-coluna-int-imprime-a-string-vazia-av1-aarch64-sigsegva-vp8-riscv64-da-indice-de-array-fora-de-limites-o-oraculo-orm-x86-64-nativo-quebra-e-o-hello-podado-voltou-de-110-para-126-syms---red-achado-0610-pela-auditoria-de-prontidao-do-corte-060-dona--lane-native-backend--autora-do-612-issues-772-reaberta--773)
+**Fix (native lowering only, additive — no grammar/semantics):**
+(1) `ExpressionBinaryLowerer.emitOperandToString`: on a native target a raw primitive goes DIRECTLY to `String.valueOf(<primitivo>)` (the emitter's own `kof_int_to_string`/... dispatch) — no `boxPrimitive`, so no `Integer.valueOf` call for the stringify sugar. JVM/JS/Script keep the box (`String.valueOf(Object)` needs the Object).
+(2) `kof_db_bind` (x86 `RuntimeDb4`, cross `NativeRiscvAsmRtB47`), `kof_db_mysql_render` (x86 `RuntimeDb1`, cross `NativeRiscvAsmRtB71`) and the x86 MySQL prepare-execute (`NativeDbPrepared`): the int-vs-string classification now recognises the §284 MAGIC box (`0x4B4F46425F425801` at +0) and binds its VALUE (+16) as an integer — parity with the JVM `Integer` autobox the arg represents. This is the ERASED-argument surface (`db.execute("...", 7, "x")`), distinct from the stringify sugar.
+(3) `CompilerRecordSupport.buildRecordToStringMethod`: a native record field is stringified by its REAL type (concrete field -> `kof_int_to_string`, generic `T` -> `kof_box_to_string`); only the FLAT-injected `Pair` (#773: always present, `CompilerPairs`) uses the pre-§612 no-op for its erased `T`, so an unused record no longer links the whole §284 runtime slice. `CompilerDriverState.flatInjectedRecordTypes` marks the injected record at `CompilerPairs` injection.
+
+**Proof (RED-first, executed 06/10):** all five faces GREEN — `KofDbE2ETest.nativeSqliteRoundtrip` -> `{"id":7,"name":"Nativa"}`; `Av1CoeffsE2ETest.av1CoeffsOnNativeAarch64` (qemu) exit 0, golden byte-match; `Vp8RasterE2ETest.vp8RasterOnNativeRiscv64` (qemu) exit 0, golden byte-match; `KofOrmE2ETest.crossNativeF1aDeleteAllCountMatchX86Oracle` x86 oracle `3\ntrue\n0\ntrue\n0\nfalse`; `ArtifactSizeTest.helloX86NativeSizeWithinBaseline` `<110` syms (measured **109**). Also AV1 riscv64 + VP8 aarch64 under qemu green. The #772 fix faces stay green (`NullableGuardFrameE2ETest` **14/14**), and the box surfaces are intact (`NativeErasureBoxE2ETest` 6/6, `NativeObjectBoxPrintE2ETest` 3/3). Non-regression: `CoreRegressionE2ETest` **102/102** + `ExceptionsE2ETest` 13/13 + `NativeTryHandlerLeakE2ETest` 19/19 + `ListZipE2ETest` 3/3 + `KofDbE2ETest` 49 run/0F + `KofOrmE2ETest` x86 oracle; `tests/run-golden.sh` **136/136**. The cross sqlite legs need a riscv64/aarch64 sysroot with libsqlite3 (absent on this host, honest skip — CI covers them).
+
+**Boundary:** native lowering + native runtime ONLY; JVM/JS/Script untouched, no syntax/semantics change. #772's narrowed-`Int?`-to-primitive-arg box fix is preserved (that path still emits `kof_box_*` via `wrapperValueOfBoxFn`).
+
+<!-- pt-switch --> **PT:** [§614 (pt_BR)](known-bugs.pt_BR.md#614--a-correcao-612-despacho-magic-box-nativo-772-embarcou-uma-violacao-de-zero-regressao-o-ramo-de-box-de-valueof-de-wrapper-numericobooleano-agora-vence-onde-a-cuca-de-stringify-era-dona-do-valor--json-nativo-de-coluna-int-imprime-a-string-vazia-av1-aarch64-sigsegva-vp8-riscv64-da-indice-de-array-fora-de-limites-o-oraculo-orm-x86-64-nativo-quebra-e-o-hello-podado-voltou-de-110-para-126-syms---corrigido-0610-achado-pela-auditoria-de-prontidao-do-corte-060-corrigido-pela-lane-autora-do-612--19216815309092-lane-compilerjvmnative-issues-772--773)
+
+## §615 — `kof test --target native.risc`/`native.arm` was FALSE SUPPORT: the CLI accepted the cross target, compiled the harness, and then died with a raw `riscv64-ld: undefined reference to 'kof_process_exit' [COMP001]` — ✅ FIXED 06/10 (owner = 192.168.15.30:9093; lane issues/tooling, `kof-testing-platform` runner)
+
+**Symptom (measured 06/10, tip `7a1715c2a`):** `kof test Calc.kf --target native.risc` (and `native.arm`) is accepted by the CLI, prints the cross `NativeBackend` prune/emit lines, and then fails with `riscv64-ld: ... undefined reference to 'kof_process_exit' [COMP001]` / `0 passed, 1 failed`. `COMP001` is the internal "Error reading source file" code, so the user sees a mislabeled compiler/linker crash instead of a refusal — the CLI advertised a target it cannot run (R6/Q7: not-implemented pretending support). The USAGE already said `--target jvm|native|js`, and `DECISIONS` §D-TESTING-PLATFORM declares the real test targets `jvm/native/js`, so this was never a supported route.
+
+**Root (read):** `CmdTest` runs the produced binary directly on the HOST and the cross test harness links the cross runtime, which does not define `kof_process_exit` (the cross natives are exercised by the compiler E2E suite under qemu — `NativeRiscv64E2ETest`/`NativeAarch64E2ETest`). `CmdTest` had an honest early guard for `--target android` (packaging, no standalone binary) but none for the cross natives, so they fell through to the generic native branch.
+
+**Fix (CLI only, zero language change):** `CmdTest` refuses `NATIVE_RISCV64`/`NATIVE_AARCH64` early, before compilation, with a named message that points at the runnable targets (`--target jvm|native|js`) and the real route (`kof build --target native.<arch>` + qemu), mirroring the `--target android` precedent.
+
+**Proof (RED-first):** new `CmdTestCrossTargetRefusalTest` **2/2** — pre-fix both RED with the exact `undefined reference to 'kof_process_exit'` + `[COMP001]` leak; post-fix both refuse (exit 1, message names the refusal, no linker error, no `COMP001`). Non-regression: `CmdTestSuiteTest` 8/8 + `CmdTestTagTest` 7/7 + `CmdTestTimeoutTest` 3/3 = **18/18**, and a direct `--target native` / `--target js` smoke both print `PASS soma` / `1 passed, 0 failed`. Q2 rc=0.
+
+**Boundary:** CLI target admission only; no parser/typer/codegen/runtime change, no new syntax, no change to `kof build` (the cross BUILD route stays correct and is what the refusal points to).
+
+<!-- pt-switch --> **PT:** [§615 (pt_BR)](known-bugs.pt_BR.md#615--kof-test---target-nativeriscnativearm-era-suporte-falso-a-cli-aceitava-o-alvo-cross-compilava-o-harness-e-entao-morria-com-um-erro-cru-riscv64-ld-undefined-reference-to-kof_process_exit-comp001---corrigido-0610-dona--19216815309093-lane-issuestooling-runner-do-kof-testing-platform)
+
+## §616 — `shell.run(program, args)` rejected an inline empty `listOf()` (SEM025) — ✅ FIXED 06/10 (owner = 192.168.15.30:9093; lane issues/tooling)
+
+**Symptom (measured 06/10, tip `86283490a`, from issue #774):** `shell.run(program, listOf())` — a legitimate "no arguments" call — failed overload resolution with `SEM025 Cannot resolve method 'run' on 'shell'`, while `shell.run("echo", listOf("x"))` (non-empty) and the 3-arg `shell.runWith(listOf(), ...)` compiled. The failure is at compile time, so any caller written in the two-argument shape could not build.
+
+**Root (read):** `KofShell.staticCall` matched the `run` argv parameter with `STRING_LIST.equals(argTypes.get(1))` — exact equality — so an empty list literal inferred as `List<Object>` did not match `List<String>`. `runWith` already accommodated that same case via `BuiltinTypes.isList(argTypes.get(0))`; `cmd` shared `run`'s exact-equality bug.
+
+**Fix (stdlib overload resolution only, zero language change):** `KofShell` now uses `BuiltinTypes.isList(...)` for the argv parameter of both `run` and `cmd`, mirroring `runWith`. A vacuous argv is legitimate — it means "no arguments" — and the lowering already passes it to `kof_process_run`/`kof_shell_argv` as `STRING_LIST`; the runtime, not the resolver, is where an empty argv has meaning.
+
+**Proof (RED-first):** new `ShellRunEmptyArgsE2ETest` **3/3** — pre-fix all RED with the exact `Cannot resolve method 'run'`; post-fix `run("false", listOf())` → `1`/`false`, `cmd("echo", listOf())` → `1`/`echo`, and the two-argument form equals the one-argument form. Non-regression `ShellE2ETest` 21/21 + `ShellCrossE2ETest` 7/7 + `StdCatalogTest` 11/11 + `StdCatalogSignaturesTest` 13/13 + `ProcessRunNativeE2ETest` 6/6 = **58/58**.
+
+**Boundary:** stdlib overload resolution only; no parser/typer/codegen/runtime change, no new syntax. `runWith`/`pipeline`/`ok` untouched. Issue #774.
+
+<!-- pt-switch --> **PT:** [§616 (pt_BR)](known-bugs.pt_BR.md#616--shellrunprogram-args-recusava-um-listof-vazio-inline-sem025---corrigido-0610-dona--19216815309093-lane-issuestooling)
+
+## §618 — `Directory.delete()` deletes a non-empty directory recursively on JVM/Native but only an empty one on JS (returns `false`) — ✅ FIXED 08/10 (owner = 192.168.15.15:9092; lane security/connectors, bugs-and-gaps front per maintainer order `D-MAINT-BATCH-0610`/B — maintainer chose (B) recursive-everywhere 08/10)
+
+**Symptom (measured 06/10, tip `e40e84c45`):** the same source `Directory(dir).delete()` returns `true` and removes the whole tree on JVM and on Native (x86-64, riscv64, aarch64), but returns `false` and leaves the directory (with its contents) on the **JS** target — measured with one file inside the directory: JVM/Native `true`/gone, JS `false`/present.
+
+**Root (read):** the JVM `kof_io_dir_delete` walks the tree recursively (`Files.walk(...).sorted(reverseOrder())` → delete) and the native runtime recurses through `getdents64` then `rmdir` (`RuntimeIo3`), so both delete a non-empty directory. The JS runtime's `kof_io_dir_delete` maps to a non-recursive remove that fails on a non-empty directory. The documented contract (`docs/stdlib/IO.md`: `delete()` "removes an empty directory"; `learn/34-file-system.md` same) matches the JS behavior, so the JVM/Native recursion is the side that diverges from the contract.
+
+**Impact:** a test/teardown that creates a temp dir with files and calls `Directory(dir).delete()` silently leaks the tree on JS — no error, it just returns `false`, and a caller that ignores the boolean leaves garbage. Rule 5 (cross-target parity) and rule 6 (no silent divergence).
+
+**Fix shape (needs a maintainer decision — contract change, rule 6):** either (A) make JVM/Native delete only an empty directory (align the 3 targets to the documented contract; callers use a recursive helper), or (B) make JS recursive (align the contract to the JVM/Native behavior). The `kof.test` §5 harness does **not** wait for this: `withTempDir`/`removeTree` (pure Kof — `Directory.list()` + `File.delete()`) make cleanup identical on all four targets today, and `removeTree`'s docstring records this divergence. Decision required before changing either side.
+
+**Boundary:** runtime `kof_io_dir_delete` on JS vs JVM/Native plus the `IO.md`/`learn/34` contract. No parser/typer/lowering change. A fix in either direction must ship with a cross-target parity test (JVM ≡ Native ≡ JS) and the doc updated in the same commit.
+**Fix (08/10, this lane — option (B) as decided):** the JS bridge (`KofJsRunner` `dirDelete`) now walks reverse-order exactly like the JVM (`Files.walk` never follows symlinks; absent→`false` preserved). `docs/stdlib/IO.md` + `learn/34` contract updated to recursive-everywhere in the same commit.
+**Proof (RED-first):** new `IoDirDeleteJsParityE2ETest` **2/2** (non-empty tree + subdir + absent-dir faces; pre-fix the JS leg prints `false` with the tree surviving, post-fix the JVM golden `true/false/false` holds byte-identical on JS and Native x86-64; cross riscv64/aarch64 already pinned in `NativeIoDirDeleteCrossTest`).
+
+<!-- pt-switch --> **PT:** [§618 (pt_BR)](known-bugs.pt_BR.md#618--directorydelete-apaga-um-diretorio-nao-vazio-recursivamente-no-jvmnative-mas-so-um-vazio-no-js-devolve-false---corrigido-0810-dona--19216815159092-lane-securityconnectors-frente-bugs-and-gaps-por-ordem-da-mantenedora-d-maint-batch-0610b--mantenedora-escolheu-b-recursivo-em-tudo-0810)
+
+## §619 — an uninitialized class field followed by a member that starts with `(` swallowed the `(` as the field's parameter list, so `String title` + `() -> Long src` died `PARSE016` — ✅ FIXED 07/10 (owner = 192.168.15.15:9092; lane security/connectors, graphics/gaming front)
+
+**Symptom (measured 07/10, tip `f1b4a68e7`, while writing `libs/game/Window.kf`):** a class with `String windowTitle` (no initializer) followed on the NEXT line by `() -> Long clockSource = null` failed with `Unexpected token in class body` (`PARSE016`) at the `->`. Variants with an initialized field before (`Int a = 0`) or the function-typed field first parsed — only the uninitialized-field-then-`(` shape died.
+
+**Root (read):** `ClassMemberParser`'s `Type name ...` branch treated ANY `(` after the member name as the parameter list, with no same-line requirement — so the `(` opening the NEXT member's function type was consumed as `title(`'s parameters, and the stranded `->` errored. The sibling trailing-lambda path already had the equivalent guard (`known-bugs` §692: a `{` on another line is not a trailing lambda).
+
+**Fix (parser only, additive):** a `paramsOnSameLine` guard on the field-vs-method decision — the `(` opens a parameter list only on the SAME line as the member name (a real method always writes `name(` on one line); otherwise the member is a field and `parseField` runs. The member-starting-with-`(` branch (issue #218) is untouched.
+
+**Proof (RED-first):** new `ClassMemberParseE2ETest` **4/4** — pre-fix 2/4 RED with the exact `PARSE016` (JVM + Script legs; the two controls green pre- and post-fix); post-fix the `Window.kf` shape compiles on every target.
+
+**Boundary:** class-body member disambiguation only; no typer/lowering/runtime change, no new syntax. Methods with same-line `name(` are unaffected.
+
+<!-- pt-switch --> **PT:** [§619 (pt_BR)](known-bugs.pt_BR.md#619--campo-de-classe-sem-inicializador-seguido-de-membro-que-comeca-com--engolia-o--como-lista-de-parametros-do-campo-entao-string-title-----long-src-morria-parse016---corrigido-0710-dona--19216815159092-lane-securityconnectors-frente-graphicsgaming)
+
+## §620 — a capturing lambda passed as a function-typed argument received a garbage first argument on the cross natives (riscv64/aarch64); the captures were correct, x86-64/JVM/Script/JS correct — ✅ FIXED 07/10 (found 07/10 by the graphics/gaming slice-3.1 window host; fixed by the native-backend lane, owner = 192.168.15.30:9092)
+
+**Symptom (measured 07/10, tip `f1b4a68e7` + slice WIP):** `w.call { dt: Int -> println("dt=" + dt + " x=" + x) }` (body captures `x`) printed `dt=7 x=100` on JVM + Native x86-64 but `dt=140912 x=100` under qemu-riscv64 and `dt=4335216 x=100` under qemu-aarch64 — the ARGUMENT was garbage, the CAPTURE right. Bisect: a non-capturing body was correct on all three natives; a capturing zero-arg source (`() -> s.now()` stored in a field, called later) was correct; only capturing-WITH-args as a function-typed parameter diverged, on both cross targets identically.
+
+**Root (found + fixed by the native-backend lane):** `NativeRiscvCrossEmit.emitCrossMethodRiscv` saved the incoming argument registers by walking `method.localVariables()` in INSERTION order (`[this, capture, param]`) and consuming one ABI register per local — including the lambda capture. The capture is not an input argument (it is loaded from the object's field by the ops), so every real parameter shifted by one register: the first param read the capture's register and the last read garbage. The x86-64 emitter (`NativeMethodEmitter`) already skipped captures ("bug 9") and was correct; the cross emitter never received that fix.
+
+**Fix (cross emitter only, additive):** the prologue now computes `paramSlotMax = 1 + Σ width(paramTypes)` (`NativeTypeKinds.isDoubleWidthSlot`), sorts the locals by IR index, and assigns input registers only to slots `1..paramSlotMax`; capture/high-index locals are skipped (filled by the ops). Mirrors the x86 `NativeMethodEmitter` logic exactly. No IR/typer/runtime change.
+
+**Proof (RED-first):** new `LambdaCapturingArgCrossE2ETest` **4/4** — pre-fix `crossRiscv`/`crossAarch64` RED with the exact `dt=140912`/`dt=4335216`, and `twoArgsCaptureCross` RED with `p=4 q=140912` (the one-register shift); post-fix all green on riscv64 + aarch64 (qemu) plus the JVM/x86 baseline. Non-regression: lambda/closure battery + `NativeRiscv64E2ETest` 58 + `CrossHeapParityE2ETest` 6 + `NativeE2ETest` 68 = **223 run / 0F / 0E**; `tests/run-golden.sh` **140/140**.
+
+**Boundary:** the graphics host's workaround (`frame` passes `this` as a second argument) can stay — the decided form and `dt` contract are unchanged; the 1-arg capturing shape is now correct on cross too.
+
+<!-- pt-switch --> **PT:** [§620 (pt_BR)](known-bugs.pt_BR.md#620--lambda-que-captura-passada-como-argumento-de-tipo-funcao-recebia-primeiro-argumento-lixo-nos-nativos-cross-riscv64aarch64-as-capturas-estavam-certas-x86-64jvmscriptjs-corretos---corrigido-0710-achada-0710-pelo-host-window-da-fatia-31-graphicsgaming-corrigida-pela-lane-native-backend-dona--19216815309092)
+
+## §621 — `math.sin`/`math.cos`/`math.toRadians` (and the other trig functions) type-checked on every target but had no Native runtime symbol, so a Native build died at `ld` with a mislabeled `COMP001` — ✅ FIXED 07/10 (found 07/10 by the graphics/gaming slice-3.2a sprite; fixed by the native-backend lane, owner = 192.168.15.30:9092)
+
+**Symptom (measured 07/10, tip `52799689d`):** `KofMath` accepted `math.sin`/`math.cos`/`math.toRadians` (Double in, Double out) and JVM/Script/JS ran them, but any Native target (x86-64, riscv64, aarch64) failed the link: `undefined reference to 'kof_math_sin'/'kof_math_cos'/'kof_math_toRadians'`, reported as `Error reading source file ... [COMP001]` — `COMP001` is the internal "cannot read source" code, so the user saw a mislabeled source error instead of an honest undefined-symbol refusal (same false-support class as §615). The Native runtime defines `kof_math_sqrt`/`kof_math_pow`/`kof_math_abs`/predicates but no trig: the typer promised what the backend cannot link.
+
+**Root (read + fixed by the native-backend lane):** `KofMath.supportedOn` returned `true` for every function/target — a stale constant left behind when `pow` landed on the cross (its comment still said "MATH001 fica reservado"). The typer therefore lowered the call to a `kof_math_*` symbol that no native emitter defines. The 9 affected functions are `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2`, `toRadians`, `toDegrees` (the `pi`/`e`/`tau` constants are functions and work everywhere; `sqrt`/`lerp`/`roundTo` use IEEE instructions and `pow` uses the libm shim).
+
+**Fix (typer gate only, additive):** `KofMath.supportedOn` now refuses those 9 on every native target (`target.isNative()`) with the named **MATH001** diagnostic — the code its javadoc already reserved — instead of the misleading `COMP001` link failure. JVM/JS/Script keep them; `sqrt`/`pow`/`roundTo`/the Int set are untouched. The cross deliberately does not link libm for trig: `-lm` would break the byte-identical golden (libm differs from the JVM/JS kernels by 1 ulp — the same reason `libs/game/Trig.kf` is pure Kof). Wiring trig to libm on the cross is a rule-6 architecture decision, not taken here.
+
+**Proof (RED-first):** new `KofMathTest.trigRefusedHonestlyOnNative` — pre-fix RED with the exact `COMP001` (`ld failed ... undefined reference to kof_math_sin`); post-fix GREEN, asserting `MATH001` and NOT `COMP001` on NATIVE + NATIVE_RISCV64 + NATIVE_AARCH64. Boundary pin `nonTrigMathStillWorksOnNative` keeps `sqrt`/`pow`/`roundTo` running. `KofMathTest` **33/33**, `StdParityGapAuditTest` 17/17, `ConformanceMatrixTest` 14/14.
+
+**Boundary:** `libs/game/Trig.kf`'s pure-Kof `trigSin`/`trigCos` workaround stays valid (and remains more portable than libm); the 1-milli Taylor deviation pinned in `GameSpriteE2ETest` (`f=83999`) is unchanged.
+
+<!-- pt-switch --> **PT:** [§621 (pt_BR)](known-bugs.pt_BR.md#621--mathsinmathcosmathtoradians-e-as-outras-funcoes-trig-passavam-no-type-check-em-todo-alvo-mas-nao-tinham-simbolo-no-runtime-native-entao-um-build-native-morria-no-ld-com-um-comp001-mal-rotulado---corrigido-0710-achada-0710-pelo-sprite-da-fatia-32a-graphicsgaming-corrigida-pela-lane-native-backend-dona--19216815309092)
+## §622 — a second (or nested) conditional assignment to the same Double local was lost on the cross natives (riscv64/aarch64): the cross conditional-jump compared the raw IEEE-754 bit patterns with SIGNED INTEGER branches, so negative doubles compared backwards — ✅ FIXED 07/10 (found 07/10 bisecting the slice-3.3a audio mixer; fixed by the native-backend lane, owner = 192.168.15.30:9092)
+
+**Symptom (measured 07/10, tip `297f273f2`):** the 15-line program below prints `t=-1570796` then `t2=2283185` on Native x86-64, but `t=-1570796` then `t2=-4000000` under qemu-riscv64 AND qemu-aarch64 identically — the second `if` never took effect on cross (the local kept its pre-branch value, no crash, no diagnostic):
+```
+Double twoIfLit(Double v) {
+    var r = v % 6.283185307179586
+    if (r > 3.141592653589793) { return r - 6.283185307179586 }
+    if (r < 0.0 - 3.141592653589793) { return r + 6.283185307179586 }
+    return r
+}
+main() {
+    println("t=" + ((twoIfLit(17.27875959474586) * 1000000.0) as Int))
+    println("t2=" + ((twoIfLit(-4.0) * 1000000.0) as Int))
+}
+```
+Literals only — no calls, no captures, no FFI.
+
+**Root (found + fixed by the native-backend lane):** `NativeRiscvCrossOps.emitCrossCondJumpRiscv` popped the two operand qwords and branched with the INTEGER comparisons `bge`/`ble`/`blt`/`bgt` regardless of operand type. For a `Double`/`Float` the qwords are the raw IEEE-754 bit patterns, and signed-integer order on those is non-monotonic for negatives: `-1.0` (`0xBFF0…`) has a LARGER signed pattern than `-2.0` (`0xC000…`). So `r < -π` (comparing `-4.0` against `-3.14159…`) took the wrong branch; the first `if` only worked because `+π` is positive. x86-64 (`NativeOpHelpers.emitConditionalJump`) already loads the operands into `xmm` and uses `ucomisd`/`ucomiss`, so it was correct. The bisection's "second/nested assignment" framing was a red herring: ANY ordered comparison of a negative double on cross was inverted (single `if` too, when the test operand was negative).
+
+**Fix (cross emitter + aarch64 translator, additive):** the cross conditional-jump now branches on the operand type — for `Float`/`Double` it reinterprets the qwords into the FPU (`fmv.w.x`/`fmv.d.x`) and computes the predicate with `feq.d`/`flt.d`/`fle.d` (NaN-false, like the x86 `ucomis*`+PF path), branching on the boolean. `NativeAarch64Translator` maps riscv `flt`→AArch64 `cset mi` and `fle`→`cset ls` (the previous `lt`/`le` aliases are NOT NaN-quiet: after `fcmp`, NaN sets N=0,V=1 so `cset lt`/`cset le` returned TRUE). Integer comparisons are untouched.
+
+**Proof (RED-first):** new `FpCompareCrossE2ETest` **4/4** — pre-fix RED with the exact `t2=-4000000` (riscv64+aarch64) and the negative-double operator battery; post-fix the full operator battery (`<`/`<=`/`>`/`>=`/`==`/`!=`, Double and Float, negatives, mixed signs and NaN) is byte-identical to the JVM oracle on riscv64(qemu) + aarch64(qemu). Non-regression: `NativeRiscv64E2ETest`+`NativeE2ETest`+`CrossHeapParityE2ETest`+`LambdaCapturingArgCrossE2ETest`+`KofMathTest`+`CoreRegressionE2ETest` = **273 run / 0F / 0E** (1 env skip); `tests/run-golden.sh` **140/140**.
+
+**Boundary:** cross natives + the aarch64 translation of the FP compare. The graphics `Trig.kf` branch-free workaround stays valid (still faster and ULP-stable) but is no longer required.
+
+<!-- pt-switch --> **PT:** [§622 (pt_BR)](known-bugs.pt_BR.md#622--uma-segunda-ou-aninhada-atribuicao-condicional-no-mesmo-local-double-se-perdia-nos-nativos-cross-riscv64aarch64-o-salto-condicional-cross-comparava-os-padroes-de-bits-ieee-754-crus-com-ramos-inteiros-com-sinal-entao-doubles-negativos-comparavam-ao-contrario---corrigido-0710-achada-0710-bissectando-o-mixer-de-audio-da-fatia-33a-corrigida-pela-lane-native-backend-dona--19216815309092)
+
+## §623 — a `"\0"` NUL escape inside a string literal works on JVM but breaks the Native assembler (raw control byte in the generated `.s`, mislabeled `COMP001`) — ✅ FIXED 07/10 (lane compiler/JVM/native `192.168.15.30:9092`; was found 07/10 by the graphics/gaming slice-3.3c audio stream)
+
+**Symptom (measured 07/10, tip `da5afcaa4`):** `println("A\0B")` compiles and prints `A<NUL>B` on JVM, but every Native target (x86-64, riscv64, aarch64) dies at `as` with `invalid character ... in mnemonic` / `missing closing "'"` — the emitter writes the NUL (or the mangled escape) raw into a `.s` string literal — reported as `Error reading source file ... [COMP001]`, the internal "cannot read source" code, so the user sees a source error for a backend emission defect (same false-support class as §615/`math.sin` §621). Minimal reproducer above; no FFI, no imports.
+
+**Root:** the frontend accepts `\0` (JVM proves the escape is real) while the native string-literal emission did not escape control bytes for GAS. The emitter must escape it (the frontend must keep accepting `\0` — it is real on JVM/JS/Script).
+
+**Fix (native-backend lane, `D-PLAN-ONE-OWNER`):** new `nat/NativeGasStrings.gasEscape` escapes every non-printable byte as a 3-digit octal (`\000` — unambiguous even when followed by a digit) and passes UTF-8 bytes through intact (GAS copies the literal byte), leaving printable ASCII, `\n`/`\t`/`\r`, `\"` and `\\` as named escapes. Applied at all three `.asciz` emitters of interned string literals: x86 (`NativeClassMeta.emitStringData`), riscv (`NativeArchEmitter.emitRiscv`) and aarch64 (inherits riscv via `NativeAarch64Translator`).
+
+**Proof (RED-first):** `NulEscapeNativeE2ETest` **3/3** — JVM oracle + x86-64, riscv64(qemu) and aarch64(qemu) byte-identical on NUL (`A\0B`), trailing NUL, NUL-followed-by-digit (`"x\0" + "1"`), tab/CR/quote/backslash and multibyte UTF-8 (`café ✓`). With the escaper neutered the same test is 3/3 RED with the exact `COMP001`/`invalid character` symptom. Non-regression: the string cross-battery (`NativeStringUtf16CrossTest` + case/compare/reverse/char-array + `KofStringsTest` + `CharToStringE2ETest` + `StringGetBytesE2ETest`) **41/41**, `tests/run-golden.sh` **140/140**.
+
+**Workaround (graphics lane, still valid):** `Sdl3AudioStreamE2ETest` pins the exact converted bytes of a printable-ASCII pattern (`'A'` = S16 `0x4141` → F32 `0,130,2,63` repeating — exact IEEE, identical on every FPU), so the slice needs no NUL bytes anywhere; it stays as a deliberate exactness choice, no longer a necessity.
+
+<!-- pt-switch --> **PT:** [§623 (pt_BR)](known-bugs.pt_BR.md#623--um-escape-nul-0-dentro-de-string-literal-funciona-na-jvm-mas-quebra-o-assembler-native-byte-de-controle-cru-no-s-gerado-mal-rotulado-comp001---corrigido-0710-lane-compilerjvmnative-19216815309092-achada-0710-pelo-stream-de-audio-da-fatia-33c-de-graphicsgaming)
+
+## §624 — the ANDROID target emitted INVALID bytecode for `throw`/`assert`: the String→`RuntimeException` wrap was gated to `Target.JVM` only, so the `athrow` received the raw `String` on the stack (`VerifyError`, masked by the launcher as "JavaFX runtime components not found") — ✅ FIXED 07/10 (owner = 192.168.15.30:9093; lane issues/tooling, discovered in the issue-#777 hunt)
+
+**Symptom (measured 07/10, tip `da5afcaa4`):** any Android app whose Kof source uses `throw "msg"` or a failing `assert` fails to load: `java -cp out Default.Main` prints the false launcher message "os componentes de runtime do JavaFX não foram encontrados", and the diagnostic launcher (`KofJvmMain`) shows the real cause `java.lang.VerifyError: Bad type on operand stack ... Type 'java/lang/String' is not assignable to 'java/lang/Throwable'` at the `athrow`. The same source runs correctly on JVM/Script/Native/JS.
+
+**Root (read):** `StatementLowerer` wrapped a String exception into a `java.lang.RuntimeException` only when `driver.target == Target.JVM` (`ThrowStmt` at `:336`, `AssertStmt` at `:358`). ANDROID reuses `JvmBackend(Target.ANDROID)` and the identical JVM exception contract (a Kof `throw "s"` becomes `RuntimeException("s")` so `catch (String)` still sees the message), but the guard excluded it, so the String itself was left on the stack for `athrow` — an invalid operand type that the JVM verifier rejects at class load.
+
+**Fix (lowering only, additive):** both guards now accept `Target.JVM || Target.ANDROID`. No typer/parser/runtime change; the bytecode for JVM is untouched (the condition is unchanged for it).
+
+**Proof (RED-first):** new `AndroidExceptionLoweringE2ETest` **2/2** — pre-fix both legs RED with the exact `VerifyError`; post-fix the Android-targeted bytecode runs on the host (Android = JVM backend) and prints `before` + `java.lang.RuntimeException: boom` / `java.lang.RuntimeException: assertion failed`. The issue-#777 `KofRngTest.androidMatchesOracle` (which exercises a non-constant `assert`) is green with the fix and RED without it.
+
+**Boundary:** the JVM-family throw/assert wrap on the Android target only. Other `target == Target.JVM` sites that intentionally mean "JVM-only runtime behavior" are out of scope; this one is a shared JVM-backend contract. No issue filed (found by this lane, same commit).
+
+<!-- pt-switch --> **PT:** [§624 (pt_BR)](known-bugs.pt_BR.md#624--o-alvo-android-emitia-bytecode-invalido-para-throwassert-o-wrap-stringruntimeexception-estava-gated-so-em-targetjvm-entao-o-athrow-recebia-a-string-crua-na-pilha-verifyerror-mascarado-pelo-launcher-como-componentes-de-runtime-do-javafx-nao-encontrados---corrigido-0710-dona--19216815309093-lane-issuestooling-achado-na-caca-da-issue-777)
+
+## §625 — the §620 cross-arg-shift fix REGRESSED `Av1CoeffsE2ETest` on `aarch64` AND `riscv64` — ✅ FIXED 07/10 (found 07/10 by the WASI lane's 15.3b suite; fixed by the native-backend lane, owner = 192.168.15.30:9092)
+
+**Repro (measured 07/10):** `mvn -o test -pl kof-compiler -Dtest='Av1CoeffsE2ETest'` on the rebased `lab`
+tip — `av1CoeffsOnNativeAarch64` and `av1CoeffsOnNativeRiscv64` FAIL deterministically (isolated run,
+37s, not load): the cross-emitted decode prints wrong `cul`/dequant coefficients (`T0 B0 eob 4 cul 63
+dc 1` followed by a coefficient row diverging from the golden). The SAME test PASSES isolated at tip
+`45d839322` WITHOUT the WASI lane commits — proven by detached-HEAD re-run (bisect of the 11 remote
+commits lands on `a2f69d2f7 fix(compiler)+test+docs: §620 capturing-lambda cross arg shift + §621
+native trig`, the only native/cross codegen file in the range: `nat/NativeRiscv64CrossEmit.java`).
+
+**Root cause (measured 08/10):** the §620 fix (correct) changed the cross prologue so that only slots
+`1..paramSlotMax` consume entry registers; slots ABOVE `paramSlotMax` (lambda captures and high-index
+lowering temporaries) are filled by the ops and `continue`d. But the `continue` branch emitted NOTHING,
+leaving those slots UNINITIALIZED ("stale"). The cross GC is conservative (`kof_gc_mark` walks the
+frame `[sp..kof_main_stack_bottom]`, `NativeRiscvAsmRtB43`), so a stale word that happens to land in
+`[_kof_heap, _kof_heap_end)` and is flagged in the block bitmap is followed as a pointer — the AV1 walk
+(`decodeOne` has 8 params + 2 non-arg slots) then printed wrong `cul`/dequant values and SIGSEGV'd
+under qemu. The x86 emitter had the same latent pattern (`NativeMethodEmitter`), unobserved because its
+frame/operand layout differs.
+
+**Fix (additive):** the `lv.index() >= paramSlotMax` branch now ZEROES the slot in both emitters —
+`sd zero, crossLocalOffRiscv(idx)(s11)` (`NativeRiscvCrossEmit`, inherited by the aarch64 translator)
+and `movq $0, -(idx+1)*8(%rbp)` (`NativeMethodEmitter`). The §620 arg-register assignment is untouched.
+
+**Proof (RED-first):** new `nat/PrologueSlotInitTest` (2 tests, toolchain-free, asserts the emitted
+prologue initializes EVERY local slot) is RED pre-fix on both backends — `slot 9 (capture) never
+initialized in prologue (offset -96)` riscv / `offset -80` x86 — and GREEN post-fix. Behavioural:
+`Av1CoeffsE2ETest` 6/6 (aarch64 + riscv64 qemu included) and the §620 guard
+`LambdaCapturingArgCrossE2ETest` 4/4. Non-regression: `NativeE2ETest` + `NativeRiscv64E2ETest` +
+`CrossHeapParityE2ETest` + `KofGcE2ETest` + `FpCompareCrossE2ETest` + `LambdaCapturingArgCrossE2ETest`
+144 run / 0F / 1 skip.
+
+**Boundary:** the cross (riscv64/aarch64) and x86-64 native prologue slot initialization; no language
+surface change, no ABI change.
+
+<!-- pt-switch --> **PT:** [§625 (pt_BR)](known-bugs.pt_BR.md#625--a-correcao-de-shift-de-args-cross-do-620-regrediu-av1coeffse2etest-em-aarch64-e-riscv64---corrigido-0710-achada-0710-pela-suite-153b-da-lane-wasi-corrigida-pela-lane-native-backend-dona--19216815309092)
+## §626 — the Script interpreter compared `Double`/`Float` with `Double.compare`/`Float.compare`, which ORDERS NaN as greater than everything, so `NaN > 1.0` returned `true` while JVM/JS return `false` — ✅ FIXED 07/10 (found 07/10 while fixing §622; fixed by the native-backend lane, owner = 192.168.15.30:9092)
+
+**Re-verified 07/10:** after `7e4fe25d5` (§622 + §626 fixes, interpreter-only) the two cross faces STILL fail (isolated, 39s) — the §620 shift regression is independent of the §622/§626 work and stays open.
+**Symptom (measured 07/10, tip `e012d020b`):** `var nan = 0.0 / 0.0; println(nan > 1.0)` prints `true` on `--target script` but `false` on JVM, JS and every native target. The same divergence hits `<`/`<=`/`>=` (all false on JVM/JS, but `Double.compare` orders NaN above `+∞`) and `==`/`!=` are already correct (handled by a separate `==` path).
+
+**Root (found + fixed by the native-backend lane):** `KofInterpreterOps.binary` computed ordered float/double comparisons via `KofInterpreterValues.cmpResult(op, Double.compare(x, y))` (and `Float.compare`). `Double.compare`/`Float.compare` define a TOTAL order for sorting where NaN is larger than every value, which is NOT the IEEE-754 comparison semantics the JVM `dcmpl/dcmpg`/`fcmpl/fcmpg` and JS use (NaN is false in every ordered comparison). The conditional-jump path `KofInterpreterOps.compare` had the same `Double.compare` defect.
+
+**Fix (interpreter only, additive):** new `KofInterpreterValues.fpCmpResult(op, x, y)` compares with the primitive IEEE operators (`x < y`, `x <= y`, `x > y`, `x >= y`, `x == y`, `x != y`) and both interpreter paths use it for Float/Double. Integer/long/ref comparisons are untouched.
+
+**Proof (RED-first):** the new `FpCompareCrossE2ETest.everyOrderedOperatorAllTargets` is RED pre-fix on the Script leg (`nanGt` mismatch) and GREEN post-fix; the whole operator battery is byte-identical to the JVM oracle on Script + JS + JVM + Native x86-64. Non-regression: `KofInterpreterParityTest` 28/28 + numeric/primitive battery 44/44; `tests/run-golden.sh` **140/140**.
+
+**Boundary:** the Script interpreter's float/double comparison. JVM/JS/Native were already IEEE-correct; no language-surface change.
+
+<!-- pt-switch --> **PT:** [§626 (pt_BR)](known-bugs.pt_BR.md#626--o-interpretador-script-comparava-doublefloat-com-doublecomparefloatcompare-que-ordena-nan-como-maior-que-tudo-entao-nan--10-retornava-true-enquanto-jvmjs-retornam-false---corrigido-0710-achado-0710-ao-corrigir-o-622-corrigido-pela-lane-native-backend-dona--19216815309092)
+
+## §627 — `kof.test` `assertEqual`/`assertNotEqual` on `Double`/`Float` DO NOT FAIL when they must on Script and on Native riscv64: the four negative float faces print `NO-THROW` (and the riscv64 run exits 1 on `eqFlt (expected 1.5, got 1.5)`) — the JVM/JS oracle prints `assertion failed: boomeqDbl/boomneqDbl/boomeqFlt/boomneqFlt` — ✅ FIXED 08/10 (found 08/10 by the WASI lane's full-suite run; fixed by the native-backend lane, owner = `192.168.15.30:9092`)
+
+**Status:** ✅ FIXED 08/10 by lane `192.168.15.30:9092` (compiler/JVM/native) — two independent defects, one per face; `KofTestingE2ETest` 7/7 and `FpCompareCrossE2ETest` 4/4 on JVM+Script+JS+x86-64+riscv64+aarch64 (qemu).
+
+**Repro (measured 08/10, tips `0230723e3` and `898bc50ab`, deterministic in ISOLATED runs):** `mvn -o test -pl kof-compiler -Dtest='KofTestingE2ETest'` — 7 run / 2 F: `assertionsRunOnScript` and `assertionsRunOnNativeRiscv64`. The Script face's diff against the JVM oracle is exactly four lines: expected `assertion failed: boomeqDbl (expected 1.5, got 2.5)` / `boomneqDbl (did not expect 2.5)` / `boomeqFlt (expected 1.5, got 2.5)` / `boomneqFlt (did not expect 2.5)`, actual `NO-THROW` ×4 — i.e. `assertEqual(1.5, 2.5)` and `assertNotEqual(2.5, 2.5)` on `Double`/`Float` silently PASS on Script; the riscv64 face additionally shows `assertion failed: eqFlt (expected 1.5, got 1.5)` and exits `1` (the harness expects exit 0) — on cross a FLOAT EQUALITY of two IDENTICAL values fails. Verified independent of this lane: `git stash` of ALL WASI 15.3c-sliceA changes reproduces both faces RED at the same tips.
+
+**Root cause (two independent defects in the `==`/`!=` path, measured):** (1) **Script conditional-jump path** — an `if` lowers equality to a conditional jump, which calls `KofInterpreterOps.compare`; its Float/Double switch had only the four ORDERED cases (`LT/LE/GT/GE`) plus `default -> false`, so `EQ`/`NE` always returned `false`. The VALUE path (`KofInterpreterValues.numEq`) was correct, which is why `Bool x = (a == b)` worked but `if (a != b) { throw ... }` (the `kof.test` assert helpers) never fired. (2) **Native riscv64/aarch64 cross conditional-jump** — `NativeRiscvCrossCondJump` emitted `feq.d`/`flt.d`/`fle.d` for Float too; after `fmv.w.x` NaN-boxes the single into the upper 32 bits the operand reads as a NaN double, so `2.5 == 2.5` was false (`eqFlt (expected 1.5, got 1.5)`).
+
+**Fix:** `KofInterpreterOps.compare` — Float/Double branch now `case EQ -> x == y; case NE -> x != y;`. `NativeRiscvCrossCondJump.emitFpCompare(StringBuilder, KofComparison, String p)` takes the precision — Float emits `.s` (`feq.s`/`flt.s`/`fle.s`), Double `.d`; the aarch64 translator already maps both suffixes. The §626 comment that wrongly claimed EQ/NE were handled above was corrected.
+
+**Proof:** RED-first — pre-fix `FpCompareCrossE2ETest#everyOrderedOperatorAllTargets` RED on Script and `#everyOrderedOperatorCross` RED on riscv64 (`KofTestingE2ETest` 2F); post-fix `KofTestingE2ETest` 7/7 and `FpCompareCrossE2ETest` 4/4 (JVM+Script+JS+x86-64+riscv64+aarch64 under qemu), non-regression 181 run / 0 F / 1 skip, golden `tests/run-golden.sh` 140/140.
+
+**Boundary:** ordered comparisons (`<`/`>`) were already correct on both faces (`FpCompareCrossE2ETest` stayed green); only `==`/`!=` were wrong. NaN semantics unchanged (IEEE: every ordered comparison false, `!=` true).
+
+**Contract:** IEEE-754 primitive equality: `1.5 == 1.5` is true and `1.5 == 2.5` is false on EVERY target; `kof.test` assertions must fail exactly when the values differ (frozen equality semantics; `D-LAB-STABILITY` zero-regression).
+
+<!-- pt-switch --> **PT:** [§627 (pt_BR)](known-bugs.pt_BR.md#627--assertequalassertnotequal-do-koftest-sobre-doublefloat-falham-em-falhar-no-script-e-no-native-riscv64-as-quatro-faces-negativas-de-float-imprimem-no-throw-e-a-execucao-riscv64-sai-com-1-em-eqflt-expected-15-got-15--o-oraculo-jvmjs-imprime-assertion-failed-boomeqdblboomneqdblboomeqfltboomneqflt---corrigido-0810-achada-0810-pela-suite-completa-da-lane-wasi-corrigida-pela-lane-native-backend-dona--19216815309092)
+
+## §628 — the `D-MAINT-BATCH-0610/C` §554 `ExternalArgTighten` (SEM014) landed at `898bc50ab` BREAKS `JvmLauncherDiagnosticE2ETest`: its `pipe.kf`/`Main.kf` fixtures pass `Byte[]` to `update` and now refuse `Argument 1 of 'update': expected 'ByteBuffer' but got 'Byte[]' [SEM014] — 3 faces deterministic RED at the clean tip; ✅ FIXED 08/10 by the owner lane (fixtures stay intentionally broken, assertions accept compile-time SEM — `JvmLauncherDiagnosticE2ETest` 6/6), kof-cli 593 run / 3 F (found 08/10 by the WASI lane's full-suite re-measure; owner = the compiler/interop lane that landed `898bc50ab` (D-MAINT-BATCH-0610/C); NOT touched by the WASI lane per the collision rule)
+
+**Repro (measured 08/10):** with ALL WASI-lane changes stashed, at the clean remote tip `898bc50ab`:
+`mvn -o test -pl kof-cli -am -Dtest='JvmLauncherDiagnosticE2ETest'` — 6 run / **3 F deterministic**
+(`kofWorkflowNeverPrintsJavafxMask`, `kofRunNeverPrintsJavafxMask`, `kofTestNeverPrintsJavafxMask`);
+the child compile dies with `pipe.kf:11:19: error: Argument 1 of 'update': expected 'ByteBuffer' but
+got 'Byte[]' [SEM014]` (same in the `Main.kf` variants) — the fixture pipelines write stdin with a
+`Byte[]`, the §554 tightening now demands `ByteBuffer`. The SAME class was 6/6 GREEN before `898bc50ab`
+(it is the §556 launcher-diagnostic proof, lane `.30:9093`, 01/10) and `CmdWorkflowTest`/`CmdTestSuiteTest`
+stay green in the same run — only these three fixtures changed meaning under the new gate.
+
+**Contract:** `D-LAB-STABILITY` zero-regression — a tightening that is legal per `D-MAINT-BATCH-0610/C`
+still must keep the EXISTING proofs green in the SAME commit that lands it (migrate the fixtures to the
+`ByteBuffer` form, or keep `Byte[]` accepted at that boundary, or record the semantics change + the
+fixture move in the same delivery — the choice belongs to the owner lane, not to this catalogue).
+
+**Boundary:** kof-cli test fixtures + the `KofProcess`/`update` argument gate; no WASI/WASM file touched.
+**Fix (08/10, owner lane):** the fixtures stay intentionally broken (they prove the launcher surfaces real failures), and the three assertions now also accept a compile-time SEM diagnostic as "real cause surfaced" — the §554 tightening moved this fixture's failure from load-time VerifyError to compile-time SEM014, which is the same contract (never the JavaFX mask), earlier. `JvmLauncherDiagnosticE2ETest` **6/6** green. Section now ✅ FIXED.
+
+<!-- pt-switch --> **PT:** [§628 (pt_BR)](known-bugs.pt_BR.md#628--o-externalargtighten-sem014-do-554-d-maint-batch-0610c-pousado-em-898bc50ab-quebra-o-jvmlauncherdiagnostice2etest-suas-fixtures-pipekfmainkf-passam-byte-para-update-e-agora-recusam-argument-1-of-update-expected-bytebuffer-but-got-byte-sem014--3-faces-deterministas-red-no-tip-limpo--corrigido-0810-pela-lane-dona-fixtures-seguem-intencionalmente-quebradas-asserts-aceitam-sem-de-compile-time--jvmlauncherdiagnostice2etest-66-kof-cli-593-run--3-f-achado-0810-na-re-medicao-da-suite-completa-pela-lane-wasi-dona--a-lane-compiladorinterop-que-pousou-898bc50ab-d-maint-batch-0610c-nao-tocado-pela-lane-wasi-pela-regra-de-colisao)
+
+## §629 — a bare builtin TYPE NAME used as a value (`Int[3]`, `var x = Int`) slipped through the typer as `Unknown`, so the JVM backend emitted a frame with a phantom operand and died in ASM `COMPUTE_FRAMES` (`ArrayIndexOutOfBoundsException: Index -1` / `NegativeArraySizeException: -1`) instead of a diagnostic — ✅ FIXED 08/10 (found 08/10 by lane issues/tooling `192.168.15.30:9093` during the issue #779 hunt; fixed on the same lane, frontend typer, no owner EM CURSO)
+
+**Status:** ✅ FIXED 08/10 (lane issues/tooling `192.168.15.30:9093`) — new `SEM103` at `SemExpressionTyper.ArrayAccessExpr` (builtin/declared type-name receiver) + `StatementAnalyzer.VarDeclStmt` (bare builtin name initializer); proof `TypeNameAsValueE2ETest` 6/6 (RED 3/6 pre-fix with the exact ASM frame crash), `CoreRegressionE2ETest` 104/104 non-regression.
+
+**Repro (measured 08/10, tip `5f528bea2`, deterministic):** `kof check` on
+`main() { var x = Int[3]; x[0] = 7; println(x[0]) }` → `error: Internal compiler error: frame crash
+in Default/Main.main (super=java/lang/Object) ... phase: JVM backend / ASM COMPUTE_FRAMES (visitMaxs)
+... ASM error: ArrayIndexOutOfBoundsException: Index -1 out of bounds for length 0`. `var x = Int;
+println(x)` → same crash with `NegativeArraySizeException: -1`. Reproduces for every primitive
+(`Int/String/Double/Bool/Long/Float/Byte/Short/Char`) and for a declared class (`Foo[3]`); `Int[3]`
+alone (unused) compiles clean — the crash needs the array used. Reproduces on the 0.4.4-beta release
+jar too → PRE-EXISTING, not the #779 regression.
+
+**Root (read):** `Int[3]` parses as `ArrayAccessExpr(IdentifierExpr("Int"), 3)`. `SemExpressionTyper`
+`ArrayAccessExpr` fell to `yield UnknownType.UNKNOWN` (the receiver is not an `ArrayType`) and the
+builtin name is exempt from `SEM011` (`MemberResolver.isBuiltinTypeName`), so no diagnostic fired;
+the lowering then emitted `KofArrayLoad`/`KofStoreLocal` with an `UnknownType[]` element type → invalid
+bytecode → ASM frame crash. The spec is explicit: allocation is `new Int[n]`, and `a[i]` only indexes
+arrays (`docs/language-reference/types.md` §3.1).
+
+**Contract:** a type name is not a value (R6 — diagnose, never crash); array allocation is
+`new T[n]`; `a[i]` only indexes arrays. `as`/`instanceof` RHS are type-refs and stay valid (resolved
+before the guard; `AsCastPrecedenceE2ETest` 6/6).
+
+**Boundary:** `SemExpressionTyper` + `StatementAnalyzer`; the argument/return/statement bare-name
+faces (`f(Int)`, `return Int`, bare `Int` statement) already compile clean (measured) and are not
+affected; `SEM103` is new (highest previously used = `SEM102`).
+
+<!-- pt-switch --> **PT:** [§629 (pt_BR)](known-bugs.pt_BR.md#629--um-nome-de-tipo-builtin-nu-usado-como-valor-int3-var-x--int-passava-pelo-typer-como-unknown-e-o-backend-jvm-emitia-um-frame-com-operando-fantasma-morrendo-no-asm-compute_frames-arrayindexoutofboundsexception-index--1--negativearraysizeexception--1-em-vez-de-um-diagnostico---fixed-0810-achado-0810-pela-lane-issuestooling-19216815309093-durante-a-caca-da-issue-779-corrigido-na-mesma-lane-typer-de-frente-sem-dono-em-curso)
+
+## §630 — a lambda whose value comes from a NESTED statement (`try`/`catch`, `if`/`else`, `switch`, loops) was typed `() -> Void`, so the returned value was discarded and using it died `SEM033` — ✅ FIXED 08/10 (lane issues/tooling `192.168.15.30:9093`, frontend typer, no owner EM CURSO)
+
+**Status:** ✅ FIXED 08/10 (lane issues/tooling `192.168.15.30:9093`) — `SemExpressionTyper.LambdaExpr` now recurses over the lambda body through `lambdaReturnValueType`/`lambdaReturnOfStatement` (blocks, `if`/`else`, `switch`, `try`/`catch`/`finally`, loops), mirroring the lowering-side `ExpressionTyper.returnValueType`; proof `LambdaTryReturnE2ETest` 4/4 (RED 2/4 pre-fix with the exact `SEM033`), higher-order/lambda/closure/higher-order/generic battery 266 run / 1 F (the only failure = the documented JavaFX-absent environment).
+
+**Repro (measured 08/10, deterministic):** `kof check` on
+`main() { var f = () -> { try { return 1 } catch (String e) { return 2 } }; println(f()) }`
+→ `error: println(...) received a void value — the call does not return a value (add a 'return' or don't use it as an argument) [SEM033]`. A named function with the same `try`/`catch` body returns `Int` correctly, and a lambda with a top-level `return` or an `if`/`return` compiles — only NESTED statements were missed.
+
+**Root (read):** the semantic path (`SemExpressionTyper.LambdaExpr`) inferred the lambda return type with a hand-rolled scan that only inspected the TOP-LEVEL statements of the body and, for a single `BlockStmt` level, its immediate `return` statements. A `return` inside a `TryStmt` (or `if`/`switch`/loop) was never seen, so `hasReturn` stayed false and the lambda was typed `() -> Void`; `ExpressionTyper.firstReturnValueType`/`returnValueType` (the lowering path) already recursed, so the two typers disagreed. No diagnostic crash — the value was silently dropped, and the use site (e.g. `println`, `waitUntil`) raised `SEM033`.
+
+**Contract:** a lambda's inferred return type is the type of its first reachable `return`, wherever it sits in the body (R6 — the semantic and lowering typers must agree). `SEM033` is the honest diagnostic when a value is genuinely absent.
+
+**Boundary:** `SemExpressionTyper` only; the `ExpressionTyper` lowering traversal is unchanged. Void lambdas (no `return`) stay `() -> Void`; `#333` (lambda body not inheriting the enclosing function's value rejection) preserved; `LambdaVoidInferenceE2ETest` 2/2, `IntegrationHarnessE2ETest` 7/7, `TestRowsE2ETest` 7/7 unchanged. The practical unblock: a `kof.test` readiness probe `() -> { try { net.connect(...); return true } catch { return false } }` now type-checks (the §5 server-lifecycle helper).
+
+<!-- pt-switch --> **PT:** [§630 (pt_BR)](known-bugs.pt_BR.md#630--uma-lambda-cujo-valor-vem-de-um-statement-aninhado-trycatch-ifelse-switch-loops-era-tipada----void-entao-o-valor-retornado-era-descartado-e-usa-lo-morria-sem033---fixed-0810-lane-issuestooling-19216815309093-typer-de-frente-sem-dono-em-curso)
+
+## §631 — the aarch64 translator rendered the 32-bit spinlock `amoswap.w` as the 64-bit `swpal x`, writing the lock's 4 neighbouring bytes on every acquire — ✅ FIXED 08/10 (found 08/10 by lane compiler/JVM/native `192.168.15.30:9092` while narrowing `known-bugs` §602; same lane, cross translator, no owner EM CURSO)
+
+**Status:** ✅ FIXED 08/10 (lane compiler/JVM/native `192.168.15.30:9092`).
+
+**Symptom (measured 08/10, tip `5355954d1`):** the aarch64 build of a GC-heavy program showed the allocator's spinlock written as a full 8 bytes. The generated `.s` carried `swpal x9, x10, [x20]` while the lock is declared `_kof_alloc_lock: .word 0` (4 bytes) — every acquire also overwrote the 4-byte padding after the lock. It was found while narrowing §602 (a distinct root, still OPEN) and is NOT that root: the same probe still reproduces after this fix.
+
+**Root (read):** `NativeAarch64Translator` mapped `amoswap.w rd, rs2, (rs1)` (RISC-V 32-bit atomic) to `swpal rs2, rd, [rs1]` with the `X`-form of the mapped registers (`swpal x9, x10, …` = 64-bit SWP), instead of the `W`-form (`swpal w9, w10, …` = 32-bit SWP). Every `amoswap.w` in the runtime is a spinlock on a `.word`, so the 64-bit form always over-wrote the adjacent 4 bytes and returned a 64-bit old value.
+
+**Fix:** `NativeAarch64Translator` now emits the `W`-form (`rd`/`rs2` rendered as `w`-registers; base stays `X`), matching the 32-bit RISC-V atomic and the `.word` lock width. All 12 runtime `amoswap.w` sites (`NativeRiscvAsmRtB42`/`B44`/`B61`, `NativeRiscvAsmMapset1/2`) are spinlocks on `.word`, so the width fix is uniformly correct.
+
+**Proof:** `NativeAarch64TranslatorAluTest` **6/6** — new `amoswapWordBecomesSwpalWithWRegisters` asserts the exact `swpal w9, w10, [x20]` (and rejects any `swpal x`), and `translatedMnemonicsAssembleWithAarch64As` assembles the atomic with the real `aarch64-linux-gnu-as` under the `.arch armv8.1-a` the emitter uses (LSE). The §602 probe's output is unchanged by this fix (it is a distinct root).
+
+**Boundary:** translator-only, cross aarch64; RISC-V output untouched (it already used the 32-bit `amoswap.w`); x86 untouched. Not a semantics change — a codegen width correctness fix.
+
+<!-- pt-switch --> **PT:** [§631 (pt_BR)](known-bugs.pt_BR.md#631--o-tradutor-aarch64-renderizava-o-spinlock-de-32-bits-amoswapw-como-o-swpal-x-de-64-bits-escrevendo-os-4-bytes-vizinhos-do-lock-a-cada-aquisicao---corrigido-0810-achado-0810-pela-lane-compiladorjvmnativo-19216815309092-ao-estreitar-o-known-bugs-602-mesma-lane-tradutor-cross-sem-dono-em-curso)
+
+## §632 — a function-typed parameter whose component type is dotted (`(kof.web.App, String) -> Void`) emitted an invalid JVM descriptor `L(kof/web/App, String) -> Void;`, so loading `Main` died `NoClassDefFoundError` — ✅ FIXED 08/10 (lane issues/tooling `192.168.15.30:9093`, frontend type resolver, no owner EM CURSO)
+
+**Status:** ✅ FIXED 08/10 (lane issues/tooling `192.168.15.30:9093`) — `CompilerTypes.toType` now recognises a function-type string (`startsWith("(")` + `Type.fnTypeArrow >= 0`) BEFORE the dotted-name split and parses it with `Type.of` (paren-balanced); the existing `qualifyDeep` recursion then qualifies each parameter. Proof `FunctionTypeDottedParamE2ETest` **3/3** (RED 2/3 pre-fix with the exact `NoClassDefFoundError: (kof/web/App, String) -> Void`).
+
+**Repro (measured 08/10, deterministic):** `kof run` (NOT `kof check` — no descriptor is emitted by check) on
+`Void run((java.lang.Object, Int) -> Void body) { println("ok") }  main() { run((o: java.lang.Object, n: Int) -> { println("body") }) }`
+→ `kof run: could not load main class Default.Main / java.lang.NoClassDefFoundError: (java.lang.Object, Int) -> Void`. Same for `(kof.web.App, String) -> Void`; `javap` shows the invalid descriptor `(IL(java/lang/Object, Int) -> Void;)V` on the generated `Main.run`.
+
+**Root (read):** `CompilerTypes.toType` had a dotted-name split for a plain class name (`a.b.C` → package `a.b`, `name C`). A function-type string hit the same branch and was cut at the FIRST `'.'` — which sits INSIDE a parameter — so `(kof.web.App, String) -> Void` became `ClassType("(kof.web", "App, String) -> Void")`; the JVM descriptor then became `L(kof/web/App, String) -> Void;`, a class that does not exist. `kof check` passed because no descriptor is emitted; only `run`/`build` surfaced the load failure.
+
+**Contract:** a function type is parsed by paren-balancing, never by a dotted-name split; each parameter is qualified independently (R6 — a well-typed program must not emit a descriptor for a class that cannot exist).
+
+**Boundary:** `CompilerTypes.toType` only (the shared driver-side resolver); `Type.of` already balanced the parens. Undotted components (`(Int, Int) -> Void`) and user records were and remain correct (the control test passes pre- and post-fix). The practical unblock: the §5 server-lifecycle helper `withServer(app, port, (kof.web.App, String) -> Void body)` now loads.
+
+<!-- pt-switch --> **PT:** [§632 (pt_BR)](known-bugs.pt_BR.md#632--um-parametro-de-tipo-funcao-cujo-componente-e-pontuado-kofwebapp-string---void-emitia-um-descritor-jvm-invalido-lkofwebapp-string---void-entao-carregar-main-morria-noclassdeffounderror---fixed-0810-lane-issuestooling-19216815309093-resolvedor-de-tipos-do-frontend-sem-dono-em-curso)
+
+## §633 — the `MEM014` resource-leak warning was a FALSE POSITIVE when the handle is handed to another function in statement position (`consume(app)`, `withServer(app, ...)`) — ✅ FIXED 08/10 (lane issues/tooling `192.168.15.30:9093`, shared memory-safety frontend pass, no owner EM CURSO)
+
+**Status:** ✅ FIXED 08/10 (lane issues/tooling `192.168.15.30:9093`) — `ResourceLeakAnalysis.escapeShape` now treats an `ExpressionStmt` whose expression hands the handle away (`mentionsEscaping`) as an escape, the same as a `return`/alias/initializer. Proof `ResourceLeakE2ETest` **6/6** (new `passedAsArgumentInStatementPositionSilencesTheWarning`, RED pre-fix).
+
+**Repro (measured 08/10, deterministic):** `kof check` on
+`Void consume(kof.web.App a) { a.close() }  main() { var app = web.app(); consume(app); println("up") }`
+warned `L-05: resource 'app' ... is never closed in this scope and never handed to anyone [MEM014]` even though `app` is handed to `consume`, which closes it.
+
+**Root (read):** `ResourceLeakAnalysis.escapeShape` only inspected `ReturnStmt`, `VarDeclStmt` and `AssignmentExpr`; a top-level call whose handle sits in argument position (`consume(app)`, `withServer(app, port, body)`) was an `ExpressionStmt`, never matched, so `escapesAnywhere` returned false and the warning fired. The javadoc already promised "never handed to anyone (returned, passed, aliased, stored)".
+
+**Contract:** handing a handle to another function in statement position is an escape (the callee owns the close); receiver position (`app.close()`, `app.port()`) and `db.close(handle)` stay uses, not transfers (the pre-existing conservatisms).
+
+**Boundary:** `ResourceLeakAnalysis.escapeShape` only (the shared frontend pass, same diagnostic on all four targets by construction). The §5 server-lifecycle helper `withServer(app, port, body)` was the trigger: without the fix, the helper's own correct lifecycle (`app.close()` in a `finally`) still warned at the creation site.
+
+<!-- pt-switch --> **PT:** [§633 (pt_BR)](known-bugs.pt_BR.md#633--o-aviso-mem014-de-recurso-vazado-era-falso-positivo-quando-o-handle-e-entregue-a-outra-funcao-em-posicao-de-statement-consumeapp-withserverapp----fixed-0810-lane-issuestooling-19216815309093-passe-de-memory-safety-do-frontend-sem-dono-em-curso)
+
+## §634 — the aarch64 translator mapped the RISC-V callee-saved `s10` to the caller-saved `x16`, so a value live across a `call` in `kof_schub_to_decimal` could be clobbered and `kof_gc_mark` spilled the wrong register — ✅ FIXED 08/10 (lane compiler/JVM/native `192.168.15.30:9092`)
+
+**Status:** ✅ FIXED 08/10 (lane compiler/JVM/native `192.168.15.30:9092`) — `NativeAarch64Helpers.aarch64Reg` maps `s10 -> x18` (callee-saved on Linux, unused by every other translator path) instead of `x16` (caller-saved / IP0). Proof `NativeAarch64TranslatorAluTest` **7/7** (new `s10MapsToCalleeSavedRegister`, RED pre-fix with `str x16, [sp, #32]`).
+
+**Repro (read, deterministic):** `NativeRiscvSchubfach.java:160` (`kof_schub_to_decimal`) does `mv s10, a0` then reuses `s10` as an argument across three subsequent `call kof_schub_rop` (lines 162/167/172). On RISC-V `s10` is callee-saved, so the value survives; the aarch64 translator emitted `x16`, which `kof_schub_rop` is free to clobber. The same register is spilled by `kof_gc_mark` (`NativeRiscvAsmRtB43.java:161`): the translator emitted `str x18, [sp, #32]` (the new mapping) — before the fix it spilled the empty `x18` and never the live `x16`, hiding a live pointer from the conservative collector.
+
+**Root (read):** the RISC-V→aarch64 register map assigned `s0..s9 -> x19..x28` and `s11 -> x29` but had no free callee-saved slot left for `s10`, so it fell back to `x16`; `x18` is callee-saved on Linux AArch64 and no translator path used it. Fix: `case "s10" -> "x18"`.
+
+**Boundary:** the register map only (`NativeAarch64Helpers`). The behavioral faces measured (`NumericFormatterE2ETest` 3/3, `GameWavE2ETest` 6/6, `CrossHeapParityE2ETest` 6/6, `KofGcE2ETest` 4/4, `Av1CoeffsE2ETest` 6/6, `NativeRiscv64E2ETest` 58 run / 1 env skip) are green; a Double-format probe printing `1.5 / 0.1 / 1.0E-300 / …` is byte-identical to the JVM oracle under qemu (the `x16` clobber is latent for the current `kof_schub_rop` bodies, which do not yet touch `x16`, but the ABI contract is violated). Found while narrowing §602; a distinct root, §602 stays OPEN.
+
+<!-- pt-switch --> **PT:** [§634 (pt_BR)](known-bugs.pt_BR.md#634--o-tradutor-aarch64-mapeava-o-callee-saved-s10-do-risc-v-para-o-caller-saved-x16-entao-um-valor-vivo-atraves-de-um-call-em-kof_schub_to_decimal-podia-ser-destruido-e-o-kof_gc_mark-derramava-o-registrador-errado---fixed-0810-lane-compilerjvmnative-19216815309092)

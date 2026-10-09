@@ -37,6 +37,7 @@ final class NativeFfiCallRiscv {
         int n = kc.parameterTypes().size();
         char[] cls = new char[n];
         boolean[] isStruct = new boolean[n];
+        boolean[] isHfa = new boolean[n];
         boolean[] isMemStruct = new boolean[n];
         boolean[] isBuf = new boolean[n];
         boolean[] isArray = new boolean[n];
@@ -47,6 +48,10 @@ final class NativeFfiCallRiscv {
             if (FfiStructLayout.isStructType(pt)) {
                 isStruct[i] = true;
                 structTypes[i] = pt;
+                // D-MEMORY-SAFETY M1 unidade-1 (06/10): struct homogêneo-
+                // flutuante ≤ 16 B (gate crossHomogeneousFloat) — campos por
+                // ordinais FP próprios nos dois cross.
+                isHfa[i] = FfiStructLayout.crossHomogeneousFloat(pt);
                 // D-MEM-FFI-CROSS-FULL face 3: struct > 16 B por valor →
                 // BYREF, um ponteiro INTEGER para os bytes do objeto Kof
                 // (medido 30/09: riscv64 e aarch64 passam ambos em `a0`/`x0`).
@@ -88,6 +93,13 @@ final class NativeFfiCallRiscv {
             if (isMemStruct[i]) {
                 // struct > 16 B por valor → BYREF: um ordinal de ponteiro.
                 ord[i] = nInt++;
+            } else if (isHfa[i]) {
+                // M1 unidade-1: um ordinal FP POR CAMPO (LP64D achata ≤ 2
+                // campos em [SSE(,SSE)]; AAPCS64 HFA campo-a-campo em v0..v3)
+                // — medido no golden do AbiLayoutTest; gate limita a <= 8.
+                int w = FfiStructLayout.fields(structTypes[i]).size();
+                sOrd[i] = new int[w];
+                for (int e = 0; e < w; e++) sOrd[i][e] = nFlt++;
             } else if (isStruct[i]) {
                 int w = FfiStructLayout.crossWords(structTypes[i]);
                 sOrd[i] = new int[w];
@@ -165,6 +177,20 @@ final class NativeFfiCallRiscv {
                 sb.append(lbl).append(":\n");
                 continue;
             }
+            if (isHfa[i]) {
+                // M1 unidade-1: leitura INTEGER do slot cru do objeto (soft-
+                // float-safe) + fmv para o ordinal FP do campo; o texto fa{n}
+                // traduz para v* no aarch64 (precedente dos escalares exp/ldexp).
+                sb.append("    ld t4, ").append(8 * (n - 1 - i)).append("(t0)\n");
+                for (int fi = 0; fi < sOrd[i].length; fi++) {
+                    if (sOrd[i][fi] >= 8) continue;   // gate: HFA nunca derrama
+                    FfiStructLayout.emitRiscvHfaFieldLoad(sb, structTypes[i], fi, "t4", "t2");
+                    sb.append(FfiStructLayout.crossHfaFieldChar(structTypes[i], fi) == 'f'
+                            ? "    fmv.w.x fa" : "    fmv.d.x fa")
+                      .append(sOrd[i][fi]).append(", t2\n");
+                }
+                continue;
+            }
             if (isStruct[i]) {
                 // struct INTEGER por valor: ponteiro do objeto Kof → monta cada
                 // eightbyte no registrador de destino da sua classe (fatia 4).
@@ -220,6 +246,9 @@ final class NativeFfiCallRiscv {
                 sb.append(lbl).append(":\n");
                 sb.append("    sd t2, ").append(8 * k++).append("(sp)\n");
                 continue;
+            }
+            if (isHfa[i]) {
+                continue;   // gate crossBindable limita nFlt <= 8: nunca derrama
             }
             if (isStruct[i]) {
                 sb.append("    ld t4, ").append(8 * (n - 1 - i)).append("(t0)\n");

@@ -1073,6 +1073,52 @@ class CoreRegressionE2ETest extends JvmJsRunSupport {
         assertEquals("fin\n1\nfin2\n2\nfin3", runJvm(outJvm), "JVM finally+return output mismatch");
     }
 
+    // §617 face A — `break`/`continue` dentro de try/finally pulavam o corpo do
+    // finally ao sair do frame. O lowering de BreakStmt/ContinueStmt não emitia
+    // o finally dos frames try/finally abandonados (JVM/Script/native; JS já
+    // estava correto por usar o try/finally nativo). Esperado: o finally roda
+    // ANTES de break/continue em ambos os laços.
+    @Test
+    void finallyRunsOnBreakAndContinue(@TempDir Path tempDir) throws IOException {
+        runBoth("""
+                main() {
+                    for (var i in listOf(1, 2)) {
+                        try {
+                            if (i == 1) { continue }
+                            println("body:" + i)
+                        } finally {
+                            println("fin:" + i)
+                        }
+                    }
+                    for (var j in listOf(1, 2)) {
+                        try {
+                            if (j == 1) { break }
+                            println("b:" + j)
+                        } finally {
+                            println("bfin:" + j)
+                        }
+                    }
+                }
+                """, "fin:1\nbody:2\nfin:2\nbfin:1", tempDir, "fin-break-continue");
+    }
+
+    // §617 face B — try/finally ANINHADO com `return` no try interno ICEava o
+    // KofJS (`COMP002 unexpected KofCatchStart`) e, mesmo compilando, o epílogo
+    // IR descartava a cadeia que copia o valor do frame interno para o externo
+    // (retornava `undefined`). O parse agora é ciente de profundidade e o
+    // epílogo descarta só o corpo do finally repetido, preservando a cauda.
+    @Test
+    void nestedTryFinallyReturn(@TempDir Path tempDir) throws IOException {
+        runBoth("""
+                String h() {
+                    try {
+                        try { return "inner" } finally { println("fin-inner") }
+                    } finally { println("fin-outer") }
+                }
+                main() { println(h()) }
+                """, "fin-inner\nfin-outer\ninner", tempDir, "nested-fin-return");
+    }
+
     // known-bugs §131 (decisão 10a, 13/09) — sobrecarga de MÉTODO por
     // aridade/assinatura na mesma classe. Antes: SEM013 no JVM (só o último
     // def sobrevivia na symtable) e `symbol B_m is already defined` no

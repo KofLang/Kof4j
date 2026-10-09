@@ -91,7 +91,7 @@ final class KofCliSupport {
         Target t = switch (value) {
             case "jvm", "native", "native.risc", "native.riscv64", "native.riscv",
                  "native.arm", "native.aarch64", "native.aarch", "js", "kofjs",
-                 "android", "script", "kofscript" -> Target.JVM;
+                 "android", "script", "kofscript", "wasm", "wasi" -> Target.JVM;
             default -> null;
         };
         if (t != null) return List.of();
@@ -112,6 +112,8 @@ final class KofCliSupport {
             case "js", "kofjs" -> Target.JS;
             case "android" -> Target.ANDROID;
             case "script", "kofscript" -> Target.SCRIPT;
+            case "wasm" -> Target.WASM;
+            case "wasi" -> Target.WASI;
             default -> {
                 for (String e : unknownTargetMessages(value)) System.err.println(e);
                 System.exit(1);
@@ -223,6 +225,33 @@ final class KofCliSupport {
     static boolean isKofSource(Path p) {
         String n = p.toString().toLowerCase();
         return n.endsWith(".kf") || n.endsWith(".kof");
+    }
+
+    /**
+     * O path é um arquivo-fonte Kof/KofScript aceito pela CLI: `.kf`/`.kof`
+     * (Kof) ou `.ks` (KofScript). É o filtro da VALIDAÇÃO de argumento — a
+     * descoberta de módulo continua usando {@link #isKofSource} (que não inclui
+     * `.ks` de propósito).
+     */
+    static boolean isKofSourceFile(Path p) {
+        String n = p.getFileName() != null ? p.getFileName().toString().toLowerCase() : p.toString().toLowerCase();
+        return n.endsWith(".kf") || n.endsWith(".kof") || n.endsWith(".ks");
+    }
+
+    /**
+     * R6: recusa um ARQUIVO cuja extensão não é uma fonte Kof reconhecida
+     * (`.kf`/`.kof`/`.ks`). Colar código Kof válido num `.txt`/`.sh`/sem
+     * extensão não deve ser aceito em silêncio. Diretórios passam (a
+     * descoberta de cada comando filtra por extensão). Retorna {@code null}
+     * quando o argumento é aceitável, senão a mensagem pronta para stderr.
+     */
+    static String unsupportedSourceExtension(String command, Path p) {
+        if (Files.isDirectory(p) || isKofSourceFile(p)) return null;
+        String name = p.getFileName() != null ? p.getFileName().toString() : p.toString();
+        int dot = name.lastIndexOf('.');
+        String shown = dot > 0 ? "'" + name.substring(dot) + "'" : "(none)";
+        return command + ": unsupported source extension " + shown
+                + " (expected .kf, .kof or .ks)";
     }
 
     /**

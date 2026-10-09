@@ -56,6 +56,11 @@ public final class Inspect {
         if (file.toString().endsWith(".class")) {
             return inspectClassFile(file, jsonOut);
         }
+        String extErr = KofCliSupport.unsupportedSourceExtension("inspect", file);
+        if (extErr != null) {
+            System.err.println(extErr);
+            return 1;
+        }
 
         final IRStatistics[] stats = new IRStatistics[1];
         CompilerDriver driver = new CompilerDriver();

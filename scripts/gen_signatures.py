@@ -92,8 +92,9 @@ BASE = {
         ("queryEncode", ['queryEncode(String s) -> String']),
         ("queryDecode", ['queryDecode(String s) -> String']),
         ("listen", ['listen(Int port) -> Listener']),
-        ("connect", ['connect(String host, Int port) -> Conn']),
+        ("connect", ['connect(String host, Int port) -> Conn', 'connect(String host, Int port, String address) -> Conn']),
         ("bind", ['bind(Int port) -> Endpoint']),
+        ("resolve", ['resolve(String host) -> List<String>']),
     ],
     "uuid": [
         ("isUuid", ['isUuid(String s) -> Bool']),

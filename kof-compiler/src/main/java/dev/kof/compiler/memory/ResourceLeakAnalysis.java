@@ -4,6 +4,7 @@ import dev.kof.compiler.AstNode;
 import dev.kof.compiler.AssignmentExpr;
 import dev.kof.compiler.DiagnosticCollector;
 import dev.kof.compiler.ExpressionNode;
+import dev.kof.compiler.ExpressionStmt;
 import dev.kof.compiler.FieldAccessExpr;
 import dev.kof.compiler.IdentifierExpr;
 import dev.kof.compiler.LambdaExpr;
@@ -156,6 +157,9 @@ public final class ResourceLeakAnalysis {
         if (node instanceof AssignmentExpr as
                 && !(as.target() instanceof IdentifierExpr id && id.name().equals(name))
                 && mentionsEscaping(as.value(), name)) {
+            return true;
+        }
+        if (node instanceof ExpressionStmt es && mentionsEscaping(es.expression(), name)) {
             return true;
         }
         for (Object child : children(node)) {

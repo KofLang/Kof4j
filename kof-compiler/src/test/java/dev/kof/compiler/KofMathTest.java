@@ -443,4 +443,38 @@ class KofMathTest extends KofMathSupport {
         runJs(tmp, TRIG_SRC, TRIG_OUT);
     }
 
+    // §621: trig type-checks everywhere but has no native runtime symbol, so a
+    // native build died at ld with a mislabeled COMP001. The typer must refuse
+    // it honestly with MATH001 on EVERY native target, never the link failure.
+    @Test
+    void trigRefusedHonestlyOnNative(@TempDir Path tmp) throws Exception {
+        Path file = tmp.resolve("Trig.kf");
+        Files.writeString(file, TRIG_SRC);
+        for (Target t : new Target[]{
+                Target.NATIVE, Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            CompilationResult result = driver.compile(file,
+                    tmp.resolve("out-" + t + "-" + System.nanoTime()), t);
+            assertFalse(result.success(), t + ": trig deve ser recusada no nativo");
+            String diag = result.diagnostics().getDiagnostics().toString();
+            assertTrue(diag.contains("MATH001"),
+                    t + ": diagnóstico deve ser MATH001, foi: " + diag);
+            assertFalse(diag.contains("COMP001"),
+                    t + ": nunca o COMP001 mal-rotulado: " + diag);
+        }
+    }
+
+    // §621 boundary: the functions WITH a native symbol keep working — the gate
+    // must not over-refuse sqrt/pow/roundTo.
+    @Test
+    void nonTrigMathStillWorksOnNative(@TempDir Path tmp) throws Exception {
+        runNative(tmp, """
+            main() {
+                assert(math.sqrt(9.0) == 3.0)
+                assert(math.pow(2.0, 10.0) == 1024.0)
+                assert(math.roundTo(1.2345, 2) == 1.23)
+                println("ok")
+            }
+            """, "ok");
+    }
+
 }

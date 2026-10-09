@@ -133,15 +133,35 @@ public final class KofMath {
         };
     }
 
+    /**
+     * Funções cujo símbolo de runtime NÃO existe em nenhum alvo nativo: o
+     * typer as aceita, mas o emissor nativo baixa para um `kof_math_*` sem
+     * definição e o link morre como `COMP001` mal-rotulado (known-bugs §621).
+     * Nenhuma delas tem implementação SSE/asm própria (diferente de
+     * `sqrt`/`lerp`/`roundTo`, que usam instruções IEEE) e o cross não liga
+     * libm por decisão da lane nat (golden byte-idêntico; a libm difere por
+     * 1 ulp do JVM/JS — o mesmo motivo do `Trig.kf` puro em `kof.game`).
+     * Recusa honesta MATH001 (R6) em vez de um `COMP001` enganoso.
+     */
+    private static final java.util.Set<String> NATIVE_MISSING = java.util.Set.of(
+            "kof_math_sin", "kof_math_cos", "kof_math_tan",
+            "kof_math_asin", "kof_math_acos", "kof_math_atan", "kof_math_atan2",
+            "kof_math_toRadians", "kof_math_toDegrees");
+
     /** S1 (Int) + S1b/S1b.1 (Double) em TODOS os targets (MATH001 fechado
      * 11/09 — fatia riscv B32 + tradutor aarch fsqrt.d/fcvtzs; prova qemu).
      * S1b.2 pow (decisão 7a): x86 sim (pow@PLT + -lm); riscv/aarch NÃO —
      * o link cross é estático sem libc (invariante "asm puro" da lane nat;
      * ligar libm = decisão de arquitetura, regra 6). Recusa com código
-     * MATH001 (R6), nunca undefined-reference silencioso. */
-    static boolean supportedOn(@SuppressWarnings("unused") String function, @SuppressWarnings("unused") Target target) {
+     * MATH001 (R6), nunca undefined-reference silencioso.
+     *
+     * <p>§621: a trig (`sin`/`cos`/`tan`/`asin`/`acos`/`atan`/`atan2`/
+     * `toRadians`/`toDegrees`) não tem símbolo em NENHUM nativo — recusada
+     * com MATH001 no typer; JVM/JS/Script seguem suportados. */
+    static boolean supportedOn(String function, Target target) {
         // row 10 (27/09, D-DECISION-BATCH-2709B #3): pow roda tambem no cross
         // (shim kof_math_pow -> pow@PLT; -lm por uso). MATH001 fica reservado.
+        if (target.isNative() && NATIVE_MISSING.contains(function)) return false;
         return true;
     }
 

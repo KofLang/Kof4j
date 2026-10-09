@@ -43,7 +43,7 @@ refuses it at compile time with `IOJS001`.
 | `readBytes()` | `Int[]` (0-255), `null` on failure |
 | `writeBytes(b)` / `appendBytes(b)` | Bool |
 | `size()` | Long; throws an exception if the file does not exist (02/09 — no `-1` sentinel) |
-| `delete()` | Bool (file or empty directory) |
+| `delete()` | Bool (file or directory — non-empty directories delete recursively on every target since 08/10, `known-bugs` §618) |
 | `name()` / `path()` | String |
 | `copyTo(destination)` | Bool — JVM + Native (x86-64/riscv64/aarch64, parity row 13). Copies bytes + basic attributes. No-overwrite by default (returns `false`, does not touch either file, if `destination` already exists); does not create the parent directory of `destination` implicitly — the caller must ensure it exists |
 | `moveTo(destination)` | Bool — JVM + Native. Filesystem-primitive rename/move, no-overwrite by default (same contract as `copyTo`). Not a safe transaction: callers that need a hash-verified move should keep doing copy → verify → delete, same as before this method existed |
@@ -66,7 +66,7 @@ never resolves the type as a static receiver; `copyTo`/`moveTo`/`modifiedTime`/
 | `create()` | creates; fails if it already exists |
 | `createDirectories()` | creates recursively |
 | `list()` | `List<String>` of names, sorted |
-| `delete()` | removes an empty directory |
+| `delete()` | removes a directory, recursively when non-empty (all targets since 08/10, `known-bugs` §618) |
 
 ```kof
 var dir = Directory("data")

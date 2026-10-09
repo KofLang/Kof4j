@@ -111,20 +111,9 @@ public final class NativeRiscvCrossOps {
     }
 
     void emitCrossCondJumpRiscv(StringBuilder sb, KofConditionalJump kc) {
-        sb.append("    pop t0\n");   // b (topo)
-        sb.append("    pop t1\n");   // a (abaixo)
-        String cond;
-        switch (kc.comparison()) {
-            case EQ -> cond = "bne";
-            case NE -> cond = "beq";
-            case LT -> cond = "bge";
-            case LE -> cond = "bgt";
-            case GT -> cond = "ble";
-            case GE -> cond = "blt";
-            default -> cond = "b";
-        }
-        sb.append("    ").append(cond).append(" t1, t0, ").append(nb.resolveLabel(kc.falseLabel())).append("\n");
-        sb.append("    j ").append(nb.resolveLabel(kc.trueLabel())).append("\n");
+        // §622: salto condicional com comparação FP correta para Float/Double
+        // (extraído para manter esta classe < 600 linhas, REFACTOR-500).
+        new NativeRiscvCrossCondJump(nb).emit(sb, kc);
     }
 
     void emitCrossCallRiscv(StringBuilder sb, KofCall kc) {

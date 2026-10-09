@@ -1,14 +1,25 @@
 [English](wasm-wasi-plan.md) | [Português](wasm-wasi-plan.pt_BR.md)
 
+**Owner:** `192.168.15.101:9092` (TIER 15 lane; 15.1+15.2+15.3-slice1+15.3b+15.3c-sliceA+15.3c-sliceB landed; GC-handle runtime next) — promoted by `D-WEB-WASI-DEFAULT-0710` (0.6.0 GATE, #776); any free lane claims it in DOING first (`D-PLAN-ONE-OWNER`).
+
 # Kof WASM & WASI — future implementation specification
 
-> **State (19/09): FUTURE — specification only, zero code.** No WASM/WASI
-> implementation was performed or is implied by this document. Registered at
-> the maintainer's request so that a future agent/developer can implement the
-> feature from this spec alone. Not an execution queue (three-states rule +
-> R12). Every statement is marked **CURRENT** (measured in the code),
-> **PLANNED** (proposed here) or **TBD / DECISION REQUIRED** (not decided —
-> never presented as decided).
+last: 15.3d-increment1 LANDED 08/10 (RECORD allocation + Int/Long field access on the bump heap: `KofNewObject`->bump `global 0` by `ClassLayout.totalSize`, `KofDup` no-op, record `<init>` pops args reverse into a scratch i64 and `i64.store` at `obj+fieldOffset`, `KofLoadField`=`i32` handle+`fieldOffset`->`i64.load`; new real i64 mem opcodes `Mem.LOAD64=0x29`/`STORE64=0x37`; only Int/Long fields — String/Bool/Char/Double/nested + `toString`/`equals`/record-concat keep `WASM002` NO artifacts pending instance-method lowering; `WasmWasiE2ETest` 7/7, `recordAllocationAndIntFieldAccessMatchTheJvmOracle` stdout `1/2` == JVM oracle under wasmtime v49.0.2); before it 15.3c-sliceB LANDED 08/10 (`args` via preview1 `args_sizes_get`/`args_get`: `kof.readArgs` builds `[count][handle...]` of KofString handles on the heap, argv[0] dropped for JVM parity; `args.length` = `[arr]` + `i64.extend_i32_s` (D-WASM-02); `args[i]` = explicit bounds trap (`i32.le_u` -> `unreachable`, never garbage); E2E passes `alpha beta` == JVM oracle; `WasmWasiE2ETest` 5/5); before it 15.3c-sliceA LANDED 08/10 (String variables + concatenation on a bump heap `global 0`@16384, `[len][bytes]\n` handles; `kof.strLit`/`kof.strConcat`/`kof.writeStr`; `WasmWasiE2ETest` 3/3 prints `ab`/`xyz` == JVM oracle under wasmtime v49.0.2); before it 15.3b LANDED 07/10 (`println(String)` literal via data segments + `kof.writeString`, JVM-oracle stdout parity under wasmtime); before it 15.3 slice 1 LANDED 07/10 (lane `192.168.15.101:9092`) — `Target.WASI` EMITS a WASI-preview1 module: `main` -> `_start`, scalar `println` -> `fd_write` (WasmWasiE2ETest 3/3, stdout == JVM oracle under wasmtime); before it 15.2 — wasm backend emits the SCALAR subset: top-level `Int/Long/Double/Bool/Char` functions, direct binary WebAssembly (`WasmBackend`/`WasmBinary`/`WasmInstr`), Int=i64 (D-WASM-02), dispatcher `loop $dispatch` + `$pc`; executed + validated under wasmtime v49.0.2 / wasm-tools 1.261.0 (`WasmScalarE2ETest` 3/3, oracle = same program on JVM). `WASI` still `WASM001`; anything outside the subset (IO/collections/records-2/void) refuses `WASM002` naming this plan + #776, NO artifacts.
+doing: 15.3 continues — 15.3d-increment2 (record `toString`/`equals`/concat via instance-method lowering) then collections; `println(array)`/for-in/`.length` on String still refuse `WASM002`; then 15.4 flip.
+next: GC-handle runtime (records/collections) → 15.4 frontend-default flip LAST (only at full parity; `D-LAB-STABILITY` keeps the cut gated by #776).
+location: docs/development/wasm-wasi-plan.md
+state: UNDER DEVELOPMENT
+
+> **State (07/10): UNDER DEVELOPMENT — promoted by the maintainer's own order**
+> (`D-WEB-WASI-DEFAULT-0710`); **zero code at promotion day**. The plan is a
+> **GATE for the 0.6.0 cut** (issue #776): Kof's web target becomes **WASI by
+> default**, desktop frontend likewise; the JS/`kofjs` target **continues to
+> exist** when explicitly specified; the **language surface does not change**;
+> **total behavior parity** and **zero regression** are mandatory. The plan is
+> OPEN and unowned — any free lane claims it in DOING first (`D-PLAN-ONE-OWNER`).
+> Every statement below stays marked **CURRENT** (measured in the code),
+> **PLANNED** (proposed here) or **TBD / DECISION REQUIRED** (legacy markers —
+> the 28/09 `D-WASM-01..09` block already resolved the technical ones).
 >
 > **Decision update (28/09/2026):** the technical questions this spec left
 > TBD/DECISION REQUIRED were **resolved** by the maintainer in `DECISIONS.md`
@@ -124,10 +135,10 @@ for the capability column.
 fuzzing obligations, §26–27); a wasm runtime must exist (§7); **DECISION
 REQUIRED** from the maintainer to freeze this as official (rule 6).
 
-## 6. Target registry (PLANNED)
+## 6. Target registry (15.1+15.2 LANDED 07/10 — enum + matrix + CLI parse + SCALAR emission)
 
 ```bash
-kof build --target=wasm   # PLANNED — today: WASM001 honest rejection
+kof build --target=wasm   # 15.2: emits the scalar subset; outside it: WASM002 honest rejection
 kof build --target=wasi   # PLANNED
 kof check --target=wasm   # PLANNED (diagnostic parity with other targets)
 kof run --target=wasi     # PLANNED (requires a WASI host, §19)
@@ -137,6 +148,132 @@ kof run --target=wasi     # PLANNED (requires a WASI host, §19)
 its phase (§31); until then `WASM001` remains the answer. Registry touch
 points (measured): `Target.java` enum + `TargetMatrix` + `kof-cli` target
 parsing — **enum change = frozen-surface adjacent → rule 6 approval**.
+
+**Slice 15.1 plumbing LANDED (06/10, lane compiler/JVM/native `192.168.15.30:9092`):**
+the honest gap now covers the WASI spellings too — `TargetMatrix.frontendGapFor`
+recognizes `wasm32`, `wasm32-wasi`, `wasi`, `wasi-preview1`, `wasip1`, `kofwasi`
+(besides the existing `wasm`/`kofwasm`/`kofwebasm`/`kofwebassembly`/`webassembly`)
+and both CLI paths (`--frontend=wasi`/`kof.toml` via `TargetMatrix.parse`, legacy
+`--target=wasi` via `KofCliSupport.parseTarget`) refuse with `WASM001`, never the
+generic "unknown target". The message now names the promoted plan + issue #776 +
+`D-WEB-WASI-DEFAULT-0710`. Additive plumbing only — **no `Target` enum value
+yet** (that is the frozen-surface-adjacent step, rule 6, deferred to the codegen
+phase). Proof: `TargetMatrixTest.wasiSpellingsAreHonestGap` +
+`SelectTargetsTest.legacyWasiTargetFlagIsHonestGap` (both RED pre-slice).
+
+**Slice 15.2 LANDED (07/10, lane `192.168.15.101:9092`):** first emitting
+backend for `wasm` — `dev/kof/compiler/wasm/WasmBackend` writes a direct
+binary WebAssembly module (`WasmBinary` sections, `WasmInstr` encodings)
+exporting every top-level static SCALAR function (`Int/Long/Double/Bool/
+Char`; `Int=i64` per D-WASM-02) of `Default/Main`; control flow lowers
+through the IR block graph into a `loop $dispatch` + `$pc` dispatcher
+(explicit `br` depth — forward-only fallthrough was measured and rejected);
+direct calls resolve by name at serialization. The subset boundary is a
+HONEST refusal, never a silent skip: `CompilerPipeline` catches
+`WasmUnsupportedException` → `WASM002` naming this plan + unit + #776 and
+writes NO artifacts (Q7). `main`/IO/strings/collections/records = 15.3+
+(D-WASM-03..06). WAT emission stays PLANNED (this section's `--emit=wat`
+row predates the slice; the binary is the 15.2 product). Proof:
+`WasmScalarE2ETest` 3/3 — emission+validation via `wasm-tools` 1.261.0,
+execution via `wasmtime` v49.0.2 (`scripts/provision-wasmtime.sh`, pinned
+checksums, host-gated by `assumeTrue`), JVM oracle parity for `add`,
+`collatz(27)=111`, `fib(10)=55`; refusal case proves no partial module.
+`WasmTargetGateE2ETest` re-pinned to the new truth (wasm IS backend; WASI
+still `WASM001`; out-of-subset program → `WASM002`).
+
+**Slice 15.3-stdout LANDED (07/10, lane `192.168.15.101:9092`):**
+`Target.WASI` is now an EMITTING WASI-preview1 backend: `main` compiles to
+the exported `_start` (command mode), every scalar `println` writes through
+the imported `wasi_snapshot_preview1.fd_write`; `Int`/`Long` print via the
+emitted `kof.writeInt` itoa helper, `Bool` via `kof.writeBool`. Out-of-slice
+programs (string literals, `args`, records/collections) refuse `WASM002`
+naming this plan + #776, writing NO artifacts (Q7; proven by
+`WasmWasiE2ETest` + `WasmTargetGateE2ETest`). Proof: `WasmWasiE2ETest` 3/3 —
+module carries the preview1 imports + `_start` export, validates with
+`wasm-tools` 1.261.0, executes under `wasmtime` v49.0.2 with stdout EXACTLY
+equal to the JVM oracle of the same source (negative/zero/call-result ints,
+bools), exit 0; the `WasmScalarE2ETest` 3/3 (15.2) and re-pinned
+`WasmTargetGateE2ETest` 5/5 (WASI IS backend; frontend gap stays `WASM001`
+until 15.4) stay green; `kof deploy --target wasi` honestly refuses `WASM001`
+(module emits, deploy archive/runtime host not yet — `SelectTargetsTest`/
+`CmdDeployTest` unchanged-green). `println(String)`, records, collections,
+`args` and the GC-handle runtime land in the NEXT 15.3 slices (GC-handle rule of the plan).
+
+**Slice 15.3b LANDED (07/10, lane `192.168.15.101:9092`):** `println(String)` of a
+string LITERAL now emits: the bytes go to a wasm DATA segment (pool based at 1024,
+`+1` byte reserved per string for the newline, 4-aligned), the println intercept
+pushes `(addr,len)` and the emitted `kof.writeString` helper writes them through
+`fd_write` with the trailing `\n`. Proof: `WasmWasiE2ETest` 3/3 — mixed scalar+string
+main prints EXACTLY the JVM-oracle stdout (`oi`, `hello kof` added) under wasmtime
+v49.0.2, module validates with `wasm-tools`; out-of-slice strings (concat
+`var s = "a" + "b"`, `println(args)`) refuse `WASM002` naming plan + #776 with NO
+artifacts (Q7); `WasmTargetGateE2ETest` 5/5 re-pinned (its refuse case moved from
+string-literal — now EMITTED — to `args`); `WasmScalarE2ETest` 3/3 stays green. String
+VARIABLES/concat/records/collections need the heap (D-WASM handle-table shape of the
+plan §8/§9) — 15.3c+ (`args`) then GC slices. NOTE 07/10: the 4-module suite is
+`4877 run / 3 F` — JavaFX env (documented) + `Av1CoeffsE2ETest` aarch64/riscv64 =
+EXTERNAL regression catalogued as `known-bugs` **§625** (bisect lands on `a2f69d2f7`
+§620 cross-arg shift; reproduced at remote tip `45d839322` WITHOUT any WASI-lane code;
+ owner lane `192.168.15.30:9092`; NOT touched by this lane — collision rule) — **FIXED
+ 08/10** by that lane (cross/x86 prologue zeroes slots above `paramSlotMax`, `PrologueSlotInitTest`).
+
+
+**Slice 15.3c-sliceA LANDED (08/10, lane `192.168.15.101:9092`):** String VARIABLES
+and CONCATENATION now emit — a `String` value becomes an i32 HANDLE into a bump
+heap (`global 0`, mutable i32 initialized `16384`; `[len][bytes]\n` layout, the
+`+1` newline reserved at emit time so `println` never re-allocates). Three emitted
+helpers drive it: `kof.strLit(addr,len)` copies a DATA-segment literal into a fresh
+heap block and returns its handle; `kof.strConcat(a,b)` bump-allocates `la+lb`,
+copies both payloads (`copyLoop` — a `block`+`loop` with `br_if`/`br`, `i32.load8_u`
+align 0, byte store `addr` pushed before `value`) and returns the joined handle;
+`kof.writeStr(handle)` writes `[h]+1` bytes through `fd_write` (reused for every
+`println` of a non-literal string). The println intercept pushes `(addr,len)` for
+a literal and calls `kof.strLit` for `kof_string_concat`/`String` variables, so
+`var s = "a" + "b"; println(s)` and `println("x" + "y" + "z")` print `ab`/`xyz`.
+Proof: `WasmWasiE2ETest` 3/3 — the mixed scalar+string+concat main prints EXACTLY
+the JVM-oracle stdout (`3/-42/0/55/true/false/14/oi/hello kof/ab/xyz`) under
+wasmtime v49.0.2, module validates with `wasm-tools`, exit 0; `WasmTargetGateE2ETest`
+5/5 + `WasmScalarE2ETest` 3/3 + `TargetMatrixTest` 10/10 green. `println(args)`/
+`args[0]`/records/collections still refuse `WASM002` naming plan + #776 with NO
+artifacts (Q7). At sliceA time `args` still refused; it landed the SAME DAY as
+15.3c-sliceB below (records/collections remain, then 15.4 flip LAST). MEASURE 08/10: the full 4-module suite at tip `898bc50ab` + this slice = 8F + 2 flakes, ALL external/environmental and stash-proven independent of the WASI lane: §625 `Av1CoeffsE2ETest` (2F, FIXED 08/10 by lane `.30:9092` — zero stale prologue slots) + §627 `KofTestingE2ETest` float-assert (2F, FIXED 08/10 by lane `.30:9092` — interpreter `EQ/NE` + cross `feq.s`) + §628 `JvmLauncherDiagnosticE2ETest` (3F deterministic at the CLEAN tip — the §554 `ExternalArgTighten` breaks the pipe fixtures, owner compiler/interop) + JavaFX env (1F) + `InteropTimeoutE2ETest` load flakes (2F, GREEN isolated). Live queue 3->5 (5->3 after the §625+§627 fixes).
+
+
+**Slice 15.3c-sliceB LANDED (08/10, lane `192.168.15.101:9092`):** `args` — a
+program that touches `args` gets a `kof.readArgs` prologue in `_start`: WASI-preview1
+`args_sizes_get(&argc@48,&argv_buf_size@52)` then bump-allocates the pointer TABLE
+(`argc*4`) and the NUL byte BUFFER (`sz`) on `global 0`, calls `args_get`, and converts
+every `argv[i+1]` (argv[0] = program name, DROPPED for JVM parity) into a heap
+KofString handle `[len][bytes]\n` (strlen + `copyInto`), returning an array handle
+`[count][handle...]`. `args.length` lowers to `i32.load` of `[arr]` + `i64.extend_i32_s`
+(Int = i64, D-WASM-02); `args[i]` lowers to `i32.wrap_i64` of the index plus an
+EXPLICIT bounds check (`count <= idx` via `i32.le_u` -> `unreachable`) — out-of-range
+is a deterministic trap, NEVER a garbage read (the exception model is D-WASM-03, still
+TBD); `println(args[i])` and `args[i] + "x"` ride the 15.3c-sliceA String runtime
+(`kof.writeStr`/`kof.strConcat`). Proof: `WasmWasiE2ETest` 5/5 under wasmtime v49.0.2 —
+`argsLengthIndexAndConcatMatchTheJvmOracle` compiles the SAME source for JVM and WASI,
+runs both with `alpha beta` and asserts byte-equal stdout (`2/alpha/beta/alpha-beta`);
+`emptyArgsLengthMatchesJvmAndOobIndexTraps` pins `args.length == 0` with no argv and
+asserts a NON-ZERO wasmtime exit for `args[7]` (explicit `unreachable`, measured exit
+134); the refusal face re-pinned: `println(args)` (array format) and `for (a in args)`
+still `WASM002` naming plan + #776 with NO artifacts. Gate hygiene: the split forced by
+`check_500` landed WITH this slice — `WasmBackend` 629 -> 204 (module assembly only),
+lowering/dispatcher/Ctx extracted to `WasmLowering` (447), `kof.readArgs` + `copyInto`
+live in `WasmArgsRuntime` (192), `WasmStdoutRuntime` 503 -> 329; pure code motion, WASI
+battery green after. MEASURE 08/10 (post-split + post-§625-fix tree): full 4-module suite = kof-compiler 4898 run/5F + kof-cli 593/3F — §627 2F + §628 3F = 5F deterministic EXTERNAL (other lanes) + JavaFX-env 1F + InteropTimeout load flakes 2F = 3F environmental; §625 GREEN post the `.30` prologue fix (`6572e6367`, Av1Coeffs 6/6 re-measured here); RingPrivilege GREEN this pass; ZERO WASI failures, battery 23/23 + PrologueSlotInit 2/2.
+
+**Slice 15.3d-increment1 LANDED (08/10, lane `192.168.15.101:9092`):** RECORD ALLOCATION + INT/LONG FIELD ACCESS — a record value is a bump-heap block whose layout is `ClassLayout.build(IRClass)` (the SAME source Native uses: header + 8-byte slots), the receiver is an `i32` handle in the local slot (`lowerMethod` maps a record-typed local/param to `i32`); `WasmLowering` gains `KofNewObject` (bump `global 0` by `totalSize`, stash the handle in a scratch `obj` local, push it), `KofDup` (no-op — the handle the constructor left on the wasm value stack is reused), the record `<init>` (`CONSTRUCTOR` call: pops the argument values in reverse field order into a scratch `v` i64 local and `i64.store`s each at `obj + fieldOffset`), and `KofLoadField` (receiver `i32` handle + `fieldOffset` → `i64.load`). `WasmInstr.Mem` gains the real i64 memory opcodes `LOAD64=0x29`/`STORE64=0x37` (align 3) — the smallest mechanism, not a per-feature hack. **Scope honesty (Q7/R6):** only `Int`/`Long` fields (i64 on the stack) are built; a record with a `String`/`Bool`/`Char`/`Double`/nested-record field, `println(record)` (`toString`), `record == record` (`equals`) and record-in-`+` all require INSTANCE-method lowering (not yet present) and keep refusing `WASM002` naming plan + #776 with NO artifacts — never a silently-invalid module. Proof: `WasmWasiE2ETest` 7/7 under wasmtime v49.0.2 — `recordAllocationAndIntFieldAccessMatchTheJvmOracle` compiles `record Point(Int x, Int y) { var p = Point(1,2); println(p.x); println(p.y) }` for JVM + WASI and asserts byte-equal stdout (`1/2`); `recordToStringAndEqualityStillRefuseHonestly` pins the three still-open faces (toString / equality / a String-field record) to `WASM002` + no-artifacts. NEXT (increment 2): the `toString`/`equals`/record-concat faces land with instance-method lowering; then collections, then 15.4 flip LAST.
+
+**Amendment (07/10, lane `192.168.15.101:9092`, 15.1-COMPLETE):** the enum
+step was NOT deferred — roadmap TIER 15 defines 15.1 ITSELF as enum+plumbing
+(maintainer order `D-WEB-WASI-DEFAULT-0710`, the order that promoted this
+plan). `Target.WASM`/`Target.WASI` now EXIST: the canonical bare `wasm`/`wasi`
+PARSE as real targets end-to-end, and the honest emitting refusal (WASM001,
+naming this plan + unit 15.2 + #776, writing NO artifacts, never a JVM
+fallback) lives in `TargetMatrix.validate`/`CompilerPipeline.lowerAndEmit`
+(`WasmTargetGateE2ETest` 5/5). The long solecisms keep `.30`'s string gap
+verbatim; both `.30` tests were re-pinned to this truth (solecism coverage
+preserved).
 
 ## 7. WASM backend spec (PLANNED)
 

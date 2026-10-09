@@ -163,8 +163,9 @@ test "soma comuta em pares aleatórios" {
 `KofRngTest.jvmJsParity`); `random.*` = entropia do SO (R11). Um property test
 que falha imprime a seed e a falha se reproduz. Misturar os dois é o
 anti-padrão: semear material de segurança (violação da R11) ou sortear
-entropia do rng (testes flaky). Fatia 1 = JVM + JS; NATIVE/ANDROID = gap
-honesto `RNG001` em compile (asm x86_64 — mesmos bits por construção — caiu na fatia 2).
+entropia do rng (testes flaky). Fatia 1 = JVM + JS; a fatia 2 somou NATIVE
+x86_64 (asm — mesmos bits por construção) e ANDROID (reusa o runtime JVM,
+issue #777); cross riscv64/aarch64 = gap honesto `RNG001` em compile.
 
 ## validation — formatar NÃO é validar (S12/S12b)
 

@@ -42,7 +42,9 @@ public final class KofShell {
             case "cmd" -> {
                 if (argTypes.size() != 2) return null;
                 if (!BuiltinTypes.isString(argTypes.get(0))) return null;
-                if (!STRING_LIST.equals(argTypes.get(1))) return null;
+                // isList (not equals STRING_LIST): um listOf() vazio inferido
+                // List<Object> é argv legítimo — mesma acomodação do runWith.
+                if (!BuiltinTypes.isList(argTypes.get(1))) return null;
                 return new ShellCall("kof_shell_argv", STRING_LIST,
                         List.of(BuiltinTypes.STRING, STRING_LIST));
             }
@@ -52,9 +54,9 @@ public final class KofShell {
                     return new ShellCall("kof_process_run", KofProcess.RESULT,
                             List.of(BuiltinTypes.STRING, STRING_LIST));
                 }
-                // isList (not equals STRING_LIST): mirrors the runWith fix
-                // below — an inferred empty listOf() comes out as
-                // List<Object>, which is a legitimate empty argv.
+                // isList (not equals STRING_LIST): um listOf() vazio inferido
+                // List<Object> é argv legítimo (sem argumentos), não SEM025 —
+                // mesma acomodação do runWith.
                 if (argTypes.size() == 2 && BuiltinTypes.isString(argTypes.get(0))
                         && BuiltinTypes.isList(argTypes.get(1))) {
                     return new ShellCall("kof_process_run", KofProcess.RESULT,

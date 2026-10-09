@@ -4284,6 +4284,19 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 
 - **Relationships:** `Related: D-FUTURE-BATCH-2809, D-FUTURE-PROMOTION, D-PAGINATION, D-VALUE-RECORDS-GO, D-ENTITY-HISTORY, D-MULTIPARADIGMA-GO, D-GRAPHICS-SPIKE, D-TESTING-PLATFORM, D-CONNECTORS, D-KOF-FILE-GO, D-IMAGE-VISION-GO, D-BOOTSTRAP-GO, D-WASM-GO, rule 6`.
 
+## D-WEB-WASI-DEFAULT-0710 — WASI is the DEFAULT frontend target; `wasm/wasi-plan` PROMOTED; 0.6.0 GATE (maintainer order 07/10)
+
+**State:** DECIDED + PROMOTED (maintainer, chat 07/10) — recorded by lane `192.168.15.101:9092`.
+
+* **Decision:** `docs/development/wasm-wasi-plan.md`(+PT) is promoted into `docs/development/` — the promotion is the maintainer's own act (a deliberate exception to `D-FUTURE-FREEZE`), not an agent choice.
+* **Semantics of the order (verbatim intent):** the web target of Kof becomes **WASI by default**; the desktop frontend likewise; the JS/`kofjs` target **continues to exist** and is used only when **explicitly specified**. The language **surface does not change** — one backend is added and the frontend default switches. **Total behavior parity** is required and **nothing that works today may break** (`D-QUALITY-PIPELINE`/zero-regression).
+* **Gate:** the plan is a **GATE for the 0.6.0 cut** — `D-LAB-STABILITY` now also requires the WASI-default frontend to land with the existing 4-target suite green. Tracking issue **#776** (`1.0-blocks`); ledger row added the same day (`scripts/release-blockers.tsv`).
+* **Technical shape stays as decided by `D-WASM-GO` (28/09, D-WASM-01..09):** direct backend (not a transpile chain); `Int` = i64; thrown-string unwinding; handles + handle table; native mark-sweep GC; explicit closure env; WASI preview1; wasmtime first; cooperative concurrency in v1.
+* **Ownership (`D-PLAN-ONE-OWNER`):** the promoted plan is **OPEN, unowned** — any free lane claims it in DOING with `owner = <ip>:<port>` first; the notice is recorded in DOING EN/PT + status + this entry. The issue-watcher session is DEAD, so the DOING/issue path is the notification.
+* **Suggested sequencing (measured against the tree):** `Target` enum + build plumbing (additive) → codegen slice 1 (scalar functions under wasmtime) → parity harness reusing the JVM oracle → runtime surface slices → the **frontend-default flip LAST** (it is the part that must not break what works).
+
+- **Relationships:** `Related: D-WASM-GO, D-WASM-01..09, D-FUTURE-PROMOTION, D-FUTURE-FREEZE, D-LAB-STABILITY, D-QUALITY-PIPELINE-2609, D-PLAN-ONE-OWNER, rule 6`; tracker `#776`.
+
 ## D-PAGINATION-P4-LOWERING — `orm.window` desugars in the ORM lowerer into the Kof `window(...)` helper (maintainer 29/09/2026, "P4 via (b)")
 
 **State:** DECIDED (maintainer) — unblocks pagination plan P4 under `D-PAGINATION`.
@@ -4862,3 +4875,39 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 **Boundary:** the form is decided; the FFI/backend binding, the SDL3 vendoring into the cross sysroot, and the remaining loop-semantics TBDs are NOT decided here. The graphics lane owns slice 3.1 (`D-PLAN-ONE-OWNER`); `kof.game` stays an official package (`check_stdlib_boundary` `HARD_DENY game`).
 
 **Relationships:** `Related: D-GRAPHICS-GAMING, D-GRAPHICS-SPIKE, D-MAINT-BATCH-0510/G1, D-KOF-FIRST (rule 10), rule 6`.
+
+## D-MAINT-BATCH-0610 — maintainer multiple-choice batch (06/10/2026, chat poll): 7 pending rule-6 fronts resolved
+
+**Date:** 2026-10-06 · **State:** `DECIDED` (batch) · **Evidence:** the maintainer's multiple-choice answers in the chat poll of 06/10/2026 (the poll listed the real options from the plans/issues/queues). **Effect:** the 7 fronts below are AUTHORIZED for implementation; issues stay OPEN until their owning lane lands the fix with proof. This record AUTHORIZES; it does not implement.
+
+| # | Front (option) | Unblocks / queue |
+|---|---|---|
+| A1 (loop semantics — long-frame) | **clamp of `dt`** — the loop reports the real delta but bounded by a configured ceiling (spiral-of-death guard), never an unbounded `dt` | closes the `long-frame` TBD of `D-GRAPHICS-WINDOW-FORM`; `graphics-gaming-plan` §6 |
+| A2 (loop semantics — limit) | **vsync on/off only** — no frame-rate cap; the backend's vsync is the only pacing primitive | closes the `limit` TBD; `graphics-gaming-plan` §6 |
+| A3 (loop semantics — pause/minimized/focus) | **explicit `pause()`/`resume()`; `minimized` suspends the render; losing focus does NOT pause** | closes the `pause`/`minimized`/`focus` TBDs; `graphics-gaming-plan` §6 |
+| B (#763 FFI) | **overload by signature, complete** — one C symbol bound with more than one signature, resolved by arity/types (no symbol-alias form) | slice/queue: FFI compiler surface; issue #763 (`post-1.0`) |
+| C (#753 residual / §554) | **tighten + name the handle** — refuse the builtin→builtin mismatch in `TypeChecker.isAssignable` AND make the `process.spawn`/`process.run` handle (`kof.process.Result`) nameable in source | compiler/interop lane; issue #753 residual + `known-bugs` §554 |
+| D (testing-platform) | **§4.4 parameterized tests first** — `input → expected` tables; §4.6 doubles / §5 harness follow | `kof-testing-platform-plan` §4.4 |
+| E (Q1 branch protections) | **activate now** on `testing`/`prerelease`/`stable` (no force-push + required checks) | `quality-pipeline` 14.4 (maintainer applies the GitHub settings) |
+| F (G2 FFmpeg) | **vendor the LGPL build now** — the distro's GPL build is NOT taken as-is | slice 3.4 (video); packaging/licensing owned by the graphics lane — **ORDERED 08/10 (maintainer, chat decision): vendor the upstream LGPL-2.1+ build (from source, no `--enable-gpl`); unlock 3.4 backend (FFI probe + frame readback via avcodec); the probe license must NOT be GPLv3+ before any decode lands** |
+| G (#761 contract) | **permanent — never a cut blocker** — its `1.0-blocks` category is retired to `tracking/contract`; a living contract is not an open defect | removes the structural `CUT: SLIPS` of `check_lab_stability.sh`; #761 stays OPEN by design |
+
+**Boundary:** A1–A3 freeze the remaining loop semantics of `D-GRAPHICS-WINDOW-FORM`; the `Window`/`frame` host may now land (the SDL3 stack is vendored + ABI-proven). B is a new FFI language surface (still `post-1.0`). C stays `1.0-blocks` until fixed; D is additive test infrastructure; E is a GitHub-settings action performed by the maintainer, not by an agent; F is packaging/licensing; G is a classification change that unblocks the 0.6.0 cut. Nothing here weakens the quality gate or unfreezes `future/`.
+
+**Relationships:** `Related: D-GRAPHICS-WINDOW-FORM, D-GRAPHICS-GAMING, D-MAINT-BATCH-0510, D-RELEASE-1.0, D-LAB-STABILITY, D-QUALITY-PIPELINE-2609, #761, #763, #753, rule 6`.
+
+---
+
+## D-MAINT-BATCH-0610B — maintainer multiple-choice batch (06/10/2026, second chat poll): testing-platform surfaces resolved
+
+**Date:** 2026-10-06 · **State:** `DECIDED` (batch) · **Evidence:** the maintainer's multiple-choice answers in the chat poll of 06/10/2026 (the poll listed the real options from `kof-testing-platform-plan` §4.6/§5/§6). **Effect:** the three surfaces below are AUTHORIZED for implementation; this record AUTHORIZES, it does not implement. It extends `D-MAINT-BATCH-0610`/D (§4.4 first).
+
+| # | Front (option) | Unblocks / queue |
+|---|---|---|
+| A (§4.6 test doubles) | **clock/random seams only** — inject a deterministic clock and a reproducible random source; no mock/stub/spy framework (use the real behavior when it is cheap and deterministic) | `kof-testing-platform-plan` §4.6; `kof.test` helper surface |
+| B (§5 integration harness) | **Kof library (`kof.test`)** — the harness surface lives in the Kof library (temp dir / server / db lifecycle with `try/finally` cleanup), injected flat on the explicit `import kof.test`; no Java-only surface | `kof-testing-platform-plan` §5; library-first (`D-KOF-FIRST` item 12) |
+| C (§6 browser provider) | **opt-in per project, CLI does not bundle** — Playwright/Cypress are declared per project and the CLI does not carry them (interop-first R9, no heavyweight default dependency) | `kof-testing-platform-plan` §6; provider slice |
+
+**Boundary:** all three are additive test infrastructure — no language/semantics change. A is the only surface implemented so far (`fixedClock`/`scriptedClock`/`seededRandom`); B and C are AUTHORIZED and queued. Nothing here weakens the quality gate or unfreezes `future/`.
+
+**Relationships:** `Related: D-MAINT-BATCH-0610, D-KOF-FIRST, D-TESTING-PLATFORM, rule 6, rule 12`.

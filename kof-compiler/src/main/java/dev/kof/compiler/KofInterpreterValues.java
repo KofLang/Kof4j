@@ -106,6 +106,26 @@ public final class KofInterpreterValues {
         };
     }
 
+    /**
+     * §625: comparação IEEE 754 de ponto flutuante (JVM {@code dcmpl/dcmpg}/
+     * {@code fcmpl/fcmpg}, JS). Diferente de {@link #cmpResult} sobre
+     * {@code Double.compare}/{@code Float.compare} (que ORDENAM NaN como
+     * maior), NaN é FALSO em toda comparação ordenada e verdadeiro só em
+     * {@code !=}. Usado pelo interpretador (alvo Script) para não divergir da
+     * JVM/JS.
+     */
+    static int fpCmpResult(KofBinaryOp op, double x, double y) {
+        return switch (op) {
+            case LT -> x < y ? 1 : 0;
+            case LE -> x <= y ? 1 : 0;
+            case GT -> x > y ? 1 : 0;
+            case GE -> x >= y ? 1 : 0;
+            case EQ -> x == y ? 1 : 0;
+            case NE -> x != y ? 1 : 0;
+            default -> 0;
+        };
+    }
+
     static boolean numEq(Object a, Object b) {
         if (a instanceof Number x && b instanceof Number y) {
             if (a instanceof Long || b instanceof Long) return x.longValue() == y.longValue();

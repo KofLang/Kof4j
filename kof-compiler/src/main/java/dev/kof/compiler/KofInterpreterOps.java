@@ -40,8 +40,10 @@ public final class KofInterpreterOps {
                 case MUL -> (float) (x * y);
                 case DIV -> (float) (x / y);
                 case MOD -> (float) (x % y);
-                default -> KofInterpreterValues.cmpResult(kb.op(),
-                        Float.compare((float) x, (float) y));
+                // §625: `Float.compare` ordena NaN como MAIOR que tudo, então
+                // `NaN > 1` virava true; comparação IEEE direta (NaN falso em
+                // toda ordenada), igual à JVM/JS.
+                default -> KofInterpreterValues.fpCmpResult(kb.op(), x, y);
             };
         }
         if (KofInterpreterValues.isDoubleType(t)) {
@@ -52,7 +54,8 @@ public final class KofInterpreterOps {
                 case MUL -> x * y;
                 case DIV -> x / y;
                 case MOD -> x % y;
-                default -> KofInterpreterValues.cmpResult(kb.op(), Double.compare(x, y));
+                // §625: idem Float — `Double.compare` daria `NaN > 1` true.
+                default -> KofInterpreterValues.fpCmpResult(kb.op(), x, y);
             };
         }
         if (KofInterpreterValues.isLongType(t)) {
@@ -121,14 +124,21 @@ public final class KofInterpreterOps {
         }
         if (KofInterpreterValues.isFloatType(t) || KofInterpreterValues.isDoubleType(t)) {
             double x = ((Number) a).doubleValue(), y = ((Number) b).doubleValue();
-            if (cmp == KofComparison.EQ || cmp == KofComparison.NE) {
-                boolean eq = x == y;
-                return cmp == KofComparison.EQ ? eq : !eq;
-            }
-            int c = Double.compare(x, y);
+            // IEEE 754 (JVM dcmp*/JS): NaN é FALSO em toda comparação ordenada
+            // (<, <=, >, >=) e `!=` é verdadeiro. `Double.compare` NÃO serve:
+            // ele ordena NaN como MAIOR que tudo (`Double.compare(NaN,1)==1`),
+            // então `NaN > 1` virava true no Script (divergência vs JVM/JS,
+            // known-bugs §626). §627: EQ/NE NÃO eram tratados acima — o valor
+            // `KofBinary(EQ/NE)` usa o caminho `binary` (numEq), mas um `if`
+            // sobre `a != b` cai AQUI (salto condicional) e o `default -> false`
+            // fazia `assertEqualDouble(1.5,2.5)` nunca lançar no Script.
             return switch (cmp) {
-                case EQ -> c == 0; case NE -> c != 0; case LT -> c < 0;
-                case LE -> c <= 0; case GT -> c > 0; case GE -> c >= 0;
+                case EQ -> x == y;
+                case NE -> x != y;
+                case LT -> x < y;
+                case LE -> x <= y;
+                case GT -> x > y;
+                case GE -> x >= y;
             };
         }
         int x = KofInterpreter.unboxInt(a), y = KofInterpreter.unboxInt(b);

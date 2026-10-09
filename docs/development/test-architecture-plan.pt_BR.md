@@ -10,9 +10,9 @@ arquivos `*Test.java` sem camadas/harness; o plano está em andamento. **Pousado
 Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`),
 Fase 2 auditoria de descoberta (`scripts/test-suite-audit.sh`) e Fase 2 **ratchet**
 (`scripts/check_test_hygiene.sh` sobre o baseline congelado
-`scripts/test-hygiene-baseline.txt`, **119 chaves, rc=0** — 132 na medição de
+`scripts/test-hygiene-baseline.txt`, **118 chaves, rc=0** — 132 na medição de
 30/09, apertado pela extração da Fase 3 de 02/10; a cabeça da Fase 3 com 0 citações está esgotada, o próximo candidato tem 10 citações
-de doc, e o cluster `dupname` restante exigia o harness da Fase 5; as fatias da Fase 5 de 03/10–05/10 apertaram `jvmOracle` 131→130, `stopServer` 130→129, `assertRuns` 129→128, `runScript` 128→127, `runKof` 127→126, `assertBoth` 126→125, `copyLibrary` 125→124, `runBoth` 124→123, `runAll3` 123→122, `assumeToolchain` 122→121, `assumeAarch64` 121→120 e `assumeCross` 120→119). **Fatia quick-win 1 (28/09):**
+de doc, e o cluster `dupname` restante exigia o harness da Fase 5; as fatias da Fase 5 de 03/10–08/10 apertaram `jvmOracle` 131→130, `stopServer` 130→129, `assertRuns` 129→128, `runScript` 128→127, `runKof` 127→126, `assertBoth` 126→125, `copyLibrary` 125→124, `runBoth` 124→123, `runAll3` 123→122, `assumeToolchain` 122→121, `assumeAarch64` 121→120, `assumeCross` 120→119 e `runQemu` 119→118). **Fatia quick-win 1 (28/09):**
 removida a chave `Thread.sleep` falso-positiva (menção só em comentário no
 `AsyncSleepJsE2ETest`) e o settle redundante pós-`startServer` no
 `KofWebHardeningTest` (o probe de readiness de porta já garante o bind).
@@ -766,6 +766,20 @@ chaves `dupname` **eliminadas** — baseline re-congelada 121→**119**. A chave
 `dupname startServer` anterior (do helper do `KofHttpErrorContractE2ETest` do
 #756) também foi limpa ao renomeá-lo `startContractServer`.
 
+**Fatia 14 da Fase 5 ENTREGUE (08/10, lane compiler/JVM/native `192.168.15.30:9092`):**
+o cluster `dupname` `runQemu` — seis classes (`KofUuidTest`, `KofStringsSupport`,
+`KofValidationSupport`, `KofStringsIndentDedentTest`, `KofTimeE2ETest`,
+`KofRandomTest`) declaravam cada uma um helper equivalente byte a byte que compila
+uma fonte Kof para um alvo cross e roda o binário sob QEMU, afirmando exit 0. O
+helper agora vive uma vez numa nova interface `QemuRunSupport` (um método `default`
+sobre um acessor abstrato `driver()`), que estende `NativeToolchainAssumptions`; as
+seis classes a implementam e suas cópias locais são removidas. Os três pontos de
+chamada do `KofRandomTest` passam o nome do arch do qemu explicitamente
+(`qemu-riscv64`/`qemu-aarch64`), alinhando com as outras cinco. Nenhum corpo de
+teste, alvo ou asserção mudou. Prova: as seis baterias afetadas **151 rodados / 0F /
+0E**; `check_test_hygiene` rc=0 com `dupname runQemu` **eliminada** — baseline
+re-congelada 119→**118**.
+
 ### Fase 6 — Conformance
 
 Criar suíte oficial de equivalência.
@@ -870,6 +884,37 @@ real de divergência) e `concurrency-spawn-await` (`val h = spawn f(n)` com
 contrato congelado de `spawn`/`await` nos quatro alvos). Ambos validados nos quatro
 alvos, mais riscv64/aarch64 sob qemu na autoria. Prova (executada):
 `tests/run-golden.sh` **132/132** (33 casos × 4 alvos), exit 0.
+
+**Fatia 9 da Fase 6 ENTREGUE (06/10):** mais um caso — **34 no total** — pinando o
+contrato de `return`-através-de-`finally` que o SIGSEGV nativo do §613 expôs:
+`finally-return` (`return` dentro do `try` E dentro do `catch` de um
+`try/catch/finally`, com o `finally` rodando nos dois caminhos — a forma exata do
+`known-bugs` §613). Validado nos quatro alvos. Prova (executada):
+`tests/run-golden.sh` **136/136** (34 casos × 4 alvos), exit 0.
+
+**Fatia 10 da Fase 6 ENTREGUE (06/10):** mais um caso — **35 no total** — pinando as
+duas faces de conclusão abrupta do `try/finally` que a varredura da fatia 9 da Fase 6
+catalogou como `known-bugs` §617, agora CORRIGIDO: `finally-control-flow` combina um
+`break`/`continue` saindo de um `try` (o finally DEVE rodar antes do salto) com um
+`try/finally` aninhado cujo try interno `return`a (o finally externo roda, o valor
+interno sobrevive). Validado nos quatro alvos; adicionalmente rodado em
+riscv64/aarch64 sob qemu na autoria. Prova (executada):
+`tests/run-golden.sh` **140/140** (35 casos × 4 alvos), exit 0.
+
+**Fatia 11 da Fase 6 ENTREGUE (08/10, lane compiler/JVM/native `192.168.15.30:9092`):** mais
+um caso — **36 no total** — pinando as superfícies de consulta/ordem superior de
+`List` que o caso `pipelines` deixou de fora: `list-higher-order` exercita
+`reduce(lambda, seed)` (forma com seed; `SEM073` se omitida),
+`indexOf`/`lastIndexOf` (`-1` quando ausente), `isEmpty`, `none(pred)`,
+`find(pred)` (o primeiro match), `slice(off, len)`/`take(n)`/`drop(n)` (cópias
+materializadas, clampadas), `groupBy` (`Map<K, List<E>>`), `flatMap` (lista
+achatada), `sort()` in place, `addAll`, `subList`, `remove` e
+`sorted(comparator)` com comparador descendente. A face `zip` fica
+deliberadamente de FORA: é o gap nativo documentado `NAT008` (um elemento
+primitivo cruza um parâmetro de tipo nu), então um caso golden que exige os
+quatro alvos não pode piná-lo — a recusa É o contrato. Validado nos quatro
+alvos. Prova (executada): `tests/run-golden.sh` **144/144** (36 casos × 4
+alvos), exit 0.
 
 ### Fase 7 — Integração
 
@@ -994,7 +1039,7 @@ Antes de qualquer refatoração profunda, o caminho é:
 3. procurar duplicações (Fase 2 — descoberta + ratchet POUSADAS:
    `scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`; trabalho =
    encolher `scripts/test-hygiene-baseline.txt` via remoções quick-win — autoridade
-   atual = **119** chaves não-comentário, por `scripts/test-hygiene-baseline.txt`);
+   atual = **118** chaves não-comentário, por `scripts/test-hygiene-baseline.txt`);
 4. propor modularização (Fase 3 — iniciada: `--citations` mede o custo de divisão por classe
    oversized e a regra de drift está fixada; quatro divisões landadas = `KofSetEqualitySupport`
    do `KofSetEqualityTest` (21/21 mantidos), `KofMathSupport` do `KofMathTest` (29/29 mantidos),
@@ -1019,4 +1064,4 @@ Antes de qualquer refatoração profunda, o caminho é:
 
 **Importante:** essa refatoração não deve interferir em nada no compilador. É
 puramente de infraestrutura de testes (regra de ouro). A frente está aberta
-(`D-TEST-ARCHITECTURE-GO`); as Fases 1–4 estão CONCLUÍDAS (oversized 43→18; ratchet do harness 146→119, zero pares idênticos restantes). **A Fase 5 agora está AUTORIZADA e treze fatias ENTREGUES** (`D-TEST-ARCHITECTURE-PHASES`, mantenedora 03/10 — `NativeCrossSupport` 54/54, `NativeIoJvmOracleSupport` (chave `jvmOracle` eliminada), `TargetGapRefusalSupport`, `ServerProcessSupport` (chave `stopServer` eliminada, 118/118), `JvmRunSupport` (chave `assertRuns` eliminada, 38/38), `MultiSourceRunSupport` (chave `runScript` eliminada, 47/47) `KofmdRunSupport` (chave `runKof` eliminada, 19/19) `JsParityRunSupport` (chave `assertBoth` eliminada, 18/18) `LibraryInstallSupport` (chave `copyLibrary` eliminada, 268/268), `JvmJsRunSupport` (chave `runBoth` eliminada, 126/126), a consolidação `runAll3` em `NullablePrimitiveContractSupport` (43/43), `NativeToolchainAssumptions` (chave `assumeToolchain` eliminada, 342/342) e a limpeza `assumeAarch64`+`assumeCross` (121→119, 74/74)); as Fases 5–7 seguem trabalho aberto, com o cluster `main` confirmado falso-positivo (`main()` Kof dentro de text blocks de fonte de teste) e a primeira fatia da Fase 6 já ENTREGUE.
+(`D-TEST-ARCHITECTURE-GO`); as Fases 1–4 estão CONCLUÍDAS (oversized 43→18; ratchet do harness 146→119, zero pares idênticos restantes). **A Fase 5 agora está AUTORIZADA e quatorze fatias ENTREGUES** (`D-TEST-ARCHITECTURE-PHASES`, mantenedora 03/10 — `NativeCrossSupport` 54/54, `NativeIoJvmOracleSupport` (chave `jvmOracle` eliminada), `TargetGapRefusalSupport`, `ServerProcessSupport` (chave `stopServer` eliminada, 118/118), `JvmRunSupport` (chave `assertRuns` eliminada, 38/38), `MultiSourceRunSupport` (chave `runScript` eliminada, 47/47) `KofmdRunSupport` (chave `runKof` eliminada, 19/19) `JsParityRunSupport` (chave `assertBoth` eliminada, 18/18) `LibraryInstallSupport` (chave `copyLibrary` eliminada, 268/268), `JvmJsRunSupport` (chave `runBoth` eliminada, 126/126), a consolidação `runAll3` em `NullablePrimitiveContractSupport` (43/43), `NativeToolchainAssumptions` (chave `assumeToolchain` eliminada, 342/342), a limpeza `assumeAarch64`+`assumeCross` (121→119, 74/74) e `QemuRunSupport` (chave `runQemu` eliminada, 151/151, 119→118)); as Fases 5–7 seguem trabalho aberto, com o cluster `main` confirmado falso-positivo (`main()` Kof dentro de text blocks de fonte de teste) e a primeira fatia da Fase 6 já ENTREGUE.

@@ -62,6 +62,37 @@ class NativeAarch64TranslatorAluTest {
         assertTrue(tr("    sra a1, a2, a3").contains("asr x1, x2, x3"), "sra -> asr");
     }
 
+    /**
+     * §631: `amoswap.w` é 32-bit (o lock do allocator é `.word`). A tradução
+     * anterior usava registradores X (`swpal x`) = 64-bit, sobrescrevendo os
+     * 4 bytes vizinhos do lock. O contrato é a LARGURA: `swpal w`.
+     */
+    @Test
+    void amoswapWordBecomesSwpalWithWRegisters() {
+        String out = tr("    amoswap.w t1, t0, (s1)");
+        assertTrue(out.contains("swpal w9, w10, [x20]"), "amoswap.w -> swpal w (32-bit): " + out);
+        assertFalse(out.contains("swpal x"), "nunca a forma X (64-bit): " + out);
+    }
+
+    /**
+     * ABI: no RISC-V `s10` é callee-saved (sobrevive a `call`); no aarch64 o
+     * equivalente só pode ser um registrador callee-saved. O mapa anterior
+     * apontava `s10 -> x16` (caller-saved / IP0), então um valor mantido em
+     * `s10` através de um `call` podia ser destruído pelo callee — e o
+     * `kof_gc_mark` derramava `x18` (vazio) em vez do registrador real,
+     * escondendo o ponteiro vivo do coletor. `x18` é callee-saved no Linux e
+     * não era usado por nenhum outro caminho do tradutor.
+     */
+    @Test
+    void s10MapsToCalleeSavedRegister() {
+        String spill = tr("    sd s10, 32(sp)");
+        assertTrue(spill.contains("str x18, [sp, #32]"), "s10 -> x18 (callee-saved): " + spill);
+        assertFalse(spill.contains("x16"), "s10 nunca em x16 (caller-saved/IP0): " + spill);
+        String use = tr("    mv s10, a0");
+        assertTrue(use.contains("mov x18, x0"), "mv s10 -> mov x18: " + use);
+        assertFalse(use.contains("x16"), "mv s10 nunca em x16: " + use);
+    }
+
     /** Camada forte: o `as` aarch64 REAL aceita o texto traduzido (não basta a string). */
     @Test
     void translatedMnemonicsAssembleWithAarch64As(@TempDir Path dir) throws IOException {
@@ -75,8 +106,12 @@ class NativeAarch64TranslatorAluTest {
                 "    sll a1, a2, a3",
                 "    srl a1, a2, a3",
                 "    sra a1, a2, a3",
+                "    amoswap.w a1, a2, (a3)",
                 "    ret");
         StringBuilder asm = new StringBuilder();
+        // §631: o emissor real abre o .s com `.arch armv8.1-a` (habilita LSE,
+        // ex. `swpal`); o probe precisa do mesmo para o `as` aceitar o atômico.
+        asm.append(".arch armv8.1-a\n");
         for (String line : riscv) {
             for (String t : NativeAarch64Translator.translateRiscvToAarch64(line)) asm.append(t).append('\n');
         }

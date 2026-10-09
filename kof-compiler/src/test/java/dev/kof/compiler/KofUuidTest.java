@@ -5,9 +5,14 @@ import org.junit.jupiter.api.io.TempDir;
 import java.nio.file.*;
 import static org.junit.jupiter.api.Assertions.*;
 
-class KofUuidTest implements NativeToolchainAssumptions {
+class KofUuidTest implements QemuRunSupport {
 
     private final CompilerDriver driver = new CompilerDriver();
+
+    @Override
+    public CompilerDriver driver() {
+        return driver;
+    }
 
     @Test
     void uuidV4Jvm(@TempDir Path tmp) throws Exception {
@@ -313,20 +318,6 @@ class KofUuidTest implements NativeToolchainAssumptions {
                 println("ok")
             }
             """);
-    }
-
-    private void runQemu(Path tempDir, Target target, String qemu, String source) throws Exception {
-        Path file = tempDir.resolve("Main-" + System.nanoTime() + ".kf");
-        Files.writeString(file, source);
-        Path out = tempDir.resolve("out-" + System.nanoTime());
-        CompilationResult r = driver.compile(file, out, target);
-        assertTrue(r.success(), target + " compile: " + r.diagnostics().getDiagnostics());
-        Process p = NativeRiscv64E2ETest.qemu(qemu.substring(5), out.resolve("Default/Main"))
-                .redirectErrorStream(true).start();
-        String o = new String(p.getInputStream().readAllBytes(),
-                java.nio.charset.StandardCharsets.UTF_8).trim();
-        int ec = p.waitFor();
-        assertEquals(0, ec, target + " qemu exit " + ec + ", out: " + o);
     }
 
     private String runJvm(Path tempDir, String source, String expected) throws Exception {
