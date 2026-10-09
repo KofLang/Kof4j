@@ -10,9 +10,9 @@ arquivos `*Test.java` sem camadas/harness; o plano está em andamento. **Pousado
 Fase 1 profiling (`scripts/test-suite-profile.sh` + `docs/testing/TEST-PERFORMANCE.md`),
 Fase 2 auditoria de descoberta (`scripts/test-suite-audit.sh`) e Fase 2 **ratchet**
 (`scripts/check_test_hygiene.sh` sobre o baseline congelado
-`scripts/test-hygiene-baseline.txt`, **118 chaves, rc=0** — 132 na medição de
+`scripts/test-hygiene-baseline.txt`, **117 chaves, rc=0** — 132 na medição de
 30/09, apertado pela extração da Fase 3 de 02/10; a cabeça da Fase 3 com 0 citações está esgotada, o próximo candidato tem 10 citações
-de doc, e o cluster `dupname` restante exigia o harness da Fase 5; as fatias da Fase 5 de 03/10–08/10 apertaram `jvmOracle` 131→130, `stopServer` 130→129, `assertRuns` 129→128, `runScript` 128→127, `runKof` 127→126, `assertBoth` 126→125, `copyLibrary` 125→124, `runBoth` 124→123, `runAll3` 123→122, `assumeToolchain` 122→121, `assumeAarch64` 121→120, `assumeCross` 120→119 e `runQemu` 119→118). **Fatia quick-win 1 (28/09):**
+de doc, e o cluster `dupname` restante exigia o harness da Fase 5; as fatias da Fase 5 de 03/10–08/10 apertaram `jvmOracle` 131→130, `stopServer` 130→129, `assertRuns` 129→128, `runScript` 128→127, `runKof` 127→126, `assertBoth` 126→125, `copyLibrary` 125→124, `runBoth` 124→123, `runAll3` 123→122, `assumeToolchain` 122→121, `assumeAarch64` 121→120, `assumeCross` 120→119, `runQemu` 119→118 e `runQemuE` 118→117). **Fatia quick-win 1 (28/09):**
 removida a chave `Thread.sleep` falso-positiva (menção só em comentário no
 `AsyncSleepJsE2ETest`) e o settle redundante pós-`startServer` no
 `KofWebHardeningTest` (o probe de readiness de porta já garante o bind).
@@ -780,6 +780,18 @@ teste, alvo ou asserção mudou. Prova: as seis baterias afetadas **151 rodados 
 0E**; `check_test_hygiene` rc=0 com `dupname runQemu` **eliminada** — baseline
 re-congelada 119→**118**.
 
+**Fatia 15 da Fase 5 ENTREGUE (08/10, lane compilador/JVM/nativo `192.168.15.30:9092`):**
+o cluster `dupname` `runQemuE` — `KofNetTest` e `KofEncodingTest` declaravam cada
+uma um helper equivalente byte a byte que compila uma fonte Kof para um alvo cross,
+roda o binário sob QEMU e afirma que o stdout é igual ao oráculo JVM (um superconjunto
+do `runQemu`, que só afirma exit 0). O helper agora vive uma vez como um segundo
+método `default` na interface `QemuRunSupport` existente; as duas classes a
+implementam (adicionando o acessor `driver()` sobre o campo existente) e suas cópias
+locais são removidas. Nenhum corpo de teste, alvo ou asserção mudou. Prova: as duas
+baterias afetadas **18 rodados / 0F / 0E / 0 pulados** (as pernas cross riscv64+aarch64
+realmente executaram); `check_test_hygiene` rc=0 com `dupname runQemuE` **eliminada** —
+baseline re-congelada 118→**117**.
+
 ### Fase 6 — Conformance
 
 Criar suíte oficial de equivalência.
@@ -1039,7 +1051,7 @@ Antes de qualquer refatoração profunda, o caminho é:
 3. procurar duplicações (Fase 2 — descoberta + ratchet POUSADAS:
    `scripts/test-suite-audit.sh` + `scripts/check_test_hygiene.sh`; trabalho =
    encolher `scripts/test-hygiene-baseline.txt` via remoções quick-win — autoridade
-   atual = **118** chaves não-comentário, por `scripts/test-hygiene-baseline.txt`);
+   atual = **117** chaves não-comentário, por `scripts/test-hygiene-baseline.txt`);
 4. propor modularização (Fase 3 — iniciada: `--citations` mede o custo de divisão por classe
    oversized e a regra de drift está fixada; quatro divisões landadas = `KofSetEqualitySupport`
    do `KofSetEqualityTest` (21/21 mantidos), `KofMathSupport` do `KofMathTest` (29/29 mantidos),
@@ -1064,4 +1076,4 @@ Antes de qualquer refatoração profunda, o caminho é:
 
 **Importante:** essa refatoração não deve interferir em nada no compilador. É
 puramente de infraestrutura de testes (regra de ouro). A frente está aberta
-(`D-TEST-ARCHITECTURE-GO`); as Fases 1–4 estão CONCLUÍDAS (oversized 43→18; ratchet do harness 146→119, zero pares idênticos restantes). **A Fase 5 agora está AUTORIZADA e quatorze fatias ENTREGUES** (`D-TEST-ARCHITECTURE-PHASES`, mantenedora 03/10 — `NativeCrossSupport` 54/54, `NativeIoJvmOracleSupport` (chave `jvmOracle` eliminada), `TargetGapRefusalSupport`, `ServerProcessSupport` (chave `stopServer` eliminada, 118/118), `JvmRunSupport` (chave `assertRuns` eliminada, 38/38), `MultiSourceRunSupport` (chave `runScript` eliminada, 47/47) `KofmdRunSupport` (chave `runKof` eliminada, 19/19) `JsParityRunSupport` (chave `assertBoth` eliminada, 18/18) `LibraryInstallSupport` (chave `copyLibrary` eliminada, 268/268), `JvmJsRunSupport` (chave `runBoth` eliminada, 126/126), a consolidação `runAll3` em `NullablePrimitiveContractSupport` (43/43), `NativeToolchainAssumptions` (chave `assumeToolchain` eliminada, 342/342), a limpeza `assumeAarch64`+`assumeCross` (121→119, 74/74) e `QemuRunSupport` (chave `runQemu` eliminada, 151/151, 119→118)); as Fases 5–7 seguem trabalho aberto, com o cluster `main` confirmado falso-positivo (`main()` Kof dentro de text blocks de fonte de teste) e a primeira fatia da Fase 6 já ENTREGUE.
+(`D-TEST-ARCHITECTURE-GO`); as Fases 1–4 estão CONCLUÍDAS (oversized 43→18; ratchet do harness 146→119, zero pares idênticos restantes). **A Fase 5 agora está AUTORIZADA e quinze fatias ENTREGUES** (`D-TEST-ARCHITECTURE-PHASES`, mantenedora 03/10 — `NativeCrossSupport` 54/54, `NativeIoJvmOracleSupport` (chave `jvmOracle` eliminada), `TargetGapRefusalSupport`, `ServerProcessSupport` (chave `stopServer` eliminada, 118/118), `JvmRunSupport` (chave `assertRuns` eliminada, 38/38), `MultiSourceRunSupport` (chave `runScript` eliminada, 47/47) `KofmdRunSupport` (chave `runKof` eliminada, 19/19) `JsParityRunSupport` (chave `assertBoth` eliminada, 18/18) `LibraryInstallSupport` (chave `copyLibrary` eliminada, 268/268), `JvmJsRunSupport` (chave `runBoth` eliminada, 126/126), a consolidação `runAll3` em `NullablePrimitiveContractSupport` (43/43), `NativeToolchainAssumptions` (chave `assumeToolchain` eliminada, 342/342), a limpeza `assumeAarch64`+`assumeCross` (121→119, 74/74), `QemuRunSupport` (chave `runQemu` eliminada, 151/151, 119→118) e a consolidação `runQemuE` em `QemuRunSupport` (18/18, 118→117)); as Fases 5–7 seguem trabalho aberto, com o cluster `main` confirmado falso-positivo (`main()` Kof dentro de text blocks de fonte de teste) e a primeira fatia da Fase 6 já ENTREGUE.

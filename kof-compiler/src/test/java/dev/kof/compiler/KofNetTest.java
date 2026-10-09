@@ -6,9 +6,14 @@ import java.nio.file.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /** STDLIB S8 — kof.net (6 campos escalares de URI v1 + fachada query*). */
-class KofNetTest implements NativeToolchainAssumptions {
+class KofNetTest implements QemuRunSupport {
 
     private final CompilerDriver driver = new CompilerDriver();
+
+    @Override
+    public CompilerDriver driver() {
+        return driver;
+    }
 
     private static final String SRC = """
             String ufields(String s) {
@@ -107,20 +112,5 @@ class KofNetTest implements NativeToolchainAssumptions {
         runQemuE(tmp, Target.NATIVE_RISCV64, "qemu-riscv64", SRC, EXPECTED);
         assumeToolchain("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64");
         runQemuE(tmp, Target.NATIVE_AARCH64, "qemu-aarch64", SRC, EXPECTED);
-    }
-
-    private void runQemuE(Path tempDir, Target target, String qemu, String source,
-                          String expected) throws Exception {
-        Path file = tempDir.resolve("Main-" + System.nanoTime() + ".kf");
-        Files.writeString(file, source);
-        Path out = tempDir.resolve("out-" + System.nanoTime());
-        CompilationResult r = driver.compile(file, out, target);
-        assertTrue(r.success(), target + " compile: " + r.diagnostics().getDiagnostics());
-        Process p = NativeRiscv64E2ETest.qemu(qemu.substring(5), out.resolve("Default/Main"))
-                .redirectErrorStream(true).start();
-        String o = new String(p.getInputStream().readAllBytes(),
-                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
-        assertEquals(0, p.waitFor());
-        assertEquals(expected, o, target + " output");
     }
 }
